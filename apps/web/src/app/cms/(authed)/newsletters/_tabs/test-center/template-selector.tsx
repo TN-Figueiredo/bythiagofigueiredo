@@ -11,10 +11,18 @@ interface TemplateSelectorProps {
   hasEditions: boolean
 }
 
-export const TEMPLATE_LABELS: Record<TemplateName, string> = {
-  confirm: 'Confirm',
-  welcome: 'Welcome',
-  edition: 'Edition',
+const TEMPLATES: TemplateName[] = ['confirm', 'welcome', 'edition']
+
+function getTemplateLabel(id: TemplateName, strings: NewsletterHubStrings['testCenter']): string {
+  switch (id) {
+    case 'confirm': return strings.templateConfirm
+    case 'welcome': return strings.templateWelcome
+    case 'edition': return strings.templateEdition
+  }
+}
+
+export function getTemplateLabelExported(id: TemplateName, strings: NewsletterHubStrings['testCenter']): string {
+  return getTemplateLabel(id, strings)
 }
 
 export function TemplateSelector({ selected, onChange, strings, hasEditions }: TemplateSelectorProps) {
@@ -24,13 +32,13 @@ export function TemplateSelector({ selected, onChange, strings, hasEditions }: T
         {strings.template}
       </label>
       <div role="radiogroup" aria-label="Email template" className="flex flex-row gap-1.5 lg:flex-col">
-        {(['confirm', 'welcome', 'edition'] as const).map((id) => (
+        {TEMPLATES.map((id) => (
           <button
             key={id}
             role="radio"
             aria-checked={selected === id}
-            onClick={() => onChange(id)}
-            disabled={id === 'edition' && !hasEditions}
+            aria-disabled={id === 'edition' && !hasEditions ? true : undefined}
+            onClick={() => { if (!(id === 'edition' && !hasEditions)) onChange(id) }}
             className={`w-full rounded-md border px-3 py-2 text-left text-xs transition-colors ${
               selected === id
                 ? 'bg-indigo-500/15 border-indigo-500/30 text-indigo-400 font-medium'
@@ -40,7 +48,7 @@ export function TemplateSelector({ selected, onChange, strings, hasEditions }: T
             }`}
             title={id === 'edition' && !hasEditions ? strings.noEditions : undefined}
           >
-            {TEMPLATE_LABELS[id]}
+            {getTemplateLabel(id, strings)}
           </button>
         ))}
       </div>

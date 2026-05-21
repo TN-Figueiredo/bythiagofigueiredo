@@ -6,6 +6,7 @@ import type { CookieOptions } from '@supabase/ssr'
 import { render } from '@react-email/render'
 import { ConfirmEmail } from '@/emails/confirm'
 import { WelcomeEmail } from '@/emails/welcome'
+import { Newsletter } from '@/emails/newsletter'
 import { getEmailService } from '@/lib/email/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
@@ -98,9 +99,66 @@ function getMockUrls() {
   const base = process.env.NEXT_PUBLIC_APP_URL ?? 'https://bythiagofigueiredo.com'
   return {
     confirm: `${base}/newsletter/confirm/test-token-123`,
-    unsubscribe: `${base}/newsletter/unsubscribe`,
+    unsubscribe: `${base}/unsubscribe/mock-token-test`,
     archive: `${base}/newsletter`,
   }
+}
+
+function getMockEditionContent(locale: 'en' | 'pt-BR'): string {
+  if (locale === 'pt-BR') {
+    return `
+<h1>Título da Edição de Exemplo</h1>
+<p>Este é um <strong>preview de exemplo</strong> para testar o sistema visual da newsletter. Ele exercita todos os elementos que seu editor pode produzir — cabeçalhos, parágrafos, listas, citações, links e separadores.</p>
+
+<h2>O que você vai encontrar</h2>
+<p>Cada edição traz uma curadoria de <em>conteúdo relevante</em> para manter você atualizado. Aqui está um exemplo do que esperar:</p>
+<ul>
+<li><strong>Análises aprofundadas</strong> — mergulhos em temas que importam</li>
+<li><strong>Links selecionados</strong> — o melhor da semana, filtrado pra você</li>
+<li><strong>Notas rápidas</strong> — atualizações curtas e diretas</li>
+</ul>
+
+<blockquote><p>"A melhor forma de prever o futuro é criá-lo." — Peter Drucker</p></blockquote>
+
+<h3>Seção com detalhes</h3>
+<p>Este parágrafo testa <a href="https://example.com">links inline</a>, texto em <strong>negrito</strong>, <em>itálico</em> e <code>código inline</code> para garantir que a estilização esteja correta em todos os clientes de email.</p>
+<ol>
+<li>Primeiro item numerado</li>
+<li>Segundo item numerado</li>
+<li>Terceiro item numerado</li>
+</ol>
+
+<hr>
+
+<p>Se este preview está bonito, seu sistema visual está funcionando perfeitamente. ✌️</p>
+`.trim()
+  }
+  return `
+<h1>Sample Edition Title</h1>
+<p>This is a <strong>sample preview</strong> to test the newsletter visual system. It exercises all elements your editor can produce — headings, paragraphs, lists, blockquotes, links, and dividers.</p>
+
+<h2>What you'll find</h2>
+<p>Each edition brings a curated set of <em>relevant content</em> to keep you up to date. Here's an example of what to expect:</p>
+<ul>
+<li><strong>Deep dives</strong> — long-form analysis on topics that matter</li>
+<li><strong>Curated links</strong> — the best of the week, filtered for you</li>
+<li><strong>Quick notes</strong> — short, direct updates</li>
+</ul>
+
+<blockquote><p>"The best way to predict the future is to create it." — Peter Drucker</p></blockquote>
+
+<h3>Section with details</h3>
+<p>This paragraph tests <a href="https://example.com">inline links</a>, <strong>bold</strong>, <em>italic</em>, and <code>inline code</code> to ensure styling is correct across all email clients.</p>
+<ol>
+<li>First numbered item</li>
+<li>Second numbered item</li>
+<li>Third numbered item</li>
+</ol>
+
+<hr>
+
+<p>If this preview looks good, your visual system is working perfectly. ✌️</p>
+`.trim()
 }
 
 const CONFIRM_SUBJECTS: Record<string, string> = {
@@ -158,14 +216,29 @@ export async function renderTestTemplate(
     }
 
     case 'edition': {
-      if (!opts?.editionId) {
-        return { ok: false, error: 'edition_id_required' }
+      if (opts?.editionId) {
+        const { renderEmailPreview } = await import('./actions')
+        const result = await renderEmailPreview(opts.editionId)
+        if (!result.ok) return result
+        const sizeBytes = Buffer.byteLength(result.html, 'utf-8')
+        return { ok: true, html: result.html, sizeBytes }
       }
-      const { renderEmailPreview } = await import('./actions')
-      const result = await renderEmailPreview(opts.editionId)
-      if (!result.ok) return result
-      const sizeBytes = Buffer.byteLength(result.html, 'utf-8')
-      return { ok: true, html: result.html, sizeBytes }
+      const mockHtml = getMockEditionContent(locale)
+      const typeColor = '#FF8240'
+      const html = await render(
+        Newsletter({
+          subject: locale === 'pt-BR' ? 'Preview de exemplo' : 'Sample preview',
+          preheader: locale === 'pt-BR' ? 'Visualize o sistema visual da newsletter' : 'Preview the newsletter visual system',
+          contentHtml: mockHtml,
+          typeName: locale === 'pt-BR' ? 'Exemplo' : 'Sample',
+          typeColor,
+          unsubscribeUrl: `${getMockUrls().unsubscribe}`,
+          archiveUrl: `${getMockUrls().archive}`,
+          locale,
+        }),
+      )
+      const sizeBytes = Buffer.byteLength(html, 'utf-8')
+      return { ok: true, html, sizeBytes }
     }
 
     default:
@@ -175,10 +248,12 @@ export async function renderTestTemplate(
 
 // ─── sendTestTemplate ──────────────────────────────────────────────────────
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
 export async function sendTestTemplate(
   template: TestTemplate,
   locale: 'en' | 'pt-BR',
-  opts?: { editionId?: string },
+  opts?: { editionId?: string; toEmail?: string },
 ): Promise<SendResult> {
   const ctx = await getSiteContext()
   const authRes = await requireSiteScope({ area: 'cms', siteId: ctx.siteId, mode: 'edit' })
@@ -186,11 +261,14 @@ export async function sendTestTemplate(
     return { ok: false, error: authRes.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden' }
   }
 
-  // Get user email from session
   const userClient = await getUserClient()
   const { data: { user } } = await userClient.auth.getUser()
-  if (!user?.email) return { ok: false, error: 'no_user_email' }
-  const toEmail = user.email
+  if (!user?.id) return { ok: false, error: 'no_user_email' }
+
+  const customEmail = opts?.toEmail?.trim()
+  if (customEmail && !EMAIL_RE.test(customEmail)) return { ok: false, error: 'invalid_email' }
+  const toEmail = customEmail || user.email
+  if (!toEmail) return { ok: false, error: 'no_user_email' }
 
   // Rate limit check
   const userId = user.id
@@ -211,7 +289,6 @@ export async function sendTestTemplate(
       subject = `[TEST] ${WELCOME_SUBJECTS[locale] ?? WELCOME_SUBJECTS.en}`
       break
     case 'edition': {
-      // For edition, we need to fetch the actual subject from DB
       if (opts?.editionId) {
         const { getSupabaseServiceClient } = await import('@/lib/supabase/service')
         const supabase = getSupabaseServiceClient()
@@ -219,6 +296,7 @@ export async function sendTestTemplate(
           .from('newsletter_editions')
           .select('subject')
           .eq('id', opts.editionId)
+          .eq('site_id', ctx.siteId)
           .single()
         subject = `[TEST] ${edition?.subject ?? 'Newsletter'}`
       } else {
@@ -243,7 +321,7 @@ export async function sendTestTemplate(
       html: renderResult.html,
     })
   } catch (err) {
-    console.error('[test-center] email send failed:', err)
+    console.error('[test-center] email send failed:', err instanceof Error ? err.message : 'unknown')
     return { ok: false, error: 'email_send_failed' }
   }
 

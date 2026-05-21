@@ -1,12 +1,10 @@
+// @vitest-environment node
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // ─── Mock Supabase builder ──────────────────────────────────────────────────
 
-let mockSupabaseData: Record<string, unknown> = {}
-
 function createMockSupabase(overrides: Record<string, unknown> = {}) {
   const row = { id: 'ed-1', subject: 'Test Edition', status: 'draft', site_id: 'site-1', ...overrides }
-  mockSupabaseData = row
 
   function makeChain() {
     let useSingle = false
@@ -40,7 +38,7 @@ function createMockSupabase(overrides: Record<string, unknown> = {}) {
 
 let mockSupabase = createMockSupabase()
 
-// ─── Module mocks ───────────────────────────────────────────────────────────
+// ─── Module mocks (infrastructure only — rendering is REAL) ─────────────────
 
 vi.mock('@/lib/supabase/service', () => ({
   getSupabaseServiceClient: () => mockSupabase,
@@ -73,7 +71,6 @@ vi.mock('next/headers', () => ({
     }),
 }))
 
-// Default: user with email
 let mockUserEmail: string | null = 'admin@test.com'
 let mockUserId: string | null = 'user-1'
 
@@ -92,62 +89,38 @@ vi.mock('@supabase/ssr', () => ({
   }),
 }))
 
-// Mock @react-email/render
-const mockRender = vi.fn().mockResolvedValue('<html><body>rendered email</body></html>')
-vi.mock('@react-email/render', () => ({
-  render: (...args: unknown[]) => mockRender(...args),
-}))
-
-// Mock email templates
-vi.mock('@/emails/confirm', () => ({
-  ConfirmEmail: vi.fn().mockReturnValue('confirm-element'),
-}))
-
-vi.mock('@/emails/welcome', () => ({
-  WelcomeEmail: vi.fn().mockReturnValue('welcome-element'),
-}))
-
-// Mock email service
 const mockSend = vi.fn().mockResolvedValue({ ok: true })
 vi.mock('@/lib/email/service', () => ({
   getEmailService: () => ({ send: mockSend }),
 }))
 
-// Mock newsletter email-sanitizer (pulled in by renderEmailPreview)
-vi.mock('@/lib/newsletter/email-sanitizer', () => ({
-  sanitizeForEmail: vi.fn().mockReturnValue('<p>sanitized</p>'),
-}))
-
-// Mock the newsletter template (used by renderEmailPreview)
-vi.mock('@/emails/newsletter', () => ({
-  Newsletter: vi.fn().mockReturnValue('newsletter-element'),
-}))
-
-// Mock media tracker (pulled by actions.ts)
 vi.mock('@/lib/media/track-usage', () => ({
   trackMediaUsage: vi.fn(),
 }))
 
-// Mock SEO cache invalidation (pulled by actions.ts)
 vi.mock('@/lib/seo/cache-invalidation', () => ({
   revalidateNewsletterTypeSeo: vi.fn(),
 }))
 
-// Mock cadence slots (pulled by actions.ts)
 vi.mock('@/lib/newsletter/cadence-slots', () => ({
   generateCadenceSlots: vi.fn().mockReturnValue([]),
   describePattern: vi.fn().mockReturnValue(''),
   computeScheduledAt: vi.fn().mockReturnValue('2026-01-01T09:00:00Z'),
 }))
 
-// Mock cms/format-site-datetime (pulled by actions.ts)
 vi.mock('@/lib/cms/format-site-datetime', () => ({
   todayInSiteTz: vi.fn().mockReturnValue('2026-01-01'),
 }))
 
-// Mock social create-from-content (pulled by actions.ts sendNow)
 vi.mock('@/lib/social/create-from-content', () => ({
   createSocialPostFromContent: vi.fn(),
+}))
+
+vi.mock('@sentry/nextjs', () => ({
+  captureException: vi.fn(),
+  withScope: vi.fn((cb: (s: Record<string, unknown>) => void) =>
+    cb({ setTag: vi.fn(), setExtra: vi.fn() }),
+  ),
 }))
 
 // ─── Import actions under test ─────────────────────────────────────────────
@@ -156,14 +129,13 @@ import {
   renderTestTemplate,
   sendTestTemplate,
   _resetRateLimits,
-} from '@/app/cms/(authed)/newsletters/actions-test-center'
+} from '../../../src/app/cms/(authed)/newsletters/actions-test-center'
 
 // ─── Tests ─────────────────────────────────────────────────────────────────
 
 describe('Test Center Actions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockRender.mockResolvedValue('<html><body>rendered email</body></html>')
     mockSend.mockResolvedValue({ ok: true })
     mockUserEmail = 'admin@test.com'
     mockUserId = 'user-1'
@@ -177,18 +149,18 @@ describe('Test Center Actions', () => {
   describe('renderTestTemplate', () => {
     it('renders confirm template for pt-BR', async () => {
       const result = await renderTestTemplate('confirm', 'pt-BR')
-      expect(result.ok).toBe(true)
+      expect(result, `render failed: ${!result.ok ? result.error : ''}`).toMatchObject({ ok: true })
       if (!result.ok) return
-      expect(result.html).toContain('rendered email')
-      expect(result.sizeBytes).toBeGreaterThan(0)
+      expect(result.html).toContain('<html')
+      expect(result.sizeBytes).toBeGreaterThan(1024)
     })
 
     it('renders welcome template for en', async () => {
       const result = await renderTestTemplate('welcome', 'en')
-      expect(result.ok).toBe(true)
+      expect(result, `render failed: ${!result.ok ? result.error : ''}`).toMatchObject({ ok: true })
       if (!result.ok) return
-      expect(result.html).toContain('rendered email')
-      expect(result.sizeBytes).toBeGreaterThan(0)
+      expect(result.html).toContain('<html')
+      expect(result.sizeBytes).toBeGreaterThan(1024)
     })
 
     it('delegates edition template to renderEmailPreview', async () => {
@@ -198,20 +170,29 @@ describe('Test Center Actions', () => {
       })
 
       const result = await renderTestTemplate('edition', 'pt-BR', { editionId: 'ed-1' })
-      expect(result.ok).toBe(true)
+      expect(result, `render failed: ${!result.ok ? result.error : ''}`).toMatchObject({ ok: true })
       if (!result.ok) return
-      expect(result.html).toBeDefined()
+      expect(result.html).toContain('<html')
     })
 
-    it('returns edition_id_required when edition template has no editionId', async () => {
+    it('renders mock edition when no editionId provided', async () => {
       const result = await renderTestTemplate('edition', 'pt-BR')
-      expect(result.ok).toBe(false)
-      if (result.ok) return
-      expect(result.error).toBe('edition_id_required')
+      expect(result, `render failed: ${!result.ok ? result.error : ''}`).toMatchObject({ ok: true })
+      if (!result.ok) return
+      expect(result.html).toContain('<html')
+      expect(result.sizeBytes).toBeGreaterThan(1024)
+    })
+
+    it('renders mock edition in en locale when no editionId provided', async () => {
+      const result = await renderTestTemplate('edition', 'en')
+      expect(result, `render failed: ${!result.ok ? result.error : ''}`).toMatchObject({ ok: true })
+      if (!result.ok) return
+      expect(result.html).toContain('<html')
+      expect(result.sizeBytes).toBeGreaterThan(1024)
     })
 
     it('returns invalid_template for unknown template', async () => {
-      const result = await renderTestTemplate('invalid', 'pt-BR')
+      const result = await renderTestTemplate('invalid' as 'confirm', 'pt-BR')
       expect(result.ok).toBe(false)
       if (result.ok) return
       expect(result.error).toBe('invalid_template')
@@ -247,7 +228,7 @@ describe('Test Center Actions', () => {
       const callArgs = mockSend.mock.calls[0]![0]
       expect(callArgs.subject).toBe('[TEST] Confirme sua inscrição')
       expect(callArgs.to).toBe('admin@test.com')
-      expect(callArgs.html).toContain('rendered email')
+      expect(callArgs.html).toContain('<html')
     })
 
     it('sends welcome template with English subject', async () => {
@@ -257,6 +238,37 @@ describe('Test Center Actions', () => {
 
       const callArgs = mockSend.mock.calls[0]![0]
       expect(callArgs.subject).toBe('[TEST] Welcome to the newsletters')
+    })
+
+    it('sends to custom email when toEmail provided', async () => {
+      const result = await sendTestTemplate('confirm', 'pt-BR', { toEmail: 'custom@example.com' })
+      expect(result.ok).toBe(true)
+      expect(mockSend).toHaveBeenCalledOnce()
+      const callArgs = mockSend.mock.calls[0]![0]
+      expect(callArgs.to).toBe('custom@example.com')
+    })
+
+    it('sends edition with default subject when no editionId', async () => {
+      const result = await sendTestTemplate('edition', 'pt-BR')
+      expect(result.ok).toBe(true)
+      expect(mockSend).toHaveBeenCalledOnce()
+      const callArgs = mockSend.mock.calls[0]![0]
+      expect(callArgs.subject).toBe('[TEST] Newsletter')
+    })
+
+    it('rejects invalid email format', async () => {
+      const result = await sendTestTemplate('confirm', 'pt-BR', { toEmail: 'not-an-email' })
+      expect(result.ok).toBe(false)
+      if (!result.ok) {
+        expect(result.error).toBe('invalid_email')
+      }
+    })
+
+    it('falls back to user email when toEmail is empty', async () => {
+      const result = await sendTestTemplate('confirm', 'pt-BR', { toEmail: '' })
+      expect(result.ok).toBe(true)
+      const callArgs = mockSend.mock.calls[0]![0]
+      expect(callArgs.to).toBe('admin@test.com')
     })
 
     it('rate limits rapid second call within 60s', async () => {
@@ -297,7 +309,7 @@ describe('Test Center Actions', () => {
     })
 
     it('returns invalid_template error for unknown template', async () => {
-      const result = await sendTestTemplate('nonexistent', 'en')
+      const result = await sendTestTemplate('nonexistent' as 'confirm', 'en')
       expect(result.ok).toBe(false)
       if (result.ok) return
       expect(result.error).toBe('invalid_template')
@@ -308,12 +320,11 @@ describe('Test Center Actions', () => {
       const spy = vi.spyOn(Date, 'now').mockImplementation(() => clock)
 
       for (let i = 0; i < 10; i++) {
-        clock += 61_000 // advance past 60s cooldown each time
+        clock += 61_000
         const r = await sendTestTemplate('confirm', 'pt-BR')
         expect(r.ok).toBe(true)
       }
 
-      // 11th send within the same hour should fail
       clock += 61_000
       const result = await sendTestTemplate('confirm', 'pt-BR')
       expect(result.ok).toBe(false)
@@ -328,19 +339,150 @@ describe('Test Center Actions', () => {
       let clock = Date.now()
       const spy = vi.spyOn(Date, 'now').mockImplementation(() => clock)
 
-      // Fill up to hourly cap
       for (let i = 0; i < 10; i++) {
         clock += 61_000
         await sendTestTemplate('confirm', 'pt-BR')
       }
 
-      // Advance past 1 hour from first send
       clock += 3_600_000 + 61_000
 
       const result = await sendTestTemplate('confirm', 'pt-BR')
       expect(result.ok).toBe(true)
 
       spy.mockRestore()
+    })
+  })
+
+  // ── Real rendering integration ─────────────────────────────────────────
+
+  describe('Real rendering integration', { timeout: 15_000 }, () => {
+    it('confirm pt-BR has locale-specific heading', async () => {
+      const result = await renderTestTemplate('confirm', 'pt-BR')
+      expect(result, `render failed: ${!result.ok ? result.error : ''}`).toMatchObject({ ok: true })
+      if (!result.ok) return
+      expect(result.html).toContain('Confirme sua inscrição')
+      expect(result.html).toContain('Confirmar Inscrição')
+    })
+
+    it('confirm en has English heading, not Portuguese', async () => {
+      const result = await renderTestTemplate('confirm', 'en')
+      expect(result, `render failed: ${!result.ok ? result.error : ''}`).toMatchObject({ ok: true })
+      if (!result.ok) return
+      expect(result.html).toContain('Confirm your subscription')
+      expect(result.html).not.toContain('Confirme sua')
+    })
+
+    it('welcome pt-BR has newsletter names and pt-BR footer', async () => {
+      const result = await renderTestTemplate('welcome', 'pt-BR')
+      expect(result, `render failed: ${!result.ok ? result.error : ''}`).toMatchObject({ ok: true })
+      if (!result.ok) return
+      expect(result.html).toContain('Weekly Digest')
+      expect(result.html).toContain('Dev Notes')
+      expect(result.html).toContain('Cancelar inscrição')
+    })
+
+    it('welcome en has English footer with unsubscribe link', async () => {
+      const result = await renderTestTemplate('welcome', 'en')
+      expect(result, `render failed: ${!result.ok ? result.error : ''}`).toMatchObject({ ok: true })
+      if (!result.ok) return
+      expect(result.html).toContain('Unsubscribe')
+      expect(result.html).toContain('mock-token-test')
+    })
+
+    it('edition mock pt-BR has mock content and structure', async () => {
+      const result = await renderTestTemplate('edition', 'pt-BR')
+      expect(result, `render failed: ${!result.ok ? result.error : ''}`).toMatchObject({ ok: true })
+      if (!result.ok) return
+      expect(result.html).toContain('Título da Edição de Exemplo')
+      expect(result.html).toContain('❦')
+    })
+
+    it('edition mock en has English mock content', async () => {
+      const result = await renderTestTemplate('edition', 'en')
+      expect(result, `render failed: ${!result.ok ? result.error : ''}`).toMatchObject({ ok: true })
+      if (!result.ok) return
+      expect(result.html).toContain('Sample Edition Title')
+      expect(result.html).toContain('The best way to predict the future')
+    })
+
+    it('all real templates produce >1KB output', async () => {
+      const confirm = await renderTestTemplate('confirm', 'pt-BR')
+      const welcome = await renderTestTemplate('welcome', 'en')
+      const edition = await renderTestTemplate('edition', 'pt-BR')
+
+      expect(confirm, 'confirm render').toMatchObject({ ok: true })
+      expect(welcome, 'welcome render').toMatchObject({ ok: true })
+      expect(edition, 'edition render').toMatchObject({ ok: true })
+
+      if (confirm.ok) expect(confirm.sizeBytes, 'confirm size').toBeGreaterThan(1024)
+      if (welcome.ok) expect(welcome.sizeBytes, 'welcome size').toBeGreaterThan(1024)
+      if (edition.ok) expect(edition.sizeBytes, 'edition size').toBeGreaterThan(1024)
+    })
+
+    it('templates produce valid HTML documents', async () => {
+      const result = await renderTestTemplate('confirm', 'en')
+      expect(result, `render failed: ${!result.ok ? result.error : ''}`).toMatchObject({ ok: true })
+      if (!result.ok) return
+      expect(result.html).toContain('<!DOCTYPE')
+      expect(result.html).toContain('<html')
+      expect(result.html).toContain('</html>')
+    })
+
+    it('EmailShell meta tags are present', async () => {
+      const result = await renderTestTemplate('confirm', 'en')
+      expect(result, `render failed: ${!result.ok ? result.error : ''}`).toMatchObject({ ok: true })
+      if (!result.ok) return
+      expect(result.html).toContain('x-apple-disable-message-reformatting')
+    })
+
+    it('edition via editionId strips XSS', async () => {
+      mockSupabase = createMockSupabase({
+        content_html: '<p>Safe content</p><script>alert("xss")</script>',
+        newsletter_type_id: 'type-1',
+      })
+      const result = await renderTestTemplate('edition', 'pt-BR', { editionId: 'ed-1' })
+      expect(result, `render failed: ${!result.ok ? result.error : ''}`).toMatchObject({ ok: true })
+      if (!result.ok) return
+      expect(result.html).toContain('Safe content')
+      expect(result.html).not.toContain('<script')
+      expect(result.html).not.toContain('alert')
+    })
+
+    it('edition via editionId inlines CSS', async () => {
+      mockSupabase = createMockSupabase({
+        content_html: '<p>Styled paragraph</p>',
+        newsletter_type_id: 'type-1',
+      })
+      const result = await renderTestTemplate('edition', 'pt-BR', { editionId: 'ed-1' })
+      expect(result, `render failed: ${!result.ok ? result.error : ''}`).toMatchObject({ ok: true })
+      if (!result.ok) return
+      expect(result.html).toContain('style="')
+      expect(result.html).toContain('font-size')
+    })
+
+    it('edition via editionId with empty content returns error', async () => {
+      mockSupabase = createMockSupabase({
+        content_html: '',
+        newsletter_type_id: 'type-1',
+      })
+      const result = await renderTestTemplate('edition', 'pt-BR', { editionId: 'ed-1' })
+      expect(result.ok).toBe(false)
+      if (!result.ok) {
+        expect(result.error).toBe('no_content')
+      }
+    })
+
+    it('send edition with editionId uses DB subject', async () => {
+      mockSupabase = createMockSupabase({
+        subject: 'My Custom Edition',
+        content_html: '<p>Content</p>',
+        newsletter_type_id: 'type-1',
+      })
+      const result = await sendTestTemplate('edition', 'pt-BR', { editionId: 'ed-1' })
+      expect(result.ok).toBe(true)
+      expect(mockSend).toHaveBeenCalledOnce()
+      const callArgs = mockSend.mock.calls[0]![0]
+      expect(callArgs.subject).toBe('[TEST] My Custom Edition')
     })
   })
 })

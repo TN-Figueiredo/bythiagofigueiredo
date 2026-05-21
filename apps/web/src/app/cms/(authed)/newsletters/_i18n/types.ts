@@ -167,5 +167,21 @@ export interface NewsletterHubStrings {
     renderingPreview: string
     renderFailed: string
     unexpectedError: string
+    samplePreview: string
+    templateConfirm: string
+    templateWelcome: string
+    templateEdition: string
+    errorNoContent: string
+    errorNotFound: string
+    errorForbidden: string
+    errorHourlyLimit: string
+    sampleBadge: string
+    opensNewTab: string
+    statusIdea: string
+    statusDraft: string
+    statusReady: string
+    recipientLabel: string
+    recipientPlaceholder: string
+    invalidEmail: string
   }
 }

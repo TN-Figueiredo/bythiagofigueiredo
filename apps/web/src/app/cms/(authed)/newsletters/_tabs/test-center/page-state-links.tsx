@@ -8,7 +8,7 @@ interface PageStateLinksProps {
   strings: NewsletterHubStrings['testCenter']
 }
 
-function StateChip({ state, href }: { state: string; href: string }) {
+function StateChip({ state, href, opensNewTab }: { state: string; href: string; opensNewTab: string }) {
   return (
     <a
       href={href}
@@ -18,7 +18,7 @@ function StateChip({ state, href }: { state: string; href: string }) {
     >
       {state}
       <ExternalLink className="h-2.5 w-2.5 opacity-50" aria-hidden="true" />
-      <span className="sr-only">(opens in new tab)</span>
+      <span className="sr-only">{opensNewTab}</span>
     </a>
   )
 }
@@ -35,7 +35,7 @@ export function PageStateLinks({ strings }: PageStateLinksProps) {
           <p className="text-[10px] text-gray-600 mb-1.5">{strings.confirmStates}</p>
           <div className="flex flex-wrap gap-1.5">
             {CONFIRM_PREVIEW_STATES.map((s) => (
-              <StateChip key={s} state={s} href={`/cms/newsletters/preview/confirm/${s}`} />
+              <StateChip key={s} state={s} href={`/cms/newsletters/preview/confirm/${s}`} opensNewTab={strings.opensNewTab} />
             ))}
           </div>
         </div>
@@ -44,7 +44,7 @@ export function PageStateLinks({ strings }: PageStateLinksProps) {
           <p className="text-[10px] text-gray-600 mb-1.5">{strings.unsubscribeStates}</p>
           <div className="flex flex-wrap gap-1.5">
             {UNSUBSCRIBE_PREVIEW_STATES.map((s) => (
-              <StateChip key={s} state={s} href={`/cms/newsletters/preview/unsubscribe/${s}`} />
+              <StateChip key={s} state={s} href={`/cms/newsletters/preview/unsubscribe/${s}`} opensNewTab={strings.opensNewTab} />
             ))}
           </div>
         </div>

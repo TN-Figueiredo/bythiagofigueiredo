@@ -13,6 +13,12 @@ interface EditionControlsProps {
   disabled: boolean
 }
 
+const STATUS_KEYS: Record<string, 'statusIdea' | 'statusDraft' | 'statusReady'> = {
+  idea: 'statusIdea',
+  draft: 'statusDraft',
+  ready: 'statusReady',
+}
+
 export function EditionControls({
   types,
   selectedTypeId,
@@ -24,7 +30,7 @@ export function EditionControls({
   disabled,
 }: EditionControlsProps) {
   return (
-    <div aria-disabled={disabled} className={disabled ? 'opacity-40 pointer-events-none' : ''}>
+    <div className={disabled ? 'opacity-40 pointer-events-none' : ''}>
       <label className="block text-[11px] uppercase tracking-wider font-semibold text-gray-500 mb-2">
         {strings.edition}
       </label>
@@ -48,16 +54,21 @@ export function EditionControls({
         <select
           value={selectedEditionId ?? ''}
           onChange={(e) => onEditionChange(e.target.value || null)}
-          disabled={editions.length === 0}
-          className="w-full rounded-md border border-gray-800 bg-[#0a0f1a] px-3 py-2 text-xs text-gray-300 focus:border-indigo-500/50 focus:outline-none disabled:opacity-50"
+          disabled={disabled || editions.length === 0}
+          className="w-full rounded-md border border-gray-800 bg-[#0a0f1a] px-3 py-2 text-xs text-gray-300 focus:border-indigo-500/50 focus:outline-none disabled:opacity-50 text-ellipsis"
           aria-label={strings.selectEdition}
         >
           <option value="">{editions.length === 0 ? strings.noEditions : strings.selectEdition}</option>
-          {editions.map((e) => (
-            <option key={e.id} value={e.id}>
-              {e.subject} ({e.status})
-            </option>
-          ))}
+          {editions.map((e) => {
+            const label = e.subject.length > 60 ? `${e.subject.slice(0, 57)}…` : e.subject
+            const statusKey = STATUS_KEYS[e.status]
+            const statusLabel = statusKey ? strings[statusKey] : e.status
+            return (
+              <option key={e.id} value={e.id}>
+                {label} ({statusLabel})
+              </option>
+            )
+          })}
         </select>
       </div>
     </div>
