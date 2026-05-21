@@ -1,7 +1,7 @@
 import type { NewsletterHubStrings } from './types'
 
 export const en: NewsletterHubStrings = {
-  tabs: { overview: 'Overview', editorial: 'Editorial', schedule: 'Schedule', automations: 'Automations', audience: 'Audience' },
+  tabs: { overview: 'Overview', editorial: 'Editorial', schedule: 'Schedule', automations: 'Automations', audience: 'Audience', 'test-center': 'Test Center' },
   kpi: { totalSubscribers: 'Total Subscribers', editionsSent: 'Editions Sent', avgOpenRate: 'Avg Open Rate', avgClickRate: 'Avg Click Rate', bounceRate: 'Bounce Rate' },
   actions: { newEdition: 'New Edition', newIdea: 'New Idea', newDraft: 'New Draft', scheduleNext: 'Schedule Next', viewSubscribers: 'View Subscribers', fullAnalytics: 'Full Analytics', exportCsv: 'Export CSV', configure: 'Configure', retry: 'Try again' },
   empty: { noData: 'No data yet', noEditions: 'No editions found', noSubscribers: 'No subscribers yet', noActivity: 'No activity yet', startPipeline: 'Start your editorial pipeline', addIdea: 'Add your first idea to get started', configCadence: 'Configure cadence for your newsletter types' },
@@ -141,5 +141,28 @@ export const en: NewsletterHubStrings = {
     unsavedTitle: 'Unsaved changes', unsavedMessage: 'You have unsaved changes. Discard?', keepEditing: 'Keep editing', discardClose: 'Discard & close',
     slugAutoLabel: 'auto',
     ogDefaultLabel: 'Using site default', ogDefaultBadge: 'default', ogOverrideHint: 'Upload to override the default',
+  },
+  testCenter: {
+    template: 'Template',
+    edition: 'Edition',
+    locale: 'Locale',
+    sendTest: 'Send Test',
+    pageStates: 'Page States',
+    sendTestEmail: 'Send Test Email',
+    sending: 'Sending...',
+    testSent: 'Test sent!',
+    waitCooldown: 'Wait for cooldown',
+    rateLimited: 'Rate limited — wait 60s',
+    failedToSend: 'Failed to send',
+    confirmStates: 'Confirm',
+    unsubscribeStates: 'Unsubscribe',
+    emailSize: 'Size',
+    refresh: 'Refresh',
+    noEditions: 'No editions available',
+    selectType: 'Select type',
+    selectEdition: 'Select edition',
+    recipientLocked: 'Locked to admin email',
+    summaryStats: '3 templates · 16 page states · Send locked to admin email · 60s cooldown · 10/hr limit',
+    deliveringViaSes: 'Delivering via SES',
   },
 }

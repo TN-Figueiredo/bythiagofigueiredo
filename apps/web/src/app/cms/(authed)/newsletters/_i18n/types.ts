@@ -1,5 +1,5 @@
 export interface NewsletterHubStrings {
-  tabs: { overview: string; editorial: string; schedule: string; automations: string; audience: string }
+  tabs: { overview: string; editorial: string; schedule: string; automations: string; audience: string; 'test-center': string }
   kpi: { totalSubscribers: string; editionsSent: string; avgOpenRate: string; avgClickRate: string; bounceRate: string }
   actions: { newEdition: string; newIdea: string; newDraft: string; scheduleNext: string; viewSubscribers: string; fullAnalytics: string; exportCsv: string; configure: string; retry: string }
   empty: { noData: string; noEditions: string; noSubscribers: string; noActivity: string; startPipeline: string; addIdea: string; configCadence: string }
@@ -139,5 +139,28 @@ export interface NewsletterHubStrings {
     unsavedTitle: string; unsavedMessage: string; keepEditing: string; discardClose: string
     slugAutoLabel: string
     ogDefaultLabel: string; ogDefaultBadge: string; ogOverrideHint: string
+  }
+  testCenter: {
+    template: string
+    edition: string
+    locale: string
+    sendTest: string
+    pageStates: string
+    sendTestEmail: string
+    sending: string
+    testSent: string
+    waitCooldown: string
+    rateLimited: string
+    failedToSend: string
+    confirmStates: string
+    unsubscribeStates: string
+    emailSize: string
+    refresh: string
+    noEditions: string
+    selectType: string
+    selectEdition: string
+    recipientLocked: string
+    summaryStats: string
+    deliveringViaSes: string
   }
 }

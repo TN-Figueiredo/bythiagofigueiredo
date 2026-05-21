@@ -1,7 +1,7 @@
 import type { NewsletterHubStrings } from './types'
 
 export const ptBR: NewsletterHubStrings = {
-  tabs: { overview: 'Visão Geral', editorial: 'Editorial', schedule: 'Agenda', automations: 'Automações', audience: 'Audiência' },
+  tabs: { overview: 'Visão Geral', editorial: 'Editorial', schedule: 'Agenda', automations: 'Automações', audience: 'Audiência', 'test-center': 'Test Center' },
   kpi: { totalSubscribers: 'Total de Inscritos', editionsSent: 'Edições Enviadas', avgOpenRate: 'Taxa de Abertura', avgClickRate: 'Taxa de Cliques', bounceRate: 'Taxa de Bounce' },
   actions: { newEdition: 'Nova Edição', newIdea: 'Nova Ideia', newDraft: 'Novo Rascunho', scheduleNext: 'Agendar Próxima', viewSubscribers: 'Ver Inscritos', fullAnalytics: 'Analytics Completo', exportCsv: 'Exportar CSV', configure: 'Configurar', retry: 'Tentar novamente' },
   empty: { noData: 'Sem dados ainda', noEditions: 'Nenhuma edição encontrada', noSubscribers: 'Nenhum inscrito ainda', noActivity: 'Nenhuma atividade ainda', startPipeline: 'Comece seu pipeline editorial', addIdea: 'Adicione sua primeira ideia', configCadence: 'Configure a cadência das suas newsletters' },
@@ -141,5 +141,28 @@ export const ptBR: NewsletterHubStrings = {
     unsavedTitle: 'Alterações não salvas', unsavedMessage: 'Você tem alterações não salvas. Descartar?', keepEditing: 'Continuar editando', discardClose: 'Descartar e fechar',
     slugAutoLabel: 'auto',
     ogDefaultLabel: 'Usando padrão do site', ogDefaultBadge: 'padrão', ogOverrideHint: 'Envie uma imagem para substituir o padrão',
+  },
+  testCenter: {
+    template: 'Template',
+    edition: 'Edição',
+    locale: 'Idioma',
+    sendTest: 'Enviar Teste',
+    pageStates: 'Estados de Página',
+    sendTestEmail: 'Enviar Email de Teste',
+    sending: 'Enviando...',
+    testSent: 'Teste enviado!',
+    waitCooldown: 'Aguarde o cooldown',
+    rateLimited: 'Limite atingido — aguarde 60s',
+    failedToSend: 'Falha ao enviar',
+    confirmStates: 'Confirmação',
+    unsubscribeStates: 'Cancelamento',
+    emailSize: 'Tamanho',
+    refresh: 'Atualizar',
+    noEditions: 'Nenhuma edição disponível',
+    selectType: 'Selecionar tipo',
+    selectEdition: 'Selecionar edição',
+    recipientLocked: 'Destinatário fixo (email admin)',
+    summaryStats: '3 templates · 16 estados de página · Envio restrito ao email admin · cooldown 60s · limite 10/hr',
+    deliveringViaSes: 'Entregando via SES',
   },
 }

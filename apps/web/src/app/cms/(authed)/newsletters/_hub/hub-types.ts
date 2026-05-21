@@ -1,4 +1,4 @@
-export type TabId = 'overview' | 'editorial' | 'schedule' | 'automations' | 'audience'
+export type TabId = 'overview' | 'editorial' | 'schedule' | 'automations' | 'audience' | 'test-center'
 
 export interface NewsletterType {
   id: string
