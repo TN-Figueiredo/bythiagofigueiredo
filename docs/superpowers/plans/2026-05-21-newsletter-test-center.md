@@ -442,7 +442,21 @@ Create `apps/web/src/app/unsubscribe/[token]/_layouts/unsubscribe-layout.tsx`. T
 
 Read the full `page.tsx` to extract all of these. Export `UnsubscribeLayout`, `StateKind`.
 
-**IMPORTANT:** Copy the **entire** component and all its inline dependencies verbatim. The unsubscribe page uses inline `style` objects extensively (the `s` constant). All must be included.
+**IMPORTANT:** Copy the **entire** component and all its inline dependencies verbatim. The unsubscribe page uses inline `style` objects extensively (the `s` constant). All must be included. The `UnsubscribeLayout` props interface MUST include `form?: React.ReactNode` — this prop is used by both the original page (passes `<UnsubscribeForm>`) and by the CMS preview route in Task 13 (passes a mock button). Verify the extracted interface matches the original:
+
+```typescript
+interface UnsubscribeLayoutProps {
+  state: StateKind
+  title: string
+  body: string
+  backLabel: string
+  manageLabel?: string
+  lang?: string
+  locale?: string
+  signoff?: string
+  form?: React.ReactNode
+}
+```
 
 - [ ] **Step 2: Update page.tsx to import from extracted module**
 
@@ -553,6 +567,35 @@ describe('renderTestTemplate', () => {
     expect(result.ok).toBe(true)
     if (result.ok) {
       expect(result.html).toBe('<html>mock</html>')
+    }
+  })
+
+  it('renders edition template (delegates to renderEmailPreview)', async () => {
+    // Mock the dynamic import of actions.renderEmailPreview
+    vi.mock('../../../src/app/cms/(authed)/newsletters/actions', () => ({
+      renderEmailPreview: vi.fn().mockResolvedValue({ ok: true, html: '<html>edition</html>' }),
+    }))
+
+    const supabaseFrom = vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          in: vi.fn().mockReturnValue({
+            order: vi.fn().mockReturnValue({
+              limit: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'ed-1' }, error: null }),
+              }),
+            }),
+          }),
+        }),
+      }),
+    })
+    const { getSupabaseServiceClient } = await import('../../../lib/supabase/service')
+    vi.mocked(getSupabaseServiceClient).mockReturnValue({ from: supabaseFrom } as any)
+
+    const result = await renderTestTemplate('edition', 'pt-BR')
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.html).toBe('<html>edition</html>')
     }
   })
 
@@ -765,7 +808,7 @@ export async function sendTestTemplate(
 
 Run: `cd apps/web && npx vitest run test/unit/newsletter/test-center-actions.test.ts --reporter=verbose 2>&1 | tail -15`
 
-Expected: PASS — 6 tests passing.
+Expected: PASS — 7 tests passing.
 
 - [ ] **Step 5: Run full test suite**
 
