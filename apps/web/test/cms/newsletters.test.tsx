@@ -143,12 +143,12 @@ describe('Newsletter Hub', () => {
   })
 
   describe('tab bar', () => {
-    it('renders all 5 tabs', () => {
+    it('renders all 6 tabs', () => {
       renderHub()
       const tablist = screen.getByRole('tablist')
       expect(tablist).toBeTruthy()
       const tabs = screen.getAllByRole('tab')
-      expect(tabs).toHaveLength(5)
+      expect(tabs).toHaveLength(6)
     })
 
     it('marks overview as active by default', () => {

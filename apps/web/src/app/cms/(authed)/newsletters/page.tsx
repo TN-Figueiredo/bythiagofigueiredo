@@ -19,6 +19,7 @@ import { EditorialTab } from './_tabs/editorial/editorial-tab'
 import { ScheduleTab } from './_tabs/schedule/schedule-tab'
 import { AutomationsTab } from './_tabs/automations/automations-tab'
 import { AudienceTab } from './_tabs/audience/audience-tab'
+import { TestCenterTab } from './_tabs/test-center/test-center-tab'
 
 export const dynamic = 'force-dynamic'
 
@@ -81,6 +82,15 @@ async function TabContent({ tab, siteId, typeFilter, locale, types, siteTimezone
     case 'audience': {
       const data = await fetchAudienceData(siteId)
       return <AudienceTab data={data} typeFilter={typeFilter} strings={strings} />
+    }
+    case 'test-center': {
+      const userClient = (await import('@supabase/ssr')).createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        { cookies: { async getAll() { return (await (await import('next/headers')).cookies()).getAll() }, async setAll() {} } },
+      )
+      const { data: { user } } = await userClient.auth.getUser()
+      return <TestCenterTab strings={strings} locale={locale} userEmail={user?.email ?? ''} types={types.map(t => ({ id: t.id, name: t.name, color: t.color }))} editions={[]} />
     }
     default:
       return null

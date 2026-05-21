@@ -2,7 +2,7 @@
 
 import { type ReactNode, useCallback, useMemo, useState, useTransition } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
-import { BarChart3, Kanban, CalendarDays, Workflow, Users, Plus, Bell, Loader2 } from 'lucide-react'
+import { BarChart3, Kanban, CalendarDays, Workflow, Users, FlaskConical, Plus, Bell, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import type { NewsletterHubSharedData, TabId } from './hub-types'
 import { TypeFilterChips } from '../_shared/type-filter-chips'
@@ -17,6 +17,7 @@ const TABS: Array<{ id: TabId; icon: typeof BarChart3 }> = [
   { id: 'schedule', icon: CalendarDays },
   { id: 'automations', icon: Workflow },
   { id: 'audience', icon: Users },
+  { id: 'test-center', icon: FlaskConical },
 ]
 
 interface HubClientProps {
@@ -160,17 +161,19 @@ export function HubClient({ sharedData, defaultTab, children, tabLabels, allType
         })}
       </div>
 
-      <div className="px-4 pt-3 md:px-7">
-        <TypeFilterChips
-          types={sharedData.types}
-          selectedTypeId={selectedTypeId}
-          onSelect={handleTypeSelect}
-          onAdd={handleAddType}
-          onEdit={handleEditType}
-          allLabel={allTypesLabel}
-          editLabel={editLabel}
-        />
-      </div>
+      {activeTab !== 'test-center' && (
+        <div className="px-4 pt-3 md:px-7">
+          <TypeFilterChips
+            types={sharedData.types}
+            selectedTypeId={selectedTypeId}
+            onSelect={handleTypeSelect}
+            onAdd={handleAddType}
+            onEdit={handleEditType}
+            allLabel={allTypesLabel}
+            editLabel={editLabel}
+          />
+        </div>
+      )}
 
       <div id={`tabpanel-${activeTab}`} role="tabpanel" className="flex-1 px-4 pt-4 pb-16 md:px-7">
         {children}
