@@ -35,7 +35,8 @@ export function EditionControls({
             onTypeChange(e.target.value || null)
             onEditionChange(null)
           }}
-          className="w-full rounded-md border border-gray-800 bg-[#0a0f1a] px-3 py-2 text-xs text-gray-300 focus:border-indigo-500/50 focus:outline-none"
+          disabled={disabled}
+          className="w-full rounded-md border border-gray-800 bg-[#0a0f1a] px-3 py-2 text-xs text-gray-300 focus:border-indigo-500/50 focus:outline-none disabled:opacity-50"
           aria-label={strings.selectType}
         >
           <option value="">{strings.selectType}</option>

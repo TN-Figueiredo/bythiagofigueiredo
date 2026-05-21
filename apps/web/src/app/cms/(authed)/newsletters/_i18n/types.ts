@@ -162,5 +162,7 @@ export interface NewsletterHubStrings {
     recipientLocked: string
     summaryStats: string
     deliveringViaSes: string
+    viewportDesktop: string
+    viewportMobile: string
   }
 }

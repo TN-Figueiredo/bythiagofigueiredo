@@ -164,5 +164,7 @@ export const en: NewsletterHubStrings = {
     recipientLocked: 'Locked to admin email',
     summaryStats: '3 templates · 16 page states · Send locked to admin email · 60s cooldown · 10/hr limit',
     deliveringViaSes: 'Delivering via SES',
+    viewportDesktop: 'Desktop',
+    viewportMobile: 'Mobile',
   },
 }

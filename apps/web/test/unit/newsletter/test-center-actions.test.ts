@@ -281,5 +281,45 @@ describe('Test Center Actions', () => {
       if (result.ok) return
       expect(result.error).toBe('invalid_template')
     })
+
+    it('enforces hourly cap of 10 sends', async () => {
+      let clock = Date.now()
+      const spy = vi.spyOn(Date, 'now').mockImplementation(() => clock)
+
+      for (let i = 0; i < 10; i++) {
+        clock += 61_000 // advance past 60s cooldown each time
+        const r = await sendTestTemplate('confirm', 'pt-BR')
+        expect(r.ok).toBe(true)
+      }
+
+      // 11th send within the same hour should fail
+      clock += 61_000
+      const result = await sendTestTemplate('confirm', 'pt-BR')
+      expect(result.ok).toBe(false)
+      if (!result.ok) {
+        expect(result.error).toBe('hourly_limit_exceeded')
+      }
+
+      spy.mockRestore()
+    })
+
+    it('resets hourly window after 1 hour', async () => {
+      let clock = Date.now()
+      const spy = vi.spyOn(Date, 'now').mockImplementation(() => clock)
+
+      // Fill up to hourly cap
+      for (let i = 0; i < 10; i++) {
+        clock += 61_000
+        await sendTestTemplate('confirm', 'pt-BR')
+      }
+
+      // Advance past 1 hour from first send
+      clock += 3_600_000 + 61_000
+
+      const result = await sendTestTemplate('confirm', 'pt-BR')
+      expect(result.ok).toBe(true)
+
+      spy.mockRestore()
+    })
   })
 })

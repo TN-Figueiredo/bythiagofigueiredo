@@ -6,12 +6,11 @@ import type { NewsletterHubStrings } from '../../_i18n/types'
 
 interface TestSendCardProps {
   userEmail: string
-  locale: 'en' | 'pt-BR'
   onSend: () => Promise<{ ok: true } | { ok: false; error: string }>
   strings: NewsletterHubStrings['testCenter']
 }
 
-export function TestSendCard({ userEmail, locale, onSend, strings }: TestSendCardProps) {
+export function TestSendCard({ userEmail, onSend, strings }: TestSendCardProps) {
   const [state, setState] = useState<'idle' | 'sending' | 'success' | 'cooldown' | 'error'>('idle')
   const [cooldownLeft, setCooldownLeft] = useState(0)
   const [errorMsg, setErrorMsg] = useState('')
@@ -54,9 +53,6 @@ export function TestSendCard({ userEmail, locale, onSend, strings }: TestSendCar
   }, [onSend])
 
   const buttonDisabled = state !== 'idle'
-
-  // locale is available for parent orchestration; not directly used in render
-  void locale
 
   return (
     <div>

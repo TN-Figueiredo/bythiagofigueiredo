@@ -94,9 +94,14 @@ async function getUserClient() {
 
 // ─── Mock data for template rendering ──────────────────────────────────────
 
-const MOCK_CONFIRM_URL = 'https://bythiagofigueiredo.com/newsletter/confirm/test-token-123'
-const MOCK_UNSUBSCRIBE_URL = 'https://bythiagofigueiredo.com/newsletter/unsubscribe'
-const MOCK_ARCHIVE_URL = 'https://bythiagofigueiredo.com/newsletter'
+function getMockUrls() {
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? 'https://bythiagofigueiredo.com'
+  return {
+    confirm: `${base}/newsletter/confirm/test-token-123`,
+    unsubscribe: `${base}/newsletter/unsubscribe`,
+    archive: `${base}/newsletter`,
+  }
+}
 
 const CONFIRM_SUBJECTS: Record<string, string> = {
   'pt-BR': 'Confirme sua inscrição',
@@ -123,9 +128,10 @@ export async function renderTestTemplate(
 
   switch (template as TestTemplate | string) {
     case 'confirm': {
+      const urls = getMockUrls()
       const html = await render(
         ConfirmEmail({
-          confirmUrl: MOCK_CONFIRM_URL,
+          confirmUrl: urls.confirm,
           locale,
           newsletterNames: ['Weekly Digest', 'Dev Notes'],
         }),
@@ -135,6 +141,7 @@ export async function renderTestTemplate(
     }
 
     case 'welcome': {
+      const urls = getMockUrls()
       const html = await render(
         WelcomeEmail({
           locale,
@@ -142,8 +149,8 @@ export async function renderTestTemplate(
             { name: 'Weekly Digest', tagline: 'Curated links every Friday', color: '#FF8240' },
             { name: 'Dev Notes', tagline: 'Technical deep dives', color: '#3b82f6' },
           ],
-          unsubscribeUrl: MOCK_UNSUBSCRIBE_URL,
-          archiveUrl: MOCK_ARCHIVE_URL,
+          unsubscribeUrl: urls.unsubscribe,
+          archiveUrl: urls.archive,
         }),
       )
       const sizeBytes = Buffer.byteLength(html, 'utf-8')

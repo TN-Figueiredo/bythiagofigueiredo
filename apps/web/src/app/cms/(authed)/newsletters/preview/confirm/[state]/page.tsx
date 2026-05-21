@@ -7,24 +7,12 @@ import {
 } from '@/app/newsletter/confirm/[token]/_layouts/confirm-layout'
 import Loading from '@/app/newsletter/confirm/[token]/loading'
 import { ErrorBoundaryPreview } from './error-preview'
+import { CONFIRM_PREVIEW_STATES, type ConfirmPreviewState } from '../../../_tabs/test-center/preview-states'
 
 /* ── Valid preview states ───────────────────────────────────────────────── */
 
-const VALID_STATES = [
-  'success',
-  'already',
-  'expired',
-  'not_found',
-  'error',
-  'invalid',
-  'loading',
-  'error-boundary',
-] as const
-
-type PreviewState = (typeof VALID_STATES)[number]
-
-function isValidState(s: string): s is PreviewState {
-  return (VALID_STATES as readonly string[]).includes(s)
+function isValidState(s: string): s is ConfirmPreviewState {
+  return (CONFIRM_PREVIEW_STATES as readonly string[]).includes(s)
 }
 
 /* ── Mock data ──────────────────────────────────────────────────────────── */

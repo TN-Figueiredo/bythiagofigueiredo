@@ -7,30 +7,18 @@ import {
 import UnsubscribeLoading from '@/app/unsubscribe/[token]/loading'
 
 import { ErrorBoundaryPreview } from './error-preview'
+import { UNSUBSCRIBE_PREVIEW_STATES, type UnsubscribePreviewState } from '../../../_tabs/test-center/preview-states'
 
 /* ── Valid preview states ───────────────────────────────────────────────── */
 
-const VALID_STATES = [
-  'initial',
-  'ok',
-  'already',
-  'not_found',
-  'error',
-  'invalid',
-  'loading',
-  'error-boundary',
-] as const
-
-type PreviewState = (typeof VALID_STATES)[number]
-
-function isValidState(v: string): v is PreviewState {
-  return (VALID_STATES as readonly string[]).includes(v)
+function isValidState(v: string): v is UnsubscribePreviewState {
+  return (UNSUBSCRIBE_PREVIEW_STATES as readonly string[]).includes(v)
 }
 
 /* ── Mock content per state (pt-BR) ─────────────────────────────────────── */
 
 const MOCK: Record<
-  Exclude<PreviewState, 'loading' | 'error-boundary'>,
+  Exclude<UnsubscribePreviewState, 'loading' | 'error-boundary'>,
   {
     state: StateKind
     title: string

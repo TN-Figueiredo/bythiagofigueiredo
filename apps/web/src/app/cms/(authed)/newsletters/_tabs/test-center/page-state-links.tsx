@@ -2,13 +2,11 @@
 
 import { ExternalLink } from 'lucide-react'
 import type { NewsletterHubStrings } from '../../_i18n/types'
+import { CONFIRM_PREVIEW_STATES, UNSUBSCRIBE_PREVIEW_STATES } from './preview-states'
 
 interface PageStateLinksProps {
   strings: NewsletterHubStrings['testCenter']
 }
-
-const CONFIRM_STATES = ['success', 'already', 'expired', 'not_found', 'error', 'invalid', 'loading', 'error-boundary'] as const
-const UNSUBSCRIBE_STATES = ['initial', 'ok', 'already', 'not_found', 'error', 'invalid', 'loading', 'error-boundary'] as const
 
 function StateChip({ state, href }: { state: string; href: string }) {
   return (
@@ -37,7 +35,7 @@ export function PageStateLinks({ strings }: PageStateLinksProps) {
         <div>
           <p className="text-[10px] text-gray-600 mb-1.5">{strings.confirmStates}</p>
           <div className="flex flex-wrap gap-1.5">
-            {CONFIRM_STATES.map((s) => (
+            {CONFIRM_PREVIEW_STATES.map((s) => (
               <StateChip key={s} state={s} href={`/cms/newsletters/preview/confirm/${s}`} />
             ))}
           </div>
@@ -46,7 +44,7 @@ export function PageStateLinks({ strings }: PageStateLinksProps) {
         <div>
           <p className="text-[10px] text-gray-600 mb-1.5">{strings.unsubscribeStates}</p>
           <div className="flex flex-wrap gap-1.5">
-            {UNSUBSCRIBE_STATES.map((s) => (
+            {UNSUBSCRIBE_PREVIEW_STATES.map((s) => (
               <StateChip key={s} state={s} href={`/cms/newsletters/preview/unsubscribe/${s}`} />
             ))}
           </div>

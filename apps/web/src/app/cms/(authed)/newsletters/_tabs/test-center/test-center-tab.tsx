@@ -3,8 +3,9 @@
 import { useState, useCallback, useEffect, useMemo } from 'react'
 import { RefreshCw } from 'lucide-react'
 import type { NewsletterHubStrings } from '../../_i18n/types'
+import { SectionErrorBoundary } from '../../_shared/section-error-boundary'
 import { SummaryBar } from '../../_shared/summary-bar'
-import { TemplateSelector, type TemplateName } from './template-selector'
+import { TemplateSelector, TEMPLATE_LABELS, type TemplateName } from './template-selector'
 import { EditionControls } from './edition-controls'
 import { TestSendCard } from './test-send-card'
 import { PageStateLinks } from './page-state-links'
@@ -73,58 +74,60 @@ export function TestCenterTab({ strings, locale, userEmail, types, editions: all
   return (
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[280px_1fr]">
-        <div className="flex flex-col gap-4">
-          <TemplateSelector selected={template} onChange={setTemplate} strings={tc} />
+        <SectionErrorBoundary sectionName="Test center controls">
+          <div className="flex flex-col gap-4">
+            <TemplateSelector selected={template} onChange={setTemplate} strings={tc} />
 
-          <div>
-            <label className="block text-[11px] uppercase tracking-wider font-semibold text-gray-500 mb-2">
-              {tc.locale}
-            </label>
-            <div role="radiogroup" aria-label="Email locale" className="flex gap-1.5">
-              {(['pt-BR', 'en'] as const).map((loc) => (
-                <button
-                  key={loc}
-                  role="radio"
-                  aria-checked={emailLocale === loc}
-                  onClick={() => setEmailLocale(loc)}
-                  className={`flex-1 rounded-md border px-3 py-2 text-xs text-center transition-colors ${
-                    emailLocale === loc
-                      ? 'bg-indigo-500/15 border-indigo-500/30 text-indigo-400 font-medium'
-                      : 'bg-[#0a0f1a] border-gray-800 text-gray-400 hover:border-gray-700'
-                  }`}
-                >
-                  {loc}
-                </button>
-              ))}
+            <div>
+              <label className="block text-[11px] uppercase tracking-wider font-semibold text-gray-500 mb-2">
+                {tc.locale}
+              </label>
+              <div role="radiogroup" aria-label="Email locale" className="flex gap-1.5">
+                {(['pt-BR', 'en'] as const).map((loc) => (
+                  <button
+                    key={loc}
+                    role="radio"
+                    aria-checked={emailLocale === loc}
+                    onClick={() => setEmailLocale(loc)}
+                    className={`flex-1 rounded-md border px-3 py-2 text-xs text-center transition-colors ${
+                      emailLocale === loc
+                        ? 'bg-indigo-500/15 border-indigo-500/30 text-indigo-400 font-medium'
+                        : 'bg-[#0a0f1a] border-gray-800 text-gray-400 hover:border-gray-700'
+                    }`}
+                  >
+                    {loc}
+                  </button>
+                ))}
+              </div>
             </div>
+
+            <EditionControls
+              types={types}
+              selectedTypeId={selectedTypeId}
+              selectedEditionId={selectedEditionId}
+              onTypeChange={setSelectedTypeId}
+              onEditionChange={setSelectedEditionId}
+              editions={filteredEditions}
+              strings={tc}
+              disabled={template !== 'edition'}
+            />
+
+            <TestSendCard
+              userEmail={userEmail}
+              onSend={handleSend}
+              strings={tc}
+            />
+
+            <PageStateLinks strings={tc} />
           </div>
+        </SectionErrorBoundary>
 
-          <EditionControls
-            types={types}
-            selectedTypeId={selectedTypeId}
-            selectedEditionId={selectedEditionId}
-            onTypeChange={setSelectedTypeId}
-            onEditionChange={setSelectedEditionId}
-            editions={filteredEditions}
-            strings={tc}
-            disabled={template !== 'edition'}
-          />
-
-          <TestSendCard
-            userEmail={userEmail}
-            locale={emailLocale}
-            onSend={handleSend}
-            strings={tc}
-          />
-
-          <PageStateLinks strings={tc} />
-        </div>
-
+        <SectionErrorBoundary sectionName="Email preview">
         <div className="rounded-[10px] border border-gray-800 bg-gray-900 overflow-hidden flex flex-col min-h-[500px]">
           <div className="flex items-center justify-between border-b border-gray-800 px-4 py-2">
             <div className="flex items-center gap-2">
               <span className="text-xs text-gray-500">
-                {template.charAt(0).toUpperCase() + template.slice(1)}
+                {TEMPLATE_LABELS[template]}
                 {sizeBytes != null && ` · ${tc.emailSize}: ${(sizeBytes / 1024).toFixed(1)} KB`}
               </span>
             </div>
@@ -136,7 +139,7 @@ export function TestCenterTab({ strings, locale, userEmail, types, editions: all
                   onClick={() => setWidth('desktop')}
                   className={`px-2 py-1 text-xs rounded ${width === 'desktop' ? 'bg-indigo-500/15 text-indigo-400 font-medium' : 'text-gray-500'}`}
                 >
-                  Desktop
+                  {tc.viewportDesktop}
                 </button>
                 <button
                   role="radio"
@@ -144,7 +147,7 @@ export function TestCenterTab({ strings, locale, userEmail, types, editions: all
                   onClick={() => setWidth('mobile')}
                   className={`px-2 py-1 text-xs rounded ${width === 'mobile' ? 'bg-indigo-500/15 text-indigo-400 font-medium' : 'text-gray-500'}`}
                 >
-                  Mobile
+                  {tc.viewportMobile}
                 </button>
               </div>
               <button
@@ -164,12 +167,12 @@ export function TestCenterTab({ strings, locale, userEmail, types, editions: all
                 <p className="text-sm text-red-400">{error}</p>
               </div>
             )}
-            {loading && !html && (
+            {loading && (
               <div className="text-center py-8">
                 <p className="text-sm text-gray-500">Rendering preview...</p>
               </div>
             )}
-            {html && !error && (
+            {html && !error && !loading && (
               <iframe
                 srcDoc={html}
                 title="Email preview"
@@ -185,6 +188,7 @@ export function TestCenterTab({ strings, locale, userEmail, types, editions: all
             )}
           </div>
         </div>
+        </SectionErrorBoundary>
       </div>
 
       <SummaryBar stats={tc.summaryStats} />

@@ -10,7 +10,7 @@ interface TemplateSelectorProps {
   strings: NewsletterHubStrings['testCenter']
 }
 
-const TEMPLATE_LABELS: Record<TemplateName, string> = {
+export const TEMPLATE_LABELS: Record<TemplateName, string> = {
   confirm: 'Confirm',
   welcome: 'Welcome',
   edition: 'Edition',

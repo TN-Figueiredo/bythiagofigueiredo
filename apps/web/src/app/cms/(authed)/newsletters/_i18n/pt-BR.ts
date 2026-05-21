@@ -164,5 +164,7 @@ export const ptBR: NewsletterHubStrings = {
     recipientLocked: 'Destinatário fixo (email admin)',
     summaryStats: '3 templates · 16 estados de página · Envio restrito ao email admin · cooldown 60s · limite 10/hr',
     deliveringViaSes: 'Entregando via SES',
+    viewportDesktop: 'Desktop',
+    viewportMobile: 'Mobile',
   },
 }
