@@ -164,5 +164,8 @@ export interface NewsletterHubStrings {
     deliveringViaSes: string
     viewportDesktop: string
     viewportMobile: string
+    renderingPreview: string
+    renderFailed: string
+    unexpectedError: string
   }
 }

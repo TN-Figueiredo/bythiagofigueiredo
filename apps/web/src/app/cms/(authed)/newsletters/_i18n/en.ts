@@ -166,5 +166,8 @@ export const en: NewsletterHubStrings = {
     deliveringViaSes: 'Delivering via SES',
     viewportDesktop: 'Desktop',
     viewportMobile: 'Mobile',
+    renderingPreview: 'Rendering preview...',
+    renderFailed: 'Failed to render preview',
+    unexpectedError: 'Unexpected error',
   },
 }

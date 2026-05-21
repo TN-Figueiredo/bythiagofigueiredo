@@ -30,6 +30,8 @@ export function TestCenterTab({ strings, locale, userEmail, types, editions: all
   const [error, setError] = useState<string | null>(null)
   const [width, setWidth] = useState<'desktop' | 'mobile'>('desktop')
 
+  const tc = strings.testCenter
+
   const filteredEditions = useMemo(
     () => selectedTypeId ? allEditions.filter((e) => e.typeId === selectedTypeId) : allEditions,
     [allEditions, selectedTypeId],
@@ -51,13 +53,13 @@ export function TestCenterTab({ strings, locale, userEmail, types, editions: all
         setSizeBytes(null)
       }
     } catch {
-      setError('Failed to render preview')
+      setError(tc.renderFailed)
       setHtml(null)
       setSizeBytes(null)
     } finally {
       setLoading(false)
     }
-  }, [template, emailLocale, selectedEditionId])
+  }, [template, emailLocale, selectedEditionId, tc.renderFailed])
 
   useEffect(() => {
     loadPreview()
@@ -68,8 +70,6 @@ export function TestCenterTab({ strings, locale, userEmail, types, editions: all
       editionId: selectedEditionId ?? undefined,
     })
   }, [template, emailLocale, selectedEditionId])
-
-  const tc = strings.testCenter
 
   return (
     <div className="flex flex-col gap-4">
@@ -169,7 +169,7 @@ export function TestCenterTab({ strings, locale, userEmail, types, editions: all
             )}
             {loading && (
               <div className="text-center py-8">
-                <p className="text-sm text-gray-500">Rendering preview...</p>
+                <p className="text-sm text-gray-500">{tc.renderingPreview}</p>
               </div>
             )}
             {html && !error && !loading && (

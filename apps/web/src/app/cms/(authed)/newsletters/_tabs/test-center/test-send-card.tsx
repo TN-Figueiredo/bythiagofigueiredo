@@ -46,7 +46,7 @@ export function TestSendCard({ userEmail, onSend, strings }: TestSendCardProps) 
         }
       }
     } catch {
-      setErrorMsg('Unexpected error')
+      setErrorMsg(strings.unexpectedError)
       setState('error')
       setTimeout(() => setState('idle'), 3000)
     }

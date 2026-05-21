@@ -166,5 +166,8 @@ export const ptBR: NewsletterHubStrings = {
     deliveringViaSes: 'Entregando via SES',
     viewportDesktop: 'Desktop',
     viewportMobile: 'Mobile',
+    renderingPreview: 'Renderizando preview...',
+    renderFailed: 'Falha ao renderizar preview',
+    unexpectedError: 'Erro inesperado',
   },
 }

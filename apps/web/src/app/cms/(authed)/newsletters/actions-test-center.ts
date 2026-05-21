@@ -234,7 +234,10 @@ export async function sendTestTemplate(
   try {
     const emailService = getEmailService()
     await emailService.send({
-      from: { name: 'Thiago Figueiredo', email: 'newsletter@bythiagofigueiredo.com' },
+      from: {
+        name: 'Thiago Figueiredo',
+        email: `newsletter@${process.env.NEWSLETTER_FROM_DOMAIN ?? 'bythiagofigueiredo.com'}`,
+      },
       to: toEmail,
       subject,
       html: renderResult.html,
