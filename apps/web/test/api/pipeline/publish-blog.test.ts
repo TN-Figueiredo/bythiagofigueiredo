@@ -225,6 +225,39 @@ describe('POST /api/pipeline/items/[id]/publish', () => {
     expect(body.data.blogPostId).toBe(MOCK_BLOG_POST_ID)
   })
 
+  it('returns 409 when pipeline item version conflict (concurrent modification)', async () => {
+    mockAuthSuccess()
+    vi.mocked(parseBody).mockResolvedValue({ targetStage: 'published' })
+
+    const pipelineSelectChain = createMockChain({
+      data: { id: MOCK_ITEM_ID, format: 'blog_post', blog_post_id: MOCK_BLOG_POST_ID, site_id: MOCK_SITE_ID, version: 1, stage: 'review', validation_score: 90 },
+    })
+    const pipelineUpdateChain = createMockChain({ data: null, error: null, count: 0 })
+    const blogChain = createMockChain({
+      data: { id: MOCK_BLOG_POST_ID, status: 'draft' },
+    })
+    const blogUpdateChain = createMockChain({ error: null })
+
+    let pipelineCallCount = 0
+    vi.mocked(getSupabaseServiceClient).mockReturnValue({
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === 'content_pipeline') {
+          pipelineCallCount++
+          return pipelineCallCount === 1 ? pipelineSelectChain : pipelineUpdateChain
+        }
+        if (table === 'blog_posts') return blogChain
+        return blogUpdateChain
+      }),
+    } as any)
+
+    const req = createRequest()
+    const res = await POST(req, { params: Promise.resolve({ id: MOCK_ITEM_ID }) })
+    expect(res.status).toBe(409)
+    const body = await res.json()
+    expect(body.error.code).toBe('VERSION_CONFLICT')
+    expect(body.error.message).toContain('modified concurrently')
+  })
+
   it('returns 200 for valid schedule (happy path with scheduledFor)', async () => {
     mockAuthSuccess()
     vi.mocked(parseBody).mockResolvedValue({

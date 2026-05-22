@@ -92,7 +92,7 @@ export async function prepareBlogTranslationPatch(
   const colophon = draftContent ? extractString(draftContent, 'colophon') : null
   const tag_id = draftContent ? extractString(draftContent, 'tag_id') : null
   // cover_image_url comes from pipeline item (content_pipeline.cover_image_url),
-  // not from draft section content — see materialize-blog.ts blogPostData.
+  // canonical source is pipeline item field, not draft section content
   const cover_image_url: string | null = null
   const meta_title = seoContent ? extractString(seoContent, 'meta_title') : null
   const meta_description = seoContent ? extractString(seoContent, 'meta_description') : null
