@@ -18,29 +18,25 @@ import {
 } from '@dnd-kit/core'
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { toast } from 'sonner'
-import type { PostCard as PostCardType, PipelineCardItem, BlogTag, LaneId } from '../../_hub/hub-types'
+import type { PipelineCardItem, BlogTag, LaneId } from '../../_hub/hub-types'
 import type { BlogHubStrings } from '../../_i18n/types'
 import {
   LANE_DEFS,
   buildUnifiedLanes,
   sortPipelineLane,
-  isEditableLane,
-  isReadOnlyLane,
-  isValidTransition,
 } from '../../_hub/hub-utils'
 import { KanbanLane } from './kanban-lane'
 import { PipelineCard, PipelineCardOverlay } from './pipeline-card'
 import { PromotionModal } from './promotion-modal'
 import { BulkActionBar } from './bulk-action-bar'
-import { ScheduleModal } from './schedule-modal'
-import { ConfirmDialog } from './confirm-dialog'
 
 const DRAG_OVERLAY_ANIMATION: DropAnimation = { duration: 200, easing: 'ease' }
 const PUBLISHED_PAGE_SIZE = 30
 
 interface UnifiedBoardProps {
   pipelineItems: PipelineCardItem[]
-  posts: PostCardType[]
+  /** @deprecated No longer used — all lanes are pipeline-only. Will be removed in a future cleanup. */
+  posts?: unknown[]
   strings?: BlogHubStrings
   tags?: BlogTag[]
   supportedLocales: string[]
@@ -48,16 +44,20 @@ interface UnifiedBoardProps {
   siteTimezone: string
   siteId: string
   onMovePipelineItem: (id: string, version: number, stage: string) => Promise<void>
-  onMovePost: (postId: string, newStatus: string, scheduledFor?: string) => Promise<void>
-  onDeletePost: (postId: string) => void
-  onDuplicate: (postId: string) => Promise<void>
+  /** @deprecated No longer used — scheduled/published are pipeline stages. Will be removed in a future cleanup. */
+  onMovePost?: (postId: string, newStatus: string, scheduledFor?: string) => Promise<void>
+  /** @deprecated No longer used. Will be removed in a future cleanup. */
+  onDeletePost?: (postId: string) => void
+  /** @deprecated No longer used. Will be removed in a future cleanup. */
+  onDuplicate?: (postId: string) => Promise<void>
   onPromote: (
     siteId: string,
     pipelineItemId: string,
     locale: string,
     scheduledFor?: string,
   ) => Promise<{ ok: boolean; postId?: string }>
-  onReturnToPipeline: (postId: string) => void
+  /** @deprecated No longer used. Will be removed in a future cleanup. */
+  onReturnToPipeline?: (postId: string) => void
   onBulkPublish: (postIds: string[]) => Promise<void>
   onBulkArchive: (postIds: string[]) => Promise<void>
   onBulkDelete: (postIds: string[]) => Promise<void>
@@ -65,31 +65,23 @@ interface UnifiedBoardProps {
 }
 
 type PipelineAction =
-  | { type: 'move'; id: string; stage: 'idea' | 'draft' | 'ready' | 'archived' }
+  | { type: 'move'; id: string; stage: 'idea' | 'draft' | 'ready' | 'scheduled' | 'published' | 'archived' }
   | { type: 'remove'; id: string }
-
-type PostAction =
-  | { type: 'move'; id: string; status: PostCardType['status']; scheduledFor?: string }
 
 export function UnifiedBoard({
   pipelineItems,
-  posts,
   strings,
-  tags,
+  tags: _tags,
   supportedLocales,
   defaultLocale,
   siteTimezone,
   siteId,
   onMovePipelineItem,
-  onMovePost,
-  onDeletePost,
-  onDuplicate,
   onPromote,
-  onReturnToPipeline,
   onBulkPublish,
   onBulkArchive,
   onBulkDelete,
-  pipelineProvenanceMap,
+  pipelineProvenanceMap: _pipelineProvenanceMap,
 }: UnifiedBoardProps) {
   const dndId = useId()
   const sensors = useSensors(
@@ -111,38 +103,16 @@ export function UnifiedBoard({
     },
   )
 
-  const [optPosts, dispatchPosts] = useOptimistic(
-    posts,
-    (state: PostCardType[], action: PostAction) => {
-      if (action.type === 'move') {
-        return state.map((p) =>
-          p.id === action.id
-            ? { ...p, status: action.status, ...(action.scheduledFor ? { scheduledFor: action.scheduledFor } : {}) }
-            : p,
-        )
-      }
-      return state
-    },
-  )
-
   const [isPending, startTransition] = useTransition()
 
   const [activeId, setActiveId] = useState<string | null>(null)
-  const [activeType, setActiveType] = useState<'pipeline' | 'post' | null>(null)
 
   const [promotionTarget, setPromotionTarget] = useState<PipelineCardItem | null>(null)
   const [promotionLoading, setPromotionLoading] = useState(false)
 
-  const [scheduleTarget, setScheduleTarget] = useState<{ postId: string; title: string } | null>(null)
-  const pendingScheduleRef = useRef<{ postId: string } | null>(null)
-
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [selectionType, setSelectionType] = useState<'pipeline' | 'post' | null>(null)
 
   const [publishedPage, setPublishedPage] = useState(1)
-
-  const [returnConfirmPostId, setReturnConfirmPostId] = useState<string | null>(null)
-  const returnTriggerRef = useRef<string | null>(null)
 
   const { lanes, totalPublished } = useMemo(() => {
     const raw = buildUnifiedLanes(optPipeline)
@@ -186,19 +156,15 @@ export function UnifiedBoard({
 
   const handleDragStart = useCallback(
     (event: DragStartEvent) => {
-      const id = String(event.active.id)
-      setActiveId(id)
-      const lane = findItemLane(id)
-      setActiveType(lane && isEditableLane(lane) ? 'pipeline' : 'post')
+      setActiveId(String(event.active.id))
     },
-    [findItemLane],
+    [],
   )
 
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
       const { active, over } = event
       setActiveId(null)
-      setActiveType(null)
 
       if (!over) return
 
@@ -208,81 +174,31 @@ export function UnifiedBoard({
 
       if (!fromLane || !toLane || fromLane === toLane) return
 
-      if (isEditableLane(fromLane) && isReadOnlyLane(toLane)) {
-        toast.error(strings?.editorial?.dndPromoteHint ?? "Use 'Promote to Blog' to create a post.")
-        return
-      }
-      if (isReadOnlyLane(fromLane) && isEditableLane(toLane)) {
-        toast.error(strings?.editorial?.dndReturnHint ?? "Use 'Return to Pipeline' from the card menu.")
-        return
-      }
+      const item = optPipeline.find((i) => i.id === itemId)
+      if (!item) return
 
-      // Pipeline-to-pipeline move
-      if (isEditableLane(fromLane) && isEditableLane(toLane)) {
-        const item = optPipeline.find((i) => i.id === itemId)
-        if (!item) return
-        startTransition(async () => {
-          dispatchPipeline({ type: 'move', id: itemId, stage: toLane })
-          try {
-            await onMovePipelineItem(itemId, item.version, toLane)
-          } catch {
-            toast.error(strings?.common?.couldntMove ?? "Couldn't move")
-          }
-        })
-        return
-      }
-
-      // Blog-to-blog move
-      if (isReadOnlyLane(fromLane) && isReadOnlyLane(toLane)) {
-        const card = optPosts.find((p) => p.id === itemId)
-        if (!card) return
-
-        // Drag to scheduled lane → open schedule modal
-        if (toLane === 'scheduled') {
-          pendingScheduleRef.current = { postId: itemId }
-          setScheduleTarget({ postId: itemId, title: card.title })
-          return
+      startTransition(async () => {
+        dispatchPipeline({ type: 'move', id: itemId, stage: toLane })
+        try {
+          await onMovePipelineItem(itemId, item.version, toLane)
+        } catch {
+          toast.error(strings?.common?.couldntMove ?? "Couldn't move")
         }
-
-        const statusMap: Record<string, PostCardType['status']> = {
-          draft: 'draft',
-          published: 'published',
-        }
-        const targetStatus = statusMap[toLane]
-        if (!targetStatus) return
-
-        if (!isValidTransition(card.status, targetStatus)) {
-          toast.error(strings?.editorial?.readyFirst ?? 'Invalid transition. Move to Ready first.')
-          return
-        }
-
-        startTransition(async () => {
-          dispatchPosts({ type: 'move', id: itemId, status: targetStatus })
-          try {
-            await onMovePost(itemId, targetStatus)
-          } catch {
-            toast.error(strings?.common?.couldntMove ?? "Couldn't move")
-          }
-        })
-      }
+      })
     },
     [
       findItemLane,
       resolveTargetLane,
       optPipeline,
-      optPosts,
       onMovePipelineItem,
-      onMovePost,
       strings,
       startTransition,
       dispatchPipeline,
-      dispatchPosts,
     ],
   )
 
   const handleDragCancel = useCallback(() => {
     setActiveId(null)
-    setActiveType(null)
   }, [])
 
   const boardRef = useRef<HTMLDivElement>(null)
@@ -297,30 +213,6 @@ export function UnifiedBoard({
     if (!laneEl) return
     const firstFocusable = laneEl.querySelector<HTMLElement>('a[href], button:not([disabled]), [tabindex="0"]')
     firstFocusable?.focus()
-  }, [])
-
-  const handleScheduleConfirm = useCallback(
-    (scheduledFor: string) => {
-      const pending = pendingScheduleRef.current
-      if (!pending) return
-      const postId = pending.postId
-      pendingScheduleRef.current = null
-      setScheduleTarget(null)
-      startTransition(async () => {
-        dispatchPosts({ type: 'move', id: postId, status: 'scheduled', scheduledFor })
-        try {
-          await onMovePost(postId, 'scheduled', scheduledFor)
-        } catch {
-          toast.error(strings?.common?.couldntMove ?? "Couldn't move")
-        }
-      })
-    },
-    [onMovePost, strings, startTransition, dispatchPosts],
-  )
-
-  const handleScheduleCancel = useCallback(() => {
-    pendingScheduleRef.current = null
-    setScheduleTarget(null)
   }, [])
 
   const handlePromoteClick = useCallback(
@@ -355,106 +247,18 @@ export function UnifiedBoard({
     [promotionTarget, siteId, onPromote, strings, startTransition, dispatchPipeline],
   )
 
-  const handleReturnToPipeline = useCallback(
-    (postId: string) => {
-      returnTriggerRef.current = postId
-      setReturnConfirmPostId(postId)
-    },
-    [],
-  )
-
-  const handleReturnConfirm = useCallback(() => {
-    const postId = returnTriggerRef.current
-    setReturnConfirmPostId(null)
-    if (!postId) return
-    startTransition(async () => {
-      try {
-        await onReturnToPipeline(postId)
-        toast.success(strings?.promotion?.returning ?? 'Returned')
-      } catch {
-        toast.error(strings?.promotion?.returnFailed ?? 'Failed')
-      }
-    })
-  }, [onReturnToPipeline, strings, startTransition])
-
-  const handleReturnCancel = useCallback(() => {
-    returnTriggerRef.current = null
-    setReturnConfirmPostId(null)
-  }, [])
-
-  const handleMovePostToStatus = useCallback(
-    async (postId: string, newStatus: string) => {
-      // Scheduling via menu → open schedule modal
-      if (newStatus === 'scheduled') {
-        const card = optPosts.find((p) => p.id === postId)
-        if (card) {
-          pendingScheduleRef.current = { postId }
-          setScheduleTarget({ postId, title: card.title })
-        }
-        return
-      }
-      startTransition(async () => {
-        dispatchPosts({ type: 'move', id: postId, status: newStatus as PostCardType['status'] })
-        try {
-          await onMovePost(postId, newStatus)
-        } catch {
-          toast.error(strings?.common?.couldntMove ?? "Couldn't move")
-        }
-      })
-    },
-    [onMovePost, optPosts, strings, startTransition, dispatchPosts],
-  )
-
-  const handleSelect = useCallback(
-    (id: string, multi: boolean) => {
-      setSelectedIds((prev) => {
-        const next = new Set(prev)
-        if (multi) {
-          if (next.has(id)) next.delete(id)
-          else next.add(id)
-        } else {
-          next.clear()
-          next.add(id)
-        }
-        return next
-      })
-      const lane = findItemLane(id)
-      if (lane) {
-        setSelectionType(isEditableLane(lane) ? 'pipeline' : 'post')
-      }
-    },
-    [findItemLane],
-  )
-
   const activeItem = useMemo(
-    () =>
-      activeId
-        ? activeType === 'pipeline'
-          ? optPipeline.find((i) => i.id === activeId)
-          : optPosts.find((p) => p.id === activeId)
-        : null,
-    [activeId, activeType, optPipeline, optPosts],
-  )
-
-  const isInvalidDrop = useCallback(
-    (targetLane: LaneId): boolean => {
-      if (!activeType) return false
-      if (activeType === 'pipeline' && isReadOnlyLane(targetLane)) return true
-      if (activeType === 'post' && isEditableLane(targetLane)) return true
-      return false
-    },
-    [activeType],
+    () => activeId ? optPipeline.find((i) => i.id === activeId) ?? null : null,
+    [activeId, optPipeline],
   )
 
   const getItemTitle = useCallback(
     (id: string | number): string => {
       const sid = String(id)
-      const pipelineItem = optPipeline.find((i) => i.id === sid)
-      if (pipelineItem) return pipelineItem.title_pt ?? pipelineItem.title_en ?? (strings?.editorial?.untitled ?? 'Untitled')
-      const post = optPosts.find((p) => p.id === sid)
-      return post?.title || (strings?.editorial?.untitled ?? 'Untitled')
+      const item = optPipeline.find((i) => i.id === sid)
+      return item?.title_pt ?? item?.title_en ?? (strings?.editorial?.untitled ?? 'Untitled')
     },
-    [optPipeline, optPosts, strings],
+    [optPipeline, strings],
   )
 
   const getLaneTitle = useCallback(
@@ -491,16 +295,6 @@ export function UnifiedBoard({
         const tpl = strings?.editorial?.dndCancelled ?? 'Cancelled moving {title}'
         return tpl.replace('{title}', title)
       }
-      const fromLane = findItemLane(String(active.id))
-      const toLane = resolveTargetLane(String(over.id))
-      if (fromLane && toLane && fromLane !== toLane) {
-        if (isEditableLane(fromLane) && isReadOnlyLane(toLane)) {
-          return strings?.editorial?.dndInvalidPipelineToBlog ?? 'Cannot drop here. Use Promote to create a post.'
-        }
-        if (isReadOnlyLane(fromLane) && isEditableLane(toLane)) {
-          return strings?.editorial?.dndInvalidBlogToPipeline ?? 'Cannot drop here. Use Return to Pipeline from the card menu.'
-        }
-      }
       const lane = getLaneTitle(over.id)
       const tpl = strings?.editorial?.dndDropped ?? 'Dropped {title} into {lane}'
       return tpl.replace('{title}', title).replace('{lane}', lane)
@@ -510,7 +304,7 @@ export function UnifiedBoard({
       const tpl = strings?.editorial?.dndCancelled ?? 'Cancelled moving {title}'
       return tpl.replace('{title}', title)
     },
-  }), [getItemTitle, getLaneTitle, findItemLane, resolveTargetLane, strings])
+  }), [getItemTitle, getLaneTitle, strings])
 
   const handlePublishAll = useCallback(async () => {
     try {
@@ -579,7 +373,6 @@ export function UnifiedBoard({
                         </span>
                       ) : undefined
                     }
-                    isInvalidDrop={isInvalidDrop(lane.id)}
                     paginationLabel={
                       lane.id === 'published' && totalPublished > lanes.published.length
                         ? `${lanes.published.length}/${totalPublished}`
@@ -597,7 +390,7 @@ export function UnifiedBoard({
                       ) : undefined
                     }
                   >
-                    {items.filter((i): i is PipelineCardItem => 'stage' in i).map((item) => (
+                    {items.map((item) => (
                       <PipelineCard
                         key={item.id}
                         item={item}
@@ -614,7 +407,7 @@ export function UnifiedBoard({
         </div>
 
         <DragOverlay dropAnimation={DRAG_OVERLAY_ANIMATION}>
-          {activeItem && 'stage' in activeItem ? (
+          {activeItem ? (
             <PipelineCardOverlay item={activeItem} strings={strings} />
           ) : null}
         </DragOverlay>
@@ -633,39 +426,16 @@ export function UnifiedBoard({
         loading={promotionLoading}
       />
 
-      <ScheduleModal
-        isOpen={!!scheduleTarget}
-        postTitle={scheduleTarget?.title ?? ''}
-        siteTimezone={siteTimezone}
-        strings={strings}
-        onConfirm={handleScheduleConfirm}
-        onCancel={handleScheduleCancel}
-      />
-
       <BulkActionBar
         count={selectedIds.size}
-        cardType={selectionType ?? 'post'}
+        cardType="pipeline"
         strings={strings}
-        allInReady={
-          selectionType === 'pipeline' &&
-          [...selectedIds].every((id) => lanes.ready.some((i) => i.id === id))
-        }
+        allInReady={[...selectedIds].every((id) => lanes.ready.some((i) => i.id === id))}
         onPublishAll={handlePublishAll}
         onArchiveAll={handleArchiveAll}
         onDeleteAll={handleDeleteAll}
         onClear={() => setSelectedIds(new Set())}
       />
-
-      {returnConfirmPostId !== null && (
-        <ConfirmDialog
-          title={strings?.promotion?.returnToPipeline ?? 'Return to Pipeline'}
-          message={strings?.promotion?.returnConfirm ?? 'This will delete the blog post and return the item to the pipeline. Continue?'}
-          confirmLabel={strings?.confirmDialog?.confirmReturn ?? 'Continue'}
-          cancelLabel={strings?.confirmDialog?.cancel ?? 'Cancel'}
-          onConfirm={handleReturnConfirm}
-          onCancel={handleReturnCancel}
-        />
-      )}
     </>
   )
 }
