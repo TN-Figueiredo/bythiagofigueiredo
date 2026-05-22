@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { updatePipelineItem, advancePipelineItem, retreatPipelineItem, archivePipelineItem, restorePipelineItem, toggleChecklist, searchBlogPostsAction } from '../actions'
 import { WORKFLOWS } from '@/lib/pipeline/workflows'
-import { getPriorityConfig, getStaleness, getFormatIcon, getLangConfig, getChecklistProgress, getVvsTier } from '@/lib/pipeline/gem-design'
+import { getPriorityConfig, getStaleness, getFormatIcon, getChecklistProgress, getVvsTier } from '@/lib/pipeline/gem-design'
 import { GemVvsRing } from './gem-vvs-ring'
 import { TabContainer } from './detail/tab-container'
 import { useSection } from './detail/use-section'
@@ -17,8 +17,9 @@ import { ConflictBanner } from './detail/conflict-banner'
 import { SectionContent } from './detail/section-content'
 import { ContentCiteSelector } from './detail/content-cite-selector'
 import { EmptySection } from './detail/renderers/empty-section'
-import { getSectionKey, getSectionsForFormat, flattenSections, type SectionData, type SectionDefinition } from '@/lib/pipeline/sections'
-import { BLOG_CATEGORIES, type Format } from '@/lib/pipeline/schemas'
+import { getSectionKey, type SectionData, type SectionDefinition } from '@/lib/pipeline/sections'
+import { BLOG_CATEGORIES, LANGUAGES, type Format, type Language } from '@/lib/pipeline/schemas'
+import { computeValidationScore, VVS_PUBLISH_THRESHOLD, type ValidationScore } from '@/lib/pipeline/validation'
 import { BlogPostCard } from './detail/blog-post-card'
 import { BlogPostSearchDialog } from './detail/blog-post-search-dialog'
 import { PromptGeneratorModal } from './prompt-generator-modal'
@@ -27,7 +28,7 @@ import { MediaGalleryModal } from '../../_shared/media/media-gallery-modal'
 import { CROP_PRESETS, type MediaAssetResult } from '../../_shared/media/types'
 import { trackMediaUsageAction } from '../../media/actions'
 import { PipelineMediaProvider, type ImageSelectResult } from './detail/editors/pipeline-media-context'
-import { ImageIcon, X } from 'lucide-react'
+import { ImageIcon, X, ChevronDown } from 'lucide-react'
 import { SocialConfigEditor } from './detail/social-config-editor'
 import type { SocialConfig } from '@/lib/social/types'
 
@@ -75,6 +76,16 @@ interface Props {
   item: ItemData
   history: HistoryEntry[]
   dependencies: Dependency[]
+}
+
+const HISTORY_EVENT_LABELS: Record<string, string> = {
+  stage_change: 'Stage',
+  field_update: 'Campo',
+  section_save: 'Seção',
+  checklist_toggle: 'Checklist',
+  status_change: 'Status',
+  archive: 'Arquivo',
+  restore: 'Restaurado',
 }
 
 function hasPendingChanges(item: ItemData): boolean {
@@ -315,7 +326,6 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
   const priority = getPriorityConfig(item.priority)
   const staleness = getStaleness(item.updated_at)
   const formatIcon = getFormatIcon(item.format)
-  const lang = getLangConfig(item.language)
   const checklist = getChecklistProgress(item.production_checklist)
 
   const [coverImageUrl, setCoverImageUrl] = useState<string | null>(item.cover_image_url)
@@ -384,17 +394,25 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
     const current = itemRef.current
     const result = await updatePipelineItem(current.id, current.version, { cover_image_url: asset.url })
     if (result.ok && result.data) setItem(result.data as typeof item)
-    else if (!result.ok) { toast.error('Erro ao salvar capa'); setCoverImageUrl(current.cover_image_url) }
+    else if (!result.ok) {
+      setCoverImageUrl(current.cover_image_url)
+      if (result.error.includes('Version conflict')) { toast.error('Item atualizado por outro processo. Recarregando...'); router.refresh() }
+      else toast.error('Erro ao salvar capa')
+    }
     trackMediaUsageAction(asset.id, 'pipeline_item', current.id, 'cover_image').catch(() => {})
-  }, [])
+  }, [router])
 
   const handleCoverRemove = useCallback(async () => {
     setCoverImageUrl(null)
     const current = itemRef.current
     const result = await updatePipelineItem(current.id, current.version, { cover_image_url: null })
     if (result.ok && result.data) setItem(result.data as typeof item)
-    else if (!result.ok) { toast.error('Erro ao remover capa'); setCoverImageUrl(current.cover_image_url) }
-  }, [])
+    else if (!result.ok) {
+      setCoverImageUrl(current.cover_image_url)
+      if (result.error.includes('Version conflict')) { toast.error('Item atualizado por outro processo. Recarregando...'); router.refresh() }
+      else toast.error('Erro ao remover capa')
+    }
+  }, [router])
 
   const handleCategoryChange = useCallback(async (value: string) => {
     const newCategory = value || null
@@ -402,8 +420,31 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
     const current = itemRef.current
     const result = await updatePipelineItem(current.id, current.version, { category: newCategory })
     if (result.ok && result.data) setItem(result.data as typeof item)
-    else if (!result.ok) { toast.error('Erro ao salvar categoria'); setCategory(current.category) }
-  }, [])
+    else if (!result.ok) {
+      setCategory(current.category)
+      if (result.error.includes('Version conflict')) { toast.error('Item atualizado por outro processo. Recarregando...'); router.refresh() }
+      else toast.error('Erro ao salvar categoria')
+    }
+  }, [router])
+
+  const handleLanguageChange = useCallback(async (value: string) => {
+    const newLang = value as Language
+    const current = itemRef.current
+    if (current.language === 'both' && newLang !== 'both') {
+      const dropping = newLang === 'pt-br' ? 'inglês' : 'português'
+      if (!window.confirm(`Isso vai marcar o conteúdo em ${dropping} como não necessário. Continuar?`)) return
+    }
+    const result = await updatePipelineItem(current.id, current.version, { language: newLang })
+    if (result.ok && result.data) { setItem(result.data as typeof item); toast.success('Idioma atualizado') }
+    else if (!result.ok) {
+      if (result.error.includes('Version conflict')) {
+        toast.error('Item atualizado por outro processo. Recarregando...')
+        router.refresh()
+      } else {
+        toast.error('Erro ao salvar idioma')
+      }
+    }
+  }, [router])
 
   const [isAdvancing, setIsAdvancing] = useState(false)
   const [isRetreating, setIsRetreating] = useState(false)
@@ -412,10 +453,9 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
   const manualOverrideRef = useRef(false)
   const [showBlogSearch, setShowBlogSearch] = useState(false)
   const [showPromptModal, setShowPromptModal] = useState(false)
-  const [promptSections, setPromptSections] = useState<Array<{ section_type: string; language: string; content: string }>>([])
-  const [loadingSections, setLoadingSections] = useState(false)
-
-  const vvsColor = getVvsTier(item.validation_score).color
+  const [promptTargetLocale, setPromptTargetLocale] = useState<'pt-br' | 'en'>('en')
+  const [socialExpanded, setSocialExpanded] = useState(() => item.social_config != null)
+  const [historyExpanded, setHistoryExpanded] = useState(false)
 
   const handleBlogSearch = useCallback(async (query: string) => {
     return searchBlogPostsAction(item.site_id, query)
@@ -439,7 +479,7 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
     setIsAdvancing(true)
     try {
       const result = await advancePipelineItem(item.id, item.version)
-      if (result.ok) { toast.success('Stage avançado'); router.refresh() }
+      if (result.ok) { toast.success('Avançado!'); router.refresh() }
       else toast.error(result.error)
     } finally {
       setIsAdvancing(false)
@@ -450,7 +490,7 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
     setIsRetreating(true)
     try {
       const result = await retreatPipelineItem(item.id, item.version)
-      if (result.ok) { toast.success('Stage recuado'); router.refresh() }
+      if (result.ok) { toast.success('Recuado'); router.refresh() }
       else toast.error(result.error)
     } finally {
       setIsRetreating(false)
@@ -470,26 +510,20 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
     else toast.error(result.error)
   }
 
-  async function handleOpenPromptGenerator() {
-    setLoadingSections(true)
-    try {
-      const res = await fetch(`/api/pipeline/items/${item.id}/sections`)
-      if (!res.ok) throw new Error('Failed to fetch sections')
-      const data = await res.json()
-      setPromptSections(
-        (data.sections ?? []).map((s: { section_type: string; language: string; content: string }) => ({
-          section_type: s.section_type,
-          language: s.language,
-          content: s.content,
-        })),
-      )
-      setShowPromptModal(true)
-    } catch {
-      toast.error('Erro ao carregar seções')
-    } finally {
-      setLoadingSections(false)
-    }
-  }
+  const promptSections = useMemo(() => {
+    const sections = item.sections ?? {}
+    return Object.entries(sections).map(([key, sec]) => {
+      const parts = key.split('_')
+      const suffix = parts.pop() ?? 'pt'
+      const sectionType = parts.join('_')
+      const language = suffix === 'en' ? 'en' : suffix === 'shared' ? 'shared' : 'pt-br'
+      return {
+        section_type: sectionType,
+        language,
+        content: typeof sec.content === 'string' ? sec.content : JSON.stringify(sec.content ?? {}),
+      }
+    })
+  }, [item.sections])
 
   async function handleRepublish() {
     setIsRepublishing(true)
@@ -499,7 +533,7 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
         pipelineItemId: item.id,
         targetStage: 'published',
         scheduledFor: null,
-        vvsScore: item.validation_score,
+        vvsScore: vvsBreakdown.overall,
       })
       if (result.ok) {
         toast.success('Post atualizado no site')
@@ -524,6 +558,22 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
 
   // Normalise sections to a safe Record
   const sectionsMap = (item.sections ?? {}) as Record<string, SectionData>
+
+  const vvsBreakdown: ValidationScore = useMemo(() => computeValidationScore({
+    title_pt: item.title_pt,
+    title_en: item.title_en,
+    hook: item.hook,
+    synopsis: item.synopsis,
+    body_content: item.body_content,
+    tags: item.tags,
+    production_checklist: item.production_checklist,
+    format_metadata: item.format_metadata,
+    format: item.format as Format,
+    sections: item.sections,
+    language: item.language,
+  }), [item.title_pt, item.title_en, item.hook, item.synopsis, item.body_content, item.tags, item.production_checklist, item.format_metadata, item.format, item.sections, item.language])
+
+  const vvsColor = getVvsTier(vvsBreakdown.overall).color
 
   return (
     <PipelineMediaProvider onRequestImage={handleRequestInlineImage}>
@@ -554,6 +604,7 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
               <button
                 type="button"
                 onClick={handleCoverRemove}
+                aria-label="Remover capa"
                 className="text-xs text-white bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-md transition-colors"
               >
                 <X size={14} />
@@ -577,7 +628,7 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
           value={titlePt}
           onChange={(e) => { setTitlePt(e.target.value); debouncedSave('title_pt', e.target.value) }}
           placeholder="Título do conteúdo"
-          aria-label="Title"
+          aria-label="Título do conteúdo"
           className="w-full bg-transparent border border-transparent rounded-lg hover:border-[var(--gem-border)] hover:bg-[var(--gem-surface-hi)] focus:border-[var(--gem-accent)] focus:bg-[var(--gem-well)] focus:shadow-[0_0_0_2px_rgba(99,102,241,0.12)] focus:outline-none transition-all duration-150"
           style={{ color: 'var(--gem-text)', fontSize: 24, fontWeight: 700, letterSpacing: '-0.4px', lineHeight: 1.3, padding: '10px 14px' }}
         />
@@ -599,7 +650,7 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
             onFocus={() => setFocusedField('hook')}
             onBlur={() => setFocusedField(null)}
             placeholder="O que prende a audiência em uma frase?"
-            aria-label="Hook"
+            aria-label="Hook do conteúdo"
             aria-labelledby={hook ? `hook-label-${item.id}` : undefined}
             className="w-full bg-transparent border border-transparent rounded-r-lg hover:border-[var(--gem-border)] hover:bg-[var(--gem-surface-hi)] focus:border-[var(--gem-accent)] focus:bg-[var(--gem-well)] focus:shadow-[0_0_0_2px_rgba(99,102,241,0.12)] focus:outline-none transition-all duration-150"
             style={{
@@ -627,7 +678,7 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
               className="absolute top-[-7px] left-[22px] z-10 px-1.5 text-[9px] uppercase tracking-[1.2px] font-semibold transition-opacity duration-150"
               style={{ color: 'var(--gem-dim)', background: 'var(--gem-surface)', lineHeight: '14px' }}
             >
-              Synopsis
+              Sinopse
             </span>
           )}
           <textarea
@@ -636,7 +687,7 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
             onFocus={() => setFocusedField('synopsis')}
             onBlur={() => setFocusedField(null)}
             placeholder="Sobre o que é esse conteúdo? Contexto, tese, estrutura..."
-            aria-label="Synopsis"
+            aria-label="Sinopse"
             aria-labelledby={synopsis ? `synopsis-label-${item.id}` : undefined}
             rows={3}
             className="w-full bg-transparent border border-transparent rounded-r-lg hover:border-[var(--gem-border)] hover:bg-[var(--gem-surface-hi)] focus:border-[var(--gem-accent)] focus:bg-[var(--gem-well)] focus:shadow-[0_0_0_2px_rgba(99,102,241,0.12)] focus:outline-none transition-all duration-150 resize-y"
@@ -708,7 +759,7 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
                   hook={item.hook}
                   synopsis={item.synopsis}
                   siteId={item.site_id}
-                  vvsScore={item.validation_score}
+                  vvsScore={vvsBreakdown.overall}
                 />
               </ActiveTabObserver>
             )
@@ -726,9 +777,9 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
           <div className="flex flex-col items-center gap-2.5 py-3">
             <div className="w-8 h-8 rounded-full border-2 flex items-center justify-center text-xs font-bold"
               style={{ borderColor: vvsColor, color: vvsColor }}>
-              {item.validation_score || '—'}
+              {vvsBreakdown.overall || '—'}
             </div>
-            <button onClick={() => { manualOverrideRef.current = true; setSidebarCollapsed(false) }} title="Expand sidebar"
+            <button onClick={() => { manualOverrideRef.current = true; setSidebarCollapsed(false) }} title="Expandir painel lateral"
               className="w-7 h-7 rounded-md flex items-center justify-center text-xs hover:opacity-80"
               style={{ background: 'var(--gem-well)', color: 'var(--gem-muted)' }}>
               &raquo;
@@ -737,21 +788,21 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
         ) : (
         <>{/* Collapse button */}
         <div className="flex justify-end">
-          <button onClick={() => { manualOverrideRef.current = true; setSidebarCollapsed(true) }} title="Collapse sidebar"
+          <button onClick={() => { manualOverrideRef.current = true; setSidebarCollapsed(true) }} title="Recolher painel lateral"
             className="w-7 h-7 rounded-md flex items-center justify-center text-xs hover:opacity-80"
             style={{ background: 'var(--gem-well)', color: 'var(--gem-muted)' }}>
             &laquo;
           </button>
         </div>
-        {/* Stage card */}
+
+        {/* ── Group 1: Stage & Metadata ── */}
         <div className="rounded-lg border p-4" style={{ backgroundColor: 'var(--gem-surface)', borderColor: 'var(--gem-border)' }}>
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-medium px-2 py-0.5 rounded" style={{ backgroundColor: priority.accentDim, color: priority.accent }}>
               {currentStage?.label_pt || item.stage}
             </span>
-            <span className="text-[10px]" style={{ color: 'var(--gem-dim)' }}>há {staleness.days}d</span>
+            <span className="text-[10px]" style={{ color: 'var(--gem-dim)' }}>{staleness.label}</span>
           </div>
-          {/* Stage progress dots */}
           <div className="flex gap-1 mb-3" role="progressbar" aria-valuemin={0} aria-valuenow={currentPosition} aria-valuemax={stages.length - 1} aria-label="Stage progress">
             {stages.map((s) => {
               const status = s.position < currentPosition ? 'completed' : s.position === currentPosition ? 'active' : 'pending'
@@ -781,7 +832,7 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
                 cursor: isRetreating || isAdvancing || currentPosition === 0 ? 'default' : 'pointer',
               }}
             >
-              {isRetreating ? '⏳ Recuando...' : '← Retreat'}
+              {isRetreating ? '⏳ Recuando...' : '← Recuar'}
             </button>
             <button
               onClick={handleAdvance}
@@ -794,176 +845,70 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
                 cursor: isAdvancing || isRetreating ? 'default' : 'pointer',
               }}
             >
-              {isAdvancing ? '⏳ Avançando...' : 'Advance →'}
+              {isAdvancing ? '⏳ Avançando...' : 'Avançar →'}
             </button>
           </div>
           {item.is_archived ? (
             <button onClick={handleRestore} className="w-full mt-2 text-xs py-1.5 rounded border transition-colors hover:bg-emerald-500/10" style={{ borderColor: 'var(--gem-done)', color: 'var(--gem-done)' }}>
-              Restore
+              Restaurar
             </button>
           ) : (
             <button onClick={handleArchive} className="w-full mt-2 text-xs py-1.5 rounded transition-colors hover:bg-red-500/20" style={{ backgroundColor: 'color-mix(in srgb, var(--gem-danger) 10%, transparent)', color: 'var(--gem-danger)' }}>
-              Archive
+              Arquivar
             </button>
           )}
-        </div>
 
-        {/* Blog Post card */}
-        <BlogPostCard
-          itemId={item.id}
-          linkedPost={item.linked_post ?? null}
-          onGraduate={handleGraduate}
-          onShowSearch={() => setShowBlogSearch(true)}
-        />
-
-        {/* Blog Post search dialog */}
-        <BlogPostSearchDialog
-          itemId={item.id}
-          siteId={item.site_id}
-          open={showBlogSearch}
-          onClose={() => setShowBlogSearch(false)}
-          onSearch={handleBlogSearch}
-        />
-
-        {/* Social config card */}
-        <div className="rounded-lg border p-4" role="region" aria-label="Configuração Social" style={{ backgroundColor: 'var(--gem-surface)', borderColor: 'var(--gem-border)' }}>
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-xs font-medium" style={{ color: 'var(--gem-text)' }}>Social</h3>
-            {item.social_post_id && (
-              <Link
-                href={`/cms/social/${item.social_post_id}`}
-                className="text-[10px] hover:underline"
-                style={{ color: 'var(--gem-accent)' }}
-              >
-                Ver post →
-              </Link>
-            )}
-          </div>
-          <SocialConfigEditor
-            config={socialConfig}
-            onChange={handleSocialConfigChange}
-            disabled={!!item.social_post_id}
-            contentFormat={item.format}
-            autoFillHook={item.hook}
-            autoFillTags={item.tags}
-          />
-        </div>
-
-        {/* Sections card */}
-        <div className="rounded-lg border p-4" style={{ backgroundColor: 'var(--gem-surface)', borderColor: 'var(--gem-border)' }}>
-          <h3 className="text-xs font-medium mb-2" style={{ color: 'var(--gem-text)' }}>Seções</h3>
-          <div className="space-y-1">
-            {flattenSections(getSectionsForFormat(item.format as Format))
-              .filter(s => !s.subSections)
-              .map(def => {
-                // Check both EN and PT and shared keys for existence
-                const keyEn = getSectionKey(def.key, 'en')
-                const keyPt = getSectionKey(def.key, 'pt')
-                const dataEn = sectionsMap[keyEn]
-                const dataPt = sectionsMap[keyPt]
-                const data = dataEn ?? dataPt ?? null
-                const hasContent = data != null
-
-                return (
-                  <div key={def.key} className="flex items-center justify-between text-[11px]">
-                    <span className="flex items-center gap-1.5">
-                      <span
-                        className="w-1.5 h-1.5 rounded-full shrink-0"
-                        style={{
-                          background: hasContent ? 'var(--gem-done)' : 'transparent',
-                          border: hasContent ? 'none' : '1px solid var(--gem-dim)',
-                        }}
-                      />
-                      <span style={{ color: hasContent ? 'var(--gem-muted)' : 'var(--gem-dim)' }}>{def.label_pt}</span>
-                    </span>
-                    {data && (
-                      <span className="font-mono text-[9px]" style={{ color: 'var(--gem-dim)' }}>rev.{data.rev}</span>
-                    )}
-                  </div>
-                )
-              })}
-          </div>
-        </div>
-
-        {/* Checklist card */}
-        <div className="rounded-lg border p-4" style={{ backgroundColor: 'var(--gem-surface)', borderColor: 'var(--gem-border)' }}>
-          <h3 className="text-xs font-medium mb-2" style={{ color: 'var(--gem-text)' }}>Checklist</h3>
-          <div className="space-y-1.5">
-            {item.production_checklist.map((c, i) => (
-              <label key={i} className="flex items-center gap-2 cursor-pointer group">
-                <input
-                  type="checkbox"
-                  checked={c.done}
-                  onChange={(e) => { void handleToggleChecklist(i, e.target.checked) }}
-                  className="rounded border-slate-600 w-3.5 h-3.5 accent-emerald-500"
-                  aria-label={c.label}
-                />
-                <span className={`text-xs transition-colors ${c.done ? 'line-through' : 'group-hover:text-white/80'}`} style={{ color: c.done ? 'var(--gem-dim)' : 'var(--gem-muted)' }}>
-                  {c.label}
-                </span>
-              </label>
-            ))}
-          </div>
-          {checklist.total > 0 && (
-            <>
-              <div className="flex gap-0.5 mt-3">
-                {checklist.segments.map((done, i) => (
-                  <div key={i} className="h-1 flex-1 rounded-sm" style={{ backgroundColor: done ? 'var(--gem-done)' : 'var(--gem-well)', boxShadow: done ? '0 0 4px color-mix(in srgb, var(--gem-done) 30%, transparent)' : 'none' }} />
-                ))}
-              </div>
-              <p className="text-[10px] mt-1" style={{ color: 'var(--gem-dim)' }}>{checklist.done}/{checklist.total}</p>
-            </>
-          )}
-        </div>
-
-        {/* VVS card */}
-        <div className="rounded-lg border p-4 flex items-center gap-3" style={{ backgroundColor: 'var(--gem-surface)', borderColor: 'var(--gem-border)' }}>
-          <GemVvsRing score={item.validation_score} size={48} />
-          <div>
-            <p className="text-xs font-medium" style={{ color: 'var(--gem-text)' }}>VVS Score</p>
-            <p className="text-[10px]" style={{ color: 'var(--gem-dim)' }}>Validation completeness</p>
-          </div>
-        </div>
-
-        {/* Details card */}
-        <div className="rounded-lg border p-4" style={{ backgroundColor: 'var(--gem-surface)', borderColor: 'var(--gem-border)' }}>
-          <h3 className="text-xs font-medium mb-2" style={{ color: 'var(--gem-text)' }}>Details</h3>
-          <dl className="space-y-1.5 text-xs">
+          {/* Metadata */}
+          <dl className="mt-3 pt-3 space-y-1.5 text-xs" style={{ borderTop: '1px solid var(--gem-border)' }}>
             <div className="flex justify-between">
-              <dt style={{ color: 'var(--gem-dim)' }}>Format</dt>
+              <dt style={{ color: 'var(--gem-dim)' }}>Formato</dt>
               <dd className="flex items-center gap-1">
                 <span>{formatIcon.icon}</span>
                 <span style={{ color: 'var(--gem-muted)' }}>{formatIcon.label}</span>
               </dd>
             </div>
-            <div className="flex justify-between">
-              <dt style={{ color: 'var(--gem-dim)' }}>Language</dt>
-              <dd className="flex items-center gap-2">
-                <span className={`text-[10px] px-1 py-0.5 rounded ${lang.className}`}>{lang.label}</span>
+            <div className="flex justify-between items-center">
+              <dt style={{ color: 'var(--gem-dim)' }}>Idioma</dt>
+              <dd className="flex items-center gap-1.5">
+                <select
+                  value={item.language}
+                  onChange={(e) => { void handleLanguageChange(e.target.value) }}
+                  aria-label="Idioma do conteúdo"
+                  className="text-[10px] px-1.5 py-0.5 rounded bg-transparent border cursor-pointer focus:outline-none focus:border-[var(--gem-accent)]"
+                  style={{ color: 'var(--gem-muted)', borderColor: 'var(--gem-border)' }}
+                >
+                  {LANGUAGES.map((l) => (
+                    <option key={l} value={l}>{l === 'pt-br' ? 'PT-BR' : l === 'en' ? 'EN' : 'PT+EN'}</option>
+                  ))}
+                </select>
                 {item.language !== 'both' && (
                   <button
                     type="button"
-                    onClick={handleOpenPromptGenerator}
-                    disabled={loadingSections}
-                    className="text-[9px] disabled:opacity-50"
+                    onClick={() => {
+                      setPromptTargetLocale(item.language === 'pt-br' ? 'en' : 'pt-br')
+                      setShowPromptModal(true)
+                    }}
+                    className="text-[9px]"
                     style={{ color: 'var(--gem-accent)' }}
+                    title={`Gerar prompt para ${item.language === 'pt-br' ? 'EN' : 'PT'}`}
                   >
-                    {loadingSections ? '...' : `+ ${item.language === 'pt-br' ? 'EN' : 'PT'}`}
+                    + {item.language === 'pt-br' ? 'EN' : 'PT'}
                   </button>
                 )}
               </dd>
             </div>
             <div className="flex justify-between">
-              <dt style={{ color: 'var(--gem-dim)' }}>Priority</dt>
+              <dt style={{ color: 'var(--gem-dim)' }}>Prioridade</dt>
               <dd><span className="text-[10px] px-1 py-0.5 rounded" style={{ backgroundColor: priority.accentDim, color: priority.accent }}>{priority.label}</span></dd>
             </div>
             {item.format === 'blog_post' && (
               <div className="flex justify-between items-center">
-                <dt style={{ color: 'var(--gem-dim)' }}>Category</dt>
+                <dt style={{ color: 'var(--gem-dim)' }}>Categoria</dt>
                 <dd>
                   <select
                     value={category ?? ''}
                     onChange={(e) => handleCategoryChange(e.target.value)}
+                    aria-label="Categoria do post"
                     className="text-[10px] px-1.5 py-0.5 rounded bg-transparent border cursor-pointer focus:outline-none focus:border-[var(--gem-accent)]"
                     style={{ color: 'var(--gem-muted)', borderColor: 'var(--gem-border)' }}
                   >
@@ -976,7 +921,7 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
               </div>
             )}
             <div className="flex justify-between">
-              <dt style={{ color: 'var(--gem-dim)' }}>Version</dt>
+              <dt style={{ color: 'var(--gem-dim)' }}>Versão</dt>
               <dd style={{ color: 'var(--gem-muted)' }}>{item.version}</dd>
             </div>
           </dl>
@@ -987,7 +932,7 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
           )}
           {dependencies.length > 0 && (
             <div className="mt-2">
-              <p className="text-[10px] mb-1" style={{ color: 'var(--gem-dim)' }}>Dependencies:</p>
+              <p className="text-[10px] mb-1" style={{ color: 'var(--gem-dim)' }}>Dependências:</p>
               <div className="flex flex-wrap gap-1">
                 {dependencies.map((d, i) => (
                   <span key={i} className="text-[10px] px-1 py-0.5 rounded bg-red-900/30 text-red-300">{d.depends_on_pipeline.code}</span>
@@ -997,22 +942,157 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
           )}
         </div>
 
-        {/* History card */}
-        {history.length > 0 && (
-          <div className="rounded-lg border p-4" style={{ backgroundColor: 'var(--gem-surface)', borderColor: 'var(--gem-border)' }}>
-            <h3 className="text-xs font-medium mb-2" style={{ color: 'var(--gem-text)' }}>Histórico</h3>
-            <div className="space-y-2">
-              {history.slice(0, 10).map((h) => (
-                <div key={h.id} className="flex items-center gap-2 text-xs">
-                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: 'var(--gem-accent)' }} />
-                  <span style={{ color: 'var(--gem-muted)' }}>{h.event_type}</span>
-                  {h.to_value && <span style={{ color: 'var(--gem-text)' }}>→ {h.to_value}</span>}
-                  <span className="ml-auto text-[10px] shrink-0" style={{ color: 'var(--gem-dim)' }}>
-                    {new Date(h.changed_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
-                  </span>
-                </div>
-              ))}
+        {/* ── Group 2: Readiness (VVS + Checklist) ── */}
+        <div className="rounded-lg border p-4" style={{ backgroundColor: 'var(--gem-surface)', borderColor: 'var(--gem-border)' }}>
+          <div className="flex items-center gap-3 mb-3">
+            <GemVvsRing score={vvsBreakdown.overall} size={44} />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium" style={{ color: 'var(--gem-text)' }}>
+                Prontidão {vvsBreakdown.overall > 0 ? `${vvsBreakdown.overall}%` : '—'}
+              </p>
+              <p className="text-[10px]" style={{ color: vvsBreakdown.overall >= VVS_PUBLISH_THRESHOLD ? 'var(--gem-done)' : 'var(--gem-dim)' }}>
+                {vvsBreakdown.overall >= VVS_PUBLISH_THRESHOLD ? 'Pronto para publicar' : `Mínimo ${VVS_PUBLISH_THRESHOLD}% para publicar`}
+              </p>
             </div>
+          </div>
+          {/* VVS breakdown grid */}
+          <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px] mb-3">
+            {([
+              ['Título', vvsBreakdown.breakdown.has_title],
+              ['Hook', vvsBreakdown.breakdown.has_hook],
+              ['Sinopse', vvsBreakdown.breakdown.has_synopsis],
+              ['Conteúdo', vvsBreakdown.breakdown.has_body],
+              ['Tags', vvsBreakdown.breakdown.has_tags],
+              ['Metadata', vvsBreakdown.breakdown.metadata_complete],
+              ...(item.format === 'blog_post' ? [
+                ['Slug', vvsBreakdown.breakdown.has_slug ?? false],
+                ['Resumo', vvsBreakdown.breakdown.has_excerpt ?? false],
+                ['SEO', vvsBreakdown.breakdown.has_seo ?? false],
+                ['Capa', vvsBreakdown.breakdown.has_cover ?? false],
+              ] : []),
+            ] as [string, boolean][]).map(([label, ok]) => (
+              <span key={label} className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: ok ? 'var(--gem-done)' : 'transparent', border: ok ? 'none' : '1px solid var(--gem-dim)' }} />
+                <span style={{ color: ok ? 'var(--gem-muted)' : 'var(--gem-dim)' }}>{label}</span>
+              </span>
+            ))}
+          </div>
+          {/* Interactive checklist */}
+          {item.production_checklist.length > 0 && (
+            <div className="space-y-1.5" style={{ borderTop: '1px solid var(--gem-border)', paddingTop: '0.5rem' }}>
+              {item.production_checklist.map((c, i) => (
+                <label key={i} className="flex items-center gap-2 cursor-pointer group">
+                  <input
+                    type="checkbox"
+                    checked={c.done}
+                    onChange={(e) => { void handleToggleChecklist(i, e.target.checked) }}
+                    className="rounded border-slate-600 w-3.5 h-3.5 accent-emerald-500"
+                    aria-label={c.label}
+                  />
+                  <span className={`text-xs transition-colors ${c.done ? 'line-through' : 'group-hover:text-white/80'}`} style={{ color: c.done ? 'var(--gem-dim)' : 'var(--gem-muted)' }}>
+                    {c.label}
+                  </span>
+                </label>
+              ))}
+              {checklist.total > 0 && (
+                <div className="flex gap-0.5 mt-1">
+                  {checklist.segments.map((done, i) => (
+                    <div key={i} className="h-1 flex-1 rounded-sm" style={{ backgroundColor: done ? 'var(--gem-done)' : 'var(--gem-well)', boxShadow: done ? '0 0 4px color-mix(in srgb, var(--gem-done) 30%, transparent)' : 'none' }} />
+                  ))}
+                </div>
+              )}
+              {checklist.total > 0 && (
+                <p className="text-[10px] mt-0.5" style={{ color: 'var(--gem-dim)' }}>{checklist.done}/{checklist.total}</p>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ── Group 3: Blog Post + Social ── */}
+        <BlogPostCard
+          itemId={item.id}
+          linkedPost={item.linked_post ?? null}
+          onGraduate={handleGraduate}
+          onShowSearch={() => setShowBlogSearch(true)}
+        />
+        <BlogPostSearchDialog
+          itemId={item.id}
+          siteId={item.site_id}
+          open={showBlogSearch}
+          onClose={() => setShowBlogSearch(false)}
+          onSearch={handleBlogSearch}
+        />
+
+        {/* Social — collapsible */}
+        <div className="rounded-lg border" style={{ backgroundColor: 'var(--gem-surface)', borderColor: 'var(--gem-border)' }}>
+          <button
+            onClick={() => setSocialExpanded(!socialExpanded)}
+            className="w-full flex items-center justify-between p-3 text-xs font-medium hover:opacity-80"
+            style={{ color: 'var(--gem-text)' }}
+            aria-expanded={socialExpanded}
+            aria-controls="sidebar-social-content"
+          >
+            <span className="flex items-center gap-2">
+              Social
+              {item.social_post_id && (
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--gem-done)' }} />
+              )}
+            </span>
+            <ChevronDown size={14} className={`transition-transform ${socialExpanded ? 'rotate-180' : ''}`} style={{ color: 'var(--gem-dim)' }} />
+          </button>
+          {socialExpanded && (
+            <div id="sidebar-social-content" className="px-3 pb-3">
+              {item.social_post_id && (
+                <Link
+                  href={`/cms/social/${item.social_post_id}`}
+                  className="text-[10px] hover:underline block mb-2"
+                  style={{ color: 'var(--gem-accent)' }}
+                >
+                  Ver post social →
+                </Link>
+              )}
+              <SocialConfigEditor
+                config={socialConfig}
+                onChange={handleSocialConfigChange}
+                disabled={!!item.social_post_id}
+                contentFormat={item.format}
+                autoFillHook={item.hook}
+                autoFillTags={item.tags}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* ── Group 4: History — collapsible ── */}
+        {history.length > 0 && (
+          <div className="rounded-lg border" style={{ backgroundColor: 'var(--gem-surface)', borderColor: 'var(--gem-border)' }}>
+            <button
+              onClick={() => setHistoryExpanded(!historyExpanded)}
+              className="w-full flex items-center justify-between p-3 text-xs font-medium hover:opacity-80"
+              style={{ color: 'var(--gem-text)' }}
+              aria-expanded={historyExpanded}
+              aria-controls="sidebar-history-content"
+            >
+              <span>Histórico <span className="font-normal" style={{ color: 'var(--gem-dim)' }}>({history.length})</span></span>
+              <ChevronDown size={14} className={`transition-transform ${historyExpanded ? 'rotate-180' : ''}`} style={{ color: 'var(--gem-dim)' }} />
+            </button>
+            {historyExpanded && (
+              <div id="sidebar-history-content" className="px-3 pb-3 space-y-2">
+                {history.slice(0, 10).map((h) => (
+                  <div key={h.id} className="flex items-center gap-2 text-xs">
+                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: 'var(--gem-accent)' }} />
+                    <span style={{ color: 'var(--gem-muted)' }}>{HISTORY_EVENT_LABELS[h.event_type] ?? h.event_type}</span>
+                    {h.to_value && <span style={{ color: 'var(--gem-text)' }}>→ {h.to_value}</span>}
+                    <span className="ml-auto text-[10px] shrink-0" style={{ color: 'var(--gem-dim)' }}>
+                      {new Date(h.changed_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                    </span>
+                  </div>
+                ))}
+                {history.length > 10 && (
+                  <p className="text-[10px] pt-1" style={{ color: 'var(--gem-dim)' }}>+ {history.length - 10} mais</p>
+                )}
+              </div>
+            )}
           </div>
         )}
         </>)}
@@ -1033,7 +1113,7 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
             synopsis: item.synopsis ?? null,
           }}
           sections={promptSections}
-          targetLocale={item.language === 'pt-br' ? 'en' : 'pt-br'}
+          targetLocale={promptTargetLocale}
           onClose={() => setShowPromptModal(false)}
         />
       )}

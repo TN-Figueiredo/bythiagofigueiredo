@@ -7,7 +7,7 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { PipelineItemCreateSchema, PipelineItemUpdateSchema } from '@/lib/pipeline/schemas'
-import { generateCode, DEFAULT_CHECKLISTS, getNextStage, getPreviousStage } from '@/lib/pipeline/workflows'
+import { generateCode, DEFAULT_CHECKLISTS, getNextStage, getPreviousStage, getStagePosition, WORKFLOWS } from '@/lib/pipeline/workflows'
 import type { Format } from '@/lib/pipeline/schemas'
 import type { PipelineItem } from '@/lib/pipeline/graduation'
 
@@ -16,6 +16,12 @@ type ActionResult = { ok: true; data?: any } | { ok: false; error: string }
 
 function zodError(err: z.ZodError): string {
   return err.issues.map((i) => i.message).join(', ') || 'Validation failed'
+}
+
+function hasLocaleContent(sections: Record<string, unknown> | null, locale: 'pt' | 'en'): boolean {
+  const key = `draft_${locale}`
+  const section = sections?.[key]
+  return section != null && typeof section === 'object' && (section as Record<string, unknown>).content != null
 }
 
 async function requireEditAccess() {
@@ -136,7 +142,7 @@ export async function advancePipelineItem(id: string, version: number): Promise<
 
   const { data: item } = await supabase
     .from('content_pipeline')
-    .select('id, format, stage, version, social_config, social_post_id')
+    .select('id, format, stage, version, language, sections, social_config, social_post_id, title_pt, title_en')
     .eq('id', id)
     .eq('site_id', siteId)
     .single()
@@ -146,6 +152,23 @@ export async function advancePipelineItem(id: string, version: number): Promise<
 
   const next = getNextStage(item.format as Format, item.stage)
   if (!next) return { ok: false, error: 'Already at final stage' }
+
+  // Locale content gate: bilingual items need both locales before advancing to 'ready' or later
+  if (item.language === 'both') {
+    const readyStage = WORKFLOWS[item.format as Format].find((s) => s.stage === 'ready')
+    if (readyStage) {
+      const nextPosition = getStagePosition(item.format as Format, next)
+      if (nextPosition >= readyStage.position) {
+        const sections = item.sections as Record<string, unknown> | null
+        const missingLocales: string[] = []
+        if (!hasLocaleContent(sections, 'pt') || !item.title_pt?.trim()) missingLocales.push('PT')
+        if (!hasLocaleContent(sections, 'en') || !item.title_en?.trim()) missingLocales.push('EN')
+        if (missingLocales.length > 0) {
+          return { ok: false, error: `Conteúdo em ambos os idiomas é necessário para avançar. Falta: ${missingLocales.join(', ')}` }
+        }
+      }
+    }
+  }
 
   const { data: updated, error } = await supabase
     .from('content_pipeline')

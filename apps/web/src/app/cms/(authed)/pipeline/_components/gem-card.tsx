@@ -149,7 +149,7 @@ export const GemCard = memo(function GemCard({ item, isDragging: _isDragging, on
               backgroundColor: staleness.tier === 'ok' ? 'var(--gem-done, #10b981)' : staleness.tier === 'warn' ? 'var(--gem-warn, #f59e0b)' : 'var(--gem-danger, #ef4444)',
             }}
           />
-          {staleness.days}d
+          {staleness.label}
         </span>
       </div>
 

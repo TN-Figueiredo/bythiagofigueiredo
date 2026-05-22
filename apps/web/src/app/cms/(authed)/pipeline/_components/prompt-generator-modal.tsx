@@ -1,15 +1,10 @@
 'use client'
 
-import { useState, useEffect, useMemo, useRef } from 'react'
-import { toast } from 'sonner'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { getFormatIcon } from '@/lib/pipeline/gem-design'
 import { useFocusTrap } from './use-focus-trap'
 import { generatePrompt } from '@/lib/pipeline/prompt-builders'
 import type { PipelineItemForPrompt, SectionForPrompt } from '@/lib/pipeline/prompt-builders'
-
-// ---------------------------------------------------------------------------
-// Re-exports — keep so existing test imports don't break
-// ---------------------------------------------------------------------------
 
 export { generatePrompt } from '@/lib/pipeline/prompt-builders'
 export type {
@@ -18,10 +13,6 @@ export type {
   GenerateResult,
 } from '@/lib/pipeline/prompt-builders'
 
-// ---------------------------------------------------------------------------
-// Component-only types
-// ---------------------------------------------------------------------------
-
 export interface PromptGeneratorModalProps {
   item: PipelineItemForPrompt
   sections: SectionForPrompt[]
@@ -29,37 +20,45 @@ export interface PromptGeneratorModalProps {
   onClose: () => void
 }
 
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
-
 export function PromptGeneratorModal({
   item,
   sections,
   targetLocale,
   onClose,
 }: PromptGeneratorModalProps) {
-  const { text: initialText, wasTruncated } = generatePrompt(item, sections, targetLocale)
-  const [promptText, setPromptText] = useState(initialText)
-  const wordCount = useMemo(() => promptText.split(/\s+/).filter(Boolean).length, [promptText])
-
+  const [instructions, setInstructions] = useState('')
+  const [copied, setCopied] = useState(false)
+  const [showPreview, setShowPreview] = useState(false)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
   const handleTrapKeyDown = useFocusTrap(dialogRef)
 
   const formatInfo = getFormatIcon(item.format as Parameters<typeof getFormatIcon>[0])
+  const targetTitle = targetLocale === 'en' ? 'em inglês' : 'em português'
+  const sourceLocale = targetLocale === 'en' ? 'PT-BR' : 'EN'
 
-  const currentLocale: 'pt-br' | 'en' = targetLocale === 'en' ? 'pt-br' : 'en'
-  const directionLabel = `${currentLocale.toUpperCase()} → ${targetLocale.toUpperCase()}`
-  const targetTitle = targetLocale === 'en' ? 'English' : 'Português'
+  const { text: basePrompt, wasTruncated } = useMemo(
+    () => generatePrompt(item, sections, targetLocale),
+    [item, sections, targetLocale],
+  )
 
-  async function handleCopy() {
-    try {
-      await navigator.clipboard.writeText(promptText)
-      toast.success('Prompt copiado')
-    } catch {
-      toast.error('Falha ao copiar — copie manualmente')
-    }
-  }
+  const fullPrompt = useMemo(() => {
+    if (!instructions.trim()) return basePrompt
+    return basePrompt.replace(
+      '# (opcional: adicione instruções extras abaixo)',
+      `# Instruções adicionais\n${instructions.trim()}`,
+    )
+  }, [basePrompt, instructions])
+
+  const wordCount = useMemo(() => fullPrompt.split(/\s+/).filter(Boolean).length, [fullPrompt])
+
+  const handleCopy = useCallback(() => {
+    navigator.clipboard.writeText(fullPrompt).then(() => {
+      setCopied(true)
+    }).catch(() => {
+      window.prompt('Copie o prompt abaixo:', fullPrompt)
+    })
+  }, [fullPrompt])
 
   useEffect(() => {
     function handleEscape(e: KeyboardEvent) {
@@ -68,6 +67,10 @@ export function PromptGeneratorModal({
     document.addEventListener('keydown', handleEscape)
     return () => document.removeEventListener('keydown', handleEscape)
   }, [onClose])
+
+  useEffect(() => {
+    requestAnimationFrame(() => textareaRef.current?.focus())
+  }, [])
 
   return (
     <div
@@ -79,7 +82,8 @@ export function PromptGeneratorModal({
         role="dialog"
         aria-modal="true"
         aria-label={`Adicionar versão ${targetTitle} — ${item.code}`}
-        className="w-full max-w-lg rounded-lg border border-[#222d40] bg-[#161d2d] p-4 shadow-xl"
+        className="w-full max-w-lg rounded-lg border p-4 shadow-xl"
+        style={{ borderColor: 'var(--gem-border)', backgroundColor: 'var(--gem-surface)' }}
         onKeyDown={handleTrapKeyDown}
       >
         {/* Header */}
@@ -88,61 +92,100 @@ export function PromptGeneratorModal({
             <span className={`flex h-7 w-7 items-center justify-center rounded text-base ${formatInfo.bgClass}`}>
               {formatInfo.icon}
             </span>
-            <h2 className="text-sm font-semibold text-[#edf2f7]">
+            <h2 className="text-sm font-semibold" style={{ color: 'var(--gem-text)' }}>
               Adicionar versão {targetTitle}
             </h2>
           </div>
-          <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-[#7a8ba3]">
-            <span className="font-mono font-medium text-[#edf2f7]">{item.code}</span>
-            <span className="rounded bg-[#1a2236] px-1.5 py-0.5">{item.stage}</span>
-            <span className="rounded bg-[#1a2236] px-1.5 py-0.5">P{item.priority}</span>
-            <span>
-              {sections.length} seções · {directionLabel}
-            </span>
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs" style={{ color: 'var(--gem-dim)' }}>
+            <span className="font-mono font-medium" style={{ color: 'var(--gem-text)' }}>{item.code}</span>
+            <span className="rounded px-1.5 py-0.5" style={{ background: 'var(--gem-well)' }}>{item.stage}</span>
+            <span className="rounded px-1.5 py-0.5" style={{ background: 'var(--gem-well)' }}>P{item.priority}</span>
+            <span>{sourceLocale} → {targetLocale.toUpperCase()}</span>
           </div>
         </div>
 
-        {/* Textarea */}
+        {/* Instructions input */}
         <textarea
-          aria-label="Prompt editável"
-          rows={10}
-          value={promptText}
-          onChange={(e) => setPromptText(e.target.value)}
-          className="w-full rounded border border-[#222d40] bg-[#0c1222] p-3 font-mono text-xs text-[#edf2f7] outline-none focus:border-[#6366f1]"
-          style={{ maxHeight: '280px', overflowY: 'auto', resize: 'vertical' }}
-          spellCheck={false}
+          ref={textareaRef}
+          value={instructions}
+          onChange={(e) => { setInstructions(e.target.value); setCopied(false) }}
+          placeholder="Instruções adicionais para a tradução/adaptação... (opcional)"
+          aria-label="Instruções para tradução"
+          className="w-full text-xs p-2.5 rounded-md resize-y"
+          style={{
+            background: 'var(--gem-well)',
+            border: '1px solid var(--gem-border)',
+            color: 'var(--gem-text)',
+            minHeight: '60px',
+            maxHeight: '120px',
+          }}
+          rows={3}
         />
 
-        {/* Footer info */}
-        <div className="mt-1.5 flex items-center justify-between text-xs text-[#5a6b7f]">
-          <span>
-            {sections.length} seções incluídas
-            {wasTruncated && ' (conteúdo > 500 chars truncado)'}
+        {/* Prompt preview toggle */}
+        <div className="mt-2 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => setShowPreview(!showPreview)}
+            className="text-[10px] hover:underline"
+            style={{ color: 'var(--gem-accent)' }}
+          >
+            {showPreview ? 'Ocultar prompt' : 'Ver prompt completo'}
+          </button>
+          <span className="text-[10px]" style={{ color: 'var(--gem-dim)' }}>
+            {sections.length} seções · ~{wordCount} palavras
+            {wasTruncated && ' (truncado)'}
           </span>
-          <span>~{wordCount} palavras</span>
         </div>
 
-        {/* Workflow hint */}
-        <div className="mt-3 rounded border border-indigo-800/50 bg-indigo-900/20 px-3 py-2 text-xs text-indigo-300">
-          💡 Cole no Claude Code
-        </div>
+        {showPreview && (
+          <pre
+            className="mt-2 p-2.5 rounded-md text-[10px] overflow-y-auto"
+            style={{
+              maxHeight: '200px',
+              background: 'var(--gem-well)',
+              border: '1px solid var(--gem-border)',
+              color: 'var(--gem-dim)',
+              fontFamily: 'monospace',
+              whiteSpace: 'pre-wrap',
+            }}
+          >{fullPrompt}</pre>
+        )}
 
         {/* Actions */}
-        <div className="mt-3 flex items-center justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded px-3 py-1.5 text-xs text-[#7a8ba3] hover:bg-[#1a2236] hover:text-[#edf2f7]"
-          >
-            Cancelar
-          </button>
-          <button
-            type="button"
-            onClick={handleCopy}
-            className="rounded bg-[#6366f1] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#4f46e5]"
-          >
-            📋 Copiar prompt
-          </button>
+        <div className="flex justify-between items-center mt-3">
+          <span className="text-[10px]" style={{ color: 'var(--gem-dim)' }}>
+            Cole no Claude Code
+          </span>
+          <div className="flex gap-1.5 items-center">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-2.5 py-1 text-xs rounded"
+              style={{ border: '1px solid var(--gem-border)', color: 'var(--gem-muted)' }}
+            >
+              Cancelar
+            </button>
+            {copied ? (
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-2.5 py-1 text-xs font-semibold rounded"
+                style={{ background: 'var(--gem-done)', color: 'white' }}
+              >
+                Copiado — fechar
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleCopy}
+                className="px-2.5 py-1 text-xs font-semibold rounded"
+                style={{ background: 'var(--gem-accent)', color: 'white' }}
+              >
+                Copiar prompt
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

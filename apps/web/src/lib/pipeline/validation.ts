@@ -33,6 +33,7 @@ interface ValidationInput {
   format_metadata: Record<string, unknown>
   format: Format
   sections?: Record<string, { rev: number; content: unknown; source: string; edited: boolean; updated_at: string }> | null
+  language?: string
 }
 
 interface CoreWeights {
@@ -97,7 +98,12 @@ function hasSectionStringField(
 }
 
 export function computeValidationScore(input: ValidationInput): ValidationScore {
-  const has_title = Boolean(input.title_pt || input.title_en)
+  const lang = input.language
+  const has_title = lang === 'both'
+    ? Boolean(input.title_pt) && Boolean(input.title_en)
+    : lang === 'en'
+      ? Boolean(input.title_en)
+      : Boolean(input.title_pt || input.title_en)
   const has_hook = Boolean(input.hook)
   const has_synopsis = Boolean(input.synopsis)
   const has_body = Boolean(input.body_content)
@@ -136,15 +142,29 @@ export function computeValidationScore(input: ValidationInput): ValidationScore 
 
   if (isBlogPost) {
     const blogWeights = WEIGHTS_BLOG
-    const has_slug = hasSectionStringField(input.sections, 'draft_pt', 'slug')
-    const has_excerpt = hasSectionStringField(input.sections, 'draft_pt', 'excerpt')
 
-    const seoMeta = extractSectionField(input.sections, 'seo_pt', 'meta_title')
-    const seoDesc = extractSectionField(input.sections, 'seo_pt', 'meta_description')
-    const has_seo =
-      typeof seoMeta === 'string' && seoMeta.trim().length > 0 &&
-      typeof seoDesc === 'string' && seoDesc.trim().length > 0
+    // For 'both': require BOTH locales to be filled
+    // For 'en': check EN sections
+    // Default (pt-br/undefined): check PT sections
+    const has_slug = lang === 'both'
+      ? hasSectionStringField(input.sections, 'draft_pt', 'slug') && hasSectionStringField(input.sections, 'draft_en', 'slug')
+      : hasSectionStringField(input.sections, lang === 'en' ? 'draft_en' : 'draft_pt', 'slug')
 
+    const has_excerpt = lang === 'both'
+      ? hasSectionStringField(input.sections, 'draft_pt', 'excerpt') && hasSectionStringField(input.sections, 'draft_en', 'excerpt')
+      : hasSectionStringField(input.sections, lang === 'en' ? 'draft_en' : 'draft_pt', 'excerpt')
+
+    const checkSeo = (seoKey: string): boolean => {
+      const meta = extractSectionField(input.sections, seoKey, 'meta_title')
+      const desc = extractSectionField(input.sections, seoKey, 'meta_description')
+      return typeof meta === 'string' && meta.trim().length > 0 &&
+        typeof desc === 'string' && desc.trim().length > 0
+    }
+    const has_seo = lang === 'both'
+      ? checkSeo('seo_pt') && checkSeo('seo_en')
+      : checkSeo(lang === 'en' ? 'seo_en' : 'seo_pt')
+
+    // Cover is shared across locales — no change needed
     const coverVal = extractSectionField(input.sections, 'images_shared', 'cover')
     const has_cover =
       coverVal !== null &&

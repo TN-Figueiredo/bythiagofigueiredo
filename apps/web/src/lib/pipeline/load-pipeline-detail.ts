@@ -53,6 +53,7 @@ export async function loadPipelineItemDetail(id: string, siteId: string) {
     body_content: item.body_content, tags: item.tags ?? [], production_checklist: item.production_checklist ?? [],
     format_metadata: item.format_metadata ?? {}, format: item.format as Format,
     sections: item.sections ?? null,
+    language: item.language ?? undefined,
   })
 
   const enrichedItem = { ...item, validation_score: score.overall, site_id: siteId, linked_post: linkedPost }

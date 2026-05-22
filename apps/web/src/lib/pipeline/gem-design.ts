@@ -38,15 +38,17 @@ export function getPriorityConfig(priority: number): PriorityConfig {
 
 interface StalenessResult {
   days: number
+  label: string
   tier: 'ok' | 'warn' | 'old'
   className: string
 }
 
 export function getStaleness(updatedAt: string): StalenessResult {
   const days = Math.floor((Date.now() - new Date(updatedAt).getTime()) / (1000 * 60 * 60 * 24))
-  if (days > 21) return { days, tier: 'old', className: 'staleness-old' }
-  if (days >= 7) return { days, tier: 'warn', className: 'staleness-warn' }
-  return { days, tier: 'ok', className: 'staleness-ok' }
+  const label = days === 0 ? 'hoje' : `há ${days}d`
+  if (days > 21) return { days, label, tier: 'old', className: 'staleness-old' }
+  if (days >= 7) return { days, label, tier: 'warn', className: 'staleness-warn' }
+  return { days, label, tier: 'ok', className: 'staleness-ok' }
 }
 
 interface VvsTierResult {

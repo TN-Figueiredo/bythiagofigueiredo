@@ -6,10 +6,6 @@ import React from 'react'
 // Mocks
 // ---------------------------------------------------------------------------
 
-vi.mock('sonner', () => ({
-  toast: { success: vi.fn() },
-}))
-
 vi.mock('@/lib/pipeline/gem-design', () => ({
   getFormatIcon: vi.fn(() => ({ icon: '🎬', bgClass: 'bg-red-500/10', label: 'Video' })),
 }))
@@ -72,22 +68,27 @@ describe('PromptGeneratorModal', () => {
     expect(screen.getByText('VID-042')).toBeTruthy()
   })
 
-  it('generates prompt with item context (code, format, title_en: vazio)', () => {
+  it('shows direction label (PT-BR → EN)', () => {
     render(<PromptGeneratorModal {...defaultProps} />)
-    const textarea = screen.getByRole('textbox') as HTMLTextAreaElement
-    expect(textarea.value).toContain('VID-042')
-    expect(textarea.value).toContain('title_en: (vazio)')
-    expect(textarea.value).toContain('Como gravar vídeo profissional')
+    expect(screen.getByText('PT-BR → EN')).toBeTruthy()
   })
 
-  it('includes section content in prompt', () => {
+  it('has instructions textarea focused on mount', () => {
     render(<PromptGeneratorModal {...defaultProps} />)
-    const textarea = screen.getByRole('textbox') as HTMLTextAreaElement
-    expect(textarea.value).toContain('rascunho_pt')
-    expect(textarea.value).toContain('Conteúdo curto.')
+    const textarea = screen.getByLabelText('Instruções para tradução')
+    expect(textarea).toBeTruthy()
   })
 
-  it('truncates sections longer than 500 chars and shows truncation note', () => {
+  it('shows prompt preview when toggle clicked', () => {
+    render(<PromptGeneratorModal {...defaultProps} />)
+    fireEvent.click(screen.getByText('Ver prompt completo'))
+    const pre = document.querySelector('pre')
+    expect(pre).toBeTruthy()
+    expect(pre!.textContent).toContain('VID-042')
+    expect(pre!.textContent).toContain('title_en: (vazio)')
+  })
+
+  it('truncation note shows when sections exceed limit', () => {
     const longContent = 'A'.repeat(600)
     const sectionsWithLong: SectionForPrompt[] = [
       { section_type: 'rascunho_pt', language: 'pt-br', content: longContent },
@@ -98,8 +99,6 @@ describe('PromptGeneratorModal', () => {
         sections={sectionsWithLong}
       />,
     )
-    const textarea = screen.getByRole('textbox') as HTMLTextAreaElement
-    expect(textarea.value).toContain('...')
     expect(screen.getByText(/truncado/i)).toBeTruthy()
   })
 
@@ -107,17 +106,38 @@ describe('PromptGeneratorModal', () => {
     render(<PromptGeneratorModal {...defaultProps} />)
     const copyBtn = screen.getByRole('button', { name: /copiar prompt/i })
     fireEvent.click(copyBtn)
-    // Wait for async clipboard write
     await vi.waitFor(() => {
       expect(mockClipboard.writeText).toHaveBeenCalledOnce()
     })
   })
 
+  it('merges user instructions into prompt when copying', async () => {
+    render(<PromptGeneratorModal {...defaultProps} />)
+    const textarea = screen.getByLabelText('Instruções para tradução')
+    fireEvent.change(textarea, { target: { value: 'Tom mais informal' } })
+    fireEvent.click(screen.getByRole('button', { name: /copiar prompt/i }))
+    await vi.waitFor(() => {
+      const copied = mockClipboard.writeText.mock.calls[0]?.[0] as string
+      expect(copied).toContain('Tom mais informal')
+      expect(copied).toContain('VID-042')
+    })
+  })
+
+  it('shows "Copiado — fechar" after copy and closes on click', async () => {
+    const onClose = vi.fn()
+    render(<PromptGeneratorModal {...defaultProps} onClose={onClose} />)
+    fireEvent.click(screen.getByRole('button', { name: /copiar prompt/i }))
+    await vi.waitFor(() => {
+      expect(screen.getByText(/copiado/i)).toBeTruthy()
+    })
+    fireEvent.click(screen.getByText(/copiado/i))
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
   it('calls onClose when cancel clicked', () => {
     const onClose = vi.fn()
     render(<PromptGeneratorModal {...defaultProps} onClose={onClose} />)
-    const cancelBtn = screen.getByRole('button', { name: /cancelar/i })
-    fireEvent.click(cancelBtn)
+    fireEvent.click(screen.getByRole('button', { name: /cancelar/i }))
     expect(onClose).toHaveBeenCalledOnce()
   })
 

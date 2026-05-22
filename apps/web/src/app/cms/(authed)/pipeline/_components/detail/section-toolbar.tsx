@@ -4,8 +4,8 @@ interface SectionToolbarProps {
   title: string
   lang: string
   showLang: boolean
-  source: string | null
-  edited: boolean
+  source?: string | null
+  edited?: boolean
   isEditing: boolean
   isSaving: boolean
   isDirty: boolean
@@ -15,7 +15,7 @@ interface SectionToolbarProps {
 }
 
 export function SectionToolbar({
-  title, lang, showLang, source, edited, isEditing, isSaving, isDirty, onToggleEdit, onSave, onToggleCowork,
+  title, lang, showLang, isEditing, isSaving, isDirty, onToggleEdit, onSave, onToggleCowork,
 }: SectionToolbarProps) {
   return (
     <div className="flex justify-between items-center px-4 py-2 flex-wrap gap-1.5" style={{ borderBottom: '1px solid var(--gem-border)', background: 'color-mix(in srgb, var(--gem-surface) 60%, transparent)' }}>
@@ -24,14 +24,9 @@ export function SectionToolbar({
           {title}
           {showLang && <span className="text-[10px] font-bold" style={{ color: 'var(--gem-accent)' }}>{lang.toUpperCase()}</span>}
         </span>
-        {source && source !== 'user' && (
-          <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: 'color-mix(in srgb, var(--gem-accent) 12%, transparent)', color: 'var(--gem-accent)' }}>
-            🤖 {source}
-          </span>
-        )}
-        {edited && (
+        {isDirty && (
           <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: 'color-mix(in srgb, var(--gem-warn) 12%, transparent)', color: 'var(--gem-warn)' }}>
-            ✏️ editado
+            ✏️ não salvo
           </span>
         )}
       </div>

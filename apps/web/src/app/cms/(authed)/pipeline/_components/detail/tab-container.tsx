@@ -237,19 +237,31 @@ export function TabContainer({ format, stage, itemId, itemVersion, sections, ite
         </div>
         {itemLanguage === 'both' && (
           <div className="flex mb-2 rounded overflow-hidden" style={{ border: '1px solid var(--gem-border)' }}>
-            {['pt', 'en'].map(l => (
-              <button
-                key={l}
-                className="px-2.5 py-0.5 text-[10px] font-bold tracking-wider transition-colors"
-                style={{
-                  background: lang === l ? 'var(--gem-accent)' : 'transparent',
-                  color: lang === l ? 'white' : 'var(--gem-dim)',
-                }}
-                onClick={() => handleLangSwitch(l)}
-              >
-                {l.toUpperCase()}
-              </button>
-            ))}
+            {(['pt', 'en'] as const).map(l => {
+              const isShared = activeDef?.shared ?? false
+              const sectionKey = getSectionKey(activeTab, isShared ? 'en' : l)
+              const hasContent = !!sections[sectionKey]
+              return (
+                <button
+                  key={l}
+                  className="px-2.5 py-0.5 text-[10px] font-bold tracking-wider transition-colors flex items-center gap-1"
+                  style={{
+                    background: lang === l ? 'var(--gem-accent)' : 'transparent',
+                    color: lang === l ? 'white' : 'var(--gem-dim)',
+                  }}
+                  onClick={() => handleLangSwitch(l)}
+                >
+                  {l.toUpperCase()}
+                  <span
+                    className="w-1.5 h-1.5 rounded-full shrink-0"
+                    style={{
+                      background: hasContent ? 'var(--gem-done)' : 'transparent',
+                      border: hasContent ? 'none' : `1px solid ${lang === l ? 'rgba(255,255,255,0.4)' : 'var(--gem-dim)'}`,
+                    }}
+                  />
+                </button>
+              )
+            })}
           </div>
         )}
       </div>
