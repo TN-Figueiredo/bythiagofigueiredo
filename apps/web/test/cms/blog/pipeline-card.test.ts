@@ -25,8 +25,8 @@ describe('substatus badge mapping', () => {
 })
 
 describe('lane type guards', () => {
-  it('LANE_DEFS has exactly 6 lanes', () => {
-    expect(LANE_DEFS).toHaveLength(6)
+  it('LANE_DEFS has exactly 5 lanes', () => {
+    expect(LANE_DEFS).toHaveLength(5)
   })
 
   it('isPipelineLane returns true for pipeline lanes', () => {
@@ -36,13 +36,11 @@ describe('lane type guards', () => {
   })
 
   it('isPipelineLane returns false for blog lanes', () => {
-    expect(isPipelineLane('editing' as LaneId)).toBe(false)
     expect(isPipelineLane('scheduled' as LaneId)).toBe(false)
     expect(isPipelineLane('published' as LaneId)).toBe(false)
   })
 
   it('isBlogLane returns true for blog lanes', () => {
-    expect(isBlogLane('editing')).toBe(true)
     expect(isBlogLane('scheduled')).toBe(true)
     expect(isBlogLane('published')).toBe(true)
   })

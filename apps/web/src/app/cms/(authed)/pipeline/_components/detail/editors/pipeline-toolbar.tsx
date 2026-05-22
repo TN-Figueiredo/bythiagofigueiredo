@@ -36,7 +36,7 @@ import { PROVIDER_META, type EmbedProvider } from '@/app/cms/(authed)/_shared/ed
 
 interface PipelineToolbarProps {
   editor: Editor
-  preset: 'full' | 'compact'
+  preset: 'full' | 'compact' | 'blog'
 }
 
 function promptLink(editor: Editor) {

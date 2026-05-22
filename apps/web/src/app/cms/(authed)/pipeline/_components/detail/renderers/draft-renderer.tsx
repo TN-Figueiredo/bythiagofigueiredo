@@ -258,7 +258,7 @@ export function DraftRenderer({ content, isEditing, lang, format, onContentChang
         content={draft.body}
         isEditing={isEditing}
         onContentChange={handleBodyChange}
-        preset="full"
+        preset={isBlogPost ? 'blog' : 'full'}
         placeholder="Escreva o conteúdo do seu rascunho..."
       />
 

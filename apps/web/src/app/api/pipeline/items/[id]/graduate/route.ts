@@ -82,7 +82,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const translations = await Promise.all(locales.map(async ({ locale, title: txTitle }) => {
       try {
         const patch = await prepareBlogTranslationPatch(sections, locale)
-        if (patch) return { post_id: post.id, locale, title: txTitle, slug: makeSlug(txTitle), ...excerptField, ...patch }
+        if (patch) return { post_id: post.id, locale, ...excerptField, ...patch, title: txTitle, slug: makeSlug(txTitle) }
       } catch {
         // Best-effort: fall back to empty content
       }

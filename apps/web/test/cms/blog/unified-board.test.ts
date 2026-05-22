@@ -12,7 +12,7 @@ describe('card delegation rules', () => {
   })
 
   it('blog lanes render PostCard', () => {
-    const blogLanes: LaneId[] = ['editing', 'scheduled', 'published']
+    const blogLanes: LaneId[] = ['scheduled', 'published']
     for (const lane of blogLanes) {
       expect(isBlogLane(lane)).toBe(true)
       expect(isPipelineLane(lane)).toBe(false)
@@ -29,12 +29,12 @@ describe('DnD rules', () => {
 
   it('pipeline-to-blog drag is blocked', () => {
     const from: LaneId = 'ready'
-    const to: LaneId = 'editing'
+    const to: LaneId = 'scheduled'
     expect(isPipelineLane(from) && isBlogLane(to)).toBe(true)
   })
 
   it('blog-to-pipeline drag is blocked', () => {
-    const from: LaneId = 'editing'
+    const from: LaneId = 'scheduled'
     const to: LaneId = 'idea'
     expect(isBlogLane(from) && isPipelineLane(to)).toBe(true)
   })

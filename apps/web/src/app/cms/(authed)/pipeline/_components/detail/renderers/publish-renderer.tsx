@@ -1,5 +1,8 @@
 'use client'
 
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import type { RendererProps } from '../section-content'
 
 interface PublishCard {
@@ -239,7 +242,133 @@ function EndScreenContent({ rawContent, text, isEditing, onTextChange }: {
   )
 }
 
-export function PublishRenderer({ content, isEditing, onContentChange }: RendererProps) {
+interface BlogPublishPanelProps {
+  pipelineItemId: string
+  vvsScore: number
+}
+
+function BlogPublishPanel({ pipelineItemId, vvsScore }: BlogPublishPanelProps) {
+  const router = useRouter()
+  const [showSchedule, setShowSchedule] = useState(false)
+  const [scheduledFor, setScheduledFor] = useState('')
+  const [isPublishing, setIsPublishing] = useState(false)
+
+  async function handleScheduleConfirm() {
+    setShowSchedule(false)
+    setIsPublishing(true)
+    try {
+      const { materializeBlogPost } = await import('@/lib/pipeline/materialize-blog-client')
+      const result = await materializeBlogPost({
+        pipelineItemId,
+        targetStage: 'scheduled',
+        scheduledFor,
+        vvsScore,
+      })
+      if (result.ok) {
+        toast.success('Post agendado com sucesso')
+        router.refresh()
+      } else {
+        toast.error(result.message)
+      }
+    } finally {
+      setIsPublishing(false)
+    }
+  }
+
+  async function handlePublishNow() {
+    setIsPublishing(true)
+    try {
+      const { materializeBlogPost } = await import('@/lib/pipeline/materialize-blog-client')
+      const result = await materializeBlogPost({
+        pipelineItemId,
+        targetStage: 'published',
+        scheduledFor: null,
+        vvsScore,
+      })
+      if (result.ok) {
+        toast.success('Post publicado com sucesso')
+        router.refresh()
+      } else {
+        toast.error(result.message)
+      }
+    } finally {
+      setIsPublishing(false)
+    }
+  }
+
+  const ready = vvsScore >= 80
+
+  return (
+    <div className="mt-4 p-4 rounded-lg" style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}>
+      <div className="flex items-center gap-2 mb-3">
+        <div
+          className="w-2.5 h-2.5 rounded-full"
+          style={{ background: ready ? '#22c55e' : '#ef4444' }}
+        />
+        <span className="text-[11px] font-medium" style={{ color: 'var(--gem-text)' }}>
+          {ready ? 'Pronto para publicar' : `Precisa de ${80 - vvsScore} pontos mais`}
+        </span>
+        <span className="text-[10px] ml-auto" style={{ color: 'var(--gem-dim)' }}>
+          VVS {vvsScore}/110
+        </span>
+      </div>
+
+      <div className="flex gap-2">
+        <button
+          disabled={!ready || isPublishing}
+          onClick={() => setShowSchedule(true)}
+          className="flex-1 text-[11px] font-medium py-2 px-3 rounded-md transition-opacity disabled:opacity-40"
+          style={{ background: 'rgba(139,92,246,0.15)', color: '#8b5cf6', border: '1px solid rgba(139,92,246,0.3)' }}
+        >
+          Agendar
+        </button>
+        <button
+          disabled={!ready || isPublishing}
+          onClick={handlePublishNow}
+          className="flex-1 text-[11px] font-medium py-2 px-3 rounded-md transition-opacity disabled:opacity-40"
+          style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981', border: '1px solid rgba(16,185,129,0.3)' }}
+        >
+          {isPublishing ? 'Publicando...' : 'Publicar Agora'}
+        </button>
+      </div>
+
+      {showSchedule && (
+        <div className="mt-3 p-3 rounded-md" style={{ background: 'var(--gem-surface)', border: '1px solid var(--gem-border)' }}>
+          <label className="block text-[10px] mb-1.5" style={{ color: 'var(--gem-dim)' }}>
+            Data e hora de publicação
+          </label>
+          <input
+            type="datetime-local"
+            value={scheduledFor}
+            onChange={(e) => setScheduledFor(e.target.value)}
+            className="w-full text-[11px] p-2 rounded-md mb-2"
+            style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)', color: 'var(--gem-text)' }}
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowSchedule(false)}
+              className="flex-1 text-[10px] py-1.5 rounded-md"
+              style={{ color: 'var(--gem-muted)', border: '1px solid var(--gem-border)' }}
+            >
+              Cancelar
+            </button>
+            <button
+              disabled={!scheduledFor || isPublishing}
+              onClick={handleScheduleConfirm}
+              className="flex-1 text-[10px] py-1.5 rounded-md font-medium disabled:opacity-40"
+              style={{ background: 'rgba(139,92,246,0.15)', color: '#8b5cf6', border: '1px solid rgba(139,92,246,0.3)' }}
+            >
+              {isPublishing ? 'Agendando...' : 'Confirmar'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function PublishRenderer({ content, isEditing, onContentChange, pipelineItemId, vvsScore, format }: RendererProps) {
+  const isBlogPost = format === 'blog_post'
   const data = parseContent(content)
 
   return (
@@ -452,10 +581,17 @@ export function PublishRenderer({ content, isEditing, onContentChange }: Rendere
         </div>
       )}
 
-      {!data.title && !data.description && !data.tags?.length && !data.cards?.length && !data.end_screen && !data.strategy?.length && (
+      {!data.title && !data.description && !data.tags?.length && !data.cards?.length && !data.end_screen && !data.strategy?.length && !isBlogPost && (
         <div className="text-[11px] text-center py-4" style={{ color: 'var(--gem-dim)' }}>
           Nenhuma informação de publicação disponível.
         </div>
+      )}
+
+      {isBlogPost && pipelineItemId && (
+        <BlogPublishPanel
+          pipelineItemId={pipelineItemId}
+          vvsScore={vvsScore ?? 0}
+        />
       )}
     </div>
   )

@@ -9,18 +9,14 @@ import {
 import type { PipelineCardItem, PostCard } from '@/app/cms/(authed)/blog/_hub/hub-types'
 
 describe('LANE_DEFS', () => {
-  it('has 6 lanes in workflow order', () => {
+  it('has 5 lanes in workflow order', () => {
     expect(LANE_DEFS.map((l) => l.id)).toEqual([
-      'idea', 'draft', 'ready', 'editing', 'scheduled', 'published',
+      'idea', 'draft', 'ready', 'scheduled', 'published',
     ])
   })
 
-  it('first 3 lanes are pipeline data source', () => {
-    expect(LANE_DEFS.slice(0, 3).every((l) => l.dataSource === 'pipeline')).toBe(true)
-  })
-
-  it('last 3 lanes are blog data source', () => {
-    expect(LANE_DEFS.slice(3).every((l) => l.dataSource === 'blog')).toBe(true)
+  it('all lanes are pipeline data source', () => {
+    expect(LANE_DEFS.every((l) => l.dataSource === 'pipeline')).toBe(true)
   })
 })
 
@@ -72,23 +68,16 @@ describe('buildUnifiedLanes', () => {
     expect(lanes.idea).toHaveLength(1)
     expect(lanes.draft).toHaveLength(1)
     expect(lanes.ready).toHaveLength(1)
-    expect(lanes.editing).toHaveLength(0)
   })
 
-  it('routes blog posts to correct lanes', () => {
-    const posts = [
-      makePostCard({ id: 'b1', status: 'idea' }),
-      makePostCard({ id: 'b2', status: 'draft' }),
-      makePostCard({ id: 'b3', status: 'pending_review' }),
-      makePostCard({ id: 'b4', status: 'ready' }),
-      makePostCard({ id: 'b5', status: 'queued' }),
-      makePostCard({ id: 'b6', status: 'scheduled' }),
-      makePostCard({ id: 'b7', status: 'published' }),
+  it('routes pipeline items with blog_post_id to scheduled/published lanes', () => {
+    const items = [
+      makePipelineItem({ id: 'p1', stage: 'ready', blog_post_id: 'bp-1' }),
+      makePipelineItem({ id: 'p2', stage: 'idea', blog_post_id: 'bp-2' }),
     ]
-    const lanes = buildUnifiedLanes([], posts)
-    expect(lanes.editing).toHaveLength(5) // idea, draft, pending_review, ready, queued
+    const lanes = buildUnifiedLanes(items, [])
     expect(lanes.scheduled).toHaveLength(1)
-    expect(lanes.published).toHaveLength(1)
+    expect(lanes.published).toHaveLength(2)
   })
 })
 
@@ -121,16 +110,6 @@ describe('sortBlogLane', () => {
     updatedAt: '2026-01-01', publishedAt: null, scheduledFor: null,
     slotDate: null, snippet: null, coverImageUrl: null, excerpt: null,
     ...fields,
-  })
-
-  it('sorts editing lane by updated_at DESC', () => {
-    const posts = [
-      makePost('a', { status: 'idea', updatedAt: '2026-01-01' }),
-      makePost('b', { status: 'draft', updatedAt: '2026-01-03' }),
-      makePost('c', { status: 'ready', updatedAt: '2026-01-02' }),
-    ]
-    const sorted = sortBlogLane(posts, 'editing')
-    expect(sorted[0]!.id).toBe('b')
   })
 
   it('sorts scheduled lane by scheduledFor ASC', () => {

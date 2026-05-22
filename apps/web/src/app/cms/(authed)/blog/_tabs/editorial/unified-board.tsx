@@ -151,15 +151,14 @@ export function UnifiedBoard({
       idea: sortPipelineLane(raw.idea, 'idea'),
       draft: sortPipelineLane(raw.draft, 'draft'),
       ready: sortPipelineLane(raw.ready, 'ready'),
-      editing: sortBlogLane(raw.editing, 'editing'),
-      scheduled: sortBlogLane(raw.scheduled, 'scheduled'),
-      published: sortBlogLane(raw.published, 'published').slice(0, publishedPage * PUBLISHED_PAGE_SIZE),
+      scheduled: raw.scheduled,
+      published: raw.published.slice(0, publishedPage * PUBLISHED_PAGE_SIZE),
     }
   }, [optPipeline, optPosts, publishedPage])
 
   const totalPublished = useMemo(
-    () => optPosts.filter((p) => p.status === 'published').length,
-    [optPosts],
+    () => buildUnifiedLanes(optPipeline, optPosts).published.length,
+    [optPipeline, optPosts],
   )
 
   const itemLaneMap = useMemo(() => {
@@ -249,7 +248,7 @@ export function UnifiedBoard({
         }
 
         const statusMap: Record<string, PostCardType['status']> = {
-          editing: 'draft',
+          draft: 'draft',
           published: 'published',
         }
         const targetStatus = statusMap[toLane]
@@ -581,13 +580,6 @@ export function UnifiedBoard({
                         <span className="rounded bg-amber-500/20 px-2 py-1 text-[9px] text-amber-400">
                           {strings?.emptyLanes?.newIdea ?? '+ New Idea'}
                         </span>
-                      ) : lane.id === 'editing' ? (
-                        <a
-                          href="/cms/blog/new"
-                          className="rounded bg-blue-500/20 px-2 py-1 text-[9px] text-blue-400 hover:bg-blue-500/30"
-                        >
-                          {strings?.emptyLanes?.newPost ?? '+ New Post'}
-                        </a>
                       ) : undefined
                     }
                     isInvalidDrop={isInvalidDrop(lane.id)}

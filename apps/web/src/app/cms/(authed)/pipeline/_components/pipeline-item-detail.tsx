@@ -118,6 +118,8 @@ interface SectionPanelProps {
   tags: string[]
   hook: string | null
   synopsis: string | null
+  siteId: string
+  vvsScore: number
 }
 
 function extractMisplacedSeo(sections: Record<string, SectionData>, lang: string): SectionData | null {
@@ -137,7 +139,7 @@ function extractMisplacedSeo(sections: Record<string, SectionData>, lang: string
   }
 }
 
-function SectionPanel({ sectionDef, activeSub, lang, itemId, itemVersion, itemCode, itemTitle, sections, format, stage, tags, hook, synopsis }: SectionPanelProps) {
+function SectionPanel({ sectionDef, activeSub, lang, itemId, itemVersion, itemCode, itemTitle, sections, format, stage, tags, hook, synopsis, siteId, vvsScore }: SectionPanelProps) {
   const sectionType = sectionDef.subSections
     ? (activeSub ?? sectionDef.subSections[0]?.key ?? sectionDef.key)
     : sectionDef.key
@@ -270,6 +272,10 @@ function SectionPanel({ sectionDef, activeSub, lang, itemId, itemVersion, itemCo
             isEditing={section.isEditing}
             lang={lang}
             onContentChange={section.setContent}
+            pipelineItemId={itemId}
+            siteId={siteId}
+            vvsScore={vvsScore}
+            format={format}
           />
         </ContentCiteSelector>
       ) : (
@@ -696,6 +702,8 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
                   tags={item.tags}
                   hook={item.hook}
                   synopsis={item.synopsis}
+                  siteId={item.site_id}
+                  vvsScore={item.validation_score}
                 />
               </ActiveTabObserver>
             )

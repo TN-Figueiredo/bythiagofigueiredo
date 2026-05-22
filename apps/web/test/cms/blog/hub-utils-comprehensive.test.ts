@@ -230,16 +230,6 @@ describe('sortPipelineLane', () => {
 /* ------------------------------------------------------------------ */
 
 describe('sortBlogLane — extended', () => {
-  it('editing lane: sorts by updatedAt DESC', () => {
-    const posts = [
-      makePostCard({ id: 'a', status: 'draft', updatedAt: '2026-01-01' }),
-      makePostCard({ id: 'b', status: 'draft', updatedAt: '2026-01-03' }),
-      makePostCard({ id: 'c', status: 'draft', updatedAt: '2026-01-02' }),
-    ]
-    const sorted = sortBlogLane(posts, 'editing')
-    expect(sorted.map(p => p.id)).toEqual(['b', 'c', 'a'])
-  })
-
   it('scheduled lane: sorts by scheduledFor ASC, falls back to createdAt', () => {
     const posts = [
       makePostCard({ id: 'a', scheduledFor: '2026-03-01', createdAt: '2026-01-01' }),
@@ -268,27 +258,26 @@ describe('sortBlogLane — extended', () => {
 /* ------------------------------------------------------------------ */
 
 describe('buildUnifiedLanes — extended', () => {
-  it('assigns all editing sub-statuses to editing lane', () => {
-    const posts = [
-      makePostCard({ id: 'b1', status: 'idea' }),
-      makePostCard({ id: 'b2', status: 'draft' }),
-      makePostCard({ id: 'b3', status: 'pending_review' }),
-      makePostCard({ id: 'b4', status: 'ready' }),
-      makePostCard({ id: 'b5', status: 'queued' }),
+  it('routes all pipeline stages to correct unified lanes', () => {
+    const items = [
+      makePipelineItem({ id: 'p1', stage: 'idea' }),
+      makePipelineItem({ id: 'p2', stage: 'draft' }),
+      makePipelineItem({ id: 'p3', stage: 'ready' }),
     ]
-    const lanes = buildUnifiedLanes([], posts)
-    expect(lanes.editing).toHaveLength(5)
-    expect(lanes.editing.map(p => p.id).sort()).toEqual(['b1', 'b2', 'b3', 'b4', 'b5'])
+    const lanes = buildUnifiedLanes(items, [])
+    expect(lanes.idea).toHaveLength(1)
+    expect(lanes.draft).toHaveLength(1)
+    expect(lanes.ready).toHaveLength(1)
   })
 
-  it('excludes archived posts from all lanes', () => {
-    const posts = [
-      makePostCard({ id: 'b1', status: 'archived' }),
+  it('excludes archived pipeline items from all lanes', () => {
+    const items = [
+      makePipelineItem({ id: 'p1', stage: 'archived' }),
     ]
-    const lanes = buildUnifiedLanes([], posts)
-    expect(lanes.editing).toHaveLength(0)
-    expect(lanes.scheduled).toHaveLength(0)
-    expect(lanes.published).toHaveLength(0)
+    const lanes = buildUnifiedLanes(items, [])
+    expect(lanes.idea).toHaveLength(0)
+    expect(lanes.draft).toHaveLength(0)
+    expect(lanes.ready).toHaveLength(0)
   })
 
   it('excludes archived pipeline items from visible lanes', () => {
@@ -301,13 +290,14 @@ describe('buildUnifiedLanes — extended', () => {
     expect(lanes.ready).toHaveLength(0)
   })
 
-  it('keeps pipeline and blog items in their respective lane groups', () => {
-    const items = [makePipelineItem({ id: 'p1', stage: 'idea' })]
-    const posts = [makePostCard({ id: 'b1', status: 'published' })]
-    const lanes = buildUnifiedLanes(items, posts)
+  it('keeps pipeline items in their stage lanes', () => {
+    const items = [
+      makePipelineItem({ id: 'p1', stage: 'idea' }),
+      makePipelineItem({ id: 'p2', stage: 'ready', blog_post_id: 'bp-1' }),
+    ]
+    const lanes = buildUnifiedLanes(items, [])
     expect(lanes.idea).toHaveLength(1)
-    expect(lanes.published).toHaveLength(1)
-    expect(lanes.editing).toHaveLength(0)
+    expect(lanes.scheduled).toHaveLength(1)
   })
 })
 
@@ -323,7 +313,6 @@ describe('isPipelineLane', () => {
   })
 
   it('returns false for blog lanes', () => {
-    expect(isPipelineLane('editing')).toBe(false)
     expect(isPipelineLane('scheduled')).toBe(false)
     expect(isPipelineLane('published')).toBe(false)
   })
@@ -331,7 +320,6 @@ describe('isPipelineLane', () => {
 
 describe('isBlogLane', () => {
   it('returns true for blog lanes', () => {
-    expect(isBlogLane('editing')).toBe(true)
     expect(isBlogLane('scheduled')).toBe(true)
     expect(isBlogLane('published')).toBe(true)
   })

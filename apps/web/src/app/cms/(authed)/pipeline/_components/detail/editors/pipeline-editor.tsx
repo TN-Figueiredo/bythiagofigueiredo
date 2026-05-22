@@ -14,7 +14,7 @@ export interface PipelineEditorProps {
   content: string | JSONContent | Record<string, unknown> | unknown[] | null
   isEditing: boolean
   onContentChange: (content: JSONContent) => void
-  preset: 'full' | 'compact'
+  preset: 'full' | 'compact' | 'blog'
   placeholder?: string
 }
 
