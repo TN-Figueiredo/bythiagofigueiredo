@@ -492,19 +492,24 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
 
   async function handleRepublish() {
     setIsRepublishing(true)
-    const { materializeBlogPost } = await import('@/lib/pipeline/materialize-blog-client')
-    const result = await materializeBlogPost({
-      pipelineItemId: item.id,
-      targetStage: 'published',
-      scheduledFor: null,
-      vvsScore: item.validation_score,
-    })
-    setIsRepublishing(false)
-    if (result.ok) {
-      toast.success('Post atualizado no site')
-      router.refresh()
-    } else {
-      toast.error(result.message)
+    try {
+      const { materializeBlogPost } = await import('@/lib/pipeline/materialize-blog-client')
+      const result = await materializeBlogPost({
+        pipelineItemId: item.id,
+        targetStage: 'published',
+        scheduledFor: null,
+        vvsScore: item.validation_score,
+      })
+      if (result.ok) {
+        toast.success('Post atualizado no site')
+        router.refresh()
+      } else {
+        toast.error(result.message)
+      }
+    } catch {
+      toast.error('Erro ao re-publicar')
+    } finally {
+      setIsRepublishing(false)
     }
   }
 

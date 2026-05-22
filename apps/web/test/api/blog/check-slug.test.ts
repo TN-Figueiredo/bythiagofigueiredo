@@ -7,18 +7,40 @@ const mockSupabase = {
   from: vi.fn(),
 }
 
-vi.mock('@/lib/supabase/service', () => ({
-  getSupabaseServiceClient: vi.fn(() => mockSupabase),
+const mockRequireUser = vi.fn()
+
+vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({
+  createServerClient: vi.fn(() => mockSupabase),
+  requireUser: (...args: unknown[]) => mockRequireUser(...args),
+  UnauthenticatedError: class UnauthenticatedError extends Error {
+    constructor() {
+      super('unauthenticated')
+      this.name = 'UnauthenticatedError'
+    }
+  },
+}))
+
+vi.mock('next/headers', () => ({
+  cookies: vi.fn(async () => ({
+    getAll: () => [],
+    get: () => undefined,
+    set: vi.fn(),
+  })),
 }))
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function createRequest(params: Record<string, string> = {}) {
+const SITE_ID = '00000000-0000-0000-0000-000000000001'
+
+function createRequest(params: Record<string, string> = {}, opts?: { siteId?: string | null }) {
   const url = new URL('http://localhost:3000/api/blog/check-slug')
   for (const [k, v] of Object.entries(params)) {
     url.searchParams.set(k, v)
   }
-  return new NextRequest(url)
+  const headers = new Headers()
+  const siteId = opts?.siteId !== undefined ? opts.siteId : SITE_ID
+  if (siteId) headers.set('x-site-id', siteId)
+  return new NextRequest(url, { headers })
 }
 
 function createMockChain(finalResult: { data?: unknown; error?: unknown }) {
@@ -39,6 +61,7 @@ describe('GET /api/blog/check-slug', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks()
+    mockRequireUser.mockResolvedValue({ id: 'user-1', email: 'test@test.com' })
     const mod = await import('@/app/api/blog/check-slug/route')
     GET = mod.GET
   })
@@ -57,6 +80,25 @@ describe('GET /api/blog/check-slug', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.exists).toBe(false)
+  })
+
+  it('returns 401 when user is not authenticated', async () => {
+    const { UnauthenticatedError } = await import('@tn-figueiredo/auth-nextjs/server')
+    mockRequireUser.mockRejectedValue(new UnauthenticatedError())
+
+    const req = createRequest({ slug: 'test-slug' })
+    const res = await GET(req)
+    expect(res.status).toBe(401)
+    const body = await res.json()
+    expect(body.error).toBe('unauthenticated')
+  })
+
+  it('returns 400 when x-site-id header is missing', async () => {
+    const req = createRequest({ slug: 'test-slug' }, { siteId: null })
+    const res = await GET(req)
+    expect(res.status).toBe(400)
+    const body = await res.json()
+    expect(body.error).toBe('missing site context')
   })
 
   it('returns { exists: false } when no translation has the slug', async () => {
@@ -90,5 +132,17 @@ describe('GET /api/blog/check-slug', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.exists).toBe(false)
+  })
+
+  it('scopes the query by site_id via blog_posts join', async () => {
+    const chain = createMockChain({ data: [] })
+    mockSupabase.from.mockReturnValue(chain)
+
+    const req = createRequest({ slug: 'some-slug' })
+    await GET(req)
+
+    expect(chain.select).toHaveBeenCalledWith('post_id, blog_posts!inner(id, site_id)')
+    expect(chain.eq).toHaveBeenCalledWith('slug', 'some-slug')
+    expect(chain.eq).toHaveBeenCalledWith('blog_posts.site_id', SITE_ID)
   })
 })

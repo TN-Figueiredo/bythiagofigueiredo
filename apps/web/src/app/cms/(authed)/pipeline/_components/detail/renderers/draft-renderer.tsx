@@ -178,19 +178,17 @@ export function DraftRenderer({ content, isEditing, lang, format, onContentChang
   const slugConflict = useSlugValidation(draft.slug, blogPostId)
 
   function updateField(field: string, value: unknown) {
-    const updated = { ...(content as Record<string, unknown>), [field]: value }
-    onContentChange(updated)
+    const base = content && typeof content === 'object' && !Array.isArray(content)
+      ? (content as Record<string, unknown>)
+      : {}
+    onContentChange({ ...base, [field]: value })
   }
 
   const handleBodyChange = useCallback(
     (json: JSONContent) => {
-      if (draft.seo) {
-        onContentChange({ body: json, seo: draft.seo })
-      } else {
-        onContentChange({ ...(content as Record<string, unknown>), body: json })
-      }
+      onContentChange({ ...(content as Record<string, unknown>), body: json })
     },
-    [draft.seo, content, onContentChange],
+    [content, onContentChange],
   )
 
   const isBlogPost = format === 'blog_post'

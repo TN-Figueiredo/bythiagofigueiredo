@@ -8,8 +8,12 @@ import { z } from 'zod'
 const PublishBodySchema = z.object({
   targetStage: z.enum(['published', 'scheduled']),
   scheduledFor: z.string().datetime().nullable().optional(),
-  vvsScore: z.number().int().min(0).max(110),
 })
+
+const VALID_TRANSITIONS: Record<string, string[]> = {
+  draft: ['published', 'scheduled'],
+  scheduled: ['published'],
+}
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -29,25 +33,31 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return pipelineError('VALIDATION_ERROR', parsed.error.issues.map((i) => i.message).join(', '), 400, auth)
   }
 
-  const { targetStage, scheduledFor, vvsScore } = parsed.data
+  const { targetStage, scheduledFor } = parsed.data
 
-  if (vvsScore < VVS_PUBLISH_THRESHOLD) {
-    return pipelineError('VALIDATION_ERROR', `VVS score must be at least ${VVS_PUBLISH_THRESHOLD} to publish`, 422, auth)
-  }
   if (targetStage === 'scheduled' && !scheduledFor) {
     return pipelineError('VALIDATION_ERROR', 'scheduledFor is required for scheduled stage', 422, auth)
+  }
+  if (targetStage === 'scheduled' && scheduledFor) {
+    const scheduledDate = new Date(scheduledFor)
+    if (isNaN(scheduledDate.getTime()) || scheduledDate.getTime() <= Date.now()) {
+      return pipelineError('VALIDATION_ERROR', 'scheduledFor must be a valid future date', 422, auth)
+    }
   }
 
   const supabase = getSupabaseServiceClient()
 
   const { data: item } = await supabase
     .from('content_pipeline')
-    .select('id, format, blog_post_id, site_id, version')
+    .select('id, format, blog_post_id, site_id, version, stage, validation_score')
     .eq('id', id)
     .eq('site_id', auth.siteId)
     .maybeSingle()
 
   if (!item) return pipelineError('NOT_FOUND', 'Pipeline item not found', 404, auth)
+  if ((item.validation_score ?? 0) < VVS_PUBLISH_THRESHOLD) {
+    return pipelineError('VALIDATION_ERROR', `VVS score must be at least ${VVS_PUBLISH_THRESHOLD} to publish`, 422, auth)
+  }
   if (item.format !== 'blog_post') {
     return pipelineError('INVALID_OPERATION', 'Publish action is only available for blog_post format', 422, auth)
   }
@@ -63,11 +73,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .maybeSingle()
 
   if (!blogPost) return pipelineError('NOT_FOUND', 'Linked blog post not found', 404, auth)
-
-  const VALID_TRANSITIONS: Record<string, string[]> = {
-    draft: ['published', 'scheduled'],
-    scheduled: ['published'],
-  }
 
   const allowed = VALID_TRANSITIONS[blogPost.status as string] ?? []
   if (!allowed.includes(targetStage)) {
@@ -101,7 +106,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // Advance pipeline item stage (optimistic concurrency via version guard)
   const { error: stageError, count: stageCount } = await supabase
     .from('content_pipeline')
-    .update({ stage: targetStage, version: item.version + 1 })
+    .update({ stage: targetStage, version: item.version + 1 }, { count: 'exact' })
     .eq('id', id)
     .eq('version', item.version)
 
@@ -116,7 +121,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { error: historyError } = await supabase.from('content_pipeline_history').insert({
     pipeline_id: id,
     event_type: 'stage_changed',
-    from_value: item.format,
+    from_value: item.stage,
     to_value: targetStage,
     changed_by: null,
   })

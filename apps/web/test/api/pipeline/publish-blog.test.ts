@@ -91,23 +91,21 @@ describe('POST /api/pipeline/items/[id]/publish', () => {
 
   it('returns 400 for invalid body (missing targetStage)', async () => {
     mockAuthSuccess()
-    vi.mocked(parseBody).mockResolvedValue({ vvsScore: 90 })
+    vi.mocked(parseBody).mockResolvedValue({})
     const req = createRequest()
     const res = await POST(req, { params: Promise.resolve({ id: MOCK_ITEM_ID }) })
     expect(res.status).toBe(400)
   })
 
-  it('returns 400 for invalid body (vvsScore out of range)', async () => {
+  it('returns 422 when VVS score from DB < 80', async () => {
     mockAuthSuccess()
-    vi.mocked(parseBody).mockResolvedValue({ targetStage: 'published', vvsScore: 200 })
-    const req = createRequest()
-    const res = await POST(req, { params: Promise.resolve({ id: MOCK_ITEM_ID }) })
-    expect(res.status).toBe(400)
-  })
+    vi.mocked(parseBody).mockResolvedValue({ targetStage: 'published' })
 
-  it('returns 422 when VVS score < 80', async () => {
-    mockAuthSuccess()
-    vi.mocked(parseBody).mockResolvedValue({ targetStage: 'published', vvsScore: 50 })
+    const chain = createMockChain({
+      data: { id: MOCK_ITEM_ID, format: 'blog_post', blog_post_id: MOCK_BLOG_POST_ID, site_id: MOCK_SITE_ID, version: 1, stage: 'review', validation_score: 50 },
+    })
+    vi.mocked(getSupabaseServiceClient).mockReturnValue({ from: vi.fn().mockReturnValue(chain) } as any)
+
     const req = createRequest()
     const res = await POST(req, { params: Promise.resolve({ id: MOCK_ITEM_ID }) })
     expect(res.status).toBe(422)
@@ -117,7 +115,7 @@ describe('POST /api/pipeline/items/[id]/publish', () => {
 
   it('returns 422 when targetStage is scheduled but no scheduledFor', async () => {
     mockAuthSuccess()
-    vi.mocked(parseBody).mockResolvedValue({ targetStage: 'scheduled', vvsScore: 90 })
+    vi.mocked(parseBody).mockResolvedValue({ targetStage: 'scheduled' })
     const req = createRequest()
     const res = await POST(req, { params: Promise.resolve({ id: MOCK_ITEM_ID }) })
     expect(res.status).toBe(422)
@@ -127,7 +125,7 @@ describe('POST /api/pipeline/items/[id]/publish', () => {
 
   it('returns 404 when pipeline item not found', async () => {
     mockAuthSuccess()
-    vi.mocked(parseBody).mockResolvedValue({ targetStage: 'published', vvsScore: 90 })
+    vi.mocked(parseBody).mockResolvedValue({ targetStage: 'published' })
 
     const chain = createMockChain({ data: null })
     vi.mocked(getSupabaseServiceClient).mockReturnValue({ from: vi.fn().mockReturnValue(chain) } as any)
@@ -141,10 +139,10 @@ describe('POST /api/pipeline/items/[id]/publish', () => {
 
   it('returns 422 when format is not blog_post', async () => {
     mockAuthSuccess()
-    vi.mocked(parseBody).mockResolvedValue({ targetStage: 'published', vvsScore: 90 })
+    vi.mocked(parseBody).mockResolvedValue({ targetStage: 'published' })
 
     const chain = createMockChain({
-      data: { id: MOCK_ITEM_ID, format: 'video', blog_post_id: null, site_id: MOCK_SITE_ID, version: 1 },
+      data: { id: MOCK_ITEM_ID, format: 'video', blog_post_id: null, site_id: MOCK_SITE_ID, version: 1, stage: 'review', validation_score: 90 },
     })
     vi.mocked(getSupabaseServiceClient).mockReturnValue({ from: vi.fn().mockReturnValue(chain) } as any)
 
@@ -157,10 +155,10 @@ describe('POST /api/pipeline/items/[id]/publish', () => {
 
   it('returns 422 when no blog_post_id linked', async () => {
     mockAuthSuccess()
-    vi.mocked(parseBody).mockResolvedValue({ targetStage: 'published', vvsScore: 90 })
+    vi.mocked(parseBody).mockResolvedValue({ targetStage: 'published' })
 
     const chain = createMockChain({
-      data: { id: MOCK_ITEM_ID, format: 'blog_post', blog_post_id: null, site_id: MOCK_SITE_ID, version: 1 },
+      data: { id: MOCK_ITEM_ID, format: 'blog_post', blog_post_id: null, site_id: MOCK_SITE_ID, version: 1, stage: 'review', validation_score: 90 },
     })
     vi.mocked(getSupabaseServiceClient).mockReturnValue({ from: vi.fn().mockReturnValue(chain) } as any)
 
@@ -173,10 +171,10 @@ describe('POST /api/pipeline/items/[id]/publish', () => {
 
   it('returns 422 for invalid status transition', async () => {
     mockAuthSuccess()
-    vi.mocked(parseBody).mockResolvedValue({ targetStage: 'published', vvsScore: 90 })
+    vi.mocked(parseBody).mockResolvedValue({ targetStage: 'published' })
 
     const pipelineChain = createMockChain({
-      data: { id: MOCK_ITEM_ID, format: 'blog_post', blog_post_id: MOCK_BLOG_POST_ID, site_id: MOCK_SITE_ID, version: 1 },
+      data: { id: MOCK_ITEM_ID, format: 'blog_post', blog_post_id: MOCK_BLOG_POST_ID, site_id: MOCK_SITE_ID, version: 1, stage: 'review', validation_score: 90 },
     })
     const blogChain = createMockChain({
       data: { id: MOCK_BLOG_POST_ID, status: 'published' },
@@ -198,10 +196,10 @@ describe('POST /api/pipeline/items/[id]/publish', () => {
 
   it('returns 200 for valid publish (happy path)', async () => {
     mockAuthSuccess()
-    vi.mocked(parseBody).mockResolvedValue({ targetStage: 'published', vvsScore: 90 })
+    vi.mocked(parseBody).mockResolvedValue({ targetStage: 'published' })
 
     const pipelineChain = createMockChain({
-      data: { id: MOCK_ITEM_ID, format: 'blog_post', blog_post_id: MOCK_BLOG_POST_ID, site_id: MOCK_SITE_ID, version: 1 },
+      data: { id: MOCK_ITEM_ID, format: 'blog_post', blog_post_id: MOCK_BLOG_POST_ID, site_id: MOCK_SITE_ID, version: 1, stage: 'review', validation_score: 90 },
     })
     const blogChain = createMockChain({
       data: { id: MOCK_BLOG_POST_ID, status: 'draft' },
@@ -232,11 +230,10 @@ describe('POST /api/pipeline/items/[id]/publish', () => {
     vi.mocked(parseBody).mockResolvedValue({
       targetStage: 'scheduled',
       scheduledFor: '2026-06-01T10:00:00Z',
-      vvsScore: 95,
     })
 
     const pipelineChain = createMockChain({
-      data: { id: MOCK_ITEM_ID, format: 'blog_post', blog_post_id: MOCK_BLOG_POST_ID, site_id: MOCK_SITE_ID, version: 1 },
+      data: { id: MOCK_ITEM_ID, format: 'blog_post', blog_post_id: MOCK_BLOG_POST_ID, site_id: MOCK_SITE_ID, version: 1, stage: 'review', validation_score: 95 },
     })
     const blogChain = createMockChain({
       data: { id: MOCK_BLOG_POST_ID, status: 'draft' },

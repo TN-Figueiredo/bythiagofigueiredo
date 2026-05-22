@@ -255,12 +255,15 @@ function BlogPublishPanel({ pipelineItemId, vvsScore }: BlogPublishPanelProps) {
   const [scheduledFor, setScheduledFor] = useState('')
   const [isPublishing, setIsPublishing] = useState(false)
 
-  // Compute min datetime for schedule input (prevents selecting past dates)
+  // Compute min datetime for schedule input (prevents selecting past dates).
+  // Recomputed each time the schedule UI opens so the floor stays fresh even
+  // if the detail view has been open for a long time.
   const minDateTime = useMemo(() => {
+    if (!showSchedule) return ''
     const now = new Date()
     now.setMinutes(now.getMinutes() - now.getTimezoneOffset())
     return now.toISOString().slice(0, 16)
-  }, [])
+  }, [showSchedule])
 
   async function handleScheduleConfirm() {
     if (isPublishing) return

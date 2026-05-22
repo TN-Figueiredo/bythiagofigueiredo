@@ -4,7 +4,6 @@ import {
   getValidTargets,
   getPostMoveTargets,
   computeDisplayId,
-  mapStatusToColumn,
   formatRelativeDate,
   sortPipelineLane,
   buildUnifiedLanes,
@@ -109,29 +108,6 @@ describe('computeDisplayId', () => {
   it('does not pad 4+ digit numbers', () => {
     expect(computeDisplayId(1000)).toBe('#BP-1000')
     expect(computeDisplayId(1001)).toBe('#BP-1001')
-  })
-})
-
-/* ------------------------------------------------------------------ */
-/*  mapStatusToColumn                                                  */
-/* ------------------------------------------------------------------ */
-
-describe('mapStatusToColumn', () => {
-  it('maps editing statuses to ready column', () => {
-    expect(mapStatusToColumn('idea')).toBe('ready')
-    expect(mapStatusToColumn('draft')).toBe('ready')
-    expect(mapStatusToColumn('pending_review')).toBe('ready')
-    expect(mapStatusToColumn('ready')).toBe('ready')
-    expect(mapStatusToColumn('queued')).toBe('ready')
-  })
-
-  it('maps scheduled to scheduled', () => {
-    expect(mapStatusToColumn('scheduled')).toBe('scheduled')
-  })
-
-  it('maps published and archived to published', () => {
-    expect(mapStatusToColumn('published')).toBe('published')
-    expect(mapStatusToColumn('archived')).toBe('published')
   })
 })
 

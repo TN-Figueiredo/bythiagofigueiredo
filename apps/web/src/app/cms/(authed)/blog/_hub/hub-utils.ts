@@ -1,4 +1,4 @@
-import type { PipelineCardItem, PostCard, UnifiedLanes, LaneDef, LaneId } from './hub-types'
+import type { PipelineCardItem, UnifiedLanes, LaneDef, LaneId } from './hub-types'
 import type { BlogHubStrings } from '../_i18n/types'
 
 export interface RelativeLabels {
@@ -45,21 +45,6 @@ export function getPostMoveTargets(status: string): string[] {
 export function computeDisplayId(rowNumber: number): string {
   const padded = rowNumber < 1000 ? String(rowNumber).padStart(3, '0') : String(rowNumber)
   return `#BP-${padded}`
-}
-
-export type KanbanColumnId = 'ready' | 'scheduled' | 'published'
-
-export function mapStatusToColumn(status: PostCard['status']): KanbanColumnId {
-  switch (status) {
-    case 'idea':
-    case 'draft':
-    case 'pending_review':
-    case 'ready':
-    case 'queued': return 'ready'
-    case 'scheduled': return 'scheduled'
-    case 'published':
-    case 'archived': return 'published'
-  }
 }
 
 export function formatRelativeDate(dateStr: string, labels: RelativeLabels = DEFAULT_LABELS): string {

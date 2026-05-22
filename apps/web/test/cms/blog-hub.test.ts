@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isValidTransition, getValidTargets, getPostMoveTargets, computeDisplayId, mapStatusToColumn, formatRelativeDate, BLOG_TRANSITIONS } from '../../src/app/cms/(authed)/blog/_hub/hub-utils'
+import { isValidTransition, getValidTargets, getPostMoveTargets, computeDisplayId, formatRelativeDate, BLOG_TRANSITIONS } from '../../src/app/cms/(authed)/blog/_hub/hub-utils'
 import type { PostCard } from '../../src/app/cms/(authed)/blog/_hub/hub-types'
 
 describe('blog-hub utils', () => {
@@ -61,27 +61,6 @@ describe('blog-hub utils', () => {
     })
   })
 
-  describe('mapStatusToColumn', () => {
-    it('maps idea/draft/pending_review to ready column (pre-graduation)', () => {
-      expect(mapStatusToColumn('idea')).toBe('ready')
-      expect(mapStatusToColumn('draft')).toBe('ready')
-      expect(mapStatusToColumn('pending_review')).toBe('ready')
-    })
-
-    it('maps ready and queued to ready column', () => {
-      expect(mapStatusToColumn('ready')).toBe('ready')
-      expect(mapStatusToColumn('queued')).toBe('ready')
-    })
-
-    it('maps scheduled to scheduled column', () => {
-      expect(mapStatusToColumn('scheduled')).toBe('scheduled')
-    })
-
-    it('maps published and archived to published column', () => {
-      expect(mapStatusToColumn('published')).toBe('published')
-      expect(mapStatusToColumn('archived')).toBe('published')
-    })
-  })
 })
 
 describe('blog-hub action status matrix', () => {
@@ -128,24 +107,6 @@ describe('blog-hub action status matrix', () => {
 
   it.each(invalidMoves)('%s → %s should be invalid', (from, to) => {
     expect(isValidTransition(from, to)).toBe(false)
-  })
-})
-
-describe('mapStatusToColumn exhaustive', () => {
-  it('maps all 8 statuses correctly', () => {
-    const expected: Record<string, string> = {
-      idea: 'ready',
-      draft: 'ready',
-      pending_review: 'ready',
-      ready: 'ready',
-      queued: 'ready',
-      scheduled: 'scheduled',
-      published: 'published',
-      archived: 'published',
-    }
-    for (const [status, column] of Object.entries(expected)) {
-      expect(mapStatusToColumn(status as any)).toBe(column)
-    }
   })
 })
 
