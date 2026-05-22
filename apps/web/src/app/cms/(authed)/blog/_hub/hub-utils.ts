@@ -81,10 +81,9 @@ export function formatRelativeDate(dateStr: string, labels: RelativeLabels = DEF
 export const LANE_DEFS: LaneDef[] = [
   { id: 'idea', label: 'Ideia', color: '#f59e0b', dataSource: 'pipeline' },
   { id: 'draft', label: 'Rascunho', color: '#f97316', dataSource: 'pipeline' },
-  { id: 'ready', label: 'Pronto', color: '#06b6d4', dataSource: 'pipeline' },
-  { id: 'editing', label: 'Em Edição', color: '#3b82f6', dataSource: 'blog' },
-  { id: 'scheduled', label: 'Agendado', color: '#a78bfa', dataSource: 'blog' },
-  { id: 'published', label: 'Publicado', color: '#22c55e', dataSource: 'blog' },
+  { id: 'ready', label: 'Entrega', color: '#06b6d4', dataSource: 'pipeline' },
+  { id: 'scheduled', label: 'Agendado', color: '#a78bfa', dataSource: 'pipeline' },
+  { id: 'published', label: 'Publicado', color: '#22c55e', dataSource: 'pipeline' },
 ]
 
 export const SUBSTATUS_BADGES: Record<string, { color: string; labelKey: keyof BlogHubStrings['substatus'] }> = {
@@ -95,19 +94,16 @@ export const SUBSTATUS_BADGES: Record<string, { color: string; labelKey: keyof B
   queued: { color: 'bg-purple-400/10 text-purple-400', labelKey: 'queued' },
 }
 
-const EDITING_STATUSES = new Set(['idea', 'draft', 'pending_review', 'ready', 'queued'])
-
 export function buildUnifiedLanes(
   pipelineItems: PipelineCardItem[],
-  posts: PostCard[],
+  _posts: PostCard[],
 ): UnifiedLanes {
   return {
     idea: pipelineItems.filter((i) => i.stage === 'idea'),
     draft: pipelineItems.filter((i) => i.stage === 'draft'),
     ready: pipelineItems.filter((i) => i.stage === 'ready'),
-    editing: posts.filter((p) => EDITING_STATUSES.has(p.status)),
-    scheduled: posts.filter((p) => p.status === 'scheduled'),
-    published: posts.filter((p) => p.status === 'published'),
+    scheduled: pipelineItems.filter((i) => i.stage === 'ready' && i.blog_post_id !== null),
+    published: pipelineItems.filter((i) => !i.is_archived && i.blog_post_id !== null),
   }
 }
 
@@ -125,11 +121,9 @@ export function sortPipelineLane(
   })
 }
 
-export function sortBlogLane(posts: PostCard[], lane: 'editing' | 'scheduled' | 'published'): PostCard[] {
+export function sortBlogLane(posts: PostCard[], lane: 'scheduled' | 'published'): PostCard[] {
   return [...posts].sort((a, b) => {
     switch (lane) {
-      case 'editing':
-        return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
       case 'scheduled':
         return new Date(a.scheduledFor ?? a.createdAt).getTime() - new Date(b.scheduledFor ?? b.createdAt).getTime()
       case 'published':
@@ -142,8 +136,8 @@ export function isPipelineLane(lane: LaneId): lane is 'idea' | 'draft' | 'ready'
   return lane === 'idea' || lane === 'draft' || lane === 'ready'
 }
 
-export function isBlogLane(lane: LaneId): lane is 'editing' | 'scheduled' | 'published' {
-  return lane === 'editing' || lane === 'scheduled' || lane === 'published'
+export function isBlogLane(lane: LaneId): lane is 'scheduled' | 'published' {
+  return lane === 'scheduled' || lane === 'published'
 }
 
 export const LOCALE_FLAGS: Record<string, string> = {

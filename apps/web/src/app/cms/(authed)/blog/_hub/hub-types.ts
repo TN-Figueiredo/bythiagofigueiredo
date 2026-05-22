@@ -92,7 +92,7 @@ export interface ScheduleTabData {
   readyPosts: ReadyPost[]
 }
 
-export type LaneId = 'idea' | 'draft' | 'ready' | 'editing' | 'scheduled' | 'published'
+export type LaneId = 'idea' | 'draft' | 'ready' | 'scheduled' | 'published'
 
 export interface PipelineCardItem {
   id: string
@@ -122,9 +122,8 @@ export interface UnifiedLanes {
   idea: PipelineCardItem[]
   draft: PipelineCardItem[]
   ready: PipelineCardItem[]
-  editing: PostCard[]
-  scheduled: PostCard[]
-  published: PostCard[]
+  scheduled: PipelineCardItem[]
+  published: PipelineCardItem[]
 }
 
 export interface LaneDef {
