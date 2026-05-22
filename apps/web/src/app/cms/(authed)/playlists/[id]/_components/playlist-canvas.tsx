@@ -41,7 +41,9 @@ import { FilterBar } from './filter-bar'
 import { PrintView } from './print-view'
 import { ExportMenu } from './export-menu'
 import { ContentPicker } from './content-picker'
+import { PlaylistPromptModal } from './prompt-generator-modal'
 import type { PickerItem } from '../../actions'
+import type { ReuseCandidateItem } from '@/lib/playlists/prompt-builder'
 
 type SaveState = 'saved' | 'saving' | 'error'
 
@@ -62,6 +64,7 @@ interface PlaylistCanvasProps {
   onAddItem: (siteId: string, input: unknown) => Promise<ActionResult<{ id: string }>>
   onFetchContent: (siteId: string, playlistId: string) => Promise<ActionResult<PickerItem[]>>
   onSaveNotes: (playlistId: string, siteId: string, notes: Record<string, unknown> | null) => Promise<ActionResult<void>>
+  onFetchReuseCandidates: (siteId: string, playlistId: string) => Promise<ActionResult<ReuseCandidateItem[]>>
 }
 
 export function PlaylistCanvas({
@@ -77,6 +80,7 @@ export function PlaylistCanvas({
   onAddItem,
   onFetchContent,
   onSaveNotes,
+  onFetchReuseCandidates,
 }: PlaylistCanvasProps) {
   const router = useRouter()
   const [state, dispatch] = useReducer(graphReducer, undefined, initialGraphState)
@@ -102,6 +106,8 @@ export function PlaylistCanvas({
   })
   const [showExportMenu, setShowExportMenu] = useState(false)
   const exportBtnRef = useRef<HTMLButtonElement>(null)
+  const [showPromptModal, setShowPromptModal] = useState(false)
+  const [reuseCandidates, setReuseCandidates] = useState<ReuseCandidateItem[]>([])
   const handlePrint = useCallback(() => window.print(), [])
 
   const viewNumbers = useMemo(
@@ -150,6 +156,13 @@ export function PlaylistCanvas({
   useEffect(() => {
     dispatch({ type: 'LOAD', items: graph.items, edges: graph.edges })
   }, [graph])
+
+  // Load reuse candidates for the prompt modal
+  useEffect(() => {
+    onFetchReuseCandidates(siteId, graph.playlist.id).then((result) => {
+      if (result.ok) setReuseCandidates(result.data)
+    })
+  }, [siteId, graph.playlist.id, onFetchReuseCandidates])
 
   // Canvas hooks
   const {
@@ -767,7 +780,7 @@ export function PlaylistCanvas({
         exportButtonRef={exportBtnRef}
         onToggleSettings={() => setShowSettings(prev => !prev)}
         hasNotes={graph.playlist.notes != null}
-        onOpenPrompt={() => {}}
+        onOpenPrompt={() => setShowPromptModal(true)}
         onRefresh={() => router.refresh()}
       />
 
@@ -1043,6 +1056,17 @@ export function PlaylistCanvas({
         onAddItem={onAddItem}
         onItemAdded={() => router.refresh()}
       />
+
+      {showPromptModal && (
+        <PlaylistPromptModal
+          playlist={graph.playlist}
+          items={state.items}
+          edges={state.edges}
+          selectedItemIds={Array.from(state.selectedItemIds)}
+          reuseCandidates={reuseCandidates}
+          onClose={() => setShowPromptModal(false)}
+        />
+      )}
 
     </div>
 

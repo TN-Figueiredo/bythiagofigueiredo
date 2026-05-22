@@ -14,6 +14,7 @@ import {
   addItemToPlaylist,
   getAvailableContent,
   updatePlaylistNotes,
+  getReuseCandidates,
 } from '../actions'
 
 export const dynamic = 'force-dynamic'
@@ -45,6 +46,7 @@ export default async function PlaylistEditorPage({
         onAddItem={addItemToPlaylist}
         onFetchContent={getAvailableContent}
         onSaveNotes={updatePlaylistNotes}
+        onFetchReuseCandidates={getReuseCandidates}
       />
     </div>
   )
