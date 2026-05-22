@@ -23,6 +23,10 @@ import {
 } from '@/app/cms/(authed)/_shared/editor/toggle-node'
 import { ColumnsExtension, ColumnExtension } from '@/app/cms/(authed)/_shared/editor/columns-node'
 import { SocialEmbedExtension } from '@/app/cms/(authed)/_shared/editor/social-embed-node'
+import { MergeTagExtension } from '@/app/cms/(authed)/_shared/editor/merge-tag-node'
+import { CTAButtonExtension } from '@/app/cms/(authed)/_shared/editor/cta-button-node'
+import { PlaylistEmbedExtension } from '@/app/cms/(authed)/_shared/editor/playlist-embed-node'
+import { createSlashCommandExtension } from '@/app/cms/(authed)/_shared/editor/slash-commands'
 import type { Extensions } from '@tiptap/react'
 
 interface ExtensionOptions {
@@ -83,9 +87,63 @@ export function getCompactExtensions(options: ExtensionOptions = {}): Extensions
   ]
 }
 
+export function getBlogExtensions(options: ExtensionOptions = {}): Extensions {
+  return [
+    StarterKit.configure({
+      heading: { levels: [1, 2, 3, 4] },
+    }),
+    Underline,
+    Link.configure({
+      openOnClick: false,
+      HTMLAttributes: { rel: 'noopener noreferrer nofollow' },
+    }),
+    PipelineImageExtension.configure({
+      inline: false,
+      HTMLAttributes: { loading: 'lazy' },
+    }),
+    TextAlign.configure({ types: ['heading', 'paragraph'] }),
+    TextStyle,
+    Color,
+    Highlight.configure({ multicolor: true }),
+    Placeholder.configure({
+      placeholder: options.placeholder ?? 'Escreva o conteúdo do seu post...',
+    }),
+    CharacterCount,
+    TaskList,
+    TaskItem.configure({ nested: true }),
+    Table.configure({ resizable: false }),
+    TableRow,
+    TableHeader,
+    TableCell,
+    CalloutExtension,
+    ToggleWrapperExtension,
+    ToggleTitleExtension,
+    ToggleBodyExtension,
+    ColumnsExtension,
+    ColumnExtension,
+    SocialEmbedExtension,
+    MergeTagExtension,
+    CTAButtonExtension,
+    PlaylistEmbedExtension,
+    createSlashCommandExtension({
+      onImageUpload: () => {},
+      onInsertCTAButton: () => {},
+      onInsertMergeTag: () => {},
+      onInsertSocialEmbed: () => {},
+      onInsertCallout: () => {},
+      onInsertToggle: () => {},
+      onInsertColumns: () => {},
+      onInsertTable: () => {},
+      onInsertChecklist: () => {},
+      onInsertPlaylist: () => {},
+    }),
+  ]
+}
+
 export function getExtensions(
-  preset: 'full' | 'compact',
+  preset: 'full' | 'compact' | 'blog',
   options: ExtensionOptions = {},
 ): Extensions {
+  if (preset === 'blog') return getBlogExtensions(options)
   return preset === 'full' ? getFullExtensions(options) : getCompactExtensions(options)
 }
