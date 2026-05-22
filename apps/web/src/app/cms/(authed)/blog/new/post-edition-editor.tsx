@@ -1166,6 +1166,26 @@ export function PostEditionEditor({
         </div>
       </div>
 
+      {/* ── Pipeline banner ────────────────────────────────────────────────── */}
+      {initialPipelineItem && (
+        <div className="shrink-0 px-4 py-2.5 border-b border-indigo-500/20 bg-indigo-500/5 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-indigo-300">
+              Este post é gerenciado pelo Pipeline
+            </p>
+            <p className="text-xs text-[#6b7280]">
+              Edite no Pipeline para manter o workflow unificado.
+            </p>
+          </div>
+          <a
+            href={`/cms/pipeline?item=${initialPipelineItem.id}`}
+            className="shrink-0 px-4 py-2 rounded-lg bg-indigo-500 text-white text-sm font-bold hover:bg-indigo-600 transition-colors"
+          >
+            Editar no Pipeline →
+          </a>
+        </div>
+      )}
+
       {/* ── Scrollable content area ────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto min-h-0">
         <div className="max-w-[780px] mx-auto px-6 pt-7 pb-20">
@@ -1174,20 +1194,22 @@ export function PostEditionEditor({
             coverUrl={coverImageUrl}
             onRemove={handleCoverRemove}
             onOpenGallery={() => coverGallery.openGallery({ folder: 'blog', cropPreset: CROP_PRESETS['blog-cover'] })}
-            disabled={false}
+            disabled={!!initialPipelineItem}
           />
 
           {/* Title */}
           <textarea
             value={title}
             onChange={(e) => {
+              if (initialPipelineItem) return
               handleTitleChange(e.target.value)
               autoGrow(e.target)
             }}
             onBlur={handleTitleBlur}
             rows={1}
             aria-label="Post title"
-            className="w-full bg-transparent text-[32px] font-bold tracking-[-0.5px] text-[#f9fafb] placeholder-[#374151] outline-none border-none mt-6 resize-none overflow-hidden leading-tight"
+            readOnly={!!initialPipelineItem}
+            className={`w-full bg-transparent text-[32px] font-bold tracking-[-0.5px] text-[#f9fafb] placeholder-[#374151] outline-none border-none mt-6 resize-none overflow-hidden leading-tight${initialPipelineItem ? ' opacity-70 cursor-default select-text' : ''}`}
             placeholder="Post title..."
             autoFocus={isEphemeral}
             onKeyDown={(e) => {
@@ -1204,9 +1226,10 @@ export function PostEditionEditor({
             <input
               type="text"
               value={slug}
-              onChange={(e) => handleSlugChange(e.target.value)}
+              onChange={(e) => { if (!initialPipelineItem) handleSlugChange(e.target.value) }}
               aria-label="Post slug"
-              className="flex-1 bg-transparent text-xs text-[#6b7280] placeholder-[#374151] outline-none border-none opacity-60 focus:opacity-100 transition-opacity"
+              readOnly={!!initialPipelineItem}
+              className={`flex-1 bg-transparent text-xs text-[#6b7280] placeholder-[#374151] outline-none border-none opacity-60 transition-opacity${initialPipelineItem ? ' cursor-default' : ' focus:opacity-100'}`}
               placeholder="post-slug"
             />
           </div>
@@ -1215,12 +1238,14 @@ export function PostEditionEditor({
           <textarea
             value={excerpt}
             onChange={(e) => {
+              if (initialPipelineItem) return
               handleExcerptChange(e.target.value)
               autoGrow(e.target)
             }}
             rows={1}
             aria-label="Post excerpt"
-            className="w-full bg-transparent text-[15px] italic text-[#9ca3af] placeholder-[#374151] outline-none border-none resize-none overflow-hidden mb-6 leading-relaxed"
+            readOnly={!!initialPipelineItem}
+            className={`w-full bg-transparent text-[15px] italic text-[#9ca3af] placeholder-[#374151] outline-none border-none resize-none overflow-hidden mb-6 leading-relaxed${initialPipelineItem ? ' opacity-70 cursor-default select-text' : ''}`}
             placeholder="Brief excerpt for search results and social previews..."
             ref={(el) => { if (el) autoGrow(el) }}
           />
@@ -1231,7 +1256,7 @@ export function PostEditionEditor({
               content={contentJson}
               onChange={handleEditorChange}
               onImageInserted={() => {
-                if (!isEphemeral) {
+                if (!isEphemeral && !initialPipelineItem) {
                   if (saveMode === 'auto') {
                     saveImmediate(getSavePayload())
                   } else {
@@ -1239,10 +1264,10 @@ export function PostEditionEditor({
                   }
                 }
               }}
-              onImageUpload={handleImageUpload}
-              onOpenGallery={() => inlineGallery.openGallery({ folder: 'blog', cropPreset: CROP_PRESETS.free })}
+              onImageUpload={initialPipelineItem ? async () => null : handleImageUpload}
+              onOpenGallery={initialPipelineItem ? undefined : () => inlineGallery.openGallery({ folder: 'blog', cropPreset: CROP_PRESETS.free })}
               editorInstanceRef={editorInstanceRef}
-              editable
+              editable={!initialPipelineItem}
               placeholder="Start writing your post... Type / for commands"
             />
           </div>
