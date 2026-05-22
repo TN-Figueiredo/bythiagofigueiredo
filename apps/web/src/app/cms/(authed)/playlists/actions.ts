@@ -611,11 +611,11 @@ export async function getReuseCandidates(
   )
 
   const playlistTagSet = new Set<string>()
-  for (const row of (playlistItemsRes.data ?? []) as {
+  for (const row of (playlistItemsRes.data ?? []) as unknown as {
     pipeline_id: string
-    content_pipeline: { tags: string[] } | null
+    content_pipeline: { tags: string[] }[] | null
   }[]) {
-    for (const tag of row.content_pipeline?.tags ?? []) {
+    for (const tag of row.content_pipeline?.[0]?.tags ?? []) {
       playlistTagSet.add(tag)
     }
   }
