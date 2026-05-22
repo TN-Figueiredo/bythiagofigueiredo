@@ -5,8 +5,14 @@ import { useCardComposition } from '@tn-figueiredo/links-admin/qr-card-builder/u
 import { useCanvasInteraction } from '@tn-figueiredo/links-admin/qr-card-builder/use-canvas-interaction'
 import { ContextMenu } from '@tn-figueiredo/links-admin/qr-card-builder/context-menu'
 import type { ContextMenuEntry } from '@tn-figueiredo/links-admin/qr-card-builder/context-menu'
-import { SocialCanvas } from './social-canvas'
+import dynamic from 'next/dynamic'
 import type { SocialCanvasHandle } from './social-canvas'
+
+const SocialCanvas = dynamic(
+  () => import('./social-canvas').then(mod => ({ default: mod.SocialCanvas })),
+  { ssr: false, loading: () => null },
+)
+
 import { SocialLeftPanel, SOCIAL_ASPECT_RATIOS } from './social-left-panel'
 import type { SocialAspectRatio } from './social-left-panel'
 import { SocialRightPanel } from './social-right-panel'

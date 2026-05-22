@@ -1,6 +1,13 @@
 'use client'
 
+import { useEffect } from 'react'
+import * as Sentry from '@sentry/nextjs'
+
 export default function SocialError({ error, reset }: { error: Error; reset: () => void }) {
+  useEffect(() => {
+    Sentry.captureException(error)
+  }, [error])
+
   return (
     <div className="flex min-h-[400px] items-center justify-center p-6">
       <div role="alert" className="rounded-lg bg-cms-surface p-6 text-center shadow-lg max-w-md">
