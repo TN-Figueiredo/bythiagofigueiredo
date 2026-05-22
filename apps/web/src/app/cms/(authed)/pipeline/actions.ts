@@ -2,7 +2,7 @@
 'use server'
 
 import { z } from 'zod'
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
@@ -99,6 +99,7 @@ export async function createPipelineItem(input: Record<string, unknown>): Promis
 
   if (error) return { ok: false, error: error.message }
   revalidatePath('/cms/pipeline')
+  revalidateTag('pipeline-blog')
   return { ok: true, data: item }
 }
 
@@ -125,6 +126,7 @@ export async function updatePipelineItem(id: string, version: number, input: Rec
 
   if (error || !updated) return { ok: false, error: 'Version conflict or item not found' }
   revalidatePath('/cms/pipeline')
+  revalidateTag('pipeline-blog')
   return { ok: true, data: updated }
 }
 
@@ -176,6 +178,7 @@ export async function advancePipelineItem(id: string, version: number): Promise<
   }
 
   revalidatePath('/cms/pipeline')
+  revalidateTag('pipeline-blog')
   if (graduationResult) revalidatePath('/cms/social')
   return { ok: true, data: { ...updated, graduationResult } }
 }
@@ -204,6 +207,7 @@ export async function movePipelineItemToStage(
 
   if (error || !updated) return { ok: false, error: 'Version conflict or item not found' }
   revalidatePath('/cms/pipeline')
+  revalidateTag('pipeline-blog')
   revalidatePath('/cms/blog')
   return { ok: true, data: updated }
 }
@@ -236,6 +240,7 @@ export async function retreatPipelineItem(id: string, version: number): Promise<
 
   if (error || !updated) return { ok: false, error: 'Version conflict' }
   revalidatePath('/cms/pipeline')
+  revalidateTag('pipeline-blog')
   return { ok: true, data: updated }
 }
 
@@ -251,6 +256,7 @@ export async function archivePipelineItem(id: string): Promise<ActionResult> {
 
   if (error) return { ok: false, error: error.message }
   revalidatePath('/cms/pipeline')
+  revalidateTag('pipeline-blog')
   return { ok: true }
 }
 
@@ -268,6 +274,7 @@ export async function restorePipelineItem(id: string): Promise<ActionResult> {
 
   if (error || !updated) return { ok: false, error: 'Item not found' }
   revalidatePath('/cms/pipeline')
+  revalidateTag('pipeline-blog')
   return { ok: true, data: updated }
 }
 
@@ -298,6 +305,7 @@ export async function toggleChecklist(id: string, index: number, done: boolean):
 
   if (error) return { ok: false, error: error.message }
   revalidatePath('/cms/pipeline')
+  revalidateTag('pipeline-blog')
   return { ok: true, data: updated }
 }
 

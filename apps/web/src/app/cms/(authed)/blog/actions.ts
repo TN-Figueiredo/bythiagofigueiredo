@@ -201,6 +201,7 @@ export async function bulkChangeAuthor(
 
 function revalidateBlogHub(siteId?: string): void {
   revalidateTag('blog-hub')
+  revalidateTag('pipeline-blog')
   revalidateTag('sidebar-badges')
   revalidatePath('/cms/blog')
   if (siteId) revalidateTag(`sitemap:${siteId}`)

@@ -168,4 +168,90 @@ describe('syncPipelineOnPostStatusChange', () => {
       (pipelineUpdateChain as Record<string, unknown>).update as ReturnType<typeof vi.fn>,
     ).toHaveBeenCalledWith({ stage: 'ready' })
   })
+
+  it('advances pipeline item to scheduled when post is scheduled', async () => {
+    enqueue('content_pipeline', makeChain({
+      data: { id: 'pipe-1', stage: 'ready', version: 4, format: 'blog_post' },
+      error: null,
+    }))
+
+    const updateTerminal = { maybeSingle: vi.fn(() => Promise.resolve({ data: { id: 'pipe-1' }, error: null })) }
+    const updateSelect = { select: vi.fn(() => updateTerminal) }
+    const updateEq2 = { eq: vi.fn(() => updateSelect) }
+    const updateEq1: Record<string, unknown> = {}
+    updateEq1.eq = vi.fn(() => updateEq2)
+    const pipelineUpdateChain = makeChain({ data: null, error: null })
+    ;(pipelineUpdateChain as Record<string, unknown>).update = vi.fn(() => updateEq1)
+    enqueue('content_pipeline', pipelineUpdateChain)
+
+    enqueue('content_pipeline_history', makeChain({ data: null, error: null }))
+
+    await syncPipelineOnPostStatusChange('post-1', 'scheduled', 'ready')
+
+    expect(
+      (pipelineUpdateChain as Record<string, unknown>).update as ReturnType<typeof vi.fn>,
+    ).toHaveBeenCalledWith({ stage: 'scheduled' })
+  })
+
+  it('does not advance if pipeline item is already at scheduled', async () => {
+    enqueue('content_pipeline', makeChain({
+      data: { id: 'pipe-1', stage: 'scheduled', version: 5, format: 'blog_post' },
+      error: null,
+    }))
+
+    await syncPipelineOnPostStatusChange('post-1', 'scheduled', 'ready')
+
+    expect(mockSvc.from).toHaveBeenCalledTimes(1)
+  })
+
+  it('retreats pipeline item when post is unscheduled (scheduled → draft)', async () => {
+    enqueue('content_pipeline', makeChain({
+      data: { id: 'pipe-1', stage: 'scheduled', version: 6, format: 'blog_post' },
+      error: null,
+    }))
+
+    const historySelectChain = makeChain({ data: { from_value: 'ready' }, error: null })
+    enqueue('content_pipeline_history', historySelectChain)
+
+    const updateTerminal = { maybeSingle: vi.fn(() => Promise.resolve({ data: { id: 'pipe-1' }, error: null })) }
+    const updateSelect = { select: vi.fn(() => updateTerminal) }
+    const updateEq2 = { eq: vi.fn(() => updateSelect) }
+    const updateEq1: Record<string, unknown> = {}
+    updateEq1.eq = vi.fn(() => updateEq2)
+    const pipelineUpdateChain = makeChain({ data: null, error: null })
+    ;(pipelineUpdateChain as Record<string, unknown>).update = vi.fn(() => updateEq1)
+    enqueue('content_pipeline', pipelineUpdateChain)
+
+    enqueue('content_pipeline_history', makeChain({ data: null, error: null }))
+
+    await syncPipelineOnPostStatusChange('post-1', 'draft', 'scheduled')
+
+    expect(
+      (pipelineUpdateChain as Record<string, unknown>).update as ReturnType<typeof vi.fn>,
+    ).toHaveBeenCalledWith({ stage: 'ready' })
+  })
+
+  it('advances from scheduled to published without retreat', async () => {
+    enqueue('content_pipeline', makeChain({
+      data: { id: 'pipe-1', stage: 'scheduled', version: 8, format: 'blog_post' },
+      error: null,
+    }))
+
+    const updateTerminal = { maybeSingle: vi.fn(() => Promise.resolve({ data: { id: 'pipe-1' }, error: null })) }
+    const updateSelect = { select: vi.fn(() => updateTerminal) }
+    const updateEq2 = { eq: vi.fn(() => updateSelect) }
+    const updateEq1: Record<string, unknown> = {}
+    updateEq1.eq = vi.fn(() => updateEq2)
+    const pipelineUpdateChain = makeChain({ data: null, error: null })
+    ;(pipelineUpdateChain as Record<string, unknown>).update = vi.fn(() => updateEq1)
+    enqueue('content_pipeline', pipelineUpdateChain)
+
+    enqueue('content_pipeline_history', makeChain({ data: null, error: null }))
+
+    await syncPipelineOnPostStatusChange('post-1', 'published', 'scheduled')
+
+    expect(
+      (pipelineUpdateChain as Record<string, unknown>).update as ReturnType<typeof vi.fn>,
+    ).toHaveBeenCalledWith({ stage: 'published' })
+  })
 })

@@ -128,6 +128,7 @@ export async function savePost(
 
     revalidateBlogPostSeo(siteId, id, locale, input.slug)
     revalidateTag('blog-hub')
+    revalidateTag('pipeline-blog')
     return { ok: true, postId: id }
   }
 
@@ -255,6 +256,7 @@ export async function savePost(
 
   revalidateBlogPostSeo(siteId, id, locale, input.slug)
   revalidateTag('blog-hub')
+  revalidateTag('pipeline-blog')
   return { ok: true, postId: id }
 }
 

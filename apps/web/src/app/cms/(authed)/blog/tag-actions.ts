@@ -14,6 +14,7 @@ async function requireEditScope(siteId: string): Promise<void> {
 
 function revalidateBlogHub(siteId?: string): void {
   revalidateTag('blog-hub')
+  revalidateTag('pipeline-blog')
   revalidateTag('sidebar-badges')
   revalidatePath('/cms/blog')
   if (siteId) revalidateTag(`sitemap:${siteId}`)

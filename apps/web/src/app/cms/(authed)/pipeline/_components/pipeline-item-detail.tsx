@@ -91,15 +91,18 @@ function hasPendingChanges(item: ItemData): boolean {
 function ActiveTabObserver({
   activeTab,
   onCollapse,
+  manualOverrideRef,
   children,
 }: {
   activeTab: string
   onCollapse: (collapsed: boolean) => void
+  manualOverrideRef: React.RefObject<boolean>
   children: React.ReactNode
 }) {
   useEffect(() => {
+    if (manualOverrideRef.current) return
     onCollapse(activeTab === 'draft')
-  }, [activeTab, onCollapse])
+  }, [activeTab, onCollapse, manualOverrideRef])
   return <>{children}</>
 }
 
@@ -406,9 +409,7 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
   const [isRetreating, setIsRetreating] = useState(false)
   const [isRepublishing, setIsRepublishing] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const handleSidebarCollapse = useCallback((collapsed: boolean) => {
-    setSidebarCollapsed(collapsed)
-  }, [])
+  const manualOverrideRef = useRef(false)
   const [showBlogSearch, setShowBlogSearch] = useState(false)
   const [showPromptModal, setShowPromptModal] = useState(false)
   const [promptSections, setPromptSections] = useState<Array<{ section_type: string; language: string; content: string }>>([])
@@ -674,7 +675,8 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
             return (
               <ActiveTabObserver
                 activeTab={activeTab}
-                onCollapse={handleSidebarCollapse}
+                onCollapse={setSidebarCollapsed}
+                manualOverrideRef={manualOverrideRef}
               >
                 {hasPendingChanges(item) && (
                   <div className="flex items-center gap-2 ml-4 mb-2">
@@ -724,9 +726,9 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
           <div className="flex flex-col items-center gap-2.5 py-3">
             <div className="w-8 h-8 rounded-full border-2 flex items-center justify-center text-xs font-bold"
               style={{ borderColor: vvsColor, color: vvsColor }}>
-              {item.validation_score}
+              {item.validation_score || '—'}
             </div>
-            <button onClick={() => setSidebarCollapsed(false)} title="Expand sidebar"
+            <button onClick={() => { manualOverrideRef.current = true; setSidebarCollapsed(false) }} title="Expand sidebar"
               className="w-7 h-7 rounded-md flex items-center justify-center text-xs hover:opacity-80"
               style={{ background: 'var(--gem-well)', color: 'var(--gem-muted)' }}>
               &raquo;
@@ -735,7 +737,7 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
         ) : (
         <>{/* Collapse button */}
         <div className="flex justify-end">
-          <button onClick={() => setSidebarCollapsed(true)} title="Collapse sidebar"
+          <button onClick={() => { manualOverrideRef.current = true; setSidebarCollapsed(true) }} title="Collapse sidebar"
             className="w-7 h-7 rounded-md flex items-center justify-center text-xs hover:opacity-80"
             style={{ background: 'var(--gem-well)', color: 'var(--gem-muted)' }}>
             &laquo;

@@ -103,7 +103,9 @@ export const PipelineCard = memo(function PipelineCard({
 
         {/* VVS score */}
         <div className="mt-1.5 flex items-center justify-between">
-          <span className="text-[10px] text-gray-600">VVS {item.validation_score}%</span>
+          <span className={`text-[10px] ${item.validation_score === 0 ? 'text-gray-600' : item.validation_score < 50 ? 'text-red-400' : item.validation_score < 80 ? 'text-amber-400' : 'text-emerald-400'}`}>
+            VVS {item.validation_score === 0 ? '—' : `${item.validation_score}%`}
+          </span>
 
           {/* Promote button — only in Ready lane */}
           {laneId === 'ready' && (

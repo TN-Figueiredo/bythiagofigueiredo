@@ -290,7 +290,7 @@ export function UnifiedBoard({
   const handleBoardKeyDown = useCallback((e: KeyboardEvent<HTMLDivElement>) => {
     if (!e.altKey) return
     const num = parseInt(e.key, 10)
-    if (num < 1 || num > 6) return
+    if (num < 1 || num > 5) return
     e.preventDefault()
     const laneIndex = num - 1
     const laneEl = boardRef.current?.querySelector<HTMLElement>(`[data-lane-index="${laneIndex}"]`)
@@ -553,7 +553,7 @@ export function UnifiedBoard({
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
       >
-        <div ref={boardRef} role="region" aria-label={strings?.tabs?.editorial ?? 'Blog editorial kanban'} aria-description={strings?.editorial?.laneShortcutHint ?? 'Alt+1 through Alt+6 to jump to lanes'} aria-busy={isPending} tabIndex={0} onKeyDown={handleBoardKeyDown} className="flex gap-3 overflow-x-auto pb-4">
+        <div ref={boardRef} role="region" aria-label={strings?.tabs?.editorial ?? 'Blog editorial kanban'} aria-description={strings?.editorial?.laneShortcutHint ?? 'Alt+1 through Alt+5 to jump to lanes'} aria-busy={isPending} tabIndex={0} onKeyDown={handleBoardKeyDown} className="flex gap-3 overflow-x-auto pb-4">
           <div className="flex gap-3">
             {LANE_DEFS.map((lane, idx) => {
               const items = lanes[lane.id]

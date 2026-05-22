@@ -6,6 +6,14 @@ import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 
 const LANE_MAX_HEIGHT = 'calc(100vh - var(--kanban-lane-offset, 260px))'
 
+const FALLBACK_EMPTY: Record<string, string> = {
+  idea: 'Sem ideias ainda',
+  draft: 'Sem rascunhos',
+  ready: 'Sem itens prontos',
+  scheduled: 'Nenhum post agendado',
+  published: 'Nenhum post publicado',
+}
+
 interface KanbanLaneProps {
   id: string
   index?: number
@@ -89,7 +97,7 @@ export const KanbanLane = memo(function KanbanLane({
         >
           {count === 0 && (
             <div className="flex flex-col items-center justify-center gap-2 py-8 opacity-50">
-              <p className="text-center text-[10px] text-gray-500">{emptyMessage}</p>
+              <p className="text-center text-[10px] text-gray-500">{emptyMessage || FALLBACK_EMPTY[id] || 'Nenhum item'}</p>
               {emptyCta}
             </div>
           )}
