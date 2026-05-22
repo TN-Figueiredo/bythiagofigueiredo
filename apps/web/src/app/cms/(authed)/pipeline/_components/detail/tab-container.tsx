@@ -171,9 +171,15 @@ export function TabContainer({ format, stage, itemId, itemVersion, sections, ite
       if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
         e.preventDefault()
         const currentIdx = sectionDefs.findIndex(s => s.key === activeTab)
-        const newIdx = e.key === 'ArrowLeft' ? Math.max(0, currentIdx - 1) : Math.min(sectionDefs.length - 1, currentIdx + 1)
+        const direction = e.key === 'ArrowLeft' ? -1 : 1
+        let newIdx = currentIdx + direction
+        while (newIdx >= 0 && newIdx < sectionDefs.length) {
+          const candidate = sectionDefs[newIdx]
+          if (candidate && enabledTabs.has(candidate.key)) break
+          newIdx += direction
+        }
         const newDef = sectionDefs[newIdx]
-        if (newDef) handleTabSwitch(newDef.key)
+        if (newDef && enabledTabs.has(newDef.key)) handleTabSwitch(newDef.key)
         return
       }
       if (e.key === 'l' && itemLanguage === 'both') {

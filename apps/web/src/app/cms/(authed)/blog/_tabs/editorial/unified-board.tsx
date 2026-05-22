@@ -18,7 +18,7 @@ import {
 } from '@dnd-kit/core'
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { toast } from 'sonner'
-import type { PipelineCardItem, BlogTag, LaneId } from '../../_hub/hub-types'
+import type { PipelineCardItem, LaneId } from '../../_hub/hub-types'
 import type { BlogHubStrings } from '../../_i18n/types'
 import {
   LANE_DEFS,
@@ -32,36 +32,26 @@ import { BulkActionBar } from './bulk-action-bar'
 
 const DRAG_OVERLAY_ANIMATION: DropAnimation = { duration: 200, easing: 'ease' }
 const PUBLISHED_PAGE_SIZE = 30
+/** Lanes that accept cards dropped via DnD. `scheduled` and `published` are publish-flow only. */
+const DND_VALID_TARGETS = new Set(['idea', 'draft', 'ready', 'archived'])
 
 interface UnifiedBoardProps {
   pipelineItems: PipelineCardItem[]
-  /** @deprecated No longer used — all lanes are pipeline-only. Will be removed in a future cleanup. */
-  posts?: unknown[]
   strings?: BlogHubStrings
-  tags?: BlogTag[]
   supportedLocales: string[]
   defaultLocale: string
   siteTimezone: string
   siteId: string
-  onMovePipelineItem: (id: string, version: number, stage: string) => Promise<void>
-  /** @deprecated No longer used — scheduled/published are pipeline stages. Will be removed in a future cleanup. */
-  onMovePost?: (postId: string, newStatus: string, scheduledFor?: string) => Promise<void>
-  /** @deprecated No longer used. Will be removed in a future cleanup. */
-  onDeletePost?: (postId: string) => void
-  /** @deprecated No longer used. Will be removed in a future cleanup. */
-  onDuplicate?: (postId: string) => Promise<void>
+  onMovePipelineItem: (id: string, version: number, stage: string) => Promise<boolean>
   onPromote: (
     siteId: string,
     pipelineItemId: string,
     locale: string,
     scheduledFor?: string,
   ) => Promise<{ ok: boolean; postId?: string }>
-  /** @deprecated No longer used. Will be removed in a future cleanup. */
-  onReturnToPipeline?: (postId: string) => void
   onBulkPublish: (postIds: string[]) => Promise<void>
   onBulkArchive: (postIds: string[]) => Promise<void>
   onBulkDelete: (postIds: string[]) => Promise<void>
-  pipelineProvenanceMap: Map<string, string>
 }
 
 type PipelineAction =
@@ -71,7 +61,6 @@ type PipelineAction =
 export function UnifiedBoard({
   pipelineItems,
   strings,
-  tags: _tags,
   supportedLocales,
   defaultLocale,
   siteTimezone,
@@ -81,7 +70,6 @@ export function UnifiedBoard({
   onBulkPublish,
   onBulkArchive,
   onBulkDelete,
-  pipelineProvenanceMap: _pipelineProvenanceMap,
 }: UnifiedBoardProps) {
   const dndId = useId()
   const sensors = useSensors(
@@ -174,16 +162,31 @@ export function UnifiedBoard({
 
       if (!fromLane || !toLane || fromLane === toLane) return
 
+      // Bug 1: guard against invalid DnD targets (scheduled/published are publish-flow only)
+      if (!DND_VALID_TARGETS.has(toLane)) {
+        if (toLane === 'published') {
+          toast.error('Use o fluxo de publicação para mover para Publicado')
+        } else if (toLane === 'scheduled') {
+          toast.error('Use o fluxo de agendamento para mover para Agendado')
+        } else {
+          toast.error(strings?.common?.couldntMove ?? "Couldn't move")
+        }
+        return
+      }
+
       const item = optPipeline.find((i) => i.id === itemId)
       if (!item) return
 
-      startTransition(async () => {
-        dispatchPipeline({ type: 'move', id: itemId, stage: toLane })
-        try {
-          await onMovePipelineItem(itemId, item.version, toLane)
-        } catch {
+      // Bug 3: removed outer startTransition — the parent's onMovePipelineItem owns the transition
+      // Bug 2: check return value to roll back on server error
+      dispatchPipeline({ type: 'move', id: itemId, stage: toLane })
+      onMovePipelineItem(itemId, item.version, toLane).then((ok) => {
+        if (!ok) {
           toast.error(strings?.common?.couldntMove ?? "Couldn't move")
+          // router.refresh() is already called by the parent on failure, which resets optimistic state
         }
+      }).catch(() => {
+        toast.error(strings?.common?.couldntMove ?? "Couldn't move")
       })
     },
     [
@@ -192,7 +195,6 @@ export function UnifiedBoard({
       optPipeline,
       onMovePipelineItem,
       strings,
-      startTransition,
       dispatchPipeline,
     ],
   )

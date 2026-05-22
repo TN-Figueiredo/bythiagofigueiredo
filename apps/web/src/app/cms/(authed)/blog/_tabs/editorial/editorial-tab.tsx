@@ -181,16 +181,15 @@ export function EditorialTab({
   )
 
   const handleMovePipelineItem = useCallback(
-    async (id: string, version: number, stage: string) => {
-      startTransition(async () => {
-        const result = await movePipelineItemToStage(id, version, stage)
-        if (!result.ok) {
-          toast.error(strings?.common?.couldntMove ?? "Couldn't move")
-          router.refresh()
-        } else {
-          router.refresh()
-        }
+    async (id: string, version: number, stage: string): Promise<boolean> => {
+      const result = await movePipelineItemToStage(id, version, stage)
+      startTransition(() => {
+        router.refresh()
       })
+      if (!result.ok) {
+        return false
+      }
+      return true
     },
     [router, startTransition, strings],
   )
@@ -350,23 +349,16 @@ export function EditorialTab({
       <SectionErrorBoundary sectionName="Unified board">
         <UnifiedBoard
           pipelineItems={filteredPipeline}
-          posts={filteredPosts}
           strings={strings}
-          tags={tags}
           supportedLocales={supportedLocales}
           defaultLocale={defaultLocale}
           siteTimezone={siteTimezone}
           siteId={siteId}
           onMovePipelineItem={handleMovePipelineItem}
-          onMovePost={handleMovePost}
-          onDeletePost={handleDeletePost}
-          onDuplicate={handleDuplicate}
           onPromote={handlePromote}
-          onReturnToPipeline={handleReturnToPipeline}
           onBulkPublish={handleBulkPublish}
           onBulkArchive={handleBulkArchive}
           onBulkDelete={handleBulkDelete}
-          pipelineProvenanceMap={pipelineProvenanceMap}
         />
       </SectionErrorBoundary>
 

@@ -90,11 +90,26 @@ const HISTORY_EVENT_LABELS: Record<string, string> = {
 
 function hasPendingChanges(item: ItemData): boolean {
   if (!item.sections || item.stage !== 'published') return false
-  const draftPt = item.sections.draft_pt as { rev?: number } | undefined
-  const draftEn = item.sections.draft_en as { rev?: number } | undefined
 
-  if (draftPt?.rev != null && item.materialized_rev_pt != null && draftPt.rev > item.materialized_rev_pt) return true
-  if (draftEn?.rev != null && item.materialized_rev_en != null && draftEn.rev > item.materialized_rev_en) return true
+  const PT_SECTIONS = ['draft_pt', 'seo_pt'] as const
+  const EN_SECTIONS = ['draft_en', 'seo_en', 'images_shared'] as const
+
+  if (item.materialized_rev_pt != null) {
+    const maxRevPt = PT_SECTIONS.reduce<number>((max, key) => {
+      const sec = item.sections![key] as { rev?: number } | undefined
+      return sec?.rev != null ? Math.max(max, sec.rev) : max
+    }, -Infinity)
+    if (maxRevPt > item.materialized_rev_pt) return true
+  }
+
+  if (item.materialized_rev_en != null) {
+    const maxRevEn = EN_SECTIONS.reduce<number>((max, key) => {
+      const sec = item.sections![key] as { rev?: number } | undefined
+      return sec?.rev != null ? Math.max(max, sec.rev) : max
+    }, -Infinity)
+    if (maxRevEn > item.materialized_rev_en) return true
+  }
+
   return false
 }
 
@@ -309,13 +324,13 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
   const [hook, setHook] = useState(item.hook || '')
   const [synopsis, setSynopsis] = useState(item.synopsis || '')
   const [focusedField, setFocusedField] = useState<'hook' | 'synopsis' | null>(null)
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null)
+  const debounceRefs = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
   const itemRef = useRef(item)
   useEffect(() => { itemRef.current = item }, [item])
 
   useEffect(() => {
     return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current)
+      Object.values(debounceRefs.current).forEach(clearTimeout)
       if (socialConfigDebounceRef.current) clearTimeout(socialConfigDebounceRef.current)
     }
   }, [])
@@ -373,8 +388,8 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
   }, [])
 
   const debouncedSave = useCallback((field: string, value: string) => {
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(async () => {
+    if (debounceRefs.current[field]) clearTimeout(debounceRefs.current[field])
+    debounceRefs.current[field] = setTimeout(async () => {
       const current = itemRef.current
       const result = await updatePipelineItem(current.id, current.version, { [field]: value || null })
       if (result.ok && result.data) setItem(result.data as typeof item)
@@ -987,7 +1002,6 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
                     checked={c.done}
                     onChange={(e) => { void handleToggleChecklist(i, e.target.checked) }}
                     className="rounded border-slate-600 w-3.5 h-3.5 accent-emerald-500"
-                    aria-label={c.label}
                   />
                   <span className={`text-xs transition-colors ${c.done ? 'line-through' : 'group-hover:text-white/80'}`} style={{ color: c.done ? 'var(--gem-dim)' : 'var(--gem-muted)' }}>
                     {c.label}

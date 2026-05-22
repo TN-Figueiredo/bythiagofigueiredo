@@ -344,3 +344,38 @@ describe('blog_post per-locale validation', () => {
     expect(scoreEn.overall).toBe(scoreBoth.overall)
   })
 })
+
+describe('VVS whitespace and missing-section edge cases', () => {
+  it('whitespace-only hook/synopsis/body score zero', () => {
+    const score = computeValidationScore({
+      title_pt: 'X', title_en: null, hook: '   ', synopsis: '  \n  ',
+      body_content: '\t', tags: [], production_checklist: [],
+      format_metadata: {}, format: 'video',
+    })
+    expect(score.breakdown.has_hook).toBe(false)
+    expect(score.breakdown.has_synopsis).toBe(false)
+    expect(score.breakdown.has_body).toBe(false)
+  })
+
+  it('blog_post with null sections returns false for blog factors', () => {
+    const score = computeValidationScore({
+      title_pt: 'X', title_en: null, hook: 'H', synopsis: 'S',
+      body_content: 'B', tags: ['t'], production_checklist: [],
+      format_metadata: {}, format: 'blog_post', sections: null,
+    })
+    expect(score.breakdown.has_slug).toBe(false)
+    expect(score.breakdown.has_excerpt).toBe(false)
+    expect(score.breakdown.has_seo).toBe(false)
+    expect(score.breakdown.has_cover).toBe(false)
+  })
+
+  it('pt-br language: has_title requires title_pt, not title_en fallback', () => {
+    const score = computeValidationScore({
+      title_pt: null, title_en: 'English Only',
+      hook: null, synopsis: null, body_content: null,
+      tags: [], production_checklist: [],
+      format_metadata: {}, format: 'video', language: 'pt-br',
+    })
+    expect(score.breakdown.has_title).toBe(false)
+  })
+})

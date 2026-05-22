@@ -103,10 +103,10 @@ export function computeValidationScore(input: ValidationInput): ValidationScore 
     ? Boolean(input.title_pt) && Boolean(input.title_en)
     : lang === 'en'
       ? Boolean(input.title_en)
-      : Boolean(input.title_pt || input.title_en)
-  const has_hook = Boolean(input.hook)
-  const has_synopsis = Boolean(input.synopsis)
-  const has_body = Boolean(input.body_content)
+      : Boolean(input.title_pt)
+  const has_hook = Boolean(input.hook?.trim())
+  const has_synopsis = Boolean(input.synopsis?.trim())
+  const has_body = Boolean(input.body_content?.trim())
   const has_tags = input.tags.length > 0
 
   const doneCount = input.production_checklist.filter((c) => c.done).length

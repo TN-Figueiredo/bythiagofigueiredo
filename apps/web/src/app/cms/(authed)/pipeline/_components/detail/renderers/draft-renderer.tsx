@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useCallback, useState, useEffect } from 'react'
+import { useMemo, useCallback, useState, useEffect, useRef } from 'react'
 import type { RendererProps } from '../section-content'
 import { PipelineEditor, isJSONContent, extractHeadings, type JSONContent } from '../editors/pipeline-editor'
 
@@ -98,6 +98,7 @@ function useSlugValidation(slug: string, blogPostId: string | null) {
         const res = await fetch(`/api/blog/check-slug?${params.toString()}`, {
           signal: controller.signal,
         })
+        if (!res.ok) return
         const { exists } = await res.json() as { exists: boolean }
         setConflict(exists)
       } catch {
@@ -177,19 +178,22 @@ export function DraftRenderer({ content, isEditing, lang, format, onContentChang
 
   const slugConflict = useSlugValidation(draft.slug, blogPostId)
 
-  function updateField(field: string, value: unknown) {
-    const base = content && typeof content === 'object' && !Array.isArray(content)
-      ? (content as Record<string, unknown>)
+  const contentRef = useRef(content)
+  contentRef.current = content
+
+  const updateField = useCallback((field: string, value: unknown) => {
+    const base = typeof contentRef.current === 'object' && !Array.isArray(contentRef.current)
+      ? contentRef.current as Record<string, unknown>
       : {}
     onContentChange({ ...base, [field]: value })
-  }
+  }, [onContentChange])
 
-  const handleBodyChange = useCallback(
-    (json: JSONContent) => {
-      onContentChange({ ...(content as Record<string, unknown>), body: json })
-    },
-    [content, onContentChange],
-  )
+  const handleBodyChange = useCallback((json: JSONContent) => {
+    const base = typeof contentRef.current === 'object' && !Array.isArray(contentRef.current)
+      ? contentRef.current as Record<string, unknown>
+      : {}
+    onContentChange({ ...base, body: json })
+  }, [onContentChange])
 
   const isBlogPost = format === 'blog_post'
 
@@ -249,10 +253,14 @@ export function DraftRenderer({ content, isEditing, lang, format, onContentChang
             placeholder="Resumo do post (excerpt)..."
             aria-label="Post excerpt"
             rows={2}
+            maxLength={300}
             value={draft.excerpt}
             onChange={e => updateField('excerpt', e.target.value)}
             readOnly={!isEditing}
           />
+          <p className="text-right text-[10px] mt-0.5" style={{ color: 'var(--gem-dim)' }}>
+            {draft.excerpt?.length ?? 0}/300
+          </p>
         </div>
       )}
 
@@ -279,6 +287,7 @@ export function DraftRenderer({ content, isEditing, lang, format, onContentChang
                 <input
                   key={i}
                   className="w-full text-xs bg-[var(--gem-well)] rounded px-2 py-1 mb-1 outline-none"
+                  aria-label={`Key point ${i + 1}`}
                   value={kp}
                   readOnly={!isEditing}
                   onChange={e => {
