@@ -35,6 +35,23 @@ const VALID_SLIDE = {
   elements: [] as [],
 }
 
+// Slide with text + image background — extractSlideMetadata should return title + coverImageUrl
+const RICH_SLIDE = {
+  version: 1 as const,
+  canvas: { width: 1080, height: 1920, aspectRatio: '9:16' },
+  background: {
+    type: 'image' as const,
+    url: 'https://blob.vercel-storage.com/cover.jpg',
+    fallbackColor: '#0a0a0a',
+    blur: 40,
+  },
+  elements: [
+    { id: 'img-1', type: 'image' as const, src: 'https://blob.vercel-storage.com/cover.jpg', x: 0, y: 0, width: 1080, height: 810, objectFit: 'cover' as const, borderRadius: 0, borderColor: '#000000', borderWidth: 0, maintainAspectRatio: true },
+    { id: 'txt-1', type: 'text' as const, content: 'Corondelet Travel Guide', x: 80, y: 910, width: 920, height: 400, fontSize: 64, fontWeight: 700, lineHeight: 1.2, letterSpacing: '0em', align: 'left' as const, color: '#ffffff', fontFamily: 'Inter', backgroundColor: null, backgroundPadding: 8, backgroundRadius: 4, uppercase: false },
+    { id: 'txt-2', type: 'text' as const, content: 'bythiagofigueiredo.com', x: 80, y: 1600, width: 920, height: 60, fontSize: 24, fontWeight: 400, lineHeight: 1.2, letterSpacing: '0em', align: 'left' as const, color: '#ffffff', fontFamily: 'Inter', backgroundColor: null, backgroundPadding: 8, backgroundRadius: 4, uppercase: false },
+  ],
+}
+
 // ---------------------------------------------------------------------------
 // Fluent upsert chain builder
 // ---------------------------------------------------------------------------
@@ -47,6 +64,20 @@ function buildUpsertChain(data: unknown, error: { message: string } | null = nul
   }
   chain.single = vi.fn(() => Promise.resolve({ data, error }))
   chain.maybeSingle = vi.fn(() => Promise.resolve({ data, error }))
+  chain.then = (resolve: (v: unknown) => unknown) =>
+    Promise.resolve({ data: null, error: null }).then(resolve)
+  return chain
+}
+
+// Chain where maybeSingle returns null (no existing post) but single returns data (insert succeeded)
+function buildInsertPathChain(insertedData: unknown) {
+  const chain: Record<string, unknown> = {}
+  const fluent = ['select', 'upsert', 'insert', 'update', 'eq', 'order', 'is', 'in', 'not', 'limit', 'lt', 'lte', 'gte']
+  for (const m of fluent) {
+    chain[m] = vi.fn(() => chain)
+  }
+  chain.maybeSingle = vi.fn(() => Promise.resolve({ data: null, error: null }))
+  chain.single = vi.fn(() => Promise.resolve({ data: insertedData, error: null }))
   chain.then = (resolve: (v: unknown) => unknown) =>
     Promise.resolve({ data: null, error: null }).then(resolve)
   return chain
@@ -151,6 +182,22 @@ describe('saveStoryDraft', () => {
     )
   })
 
+  it('extracts title and media_urls from slide metadata (root cause regression)', async () => {
+    const chain = buildUpsertChain({ id: REAL_POST_UUID })
+    mockFrom.mockReturnValue(chain)
+
+    await saveStoryDraft(REAL_SITE_UUID, REAL_POST_UUID, [RICH_SLIDE])
+
+    expect(chain.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.objectContaining({
+          title: 'Corondelet Travel Guide',
+          media_urls: ['https://blob.vercel-storage.com/cover.jpg'],
+        }),
+      }),
+    )
+  })
+
   it('calls revalidateSocialPaths on success', async () => {
     const chain = buildUpsertChain({ id: REAL_POST_UUID })
     mockFrom.mockReturnValue(chain)
@@ -167,6 +214,23 @@ describe('saveStoryDraft', () => {
     const result = await saveStoryDraft(REAL_SITE_UUID, REAL_POST_UUID, [VALID_SLIDE])
 
     expect(result).toEqual({ ok: false, error: 'DB constraint violation' })
+  })
+
+  it('extracts metadata into INSERT when post is new (insert-path regression)', async () => {
+    const chain = buildInsertPathChain({ id: REAL_POST_UUID })
+    mockFrom.mockReturnValue(chain)
+
+    const result = await saveStoryDraft(REAL_SITE_UUID, REAL_POST_UUID, [RICH_SLIDE])
+
+    expect(result).toEqual({ ok: true, data: { id: REAL_POST_UUID } })
+    expect(chain.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.objectContaining({
+          title: 'Corondelet Travel Guide',
+          media_urls: ['https://blob.vercel-storage.com/cover.jpg'],
+        }),
+      }),
+    )
   })
 
   it('accepts exactly 10 slides (boundary)', async () => {
@@ -225,6 +289,45 @@ describe('publishStoryNow', () => {
         id: REAL_POST_UUID,
         status: 'publishing',
         site_id: REAL_SITE_UUID,
+      }),
+    )
+  })
+
+  it('populates content.title and content.media_urls from slide metadata (root cause regression)', async () => {
+    const chain = buildUpsertChain({ id: REAL_POST_UUID, template_id: null, idempotency_key: 'k1', created_at: '2026-05-01T00:00:00Z', user_timezone: 'UTC' })
+    setupMockFrom(chain)
+
+    await publishStoryNow(REAL_SITE_UUID, REAL_POST_UUID, [RICH_SLIDE])
+
+    expect(chain.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.objectContaining({
+          title: 'Corondelet Travel Guide',
+          media_urls: ['https://blob.vercel-storage.com/cover.jpg'],
+        }),
+      }),
+    )
+  })
+
+  it('populates metadata into INSERT when post is new (insert-path regression)', async () => {
+    const insertChain = buildInsertPathChain({
+      id: REAL_POST_UUID,
+      template_id: null,
+      idempotency_key: 'k1',
+      created_at: '2026-05-01T00:00:00Z',
+      user_timezone: 'UTC',
+    })
+    setupMockFrom(insertChain)
+
+    const result = await publishStoryNow(REAL_SITE_UUID, REAL_POST_UUID, [RICH_SLIDE])
+
+    expect(result).toEqual({ ok: true, data: { id: REAL_POST_UUID } })
+    expect(insertChain.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.objectContaining({
+          title: 'Corondelet Travel Guide',
+          media_urls: ['https://blob.vercel-storage.com/cover.jpg'],
+        }),
       }),
     )
   })
@@ -301,6 +404,39 @@ describe('scheduleStory', () => {
       }),
     )
     expect(chain.not).toHaveBeenCalledWith('status', 'in', '("publishing","completed")')
+  })
+
+  it('extracts title and media_urls from slide metadata (root cause regression)', async () => {
+    const chain = buildUpsertChain({ id: REAL_POST_UUID })
+    setupMockFrom(chain)
+
+    await scheduleStory(REAL_SITE_UUID, REAL_POST_UUID, [RICH_SLIDE], FUTURE_DATE)
+
+    expect(chain.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.objectContaining({
+          title: 'Corondelet Travel Guide',
+          media_urls: ['https://blob.vercel-storage.com/cover.jpg'],
+        }),
+      }),
+    )
+  })
+
+  it('populates metadata into INSERT when post is new (insert-path regression)', async () => {
+    const insertChain = buildInsertPathChain({ id: REAL_POST_UUID })
+    setupMockFrom(insertChain)
+
+    const result = await scheduleStory(REAL_SITE_UUID, REAL_POST_UUID, [RICH_SLIDE], FUTURE_DATE)
+
+    expect(result).toEqual({ ok: true, data: { id: REAL_POST_UUID } })
+    expect(insertChain.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.objectContaining({
+          title: 'Corondelet Travel Guide',
+          media_urls: ['https://blob.vercel-storage.com/cover.jpg'],
+        }),
+      }),
+    )
   })
 
   it('returns { ok: false } for empty slides', async () => {

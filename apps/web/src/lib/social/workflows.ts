@@ -15,6 +15,7 @@ import {
 import { decrypt, encrypt, getMasterKey } from '@tn-figueiredo/social/vault'
 import type { OGTags } from '@tn-figueiredo/social/providers/bluesky'
 import { getSocialConfig } from './config'
+import { extractSlideMetadata } from './slide-metadata'
 
 const SENTRY_TAG = { component: 'social-workflows' }
 
@@ -204,18 +205,21 @@ async function prepareStoryDelivery(
 ): Promise<SocialPost> {
   if (delivery.format !== 'story') return post
 
+  const storySlides = post.story_slides ?? delivery.template_config?.storySlides
+  const slidesArray = Array.isArray(storySlides) ? storySlides : []
+  const slideMeta = extractSlideMetadata(slidesArray)
+
   try {
     const { put } = await import('@vercel/blob')
 
     // ---------------------------------------------------------------------------
     // Multi-slide path: render each CardComposition and upload individually
     // ---------------------------------------------------------------------------
-    const storySlides = post.story_slides ?? delivery.template_config?.storySlides
-    if (Array.isArray(storySlides) && storySlides.length > 0) {
+    if (slidesArray.length > 0) {
       const { renderMultiSlide } = await import('@/lib/social/template-renderer')
       const { CardCompositionSchema } = await import('@tn-figueiredo/links/qr')
 
-      const validSlides = storySlides.flatMap((slide, idx) => {
+      const validSlides = slidesArray.flatMap((slide, idx) => {
         const parsed = CardCompositionSchema.safeParse(slide)
         if (!parsed.success) {
           Sentry.captureMessage(`Story slide ${idx} failed CardComposition validation`, {
@@ -229,9 +233,9 @@ async function prepareStoryDelivery(
 
       if (validSlides.length > 0) {
         const context = {
-          title: post.content.title ?? '',
+          title: post.content.title || slideMeta.title,
           description: post.content.description,
-          cover_image: post.content.media_urls?.[0],
+          cover_image: post.content.media_urls?.[0] ?? slideMeta.coverImageUrl,
           short_url: post.content.url ?? '',
         }
 
@@ -289,9 +293,9 @@ async function prepareStoryDelivery(
       templateId,
       aspectRatio: '9:16',
       data: {
-        title: post.content.title ?? '',
+        title: post.content.title || slideMeta.title,
         description: post.content.description,
-        cover_image: post.content.media_urls?.[0],
+        cover_image: post.content.media_urls?.[0] ?? slideMeta.coverImageUrl,
         short_url: post.content.url ?? '',
       },
     })
@@ -305,11 +309,10 @@ async function prepareStoryDelivery(
       },
     )
 
-    // Non-blocking notification: fire and forget
     notifyStoryReady({
       userId: post.created_by,
       postId: post.id,
-      title: post.content.title ?? '',
+      title: post.content.title || slideMeta.title,
       imageUrl: blob.url,
       shortUrl: post.content.url ?? '',
     }).catch(() => {})
@@ -331,11 +334,11 @@ async function prepareStoryDelivery(
       const { put } = await import('@vercel/blob')
       const template = (delivery.template_config?.template as string) ?? 'card'
       const storyData = {
-        title: post.content.title ?? '',
+        title: post.content.title || slideMeta.title,
         description: post.content.description,
         domain: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://bythiagofigueiredo.com').hostname,
         shortUrl: post.content.url ?? '',
-        coverImageUrl: post.content.media_urls?.[0],
+        coverImageUrl: post.content.media_urls?.[0] ?? slideMeta.coverImageUrl,
       }
       const buffer = await generateStoryImage(template as 'minimal' | 'card' | 'bold', storyData)
       const blob = await put(`stories/${post.id}-${Date.now()}.png`, buffer, {
@@ -343,11 +346,10 @@ async function prepareStoryDelivery(
         addRandomSuffix: false,
       })
 
-      // Non-blocking notification for fallback path too
       notifyStoryReady({
         userId: post.created_by,
         postId: post.id,
-        title: post.content.title ?? '',
+        title: post.content.title || slideMeta.title,
         imageUrl: blob.url,
         shortUrl: post.content.url ?? '',
       }).catch(() => {})

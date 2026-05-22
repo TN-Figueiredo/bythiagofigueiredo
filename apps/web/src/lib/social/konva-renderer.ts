@@ -4,6 +4,7 @@ import 'konva/canvas-backend'
 // Then import the full Konva (with all shapes: Rect, Text, etc.) which shares
 // the same underlying singleton that canvas-backend already patched.
 import Konva from 'konva'
+import * as Sentry from '@sentry/nextjs'
 import type { CardComposition, TextElement, ImageElement, Background } from '@tn-figueiredo/links/qr'
 
 // Force server-side mode — the canvas-backend import wires node-canvas but
@@ -128,8 +129,12 @@ async function renderImageBackground(
       konvaImage.blurRadius(blurRadius)
       konvaImage.cache()
     }
-  } catch {
-    // Fallback solid rect already rendered by renderBackground — no-op here
+  } catch (err) {
+    Sentry.captureMessage('Story background image fetch failed', {
+      level: 'warning',
+      tags: { component: 'konva-renderer' },
+      extra: { url: bg.url, error: err instanceof Error ? err.message : String(err) },
+    })
   }
 }
 
@@ -206,7 +211,6 @@ async function renderImageElement(
     const img = new Image()
     img.src = Buffer.from(arrayBuffer)
     const konvaImage = new Konva.Image({
-      // canvas.Image is compatible at runtime — cast to satisfy TS types
       image: img as unknown as HTMLImageElement,
       x: el.x * scaleX,
       y: el.y * scaleY,
@@ -217,8 +221,12 @@ async function renderImageElement(
       cornerRadius: el.borderRadius * Math.min(scaleX, scaleY),
     })
     layer.add(konvaImage)
-  } catch {
-    // Fallback: render gray placeholder rect when image download fails
+  } catch (err) {
+    Sentry.captureMessage('Story image element fetch failed', {
+      level: 'warning',
+      tags: { component: 'konva-renderer' },
+      extra: { src, error: err instanceof Error ? err.message : String(err) },
+    })
     const rect = new Konva.Rect({
       x: el.x * scaleX,
       y: el.y * scaleY,

@@ -29,7 +29,7 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  serverExternalPackages: ['@aws-sdk/client-sesv2', 'sharp'],
+  serverExternalPackages: ['@aws-sdk/client-sesv2', 'sharp', 'canvas', '@napi-rs/canvas'],
   experimental: {
     serverActions: {
       bodySizeLimit: '50mb',

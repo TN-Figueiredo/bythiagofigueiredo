@@ -5,6 +5,7 @@ import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { requireEditAccess, type ActionResult, SENTRY_TAG, revalidateSocialPaths } from './_shared'
 import { StorySlidesSchema } from '@/lib/social/story-types'
+import { extractSlideMetadata } from '@/lib/social/slide-metadata'
 import { after } from 'next/server'
 import { publishSocialPost } from '@/lib/social/workflows'
 import type { SocialPostWithSlides } from '@/lib/social/workflows'
@@ -18,6 +19,25 @@ const StoryContentSchema = z.object({
 }).optional()
 
 type StoryContent = z.infer<typeof StoryContentSchema>
+
+// ---------------------------------------------------------------------------
+// Build the content object from slide metadata + optional caption.
+// Centralised here so all three actions (draft / publish / schedule) produce
+// identical content — the prior bug was that this extraction was missing.
+// ---------------------------------------------------------------------------
+
+function buildStoryContent(
+  slides: unknown[],
+  caption: string | undefined,
+): Record<string, unknown> {
+  const meta = extractSlideMetadata(slides)
+  const content: Record<string, unknown> = {
+    description: caption ?? '',
+  }
+  if (meta.title) content.title = meta.title
+  if (meta.coverImageUrl) content.media_urls = [meta.coverImageUrl]
+  return content
+}
 
 // ---------------------------------------------------------------------------
 // Ensure an Instagram delivery row exists for a story post.
@@ -111,9 +131,7 @@ export async function saveStoryDraft(
       type: 'image' as const,
       status: 'draft' as const,
       story_slides: slidesParsed.data,
-      content: {
-        description: content?.caption ?? '',
-      },
+      content: buildStoryContent(slidesParsed.data, content?.caption),
       updated_at: new Date().toISOString(),
     }
 
@@ -203,15 +221,15 @@ export async function publishStoryNow(
 
     const supabase = getSupabaseServiceClient()
 
+    const storyContent = buildStoryContent(slidesParsed.data, content?.caption)
+
     const publishPatch = {
       site_id: authorizedSiteId,
       created_by: userId,
       type: 'image' as const,
       status: 'publishing' as const,
       story_slides: slidesParsed.data,
-      content: {
-        description: content?.caption ?? '',
-      },
+      content: storyContent,
       updated_at: new Date().toISOString(),
     }
 
@@ -280,9 +298,7 @@ export async function publishStoryNow(
       created_by: userId,
       type: 'image',
       status: 'publishing',
-      content: {
-        description: content?.caption ?? '',
-      },
+      content: storyContent,
       scheduled_at: null,
       user_timezone: postFields.user_timezone ?? 'America/Sao_Paulo',
       published_at: null,
@@ -359,9 +375,7 @@ export async function scheduleStory(
       status: 'scheduled' as const,
       story_slides: slidesParsed.data,
       scheduled_at: isoDate,
-      content: {
-        description: content?.caption ?? '',
-      },
+      content: buildStoryContent(slidesParsed.data, content?.caption),
       updated_at: new Date().toISOString(),
     }
 
