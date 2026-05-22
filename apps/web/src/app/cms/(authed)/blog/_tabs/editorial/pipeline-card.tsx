@@ -74,7 +74,7 @@ export const PipelineCard = memo(function PipelineCard({
 
         {/* Title */}
         <Link
-          href={`/cms/pipeline/items/${item.id}?from=blog`}
+          href={`/cms/blog/pipeline/${item.id}`}
           onClick={(e) => e.stopPropagation()}
           className="mt-1 block text-[12px] font-medium text-gray-200 line-clamp-2 hover:text-white"
         >

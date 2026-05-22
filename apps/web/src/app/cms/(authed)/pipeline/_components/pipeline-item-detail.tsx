@@ -733,7 +733,15 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
             </button>
           </div>
         ) : (
-        <>{/* Stage card */}
+        <>{/* Collapse button */}
+        <div className="flex justify-end">
+          <button onClick={() => setSidebarCollapsed(true)} title="Collapse sidebar"
+            className="w-7 h-7 rounded-md flex items-center justify-center text-xs hover:opacity-80"
+            style={{ background: 'var(--gem-well)', color: 'var(--gem-muted)' }}>
+            &laquo;
+          </button>
+        </div>
+        {/* Stage card */}
         <div className="rounded-lg border p-4" style={{ backgroundColor: 'var(--gem-surface)', borderColor: 'var(--gem-border)' }}>
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-medium px-2 py-0.5 rounded" style={{ backgroundColor: priority.accentDim, color: priority.accent }}>

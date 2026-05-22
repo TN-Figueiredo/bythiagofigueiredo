@@ -361,8 +361,7 @@ export const fetchPipelineData = unstable_cache(
       .eq('site_id', siteId)
       .eq('format', 'blog_post')
       .eq('is_archived', false)
-      .is('blog_post_id', null)
-      .in('stage', ['idea', 'draft', 'ready'])
+      .in('stage', ['idea', 'draft', 'ready', 'scheduled', 'published'])
       .order('priority', { ascending: false })
       .order('created_at', { ascending: true })
 
@@ -372,7 +371,7 @@ export const fetchPipelineData = unstable_cache(
       title_pt: item.title_pt as string | null,
       title_en: item.title_en as string | null,
       format: item.format as string,
-      stage: item.stage as 'idea' | 'draft' | 'ready' | 'archived',
+      stage: item.stage as 'idea' | 'draft' | 'ready' | 'scheduled' | 'published' | 'archived',
       language: item.language as string,
       priority: item.priority as number,
       hook: item.hook as string | null,
@@ -381,7 +380,7 @@ export const fetchPipelineData = unstable_cache(
       production_checklist: Array.isArray(item.production_checklist) ? item.production_checklist as Array<{ label: string; done: boolean }> : [],
       updated_at: item.updated_at as string,
       created_at: item.created_at as string,
-      blog_post_id: null,
+      blog_post_id: (item.blog_post_id as string | null) ?? null,
       cover_image_url: (item as Record<string, unknown>).cover_image_url as string | null,
       validation_score: typeof (item as Record<string, unknown>).validation_score === 'number' ? (item as Record<string, unknown>).validation_score as number : 0,
       dependencies: Array.isArray((item as Record<string, unknown>).dependencies) ? (item as Record<string, unknown>).dependencies as unknown as PipelineCardItem['dependencies'] : [],
