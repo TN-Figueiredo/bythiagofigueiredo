@@ -8,6 +8,14 @@ describe('getBlogExtensions', () => {
     expect(extensions.length).toBeGreaterThan(0)
   })
 
+  it('includes H1 headings via StarterKit', () => {
+    const extensions = getExtensions('blog')
+    // StarterKit is the first extension; its options expose the configured heading levels
+    const starterKit = extensions[0] as { options?: { heading?: { levels?: number[] } } }
+    const levels = starterKit.options?.heading?.levels ?? []
+    expect(levels).toContain(1)
+  })
+
   it('has more extensions than full preset', () => {
     const blog = getExtensions('blog')
     const full = getExtensions('full')

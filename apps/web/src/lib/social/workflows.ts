@@ -239,16 +239,14 @@ async function prepareStoryDelivery(
           short_url: post.content.url ?? '',
         }
 
-        const buffers = await renderMultiSlide(validSlides, context)
+        const indexedBuffers = await renderMultiSlide(validSlides, context)
 
         const uploadedUrls: string[] = []
         try {
-          for (let i = 0; i < buffers.length; i++) {
-            const slideBuffer = buffers[i]
-            if (!slideBuffer) continue
+          for (const { index, buffer } of indexedBuffers) {
             const blob = await put(
-              `stories/${post.id}-slide-${i + 1}-${Date.now()}.jpg`,
-              slideBuffer,
+              `stories/${post.id}-slide-${index + 1}-${Date.now()}.jpg`,
+              buffer,
               { access: 'public', addRandomSuffix: false },
             )
             uploadedUrls.push(blob.url)
@@ -400,9 +398,7 @@ export async function publishSocialPost(
     }
 
     if (!deliveries || deliveries.length === 0) {
-      // Story posts with story_slides but no deliveries: auto-create Instagram delivery
-      const storyPost = post as SocialPostWithSlides
-      if (Array.isArray(storyPost.story_slides) && storyPost.story_slides.length > 0) {
+      if (Array.isArray(post.story_slides) && post.story_slides.length > 0) {
         const { data: igConn } = await supabase
           .from('social_connections')
           .select('id')
@@ -421,7 +417,7 @@ export async function publishSocialPost(
             status: 'pending',
             attempt: 0,
             max_attempts: 3,
-            template_config: { storySlides: true },
+            template_config: { storySlides: post.story_slides },
           })
 
           const { data: retryDeliveries } = await supabase
@@ -437,7 +433,7 @@ export async function publishSocialPost(
       }
 
       if (!deliveries || deliveries.length === 0) {
-        const isStory = Array.isArray((post as SocialPostWithSlides).story_slides) && (post as SocialPostWithSlides).story_slides!.length > 0
+        const isStory = Array.isArray(post.story_slides) && post.story_slides.length > 0
         const status: PostStatus = isStory ? 'failed' : 'completed'
         const patch: Record<string, unknown> = { status, updated_at: new Date().toISOString() }
         if (!isStory) patch.published_at = new Date().toISOString()
@@ -453,11 +449,9 @@ export async function publishSocialPost(
     }
 
     // Step 3 & 4: Process each delivery in parallel
+    const typedDeliveries = deliveries as unknown as (SocialDelivery & { template_config?: Record<string, unknown> | null })[]
     const results = await Promise.allSettled(
-      (deliveries as unknown as (SocialDelivery & { template_config?: Record<string, unknown> | null })[]).map(async (delivery) => {
-        // Get connection
-        // Intentionally selecting all columns including token fields —
-        // tokens are required by the provider publish flow (executeWithRetry → publishFn.publish).
+      typedDeliveries.map(async (delivery) => {
         const { data: connectionData, error: connError } = await supabase
           .from('social_connections')
           .select('id, site_id, provider, account_id, account_name, access_token_enc, refresh_token_enc, page_token_enc, token_expires_at, scopes, metadata, connected_at, revoked_at, updated_at')
@@ -475,7 +469,6 @@ export async function publishSocialPost(
 
         const connection = connectionData as unknown as SocialConnection
 
-        // Check if connection is revoked
         if (connection.revoked_at) {
           return {
             deliveryId: delivery.id,
@@ -486,19 +479,11 @@ export async function publishSocialPost(
         }
 
         try {
-          // Prepare story image for Instagram Story deliveries
           let processedPost = post
           if (delivery.format === 'story' && delivery.provider === 'instagram') {
             processedPost = await prepareStoryDelivery(post, delivery)
-            if (processedPost.content.media_urls?.length) {
-              await supabase
-                .from('social_posts')
-                .update({ content: processedPost.content, updated_at: new Date().toISOString() })
-                .eq('id', post.id)
-            }
           }
 
-          // Multi-slide Instagram Story: publish each slide individually
           const mediaUrls = processedPost.content.media_urls ?? []
 
           if (delivery.format === 'story' && delivery.provider === 'instagram' && mediaUrls.length === 0) {
@@ -535,6 +520,7 @@ export async function publishSocialPost(
                 const firstResult = multiResults[0]
                 return {
                   deliveryId: delivery.id,
+                  mediaUrls,
                   status: 'published' as DeliveryStatus,
                   platformPostId: firstResult?.id,
                   platformUrl: firstResult?.url,
@@ -552,7 +538,6 @@ export async function publishSocialPost(
                 await sleep(RETRY_DELAYS[attempt] ?? 5000)
               }
             }
-            // Unreachable — loop always returns — but satisfies TypeScript
             return {
               deliveryId: delivery.id,
               status: 'failed' as DeliveryStatus,
@@ -563,7 +548,6 @@ export async function publishSocialPost(
 
           const provider = await getProvider(delivery.provider)
 
-          // Pass ogData to Bluesky provider
           const providerOptions = delivery.provider === 'bluesky' && options?.ogData
             ? { ogData: options.ogData }
             : undefined
@@ -575,7 +559,11 @@ export async function publishSocialPost(
             provider,
             providerOptions,
           )
-          return { deliveryId: delivery.id, ...result }
+          return {
+            deliveryId: delivery.id,
+            mediaUrls: processedPost.content.media_urls,
+            ...result,
+          }
         } catch (err) {
           return {
             deliveryId: delivery.id,
@@ -587,13 +575,27 @@ export async function publishSocialPost(
       }),
     )
 
-    // Step 5: Update delivery statuses
     let publishedCount = 0
     let failedCount = 0
+    const mergedMediaUrls: string[] = []
 
-    for (const settledResult of results) {
+    for (let i = 0; i < results.length; i++) {
+      const settledResult = results[i]!
+
       if (settledResult.status === 'rejected') {
         failedCount++
+        const rejectedDelivery = typedDeliveries[i]
+        if (rejectedDelivery) {
+          const reason = settledResult.reason
+          await supabase
+            .from('social_deliveries')
+            .update({
+              status: 'failed',
+              last_error: reason instanceof Error ? reason.message : String(reason),
+              error_type: classifyError(reason),
+            })
+            .eq('id', rejectedDelivery.id)
+        }
         continue
       }
 
@@ -602,13 +604,19 @@ export async function publishSocialPost(
         status: result.status,
       }
 
-      if (result.platformPostId) update.platform_post_id = result.platformPostId
-      if (result.platformUrl) update.platform_url = result.platformUrl
+      if ('platformPostId' in result && result.platformPostId) update.platform_post_id = result.platformPostId
+      if ('platformUrl' in result && result.platformUrl) update.platform_url = result.platformUrl
       if (result.error) update.last_error = result.error
       if (result.errorType) update.error_type = result.errorType
       if (result.status === 'published') {
         update.published_at = new Date().toISOString()
         publishedCount++
+        const mediaUrls = 'mediaUrls' in result ? result.mediaUrls : undefined
+        if (mediaUrls?.length) {
+          for (const url of mediaUrls) {
+            if (!mergedMediaUrls.includes(url)) mergedMediaUrls.push(url)
+          }
+        }
       } else {
         failedCount++
       }
@@ -636,19 +644,25 @@ export async function publishSocialPost(
     if (publishedCount > 0) {
       postPatch.published_at = new Date().toISOString()
     }
+    if (mergedMediaUrls.length > 0) {
+      postPatch.content = { ...post.content, media_urls: mergedMediaUrls }
+    }
 
     await supabase
       .from('social_posts')
       .update(postPatch)
       .eq('id', post.id)
 
-    // Record fan interaction for the publishing user when at least one delivery succeeded.
-    // visitor_hash is derived from the author's user ID so it ties back to the same
-    // identity used by the links-engine click tracker and future insights polling.
-    // NOTE: interactions from actual story viewers are recorded by the social-metrics
-    // cron once Instagram Insights returns per-viewer data.
-    // Fire-and-forget — never throw into the main publish flow.
     if (publishedCount > 0 && post.created_by) {
+      const publishedPlatforms = new Set<string>()
+      for (let i = 0; i < results.length; i++) {
+        const sr = results[i]!
+        if (sr.status === 'fulfilled' && sr.value.status === 'published') {
+          const d = typedDeliveries[i]
+          if (d) publishedPlatforms.add(d.provider)
+        }
+      }
+
       ;(async () => {
         const encoder = new TextEncoder()
         const userData = encoder.encode(post.created_by)
@@ -656,16 +670,18 @@ export async function publishSocialPost(
         const hashArray = Array.from(new Uint8Array(hashBuffer))
         const visitorHash = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
 
+        const rows = [...publishedPlatforms].map((platform) => ({
+          site_id: post.site_id,
+          visitor_hash: visitorHash,
+          platform,
+          interaction_type: 'story_publish',
+          post_id: post.id,
+          raw: { post_type: post.type, published_count: publishedCount },
+        }))
+
         const { error } = await supabase
           .from('fan_interactions')
-          .insert({
-            site_id: post.site_id,
-            visitor_hash: visitorHash,
-            platform: 'instagram',
-            interaction_type: 'story_publish',
-            post_id: post.id,
-            raw: { post_type: post.type, published_count: publishedCount },
-          })
+          .insert(rows)
 
         if (error) {
           Sentry.captureException(error, {
