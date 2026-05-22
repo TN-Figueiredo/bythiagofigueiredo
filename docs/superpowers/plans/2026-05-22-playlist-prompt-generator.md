@@ -61,6 +61,10 @@ git commit -m "feat(playlist): add notes jsonb column to playlists table"
 
 **Files:**
 - Modify: `apps/web/src/lib/playlists/types.ts:87-102` — add `notes` to `PlaylistRow`
+- Modify: `apps/web/src/lib/playlists/types.ts:128-137` — add `tags`, `hook`, `synopsis` to `PlaylistItemEnriched`
+- Modify: `apps/web/src/lib/playlists/queries.ts:35-43` — extend `PipelineRef` with `tags`, `hook`, `synopsis`
+- Modify: `apps/web/src/lib/playlists/queries.ts:190-193` — extend pipeline SELECT
+- Modify: `apps/web/src/lib/playlists/queries.ts:243-250` — map new fields in enrichment
 - Modify: `apps/web/src/lib/pipeline/schemas.ts:152-160` — add `notes` to `PipelineUpdatePlaylistSchema`
 
 - [ ] **Step 1: Add `notes` to `PlaylistRow`**
@@ -96,7 +100,105 @@ export interface PlaylistRow {
 
 Type is `Record<string, unknown> | null` (not `JSONContent`) to avoid importing `@tiptap/core` in server-side code.
 
-- [ ] **Step 2: Add `notes` to `PipelineUpdatePlaylistSchema`**
+- [ ] **Step 2: Add `tags`, `hook`, `synopsis` to `PlaylistItemEnriched`**
+
+In `apps/web/src/lib/playlists/types.ts`, add three optional fields to `PlaylistItemEnriched` (after `language`):
+
+```typescript
+export interface PlaylistItemEnriched extends PlaylistItemRow {
+  content_type: ContentType | null
+  title: string
+  status: string | null
+  category: string | null
+  metadata: string | null
+  is_ghost: boolean
+  other_playlist_count: number
+  language: 'pt-br' | 'en' | null
+  tags: string[]
+  hook: string | null
+  synopsis: string | null
+}
+```
+
+These fields are populated only for pipeline items; blog posts and newsletters get `tags: []`, `hook: null`, `synopsis: null`.
+
+- [ ] **Step 3: Extend pipeline enrichment query**
+
+In `apps/web/src/lib/playlists/queries.ts`:
+
+**3a.** Extend `PipelineRef` interface (line ~35) to add the new fields:
+
+```typescript
+interface PipelineRef {
+  id: string
+  title_pt: string | null
+  title_en: string | null
+  format: string | null
+  stage: string | null
+  version: number
+  language: string | null
+  tags: string[]
+  hook: string | null
+  synopsis: string | null
+}
+```
+
+**3b.** Extend the pipeline SELECT (line ~192) to fetch the new columns:
+
+```typescript
+    pipelineIds.length > 0
+      ? supabase
+          .from('content_pipeline')
+          .select('id, title_pt, title_en, format, stage, version, language, tags, hook, synopsis')
+          .in('id', pipelineIds)
+      : { data: [] },
+```
+
+**3c.** In the enrichment mapping (line ~243), add the new fields to the pipeline branch:
+
+```typescript
+    } else if (item.pipeline_id && pipelineMap.has(item.pipeline_id)) {
+      const pl = pipelineMap.get(item.pipeline_id)!
+      title = pl.title_pt ?? pl.title_en ?? 'Untitled'
+      status = pl.stage
+      category = pl.format
+      metadata = `v${pl.version}`
+      language = normalizeLang(pl.language)
+      refId = item.pipeline_id
+      tags = pl.tags ?? []
+      hook = pl.hook ?? null
+      synopsis = pl.synopsis ?? null
+    }
+```
+
+**3d.** Declare `tags`, `hook`, `synopsis` variables with defaults at the top of the mapping function (next to the existing `let title`, `let status`, etc.):
+
+```typescript
+    let tags: string[] = []
+    let hook: string | null = null
+    let synopsis: string | null = null
+```
+
+**3e.** Include them in the returned object:
+
+```typescript
+    return {
+      ...item,
+      content_type: contentType,
+      title,
+      status,
+      category,
+      metadata,
+      language,
+      is_ghost: isGhost,
+      other_playlist_count: refId ? (crossCounts.get(refId) ?? 0) : 0,
+      tags,
+      hook,
+      synopsis,
+    }
+```
+
+- [ ] **Step 4: Add `notes` to `PipelineUpdatePlaylistSchema`**
 
 In `apps/web/src/lib/pipeline/schemas.ts`, add `notes` to `PipelineUpdatePlaylistSchema` after `cover_image_url`:
 
@@ -134,8 +236,8 @@ Expected: all tests pass.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/web/src/lib/playlists/types.ts apps/web/src/lib/pipeline/schemas.ts
-git commit -m "feat(playlist): add notes field to PlaylistRow type and API schema"
+git add apps/web/src/lib/playlists/types.ts apps/web/src/lib/playlists/queries.ts apps/web/src/lib/pipeline/schemas.ts
+git commit -m "feat(playlist): add notes to PlaylistRow, tags/hook/synopsis to enriched items, notes to API schema"
 ```
 
 ---
@@ -193,27 +295,37 @@ export async function getReuseCandidates(
 
   const supabase = getSupabaseServiceClient()
 
-  const [pipelineRes, existingRes] = await Promise.all([
+  const [pipelineRes, playlistItemsRes] = await Promise.all([
     supabase
       .from('content_pipeline')
       .select('id, title_pt, title_en, format, stage, language, tags')
       .eq('site_id', siteId)
       .eq('is_archived', false)
-      .order('updated_at', { ascending: false })
       .limit(200),
     supabase
       .from('playlist_items')
-      .select('pipeline_id')
+      .select('pipeline_id, content_pipeline(tags)')
       .eq('playlist_id', playlistId)
       .not('pipeline_id', 'is', null),
   ])
 
+  // Collect IDs already in the playlist
   const existingIds = new Set(
-    ((existingRes.data ?? []) as { pipeline_id: string }[]).map(r => r.pipeline_id),
+    ((playlistItemsRes.data ?? []) as { pipeline_id: string }[]).map(r => r.pipeline_id),
   )
 
-  const candidates: ReuseCandidateItem[] = []
-  for (const p of (pipelineRes.data ?? []) as {
+  // Build the playlist's tag set from items already in it
+  const playlistTagSet = new Set<string>()
+  for (const row of (playlistItemsRes.data ?? []) as {
+    pipeline_id: string
+    content_pipeline: { tags: string[] } | null
+  }[]) {
+    for (const tag of row.content_pipeline?.tags ?? []) {
+      playlistTagSet.add(tag)
+    }
+  }
+
+  type PipelineRow = {
     id: string
     title_pt: string | null
     title_en: string | null
@@ -221,20 +333,32 @@ export async function getReuseCandidates(
     stage: string
     language: string
     tags: string[]
-  }[]) {
+  }
+
+  // Score candidates by tag overlap, then sort descending
+  const scored: Array<{ item: ReuseCandidateItem; score: number }> = []
+  for (const p of (pipelineRes.data ?? []) as PipelineRow[]) {
     if (existingIds.has(p.id)) continue
-    if (p.tags.length === 0) continue
-    candidates.push({
-      id: p.id,
-      title: p.title_en || p.title_pt || 'Untitled',
-      format: p.format,
-      language: p.language,
-      stage: p.stage,
-      tags: p.tags,
+    if ((p.tags ?? []).length === 0) continue
+
+    const score = p.tags.filter(t => playlistTagSet.has(t)).length
+
+    scored.push({
+      item: {
+        id: p.id,
+        title: p.title_en || p.title_pt || 'Untitled',
+        format: p.format,
+        language: p.language,
+        stage: p.stage,
+        tags: p.tags,
+      },
+      score,
     })
   }
 
-  return { ok: true, data: candidates }
+  scored.sort((a, b) => b.score - a.score)
+
+  return { ok: true, data: scored.slice(0, 15).map(s => s.item) }
 }
 ```
 
@@ -356,6 +480,13 @@ function truncateWords(text: string, limit: number): { text: string; truncated: 
   return { text: words.slice(0, limit).join(' ') + '\n...(truncado)', truncated: true }
 }
 
+export function extractTextFromJSON(json: Record<string, unknown>): string {
+  if (json.type === 'text') return (json.text as string) ?? ''
+  const content = json.content as Array<Record<string, unknown>> | undefined
+  if (!Array.isArray(content)) return ''
+  return content.map(extractTextFromJSON).join(' ')
+}
+
 // ---------------------------------------------------------------------------
 // buildPlaylistPrompt
 // ---------------------------------------------------------------------------
@@ -364,7 +495,7 @@ export function buildPlaylistPrompt(input: PlaylistPromptInput): PromptResult {
   const { playlist, items, edges, focusedItemIds, reuseCandidates, userInstructions } = input
   const sections: string[] = []
 
-  const tbdCount = items.filter(i => /^TBD$/i.test(i.title) || /^TBD\b/i.test(i.title)).length
+  const tbdCount = items.filter(i => /^TBD\b/i.test(i.title)).length
 
   // 1. Header
   const header = [
@@ -389,14 +520,18 @@ export function buildPlaylistPrompt(input: PlaylistPromptInput): PromptResult {
     const focused = items.filter(i => focusedItemIds.includes(i.id))
     if (focused.length > 0) {
       const lines = focused.map(item => {
-        const parts = [
+        const header = [
           `- **${item.title}**`,
           item.content_type ? `[${item.content_type}]` : null,
           item.language ? `[${item.language}]` : null,
           item.status ? `Stage: ${item.status}` : null,
           item.category ? `Format: ${item.category}` : null,
-        ].filter(Boolean)
-        return parts.join(' | ')
+          item.tags.length > 0 ? `Tags: ${item.tags.join(', ')}` : null,
+        ].filter(Boolean).join(' | ')
+        const details: string[] = []
+        if (item.hook) details.push(`  Hook: ${item.hook}`)
+        if (item.synopsis) details.push(`  Synopsis: ${item.synopsis}`)
+        return details.length > 0 ? `${header}\n${details.join('\n')}` : header
       })
       sections.push(`## Items em Foco (${focused.length})\n\n${lines.join('\n')}`)
     }
@@ -407,7 +542,7 @@ export function buildPlaylistPrompt(input: PlaylistPromptInput): PromptResult {
   const itemLines = sortedItems.map((item, i) => {
     const lang = item.language ? item.language.toUpperCase() : '??'
     const type = item.content_type ?? 'ghost'
-    const tbd = /^TBD$/i.test(item.title) ? ' ⚠TBD' : ''
+    const tbd = /^TBD\b/i.test(item.title) ? ' ⚠TBD' : ''
     const ghost = item.is_ghost ? ' GHOST—content removed' : ''
     return `[${i + 1}] [${type}-${lang}] "${item.title}" — ${item.status ?? 'n/a'}${tbd}${ghost}`
   })
@@ -482,7 +617,292 @@ git commit -m "feat(playlist): add prompt builder for playlist context compilati
 
 ---
 
-### Task 5: Settings Panel — Tabs + Notes Editor
+### Task 5: Prompt Builder Tests
+
+**Files:**
+- Create: `apps/web/test/unit/playlists/prompt-builder.test.ts`
+
+- [ ] **Step 1: Create test file with fixtures and all test cases**
+
+Create `apps/web/test/unit/playlists/prompt-builder.test.ts`:
+
+```typescript
+import { describe, it, expect } from 'vitest'
+
+import { buildPlaylistPrompt } from '@/lib/playlists/prompt-builder'
+import type {
+  PlaylistPromptInput,
+  ReuseCandidateItem,
+} from '@/lib/playlists/prompt-builder'
+import type {
+  PlaylistRow,
+  PlaylistItemEnriched,
+  PlaylistEdgeRow,
+} from '@/lib/playlists/types'
+
+// ---------------------------------------------------------------------------
+// Fixtures
+// ---------------------------------------------------------------------------
+
+const basePlaylist: PlaylistRow = {
+  id: 'pl-001',
+  site_id: 'site-001',
+  name_pt: 'Minha Playlist',
+  name_en: 'My Playlist',
+  slug: 'my-playlist',
+  description_pt: null,
+  description_en: null,
+  cover_image_url: null,
+  status: 'draft',
+  category: 'series',
+  viewport_state: null,
+  notes: null,
+  created_by: 'user-001',
+  created_at: '2026-05-22T00:00:00Z',
+  updated_at: '2026-05-22T00:00:00Z',
+}
+
+function makeItem(overrides: Partial<PlaylistItemEnriched> = {}): PlaylistItemEnriched {
+  return {
+    id: 'item-001',
+    playlist_id: 'pl-001',
+    blog_post_id: null,
+    newsletter_edition_id: null,
+    pipeline_id: 'pip-001',
+    sort_order: 0,
+    position_x: 0,
+    position_y: 0,
+    created_at: '2026-05-22T00:00:00Z',
+    content_type: 'pipeline',
+    title: 'How to Record Pro Audio',
+    status: 'draft',
+    category: 'video',
+    metadata: null,
+    is_ghost: false,
+    other_playlist_count: 0,
+    language: 'en',
+    tags: [],
+    hook: null,
+    synopsis: null,
+    ...overrides,
+  }
+}
+
+const baseEdge: PlaylistEdgeRow = {
+  id: 'edge-001',
+  playlist_id: 'pl-001',
+  source_item_id: 'item-001',
+  target_item_id: 'item-002',
+  edge_type: 'sequence',
+  label: null,
+  created_at: '2026-05-22T00:00:00Z',
+}
+
+const baseReuse: ReuseCandidateItem = {
+  id: 'reuse-001',
+  title: 'Existing Pipeline Item',
+  format: 'video',
+  language: 'en',
+  stage: 'published',
+  tags: ['audio', 'production'],
+}
+
+function makeInput(overrides: Partial<PlaylistPromptInput> = {}): PlaylistPromptInput {
+  return {
+    playlist: basePlaylist,
+    items: [makeItem()],
+    edges: [baseEdge],
+    focusedItemIds: [],
+    reuseCandidates: [],
+    userInstructions: '',
+    ...overrides,
+  }
+}
+
+function tiptapDoc(text: string): Record<string, unknown> {
+  return {
+    type: 'doc',
+    content: [
+      {
+        type: 'paragraph',
+        content: [{ type: 'text', text }],
+      },
+    ],
+  }
+}
+
+function longTiptapDoc(wordCount: number): Record<string, unknown> {
+  const words = Array.from({ length: wordCount }, (_, i) => `word${i}`)
+  return tiptapDoc(words.join(' '))
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+describe('buildPlaylistPrompt', () => {
+  it('generates header with playlist name and stats', () => {
+    const items = [makeItem(), makeItem({ id: 'item-002', title: 'Second Item', sort_order: 1 })]
+    const edges = [baseEdge]
+    const result = buildPlaylistPrompt(makeInput({ items, edges }))
+
+    expect(result.text).toContain('# Playlist: My Playlist')
+    expect(result.text).toContain('Status: draft')
+    expect(result.text).toContain('Items: 2')
+    expect(result.text).toContain('Edges: 1')
+  })
+
+  it('omits notes section when notes is null', () => {
+    const result = buildPlaylistPrompt(
+      makeInput({ playlist: { ...basePlaylist, notes: null } }),
+    )
+    expect(result.text).not.toContain('Notas & Decisões')
+  })
+
+  it('includes notes section when notes exist', () => {
+    const playlist = {
+      ...basePlaylist,
+      notes: tiptapDoc('Decisão importante sobre o formato do curso'),
+    }
+    const result = buildPlaylistPrompt(makeInput({ playlist }))
+
+    expect(result.text).toContain('Notas & Decisões')
+    expect(result.text).toContain('Decisão importante sobre o formato do curso')
+  })
+
+  it('truncates notes over 1500 words', () => {
+    const playlist = { ...basePlaylist, notes: longTiptapDoc(2000) }
+    const result = buildPlaylistPrompt(makeInput({ playlist }))
+
+    expect(result.text).toContain('(truncado)')
+    // Should NOT contain the last word
+    expect(result.text).not.toContain('word1999')
+    // Should contain early words
+    expect(result.text).toContain('word0')
+  })
+
+  it('omits focused items section when no items selected', () => {
+    const result = buildPlaylistPrompt(makeInput({ focusedItemIds: [] }))
+    expect(result.text).not.toContain('Items em Foco')
+  })
+
+  it('includes focused items when selectedItemIds provided', () => {
+    const items = [
+      makeItem({ id: 'item-A', title: 'Alpha Video' }),
+      makeItem({ id: 'item-B', title: 'Beta Article', sort_order: 1 }),
+    ]
+    const result = buildPlaylistPrompt(
+      makeInput({ items, focusedItemIds: ['item-A', 'item-B'] }),
+    )
+
+    expect(result.text).toContain('Items em Foco')
+    expect(result.text).toContain('Alpha Video')
+    expect(result.text).toContain('Beta Article')
+  })
+
+  it('includes tags, hook, and synopsis in focused items when available', () => {
+    const items = [
+      makeItem({
+        id: 'item-A',
+        title: 'Pro Audio Guide',
+        tags: ['audio', 'production'],
+        hook: 'Master your audio setup',
+        synopsis: 'A deep dive into professional audio recording techniques',
+      }),
+    ]
+    const result = buildPlaylistPrompt(
+      makeInput({ items, focusedItemIds: ['item-A'] }),
+    )
+
+    expect(result.text).toContain('Tags: audio, production')
+    expect(result.text).toContain('Hook: Master your audio setup')
+    expect(result.text).toContain('Synopsis: A deep dive into professional audio recording techniques')
+  })
+
+  it('counts TBD items correctly', () => {
+    const items = [
+      makeItem({ id: 'i1', title: 'TBD', sort_order: 0 }),
+      makeItem({ id: 'i2', title: 'tbd', sort_order: 1 }),
+      makeItem({ id: 'i3', title: 'TBD something', sort_order: 2 }),
+      makeItem({ id: 'i4', title: 'TBDX', sort_order: 3 }),
+      makeItem({ id: 'i5', title: 'Real Title', sort_order: 4 }),
+    ]
+    const result = buildPlaylistPrompt(makeInput({ items }))
+
+    // "TBD", "tbd", "TBD something" match /^TBD\b/i -> 3
+    // "TBDX" does NOT match (no word boundary after D before X)
+    // "Real Title" does NOT match
+    expect(result.tbdCount).toBe(3)
+  })
+
+  it('marks ghost items in graph section', () => {
+    const items = [
+      makeItem({ id: 'ghost-1', title: 'Deleted Reference', is_ghost: true }),
+    ]
+    const result = buildPlaylistPrompt(makeInput({ items, edges: [] }))
+
+    expect(result.text).toContain('GHOST')
+    expect(result.text).toContain('Deleted Reference')
+  })
+
+  it('includes reuse candidates when provided', () => {
+    const reuseCandidates = [
+      { ...baseReuse, id: 'r1', title: 'Reusable Audio Guide' },
+      { ...baseReuse, id: 'r2', title: 'Existing Video Course' },
+    ]
+    const result = buildPlaylistPrompt(makeInput({ reuseCandidates }))
+
+    expect(result.text).toContain('Candidatos para Reuso')
+    expect(result.text).toContain('Reusable Audio Guide')
+    expect(result.text).toContain('Existing Video Course')
+  })
+
+  it('shows inline note when no reuse candidates', () => {
+    const result = buildPlaylistPrompt(makeInput({ reuseCandidates: [] }))
+    expect(result.text).toContain('Nenhum candidato')
+  })
+
+  it('includes user instructions in output', () => {
+    const result = buildPlaylistPrompt(
+      makeInput({ userInstructions: 'Foque em vídeos curtos de 3 minutos' }),
+    )
+    expect(result.text).toContain('Foque em vídeos curtos de 3 minutos')
+    expect(result.text).toContain('Instruções do Produtor')
+  })
+
+  it('returns correct wordCount and tbdCount', () => {
+    const items = [
+      makeItem({ id: 'i1', title: 'TBD', sort_order: 0 }),
+      makeItem({ id: 'i2', title: 'Real Item', sort_order: 1 }),
+    ]
+    const result = buildPlaylistPrompt(makeInput({ items, edges: [] }))
+
+    // wordCount = total words in generated text
+    const manualCount = result.text.split(/\s+/).filter(Boolean).length
+    expect(result.wordCount).toBe(manualCount)
+    expect(result.tbdCount).toBe(1)
+  })
+})
+```
+
+- [ ] **Step 2: Run tests**
+
+```bash
+npm run test:web -- --run apps/web/test/unit/playlists/prompt-builder.test.ts 2>&1 | tail -20
+```
+
+Expected: all 12 tests pass. If any fail, fix the prompt builder (Task 4) or the test fixtures until green.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add apps/web/test/unit/playlists/prompt-builder.test.ts
+git commit -m "test(playlist): add unit tests for buildPlaylistPrompt"
+```
+
+---
+
+### Task 6: Settings Panel — Tabs + Notes Editor
 
 **Files:**
 - Modify: `apps/web/src/app/cms/(authed)/playlists/[id]/_components/playlist-settings.tsx` — restructure with tabs, add Tiptap notes editor
@@ -499,6 +919,7 @@ import { useRouter } from 'next/navigation'
 import type { PlaylistRow, PlaylistStatus, ActionResult } from '@/lib/playlists/types'
 import { PipelineEditor } from '@/app/cms/(authed)/pipeline/_components/detail/editors/pipeline-editor'
 import type { JSONContent } from '@tiptap/react'
+import { extractTextFromJSON } from '@/lib/playlists/prompt-builder'
 
 interface PlaylistSettingsProps {
   playlist: PlaylistRow
@@ -537,7 +958,10 @@ export function PlaylistSettings({
 
   const [activeTab, setActiveTab] = useState<SettingsTab>(playlist.notes ? 'notes' : 'config')
   const [noteSaveState, setNoteSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
-  const [noteWordCount, setNoteWordCount] = useState(0)
+  const [noteWordCount, setNoteWordCount] = useState(() => {
+    if (!playlist.notes) return 0
+    return extractTextFromJSON(playlist.notes).split(/\s+/).filter(Boolean).length
+  })
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -793,13 +1217,6 @@ export function PlaylistSettings({
     </div>
   )
 }
-
-function extractTextFromJSON(json: Record<string, unknown>): string {
-  if (json.type === 'text') return (json.text as string) ?? ''
-  const content = json.content as Array<Record<string, unknown>> | undefined
-  if (!Array.isArray(content)) return ''
-  return content.map(extractTextFromJSON).join(' ')
-}
 ```
 
 - [ ] **Step 2: Run type check**
@@ -808,7 +1225,7 @@ function extractTextFromJSON(json: Record<string, unknown>): string {
 npx tsc --noEmit -p apps/web/tsconfig.json 2>&1 | head -30
 ```
 
-Expected: no errors (but may warn about unused `onSaveNotes` not being wired yet from canvas — that's Task 7).
+Expected: no errors (but may warn about unused `onSaveNotes` not being wired yet from canvas — that's Task 9).
 
 - [ ] **Step 3: Commit**
 
@@ -819,7 +1236,7 @@ git commit -m "feat(playlist): restructure settings panel with config/notes tabs
 
 ---
 
-### Task 6: Toolbar — Add Prompt + Refresh Buttons
+### Task 7: Toolbar — Add Prompt + Refresh Buttons
 
 **Files:**
 - Modify: `apps/web/src/app/cms/(authed)/playlists/[id]/_components/playlist-toolbar.tsx` — add `hasNotes`, `onOpenPrompt`, `onRefresh` props and buttons
@@ -936,7 +1353,7 @@ function RefreshIcon() {
 npx tsc --noEmit -p apps/web/tsconfig.json 2>&1 | head -30
 ```
 
-Expected: type errors from canvas not passing the new props yet — that's expected and fixed in Task 7.
+Expected: type errors from canvas not passing the new props yet — that's expected and fixed in Task 9.
 
 - [ ] **Step 6: Commit**
 
@@ -947,7 +1364,7 @@ git commit -m "feat(playlist): add Prompt, Refresh buttons and notes indicator t
 
 ---
 
-### Task 7: Prompt Generator Modal
+### Task 8: Prompt Generator Modal
 
 **Files:**
 - Create: `apps/web/src/app/cms/(authed)/playlists/[id]/_components/prompt-generator-modal.tsx`
@@ -961,7 +1378,7 @@ Create `apps/web/src/app/cms/(authed)/playlists/[id]/_components/prompt-generato
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useFocusTrap } from '@/app/cms/(authed)/pipeline/_components/use-focus-trap'
-import { buildPlaylistPrompt } from '@/lib/playlists/prompt-builder'
+import { buildPlaylistPrompt, extractTextFromJSON } from '@/lib/playlists/prompt-builder'
 import type { ReuseCandidateItem } from '@/lib/playlists/prompt-builder'
 import type { PlaylistRow, PlaylistItemEnriched, PlaylistEdgeRow } from '@/lib/playlists/types'
 
@@ -995,7 +1412,7 @@ export function PlaylistPromptModal({
   )
 
   const tbdCount = useMemo(
-    () => items.filter(item => /^TBD$/i.test(item.title) || /^TBD\b/i.test(item.title)).length,
+    () => items.filter(item => /^TBD\b/i.test(item.title)).length,
     [items],
   )
 
@@ -1203,13 +1620,6 @@ export function PlaylistPromptModal({
     </div>
   )
 }
-
-function extractTextFromJSON(json: Record<string, unknown>): string {
-  if (json.type === 'text') return (json.text as string) ?? ''
-  const content = json.content as Array<Record<string, unknown>> | undefined
-  if (!Array.isArray(content)) return ''
-  return content.map(extractTextFromJSON).join(' ')
-}
 ```
 
 - [ ] **Step 2: Run type check**
@@ -1227,7 +1637,7 @@ git commit -m "feat(playlist): add prompt generator modal component"
 
 ---
 
-### Task 8: Wire Everything in Canvas + Page
+### Task 9: Wire Everything in Canvas + Page
 
 **Files:**
 - Modify: `apps/web/src/app/cms/(authed)/playlists/[id]/_components/playlist-canvas.tsx` — wire modal, notes, refresh, reuse candidates
@@ -1434,7 +1844,7 @@ git commit -m "feat(playlist): wire prompt modal, notes editor, and reuse candid
 
 ---
 
-### Task 9: Cowork Reference Docs Update
+### Task 10: Cowork Reference Docs Update
 
 **Files:**
 - Modify: `docs/cowork-playlist-reference.md`
@@ -1505,7 +1915,7 @@ git commit -m "docs(playlist): add notes field and reuse rules to Cowork referen
 
 ---
 
-### Task 10: Push Migration to Prod + Final Verification
+### Task 11: Push Migration to Prod + Final Verification
 
 - [ ] **Step 1: Run full test suite**
 
