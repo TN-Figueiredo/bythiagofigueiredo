@@ -5,6 +5,7 @@ import { useFocusTrap } from '@/app/cms/(authed)/pipeline/_components/use-focus-
 import { buildPlaylistPrompt, extractTextFromJSON } from '@/lib/playlists/prompt-builder'
 import type { ReuseCandidateItem } from '@/lib/playlists/prompt-builder'
 import type { PlaylistRow, PlaylistItemEnriched, PlaylistEdgeRow } from '@/lib/playlists/types'
+import { GEM_CSS_VARS } from '@/lib/pipeline/gem-design'
 
 interface PlaylistPromptModalProps {
   playlist: PlaylistRow
@@ -90,7 +91,7 @@ export function PlaylistPromptModal({
         aria-modal="true"
         aria-label={`Gerar Prompt — ${playlist.name_en || playlist.name_pt}`}
         className="w-full max-w-lg rounded-lg border p-4 shadow-xl"
-        style={{ borderColor: 'var(--gem-border)', backgroundColor: 'var(--gem-surface)' }}
+        style={{ ...GEM_CSS_VARS as React.CSSProperties, borderColor: 'var(--gem-border)', backgroundColor: 'var(--gem-surface)' }}
         onKeyDown={handleTrapKeyDown}
       >
         {/* Header */}
