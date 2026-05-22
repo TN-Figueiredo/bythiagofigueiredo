@@ -93,18 +93,110 @@ Tabs are always visible but disabled based on current stage:
 
 Disabled tabs show tooltip "Avance para [stage] para desbloquear".
 
-## Sidebar
+## Sidebar — Stage-Adaptive Design (v4)
+
+The sidebar answers "onde estou e o que posso fazer?" — tabs answer "o que estou editando?"
 
 ### Collapsed mode (48px) — when Rascunho tab active
 Icon-only rail with: VVS ring (mini), checklist icon, stage icon, details icon, cowork AI icon, expand button (>>). Click any icon to show a popover with that card's content.
 
-### Expanded mode (272px) — all other tabs
-Cards (existing layout):
-1. **VVS Score** — ring + "Precisa de 80+ para publicar"
-2. **Stage** — progress bar + current stage badge
-3. **Checklist** — production checklist with progress
-4. **Social Config** — `social-config-editor.tsx` (existing), expanded with IG Story slide editor
-5. **Detalhes** — code, format, priority, locales, created date
+### Expanded mode (272px) — stage-adaptive content
+
+The sidebar renders **different blocks per stage**. No more static card list.
+
+#### State 0: Ideia
+- Stage label + progress bar (1/5)
+- No VVS ring (meaningless at this stage)
+- Single CTA: "Promover para Rascunho →" (always enabled, no gates)
+- Minimal metadata: idioma, categoria
+- Menu ⋯
+
+#### State 1: Rascunho (Draft)
+- Stage label + progress bar (2/5) + VVS ring
+- **Gate panel**: "Para → Entrega (min 80%)" — lists VVS factors with ✓/✗ status and point values
+- Gate shows: current score / 100 · "precisa N+"
+- Avançar button **disabled** when VVS < 80, with tooltip showing score
+- ← Ideia (retreat, always enabled)
+- Metadata: idioma (+EN/+PT button), categoria, prioridade
+- Checklist compact: progress bar + pending items only
+- Menu ⋯
+
+#### State 2: Entrega (Ready) — blog_post only
+- Stage label + progress bar (3/5) + VVS ring
+- Readiness confirmation: "✓ Pronto para publicar" (VVS + blog post linked)
+- **Primary actions** (moved FROM BlogPublishPanel in Publicação tab):
+  - 🚀 Publicar Agora (calls materializeBlogPost with targetStage: 'published')
+  - 📅 Agendar... (opens schedule modal, calls materializeBlogPost with targetStage: 'scheduled')
+- Blog Post link card (if linked)
+- Auto-posting: "configurar →" link to Publicação tab social config
+- ← Voltar p/ Rascunho (retreat)
+- Menu ⋯
+
+#### State 3: Agendado (Scheduled)
+- Stage label + progress bar (4/5) + VVS ring
+- Schedule display: date + time + "daqui a N dias" relative
+- "Publicar agora (antecipar)" button
+- "Cancelar agendamento" button (red, moves back to Entrega)
+- Auto-posting status: platforms with active/inactive badges
+- ← Cancelar → Entrega
+- Menu ⋯
+
+#### State 4: Publicado (Published)
+- Stage label + progress bar (5/5, all green) + VVS ring
+- "🌐 No ar desde [date]" + live URL link (/blog/slug →)
+- **Pending changes badge** (if updated_at > materialized_rev): "⚡ Mudanças pendentes" + Re-publicar button
+- Auto-posting status per platform: ✓ postado / ⏳ na fila / ✗ falhou
+- "Ver posts sociais →" link
+- ← Despublicar (with confirmation dialog — moves to Entrega, sets blog_post status to draft)
+- Menu ⋯
+
+#### Video stages (idea through pós-produção)
+- All advance/retreat freely (no VVS gates — stages are tracking)
+- Progress bar shows 7 segments
+- Retreat/Advance buttons labeled with previous/next stage name
+- VVS ring shown but purely informational
+- Video published: YouTube URL + social posting status
+
+### Bilingual gate panel
+When `language === 'both'`, the gate panel shows per-locale sections:
+- 🇧🇷 Português: per-field ✓/✗ status
+- 🇺🇸 English: per-field ✓/✗ status
+Both locales must pass for the gate to clear.
+
+### Menu ⋯ (secondary actions)
+Accessed via ⋯ button in sidebar footer. Contains:
+- 📦 Arquivar / Restaurar
+- 🕐 Histórico (N entradas)
+- 🔢 Versão: vN
+- 🏷️ Editar tags
+- 📋 Checklist completo (expand) — if checklist exists
+- 🔗 Blog post: ver/desvincular — if linked
+
+**Note:** Checklist in menu ≠ Gate panel. Gate = automated VVS requirements. Checklist = manual user tasks.
+
+### Loading & error states
+- Avançar/Recuar: button shows spinner, both buttons disabled
+- Publicar: "Publicando..." with spinner, all actions disabled
+- Agendar: "Agendando..." with spinner
+- Re-publicar: "Atualizando..." with spinner
+- Publish failure: toast.error with server message
+- Schedule failure: toast.error, stays in Ready
+- VVS below threshold: button disabled + tooltip with score
+
+### Accessibility
+- VVS ring: `aria-label="Prontidão N de 100"`
+- Gate items: `role="list"` + `aria-label="Requisitos para avançar"`
+- Disabled Avançar: `aria-disabled="true"` + `title` with score reason
+- Colors never sole indicator: ✓/✗/△ icons accompany green/red/amber
+- Progress bar segments: `aria-label="Estágio N de M: [name]"`
+- Menu ⋯: `aria-haspopup="menu"` + `aria-expanded`
+
+### Tab impact from sidebar changes
+- **BlogPublishPanel removed from Publicação tab** — publish/schedule actions now in sidebar
+- **SocialConfigEditor moves TO Publicação tab** — full editor (platforms, captions, hashtags)
+- Social **status** (read-only) stays in sidebar
+- VVS display only in sidebar (no duplication in tabs)
+- Reporter role: sidebar is read-only (status visible, action buttons hidden)
 
 Transition: 200ms ease animation between collapsed and expanded.
 
