@@ -19,7 +19,7 @@ const PRIORITY_COLORS: Record<number, string> = {
 
 interface PipelineCardProps {
   item: PipelineCardItem
-  laneId: 'idea' | 'draft' | 'ready'
+  laneId: 'idea' | 'draft' | 'ready' | 'editing' | 'scheduled' | 'published'
   strings?: BlogHubStrings
   onPromote?: (itemId: string) => void
 }

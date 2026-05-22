@@ -31,7 +31,6 @@ import {
 } from '../../_hub/hub-utils'
 import { KanbanLane } from './kanban-lane'
 import { PipelineCard, PipelineCardOverlay } from './pipeline-card'
-import { PostCard, PostCardOverlay } from './post-card'
 import { PromotionModal } from './promotion-modal'
 import { BulkActionBar } from './bulk-action-bar'
 import { ScheduleModal } from './schedule-modal'
@@ -564,21 +563,8 @@ export function UnifiedBoard({
               const items = lanes[lane.id]
               const itemIds = items.map((i) => i.id)
               const label = strings?.lanes?.[lane.id] ?? lane.label
-              const prevLane = LANE_DEFS[idx - 1]
-              const showBoundary = idx > 0 && prevLane !== undefined && prevLane.dataSource === 'pipeline' && lane.dataSource === 'blog'
-
               return (
                 <div key={lane.id} className="flex">
-                  {showBoundary && (
-                    <div className="flex flex-col items-center justify-center px-2" aria-hidden="true">
-                      <div className="h-full w-[2px] bg-indigo-500/30" />
-                      <span className="my-2 -rotate-90 whitespace-nowrap text-[10px] font-medium tracking-wider text-indigo-400/50">
-                        {strings?.editorial?.promotionBoundary ?? 'Publication →'}
-                      </span>
-                      <div className="h-full w-[2px] bg-indigo-500/30" />
-                    </div>
-                  )}
-
                   <KanbanLane
                     id={lane.id}
                     index={idx}
@@ -622,33 +608,15 @@ export function UnifiedBoard({
                       ) : undefined
                     }
                   >
-                    {isPipelineLane(lane.id)
-                      ? items.filter((i): i is PipelineCardItem => 'stage' in i).map((item) => (
-                          <PipelineCard
-                            key={item.id}
-                            item={item}
-                            laneId={lane.id as 'idea' | 'draft' | 'ready'}
-                            strings={strings}
-                            onPromote={handlePromoteClick}
-                          />
-                        ))
-                      : items.filter((i): i is PostCardType => 'status' in i).map((card) => (
-                          <PostCard
-                            key={card.id}
-                            card={card}
-                            laneId={lane.id as 'editing' | 'scheduled' | 'published'}
-                            showSubstatus={lane.id === 'editing'}
-                            pipelineCode={pipelineProvenanceMap.get(card.id) ?? null}
-                            strings={strings}
-                            locale={defaultLocale}
-                            onMoveToStatus={handleMovePostToStatus}
-                            onDelete={onDeletePost}
-                            onDuplicate={onDuplicate}
-                            onReturnToPipeline={handleReturnToPipeline}
-                            selected={selectedIds.has(card.id)}
-                            onSelect={handleSelect}
-                          />
-                        ))}
+                    {items.filter((i): i is PipelineCardItem => 'stage' in i).map((item) => (
+                      <PipelineCard
+                        key={item.id}
+                        item={item}
+                        laneId={lane.id}
+                        strings={strings}
+                        onPromote={handlePromoteClick}
+                      />
+                    ))}
                   </KanbanLane>
                 </div>
               )
@@ -657,10 +625,8 @@ export function UnifiedBoard({
         </div>
 
         <DragOverlay dropAnimation={DRAG_OVERLAY_ANIMATION}>
-          {activeItem && activeType === 'pipeline' && 'stage' in activeItem ? (
+          {activeItem && 'stage' in activeItem ? (
             <PipelineCardOverlay item={activeItem} strings={strings} />
-          ) : activeItem && activeType === 'post' && 'status' in activeItem ? (
-            <PostCardOverlay card={activeItem} />
           ) : null}
         </DragOverlay>
       </DndContext>
