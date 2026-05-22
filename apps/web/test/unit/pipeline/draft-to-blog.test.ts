@@ -146,3 +146,71 @@ describe('prepareBlogTranslationPatch', () => {
     expect(result).toBeNull()
   })
 })
+
+describe('expanded blog fields', () => {
+  const sections = {
+    draft_pt: {
+      rev: 3,
+      content: {
+        body: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Hello world' }] }] },
+        title: 'Meu Post',
+        slug: 'meu-post',
+        excerpt: 'Um resumo do post',
+        key_points: ['ponto 1', 'ponto 2'],
+        pull_quote: 'Uma citacao importante',
+        notes: ['nota 1'],
+        colophon: 'Creditos finais',
+        tag_id: '550e8400-e29b-41d4-a716-446655440000',
+        cover_image_url: 'https://example.com/cover.jpg',
+      },
+      source: 'user',
+      edited: true,
+      updated_at: new Date().toISOString(),
+    },
+    seo_pt: {
+      rev: 2,
+      content: {
+        meta_title: 'SEO Title',
+        meta_description: 'SEO Description',
+      },
+      source: 'user',
+      edited: true,
+      updated_at: new Date().toISOString(),
+    },
+  }
+
+  it('extracts title from draft section', async () => {
+    const result = await prepareBlogTranslationPatch(sections, 'pt')
+    expect(result?.title).toBe('Meu Post')
+  })
+
+  it('extracts slug from draft section', async () => {
+    const result = await prepareBlogTranslationPatch(sections, 'pt')
+    expect(result?.slug).toBe('meu-post')
+  })
+
+  it('extracts excerpt from draft section', async () => {
+    const result = await prepareBlogTranslationPatch(sections, 'pt')
+    expect(result?.excerpt).toBe('Um resumo do post')
+  })
+
+  it('extracts SEO fields from seo section', async () => {
+    const result = await prepareBlogTranslationPatch(sections, 'pt')
+    expect(result?.meta_title).toBe('SEO Title')
+    expect(result?.meta_description).toBe('SEO Description')
+  })
+
+  it('extracts structured fields', async () => {
+    const result = await prepareBlogTranslationPatch(sections, 'pt')
+    expect(result?.key_points).toEqual(['ponto 1', 'ponto 2'])
+    expect(result?.pull_quote).toBe('Uma citacao importante')
+    expect(result?.notes).toEqual(['nota 1'])
+    expect(result?.colophon).toBe('Creditos finais')
+  })
+
+  it('extracts tag_id and cover_image_url', async () => {
+    const result = await prepareBlogTranslationPatch(sections, 'pt')
+    expect(result?.tag_id).toBe('550e8400-e29b-41d4-a716-446655440000')
+    expect(result?.cover_image_url).toBe('https://example.com/cover.jpg')
+  })
+})
