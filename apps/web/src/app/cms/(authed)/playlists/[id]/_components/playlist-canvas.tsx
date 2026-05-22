@@ -42,6 +42,7 @@ import { PrintView } from './print-view'
 import { ExportMenu } from './export-menu'
 import { ContentPicker } from './content-picker'
 import { PlaylistPromptModal } from './prompt-generator-modal'
+import { NotesDrawer } from './notes-drawer'
 import type { PickerItem } from '../../actions'
 import type { ReuseCandidateItem } from '@/lib/playlists/prompt-builder'
 
@@ -940,9 +941,14 @@ export function PlaylistCanvas({
           onClose={() => setShowSettings(false)}
           onUpdate={onUpdate}
           onDelete={onDelete}
-          onSaveNotes={onSaveNotes}
         />
       </div>
+
+      {/* Notes drawer — bottom panel */}
+      <NotesDrawer
+        playlist={graph.playlist}
+        onSaveNotes={onSaveNotes}
+      />
 
       {/* Edge type selector popover */}
       {edgeSelector && (
