@@ -1386,3 +1386,42 @@ Resumo dos endpoints disponíveis:
 - `POST /playlists/:id/auto-layout` — auto-posicionar nós
 
 ---
+
+## Blog Post Draft Section Schema
+
+When format is `blog_post`, the `draft_{locale}` section content has this expanded shape:
+
+```json
+{
+  "body": "<TipTap JSONContent>",
+  "title": "string",
+  "slug": "string (URL-friendly, auto-generated from title if empty)",
+  "excerpt": "string (2-3 sentence summary)",
+  "key_points": ["string", "string"],
+  "pull_quote": "string (featured quote from post)",
+  "notes": ["string (internal notes)"],
+  "colophon": "string (credits/attributions)",
+  "tag_id": "uuid (FK to blog_tags)",
+  "hashtag_ids": ["uuid (FK to hashtags)"],
+  "cover_image_url": "string (URL from Media Gallery)"
+}
+```
+
+When updating a blog draft section via PATCH, include ALL fields you want to set.
+The `body` field accepts TipTap JSONContent with the blog preset extensions:
+StarterKit (H1-H4), MergeTag, CTAButton, PlaylistEmbed, SocialEmbed, SlashCommand,
+Callout, Toggle, Columns, Table, TaskList.
+
+## Blog Post SEO Section Schema
+
+The `seo_{locale}` section content:
+
+```json
+{
+  "meta_title": "string (ideal: 60 chars, max: 70)",
+  "meta_description": "string (ideal: 155 chars, max: 170)",
+  "slug": "string (mirrors draft slug)",
+  "keywords": ["string"],
+  "og_image_url": "string (1200x630)"
+}
+```

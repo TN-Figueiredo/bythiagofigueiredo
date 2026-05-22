@@ -20,7 +20,7 @@ export const WORKFLOWS: Record<Format, WorkflowStage[]> = {
   blog_post: [
     { stage: 'idea', position: 1, label_pt: 'Ideia', label_en: 'Idea' },
     { stage: 'draft', position: 2, label_pt: 'Rascunho', label_en: 'Draft' },
-    { stage: 'ready', position: 3, label_pt: 'Pronto', label_en: 'Ready' },
+    { stage: 'ready', position: 3, label_pt: 'Entrega', label_en: 'Delivery' },
     { stage: 'scheduled', position: 4, label_pt: 'Agendado', label_en: 'Scheduled' },
     { stage: 'published', position: 5, label_pt: 'Publicado', label_en: 'Published' },
   ],
@@ -95,9 +95,7 @@ export const DEFAULT_CHECKLISTS: Record<Format, ChecklistItem[]> = {
   ],
 }
 
-export const PIPELINE_ONLY_STAGES: Partial<Record<Format, string[]>> = {
-  blog_post: ['idea', 'draft', 'ready'],
-}
+export const PIPELINE_ONLY_STAGES: Partial<Record<Format, string[]>> = {}
 
 export function getPipelineStages(format: Format): WorkflowStage[] {
   const allowed = PIPELINE_ONLY_STAGES[format]

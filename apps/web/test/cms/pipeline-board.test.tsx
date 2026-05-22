@@ -67,7 +67,7 @@ describe('PipelineBoard', () => {
     render(<PipelineBoard format="blog_post" items={[]} />)
     expect(screen.getByText('Ideia')).toBeTruthy()
     expect(screen.getByText('Rascunho')).toBeTruthy()
-    expect(screen.getByText('Pronto')).toBeTruthy()
+    expect(screen.getByText('Entrega')).toBeTruthy()
   })
 
 })

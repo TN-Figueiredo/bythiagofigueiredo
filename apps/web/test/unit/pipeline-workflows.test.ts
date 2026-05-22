@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isValidStage, getNextStage, getPreviousStage } from '@/lib/pipeline/workflows'
+import { isValidStage, getNextStage, getPreviousStage, WORKFLOWS, getPipelineStages } from '@/lib/pipeline/workflows'
 
 describe('isValidStage', () => {
   it('returns true for valid video stages', () => {
@@ -37,5 +37,24 @@ describe('getPreviousStage', () => {
 
   it('returns null at first stage', () => {
     expect(getPreviousStage('video', 'idea')).toBeNull()
+  })
+})
+
+describe('blog_post full workflow', () => {
+  it('includes all 5 stages for blog_post', () => {
+    const stages = WORKFLOWS.blog_post
+    expect(stages.map(s => s.stage)).toEqual(['idea', 'draft', 'ready', 'scheduled', 'published'])
+  })
+
+  it('getPipelineStages returns all 5 for blog_post', () => {
+    const stages = getPipelineStages('blog_post')
+    expect(stages).toHaveLength(5)
+    expect(stages.map(s => s.stage)).toEqual(['idea', 'draft', 'ready', 'scheduled', 'published'])
+  })
+
+  it('ready stage has label Entrega/Delivery', () => {
+    const ready = WORKFLOWS.blog_post.find(s => s.stage === 'ready')
+    expect(ready?.label_pt).toBe('Entrega')
+    expect(ready?.label_en).toBe('Delivery')
   })
 })
