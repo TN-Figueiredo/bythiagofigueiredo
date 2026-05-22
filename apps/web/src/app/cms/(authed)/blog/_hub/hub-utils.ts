@@ -36,10 +36,10 @@ export function getValidTargets(status: string): string[] {
   return BLOG_TRANSITIONS[status] ?? []
 }
 
-const KANBAN_COLUMN_STATUSES = new Set<string>(['ready', 'scheduled', 'published'])
+const BOARD_POST_COLUMNS = new Set<string>(['ready', 'scheduled', 'published'])
 
-export function getKanbanMoveTargets(status: string): string[] {
-  return (BLOG_TRANSITIONS[status] ?? []).filter(s => KANBAN_COLUMN_STATUSES.has(s))
+export function getPostMoveTargets(status: string): string[] {
+  return (BLOG_TRANSITIONS[status] ?? []).filter(s => BOARD_POST_COLUMNS.has(s))
 }
 
 export function computeDisplayId(rowNumber: number): string {

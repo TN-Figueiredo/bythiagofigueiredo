@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isValidTransition, getValidTargets, getKanbanMoveTargets, computeDisplayId, mapStatusToColumn, formatRelativeDate, BLOG_TRANSITIONS } from '../../src/app/cms/(authed)/blog/_hub/hub-utils'
+import { isValidTransition, getValidTargets, getPostMoveTargets, computeDisplayId, mapStatusToColumn, formatRelativeDate, BLOG_TRANSITIONS } from '../../src/app/cms/(authed)/blog/_hub/hub-utils'
 import type { PostCard } from '../../src/app/cms/(authed)/blog/_hub/hub-types'
 
 describe('blog-hub utils', () => {
@@ -253,39 +253,39 @@ describe('getValidTargets edge cases', () => {
   })
 })
 
-describe('getKanbanMoveTargets (editorial board columns: ready/scheduled/published)', () => {
+describe('getPostMoveTargets (editorial board columns: ready/scheduled/published)', () => {
   it('ready → scheduled, published (kanban columns only)', () => {
-    const targets = getKanbanMoveTargets('ready')
+    const targets = getPostMoveTargets('ready')
     expect(targets).toEqual(['scheduled', 'published'])
   })
 
   it('scheduled → ready (only kanban column in transitions)', () => {
-    const targets = getKanbanMoveTargets('scheduled')
+    const targets = getPostMoveTargets('scheduled')
     expect(targets).toEqual(['ready'])
   })
 
   it('published → empty (archived is not a kanban column)', () => {
-    expect(getKanbanMoveTargets('published')).toEqual([])
+    expect(getPostMoveTargets('published')).toEqual([])
   })
 
   it('queued → ready (only kanban column in transitions)', () => {
-    expect(getKanbanMoveTargets('queued')).toEqual(['ready'])
+    expect(getPostMoveTargets('queued')).toEqual(['ready'])
   })
 
   it('idea → empty (draft/archived are not kanban columns)', () => {
-    expect(getKanbanMoveTargets('idea')).toEqual([])
+    expect(getPostMoveTargets('idea')).toEqual([])
   })
 
   it('draft → ready (only kanban column in transitions)', () => {
-    expect(getKanbanMoveTargets('draft')).toEqual(['ready'])
+    expect(getPostMoveTargets('draft')).toEqual(['ready'])
   })
 
   it('archived → empty (idea/draft are not kanban columns)', () => {
-    expect(getKanbanMoveTargets('archived')).toEqual([])
+    expect(getPostMoveTargets('archived')).toEqual([])
   })
 
   it('unknown status → empty', () => {
-    expect(getKanbanMoveTargets('nonexistent')).toEqual([])
+    expect(getPostMoveTargets('nonexistent')).toEqual([])
   })
 })
 

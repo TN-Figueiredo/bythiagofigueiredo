@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   isValidTransition,
   getValidTargets,
-  getKanbanMoveTargets,
+  getPostMoveTargets,
   computeDisplayId,
   mapStatusToColumn,
   formatRelativeDate,
@@ -68,14 +68,14 @@ describe('getValidTargets', () => {
 })
 
 /* ------------------------------------------------------------------ */
-/*  getKanbanMoveTargets                                               */
+/*  getPostMoveTargets                                               */
 /* ------------------------------------------------------------------ */
 
-describe('getKanbanMoveTargets', () => {
+describe('getPostMoveTargets', () => {
   it('filters to kanban-visible columns only (ready, scheduled, published)', () => {
     // ready -> [draft, scheduled, queued, published, archived]
     // kanban-visible: scheduled, published
-    const targets = getKanbanMoveTargets('ready')
+    const targets = getPostMoveTargets('ready')
     expect(targets).toContain('scheduled')
     expect(targets).toContain('published')
     expect(targets).not.toContain('draft')
@@ -84,11 +84,11 @@ describe('getKanbanMoveTargets', () => {
 
   it('returns empty for statuses with no kanban targets', () => {
     // idea -> [draft, archived] — none are kanban columns
-    expect(getKanbanMoveTargets('idea')).toEqual([])
+    expect(getPostMoveTargets('idea')).toEqual([])
   })
 
   it('returns empty for unknown status', () => {
-    expect(getKanbanMoveTargets('nonexistent')).toEqual([])
+    expect(getPostMoveTargets('nonexistent')).toEqual([])
   })
 })
 

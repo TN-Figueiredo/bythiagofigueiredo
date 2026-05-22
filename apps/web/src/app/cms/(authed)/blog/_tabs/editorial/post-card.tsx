@@ -8,7 +8,7 @@ import Image from 'next/image'
 import { MoreVertical, ArrowRight, Copy, Trash2, Undo2, Calendar } from 'lucide-react'
 import type { PostCard as PostCardType } from '../../_hub/hub-types'
 import type { BlogHubStrings } from '../../_i18n/types'
-import { formatRelativeDate, getKanbanMoveTargets, LOCALE_FLAGS } from '../../_hub/hub-utils'
+import { formatRelativeDate, getPostMoveTargets, LOCALE_FLAGS } from '../../_hub/hub-utils'
 import { SUBSTATUS_BADGES } from '../../_hub/hub-utils'
 
 const LOCALE_NAMES: Record<string, string> = { 'pt-BR': 'Português', pt: 'Português', en: 'English', es: 'Español' }
@@ -142,7 +142,7 @@ export const PostCard = memo(function PostCard({
     }
   }, [card.id, onSelect])
 
-  const moveTargets = useMemo(() => getKanbanMoveTargets(card.status), [card.status])
+  const moveTargets = useMemo(() => getPostMoveTargets(card.status), [card.status])
   const subBadge = showSubstatus ? SUBSTATUS_BADGES[card.status] : null
   const canReturn = pipelineCode && (card.status === 'idea' || card.status === 'draft')
 
