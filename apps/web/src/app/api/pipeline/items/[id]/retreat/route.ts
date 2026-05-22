@@ -3,7 +3,7 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { authenticateWrite, pipelineError } from '@/lib/pipeline/helpers'
 import { buildRateLimitHeaders, UUID_REGEX } from '@/lib/pipeline/auth'
 import { getPreviousStage } from '@/lib/pipeline/workflows'
-import type { Format } from '@/lib/pipeline/schemas'
+import { FORMATS, type Format } from '@/lib/pipeline/schemas'
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -24,6 +24,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   if (!item) return pipelineError('NOT_FOUND', 'Item not found', 404, auth)
 
+  if (!FORMATS.includes(item.format as Format)) {
+    return pipelineError('VALIDATION_ERROR', `Unknown format: ${item.format}`, 422, auth)
+  }
   const prevStage = getPreviousStage(item.format as Format, item.stage)
   if (!prevStage) {
     return pipelineError('INVALID_OPERATION', 'Already at first stage', 422, auth)

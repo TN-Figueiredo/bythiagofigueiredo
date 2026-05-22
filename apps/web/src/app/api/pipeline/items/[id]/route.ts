@@ -2,9 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { authenticateRead, authenticateWrite, pipelineError, parseBody } from '@/lib/pipeline/helpers'
 import { buildRateLimitHeaders, UUID_REGEX } from '@/lib/pipeline/auth'
-import { PipelineItemUpdateSchema, FORMAT_METADATA_SCHEMAS } from '@/lib/pipeline/schemas'
+import { PipelineItemUpdateSchema, FORMAT_METADATA_SCHEMAS, FORMATS, type Format } from '@/lib/pipeline/schemas'
 import { isValidStage, WORKFLOWS } from '@/lib/pipeline/workflows'
-import type { Format } from '@/lib/pipeline/schemas'
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -75,6 +74,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     .single()
 
   if (!current) return pipelineError('NOT_FOUND', 'Item not found', 404, auth)
+
+  if (!FORMATS.includes(current.format as Format)) {
+    return pipelineError('VALIDATION_ERROR', `Unknown format: ${current.format}`, 422, auth)
+  }
 
   if (parsed.data.stage && !isValidStage(current.format as Format, parsed.data.stage)) {
     return pipelineError('VALIDATION_ERROR', `Stage "${parsed.data.stage}" is not valid for format "${current.format}". Valid stages: ${WORKFLOWS[current.format as Format].map(s => s.stage).join(', ')}`, 400, auth)

@@ -91,7 +91,7 @@ export function EditorialTab({
       }
       return true
     },
-    [router, startTransition, strings],
+    [router, startTransition],
   )
 
   const handlePromote = useCallback(

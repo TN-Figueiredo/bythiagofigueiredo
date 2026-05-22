@@ -4,7 +4,7 @@ import { authenticateWrite, pipelineError } from '@/lib/pipeline/helpers'
 import { buildRateLimitHeaders, UUID_REGEX } from '@/lib/pipeline/auth'
 import { getNextStage, isFinalStage } from '@/lib/pipeline/workflows'
 import { computeValidationScore, VVS_PUBLISH_THRESHOLD } from '@/lib/pipeline/validation'
-import type { Format } from '@/lib/pipeline/schemas'
+import { FORMATS, type Format } from '@/lib/pipeline/schemas'
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -25,7 +25,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   if (!item) return pipelineError('NOT_FOUND', 'Item not found', 404, auth)
 
-  const format = item.format as Format
+  if (!FORMATS.includes(item.format as Format)) {
+    return pipelineError('VALIDATION_ERROR', `Unknown format: ${item.format}`, 422, auth)
+  }
+  const format: Format = item.format as Format
   const nextStage = getNextStage(format, item.stage)
   if (!nextStage) {
     return pipelineError('INVALID_OPERATION', 'Already at final stage', 422, auth)
@@ -53,7 +56,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       .select('id, code, format, stage')
       .in('id', deps.map((d) => d.blocker_id))
 
-    const unresolved = blockers?.filter((b) => !isFinalStage(b.format as Format, b.stage))
+    const unresolved = blockers?.filter((b) => FORMATS.includes(b.format as Format) && !isFinalStage(b.format as Format, b.stage))
     if (unresolved && unresolved.length > 0) {
       return NextResponse.json({
         error: { code: 'DEPENDENCY_BLOCKED', message: 'Hard dependencies not resolved', details: { blockers: unresolved } },
@@ -74,7 +77,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       .select('id, code, format, stage')
       .in('id', softDeps.map((d) => d.blocker_id))
 
-    const pending = softBlockers?.filter((b) => !isFinalStage(b.format as Format, b.stage))
+    const pending = softBlockers?.filter((b) => FORMATS.includes(b.format as Format) && !isFinalStage(b.format as Format, b.stage))
     if (pending && pending.length > 0) {
       warnings = pending.map((b) => `Soft dependency "${b.code}" still at stage "${b.stage}"`)
     }

@@ -100,7 +100,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .eq('status', blogPost.status)
 
   if (updateError) {
-    return pipelineError('DB_ERROR', `Failed to update blog post: ${updateError.message}`, 500, auth)
+    console.error('[publish] blog_posts update failed:', updateError.message)
+    return pipelineError('DB_ERROR', 'Failed to update blog post', 500, auth)
   }
 
   // Advance pipeline item stage (optimistic concurrency via version guard)
@@ -111,7 +112,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .eq('version', item.version)
 
   if (stageError) {
-    return pipelineError('DB_ERROR', `Failed to advance pipeline stage: ${stageError.message}`, 500, auth)
+    console.error('[publish] pipeline stage update failed:', stageError.message)
+    return pipelineError('DB_ERROR', 'Failed to advance pipeline stage', 500, auth)
   }
   if (stageCount === 0) {
     return pipelineError('VERSION_CONFLICT', 'Pipeline item was modified concurrently. Reload and try again.', 409, auth)

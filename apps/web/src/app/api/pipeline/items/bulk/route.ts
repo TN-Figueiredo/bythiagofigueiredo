@@ -1,9 +1,8 @@
 import { NextRequest } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { authenticateWrite, pipelineSuccess, pipelineError, parseBody } from '@/lib/pipeline/helpers'
-import { BulkOperationSchema } from '@/lib/pipeline/schemas'
+import { BulkOperationSchema, FORMATS, type Format } from '@/lib/pipeline/schemas'
 import { getNextStage, getPreviousStage } from '@/lib/pipeline/workflows'
-import type { Format } from '@/lib/pipeline/schemas'
 
 export async function POST(req: NextRequest) {
   const result = await authenticateWrite(req)
@@ -27,12 +26,14 @@ export async function POST(req: NextRequest) {
     if (op.op === 'advance') {
       const { data: item } = await supabase.from('content_pipeline').select('id, format, stage').eq('id', op.id).eq('site_id', auth.siteId).single()
       if (!item) { errors.push({ id: op.id, error: 'Not found' }); continue }
+      if (!FORMATS.includes(item.format as Format)) { errors.push({ id: op.id, error: 'Unknown format' }); continue }
       const next = getNextStage(item.format as Format, item.stage)
       if (!next) { errors.push({ id: op.id, error: 'Already at final stage' }); continue }
       validated.push({ op, writeData: { stage: next } })
     } else if (op.op === 'retreat') {
       const { data: item } = await supabase.from('content_pipeline').select('id, format, stage').eq('id', op.id).eq('site_id', auth.siteId).single()
       if (!item) { errors.push({ id: op.id, error: 'Not found' }); continue }
+      if (!FORMATS.includes(item.format as Format)) { errors.push({ id: op.id, error: 'Unknown format' }); continue }
       const prev = getPreviousStage(item.format as Format, item.stage)
       if (!prev) { errors.push({ id: op.id, error: 'Already at first stage' }); continue }
       validated.push({ op, writeData: { stage: prev } })

@@ -871,63 +871,6 @@ export async function createPostFromPipeline(
   return { ok: true, postId: result.postId }
 }
 
-export async function returnToPipeline(
-  postId: string,
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  const { siteId } = await getSiteContext()
-  await requireEditScope(siteId)
-
-  const supabase = getSupabaseServiceClient()
-
-  const { data: post, error: fetchError } = await supabase
-    .from('blog_posts')
-    .select('id, status, site_id')
-    .eq('id', postId)
-    .eq('site_id', siteId)
-    .single()
-
-  if (fetchError || !post) return { ok: false, error: 'not_found' }
-
-  const returnableStatuses = ['idea', 'draft']
-  if (!returnableStatuses.includes(post.status as string)) {
-    return { ok: false, error: 'only_idea_draft' }
-  }
-
-  const { data: pipelineItem } = await supabase
-    .from('content_pipeline')
-    .select('id')
-    .eq('blog_post_id', postId)
-    .eq('site_id', siteId)
-    .maybeSingle()
-
-  if (!pipelineItem) {
-    return { ok: false, error: 'no_linked_pipeline_item' }
-  }
-
-  const { error: unlinkError } = await supabase
-    .from('content_pipeline')
-    .update({ blog_post_id: null })
-    .eq('id', pipelineItem.id)
-    .eq('site_id', siteId)
-
-  if (unlinkError) return { ok: false, error: unlinkError.message }
-
-  const { error: deleteError } = await supabase
-    .from('blog_posts')
-    .delete()
-    .eq('id', postId)
-    .eq('site_id', siteId)
-    .in('status', returnableStatuses)
-
-  if (deleteError) return { ok: false, error: deleteError.message }
-
-  revalidateTag('blog-hub')
-  revalidateTag('pipeline-blog')
-  revalidatePath('/cms/blog')
-  revalidatePath('/cms/pipeline')
-  return { ok: true }
-}
-
 // ─── Cadence Management ───────────────────────────────────────────────────────
 
 export async function updateBlogCadence(
