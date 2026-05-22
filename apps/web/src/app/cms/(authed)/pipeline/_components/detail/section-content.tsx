@@ -34,6 +34,7 @@ export interface RendererProps {
   content: SectionData['content']
   isEditing: boolean
   lang: string
+  format?: string
   onContentChange: (content: SectionData['content']) => void
 }
 
@@ -66,12 +67,12 @@ class RendererErrorBoundary extends Component<{ children: ReactNode }, { error: 
   }
 }
 
-export function SectionContent({ sectionType, content, isEditing, lang, onContentChange }: SectionContentProps) {
+export function SectionContent({ sectionType, content, isEditing, lang, format, onContentChange }: SectionContentProps) {
   const Renderer = REGISTRY[sectionType] ?? GenericRenderer
 
   return (
     <RendererErrorBoundary>
-      <Renderer content={content} isEditing={isEditing} lang={lang} onContentChange={onContentChange} />
+      <Renderer content={content} isEditing={isEditing} lang={lang} format={format} onContentChange={onContentChange} />
     </RendererErrorBoundary>
   )
 }

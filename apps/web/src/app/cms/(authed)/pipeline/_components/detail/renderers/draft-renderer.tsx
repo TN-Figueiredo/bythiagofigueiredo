@@ -1,24 +1,113 @@
 'use client'
 
-import { useMemo, useCallback } from 'react'
+import { useMemo, useCallback, useState, useEffect } from 'react'
 import type { RendererProps } from '../section-content'
 import { PipelineEditor, isJSONContent, extractHeadings, type JSONContent } from '../editors/pipeline-editor'
 
-function extractDraftContent(content: RendererProps['content']): {
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+}
+
+// ── Types ──────────────────────────────────────────────────────────────────
+
+interface BlogDraftContent {
   body: string | JSONContent
+  title: string
+  slug: string
+  excerpt: string
+  key_points: string[]
+  pull_quote: string
+  notes: string[]
+  colophon: string
+  tag_id: string | null
+  hashtag_ids: string[]
+  cover_image_url: string | null
   seo: Record<string, unknown> | null
-  hasMisplacedSeo: boolean
-} {
-  if (typeof content === 'string') return { body: content, seo: null, hasMisplacedSeo: false }
-  if (isJSONContent(content)) return { body: content, seo: null, hasMisplacedSeo: false }
+}
+
+// ── extractDraftContent ────────────────────────────────────────────────────
+
+function extractDraftContent(content: RendererProps['content']): BlogDraftContent & { hasMisplacedSeo: boolean } {
+  const empty: BlogDraftContent = {
+    body: '',
+    title: '',
+    slug: '',
+    excerpt: '',
+    key_points: [],
+    pull_quote: '',
+    notes: [],
+    colophon: '',
+    tag_id: null,
+    hashtag_ids: [],
+    cover_image_url: null,
+    seo: null,
+  }
+
+  if (typeof content === 'string') {
+    return { ...empty, body: content, hasMisplacedSeo: false }
+  }
+  if (isJSONContent(content)) {
+    return { ...empty, body: content, hasMisplacedSeo: false }
+  }
   if (content && typeof content === 'object' && !Array.isArray(content)) {
     const obj = content as Record<string, unknown>
     const body = (obj.body ?? '') as string | JSONContent
     const seo = obj.seo && typeof obj.seo === 'object' ? (obj.seo as Record<string, unknown>) : null
-    return { body, seo, hasMisplacedSeo: seo !== null }
+
+    return {
+      body,
+      title: typeof obj.title === 'string' ? obj.title : '',
+      slug: typeof obj.slug === 'string' ? obj.slug : '',
+      excerpt: typeof obj.excerpt === 'string' ? obj.excerpt : '',
+      key_points: Array.isArray(obj.key_points) ? obj.key_points.map(String) : [],
+      pull_quote: typeof obj.pull_quote === 'string' ? obj.pull_quote : '',
+      notes: Array.isArray(obj.notes) ? obj.notes.map(String) : [],
+      colophon: typeof obj.colophon === 'string' ? obj.colophon : '',
+      tag_id: typeof obj.tag_id === 'string' ? obj.tag_id : null,
+      hashtag_ids: Array.isArray(obj.hashtag_ids) ? obj.hashtag_ids.map(String) : [],
+      cover_image_url: typeof obj.cover_image_url === 'string' ? obj.cover_image_url : null,
+      seo,
+      hasMisplacedSeo: seo !== null,
+    }
   }
-  return { body: '', seo: null, hasMisplacedSeo: false }
+  return { ...empty, hasMisplacedSeo: false }
 }
+
+// ── useSlugValidation ──────────────────────────────────────────────────────
+
+function useSlugValidation(slug: string, blogPostId: string | null) {
+  const [conflict, setConflict] = useState(false)
+
+  useEffect(() => {
+    if (!slug.trim()) {
+      setConflict(false)
+      return
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const params = new URLSearchParams({ slug })
+        if (blogPostId) params.set('exclude_post_id', blogPostId)
+        const res = await fetch(`/api/blog/check-slug?${params.toString()}`)
+        const { exists } = await res.json() as { exists: boolean }
+        setConflict(exists)
+      } catch {
+        setConflict(false)
+      }
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [slug, blogPostId])
+
+  return conflict
+}
+
+// ── Sub-components ─────────────────────────────────────────────────────────
 
 function SeoWarning({ message }: { message: string }) {
   return (
@@ -64,29 +153,51 @@ function SectionOutline({ headings }: { headings: string[] }) {
   )
 }
 
-export function DraftRenderer({ content, isEditing, onContentChange }: RendererProps) {
-  const { body, seo, hasMisplacedSeo } = useMemo(() => extractDraftContent(content), [content])
+// ── Main component ─────────────────────────────────────────────────────────
+
+export function DraftRenderer({ content, isEditing, lang, format, onContentChange }: RendererProps) {
+  const draft = useMemo(() => extractDraftContent(content), [content])
 
   const headings = useMemo(() => {
-    if (isJSONContent(body)) return extractHeadings(body)
+    if (isJSONContent(draft.body)) return extractHeadings(draft.body)
     return []
-  }, [body])
+  }, [draft.body])
 
-  const handleChange = useCallback(
+  // blog_post_id may be stored inside the content object itself (linked after graduation)
+  const blogPostId = useMemo(() => {
+    if (content && typeof content === 'object' && !Array.isArray(content)) {
+      const obj = content as Record<string, unknown>
+      return typeof obj.blog_post_id === 'string' ? obj.blog_post_id : null
+    }
+    return null
+  }, [content])
+
+  const slugConflict = useSlugValidation(draft.slug, blogPostId)
+
+  function updateField(field: string, value: unknown) {
+    const updated = { ...(content as Record<string, unknown>), [field]: value }
+    onContentChange(updated)
+  }
+
+  const handleBodyChange = useCallback(
     (json: JSONContent) => {
-      if (seo) {
-        onContentChange({ body: json, seo })
+      if (draft.seo) {
+        onContentChange({ body: json, seo: draft.seo })
       } else {
-        onContentChange(json)
+        onContentChange({ ...(content as Record<string, unknown>), body: json })
       }
     },
-    [seo, onContentChange],
+    [draft.seo, content, onContentChange],
   )
 
-  const isEmpty =
-    !body || (typeof body === 'string' && !body.trim()) || (isJSONContent(body) && !body.content?.length)
+  const isBlogPost = format === 'blog_post'
 
-  if (!isEditing && isEmpty) {
+  const isEmpty =
+    !draft.body ||
+    (typeof draft.body === 'string' && !draft.body.trim()) ||
+    (isJSONContent(draft.body) && !draft.body.content?.length)
+
+  if (!isEditing && isEmpty && !isBlogPost) {
     return (
       <div className="p-5 text-[11px] text-center py-8" style={{ color: 'var(--gem-dim)' }}>
         Nenhum rascunho ainda.
@@ -96,19 +207,114 @@ export function DraftRenderer({ content, isEditing, onContentChange }: RendererP
 
   return (
     <div className="p-5">
-      {hasMisplacedSeo && (
+      {draft.hasMisplacedSeo && (
         <SeoWarning
-          message={isEditing ? 'Dados SEO detectados nesta seção. Mova-os para a aba SEO.' : 'Dados SEO detectados nesta seção — verifique a aba SEO.'}
+          message={
+            isEditing
+              ? 'Dados SEO detectados nesta seção. Mova-os para a aba SEO.'
+              : 'Dados SEO detectados nesta seção — verifique a aba SEO.'
+          }
         />
       )}
+
+      {/* Blog post: title, slug, excerpt above the editor */}
+      {isBlogPost && (
+        <div className="space-y-3 mb-4">
+          <input
+            className="w-full text-2xl font-bold bg-transparent border-none outline-none text-[var(--foreground)] placeholder:text-[var(--muted)]"
+            placeholder="Título do post..."
+            value={draft.title}
+            onChange={e => updateField('title', e.target.value)}
+            readOnly={!isEditing}
+          />
+          <div className="flex items-center gap-2 text-xs text-[var(--muted)]">
+            <span>/blog/{lang}/</span>
+            <input
+              className="bg-transparent border-b border-[var(--border)] outline-none text-[var(--muted)] flex-1"
+              placeholder="slug-do-post"
+              value={draft.slug}
+              onChange={e => updateField('slug', slugify(e.target.value))}
+              onBlur={() => {
+                if (!draft.slug && draft.title) updateField('slug', slugify(draft.title))
+              }}
+              readOnly={!isEditing}
+            />
+            {slugConflict && <span className="text-red-400">Slug já existe</span>}
+          </div>
+          <textarea
+            className="w-full text-sm italic text-[var(--muted)] bg-transparent border-l-2 border-amber-500/20 pl-3 resize-none outline-none"
+            placeholder="Resumo do post (excerpt)..."
+            rows={2}
+            value={draft.excerpt}
+            onChange={e => updateField('excerpt', e.target.value)}
+            readOnly={!isEditing}
+          />
+        </div>
+      )}
+
       {!isEditing && <SectionOutline headings={headings} />}
+
       <PipelineEditor
-        content={body}
+        content={draft.body}
         isEditing={isEditing}
-        onContentChange={handleChange}
+        onContentChange={handleBodyChange}
         preset="full"
         placeholder="Escreva o conteúdo do seu rascunho..."
       />
+
+      {/* Blog post: structured fields below the editor */}
+      {isBlogPost && (
+        <details className="mt-4 border border-[var(--border)] rounded-lg">
+          <summary className="px-3 py-2 text-xs font-semibold cursor-pointer text-[var(--muted)] hover:text-[var(--foreground)]">
+            Campos Estruturados
+          </summary>
+          <div className="p-3 space-y-3">
+            <div>
+              <label className="text-xs text-[var(--muted)] mb-1 block">Key Points</label>
+              {(draft.key_points || []).map((kp: string, i: number) => (
+                <input
+                  key={i}
+                  className="w-full text-xs bg-[var(--gem-well)] rounded px-2 py-1 mb-1 outline-none"
+                  value={kp}
+                  readOnly={!isEditing}
+                  onChange={e => {
+                    const u = [...(draft.key_points || [])]
+                    u[i] = e.target.value
+                    updateField('key_points', u)
+                  }}
+                />
+              ))}
+              {isEditing && (
+                <button
+                  onClick={() => updateField('key_points', [...(draft.key_points || []), ''])}
+                  className="text-xs text-indigo-400"
+                >
+                  + Add
+                </button>
+              )}
+            </div>
+            <div>
+              <label className="text-xs text-[var(--muted)] mb-1 block">Pull Quote</label>
+              <textarea
+                className="w-full text-xs bg-[var(--gem-well)] rounded px-2 py-1 resize-none outline-none"
+                rows={2}
+                value={draft.pull_quote || ''}
+                readOnly={!isEditing}
+                onChange={e => updateField('pull_quote', e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-[var(--muted)] mb-1 block">Colophon</label>
+              <input
+                className="w-full text-xs bg-[var(--gem-well)] rounded px-2 py-1 outline-none"
+                value={draft.colophon || ''}
+                readOnly={!isEditing}
+                onChange={e => updateField('colophon', e.target.value)}
+              />
+            </div>
+          </div>
+        </details>
+      )}
     </div>
   )
 }
