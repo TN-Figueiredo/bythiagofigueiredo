@@ -13,6 +13,7 @@ import {
   deletePlaylist,
   addItemToPlaylist,
   getAvailableContent,
+  updatePlaylistNotes,
 } from '../actions'
 
 export const dynamic = 'force-dynamic'
@@ -43,6 +44,7 @@ export default async function PlaylistEditorPage({
         onDelete={deletePlaylist}
         onAddItem={addItemToPlaylist}
         onFetchContent={getAvailableContent}
+        onSaveNotes={updatePlaylistNotes}
       />
     </div>
   )

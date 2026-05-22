@@ -61,6 +61,7 @@ interface PlaylistCanvasProps {
   onDelete: (playlistId: string, siteId: string) => Promise<ActionResult<void>>
   onAddItem: (siteId: string, input: unknown) => Promise<ActionResult<{ id: string }>>
   onFetchContent: (siteId: string, playlistId: string) => Promise<ActionResult<PickerItem[]>>
+  onSaveNotes: (playlistId: string, siteId: string, notes: Record<string, unknown> | null) => Promise<ActionResult<void>>
 }
 
 export function PlaylistCanvas({
@@ -75,6 +76,7 @@ export function PlaylistCanvas({
   onDelete,
   onAddItem,
   onFetchContent,
+  onSaveNotes,
 }: PlaylistCanvasProps) {
   const router = useRouter()
   const [state, dispatch] = useReducer(graphReducer, undefined, initialGraphState)
@@ -764,7 +766,7 @@ export function PlaylistCanvas({
         onPrint={handlePrint}
         exportButtonRef={exportBtnRef}
         onToggleSettings={() => setShowSettings(prev => !prev)}
-        hasNotes={false}
+        hasNotes={graph.playlist.notes != null}
         onOpenPrompt={() => {}}
         onRefresh={() => router.refresh()}
       />
@@ -925,6 +927,7 @@ export function PlaylistCanvas({
           onClose={() => setShowSettings(false)}
           onUpdate={onUpdate}
           onDelete={onDelete}
+          onSaveNotes={onSaveNotes}
         />
       </div>
 
