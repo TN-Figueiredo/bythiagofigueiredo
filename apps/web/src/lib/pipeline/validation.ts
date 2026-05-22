@@ -11,6 +11,10 @@ export interface ValidationScore {
     has_tags: boolean
     checklist_pct: number
     metadata_complete: boolean
+    has_slug?: boolean
+    has_excerpt?: boolean
+    has_seo?: boolean
+    has_cover?: boolean
   }
   computed_at: string
 }
@@ -25,9 +29,27 @@ interface ValidationInput {
   production_checklist: Array<{ label: string; done: boolean }>
   format_metadata: Record<string, unknown>
   format: Format
+  sections?: Record<string, { rev: number; content: unknown; source: string; edited: boolean; updated_at: string }> | null
 }
 
-const WEIGHTS = {
+interface CoreWeights {
+  has_title: number
+  has_hook: number
+  has_synopsis: number
+  has_body: number
+  has_tags: number
+  checklist_pct: number
+  metadata_complete: number
+}
+
+interface BlogWeights extends CoreWeights {
+  has_slug: number
+  has_excerpt: number
+  has_seo: number
+  has_cover: number
+}
+
+const WEIGHTS_DEFAULT: CoreWeights = {
   has_title: 20,
   has_hook: 15,
   has_synopsis: 10,
@@ -35,6 +57,40 @@ const WEIGHTS = {
   has_tags: 10,
   checklist_pct: 15,
   metadata_complete: 10,
+}
+
+const WEIGHTS_BLOG: BlogWeights = {
+  has_title: 12,
+  has_hook: 10,
+  has_synopsis: 8,
+  has_body: 15,
+  has_tags: 10,
+  checklist_pct: 15,
+  metadata_complete: 10,
+  has_slug: 5,
+  has_excerpt: 5,
+  has_seo: 5,
+  has_cover: 5,
+}
+
+function extractSectionField(
+  sections: ValidationInput['sections'],
+  key: string,
+  field: string,
+): unknown {
+  if (!sections) return null
+  const section = sections[key]
+  if (!section?.content || typeof section.content !== 'object') return null
+  return (section.content as Record<string, unknown>)[field] ?? null
+}
+
+function hasSectionStringField(
+  sections: ValidationInput['sections'],
+  key: string,
+  field: string,
+): boolean {
+  const val = extractSectionField(sections, key, field)
+  return typeof val === 'string' && val.trim().length > 0
 }
 
 export function computeValidationScore(input: ValidationInput): ValidationScore {
@@ -53,9 +109,20 @@ export function computeValidationScore(input: ValidationInput): ValidationScore 
   const hasMetaValues = Object.values(input.format_metadata).some((v) => v !== undefined && v !== null && v !== '')
   const metadata_complete = metaResult.success && hasMetaValues
 
-  const breakdown = { has_title, has_hook, has_synopsis, has_body, has_tags, checklist_pct, metadata_complete }
+  const isBlogPost = input.format === 'blog_post'
+  const WEIGHTS: CoreWeights = isBlogPost ? WEIGHTS_BLOG : WEIGHTS_DEFAULT
 
-  const overall = Math.round(
+  const breakdown: ValidationScore['breakdown'] = {
+    has_title,
+    has_hook,
+    has_synopsis,
+    has_body,
+    has_tags,
+    checklist_pct,
+    metadata_complete,
+  }
+
+  let overall =
     (has_title ? WEIGHTS.has_title : 0) +
     (has_hook ? WEIGHTS.has_hook : 0) +
     (has_synopsis ? WEIGHTS.has_synopsis : 0) +
@@ -63,7 +130,36 @@ export function computeValidationScore(input: ValidationInput): ValidationScore 
     (has_tags ? WEIGHTS.has_tags : 0) +
     (checklist_pct / 100) * WEIGHTS.checklist_pct +
     (metadata_complete ? WEIGHTS.metadata_complete : 0)
-  )
 
-  return { overall, breakdown, computed_at: new Date().toISOString() }
+  if (isBlogPost) {
+    const blogWeights = WEIGHTS_BLOG
+    const has_slug = hasSectionStringField(input.sections, 'draft_pt', 'slug')
+    const has_excerpt = hasSectionStringField(input.sections, 'draft_pt', 'excerpt')
+
+    const seoMeta = extractSectionField(input.sections, 'seo_pt', 'meta_title')
+    const seoDesc = extractSectionField(input.sections, 'seo_pt', 'meta_description')
+    const has_seo =
+      typeof seoMeta === 'string' && seoMeta.trim().length > 0 &&
+      typeof seoDesc === 'string' && seoDesc.trim().length > 0
+
+    const coverVal = extractSectionField(input.sections, 'images_shared', 'cover')
+    const has_cover =
+      coverVal !== null &&
+      typeof coverVal === 'object' &&
+      typeof (coverVal as Record<string, unknown>)['image_url'] === 'string' &&
+      ((coverVal as Record<string, unknown>)['image_url'] as string).trim().length > 0
+
+    breakdown.has_slug = has_slug
+    breakdown.has_excerpt = has_excerpt
+    breakdown.has_seo = has_seo
+    breakdown.has_cover = has_cover
+
+    overall +=
+      (has_slug ? blogWeights.has_slug : 0) +
+      (has_excerpt ? blogWeights.has_excerpt : 0) +
+      (has_seo ? blogWeights.has_seo : 0) +
+      (has_cover ? blogWeights.has_cover : 0)
+  }
+
+  return { overall: Math.round(overall), breakdown, computed_at: new Date().toISOString() }
 }
