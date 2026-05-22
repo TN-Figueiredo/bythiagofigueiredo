@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { toast } from 'sonner'
 import { updatePipelineItem, advancePipelineItem, retreatPipelineItem, archivePipelineItem, restorePipelineItem, toggleChecklist, searchBlogPostsAction } from '../actions'
 import { WORKFLOWS } from '@/lib/pipeline/workflows'
-import { getPriorityConfig, getStaleness, getFormatIcon, getLangConfig, getChecklistProgress } from '@/lib/pipeline/gem-design'
+import { getPriorityConfig, getStaleness, getFormatIcon, getLangConfig, getChecklistProgress, getVvsTier } from '@/lib/pipeline/gem-design'
 import { GemVvsRing } from './gem-vvs-ring'
 import { TabContainer } from './detail/tab-container'
 import { useSection } from './detail/use-section'
@@ -61,6 +61,8 @@ interface ItemData {
   social_config: Record<string, unknown> | null
   social_post_id: string | null
   site_id: string
+  materialized_rev_pt?: number | null
+  materialized_rev_en?: number | null
   linked_post?: {
     id: string
     title: string
@@ -73,6 +75,32 @@ interface Props {
   item: ItemData
   history: HistoryEntry[]
   dependencies: Dependency[]
+}
+
+function hasPendingChanges(item: ItemData): boolean {
+  if (!item.sections || item.stage !== 'published') return false
+  const draftPt = item.sections.draft_pt as { rev?: number } | undefined
+  const draftEn = item.sections.draft_en as { rev?: number } | undefined
+
+  if (draftPt?.rev != null && item.materialized_rev_pt != null && draftPt.rev > item.materialized_rev_pt) return true
+  if (draftEn?.rev != null && item.materialized_rev_en != null && draftEn.rev > item.materialized_rev_en) return true
+  return false
+}
+
+// ─── ActiveTabObserver ─────────────────────────────────────────────────────────
+function ActiveTabObserver({
+  activeTab,
+  onCollapse,
+  children,
+}: {
+  activeTab: string
+  onCollapse: (collapsed: boolean) => void
+  children: React.ReactNode
+}) {
+  useEffect(() => {
+    onCollapse(activeTab === 'draft')
+  }, [activeTab, onCollapse])
+  return <>{children}</>
 }
 
 // ─── SectionPanel ──────────────────────────────────────────────────────────────
@@ -370,10 +398,17 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
 
   const [isAdvancing, setIsAdvancing] = useState(false)
   const [isRetreating, setIsRetreating] = useState(false)
+  const [isRepublishing, setIsRepublishing] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const handleSidebarCollapse = useCallback((collapsed: boolean) => {
+    setSidebarCollapsed(collapsed)
+  }, [])
   const [showBlogSearch, setShowBlogSearch] = useState(false)
   const [showPromptModal, setShowPromptModal] = useState(false)
   const [promptSections, setPromptSections] = useState<Array<{ section_type: string; language: string; content: string }>>([])
   const [loadingSections, setLoadingSections] = useState(false)
+
+  const vvsColor = getVvsTier(item.validation_score).color
 
   const handleBlogSearch = useCallback(async (query: string) => {
     return searchBlogPostsAction(item.site_id, query)
@@ -446,6 +481,26 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
       toast.error('Erro ao carregar seções')
     } finally {
       setLoadingSections(false)
+    }
+  }
+
+  async function handleRepublish() {
+    setIsRepublishing(true)
+    const { materializeBlogPost } = await import('@/lib/pipeline/materialize-blog')
+    const result = await materializeBlogPost({
+      pipelineItemId: item.id,
+      targetStage: 'published',
+      scheduledFor: null,
+      userId: '',
+      siteId: item.site_id,
+      vvsScore: item.validation_score,
+    })
+    setIsRepublishing(false)
+    if (result.ok) {
+      toast.success('Post atualizado no site')
+      router.refresh()
+    } else {
+      toast.error(result.message)
     }
   }
 
@@ -608,22 +663,41 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
             const activeDef = sectionDefs.find(s => s.key === activeTab)
             if (!activeDef) return null
             return (
-              <SectionPanel
-                key={`${activeTab}-${activeSub ?? ''}-${tabLang}`}
-                sectionDef={activeDef}
-                activeSub={activeSub}
-                lang={tabLang}
-                itemId={item.id}
-                itemVersion={item.version}
-                itemCode={item.code}
-                itemTitle={item.title_pt || item.title_en || ''}
-                sections={sections}
-                format={item.format}
-                stage={item.stage}
-                tags={item.tags}
-                hook={item.hook}
-                synopsis={item.synopsis}
-              />
+              <ActiveTabObserver
+                activeTab={activeTab}
+                onCollapse={handleSidebarCollapse}
+              >
+                {hasPendingChanges(item) && (
+                  <div className="flex items-center gap-2 ml-4 mb-2">
+                    <span className="text-xs text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded">
+                      Mudanças pendentes
+                    </span>
+                    <button
+                      onClick={handleRepublish}
+                      disabled={isRepublishing}
+                      className="text-xs font-bold bg-emerald-500 text-white px-3 py-1 rounded hover:bg-emerald-600 transition-colors disabled:opacity-50"
+                    >
+                      Re-publicar
+                    </button>
+                  </div>
+                )}
+                <SectionPanel
+                  key={`${activeTab}-${activeSub ?? ''}-${tabLang}`}
+                  sectionDef={activeDef}
+                  activeSub={activeSub}
+                  lang={tabLang}
+                  itemId={item.id}
+                  itemVersion={item.version}
+                  itemCode={item.code}
+                  itemTitle={item.title_pt || item.title_en || ''}
+                  sections={sections}
+                  format={item.format}
+                  stage={item.stage}
+                  tags={item.tags}
+                  hook={item.hook}
+                  synopsis={item.synopsis}
+                />
+              </ActiveTabObserver>
             )
           }}
         </TabContainer>
@@ -631,11 +705,24 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
 
       {/* Sidebar */}
       <aside
-        className="w-68 shrink-0 flex flex-col gap-2.5 sticky top-5 self-start max-h-[calc(100vh-40px)] overflow-y-auto"
+        className={`shrink-0 flex flex-col gap-2.5 sticky top-5 self-start max-h-[calc(100vh-40px)] overflow-y-auto transition-all duration-200 ease-in-out ${sidebarCollapsed ? 'w-12' : 'w-68'}`}
         style={{ scrollbarWidth: 'thin' }}
         aria-label="Item details"
       >
-        {/* Stage card */}
+        {sidebarCollapsed ? (
+          <div className="flex flex-col items-center gap-2.5 py-3">
+            <div className="w-8 h-8 rounded-full border-2 flex items-center justify-center text-xs font-bold"
+              style={{ borderColor: vvsColor, color: vvsColor }}>
+              {item.validation_score}
+            </div>
+            <button onClick={() => setSidebarCollapsed(false)} title="Expand sidebar"
+              className="w-7 h-7 rounded-md flex items-center justify-center text-xs hover:opacity-80"
+              style={{ background: 'var(--gem-well)', color: 'var(--gem-muted)' }}>
+              &raquo;
+            </button>
+          </div>
+        ) : (
+        <>{/* Stage card */}
         <div className="rounded-lg border p-4" style={{ backgroundColor: 'var(--gem-surface)', borderColor: 'var(--gem-border)' }}>
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-medium px-2 py-0.5 rounded" style={{ backgroundColor: priority.accentDim, color: priority.accent }}>
@@ -907,6 +994,7 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
             </div>
           </div>
         )}
+        </>)}
       </aside>
 
       {showPromptModal && (
