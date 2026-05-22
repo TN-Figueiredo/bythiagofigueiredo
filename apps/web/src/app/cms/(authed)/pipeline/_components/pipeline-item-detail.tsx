@@ -596,6 +596,7 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
         {/* Tabbed section editor */}
         <TabContainer
           format={item.format as Format}
+          stage={item.stage}
           itemId={item.id}
           itemVersion={item.version}
           sections={sectionsMap}

@@ -5,8 +5,17 @@ import type { Format } from '@/lib/pipeline/schemas'
 import { getSectionsForFormat, getSectionKey, type SectionDefinition } from '@/lib/pipeline/sections'
 import type { SectionData } from '@/lib/pipeline/sections'
 
+const BLOG_TAB_ACCESS: Record<string, string[]> = {
+  idea: ['ideia'],
+  draft: ['ideia', 'draft'],
+  ready: ['ideia', 'draft', 'seo', 'images'],
+  scheduled: ['ideia', 'draft', 'seo', 'images', 'publish'],
+  published: ['ideia', 'draft', 'seo', 'images', 'publish'],
+}
+
 interface TabContainerProps {
   format: Format
+  stage?: string
   itemId: string
   itemVersion: number
   sections: Record<string, SectionData>
@@ -52,7 +61,7 @@ const TAB_DEPENDENCIES: Record<string, string[]> = {
   metrics: ['briefing'],
 }
 
-export function TabContainer({ format, itemId, itemVersion, sections, itemCode, itemTitle, itemLanguage, children }: TabContainerProps) {
+export function TabContainer({ format, stage, itemId, itemVersion, sections, itemCode, itemTitle, itemLanguage, children }: TabContainerProps) {
   const sectionDefs = getSectionsForFormat(format)
   const [activeTab, setActiveTab] = useState(() => {
     const skip = new Set(['seo', 'images', 'publish'])
@@ -71,7 +80,15 @@ export function TabContainer({ format, itemId, itemVersion, sections, itemCode, 
     const enabled = new Set<string>()
     const defsByKey = new Map(sectionDefs.map(d => [d.key, d]))
 
+    // For blog_post, use stage-based progressive disclosure
+    const stageAllowedKeys = format === 'blog_post' && stage
+      ? (BLOG_TAB_ACCESS[stage] ?? Object.values(BLOG_TAB_ACCESS).at(-1) ?? [])
+      : null
+
     for (const def of sectionDefs) {
+      // Stage gate: if we have a stage-based allowlist, check it first
+      if (stageAllowedKeys && !stageAllowedKeys.includes(def.key)) continue
+
       const deps = TAB_DEPENDENCIES[def.key]
       if (!deps) {
         enabled.add(def.key)
@@ -85,7 +102,7 @@ export function TabContainer({ format, itemId, itemVersion, sections, itemCode, 
     }
 
     return enabled
-  }, [sectionDefs, sections])
+  }, [format, stage, sectionDefs, sections])
 
   useEffect(() => {
     const hash = window.location.hash.replace('#', '')
@@ -186,6 +203,14 @@ export function TabContainer({ format, itemId, itemVersion, sections, itemCode, 
             const isActive = activeTab === def.key
             const hasContent = hasAnyContent(def, sections)
             const isEnabled = enabledTabs.has(def.key)
+            const isStageLocked = !isEnabled && format === 'blog_post' && stage
+              ? !(BLOG_TAB_ACCESS[stage] ?? []).includes(def.key)
+              : false
+            const disabledTitle = isStageLocked
+              ? 'Avance o stage para desbloquear'
+              : !isEnabled
+                ? 'Complete a seção anterior primeiro'
+                : undefined
             return (
               <button
                 key={def.key}
@@ -201,7 +226,7 @@ export function TabContainer({ format, itemId, itemVersion, sections, itemCode, 
                   opacity: isEnabled ? 1 : 0.4,
                 }}
                 onClick={() => handleTabSwitch(def.key)}
-                title={!isEnabled ? 'Complete a seção anterior primeiro' : undefined}
+                title={disabledTitle}
               >
                 <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: hasContent ? 'var(--gem-done)' : 'transparent', border: hasContent ? 'none' : '1px solid var(--gem-dim)' }} />
                 {def.label_pt}
