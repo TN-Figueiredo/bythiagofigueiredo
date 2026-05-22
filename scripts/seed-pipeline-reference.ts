@@ -56,7 +56,7 @@ const ENTRIES: ReferenceEntry[] = [
     filePath: null,
     inlineCompact: {
       ideator: ['personal-profile', 'content-calendar-taxonomy', 'ideator-channel-profiles', 'ideator-content-angles', 'ideator-formats-frameworks', 'ideator-monetization-research', 'ideator-scoring-rubrics', 'ideator-memory'],
-      writer: ['personal-profile', 'writer-voice-guide', 'writer-article-craft', 'writer-newsletter-craft', 'writer-social-craft', 'writer-memory'],
+      writer: ['personal-profile', 'writer-voice-guide', 'writer-blog-craft', 'writer-article-craft', 'writer-newsletter-craft', 'writer-social-craft', 'writer-memory'],
       producer: ['personal-profile', 'producer-editing-patterns', 'producer-sound-design', 'producer-visual-style', 'producer-seo-metadata', 'producer-launch-strategy', 'producer-memory'],
       product_eval: ['personal-profile', 'product-eval-scoring', 'product-eval-catalog', 'product-eval-experience', 'product-eval-reference', 'product-eval-memory'],
       perf_review: ['personal-profile', 'perf-review-benchmarks', 'perf-review-feedback-templates', 'perf-review-analytics-guide', 'perf-review-memory'],
@@ -94,6 +94,35 @@ const ENTRIES: ReferenceEntry[] = [
   },
   // NOTE: cowork-section-schemas and playlist-graph-api removed — their content
   // is now served via GET /api/pipeline/docs/ (Tier 2 domain docs)
+  {
+    key: 'writer-blog-craft',
+    title: 'Blog Post Craft Guide',
+    ref_group: 'craft',
+    sort_order: 40,
+    filePath: null,
+    inlineCompact: {
+      structure: {
+        hook: '1-2 sentences that grab attention',
+        intro: 'Expand the hook, set context (2-3 paragraphs)',
+        body: 'Clear H2 sections, each with a single idea',
+        keyPoints: '3-5 actionable takeaways',
+        pullQuote: 'The most shareable sentence',
+        conclusion: 'Tie back to the hook, call to action',
+      },
+      toneAndVoice: {
+        perspective: 'First person singular (I, not we)',
+        style: 'Conversational but precise',
+        paragraphs: 'Short paragraphs (3-4 sentences max)',
+        formatting: 'Use subheadings every 200-300 words',
+      },
+      seo: {
+        title: 'Include primary keyword, under 60 chars',
+        metaDescription: 'Summarize value proposition, 155 chars',
+        slug: '3-5 words max, no stop words',
+        headings: 'H1 for title only, H2 for main sections, H3 for subsections',
+      },
+    },
+  },
   {
     key: 'content-curator-skill',
     title: 'Content Curator — Skill Reference (REVIEW, MERGE, PROMOTE, CLEAN)',
