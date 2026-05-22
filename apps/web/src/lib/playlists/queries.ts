@@ -40,6 +40,9 @@ interface PipelineRef {
   stage: string | null
   version: number
   language: string | null
+  tags: string[]
+  hook: string | null
+  synopsis: string | null
 }
 
 interface CrossPlaylistRef {
@@ -189,7 +192,7 @@ async function enrichItems(
     pipelineIds.length > 0
       ? supabase
           .from('content_pipeline')
-          .select('id, title_pt, title_en, format, stage, version, language')
+          .select('id, title_pt, title_en, format, stage, version, language, tags, hook, synopsis')
           .in('id', pipelineIds)
       : { data: [] },
     supabase
@@ -225,6 +228,9 @@ async function enrichItems(
     let metadata: string | null = null
     let refId: string | null = null
     let language: 'pt-br' | 'en' | null = null
+    let tags: string[] = []
+    let hook: string | null = null
+    let synopsis: string | null = null
 
     if (item.blog_post_id && blogMap.has(item.blog_post_id)) {
       const blog = blogMap.get(item.blog_post_id)!
@@ -247,6 +253,9 @@ async function enrichItems(
       category = pl.format
       metadata = `v${pl.version}`
       language = normalizeLang(pl.language)
+      tags = pl.tags ?? []
+      hook = pl.hook ?? null
+      synopsis = pl.synopsis ?? null
       refId = item.pipeline_id
     }
 
@@ -258,6 +267,9 @@ async function enrichItems(
       category,
       metadata,
       language,
+      tags,
+      hook,
+      synopsis,
       is_ghost: isGhost,
       other_playlist_count: refId ? (crossCounts.get(refId) ?? 0) : 0,
     }

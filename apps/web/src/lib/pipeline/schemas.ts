@@ -157,6 +157,7 @@ export const PipelineUpdatePlaylistSchema = z.object({
   category: z.string().max(100).nullable().optional(),
   status: z.enum(PLAYLIST_STATUSES).optional(),
   cover_image_url: z.string().url().nullable().optional(),
+  notes: z.any().nullable().optional(),
 })
 
 export const PipelineAddItemSchema = z.object({

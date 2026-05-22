@@ -553,6 +553,108 @@ export async function getAvailableContent(
   return { ok: true, data: items }
 }
 
+// ─── Notes ───────────────────────────────────────────────────────────────────
+
+export async function updatePlaylistNotes(
+  playlistId: string,
+  siteId: string,
+  notes: Record<string, unknown> | null,
+): Promise<ActionResult<void>> {
+  await requireEditScope()
+
+  const supabase = getSupabaseServiceClient()
+  const { error } = await supabase
+    .from('playlists')
+    .update({ notes, updated_at: new Date().toISOString() })
+    .eq('id', playlistId)
+    .eq('site_id', siteId)
+
+  if (error) return { ok: false, error: error.message }
+  return { ok: true, data: undefined }
+}
+
+// ─── Reuse candidates ────────────────────────────────────────────────────────
+
+export interface ReuseCandidateItem {
+  id: string
+  title: string
+  format: string
+  language: string
+  stage: string
+  tags: string[]
+}
+
+export async function getReuseCandidates(
+  siteId: string,
+  playlistId: string,
+): Promise<ActionResult<ReuseCandidateItem[]>> {
+  await requireEditScope()
+
+  const supabase = getSupabaseServiceClient()
+
+  const [pipelineRes, playlistItemsRes] = await Promise.all([
+    supabase
+      .from('content_pipeline')
+      .select('id, title_pt, title_en, format, stage, language, tags')
+      .eq('site_id', siteId)
+      .eq('is_archived', false)
+      .limit(200),
+    supabase
+      .from('playlist_items')
+      .select('pipeline_id, content_pipeline(tags)')
+      .eq('playlist_id', playlistId)
+      .not('pipeline_id', 'is', null),
+  ])
+
+  const existingIds = new Set(
+    ((playlistItemsRes.data ?? []) as { pipeline_id: string }[]).map(r => r.pipeline_id),
+  )
+
+  const playlistTagSet = new Set<string>()
+  for (const row of (playlistItemsRes.data ?? []) as {
+    pipeline_id: string
+    content_pipeline: { tags: string[] } | null
+  }[]) {
+    for (const tag of row.content_pipeline?.tags ?? []) {
+      playlistTagSet.add(tag)
+    }
+  }
+
+  type PipelineRow = {
+    id: string
+    title_pt: string | null
+    title_en: string | null
+    format: string
+    stage: string
+    language: string
+    tags: string[]
+  }
+
+  const scored: Array<{ item: ReuseCandidateItem; score: number }> = []
+  for (const p of (pipelineRes.data ?? []) as PipelineRow[]) {
+    if (existingIds.has(p.id)) continue
+    if ((p.tags ?? []).length === 0) continue
+
+    const score = p.tags.filter(t => playlistTagSet.has(t)).length
+
+    scored.push({
+      item: {
+        id: p.id,
+        title: p.title_en || p.title_pt || 'Untitled',
+        format: p.format,
+        language: p.language,
+        stage: p.stage,
+        tags: p.tags,
+      },
+      score,
+    })
+  }
+
+  scored.sort((a, b) => b.score - a.score)
+
+  return { ok: true, data: scored.slice(0, 15).map(s => s.item) }
+}
+
 // ─── Cowork API (read-only) ───────────────────────────────────────────────────
 
 export async function getPlaylistWithItems(

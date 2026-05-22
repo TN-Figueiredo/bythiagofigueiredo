@@ -96,6 +96,7 @@ export interface PlaylistRow {
   status: PlaylistStatus
   category: string | null
   viewport_state: { zoom: number; x: number; y: number } | null
+  notes: Record<string, unknown> | null
   created_by: string | null
   created_at: string
   updated_at: string
@@ -134,6 +135,9 @@ export interface PlaylistItemEnriched extends PlaylistItemRow {
   is_ghost: boolean
   other_playlist_count: number
   language: 'pt-br' | 'en' | null
+  tags: string[]
+  hook: string | null
+  synopsis: string | null
 }
 
 export interface PlaylistGraph {
