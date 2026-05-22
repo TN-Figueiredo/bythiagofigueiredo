@@ -90,12 +90,13 @@ export function StoryEditorShell({
   const router = useRouter()
   const storyEditorRef = useRef<StoryEditorHandle>(null)
   const [publishSlides, setPublishSlides] = useState<CardComposition[] | null>(null)
+  const [caption, setCaption] = useState(initialCaption)
   const [isSaving, setIsSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
 
   const postData: SocialPostData = {
     title: sourceContentType ? `Story — ${sourceContentType}` : 'Story manual',
-    description: initialCaption,
+    description: caption,
     logoUrl: brand.logoUrl ?? undefined,
   }
 
@@ -111,7 +112,7 @@ export function StoryEditorShell({
     setIsSaving(true)
     setSaveMessage(null)
     try {
-      const result = await onSaveDraft(postId, slides, { caption: initialCaption })
+      const result = await onSaveDraft(postId, slides, { caption })
       if (result.ok) {
         setSaveMessage({ type: 'ok', text: 'Rascunho salvo!' })
       } else {
@@ -121,7 +122,7 @@ export function StoryEditorShell({
       setIsSaving(false)
       setTimeout(() => setSaveMessage(null), 3000)
     }
-  }, [getLatestSlides, onSaveDraft, postId, initialCaption])
+  }, [getLatestSlides, onSaveDraft, postId, caption])
 
   const handlePublishSuccess = useCallback(() => {
     setPublishSlides(null)
@@ -216,7 +217,7 @@ export function StoryEditorShell({
       {publishSlides && (
         <PublishDialog
           slides={publishSlides}
-          caption={initialCaption}
+          caption={caption}
           onClose={() => setPublishSlides(null)}
           onSuccess={handlePublishSuccess}
           onSaveDraft={boundOnSaveDraft}

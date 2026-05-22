@@ -22,6 +22,9 @@ interface PlaylistToolbarProps {
   onPrint: () => void
   exportButtonRef: React.RefObject<HTMLButtonElement | null>
   onToggleSettings: () => void
+  hasNotes: boolean
+  onOpenPrompt: () => void
+  onRefresh: () => void
 }
 
 export function PlaylistToolbar({
@@ -41,6 +44,9 @@ export function PlaylistToolbar({
   onPrint,
   exportButtonRef,
   onToggleSettings,
+  hasNotes,
+  onOpenPrompt,
+  onRefresh,
 }: PlaylistToolbarProps) {
   const statusColors: Record<PlaylistStatus, string> = {
     draft: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
@@ -117,9 +123,26 @@ export function PlaylistToolbar({
         >
           <ExportIcon />
         </button>
-        <ToolbarButton label="Settings" onClick={onToggleSettings}>
-          <SettingsIcon />
+        <button
+          type="button"
+          onClick={onOpenPrompt}
+          aria-label="Generate prompt"
+          title="Generate prompt"
+          className="rounded-md px-2 py-1 text-xs font-medium text-indigo-400 transition-colors hover:bg-indigo-600/20"
+        >
+          Prompt
+        </button>
+        <ToolbarButton label="Refresh" onClick={onRefresh}>
+          <RefreshIcon />
         </ToolbarButton>
+        <div className="relative">
+          <ToolbarButton label="Settings" onClick={onToggleSettings}>
+            <SettingsIcon />
+          </ToolbarButton>
+          {hasNotes && (
+            <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-indigo-400" />
+          )}
+        </div>
       </div>
     </div>
   )
@@ -229,6 +252,16 @@ function ExportIcon() {
       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
       <polyline points="7 10 12 15 17 10" />
       <line x1="12" y1="15" x2="12" y2="3" />
+    </svg>
+  )
+}
+
+function RefreshIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="23 4 23 10 17 10" />
+      <polyline points="1 20 1 14 7 14" />
+      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
     </svg>
   )
 }

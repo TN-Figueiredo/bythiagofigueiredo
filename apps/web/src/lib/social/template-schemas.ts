@@ -37,10 +37,4 @@ export interface SocialTemplate {
   updated_at: string
 }
 
-export interface TemplateContext {
-  title?: string
-  description?: string
-  cover_image?: string
-  short_url?: string
-  logo?: string
-}
+export type { TemplateContext } from './types'

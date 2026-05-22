@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { CardCompositionSchema } from '@tn-figueiredo/links/qr'
-import type { TemplateContext } from './konva-renderer'
+import type { TemplateContext } from './types'
 
 // ---------------------------------------------------------------------------
 // Story slide — a CardComposition with story-specific constraints

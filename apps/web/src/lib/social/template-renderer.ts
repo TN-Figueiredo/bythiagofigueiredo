@@ -107,25 +107,32 @@ export async function renderTemplate(
 // Multi-slide rendering
 // ---------------------------------------------------------------------------
 
+export interface IndexedBuffer {
+  index: number
+  buffer: Buffer
+}
+
 /**
- * Renders an array of CardCompositions into JPEG Buffers in order.
+ * Renders an array of CardCompositions into JPEG Buffers preserving original indices.
  * Each slide is rendered independently at its own canvas dimensions.
+ * Failed slides are omitted but successful slides keep their original index,
+ * so callers can use `result.index` for correct slide numbering.
  */
 export async function renderMultiSlide(
   slides: CardComposition[],
   context: TemplateContext,
-): Promise<Buffer[]> {
+): Promise<IndexedBuffer[]> {
   const results = await Promise.allSettled(
     slides.map((slide) => {
       const size = { width: slide.canvas.width, height: slide.canvas.height }
       return renderKonva(slide, context, size)
     }),
   )
-  const buffers: Buffer[] = []
+  const buffers: IndexedBuffer[] = []
   for (let idx = 0; idx < results.length; idx++) {
     const r = results[idx]!
     if (r.status === 'fulfilled') {
-      buffers.push(r.value)
+      buffers.push({ index: idx, buffer: r.value })
     } else {
       Sentry.captureException(r.reason, {
         tags: { component: 'template-renderer', action: 'renderMultiSlide', slideIndex: idx },

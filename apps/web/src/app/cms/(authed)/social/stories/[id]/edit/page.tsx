@@ -14,10 +14,20 @@ import {
   uploadVideo,
 } from '../../_actions/editor-actions'
 import { StoryEditorShell } from '../../_components/story-editor-shell'
+import { CardCompositionSchema } from '@tn-figueiredo/links/qr'
 import type { CardComposition } from '@tn-figueiredo/links/qr'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
+
+const PostSchema = z.object({
+  id: z.string(),
+  story_slides: z.array(z.unknown()),
+  status: z.string(),
+  content: z.record(z.unknown()).default({}),
+  source_content_type: z.string().nullable().default(null),
+  site_id: z.string(),
+})
 
 interface Props {
   params: Promise<{ id: string }>
@@ -43,21 +53,17 @@ export default async function StoryEditPage({ params }: Props) {
 
   if (error || !data) notFound()
 
-  const PostSchema = z.object({
-    id: z.string(),
-    story_slides: z.array(z.unknown()),
-    status: z.string(),
-    content: z.record(z.unknown()).default({}),
-    source_content_type: z.string().nullable().default(null),
-    site_id: z.string(),
-  })
   const post = PostSchema.parse(data)
 
   if (post.status !== 'draft' && post.status !== 'failed') {
     notFound()
   }
 
-  const initialSlides = (Array.isArray(post.story_slides) ? post.story_slides : []) as CardComposition[]
+  const rawSlides = Array.isArray(post.story_slides) ? post.story_slides : []
+  const initialSlides: CardComposition[] = rawSlides.flatMap(slide => {
+    const result = CardCompositionSchema.safeParse(slide)
+    return result.success ? [result.data] : []
+  })
   const caption = typeof post.content?.description === 'string' ? post.content.description : undefined
 
   // Site brand

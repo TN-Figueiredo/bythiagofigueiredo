@@ -12,13 +12,47 @@ import type { CardComposition, TextElement, ImageElement, Background } from '@tn
 // jsdom) provides `window`. This must be set before any Stage is created.
 Konva.isBrowser = false
 
-export interface TemplateContext {
-  title?: string
-  description?: string
-  cover_image?: string
-  short_url?: string
-  logo?: string
+const ALLOWED_HOSTS = [
+  'blob.vercel-storage.com',
+]
+
+function isAllowedFetchUrl(raw: string): boolean {
+  let parsed: URL
+  try {
+    parsed = new URL(raw)
+  } catch {
+    return false
+  }
+
+  if (parsed.protocol !== 'https:') {
+    if (!(process.env.NODE_ENV === 'development' && parsed.protocol === 'http:')) {
+      return false
+    }
+  }
+
+  const host = parsed.hostname
+  if (
+    /^(127\.)/.test(host) ||
+    /^(10\.)/.test(host) ||
+    /^(172\.(1[6-9]|2\d|3[01])\.)/.test(host) ||
+    /^(192\.168\.)/.test(host) ||
+    /^(169\.254\.)/.test(host) ||
+    host === '0.0.0.0' ||
+    host === '::1' ||
+    host === 'localhost' ||
+    /^f[cd]/.test(host)
+  ) {
+    return false
+  }
+
+  if (ALLOWED_HOSTS.includes(host)) return true
+  if (host.endsWith('.supabase.co')) return true
+
+  return false
 }
+
+export type { TemplateContext } from './types'
+import type { TemplateContext } from './types'
 
 // ---------------------------------------------------------------------------
 // Placeholder resolution
@@ -108,6 +142,14 @@ async function renderImageBackground(
   height: number,
 ): Promise<void> {
   if (!bg.url) return
+  if (!isAllowedFetchUrl(bg.url)) {
+    Sentry.captureMessage('Blocked disallowed background image URL', {
+      level: 'warning',
+      tags: { component: 'konva-renderer' },
+      extra: { url: bg.url },
+    })
+    return
+  }
   try {
     const response = await fetch(bg.url, { signal: AbortSignal.timeout(8_000) })
     if (!response.ok) throw new Error(`HTTP ${response.status}`)
@@ -163,9 +205,9 @@ function renderTextElement(
     text: el.uppercase ? resolvedContent.toUpperCase() : resolvedContent,
     fontFamily: el.fontFamily,
     fontSize: el.fontSize * Math.min(scaleX, scaleY),
-    fontStyle: el.fontWeight >= 700 ? 'bold' : 'normal',
+    fontStyle: el.fontWeight >= 600 ? 'bold' : 'normal',
     lineHeight: el.lineHeight,
-    letterSpacing: parseFloat(el.letterSpacing) * el.fontSize * Math.min(scaleX, scaleY),
+    letterSpacing: (parseFloat(el.letterSpacing) || 0) * el.fontSize * Math.min(scaleX, scaleY),
     align: el.align,
     fill: el.color,
     opacity: el.opacity,
@@ -198,6 +240,26 @@ async function renderImageElement(
       opacity: el.opacity * 0.3,
       cornerRadius: el.borderRadius * Math.min(scaleX, scaleY),
       rotation: el.rotation,
+    })
+    layer.add(rect)
+    return
+  }
+
+  if (!isAllowedFetchUrl(src)) {
+    Sentry.captureMessage('Blocked disallowed image element URL', {
+      level: 'warning',
+      tags: { component: 'konva-renderer' },
+      extra: { src },
+    })
+    const rect = new Konva.Rect({
+      x: el.x * scaleX,
+      y: el.y * scaleY,
+      width: el.width * scaleX,
+      height: el.height * scaleY,
+      fill: '#333333',
+      opacity: (el.opacity ?? 1) * 0.3,
+      cornerRadius: el.borderRadius * Math.min(scaleX, scaleY),
+      rotation: el.rotation ?? 0,
     })
     layer.add(rect)
     return
@@ -283,6 +345,7 @@ export async function renderTemplate(
           await renderImageElement(layer, el, context, scaleX, scaleY)
           break
         case 'qr':
+          console.warn('[konva-renderer] QR element skipped — server-side QR rendering not supported')
           break
       }
     }

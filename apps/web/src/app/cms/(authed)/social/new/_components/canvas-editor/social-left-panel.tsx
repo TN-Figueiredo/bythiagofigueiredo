@@ -227,7 +227,7 @@ export function SocialLeftPanel({
       {uploadError && (
         <div className="mx-3 mt-2 rounded bg-red-900/50 border border-red-700/50 px-2 py-1.5 text-[10px] text-red-300 flex items-center justify-between">
           <span>{uploadError}</span>
-          <button type="button" onClick={() => setUploadError(null)} className="ml-2 text-red-400 hover:text-red-200">✕</button>
+          <button type="button" onClick={() => setUploadError(null)} className="ml-2 text-red-400 hover:text-red-200" aria-label="Dismiss error">✕</button>
         </div>
       )}
 

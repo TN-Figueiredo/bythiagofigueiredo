@@ -43,7 +43,7 @@ const ITEMS_AND_SECTIONS: CapabilityDomain = {
   description: 'Create, manage, advance content through workflow stages. Update content sections (ideia, roteiro, postprod, etc.).',
   suggest_when: 'Creating, editing, advancing pipeline content, writing sections, managing item lifecycle',
   docs: '/api/pipeline/docs/items-and-sections',
-  endpoint_count: 17,
+  endpoint_count: 18,
   endpoints: [
     { method: 'GET', path: '/api/pipeline/items', summary: 'List items with cursor pagination and filtering', auth: 'read' },
     { method: 'POST', path: '/api/pipeline/items', summary: 'Create single or batch items (max 50)', auth: 'write' },
@@ -62,6 +62,7 @@ const ITEMS_AND_SECTIONS: CapabilityDomain = {
     { method: 'PATCH', path: '/api/pipeline/items/:id/sections/:section', summary: 'Update content section with revision tracking', auth: 'write' },
     { method: 'POST', path: '/api/pipeline/items/bulk', summary: 'Batch operations (advance, archive, tag, update)', auth: 'write' },
     { method: 'POST', path: '/api/pipeline/items/batch-sections', summary: 'Batch update sections across multiple items', auth: 'write' },
+    { method: 'POST', path: '/api/pipeline/items/:id/publish', summary: 'Publish or schedule a graduated blog post (VVS gate)', auth: 'write' },
   ],
 }
 
@@ -162,7 +163,7 @@ const UTILITIES: CapabilityDomain = {
   description: 'Cross-entity search, reference content management, pipeline statistics, and workflow definitions.',
   suggest_when: 'Searching across entities, reading/updating references, checking stats, listing workflows',
   docs: '/api/pipeline/docs/utilities',
-  endpoint_count: 8,
+  endpoint_count: 9,
   endpoints: [
     { method: 'GET', path: '/api/pipeline/context', summary: 'Get all reference content (supports ?group= ?skill= ?format=md)', auth: 'read' },
     { method: 'GET', path: '/api/pipeline/context/:key', summary: 'Get specific reference doc', auth: 'read' },
@@ -172,6 +173,7 @@ const UTILITIES: CapabilityDomain = {
     { method: 'GET', path: '/api/pipeline/stats', summary: 'Aggregate pipeline statistics', auth: 'read' },
     { method: 'GET', path: '/api/pipeline/topics/:code', summary: 'Topic aggregation (items + posts by tag)', auth: 'read' },
     { method: 'GET', path: '/api/pipeline/workflows', summary: 'Get all workflow definitions and checklists', auth: 'read' },
+    { method: 'GET', path: '/api/pipeline/docs/:domain', summary: 'Get Tier 2 documentation guide for a capability domain', auth: 'read' },
   ],
 }
 

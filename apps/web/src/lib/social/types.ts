@@ -14,6 +14,18 @@ import type { z } from 'zod'
 import type { socialConfigSchema } from './schemas'
 
 // ---------------------------------------------------------------------------
+// Template context (shared by konva-renderer, template-renderer, story-types)
+// ---------------------------------------------------------------------------
+
+export interface TemplateContext {
+  title?: string
+  description?: string
+  cover_image?: string
+  short_url?: string
+  logo?: string
+}
+
+// ---------------------------------------------------------------------------
 // Content type & origin
 // ---------------------------------------------------------------------------
 

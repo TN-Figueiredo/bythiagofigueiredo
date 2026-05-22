@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import {
   Undo2, Redo2, ZoomIn, ZoomOut, Maximize,
   Grid3X3, Magnet, Save, Download, Move, Scissors,
@@ -39,14 +39,29 @@ const POSITION_LABELS: Record<PositionAnchor, string> = {
 
 function PositionPopover({ onPosition, onClose }: { onPosition: (p: PositionAnchor) => void; onClose: () => void }) {
   const anchors: PositionAnchor[] = ['tl', 'tc', 'tr', 'cl', 'cc', 'cr', 'bl', 'bc', 'br']
+  const popoverRef = useRef<HTMLDivElement>(null)
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') { e.stopPropagation(); onClose() }
+  }, [onClose])
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) onClose()
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [onClose])
+
   return (
-    <div className="absolute top-full mt-1 left-0 bg-neutral-800 border border-neutral-700 rounded-lg shadow-xl p-2 z-50">
+    <div ref={popoverRef} className="absolute top-full mt-1 left-0 bg-neutral-800 border border-neutral-700 rounded-lg shadow-xl p-2 z-50" role="menu" aria-label="Position on Canvas" onKeyDown={handleKeyDown}>
       <p className="text-[9px] text-neutral-500 uppercase tracking-wider mb-1.5 px-0.5">Position on Canvas</p>
       <div className="grid grid-cols-3 gap-1 w-[84px]">
         {anchors.map(a => (
           <button
             key={a}
             type="button"
+            role="menuitem"
             onClick={() => { onPosition(a); onClose() }}
             className="w-6 h-6 rounded border border-neutral-600 hover:border-blue-500 hover:bg-blue-600/20 flex items-center justify-center transition-colors"
             title={POSITION_LABELS[a]}

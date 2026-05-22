@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
@@ -71,7 +72,8 @@ export default async function NewStoryPage({ searchParams }: Props) {
     content?: { caption?: string },
   ) => {
     'use server'
-    return saveStoryDraft(ctx.siteId, postId, slides, content)
+    const id = z.string().uuid().parse(postId)
+    return saveStoryDraft(ctx.siteId, id, slides, content)
   }
 
   const handlePublishNowWithId = async (
@@ -80,7 +82,8 @@ export default async function NewStoryPage({ searchParams }: Props) {
     content?: { caption?: string },
   ) => {
     'use server'
-    return publishStoryNow(ctx.siteId, postId, slides, content)
+    const id = z.string().uuid().parse(postId)
+    return publishStoryNow(ctx.siteId, id, slides, content)
   }
 
   const handleScheduleWithId = async (
@@ -90,7 +93,8 @@ export default async function NewStoryPage({ searchParams }: Props) {
     content?: { caption?: string },
   ) => {
     'use server'
-    return scheduleStory(ctx.siteId, postId, slides, scheduledAt, content)
+    const id = z.string().uuid().parse(postId)
+    return scheduleStory(ctx.siteId, id, slides, scheduledAt, content)
   }
 
   return (

@@ -81,10 +81,14 @@ export const StoryEditor = forwardRef<StoryEditorHandle, StoryEditorProps>(funct
   const flushActiveSlide = useCallback((): CardComposition[] => {
     const composition = editorRef.current?.getComposition()
     if (!composition) return slidesRef.current
-    const updated = [...slidesRef.current]
-    updated[activeIndexRef.current] = composition
-    setSlides(updated)
-    return updated
+    let result: CardComposition[] = slidesRef.current
+    setSlides(prev => {
+      const updated = [...prev]
+      updated[activeIndexRef.current] = composition
+      result = updated
+      return updated
+    })
+    return result
   }, [])
 
   useImperativeHandle(ref, () => ({
@@ -112,8 +116,13 @@ export const StoryEditor = forwardRef<StoryEditorHandle, StoryEditorProps>(funct
         if (spliced[0] !== undefined) updated.splice(toIndex, 0, spliced[0])
         return updated
       })
+      setActiveIndex(prev => {
+        if (prev === fromIndex) return toIndex
+        if (fromIndex < prev && toIndex >= prev) return prev - 1
+        if (fromIndex > prev && toIndex <= prev) return prev + 1
+        return prev
+      })
     }
-    setActiveIndex(0)
   }, [flushActiveSlide])
 
   const handleDuplicate = useCallback((index: number) => {
@@ -131,7 +140,9 @@ export const StoryEditor = forwardRef<StoryEditorHandle, StoryEditorProps>(funct
   }, [flushActiveSlide])
 
   const handleRemove = useCallback((index: number) => {
-    flushActiveSlide()
+    if (index !== activeIndexRef.current) {
+      flushActiveSlide()
+    }
     setSlides(prev => {
       if (prev.length <= 1) return prev
       const newSlides = removeSlide(prev, index)

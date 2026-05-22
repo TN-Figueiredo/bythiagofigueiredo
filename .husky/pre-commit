@@ -50,3 +50,16 @@ if [ $API_TC_EXIT -ne 0 ]; then
 fi
 
 echo "✅ Tudo verde — testes, build do web e typecheck da API."
+
+# ── Auto-seed if pipeline reference files changed ──
+if git diff --cached --name-only | grep -qE '(docs/cowork-|data/pipeline-docs/|api-registry\.ts|seed-pipeline-reference\.ts)'; then
+  if [ -f apps/web/.env.local ]; then
+    echo "📡 Reference files changed — seeding pipeline references..."
+    npx tsx --env-file apps/web/.env.local scripts/seed-pipeline-reference.ts >/tmp/seed-pipeline.log 2>&1 || {
+      echo "⚠️  Seed failed. Log: /tmp/seed-pipeline.log"
+      echo "    Run manually: npx tsx --env-file apps/web/.env.local scripts/seed-pipeline-reference.ts"
+    }
+  else
+    echo "⚠️  .env.local not found — skipping seed (expected in CI)"
+  fi
+fi

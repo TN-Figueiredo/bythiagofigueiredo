@@ -764,6 +764,9 @@ export function PlaylistCanvas({
         onPrint={handlePrint}
         exportButtonRef={exportBtnRef}
         onToggleSettings={() => setShowSettings(prev => !prev)}
+        hasNotes={false}
+        onOpenPrompt={() => {}}
+        onRefresh={() => router.refresh()}
       />
 
       <FilterBar

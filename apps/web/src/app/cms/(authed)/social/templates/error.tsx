@@ -3,7 +3,7 @@
 import { useEffect } from 'react'
 import * as Sentry from '@sentry/nextjs'
 
-export default function SocialDetailError({ error, reset }: { error: Error; reset: () => void }) {
+export default function TemplatesError({ error, reset }: { error: Error; reset: () => void }) {
   useEffect(() => {
     Sentry.captureException(error)
   }, [error])

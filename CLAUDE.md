@@ -119,6 +119,16 @@ Links: `LINKS_SHORT_DOMAIN` (string)
 Tracking: `GEO_PROVIDER` (string — default `auto`, set `stub` for dev/test)
 Ads: `AD_GOOGLE_ENABLED`, `AD_TRACKING_ENABLED`, `AD_REVENUE_SYNC_ENABLED` (require external Google setup)
 
+## Pipeline Integrity
+
+Ao criar/deletar routes em `apps/web/src/app/api/pipeline/`:
+1. Atualizar `apps/web/src/lib/pipeline/api-registry.ts` — add/remove endpoint entry **e** ajustar `endpoint_count` do domain
+2. Atualizar `apps/web/data/pipeline-docs/cowork-docs-{domain}.md` com documentação do endpoint
+3. Se o JSON schema de uma section (ideia, roteiro, postprod, etc.) mudou, atualizar `docs/cowork-pipeline-reference.md`
+4. Domain novo (raro): criar domain const + `DomainId` + `DOMAIN_LABELS` + `capabilities[]` + doc file — testes guiam o resto
+Tests validam estrutura (registry ↔ route files, endpoint_count, doc files, métodos exportados) mas NÃO conteúdo dos docs.
+Chave permanente: `PIPELINE_COWORK_KEY` em `.env.local`. **Nunca criar/revogar keys.**
+
 ## Environment Variables
 
 ### Web (`apps/web/.env.local`)

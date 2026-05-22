@@ -1,5 +1,5 @@
 'use client'
-import { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from 'react'
+import { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle, useMemo } from 'react'
 import { Stage, Layer, Rect, Image as KonvaImage, Text as KonvaText, Transformer, Group } from 'react-konva'
 import KonvaLib from 'konva'
 import type Konva from 'konva'
@@ -569,6 +569,19 @@ export const SocialCanvas = forwardRef<SocialCanvasHandle, SocialCanvasProps>(fu
   const snapThreshold = 8
   const gridSize = 20
 
+  const gridVerticals = useMemo(() =>
+    Array.from({ length: Math.ceil(composition.canvas.width / gridSize) - 1 }, (_, i) => ({
+      key: `gv${i}`, x: (i + 1) * gridSize,
+    })),
+    [composition.canvas.width, gridSize],
+  )
+  const gridHorizontals = useMemo(() =>
+    Array.from({ length: Math.ceil(composition.canvas.height / gridSize) - 1 }, (_, i) => ({
+      key: `gh${i}`, y: (i + 1) * gridSize,
+    })),
+    [composition.canvas.height, gridSize],
+  )
+
   const snapValue = useCallback((val: number, targets: number[]): number => {
     for (const t of targets) {
       if (Math.abs(val - t) < snapThreshold) return t
@@ -777,6 +790,8 @@ export const SocialCanvas = forwardRef<SocialCanvasHandle, SocialCanvasProps>(fu
   return (
     <div
       className={`relative overflow-hidden ${cursorClass}`}
+      role="img"
+      aria-label={`Story canvas editor — ${composition.canvas.width}×${composition.canvas.height}, ${composition.elements.length} elements`}
       style={{
         width: containerWidth,
         height: containerHeight,
@@ -807,11 +822,11 @@ export const SocialCanvas = forwardRef<SocialCanvasHandle, SocialCanvasProps>(fu
           </Group>
           {interaction.gridVisible && (
             <Group listening={false} opacity={0.15}>
-              {Array.from({ length: Math.ceil(composition.canvas.width / gridSize) - 1 }, (_, i) => (
-                <Rect key={`gv${i}`} x={(i + 1) * gridSize} y={0} width={0.5} height={composition.canvas.height} fill="#888" />
+              {gridVerticals.map(({ key, x }) => (
+                <Rect key={key} x={x} y={0} width={0.5} height={composition.canvas.height} fill="#888" />
               ))}
-              {Array.from({ length: Math.ceil(composition.canvas.height / gridSize) - 1 }, (_, i) => (
-                <Rect key={`gh${i}`} x={0} y={(i + 1) * gridSize} width={composition.canvas.width} height={0.5} fill="#888" />
+              {gridHorizontals.map(({ key, y }) => (
+                <Rect key={key} x={0} y={y} width={composition.canvas.width} height={0.5} fill="#888" />
               ))}
             </Group>
           )}

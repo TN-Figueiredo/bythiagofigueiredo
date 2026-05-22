@@ -5,6 +5,7 @@ import { useCardComposition } from '@tn-figueiredo/links-admin/qr-card-builder/u
 import { useCanvasInteraction } from '@tn-figueiredo/links-admin/qr-card-builder/use-canvas-interaction'
 import { ContextMenu } from '@tn-figueiredo/links-admin/qr-card-builder/context-menu'
 import type { ContextMenuEntry } from '@tn-figueiredo/links-admin/qr-card-builder/context-menu'
+import { toast } from 'sonner'
 import dynamic from 'next/dynamic'
 import type { SocialCanvasHandle } from './social-canvas'
 
@@ -13,19 +14,13 @@ const SocialCanvas = dynamic(
   { ssr: false, loading: () => null },
 )
 
+import type { SocialPostData } from '@/lib/social/story-types'
+export type { SocialPostData }
 import { SocialLeftPanel, SOCIAL_ASPECT_RATIOS } from './social-left-panel'
 import type { SocialAspectRatio } from './social-left-panel'
 import { SocialRightPanel } from './social-right-panel'
 import { SocialToolbar } from './social-toolbar'
 import type { PositionAnchor } from './social-toolbar'
-
-export interface SocialPostData {
-  title: string
-  description?: string
-  coverImageUrl?: string
-  logoUrl?: string
-  shortUrl?: string
-}
 
 export interface SocialCanvasEditorRef {
   getComposition: () => CardComposition
@@ -55,7 +50,7 @@ export interface SocialCanvasEditorProps {
 }
 
 function getDefaultComposition(ratio: SocialAspectRatio): CardComposition {
-  const preset = SOCIAL_ASPECT_RATIOS.find(r => r.name === ratio)!
+  const preset = SOCIAL_ASPECT_RATIOS.find(r => r.name === ratio) ?? SOCIAL_ASPECT_RATIOS[0]
   return {
     canvas: { width: preset.width, height: preset.height, aspectRatio: preset.name },
     version: 1 as const,
@@ -207,10 +202,18 @@ export const SocialCanvasEditor = forwardRef<SocialCanvasEditorRef, SocialCanvas
       },
     }), [comp])
 
-    // Notify parent of composition changes
+    const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const onCompositionChangeRef = useRef(onCompositionChange)
+    onCompositionChangeRef.current = onCompositionChange
     useEffect(() => {
-      onCompositionChange?.(comp.composition)
-    }, [comp.composition, onCompositionChange])
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
+      debounceTimerRef.current = setTimeout(() => {
+        onCompositionChangeRef.current?.(comp.composition)
+      }, 300)
+      return () => {
+        if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
+      }
+    }, [comp.composition])
 
     // Keyboard shortcuts (same as QR Card Builder)
     const compRef = useRef(comp)
@@ -299,7 +302,11 @@ export const SocialCanvasEditor = forwardRef<SocialCanvasEditorRef, SocialCanvas
       input.accept = 'image/*'
       input.onchange = async () => {
         const file = input.files?.[0]
-        if (!file || file.size > 5 * 1024 * 1024) return
+        if (!file) return
+        if (file.size > 5 * 1024 * 1024) {
+          toast.error('Imagem excede o limite de 5 MB.')
+          return
+        }
         try {
           const remoteUrl = await onImageUpload(file)
           if (remoteUrl) comp.updateElement(elementId, { src: remoteUrl })
@@ -316,7 +323,11 @@ export const SocialCanvasEditor = forwardRef<SocialCanvasEditorRef, SocialCanvas
       input.accept = 'video/mp4,video/webm,video/quicktime'
       input.onchange = async () => {
         const file = input.files?.[0]
-        if (!file || file.size > 50 * 1024 * 1024) return
+        if (!file) return
+        if (file.size > 50 * 1024 * 1024) {
+          toast.error('Video excede o limite de 50 MB.')
+          return
+        }
         try {
           const remoteUrl = await onVideoUpload(file)
           if (remoteUrl) comp.updateElement(elementId, { src: remoteUrl })
@@ -453,7 +464,7 @@ export const SocialCanvasEditor = forwardRef<SocialCanvasEditorRef, SocialCanvas
       [videoElementIds, pausedVideos],
     )
 
-    const currentPreset = SOCIAL_ASPECT_RATIOS.find(r => r.name === aspectRatio)!
+    const currentPreset = SOCIAL_ASPECT_RATIOS.find(r => r.name === aspectRatio) ?? SOCIAL_ASPECT_RATIOS[0]
 
     if (viewportTooSmall) {
       return (
@@ -536,7 +547,7 @@ export const SocialCanvasEditor = forwardRef<SocialCanvasEditorRef, SocialCanvas
         </div>
 
         {/* Status bar */}
-        <div className="h-[22px] bg-neutral-900 border-t border-neutral-800 flex items-center px-3 gap-4 text-[10px] text-neutral-500">
+        <div className="h-[22px] bg-neutral-900 border-t border-neutral-800 flex items-center px-3 gap-4 text-[10px] text-neutral-500" role="status">
           <span>{comp.composition.canvas.width}&times;{comp.composition.canvas.height}</span>
           <span>{currentPreset.label}</span>
           <span>{comp.composition.elements.length} elements</span>
@@ -544,7 +555,7 @@ export const SocialCanvasEditor = forwardRef<SocialCanvasEditorRef, SocialCanvas
 
         {/* Save as Template dialog */}
         {showSaveTemplate && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={e => { if (e.target === e.currentTarget) setShowSaveTemplate(false) }}>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" role="dialog" aria-modal="true" aria-label="Save as Template" onClick={e => { if (e.target === e.currentTarget) setShowSaveTemplate(false) }} onKeyDown={e => { if (e.key === 'Escape') setShowSaveTemplate(false) }}>
             <div className="bg-neutral-900 border border-neutral-700 rounded-xl p-6 w-[400px]">
               <h3 className="text-lg font-semibold text-neutral-200 mb-4">Save as Template</h3>
               <input
