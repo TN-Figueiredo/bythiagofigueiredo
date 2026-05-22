@@ -96,20 +96,19 @@ export const SUBSTATUS_BADGES: Record<string, { color: string; labelKey: keyof B
 
 export function buildUnifiedLanes(
   pipelineItems: PipelineCardItem[],
-  _posts: PostCard[],
 ): UnifiedLanes {
   return {
     idea: pipelineItems.filter((i) => i.stage === 'idea'),
     draft: pipelineItems.filter((i) => i.stage === 'draft'),
     ready: pipelineItems.filter((i) => i.stage === 'ready'),
-    scheduled: pipelineItems.filter((i) => i.stage === 'ready' && i.blog_post_id !== null),
-    published: pipelineItems.filter((i) => !i.is_archived && i.blog_post_id !== null),
+    scheduled: pipelineItems.filter((i) => i.stage === 'scheduled'),
+    published: pipelineItems.filter((i) => i.stage === 'published'),
   }
 }
 
 export function sortPipelineLane(
   items: PipelineCardItem[],
-  _lane: 'idea' | 'draft' | 'ready',
+  _lane: LaneId,
 ): PipelineCardItem[] {
   return [...items].sort((a, b) => {
     const aHasOrder = a.sort_order !== 0
@@ -121,22 +120,11 @@ export function sortPipelineLane(
   })
 }
 
-export function sortBlogLane(posts: PostCard[], lane: 'scheduled' | 'published'): PostCard[] {
-  return [...posts].sort((a, b) => {
-    switch (lane) {
-      case 'scheduled':
-        return new Date(a.scheduledFor ?? a.createdAt).getTime() - new Date(b.scheduledFor ?? b.createdAt).getTime()
-      case 'published':
-        return new Date(b.publishedAt ?? b.createdAt).getTime() - new Date(a.publishedAt ?? a.createdAt).getTime()
-    }
-  })
-}
-
-export function isPipelineLane(lane: LaneId): lane is 'idea' | 'draft' | 'ready' {
+export function isEditableLane(lane: LaneId): lane is 'idea' | 'draft' | 'ready' {
   return lane === 'idea' || lane === 'draft' || lane === 'ready'
 }
 
-export function isBlogLane(lane: LaneId): lane is 'scheduled' | 'published' {
+export function isReadOnlyLane(lane: LaneId): lane is 'scheduled' | 'published' {
   return lane === 'scheduled' || lane === 'published'
 }
 

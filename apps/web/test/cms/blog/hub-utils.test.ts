@@ -4,9 +4,8 @@ import {
   SUBSTATUS_BADGES,
   buildUnifiedLanes,
   sortPipelineLane,
-  sortBlogLane,
 } from '@/app/cms/(authed)/blog/_hub/hub-utils'
-import type { PipelineCardItem, PostCard } from '@/app/cms/(authed)/blog/_hub/hub-types'
+import type { PipelineCardItem } from '@/app/cms/(authed)/blog/_hub/hub-types'
 
 describe('LANE_DEFS', () => {
   it('has 5 lanes in workflow order', () => {
@@ -48,36 +47,26 @@ describe('buildUnifiedLanes', () => {
     ...overrides,
   })
 
-  const makePostCard = (overrides: Partial<PostCard>): PostCard => ({
-    id: 'b1', displayId: '#BP-001', title: 'Test Post',
-    status: 'idea', tagId: null, tagName: null, tagColor: null,
-    tagNameTranslations: null, locales: ['pt-BR'], readingTimeMin: null,
-    createdAt: '2026-01-01', updatedAt: '2026-01-01', publishedAt: null,
-    scheduledFor: null, slotDate: null, snippet: null, coverImageUrl: null,
-    excerpt: null,
-    ...overrides,
-  })
-
   it('routes pipeline items to correct lanes', () => {
     const items = [
       makePipelineItem({ id: 'p1', stage: 'idea' }),
       makePipelineItem({ id: 'p2', stage: 'draft' }),
       makePipelineItem({ id: 'p3', stage: 'ready' }),
     ]
-    const lanes = buildUnifiedLanes(items, [])
+    const lanes = buildUnifiedLanes(items)
     expect(lanes.idea).toHaveLength(1)
     expect(lanes.draft).toHaveLength(1)
     expect(lanes.ready).toHaveLength(1)
   })
 
-  it('routes pipeline items with blog_post_id to scheduled/published lanes', () => {
+  it('routes scheduled and published stages to their lanes', () => {
     const items = [
-      makePipelineItem({ id: 'p1', stage: 'ready', blog_post_id: 'bp-1' }),
-      makePipelineItem({ id: 'p2', stage: 'idea', blog_post_id: 'bp-2' }),
+      makePipelineItem({ id: 'p1', stage: 'scheduled', blog_post_id: 'bp-1' }),
+      makePipelineItem({ id: 'p2', stage: 'published', blog_post_id: 'bp-2' }),
     ]
-    const lanes = buildUnifiedLanes(items, [])
+    const lanes = buildUnifiedLanes(items)
     expect(lanes.scheduled).toHaveLength(1)
-    expect(lanes.published).toHaveLength(2)
+    expect(lanes.published).toHaveLength(1)
   })
 })
 
@@ -102,31 +91,30 @@ describe('sortPipelineLane', () => {
   })
 })
 
-describe('sortBlogLane', () => {
-  const makePost = (id: string, fields: Partial<PostCard>) => ({
-    id, displayId: '#BP-001', title: 'Test', status: 'scheduled' as const,
-    tagId: null, tagName: null, tagColor: null, tagNameTranslations: null,
-    locales: ['pt-BR'], readingTimeMin: null, createdAt: '2026-01-01',
-    updatedAt: '2026-01-01', publishedAt: null, scheduledFor: null,
-    slotDate: null, snippet: null, coverImageUrl: null, excerpt: null,
-    ...fields,
+describe('sortPipelineLane — scheduled/published', () => {
+  const makeItem = (id: string, priority: number, created_at: string, sort_order = 0) => ({
+    id, code: '', title_pt: null, title_en: null, format: 'blog_post',
+    stage: 'scheduled' as const, language: 'pt', priority, hook: null, body_content: null,
+    tags: [], production_checklist: [], updated_at: created_at, created_at,
+    blog_post_id: null, cover_image_url: null, validation_score: 50,
+    dependencies: [], sort_order, version: 1, is_archived: false,
   })
 
-  it('sorts scheduled lane by scheduledFor ASC', () => {
-    const posts = [
-      makePost('a', { scheduledFor: '2026-02-01' }),
-      makePost('b', { scheduledFor: '2026-01-15' }),
+  it('sorts scheduled items by priority then created_at', () => {
+    const items = [
+      makeItem('a', 3, '2026-02-01'),
+      makeItem('b', 5, '2026-01-15'),
     ]
-    const sorted = sortBlogLane(posts, 'scheduled')
-    expect(sorted[0]!.id).toBe('b')
+    const sorted = sortPipelineLane(items, 'scheduled')
+    expect(sorted[0]!.id).toBe('b') // higher priority
   })
 
-  it('sorts published lane by publishedAt DESC', () => {
-    const posts = [
-      makePost('a', { status: 'published', publishedAt: '2026-01-01' }),
-      makePost('b', { status: 'published', publishedAt: '2026-01-15' }),
-    ]
-    const sorted = sortBlogLane(posts, 'published')
-    expect(sorted[0]!.id).toBe('b')
+  it('sorts published items by priority then created_at', () => {
+    const items = [
+      makeItem('a', 3, '2026-01-01'),
+      makeItem('b', 3, '2026-01-15'),
+    ].map(i => ({ ...i, stage: 'published' as const }))
+    const sorted = sortPipelineLane(items, 'published')
+    expect(sorted[0]!.id).toBe('a') // earlier created_at
   })
 })

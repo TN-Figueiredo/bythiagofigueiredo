@@ -1,6 +1,9 @@
 import type { Format } from './schemas'
 import { FORMAT_METADATA_SCHEMAS } from './schemas'
 
+/** Minimum VVS score required to publish a pipeline item */
+export const VVS_PUBLISH_THRESHOLD = 80
+
 export interface ValidationScore {
   overall: number
   breakdown: {

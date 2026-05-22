@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import type { RendererProps } from '../section-content'
@@ -233,6 +233,8 @@ function EndScreenContent({ rawContent, text, isEditing, onTextChange }: {
   return (
     <div className="p-3 rounded-md text-[11px]"
       style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)', color: 'var(--gem-muted)' }}
+      role={isEditing ? 'textbox' : undefined}
+      aria-label="End screen"
       contentEditable={isEditing}
       suppressContentEditableWarning
       spellCheck={false}
@@ -253,7 +255,15 @@ function BlogPublishPanel({ pipelineItemId, vvsScore }: BlogPublishPanelProps) {
   const [scheduledFor, setScheduledFor] = useState('')
   const [isPublishing, setIsPublishing] = useState(false)
 
+  // Compute min datetime for schedule input (prevents selecting past dates)
+  const minDateTime = useMemo(() => {
+    const now = new Date()
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset())
+    return now.toISOString().slice(0, 16)
+  }, [])
+
   async function handleScheduleConfirm() {
+    if (isPublishing) return
     setShowSchedule(false)
     setIsPublishing(true)
     try {
@@ -276,6 +286,7 @@ function BlogPublishPanel({ pipelineItemId, vvsScore }: BlogPublishPanelProps) {
   }
 
   async function handlePublishNow() {
+    if (isPublishing) return
     setIsPublishing(true)
     try {
       const { materializeBlogPost } = await import('@/lib/pipeline/materialize-blog-client')
@@ -340,6 +351,7 @@ function BlogPublishPanel({ pipelineItemId, vvsScore }: BlogPublishPanelProps) {
           <input
             type="datetime-local"
             value={scheduledFor}
+            min={minDateTime}
             onChange={(e) => setScheduledFor(e.target.value)}
             className="w-full text-[11px] p-2 rounded-md mb-2"
             style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)', color: 'var(--gem-text)' }}
@@ -384,6 +396,8 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
               <div
                 className="text-[14px] font-semibold leading-snug flex-1"
                 style={{ color: 'var(--gem-text)' }}
+                role={isEditing ? 'textbox' : undefined}
+                aria-label="Título principal"
                 contentEditable={isEditing}
                 suppressContentEditableWarning
                 spellCheck={false}
@@ -415,6 +429,8 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
                     </span>
                     <span
                       className="flex-1"
+                      role={isEditing ? 'textbox' : undefined}
+                      aria-label={`Alternativa de título ${i + 1}`}
                       contentEditable={isEditing}
                       suppressContentEditableWarning
                       spellCheck={false}
@@ -455,6 +471,8 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
                 color: 'var(--gem-muted)',
                 minHeight: '3rem',
               }}
+              role="textbox"
+              aria-label="Descrição"
               contentEditable
               suppressContentEditableWarning
               spellCheck={false}
@@ -514,6 +532,8 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
                     {card.timestamp}
                   </span>
                   <span className="text-[11px] flex-1" style={{ color: 'var(--gem-muted)' }}
+                    role={isEditing ? 'textbox' : undefined}
+                    aria-label={`Texto do card ${card.timestamp}`}
                     contentEditable={isEditing}
                     suppressContentEditableWarning
                     spellCheck={false}

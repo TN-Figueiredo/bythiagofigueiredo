@@ -1,5 +1,6 @@
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { prepareBlogTranslationPatch, type BlogContentPatch } from './draft-to-blog'
+import { VVS_PUBLISH_THRESHOLD } from './validation'
 
 interface MaterializeInput {
   pipelineItemId: string
@@ -15,14 +16,12 @@ type MaterializeResult =
   | { ok: true; blogPostId: string }
   | { ok: false; code: string; message: string }
 
-const VVS_THRESHOLD = 80
-
 export async function materializeBlogPost(input: MaterializeInput): Promise<MaterializeResult> {
-  if (input.vvsScore < VVS_THRESHOLD) {
+  if (input.vvsScore < VVS_PUBLISH_THRESHOLD) {
     return {
       ok: false,
       code: 'VVS_BELOW_THRESHOLD',
-      message: `VVS score ${input.vvsScore} is below required ${VVS_THRESHOLD}`,
+      message: `VVS score ${input.vvsScore} is below required ${VVS_PUBLISH_THRESHOLD}`,
     }
   }
 
@@ -41,6 +40,12 @@ export async function materializeBlogPost(input: MaterializeInput): Promise<Mate
 
   if (fetchError || !item) {
     return { ok: false, code: 'ITEM_NOT_FOUND', message: 'Pipeline item not found' }
+  }
+
+  // Auth guard: verify the pipeline item belongs to the caller's site
+  // (getSupabaseServiceClient() bypasses RLS — this scope check is mandatory)
+  if (item.site_id !== input.siteId) {
+    return { ok: false, code: 'SITE_MISMATCH', message: 'Pipeline item does not belong to the requested site' }
   }
 
   // Determine active locales
@@ -136,10 +141,14 @@ export async function materializeBlogPost(input: MaterializeInput): Promise<Mate
     revStamps[`materialized_rev_${langSuffix}`] = draftRev
   }
 
-  await supabase
+  const { error: stampError } = await supabase
     .from('content_pipeline')
     .update(revStamps)
     .eq('id', input.pipelineItemId)
+
+  if (stampError) {
+    return { ok: false, code: 'PIPELINE_STAMP_FAILED', message: `Failed to stamp pipeline item: ${stampError.message}` }
+  }
 
   return { ok: true, blogPostId: blogPostId! }
 }

@@ -70,6 +70,7 @@ const baseInput = {
 function makePipelineItem(overrides: Record<string, unknown> = {}) {
   return {
     id: 'item-1',
+    site_id: 'site-1',
     sections: { draft_pt: { content: '# hello', rev: 1 } },
     language: 'pt-br',
     category: 'stories',
@@ -120,6 +121,13 @@ describe('materializeBlogPost', () => {
     const result = await materializeBlogPost(baseInput)
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.code).toBe('ITEM_NOT_FOUND')
+  })
+
+  it('returns SITE_MISMATCH when pipeline item belongs to a different site', async () => {
+    enqueue('content_pipeline', makeChain({ data: makePipelineItem({ site_id: 'other-site' }), error: null }))
+    const result = await materializeBlogPost(baseInput)
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.code).toBe('SITE_MISMATCH')
   })
 
   it('returns error when prepareBlogTranslationPatch returns null', async () => {
@@ -188,6 +196,22 @@ describe('materializeBlogPost', () => {
     const result = await materializeBlogPost(baseInput)
     expect(result.ok).toBe(true)
     expect(vi.mocked(prepareBlogTranslationPatch)).toHaveBeenCalledTimes(2)
+  })
+
+  it('returns error when final pipeline stamp update fails', async () => {
+    enqueue('content_pipeline', makeChain({ data: makePipelineItem(), error: null }))
+    vi.mocked(prepareBlogTranslationPatch).mockResolvedValueOnce(minimalPatch)
+
+    // blog_posts update (existing post)
+    enqueue('blog_posts', makeChain({ data: null, error: null }))
+    // blog_translations upsert
+    enqueue('blog_translations', makeChain({ data: null, error: null }))
+    // content_pipeline stamp update — fails
+    enqueue('content_pipeline', makeChain({ data: null, error: { message: 'DB connection lost' } }))
+
+    const result = await materializeBlogPost(baseInput)
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.code).toBe('PIPELINE_STAMP_FAILED')
   })
 
   it('handles scheduled stage with scheduledFor date', async () => {

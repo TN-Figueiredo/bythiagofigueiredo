@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { authenticateWrite, pipelineSuccess, pipelineError, parseBody } from '@/lib/pipeline/helpers'
 import { UUID_REGEX } from '@/lib/pipeline/auth'
+import { VVS_PUBLISH_THRESHOLD } from '@/lib/pipeline/validation'
 import { z } from 'zod'
 
 const PublishBodySchema = z.object({
@@ -30,8 +31,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { targetStage, scheduledFor, vvsScore } = parsed.data
 
-  if (vvsScore < 80) {
-    return pipelineError('VALIDATION_ERROR', 'VVS score must be at least 80 to publish', 422, auth)
+  if (vvsScore < VVS_PUBLISH_THRESHOLD) {
+    return pipelineError('VALIDATION_ERROR', `VVS score must be at least ${VVS_PUBLISH_THRESHOLD} to publish`, 422, auth)
   }
   if (targetStage === 'scheduled' && !scheduledFor) {
     return pipelineError('VALIDATION_ERROR', 'scheduledFor is required for scheduled stage', 422, auth)
@@ -97,20 +98,31 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return pipelineError('DB_ERROR', `Failed to update blog post: ${updateError.message}`, 500, auth)
   }
 
-  // Advance pipeline item stage
-  await supabase
+  // Advance pipeline item stage (optimistic concurrency via version guard)
+  const { error: stageError, count: stageCount } = await supabase
     .from('content_pipeline')
     .update({ stage: targetStage, version: item.version + 1 })
     .eq('id', id)
     .eq('version', item.version)
 
-  await supabase.from('content_pipeline_history').insert({
+  if (stageError) {
+    return pipelineError('DB_ERROR', `Failed to advance pipeline stage: ${stageError.message}`, 500, auth)
+  }
+  if (stageCount === 0) {
+    return pipelineError('VERSION_CONFLICT', 'Pipeline item was modified concurrently. Reload and try again.', 409, auth)
+  }
+
+  // Record history (best-effort — log but don't fail the request)
+  const { error: historyError } = await supabase.from('content_pipeline_history').insert({
     pipeline_id: id,
     event_type: 'stage_changed',
     from_value: item.format,
     to_value: targetStage,
     changed_by: null,
   })
+  if (historyError) {
+    console.error('[publish] Failed to insert pipeline history:', historyError.message)
+  }
 
   return pipelineSuccess({ ok: true, targetStage, blogPostId: item.blog_post_id }, 200, auth)
 }

@@ -100,7 +100,7 @@ export interface PipelineCardItem {
   title_pt: string | null
   title_en: string | null
   format: string
-  stage: 'idea' | 'draft' | 'ready' | 'archived'
+  stage: 'idea' | 'draft' | 'ready' | 'scheduled' | 'published' | 'archived'
   language: string
   priority: number
   hook: string | null
@@ -130,5 +130,5 @@ export interface LaneDef {
   id: LaneId
   label: string
   color: string
-  dataSource: 'pipeline' | 'blog'
+  dataSource: 'pipeline'
 }

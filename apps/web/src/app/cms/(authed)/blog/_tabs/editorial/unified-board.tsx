@@ -24,9 +24,8 @@ import {
   LANE_DEFS,
   buildUnifiedLanes,
   sortPipelineLane,
-  sortBlogLane,
-  isPipelineLane,
-  isBlogLane,
+  isEditableLane,
+  isReadOnlyLane,
   isValidTransition,
 } from '../../_hub/hub-utils'
 import { KanbanLane } from './kanban-lane'
@@ -145,21 +144,19 @@ export function UnifiedBoard({
   const [returnConfirmPostId, setReturnConfirmPostId] = useState<string | null>(null)
   const returnTriggerRef = useRef<string | null>(null)
 
-  const lanes = useMemo(() => {
-    const raw = buildUnifiedLanes(optPipeline, optPosts)
+  const { lanes, totalPublished } = useMemo(() => {
+    const raw = buildUnifiedLanes(optPipeline)
     return {
-      idea: sortPipelineLane(raw.idea, 'idea'),
-      draft: sortPipelineLane(raw.draft, 'draft'),
-      ready: sortPipelineLane(raw.ready, 'ready'),
-      scheduled: raw.scheduled,
-      published: raw.published.slice(0, publishedPage * PUBLISHED_PAGE_SIZE),
+      lanes: {
+        idea: sortPipelineLane(raw.idea, 'idea'),
+        draft: sortPipelineLane(raw.draft, 'draft'),
+        ready: sortPipelineLane(raw.ready, 'ready'),
+        scheduled: sortPipelineLane(raw.scheduled, 'scheduled'),
+        published: sortPipelineLane(raw.published, 'published').slice(0, publishedPage * PUBLISHED_PAGE_SIZE),
+      },
+      totalPublished: raw.published.length,
     }
-  }, [optPipeline, optPosts, publishedPage])
-
-  const totalPublished = useMemo(
-    () => buildUnifiedLanes(optPipeline, optPosts).published.length,
-    [optPipeline, optPosts],
-  )
+  }, [optPipeline, publishedPage])
 
   const itemLaneMap = useMemo(() => {
     const map = new Map<string, LaneId>()
@@ -192,7 +189,7 @@ export function UnifiedBoard({
       const id = String(event.active.id)
       setActiveId(id)
       const lane = findItemLane(id)
-      setActiveType(lane && isPipelineLane(lane) ? 'pipeline' : 'post')
+      setActiveType(lane && isEditableLane(lane) ? 'pipeline' : 'post')
     },
     [findItemLane],
   )
@@ -211,17 +208,17 @@ export function UnifiedBoard({
 
       if (!fromLane || !toLane || fromLane === toLane) return
 
-      if (isPipelineLane(fromLane) && isBlogLane(toLane)) {
+      if (isEditableLane(fromLane) && isReadOnlyLane(toLane)) {
         toast.error(strings?.editorial?.dndPromoteHint ?? "Use 'Promote to Blog' to create a post.")
         return
       }
-      if (isBlogLane(fromLane) && isPipelineLane(toLane)) {
+      if (isReadOnlyLane(fromLane) && isEditableLane(toLane)) {
         toast.error(strings?.editorial?.dndReturnHint ?? "Use 'Return to Pipeline' from the card menu.")
         return
       }
 
       // Pipeline-to-pipeline move
-      if (isPipelineLane(fromLane) && isPipelineLane(toLane)) {
+      if (isEditableLane(fromLane) && isEditableLane(toLane)) {
         const item = optPipeline.find((i) => i.id === itemId)
         if (!item) return
         startTransition(async () => {
@@ -236,7 +233,7 @@ export function UnifiedBoard({
       }
 
       // Blog-to-blog move
-      if (isBlogLane(fromLane) && isBlogLane(toLane)) {
+      if (isReadOnlyLane(fromLane) && isReadOnlyLane(toLane)) {
         const card = optPosts.find((p) => p.id === itemId)
         if (!card) return
 
@@ -423,7 +420,7 @@ export function UnifiedBoard({
       })
       const lane = findItemLane(id)
       if (lane) {
-        setSelectionType(isPipelineLane(lane) ? 'pipeline' : 'post')
+        setSelectionType(isEditableLane(lane) ? 'pipeline' : 'post')
       }
     },
     [findItemLane],
@@ -442,8 +439,8 @@ export function UnifiedBoard({
   const isInvalidDrop = useCallback(
     (targetLane: LaneId): boolean => {
       if (!activeType) return false
-      if (activeType === 'pipeline' && isBlogLane(targetLane)) return true
-      if (activeType === 'post' && isPipelineLane(targetLane)) return true
+      if (activeType === 'pipeline' && isReadOnlyLane(targetLane)) return true
+      if (activeType === 'post' && isEditableLane(targetLane)) return true
       return false
     },
     [activeType],
@@ -497,10 +494,10 @@ export function UnifiedBoard({
       const fromLane = findItemLane(String(active.id))
       const toLane = resolveTargetLane(String(over.id))
       if (fromLane && toLane && fromLane !== toLane) {
-        if (isPipelineLane(fromLane) && isBlogLane(toLane)) {
+        if (isEditableLane(fromLane) && isReadOnlyLane(toLane)) {
           return strings?.editorial?.dndInvalidPipelineToBlog ?? 'Cannot drop here. Use Promote to create a post.'
         }
-        if (isBlogLane(fromLane) && isPipelineLane(toLane)) {
+        if (isReadOnlyLane(fromLane) && isEditableLane(toLane)) {
           return strings?.editorial?.dndInvalidBlogToPipeline ?? 'Cannot drop here. Use Return to Pipeline from the card menu.'
         }
       }

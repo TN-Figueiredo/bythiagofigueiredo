@@ -208,9 +208,13 @@ describe('expanded blog fields', () => {
     expect(result?.colophon).toBe('Creditos finais')
   })
 
-  it('extracts tag_id and cover_image_url', async () => {
+  it('extracts tag_id from draft section', async () => {
     const result = await prepareBlogTranslationPatch(sections, 'pt')
     expect(result?.tag_id).toBe('550e8400-e29b-41d4-a716-446655440000')
-    expect(result?.cover_image_url).toBe('https://example.com/cover.jpg')
+  })
+
+  it('does not extract cover_image_url from draft (sourced from pipeline item)', async () => {
+    const result = await prepareBlogTranslationPatch(sections, 'pt')
+    expect(result?.cover_image_url).toBeNull()
   })
 })

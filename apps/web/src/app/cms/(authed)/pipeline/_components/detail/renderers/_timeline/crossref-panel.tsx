@@ -12,7 +12,7 @@ interface CrossRefPanelProps {
 function CrossRefPanelRaw({ data }: CrossRefPanelProps) {
   const [open, setOpen] = useState(false)
 
-  if (!data || data.beats.length === 0) return null
+  if (!data || !data.beats || data.beats.length === 0) return null
 
   return (
     <div className="rounded-md overflow-hidden" style={{ background: TH.surface, border: `1px solid ${TH.border}` }}>
@@ -34,12 +34,12 @@ function CrossRefPanelRaw({ data }: CrossRefPanelProps) {
           {data.beats.length} beats · SRT
         </span>
         <div className="flex-1" />
-        {data.divergences.length > 0 && (
+        {(data.divergences ?? []).length > 0 && (
           <span
             className={MONO_XS_CLS}
             style={{ fontSize: 8, color: '#E67E22', background: 'rgba(230,126,34,0.12)', padding: '1px 6px', borderRadius: 3 }}
           >
-            {data.divergences.length} divergência{data.divergences.length > 1 ? 's' : ''}
+            {(data.divergences ?? []).length} divergência{(data.divergences ?? []).length > 1 ? 's' : ''}
           </span>
         )}
       </button>
@@ -82,7 +82,7 @@ function CrossRefPanelRaw({ data }: CrossRefPanelProps) {
               ))}
             </tbody>
           </table>
-          {data.divergences.length > 0 && (
+          {(data.divergences ?? []).length > 0 && (
             <div
               className="mt-3 p-2.5 rounded"
               style={{ background: 'rgba(230,78,60,0.06)', border: '1px solid rgba(230,78,60,0.15)' }}
@@ -90,7 +90,7 @@ function CrossRefPanelRaw({ data }: CrossRefPanelProps) {
               <div className={MONO_XS_CLS} style={{ fontSize: 8, color: '#E74C3C', marginBottom: 6 }}>
                 DIVERGÊNCIAS IDENTIFICADAS
               </div>
-              {data.divergences.map((d, i) => (
+              {(data.divergences ?? []).map((d, i) => (
                 <div key={i} className="text-[11px] leading-relaxed mb-0.5" style={{ color: '#E67E22' }}>
                   • {d}
                 </div>

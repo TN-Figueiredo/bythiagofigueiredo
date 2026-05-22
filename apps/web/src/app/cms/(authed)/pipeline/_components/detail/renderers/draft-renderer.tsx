@@ -90,18 +90,21 @@ function useSlugValidation(slug: string, blogPostId: string | null) {
       setConflict(false)
       return
     }
+    const controller = new AbortController()
     const timer = setTimeout(async () => {
       try {
         const params = new URLSearchParams({ slug })
         if (blogPostId) params.set('exclude_post_id', blogPostId)
-        const res = await fetch(`/api/blog/check-slug?${params.toString()}`)
+        const res = await fetch(`/api/blog/check-slug?${params.toString()}`, {
+          signal: controller.signal,
+        })
         const { exists } = await res.json() as { exists: boolean }
         setConflict(exists)
       } catch {
-        setConflict(false)
+        // Aborted or network error — ignore
       }
     }, 500)
-    return () => clearTimeout(timer)
+    return () => { clearTimeout(timer); controller.abort() }
   }, [slug, blogPostId])
 
   return conflict
@@ -223,6 +226,7 @@ export function DraftRenderer({ content, isEditing, lang, format, onContentChang
           <input
             className="w-full text-2xl font-bold bg-transparent border-none outline-none text-[var(--foreground)] placeholder:text-[var(--muted)]"
             placeholder="Título do post..."
+            aria-label="Post title"
             value={draft.title}
             onChange={e => updateField('title', e.target.value)}
             readOnly={!isEditing}
@@ -232,6 +236,7 @@ export function DraftRenderer({ content, isEditing, lang, format, onContentChang
             <input
               className="bg-transparent border-b border-[var(--border)] outline-none text-[var(--muted)] flex-1"
               placeholder="slug-do-post"
+              aria-label="URL slug"
               value={draft.slug}
               onChange={e => updateField('slug', slugify(e.target.value))}
               onBlur={() => {
@@ -244,6 +249,7 @@ export function DraftRenderer({ content, isEditing, lang, format, onContentChang
           <textarea
             className="w-full text-sm italic text-[var(--muted)] bg-transparent border-l-2 border-amber-500/20 pl-3 resize-none outline-none"
             placeholder="Resumo do post (excerpt)..."
+            aria-label="Post excerpt"
             rows={2}
             value={draft.excerpt}
             onChange={e => updateField('excerpt', e.target.value)}

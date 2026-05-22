@@ -492,13 +492,11 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
 
   async function handleRepublish() {
     setIsRepublishing(true)
-    const { materializeBlogPost } = await import('@/lib/pipeline/materialize-blog')
+    const { materializeBlogPost } = await import('@/lib/pipeline/materialize-blog-client')
     const result = await materializeBlogPost({
       pipelineItemId: item.id,
       targetStage: 'published',
       scheduledFor: null,
-      userId: '',
-      siteId: item.site_id,
       vvsScore: item.validation_score,
     })
     setIsRepublishing(false)

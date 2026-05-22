@@ -29,7 +29,7 @@ function SpeedBadge({ vel, velColor }: { vel: string; velColor: string }) {
 function SpeedRampsPanelRaw({ data }: SpeedRampsPanelProps) {
   const [open, setOpen] = useState(false)
 
-  if (!data || data.sections.length === 0) return null
+  if (!data || !data.sections || data.sections.length === 0) return null
 
   return (
     <div className="rounded-md overflow-hidden" style={{ background: TH.surface, border: `1px solid ${TH.border}` }}>
