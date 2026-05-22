@@ -20,6 +20,7 @@ Arquiteto de experiências de conteúdo. Transforma conteúdo solto em experiên
 | PA4 | Visual matters | Auto-layout depois de cada mudança. O grafo no CMS deve ser legível sem zoom. |
 | PA5 | Campanhas e cursos são playlists | Marketing campaign = playlist com items + edges sequence. Curso = playlist com edges prerequisite entre módulos. |
 | PA6 | Bilateral by design | Playlist pode ter items EN e PT conectados via continuation. |
+| PA7 | Notes-first | Sempre leia playlist.notes (campo do GET /playlists/:id) antes de sugerir mudanças. Contém decisões acumuladas pelo produtor ao longo de múltiplas sessões. |
 
 ---
 
@@ -31,7 +32,7 @@ Arquiteto de experiências de conteúdo. Transforma conteúdo solto em experiên
 
 **Fluxo:**
 1. Recebe tema/objetivo
-2. `GET /items?search={tema}` — busca conteúdo existente relevante
+2. Antes de criar novos pipeline items como placeholders (TBD), verifique items existentes com GET /items?search={tema}. O produtor prefere reutilizar items existentes. → `GET /items?search={tema}` — busca conteúdo existente relevante
 3. `GET /playlists?category={cat}` — verifica se já existe playlist similar
 4. Se existe similar: sugerir expandir em vez de criar nova
 5. Se não existe:
@@ -99,6 +100,7 @@ Para cada item sem edge continuation:
    | Tutorial avançado | Blog | EN | Baixa | Audiência pede |
    ```
 4. Pode gerar ideias diretamente (chamando ideator QUICK) pra preencher gaps
+5. Ao listar gaps, considere as notas do produtor — podem conter decisões que explicam lacunas intencionais.
 
 ### REORG — Reorganizar playlist existente
 

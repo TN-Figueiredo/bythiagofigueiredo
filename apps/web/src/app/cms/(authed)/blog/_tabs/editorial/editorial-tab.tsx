@@ -1,18 +1,17 @@
 'use client'
 
-import { useCallback, useDeferredValue, useMemo, useRef, useState, useTransition } from 'react'
+import { useCallback, useDeferredValue, useState, useTransition } from 'react'
 import { Kanban, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import type { EditorialTabData, BlogTag, PipelineCardItem, PostCard } from '../../_hub/hub-types'
+import type { EditorialTabData, BlogTag, PipelineCardItem } from '../../_hub/hub-types'
 import type { BlogHubStrings } from '../../_i18n/types'
 import { UnifiedBoard } from './unified-board'
 import { EmptyState } from '../../_shared/empty-state'
 import { SectionErrorBoundary } from '../../_shared/section-error-boundary'
-import { ConfirmDialog } from './confirm-dialog'
 import { AutoShareDialog } from '../../../_shared/social/auto-share-dialog'
-import { movePost, deleteHubPost, duplicatePost, createPostFromPipeline, returnToPipeline, bulkPublish, bulkArchive, bulkDelete } from '../../actions'
+import { createPostFromPipeline, bulkPublish, bulkArchive, bulkDelete } from '../../actions'
 import { movePipelineItemToStage } from '../../../pipeline/actions'
 import type { Provider } from '@tn-figueiredo/social'
 
@@ -54,8 +53,6 @@ export function EditorialTab({
   const [searchQuery, setSearchQuery] = useState('')
   const deferredQuery = useDeferredValue(searchQuery)
   const [, startTransition] = useTransition()
-  const [deleteConfirmPostId, setDeleteConfirmPostId] = useState<string | null>(null)
-  const deleteTriggerRef = useRef<string | null>(null)
   const [autoShareState, setAutoShareState] = useState<AutoShareState | null>(null)
 
   const tagFiltered = tagId
@@ -82,103 +79,6 @@ export function EditorialTab({
         )
       })
     : pipelineData
-
-  const pipelineProvenanceMap = useMemo(() => {
-    const map = new Map<string, string>()
-    for (const item of pipelineData) {
-      if (item.blog_post_id) {
-        map.set(item.blog_post_id, item.code)
-      }
-    }
-    return map
-  }, [pipelineData])
-
-  const handleMovePost = useCallback(
-    async (postId: string, newStatus: string, scheduledFor?: string) => {
-      const post = data.posts.find((p) => p.id === postId)
-      const previousStatus = post?.status
-      startTransition(async () => {
-        const result = await movePost(postId, newStatus, scheduledFor)
-        if (result.ok) {
-          router.refresh()
-          // Show auto-share dialog when publishing and social platforms are connected
-          if (newStatus === 'published' && connectedPlatforms.length > 0 && post) {
-            setAutoShareState({
-              postId,
-              title: post.title,
-              excerpt: post.excerpt ?? null,
-              coverImage: post.coverImageUrl ?? null,
-            })
-          }
-          toast.success(strings?.common?.moved ?? 'Moved', {
-            action: previousStatus
-              ? {
-                  label: strings?.common?.undo ?? 'Undo',
-                  onClick: () => {
-                    startTransition(async () => {
-                      const revert = await movePost(postId, previousStatus)
-                      if (revert.ok) {
-                        router.refresh()
-                      } else {
-                        toast.error(strings?.common?.couldntMove ?? "Couldn't move")
-                        router.refresh()
-                      }
-                    })
-                  },
-                }
-              : undefined,
-          })
-        } else {
-          toast.error(strings?.common?.couldntMove ?? "Couldn't move")
-          router.refresh()
-        }
-      })
-    },
-    [data.posts, router, startTransition, strings, connectedPlatforms],
-  )
-
-  const handleDeletePost = useCallback(
-    (postId: string) => {
-      deleteTriggerRef.current = postId
-      setDeleteConfirmPostId(postId)
-    },
-    [],
-  )
-
-  const handleDeleteConfirm = useCallback(() => {
-    const postId = deleteTriggerRef.current
-    setDeleteConfirmPostId(null)
-    if (!postId) return
-    startTransition(async () => {
-      const result = await deleteHubPost(postId)
-      if (result.ok) {
-        toast.success(strings?.editorial?.deleted ?? 'Deleted')
-        router.refresh()
-      } else {
-        toast.error(strings?.editorial?.deleteFailed ?? "Couldn't delete")
-      }
-    })
-  }, [router, startTransition, strings])
-
-  const handleDeleteCancel = useCallback(() => {
-    deleteTriggerRef.current = null
-    setDeleteConfirmPostId(null)
-  }, [])
-
-  const handleDuplicate = useCallback(
-    async (postId: string) => {
-      startTransition(async () => {
-        const result = await duplicatePost(postId)
-        if (result?.ok) {
-          toast.success(strings?.editorial?.duplicate ?? 'Duplicated')
-          router.refresh()
-        } else {
-          toast.error(strings?.common?.couldntMove ?? "Couldn't duplicate")
-        }
-      })
-    },
-    [router, startTransition, strings],
-  )
 
   const handleMovePipelineItem = useCallback(
     async (id: string, version: number, stage: string): Promise<boolean> => {
@@ -210,17 +110,6 @@ export function EditorialTab({
     [router],
   )
 
-  const handleReturnToPipeline = useCallback(
-    async (postId: string) => {
-      const result = await returnToPipeline(postId)
-      if (result.ok) {
-        router.refresh()
-      } else {
-        throw new Error(result.error ?? 'return_to_pipeline_failed')
-      }
-    },
-    [router],
-  )
 
   const handleBulkPublish = useCallback(
     async (postIds: string[]) => {
@@ -361,18 +250,6 @@ export function EditorialTab({
           onBulkDelete={handleBulkDelete}
         />
       </SectionErrorBoundary>
-
-      {deleteConfirmPostId !== null && (
-        <ConfirmDialog
-          title={strings?.deletePost?.dialogTitle ?? 'Delete post?'}
-          message={strings?.editorial?.confirmDelete ?? 'Are you sure you want to delete this post?'}
-          confirmLabel={strings?.confirmDialog?.confirmDelete ?? 'Delete'}
-          cancelLabel={strings?.confirmDialog?.cancel ?? 'Cancel'}
-          onConfirm={handleDeleteConfirm}
-          onCancel={handleDeleteCancel}
-          variant="danger"
-        />
-      )}
 
       {autoShareState && (
         <AutoShareDialog

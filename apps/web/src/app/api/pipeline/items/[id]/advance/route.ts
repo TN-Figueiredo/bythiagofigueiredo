@@ -3,7 +3,7 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { authenticateWrite, pipelineError } from '@/lib/pipeline/helpers'
 import { buildRateLimitHeaders, UUID_REGEX } from '@/lib/pipeline/auth'
 import { getNextStage, isFinalStage } from '@/lib/pipeline/workflows'
-import { computeValidationScore } from '@/lib/pipeline/validation'
+import { computeValidationScore, VVS_PUBLISH_THRESHOLD } from '@/lib/pipeline/validation'
 import type { Format } from '@/lib/pipeline/schemas'
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -18,7 +18,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const supabase = getSupabaseServiceClient()
   const { data: item } = await supabase
     .from('content_pipeline')
-    .select('id, format, stage, version, site_id, title_pt, title_en, hook, synopsis, body_content, tags, production_checklist, format_metadata')
+    .select('id, format, stage, version, site_id, title_pt, title_en, hook, synopsis, body_content, tags, production_checklist, format_metadata, validation_score')
     .eq('id', id)
     .eq('site_id', auth.siteId)
     .single()
@@ -29,6 +29,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const nextStage = getNextStage(format, item.stage)
   if (!nextStage) {
     return pipelineError('INVALID_OPERATION', 'Already at final stage', 422, auth)
+  }
+
+  if (nextStage === 'ready' && format === 'blog_post') {
+    const currentScore = item.validation_score ?? 0
+    if (currentScore < VVS_PUBLISH_THRESHOLD) {
+      return NextResponse.json(
+        { ok: false, error: 'VVS_BELOW_THRESHOLD', message: 'Score de validação insuficiente (mínimo 80%)' },
+        { status: 400 },
+      )
+    }
   }
 
   const { data: deps } = await supabase

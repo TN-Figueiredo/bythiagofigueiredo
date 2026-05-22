@@ -77,6 +77,26 @@ POST /api/pipeline/playlists
 
 Slug: auto-gerado de `name_en`. Colisão: sufixo `-2`, `-3`... até `-99`.
 
+## Campo Notes
+
+O campo `notes` armazena anotações editoriais do produtor em formato Tiptap JSONContent.
+
+**Leitura:** GET /playlists/:id retorna `notes` como parte do objeto playlist.
+
+**IMPORTANTE:** Notes são READ-ONLY para o Cowork. O produtor escreve notes manualmente no CMS ao longo de múltiplas sessões. O Cowork lê notes para contexto mas NUNCA escreve neste campo.
+
+Exemplo de payload com notes no GET:
+```json
+{
+  "id": "uuid",
+  "name_en": "...",
+  "notes": { "type": "doc", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "Decisão: focar em vídeos curtos primeiro" }] }] },
+  "..."
+}
+```
+
+Notes NULL = nenhuma anotação do produtor.
+
 ## Adicionar Item
 
 ```json
