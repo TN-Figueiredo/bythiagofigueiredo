@@ -645,7 +645,7 @@ O canvas ja mantem `selectedItemIds` internamente. Esses IDs sao passados ao mod
     playlist={graph.playlist}
     items={graph.items}
     edges={graph.edges}
-    selectedItemIds={Array.from(selectedNodeIds)}
+    selectedItemIds={Array.from(state.selectedItemIds)}
     reuseCandidates={reuseCandidates}
     onClose={() => setShowPromptModal(false)}
   />
