@@ -583,6 +583,12 @@ export function PlaylistCanvas({
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement).tagName
+      const isEditable = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' ||
+        (e.target as HTMLElement).isContentEditable ||
+        (e.target as HTMLElement).closest('[contenteditable]') !== null
+      if (isEditable && !e.metaKey && !e.ctrlKey) return
+
       if (e.key === 'z' && (e.metaKey || e.ctrlKey) && !e.shiftKey) {
         e.preventDefault()
         handleUndo()

@@ -52,7 +52,7 @@ export function NotesDrawer({ playlist, onSaveNotes }: NotesDrawerProps) {
       <button
         type="button"
         onClick={() => setExpanded(prev => !prev)}
-        className="flex w-full items-center gap-3 px-4 py-2 text-xs transition-colors hover:bg-white/5"
+        className="flex w-full cursor-pointer items-center gap-3 px-4 py-2 text-xs transition-colors hover:bg-white/5"
       >
         <span className="text-white/50">{expanded ? '▼' : '▲'}</span>
         <span className="font-medium text-white/70">Notas</span>
