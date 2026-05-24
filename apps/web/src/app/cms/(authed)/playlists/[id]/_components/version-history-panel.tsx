@@ -77,6 +77,7 @@ export function VersionHistoryPanel({
   }
 
   function handleDelete(snapshotId: string) {
+    if (!window.confirm('Excluir este snapshot? Essa ação não pode ser desfeita.')) return
     startTransition(async () => {
       await onDeleteSnapshot(siteId, snapshotId)
       await loadSnapshots()

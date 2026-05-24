@@ -698,13 +698,17 @@ export async function createPlaylistSnapshot(
   return { ok: true, data: result }
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/
+
 export async function listPlaylistSnapshots(
   siteId: string,
   playlistId: string,
   cursor?: string,
   limit = 50,
 ): Promise<ActionResult<{ snapshots: SnapshotRow[]; hasMore: boolean }>> {
-  await requireEditScope()
+  const { siteId: authSiteId } = await requireEditScope()
+  if (authSiteId !== siteId) return { ok: false, error: 'forbidden' }
 
   const supabase = getSupabaseServiceClient()
   let query = supabase
@@ -718,10 +722,12 @@ export async function listPlaylistSnapshots(
 
   if (cursor) {
     const [cursorDate, cursorId] = cursor.split('|')
-    if (cursorDate && cursorId) {
+    if (cursorDate && cursorId && ISO_DATE_RE.test(cursorDate) && UUID_RE.test(cursorId)) {
       query = query.or(`created_at.lt.${cursorDate},and(created_at.eq.${cursorDate},id.lt.${cursorId})`)
-    } else {
+    } else if (ISO_DATE_RE.test(cursor)) {
       query = query.lt('created_at', cursor)
+    } else {
+      return { ok: false, error: 'invalid_cursor' }
     }
   }
 
@@ -765,7 +771,8 @@ export async function renamePlaylistSnapshot(
   snapshotId: string,
   label: string,
 ): Promise<ActionResult<void>> {
-  await requireEditScope()
+  const { siteId: authSiteId } = await requireEditScope()
+  if (authSiteId !== siteId) return { ok: false, error: 'forbidden' }
 
   const supabase = getSupabaseServiceClient()
   const { error } = await supabase
@@ -782,7 +789,8 @@ export async function deletePlaylistSnapshot(
   siteId: string,
   snapshotId: string,
 ): Promise<ActionResult<void>> {
-  await requireEditScope()
+  const { siteId: authSiteId } = await requireEditScope()
+  if (authSiteId !== siteId) return { ok: false, error: 'forbidden' }
 
   const supabase = getSupabaseServiceClient()
   const { error } = await supabase
@@ -801,7 +809,8 @@ export async function getItemEdgeCount(
   playlistId: string,
   itemId: string,
 ): Promise<ActionResult<{ count: number; edges: Array<{ id: string; target_title: string; edge_type: string }> }>> {
-  await requireEditScope()
+  const { siteId: authSiteId } = await requireEditScope()
+  if (authSiteId !== siteId) return { ok: false, error: 'forbidden' }
 
   const supabase = getSupabaseServiceClient()
 
@@ -839,7 +848,8 @@ export async function ensureSessionSnapshot(
   siteId: string,
   playlistId: string,
 ): Promise<ActionResult<void>> {
-  const { userId } = await requireEditScope()
+  const { siteId: authSiteId, userId } = await requireEditScope()
+  if (authSiteId !== siteId) return { ok: false, error: 'forbidden' }
 
   const supabase = getSupabaseServiceClient()
 

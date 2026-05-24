@@ -50,7 +50,7 @@ export function useAutoSnapshot({
           accumulatedTimeRef.current = 0
           const now = new Date()
           const label = `Auto-save ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`
-          onCreateSnapshot(siteId, playlistId, 'auto', label)
+          onCreateSnapshot(siteId, playlistId, 'auto', label).catch(() => {})
         } else {
           accumulatedTimeRef.current = 0
         }

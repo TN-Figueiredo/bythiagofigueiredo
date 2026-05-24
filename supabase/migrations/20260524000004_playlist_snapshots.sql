@@ -27,6 +27,11 @@ CREATE UNIQUE INDEX idx_snapshots_dedup
   ON public.playlist_snapshots (playlist_id, content_hash)
   WHERE type = 'auto';
 
+-- Deduplication: prevent snapshot storms on rapid deletions
+CREATE UNIQUE INDEX idx_snapshots_dedup_pre_destructive
+  ON public.playlist_snapshots (playlist_id, content_hash)
+  WHERE type = 'pre_destructive';
+
 -- RLS
 ALTER TABLE public.playlist_snapshots ENABLE ROW LEVEL SECURITY;
 
@@ -36,7 +41,7 @@ CREATE POLICY staff_manage_snapshots ON public.playlist_snapshots
   USING (public.can_edit_site(site_id))
   WITH CHECK (public.can_edit_site(site_id));
 
--- Restore RPC
+-- Restore RPC: selective restore with FK safety checks
 CREATE OR REPLACE FUNCTION public.restore_playlist_snapshot(
   p_playlist_id UUID,
   p_snapshot_id UUID,
@@ -84,7 +89,12 @@ BEGIN
       (item->>'sort_order')::int,
       (item->>'position_x')::float,
       (item->>'position_y')::float
-    FROM jsonb_array_elements(v_snapshot.graph_data->'items') AS item;
+    FROM jsonb_array_elements(v_snapshot.graph_data->'items') AS item
+    WHERE (
+      (item->>'blog_post_id' IS NULL OR EXISTS (SELECT 1 FROM blog_posts WHERE id = (item->>'blog_post_id')::uuid))
+      AND (item->>'newsletter_edition_id' IS NULL OR EXISTS (SELECT 1 FROM newsletter_editions WHERE id = (item->>'newsletter_edition_id')::uuid))
+      AND (item->>'pipeline_id' IS NULL OR EXISTS (SELECT 1 FROM pipelines WHERE id = (item->>'pipeline_id')::uuid))
+    );
 
     INSERT INTO playlist_edges (
       id, playlist_id, source_item_id, target_item_id, edge_type, label
@@ -97,6 +107,12 @@ BEGIN
       edge->>'edge_type',
       edge->>'label'
     FROM jsonb_array_elements(v_snapshot.graph_data->'edges') AS edge
+    WHERE (edge->>'source_item_id')::uuid IN (
+      SELECT id FROM playlist_items WHERE playlist_id = p_playlist_id
+    )
+    AND (edge->>'target_item_id')::uuid IN (
+      SELECT id FROM playlist_items WHERE playlist_id = p_playlist_id
+    )
     ON CONFLICT DO NOTHING;
 
   ELSIF p_mode = 'edges_only' THEN
@@ -132,3 +148,39 @@ BEGIN
   END IF;
 END;
 $$;
+
+-- Cleanup RPC: batch-delete excess auto-snapshots (called by cron)
+CREATE OR REPLACE FUNCTION public.cleanup_excess_auto_snapshots(
+  p_max_per_playlist INT DEFAULT 100
+)
+RETURNS INT
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_deleted INT;
+BEGIN
+  WITH ranked AS (
+    SELECT id,
+           ROW_NUMBER() OVER (
+             PARTITION BY playlist_id
+             ORDER BY created_at DESC
+           ) AS rn
+    FROM playlist_snapshots
+    WHERE type = 'auto'
+  ),
+  excess AS (
+    DELETE FROM playlist_snapshots
+    WHERE id IN (SELECT id FROM ranked WHERE rn > p_max_per_playlist)
+    RETURNING id
+  )
+  SELECT COUNT(*) INTO v_deleted FROM excess;
+
+  RETURN v_deleted;
+END;
+$$;
+
+-- Restrict cleanup to service_role only (cron calls with service key)
+REVOKE EXECUTE ON FUNCTION public.cleanup_excess_auto_snapshots(INT) FROM public, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.cleanup_excess_auto_snapshots(INT) TO service_role;

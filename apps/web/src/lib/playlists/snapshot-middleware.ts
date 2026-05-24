@@ -109,18 +109,35 @@ export async function createSnapshot(
       .limit(1000)
 
     if (excess && excess.length > MAX_AUTO_PER_PLAYLIST) {
-      const toDelete = excess.slice(0, excess.length - MAX_AUTO_PER_PLAYLIST)
-      for (const row of toDelete) {
-        await supabase.from('playlist_snapshots').delete().eq('id', row.id)
-      }
+      const idsToDelete = excess.slice(0, excess.length - MAX_AUTO_PER_PLAYLIST).map(r => r.id)
+      await supabase.from('playlist_snapshots').delete().in('id', idsToDelete)
     }
   }
 
   return { id: inserted?.id ?? null, deduplicated: false }
 }
 
-const recentSnapshots = new Map<string, number>()
 const THROTTLE_MS = 5000
+const MAX_THROTTLE_ENTRIES = 200
+const recentSnapshots = new Map<string, number>()
+
+function throttleKey(playlistId: string, trigger: SnapshotType): string {
+  return `${playlistId}:${trigger}`
+}
+
+function isThrottled(key: string): boolean {
+  const lastTime = recentSnapshots.get(key)
+  if (!lastTime) return false
+  return Date.now() - lastTime < THROTTLE_MS
+}
+
+function recordThrottle(key: string): void {
+  if (recentSnapshots.size >= MAX_THROTTLE_ENTRIES) {
+    const firstKey = recentSnapshots.keys().next().value
+    if (firstKey) recentSnapshots.delete(firstKey)
+  }
+  recentSnapshots.set(key, Date.now())
+}
 
 export async function withSnapshot<T>(
   playlistId: string,
@@ -130,12 +147,10 @@ export async function withSnapshot<T>(
   label: string,
   fn: () => Promise<T>,
 ): Promise<T> {
-  const key = `${playlistId}:${trigger}`
-  const now = Date.now()
-  const lastTime = recentSnapshots.get(key) ?? 0
+  const key = throttleKey(playlistId, trigger)
 
-  if (now - lastTime >= THROTTLE_MS) {
-    recentSnapshots.set(key, now)
+  if (!isThrottled(key)) {
+    recordThrottle(key)
     await createSnapshot(playlistId, siteId, userId, trigger, label)
   }
 
