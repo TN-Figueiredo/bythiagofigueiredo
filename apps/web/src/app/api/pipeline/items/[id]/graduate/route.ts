@@ -55,6 +55,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     let playlistId: string
 
     if (existingPlaylistId) {
+      const { data: existingPlaylist } = await supabase
+        .from('playlists')
+        .select('id')
+        .eq('id', existingPlaylistId)
+        .eq('site_id', auth.siteId)
+        .single()
+      if (!existingPlaylist) {
+        return pipelineError('VALIDATION_ERROR', 'Referenced playlist not found or belongs to another site', 403, auth)
+      }
       playlistId = existingPlaylistId
     } else {
       const slug = (item.code || title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')).slice(0, 200)
@@ -76,31 +85,35 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       playlistId = playlist.id
     }
 
+    const allItems: Array<{ playlist_id: string; pipeline_id: string; sort_order: number }> = []
     for (const mod of eligibleModules) {
       const sortedLessons = [...mod.lessons].sort((a, b) => a.sort_order - b.sort_order)
-      const insertedItemIds: string[] = []
-
       for (const lesson of sortedLessons) {
-        const { data: playlistItem } = await supabase
-          .from('playlist_items')
-          .insert({
-            playlist_id: playlistId,
-            pipeline_id: lesson.pipeline_ref || item.id,
-            sort_order: mod.sort_order * 1000 + lesson.sort_order,
-          })
-          .select('id')
-          .single()
-        if (playlistItem) insertedItemIds.push(playlistItem.id)
-      }
-
-      for (let i = 1; i < insertedItemIds.length; i++) {
-        await supabase.from('playlist_edges').insert({
+        allItems.push({
           playlist_id: playlistId,
-          source_item_id: insertedItemIds[i - 1],
-          target_item_id: insertedItemIds[i],
-          edge_type: 'sequence',
+          pipeline_id: lesson.pipeline_ref || item.id,
+          sort_order: mod.sort_order * 1000 + lesson.sort_order,
         })
       }
+    }
+
+    const { data: insertedItems } = await supabase
+      .from('playlist_items')
+      .upsert(allItems, { onConflict: 'playlist_id,pipeline_id', ignoreDuplicates: true })
+      .select('id, sort_order')
+
+    const sortedInserted = (insertedItems ?? []).sort((a, b) => a.sort_order - b.sort_order)
+
+    if (sortedInserted.length > 1) {
+      const edges = sortedInserted.slice(1).map((item, i) => ({
+        playlist_id: playlistId,
+        source_item_id: sortedInserted[i]!.id,
+        target_item_id: item.id,
+        edge_type: 'sequence' as const,
+      }))
+      await supabase
+        .from('playlist_edges')
+        .upsert(edges, { onConflict: 'playlist_id,source_item_id,target_item_id', ignoreDuplicates: true })
     }
 
     const updatedMetadata = { ...(item.format_metadata as Record<string, unknown> ?? {}), playlist_id: playlistId }

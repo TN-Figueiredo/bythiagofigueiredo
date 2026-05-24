@@ -709,16 +709,23 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
       {isCourse && (
         <>
           {/* Platform */}
-          {data.platform && (
+          {(data.platform || data.sales_page_url) && (
             <div>
               <SectionLabel>Plataforma</SectionLabel>
-              <div className="flex items-center gap-2 text-[11px]" style={{ color: 'var(--gem-muted)' }}>
-                <span className="px-2 py-1 rounded-md" style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}>
-                  {data.platform}
-                </span>
+              <div className="flex items-center gap-2 flex-wrap text-[11px]" style={{ color: 'var(--gem-muted)' }}>
+                {data.platform && (
+                  <span className="px-2 py-1 rounded-md" style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}>
+                    {data.platform}
+                  </span>
+                )}
                 {data.platform_url && (
                   <a href={data.platform_url} target="_blank" rel="noopener noreferrer" className="underline opacity-70">
                     {data.platform_url}
+                  </a>
+                )}
+                {data.sales_page_url && (
+                  <a href={data.sales_page_url} target="_blank" rel="noopener noreferrer" className="underline opacity-70">
+                    Página de vendas
                   </a>
                 )}
               </div>
@@ -733,6 +740,7 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
                 className="p-3 rounded-md text-[14px] font-bold"
                 style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)', color: 'var(--gem-text)' }}
                 role={isEditing ? 'textbox' : undefined}
+                aria-label={isEditing ? 'Headline' : undefined}
                 contentEditable={isEditing}
                 suppressContentEditableWarning
                 spellCheck={false}
@@ -745,6 +753,7 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
                   className="mt-1 p-2 text-[11px]"
                   style={{ color: 'var(--gem-muted)' }}
                   role={isEditing ? 'textbox' : undefined}
+                  aria-label={isEditing ? 'Subheadline' : undefined}
                   contentEditable={isEditing}
                   suppressContentEditableWarning
                   spellCheck={false}
@@ -766,6 +775,7 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
                     <span style={{ color: 'var(--gem-done)' }}>✓</span>
                     <span
                       role={isEditing ? 'textbox' : undefined}
+                      aria-label={isEditing ? `Argumento de venda ${i + 1}` : undefined}
                       contentEditable={isEditing}
                       suppressContentEditableWarning
                       spellCheck={false}
@@ -846,6 +856,13 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
       {!data.title && !data.description && !data.tags?.length && !data.cards?.length && !data.end_screen && !data.strategy?.length && !isBlogPost && !isCourse && (
         <div className="text-[11px] text-center py-4" style={{ color: 'var(--gem-dim)' }}>
           Nenhuma informação de publicação disponível.
+        </div>
+      )}
+
+      {isCourse && !data.headline && !data.bullet_points?.length && !data.testimonials?.length && !data.faq?.length && !data.cta_text && !data.platform && !data.sales_page_url && (
+        <div className="text-[11px] text-center py-6 rounded-lg" style={{ color: 'var(--gem-dim)', background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}>
+          <p className="mb-1 font-medium">Página de vendas ainda não configurada</p>
+          <p>Use o Cowork para gerar headline, argumentos, depoimentos e FAQ.</p>
         </div>
       )}
 

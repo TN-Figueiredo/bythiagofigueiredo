@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef } from 'react'
 import type { RendererProps } from '../section-content'
+import { generateLessonId } from '@/lib/pipeline/course-schemas'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -481,13 +482,10 @@ export function LessonsRenderer({ content, isEditing, onContentChange }: Rendere
 
   const addLesson = useCallback(() => {
     const current = lessonsRef.current
-    const newId = `l${Object.keys(current).length + 1}`
-    const uniqueId = Object.prototype.hasOwnProperty.call(current, newId)
-      ? `l${Date.now()}`
-      : newId
-    const updated = { ...current, [uniqueId]: emptyLesson() }
+    const newId = generateLessonId()
+    const updated = { ...current, [newId]: emptyLesson() }
     onContentChange(updated as Record<string, unknown>)
-    setSelectedId(uniqueId)
+    setSelectedId(newId)
   }, [onContentChange])
 
   return (

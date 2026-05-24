@@ -73,6 +73,41 @@ export function computeCourseCardInfo(
   return { tier, priceLabel, progress, moduleCount, lessonCount, launchType }
 }
 
+function CourseCardEnrichment({ item }: { item: GemCardItem }) {
+  if (item.format !== 'course') return null
+  const courseInfo = computeCourseCardInfo(item.format, item.format_metadata ?? {}, item.sections ?? {})
+  if (!courseInfo) return null
+  return (
+    <div className="mt-1.5 space-y-1">
+      <div className="flex items-center justify-between text-[10px]" style={{ color: 'var(--gem-muted)' }}>
+        <span>{courseInfo.moduleCount} módulos · {courseInfo.lessonCount} aulas</span>
+        {courseInfo.tier && courseInfo.priceLabel && (
+          <span className="px-1.5 py-0.5 rounded" style={{ background: 'var(--gem-well)', fontSize: '9px' }}>
+            {courseInfo.tier} {courseInfo.priceLabel}
+          </span>
+        )}
+      </div>
+      {courseInfo.progress.total > 0 && (
+        <div>
+          <div className="flex justify-between text-[9px] mb-0.5" style={{ color: 'var(--gem-dim)' }}>
+            <span>Produção</span>
+            <span>{courseInfo.progress.done}/{courseInfo.progress.total}</span>
+          </div>
+          <div className="h-1 rounded-full overflow-hidden" style={{ background: 'var(--gem-well)' }}>
+            <div
+              className="h-full rounded-full transition-all"
+              style={{
+                width: `${courseInfo.progress.total > 0 ? (courseInfo.progress.done / courseInfo.progress.total) * 100 : 0}%`,
+                background: courseInfo.progress.done === courseInfo.progress.total ? 'var(--gem-done)' : 'var(--gem-warn)',
+              }}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 interface GemCardProps {
   item: GemCardItem
   isDragging?: boolean
@@ -211,39 +246,7 @@ export const GemCard = memo(function GemCard({ item, isDragging: _isDragging, on
       </div>
 
       {/* Course enrichment */}
-      {item.format === 'course' && (() => {
-        const courseInfo = computeCourseCardInfo(item.format, item.format_metadata ?? {}, item.sections ?? {})
-        if (!courseInfo) return null
-        return (
-          <div className="mt-1.5 space-y-1">
-            <div className="flex items-center justify-between text-[10px]" style={{ color: 'var(--gem-muted)' }}>
-              <span>{courseInfo.moduleCount} módulos · {courseInfo.lessonCount} aulas</span>
-              {courseInfo.tier && courseInfo.priceLabel && (
-                <span className="px-1.5 py-0.5 rounded" style={{ background: 'var(--gem-well)', fontSize: '9px' }}>
-                  {courseInfo.tier} {courseInfo.priceLabel}
-                </span>
-              )}
-            </div>
-            {courseInfo.progress.total > 0 && (
-              <div>
-                <div className="flex justify-between text-[9px] mb-0.5" style={{ color: 'var(--gem-dim)' }}>
-                  <span>Produção</span>
-                  <span>{courseInfo.progress.done}/{courseInfo.progress.total}</span>
-                </div>
-                <div className="h-1 rounded-full overflow-hidden" style={{ background: 'var(--gem-well)' }}>
-                  <div
-                    className="h-full rounded-full transition-all"
-                    style={{
-                      width: `${courseInfo.progress.total > 0 ? (courseInfo.progress.done / courseInfo.progress.total) * 100 : 0}%`,
-                      background: courseInfo.progress.done === courseInfo.progress.total ? 'var(--gem-done)' : 'var(--gem-warn)',
-                    }}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-        )
-      })()}
+      <CourseCardEnrichment item={item} />
 
       {/* Tags */}
       {(tags.length > 0 || blocked.blocked) && (

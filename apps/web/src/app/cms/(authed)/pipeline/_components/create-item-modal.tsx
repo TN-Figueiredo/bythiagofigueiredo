@@ -24,10 +24,14 @@ export function CreateItemModal({ format, open, onClose }: CreateItemModalProps)
     if (!title.trim()) return
 
     startTransition(async () => {
-      const titleField = language === 'en' ? 'title_en' : 'title_pt'
+      const titles = language === 'both'
+        ? { title_pt: title.trim(), title_en: title.trim() }
+        : language === 'en'
+          ? { title_en: title.trim() }
+          : { title_pt: title.trim() }
       const result = await createPipelineItem({
         format,
-        [titleField]: title.trim(),
+        ...titles,
         language,
         stage: 'idea',
       })

@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import type { RendererProps } from '../section-content'
 import {
   LaunchContentSchema,
@@ -101,9 +100,13 @@ function formatDate(iso: string | null): string {
 }
 
 function parseLaunch(content: RendererProps['content']): LaunchContent {
-  const raw = typeof content === 'string' ? {} : (content ?? {})
-  const result = LaunchContentSchema.safeParse(raw)
-  return result.success ? result.data : LaunchContentSchema.parse({})
+  try {
+    const raw = typeof content === 'string' ? {} : (content ?? {})
+    const result = LaunchContentSchema.safeParse(raw)
+    return result.success ? result.data : LaunchContentSchema.parse({})
+  } catch {
+    return LaunchContentSchema.parse({})
+  }
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -296,7 +299,6 @@ function PlcCardEdit({
 
 export function LaunchRenderer({ content, isEditing, onContentChange }: RendererProps) {
   const launch = parseLaunch(content)
-  const [bonusError, setBonusError] = useState<string | null>(null)
 
   function update(patch: Partial<LaunchContent>) {
     onContentChange({ ...launch, ...patch } as Record<string, unknown>)
@@ -309,7 +311,6 @@ export function LaunchRenderer({ content, isEditing, onContentChange }: Renderer
   }
 
   function addBonus() {
-    setBonusError(null)
     update({ bonuses: [...launch.bonuses, { title: '', description: '', type: 'content', deadline: null }] })
   }
 
@@ -423,7 +424,7 @@ export function LaunchRenderer({ content, isEditing, onContentChange }: Renderer
             <div className="space-y-2">
               {launch.bonuses.map((bonus, i) => (
                 <div
-                  key={i}
+                  key={`bonus-${i}-${bonus.title.slice(0, 15)}`}
                   className="p-3 rounded-lg flex items-start gap-3"
                   style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}
                 >
@@ -599,13 +600,10 @@ export function LaunchRenderer({ content, isEditing, onContentChange }: Renderer
             + Adicionar
           </button>
         </div>
-        {bonusError && (
-          <div className="text-[10px] mb-2" style={{ color: '#f87171' }}>{bonusError}</div>
-        )}
         <div className="space-y-3">
           {launch.bonuses.map((bonus, idx) => (
             <div
-              key={idx}
+              key={`edit-bonus-${idx}-${bonus.title.slice(0, 15)}`}
               className="p-3 rounded-lg"
               style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}
             >

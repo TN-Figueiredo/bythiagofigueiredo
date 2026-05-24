@@ -11,20 +11,59 @@ import {
   type CurriculumContent,
   type CurriculumModule,
 } from '@/lib/pipeline/course-schemas'
-import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core'
-import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import type { SyntheticListenerMap } from '@dnd-kit/core/dist/hooks/utilities'
+import type { DraggableAttributes } from '@dnd-kit/core'
 
 // ──────────────────────────────────────────────────────────────
 // Helpers
 // ──────────────────────────────────────────────────────────────
 
-function SortableItem({ id, children }: { id: string; children: React.ReactNode }) {
+interface HandleProps {
+  listeners?: SyntheticListenerMap
+  attributes?: DraggableAttributes
+}
+
+function DragHandle({ listeners, attributes }: HandleProps) {
+  return (
+    <button
+      type="button"
+      aria-label="Arrastar para reordenar"
+      style={{
+        cursor: 'grab',
+        background: 'none',
+        border: 'none',
+        padding: '4px 2px',
+        color: 'var(--gem-dim)',
+        fontSize: 14,
+        lineHeight: 1,
+        touchAction: 'none',
+        flexShrink: 0,
+      }}
+      {...listeners}
+      {...attributes}
+    >
+      ⠿
+    </button>
+  )
+}
+
+function SortableItem({ id, children }: { id: string; children: (handleProps: HandleProps) => React.ReactNode }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id })
   const style = { transform: CSS.Transform.toString(transform), transition }
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-      {children}
+    <div ref={setNodeRef} style={style}>
+      {children({ listeners, attributes })}
     </div>
   )
 }
@@ -201,7 +240,7 @@ function ReadMode({ data }: { data: CurriculumContent }) {
           </p>
           <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 4 }}>
             {data.learning_outcomes.map((outcome, i) => (
-              <li key={i} style={{ fontSize: 13, color: 'var(--gem-text)', display: 'flex', gap: 6 }}>
+              <li key={`outcome-${i}-${outcome.slice(0, 20)}`} style={{ fontSize: 13, color: 'var(--gem-text)', display: 'flex', gap: 6 }}>
                 <span style={{ color: 'var(--gem-done)', flexShrink: 0 }}>✓</span>
                 {outcome}
               </li>
@@ -229,6 +268,7 @@ function ReadMode({ data }: { data: CurriculumContent }) {
               <button
                 type="button"
                 onClick={() => toggleModule(mod.id)}
+                aria-expanded={isExpanded}
                 style={{
                   width: '100%',
                   display: 'flex',
@@ -426,11 +466,13 @@ function LessonRow({
   moduleId,
   onUpdate,
   onRemove,
+  dragHandle,
 }: {
   lesson: CurriculumContent['modules'][number]['lessons'][number]
   moduleId: string
   onUpdate: (moduleId: string, lessonId: string, patch: Partial<typeof lesson>) => void
   onRemove: (moduleId: string, lessonId: string) => void
+  dragHandle?: React.ReactNode
 }) {
   return (
     <div
@@ -444,7 +486,8 @@ function LessonRow({
         gap: 6,
       }}
     >
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' as const }}>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' as const, alignItems: 'flex-end' }}>
+        {dragHandle}
         <div style={{ flex: 2, minWidth: 120 }}>
           <EditField
             label="Título"
@@ -520,6 +563,7 @@ function ModuleEditSection({
   onRemoveLesson,
   onAddLesson,
   onLessonDragEnd,
+  dragHandle,
 }: {
   mod: CurriculumModule
   onUpdateModule: (moduleId: string, patch: Partial<CurriculumModule>) => void
@@ -528,7 +572,13 @@ function ModuleEditSection({
   onRemoveLesson: (moduleId: string, lessonId: string) => void
   onAddLesson: (moduleId: string) => void
   onLessonDragEnd: (moduleId: string, event: DragEndEvent) => void
+  dragHandle?: React.ReactNode
 }) {
+  const lessonSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+
   return (
     <div
       style={{
@@ -549,6 +599,7 @@ function ModuleEditSection({
           alignItems: 'flex-end',
         }}
       >
+        {dragHandle}
         <div style={{ flex: 2, minWidth: 120 }}>
           <EditField
             label="Módulo"
@@ -583,6 +634,7 @@ function ModuleEditSection({
       {/* Lessons */}
       <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
         <DndContext
+          sensors={lessonSensors}
           collisionDetection={closestCenter}
           onDragEnd={(event) => onLessonDragEnd(mod.id, event)}
         >
@@ -592,12 +644,15 @@ function ModuleEditSection({
           >
             {mod.lessons.map((lesson) => (
               <SortableItem key={lesson.id} id={lesson.id}>
-                <LessonRow
-                  lesson={lesson}
-                  moduleId={mod.id}
-                  onUpdate={onUpdateLesson}
-                  onRemove={onRemoveLesson}
-                />
+                {({ listeners, attributes }) => (
+                  <LessonRow
+                    lesson={lesson}
+                    moduleId={mod.id}
+                    onUpdate={onUpdateLesson}
+                    onRemove={onRemoveLesson}
+                    dragHandle={<DragHandle listeners={listeners} attributes={attributes} />}
+                  />
+                )}
               </SortableItem>
             ))}
           </SortableContext>
@@ -639,7 +694,8 @@ function EditMode({
   }
 
   function removeModule(moduleId: string) {
-    emit({ ...data, modules: data.modules.filter((m) => m.id !== moduleId) })
+    const remaining = data.modules.filter((m) => m.id !== moduleId).map((m, i) => ({ ...m, sort_order: i }))
+    emit({ ...data, modules: remaining })
   }
 
   function addModule() {
@@ -695,7 +751,7 @@ function EditMode({
       ...data,
       modules: data.modules.map((m) =>
         m.id === moduleId
-          ? { ...m, lessons: m.lessons.filter((l) => l.id !== lessonId) }
+          ? { ...m, lessons: m.lessons.filter((l) => l.id !== lessonId).map((l, i) => ({ ...l, sort_order: i })) }
           : m,
       ),
     })
@@ -748,6 +804,11 @@ function EditMode({
       }),
     })
   }
+
+  const moduleSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
 
   function addOutcome() {
     emit({ ...data, learning_outcomes: [...data.learning_outcomes, ''] })
@@ -847,13 +908,14 @@ function EditMode({
           O que o aluno vai aprender
         </p>
         {data.learning_outcomes.map((outcome, i) => (
-          <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <div key={`lo-${i}-${outcome.slice(0, 12)}`} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <input
               type="text"
               value={outcome}
               onChange={(e) => updateOutcome(i, e.target.value)}
               style={{ ...INPUT_STYLE, flex: 1 }}
               placeholder="Descreva um resultado de aprendizagem"
+              aria-label={`Resultado de aprendizagem ${i + 1}`}
             />
             <SmallButton label="×" color="#f87171" onClick={() => removeOutcome(i)} />
           </div>
@@ -868,7 +930,7 @@ function EditMode({
       </div>
 
       {/* Modules */}
-      <DndContext collisionDetection={closestCenter} onDragEnd={handleModuleDragEnd}>
+      <DndContext sensors={moduleSensors} collisionDetection={closestCenter} onDragEnd={handleModuleDragEnd}>
         <SortableContext
           items={data.modules.map((m) => m.id)}
           strategy={verticalListSortingStrategy}
@@ -876,15 +938,18 @@ function EditMode({
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {data.modules.map((mod) => (
               <SortableItem key={mod.id} id={mod.id}>
-                <ModuleEditSection
-                  mod={mod}
-                  onUpdateModule={updateModule}
-                  onRemoveModule={removeModule}
-                  onUpdateLesson={updateLesson}
-                  onRemoveLesson={removeLesson}
-                  onAddLesson={addLesson}
-                  onLessonDragEnd={handleLessonDragEnd}
-                />
+                {({ listeners, attributes }) => (
+                  <ModuleEditSection
+                    mod={mod}
+                    onUpdateModule={updateModule}
+                    onRemoveModule={removeModule}
+                    onUpdateLesson={updateLesson}
+                    onRemoveLesson={removeLesson}
+                    onAddLesson={addLesson}
+                    onLessonDragEnd={handleLessonDragEnd}
+                    dragHandle={<DragHandle listeners={listeners} attributes={attributes} />}
+                  />
+                )}
               </SortableItem>
             ))}
           </div>
@@ -906,6 +971,7 @@ export function CurriculumRenderer({
   onContentChange,
 }: RendererProps) {
   const parsed = CurriculumContentSchema.safeParse(content)
+  const parseError = !parsed.success && content != null && typeof content === 'object' && Object.keys(content as Record<string, unknown>).length > 0
   const data = parsed.success ? parsed.data : CurriculumContentSchema.parse({})
 
   const handleChange = useCallback(
@@ -915,9 +981,14 @@ export function CurriculumRenderer({
     [onContentChange],
   )
 
-  if (!isEditing) {
-    return <ReadMode data={data} />
-  }
-
-  return <EditMode data={data} onContentChange={handleChange} />
+  return (
+    <>
+      {parseError && (
+        <div style={{ padding: '8px 16px', fontSize: 11, color: '#f59e0b', background: '#f59e0b12', borderBottom: '1px solid #f59e0b33' }}>
+          Dados do currículo foram carregados com valores padrão — o conteúdo salvo pode estar em formato inválido.
+        </div>
+      )}
+      {isEditing ? <EditMode data={data} onContentChange={handleChange} /> : <ReadMode data={data} />}
+    </>
+  )
 }
