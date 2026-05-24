@@ -22,6 +22,17 @@ interface PublishContent {
   cards?: PublishCard[]
   end_screen?: string
   strategy?: string[]
+  // Course / sales copy fields
+  headline?: string
+  subheadline?: string
+  bullet_points?: string[]
+  testimonials?: Array<{ name: string; text: string; result: string }>
+  faq?: Array<{ question: string; answer: string }>
+  cta_text?: string
+  guarantee?: string
+  platform?: string
+  platform_url?: string
+  sales_page_url?: string
 }
 
 function toArray(val: unknown): string[] {
@@ -76,6 +87,31 @@ function parseContent(content: RendererProps['content']): PublishContent {
     cards: toCardArray(raw.cards),
     end_screen: parseEndScreen(raw.end_screen),
     strategy: toArray(raw.strategy),
+    headline: typeof raw.headline === 'string' ? raw.headline : undefined,
+    subheadline: typeof raw.subheadline === 'string' ? raw.subheadline : undefined,
+    bullet_points: Array.isArray(raw.bullet_points) ? raw.bullet_points.map(String) : undefined,
+    testimonials: Array.isArray(raw.testimonials)
+      ? raw.testimonials
+          .filter((t): t is Record<string, unknown> => t !== null && typeof t === 'object')
+          .map(t => ({
+            name: String(t.name ?? ''),
+            text: String(t.text ?? ''),
+            result: String(t.result ?? ''),
+          }))
+      : undefined,
+    faq: Array.isArray(raw.faq)
+      ? raw.faq
+          .filter((f): f is Record<string, unknown> => f !== null && typeof f === 'object')
+          .map(f => ({
+            question: String(f.question ?? ''),
+            answer: String(f.answer ?? ''),
+          }))
+      : undefined,
+    cta_text: typeof raw.cta_text === 'string' ? raw.cta_text : undefined,
+    guarantee: typeof raw.guarantee === 'string' ? raw.guarantee : undefined,
+    platform: typeof raw.platform === 'string' ? raw.platform : undefined,
+    platform_url: typeof raw.platform_url === 'string' ? raw.platform_url : undefined,
+    sales_page_url: typeof raw.sales_page_url === 'string' ? raw.sales_page_url : undefined,
   }
 }
 
@@ -449,6 +485,7 @@ function BlogPublishPanel({ pipelineItemId, vvsScore, stage, blogSlug, socialPos
 
 export function PublishRenderer({ content, isEditing, onContentChange, pipelineItemId, vvsScore, format, stage, blogSlug, socialPostId }: RendererProps) {
   const isBlogPost = format === 'blog_post'
+  const isCourse = format === 'course'
   const data = parseContent(content)
 
   return (
@@ -669,7 +706,144 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
         </div>
       )}
 
-      {!data.title && !data.description && !data.tags?.length && !data.cards?.length && !data.end_screen && !data.strategy?.length && !isBlogPost && (
+      {isCourse && (
+        <>
+          {/* Platform */}
+          {data.platform && (
+            <div>
+              <SectionLabel>Plataforma</SectionLabel>
+              <div className="flex items-center gap-2 text-[11px]" style={{ color: 'var(--gem-muted)' }}>
+                <span className="px-2 py-1 rounded-md" style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}>
+                  {data.platform}
+                </span>
+                {data.platform_url && (
+                  <a href={data.platform_url} target="_blank" rel="noopener noreferrer" className="underline opacity-70">
+                    {data.platform_url}
+                  </a>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Headline */}
+          {data.headline && (
+            <div>
+              <SectionLabel>Headline</SectionLabel>
+              <div
+                className="p-3 rounded-md text-[14px] font-bold"
+                style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)', color: 'var(--gem-text)' }}
+                role={isEditing ? 'textbox' : undefined}
+                contentEditable={isEditing}
+                suppressContentEditableWarning
+                spellCheck={false}
+                onBlur={(e) => isEditing && onContentChange({ ...data, headline: e.currentTarget.textContent ?? '' })}
+              >
+                {data.headline}
+              </div>
+              {data.subheadline && (
+                <div
+                  className="mt-1 p-2 text-[11px]"
+                  style={{ color: 'var(--gem-muted)' }}
+                  role={isEditing ? 'textbox' : undefined}
+                  contentEditable={isEditing}
+                  suppressContentEditableWarning
+                  spellCheck={false}
+                  onBlur={(e) => isEditing && onContentChange({ ...data, subheadline: e.currentTarget.textContent ?? '' })}
+                >
+                  {data.subheadline}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Bullet points */}
+          {data.bullet_points && data.bullet_points.length > 0 && (
+            <div>
+              <SectionLabel>Argumentos de venda</SectionLabel>
+              <div className="space-y-1.5">
+                {data.bullet_points.map((point, i) => (
+                  <div key={i} className="flex items-start gap-2 text-[11px]" style={{ color: 'var(--gem-muted)' }}>
+                    <span style={{ color: 'var(--gem-done)' }}>✓</span>
+                    <span
+                      role={isEditing ? 'textbox' : undefined}
+                      contentEditable={isEditing}
+                      suppressContentEditableWarning
+                      spellCheck={false}
+                      onBlur={(e) => {
+                        if (!isEditing) return
+                        const updated = [...(data.bullet_points ?? [])]
+                        updated[i] = e.currentTarget.textContent ?? ''
+                        onContentChange({ ...data, bullet_points: updated })
+                      }}
+                    >
+                      {point}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Testimonials */}
+          {data.testimonials && data.testimonials.length > 0 && (
+            <div>
+              <SectionLabel>Depoimentos</SectionLabel>
+              <div className="space-y-2">
+                {data.testimonials.map((t, i) => (
+                  <div key={i} className="p-3 rounded-md" style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}>
+                    <p className="text-[11px] italic" style={{ color: 'var(--gem-muted)' }}>"{t.text}"</p>
+                    <div className="flex justify-between mt-1.5 text-[10px]">
+                      <span style={{ color: 'var(--gem-text)' }}>{t.name}</span>
+                      <span style={{ color: 'var(--gem-done)' }}>{t.result}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* FAQ */}
+          {data.faq && data.faq.length > 0 && (
+            <div>
+              <SectionLabel>FAQ</SectionLabel>
+              <div className="space-y-2">
+                {data.faq.map((item, i) => (
+                  <details key={i} className="p-3 rounded-md group" style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}>
+                    <summary className="text-[11px] font-medium cursor-pointer" style={{ color: 'var(--gem-text)' }}>
+                      {item.question}
+                    </summary>
+                    <p className="mt-2 text-[11px]" style={{ color: 'var(--gem-muted)' }}>{item.answer}</p>
+                  </details>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* CTA + Guarantee */}
+          {(data.cta_text || data.guarantee) && (
+            <div className="flex gap-3">
+              {data.cta_text && (
+                <div className="flex-1">
+                  <SectionLabel>CTA</SectionLabel>
+                  <div className="p-2 rounded-md text-center text-[11px] font-medium" style={{ background: 'var(--gem-accent)', color: 'white' }}>
+                    {data.cta_text}
+                  </div>
+                </div>
+              )}
+              {data.guarantee && (
+                <div className="flex-1">
+                  <SectionLabel>Garantia</SectionLabel>
+                  <div className="p-2 rounded-md text-[11px]" style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)', color: 'var(--gem-muted)' }}>
+                    {data.guarantee}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+
+      {!data.title && !data.description && !data.tags?.length && !data.cards?.length && !data.end_screen && !data.strategy?.length && !isBlogPost && !isCourse && (
         <div className="text-[11px] text-center py-4" style={{ color: 'var(--gem-dim)' }}>
           Nenhuma informação de publicação disponível.
         </div>
