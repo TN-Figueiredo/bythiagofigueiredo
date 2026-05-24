@@ -134,7 +134,7 @@ describe('build confidence pipeline', () => {
     let grepOutput = ''
     try {
       grepOutput = execSync(
-        `grep -rh --include="*.ts" --include="*.tsx" "@tn-figueiredo/" ${appDir}/${srcSubdir}`,
+        `grep -rEh --include='*.ts' --include='*.tsx' '(from|import) .@tn-figueiredo/|require..@tn-figueiredo/' "${appDir}/${srcSubdir}"`,
         { encoding: 'utf-8' }
       )
     } catch (err: unknown) {

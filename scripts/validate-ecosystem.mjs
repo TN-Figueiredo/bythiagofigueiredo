@@ -174,11 +174,11 @@ function checkImportDeclarations() {
       ...Object.keys(appPkgJson.peerDependencies ?? {}),
     ])
 
-    // grep for all @tn-figueiredo/* imports in the src directory
+    // grep for actual import/require statements referencing @tn-figueiredo/*
     let grepOutput = ''
     try {
       grepOutput = execSync(
-        `grep -r --include="*.ts" --include="*.tsx" -h "@tn-figueiredo/" "${app.srcDir}"`,
+        `grep -rEh --include='*.ts' --include='*.tsx' '(from|import) .@tn-figueiredo/|require..@tn-figueiredo/' "${app.srcDir}"`,
         { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
       )
     } catch (e) {
@@ -186,7 +186,7 @@ function checkImportDeclarations() {
       grepOutput = e.stdout ?? ''
     }
 
-    // Extract unique @tn-figueiredo/NAME (stop at quote, slash after name, or whitespace)
+    // Extract unique @tn-figueiredo/NAME from matched import lines
     const importedPackages = new Set(
       [...grepOutput.matchAll(/@tn-figueiredo\/([a-z0-9-]+)/g)].map(
         (m) => `@tn-figueiredo/${m[1]}`

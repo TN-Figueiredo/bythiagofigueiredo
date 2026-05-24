@@ -8,8 +8,7 @@ echo "🛡️  Pre-push ecosystem validation..."
 
 # 1. Fresh workspace package rebuild
 echo "📦 Rebuilding workspace packages..."
-npm run build:packages 2>&1
-if [ $? -ne 0 ]; then
+if ! npm run build:packages 2>&1; then
   echo "❌ Package build failed. Push blocked."
   exit 1
 fi
@@ -22,8 +21,7 @@ if grep -r '"@tn-figueiredo/' apps/ packages/ --include="package.json" | grep -E
 fi
 
 # 3. Import-to-declaration consistency
-node scripts/validate-ecosystem.mjs
-if [ $? -ne 0 ]; then
+if ! node scripts/validate-ecosystem.mjs; then
   exit 1
 fi
 
