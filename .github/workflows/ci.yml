@@ -57,6 +57,8 @@ jobs:
       - run: npm ci
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Build workspace packages
+        run: npm run build:packages
       - run: npm run test:api
 
   test-web:

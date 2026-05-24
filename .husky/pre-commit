@@ -13,9 +13,8 @@ if [ $PKG_EXIT -ne 0 ]; then
 fi
 
 echo "🧪 Rodando testes do web..."
-cd apps/web && npx vitest run --bail 1 2>&1
-WEB_TEST_EXIT=$?
-cd ../..
+WEB_TEST_EXIT=0
+( cd apps/web && npx vitest run --bail 1 2>&1 ) || WEB_TEST_EXIT=$?
 
 if [ $WEB_TEST_EXIT -ne 0 ]; then
   echo ""
@@ -37,9 +36,8 @@ if [ $WEB_BUILD_EXIT -ne 0 ]; then
 fi
 
 echo "🧪 Rodando testes da API..."
-cd apps/api && npx vitest run --bail 1 2>&1
-API_TEST_EXIT=$?
-cd ../..
+API_TEST_EXIT=0
+( cd apps/api && npx vitest run --bail 1 2>&1 ) || API_TEST_EXIT=$?
 
 if [ $API_TEST_EXIT -ne 0 ]; then
   echo ""
@@ -48,9 +46,8 @@ if [ $API_TEST_EXIT -ne 0 ]; then
 fi
 
 echo "🔍 Typechecking API..."
-cd apps/api && npx tsc --noEmit 2>&1
-API_TC_EXIT=$?
-cd ../..
+API_TC_EXIT=0
+( cd apps/api && npx tsc --noEmit 2>&1 ) || API_TC_EXIT=$?
 
 if [ $API_TC_EXIT -ne 0 ]; then
   echo ""

@@ -29,19 +29,15 @@ fi
 
 # 4. Typecheck both apps with fresh dist/
 echo "🔍 Typechecking apps/web..."
-cd apps/web && npx tsc --noEmit 2>&1
-WEB_TC=$?
-cd ../..
-if [ $WEB_TC -ne 0 ]; then
+( cd apps/web && npx tsc --noEmit 2>&1 )
+if [ $? -ne 0 ]; then
   echo "❌ apps/web typecheck failed. Push blocked."
   exit 1
 fi
 
 echo "🔍 Typechecking apps/api..."
-cd apps/api && npx tsc --noEmit 2>&1
-API_TC=$?
-cd ../..
-if [ $API_TC -ne 0 ]; then
+( cd apps/api && npx tsc --noEmit 2>&1 )
+if [ $? -ne 0 ]; then
   echo "❌ apps/api typecheck failed. Push blocked."
   exit 1
 fi

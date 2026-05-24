@@ -24,7 +24,9 @@ describe('build confidence pipeline', () => {
     const buildScript: string = rootPkg.scripts?.['build:packages'] ?? ''
 
     const packagesDir = join(ROOT, 'packages')
-    const packageDirs = readdirSync(packagesDir)
+    const packageDirs = readdirSync(packagesDir, { withFileTypes: true })
+      .filter(d => d.isDirectory())
+      .map(d => d.name)
 
     const violations: string[] = []
 
@@ -89,7 +91,9 @@ describe('build confidence pipeline', () => {
     )
 
     const packagesDir = join(ROOT, 'packages')
-    const packageDirs = readdirSync(packagesDir)
+    const packageDirs = readdirSync(packagesDir, { withFileTypes: true })
+      .filter(d => d.isDirectory())
+      .map(d => d.name)
 
     const violations: string[] = []
 
