@@ -45,6 +45,7 @@
     "@tiptap/react": "3.22.4",
     "@tiptap/starter-kit": "3.22.4",
     "@tiptap/suggestion": "3.22.4",
+    "@tn-figueiredo/audit": "0.1.0",
     "@tn-figueiredo/ad-components": "0.1.1",
     "@tn-figueiredo/ad-engine": "1.0.1",
     "@tn-figueiredo/ad-engine-admin": "1.0.1",

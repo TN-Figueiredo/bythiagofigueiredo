@@ -1,0 +1,49 @@
+#!/usr/bin/env sh
+
+# Build Confidence Pipeline — pre-push gate (belt + suspenders).
+# Full ecosystem validation before push. Cost: ~45-60s.
+# Justified: each failed push wastes 4 Vercel builds.
+
+echo "🛡️  Pre-push ecosystem validation..."
+
+# 1. Fresh workspace package rebuild
+echo "📦 Rebuilding workspace packages..."
+npm run build:packages 2>&1
+if [ $? -ne 0 ]; then
+  echo "❌ Package build failed. Push blocked."
+  exit 1
+fi
+
+# 2. Ecosystem pinning (no ^ or ~ on @tn-figueiredo/*)
+if grep -r '"@tn-figueiredo/' apps/ packages/ --include="package.json" | grep -E '"\^|"~'; then
+  echo ""
+  echo "❌ Unpinned @tn-figueiredo/* packages found. Use exact versions. Push blocked."
+  exit 1
+fi
+
+# 3. Import-to-declaration consistency
+node scripts/validate-ecosystem.mjs
+if [ $? -ne 0 ]; then
+  exit 1
+fi
+
+# 4. Typecheck both apps with fresh dist/
+echo "🔍 Typechecking apps/web..."
+cd apps/web && npx tsc --noEmit 2>&1
+WEB_TC=$?
+cd ../..
+if [ $WEB_TC -ne 0 ]; then
+  echo "❌ apps/web typecheck failed. Push blocked."
+  exit 1
+fi
+
+echo "🔍 Typechecking apps/api..."
+cd apps/api && npx tsc --noEmit 2>&1
+API_TC=$?
+cd ../..
+if [ $API_TC -ne 0 ]; then
+  echo "❌ apps/api typecheck failed. Push blocked."
+  exit 1
+fi
+
+echo "✅ Ecosystem validated — push safe."
