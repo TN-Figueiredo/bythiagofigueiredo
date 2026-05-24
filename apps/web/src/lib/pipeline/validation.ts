@@ -53,6 +53,13 @@ interface BlogWeights extends CoreWeights {
   has_cover: number
 }
 
+interface CourseWeights extends CoreWeights {
+  has_tier: number
+  has_pricing_model: number
+  has_platform: number
+  has_difficulty: number
+}
+
 const WEIGHTS_DEFAULT: CoreWeights = {
   has_title: 20,
   has_hook: 15,
@@ -75,6 +82,20 @@ const WEIGHTS_BLOG: BlogWeights = {
   has_excerpt: 5,
   has_seo: 5,
   has_cover: 5,
+}
+
+const WEIGHTS_COURSE: CourseWeights = {
+  has_title: 17,
+  has_hook: 12,
+  has_synopsis: 8,
+  has_body: 18,
+  has_tags: 8,
+  checklist_pct: 12,
+  metadata_complete: 5,
+  has_tier: 3,
+  has_pricing_model: 3,
+  has_platform: 2,
+  has_difficulty: 2,
 }
 
 function extractSectionField(
@@ -119,7 +140,8 @@ export function computeValidationScore(input: ValidationInput): ValidationScore 
   const metadata_complete = metaResult.success && hasMetaValues
 
   const isBlogPost = input.format === 'blog_post'
-  const WEIGHTS: CoreWeights = isBlogPost ? WEIGHTS_BLOG : WEIGHTS_DEFAULT
+  const isCourse = input.format === 'course'
+  const WEIGHTS: CoreWeights = isBlogPost ? WEIGHTS_BLOG : isCourse ? WEIGHTS_COURSE : WEIGHTS_DEFAULT
 
   const breakdown: ValidationScore['breakdown'] = {
     has_title,
@@ -139,6 +161,21 @@ export function computeValidationScore(input: ValidationInput): ValidationScore 
     (has_tags ? WEIGHTS.has_tags : 0) +
     (checklist_pct / 100) * WEIGHTS.checklist_pct +
     (metadata_complete ? WEIGHTS.metadata_complete : 0)
+
+  if (isCourse) {
+    const courseWeights = WEIGHTS_COURSE
+    const meta = input.format_metadata
+    const has_tier = typeof meta.tier === 'string' && meta.tier.length > 0
+    const has_pricing_model = typeof meta.pricing_model === 'string' && meta.pricing_model.length > 0
+    const has_platform = typeof meta.platform === 'string' && meta.platform.length > 0
+    const has_difficulty = typeof meta.difficulty === 'string' && meta.difficulty.length > 0
+
+    overall +=
+      (has_tier ? courseWeights.has_tier : 0) +
+      (has_pricing_model ? courseWeights.has_pricing_model : 0) +
+      (has_platform ? courseWeights.has_platform : 0) +
+      (has_difficulty ? courseWeights.has_difficulty : 0)
+  }
 
   if (isBlogPost) {
     const blogWeights = WEIGHTS_BLOG

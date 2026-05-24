@@ -345,6 +345,89 @@ describe('blog_post per-locale validation', () => {
   })
 })
 
+describe('course format-specific validation', () => {
+  const courseBase = {
+    title_pt: 'Curso Teste',
+    title_en: null,
+    hook: 'Um hook poderoso',
+    synopsis: 'Sinopse aqui',
+    body_content: 'Conteúdo do curso',
+    tags: ['curso'],
+    production_checklist: [{ label: 'Gravar', done: true }],
+    format_metadata: {},
+    format: 'course' as const,
+  }
+
+  it('course with no metadata scores lower than 80', () => {
+    const result = computeValidationScore(courseBase)
+    // has_title(17)+has_hook(12)+has_synopsis(8)+has_body(18)+has_tags(8)+checklist_pct(12)+metadata(0)+bonuses(0) = 75
+    expect(result.overall).toBe(75)
+  })
+
+  it('course with tier adds 3 points + metadata_complete bonus', () => {
+    const result = computeValidationScore({
+      ...courseBase,
+      format_metadata: { tier: 'core' },
+    })
+    // 75 base + 5(metadata_complete) + 3(tier) = 83
+    expect(result.overall).toBe(83)
+  })
+
+  it('course with pricing_model adds 3 points + metadata_complete bonus', () => {
+    const result = computeValidationScore({
+      ...courseBase,
+      format_metadata: { pricing_model: 'one_time' },
+    })
+    // 75 base + 5(metadata_complete) + 3(pricing_model) = 83
+    expect(result.overall).toBe(83)
+  })
+
+  it('course with platform adds 2 points + metadata_complete bonus', () => {
+    const result = computeValidationScore({
+      ...courseBase,
+      format_metadata: { platform: 'hotmart' },
+    })
+    // 75 base + 5(metadata_complete) + 2(platform) = 82
+    expect(result.overall).toBe(82)
+  })
+
+  it('course with difficulty adds 2 points + metadata_complete bonus', () => {
+    const result = computeValidationScore({
+      ...courseBase,
+      format_metadata: { difficulty: 'intermediate' },
+    })
+    // 75 base + 5(metadata_complete) + 2(difficulty) = 82
+    expect(result.overall).toBe(82)
+  })
+
+  it('course with all bonus metadata fields reaches threshold', () => {
+    const result = computeValidationScore({
+      ...courseBase,
+      format_metadata: {
+        tier: 'core',
+        pricing_model: 'one_time',
+        platform: 'hotmart',
+        difficulty: 'intermediate',
+      },
+    })
+    // 75 base + 5(metadata_complete) + 3(tier) + 3(pricing_model) + 2(platform) + 2(difficulty) = 90
+    expect(result.overall).toBe(90)
+    expect(result.overall).toBeGreaterThanOrEqual(80)
+  })
+
+  it('non-course format does not apply course bonus fields', () => {
+    const result = computeValidationScore({
+      ...courseBase,
+      format: 'video',
+      format_metadata: { tier: 'core' },
+    })
+    // video uses WEIGHTS_DEFAULT — tier field not evaluated as bonus
+    // metadata_complete: true since tier is a valid non-empty value... but video schema is strict
+    // tier is not in VideoMetadataSchema so safeParse fails → metadata_complete false
+    expect(result.breakdown).not.toHaveProperty('has_tier')
+  })
+})
+
 describe('VVS whitespace and missing-section edge cases', () => {
   it('whitespace-only hook/synopsis/body score zero', () => {
     const score = computeValidationScore({

@@ -24,9 +24,9 @@ describe('LessonsRenderer', () => {
     expect(screen.getByText(/Point A/)).toBeTruthy()
   })
 
-  it('renders lesson ID in sidebar', () => {
+  it('renders formatted lesson label in sidebar', () => {
     render(<LessonsRenderer {...baseProps} />)
-    expect(screen.getByText('l1')).toBeTruthy()
+    expect(screen.getByText('Aula 1')).toBeTruthy()
   })
 
   it('renders script text', () => {
@@ -51,7 +51,7 @@ describe('LessonsRenderer', () => {
       l2: { talking_points: ['Point B'], script: 'Script 2', production_notes: '', recording_date: null, actual_duration_seconds: null, equipment_notes: null },
     }
     render(<LessonsRenderer {...baseProps} content={content} />)
-    expect(screen.getByText('l1')).toBeTruthy()
-    expect(screen.getByText('l2')).toBeTruthy()
+    expect(screen.getByText('Aula 1')).toBeTruthy()
+    expect(screen.getByText('Aula 2')).toBeTruthy()
   })
 })

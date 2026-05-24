@@ -311,7 +311,7 @@ export function LaunchRenderer({ content, isEditing, onContentChange }: Renderer
   }
 
   function addBonus() {
-    update({ bonuses: [...launch.bonuses, { title: '', description: '', type: 'content', deadline: null }] })
+    update({ bonuses: [...launch.bonuses, { title: 'Novo bônus', description: '', type: 'content', deadline: null }] })
   }
 
   function removeBonus(idx: number) {

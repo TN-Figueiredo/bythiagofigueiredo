@@ -709,143 +709,313 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
       {isCourse && (
         <>
           {/* Platform */}
-          {(data.platform || data.sales_page_url) && (
+          {(isEditing || data.platform || data.sales_page_url) && (
             <div>
               <SectionLabel>Plataforma</SectionLabel>
-              <div className="flex items-center gap-2 flex-wrap text-[11px]" style={{ color: 'var(--gem-muted)' }}>
-                {data.platform && (
-                  <span className="px-2 py-1 rounded-md" style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}>
-                    {data.platform}
-                  </span>
-                )}
-                {data.platform_url && (
-                  <a href={data.platform_url} target="_blank" rel="noopener noreferrer" className="underline opacity-70">
-                    {data.platform_url}
-                  </a>
-                )}
-                {data.sales_page_url && (
-                  <a href={data.sales_page_url} target="_blank" rel="noopener noreferrer" className="underline opacity-70">
-                    Página de vendas
-                  </a>
-                )}
-              </div>
+              {isEditing ? (
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <select
+                      value={data.platform ?? ''}
+                      onChange={(e) => onContentChange({ ...data, platform: e.target.value || undefined })}
+                      className="flex-1 text-[11px] p-1.5 rounded-md"
+                      style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)', color: 'var(--gem-text)' }}
+                    >
+                      <option value="">Selecionar plataforma...</option>
+                      <option value="self-hosted">Self-hosted</option>
+                      <option value="hotmart">Hotmart</option>
+                      <option value="youtube">YouTube</option>
+                      <option value="udemy">Udemy</option>
+                      <option value="other">Outra</option>
+                    </select>
+                  </div>
+                  <input
+                    type="url"
+                    value={data.platform_url ?? ''}
+                    placeholder="URL da plataforma..."
+                    onChange={(e) => onContentChange({ ...data, platform_url: e.target.value || undefined })}
+                    className="w-full text-[11px] p-1.5 rounded-md"
+                    style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)', color: 'var(--gem-text)' }}
+                  />
+                  <input
+                    type="url"
+                    value={data.sales_page_url ?? ''}
+                    placeholder="URL da página de vendas..."
+                    onChange={(e) => onContentChange({ ...data, sales_page_url: e.target.value || undefined })}
+                    className="w-full text-[11px] p-1.5 rounded-md"
+                    style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)', color: 'var(--gem-text)' }}
+                  />
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 flex-wrap text-[11px]" style={{ color: 'var(--gem-muted)' }}>
+                  {data.platform && (
+                    <span className="px-2 py-1 rounded-md" style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}>
+                      {data.platform}
+                    </span>
+                  )}
+                  {data.platform_url && (
+                    <a href={data.platform_url} target="_blank" rel="noopener noreferrer" className="underline opacity-70">
+                      {data.platform_url}
+                    </a>
+                  )}
+                  {data.sales_page_url && (
+                    <a href={data.sales_page_url} target="_blank" rel="noopener noreferrer" className="underline opacity-70">
+                      Página de vendas
+                    </a>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
           {/* Headline */}
-          {data.headline && (
+          {(data.headline || isEditing) && (
             <div>
               <SectionLabel>Headline</SectionLabel>
-              <div
-                className="p-3 rounded-md text-[14px] font-bold"
-                style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)', color: 'var(--gem-text)' }}
-                role={isEditing ? 'textbox' : undefined}
-                aria-label={isEditing ? 'Headline' : undefined}
-                contentEditable={isEditing}
-                suppressContentEditableWarning
-                spellCheck={false}
-                onBlur={(e) => isEditing && onContentChange({ ...data, headline: e.currentTarget.textContent ?? '' })}
-              >
-                {data.headline}
-              </div>
-              {data.subheadline && (
-                <div
-                  className="mt-1 p-2 text-[11px]"
-                  style={{ color: 'var(--gem-muted)' }}
-                  role={isEditing ? 'textbox' : undefined}
-                  aria-label={isEditing ? 'Subheadline' : undefined}
-                  contentEditable={isEditing}
-                  suppressContentEditableWarning
-                  spellCheck={false}
-                  onBlur={(e) => isEditing && onContentChange({ ...data, subheadline: e.currentTarget.textContent ?? '' })}
-                >
-                  {data.subheadline}
-                </div>
+              {isEditing ? (
+                <>
+                  <input
+                    type="text"
+                    value={data.headline ?? ''}
+                    onChange={(e) => onContentChange({ ...data, headline: e.target.value })}
+                    placeholder="Headline principal..."
+                    className="w-full p-3 rounded-md text-[14px] font-bold"
+                    style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)', color: 'var(--gem-text)' }}
+                  />
+                  <textarea
+                    value={data.subheadline ?? ''}
+                    onChange={(e) => onContentChange({ ...data, subheadline: e.target.value })}
+                    placeholder="Subheadline..."
+                    rows={2}
+                    className="mt-1 w-full p-2 text-[11px] rounded-md resize-none"
+                    style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)', color: 'var(--gem-muted)' }}
+                  />
+                </>
+              ) : (
+                <>
+                  <div
+                    className="p-3 rounded-md text-[14px] font-bold"
+                    style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)', color: 'var(--gem-text)' }}
+                  >
+                    {data.headline}
+                  </div>
+                  {data.subheadline && (
+                    <div
+                      className="mt-1 p-2 text-[11px]"
+                      style={{ color: 'var(--gem-muted)' }}
+                    >
+                      {data.subheadline}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}
 
           {/* Bullet points */}
-          {data.bullet_points && data.bullet_points.length > 0 && (
+          {(isEditing || (data.bullet_points && data.bullet_points.length > 0)) && (
             <div>
               <SectionLabel>Argumentos de venda</SectionLabel>
-              <div className="space-y-1.5">
-                {data.bullet_points.map((point, i) => (
-                  <div key={i} className="flex items-start gap-2 text-[11px]" style={{ color: 'var(--gem-muted)' }}>
-                    <span style={{ color: 'var(--gem-done)' }}>✓</span>
-                    <span
-                      role={isEditing ? 'textbox' : undefined}
-                      aria-label={isEditing ? `Argumento de venda ${i + 1}` : undefined}
-                      contentEditable={isEditing}
-                      suppressContentEditableWarning
-                      spellCheck={false}
-                      onBlur={(e) => {
-                        if (!isEditing) return
-                        const updated = [...(data.bullet_points ?? [])]
-                        updated[i] = e.currentTarget.textContent ?? ''
-                        onContentChange({ ...data, bullet_points: updated })
-                      }}
-                    >
-                      {point}
-                    </span>
-                  </div>
-                ))}
-              </div>
+              {isEditing ? (
+                <div className="space-y-2">
+                  {(data.bullet_points ?? []).map((point, i) => (
+                    <div key={i} className="flex gap-2">
+                      <input
+                        type="text"
+                        value={point}
+                        onChange={(e) => {
+                          const updated = [...(data.bullet_points ?? [])]
+                          updated[i] = e.target.value
+                          onContentChange({ ...data, bullet_points: updated })
+                        }}
+                        className="flex-1 text-[11px] p-2 rounded-md"
+                        style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)', color: 'var(--gem-text)' }}
+                      />
+                      <button
+                        onClick={() => {
+                          const updated = (data.bullet_points ?? []).filter((_, j) => j !== i)
+                          onContentChange({ ...data, bullet_points: updated })
+                        }}
+                        className="text-[10px] px-2 rounded"
+                        style={{ color: '#f87171' }}
+                      >×</button>
+                    </div>
+                  ))}
+                  <button
+                    onClick={() => onContentChange({ ...data, bullet_points: [...(data.bullet_points ?? []), ''] })}
+                    className="text-[10px] px-2 py-1 rounded"
+                    style={{ color: 'var(--gem-accent)', background: 'color-mix(in srgb, var(--gem-accent) 10%, transparent)' }}
+                  >+ Argumento</button>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  {data.bullet_points!.map((point, i) => (
+                    <div key={i} className="flex items-start gap-2 text-[11px]" style={{ color: 'var(--gem-muted)' }}>
+                      <span style={{ color: 'var(--gem-done)' }}>✓</span>
+                      <span>{point}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
           {/* Testimonials */}
-          {data.testimonials && data.testimonials.length > 0 && (
+          {(isEditing || (data.testimonials && data.testimonials.length > 0)) && (
             <div>
               <SectionLabel>Depoimentos</SectionLabel>
-              <div className="space-y-2">
-                {data.testimonials.map((t, i) => (
-                  <div key={i} className="p-3 rounded-md" style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}>
-                    <p className="text-[11px] italic" style={{ color: 'var(--gem-muted)' }}>"{t.text}"</p>
-                    <div className="flex justify-between mt-1.5 text-[10px]">
-                      <span style={{ color: 'var(--gem-text)' }}>{t.name}</span>
-                      <span style={{ color: 'var(--gem-done)' }}>{t.result}</span>
+              {isEditing ? (
+                <div className="space-y-3">
+                  {(data.testimonials ?? []).map((t, i) => (
+                    <div key={i} className="p-3 rounded-md space-y-2" style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={t.name}
+                          placeholder="Nome"
+                          onChange={(e) => { const u = [...(data.testimonials ?? [])]; u[i] = { name: e.target.value, text: t.text, result: t.result }; onContentChange({ ...data, testimonials: u }) }}
+                          className="flex-1 text-[11px] p-1.5 rounded"
+                          style={{ background: 'var(--gem-surface)', border: '1px solid var(--gem-border)', color: 'var(--gem-text)' }}
+                        />
+                        <input
+                          type="text"
+                          value={t.result}
+                          placeholder="Resultado"
+                          onChange={(e) => { const u = [...(data.testimonials ?? [])]; u[i] = { name: t.name, text: t.text, result: e.target.value }; onContentChange({ ...data, testimonials: u }) }}
+                          className="flex-1 text-[11px] p-1.5 rounded"
+                          style={{ background: 'var(--gem-surface)', border: '1px solid var(--gem-border)', color: 'var(--gem-text)' }}
+                        />
+                        <button
+                          onClick={() => onContentChange({ ...data, testimonials: (data.testimonials ?? []).filter((_, j) => j !== i) })}
+                          className="text-[10px] px-2"
+                          style={{ color: '#f87171' }}
+                        >×</button>
+                      </div>
+                      <textarea
+                        value={t.text}
+                        placeholder="Depoimento..."
+                        onChange={(e) => { const u = [...(data.testimonials ?? [])]; u[i] = { name: t.name, text: e.target.value, result: t.result }; onContentChange({ ...data, testimonials: u }) }}
+                        rows={2}
+                        className="w-full text-[11px] p-1.5 rounded resize-none"
+                        style={{ background: 'var(--gem-surface)', border: '1px solid var(--gem-border)', color: 'var(--gem-text)' }}
+                      />
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                  <button
+                    onClick={() => onContentChange({ ...data, testimonials: [...(data.testimonials ?? []), { name: '', text: '', result: '' }] })}
+                    className="text-[10px] px-2 py-1 rounded"
+                    style={{ color: 'var(--gem-accent)', background: 'color-mix(in srgb, var(--gem-accent) 10%, transparent)' }}
+                  >+ Depoimento</button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {data.testimonials!.map((t, i) => (
+                    <div key={i} className="p-3 rounded-md" style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}>
+                      <p className="text-[11px] italic" style={{ color: 'var(--gem-muted)' }}>"{t.text}"</p>
+                      <div className="flex justify-between mt-1.5 text-[10px]">
+                        <span style={{ color: 'var(--gem-text)' }}>{t.name}</span>
+                        <span style={{ color: 'var(--gem-done)' }}>{t.result}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
           {/* FAQ */}
-          {data.faq && data.faq.length > 0 && (
+          {(isEditing || (data.faq && data.faq.length > 0)) && (
             <div>
               <SectionLabel>FAQ</SectionLabel>
-              <div className="space-y-2">
-                {data.faq.map((item, i) => (
-                  <details key={i} className="p-3 rounded-md group" style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}>
-                    <summary className="text-[11px] font-medium cursor-pointer" style={{ color: 'var(--gem-text)' }}>
-                      {item.question}
-                    </summary>
-                    <p className="mt-2 text-[11px]" style={{ color: 'var(--gem-muted)' }}>{item.answer}</p>
-                  </details>
-                ))}
-              </div>
+              {isEditing ? (
+                <div className="space-y-2">
+                  {(data.faq ?? []).map((item, i) => (
+                    <div key={i} className="p-3 rounded-md space-y-1" style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={item.question}
+                          placeholder="Pergunta"
+                          onChange={(e) => { const u = [...(data.faq ?? [])]; u[i] = { question: e.target.value, answer: item.answer }; onContentChange({ ...data, faq: u }) }}
+                          className="flex-1 text-[11px] font-medium p-1.5 rounded"
+                          style={{ background: 'var(--gem-surface)', border: '1px solid var(--gem-border)', color: 'var(--gem-text)' }}
+                        />
+                        <button
+                          onClick={() => onContentChange({ ...data, faq: (data.faq ?? []).filter((_, j) => j !== i) })}
+                          className="text-[10px] px-2"
+                          style={{ color: '#f87171' }}
+                        >×</button>
+                      </div>
+                      <textarea
+                        value={item.answer}
+                        placeholder="Resposta..."
+                        onChange={(e) => { const u = [...(data.faq ?? [])]; u[i] = { question: item.question, answer: e.target.value }; onContentChange({ ...data, faq: u }) }}
+                        rows={2}
+                        className="w-full text-[11px] p-1.5 rounded resize-none"
+                        style={{ background: 'var(--gem-surface)', border: '1px solid var(--gem-border)', color: 'var(--gem-text)' }}
+                      />
+                    </div>
+                  ))}
+                  <button
+                    onClick={() => onContentChange({ ...data, faq: [...(data.faq ?? []), { question: '', answer: '' }] })}
+                    className="text-[10px] px-2 py-1 rounded"
+                    style={{ color: 'var(--gem-accent)', background: 'color-mix(in srgb, var(--gem-accent) 10%, transparent)' }}
+                  >+ FAQ</button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {data.faq!.map((item, i) => (
+                    <details key={i} className="p-3 rounded-md group" style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}>
+                      <summary className="text-[11px] font-medium cursor-pointer" style={{ color: 'var(--gem-text)' }}>
+                        {item.question}
+                      </summary>
+                      <p className="mt-2 text-[11px]" style={{ color: 'var(--gem-muted)' }}>{item.answer}</p>
+                    </details>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
           {/* CTA + Guarantee */}
-          {(data.cta_text || data.guarantee) && (
+          {(isEditing || data.cta_text || data.guarantee) && (
             <div className="flex gap-3">
-              {data.cta_text && (
+              {(isEditing || data.cta_text) && (
                 <div className="flex-1">
                   <SectionLabel>CTA</SectionLabel>
-                  <div className="p-2 rounded-md text-center text-[11px] font-medium" style={{ background: 'var(--gem-accent)', color: 'white' }}>
-                    {data.cta_text}
-                  </div>
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      value={data.cta_text ?? ''}
+                      placeholder="Texto do CTA..."
+                      onChange={(e) => onContentChange({ ...data, cta_text: e.target.value })}
+                      className="w-full p-2 rounded-md text-center text-[11px] font-medium"
+                      style={{ background: 'var(--gem-accent)', color: 'white' }}
+                    />
+                  ) : (
+                    <div className="p-2 rounded-md text-center text-[11px] font-medium" style={{ background: 'var(--gem-accent)', color: 'white' }}>
+                      {data.cta_text}
+                    </div>
+                  )}
                 </div>
               )}
-              {data.guarantee && (
+              {(isEditing || data.guarantee) && (
                 <div className="flex-1">
                   <SectionLabel>Garantia</SectionLabel>
-                  <div className="p-2 rounded-md text-[11px]" style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)', color: 'var(--gem-muted)' }}>
-                    {data.guarantee}
-                  </div>
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      value={data.guarantee ?? ''}
+                      placeholder="Ex: 30 dias de garantia..."
+                      onChange={(e) => onContentChange({ ...data, guarantee: e.target.value })}
+                      className="w-full p-2 rounded-md text-[11px]"
+                      style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)', color: 'var(--gem-text)' }}
+                    />
+                  ) : (
+                    <div className="p-2 rounded-md text-[11px]" style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)', color: 'var(--gem-muted)' }}>
+                      {data.guarantee}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

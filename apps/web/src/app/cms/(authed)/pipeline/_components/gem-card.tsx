@@ -13,6 +13,8 @@ import {
 import { CurriculumContentSchema, computeCourseProgress } from '@/lib/pipeline/course-schemas'
 import { GemVvsRing } from './gem-vvs-ring'
 
+const LAUNCH_LABELS: Record<string, string> = { seed: 'Semente', internal: 'Interno', jv: 'JV', evergreen: 'Evergreen' }
+
 export interface GemCardItem {
   id: string
   code: string
@@ -59,7 +61,9 @@ export function computeCourseCardInfo(
 
   const tier = (metadata.tier as string) || null
   const priceCents = metadata.price_cents as number | undefined
-  const priceLabel = priceCents ? `R$${Math.floor(priceCents / 100)}` : null
+  const priceLabel = priceCents != null && priceCents > 0
+    ? `R$${(priceCents / 100).toFixed(2).replace('.', ',')}`
+    : priceCents === 0 ? 'Grátis' : null
   const launchType = (metadata.launch_type as string) || null
 
   const currSection = sections.curriculum_shared as { content?: unknown } | undefined
@@ -87,6 +91,11 @@ function CourseCardEnrichment({ item }: { item: GemCardItem }) {
           </span>
         )}
       </div>
+      {courseInfo.launchType && (
+        <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: 'color-mix(in srgb, var(--gem-accent) 12%, transparent)', color: 'var(--gem-accent)' }}>
+          {LAUNCH_LABELS[courseInfo.launchType] ?? courseInfo.launchType}
+        </span>
+      )}
       {courseInfo.progress.total > 0 && (
         <div>
           <div className="flex justify-between text-[9px] mb-0.5" style={{ color: 'var(--gem-dim)' }}>
