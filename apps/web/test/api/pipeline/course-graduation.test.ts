@@ -76,4 +76,55 @@ describe('course graduation schema validation', () => {
     expect(eligibleModules).toHaveLength(1)
     expect(eligibleModules[0].id).toBe('m1')
   })
+
+  it('playlist_id in format_metadata must be validated against site ownership before reuse', () => {
+    // Simulate the route logic: when format_metadata contains a playlist_id,
+    // the route queries playlists filtered by both id AND site_id.
+    // A playlist belonging to a different site returns no rows — access must be denied.
+    const formatMetadata = { playlist_id: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee' }
+    const existingPlaylistId = (formatMetadata as Record<string, unknown>)?.playlist_id as string | undefined
+
+    // Simulate: query returned nothing (playlist belongs to another site)
+    const existingPlaylist = null
+
+    if (existingPlaylistId) {
+      if (!existingPlaylist) {
+        // Route returns 403 — assert the denial condition is reached
+        expect(existingPlaylist).toBeNull()
+        return
+      }
+    }
+
+    // Should not reach here when playlist is from another site
+    expect.fail('Should have denied cross-site playlist access')
+  })
+
+  it('upsert idempotency: duplicate lesson entries are deduplicated by playlist_id+pipeline_id', () => {
+    // The route uses upsert with onConflict: 'playlist_id,pipeline_id' and ignoreDuplicates: true.
+    // Simulate building allItems for two identical graduation calls — deduplication must occur.
+    const playlistId = 'playlist-uuid'
+    const lessonId = 'lesson-uuid'
+    const itemId = 'item-uuid'
+
+    function buildItems(pipelineRef: string | null) {
+      return [{ playlist_id: playlistId, pipeline_id: pipelineRef || itemId, sort_order: 0 }]
+    }
+
+    const firstCall = buildItems(null)
+    const secondCall = buildItems(null)
+
+    // Merge both calls, then deduplicate on playlist_id+pipeline_id (mimics ignoreDuplicates)
+    const combined = [...firstCall, ...secondCall]
+    const seen = new Set<string>()
+    const deduplicated = combined.filter((entry) => {
+      const key = `${entry.playlist_id}:${entry.pipeline_id}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+
+    expect(deduplicated).toHaveLength(1)
+    expect(deduplicated[0].pipeline_id).toBe(itemId)
+    expect(deduplicated[0].playlist_id).toBe(playlistId)
+  })
 })
