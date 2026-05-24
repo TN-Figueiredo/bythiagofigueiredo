@@ -7,6 +7,7 @@ import { generateLessonId } from '@/lib/pipeline/course-schemas'
 // ── Types ──────────────────────────────────────────────────────────────────
 
 interface LessonScript {
+  title?: string
   talking_points: string[]
   script: string
   production_notes: string
@@ -24,6 +25,13 @@ function isLessonScript(v: unknown): v is LessonScript {
   )
 }
 
+function formatLessonId(id: string): string {
+  return id
+    .replace(/^l(\d+)$/, 'Aula $1')
+    .replace(/_/g, ' ')
+    .replace(/^./, (c) => c.toUpperCase())
+}
+
 function parseLessons(content: RendererProps['content']): Record<string, LessonScript> {
   if (!content || typeof content !== 'object' || Array.isArray(content)) return {}
   const obj = content as Record<string, unknown>
@@ -31,6 +39,7 @@ function parseLessons(content: RendererProps['content']): Record<string, LessonS
   for (const [key, value] of Object.entries(obj)) {
     if (isLessonScript(value)) {
       result[key] = {
+        title: typeof value.title === 'string' ? value.title : undefined,
         talking_points: value.talking_points,
         script: value.script,
         production_notes: value.production_notes,
@@ -158,8 +167,10 @@ function Sidebar({
               gap: 8,
               padding: '6px 12px',
               background: isActive ? 'color-mix(in srgb, var(--gem-accent) 10%, transparent)' : 'transparent',
+              borderTop: 'none',
+              borderRight: 'none',
+              borderBottom: 'none',
               borderLeft: isActive ? '2px solid var(--gem-accent)' : '2px solid transparent',
-              border: 'none',
               cursor: 'pointer',
               textAlign: 'left',
               width: '100%',
@@ -187,7 +198,7 @@ function Sidebar({
                 whiteSpace: 'nowrap',
               }}
             >
-              {id}
+              {lesson?.title || formatLessonId(id)}
             </span>
           </button>
         )
@@ -301,11 +312,13 @@ function EditPanel({
   lesson,
   onUpdate,
   onAddLesson,
+  onDeleteLesson,
 }: {
   lessonId: string
   lesson: LessonScript
   onUpdate: (patch: Partial<LessonScript>) => void
   onAddLesson: () => void
+  onDeleteLesson: () => void
 }) {
   return (
     <div style={{ flex: 1, padding: 20, display: 'flex', flexDirection: 'column', gap: 16, overflow: 'auto' }}>
@@ -431,8 +444,17 @@ function EditPanel({
         />
       </section>
 
-      {/* Add lesson button */}
-      <div style={{ marginTop: 8, paddingTop: 12, borderTop: '1px solid var(--gem-border)' }}>
+      {/* Action row */}
+      <div
+        style={{
+          marginTop: 8,
+          paddingTop: 12,
+          borderTop: '1px solid var(--gem-border)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+        }}
+      >
         <button
           type="button"
           onClick={onAddLesson}
@@ -448,6 +470,24 @@ function EditPanel({
           }}
         >
           + Adicionar aula
+        </button>
+        <button
+          type="button"
+          onClick={onDeleteLesson}
+          aria-label="Remover aula"
+          style={{
+            background: '#f8717122',
+            color: '#f87171',
+            border: '1px solid #f8717155',
+            borderRadius: 4,
+            padding: '5px 12px',
+            fontSize: 11,
+            fontWeight: 600,
+            cursor: 'pointer',
+            marginLeft: 'auto',
+          }}
+        >
+          Remover aula
         </button>
       </div>
     </div>
@@ -487,6 +527,16 @@ export function LessonsRenderer({ content, isEditing, onContentChange }: Rendere
     onContentChange(updated as Record<string, unknown>)
     setSelectedId(newId)
   }, [onContentChange])
+
+  const deleteLesson = useCallback(
+    (id: string) => {
+      const current = lessonsRef.current
+      const { [id]: _, ...rest } = current
+      onContentChange(rest as Record<string, unknown>)
+      setSelectedId(Object.keys(rest)[0] ?? null)
+    },
+    [onContentChange],
+  )
 
   return (
     <div
@@ -545,6 +595,7 @@ export function LessonsRenderer({ content, isEditing, onContentChange }: Rendere
             lesson={lessons[effectiveId]}
             onUpdate={(patch) => updateLesson(effectiveId, patch)}
             onAddLesson={addLesson}
+            onDeleteLesson={() => deleteLesson(effectiveId)}
           />
         ) : (
           <ReadPanel lesson={lessons[effectiveId]} />
