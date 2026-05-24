@@ -4,8 +4,7 @@ import { getActiveTypesForNotFound } from '@/lib/newsletter/queries'
 import { resolveSiteByHost } from '@/lib/seo/host'
 import { localePath } from '@/lib/i18n/locale-path'
 
-import enStrings from '@/locales/en.json'
-import ptBrStrings from '@/locales/pt-BR.json'
+import { getDictionary } from '@/locales/dictionary'
 
 export default async function NewsletterNotFound() {
   const h = await headers()
@@ -14,7 +13,7 @@ export default async function NewsletterNotFound() {
   const site = await resolveSiteByHost(host)
   const types = site ? await getActiveTypesForNotFound(site.id) : []
 
-  const dict = (locale === 'pt-BR' ? ptBrStrings : enStrings) as unknown as Record<string, string>
+  const dict = getDictionary(locale)
   const t = (key: string) => dict[key] ?? key
 
   return (

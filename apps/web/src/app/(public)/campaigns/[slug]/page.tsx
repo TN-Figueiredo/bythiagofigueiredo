@@ -15,8 +15,7 @@ import { composeGraph } from '@/lib/seo/jsonld/graph'
 import { JsonLdScript } from '@/lib/seo/jsonld/render'
 import { localePath } from '@/lib/i18n/locale-path'
 import { VisualBreadcrumbs } from '../../components/visual-breadcrumbs'
-import enStrings from '@/locales/en.json'
-import ptBrStrings from '@/locales/pt-BR.json'
+import { getDictionary } from '@/locales/dictionary'
 
 interface PageParams {
   slug: string
@@ -87,7 +86,7 @@ export default async function CampaignPage({ params }: { params: Promise<PagePar
   const tx = campaign.campaign_translations[0]
   if (!tx) notFound()
 
-  const t = (locale === 'pt-BR' ? ptBrStrings : enStrings) as unknown as Record<string, string>
+  const t = getDictionary(locale)
 
   // Sprint 5b PR-C C.5 — JSON-LD: Article + Breadcrumb. Reuses buildArticleNode
   // (same shape as BlogPosting with @type swapped) to describe the campaign

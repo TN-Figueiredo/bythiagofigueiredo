@@ -27,20 +27,14 @@ import {
   getVideoCount,
 } from '../../../../lib/home/queries'
 import { getSiteContext } from '../../../../lib/cms/site-context'
-import enStrings from '../../../locales/en.json'
-import ptBrStrings from '../../../locales/pt-BR.json'
-
-const TRANSLATIONS: Record<'en' | 'pt-BR', Record<string, string>> = {
-  en: enStrings as unknown as Record<string, string>,
-  'pt-BR': ptBrStrings as unknown as Record<string, string>,
-}
+import { DICTIONARIES } from '../../../locales/dictionary'
 
 type Props = { locale: 'en' | 'pt-BR' }
 
 export async function PinboardHome({ locale }: Props) {
   const cookieStore = await cookies()
   const isDark = cookieStore.get('btf_theme')?.value !== 'light'
-  const t = TRANSLATIONS[locale]
+  const t = DICTIONARIES[locale]
 
   const { siteId } = await getSiteContext()
 

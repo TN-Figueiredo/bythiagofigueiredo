@@ -19,6 +19,8 @@ function makeSupabase(opts: {
   rpcResult?: { data: unknown; error: unknown }
 } = {}) {
   const cronInsert = vi.fn().mockResolvedValue({ error: null })
+  const deleteChain = { lt: vi.fn().mockResolvedValue({ count: 0, error: null }) }
+  const deleteFn = vi.fn(() => deleteChain)
   const rpcMock = vi.fn().mockImplementation((name: string) => {
     if (name === 'cron_try_lock') return Promise.resolve({ data: true, error: null })
     if (name === 'cron_unlock') return Promise.resolve({ data: null, error: null })
@@ -29,7 +31,10 @@ function makeSupabase(opts: {
   })
   return {
     rpc: rpcMock,
-    from: vi.fn(() => ({ insert: cronInsert })),
+    from: vi.fn((table: string) => {
+      if (table === 'ad_events') return { delete: deleteFn }
+      return { insert: cronInsert }
+    }),
     _cronInsert: cronInsert,
     _rpcMock: rpcMock,
   }

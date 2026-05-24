@@ -159,7 +159,7 @@ function SectionOutline({ headings }: { headings: string[] }) {
 
 // ── Main component ─────────────────────────────────────────────────────────
 
-export function DraftRenderer({ content, isEditing, lang, format, onContentChange }: RendererProps) {
+export function DraftRenderer({ content, isEditing, lang, format, onContentChange, blogPostId: propBlogPostId }: RendererProps) {
   const draft = useMemo(() => extractDraftContent(content), [content])
 
   const headings = useMemo(() => {
@@ -167,14 +167,14 @@ export function DraftRenderer({ content, isEditing, lang, format, onContentChang
     return []
   }, [draft.body])
 
-  // blog_post_id may be stored inside the content object itself (linked after graduation)
   const blogPostId = useMemo(() => {
+    if (propBlogPostId) return propBlogPostId
     if (content && typeof content === 'object' && !Array.isArray(content)) {
       const obj = content as Record<string, unknown>
       return typeof obj.blog_post_id === 'string' ? obj.blog_post_id : null
     }
     return null
-  }, [content])
+  }, [propBlogPostId, content])
 
   const slugConflict = useSlugValidation(draft.slug, blogPostId)
 

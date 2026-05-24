@@ -92,6 +92,7 @@ export const fetchEditorialData = unstable_cache(
     }
 
     // Apply tag + locale filters after displayId assignment
+    // Supabase client untyped (no generated DB types); widen to local shape
     let filtered = allPosts as unknown as RawPost[]
     if (tagId) filtered = filtered.filter((p) => p.tag_id === tagId)
     if (locale) {
@@ -232,6 +233,7 @@ export const fetchScheduleData = unstable_cache(
       blog_tags: { name: string; color: string; name_translations: Record<string, string> | null } | null
     }
 
+    // Supabase client untyped (no generated DB types); widen to local shape
     const sortedPosts = [...(posts as unknown as PostWithRelations[])].sort(
       (a, b) => new Date(a.created_at as string).getTime() - new Date(b.created_at as string).getTime(),
     )
@@ -365,7 +367,30 @@ export const fetchPipelineData = unstable_cache(
       .order('priority', { ascending: false })
       .order('created_at', { ascending: true })
 
-    return (data ?? []).map((item) => ({
+    const items = data ?? []
+    const pipelineIds = items.map((i) => i.id as string)
+
+    const playlistMap = new Map<string, Array<{ id: string; name: string; slug: string }>>()
+    if (pipelineIds.length > 0) {
+      try {
+        const { data: plRefs } = await supabase
+          .from('playlist_items')
+          .select('pipeline_id, playlists!inner(id, name, slug)')
+          .in('pipeline_id', pipelineIds)
+        for (const ref of plRefs ?? []) {
+          const pid = ref.pipeline_id as string
+          const pl = ref.playlists as unknown as { id: string; name: string; slug: string }
+          if (!pl) continue
+          const arr = playlistMap.get(pid) ?? []
+          arr.push({ id: pl.id, name: pl.name, slug: pl.slug })
+          playlistMap.set(pid, arr)
+        }
+      } catch {
+        // Playlist enrichment is non-critical; cards render without it
+      }
+    }
+
+    return items.map((item) => ({
       id: item.id as string,
       code: item.code as string,
       title_pt: item.title_pt as string | null,
@@ -387,6 +412,7 @@ export const fetchPipelineData = unstable_cache(
       sort_order: typeof (item as Record<string, unknown>).sort_order === 'number' ? (item as Record<string, unknown>).sort_order as number : 0,
       version: (item.version ?? 1) as number,
       is_archived: false,
+      playlists: playlistMap.get(item.id as string) ?? [],
     }))
   },
   ['pipeline-blog'],

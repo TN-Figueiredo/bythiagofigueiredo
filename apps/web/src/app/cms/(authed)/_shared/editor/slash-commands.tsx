@@ -416,6 +416,7 @@ function createSuggestionConfig(callbacks: {
             popup?.[0]?.hide()
             return true
           }
+          // SDK limitation: TipTap's ReactRenderer.ref type doesn't expose custom methods
           return (component?.ref as unknown as CommandListRef)?.onKeyDown(props) ?? false
         },
 

@@ -1284,7 +1284,10 @@ export function createLgpdContainer(): LgpdContainer {
         `lgpdRequestRepo.${method}: not used — remove null-object when @tn-figueiredo/lgpd exposes real use-case factories`,
       );
     };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // SDK limitation: @tn-figueiredo/lgpd requires lgpdRequestRepo but the
+  // app doesn't use it directly — null-object pattern with `never` methods.
+  // The cast is needed because the null-object's method signatures don't
+  // match the generic repo interface (they all return `never`).
   const nullLgpdRequestRepo = {
     create: notUsed('create'),
     findById: notUsed('findById'),

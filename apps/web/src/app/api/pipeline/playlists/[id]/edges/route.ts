@@ -52,7 +52,8 @@ export async function POST(
     if (error.message.includes('cycle') || error.code === 'P0001') {
       return pipelineError('CYCLE_DETECTED', 'Sequence edge would create a cycle', 422, auth)
     }
-    return pipelineError('VALIDATION_ERROR', error.message, 400, auth)
+    console.error('[playlist-edges/POST]', error)
+    return pipelineError('DB_ERROR', 'Failed to create edge', 500, auth)
   }
 
   return pipelineSuccess({ id: data.id, already_existed: false }, 201, auth)

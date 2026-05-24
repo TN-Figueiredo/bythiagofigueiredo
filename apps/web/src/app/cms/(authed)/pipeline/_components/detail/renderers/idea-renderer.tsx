@@ -11,6 +11,7 @@ interface CrossRef {
 }
 
 interface IdeaContent {
+  [key: string]: unknown
   premise: string
   body: string | JSONContent
   angle?: string
@@ -22,7 +23,7 @@ interface IdeaContent {
 function parseContent(content: RendererProps['content']): IdeaContent {
   if (typeof content === 'string') return { premise: '', body: content }
   if (Array.isArray(content) || content === null) return { premise: '', body: '' }
-  return content as unknown as IdeaContent
+  return content as IdeaContent
 }
 
 export function IdeaRenderer({ content, isEditing, onContentChange }: RendererProps) {

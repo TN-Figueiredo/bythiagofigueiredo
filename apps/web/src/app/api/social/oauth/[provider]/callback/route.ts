@@ -5,6 +5,41 @@ import { encrypt, getMasterKey } from '@tn-figueiredo/social/vault'
 
 export const runtime = 'nodejs'
 
+async function recordSocialConsent(
+  supabase: ReturnType<typeof getSupabaseServiceClient>,
+  userId: string,
+  siteId: string,
+  provider: string,
+  ip: string | null,
+  userAgent: string | null,
+): Promise<void> {
+  const { data: textRow } = await supabase
+    .from('consent_texts')
+    .select('id')
+    .eq('category', 'social_integration')
+    .eq('locale', 'pt-BR')
+    .is('superseded_at', null)
+    .order('effective_at', { ascending: false })
+    .limit(1)
+    .single()
+
+  if (!textRow) return
+
+  await supabase.from('consents').upsert(
+    {
+      user_id: userId,
+      category: 'social_integration',
+      site_id: siteId,
+      consent_text_id: textRow.id,
+      granted: true,
+      granted_at: new Date().toISOString(),
+      ip,
+      user_agent: userAgent,
+    },
+    { onConflict: 'user_id,category,site_id' },
+  )
+}
+
 /** Derive a purpose-specific HMAC key so the master key is never used directly for signing. */
 function deriveHmacKey(masterKey: string): string {
   return createHmac('sha256', masterKey).update('oauth-state-hmac').digest('hex')
@@ -38,7 +73,7 @@ function oauthResultHtml(provider: string, success: boolean, error?: string): Re
   })
 }
 
-function verifyState(signed: string, secret: string): { siteId: string } | null {
+function verifyState(signed: string, secret: string): { siteId: string; userId?: string } | null {
   const decoded = decodeURIComponent(signed)
   const dotIdx = decoded.lastIndexOf('.')
   if (dotIdx === -1) return null
@@ -55,7 +90,7 @@ function verifyState(signed: string, secret: string): { siteId: string } | null 
   const expectedBuf = Buffer.from(expected, 'hex')
   if (!timingSafeEqual(hmacBuf, expectedBuf)) return null
 
-  return JSON.parse(payload) as { siteId: string }
+  return JSON.parse(payload) as { siteId: string; userId?: string }
 }
 
 async function exchangeGoogleCode(code: string, redirectUri: string) {
@@ -237,10 +272,12 @@ export async function GET(
       return oauthResultHtml(provider, false, 'Invalid or tampered state parameter')
     }
 
-    const { siteId } = stateData
+    const { siteId, userId } = stateData
     const supabase = getSupabaseServiceClient()
     const redirectUri = getCallbackUrl(provider)
     const encKey = getMasterKey()
+    const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null
+    const clientUa = req.headers.get('user-agent')
 
     switch (provider) {
       case 'google': {
@@ -279,6 +316,7 @@ export async function GET(
         )
 
         if (error) throw new Error(`DB upsert failed: ${error.message}`)
+        if (userId) await recordSocialConsent(supabase, userId, siteId, 'youtube', clientIp, clientUa)
         return oauthResultHtml('youtube', true)
       }
 
@@ -367,6 +405,7 @@ export async function GET(
           if (igError) throw new Error(`Instagram DB upsert failed: ${igError.message}`)
         }
 
+        if (userId) await recordSocialConsent(supabase, userId, siteId, 'meta', clientIp, clientUa)
         return oauthResultHtml('facebook', true)
       }
 

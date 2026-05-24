@@ -14,7 +14,7 @@ interface Prompt {
 }
 
 interface CoverData {
-  prompts: Prompt[]
+  prompts?: Prompt[]
   chosen: number | null
   image_url: string | null
   fallback_search?: string
@@ -26,7 +26,7 @@ interface BodyImage {
   placement: string
   intent: string
   description: string
-  prompts: Prompt[]
+  prompts?: Prompt[]
   chosen: number | null
   image_url: string | null
   fallback_search?: string
@@ -34,6 +34,7 @@ interface BodyImage {
 }
 
 interface ImagesData {
+  [key: string]: unknown
   cover?: CoverData
   body_images?: BodyImage[]
 }
@@ -50,7 +51,7 @@ interface LegacyImageEntry {
 function parseStructured(content: RendererProps['content']): ImagesData | null {
   if (content === null || typeof content === 'string' || Array.isArray(content)) return null
   const obj = content as Record<string, unknown>
-  if (obj.cover || obj.body_images) return obj as unknown as ImagesData
+  if (obj.cover || obj.body_images) return obj as ImagesData
   return null
 }
 
@@ -223,9 +224,9 @@ function CoverSection({ cover, lang, onChoosePrompt }: { cover: CoverData } & Se
         </div>
       )}
 
-      {cover.prompts.length > 0 ? (
+      {cover.prompts?.length ? (
         <div className="space-y-1.5">
-          {cover.prompts.map((p) => (
+          {cover.prompts!.map((p) => (
             <PromptCard
               key={p.rank}
               prompt={p}
@@ -277,9 +278,9 @@ function BodyImageSection({ image, index, lang, onChoosePrompt }: { image: BodyI
         </div>
       )}
 
-      {image.prompts.length > 0 ? (
+      {image.prompts?.length ? (
         <div className="space-y-1.5">
-          {image.prompts.map((p) => (
+          {image.prompts!.map((p) => (
             <PromptCard
               key={p.rank}
               prompt={p}
@@ -360,7 +361,7 @@ export function ImagesRenderer({ content, isEditing, lang, onContentChange }: Re
         ...structured,
         cover: { ...structured.cover, chosen: newChosen },
       }
-      onContentChange(updated as unknown as RendererProps['content'])
+      onContentChange(updated)
     } else {
       const match = path.match(/^body_images\[(\d+)]\.chosen$/)
       if (match && structured.body_images) {
@@ -373,7 +374,7 @@ export function ImagesRenderer({ content, isEditing, lang, onContentChange }: Re
               i === idx ? { ...img, chosen: newChosen } : img
             ),
           }
-          onContentChange(updated as unknown as RendererProps['content'])
+          onContentChange(updated)
         }
       }
     }

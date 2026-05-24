@@ -116,6 +116,8 @@ export async function POST(req: Request): Promise<Response> {
     // first (spec signature — some supabase-js forks ship this), and
     // fall back to deleting rows from `auth.sessions` directly when
     // the call throws or is missing.
+    // SDK limitation: supabase-js does not expose `admin.signOut` in its
+    // public types, but the method exists at runtime in some builds.
     const adminAuth = supabase.auth.admin as unknown as {
       signOut?: (userId: string, scope?: 'global' | 'local') => Promise<{ error: unknown }>;
     };
@@ -145,6 +147,8 @@ export async function POST(req: Request): Promise<Response> {
       // `auth.sessions`. Wrapped in try/catch because the schema / column
       // names may drift on future supabase versions.
       try {
+        // SDK limitation: supabase-js types don't include `auth.sessions`
+        // as a queryable table. Service-role access is verified at runtime.
         await (supabase as unknown as {
           from: (t: string) => {
             delete: () => { eq: (k: string, v: string) => Promise<{ error: unknown }> };

@@ -94,9 +94,10 @@ export function TabContainer({ format, stage, itemId, itemVersion, sections, ite
         enabled.add(def.key)
         continue
       }
-      const allDepsMet = deps.every(depKey => {
-        const depDef = defsByKey.get(depKey)
-        return depDef && hasAnyContent(depDef, sections)
+      const relevantDeps = deps.filter(depKey => defsByKey.has(depKey))
+      const allDepsMet = relevantDeps.length === 0 || relevantDeps.every(depKey => {
+        const depDef = defsByKey.get(depKey)!
+        return hasAnyContent(depDef, sections)
       })
       if (allDepsMet) enabled.add(def.key)
     }

@@ -26,7 +26,7 @@ export async function POST(_req: Request): Promise<Response> {
 
   if (error) {
     Sentry.captureException(error, { tags: { component: 'adsense-disconnect' } })
-    return Response.json({ error: error.message }, { status: 500 })
+    return Response.json({ error: 'Failed to disconnect' }, { status: 500 })
   }
 
   return Response.json({ ok: true })

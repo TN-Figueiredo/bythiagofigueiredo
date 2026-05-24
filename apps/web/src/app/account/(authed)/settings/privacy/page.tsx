@@ -65,6 +65,8 @@ export default async function PrivacySettingsPage() {
   let requests: LgpdRequestView[] = []
 
   try {
+    // Supabase client untyped (no generated DB types); table may not
+    // exist yet if LGPD Track A migrations haven't been deployed.
     const { data } = await (supabase as unknown as {
       from: (t: string) => {
         select: (cols: string) => {
@@ -99,6 +101,7 @@ export default async function PrivacySettingsPage() {
   }
 
   try {
+    // Supabase client untyped (no generated DB types); same Track A caveat.
     const { data } = await (supabase as unknown as {
       from: (t: string) => {
         select: (cols: string) => {

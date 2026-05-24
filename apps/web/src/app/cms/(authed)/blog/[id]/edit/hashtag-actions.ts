@@ -2,6 +2,14 @@
 
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
+import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
+
+async function requireEditScope(siteId: string): Promise<void> {
+  const res = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
+  if (!res.ok) {
+    throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
+  }
+}
 
 interface Hashtag {
   id: string
@@ -15,6 +23,7 @@ export async function searchHashtags(
 ): Promise<{ ok: true; hashtags: Hashtag[] } | { ok: false; error: string }> {
   const ctx = await getSiteContext()
   if (ctx.siteId !== siteId) return { ok: false, error: 'site_mismatch' }
+  await requireEditScope(siteId)
 
   const db = getSupabaseServiceClient()
   const { data, error } = await db
@@ -35,6 +44,7 @@ export async function createHashtag(
 ): Promise<{ ok: true; hashtag: Hashtag } | { ok: false; error: string }> {
   const ctx = await getSiteContext()
   if (ctx.siteId !== siteId) return { ok: false, error: 'site_mismatch' }
+  await requireEditScope(siteId)
 
   const slug = name
     .normalize('NFD')
@@ -56,6 +66,9 @@ export async function createHashtag(
 }
 
 export async function getPostHashtags(postId: string): Promise<Hashtag[]> {
+  const { siteId } = await getSiteContext()
+  await requireEditScope(siteId)
+
   const db = getSupabaseServiceClient()
   const { data, error } = await db
     .from('post_hashtags')

@@ -77,7 +77,8 @@ export function effectiveTrackH(
 /**
  * Difficulty badge color.
  */
-export function difficultyColor(difficulty: string): string {
+export function difficultyColor(difficulty?: string): string {
+  if (!difficulty) return '#E67E22'
   switch (difficulty.toUpperCase()) {
     case 'EASY': return '#27AE60'
     case 'HARD': return '#E74C3C'

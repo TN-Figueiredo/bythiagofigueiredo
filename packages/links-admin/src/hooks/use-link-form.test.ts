@@ -9,7 +9,7 @@ describe('useLinkForm', () => {
     expect(result.current.form.title).toBe('')
     expect(result.current.form.slug).toBe('')
     expect(result.current.form.source_type).toBe('manual')
-    expect(result.current.form.redirect_type).toBe(302)
+    expect(result.current.form.redirect_type).toBe(307)
     expect(result.current.form.active).toBe(true)
     expect(result.current.form.tags).toEqual([])
     expect(result.current.errors).toEqual({})

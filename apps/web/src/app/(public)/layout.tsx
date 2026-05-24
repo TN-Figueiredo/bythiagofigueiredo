@@ -19,8 +19,7 @@ import { TopStrip } from '@/components/layout/top-strip'
 import { GlobalHeader } from '@/components/layout/global-header'
 import { getHomeChannels } from '@/lib/home/queries'
 import { PinboardFooter } from './components/PinboardFooter'
-import enStrings from '../../locales/en.json'
-import ptBrStrings from '../../locales/pt-BR.json'
+import { getDictionary } from '../../locales/dictionary'
 import './ad-theme.css'
 
 /**
@@ -77,7 +76,7 @@ export default async function PublicLayout({ children }: { children: ReactNode }
   const cookieStore = await cookies()
   const theme = cookieStore.get('btf_theme')?.value === 'light' ? 'light' : 'dark'
   const locale = (h.get('x-locale') ?? 'en') as 'en' | 'pt-BR'
-  const t = (locale === 'pt-BR' ? ptBrStrings : enStrings) as unknown as Record<string, string>
+  const t = getDictionary(locale)
 
   const channels = ctx ? await getHomeChannels(ctx.siteId) : []
   const localeChannel = channels.find(c => c.locale === locale) ?? channels[0] ?? null

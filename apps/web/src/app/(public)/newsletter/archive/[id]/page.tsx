@@ -11,8 +11,7 @@ import { JsonLdScript } from '@/lib/seo/jsonld/render'
 import { localePath } from '@/lib/i18n/locale-path'
 import type { Metadata } from 'next'
 import { VisualBreadcrumbs } from '../../../components/visual-breadcrumbs'
-import enStrings from '@/locales/en.json'
-import ptBrStrings from '@/locales/pt-BR.json'
+import { getDictionary } from '@/locales/dictionary'
 
 export const revalidate = 3600
 
@@ -69,7 +68,7 @@ export default async function NewsletterArchivePage({
 
   const h = await headers()
   const locale = h.get('x-locale') ?? 'en'
-  const t = (locale === 'pt-BR' ? ptBrStrings : enStrings) as unknown as Record<string, string>
+  const t = getDictionary(locale)
 
   const sentDate = edition.sent_at ? new Date(edition.sent_at as string) : null
 

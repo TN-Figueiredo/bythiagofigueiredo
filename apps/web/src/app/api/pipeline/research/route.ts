@@ -6,6 +6,22 @@ import { ResearchItemCreateSchema } from '@/lib/pipeline/research-schemas'
 import { validateTopicSlugDepth, resolveOrCreateTopics } from '@/lib/pipeline/research-topics'
 import { sanitizeForFilter } from '@/lib/pipeline/sanitize'
 
+/** Shape returned by the untyped Supabase query (no generated DB types) */
+interface ResearchRow {
+  id: string
+  title: string
+  topic_id: string
+  summary: string | null
+  status: string
+  word_count: number | null
+  sources: unknown
+  version: number
+  created_at: string
+  updated_at: string
+  content_md?: string | null
+  research_topics?: { path: string; name: string; icon: string | null } | null
+}
+
 export async function GET(req: NextRequest) {
   const result = await authenticateRead(req)
   if (result instanceof Response) return result
@@ -84,10 +100,11 @@ export async function GET(req: NextRequest) {
   }
 
   const hasNext = (data?.length ?? 0) > limit
-  const items = (data?.slice(0, limit) ?? []) as unknown as Array<Record<string, unknown>>
+  // Supabase client is untyped (no generated DB types); cast to known shape
+  const items = (data?.slice(0, limit) ?? []) as unknown as ResearchRow[]
   const lastItem = items[items.length - 1]
 
-  const mapped = items.map((item: any) => ({
+  const mapped = items.map((item) => ({
     id: item.id,
     title: item.title,
     topic_id: item.topic_id,
@@ -97,7 +114,7 @@ export async function GET(req: NextRequest) {
     summary: item.summary,
     status: item.status,
     word_count: item.word_count,
-    sources_count: Array.isArray(item.sources) ? item.sources.length : 0,
+    sources_count: Array.isArray(item.sources) ? (item.sources as unknown[]).length : 0,
     version: item.version,
     created_at: item.created_at,
     updated_at: item.updated_at,

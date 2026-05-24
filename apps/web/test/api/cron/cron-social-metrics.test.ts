@@ -29,7 +29,7 @@ vi.mock('@sentry/nextjs', () => ({
 }))
 
 // ── Import after mocks ───────────────────────────────────────────────────────
-import { POST } from '@/app/api/cron/social-metrics/route'
+import { POST } from '../../../src/app/api/cron/social-metrics/route'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function makeRequest(authHeader?: string): NextRequest {

@@ -11,7 +11,7 @@ import { generateCode, DEFAULT_CHECKLISTS, getNextStage, getPreviousStage, getSt
 import type { Format } from '@/lib/pipeline/schemas'
 import type { PipelineItem } from '@/lib/pipeline/graduation'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- server actions return polymorphic data shapes; callers cast to known types
 type ActionResult = { ok: true; data?: any } | { ok: false; error: string }
 
 function zodError(err: z.ZodError): string {
@@ -187,6 +187,7 @@ export async function advancePipelineItem(id: string, version: number): Promise<
   if (isFinal && socialConfig?.enabled === true && !item.social_post_id) {
     try {
       const { graduateToSocialPost } = await import('@/lib/pipeline/graduation')
+      // Supabase client untyped (no generated DB types); `.select()` returns `any`
       const result = await graduateToSocialPost(supabase, updated as unknown as PipelineItem, siteId, timezone)
       if (result.ok) {
         graduationResult = result.data
@@ -368,4 +369,34 @@ export async function upsertReference(key: string, input: { title: string; conte
   if (error) return { ok: false, error: error.message }
   revalidatePath('/cms/pipeline/reference')
   return { ok: true, data }
+}
+
+export async function graduatePipelineToSocial(id: string, version: number): Promise<ActionResult> {
+  const { siteId, timezone } = await requireEditAccess()
+  const supabase = getSupabaseServiceClient()
+
+  const { data: item } = await supabase
+    .from('content_pipeline')
+    .select('id, code, format, stage, language, title_pt, title_en, hook, synopsis, tags, category, cover_image_url, sections, format_metadata, social_config, blog_post_id, newsletter_edition_id, campaign_id, youtube_video_id, social_post_id, version, created_by')
+    .eq('id', id)
+    .eq('site_id', siteId)
+    .eq('version', version)
+    .single()
+
+  if (!item) return { ok: false, error: 'Item not found or version conflict' }
+  if (item.social_post_id) return { ok: false, error: 'Social post already created' }
+  if (!item.social_config || !(item.social_config as Record<string, unknown>).enabled) {
+    return { ok: false, error: 'Social config not enabled' }
+  }
+
+  const { graduateToSocialPost } = await import('@/lib/pipeline/graduation')
+  // Supabase client untyped (no generated DB types); `.select()` returns `any`
+  const result = await graduateToSocialPost(supabase, item as unknown as PipelineItem, siteId, timezone)
+
+  if (!result.ok) return { ok: false, error: result.error ?? 'Graduation failed' }
+
+  revalidatePath('/cms/pipeline')
+  revalidatePath('/cms/social')
+  revalidateTag('pipeline-blog')
+  return { ok: true, data: result.data }
 }

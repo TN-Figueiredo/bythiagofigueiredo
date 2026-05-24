@@ -6,8 +6,9 @@ import { z } from 'zod'
 import { contactReceivedTemplate, contactAdminAlertTemplate } from '@tn-figueiredo/email'
 import type { IEmailTemplate } from '@tn-figueiredo/email'
 
-// email@0.2.0 typed templates use strict interfaces that don't satisfy
-// Record<string, unknown> index signature — cast once here.
+// SDK limitation: email@0.2.0 typed templates use strict interfaces
+// (e.g. IEmailTemplate<ContactReceivedVars>) that don't satisfy
+// Record<string, unknown> due to TypeScript contravariance rules.
 const contactReceived = contactReceivedTemplate as unknown as IEmailTemplate<Record<string, unknown>>
 const contactAdminAlert = contactAdminAlertTemplate as unknown as IEmailTemplate<Record<string, unknown>>
 import { getSupabaseServiceClient } from '@/lib/supabase/service'

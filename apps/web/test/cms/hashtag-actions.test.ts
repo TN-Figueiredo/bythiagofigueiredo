@@ -6,6 +6,10 @@ vi.mock('../../lib/cms/site-context', () => ({
   getSiteContext: () => Promise.resolve({ siteId: 's1', orgId: 'o1', defaultLocale: 'pt-BR' }),
 }))
 
+vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({
+  requireSiteScope: vi.fn().mockResolvedValue({ ok: true }),
+}))
+
 const selectMock = vi.fn()
 const eqMock = vi.fn()
 const ilikeMock = vi.fn()

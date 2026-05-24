@@ -20,7 +20,8 @@ export async function GET(_req: Request): Promise<Response> {
     .single()
 
   if (error) {
-    return Response.json({ error: error.message }, { status: 500 })
+    console.error('[adsense/status]', error)
+    return Response.json({ error: 'Failed to fetch status' }, { status: 500 })
   }
 
   return Response.json({

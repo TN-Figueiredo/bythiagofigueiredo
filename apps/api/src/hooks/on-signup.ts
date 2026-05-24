@@ -18,7 +18,6 @@ export function createOnPostSignUp(supabase: SupabaseClient) {
     })
     if (error) {
       console.error('[on-signup] author insert failed', {
-        userId: event.userId,
         error: error.message,
       })
     }

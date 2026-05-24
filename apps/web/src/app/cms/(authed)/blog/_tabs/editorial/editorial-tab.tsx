@@ -5,7 +5,7 @@ import { Kanban, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import type { EditorialTabData, BlogTag, PipelineCardItem } from '../../_hub/hub-types'
+import type { EditorialTabData, PipelineCardItem } from '../../_hub/hub-types'
 import type { BlogHubStrings } from '../../_i18n/types'
 import { UnifiedBoard } from './unified-board'
 import { EmptyState } from '../../_shared/empty-state'
@@ -27,11 +27,9 @@ interface EditorialTabProps {
   pipelineData: PipelineCardItem[]
   strings?: BlogHubStrings
   siteId: string
-  tagId?: string | null
   locale?: string | null
   supportedLocales?: string[]
   siteTimezone?: string
-  tags?: BlogTag[]
   defaultLocale?: string
   connectedPlatforms?: Provider[]
 }
@@ -41,11 +39,9 @@ export function EditorialTab({
   pipelineData = [],
   strings,
   siteId,
-  tagId,
   locale,
   supportedLocales = [],
   siteTimezone = 'America/Sao_Paulo',
-  tags,
   defaultLocale = 'pt-BR',
   connectedPlatforms = [],
 }: EditorialTabProps) {
@@ -55,30 +51,25 @@ export function EditorialTab({
   const [, startTransition] = useTransition()
   const [autoShareState, setAutoShareState] = useState<AutoShareState | null>(null)
 
-  const tagFiltered = tagId
-    ? data.posts.filter((p) => p.tagId === tagId)
-    : data.posts
-
   const localeFiltered = locale
-    ? tagFiltered.filter((p) => p.locales.includes(locale))
-    : tagFiltered
-
-  const filteredPosts = deferredQuery
-    ? localeFiltered.filter((p) =>
-        p.title.toLowerCase().includes(deferredQuery.toLowerCase()),
-      )
-    : localeFiltered
+    ? pipelineData.filter((p) => {
+        if (locale === 'pt-BR' || locale === 'pt') return !!p.title_pt
+        if (locale === 'en') return !!p.title_en
+        return p.language === locale
+      })
+    : pipelineData
 
   const filteredPipeline = deferredQuery
-    ? pipelineData.filter((p) => {
+    ? localeFiltered.filter((p) => {
         const q = deferredQuery.toLowerCase()
         return (
           (p.title_pt?.toLowerCase().includes(q) ?? false) ||
           (p.title_en?.toLowerCase().includes(q) ?? false) ||
-          p.code.toLowerCase().includes(q)
+          p.code.toLowerCase().includes(q) ||
+          (p.hook?.toLowerCase().includes(q) ?? false)
         )
       })
-    : pipelineData
+    : localeFiltered
 
   const handleMovePipelineItem = useCallback(
     async (id: string, version: number, stage: string): Promise<boolean> => {
@@ -167,7 +158,7 @@ export function EditorialTab({
         description={strings?.empty?.startWriting ?? 'When posts are ready in the Pipeline, they will appear here'}
         action={
           <Link
-            href="/cms/blog"
+            href="/cms/pipeline/blog_post"
             className="rounded-lg bg-indigo-500 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-600"
           >
             <Plus className="mr-1 inline h-3.5 w-3.5" />
@@ -181,40 +172,35 @@ export function EditorialTab({
   const totalItems = data.velocity.totalPosts + pipelineData.length
 
   const hasNoFilterResults =
-    filteredPosts.length === 0 &&
-    filteredPipeline.length === 0 &&
-    (data.posts.length > 0 || pipelineData.length > 0)
+    filteredPipeline.length === 0 && pipelineData.length > 0
 
   return (
     <div className="flex flex-col gap-4">
-      <div role="group" aria-label="Key metrics" className="flex flex-wrap items-center gap-y-1 rounded-lg border border-indigo-500/8 bg-indigo-500/3 px-3 py-2">
-        <div className="flex items-center gap-1 border-r border-gray-800 px-2.5">
-          <span className="text-[9px] text-gray-500">{strings?.editorial?.kpiTotal ?? 'Total'}</span>
-          <span className="text-[11px] font-semibold text-gray-300">{totalItems}</span>
+      <div role="group" aria-label="Key metrics" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="rounded-xl border border-gray-800 bg-gray-900/80 px-4 py-3">
+          <div className="text-2xl font-extrabold tabular-nums text-gray-100">{totalItems}</div>
+          <div className="text-[10px] font-medium uppercase tracking-wider text-gray-500">{strings?.editorial?.kpiTotal ?? 'Total'}</div>
         </div>
-        <div className="flex items-center gap-1 border-r border-gray-800 px-2.5">
-          <span className="text-[9px] text-gray-500">{strings?.pipeline?.inPipeline ?? 'Pipeline'}</span>
-          <span className="text-[11px] font-semibold text-amber-400">{pipelineData.length}</span>
+        <div className="rounded-xl border border-indigo-500/20 bg-indigo-500/5 px-4 py-3">
+          <div className="text-2xl font-extrabold tabular-nums text-indigo-400">{pipelineData.length}</div>
+          <div className="text-[10px] font-medium uppercase tracking-wider text-indigo-400/60">{strings?.pipeline?.inPipeline ?? 'Pipeline'}</div>
         </div>
-        <div className="flex items-center gap-1 border-r border-gray-800 px-2.5">
-          <span className="text-[9px] text-gray-500">{strings?.editorial?.kpiPublished ?? 'Published'}</span>
-          <span className="text-[11px] font-semibold text-gray-300">{data.velocity.publishedCount}</span>
+        <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
+          <div className="text-2xl font-extrabold tabular-nums text-emerald-400">{data.velocity.publishedCount}</div>
+          <div className="text-[10px] font-medium uppercase tracking-wider text-emerald-400/60">{strings?.editorial?.kpiPublished ?? 'Published'}</div>
         </div>
-        <div className="flex items-center gap-1 border-r border-gray-800 px-2.5">
-          <span className="text-[9px] text-gray-500">{strings?.editorial?.kpiThroughput ?? 'Throughput'}</span>
-          <span className="text-[11px] font-semibold text-gray-300">{data.velocity.throughput}{strings?.editorial?.kpiThroughputUnit ?? '/mo'}</span>
-        </div>
-        <div className="flex items-center gap-1 border-r border-gray-800 px-2.5">
-          <span className="text-[9px] text-gray-500">{strings?.editorial?.kpiIdeaToPub ?? 'Idea→Pub'}</span>
-          <span className="text-[11px] font-semibold text-gray-300">
-            {data.velocity.avgIdeaToPublished > 0 ? `${data.velocity.avgIdeaToPublished}d` : '—'}
-          </span>
-        </div>
-        <div className="flex items-center gap-1 px-2.5">
-          <span className="text-[9px] text-gray-500">{strings?.editorial?.kpiBottleneck ?? 'Bottleneck'}</span>
-          <span className="text-[11px] font-semibold text-gray-400">
-            {data.velocity.bottleneck?.column ?? (strings?.editorial?.kpiNone ?? 'None')}
-          </span>
+        <div className="rounded-xl border border-gray-800 bg-gray-900/80 px-4 py-3">
+          <div className="text-2xl font-extrabold tabular-nums text-gray-100">
+            {data.velocity.throughput}<span className="text-sm font-semibold text-gray-500">{strings?.editorial?.kpiThroughputUnit ?? '/mo'}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-medium uppercase tracking-wider text-gray-500">{strings?.editorial?.kpiThroughput ?? 'Throughput'}</span>
+            {data.velocity.avgIdeaToPublished > 0 && (
+              <span className="text-[10px] tabular-nums text-gray-600" title="Average days from idea creation to publication">
+                · {data.velocity.avgIdeaToPublished}d avg
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -225,7 +211,7 @@ export function EditorialTab({
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           aria-label={strings?.editorial?.searchPosts ?? 'Search posts'}
-          className="w-64 rounded-md border border-gray-800 bg-gray-900 px-3 py-1.5 text-[11px] text-gray-300 placeholder-gray-600 focus:border-indigo-500 focus:outline-none"
+          className="w-72 rounded-lg border border-gray-800 bg-gray-900 px-3.5 py-2 text-xs text-gray-300 placeholder-gray-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
         />
       </div>
 

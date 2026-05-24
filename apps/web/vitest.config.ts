@@ -1,9 +1,38 @@
-import { defineConfig } from 'vitest/config'
+import { defineConfig, type Plugin } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import path from 'path'
+import fs from 'fs'
+
+/**
+ * Vite plugin that resolves `@/` aliases for files loaded from directories
+ * whose names contain brackets (e.g. `[id]`, `[section]`). The default
+ * regex-based alias engine fails to match `@/…` imports originating from
+ * such directories because Node/Vite treats the brackets as special chars.
+ * This plugin intercepts any unresolved `@/…` import and maps it to the
+ * `src/` tree with standard TypeScript extension probing.
+ */
+function bracketDirAliasPlugin(): Plugin {
+  const srcRoot = path.resolve(__dirname, 'src')
+  return {
+    name: 'bracket-dir-alias',
+    enforce: 'pre',
+    resolveId(source, importer) {
+      if (!source.startsWith('@/')) return null
+      if (!importer || !importer.includes('[')) return null
+      const relative = source.slice(2) // strip `@/`
+      for (const ext of ['', '.ts', '.tsx', '/index.ts', '/index.tsx']) {
+        const candidate = path.join(srcRoot, relative + ext)
+        if (fs.existsSync(candidate)) {
+          return candidate
+        }
+      }
+      return null
+    },
+  }
+}
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), bracketDirAliasPlugin()],
   test: {
     globals: true,
     environment: 'happy-dom',
@@ -86,12 +115,17 @@ export default defineConfig({
       { find: /^@\/lib\/media(.*)$/, replacement: path.resolve(__dirname, './lib/media$1') },
       { find: /^@\/lib\/request(.*)$/, replacement: path.resolve(__dirname, './lib/request$1') },
       { find: /^@\/lib\/schedule(.*)$/, replacement: path.resolve(__dirname, './lib/schedule$1') },
+      { find: /^@\/lib\/lgpd(.*)$/, replacement: path.resolve(__dirname, './src/lib/lgpd$1') },
       { find: /^@\/lib\/instagram(.*)$/, replacement: path.resolve(__dirname, './src/lib/instagram$1') },
       { find: /^@\/lib\/youtube(.*)$/, replacement: path.resolve(__dirname, './src/lib/youtube$1') },
       { find: /^@\/lib\/social(.*)$/, replacement: path.resolve(__dirname, './src/lib/social$1') },
+      { find: /^@\/lib\/pipeline(.*)$/, replacement: path.resolve(__dirname, './src/lib/pipeline$1') },
+      { find: /^@\/lib\/playlists(.*)$/, replacement: path.resolve(__dirname, './src/lib/playlists$1') },
       { find: /^@\/test(.*)$/, replacement: path.resolve(__dirname, './test$1') },
-      // Explicit alias for Next.js dynamic-segment route so Vite resolves
-      // the literal `[id]` directory (brackets confuse the catch-all regex).
+      // Explicit aliases for Next.js dynamic-segment routes: brackets in
+      // directory names (`[id]`, `[section]`, etc.) confuse the catch-all `@/`
+      // regex, so each bracketed path gets its own string-based alias that
+      // Vite resolves literally (no regex expansion of the `[` / `]` chars).
       {
         find: '@/app/api/pipeline/audio-library/[id]/route',
         replacement: path.resolve(__dirname, './src/app/api/pipeline/audio-library/[id]/route.ts'),
@@ -103,6 +137,74 @@ export default defineConfig({
       {
         find: '@/app/api/pipeline/docs/[domain]/route',
         replacement: path.resolve(__dirname, './src/app/api/pipeline/docs/[domain]/route.ts'),
+      },
+      {
+        find: '@/app/api/pipeline/items/[id]/route',
+        replacement: path.resolve(__dirname, './src/app/api/pipeline/items/[id]/route.ts'),
+      },
+      {
+        find: '@/app/api/pipeline/items/[id]/advance/route',
+        replacement: path.resolve(__dirname, './src/app/api/pipeline/items/[id]/advance/route.ts'),
+      },
+      {
+        find: '@/app/api/pipeline/items/[id]/retreat/route',
+        replacement: path.resolve(__dirname, './src/app/api/pipeline/items/[id]/retreat/route.ts'),
+      },
+      {
+        find: '@/app/api/pipeline/items/[id]/checklist/route',
+        replacement: path.resolve(__dirname, './src/app/api/pipeline/items/[id]/checklist/route.ts'),
+      },
+      {
+        find: '@/app/api/pipeline/items/[id]/restore/route',
+        replacement: path.resolve(__dirname, './src/app/api/pipeline/items/[id]/restore/route.ts'),
+      },
+      {
+        find: '@/app/api/pipeline/items/[id]/link/route',
+        replacement: path.resolve(__dirname, './src/app/api/pipeline/items/[id]/link/route.ts'),
+      },
+      {
+        find: '@/app/api/pipeline/items/[id]/unlink/route',
+        replacement: path.resolve(__dirname, './src/app/api/pipeline/items/[id]/unlink/route.ts'),
+      },
+      {
+        find: '@/app/api/pipeline/items/[id]/graduate/route',
+        replacement: path.resolve(__dirname, './src/app/api/pipeline/items/[id]/graduate/route.ts'),
+      },
+      {
+        find: '@/app/api/pipeline/items/[id]/history/route',
+        replacement: path.resolve(__dirname, './src/app/api/pipeline/items/[id]/history/route.ts'),
+      },
+      {
+        find: '@/app/api/pipeline/items/[id]/publish/route',
+        replacement: path.resolve(__dirname, './src/app/api/pipeline/items/[id]/publish/route.ts'),
+      },
+      {
+        find: '@/app/api/pipeline/items/[id]/sections/[section]/route',
+        replacement: path.resolve(__dirname, './src/app/api/pipeline/items/[id]/sections/[section]/route.ts'),
+      },
+      {
+        find: '@/app/api/pipeline/research/[id]/route',
+        replacement: path.resolve(__dirname, './src/app/api/pipeline/research/[id]/route.ts'),
+      },
+      {
+        find: '@/app/api/pipeline/research/[id]/links/route',
+        replacement: path.resolve(__dirname, './src/app/api/pipeline/research/[id]/links/route.ts'),
+      },
+      {
+        find: '@/app/api/pipeline/research/[id]/links/[linkId]/route',
+        replacement: path.resolve(__dirname, './src/app/api/pipeline/research/[id]/links/[linkId]/route.ts'),
+      },
+      {
+        find: '@/app/api/pipeline/research/topics/[id]/route',
+        replacement: path.resolve(__dirname, './src/app/api/pipeline/research/topics/[id]/route.ts'),
+      },
+      {
+        find: '@/app/api/pipeline/topics/[code]/route',
+        replacement: path.resolve(__dirname, './src/app/api/pipeline/topics/[code]/route.ts'),
+      },
+      {
+        find: '@/app/api/pipeline/context/[key]/route',
+        replacement: path.resolve(__dirname, './src/app/api/pipeline/context/[key]/route.ts'),
       },
       {
         find: /^@\/app\/cms\/\(authed\)(.*)$/,

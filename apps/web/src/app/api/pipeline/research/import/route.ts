@@ -53,7 +53,8 @@ export async function POST(req: NextRequest) {
       .single()
 
     if (error) {
-      results.push({ title: item.title, ok: false, error: error.message })
+      console.error('[research/import]', error)
+      results.push({ title: item.title, ok: false, error: 'Failed to save item' })
     } else {
       results.push({ id: created!.id, title: item.title, ok: true })
     }

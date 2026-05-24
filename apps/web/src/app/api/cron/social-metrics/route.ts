@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
       try {
         const { data: connection } = await supabase
           .from('social_connections')
-          .select('*')
+          .select('id, page_token_enc, access_token_enc, metadata')
           .eq('id', delivery.connection_id)
           .single()
 

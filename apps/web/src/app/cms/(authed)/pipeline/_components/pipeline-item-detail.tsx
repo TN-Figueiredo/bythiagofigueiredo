@@ -4,7 +4,7 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import { updatePipelineItem, advancePipelineItem, retreatPipelineItem, archivePipelineItem, restorePipelineItem, toggleChecklist, searchBlogPostsAction } from '../actions'
+import { updatePipelineItem, advancePipelineItem, retreatPipelineItem, archivePipelineItem, restorePipelineItem, toggleChecklist, searchBlogPostsAction, graduatePipelineToSocial } from '../actions'
 import { WORKFLOWS } from '@/lib/pipeline/workflows'
 import { getPriorityConfig, getStaleness, getFormatIcon, getChecklistProgress, getVvsTier } from '@/lib/pipeline/gem-design'
 import { GemVvsRing } from './gem-vvs-ring'
@@ -149,6 +149,9 @@ interface SectionPanelProps {
   synopsis: string | null
   siteId: string
   vvsScore: number
+  blogPostId: string | null
+  blogSlug: string | null
+  socialPostId: string | null
 }
 
 function extractMisplacedSeo(sections: Record<string, SectionData>, lang: string): SectionData | null {
@@ -168,7 +171,7 @@ function extractMisplacedSeo(sections: Record<string, SectionData>, lang: string
   }
 }
 
-function SectionPanel({ sectionDef, activeSub, lang, itemId, itemVersion, itemCode, itemTitle, sections, format, stage, tags, hook, synopsis, siteId, vvsScore }: SectionPanelProps) {
+function SectionPanel({ sectionDef, activeSub, lang, itemId, itemVersion, itemCode, itemTitle, sections, format, stage, tags, hook, synopsis, siteId, vvsScore, blogPostId, blogSlug, socialPostId }: SectionPanelProps) {
   const sectionType = sectionDef.subSections
     ? (activeSub ?? sectionDef.subSections[0]?.key ?? sectionDef.key)
     : sectionDef.key
@@ -305,6 +308,10 @@ function SectionPanel({ sectionDef, activeSub, lang, itemId, itemVersion, itemCo
             siteId={siteId}
             vvsScore={vvsScore}
             format={format}
+            stage={stage}
+            blogPostId={blogPostId}
+            blogSlug={blogSlug}
+            socialPostId={socialPostId}
           />
         </ContentCiteSelector>
       ) : (
@@ -313,6 +320,39 @@ function SectionPanel({ sectionDef, activeSub, lang, itemId, itemVersion, itemCo
 
       <SaveFooter isDirty={section.isDirty} rev={section.rev} updatedAt={section.updatedAt ?? undefined} />
     </div>
+  )
+}
+
+function GraduateSocialButton({ itemRef, onSuccess }: { itemRef: React.RefObject<ItemData>; onSuccess: () => void }) {
+  const [state, setState] = useState<'idle' | 'creating' | 'done'>('idle')
+  return (
+    <button
+      type="button"
+      disabled={state !== 'idle'}
+      className="w-full mt-2 px-3 py-1.5 rounded text-[11px] font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
+      style={{ background: 'var(--gem-accent)', color: '#fff' }}
+      onClick={async () => {
+        if (state !== 'idle') return
+        setState('creating')
+        try {
+          const current = itemRef.current
+          const result = await graduatePipelineToSocial(current.id, current.version)
+          if (result.ok) {
+            setState('done')
+            toast.success('Post social criado!')
+            onSuccess()
+          } else {
+            setState('idle')
+            toast.error(result.error || 'Erro ao criar post social')
+          }
+        } catch {
+          setState('idle')
+          toast.error('Erro inesperado ao criar post social')
+        }
+      }}
+    >
+      {state === 'creating' ? 'Criando...' : state === 'done' ? 'Criado' : 'Criar Post Social'}
+    </button>
   )
 }
 
@@ -352,6 +392,7 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
   const [socialConfig, setSocialConfig] = useState<SocialConfig | null>(() => {
     const raw = item.social_config
     if (!raw || typeof raw !== 'object' || typeof (raw as Record<string, unknown>).enabled !== 'boolean') return null
+    // Supabase client untyped; runtime shape check above validates structure
     return raw as unknown as SocialConfig
   })
   const socialConfigDebounceRef = useRef<ReturnType<typeof setTimeout>>(null)
@@ -775,6 +816,9 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
                   synopsis={item.synopsis}
                   siteId={item.site_id}
                   vvsScore={vvsBreakdown.overall}
+                  blogPostId={item.blog_post_id}
+                  blogSlug={typeof item.format_metadata?.slug === 'string' ? item.format_metadata.slug : null}
+                  socialPostId={item.social_post_id}
                 />
               </ActiveTabObserver>
             )
@@ -1073,6 +1117,9 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
                 autoFillHook={item.hook}
                 autoFillTags={item.tags}
               />
+              {!item.social_post_id && socialConfig?.enabled && (
+                <GraduateSocialButton itemRef={itemRef} onSuccess={() => router.refresh()} />
+              )}
             </div>
           )}
         </div>

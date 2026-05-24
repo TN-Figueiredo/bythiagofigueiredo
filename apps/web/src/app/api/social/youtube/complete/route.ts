@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 
 export const runtime = 'nodejs'
 
-interface CompleteBody {
-  videoId: string
-  postId?: string
-}
+const CompleteBodySchema = z.object({
+  videoId: z.string().min(1),
+  postId: z.string().uuid().optional(),
+})
 
 export async function POST(req: NextRequest) {
   const { siteId } = await getSiteContext()
@@ -17,15 +18,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const body = (await req.json()) as CompleteBody
-
-  if (!body.videoId) {
-    return NextResponse.json({ error: 'videoId is required' }, { status: 400 })
+  const parsed = CompleteBodySchema.safeParse(await req.json())
+  if (!parsed.success) {
+    return NextResponse.json({ error: 'Validation failed' }, { status: 400 })
   }
-
-  if (body.postId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.postId)) {
-    return NextResponse.json({ error: 'Invalid postId' }, { status: 400 })
-  }
+  const body = parsed.data
 
   if (body.postId) {
     const supabase = getSupabaseServiceClient()
@@ -50,8 +47,9 @@ export async function POST(req: NextRequest) {
       .eq('id', body.postId)
 
     if (error) {
+      console.error('[youtube/complete]', error)
       return NextResponse.json(
-        { error: `Failed to update post: ${error.message}` },
+        { error: 'Failed to update post' },
         { status: 500 },
       )
     }

@@ -83,6 +83,7 @@ async function processBatch(
 
           if (pageToken) {
             const scrapeResult = await scrapeOg(contentUrl, pageToken)
+            // Untyped OG scrape result — shape varies by provider
             const scrapeData = scrapeResult as unknown as Record<string, unknown>
 
             if (scrapeResult.status === 'ok') {
@@ -106,6 +107,7 @@ async function processBatch(
 
       if (isReadyForDelivery(scheduledAt)) {
         await updatePipelineStep(supabase, post.id as string, 'deliver', 'in_progress')
+        // Supabase client untyped (no generated DB types)
         await publishSocialPost(post as unknown as SocialPost)
         await updatePipelineStep(supabase, post.id as string, 'deliver', 'completed')
         processed++
@@ -173,6 +175,7 @@ export async function POST(req: NextRequest) {
         return { status: 'ok' as const, processed: 0 }
       }
 
+      // Supabase client untyped (no generated DB types)
       return processBatch(supabase, fallbackPosts as unknown as Record<string, unknown>[])
     }
 
@@ -184,6 +187,7 @@ export async function POST(req: NextRequest) {
       return { status: 'ok' as const, processed: 0 }
     }
 
+    // Supabase client untyped (no generated DB types)
     return processBatch(supabase, posts as unknown as Record<string, unknown>[])
   })
 }

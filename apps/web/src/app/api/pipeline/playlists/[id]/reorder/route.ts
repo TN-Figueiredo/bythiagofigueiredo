@@ -46,11 +46,11 @@ export async function POST(
         .update({ sort_order: (index + 1) * 1000 })
         .eq('id', id)
         .eq('playlist_id', playlistId)
-        .then(({ error }) => { if (error) errors.push(error.message) }),
+        .then(({ error }) => { if (error) errors.push(error.code ?? 'unknown') }),
     ),
   )
 
-  if (errors.length > 0) return pipelineError('VALIDATION_ERROR', errors[0]!, 400, auth)
+  if (errors.length > 0) return pipelineError('DB_ERROR', 'Failed to reorder items', 500, auth)
 
   return pipelineSuccess({ reordered: true, count: parsed.data.item_ids.length }, 200, auth)
 }

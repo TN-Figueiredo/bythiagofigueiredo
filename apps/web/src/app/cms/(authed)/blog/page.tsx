@@ -44,11 +44,9 @@ async function TabContent({
           pipelineData={pipelineData}
           strings={strings}
           siteId={siteId}
-          tagId={tagId}
           locale={locale}
           supportedLocales={supportedLocales}
           siteTimezone={siteTimezone}
-          tags={tags}
           defaultLocale={defaultLocale}
         />
       )

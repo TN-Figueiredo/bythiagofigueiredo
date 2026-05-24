@@ -111,7 +111,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       tags: { component: 'social-pipeline-run' },
     })
     return NextResponse.json(
-      { ok: false, error: err instanceof Error ? err.message : 'Internal error' },
+      { ok: false, error: 'Internal error' },
       { status: 500 },
     )
   }

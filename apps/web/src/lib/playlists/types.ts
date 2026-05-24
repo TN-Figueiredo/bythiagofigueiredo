@@ -158,3 +158,47 @@ export interface FilterState {
   mode: 'dim' | 'hide' | 'all'
   search: string
 }
+
+// -- Snapshot types --
+
+export type SnapshotType = 'auto' | 'manual' | 'pre_destructive' | 'session_start'
+export type RestoreMode = 'full' | 'edges_only' | 'positions_only'
+
+export interface SnapshotItem {
+  id: string
+  blog_post_id: string | null
+  newsletter_edition_id: string | null
+  pipeline_id: string | null
+  sort_order: number
+  position_x: number
+  position_y: number
+}
+
+export interface SnapshotEdge {
+  id: string
+  source_item_id: string
+  target_item_id: string
+  edge_type: string
+  label: string | null
+}
+
+export interface SnapshotRow {
+  id: string
+  playlist_id: string
+  site_id: string
+  type: SnapshotType
+  label: string | null
+  graph_data: { items: SnapshotItem[]; edges: SnapshotEdge[] }
+  stats: { item_count: number; edge_count: number; content_types: Record<string, number> }
+  content_hash: string
+  created_by: string | null
+  created_at: string
+  expires_at: string | null
+}
+
+export interface IntegrityReport {
+  valid: boolean
+  orphanedEdges: PlaylistEdgeRow[]
+  invalidPositions: PlaylistItemRow[]
+  duplicateEdges: PlaylistEdgeRow[]
+}

@@ -31,6 +31,17 @@ export async function POST(req: Request): Promise<Response> {
 
     const rows_upserted = typeof data === 'number' ? data : Number(data ?? 0)
 
+    const purgeCutoff = new Date(Date.now() - 90 * 86_400_000).toISOString()
+    const { count: purged, error: purgeErr } = await supabase
+      .from('ad_events')
+      .delete({ count: 'exact' })
+      .lt('created_at', purgeCutoff)
+    if (purgeErr) {
+      Sentry.captureException(new Error(purgeErr.message), {
+        tags: { component: 'cron', job: JOB, step: 'purge' },
+      })
+    }
+
     try {
       await supabase.from('cron_runs').insert({
         job: JOB,
@@ -41,6 +52,6 @@ export async function POST(req: Request): Promise<Response> {
       /* best-effort */
     }
 
-    return { status: 'ok' as const, ok: true, rows_upserted }
+    return { status: 'ok' as const, ok: true, rows_upserted, purged: purged ?? 0 }
   })
 }

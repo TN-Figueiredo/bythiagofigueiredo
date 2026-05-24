@@ -34,7 +34,7 @@ export async function DELETE(
     .delete()
     .eq('id', itemId)
 
-  if (error) return pipelineError('VALIDATION_ERROR', error.message, 400, auth)
+  if (error) return pipelineError('DB_ERROR', 'Failed to delete playlist item', 500, auth)
 
   return pipelineSuccess({ deleted: true }, 200, auth)
 }

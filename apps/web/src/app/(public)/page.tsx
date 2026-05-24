@@ -1,6 +1,6 @@
 import { headers } from 'next/headers'
 import type { Metadata } from 'next'
-import en from '@/locales/en.json'
+import { DICTIONARIES } from '@/locales/dictionary'
 import { tryGetSiteContext } from '@/lib/cms/site-context'
 import { getSiteSeoConfig } from '@/lib/seo/config'
 import { generateRootMetadata } from '@/lib/seo/page-metadata'
@@ -17,7 +17,7 @@ import { PinboardHome } from './components/PinboardHome'
 // intentionally do NOT mount an additional <JsonLdScript> here.
 export async function generateMetadata(): Promise<Metadata> {
   const ctx = await tryGetSiteContext()
-  if (!ctx) return { title: (en as unknown as Record<string, string>)['meta.title'] }
+  if (!ctx) return { title: DICTIONARIES.en['meta.title'] }
   const h = await headers()
   const host = h.get('host') ?? ctx.primaryDomain ?? ''
   const locale = h.get('x-locale') ?? 'en'
@@ -25,7 +25,7 @@ export async function generateMetadata(): Promise<Metadata> {
     const config = await getSiteSeoConfig(ctx.siteId, host)
     return generateRootMetadata(config, locale)
   } catch {
-    return { title: (en as unknown as Record<string, string>)['meta.title'] }
+    return { title: DICTIONARIES.en['meta.title'] }
   }
 }
 

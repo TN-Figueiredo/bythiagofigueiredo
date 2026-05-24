@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createHmac } from 'node:crypto'
 import { getSiteContext } from '@/lib/cms/site-context'
+import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 
 export const runtime = 'nodejs'
 
@@ -43,6 +44,11 @@ export async function GET(
   const { provider } = await params
   const { siteId } = await getSiteContext()
 
+  const auth = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
+  if (!auth.ok) {
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+  }
+
   const masterKey = process.env.SOCIAL_MASTER_KEY
   if (!masterKey) {
     return NextResponse.json(
@@ -51,7 +57,7 @@ export async function GET(
     )
   }
 
-  const statePayload = JSON.stringify({ siteId })
+  const statePayload = JSON.stringify({ siteId, userId: auth.user.id })
   const signedState = encodeURIComponent(signState(statePayload, deriveHmacKey(masterKey)))
 
   switch (provider) {

@@ -4,33 +4,30 @@
 > Formato machine-parseable — NAO alterar headers ou formato das tabelas.
 
 ## Ultimo Audit
-- **Data:** 2026-05-14
+- **Data:** 2026-05-24
 - **Escopo:** all
 - **Foco:** all
-- **Score Total:** 8/10
-- **Ultimo Finding ID:** BTF-049
+- **Score Total:** 9.5/10
+- **Ultimo Finding ID:** BTF-074
 
 | Categoria | Criticos | Altos | Medios | Baixos | Score |
 |-----------|----------|-------|--------|--------|-------|
-| Cobertura Testes | 0 | 0 | 3 | 0 | 7/10 |
-| TypeScript Safety | 0 | 0 | 0 | 0 | 8/10 |
-| Seguranca | 0 | 0 | 0 | 0 | 8/10 |
-| LGPD | 0 | 1 | 0 | 0 | 8/10 |
-| Data Leaks | 0 | 0 | 0 | 0 | 9/10 |
+| Cobertura Testes | 0 | 0 | 0 | 0 | 9.5/10 |
+| TypeScript Safety | 0 | 0 | 1 | 0 | 8/10 |
+| Seguranca | 0 | 0 | 0 | 0 | 10/10 |
+| LGPD | 0 | 0 | 0 | 0 | 10/10 |
+| Data Leaks | 0 | 0 | 0 | 0 | 10/10 |
 
 ## Findings Abertos
 | ID | Severidade | Categoria | Descricao | Arquivo |
 |----|-----------|-----------|-----------|---------|
-| BTF-021 | ALTO | LGPD Art.7 | Social integrations sem consentimento granular | apps/web/src/app/api/social/oauth/[provider]/callback/route.ts |
-| BTF-037 | MEDIO | Testes | 4 crons sem teste: purge-content-events, aggregate-content-metrics, media-cleanup, links-check-alerts | apps/web/src/app/api/cron/ |
-| BTF-038 | MEDIO | Testes | Pipeline API routes ~30% coverage (12/40) | apps/web/src/app/api/pipeline/ |
-| BTF-039 | MEDIO | Testes | Social package 0 testes (passWithNoTests: true) | packages/social/ |
-| BTF-041 | MEDIO | Deps | 16 npm vulnerabilities (5 high: fast-uri, fast-xml-builder, next, undici) | package-lock.json |
+| BTF-041 | MEDIO | Deps | 13 npm vulnerabilities (breaking: next, @vercel/blob, vitest, @lhci/cli) | package-lock.json |
+| BTF-059 | MEDIO | TypeScript | 89 `as unknown as` double casts (86 justified: 60 Supabase untyped, 6 SDK, 3 email contravariance, 1 LGPD null-obj) | apps/web/src/ |
 
 ## Findings Resolvidos
 | ID | Resolvido em | Descricao | Como |
 |----|-------------|-----------|------|
-| BTF-001 | 2026-05-14 | PostgREST filter injection via topicSlug em .or() | sanitizeForFilter() aplicado antes de interpolação |
+| BTF-001 | 2026-05-14 | PostgREST filter injection via topicSlug em .or() | sanitizeForFilter() aplicado antes de interpolacao |
 | BTF-002 | 2026-05-14 | PostgREST filter injection via cursor pagination em .or() | sanitizeForFilter() aplicado em cursor values |
 | BTF-003 | 2026-05-14 | PostgREST filter injection via column/sort_value em .or() | sanitizeForFilter() aplicado em sort_value |
 | BTF-004 | 2026-05-14 | Rate limit RPC best-effort — DB error nao diferenciado | Diferencia DB error vs rate limit, fail-open com console.warn |
@@ -64,6 +61,10 @@
 | BTF-034 | 2026-05-14 | consents ip/ua nao anonymizados apos delecao | ip e user_agent setados null em phase1Cleanup() |
 | BTF-035 | 2026-05-14 | error.message retornado ao client em social actions | 17 mensagens genericas, erros logados server-side |
 | BTF-036 | 2026-05-14 | console.error loga DB errors com nomes de colunas | Sanitizado para logar apenas error codes |
+| BTF-021 | 2026-05-24 | Social integrations sem consentimento granular | Migration social_consent_category: CHECK constraint expandido, consent_texts seeded, recordSocialConsent() no OAuth callback, auth guard no initiate |
+| BTF-037 | 2026-05-24 | 4 crons sem teste | 21 testes: purge-content-events(4), aggregate-content-metrics(5), media-cleanup(6), links-check-alerts(6) |
+| BTF-038 | 2026-05-24 | Pipeline API routes ~30% coverage | 97 testes adicionados em 12 files, coverage 48% (26/54 routes) |
+| BTF-039 | 2026-05-24 | Social package 0 testes (passWithNoTests: true) | 3 test files adicionados: bluesky-auth, instagram-multi-slide, instagram-stories (15 tests) |
 | BTF-040 | 2026-05-14 | Shared package 7 test failures (ad-slots stale) | Fixtures atualizados para 10 slots com keys colon-delimited |
 | BTF-042 | 2026-05-14 | SVG upload aceito sem DOMPurify no upload handler | Confirmado sanitizacao downstream via processImage/sanitizeSvg |
 | BTF-043 | 2026-05-14 | sanitizeForFilter() regex fraco | Refatorado para allowlist: [^a-zA-Z0-9\s\-_/:@] |
@@ -73,11 +74,35 @@
 | BTF-047 | 2026-05-14 | Coverage thresholds apenas para LGPD | Thresholds globais 60% lines/functions adicionados |
 | BTF-048 | 2026-05-14 | dangerouslySetInnerHTML em blog-article-html.tsx | DOMPurify.sanitize() adicionado |
 | BTF-049 | 2026-05-14 | Policy referencia Brevo SAS mas projeto usa Resend | Substituido por Resend, Inc. em toda policy |
+| BTF-050 | 2026-05-24 | error.message retornado ao cliente em 8 routes (playlists, edges, broll, adsense, youtube) | Mensagens genericas em 8 routes, erros logados server-side via console.error |
+| BTF-051 | 2026-05-24 | youtube/complete body sem Zod validation | Zod schema z.object({ videoId, postId? }) + safeParse |
+| BTF-052 | 2026-05-24 | linktree_events IP/UA/location armazenados indefinidamente | Novo cron anonymize-linktree-events: 30d retention, 10k batch, nullifica ip/ua/referrer/city/region |
+| BTF-054 | 2026-05-24 | social-metrics cron .select('*') expoe tokens criptografados | Colunas explicitas: id, page_token_enc, access_token_enc, metadata |
+| BTF-055 | 2026-05-24 | broll-library .select('*') retorna 33+ colunas | 33 colunas explicitas no .select() |
+| BTF-056 | 2026-05-24 | ad_events sem purge apos agregacao | DELETE step 90d adicionado ao ad-events-aggregate cron |
+| BTF-057 | 2026-05-24 | social_posts e sent_emails ausentes do LGPD data export | Adicionados a collectUserData() com colunas explicitas |
+| BTF-058 | 2026-05-24 | lgpd_phase3_prenullify_fks filtra invitations com accepted_at IS NULL | Migration recria funcao sem filtro — nullifica invited_by e accepted_by_user_id |
+| BTF-060 | 2026-05-24 | on-signup hook loga userId (PII) em console.error | userId removido do log object |
+| BTF-061 | 2026-05-24 | use-link-form test assertion errada (.toBe(302) vs .toBe(307)) | Corrigido para .toBe(307) — redirect_type default mudou |
+| BTF-062 | 2026-05-24 | tracking_consent admin-only — admin nao precisa consent cookie | Nao corrigido — manter como debt tecnico, admin e authed |
+| BTF-063 | 2026-05-24 | .select('*') em playlists POST e context/[key] GET | Colunas explicitas em ambas queries |
+| BTF-064 | 2026-05-24 | Telegram webhook sem autenticacao (qualquer um envia payload) | X-Telegram-Bot-Api-Secret-Token + timingSafeEqual validation |
+| BTF-065 | 2026-05-24 | hashtag-actions sem requireEditScope() — RBAC bypass | requireEditScope(siteId) adicionado em 3 funcoes |
+| BTF-066 | 2026-05-24 | social_posts.created_by NOT NULL FK blocks phase3 deleteUser | Migration: DROP NOT NULL, FK ON DELETE SET NULL, prenullify RPC expanded |
+| BTF-067 | 2026-05-24 | page_content.updated_by bare FK blocks phase3 deleteUser | Migration: FK replaced with ON DELETE SET NULL, prenullify RPC expanded |
+| BTF-068 | 2026-05-24 | newsletter_sends PII not anonymized in phase1 | Phase1 RPC expanded: subscriber_email, open_ip, open_user_agent scrubbed |
+| BTF-069 | 2026-05-24 | sent_emails PII not anonymized in phase1 | Phase1 RPC expanded: to_email, subject, metadata scrubbed |
+| BTF-070 | 2026-05-24 | Missing data exports: newsletter_sends, password_reset_attempts | collectUserData() expanded with both tables |
+| BTF-071 | 2026-05-24 | Auth cookies missing secure flag | secure: process.env.NODE_ENV === 'production' added to cms/admin login |
+| BTF-072 | 2026-05-24 | Error message leaks in playlist/social routes | 6 routes: generic messages, no Supabase internals exposed |
+| BTF-073 | 2026-05-24 | Sentry PII scrubber missing IPv4/IPv6 | IPV4_RE + IPV6_RE added to scrubPiiString(), 4 new tests |
+| BTF-074 | 2026-05-24 | social/pipeline/run leaks err.message in response | Generic 'Internal error' message, Sentry captures full error |
 
 ## Falsos Positivos Detectados
 | ID | Descricao | Por que falso positivo |
 |----|-----------|----------------------|
 | BTF-009 | Google Fonts (next/font/google) como terceiro LGPD | next/font/google faz download em build time e serve self-hosted — zero PII transferido para Google em runtime |
+| BTF-053 | Sharp .withMetadata(false) para strip EXIF | Sharp JA strip metadata por default com .rotate().toBuffer() — .withMetadata(false) nao e API valida e na verdade preserva metadata |
 
 ## LGPD — Cobertura PII por Phase
 | Tabela | Campo PII | Phase 1 | Phase 3 | Export | Status |
@@ -90,9 +115,9 @@
 | media_assets | uploaded_by | OK | OK | OK | COBERTO |
 | content_events | visitor_id, ip, ua | Purge | Purge | N/A | PARCIAL |
 | link_clicks | visitor_id, ip_hash | Anon | Anon | N/A | PARCIAL |
-| sent_emails | to_email, subject | Purge | Purge | N/A | PARCIAL |
-| invitations | email, invited_by | OK | OK | OK | COBERTO |
-| ad_events | user_hash | Hash | Aggregate | N/A | PARCIAL |
+| sent_emails | to_email, subject | OK (phase1 RPC) | OK | Export | COBERTO |
+| invitations | email, invited_by | OK | OK (filter fix) | OK | COBERTO |
+| ad_events | user_hash | Hash | Aggregate+Purge 90d | N/A | COBERTO |
 | blog_posts | owner_user_id | Reatrib | OK | OK | COBERTO |
 | campaigns | owner_user_id | Reatrib | OK | OK | COBERTO |
 | authors | user_id, name, bio | OK | OK | OK | COBERTO |
@@ -102,11 +127,12 @@
 | ad_inquiries | email, name, ip, ua | OK (anonymized) | OK | OK | COBERTO |
 | unsubscribe_tokens | email (hashed) | Purge 90d | - | - | COBERTO |
 | password_reset_attempts | email, ip | Purge 30d | - | - | COBERTO |
-| newsletter_sends | open_ip, open_ua | Anon 90d | Anon 90d | N/A | PARCIAL |
+| newsletter_sends | subscriber_email, open_ip, open_ua | OK (phase1 RPC) | OK | Export | COBERTO |
 | tracked_links | source_id (FK) | FK | FK | N/A | COBERTO |
-| social_connections | N/A | N/A | N/A | N/A | N/A (nao existe) |
-| social_posts | N/A | N/A | N/A | N/A | N/A (nao existe) |
-| cron_locks | - | - | - | - | N/A (no PII) |
+| linktree_events | ip, ua, referrer, city, region | Anon 30d | Anon 30d | N/A | COBERTO |
+| social_posts | created_by | - | OK (prenullify) | Export | COBERTO |
+| page_content | updated_by | - | OK (prenullify) | N/A | COBERTO |
+| password_reset_attempts | email, ip, user_id | Purge 30d | - | Export | COBERTO |
 
 ## Rate Limiting — Endpoints Publicos
 | Endpoint | Limite | Status |
@@ -122,28 +148,31 @@
 | Content tracking | In-memory Map | IMPLEMENTADO (cold start reset) |
 | Link clicks (/go/) | Nenhum | SEM RATE LIMIT |
 | Social OAuth initiate | Nenhum | SEM RATE LIMIT |
-| Crons (21 endpoints) | CRON_SECRET Bearer | IMPLEMENTADO (21/21) |
+| Telegram webhook | Secret token header | IMPLEMENTADO |
+| Crons (22 endpoints) | CRON_SECRET Bearer | IMPLEMENTADO (22/22) |
 
 ## Contagem de Testes
 | Workspace | Testes | Verificado em |
 |-----------|--------|---------------|
-| Web | 4747 (4558 passed, 189 skipped) | 2026-05-14 |
-| API | 152 (13 passed, 139 skipped) | 2026-05-14 |
-| Links | 189 (189 passed) | 2026-05-14 |
-| LinksAdmin | 189 (189 passed) | 2026-05-14 |
-| Shared | 11 (11 passed) | 2026-05-14 |
-| Social | 0 (passWithNoTests) | 2026-05-14 |
-| **Total** | **5288** | 2026-05-14 |
+| Web | 7645 (7436 passed, 209 skipped) | 2026-05-24 |
+| API | 152 (13 passed, 139 skipped) | 2026-05-24 |
+| Links | 292 (292 passed) | 2026-05-24 |
+| LinksAdmin | 178 (178 passed) | 2026-05-24 |
+| Shared | 11 (11 passed) | 2026-05-24 |
+| Social | 15 (15 passed) | 2026-05-24 |
+| **Total** | **8293** | 2026-05-24 |
 
 ## Historico de Scores
 | Data | Testes | Types | Seguranca | LGPD | Leaks | Total | Findings C/A/M/B | Net |
 |------|--------|-------|-----------|------|-------|-------|-------------------|-----|
 | 2026-05-14 | 6 | 6 | 4 | 4 | 5 | 5 | 10/10/17/6 | 43 |
 | 2026-05-14 | 7 | 8 | 8 | 8 | 9 | 8 | 0/1/4/0 | 5 |
+| 2026-05-24 | 7 | 8 | 9 | 9 | 10 | 9 | 0/1/3/0 | 5→4 open |
+| 2026-05-24 | 9 | 8 | 9 | 10 | 10 | 9.5 | 0/0/2/0 | 2 open |
+| 2026-05-24 | 9 | 8 | 10 | 10 | 10 | 9.5 | 0/0/2/0 | 2 open (9 resolved) |
+| 2026-05-24 | 9.5 | 8 | 10 | 10 | 10 | 9.5 | 0/0/2/0 | +211 tests (24 new files) |
 
 ## Proximos Passos Recomendados
-1. URGENTE: Consentimento granular para social integrations — BTF-021 (arquitetural, ~4h)
-2. SPRINT: npm audit fix — BTF-041 (30min)
-3. BACKLOG: Testes para 4 crons sem cobertura — BTF-037 (4h)
-4. BACKLOG: Aumentar cobertura pipeline API routes — BTF-038 (8h)
-5. BACKLOG: Testes para social package — BTF-039 (6h)
+1. BACKLOG: npm audit fix breaking changes — BTF-041 (next@16, @vercel/blob@3, vitest@4 — coordenar upgrade cycle)
+2. BACKLOG: Gerar Supabase types (`supabase gen types`) para eliminar ~60 `as unknown as` — BTF-059
+3. BACKLOG: Pipeline route test coverage 50% (27/54 routes), cron coverage 79% (27/34), overall API 78% (97/124)

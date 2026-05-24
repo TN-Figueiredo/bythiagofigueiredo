@@ -6,9 +6,10 @@ export function pipelineError(code: string, message: string, status: number, aut
   return NextResponse.json({ error: { code, message } }, { status, headers: headers ?? {} })
 }
 
-export function pipelineSuccess<T>(data: T, status: number, auth: PipelineAuth) {
+export function pipelineSuccess<T>(data: T, status: number, auth: PipelineAuth, meta?: Record<string, unknown>) {
   const headers = buildRateLimitHeaders(auth)
-  return NextResponse.json({ data }, { status, headers: headers ?? {} })
+  const body = meta ? { data, meta } : { data }
+  return NextResponse.json(body, { status, headers: headers ?? {} })
 }
 
 export async function authenticateWrite(req: NextRequest): Promise<

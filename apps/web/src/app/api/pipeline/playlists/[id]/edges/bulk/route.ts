@@ -69,13 +69,14 @@ export async function POST(
       .single()
 
     if (error) {
-      const isCycle = error.message.includes('cycle') || error.code === 'P0001'
+      console.error('[playlist-edges/bulk]', error)
+      const isCycle = error.message?.includes('cycle') || error.code === 'P0001'
       errors.push({
         index: i,
         source_item_id: edge.source_item_id,
         target_item_id: edge.target_item_id,
         code: isCycle ? 'CYCLE_DETECTED' : 'VALIDATION_ERROR',
-        message: isCycle ? 'Sequence edge would create a cycle' : error.message,
+        message: isCycle ? 'Sequence edge would create a cycle' : 'Failed to create edge',
       })
       continue
     }

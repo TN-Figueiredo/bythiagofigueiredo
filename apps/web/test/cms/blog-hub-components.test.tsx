@@ -62,7 +62,7 @@ vi.mock('@dnd-kit/core', () => ({
 }))
 
 vi.mock('@dnd-kit/utilities', () => ({
-  CSS: { Translate: { toString: () => undefined } },
+  CSS: { Transform: { toString: () => undefined } },
 }))
 
 vi.mock('lucide-react', () => ({
@@ -402,35 +402,30 @@ describe('EditorialTab KPI bar', () => {
     ],
   }
 
-  it('renders KPI metrics inline', () => {
+  it('renders KPI metrics as stat cards', () => {
     render(<EditorialTab data={mockData} pipelineData={[]} siteId="site-1" />)
-    expect(screen.getByText('12')).toBeTruthy() // totalPosts (0 pipeline + 12 posts = 12 total)
-    expect(screen.getByText('8')).toBeTruthy() // publishedCount
-    expect(screen.getByText('4/mo')).toBeTruthy() // throughput
-    expect(screen.getByText('12d')).toBeTruthy() // avgIdeaToPublished
+    const metricsGroup = screen.getByRole('group', { name: /key metrics/i })
+    expect(metricsGroup).toBeTruthy()
+    expect(metricsGroup.textContent).toContain('12')
+    expect(metricsGroup.textContent).toContain('8')
+    expect(metricsGroup.textContent).toContain('4')
+    expect(metricsGroup.textContent).toContain('/mo')
   })
 
-  it('renders "None" for bottleneck when null', () => {
-    render(<EditorialTab data={mockData} pipelineData={[]} siteId="site-1" />)
-    expect(screen.getByText('None')).toBeTruthy()
-  })
-
-  it('renders dash for avgIdeaToPublished when zero', () => {
+  it('hides Idea→Pub stat when avgIdeaToPublished is zero', () => {
     const dataWithZeroAvg: EditorialTabData = {
       ...mockData,
       velocity: { ...mockData.velocity, avgIdeaToPublished: 0 },
     }
     render(<EditorialTab data={dataWithZeroAvg} pipelineData={[]} siteId="site-1" />)
-    expect(screen.getByText('—')).toBeTruthy()
+    const metricsGroup = screen.getByRole('group', { name: /key metrics/i })
+    expect(metricsGroup.textContent).not.toContain('Idea')
   })
 
-  it('renders bottleneck column name when present', () => {
-    const dataWithBottleneck: EditorialTabData = {
-      ...mockData,
-      velocity: { ...mockData.velocity, bottleneck: { column: 'Review', avgDays: 5 } },
-    }
-    render(<EditorialTab data={dataWithBottleneck} pipelineData={[]} siteId="site-1" />)
-    expect(screen.getByText('Review')).toBeTruthy()
+  it('shows Idea→Pub days inline when avgIdeaToPublished is positive', () => {
+    render(<EditorialTab data={mockData} pipelineData={[]} siteId="site-1" />)
+    const metricsGroup = screen.getByRole('group', { name: /key metrics/i })
+    expect(metricsGroup.textContent).toContain('12d avg')
   })
 })
 

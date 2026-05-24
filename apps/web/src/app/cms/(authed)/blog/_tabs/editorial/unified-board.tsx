@@ -33,7 +33,7 @@ import { BulkActionBar } from './bulk-action-bar'
 const DRAG_OVERLAY_ANIMATION: DropAnimation = { duration: 200, easing: 'ease' }
 const PUBLISHED_PAGE_SIZE = 30
 /** Lanes that accept cards dropped via DnD. `scheduled` and `published` are publish-flow only. */
-const DND_VALID_TARGETS = new Set(['idea', 'draft', 'ready', 'archived'])
+const DND_VALID_TARGETS = new Set(['idea', 'draft', 'ready'])
 
 interface UnifiedBoardProps {
   pipelineItems: PipelineCardItem[]
@@ -177,9 +177,9 @@ export function UnifiedBoard({
       const item = optPipeline.find((i) => i.id === itemId)
       if (!item) return
 
-      // Bug 3: removed outer startTransition — the parent's onMovePipelineItem owns the transition
-      // Bug 2: check return value to roll back on server error
-      dispatchPipeline({ type: 'move', id: itemId, stage: toLane })
+      startTransition(() => {
+        dispatchPipeline({ type: 'move', id: itemId, stage: toLane })
+      })
       onMovePipelineItem(itemId, item.version, toLane).then((ok) => {
         if (!ok) {
           toast.error(strings?.common?.couldntMove ?? "Couldn't move")

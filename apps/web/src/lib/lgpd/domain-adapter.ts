@@ -210,6 +210,8 @@ export class BythiagoLgpdDomainAdapter implements ILgpdDomainAdapter {
       lgpdRequests,
       consents,
       mediaAssets,
+      socialPosts,
+      passwordResetAttempts,
     ] = await Promise.all([
       this.supabase.auth.admin.getUserById(userId),
       this.queryRows('blog_posts', 'owner_user_id', userId),
@@ -224,6 +226,8 @@ export class BythiagoLgpdDomainAdapter implements ILgpdDomainAdapter {
       this.queryRows('lgpd_requests', 'user_id', userId),
       this.queryRows('consents', 'user_id', userId),
       this.queryRows('media_assets', 'uploaded_by', userId),
+      this.queryRows('social_posts', 'created_by', userId),
+      this.queryRows('password_reset_attempts', 'user_id', userId),
     ]);
 
     // BTF-022: ad_inquiries are keyed by email, not user_id. Fetch after
@@ -235,15 +239,35 @@ export class BythiagoLgpdDomainAdapter implements ILgpdDomainAdapter {
     const userEmail = user?.email ?? null;
 
     let adInquiries: unknown[] = [];
+    let sentEmails: unknown[] = [];
+    let newsletterSends: unknown[] = [];
     if (userEmail) {
-      const { data: adRows, error: adErr } = await this.supabase
-        .from('ad_inquiries')
-        .select('*')
-        .eq('email', userEmail);
-      if (adErr) {
-        throw new Error(`collectUserData: query ad_inquiries failed: ${adErr.message}`);
+      const [adRes, sentRes, nlSendsRes] = await Promise.all([
+        this.supabase
+          .from('ad_inquiries')
+          .select('*')
+          .eq('email', userEmail),
+        this.supabase
+          .from('sent_emails')
+          .select('id, to_email, subject, template_name, provider, status, sent_at')
+          .eq('to_email', userEmail),
+        this.supabase
+          .from('newsletter_sends')
+          .select('id, edition_id, subscriber_email, status, delivered_at, opened_at, clicked_at, created_at')
+          .eq('subscriber_email', userEmail),
+      ]);
+      if (adRes.error) {
+        throw new Error(`collectUserData: query ad_inquiries failed: ${adRes.error.message}`);
       }
-      adInquiries = adRows ?? [];
+      adInquiries = adRes.data ?? [];
+      if (sentRes.error) {
+        throw new Error(`collectUserData: query sent_emails failed: ${sentRes.error.message}`);
+      }
+      sentEmails = sentRes.data ?? [];
+      if (nlSendsRes.error) {
+        throw new Error(`collectUserData: query newsletter_sends failed: ${nlSendsRes.error.message}`);
+      }
+      newsletterSends = nlSendsRes.data ?? [];
     }
 
     return {
@@ -281,6 +305,10 @@ export class BythiagoLgpdDomainAdapter implements ILgpdDomainAdapter {
       consents,
       media_assets_uploaded: mediaAssets,
       ad_inquiries: adInquiries,
+      sent_emails: sentEmails,
+      newsletter_sends: newsletterSends,
+      social_posts: socialPosts,
+      password_reset_attempts: passwordResetAttempts,
     };
   }
 

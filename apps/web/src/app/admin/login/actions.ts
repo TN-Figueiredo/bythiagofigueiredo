@@ -65,6 +65,7 @@ export async function signInWithPassword(
       path: '/',
       sameSite: 'lax',
       httpOnly: false,
+      secure: process.env.NODE_ENV === 'production',
       maxAge: 400 * 24 * 60 * 60,
     })
   }

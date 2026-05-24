@@ -22,6 +22,9 @@ export const BlogPostMetadataSchema = z.object({
   seo_keyword: z.string().optional(),
   cover_image_concept: z.string().optional(),
   series_position: z.number().int().positive().optional(),
+  slug: z.string().max(200).optional(),
+  depth: z.string().max(50).optional(),
+  text_playlist: z.string().max(100).optional(),
 }).strict()
 
 export const NewsletterMetadataSchema = z.object({
@@ -105,6 +108,7 @@ export const PipelineItemUpdateSchema = z.object({
   campaign_id: z.string().uuid().nullable().optional(),
   category: z.enum(BLOG_CATEGORIES).nullable().optional(),
   cover_image_url: z.string().url().max(2000).nullable().optional(),
+  social_config: z.object({ enabled: z.boolean() }).passthrough().nullable().optional(),
 })
 
 import { REFERENCE_GROUP_IDS } from '@/lib/pipeline/reference-groups'

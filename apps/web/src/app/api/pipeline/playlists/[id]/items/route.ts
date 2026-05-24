@@ -58,7 +58,7 @@ export async function POST(
 
   if (error) {
     if (error.code === '23503') return pipelineError('VALIDATION_ERROR', 'Referenced content does not exist', 400, auth)
-    return pipelineError('VALIDATION_ERROR', error.message, 400, auth)
+    return pipelineError('DB_ERROR', 'Failed to create playlist item', 500, auth)
   }
 
   return pipelineSuccess({ id: data.id, already_existed: false }, 201, auth)

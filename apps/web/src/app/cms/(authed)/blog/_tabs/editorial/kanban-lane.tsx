@@ -71,19 +71,19 @@ export const KanbanLane = memo(function KanbanLane({
           showDropZone ? 'border-indigo-500/30' : 'border-gray-800'
         }`}
       >
-        <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
+        <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />
         <span
-          className={`text-[10px] font-semibold uppercase tracking-wider transition-colors ${
-            showDropZone ? 'text-indigo-400' : 'text-gray-400'
+          className={`text-[11px] font-semibold uppercase tracking-wider transition-colors ${
+            showDropZone ? 'text-indigo-400' : 'text-gray-300'
           }`}
         >
           {title}
         </span>
         <span
-          className={`ml-auto rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums transition-colors ${
+          className={`ml-auto rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums transition-colors ${
             showDropZone && count > 0
               ? 'bg-indigo-500/20 text-indigo-400'
-              : 'bg-gray-800 text-gray-500'
+              : 'bg-gray-800 text-gray-400'
           }`}
         >
           {paginationLabel ?? count}
@@ -96,8 +96,8 @@ export const KanbanLane = memo(function KanbanLane({
           style={{ maxHeight: LANE_MAX_HEIGHT }}
         >
           {count === 0 && (
-            <div className="flex flex-col items-center justify-center gap-2 py-8 opacity-50">
-              <p className="text-center text-[10px] text-gray-500">{emptyMessage || FALLBACK_EMPTY[id] || 'Nenhum item'}</p>
+            <div className="flex flex-col items-center justify-center gap-2 py-8">
+              <p className="text-center text-[11px] text-gray-600">{emptyMessage || FALLBACK_EMPTY[id] || 'Nenhum item'}</p>
               {emptyCta}
             </div>
           )}

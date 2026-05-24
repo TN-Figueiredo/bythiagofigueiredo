@@ -37,6 +37,9 @@ import { subscribeToNewsletters, getPostSubscribeSuggestions } from '@/app/(publ
 
 import './newsletter-landing.css'
 
+// Locale JSON contains mixed types (strings + FAQ arrays), so the
+// narrow literal type needs a double cast to Record<string, unknown>.
+// This is a TypeScript limitation with resolveJsonModule literal types.
 import enStrings from '@/locales/en.json'
 import ptBrStrings from '@/locales/pt-BR.json'
 

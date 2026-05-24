@@ -158,6 +158,8 @@ async function renderImageBackground(
     const img = new Image()
     img.src = Buffer.from(arrayBuffer)
     const konvaImage = new Konva.Image({
+      // SDK limitation: Konva types expect HTMLImageElement but Node.js
+      // canvas provides a compatible Image object with the same API.
       image: img as unknown as HTMLImageElement,
       x: 0,
       y: 0,
@@ -273,6 +275,7 @@ async function renderImageElement(
     const img = new Image()
     img.src = Buffer.from(arrayBuffer)
     const konvaImage = new Konva.Image({
+      // SDK limitation: Konva types expect HTMLImageElement; Node.js canvas compatible
       image: img as unknown as HTMLImageElement,
       x: el.x * scaleX,
       y: el.y * scaleY,
@@ -321,7 +324,8 @@ export async function renderTemplate(
   const stage = new Konva.Stage({
     width: size.width,
     height: size.height,
-    // Server-side Konva needs a container-less stage
+    // SDK limitation: Konva types require `container: string` (a DOM element
+    // ID), but server-side Konva works without a container.
     container: undefined as unknown as string,
   })
 
@@ -356,6 +360,8 @@ export async function renderTemplate(
       width: size.width,
       height: size.height,
     })
+    // SDK limitation: Node.js canvas exposes `toBuffer` but the browser
+    // HTMLCanvasElement type returned by Konva.Stage.toCanvas() does not.
     const buffer = (canvasElement as unknown as { toBuffer: (mime: string, options?: { quality: number }) => Buffer }).toBuffer('image/jpeg', { quality: 0.92 })
 
     return buffer

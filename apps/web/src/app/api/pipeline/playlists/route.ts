@@ -68,10 +68,13 @@ export async function POST(req: NextRequest) {
       category: parsed.data.category ?? null,
       status: parsed.data.status,
     })
-    .select('*')
+    .select('id, name_en, name_pt, slug, status, category, description_en, description_pt, cover_image_url, created_at, updated_at')
     .single()
 
-  if (error) return pipelineError('VALIDATION_ERROR', error.message, 400, auth)
+  if (error) {
+    console.error('[playlists/POST]', error)
+    return pipelineError('DB_ERROR', 'Failed to create playlist', 500, auth)
+  }
 
   return pipelineSuccess({
     id: data.id,

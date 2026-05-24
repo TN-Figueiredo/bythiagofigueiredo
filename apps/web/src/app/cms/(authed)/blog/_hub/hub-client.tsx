@@ -126,87 +126,93 @@ export function HubClient({
 
   return (
     <div className="flex min-h-screen flex-col bg-[#030712]">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 pt-3 md:px-7">
-        <div className="flex items-center gap-3">
-          <h1 className="text-lg font-bold text-gray-100">{commonStrings?.posts ?? 'Blog'}</h1>
-          <button
-            onClick={refreshNow}
-            className="flex items-center gap-1 text-[9px] text-gray-600 hover:text-gray-400"
-          >
-            <span className="h-[5px] w-[5px] animate-pulse rounded-full bg-green-500" />
-            <span aria-live="polite">{commonStrings?.updatedJustNow ?? 'Updated just now'}</span>
-          </button>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => {
-              if (creatingPost) return
-              setCreatingPost(true)
-              router.push(newPostHref)
-            }}
-            disabled={creatingPost}
-            className="flex items-center gap-1 rounded-lg bg-indigo-500 px-3.5 py-[7px] text-[11px] font-semibold text-white hover:bg-indigo-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400 disabled:opacity-70"
-          >
-            {creatingPost ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Plus className="h-3.5 w-3.5" />
-            )}
-            {actionStrings?.newPost ?? 'New Post'}
-          </button>
-          <button
-            aria-label="Notifications"
-            className="relative flex h-8 w-8 items-center justify-center rounded-md border border-gray-800 bg-gray-900 text-gray-400 hover:border-gray-700 hover:text-gray-200"
-          >
-            <Bell className="h-4 w-4" />
-            {sharedData.tabBadges.editorial > 0 && (
-              <span className="absolute right-[5px] top-[5px] h-1.5 w-1.5 rounded-full border-[1.5px] border-[#030712] bg-red-500" />
-            )}
-          </button>
-        </div>
-      </div>
-
-      {/* Tab bar */}
-      <div
-        className="mt-2 flex overflow-x-auto border-b border-gray-800 px-4 md:px-7"
-        role="tablist"
-        aria-label="Blog hub tabs"
-      >
-        {TABS.map((tab) => {
-          const Icon = tab.icon
-          const isActive = activeTab === tab.id
-          const badge = tab.id === 'editorial' ? sharedData.tabBadges.editorial : 0
-          return (
+      {/* Header + Tab bar (sticky together) */}
+      <div className="sticky top-0 z-20 bg-[#030712]/95 backdrop-blur-sm">
+        <div className="flex items-center justify-between px-4 pt-3 pb-2 md:px-7">
+          <div className="flex items-center gap-3">
+            <h1 className="text-xl font-bold text-gray-100">{commonStrings?.posts ?? 'Blog'}</h1>
             <button
-              key={tab.id}
-              role="tab"
-              aria-selected={isActive}
-              aria-controls={`tabpanel-${tab.id}`}
-              onClick={() => switchTab(tab.id)}
-              className={`flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap border-b-2 px-4 py-2.5 text-[11px] font-medium transition-colors ${
-                isActive
-                  ? 'border-indigo-500 text-indigo-400'
-                  : 'border-transparent text-gray-500 hover:text-gray-300'
-              }`}
+              onClick={refreshNow}
+              className="flex items-center gap-1.5 text-[10px] text-gray-600 hover:text-gray-400"
             >
-              <Icon className="h-3.5 w-3.5" />
-              {tabLabels[tab.id]}
-              {badge > 0 && (
-                <span className="ml-1 rounded-full bg-indigo-500/20 px-1.5 py-0.5 text-[8px] font-semibold text-indigo-400">
-                  {badge}
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-500" />
+              <span aria-live="polite">{commonStrings?.updatedJustNow ?? 'Updated just now'}</span>
+            </button>
+          </div>
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={() => {
+                if (creatingPost) return
+                setCreatingPost(true)
+                router.push(newPostHref)
+              }}
+              disabled={creatingPost}
+              className="flex items-center gap-1.5 rounded-lg bg-indigo-500 px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-indigo-500/20 hover:bg-indigo-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400 disabled:opacity-70 transition-colors"
+            >
+              {creatingPost ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Plus className="h-4 w-4" />
+              )}
+              {actionStrings?.newPost ?? 'New Post'}
+            </button>
+            <button
+              aria-label="Notifications"
+              title="Notifications"
+              className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-gray-800 bg-gray-900 text-gray-400 hover:border-gray-700 hover:text-gray-200 transition-colors"
+            >
+              <Bell className="h-4 w-4" />
+              {sharedData.tabBadges.editorial > 0 && (
+                <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">
+                  {sharedData.tabBadges.editorial}
                 </span>
               )}
             </button>
-          )
-        })}
-        <button
-          onClick={handleAddTag}
-          aria-label="Manage tags"
-          className="ml-auto flex shrink-0 items-center border-b-2 border-transparent px-3 py-2.5 text-gray-600 transition-colors hover:text-gray-300"
+          </div>
+        </div>
+
+        {/* Tab bar */}
+        <div
+          className="flex overflow-x-auto border-b border-gray-800 px-4 md:px-7"
+          role="tablist"
+          aria-label="Blog hub tabs"
         >
-          <Settings className="h-3.5 w-3.5" />
-        </button>
+          {TABS.map((tab) => {
+            const Icon = tab.icon
+            const isActive = activeTab === tab.id
+            const badge = tab.id === 'editorial' ? sharedData.tabBadges.editorial : 0
+            return (
+              <button
+                key={tab.id}
+                role="tab"
+                aria-selected={isActive}
+                aria-controls={`tabpanel-${tab.id}`}
+                onClick={() => switchTab(tab.id)}
+                className={`flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap border-b-2 px-4 py-2.5 text-xs font-medium transition-colors ${
+                  isActive
+                    ? 'border-indigo-500 text-indigo-400'
+                    : 'border-transparent text-gray-500 hover:text-gray-300'
+                }`}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {tabLabels[tab.id]}
+                {badge > 0 && (
+                  <span className="ml-1 rounded-full bg-indigo-500/20 px-1.5 py-0.5 text-[9px] font-semibold text-indigo-400">
+                    {badge}
+                  </span>
+                )}
+              </button>
+            )
+          })}
+          <button
+            onClick={handleAddTag}
+            aria-label="Manage tags"
+            title="Manage tags"
+            className="ml-auto flex shrink-0 items-center border-b-2 border-transparent px-3 py-2.5 text-gray-600 transition-colors hover:text-gray-300"
+          >
+            <Settings className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
 
       {/* Filters */}

@@ -19,7 +19,7 @@ export function ScriptRenderer({ content, isEditing, lang, onContentChange }: Re
 
   const handleChange = useCallback(
     (updated: RoteiroContent) => {
-      onContentChange(updated as unknown as RendererProps['content'])
+      onContentChange(updated as RendererProps['content'])
     },
     [onContentChange],
   )

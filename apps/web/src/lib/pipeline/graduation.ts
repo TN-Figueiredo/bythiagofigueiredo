@@ -138,6 +138,7 @@ export async function graduateToSocialPost(
         scheduledAt,
         userId,
         sourcePipelineId: item.id,
+        // PipelineSnapshot type is narrower; widen for JSON storage
         pipelineSnapshot: snapshot as unknown as Record<string, unknown>,
       })
 

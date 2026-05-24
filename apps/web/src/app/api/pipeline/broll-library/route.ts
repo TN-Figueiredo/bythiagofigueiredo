@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   const supabase = getSupabaseServiceClient()
   let query = supabase
     .from('broll_library')
-    .select('*', { count: 'exact' })
+    .select('id, asset_id, original_filename, renamed_to, sha256, file_size_bytes, type, source, source_type, category, subcategory, location, description, tags, codec, fps, resolution, width, height, duration_seconds, bitrate_kbps, has_audio, color_profile, storage_url, thumbnail_url, proxy_url, reusable, status, captured_at, metadata, version, created_at, updated_at', { count: 'exact' })
     .eq('site_id', auth.siteId)
     .order('created_at', { ascending: false })
     .order('id', { ascending: false })
@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
   const { data, error } = await supabase
     .from('broll_library')
     .insert({ ...parsed.data, site_id: auth.siteId })
-    .select('*')
+    .select('id, asset_id, original_filename, renamed_to, sha256, file_size_bytes, type, source, source_type, category, subcategory, location, description, tags, codec, fps, resolution, width, height, duration_seconds, bitrate_kbps, has_audio, color_profile, storage_url, thumbnail_url, proxy_url, reusable, status, captured_at, metadata, version, created_at, updated_at')
     .single()
 
   if (error) {

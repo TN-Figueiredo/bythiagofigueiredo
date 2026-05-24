@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { timingSafeEqual } from 'node:crypto'
 import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { sendTelegramConfirmation } from '@/lib/social/notifications/telegram'
@@ -15,6 +16,22 @@ interface TelegramUpdate {
 
 export async function POST(request: Request): Promise<Response> {
   try {
+    const secret = process.env.TELEGRAM_WEBHOOK_SECRET
+    if (!secret) {
+      return NextResponse.json({ error: 'webhook not configured' }, { status: 503 })
+    }
+
+    const token = request.headers.get('X-Telegram-Bot-Api-Secret-Token') ?? ''
+    if (!token) {
+      return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+    }
+
+    const a = Buffer.from(token)
+    const b = Buffer.from(secret)
+    if (a.length !== b.length || !timingSafeEqual(a, b)) {
+      return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+    }
+
     const update = (await request.json()) as TelegramUpdate
 
     if (!update.message?.text?.startsWith('/start')) {

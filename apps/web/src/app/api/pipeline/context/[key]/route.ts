@@ -13,7 +13,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ key:
   const supabase = getSupabaseServiceClient()
   const { data, error } = await supabase
     .from('reference_content')
-    .select('*')
+    .select('id, site_id, key, title, content_md, content_compact, ref_group, sort_order, created_at, updated_at')
     .eq('site_id', auth.siteId)
     .eq('key', key)
     .single()
@@ -49,7 +49,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ key:
   const { data, error } = await supabase
     .from('reference_content')
     .upsert(upsertData, { onConflict: 'site_id,key' })
-    .select()
+    .select('id, site_id, key, title, content_md, content_compact, ref_group, sort_order, created_at, updated_at')
     .single()
 
   if (error) return pipelineError('VALIDATION_ERROR', 'Failed to save reference content', 400, auth)

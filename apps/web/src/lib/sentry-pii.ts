@@ -32,6 +32,12 @@ export const PHONE_RE = /\+?\d{2,3}[- ]?\(?\d{2,3}\)?[- ]?\d{4,5}[- ]?\d{4}/g
 // (12345678900) form. We don't bother with mod-11 validation: the goal is
 // redaction, false positives are acceptable.
 export const CPF_RE = /\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/g
+// IPv4: standard dotted-decimal (1.2.3.4). Word-boundary anchored to avoid
+// matching version numbers like "2.0.0.0" when embedded in identifiers.
+export const IPV4_RE = /\b(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\b/g
+// IPv6: full (8 groups) and compressed (::) forms. The second alternation
+// covers all :: positions: leading (::1), middle (fe80::1, 2001:db8::ff00:42:8329), trailing.
+export const IPV6_RE = /(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}|(?:(?:[0-9a-fA-F]{1,4}:)*[0-9a-fA-F]{1,4})?::(?:(?:[0-9a-fA-F]{1,4}:)*[0-9a-fA-F]{1,4})?/g
 
 /** Replace email-shaped substrings with '<email>'. */
 export function scrubEmail(value: string): string {
@@ -45,6 +51,8 @@ export function scrubPiiString(value: string): string {
     .replace(CPF_RE, '[REDACTED_CPF]')
     .replace(PHONE_RE, '[REDACTED_PHONE]')
     .replace(EMAIL_RE, '<email>')
+    .replace(IPV4_RE, '[REDACTED_IP]')
+    .replace(IPV6_RE, '[REDACTED_IP]')
 }
 
 // Minimal subset of the Sentry Event shape we care about. Typing it locally

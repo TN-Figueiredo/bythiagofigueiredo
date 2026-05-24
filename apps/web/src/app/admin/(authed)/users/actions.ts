@@ -8,8 +8,9 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { inviteTemplate } from '@tn-figueiredo/email'
 import type { IEmailTemplate } from '@tn-figueiredo/email'
 
-// email@0.2.0 typed templates use strict interfaces that don't satisfy
-// Record<string, unknown> index signature — cast once here.
+// SDK limitation: email@0.2.0 typed templates use strict interfaces
+// (e.g. IEmailTemplate<InviteVars>) that don't satisfy
+// Record<string, unknown> due to TypeScript contravariance rules.
 const invite = inviteTemplate as unknown as IEmailTemplate<Record<string, unknown>>
 import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
 import { getEmailService } from '../../../../../lib/email/service'

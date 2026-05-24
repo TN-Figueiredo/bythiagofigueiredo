@@ -10,8 +10,7 @@ import { JsonLdScript } from '@/lib/seo/jsonld/render'
 import { localePath } from '@/lib/i18n/locale-path'
 import type { Metadata } from 'next'
 import { VisualBreadcrumbs } from '../../components/visual-breadcrumbs'
-import enStrings from '@/locales/en.json'
-import ptBrStrings from '@/locales/pt-BR.json'
+import { getDictionary } from '@/locales/dictionary'
 
 export const revalidate = 3600
 
@@ -43,7 +42,7 @@ export default async function NewsletterArchiveListPage({ searchParams }: Props)
   const h = await headers()
   const locale = h.get('x-locale') ?? 'en'
   const host = h.get('host') ?? ctx.primaryDomain ?? ''
-  const t = (locale === 'pt-BR' ? ptBrStrings : enStrings) as unknown as Record<string, string>
+  const t = getDictionary(locale)
 
   const config = await getSiteSeoConfig(ctx.siteId, host).catch(() => null)
   const breadcrumbGraph = config

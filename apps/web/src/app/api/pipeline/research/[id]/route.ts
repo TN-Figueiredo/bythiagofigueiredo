@@ -39,6 +39,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   if (error || !item) return pipelineError('NOT_FOUND', 'Research item not found', 404, auth)
 
+  // Supabase client is untyped (no generated DB types); cast to known shape
   const typedItem = item as unknown as ResearchItemWithTopic
 
   const { data: links } = await supabase

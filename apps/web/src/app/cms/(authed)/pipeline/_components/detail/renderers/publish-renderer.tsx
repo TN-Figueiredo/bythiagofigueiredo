@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { toast } from 'sonner'
 import type { RendererProps } from '../section-content'
 
@@ -247,17 +248,75 @@ function EndScreenContent({ rawContent, text, isEditing, onTextChange }: {
 interface BlogPublishPanelProps {
   pipelineItemId: string
   vvsScore: number
+  stage?: string
+  blogSlug?: string | null
+  socialPostId?: string | null
 }
 
-function BlogPublishPanel({ pipelineItemId, vvsScore }: BlogPublishPanelProps) {
+function BlogPublishedPanel({ blogSlug, socialPostId }: { blogSlug?: string | null; socialPostId?: string | null }) {
+  return (
+    <div className="mt-4 p-4 rounded-lg" style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}>
+      <div className="flex items-center gap-2 mb-3">
+        <div className="w-2.5 h-2.5 rounded-full" style={{ background: '#22c55e' }} />
+        <span className="text-[11px] font-medium" style={{ color: 'var(--gem-text)' }}>
+          Publicado
+        </span>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        {blogSlug && (
+          <a
+            href={`/blog/${blogSlug}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 text-[11px] font-medium py-2 px-3 rounded-md transition-opacity hover:opacity-90"
+            style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981', border: '1px solid rgba(16,185,129,0.3)' }}
+          >
+            Ver post no site
+          </a>
+        )}
+
+        {socialPostId ? (
+          <Link
+            href={`/cms/social/${socialPostId}`}
+            className="flex items-center justify-center gap-2 text-[11px] font-medium py-2 px-3 rounded-md transition-opacity hover:opacity-90"
+            style={{ background: 'rgba(139,92,246,0.15)', color: '#8b5cf6', border: '1px solid rgba(139,92,246,0.3)' }}
+          >
+            Ver post social
+          </Link>
+        ) : (
+          <Link
+            href="/cms/social"
+            className="flex items-center justify-center gap-2 text-[11px] font-medium py-2 px-3 rounded-md transition-opacity hover:opacity-90"
+            style={{ background: 'var(--gem-accent)', color: '#fff' }}
+          >
+            Compartilhar nas Redes
+          </Link>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function BlogScheduledPanel() {
+  return (
+    <div className="mt-4 p-4 rounded-lg" style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}>
+      <div className="flex items-center gap-2">
+        <div className="w-2.5 h-2.5 rounded-full" style={{ background: '#8b5cf6' }} />
+        <span className="text-[11px] font-medium" style={{ color: 'var(--gem-text)' }}>
+          Agendado — aguardando publicação
+        </span>
+      </div>
+    </div>
+  )
+}
+
+function BlogDraftPublishPanel({ pipelineItemId, vvsScore }: { pipelineItemId: string; vvsScore: number }) {
   const router = useRouter()
   const [showSchedule, setShowSchedule] = useState(false)
   const [scheduledFor, setScheduledFor] = useState('')
   const [isPublishing, setIsPublishing] = useState(false)
 
-  // Compute min datetime for schedule input (prevents selecting past dates).
-  // Recomputed each time the schedule UI opens so the floor stays fresh even
-  // if the detail view has been open for a long time.
   const minDateTime = useMemo(() => {
     if (!showSchedule) return ''
     const now = new Date()
@@ -382,7 +441,13 @@ function BlogPublishPanel({ pipelineItemId, vvsScore }: BlogPublishPanelProps) {
   )
 }
 
-export function PublishRenderer({ content, isEditing, onContentChange, pipelineItemId, vvsScore, format }: RendererProps) {
+function BlogPublishPanel({ pipelineItemId, vvsScore, stage, blogSlug, socialPostId }: BlogPublishPanelProps) {
+  if (stage === 'published') return <BlogPublishedPanel blogSlug={blogSlug} socialPostId={socialPostId} />
+  if (stage === 'scheduled') return <BlogScheduledPanel />
+  return <BlogDraftPublishPanel pipelineItemId={pipelineItemId} vvsScore={vvsScore} />
+}
+
+export function PublishRenderer({ content, isEditing, onContentChange, pipelineItemId, vvsScore, format, stage, blogSlug, socialPostId }: RendererProps) {
   const isBlogPost = format === 'blog_post'
   const data = parseContent(content)
 
@@ -614,6 +679,9 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
         <BlogPublishPanel
           pipelineItemId={pipelineItemId}
           vvsScore={vvsScore ?? 0}
+          stage={stage}
+          blogSlug={blogSlug}
+          socialPostId={socialPostId}
         />
       )}
     </div>

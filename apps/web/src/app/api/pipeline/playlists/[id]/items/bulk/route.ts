@@ -73,11 +73,12 @@ export async function POST(
       .single()
 
     if (error) {
+      console.error('[playlist-items/bulk]', error)
       const isFk = error.code === '23503'
       errors.push({
         index: i,
         code: isFk ? 'INVALID_REFERENCE' : 'VALIDATION_ERROR',
-        message: isFk ? 'Referenced content does not exist' : error.message,
+        message: isFk ? 'Referenced content does not exist' : 'Failed to insert item',
       })
       continue
     }

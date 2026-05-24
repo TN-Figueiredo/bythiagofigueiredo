@@ -94,6 +94,12 @@ export interface ScheduleTabData {
 
 export type LaneId = 'idea' | 'draft' | 'ready' | 'scheduled' | 'published'
 
+export interface PipelinePlaylistRef {
+  id: string
+  name: string
+  slug: string
+}
+
 export interface PipelineCardItem {
   id: string
   code: string
@@ -116,6 +122,7 @@ export interface PipelineCardItem {
   sort_order: number
   version: number
   is_archived: boolean
+  playlists: PipelinePlaylistRef[]
 }
 
 export interface UnifiedLanes {

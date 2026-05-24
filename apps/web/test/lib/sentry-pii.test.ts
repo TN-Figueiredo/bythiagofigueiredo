@@ -10,6 +10,8 @@ import {
   CPF_RE,
   EMAIL_RE,
   PHONE_RE,
+  IPV4_RE,
+  IPV6_RE,
 } from '@/lib/sentry-pii'
 
 describe('scrubEmail', () => {
@@ -152,5 +154,35 @@ describe('scrubPiiString / individual regexes', () => {
     expect(
       scrubPiiString('cpf=123.456.789-00 fone=+55 (11) 98765-4321 email=a@b.co'),
     ).toBe('cpf=[REDACTED_CPF] fone=[REDACTED_PHONE] email=<email>')
+  })
+
+  it('IPV4_RE matches standard dotted-decimal IPv4', () => {
+    IPV4_RE.lastIndex = 0
+    expect(IPV4_RE.test('192.168.1.1')).toBe(true)
+    IPV4_RE.lastIndex = 0
+    expect(IPV4_RE.test('255.255.255.255')).toBe(true)
+    IPV4_RE.lastIndex = 0
+    expect(IPV4_RE.test('10.0.0.1')).toBe(true)
+  })
+
+  it('IPV6_RE matches compressed and full IPv6', () => {
+    IPV6_RE.lastIndex = 0
+    expect(IPV6_RE.test('2001:0db8:85a3:0000:0000:8a2e:0370:7334')).toBe(true)
+    IPV6_RE.lastIndex = 0
+    expect(IPV6_RE.test('::1')).toBe(true)
+    IPV6_RE.lastIndex = 0
+    expect(IPV6_RE.test('fe80::1')).toBe(true)
+  })
+
+  it('scrubPiiString redacts IPv4 and IPv6 addresses', () => {
+    expect(scrubPiiString('request from 192.168.1.100 denied'))
+      .toBe('request from [REDACTED_IP] denied')
+    expect(scrubPiiString('client 2001:db8::ff00:42:8329 connected'))
+      .toBe('client [REDACTED_IP] connected')
+  })
+
+  it('scrubs IPv4 in event messages', () => {
+    const out = scrubEventPii({ message: 'rate limited ip=10.0.0.42' })
+    expect(out.message).toBe('rate limited ip=[REDACTED_IP]')
   })
 })

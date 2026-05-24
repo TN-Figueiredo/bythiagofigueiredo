@@ -49,6 +49,7 @@ export default async function FormatBoardPage({ params }: { params: Promise<{ fo
       social_post_id: (item as Record<string, unknown>).social_post_id as string | null,
       is_archived: item.is_archived, validation_score: score.overall,
       dependencies: [],
+      // Supabase client untyped (no generated DB types); fields are in .select() above
       linked_post_status: (item as unknown as { blog_posts?: { status: string } | null }).blog_posts?.status ?? null,
       sort_order: (item as unknown as { sort_order: number }).sort_order ?? 0,
       version: item.version ?? 1,
