@@ -4,6 +4,7 @@ import { authenticateWrite, pipelineSuccess, pipelineError, parseBody } from '@/
 import { UUID_REGEX } from '@/lib/pipeline/auth'
 import { GraduateSchema } from '@/lib/pipeline/schemas'
 import { prepareBlogTranslationPatch } from '@/lib/pipeline/draft-to-blog'
+import { CurriculumContentSchema } from '@/lib/pipeline/course-schemas'
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -36,7 +37,82 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!title) return pipelineError('INVALID_OPERATION', 'Item must have a title to graduate', 422, auth)
 
   if (target === 'course') {
-    return pipelineError('INVALID_OPERATION', 'Course graduation not yet implemented', 501, auth)
+    const currSection = (item.sections as Record<string, unknown> | null)?.curriculum_shared as { content?: unknown } | undefined
+    const parsed = CurriculumContentSchema.safeParse(currSection?.content ?? {})
+    if (!parsed.success) {
+      return pipelineError('INVALID_OPERATION', 'No valid curriculum found', 422, auth)
+    }
+    const curriculum = parsed.data
+    const eligibleModules = curriculum.modules.filter((m) =>
+      m.lessons.length > 0 && m.lessons.every((l) => l.production_status === 'ready')
+    )
+    if (eligibleModules.length === 0) {
+      return pipelineError('INVALID_OPERATION', 'No modules with all lessons ready', 422, auth)
+    }
+
+    const existingPlaylistId = (item.format_metadata as Record<string, unknown> | null)?.playlist_id as string | undefined
+
+    let playlistId: string
+
+    if (existingPlaylistId) {
+      playlistId = existingPlaylistId
+    } else {
+      const slug = (item.code || title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')).slice(0, 200)
+      const { data: playlist, error } = await supabase
+        .from('playlists')
+        .insert({
+          site_id: auth.siteId,
+          name_pt: item.title_pt || null,
+          name_en: item.title_en || null,
+          slug,
+          category: 'course',
+          status: 'draft',
+        })
+        .select('id')
+        .single()
+      if (error || !playlist) {
+        return pipelineError('DB_ERROR', 'Failed to create course playlist', 500, auth)
+      }
+      playlistId = playlist.id
+    }
+
+    for (const mod of eligibleModules) {
+      const sortedLessons = [...mod.lessons].sort((a, b) => a.sort_order - b.sort_order)
+      const insertedItemIds: string[] = []
+
+      for (const lesson of sortedLessons) {
+        const { data: playlistItem } = await supabase
+          .from('playlist_items')
+          .insert({
+            playlist_id: playlistId,
+            pipeline_id: lesson.pipeline_ref || item.id,
+            sort_order: mod.sort_order * 1000 + lesson.sort_order,
+          })
+          .select('id')
+          .single()
+        if (playlistItem) insertedItemIds.push(playlistItem.id)
+      }
+
+      for (let i = 1; i < insertedItemIds.length; i++) {
+        await supabase.from('playlist_edges').insert({
+          playlist_id: playlistId,
+          source_item_id: insertedItemIds[i - 1],
+          target_item_id: insertedItemIds[i],
+          edge_type: 'sequence',
+        })
+      }
+    }
+
+    const updatedMetadata = { ...(item.format_metadata as Record<string, unknown> ?? {}), playlist_id: playlistId }
+    await supabase.from('content_pipeline').update({ format_metadata: updatedMetadata }).eq('id', id)
+
+    await supabase.from('content_pipeline_history').insert({
+      pipeline_id: id,
+      event_type: 'graduated',
+      to_value: `course:${playlistId}`,
+    })
+
+    return pipelineSuccess({ graduated: true, target: 'course', entity_id: playlistId }, 200, auth)
   }
 
   const fkMap = { blog_post: 'blog_post_id', newsletter: 'newsletter_edition_id', campaign: 'campaign_id' } as const
