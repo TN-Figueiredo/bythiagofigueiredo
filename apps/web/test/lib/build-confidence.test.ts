@@ -116,9 +116,9 @@ describe('build confidence pipeline', () => {
   })
 
   it.each([
-    { app: 'apps/web', srcSubdir: 'src' },
-    { app: 'apps/api', srcSubdir: 'src' },
-  ])('no @tn-figueiredo/* import in $app without package.json declaration', ({ app, srcSubdir }) => {
+    ['apps/web', 'src'],
+    ['apps/api', 'src'],
+  ])('no @tn-figueiredo/* import in %s without package.json declaration', (app, srcSubdir) => {
     const { execSync } = require('node:child_process')
 
     const appDir = join(ROOT, app)

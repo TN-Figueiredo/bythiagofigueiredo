@@ -4,7 +4,7 @@
 # After git pull/merge, rebuild workspace packages if source changed.
 # Soft failure (warning only) — next pre-commit will catch any issues.
 
-if git diff HEAD@{1} HEAD --name-only | grep -q "^packages/.*/src/"; then
+if git diff HEAD@{1} HEAD --name-only 2>/dev/null | grep -q "^packages/.*/src/"; then
   echo "📦 Workspace package source changed — rebuilding..."
   npm run build:packages 2>/dev/null || echo "⚠️  Package rebuild failed. Run: npm run build:packages"
 fi
