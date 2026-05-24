@@ -3,6 +3,7 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getPlaylistGraph } from '@/lib/playlists/queries'
 import { PipelineUpdatePlaylistSchema } from '@/lib/pipeline/schemas'
 import { authenticateRead, authenticateWrite, pipelineError, pipelineSuccess, parseBody } from '@/lib/pipeline/helpers'
+import { withSnapshot } from '@/lib/playlists/snapshot-middleware'
 
 export async function GET(
   req: NextRequest,
@@ -104,15 +105,18 @@ export async function DELETE(
   const { id } = await params
 
   const supabase = getSupabaseServiceClient()
-  const { data } = await supabase
-    .from('playlists')
-    .delete()
-    .eq('id', id)
-    .eq('site_id', auth.siteId)
-    .select('id')
-    .maybeSingle()
 
-  if (!data) return pipelineError('NOT_FOUND', 'Playlist not found', 404, auth)
+  return withSnapshot(id, auth.siteId, null, 'pre_destructive', 'API: antes de deletar playlist', async () => {
+    const { data } = await supabase
+      .from('playlists')
+      .delete()
+      .eq('id', id)
+      .eq('site_id', auth.siteId)
+      .select('id')
+      .maybeSingle()
 
-  return pipelineSuccess({ deleted: true }, 200, auth)
+    if (!data) return pipelineError('NOT_FOUND', 'Playlist not found', 404, auth)
+
+    return pipelineSuccess({ deleted: true }, 200, auth)
+  })
 }

@@ -15,6 +15,7 @@ import {
   getAvailableContent,
   updatePlaylistNotes,
   getReuseCandidates,
+  ensureSessionSnapshot,
 } from '../actions'
 
 export const dynamic = 'force-dynamic'
@@ -30,6 +31,8 @@ export default async function PlaylistEditorPage({
 
   const graph = await getPlaylistGraph(id, siteId)
   if (!graph) notFound()
+
+  await ensureSessionSnapshot(siteId, id)
 
   return (
     <div className="h-[calc(100vh-3rem)]">

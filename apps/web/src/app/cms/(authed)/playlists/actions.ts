@@ -15,6 +15,8 @@ import {
   type PlaylistGraph,
 } from '@/lib/playlists/types'
 import { getPlaylistGraph, getPlaylistBySlug, getNextSortOrder } from '@/lib/playlists/queries'
+import { createSnapshot, withSnapshot } from '@/lib/playlists/snapshot-middleware'
+import type { SnapshotType, SnapshotRow, RestoreMode } from '@/lib/playlists/types'
 
 // ─── Auth helpers ────────────────────────────────────────────────────────────
 
@@ -119,16 +121,20 @@ export async function deletePlaylist(
   await requireEditScope()
 
   const supabase = getSupabaseServiceClient()
-  const { error } = await supabase
-    .from('playlists')
-    .delete()
-    .eq('id', playlistId)
-    .eq('site_id', siteId)
+  const { data: { user } } = await supabase.auth.getUser()
 
-  if (error) return { ok: false, error: error.message }
+  return withSnapshot(playlistId, siteId, user?.id ?? null, 'pre_destructive', 'Antes de deletar playlist', async () => {
+    const { error } = await supabase
+      .from('playlists')
+      .delete()
+      .eq('id', playlistId)
+      .eq('site_id', siteId)
 
-  revalidatePlaylists()
-  return { ok: true, data: undefined }
+    if (error) return { ok: false, error: error.message } as ActionResult<void>
+
+    revalidatePlaylists()
+    return { ok: true, data: undefined } as ActionResult<void>
+  })
 }
 
 // ─── Playlist Items ───────────────────────────────────────────────────────────
@@ -204,15 +210,19 @@ export async function removeItemFromPlaylist(
 
   if (!playlist || playlist.site_id !== siteId) return { ok: false, error: 'forbidden' }
 
-  const { error } = await supabase
-    .from('playlist_items')
-    .delete()
-    .eq('id', playlistItemId)
+  const { data: { user } } = await supabase.auth.getUser()
 
-  if (error) return { ok: false, error: error.message }
+  return withSnapshot(item.playlist_id, siteId, user?.id ?? null, 'pre_destructive', 'Antes de remover item', async () => {
+    const { error } = await supabase
+      .from('playlist_items')
+      .delete()
+      .eq('id', playlistItemId)
 
-  revalidatePlaylists()
-  return { ok: true, data: undefined }
+    if (error) return { ok: false, error: error.message } as ActionResult<void>
+
+    revalidatePlaylists()
+    return { ok: true, data: undefined } as ActionResult<void>
+  })
 }
 
 // ─── Playlist Edges ───────────────────────────────────────────────────────────
@@ -296,15 +306,19 @@ export async function deleteEdge(
 
   if (!edgePlaylist || edgePlaylist.site_id !== siteId) return { ok: false, error: 'forbidden' }
 
-  const { error } = await supabase
-    .from('playlist_edges')
-    .delete()
-    .eq('id', edgeId)
+  const { data: { user } } = await supabase.auth.getUser()
 
-  if (error) return { ok: false, error: error.message }
+  return withSnapshot(edge.playlist_id, siteId, user?.id ?? null, 'pre_destructive', 'Antes de remover edge', async () => {
+    const { error } = await supabase
+      .from('playlist_edges')
+      .delete()
+      .eq('id', edgeId)
 
-  revalidatePlaylists()
-  return { ok: true, data: undefined }
+    if (error) return { ok: false, error: error.message } as ActionResult<void>
+
+    revalidatePlaylists()
+    return { ok: true, data: undefined } as ActionResult<void>
+  })
 }
 
 // ─── Delta Save (batch canvas mutations) ────────────────────────────────────
@@ -321,6 +335,11 @@ export async function savePlaylistDelta(
   }
 
   const { playlistId, itemsUpserted, itemsRemoved, edgesCreated, edgesRemoved } = parsed.data
+
+  if (itemsUpserted.length > 500) return { ok: false, error: 'payload_too_large' }
+  if (itemsRemoved.length > 500) return { ok: false, error: 'payload_too_large' }
+  if (edgesCreated.length > 200) return { ok: false, error: 'payload_too_large' }
+  if (edgesRemoved.length > 200) return { ok: false, error: 'payload_too_large' }
 
   const supabase = getSupabaseServiceClient()
 
@@ -667,4 +686,180 @@ export async function getPlaylistWithItems(
   if (!graph) return { ok: false, error: 'not_found' }
 
   return { ok: true, data: graph }
+}
+
+// ─── Snapshot Actions ────────────────────────────────────────────────────────
+
+export async function createPlaylistSnapshot(
+  siteId: string,
+  playlistId: string,
+  type: SnapshotType,
+  label: string,
+): Promise<ActionResult<{ id: string | null; deduplicated: boolean }>> {
+  const { siteId: authSiteId } = await requireEditScope()
+  if (authSiteId !== siteId) return { ok: false, error: 'forbidden' }
+
+  const supabase = getSupabaseServiceClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  const result = await createSnapshot(playlistId, siteId, user?.id ?? null, type, label)
+  return { ok: true, data: result }
+}
+
+export async function listPlaylistSnapshots(
+  siteId: string,
+  playlistId: string,
+  cursor?: string,
+  limit = 50,
+): Promise<ActionResult<{ snapshots: SnapshotRow[]; hasMore: boolean }>> {
+  await requireEditScope()
+
+  const supabase = getSupabaseServiceClient()
+  let query = supabase
+    .from('playlist_snapshots')
+    .select('*')
+    .eq('playlist_id', playlistId)
+    .eq('site_id', siteId)
+    .order('created_at', { ascending: false })
+    .limit(limit + 1)
+
+  if (cursor) {
+    query = query.lt('created_at', cursor)
+  }
+
+  const { data, error } = await query
+
+  if (error) return { ok: false, error: error.message }
+
+  const hasMore = (data?.length ?? 0) > limit
+  const snapshots = (data ?? []).slice(0, limit) as SnapshotRow[]
+
+  return { ok: true, data: { snapshots, hasMore } }
+}
+
+export async function restorePlaylistSnapshot(
+  siteId: string,
+  playlistId: string,
+  snapshotId: string,
+  mode: RestoreMode,
+): Promise<ActionResult<void>> {
+  const { siteId: authSiteId } = await requireEditScope()
+  if (authSiteId !== siteId) return { ok: false, error: 'forbidden' }
+
+  const supabase = getSupabaseServiceClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  await createSnapshot(playlistId, siteId, user?.id ?? null, 'pre_destructive', `Antes de restaurar (${mode})`)
+
+  const { error } = await supabase.rpc('restore_playlist_snapshot', {
+    p_playlist_id: playlistId,
+    p_snapshot_id: snapshotId,
+    p_mode: mode,
+  })
+
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePlaylists()
+  return { ok: true, data: undefined }
+}
+
+export async function renamePlaylistSnapshot(
+  siteId: string,
+  snapshotId: string,
+  label: string,
+): Promise<ActionResult<void>> {
+  await requireEditScope()
+
+  const supabase = getSupabaseServiceClient()
+  const { error } = await supabase
+    .from('playlist_snapshots')
+    .update({ label })
+    .eq('id', snapshotId)
+    .eq('site_id', siteId)
+
+  if (error) return { ok: false, error: error.message }
+  return { ok: true, data: undefined }
+}
+
+export async function deletePlaylistSnapshot(
+  siteId: string,
+  snapshotId: string,
+): Promise<ActionResult<void>> {
+  await requireEditScope()
+
+  const supabase = getSupabaseServiceClient()
+  const { error } = await supabase
+    .from('playlist_snapshots')
+    .delete()
+    .eq('id', snapshotId)
+    .eq('site_id', siteId)
+    .in('type', ['manual', 'session_start'])
+
+  if (error) return { ok: false, error: error.message }
+  return { ok: true, data: undefined }
+}
+
+export async function getItemEdgeCount(
+  siteId: string,
+  playlistId: string,
+  itemId: string,
+): Promise<ActionResult<{ count: number; edges: Array<{ id: string; target_title: string; edge_type: string }> }>> {
+  await requireEditScope()
+
+  const supabase = getSupabaseServiceClient()
+
+  const { data: edges, error } = await supabase
+    .from('playlist_edges')
+    .select('id, source_item_id, target_item_id, edge_type')
+    .eq('playlist_id', playlistId)
+    .or(`source_item_id.eq.${itemId},target_item_id.eq.${itemId}`)
+
+  if (error) return { ok: false, error: error.message }
+
+  const connectedItemIds = (edges ?? []).map(e =>
+    e.source_item_id === itemId ? e.target_item_id : e.source_item_id,
+  )
+
+  let edgeDetails: Array<{ id: string; target_title: string; edge_type: string }> = []
+  if (connectedItemIds.length > 0) {
+    const { data: items } = await supabase
+      .from('playlist_items')
+      .select('id, blog_post_id, pipeline_id, newsletter_edition_id')
+      .in('id', connectedItemIds.slice(0, 5))
+
+    edgeDetails = (edges ?? []).slice(0, 5).map(e => {
+      const otherId = e.source_item_id === itemId ? e.target_item_id : e.source_item_id
+      const item = items?.find(i => i.id === otherId)
+      const title = item?.blog_post_id ?? item?.pipeline_id ?? item?.newsletter_edition_id ?? 'Item'
+      return { id: e.id, target_title: title as string, edge_type: e.edge_type }
+    })
+  }
+
+  return { ok: true, data: { count: (edges ?? []).length, edges: edgeDetails } }
+}
+
+export async function ensureSessionSnapshot(
+  siteId: string,
+  playlistId: string,
+): Promise<ActionResult<void>> {
+  await requireEditScope()
+
+  const supabase = getSupabaseServiceClient()
+
+  const oneHourAgo = new Date(Date.now() - 3600000).toISOString()
+  const { data: recent } = await supabase
+    .from('playlist_snapshots')
+    .select('id')
+    .eq('playlist_id', playlistId)
+    .gt('created_at', oneHourAgo)
+    .limit(1)
+
+  if (recent && recent.length > 0) {
+    return { ok: true, data: undefined }
+  }
+
+  const { data: { user } } = await supabase.auth.getUser()
+  await createSnapshot(playlistId, siteId, user?.id ?? null, 'session_start', 'Início da sessão')
+
+  return { ok: true, data: undefined }
 }

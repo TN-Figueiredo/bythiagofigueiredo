@@ -52,6 +52,11 @@ vi.mock('@/lib/playlists/canvas/auto-layout', () => ({
   computeAutoLayout: vi.fn(),
 }))
 
+vi.mock('@/lib/playlists/snapshot-middleware', () => ({
+  withSnapshot: vi.fn((_pid, _sid, _uid, _type, _label, fn) => fn()),
+  createSnapshot: vi.fn().mockResolvedValue({ id: 'snap-1', deduplicated: false }),
+}))
+
 vi.mock('@/lib/pipeline/logger', () => ({
   pipelineLog: vi.fn(),
 }))
