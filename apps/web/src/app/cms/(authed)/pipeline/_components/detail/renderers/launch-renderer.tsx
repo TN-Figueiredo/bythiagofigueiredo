@@ -214,6 +214,7 @@ function PlcCardEdit({
         type="text"
         value={item.title}
         placeholder="Título do PLC..."
+        aria-label={`Título do PLC ${item.theme}`}
         onChange={(e) => onChange({ ...item, title: e.target.value })}
         className="w-full text-[11px] p-2 rounded-md"
         style={{
@@ -226,6 +227,7 @@ function PlcCardEdit({
       <textarea
         value={item.key_message}
         placeholder="Mensagem principal..."
+        aria-label={`Mensagem principal do PLC ${item.theme}`}
         onChange={(e) => onChange({ ...item, key_message: e.target.value })}
         rows={2}
         className="w-full text-[11px] p-2 rounded-md resize-none"
@@ -522,6 +524,7 @@ export function LaunchRenderer({ content, isEditing, onContentChange }: Renderer
             <input
               type="date"
               value={launch.cart_open_date ?? ''}
+              aria-label="Abertura do Carrinho"
               onChange={(e) => update({ cart_open_date: e.target.value || null })}
               className="w-full text-[11px] p-2 rounded-md"
               style={{
@@ -536,6 +539,7 @@ export function LaunchRenderer({ content, isEditing, onContentChange }: Renderer
             <input
               type="date"
               value={launch.cart_close_date ?? ''}
+              aria-label="Fechamento do Carrinho"
               onChange={(e) => update({ cart_close_date: e.target.value || null })}
               className="w-full text-[11px] p-2 rounded-md"
               style={{
@@ -550,6 +554,7 @@ export function LaunchRenderer({ content, isEditing, onContentChange }: Renderer
             <input
               type="date"
               value={launch.early_bird_deadline ?? ''}
+              aria-label="Prazo Early Bird"
               onChange={(e) => update({ early_bird_deadline: e.target.value || null })}
               className="w-full text-[11px] p-2 rounded-md"
               style={{
@@ -572,6 +577,7 @@ export function LaunchRenderer({ content, isEditing, onContentChange }: Renderer
               <textarea
                 value={triggers[key] ?? ''}
                 placeholder={`Como você vai usar ${(TRIGGER_LABELS[key] ?? key).toLowerCase()}...`}
+                aria-label={TRIGGER_LABELS[key] ?? key}
                 onChange={(e) =>
                   update({ mental_triggers: { ...launch.mental_triggers, [key]: e.target.value || null } })
                 }
@@ -624,6 +630,7 @@ export function LaunchRenderer({ content, isEditing, onContentChange }: Renderer
                   type="text"
                   value={bonus.title}
                   placeholder="Título do bônus..."
+                  aria-label={`Título do bônus ${idx + 1}`}
                   onChange={(e) => updateBonus(idx, { title: e.target.value })}
                   className="w-full text-[11px] p-2 rounded-md"
                   style={{
@@ -635,6 +642,7 @@ export function LaunchRenderer({ content, isEditing, onContentChange }: Renderer
                 <textarea
                   value={bonus.description}
                   placeholder="Descrição do bônus..."
+                  aria-label={`Descrição do bônus ${idx + 1}`}
                   onChange={(e) => updateBonus(idx, { description: e.target.value })}
                   rows={2}
                   className="w-full text-[11px] p-2 rounded-md resize-none"
@@ -685,6 +693,7 @@ export function LaunchRenderer({ content, isEditing, onContentChange }: Renderer
         <textarea
           value={launch.notes}
           placeholder="Anotações gerais sobre o lançamento..."
+          aria-label="Notas do lançamento"
           onChange={(e) => update({ notes: e.target.value })}
           rows={4}
           className="w-full text-[11px] p-3 rounded-lg resize-none"

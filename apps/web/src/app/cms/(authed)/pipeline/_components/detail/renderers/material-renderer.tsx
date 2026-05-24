@@ -18,6 +18,15 @@ interface MaterialItem {
 
 const MaterialContentSchema = z.record(z.string(), z.array(LessonResourceSchema))
 
+function safeHref(url: string | null | undefined): string | undefined {
+  if (!url) return undefined
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol === 'https:' || parsed.protocol === 'http:') return url
+    return undefined
+  } catch { return undefined }
+}
+
 function parseMaterial(content: RendererProps['content']): Record<string, MaterialItem[]> {
   if (!content || typeof content !== 'object' || Array.isArray(content)) return {}
   const parsed = MaterialContentSchema.safeParse(content)
@@ -160,9 +169,9 @@ function ReadMode({ data }: { data: Record<string, MaterialItem[]> }) {
                     <span style={{ flex: 1, fontSize: 12, color: 'var(--gem-text)' }}>
                       {res.label}
                     </span>
-                    {res.url ? (
+                    {safeHref(res.url) ? (
                       <a
-                        href={res.url}
+                        href={safeHref(res.url)}
                         target="_blank"
                         rel="noopener noreferrer"
                         style={{
@@ -414,6 +423,7 @@ function EditMode({
   }
 
   function removeLesson(lessonId: string) {
+    if (!window.confirm('Remover este grupo de materiais?')) return
     const current = { ...dataRef.current }
     delete current[lessonId]
     emit(current)

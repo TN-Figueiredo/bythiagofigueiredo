@@ -530,6 +530,7 @@ export function LessonsRenderer({ content, isEditing, onContentChange }: Rendere
 
   const deleteLesson = useCallback(
     (id: string) => {
+      if (!window.confirm('Remover esta aula?')) return
       const current = lessonsRef.current
       const { [id]: _, ...rest } = current
       onContentChange(rest as Record<string, unknown>)

@@ -111,12 +111,14 @@ describe('MaterialRenderer', () => {
     })
 
     it('removing a lesson block calls onContentChange without that key', () => {
+      vi.spyOn(window, 'confirm').mockReturnValue(true)
       const onContentChange = vi.fn()
       render(<MaterialRenderer {...editProps} onContentChange={onContentChange} />)
 
       const removeButtons = screen.getAllByText('Remover aula')
       fireEvent.click(removeButtons[0])
 
+      expect(window.confirm).toHaveBeenCalled()
       expect(onContentChange).toHaveBeenCalledOnce()
       const updated = onContentChange.mock.calls[0][0] as Record<string, unknown>
       expect('l1' in updated).toBe(false)
