@@ -10,6 +10,7 @@ import {
   CampaignMetadataSchema,
   ReferenceContentUpsertSchema,
   BulkOperationSchema,
+  GraduateSchema,
 } from '@/lib/pipeline/schemas'
 import { getNextStage, getPreviousStage, isFinalStage, isFirstStage, generateCode } from '@/lib/pipeline/workflows'
 
@@ -113,6 +114,62 @@ describe('BulkOperationSchema', () => {
     }))
     const result = BulkOperationSchema.safeParse({ operations: ops })
     expect(result.success).toBe(false)
+  })
+})
+
+describe('CourseMetadataSchema', () => {
+  it('accepts minimal empty object', () => {
+    expect(CourseMetadataSchema.safeParse({}).success).toBe(true)
+  })
+
+  it('accepts full product metadata', () => {
+    const result = CourseMetadataSchema.safeParse({
+      module_count: 3,
+      platform: 'hotmart',
+      product_type: 'course',
+      tier: 'core',
+      pricing_model: 'one_time',
+      price_cents: 29700,
+      currency: 'BRL',
+      funnel_stage: 'bofu',
+      topic_clusters: ['ai-fundamentals'],
+      launch_type: 'seed',
+      difficulty: 'beginner',
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('accepts upsell/downsell refs', () => {
+    const result = CourseMetadataSchema.safeParse({
+      upsell_ref: '550e8400-e29b-41d4-a716-446655440000',
+      downsell_ref: '550e8400-e29b-41d4-a716-446655440001',
+      prerequisite_courses: ['550e8400-e29b-41d4-a716-446655440002'],
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('accepts playlist_id for graduation', () => {
+    const result = CourseMetadataSchema.safeParse({
+      playlist_id: '550e8400-e29b-41d4-a716-446655440000',
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects unknown fields (strict)', () => {
+    const result = CourseMetadataSchema.safeParse({ bogus_field: 'x' })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects invalid tier', () => {
+    const result = CourseMetadataSchema.safeParse({ tier: 'mega' })
+    expect(result.success).toBe(false)
+  })
+})
+
+describe('GraduateSchema', () => {
+  it('accepts course target', () => {
+    const result = GraduateSchema.safeParse({ target: 'course' })
+    expect(result.success).toBe(true)
   })
 })
 

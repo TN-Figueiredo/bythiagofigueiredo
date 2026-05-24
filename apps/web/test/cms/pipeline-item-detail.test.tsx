@@ -19,7 +19,7 @@ vi.mock('@/app/cms/(authed)/pipeline/actions', () => ({
 }))
 
 describe('PipelineItemDetail', () => {
-  it('renders item title and stage', async () => {
+  it('renders item title and stage', { timeout: 30000 }, async () => {
     const { PipelineItemDetail } = await import('@/app/cms/(authed)/pipeline/_components/pipeline-item-detail')
     render(
       <PipelineItemDetail

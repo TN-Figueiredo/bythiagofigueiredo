@@ -36,9 +36,23 @@ export const NewsletterMetadataSchema = z.object({
 
 export const CourseMetadataSchema = z.object({
   module_count: z.number().int().positive().optional(),
-  platform: z.enum(['self-hosted', 'youtube', 'udemy', 'other']).optional(),
-  price_model: z.enum(['free', 'paid', 'freemium']).optional(),
-  prerequisite_courses: z.array(z.string()).optional(),
+  lesson_count: z.number().int().positive().optional(),
+  estimated_hours: z.number().positive().optional(),
+  difficulty: z.enum(['beginner', 'intermediate', 'advanced']).optional(),
+  platform: z.enum(['self-hosted', 'hotmart', 'youtube', 'udemy', 'other']).optional(),
+  product_type: z.enum(['mini_course', 'course', 'masterclass', 'workshop']).optional(),
+  tier: z.enum(['free', 'lead_magnet', 'tripwire', 'core', 'premium']).optional(),
+  pricing_model: z.enum(['free', 'one_time', 'subscription', 'cohort', 'pwyw']).optional(),
+  price_cents: z.number().int().nonnegative().optional(),
+  currency: z.string().min(3).max(3).optional(),
+  compare_at_price_cents: z.number().int().nonnegative().optional(),
+  funnel_stage: z.enum(['tofu', 'mofu', 'bofu']).optional(),
+  topic_clusters: z.array(z.string().min(1)).optional(),
+  upsell_ref: z.string().uuid().optional(),
+  downsell_ref: z.string().uuid().optional(),
+  prerequisite_courses: z.array(z.string().uuid()).optional(),
+  launch_type: z.enum(['seed', 'internal', 'jv', 'evergreen']).optional(),
+  playlist_id: z.string().uuid().optional(),
 }).strict()
 
 export const CampaignMetadataSchema = z.object({
@@ -127,7 +141,7 @@ export const ChecklistToggleSchema = z.object({
 })
 
 export const GraduateSchema = z.object({
-  target: z.enum(['blog_post', 'newsletter', 'campaign']),
+  target: z.enum(['blog_post', 'newsletter', 'campaign', 'course']),
   data: z.record(z.unknown()).optional(),
 })
 

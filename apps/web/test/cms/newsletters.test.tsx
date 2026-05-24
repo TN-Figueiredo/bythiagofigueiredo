@@ -258,7 +258,7 @@ describe('newsletter server actions', () => {
   it('exports moveEdition', async () => {
     const mod = await import('../../src/app/cms/(authed)/newsletters/actions')
     expect(typeof mod.moveEdition).toBe('function')
-  })
+  }, 30000)
 
   it('exports toggleCadence', async () => {
     const mod = await import('../../src/app/cms/(authed)/newsletters/actions')

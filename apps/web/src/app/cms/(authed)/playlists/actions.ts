@@ -811,6 +811,7 @@ export async function getItemEdgeCount(
 ): Promise<ActionResult<{ count: number; edges: Array<{ id: string; target_title: string; edge_type: string }> }>> {
   const { siteId: authSiteId } = await requireEditScope()
   if (authSiteId !== siteId) return { ok: false, error: 'forbidden' }
+  if (!UUID_RE.test(itemId)) return { ok: false, error: 'invalid_item_id' }
 
   const supabase = getSupabaseServiceClient()
 
