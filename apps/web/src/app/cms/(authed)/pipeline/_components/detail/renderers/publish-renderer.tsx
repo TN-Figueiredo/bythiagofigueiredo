@@ -35,6 +35,15 @@ interface PublishContent {
   sales_page_url?: string
 }
 
+function safeHref(url: string | null | undefined): string | undefined {
+  if (!url) return undefined
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol === 'https:' || parsed.protocol === 'http:') return url
+    return undefined
+  } catch { return undefined }
+}
+
 function toArray(val: unknown): string[] {
   if (Array.isArray(val)) return val.map(String)
   if (typeof val === 'string') return val.split('\n').filter(Boolean)
@@ -524,7 +533,7 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
                 <div className="text-[9px]" style={{ color: 'var(--gem-dim)' }}>Alternativas:</div>
                 {data.title.alternatives.map((alt, i) => (
                   <div
-                    key={i}
+                    key={`alt-${i}-${alt.slice(0, 20)}`}
                     className="flex items-start gap-2 text-[11px] pl-2"
                     style={{ color: 'var(--gem-muted)', borderLeft: '2px solid var(--gem-border)' }}
                   >
@@ -607,7 +616,7 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
           <div className="flex flex-wrap gap-1.5">
             {data.tags.map((tag, i) => (
               <span
-                key={i}
+                key={`tag-${i}-${tag.slice(0, 20)}`}
                 className="text-[11px] px-2 py-0.5 rounded-full"
                 style={{
                   background: 'rgba(167,139,250,0.1)',
@@ -629,7 +638,7 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
             <div className="absolute left-[5px] top-3 bottom-3 w-px" style={{ background: 'var(--gem-border)' }} />
             <div className="space-y-1.5">
               {data.cards.map((card, i) => (
-                <div key={i} className="relative flex items-center gap-3 p-2.5 rounded-md"
+                <div key={`card-${card.timestamp}-${i}`} className="relative flex items-center gap-3 p-2.5 rounded-md"
                   style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}>
                   <div className="absolute w-[7px] h-[7px] rounded-full"
                     style={{ left: -15, background: 'var(--gem-accent)', border: '2px solid var(--gem-border)' }} />
@@ -684,7 +693,7 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
               {data.strategy.map((step, i) => {
                 const { phase, text } = parsePhase(step)
                 return (
-                  <div key={i} className="relative flex items-start gap-2.5">
+                  <div key={`strategy-${i}-${step.slice(0, 20)}`} className="relative flex items-start gap-2.5">
                     <div className="absolute w-[15px] h-[15px] rounded-full flex items-center justify-center text-[8px] font-bold"
                       style={{ left: -21, top: 1, background: 'var(--gem-accent)', color: 'white' }}>
                       {i + 1}
@@ -754,14 +763,22 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
                     </span>
                   )}
                   {data.platform_url && (
-                    <a href={data.platform_url} target="_blank" rel="noopener noreferrer" className="underline opacity-70">
-                      {data.platform_url}
-                    </a>
+                    safeHref(data.platform_url) ? (
+                      <a href={safeHref(data.platform_url)} target="_blank" rel="noopener noreferrer" className="underline opacity-70">
+                        {data.platform_url}
+                      </a>
+                    ) : (
+                      <span className="opacity-70">{data.platform_url}</span>
+                    )
                   )}
                   {data.sales_page_url && (
-                    <a href={data.sales_page_url} target="_blank" rel="noopener noreferrer" className="underline opacity-70">
-                      Página de vendas
-                    </a>
+                    safeHref(data.sales_page_url) ? (
+                      <a href={safeHref(data.sales_page_url)} target="_blank" rel="noopener noreferrer" className="underline opacity-70">
+                        Página de vendas
+                      </a>
+                    ) : (
+                      <span className="opacity-70">Página de vendas</span>
+                    )
                   )}
                 </div>
               )}
@@ -819,7 +836,7 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
               {isEditing ? (
                 <div className="space-y-2">
                   {(data.bullet_points ?? []).map((point, i) => (
-                    <div key={i} className="flex gap-2">
+                    <div key={`bp-edit-${i}`} className="flex gap-2">
                       <input
                         type="text"
                         value={point}
@@ -850,7 +867,7 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
               ) : (
                 <div className="space-y-1.5">
                   {data.bullet_points!.map((point, i) => (
-                    <div key={i} className="flex items-start gap-2 text-[11px]" style={{ color: 'var(--gem-muted)' }}>
+                    <div key={`bp-read-${i}-${point.slice(0, 20)}`} className="flex items-start gap-2 text-[11px]" style={{ color: 'var(--gem-muted)' }}>
                       <span style={{ color: 'var(--gem-done)' }}>✓</span>
                       <span>{point}</span>
                     </div>
@@ -867,7 +884,7 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
               {isEditing ? (
                 <div className="space-y-3">
                   {(data.testimonials ?? []).map((t, i) => (
-                    <div key={i} className="p-3 rounded-md space-y-2" style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}>
+                    <div key={`t-edit-${i}-${t.name.slice(0, 20)}`} className="p-3 rounded-md space-y-2" style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}>
                       <div className="flex gap-2">
                         <input
                           type="text"
@@ -910,7 +927,7 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
               ) : (
                 <div className="space-y-2">
                   {data.testimonials!.map((t, i) => (
-                    <div key={i} className="p-3 rounded-md" style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}>
+                    <div key={`t-read-${i}-${t.name.slice(0, 20)}`} className="p-3 rounded-md" style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}>
                       <p className="text-[11px] italic" style={{ color: 'var(--gem-muted)' }}>"{t.text}"</p>
                       <div className="flex justify-between mt-1.5 text-[10px]">
                         <span style={{ color: 'var(--gem-text)' }}>{t.name}</span>
@@ -930,7 +947,7 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
               {isEditing ? (
                 <div className="space-y-2">
                   {(data.faq ?? []).map((item, i) => (
-                    <div key={i} className="p-3 rounded-md space-y-1" style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}>
+                    <div key={`faq-edit-${i}-${item.question.slice(0, 20)}`} className="p-3 rounded-md space-y-1" style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}>
                       <div className="flex gap-2">
                         <input
                           type="text"
@@ -965,7 +982,7 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
               ) : (
                 <div className="space-y-2">
                   {data.faq!.map((item, i) => (
-                    <details key={i} className="p-3 rounded-md group" style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}>
+                    <details key={`faq-read-${i}-${item.question.slice(0, 20)}`} className="p-3 rounded-md group" style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}>
                       <summary className="text-[11px] font-medium cursor-pointer" style={{ color: 'var(--gem-text)' }}>
                         {item.question}
                       </summary>

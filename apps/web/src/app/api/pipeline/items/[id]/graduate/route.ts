@@ -46,6 +46,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const eligibleModules = curriculum.modules.filter((m) =>
       m.lessons.length > 0 && m.lessons.every((l) => l.production_status === 'ready')
     )
+    const skippedModules = curriculum.modules
+      .filter((m) => !eligibleModules.includes(m))
+      .map((m) => ({
+        title: m.title,
+        reason: m.lessons.length === 0 ? 'No lessons' : 'Not all lessons are ready',
+      }))
     if (eligibleModules.length === 0) {
       return pipelineError('INVALID_OPERATION', 'No modules with all lessons ready', 422, auth)
     }
@@ -97,10 +103,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       }
     }
 
-    const { data: insertedItems } = await supabase
+    const { data: insertedItems, error: upsertItemsError } = await supabase
       .from('playlist_items')
       .upsert(allItems, { onConflict: 'playlist_id,pipeline_id', ignoreDuplicates: true })
       .select('id, sort_order')
+    if (upsertItemsError) return pipelineError('DB_ERROR', upsertItemsError.message, 500, auth)
 
     const sortedInserted = (insertedItems ?? []).sort((a, b) => a.sort_order - b.sort_order)
 
@@ -111,21 +118,27 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         target_item_id: item.id,
         edge_type: 'sequence' as const,
       }))
-      await supabase
+      const { error: upsertEdgesError } = await supabase
         .from('playlist_edges')
         .upsert(edges, { onConflict: 'playlist_id,source_item_id,target_item_id', ignoreDuplicates: true })
+      if (upsertEdgesError) return pipelineError('DB_ERROR', upsertEdgesError.message, 500, auth)
     }
 
     const updatedMetadata = { ...(item.format_metadata as Record<string, unknown> ?? {}), playlist_id: playlistId }
-    await supabase.from('content_pipeline').update({ format_metadata: updatedMetadata }).eq('id', id)
+    const { error: updateMetaError } = await supabase
+      .from('content_pipeline')
+      .update({ format_metadata: updatedMetadata })
+      .eq('id', id)
+    if (updateMetaError) return pipelineError('DB_ERROR', updateMetaError.message, 500, auth)
 
-    await supabase.from('content_pipeline_history').insert({
+    const { error: historyError } = await supabase.from('content_pipeline_history').insert({
       pipeline_id: id,
       event_type: 'graduated',
       to_value: `course:${playlistId}`,
     })
+    if (historyError) return pipelineError('DB_ERROR', historyError.message, 500, auth)
 
-    return pipelineSuccess({ graduated: true, target: 'course', entity_id: playlistId }, 200, auth)
+    return pipelineSuccess({ graduated: true, target: 'course', entity_id: playlistId, skipped_modules: skippedModules }, 200, auth)
   }
 
   const fkMap = { blog_post: 'blog_post_id', newsletter: 'newsletter_edition_id', campaign: 'campaign_id' } as const
@@ -183,7 +196,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }))
 
     if (translations.length > 0) {
-      await supabase.from('blog_translations').insert(translations)
+      const { error: translationsError } = await supabase.from('blog_translations').insert(translations)
+      if (translationsError) return pipelineError('DB_ERROR', translationsError.message, 500, auth)
     }
 
     entityId = post.id
@@ -219,12 +233,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   if (entityId && fkField) {
-    await supabase.from('content_pipeline').update({ [fkField]: entityId }).eq('id', id)
-    await supabase.from('content_pipeline_history').insert({
+    const { error: updateFkError } = await supabase
+      .from('content_pipeline')
+      .update({ [fkField]: entityId })
+      .eq('id', id)
+    if (updateFkError) return pipelineError('DB_ERROR', updateFkError.message, 500, auth)
+
+    const { error: historyFkError } = await supabase.from('content_pipeline_history').insert({
       pipeline_id: id,
       event_type: 'graduated',
       to_value: `${target}:${entityId}`,
     })
+    if (historyFkError) return pipelineError('DB_ERROR', historyFkError.message, 500, auth)
   }
 
   return pipelineSuccess({ graduated: true, target, entity_id: entityId }, 200, auth)
