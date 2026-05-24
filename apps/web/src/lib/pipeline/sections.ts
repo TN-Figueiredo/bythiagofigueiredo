@@ -10,7 +10,7 @@ export interface SectionDefinition {
   subSections?: SectionDefinition[]
 }
 
-const SHARED_SECTIONS = new Set(['ideia', 'images'])
+const SHARED_SECTIONS = new Set(['ideia', 'images', 'curriculum', 'launch'])
 
 export function getSectionKey(sectionType: string, lang: string): string {
   if (SHARED_SECTIONS.has(sectionType)) return `${sectionType}_shared`
@@ -41,9 +41,10 @@ export const SECTION_DEFINITIONS: Record<Format, SectionDefinition[]> = {
   ],
   course: [
     { key: 'ideia', label_pt: 'Ideia', label_en: 'Idea', type: 'ideia', shared: true },
-    { key: 'curriculum', label_pt: 'Currículo', label_en: 'Curriculum', type: 'curriculum', shared: false },
-    { key: 'lessons', label_pt: 'Aulas', label_en: 'Lessons', type: 'lessons', shared: false },
+    { key: 'curriculum', label_pt: 'Currículo', label_en: 'Curriculum', type: 'curriculum', shared: true },
+    { key: 'lessons', label_pt: 'Roteiros', label_en: 'Scripts', type: 'lessons', shared: false },
     { key: 'material', label_pt: 'Material', label_en: 'Material', type: 'material', shared: false },
+    { key: 'launch', label_pt: 'Lançamento', label_en: 'Launch', type: 'launch', shared: true },
     { key: 'publish', label_pt: 'Publicação', label_en: 'Publication', type: 'publish', shared: false },
   ],
   campaign: [
