@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import Link from 'next/link'
 import { useSearchParams, useRouter } from 'next/navigation'
 import {
   DndContext,
@@ -27,12 +26,14 @@ import { getPipelineStages } from '@/lib/pipeline/workflows'
 import { GemCard, type GemCardItem } from './gem-card'
 import { SortableGemCard } from './sortable-gem-card'
 import { PipelineFilterBar } from './pipeline-filter-bar'
+import { CreateItemModal } from './create-item-modal'
 import { reorderPipelineItem } from '../actions'
 import type { Format } from '@/lib/pipeline/schemas'
 
 interface PipelineBoardProps {
   format: Format
   items: GemCardItem[]
+  showCreate?: boolean
 }
 
 function isGraduated(item: GemCardItem): boolean {
@@ -51,7 +52,7 @@ function DroppableColumn({ id, children }: { id: string; children: React.ReactNo
   return <div ref={setNodeRef} className="space-y-1.5 min-h-[48px]">{children}</div>
 }
 
-export function PipelineBoard({ format, items }: PipelineBoardProps) {
+export function PipelineBoard({ format, items, showCreate }: PipelineBoardProps) {
   const stages = getPipelineStages(format)
   const stageKeys = stages.map((s) => s.stage)
   const searchParams = useSearchParams()
@@ -67,6 +68,7 @@ export function PipelineBoard({ format, items }: PipelineBoardProps) {
 
   const [localItems, setLocalItems] = useState(items)
   const [activeItem, setActiveItem] = useState<GemCardItem | null>(null)
+  const [createOpen, setCreateOpen] = useState(showCreate ?? false)
   const snapshotRef = useRef<GemCardItem[]>([])
   const originStageRef = useRef<string>('')
 
@@ -234,14 +236,13 @@ export function PipelineBoard({ format, items }: PipelineBoardProps) {
     <div>
       <div className="flex items-center justify-between mb-1">
         <PipelineFilterBar />
-        <Link
-          href={`/cms/pipeline/${format}?action=create`}
-          aria-label={`New ${format.replace('_', ' ')} item`}
+        <button
+          onClick={() => setCreateOpen(true)}
           className="text-xs px-3 py-1.5 rounded-lg shrink-0 transition-opacity hover:opacity-80"
           style={{ backgroundColor: 'var(--gem-accent)', color: 'white' }}
         >
           + New item
-        </Link>
+        </button>
       </div>
       {noResults && (
         <div className="rounded-lg border p-8 text-center mb-4" style={{ backgroundColor: 'var(--gem-surface)', borderColor: 'var(--gem-border)' }}>
@@ -302,6 +303,14 @@ export function PipelineBoard({ format, items }: PipelineBoardProps) {
           ) : null}
         </DragOverlay>
       </DndContext>
+      <CreateItemModal
+        format={format}
+        open={createOpen}
+        onClose={() => {
+          setCreateOpen(false)
+          router.replace(`/cms/pipeline/${format}`, { scroll: false })
+        }}
+      />
     </div>
   )
 }

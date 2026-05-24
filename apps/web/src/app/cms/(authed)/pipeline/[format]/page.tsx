@@ -10,8 +10,16 @@ import { computeValidationScore } from '@/lib/pipeline/validation'
 
 export const dynamic = 'force-dynamic'
 
-export default async function FormatBoardPage({ params }: { params: Promise<{ format: string }> }) {
+export default async function FormatBoardPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ format: string }>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
   const { format } = await params
+  const search = await searchParams
+  const showCreate = search.action === 'create'
   if (!FORMATS.includes(format as Format)) notFound()
   if (format === 'blog_post') redirect('/cms/blog')
 
@@ -63,7 +71,7 @@ export default async function FormatBoardPage({ params }: { params: Promise<{ fo
     <>
       <CmsTopbar title={`Pipeline: ${labels[format]}`} />
       <div className="p-4 gem-pipeline-theme" style={GEM_CSS_VARS as React.CSSProperties}>
-        <PipelineBoard format={format as Format} items={boardItems} />
+        <PipelineBoard format={format as Format} items={boardItems} showCreate={showCreate} />
       </div>
     </>
   )
