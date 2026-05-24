@@ -124,7 +124,7 @@ interface GemCardProps {
   onPromote?: (itemId: string) => void
 }
 
-export const GemCard = memo(function GemCard({ item, isDragging: _isDragging, onNavigate, onPromote }: GemCardProps) {
+export const GemCard = memo(function GemCard({ item, onNavigate, onPromote }: GemCardProps) {
   const priority = getPriorityConfig(item.priority)
   const staleness = getStaleness(item.updated_at)
   const formatIcon = getFormatIcon(item.format)

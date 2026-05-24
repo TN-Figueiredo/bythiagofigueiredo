@@ -694,6 +694,7 @@ function EditMode({
   }
 
   function removeModule(moduleId: string) {
+    if (!window.confirm('Remover este módulo e todas as suas aulas?')) return
     const remaining = data.modules.filter((m) => m.id !== moduleId).map((m, i) => ({ ...m, sort_order: i }))
     emit({ ...data, modules: remaining })
   }
@@ -747,6 +748,7 @@ function EditMode({
   }
 
   function removeLesson(moduleId: string, lessonId: string) {
+    if (!window.confirm('Remover esta aula?')) return
     emit({
       ...data,
       modules: data.modules.map((m) =>

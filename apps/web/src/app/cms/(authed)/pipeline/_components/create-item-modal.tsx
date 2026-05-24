@@ -16,6 +16,9 @@ export function CreateItemModal({ format, open, onClose }: CreateItemModalProps)
   const [isPending, startTransition] = useTransition()
   const [title, setTitle] = useState('')
   const [language, setLanguage] = useState<'pt-br' | 'en' | 'both'>('pt-br')
+  const [difficulty, setDifficulty] = useState<'beginner' | 'intermediate' | 'advanced'>('beginner')
+  const [tier, setTier] = useState<'free' | 'starter' | 'pro' | 'premium'>('free')
+  const [platform, setPlatform] = useState<'hotmart' | 'kiwify' | 'eduzz' | 'own' | 'other'>('hotmart')
 
   if (!open) return null
 
@@ -29,11 +32,15 @@ export function CreateItemModal({ format, open, onClose }: CreateItemModalProps)
         : language === 'en'
           ? { title_en: title.trim() }
           : { title_pt: title.trim() }
+      const formatMetadata = format === 'course'
+        ? { format_metadata: { difficulty, tier, platform } }
+        : {}
       const result = await createPipelineItem({
         format,
         ...titles,
         language,
         stage: 'idea',
+        ...formatMetadata,
       })
 
       if (!result.ok) {
@@ -102,6 +109,76 @@ export function CreateItemModal({ format, open, onClose }: CreateItemModalProps)
             <option value="both">Bilíngue</option>
           </select>
         </div>
+
+        {format === 'course' && (
+          <>
+            <div>
+              <label htmlFor="create-difficulty" className="block text-sm mb-1 opacity-70">
+                Dificuldade
+              </label>
+              <select
+                id="create-difficulty"
+                value={difficulty}
+                onChange={(e) => setDifficulty(e.target.value as 'beginner' | 'intermediate' | 'advanced')}
+                className="w-full rounded-lg px-3 py-2 text-sm"
+                style={{
+                  background: 'var(--gem-well)',
+                  border: '1px solid var(--gem-border)',
+                  color: 'var(--gem-text)',
+                }}
+              >
+                <option value="beginner">Iniciante</option>
+                <option value="intermediate">Intermediário</option>
+                <option value="advanced">Avançado</option>
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="create-tier" className="block text-sm mb-1 opacity-70">
+                Tier
+              </label>
+              <select
+                id="create-tier"
+                value={tier}
+                onChange={(e) => setTier(e.target.value as 'free' | 'starter' | 'pro' | 'premium')}
+                className="w-full rounded-lg px-3 py-2 text-sm"
+                style={{
+                  background: 'var(--gem-well)',
+                  border: '1px solid var(--gem-border)',
+                  color: 'var(--gem-text)',
+                }}
+              >
+                <option value="free">free</option>
+                <option value="starter">starter</option>
+                <option value="pro">pro</option>
+                <option value="premium">premium</option>
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="create-platform" className="block text-sm mb-1 opacity-70">
+                Plataforma
+              </label>
+              <select
+                id="create-platform"
+                value={platform}
+                onChange={(e) => setPlatform(e.target.value as 'hotmart' | 'kiwify' | 'eduzz' | 'own' | 'other')}
+                className="w-full rounded-lg px-3 py-2 text-sm"
+                style={{
+                  background: 'var(--gem-well)',
+                  border: '1px solid var(--gem-border)',
+                  color: 'var(--gem-text)',
+                }}
+              >
+                <option value="hotmart">hotmart</option>
+                <option value="kiwify">kiwify</option>
+                <option value="eduzz">eduzz</option>
+                <option value="own">own</option>
+                <option value="other">other</option>
+              </select>
+            </div>
+          </>
+        )}
 
         <div className="flex justify-end gap-2 pt-2">
           <button

@@ -65,9 +65,9 @@ export function computeCourseProgress(content: CurriculumContent): {
 }
 
 export function generateLessonId(): string {
-  return Math.random().toString(36).slice(2, 10)
+  return crypto.randomUUID().slice(0, 8)
 }
 
 export function generateModuleId(): string {
-  return Math.random().toString(36).slice(2, 10)
+  return crypto.randomUUID().slice(0, 8)
 }

@@ -24,6 +24,22 @@ describe('CreateItemModal', () => {
     expect(screen.getByLabelText(/idioma/i)).toBeTruthy()
   })
 
+  it('renders course-specific fields when format is course', async () => {
+    const { CreateItemModal } = await import('@/app/cms/(authed)/pipeline/_components/create-item-modal')
+    render(<CreateItemModal format="course" open={true} onClose={vi.fn()} />)
+    expect(screen.getByLabelText(/dificuldade/i)).toBeTruthy()
+    expect(screen.getByLabelText(/tier/i)).toBeTruthy()
+    expect(screen.getByLabelText(/plataforma/i)).toBeTruthy()
+  })
+
+  it('does not render course-specific fields when format is not course', async () => {
+    const { CreateItemModal } = await import('@/app/cms/(authed)/pipeline/_components/create-item-modal')
+    render(<CreateItemModal format="video" open={true} onClose={vi.fn()} />)
+    expect(screen.queryByLabelText(/dificuldade/i)).toBeNull()
+    expect(screen.queryByLabelText(/tier/i)).toBeNull()
+    expect(screen.queryByLabelText(/plataforma/i)).toBeNull()
+  })
+
   it('calls onClose when backdrop clicked', async () => {
     const { CreateItemModal } = await import('@/app/cms/(authed)/pipeline/_components/create-item-modal')
     const onClose = vi.fn()
@@ -54,6 +70,7 @@ describe('CreateItemModal', () => {
         title_pt: 'Meu Curso',
         language: 'pt-br',
         stage: 'idea',
+        format_metadata: { difficulty: 'beginner', tier: 'free', platform: 'hotmart' },
       })
     })
   })
@@ -75,6 +92,7 @@ describe('CreateItemModal', () => {
         title_en: 'Bilingual Course',
         language: 'both',
         stage: 'idea',
+        format_metadata: { difficulty: 'beginner', tier: 'free', platform: 'hotmart' },
       })
     })
   })
