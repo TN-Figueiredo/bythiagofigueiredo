@@ -16,6 +16,7 @@ import { GenericRenderer } from './renderers/generic-renderer'
 import { PostProductionView } from './renderers/postprod-renderer'
 import { CurriculumRenderer } from './renderers/curriculum-renderer'
 import { LaunchRenderer } from './renderers/launch-renderer'
+import { LessonsRenderer } from './renderers/lessons-renderer'
 
 const REGISTRY: Record<string, React.ComponentType<RendererProps>> = {
   ideia: IdeaRenderer,
@@ -32,6 +33,7 @@ const REGISTRY: Record<string, React.ComponentType<RendererProps>> = {
   images: ImagesRenderer,
   curriculum: CurriculumRenderer,
   launch: LaunchRenderer,
+  lessons: LessonsRenderer,
 }
 
 export interface RendererProps {
