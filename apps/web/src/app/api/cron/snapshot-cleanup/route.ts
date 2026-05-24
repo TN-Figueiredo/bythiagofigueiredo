@@ -26,30 +26,12 @@ export async function POST(req: NextRequest) {
 
   deletedCount += expired?.length ?? 0
 
-  // 2. Enforce per-playlist cap: max 100 auto-snapshots (backup for on-create)
-  const { data: playlists } = await supabase
-    .from('playlist_snapshots')
-    .select('playlist_id')
-    .eq('type', 'auto')
+  // 2. Enforce per-playlist cap via single RPC (avoids N+1)
+  const { data: overcap } = await supabase.rpc('cleanup_excess_auto_snapshots', {
+    p_max_per_playlist: 100,
+  })
 
-  const playlistIds = [...new Set((playlists ?? []).map(p => p.playlist_id))]
-
-  for (const playlistId of playlistIds) {
-    const { data: autoSnapshots } = await supabase
-      .from('playlist_snapshots')
-      .select('id')
-      .eq('playlist_id', playlistId)
-      .eq('type', 'auto')
-      .order('created_at', { ascending: true })
-
-    if (autoSnapshots && autoSnapshots.length > 100) {
-      const toDelete = autoSnapshots.slice(0, autoSnapshots.length - 100)
-      for (const s of toDelete) {
-        await supabase.from('playlist_snapshots').delete().eq('id', s.id)
-        deletedCount++
-      }
-    }
-  }
+  deletedCount += overcap ?? 0
 
   return NextResponse.json({
     ok: true,

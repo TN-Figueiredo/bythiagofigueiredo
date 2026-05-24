@@ -85,7 +85,7 @@ export function VersionHistoryPanel({
 
   function handleLoadMore() {
     const last = snapshots[snapshots.length - 1]
-    if (last) loadSnapshots(last.created_at)
+    if (last) loadSnapshots(`${last.created_at}|${last.id}`)
   }
 
   if (!isOpen) return null

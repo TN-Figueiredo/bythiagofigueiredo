@@ -129,6 +129,7 @@ export function PlaylistCanvas({
   const [reuseCandidates, setReuseCandidates] = useState<ReuseCandidateItem[]>([])
   const [showHistory, setShowHistory] = useState(false)
   const [isPreviewMode, setIsPreviewMode] = useState(false)
+  const isPreviewModeRef = useRef(false)
   const [previewSnapshot, setPreviewSnapshot] = useState<SnapshotRow | null>(null)
   const [showRestoreDialog, setShowRestoreDialog] = useState(false)
   const [cascadeConfirm, setCascadeConfirm] = useState<{
@@ -230,6 +231,7 @@ export function PlaylistCanvas({
   // ── Auto-save ────────────────────────────────────────────────────────
 
   const flushDelta = useCallback(async () => {
+    if (isPreviewModeRef.current) return
     if (isSavingRef.current) return
     const delta = pendingDeltaRef.current
     const hasChanges =
@@ -437,6 +439,23 @@ export function PlaylistCanvas({
     if (!result.ok) setSaveState('error')
     setCascadeConfirm(null)
   }, [cascadeConfirm, state, pushSnapshot, onRemoveItem, siteId])
+
+  const handleBatchRemoveItems = useCallback(
+    async (itemIds: string[]) => {
+      if (isPreviewMode) return
+      pushSnapshot(state)
+      for (const itemId of itemIds) {
+        dispatch({ type: 'REMOVE_ITEM', itemId })
+      }
+      const results = await Promise.allSettled(
+        itemIds.map(itemId => onRemoveItem(itemId, siteId)),
+      )
+      if (results.some(r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.ok))) {
+        setSaveState('error')
+      }
+    },
+    [isPreviewMode, pushSnapshot, state, onRemoveItem, siteId],
+  )
 
   const handleOpenContent = useCallback((itemId: string) => {
     const item = state.items.find(i => i.id === itemId)
@@ -657,34 +676,40 @@ export function PlaylistCanvas({
   const handlePreview = useCallback((snapshot: SnapshotRow) => {
     setPreviewSnapshot(snapshot)
     setIsPreviewMode(true)
+    isPreviewModeRef.current = true
+    const currentItemMap = new Map(graph.items.map(i => [i.id, i]))
     dispatch({
       type: 'LOAD',
-      items: snapshot.graph_data.items.map(i => ({
-        ...i,
-        playlist_id: graph.playlist.id,
-        created_at: '',
-        content_type: null,
-        title: i.id,
-        status: null,
-        category: null,
-        metadata: null,
-        is_ghost: false,
-        other_playlist_count: 0,
-        language: null,
-        tags: [],
-        hook: null,
-        synopsis: null,
-      })),
+      items: snapshot.graph_data.items.map(i => {
+        const current = currentItemMap.get(i.id)
+        return {
+          ...i,
+          playlist_id: graph.playlist.id,
+          created_at: current?.created_at ?? '',
+          content_type: current?.content_type ?? null,
+          title: current?.title ?? `[removido] ${i.id.slice(0, 8)}`,
+          status: current?.status ?? null,
+          category: current?.category ?? null,
+          metadata: current?.metadata ?? null,
+          is_ghost: current ? current.is_ghost : true,
+          other_playlist_count: current?.other_playlist_count ?? 0,
+          language: current?.language ?? null,
+          tags: current?.tags ?? [],
+          hook: current?.hook ?? null,
+          synopsis: current?.synopsis ?? null,
+        }
+      }),
       edges: snapshot.graph_data.edges.map(e => ({
         ...e,
         playlist_id: graph.playlist.id,
         created_at: '',
       })) as PlaylistEdgeRow[],
     })
-  }, [graph.playlist.id])
+  }, [graph.playlist.id, graph.items])
 
   const handleExitPreview = useCallback(() => {
     setIsPreviewMode(false)
+    isPreviewModeRef.current = false
     setPreviewSnapshot(null)
     setShowRestoreDialog(false)
     dispatch({ type: 'LOAD', items: graph.items, edges: graph.edges })
@@ -718,10 +743,10 @@ export function PlaylistCanvas({
         e.preventDefault()
         handleRedo()
       } else if ((e.key === 'Delete' || e.key === 'Backspace') && !e.metaKey) {
-        if (state.selectedItemIds.size > 0) {
-          for (const itemId of state.selectedItemIds) {
-            handleRemoveItem(itemId)
-          }
+        if (state.selectedItemIds.size === 1) {
+          handleRemoveItem(state.selectedItemIds.values().next().value as string)
+        } else if (state.selectedItemIds.size > 1) {
+          handleBatchRemoveItems(Array.from(state.selectedItemIds))
         }
         if (state.selectedEdgeIds.size > 0) {
           handleDeleteSelectedEdges()
@@ -828,6 +853,7 @@ export function PlaylistCanvas({
     handleUndo,
     handleRedo,
     handleRemoveItem,
+    handleBatchRemoveItems,
     handleDeleteSelectedEdges,
     handleZoomToFit,
     handleZoomIn,

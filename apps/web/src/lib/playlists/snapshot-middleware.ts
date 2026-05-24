@@ -119,6 +119,9 @@ export async function createSnapshot(
   return { id: inserted?.id ?? null, deduplicated: false }
 }
 
+const recentSnapshots = new Map<string, number>()
+const THROTTLE_MS = 5000
+
 export async function withSnapshot<T>(
   playlistId: string,
   siteId: string,
@@ -127,6 +130,14 @@ export async function withSnapshot<T>(
   label: string,
   fn: () => Promise<T>,
 ): Promise<T> {
-  await createSnapshot(playlistId, siteId, userId, trigger, label)
+  const key = `${playlistId}:${trigger}`
+  const now = Date.now()
+  const lastTime = recentSnapshots.get(key) ?? 0
+
+  if (now - lastTime >= THROTTLE_MS) {
+    recentSnapshots.set(key, now)
+    await createSnapshot(playlistId, siteId, userId, trigger, label)
+  }
+
   return fn()
 }
