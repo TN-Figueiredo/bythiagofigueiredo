@@ -39,6 +39,8 @@ jobs:
       - run: npm ci
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Build workspace packages
+        run: npm run build -w packages/links -w packages/links-admin -w packages/social
       - name: Typecheck ${{ matrix.workspace }}
         run: cd ${{ matrix.workspace }} && npx tsc --noEmit
 
@@ -70,6 +72,8 @@ jobs:
       - run: npm ci
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Build workspace packages
+        run: npm run build -w packages/links -w packages/links-admin -w packages/social
       - run: npm run test:web
 
   test-db-integration:
@@ -92,6 +96,8 @@ jobs:
       - run: npm ci
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Build workspace packages
+        run: npm run build -w packages/links -w packages/links-admin -w packages/social
       - run: npx supabase start --exclude gotrue,realtime,imgproxy --ignore-health-check
       - run: npx supabase db reset --local
       - run: HAS_LOCAL_DB=1 npm test --workspace=apps/web -- integration/

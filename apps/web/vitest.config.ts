@@ -18,7 +18,7 @@ function bracketDirAliasPlugin(): Plugin {
     enforce: 'pre',
     resolveId(source, importer) {
       if (!source.startsWith('@/')) return null
-      if (!importer || !importer.includes('[')) return null
+      if (!importer || (!importer.includes('[') && !importer.includes('(authed)'))) return null
       const relative = source.slice(2) // strip `@/`
       for (const ext of ['', '.ts', '.tsx', '/index.ts', '/index.tsx']) {
         const candidate = path.join(srcRoot, relative + ext)

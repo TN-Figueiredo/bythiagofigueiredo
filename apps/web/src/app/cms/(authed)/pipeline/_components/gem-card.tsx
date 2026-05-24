@@ -10,6 +10,7 @@ import {
   isBlocked,
   getChecklistProgress,
 } from '@/lib/pipeline/gem-design'
+import { CurriculumContentSchema, computeCourseProgress } from '@/lib/pipeline/course-schemas'
 import { GemVvsRing } from './gem-vvs-ring'
 
 export interface GemCardItem {
@@ -38,6 +39,38 @@ export interface GemCardItem {
   sort_order: number
   version: number
   cover_image_url: string | null
+  format_metadata?: Record<string, unknown>
+  sections?: Record<string, unknown>
+}
+
+export function computeCourseCardInfo(
+  format: string,
+  metadata: Record<string, unknown>,
+  sections: Record<string, unknown>,
+): {
+  tier: string | null
+  priceLabel: string | null
+  progress: { done: number; total: number; byStatus: Record<string, number> }
+  moduleCount: number
+  lessonCount: number
+  launchType: string | null
+} | null {
+  if (format !== 'course') return null
+
+  const tier = (metadata.tier as string) || null
+  const priceCents = metadata.price_cents as number | undefined
+  const priceLabel = priceCents ? `R$${Math.floor(priceCents / 100)}` : null
+  const launchType = (metadata.launch_type as string) || null
+
+  const currSection = sections.curriculum_shared as { content?: unknown } | undefined
+  const parsed = CurriculumContentSchema.safeParse(currSection?.content ?? {})
+  const curriculum = parsed.success ? parsed.data : CurriculumContentSchema.parse({})
+
+  const progress = computeCourseProgress(curriculum)
+  const moduleCount = curriculum.modules.length
+  const lessonCount = curriculum.modules.reduce((sum, m) => sum + m.lessons.length, 0)
+
+  return { tier, priceLabel, progress, moduleCount, lessonCount, launchType }
 }
 
 interface GemCardProps {
@@ -176,6 +209,41 @@ export const GemCard = memo(function GemCard({ item, isDragging: _isDragging, on
           </p>
         )}
       </div>
+
+      {/* Course enrichment */}
+      {item.format === 'course' && (() => {
+        const courseInfo = computeCourseCardInfo(item.format, item.format_metadata ?? {}, item.sections ?? {})
+        if (!courseInfo) return null
+        return (
+          <div className="mt-1.5 space-y-1">
+            <div className="flex items-center justify-between text-[10px]" style={{ color: 'var(--gem-muted)' }}>
+              <span>{courseInfo.moduleCount} módulos · {courseInfo.lessonCount} aulas</span>
+              {courseInfo.tier && courseInfo.priceLabel && (
+                <span className="px-1.5 py-0.5 rounded" style={{ background: 'var(--gem-well)', fontSize: '9px' }}>
+                  {courseInfo.tier} {courseInfo.priceLabel}
+                </span>
+              )}
+            </div>
+            {courseInfo.progress.total > 0 && (
+              <div>
+                <div className="flex justify-between text-[9px] mb-0.5" style={{ color: 'var(--gem-dim)' }}>
+                  <span>Produção</span>
+                  <span>{courseInfo.progress.done}/{courseInfo.progress.total}</span>
+                </div>
+                <div className="h-1 rounded-full overflow-hidden" style={{ background: 'var(--gem-well)' }}>
+                  <div
+                    className="h-full rounded-full transition-all"
+                    style={{
+                      width: `${courseInfo.progress.total > 0 ? (courseInfo.progress.done / courseInfo.progress.total) * 100 : 0}%`,
+                      background: courseInfo.progress.done === courseInfo.progress.total ? 'var(--gem-done)' : 'var(--gem-warn)',
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       {/* Tags */}
       {(tags.length > 0 || blocked.blocked) && (

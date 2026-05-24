@@ -33,7 +33,7 @@ export default async function FormatBoardPage({
       id, code, title_pt, title_en, stage, priority, language, tags,
       production_checklist, version, sort_order, format, hook, body_content, updated_at,
       youtube_video_id, blog_post_id, newsletter_edition_id, campaign_id, social_post_id,
-      is_archived, format_metadata, cover_image_url, blog_posts(status)
+      is_archived, format_metadata, cover_image_url, sections, blog_posts(status)
     `)
     .eq('site_id', siteId)
     .eq('format', format)
@@ -62,6 +62,8 @@ export default async function FormatBoardPage({
       sort_order: (item as unknown as { sort_order: number }).sort_order ?? 0,
       version: item.version ?? 1,
       cover_image_url: (item as unknown as { cover_image_url: string | null }).cover_image_url ?? null,
+      format_metadata: (item.format_metadata ?? {}) as Record<string, unknown>,
+      sections: ((item as Record<string, unknown>).sections ?? {}) as Record<string, unknown>,
     }
   })
 
