@@ -32,7 +32,7 @@ export function CreateItemModal({ format, open, onClose }: CreateItemModalProps)
         stage: 'idea',
       })
 
-      if (result.error) {
+      if (!result.ok) {
         toast.error(result.error)
         return
       }

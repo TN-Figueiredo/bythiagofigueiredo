@@ -35,6 +35,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const title = item.title_pt || item.title_en
   if (!title) return pipelineError('INVALID_OPERATION', 'Item must have a title to graduate', 422, auth)
 
+  if (target === 'course') {
+    return pipelineError('INVALID_OPERATION', 'Course graduation not yet implemented', 501, auth)
+  }
+
   const fkMap = { blog_post: 'blog_post_id', newsletter: 'newsletter_edition_id', campaign: 'campaign_id' } as const
   if (item[fkMap[target]]) {
     return pipelineError('INVALID_OPERATION', `Already graduated to ${target}`, 409, auth)
