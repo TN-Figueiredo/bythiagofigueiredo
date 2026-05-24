@@ -45,6 +45,12 @@ import { PlaylistPromptModal } from './prompt-generator-modal'
 import { NotesDrawer } from './notes-drawer'
 import type { PickerItem } from '../../actions'
 import type { ReuseCandidateItem } from '@/lib/playlists/prompt-builder'
+import type { SnapshotRow, SnapshotType, RestoreMode } from '@/lib/playlists/types'
+import { checkGraphIntegrity } from '@/lib/playlists/canvas/graph-integrity'
+import { useAutoSnapshot } from '@/lib/playlists/canvas/use-auto-snapshot'
+import { VersionHistoryPanel } from './version-history-panel'
+import { CascadeConfirmDialog } from './cascade-confirm-dialog'
+import { RestoreModeDialog } from './restore-mode-dialog'
 
 type SaveState = 'saved' | 'saving' | 'error'
 
@@ -66,6 +72,12 @@ interface PlaylistCanvasProps {
   onFetchContent: (siteId: string, playlistId: string) => Promise<ActionResult<PickerItem[]>>
   onSaveNotes: (playlistId: string, siteId: string, notes: Record<string, unknown> | null) => Promise<ActionResult<void>>
   onFetchReuseCandidates: (siteId: string, playlistId: string) => Promise<ActionResult<ReuseCandidateItem[]>>
+  onGetItemEdgeCount: (siteId: string, playlistId: string, itemId: string) => Promise<ActionResult<{ count: number; edges: Array<{ id: string; target_title: string; edge_type: string }> }>>
+  onCreateSnapshot: (siteId: string, playlistId: string, type: SnapshotType, label: string) => Promise<ActionResult<{ id: string | null; deduplicated: boolean }>>
+  onListSnapshots: (siteId: string, playlistId: string, cursor?: string, limit?: number) => Promise<ActionResult<{ snapshots: SnapshotRow[]; hasMore: boolean }>>
+  onRestoreSnapshot: (siteId: string, playlistId: string, snapshotId: string, mode: RestoreMode) => Promise<ActionResult<void>>
+  onRenameSnapshot: (siteId: string, snapshotId: string, label: string) => Promise<ActionResult<void>>
+  onDeleteSnapshot: (siteId: string, snapshotId: string) => Promise<ActionResult<void>>
 }
 
 export function PlaylistCanvas({
@@ -82,6 +94,12 @@ export function PlaylistCanvas({
   onFetchContent,
   onSaveNotes,
   onFetchReuseCandidates,
+  onGetItemEdgeCount,
+  onCreateSnapshot,
+  onListSnapshots,
+  onRestoreSnapshot,
+  onRenameSnapshot,
+  onDeleteSnapshot,
 }: PlaylistCanvasProps) {
   const router = useRouter()
   const [state, dispatch] = useReducer(graphReducer, undefined, initialGraphState)
@@ -109,6 +127,16 @@ export function PlaylistCanvas({
   const exportBtnRef = useRef<HTMLButtonElement>(null)
   const [showPromptModal, setShowPromptModal] = useState(false)
   const [reuseCandidates, setReuseCandidates] = useState<ReuseCandidateItem[]>([])
+  const [showHistory, setShowHistory] = useState(false)
+  const [isPreviewMode, setIsPreviewMode] = useState(false)
+  const [previewSnapshot, setPreviewSnapshot] = useState<SnapshotRow | null>(null)
+  const [showRestoreDialog, setShowRestoreDialog] = useState(false)
+  const [cascadeConfirm, setCascadeConfirm] = useState<{
+    itemId: string
+    itemTitle: string
+    edgeCount: number
+    edges: Array<{ id: string; target_title: string; edge_type: string }>
+  } | null>(null)
   const handlePrint = useCallback(() => window.print(), [])
 
   const viewNumbers = useMemo(
@@ -189,6 +217,16 @@ export function PlaylistCanvas({
 
   const { pushSnapshot, undo, redo, canUndo, canRedo } = useGraphHistory<GraphState>()
 
+  useAutoSnapshot({
+    playlistId: graph.playlist.id,
+    siteId,
+    items: state.items,
+    edges: state.edges,
+    saveState,
+    enabled: !isPreviewMode,
+    onCreateSnapshot,
+  })
+
   // ── Auto-save ────────────────────────────────────────────────────────
 
   const flushDelta = useCallback(async () => {
@@ -235,10 +273,15 @@ export function PlaylistCanvas({
   }, [graph.playlist.id, onSaveDelta, siteId])
 
   const scheduleSave = useCallback(() => {
+    const integrity = checkGraphIntegrity(state.items, state.edges)
+    if (!integrity.valid) {
+      setSaveState('error')
+      return
+    }
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     saveTimerRef.current = setTimeout(flushDelta, 1500)
     setSaveState('saving')
-  }, [flushDelta])
+  }, [flushDelta, state.items, state.edges])
   const scheduleSaveRef = useRef(scheduleSave)
   scheduleSaveRef.current = scheduleSave
 
@@ -357,13 +400,43 @@ export function PlaylistCanvas({
 
   const handleRemoveItem = useCallback(
     async (itemId: string) => {
+      if (isPreviewMode) return
+
+      const item = state.items.find(i => i.id === itemId)
+      if (!item) return
+
+      const result = await onGetItemEdgeCount(siteId, graph.playlist.id, itemId)
+      if (!result.ok) {
+        setSaveState('error')
+        return
+      }
+
+      if (result.data.count > 0) {
+        setCascadeConfirm({
+          itemId,
+          itemTitle: item.title,
+          edgeCount: result.data.count,
+          edges: result.data.edges,
+        })
+        return
+      }
+
       pushSnapshot(state)
       dispatch({ type: 'REMOVE_ITEM', itemId })
-      const result = await onRemoveItem(itemId, siteId)
-      if (!result.ok) setSaveState('error')
+      const deleteResult = await onRemoveItem(itemId, siteId)
+      if (!deleteResult.ok) setSaveState('error')
     },
-    [pushSnapshot, state, onRemoveItem, siteId],
+    [isPreviewMode, state, siteId, graph.playlist.id, onGetItemEdgeCount, onRemoveItem, pushSnapshot],
   )
+
+  const confirmCascadeRemove = useCallback(async () => {
+    if (!cascadeConfirm) return
+    pushSnapshot(state)
+    dispatch({ type: 'REMOVE_ITEM', itemId: cascadeConfirm.itemId })
+    const result = await onRemoveItem(cascadeConfirm.itemId, siteId)
+    if (!result.ok) setSaveState('error')
+    setCascadeConfirm(null)
+  }, [cascadeConfirm, state, pushSnapshot, onRemoveItem, siteId])
 
   const handleOpenContent = useCallback((itemId: string) => {
     const item = state.items.find(i => i.id === itemId)
@@ -579,6 +652,55 @@ export function PlaylistCanvas({
     [containerRef, setCamera],
   )
 
+  // ── Preview / Restore ──────────────────────────────────────────────
+
+  const handlePreview = useCallback((snapshot: SnapshotRow) => {
+    setPreviewSnapshot(snapshot)
+    setIsPreviewMode(true)
+    dispatch({
+      type: 'LOAD',
+      items: snapshot.graph_data.items.map(i => ({
+        ...i,
+        playlist_id: graph.playlist.id,
+        created_at: '',
+        content_type: null,
+        title: i.id,
+        status: null,
+        category: null,
+        metadata: null,
+        is_ghost: false,
+        other_playlist_count: 0,
+        language: null,
+        tags: [],
+        hook: null,
+        synopsis: null,
+      })),
+      edges: snapshot.graph_data.edges.map(e => ({
+        ...e,
+        playlist_id: graph.playlist.id,
+        created_at: '',
+      })) as PlaylistEdgeRow[],
+    })
+  }, [graph.playlist.id])
+
+  const handleExitPreview = useCallback(() => {
+    setIsPreviewMode(false)
+    setPreviewSnapshot(null)
+    setShowRestoreDialog(false)
+    dispatch({ type: 'LOAD', items: graph.items, edges: graph.edges })
+  }, [graph.items, graph.edges])
+
+  const handleRestore = useCallback(async (mode: RestoreMode) => {
+    if (!previewSnapshot) return
+    const result = await onRestoreSnapshot(siteId, graph.playlist.id, previewSnapshot.id, mode)
+    if (result.ok) {
+      setIsPreviewMode(false)
+      setPreviewSnapshot(null)
+      setShowRestoreDialog(false)
+      router.refresh()
+    }
+  }, [previewSnapshot, siteId, graph.playlist.id, onRestoreSnapshot, router])
+
   // ── Keyboard shortcuts ───────────────────────────────────────────────
 
   useEffect(() => {
@@ -605,9 +727,13 @@ export function PlaylistCanvas({
           handleDeleteSelectedEdges()
         }
       } else if (e.key === 'Escape') {
-        dispatch({ type: 'CLEAR_SELECTION' })
-        setContextMenu(null)
-        setEdgeSelector(null)
+        if (isPreviewMode) {
+          handleExitPreview()
+        } else {
+          dispatch({ type: 'CLEAR_SELECTION' })
+          setContextMenu(null)
+          setEdgeSelector(null)
+        }
       } else if (e.key === 'a' && (e.metaKey || e.ctrlKey)) {
         e.preventDefault()
         dispatch({
@@ -624,6 +750,24 @@ export function PlaylistCanvas({
       } else if (e.key === '-' && (e.metaKey || e.ctrlKey)) {
         e.preventDefault()
         handleZoomOut()
+      }
+
+      // Manual checkpoint
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault()
+        if (!isPreviewMode) {
+          flushDelta()
+          const now = new Date()
+          const label = `Checkpoint ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`
+          onCreateSnapshot(siteId, graph.playlist.id, 'manual', label)
+        }
+      }
+
+      // Toggle history panel
+      if ((e.metaKey || e.ctrlKey) && e.key === 'h') {
+        e.preventDefault()
+        setShowHistory(prev => !prev)
+        setShowSettings(false)
       }
 
       // Print shortcut
@@ -693,6 +837,12 @@ export function PlaylistCanvas({
     state.selectedItemIds,
     state.selectedEdgeIds,
     state.items,
+    isPreviewMode,
+    handleExitPreview,
+    flushDelta,
+    onCreateSnapshot,
+    siteId,
+    graph.playlist.id,
   ])
 
   // ── Viewport persistence (debounced) ─────────────────────────────────
@@ -789,6 +939,7 @@ export function PlaylistCanvas({
         hasNotes={graph.playlist.notes != null}
         onOpenPrompt={() => setShowPromptModal(true)}
         onRefresh={() => router.refresh()}
+        onToggleHistory={() => { setShowHistory(prev => !prev); setShowSettings(false) }}
       />
 
       <FilterBar
@@ -948,6 +1099,19 @@ export function PlaylistCanvas({
           onUpdate={onUpdate}
           onDelete={onDelete}
         />
+
+        {/* Version history panel */}
+        <VersionHistoryPanel
+          isOpen={showHistory && !showSettings}
+          onClose={() => setShowHistory(false)}
+          siteId={siteId}
+          playlistId={graph.playlist.id}
+          onListSnapshots={onListSnapshots}
+          onCreateSnapshot={onCreateSnapshot}
+          onRenameSnapshot={onRenameSnapshot}
+          onDeleteSnapshot={onDeleteSnapshot}
+          onPreview={handlePreview}
+        />
       </div>
 
       {/* Notes drawer — bottom panel */}
@@ -955,6 +1119,37 @@ export function PlaylistCanvas({
         playlist={graph.playlist}
         onSaveNotes={onSaveNotes}
       />
+
+      {/* Preview mode banner */}
+      {isPreviewMode && previewSnapshot && (
+        <div className="absolute left-1/2 top-14 z-40 -translate-x-1/2 rounded-lg border border-amber-500/30 bg-amber-950/90 px-4 py-2 text-sm text-amber-200 shadow-lg">
+          Preview: &quot;{previewSnapshot.label}&quot; — {new Date(previewSnapshot.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+          <button onClick={() => setShowRestoreDialog(true)} className="ml-3 rounded bg-blue-600 px-2 py-0.5 text-xs text-white hover:bg-blue-700">Restaurar</button>
+          <button onClick={handleExitPreview} className="ml-2 rounded bg-white/10 px-2 py-0.5 text-xs text-white/70 hover:bg-white/20">Fechar</button>
+        </div>
+      )}
+
+      {/* Cascade confirm dialog */}
+      {cascadeConfirm && (
+        <CascadeConfirmDialog
+          itemTitle={cascadeConfirm.itemTitle}
+          edgeCount={cascadeConfirm.edgeCount}
+          edges={cascadeConfirm.edges}
+          onConfirm={confirmCascadeRemove}
+          onCancel={() => setCascadeConfirm(null)}
+        />
+      )}
+
+      {/* Restore mode dialog */}
+      {showRestoreDialog && previewSnapshot && (
+        <RestoreModeDialog
+          snapshot={previewSnapshot}
+          currentItemCount={graph.items.length}
+          currentEdgeCount={graph.edges.length}
+          onRestore={handleRestore}
+          onCancel={() => setShowRestoreDialog(false)}
+        />
+      )}
 
       {/* Edge type selector popover */}
       {edgeSelector && (

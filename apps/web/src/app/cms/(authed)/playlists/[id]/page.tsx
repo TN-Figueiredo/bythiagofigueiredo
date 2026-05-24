@@ -16,6 +16,12 @@ import {
   updatePlaylistNotes,
   getReuseCandidates,
   ensureSessionSnapshot,
+  createPlaylistSnapshot,
+  listPlaylistSnapshots,
+  restorePlaylistSnapshot,
+  renamePlaylistSnapshot,
+  deletePlaylistSnapshot,
+  getItemEdgeCount,
 } from '../actions'
 
 export const dynamic = 'force-dynamic'
@@ -50,6 +56,12 @@ export default async function PlaylistEditorPage({
         onFetchContent={getAvailableContent}
         onSaveNotes={updatePlaylistNotes}
         onFetchReuseCandidates={getReuseCandidates}
+        onGetItemEdgeCount={getItemEdgeCount}
+        onCreateSnapshot={createPlaylistSnapshot}
+        onListSnapshots={listPlaylistSnapshots}
+        onRestoreSnapshot={restorePlaylistSnapshot}
+        onRenameSnapshot={renamePlaylistSnapshot}
+        onDeleteSnapshot={deletePlaylistSnapshot}
       />
     </div>
   )

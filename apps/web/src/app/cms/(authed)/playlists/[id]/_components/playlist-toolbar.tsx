@@ -25,6 +25,7 @@ interface PlaylistToolbarProps {
   hasNotes: boolean
   onOpenPrompt: () => void
   onRefresh: () => void
+  onToggleHistory: () => void
 }
 
 export function PlaylistToolbar({
@@ -47,6 +48,7 @@ export function PlaylistToolbar({
   hasNotes,
   onOpenPrompt,
   onRefresh,
+  onToggleHistory,
 }: PlaylistToolbarProps) {
   const statusColors: Record<PlaylistStatus, string> = {
     draft: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
@@ -134,6 +136,11 @@ export function PlaylistToolbar({
         </button>
         <ToolbarButton label="Refresh" onClick={onRefresh}>
           <RefreshIcon />
+        </ToolbarButton>
+        <ToolbarButton label="Versões (⌘H)" onClick={onToggleHistory}>
+          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
         </ToolbarButton>
         <div className="relative">
           <ToolbarButton label="Settings" onClick={onToggleSettings}>
