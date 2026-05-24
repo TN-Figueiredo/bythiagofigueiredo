@@ -33,7 +33,7 @@ describe('computeCourseCardInfo', () => {
     const info = computeCourseCardInfo('course', { tier: 'core', price_cents: 29700 }, {})
     expect(info).toBeTruthy()
     expect(info!.tier).toBe('core')
-    expect(info!.priceLabel).toBe('R$297')
+    expect(info!.priceLabel).toBe('R$297,00')
   })
 
   it('computes progress from curriculum section', () => {

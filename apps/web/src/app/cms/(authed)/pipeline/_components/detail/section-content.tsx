@@ -17,6 +17,7 @@ import { PostProductionView } from './renderers/postprod-renderer'
 import { CurriculumRenderer } from './renderers/curriculum-renderer'
 import { LaunchRenderer } from './renderers/launch-renderer'
 import { LessonsRenderer } from './renderers/lessons-renderer'
+import { MaterialRenderer } from './renderers/material-renderer'
 
 const REGISTRY: Record<string, React.ComponentType<RendererProps>> = {
   ideia: IdeaRenderer,
@@ -34,6 +35,7 @@ const REGISTRY: Record<string, React.ComponentType<RendererProps>> = {
   curriculum: CurriculumRenderer,
   launch: LaunchRenderer,
   lessons: LessonsRenderer,
+  material: MaterialRenderer,
 }
 
 export interface RendererProps {

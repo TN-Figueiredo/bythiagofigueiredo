@@ -40,6 +40,24 @@ When generating launch plan:
 - Suggest 2-3 bonuses with deadlines (first 48h for fast-action bonus)
 - Fill mental_triggers based on creator's assets
 
+### material_pt | material_en
+**Input context:** curriculum_shared (module/lesson structure with lesson IDs)
+**Output schema:** Record<lesson_id, MaterialItem[]>
+
+Each entry maps a lesson ID to an array of resources:
+```
+{ label: string, type: 'pdf'|'repo'|'link'|'template'|'tool', url: string|null }
+```
+
+When generating course materials:
+- Use the exact lesson IDs from curriculum_shared (e.g., "l1", "abc123")
+- Include at least 1-3 materials per lesson (more for hands-on lessons)
+- Choose type based on content: code exercises → 'repo', downloadable files → 'pdf', external references → 'link', starter files → 'template', software → 'tool'
+- Provide concrete URLs when known (GitHub repos, official docs, etc.); use null for placeholder materials
+- Label materials clearly in the same language as the section (pt or en)
+- Prioritize materials that reinforce the learning outcomes from curriculum_shared
+- For exercise and quiz lessons, always include a 'template' or 'repo' resource
+
 ### publish_pt | publish_en
 **Input context:** ideia_shared + curriculum_shared + launch_shared (testimonials, social proof)
 **Output schema:** Course publish section
