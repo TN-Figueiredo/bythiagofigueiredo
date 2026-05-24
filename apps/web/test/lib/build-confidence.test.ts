@@ -115,26 +115,29 @@ describe('build confidence pipeline', () => {
     expect(violations).toEqual([])
   })
 
-  it('no @tn-figueiredo/* import in apps/web without package.json declaration', () => {
+  it.each([
+    { app: 'apps/web', srcSubdir: 'src' },
+    { app: 'apps/api', srcSubdir: 'src' },
+  ])('no @tn-figueiredo/* import in $app without package.json declaration', ({ app, srcSubdir }) => {
     const { execSync } = require('node:child_process')
 
-    const webDir = join(ROOT, 'apps', 'web')
-    const webPkgPath = join(webDir, 'package.json')
-    const webPkg = JSON.parse(readFileSync(webPkgPath, 'utf-8'))
+    const appDir = join(ROOT, app)
+    const appPkgPath = join(appDir, 'package.json')
+    if (!existsSync(appPkgPath)) return
 
+    const appPkg = JSON.parse(readFileSync(appPkgPath, 'utf-8'))
     const declaredDeps = new Set([
-      ...Object.keys(webPkg.dependencies ?? {}),
-      ...Object.keys(webPkg.devDependencies ?? {}),
+      ...Object.keys(appPkg.dependencies ?? {}),
+      ...Object.keys(appPkg.devDependencies ?? {}),
     ])
 
     let grepOutput = ''
     try {
       grepOutput = execSync(
-        `grep -rh --include="*.ts" --include="*.tsx" "@tn-figueiredo/" ${webDir}/src`,
+        `grep -rh --include="*.ts" --include="*.tsx" "@tn-figueiredo/" ${appDir}/${srcSubdir}`,
         { encoding: 'utf-8' }
       )
     } catch (err: unknown) {
-      // exit code 1 means no matches — that's fine
       const e = err as { status?: number }
       if (e.status === 1) {
         grepOutput = ''
@@ -152,7 +155,7 @@ describe('build confidence pipeline', () => {
     const violations: string[] = []
     for (const pkg of importedPackages) {
       if (!declaredDeps.has(pkg)) {
-        violations.push(`${pkg} is imported in apps/web/src but not declared in apps/web/package.json`)
+        violations.push(`${pkg} is imported in ${app}/src but not declared in ${app}/package.json`)
       }
     }
 
