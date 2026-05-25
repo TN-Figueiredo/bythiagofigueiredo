@@ -26,12 +26,13 @@ interface CoworkRequestPanelProps {
   onSendAndWait: () => void
   insertText?: string | null
   onInsertConsumed?: () => void
+  baseUrl?: string
 }
 
 export function CoworkRequestPanel({
   isOpen, onClose, itemId, itemCode, itemTitle, sectionLabel, sectionKey, lang, rev, placeholder,
   format, stage, tags, hook, synopsis, sectionContent, references, onSendAndWait,
-  insertText, onInsertConsumed,
+  insertText, onInsertConsumed, baseUrl,
 }: CoworkRequestPanelProps) {
   const [instructions, setInstructions] = useState('')
   const [copied, setCopied] = useState(false)
@@ -74,9 +75,9 @@ export function CoworkRequestPanel({
   }, [instructions, references])
 
   const prompt = useMemo(() => instructions.trim()
-    ? buildPrompt({ itemCode, itemTitle, format, stage, tags, hook, synopsis, sectionLabel, sectionKey, lang, rev, contentSummary, instructions: instructions.trim(), itemId, sectionBase, references, baseUrl: window.location.origin })
+    ? buildPrompt({ itemCode, itemTitle, format, stage, tags, hook, synopsis, sectionLabel, sectionKey, lang, rev, contentSummary, instructions: instructions.trim(), itemId, sectionBase, references, baseUrl: baseUrl ?? (typeof window !== 'undefined' ? window.location.origin : '') })
     : ''
-  , [instructions, itemCode, itemTitle, format, stage, tags, hook, synopsis, sectionLabel, sectionKey, lang, rev, contentSummary, itemId, sectionBase, references])
+  , [instructions, itemCode, itemTitle, format, stage, tags, hook, synopsis, sectionLabel, sectionKey, lang, rev, contentSummary, itemId, sectionBase, references, baseUrl])
 
   const handleCopy = useCallback(() => {
     if (!prompt) return
@@ -208,8 +209,8 @@ export function CoworkRequestPanel({
               type="button"
               onClick={handleCopy}
               disabled={!prompt}
-              className="px-2 py-0.5 text-[10px] font-semibold rounded"
-              style={{ background: 'var(--gem-accent)', border: '1px solid var(--gem-accent)', color: 'var(--gem-on-accent, #fff)', opacity: prompt ? 1 : 0.3 }}
+              className="px-2 py-0.5 text-[10px] font-semibold rounded disabled:opacity-30"
+              style={{ background: 'var(--gem-accent)', border: '1px solid var(--gem-accent)', color: 'var(--gem-on-accent, #fff)' }}
             >
               Copiar prompt
             </button>
