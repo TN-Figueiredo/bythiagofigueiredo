@@ -81,7 +81,7 @@ function highlightMatch(text: string, query: string): React.ReactNode {
 
 // ─── Component ─────────────────────────────────────────────────────────────────
 
-export function ReferenceEditor({ docs, groups, onUpsert }: { docs: ReferenceDoc[]; groups: GroupDef[]; onUpsert: (key: string, data: { title: string; content_md?: string; content_compact?: Record<string, unknown>; ref_group?: string; sort_order?: number }) => Promise<unknown> }) {
+export function ReferenceEditor({ docs, groups, onUpsert, pipelineKey }: { docs: ReferenceDoc[]; groups: GroupDef[]; pipelineKey?: string; onUpsert: (key: string, data: { title: string; content_md?: string; content_compact?: Record<string, unknown>; ref_group?: string; sort_order?: number }) => Promise<unknown> }) {
   // Tab + modal state
   const [activeTab, setActiveTab] = useState<ActiveTab>('references')
   const [showPromptModal, setShowPromptModal] = useState(false)
@@ -360,6 +360,7 @@ export function ReferenceEditor({ docs, groups, onUpsert }: { docs: ReferenceDoc
         <CoworkPromptModal
           onClose={() => setShowPromptModal(false)}
           baseUrl={baseUrl}
+          serverKey={pipelineKey}
         />
       )}
 

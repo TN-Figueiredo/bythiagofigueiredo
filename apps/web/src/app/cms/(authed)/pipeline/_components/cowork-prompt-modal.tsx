@@ -35,6 +35,7 @@ const CPW_VARS = {
 interface CoworkPromptModalProps {
   onClose: () => void
   baseUrl: string
+  serverKey?: string
 }
 
 const PromptPreview = memo(function PromptPreview({ text }: { text: string }) {
@@ -71,12 +72,12 @@ const PromptPreview = memo(function PromptPreview({ text }: { text: string }) {
   )
 })
 
-export function CoworkPromptModal({ onClose, baseUrl }: CoworkPromptModalProps) {
+export function CoworkPromptModal({ onClose, baseUrl, serverKey }: CoworkPromptModalProps) {
   const [selectedSkill, setSelectedSkill] = useState<CoworkSkillId | null>('ideator')
   const [allSkills, setAllSkills] = useState(false)
   const [selectedDomains, setSelectedDomains] = useState<Set<string>>(new Set())
   const [copied, setCopied] = useState(false)
-  const [pipelineKey, setPipelineKey] = useState('')
+  const [pipelineKey, setPipelineKey] = useState(serverKey ?? '')
   const [showKey, setShowKey] = useState(false)
 
   const copyRef = useRef<() => void>(() => {})
@@ -85,11 +86,12 @@ export function CoworkPromptModal({ onClose, baseUrl }: CoworkPromptModalProps) 
   const handleTrapKeyDown = useFocusTrap(dialogRef)
 
   useEffect(() => {
+    if (serverKey) return
     try {
       const saved = sessionStorage.getItem('cowork-pipeline-key')
       if (saved) setPipelineKey(saved)
     } catch { /* SSR/test */ }
-  }, [])
+  }, [serverKey])
 
   useEffect(() => {
     try {
@@ -294,7 +296,7 @@ export function CoworkPromptModal({ onClose, baseUrl }: CoworkPromptModalProps) 
           {/* Pipeline Key input */}
           <div>
             <div className="mb-2 text-xs font-medium text-[var(--cpw-text-muted)]">
-              Pipeline Key
+              Pipeline Key {serverKey && <span className="font-normal text-emerald-400/80">— preenchida automaticamente</span>}
             </div>
             <div className="relative">
               <input
@@ -303,6 +305,7 @@ export function CoworkPromptModal({ onClose, baseUrl }: CoworkPromptModalProps) 
                 onChange={(e) => setPipelineKey(e.target.value)}
                 placeholder="Cole sua X-Pipeline-Key aqui..."
                 aria-label="Pipeline API Key"
+                readOnly={!!serverKey}
                 className="w-full rounded-md border border-[var(--cpw-border)] bg-[var(--cpw-bg-code)] px-3 py-2 pr-16 text-xs text-[var(--cpw-text)] placeholder:text-[var(--cpw-text-muted)] focus:border-[var(--cpw-accent)] focus:outline-none"
               />
               <button
@@ -314,9 +317,11 @@ export function CoworkPromptModal({ onClose, baseUrl }: CoworkPromptModalProps) 
                 {showKey ? 'Ocultar' : 'Mostrar'}
               </button>
             </div>
-            <div className="mt-1 text-[11px] text-[var(--cpw-text-muted)]">
-              Encontre em .env.local → PIPELINE_COWORK_KEY
-            </div>
+            {!serverKey && (
+              <div className="mt-1 text-[11px] text-[var(--cpw-text-muted)]">
+                Encontre em .env.local → PIPELINE_COWORK_KEY
+              </div>
+            )}
             <div className="mt-0.5 text-[11px] text-amber-500/80">
               ⚠ O prompt gerado conterá sua key. Compartilhe apenas com sessões de IA confiáveis.
             </div>
