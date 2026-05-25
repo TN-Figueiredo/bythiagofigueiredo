@@ -193,6 +193,25 @@ describe('registry completeness', () => {
     expect(missing, `Domains without Tier 2 docs:\n${missing.join('\n')}`).toHaveLength(0)
   })
 
+  it('each doc file has at least 100 lines', () => {
+    const docsDir = join(webRoot, '..', 'data', 'pipeline-docs')
+    for (const cap of API_REGISTRY.capabilities) {
+      const docPath = join(docsDir, `cowork-docs-${cap.domain}.md`)
+      const content = readFileSync(docPath, 'utf-8')
+      const lines = content.split('\n').length
+      expect(lines, `${cap.domain} doc has only ${lines} lines`).toBeGreaterThanOrEqual(100)
+    }
+  })
+
+  it('each doc file starts with an H1 header', () => {
+    const docsDir = join(webRoot, '..', 'data', 'pipeline-docs')
+    for (const cap of API_REGISTRY.capabilities) {
+      const docPath = join(docsDir, `cowork-docs-${cap.domain}.md`)
+      const content = readFileSync(docPath, 'utf-8')
+      expect(content.startsWith('# '), `${cap.domain} doc missing H1 header`).toBe(true)
+    }
+  })
+
   it('seed script file references are valid', () => {
     const seedPath = join(__dirname, '..', '..', '..', '..', '..', 'scripts', 'seed-pipeline-reference.ts')
     expect(existsSync(seedPath), `Seed script not found at ${seedPath}`).toBe(true)

@@ -6,6 +6,25 @@
 import { pipelinePaths } from './api-paths'
 
 // ---------------------------------------------------------------------------
+// classifyPromptLine — line classifier for PromptPreview syntax highlighting
+// ---------------------------------------------------------------------------
+
+/**
+ * Classifies a single line of a cowork prompt for syntax highlighting.
+ *
+ * - 'step'    numbered step lines: /^\d+\.\s/
+ * - 'comment' lines starting with '#': /^#\s/
+ * - 'url'     lines containing an HTTP method keyword: GET, POST, PATCH, PUT, DELETE
+ * - 'text'    everything else
+ */
+export function classifyPromptLine(line: string): 'step' | 'comment' | 'url' | 'text' {
+  if (/^\d+\.\s/.test(line.trim())) return 'step'
+  if (/^#\s/.test(line.trim())) return 'comment'
+  if (/(?:GET|POST|PATCH|PUT|DELETE)\s/.test(line)) return 'url'
+  return 'text'
+}
+
+// ---------------------------------------------------------------------------
 // Public types
 // ---------------------------------------------------------------------------
 

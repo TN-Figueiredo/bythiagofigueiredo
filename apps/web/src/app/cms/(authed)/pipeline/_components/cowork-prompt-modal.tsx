@@ -408,7 +408,7 @@ export function CoworkPromptModal({ onClose, baseUrl }: CoworkPromptModalProps) 
             <div className="mb-2 flex items-center gap-2 text-xs font-medium text-[var(--cpw-text-muted)]">
               <span>Preview do prompt</span>
               <span aria-live="polite" className="rounded-full bg-[var(--cpw-hover-bg)] px-2 py-0.5 text-[10px] text-[var(--cpw-text-muted)]">
-                {stepCount} {stepCount === 1 ? 'step' : 'steps'}
+                {stepCount} steps
               </span>
             </div>
             <PromptPreview text={prompt} />

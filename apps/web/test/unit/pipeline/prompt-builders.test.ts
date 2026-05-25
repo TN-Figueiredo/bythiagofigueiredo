@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { generatePrompt, summarizeContent, buildPrompt } from '@/lib/pipeline/prompt-builders'
+import { generatePrompt, summarizeContent, buildPrompt, classifyPromptLine } from '@/lib/pipeline/prompt-builders'
 import type { PipelineItemForPrompt, SectionForPrompt } from '@/lib/pipeline/prompt-builders'
 
 // ---------------------------------------------------------------------------
@@ -360,5 +360,31 @@ describe('buildPrompt', () => {
   it('marks step 2 as local (non-API) action', () => {
     const result = buildPrompt(baseBuildCtx)
     expect(result).toContain('2. (local)')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// classifyPromptLine
+// ---------------------------------------------------------------------------
+
+describe('classifyPromptLine', () => {
+  it('classifies numbered steps', () => {
+    expect(classifyPromptLine('0. GET /api/pipeline/docs')).toBe('step')
+    expect(classifyPromptLine('3. PATCH /api/pipeline/items/abc')).toBe('step')
+  })
+
+  it('classifies comment lines', () => {
+    expect(classifyPromptLine('# Auth: include X-Pipeline-Key')).toBe('comment')
+    expect(classifyPromptLine('# Workflow')).toBe('comment')
+  })
+
+  it('classifies API method lines', () => {
+    expect(classifyPromptLine('   GET /api/pipeline/items/abc')).toBe('url')
+    expect(classifyPromptLine('   PATCH /api/pipeline/items/abc')).toBe('url')
+  })
+
+  it('classifies regular text', () => {
+    expect(classifyPromptLine('Pipeline item: tg-01')).toBe('text')
+    expect(classifyPromptLine('Tags: ai, test')).toBe('text')
   })
 })

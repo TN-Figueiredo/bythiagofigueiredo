@@ -115,6 +115,7 @@ export function CoworkRequestPanel({
     <div
       role="region"
       aria-label="Painel de requisição Cowork"
+      aria-description="Pressione Escape para fechar"
       className="sticky top-0 z-10 px-4 py-2.5"
       style={{
         background: 'color-mix(in srgb, var(--gem-accent) 4%, var(--gem-surface))',
@@ -185,21 +186,21 @@ export function CoworkRequestPanel({
         </div>
       )}
       {prompt && (
-        <pre className="mt-2 p-2 rounded-md text-[10px] overflow-y-auto max-h-48" style={{ background: 'color-mix(in srgb, var(--gem-accent) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--gem-accent) 15%, transparent)', color: 'var(--gem-dim)', fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>{prompt}</pre>
+        <pre className="mt-2 p-2 rounded-md text-[11px] overflow-y-auto max-h-48" style={{ background: 'color-mix(in srgb, var(--gem-accent) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--gem-accent) 15%, transparent)', color: 'var(--gem-dim)', fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>{prompt}</pre>
       )}
       <div className="flex justify-between items-center mt-2">
-        <span className="text-[10px]" style={{ color: 'var(--gem-dim)' }}>
+        <span className="text-[11px]" style={{ color: 'var(--gem-dim)' }}>
           {usedCitations.length > 0
             ? `${usedCitations.length} citacoes | Cole no Claude Cowork.`
             : 'Cole no Claude Cowork.'}
         </span>
         <div className="flex gap-1.5 items-center">
-          <button type="button" onClick={onClose} className="px-2 py-0.5 text-[10px] rounded focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)]" style={{ border: '1px solid var(--gem-border)', color: 'var(--gem-muted)' }}>Cancelar</button>
+          <button type="button" onClick={onClose} className="px-2 py-0.5 text-[11px] rounded focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)]" style={{ border: '1px solid var(--gem-border)', color: 'var(--gem-muted)' }}>Cancelar</button>
           {copied ? (
             <button
               type="button"
               onClick={handleSendAndWait}
-              className="px-2.5 py-0.5 text-[10px] font-semibold rounded focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)]"
+              className="px-2.5 py-0.5 text-[11px] font-semibold rounded focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)]"
               style={{ background: 'var(--gem-done)', border: '1px solid var(--gem-done)', color: 'var(--gem-on-accent, #fff)' }}
             >
               ✓ Enviado — fechar e aguardar
@@ -209,7 +210,7 @@ export function CoworkRequestPanel({
               type="button"
               onClick={handleCopy}
               disabled={!prompt}
-              className="px-2 py-0.5 text-[10px] font-semibold rounded disabled:opacity-30 focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)]"
+              className="px-2 py-0.5 text-[11px] font-semibold rounded disabled:opacity-30 focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)]"
               style={{ background: 'var(--gem-accent)', border: '1px solid var(--gem-accent)', color: 'var(--gem-on-accent, #fff)' }}
             >
               Copiar prompt

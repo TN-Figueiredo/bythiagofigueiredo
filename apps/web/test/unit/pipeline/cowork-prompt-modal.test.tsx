@@ -420,6 +420,21 @@ describe('CoworkPromptModal', () => {
     expect(dialog.textContent).toContain('test-key-abc')
   })
 
+  it('prompt shows placeholder when no key is set', () => {
+    renderModal()
+    const dialog = screen.getByRole('dialog')
+    expect(dialog.textContent).toContain('[sua key]')
+  })
+
+  it('prompt shows actual key when key is set', () => {
+    renderModal()
+    const input = screen.getByLabelText('Pipeline API Key')
+    fireEvent.change(input, { target: { value: 'my-real-key' } })
+    const dialog = screen.getByRole('dialog')
+    expect(dialog.textContent).not.toContain('[sua key]')
+    expect(dialog.textContent).toContain('my-real-key')
+  })
+
   // ---- Copy with key set shows simple toast ----
 
   it('shows simple toast when key is set and prompt is copied', async () => {
