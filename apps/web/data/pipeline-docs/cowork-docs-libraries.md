@@ -1,3 +1,5 @@
+# Audio & B-Roll Libraries
+
 ## Audio Library
 
 Auth: `X-Pipeline-Key` header (read for queries, write for mutations). **NÃO use `Authorization: Bearer`.**
@@ -20,7 +22,7 @@ The Audio Library stores music and SFX assets with rich metadata (tags, mood, en
 **This is the primary endpoint for Cowork.** Use it during post-production to find the best audio for each scene/segment.
 
 ```bash
-curl -X POST https://bythiagofigueiredo.com/api/pipeline/audio-library/resolve \
+curl -X POST $BASE_URL/api/pipeline/audio-library/resolve \
   -H "X-Pipeline-Key: $KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -113,7 +115,7 @@ GET /api/pipeline/audio-library?cursor=<last-item-uuid>&limit=50
 ### POST /api/pipeline/audio-library — Create single asset
 
 ```bash
-curl -X POST https://bythiagofigueiredo.com/api/pipeline/audio-library \
+curl -X POST $BASE_URL/api/pipeline/audio-library \
   -H "X-Pipeline-Key: $KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -166,7 +168,7 @@ Returns full asset data plus `usage` array showing which pipeline items used thi
 Requires `version` field for optimistic locking (from GET response). Returns 409 on version conflict.
 
 ```bash
-curl -X PATCH https://bythiagofigueiredo.com/api/pipeline/audio-library/<uuid> \
+curl -X PATCH $BASE_URL/api/pipeline/audio-library/<uuid> \
   -H "X-Pipeline-Key: $KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -223,7 +225,7 @@ Example in import payload:
 
 Example PATCH to add waveform data to existing asset:
 ```bash
-curl -X PATCH https://bythiagofigueiredo.com/api/pipeline/audio-library/<uuid> \
+curl -X PATCH $BASE_URL/api/pipeline/audio-library/<uuid> \
   -H "X-Pipeline-Key: $KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -243,7 +245,7 @@ curl -X PATCH https://bythiagofigueiredo.com/api/pipeline/audio-library/<uuid> \
 Sets status to `retired`. Asset remains in DB but excluded from resolve queries and exports.
 
 ```bash
-curl -X DELETE https://bythiagofigueiredo.com/api/pipeline/audio-library/<uuid> \
+curl -X DELETE $BASE_URL/api/pipeline/audio-library/<uuid> \
   -H "X-Pipeline-Key: $KEY"
 ```
 
@@ -252,7 +254,7 @@ curl -X DELETE https://bythiagofigueiredo.com/api/pipeline/audio-library/<uuid> 
 Import multiple assets at once. Supports `dry_run` mode for preview.
 
 ```bash
-curl -X POST https://bythiagofigueiredo.com/api/pipeline/audio-library/import \
+curl -X POST $BASE_URL/api/pipeline/audio-library/import \
   -H "X-Pipeline-Key: $KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -301,7 +303,7 @@ Max 500 items per type (1000 total). Upserts on `site_id + asset_id`. Each item 
 Downloads all non-retired assets as JSON (Content-Disposition: attachment). Use for backup or cross-system sync.
 
 ```bash
-curl https://bythiagofigueiredo.com/api/pipeline/audio-library/export \
+curl $BASE_URL/api/pipeline/audio-library/export \
   -H "X-Pipeline-Key: $KEY" \
   -o audio-library-export.json
 ```
@@ -379,7 +381,7 @@ GET /api/pipeline/broll-library?cursor=<last-item-uuid>&limit=50
 ```
 
 ```bash
-curl "https://bythiagofigueiredo.com/api/pipeline/broll-library?type=footage&status=available&tags=urban,timelapse&limit=20" \
+curl "$BASE_URL/api/pipeline/broll-library?type=footage&status=available&tags=urban,timelapse&limit=20" \
   -H "X-Pipeline-Key: $KEY"
 ```
 
@@ -446,7 +448,7 @@ curl "https://bythiagofigueiredo.com/api/pipeline/broll-library?type=footage&sta
 ### POST /api/pipeline/broll-library — Create single asset
 
 ```bash
-curl -X POST https://bythiagofigueiredo.com/api/pipeline/broll-library \
+curl -X POST $BASE_URL/api/pipeline/broll-library \
   -H "X-Pipeline-Key: $KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -489,7 +491,7 @@ Returns 201 with the full asset object. Returns 409 on duplicate `asset_id` or `
 Returns full asset data plus a `usage` array showing which pipeline items used this asset.
 
 ```bash
-curl https://bythiagofigueiredo.com/api/pipeline/broll-library/<uuid> \
+curl $BASE_URL/api/pipeline/broll-library/<uuid> \
   -H "X-Pipeline-Key: $KEY"
 ```
 
@@ -532,7 +534,7 @@ curl https://bythiagofigueiredo.com/api/pipeline/broll-library/<uuid> \
 Requires `version` field for optimistic concurrency control (from GET response). Returns 409 on version conflict.
 
 ```bash
-curl -X PATCH https://bythiagofigueiredo.com/api/pipeline/broll-library/<uuid> \
+curl -X PATCH $BASE_URL/api/pipeline/broll-library/<uuid> \
   -H "X-Pipeline-Key: $KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -556,7 +558,7 @@ Returns 200 with the updated asset. Returns 409 if `version` does not match the 
 Sets `status` to `retired`. Asset remains in DB but is excluded from listings by default.
 
 ```bash
-curl -X DELETE https://bythiagofigueiredo.com/api/pipeline/broll-library/<uuid> \
+curl -X DELETE $BASE_URL/api/pipeline/broll-library/<uuid> \
   -H "X-Pipeline-Key: $KEY"
 ```
 
@@ -571,7 +573,7 @@ curl -X DELETE https://bythiagofigueiredo.com/api/pipeline/broll-library/<uuid> 
 Import up to 500 assets in a single request. Supports `dry_run` mode to preview changes without persisting anything. Upserts on `site_id + asset_id`.
 
 ```bash
-curl -X POST https://bythiagofigueiredo.com/api/pipeline/broll-library/import \
+curl -X POST $BASE_URL/api/pipeline/broll-library/import \
   -H "X-Pipeline-Key: $KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -648,7 +650,7 @@ The `metadata` column stores structured data for enriching the CMS UI and editor
 **Example PATCH to add metadata to an existing asset:**
 
 ```bash
-curl -X PATCH https://bythiagofigueiredo.com/api/pipeline/broll-library/<uuid> \
+curl -X PATCH $BASE_URL/api/pipeline/broll-library/<uuid> \
   -H "X-Pipeline-Key: $KEY" \
   -H "Content-Type: application/json" \
   -d '{

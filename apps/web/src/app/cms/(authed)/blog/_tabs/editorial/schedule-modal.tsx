@@ -9,7 +9,7 @@ import {
   formatSchedulePreview,
 } from '@/lib/cms/format-site-datetime'
 import type { BlogHubStrings } from '../../_i18n/types'
-import { useFocusTrap } from './use-focus-trap'
+import { useFocusTrap } from '@/lib/hooks/use-focus-trap'
 
 interface ScheduleModalProps {
   isOpen: boolean
@@ -64,7 +64,7 @@ export function ScheduleModal({ isOpen, postTitle, defaultDate, siteTimezone, on
     [onCancel],
   )
 
-  const handleTabKey = useFocusTrap(dialogRef)
+  const handleTabKey = useFocusTrap(dialogRef, { autoFocus: false })
 
   const handleConfirm = useCallback(() => {
     if (!date) {

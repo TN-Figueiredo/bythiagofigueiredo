@@ -7,19 +7,21 @@ const FOCUSABLE_SELECTOR =
 
 /**
  * Focus trap for modal dialogs.
- * - On mount, focuses the first focusable element inside the ref.
+ * - When `autoFocus` is true (default), focuses the first focusable element on mount.
  * - Returns an onKeyDown handler that cycles Tab / Shift+Tab within the ref.
  */
-export function useFocusTrap(dialogRef: RefObject<HTMLElement | null>) {
-  // Auto-focus first focusable element on mount
+export function useFocusTrap(
+  dialogRef: RefObject<HTMLElement | null>,
+  { autoFocus = true }: { autoFocus?: boolean } = {},
+) {
   useEffect(() => {
+    if (!autoFocus) return
     const dialog = dialogRef.current
     if (!dialog) return
     const first = dialog.querySelector<HTMLElement>(FOCUSABLE_SELECTOR)
     first?.focus()
-  }, [dialogRef])
+  }, [dialogRef, autoFocus])
 
-  // Tab-cycling handler
   return useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key !== 'Tab') return

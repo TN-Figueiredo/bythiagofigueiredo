@@ -236,13 +236,13 @@ describe('CoworkPromptModal', () => {
   it('prompt includes final confirmation instruction', () => {
     renderModal()
     const dialog = screen.getByRole('dialog')
-    expect(dialog.textContent).toContain('confirme prontidao')
+    expect(dialog.textContent).toContain('confirme prontidão')
   })
 
   it('prompt includes error handling instruction', () => {
     renderModal()
     const dialog = screen.getByRole('dialog')
-    expect(dialog.textContent).toContain('NAO prossiga')
+    expect(dialog.textContent).toContain('NÃO prossiga')
   })
 
   // ---- 6. Copy button calls navigator.clipboard.writeText ----
@@ -256,7 +256,7 @@ describe('CoworkPromptModal', () => {
     })
     const writtenText = mockClipboard.writeText.mock.calls[0][0] as string
     expect(writtenText).toContain(`GET ${BASE_URL}/api/pipeline/`)
-    expect(writtenText).toContain('confirme prontidao')
+    expect(writtenText).toContain('confirme prontidão')
   })
 
   it('shows success toast after copying', async () => {

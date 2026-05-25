@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { useFocusTrap } from '@/app/cms/(authed)/pipeline/_components/use-focus-trap'
+import { useFocusTrap } from '@/lib/hooks/use-focus-trap'
 import { buildPlaylistPrompt, extractTextFromJSON } from '@/lib/playlists/prompt-builder'
 import type { ReuseCandidateItem } from '@/lib/playlists/prompt-builder'
 import type { PlaylistRow, PlaylistItemEnriched, PlaylistEdgeRow } from '@/lib/playlists/types'

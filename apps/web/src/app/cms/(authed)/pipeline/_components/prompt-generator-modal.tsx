@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { getFormatIcon } from '@/lib/pipeline/gem-design'
-import { useFocusTrap } from './use-focus-trap'
+import { useFocusTrap } from '@/lib/hooks/use-focus-trap'
 import { generatePrompt } from '@/lib/pipeline/prompt-builders'
 import type { PipelineItemForPrompt, SectionForPrompt } from '@/lib/pipeline/prompt-builders'
 

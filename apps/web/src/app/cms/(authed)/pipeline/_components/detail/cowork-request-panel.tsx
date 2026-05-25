@@ -194,12 +194,12 @@ export function CoworkRequestPanel({
             : 'Cole no Claude Cowork.'}
         </span>
         <div className="flex gap-1.5 items-center">
-          <button type="button" onClick={onClose} className="px-2 py-0.5 text-[10px] rounded" style={{ border: '1px solid var(--gem-border)', color: 'var(--gem-muted)' }}>Cancelar</button>
+          <button type="button" onClick={onClose} className="px-2 py-0.5 text-[10px] rounded focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)]" style={{ border: '1px solid var(--gem-border)', color: 'var(--gem-muted)' }}>Cancelar</button>
           {copied ? (
             <button
               type="button"
               onClick={handleSendAndWait}
-              className="px-2.5 py-0.5 text-[10px] font-semibold rounded"
+              className="px-2.5 py-0.5 text-[10px] font-semibold rounded focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)]"
               style={{ background: 'var(--gem-done)', border: '1px solid var(--gem-done)', color: 'var(--gem-on-accent, #fff)' }}
             >
               ✓ Enviado — fechar e aguardar
@@ -209,7 +209,7 @@ export function CoworkRequestPanel({
               type="button"
               onClick={handleCopy}
               disabled={!prompt}
-              className="px-2 py-0.5 text-[10px] font-semibold rounded disabled:opacity-30"
+              className="px-2 py-0.5 text-[10px] font-semibold rounded disabled:opacity-30 focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)]"
               style={{ background: 'var(--gem-accent)', border: '1px solid var(--gem-accent)', color: 'var(--gem-on-accent, #fff)' }}
             >
               Copiar prompt

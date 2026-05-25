@@ -6,11 +6,8 @@ import { API_REGISTRY, DOMAIN_LABELS } from '@/lib/pipeline/api-registry'
 import { pipelinePaths } from '@/lib/pipeline/api-paths'
 import { COWORK_SKILLS } from '@/lib/pipeline/reference-groups'
 import type { CoworkSkillId } from '@/lib/pipeline/reference-groups'
-import { useFocusTrap } from './use-focus-trap'
+import { useFocusTrap } from '@/lib/hooks/use-focus-trap'
 
-const SKILLS = COWORK_SKILLS
-
-type SkillId = CoworkSkillId
 
 const DOMAINS = API_REGISTRY.capabilities.map((c) => ({
   id: c.domain,
@@ -75,7 +72,7 @@ const PromptPreview = memo(function PromptPreview({ text }: { text: string }) {
 })
 
 export function CoworkPromptModal({ onClose, baseUrl }: CoworkPromptModalProps) {
-  const [selectedSkill, setSelectedSkill] = useState<SkillId | null>('ideator')
+  const [selectedSkill, setSelectedSkill] = useState<CoworkSkillId | null>('ideator')
   const [allSkills, setAllSkills] = useState(false)
   const [selectedDomains, setSelectedDomains] = useState<Set<string>>(new Set())
   const [copied, setCopied] = useState(false)
@@ -135,7 +132,7 @@ export function CoworkPromptModal({ onClose, baseUrl }: CoworkPromptModalProps) 
     }
   }, [allDomainsSelected])
 
-  const selectSkill = useCallback((id: SkillId) => {
+  const selectSkill = useCallback((id: CoworkSkillId) => {
     setSelectedSkill(id)
     setAllSkills(false)
   }, [])
@@ -168,7 +165,7 @@ export function CoworkPromptModal({ onClose, baseUrl }: CoworkPromptModalProps) 
 
   const prompt = useMemo(() => {
     const lines: string[] = [
-      '# Voce e um assistente de producao de conteudo. Antes de responder, carregue meu contexto:',
+      '# Você é um assistente de produção de conteúdo. Antes de responder, carregue meu contexto:',
       pipelineKey
         ? `# Auth: X-Pipeline-Key: ${pipelineKey}`
         : `# Auth: X-Pipeline-Key: [sua key]  ← PREENCHA COM SUA KEY`,
@@ -187,7 +184,7 @@ export function CoworkPromptModal({ onClose, baseUrl }: CoworkPromptModalProps) 
       lines.push(`${step}. GET ${baseUrl}${pipelinePaths.context.all()}`)
       lines.push('   # Todas as referências (todas as skills)')
     } else if (selectedSkill) {
-      const skill = SKILLS.find((s) => s.id === selectedSkill)
+      const skill = COWORK_SKILLS.find((s) => s.id === selectedSkill)
       lines.push(`${step}. GET ${baseUrl}${pipelinePaths.context.withSkill(selectedSkill)}`)
       lines.push(`   # Referências da skill ${skill?.label ?? selectedSkill}`)
     }
@@ -202,8 +199,8 @@ export function CoworkPromptModal({ onClose, baseUrl }: CoworkPromptModalProps) 
       step++
     }
 
-    lines.push('Apos carregar, confirme prontidao e liste as capabilities disponiveis.')
-    lines.push('Se qualquer GET retornar erro, reporte o status e NAO prossiga.')
+    lines.push('Após carregar, confirme prontidão e liste as capabilities disponíveis.')
+    lines.push('Se qualquer GET retornar erro, reporte o status e NÃO prossiga.')
     lines.push(`# Base: ${baseUrl}`)
 
     return lines.join('\n')
@@ -315,6 +312,9 @@ export function CoworkPromptModal({ onClose, baseUrl }: CoworkPromptModalProps) 
             <div className="mt-1 text-[10px] text-[var(--cpw-text-muted)]">
               Encontre em .env.local → PIPELINE_COWORK_KEY
             </div>
+            <div className="mt-0.5 text-[10px] text-amber-500/80">
+              ⚠ O prompt gerado conterá sua key. Compartilhe apenas com sessões de IA confiáveis.
+            </div>
           </div>
 
           {/* Skill selector */}
@@ -326,7 +326,7 @@ export function CoworkPromptModal({ onClose, baseUrl }: CoworkPromptModalProps) 
           >
             <div className="mb-2 text-xs font-medium text-[var(--cpw-text-muted)]">Qual skill vai usar?</div>
             <div className="flex flex-wrap gap-2">
-              {SKILLS.map((skill) => {
+              {COWORK_SKILLS.map((skill) => {
                 const isActive = selectedSkill === skill.id && !allSkills
                 return (
                   <button

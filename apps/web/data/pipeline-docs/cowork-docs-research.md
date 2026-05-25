@@ -1,3 +1,5 @@
+# Research Library
+
 ## Research Library
 
 Auth: `X-Pipeline-Key` header (write permission para mutações). **NÃO use `Authorization: Bearer`.**
@@ -7,7 +9,7 @@ Auth: `X-Pipeline-Key` header (write permission para mutações). **NÃO use `Au
 Claude pushes research via this endpoint. Duplicate title+topic = upsert (updates content, resets status to 'new').
 
 ```bash
-curl -X POST https://bythiagofigueiredo.com/api/pipeline/research \
+curl -X POST $BASE_URL/api/pipeline/research \
   -H "X-Pipeline-Key: $KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -48,7 +50,7 @@ Returns both `content_md` and `content_json`, plus `linked_items` array.
 Requires `X-Expected-Version` header (use `version` from POST/GET response). Supports partial updates.
 
 ```bash
-curl -X PATCH https://bythiagofigueiredo.com/api/pipeline/research/<uuid> \
+curl -X PATCH $BASE_URL/api/pipeline/research/<uuid> \
   -H "X-Pipeline-Key: $KEY" \
   -H "Content-Type: application/json" \
   -H "X-Expected-Version: 1" \
@@ -61,7 +63,7 @@ Returns 409 on version conflict.
 ### DELETE /api/pipeline/research/:id — Delete research item
 
 ```bash
-curl -X DELETE https://bythiagofigueiredo.com/api/pipeline/research/<uuid> \
+curl -X DELETE $BASE_URL/api/pipeline/research/<uuid> \
   -H "X-Pipeline-Key: $KEY"
 ```
 

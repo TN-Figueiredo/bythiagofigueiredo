@@ -118,12 +118,12 @@ export function generatePrompt(
     '',
     '# O que atualizar',
     `2. PATCH ${pipelinePaths.items.detail(item.id)}`,
-    '   Headers: { "X-Expected-Version": <version from GET> }',
+    '   Headers: { "X-Expected-Version": <version from GET>, "Content-Type": "application/json" }',
     `   Body: { "title_${targetSuffix}": "<título adaptado>", "language": "both" }`,
     '',
     `3. Para cada seção _${targetSuffix} a criar:`,
     `   PATCH ${pipelinePaths.items.section(item.id, '<section_key>', targetSuffix)}`,
-    '   Headers: { "X-Expected-Version": <version from GET> }',
+    '   Headers: { "X-Expected-Version": <version from GET>, "Content-Type": "application/json" }',
     '   Body: { "content": <adapted>, "rev": 0, "source": "cowork" }  // rev 0 = new section; if section exists, use current rev from GET',
     '',
     `- Crie seções _${targetSuffix} (rascunho_${targetSuffix}, seo_${targetSuffix})`,
@@ -242,7 +242,7 @@ export function buildPrompt(ctx: {
   lines.push('   → Section schemas, formatting rules, and Tiptap preset reference')
   lines.push(`1. GET ${baseUrl}${pipelinePaths.items.section(ctx.itemId, ctx.sectionBase, ctx.lang)}`)
   lines.push('   → Note the "rev" and "item_version" from the response')
-  lines.push('2. Apply the instructions above to the current content, following the schema from step 0')
+  lines.push('2. (local) Apply the instructions above to the current content, following the schema from step 0')
   lines.push(`3. PATCH ${baseUrl}${pipelinePaths.items.section(ctx.itemId, ctx.sectionBase, ctx.lang)}`)
   lines.push('   Headers: { "X-Expected-Version": <item_version from GET>, "Content-Type": "application/json" }')
   lines.push('   Body: { "content": <updated>, "rev": <rev from GET>, "source": "cowork", "modified_by": "cowork-claude" }')

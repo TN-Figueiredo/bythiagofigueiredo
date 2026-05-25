@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { todayInSiteTz, tomorrowInSiteTz, toISOInTimezone } from '@/lib/cms/format-site-datetime'
 import type { BlogHubStrings } from '../../_i18n/types'
-import { useFocusTrap } from './use-focus-trap'
+import { useFocusTrap } from '@/lib/hooks/use-focus-trap'
 
 interface PromotionModalProps {
   isOpen: boolean
@@ -68,7 +68,7 @@ export function PromotionModal({
     [onCancel],
   )
 
-  const handleTabKey = useFocusTrap(dialogRef)
+  const handleTabKey = useFocusTrap(dialogRef, { autoFocus: false })
 
   const handleConfirm = useCallback(() => {
     if (scheduleEnabled) {

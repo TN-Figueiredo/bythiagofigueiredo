@@ -141,6 +141,17 @@ describe('generatePrompt', () => {
     expect(result.text).toContain('X-Pipeline-Key')
     expect(result.text).toContain('# Auth:')
   })
+
+  it('handles both titles being null', () => {
+    const item = { ...baseItem, title_pt: null, title_en: null }
+    const result = generatePrompt(item, baseSections, 'en')
+    expect(result.text).toContain('(vazio)')
+  })
+
+  it('includes Content-Type header in PATCH instructions', () => {
+    const result = generatePrompt(baseItem, baseSections, 'en')
+    expect(result.text).toContain('"Content-Type": "application/json"')
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -202,6 +213,16 @@ describe('summarizeContent', () => {
   it('counts 0 words for JSONContent doc with empty content array', () => {
     const result = summarizeContent({ type: 'doc', content: [] })
     expect(result).toContain('0 palavras')
+  })
+
+  it('handles numeric input by stringifying', () => {
+    const result = summarizeContent(42)
+    expect(result).toContain('palavras')
+  })
+
+  it('handles array input by stringifying', () => {
+    const result = summarizeContent([1, 2, 3])
+    expect(result).toContain('palavras')
   })
 })
 
@@ -328,5 +349,16 @@ describe('buildPrompt', () => {
     })
     expect(result).toContain('[citacao 1: "' + 'Z'.repeat(500) + '..."]')
     expect(result).not.toContain('Z'.repeat(501))
+  })
+
+  it('does not inject HTML from instructions', () => {
+    const result = buildPrompt({ ...baseBuildCtx, instructions: '<script>alert("xss")</script>' })
+    expect(result).toContain('<script>')
+    expect(result).not.toContain('&lt;script&gt;')
+  })
+
+  it('marks step 2 as local (non-API) action', () => {
+    const result = buildPrompt(baseBuildCtx)
+    expect(result).toContain('2. (local)')
   })
 })
