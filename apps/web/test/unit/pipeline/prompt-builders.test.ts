@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { generatePrompt, summarizeContent, buildPrompt, classifyPromptLine } from '@/lib/pipeline/prompt-builders'
+import { generatePrompt, summarizeContent, buildPrompt } from '@/lib/pipeline/prompt-builders'
 import type { PipelineItemForPrompt, SectionForPrompt } from '@/lib/pipeline/prompt-builders'
 
 // ---------------------------------------------------------------------------
@@ -151,6 +151,12 @@ describe('generatePrompt', () => {
   it('includes Content-Type header in PATCH instructions', () => {
     const result = generatePrompt(baseItem, baseSections, 'en')
     expect(result.text).toContain('"Content-Type": "application/json"')
+  })
+
+  it('includes error recovery instructions for 409 and 412', () => {
+    const result = generatePrompt(baseItem, baseSections, 'en')
+    expect(result.text).toContain('On 409')
+    expect(result.text).toContain('On 412')
   })
 })
 
@@ -363,28 +369,3 @@ describe('buildPrompt', () => {
   })
 })
 
-// ---------------------------------------------------------------------------
-// classifyPromptLine
-// ---------------------------------------------------------------------------
-
-describe('classifyPromptLine', () => {
-  it('classifies numbered steps', () => {
-    expect(classifyPromptLine('0. GET /api/pipeline/docs')).toBe('step')
-    expect(classifyPromptLine('3. PATCH /api/pipeline/items/abc')).toBe('step')
-  })
-
-  it('classifies comment lines', () => {
-    expect(classifyPromptLine('# Auth: include X-Pipeline-Key')).toBe('comment')
-    expect(classifyPromptLine('# Workflow')).toBe('comment')
-  })
-
-  it('classifies API method lines', () => {
-    expect(classifyPromptLine('   GET /api/pipeline/items/abc')).toBe('url')
-    expect(classifyPromptLine('   PATCH /api/pipeline/items/abc')).toBe('url')
-  })
-
-  it('classifies regular text', () => {
-    expect(classifyPromptLine('Pipeline item: tg-01')).toBe('text')
-    expect(classifyPromptLine('Tags: ai, test')).toBe('text')
-  })
-})

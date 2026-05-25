@@ -1,7 +1,5 @@
 # Research Library
 
-## Research Library
-
 Auth: `X-Pipeline-Key` header (write permission para mutações). **NÃO use `Authorization: Bearer`.**
 
 ### POST /api/pipeline/research — Create/upsert research item

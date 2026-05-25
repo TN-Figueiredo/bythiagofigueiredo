@@ -244,6 +244,7 @@ Sort orders: 1000, 2000, 3000... Items não listados mantêm sort_order atual.
     "slug": "...",
     "category": "...",
     "status": "draft",
+    "version": 1,
     "description_en": "...",
     "description_pt": "...",
     "items": [

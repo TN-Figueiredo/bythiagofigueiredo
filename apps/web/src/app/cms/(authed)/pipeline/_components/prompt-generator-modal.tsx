@@ -1,17 +1,11 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import { toast } from 'sonner'
 import { getFormatIcon } from '@/lib/pipeline/gem-design'
 import { useFocusTrap } from '@/lib/hooks/use-focus-trap'
 import { generatePrompt } from '@/lib/pipeline/prompt-builders'
 import type { PipelineItemForPrompt, SectionForPrompt } from '@/lib/pipeline/prompt-builders'
-
-export { generatePrompt } from '@/lib/pipeline/prompt-builders'
-export type {
-  PipelineItemForPrompt,
-  SectionForPrompt,
-  GenerateResult,
-} from '@/lib/pipeline/prompt-builders'
 
 export interface PromptGeneratorModalProps {
   item: PipelineItemForPrompt
@@ -56,17 +50,27 @@ export function PromptGeneratorModal({
     navigator.clipboard.writeText(fullPrompt).then(() => {
       setCopied(true)
     }).catch(() => {
-      window.prompt('Copie o prompt abaixo:', fullPrompt)
+      toast.error('Não foi possível copiar. Use Cmd+A, Cmd+C no preview.')
     })
   }, [fullPrompt])
 
   useEffect(() => {
-    function handleEscape(e: KeyboardEvent) {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [])
+
+  useEffect(() => {
+    function handleKeys(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose()
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault()
+        handleCopy()
+      }
     }
-    document.addEventListener('keydown', handleEscape)
-    return () => document.removeEventListener('keydown', handleEscape)
-  }, [onClose])
+    document.addEventListener('keydown', handleKeys)
+    return () => document.removeEventListener('keydown', handleKeys)
+  }, [onClose, handleCopy])
 
   useEffect(() => {
     requestAnimationFrame(() => textareaRef.current?.focus())
@@ -74,7 +78,7 @@ export function PromptGeneratorModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm motion-reduce:backdrop-blur-none"
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
       <div
@@ -92,9 +96,20 @@ export function PromptGeneratorModal({
             <span className={`flex h-7 w-7 items-center justify-center rounded text-base ${formatInfo.bgClass}`}>
               {formatInfo.icon}
             </span>
-            <h2 className="text-sm font-semibold" style={{ color: 'var(--gem-text)' }}>
+            <h2 className="flex-1 text-sm font-semibold" style={{ color: 'var(--gem-text)' }}>
               Adicionar versão {targetTitle}
             </h2>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Fechar"
+              className="rounded p-1 transition-colors hover:bg-black/10 focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)] focus-visible:outline-none"
+              style={{ color: 'var(--gem-dim)' }}
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <path d="M1 1l12 12M13 1L1 13" />
+              </svg>
+            </button>
           </div>
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs" style={{ color: 'var(--gem-dim)' }}>
             <span className="font-mono font-medium" style={{ color: 'var(--gem-text)' }}>{item.code}</span>
@@ -127,12 +142,12 @@ export function PromptGeneratorModal({
           <button
             type="button"
             onClick={() => setShowPreview(!showPreview)}
-            className="text-[10px] hover:underline"
+            className="text-[11px] hover:underline focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)] focus-visible:outline-none rounded"
             style={{ color: 'var(--gem-accent)' }}
           >
             {showPreview ? 'Ocultar prompt' : 'Ver prompt completo'}
           </button>
-          <span className="text-[10px]" style={{ color: 'var(--gem-dim)' }}>
+          <span className="text-[11px]" style={{ color: 'var(--gem-dim)' }}>
             {sections.length} seções · ~{wordCount} palavras
             {wasTruncated && ' (truncado)'}
           </span>
@@ -140,7 +155,7 @@ export function PromptGeneratorModal({
 
         {showPreview && (
           <pre
-            className="mt-2 p-2.5 rounded-md text-[10px] overflow-y-auto"
+            className="mt-2 p-2.5 rounded-md text-[11px] overflow-y-auto"
             style={{
               maxHeight: '200px',
               background: 'var(--gem-well)',
@@ -154,14 +169,14 @@ export function PromptGeneratorModal({
 
         {/* Actions */}
         <div className="flex justify-between items-center mt-3">
-          <span className="text-[10px]" style={{ color: 'var(--gem-dim)' }}>
+          <span className="text-[11px]" style={{ color: 'var(--gem-dim)' }}>
             Cole no Claude Code
           </span>
           <div className="flex gap-1.5 items-center">
             <button
               type="button"
               onClick={onClose}
-              className="px-2.5 py-1 text-xs rounded"
+              className="px-2.5 py-1 text-xs rounded focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)] focus-visible:outline-none"
               style={{ border: '1px solid var(--gem-border)', color: 'var(--gem-muted)' }}
             >
               Cancelar
@@ -170,7 +185,7 @@ export function PromptGeneratorModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-2.5 py-1 text-xs font-semibold rounded"
+                className="px-2.5 py-1 text-xs font-semibold rounded focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)] focus-visible:outline-none"
                 style={{ background: 'var(--gem-done)', color: 'white' }}
               >
                 Copiado — fechar
@@ -179,7 +194,7 @@ export function PromptGeneratorModal({
               <button
                 type="button"
                 onClick={handleCopy}
-                className="px-2.5 py-1 text-xs font-semibold rounded"
+                className="px-2.5 py-1 text-xs font-semibold rounded focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)] focus-visible:outline-none"
                 style={{ background: 'var(--gem-accent)', color: 'white' }}
               >
                 Copiar prompt

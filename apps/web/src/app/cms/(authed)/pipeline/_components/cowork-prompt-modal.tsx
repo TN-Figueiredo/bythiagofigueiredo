@@ -86,7 +86,7 @@ export function CoworkPromptModal({ onClose, baseUrl }: CoworkPromptModalProps) 
 
   useEffect(() => {
     try {
-      const saved = localStorage.getItem('cowork-pipeline-key')
+      const saved = sessionStorage.getItem('cowork-pipeline-key')
       if (saved) setPipelineKey(saved)
     } catch { /* SSR/test */ }
   }, [])
@@ -94,12 +94,18 @@ export function CoworkPromptModal({ onClose, baseUrl }: CoworkPromptModalProps) 
   useEffect(() => {
     try {
       if (pipelineKey) {
-        localStorage.setItem('cowork-pipeline-key', pipelineKey)
+        sessionStorage.setItem('cowork-pipeline-key', pipelineKey)
       } else {
-        localStorage.removeItem('cowork-pipeline-key')
+        sessionStorage.removeItem('cowork-pipeline-key')
       }
     } catch { /* SSR/test */ }
   }, [pipelineKey])
+
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [])
 
   useEffect(() => {
     function handleKeys(e: KeyboardEvent) {
@@ -215,13 +221,12 @@ export function CoworkPromptModal({ onClose, baseUrl }: CoworkPromptModalProps) 
       } else {
         toast.success('Prompt copiado!')
       }
-      setTimeout(() => onClose(), 600)
     } catch {
       toast.error('Falha ao copiar')
     }
-  }, [prompt, onClose, pipelineKey])
+  }, [prompt, pipelineKey])
 
-  copyRef.current = handleCopy
+  useEffect(() => { copyRef.current = handleCopy }, [handleCopy])
 
   const handleSkillRadioKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
     const isArrow = e.key === 'ArrowDown' || e.key === 'ArrowRight' ||
@@ -276,7 +281,7 @@ export function CoworkPromptModal({ onClose, baseUrl }: CoworkPromptModalProps) 
             type="button"
             onClick={onClose}
             aria-label="Fechar"
-            className="rounded p-1 text-[var(--cpw-text-muted)] transition-colors motion-reduce:transition-none hover:bg-[var(--cpw-hover-bg)] hover:text-[var(--cpw-text)]"
+            className="rounded p-1 text-[var(--cpw-text-muted)] transition-colors motion-reduce:transition-none hover:bg-[var(--cpw-hover-bg)] hover:text-[var(--cpw-text)] focus-visible:ring-2 focus-visible:ring-[var(--cpw-accent)] focus-visible:outline-none"
           >
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <path d="M1 1l12 12M13 1L1 13" />
@@ -303,16 +308,16 @@ export function CoworkPromptModal({ onClose, baseUrl }: CoworkPromptModalProps) 
               <button
                 type="button"
                 onClick={() => setShowKey((v) => !v)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded px-1.5 py-0.5 text-[10px] text-[var(--cpw-text-muted)] hover:text-[var(--cpw-text)] transition-colors"
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded px-1.5 py-0.5 text-[11px] text-[var(--cpw-text-muted)] hover:text-[var(--cpw-text)] transition-colors motion-reduce:transition-none focus-visible:ring-2 focus-visible:ring-[var(--cpw-accent)] focus-visible:outline-none"
                 aria-label={showKey ? 'Ocultar key' : 'Mostrar key'}
               >
                 {showKey ? 'Ocultar' : 'Mostrar'}
               </button>
             </div>
-            <div className="mt-1 text-[10px] text-[var(--cpw-text-muted)]">
+            <div className="mt-1 text-[11px] text-[var(--cpw-text-muted)]">
               Encontre em .env.local → PIPELINE_COWORK_KEY
             </div>
-            <div className="mt-0.5 text-[10px] text-amber-500/80">
+            <div className="mt-0.5 text-[11px] text-amber-500/80">
               ⚠ O prompt gerado conterá sua key. Compartilhe apenas com sessões de IA confiáveis.
             </div>
           </div>
@@ -336,7 +341,7 @@ export function CoworkPromptModal({ onClose, baseUrl }: CoworkPromptModalProps) 
                     aria-checked={isActive}
                     tabIndex={isActive ? 0 : -1}
                     onClick={() => selectSkill(skill.id)}
-                    className={`rounded-md border px-3 py-1.5 text-xs font-medium transition-colors motion-reduce:transition-none ${
+                    className={`rounded-md border px-3 py-1.5 text-xs font-medium transition-colors motion-reduce:transition-none focus-visible:ring-2 focus-visible:ring-[var(--cpw-accent)] focus-visible:outline-none ${
                       isActive
                         ? 'border-indigo-500 bg-indigo-500/15 text-indigo-300'
                         : 'border-[var(--cpw-border)] bg-[var(--cpw-hover-bg)] text-[var(--cpw-text-muted)] hover:border-[var(--cpw-border-inactive)] hover:text-[var(--cpw-text)]'
@@ -352,7 +357,7 @@ export function CoworkPromptModal({ onClose, baseUrl }: CoworkPromptModalProps) 
                 aria-checked={allSkills}
                 tabIndex={allSkills ? 0 : -1}
                 onClick={selectAll}
-                className={`rounded-md border px-3 py-1.5 text-xs font-medium transition-colors motion-reduce:transition-none ${
+                className={`rounded-md border px-3 py-1.5 text-xs font-medium transition-colors motion-reduce:transition-none focus-visible:ring-2 focus-visible:ring-[var(--cpw-accent)] focus-visible:outline-none ${
                   allSkills
                     ? 'border-emerald-600 bg-emerald-600/15 text-emerald-400'
                     : 'border-[var(--cpw-border)] bg-[var(--cpw-hover-bg)] text-[var(--cpw-text-muted)] hover:border-[var(--cpw-border-inactive)] hover:text-[var(--cpw-text)]'
@@ -378,7 +383,7 @@ export function CoworkPromptModal({ onClose, baseUrl }: CoworkPromptModalProps) 
                     aria-pressed={isActive}
                     aria-label={domain.fullName}
                     onClick={() => toggleDomain(domain.id)}
-                    className={`rounded border px-2.5 py-1 text-[11px] transition-colors motion-reduce:transition-none ${
+                    className={`rounded border px-2.5 py-1 text-[11px] transition-colors motion-reduce:transition-none focus-visible:ring-2 focus-visible:ring-[var(--cpw-accent)] focus-visible:outline-none ${
                       isActive
                         ? 'border-indigo-500 bg-indigo-500/12 text-indigo-300'
                         : 'border-[var(--cpw-border)] bg-[var(--cpw-hover-bg)] text-[var(--cpw-text-muted)] hover:border-[var(--cpw-border-inactive)] hover:text-[var(--cpw-text-muted)]'
@@ -392,7 +397,7 @@ export function CoworkPromptModal({ onClose, baseUrl }: CoworkPromptModalProps) 
                 type="button"
                 aria-pressed={allDomainsSelected}
                 onClick={toggleAllDomains}
-                className={`rounded border px-2.5 py-1 text-[11px] font-medium transition-colors motion-reduce:transition-none ${
+                className={`rounded border px-2.5 py-1 text-[11px] font-medium transition-colors motion-reduce:transition-none focus-visible:ring-2 focus-visible:ring-[var(--cpw-accent)] focus-visible:outline-none ${
                   allDomainsSelected
                     ? 'border-emerald-600 bg-emerald-600/15 text-emerald-400'
                     : 'border-[var(--cpw-border)] bg-[var(--cpw-hover-bg)] text-[var(--cpw-text-muted)] hover:border-[var(--cpw-border-inactive)] hover:text-[var(--cpw-text-muted)]'
@@ -407,7 +412,7 @@ export function CoworkPromptModal({ onClose, baseUrl }: CoworkPromptModalProps) 
           <div>
             <div className="mb-2 flex items-center gap-2 text-xs font-medium text-[var(--cpw-text-muted)]">
               <span>Preview do prompt</span>
-              <span aria-live="polite" className="rounded-full bg-[var(--cpw-hover-bg)] px-2 py-0.5 text-[10px] text-[var(--cpw-text-muted)]">
+              <span aria-live="polite" className="rounded-full bg-[var(--cpw-hover-bg)] px-2 py-0.5 text-[11px] text-[var(--cpw-text-muted)]">
                 {stepCount} steps
               </span>
             </div>
@@ -417,11 +422,11 @@ export function CoworkPromptModal({ onClose, baseUrl }: CoworkPromptModalProps) 
 
         {/* Footer */}
         <div className="flex items-center justify-end gap-2 border-t border-[var(--cpw-border)] px-5 py-3.5">
-          <span className="mr-auto font-mono text-[10px] text-[var(--cpw-text-muted)]">⌘⏎ copiar</span>
+          <span className="mr-auto font-mono text-[11px] text-[var(--cpw-text-muted)]">⌘⏎ copiar</span>
           <button
             type="button"
             onClick={toggleMaxContext}
-            className={`flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-[11px] font-medium transition-colors motion-reduce:transition-none ${
+            className={`flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-[11px] font-medium transition-colors motion-reduce:transition-none focus-visible:ring-2 focus-visible:ring-[var(--cpw-accent)] focus-visible:outline-none ${
               isMaxContext
                 ? 'border-amber-500/40 bg-amber-500/10 text-amber-400'
                 : 'border-[var(--cpw-border)] text-[var(--cpw-text-muted)] hover:border-[var(--cpw-border-inactive)] hover:text-[var(--cpw-text-muted)]'
@@ -437,37 +442,34 @@ export function CoworkPromptModal({ onClose, baseUrl }: CoworkPromptModalProps) 
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md px-3 py-1.5 text-xs text-[var(--cpw-text-muted)] transition-colors motion-reduce:transition-none hover:bg-[var(--cpw-hover-bg)] hover:text-[var(--cpw-text)]"
+            className="rounded-md px-3 py-1.5 text-xs text-[var(--cpw-text-muted)] transition-colors motion-reduce:transition-none hover:bg-[var(--cpw-hover-bg)] hover:text-[var(--cpw-text)] focus-visible:ring-2 focus-visible:ring-[var(--cpw-accent)] focus-visible:outline-none"
           >
             Cancelar
           </button>
-          <button
-            type="button"
-            onClick={handleCopy}
-            disabled={copied}
-            className={`flex items-center gap-1.5 rounded-md px-4 py-1.5 text-xs font-medium text-white transition-all motion-reduce:transition-none ${
-              copied
-                ? 'bg-emerald-600'
-                : 'bg-[var(--cpw-accent)] hover:bg-[var(--cpw-accent-hover)]'
-            }`}
-          >
-            {copied ? (
-              <>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M20 6L9 17l-5-5" />
-                </svg>
-                Copiado!
-              </>
-            ) : (
-              <>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                  <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
-                </svg>
-                Copiar Prompt
-              </>
-            )}
-          </button>
+          {copied ? (
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex items-center gap-1.5 rounded-md px-4 py-1.5 text-xs font-medium text-white bg-emerald-600 transition-all motion-reduce:transition-none focus-visible:ring-2 focus-visible:ring-[var(--cpw-accent)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--cpw-bg)] focus-visible:outline-none"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 6L9 17l-5-5" />
+              </svg>
+              Copiado — fechar
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleCopy}
+              className="flex items-center gap-1.5 rounded-md px-4 py-1.5 text-xs font-medium text-white bg-[var(--cpw-accent)] hover:bg-[var(--cpw-accent-hover)] transition-all motion-reduce:transition-none focus-visible:ring-2 focus-visible:ring-[var(--cpw-accent)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--cpw-bg)] focus-visible:outline-none"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+              </svg>
+              Copiar Prompt
+            </button>
+          )}
         </div>
       </div>
     </div>

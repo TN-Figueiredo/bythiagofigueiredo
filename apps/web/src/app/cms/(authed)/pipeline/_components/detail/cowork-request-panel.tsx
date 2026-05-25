@@ -79,13 +79,14 @@ export function CoworkRequestPanel({
     : ''
   , [instructions, itemCode, itemTitle, format, stage, tags, hook, synopsis, sectionLabel, sectionKey, lang, rev, contentSummary, itemId, sectionBase, references, baseUrl])
 
-  const handleCopy = useCallback(() => {
+  const handleCopy = useCallback(async () => {
     if (!prompt) return
-    navigator.clipboard.writeText(prompt).then(() => {
+    try {
+      await navigator.clipboard.writeText(prompt)
       setCopied(true)
-    }).catch(() => {
+    } catch {
       toast.error('Não foi possível copiar automaticamente. Use Cmd+A, Cmd+C no preview acima.')
-    })
+    }
   }, [prompt])
 
   const handleSendAndWait = useCallback(() => {
@@ -115,7 +116,7 @@ export function CoworkRequestPanel({
     <div
       role="region"
       aria-label="Painel de requisição Cowork"
-      aria-description="Pressione Escape para fechar"
+      aria-describedby="cowork-panel-hint"
       className="sticky top-0 z-10 px-4 py-2.5"
       style={{
         background: 'color-mix(in srgb, var(--gem-accent) 4%, var(--gem-surface))',
@@ -124,6 +125,7 @@ export function CoworkRequestPanel({
         boxShadow: '0 4px 12px color-mix(in srgb, var(--gem-shadow, #000) 25%, transparent)',
       }}
     >
+      <span id="cowork-panel-hint" className="sr-only">Pressione Escape para fechar</span>
       <textarea
         ref={textareaRef}
         value={instructions}
@@ -151,7 +153,7 @@ export function CoworkRequestPanel({
             const truncated = text.length > 80
             const isExpanded = expandedCitations.has(id)
             return (
-              <div key={id} className="group flex gap-1.5 items-baseline" style={{ fontSize: '9px', color: 'var(--gem-dim)', lineHeight: '1.4' }}>
+              <div key={id} className="group flex gap-1.5 items-baseline" style={{ fontSize: '11px', color: 'var(--gem-dim)', lineHeight: '1.4' }}>
                 <span className="shrink-0 font-semibold" style={{ color: 'var(--gem-accent)' }}>[{id}]</span>
                 {truncated ? (
                   <span
@@ -194,7 +196,7 @@ export function CoworkRequestPanel({
             ? `${usedCitations.length} citacoes | Cole no Claude Cowork.`
             : 'Cole no Claude Cowork.'}
         </span>
-        <div className="flex gap-1.5 items-center">
+        <div className="flex gap-1.5 items-center" role="status" aria-live="polite">
           <button type="button" onClick={onClose} className="px-2 py-0.5 text-[11px] rounded focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)]" style={{ border: '1px solid var(--gem-border)', color: 'var(--gem-muted)' }}>Cancelar</button>
           {copied ? (
             <button

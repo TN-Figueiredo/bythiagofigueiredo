@@ -21,12 +21,10 @@ Object.defineProperty(navigator, 'clipboard', {
 // Fixtures
 // ---------------------------------------------------------------------------
 
-import { PromptGeneratorModal, generatePrompt } from '@/app/cms/(authed)/pipeline/_components/prompt-generator-modal'
-import type {
-  PipelineItemForPrompt,
-  SectionForPrompt,
-  PromptGeneratorModalProps,
-} from '@/app/cms/(authed)/pipeline/_components/prompt-generator-modal'
+import { PromptGeneratorModal } from '@/app/cms/(authed)/pipeline/_components/prompt-generator-modal'
+import type { PromptGeneratorModalProps } from '@/app/cms/(authed)/pipeline/_components/prompt-generator-modal'
+import { generatePrompt } from '@/lib/pipeline/prompt-builders'
+import type { PipelineItemForPrompt, SectionForPrompt } from '@/lib/pipeline/prompt-builders'
 
 const baseItem: PipelineItemForPrompt = {
   id: 'item-123',

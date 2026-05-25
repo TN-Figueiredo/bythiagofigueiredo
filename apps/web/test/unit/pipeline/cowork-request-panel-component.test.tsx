@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, act } from '@testing-library/react'
 import React from 'react'
 
 vi.mock('sonner', () => ({
@@ -92,10 +92,8 @@ describe('CoworkRequestPanel (component)', () => {
     const textarea = screen.getByLabelText('Instruções para o Cowork')
     fireEvent.change(textarea, { target: { value: 'Do something' } })
     const btn = screen.getByText('Copiar prompt')
-    fireEvent.click(btn)
-    await vi.waitFor(() => {
-      expect(mockClipboard.writeText).toHaveBeenCalledOnce()
-    })
+    await act(async () => { fireEvent.click(btn) })
+    expect(mockClipboard.writeText).toHaveBeenCalledOnce()
     const written = mockClipboard.writeText.mock.calls[0][0] as string
     expect(written).toContain('tg-01')
     expect(written).toContain('X-Pipeline-Key')
@@ -105,10 +103,8 @@ describe('CoworkRequestPanel (component)', () => {
     renderPanel()
     const textarea = screen.getByLabelText('Instruções para o Cowork')
     fireEvent.change(textarea, { target: { value: 'Write it' } })
-    fireEvent.click(screen.getByText('Copiar prompt'))
-    await vi.waitFor(() => {
-      expect(screen.getByText(/Enviado/)).toBeTruthy()
-    })
+    await act(async () => { fireEvent.click(screen.getByText('Copiar prompt')) })
+    expect(screen.getByText(/Enviado/)).toBeTruthy()
   })
 
   it('shows error toast when clipboard fails', async () => {
@@ -116,10 +112,8 @@ describe('CoworkRequestPanel (component)', () => {
     renderPanel()
     const textarea = screen.getByLabelText('Instruções para o Cowork')
     fireEvent.change(textarea, { target: { value: 'Write it' } })
-    fireEvent.click(screen.getByText('Copiar prompt'))
-    await vi.waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith('Não foi possível copiar automaticamente. Use Cmd+A, Cmd+C no preview acima.')
-    })
+    await act(async () => { fireEvent.click(screen.getByText('Copiar prompt')) })
+    expect(toast.error).toHaveBeenCalledWith('Não foi possível copiar automaticamente. Use Cmd+A, Cmd+C no preview acima.')
   })
 
   it('Cancelar button calls onClose', () => {
@@ -148,10 +142,8 @@ describe('CoworkRequestPanel (component)', () => {
     renderPanel({ onSendAndWait })
     const textarea = screen.getByLabelText('Instruções para o Cowork')
     fireEvent.change(textarea, { target: { value: 'Do it' } })
-    fireEvent.click(screen.getByText('Copiar prompt'))
-    await vi.waitFor(() => {
-      expect(screen.getByText(/Enviado/)).toBeTruthy()
-    })
+    await act(async () => { fireEvent.click(screen.getByText('Copiar prompt')) })
+    expect(screen.getByText(/Enviado/)).toBeTruthy()
     fireEvent.click(screen.getByText(/Enviado/))
     expect(onSendAndWait).toHaveBeenCalledOnce()
   })

@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, within } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { render, screen, fireEvent, within, act } from '@testing-library/react'
 import React from 'react'
 
 // ---------------------------------------------------------------------------
@@ -50,8 +50,57 @@ function renderModal(overrides: Partial<{ onClose: () => void; baseUrl: string }
 
 describe('CoworkPromptModal', () => {
   beforeEach(() => {
+    vi.useFakeTimers()
     vi.clearAllMocks()
     mockClipboard.writeText.mockResolvedValue(undefined)
+    try { sessionStorage.clear() } catch { /* test env */ }
+  })
+
+  afterEach(() => {
+    vi.runOnlyPendingTimers()
+    vi.useRealTimers()
+  })
+
+  // ---- 0. Scroll lock ----
+
+  it('locks body scroll on mount and restores on unmount', () => {
+    document.body.style.overflow = 'auto'
+    const { unmount } = renderModal()
+    expect(document.body.style.overflow).toBe('hidden')
+    unmount()
+    expect(document.body.style.overflow).toBe('auto')
+  })
+
+  // ---- 0b. Focus trap ----
+
+  it('traps Tab focus within the modal dialog', () => {
+    renderModal()
+    const dialog = screen.getByRole('dialog')
+    const focusable = dialog.querySelectorAll<HTMLElement>(
+      'a[href], input:not([disabled]), button:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    )
+    const first = focusable[0]
+    const last = focusable[focusable.length - 1]
+    // Focus last element, then Tab should wrap to first
+    last.focus()
+    expect(document.activeElement).toBe(last)
+    fireEvent.keyDown(dialog, { key: 'Tab' })
+    expect(document.activeElement).toBe(first)
+  })
+
+  it('traps Shift+Tab focus within the modal dialog', () => {
+    renderModal()
+    const dialog = screen.getByRole('dialog')
+    const focusable = dialog.querySelectorAll<HTMLElement>(
+      'a[href], input:not([disabled]), button:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    )
+    const first = focusable[0]
+    const last = focusable[focusable.length - 1]
+    // Focus first element, then Shift+Tab should wrap to last
+    first.focus()
+    expect(document.activeElement).toBe(first)
+    fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true })
+    expect(document.activeElement).toBe(last)
   })
 
   // ---- 1. Renders modal with dialog role and aria-modal ----
@@ -135,19 +184,13 @@ describe('CoworkPromptModal', () => {
     expect(screen.getByText('3 steps')).toBeTruthy()
   })
 
-  it('shows singular "step" for count of 1', () => {
+  it('step count increases when multiple domains are selected', () => {
     renderModal()
-    // Deselect skill by checking what happens with no skill: click Ideator to deselect?
-    // Actually "ideator" starts selected. The only way to get step=1 is no skill + no domains.
-    // But the skill radio group always has a selection (ideator default).
-    // Step count formula: 1 base + 1 if skill/allSkills + domain count
-    // We can't easily get to 1 in the current UI, but let's verify the counter works
-    // by selecting two domains
     const btn1 = screen.getByLabelText('Pipeline Items & Content Sections')
     const btn2 = screen.getByLabelText('Playlists & Graph')
     fireEvent.click(btn1)
     fireEvent.click(btn2)
-    // 1 + 1 + 2 = 4
+    // 1 (catalog) + 1 (skill) + 2 (domains) = 4
     expect(screen.getByText('4 steps')).toBeTruthy()
   })
 
@@ -250,10 +293,8 @@ describe('CoworkPromptModal', () => {
   it('copy button calls navigator.clipboard.writeText with prompt text', async () => {
     renderModal()
     const copyBtn = screen.getByRole('button', { name: /copiar prompt/i })
-    fireEvent.click(copyBtn)
-    await vi.waitFor(() => {
-      expect(mockClipboard.writeText).toHaveBeenCalledOnce()
-    })
+    await act(async () => { fireEvent.click(copyBtn) })
+    expect(mockClipboard.writeText).toHaveBeenCalledOnce()
     const writtenText = mockClipboard.writeText.mock.calls[0][0] as string
     expect(writtenText).toContain(`GET ${BASE_URL}/api/pipeline/`)
     expect(writtenText).toContain('confirme prontidão')
@@ -262,29 +303,32 @@ describe('CoworkPromptModal', () => {
   it('shows success toast after copying', async () => {
     renderModal()
     const copyBtn = screen.getByRole('button', { name: /copiar prompt/i })
-    fireEvent.click(copyBtn)
-    await vi.waitFor(() => {
-      expect(toast.success).toHaveBeenCalledWith('Prompt copiado! ⚠️ Lembre de preencher a Pipeline Key no prompt.')
-    })
+    await act(async () => { fireEvent.click(copyBtn) })
+    expect(toast.success).toHaveBeenCalledWith('Prompt copiado! ⚠️ Lembre de preencher a Pipeline Key no prompt.')
   })
 
   it('shows error toast when clipboard write fails', async () => {
     mockClipboard.writeText.mockRejectedValueOnce(new Error('denied'))
     renderModal()
     const copyBtn = screen.getByRole('button', { name: /copiar prompt/i })
-    fireEvent.click(copyBtn)
-    await vi.waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith('Falha ao copiar')
-    })
+    await act(async () => { fireEvent.click(copyBtn) })
+    expect(toast.error).toHaveBeenCalledWith('Falha ao copiar')
   })
 
-  it('button text changes to "Copiado!" after successful copy', async () => {
+  it('button changes to "Copiado — fechar" after successful copy', async () => {
     renderModal()
     const copyBtn = screen.getByRole('button', { name: /copiar prompt/i })
-    fireEvent.click(copyBtn)
-    await vi.waitFor(() => {
-      expect(screen.getByText('Copiado!')).toBeTruthy()
-    })
+    await act(async () => { fireEvent.click(copyBtn) })
+    expect(screen.getByText(/Copiado — fechar/)).toBeTruthy()
+  })
+
+  it('"Copiado — fechar" button calls onClose', async () => {
+    const { onClose } = renderModal()
+    const copyBtn = screen.getByRole('button', { name: /copiar prompt/i })
+    await act(async () => { fireEvent.click(copyBtn) })
+    const closeBtn = screen.getByText(/Copiado — fechar/)
+    fireEvent.click(closeBtn)
+    expect(onClose).toHaveBeenCalledOnce()
   })
 
   // ---- 7. Escape key triggers onClose ----
@@ -297,18 +341,14 @@ describe('CoworkPromptModal', () => {
 
   it('Cmd+Enter triggers copy', async () => {
     renderModal()
-    fireEvent.keyDown(document, { key: 'Enter', metaKey: true })
-    await vi.waitFor(() => {
-      expect(mockClipboard.writeText).toHaveBeenCalledOnce()
-    })
+    await act(async () => { fireEvent.keyDown(document, { key: 'Enter', metaKey: true }) })
+    expect(mockClipboard.writeText).toHaveBeenCalledOnce()
   })
 
   it('Ctrl+Enter triggers copy', async () => {
     renderModal()
-    fireEvent.keyDown(document, { key: 'Enter', ctrlKey: true })
-    await vi.waitFor(() => {
-      expect(mockClipboard.writeText).toHaveBeenCalledOnce()
-    })
+    await act(async () => { fireEvent.keyDown(document, { key: 'Enter', ctrlKey: true }) })
+    expect(mockClipboard.writeText).toHaveBeenCalledOnce()
   })
 
   // ---- 8. Skills are rendered with radio role ----
@@ -442,9 +482,7 @@ describe('CoworkPromptModal', () => {
     const input = screen.getByLabelText('Pipeline API Key')
     fireEvent.change(input, { target: { value: 'my-key' } })
     const copyBtn = screen.getByRole('button', { name: /copiar prompt/i })
-    fireEvent.click(copyBtn)
-    await vi.waitFor(() => {
-      expect(toast.success).toHaveBeenCalledWith('Prompt copiado!')
-    })
+    await act(async () => { fireEvent.click(copyBtn) })
+    expect(toast.success).toHaveBeenCalledWith('Prompt copiado!')
   })
 })
