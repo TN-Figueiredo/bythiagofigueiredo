@@ -34,7 +34,7 @@ export default async function ReferencePage() {
 
   return (
     <>
-      <CmsTopbar title="Pipeline — Reference" />
+      <CmsTopbar title="Reference" />
       <div className="p-6">
         <ReferenceEditor docs={docs ?? []} groups={groups} onUpsert={upsertReference} pipelineKey={process.env.PIPELINE_COWORK_KEY ?? ''} />
       </div>

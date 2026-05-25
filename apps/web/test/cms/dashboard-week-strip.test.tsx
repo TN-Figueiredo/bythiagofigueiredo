@@ -48,7 +48,7 @@ function makeWeekDays(todayIndex = 4): WeekDayItem[] {
             { type: 'newsletter' as const, title: 'Weekly Digest', href: '/cms/newsletters/2/edit' },
           ]
         : i === 2
-          ? [{ type: 'pipeline' as const, title: 'Idea X', href: '/cms/pipeline?item=3' }]
+          ? [{ type: 'pipeline' as const, title: 'Idea X', href: '/cms/up-next?item=3' }]
           : [],
   }))
 }

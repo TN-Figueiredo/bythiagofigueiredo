@@ -104,7 +104,7 @@ export async function createPipelineItem(input: Record<string, unknown>): Promis
     .single()
 
   if (error) return { ok: false, error: error.message }
-  revalidatePath('/cms/pipeline')
+  revalidatePath('/cms/up-next')
   revalidateTag('pipeline-blog')
   return { ok: true, data: item }
 }
@@ -131,7 +131,7 @@ export async function updatePipelineItem(id: string, version: number, input: Rec
     .single()
 
   if (error || !updated) return { ok: false, error: 'Version conflict or item not found' }
-  revalidatePath('/cms/pipeline')
+  revalidatePath('/cms/up-next')
   revalidateTag('pipeline-blog')
   return { ok: true, data: updated }
 }
@@ -201,7 +201,7 @@ export async function advancePipelineItem(id: string, version: number): Promise<
     }
   }
 
-  revalidatePath('/cms/pipeline')
+  revalidatePath('/cms/up-next')
   revalidateTag('pipeline-blog')
   if (graduationResult) revalidatePath('/cms/social')
   return { ok: true, data: { ...updated, graduationResult } }
@@ -230,7 +230,7 @@ export async function movePipelineItemToStage(
     .single()
 
   if (error || !updated) return { ok: false, error: 'Version conflict or item not found' }
-  revalidatePath('/cms/pipeline')
+  revalidatePath('/cms/up-next')
   revalidateTag('pipeline-blog')
   revalidatePath('/cms/blog')
   return { ok: true, data: updated }
@@ -263,7 +263,7 @@ export async function retreatPipelineItem(id: string, version: number): Promise<
     .single()
 
   if (error || !updated) return { ok: false, error: 'Version conflict' }
-  revalidatePath('/cms/pipeline')
+  revalidatePath('/cms/up-next')
   revalidateTag('pipeline-blog')
   return { ok: true, data: updated }
 }
@@ -279,7 +279,7 @@ export async function archivePipelineItem(id: string): Promise<ActionResult> {
     .eq('site_id', siteId)
 
   if (error) return { ok: false, error: error.message }
-  revalidatePath('/cms/pipeline')
+  revalidatePath('/cms/up-next')
   revalidateTag('pipeline-blog')
   return { ok: true }
 }
@@ -297,7 +297,7 @@ export async function restorePipelineItem(id: string): Promise<ActionResult> {
     .single()
 
   if (error || !updated) return { ok: false, error: 'Item not found' }
-  revalidatePath('/cms/pipeline')
+  revalidatePath('/cms/up-next')
   revalidateTag('pipeline-blog')
   return { ok: true, data: updated }
 }
@@ -328,7 +328,7 @@ export async function toggleChecklist(id: string, index: number, done: boolean):
     .single()
 
   if (error) return { ok: false, error: error.message }
-  revalidatePath('/cms/pipeline')
+  revalidatePath('/cms/up-next')
   revalidateTag('pipeline-blog')
   return { ok: true, data: updated }
 }
@@ -367,7 +367,7 @@ export async function upsertReference(key: string, input: { title: string; conte
     .single()
 
   if (error) return { ok: false, error: error.message }
-  revalidatePath('/cms/pipeline/reference')
+  revalidatePath('/cms/library/reference')
   return { ok: true, data }
 }
 
@@ -395,7 +395,7 @@ export async function graduatePipelineToSocial(id: string, version: number): Pro
 
   if (!result.ok) return { ok: false, error: result.error ?? 'Graduation failed' }
 
-  revalidatePath('/cms/pipeline')
+  revalidatePath('/cms/up-next')
   revalidatePath('/cms/social')
   revalidateTag('pipeline-blog')
   return { ok: true, data: result.data }

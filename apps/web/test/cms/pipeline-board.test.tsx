@@ -4,7 +4,7 @@ import { render, screen } from '@testing-library/react'
 vi.mock('next/navigation', () => ({
   useRouter: vi.fn(() => ({ push: vi.fn(), refresh: vi.fn() })),
   useSearchParams: vi.fn(() => new URLSearchParams()),
-  usePathname: vi.fn(() => '/cms/pipeline/video'),
+  usePathname: vi.fn(() => '/cms/video'),
 }))
 
 vi.mock('next/link', () => ({

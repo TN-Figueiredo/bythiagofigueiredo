@@ -638,7 +638,7 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
       <div className="flex-1 min-w-0 flex flex-col gap-3.5">
         {/* Breadcrumb */}
         <nav className="flex items-center gap-2 text-xs" style={{ color: 'var(--gem-dim)' }} aria-label="Breadcrumb">
-          <Link href="/cms/pipeline" className="hover:underline">Pipeline</Link>
+          <Link href="/cms/up-next" className="hover:underline">Up Next</Link>
           <span aria-hidden="true">/</span>
           <Link href={`/cms/pipeline/${item.format}`} className="hover:underline">{formatIcon.label}</Link>
           <span aria-hidden="true">/</span>

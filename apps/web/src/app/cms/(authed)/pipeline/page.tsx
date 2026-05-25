@@ -42,7 +42,7 @@ export default async function PipelineOverviewPage() {
 
   return (
     <>
-      <CmsTopbar title="Pipeline Overview" />
+      <CmsTopbar title="Up Next" />
       <div className="p-6 gem-pipeline-theme" style={GEM_CSS_VARS as React.CSSProperties}>
         <PipelineOverview stats={stats} recommendations={recommendations} activity={activity} />
       </div>

@@ -146,7 +146,7 @@ export function PipelineOverview({ stats, recommendations, activity }: PipelineO
       {stats.total === 0 && (
         <div className="rounded-lg border p-8 text-center" style={{ backgroundColor: 'var(--gem-surface)', borderColor: 'var(--gem-border)' }}>
           <p className="text-sm mb-3" style={{ color: 'var(--gem-muted)' }}>Pipeline vazio. Crie seu primeiro item.</p>
-          <Link href="/cms/pipeline/video" className="text-xs px-3 py-1.5 rounded-lg" style={{ backgroundColor: 'var(--gem-accent)', color: 'white' }}>+ Novo item</Link>
+          <Link href="/cms/video" className="text-xs px-3 py-1.5 rounded-lg" style={{ backgroundColor: 'var(--gem-accent)', color: 'white' }}>+ Novo item</Link>
         </div>
       )}
     </div>

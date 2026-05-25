@@ -59,7 +59,7 @@ export default async function AudioPage() {
 
   return (
     <>
-      <CmsTopbar title="Pipeline — Audio Library" />
+      <CmsTopbar title="Audio Library" />
       <div className="p-4 gem-pipeline-theme" style={{ height: 'calc(100vh - 6rem)', ...GEM_CSS_VARS } as React.CSSProperties}>
         <AudioErrorBoundary>
           <Suspense fallback={<div style={{ padding: 24 }}><AudioGridSkeleton /></div>}>

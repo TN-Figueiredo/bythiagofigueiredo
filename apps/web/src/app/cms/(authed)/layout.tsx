@@ -73,7 +73,7 @@ export default async function Layout({ children }: { children: ReactNode }) {
   const badges: Record<string, number> = {}
   if (pendingContactsRes.count) badges['/cms/contacts'] = pendingContactsRes.count
   if (ytPendingRes.count) badges['/cms/youtube'] = ytPendingRes.count
-  if (researchUnreadRes.count) badges['/cms/pipeline/research'] = researchUnreadRes.count
+  if (researchUnreadRes.count) badges['/cms/library/research'] = researchUnreadRes.count
 
   return (
     <CmsAdminProvider linkComponent={Link}>

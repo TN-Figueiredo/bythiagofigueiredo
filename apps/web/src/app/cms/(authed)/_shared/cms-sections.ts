@@ -21,7 +21,7 @@ export function buildCmsSections(): SidebarSection[] {
       label: 'Overview',
       items: [
         { icon: icon(LayoutDashboard), label: 'Dashboard', href: '/cms' },
-        { icon: icon(Kanban), label: 'Up Next', href: '/cms/pipeline', minRole: 'editor' },
+        { icon: icon(Kanban), label: 'Up Next', href: '/cms/up-next', minRole: 'editor' },
         { icon: icon(Calendar), label: 'Schedule', href: '/cms/schedule' },
         { icon: icon(TrendingUp), label: 'Analytics', href: '/cms/analytics', minRole: 'editor' },
       ],
@@ -30,8 +30,8 @@ export function buildCmsSections(): SidebarSection[] {
       label: 'Content',
       items: [
         { icon: icon(FileText), label: 'Blog', href: '/cms/blog' },
-        { icon: icon(Video), label: 'Video', href: '/cms/pipeline/video', minRole: 'editor' },
-        { icon: icon(GraduationCap), label: 'Courses', href: '/cms/pipeline/course', minRole: 'editor' },
+        { icon: icon(Video), label: 'Video', href: '/cms/video', minRole: 'editor' },
+        { icon: icon(GraduationCap), label: 'Courses', href: '/cms/courses', minRole: 'editor' },
         { icon: icon(Mail), label: 'Newsletters', href: '/cms/newsletters', minRole: 'editor' },
         { icon: icon(Megaphone), label: 'Campaigns', href: '/cms/campaigns', minRole: 'editor' },
         { icon: icon(ListMusic), label: 'Playlists', href: '/cms/playlists', minRole: 'editor' },
@@ -40,10 +40,10 @@ export function buildCmsSections(): SidebarSection[] {
     {
       label: 'Library',
       items: [
-        { icon: icon(Microscope), label: 'Research', href: '/cms/pipeline/research', minRole: 'editor' },
-        { icon: icon(BookOpen), label: 'Reference', href: '/cms/pipeline/reference', minRole: 'editor' },
+        { icon: icon(Microscope), label: 'Research', href: '/cms/library/research', minRole: 'editor' },
+        { icon: icon(BookOpen), label: 'Reference', href: '/cms/library/reference', minRole: 'editor' },
         { icon: icon(Image), label: 'Media', href: '/cms/media', minRole: 'editor' },
-        { icon: icon(Headphones), label: 'Audio', href: '/cms/pipeline/audio', minRole: 'editor' },
+        { icon: icon(Headphones), label: 'Audio', href: '/cms/library/audio', minRole: 'editor' },
       ],
     },
     {
@@ -52,7 +52,7 @@ export function buildCmsSections(): SidebarSection[] {
         { icon: icon(Youtube), label: 'YouTube', href: '/cms/youtube', minRole: 'editor' },
         { icon: icon(Send), label: 'Posts', href: '/cms/social', minRole: 'reporter' },
         { icon: icon(Link2), label: 'Links', href: '/cms/links', minRole: 'editor' },
-        { icon: icon(ExternalLink), label: 'Link in Bio', href: '/cms/linktree', minRole: 'editor' },
+        { icon: icon(ExternalLink), label: 'Link in Bio', href: '/cms/link-in-bio', minRole: 'editor' },
       ],
     },
     {

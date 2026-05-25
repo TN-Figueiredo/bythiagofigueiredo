@@ -56,7 +56,7 @@ export default async function ResearchPage() {
 
   return (
     <>
-      <CmsTopbar title="Pipeline — Research" />
+      <CmsTopbar title="Research Library" />
       <div className="p-4 gem-pipeline-theme" style={{ height: 'calc(100vh - 6rem)', ...GEM_CSS_VARS } as React.CSSProperties}>
         <ResearchLibrary
           topics={topics}

@@ -44,7 +44,7 @@ describe('buildCmsSections — v3 nav redesign', () => {
 
     it('correct hrefs', () => {
       expect(overview.items.map(i => i.href)).toEqual([
-        '/cms', '/cms/pipeline', '/cms/schedule', '/cms/analytics',
+        '/cms', '/cms/up-next', '/cms/schedule', '/cms/analytics',
       ])
     })
 
@@ -98,7 +98,7 @@ describe('buildCmsSections — v3 nav redesign', () => {
 
     it('correct hrefs', () => {
       expect(library.items.map(i => i.href)).toEqual([
-        '/cms/pipeline/research', '/cms/pipeline/reference', '/cms/media', '/cms/pipeline/audio',
+        '/cms/library/research', '/cms/library/reference', '/cms/media', '/cms/library/audio',
       ])
     })
 
@@ -120,7 +120,7 @@ describe('buildCmsSections — v3 nav redesign', () => {
 
     it('correct hrefs', () => {
       expect(social.items.map(i => i.href)).toEqual([
-        '/cms/youtube', '/cms/social', '/cms/links', '/cms/linktree',
+        '/cms/youtube', '/cms/social', '/cms/links', '/cms/link-in-bio',
       ])
     })
 

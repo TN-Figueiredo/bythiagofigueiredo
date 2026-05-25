@@ -64,7 +64,7 @@ export function PipelineBodyEditor({ itemId, version: initialVersion, initialCon
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between px-6 py-3 border-b" style={{ borderColor: 'var(--gem-border)' }}>
         <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--gem-dim)' }}>
-          <Link href="/cms/pipeline" className="hover:underline">Pipeline</Link>
+          <Link href="/cms/up-next" className="hover:underline">Up Next</Link>
           <span>/</span>
           <Link href={`/cms/pipeline/${format}`} className="hover:underline">{format}</Link>
           <span>/</span>

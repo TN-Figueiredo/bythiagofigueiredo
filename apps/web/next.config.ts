@@ -59,7 +59,30 @@ const nextConfig: NextConfig = {
       { source: '/cms/posts', destination: '/cms/blog', permanent: true },
       { source: '/cms/posts/:id', destination: '/cms/blog/:id/edit', permanent: true },
       { source: '/cms/pipeline/blog_post', destination: '/cms/blog', permanent: true },
+      { source: '/cms/pipeline', destination: '/cms/up-next', permanent: true },
+      { source: '/cms/pipeline/video', destination: '/cms/video', permanent: true },
+      { source: '/cms/pipeline/course', destination: '/cms/courses', permanent: true },
+      { source: '/cms/pipeline/research', destination: '/cms/library/research', permanent: true },
+      { source: '/cms/pipeline/reference', destination: '/cms/library/reference', permanent: true },
+      { source: '/cms/pipeline/audio', destination: '/cms/library/audio', permanent: true },
+      { source: '/cms/linktree', destination: '/cms/link-in-bio', permanent: true },
+      { source: '/cms/linktree/:path+', destination: '/cms/link-in-bio/:path+', permanent: true },
     ]
+  },
+
+  async rewrites() {
+    return {
+      beforeFiles: [
+        { source: '/cms/up-next', destination: '/cms/pipeline' },
+        { source: '/cms/video', destination: '/cms/pipeline/video' },
+        { source: '/cms/courses', destination: '/cms/pipeline/course' },
+        { source: '/cms/library/research', destination: '/cms/pipeline/research' },
+        { source: '/cms/library/reference', destination: '/cms/pipeline/reference' },
+        { source: '/cms/library/audio', destination: '/cms/pipeline/audio' },
+        { source: '/cms/link-in-bio', destination: '/cms/linktree' },
+        { source: '/cms/link-in-bio/:path+', destination: '/cms/linktree/:path+' },
+      ],
+    }
   },
 
   async headers() {

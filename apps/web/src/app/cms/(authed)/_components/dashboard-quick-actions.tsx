@@ -22,7 +22,7 @@ const ACTIONS: QuickAction[] = [
   },
   {
     title: 'Item Pipeline',
-    href: '/cms/pipeline?action=new',
+    href: '/cms/up-next?action=new',
     gradient: 'from-[var(--color-video)] to-[#f97316]',
     icon: 'I',
   },

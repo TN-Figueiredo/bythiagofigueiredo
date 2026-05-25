@@ -6,7 +6,7 @@ const mockReplace = vi.fn()
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: mockReplace }),
   useSearchParams: () => new URLSearchParams(),
-  usePathname: () => '/cms/pipeline/video',
+  usePathname: () => '/cms/video',
 }))
 
 describe('PipelineFilterBar', () => {

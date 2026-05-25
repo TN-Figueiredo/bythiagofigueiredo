@@ -71,7 +71,7 @@ export default async function FormatBoardPage({
 
   return (
     <>
-      <CmsTopbar title={`Pipeline: ${labels[format]}`} />
+      <CmsTopbar title={labels[format] ?? format} />
       <div className="p-4 gem-pipeline-theme" style={GEM_CSS_VARS as React.CSSProperties}>
         <PipelineBoard format={format as Format} items={boardItems} showCreate={showCreate} />
       </div>

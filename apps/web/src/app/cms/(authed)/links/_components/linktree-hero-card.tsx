@@ -43,13 +43,13 @@ export function LinktreeHeroCard({ domain, totalViews, last30dViews, uniqueVisit
         </div>
         <div className="flex items-center gap-2">
           <a
-            href="/cms/linktree/analytics"
+            href="/cms/link-in-bio/analytics"
             className="flex items-center gap-1 rounded border border-border px-2 py-1 text-[11px] text-muted-foreground hover:text-foreground"
           >
             <BarChart3 size={12} /> Analytics
           </a>
           <a
-            href="/cms/linktree"
+            href="/cms/link-in-bio"
             className="flex items-center gap-1 rounded border border-border px-2 py-1 text-[11px] text-muted-foreground hover:text-foreground"
           >
             <Pencil size={12} /> Editar

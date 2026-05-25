@@ -29,7 +29,7 @@ describe('buildCmsSections — Social section (v3 redesign)', () => {
       '/cms/youtube',
       '/cms/social',
       '/cms/links',
-      '/cms/linktree',
+      '/cms/link-in-bio',
     ])
   })
 

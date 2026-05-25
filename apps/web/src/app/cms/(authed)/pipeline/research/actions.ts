@@ -56,7 +56,7 @@ export async function saveResearchItem(
     .single()
 
   if (error || !updated) return { ok: false, error: 'Version conflict or item not found' }
-  revalidatePath('/cms/pipeline/research')
+  revalidatePath('/cms/library/research')
   return { ok: true, data: updated }
 }
 
@@ -83,7 +83,7 @@ export async function updateResearchStatus(
     .single()
 
   if (error || !updated) return { ok: false, error: version !== undefined ? 'Version conflict or item not found' : 'Item not found' }
-  revalidatePath('/cms/pipeline/research')
+  revalidatePath('/cms/library/research')
   return { ok: true, data: updated }
 }
 
@@ -112,7 +112,7 @@ export async function moveResearchToTopic(
     .single()
 
   if (error || !updated) return { ok: false, error: 'Item not found' }
-  revalidatePath('/cms/pipeline/research')
+  revalidatePath('/cms/library/research')
   return { ok: true, data: updated }
 }
 
@@ -130,7 +130,7 @@ export async function deleteResearchItem(id: string): Promise<ActionResult> {
     .eq('site_id', siteId)
 
   if (error) return { ok: false, error: error.message }
-  revalidatePath('/cms/pipeline/research')
+  revalidatePath('/cms/library/research')
   return { ok: true }
 }
 
@@ -174,7 +174,7 @@ export async function createResearchTopic(
     return { ok: false, error: error.message }
   }
 
-  revalidatePath('/cms/pipeline/research')
+  revalidatePath('/cms/library/research')
   return { ok: true, data: topic }
 }
 
@@ -204,7 +204,7 @@ export async function updateResearchTopic(
     .single()
 
   if (error || !updated) return { ok: false, error: 'Topic not found' }
-  revalidatePath('/cms/pipeline/research')
+  revalidatePath('/cms/library/research')
   return { ok: true, data: updated }
 }
 
@@ -219,7 +219,7 @@ export async function deleteResearchTopic(id: string): Promise<ActionResult> {
     .eq('site_id', siteId)
 
   if (error) return { ok: false, error: error.message }
-  revalidatePath('/cms/pipeline/research')
+  revalidatePath('/cms/library/research')
   return { ok: true }
 }
 
@@ -258,7 +258,7 @@ export async function linkResearchToItem(
     return { ok: false, error: error.message }
   }
 
-  revalidatePath('/cms/pipeline/research')
+  revalidatePath('/cms/library/research')
   return { ok: true, data: link }
 }
 
@@ -283,6 +283,6 @@ export async function unlinkResearchFromItem(linkId: string): Promise<ActionResu
     .eq('id', linkId)
 
   if (error) return { ok: false, error: error.message }
-  revalidatePath('/cms/pipeline/research')
+  revalidatePath('/cms/library/research')
   return { ok: true }
 }

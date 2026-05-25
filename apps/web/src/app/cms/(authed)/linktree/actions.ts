@@ -44,7 +44,7 @@ export async function saveLinktreeConfig(
 
   revalidateTag('linktree-config')
   revalidateTag('sidebar-badges')
-  revalidatePath('/cms/linktree')
+  revalidatePath('/cms/link-in-bio')
   revalidatePath('/go/linktree')
 
   return { ok: true }
