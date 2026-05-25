@@ -395,4 +395,41 @@ describe('CoworkPromptModal', () => {
     fireEvent.mouseDown(backdrop, { target: backdrop, currentTarget: backdrop })
     expect(onClose).toHaveBeenCalledOnce()
   })
+
+  // ---- Show/hide key toggle ----
+
+  it('toggle button reveals and hides the pipeline key input', () => {
+    renderModal()
+    const input = screen.getByLabelText('Pipeline API Key')
+    expect(input.getAttribute('type')).toBe('password')
+    const toggleBtn = screen.getByLabelText('Mostrar key')
+    fireEvent.click(toggleBtn)
+    expect(input.getAttribute('type')).toBe('text')
+    expect(screen.getByLabelText('Ocultar key')).toBeTruthy()
+    fireEvent.click(screen.getByLabelText('Ocultar key'))
+    expect(input.getAttribute('type')).toBe('password')
+  })
+
+  // ---- Pipeline key appears in prompt ----
+
+  it('pipeline key appears in the generated prompt when set', () => {
+    renderModal()
+    const input = screen.getByLabelText('Pipeline API Key')
+    fireEvent.change(input, { target: { value: 'test-key-abc' } })
+    const dialog = screen.getByRole('dialog')
+    expect(dialog.textContent).toContain('test-key-abc')
+  })
+
+  // ---- Copy with key set shows simple toast ----
+
+  it('shows simple toast when key is set and prompt is copied', async () => {
+    renderModal()
+    const input = screen.getByLabelText('Pipeline API Key')
+    fireEvent.change(input, { target: { value: 'my-key' } })
+    const copyBtn = screen.getByRole('button', { name: /copiar prompt/i })
+    fireEvent.click(copyBtn)
+    await vi.waitFor(() => {
+      expect(toast.success).toHaveBeenCalledWith('Prompt copiado!')
+    })
+  })
 })

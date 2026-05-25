@@ -189,9 +189,10 @@ export function CoworkRequestPanel({
             : 'Cole no Claude Cowork.'}
         </span>
         <div className="flex gap-1.5 items-center">
-          <button onClick={onClose} className="px-2 py-0.5 text-[10px] rounded" style={{ border: '1px solid var(--gem-border)', color: 'var(--gem-muted)' }}>Cancelar</button>
+          <button type="button" onClick={onClose} className="px-2 py-0.5 text-[10px] rounded" style={{ border: '1px solid var(--gem-border)', color: 'var(--gem-muted)' }}>Cancelar</button>
           {copied ? (
             <button
+              type="button"
               onClick={handleSendAndWait}
               className="px-2.5 py-0.5 text-[10px] font-semibold rounded"
               style={{ background: 'var(--gem-done)', border: '1px solid var(--gem-done)', color: 'var(--gem-on-accent, #fff)' }}
@@ -200,6 +201,7 @@ export function CoworkRequestPanel({
             </button>
           ) : (
             <button
+              type="button"
               onClick={handleCopy}
               disabled={!prompt}
               className="px-2 py-0.5 text-[10px] font-semibold rounded"

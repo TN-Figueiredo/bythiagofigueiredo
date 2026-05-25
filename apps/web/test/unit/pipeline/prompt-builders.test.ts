@@ -282,6 +282,12 @@ describe('buildPrompt', () => {
     expect(result).toContain('3. PATCH /api/pipeline/items/abc-123/sections/draft?lang=pt')
   })
 
+  it('includes X-Pipeline-Key auth instruction', () => {
+    const result = buildPrompt(baseBuildCtx)
+    expect(result).toContain('X-Pipeline-Key')
+    expect(result).toContain('# Auth: include X-Pipeline-Key header in ALL requests.')
+  })
+
   it('includes X-Expected-Version header instruction', () => {
     const result = buildPrompt(baseBuildCtx)
     expect(result).toContain('X-Expected-Version')

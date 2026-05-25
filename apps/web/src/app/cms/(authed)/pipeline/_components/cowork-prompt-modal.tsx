@@ -96,7 +96,11 @@ export function CoworkPromptModal({ onClose, baseUrl }: CoworkPromptModalProps) 
 
   useEffect(() => {
     try {
-      if (pipelineKey) localStorage.setItem('cowork-pipeline-key', pipelineKey)
+      if (pipelineKey) {
+        localStorage.setItem('cowork-pipeline-key', pipelineKey)
+      } else {
+        localStorage.removeItem('cowork-pipeline-key')
+      }
     } catch { /* SSR/test */ }
   }, [pipelineKey])
 
