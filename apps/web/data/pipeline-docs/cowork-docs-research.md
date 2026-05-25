@@ -105,3 +105,14 @@ Returns hierarchical topic tree with `slug`, `name`, `depth`, `parent_slug`, and
 Relationships: `informs`, `supports`, `contradicts`, `expands`.
 
 **DELETE /api/pipeline/research/:id/links/:linkId** — Remove a link.
+
+## Error Codes
+
+| Code | Meaning | Action |
+|------|---------|--------|
+| 400 | Invalid request body or parameters | Check field types and required fields |
+| 401 | Missing or invalid X-Pipeline-Key | Verify header is present in request |
+| 404 | Resource not found | Verify the ID exists |
+| 409 | Revision conflict (rev mismatch) | Re-GET the resource, use current rev, retry |
+| 412 | Version conflict (X-Expected-Version mismatch) | Re-GET the item to refresh version, retry |
+| 429 | Rate limit exceeded (100/min) | Wait and retry |

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
+import { toast } from 'sonner'
 import { summarizeContent, buildPrompt } from '@/lib/pipeline/prompt-builders'
 
 // ---------------------------------------------------------------------------
@@ -87,7 +88,7 @@ export function CoworkRequestPanel({
     navigator.clipboard.writeText(prompt).then(() => {
       setCopied(true)
     }).catch(() => {
-      window.prompt('Copie o prompt abaixo:', prompt)
+      toast.error('Não foi possível copiar automaticamente. Use Cmd+A, Cmd+C no preview acima.')
     })
   }, [prompt])
 

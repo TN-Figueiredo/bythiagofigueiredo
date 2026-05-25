@@ -203,3 +203,16 @@ Sort orders: 1000, 2000, 3000... Items não listados mantêm sort_order atual.
 5. Posições (x, y): default (0,0). Use auto-layout para organizar
 6. `name_en` obrigatório. `name_pt` pode ser vazio. Slug gerado de `name_en`
 7. Erros: formato `{ "error": { "code": "...", "message": "..." } }`
+
+## Error Codes
+
+| Code | Meaning | Action |
+|------|---------|--------|
+| 400 | Invalid request body or parameters | Check field types and required fields |
+| 401 | Missing or invalid X-Pipeline-Key | Verify header is present in request |
+| 404 | Resource not found | Verify the ID exists |
+| 409 | Revision conflict (rev mismatch) | Re-GET the resource, use current rev, retry |
+| 412 | Version conflict (X-Expected-Version mismatch) | Re-GET the item to refresh version, retry |
+| 429 | Rate limit exceeded (100/min) | Wait and retry |
+
+**Note on DELETE cascade:** Deleting a playlist (`DELETE /playlists/:id`) cascades to all items and edges belonging to that playlist. This operation is irreversible — there is no soft delete. Similarly, deleting a playlist item (`DELETE /playlists/:id/items/:itemId`) removes all edges connected to that item.

@@ -267,6 +267,17 @@ Canais menores recebem "benefício da dúvida" — CTR e retenção naturalmente
 - Rate limit: 100 requests/minuto por API key
 - Headers: `X-RateLimit-Remaining`, `X-RateLimit-Reset`
 
+## Error Codes
+
+| Code | Meaning | Action |
+|------|---------|--------|
+| 400 | Invalid request body or parameters | Check field types and required fields |
+| 401 | Missing or invalid X-Pipeline-Key | Verify header is present in request |
+| 404 | Resource not found | Verify the ID exists — for channel_id, note that 404 can mean the YouTube channel hasn't been synced yet (run a sync first) |
+| 409 | Revision conflict (rev mismatch) | Re-GET the resource, use current rev, retry |
+| 412 | Version conflict (X-Expected-Version mismatch) | Re-GET the item to refresh version, retry |
+| 429 | Rate limit exceeded (100/min) | Wait and retry |
+
 ---
 
 ## Exemplo Completo de Análise
