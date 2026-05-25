@@ -9,6 +9,7 @@ const TAB_LABELS: Record<AnalyticsTab, string> = {
   content: 'Content',
   links: 'Links',
   audience: 'Audience',
+  fans: 'Fans',
   revenue: 'Revenue',
 }
 

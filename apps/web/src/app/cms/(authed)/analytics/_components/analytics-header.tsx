@@ -9,6 +9,7 @@ const TABS: { id: AnalyticsTab; label: string }[] = [
   { id: 'content', label: 'Content' },
   { id: 'links', label: 'Links' },
   { id: 'audience', label: 'Audience' },
+  { id: 'fans', label: 'Fans' },
   { id: 'revenue', label: 'Revenue' },
 ]
 

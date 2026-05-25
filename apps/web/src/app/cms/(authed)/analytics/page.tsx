@@ -18,6 +18,8 @@ import { ContentTab } from './_components/content-tab'
 import type { PeriodInput, AnalyticsTab, AnalyticsOverviewData } from './types'
 import { SectionErrorBoundary } from '../_shared/section-error-boundary'
 import { LinksTab } from './_components/links-tab'
+import { getTopFans } from '@/lib/social/actions/fans'
+import { FanLeaderboard } from './fans/_components/fan-leaderboard'
 
 const ComingSoonStub = nextDynamic(() => import('./_components/coming-soon-stub'))
 
@@ -40,7 +42,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
   if (!authRes.ok) redirect('/cms')
 
   const periodValue = params.period ?? '30d'
-  const VALID_TABS: AnalyticsTab[] = ['overview', 'content', 'links', 'audience', 'revenue']
+  const VALID_TABS: AnalyticsTab[] = ['overview', 'content', 'links', 'audience', 'fans', 'revenue']
   const activeTab: AnalyticsTab = VALID_TABS.includes(params.tab as AnalyticsTab)
     ? (params.tab as AnalyticsTab)
     : 'overview'
@@ -78,6 +80,12 @@ export default async function AnalyticsPage({ searchParams }: Props) {
         <SectionErrorBoundary>
           <Suspense fallback={<AnalyticsSkeleton />}>
             <AudienceTab periodInput={periodInput} />
+          </Suspense>
+        </SectionErrorBoundary>
+      ) : activeTab === 'fans' ? (
+        <SectionErrorBoundary>
+          <Suspense fallback={<AnalyticsSkeleton />}>
+            <FansTabSection siteId={siteId} />
           </Suspense>
         </SectionErrorBoundary>
       ) : (
@@ -118,6 +126,19 @@ async function AnalyticsDataSection({
   const overviewData: AnalyticsOverviewData = { kpis, funnel, topLinks, destinations, sources, clicksChart }
 
   return <AnalyticsOverview data={overviewData} />
+}
+
+/* ------------------------------------------------------------------ */
+/*  Fans tab section                                                   */
+/* ------------------------------------------------------------------ */
+
+async function FansTabSection({ siteId }: { siteId: string }) {
+  const fans = await getTopFans(siteId, 50)
+  return (
+    <div className="p-4 md:p-6 space-y-6">
+      <FanLeaderboard fans={fans} />
+    </div>
+  )
 }
 
 /* ------------------------------------------------------------------ */

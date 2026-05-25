@@ -3,11 +3,12 @@ import type { LucideIcon } from 'lucide-react'
 import type { SidebarSection } from '@tn-figueiredo/cms-ui'
 import {
   LayoutDashboard, Calendar,
-  FileText, Mail, Megaphone, Image, Link2, ListMusic,
-  Kanban, Video, GraduationCap, BookOpen, Microscope, Headphones,
-  Youtube, Send, Edit3, BarChart3, Users, LayoutTemplate,
-  UserPen, UsersRound, Heart,
-  TrendingUp, Clock, Layers, Shrub,
+  FileText, Mail, Megaphone, ListMusic,
+  Video, GraduationCap, BookOpen, Microscope, Headphones,
+  Image, Link2,
+  Youtube, Send,
+  UserPen, UsersRound, MessageSquare,
+  TrendingUp, Kanban, Shrub,
 } from 'lucide-react'
 
 const ICON_SIZE = 16
@@ -20,9 +21,9 @@ export function buildCmsSections(): SidebarSection[] {
       label: 'Overview',
       items: [
         { icon: icon(LayoutDashboard), label: 'Dashboard', href: '/cms' },
+        { icon: icon(Kanban), label: 'Up Next', href: '/cms/pipeline', minRole: 'editor' },
         { icon: icon(Calendar), label: 'Schedule', href: '/cms/schedule' },
         { icon: icon(TrendingUp), label: 'Analytics', href: '/cms/analytics', minRole: 'editor' },
-        { icon: icon(Heart), label: 'Top Fans', href: '/cms/analytics/fans', minRole: 'editor' },
       ],
     },
     {
@@ -30,17 +31,19 @@ export function buildCmsSections(): SidebarSection[] {
       items: [
         { icon: icon(FileText), label: 'Blog', href: '/cms/blog' },
         { icon: icon(Video), label: 'Video', href: '/cms/pipeline/video', minRole: 'editor' },
+        { icon: icon(GraduationCap), label: 'Courses', href: '/cms/pipeline/course', minRole: 'editor' },
         { icon: icon(Mail), label: 'Newsletters', href: '/cms/newsletters', minRole: 'editor' },
         { icon: icon(Megaphone), label: 'Campaigns', href: '/cms/campaigns', minRole: 'editor' },
-        { icon: icon(Headphones), label: 'Audio', href: '/cms/pipeline/audio', minRole: 'editor' },
-        { icon: icon(GraduationCap), label: 'Courses', href: '/cms/pipeline/course', minRole: 'editor' },
-        { icon: icon(BookOpen), label: 'Reference', href: '/cms/pipeline/reference', minRole: 'editor' },
-        { icon: icon(Microscope), label: 'Research', href: '/cms/pipeline/research', minRole: 'editor' },
-        { icon: icon(Image), label: 'Media', href: '/cms/media', minRole: 'editor' },
-        { icon: icon(Link2), label: 'Links', href: '/cms/links', minRole: 'editor' },
-        { icon: icon(Shrub), label: 'Linktree', href: '/cms/linktree', minRole: 'editor' },
         { icon: icon(ListMusic), label: 'Playlists', href: '/cms/playlists', minRole: 'editor' },
-        { icon: icon(Kanban), label: 'Pipeline', href: '/cms/pipeline', minRole: 'editor' },
+      ],
+    },
+    {
+      label: 'Library',
+      items: [
+        { icon: icon(Microscope), label: 'Research', href: '/cms/pipeline/research', minRole: 'editor' },
+        { icon: icon(BookOpen), label: 'Reference', href: '/cms/pipeline/reference', minRole: 'editor' },
+        { icon: icon(Image), label: 'Media', href: '/cms/media', minRole: 'editor' },
+        { icon: icon(Headphones), label: 'Audio', href: '/cms/pipeline/audio', minRole: 'editor' },
       ],
     },
     {
@@ -48,12 +51,8 @@ export function buildCmsSections(): SidebarSection[] {
       items: [
         { icon: icon(Youtube), label: 'YouTube', href: '/cms/youtube', minRole: 'editor' },
         { icon: icon(Send), label: 'Posts', href: '/cms/social', minRole: 'reporter' },
-        { icon: icon(Clock), label: 'Queue', href: '/cms/social/queue', minRole: 'editor' },
-        { icon: icon(Edit3), label: 'Composer', href: '/cms/social/new', minRole: 'editor' },
-        { icon: icon(BarChart3), label: 'Insights', href: '/cms/social/insights', minRole: 'reporter' },
-        { icon: icon(Layers), label: 'Stories', href: '/cms/social/stories', minRole: 'editor' },
-        { icon: icon(LayoutTemplate), label: 'Templates', href: '/cms/social/templates', minRole: 'editor' },
-        { icon: icon(Users), label: 'Accounts', href: '/cms/social/accounts', minRole: 'org_admin' },
+        { icon: icon(Link2), label: 'Links', href: '/cms/links', minRole: 'editor' },
+        { icon: icon(Shrub), label: 'Link in Bio', href: '/cms/linktree', minRole: 'editor' },
       ],
     },
     {
@@ -61,6 +60,7 @@ export function buildCmsSections(): SidebarSection[] {
       items: [
         { icon: icon(UserPen), label: 'Authors', href: '/cms/authors', minRole: 'editor' },
         { icon: icon(UsersRound), label: 'Subscribers', href: '/cms/subscribers', minRole: 'org_admin' },
+        { icon: icon(MessageSquare), label: 'Contacts', href: '/cms/contacts', minRole: 'editor' },
       ],
     },
   ]

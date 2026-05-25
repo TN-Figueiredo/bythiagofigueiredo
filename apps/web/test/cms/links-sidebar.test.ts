@@ -38,13 +38,13 @@ describe('buildCmsSections', () => {
     expect(yt!.href).toBe('/cms/youtube')
   })
 
-  it('always includes Links item in Content section', async () => {
+  it('always includes Links item in Social section', async () => {
     const { buildCmsSections } = await import(
       '../../src/app/cms/(authed)/_shared/cms-sections'
     )
     const sections = buildCmsSections()
-    const contentSection = sections.find((s) => s.label === 'Content')
-    const linksItem = contentSection!.items.find((i) => i.label === 'Links')
+    const socialSection = sections.find((s) => s.label === 'Social')
+    const linksItem = socialSection!.items.find((i) => i.label === 'Links')
     expect(linksItem).toBeDefined()
     expect(linksItem!.href).toBe('/cms/links')
     expect(linksItem!.minRole).toBe('editor')

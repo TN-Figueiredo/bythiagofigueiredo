@@ -1,14 +1,14 @@
 import { describe, it, expect } from 'vitest'
 import { buildCmsSections } from '@/app/cms/(authed)/_shared/cms-sections'
 
-describe('buildCmsSections — Social Hub nav', () => {
+describe('buildCmsSections — Social section (v3 redesign)', () => {
   const sections = buildCmsSections()
   const social = sections.find(s => s.label === 'Social')!
   const content = sections.find(s => s.label === 'Content')!
 
-  it('has a Social section', () => {
+  it('has a Social section with 4 items', () => {
     expect(social).toBeDefined()
-    expect(social.items.length).toBe(8)
+    expect(social.items.length).toBe(4)
   })
 
   it('includes YouTube in Social section, not Content', () => {
@@ -20,7 +20,7 @@ describe('buildCmsSections — Social Hub nav', () => {
 
   it('has correct nav items in order', () => {
     const labels = social.items.map(i => i.label)
-    expect(labels).toEqual(['YouTube', 'Posts', 'Queue', 'Composer', 'Insights', 'Stories', 'Templates', 'Accounts'])
+    expect(labels).toEqual(['YouTube', 'Posts', 'Links', 'Link in Bio'])
   })
 
   it('has correct routes', () => {
@@ -28,12 +28,8 @@ describe('buildCmsSections — Social Hub nav', () => {
     expect(hrefs).toEqual([
       '/cms/youtube',
       '/cms/social',
-      '/cms/social/queue',
-      '/cms/social/new',
-      '/cms/social/insights',
-      '/cms/social/stories',
-      '/cms/social/templates',
-      '/cms/social/accounts',
+      '/cms/links',
+      '/cms/linktree',
     ])
   })
 
@@ -42,13 +38,10 @@ describe('buildCmsSections — Social Hub nav', () => {
     expect(postsItem.minRole).toBe('reporter')
   })
 
-  it('sets editor minRole for Composer', () => {
-    const composerItem = social.items.find(i => i.label === 'Composer')!
-    expect(composerItem.minRole).toBe('editor')
-  })
-
-  it('sets org_admin minRole for Accounts', () => {
-    const accountsItem = social.items.find(i => i.label === 'Accounts')!
-    expect(accountsItem.minRole).toBe('org_admin')
+  it('does not include removed items (Queue, Composer, Insights, Stories, Templates, Accounts)', () => {
+    const labels = social.items.map(i => i.label)
+    for (const removed of ['Queue', 'Composer', 'Insights', 'Stories', 'Templates', 'Accounts']) {
+      expect(labels).not.toContain(removed)
+    }
   })
 })
