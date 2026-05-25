@@ -78,7 +78,7 @@ export function CoworkRequestPanel({
   }, [instructions, references])
 
   const prompt = useMemo(() => instructions.trim()
-    ? buildPrompt({ itemCode, itemTitle, format, stage, tags, hook, synopsis, sectionLabel, sectionKey, lang, rev, contentSummary, instructions: instructions.trim(), itemId, sectionBase, references })
+    ? buildPrompt({ itemCode, itemTitle, format, stage, tags, hook, synopsis, sectionLabel, sectionKey, lang, rev, contentSummary, instructions: instructions.trim(), itemId, sectionBase, references, baseUrl: window.location.origin })
     : ''
   , [instructions, itemCode, itemTitle, format, stage, tags, hook, synopsis, sectionLabel, sectionKey, lang, rev, contentSummary, itemId, sectionBase, references])
 

@@ -199,9 +199,10 @@ export function buildPrompt(ctx: {
   tags: string[]; hook: string | null; synopsis: string | null
   sectionLabel: string; sectionKey: string; lang: string; rev: number
   contentSummary: string; instructions: string; itemId: string; sectionBase: string
-  references: Map<number, string>
+  references: Map<number, string>; baseUrl?: string
 }): string {
   const lines: string[] = []
+  const baseUrl = ctx.baseUrl ?? ''
 
   // Expand citations in instructions
   const expandedInstructions = ctx.instructions.replace(/\[citacao (\d+)\]/g, (match, idStr) => {
@@ -231,14 +232,14 @@ export function buildPrompt(ctx: {
 
   lines.push('---')
   lines.push('Use the pipeline API to:')
-  lines.push(`0. GET ${pipelinePaths.docs.domain('items-and-sections')}`)
+  lines.push(`0. GET ${baseUrl}${pipelinePaths.docs.domain('items-and-sections')}`)
   lines.push('   → Section schemas, formatting rules, and Tiptap preset reference')
-  lines.push(`1. GET ${pipelinePaths.items.section(ctx.itemId, ctx.sectionBase, ctx.lang)}`)
+  lines.push(`1. GET ${baseUrl}${pipelinePaths.items.section(ctx.itemId, ctx.sectionBase, ctx.lang)}`)
   lines.push('   → Note the "rev" and "item_version" from the response')
   lines.push('2. Apply the instructions above to the current content, following the schema from step 0')
-  lines.push(`3. PATCH ${pipelinePaths.items.section(ctx.itemId, ctx.sectionBase, ctx.lang)}`)
+  lines.push(`3. PATCH ${baseUrl}${pipelinePaths.items.section(ctx.itemId, ctx.sectionBase, ctx.lang)}`)
   lines.push('   Headers: { "X-Expected-Version": <item_version from GET> }')
-  lines.push('   Body: { "content": <updated>, "rev": <rev from GET>, "source": "cowork" }')
+  lines.push('   Body: { "content": <updated>, "rev": <rev from GET>, "source": "cowork", "modified_by": "cowork-claude" }')
   lines.push('   On 409 (rev conflict): re-GET the section, merge changes with new rev, retry PATCH')
   lines.push('   On 412 (version conflict): re-GET the item to refresh item_version, retry')
 

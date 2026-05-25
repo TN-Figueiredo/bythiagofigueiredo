@@ -1,24 +1,26 @@
 import { NextRequest } from 'next/server'
-import { readFileSync, existsSync } from 'node:fs'
+import { readFile, access } from 'node:fs/promises'
+import { constants } from 'node:fs'
 import { join } from 'node:path'
 import { API_REGISTRY } from '@/lib/pipeline/api-registry'
 import { authenticateRead, pipelineError, pipelineSuccess } from '@/lib/pipeline/helpers'
 
-function loadDocs(): Map<string, string> {
+async function loadDocs(): Promise<Map<string, string>> {
   const dir = join(process.cwd(), 'data', 'pipeline-docs')
   const docs = new Map<string, string>()
   for (const cap of API_REGISTRY.capabilities) {
     const fp = join(dir, `cowork-docs-${cap.domain}.md`)
-    if (existsSync(fp)) {
-      docs.set(cap.domain, readFileSync(fp, 'utf-8'))
-    }
+    try {
+      await access(fp, constants.R_OK)
+      docs.set(cap.domain, await readFile(fp, 'utf-8'))
+    } catch { /* file not found, skip */ }
   }
   return docs
 }
 
 let DOMAIN_DOCS: Map<string, string> | null = null
-function getDocs(): Map<string, string> {
-  if (!DOMAIN_DOCS) DOMAIN_DOCS = loadDocs()
+async function getDocs(): Promise<Map<string, string>> {
+  if (!DOMAIN_DOCS) DOMAIN_DOCS = await loadDocs()
   return DOMAIN_DOCS
 }
 
@@ -28,7 +30,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ doma
   if (result instanceof Response) return result
   const { auth } = result
 
-  const guide = getDocs().get(domain)
+  const guide = (await getDocs()).get(domain)
   const capability = API_REGISTRY.capabilities.find((c) => c.domain === domain)
 
   if (!guide || !capability) {

@@ -79,11 +79,25 @@ export function CoworkPromptModal({ onClose, baseUrl }: CoworkPromptModalProps) 
   const [allSkills, setAllSkills] = useState(false)
   const [selectedDomains, setSelectedDomains] = useState<Set<string>>(new Set())
   const [copied, setCopied] = useState(false)
+  const [pipelineKey, setPipelineKey] = useState('')
 
   const copyRef = useRef<() => void>(() => {})
   const dialogRef = useRef<HTMLDivElement>(null)
   const skillRadioGroupRef = useRef<HTMLDivElement>(null)
   const handleTrapKeyDown = useFocusTrap(dialogRef)
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('cowork-pipeline-key')
+      if (saved) setPipelineKey(saved)
+    } catch { /* SSR/test */ }
+  }, [])
+
+  useEffect(() => {
+    try {
+      if (pipelineKey) localStorage.setItem('cowork-pipeline-key', pipelineKey)
+    } catch { /* SSR/test */ }
+  }, [pipelineKey])
 
   useEffect(() => {
     function handleKeys(e: KeyboardEvent) {
@@ -150,7 +164,10 @@ export function CoworkPromptModal({ onClose, baseUrl }: CoworkPromptModalProps) 
   const prompt = useMemo(() => {
     const lines: string[] = [
       '# Voce e um assistente de producao de conteudo. Antes de responder, carregue meu contexto:',
-      `# Auth: X-Pipeline-Key: [sua key]`,
+      pipelineKey
+        ? `# Auth: X-Pipeline-Key: ${pipelineKey}`
+        : `# Auth: X-Pipeline-Key: [sua key]  ← PREENCHA COM SUA KEY`,
+      '# Inclua o header X-Pipeline-Key em TODAS as requisições.',
       '',
     ]
 
@@ -185,7 +202,7 @@ export function CoworkPromptModal({ onClose, baseUrl }: CoworkPromptModalProps) 
     lines.push(`# Base: ${baseUrl}`)
 
     return lines.join('\n')
-  }, [selectedSkill, allSkills, selectedDomains, baseUrl])
+  }, [selectedSkill, allSkills, selectedDomains, baseUrl, pipelineKey])
 
   const handleCopy = useCallback(async () => {
     try {
@@ -263,6 +280,24 @@ export function CoworkPromptModal({ onClose, baseUrl }: CoworkPromptModalProps) 
 
         {/* Body */}
         <div className="space-y-5 px-5 py-4">
+          {/* Pipeline Key input */}
+          <div>
+            <div className="mb-2 text-xs font-medium text-[var(--cpw-text-muted)]">
+              Pipeline Key
+            </div>
+            <input
+              type="password"
+              value={pipelineKey}
+              onChange={(e) => setPipelineKey(e.target.value)}
+              placeholder="Cole sua X-Pipeline-Key aqui..."
+              aria-label="Pipeline API Key"
+              className="w-full rounded-md border border-[var(--cpw-border)] bg-[var(--cpw-bg-code)] px-3 py-2 text-xs text-[var(--cpw-text)] placeholder:text-[var(--cpw-text-muted)] focus:border-[var(--cpw-accent)] focus:outline-none"
+            />
+            <div className="mt-1 text-[10px] text-[var(--cpw-text-muted)]">
+              Encontre em .env.local → PIPELINE_COWORK_KEY
+            </div>
+          </div>
+
           {/* Skill selector */}
           <div
             ref={skillRadioGroupRef}
