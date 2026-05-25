@@ -135,6 +135,12 @@ describe('generatePrompt', () => {
     const { text } = generatePrompt(baseItem, baseSections, 'en')
     expect(text).toContain('# Conteúdo Português (PT-BR)')
   })
+
+  it('includes X-Pipeline-Key auth instruction', () => {
+    const result = generatePrompt(baseItem, baseSections, 'en')
+    expect(result.text).toContain('X-Pipeline-Key')
+    expect(result.text).toContain('# Auth:')
+  })
 })
 
 // ---------------------------------------------------------------------------

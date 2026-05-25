@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildPrompt, summarizeContent } from '@/app/cms/(authed)/pipeline/_components/detail/cowork-request-panel'
+import { buildPrompt, summarizeContent } from '@/lib/pipeline/prompt-builders'
 
 describe('summarizeContent', () => {
   it('returns "Seção vazia" for null/undefined', () => {

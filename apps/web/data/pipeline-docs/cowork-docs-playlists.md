@@ -204,6 +204,78 @@ Sort orders: 1000, 2000, 3000... Items não listados mantêm sort_order atual.
 6. `name_en` obrigatório. `name_pt` pode ser vazio. Slug gerado de `name_en`
 7. Erros: formato `{ "error": { "code": "...", "message": "..." } }`
 
+### Query Parameters Reference
+
+| Parameter | Endpoint | Values | Default |
+|-----------|----------|--------|---------|
+| `status` | GET /playlists | `draft`, `published`, `archived` | all |
+| `category` | GET /playlists | Any string | — |
+| `search` | GET /playlists | Free text (name search) | — |
+
+### Response Shapes
+
+**List response (GET /playlists):**
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "name_en": "...",
+      "name_pt": "...",
+      "slug": "...",
+      "category": "...",
+      "status": "draft",
+      "item_count": 5,
+      "edge_count": 4,
+      "created_at": "...",
+      "updated_at": "..."
+    }
+  ]
+}
+```
+
+**Graph response (GET /playlists/:id):**
+```json
+{
+  "data": {
+    "id": "uuid",
+    "name_en": "...",
+    "name_pt": "...",
+    "slug": "...",
+    "category": "...",
+    "status": "draft",
+    "description_en": "...",
+    "description_pt": "...",
+    "items": [
+      {
+        "id": "item-uuid",
+        "blog_post_id": "uuid | null",
+        "pipeline_id": "uuid | null",
+        "newsletter_edition_id": "uuid | null",
+        "sort_order": 1000,
+        "position_x": 0,
+        "position_y": 0,
+        "is_ghost": false,
+        "title": "Resolved title from linked content"
+      }
+    ],
+    "edges": [
+      {
+        "id": "edge-uuid",
+        "source_item_id": "uuid",
+        "target_item_id": "uuid",
+        "edge_type": "sequence",
+        "label": null
+      }
+    ]
+  }
+}
+```
+
+### Versioning
+
+Playlists use `X-Expected-Version` header for PATCH operations. Get the current version from the GET response and pass it in the header. On 412 conflict, re-GET and retry with the fresh version.
+
 ## Error Codes
 
 | Code | Meaning | Action |

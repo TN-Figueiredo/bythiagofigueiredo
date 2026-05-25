@@ -4,11 +4,6 @@ import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { summarizeContent, buildPrompt } from '@/lib/pipeline/prompt-builders'
 
-// ---------------------------------------------------------------------------
-// Re-exports — keep so existing test imports don't break
-// ---------------------------------------------------------------------------
-
-export { summarizeContent, buildPrompt } from '@/lib/pipeline/prompt-builders'
 
 interface CoworkRequestPanelProps {
   isOpen: boolean
@@ -103,6 +98,15 @@ export function CoworkRequestPanel({
       requestAnimationFrame(() => textareaRef.current?.focus())
     }
   }, [isOpen])
+
+  useEffect(() => {
+    if (!isOpen) return
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, onClose])
 
   if (!isOpen) return null
 

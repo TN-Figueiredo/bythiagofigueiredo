@@ -106,6 +106,68 @@ Relationships: `informs`, `supports`, `contradicts`, `expands`.
 
 **DELETE /api/pipeline/research/:id/links/:linkId** — Remove a link.
 
+### Workflow: Research-to-Pipeline Pipeline
+
+```
+1. POST /api/pipeline/research — create research item with content_md
+2. GET /api/pipeline/research/:id — verify creation, note version
+3. POST /api/pipeline/research/:id/links — link to existing pipeline item
+   { "pipeline_item_id": "<uuid>", "relationship": "informs" }
+4. GET /api/pipeline/research/:id — confirm linked_items includes the link
+```
+
+### Workflow: Bulk Research Import
+
+```
+1. POST /api/pipeline/research/import
+   { "items": [{ "title": "...", "topic_slug": "...", "content_md": "..." }, ...] }
+2. Response: { "data": { "created": N, "updated": M, "errors": [...] } }
+3. For items with errors, fix and retry individually via POST /api/pipeline/research
+```
+
+### Query Parameters Reference
+
+| Parameter | Endpoint | Values | Default |
+|-----------|----------|--------|---------|
+| `topic_slug` | GET /research | Any valid slug | — (all topics) |
+| `pipeline_item_id` | GET /research | UUID | — |
+| `status` | GET /research | `new,reviewed,starred,archived` (comma-separated) | all |
+| `search` | GET /research | Free text | — |
+| `include` | GET /research | `content` | — (lightweight) |
+| `cursor` | GET /research | Opaque cursor string | — (first page) |
+| `limit` | GET /research | 1-100 | 20 |
+
+### Response Shapes
+
+**List response (GET /research):**
+```json
+{
+  "data": [...items],
+  "meta": { "cursor": "next-cursor-or-null", "has_more": true, "total": 42 }
+}
+```
+
+**Item detail (GET /research/:id):**
+```json
+{
+  "data": {
+    "id": "uuid",
+    "title": "...",
+    "topic_slug": "gaming-history/wyd",
+    "content_md": "# Full content...",
+    "summary": "...",
+    "sources": [{ "url": "...", "title": "..." }],
+    "status": "new",
+    "version": 1,
+    "linked_items": [
+      { "link_id": "uuid", "pipeline_item_id": "uuid", "relationship": "informs", "item_code": "tg-42", "item_title": "..." }
+    ],
+    "created_at": "...",
+    "updated_at": "..."
+  }
+}
+```
+
 ## Error Codes
 
 | Code | Meaning | Action |

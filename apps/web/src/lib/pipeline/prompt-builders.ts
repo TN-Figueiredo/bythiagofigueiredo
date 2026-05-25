@@ -107,6 +107,8 @@ export function generatePrompt(
     `Adapte para audiência ${targetAudience} — não traduza literalmente.`,
     'Tom narrativo e pessoal.',
     '',
+    '# Auth: include X-Pipeline-Key header in ALL requests. Rate limit: 100 req/min.',
+    '',
     '# Workflow',
     `0. GET ${pipelinePaths.docs.domain('items-and-sections')}`,
     '   → Section schemas and formatting rules',
@@ -234,7 +236,7 @@ export function buildPrompt(ctx: {
   lines.push('')
 
   lines.push('---')
-  lines.push('# Auth: include X-Pipeline-Key header in ALL requests.')
+  lines.push('# Auth: include X-Pipeline-Key header in ALL requests. Rate limit: 100 req/min.')
   lines.push('Use the pipeline API to:')
   lines.push(`0. GET ${baseUrl}${pipelinePaths.docs.domain('items-and-sections')}`)
   lines.push('   → Section schemas, formatting rules, and Tiptap preset reference')
