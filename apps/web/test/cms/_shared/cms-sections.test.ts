@@ -23,6 +23,16 @@ describe('buildCmsSections — v3 nav redesign', () => {
     expect(sections.map(s => s.items.length)).toEqual([4, 6, 4, 4, 3])
   })
 
+  it('all hrefs are unique (no duplicate nav entries)', () => {
+    const allHrefs = sections.flatMap(s => s.items.map(i => i.href))
+    expect(new Set(allHrefs).size).toBe(allHrefs.length)
+  })
+
+  it('all labels are unique across sections', () => {
+    const allLabels = sections.flatMap(s => s.items.map(i => i.label))
+    expect(new Set(allLabels).size).toBe(allLabels.length)
+  })
+
   describe('Overview (4 items)', () => {
     const overview = sections.find(s => s.label === 'Overview')!
 
@@ -38,6 +48,16 @@ describe('buildCmsSections — v3 nav redesign', () => {
       ])
     })
 
+    it('Dashboard and Schedule have no minRole (public)', () => {
+      expect(overview.items[0].minRole).toBeUndefined()
+      expect(overview.items[2].minRole).toBeUndefined()
+    })
+
+    it('Up Next and Analytics require editor', () => {
+      expect(overview.items[1].minRole).toBe('editor')
+      expect(overview.items[3].minRole).toBe('editor')
+    })
+
     it('no Top Fans item (absorbed into Analytics tab)', () => {
       expect(overview.items.find(i => i.label === 'Top Fans')).toBeUndefined()
     })
@@ -50,6 +70,13 @@ describe('buildCmsSections — v3 nav redesign', () => {
       expect(content.items.map(i => i.label)).toEqual([
         'Blog', 'Video', 'Courses', 'Newsletters', 'Campaigns', 'Playlists',
       ])
+    })
+
+    it('Blog has no minRole (public), rest require editor', () => {
+      expect(content.items[0].minRole).toBeUndefined()
+      for (const item of content.items.slice(1)) {
+        expect(item.minRole).toBe('editor')
+      }
     })
 
     it('does not contain Pipeline, Research, Reference, Audio, Media, Links, Linktree', () => {
@@ -73,6 +100,12 @@ describe('buildCmsSections — v3 nav redesign', () => {
       expect(library.items.map(i => i.href)).toEqual([
         '/cms/pipeline/research', '/cms/pipeline/reference', '/cms/media', '/cms/pipeline/audio',
       ])
+    })
+
+    it('all items require editor role', () => {
+      for (const item of library.items) {
+        expect(item.minRole).toBe('editor')
+      }
     })
   })
 

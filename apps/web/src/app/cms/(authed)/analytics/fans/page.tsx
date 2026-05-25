@@ -1,5 +1,12 @@
 import { redirect } from 'next/navigation'
 
-export default function FansPage() {
-  redirect('/cms/analytics?tab=fans')
+interface Props {
+  searchParams: Promise<Record<string, string>>
+}
+
+export default async function FansPage({ searchParams }: Props) {
+  const params = await searchParams
+  const qs = new URLSearchParams(params)
+  qs.set('tab', 'fans')
+  redirect(`/cms/analytics?${qs.toString()}`)
 }
