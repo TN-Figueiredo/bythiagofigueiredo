@@ -74,14 +74,14 @@ describe('CoworkPromptModal', () => {
     expect(dialog.getAttribute('aria-label')).toBe('Gerar Prompt pro Cowork')
   })
 
-  // ---- 2. Shows all 6 capability domains as selectable options ----
+  // ---- 2. Shows all 7 capability domains as selectable options ----
 
-  it('shows all 6 capability domains as selectable buttons', () => {
+  it('shows all 7 capability domains as selectable buttons', () => {
     renderModal()
     const domainGroup = screen.getByRole('group', { name: /docs de domínio/i })
     const pressedButtons = within(domainGroup).getAllByRole('button')
-    // 6 domain buttons + 1 "Todas" button = 7
-    expect(pressedButtons).toHaveLength(7)
+    // 7 domain buttons + 1 "Todas" button = 8
+    expect(pressedButtons).toHaveLength(8)
   })
 
   it('renders domain labels from API_REGISTRY', () => {
@@ -92,6 +92,7 @@ describe('CoworkPromptModal', () => {
     expect(screen.getByLabelText('Research Library')).toBeTruthy()
     expect(screen.getByLabelText('YouTube Analytics & A/B Testing')).toBeTruthy()
     expect(screen.getByLabelText('Search, Context & Utilities')).toBeTruthy()
+    expect(screen.getByLabelText('Course Production')).toBeTruthy()
   })
 
   it('domain buttons toggle aria-pressed on click', () => {
@@ -110,12 +111,12 @@ describe('CoworkPromptModal', () => {
     const todasBtn = within(domainGroup).getByText('Todas')
     fireEvent.click(todasBtn)
 
-    // All 6 domain buttons should now be pressed
+    // All 7 domain buttons should now be pressed
     const domainButtons = within(domainGroup).getAllByRole('button').filter(
       (btn) => btn.getAttribute('aria-pressed') === 'true',
     )
-    // 6 domains + the "Todas" button itself = 7
-    expect(domainButtons).toHaveLength(7)
+    // 7 domains + the "Todas" button itself = 8
+    expect(domainButtons).toHaveLength(8)
   })
 
   // ---- 3. Shows step counter ----

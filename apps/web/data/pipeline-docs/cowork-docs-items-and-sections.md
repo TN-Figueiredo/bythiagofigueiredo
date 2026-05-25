@@ -1334,9 +1334,11 @@ Seções sem renderer dedicado usam `GenericRenderer`:
 | `layout` (newsletter) | object | JSON pretty-print |
 | `audience` (newsletter) | object | JSON pretty-print |
 | `send` (newsletter) | object | JSON pretty-print |
-| `curriculum` (course) | object | JSON pretty-print |
-| `lessons` (course) | object | JSON pretty-print |
-| `material` (course) | object | JSON pretty-print |
+| `curriculum` (course, shared) | object | CurriculumContentSchema — see Course domain docs |
+| `lessons` (course, per-lang) | object | Record<lesson_id, LessonScript> — see Course domain docs |
+| `material` (course, per-lang) | object | Record<lesson_id, MaterialItem[]> — see Course domain docs |
+| `launch` (course, shared) | object | LaunchContentSchema (PLF) — see Course domain docs |
+| `publish` (course, per-lang) | object | Sales page content — see Course domain docs |
 | `briefing` (campaign) | object | JSON pretty-print |
 | `assets` (campaign) | object | JSON pretty-print |
 | `metrics` (campaign) | object | JSON pretty-print |

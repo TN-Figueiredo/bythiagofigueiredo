@@ -1,4 +1,4 @@
-export type DomainId = 'items-and-sections' | 'playlists' | 'libraries' | 'research' | 'youtube' | 'utilities'
+export type DomainId = 'items-and-sections' | 'playlists' | 'libraries' | 'research' | 'youtube' | 'utilities' | 'course'
 
 export interface ApiEndpointMeta {
   method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'
@@ -177,6 +177,16 @@ const UTILITIES: CapabilityDomain = {
   ],
 }
 
+const COURSE: CapabilityDomain = {
+  domain: 'course',
+  name: 'Course Production',
+  description: 'Course-specific schemas, sections, graduation workflow, and launch planning with Product Launch Formula.',
+  suggest_when: 'Creating courses, managing curriculum, lesson scripts, materials, launch planning, course graduation to playlist',
+  docs: '/api/pipeline/docs/course',
+  endpoint_count: 0,
+  endpoints: [],
+}
+
 const CROSS_DOMAIN_WORKFLOWS: CrossDomainWorkflow[] = [
   {
     name: 'Video production pipeline',
@@ -203,6 +213,21 @@ const CROSS_DOMAIN_WORKFLOWS: CrossDomainWorkflow[] = [
       'POST /api/pipeline/research/:id/links — link research to item',
     ],
   },
+  {
+    name: 'Course production pipeline',
+    description: 'Full lifecycle from course idea to published course with graduation to playlist',
+    domains: ['items-and-sections', 'course', 'playlists'],
+    steps: [
+      'POST /api/pipeline/items — create item with format: "course"',
+      'PATCH /api/pipeline/items/:id/sections/ideia — write premise, body, target audience',
+      'PATCH /api/pipeline/items/:id/sections/curriculum — create modules + lessons structure',
+      'PATCH /api/pipeline/items/:id/sections/lessons — write per-lesson scripts and talking points',
+      'PATCH /api/pipeline/items/:id/sections/material — add resources per lesson',
+      'PATCH /api/pipeline/items/:id/sections/launch — plan Product Launch Formula sequence',
+      'PATCH /api/pipeline/items/:id/sections/publish — write sales copy (headline, bullets, FAQ, testimonials)',
+      'POST /api/pipeline/items/:id/graduate — graduate course to playlist with module→edge sequence',
+    ],
+  },
 ]
 
 export const DOMAIN_LABELS: Record<DomainId, string> = {
@@ -212,6 +237,7 @@ export const DOMAIN_LABELS: Record<DomainId, string> = {
   research: 'Research',
   youtube: 'YouTube',
   utilities: 'Utilities',
+  course: 'Courses',
 }
 
 export const API_REGISTRY: ApiCatalog = {
@@ -223,6 +249,6 @@ export const API_REGISTRY: ApiCatalog = {
     rate_limit: '100/min (api_key only)',
     version_header: 'X-Expected-Version',
   },
-  capabilities: [ITEMS_AND_SECTIONS, PLAYLISTS, LIBRARIES, RESEARCH, YOUTUBE, UTILITIES],
+  capabilities: [ITEMS_AND_SECTIONS, PLAYLISTS, LIBRARIES, RESEARCH, YOUTUBE, UTILITIES, COURSE],
   cross_domain_workflows: CROSS_DOMAIN_WORKFLOWS,
 }
