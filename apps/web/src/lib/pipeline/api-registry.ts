@@ -179,8 +179,8 @@ const UTILITIES: CapabilityDomain = {
 
 const COURSE: CapabilityDomain = {
   domain: 'course',
-  name: 'Course Production',
-  description: 'Course-specific schemas, sections, graduation workflow, and launch planning with Product Launch Formula.',
+  name: 'Course Production (Schema Docs)',
+  description: 'Course-specific section schemas (curriculum, lessons, material, launch, publish), graduation workflow, and Product Launch Formula. Uses Items & Sections endpoints — this domain provides schema documentation only, no unique API routes.',
   suggest_when: 'Creating courses, managing curriculum, lesson scripts, materials, launch planning, course graduation to playlist',
   docs: '/api/pipeline/docs/course',
   endpoint_count: 0,

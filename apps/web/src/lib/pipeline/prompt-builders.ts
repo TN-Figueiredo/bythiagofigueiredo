@@ -241,7 +241,7 @@ export function buildPrompt(ctx: {
   lines.push('   → Note the "rev" and "item_version" from the response')
   lines.push('2. Apply the instructions above to the current content, following the schema from step 0')
   lines.push(`3. PATCH ${baseUrl}${pipelinePaths.items.section(ctx.itemId, ctx.sectionBase, ctx.lang)}`)
-  lines.push('   Headers: { "X-Expected-Version": <item_version from GET> }')
+  lines.push('   Headers: { "X-Expected-Version": <item_version from GET>, "Content-Type": "application/json" }')
   lines.push('   Body: { "content": <updated>, "rev": <rev from GET>, "source": "cowork", "modified_by": "cowork-claude" }')
   lines.push('   On 409 (rev conflict): re-GET the section, merge changes with new rev, retry PATCH')
   lines.push('   On 412 (version conflict): re-GET the item to refresh item_version, retry')

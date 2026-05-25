@@ -92,7 +92,7 @@ describe('CoworkPromptModal', () => {
     expect(screen.getByLabelText('Research Library')).toBeTruthy()
     expect(screen.getByLabelText('YouTube Analytics & A/B Testing')).toBeTruthy()
     expect(screen.getByLabelText('Search, Context & Utilities')).toBeTruthy()
-    expect(screen.getByLabelText('Course Production')).toBeTruthy()
+    expect(screen.getByLabelText('Course Production (Schema Docs)')).toBeTruthy()
   })
 
   it('domain buttons toggle aria-pressed on click', () => {
@@ -264,7 +264,7 @@ describe('CoworkPromptModal', () => {
     const copyBtn = screen.getByRole('button', { name: /copiar prompt/i })
     fireEvent.click(copyBtn)
     await vi.waitFor(() => {
-      expect(toast.success).toHaveBeenCalledWith('Prompt copiado!')
+      expect(toast.success).toHaveBeenCalledWith('Prompt copiado! ⚠️ Lembre de preencher a Pipeline Key no prompt.')
     })
   })
 
