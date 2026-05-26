@@ -194,3 +194,13 @@ Items advance/retreat through stages via `POST /api/pipeline/items/:id/advance` 
 3. `GET /api/pipeline/docs/{domain}` — load detailed docs if needed
 4. Execute task using domain endpoints
 5. `PUT /api/pipeline/context/{skill}-memory` — persist session learnings
+
+## GET /api/pipeline/up-next
+
+Command center endpoint. Returns today's prioritized actions, weekly slot grid, streak, stage counts, playlist summaries, and contextual suggestion. Each section is computed independently with per-section error isolation.
+
+**Query params:**
+- `maxCards` (number, default 5) — max action cards to return
+- `tz` (string, default "America/Sao_Paulo") — IANA timezone for date calculations
+
+**Response 200:** `{ data: UpNextApiResponse }`

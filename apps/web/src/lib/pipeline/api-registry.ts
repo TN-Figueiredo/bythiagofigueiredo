@@ -163,7 +163,7 @@ const UTILITIES: CapabilityDomain = {
   description: 'Cross-entity search, reference content management, pipeline statistics, and workflow definitions.',
   suggest_when: 'Searching across entities, reading/updating references, checking stats, listing workflows',
   docs: '/api/pipeline/docs/utilities',
-  endpoint_count: 9,
+  endpoint_count: 10,
   endpoints: [
     { method: 'GET', path: '/api/pipeline/context', summary: 'Get all reference content (supports ?group= ?skill= ?format=md)', auth: 'read' },
     { method: 'GET', path: '/api/pipeline/context/:key', summary: 'Get specific reference doc', auth: 'read' },
@@ -174,6 +174,7 @@ const UTILITIES: CapabilityDomain = {
     { method: 'GET', path: '/api/pipeline/topics/:code', summary: 'Topic aggregation (items + posts by tag)', auth: 'read' },
     { method: 'GET', path: '/api/pipeline/workflows', summary: 'Get all workflow definitions and checklists', auth: 'read' },
     { method: 'GET', path: '/api/pipeline/docs/:domain', summary: 'Get Tier 2 documentation guide for a capability domain', auth: 'read' },
+    { method: 'GET', path: '/api/pipeline/up-next', summary: 'Command center: today actions, week grid, streak, suggestions', auth: 'read' },
   ],
 }
 
