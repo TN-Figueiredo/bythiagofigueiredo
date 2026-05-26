@@ -4,19 +4,23 @@ import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { CmsTopbar } from '@tn-figueiredo/cms-ui/client'
 import { GEM_CSS_VARS } from '@/lib/pipeline/gem-design'
 import { PipelineOverview } from './_components/pipeline-overview'
+import { calculateTodayActions } from '@/lib/pipeline/calculate-today-actions'
+import { calculateStreak } from '@/lib/pipeline/calculate-streak'
+import { generateWeekSlots } from '@/lib/pipeline/generate-week-slots'
+import { selectSuggestion } from '@/lib/pipeline/select-suggestion'
+import { STAGE_GROUP } from '@/lib/pipeline/up-next-constants'
 import type { CelebrationItem } from './_components/up-next-celebration'
-import type { ModeCardItem } from './_components/up-next-mode-cards'
 import type { PlaylistStrip } from './_components/up-next-playlist-strips'
 import type { ActivityEntry } from './_components/up-next-activity'
-import type { WeekDay, WeekSlot } from './_components/up-next-this-week'
+import type { PipelineItemWithSlot, SyncScheduleWithChannel, BlogCadenceRow, NewsletterEditionRow, PlaylistSummary, UpNextApiResponse } from '@/lib/pipeline/up-next-types'
+import type { Stage } from '@/lib/pipeline/up-next-constants'
+import { formatISO, startOfISOWeek, endOfISOWeek, addDays, parseISO } from 'date-fns'
+import { toZonedTime } from 'date-fns-tz'
 
 export const dynamic = 'force-dynamic'
 
 const FINAL_STAGES = ['published', 'scheduled', 'sent'] as const
-const WRITE_STAGES = ['idea', 'outline', 'draft', 'roteiro'] as const
-const POST_PROD_STAGES = ['edicao', 'pos_producao', 'review', 'approved', 'ready'] as const
-
-interface PlaylistContext { sort_order: number; playlists: { id: string; name_pt: string } | null }
+const SITE_TZ = 'America/Sao_Paulo'
 
 interface PlaylistItemRow {
   id: string
@@ -39,9 +43,17 @@ export default async function PipelineOverviewPage() {
   await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
   const supabase = getSupabaseServiceClient()
 
+  const now = new Date()
+  const zonedNow = toZonedTime(now, SITE_TZ)
+  const today = formatISO(zonedNow, { representation: 'date' })
+  const weekStart = formatISO(startOfISOWeek(zonedNow), { representation: 'date' })
+  const weekEnd = formatISO(endOfISOWeek(zonedNow), { representation: 'date' })
   const sevenDaysAgo = new Date(Date.now() - 7 * 86_400_000).toISOString()
 
-  const [celebrationRes, writeModeRes, recordModeRes, postProdModeRes, playlistsRes, activityRes] = await Promise.all([
+  const [
+    celebrationRes, pipelineRes, channelsRes, cadenceRes, editionsRes,
+    doneRes, historyRes, playlistsRes, activityRes,
+  ] = await Promise.all([
     supabase
       .from('content_pipeline')
       .select('id, code, title_pt, format')
@@ -54,33 +66,46 @@ export default async function PipelineOverviewPage() {
 
     supabase
       .from('content_pipeline')
-      .select('id, code, title_pt, format, stage, priority')
+      .select(`id, title_pt, title_en, stage, priority, format, language, duration_target, scheduled_at, youtube_channel_id,
+        playlist_items(playlist_id, sort_order, playlists(id, name_pt, name_en)),
+        youtube_channels(name)`)
       .eq('site_id', siteId)
+      .not('stage', 'in', '("published","archived")')
       .eq('is_archived', false)
-      .in('stage', [...WRITE_STAGES])
-      .order('priority', { ascending: false })
-      .order('updated_at', { ascending: false })
-      .limit(3),
+      .order('priority', { ascending: false }),
 
     supabase
-      .from('content_pipeline')
-      .select('id, code, title_pt, format, stage, priority')
-      .eq('site_id', siteId)
-      .eq('is_archived', false)
-      .eq('stage', 'gravacao')
-      .order('priority', { ascending: false })
-      .order('updated_at', { ascending: false })
-      .limit(3),
+      .from('youtube_channels')
+      .select('id, name, locale, sync_schedules')
+      .eq('site_id', siteId),
 
     supabase
-      .from('content_pipeline')
-      .select('id, code, title_pt, format, stage, priority')
+      .from('blog_cadence')
+      .select('site_id, cadence_days, cadence_start_date, cadence_paused, last_published_at, locale')
       .eq('site_id', siteId)
-      .eq('is_archived', false)
-      .in('stage', [...POST_PROD_STAGES])
-      .order('priority', { ascending: false })
-      .order('updated_at', { ascending: false })
-      .limit(3),
+      .limit(1)
+      .single(),
+
+    supabase
+      .from('newsletter_editions')
+      .select('id, subject, status, scheduled_at')
+      .eq('site_id', siteId)
+      .gte('scheduled_at', `${weekStart}T00:00:00`)
+      .lt('scheduled_at', `${formatISO(addDays(parseISO(weekEnd), 7), { representation: 'date' })}T00:00:00`)
+      .in('status', ['draft', 'ready', 'scheduled']),
+
+    supabase
+      .from('content_pipeline_history')
+      .select('pipeline_id')
+      .gte('changed_at', `${today}T00:00:00`)
+      .limit(200),
+
+    supabase
+      .from('blog_posts')
+      .select('published_at')
+      .eq('site_id', siteId)
+      .eq('status', 'published')
+      .gte('published_at', new Date(Date.now() - 52 * 7 * 86_400_000).toISOString()),
 
     supabase
       .from('playlists')
@@ -97,257 +122,147 @@ export default async function PipelineOverviewPage() {
   ])
 
   const celebrationItems: CelebrationItem[] = (celebrationRes.data ?? []).map((item) => ({
-    id: item.id,
-    code: item.code,
-    title_pt: item.title_pt,
-    format: item.format,
+    id: item.id, code: item.code, title_pt: item.title_pt, format: item.format,
   }))
-  const weekCount = celebrationItems.length
 
-  function extractModeItems(data: typeof writeModeRes.data): ModeCardItem[] {
-    return (data ?? []).map((row) => ({
-      id: row.id,
-      code: row.code,
-      title_pt: row.title_pt,
-      format: row.format,
-      stage: row.stage,
-      priority: row.priority,
-      playlistName: null,
-      playlistProgress: null,
-    }))
+  const pipelineItems: PipelineItemWithSlot[] = (pipelineRes.data ?? []).map((row: Record<string, unknown>) => {
+    const pi = (row.playlist_items as Array<Record<string, unknown>> ?? [])[0]
+    const pl = pi?.playlists as Record<string, unknown> | undefined
+    const yc = row.youtube_channels as Record<string, string> | null
+    return {
+      id: row.id as string,
+      title: (row.title_pt as string || row.title_en as string) ?? 'Untitled',
+      stage: row.stage as Stage,
+      priority: (row.priority as number) ?? 0,
+      format: row.format as PipelineItemWithSlot['format'],
+      language: (row.language as PipelineItemWithSlot['language']) ?? 'pt-br',
+      duration_target: row.duration_target as number | null,
+      scheduled_at: row.scheduled_at as string | null,
+      youtube_channel_id: row.youtube_channel_id as string | null,
+      playlist_id: (pi?.playlist_id as string) ?? null,
+      playlist_name: (pl?.name_pt as string || pl?.name_en as string) ?? null,
+      playlist_position: (pi?.sort_order as number) ?? null,
+      playlist_total: null,
+      channel_label: yc?.name ?? null,
+    }
+  })
+
+  const syncSchedules: SyncScheduleWithChannel[] = (channelsRes.data ?? []).flatMap(
+    (ch: Record<string, unknown>) =>
+      ((ch.sync_schedules as Array<Record<string, unknown>>) ?? [])
+        .filter(Boolean)
+        .map(s => ({
+          channel_id: ch.id as string,
+          channel_name: ch.name as string,
+          locale: ch.locale as 'pt' | 'en',
+          schedule: s as unknown as { day: string; hour: number },
+          timezone: SITE_TZ,
+        }))
+  )
+
+  const blogCadence: BlogCadenceRow | null = cadenceRes.data as BlogCadenceRow | null
+  const newsletterEditions: NewsletterEditionRow[] = (editionsRes.data ?? []) as NewsletterEditionRow[]
+  const doneToday = new Set((doneRes.data ?? []).map((r: Record<string, string>) => r.pipeline_id)).size
+
+  const todayResult = calculateTodayActions({
+    pipelineItems, blogCadence, newsletterEditions, syncSchedules,
+    siteTimezone: SITE_TZ, now, maxCards: 5, doneToday,
+  })
+
+  const weekSlots = generateWeekSlots({
+    syncSchedules, blogCadence, newsletterEditions, pipelineItems,
+    weekStart, siteTimezone: SITE_TZ, today,
+  })
+
+  const pubHistory = (historyRes.data ?? []).map((r: Record<string, unknown>) => r.published_at as string).filter(Boolean)
+  const streak = calculateStreak({ publishHistory: pubHistory, syncSchedules, blogCadence, siteTimezone: SITE_TZ })
+
+  const stageCounts: Record<string, number> = {}
+  for (const [group, stages] of Object.entries(STAGE_GROUP)) {
+    stageCounts[group] = pipelineItems.filter(item => stages.includes(item.stage as Stage)).length
   }
 
-  const escreverItems = extractModeItems(writeModeRes.data)
-  const gravarItems = extractModeItems(recordModeRes.data)
-  const posProducaoItems = extractModeItems(postProdModeRes.data)
+  const playlistSummaries: PlaylistSummary[] = (playlistsRes.data ?? []).map((pl: Record<string, unknown>) => ({
+    id: pl.id as string,
+    name: (pl.name_pt as string) ?? 'Playlist',
+    total_items: 0, done_items: 0, in_progress_items: 0,
+    next_item_title: null, next_item_stage: null,
+  }))
 
-  const modeItems = [...escreverItems, ...gravarItems, ...posProducaoItems]
-  if (modeItems.length > 0) {
-    const playlistContextResults = await Promise.all(
-      modeItems.map((item) =>
-        supabase
-          .from('playlist_items')
-          .select('sort_order, playlists(id, name_pt)')
-          .eq('pipeline_id', item.id)
-          .limit(1)
-      )
-    )
+  const suggestion = selectSuggestion({ pipelineItems, playlists: playlistSummaries, newsletterEditions })
+  const backlogCount = pipelineItems.filter(item => item.stage === 'idea').length
 
-    const countQueries = await Promise.all(
-      modeItems.map(async (item, i) => {
-        const result = playlistContextResults[i]
-        if (!result) return null
-        const ctx = result.data?.[0]
-        if (!ctx) return null
-        const typed = ctx as unknown as PlaylistContext
-        if (!typed.playlists) return null
-        const { count } = await supabase
-          .from('playlist_items')
-          .select('id', { count: 'exact', head: true })
-          .eq('playlist_id', typed.playlists.id)
-        return { index: i, name: typed.playlists.name_pt, sortOrder: typed.sort_order, total: count ?? 0 }
-      })
-    )
-    for (const result of countQueries) {
-      if (!result || result.total === 0) continue
-      modeItems[result.index]!.playlistName = result.name
-      modeItems[result.index]!.playlistProgress = `${result.sortOrder}/${result.total}`
-    }
+  const fallbackData: UpNextApiResponse = {
+    today: todayResult,
+    todayDate: today,
+    weekSlots,
+    streak,
+    stageCounts,
+    playlists: playlistSummaries,
+    nextWeekEmpty: 0,
+    backlogCount,
+    suggestion,
+    errors: { today: null, weekSlots: null, streak: null, playlists: null },
   }
 
   const rawPlaylists = playlistsRes.data ?? []
-  let playlists: PlaylistStrip[] = []
-  let nearCompletionPipelineId: string | null = null
+  let playlistStrips: PlaylistStrip[] = []
 
   if (rawPlaylists.length > 0) {
     const playlistItemsResults = await Promise.all(
-      rawPlaylists.map((pl) =>
+      rawPlaylists.map((pl: Record<string, unknown>) =>
         supabase
           .from('playlist_items')
           .select('id, sort_order, pipeline_id, content_pipeline(id, title_pt, stage)')
-          .eq('playlist_id', pl.id)
+          .eq('playlist_id', pl.id as string)
           .order('sort_order', { ascending: true })
       )
     )
 
     const finalSet = new Set<string>(FINAL_STAGES)
-    const processed = rawPlaylists.map((pl, idx) => {
+    playlistStrips = rawPlaylists.map((pl: Record<string, unknown>, idx: number) => {
       const rows = (playlistItemsResults[idx]!.data ?? []) as unknown as PlaylistItemRow[]
-
       const enrichedItems = rows.map((row) => ({
         stage: row.content_pipeline?.stage ?? null,
         isPublished: row.content_pipeline ? finalSet.has(row.content_pipeline.stage) : false,
         title_pt: row.content_pipeline?.title_pt ?? null,
         pipelineId: row.pipeline_id,
       }))
-
       const unpublishedCount = enrichedItems.filter((it) => !it.isPublished).length
       const nextUnpublished = enrichedItems.find((it) => !it.isPublished) ?? null
 
       return {
-        strip: {
-          id: pl.id,
-          name: pl.name_pt ?? 'Playlist',
-          items: enrichedItems.map(({ stage, isPublished }) => ({ stage, isPublished })),
-          nextItemTitle: nextUnpublished?.title_pt ?? null,
-          nextItemStage: nextUnpublished?.stage ?? null,
-          nearCompletion: unpublishedCount > 0 && unpublishedCount <= 2,
-        } satisfies PlaylistStrip,
-        nextPipelineId: nextUnpublished?.pipelineId ?? null,
-        remaining: unpublishedCount,
-      }
+        id: pl.id as string,
+        name: (pl.name_pt as string) ?? 'Playlist',
+        items: enrichedItems.map(({ stage, isPublished }) => ({ stage, isPublished })),
+        nextItemTitle: nextUnpublished?.title_pt ?? null,
+        nextItemStage: nextUnpublished?.stage ?? null,
+        nearCompletion: unpublishedCount > 0 && unpublishedCount <= 2,
+      } satisfies PlaylistStrip
     })
-
-    processed.sort((a, b) => a.remaining - b.remaining)
-    playlists = processed.map((p) => p.strip)
-
-    const nearCompletion = processed.find((p) => p.strip.nearCompletion)
-    if (nearCompletion) nearCompletionPipelineId = nearCompletion.nextPipelineId
-  }
-
-  const nearCompletionPlaylist = playlists.find((pl) => pl.nearCompletion)
-  let suggestion: { text: string; linkHref: string | null; linkLabel: string | null }
-
-  if (nearCompletionPlaylist) {
-    const remaining = nearCompletionPlaylist.items.filter((it) => !it.isPublished).length
-    const itemWord = remaining === 1 ? 'item' : 'itens'
-    suggestion = {
-      text: `Você sabia? ${nearCompletionPlaylist.name} está a ${remaining} ${itemWord} de ser concluída.`,
-      linkHref: nearCompletionPipelineId ? `/cms/pipeline/items/${nearCompletionPipelineId}` : null,
-      linkLabel: nearCompletionPipelineId ? 'Ver próximo' : null,
-    }
-  } else if (weekCount > 0) {
-    suggestion = {
-      text: `${weekCount} ${weekCount === 1 ? 'conteúdo finalizado' : 'conteúdos finalizados'} esta semana. Bom ritmo!`,
-      linkHref: null,
-      linkLabel: null,
-    }
-  } else {
-    suggestion = {
-      text: 'O pipeline está pronto para novas ideias.',
-      linkHref: null,
-      linkLabel: null,
-    }
+    playlistStrips.sort((a, b) => {
+      const aRemaining = a.items.filter(it => !it.isPublished).length
+      const bRemaining = b.items.filter(it => !it.isPublished).length
+      return aRemaining - bRemaining
+    })
   }
 
   const activity: ActivityEntry[] = ((activityRes.data ?? []) as unknown as HistoryRow[])
     .filter((h) => h.content_pipeline)
     .map((h) => ({
-      id: h.id,
-      code: h.content_pipeline!.code,
-      format: h.content_pipeline!.format,
-      event_type: h.event_type,
-      to_value: h.to_value,
-      changed_at: h.changed_at,
+      id: h.id, code: h.content_pipeline!.code, format: h.content_pipeline!.format,
+      event_type: h.event_type, to_value: h.to_value, changed_at: h.changed_at,
     }))
-
-  // --- This Week data ---
-  const now = new Date()
-  const dayOfWeek = now.getUTCDay() // 0=Sun
-  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
-  const monday = new Date(now)
-  monday.setUTCDate(now.getUTCDate() + mondayOffset)
-  monday.setUTCHours(0, 0, 0, 0)
-
-  const sunday = new Date(monday)
-  sunday.setUTCDate(monday.getUTCDate() + 6)
-
-  const mondayStr = monday.toISOString().slice(0, 10)
-  const sundayStr = sunday.toISOString().slice(0, 10)
-
-  const [ytChannelsRes, scheduledThisWeekRes] = await Promise.all([
-    supabase
-      .from('youtube_channels')
-      .select('id, locale, sync_schedules, sync_enabled')
-      .eq('site_id', siteId)
-      .eq('sync_enabled', true),
-    supabase
-      .from('content_pipeline')
-      .select('id, title_pt, stage, format, scheduled_at, published_at')
-      .eq('site_id', siteId)
-      .eq('is_archived', false)
-      .eq('format', 'video')
-      .in('stage', ['scheduled', 'published'])
-      .gte('scheduled_at', `${mondayStr}T00:00:00`)
-      .lte('scheduled_at', `${sundayStr}T23:59:59`),
-  ])
-
-  const DAY_INDEX: Record<string, number> = {
-    sunday: 0, monday: 1, tuesday: 2, wednesday: 3,
-    thursday: 4, friday: 5, saturday: 6,
-  }
-  const DAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab']
-  const todayStr = now.toISOString().slice(0, 10)
-
-  const days: WeekDay[] = []
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(monday)
-    d.setUTCDate(monday.getUTCDate() + i)
-    const dateKey = d.toISOString().slice(0, 10)
-    const dayNum = d.getUTCDay()
-
-    const slots: WeekSlot[] = []
-
-    // Video slots from youtube_channels sync_schedules
-    for (const channel of ytChannelsRes.data ?? []) {
-      const schedules = (channel.sync_schedules ?? []) as Array<{ day: string; hour?: number }>
-      for (const sched of schedules) {
-        const schedDay = DAY_INDEX[sched.day?.toLowerCase?.() ?? '']
-        if (schedDay !== dayNum) continue
-
-        // Check if there's a pipeline item scheduled for this day
-        const matchingItem = (scheduledThisWeekRes.data ?? []).find((item) => {
-          const itemDate = (item.scheduled_at as string)?.slice(0, 10)
-          return itemDate === dateKey
-        })
-
-        slots.push({
-          type: 'video',
-          channelLocale: channel.locale as string,
-          hour: sched.hour as number | undefined,
-          filledBy: matchingItem
-            ? {
-                id: matchingItem.id as string,
-                title: (matchingItem.title_pt as string) ?? 'Untitled',
-                stage: matchingItem.stage as string,
-              }
-            : null,
-        })
-      }
-    }
-
-    days.push({
-      date: dateKey,
-      dayLabel: DAY_LABELS[dayNum]!,
-      isToday: dateKey === todayStr,
-      isPast: dateKey < todayStr,
-      slots,
-    })
-  }
-
-  // Calculate nextSlotIn
-  let nextSlotIn: number | null = null
-  for (const day of days) {
-    if (day.isPast) continue
-    const hasUnfilled = day.slots.some(s => !s.filledBy)
-    if (hasUnfilled) {
-      const diffMs = new Date(day.date).getTime() - new Date(todayStr).getTime()
-      nextSlotIn = Math.round(diffMs / 86_400_000)
-      break
-    }
-  }
 
   return (
     <>
       <CmsTopbar title="Up Next" />
       <div className="p-6 gem-pipeline-theme" style={GEM_CSS_VARS as React.CSSProperties}>
         <PipelineOverview
+          fallbackData={fallbackData}
           celebration={{ items: celebrationItems }}
-          modes={{ escrever: escreverItems, gravar: gravarItems, posProducao: posProducaoItems }}
-          playlists={playlists}
-          suggestion={suggestion}
+          playlists={playlistStrips}
           activity={activity}
-          thisWeek={{ days, nextSlotIn }}
         />
       </div>
     </>
