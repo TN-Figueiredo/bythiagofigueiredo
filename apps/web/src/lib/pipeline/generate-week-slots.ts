@@ -1,4 +1,5 @@
 import { parseISO, addDays, formatISO, isWithinInterval, startOfDay, endOfDay } from 'date-fns'
+import { toZonedTime } from 'date-fns-tz'
 import { STAGE_ORDER, DAY_INDEX, DAY_LABELS, LOCALE_TO_LANGUAGE, EFFORT_DEFAULTS } from './up-next-constants'
 import type { Stage } from './up-next-constants'
 import type {
@@ -68,6 +69,7 @@ export function generateWeekSlots(input: GenerateWeekSlotsInput): WeekSlot[] {
     newsletterEditions,
     pipelineItems,
     weekStart,
+    siteTimezone,
     today,
   } = input
 
@@ -107,7 +109,7 @@ export function generateWeekSlots(input: GenerateWeekSlotsInput): WeekSlot[] {
     slots.push({
       day: slotDateStr,
       dayLabel: dayLabelForDate(slotDate),
-      hour: `${sync.schedule.hour}:00`,
+      hour: `${String(sync.schedule.hour).padStart(2, '0')}:00`,
       format: 'video',
       channelLocale,
       channelId: sync.channel_id,
@@ -176,7 +178,7 @@ export function generateWeekSlots(input: GenerateWeekSlotsInput): WeekSlot[] {
     if (!edition.scheduled_at) continue
     if (!validNlStatuses.has(edition.status)) continue
 
-    const scheduledDate = parseISO(edition.scheduled_at)
+    const scheduledDate = toZonedTime(parseISO(edition.scheduled_at), siteTimezone)
     const inWeek = isWithinInterval(scheduledDate, {
       start: startOfDay(weekStartDate),
       end: endOfDay(weekEndDate),

@@ -14,5 +14,7 @@ export function getProductionDeadline(pubDate: string, stage: Stage): string | u
       return formatISO(subDays(pub, 1), { representation: 'date' })
     case 'scheduled': case 'published':
       return undefined
+    default:
+      return undefined
   }
 }

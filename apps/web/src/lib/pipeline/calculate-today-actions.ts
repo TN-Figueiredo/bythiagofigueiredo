@@ -108,6 +108,7 @@ export function calculateTodayActions(input: TodayActionsInput): TodayActionsRes
   )
 
   const unsortedActions: TodayAction[] = []
+  const assignedIds = new Set<string>()
 
   /* ---------------------------------------------------------------- */
   /*  Path 1 — Video (from syncSchedules)                             */
@@ -127,11 +128,12 @@ export function calculateTodayActions(input: TodayActionsInput): TodayActionsRes
 
     const channelLang = LOCALE_TO_LANGUAGE[schedule.locale]
 
-    // Find matching pipeline items: video format, matching channel, matching language
+    // Find matching pipeline items: video format, matching channel (orphan=null matches any), matching language
     const candidates = activePipelineItems.filter((item) => {
       if (item.format !== 'video') return false
-      if (item.youtube_channel_id !== schedule.channel_id) return false
+      if (item.youtube_channel_id !== null && item.youtube_channel_id !== schedule.channel_id) return false
       if (item.language !== 'both' && item.language !== channelLang) return false
+      if (assignedIds.has(item.id)) return false
       return true
     })
 
@@ -141,6 +143,7 @@ export function calculateTodayActions(input: TodayActionsInput): TodayActionsRes
     const best = candidates.reduce((prev, curr) =>
       STAGE_ORDER[curr.stage] > STAGE_ORDER[prev.stage] ? curr : prev,
     )
+    assignedIds.add(best.id)
 
     const deadline = getProductionDeadline(slotDay, best.stage)
     if (!deadline) continue
@@ -181,14 +184,18 @@ export function calculateTodayActions(input: TodayActionsInput): TodayActionsRes
     (blogCadence.cadence_days ?? 0) > 0 &&
     blogCadence.cadence_start_date !== null
   ) {
-    const startDate = parseISO(blogCadence.cadence_start_date)
     const cadenceDays = blogCadence.cadence_days as number
     const todayDate = parseISO(today)
 
-    // Compute next publication date: first date >= today that aligns with cadence
-    let nextPub = startDate
-    while (nextPub < todayDate) {
-      nextPub = addDays(nextPub, cadenceDays)
+    // Compute next publication date — unified with generateWeekSlots logic
+    let nextPub: Date
+    if (blogCadence.last_published_at !== null) {
+      nextPub = addDays(parseISO(blogCadence.last_published_at), cadenceDays)
+    } else {
+      nextPub = parseISO(blogCadence.cadence_start_date)
+    }
+    if (nextPub < todayDate) {
+      nextPub = todayDate
     }
 
     const nextPubStr = formatISO(nextPub, { representation: 'date' })

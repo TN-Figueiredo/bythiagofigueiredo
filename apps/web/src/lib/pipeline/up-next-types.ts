@@ -111,6 +111,7 @@ export interface StreakInput {
   syncSchedules: SyncScheduleWithChannel[]
   blogCadence: BlogCadenceRow | null
   siteTimezone: string
+  now?: Date
 }
 
 export interface StreakResult {

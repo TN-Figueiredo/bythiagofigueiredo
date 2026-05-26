@@ -21,12 +21,16 @@ function findBatchOpportunity(items: PipelineItemWithSlot[]): Suggestion | null 
     stageCounts.set(item.stage, (stageCounts.get(item.stage) ?? 0) + 1)
   }
 
-  for (const [stage, count] of stageCounts) {
-    if (count >= 2) {
-      return {
-        text: `Bloco de ${stage}: ${count} itens prontos. Trabalhar juntos?`,
-        href: `/cms/pipeline?stage=${stage}`,
-      }
+  // Sort by STAGE_ORDER descending so the most-progressed stage wins deterministically
+  const sortedStages = [...stageCounts.entries()]
+    .filter(([, count]) => count >= 2)
+    .sort(([a], [b]) => (STAGE_ORDER[b as keyof typeof STAGE_ORDER] ?? 0) - (STAGE_ORDER[a as keyof typeof STAGE_ORDER] ?? 0))
+
+  if (sortedStages.length > 0) {
+    const [stage, count] = sortedStages[0]
+    return {
+      text: `Bloco de ${stage}: ${count} itens prontos. Trabalhar juntos?`,
+      href: `/cms/pipeline?stage=${stage}`,
     }
   }
 
@@ -38,7 +42,8 @@ function findOrphanedItems(items: PipelineItemWithSlot[]): Suggestion | null {
     (item) =>
       item.format !== 'blog_post' &&
       item.format !== 'newsletter' &&
-      item.youtube_channel_id === null,
+      item.youtube_channel_id === null &&
+      STAGE_ORDER[item.stage] < STAGE_ORDER['scheduled'],
   )
 
   if (orphaned.length === 0) return null

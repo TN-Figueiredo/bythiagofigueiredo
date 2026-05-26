@@ -33,7 +33,7 @@ export function calculateStreak(input: StreakInput): StreakResult {
     publishedWeeks.add(isoWeekKey(zonedDate))
   }
 
-  const now = new Date()
+  const now = input.now ?? new Date()
   const nowZoned = toZonedTime(now, siteTimezone)
   const currentWeekKey = isoWeekKey(nowZoned)
 
