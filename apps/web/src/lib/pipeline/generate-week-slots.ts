@@ -82,12 +82,12 @@ export function generateWeekSlots(input: GenerateWeekSlotsInput): WeekSlot[] {
 
   // Track which day indices have explicit sync schedules (overrides rest day)
   const scheduledDayIndices = new Set<number>(
-    syncSchedules.map(s => DAY_INDEX[s.schedule.day] ?? -1),
+    syncSchedules.map(s => DAY_INDEX[s.schedule.day.toLowerCase()] ?? -1),
   )
 
   // 1. Video slots from sync schedules
   for (const sync of syncSchedules) {
-    const dayIndex = DAY_INDEX[sync.schedule.day]
+    const dayIndex = DAY_INDEX[sync.schedule.day.toLowerCase()]
     if (dayIndex === undefined) continue
 
     const slotDate = dayDate(weekStartDate, dayIndex)
@@ -137,9 +137,8 @@ export function generateWeekSlots(input: GenerateWeekSlotsInput): WeekSlot[] {
       nextPub = parseISO(blogCadence.cadence_start_date)
     }
 
-    // Advance to today if it already passed
-    if (nextPub < todayDate) {
-      nextPub = todayDate
+    while (nextPub < todayDate) {
+      nextPub = addDays(nextPub, blogCadence.cadence_days!)
     }
 
     const inWeek = isWithinInterval(nextPub, {
@@ -237,4 +236,43 @@ export function generateWeekSlots(input: GenerateWeekSlotsInput): WeekSlot[] {
   })
 
   return slots
+}
+
+export function hydrateWeekSlots(
+  slots: WeekSlot[],
+  pipelineItems: PipelineItemWithSlot[],
+): WeekSlot[] {
+  const usedIds = new Set<string>()
+
+  return slots.map(slot => {
+    if (slot.assignedItem) return slot
+    if (slot.isRestDay) return slot
+
+    const match = pipelineItems.find(item => {
+      if (usedIds.has(item.id)) return false
+      if (!item.scheduled_at || typeof item.scheduled_at !== 'string' || item.scheduled_at.length < 10) return false
+      if (item.format !== slot.format) return false
+
+      const scheduledDay = item.scheduled_at.slice(0, 10)
+      if (scheduledDay !== slot.day) return false
+
+      if (slot.hour && item.scheduled_at.length >= 16) {
+        const scheduledHour = item.scheduled_at.slice(11, 16)
+        if (scheduledHour !== slot.hour) return false
+      }
+
+      if (slot.channelId && item.youtube_channel_id !== slot.channelId) return false
+
+      return true
+    })
+
+    if (!match) return slot
+    usedIds.add(match.id)
+
+    return {
+      ...slot,
+      assignedItem: { id: match.id, title: match.title, stage: match.stage },
+      effortMinutes: getEffortMinutes(match.format, match.stage),
+    }
+  })
 }

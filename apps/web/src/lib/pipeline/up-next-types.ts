@@ -13,7 +13,7 @@ export interface PipelineItemWithSlot {
   playlist_id: string | null
   playlist_name: string | null
   playlist_position: number | null
-  playlist_total: number | null
+  playlist_total: number | null // TODO: always null — populate from playlist_items count or remove field + update calculate-today-actions
   channel_label: string | null
 }
 
@@ -62,7 +62,7 @@ export interface TodayAction {
   actionLabel: string
   format: 'video' | 'blog_post' | 'newsletter' | 'course' | 'campaign'
   language: 'pt-br' | 'en' | 'both'
-  effort: 'deep' | 'quick'
+  effort: 'deep' | 'medium' | 'quick'
   effortEstimate: string
   effortMinutes: number
   urgency: 'overdue' | 'today' | 'tomorrow' | 'this_week'
@@ -111,13 +111,15 @@ export interface StreakInput {
   syncSchedules: SyncScheduleWithChannel[]
   blogCadence: BlogCadenceRow | null
   siteTimezone: string
-  now?: Date
+  now: Date
 }
 
 export interface StreakResult {
   currentStreak: number
   isActive: boolean
 }
+
+export type SlotCandidate = Pick<PipelineItemWithSlot, 'id' | 'title' | 'stage' | 'format' | 'language'>
 
 export interface UpNextApiResponse {
   today: TodayActionsResult
@@ -126,7 +128,8 @@ export interface UpNextApiResponse {
   streak: StreakResult
   stageCounts: Record<string, number>
   playlists: PlaylistSummary[]
-  nextWeekEmpty: number
+  candidates: Pick<PipelineItemWithSlot, 'id' | 'title' | 'stage' | 'format' | 'language'>[]
+  nextWeekEmpty: number // TODO: always 0 — compute from next week's generateWeekSlots or remove field + update up-next-this-week
   backlogCount: number
   suggestion: { text: string; href: string } | null
   errors: {
