@@ -71,7 +71,6 @@ describe('generateWeekSlots', () => {
       syncSchedules: [makeSyncSchedule({ schedule: { day: 'tuesday', hour: 10 } })],
       blogCadence: null,
       newsletterEditions: [],
-      pipelineItems: [],
       weekStart: WEEK_START,
       siteTimezone: SITE_TZ,
       today: TODAY,
@@ -96,7 +95,6 @@ describe('generateWeekSlots', () => {
       syncSchedules: [],
       blogCadence: cadence,
       newsletterEditions: [],
-      pipelineItems: [],
       weekStart: WEEK_START,
       siteTimezone: SITE_TZ,
       today: TODAY,
@@ -116,7 +114,6 @@ describe('generateWeekSlots', () => {
       syncSchedules: [],
       blogCadence: cadence,
       newsletterEditions: [],
-      pipelineItems: [],
       weekStart: WEEK_START,
       siteTimezone: SITE_TZ,
       today: TODAY,
@@ -135,7 +132,6 @@ describe('generateWeekSlots', () => {
       syncSchedules: [],
       blogCadence: null,
       newsletterEditions: [edition],
-      pipelineItems: [],
       weekStart: WEEK_START,
       siteTimezone: SITE_TZ,
       today: TODAY,
@@ -151,7 +147,6 @@ describe('generateWeekSlots', () => {
       syncSchedules: [],
       blogCadence: null,
       newsletterEditions: [],
-      pipelineItems: [],
       weekStart: WEEK_START,
       siteTimezone: SITE_TZ,
       today: TODAY,
@@ -161,24 +156,6 @@ describe('generateWeekSlots', () => {
     const sunday = slots.find(s => s.day === '2026-05-31')
     expect(saturday?.isRestDay).toBe(true)
     expect(sunday?.isRestDay).toBe(true)
-  })
-
-  it('assigns most-progressed pipeline item to matching slot', () => {
-    const lowerItem = makePipelineItem({ id: 'item-low', stage: 'idea', priority: 1 })
-    const higherItem = makePipelineItem({ id: 'item-high', stage: 'edicao', priority: 2 })
-
-    const slots = generateWeekSlots({
-      syncSchedules: [makeSyncSchedule({ schedule: { day: 'tuesday', hour: 10 } })],
-      blogCadence: null,
-      newsletterEditions: [],
-      pipelineItems: [lowerItem, higherItem],
-      weekStart: WEEK_START,
-      siteTimezone: SITE_TZ,
-      today: TODAY,
-    })
-
-    const videoSlot = slots.find(s => s.format === 'video')
-    expect(videoSlot?.assignedItem?.id).toBe('item-high')
   })
 
   it('stacks two schedules on same day as separate slots', () => {
@@ -200,7 +177,6 @@ describe('generateWeekSlots', () => {
       syncSchedules: schedules,
       blogCadence: null,
       newsletterEditions: [],
-      pipelineItems: [],
       weekStart: WEEK_START,
       siteTimezone: SITE_TZ,
       today: TODAY,
@@ -217,7 +193,6 @@ describe('generateWeekSlots', () => {
       syncSchedules: [],
       blogCadence: null,
       newsletterEditions: [],
-      pipelineItems: [],
       weekStart: WEEK_START,
       siteTimezone: SITE_TZ,
       today: TODAY,
@@ -241,7 +216,6 @@ describe('generateWeekSlots', () => {
       syncSchedules: [],
       blogCadence: cadence,
       newsletterEditions: [],
-      pipelineItems: [],
       weekStart: '2026-06-01',
       siteTimezone: 'America/Sao_Paulo',
       today: '2026-06-01',
@@ -260,7 +234,6 @@ describe('generateWeekSlots', () => {
       syncSchedules: [],
       blogCadence: null,
       newsletterEditions: editions,
-      pipelineItems: [],
       weekStart: WEEK_START,
       siteTimezone: SITE_TZ,
       today: TODAY,
@@ -274,7 +247,6 @@ describe('generateWeekSlots', () => {
       syncSchedules: [],
       blogCadence: cadence,
       newsletterEditions: [],
-      pipelineItems: [],
       weekStart: WEEK_START,
       siteTimezone: SITE_TZ,
       today: TODAY,
@@ -288,7 +260,6 @@ describe('generateWeekSlots', () => {
       syncSchedules: [],
       blogCadence: null,
       newsletterEditions: [edition],
-      pipelineItems: [],
       weekStart: WEEK_START,
       siteTimezone: SITE_TZ,
       today: TODAY,
@@ -306,7 +277,6 @@ describe('generateWeekSlots', () => {
       syncSchedules: schedules,
       blogCadence: null,
       newsletterEditions: [],
-      pipelineItems: [],
       weekStart: WEEK_START,
       siteTimezone: SITE_TZ,
       today: TODAY,
@@ -323,23 +293,22 @@ describe('generateWeekSlots', () => {
     expect(contentSlots[2].hour).toBe('14:00')
   })
 
-  it('does not assign same item to two slots', () => {
-    const schedules = [
-      makeSyncSchedule({ channel_id: 'ch-pt', schedule: { day: 'tuesday', hour: 10 } }),
-      makeSyncSchedule({ channel_id: 'ch-pt', schedule: { day: 'wednesday', hour: 10 } }),
-    ]
-    const items = [makePipelineItem({ id: 'p1', format: 'video', stage: 'gravacao', youtube_channel_id: 'ch-pt', language: 'pt-br' })]
+  it('all slots have assignedItem null and effortMinutes 0', () => {
     const slots = generateWeekSlots({
-      syncSchedules: schedules,
-      blogCadence: null,
-      newsletterEditions: [],
-      pipelineItems: items,
+      syncSchedules: [makeSyncSchedule({ schedule: { day: 'tuesday', hour: 10 } })],
+      blogCadence: makeBlogCadence(),
+      newsletterEditions: [makeNewsletterEdition()],
       weekStart: WEEK_START,
       siteTimezone: SITE_TZ,
       today: TODAY,
     })
-    const assignedSlots = slots.filter(s => s.assignedItem?.id === 'p1')
-    expect(assignedSlots).toHaveLength(1)
+
+    const contentSlots = slots.filter(s => !s.isRestDay)
+    expect(contentSlots.length).toBeGreaterThan(0)
+    for (const slot of slots) {
+      expect(slot.assignedItem).toBeNull()
+      expect(slot.effortMinutes).toBe(0)
+    }
   })
 })
 

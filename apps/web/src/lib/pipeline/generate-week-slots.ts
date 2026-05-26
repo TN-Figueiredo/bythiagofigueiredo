@@ -1,6 +1,6 @@
 import { parseISO, addDays, formatISO, isWithinInterval, startOfDay, endOfDay } from 'date-fns'
 import { toZonedTime } from 'date-fns-tz'
-import { STAGE_ORDER, DAY_INDEX, DAY_LABELS, LOCALE_TO_LANGUAGE, EFFORT_DEFAULTS } from './up-next-constants'
+import { STAGE_ORDER, DAY_INDEX, DAY_LABELS, EFFORT_DEFAULTS } from './up-next-constants'
 import type { Stage } from './up-next-constants'
 import type {
   WeekSlot,
@@ -14,13 +14,10 @@ export interface GenerateWeekSlotsInput {
   syncSchedules: SyncScheduleWithChannel[]
   blogCadence: BlogCadenceRow | null
   newsletterEditions: NewsletterEditionRow[]
-  pipelineItems: PipelineItemWithSlot[]
   weekStart: string
   siteTimezone: string
   today: string
 }
-
-const SCHEDULED_ORDER = STAGE_ORDER['scheduled']
 
 function dayDate(weekStartDate: Date, targetDayIndex: number): Date {
   // weekStartDate is Monday (dayIndex=1). Offset to target dayIndex.
@@ -43,23 +40,8 @@ function isRestDayIndex(dayIndex: number): boolean {
 }
 
 function getEffortMinutes(format: string, stage: Stage): number {
-  if (STAGE_ORDER[stage] >= SCHEDULED_ORDER) return 0
+  if (STAGE_ORDER[stage] >= STAGE_ORDER['scheduled']) return 0
   return EFFORT_DEFAULTS[`${format}:${stage}`]?.minutes ?? 30
-}
-
-function findBestItem(
-  candidates: PipelineItemWithSlot[],
-  assigned: Set<string>,
-): PipelineItemWithSlot | null {
-  const eligible = candidates.filter(
-    item =>
-      !assigned.has(item.id) &&
-      STAGE_ORDER[item.stage] < SCHEDULED_ORDER,
-  )
-  if (eligible.length === 0) return null
-  return eligible.reduce((best, item) =>
-    STAGE_ORDER[item.stage] > STAGE_ORDER[best.stage] ? item : best,
-  )
 }
 
 export function generateWeekSlots(input: GenerateWeekSlotsInput): WeekSlot[] {
@@ -67,7 +49,6 @@ export function generateWeekSlots(input: GenerateWeekSlotsInput): WeekSlot[] {
     syncSchedules,
     blogCadence,
     newsletterEditions,
-    pipelineItems,
     weekStart,
     siteTimezone,
     today,
@@ -78,7 +59,6 @@ export function generateWeekSlots(input: GenerateWeekSlotsInput): WeekSlot[] {
   const todayDate = parseISO(today)
 
   const slots: WeekSlot[] = []
-  const assignedItemIds = new Set<string>()
 
   // Track which day indices have explicit sync schedules (overrides rest day)
   const scheduledDayIndices = new Set<number>(
@@ -93,31 +73,16 @@ export function generateWeekSlots(input: GenerateWeekSlotsInput): WeekSlot[] {
     const slotDate = dayDate(weekStartDate, dayIndex)
     const slotDateStr = toDateString(slotDate)
 
-    const channelLocale = sync.locale
-    const channelLang = LOCALE_TO_LANGUAGE[channelLocale] ?? channelLocale
-
-    const candidates = pipelineItems.filter(
-      item =>
-        item.format === 'video' &&
-        (item.language === 'both' || item.language === channelLang) &&
-        (item.youtube_channel_id === null || item.youtube_channel_id === sync.channel_id),
-    )
-
-    const bestItem = findBestItem(candidates, assignedItemIds)
-    if (bestItem) assignedItemIds.add(bestItem.id)
-
     slots.push({
       day: slotDateStr,
       dayLabel: dayLabelForDate(slotDate),
       hour: `${String(sync.schedule.hour).padStart(2, '0')}:00`,
       format: 'video',
-      channelLocale,
+      channelLocale: sync.locale,
       channelId: sync.channel_id,
       isRestDay: false,
-      assignedItem: bestItem
-        ? { id: bestItem.id, title: bestItem.title, stage: bestItem.stage }
-        : null,
-      effortMinutes: bestItem ? getEffortMinutes('video', bestItem.stage) : 0,
+      assignedItem: null,
+      effortMinutes: 0,
     })
   }
 
@@ -150,10 +115,6 @@ export function generateWeekSlots(input: GenerateWeekSlotsInput): WeekSlot[] {
       const slotDateStr = toDateString(nextPub)
       const dayIndex = nextPub.getDay()
 
-      const candidates = pipelineItems.filter(item => item.format === 'blog_post')
-      const bestItem = findBestItem(candidates, assignedItemIds)
-      if (bestItem) assignedItemIds.add(bestItem.id)
-
       slots.push({
         day: slotDateStr,
         dayLabel: dayLabelForDate(nextPub),
@@ -162,10 +123,8 @@ export function generateWeekSlots(input: GenerateWeekSlotsInput): WeekSlot[] {
         channelLocale: null,
         channelId: null,
         isRestDay: isRestDayIndex(dayIndex) && !scheduledDayIndices.has(dayIndex),
-        assignedItem: bestItem
-          ? { id: bestItem.id, title: bestItem.title, stage: bestItem.stage }
-          : null,
-        effortMinutes: bestItem ? getEffortMinutes('blog_post', bestItem.stage) : 0,
+        assignedItem: null,
+        effortMinutes: 0,
       })
     }
   }
