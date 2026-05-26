@@ -1,12 +1,25 @@
 'use client'
 
-import { useState, useRef, useCallback, useMemo } from 'react'
+import { useState, useRef, useCallback, useMemo, memo } from 'react'
 import Link from 'next/link'
 import { Calendar, RefreshCw } from 'lucide-react'
 import { FORMAT_COLORS } from '@/lib/pipeline/colors'
+import { gemMix } from '@/lib/pipeline/gem-design'
 import { DAY_LABELS } from '@/lib/pipeline/up-next-constants'
-import { WeekSlotPicker } from './week-slot-picker'
 import type { WeekSlot, SlotCandidate } from '@/lib/pipeline/up-next-types'
+import dynamic from 'next/dynamic'
+
+// Lazy-loaded: only needed when the picker is open
+const LazyWeekSlotPicker = dynamic(
+  () => import('./week-slot-picker').then(m => ({ default: m.WeekSlotPicker })),
+  { ssr: false }
+)
+
+const FORMAT_LABELS: Record<string, string> = {
+  video: 'Video',
+  blog_post: 'Blog',
+  newsletter: 'News',
+}
 
 export interface WeekGridProps {
   slots: WeekSlot[]
@@ -18,6 +31,8 @@ export interface WeekGridProps {
   backlogCount: number
   candidates?: SlotCandidate[]
   onAssignSlot?: (itemId: string, slotDay: string, slotHour: string | null, previousItemId?: string) => Promise<void>
+  selectedItem?: SlotCandidate | null
+  onItemAssigned?: () => void
 }
 
 function groupSlotsByDay(slots: WeekSlot[]): Map<string, WeekSlot[]> {
@@ -30,11 +45,15 @@ function groupSlotsByDay(slots: WeekSlot[]): Map<string, WeekSlot[]> {
   return map
 }
 
-function SlotChip({ slot, onEmptyClick, onSwapClick }: {
+interface SlotChipProps {
   slot: WeekSlot
-  onEmptyClick?: (day: string, format: WeekSlot['format'], hour: string | null) => void
-  onSwapClick?: (day: string, format: WeekSlot['format'], hour: string | null, previousItemId: string) => void
-}) {
+  onEmptyClick?: (e: React.MouseEvent<HTMLButtonElement>) => void
+  onSwapClick?: (e: React.MouseEvent<HTMLButtonElement>) => void
+  selectedItem?: SlotCandidate | null
+  onDirectAssign?: (itemId: string, day: string, hour: string | null) => void
+}
+
+const SlotChip = memo(function SlotChip({ slot, onEmptyClick, onSwapClick, selectedItem, onDirectAssign }: SlotChipProps) {
   const colors = FORMAT_COLORS[slot.format] ?? { accent: 'var(--gem-accent)', text: 'var(--gem-muted)' }
   const filled = slot.assignedItem !== null
 
@@ -45,7 +64,6 @@ function SlotChip({ slot, onEmptyClick, onSwapClick }: {
         style={{
           border: '1px dashed var(--gem-dim)',
           color: 'var(--gem-dim)',
-          opacity: 0.5,
         }}
       >
         (opcional)
@@ -60,8 +78,8 @@ function SlotChip({ slot, onEmptyClick, onSwapClick }: {
           href={`/cms/pipeline/items/${slot.assignedItem!.id}`}
           className="flex items-center gap-1.5 rounded-md px-2 py-1 pr-7 text-[10px] font-medium truncate cursor-pointer motion-safe:transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)] focus-visible:outline-none min-h-[44px]"
           style={{
-            background: `color-mix(in srgb, ${colors.accent} 12%, transparent)`,
-            border: `1px solid color-mix(in srgb, ${colors.accent} 30%, transparent)`,
+            background: gemMix(colors.accent, 12),
+            border: `1px solid ${gemMix(colors.accent, 30)}`,
             color: colors.text,
           }}
           title={slot.assignedItem!.title}
@@ -69,8 +87,8 @@ function SlotChip({ slot, onEmptyClick, onSwapClick }: {
         >
           <span className="truncate max-w-[100px]">{slot.assignedItem!.title}</span>
           <span
-            className="text-[9px] px-1 rounded"
-            style={{ background: `color-mix(in srgb, ${colors.accent} 20%, transparent)` }}
+            className="text-[10px] px-1 rounded"
+            style={{ background: gemMix(colors.accent, 20) }}
           >
             {slot.assignedItem!.stage}
           </span>
@@ -78,12 +96,16 @@ function SlotChip({ slot, onEmptyClick, onSwapClick }: {
         {onSwapClick && (
           <button
             type="button"
-            className="absolute top-1/2 right-0 -translate-y-1/2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full opacity-40 group-hover/chip:opacity-100 focus-visible:opacity-100 motion-safe:transition-opacity focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)] focus-visible:outline-none"
+            className="absolute top-1/2 right-0 -translate-y-1/2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full opacity-60 group-hover/chip:opacity-100 focus-visible:opacity-100 motion-safe:transition-opacity focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)] focus-visible:outline-none"
             style={{
-              background: `color-mix(in srgb, ${colors.accent} 20%, transparent)`,
+              background: gemMix(colors.accent, 20),
               color: colors.text,
             }}
-            onClick={(e) => { e.preventDefault(); onSwapClick(slot.day, slot.format, slot.hour, slot.assignedItem!.id) }}
+            data-day={slot.day}
+            data-format={slot.format}
+            data-hour={slot.hour ?? ''}
+            data-item-id={slot.assignedItem!.id}
+            onClick={(e) => { e.preventDefault(); onSwapClick(e) }}
             aria-label={`Trocar ${slot.assignedItem!.title}`}
           >
             <RefreshCw size={12} />
@@ -97,27 +119,35 @@ function SlotChip({ slot, onEmptyClick, onSwapClick }: {
   const dayLabel = DAY_LABELS[dayNum] ?? ''
   const dateNum = parseInt(slot.day.slice(8, 10), 10)
 
+  const isCompatible = !!selectedItem && selectedItem.format === slot.format
+
   return (
     <button
       type="button"
-      className="flex items-center justify-center rounded-md px-2 py-1 text-[10px] w-full min-h-[44px] focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)] focus-visible:outline-none"
+      className={`flex items-center justify-center rounded-md px-2 py-1 text-[10px] w-full min-h-[44px] focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)] focus-visible:outline-none${isCompatible ? ' ring-2 ring-[var(--gem-accent)]' : ''}`}
       style={{
-        border: `1px dashed color-mix(in srgb, ${colors.accent} 35%, transparent)`,
+        border: `1px dashed ${gemMix(colors.accent, 35)}`,
         color: 'var(--gem-dim)',
       }}
       data-testid={`empty-slot-${slot.day}`}
-      aria-label={`Adicionar conteúdo — ${dayLabel} ${dateNum}`}
-      onClick={() => onEmptyClick?.(slot.day, slot.format, slot.hour)}
+      data-day={slot.day}
+      data-format={slot.format}
+      data-hour={slot.hour ?? ''}
+      aria-label={`Adicionar ${FORMAT_LABELS[slot.format] ?? slot.format} — ${dayLabel} ${dateNum}`}
+      onClick={isCompatible && onDirectAssign
+        ? () => onDirectAssign(selectedItem!.id, slot.day, slot.hour)
+        : onEmptyClick}
     >
-      slot vazio
+      {isCompatible ? selectedItem!.title : `+ ${FORMAT_LABELS[slot.format] ?? slot.format}`}
     </button>
   )
-}
+})
 
 export function UpNextThisWeek({
   slots, todayDate, stageCounts, totalEffortMinutes,
   streak, nextWeekEmpty, backlogCount,
   candidates = [], onAssignSlot,
+  selectedItem = null, onItemAssigned,
 }: WeekGridProps) {
   const [pickerSlot, setPickerSlot] = useState<{ day: string; format: WeekSlot['format']; hour: string | null; previousItemId?: string } | null>(null)
   const triggerRef = useRef<HTMLButtonElement | null>(null)
@@ -146,6 +176,28 @@ export function UpNextThisWeek({
     return days
   }, [slots])
 
+  const handleEmptyClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
+    const day = e.currentTarget.dataset.day!
+    const format = e.currentTarget.dataset.format! as WeekSlot['format']
+    const hour = e.currentTarget.dataset.hour || null
+    triggerRef.current = e.currentTarget
+    setPickerSlot({ day, format, hour })
+  }, [])
+
+  const handleSwapClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
+    const day = e.currentTarget.dataset.day!
+    const format = e.currentTarget.dataset.format! as WeekSlot['format']
+    const hour = e.currentTarget.dataset.hour || null
+    const itemId = e.currentTarget.dataset.itemId!
+    triggerRef.current = e.currentTarget
+    setPickerSlot({ day, format, hour, previousItemId: itemId })
+  }, [])
+
+  const handleDirectAssign = useCallback((itemId: string, day: string, hour: string | null) => {
+    onAssignSlot?.(itemId, day, hour)
+    onItemAssigned?.()
+  }, [onAssignSlot, onItemAssigned])
+
   const { filledCount, totalCount } = useMemo(() => ({
     filledCount: slots.filter(s => s.assignedItem).length,
     totalCount: slots.length,
@@ -158,12 +210,12 @@ export function UpNextThisWeek({
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <Calendar size={14} style={{ color: 'var(--gem-accent)' }} />
-          <h3
+          <h2
             className="text-xs font-semibold uppercase tracking-wider"
             style={{ color: 'var(--gem-muted)' }}
           >
             Esta Semana
-          </h3>
+          </h2>
         </div>
       </div>
 
@@ -195,15 +247,16 @@ export function UpNextThisWeek({
                 style={{
                   borderColor: 'var(--gem-border)',
                   background: isToday
-                    ? 'color-mix(in srgb, var(--gem-accent) 5%, transparent)'
+                    ? gemMix('--gem-accent', 5)
                     : isPast
-                      ? 'color-mix(in srgb, var(--gem-surface) 50%, transparent)'
-                      : undefined,
-                  opacity: isPast ? 0.4 : isWeekend && daySlots.length === 0 ? 0.6 : 1,
+                      ? gemMix('--gem-text', 3)
+                      : isWeekend && daySlots.length === 0
+                        ? gemMix('--gem-text', 2)
+                        : undefined,
                 }}
                 {...(isToday ? { 'aria-current': 'date' as const } : {})}
               >
-                <h4
+                <h3
                   className="px-2 py-1.5 text-center border-b"
                   style={{
                     borderColor: 'var(--gem-border)',
@@ -220,7 +273,7 @@ export function UpNextThisWeek({
                   </span>
                   {dayEffort > 0 && (
                     <span
-                      className="block text-[9px] mt-0.5"
+                      className="block text-[10px] mt-0.5"
                       style={{
                         color: dayEffort >= 240 ? 'var(--gem-warn)' : 'var(--gem-dim)',
                       }}
@@ -228,12 +281,12 @@ export function UpNextThisWeek({
                       ~{Math.round(dayEffort / 60)}h
                     </span>
                   )}
-                </h4>
+                </h3>
 
                 <div ref={(el) => setDayCellRef(dayDate, el)} className="p-1.5 space-y-1 flex-1 relative">
                   {daySlots.length === 0 ? (
                     <span
-                      className="text-[9px] block text-center mt-2"
+                      className="text-[10px] block text-center mt-2"
                       style={{ color: 'var(--gem-dim)' }}
                       aria-hidden="true"
                     >
@@ -242,21 +295,17 @@ export function UpNextThisWeek({
                   ) : (
                     daySlots.map((slot, i) => (
                       <SlotChip
-                        key={`${slot.day}-${slot.format}-${slot.hour ?? i}`}
+                        key={`${slot.day}-${slot.format}-${slot.hour ?? 'null'}-${i}`}
                         slot={slot}
-                        onEmptyClick={(day, format, hour) => {
-                          triggerRef.current = document.activeElement as HTMLButtonElement | null
-                          setPickerSlot({ day, format, hour })
-                        }}
-                        onSwapClick={onAssignSlot ? (day, format, hour, previousItemId) => {
-                          triggerRef.current = document.activeElement as HTMLButtonElement | null
-                          setPickerSlot({ day, format, hour, previousItemId })
-                        } : undefined}
+                        onEmptyClick={handleEmptyClick}
+                        onSwapClick={onAssignSlot ? handleSwapClick : undefined}
+                        selectedItem={selectedItem}
+                        onDirectAssign={selectedItem ? handleDirectAssign : undefined}
                       />
                     ))
                   )}
                   {pickerSlot && pickerSlot.day === dayDate && (
-                    <WeekSlotPicker
+                    <LazyWeekSlotPicker
                       slot={daySlots.find(s =>
                         s.format === pickerSlot.format && s.hour === pickerSlot.hour && (
                           pickerSlot.previousItemId
@@ -283,14 +332,14 @@ export function UpNextThisWeek({
       </div>
 
       <ul
-        className="flex items-center gap-3 mt-2 text-[11px] flex-wrap"
+        className="flex items-center gap-3 mt-2 text-xs flex-wrap"
         style={{ color: 'var(--gem-muted)' }}
       >
         {Object.entries(stageCounts).map(([group, count]) => (
           <li key={group} className="flex items-center gap-1">
             <span className="inline-block w-2 h-2 rounded-full" style={{
               background: group === 'escrever' ? 'var(--gem-accent)'
-                : group === 'gravar' ? 'var(--gem-warn)'
+                : group === 'gravar' ? 'var(--gem-danger)'
                 : group === 'pos-prod' ? 'var(--gem-warn)'
                 : 'var(--gem-done)',
             }} />
@@ -319,7 +368,7 @@ export function UpNextThisWeek({
 
       {totalCount > 0 && (
         <p
-          className="text-[11px] mt-1"
+          className="text-xs mt-1"
           style={{ color: 'var(--gem-muted)' }}
         >
           {filledCount}/{totalCount} slots preenchidos esta semana
