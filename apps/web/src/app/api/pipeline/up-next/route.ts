@@ -132,7 +132,7 @@ export async function GET(req: NextRequest) {
   const newsletterEditions: NewsletterEditionRow[] = (editionsRes.data ?? []) as NewsletterEditionRow[]
   const doneToday = new Set((doneRes.data ?? []).map((r: Record<string, string>) => r.pipeline_id)).size
 
-  let todayResult = { actions: [] as never[], overflow: 0, doneToday, totalSurfaced: 0, totalEffortMinutes: 0 }
+  let todayResult: UpNextApiResponse['today'] = { actions: [], overflow: 0, doneToday, totalSurfaced: 0, totalEffortMinutes: 0 }
   try {
     todayResult = calculateTodayActions({
       pipelineItems, blogCadence, newsletterEditions, syncSchedules,
