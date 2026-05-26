@@ -56,6 +56,7 @@ export function UpNextActivity({ entries }: UpNextActivityProps) {
   return (
     <section
       data-testid="activity-section"
+      aria-label="Atividade recente"
       className="rounded-lg"
       style={{
         background: 'var(--gem-surface)',
@@ -66,6 +67,7 @@ export function UpNextActivity({ entries }: UpNextActivityProps) {
         type="button"
         data-testid="activity-toggle"
         aria-expanded={expanded}
+        aria-controls="activity-list"
         className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium"
         style={{ color: 'var(--gem-text)' }}
         onClick={() => setExpanded((prev) => !prev)}
@@ -81,8 +83,9 @@ export function UpNextActivity({ entries }: UpNextActivityProps) {
         />
       </button>
 
-      {expanded && (
+      {expanded ? (
         <ul
+          id="activity-list"
           data-testid="activity-list"
           className="flex flex-col gap-1 px-4 pb-3"
         >
@@ -117,7 +120,7 @@ export function UpNextActivity({ entries }: UpNextActivityProps) {
             )
           })}
         </ul>
-      )}
+      ) : null}
     </section>
   )
 }
