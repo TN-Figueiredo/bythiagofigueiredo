@@ -1,0 +1,238 @@
+import { parseISO, addDays, formatISO, isWithinInterval, startOfDay, endOfDay } from 'date-fns'
+import { STAGE_ORDER, DAY_INDEX, DAY_LABELS, LOCALE_TO_LANGUAGE, EFFORT_DEFAULTS } from './up-next-constants'
+import type { Stage } from './up-next-constants'
+import type {
+  WeekSlot,
+  SyncScheduleWithChannel,
+  BlogCadenceRow,
+  NewsletterEditionRow,
+  PipelineItemWithSlot,
+} from './up-next-types'
+
+export interface GenerateWeekSlotsInput {
+  syncSchedules: SyncScheduleWithChannel[]
+  blogCadence: BlogCadenceRow | null
+  newsletterEditions: NewsletterEditionRow[]
+  pipelineItems: PipelineItemWithSlot[]
+  weekStart: string
+  siteTimezone: string
+  today: string
+}
+
+const SCHEDULED_ORDER = STAGE_ORDER['scheduled']
+
+function dayDate(weekStartDate: Date, targetDayIndex: number): Date {
+  // weekStartDate is Monday (dayIndex=1). Offset to target dayIndex.
+  // Sunday is 0, but in our week it's day +6 from Monday.
+  const mondayIndex = 1
+  const offset = targetDayIndex === 0 ? 6 : targetDayIndex - mondayIndex
+  return addDays(weekStartDate, offset)
+}
+
+function toDateString(d: Date): string {
+  return formatISO(d, { representation: 'date' })
+}
+
+function dayLabelForDate(d: Date): string {
+  return DAY_LABELS[d.getDay() as 0 | 1 | 2 | 3 | 4 | 5 | 6]
+}
+
+function isRestDayIndex(dayIndex: number): boolean {
+  return dayIndex === 6 || dayIndex === 0
+}
+
+function getEffortMinutes(format: string, stage: Stage): number {
+  if (STAGE_ORDER[stage] >= SCHEDULED_ORDER) return 0
+  return EFFORT_DEFAULTS[`${format}:${stage}`]?.minutes ?? 30
+}
+
+function findBestItem(
+  candidates: PipelineItemWithSlot[],
+  assigned: Set<string>,
+): PipelineItemWithSlot | null {
+  const eligible = candidates.filter(
+    item =>
+      !assigned.has(item.id) &&
+      STAGE_ORDER[item.stage] < SCHEDULED_ORDER,
+  )
+  if (eligible.length === 0) return null
+  return eligible.reduce((best, item) =>
+    STAGE_ORDER[item.stage] > STAGE_ORDER[best.stage] ? item : best,
+  )
+}
+
+export function generateWeekSlots(input: GenerateWeekSlotsInput): WeekSlot[] {
+  const {
+    syncSchedules,
+    blogCadence,
+    newsletterEditions,
+    pipelineItems,
+    weekStart,
+    today,
+  } = input
+
+  const weekStartDate = parseISO(weekStart)
+  const weekEndDate = addDays(weekStartDate, 6)
+  const todayDate = parseISO(today)
+
+  const slots: WeekSlot[] = []
+  const assignedItemIds = new Set<string>()
+
+  // Track which day indices have explicit sync schedules (overrides rest day)
+  const scheduledDayIndices = new Set<number>(
+    syncSchedules.map(s => DAY_INDEX[s.schedule.day] ?? -1),
+  )
+
+  // 1. Video slots from sync schedules
+  for (const sync of syncSchedules) {
+    const dayIndex = DAY_INDEX[sync.schedule.day]
+    if (dayIndex === undefined) continue
+
+    const slotDate = dayDate(weekStartDate, dayIndex)
+    const slotDateStr = toDateString(slotDate)
+
+    const channelLocale = sync.locale
+    const channelLang = LOCALE_TO_LANGUAGE[channelLocale] ?? channelLocale
+
+    const candidates = pipelineItems.filter(
+      item =>
+        item.format === 'video' &&
+        (item.language === 'both' || item.language === channelLang) &&
+        (item.youtube_channel_id === null || item.youtube_channel_id === sync.channel_id),
+    )
+
+    const bestItem = findBestItem(candidates, assignedItemIds)
+    if (bestItem) assignedItemIds.add(bestItem.id)
+
+    slots.push({
+      day: slotDateStr,
+      dayLabel: dayLabelForDate(slotDate),
+      hour: `${sync.schedule.hour}:00`,
+      format: 'video',
+      channelLocale,
+      channelId: sync.channel_id,
+      isRestDay: false,
+      assignedItem: bestItem
+        ? { id: bestItem.id, title: bestItem.title, stage: bestItem.stage }
+        : null,
+      effortMinutes: bestItem ? getEffortMinutes('video', bestItem.stage) : 0,
+    })
+  }
+
+  // 2. Blog slot from cadence
+  if (
+    blogCadence !== null &&
+    !blogCadence.cadence_paused &&
+    blogCadence.cadence_days !== null &&
+    blogCadence.cadence_days > 0 &&
+    blogCadence.cadence_start_date !== null
+  ) {
+    let nextPub: Date
+
+    if (blogCadence.last_published_at !== null) {
+      nextPub = addDays(parseISO(blogCadence.last_published_at), blogCadence.cadence_days)
+    } else {
+      nextPub = parseISO(blogCadence.cadence_start_date)
+    }
+
+    // Advance to today if it already passed
+    if (nextPub < todayDate) {
+      nextPub = todayDate
+    }
+
+    const inWeek = isWithinInterval(nextPub, {
+      start: startOfDay(weekStartDate),
+      end: endOfDay(weekEndDate),
+    })
+
+    if (inWeek) {
+      const slotDateStr = toDateString(nextPub)
+      const dayIndex = nextPub.getDay()
+
+      const candidates = pipelineItems.filter(item => item.format === 'blog_post')
+      const bestItem = findBestItem(candidates, assignedItemIds)
+      if (bestItem) assignedItemIds.add(bestItem.id)
+
+      slots.push({
+        day: slotDateStr,
+        dayLabel: dayLabelForDate(nextPub),
+        hour: null,
+        format: 'blog_post',
+        channelLocale: null,
+        channelId: null,
+        isRestDay: isRestDayIndex(dayIndex) && !scheduledDayIndices.has(dayIndex),
+        assignedItem: bestItem
+          ? { id: bestItem.id, title: bestItem.title, stage: bestItem.stage }
+          : null,
+        effortMinutes: bestItem ? getEffortMinutes('blog_post', bestItem.stage) : 0,
+      })
+    }
+  }
+
+  // 3. Newsletter slots from editions scheduled within the week
+  const validNlStatuses = new Set(['draft', 'ready', 'scheduled'])
+
+  for (const edition of newsletterEditions) {
+    if (!edition.scheduled_at) continue
+    if (!validNlStatuses.has(edition.status)) continue
+
+    const scheduledDate = parseISO(edition.scheduled_at)
+    const inWeek = isWithinInterval(scheduledDate, {
+      start: startOfDay(weekStartDate),
+      end: endOfDay(weekEndDate),
+    })
+    if (!inWeek) continue
+
+    const slotDateStr = toDateString(scheduledDate)
+    const dayIndex = scheduledDate.getDay()
+
+    slots.push({
+      day: slotDateStr,
+      dayLabel: dayLabelForDate(scheduledDate),
+      hour: null,
+      format: 'newsletter',
+      channelLocale: null,
+      channelId: null,
+      isRestDay: isRestDayIndex(dayIndex) && !scheduledDayIndices.has(dayIndex),
+      assignedItem: null,
+      effortMinutes: 0,
+    })
+  }
+
+  // 4. Rest day sentinel slots for Saturday and Sunday if no schedules on those days
+  const SAT_INDEX = 6
+  const SUN_INDEX = 0
+
+  for (const dayIndex of [SAT_INDEX, SUN_INDEX]) {
+    if (scheduledDayIndices.has(dayIndex)) continue
+    const hasSlotOnDay = slots.some(s => {
+      const d = parseISO(s.day)
+      return d.getDay() === dayIndex
+    })
+    if (hasSlotOnDay) continue
+
+    const restDate = dayDate(weekStartDate, dayIndex)
+    slots.push({
+      day: toDateString(restDate),
+      dayLabel: dayLabelForDate(restDate),
+      hour: null,
+      format: 'video',
+      channelLocale: null,
+      channelId: null,
+      isRestDay: true,
+      assignedItem: null,
+      effortMinutes: 0,
+    })
+  }
+
+  // 5. Sort by day ASC then hour ASC
+  slots.sort((a, b) => {
+    const dayDiff = a.day.localeCompare(b.day)
+    if (dayDiff !== 0) return dayDiff
+    const aHour = a.hour ?? ''
+    const bHour = b.hour ?? ''
+    return aHour.localeCompare(bHour)
+  })
+
+  return slots
+}
