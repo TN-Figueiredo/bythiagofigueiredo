@@ -66,4 +66,25 @@ describe('UpNextSuggestion', () => {
     expect(screen.getByText('Tudo em dia.')).toBeTruthy()
     expect(screen.queryByRole('link')).toBeNull()
   })
+
+  it('renders with background container', async () => {
+    const { UpNextSuggestion } = await import(
+      '../../src/app/cms/(authed)/pipeline/_components/up-next-suggestion'
+    )
+    render(
+      <UpNextSuggestion text="Test" linkHref="/test" linkLabel="Go" />,
+    )
+    expect(screen.getByTestId('suggestion-container')).toBeTruthy()
+  })
+
+  it('link has 44px minimum touch target', async () => {
+    const { UpNextSuggestion } = await import(
+      '../../src/app/cms/(authed)/pipeline/_components/up-next-suggestion'
+    )
+    render(
+      <UpNextSuggestion text="Test" linkHref="/test" linkLabel="Go" />,
+    )
+    const link = screen.getByText('Go')
+    expect(link.className).toContain('min-h-[44px]')
+  })
 })

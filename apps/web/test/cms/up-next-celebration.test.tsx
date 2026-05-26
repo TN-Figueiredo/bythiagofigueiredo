@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import React from 'react'
 
 /* ------------------------------------------------------------------ */
@@ -12,6 +12,11 @@ import React from 'react'
 vi.mock('@/lib/pipeline/gem-design', () => ({
   getFormatIcon: vi.fn((f: string) => ({ icon: `[${f}]`, bgClass: '', label: f })),
 }))
+
+vi.mock('date-fns', async () => {
+  const actual = await vi.importActual('date-fns')
+  return { ...actual as object }
+})
 
 /* ------------------------------------------------------------------ */
 /*  Import (relative path — avoids @/ alias issues with parenthesized dirs) */
@@ -85,5 +90,16 @@ describe('UpNextCelebration', () => {
 
     const icon = screen.getByTitle('G5-fallback')
     expect(icon).toBeTruthy()
+  })
+
+  it('shows dismiss button', () => {
+    render(<UpNextCelebration items={[makeItem()]} />)
+    expect(screen.getByTestId('celebration-dismiss')).toBeTruthy()
+  })
+
+  it('hides after dismiss click', () => {
+    render(<UpNextCelebration items={[makeItem()]} />)
+    fireEvent.click(screen.getByTestId('celebration-dismiss'))
+    expect(screen.queryByTestId('celebration-banner')).toBeNull()
   })
 })

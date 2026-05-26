@@ -176,4 +176,17 @@ describe('UpNextActivity', () => {
     const dot = screen.getByTestId('activity-dot')
     expect(dot.style.backgroundColor).toBe('#888')
   })
+
+  it('activity list has id="activity-list" when expanded', () => {
+    render(<UpNextActivity entries={[makeEntry()]} />)
+    fireEvent.click(screen.getByTestId('activity-toggle'))
+    const list = screen.getByTestId('activity-list')
+    expect(list.id).toBe('activity-list')
+  })
+
+  it('toggle button has aria-controls pointing to activity-list', () => {
+    render(<UpNextActivity entries={[makeEntry()]} />)
+    const toggle = screen.getByTestId('activity-toggle')
+    expect(toggle.getAttribute('aria-controls')).toBe('activity-list')
+  })
 })
