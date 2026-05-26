@@ -40,7 +40,8 @@ interface HistoryRow {
 
 export default async function PipelineOverviewPage() {
   const { siteId } = await getSiteContext()
-  await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
+  const scope = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
+  if (!scope.ok) { throw new Error('Forbidden') }
   const supabase = getSupabaseServiceClient()
 
   const now = new Date()
@@ -72,7 +73,8 @@ export default async function PipelineOverviewPage() {
       .eq('site_id', siteId)
       .not('stage', 'in', '("published","archived")')
       .eq('is_archived', false)
-      .order('priority', { ascending: false }),
+      .order('priority', { ascending: false })
+      .limit(200),
 
     supabase
       .from('youtube_channels')
@@ -83,8 +85,7 @@ export default async function PipelineOverviewPage() {
       .from('blog_cadence')
       .select('site_id, cadence_days, cadence_start_date, cadence_paused, last_published_at, locale')
       .eq('site_id', siteId)
-      .limit(1)
-      .single(),
+      .maybeSingle(),
 
     supabase
       .from('newsletter_editions')
@@ -96,8 +97,10 @@ export default async function PipelineOverviewPage() {
 
     supabase
       .from('content_pipeline_history')
-      .select('pipeline_id')
+      .select('pipeline_id, content_pipeline!inner(site_id)')
+      .eq('content_pipeline.site_id', siteId)
       .gte('changed_at', `${today}T00:00:00`)
+      .order('changed_at', { ascending: false })
       .limit(200),
 
     supabase
@@ -115,7 +118,7 @@ export default async function PipelineOverviewPage() {
 
     supabase
       .from('content_pipeline_history')
-      .select('id, event_type, to_value, changed_at, pipeline_id, content_pipeline(code, format)')
+      .select('id, event_type, to_value, changed_at, pipeline_id, content_pipeline!inner(code, format, site_id)')
       .eq('content_pipeline.site_id', siteId)
       .order('changed_at', { ascending: false })
       .limit(10),

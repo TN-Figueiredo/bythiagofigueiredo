@@ -17,7 +17,10 @@ import { toZonedTime } from 'date-fns-tz'
 
 const ParamsSchema = z.object({
   maxCards: z.coerce.number().int().min(1).max(10).default(5),
-  tz: z.string().default('America/Sao_Paulo'),
+  tz: z.string().refine((val) => {
+    try { Intl.DateTimeFormat(undefined, { timeZone: val }); return true }
+    catch { return false }
+  }, 'Invalid IANA timezone').default('America/Sao_Paulo'),
 })
 
 export async function GET(req: NextRequest) {
@@ -51,7 +54,8 @@ export async function GET(req: NextRequest) {
       .eq('site_id', siteId)
       .not('stage', 'in', '("published","archived")')
       .eq('is_archived', false)
-      .order('priority', { ascending: false }),
+      .order('priority', { ascending: false })
+      .limit(200),
 
     supabase
       .from('youtube_channels')
@@ -62,8 +66,7 @@ export async function GET(req: NextRequest) {
       .from('blog_cadence')
       .select('site_id, cadence_days, cadence_start_date, cadence_paused, last_published_at, locale')
       .eq('site_id', siteId)
-      .limit(1)
-      .single(),
+      .maybeSingle(),
 
     supabase
       .from('newsletter_editions')
@@ -75,8 +78,10 @@ export async function GET(req: NextRequest) {
 
     supabase
       .from('content_pipeline_history')
-      .select('pipeline_id')
+      .select('pipeline_id, content_pipeline!inner(site_id)')
+      .eq('content_pipeline.site_id', siteId)
       .gte('changed_at', `${today}T00:00:00`)
+      .order('changed_at', { ascending: false })
       .limit(200),
 
     supabase
@@ -139,7 +144,8 @@ export async function GET(req: NextRequest) {
       siteTimezone: tz, now, maxCards, doneToday,
     })
   } catch (e) {
-    errors.today = (e as Error).message
+    console.error('[up-next] today section error:', e)
+    errors.today = 'computation_failed'
   }
 
   let weekSlots = [] as UpNextApiResponse['weekSlots']
@@ -149,15 +155,17 @@ export async function GET(req: NextRequest) {
       weekStart, siteTimezone: tz, today,
     })
   } catch (e) {
-    errors.weekSlots = (e as Error).message
+    console.error('[up-next] weekSlots section error:', e)
+    errors.weekSlots = 'computation_failed'
   }
 
   let streak = { currentStreak: 0, isActive: false }
   try {
-    const pubHistory = (historyRes.data ?? []).map((r: Record<string, unknown>) => r.published_at as string)
+    const pubHistory = (historyRes.data ?? []).map((r: Record<string, unknown>) => r.published_at as string).filter(Boolean)
     streak = calculateStreak({ publishHistory: pubHistory, syncSchedules, blogCadence, siteTimezone: tz })
   } catch (e) {
-    errors.streak = (e as Error).message
+    console.error('[up-next] streak section error:', e)
+    errors.streak = 'computation_failed'
   }
 
   const stageCounts: Record<string, number> = {}
