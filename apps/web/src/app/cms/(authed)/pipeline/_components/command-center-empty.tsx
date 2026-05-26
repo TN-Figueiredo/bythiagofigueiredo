@@ -54,7 +54,7 @@ export function CommandCenterEmpty({ variant, nextActionDay }: CommandCenterEmpt
       {config.cta && (
         <Link
           href={config.cta.href}
-          className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium min-h-[44px]"
+          className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium min-h-[44px] focus-visible:ring-2 focus-visible:ring-[#6366f1] focus-visible:outline-none"
           style={{
             background: 'color-mix(in srgb, var(--gem-accent) 15%, transparent)',
             color: 'var(--gem-accent)',

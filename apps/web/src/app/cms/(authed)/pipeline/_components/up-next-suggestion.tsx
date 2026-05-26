@@ -22,7 +22,7 @@ export function UpNextSuggestion({ text, linkHref, linkLabel }: UpNextSuggestion
     >
       <p
         className="text-xs leading-relaxed"
-        style={{ color: 'var(--gem-dim)' }}
+        style={{ color: 'var(--gem-muted)' }}
       >
         {text}
         {linkHref && linkLabel && (
@@ -30,7 +30,7 @@ export function UpNextSuggestion({ text, linkHref, linkLabel }: UpNextSuggestion
             {' '}
             <Link
               href={linkHref}
-              className="inline-flex items-center min-h-[44px] underline underline-offset-2 hover:opacity-80 transition-opacity"
+              className="inline-flex items-center min-h-[44px] underline underline-offset-2 hover:opacity-80 transition-opacity focus-visible:ring-2 focus-visible:ring-[#6366f1] focus-visible:outline-none"
               style={{ color: 'var(--gem-accent)' }}
             >
               {linkLabel}

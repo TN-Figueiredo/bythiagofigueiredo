@@ -21,10 +21,13 @@ interface PipelineOverviewProps {
   activity: ActivityEntry[]
 }
 
-const fetcher = (url: string) => fetch(url).then(r => r.json()).then(d => d.data as UpNextApiResponse)
+const fetcher = (url: string) => fetch(url).then(r => {
+  if (!r.ok) throw new Error(`API error ${r.status}`)
+  return r.json()
+}).then(d => d.data as UpNextApiResponse)
 
 export function PipelineOverview({ fallbackData, celebration, playlists, activity }: PipelineOverviewProps) {
-  const { data, isLoading } = useSWR<UpNextApiResponse>(
+  const { data, isLoading, mutate } = useSWR<UpNextApiResponse>(
     '/api/pipeline/up-next',
     fetcher,
     {
@@ -42,13 +45,13 @@ export function PipelineOverview({ fallbackData, celebration, playlists, activit
         const today = new Date().toISOString().slice(0, 10)
         if (today !== mountDateRef.current) {
           mountDateRef.current = today
-          window.location.reload()
+          mutate()
         }
       }
     }
     document.addEventListener('visibilitychange', handleVisibility)
     return () => document.removeEventListener('visibilitychange', handleVisibility)
-  }, [])
+  }, [mutate])
 
   if (isLoading && !data) return <CommandCenterSkeleton />
 
@@ -79,6 +82,12 @@ export function PipelineOverview({ fallbackData, celebration, playlists, activit
 
       <OfflineBanner />
 
+      {upNext.errors && Object.entries(upNext.errors).some(([, v]) => v !== null) && (
+        <div className="text-[11px] px-3 py-1.5 rounded" style={{ color: 'var(--gem-warn)', background: 'color-mix(in srgb, var(--gem-warn) 8%, transparent)' }}>
+          Alguns dados podem estar incompletos.
+        </div>
+      )}
+
       {totalActions > 0 && (
         <div>
           <h2
@@ -94,6 +103,7 @@ export function PipelineOverview({ fallbackData, celebration, playlists, activit
               className="mt-1 h-1.5 rounded-full overflow-hidden"
               style={{ background: 'var(--gem-faint)' }}
               role="progressbar"
+              aria-label={`${doneCount} de ${totalActions} tarefas concluidas`}
               aria-valuenow={doneCount}
               aria-valuemin={0}
               aria-valuemax={totalActions}

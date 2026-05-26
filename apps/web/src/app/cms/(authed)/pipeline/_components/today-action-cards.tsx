@@ -28,7 +28,7 @@ function ActionCard({ action }: { action: TodayAction }) {
     <li>
       <Link
         href={href}
-        className="group flex items-stretch gap-3 rounded-lg border p-3 transition-transform hover:scale-[1.02] active:scale-[0.98]"
+        className="group flex items-stretch gap-3 rounded-lg border p-3 transition-transform hover:scale-[1.02] active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-[#6366f1] focus-visible:outline-none"
         style={{
           background: 'var(--gem-surface)',
           borderColor: 'var(--gem-border)',
@@ -41,6 +41,7 @@ function ActionCard({ action }: { action: TodayAction }) {
           className="w-[3px] shrink-0 rounded-full"
           style={{ background: colors.accent }}
         />
+        <span className="sr-only">{action.format === 'video' ? 'Video' : action.format === 'blog_post' ? 'Blog' : action.format === 'newsletter' ? 'Newsletter' : action.format}</span>
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
@@ -123,7 +124,7 @@ export function TodayActionCards({ actions, overflow }: TodayActionCardsProps) {
       {overflow > 0 && (
         <p
           className="text-[11px] mt-2 text-center"
-          style={{ color: 'var(--gem-dim)' }}
+          style={{ color: 'var(--gem-muted)' }}
           aria-label={`${overflow} acoes adicionais`}
         >
           +{overflow} acoes adicionais

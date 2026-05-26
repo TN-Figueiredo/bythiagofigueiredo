@@ -91,7 +91,7 @@ export function UpNextCelebration({ items }: UpNextCelebrationProps) {
       <button
         type="button"
         onClick={dismiss}
-        className="shrink-0 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-md transition-opacity hover:opacity-70"
+        className="shrink-0 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-md transition-opacity hover:opacity-70 focus-visible:ring-2 focus-visible:ring-[#6366f1] focus-visible:outline-none"
         style={{ color: 'var(--gem-muted)' }}
         aria-label="Dispensar celebracao"
         data-testid="celebration-dismiss"

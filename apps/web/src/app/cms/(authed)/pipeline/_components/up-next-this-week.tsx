@@ -3,9 +3,8 @@
 import Link from 'next/link'
 import { Calendar } from 'lucide-react'
 import { FORMAT_COLORS } from '@/lib/pipeline/colors'
-import { STAGE_GROUP, EFFORT_DEFAULTS, DAY_LABELS } from '@/lib/pipeline/up-next-constants'
+import { DAY_LABELS } from '@/lib/pipeline/up-next-constants'
 import type { WeekSlot } from '@/lib/pipeline/up-next-types'
-import type { Stage } from '@/lib/pipeline/up-next-constants'
 
 export interface WeekGridProps {
   slots: WeekSlot[]
@@ -50,7 +49,7 @@ function SlotChip({ slot }: { slot: WeekSlot }) {
     return (
       <Link
         href={`/cms/pipeline/items/${slot.assignedItem!.id}`}
-        className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] font-medium truncate transition-opacity hover:opacity-80"
+        className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] font-medium truncate transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-[#6366f1] focus-visible:outline-none min-h-[44px]"
         style={{
           background: `color-mix(in srgb, ${colors.accent} 12%, transparent)`,
           border: `1px solid color-mix(in srgb, ${colors.accent} 30%, transparent)`,
@@ -72,7 +71,7 @@ function SlotChip({ slot }: { slot: WeekSlot }) {
   return (
     <button
       type="button"
-      className="flex items-center justify-center rounded-md px-2 py-1 text-[10px] w-full min-h-[44px]"
+      className="flex items-center justify-center rounded-md px-2 py-1 text-[10px] w-full min-h-[44px] focus-visible:ring-2 focus-visible:ring-[#6366f1] focus-visible:outline-none"
       style={{
         border: `1px dashed color-mix(in srgb, ${colors.accent} 35%, transparent)`,
         color: 'var(--gem-dim)',
@@ -205,7 +204,7 @@ export function UpNextThisWeek({
 
       <ul
         className="flex items-center gap-3 mt-2 text-[11px] flex-wrap"
-        style={{ color: 'var(--gem-dim)' }}
+        style={{ color: 'var(--gem-muted)' }}
       >
         {Object.entries(stageCounts).map(([group, count]) => (
           <li key={group} className="flex items-center gap-1">
@@ -225,7 +224,7 @@ export function UpNextThisWeek({
 
       <div
         className="flex items-center justify-between mt-1 text-[10px]"
-        style={{ color: 'var(--gem-dim)' }}
+        style={{ color: 'var(--gem-muted)' }}
       >
         <span>
           Prox. semana: {nextWeekEmpty} vazios · {backlogCount} no backlog
@@ -240,7 +239,7 @@ export function UpNextThisWeek({
       {totalCount > 0 && (
         <p
           className="text-[11px] mt-1"
-          style={{ color: 'var(--gem-dim)' }}
+          style={{ color: 'var(--gem-muted)' }}
         >
           {filledCount}/{totalCount} slots preenchidos esta semana
           {filledCount === totalCount && ' — tudo pronto!'}

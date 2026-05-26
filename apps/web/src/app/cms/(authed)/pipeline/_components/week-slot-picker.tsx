@@ -41,6 +41,14 @@ export function WeekSlotPicker({ slot, candidates, onAssign, onClose }: WeekSlot
     return () => document.removeEventListener('keydown', handleEsc)
   }, [onClose])
 
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) onClose()
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [onClose])
+
   const handleSelect = useCallback(async (itemId: string) => {
     setLoading(true)
     setError(null)
@@ -64,6 +72,7 @@ export function WeekSlotPicker({ slot, candidates, onAssign, onClose }: WeekSlot
         borderColor: 'var(--gem-border)',
       }}
       role="dialog"
+      aria-modal="true"
       aria-label="Escolher item para slot"
     >
       <div className="p-2">
@@ -73,6 +82,7 @@ export function WeekSlotPicker({ slot, candidates, onAssign, onClose }: WeekSlot
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Buscar item..."
+          aria-label="Buscar item para o slot"
           className="w-full rounded-md px-2 py-1.5 text-xs outline-none"
           style={{
             background: 'var(--gem-well)',
