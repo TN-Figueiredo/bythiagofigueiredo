@@ -8,6 +8,7 @@ import type { CelebrationItem } from './_components/up-next-celebration'
 import type { ModeCardItem } from './_components/up-next-mode-cards'
 import type { PlaylistStrip } from './_components/up-next-playlist-strips'
 import type { ActivityEntry } from './_components/up-next-activity'
+import type { WeekDay, WeekSlot } from './_components/up-next-this-week'
 
 export const dynamic = 'force-dynamic'
 
@@ -59,7 +60,7 @@ export default async function PipelineOverviewPage() {
       .in('stage', [...WRITE_STAGES])
       .order('priority', { ascending: false })
       .order('updated_at', { ascending: false })
-      .limit(1),
+      .limit(3),
 
     supabase
       .from('content_pipeline')
@@ -69,7 +70,7 @@ export default async function PipelineOverviewPage() {
       .eq('stage', 'gravacao')
       .order('priority', { ascending: false })
       .order('updated_at', { ascending: false })
-      .limit(1),
+      .limit(3),
 
     supabase
       .from('content_pipeline')
@@ -79,7 +80,7 @@ export default async function PipelineOverviewPage() {
       .in('stage', [...POST_PROD_STAGES])
       .order('priority', { ascending: false })
       .order('updated_at', { ascending: false })
-      .limit(1),
+      .limit(3),
 
     supabase
       .from('playlists')
@@ -103,10 +104,8 @@ export default async function PipelineOverviewPage() {
   }))
   const weekCount = celebrationItems.length
 
-  function extractModeItem(data: typeof writeModeRes.data): ModeCardItem | null {
-    const row = data?.[0]
-    if (!row) return null
-    return {
+  function extractModeItems(data: typeof writeModeRes.data): ModeCardItem[] {
+    return (data ?? []).map((row) => ({
       id: row.id,
       code: row.code,
       title_pt: row.title_pt,
@@ -115,14 +114,14 @@ export default async function PipelineOverviewPage() {
       priority: row.priority,
       playlistName: null,
       playlistProgress: null,
-    }
+    }))
   }
 
-  const escrever = extractModeItem(writeModeRes.data)
-  const gravar = extractModeItem(recordModeRes.data)
-  const posProducao = extractModeItem(postProdModeRes.data)
+  const escreverItems = extractModeItems(writeModeRes.data)
+  const gravarItems = extractModeItems(recordModeRes.data)
+  const posProducaoItems = extractModeItems(postProdModeRes.data)
 
-  const modeItems = [escrever, gravar, posProducao].filter((m): m is ModeCardItem => m !== null)
+  const modeItems = [...escreverItems, ...gravarItems, ...posProducaoItems]
   if (modeItems.length > 0) {
     const playlistContextResults = await Promise.all(
       modeItems.map((item) =>
@@ -242,16 +241,113 @@ export default async function PipelineOverviewPage() {
       changed_at: h.changed_at,
     }))
 
+  // --- This Week data ---
+  const now = new Date()
+  const dayOfWeek = now.getUTCDay() // 0=Sun
+  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
+  const monday = new Date(now)
+  monday.setUTCDate(now.getUTCDate() + mondayOffset)
+  monday.setUTCHours(0, 0, 0, 0)
+
+  const sunday = new Date(monday)
+  sunday.setUTCDate(monday.getUTCDate() + 6)
+
+  const mondayStr = monday.toISOString().slice(0, 10)
+  const sundayStr = sunday.toISOString().slice(0, 10)
+
+  const [ytChannelsRes, scheduledThisWeekRes] = await Promise.all([
+    supabase
+      .from('youtube_channels')
+      .select('id, locale, sync_schedules, sync_enabled')
+      .eq('site_id', siteId)
+      .eq('sync_enabled', true),
+    supabase
+      .from('content_pipeline')
+      .select('id, title_pt, stage, format, scheduled_at, published_at')
+      .eq('site_id', siteId)
+      .eq('is_archived', false)
+      .eq('format', 'video')
+      .in('stage', ['scheduled', 'published'])
+      .gte('scheduled_at', `${mondayStr}T00:00:00`)
+      .lte('scheduled_at', `${sundayStr}T23:59:59`),
+  ])
+
+  const DAY_INDEX: Record<string, number> = {
+    sunday: 0, monday: 1, tuesday: 2, wednesday: 3,
+    thursday: 4, friday: 5, saturday: 6,
+  }
+  const DAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab']
+  const todayStr = now.toISOString().slice(0, 10)
+
+  const days: WeekDay[] = []
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(monday)
+    d.setUTCDate(monday.getUTCDate() + i)
+    const dateKey = d.toISOString().slice(0, 10)
+    const dayNum = d.getUTCDay()
+
+    const slots: WeekSlot[] = []
+
+    // Video slots from youtube_channels sync_schedules
+    for (const channel of ytChannelsRes.data ?? []) {
+      const schedules = (channel.sync_schedules ?? []) as Array<{ day: string; hour?: number }>
+      for (const sched of schedules) {
+        const schedDay = DAY_INDEX[sched.day?.toLowerCase?.() ?? '']
+        if (schedDay !== dayNum) continue
+
+        // Check if there's a pipeline item scheduled for this day
+        const matchingItem = (scheduledThisWeekRes.data ?? []).find((item) => {
+          const itemDate = (item.scheduled_at as string)?.slice(0, 10)
+          return itemDate === dateKey
+        })
+
+        slots.push({
+          type: 'video',
+          channelLocale: channel.locale as string,
+          hour: sched.hour as number | undefined,
+          filledBy: matchingItem
+            ? {
+                id: matchingItem.id as string,
+                title: (matchingItem.title_pt as string) ?? 'Untitled',
+                stage: matchingItem.stage as string,
+              }
+            : null,
+        })
+      }
+    }
+
+    days.push({
+      date: dateKey,
+      dayLabel: DAY_LABELS[dayNum]!,
+      isToday: dateKey === todayStr,
+      isPast: dateKey < todayStr,
+      slots,
+    })
+  }
+
+  // Calculate nextSlotIn
+  let nextSlotIn: number | null = null
+  for (const day of days) {
+    if (day.isPast) continue
+    const hasUnfilled = day.slots.some(s => !s.filledBy)
+    if (hasUnfilled) {
+      const diffMs = new Date(day.date).getTime() - new Date(todayStr).getTime()
+      nextSlotIn = Math.round(diffMs / 86_400_000)
+      break
+    }
+  }
+
   return (
     <>
       <CmsTopbar title="Up Next" />
       <div className="p-6 gem-pipeline-theme" style={GEM_CSS_VARS as React.CSSProperties}>
         <PipelineOverview
           celebration={{ items: celebrationItems }}
-          modes={{ escrever, gravar, posProducao }}
+          modes={{ escrever: escreverItems, gravar: gravarItems, posProducao: posProducaoItems }}
           playlists={playlists}
           suggestion={suggestion}
           activity={activity}
+          thisWeek={{ days, nextSlotIn }}
         />
       </div>
     </>
