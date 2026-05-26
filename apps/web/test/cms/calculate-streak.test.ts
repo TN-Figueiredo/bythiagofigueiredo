@@ -22,119 +22,86 @@ const blogCadence: BlogCadenceRow = {
   locale: 'pt',
 }
 
+const FIXED_NOW = new Date('2026-06-02T12:00:00Z')
+
+function makeInput(overrides: Partial<StreakInput> = {}): StreakInput {
+  return {
+    publishHistory: [],
+    syncSchedules: [syncSchedule],
+    blogCadence: null,
+    siteTimezone: TZ,
+    now: FIXED_NOW,
+    ...overrides,
+  }
+}
+
 describe('calculateStreak', () => {
   it('returns 0 streak when no publish history', () => {
-    const input: StreakInput = {
-      publishHistory: [],
-      syncSchedules: [syncSchedule],
-      blogCadence: null,
-      siteTimezone: TZ,
-    }
-    const result = calculateStreak(input)
+    const result = calculateStreak(makeInput())
     expect(result.currentStreak).toBe(0)
     expect(result.isActive).toBe(false)
   })
 
   it('returns streak of 1 when only current week has publishes', () => {
-    const now = new Date()
-    const input: StreakInput = {
-      publishHistory: [now.toISOString()],
-      syncSchedules: [syncSchedule],
-      blogCadence: null,
-      siteTimezone: TZ,
-    }
-    const result = calculateStreak(input)
+    const result = calculateStreak(makeInput({
+      publishHistory: ['2026-06-02T10:00:00Z'],
+    }))
     expect(result.currentStreak).toBe(1)
     expect(result.isActive).toBe(true)
   })
 
   it('counts consecutive weeks', () => {
-    const now = new Date()
-    const oneWeekAgo = new Date(now)
-    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
-    const twoWeeksAgo = new Date(now)
-    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14)
-
-    const input: StreakInput = {
-      publishHistory: [now.toISOString(), oneWeekAgo.toISOString(), twoWeeksAgo.toISOString()],
-      syncSchedules: [syncSchedule],
-      blogCadence: null,
-      siteTimezone: TZ,
-    }
-    const result = calculateStreak(input)
+    // 2026-06-02 (W23), 2026-05-26 (W22), 2026-05-19 (W21)
+    const result = calculateStreak(makeInput({
+      publishHistory: ['2026-06-02T10:00:00Z', '2026-05-26T10:00:00Z', '2026-05-19T10:00:00Z'],
+    }))
     expect(result.currentStreak).toBe(3)
     expect(result.isActive).toBe(true)
   })
 
   it('stops at gap with expected slots', () => {
-    const now = new Date()
-    const twoWeeksAgo = new Date(now)
-    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14)
-
-    const input: StreakInput = {
-      publishHistory: [now.toISOString(), twoWeeksAgo.toISOString()],
-      syncSchedules: [syncSchedule],
-      blogCadence: null,
-      siteTimezone: TZ,
-    }
-    const result = calculateStreak(input)
+    // current week (W23) + two weeks ago (W21) — gap at W22 with expected slots → streak=1
+    const result = calculateStreak(makeInput({
+      publishHistory: ['2026-06-02T10:00:00Z', '2026-05-19T10:00:00Z'],
+    }))
     expect(result.currentStreak).toBe(1)
   })
 
   it('grants vacation grace when no expected slots', () => {
-    const now = new Date()
-    const oneWeekAgo = new Date(now)
-    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
-    const twoWeeksAgo = new Date(now)
-    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14)
-
-    const input: StreakInput = {
-      publishHistory: [now.toISOString(), twoWeeksAgo.toISOString()],
+    // current week (W23) + two weeks ago (W21) — gap at W22 but no expected slots → grace
+    const result = calculateStreak(makeInput({
+      publishHistory: ['2026-06-02T10:00:00Z', '2026-05-19T10:00:00Z'],
       syncSchedules: [],
       blogCadence: null,
-      siteTimezone: TZ,
-    }
-    const result = calculateStreak(input)
+    }))
     expect(result.currentStreak).toBe(3)
   })
 
   it('isActive is false when current week is empty', () => {
-    const oneWeekAgo = new Date()
-    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
-
-    const input: StreakInput = {
-      publishHistory: [oneWeekAgo.toISOString()],
-      syncSchedules: [syncSchedule],
-      blogCadence: null,
-      siteTimezone: TZ,
-    }
-    const result = calculateStreak(input)
+    // Only W22 has a publish, current is W23
+    const result = calculateStreak(makeInput({
+      publishHistory: ['2026-05-26T10:00:00Z'],
+    }))
     expect(result.isActive).toBe(false)
   })
 
   it('handles ISO week year boundary correctly', () => {
-    const input: StreakInput = {
+    // 2026-01-01 (Thu) = ISO W1-2026, 2025-12-26 (Fri) = ISO W52-2025
+    // now = 2026-01-01 → current week is W1, one week back is W52
+    const result = calculateStreak(makeInput({
       publishHistory: ['2026-01-01T12:00:00.000Z', '2025-12-26T12:00:00.000Z'],
-      syncSchedules: [syncSchedule],
-      blogCadence: null,
       siteTimezone: 'UTC',
-    }
-    const result = calculateStreak(input)
-    expect(result.currentStreak).toBeGreaterThanOrEqual(0)
+      now: new Date('2026-01-01T12:00:00Z'),
+    }))
+    expect(result.currentStreak).toBe(2)
   })
 
   it('handles empty syncSchedules with active blog cadence', () => {
-    const now = new Date()
-    const oneWeekAgo = new Date(now)
-    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
-
-    const input: StreakInput = {
-      publishHistory: [now.toISOString(), oneWeekAgo.toISOString()],
+    const result = calculateStreak(makeInput({
+      publishHistory: ['2026-06-02T10:00:00Z', '2026-05-26T10:00:00Z'],
       syncSchedules: [],
       blogCadence: blogCadence,
-      siteTimezone: TZ,
-    }
-    const result = calculateStreak(input)
+    }))
     expect(result.currentStreak).toBe(2)
     expect(result.isActive).toBe(true)
   })

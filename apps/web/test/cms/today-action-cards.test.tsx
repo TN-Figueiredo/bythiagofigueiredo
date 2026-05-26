@@ -100,4 +100,20 @@ describe('TodayActionCards', () => {
     })]} overflow={0} />)
     expect(screen.getByText('Gravar 2 videos')).toBeTruthy()
   })
+
+  it('shows empty state message when no actions', () => {
+    render(<TodayActionCards actions={[]} overflow={0} />)
+    expect(screen.getByText(/Nada urgente/)).toBeTruthy()
+  })
+
+  it('batch card links to pipeline filter URL', () => {
+    render(<TodayActionCards actions={[makeAction({
+      id: 'batch-1',
+      stage: 'roteiro',
+      format: 'video',
+      batchItems: ['v2'],
+    })]} overflow={0} />)
+    const link = screen.getByText(/Finalizar roteiro/).closest('a')
+    expect(link?.getAttribute('href')).toContain('stage=')
+  })
 })

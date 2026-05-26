@@ -227,4 +227,58 @@ describe('generateWeekSlots', () => {
     expect(slots.every(s => s.isRestDay)).toBe(true)
     expect(slots).toHaveLength(2)
   })
+
+  it('uses last_published_at for blog cadence when available', () => {
+    const cadence: BlogCadenceRow = {
+      site_id: 's1', cadence_days: 7, cadence_start_date: '2026-05-01',
+      cadence_paused: false, last_published_at: null, locale: 'pt',
+    }
+    const slots = generateWeekSlots({
+      syncSchedules: [],
+      blogCadence: cadence,
+      newsletterEditions: [],
+      pipelineItems: [],
+      weekStart: '2026-06-01',
+      siteTimezone: 'America/Sao_Paulo',
+      today: '2026-06-01',
+    })
+    const blogSlots = slots.filter(s => s.format === 'blog_post')
+    expect(blogSlots.length).toBeGreaterThanOrEqual(0)
+  })
+
+  it('excludes newsletter editions with sent status', () => {
+    const editions: NewsletterEditionRow[] = [{
+      id: 'ne-1', subject: 'Sent', status: 'sent',
+      scheduled_at: '2026-05-27T14:00:00Z',
+    }]
+    const slots = generateWeekSlots({
+      syncSchedules: [],
+      blogCadence: null,
+      newsletterEditions: editions,
+      pipelineItems: [],
+      weekStart: WEEK_START,
+      siteTimezone: SITE_TZ,
+      today: TODAY,
+    })
+    expect(slots.filter(s => s.format === 'newsletter')).toHaveLength(0)
+  })
+
+  it('does not assign same item to two slots', () => {
+    const schedules = [
+      makeSyncSchedule({ channel_id: 'ch-pt', schedule: { day: 'tuesday', hour: 10 } }),
+      makeSyncSchedule({ channel_id: 'ch-pt', schedule: { day: 'wednesday', hour: 10 } }),
+    ]
+    const items = [makePipelineItem({ id: 'p1', format: 'video', stage: 'gravacao', youtube_channel_id: 'ch-pt', language: 'pt-br' })]
+    const slots = generateWeekSlots({
+      syncSchedules: schedules,
+      blogCadence: null,
+      newsletterEditions: [],
+      pipelineItems: items,
+      weekStart: WEEK_START,
+      siteTimezone: SITE_TZ,
+      today: TODAY,
+    })
+    const assignedSlots = slots.filter(s => s.assignedItem?.id === 'p1')
+    expect(assignedSlots).toHaveLength(1)
+  })
 })

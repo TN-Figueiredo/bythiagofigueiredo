@@ -144,4 +144,21 @@ describe('selectSuggestion', () => {
     expect(result).not.toBeNull()
     expect(result!.text).toContain('Bloco de idea')
   })
+
+  it('ignores playlist with total_items: 0', () => {
+    const playlists: PlaylistSummary[] = [{
+      id: 'p1', name: 'Empty', total_items: 0, done_items: 0,
+      in_progress_items: 0, next_item_title: null, next_item_stage: null,
+    }]
+    const result = selectSuggestion({ pipelineItems: [], playlists, newsletterEditions: [] })
+    expect(result).toBeNull()
+  })
+
+  it('does not flag published videos as orphaned', () => {
+    const items = [
+      makePipelineItem({ id: 'v1', format: 'video', stage: 'published', youtube_channel_id: null }),
+    ]
+    const result = selectSuggestion({ pipelineItems: items, playlists: [], newsletterEditions: [] })
+    expect(result?.text ?? '').not.toContain('sem canal')
+  })
 })

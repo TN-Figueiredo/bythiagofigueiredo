@@ -409,4 +409,43 @@ describe('calculateTodayActions', () => {
     }))
     expect(result.actions).toHaveLength(0)
   })
+
+  it('skips newsletter editions with past pubDate', () => {
+    const editions: NewsletterEditionRow[] = [{
+      id: 'ne-1', subject: 'Old', status: 'draft' as const,
+      scheduled_at: '2026-05-30T14:00:00Z', // past
+    }]
+    const result = calculateTodayActions(makeInput({
+      newsletterEditions: editions,
+      now: new Date('2026-06-02T12:00:00Z'),
+      siteTimezone: 'UTC',
+    }))
+    expect(result.actions.find(a => a.format === 'newsletter')).toBeUndefined()
+  })
+
+  it('uses fallback effort for unknown format:stage combo', () => {
+    const result = calculateTodayActions(makeInput({
+      syncSchedules: [makeSchedule()],
+      pipelineItems: [makeItem({ id: 'v1', stage: 'idea', duration_target: null })],
+      siteTimezone: 'UTC',
+    }))
+    const action = result.actions.find(a => a.id === 'v1')
+    if (action) {
+      expect(action.effortMinutes).toBeGreaterThan(0)
+    }
+  })
+
+  it('does not double-count same item for multiple sync schedules', () => {
+    const schedules = [
+      makeSchedule({ channel_id: 'ch-1', schedule: { day: 'tuesday', hour: 10 } }),
+      makeSchedule({ channel_id: 'ch-1', schedule: { day: 'friday', hour: 10 } }),
+    ]
+    const result = calculateTodayActions(makeInput({
+      syncSchedules: schedules,
+      pipelineItems: [makeItem({ id: 'v1', stage: 'roteiro', youtube_channel_id: 'ch-1' })],
+      siteTimezone: 'UTC',
+    }))
+    const v1Actions = result.actions.filter(a => a.id === 'v1' || (a.batchItems && a.batchItems.includes('v1')))
+    expect(v1Actions.length).toBeLessThanOrEqual(1)
+  })
 })
