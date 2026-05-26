@@ -124,21 +124,27 @@ const SlotChip = memo(function SlotChip({ slot, onEmptyClick, onSwapClick, selec
   return (
     <button
       type="button"
-      className={`flex items-center justify-center rounded-md px-2 py-1 text-[10px] w-full min-h-[44px] focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)] focus-visible:outline-none${isCompatible ? ' ring-2 ring-[var(--gem-accent)]' : ''}`}
+      className={`flex items-center justify-center rounded-md px-2 py-1 text-[10px] w-full min-h-[44px] focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)] focus-visible:outline-none${isCompatible ? ' motion-safe:animate-pulse' : ''}`}
       style={{
-        border: `1px dashed ${gemMix(colors.accent, 35)}`,
-        color: 'var(--gem-dim)',
+        border: isCompatible
+          ? `2px solid var(--gem-accent)`
+          : `1px dashed ${gemMix(colors.accent, 35)}`,
+        color: isCompatible ? 'var(--gem-accent)' : 'var(--gem-dim)',
+        background: isCompatible ? gemMix('--gem-accent', 8) : undefined,
       }}
       data-testid={`empty-slot-${slot.day}`}
       data-day={slot.day}
       data-format={slot.format}
       data-hour={slot.hour ?? ''}
       aria-label={`Adicionar ${FORMAT_LABELS[slot.format] ?? slot.format} — ${dayLabel} ${dateNum}`}
+      aria-description={isCompatible ? `Clique para atribuir "${selectedItem!.title}" a este slot` : undefined}
       onClick={isCompatible && onDirectAssign
         ? () => onDirectAssign(selectedItem!.id, slot.day, slot.hour)
         : onEmptyClick}
     >
-      {isCompatible ? selectedItem!.title : `+ ${FORMAT_LABELS[slot.format] ?? slot.format}`}
+      {isCompatible
+        ? <span className="truncate">{selectedItem!.title}</span>
+        : <>{`+ ${FORMAT_LABELS[slot.format] ?? slot.format}`}</>}
     </button>
   )
 })

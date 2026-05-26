@@ -333,7 +333,7 @@ describe('UpNextThisWeek', () => {
       playlist_total: null,
     }
 
-    it('adds ring highlight to compatible empty slots when selectedItem set', () => {
+    it('adds pulse highlight to compatible empty slots when selectedItem set', () => {
       const slots = [makeSlot({ day: '2026-05-26', assignedItem: null, format: 'video' })]
       render(
         <UpNextThisWeek
@@ -341,9 +341,24 @@ describe('UpNextThisWeek', () => {
         />
       )
       const emptyBtn = screen.getByTestId('empty-slot-2026-05-26')
-      // Must match standalone ring-2 (highlight mode), not focus-visible:ring-2
       const classes = emptyBtn.className.split(/\s+/)
-      expect(classes).toContain('ring-2')
+      expect(classes).toContain('motion-safe:animate-pulse')
+      // happy-dom splits border shorthand when CSS vars present:
+      // "border: 2px solid;" + "border-color: var(--gem-accent)"
+      const style = emptyBtn.getAttribute('style') ?? ''
+      expect(style).toContain('border: 2px solid')
+      expect(style).toContain('color: var(--gem-accent)')
+    })
+
+    it('shows selected item title in compatible empty slot', () => {
+      const slots = [makeSlot({ day: '2026-05-26', assignedItem: null, format: 'video' })]
+      render(
+        <UpNextThisWeek
+          {...makeProps({ slots, selectedItem, onAssignSlot: vi.fn() })}
+        />
+      )
+      const emptyBtn = screen.getByTestId('empty-slot-2026-05-26')
+      expect(emptyBtn.textContent).toBe('X')
     })
 
     it('does NOT highlight slots with wrong format', () => {
@@ -354,9 +369,11 @@ describe('UpNextThisWeek', () => {
         />
       )
       const emptyBtn = screen.getByTestId('empty-slot-2026-05-26')
-      // Standalone ring-2 should NOT be present; focus-visible:ring-2 is acceptable
       const classes = emptyBtn.className.split(/\s+/)
-      expect(classes).not.toContain('ring-2')
+      expect(classes).not.toContain('motion-safe:animate-pulse')
+      // Non-compatible slots keep dashed border, not solid accent border
+      const style = emptyBtn.getAttribute('style') ?? ''
+      expect(style).not.toContain('2px solid var(--gem-accent)')
     })
 
     it('clicking highlighted slot calls onAssignSlot with selectedItem id', () => {

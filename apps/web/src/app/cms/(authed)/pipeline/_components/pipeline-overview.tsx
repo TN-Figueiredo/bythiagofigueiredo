@@ -4,7 +4,6 @@ import useSWR from 'swr'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { UpNextCelebration, type CelebrationItem } from './up-next-celebration'
 import { TodayActionCards } from './today-action-cards'
-import { UpNextPlaylistStrips, type PlaylistStrip } from './up-next-playlist-strips'
 import { UpNextSuggestion } from './up-next-suggestion'
 import { UpNextActivity, type ActivityEntry } from './up-next-activity'
 import { UpNextThisWeek } from './up-next-this-week'
@@ -32,7 +31,6 @@ const LazyPlaylistSuggestionPanel = dynamic(
 interface PipelineOverviewProps {
   fallbackData: UpNextApiResponse
   celebration: { items: CelebrationItem[] }
-  playlists: PlaylistStrip[]
   activity: ActivityEntry[]
 }
 
@@ -46,7 +44,7 @@ const fetcher = (url: string) => fetch(url).then(r => {
   return d.data as UpNextApiResponse
 })
 
-export function PipelineOverview({ fallbackData, celebration, playlists, activity }: PipelineOverviewProps) {
+export function PipelineOverview({ fallbackData, celebration, activity }: PipelineOverviewProps) {
   const { data, isLoading, mutate } = useSWR<UpNextApiResponse>(
     '/api/pipeline/up-next',
     fetcher,
@@ -222,16 +220,13 @@ export function PipelineOverview({ fallbackData, celebration, playlists, activit
         <LazyPlaylistSuggestionPanel
           candidates={upNext.candidates}
           weekSlots={upNext.weekSlots}
+          playlistSummaries={upNext.playlists}
           onSelectItem={setSelectedCandidate}
           selectedItem={selectedCandidate}
           collapsed={panelCollapsed}
           onToggleCollapse={() => setPanelCollapsed(p => !p)}
         />
       )}
-
-      <section aria-label="Horizonte">
-        <UpNextPlaylistStrips playlists={playlists} />
-      </section>
 
       <section aria-label="Atividade recente">
         <UpNextActivity entries={activity} />

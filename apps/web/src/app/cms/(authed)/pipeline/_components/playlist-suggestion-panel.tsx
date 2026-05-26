@@ -1,16 +1,18 @@
 'use client'
 
-import { memo } from 'react'
+import { memo, useState } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { FORMAT_COLORS } from '@/lib/pipeline/colors'
 import { gemMix } from '@/lib/pipeline/gem-design'
+import { STAGE_ORDER } from '@/lib/pipeline/up-next-constants'
 import { groupCandidatesByPlaylist } from '@/lib/pipeline/suggest-for-slots'
 import type { PlaylistGroup } from '@/lib/pipeline/suggest-for-slots'
-import type { SlotCandidate, WeekSlot } from '@/lib/pipeline/up-next-types'
+import type { SlotCandidate, WeekSlot, PlaylistSummary } from '@/lib/pipeline/up-next-types'
 
 export interface PlaylistSuggestionPanelProps {
   candidates: SlotCandidate[]
   weekSlots: WeekSlot[]
+  playlistSummaries: PlaylistSummary[]
   onSelectItem: (candidate: SlotCandidate | null) => void
   selectedItem: SlotCandidate | null
   collapsed: boolean
@@ -71,6 +73,8 @@ function ItemChip({
   )
 }
 
+const GROUP_MAX_VISIBLE = 5
+
 function GroupCard({
   group,
   selectedItem,
@@ -82,6 +86,9 @@ function GroupCard({
 }) {
   const { playlistId, playlistName, items, progress, nearCompletion } = group
   const progressPct = progress.total > 0 ? (progress.done / progress.total) * 100 : 0
+  const [expanded, setExpanded] = useState(false)
+  const visibleItems = expanded ? items : items.slice(0, GROUP_MAX_VISIBLE)
+  const hasMore = items.length > GROUP_MAX_VISIBLE
 
   return (
     <div
@@ -134,8 +141,8 @@ function GroupCard({
         </div>
       )}
 
-      <div className="flex flex-wrap gap-1">
-        {items.map((item) => (
+      <div className={`flex flex-wrap gap-1${expanded ? ' max-h-[200px] overflow-y-auto' : ''}`}>
+        {visibleItems.map((item) => (
           <ItemChip
             key={item.id}
             candidate={item}
@@ -144,6 +151,16 @@ function GroupCard({
           />
         ))}
       </div>
+      {hasMore && !expanded && (
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          className="text-[10px] mt-1.5 px-2 py-1 rounded w-full text-center"
+          style={{ color: 'var(--gem-accent)', background: gemMix('--gem-accent', 6) }}
+        >
+          + {items.length - GROUP_MAX_VISIBLE} mais
+        </button>
+      )}
     </div>
   )
 }
@@ -151,6 +168,7 @@ function GroupCard({
 export const PlaylistSuggestionPanel = memo(function PlaylistSuggestionPanel({
   candidates,
   weekSlots: _weekSlots,
+  playlistSummaries,
   onSelectItem,
   selectedItem,
   collapsed,
@@ -158,7 +176,29 @@ export const PlaylistSuggestionPanel = memo(function PlaylistSuggestionPanel({
 }: PlaylistSuggestionPanelProps) {
   if (candidates.length === 0) return null
 
-  const groups = groupCandidatesByPlaylist(candidates)
+  const groups = groupCandidatesByPlaylist(candidates, playlistSummaries)
+
+  // Sort items within each group: most progressed first, ideas last
+  const sortedGroups = groups.map(g => ({
+    ...g,
+    items: [...g.items].sort((a, b) => (STAGE_ORDER[b.stage] ?? 0) - (STAGE_ORDER[a.stage] ?? 0)),
+  }))
+
+  // Sort groups: near-completion first, then by actionable item count, avulsos last
+  sortedGroups.sort((a, b) => {
+    if (a.nearCompletion !== b.nearCompletion) return a.nearCompletion ? -1 : 1
+    const aActionable = a.items.filter(i => i.stage !== 'idea').length
+    const bActionable = b.items.filter(i => i.stage !== 'idea').length
+    if (aActionable !== bActionable) return bActionable - aActionable
+    if (a.playlistId === null) return 1
+    if (b.playlistId === null) return -1
+    return 0
+  })
+
+  const actionableCount = candidates.filter(c => c.stage !== 'idea').length
+  const badgeText = actionableCount > 0
+    ? `${actionableCount} em progresso`
+    : `${candidates.length} no backlog`
 
   return (
     <section
@@ -189,13 +229,19 @@ export const PlaylistSuggestionPanel = memo(function PlaylistSuggestionPanel({
             color: 'var(--gem-accent)',
           }}
         >
-          {candidates.length} disponíveis
+          {badgeText}
         </span>
       </button>
 
+      {selectedItem && !collapsed && (
+        <p className="text-[10px] mb-2" style={{ color: 'var(--gem-accent)' }}>
+          Clique em um slot compatível na grade acima para atribuir &ldquo;{selectedItem.title}&rdquo;
+        </p>
+      )}
+
       {!collapsed && (
-        <div className="flex gap-3 overflow-x-auto pb-2">
-          {groups.map((group) => (
+        <div className="flex gap-3 overflow-x-auto pb-2 max-h-[280px]">
+          {sortedGroups.map((group) => (
             <GroupCard
               key={group.playlistId ?? '__avulsos'}
               group={group}

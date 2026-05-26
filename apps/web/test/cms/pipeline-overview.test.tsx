@@ -4,7 +4,6 @@ import { render, screen, act, waitFor } from '@testing-library/react'
 import React from 'react'
 import type { UpNextApiResponse, WeekSlot, TodayAction, SlotCandidate } from '../../src/lib/pipeline/up-next-types'
 import type { CelebrationItem } from '../../src/app/cms/(authed)/pipeline/_components/up-next-celebration'
-import type { PlaylistStrip } from '../../src/app/cms/(authed)/pipeline/_components/up-next-playlist-strips'
 import type { ActivityEntry } from '../../src/app/cms/(authed)/pipeline/_components/up-next-activity'
 
 /* ------------------------------------------------------------------ */
@@ -67,12 +66,6 @@ vi.mock('../../src/app/cms/(authed)/pipeline/_components/up-next-this-week', () 
     capturedOnAssignSlot = props.onAssignSlot
     return <div data-testid="up-next-this-week" data-slots={props.slots.length} data-has-handler={typeof props.onAssignSlot === 'function'} />
   },
-}))
-
-vi.mock('../../src/app/cms/(authed)/pipeline/_components/up-next-playlist-strips', () => ({
-  UpNextPlaylistStrips: ({ playlists }: { playlists: PlaylistStrip[] }) => (
-    <div data-testid="up-next-playlist-strips" data-count={playlists.length} />
-  ),
 }))
 
 vi.mock('../../src/app/cms/(authed)/pipeline/_components/up-next-activity', () => ({
@@ -199,7 +192,6 @@ function makeCandidate(overrides: Partial<SlotCandidate> = {}): SlotCandidate {
 
 const defaultProps = {
   celebration: { items: [] as CelebrationItem[] },
-  playlists: [] as PlaylistStrip[],
   activity: [] as ActivityEntry[],
 }
 
@@ -963,28 +955,6 @@ describe('PipelineOverview', () => {
       const thisWeek = screen.getByTestId('up-next-this-week')
       expect(thisWeek.dataset.slots).toBe('2')
       expect(thisWeek.dataset.hasHandler).toBe('true')
-    })
-
-    it('renders UpNextPlaylistStrips inside Horizonte section', () => {
-      const playlists: PlaylistStrip[] = [
-        { id: 'p1', name: 'Series A', items: [], nextItemTitle: null, nextItemStage: null, nearCompletion: false },
-      ]
-      renderOverview(
-        {
-          today: {
-            actions: [makeAction()],
-            overflow: 0,
-            doneToday: 1,
-            totalSurfaced: 1,
-            totalEffortMinutes: 60,
-          },
-          weekSlots: [makeSlot()],
-        },
-        { playlists },
-      )
-      const section = screen.getByLabelText('Horizonte')
-      expect(section).toBeDefined()
-      expect(screen.getByTestId('up-next-playlist-strips')).toBeDefined()
     })
 
     it('renders UpNextActivity inside Atividade recente section', () => {
