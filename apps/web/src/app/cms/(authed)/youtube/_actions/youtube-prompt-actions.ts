@@ -1,5 +1,6 @@
 'use server'
 
+import { revalidateTag } from 'next/cache'
 import { z } from 'zod'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
@@ -25,7 +26,9 @@ async function requireReadAccess(): Promise<string> {
 }
 
 function computeSnapshotAgeHours(snapshotAt: string): number {
-  return Math.round(((Date.now() - new Date(snapshotAt).getTime()) / 3_600_000) * 10) / 10
+  const ms = Date.now() - new Date(snapshotAt).getTime()
+  if (!Number.isFinite(ms)) return -1
+  return Math.round((ms / 3_600_000) * 10) / 10
 }
 
 function formatDemographics(demo: YtDemographics): {
@@ -69,7 +72,8 @@ async function getChannelInfo(
 
   if (channelId) query = query.eq('id', channelId)
 
-  const { data } = await query.order('subscriber_count', { ascending: false }).limit(1).single()
+  const { data, error } = await query.order('subscriber_count', { ascending: false }).limit(1).single()
+  if (error && error.code !== 'PGRST116') throw error
   if (!data) return null
 
   const info: PromptChannelInfo = {
@@ -141,8 +145,8 @@ export async function fetchContentCalendarData(
       topPerformingCategories: [],
       demographics: formatDemographics(demographics),
       outlierSuccesses: [],
-      bestPerformingDay: '',
-      bestPerformingHour: 0,
+      bestPerformingDay: null,
+      bestPerformingHour: null,
       recentUploads,
       snapshotAt,
       snapshotAgeHours,
@@ -152,7 +156,6 @@ export async function fetchContentCalendarData(
     return { ok: true, data }
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'unexpected error'
-    if (msg === 'unauthenticated' || msg === 'forbidden') return { ok: false, error: msg }
     return { ok: false, error: msg }
   }
 }
@@ -213,7 +216,7 @@ export async function fetchChannelHealthData(
 
     const data: ChannelHealthData = {
       channel: info,
-      healthScore: { overall: 0, axes: [] },
+      healthScore: null,
       topVideos,
       bottomVideos,
       gradeDistribution,
@@ -232,7 +235,6 @@ export async function fetchChannelHealthData(
     return { ok: true, data }
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'unexpected error'
-    if (msg === 'unauthenticated' || msg === 'forbidden') return { ok: false, error: msg }
     return { ok: false, error: msg }
   }
 }
@@ -249,6 +251,7 @@ export async function fetchVideoOptimizerData(
       .select('id, title, channel_id, view_count, avg_view_percentage, ctr, published_at')
       .eq('id', videoId)
       .eq('site_id', siteId)
+      .eq('is_hidden', false)
       .single()
 
     if (!video) return { ok: false, error: 'Video not found' }
@@ -289,7 +292,6 @@ export async function fetchVideoOptimizerData(
     return { ok: true, data }
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'unexpected error'
-    if (msg === 'unauthenticated' || msg === 'forbidden') return { ok: false, error: msg }
     return { ok: false, error: msg }
   }
 }
@@ -308,6 +310,7 @@ export async function logPromptCopy(
   const parsed = LogPromptCopySchema.safeParse({ preset, charCount, snapshotAgeHours })
   if (!parsed.success)
     return { ok: false, error: parsed.error.issues.map(i => i.message).join(', ') }
+  await requireReadAccess()
   return { ok: true, data: undefined }
 }
 
@@ -346,10 +349,10 @@ export async function saveVideoNotes(
     if (error) return { ok: false, error: error.message }
     if (!data) return { ok: false, error: 'conflict: version mismatch' }
 
+    revalidateTag('youtube')
     return { ok: true, data: { version: data.version as number } }
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'unexpected error'
-    if (msg === 'unauthenticated' || msg === 'forbidden') return { ok: false, error: msg }
     return { ok: false, error: msg }
   }
 }

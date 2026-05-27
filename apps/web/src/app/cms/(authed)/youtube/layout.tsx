@@ -91,9 +91,6 @@ export default function YouTubeLayout({ children }: { children: ReactNode }) {
       <YouTubeCoworkPromptModal
         isOpen={showPromptModal}
         onClose={() => setShowPromptModal(false)}
-        videos={[]}
-        channelName=""
-        scoredVideoCount={0}
       />
     </div>
   )

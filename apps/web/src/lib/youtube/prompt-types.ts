@@ -1,4 +1,5 @@
 import type { Axis, Grade, VideoLifecycle, TrendDirection, ChannelTier } from './scoring-types'
+import { getLifecycle } from './scoring'
 
 export type ContextPreset = 'content-calendar' | 'channel-health' | 'video-optimizer'
 
@@ -45,8 +46,8 @@ export interface ContentCalendarData {
   topPerformingCategories: { categorySlug: string; categoryName: string; avgViews: number; avgRetention: number; videoCount: number }[]
   demographics: { topAge: string; topCountry: string; topDevice: string }
   outlierSuccesses: OutlierRow[]
-  bestPerformingDay: string
-  bestPerformingHour: number
+  bestPerformingDay: string | null
+  bestPerformingHour: number | null
   recentUploads: { title: string; publishedAt: string; categorySlug: string }[]
   snapshotAt: string
   snapshotAgeHours: number
@@ -58,7 +59,7 @@ export interface ChannelHealthData {
   healthScore: {
     overall: number
     axes: { axis: Axis; score: number; grade: Grade; benchmark: number; weight: number }[]
-  }
+  } | null
   topVideos: VideoGradeRow[]
   bottomVideos: VideoGradeRow[]
   gradeDistribution: Record<Grade, number>
@@ -139,3 +140,18 @@ export type BuildYoutubePromptOptions =
   | { preset: 'content-calendar'; data: ContentCalendarData; instructions: string }
   | { preset: 'channel-health'; data: ChannelHealthData; instructions: string }
   | { preset: 'video-optimizer'; data: VideoOptimizerData; video: PromptVideoInfo; instructions: string }
+
+export function buildVideoInfo(video: { id: string; youtubeVideoId: string; title: string; thumbnailUrl: string | null; duration: string; publishedAt: string; viewCount: number }): PromptVideoInfo {
+  const ageDays = Math.max(0, Math.floor((Date.now() - new Date(video.publishedAt).getTime()) / 86400000))
+  return {
+    id: video.id,
+    youtubeVideoId: video.youtubeVideoId,
+    title: video.title,
+    thumbnailUrl: video.thumbnailUrl,
+    duration: video.duration,
+    publishedAt: video.publishedAt,
+    ageDays,
+    lifecycleStage: getLifecycle(ageDays),
+    viewCount: video.viewCount,
+  }
+}

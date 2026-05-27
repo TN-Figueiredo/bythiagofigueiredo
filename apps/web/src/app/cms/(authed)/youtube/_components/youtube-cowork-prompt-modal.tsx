@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { useFocusTrap } from '@/lib/hooks/use-focus-trap'
 import { buildYoutubePrompt } from '@/lib/youtube/prompt-builders'
 import { estimateChars } from '@/lib/youtube/prompt-sanitize'
-import { EXAMPLE_PROMPTS, STALENESS_THRESHOLDS } from '@/lib/youtube/prompt-types'
+import { EXAMPLE_PROMPTS, STALENESS_THRESHOLDS, buildVideoInfo } from '@/lib/youtube/prompt-types'
 import type { ContextPreset, ContentCalendarData, ChannelHealthData, VideoOptimizerData, PromptVideoInfo } from '@/lib/youtube/prompt-types'
 import { PromptPreview } from '@/components/prompt-preview'
 import { DataFreshnessBadge } from '../videos/_components/data-freshness-badge'
@@ -27,12 +27,12 @@ const PLACEHOLDER: Record<ContextPreset, string> = {
 interface YouTubeCoworkPromptModalProps {
   isOpen: boolean
   onClose: () => void
-  videos: VideoRow[]
-  channelName: string
-  scoredVideoCount: number
+  videos?: VideoRow[]
+  channelName?: string
+  scoredVideoCount?: number
 }
 
-export function YouTubeCoworkPromptModal({ isOpen, onClose, videos, channelName, scoredVideoCount }: YouTubeCoworkPromptModalProps) {
+export function YouTubeCoworkPromptModal({ isOpen, onClose, videos = [], channelName = '', scoredVideoCount = 0 }: YouTubeCoworkPromptModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const handleTrapKeyDown = useFocusTrap(dialogRef, { autoFocus: false })
@@ -42,6 +42,7 @@ export function YouTubeCoworkPromptModal({ isOpen, onClose, videos, channelName,
   const [selectedVideo, setSelectedVideo] = useState<VideoRow | null>(null)
   const [copied, setCopied] = useState(false)
   const [showContext, setShowContext] = useState(false)
+  const [resolvedChannelName, setResolvedChannelName] = useState(channelName)
 
   const [ccData, setCcData] = useState<ContentCalendarData | null>(null)
   const [chData, setChData] = useState<ChannelHealthData | null>(null)
@@ -53,25 +54,37 @@ export function YouTubeCoworkPromptModal({ isOpen, onClose, videos, channelName,
 
   useEffect(() => {
     if (!isOpen) return
+    if (preset === 'content-calendar' && ccData) { setLoading(false); return }
+    if (preset === 'channel-health' && chData) { setLoading(false); return }
+    if (preset === 'video-optimizer' && selectedVideo && voData) { setLoading(false); return }
     abortRef.current?.abort()
     const controller = new AbortController()
     abortRef.current = controller
     setLoading(true)
     setFetchError(null)
 
-    const fetch = async () => {
+    const loadData = async () => {
       try {
         if (preset === 'content-calendar') {
           const r = await fetchContentCalendarData()
-          if (!controller.signal.aborted && r.ok) setCcData(r.data)
+          if (!controller.signal.aborted && r.ok) {
+            setCcData(r.data)
+            if (!channelName) setResolvedChannelName(r.data.channel.name)
+          }
           else if (!controller.signal.aborted && !r.ok) setFetchError(r.error)
         } else if (preset === 'channel-health') {
           const r = await fetchChannelHealthData()
-          if (!controller.signal.aborted && r.ok) setChData(r.data)
+          if (!controller.signal.aborted && r.ok) {
+            setChData(r.data)
+            if (!channelName) setResolvedChannelName(r.data.channel.name)
+          }
           else if (!controller.signal.aborted && !r.ok) setFetchError(r.error)
         } else if (preset === 'video-optimizer' && selectedVideo) {
           const r = await fetchVideoOptimizerData(selectedVideo.id)
-          if (!controller.signal.aborted && r.ok) setVoData(r.data)
+          if (!controller.signal.aborted && r.ok) {
+            setVoData(r.data)
+            if (!channelName) setResolvedChannelName(r.data.channel.name)
+          }
           else if (!controller.signal.aborted && !r.ok) setFetchError(r.error)
         }
       } catch {
@@ -80,7 +93,7 @@ export function YouTubeCoworkPromptModal({ isOpen, onClose, videos, channelName,
         if (!controller.signal.aborted) setLoading(false)
       }
     }
-    fetch()
+    loadData()
     return () => controller.abort()
   }, [isOpen, preset, selectedVideo?.id])
 
@@ -88,25 +101,21 @@ export function YouTubeCoworkPromptModal({ isOpen, onClose, videos, channelName,
     if (isOpen) textareaRef.current?.focus()
   }, [isOpen])
 
+  useEffect(() => {
+    if (!isOpen) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [isOpen])
+
   const currentData = preset === 'content-calendar' ? ccData
     : preset === 'channel-health' ? chData
     : voData
 
-  const ageDays = selectedVideo
-    ? Math.max(0, Math.floor((Date.now() - new Date(selectedVideo.publishedAt).getTime()) / 86400000))
-    : 0
-
-  const videoInfo: PromptVideoInfo | undefined = selectedVideo ? {
-    id: selectedVideo.id,
-    youtubeVideoId: selectedVideo.youtubeVideoId,
-    title: selectedVideo.title,
-    thumbnailUrl: selectedVideo.thumbnailUrl,
-    duration: selectedVideo.duration,
-    publishedAt: selectedVideo.publishedAt,
-    ageDays,
-    lifecycleStage: ageDays < 7 ? 'fresh' : ageDays <= 90 ? 'maturing' : ageDays <= 180 ? 'established' : 'evergreen',
-    viewCount: selectedVideo.viewCount,
-  } : undefined
+  const videoInfo: PromptVideoInfo | undefined = useMemo(() =>
+    selectedVideo ? buildVideoInfo(selectedVideo) : undefined,
+    [selectedVideo]
+  )
 
   const prompt = useMemo(() => {
     if (!instructions.trim()) return ''
@@ -138,7 +147,7 @@ export function YouTubeCoworkPromptModal({ isOpen, onClose, videos, channelName,
       await navigator.clipboard.writeText(prompt)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
-      logPromptCopy(preset, charCount, snapshotAge)
+      void logPromptCopy(preset, charCount, snapshotAge)
       toast.success('Prompt copiado!')
     } catch {
       toast.error('Falha ao copiar')
@@ -183,9 +192,9 @@ export function YouTubeCoworkPromptModal({ isOpen, onClose, videos, channelName,
         <div className="flex items-center justify-between border-b border-cms-border px-5 py-3">
           <div>
             <h2 className="text-base font-semibold text-cms-text">YouTube Cowork Prompt</h2>
-            <p className="text-xs text-cms-text-muted">{channelName}</p>
+            <p className="text-xs text-cms-text-muted">{resolvedChannelName || channelName}</p>
           </div>
-          <button type="button" onClick={onClose} className="text-cms-text-muted hover:text-cms-text" aria-label="Fechar">✕</button>
+          <button type="button" onClick={onClose} className="text-cms-text-muted hover:text-cms-text" aria-label="Fechar"><span aria-hidden="true">✕</span></button>
         </div>
 
         <div className="max-h-[70vh] overflow-y-auto p-5 space-y-4">
@@ -275,8 +284,8 @@ export function YouTubeCoworkPromptModal({ isOpen, onClose, videos, channelName,
             <DataFreshnessBadge snapshotAgeHours={snapshotAge} />
           )}
 
-          {loading && <div className="text-center text-xs text-cms-text-muted">Carregando dados do canal…</div>}
-          {fetchError && <div className="rounded border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-400">{fetchError}</div>}
+          {loading && <div role="status" aria-live="polite" className="text-center text-xs text-cms-text-muted">Carregando dados do canal…</div>}
+          {fetchError && <div role="alert" aria-live="assertive" className="rounded border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-400">{fetchError}</div>}
 
           {prompt && (
             <div>
@@ -288,6 +297,7 @@ export function YouTubeCoworkPromptModal({ isOpen, onClose, videos, channelName,
               <button
                 type="button"
                 onClick={() => setShowContext(!showContext)}
+                aria-expanded={showContext}
                 className="mt-2 text-xs text-indigo-400 hover:text-indigo-300"
               >
                 {showContext ? '▾' : '▸'} Contexto ({charCount.toLocaleString('pt-BR')} caracteres)

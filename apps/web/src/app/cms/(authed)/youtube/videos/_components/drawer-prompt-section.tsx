@@ -22,11 +22,15 @@ export function DrawerPromptSection({ data, video }: DrawerPromptSectionProps) {
 
   const handleCopy = useCallback(async () => {
     if (!prompt) return
+    if (/pk_[a-zA-Z0-9]{20,}/.test(prompt)) {
+      toast.error('Pipeline key detectada no prompt — remova antes de copiar.')
+      return
+    }
     try {
       await navigator.clipboard.writeText(prompt)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
-      logPromptCopy('video-optimizer', prompt.length, data.snapshotAgeHours)
+      void logPromptCopy('video-optimizer', prompt.length, data.snapshotAgeHours)
       toast.success('Prompt copiado!')
     } catch {
       toast.error('Falha ao copiar')

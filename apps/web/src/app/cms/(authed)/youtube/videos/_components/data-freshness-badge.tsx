@@ -14,7 +14,7 @@ export function DataFreshnessBadge({ snapshotAgeHours }: DataFreshnessBadgeProps
     : `Dados desatualizados (última sync: ${Math.round(snapshotAgeHours)}h atrás)`
 
   return (
-    <div className="flex items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-400">
+    <div role="status" className="flex items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-400">
       <span aria-hidden="true">&#9888;</span>
       <span>{label}</span>
     </div>

@@ -43,7 +43,7 @@ export function CmsNotesEditor({ videoId, initialNotes, version: initialVersion,
     <div className="space-y-1">
       <div className="flex items-center justify-between">
         <label className="text-[10px] font-medium text-cms-text-muted">CMS Notes</label>
-        {saving && <span className="text-[10px] text-cms-text-muted">Salvando…</span>}
+        <span role="status" aria-live="polite" className="text-[10px] text-cms-text-muted">{saving ? 'Salvando…' : ''}</span>
       </div>
       <textarea
         value={notes}

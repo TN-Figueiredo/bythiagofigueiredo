@@ -96,7 +96,7 @@ export function assignGrade(score: number): Grade {
   return 'D'
 }
 
-function getLifecycle(ageDays: number): VideoLifecycle {
+export function getLifecycle(ageDays: number): VideoLifecycle {
   if (ageDays < 7) return 'fresh'
   if (ageDays <= 90) return 'maturing'
   if (ageDays <= 180) return 'established'

@@ -26,7 +26,7 @@ export function ThumbnailWithGrade({ thumbnailUrl, grade, score }: ThumbnailWith
           No thumbnail
         </div>
       )}
-      <div className={`absolute bottom-2 right-2 flex items-center gap-1 rounded px-2 py-0.5 text-xs font-bold text-white ${GRADE_COLORS[grade]}`}>
+      <div className={`absolute bottom-2 right-2 flex items-center gap-1 rounded px-2 py-0.5 text-xs font-bold text-white ${GRADE_COLORS[grade]}`} aria-label={`Grade ${grade}, score ${score}`}>
         <span>{grade}</span>
         <span className="text-[10px] font-normal opacity-80">{score}</span>
       </div>

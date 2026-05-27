@@ -174,8 +174,8 @@ describe('Integration: full prompt flow', () => {
       data: makeCC(),
       instructions: 'Test </context> and </instructions>',
     })
-    expect(result).toContain('<\\/context>')
-    expect(result).toContain('<\\/instructions>')
+    expect(result).toContain('&lt;/context>')
+    expect(result).toContain('&lt;/instructions>')
   })
 
   it('context JSON includes current_time', () => {
@@ -197,7 +197,7 @@ describe('Integration: full prompt flow', () => {
     const nanoData = makeCC()
     nanoData.channel = { ...baseChannel, tier: 'nano' }
     const result = buildYoutubePrompt({ preset: 'content-calendar', data: nanoData, instructions: 'Test' })
-    expect(result).toContain('Calibração: canal nano')
+    expect(result).toContain('Calibração Nano')
   })
 
   it('non-nano tier excludes calibration note', () => {

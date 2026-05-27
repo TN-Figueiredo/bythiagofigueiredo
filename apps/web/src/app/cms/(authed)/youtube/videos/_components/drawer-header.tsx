@@ -23,7 +23,7 @@ export function DrawerHeader({ title, optimizationState, onClose }: DrawerHeader
         className="rounded p-1 text-cms-text-muted hover:bg-cms-surface-hover hover:text-cms-text"
         aria-label="Fechar drawer"
       >
-        ✕
+        <span aria-hidden="true">✕</span>
       </button>
     </div>
   )

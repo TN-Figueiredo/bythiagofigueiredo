@@ -19,15 +19,17 @@ export function VideoStatsCard({ viewCount, retentionCurve, trafficSources }: Vi
       {retentionCurve.length > 0 && (
         <div>
           <div className="mb-1 text-[10px] text-cms-text-muted">Retenção</div>
-          <div className="flex h-8 items-end gap-px">
-            {retentionCurve.map((val, i) => (
-              <div
-                key={i}
-                className="flex-1 rounded-t-sm bg-indigo-500/60"
-                style={{ height: `${val}%` }}
-              />
-            ))}
-          </div>
+          <figure aria-label={`Retenção: ${Math.round(retentionCurve[0] ?? 0)}% início, ${Math.round(retentionCurve[Math.floor(retentionCurve.length / 2)] ?? 0)}% meio, ${Math.round(retentionCurve[retentionCurve.length - 1] ?? 0)}% fim`}>
+            <div className="flex h-8 items-end gap-px" aria-hidden="true">
+              {retentionCurve.map((val, i) => (
+                <div
+                  key={i}
+                  className="flex-1 rounded-t-sm bg-indigo-500/60"
+                  style={{ height: `${val}%` }}
+                />
+              ))}
+            </div>
+          </figure>
         </div>
       )}
 

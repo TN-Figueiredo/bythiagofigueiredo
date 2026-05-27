@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import type { VideoRow } from './videos-connected'
 import type { VideoOptimizerData, PromptVideoInfo } from '@/lib/youtube/prompt-types'
+import { buildVideoInfo } from '@/lib/youtube/prompt-types'
 import { fetchVideoOptimizerData, saveVideoNotes } from '../_actions/youtube-prompt-actions'
 import { DrawerHeader } from './_components/drawer-header'
 import { ThumbnailWithGrade } from './_components/thumbnail-with-grade'
@@ -20,6 +21,7 @@ export function VideoOptimizerDrawer({ video, onClose }: VideoOptimizerDrawerPro
   const [data, setData] = useState<VideoOptimizerData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const drawerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!video) { setData(null); return }
@@ -37,30 +39,35 @@ export function VideoOptimizerDrawer({ video, onClose }: VideoOptimizerDrawerPro
     return () => { cancelled = true }
   }, [video?.id])
 
+  useEffect(() => {
+    drawerRef.current?.focus()
+  }, [video?.id])
+
   const handleSaveNotes = useCallback(async (videoId: string, notes: string, version: number) => {
     const result = await saveVideoNotes(videoId, notes, version)
     if (!result.ok) throw new Error(result.error)
     return result.data
   }, [])
 
-  if (!video) return null
+  const videoInfo: PromptVideoInfo | null = useMemo(() =>
+    video ? buildVideoInfo(video) : null,
+    [video]
+  )
 
-  const ageDays = Math.max(0, Math.floor((Date.now() - new Date(video.publishedAt).getTime()) / 86400000))
-
-  const videoInfo: PromptVideoInfo = {
-    id: video.id,
-    youtubeVideoId: video.youtubeVideoId,
-    title: video.title,
-    thumbnailUrl: video.thumbnailUrl,
-    duration: video.duration,
-    publishedAt: video.publishedAt,
-    ageDays,
-    lifecycleStage: ageDays < 7 ? 'fresh' : ageDays <= 90 ? 'maturing' : ageDays <= 180 ? 'established' : 'evergreen',
-    viewCount: video.viewCount,
-  }
+  if (!video || !videoInfo) return null
 
   return (
-    <div className="fixed inset-y-0 right-0 z-40 flex w-[480px] flex-col border-l border-cms-border bg-cms-surface shadow-xl">
+    <>
+      <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
+      <div
+        className="fixed inset-y-0 right-0 z-40 flex w-[480px] flex-col border-l border-cms-border bg-cms-surface shadow-xl"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Video Optimizer"
+        onKeyDown={e => { if (e.key === 'Escape') onClose() }}
+        tabIndex={-1}
+        ref={drawerRef}
+      >
       <DrawerHeader
         title={video.title}
         optimizationState={data?.optimizationState ?? 'unflagged'}
@@ -74,8 +81,8 @@ export function VideoOptimizerDrawer({ video, onClose }: VideoOptimizerDrawerPro
           score={data?.grade.score ?? 0}
         />
 
-        {loading && <div className="text-center text-xs text-cms-text-muted">Carregando dados…</div>}
-        {error && <div className="rounded border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-400">{error}</div>}
+        {loading && <div role="status" aria-live="polite" className="text-center text-xs text-cms-text-muted">Carregando dados…</div>}
+        {error && <div role="alert" aria-live="assertive" className="rounded border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-400">{error}</div>}
 
         {data && (
           <>
@@ -100,6 +107,7 @@ export function VideoOptimizerDrawer({ video, onClose }: VideoOptimizerDrawerPro
           </>
         )}
       </div>
-    </div>
+      </div>
+    </>
   )
 }
