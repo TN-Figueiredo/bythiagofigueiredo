@@ -27,10 +27,15 @@ function formatEffort(minutes: number): string {
 
 function getEffort(
   item: Pick<PipelineItemWithSlot, 'duration_target' | 'format' | 'stage'>,
-): { effort: 'deep' | 'quick'; minutes: number } {
+): { effort: 'deep' | 'medium' | 'quick'; minutes: number } {
   if (item.duration_target !== null && item.duration_target > 0) {
-    // duration_target is always "quick" when explicitly set by user
-    return { effort: 'quick', minutes: item.duration_target }
+    const effort: 'deep' | 'medium' | 'quick' =
+      item.duration_target <= 30
+        ? 'quick'
+        : item.duration_target <= 90
+          ? 'medium'
+          : 'deep'
+    return { effort, minutes: item.duration_target }
   }
   const key = `${item.format}:${item.stage}`
   return EFFORT_DEFAULTS[key] ?? { effort: 'quick', minutes: 30 }
@@ -194,8 +199,8 @@ export function calculateTodayActions(input: TodayActionsInput): TodayActionsRes
     } else {
       nextPub = parseISO(blogCadence.cadence_start_date)
     }
-    if (nextPub < todayDate) {
-      nextPub = todayDate
+    while (nextPub < todayDate) {
+      nextPub = addDays(nextPub, cadenceDays)
     }
 
     const nextPubStr = formatISO(nextPub, { representation: 'date' })
@@ -234,6 +239,7 @@ export function calculateTodayActions(input: TodayActionsInput): TodayActionsRes
         playlistContext: null,
         channelLabel: null,
         pubDate: nextPubStr,
+        ...(best === null && { isPhantom: true }),
       })
     }
   }
@@ -255,7 +261,7 @@ export function calculateTodayActions(input: TodayActionsInput): TodayActionsRes
     if (deadlineDate > weekEnd) continue
 
     const stage: Stage = edition.status === 'ready' ? 'ready' : 'draft'
-    const effortKey = `newsletter:${edition.status}`
+    const effortKey = `newsletter:${stage}`
     const { effort, minutes } = EFFORT_DEFAULTS[effortKey] ?? { effort: 'quick', minutes: 30 }
     const urgency = computeUrgency(deadlineDate, today)
     const actionLabel = getActionLabel('newsletter', stage)
@@ -314,7 +320,7 @@ export function calculateTodayActions(input: TodayActionsInput): TodayActionsRes
         (URGENCY_ORDER[a.urgency] ?? 99) < (URGENCY_ORDER[best.urgency] ?? 99) ? a : best,
         first,
       )
-      const lowestPriority = Math.max(...group.map((a) => a.priority))
+      const highestPriority = Math.max(...group.map((a) => a.priority))
 
       const { format } = first
       const batchTitle =
@@ -330,7 +336,7 @@ export function calculateTodayActions(input: TodayActionsInput): TodayActionsRes
         effortMinutes: totalMinutes,
         effortEstimate: formatEffort(totalMinutes),
         urgency: highestUrgency.urgency,
-        priority: lowestPriority,
+        priority: highestPriority,
         deadline: { label: deadlineLabel(earliestDeadline, today), date: earliestDeadline },
         batchItems: group.map((a) => a.id),
       }
@@ -346,9 +352,10 @@ export function calculateTodayActions(input: TodayActionsInput): TodayActionsRes
     const urgencyDiff = (URGENCY_ORDER[a.urgency] ?? 99) - (URGENCY_ORDER[b.urgency] ?? 99)
     if (urgencyDiff !== 0) return urgencyDiff
 
-    // 2. effort: deep=0, quick=1 ASC
-    const effortA = a.effort === 'deep' ? 0 : 1
-    const effortB = b.effort === 'deep' ? 0 : 1
+    // 2. effort: deep=0, medium=1, quick=2 ASC
+    const effortRank = (e: 'deep' | 'medium' | 'quick') => e === 'deep' ? 0 : e === 'medium' ? 1 : 2
+    const effortA = effortRank(a.effort)
+    const effortB = effortRank(b.effort)
     const effortDiff = effortA - effortB
     if (effortDiff !== 0) return effortDiff
 

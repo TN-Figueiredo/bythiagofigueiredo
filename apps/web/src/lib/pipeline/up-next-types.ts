@@ -1,4 +1,5 @@
 import type { Stage } from './up-next-constants'
+import type { SyncScheduleEntry } from '@/lib/youtube/types'
 
 export interface PipelineItemWithSlot {
   id: string
@@ -13,13 +14,8 @@ export interface PipelineItemWithSlot {
   playlist_id: string | null
   playlist_name: string | null
   playlist_position: number | null
-  playlist_total: number | null // TODO: always null — populate from playlist_items count or remove field + update calculate-today-actions
+  playlist_total: number | null
   channel_label: string | null
-}
-
-export interface SyncScheduleEntry {
-  day: string
-  hour: number
 }
 
 export interface SyncScheduleWithChannel {
@@ -27,7 +23,6 @@ export interface SyncScheduleWithChannel {
   channel_name: string
   locale: 'pt' | 'en'
   schedule: SyncScheduleEntry
-  timezone: string
 }
 
 export interface BlogCadenceRow {
@@ -73,6 +68,7 @@ export interface TodayAction {
   channelLabel: string | null
   pubDate: string | null
   batchItems?: string[]
+  isPhantom?: boolean
 }
 
 export interface TodayActionsInput {
@@ -119,7 +115,10 @@ export interface StreakResult {
   isActive: boolean
 }
 
-export type SlotCandidate = Pick<PipelineItemWithSlot, 'id' | 'title' | 'stage' | 'format' | 'language'>
+export type SlotCandidate = Pick<PipelineItemWithSlot,
+  'id' | 'title' | 'stage' | 'format' | 'language'
+  | 'playlist_id' | 'playlist_name' | 'playlist_position' | 'playlist_total'
+>
 
 export interface UpNextApiResponse {
   today: TodayActionsResult
@@ -128,8 +127,8 @@ export interface UpNextApiResponse {
   streak: StreakResult
   stageCounts: Record<string, number>
   playlists: PlaylistSummary[]
-  candidates: Pick<PipelineItemWithSlot, 'id' | 'title' | 'stage' | 'format' | 'language'>[]
-  nextWeekEmpty: number // TODO: always 0 — compute from next week's generateWeekSlots or remove field + update up-next-this-week
+  candidates: SlotCandidate[]
+  nextWeekEmpty: number
   backlogCount: number
   suggestion: { text: string; href: string } | null
   errors: {
