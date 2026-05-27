@@ -79,4 +79,33 @@ describe('computeUrgencyScore', () => {
     const b = computeUrgencyScore({ deadline: '2026-05-28', today: '2026-05-26', stage: 'draft', effortMinutes: 30 })
     expect(a).toBeGreaterThan(b)
   })
+
+  it('computes exact score for known inputs (deadline=today, roteiro, 180min)', () => {
+    // deadlinePressure = clamp(1 - 0/7, 0, 1.5) = 1.0
+    // stagesRemaining = (8 - 3) / 8 = 0.625
+    // effortWeight = clamp(180/240, 0, 1) = 0.75
+    // raw = (1.0 * 60) + (0.625 * 25) + (0.75 * 15) = 60 + 15.625 + 11.25 = 86.875
+    // rounded = 86.9
+    const score = computeUrgencyScore({
+      deadline: '2026-05-26',
+      today: '2026-05-26',
+      stage: 'roteiro',
+      effortMinutes: 180,
+    })
+    expect(score).toBe(86.9)
+  })
+
+  it('computes exact score for 7-day-out deadline (zero deadline pressure)', () => {
+    // deadlinePressure = clamp(1 - 7/7, 0, 1.5) = 0
+    // stagesRemaining = (8 - 0) / 8 = 1.0 (idea stage)
+    // effortWeight = clamp(120/240, 0, 1) = 0.5
+    // raw = (0 * 60) + (1.0 * 25) + (0.5 * 15) = 0 + 25 + 7.5 = 32.5
+    const score = computeUrgencyScore({
+      deadline: '2026-06-02',
+      today: '2026-05-26',
+      stage: 'idea',
+      effortMinutes: 120,
+    })
+    expect(score).toBe(32.5)
+  })
 })

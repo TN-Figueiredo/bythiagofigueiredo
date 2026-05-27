@@ -1,9 +1,9 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
-import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
 import { authenticateRead, authenticateWrite, parseBody, pipelineError, pipelineSuccess } from '@/lib/pipeline/helpers'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { fetchUpNextData } from '@/lib/pipeline/up-next-fetcher'
+import { buildScheduledAt } from '@/lib/pipeline/build-scheduled-at'
 import { SITE_TIMEZONE } from '@/lib/pipeline/up-next-constants'
 
 const ParamsSchema = z.object({
@@ -55,9 +55,7 @@ export async function POST(req: NextRequest) {
   const supabase = getSupabaseServiceClient()
   const now = new Date().toISOString()
 
-  const localDateStr = `${slotDay}T${slotHour || '00:00'}:00`
-  const utcDate = fromZonedTime(localDateStr, SITE_TIMEZONE)
-  const scheduledAt = formatInTimeZone(utcDate, SITE_TIMEZONE, "yyyy-MM-dd'T'HH:mm:ssXXX")
+  const scheduledAt = buildScheduledAt(slotDay, slotHour, SITE_TIMEZONE)
   const { data, error } = await supabase
     .from('content_pipeline')
     .update({ scheduled_at: scheduledAt, updated_at: now })

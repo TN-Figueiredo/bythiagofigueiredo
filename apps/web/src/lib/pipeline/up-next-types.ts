@@ -1,5 +1,6 @@
 import type { Stage } from './up-next-constants'
 import type { SyncScheduleEntry } from '@/lib/youtube/types'
+import type { BufferDepthResult } from './scan-buffer-depth'
 
 export interface PipelineItemWithSlot {
   id: string
@@ -132,10 +133,7 @@ export interface UpNextApiResponse {
   nextWeekEmpty: number
   backlogCount: number
   suggestion: { text: string; href: string } | null
-  bufferDepth: {
-    formats: Record<string, { totalSlots: number; filledSlots: number; coveragePercent: number; health: 'green' | 'yellow' | 'red' }>
-    overallHealth: 'green' | 'yellow' | 'red'
-  } | null
+  bufferDepth: BufferDepthResult | null
   errors: {
     today: string | null
     weekSlots: string | null

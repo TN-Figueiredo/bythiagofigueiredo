@@ -24,7 +24,13 @@ const URGENCY_STYLES: Record<string, { bg: string; color: string }> = {
   this_week: { bg: gemMix('--gem-dim', 15), color: 'var(--gem-dim)' },
 }
 
-const URGENCY_ORDER = ['overdue', 'today', 'tomorrow', 'this_week'] as const
+const FORMAT_LABELS: Record<string, string> = {
+  video: 'Video',
+  blog_post: 'Blog',
+  newsletter: 'Newsletter',
+}
+
+const URGENCY_DISPLAY_ORDER = ['overdue', 'today', 'tomorrow', 'this_week'] as const
 
 function ActionCard({ action }: { action: TodayAction }) {
   const colors = FORMAT_COLORS[action.format] ?? { accent: 'var(--gem-accent)', text: 'var(--gem-muted)', border: 'var(--gem-border)' }
@@ -53,7 +59,7 @@ function ActionCard({ action }: { action: TodayAction }) {
           className="w-[3px] shrink-0 rounded-full"
           style={{ background: colors.accent }}
         />
-        <span className="sr-only">{action.format === 'video' ? 'Video' : action.format === 'blog_post' ? 'Blog' : action.format === 'newsletter' ? 'Newsletter' : action.format}</span>
+        <span className="sr-only">{FORMAT_LABELS[action.format] ?? action.format}</span>
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
@@ -68,15 +74,6 @@ function ActionCard({ action }: { action: TodayAction }) {
               <span aria-hidden>·</span>
               <span>{action.effortEstimate}</span>
             </span>
-            {action.urgencyScore != null && (
-              <span
-                className="text-[9px] font-mono px-1 py-0.5 rounded"
-                style={{ color: 'var(--gem-dim)' }}
-                title={`Urgency score: ${action.urgencyScore}`}
-              >
-                {action.urgencyScore}
-              </span>
-            )}
           </div>
 
           <p
@@ -92,7 +89,7 @@ function ActionCard({ action }: { action: TodayAction }) {
             style={{ color: 'var(--gem-muted)' }}
           >
             {action.actionLabel}
-            {action.deadline && <> · {action.deadline.label}</>}
+            {' · '}{action.deadline.label}
           </p>
 
           {action.channelLabel && (
@@ -176,7 +173,7 @@ export function TodayActionCards({ actions, overflow }: TodayActionCardsProps) {
       </h2>
       {actions.length > 0 ? (
         <div className="space-y-4">
-          {URGENCY_ORDER.map(urgency => {
+          {URGENCY_DISPLAY_ORDER.map(urgency => {
             const group = grouped.get(urgency)
             if (!group || group.length === 0) return null
             return <UrgencyGroup key={urgency} urgency={urgency} actions={group} />

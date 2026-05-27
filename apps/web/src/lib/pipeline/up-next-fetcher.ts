@@ -4,7 +4,8 @@ import { calculateStreak } from '@/lib/pipeline/calculate-streak'
 import { generateWeekSlots, hydrateWeekSlots } from '@/lib/pipeline/generate-week-slots'
 import { selectSuggestion } from '@/lib/pipeline/select-suggestion'
 import { scanBufferDepth } from '@/lib/pipeline/scan-buffer-depth'
-import { STAGE_GROUP, STAGE_ORDER } from '@/lib/pipeline/up-next-constants'
+import { countForwardTransitions } from '@/lib/pipeline/count-forward-transitions'
+import { STAGE_GROUP } from '@/lib/pipeline/up-next-constants'
 import type { Stage } from '@/lib/pipeline/up-next-constants'
 import type {
   PipelineItemWithSlot, SyncScheduleWithChannel, BlogCadenceRow,
@@ -141,20 +142,14 @@ export async function fetchUpNextData(
 
   const blogCadence: BlogCadenceRow | null = cadenceRes.data as BlogCadenceRow | null
   const newsletterEditions: NewsletterEditionRow[] = (editionsRes.data ?? []) as NewsletterEditionRow[]
-  const doneTodayIds = new Set<string>()
-  for (const r of (doneRes.data ?? []) as Array<Record<string, unknown>>) {
-    if (r.event_type !== 'stage_change') continue
-    const fromVal = r.from_value as string | null
-    const toVal = r.to_value as string | null
-    if (!fromVal || !toVal) continue
-    const fromOrder = STAGE_ORDER[fromVal as Stage]
-    const toOrder = STAGE_ORDER[toVal as Stage]
-    if (fromOrder === undefined || toOrder === undefined) continue
-    if (toOrder > fromOrder) {
-      doneTodayIds.add(r.pipeline_id as string)
-    }
-  }
-  const doneToday = doneTodayIds.size
+  const doneToday = countForwardTransitions(
+    ((doneRes.data ?? []) as Array<Record<string, unknown>>).map(r => ({
+      pipeline_id: r.pipeline_id as string,
+      event_type: r.event_type as string,
+      from_value: r.from_value as string | null,
+      to_value: r.to_value as string | null,
+    }))
+  )
 
   let todayResult: UpNextApiResponse['today'] = { actions: [], overflow: 0, doneToday, totalSurfaced: 0, totalEffortMinutes: 0 }
   try {
@@ -249,12 +244,30 @@ export async function fetchUpNextData(
     // non-critical — keep 0
   }
 
+  // Fetch 16 weeks of newsletter editions for buffer depth scanning
+  let bufferNewsletterEditions = newsletterEditions
+  try {
+    const sixteenWeeksOut = formatISO(addDays(parseISO(today), 112), { representation: 'date' })
+    const { data: nlData } = await supabase
+      .from('newsletter_editions')
+      .select('id, subject, status, scheduled_at')
+      .eq('site_id', siteId)
+      .gte('scheduled_at', `${today}T00:00:00`)
+      .lt('scheduled_at', `${sixteenWeeksOut}T00:00:00`)
+      .in('status', ['draft', 'ready', 'scheduled'])
+    if (nlData) {
+      bufferNewsletterEditions = nlData as NewsletterEditionRow[]
+    }
+  } catch {
+    // non-critical, fall back to the existing narrower list
+  }
+
   let bufferDepth: UpNextApiResponse['bufferDepth'] = null
   try {
     bufferDepth = scanBufferDepth({
       syncSchedules,
       blogCadence,
-      newsletterEditions,
+      newsletterEditions: bufferNewsletterEditions,
       pipelineItems,
       today,
       siteTimezone: tz,

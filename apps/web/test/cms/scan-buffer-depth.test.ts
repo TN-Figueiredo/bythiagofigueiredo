@@ -88,25 +88,50 @@ describe('scanBufferDepth', () => {
     expect(result.formats.blog_post.totalSlots).toBeGreaterThan(0)
   })
 
-  it('returns health status: green when >75% filled', () => {
-    const items: PipelineItemWithSlot[] = Array.from({ length: 16 }, (_, i) => {
-      const day = 26 + (i * 7)
-      return makePipelineItem({
+  it('returns health status: green when >=75% filled', () => {
+    // 1 sync schedule = 1 slot per week on Tuesday
+    // 4 weeks scanned = 4 total slots
+    // 3 items scheduled on Tuesdays = 3 filled = 75% = green
+    const tuesdays = ['2026-05-26', '2026-06-02', '2026-06-09']
+    const items: PipelineItemWithSlot[] = tuesdays.map((day, i) =>
+      makePipelineItem({
         id: `v${i}`,
         format: 'video',
-        scheduled_at: `2026-${String(5 + Math.floor((day - 1) / 30)).padStart(2, '0')}-${String(((day - 1) % 30) + 1).padStart(2, '0')}T13:00:00Z`,
+        scheduled_at: `${day}T13:00:00Z`,
         youtube_channel_id: 'ch-1',
-        stage: 'gravacao',
+        stage: 'scheduled',
       })
-    })
+    )
     const result = scanBufferDepth({
       ...baseInput,
       blogCadence: null,
       pipelineItems: items,
+      weeksToScan: 4,
     })
-    if (result.formats.video.filledSlots > 0) {
-      expect(['green', 'yellow', 'red']).toContain(result.formats.video.health)
-    }
+    expect(result.formats.video.filledSlots).toBe(3)
+    expect(result.formats.video.totalSlots).toBe(4)
+    expect(result.formats.video.health).toBe('green')
+  })
+
+  it('returns health status: yellow when 40-74% filled', () => {
+    // 4 weeks, 1 sync = 4 slots, 2 filled = 50% = yellow
+    const items: PipelineItemWithSlot[] = ['2026-05-26', '2026-06-02'].map((day, i) =>
+      makePipelineItem({
+        id: `v${i}`,
+        format: 'video',
+        scheduled_at: `${day}T13:00:00Z`,
+        youtube_channel_id: 'ch-1',
+        stage: 'scheduled',
+      })
+    )
+    const result = scanBufferDepth({
+      ...baseInput,
+      blogCadence: null,
+      pipelineItems: items,
+      weeksToScan: 4,
+    })
+    expect(result.formats.video.filledSlots).toBe(2)
+    expect(result.formats.video.health).toBe('yellow')
   })
 
   it('returns health status: red when 0% filled', () => {

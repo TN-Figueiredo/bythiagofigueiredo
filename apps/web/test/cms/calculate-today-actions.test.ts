@@ -37,8 +37,7 @@ function makeSchedule(overrides: Partial<SyncScheduleWithChannel> = {}): SyncSch
     channel_id: 'ch-pt',
     channel_name: 'Canal PT',
     locale: 'pt',
-    schedule: { day: 'friday', hour: 18 },
-    timezone: 'America/Sao_Paulo',
+    schedule: { day: 'friday', hour: 18, tz: 'America/Sao_Paulo', label: 'Fri 18h' },
     ...overrides,
   }
 }
@@ -230,8 +229,8 @@ describe('calculateTodayActions', () => {
     const now = new Date('2026-05-26T12:00:00Z')
     const item1 = makeItem({ id: 'v1', title: 'Video 1', stage: 'roteiro', youtube_channel_id: 'ch-pt' })
     const item2 = makeItem({ id: 'v2', title: 'Video 2', stage: 'roteiro', youtube_channel_id: 'ch-pt' })
-    const schedFriday = makeSchedule({ channel_id: 'ch-pt', channel_name: 'Canal PT', schedule: { day: 'friday', hour: 18 } })
-    const schedThursday = makeSchedule({ channel_id: 'ch-pt', channel_name: 'Canal PT', schedule: { day: 'thursday', hour: 18 } })
+    const schedFriday = makeSchedule({ channel_id: 'ch-pt', channel_name: 'Canal PT', schedule: { day: 'friday', hour: 18, tz: 'America/Sao_Paulo', label: 'Fri 18h' } })
+    const schedThursday = makeSchedule({ channel_id: 'ch-pt', channel_name: 'Canal PT', schedule: { day: 'thursday', hour: 18, tz: 'America/Sao_Paulo', label: 'Thu 18h' } })
     const result = calculateTodayActions(makeInput({
       now,
       siteTimezone: 'UTC',
@@ -243,6 +242,9 @@ describe('calculateTodayActions', () => {
     expect(videoActions).toHaveLength(1)
     expect(videoActions[0].batchItems).toBeDefined()
     expect(videoActions[0].batchItems!.length).toBe(2)
+    // Verify batch card carries the maximum urgencyScore of its constituents
+    expect(videoActions[0].urgencyScore).toBeDefined()
+    expect(typeof videoActions[0].urgencyScore).toBe('number')
   })
 
   // 11. Respects maxCards and computes overflow
@@ -483,7 +485,7 @@ describe('calculateTodayActions', () => {
     const now = new Date('2026-03-02T02:30:00Z')
     const schedule = makeSchedule({
       channel_id: 'ch-pt',
-      schedule: { day: 'saturday', hour: 18 },
+      schedule: { day: 'saturday', hour: 18, tz: 'America/Sao_Paulo', label: 'Sat 18h' },
     })
     const item = makeItem({
       id: 'tz-item',
@@ -566,8 +568,8 @@ describe('calculateTodayActions', () => {
 
   it('does not double-count same item for multiple sync schedules', () => {
     const schedules = [
-      makeSchedule({ channel_id: 'ch-1', schedule: { day: 'tuesday', hour: 10 } }),
-      makeSchedule({ channel_id: 'ch-1', schedule: { day: 'friday', hour: 10 } }),
+      makeSchedule({ channel_id: 'ch-1', schedule: { day: 'tuesday', hour: 10, tz: 'America/Sao_Paulo', label: 'Tue 10h' } }),
+      makeSchedule({ channel_id: 'ch-1', schedule: { day: 'friday', hour: 10, tz: 'America/Sao_Paulo', label: 'Fri 10h' } }),
     ]
     const result = calculateTodayActions(makeInput({
       syncSchedules: schedules,
@@ -604,14 +606,14 @@ describe('calculateTodayActions', () => {
     it('sorts by urgencyScore descending (most urgent first)', () => {
       const input: TodayActionsInput = {
         pipelineItems: [
-          makeItem({ id: 'v1', stage: 'idea', format: 'video', youtube_channel_id: 'ch-pt' }),
-          makeItem({ id: 'v2', stage: 'ready', format: 'video', youtube_channel_id: 'ch-en' }),
+          makeItem({ id: 'v1', stage: 'idea', format: 'video', youtube_channel_id: 'ch-pt', language: 'pt-br' }),
+          makeItem({ id: 'v2', stage: 'ready', format: 'video', youtube_channel_id: 'ch-en', language: 'en' }),
         ],
         blogCadence: null,
         newsletterEditions: [],
         syncSchedules: [
-          makeSchedule({ channel_id: 'ch-pt', locale: 'pt', schedule: { day: 'friday', hour: 10 } }),
-          makeSchedule({ channel_id: 'ch-en', channel_name: 'EN Channel', locale: 'en', schedule: { day: 'friday', hour: 18 } }),
+          makeSchedule({ channel_id: 'ch-pt', locale: 'pt', schedule: { day: 'friday', hour: 10, tz: 'America/Sao_Paulo', label: 'Fri 10h' } }),
+          makeSchedule({ channel_id: 'ch-en', channel_name: 'EN Channel', locale: 'en', schedule: { day: 'friday', hour: 18, tz: 'America/Sao_Paulo', label: 'Fri 18h' } }),
         ],
         siteTimezone: 'America/Sao_Paulo',
         now: new Date('2026-05-22T12:00:00-03:00'),
@@ -619,9 +621,8 @@ describe('calculateTodayActions', () => {
         doneToday: 0,
       }
       const result = calculateTodayActions(input)
-      if (result.actions.length >= 2) {
-        expect(result.actions[0]!.urgencyScore).toBeGreaterThanOrEqual(result.actions[1]!.urgencyScore!)
-      }
+      expect(result.actions.length).toBeGreaterThanOrEqual(2)
+      expect(result.actions[0]!.urgencyScore).toBeGreaterThanOrEqual(result.actions[1]!.urgencyScore!)
     })
   })
 

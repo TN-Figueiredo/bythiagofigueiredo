@@ -1,13 +1,7 @@
 'use client'
 
 import { gemMix } from '@/lib/pipeline/gem-design'
-
-interface FormatCoverage {
-  totalSlots: number
-  filledSlots: number
-  coveragePercent: number
-  health: 'green' | 'yellow' | 'red'
-}
+import type { FormatCoverage } from '@/lib/pipeline/scan-buffer-depth'
 
 interface BufferHealthPillsProps {
   formats: Record<string, FormatCoverage>
