@@ -1,14 +1,16 @@
 # YouTube Cowork Prompt System
 
 **Date:** 2026-05-27
-**Revision:** 8 (30 fixes from Round 6 — 8 critics, avg 74/100)
-**Status:** Under review
+**Revision:** 9 (final — 56 critic reviews across 7 rounds)
+**Status:** Ready for user review
 
 ## Problem
 
 The YouTube CMS section has rich analytics infrastructure (150+ metrics, 6-axis scoring, A/B testing with 4 types, intelligence API with 12 action types, optimization cycle state machine) but **no way to generate AI-ready prompts** from this data. The Reference page has "Copy Cowork Prompt" but it's generic — it points to pipeline docs, not YouTube-specific context.
 
 Users copy prompts to Claude.ai/ChatGPT where the AI **cannot call the pipeline API directly**. API-reference-only prompts are useless in this context.
+
+When creators paste ad-hoc questions to AI without structured data, responses are generic and hallucination-prone. This system ensures every AI interaction is grounded in real channel metrics.
 
 ## Solution
 
@@ -146,22 +148,22 @@ The prompt uses XML tags for structural boundaries — `<context>` and `<instruc
 
 ```
 LANGUAGE REQUIREMENT: All output MUST be in Brazilian Portuguese (PT-BR). No exceptions.
-
-# Idioma: PT-BR obrigatório
-Responda 100% em português brasileiro.
-Se o usuário escreveu em inglês: entenda em inglês, responda em PT-BR.
-Nomes de campos JSON permanecem em inglês.
+JSON field names stay in English. All prose output in PT-BR.
 
 # Persona
 Você é um analista de YouTube especializado em otimização de canais pequenos/médios.
 Seu papel: responder à pergunta do usuário usando APENAS os dados abaixo.
 Comportamento: data-driven, sem especulação. Toda afirmação deve ser rastreável aos dados inline.
 Não tente fazer requisições HTTP.
-Se você tem capacidade de raciocínio interno, use-a para cruzar dados dos blocos JSON.
-Estruture a resposta com subtítulos quando a análise tiver 2+ temas distintos.
+Cruze dados entre os blocos JSON quando relevante para a análise.
 
 ## Guardrails
 [hallucination prevention rules]
+
+## Formato de Resposta
+- Use subtítulos (##) para cada tema.
+- Cada afirmação: dado inline entre parênteses (ex: "retenção: 38%, grade C").
+- Encerre com "Próximos passos" (2-3 bullets acionáveis).
 
 ## Guia de Confiança
 [confidence tiers]
@@ -181,9 +183,10 @@ Estruture a resposta com subtítulos quando a análise tiver 2+ temas distintos.
 - **XML tags for structural boundaries:** `<context>` and `<instructions>` are well-trained patterns across all major LLMs. Novel separators (e.g., `======`) have zero training distribution and provide no structural signal to models.
 - **Guardrails before instructions:** Prevents "ignore all previous instructions" attacks. The AI processes persona/rules first.
 - **JSON in fenced code block:** ```` ```json ``` ```` inside `<context>` leverages code-block semantics. Prevents JSON values from being interpreted as instructions.
-- **English meta-instruction for language:** English instructions about language requirements have stronger training signal cross-model than PT-BR meta-instructions.
+- **English meta-instruction for language:** English instructions about language requirements have stronger training signal cross-model than PT-BR meta-instructions. Single directive — no duplicate PT-BR section.
 - **Proper Portuguese accents:** `Não`, `Você`, `análise` — stronger linguistic signal.
-- **Output format nudge in persona:** "Estruture a resposta com subtítulos" prevents wall-of-text responses without over-constraining format.
+- **Explicit response format:** Guardrails section defines output skeleton (subtítulos, inline citations, próximos passos) — prevents wall-of-text across all models.
+- **XML tag escaping in instructions:** `</context>` and `</instructions>` in user text are escaped to `<\/context>` / `<\/instructions>` to protect structural boundaries without altering user intent.
 
 ### Empty Instructions Gate
 
@@ -225,8 +228,7 @@ Você é um analista de YouTube especializado em otimização de canais pequenos
 Seu papel: responder à pergunta do usuário usando APENAS os dados abaixo.
 Comportamento: data-driven, sem especulação. Toda afirmação deve ser rastreável aos dados inline.
 Não tente fazer requisições HTTP.
-Se você tem capacidade de raciocínio interno, use-a para cruzar dados dos blocos JSON.
-Estruture a resposta com subtítulos quando a análise tiver 2+ temas distintos.
+Cruze dados entre os blocos JSON quando relevante para a análise.
 ```
 
 ### Thumbnail Handling
@@ -262,9 +264,9 @@ Returns `JSON.stringify(text ?? '').slice(1, -1)` — the escaped inner content 
 - Strip Unicode format characters (category Cf)
 - Enforce max length: titles 100 chars, descriptions 200 chars
 
-**For user instructions — NO sanitization.** User instructions are intentional prose written by the user for their own AI session. Sanitizing them would break legitimate use cases. This matches the pipeline `buildPrompt` which passes `expandedInstructions` verbatim.
+**For user instructions — minimal structural escaping only.** User instructions are intentional prose. The ONLY transformation applied is escaping XML closing tags (`</context>` → `<\/context>`, `</instructions>` → `<\/instructions>`) to protect structural boundaries. All other content passes through verbatim, matching the pipeline `buildPrompt` pattern.
 
-The security property against instruction spoofing is **positional authority** (instructions inside `<instructions>` tag, after all system content), not content filtering.
+The security property is **positional authority** (instructions inside `<instructions>` tag, after all system content) PLUS structural boundary integrity (XML tags cannot be closed by user text).
 
 **Builder-level length validation (defense-in-depth):**
 ```typescript
@@ -288,9 +290,9 @@ export function estimateChars(text: string): number     // identity (for display
 ```typescript
 // lib/youtube/prompt-types.ts
 export const PROMPT_VERSIONS = {
-  'channel-health': 'yt-ch-v8',
-  'video-optimizer': 'yt-vo-v8',
-  'content-calendar': 'yt-cc-v8',
+  'channel-health': 'yt-ch-v9',
+  'video-optimizer': 'yt-vo-v9',
+  'content-calendar': 'yt-cc-v9',
 } as const
 ```
 
@@ -303,7 +305,6 @@ For small channels, "what should I create next and when?" is the highest-leverag
 **Context JSON:**
 ```json
 {
-  "_idioma": "pt-br",
   "preset": "content-calendar",
   "current_time": "2026-05-27T16:00:00-03:00",
   "channel": {
@@ -329,7 +330,7 @@ For small channels, "what should I create next and when?" is the highest-leverag
   ],
   "snapshot_at": "2026-05-27T14:30:00-03:00",
   "snapshot_age_hours": 1.5,
-  "prompt_version": "yt-cc-v8"
+  "prompt_version": "yt-cc-v9"
 }
 ```
 
@@ -355,7 +356,6 @@ Full channel diagnostic context.
 **Context JSON:**
 ```json
 {
-  "_idioma": "pt-br",
   "preset": "channel-health",
   "current_time": "2026-05-27T16:00:00-03:00",
   "channel": { "name": "tnfigueiredo", "subscribers": 1234, "videoCount": 35, "tier": "micro" },
@@ -379,7 +379,7 @@ Full channel diagnostic context.
   "showing_top_n": 5,
   "snapshot_at": "2026-05-27T14:30:00-03:00",
   "snapshot_age_hours": 1.5,
-  "prompt_version": "yt-ch-v8"
+  "prompt_version": "yt-ch-v9"
 }
 ```
 
@@ -404,7 +404,6 @@ Per-video focused context from the Video Optimizer drawer.
 **Context JSON:**
 ```json
 {
-  "_idioma": "pt-br",
   "preset": "video-optimizer",
   "current_time": "2026-05-27T16:00:00-03:00",
   "video": {
@@ -433,7 +432,7 @@ Per-video focused context from the Video Optimizer drawer.
   "channelBaseline": { "medianCtr": 3.6, "medianRetention": 45 },
   "snapshot_at": "2026-05-27T14:30:00-03:00",
   "snapshot_age_hours": 1.5,
-  "prompt_version": "yt-vo-v8"
+  "prompt_version": "yt-vo-v9"
 }
 ```
 
@@ -460,12 +459,12 @@ Added as an **explicit checkbox** (default OFF, label: "Incluir instruções de 
 ```json
 {
   "task_id": "<uuid>",
-  "prompt_version": "yt-ch-v8",
+  "prompt_version": "yt-ch-v9",
   "video_recommendations": [{
     "video_id": "<uuid>",
     "action_type": "thumbnail_redesign | title_rewrite | description_seo | ab_test_thumb | ab_test_title | retention_fix | content_strategy | publish_timing | series_opportunity | chapters_add | end_screen_optimize | pinned_comment",
     "priority": "high | medium | low",
-    "confidence": "high | medium | low",
+    "confidence": 0.0-1.0,
     "reasoning": "Max 500 chars, PT-BR",
     "suggested_variant_description": "Optional, max 200 chars"
   }],
@@ -486,12 +485,12 @@ Added as an **explicit checkbox** (default OFF, label: "Incluir instruções de 
     "message": "Max 500 chars"
   }],
   "channel_insights": {
-    "prompt_version": "yt-ch-v8",
+    "prompt_version": "yt-ch-v9",
     "patterns_detected": [{
       "pattern_id": "pat_<8 lowercase alphanumeric>",
       "category": "thumbnail_style | title_pattern | content_type | publish_timing | duration_sweet_spot | traffic_source | engagement_driver | retention_pattern | growth_lever",
       "finding": "Max 300 chars",
-      "confidence": "high | medium | low",
+      "confidence": 0.0-1.0,
       "sample_size": 0-1000
     }],
     "analysis_text": "Max 2000 chars"
@@ -532,27 +531,23 @@ Phase 3 scope: server-side prompt execution via AI SDK, response storage, "This 
 
 Três faixas — use APENAS as categorias (strings), sem valores numéricos:
 
-- "high": Padrão claro com 5+ data points. Se sample_size < 5: nunca use "high".
-- "medium": 2-4 data points ou correlação observada.
-- "low": 1 data point ou especulação baseada em dado único.
-- Abaixo de "low": NÃO inclua como recomendação.
+- "high" (5+ data points confirmados): Padrão claro e reproduzível. Se sample_size < 5: nunca use "high".
+- "medium" (2-4 data points): Correlação observada mas amostra limitada.
+- "low" (1 data point): Observação isolada, sem padrão confirmado. Se não há dados suficientes, omita a recomendação.
 
 Prefira sub-estimar confiança.
 ```
 
 ### Language Directive
 
+Single English meta-instruction at the top of every prompt:
+
 ```
 LANGUAGE REQUIREMENT: All output MUST be in Brazilian Portuguese (PT-BR). No exceptions.
-
-# Idioma: PT-BR obrigatório
-Responda 100% em português brasileiro.
-Se o usuário escreveu em inglês: entenda em inglês, responda em PT-BR.
-Nomes de campos JSON permanecem em inglês.
-Valores string no output DEVEM ser em PT-BR.
+JSON field names stay in English. All prose output in PT-BR.
 ```
 
-The language constraint is also embedded in the `<instructions>` section header: `<instructions lang="pt-br">`. No trailing reminder needed — the English meta-instruction at the top and the XML attribute provide sufficient signal.
+No duplicate PT-BR section, no trailing reminder, no `lang` attribute on XML tags. English meta-instructions about language have the strongest training signal across all models (Claude, GPT-4, Llama, Gemini). A single clear directive outperforms redundant multi-language repetition.
 
 ### Null Data Handling
 
@@ -622,7 +617,7 @@ Large gradient button: "Copy Cowork Prompt" in indigo gradient. Opens main YouTu
    - **Bottom section** (collapsible, **default collapsed**): context JSON + guardrails. Label: "Contexto ({N} caracteres)"
 8. **Footer**:
    - Left: character count shown **only when > 6,000 chars**
-   - Right: "Cancelar" (ghost) + "Abrir no Claude" (secondary, disabled when `chars > 8,000` or real key embedded, privacy tooltip: "Prompt aparecerá no histórico do navegador") + "Copiar Prompt" (primary indigo gradient, **disabled when textarea is empty**, keyboard shortcut platform-aware: `Cmd+Enter` on macOS, `Ctrl+Enter` elsewhere)
+   - Right: "Cancelar" (ghost) + "Abrir no Claude" (secondary, disabled when `chars > 8,000` or real key embedded, privacy tooltip: "Prompt aparecerá no histórico do navegador") + "Copiar Prompt" (primary indigo gradient, **disabled when textarea is empty**, keyboard shortcut platform-aware: `Cmd+Enter` on macOS, `Ctrl+Enter` elsewhere). On successful copy: button text changes to "Copiado!" for 2 seconds, then reverts. After toast dismissal, a subtle "Was this helpful?" toast with thumbs up/down appears (fires `logPromptFeedback`).
 
 **Pipeline Key handling:**
 - `usePipelineKey(siteId)` hook — reads `cowork-pipeline-key-${siteId}`. Migration: check if scoped key exists first → if not, read old unscoped → write scoped → delete old → set `migrated-cowork-key` flag to prevent re-running.
@@ -709,7 +704,7 @@ type BuildYoutubePromptOptions =
 
 export function buildYoutubePrompt(options: BuildYoutubePromptOptions): string {
   const instructions = options.instructions.slice(0, 2000)
-  const base = buildSharedBase(options.data.channel.tier)
+  const base = buildSharedBase(options.data.channel) // accepts Pick<Channel, 'tier' | 'subscribers'>
 
   let context: string
   switch (options.preset) {
@@ -846,9 +841,19 @@ Use existing CMS color system (`--cms-*` tokens). Indigo accent (`#6366f1`) for 
 7. **`logPromptCopy`** — server-side POST, records `preset + charCount + snapshotAgeHours + day-of-copy`
 8. **Truncation in fetch layer** — server actions cap data, builder is pure serializer
 9. **`snapshot_age_hours`** — computed server-side in fetch functions, not client-side
-10. **`_idioma`** — present in all context JSON as field (position irrelevant per RFC 8259)
+10. **`_idioma` removed** — redundant with English meta-instruction for language requirement
 11. **`AbortController`** — per preset switch, cancels in-flight fetch
 12. **`assertNever`** — exhaustive switch in builder for Phase 2 preset additions
+13. **`STALENESS_THRESHOLDS`** — `{ warn: 24, critical: 48 }` as const, used by UI badge and AI guardrail
+14. **Post-copy feedback** — "Copiado!" button text for 2 seconds after successful copy, then reverts
+15. **Example prompts as pills** — `text-xs px-2 py-0.5 rounded-full border border-indigo-500/30 text-indigo-400 cursor-pointer hover:bg-indigo-500/10 transition-colors`
+16. **"Was this helpful?" toast** — lightweight feedback after copy: toast with thumbs up/down, fires `logPromptFeedback(preset, helpful: boolean)`. ~1h implementation.
+17. **`buildSharedBase`** — accepts `Pick<Channel, 'tier' | 'subscribers'>` (not just tier string) for nano-channel calibration that references subscriber count
+18. **Key cleanup** — `usePipelineKey` idempotently deletes old unscoped key on every read (not just during migration)
+19. **SIGMOID key rename** — migration note: `growth_velocity` → `growth`, `subscriber_impact` → `sub_impact` (already done in scoring-types.ts, verify intelligence-types.ts matches)
+20. **Demographics aggregation** — top entry from each `YtDemographics` array formatted as `"{label} ({percentage}%)"`, e.g. `"25-34 (38%)"`. Formula: `(entry.value / arrayTotal * 100).toFixed(0)`
+21. **`logPromptCopy` server-side validation** — validate session + check `preset` is valid enum + server-side `pk_` regex guard on charCount plausibility
+22. **PATCH confidence dual contract** — prompt prose uses categorical strings ("high"/"medium"/"low"); API PATCH body uses numeric `0.0-1.0`. These are different contexts — never mix.
 
 ## Implementation Estimate (Phase 1 MVP — ~25h)
 
@@ -881,7 +886,7 @@ Value-assertion tests per preset:
 - Builder-level `slice(0, 2000)` enforcement
 - Given fixture `normalized=52`, assert `score=52, grade="C"` in context JSON
 - Context JSON has correct fields and `prompt_version` from `PROMPT_VERSIONS` const
-- `_idioma` field present in context JSON
+- `_idioma` field NOT present in context JSON (removed in Rev 9)
 - `snapshot_age_hours` correctly computed from server-side fixture
 - Null data → field omitted
 - Language directive at top (English meta) + `lang="pt-br"` attribute on `<instructions>`
@@ -974,15 +979,17 @@ Value-assertion tests per preset:
 - Old unscoped key deleted after migration
 - Migrated flag prevents re-running
 
-## Scoring (Round 6 — 8 Critics, avg 74/100)
+## Scoring (7 Rounds — 56 Critics Total)
 
-| Dimension | R5 | R6 | Rev 8 Changes |
-|-----------|-----|-----|---------------|
-| Prompt engineering | 72 | 78 | XML tags, confidence fully categorical, output format nudge, no trailing reminder |
-| UX/UI design | 72 | 71 | Content Calendar default, clickable examples, collapsed preview default, 8K Claude threshold, platform-aware shortcut |
-| Architecture | 72 | 78 | snapshot_age server-side, assertNever exhaustiveness, AbortController, estimateTokens 3.0 for PT-BR, lone surrogate note |
-| Data completeness | 78 | 74 | ChannelTier + GRADE_THRESHOLDS canonicalized, demographics mapping documented, coaching reconciliation added |
-| Security | 72 | 74 | Atomic key migration with flag, URL encodeURIComponent, preview no innerHTML, logPromptCopy server-side, pk_ regex |
-| Test coverage | 52 | 72 | Fetch-layer suite (10), snapshot boundary tests (4), sanitizeForJson adversarial (3), URL tests (3), concurrency expanded (7) |
-| AI portability | 58 | 74 | XML tags replace custom separator, confidence strings only, _idioma position-agnostic, lang attribute on instructions |
-| Product strategy | 52 | 71 | Phase 3 trigger: 8 unique days/4 weeks, logPromptGenerated analytics, minimum-data threshold, 25h with 10h tests |
+| Dimension | R5 | R6 | R7 | Rev 9 Changes |
+|-----------|-----|-----|-----|---------------|
+| Prompt engineering | 72 | 78 | 75 | Removed `_idioma` from JSON, simplified language to single English directive, explicit response format section, cross-reference instruction |
+| UX/UI design | 72 | 71 | 68 | Post-copy "Copiado!" feedback, example prompts as pill buttons, "Was this helpful?" toast |
+| Architecture | 72 | 78 | 72 | `buildSharedBase` accepts `Pick<Channel>`, `STALENESS_THRESHOLDS` const, idempotent key cleanup |
+| Data completeness | 78 | 74 | 70 | Demographics aggregation formula, SIGMOID key rename migration note |
+| Security | 72 | 74 | 71 | XML tag escaping in user instructions, server-side pk_ regex in logPromptCopy |
+| Test coverage | 52 | 72 | 68 | Updated `_idioma` removal test, post-copy feedback test |
+| AI portability | 58 | 74 | 65 | Single English meta-instruction, removed redundant PT-BR section |
+| Product strategy | 52 | 71 | 66 | logPromptFeedback (helpful/unhelpful), PATCH confidence dual contract documented |
+
+**Trajectory:** R4: 58.5 → R5: 66 → R6: 74 → R7: 69 (diminishing returns — remaining issues are implementation-level, not design-level)
