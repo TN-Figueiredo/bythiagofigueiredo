@@ -6,7 +6,8 @@ import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { fetchYtSearchTerms, fetchYtDemographics } from '@/lib/youtube/analytics-client'
-import { getChannelTier, assignGrade } from '@/lib/youtube/scoring'
+import { getChannelTier } from '@/lib/youtube/scoring'
+import { scoreForPrompt } from '@/lib/youtube/prompt-scoring'
 import type { Grade } from '@/lib/youtube/scoring-types'
 import type {
   ContentCalendarData,
@@ -190,10 +191,7 @@ export async function fetchChannelHealthData(
     const scored = videos.map(
       (v: { id: string; youtube_video_id: string; title: string; view_count: number; avg_view_percentage: number | null; ctr: number | null }) => {
         const retention = (v.avg_view_percentage as number | null) ?? 0
-        const score = Math.round(
-          ((v.ctr as number | null) ?? 0) * 0.3 + retention * 0.7,
-        )
-        const grade = assignGrade(score)
+        const { score, grade } = scoreForPrompt((v.ctr as number | null) ?? 0, retention)
         gradeDistribution[grade]++
         return {
           id: v.id as string,
@@ -265,8 +263,7 @@ export async function fetchVideoOptimizerData(
 
     const retention = (video.avg_view_percentage as number | null) ?? 0
     const ctr = (video.ctr as number | null) ?? 0
-    const score = Math.round(ctr * 0.3 + retention * 0.7)
-    const grade = assignGrade(score)
+    const { score, grade } = scoreForPrompt(ctr, retention)
 
     const data: VideoOptimizerData = {
       channel: info,
