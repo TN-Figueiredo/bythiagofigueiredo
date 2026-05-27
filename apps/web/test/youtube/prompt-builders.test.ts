@@ -45,7 +45,7 @@ function makeChannelHealthData(overrides?: Partial<ChannelHealthData>): ChannelH
     },
     topVideos: [],
     bottomVideos: [],
-    gradeDistribution: { A: 2, B: 5, C: 3, D: 1, F: 0 },
+    gradeDistribution: { A: 2, B: 5, C: 3, D: 1 },
     demographics: { topAge: '25-34', topCountry: 'BR', topDevice: 'mobile' },
     searchTerms: [],
     outliers: { positive: [], negative: [] },
