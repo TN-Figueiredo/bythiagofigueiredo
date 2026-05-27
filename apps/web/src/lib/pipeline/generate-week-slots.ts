@@ -1,5 +1,5 @@
 import { parseISO, addDays, formatISO, isWithinInterval, startOfDay, endOfDay } from 'date-fns'
-import { toZonedTime } from 'date-fns-tz'
+import { toZonedTime, formatInTimeZone } from 'date-fns-tz'
 import { STAGE_ORDER, DAY_INDEX, DAY_LABELS, EFFORT_DEFAULTS } from './up-next-constants'
 import type { Stage } from './up-next-constants'
 import type {
@@ -20,10 +20,8 @@ export interface GenerateWeekSlotsInput {
 }
 
 function dayDate(weekStartDate: Date, targetDayIndex: number): Date {
-  // weekStartDate is Monday (dayIndex=1). Offset to target dayIndex.
-  // Sunday is 0, but in our week it's day +6 from Monday.
-  const mondayIndex = 1
-  const offset = targetDayIndex === 0 ? 6 : targetDayIndex - mondayIndex
+  const startDayIndex = weekStartDate.getDay()
+  const offset = (targetDayIndex - startDayIndex + 7) % 7
   return addDays(weekStartDate, offset)
 }
 
@@ -86,7 +84,7 @@ export function generateWeekSlots(input: GenerateWeekSlotsInput): WeekSlot[] {
     })
   }
 
-  // 2. Blog slot from cadence
+  // 2. Blog slots from cadence (supports multi-week and short cadences)
   if (
     blogCadence !== null &&
     !blogCadence.cadence_paused &&
@@ -94,38 +92,45 @@ export function generateWeekSlots(input: GenerateWeekSlotsInput): WeekSlot[] {
     blogCadence.cadence_days > 0 &&
     blogCadence.cadence_start_date !== null
   ) {
-    let nextPub: Date
+    const cadenceDays = blogCadence.cadence_days
 
+    let nextPub: Date
     if (blogCadence.last_published_at !== null) {
-      nextPub = addDays(parseISO(blogCadence.last_published_at), blogCadence.cadence_days)
+      nextPub = addDays(parseISO(blogCadence.last_published_at), cadenceDays)
     } else {
       nextPub = parseISO(blogCadence.cadence_start_date)
     }
 
+    // Fast-forward past today (but not past weekEnd — we check inside the loop)
     while (nextPub < todayDate) {
-      nextPub = addDays(nextPub, blogCadence.cadence_days!)
+      nextPub = addDays(nextPub, cadenceDays)
     }
 
-    const inWeek = isWithinInterval(nextPub, {
-      start: startOfDay(weekStartDate),
-      end: endOfDay(weekEndDate),
-    })
-
-    if (inWeek) {
-      const slotDateStr = toDateString(nextPub)
-      const dayIndex = nextPub.getDay()
-
-      slots.push({
-        day: slotDateStr,
-        dayLabel: dayLabelForDate(nextPub),
-        hour: null,
-        format: 'blog_post',
-        channelLocale: null,
-        channelId: null,
-        isRestDay: isRestDayIndex(dayIndex) && !scheduledDayIndices.has(dayIndex),
-        assignedItem: null,
-        effortMinutes: 0,
+    // Emit all cadence dates that fall within [weekStart, weekEnd]
+    while (nextPub <= endOfDay(weekEndDate)) {
+      const inWeek = isWithinInterval(nextPub, {
+        start: startOfDay(weekStartDate),
+        end: endOfDay(weekEndDate),
       })
+
+      if (inWeek) {
+        const slotDateStr = toDateString(nextPub)
+        const dayIndex = nextPub.getDay()
+
+        slots.push({
+          day: slotDateStr,
+          dayLabel: dayLabelForDate(nextPub),
+          hour: null,
+          format: 'blog_post',
+          channelLocale: null,
+          channelId: null,
+          isRestDay: isRestDayIndex(dayIndex) && !scheduledDayIndices.has(dayIndex),
+          assignedItem: null,
+          effortMinutes: 0,
+        })
+      }
+
+      nextPub = addDays(nextPub, cadenceDays)
     }
   }
 
@@ -163,13 +168,13 @@ export function generateWeekSlots(input: GenerateWeekSlotsInput): WeekSlot[] {
   const SAT_INDEX = 6
   const SUN_INDEX = 0
 
+  // Pre-compute set of day-of-week indices already present in slots
+  // to avoid calling parseISO(s.day) inside the loop
+  const slotDayIndices = new Set(slots.map(s => parseISO(s.day).getDay()))
+
   for (const dayIndex of [SAT_INDEX, SUN_INDEX]) {
     if (scheduledDayIndices.has(dayIndex)) continue
-    const hasSlotOnDay = slots.some(s => {
-      const d = parseISO(s.day)
-      return d.getDay() === dayIndex
-    })
-    if (hasSlotOnDay) continue
+    if (slotDayIndices.has(dayIndex)) continue
 
     const restDate = dayDate(weekStartDate, dayIndex)
     slots.push({
@@ -200,23 +205,38 @@ export function generateWeekSlots(input: GenerateWeekSlotsInput): WeekSlot[] {
 export function hydrateWeekSlots(
   slots: WeekSlot[],
   pipelineItems: PipelineItemWithSlot[],
+  siteTimezone: string,
 ): WeekSlot[] {
+  // Pre-index pipeline items into a Map keyed by "day|format" for O(n+m) lookup
+  // Use timezone-aware date extraction so UTC timestamps map to the correct local date
+  const itemsByDayFormat = new Map<string, PipelineItemWithSlot[]>()
+
+  for (const item of pipelineItems) {
+    if (!item.scheduled_at || typeof item.scheduled_at !== 'string' || item.scheduled_at.length < 10) continue
+    const localDate = formatInTimeZone(new Date(item.scheduled_at), siteTimezone, 'yyyy-MM-dd')
+    const key = `${localDate}|${item.format}`
+    let bucket = itemsByDayFormat.get(key)
+    if (!bucket) {
+      bucket = []
+      itemsByDayFormat.set(key, bucket)
+    }
+    bucket.push(item)
+  }
+
   const usedIds = new Set<string>()
 
   return slots.map(slot => {
     if (slot.assignedItem) return slot
     if (slot.isRestDay) return slot
 
-    const match = pipelineItems.find(item => {
+    const bucket = itemsByDayFormat.get(`${slot.day}|${slot.format}`)
+    if (!bucket) return slot
+
+    const match = bucket.find(item => {
       if (usedIds.has(item.id)) return false
-      if (!item.scheduled_at || typeof item.scheduled_at !== 'string' || item.scheduled_at.length < 10) return false
-      if (item.format !== slot.format) return false
 
-      const scheduledDay = item.scheduled_at.slice(0, 10)
-      if (scheduledDay !== slot.day) return false
-
-      if (slot.hour && item.scheduled_at.length >= 16) {
-        const scheduledHour = item.scheduled_at.slice(11, 16)
+      if (slot.hour && item.scheduled_at && item.scheduled_at.length >= 16) {
+        const scheduledHour = formatInTimeZone(new Date(item.scheduled_at), siteTimezone, 'HH:mm')
         if (scheduledHour !== slot.hour) return false
       }
 

@@ -18,7 +18,6 @@ function makeSyncSchedule(overrides: Partial<SyncScheduleWithChannel> = {}): Syn
     channel_name: 'Canal PT',
     locale: 'pt',
     schedule: { day: 'tuesday', hour: 10 },
-    timezone: SITE_TZ,
     ...overrides,
   }
 }
@@ -293,6 +292,103 @@ describe('generateWeekSlots', () => {
     expect(contentSlots[2].hour).toBe('14:00')
   })
 
+  it('skips blog slot when cadence next-pub falls after the week', () => {
+    // last_published_at is far enough back that the next publication lands AFTER weekEnd (2026-05-31)
+    // last_published_at = 2026-05-25 + 7 days = 2026-06-01, which is outside [2026-05-25..2026-05-31]
+    const cadence = makeBlogCadence({
+      cadence_days: 7,
+      last_published_at: '2026-05-25',
+    })
+
+    const slots = generateWeekSlots({
+      syncSchedules: [],
+      blogCadence: cadence,
+      newsletterEditions: [],
+      weekStart: WEEK_START,
+      siteTimezone: SITE_TZ,
+      today: TODAY,
+    })
+
+    expect(slots.filter(s => s.format === 'blog_post')).toHaveLength(0)
+  })
+
+  it('excludes newsletter edition with status "queued"', () => {
+    // 'queued', 'sending', 'sent' should NOT produce slots; only 'draft', 'ready', 'scheduled'
+    const editions: NewsletterEditionRow[] = [
+      makeNewsletterEdition({ id: 'nl-queued', status: 'queued', scheduled_at: '2026-05-27T10:00:00Z' }),
+      makeNewsletterEdition({ id: 'nl-sending', status: 'sending', scheduled_at: '2026-05-27T12:00:00Z' }),
+    ]
+
+    const slots = generateWeekSlots({
+      syncSchedules: [],
+      blogCadence: null,
+      newsletterEditions: editions,
+      weekStart: WEEK_START,
+      siteTimezone: SITE_TZ,
+      today: TODAY,
+    })
+
+    expect(slots.filter(s => s.format === 'newsletter')).toHaveLength(0)
+  })
+
+  it('newsletter on Saturday with existing sync schedule marks isRestDay=false', () => {
+    // Saturday has a sync schedule → scheduledDayIndices includes 6
+    // Newsletter also lands on Saturday → newsletter slot should have isRestDay: false
+    const saturdaySchedule = makeSyncSchedule({
+      channel_id: 'ch-pt',
+      locale: 'pt',
+      schedule: { day: 'saturday', hour: 10 },
+    })
+    // 2026-05-30T14:00:00Z = 2026-05-30 11:00 BRT — Saturday within the week
+    const edition = makeNewsletterEdition({
+      id: 'nl-sat',
+      status: 'scheduled',
+      scheduled_at: '2026-05-30T14:00:00Z',
+    })
+
+    const slots = generateWeekSlots({
+      syncSchedules: [saturdaySchedule],
+      blogCadence: null,
+      newsletterEditions: [edition],
+      weekStart: WEEK_START,
+      siteTimezone: SITE_TZ,
+      today: TODAY,
+    })
+
+    const nlSlot = slots.find(s => s.format === 'newsletter')
+    expect(nlSlot).toBeDefined()
+    expect(nlSlot?.day).toBe('2026-05-30')
+    expect(nlSlot?.isRestDay).toBe(false)
+  })
+
+  it('advances blog cadence from distant past to current week', () => {
+    // last_published_at = 3 months ago (2026-02-25), cadence_days = 7
+    // Should advance week by week until it lands inside [2026-05-25..2026-05-31]
+    // 2026-02-25 + n*7 until >= today (2026-05-25):
+    // 2026-02-25 → 2026-03-04 → ... → 2026-05-20 → 2026-05-27 (within week)
+    const cadence = makeBlogCadence({
+      cadence_days: 7,
+      last_published_at: '2026-02-25',
+    })
+
+    const slots = generateWeekSlots({
+      syncSchedules: [],
+      blogCadence: cadence,
+      newsletterEditions: [],
+      weekStart: WEEK_START,
+      siteTimezone: SITE_TZ,
+      today: TODAY,
+    })
+
+    const blogSlots = slots.filter(s => s.format === 'blog_post')
+    expect(blogSlots).toHaveLength(1)
+    // Must be within the current week [2026-05-25..2026-05-31]
+    expect(blogSlots[0].day >= '2026-05-25').toBe(true)
+    expect(blogSlots[0].day <= '2026-05-31').toBe(true)
+    // Must preserve the day-of-week rhythm: 2026-02-25 is Wednesday, so result must also be Wednesday
+    expect(blogSlots[0].day).toBe('2026-05-27')
+  })
+
   it('all slots have assignedItem null and effortMinutes 0', () => {
     const slots = generateWeekSlots({
       syncSchedules: [makeSyncSchedule({ schedule: { day: 'tuesday', hour: 10 } })],
@@ -324,7 +420,7 @@ describe('hydrateWeekSlots', () => {
       youtube_channel_id: 'ch-pt', scheduled_at: '2026-05-26T10:00:00',
     })]
 
-    const result = hydrateWeekSlots(slots, items)
+    const result = hydrateWeekSlots(slots, items, SITE_TZ)
     expect(result[0].assignedItem).toEqual({ id: 'v1', title: 'My Video', stage: 'edicao' })
     expect(result[0].effortMinutes).toBe(90)
   })
@@ -339,7 +435,7 @@ describe('hydrateWeekSlots', () => {
       id: 'v1', youtube_channel_id: 'ch-pt', scheduled_at: '2026-05-27T10:00:00',
     })]
 
-    const result = hydrateWeekSlots(slots, items)
+    const result = hydrateWeekSlots(slots, items, SITE_TZ)
     expect(result[0].assignedItem).toBeNull()
   })
 
@@ -354,7 +450,7 @@ describe('hydrateWeekSlots', () => {
       scheduled_at: '2026-05-26T10:00:00',
     })]
 
-    const result = hydrateWeekSlots(slots, items)
+    const result = hydrateWeekSlots(slots, items, SITE_TZ)
     expect(result[0].assignedItem).toBeNull()
   })
 
@@ -368,7 +464,7 @@ describe('hydrateWeekSlots', () => {
       id: 'v1', youtube_channel_id: 'ch-pt', scheduled_at: '2026-05-26T14:00:00',
     })]
 
-    const result = hydrateWeekSlots(slots, items)
+    const result = hydrateWeekSlots(slots, items, SITE_TZ)
     expect(result[0].assignedItem).toBeNull()
   })
 
@@ -390,7 +486,7 @@ describe('hydrateWeekSlots', () => {
       scheduled_at: '2026-05-26T10:00:00',
     })]
 
-    const result = hydrateWeekSlots(slots, items)
+    const result = hydrateWeekSlots(slots, items, SITE_TZ)
     expect(result[0].assignedItem?.id).toBe('v1')
     expect(result[1].assignedItem).toBeNull()
   })
@@ -406,7 +502,7 @@ describe('hydrateWeekSlots', () => {
       youtube_channel_id: null, scheduled_at: '2026-05-25T00:00:00',
     })]
 
-    const result = hydrateWeekSlots(slots, items)
+    const result = hydrateWeekSlots(slots, items, SITE_TZ)
     expect(result[0].assignedItem).toEqual({ id: 'b1', title: 'Blog Post', stage: 'draft' })
   })
 
@@ -421,7 +517,7 @@ describe('hydrateWeekSlots', () => {
       youtube_channel_id: null, scheduled_at: '2026-05-27T14:00:00',
     })]
 
-    const result = hydrateWeekSlots(slots, items)
+    const result = hydrateWeekSlots(slots, items, SITE_TZ)
     expect(result[0].assignedItem).toEqual({ id: 'nl1', title: 'Newsletter', stage: 'draft' })
   })
 
@@ -442,7 +538,7 @@ describe('hydrateWeekSlots', () => {
       id: 'v1', youtube_channel_id: 'ch-pt', scheduled_at: '2026-05-26T10:00:00',
     })]
 
-    const result = hydrateWeekSlots(slots, items)
+    const result = hydrateWeekSlots(slots, items, SITE_TZ)
     const assigned = result.filter(s => s.assignedItem !== null)
     expect(assigned).toHaveLength(1)
     expect(assigned[0].hour).toBe('10:00')
@@ -459,7 +555,7 @@ describe('hydrateWeekSlots', () => {
       makePipelineItem({ id: 'v2', title: 'Second', stage: 'gravacao', youtube_channel_id: 'ch-pt', scheduled_at: '2026-05-26T10:00:00' }),
     ]
 
-    const result = hydrateWeekSlots(slots, items)
+    const result = hydrateWeekSlots(slots, items, SITE_TZ)
     expect(result[0].assignedItem?.id).toBe('v1')
   })
 
@@ -471,7 +567,7 @@ describe('hydrateWeekSlots', () => {
     }]
     const items = [makePipelineItem({ id: 'v1', youtube_channel_id: 'ch-pt', scheduled_at: null })]
 
-    const result = hydrateWeekSlots(slots, items)
+    const result = hydrateWeekSlots(slots, items, SITE_TZ)
     expect(result[0].assignedItem).toBeNull()
   })
 
@@ -483,7 +579,7 @@ describe('hydrateWeekSlots', () => {
     }]
     const items = [makePipelineItem({ id: 'v1', youtube_channel_id: 'ch-pt', scheduled_at: '2026-05' })]
 
-    const result = hydrateWeekSlots(slots, items)
+    const result = hydrateWeekSlots(slots, items, SITE_TZ)
     expect(result[0].assignedItem).toBeNull()
   })
 
@@ -495,7 +591,7 @@ describe('hydrateWeekSlots', () => {
     }]
     const items = [makePipelineItem({ id: 'v1', scheduled_at: '2026-05-30T00:00:00' })]
 
-    const result = hydrateWeekSlots(slots, items)
+    const result = hydrateWeekSlots(slots, items, SITE_TZ)
     expect(result[0].assignedItem).toBeNull()
   })
 
@@ -511,7 +607,7 @@ describe('hydrateWeekSlots', () => {
       youtube_channel_id: 'ch-pt', scheduled_at: '2026-05-26T10:00:00',
     })]
 
-    const result = hydrateWeekSlots(slots, items)
+    const result = hydrateWeekSlots(slots, items, SITE_TZ)
     expect(result[0].assignedItem?.id).toBe('existing')
     expect(result[0].effortMinutes).toBe(240)
   })
@@ -526,7 +622,7 @@ describe('hydrateWeekSlots', () => {
       id: 'v1', youtube_channel_id: null, scheduled_at: '2026-05-26T10:00:00',
     })]
 
-    const result = hydrateWeekSlots(slots, items)
+    const result = hydrateWeekSlots(slots, items, SITE_TZ)
     expect(result[0].assignedItem).toBeNull()
   })
 
@@ -541,7 +637,7 @@ describe('hydrateWeekSlots', () => {
       scheduled_at: '2026-05-26T10:00:00',
     })]
 
-    const result = hydrateWeekSlots(slots, items)
+    const result = hydrateWeekSlots(slots, items, SITE_TZ)
     expect(result[0].assignedItem).not.toBeNull()
     expect(result[0].effortMinutes).toBe(0)
   })
@@ -557,12 +653,29 @@ describe('hydrateWeekSlots', () => {
       scheduled_at: '2026-05-26T10:00:00',
     })]
 
-    const result = hydrateWeekSlots(slots, items)
+    const result = hydrateWeekSlots(slots, items, SITE_TZ)
     expect(result[0].assignedItem).not.toBeNull()
     expect(result[0].effortMinutes).toBe(0)
   })
 
-  it('matches item with timezone-aware scheduled_at (trailing Z)', () => {
+  it('matches item with timezone-aware scheduled_at (trailing Z, local hour match)', () => {
+    // 2026-05-26T13:00:00Z = 10:00 BRT (America/Sao_Paulo = UTC-3)
+    // slot hour '10:00' is a local BRT hour — must match local time, not UTC
+    const slots: WeekSlot[] = [{
+      day: '2026-05-26', dayLabel: 'Ter', hour: '10:00', format: 'video',
+      channelLocale: 'pt', channelId: 'ch-pt', isRestDay: false,
+      assignedItem: null, effortMinutes: 0,
+    }]
+    const items = [makePipelineItem({
+      id: 'v1', youtube_channel_id: 'ch-pt', scheduled_at: '2026-05-26T13:00:00Z',
+    })]
+
+    const result = hydrateWeekSlots(slots, items, SITE_TZ)
+    expect(result[0].assignedItem).not.toBeNull()
+  })
+
+  it('does not match item whose UTC time is same hour but different local hour', () => {
+    // 2026-05-26T10:00:00Z = 07:00 BRT — should NOT match slot hour '10:00'
     const slots: WeekSlot[] = [{
       day: '2026-05-26', dayLabel: 'Ter', hour: '10:00', format: 'video',
       channelLocale: 'pt', channelId: 'ch-pt', isRestDay: false,
@@ -572,8 +685,8 @@ describe('hydrateWeekSlots', () => {
       id: 'v1', youtube_channel_id: 'ch-pt', scheduled_at: '2026-05-26T10:00:00Z',
     })]
 
-    const result = hydrateWeekSlots(slots, items)
-    expect(result[0].assignedItem).not.toBeNull()
+    const result = hydrateWeekSlots(slots, items, SITE_TZ)
+    expect(result[0].assignedItem).toBeNull()
   })
 
   it('does not mutate input slots array', () => {
@@ -587,12 +700,12 @@ describe('hydrateWeekSlots', () => {
       id: 'v1', youtube_channel_id: 'ch-pt', scheduled_at: '2026-05-26T10:00:00',
     })]
 
-    hydrateWeekSlots(slots, items)
+    hydrateWeekSlots(slots, items, SITE_TZ)
     expect(slots).toEqual(original)
   })
 
   it('returns empty array when slots is empty', () => {
-    expect(hydrateWeekSlots([], [makePipelineItem()])).toEqual([])
+    expect(hydrateWeekSlots([], [makePipelineItem()], SITE_TZ)).toEqual([])
   })
 
   it('returns unchanged slots when pipelineItems is empty', () => {
@@ -603,5 +716,119 @@ describe('hydrateWeekSlots', () => {
     }]
     const result = hydrateWeekSlots(slots, [])
     expect(result[0].assignedItem).toBeNull()
+  })
+
+  it('matches newsletter item scheduled at 01:00Z to BRT date (not UTC date)', () => {
+    // 2026-05-27T01:00:00Z = 2026-05-26T22:00:00 BRT (UTC-3)
+    // The local BRT date is May 26, NOT May 27
+    // generateWeekSlots uses toZonedTime + formatInTimeZone so slot.day = '2026-05-26'
+    // hydrateWeekSlots must also use formatInTimeZone so it matches the same slot
+    const slots: WeekSlot[] = [{
+      day: '2026-05-26', dayLabel: 'Ter', hour: null, format: 'newsletter',
+      channelLocale: null, channelId: null, isRestDay: false,
+      assignedItem: null, effortMinutes: 0,
+    }]
+    const items = [makePipelineItem({
+      id: 'nl-tz', title: 'TZ Newsletter', stage: 'draft', format: 'newsletter',
+      youtube_channel_id: null, scheduled_at: '2026-05-27T01:00:00Z',
+    })]
+
+    const result = hydrateWeekSlots(slots, items, SITE_TZ)
+    // Local BRT date of the item is 2026-05-26, same as slot.day → must match
+    expect(result[0].assignedItem).toEqual({ id: 'nl-tz', title: 'TZ Newsletter', stage: 'draft' })
+  })
+
+  it('does not match item when UTC midnight-crossing shifts local date to the next day', () => {
+    // 2026-05-27T05:00:00Z = 2026-05-27T02:00:00 BRT — local date is May 27
+    // slot.day = '2026-05-26' — should NOT match because local dates differ
+    const slots: WeekSlot[] = [{
+      day: '2026-05-26', dayLabel: 'Ter', hour: null, format: 'newsletter',
+      channelLocale: null, channelId: null, isRestDay: false,
+      assignedItem: null, effortMinutes: 0,
+    }]
+    const items = [makePipelineItem({
+      id: 'nl-next', title: 'Next Day NL', stage: 'draft', format: 'newsletter',
+      youtube_channel_id: null, scheduled_at: '2026-05-27T05:00:00Z',
+    })]
+
+    const result = hydrateWeekSlots(slots, items, SITE_TZ)
+    // Local BRT date is 2026-05-27, different from slot.day '2026-05-26' → no match
+    expect(result[0].assignedItem).toBeNull()
+  })
+})
+
+describe('blog cadence multi-week', () => {
+  it('generates blog slot for week 3 (future week)', () => {
+    const slots = generateWeekSlots({
+      syncSchedules: [],
+      blogCadence: makeBlogCadence({
+        cadence_days: 7,
+        cadence_start_date: '2026-05-18',
+        last_published_at: '2026-05-18',
+      }),
+      newsletterEditions: [],
+      weekStart: '2026-06-08', // Week 3
+      siteTimezone: SITE_TZ,
+      today: '2026-05-25',
+    })
+    const blogSlots = slots.filter(s => s.format === 'blog_post' && !s.isRestDay)
+    expect(blogSlots.length).toBe(1)
+    expect(blogSlots[0]!.day).toBe('2026-06-08')
+  })
+
+  it('generates blog slot for week 5 (far future)', () => {
+    const slots = generateWeekSlots({
+      syncSchedules: [],
+      blogCadence: makeBlogCadence({
+        cadence_days: 7,
+        cadence_start_date: '2026-05-18',
+        last_published_at: '2026-05-18',
+      }),
+      newsletterEditions: [],
+      weekStart: '2026-06-22', // Week 5
+      siteTimezone: SITE_TZ,
+      today: '2026-05-25',
+    })
+    const blogSlots = slots.filter(s => s.format === 'blog_post' && !s.isRestDay)
+    expect(blogSlots.length).toBe(1)
+    expect(blogSlots[0]!.day).toBe('2026-06-22')
+  })
+
+  it('generates multiple blog slots in one week with short cadence (2 days)', () => {
+    const slots = generateWeekSlots({
+      syncSchedules: [],
+      blogCadence: makeBlogCadence({
+        cadence_days: 2,
+        cadence_start_date: '2026-05-18',
+        last_published_at: '2026-05-24',
+      }),
+      newsletterEditions: [],
+      weekStart: '2026-05-25', // current week
+      siteTimezone: SITE_TZ,
+      today: '2026-05-25',
+    })
+    const allBlogSlots = slots.filter(s => s.format === 'blog_post')
+    // 2026-05-26, 2026-05-28, 2026-05-30 (every 2 days within Mon-Sun)
+    expect(allBlogSlots.length).toBe(3)
+    // 2026-05-30 is Saturday → isRestDay=true (no sync schedules override it)
+    const nonRestBlogSlots = allBlogSlots.filter(s => !s.isRestDay)
+    expect(nonRestBlogSlots.length).toBe(2)
+  })
+
+  it('generates no blog slot for weeks before cadence starts', () => {
+    const slots = generateWeekSlots({
+      syncSchedules: [],
+      blogCadence: makeBlogCadence({
+        cadence_days: 7,
+        cadence_start_date: '2026-06-15',
+        last_published_at: null,
+      }),
+      newsletterEditions: [],
+      weekStart: '2026-06-01',
+      siteTimezone: SITE_TZ,
+      today: '2026-05-25',
+    })
+    const blogSlots = slots.filter(s => s.format === 'blog_post' && !s.isRestDay)
+    expect(blogSlots.length).toBe(0)
   })
 })
