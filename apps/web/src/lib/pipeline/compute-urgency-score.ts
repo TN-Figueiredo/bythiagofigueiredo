@@ -15,10 +15,10 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max)
 }
 
-export function computeUrgencyScore(input: UrgencyScoreInput): number {
+export function computeUrgencyScore(input: UrgencyScoreInput): number | null {
   const { deadline, today, stage, effortMinutes } = input
 
-  if (deadline === null) return 0
+  if (deadline === null) return null
 
   const daysUntilDeadline = differenceInCalendarDays(parseISO(deadline), parseISO(today))
 

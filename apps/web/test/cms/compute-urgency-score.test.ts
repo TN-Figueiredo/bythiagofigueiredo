@@ -39,9 +39,9 @@ describe('computeUrgencyScore', () => {
     expect(deep).toBeGreaterThan(quick)
   })
 
-  it('returns 0 when deadline is null', () => {
+  it('returns null when deadline is null', () => {
     const score = computeUrgencyScore({ ...baseArgs, deadline: null })
-    expect(score).toBe(0)
+    expect(score).toBeNull()
   })
 
   it('caps at 100 for extremely overdue items', () => {

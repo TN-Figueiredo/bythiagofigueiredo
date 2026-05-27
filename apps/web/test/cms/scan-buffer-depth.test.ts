@@ -159,6 +159,39 @@ describe('scanBufferDepth', () => {
     expect(result16.formats.video.totalSlots).toBeGreaterThan(result4.formats.video.totalSlots)
   })
 
+  it('tracks firstEmptyDate per format', () => {
+    const result = scanBufferDepth({
+      ...baseInput,
+      blogCadence: null,
+      pipelineItems: [],
+    })
+    expect(result.formats.video.firstEmptyDate).toBeDefined()
+    expect(typeof result.formats.video.firstEmptyDate).toBe('string')
+  })
+
+  it('returns null firstEmptyDate when all slots are filled', () => {
+    const tuesdays = Array.from({ length: 16 }, (_, i) => {
+      const d = new Date('2026-05-26')
+      d.setDate(d.getDate() + i * 7)
+      return d.toISOString().slice(0, 10)
+    })
+    const items: PipelineItemWithSlot[] = tuesdays.map((day, i) =>
+      makePipelineItem({
+        id: `v${i}`,
+        format: 'video',
+        scheduled_at: `${day}T13:00:00Z`,
+        youtube_channel_id: 'ch-1',
+        stage: 'scheduled',
+      })
+    )
+    const result = scanBufferDepth({
+      ...baseInput,
+      blogCadence: null,
+      pipelineItems: items,
+    })
+    expect(result.formats.video.firstEmptyDate).toBeNull()
+  })
+
   it('includes summary with overall health', () => {
     const result = scanBufferDepth(baseInput)
     expect(result.overallHealth).toBeDefined()

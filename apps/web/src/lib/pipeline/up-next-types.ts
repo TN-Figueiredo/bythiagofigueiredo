@@ -70,7 +70,7 @@ export interface TodayAction {
   pubDate: string | null
   batchItems?: string[]
   isPhantom?: boolean
-  urgencyScore?: number
+  urgencyScore?: number | null
 }
 
 export interface TodayActionsInput {
@@ -134,10 +134,45 @@ export interface UpNextApiResponse {
   backlogCount: number
   suggestion: { text: string; href: string } | null
   bufferDepth: BufferDepthResult | null
+  modeInference: ModeInference
   errors: {
     today: string | null
     weekSlots: string | null
     streak: string | null
     playlists: string | null
   }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Velocity                                                            */
+/* ------------------------------------------------------------------ */
+
+export interface VelocityEntry {
+  medianMinutes: number
+  p90Minutes: number
+  sampleCount: number
+  effectiveMinutes: number
+}
+
+export type VelocityMap = Record<string, VelocityEntry>
+
+export interface VelocityTransitionRow {
+  pipeline_id: string
+  from_value: string
+  to_value: string
+  changed_at: string
+  format: string
+}
+
+/* ------------------------------------------------------------------ */
+/*  Mode Inference                                                      */
+/* ------------------------------------------------------------------ */
+
+export type WorkMode = 'escrever' | 'gravar' | 'pos-prod'
+
+export interface ModeInference {
+  mode: WorkMode | null
+  confidence: number
+  label: string
+  counts: Record<string, number>
 }

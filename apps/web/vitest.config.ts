@@ -86,6 +86,10 @@ export default defineConfig({
       // it at build time. Tests that import source files with `import 'server-only'`
       // need this resolved to an empty module.
       { find: /^server-only$/, replacement: path.resolve(__dirname, './test/__stubs__/server-only.ts') },
+      // Stub `next/cache` — server-only Next.js cache APIs (unstable_cache, etc.)
+      // aren't available in the Vitest runtime. Pass-through stub keeps test
+      // imports working without Next infrastructure.
+      { find: /^next\/cache$/, replacement: path.resolve(__dirname, './test/__stubs__/next-cache.ts') },
       // @tn-figueiredo/email requires `resend` as a peer dep. It's not installed
       // directly — stub it so inlined email package resolves without errors.
       { find: /^resend$/, replacement: path.resolve(__dirname, './test/__stubs__/resend.ts') },

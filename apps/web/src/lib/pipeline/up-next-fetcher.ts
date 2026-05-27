@@ -5,6 +5,7 @@ import { generateWeekSlots, hydrateWeekSlots } from '@/lib/pipeline/generate-wee
 import { selectSuggestion } from '@/lib/pipeline/select-suggestion'
 import { scanBufferDepth } from '@/lib/pipeline/scan-buffer-depth'
 import { countForwardTransitions } from '@/lib/pipeline/count-forward-transitions'
+import { inferCurrentMode } from '@/lib/pipeline/infer-mode'
 import { STAGE_GROUP } from '@/lib/pipeline/up-next-constants'
 import type { Stage } from '@/lib/pipeline/up-next-constants'
 import type {
@@ -188,6 +189,8 @@ export async function fetchUpNextData(
     stageCounts[group] = pipelineItems.filter(item => stages.includes(item.stage as Stage)).length
   }
 
+  const modeInference = inferCurrentMode(pipelineItems)
+
   let playlists: PlaylistSummary[] = []
   try {
     playlists = (playlistsRes.data ?? []).map((pl: Record<string, unknown>) => {
@@ -224,7 +227,7 @@ export async function fetchUpNextData(
 
   let suggestion: UpNextApiResponse['suggestion'] = null
   try {
-    suggestion = selectSuggestion({ pipelineItems, playlists, newsletterEditions })
+    suggestion = selectSuggestion({ pipelineItems, playlists, newsletterEditions, stageCounts })
   } catch (e) {
     console.error('[up-next-fetcher] suggestion section error:', e instanceof Error ? e.message : 'unknown')
   }
@@ -292,6 +295,7 @@ export async function fetchUpNextData(
     backlogCount,
     suggestion,
     bufferDepth,
+    modeInference,
     errors,
   }
 }

@@ -128,7 +128,9 @@ describe('selectSuggestion', () => {
     expect(result!.href).toBe('/cms/playlists/pl-1')
   })
 
-  it('respects priority order: batch > orphan > newsletter > playlist', () => {
+  it('respects priority order: wip > orphan > batch > newsletter > playlist > buffer', () => {
+    // items have youtube_channel_id: null (orphaned) AND same stage (batch opportunity)
+    // with new order: orphan wins over batch
     const items = [
       makePipelineItem({ id: 'item-1', stage: 'idea', format: 'video', youtube_channel_id: null }),
       makePipelineItem({ id: 'item-2', stage: 'idea', format: 'video', youtube_channel_id: null }),
@@ -142,7 +144,8 @@ describe('selectSuggestion', () => {
       newsletterEditions: editions,
     })
     expect(result).not.toBeNull()
-    expect(result!.text).toContain('Bloco de idea')
+    // orphan now wins over batch in the new priority order
+    expect(result!.text).toContain('sem canal configurado')
   })
 
   it('ignores playlist with total_items: 0', () => {
@@ -154,11 +157,183 @@ describe('selectSuggestion', () => {
     expect(result).toBeNull()
   })
 
+  it('selects pos_producao over ready as most-progressed stage (distinct STAGE_ORDER values)', () => {
+    // pos_producao: 6, ready: 7 — both have 2+ items
+    // findBatchOpportunity sorts stages by STAGE_ORDER descending: ready(7) wins
+    const items = [
+      makePipelineItem({ id: 'pp-1', stage: 'pos_producao' }),
+      makePipelineItem({ id: 'pp-2', stage: 'pos_producao' }),
+      makePipelineItem({ id: 'r-1', stage: 'ready' }),
+      makePipelineItem({ id: 'r-2', stage: 'ready' }),
+    ]
+    const result = selectSuggestion({ pipelineItems: items, playlists: [], newsletterEditions: [] })
+    expect(result).not.toBeNull()
+    // ready (7) > pos_producao (6) → ready wins
+    expect(result!.href).toBe('/cms/pipeline?stage=ready')
+  })
+
+  it('does not suggest already-completed playlist', () => {
+    const playlists = [
+      makePlaylist({ id: 'pl-done', name: 'Finished', total_items: 5, done_items: 5 }),
+    ]
+    const result = selectSuggestion({
+      pipelineItems: [],
+      playlists,
+      newsletterEditions: [],
+    })
+    expect(result).toBeNull()
+  })
+
+  it('does not suggest playlist when remaining > 20%', () => {
+    const playlists = [
+      makePlaylist({ id: 'pl-1', name: 'Far Away', total_items: 10, done_items: 7 }),
+    ]
+    const result = selectSuggestion({
+      pipelineItems: [],
+      playlists,
+      newsletterEditions: [],
+    })
+    expect(result).toBeNull()
+  })
+
+  it('suggests at exactly 20% remaining boundary', () => {
+    const playlists = [
+      makePlaylist({ id: 'pl-1', name: 'Almost Done', total_items: 10, done_items: 8 }),
+    ]
+    const result = selectSuggestion({
+      pipelineItems: [],
+      playlists,
+      newsletterEditions: [],
+    })
+    expect(result).not.toBeNull()
+    expect(result!.text).toContain('Almost Done')
+    expect(result!.text).toContain('2 item(s)')
+    expect(result!.href).toBe('/cms/playlists/pl-1')
+  })
+
+  it('excludes newsletter format from orphaned items', () => {
+    const items = [
+      makePipelineItem({ id: 'nl-1', format: 'newsletter', youtube_channel_id: null, stage: 'draft' }),
+    ]
+    const result = selectSuggestion({
+      pipelineItems: items,
+      playlists: [],
+      newsletterEditions: [],
+    })
+    expect(result).toBeNull()
+  })
+
   it('does not flag published videos as orphaned', () => {
     const items = [
       makePipelineItem({ id: 'v1', format: 'video', stage: 'published', youtube_channel_id: null }),
     ]
     const result = selectSuggestion({ pipelineItems: items, playlists: [], newsletterEditions: [] })
     expect(result?.text ?? '').not.toContain('sem canal')
+  })
+})
+
+describe('findWipViolation', () => {
+  it('triggers when a group exceeds its WIP limit', () => {
+    // escrever default limit is 6, so 7 items exceeds it
+    const result = selectSuggestion({
+      pipelineItems: [],
+      playlists: [],
+      newsletterEditions: [],
+      stageCounts: { escrever: 7 },
+    })
+    expect(result).not.toBeNull()
+    expect(result!.text).toContain('escrever acima do limite: 7/6')
+    expect(result!.href).toBe('/cms/pipeline?group=escrever')
+  })
+
+  it('has highest priority — wins over orphaned items and batch opportunities', () => {
+    const items = [
+      makePipelineItem({ id: 'item-1', stage: 'idea', format: 'video', youtube_channel_id: null }),
+      makePipelineItem({ id: 'item-2', stage: 'idea', format: 'video', youtube_channel_id: null }),
+    ]
+    const result = selectSuggestion({
+      pipelineItems: items,
+      playlists: [],
+      newsletterEditions: [],
+      stageCounts: { escrever: 7 },
+    })
+    expect(result).not.toBeNull()
+    expect(result!.text).toContain('acima do limite')
+  })
+
+  it('does not trigger when stageCounts is not provided (backward compatible)', () => {
+    const result = selectSuggestion({
+      pipelineItems: [],
+      playlists: [],
+      newsletterEditions: [],
+    })
+    expect(result).toBeNull()
+  })
+})
+
+describe('findBufferGap', () => {
+  it('triggers when gravar has 0 items', () => {
+    const result = selectSuggestion({
+      pipelineItems: [],
+      playlists: [],
+      newsletterEditions: [],
+      stageCounts: { gravar: 0, 'pos-prod': 2 },
+    })
+    expect(result).not.toBeNull()
+    expect(result!.text).toContain('Nenhum item em gravar')
+    expect(result!.href).toBe('/cms/pipeline?group=gravar')
+  })
+
+  it('triggers when pos-prod has 0 items (and gravar has items)', () => {
+    const result = selectSuggestion({
+      pipelineItems: [],
+      playlists: [],
+      newsletterEditions: [],
+      stageCounts: { gravar: 2, 'pos-prod': 0 },
+    })
+    expect(result).not.toBeNull()
+    expect(result!.text).toContain('Nenhum item em pos-prod')
+    expect(result!.href).toBe('/cms/pipeline?group=pos-prod')
+  })
+
+  it('does not trigger when all buffer groups have items', () => {
+    const result = selectSuggestion({
+      pipelineItems: [],
+      playlists: [],
+      newsletterEditions: [],
+      stageCounts: { gravar: 1, 'pos-prod': 1 },
+    })
+    expect(result).toBeNull()
+  })
+
+  it('has lowest priority — playlist suggestion wins over buffer gap', () => {
+    const playlists = [makePlaylist({ id: 'pl-1', name: 'Almost Done', total_items: 10, done_items: 9 })]
+    const result = selectSuggestion({
+      pipelineItems: [],
+      playlists,
+      newsletterEditions: [],
+      stageCounts: { gravar: 0, 'pos-prod': 0 },
+    })
+    expect(result).not.toBeNull()
+    expect(result!.text).toContain('Almost Done')
+  })
+
+  it('does not trigger for prontos gap (prontos=0 is fine)', () => {
+    const result = selectSuggestion({
+      pipelineItems: [],
+      playlists: [],
+      newsletterEditions: [],
+      stageCounts: { gravar: 1, 'pos-prod': 1, prontos: 0 },
+    })
+    expect(result).toBeNull()
+  })
+
+  it('does not trigger when stageCounts is not provided (backward compatible)', () => {
+    const result = selectSuggestion({
+      pipelineItems: [],
+      playlists: [],
+      newsletterEditions: [],
+    })
+    expect(result).toBeNull()
   })
 })

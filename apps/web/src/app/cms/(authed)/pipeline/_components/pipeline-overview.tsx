@@ -274,6 +274,7 @@ export function PipelineOverview({ fallbackData, celebration, activity }: Pipeli
           selectedItem={selectedCandidate}
           onItemAssigned={handleItemAssigned}
           gridRef={weekGridRef}
+          modeInference={upNext.modeInference}
         />
       </SectionErrorBoundary>
 

@@ -23,6 +23,7 @@ export interface FormatCoverage {
   filledSlots: number
   coveragePercent: number
   health: 'green' | 'yellow' | 'red'
+  firstEmptyDate: string | null
 }
 
 export interface BufferDepthResult {
@@ -66,7 +67,7 @@ export function scanBufferDepth(input: BufferDepthInput): BufferDepthResult {
     allSlots.push(...hydratedSlots)
   }
 
-  const formatMap = new Map<string, { total: number; filled: number }>()
+  const formatMap = new Map<string, { total: number; filled: number; firstEmpty: string | null }>()
 
   for (const slot of allSlots) {
     if (slot.isRestDay) continue
@@ -74,13 +75,15 @@ export function scanBufferDepth(input: BufferDepthInput): BufferDepthResult {
     const key = slot.format
     let entry = formatMap.get(key)
     if (!entry) {
-      entry = { total: 0, filled: 0 }
+      entry = { total: 0, filled: 0, firstEmpty: null }
       formatMap.set(key, entry)
     }
 
     entry.total++
     if (slot.assignedItem !== null) {
       entry.filled++
+    } else if (entry.firstEmpty === null) {
+      entry.firstEmpty = slot.day
     }
   }
 
@@ -98,6 +101,7 @@ export function scanBufferDepth(input: BufferDepthInput): BufferDepthResult {
       filledSlots: counts.filled,
       coveragePercent,
       health: computeHealth(coveragePercent),
+      firstEmptyDate: counts.firstEmpty,
     }
 
     totalAll += counts.total
