@@ -62,6 +62,9 @@ export const DEFAULT_WIP_LIMITS: Record<string, number> = {
   prontos: 5,
 }
 
+// Compile-time assertion: every STAGE_GROUP key must have a WIP limit
+void (DEFAULT_WIP_LIMITS satisfies Record<keyof typeof STAGE_GROUP, number>)
+
 export type WipStatusLevel = 'ok' | 'warning' | 'exceeded'
 
 export function getWipStatus(
@@ -70,7 +73,8 @@ export function getWipStatus(
 ): Record<string, WipStatusLevel> {
   const result: Record<string, WipStatusLevel> = {}
   for (const [group, limit] of Object.entries(limits)) {
-    const count = stageCounts[group] ?? 0
+    const raw = stageCounts[group] ?? 0
+    const count = Number.isFinite(raw) ? Math.max(0, raw) : 0
     if (count > limit) result[group] = 'exceeded'
     else if (count === limit) result[group] = 'warning'
     else result[group] = 'ok'

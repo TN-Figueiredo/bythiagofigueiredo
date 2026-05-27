@@ -17,7 +17,10 @@ function maxStageOrder(group: string): number {
 }
 
 export function inferCurrentMode(items: PipelineItemWithSlot[]): ModeInference {
-  const activeItems = items.filter(item => STAGE_ORDER[item.stage] < STAGE_ORDER['scheduled'])
+  const activeItems = items.filter(item => {
+    const order = STAGE_ORDER[item.stage as keyof typeof STAGE_ORDER]
+    return order !== undefined && order < STAGE_ORDER['scheduled']
+  })
 
   const counts: Record<string, number> = {}
   for (const group of Object.keys(STAGE_GROUP)) counts[group] = 0

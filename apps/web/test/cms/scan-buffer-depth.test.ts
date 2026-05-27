@@ -134,6 +134,29 @@ describe('scanBufferDepth', () => {
     expect(result.formats.video.health).toBe('yellow')
   })
 
+  it('health is yellow at exactly 40% fill (boundary)', () => {
+    // today='2026-05-25' (Monday in local tz), sync on Tuesday
+    // 5 weeks = 5 Tuesday slots: May 26, Jun 2, Jun 9, Jun 16, Jun 23
+    // 2 filled (May 26 and Jun 2) = 2/5 = 40% = yellow boundary
+    const items: PipelineItemWithSlot[] = ['2026-05-26', '2026-06-02'].map((day, i) =>
+      makePipelineItem({
+        id: `v${i}`,
+        format: 'video',
+        scheduled_at: `${day}T13:00:00Z`,
+        youtube_channel_id: 'ch-1',
+        stage: 'scheduled',
+      })
+    )
+    const result = scanBufferDepth({
+      ...baseInput,
+      blogCadence: null,
+      pipelineItems: items,
+      weeksToScan: 5,
+    })
+    expect(result.formats.video.coveragePercent).toBe(40)
+    expect(result.formats.video.health).toBe('yellow')
+  })
+
   it('returns health status: red when 0% filled', () => {
     const result = scanBufferDepth({
       ...baseInput,

@@ -113,6 +113,18 @@ describe('selectSuggestion', () => {
     expect(result!.href).toBe('/cms/newsletters')
   })
 
+  it('suggests newsletter without scheduled_at for draft status', () => {
+    const editions = [{ id: 'nl-1', subject: 'News', status: 'draft' as const, scheduled_at: null }]
+    const result = selectSuggestion({
+      pipelineItems: [],
+      playlists: [],
+      newsletterEditions: editions,
+    })
+    expect(result).not.toBeNull()
+    expect(result!.text).toBe('Newsletter sem data de envio.')
+    expect(result!.href).toBe('/cms/newsletters')
+  })
+
   it('suggests playlist near completion', () => {
     const playlists = [
       makePlaylist({ id: 'pl-1', name: 'My Playlist', total_items: 10, done_items: 9 }),
@@ -157,7 +169,7 @@ describe('selectSuggestion', () => {
     expect(result).toBeNull()
   })
 
-  it('selects pos_producao over ready as most-progressed stage (distinct STAGE_ORDER values)', () => {
+  it('selects ready over pos_producao as most-progressed stage (distinct STAGE_ORDER values)', () => {
     // pos_producao: 6, ready: 7 — both have 2+ items
     // findBatchOpportunity sorts stages by STAGE_ORDER descending: ready(7) wins
     const items = [
@@ -228,7 +240,7 @@ describe('selectSuggestion', () => {
       makePipelineItem({ id: 'v1', format: 'video', stage: 'published', youtube_channel_id: null }),
     ]
     const result = selectSuggestion({ pipelineItems: items, playlists: [], newsletterEditions: [] })
-    expect(result?.text ?? '').not.toContain('sem canal')
+    expect(result).toBeNull()
   })
 })
 
@@ -268,6 +280,18 @@ describe('findWipViolation', () => {
       newsletterEditions: [],
     })
     expect(result).toBeNull()
+  })
+
+  it('reports the group with the highest excess when multiple groups are violated', () => {
+    const result = selectSuggestion({
+      pipelineItems: [],
+      playlists: [],
+      newsletterEditions: [],
+      stageCounts: { escrever: 7, gravar: 6 },
+    })
+    expect(result).not.toBeNull()
+    expect(result!.text).toContain('gravar acima do limite: 6/3')
+    expect(result!.href).toBe('/cms/pipeline?group=gravar')
   })
 })
 
@@ -333,6 +357,16 @@ describe('findBufferGap', () => {
       pipelineItems: [],
       playlists: [],
       newsletterEditions: [],
+    })
+    expect(result).toBeNull()
+  })
+
+  it('does not trigger when escrever has 0 items (only gravar and pos-prod are buffer groups)', () => {
+    const result = selectSuggestion({
+      pipelineItems: [],
+      playlists: [],
+      newsletterEditions: [],
+      stageCounts: { escrever: 0, gravar: 1, 'pos-prod': 1 },
     })
     expect(result).toBeNull()
   })

@@ -35,6 +35,14 @@ describe('computeP90', () => {
   it('identical values returns that value', () => {
     expect(computeP90([5, 5, 5, 5, 5])).toBe(5)
   })
+
+  it('computeP90 throws on NaN input', () => {
+    expect(() => computeP90([1, NaN, 3])).toThrow('non-finite')
+  })
+
+  it('computeP90 with 3 elements returns max', () => {
+    expect(computeP90([10, 30, 20])).toBe(30)
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -67,6 +75,11 @@ describe('blendVelocity', () => {
 
   it('sampleCount=100 caps at weight=1 (pure historical)', () => {
     expect(blendVelocity(100, 120, 60)).toBe(120)
+  })
+
+  it('sampleCount=9 weight=0.9', () => {
+    // weight = 9/10 = 0.9 → round(0.9*120 + 0.1*60) = round(114) = 114
+    expect(blendVelocity(9, 120, 60)).toBe(114)
   })
 })
 
@@ -198,6 +211,34 @@ describe('buildVelocityMap', () => {
     ]
     const map = buildVelocityMap(rows)
     expect(map['video:outline']).toBeUndefined()
+  })
+
+  it('sub-minute gap (< 60s) is ignored', () => {
+    const rows: VelocityTransitionRow[] = [
+      makeRow({ pipeline_id: 'p1', from_value: 'idea', to_value: 'outline', changed_at: '2026-01-01T00:00:00.000Z' }),
+      makeRow({ pipeline_id: 'p1', from_value: 'outline', to_value: 'draft', changed_at: '2026-01-01T00:00:30.000Z' }),
+    ]
+    expect(buildVelocityMap(rows)['video:outline']).toBeUndefined()
+  })
+
+  it('exactly 30 days duration is rejected', () => {
+    const rows: VelocityTransitionRow[] = [
+      makeRow({ pipeline_id: 'p1', from_value: 'idea', to_value: 'outline', changed_at: '2026-01-01T00:00:00Z' }),
+      makeRow({ pipeline_id: 'p1', from_value: 'outline', to_value: 'draft', changed_at: '2026-01-31T00:00:00Z' }),
+    ]
+    expect(buildVelocityMap(rows)['video:outline']).toBeUndefined()
+  })
+
+  it('2 samples: medianMinutes is the average (even-array median path)', () => {
+    const rows: VelocityTransitionRow[] = [
+      makeRow({ pipeline_id: 'p1', from_value: 'idea', to_value: 'outline', changed_at: '2026-01-01T00:00:00Z' }),
+      makeRow({ pipeline_id: 'p1', from_value: 'outline', to_value: 'draft', changed_at: '2026-01-01T01:00:00Z' }),
+      makeRow({ pipeline_id: 'p2', from_value: 'idea', to_value: 'outline', changed_at: '2026-01-01T00:00:00Z' }),
+      makeRow({ pipeline_id: 'p2', from_value: 'outline', to_value: 'draft', changed_at: '2026-01-01T03:00:00Z' }),
+    ]
+    const map = buildVelocityMap(rows)
+    expect(map['video:outline']!.medianMinutes).toBe(120)
+    expect(map['video:outline']!.sampleCount).toBe(2)
   })
 
   it('separates durations by format (video vs blog_post)', () => {

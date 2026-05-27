@@ -84,4 +84,39 @@ describe('getProductionDeadline with velocity', () => {
     expect(getProductionDeadline('2026-06-10', 'idea')).toBe('2026-06-06')
     expect(getProductionDeadline('2026-06-10', 'gravacao')).toBe('2026-06-07')
   })
+
+  it('sums effectiveMinutes from idea stage when all entries are present', () => {
+    const fullMap = {
+      'video:idea':         { medianMinutes: 60,  p90Minutes: 90,  sampleCount: 5, effectiveMinutes: 60 },
+      'video:outline':      { medianMinutes: 60,  p90Minutes: 90,  sampleCount: 5, effectiveMinutes: 60 },
+      'video:draft':        { medianMinutes: 60,  p90Minutes: 90,  sampleCount: 5, effectiveMinutes: 60 },
+      'video:roteiro':      { medianMinutes: 180, p90Minutes: 240, sampleCount: 10, effectiveMinutes: 180 },
+      'video:gravacao':     { medianMinutes: 240, p90Minutes: 300, sampleCount: 10, effectiveMinutes: 240 },
+      'video:edicao':       { medianMinutes: 90,  p90Minutes: 120, sampleCount: 10, effectiveMinutes: 90 },
+      'video:pos_producao': { medianMinutes: 60,  p90Minutes: 90,  sampleCount: 10, effectiveMinutes: 60 },
+      'video:ready':        { medianMinutes: 30,  p90Minutes: 45,  sampleCount: 10, effectiveMinutes: 30 },
+    }
+    // Total from idea: 60+60+60+180+240+90+60+30 = 780 min → ceil(780/480) = 2 days
+    expect(getProductionDeadline('2026-06-10', 'idea', { velocityMap: fullMap, format: 'video' })).toBe('2026-06-08')
+  })
+
+  it('uses only ready entry when stage is ready', () => {
+    // Only video:ready = 30 min → ceil(30/480) = 1 day
+    const map = {
+      'video:ready': { medianMinutes: 30, p90Minutes: 45, sampleCount: 10, effectiveMinutes: 30 },
+    }
+    expect(getProductionDeadline('2026-06-10', 'ready', { velocityMap: map, format: 'video' })).toBe('2026-06-09')
+  })
+
+  it('returns null when all velocity entries have 0 effectiveMinutes', () => {
+    const zeroMap = {
+      'video:roteiro':      { medianMinutes: 0, p90Minutes: 0, sampleCount: 10, effectiveMinutes: 0 },
+      'video:gravacao':     { medianMinutes: 0, p90Minutes: 0, sampleCount: 10, effectiveMinutes: 0 },
+      'video:edicao':       { medianMinutes: 0, p90Minutes: 0, sampleCount: 10, effectiveMinutes: 0 },
+      'video:pos_producao': { medianMinutes: 0, p90Minutes: 0, sampleCount: 10, effectiveMinutes: 0 },
+      'video:ready':        { medianMinutes: 0, p90Minutes: 0, sampleCount: 10, effectiveMinutes: 0 },
+    }
+    // Zero total falls back to fixed offset (pub - 4 for roteiro)
+    expect(getProductionDeadline('2026-06-10', 'roteiro', { velocityMap: zeroMap, format: 'video' })).toBe('2026-06-06')
+  })
 })

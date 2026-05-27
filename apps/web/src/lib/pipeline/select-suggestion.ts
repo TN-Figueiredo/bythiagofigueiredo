@@ -96,7 +96,7 @@ function findWipViolation(
   for (const [group, limit] of Object.entries(wipLimits)) {
     const count = stageCounts[group] ?? 0
     const excess = count - limit
-    if (excess > 0 && excess > worstExcess) {
+    if (excess > 0 && (excess > worstExcess || (excess === worstExcess && group > (worstGroup ?? '')))) {
       worstGroup = group
       worstExcess = excess
     }

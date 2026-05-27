@@ -71,4 +71,14 @@ describe('getWipStatus', () => {
     expect(result1.escrever).toBe<WipStatusLevel>('ok')
     expect(result2.escrever).toBe<WipStatusLevel>('warning')
   })
+
+  it('treats NaN counts as ok', () => {
+    const result = getWipStatus({ escrever: NaN })
+    expect(result.escrever).toBe('ok')
+  })
+
+  it('handles extra keys in stageCounts not present in limits', () => {
+    const result = getWipStatus({ escrever: 1, 'unknown-group': 99 })
+    expect(result).not.toHaveProperty('unknown-group')
+  })
 })

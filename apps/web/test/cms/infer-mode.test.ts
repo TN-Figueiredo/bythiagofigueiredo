@@ -197,4 +197,55 @@ describe('inferCurrentMode', () => {
     const result = inferCurrentMode(items)
     expect(result.mode).toBe('pos-prod')
   })
+
+  it('at exact 40% boundary: 2/5 triggers mode (inclusive threshold)', () => {
+    const items = [
+      makeItem('gravacao'),
+      makeItem('gravacao'),
+      makeItem('idea'),
+      makeItem('edicao'),
+      makeItem('pos_producao'),
+    ]
+    // gravar: 2/5 = 0.40, pos-prod: 2/5 = 0.40, escrever: 1/5 = 0.20
+    // tie: pos-prod maxStageOrder(7) > gravar(4)
+    const result = inferCurrentMode(items)
+    expect(result.mode).toBe('pos-prod')
+    expect(result.confidence).toBeCloseTo(0.4, 5)
+  })
+
+  it('just below 40% (1/3 = 33.3%) does not trigger', () => {
+    const items = [
+      makeItem('gravacao'),
+      makeItem('idea'),
+      makeItem('edicao'),
+    ]
+    // Each group: 1/3 = 33.3% < 40%
+    const result = inferCurrentMode(items)
+    expect(result.mode).toBeNull()
+    expect(result.label).toBe('Modo misto')
+  })
+
+  it('escrever vs gravar tie: gravar wins via maxStageOrder', () => {
+    // 2 escrever, 2 gravar = both 50% >= 40%
+    // gravar maxStageOrder = 4, escrever maxStageOrder = 3
+    const items = [
+      makeItem('idea'),
+      makeItem('outline'),
+      makeItem('gravacao'),
+      makeItem('gravacao'),
+    ]
+    const result = inferCurrentMode(items)
+    expect(result.mode).toBe('gravar')
+  })
+
+  it('mixed mode confidence is 0', () => {
+    // No group >= 40%
+    const items = [
+      makeItem('idea'),       // escrever
+      makeItem('gravacao'),   // gravar
+      makeItem('edicao'),     // pos-prod
+    ]
+    const result = inferCurrentMode(items)
+    expect(result.confidence).toBe(0)
+  })
 })

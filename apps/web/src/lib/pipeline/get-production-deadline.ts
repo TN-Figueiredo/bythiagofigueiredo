@@ -6,6 +6,8 @@ const PRODUCTION_STAGES: Stage[] = [
   'idea', 'outline', 'draft', 'roteiro', 'gravacao', 'edicao', 'pos_producao', 'ready',
 ]
 
+// Converts effort-minutes to a calendar-day offset (not business days).
+// 480 = 8h workday. subDays() subtracts calendar days.
 const WORKDAY_MINUTES = 480
 
 interface VelocityOptions {
@@ -59,6 +61,7 @@ function computeVelocityDays(
     totalMinutes += entry.effectiveMinutes
   }
 
+  if (totalMinutes === 0) return null
   return Math.ceil(totalMinutes / WORKDAY_MINUTES)
 }
 

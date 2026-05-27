@@ -447,10 +447,10 @@ export const UpNextThisWeek = memo(function UpNextThisWeek({
           {Object.entries(stageCounts).map(([group, count]) => {
             const status = wipStatus[group]
             const limit = DEFAULT_WIP_LIMITS[group]
-            const dotColor = group === 'escrever' ? 'var(--gem-accent)'
-              : group === 'gravar' ? 'var(--gem-danger)'
-              : group === 'pos-prod' ? 'var(--gem-warn)'
-              : 'var(--gem-done)'
+            const dotColor = group === 'escrever' ? gemMix('--gem-accent', 100)
+              : group === 'gravar' ? gemMix('--gem-warn', 100)
+              : group === 'pos-prod' ? gemMix('--gem-warn', 100)
+              : gemMix('--gem-done', 100)
             return (
               <span
                 key={group}
@@ -460,17 +460,18 @@ export const UpNextThisWeek = memo(function UpNextThisWeek({
                     : status === 'warning' ? 'var(--gem-warn)'
                     : undefined,
                 }}
-                title={status === 'exceeded'
-                  ? `${group}: ${count} itens (limite: ${limit})`
-                  : status === 'warning'
-                    ? `${group}: no limite (${limit})`
-                    : undefined}
+                aria-label={
+                  status === 'exceeded' ? `${group}: ${count} itens, limite ${limit}, excedido`
+                  : status === 'warning' ? `${group}: ${count} de ${limit}, no limite`
+                  : `${group}: ${count} itens`
+                }
               >
                 <span
                   aria-hidden="true"
                   className={`inline-block w-2 h-2 rounded-full${status === 'exceeded' ? ' motion-safe:animate-pulse' : ''}`}
                   style={{ background: status === 'exceeded' ? 'var(--gem-danger)' : dotColor }}
                 />
+                {status === 'exceeded' && <span aria-hidden="true" className="font-bold">!</span>}
                 {count}{limit ? `/${limit}` : ''} {group}
               </span>
             )
@@ -484,21 +485,22 @@ export const UpNextThisWeek = memo(function UpNextThisWeek({
               {filledCount === totalCount && ' — tudo pronto!'}
             </span>
           )}
-          {modeInference?.mode && (
-            <span
-              className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium uppercase tracking-wider"
-              style={{
-                background: modeInference.mode === 'escrever' ? gemMix('--gem-accent', 15)
-                  : modeInference.mode === 'gravar' ? gemMix('--gem-danger', 15)
-                  : gemMix('--gem-warn', 15),
-                color: modeInference.mode === 'escrever' ? 'var(--gem-accent)'
-                  : modeInference.mode === 'gravar' ? 'var(--gem-danger)'
-                  : 'var(--gem-warn)',
-              }}
-            >
-              {modeInference.label}
-            </span>
-          )}
+          <span
+            role="status"
+            aria-live="polite"
+            className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium uppercase tracking-wider"
+            style={{
+              visibility: modeInference?.mode ? 'visible' : 'hidden',
+              background: modeInference?.mode === 'escrever' ? gemMix('--gem-accent', 15)
+                : modeInference?.mode === 'gravar' ? gemMix('--gem-warn', 15)
+                : gemMix('--gem-warn', 15),
+              color: modeInference?.mode === 'escrever' ? 'var(--gem-accent)'
+                : modeInference?.mode === 'gravar' ? 'var(--gem-warn)'
+                : 'var(--gem-warn)',
+            }}
+          >
+            {modeInference?.label ?? ' '}
+          </span>
         </div>
         <div className="flex items-center gap-3 text-xs">
           {nextWeekEmpty > 0 && <span>{nextWeekEmpty} vazios prox. semana</span>}

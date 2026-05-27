@@ -108,4 +108,36 @@ describe('computeUrgencyScore', () => {
     })
     expect(score).toBe(32.5)
   })
+
+  it('deadline 8 days out yields same score as 7 days (both clamp to zero pressure)', () => {
+    const eightDays = computeUrgencyScore({
+      deadline: '2026-06-03',
+      today: '2026-05-26',
+      stage: 'idea',
+      effortMinutes: 120,
+    })
+    const sevenDays = computeUrgencyScore({
+      deadline: '2026-06-02',
+      today: '2026-05-26',
+      stage: 'idea',
+      effortMinutes: 120,
+    })
+    expect(eightDays).toBe(sevenDays)
+  })
+
+  it('6 days out has higher score than 7 days out (deadline pressure kicks in)', () => {
+    const sixDays = computeUrgencyScore({
+      deadline: '2026-06-01',
+      today: '2026-05-26',
+      stage: 'roteiro',
+      effortMinutes: 180,
+    })
+    const sevenDays = computeUrgencyScore({
+      deadline: '2026-06-02',
+      today: '2026-05-26',
+      stage: 'roteiro',
+      effortMinutes: 180,
+    })
+    expect(sixDays!).toBeGreaterThan(sevenDays!)
+  })
 })

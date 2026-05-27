@@ -6,6 +6,7 @@ const COLD_START_THRESHOLD = 10
 
 export function computeP90(values: number[]): number {
   if (values.length === 0) throw new Error('computeP90: empty array')
+  if (values.some(v => !Number.isFinite(v))) throw new Error('computeP90: non-finite value')
   if (values.length === 1) return values[0]!
   const sorted = [...values].sort((a, b) => a - b)
   const index = Math.ceil(0.9 * sorted.length) - 1
@@ -43,8 +44,9 @@ export function buildVelocityMap(rows: VelocityTransitionRow[]): VelocityMap {
       const curr = pipelineRows[i]!
       const durationMs = new Date(curr.changed_at).getTime() - new Date(prev.changed_at).getTime()
       if (durationMs <= 0) continue
-      const durationMinutes = Math.round(durationMs / 60_000)
-      if (durationMinutes > MAX_DURATION_MINUTES) continue
+      const durationMinutes = Math.floor(durationMs / 60_000)
+      if (durationMinutes <= 0 || durationMinutes >= MAX_DURATION_MINUTES) continue
+      if (!curr.format || !curr.from_value) continue
       const key = `${curr.format}:${curr.from_value}`
       const durations = durationsByKey.get(key)
       if (durations) durations.push(durationMinutes)
