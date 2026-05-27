@@ -3,13 +3,17 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import React from 'react'
 
+vi.mock('@/lib/pipeline/gem-design', () => ({
+  gemMix: (cssVar: string, opacity: number) => `color-mix(in srgb, var(${cssVar}) ${opacity}%, transparent)`,
+}))
+
 vi.mock('@/lib/pipeline/colors', () => ({
   FORMAT_COLORS: {
-    video: { accent: '#ef4444', bg: '#450a0a', text: '#fca5a5', border: '#7f1d1d' },
-    blog_post: { accent: '#f59e0b', bg: '#451a03', text: '#fcd34d', border: '#78350f' },
-    newsletter: { accent: '#6366f1', bg: '#1e1b4b', text: '#a5b4fc', border: '#312e81' },
+    video: { accent: 'var(--gem-danger)', bg: 'color-mix(in srgb, var(--gem-danger) 8%, transparent)', text: 'var(--gem-danger)', border: 'color-mix(in srgb, var(--gem-danger) 25%, transparent)' },
+    blog_post: { accent: 'var(--gem-warn)', bg: 'color-mix(in srgb, var(--gem-warn) 8%, transparent)', text: 'var(--gem-warn)', border: 'color-mix(in srgb, var(--gem-warn) 25%, transparent)' },
+    newsletter: { accent: 'var(--gem-accent)', bg: 'color-mix(in srgb, var(--gem-accent) 8%, transparent)', text: 'var(--gem-muted)', border: 'color-mix(in srgb, var(--gem-accent) 25%, transparent)' },
   },
-  getFormatColor: vi.fn(() => ({ accent: '#888', bg: '#111', text: '#fff', border: '#333' })),
+  getFormatColor: vi.fn(() => ({ accent: 'var(--gem-accent)', bg: 'color-mix(in srgb, var(--gem-accent) 8%, transparent)', text: 'var(--gem-muted)', border: 'color-mix(in srgb, var(--gem-accent) 25%, transparent)' })),
 }))
 
 vi.mock('next/link', () => ({
@@ -51,13 +55,13 @@ function makeAction(overrides: Partial<TodayAction> = {}): TodayAction {
 describe('TodayActionCards', () => {
   it('renders nothing when actions is empty and overflow is 0', () => {
     const { container } = render(<TodayActionCards actions={[]} overflow={0} />)
-    expect(container.querySelector('section')).toBeTruthy()
+    expect(container.querySelector('section')).not.toBeNull()
   })
 
   it('renders action card with title and effort', () => {
     render(<TodayActionCards actions={[makeAction()]} overflow={0} />)
-    expect(screen.getByText('Test Video')).toBeTruthy()
-    expect(screen.getByText('~3h')).toBeTruthy()
+    expect(screen.getByText('Test Video')).toBeDefined()
+    expect(screen.getByText('~3h')).toBeDefined()
   })
 
   it('links card to pipeline item URL', () => {
@@ -68,29 +72,29 @@ describe('TodayActionCards', () => {
 
   it('shows urgency badge', () => {
     render(<TodayActionCards actions={[makeAction({ urgency: 'overdue' })]} overflow={0} />)
-    expect(screen.getByText('overdue')).toBeTruthy()
+    expect(screen.getByText('Atrasado')).toBeDefined()
   })
 
   it('shows effort badge with deep/quick label', () => {
     render(<TodayActionCards actions={[makeAction({ effort: 'deep' })]} overflow={0} />)
-    expect(screen.getByText('deep')).toBeTruthy()
+    expect(screen.getByText('deep')).toBeDefined()
   })
 
   it('shows playlist context when provided', () => {
     render(<TodayActionCards actions={[makeAction({
       playlistContext: { name: 'AI Empire', position: 8, total: 144 },
     })]} overflow={0} />)
-    expect(screen.getByText(/AI Empire 8\/144/)).toBeTruthy()
+    expect(screen.getByText(/AI Empire 8\/144/)).toBeDefined()
   })
 
   it('shows channel label when provided', () => {
     render(<TodayActionCards actions={[makeAction({ channelLabel: 'Canal PT' })]} overflow={0} />)
-    expect(screen.getByText('Canal PT')).toBeTruthy()
+    expect(screen.getByText('Canal PT')).toBeDefined()
   })
 
   it('shows overflow count when > 0', () => {
     render(<TodayActionCards actions={[makeAction()]} overflow={3} />)
-    expect(screen.getByText(/3 acoes adicionais/)).toBeTruthy()
+    expect(screen.getByText(/3 ações adicionais/)).toBeDefined()
   })
 
   it('renders batch card differently when batchItems exist', () => {
@@ -98,12 +102,17 @@ describe('TodayActionCards', () => {
       itemTitle: 'Gravar 2 videos',
       batchItems: ['v2'],
     })]} overflow={0} />)
-    expect(screen.getByText('Gravar 2 videos')).toBeTruthy()
+    expect(screen.getByText('Gravar 2 videos')).toBeDefined()
   })
 
   it('shows empty state message when no actions', () => {
     render(<TodayActionCards actions={[]} overflow={0} />)
-    expect(screen.getByText(/Nada urgente/)).toBeTruthy()
+    expect(screen.getByText(/Nada urgente/)).toBeDefined()
+  })
+
+  it('renders deadline label text when present', () => {
+    render(<TodayActionCards actions={[makeAction({ deadline: { label: 'Amanha', date: '2026-06-02' } })]} overflow={0} />)
+    expect(screen.getByText(/Amanha/)).toBeDefined()
   })
 
   it('batch card links to pipeline filter URL', () => {
@@ -115,5 +124,97 @@ describe('TodayActionCards', () => {
     })]} overflow={0} />)
     const link = screen.getByText(/Finalizar roteiro/).closest('a')
     expect(link?.getAttribute('href')).toContain('stage=')
+  })
+
+  it('urgency "today" renders "Hoje"', () => {
+    render(<TodayActionCards actions={[makeAction({ urgency: 'today' })]} overflow={0} />)
+    expect(screen.getByText('Hoje')).toBeDefined()
+  })
+
+  it('urgency "tomorrow" renders "Amanha"', () => {
+    render(<TodayActionCards actions={[makeAction({ urgency: 'tomorrow' })]} overflow={0} />)
+    expect(screen.getByText('Amanhã')).toBeDefined()
+  })
+
+  it('urgency "this_week" renders "Esta semana"', () => {
+    render(<TodayActionCards actions={[makeAction({ urgency: 'this_week' })]} overflow={0} />)
+    expect(screen.getByText('Esta semana')).toBeDefined()
+  })
+
+  it('shows idle message when actions=[] and overflow=0', () => {
+    render(<TodayActionCards actions={[]} overflow={0} />)
+    expect(screen.getByText(/Nada urgente — bom dia para novas ideias/)).toBeDefined()
+    expect(screen.queryByText(/acoes adicionais/)).toBeNull()
+  })
+
+  it('renders multiple action cards in order', () => {
+    const actions = [
+      makeAction({ id: 'a1', itemTitle: 'Primeiro Video' }),
+      makeAction({ id: 'a2', itemTitle: 'Segundo Blog', format: 'blog_post' }),
+      makeAction({ id: 'a3', itemTitle: 'Terceira Newsletter', format: 'newsletter' }),
+    ]
+    render(<TodayActionCards actions={actions} overflow={0} />)
+    const items = screen.getAllByRole('listitem')
+    const titles = items.map(li => {
+      const titleEl = li.querySelector('p')
+      return titleEl?.textContent
+    })
+    expect(titles[0]).toBe('Primeiro Video')
+    expect(titles[1]).toBe('Segundo Blog')
+    expect(titles[2]).toBe('Terceira Newsletter')
+  })
+
+  describe('urgency grouping', () => {
+    it('renders section headers for each urgency group', () => {
+      const actions = [
+        makeAction({ id: 'a1', urgency: 'overdue', itemTitle: 'Overdue Item' }),
+        makeAction({ id: 'a2', urgency: 'today', itemTitle: 'Today Item' }),
+        makeAction({ id: 'a3', urgency: 'this_week', itemTitle: 'Week Item' }),
+      ]
+      render(<TodayActionCards actions={actions} overflow={0} />)
+
+      expect(screen.getByText('Atrasado')).toBeDefined()
+      expect(screen.getByText('Hoje')).toBeDefined()
+      expect(screen.getByText('Esta semana')).toBeDefined()
+    })
+
+    it('does not render empty urgency groups', () => {
+      const actions = [
+        makeAction({ id: 'a1', urgency: 'today', itemTitle: 'Today Item' }),
+      ]
+      render(<TodayActionCards actions={actions} overflow={0} />)
+
+      expect(screen.getByText('Hoje')).toBeDefined()
+      expect(screen.queryByText('Atrasado')).toBeNull()
+      expect(screen.queryByText('Amanhã')).toBeNull()
+    })
+
+    it('groups multiple actions under same urgency header', () => {
+      const actions = [
+        makeAction({ id: 'a1', urgency: 'today', itemTitle: 'Item 1' }),
+        makeAction({ id: 'a2', urgency: 'today', itemTitle: 'Item 2' }),
+      ]
+      render(<TodayActionCards actions={actions} overflow={0} />)
+
+      const headers = screen.getAllByText('Hoje')
+      const groupHeaders = headers.filter(el => el.tagName === 'H3')
+      expect(groupHeaders).toHaveLength(1)
+    })
+
+    it('renders phantom actions with create link instead of detail link', () => {
+      const actions = [
+        makeAction({
+          id: 'blog-cadence-2026-05-25',
+          urgency: 'today',
+          isPhantom: true,
+          format: 'blog_post',
+          itemTitle: 'Post do Blog',
+        }),
+      ]
+      render(<TodayActionCards actions={actions} overflow={0} />)
+
+      const link = screen.getByRole('link', { name: /Post do Blog/i })
+      expect(link?.getAttribute('href')).toBe('/cms/pipeline/items/new?format=blog_post')
+    })
   })
 })
