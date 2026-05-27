@@ -1,6 +1,10 @@
-export type ScheduleInput = { day: string }
+import type { SyncScheduleEntry } from './types'
 
-const DAY_NAMES_EN: Record<string, { full: string; short: string }> = {
+export type ScheduleInput = { day: SyncScheduleEntry['day'] }
+
+type DayKey = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday'
+
+const DAY_NAMES_EN: Record<DayKey, { full: string; short: string }> = {
   monday: { full: 'Monday', short: 'Mon' },
   tuesday: { full: 'Tuesday', short: 'Tue' },
   wednesday: { full: 'Wednesday', short: 'Wed' },
@@ -10,7 +14,7 @@ const DAY_NAMES_EN: Record<string, { full: string; short: string }> = {
   sunday: { full: 'Sunday', short: 'Sun' },
 }
 
-const DAY_NAMES_PT: Record<string, { full: string; short: string; masculine: boolean }> = {
+const DAY_NAMES_PT: Record<DayKey, { full: string; short: string; masculine: boolean }> = {
   monday: { full: 'segunda', short: 'seg', masculine: false },
   tuesday: { full: 'terça', short: 'ter', masculine: false },
   wednesday: { full: 'quarta', short: 'qua', masculine: false },
@@ -20,47 +24,73 @@ const DAY_NAMES_PT: Record<string, { full: string; short: string; masculine: boo
   sunday: { full: 'domingo', short: 'dom', masculine: true },
 }
 
-const DAY_ORDER = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+const DAY_ORDER: DayKey[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+
+const WEEKDAY_SET = new Set(['monday', 'tuesday', 'wednesday', 'thursday', 'friday'])
+const WEEKEND_SET = new Set(['saturday', 'sunday'])
 
 export function deriveScheduleLabel(
   schedules: ScheduleInput[],
-  locale: 'pt-BR' | 'en',
+  locale: 'pt-BR' | 'pt' | 'en',
 ): string | null {
   const uniqueDays = [...new Set(schedules.map(s => s.day.toLowerCase()))]
-    .filter(d => DAY_ORDER.includes(d))
-    .sort((a, b) => DAY_ORDER.indexOf(a) - DAY_ORDER.indexOf(b))
+    .filter(d => DAY_ORDER.includes(d as DayKey))
+    .sort((a, b) => DAY_ORDER.indexOf(a as DayKey) - DAY_ORDER.indexOf(b as DayKey))
 
   if (uniqueDays.length === 0) return null
 
-  const prefix = locale === 'pt-BR' ? 'novidade' : 'new'
-  const conjunction = locale === 'pt-BR' ? 'e' : '&'
+  const isPT = locale === 'pt-BR' || locale === 'pt'
 
-  if (locale === 'pt-BR') {
+  // Collapsed labels for common patterns
+  if (uniqueDays.length === 7) {
+    return isPT ? 'novidade todo dia' : 'new every day'
+  }
+
+  if (
+    uniqueDays.length === 5 &&
+    uniqueDays.every(d => WEEKDAY_SET.has(d))
+  ) {
+    return isPT ? 'novidade de segunda a sexta' : 'new weekdays'
+  }
+
+  if (
+    uniqueDays.length === 2 &&
+    uniqueDays.every(d => WEEKEND_SET.has(d))
+  ) {
+    return isPT ? 'novidade nos fins de semana' : 'new weekends'
+  }
+
+  const prefix = isPT ? 'novidade' : 'new'
+  const conjunction = isPT ? 'e' : '&'
+
+  if (isPT) {
     const names = DAY_NAMES_PT
     if (uniqueDays.length === 1) {
-      const entry = names[uniqueDays[0]!]!
+      const entry = names[uniqueDays[0]! as DayKey]!
       const every = entry.masculine ? 'todo' : 'toda'
       return `${prefix} ${every} ${entry.full}`
     }
     const useFull = uniqueDays.length === 2
-    const labels = uniqueDays.map(d => (useFull ? names[d]!.full : names[d]!.short))
-    const last = labels.pop()!
-    return `${prefix} ${labels.join(', ')} ${conjunction} ${last}`
+    const labels = uniqueDays.map(d => (useFull ? names[d as DayKey]!.full : names[d as DayKey]!.short))
+    const last = labels[labels.length - 1]!
+    const rest = labels.slice(0, -1)
+    return `${prefix} ${rest.join(', ')} ${conjunction} ${last}`
   }
 
   const names = DAY_NAMES_EN
   if (uniqueDays.length === 1) {
-    return `${prefix} every ${names[uniqueDays[0]!]!.full}`
+    return `${prefix} every ${names[uniqueDays[0]! as DayKey]!.full}`
   }
-  const labels = uniqueDays.map(d => names[d]!.short)
-  const last = labels.pop()!
-  return `${prefix} ${labels.join(', ')} ${conjunction} ${last}`
+  const labels = uniqueDays.map(d => names[d as DayKey]!.short)
+  const last = labels[labels.length - 1]!
+  const rest = labels.slice(0, -1)
+  return `${prefix} ${rest.join(', ')} ${conjunction} ${last}`
 }
 
 export function resolveScheduleLabel(
   scheduleLabel: string | null,
   syncSchedules: ScheduleInput[] | null,
-  locale: 'pt-BR' | 'en',
+  locale: 'pt-BR' | 'pt' | 'en',
 ): string | null {
   if (scheduleLabel && scheduleLabel.trim()) return scheduleLabel.trim()
   if (!syncSchedules || syncSchedules.length === 0) return null

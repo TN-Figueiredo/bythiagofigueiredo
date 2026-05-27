@@ -89,10 +89,21 @@ export async function rejectCategory(
   return { ok: true as const }
 }
 
+const syncCooldowns = new Map<string, number>()
+const SYNC_COOLDOWN_MS = 60_000
+
 export async function triggerSync(
   channelId?: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   await requireEditAccess()
+
+  const cooldownKey = channelId ?? 'all'
+  const lastSync = syncCooldowns.get(cooldownKey)
+  if (lastSync && Date.now() - lastSync < SYNC_COOLDOWN_MS) {
+    const remaining = Math.ceil((SYNC_COOLDOWN_MS - (Date.now() - lastSync)) / 1000)
+    return { ok: false as const, error: `Aguarde ${remaining}s antes de sincronizar novamente` }
+  }
+
   const cron = process.env.CRON_SECRET
   if (!cron) return { ok: false as const, error: 'CRON_SECRET not set' }
 
@@ -101,11 +112,21 @@ export async function triggerSync(
   url.searchParams.set('mode', 'manual')
   if (channelId) url.searchParams.set('channelId', channelId)
 
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 115_000)
+
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${cron}` },
+    signal: controller.signal,
   })
+  clearTimeout(timeout)
 
-  if (!res.ok) return { ok: false as const, error: `sync failed: ${res.status}` }
+  if (!res.ok) {
+    const body = await res.json().catch(() => null)
+    const detail = body?.error ?? body?.message ?? res.statusText
+    return { ok: false as const, error: `sync failed (${res.status}): ${detail}` }
+  }
+  syncCooldowns.set(cooldownKey, Date.now())
   revalidateTag('youtube')
   return { ok: true as const }
 }

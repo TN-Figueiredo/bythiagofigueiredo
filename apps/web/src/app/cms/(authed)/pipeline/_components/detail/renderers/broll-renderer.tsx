@@ -129,7 +129,7 @@ export function BRollRenderer({ content, isEditing, onContentChange }: RendererP
 
             <div className="flex-1 min-w-0 space-y-1">
               <div
-                className="text-[11px]"
+                className="text-xs"
                 style={{
                   color: 'var(--gem-text)',
                   textDecoration: item.captured ? 'line-through' : 'none',
@@ -207,7 +207,7 @@ export function BRollRenderer({ content, isEditing, onContentChange }: RendererP
       </div>
 
       {items.length === 0 && (
-        <div className="text-[11px] text-center py-4" style={{ color: 'var(--gem-dim)' }}>
+        <div className="text-xs text-center py-4" style={{ color: 'var(--gem-dim)' }}>
           Nenhum B-Roll cadastrado.
         </div>
       )}
@@ -215,7 +215,7 @@ export function BRollRenderer({ content, isEditing, onContentChange }: RendererP
       {data.style_guide && (
         <div className="pt-2">
           <div className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--gem-dim)' }}>Guia de Estilo</div>
-          <div className="p-3 rounded-md space-y-1 text-[11px]" style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}>
+          <div className="p-3 rounded-md space-y-1 text-xs" style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}>
             {Object.entries(data.style_guide).map(([k, v]) => (
               <div key={k}>
                 <span style={{ color: 'var(--gem-dim)' }}>{k}: </span>
@@ -229,7 +229,7 @@ export function BRollRenderer({ content, isEditing, onContentChange }: RendererP
       {data.footage_inventory && (
         <div className="pt-2">
           <div className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--gem-dim)' }}>Inventário de Footage</div>
-          <div className="p-3 rounded-md space-y-1 text-[11px]" style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}>
+          <div className="p-3 rounded-md space-y-1 text-xs" style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}>
             {Object.entries(data.footage_inventory).map(([k, v]) => (
               <div key={k}>
                 <span style={{ color: 'var(--gem-dim)' }}>{k}: </span>
@@ -258,7 +258,7 @@ export function BRollRenderer({ content, isEditing, onContentChange }: RendererP
                 className="p-2.5 rounded-md"
                 style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}
               >
-                <div className="text-[11px] font-medium mb-0.5" style={{ color: 'var(--gem-text)' }}>
+                <div className="text-xs font-medium mb-0.5" style={{ color: 'var(--gem-text)' }}>
                   {concept.label}
                 </div>
                 <div className="text-[10px]" style={{ color: 'var(--gem-muted)' }}>
@@ -271,7 +271,7 @@ export function BRollRenderer({ content, isEditing, onContentChange }: RendererP
       )}
 
       {data.source_docs && (
-        <div className="text-[9px] pt-1" style={{ color: 'var(--gem-dim)' }}>
+        <div className="text-[10px] pt-1" style={{ color: 'var(--gem-dim)' }}>
           Fonte: {data.source_docs}
         </div>
       )}

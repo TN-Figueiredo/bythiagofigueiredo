@@ -64,7 +64,7 @@ function ProgressColumn({ label, stats }: { label: string; stats: Stats }) {
     <div className="flex-1">
       <div className="flex items-center justify-between mb-0.5">
         <span className="text-[7px] uppercase tracking-wide" style={{ color: '#3d4f65' }}>{label}</span>
-        <span className="text-[9px] font-bold" style={{ color: pctResolved === 100 ? RESOLVE_COLORS.LOCAL.color : pctResolved >= SCORE_MID ? RESOLVE_COLORS.PENDING_MATCH.color : RESOLVE_COLORS.PARTIAL_MATCH.color }}>
+        <span className="text-[10px] font-bold" style={{ color: pctResolved === 100 ? RESOLVE_COLORS.LOCAL.color : pctResolved >= SCORE_MID ? RESOLVE_COLORS.PENDING_MATCH.color : RESOLVE_COLORS.PARTIAL_MATCH.color }}>
           {pctResolved}%
         </span>
       </div>
@@ -81,11 +81,11 @@ function ProgressColumn({ label, stats }: { label: string; stats: Stats }) {
 function StatChips({ stats, continuations }: { stats: Stats; continuations?: number }) {
   return (
     <div className="flex gap-1.5 flex-wrap">
-      {stats.local > 0 && <span className="text-[9px]" style={{ color: RESOLVE_COLORS.LOCAL.color }}>✓ {stats.local} local</span>}
-      {stats.pending > 0 && <span className="text-[9px]" style={{ color: RESOLVE_COLORS.PENDING_MATCH.color }}>⏳ {stats.pending} download</span>}
-      {stats.partial > 0 && <span className="text-[9px]" style={{ color: RESOLVE_COLORS.PARTIAL_MATCH.color }}>~ {stats.partial} parcial</span>}
-      {stats.noMatch > 0 && <span className="text-[9px]" style={{ color: RESOLVE_COLORS.NO_MATCH.color }}>🔗 {stats.noMatch} buscar</span>}
-      {continuations != null && continuations > 0 && <span className="text-[9px]" style={{ color: '#5a6b7f' }}>↩ {continuations} cont.</span>}
+      {stats.local > 0 && <span className="text-[10px]" style={{ color: RESOLVE_COLORS.LOCAL.color }}>✓ {stats.local} local</span>}
+      {stats.pending > 0 && <span className="text-[10px]" style={{ color: RESOLVE_COLORS.PENDING_MATCH.color }}>⏳ {stats.pending} download</span>}
+      {stats.partial > 0 && <span className="text-[10px]" style={{ color: RESOLVE_COLORS.PARTIAL_MATCH.color }}>~ {stats.partial} parcial</span>}
+      {stats.noMatch > 0 && <span className="text-[10px]" style={{ color: RESOLVE_COLORS.NO_MATCH.color }}>🔗 {stats.noMatch} buscar</span>}
+      {continuations != null && continuations > 0 && <span className="text-[10px]" style={{ color: '#5a6b7f' }}>↩ {continuations} cont.</span>}
     </div>
   )
 }
@@ -100,10 +100,10 @@ export function AudioSummaryV2({ scenes }: { scenes: Scene[] }) {
   return (
     <div className="rounded-md p-2.5" style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}>
       <div className="flex items-center justify-between mb-1.5">
-        <span className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: '#5a6b7f' }}>
+        <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#5a6b7f' }}>
           Audio Resolver
         </span>
-        <span className="text-[9px]" style={{ color: '#3d4f65' }}>
+        <span className="text-[10px]" style={{ color: '#3d4f65' }}>
           {scenes.length} cena{scenes.length !== 1 ? 's' : ''}{totalSfx > 0 ? ` · ${totalSfx} SFX` : ''}
         </span>
       </div>

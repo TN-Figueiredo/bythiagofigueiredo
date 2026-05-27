@@ -3,16 +3,34 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { FORMAT_COLORS } from '@/lib/pipeline/colors'
+import { gemMix, GEM_CSS_VARS } from '@/lib/pipeline/gem-design'
 import { STAGE_ORDER, LOCALE_TO_LANGUAGE } from '@/lib/pipeline/up-next-constants'
 import type { Stage } from '@/lib/pipeline/up-next-constants'
 import type { SlotCandidate, WeekSlot } from '@/lib/pipeline/up-next-types'
+
+const STAGE_SHORT: Record<string, string> = {
+  idea: 'ideia',
+  outline: 'roteiro',
+  draft: 'rascunho',
+  roteiro: 'roteiro',
+  gravacao: 'gravação',
+  edicao: 'edição',
+  pos_producao: 'pós',
+  ready: 'pronto',
+}
+
+const LANG_FLAG: Record<string, string> = {
+  'pt-br': '🇧🇷',
+  en: '🇺🇸',
+  both: '🌐',
+}
 
 interface WeekSlotPickerProps {
   slot: WeekSlot
   candidates: SlotCandidate[]
   onAssign: (itemId: string, slotDay: string, slotHour: string | null) => Promise<void>
   onClose: () => void
-  anchorRef?: React.RefObject<HTMLDivElement | null>
+  anchorRef?: React.RefObject<HTMLElement | null>
 }
 
 export function WeekSlotPicker({ slot, candidates, onAssign, onClose, anchorRef }: WeekSlotPickerProps) {
@@ -21,14 +39,13 @@ export function WeekSlotPicker({ slot, candidates, onAssign, onClose, anchorRef 
   const [error, setError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-  const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const loadingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [pos, setPos] = useState({ top: 0, left: 0 })
+  const [pos, setPos] = useState({ top: -9999, left: -9999 })
   const [ready, setReady] = useState(false)
   const [highlightedIndex, setHighlightedIndex] = useState(-1)
 
-  const filtered = useMemo(() =>
-    candidates
+  const { filtered, totalFiltered } = useMemo(() => {
+    const all = candidates
       .filter(item => {
         if (item.format !== slot.format) return false
         if (STAGE_ORDER[item.stage as Stage] >= STAGE_ORDER['scheduled']) return false
@@ -40,9 +57,8 @@ export function WeekSlotPicker({ slot, candidates, onAssign, onClose, anchorRef 
         return true
       })
       .sort((a, b) => (STAGE_ORDER[b.stage as Stage] ?? 0) - (STAGE_ORDER[a.stage as Stage] ?? 0))
-      .slice(0, 8),
-    [candidates, slot.format, slot.channelLocale, query]
-  )
+    return { filtered: all.slice(0, 15), totalFiltered: all.length }
+  }, [candidates, slot.format, slot.channelLocale, query])
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -102,8 +118,9 @@ export function WeekSlotPicker({ slot, candidates, onAssign, onClose, anchorRef 
     function reposition() {
       if (!anchorRef?.current) return
       const rect = anchorRef.current.getBoundingClientRect()
-      const pickerWidth = 256
-      const pickerMaxHeight = 280
+      const containerRect = containerRef.current?.getBoundingClientRect()
+      const pickerWidth = (containerRect?.width && containerRect.width > 0) ? containerRect.width : 320
+      const pickerHeight = (containerRect?.height && containerRect.height > 0) ? containerRect.height : 320
 
       let top = rect.bottom + 4
       let left = rect.left
@@ -113,8 +130,8 @@ export function WeekSlotPicker({ slot, candidates, onAssign, onClose, anchorRef 
       }
       if (left < 8) left = 8
 
-      if (top + pickerMaxHeight > window.innerHeight - 8) {
-        top = rect.top - pickerMaxHeight - 4
+      if (top + pickerHeight > window.innerHeight - 8) {
+        top = rect.top - pickerHeight - 4
         if (top < 8) top = 8
       }
 
@@ -128,8 +145,10 @@ export function WeekSlotPicker({ slot, candidates, onAssign, onClose, anchorRef 
     }
 
     reposition()
+    requestAnimationFrame(() => requestAnimationFrame(reposition))
     window.addEventListener('scroll', handleScrollOrResize, { capture: true, passive: true })
     window.addEventListener('resize', handleScrollOrResize)
+
     return () => {
       cancelAnimationFrame(rafId)
       window.removeEventListener('scroll', handleScrollOrResize, true)
@@ -139,7 +158,6 @@ export function WeekSlotPicker({ slot, candidates, onAssign, onClose, anchorRef 
 
   useEffect(() => {
     return () => {
-      if (errorTimerRef.current !== null) clearTimeout(errorTimerRef.current)
       if (loadingTimerRef.current !== null) clearTimeout(loadingTimerRef.current)
     }
   }, [])
@@ -152,7 +170,6 @@ export function WeekSlotPicker({ slot, candidates, onAssign, onClose, anchorRef 
       onClose()
     } catch (e) {
       setError((e as Error).message || 'Erro ao atribuir')
-      errorTimerRef.current = setTimeout(() => setError(null), 3000)
       setLoading(false)
     }
   }, [onAssign, onClose, slot.day, slot.hour])
@@ -161,22 +178,29 @@ export function WeekSlotPicker({ slot, candidates, onAssign, onClose, anchorRef 
   const dialog = (
     <div
       ref={containerRef}
-      className="fixed z-50 w-64 max-w-[calc(100vw-16px)] rounded-lg border shadow-lg"
+      className="fixed z-50 w-80 max-w-[calc(100vw-16px)] rounded-lg border shadow-lg"
       style={{
+        ...(usePortal ? GEM_CSS_VARS : {}),
         background: 'var(--gem-surface-hi)',
         borderColor: 'var(--gem-border)',
         top: pos.top,
         left: pos.left,
         visibility: usePortal && !ready ? 'hidden' : 'visible',
-      }}
+      } as React.CSSProperties}
       role="dialog"
       aria-modal="true"
+      aria-busy={loading}
       aria-label="Escolher item para slot"
       aria-describedby="picker-context"
     >
       <p id="picker-context" className="sr-only">
         {slot.format === 'video' ? 'Video' : slot.format === 'blog_post' ? 'Blog' : 'Newsletter'} — {slot.dayLabel || slot.day}
       </p>
+      {slot.channelLocale && (
+        <div className="px-3 pt-2 pb-0.5 text-[10px] font-medium uppercase tracking-wider" style={{ color: 'var(--gem-muted)' }}>
+          {LANG_FLAG[LOCALE_TO_LANGUAGE[slot.channelLocale] ?? ''] ?? ''} {slot.channelLocale === 'pt' ? 'Canal Português' : slot.channelLocale === 'en' ? 'English Channel' : slot.channelLocale}
+        </div>
+      )}
       <div className="p-2">
         <input
           ref={inputRef}
@@ -190,13 +214,24 @@ export function WeekSlotPicker({ slot, candidates, onAssign, onClose, anchorRef 
             } else if (e.key === 'ArrowUp') {
               e.preventDefault()
               setHighlightedIndex(i => Math.max(i - 1, 0))
+            } else if (e.key === 'Home') {
+              e.preventDefault()
+              setHighlightedIndex(0)
+            } else if (e.key === 'End') {
+              e.preventDefault()
+              setHighlightedIndex(filtered.length - 1)
             } else if (e.key === 'Enter' && highlightedIndex >= 0 && filtered[highlightedIndex]) {
               e.preventDefault()
               handleSelect(filtered[highlightedIndex].id)
             }
           }}
           placeholder="Buscar item..."
+          role="combobox"
           aria-label="Buscar item para o slot"
+          aria-expanded={true}
+          aria-controls="picker-listbox"
+          aria-autocomplete="list"
+          aria-activedescendant={highlightedIndex >= 0 && filtered[highlightedIndex] ? `picker-option-${filtered[highlightedIndex].id}` : undefined}
           className="w-full rounded-md px-2 py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)]"
           style={{
             background: 'var(--gem-well)',
@@ -208,22 +243,33 @@ export function WeekSlotPicker({ slot, candidates, onAssign, onClose, anchorRef 
         />
       </div>
 
+      {loading && (
+        <div className="px-3 py-1.5 text-xs text-center" style={{ color: 'var(--gem-accent)' }} role="status">
+          Atribuindo...
+        </div>
+      )}
+
       {error && (
         <div
           role="alert"
-          className="px-2 pb-1 text-[11px]"
+          className="px-2 pb-1 text-xs rounded-md mx-2 mb-1 py-1.5"
           style={{
-            color: 'var(--gem-warn)',
-            background: 'color-mix(in srgb, var(--gem-warn) 10%, transparent)',
+            color: 'var(--gem-text)',
+            background: gemMix('--gem-warn', 15),
+            border: `1px solid ${gemMix('--gem-warn', 25)}`,
           }}
         >
           {error}
         </div>
       )}
 
-      <ul className="max-h-48 overflow-y-auto">
+      <ul role="listbox" id="picker-listbox" aria-label="Itens disponíveis" className="max-h-48 overflow-y-auto" onMouseLeave={() => setHighlightedIndex(-1)}>
         {filtered.length === 0 ? (
           <li
+            id="picker-option-empty"
+            role="option"
+            aria-disabled="true"
+            aria-selected={false}
             className="px-3 py-2 text-xs text-center"
             style={{ color: 'var(--gem-dim)' }}
           >
@@ -233,34 +279,53 @@ export function WeekSlotPicker({ slot, candidates, onAssign, onClose, anchorRef 
           filtered.map((item, i) => {
             const colors = FORMAT_COLORS[item.format] ?? { accent: 'var(--gem-accent)', text: 'var(--gem-muted)' }
             return (
-              <li key={item.id}>
-                <button
-                  type="button"
-                  disabled={loading}
-                  onClick={() => handleSelect(item.id)}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left motion-safe:transition-colors hover:bg-[color-mix(in_srgb,var(--gem-text)_5%,transparent)] disabled:opacity-50 min-h-[44px]"
-                  style={{
-                    color: 'var(--gem-text)',
-                    background: i === highlightedIndex ? 'color-mix(in srgb, var(--gem-text) 8%, transparent)' : undefined,
-                  }}
+              <li
+                key={item.id}
+                role="option"
+                id={`picker-option-${item.id}`}
+                tabIndex={-1}
+                aria-selected={i === highlightedIndex}
+                aria-disabled={loading}
+                onMouseDown={(e) => { e.preventDefault(); if (!loading) handleSelect(item.id) }}
+                onMouseEnter={() => setHighlightedIndex(i)}
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left motion-safe:transition-colors cursor-pointer min-h-[44px]"
+                style={{
+                  color: 'var(--gem-text)',
+                  background: i === highlightedIndex ? gemMix('--gem-text', 8) : undefined,
+                  opacity: loading ? 0.5 : undefined,
+                }}
+              >
+                <span
+                  className="w-2 h-2 rounded-full shrink-0"
+                  style={{ background: colors.accent }}
+                  aria-hidden="true"
+                />
+                {item.language && LANG_FLAG[item.language] && (
+                  <span className="shrink-0 text-xs" aria-hidden="true">{LANG_FLAG[item.language]}</span>
+                )}
+                <span className="truncate flex-1">{item.title}</span>
+                <span
+                  className="text-[10px] px-1 rounded"
+                  style={{ color: 'var(--gem-text)', background: gemMix(colors.accent, 20) }}
+                  aria-hidden="true"
                 >
-                  <span
-                    className="w-2 h-2 rounded-full shrink-0"
-                    style={{ background: colors.accent }}
-                  />
-                  <span className="truncate flex-1">{item.title}</span>
-                  <span
-                    className="text-[10px] px-1 rounded"
-                    style={{ color: colors.text, background: `color-mix(in srgb, ${colors.accent} 15%, transparent)` }}
-                  >
-                    {item.stage}
-                  </span>
-                </button>
+                  {STAGE_SHORT[item.stage] ?? item.stage}
+                </span>
               </li>
             )
           })
         )}
       </ul>
+
+      {totalFiltered > 15 && (
+        <p
+          className="px-3 py-1.5 text-xs text-center"
+          style={{ color: 'var(--gem-muted)' }}
+          data-testid="picker-overflow"
+        >
+          Mostrando 15 de {totalFiltered} — refine a busca
+        </p>
+      )}
     </div>
   )
 

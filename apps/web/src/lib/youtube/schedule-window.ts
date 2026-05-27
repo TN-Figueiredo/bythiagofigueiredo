@@ -5,6 +5,10 @@ const DAY_MAP: Record<string, number> = {
   thursday: 4, friday: 5, saturday: 6,
 }
 
+const SHORT_DAY_MAP: Record<string, number> = {
+  Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
+}
+
 const WINDOW_MINUTES = 45
 
 export function isInPostingWindow(schedule: SyncScheduleEntry[]): boolean {
@@ -16,23 +20,30 @@ export function isInPostingWindow(schedule: SyncScheduleEntry[]): boolean {
     const targetDay = DAY_MAP[entry.day]
     if (targetDay === undefined) continue
 
-    const formatter = new Intl.DateTimeFormat('en-US', {
-      timeZone: entry.tz,
-      weekday: 'short',
-      hour: 'numeric',
-      minute: 'numeric',
-      hour12: false,
-    })
+    if (!Number.isInteger(entry.hour) || entry.hour < 0 || entry.hour > 23) continue
+
+    let formatter: Intl.DateTimeFormat
+    try {
+      formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: entry.tz,
+        weekday: 'short',
+        hour: 'numeric',
+        minute: 'numeric',
+        hourCycle: 'h23',
+      })
+    } catch {
+      continue
+    }
 
     const parts = formatter.formatToParts(now)
     const nowDay = parts.find((p) => p.type === 'weekday')?.value
-    const nowHour = parseInt(parts.find((p) => p.type === 'hour')?.value ?? '0', 10)
-    const nowMinute = parseInt(parts.find((p) => p.type === 'minute')?.value ?? '0', 10)
+    const hourPart = parts.find((p) => p.type === 'hour')?.value
+    const minutePart = parts.find((p) => p.type === 'minute')?.value
+    if (hourPart === undefined || minutePart === undefined) continue
+    const nowHour = parseInt(hourPart, 10)
+    const nowMinute = parseInt(minutePart, 10)
 
-    const dayNames: Record<string, number> = {
-      Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
-    }
-    const currentDay = dayNames[nowDay ?? ''] ?? -1
+    const currentDay = SHORT_DAY_MAP[nowDay ?? ''] ?? -1
 
     if (currentDay !== targetDay) continue
 

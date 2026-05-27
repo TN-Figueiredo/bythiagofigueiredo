@@ -40,7 +40,7 @@ function TrackHeadRaw({ track, height, clipCount, isAudio = false }: TrackHeadPr
       </div>
       {/* Name */}
       <div
-        className="text-[11px] whitespace-nowrap overflow-hidden text-ellipsis flex-1"
+        className="text-xs whitespace-nowrap overflow-hidden text-ellipsis flex-1"
         style={{ color: TH.text, fontWeight: hasClips ? 500 : 400 }}
       >
         {track.name}

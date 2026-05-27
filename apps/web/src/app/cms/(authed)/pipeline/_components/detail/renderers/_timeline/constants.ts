@@ -67,4 +67,4 @@ export const TH = {
 
 export const MONO_CLS = 'font-mono'
 export const MONO_SM_CLS = 'font-mono text-[10px] tracking-wide'
-export const MONO_XS_CLS = 'font-mono text-[9px] tracking-widest uppercase'
+export const MONO_XS_CLS = 'font-mono text-[10px] tracking-widest uppercase'

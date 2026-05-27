@@ -41,7 +41,7 @@ interface CoworkPromptModalProps {
 const PromptPreview = memo(function PromptPreview({ text }: { text: string }) {
   const lines = text.split('\n')
   return (
-    <div className="max-h-56 overflow-y-auto rounded-lg border border-[var(--cpw-border)] bg-[var(--cpw-bg-code)] p-3 font-mono text-[11px] leading-relaxed">
+    <div className="max-h-56 overflow-y-auto rounded-lg border border-[var(--cpw-border)] bg-[var(--cpw-bg-code)] p-3 font-mono text-xs leading-relaxed">
       {lines.map((line, i) => {
         if (!line.trim()) return <div key={i}>{' '}</div>
 
@@ -311,18 +311,18 @@ export function CoworkPromptModal({ onClose, baseUrl, serverKey }: CoworkPromptM
               <button
                 type="button"
                 onClick={() => setShowKey((v) => !v)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded px-1.5 py-0.5 text-[11px] text-[var(--cpw-text-muted)] hover:text-[var(--cpw-text)] transition-colors motion-reduce:transition-none focus-visible:ring-2 focus-visible:ring-[var(--cpw-accent)] focus-visible:outline-none"
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded px-1.5 py-0.5 text-xs text-[var(--cpw-text-muted)] hover:text-[var(--cpw-text)] transition-colors motion-reduce:transition-none focus-visible:ring-2 focus-visible:ring-[var(--cpw-accent)] focus-visible:outline-none"
                 aria-label={showKey ? 'Ocultar key' : 'Mostrar key'}
               >
                 {showKey ? 'Ocultar' : 'Mostrar'}
               </button>
             </div>
             {!serverKey && (
-              <div className="mt-1 text-[11px] text-[var(--cpw-text-muted)]">
+              <div className="mt-1 text-xs text-[var(--cpw-text-muted)]">
                 Encontre em .env.local → PIPELINE_COWORK_KEY
               </div>
             )}
-            <div className="mt-0.5 text-[11px] text-amber-500/80">
+            <div className="mt-0.5 text-xs text-amber-500/80">
               ⚠ O prompt gerado conterá sua key. Compartilhe apenas com sessões de IA confiáveis.
             </div>
           </div>
@@ -388,7 +388,7 @@ export function CoworkPromptModal({ onClose, baseUrl, serverKey }: CoworkPromptM
                     aria-pressed={isActive}
                     aria-label={domain.fullName}
                     onClick={() => toggleDomain(domain.id)}
-                    className={`rounded border px-2.5 py-1 text-[11px] transition-colors motion-reduce:transition-none focus-visible:ring-2 focus-visible:ring-[var(--cpw-accent)] focus-visible:outline-none ${
+                    className={`rounded border px-2.5 py-1 text-xs transition-colors motion-reduce:transition-none focus-visible:ring-2 focus-visible:ring-[var(--cpw-accent)] focus-visible:outline-none ${
                       isActive
                         ? 'border-indigo-500 bg-indigo-500/12 text-indigo-300'
                         : 'border-[var(--cpw-border)] bg-[var(--cpw-hover-bg)] text-[var(--cpw-text-muted)] hover:border-[var(--cpw-border-inactive)] hover:text-[var(--cpw-text-muted)]'
@@ -402,7 +402,7 @@ export function CoworkPromptModal({ onClose, baseUrl, serverKey }: CoworkPromptM
                 type="button"
                 aria-pressed={allDomainsSelected}
                 onClick={toggleAllDomains}
-                className={`rounded border px-2.5 py-1 text-[11px] font-medium transition-colors motion-reduce:transition-none focus-visible:ring-2 focus-visible:ring-[var(--cpw-accent)] focus-visible:outline-none ${
+                className={`rounded border px-2.5 py-1 text-xs font-medium transition-colors motion-reduce:transition-none focus-visible:ring-2 focus-visible:ring-[var(--cpw-accent)] focus-visible:outline-none ${
                   allDomainsSelected
                     ? 'border-emerald-600 bg-emerald-600/15 text-emerald-400'
                     : 'border-[var(--cpw-border)] bg-[var(--cpw-hover-bg)] text-[var(--cpw-text-muted)] hover:border-[var(--cpw-border-inactive)] hover:text-[var(--cpw-text-muted)]'
@@ -417,7 +417,7 @@ export function CoworkPromptModal({ onClose, baseUrl, serverKey }: CoworkPromptM
           <div>
             <div className="mb-2 flex items-center gap-2 text-xs font-medium text-[var(--cpw-text-muted)]">
               <span>Preview do prompt</span>
-              <span aria-live="polite" className="rounded-full bg-[var(--cpw-hover-bg)] px-2 py-0.5 text-[11px] text-[var(--cpw-text-muted)]">
+              <span aria-live="polite" className="rounded-full bg-[var(--cpw-hover-bg)] px-2 py-0.5 text-xs text-[var(--cpw-text-muted)]">
                 {stepCount} steps
               </span>
             </div>
@@ -427,11 +427,11 @@ export function CoworkPromptModal({ onClose, baseUrl, serverKey }: CoworkPromptM
 
         {/* Footer */}
         <div className="flex items-center justify-end gap-2 border-t border-[var(--cpw-border)] px-5 py-3.5">
-          <span className="mr-auto font-mono text-[11px] text-[var(--cpw-text-muted)]">⌘⏎ copiar</span>
+          <span className="mr-auto font-mono text-xs text-[var(--cpw-text-muted)]">⌘⏎ copiar</span>
           <button
             type="button"
             onClick={toggleMaxContext}
-            className={`flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-[11px] font-medium transition-colors motion-reduce:transition-none focus-visible:ring-2 focus-visible:ring-[var(--cpw-accent)] focus-visible:outline-none ${
+            className={`flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors motion-reduce:transition-none focus-visible:ring-2 focus-visible:ring-[var(--cpw-accent)] focus-visible:outline-none ${
               isMaxContext
                 ? 'border-amber-500/40 bg-amber-500/10 text-amber-400'
                 : 'border-[var(--cpw-border)] text-[var(--cpw-text-muted)] hover:border-[var(--cpw-border-inactive)] hover:text-[var(--cpw-text-muted)]'

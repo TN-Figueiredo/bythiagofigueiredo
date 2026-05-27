@@ -85,7 +85,11 @@ describe('groupCandidatesByPlaylist', () => {
       makeCandidate({ id: 'a', playlist_id: 'pl-far', playlist_name: 'Far', playlist_position: 1, playlist_total: 10 }),
       makeCandidate({ id: 'b', playlist_id: 'pl-near', playlist_name: 'Near', playlist_position: 9, playlist_total: 10 }),
     ]
-    const groups = groupCandidatesByPlaylist(candidates)
+    const summaries = [
+      { id: 'pl-far', name: 'Far', total_items: 10, done_items: 1, in_progress_items: 1, next_item_title: null, next_item_stage: null },
+      { id: 'pl-near', name: 'Near', total_items: 10, done_items: 9, in_progress_items: 1, next_item_title: null, next_item_stage: null },
+    ]
+    const groups = groupCandidatesByPlaylist(candidates, summaries)
     expect(groups[0].playlistId).toBe('pl-near')
     expect(groups[0].nearCompletion).toBe(true)
     expect(groups[1].playlistId).toBe('pl-far')
@@ -97,14 +101,20 @@ describe('groupCandidatesByPlaylist', () => {
     const candidates = [
       makeCandidate({ id: 'a', playlist_id: 'pl-1', playlist_name: 'Almost Done', playlist_position: 8, playlist_total: 10 }),
     ]
-    const groups = groupCandidatesByPlaylist(candidates)
+    const summaries = [
+      { id: 'pl-1', name: 'Almost Done', total_items: 10, done_items: 8, in_progress_items: 1, next_item_title: null, next_item_stage: null },
+    ]
+    const groups = groupCandidatesByPlaylist(candidates, summaries)
     expect(groups[0].nearCompletion).toBe(true)
 
     // 7 of 10 done → 3 remain → 30% → NOT near completion
     const candidates2 = [
       makeCandidate({ id: 'b', playlist_id: 'pl-2', playlist_name: 'Not Done', playlist_position: 7, playlist_total: 10 }),
     ]
-    const groups2 = groupCandidatesByPlaylist(candidates2)
+    const summaries2 = [
+      { id: 'pl-2', name: 'Not Done', total_items: 10, done_items: 7, in_progress_items: 1, next_item_title: null, next_item_stage: null },
+    ]
+    const groups2 = groupCandidatesByPlaylist(candidates2, summaries2)
     expect(groups2[0].nearCompletion).toBe(false)
   })
 
@@ -128,14 +138,17 @@ describe('groupCandidatesByPlaylist', () => {
     expect(groups[0].items.map(i => i.id)).toEqual(['a', 'b', 'c'])
   })
 
-  it('computes progress correctly', () => {
+  it('computes progress correctly from playlist summaries', () => {
     const candidates = [
-      makeCandidate({ id: 'a', playlist_id: 'pl-1', playlist_name: 'S', playlist_position: 3, playlist_total: 10 }),
-      makeCandidate({ id: 'b', playlist_id: 'pl-1', playlist_name: 'S', playlist_position: 7, playlist_total: 10 }),
+      makeCandidate({ id: 'a', playlist_id: 'pl-1', playlist_name: 'S', playlist_position: 139500, playlist_total: 124 }),
+      makeCandidate({ id: 'b', playlist_id: 'pl-1', playlist_name: 'S', playlist_position: 140000, playlist_total: 124 }),
     ]
-    const groups = groupCandidatesByPlaylist(candidates)
-    // done = max position = 7, total = 10
-    expect(groups[0].progress).toEqual({ done: 7, total: 10 })
+    const summaries = [
+      { id: 'pl-1', name: 'S', total_items: 124, done_items: 97, in_progress_items: 2, next_item_title: null, next_item_stage: null },
+    ]
+    const groups = groupCandidatesByPlaylist(candidates, summaries)
+    // done and total come from summary, NOT from sort_order positions
+    expect(groups[0].progress).toEqual({ done: 97, total: 124 })
   })
 
   it('computes progress for Avulsos group', () => {
@@ -147,6 +160,28 @@ describe('groupCandidatesByPlaylist', () => {
     const groups = groupCandidatesByPlaylist(candidates)
     // Avulsos: done = 0, total = items.length
     expect(groups[0].progress).toEqual({ done: 0, total: 3 })
+  })
+
+  it('uses items.length as fallback when no summary exists', () => {
+    const candidates = [
+      makeCandidate({ id: 'a', playlist_id: 'pl-no-summary', playlist_name: 'Unknown', playlist_position: 1, playlist_total: 5 }),
+      makeCandidate({ id: 'b', playlist_id: 'pl-no-summary', playlist_name: 'Unknown', playlist_position: 2, playlist_total: 5 }),
+    ]
+    // No summaries passed — should fall back to items.length for total, 0 for done
+    const groups = groupCandidatesByPlaylist(candidates)
+    expect(groups[0].progress).toEqual({ done: 0, total: 2 })
+  })
+
+  it('does not mark completed playlists as nearCompletion', () => {
+    // 10 of 10 done → 0 remain → completed, NOT "near" completion
+    const candidates = [
+      makeCandidate({ id: 'a', playlist_id: 'pl-done', playlist_name: 'Done', playlist_position: 1 }),
+    ]
+    const summaries = [
+      { id: 'pl-done', name: 'Done', total_items: 10, done_items: 10, in_progress_items: 0, next_item_title: null, next_item_stage: null },
+    ]
+    const groups = groupCandidatesByPlaylist(candidates, summaries)
+    expect(groups[0].nearCompletion).toBe(false)
   })
 })
 

@@ -34,7 +34,7 @@ export function FillIndicator({ filled, total, status }: FillIndicatorProps) {
           />
         ))}
       </span>
-      <span className="text-[9px] font-medium" style={{ color }}>{filled}/{total}</span>
+      <span className="text-[10px] font-medium" style={{ color }}>{filled}/{total}</span>
     </span>
   )
 }

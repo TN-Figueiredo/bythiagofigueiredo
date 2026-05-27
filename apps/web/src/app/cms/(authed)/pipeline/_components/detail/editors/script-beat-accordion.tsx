@@ -154,7 +154,7 @@ export function ScriptBeatAccordion({
         {/* Beat name */}
         {editingName && isEditing ? (
           <input
-            className="flex-1 text-[11px] font-medium bg-transparent border-b outline-none"
+            className="flex-1 text-xs font-medium bg-transparent border-b outline-none"
             style={{ color: 'var(--gem-text)', borderColor: 'var(--gem-accent)' }}
             value={beat.name}
             onChange={handleNameChange}
@@ -165,7 +165,7 @@ export function ScriptBeatAccordion({
           />
         ) : (
           <span
-            className="text-[11px] font-semibold flex-1 truncate"
+            className="text-xs font-semibold flex-1 truncate"
             style={{ color: 'var(--gem-text)', cursor: isEditing ? 'pointer' : 'default' }}
             role={isEditing ? 'button' : undefined}
             tabIndex={isEditing ? 0 : undefined}
@@ -178,7 +178,7 @@ export function ScriptBeatAccordion({
         )}
 
         {/* Word count */}
-        <span className="text-[9px] tabular-nums shrink-0" style={{ color: 'var(--gem-dim)' }}>
+        <span className="text-[10px] tabular-nums shrink-0" style={{ color: 'var(--gem-dim)' }}>
           {wordCount}w · ~{Math.ceil(wordCount / 2.5)}s
         </span>
 
@@ -187,7 +187,7 @@ export function ScriptBeatAccordion({
           <div className="flex items-center gap-0.5 shrink-0" title="Beat duration (seconds)">
             <input
               type="number"
-              className="w-10 bg-transparent text-right outline-none tabular-nums text-[9px]"
+              className="w-10 bg-transparent text-right outline-none tabular-nums text-[10px]"
               style={{ color: 'var(--gem-dim)', borderBottom: '1px solid var(--gem-border)' }}
               value={beat.duration ?? ''}
               onChange={(e) => {
@@ -203,7 +203,7 @@ export function ScriptBeatAccordion({
           </div>
         )}
         {!isEditing && beat.duration != null && (
-          <span className="text-[9px] tabular-nums shrink-0" style={{ color: 'var(--gem-dim)' }}>
+          <span className="text-[10px] tabular-nums shrink-0" style={{ color: 'var(--gem-dim)' }}>
             {beat.duration}s
           </span>
         )}

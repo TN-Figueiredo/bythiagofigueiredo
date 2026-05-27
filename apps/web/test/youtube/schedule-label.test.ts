@@ -54,31 +54,76 @@ describe('deriveScheduleLabel', () => {
     expect(deriveScheduleLabel(schedules, 'en')).toBeNull()
   })
 
-  it('handles all seven days in EN', () => {
+  it('collapses all seven days to "every day" in EN', () => {
     const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const
     const schedules = days.map(d => ({ day: d }))
-    const result = deriveScheduleLabel(schedules, 'en')!
-    expect(result).toContain('Mon')
-    expect(result).toContain('Tue')
-    expect(result).toContain('Sun')
+    expect(deriveScheduleLabel(schedules, 'en')).toBe('new every day')
   })
 
-  it('handles all seven days in PT-BR with correct abbreviations', () => {
+  it('collapses all seven days to "todo dia" in PT-BR', () => {
     const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const
     const schedules = days.map(d => ({ day: d }))
-    const result = deriveScheduleLabel(schedules, 'pt-BR')!
-    expect(result).toContain('seg')
-    expect(result).toContain('ter')
-    expect(result).toContain('qua')
-    expect(result).toContain('qui')
-    expect(result).toContain('sex')
-    expect(result).toContain('sáb')
-    expect(result).toContain('dom')
+    expect(deriveScheduleLabel(schedules, 'pt-BR')).toBe('novidade todo dia')
+  })
+
+  it('collapses Mon-Fri to "weekdays" in EN', () => {
+    const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'] as const
+    const schedules = days.map(d => ({ day: d }))
+    expect(deriveScheduleLabel(schedules, 'en')).toBe('new weekdays')
+  })
+
+  it('collapses Mon-Fri to "de segunda a sexta" in PT-BR', () => {
+    const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'] as const
+    const schedules = days.map(d => ({ day: d }))
+    expect(deriveScheduleLabel(schedules, 'pt-BR')).toBe('novidade de segunda a sexta')
+  })
+
+  it('collapses Sat+Sun to "weekends" in EN', () => {
+    const schedules = [{ day: 'saturday' as const }, { day: 'sunday' as const }]
+    expect(deriveScheduleLabel(schedules, 'en')).toBe('new weekends')
+  })
+
+  it('collapses Sat+Sun to "nos fins de semana" in PT-BR', () => {
+    const schedules = [{ day: 'saturday' as const }, { day: 'sunday' as const }]
+    expect(deriveScheduleLabel(schedules, 'pt-BR')).toBe('novidade nos fins de semana')
   })
 
   it('normalizes mixed-case day names', () => {
     const schedules = [{ day: 'Thursday' as unknown as 'thursday' }]
     expect(deriveScheduleLabel(schedules, 'en')).toBe('new every Thursday')
+  })
+
+  it('handles 4-day combination (Mon, Tue, Thu, Fri) — no collapse', () => {
+    const days = ['monday', 'tuesday', 'thursday', 'friday'] as const
+    const schedules = days.map(d => ({ day: d }))
+    expect(deriveScheduleLabel(schedules, 'en')).toBe('new Mon, Tue, Thu & Fri')
+    expect(deriveScheduleLabel(schedules, 'pt-BR')).toBe('novidade seg, ter, qui e sex')
+  })
+
+  it('handles 6-day combination (Mon-Sat) — no collapse', () => {
+    const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const
+    const schedules = days.map(d => ({ day: d }))
+    expect(deriveScheduleLabel(schedules, 'en')).toBe('new Mon, Tue, Wed, Thu, Fri & Sat')
+    expect(deriveScheduleLabel(schedules, 'pt-BR')).toBe('novidade seg, ter, qua, qui, sex e sáb')
+  })
+
+  it('sorts days to calendar order regardless of input order', () => {
+    const schedules = [{ day: 'friday' as const }, { day: 'monday' as const }]
+    expect(deriveScheduleLabel(schedules, 'en')).toBe('new Mon & Fri')
+    expect(deriveScheduleLabel(schedules, 'pt-BR')).toBe('novidade segunda e sexta')
+  })
+
+  it('filters out unknown days and derives from valid ones', () => {
+    const schedules = [
+      { day: 'monday' as const },
+      { day: 'funday' as unknown as 'monday' },
+    ]
+    expect(deriveScheduleLabel(schedules, 'en')).toBe('new every Monday')
+  })
+
+  it('accepts "pt" as alias for "pt-BR"', () => {
+    const schedules = [{ day: 'thursday' as const }]
+    expect(deriveScheduleLabel(schedules, 'pt')).toBe('novidade toda quinta')
   })
 })
 
@@ -100,5 +145,10 @@ describe('resolveScheduleLabel', () => {
   it('returns null when both are empty', () => {
     expect(resolveScheduleLabel(null, [], 'en')).toBeNull()
     expect(resolveScheduleLabel(null, null, 'pt-BR')).toBeNull()
+  })
+
+  it('falls through whitespace override to derive from schedules', () => {
+    const schedules = [{ day: 'thursday' as const }]
+    expect(resolveScheduleLabel('   ', schedules, 'en')).toBe('new every Thursday')
   })
 })

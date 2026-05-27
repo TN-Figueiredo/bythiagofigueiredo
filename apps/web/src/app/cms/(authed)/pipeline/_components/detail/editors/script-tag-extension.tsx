@@ -49,7 +49,7 @@ function ScriptTagNodeView({ node, updateAttributes }: NodeViewProps) {
           ))}
         </select>
         <NodeViewContent
-          className="flex-1 min-w-0 outline-none text-[11px] leading-snug"
+          className="flex-1 min-w-0 outline-none text-xs leading-snug"
           style={{ color: `${s.color}cc` }}
         />
       </div>

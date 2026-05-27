@@ -43,7 +43,7 @@ export function MusicAlternativeSlot({ recommendation: rec, slotIndex, searchTie
       >
         <div className="flex items-center gap-1.5 mb-1">
           <span className="text-[10px] font-mono min-w-4" style={{ color: '#4b5563' }}>{slotIndex}.</span>
-          <span className="text-[11px] font-medium" style={{ color: '#6b7280' }}>
+          <span className="text-xs font-medium" style={{ color: '#6b7280' }}>
             {searchTier === 'broad' ? 'Explorar alternativa' : 'Buscar alternativa'}
           </span>
           <span className="text-[8px] px-1.5 py-px rounded" style={{ background: tierColor.bg, color: tierColor.text }}>
@@ -100,10 +100,10 @@ export function MusicAlternativeSlot({ recommendation: rec, slotIndex, searchTie
         style={{ background: 'transparent' }}
       >
         <span className="text-[10px] font-mono min-w-4" style={{ color: '#4b5563' }}>{slotIndex}.</span>
-        <span className="text-[11px] font-medium truncate" style={{ color: '#94a3b8' }}>{rec.track}</span>
+        <span className="text-xs font-medium truncate" style={{ color: '#94a3b8' }}>{rec.track}</span>
         <span className="text-[10px] truncate" style={{ color: '#5a6b7f' }}>— {rec.artist}</span>
         <span
-          className="text-[9px] px-1.5 py-px rounded font-semibold flex-shrink-0"
+          className="text-[10px] px-1.5 py-px rounded font-semibold flex-shrink-0"
           style={{ background: status.bg, color: status.color }}
         >
           {status.label}
@@ -116,11 +116,11 @@ export function MusicAlternativeSlot({ recommendation: rec, slotIndex, searchTie
       {!expanded && (
         <div className="flex items-center gap-1.5 px-2.5 pb-2 flex-wrap" style={{ paddingLeft: 34 }}>
           {rec.category && (
-            <span className="text-[9px] px-1 py-px rounded" style={{ background: 'rgba(99,102,241,0.08)', color: '#6b7280' }}>{rec.category}</span>
+            <span className="text-[10px] px-1 py-px rounded" style={{ background: 'rgba(99,102,241,0.08)', color: '#6b7280' }}>{rec.category}</span>
           )}
-          {rec.bpm && <span className="text-[9px]" style={{ color: '#6b7280' }}>{rec.bpm} BPM</span>}
+          {rec.bpm && <span className="text-[10px]" style={{ color: '#6b7280' }}>{rec.bpm} BPM</span>}
           {deltas.length > 0 && (
-            <span className="text-[9px]" style={{ color: '#5a6b7f' }}>
+            <span className="text-[10px]" style={{ color: '#5a6b7f' }}>
               <span style={{ color: '#ef4444' }}>−</span>{Math.abs(deltaTotal)} pts vs #1
             </span>
           )}

@@ -3,6 +3,7 @@ import { getSupabaseServiceClient } from '../supabase/service'
 import { getSiteContext } from '../cms/site-context'
 import { COLD_START_THRESHOLD } from '../tracking/config'
 import { resolveScheduleLabel } from '@/lib/youtube/schedule-label'
+import type { SyncScheduleEntry } from '@/lib/youtube/types'
 import { unstable_cache } from 'next/cache'
 
 function mapRowToHomePost(row: Record<string, unknown>): HomePost {
@@ -271,7 +272,7 @@ export const getHomeChannels = unstable_cache(
         thumbnailUrl: (c.thumbnail_url as string) ?? null,
         scheduleLabel: resolveScheduleLabel(
           c.schedule_label as string | null,
-          c.sync_schedules as Array<{ day: string; hour: number; tz: string; label: string }> | null,
+          c.sync_schedules as SyncScheduleEntry[] | null,
           homeLocale,
         ),
       }

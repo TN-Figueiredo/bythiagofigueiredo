@@ -73,21 +73,23 @@ export function ExportMenu({
   )
 }
 
+function csvEscape(s: string | null): string {
+  if (!s) return ''
+  return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s
+}
+
 export function generateCsv(
   items: PlaylistItemEnriched[],
   viewNumbers: Map<string, number | null>,
 ): string {
-  const header = '#,type,language,status,title,category,metadata,uuid'
+  const header = 'order,type,language,status,title,tags,uuid'
   const rows = items
     .filter(item => viewNumbers.get(item.id) !== null)
     .sort((a, b) => (viewNumbers.get(a.id) ?? 0) - (viewNumbers.get(b.id) ?? 0))
     .map(item => {
       const n = viewNumbers.get(item.id) ?? 0
-      const escape = (s: string | null) => {
-        if (!s) return ''
-        return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s
-      }
-      return [n, item.content_type ?? '', item.language ?? '', item.status ?? '', escape(item.title), escape(item.category), escape(item.metadata), item.id].join(',')
+      const tags = item.tags?.length > 0 ? csvEscape(item.tags.join('; ')) : ''
+      return [n, item.content_type ?? '', item.language ?? '', item.status ?? '', csvEscape(item.title), tags, item.id].join(',')
     })
   return [header, ...rows].join('\n')
 }
@@ -107,7 +109,7 @@ export function generateJson(
       language: item.language,
       status: item.status,
       title: item.title,
-      category: item.category,
+      tags: item.tags ?? [],
       uuid: item.id,
     }))
 
@@ -120,13 +122,16 @@ export function generateJson(
 }
 
 function download(filename: string, content: string, mime: string) {
-  const blob = new Blob([content], { type: mime })
+  const safeName = filename.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_')
+  const bom = mime.startsWith('text/csv') ? '\uFEFF' : ''
+  const type = mime.startsWith('text/') ? `${mime};charset=utf-8` : mime
+  const blob = new Blob([bom + content], { type })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = filename
+  a.download = safeName
   a.click()
-  URL.revokeObjectURL(url)
+  setTimeout(() => URL.revokeObjectURL(url), 1_000)
 }
 
 function PrintIcon() {

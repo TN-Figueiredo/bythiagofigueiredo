@@ -1,3 +1,5 @@
+import { gemMix } from './gem-design'
+
 export interface FormatColor {
   accent: string
   bg: string
@@ -5,29 +7,35 @@ export interface FormatColor {
   border: string
 }
 
-const DEFAULT_COLOR: FormatColor = { accent: '#6366f1', bg: '#1e1b4b', text: '#a5b4fc', border: '#312e81' }
+const DEFAULT_COLOR: FormatColor = { accent: 'var(--gem-accent)', bg: gemMix('--gem-accent', 8), text: 'var(--gem-muted)', border: gemMix('--gem-accent', 25) }
 
 export function getFormatColor(format: string): FormatColor {
   return FORMAT_COLORS[format] ?? DEFAULT_COLOR
 }
 
-export function getPlaylistColor(code: string): FormatColor {
-  return PLAYLIST_COLORS[code] ?? DEFAULT_COLOR
-}
-
 export const FORMAT_COLORS: Record<string, FormatColor> = {
-  video: { accent: '#ef4444', bg: '#450a0a', text: '#fca5a5', border: '#7f1d1d' },
-  blog_post: { accent: '#f59e0b', bg: '#451a03', text: '#fcd34d', border: '#78350f' },
-  newsletter: { accent: '#6366f1', bg: '#1e1b4b', text: '#a5b4fc', border: '#312e81' },
-  course: { accent: '#10b981', bg: '#022c22', text: '#6ee7b7', border: '#064e3b' },
-  campaign: { accent: '#ec4899', bg: '#500724', text: '#f9a8d4', border: '#831843' },
+  video: { accent: 'var(--gem-danger)', bg: gemMix('--gem-danger', 8), text: 'var(--gem-danger)', border: gemMix('--gem-danger', 25) },
+  blog_post: { accent: 'var(--gem-warn)', bg: gemMix('--gem-warn', 8), text: 'var(--gem-warn)', border: gemMix('--gem-warn', 25) },
+  newsletter: { accent: 'var(--gem-accent)', bg: gemMix('--gem-accent', 8), text: 'var(--gem-muted)', border: gemMix('--gem-accent', 25) },
+  course: { accent: '#22d3ee', bg: gemMix('#22d3ee', 8), text: '#22d3ee', border: gemMix('#22d3ee', 25) },
+  campaign: { accent: 'var(--gem-done)', bg: gemMix('--gem-done', 8), text: 'var(--gem-done)', border: gemMix('--gem-done', 25) },
 }
 
-export const PLAYLIST_COLORS: Record<string, FormatColor> = {
-  'playlist-a': { accent: '#f59e0b', bg: '#451a03', text: '#fcd34d', border: '#78350f' },
-  'playlist-b': { accent: '#8b5cf6', bg: '#2e1065', text: '#c4b5fd', border: '#4c1d95' },
-  'playlist-c': { accent: '#10b981', bg: '#022c22', text: '#6ee7b7', border: '#064e3b' },
-  'playlist-e': { accent: '#6366f1', bg: '#1e1b4b', text: '#a5b4fc', border: '#312e81' },
-  'playlist-f': { accent: '#ec4899', bg: '#500724', text: '#f9a8d4', border: '#831843' },
-  'playlist-g': { accent: '#ef4444', bg: '#450a0a', text: '#fca5a5', border: '#7f1d1d' },
+const PLAYLIST_COLOR_PALETTE: FormatColor[] = [
+  { accent: 'var(--gem-warn)', bg: gemMix('--gem-warn', 8), text: 'var(--gem-warn)', border: gemMix('--gem-warn', 25) },
+  { accent: 'var(--gem-accent)', bg: gemMix('--gem-accent', 8), text: 'var(--gem-accent)', border: gemMix('--gem-accent', 25) },
+  { accent: 'var(--gem-done)', bg: gemMix('--gem-done', 8), text: 'var(--gem-done)', border: gemMix('--gem-done', 25) },
+  { accent: 'var(--gem-danger)', bg: gemMix('--gem-danger', 8), text: 'var(--gem-danger)', border: gemMix('--gem-danger', 25) },
+  { accent: '#e879f9', bg: gemMix('#e879f9', 8), text: '#e879f9', border: gemMix('#e879f9', 25) },
+  { accent: '#22d3ee', bg: gemMix('#22d3ee', 8), text: '#22d3ee', border: gemMix('#22d3ee', 25) },
+  { accent: '#fb923c', bg: gemMix('#fb923c', 8), text: '#fb923c', border: gemMix('#fb923c', 25) },
+  { accent: '#a3e635', bg: gemMix('#a3e635', 8), text: '#a3e635', border: gemMix('#a3e635', 25) },
+]
+
+export function getPlaylistColor(playlistId: string): FormatColor {
+  let hash = 0
+  for (let i = 0; i < playlistId.length; i++) {
+    hash = ((hash << 5) - hash + playlistId.charCodeAt(i)) | 0
+  }
+  return PLAYLIST_COLOR_PALETTE[Math.abs(hash) % PLAYLIST_COLOR_PALETTE.length]!
 }

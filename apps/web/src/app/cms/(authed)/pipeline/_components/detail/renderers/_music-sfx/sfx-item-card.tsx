@@ -66,7 +66,7 @@ export function SFXItemCard({ sfx }: SFXItemCardProps) {
           </div>
 
           {sfx.cue_text && (
-            <div className="text-[9px] italic mb-[3px]" style={{ color: '#6b7280' }}>
+            <div className="text-[10px] italic mb-[3px]" style={{ color: '#6b7280' }}>
               <span style={{ color: '#818cf8', fontStyle: 'normal' }}>▸</span>{' '}
               &ldquo;…{sfx.cue_text}&rdquo; → <span className="font-semibold" style={{ color: categoryColor?.color ?? '#8b949e', fontStyle: 'normal' }}>{sfx.sfx_category ?? 'SFX'}</span>
             </div>
@@ -74,13 +74,13 @@ export function SFXItemCard({ sfx }: SFXItemCardProps) {
 
           <div className="flex items-center gap-1.5 flex-wrap">
             {hasFile && (
-              <span className="text-[9px] font-semibold" style={{ color: isStrongLocal ? RESOLVE_COLORS.LOCAL.color : isLocal && lowScore ? RESOLVE_COLORS.PENDING_MATCH.color : '#c9d1d9' }}>
+              <span className="text-[10px] font-semibold" style={{ color: isStrongLocal ? RESOLVE_COLORS.LOCAL.color : isLocal && lowScore ? RESOLVE_COLORS.PENDING_MATCH.color : '#c9d1d9' }}>
                 {sfx.original_filename}
               </span>
             )}
             {resolveStatus && (
               <span
-                className="text-[9px] px-[6px] py-px rounded font-semibold"
+                className="text-[10px] px-[6px] py-px rounded font-semibold"
                 style={{ background: resolveStatus.bg, color: resolveStatus.color }}
               >
                 {resolveStatus.label}
@@ -105,7 +105,7 @@ export function SFXItemCard({ sfx }: SFXItemCardProps) {
           {sfx.search_terms && (
             <div className="flex items-center gap-[5px] flex-wrap mt-1.5" role="group" aria-label="Termos de busca no Artlist">
               <span
-                className="text-[9px] px-[6px] py-px rounded font-semibold"
+                className="text-[10px] px-[6px] py-px rounded font-semibold"
                 style={{ background: 'rgba(59,130,246,0.12)', color: RESOLVE_COLORS.NO_MATCH.color }}
                 aria-hidden="true"
               >
@@ -117,7 +117,7 @@ export function SFXItemCard({ sfx }: SFXItemCardProps) {
                   href={buildArtlistSfxUrl(term) ?? '#'}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-[9px] font-medium rounded-full px-[6px] py-px transition-colors"
+                  className="text-[10px] font-medium rounded-full px-[6px] py-px transition-colors"
                   style={{ background: 'rgba(251,191,36,0.1)', color: '#fbbf24' }}
                 >
                   {term} ↗

@@ -142,12 +142,12 @@ export function PromptGeneratorModal({
           <button
             type="button"
             onClick={() => setShowPreview(!showPreview)}
-            className="text-[11px] hover:underline focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)] focus-visible:outline-none rounded"
+            className="text-xs hover:underline focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)] focus-visible:outline-none rounded"
             style={{ color: 'var(--gem-accent)' }}
           >
             {showPreview ? 'Ocultar prompt' : 'Ver prompt completo'}
           </button>
-          <span className="text-[11px]" style={{ color: 'var(--gem-dim)' }}>
+          <span className="text-xs" style={{ color: 'var(--gem-dim)' }}>
             {sections.length} seções · ~{wordCount} palavras
             {wasTruncated && ' (truncado)'}
           </span>
@@ -155,7 +155,7 @@ export function PromptGeneratorModal({
 
         {showPreview && (
           <pre
-            className="mt-2 p-2.5 rounded-md text-[11px] overflow-y-auto"
+            className="mt-2 p-2.5 rounded-md text-xs overflow-y-auto"
             style={{
               maxHeight: '200px',
               background: 'var(--gem-well)',
@@ -169,7 +169,7 @@ export function PromptGeneratorModal({
 
         {/* Actions */}
         <div className="flex justify-between items-center mt-3">
-          <span className="text-[11px]" style={{ color: 'var(--gem-dim)' }}>
+          <span className="text-xs" style={{ color: 'var(--gem-dim)' }}>
             Cole no Claude Code
           </span>
           <div className="flex gap-1.5 items-center">

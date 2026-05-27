@@ -65,8 +65,8 @@ function BeatsOverview({ beats }: { beats: RoteiroBeat[] }) {
               <td className="px-3 py-1 font-bold tabular-nums" style={{ color: 'var(--gem-accent)' }}>#{b.idx + 1}</td>
               <td className="px-2 py-1 font-medium truncate" style={{ color: 'var(--gem-muted)' }}>{b.name}</td>
               <td className="px-2 py-1 text-center text-[8px] font-bold uppercase" style={{ color: b.status === 'DONE' ? 'var(--gem-done, #22c55e)' : 'var(--gem-dim)' }}>{b.status === 'DONE' ? '✓' : '―'}</td>
-              <td className="px-2 py-1 text-right tabular-nums font-mono text-[9px]" style={{ color: 'var(--gem-dim)' }}>{b.duration ? fmtDur(b.duration) : '-'}</td>
-              <td className="px-3 py-1 text-right tabular-nums font-mono text-[9px]" style={{ color: 'var(--gem-dim)' }}>~{beatReadTime(b)}s</td>
+              <td className="px-2 py-1 text-right tabular-nums font-mono text-[10px]" style={{ color: 'var(--gem-dim)' }}>{b.duration ? fmtDur(b.duration) : '-'}</td>
+              <td className="px-3 py-1 text-right tabular-nums font-mono text-[10px]" style={{ color: 'var(--gem-dim)' }}>~{beatReadTime(b)}s</td>
             </tr>
           ))}
         </tbody>
@@ -75,8 +75,8 @@ function BeatsOverview({ beats }: { beats: RoteiroBeat[] }) {
             <td className="px-3 py-1.5" />
             <td className="px-2 py-1.5 font-semibold" style={{ color: 'var(--gem-muted)' }}>Total</td>
             <td className="px-2 py-1.5" />
-            <td className="px-2 py-1.5 text-right tabular-nums font-mono text-[9px] font-semibold" style={{ color: 'var(--gem-muted)' }}>{fmtDur(totalDur)}</td>
-            <td className="px-3 py-1.5 text-right tabular-nums font-mono text-[9px] font-semibold" style={{ color: 'var(--gem-muted)' }}>~{totalRead}s</td>
+            <td className="px-2 py-1.5 text-right tabular-nums font-mono text-[10px] font-semibold" style={{ color: 'var(--gem-muted)' }}>{fmtDur(totalDur)}</td>
+            <td className="px-3 py-1.5 text-right tabular-nums font-mono text-[10px] font-semibold" style={{ color: 'var(--gem-muted)' }}>~{totalRead}s</td>
           </tr>
         </tfoot>
       </table>
@@ -173,7 +173,7 @@ export function ScriptEditMode({ content, isEditing, onChange }: ScriptEditModeP
         <button
           type="button"
           onClick={handlePrint}
-          className="flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-medium transition-colors hover:bg-white/5"
+          className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium transition-colors hover:bg-white/5"
           style={{ color: 'var(--gem-dim)', border: '1px solid var(--gem-border)' }}
           title="Imprimir roteiro (Ctrl+P)"
         >
@@ -218,7 +218,7 @@ export function ScriptEditMode({ content, isEditing, onChange }: ScriptEditModeP
         <button
           type="button"
           onClick={handleAddBeat}
-          className="w-full flex items-center justify-center gap-1.5 py-2 rounded-md text-[11px] font-medium transition-colors hover:bg-white/5"
+          className="w-full flex items-center justify-center gap-1.5 py-2 rounded-md text-xs font-medium transition-colors hover:bg-white/5"
           style={{
             color: 'var(--gem-dim)',
             border: '1px dashed var(--gem-border)',
@@ -231,7 +231,7 @@ export function ScriptEditMode({ content, isEditing, onChange }: ScriptEditModeP
 
       {/* Empty state */}
       {content.beats.length === 0 && !isEditing && (
-        <div className="text-[11px] text-center py-4" style={{ color: 'var(--gem-dim)' }}>
+        <div className="text-xs text-center py-4" style={{ color: 'var(--gem-dim)' }}>
           Nenhum beat encontrado no roteiro.
         </div>
       )}

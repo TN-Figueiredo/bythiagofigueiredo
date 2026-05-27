@@ -116,7 +116,7 @@ function useSlugValidation(slug: string, blogPostId: string | null) {
 function SeoWarning({ message }: { message: string }) {
   return (
     <div
-      className="mb-3 flex items-center gap-2 rounded-md px-3 py-2 text-[11px]"
+      className="mb-3 flex items-center gap-2 rounded-md px-3 py-2 text-xs"
       style={{
         background: 'color-mix(in srgb, var(--gem-warn) 8%, transparent)',
         border: '1px solid color-mix(in srgb, var(--gem-warn) 25%, transparent)',
@@ -137,7 +137,7 @@ function SectionOutline({ headings }: { headings: string[] }) {
       style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}
     >
       <span
-        className="text-[9px] font-bold uppercase tracking-widest mr-1"
+        className="text-[10px] font-bold uppercase tracking-widest mr-1"
         style={{ color: 'var(--gem-dim)' }}
       >
         Seções
@@ -146,7 +146,7 @@ function SectionOutline({ headings }: { headings: string[] }) {
         <span key={i} className="contents">
           {i > 0 && <span style={{ color: 'var(--gem-border)' }}>·</span>}
           <span
-            className="text-[11px]"
+            className="text-xs"
             style={{ color: i === 0 ? 'var(--gem-accent)' : 'var(--gem-muted)' }}
           >
             {h}
@@ -204,7 +204,7 @@ export function DraftRenderer({ content, isEditing, lang, format, onContentChang
 
   if (!isEditing && isEmpty && !isBlogPost) {
     return (
-      <div className="p-5 text-[11px] text-center py-8" style={{ color: 'var(--gem-dim)' }}>
+      <div className="p-5 text-xs text-center py-8" style={{ color: 'var(--gem-dim)' }}>
         Nenhum rascunho ainda.
       </div>
     )

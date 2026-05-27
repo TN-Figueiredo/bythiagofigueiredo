@@ -34,12 +34,12 @@ function SfxRecCard({ rec, index }: { rec: SfxRecommendation; index: number }) {
         className="w-full flex items-center gap-1.5 px-2 py-1.5 text-left"
         style={{ background: 'transparent' }}
       >
-        <span className="text-[9px] font-mono min-w-3 font-bold" style={{ color: '#4b5563' }}>#{rank}</span>
+        <span className="text-[10px] font-mono min-w-3 font-bold" style={{ color: '#4b5563' }}>#{rank}</span>
         {rec.preferred && (
           <span className="text-[7px] font-bold uppercase px-1 py-px rounded" style={{ background: 'rgba(16,185,129,0.1)', color: '#10b981' }}>★</span>
         )}
         <span className="text-[10px] font-medium truncate" style={{ color: '#94a3b8' }}>{rec.title}</span>
-        <span className="text-[9px] truncate" style={{ color: '#5a6b7f' }}>— {rec.artist}</span>
+        <span className="text-[10px] truncate" style={{ color: '#5a6b7f' }}>— {rec.artist}</span>
         <span className="text-[8px] px-1 py-px rounded font-semibold flex-shrink-0" style={{ background: status.bg, color: status.color }}>
           {status.label}
         </span>
@@ -52,7 +52,7 @@ function SfxRecCard({ rec, index }: { rec: SfxRecommendation; index: number }) {
       {expanded && (
         <div className="px-2 pb-2 space-y-1.5" style={{ borderTop: '1px solid rgba(255,255,255,0.03)', paddingLeft: 24 }}>
           {rec.original_filename && (
-            <div className="text-[9px] font-mono" style={{ color: '#6b7280' }}>{rec.original_filename}</div>
+            <div className="text-[10px] font-mono" style={{ color: '#6b7280' }}>{rec.original_filename}</div>
           )}
           {rec.reasoning && <CoworkReasoning text={rec.reasoning} />}
           {rec.category && (

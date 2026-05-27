@@ -25,7 +25,7 @@ export function SectionToolbar({
           {showLang && <span className="text-[10px] font-bold" style={{ color: 'var(--gem-accent)' }}>{lang.toUpperCase()}</span>}
         </span>
         {isDirty && (
-          <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: 'color-mix(in srgb, var(--gem-warn) 12%, transparent)', color: 'var(--gem-warn)' }}>
+          <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'color-mix(in srgb, var(--gem-warn) 12%, transparent)', color: 'var(--gem-warn)' }}>
             ✏️ não salvo
           </span>
         )}

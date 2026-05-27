@@ -174,3 +174,4 @@ export interface YouTubePageData {
 }
 
 export type SyncMode = 'schedule' | 'catchall' | 'metrics' | 'manual'
+export type SyncStatus = 'started' | 'completed' | 'failed' | 'skipped'

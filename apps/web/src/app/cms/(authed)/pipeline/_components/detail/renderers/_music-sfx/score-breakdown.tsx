@@ -13,7 +13,7 @@ export function ScoreBreakdown({ breakdown }: ScoreBreakdownProps) {
 
   return (
     <div className="p-2 rounded-md" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)' }} aria-label="Detalhamento de pontuação">
-      <div className="text-[9px] font-semibold uppercase tracking-wider mb-2" style={{ color: '#94a3b8' }}>
+      <div className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: '#94a3b8' }}>
         Detalhamento
       </div>
       <div className="grid grid-cols-1 gap-1">
@@ -22,11 +22,11 @@ export function ScoreBreakdown({ breakdown }: ScoreBreakdownProps) {
           const pct = max > 0 ? (score / max) * 100 : 0
           return (
             <div key={key} className="flex items-center gap-1.5">
-              <span className="text-[9px] min-w-[68px]" style={{ color: '#94a3b8' }}>{key}</span>
+              <span className="text-[10px] min-w-[68px]" style={{ color: '#94a3b8' }}>{key}</span>
               <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
                 <div className="h-full rounded-full" style={{ width: `${pct}%`, background: color }} />
               </div>
-              <span className="text-[9px] font-mono min-w-[24px] text-right" style={{ color }}>{score}/{max}</span>
+              <span className="text-[10px] font-mono min-w-[24px] text-right" style={{ color }}>{score}/{max}</span>
             </div>
           )
         })}
@@ -39,7 +39,7 @@ export function ScoreBreakdown({ breakdown }: ScoreBreakdownProps) {
             style={{ width: `${totalMax > 0 ? (total / totalMax) * 100 : 0}%`, background: `linear-gradient(90deg, ${RESOLVE_COLORS.LOCAL.color}, #a78bfa)` }}
           />
         </div>
-        <span className="text-[11px] font-bold font-mono" style={{ color: RESOLVE_COLORS.LOCAL.color }}>{total}/{totalMax}</span>
+        <span className="text-xs font-bold font-mono" style={{ color: RESOLVE_COLORS.LOCAL.color }}>{total}/{totalMax}</span>
       </div>
     </div>
   )

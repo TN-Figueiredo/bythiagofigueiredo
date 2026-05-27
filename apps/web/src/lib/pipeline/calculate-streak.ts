@@ -5,7 +5,7 @@ import type { StreakInput, StreakResult } from './up-next-types'
 function isoWeekKey(date: Date): string {
   const week = getISOWeek(date)
   const year = getISOWeekYear(date)
-  return `${year}-W${week}`
+  return `${year}-W${String(week).padStart(2, '0')}`
 }
 
 function hasExpectedSlots(
@@ -33,7 +33,7 @@ export function calculateStreak(input: StreakInput): StreakResult {
     publishedWeeks.add(isoWeekKey(zonedDate))
   }
 
-  const now = input.now ?? new Date()
+  const now = input.now
   const nowZoned = toZonedTime(now, siteTimezone)
   const currentWeekKey = isoWeekKey(nowZoned)
 
@@ -41,6 +41,7 @@ export function calculateStreak(input: StreakInput): StreakResult {
 
   let streak = 0
   let graceCount = 0
+  let hasAnchor = false
   const MAX_CONSECUTIVE_GRACE = 4
 
   for (let i = 0; i < 52; i++) {
@@ -50,10 +51,11 @@ export function calculateStreak(input: StreakInput): StreakResult {
     if (publishedWeeks.has(weekKey)) {
       streak += 1 + graceCount
       graceCount = 0
+      hasAnchor = true
       continue
     }
 
-    if (!hasExpectedSlots(syncSchedules, blogCadence) && graceCount < MAX_CONSECUTIVE_GRACE) {
+    if (hasAnchor && !hasExpectedSlots(syncSchedules, blogCadence) && graceCount < MAX_CONSECUTIVE_GRACE) {
       graceCount++
       continue
     }

@@ -102,7 +102,7 @@ export function PostProductionView({
 
   if (beats.length === 0) {
     return (
-      <div className="p-5 text-[11px] text-center" style={{ color: TH.dim }}>
+      <div className="p-5 text-xs text-center" style={{ color: TH.dim }}>
         Nenhum beat de pós-produção disponível.
       </div>
     )

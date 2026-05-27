@@ -147,7 +147,7 @@ function charCount(text: string): React.ReactNode {
     label = 'truncado'
   }
   return (
-    <span className="text-[9px] ml-1.5 px-1.5 py-0.5 rounded-full" style={{ color, background: `${color}15` }}>
+    <span className="text-[10px] ml-1.5 px-1.5 py-0.5 rounded-full" style={{ color, background: `${color}15` }}>
       {count} chars · {label}
     </span>
   )
@@ -267,7 +267,7 @@ function EndScreenContent({ rawContent, text, isEditing, onTextChange }: {
           </div>
         )}
         {typeof obj.video_suggestion === 'string' && (
-          <div className="text-[11px]" style={{ color: 'var(--gem-muted)' }}>
+          <div className="text-xs" style={{ color: 'var(--gem-muted)' }}>
             <span style={{ color: 'var(--gem-dim)' }}>Sugestão: </span>
             <span className="font-medium" style={{ color: 'var(--gem-text)' }}>{obj.video_suggestion}</span>
           </div>
@@ -277,7 +277,7 @@ function EndScreenContent({ rawContent, text, isEditing, onTextChange }: {
   }
 
   return (
-    <div className="p-3 rounded-md text-[11px]"
+    <div className="p-3 rounded-md text-xs"
       style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)', color: 'var(--gem-muted)' }}
       role={isEditing ? 'textbox' : undefined}
       aria-label="End screen"
@@ -303,7 +303,7 @@ function BlogPublishedPanel({ blogSlug, socialPostId }: { blogSlug?: string | nu
     <div className="mt-4 p-4 rounded-lg" style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}>
       <div className="flex items-center gap-2 mb-3">
         <div className="w-2.5 h-2.5 rounded-full" style={{ background: '#22c55e' }} />
-        <span className="text-[11px] font-medium" style={{ color: 'var(--gem-text)' }}>
+        <span className="text-xs font-medium" style={{ color: 'var(--gem-text)' }}>
           Publicado
         </span>
       </div>
@@ -314,7 +314,7 @@ function BlogPublishedPanel({ blogSlug, socialPostId }: { blogSlug?: string | nu
             href={`/blog/${blogSlug}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center justify-center gap-2 text-[11px] font-medium py-2 px-3 rounded-md transition-opacity hover:opacity-90"
+            className="flex items-center justify-center gap-2 text-xs font-medium py-2 px-3 rounded-md transition-opacity hover:opacity-90"
             style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981', border: '1px solid rgba(16,185,129,0.3)' }}
           >
             Ver post no site
@@ -324,7 +324,7 @@ function BlogPublishedPanel({ blogSlug, socialPostId }: { blogSlug?: string | nu
         {socialPostId ? (
           <Link
             href={`/cms/social/${socialPostId}`}
-            className="flex items-center justify-center gap-2 text-[11px] font-medium py-2 px-3 rounded-md transition-opacity hover:opacity-90"
+            className="flex items-center justify-center gap-2 text-xs font-medium py-2 px-3 rounded-md transition-opacity hover:opacity-90"
             style={{ background: 'rgba(139,92,246,0.15)', color: '#8b5cf6', border: '1px solid rgba(139,92,246,0.3)' }}
           >
             Ver post social
@@ -332,7 +332,7 @@ function BlogPublishedPanel({ blogSlug, socialPostId }: { blogSlug?: string | nu
         ) : (
           <Link
             href="/cms/social"
-            className="flex items-center justify-center gap-2 text-[11px] font-medium py-2 px-3 rounded-md transition-opacity hover:opacity-90"
+            className="flex items-center justify-center gap-2 text-xs font-medium py-2 px-3 rounded-md transition-opacity hover:opacity-90"
             style={{ background: 'var(--gem-accent)', color: '#fff' }}
           >
             Compartilhar nas Redes
@@ -348,7 +348,7 @@ function BlogScheduledPanel() {
     <div className="mt-4 p-4 rounded-lg" style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}>
       <div className="flex items-center gap-2">
         <div className="w-2.5 h-2.5 rounded-full" style={{ background: '#8b5cf6' }} />
-        <span className="text-[11px] font-medium" style={{ color: 'var(--gem-text)' }}>
+        <span className="text-xs font-medium" style={{ color: 'var(--gem-text)' }}>
           Agendado — aguardando publicação
         </span>
       </div>
@@ -423,7 +423,7 @@ function BlogDraftPublishPanel({ pipelineItemId, vvsScore }: { pipelineItemId: s
           className="w-2.5 h-2.5 rounded-full"
           style={{ background: ready ? '#22c55e' : '#ef4444' }}
         />
-        <span className="text-[11px] font-medium" style={{ color: 'var(--gem-text)' }}>
+        <span className="text-xs font-medium" style={{ color: 'var(--gem-text)' }}>
           {ready ? 'Pronto para publicar' : `Precisa de ${80 - vvsScore} pontos mais`}
         </span>
         <span className="text-[10px] ml-auto" style={{ color: 'var(--gem-dim)' }}>
@@ -435,7 +435,7 @@ function BlogDraftPublishPanel({ pipelineItemId, vvsScore }: { pipelineItemId: s
         <button
           disabled={!ready || isPublishing}
           onClick={() => setShowSchedule(true)}
-          className="flex-1 text-[11px] font-medium py-2 px-3 rounded-md transition-opacity disabled:opacity-40"
+          className="flex-1 text-xs font-medium py-2 px-3 rounded-md transition-opacity disabled:opacity-40"
           style={{ background: 'rgba(139,92,246,0.15)', color: '#8b5cf6', border: '1px solid rgba(139,92,246,0.3)' }}
         >
           Agendar
@@ -443,7 +443,7 @@ function BlogDraftPublishPanel({ pipelineItemId, vvsScore }: { pipelineItemId: s
         <button
           disabled={!ready || isPublishing}
           onClick={handlePublishNow}
-          className="flex-1 text-[11px] font-medium py-2 px-3 rounded-md transition-opacity disabled:opacity-40"
+          className="flex-1 text-xs font-medium py-2 px-3 rounded-md transition-opacity disabled:opacity-40"
           style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981', border: '1px solid rgba(16,185,129,0.3)' }}
         >
           {isPublishing ? 'Publicando...' : 'Publicar Agora'}
@@ -460,7 +460,7 @@ function BlogDraftPublishPanel({ pipelineItemId, vvsScore }: { pipelineItemId: s
             value={scheduledFor}
             min={minDateTime}
             onChange={(e) => setScheduledFor(e.target.value)}
-            className="w-full text-[11px] p-2 rounded-md mb-2"
+            className="w-full text-xs p-2 rounded-md mb-2"
             style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)', color: 'var(--gem-text)' }}
           />
           <div className="flex gap-2">
@@ -530,14 +530,14 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
 
             {data.title.alternatives && data.title.alternatives.length > 0 && (
               <div className="mt-2 space-y-1">
-                <div className="text-[9px]" style={{ color: 'var(--gem-dim)' }}>Alternativas:</div>
+                <div className="text-[10px]" style={{ color: 'var(--gem-dim)' }}>Alternativas:</div>
                 {data.title.alternatives.map((alt, i) => (
                   <div
                     key={`alt-${i}-${alt.slice(0, 20)}`}
-                    className="flex items-start gap-2 text-[11px] pl-2"
+                    className="flex items-start gap-2 text-xs pl-2"
                     style={{ color: 'var(--gem-muted)', borderLeft: '2px solid var(--gem-border)' }}
                   >
-                    <span className="text-[9px] font-bold flex-shrink-0 w-4 h-4 rounded-full flex items-center justify-center"
+                    <span className="text-[10px] font-bold flex-shrink-0 w-4 h-4 rounded-full flex items-center justify-center"
                       style={{ background: 'var(--gem-accent)', color: 'white', opacity: 0.7 }}>
                       {i + 1}
                     </span>
@@ -570,7 +570,7 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
           <SectionLabel>
             Descrição
             {data.description && (
-              <span className="text-[9px] font-normal ml-2" style={{ color: data.description.length > 200 ? '#eab308' : 'var(--gem-dim)' }}>
+              <span className="text-[10px] font-normal ml-2" style={{ color: data.description.length > 200 ? '#eab308' : 'var(--gem-dim)' }}>
                 {data.description.length} chars
                 {data.description.length > 200 && ' · acima do fold'}
               </span>
@@ -578,7 +578,7 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
           </SectionLabel>
           {isEditing ? (
             <div
-              className="p-3 rounded-md text-[11px] leading-relaxed whitespace-pre-wrap"
+              className="p-3 rounded-md text-xs leading-relaxed whitespace-pre-wrap"
               style={{
                 background: 'var(--gem-well)',
                 border: '1px solid var(--gem-border)',
@@ -596,7 +596,7 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
             </div>
           ) : (
             <div
-              className="p-3 rounded-md text-[11px] leading-relaxed whitespace-pre-wrap"
+              className="p-3 rounded-md text-xs leading-relaxed whitespace-pre-wrap"
               style={{
                 background: 'var(--gem-well)',
                 border: '1px solid var(--gem-border)',
@@ -612,12 +612,12 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
 
       {data.tags && data.tags.length > 0 && (
         <div>
-          <SectionLabel>Tags <span className="text-[9px] font-normal ml-1" style={{ color: 'var(--gem-dim)' }}>{data.tags.length}</span></SectionLabel>
+          <SectionLabel>Tags <span className="text-[10px] font-normal ml-1" style={{ color: 'var(--gem-dim)' }}>{data.tags.length}</span></SectionLabel>
           <div className="flex flex-wrap gap-1.5">
             {data.tags.map((tag, i) => (
               <span
                 key={`tag-${i}-${tag.slice(0, 20)}`}
-                className="text-[11px] px-2 py-0.5 rounded-full"
+                className="text-xs px-2 py-0.5 rounded-full"
                 style={{
                   background: 'rgba(167,139,250,0.1)',
                   border: '1px solid rgba(167,139,250,0.25)',
@@ -645,7 +645,7 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
                   <span className="font-mono text-[10px] flex-shrink-0" style={{ color: 'var(--gem-accent)' }}>
                     {card.timestamp}
                   </span>
-                  <span className="text-[11px] flex-1" style={{ color: 'var(--gem-muted)' }}
+                  <span className="text-xs flex-1" style={{ color: 'var(--gem-muted)' }}
                     role={isEditing ? 'textbox' : undefined}
                     aria-label={`Texto do card ${card.timestamp}`}
                     contentEditable={isEditing}
@@ -661,7 +661,7 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
                     {card.text}
                   </span>
                   {card.type && (
-                    <span className="text-[9px] px-1.5 py-0.5 rounded flex-shrink-0" style={getCardTypeStyle(card.type)}>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded flex-shrink-0" style={getCardTypeStyle(card.type)}>
                       {card.type}
                     </span>
                   )}
@@ -698,9 +698,9 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
                       style={{ left: -21, top: 1, background: 'var(--gem-accent)', color: 'white' }}>
                       {i + 1}
                     </div>
-                    <div className="text-[11px]" style={{ color: 'var(--gem-muted)' }}>
+                    <div className="text-xs" style={{ color: 'var(--gem-muted)' }}>
                       {phase && (
-                        <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded mr-1.5"
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded mr-1.5"
                           style={{ background: 'rgba(167,139,250,0.1)', color: 'var(--gem-accent)' }}>
                           {phase}
                         </span>
@@ -727,7 +727,7 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
                     <select
                       value={data.platform ?? ''}
                       onChange={(e) => onContentChange({ ...data, platform: e.target.value || undefined })}
-                      className="flex-1 text-[11px] p-1.5 rounded-md"
+                      className="flex-1 text-xs p-1.5 rounded-md"
                       style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)', color: 'var(--gem-text)' }}
                     >
                       <option value="">Selecionar plataforma...</option>
@@ -743,7 +743,7 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
                     value={data.platform_url ?? ''}
                     placeholder="URL da plataforma..."
                     onChange={(e) => onContentChange({ ...data, platform_url: e.target.value || undefined })}
-                    className="w-full text-[11px] p-1.5 rounded-md"
+                    className="w-full text-xs p-1.5 rounded-md"
                     style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)', color: 'var(--gem-text)' }}
                   />
                   <input
@@ -751,12 +751,12 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
                     value={data.sales_page_url ?? ''}
                     placeholder="URL da página de vendas..."
                     onChange={(e) => onContentChange({ ...data, sales_page_url: e.target.value || undefined })}
-                    className="w-full text-[11px] p-1.5 rounded-md"
+                    className="w-full text-xs p-1.5 rounded-md"
                     style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)', color: 'var(--gem-text)' }}
                   />
                 </div>
               ) : (
-                <div className="flex items-center gap-2 flex-wrap text-[11px]" style={{ color: 'var(--gem-muted)' }}>
+                <div className="flex items-center gap-2 flex-wrap text-xs" style={{ color: 'var(--gem-muted)' }}>
                   {data.platform && (
                     <span className="px-2 py-1 rounded-md" style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}>
                       {data.platform}
@@ -804,7 +804,7 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
                     onChange={(e) => onContentChange({ ...data, subheadline: e.target.value })}
                     placeholder="Subheadline..."
                     rows={2}
-                    className="mt-1 w-full p-2 text-[11px] rounded-md resize-none"
+                    className="mt-1 w-full p-2 text-xs rounded-md resize-none"
                     style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)', color: 'var(--gem-muted)' }}
                   />
                 </>
@@ -818,7 +818,7 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
                   </div>
                   {data.subheadline && (
                     <div
-                      className="mt-1 p-2 text-[11px]"
+                      className="mt-1 p-2 text-xs"
                       style={{ color: 'var(--gem-muted)' }}
                     >
                       {data.subheadline}
@@ -845,7 +845,7 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
                           updated[i] = e.target.value
                           onContentChange({ ...data, bullet_points: updated })
                         }}
-                        className="flex-1 text-[11px] p-2 rounded-md"
+                        className="flex-1 text-xs p-2 rounded-md"
                         style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)', color: 'var(--gem-text)' }}
                       />
                       <button
@@ -867,7 +867,7 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
               ) : (
                 <div className="space-y-1.5">
                   {data.bullet_points!.map((point, i) => (
-                    <div key={`bp-read-${i}-${point.slice(0, 20)}`} className="flex items-start gap-2 text-[11px]" style={{ color: 'var(--gem-muted)' }}>
+                    <div key={`bp-read-${i}-${point.slice(0, 20)}`} className="flex items-start gap-2 text-xs" style={{ color: 'var(--gem-muted)' }}>
                       <span style={{ color: 'var(--gem-done)' }}>✓</span>
                       <span>{point}</span>
                     </div>
@@ -891,7 +891,7 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
                           value={t.name}
                           placeholder="Nome"
                           onChange={(e) => { const u = [...(data.testimonials ?? [])]; u[i] = { name: e.target.value, text: t.text, result: t.result }; onContentChange({ ...data, testimonials: u }) }}
-                          className="flex-1 text-[11px] p-1.5 rounded"
+                          className="flex-1 text-xs p-1.5 rounded"
                           style={{ background: 'var(--gem-surface)', border: '1px solid var(--gem-border)', color: 'var(--gem-text)' }}
                         />
                         <input
@@ -899,7 +899,7 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
                           value={t.result}
                           placeholder="Resultado"
                           onChange={(e) => { const u = [...(data.testimonials ?? [])]; u[i] = { name: t.name, text: t.text, result: e.target.value }; onContentChange({ ...data, testimonials: u }) }}
-                          className="flex-1 text-[11px] p-1.5 rounded"
+                          className="flex-1 text-xs p-1.5 rounded"
                           style={{ background: 'var(--gem-surface)', border: '1px solid var(--gem-border)', color: 'var(--gem-text)' }}
                         />
                         <button
@@ -913,7 +913,7 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
                         placeholder="Depoimento..."
                         onChange={(e) => { const u = [...(data.testimonials ?? [])]; u[i] = { name: t.name, text: e.target.value, result: t.result }; onContentChange({ ...data, testimonials: u }) }}
                         rows={2}
-                        className="w-full text-[11px] p-1.5 rounded resize-none"
+                        className="w-full text-xs p-1.5 rounded resize-none"
                         style={{ background: 'var(--gem-surface)', border: '1px solid var(--gem-border)', color: 'var(--gem-text)' }}
                       />
                     </div>
@@ -928,7 +928,7 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
                 <div className="space-y-2">
                   {data.testimonials!.map((t, i) => (
                     <div key={`t-read-${i}-${t.name.slice(0, 20)}`} className="p-3 rounded-md" style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}>
-                      <p className="text-[11px] italic" style={{ color: 'var(--gem-muted)' }}>"{t.text}"</p>
+                      <p className="text-xs italic" style={{ color: 'var(--gem-muted)' }}>"{t.text}"</p>
                       <div className="flex justify-between mt-1.5 text-[10px]">
                         <span style={{ color: 'var(--gem-text)' }}>{t.name}</span>
                         <span style={{ color: 'var(--gem-done)' }}>{t.result}</span>
@@ -954,7 +954,7 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
                           value={item.question}
                           placeholder="Pergunta"
                           onChange={(e) => { const u = [...(data.faq ?? [])]; u[i] = { question: e.target.value, answer: item.answer }; onContentChange({ ...data, faq: u }) }}
-                          className="flex-1 text-[11px] font-medium p-1.5 rounded"
+                          className="flex-1 text-xs font-medium p-1.5 rounded"
                           style={{ background: 'var(--gem-surface)', border: '1px solid var(--gem-border)', color: 'var(--gem-text)' }}
                         />
                         <button
@@ -968,7 +968,7 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
                         placeholder="Resposta..."
                         onChange={(e) => { const u = [...(data.faq ?? [])]; u[i] = { question: item.question, answer: e.target.value }; onContentChange({ ...data, faq: u }) }}
                         rows={2}
-                        className="w-full text-[11px] p-1.5 rounded resize-none"
+                        className="w-full text-xs p-1.5 rounded resize-none"
                         style={{ background: 'var(--gem-surface)', border: '1px solid var(--gem-border)', color: 'var(--gem-text)' }}
                       />
                     </div>
@@ -983,10 +983,10 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
                 <div className="space-y-2">
                   {data.faq!.map((item, i) => (
                     <details key={`faq-read-${i}-${item.question.slice(0, 20)}`} className="p-3 rounded-md group" style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}>
-                      <summary className="text-[11px] font-medium cursor-pointer" style={{ color: 'var(--gem-text)' }}>
+                      <summary className="text-xs font-medium cursor-pointer" style={{ color: 'var(--gem-text)' }}>
                         {item.question}
                       </summary>
-                      <p className="mt-2 text-[11px]" style={{ color: 'var(--gem-muted)' }}>{item.answer}</p>
+                      <p className="mt-2 text-xs" style={{ color: 'var(--gem-muted)' }}>{item.answer}</p>
                     </details>
                   ))}
                 </div>
@@ -1006,11 +1006,11 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
                       value={data.cta_text ?? ''}
                       placeholder="Texto do CTA..."
                       onChange={(e) => onContentChange({ ...data, cta_text: e.target.value })}
-                      className="w-full p-2 rounded-md text-center text-[11px] font-medium"
+                      className="w-full p-2 rounded-md text-center text-xs font-medium"
                       style={{ background: 'var(--gem-accent)', color: 'white' }}
                     />
                   ) : (
-                    <div className="p-2 rounded-md text-center text-[11px] font-medium" style={{ background: 'var(--gem-accent)', color: 'white' }}>
+                    <div className="p-2 rounded-md text-center text-xs font-medium" style={{ background: 'var(--gem-accent)', color: 'white' }}>
                       {data.cta_text}
                     </div>
                   )}
@@ -1025,11 +1025,11 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
                       value={data.guarantee ?? ''}
                       placeholder="Ex: 30 dias de garantia..."
                       onChange={(e) => onContentChange({ ...data, guarantee: e.target.value })}
-                      className="w-full p-2 rounded-md text-[11px]"
+                      className="w-full p-2 rounded-md text-xs"
                       style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)', color: 'var(--gem-text)' }}
                     />
                   ) : (
-                    <div className="p-2 rounded-md text-[11px]" style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)', color: 'var(--gem-muted)' }}>
+                    <div className="p-2 rounded-md text-xs" style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)', color: 'var(--gem-muted)' }}>
                       {data.guarantee}
                     </div>
                   )}
@@ -1041,13 +1041,13 @@ export function PublishRenderer({ content, isEditing, onContentChange, pipelineI
       )}
 
       {!data.title && !data.description && !data.tags?.length && !data.cards?.length && !data.end_screen && !data.strategy?.length && !isBlogPost && !isCourse && (
-        <div className="text-[11px] text-center py-4" style={{ color: 'var(--gem-dim)' }}>
+        <div className="text-xs text-center py-4" style={{ color: 'var(--gem-dim)' }}>
           Nenhuma informação de publicação disponível.
         </div>
       )}
 
       {isCourse && !data.headline && !data.bullet_points?.length && !data.testimonials?.length && !data.faq?.length && !data.cta_text && !data.platform && !data.sales_page_url && (
-        <div className="text-[11px] text-center py-6 rounded-lg" style={{ color: 'var(--gem-dim)', background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}>
+        <div className="text-xs text-center py-6 rounded-lg" style={{ color: 'var(--gem-dim)', background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}>
           <p className="mb-1 font-medium">Página de vendas ainda não configurada</p>
           <p>Use o Cowork para gerar headline, argumentos, depoimentos e FAQ.</p>
         </div>

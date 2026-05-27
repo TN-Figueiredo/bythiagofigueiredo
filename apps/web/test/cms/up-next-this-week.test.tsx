@@ -196,12 +196,12 @@ describe('UpNextThisWeek', () => {
 
   it('shows streak when >= 2', () => {
     render(<UpNextThisWeek {...makeProps({ streak: { currentStreak: 5, isActive: true } })} />)
-    expect(screen.getByText(/Streak: 5 semanas/)).toBeDefined()
+    expect(screen.getByText(/Sequência: 5 semanas/)).toBeDefined()
   })
 
   it('does not show streak when < 2', () => {
     render(<UpNextThisWeek {...makeProps({ streak: { currentStreak: 1, isActive: true } })} />)
-    expect(screen.queryByText(/Streak/)).toBeNull()
+    expect(screen.queryByText(/Sequência/)).toBeNull()
   })
 
   it('shows backlog count', () => {
@@ -606,7 +606,7 @@ describe('UpNextThisWeek', () => {
         {...makeProps({ streak: { currentStreak: 5, isActive: true } })}
       />
     )
-    const streakEl = screen.getByText(/Streak: 5 semanas/)
+    const streakEl = screen.getByText(/Sequência: 5 semanas/)
     expect(streakEl.textContent).not.toContain('pausado')
   })
 
@@ -616,7 +616,7 @@ describe('UpNextThisWeek', () => {
         {...makeProps({ streak: { currentStreak: 1, isActive: false } })}
       />
     )
-    expect(screen.queryByText(/Streak/)).toBeNull()
+    expect(screen.queryByText(/Sequência/)).toBeNull()
   })
 
   it('renders rest-day slot with dashed border and em-dash', () => {

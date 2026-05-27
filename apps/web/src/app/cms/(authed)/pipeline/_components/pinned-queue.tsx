@@ -11,7 +11,7 @@ const MAX_PINS = 3
 
 const STAGE_SHORT: Record<string, string> = {
   idea: 'ideia', outline: 'roteiro', draft: 'rascunho', roteiro: 'roteiro',
-  gravacao: 'gravacao', edicao: 'edicao', pos_producao: 'pos',
+  gravacao: 'gravação', edicao: 'edição', pos_producao: 'pós',
   ready: 'pronto', scheduled: 'agendado',
 }
 
@@ -34,9 +34,10 @@ export const PinnedQueue = memo(function PinnedQueue({ pins, onUnpin, showGhosts
       >
         <Pin size={12} aria-hidden="true" />
         Foco de hoje
-        <span className="text-[10px] font-normal" style={{ color: 'var(--gem-dim)' }}>
+        <span className="text-[10px] font-normal" style={{ color: 'var(--gem-dim)' }} aria-hidden="true">
           ({pins.length}/{MAX_PINS})
         </span>
+        <span className="sr-only">{pins.length} de {MAX_PINS} fixados</span>
       </h3>
 
       <ul className="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -94,6 +95,7 @@ export const PinnedQueue = memo(function PinnedQueue({ pins, onUnpin, showGhosts
           <li
             key={`ghost-${i}`}
             data-testid="ghost-suggestion"
+            aria-hidden="true"
             className="flex items-center justify-center rounded-lg border border-dashed p-4"
             style={{
               borderColor: gemMix('--gem-border', 40),

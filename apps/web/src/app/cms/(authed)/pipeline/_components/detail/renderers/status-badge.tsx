@@ -14,7 +14,7 @@ export function StatusBadge({ status }: { status: string }) {
   const style = STATUS_STYLES[status.toUpperCase()] ?? { bg: 'rgba(255,255,255,0.05)', color: 'var(--gem-dim)', label: status }
   return (
     <span
-      className="text-[9px] px-1.5 py-0.5 rounded font-medium whitespace-nowrap"
+      className="text-[10px] px-1.5 py-0.5 rounded font-medium whitespace-nowrap"
       style={{ background: style.bg, color: style.color }}
     >
       {style.label}

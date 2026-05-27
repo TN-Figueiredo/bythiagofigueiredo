@@ -237,7 +237,7 @@ export function TabContainer({ format, stage, itemId, itemVersion, sections, ite
               >
                 <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: hasContent ? 'var(--gem-done)' : 'transparent', border: hasContent ? 'none' : '1px solid var(--gem-dim)' }} />
                 {def.label_pt}
-                {def.subSections && <span className="text-[9px] ml-0.5" style={{ color: 'var(--gem-dim)' }}>{def.subSections.length}</span>}
+                {def.subSections && <span className="text-[10px] ml-0.5" style={{ color: 'var(--gem-dim)' }}>{def.subSections.length}</span>}
               </button>
             )
           })}
@@ -283,7 +283,7 @@ export function TabContainer({ format, stage, itemId, itemVersion, sections, ite
                 key={sub.key}
                 role="tab"
                 aria-selected={isSubActive}
-                className="px-3 py-1.5 text-[11px] whitespace-nowrap transition-colors"
+                className="px-3 py-1.5 text-xs whitespace-nowrap transition-colors"
                 style={{
                   color: isSubActive ? '#22d3ee' : 'var(--gem-dim)',
                   borderBottom: isSubActive ? '2px solid #22d3ee' : '2px solid transparent',

@@ -106,4 +106,41 @@ describe('computeMetrics', () => {
     // 1 out of 3 = 33%
     expect(m.cadenceHealthPct).toBe(33)
   })
+
+  it('includes video cadence slots in health calculation', () => {
+    const items: CalendarItem[] = [
+      { id: 'v1', type: 'video', title: 'Vid A', status: 'published', dateKey: '2026-01-07', time: null, editUrl: '/v1' },
+    ]
+    const cadenceSlots: CadenceSlot[] = [
+      { dateKey: '2026-01-07', type: 'video', contextId: 'ch-1', createUrl: '/new' },
+      { dateKey: '2026-01-14', type: 'video', contextId: 'ch-1', createUrl: '/new' },
+    ]
+    const result = computeMetrics(items, cadenceSlots, '2026-01', '2026-01-10')
+    expect(result.cadenceHealthPct).toBe(50)
+  })
+
+  it('includes blog cadence slots in health calculation', () => {
+    const items: CalendarItem[] = []
+    const cadenceSlots: CadenceSlot[] = [
+      { dateKey: '2026-01-05', type: 'blog', contextId: 'cad-1', createUrl: '/new' },
+      { dateKey: '2026-01-12', type: 'blog', contextId: 'cad-1', createUrl: '/new' },
+    ]
+    const result = computeMetrics(items, cadenceSlots, '2026-01', '2026-01-10')
+    expect(result.cadenceHealthPct).toBe(0)
+  })
+
+  it('mixes newsletter, video, and blog cadence slots in health', () => {
+    const items: CalendarItem[] = [
+      { id: 'v1', type: 'video', title: 'Vid', status: 'published', dateKey: '2026-01-07', time: null, editUrl: '/v1' },
+      { id: 'n1', type: 'newsletter', title: 'NL', status: 'published', dateKey: '2026-01-10', time: null, editUrl: '/n1' },
+    ]
+    const cadenceSlots: CadenceSlot[] = [
+      { dateKey: '2026-01-07', type: 'video', contextId: 'ch-1', createUrl: '/new' },
+      { dateKey: '2026-01-10', type: 'newsletter', contextId: 'nl-1', createUrl: '/new' },
+      { dateKey: '2026-01-14', type: 'blog', contextId: 'cad-1', createUrl: '/new' },
+    ]
+    const result = computeMetrics(items, cadenceSlots, '2026-01', '2026-01-10')
+    // 2 of 3 slots filled
+    expect(result.cadenceHealthPct).toBe(67)
+  })
 })

@@ -265,16 +265,41 @@ export async function disableCms(): Promise<ActionResult> {
   return { ok: true }
 }
 
-const syncScheduleSchema = z.object({
+function isValidTimezone(v: string) {
+  try { Intl.DateTimeFormat(undefined, { timeZone: v }); return true } catch { return false }
+}
+
+function trimString(v: string) { return v.trim() }
+
+function trimOrNull(v: string) { return v || null }
+
+function noDuplicateSchedules(arr: Array<{ day: string; hour: number; tz: string }>, ctx: z.RefinementCtx) {
+  const seen = new Set<string>()
+  for (let i = 0; i < arr.length; i++) {
+    const entry = arr[i]
+    if (!entry) continue
+    const key = `${entry.day}:${entry.hour}:${entry.tz}`
+    if (seen.has(key)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Duplicate schedule entry at index ${i}`,
+        path: [i],
+      })
+    }
+    seen.add(key)
+  }
+}
+
+export const syncScheduleSchema = z.object({
   channel_id: z.string().uuid(),
   sync_enabled: z.boolean(),
   sync_schedules: z.array(z.object({
     day: z.enum(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']),
     hour: z.number().int().min(0).max(23),
-    tz: z.string(),
-    label: z.string(),
-  })),
-  schedule_label: z.string().trim().transform(v => v || null).nullable().optional(),
+    tz: z.string().refine(isValidTimezone, { message: 'Invalid IANA timezone' }),
+    label: z.string().max(100).transform(trimString),
+  })).max(21).superRefine(noDuplicateSchedules),
+  schedule_label: z.string().max(200).trim().transform(trimOrNull).nullable().optional(),
 })
 
 export async function updateYouTubeChannelSettings(input: z.infer<typeof syncScheduleSchema>): Promise<ActionResult> {
@@ -283,7 +308,7 @@ export async function updateYouTubeChannelSettings(input: z.infer<typeof syncSch
   const siteId = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
 
-  const { error } = await supabase.from('youtube_channels')
+  const { error, data } = await supabase.from('youtube_channels')
     .update({
       sync_enabled: parsed.data.sync_enabled,
       sync_schedules: parsed.data.sync_schedules,
@@ -291,8 +316,10 @@ export async function updateYouTubeChannelSettings(input: z.infer<typeof syncSch
       updated_at: new Date().toISOString(),
     })
     .eq('id', parsed.data.channel_id).eq('site_id', siteId)
+    .select('id')
 
   if (error) return { ok: false, error: error.message }
+  if (!data || data.length === 0) return { ok: false, error: 'Channel not found' }
   revalidateTag('youtube')
   revalidatePath('/cms/settings')
   return { ok: true }

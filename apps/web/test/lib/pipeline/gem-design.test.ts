@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  gemMix,
   getPriorityConfig,
   getStaleness,
   getVvsTier,
@@ -224,6 +225,57 @@ describe('gem-design', () => {
       expect(r.done).toBe(2)
       expect(r.total).toBe(3)
       expect(r.segments).toEqual([true, false, true])
+    })
+  })
+
+  describe('gemMix', () => {
+    // --gem-warn resolves to #f59e0b → rgb(245, 158, 11)
+    it('returns rgba string when given a known CSS variable name', () => {
+      expect(gemMix('--gem-warn', 50)).toBe('rgba(245,158,11,0.50)')
+    })
+
+    // var(--gem-warn) strips the wrapper and resolves the same hex
+    it('returns rgba string when given a css var() wrapper', () => {
+      expect(gemMix('var(--gem-warn)', 50)).toBe('rgba(245,158,11,0.50)')
+    })
+
+    // 0% opacity → alpha 0.00, fully transparent
+    it('handles 0% opacity (fully transparent)', () => {
+      const result = gemMix('--gem-warn', 0)
+      expect(result).toBe('rgba(245,158,11,0.00)')
+      expect(result).toMatch(/,0\.00\)$/)
+    })
+
+    // 100% opacity → alpha 1.00, fully opaque
+    it('handles 100% opacity', () => {
+      const result = gemMix('--gem-warn', 100)
+      expect(result).toBe('rgba(245,158,11,1.00)')
+      expect(result).toMatch(/,1\.00\)$/)
+    })
+
+    // Unknown variable name → fallback rgba(128,128,128,...)
+    it('returns fallback rgba for unknown variable names', () => {
+      expect(gemMix('--gem-does-not-exist', 40)).toBe('rgba(128,128,128,0.40)')
+    })
+
+    // Percentage is scaled to [0,1] alpha — test each known channel independently
+    it('correctly maps percentage to alpha channel', () => {
+      // 25% → 0.25, 75% → 0.75
+      expect(gemMix('--gem-accent', 25)).toMatch(/,0\.25\)$/)
+      expect(gemMix('--gem-accent', 75)).toMatch(/,0\.75\)$/)
+    })
+
+    // Raw hex input is also supported by the implementation
+    it('accepts a raw hex color directly', () => {
+      // #ffffff → rgb(255,255,255)
+      expect(gemMix('#ffffff', 80)).toBe('rgba(255,255,255,0.80)')
+    })
+
+    // Verify actual RGB channels for a second known var
+    // --gem-accent: #818cf8 → rgb(129, 140, 248)
+    it('correctly decodes RGB channels for --gem-accent', () => {
+      const result = gemMix('--gem-accent', 100)
+      expect(result).toBe('rgba(129,140,248,1.00)')
     })
   })
 })

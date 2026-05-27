@@ -2,6 +2,7 @@
 
 import { useTransition, useState } from 'react'
 import Link from 'next/link'
+import type { SyncStatus } from '@/lib/youtube/types'
 import { triggerSync, unpinWeeklyPick, pinWeeklyPick } from './videos/actions'
 
 export interface PinnedVideo {
@@ -14,11 +15,12 @@ export interface PinnedVideo {
 }
 
 export interface LastSyncInfo {
-  status: string
+  status: SyncStatus
   videosFound: number
   videosInserted: number
   videosUpdated: number
   at: string
+  errorMessage: string | null
 }
 
 export interface ChannelDashboard {
@@ -86,7 +88,11 @@ function SyncStatusBadge({ channel }: { channel: ChannelDashboard }) {
   }
   const { status, videosFound, videosInserted, videosUpdated } = channel.lastSync
   if (status === 'failed') {
-    return <span className="text-xs text-red-400">Last sync failed</span>
+    return (
+      <span className="line-clamp-1 text-xs text-red-400" title={channel.lastSync?.errorMessage ?? undefined}>
+        Last sync failed{channel.lastSync?.errorMessage ? `: ${channel.lastSync.errorMessage}` : ''}
+      </span>
+    )
   }
   if (status === 'completed') {
     const parts: string[] = []
@@ -105,13 +111,18 @@ function SyncStatusBadge({ channel }: { channel: ChannelDashboard }) {
 function ChannelCard({ channel }: { channel: ChannelDashboard }) {
   const [isPending, startTransition] = useTransition()
   const [showUnpinConfirm, setShowUnpinConfirm] = useState(false)
+  const [syncError, setSyncError] = useState<string | null>(null)
   const flag = channel.locale === 'pt' ? '🇧🇷' : '🇺🇸'
   const pinState = getPinState(channel.pinnedVideo)
   const neverSynced = !channel.lastSyncedAt
 
   const handleSync = () => {
+    setSyncError(null)
     startTransition(async () => {
-      await triggerSync(channel.id)
+      const result = await triggerSync(channel.id)
+      if (!result.ok) {
+        setSyncError(result.error)
+      }
     })
   }
 
@@ -170,172 +181,188 @@ function ChannelCard({ channel }: { channel: ChannelDashboard }) {
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 border-b border-cms-border px-4 py-3">
-        <div className="text-xs text-cms-text-muted">
-          <span className="font-semibold text-cms-text">{channel.videoCount}</span> videos
+      {channel.videoCount === 0 && neverSynced ? (
+        <div className="px-4 py-6 text-center">
+          <p className="text-sm text-cms-text-dim">
+            Canal sem vídeos — clique em &lsquo;First Sync&rsquo; para importar
+          </p>
         </div>
-        <div className="text-xs text-cms-text-muted">
-          <span className="font-semibold text-cms-text">{formatCount(channel.subscriberCount)}</span> subscribers
-        </div>
-        <div className="text-xs text-cms-text-muted">
-          <span className="font-semibold text-cms-text">{formatCount(channel.totalViews)}</span> total views
-        </div>
-        <div className="text-xs text-cms-text-muted">
-          <span className="font-semibold text-cms-text">{formatCount(channel.totalLikes)}</span> total likes
-        </div>
-        {(channel.featuredCount > 0 || channel.hiddenCount > 0) && (
-          <>
-            {channel.featuredCount > 0 && (
-              <div className="text-xs text-cms-text-muted">
-                <span className="font-semibold text-amber-400">★ {channel.featuredCount}</span> featured
-              </div>
-            )}
-            {channel.hiddenCount > 0 && (
-              <div className="text-xs text-cms-text-muted">
-                <span className="font-semibold text-cms-text-dim">{channel.hiddenCount}</span> hidden
-              </div>
-            )}
-          </>
-        )}
-      </div>
-
-      {/* Sync + Schedule info */}
-      <div className="flex items-center justify-between border-b border-cms-border px-4 py-2">
-        <SyncStatusBadge channel={channel} />
-        {channel.scheduleLabel && (
-          <span className="text-xs text-cms-text-dim">{channel.scheduleLabel}</span>
-        )}
-        {channel.latestVideoAt && (
-          <span className="text-xs text-cms-text-dim" title={channel.latestVideoAt}>
-            Latest: {timeAgo(channel.latestVideoAt)}
-          </span>
-        )}
-      </div>
-
-      {/* Weekly Pick */}
-      <div className={`border-l-[3px] ${pinAccent} px-4 py-3`}>
-        <div className="mb-2 flex items-center justify-between">
-          <span className={`text-[10px] font-bold uppercase tracking-wider ${
-            pinState === 'active' ? 'text-amber-400'
-              : pinState === 'expiring' ? 'text-amber-500'
-                : pinState === 'expired' ? 'text-red-400'
-                  : 'text-cms-text-dim'
-          }`}>
-            ★ Weekly Pick
-          </span>
-          {channel.pinnedVideo && (pinState === 'active' || pinState === 'expiring') && (
-            <span className={`text-xs ${
-              pinState === 'expiring' ? 'font-medium text-amber-500' : 'text-cms-text-dim'
-            }`}>
-              {pinState === 'expiring'
-                ? `⚠ Expires ${daysLeft(channel.pinnedVideo.pinnedUntil) <= 1 ? 'tomorrow' : `in ${daysLeft(channel.pinnedVideo.pinnedUntil)} days`}`
-                : `until ${new Date(channel.pinnedVideo.pinnedUntil).toLocaleDateString('en', { month: 'short', day: 'numeric' })} (${daysLeft(channel.pinnedVideo.pinnedUntil)}d left)`
-              }
-            </span>
-          )}
-        </div>
-
-        {channel.pinnedVideo && (pinState === 'active' || pinState === 'expiring') ? (
-          <>
-            <div className="flex items-center gap-3">
-              {channel.pinnedVideo.thumbnailUrl && (
-                <img
-                  src={channel.pinnedVideo.thumbnailUrl}
-                  alt=""
-                  width={72}
-                  height={40}
-                  referrerPolicy="no-referrer"
-                  className="rounded object-cover"
-                />
-              )}
-              <div className="min-w-0 flex-1">
-                <p className="line-clamp-1 text-sm font-medium text-cms-text">{channel.pinnedVideo.title}</p>
-                <p className="text-xs text-cms-text-dim">
-                  {formatCount(channel.pinnedVideo.viewCount)} views · {formatCount(channel.pinnedVideo.likeCount)} likes
-                </p>
-              </div>
+      ) : (
+        <>
+          {/* Stats */}
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 border-b border-cms-border px-4 py-3">
+            <div className="text-xs text-cms-text-muted">
+              <span className="font-semibold text-cms-text">{channel.videoCount}</span> videos
             </div>
-            <div className="mt-2 flex items-center gap-2 border-t border-cms-border pt-2">
-              {pinState === 'expiring' && (
-                <>
+            <div className="text-xs text-cms-text-muted">
+              <span className="font-semibold text-cms-text">{formatCount(channel.subscriberCount)}</span> subscribers
+            </div>
+            <div className="text-xs text-cms-text-muted">
+              <span className="font-semibold text-cms-text">{formatCount(channel.totalViews)}</span> total views
+            </div>
+            <div className="text-xs text-cms-text-muted">
+              <span className="font-semibold text-cms-text">{formatCount(channel.totalLikes)}</span> total likes
+            </div>
+            {(channel.featuredCount > 0 || channel.hiddenCount > 0) && (
+              <>
+                {channel.featuredCount > 0 && (
+                  <div className="text-xs text-cms-text-muted">
+                    <span className="font-semibold text-amber-400">★ {channel.featuredCount}</span> featured
+                  </div>
+                )}
+                {channel.hiddenCount > 0 && (
+                  <div className="text-xs text-cms-text-muted">
+                    <span className="font-semibold text-cms-text-dim">{channel.hiddenCount}</span> hidden
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Sync + Schedule info */}
+          <div className="flex items-center justify-between border-b border-cms-border px-4 py-2">
+            <SyncStatusBadge channel={channel} />
+            {channel.scheduleLabel && (
+              <span className="text-xs text-cms-text-dim">{channel.scheduleLabel}</span>
+            )}
+            {channel.latestVideoAt && (
+              <span className="text-xs text-cms-text-dim" title={channel.latestVideoAt}>
+                Latest: {timeAgo(channel.latestVideoAt)}
+              </span>
+            )}
+          </div>
+
+          {syncError && (
+            <div role="alert" className="border-t border-red-900/30 bg-red-900/10 px-4 py-2">
+              <span className="text-xs text-red-400">{syncError}</span>
+            </div>
+          )}
+
+          {/* Weekly Pick */}
+          <div className={`border-l-[3px] ${pinAccent} px-4 py-3`}>
+            <div className="mb-2 flex items-center justify-between">
+              <span className={`text-[10px] font-bold uppercase tracking-wider ${
+                pinState === 'active' ? 'text-amber-400'
+                  : pinState === 'expiring' ? 'text-amber-500'
+                    : pinState === 'expired' ? 'text-red-400'
+                      : 'text-cms-text-dim'
+              }`}>
+                ★ Weekly Pick
+              </span>
+              {channel.pinnedVideo && (pinState === 'active' || pinState === 'expiring') && (
+                <span className={`text-xs ${
+                  pinState === 'expiring' ? 'font-medium text-amber-500' : 'text-cms-text-dim'
+                }`}>
+                  {pinState === 'expiring'
+                    ? `⚠ Expires ${daysLeft(channel.pinnedVideo.pinnedUntil) <= 1 ? 'tomorrow' : `in ${daysLeft(channel.pinnedVideo.pinnedUntil)} days`}`
+                    : `until ${new Date(channel.pinnedVideo.pinnedUntil).toLocaleDateString('en', { month: 'short', day: 'numeric' })} (${daysLeft(channel.pinnedVideo.pinnedUntil)}d left)`
+                  }
+                </span>
+              )}
+            </div>
+
+            {channel.pinnedVideo && (pinState === 'active' || pinState === 'expiring') ? (
+              <>
+                <div className="flex items-center gap-3">
+                  {channel.pinnedVideo.thumbnailUrl && (
+                    <img
+                      src={channel.pinnedVideo.thumbnailUrl}
+                      alt=""
+                      width={72}
+                      height={40}
+                      referrerPolicy="no-referrer"
+                      className="rounded object-cover"
+                    />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="line-clamp-1 text-sm font-medium text-cms-text">{channel.pinnedVideo.title}</p>
+                    <p className="text-xs text-cms-text-dim">
+                      {formatCount(channel.pinnedVideo.viewCount)} views · {formatCount(channel.pinnedVideo.likeCount)} likes
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-2 flex items-center gap-2 border-t border-cms-border pt-2">
+                  {pinState === 'expiring' && (
+                    <>
+                      <button
+                        type="button"
+                        disabled={isPending}
+                        onClick={() => startTransition(async () => {
+                          await pinWeeklyPick({ videoId: channel.pinnedVideo!.id, channelId: channel.id, durationDays: 7 })
+                        })}
+                        className="text-xs font-medium text-emerald-400 hover:underline disabled:opacity-50"
+                      >
+                        Extend 7d →
+                      </button>
+                      <span className="text-cms-text-dim">|</span>
+                    </>
+                  )}
+                  <Link
+                    href={`/cms/youtube/videos?channel=${channel.id}`}
+                    className="text-xs font-medium text-cms-accent hover:underline"
+                  >
+                    Change pick →
+                  </Link>
+                  <span className="text-cms-text-dim">|</span>
                   <button
                     type="button"
-                    disabled={isPending}
-                    onClick={() => startTransition(async () => {
-                      await pinWeeklyPick({ videoId: channel.pinnedVideo!.id, channelId: channel.id, durationDays: 7 })
-                    })}
-                    className="text-xs font-medium text-emerald-400 hover:underline disabled:opacity-50"
+                    onClick={() => setShowUnpinConfirm(true)}
+                    className="text-xs text-red-400 hover:text-red-300"
                   >
-                    Extend 7d →
+                    Unpin
                   </button>
-                  <span className="text-cms-text-dim">|</span>
-                </>
-              )}
-              <Link
-                href={`/cms/youtube/videos?channel=${channel.id}`}
-                className="text-xs font-medium text-cms-accent hover:underline"
-              >
-                Change pick →
-              </Link>
-              <span className="text-cms-text-dim">|</span>
-              <button
-                type="button"
-                onClick={() => setShowUnpinConfirm(true)}
-                className="text-xs text-red-400 hover:text-red-300"
-              >
-                Unpin
-              </button>
-            </div>
-          </>
-        ) : pinState === 'expired' ? (
-          <div className="py-2 text-center">
-            <p className="mb-2 text-sm text-red-400">Pin expired — home page shows latest video as fallback</p>
-            <Link
-              href={`/cms/youtube/videos?channel=${channel.id}`}
-              className="inline-flex items-center gap-1 rounded bg-cms-accent/10 px-3 py-1.5 text-xs font-medium text-cms-accent hover:bg-cms-accent/20"
-            >
-              ☆ Choose New Pick →
-            </Link>
+                </div>
+              </>
+            ) : pinState === 'expired' ? (
+              <div className="py-2 text-center">
+                <p className="mb-2 text-sm text-red-400">Pin expired — home page shows latest video as fallback</p>
+                <Link
+                  href={`/cms/youtube/videos?channel=${channel.id}`}
+                  className="inline-flex items-center gap-1 rounded bg-cms-accent/10 px-3 py-1.5 text-xs font-medium text-cms-accent hover:bg-cms-accent/20"
+                >
+                  ☆ Choose New Pick →
+                </Link>
+              </div>
+            ) : (
+              <div className="py-2 text-center">
+                <p className="mb-2 text-sm text-cms-text-dim">No video pinned this week</p>
+                <Link
+                  href={`/cms/youtube/videos?channel=${channel.id}`}
+                  className="inline-flex items-center gap-1 rounded bg-cms-accent/10 px-3 py-1.5 text-xs font-medium text-cms-accent hover:bg-cms-accent/20"
+                >
+                  ☆ Choose Weekly Pick →
+                </Link>
+              </div>
+            )}
           </div>
-        ) : (
-          <div className="py-2 text-center">
-            <p className="mb-2 text-sm text-cms-text-dim">No video pinned this week</p>
-            <Link
-              href={`/cms/youtube/videos?channel=${channel.id}`}
-              className="inline-flex items-center gap-1 rounded bg-cms-accent/10 px-3 py-1.5 text-xs font-medium text-cms-accent hover:bg-cms-accent/20"
-            >
-              ☆ Choose Weekly Pick →
-            </Link>
-          </div>
-        )}
-      </div>
 
-      {/* Unpin confirmation dialog */}
-      {showUnpinConfirm && (
-        <div className="border-t border-cms-border px-4 py-3">
-          <p className="mb-1 text-sm font-medium text-cms-text">Remove weekly pick?</p>
-          <p className="mb-3 text-xs text-cms-text-muted">
-            The home page will fall back to showing the latest video for this channel.
-          </p>
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setShowUnpinConfirm(false)}
-              className="rounded border border-cms-border px-3 py-1 text-xs text-cms-text-muted hover:bg-cms-surface-hover"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              disabled={isPending}
-              onClick={handleUnpin}
-              className="rounded bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-500 disabled:opacity-50"
-            >
-              Unpin
-            </button>
-          </div>
-        </div>
+          {/* Unpin confirmation dialog */}
+          {showUnpinConfirm && (
+            <div className="border-t border-cms-border px-4 py-3">
+              <p className="mb-1 text-sm font-medium text-cms-text">Remove weekly pick?</p>
+              <p className="mb-3 text-xs text-cms-text-muted">
+                The home page will fall back to showing the latest video for this channel.
+              </p>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowUnpinConfirm(false)}
+                  className="rounded border border-cms-border px-3 py-1 text-xs text-cms-text-muted hover:bg-cms-surface-hover"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isPending}
+                  onClick={handleUnpin}
+                  className="rounded bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-500 disabled:opacity-50"
+                >
+                  Unpin
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   )

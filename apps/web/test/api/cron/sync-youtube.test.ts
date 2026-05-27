@@ -133,7 +133,7 @@ describe('GET /api/cron/sync-youtube', () => {
     const res = await GET(makeRequest())
     expect(res.status).toBe(500)
     const body = await res.json()
-    expect(body.error).toBe('YOUTUBE_API_KEY not set')
+    expect(body.error).toBe('external service not configured')
   })
 
   it('returns ok when no channels are configured', async () => {

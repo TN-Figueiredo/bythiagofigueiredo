@@ -10,6 +10,8 @@ import {
 } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { deriveScheduleLabel } from '@/lib/youtube/schedule-label'
+import type { SyncScheduleEntry } from '@/lib/youtube/types'
+import { groupSchedules, explodeGroups, type ScheduleGroup } from '@/lib/youtube/schedule-group'
 import {
   updateBranding,
   updateIdentity,
@@ -88,12 +90,7 @@ interface YouTubeChannelData {
   handle: string
   locale: string
   sync_enabled: boolean
-  sync_schedules: Array<{
-    day: string
-    hour: number
-    tz: string
-    label: string
-  }> | null
+  sync_schedules: SyncScheduleEntry[] | null
   schedule_label: string | null
 }
 
@@ -154,6 +151,13 @@ const SECTIONS: { id: SectionId; label: string; badge?: 'new' }[] = [
   { id: 'danger-zone', label: 'Danger Zone' },
 ]
 
+const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const
+
+const DAY_LABELS: Record<typeof DAYS[number], string> = {
+  monday: 'Seg', tuesday: 'Ter', wednesday: 'Qua', thursday: 'Qui',
+  friday: 'Sex', saturday: 'Sáb', sunday: 'Dom',
+}
+
 const CADENCE_OPTIONS = [
   { value: '', label: 'None' },
   { value: '1', label: 'Daily' },
@@ -181,8 +185,8 @@ const LOCALE_OPTIONS = [
 function useSaveState(): [SaveState, (s: SaveState) => void] {
   const [state, setState] = useState<SaveState>('idle')
   useEffect(() => {
-    if (state === 'success') {
-      const t = setTimeout(() => setState('idle'), 2000)
+    if (state === 'success' || state === 'error') {
+      const t = setTimeout(() => setState('idle'), state === 'success' ? 2000 : 3000)
       return () => clearTimeout(t)
     }
   }, [state])
@@ -199,16 +203,25 @@ function SaveButton({
   disabled?: boolean
 }) {
   return (
-    <button
-      type="submit"
-      disabled={state === 'saving' || disabled}
-      className="inline-flex items-center gap-2 rounded-md bg-indigo-500 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-400 disabled:opacity-50"
-    >
-      {state === 'saving' && (
-        <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+    <div className="space-y-1">
+      <button
+        type="submit"
+        disabled={state === 'saving' || disabled}
+        className={`inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-50 ${
+          state === 'error'
+            ? 'bg-red-500 hover:bg-red-400'
+            : 'bg-indigo-500 hover:bg-indigo-400'
+        }`}
+      >
+        {state === 'saving' && (
+          <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+        )}
+        {state === 'success' ? 'Salvo' : state === 'error' ? 'Erro' : label}
+      </button>
+      {state === 'error' && (
+        <p role="alert" className="text-xs text-red-400">Save failed. Try again.</p>
       )}
-      {state === 'success' ? 'Salvo' : label}
-    </button>
+    </div>
   )
 }
 
@@ -1333,7 +1346,7 @@ function YouTubeSection({
 
   return (
     <div className="space-y-6">
-      <h2 className="text-lg font-semibold text-slate-200">YouTube Channels</h2>
+      <h2 className="text-lg font-semibold text-slate-100">YouTube Channels</h2>
 
       {channels.length === 0 && (
         <p className="text-sm text-slate-400">No YouTube channels configured yet.</p>
@@ -1429,21 +1442,23 @@ function AddChannelForm({
 
       <div className="flex items-end gap-2">
         <div className="flex-1 space-y-1">
-          <label className={labelCls()}>Handle or URL</label>
+          <label htmlFor="yt-handle" className={labelCls()}>Handle or URL</label>
           <input
+            id="yt-handle"
             type="text"
             value={handle}
             onChange={e => { setHandle(e.target.value); setPreview(null); setError(null) }}
             placeholder="@channel or youtube.com/@channel"
-            className="w-full rounded border border-slate-600 bg-slate-800 px-3 py-1.5 text-sm text-slate-200 placeholder:text-slate-600"
+            className="w-full rounded-md border border-slate-600 bg-slate-800 px-3 py-1.5 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
         </div>
         <div className="space-y-1">
-          <label className={labelCls()}>Locale</label>
+          <label htmlFor="yt-locale" className={labelCls()}>Locale</label>
           <select
+            id="yt-locale"
             value={locale}
             onChange={e => setLocale(e.target.value as 'pt' | 'en')}
-            className="rounded border border-slate-600 bg-slate-800 px-2 py-1.5 text-sm text-slate-200"
+            className="rounded-md border border-slate-600 bg-slate-800 px-2 py-1.5 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
             {availableLocales.map(l => (
               <option key={l} value={l}>{l === 'pt' ? '🇧🇷 PT-BR' : '🌎 EN'}</option>
@@ -1454,7 +1469,7 @@ function AddChannelForm({
           type="button"
           onClick={handleLookup}
           disabled={looking || !handle.trim()}
-          className="rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+          className="rounded-md bg-indigo-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-400 disabled:opacity-50"
         >
           {looking ? 'Looking up…' : 'Lookup'}
         </button>
@@ -1463,7 +1478,7 @@ function AddChannelForm({
       {error && <p className="text-sm text-red-400">{error}</p>}
 
       {preview && (
-        <div className="mt-3 rounded border border-slate-600 bg-slate-800/50 p-3">
+        <div className="mt-3 rounded-md border border-slate-600 bg-slate-800/50 p-3">
           <div className="flex items-center gap-3">
             {preview.thumbnailUrl && (
               <img src={preview.thumbnailUrl} alt="" className="h-10 w-10 rounded-full" />
@@ -1479,7 +1494,7 @@ function AddChannelForm({
             type="button"
             onClick={handleAdd}
             disabled={adding}
-            className="mt-3 rounded bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-500 disabled:opacity-50"
+            className="mt-3 rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-500 disabled:opacity-50"
           >
             {adding ? 'Adding…' : `Add as ${locale === 'pt' ? '🇧🇷 PT-BR' : '🌎 EN'} channel`}
           </button>
@@ -1501,41 +1516,51 @@ function YouTubeChannelCard({
   const [saveState, setSaveState] = useSaveState()
   const [, startTransition] = useTransition()
   const [syncEnabled, setSyncEnabled] = useState(channel.sync_enabled)
-  const [schedules, setSchedules] = useState(channel.sync_schedules ?? [])
+  const addBtnRef = useRef<HTMLButtonElement>(null)
+  const nextIdRef = useRef(0)
+  const nextId = () => ++nextIdRef.current
+  const [groups, setGroups] = useState<ScheduleGroup[]>(() =>
+    groupSchedules(channel.sync_schedules ?? [], nextId),
+  )
   const [scheduleLabel, setScheduleLabel] = useState(channel.schedule_label ?? '')
-
-  const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const
 
   const handleSave = (e: FormEvent) => {
     e.preventDefault()
     if (readOnly) return
     setSaveState('saving')
     startTransition(async () => {
-      const res = await updateYouTubeChannelSettings({
-        channel_id: channel.id,
-        sync_enabled: syncEnabled,
-        sync_schedules: schedules.map(s => ({
-          day: s.day as typeof DAYS[number],
-          hour: s.hour,
-          tz: s.tz,
-          label: s.label,
-        })),
-        schedule_label: scheduleLabel.trim() || null,
-      })
-      setSaveState(res.ok ? 'success' : 'error')
+      try {
+        const res = await updateYouTubeChannelSettings({
+          channel_id: channel.id,
+          sync_enabled: syncEnabled,
+          sync_schedules: explodeGroups(groups),
+          schedule_label: scheduleLabel.trim() || null,
+        })
+        setSaveState(res.ok ? 'success' : 'error')
+      } catch {
+        setSaveState('error')
+      }
     })
   }
 
-  const addSchedule = () => {
-    setSchedules([...schedules, { day: 'monday', hour: 10, tz: 'America/Sao_Paulo', label: '' }])
+  const addGroup = () => {
+    setGroups(prev => [...prev, { _id: nextId(), days: [], hour: 10, tz: 'America/Sao_Paulo', label: '' }])
   }
 
-  const removeSchedule = (index: number) => {
-    setSchedules(schedules.filter((_, i) => i !== index))
+  const removeGroup = (groupId: number) => {
+    setGroups(prev => prev.filter(g => g._id !== groupId))
+    requestAnimationFrame(() => addBtnRef.current?.focus())
   }
 
-  const updateSchedule = (index: number, field: string, value: string | number) => {
-    setSchedules(schedules.map((s, i) => i === index ? { ...s, [field]: value } : s))
+  const toggleDay = (groupId: number, day: SyncScheduleEntry['day']) => {
+    setGroups(prev => prev.map(g =>
+      g._id !== groupId ? g :
+      { ...g, days: g.days.includes(day) ? g.days.filter(d => d !== day) : [...g.days, day].sort((a, b) => DAYS.indexOf(a) - DAYS.indexOf(b)) }
+    ))
+  }
+
+  const updateGroup = (groupId: number, patch: Partial<ScheduleGroup>) => {
+    setGroups(prev => prev.map(g => g._id !== groupId ? g : { ...g, ...patch }))
   }
 
   const flag = channel.locale === 'pt' ? '🇧🇷' : '🇺🇸'
@@ -1555,7 +1580,7 @@ function YouTubeChannelCard({
               checked={syncEnabled}
               onChange={(e) => setSyncEnabled(e.target.checked)}
               disabled={readOnly}
-              className="h-4 w-4 rounded border-slate-600 bg-slate-800 text-indigo-500"
+              className="accent-indigo-500"
             />
             Sync enabled
           </label>
@@ -1576,52 +1601,63 @@ function YouTubeChannelCard({
           <div className="flex items-center justify-between">
             <label className={labelCls()}>Posting Schedule</label>
             <button
+              ref={addBtnRef}
               type="button"
-              onClick={addSchedule}
-              disabled={readOnly}
+              onClick={addGroup}
+              disabled={readOnly || groups.length >= 3}
+              title={groups.length >= 3 ? 'Máximo de 3 grupos' : undefined}
               className="text-xs text-indigo-400 hover:text-indigo-300 disabled:opacity-50"
             >
-              + Add window
+              + Adicionar grupo
             </button>
           </div>
 
-          {schedules.length === 0 && (
-            <p className="text-xs text-slate-500">No posting windows configured. The catchall cron (daily 07:00) will still sync.</p>
+          {groups.length === 0 && (
+            <p className="text-xs text-slate-500">Nenhum horário configurado. O cron diário (07:00) ainda sincronizará.</p>
           )}
 
-          {schedules.map((s, i) => (
-            <div key={i} className="flex items-center gap-2 rounded border border-slate-700 bg-slate-800/50 p-2">
-              <select
-                value={s.day}
-                onChange={(e) => updateSchedule(i, 'day', e.target.value)}
-                disabled={readOnly}
-                className="rounded border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-slate-200"
-              >
-                {DAYS.map(d => <option key={d} value={d}>{d.charAt(0).toUpperCase() + d.slice(1)}</option>)}
-              </select>
+          {groups.map((group, groupIdx) => (
+            <div key={group._id} className="flex flex-wrap sm:flex-nowrap items-center gap-2 rounded-md border border-slate-600 bg-slate-800/50 p-3">
+              <div role="group" aria-label="Dias da semana" className="flex items-center gap-1">
+                {DAYS.map(day => (
+                  <button
+                    key={day}
+                    type="button"
+                    onClick={() => toggleDay(group._id, day)}
+                    disabled={readOnly}
+                    aria-pressed={group.days.includes(day)}
+                    className={`min-h-[44px] min-w-[44px] rounded-full px-2 text-xs font-medium disabled:opacity-50 ${group.days.includes(day) ? 'bg-indigo-500 text-white' : 'bg-slate-700 text-slate-400'}`}
+                  >
+                    {DAY_LABELS[day]}
+                  </button>
+                ))}
+              </div>
               <input
                 type="number"
                 min={0}
                 max={23}
-                value={s.hour}
-                onChange={(e) => updateSchedule(i, 'hour', parseInt(e.target.value) || 0)}
+                value={group.hour}
+                onChange={(e) => updateGroup(group._id, { hour: Math.max(0, Math.min(23, parseInt(e.target.value) || 0)) })}
                 disabled={readOnly}
-                className="w-14 rounded border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-slate-200"
+                aria-label={`Hora do grupo ${groupIdx + 1}`}
+                className="w-14 rounded-md border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
               <span className="text-xs text-slate-500">h</span>
               <input
                 type="text"
-                value={s.label}
-                onChange={(e) => updateSchedule(i, 'label', e.target.value)}
+                value={group.label}
+                onChange={(e) => updateGroup(group._id, { label: e.target.value })}
                 disabled={readOnly}
                 placeholder="Label"
-                className="flex-1 rounded border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-slate-200 placeholder:text-slate-600"
+                aria-label={`Rótulo do grupo ${groupIdx + 1}`}
+                className="flex-1 rounded-md border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
               <button
                 type="button"
-                onClick={() => removeSchedule(i)}
+                onClick={() => removeGroup(group._id)}
                 disabled={readOnly}
-                className="text-xs text-red-400 hover:text-red-300 disabled:opacity-50"
+                aria-label={`Remover grupo ${groupIdx + 1}`}
+                className="min-h-[44px] min-w-[44px] flex items-center justify-center text-xs text-red-400 hover:text-red-300 disabled:opacity-50"
               >
                 ×
               </button>
@@ -1635,8 +1671,8 @@ function YouTubeChannelCard({
               value={scheduleLabel}
               onChange={(e) => setScheduleLabel(e.target.value)}
               disabled={readOnly}
-              placeholder={deriveScheduleLabel(schedules, channel.locale === 'pt' ? 'pt-BR' : 'en') ?? 'Auto-derived from schedules'}
-              className="w-full rounded border border-slate-600 bg-slate-800 px-3 py-1.5 text-sm text-slate-200 placeholder:text-slate-500"
+              placeholder={deriveScheduleLabel(explodeGroups(groups), channel.locale as 'pt' | 'en') ?? 'Auto-derived from schedules'}
+              className="w-full rounded-md border border-slate-600 bg-slate-800 px-3 py-1.5 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
             <p className="text-xs text-slate-500">Leave empty to auto-derive from posting schedule. Set to override.</p>
           </div>
@@ -1682,7 +1718,7 @@ function InstagramSection({
 
   return (
     <div className="space-y-6">
-      <h2 className="text-lg font-semibold text-slate-200">Instagram Feed</h2>
+      <h2 className="text-lg font-semibold text-slate-100">Instagram Feed</h2>
 
       {accounts.length === 0 && (
         <p className="text-sm text-slate-400">No Instagram account configured.</p>
@@ -1812,7 +1848,7 @@ function InstagramAccountCard({
               value={accountLocale}
               onChange={e => setAccountLocale(e.target.value as 'pt' | 'en' | 'all')}
               disabled={readOnly}
-              className="rounded border border-slate-600 bg-slate-800 px-1.5 py-0.5 text-xs text-slate-300"
+              className="rounded-md border border-slate-600 bg-slate-800 px-1.5 py-0.5 text-xs text-slate-300"
             >
               <option value="all">All (PT + EN)</option>
               <option value="pt">PT-BR</option>
@@ -1824,7 +1860,7 @@ function InstagramAccountCard({
               type="button"
               onClick={handleSync}
               disabled={syncing || readOnly}
-              className="rounded bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+              className="rounded-md bg-indigo-500 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-400 disabled:opacity-50"
             >
               {syncing ? 'Syncing…' : 'Sync Now'}
             </button>
@@ -1849,7 +1885,7 @@ function InstagramAccountCard({
               checked={syncEnabled}
               onChange={(e) => setSyncEnabled(e.target.checked)}
               disabled={readOnly}
-              className="h-4 w-4 rounded border-slate-600 bg-slate-800 text-indigo-500"
+              className="accent-indigo-500"
             />
             Auto-sync enabled
           </label>
@@ -1860,7 +1896,7 @@ function InstagramAccountCard({
               value={layoutType}
               onChange={(e) => setLayoutType(e.target.value as 'grid' | 'scatter')}
               disabled={readOnly}
-              className="w-full rounded border border-slate-600 bg-slate-800 px-2 py-1.5 text-sm text-slate-200"
+              className="w-full rounded-md border border-slate-600 bg-slate-800 px-2 py-1.5 text-sm text-slate-200"
             >
               <option value="grid">Grid</option>
               <option value="scatter">Scatter</option>
@@ -1878,7 +1914,7 @@ function InstagramAccountCard({
                 onChange={e => setTitlePt(e.target.value)}
                 disabled={readOnly}
                 placeholder="do iPhone, sem filtro"
-                className="w-full rounded border border-slate-600 bg-slate-800 px-3 py-1.5 text-sm text-slate-200 placeholder:text-slate-600"
+                className="w-full rounded-md border border-slate-600 bg-slate-800 px-3 py-1.5 text-sm text-slate-200 placeholder:text-slate-500"
               />
             </div>
             <div className="space-y-1">
@@ -1889,7 +1925,7 @@ function InstagramAccountCard({
                 onChange={e => setSubtitlePt(e.target.value)}
                 disabled={readOnly}
                 placeholder="últimos cliques"
-                className="w-full rounded border border-slate-600 bg-slate-800 px-3 py-1.5 text-sm text-slate-200 placeholder:text-slate-600"
+                className="w-full rounded-md border border-slate-600 bg-slate-800 px-3 py-1.5 text-sm text-slate-200 placeholder:text-slate-500"
               />
             </div>
           </div>
@@ -1905,7 +1941,7 @@ function InstagramAccountCard({
                 onChange={e => setTitleEn(e.target.value)}
                 disabled={readOnly}
                 placeholder="from the iPhone, no filter"
-                className="w-full rounded border border-slate-600 bg-slate-800 px-3 py-1.5 text-sm text-slate-200 placeholder:text-slate-600"
+                className="w-full rounded-md border border-slate-600 bg-slate-800 px-3 py-1.5 text-sm text-slate-200 placeholder:text-slate-500"
               />
             </div>
             <div className="space-y-1">
@@ -1916,7 +1952,7 @@ function InstagramAccountCard({
                 onChange={e => setSubtitleEn(e.target.value)}
                 disabled={readOnly}
                 placeholder="latest shots"
-                className="w-full rounded border border-slate-600 bg-slate-800 px-3 py-1.5 text-sm text-slate-200 placeholder:text-slate-600"
+                className="w-full rounded-md border border-slate-600 bg-slate-800 px-3 py-1.5 text-sm text-slate-200 placeholder:text-slate-500"
               />
             </div>
           </div>
@@ -1956,13 +1992,13 @@ function InstagramAccountCard({
               value={token}
               onChange={(e) => setToken(e.target.value)}
               placeholder="Paste long-lived access token"
-              className="flex-1 rounded border border-slate-600 bg-slate-800 px-3 py-1.5 text-sm text-slate-200 placeholder:text-slate-600"
+              className="flex-1 rounded-md border border-slate-600 bg-slate-800 px-3 py-1.5 text-sm text-slate-200 placeholder:text-slate-500"
             />
             <button
               type="button"
               onClick={handleSetToken}
               disabled={!token.trim()}
-              className="rounded bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-500 disabled:opacity-50"
+              className="rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-500 disabled:opacity-50"
             >
               Save
             </button>
@@ -2073,7 +2109,7 @@ function AddInstagramForm({
             value={handle}
             onChange={e => { setHandle(e.target.value); setError(null) }}
             placeholder="@bythiagofigueiredo"
-            className="w-full rounded border border-slate-600 bg-slate-800 px-3 py-1.5 text-sm text-slate-200 placeholder:text-slate-600"
+            className="w-full rounded-md border border-slate-600 bg-slate-800 px-3 py-1.5 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
         </div>
         <div className="space-y-1">
@@ -2081,7 +2117,7 @@ function AddInstagramForm({
           <select
             value={locale}
             onChange={e => setLocale(e.target.value as 'pt' | 'en' | 'all')}
-            className="rounded border border-slate-600 bg-slate-800 px-2 py-1.5 text-sm text-slate-200"
+            className="rounded-md border border-slate-600 bg-slate-800 px-2 py-1.5 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
             {availableLocales.map(l => (
               <option key={l} value={l}>{l === 'all' ? 'All (PT + EN)' : l === 'pt' ? 'PT-BR' : 'EN'}</option>
@@ -2092,7 +2128,7 @@ function AddInstagramForm({
           type="button"
           onClick={handleAdd}
           disabled={adding || !handle.trim()}
-          className="rounded bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-500 disabled:opacity-50"
+          className="rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-500 disabled:opacity-50"
         >
           {adding ? 'Adding…' : 'Connect'}
         </button>

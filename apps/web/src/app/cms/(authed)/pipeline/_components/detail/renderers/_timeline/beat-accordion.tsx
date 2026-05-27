@@ -109,7 +109,7 @@ function BeatAccordionRaw({ beat, assets, trackHeights, onResize, zoom, containe
         aria-controls={regionId}
       >
         <span
-          className="text-[11px] shrink-0 w-3.5 text-center transition-transform duration-200"
+          className="text-xs shrink-0 w-3.5 text-center transition-transform duration-200"
           style={{ color: TH.dim, transform: open ? 'rotate(90deg)' : 'rotate(0)' }}
         >
           ▶

@@ -550,10 +550,13 @@ export function PlaylistCanvas({
     }
 
     const offscreen = document.createElement('canvas')
-    const scale = 2
-    offscreen.width = w * scale
-    offscreen.height = h * scale
-    const ctx = offscreen.getContext('2d')!
+    const MAX_DIM = 16_384
+    const MAX_PIXELS = 268_435_456
+    const scale = Math.min(2, MAX_DIM / w, MAX_DIM / h, Math.sqrt(MAX_PIXELS / (w * h)))
+    offscreen.width = Math.round(w * scale)
+    offscreen.height = Math.round(h * scale)
+    const ctx = offscreen.getContext('2d')
+    if (!ctx) return
     ctx.scale(scale, scale)
     ctx.fillStyle = '#0a0a12'
     ctx.fillRect(0, 0, w, h)
@@ -649,11 +652,12 @@ export function PlaylistCanvas({
 
     offscreen.toBlob(blob => {
       if (!blob) return
+      const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
-      a.href = URL.createObjectURL(blob)
+      a.href = url
       a.download = `playlist-${graph.playlist.slug}.png`
       a.click()
-      URL.revokeObjectURL(a.href)
+      setTimeout(() => URL.revokeObjectURL(url), 1_000)
     }, 'image/png')
   }, [containerRef, state.items, state.edges, graph.playlist.slug, viewNumbers])
 

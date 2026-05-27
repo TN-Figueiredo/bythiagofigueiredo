@@ -21,8 +21,8 @@ export class SectionErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.hasError) {
       return this.props.fallback ?? (
-        <div className="rounded-lg border border-[var(--bdr-1)] bg-[var(--bg-2)] p-6 text-center">
-          <p className="text-sm text-[var(--t3)]">Erro ao carregar esta seção. Recarregue a página.</p>
+        <div role="alert" className="rounded-lg border p-6 text-center" style={{ borderColor: 'var(--gem-border)', background: 'var(--gem-surface)' }}>
+          <p className="text-sm" style={{ color: 'var(--gem-dim)' }}>Erro ao carregar esta seção. Recarregue a página.</p>
         </div>
       )
     }

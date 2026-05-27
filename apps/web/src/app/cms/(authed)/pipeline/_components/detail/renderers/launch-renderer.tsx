@@ -146,7 +146,7 @@ function PlcCard({ item }: { item: LaunchContent['plc_sequence'][number] }) {
 
       {/* Key message */}
       {item.key_message && (
-        <div className="text-[11px] leading-relaxed" style={{ color: 'var(--gem-muted)' }}>
+        <div className="text-xs leading-relaxed" style={{ color: 'var(--gem-muted)' }}>
           {item.key_message}
         </div>
       )}
@@ -170,7 +170,7 @@ function PlcCard({ item }: { item: LaunchContent['plc_sequence'][number] }) {
           {item.mental_triggers.map((t) => (
             <span
               key={t}
-              className="text-[9px] px-1.5 py-0.5 rounded"
+              className="text-[10px] px-1.5 py-0.5 rounded"
               style={{ background: 'rgba(167,139,250,0.12)', color: 'var(--gem-accent)' }}
             >
               {TRIGGER_LABELS[t] ?? t}
@@ -216,7 +216,7 @@ function PlcCardEdit({
         placeholder="Título do PLC..."
         aria-label={`Título do PLC ${item.theme}`}
         onChange={(e) => onChange({ ...item, title: e.target.value })}
-        className="w-full text-[11px] p-2 rounded-md"
+        className="w-full text-xs p-2 rounded-md"
         style={{
           background: 'var(--gem-surface)',
           border: '1px solid var(--gem-border)',
@@ -230,7 +230,7 @@ function PlcCardEdit({
         aria-label={`Mensagem principal do PLC ${item.theme}`}
         onChange={(e) => onChange({ ...item, key_message: e.target.value })}
         rows={2}
-        className="w-full text-[11px] p-2 rounded-md resize-none"
+        className="w-full text-xs p-2 rounded-md resize-none"
         style={{
           background: 'var(--gem-surface)',
           border: '1px solid var(--gem-border)',
@@ -360,20 +360,20 @@ export function LaunchRenderer({ content, isEditing, onContentChange }: Renderer
             style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}
           >
             <div>
-              <div className="text-[9px] mb-1" style={{ color: 'var(--gem-dim)' }}>Abertura</div>
-              <div className="text-[11px] font-medium" style={{ color: 'var(--gem-text)' }}>
+              <div className="text-[10px] mb-1" style={{ color: 'var(--gem-dim)' }}>Abertura</div>
+              <div className="text-xs font-medium" style={{ color: 'var(--gem-text)' }}>
                 {formatDate(launch.cart_open_date)}
               </div>
             </div>
             <div>
-              <div className="text-[9px] mb-1" style={{ color: 'var(--gem-dim)' }}>Fechamento</div>
-              <div className="text-[11px] font-medium" style={{ color: 'var(--gem-text)' }}>
+              <div className="text-[10px] mb-1" style={{ color: 'var(--gem-dim)' }}>Fechamento</div>
+              <div className="text-xs font-medium" style={{ color: 'var(--gem-text)' }}>
                 {formatDate(launch.cart_close_date)}
               </div>
             </div>
             <div>
-              <div className="text-[9px] mb-1" style={{ color: 'var(--gem-dim)' }}>Early Bird</div>
-              <div className="text-[11px] font-medium" style={{ color: 'var(--gem-text)' }}>
+              <div className="text-[10px] mb-1" style={{ color: 'var(--gem-dim)' }}>Early Bird</div>
+              <div className="text-xs font-medium" style={{ color: 'var(--gem-text)' }}>
                 {formatDate(launch.early_bird_deadline)}
               </div>
             </div>
@@ -394,7 +394,7 @@ export function LaunchRenderer({ content, isEditing, onContentChange }: Renderer
                   style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}
                 >
                   <span
-                    className="w-4 h-4 rounded-full flex-shrink-0 mt-0.5 flex items-center justify-center text-[9px]"
+                    className="w-4 h-4 rounded-full flex-shrink-0 mt-0.5 flex items-center justify-center text-[10px]"
                     style={{
                       background: filled ? 'rgba(16,185,129,0.2)' : 'var(--gem-surface)',
                       border: `1px solid ${filled ? '#10b981' : 'var(--gem-border)'}`,
@@ -408,7 +408,7 @@ export function LaunchRenderer({ content, isEditing, onContentChange }: Renderer
                       {TRIGGER_LABELS[key]}
                     </div>
                     {filled && (
-                      <div className="text-[11px] leading-relaxed" style={{ color: 'var(--gem-muted)' }}>
+                      <div className="text-xs leading-relaxed" style={{ color: 'var(--gem-muted)' }}>
                         {val}
                       </div>
                     )}
@@ -446,7 +446,7 @@ export function LaunchRenderer({ content, isEditing, onContentChange }: Renderer
                       )}
                     </div>
                     {bonus.description && (
-                      <div className="text-[11px]" style={{ color: 'var(--gem-muted)' }}>
+                      <div className="text-xs" style={{ color: 'var(--gem-muted)' }}>
                         {bonus.description}
                       </div>
                     )}
@@ -462,7 +462,7 @@ export function LaunchRenderer({ content, isEditing, onContentChange }: Renderer
           <div>
             <SectionLabel>Notas</SectionLabel>
             <pre
-              className="text-[11px] leading-relaxed whitespace-pre-wrap p-3 rounded-lg"
+              className="text-xs leading-relaxed whitespace-pre-wrap p-3 rounded-lg"
               style={{
                 background: 'var(--gem-well)',
                 border: '1px solid var(--gem-border)',
@@ -492,7 +492,7 @@ export function LaunchRenderer({ content, isEditing, onContentChange }: Renderer
             <button
               key={val}
               onClick={() => update({ launch_type: val as LaunchContent['launch_type'] })}
-              className="text-[11px] px-3 py-1.5 rounded-md font-medium transition-opacity"
+              className="text-xs px-3 py-1.5 rounded-md font-medium transition-opacity"
               style={
                 launch.launch_type === val
                   ? { background: 'var(--gem-accent)', color: '#fff' }
@@ -526,7 +526,7 @@ export function LaunchRenderer({ content, isEditing, onContentChange }: Renderer
               value={launch.cart_open_date ?? ''}
               aria-label="Abertura do Carrinho"
               onChange={(e) => update({ cart_open_date: e.target.value || null })}
-              className="w-full text-[11px] p-2 rounded-md"
+              className="w-full text-xs p-2 rounded-md"
               style={{
                 background: 'var(--gem-well)',
                 border: '1px solid var(--gem-border)',
@@ -541,7 +541,7 @@ export function LaunchRenderer({ content, isEditing, onContentChange }: Renderer
               value={launch.cart_close_date ?? ''}
               aria-label="Fechamento do Carrinho"
               onChange={(e) => update({ cart_close_date: e.target.value || null })}
-              className="w-full text-[11px] p-2 rounded-md"
+              className="w-full text-xs p-2 rounded-md"
               style={{
                 background: 'var(--gem-well)',
                 border: '1px solid var(--gem-border)',
@@ -556,7 +556,7 @@ export function LaunchRenderer({ content, isEditing, onContentChange }: Renderer
               value={launch.early_bird_deadline ?? ''}
               aria-label="Prazo Early Bird"
               onChange={(e) => update({ early_bird_deadline: e.target.value || null })}
-              className="w-full text-[11px] p-2 rounded-md"
+              className="w-full text-xs p-2 rounded-md"
               style={{
                 background: 'var(--gem-well)',
                 border: '1px solid var(--gem-border)',
@@ -582,7 +582,7 @@ export function LaunchRenderer({ content, isEditing, onContentChange }: Renderer
                   update({ mental_triggers: { ...launch.mental_triggers, [key]: e.target.value || null } })
                 }
                 rows={2}
-                className="w-full text-[11px] p-2 rounded-md resize-none"
+                className="w-full text-xs p-2 rounded-md resize-none"
                 style={{
                   background: 'var(--gem-well)',
                   border: '1px solid var(--gem-border)',
@@ -632,7 +632,7 @@ export function LaunchRenderer({ content, isEditing, onContentChange }: Renderer
                   placeholder="Título do bônus..."
                   aria-label={`Título do bônus ${idx + 1}`}
                   onChange={(e) => updateBonus(idx, { title: e.target.value })}
-                  className="w-full text-[11px] p-2 rounded-md"
+                  className="w-full text-xs p-2 rounded-md"
                   style={{
                     background: 'var(--gem-surface)',
                     border: '1px solid var(--gem-border)',
@@ -645,7 +645,7 @@ export function LaunchRenderer({ content, isEditing, onContentChange }: Renderer
                   aria-label={`Descrição do bônus ${idx + 1}`}
                   onChange={(e) => updateBonus(idx, { description: e.target.value })}
                   rows={2}
-                  className="w-full text-[11px] p-2 rounded-md resize-none"
+                  className="w-full text-xs p-2 rounded-md resize-none"
                   style={{
                     background: 'var(--gem-surface)',
                     border: '1px solid var(--gem-border)',
@@ -696,7 +696,7 @@ export function LaunchRenderer({ content, isEditing, onContentChange }: Renderer
           aria-label="Notas do lançamento"
           onChange={(e) => update({ notes: e.target.value })}
           rows={4}
-          className="w-full text-[11px] p-3 rounded-lg resize-none"
+          className="w-full text-xs p-3 rounded-lg resize-none"
           style={{
             background: 'var(--gem-well)',
             border: '1px solid var(--gem-border)',

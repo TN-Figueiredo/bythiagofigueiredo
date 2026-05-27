@@ -18,13 +18,13 @@ export function MusicContinuationCard({ music }: MusicContinuationCardProps) {
         <span className="text-[12px] font-semibold" style={{ color: 'var(--gem-text)' }}>{music.track || 'Track anterior'}</span>
         {music.artist && <span className="text-[10px]" style={{ color: '#5a6b7f' }}>— {music.artist}</span>}
         {status && (
-          <span className="text-[9px] px-1.5 py-px rounded font-semibold ml-auto" style={{ background: status.bg, color: status.color }}>
+          <span className="text-[10px] px-1.5 py-px rounded font-semibold ml-auto" style={{ background: status.bg, color: status.color }}>
             {status.label}
           </span>
         )}
       </div>
       {music.recommendations[0] && !music.recommendations[0].is_empty_slot && (
-        <div className="text-[9px] mt-1" style={{ paddingLeft: 18, color: '#5a6b7f' }}>
+        <div className="text-[10px] mt-1" style={{ paddingLeft: 18, color: '#5a6b7f' }}>
           {music.recommendations[0].track}
         </div>
       )}

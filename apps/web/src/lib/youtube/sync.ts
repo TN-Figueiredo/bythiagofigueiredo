@@ -24,35 +24,47 @@ export async function syncChannel(
 
   const videoIds = await fetchRecentVideoIds(channel.uploads_playlist_id, apiKey)
   result.quotaUsed += Math.ceil(videoIds.length / 50) || 1
+  result.videosFound = videoIds.length
 
-  const { data: existing } = await supabase
+  if (videoIds.length === 0) {
+    await updateChannelMeta(supabase, channel, apiKey, result)
+    return result
+  }
+
+  const { data: existing, error: existingErr } = await supabase
     .from('youtube_videos')
     .select('youtube_video_id')
     .eq('channel_id', channel.id)
     .in('youtube_video_id', videoIds)
 
+  if (existingErr) throw new Error(`Failed to query existing videos: ${existingErr.message}`)
+
   const existingIds = new Set((existing ?? []).map((r: { youtube_video_id: string }) => r.youtube_video_id))
   const newIds = videoIds.filter((id) => !existingIds.has(id))
-  result.videosFound = videoIds.length
 
-  if (newIds.length === 0) return result
+  if (newIds.length === 0) {
+    await updateChannelMeta(supabase, channel, apiKey, result)
+    return result
+  }
 
   const details = await fetchVideoDetails(newIds, apiKey)
   result.quotaUsed += Math.ceil(newIds.length / 50) || 1
 
-  const { data: categories } = await supabase
+  const { data: categories, error: catErr } = await supabase
     .from('youtube_categories')
     .select('*')
     .eq('site_id', channel.site_id)
     .order('sort_order')
 
-  for (const video of details) {
+  if (catErr) throw new Error(`Failed to query categories: ${catErr.message}`)
+
+  const rows = details.map((video) => {
     const cat = autoCategorize(
       { title: video.title, tags: video.tags, description: video.description },
       (categories ?? []) as YouTubeCategoryRow[],
     )
 
-    const row = {
+    return {
       site_id: channel.site_id,
       channel_id: channel.id,
       youtube_video_id: video.youtubeVideoId,
@@ -70,24 +82,36 @@ export async function syncChannel(
       auto_suggested_category_id: cat?.categoryId ?? null,
       category_id: cat?.autoApprove ? cat.categoryId : null,
     }
+  })
 
-    const { error } = await supabase.from('youtube_videos').upsert(row, {
+  if (rows.length > 0) {
+    const { error } = await supabase.from('youtube_videos').upsert(rows, {
       onConflict: 'site_id,youtube_video_id',
     })
-
-    if (!error) result.videosInserted += 1
+    if (error) throw new Error(`Video upsert failed: ${error.message}`)
+    result.videosInserted = newIds.length
   }
 
+  await updateChannelMeta(supabase, channel, apiKey, result)
+  return result
+}
+
+async function updateChannelMeta(
+  supabase: SupabaseClient,
+  channel: YouTubeChannelRow,
+  apiKey: string,
+  result: SyncResult,
+): Promise<void> {
   const stats = await fetchChannelStats(channel.channel_id, apiKey)
   result.quotaUsed += 1
 
-  await supabase.from('youtube_channels').update({
+  const { error: updateErr } = await supabase.from('youtube_channels').update({
     subscriber_count: stats.subscriberCount,
     video_count: stats.videoCount,
     last_synced_at: new Date().toISOString(),
   }).eq('id', channel.id)
 
-  return result
+  if (updateErr) throw new Error(`Failed to update channel metadata: ${updateErr.message}`)
 }
 
 async function refreshMetrics(
@@ -97,12 +121,13 @@ async function refreshMetrics(
   result: SyncResult,
 ): Promise<SyncResult> {
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
-  const { data: recent } = await supabase
+  const { data: recent, error: recentErr } = await supabase
     .from('youtube_videos')
     .select('youtube_video_id')
     .eq('channel_id', channel.id)
     .gte('published_at', thirtyDaysAgo)
 
+  if (recentErr) throw new Error(`Failed to query recent videos: ${recentErr.message}`)
   if (!recent || recent.length === 0) return result
 
   const ids = recent.map((r: { youtube_video_id: string }) => r.youtube_video_id)
@@ -112,14 +137,19 @@ async function refreshMetrics(
     const details = await fetchVideoDetails(batch, apiKey)
     result.quotaUsed += 1
 
-    for (const video of details) {
-      await supabase.from('youtube_videos').update({
-        view_count: video.viewCount,
-        like_count: video.likeCount,
-        comment_count: video.commentCount,
-      }).eq('site_id', channel.site_id).eq('youtube_video_id', video.youtubeVideoId)
-      result.videosUpdated += 1
-    }
+    const updateRows = details.map((video) => ({
+      site_id: channel.site_id,
+      channel_id: channel.id,
+      youtube_video_id: video.youtubeVideoId,
+      view_count: video.viewCount,
+      like_count: video.likeCount,
+      comment_count: video.commentCount,
+    }))
+    const { error: updateErr } = await supabase.from('youtube_videos').upsert(updateRows, {
+      onConflict: 'site_id,youtube_video_id',
+    })
+    if (updateErr) throw new Error(`Failed to update video metrics: ${updateErr.message}`)
+    result.videosUpdated += details.length
   }
 
   return result

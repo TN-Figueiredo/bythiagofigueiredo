@@ -1,6 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { generateSlots } from '@tn-figueiredo/newsletter'
 import type { CadenceConfig, SlotOptions } from '@tn-figueiredo/newsletter'
+import { DAY_INDEX } from '@/lib/pipeline/up-next-constants'
+import type { SyncScheduleEntry } from '@/lib/youtube/types'
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                             */
@@ -142,7 +144,7 @@ export async function fetchScheduleData(
   const rangeStart = start
   const rangeEnd = end
 
-  const [blogRes, blogPublishedRes, newsletterRes, newsletterPublishedRes, videoRes, videoPublishedRes, nlTypesRes, backlogBlogRes, backlogNlRes, backlogVideoRes] = await Promise.all([
+  const [blogRes, blogPublishedRes, newsletterRes, newsletterPublishedRes, videoRes, videoPublishedRes, nlTypesRes, ytChannelsRes, blogCadenceRes, backlogBlogRes, backlogNlRes, backlogVideoRes] = await Promise.all([
     // Blog posts: scheduled/queued within month range
     supabase
       .from('blog_posts')
@@ -212,6 +214,20 @@ export async function fetchScheduleData(
       .eq('site_id', siteId)
       .eq('active', true),
 
+    // YouTube channels (for video cadence slots)
+    supabase
+      .from('youtube_channels')
+      .select('id, locale, sync_schedules, sync_enabled')
+      .eq('site_id', siteId)
+      .eq('sync_enabled', true),
+
+    // Blog cadence
+    supabase
+      .from('blog_cadence')
+      .select('id, locale, cadence_days, cadence_start_date, cadence_paused')
+      .eq('site_id', siteId)
+      .eq('cadence_paused', false),
+
     // Backlog: blog posts ready with no slot
     supabase
       .from('blog_posts')
@@ -249,6 +265,8 @@ export async function fetchScheduleData(
   if (videoRes.error) console.error('[schedule-queries]', videoRes.error.message)
   if (videoPublishedRes.error) console.error('[schedule-queries]', videoPublishedRes.error.message)
   if (nlTypesRes.error) console.error('[schedule-queries]', nlTypesRes.error.message)
+  if (ytChannelsRes.error) console.error('[schedule-queries]', ytChannelsRes.error.message)
+  if (blogCadenceRes.error) console.error('[schedule-queries]', blogCadenceRes.error.message)
   if (backlogBlogRes.error) console.error('[schedule-queries]', backlogBlogRes.error.message)
   if (backlogNlRes.error) console.error('[schedule-queries]', backlogNlRes.error.message)
   if (backlogVideoRes.error) console.error('[schedule-queries]', backlogVideoRes.error.message)
@@ -394,6 +412,61 @@ export async function fetchScheduleData(
       }
     } catch {
       // Ignore cadence calculation errors
+    }
+  }
+
+  // --- Video cadence slots from YouTube sync_schedules ---
+  for (const channel of ytChannelsRes.data ?? []) {
+    const schedules = (channel.sync_schedules ?? []) as SyncScheduleEntry[]
+    if (schedules.length === 0) continue
+
+    const scheduleDays = new Set(schedules.map(s => DAY_INDEX[s.day.toLowerCase()]).filter((d): d is number => d !== undefined))
+    const [yr, mo] = month.split('-').map(Number) as [number, number]
+
+    for (let day = 1; day <= new Date(Date.UTC(yr, mo, 0)).getUTCDate(); day++) {
+      const d = new Date(Date.UTC(yr, mo - 1, day))
+      if (!scheduleDays.has(d.getUTCDay())) continue
+
+      const dateKey = d.toISOString().slice(0, 10)
+      if (dateKey < rangeStart || dateKey > rangeEnd) continue
+
+      cadenceSlots.push({
+        dateKey,
+        type: 'video',
+        contextId: channel.id as string,
+        createUrl: `/cms/pipeline/new?format=video&lang=${(channel.locale as string) === 'pt' ? 'pt-br' : 'en'}`,
+      })
+    }
+  }
+
+  // --- Blog cadence slots ---
+  for (const cadence of blogCadenceRes.data ?? []) {
+    const cadenceDays = cadence.cadence_days as number
+    if (!cadenceDays || cadenceDays <= 0) continue
+
+    const startDateStr = cadence.cadence_start_date as string | null
+    if (!startDateStr) continue
+
+    const startMs = new Date(startDateStr + 'T00:00:00Z').getTime()
+    const rangeStartMs = new Date(rangeStart + 'T00:00:00Z').getTime()
+    const rangeEndMs = new Date(rangeEnd + 'T00:00:00Z').getTime()
+    const intervalMs = cadenceDays * 86_400_000
+
+    // Fast-forward to first slot >= rangeStart
+    let offsetSlots = Math.max(0, Math.floor((rangeStartMs - startMs) / intervalMs))
+    let currentMs = startMs + offsetSlots * intervalMs
+
+    while (currentMs <= rangeEndMs) {
+      if (currentMs >= rangeStartMs) {
+        const dateKey = new Date(currentMs).toISOString().slice(0, 10)
+        cadenceSlots.push({
+          dateKey,
+          type: 'blog',
+          contextId: cadence.id as string,
+          createUrl: `/cms/blog/new?locale=${cadence.locale as string}`,
+        })
+      }
+      currentMs += intervalMs
     }
   }
 

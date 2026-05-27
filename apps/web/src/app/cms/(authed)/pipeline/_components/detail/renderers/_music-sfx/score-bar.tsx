@@ -21,7 +21,7 @@ export function ScoreBar({ score, max }: ScoreBarProps) {
           style={{ width: `${Math.min(pct, 100)}%`, background: color }}
         />
       </div>
-      <span className="text-[9px] font-bold" style={{ color, fontVariantNumeric: 'tabular-nums' }}>
+      <span className="text-[10px] font-bold" style={{ color, fontVariantNumeric: 'tabular-nums' }}>
         {pct}<span className="text-[7px]">%</span>
       </span>
     </div>

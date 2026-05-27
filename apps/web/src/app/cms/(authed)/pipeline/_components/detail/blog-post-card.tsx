@@ -133,7 +133,7 @@ export function BlogPostCard({ itemId, linkedPost, onGraduate, onShowSearch }: P
           </div>
           {showConfirm && (
             <div className="mt-2 p-2 rounded border" style={{ borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.05)' }}>
-              <p className="text-[11px] mb-2" style={{ color: 'var(--gem-muted)' }}>
+              <p className="text-xs mb-2" style={{ color: 'var(--gem-muted)' }}>
                 Desvincular &ldquo;{linkedPost.title}&rdquo;? O post continuará existindo independentemente.
               </p>
               <div className="flex gap-2">
@@ -158,7 +158,7 @@ export function BlogPostCard({ itemId, linkedPost, onGraduate, onShowSearch }: P
         </div>
       ) : (
         <div>
-          <p className="text-[11px] mb-2" style={{ color: 'var(--gem-dim)' }}>Nenhum post vinculado</p>
+          <p className="text-xs mb-2" style={{ color: 'var(--gem-dim)' }}>Nenhum post vinculado</p>
           <div className="flex gap-2">
             <button
               onClick={handleGraduate}

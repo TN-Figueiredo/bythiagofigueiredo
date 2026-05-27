@@ -48,7 +48,7 @@ function CrossRefPanelRaw({ data }: CrossRefPanelProps) {
           <div className={`${MONO_SM_CLS} mb-2.5 leading-relaxed`} style={{ color: TH.muted, fontSize: 9 }}>
             {data.summary}
           </div>
-          <table className="w-full border-collapse text-[11px]" style={{ color: TH.text }}>
+          <table className="w-full border-collapse text-xs" style={{ color: TH.text }}>
             <thead>
               <tr>
                 {['Beat', 'SRT Timestamp', 'Duração', 'Est. Roteiro', 'Status'].map(h => (
@@ -91,7 +91,7 @@ function CrossRefPanelRaw({ data }: CrossRefPanelProps) {
                 DIVERGÊNCIAS IDENTIFICADAS
               </div>
               {(data.divergences ?? []).map((d, i) => (
-                <div key={i} className="text-[11px] leading-relaxed mb-0.5" style={{ color: '#E67E22' }}>
+                <div key={i} className="text-xs leading-relaxed mb-0.5" style={{ color: '#E67E22' }}>
                   • {d}
                 </div>
               ))}

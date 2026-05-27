@@ -3,7 +3,6 @@ import {
   getFormatColor,
   getPlaylistColor,
   FORMAT_COLORS,
-  PLAYLIST_COLORS,
 } from '@/lib/pipeline/colors'
 
 describe('getFormatColor', () => {
@@ -19,21 +18,22 @@ describe('getFormatColor', () => {
 
   it('returns default for unknown format', () => {
     const color = getFormatColor('unknown')
-    expect(color.accent).toBe('#6366f1')
+    expect(color.accent).toBe('var(--gem-accent)')
   })
 })
 
 describe('getPlaylistColor', () => {
-  it('returns color for known playlist codes', () => {
-    for (const code of Object.keys(PLAYLIST_COLORS)) {
-      const color = getPlaylistColor(code)
-      expect(color.accent).toBeTruthy()
-    }
+  it('returns deterministic color from palette for any playlist id', () => {
+    const color = getPlaylistColor('unknown')
+    expect(color.accent).toBeTruthy()
+    const color2 = getPlaylistColor('unknown')
+    expect(color2.accent).toBe(color.accent)
   })
 
-  it('returns default for unknown playlist code', () => {
-    const color = getPlaylistColor('unknown')
-    expect(color.accent).toBe('#6366f1')
+  it('returns different colors for different playlist ids', () => {
+    const ids = ['playlist-a', 'playlist-b', 'playlist-c', 'playlist-d']
+    const colors = ids.map(id => getPlaylistColor(id).accent)
+    expect(new Set(colors).size).toBeGreaterThan(1)
   })
 })
 
@@ -42,20 +42,16 @@ describe('FORMAT_COLORS', () => {
     expect(Object.keys(FORMAT_COLORS)).toHaveLength(5)
   })
 
-  it('each entry has valid hex colors', () => {
+  it('each entry has valid CSS color values', () => {
     for (const color of Object.values(FORMAT_COLORS)) {
-      expect(color.accent).toMatch(/^#[0-9a-fA-F]{6}$/)
-      expect(color.bg).toMatch(/^#[0-9a-fA-F]{6}$/)
-      expect(color.text).toMatch(/^#[0-9a-fA-F]{6}$/)
-      expect(color.border).toMatch(/^#[0-9a-fA-F]{6}$/)
+      expect(color.accent).toBeTruthy()
+      expect(color.bg).toMatch(/^rgba\(/)
+      expect(color.text).toBeTruthy()
+      expect(color.border).toMatch(/^rgba\(/)
     }
   })
-})
 
-describe('PLAYLIST_COLORS', () => {
-  it('has entries with valid hex colors', () => {
-    for (const color of Object.values(PLAYLIST_COLORS)) {
-      expect(color.accent).toMatch(/^#[0-9a-fA-F]{6}$/)
-    }
+  it('campaign has distinct color from video', () => {
+    expect(FORMAT_COLORS['campaign']!.accent).not.toBe(FORMAT_COLORS['video']!.accent)
   })
 })

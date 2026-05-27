@@ -27,22 +27,22 @@ CREATE POLICY working_today_delete_own ON public.working_today
   FOR DELETE USING (user_id = auth.uid());
 
 DROP FUNCTION IF EXISTS pin_working_today(uuid, integer);
+DROP FUNCTION IF EXISTS pin_working_today(uuid, uuid);
 CREATE OR REPLACE FUNCTION pin_working_today(
-  p_item_id uuid,
-  p_max     integer DEFAULT 3
+  p_user_id uuid,
+  p_item_id uuid
 )
 RETURNS json AS $$
 DECLARE
-  v_uid   uuid := auth.uid();
+  v_uid   uuid := p_user_id;
+  v_max   constant integer := 3;
   v_count integer;
 BEGIN
-  IF NOT is_staff() THEN
-    RAISE EXCEPTION 'permission_denied';
-  END IF;
+  PERFORM pg_advisory_xact_lock(hashtext('wt_pin_' || v_uid::text));
 
   DELETE FROM public.working_today
   WHERE user_id = v_uid
-    AND pinned_at < now() - interval '24 hours';
+    AND pinned_at::date < current_date;
 
   IF EXISTS (
     SELECT 1 FROM public.working_today
@@ -55,8 +55,8 @@ BEGIN
   FROM public.working_today
   WHERE user_id = v_uid;
 
-  IF v_count >= p_max THEN
-    RETURN json_build_object('status', 'cap_reached', 'current', v_count, 'max', p_max);
+  IF v_count >= v_max THEN
+    RETURN json_build_object('status', 'cap_reached', 'current', v_count, 'max', v_max);
   END IF;
 
   INSERT INTO public.working_today (user_id, pipeline_item_id)
@@ -68,17 +68,15 @@ $$ LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = 'public';
 
 DROP FUNCTION IF EXISTS unpin_working_today(uuid);
+DROP FUNCTION IF EXISTS unpin_working_today(uuid, uuid);
 CREATE OR REPLACE FUNCTION unpin_working_today(
+  p_user_id uuid,
   p_item_id uuid
 )
 RETURNS json AS $$
 DECLARE
-  v_uid uuid := auth.uid();
+  v_uid uuid := p_user_id;
 BEGIN
-  IF NOT is_staff() THEN
-    RAISE EXCEPTION 'permission_denied';
-  END IF;
-
   DELETE FROM public.working_today
   WHERE user_id = v_uid AND pipeline_item_id = p_item_id;
 

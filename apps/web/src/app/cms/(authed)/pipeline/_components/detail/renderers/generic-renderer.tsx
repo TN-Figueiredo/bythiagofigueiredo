@@ -40,7 +40,7 @@ export function GenericRenderer({ content, isEditing, onContentChange }: Rendere
               /* keep current value until valid JSON */
             }
           }}
-          className="w-full min-h-[200px] text-[11px] p-3 rounded-md resize-y font-mono"
+          className="w-full min-h-[200px] text-xs p-3 rounded-md resize-y font-mono"
           style={{
             background: 'var(--gem-well)',
             border: '1px solid var(--gem-border)',
@@ -50,7 +50,7 @@ export function GenericRenderer({ content, isEditing, onContentChange }: Rendere
         />
       ) : (
         <pre
-          className="text-[11px] p-3 rounded-md overflow-x-auto"
+          className="text-xs p-3 rounded-md overflow-x-auto"
           style={{
             background: 'var(--gem-well)',
             border: '1px solid var(--gem-border)',

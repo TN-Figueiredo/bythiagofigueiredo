@@ -34,7 +34,7 @@ function ProgressBarRaw({ beats }: ProgressBarProps) {
             }}
           >
             <span
-              className="font-mono text-[9px] whitespace-nowrap px-1.5 overflow-hidden text-ellipsis"
+              className="font-mono text-[10px] whitespace-nowrap px-1.5 overflow-hidden text-ellipsis"
               style={{ color: TH.text, opacity: 0.8 }}
             >
               {b.idx + 1} {b.name}

@@ -19,7 +19,7 @@ export function ConflictBanner({ onKeepLocal, onAcceptRemote, localContent, remo
 
   return (
     <>
-      <div className="px-4 py-2 flex items-center justify-between flex-wrap gap-1.5 text-[11px]" style={{ background: 'rgba(245,158,11,0.08)', borderBottom: '1px solid rgba(245,158,11,0.2)' }}>
+      <div className="px-4 py-2 flex items-center justify-between flex-wrap gap-1.5 text-xs" style={{ background: 'rgba(245,158,11,0.08)', borderBottom: '1px solid rgba(245,158,11,0.2)' }}>
         <span className="flex items-center gap-1.5" style={{ color: 'var(--gem-warn)' }}>
           ⚠️ Cowork atualizou esta seção. Você tem edições locais não salvas.
         </span>
@@ -30,7 +30,7 @@ export function ConflictBanner({ onKeepLocal, onAcceptRemote, localContent, remo
         </span>
       </div>
       {showDiff && (
-        <div className="px-4 py-3 max-h-48 overflow-y-auto text-[11px] font-mono" style={{ background: 'var(--gem-well)', borderBottom: '1px solid var(--gem-border)' }}>
+        <div className="px-4 py-3 max-h-48 overflow-y-auto text-xs font-mono" style={{ background: 'var(--gem-well)', borderBottom: '1px solid var(--gem-border)' }}>
           <div className="flex justify-between text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: 'var(--gem-dim)' }}>
             <span>Diff: sua versão vs Cowork</span>
             <button onClick={() => setShowDiff(false)} className="px-1.5 text-[10px] rounded" style={{ border: '1px solid var(--gem-border)', color: 'var(--gem-dim)' }}>✕</button>

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   fetchRecentVideoIds,
   fetchVideoDetails,
@@ -107,5 +107,82 @@ describe('fetchChannelStats', () => {
 
     const stats = await fetchChannelStats('UCtest', 'test-key')
     expect(stats).toEqual({ subscriberCount: 4200, videoCount: 48 })
+  })
+})
+
+describe('ytFetch retry behavior', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks()
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  /** Drive pending setTimeout timers forward until the promise settles. */
+  async function drainTimers<T>(promise: Promise<T>): Promise<T> {
+    let settled = false
+    const wrapped = promise.finally(() => { settled = true })
+    while (!settled) {
+      await vi.advanceTimersByTimeAsync(5_000)
+    }
+    return wrapped
+  }
+
+  it('retries on 429 and succeeds', async () => {
+    const okResponse = { items: [{ contentDetails: { videoId: 'v1' } }] }
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response('', { status: 429 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(okResponse), { status: 200 }))
+
+    const ids = await drainTimers(fetchRecentVideoIds('PLtest', 'test-key'))
+    expect(ids).toEqual(['v1'])
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+  })
+
+  it('retries on 500 and succeeds', async () => {
+    const okResponse = { items: [{ statistics: { subscriberCount: '100', videoCount: '5' } }] }
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response('', { status: 500 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(okResponse), { status: 200 }))
+
+    const stats = await drainTimers(fetchChannelStats('UCtest', 'test-key'))
+    expect(stats).toEqual({ subscriberCount: 100, videoCount: 5 })
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+  })
+
+  it('throws after max retries exceeded', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('', { status: 503 }))
+
+    const promise = fetchChannelStats('UCtest', 'test-key')
+    // Catch immediately to prevent unhandled rejection warning
+    const caught = promise.catch((e: Error) => e)
+
+    // Advance through all retry delays (1s + 2s + 4s)
+    await vi.advanceTimersByTimeAsync(1_000)
+    await vi.advanceTimersByTimeAsync(2_000)
+    await vi.advanceTimersByTimeAsync(4_000)
+
+    const error = await caught
+    expect(error).toBeInstanceOf(Error)
+    expect((error as Error).message).toBe('YouTube API 503')
+    // Initial attempt (0) + 3 retries (1,2,3) = 4 calls
+    expect(fetchSpy).toHaveBeenCalledTimes(4)
+  })
+
+  it('paginates and stops when no nextPageToken', async () => {
+    const page1 = { items: [{ contentDetails: { videoId: 'a' } }], nextPageToken: 'page2' }
+    const page2 = { items: [{ contentDetails: { videoId: 'b' } }], nextPageToken: 'page3' }
+    const page3 = { items: [{ contentDetails: { videoId: 'c' } }] }
+
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify(page1), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(page2), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(page3), { status: 200 }))
+
+    const ids = await drainTimers(fetchRecentVideoIds('PLtest', 'test-key'))
+    expect(ids).toEqual(['a', 'b', 'c'])
   })
 })

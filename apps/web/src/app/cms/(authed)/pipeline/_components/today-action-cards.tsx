@@ -161,7 +161,7 @@ export function TodayActionCards({ actions, overflow }: TodayActionCardsProps) {
 
   return (
     <section
-      aria-label="Fila de producao"
+      aria-label="Fila de produção"
       className="border-l-2 pl-4"
       style={{ borderLeftColor: 'var(--gem-accent)' }}
     >

@@ -3,6 +3,7 @@ import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { resolveScheduleLabel } from '@/lib/youtube/schedule-label'
+import type { SyncScheduleEntry, SyncStatus } from '@/lib/youtube/types'
 import { DashboardConnected, type ChannelDashboard, type PinnedVideo, type LastSyncInfo } from './dashboard-connected'
 
 export const dynamic = 'force-dynamic'
@@ -26,7 +27,7 @@ export default async function YouTubeDashboardPage() {
       .not('auto_suggested_category_id', 'is', null)
       .is('category_id', null),
     supabase.from('youtube_sync_log')
-      .select('channel_id, status, videos_found, videos_inserted, videos_updated, created_at')
+      .select('channel_id, status, videos_found, videos_inserted, videos_updated, error_message, created_at')
       .eq('site_id', siteId)
       .order('created_at', { ascending: false })
       .limit(10),
@@ -75,18 +76,19 @@ export default async function YouTubeDashboardPage() {
   const channels: ChannelDashboard[] = rawChannels.map(ch => {
     const lastSync = rawSyncs.find(s => s.channel_id === ch.id)
     const stats = statsMap.get(ch.id as string)
-    const schedules = (ch.sync_schedules as Array<{ day: string }>) ?? []
+    const schedules = (ch.sync_schedules as SyncScheduleEntry[]) ?? []
     const label = resolveScheduleLabel(
       (ch.schedule_label as string | null) ?? null,
       schedules.length > 0 ? schedules : null,
-      ch.locale === 'pt' ? 'pt-BR' : 'en',
+      ch.locale as 'pt' | 'en',
     )
     const syncInfo: LastSyncInfo | null = lastSync ? {
-      status: lastSync.status as string,
+      status: lastSync.status as SyncStatus,
       videosFound: (lastSync.videos_found as number) ?? 0,
       videosInserted: (lastSync.videos_inserted as number) ?? 0,
       videosUpdated: (lastSync.videos_updated as number) ?? 0,
       at: lastSync.created_at as string,
+      errorMessage: (lastSync.error_message as string | null) ?? null,
     } : null
 
     return {

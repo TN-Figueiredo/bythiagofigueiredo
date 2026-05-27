@@ -196,20 +196,20 @@ function ArtlistLinks({ text }: { text: string }) {
         target="_blank"
         rel="noopener noreferrer"
         aria-label="Buscar música no Artlist (abre em nova aba)"
-        className="text-[9px] font-medium transition-colors hover:underline"
+        className="text-[10px] font-medium transition-colors hover:underline"
         style={{ color: '#c084fc' }}
       >
         Buscar no Artlist ↗
       </a>
       {result.fallbackUrl && (
         <>
-          <span className="text-[9px]" style={{ color: 'var(--gem-dim)' }}>·</span>
+          <span className="text-[10px]" style={{ color: 'var(--gem-dim)' }}>·</span>
           <a
             href={result.fallbackUrl}
             target="_blank"
             rel="noopener noreferrer"
             aria-label="Buscar no Artlist com menos filtros"
-            className="text-[9px] transition-colors hover:underline"
+            className="text-[10px] transition-colors hover:underline"
             style={{ color: 'var(--gem-dim)' }}
           >
             Menos filtros ↗
@@ -228,7 +228,7 @@ function ArtlistSfxInline({ text }: { text: string }) {
       href={ref.url}
       target="_blank"
       rel="noopener noreferrer"
-      className="text-[9px] font-medium ml-1 transition-colors hover:underline"
+      className="text-[10px] font-medium ml-1 transition-colors hover:underline"
       style={{ color: '#fbbf24' }}
     >
       ↗ Artlist
@@ -246,7 +246,7 @@ function NoteLine({ note, stripLeadingTs }: { note: CategorizedNote; stripLeadin
     <>
       <div className="flex items-start gap-2 py-1 px-1 rounded transition-colors hover:bg-white/[0.03]">
         <TagPill tag={note.category} />
-        <span className="text-[11px] leading-relaxed" style={{ color: textColor }}>
+        <span className="text-xs leading-relaxed" style={{ color: textColor }}>
           {note.isOptional && <OptionalBadge />}
           {tokenizeText(displayText)}
           <ArtlistSfxInline text={note.text} />
@@ -306,7 +306,7 @@ function SubSection({ title, subtitle, children }: { title: string; subtitle?: s
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
-        <span className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: 'var(--gem-dim)' }}>
+        <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--gem-dim)' }}>
           {title}
         </span>
         {subtitle && (
@@ -356,27 +356,27 @@ function SceneCard({ scene, expandAll, sceneIndex }: { scene: Scene; expandAll: 
         className="w-full flex items-center gap-2 px-3 py-2 text-left transition-colors"
         style={{ background: 'var(--gem-well)' }}
       >
-        <span className="text-[11px] font-bold tabular-nums" style={{ color: 'var(--gem-accent)', minWidth: '1.25rem' }}>
+        <span className="text-xs font-bold tabular-nums" style={{ color: 'var(--gem-accent)', minWidth: '1.25rem' }}>
           {scene.number}
         </span>
-        <span className="text-[11px] font-medium flex-1" style={{ color: 'var(--gem-text)' }}>
+        <span className="text-xs font-medium flex-1" style={{ color: 'var(--gem-text)' }}>
           {scene.beat_ref && <span style={{ color: 'var(--gem-dim)' }}>Beat {scene.beat_ref} · </span>}
           {scene.label ?? scene.timestamps ?? scene.timeline ?? '—'}
           {scene.duration && <span style={{ color: 'var(--gem-dim)' }}> · {scene.duration}</span>}
         </span>
         <div className="flex items-center gap-1.5">
           {hasDecide && (
-            <span className="text-[9px] px-1.5 py-0.5 rounded font-medium" style={{ background: 'rgba(239,68,68,0.15)', color: '#f87171' }}>
+            <span className="text-[10px] px-1.5 py-0.5 rounded font-medium" style={{ background: 'rgba(239,68,68,0.15)', color: '#f87171' }}>
               DECIDE
             </span>
           )}
           {statusStyle && scene.status && (
-            <span className="text-[9px] px-1.5 py-0.5 rounded font-medium" style={statusStyle}>
+            <span className="text-[10px] px-1.5 py-0.5 rounded font-medium" style={statusStyle}>
               {scene.status}
             </span>
           )}
           {diffStyle && scene.difficulty && (
-            <span className="text-[9px] px-1.5 py-0.5 rounded" style={diffStyle}>
+            <span className="text-[10px] px-1.5 py-0.5 rounded" style={diffStyle}>
               {scene.difficulty}
             </span>
           )}
@@ -387,10 +387,10 @@ function SceneCard({ scene, expandAll, sceneIndex }: { scene: Scene; expandAll: 
       </button>
 
       {expanded && (
-        <div className="px-3 py-3 space-y-3 text-[11px]" style={{ borderTop: '1px solid var(--gem-border)' }}>
+        <div className="px-3 py-3 space-y-3 text-xs" style={{ borderTop: '1px solid var(--gem-border)' }}>
           {scene.narrative && (
             <div
-              className="text-[11px] leading-snug italic pb-2 mb-2"
+              className="text-xs leading-snug italic pb-2 mb-2"
               style={{ color: 'var(--gem-dim)', borderBottom: '1px solid var(--gem-border)' }}
             >
               {scene.narrative}
@@ -465,7 +465,7 @@ function SceneCard({ scene, expandAll, sceneIndex }: { scene: Scene; expandAll: 
 
           {hasDecide && (
             <div className="p-2.5 rounded-md" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)' }}>
-              <div className="text-[9px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: '#f87171' }}>
+              <div className="text-[10px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: '#f87171' }}>
                 Decisões pendentes
               </div>
               <ul className="pl-3.5 m-0 space-y-0.5">
@@ -490,7 +490,7 @@ export function SceneGuideRenderer({ content }: RendererProps) {
 
   if (scenes.length === 0) {
     return (
-      <div className="p-5 text-[11px] text-center" style={{ color: 'var(--gem-dim)' }}>
+      <div className="p-5 text-xs text-center" style={{ color: 'var(--gem-dim)' }}>
         Nenhuma cena encontrada.
       </div>
     )

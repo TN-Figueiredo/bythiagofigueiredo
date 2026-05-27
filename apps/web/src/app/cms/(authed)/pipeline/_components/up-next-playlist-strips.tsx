@@ -1,5 +1,7 @@
 'use client'
 
+import { memo } from 'react'
+
 export interface PlaylistStripItem {
   stage: string | null
   isPublished: boolean
@@ -28,17 +30,17 @@ function getDotStyle(item: PlaylistStripItem): { filled: boolean; color: string 
   return { filled: false, color: 'var(--gem-dim)' }
 }
 
-export function UpNextPlaylistStrips({ playlists }: UpNextPlaylistStripsProps) {
+export const UpNextPlaylistStrips = memo(function UpNextPlaylistStrips({ playlists }: UpNextPlaylistStripsProps) {
   if (playlists.length === 0) return null
 
   return (
     <section>
-      <h3
+      <h2
         className="text-xs font-semibold uppercase tracking-wider mb-3"
         style={{ color: 'var(--gem-muted)' }}
       >
         Playlists em Andamento
-      </h3>
+      </h2>
       <div
         className="rounded-lg border p-3 space-y-2"
         style={{
@@ -59,7 +61,7 @@ export function UpNextPlaylistStrips({ playlists }: UpNextPlaylistStripsProps) {
               {playlist.name}
             </span>
 
-            <div className="flex items-center gap-0.5" data-testid={`dots-${playlist.id}`}>
+            <div className="flex items-center gap-0.5" aria-hidden="true" data-testid={`dots-${playlist.id}`}>
               {playlist.items.map((item, i) => {
                 const dot = getDotStyle(item)
                 return (
@@ -75,9 +77,12 @@ export function UpNextPlaylistStrips({ playlists }: UpNextPlaylistStripsProps) {
                 )
               })}
             </div>
+            <span className="sr-only">
+              {playlist.items.filter(i => i.isPublished).length} de {playlist.items.length} publicados
+            </span>
 
             <span
-              className="shrink-0 ml-auto text-[11px]"
+              className="shrink-0 ml-auto text-xs"
               style={{ color: 'var(--gem-muted)' }}
             >
               {playlist.nextItemTitle && playlist.nextItemStage && (
@@ -99,4 +104,4 @@ export function UpNextPlaylistStrips({ playlists }: UpNextPlaylistStripsProps) {
       </div>
     </section>
   )
-}
+})

@@ -197,10 +197,23 @@ Items advance/retreat through stages via `POST /api/pipeline/items/:id/advance` 
 
 ## GET /api/pipeline/up-next
 
-Command center endpoint. Returns today's prioritized actions, weekly slot grid, streak, stage counts, playlist summaries, and contextual suggestion. Each section is computed independently with per-section error isolation.
+Command center endpoint. Returns today's prioritized actions, weekly slot grid, streak, stage counts, playlist summaries, candidates for slot assignment, and contextual suggestion. Each section is computed independently with per-section error isolation.
 
 **Query params:**
 - `maxCards` (number, default 5) — max action cards to return
 - `tz` (string, default "America/Sao_Paulo") — IANA timezone for date calculations
 
 **Response 200:** `{ data: UpNextApiResponse }`
+
+## POST /api/pipeline/up-next
+
+Assign or swap a pipeline item in a week slot. Sets `scheduled_at` on the target item. When swapping, clears `scheduled_at` on the previous item first.
+
+**Body (JSON):**
+- `itemId` (uuid, required) — pipeline item to assign
+- `slotDay` (string "YYYY-MM-DD", required) — target day
+- `slotHour` (string or null, default null) — target hour (e.g. "14:00")
+- `previousItemId` (uuid, optional) — item to unschedule when swapping
+
+**Response 200:** `{ data: { id, scheduled_at } }`
+**Errors:** 400 validation, 404 item not found or wrong site

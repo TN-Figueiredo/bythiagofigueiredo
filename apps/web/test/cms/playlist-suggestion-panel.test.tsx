@@ -1,7 +1,14 @@
 // @vitest-environment happy-dom
+import React from 'react'
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import type { SlotCandidate, WeekSlot } from '../../src/lib/pipeline/up-next-types'
+
+vi.mock('next/link', () => ({
+  default: ({ children, href }: { children: React.ReactNode; href: string }) => (
+    <a href={href}>{children}</a>
+  ),
+}))
 
 vi.mock('@/lib/pipeline/gem-design', () => ({
   gemMix: vi.fn((color: string, pct: number) => `rgba(0,0,0,${pct / 100})`),
@@ -20,6 +27,7 @@ vi.mock('@/lib/pipeline/colors', () => ({
     blog_post: { accent: 'var(--gem-done)', bg: 'rgba(0,0,0,0.08)', text: 'var(--gem-done)', border: 'rgba(0,0,0,0.25)' },
     newsletter: { accent: 'var(--gem-warn)', bg: 'rgba(0,0,0,0.08)', text: 'var(--gem-warn)', border: 'rgba(0,0,0,0.25)' },
   },
+  getPlaylistColor: () => ({ accent: 'var(--gem-accent)', bg: 'rgba(0,0,0,0.08)', text: 'var(--gem-accent)', border: 'rgba(0,0,0,0.25)' }),
 }))
 
 function makeCandidate(overrides: Partial<SlotCandidate> = {}): SlotCandidate {
@@ -60,7 +68,7 @@ describe('PlaylistSuggestionPanel', () => {
     const { container } = render(
       <PlaylistSuggestionPanel
         candidates={[]}
-        weekSlots={[makeWeekSlot()]}
+
         playlistSummaries={[]}
         onSelectItem={vi.fn()}
         selectedItem={null}
@@ -83,7 +91,7 @@ describe('PlaylistSuggestionPanel', () => {
     render(
       <PlaylistSuggestionPanel
         candidates={candidates}
-        weekSlots={[makeWeekSlot()]}
+
         playlistSummaries={[]}
         onSelectItem={vi.fn()}
         selectedItem={null}
@@ -107,7 +115,7 @@ describe('PlaylistSuggestionPanel', () => {
     render(
       <PlaylistSuggestionPanel
         candidates={candidates}
-        weekSlots={[makeWeekSlot()]}
+
         playlistSummaries={[]}
         onSelectItem={vi.fn()}
         selectedItem={null}
@@ -120,7 +128,27 @@ describe('PlaylistSuggestionPanel', () => {
     expect(screen.getByText('Avulsos')).toBeTruthy()
   })
 
-  it('calls onSelectItem when chip clicked', async () => {
+  it('chip links to item detail page', async () => {
+    const { PlaylistSuggestionPanel } = await import(
+      '../../src/app/cms/(authed)/pipeline/_components/playlist-suggestion-panel'
+    )
+    const candidate = makeCandidate({ id: 'c-1', title: 'Test Video' })
+    render(
+      <PlaylistSuggestionPanel
+        candidates={[candidate]}
+
+        playlistSummaries={[]}
+        onSelectItem={vi.fn()}
+        selectedItem={null}
+        collapsed={false}
+        onToggleCollapse={vi.fn()}
+      />,
+    )
+    const link = screen.getByRole('link', { name: /Test Video/ })
+    expect(link.getAttribute('href')).toBe('/cms/pipeline/items/c-1')
+  })
+
+  it('assign button calls onSelectItem', async () => {
     const { PlaylistSuggestionPanel } = await import(
       '../../src/app/cms/(authed)/pipeline/_components/playlist-suggestion-panel'
     )
@@ -129,7 +157,7 @@ describe('PlaylistSuggestionPanel', () => {
     render(
       <PlaylistSuggestionPanel
         candidates={[candidate]}
-        weekSlots={[makeWeekSlot()]}
+
         playlistSummaries={[]}
         onSelectItem={onSelect}
         selectedItem={null}
@@ -137,12 +165,12 @@ describe('PlaylistSuggestionPanel', () => {
         onToggleCollapse={vi.fn()}
       />,
     )
-    const chip = screen.getByRole('button', { name: /Test Video/ })
-    fireEvent.click(chip)
+    const assignBtn = screen.getByRole('button', { name: /Atribuir "Test Video"/ })
+    fireEvent.click(assignBtn)
     expect(onSelect).toHaveBeenCalledWith(candidate)
   })
 
-  it('selected item has aria-pressed="true"', async () => {
+  it('selected item assign button has aria-pressed="true"', async () => {
     const { PlaylistSuggestionPanel } = await import(
       '../../src/app/cms/(authed)/pipeline/_components/playlist-suggestion-panel'
     )
@@ -150,7 +178,7 @@ describe('PlaylistSuggestionPanel', () => {
     render(
       <PlaylistSuggestionPanel
         candidates={[candidate]}
-        weekSlots={[makeWeekSlot()]}
+
         playlistSummaries={[]}
         onSelectItem={vi.fn()}
         selectedItem={candidate}
@@ -158,8 +186,8 @@ describe('PlaylistSuggestionPanel', () => {
         onToggleCollapse={vi.fn()}
       />,
     )
-    const chip = screen.getByRole('button', { name: /Test Video/ })
-    expect(chip.getAttribute('aria-pressed')).toBe('true')
+    const assignBtn = screen.getByRole('button', { name: /Desmarcar "Test Video"/ })
+    expect(assignBtn.getAttribute('aria-pressed')).toBe('true')
   })
 
   it('collapsed state hides groups, shows only header', async () => {
@@ -170,7 +198,7 @@ describe('PlaylistSuggestionPanel', () => {
     render(
       <PlaylistSuggestionPanel
         candidates={[candidate]}
-        weekSlots={[makeWeekSlot()]}
+
         playlistSummaries={[]}
         onSelectItem={vi.fn()}
         selectedItem={null}
@@ -179,7 +207,8 @@ describe('PlaylistSuggestionPanel', () => {
       />,
     )
     expect(screen.getByText('Sugestões por Playlist')).toBeTruthy()
-    expect(screen.queryByText('JS Basics')).toBeNull()
+    const content = document.getElementById('playlist-suggestion-content')!
+    expect(content.hidden).toBe(true)
   })
 
   it('toggle button calls onToggleCollapse', async () => {
@@ -190,7 +219,7 @@ describe('PlaylistSuggestionPanel', () => {
     render(
       <PlaylistSuggestionPanel
         candidates={[makeCandidate()]}
-        weekSlots={[makeWeekSlot()]}
+
         playlistSummaries={[]}
         onSelectItem={vi.fn()}
         selectedItem={null}
@@ -221,7 +250,7 @@ describe('PlaylistSuggestionPanel', () => {
     render(
       <PlaylistSuggestionPanel
         candidates={[candidate]}
-        weekSlots={[makeWeekSlot()]}
+
         playlistSummaries={summaries}
         onSelectItem={vi.fn()}
         selectedItem={null}
@@ -229,7 +258,7 @@ describe('PlaylistSuggestionPanel', () => {
         onToggleCollapse={vi.fn()}
       />,
     )
-    expect(screen.getByText('quase!')).toBeTruthy()
+    expect(screen.getByText('1 restante')).toBeTruthy()
   })
 
   it('has accessible region landmark', async () => {
@@ -239,7 +268,7 @@ describe('PlaylistSuggestionPanel', () => {
     render(
       <PlaylistSuggestionPanel
         candidates={[makeCandidate()]}
-        weekSlots={[makeWeekSlot()]}
+
         playlistSummaries={[]}
         onSelectItem={vi.fn()}
         selectedItem={null}
@@ -251,7 +280,7 @@ describe('PlaylistSuggestionPanel', () => {
     expect(region).toBeTruthy()
   })
 
-  it('deselects when clicking selected item again', async () => {
+  it('deselects when clicking assign button on selected item', async () => {
     const { PlaylistSuggestionPanel } = await import(
       '../../src/app/cms/(authed)/pipeline/_components/playlist-suggestion-panel'
     )
@@ -260,7 +289,7 @@ describe('PlaylistSuggestionPanel', () => {
     render(
       <PlaylistSuggestionPanel
         candidates={[candidate]}
-        weekSlots={[makeWeekSlot()]}
+
         playlistSummaries={[]}
         onSelectItem={onSelect}
         selectedItem={candidate}
@@ -268,8 +297,8 @@ describe('PlaylistSuggestionPanel', () => {
         onToggleCollapse={vi.fn()}
       />,
     )
-    const chip = screen.getByRole('button', { name: /Test Video/ })
-    fireEvent.click(chip)
+    const assignBtn = screen.getByRole('button', { name: /Desmarcar "Test Video"/ })
+    fireEvent.click(assignBtn)
     expect(onSelect).toHaveBeenCalledWith(null)
   })
 
@@ -284,7 +313,7 @@ describe('PlaylistSuggestionPanel', () => {
     render(
       <PlaylistSuggestionPanel
         candidates={candidates}
-        weekSlots={[makeWeekSlot()]}
+
         playlistSummaries={[]}
         onSelectItem={vi.fn()}
         selectedItem={null}
@@ -311,7 +340,7 @@ describe('PlaylistSuggestionPanel', () => {
     render(
       <PlaylistSuggestionPanel
         candidates={candidates}
-        weekSlots={[makeWeekSlot()]}
+
         playlistSummaries={[]}
         onSelectItem={vi.fn()}
         selectedItem={null}
@@ -319,8 +348,8 @@ describe('PlaylistSuggestionPanel', () => {
         onToggleCollapse={vi.fn()}
       />,
     )
-    // Only 5 chips rendered initially
-    const chips = screen.getAllByRole('button', { name: /Video \d/ })
+    // Only 5 chips rendered initially (links to detail pages)
+    const chips = screen.getAllByRole('link', { name: /Video \d/ })
     expect(chips).toHaveLength(5)
     // Items 5, 6, 7 not visible
     expect(screen.queryByText('Video 5')).toBeNull()
@@ -344,7 +373,7 @@ describe('PlaylistSuggestionPanel', () => {
     render(
       <PlaylistSuggestionPanel
         candidates={candidates}
-        weekSlots={[makeWeekSlot()]}
+
         playlistSummaries={[]}
         onSelectItem={vi.fn()}
         selectedItem={null}
@@ -371,7 +400,7 @@ describe('PlaylistSuggestionPanel', () => {
     render(
       <PlaylistSuggestionPanel
         candidates={candidates}
-        weekSlots={[makeWeekSlot()]}
+
         playlistSummaries={[]}
         onSelectItem={vi.fn()}
         selectedItem={null}
@@ -380,7 +409,7 @@ describe('PlaylistSuggestionPanel', () => {
       />,
     )
     // Only 5 visible (GROUP_MAX_VISIBLE), sorted by stage desc
-    const chips = screen.getAllByRole('button', { name: /Video|Idea|Editing|Scripted/ })
+    const chips = screen.getAllByRole('link', { name: /Video|Idea|Editing|Scripted/ })
     expect(chips).toHaveLength(5)
     // First chip should be edicao (stage 5), second roteiro (stage 3), then ideas
     expect(chips[0]!.textContent).toContain('Editing Video')
@@ -406,7 +435,7 @@ describe('PlaylistSuggestionPanel', () => {
     render(
       <PlaylistSuggestionPanel
         candidates={candidates}
-        weekSlots={[makeWeekSlot()]}
+
         playlistSummaries={[]}
         onSelectItem={vi.fn()}
         selectedItem={null}
@@ -436,7 +465,7 @@ describe('PlaylistSuggestionPanel', () => {
     render(
       <PlaylistSuggestionPanel
         candidates={candidates}
-        weekSlots={[makeWeekSlot()]}
+
         playlistSummaries={[]}
         onSelectItem={vi.fn()}
         selectedItem={null}
@@ -447,7 +476,7 @@ describe('PlaylistSuggestionPanel', () => {
     const moreBtn = screen.getByText('+ 3 mais')
     fireEvent.click(moreBtn)
     // All 8 items now visible
-    const chips = screen.getAllByRole('button', { name: /Video \d/ })
+    const chips = screen.getAllByRole('link', { name: /Video \d/ })
     expect(chips).toHaveLength(8)
     // "ver mais" button gone
     expect(screen.queryByText('+ 3 mais')).toBeNull()

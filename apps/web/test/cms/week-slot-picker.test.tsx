@@ -145,7 +145,7 @@ describe('WeekSlotPicker', () => {
         onClose={onClose}
       />
     )
-    fireEvent.click(screen.getByText('Meu Video'))
+    fireEvent.mouseDown(screen.getByText('Meu Video'))
     await vi.waitFor(() => {
       expect(onAssign).toHaveBeenCalledWith('c-1', '2026-05-26', '10:00')
     })
@@ -160,7 +160,7 @@ describe('WeekSlotPicker', () => {
         onClose={onClose}
       />
     )
-    fireEvent.click(screen.getByText('Meu Video'))
+    fireEvent.mouseDown(screen.getByText('Meu Video'))
     await vi.waitFor(() => {
       expect(onClose).toHaveBeenCalled()
     })
@@ -176,7 +176,7 @@ describe('WeekSlotPicker', () => {
         onClose={onClose}
       />
     )
-    fireEvent.click(screen.getByText('Meu Video'))
+    fireEvent.mouseDown(screen.getByText('Meu Video'))
     await vi.waitFor(() => {
       expect(screen.getByRole('alert')).toBeDefined()
       expect(screen.getByText('Slot conflict')).toBeDefined()
@@ -227,14 +227,14 @@ describe('WeekSlotPicker', () => {
         onClose={onClose}
       />
     )
-    const buttons = screen.getAllByRole('button').filter(b => b.textContent?.includes('In Edit') || b.textContent?.includes('Script Done') || b.textContent?.includes('Early Idea'))
-    expect(buttons[0]?.textContent).toContain('In Edit')
-    expect(buttons[1]?.textContent).toContain('Script Done')
-    expect(buttons[2]?.textContent).toContain('Early Idea')
+    const options = screen.getAllByRole('option')
+    expect(options[0]?.textContent).toContain('In Edit')
+    expect(options[1]?.textContent).toContain('Script Done')
+    expect(options[2]?.textContent).toContain('Early Idea')
   })
 
-  it('limits displayed candidates to 8', () => {
-    const candidates = Array.from({ length: 12 }, (_, i) =>
+  it('limits displayed candidates to 15', () => {
+    const candidates = Array.from({ length: 20 }, (_, i) =>
       makeCandidate({ id: `c-${i}`, title: `Video ${i}`, stage: 'roteiro' })
     )
     render(
@@ -245,11 +245,11 @@ describe('WeekSlotPicker', () => {
         onClose={onClose}
       />
     )
-    const items = screen.getAllByRole('button').filter(b => b.textContent?.startsWith('Video'))
-    expect(items.length).toBe(8)
+    const items = screen.getAllByRole('option')
+    expect(items.length).toBe(15)
   })
 
-  it('disables buttons during loading', async () => {
+  it('disables options during loading', async () => {
     const slowAssign = vi.fn().mockImplementation(() => new Promise(() => {}))
     render(
       <WeekSlotPicker
@@ -259,10 +259,10 @@ describe('WeekSlotPicker', () => {
         onClose={onClose}
       />
     )
-    fireEvent.click(screen.getByText('Meu Video'))
+    fireEvent.mouseDown(screen.getByText('Meu Video'))
     await vi.waitFor(() => {
-      const btn = screen.getByText('Meu Video').closest('button')
-      expect(btn?.disabled).toBe(true)
+      const option = screen.getByRole('option')
+      expect(option.getAttribute('aria-disabled')).toBe('true')
     })
   })
 
@@ -378,6 +378,225 @@ describe('WeekSlotPicker', () => {
     const dialog = screen.getByRole('dialog')
     expect(dialog.style.top).toBe('8px')
     document.body.removeChild(anchor)
+  })
+
+  describe('keyboard navigation', () => {
+    it('ArrowDown highlights the first item', () => {
+      render(
+        <WeekSlotPicker
+          slot={makeSlot()}
+          candidates={[
+            makeCandidate({ id: 'c-1', title: 'Video A', stage: 'roteiro' }),
+            makeCandidate({ id: 'c-2', title: 'Video B', stage: 'roteiro' }),
+            makeCandidate({ id: 'c-3', title: 'Video C', stage: 'roteiro' }),
+          ]}
+          onAssign={onAssign}
+          onClose={onClose}
+        />
+      )
+      const input = screen.getByLabelText('Buscar item para o slot')
+      fireEvent.keyDown(input, { key: 'ArrowDown' })
+      const options = screen.getAllByRole('option')
+      expect(options[0]?.getAttribute('aria-selected')).toBe('true')
+      expect(options[1]?.getAttribute('aria-selected')).toBe('false')
+      expect(options[2]?.getAttribute('aria-selected')).toBe('false')
+    })
+
+    it('ArrowDown clamps at the last item (does not wrap)', () => {
+      render(
+        <WeekSlotPicker
+          slot={makeSlot()}
+          candidates={[
+            makeCandidate({ id: 'c-1', title: 'Video A', stage: 'roteiro' }),
+            makeCandidate({ id: 'c-2', title: 'Video B', stage: 'roteiro' }),
+          ]}
+          onAssign={onAssign}
+          onClose={onClose}
+        />
+      )
+      const input = screen.getByLabelText('Buscar item para o slot')
+      // ArrowDown twice → last item (index 1) highlighted
+      fireEvent.keyDown(input, { key: 'ArrowDown' })
+      fireEvent.keyDown(input, { key: 'ArrowDown' })
+      const options = screen.getAllByRole('option')
+      expect(options[1]?.getAttribute('aria-selected')).toBe('true')
+      // ArrowDown again → still clamped at last item
+      fireEvent.keyDown(input, { key: 'ArrowDown' })
+      expect(options[1]?.getAttribute('aria-selected')).toBe('true')
+      expect(options[0]?.getAttribute('aria-selected')).toBe('false')
+    })
+
+    it('ArrowUp from first item stays at first (does not wrap)', () => {
+      render(
+        <WeekSlotPicker
+          slot={makeSlot()}
+          candidates={[
+            makeCandidate({ id: 'c-1', title: 'Video A', stage: 'roteiro' }),
+            makeCandidate({ id: 'c-2', title: 'Video B', stage: 'roteiro' }),
+          ]}
+          onAssign={onAssign}
+          onClose={onClose}
+        />
+      )
+      const input = screen.getByLabelText('Buscar item para o slot')
+      // Move down to first item
+      fireEvent.keyDown(input, { key: 'ArrowDown' })
+      const options = screen.getAllByRole('option')
+      expect(options[0]?.getAttribute('aria-selected')).toBe('true')
+      // ArrowUp → clamps at 0, stays on first
+      fireEvent.keyDown(input, { key: 'ArrowUp' })
+      expect(options[0]?.getAttribute('aria-selected')).toBe('true')
+      expect(options[1]?.getAttribute('aria-selected')).toBe('false')
+    })
+
+    it('Enter selects the highlighted item and calls onAssign', async () => {
+      render(
+        <WeekSlotPicker
+          slot={makeSlot({ day: '2026-05-26', hour: '10:00' })}
+          candidates={[
+            makeCandidate({ id: 'c-1', title: 'Video A', stage: 'roteiro' }),
+            makeCandidate({ id: 'c-2', title: 'Video B', stage: 'roteiro' }),
+          ]}
+          onAssign={onAssign}
+          onClose={onClose}
+        />
+      )
+      const input = screen.getByLabelText('Buscar item para o slot')
+      // Highlight first item (sorted by stage desc — both same stage so order is stable)
+      fireEvent.keyDown(input, { key: 'ArrowDown' })
+      fireEvent.keyDown(input, { key: 'Enter' })
+      await vi.waitFor(() => {
+        expect(onAssign).toHaveBeenCalledTimes(1)
+        expect(onAssign).toHaveBeenCalledWith('c-1', '2026-05-26', '10:00')
+      })
+    })
+
+    it('Enter on second highlighted item calls onAssign with correct id', async () => {
+      render(
+        <WeekSlotPicker
+          slot={makeSlot({ day: '2026-05-26', hour: '14:00' })}
+          candidates={[
+            makeCandidate({ id: 'c-1', title: 'Video A', stage: 'roteiro' }),
+            makeCandidate({ id: 'c-2', title: 'Video B', stage: 'idea' }),
+          ]}
+          onAssign={onAssign}
+          onClose={onClose}
+        />
+      )
+      const input = screen.getByLabelText('Buscar item para o slot')
+      // First item after sort-desc is 'roteiro' (c-1), second is 'idea' (c-2)
+      fireEvent.keyDown(input, { key: 'ArrowDown' }) // index 0 → c-1
+      fireEvent.keyDown(input, { key: 'ArrowDown' }) // index 1 → c-2
+      fireEvent.keyDown(input, { key: 'Enter' })
+      await vi.waitFor(() => {
+        expect(onAssign).toHaveBeenCalledWith('c-2', '2026-05-26', '14:00')
+      })
+    })
+
+    it('Enter with no highlighted item does not call onAssign', () => {
+      render(
+        <WeekSlotPicker
+          slot={makeSlot()}
+          candidates={[makeCandidate({ id: 'c-1', title: 'Video A', stage: 'roteiro' })]}
+          onAssign={onAssign}
+          onClose={onClose}
+        />
+      )
+      const input = screen.getByLabelText('Buscar item para o slot')
+      // No ArrowDown pressed — highlightedIndex is -1
+      fireEvent.keyDown(input, { key: 'Enter' })
+      expect(onAssign).not.toHaveBeenCalled()
+    })
+
+    it('Home jumps to first item regardless of current position', () => {
+      render(
+        <WeekSlotPicker
+          slot={makeSlot()}
+          candidates={[
+            makeCandidate({ id: 'c-1', title: 'Video A', stage: 'roteiro' }),
+            makeCandidate({ id: 'c-2', title: 'Video B', stage: 'roteiro' }),
+            makeCandidate({ id: 'c-3', title: 'Video C', stage: 'roteiro' }),
+          ]}
+          onAssign={onAssign}
+          onClose={onClose}
+        />
+      )
+      const input = screen.getByLabelText('Buscar item para o slot')
+      // Move to third item first
+      fireEvent.keyDown(input, { key: 'ArrowDown' })
+      fireEvent.keyDown(input, { key: 'ArrowDown' })
+      fireEvent.keyDown(input, { key: 'ArrowDown' })
+      const options = screen.getAllByRole('option')
+      expect(options[2]?.getAttribute('aria-selected')).toBe('true')
+      // Home → back to first
+      fireEvent.keyDown(input, { key: 'Home' })
+      expect(options[0]?.getAttribute('aria-selected')).toBe('true')
+      expect(options[1]?.getAttribute('aria-selected')).toBe('false')
+      expect(options[2]?.getAttribute('aria-selected')).toBe('false')
+    })
+
+    it('End jumps to last item', () => {
+      render(
+        <WeekSlotPicker
+          slot={makeSlot()}
+          candidates={[
+            makeCandidate({ id: 'c-1', title: 'Video A', stage: 'roteiro' }),
+            makeCandidate({ id: 'c-2', title: 'Video B', stage: 'roteiro' }),
+            makeCandidate({ id: 'c-3', title: 'Video C', stage: 'roteiro' }),
+          ]}
+          onAssign={onAssign}
+          onClose={onClose}
+        />
+      )
+      const input = screen.getByLabelText('Buscar item para o slot')
+      // Start with no highlight, press End
+      fireEvent.keyDown(input, { key: 'End' })
+      const options = screen.getAllByRole('option')
+      expect(options[2]?.getAttribute('aria-selected')).toBe('true')
+      expect(options[0]?.getAttribute('aria-selected')).toBe('false')
+      expect(options[1]?.getAttribute('aria-selected')).toBe('false')
+    })
+
+    it('aria-activedescendant points to highlighted option id', () => {
+      render(
+        <WeekSlotPicker
+          slot={makeSlot()}
+          candidates={[
+            makeCandidate({ id: 'c-abc', title: 'Video A', stage: 'roteiro' }),
+            makeCandidate({ id: 'c-def', title: 'Video B', stage: 'roteiro' }),
+          ]}
+          onAssign={onAssign}
+          onClose={onClose}
+        />
+      )
+      const input = screen.getByLabelText('Buscar item para o slot')
+      // No highlight yet — no aria-activedescendant
+      expect(input.getAttribute('aria-activedescendant')).toBeNull()
+      fireEvent.keyDown(input, { key: 'ArrowDown' })
+      // After ArrowDown, first option is highlighted
+      expect(input.getAttribute('aria-activedescendant')).toBe('picker-option-c-abc')
+    })
+
+    it('typing resets highlighted index to -1', () => {
+      render(
+        <WeekSlotPicker
+          slot={makeSlot()}
+          candidates={[
+            makeCandidate({ id: 'c-1', title: 'Video A', stage: 'roteiro' }),
+            makeCandidate({ id: 'c-2', title: 'Video B', stage: 'roteiro' }),
+          ]}
+          onAssign={onAssign}
+          onClose={onClose}
+        />
+      )
+      const input = screen.getByLabelText('Buscar item para o slot')
+      fireEvent.keyDown(input, { key: 'ArrowDown' })
+      const options = screen.getAllByRole('option')
+      expect(options[0]?.getAttribute('aria-selected')).toBe('true')
+      // Typing resets highlight
+      fireEvent.change(input, { target: { value: 'v' } })
+      expect(input.getAttribute('aria-activedescendant')).toBeNull()
+    })
   })
 
   it('repositions on scroll event', async () => {

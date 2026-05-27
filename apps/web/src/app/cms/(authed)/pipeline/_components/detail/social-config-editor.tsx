@@ -196,7 +196,7 @@ export function SocialConfigEditor({ config, onChange, disabled, contentFormat, 
               {ALL_PROVIDERS.map((provider) => (
                 <label
                   key={provider}
-                  className="flex items-center gap-1.5 text-[11px] cursor-pointer select-none py-0.5"
+                  className="flex items-center gap-1.5 text-xs cursor-pointer select-none py-0.5"
                   style={{ color: 'var(--gem-text)' }}
                 >
                   <input
@@ -232,12 +232,12 @@ export function SocialConfigEditor({ config, onChange, disabled, contentFormat, 
                     <button
                       type="button"
                       onClick={() => toggleExpand(provider)}
-                      className="w-full flex items-center justify-between px-2 py-1 text-[11px] font-medium"
+                      className="w-full flex items-center justify-between px-2 py-1 text-xs font-medium"
                       style={{ color: 'var(--gem-text)' }}
                     >
                       {PROVIDER_LABELS[provider]}
                       <span
-                        className="text-[9px] transition-transform"
+                        className="text-[10px] transition-transform"
                         style={{
                           color: 'var(--gem-dim)',
                           transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
@@ -250,7 +250,7 @@ export function SocialConfigEditor({ config, onChange, disabled, contentFormat, 
                       <div className="px-2 pb-2 flex flex-col gap-1.5">
                         <div>
                           <div className="flex items-center justify-between">
-                            <label htmlFor={`caption-${provider}-pt`} className="text-[9px]" style={{ color: 'var(--gem-dim)' }}>PT</label>
+                            <label htmlFor={`caption-${provider}-pt`} className="text-[10px]" style={{ color: 'var(--gem-dim)' }}>PT</label>
                             {(config.captions[provider]?.pt?.length ?? 0) > 0 && (
                               <span className="text-[8px] tabular-nums" style={{ color: (config.captions[provider]?.pt?.length ?? 0) > 2000 ? 'var(--gem-danger, #ef4444)' : 'var(--gem-dim)' }}>
                                 {config.captions[provider]?.pt?.length ?? 0}/2200
@@ -264,7 +264,7 @@ export function SocialConfigEditor({ config, onChange, disabled, contentFormat, 
                             disabled={disabled}
                             value={config.captions[provider]?.pt ?? ''}
                             onChange={(e) => setCaption(provider, 'pt', e.target.value)}
-                            className="w-full text-[11px] p-1.5 rounded resize-none"
+                            className="w-full text-xs p-1.5 rounded resize-none"
                             style={{
                               background: 'var(--gem-well, var(--gem-surface))',
                               border: '1px solid var(--gem-border)',
@@ -274,7 +274,7 @@ export function SocialConfigEditor({ config, onChange, disabled, contentFormat, 
                         </div>
                         <div>
                           <div className="flex items-center justify-between">
-                            <label htmlFor={`caption-${provider}-en`} className="text-[9px]" style={{ color: 'var(--gem-dim)' }}>EN</label>
+                            <label htmlFor={`caption-${provider}-en`} className="text-[10px]" style={{ color: 'var(--gem-dim)' }}>EN</label>
                             {(config.captions[provider]?.en?.length ?? 0) > 0 && (
                               <span className="text-[8px] tabular-nums" style={{ color: (config.captions[provider]?.en?.length ?? 0) > 2000 ? 'var(--gem-danger, #ef4444)' : 'var(--gem-dim)' }}>
                                 {config.captions[provider]?.en?.length ?? 0}/2200
@@ -288,7 +288,7 @@ export function SocialConfigEditor({ config, onChange, disabled, contentFormat, 
                             disabled={disabled}
                             value={config.captions[provider]?.en ?? ''}
                             onChange={(e) => setCaption(provider, 'en', e.target.value)}
-                            className="w-full text-[11px] p-1.5 rounded resize-none"
+                            className="w-full text-xs p-1.5 rounded resize-none"
                             style={{
                               background: 'var(--gem-well, var(--gem-surface))',
                               border: '1px solid var(--gem-border)',
@@ -322,7 +322,7 @@ export function SocialConfigEditor({ config, onChange, disabled, contentFormat, 
                   update({ hashtags: parseHashtags(e.currentTarget.value) })
                 }
               }}
-              className="w-full text-[11px] px-2 py-1 rounded"
+              className="w-full text-xs px-2 py-1 rounded"
               style={{
                 background: 'var(--gem-well, var(--gem-surface))',
                 border: '1px solid var(--gem-border)',
@@ -334,7 +334,7 @@ export function SocialConfigEditor({ config, onChange, disabled, contentFormat, 
                 {config.hashtags.map((tag) => (
                   <span
                     key={tag}
-                    className="text-[9px] px-1.5 py-0.5 rounded-full"
+                    className="text-[10px] px-1.5 py-0.5 rounded-full"
                     style={{
                       background: 'color-mix(in srgb, var(--gem-accent) 12%, transparent)',
                       color: 'var(--gem-accent)',
@@ -356,7 +356,7 @@ export function SocialConfigEditor({ config, onChange, disabled, contentFormat, 
               {IMAGE_SOURCE_OPTIONS.map((opt) => (
                 <label
                   key={opt.value}
-                  className="flex items-center gap-1.5 text-[11px] cursor-pointer select-none py-0.5"
+                  className="flex items-center gap-1.5 text-xs cursor-pointer select-none py-0.5"
                   style={{ color: 'var(--gem-text)' }}
                 >
                   <input
@@ -383,7 +383,7 @@ export function SocialConfigEditor({ config, onChange, disabled, contentFormat, 
                 {IG_TEMPLATE_OPTIONS.map((opt) => (
                   <label
                     key={opt.value}
-                    className="flex items-center gap-1 text-[11px] cursor-pointer select-none"
+                    className="flex items-center gap-1 text-xs cursor-pointer select-none"
                     style={{ color: 'var(--gem-text)' }}
                   >
                     <input
@@ -409,7 +409,7 @@ export function SocialConfigEditor({ config, onChange, disabled, contentFormat, 
               </span>
               {config.platforms.map((provider) => (
                 <div key={provider} className="flex items-center justify-between gap-2">
-                  <span className="text-[11px] shrink-0" style={{ color: 'var(--gem-text)' }}>
+                  <span className="text-xs shrink-0" style={{ color: 'var(--gem-text)' }}>
                     {PROVIDER_LABELS[provider]}
                   </span>
                   <select
@@ -422,7 +422,7 @@ export function SocialConfigEditor({ config, onChange, disabled, contentFormat, 
                         setFormat(provider, val as DeliveryFormat)
                       }
                     }}
-                    className="text-[11px] px-1.5 py-0.5 rounded min-w-0 flex-1"
+                    className="text-xs px-1.5 py-0.5 rounded min-w-0 flex-1"
                     style={{
                       background: 'var(--gem-well, var(--gem-surface))',
                       border: '1px solid var(--gem-border)',

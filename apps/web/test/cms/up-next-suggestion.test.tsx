@@ -85,6 +85,6 @@ describe('UpNextSuggestion', () => {
       <UpNextSuggestion text="Test" linkHref="/test" linkLabel="Go" />,
     )
     const link = screen.getByText('Go')
-    expect(link.className).toContain('min-h-[44px]')
+    expect(link.className).toContain('underline')
   })
 })

@@ -49,7 +49,7 @@ function makeChannel(overrides: Partial<YouTubeChannelRow> = {}): YouTubeChannel
 
 function mockSupabase() {
   const insertFn = vi.fn().mockReturnValue({ data: null, error: null })
-  const upsertFn = vi.fn().mockReturnValue({ data: null, error: null })
+  const upsertFn = vi.fn().mockReturnValue({ data: null, error: null, count: 1 })
   const updateFn = vi.fn()
   const selectFn = vi.fn()
 
@@ -104,7 +104,7 @@ describe('syncChannel', () => {
     const channel = makeChannel()
 
     mockFetchRecent.mockResolvedValue(['vid-1', 'vid-2'])
-    // Simulate both already exist
+    mockFetchStats.mockResolvedValue({ subscriberCount: 1000, videoCount: 50 })
     supabase.from = vi.fn((table: string) => {
       if (table === 'youtube_videos') {
         return {
@@ -118,6 +118,13 @@ describe('syncChannel', () => {
           }),
         }
       }
+      if (table === 'youtube_channels') {
+        return {
+          update: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({ data: null, error: null }),
+          }),
+        }
+      }
       return { select: vi.fn() }
     }) as typeof supabase.from
 
@@ -125,8 +132,25 @@ describe('syncChannel', () => {
 
     expect(result.videosFound).toBe(2)
     expect(result.videosInserted).toBe(0)
-    expect(result.quotaUsed).toBe(1)
+    expect(result.quotaUsed).toBe(2)
     expect(mockFetchDetails).not.toHaveBeenCalled()
+    expect(mockFetchStats).toHaveBeenCalledWith('UC_xyz', 'key')
+  })
+
+  it('handles channel with 0 videos without crashing', async () => {
+    const { supabase } = mockSupabase()
+    const channel = makeChannel()
+
+    mockFetchRecent.mockResolvedValue([])
+    mockFetchStats.mockResolvedValue({ subscriberCount: 2, videoCount: 0 })
+
+    const result = await syncChannel(supabase, channel, 'key', 'manual')
+
+    expect(result.videosFound).toBe(0)
+    expect(result.videosInserted).toBe(0)
+    expect(result.quotaUsed).toBe(2)
+    expect(mockFetchDetails).not.toHaveBeenCalled()
+    expect(mockFetchStats).toHaveBeenCalledWith('UC_xyz', 'key')
   })
 
   it('inserts new videos and updates channel stats', async () => {
@@ -156,12 +180,12 @@ describe('syncChannel', () => {
     expect(result.videosInserted).toBe(1)
     expect(result.quotaUsed).toBe(3)
     expect(upsertFn).toHaveBeenCalledWith(
-      expect.objectContaining({
+      [expect.objectContaining({
         youtube_video_id: 'vid-new',
         title: 'New Video',
         site_id: 'site-1',
         channel_id: 'ch-1',
-      }),
+      })],
       { onConflict: 'site_id,youtube_video_id' },
     )
   })
@@ -191,11 +215,11 @@ describe('syncChannel', () => {
     await syncChannel(supabase, channel, 'key', 'catchall')
 
     expect(upsertFn).toHaveBeenCalledWith(
-      expect.objectContaining({
+      [expect.objectContaining({
         auto_suggested_category_id: 'cat-bip',
         category_id: 'cat-bip',
-      }),
-      expect.anything(),
+      })],
+      { onConflict: 'site_id,youtube_video_id' },
     )
   })
 
@@ -224,19 +248,16 @@ describe('syncChannel', () => {
     await syncChannel(supabase, channel, 'key', 'catchall')
 
     expect(upsertFn).toHaveBeenCalledWith(
-      expect.objectContaining({
+      [expect.objectContaining({
         auto_suggested_category_id: 'cat-debug',
         category_id: null,
-      }),
-      expect.anything(),
+      })],
+      { onConflict: 'site_id,youtube_video_id' },
     )
   })
 
-  it('metrics mode refreshes view/like/comment counts', async () => {
-    const updateEq = vi.fn().mockReturnValue({
-      eq: vi.fn().mockResolvedValue({ data: null, error: null }),
-    })
-    const updateFn = vi.fn().mockReturnValue({ eq: updateEq })
+  it('metrics mode refreshes view/like/comment counts via batch upsert', async () => {
+    const upsertFn = vi.fn().mockReturnValue({ error: null })
 
     const supabase = {
       from: vi.fn((table: string) => {
@@ -250,7 +271,7 @@ describe('syncChannel', () => {
                 }),
               }),
             }),
-            update: updateFn,
+            upsert: upsertFn,
           }
         }
         return {}
@@ -266,9 +287,13 @@ describe('syncChannel', () => {
 
     expect(result.videosUpdated).toBe(2)
     expect(result.quotaUsed).toBe(1)
-    expect(updateFn).toHaveBeenCalledTimes(2)
-    expect(updateFn).toHaveBeenCalledWith(
-      expect.objectContaining({ view_count: 500, like_count: 50, comment_count: 10 }),
+    expect(upsertFn).toHaveBeenCalledTimes(1)
+    expect(upsertFn).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ youtube_video_id: 'vid-1', view_count: 500, like_count: 50, comment_count: 10 }),
+        expect.objectContaining({ youtube_video_id: 'vid-2', view_count: 200, like_count: 20, comment_count: 5 }),
+      ]),
+      { onConflict: 'site_id,youtube_video_id' },
     )
   })
 
@@ -288,5 +313,229 @@ describe('syncChannel', () => {
     expect(result.videosUpdated).toBe(0)
     expect(result.quotaUsed).toBe(0)
     expect(mockFetchDetails).not.toHaveBeenCalled()
+  })
+
+  it('throws when existing videos query fails', async () => {
+    const channel = makeChannel()
+
+    mockFetchRecent.mockResolvedValue(['vid-1', 'vid-2'])
+
+    const supabase = {
+      from: vi.fn((table: string) => {
+        if (table === 'youtube_videos') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                in: vi.fn().mockResolvedValue({
+                  data: null,
+                  error: { message: 'connection timeout' },
+                }),
+              }),
+            }),
+          }
+        }
+        return {}
+      }),
+    } as unknown as Parameters<typeof syncChannel>[0]
+
+    await expect(syncChannel(supabase, channel, 'key', 'catchall')).rejects.toThrow(
+      'Failed to query existing videos: connection timeout',
+    )
+  })
+
+  it('throws when categories query fails', async () => {
+    const channel = makeChannel()
+
+    mockFetchRecent.mockResolvedValue(['vid-new'])
+    mockFetchDetails.mockResolvedValue([{
+      youtubeVideoId: 'vid-new',
+      title: 'Test',
+      description: '',
+      publishedAt: '2026-05-01T00:00:00Z',
+      tags: [],
+      thumbnailUrl: null,
+      thumbnailHqUrl: null,
+      duration: '5:00',
+      durationSeconds: 300,
+      viewCount: 10,
+      likeCount: 1,
+      commentCount: 0,
+    }])
+
+    const supabase = {
+      from: vi.fn((table: string) => {
+        if (table === 'youtube_videos') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                in: vi.fn().mockResolvedValue({ data: [], error: null }),
+              }),
+            }),
+          }
+        }
+        if (table === 'youtube_categories') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                order: vi.fn().mockResolvedValue({
+                  data: null,
+                  error: { message: 'relation does not exist' },
+                }),
+              }),
+            }),
+          }
+        }
+        return {}
+      }),
+    } as unknown as Parameters<typeof syncChannel>[0]
+
+    await expect(syncChannel(supabase, channel, 'key', 'catchall')).rejects.toThrow(
+      'Failed to query categories: relation does not exist',
+    )
+  })
+
+  it('throws when batch upsert fails', async () => {
+    const channel = makeChannel()
+
+    mockFetchRecent.mockResolvedValue(['vid-new'])
+    mockFetchDetails.mockResolvedValue([{
+      youtubeVideoId: 'vid-new',
+      title: 'Test',
+      description: '',
+      publishedAt: '2026-05-01T00:00:00Z',
+      tags: [],
+      thumbnailUrl: null,
+      thumbnailHqUrl: null,
+      duration: '5:00',
+      durationSeconds: 300,
+      viewCount: 10,
+      likeCount: 1,
+      commentCount: 0,
+    }])
+    mockAutoCategorize.mockReturnValue(null)
+
+    const supabase = {
+      from: vi.fn((table: string) => {
+        if (table === 'youtube_videos') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                in: vi.fn().mockResolvedValue({ data: [], error: null }),
+              }),
+            }),
+            upsert: vi.fn().mockReturnValue({
+              error: { message: 'constraint violation' },
+              count: 0,
+            }),
+          }
+        }
+        if (table === 'youtube_categories') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                order: vi.fn().mockResolvedValue({ data: [], error: null }),
+              }),
+            }),
+          }
+        }
+        return {}
+      }),
+    } as unknown as Parameters<typeof syncChannel>[0]
+
+    await expect(syncChannel(supabase, channel, 'key', 'catchall')).rejects.toThrow(
+      'Video upsert failed: constraint violation',
+    )
+  })
+
+  it('throws when channel metadata update fails', async () => {
+    const channel = makeChannel()
+
+    mockFetchRecent.mockResolvedValue([])
+    mockFetchStats.mockResolvedValue({ subscriberCount: 500, videoCount: 25 })
+
+    const supabase = {
+      from: vi.fn((table: string) => {
+        if (table === 'youtube_channels') {
+          return {
+            update: vi.fn().mockReturnValue({
+              eq: vi.fn().mockResolvedValue({
+                data: null,
+                error: { message: 'permission denied' },
+              }),
+            }),
+          }
+        }
+        return {}
+      }),
+    } as unknown as Parameters<typeof syncChannel>[0]
+
+    await expect(syncChannel(supabase, channel, 'key', 'manual')).rejects.toThrow(
+      'Failed to update channel metadata: permission denied',
+    )
+  })
+
+  it('handles channel with 0 videos and updates metadata', async () => {
+    const channelUpdateEq = vi.fn().mockResolvedValue({ data: null, error: null })
+    const channelUpdateFn = vi.fn().mockReturnValue({ eq: channelUpdateEq })
+
+    const supabase = {
+      from: vi.fn((table: string) => {
+        if (table === 'youtube_channels') {
+          return { update: channelUpdateFn }
+        }
+        return {}
+      }),
+    } as unknown as Parameters<typeof syncChannel>[0]
+
+    const channel = makeChannel()
+    mockFetchRecent.mockResolvedValue([])
+    mockFetchStats.mockResolvedValue({ subscriberCount: 2, videoCount: 0 })
+
+    const result = await syncChannel(supabase, channel, 'key', 'catchall')
+
+    expect(result.videosFound).toBe(0)
+    expect(result.videosInserted).toBe(0)
+    expect(mockFetchStats).toHaveBeenCalledWith('UC_xyz', 'key')
+    expect(channelUpdateFn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subscriber_count: 2,
+        video_count: 0,
+      }),
+    )
+  })
+
+  it('metrics mode throws on video update error', async () => {
+    const upsertFn = vi.fn().mockReturnValue({ error: { message: 'disk full' } })
+
+    const supabase = {
+      from: vi.fn((table: string) => {
+        if (table === 'youtube_videos') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                gte: vi.fn().mockResolvedValue({
+                  data: [
+                    { youtube_video_id: 'vid-1' },
+                    { youtube_video_id: 'vid-2' },
+                  ],
+                  error: null,
+                }),
+              }),
+            }),
+            upsert: upsertFn,
+          }
+        }
+        return {}
+      }),
+    } as unknown as Parameters<typeof syncChannel>[0]
+
+    mockFetchDetails.mockResolvedValue([
+      { youtubeVideoId: 'vid-1', title: '', description: '', publishedAt: '', tags: [], thumbnailUrl: null, thumbnailHqUrl: null, duration: '', durationSeconds: 0, viewCount: 100, likeCount: 10, commentCount: 1 },
+      { youtubeVideoId: 'vid-2', title: '', description: '', publishedAt: '', tags: [], thumbnailUrl: null, thumbnailHqUrl: null, duration: '', durationSeconds: 0, viewCount: 200, likeCount: 20, commentCount: 2 },
+    ])
+
+    await expect(syncChannel(supabase, makeChannel(), 'key', 'metrics')).rejects.toThrow(
+      'Failed to update video metrics: disk full',
+    )
   })
 })

@@ -50,7 +50,7 @@ function SpeedBadge({ speed }: { speed: string }) {
   const val = parseSpeedValue(speed)
 
   if (val === null) {
-    return <span className="text-[11px]" style={{ color: 'var(--gem-muted)' }}>{speed}</span>
+    return <span className="text-xs" style={{ color: 'var(--gem-muted)' }}>{speed}</span>
   }
 
   let bg: string
@@ -83,7 +83,7 @@ export function SpeedRampRenderer({ content }: RendererProps) {
 
   if (rows.length === 0) {
     return (
-      <div className="p-5 text-[11px] text-center" style={{ color: 'var(--gem-dim)' }}>
+      <div className="p-5 text-xs text-center" style={{ color: 'var(--gem-dim)' }}>
         Nenhum dado de speed ramp disponível.
       </div>
     )
@@ -99,7 +99,7 @@ export function SpeedRampRenderer({ content }: RendererProps) {
         </div>
       )}
       <div className="overflow-x-auto rounded-md" style={{ border: '1px solid var(--gem-border)' }}>
-        <table className="w-full text-[11px] border-collapse">
+        <table className="w-full text-xs border-collapse">
           <thead>
             <tr style={{ background: 'var(--gem-well)' }}>
               {['Seção', 'SRT Range', 'Timeline', 'Velocidade', 'Racional'].map(h => (
@@ -140,7 +140,7 @@ export function SpeedRampRenderer({ content }: RendererProps) {
         </table>
       </div>
       {data.source && (
-        <div className="text-[9px]" style={{ color: 'var(--gem-dim)' }}>
+        <div className="text-[10px]" style={{ color: 'var(--gem-dim)' }}>
           Fonte: {data.source}
         </div>
       )}

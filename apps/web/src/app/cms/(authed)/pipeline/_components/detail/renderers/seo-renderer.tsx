@@ -75,7 +75,7 @@ function SeoField({
         </span>
         {value.length > 0 && (
           <span
-            className="text-[9px] px-1.5 py-0.5 rounded-full"
+            className="text-[10px] px-1.5 py-0.5 rounded-full"
             style={{ color: indicator.color, background: `${indicator.color}15` }}
           >
             {value.length} chars{indicator.label && ` · ${indicator.label}`}
@@ -136,12 +136,12 @@ function SerpPreview({ title, description, slug }: { title: string; description:
           {title || 'Sem título'}
         </div>
         {slug && (
-          <div className="text-[11px]" style={{ color: '#bdc1c6' }}>
+          <div className="text-xs" style={{ color: '#bdc1c6' }}>
             bythiagofigueiredo.com › {slug}
           </div>
         )}
         <div
-          className="text-[11px] leading-relaxed"
+          className="text-xs leading-relaxed"
           style={{ color: '#9aa0a6' }}
         >
           {description
@@ -165,7 +165,7 @@ export function SeoRenderer({ content, isEditing, onContentChange }: RendererPro
 
   if (!data.meta_title && !data.meta_description && !isEditing) {
     return (
-      <div className="p-5 text-[11px] text-center py-8" style={{ color: 'var(--gem-dim)' }}>
+      <div className="p-5 text-xs text-center py-8" style={{ color: 'var(--gem-dim)' }}>
         SEO ainda não tem conteúdo.
       </div>
     )
@@ -215,7 +215,7 @@ export function SeoRenderer({ content, isEditing, onContentChange }: RendererPro
             {data.keywords.map((kw, i) => (
               <span
                 key={i}
-                className="text-[11px] px-2 py-0.5 rounded-full"
+                className="text-xs px-2 py-0.5 rounded-full"
                 style={{
                   background: 'rgba(167,139,250,0.1)',
                   border: '1px solid rgba(167,139,250,0.25)',

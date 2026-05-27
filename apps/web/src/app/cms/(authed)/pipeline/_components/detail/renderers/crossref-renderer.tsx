@@ -35,7 +35,7 @@ export function CrossRefRenderer({ content }: RendererProps) {
 
   if (rows.length === 0) {
     return (
-      <div className="p-5 text-[11px] text-center" style={{ color: 'var(--gem-dim)' }}>
+      <div className="p-5 text-xs text-center" style={{ color: 'var(--gem-dim)' }}>
         Nenhum dado de cross-reference disponível.
       </div>
     )
@@ -44,13 +44,13 @@ export function CrossRefRenderer({ content }: RendererProps) {
   return (
     <div className="p-5 space-y-3">
       {data.summary && (
-        <div className="text-[11px] leading-relaxed p-3 rounded-md" style={{ background: 'var(--gem-well)', color: 'var(--gem-muted)' }}>
+        <div className="text-xs leading-relaxed p-3 rounded-md" style={{ background: 'var(--gem-well)', color: 'var(--gem-muted)' }}>
           {data.summary}
         </div>
       )}
 
       <div className="overflow-x-auto rounded-md" style={{ border: '1px solid var(--gem-border)' }}>
-        <table className="w-full text-[11px] border-collapse">
+        <table className="w-full text-xs border-collapse">
           <thead>
             <tr style={{ background: 'var(--gem-well)' }}>
               {['Beat', 'SRT Timestamp', 'Duração', 'Est. Roteiro', 'Status'].map(h => (
@@ -92,7 +92,7 @@ export function CrossRefRenderer({ content }: RendererProps) {
       </div>
 
       {data.source && (
-        <div className="text-[9px]" style={{ color: 'var(--gem-dim)' }}>
+        <div className="text-[10px]" style={{ color: 'var(--gem-dim)' }}>
           Fonte: {data.source}
         </div>
       )}
@@ -107,7 +107,7 @@ export function CrossRefRenderer({ content }: RendererProps) {
           </div>
           <ul className="pl-3.5 m-0 space-y-1">
             {divergences.map((d, i) => (
-              <li key={i} className="text-[11px]" style={{ color: '#fca5a5' }}>
+              <li key={i} className="text-xs" style={{ color: '#fca5a5' }}>
                 {typeof d === 'string' ? d : String((d as Record<string, unknown>).description ?? JSON.stringify(d))}
               </li>
             ))}

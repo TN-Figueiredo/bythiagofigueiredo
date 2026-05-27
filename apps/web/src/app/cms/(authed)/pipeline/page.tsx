@@ -6,6 +6,7 @@ import { GEM_CSS_VARS } from '@/lib/pipeline/gem-design'
 import { PipelineOverview } from './_components/pipeline-overview'
 import { fetchUpNextData } from '@/lib/pipeline/up-next-fetcher'
 import { SITE_TIMEZONE } from '@/lib/pipeline/up-next-constants'
+import { getWorkingTodayPins } from './working-today-actions'
 import type { CelebrationItem } from './_components/up-next-celebration'
 import type { ActivityEntry } from './_components/up-next-activity'
 
@@ -32,7 +33,7 @@ export default async function PipelineOverviewPage() {
   const sevenDaysAgo = new Date(Date.now() - 7 * 86_400_000).toISOString()
 
   // Run fetcher + independent queries in parallel (celebration & activity don't depend on fetcher)
-  const [fallbackData, celebrationRes, activityRes] = await Promise.all([
+  const [fallbackData, celebrationRes, activityRes, initialPins] = await Promise.all([
     fetchUpNextData(supabase, siteId, SITE_TIMEZONE, now, 5),
 
     supabase
@@ -51,6 +52,8 @@ export default async function PipelineOverviewPage() {
       .eq('content_pipeline.site_id', siteId)
       .order('changed_at', { ascending: false })
       .limit(10),
+
+    getWorkingTodayPins().catch(() => []),
   ])
 
   const celebrationItems: CelebrationItem[] = (celebrationRes.data ?? []).map((item) => ({
@@ -72,6 +75,7 @@ export default async function PipelineOverviewPage() {
           fallbackData={fallbackData}
           celebration={{ items: celebrationItems }}
           activity={activity}
+          initialPins={initialPins}
         />
       </div>
     </>

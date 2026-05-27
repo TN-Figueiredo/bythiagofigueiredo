@@ -21,15 +21,13 @@ const COPY = {
     preheader: 'Itens do pipeline com prazo se aproximando',
     heading: 'Pipeline: Prazos',
     overdueLabel: 'Atrasado',
-    tomorrowLabel: 'Amanha',
-    upcomingLabel: 'Proximos 3 dias',
+    tomorrowLabel: 'Amanhã',
+    upcomingLabel: 'Próximos 3 dias',
     overdueHeading: 'Atrasados',
-    tomorrowHeading: 'Amanha',
+    tomorrowHeading: 'Amanhã',
     upcomingHeading: 'Em breve',
     button: 'Abrir Pipeline',
-    footer: 'Este email e enviado automaticamente quando voce tem prazos se aproximando.',
-    pubPrefix: 'pub:',
-    stagePrefix: 'etapa:',
+    footer: 'Este email é enviado automaticamente quando você tem prazos se aproximando.',
   },
   en: {
     preheader: 'Pipeline items with approaching deadlines',
@@ -42,8 +40,6 @@ const COPY = {
     upcomingHeading: 'Coming up',
     button: 'Open Pipeline',
     footer: 'This email is sent automatically when you have approaching deadlines.',
-    pubPrefix: 'pub:',
-    stagePrefix: 'stage:',
   },
 } as const
 
@@ -65,8 +61,8 @@ function bucketItems(items: DeadlineItem[]) {
   const upcoming: DeadlineItem[] = []
 
   for (const item of items) {
-    if (item.daysUntilDeadline < 0) overdue.push(item)
-    else if (item.daysUntilDeadline <= 1) tomorrow.push(item)
+    if (item.daysUntilDeadline <= 0) overdue.push(item)
+    else if (item.daysUntilDeadline === 1) tomorrow.push(item)
     else upcoming.push(item)
   }
 
@@ -112,7 +108,7 @@ function SectionHeading({ text, color }: { text: string; color: string }) {
       fontSize: 11,
       fontWeight: 700,
       color,
-      textTransform: 'uppercase' as const,
+      textTransform: 'uppercase',
       letterSpacing: '0.08em',
       margin: '20px 0 8px',
     }}>

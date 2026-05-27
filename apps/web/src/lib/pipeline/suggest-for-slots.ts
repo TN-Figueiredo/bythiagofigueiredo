@@ -1,6 +1,6 @@
 import { STAGE_ORDER, LOCALE_TO_LANGUAGE } from './up-next-constants'
 import type { Stage } from './up-next-constants'
-import type { SlotCandidate, WeekSlot } from './up-next-types'
+import type { SlotCandidate, WeekSlot, PlaylistSummary } from './up-next-types'
 
 /* ------------------------------------------------------------------ */
 /*  groupCandidatesByPlaylist                                          */
@@ -14,8 +14,12 @@ export interface PlaylistGroup {
   nearCompletion: boolean
 }
 
-export function groupCandidatesByPlaylist(candidates: SlotCandidate[]): PlaylistGroup[] {
+export function groupCandidatesByPlaylist(
+  candidates: SlotCandidate[],
+  playlistSummaries: PlaylistSummary[] = [],
+): PlaylistGroup[] {
   if (candidates.length === 0) return []
+  const summaryMap = new Map(playlistSummaries.map(p => [p.id, p]))
   const map = new Map<string | null, SlotCandidate[]>()
   for (const c of candidates) {
     const key = c.playlist_id
@@ -29,16 +33,16 @@ export function groupCandidatesByPlaylist(candidates: SlotCandidate[]): Playlist
     items.sort((a, b) => (a.playlist_position ?? 0) - (b.playlist_position ?? 0))
 
     const first = items[0]!
-    const total = first.playlist_total ?? items.length
-    const position = Math.max(...items.map(i => i.playlist_position ?? 0))
-    const done = playlistId ? position : 0
+    const summary = playlistId ? summaryMap.get(playlistId) : null
+    const total = summary?.total_items ?? items.length
+    const done = summary?.done_items ?? 0
     const remaining = total - done
     groups.push({
       playlistId: playlistId ?? null,
       playlistName: playlistId ? (first.playlist_name ?? 'Playlist') : 'Avulsos',
       items,
       progress: { done, total },
-      nearCompletion: playlistId !== null && total > 0 && remaining / total <= 0.2,
+      nearCompletion: playlistId !== null && total > 0 && remaining > 0 && remaining / total <= 0.2,
     })
   }
   groups.sort((a, b) => {

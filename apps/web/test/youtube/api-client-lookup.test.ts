@@ -29,4 +29,20 @@ describe('parseHandleInput', () => {
   it('handles youtube.com/c/ custom URL', () => {
     expect(parseHandleInput('https://youtube.com/c/mychannel')).toBe('@mychannel')
   })
+
+  it('handles trailing slash on handle URL', () => {
+    expect(parseHandleInput('https://youtube.com/@handle/')).toBe('@handle')
+  })
+
+  it('handles query params on handle URL', () => {
+    expect(parseHandleInput('https://youtube.com/@handle?feature=share')).toBe('@handle')
+  })
+
+  it('handles trailing slash + query params on channel URL', () => {
+    expect(parseHandleInput('https://youtube.com/channel/UCxyz123/?sub_confirmation=1')).toBe('UCxyz123')
+  })
+
+  it('handles bare channel ID without URL', () => {
+    expect(parseHandleInput('UCxyz123_test')).toBe('UCxyz123_test')
+  })
 })

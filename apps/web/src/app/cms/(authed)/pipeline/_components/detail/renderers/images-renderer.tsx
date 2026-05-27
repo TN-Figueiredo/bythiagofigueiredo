@@ -90,7 +90,7 @@ function StatusBadge({ status }: { status?: string }) {
   const config = STATUS_LABELS[status] ?? { label: status, color: 'var(--gem-dim)' }
   return (
     <span
-      className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
+      className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
       style={{ background: `${config.color}20`, color: config.color }}
     >
       {config.label}
@@ -120,7 +120,7 @@ function CopyButton({ text }: { text: string }) {
     <button
       type="button"
       onClick={handleCopy}
-      className="text-[9px] px-1.5 py-0.5 rounded transition-colors"
+      className="text-[10px] px-1.5 py-0.5 rounded transition-colors"
       style={{
         background: copied ? 'rgba(34,197,94,0.15)' : 'var(--gem-well)',
         color: copied ? '#22c55e' : 'var(--gem-dim)',
@@ -161,7 +161,7 @@ function PromptCard({ prompt, isChosen, lang, onChoose }: PromptCardProps) {
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5">
           <span
-            className="text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center"
+            className="text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center"
             style={{
               background: isChosen ? 'rgba(99,102,241,0.2)' : 'var(--gem-border)',
               color: isChosen ? '#818cf8' : 'var(--gem-dim)',
@@ -170,24 +170,24 @@ function PromptCard({ prompt, isChosen, lang, onChoose }: PromptCardProps) {
             {prompt.rank}
           </span>
           {isChosen && (
-            <span className="text-[9px] font-semibold" style={{ color: '#818cf8' }}>Escolhida</span>
+            <span className="text-[10px] font-semibold" style={{ color: '#818cf8' }}>Escolhida</span>
           )}
         </div>
         <CopyButton text={prompt.prompt} />
       </div>
-      <div className="text-[11px] font-mono leading-relaxed select-all" style={{ color: 'var(--gem-text)' }}>
+      <div className="text-xs font-mono leading-relaxed select-all" style={{ color: 'var(--gem-text)' }}>
         {prompt.prompt}
       </div>
       <div className="text-[10px]" style={{ color: 'var(--gem-dim)' }}>
         {prompt.rationale}
       </div>
       {altText && (
-        <div className="text-[9px] italic" style={{ color: 'var(--gem-dim)' }}>
+        <div className="text-[10px] italic" style={{ color: 'var(--gem-dim)' }}>
           alt: {altText}
         </div>
       )}
       {onChoose && !isChosen && (
-        <div className="text-[9px]" style={{ color: 'var(--gem-dim)', opacity: 0.6 }}>
+        <div className="text-[10px]" style={{ color: 'var(--gem-dim)', opacity: 0.6 }}>
           Clique para escolher este prompt
         </div>
       )}
@@ -208,7 +208,7 @@ function CoverSection({ cover, lang, onChoosePrompt }: { cover: CoverData } & Se
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span
-            className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
+            className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
             style={{ background: 'rgba(99,102,241,0.1)', color: '#818cf8' }}
           >
             cover
@@ -243,7 +243,7 @@ function CoverSection({ cover, lang, onChoosePrompt }: { cover: CoverData } & Se
       )}
 
       {cover.fallback_search && (
-        <div className="text-[9px]" style={{ color: 'var(--gem-dim)' }}>
+        <div className="text-[10px]" style={{ color: 'var(--gem-dim)' }}>
           Fallback: {cover.fallback_search}
         </div>
       )}
@@ -257,7 +257,7 @@ function BodyImageSection({ image, index, lang, onChoosePrompt }: { image: BodyI
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span
-            className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
+            className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
             style={{ background: 'rgba(236,72,153,0.1)', color: '#ec4899' }}
           >
             {image.ref_id}
@@ -269,8 +269,8 @@ function BodyImageSection({ image, index, lang, onChoosePrompt }: { image: BodyI
         <StatusBadge status={image.status} />
       </div>
 
-      <div className="text-[11px]" style={{ color: 'var(--gem-muted)' }}>{image.description}</div>
-      <div className="text-[9px]" style={{ color: 'var(--gem-dim)' }}>{image.placement.replace(/_/g, ' ')}</div>
+      <div className="text-xs" style={{ color: 'var(--gem-muted)' }}>{image.description}</div>
+      <div className="text-[10px]" style={{ color: 'var(--gem-dim)' }}>{image.placement.replace(/_/g, ' ')}</div>
 
       {image.image_url && (
         <div className="rounded-md overflow-hidden" style={{ border: '1px solid var(--gem-border)' }}>
@@ -297,7 +297,7 @@ function BodyImageSection({ image, index, lang, onChoosePrompt }: { image: BodyI
       )}
 
       {image.fallback_search && (
-        <div className="text-[9px]" style={{ color: 'var(--gem-dim)' }}>
+        <div className="text-[10px]" style={{ color: 'var(--gem-dim)' }}>
           Fallback: {image.fallback_search}
         </div>
       )}
@@ -328,15 +328,15 @@ function LegacyView({ images }: { images: LegacyImageEntry[] }) {
           <div className="flex-1 min-w-0">
             {img.role && (
               <span
-                className="inline-block text-[9px] font-semibold px-1.5 py-0.5 rounded-full mb-1"
+                className="inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded-full mb-1"
                 style={{ background: (ROLE_COLORS[img.role] ?? { bg: 'var(--gem-well)' }).bg, color: (ROLE_COLORS[img.role] ?? { text: 'var(--gem-dim)' }).text }}
               >
                 {img.role}
               </span>
             )}
-            {img.caption && <div className="text-[11px]" style={{ color: 'var(--gem-muted)' }}>{img.caption}</div>}
+            {img.caption && <div className="text-xs" style={{ color: 'var(--gem-muted)' }}>{img.caption}</div>}
             {img.alt && <div className="text-[10px] mt-0.5" style={{ color: 'var(--gem-dim)' }}>alt: {img.alt}</div>}
-            {img.url && <div className="text-[9px] mt-0.5 truncate" style={{ color: 'var(--gem-dim)' }}>{img.url}</div>}
+            {img.url && <div className="text-[10px] mt-0.5 truncate" style={{ color: 'var(--gem-dim)' }}>{img.url}</div>}
           </div>
         </div>
       ))}
@@ -390,7 +390,7 @@ export function ImagesRenderer({ content, isEditing, lang, onContentChange }: Re
             try { onContentChange(JSON.parse(e.target.value) as RendererProps['content']) }
             catch { onContentChange(e.target.value) }
           }}
-          className="w-full min-h-[150px] text-[11px] p-3 rounded-md resize-y font-mono"
+          className="w-full min-h-[150px] text-xs p-3 rounded-md resize-y font-mono"
           style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)', color: 'var(--gem-text)' }}
           spellCheck={false}
         />
@@ -436,7 +436,7 @@ export function ImagesRenderer({ content, isEditing, lang, onContentChange }: Re
   if (legacy.length > 0) return <LegacyView images={legacy} />
 
   return (
-    <div className="p-5 text-[11px] text-center py-8" style={{ color: 'var(--gem-dim)' }}>
+    <div className="p-5 text-xs text-center py-8" style={{ color: 'var(--gem-dim)' }}>
       Nenhuma sugestão de imagem ainda. O cowork preencherá prompts Midjourney ao gerar o draft.
     </div>
   )

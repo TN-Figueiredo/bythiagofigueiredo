@@ -70,7 +70,7 @@ export function IdeaRenderer({ content, isEditing, onContentChange }: RendererPr
         </div>
 
         <div
-          className="flex gap-2 flex-wrap mt-1.5 text-[9px]"
+          className="flex gap-2 flex-wrap mt-1.5 text-[10px]"
           style={{ color: 'var(--gem-dim)' }}
         >
           {data.vvs != null && <span>VVS: {data.vvs}/100</span>}
@@ -90,7 +90,7 @@ export function IdeaRenderer({ content, isEditing, onContentChange }: RendererPr
             Cross-referências
           </div>
           <ul
-            className="pl-3.5 m-0 text-[11px] space-y-0.5"
+            className="pl-3.5 m-0 text-xs space-y-0.5"
             style={{ color: 'var(--gem-muted)' }}
           >
             {data.cross_refs.map((ref, i) => (

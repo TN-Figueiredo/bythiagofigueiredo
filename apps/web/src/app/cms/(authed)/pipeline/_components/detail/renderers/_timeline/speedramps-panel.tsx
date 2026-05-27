@@ -18,7 +18,7 @@ function parseSpeedValue(speed: string): number | null {
 function SpeedBadge({ vel, velColor }: { vel: string; velColor: string }) {
   return (
     <span
-      className="font-mono text-[11px] font-semibold rounded-[3px]"
+      className="font-mono text-xs font-semibold rounded-[3px]"
       style={{ color: velColor, background: `${velColor}18`, padding: '2px 7px' }}
     >
       {vel}
@@ -63,7 +63,7 @@ function SpeedRampsPanelRaw({ data }: SpeedRampsPanelProps) {
           <div className={`${MONO_SM_CLS} mb-2.5 leading-relaxed`} style={{ color: TH.dim, fontSize: 9 }}>
             {data.base}
           </div>
-          <table className="w-full border-collapse text-[11px]" style={{ color: TH.text }}>
+          <table className="w-full border-collapse text-xs" style={{ color: TH.text }}>
             <thead>
               <tr>
                 {['Seção', 'SRT Range', 'Velocidade', 'Racional'].map(h => (

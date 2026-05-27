@@ -286,7 +286,7 @@ function SectionPanel({ sectionDef, activeSub, lang, itemId, itemVersion, itemCo
 
       {extractedSeo && section.content != null && (
         <div
-          className="mx-4 mt-3 flex items-center gap-2 rounded-md px-3 py-2 text-[11px]"
+          className="mx-4 mt-3 flex items-center gap-2 rounded-md px-3 py-2 text-xs"
           style={{ background: 'color-mix(in srgb, var(--gem-accent) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--gem-accent) 25%, transparent)', color: 'var(--gem-accent)' }}
         >
           Dados extraídos do Rascunho. Salve para criar a seção SEO separada.
@@ -329,7 +329,7 @@ function GraduateSocialButton({ itemRef, onSuccess }: { itemRef: React.RefObject
     <button
       type="button"
       disabled={state !== 'idle'}
-      className="w-full mt-2 px-3 py-1.5 rounded text-[11px] font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
+      className="w-full mt-2 px-3 py-1.5 rounded text-xs font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
       style={{ background: 'var(--gem-accent)', color: '#fff' }}
       onClick={async () => {
         if (state !== 'idle') return
@@ -693,7 +693,7 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
           {hook && (
             <span
               id={`hook-label-${item.id}`}
-              className="absolute top-[-7px] left-[22px] z-10 px-1.5 text-[9px] uppercase tracking-[1.2px] font-semibold transition-opacity duration-150"
+              className="absolute top-[-7px] left-[22px] z-10 px-1.5 text-[10px] uppercase tracking-[1.2px] font-semibold transition-opacity duration-150"
               style={{ color: priority.accent, background: 'var(--gem-surface)', lineHeight: '14px' }}
             >
               Hook
@@ -731,7 +731,7 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
           {synopsis && (
             <span
               id={`synopsis-label-${item.id}`}
-              className="absolute top-[-7px] left-[22px] z-10 px-1.5 text-[9px] uppercase tracking-[1.2px] font-semibold transition-opacity duration-150"
+              className="absolute top-[-7px] left-[22px] z-10 px-1.5 text-[10px] uppercase tracking-[1.2px] font-semibold transition-opacity duration-150"
               style={{ color: 'var(--gem-dim)', background: 'var(--gem-surface)', lineHeight: '14px' }}
             >
               Sinopse
@@ -947,7 +947,7 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
                       setPromptTargetLocale(item.language === 'pt-br' ? 'en' : 'pt-br')
                       setShowPromptModal(true)
                     }}
-                    className="text-[9px]"
+                    className="text-[10px]"
                     style={{ color: 'var(--gem-accent)' }}
                     title={`Gerar prompt para ${item.language === 'pt-br' ? 'EN' : 'PT'}`}
                   >
@@ -1015,7 +1015,7 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
             </div>
           </div>
           {/* VVS breakdown grid */}
-          <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px] mb-3">
+          <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs mb-3">
             {([
               ['Título', vvsBreakdown.breakdown.has_title],
               ['Hook', vvsBreakdown.breakdown.has_hook],

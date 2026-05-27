@@ -88,12 +88,10 @@ export function PrintView({ playlist, filterLabel, items, edges, viewNumbers }: 
       <style>{`
         @media print {
           @page { size: A4; margin: 12mm 15mm; }
-          .playlist-print { display: block !important; }
         }
       `}</style>
 
-      <div className="hidden" style={{ fontSize: '11pt', color: '#111', background: '#fff' }}>
-        <div className="playlist-print" style={{ display: 'none' }}>
+      <div className="hidden print:block" style={{ fontSize: '11pt', color: '#111', background: '#fff' }}>
 
           {/* Header */}
           <header style={{ borderBottom: '2pt solid #111', paddingBottom: '5mm', marginBottom: '5mm' }}>
@@ -160,9 +158,9 @@ export function PrintView({ playlist, filterLabel, items, edges, viewNumbers }: 
                       <span style={{ fontWeight: 500, textDecoration: item.is_ghost ? 'line-through' : 'none', color: item.is_ghost ? '#bbb' : '#111' }}>
                         {item.title}
                       </span>
-                      {item.metadata && (
+                      {item.tags?.length > 0 && (
                         <span style={{ display: 'block', fontSize: '7pt', color: '#999', marginTop: '0.5mm' }}>
-                          {item.metadata}
+                          {item.tags.join(', ')}
                         </span>
                       )}
                     </td>
@@ -210,7 +208,6 @@ export function PrintView({ playlist, filterLabel, items, edges, viewNumbers }: 
             <span>ByThiagoFigueiredo · Playlist Editor</span>
             <span>{visibleCount} items · {edges.length} connections</span>
           </footer>
-        </div>
       </div>
     </>
   )

@@ -44,12 +44,12 @@ export function MusicHeroSection({ music, sceneIndex }: MusicHeroSectionProps) {
         <span className="text-[13px]" aria-hidden="true">♪</span>
         <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#a78bfa' }}>Música</span>
         {music.entry_cue && !isContinuation && (
-          <span className="text-[9px] font-medium px-1.5 py-px rounded" style={{ background: 'rgba(129,140,248,0.1)', color: '#818cf8' }}>
+          <span className="text-[10px] font-medium px-1.5 py-px rounded" style={{ background: 'rgba(129,140,248,0.1)', color: '#818cf8' }}>
             Entrada: {music.entry_cue}
           </span>
         )}
         {isContinuation && (
-          <span className="text-[9px] px-1.5 py-px rounded" style={{ background: 'rgba(255,255,255,0.04)', color: '#5a6b7f' }}>
+          <span className="text-[10px] px-1.5 py-px rounded" style={{ background: 'rgba(255,255,255,0.04)', color: '#5a6b7f' }}>
             ↩ Continua da {music.continuation}
           </span>
         )}
@@ -115,7 +115,7 @@ export function MusicHeroSection({ music, sceneIndex }: MusicHeroSectionProps) {
 
       {(music.fill_count < 3 || music.recommendations.some(r => r.resolve_status === 'PENDING_MATCH')) && (
         <div className="flex items-center justify-center mt-2 pt-1" style={{ borderTop: '1px solid rgba(255,255,255,0.03)' }}>
-          <span className="text-[9px]" style={{ color: '#4b5563' }}>
+          <span className="text-[10px]" style={{ color: '#4b5563' }}>
             ↻ Re-resolver após importar novas tracks
           </span>
         </div>

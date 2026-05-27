@@ -27,7 +27,7 @@ describe('PipelineTabs', () => {
     render(<PipelineTabs activeTab="queue" onTabChange={vi.fn()}>{children}</PipelineTabs>)
     expect(screen.getByRole('tab', { name: /fila/i })).toBeTruthy()
     expect(screen.getByRole('tab', { name: /grade/i })).toBeTruthy()
-    expect(screen.getByRole('tab', { name: /saude/i })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: /saúde/i })).toBeTruthy()
   })
 
   it('shows queue content when queue tab is active', () => {

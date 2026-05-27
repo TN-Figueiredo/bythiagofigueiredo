@@ -69,7 +69,7 @@ class RendererErrorBoundary extends Component<{ children: ReactNode }, { error: 
             {this.state.error.message}
           </pre>
           <button
-            className="text-[11px] px-3 py-1 rounded"
+            className="text-xs px-3 py-1 rounded"
             style={{ background: 'var(--gem-well)', color: 'var(--gem-muted)', border: '1px solid var(--gem-border)' }}
             onClick={() => this.setState({ error: null })}
           >

@@ -8,7 +8,7 @@ function makeItem(overrides: Partial<PlaylistItemEnriched> & { id: string }): Pl
     pipeline_id: null, sort_order: 0, position_x: 0, position_y: 0,
     created_at: '', content_type: 'blog_post', title: 'Test', status: null,
     category: null, metadata: null, is_ghost: false,
-    other_playlist_count: 0, language: null,
+    other_playlist_count: 0, language: null, tags: [], hook: null, synopsis: null,
     ...overrides,
   }
 }
@@ -22,9 +22,59 @@ describe('generateCsv', () => {
     const viewNumbers = new Map([['a', 1], ['b', 2]]) as Map<string, number | null>
     const csv = generateCsv(items, viewNumbers)
     const lines = csv.split('\n')
-    expect(lines[0]).toBe('#,type,language,status,title,category,metadata,uuid')
-    expect(lines[1]).toContain('1,video,pt-br,published,First Video')
-    expect(lines[2]).toContain('2,blog_post,en,draft,Second Blog')
+    expect(lines[0]).toBe('order,type,language,status,title,tags,uuid')
+    expect(lines[1]).toBe('1,video,pt-br,published,First Video,,a')
+    expect(lines[2]).toBe('2,blog_post,en,draft,Second Blog,,b')
+  })
+
+  it('includes tags separated by semicolons', () => {
+    const items = [
+      makeItem({ id: 'a', title: 'Tagged', tags: ['travel', 'asia'] }),
+    ]
+    const viewNumbers = new Map([['a', 1]]) as Map<string, number | null>
+    const csv = generateCsv(items, viewNumbers)
+    expect(csv).toContain('travel; asia')
+  })
+
+  it('escapes titles with commas, quotes and newlines', () => {
+    const items = [
+      makeItem({ id: 'a', title: 'He said "hello, world"' }),
+      makeItem({ id: 'b', title: 'Line1\nLine2' }),
+    ]
+    const viewNumbers = new Map([['a', 1], ['b', 2]]) as Map<string, number | null>
+    const csv = generateCsv(items, viewNumbers)
+    const lines = csv.split('\n')
+    expect(lines[1]).toContain('"He said ""hello, world"""')
+    expect(csv).toContain('"Line1\nLine2"')
+  })
+
+  it('sorts items by view number regardless of input order', () => {
+    const items = [
+      makeItem({ id: 'b', title: 'Second' }),
+      makeItem({ id: 'a', title: 'First' }),
+    ]
+    const viewNumbers = new Map([['a', 1], ['b', 2]]) as Map<string, number | null>
+    const csv = generateCsv(items, viewNumbers)
+    const lines = csv.split('\n')
+    expect(lines[1]).toContain('1,')
+    expect(lines[1]).toContain('First')
+    expect(lines[2]).toContain('2,')
+    expect(lines[2]).toContain('Second')
+  })
+
+  it('returns header only for empty items', () => {
+    const csv = generateCsv([], new Map())
+    expect(csv).toBe('order,type,language,status,title,tags,uuid')
+  })
+
+  it('handles undefined tags without throwing', () => {
+    const items = [
+      makeItem({ id: 'a', title: 'No Tags', tags: undefined as unknown as string[] }),
+    ]
+    const viewNumbers = new Map([['a', 1]]) as Map<string, number | null>
+    expect(() => generateCsv(items, viewNumbers)).not.toThrow()
+    const csv = generateCsv(items, viewNumbers)
+    expect(csv).toContain('No Tags,,a')
   })
 
   it('skips items with null view number', () => {
@@ -51,5 +101,29 @@ describe('generateJson', () => {
     expect(parsed.items).toHaveLength(1)
     expect(parsed.items[0].order).toBe(1)
     expect(parsed.items[0].type).toBe('video')
+    expect(parsed.items[0].tags).toEqual([])
+    expect(parsed.items[0]).not.toHaveProperty('category')
+  })
+
+  it('sorts items by view number', () => {
+    const items = [
+      makeItem({ id: 'b', title: 'Second' }),
+      makeItem({ id: 'a', title: 'First' }),
+    ]
+    const viewNumbers = new Map([['a', 1], ['b', 2]]) as Map<string, number | null>
+    const json = generateJson(items, viewNumbers, 'P', '')
+    const parsed = JSON.parse(json)
+    expect(parsed.items[0].title).toBe('First')
+    expect(parsed.items[1].title).toBe('Second')
+  })
+
+  it('includes tags array in JSON output', () => {
+    const items = [
+      makeItem({ id: 'a', title: 'Tagged', tags: ['travel', 'asia'] }),
+    ]
+    const viewNumbers = new Map([['a', 1]]) as Map<string, number | null>
+    const json = generateJson(items, viewNumbers, 'P', '')
+    const parsed = JSON.parse(json)
+    expect(parsed.items[0].tags).toEqual(['travel', 'asia'])
   })
 })

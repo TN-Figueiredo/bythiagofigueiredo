@@ -41,7 +41,7 @@ export function BufferHealthPills({ formats, overallHealth }: BufferHealthPillsP
     <div
       className="flex items-center gap-2 flex-wrap"
       role="status"
-      aria-label={`Buffer depth: ${overallHealth}`}
+      aria-label={`Cobertura do buffer: ${overallHealth === 'green' ? 'saudável' : overallHealth === 'yellow' ? 'atenção' : 'crítico'}`}
     >
       <span
         className="text-[10px] font-medium uppercase tracking-wider"
@@ -62,7 +62,7 @@ export function BufferHealthPills({ formats, overallHealth }: BufferHealthPillsP
               color: colors.text,
               borderColor: colors.border,
             }}
-            title={`${label}: ${coverage.filledSlots}/${coverage.totalSlots} slots filled (${coverage.coveragePercent}%)`}
+            title={`${label}: ${coverage.filledSlots}/${coverage.totalSlots} slots preenchidos (${coverage.coveragePercent}%)`}
             aria-label={`${label}: ${coverage.filledSlots} de ${coverage.totalSlots} slots preenchidos`}
           >
             <span>{label}</span>

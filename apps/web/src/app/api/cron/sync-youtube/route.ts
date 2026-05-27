@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto'
 import { NextRequest } from 'next/server'
 import { revalidateTag } from 'next/cache'
 import * as Sentry from '@sentry/nextjs'
@@ -8,24 +9,36 @@ import { isInPostingWindow } from '@/lib/youtube/schedule-window'
 import type { YouTubeChannelRow, SyncMode } from '@/lib/youtube/types'
 
 export const runtime = 'nodejs'
-export const maxDuration = 60
+export const maxDuration = 300
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization')
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  const expected = process.env.CRON_SECRET
+  if (!expected || !authHeader) {
+    return Response.json({ error: 'unauthorized' }, { status: 401 })
+  }
+  const expectedBuf = Buffer.from(`Bearer ${expected}`)
+  const actualBuf = Buffer.from(authHeader)
+  if (expectedBuf.length !== actualBuf.length || !timingSafeEqual(expectedBuf, actualBuf)) {
     return Response.json({ error: 'unauthorized' }, { status: 401 })
   }
 
-  const mode = (req.nextUrl.searchParams.get('mode') ?? 'catchall') as SyncMode
-  if (!['schedule', 'catchall', 'metrics', 'manual'].includes(mode)) {
+  const rawMode = req.nextUrl.searchParams.get('mode') ?? 'catchall'
+  if (!['schedule', 'catchall', 'metrics', 'manual'].includes(rawMode)) {
     return Response.json({ error: 'invalid mode' }, { status: 400 })
   }
+  const mode = rawMode as SyncMode
 
   const channelId = req.nextUrl.searchParams.get('channelId')
+  if (channelId && !UUID_RE.test(channelId)) {
+    return Response.json({ error: 'invalid channelId' }, { status: 400 })
+  }
 
   const apiKey = process.env.YOUTUBE_API_KEY
   if (!apiKey) {
-    return Response.json({ error: 'YOUTUBE_API_KEY not set' }, { status: 500 })
+    return Response.json({ error: 'external service not configured' }, { status: 500 })
   }
 
   const supabase = getSupabaseServiceClient()
@@ -56,12 +69,19 @@ export async function GET(req: NextRequest) {
         continue
       }
 
-      const { data: logRow } = await supabase.from('youtube_sync_log').insert({
+      const { data: logRow, error: logInsertErr } = await supabase.from('youtube_sync_log').insert({
         site_id: channel.site_id,
         channel_id: channel.id,
         mode,
         status: 'started',
       }).select('id').single()
+
+      if (logInsertErr) {
+        Sentry.captureException(logInsertErr, {
+          tags: { component: 'sync-youtube', stage: 'log-insert' },
+          extra: { channelId: channel.id, siteId: channel.site_id },
+        })
+      }
 
       const logId = logRow?.id
 
@@ -97,7 +117,10 @@ export async function GET(req: NextRequest) {
           return { status: 'error' as const, error: 'quotaExceeded', quota_used: totalQuota }
         }
 
-        Sentry.captureException(err, { tags: { component: 'sync-youtube', mode } })
+        Sentry.captureException(err, {
+          tags: { component: 'sync-youtube', mode },
+          extra: { channelId: channel.id, siteId: channel.site_id },
+        })
       }
     }
 

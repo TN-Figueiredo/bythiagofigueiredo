@@ -16,7 +16,7 @@ import { X } from 'lucide-react'
 import { gemMix } from '@/lib/pipeline/gem-design'
 import { BufferHealthPills } from './buffer-health-pills'
 import { PinnedQueue } from './pinned-queue'
-import type { WorkingTodayPin } from '../working-today-actions'
+import { unpinWorkingToday, type WorkingTodayPin } from '../working-today-actions'
 import type { UpNextApiResponse, SlotCandidate } from '@/lib/pipeline/up-next-types'
 import { SITE_TIMEZONE } from '@/lib/pipeline/up-next-constants'
 import dynamic from 'next/dynamic'
@@ -41,9 +41,10 @@ interface PipelineOverviewProps {
   fallbackData: UpNextApiResponse
   celebration: { items: CelebrationItem[] }
   activity: ActivityEntry[]
-  pins?: WorkingTodayPin[]
-  onUnpin?: (itemId: string) => void
+  initialPins?: WorkingTodayPin[]
 }
+
+const EMPTY_PINS: WorkingTodayPin[] = []
 
 const siteDateFormatter = new Intl.DateTimeFormat('sv-SE', { timeZone: SITE_TIMEZONE })
 
@@ -55,7 +56,10 @@ const fetcher = (url: string) => fetch(url).then(r => {
   return d.data as UpNextApiResponse
 })
 
-export function PipelineOverview({ fallbackData, celebration, activity, pins = [], onUnpin = () => {} }: PipelineOverviewProps) {
+export function PipelineOverview({ fallbackData, celebration, activity, initialPins = EMPTY_PINS }: PipelineOverviewProps) {
+  const [pins, setPins] = useState(initialPins)
+  const pinsRef = useRef(pins)
+  pinsRef.current = pins
   const [fetchError, setFetchError] = useState(false)
   const { data, isLoading, mutate } = useSWR<UpNextApiResponse>(
     '/api/pipeline/up-next',
@@ -90,6 +94,13 @@ export function PipelineOverview({ fallbackData, celebration, activity, pins = [
 
   const handleItemAssigned = useCallback(() => setSelectedCandidate(null), [])
   const handleToggleCollapse = useCallback(() => setPanelCollapsed(p => !p), [])
+
+  const handleUnpin = useCallback(async (itemId: string) => {
+    const snapshot = pinsRef.current
+    setPins(prev => prev.filter(p => p.itemId !== itemId))
+    const result = await unpinWorkingToday(itemId)
+    if (!result.ok) setPins(snapshot)
+  }, [])
 
   useEffect(() => {
     if (!selectedCandidate) return
@@ -144,12 +155,9 @@ export function PipelineOverview({ fallbackData, celebration, activity, pins = [
   return (
     <div className="space-y-6">
       <div role="status" aria-live="polite" className="sr-only">
-        {selectedCandidate
+        {announcement || (selectedCandidate
           ? `${selectedCandidate.title} selecionado. Clique em um slot compatível para atribuir.`
-          : ''}
-      </div>
-      <div role="status" aria-live="polite" className="sr-only">
-        {announcement}
+          : '')}
       </div>
       <OfflineBanner />
 
@@ -224,7 +232,7 @@ export function PipelineOverview({ fallbackData, celebration, activity, pins = [
       )}
 
       {/* Desktop: existing linear layout */}
-      <div className="hidden lg:contents">
+      <div className="hidden lg:block space-y-6">
         {(upNext.today.actions.length > 0 || upNext.weekSlots.length === 0) && (
           <SectionErrorBoundary>
             <TodayActionCards
@@ -276,7 +284,7 @@ export function PipelineOverview({ fallbackData, celebration, activity, pins = [
           <SectionErrorBoundary>
             <PinnedQueue
               pins={pins}
-              onUnpin={onUnpin}
+              onUnpin={handleUnpin}
               showGhosts={upNext.today.actions.length > 0}
             />
           </SectionErrorBoundary>
@@ -324,7 +332,7 @@ export function PipelineOverview({ fallbackData, celebration, activity, pins = [
               <>
                 {(pins.length > 0 || upNext.today.actions.length > 0) && (
                   <SectionErrorBoundary>
-                    <PinnedQueue pins={pins} onUnpin={onUnpin} showGhosts={upNext.today.actions.length > 0} />
+                    <PinnedQueue pins={pins} onUnpin={handleUnpin} showGhosts={upNext.today.actions.length > 0} />
                   </SectionErrorBoundary>
                 )}
                 {(upNext.today.actions.length > 0 || upNext.weekSlots.length === 0) && (

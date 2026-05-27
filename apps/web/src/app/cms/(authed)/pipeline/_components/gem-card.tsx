@@ -92,13 +92,13 @@ function CourseCardEnrichment({ item }: { item: GemCardItem }) {
         )}
       </div>
       {courseInfo.launchType && (
-        <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: 'color-mix(in srgb, var(--gem-accent) 12%, transparent)', color: 'var(--gem-accent)' }}>
+        <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'color-mix(in srgb, var(--gem-accent) 12%, transparent)', color: 'var(--gem-accent)' }}>
           {LAUNCH_LABELS[courseInfo.launchType] ?? courseInfo.launchType}
         </span>
       )}
       {courseInfo.progress.total > 0 && (
         <div>
-          <div className="flex justify-between text-[9px] mb-0.5" style={{ color: 'var(--gem-dim)' }}>
+          <div className="flex justify-between text-[10px] mb-0.5" style={{ color: 'var(--gem-dim)' }}>
             <span>Produção</span>
             <span>{courseInfo.progress.done}/{courseInfo.progress.total}</span>
           </div>
@@ -304,9 +304,9 @@ export const GemCard = memo(function GemCard({ item, onNavigate, onPromote }: Ge
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onPromote(item.id) }}
-          className="mx-0 mt-2 flex w-full items-center gap-1 rounded-md border border-indigo-500/15 bg-indigo-500/8 px-2.5 py-1.5 text-[9px] font-semibold text-indigo-400 transition-colors hover:border-indigo-500/30 hover:bg-indigo-500/15 hover:text-indigo-300"
+          className="mx-0 mt-2 flex w-full items-center gap-1 rounded-md border border-indigo-500/15 bg-indigo-500/8 px-2.5 py-1.5 text-[10px] font-semibold text-indigo-400 transition-colors hover:border-indigo-500/30 hover:bg-indigo-500/15 hover:text-indigo-300"
         >
-          <span className="text-[11px]">&rarr;</span> Promote to Posts Hub
+          <span className="text-xs">&rarr;</span> Promote to Posts Hub
         </button>
       )}
 

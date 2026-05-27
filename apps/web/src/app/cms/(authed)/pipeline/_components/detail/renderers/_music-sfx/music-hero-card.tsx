@@ -30,7 +30,7 @@ export function DownloadCTA({ url, size = 'md' }: { url: string; size?: 'sm' | '
       className={
         size === 'md'
           ? 'text-[10px] font-semibold inline-flex items-center gap-1 rounded-[5px] px-3 py-1'
-          : 'text-[9px] font-semibold rounded px-2 py-0.5'
+          : 'text-[10px] font-semibold rounded px-2 py-0.5'
       }
       style={DOWNLOAD_CTA_STYLE}
     >
@@ -76,7 +76,7 @@ export function MusicHeroCard({ recommendation: rec, music }: MusicHeroCardProps
           <div className="text-[10px] truncate" style={{ color: 'var(--gem-dim)' }}>{rec.artist}</div>
         </div>
         <span
-          className="text-[9px] px-2 py-0.5 rounded font-semibold flex-shrink-0"
+          className="text-[10px] px-2 py-0.5 rounded font-semibold flex-shrink-0"
           style={{ background: status.bg, color: status.color }}
         >
           {status.label}
@@ -92,14 +92,14 @@ export function MusicHeroCard({ recommendation: rec, music }: MusicHeroCardProps
       <div className="flex items-center gap-3 px-3 pb-2">
         <div className="flex items-center gap-1.5 flex-wrap flex-1">
           {rec.category && (
-            <span className="text-[9px] px-1.5 py-px rounded" style={{ background: 'rgba(99,102,241,0.12)', color: '#818cf8' }}>
+            <span className="text-[10px] px-1.5 py-px rounded" style={{ background: 'rgba(99,102,241,0.12)', color: '#818cf8' }}>
               {rec.category}
             </span>
           )}
           {rec.energy != null && <EnergyIndicator level={rec.energy} />}
-          {rec.bpm && <span className="text-[9px] font-semibold" style={{ color: '#818cf8' }}>{rec.bpm} BPM</span>}
-          {rec.key && <span className="text-[9px] font-semibold" style={{ color: '#818cf8' }}>{rec.key}</span>}
-          {rec.duration && <span className="text-[9px]" style={{ color: '#6b7280' }}>{rec.duration}</span>}
+          {rec.bpm && <span className="text-[10px] font-semibold" style={{ color: '#818cf8' }}>{rec.bpm} BPM</span>}
+          {rec.key && <span className="text-[10px] font-semibold" style={{ color: '#818cf8' }}>{rec.key}</span>}
+          {rec.duration && <span className="text-[10px]" style={{ color: '#6b7280' }}>{rec.duration}</span>}
           {music.flow_to && (
             <span className="text-[8px] px-1.5 py-px rounded ml-auto" style={{ background: 'rgba(129,140,248,0.08)', color: '#818cf8' }}>
               → continua na {music.flow_to}
@@ -122,7 +122,7 @@ export function MusicHeroCard({ recommendation: rec, music }: MusicHeroCardProps
       {rec.resolve_status === 'PENDING_MATCH' && rec.artlist_url && !expanded && (
         <div className="px-3 pb-2 flex items-center gap-2">
           <DownloadCTA url={rec.artlist_url} />
-          <span className="text-[9px]" style={{ color: '#5a6b7f' }}>Após download, rodar import</span>
+          <span className="text-[10px]" style={{ color: '#5a6b7f' }}>Após download, rodar import</span>
         </div>
       )}
 
@@ -133,7 +133,7 @@ export function MusicHeroCard({ recommendation: rec, music }: MusicHeroCardProps
             <DownloadCTA url={rec.artlist_url} />
           )}
           {rec.original_filename && (
-            <div className="text-[9px] font-mono" style={{ color: '#5a6b7f' }}>{rec.original_filename}</div>
+            <div className="text-[10px] font-mono" style={{ color: '#5a6b7f' }}>{rec.original_filename}</div>
           )}
           {rec.score_breakdown && <ScoreBreakdown breakdown={rec.score_breakdown} />}
         </div>

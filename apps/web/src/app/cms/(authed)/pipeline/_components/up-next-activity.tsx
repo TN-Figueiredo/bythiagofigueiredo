@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { memo, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { getFormatColor } from '@/lib/pipeline/colors'
 
@@ -48,7 +48,7 @@ function formatRelativeTime(dateStr: string): string {
   return `${days}d`
 }
 
-export function UpNextActivity({ entries }: UpNextActivityProps) {
+export const UpNextActivity = memo(function UpNextActivity({ entries }: UpNextActivityProps) {
   const [expanded, setExpanded] = useState(false)
 
   if (entries.length === 0) return null
@@ -68,14 +68,14 @@ export function UpNextActivity({ entries }: UpNextActivityProps) {
         data-testid="activity-toggle"
         aria-expanded={expanded}
         aria-controls="activity-list"
-        className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium"
+        className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium hover:opacity-80 focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)] focus-visible:outline-none motion-safe:transition-opacity"
         style={{ color: 'var(--gem-text)' }}
         onClick={() => setExpanded((prev) => !prev)}
       >
         <span>Atividade Recente</span>
         <ChevronDown
           size={16}
-          className="transition-transform"
+          className="motion-safe:transition-transform"
           style={{
             color: 'var(--gem-muted)',
             transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
@@ -83,7 +83,7 @@ export function UpNextActivity({ entries }: UpNextActivityProps) {
         />
       </button>
 
-      {expanded ? (
+      {expanded && (
         <ul
           id="activity-list"
           data-testid="activity-list"
@@ -100,8 +100,10 @@ export function UpNextActivity({ entries }: UpNextActivityProps) {
                 <span
                   className="inline-block h-2 w-2 shrink-0 rounded-full"
                   style={{ backgroundColor: color.accent }}
+                  aria-hidden="true"
                   data-testid="activity-dot"
                 />
+                <span className="sr-only">{entry.format}</span>
                 <span
                   className="font-mono text-xs"
                   style={{ color: 'var(--gem-dim)' }}
@@ -120,7 +122,7 @@ export function UpNextActivity({ entries }: UpNextActivityProps) {
             )
           })}
         </ul>
-      ) : null}
+      )}
     </section>
   )
-}
+})

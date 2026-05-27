@@ -33,8 +33,12 @@ export async function POST(req: Request): Promise<Response> {
     .not('stage', 'in', '("published","scheduled")')
     .not('scheduled_at', 'is', null)
 
-  if (itemsErr || !items?.length) {
-    return NextResponse.json({ status: 'ok', sent: 0, reason: itemsErr ? 'query_error' : 'no_items' })
+  if (itemsErr) {
+    Sentry.captureException(new Error(itemsErr.message), { tags: { cron: TEMPLATE_NAME } })
+    return NextResponse.json({ error: itemsErr.message }, { status: 500 })
+  }
+  if (!items?.length) {
+    return NextResponse.json({ status: 'ok', sent: 0, reason: 'no_items' })
   }
 
   const deadlineItems: (DeadlineItem & { siteId: string })[] = []
@@ -47,7 +51,7 @@ export async function POST(req: Request): Promise<Response> {
     const todayMs = new Date(todayStr + 'T00:00:00Z').getTime()
     const daysUntil = Math.round((deadlineMs - todayMs) / 86_400_000)
 
-    if (daysUntil > MAX_DAYS_AHEAD) continue
+    if (daysUntil > MAX_DAYS_AHEAD || daysUntil < -MAX_DAYS_AHEAD) continue
 
     deadlineItems.push({
       title: (item.title_pt as string || item.title_en as string) ?? 'Untitled',
@@ -76,17 +80,20 @@ export async function POST(req: Request): Promise<Response> {
 
   for (const [siteId, siteItems] of bySite) {
     const { data: members } = await supabase
-      .from('site_users')
-      .select('user_id, users:auth_user_id(email)')
+      .from('site_memberships')
+      .select('user_id')
       .eq('site_id', siteId)
-      .in('role', ['super_admin', 'org_admin', 'editor'])
+      .in('role', ['editor', 'org_admin'])
 
     if (!members?.length) continue
 
-    for (const member of members) {
-      const email = (member as Record<string, unknown>).users as Record<string, string> | null
-      const toEmail = email?.email
-      if (!toEmail) continue
+    const userResults = await Promise.all(
+      members.map(m => supabase.auth.admin.getUserById(m.user_id).then(r => r.data?.user))
+    )
+    const recipients = userResults.filter((u): u is NonNullable<typeof u> => u?.email != null)
+
+    for (const user of recipients) {
+      const toEmail = user.email!
 
       const { count } = await supabase
         .from('sent_emails')
@@ -118,14 +125,14 @@ export async function POST(req: Request): Promise<Response> {
           html,
         })
 
-        await supabase.from('sent_emails').insert({
+        await supabase.from('sent_emails').upsert({
           site_id: siteId,
           template_name: TEMPLATE_NAME,
           to_email: toEmail,
           subject,
-          provider: 'ses',
+          provider: process.env.EMAIL_PROVIDER ?? 'ses',
           status: 'sent',
-        })
+        }, { ignoreDuplicates: true })
 
         sentCount++
       } catch (err) {

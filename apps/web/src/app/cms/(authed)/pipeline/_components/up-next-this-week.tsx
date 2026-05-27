@@ -99,6 +99,7 @@ const SlotChip = memo(function SlotChip({ slot, onEmptyClick, onSwapClick, selec
         data-locale={slot.channelLocale ?? ''}
         data-channel-id={slot.channelId ?? ''}
         aria-label={`Adicionar conteúdo — ${dayLabel} ${dateNum}`}
+        aria-haspopup="dialog"
         onClick={onEmptyClick}
       >
         &mdash;
@@ -108,10 +109,10 @@ const SlotChip = memo(function SlotChip({ slot, onEmptyClick, onSwapClick, selec
 
   if (filled) {
     return (
-      <div className="group/chip relative" style={{ opacity: isPast ? 0.6 : undefined }}>
+      <div className="group/chip relative flex-1 flex flex-col" style={{ opacity: isPast ? 0.6 : undefined }}>
         <Link
           href={`/cms/pipeline/items/${slot.assignedItem!.id}`}
-          className={`flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium cursor-pointer motion-safe:transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)] focus-visible:outline-none min-h-[44px] min-w-0${!isPast && onSwapClick ? ' pr-11' : ''}`}
+          className={`flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium cursor-pointer motion-safe:transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)] focus-visible:outline-none min-h-[44px] min-w-0 flex-1${!isPast && onSwapClick ? ' pr-11' : ''}`}
           style={{
             background: gemMix(colors.accent, 20),
             borderLeft: `3px solid ${colors.accent}`,
@@ -169,7 +170,7 @@ const SlotChip = memo(function SlotChip({ slot, onEmptyClick, onSwapClick, selec
   return (
     <button
       type="button"
-      className="flex flex-col items-center justify-center rounded-md px-2 py-1 text-xs w-full min-h-[44px] gap-0.5 focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)] focus-visible:outline-none"
+      className="flex flex-col items-center justify-center rounded-md px-2 py-1 text-xs w-full min-h-[44px] gap-0.5 flex-1 focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)] focus-visible:outline-none"
       style={{
         border: isCompatible
           ? `2px solid var(--gem-accent)`
@@ -187,6 +188,7 @@ const SlotChip = memo(function SlotChip({ slot, onEmptyClick, onSwapClick, selec
       aria-label={isCompatible
         ? `Atribuir "${selectedItem!.title}" — ${dayLabel} ${dateNum}`
         : `Adicionar ${FORMAT_LABELS[slot.format] ?? slot.format} — ${dayLabel} ${dateNum}`}
+      aria-haspopup="dialog"
       onClick={isCompatible && onDirectAssign
         ? () => onDirectAssign(selectedItem!.id, slot.day, slot.hour)
         : onEmptyClick}
@@ -300,11 +302,12 @@ export const UpNextThisWeek = memo(function UpNextThisWeek({
   const bufferCoverage = totalCount > 0 ? filledCount / totalCount : 0
   const shouldAutoCollapse = bufferCoverage >= 0.8
 
+  const [userToggled, setUserToggled] = useState(false)
   const [collapsed, setCollapsed] = useState(shouldAutoCollapse)
 
   useEffect(() => {
-    setCollapsed(shouldAutoCollapse)
-  }, [shouldAutoCollapse])
+    if (!userToggled) setCollapsed(shouldAutoCollapse)
+  }, [shouldAutoCollapse, userToggled])
 
   const wipStatus = useMemo(() => getWipStatus(stageCounts), [stageCounts])
 
@@ -314,7 +317,7 @@ export const UpNextThisWeek = memo(function UpNextThisWeek({
     <section ref={gridRef} aria-label="Grade de conteúdo — próximos 7 dias">
       <button
         type="button"
-        onClick={() => setCollapsed(c => !c)}
+        onClick={() => { setCollapsed(c => !c); setUserToggled(true) }}
         className="flex items-center justify-between w-full text-left mb-3 focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)] focus-visible:outline-none rounded px-1 py-0.5"
         aria-expanded={!collapsed}
       >
@@ -339,7 +342,7 @@ export const UpNextThisWeek = memo(function UpNextThisWeek({
         <>
           <div className="relative">
       <div
-        className="rounded-lg border overflow-x-auto"
+        className="rounded-lg border overflow-x-auto focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)] focus-visible:outline-none"
         style={{
           background: 'var(--gem-surface)',
           borderColor: 'var(--gem-border)',
@@ -422,6 +425,7 @@ export const UpNextThisWeek = memo(function UpNextThisWeek({
                         background: gemMix('--gem-text', 3),
                       }}
                       aria-label={`Sem conteúdo planejado — ${DAY_LABELS[dayNum]} ${parseInt(dayDate.slice(8, 10), 10)}`}
+                      aria-haspopup="dialog"
                       onClick={() => {
                         triggerRef.current = null
                         setPickerSlot({ day: dayDate, format: defaultFormat, hour: null })
@@ -529,7 +533,7 @@ export const UpNextThisWeek = memo(function UpNextThisWeek({
           {backlogCount > 0 && <span>{backlogCount} no backlog</span>}
           {streak.currentStreak >= 2 && (
             <span style={{ color: 'var(--gem-done)' }}>
-              Streak: {streak.currentStreak} semanas{streak.isActive ? '' : ' (pausado)'}
+              Sequência: {streak.currentStreak} semanas{streak.isActive ? '' : ' (pausado)'}
             </span>
           )}
         </div>

@@ -62,13 +62,13 @@ function PipelineImageNodeView({ node, updateAttributes, editor }: ReactNodeView
           <div className="flex-1 min-w-0">
             {refId && (
               <span
-                className="inline-block text-[9px] font-semibold px-1.5 py-0.5 rounded-full mb-1"
+                className="inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded-full mb-1"
                 style={{ background: 'rgba(236,72,153,0.1)', color: '#ec4899' }}
               >
                 {refId}
               </span>
             )}
-            <div className="text-[11px] leading-relaxed" style={{ color: 'var(--gem-muted)' }}>
+            <div className="text-xs leading-relaxed" style={{ color: 'var(--gem-muted)' }}>
               {description || 'Imagem pendente'}
             </div>
           </div>
@@ -105,7 +105,7 @@ function PipelineImageNodeView({ node, updateAttributes, editor }: ReactNodeView
           )}
 
           {!requestImage && !isEditable && (
-            <span className="text-[9px]" style={{ color: 'var(--gem-dim)' }}>
+            <span className="text-[10px]" style={{ color: 'var(--gem-dim)' }}>
               Aguardando imagem
             </span>
           )}
@@ -138,7 +138,7 @@ function PipelineImageNodeView({ node, updateAttributes, editor }: ReactNodeView
         )}
         {refId && (
           <span
-            className="absolute top-2 left-2 text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
+            className="absolute top-2 left-2 text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
             style={{ background: 'rgba(0,0,0,0.6)', color: '#e2e8f0' }}
           >
             {refId}

@@ -80,7 +80,7 @@ async function fetchSidebarBadgesInner(siteId: string, siteTimezone: string): Pr
       .gte('slot_date', todayStr),
     supabase
       .from('content_pipeline')
-      .select('id, title_pt, stage, format, scheduled_at')
+      .select('title_pt, stage, scheduled_at')
       .eq('site_id', siteId)
       .eq('is_archived', false)
       .not('stage', 'in', '("published","scheduled")')

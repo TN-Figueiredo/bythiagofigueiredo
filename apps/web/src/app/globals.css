@@ -515,6 +515,10 @@ textarea:focus-visible {
   --color-int-bdr: #60a5fa66;
 }
 
+@keyframes progress-fill {
+  from { width: 0%; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .gem-pipeline-theme * {
     animation: none !important;

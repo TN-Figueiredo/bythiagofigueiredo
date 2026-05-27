@@ -59,7 +59,7 @@ function MusicSection({ items }: { items: MusicAsset[] }) {
               <div className="flex items-center gap-2 mb-1">
                 {isSel && <span className="text-[12px]" style={{ color: TH.accent }}>★</span>}
                 <span className="text-[13px] font-semibold" style={{ color: TH.text }}>{m.name}</span>
-                <span className="text-[11px]" style={{ color: TH.muted }}>— {m.artist}</span>
+                <span className="text-xs" style={{ color: TH.muted }}>— {m.artist}</span>
                 <div className="flex-1" />
                 {m.local ? (
                   <span className={MONO_XS_CLS} style={{ fontSize: 8, color: '#27AE60', background: 'rgba(39,174,96,0.12)', padding: '1px 5px', borderRadius: 2 }}>✓ Local</span>
@@ -81,7 +81,7 @@ function MusicSection({ items }: { items: MusicAsset[] }) {
                   ))}
                 </div>
               </div>
-              {m.note && <div className="text-[11px] italic mt-0.5" style={{ color: TH.muted }}>{m.note}</div>}
+              {m.note && <div className="text-xs italic mt-0.5" style={{ color: TH.muted }}>{m.note}</div>}
               {isSel && !isConf && (
                 <div className="mt-2 flex justify-end gap-1.5">
                   <button
@@ -119,11 +119,11 @@ function SfxSection({ items }: { items: SfxAsset[] }) {
               >
                 {s.type}
               </span>
-              <span className="text-[11px]" style={{ color: TH.text }}>{s.desc}</span>
+              <span className="text-xs" style={{ color: TH.text }}>{s.desc}</span>
             </div>
             {s.file ? (
               <div className="flex items-center gap-2 mb-1">
-                <span className="text-[11px]" style={{ color: TH.muted }}>{s.file.name}</span>
+                <span className="text-xs" style={{ color: TH.muted }}>{s.file.name}</span>
                 <span className={MONO_XS_CLS} style={{ fontSize: 8, color: '#27AE60', background: 'rgba(39,174,96,0.12)', padding: '1px 5px', borderRadius: 2 }}>✓ Local</span>
                 <span className="font-mono text-[12px] font-semibold" style={{ color: s.file.match >= 80 ? '#27AE60' : TH.text }}>{s.file.match}%</span>
               </div>
@@ -153,7 +153,7 @@ function VisualSection({ items }: { items: VisualAsset[] }) {
         {items.map((v, i) => (
           <div key={i} className="flex items-center gap-2 rounded-[3px] px-2.5 py-1.5" style={{ background: 'rgba(255,255,255,0.015)', border: `1px solid ${TH.border}` }}>
             <span className="font-mono text-[10px]" style={{ color: TH.accent }}>{v.tc}</span>
-            <span className="text-[11px] flex-1" style={{ color: TH.text }}>{v.desc}</span>
+            <span className="text-xs flex-1" style={{ color: TH.text }}>{v.desc}</span>
             {v.status === 'resolved' ? (
               <span className={MONO_XS_CLS} style={{ fontSize: 8, color: '#27AE60' }}>✓ {v.file}</span>
             ) : (
@@ -179,9 +179,9 @@ function AmbienceSection({ items }: { items: AmbienceAsset[] }) {
       <div className={MONO_XS_CLS} style={{ color: TH.muted, fontSize: 8, marginBottom: 4 }}>AMBIENCE</div>
       {items.map((a, i) => (
         <div key={i} className="flex items-center gap-2 rounded-[3px] px-2.5 py-1.5" style={{ background: 'rgba(255,255,255,0.015)', border: `1px solid ${TH.border}` }}>
-          <span className="text-[11px]" style={{ color: TH.text }}>{a.name}</span>
+          <span className="text-xs" style={{ color: TH.text }}>{a.name}</span>
           {a.local && <span className={MONO_XS_CLS} style={{ fontSize: 8, color: '#27AE60' }}>✓ Local</span>}
-          <span className="font-mono text-[11px]" style={{ color: TH.muted }}>{a.match}%</span>
+          <span className="font-mono text-xs" style={{ color: TH.muted }}>{a.match}%</span>
         </div>
       ))}
     </div>
@@ -197,7 +197,7 @@ function SoundDesignSection({ items }: { items: SoundDesignAsset[] }) {
       {items.map((sd, i) => (
         <div key={i} className="flex items-center gap-2 rounded-[3px] px-2.5 py-1.5" style={{ background: 'rgba(255,255,255,0.015)', border: `1px solid ${TH.border}` }}>
           <span className="font-mono text-[10px]" style={{ color: TH.accent }}>{sd.tc}</span>
-          <span className="text-[11px] flex-1" style={{ color: TH.text }}>{sd.name}</span>
+          <span className="text-xs flex-1" style={{ color: TH.text }}>{sd.name}</span>
           <span className={MONO_XS_CLS} style={{ fontSize: 8, color: sd.status === 'pending' ? '#E67E22' : '#27AE60' }}>
             {sd.status === 'pending' ? '⚠ Pendente' : '✓ Pronto'}
           </span>

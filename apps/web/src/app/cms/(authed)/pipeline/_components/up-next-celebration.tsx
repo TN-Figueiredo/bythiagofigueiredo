@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { getFormatIcon } from '@/lib/pipeline/gem-design'
+import { memo, useState, useEffect, useCallback } from 'react'
+import { getFormatIcon, gemMix } from '@/lib/pipeline/gem-design'
 import { getISOWeek, getISOWeekYear } from 'date-fns'
 
 export interface CelebrationItem {
@@ -30,7 +30,7 @@ function isDismissed(): boolean {
   }
 }
 
-export function UpNextCelebration({ items }: UpNextCelebrationProps) {
+export const UpNextCelebration = memo(function UpNextCelebration({ items }: UpNextCelebrationProps) {
   const [dismissed, setDismissed] = useState(false)
 
   useEffect(() => {
@@ -54,15 +54,17 @@ export function UpNextCelebration({ items }: UpNextCelebrationProps) {
 
   return (
     <section
+      role="status"
+      aria-live="polite"
       data-testid="celebration-banner"
       className="flex items-center gap-3 rounded-lg px-4 py-3"
       style={{
-        background: 'linear-gradient(135deg, rgba(99,102,241,0.12) 0%, rgba(16,185,129,0.08) 100%)',
+        background: `linear-gradient(135deg, ${gemMix('--gem-accent', 12)} 0%, ${gemMix('--gem-done', 8)} 100%)`,
         border: '1px solid var(--gem-border)',
         color: 'var(--gem-text)',
       }}
     >
-      <span className="text-lg" role="img" aria-label="celebration">
+      <span className="text-lg" role="img" aria-label="celebração">
         🎉
       </span>
       <span className="flex items-center gap-2 text-sm flex-1">
@@ -78,6 +80,7 @@ export function UpNextCelebration({ items }: UpNextCelebrationProps) {
             return (
               <span
                 key={item.id}
+                role="img"
                 title={item.title_pt ?? item.code}
                 aria-label={label}
                 className="text-base"
@@ -91,13 +94,13 @@ export function UpNextCelebration({ items }: UpNextCelebrationProps) {
       <button
         type="button"
         onClick={dismiss}
-        className="shrink-0 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-md transition-opacity hover:opacity-70 focus-visible:ring-2 focus-visible:ring-[#6366f1] focus-visible:outline-none"
+        className="shrink-0 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-md motion-safe:transition-opacity hover:opacity-70 focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)] focus-visible:outline-none"
         style={{ color: 'var(--gem-muted)' }}
-        aria-label="Dispensar celebracao"
+        aria-label="Dispensar celebração"
         data-testid="celebration-dismiss"
       >
         ✕
       </button>
     </section>
   )
-}
+})

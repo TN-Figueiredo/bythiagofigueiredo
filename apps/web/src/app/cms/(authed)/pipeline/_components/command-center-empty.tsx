@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { gemMix } from '@/lib/pipeline/gem-design'
 
 interface CommandCenterEmptyProps {
   variant: 'first-run' | 'rest-day' | 'all-done'
@@ -10,7 +11,7 @@ interface CommandCenterEmptyProps {
 const VARIANTS = {
   'first-run': {
     title: 'Command Center vazio',
-    description: 'Configure seus canais do YouTube e cadencia do blog para comecar.',
+    description: 'Configure seus canais do YouTube e cadência do blog para começar.',
     cta: { href: '/cms/settings/youtube', label: 'Configurar YouTube' },
   },
   'rest-day': {
@@ -48,17 +49,17 @@ export function CommandCenterEmpty({ variant, nextActionDay }: CommandCenterEmpt
       >
         {config.description}
         {nextActionDay && variant === 'rest-day' && (
-          <> Proximo slot: {nextActionDay}.</>
+          <> Próximo slot: {nextActionDay}.</>
         )}
       </p>
       {config.cta && (
         <Link
           href={config.cta.href}
-          className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium min-h-[44px] focus-visible:ring-2 focus-visible:ring-[#6366f1] focus-visible:outline-none"
+          className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium min-h-[44px] focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)] focus-visible:outline-none"
           style={{
-            background: 'color-mix(in srgb, var(--gem-accent) 15%, transparent)',
+            background: gemMix('--gem-accent', 15),
             color: 'var(--gem-accent)',
-            border: '1px solid color-mix(in srgb, var(--gem-accent) 25%, transparent)',
+            border: `1px solid ${gemMix('--gem-accent', 25)}`,
           }}
         >
           {config.cta.label}

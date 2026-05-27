@@ -11,6 +11,7 @@ import React from 'react'
 // Mock all @/ imports that the component uses so the test resolves correctly.
 vi.mock('@/lib/pipeline/gem-design', () => ({
   getFormatIcon: vi.fn((f: string) => ({ icon: `[${f}]`, bgClass: '', label: f })),
+  gemMix: vi.fn((color: string, pct: number) => `rgba(0,0,0,${pct / 100})`),
 }))
 
 vi.mock('date-fns', async () => {

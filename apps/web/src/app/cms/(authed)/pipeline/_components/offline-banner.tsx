@@ -1,14 +1,20 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { gemMix } from '@/lib/pipeline/gem-design'
 
 export function OfflineBanner() {
   const [isOnline, setIsOnline] = useState(true)
+  const wasOffline = useRef(false)
 
   useEffect(() => {
     setIsOnline(navigator.onLine)
+    if (!navigator.onLine) wasOffline.current = true
     const handleOnline = () => setIsOnline(true)
-    const handleOffline = () => setIsOnline(false)
+    const handleOffline = () => {
+      wasOffline.current = true
+      setIsOnline(false)
+    }
     window.addEventListener('online', handleOnline)
     window.addEventListener('offline', handleOffline)
     return () => {
@@ -17,20 +23,22 @@ export function OfflineBanner() {
     }
   }, [])
 
-  if (isOnline) return null
-
   return (
-    <div
-      role="status"
-      aria-live="polite"
-      className="flex items-center gap-2 rounded-md px-3 py-2 text-xs font-medium"
-      style={{
-        background: 'color-mix(in srgb, var(--gem-warn) 10%, transparent)',
-        color: 'var(--gem-warn)',
-        border: '1px solid color-mix(in srgb, var(--gem-warn) 20%, transparent)',
-      }}
-    >
-      Sem conexao — dados podem estar desatualizados
+    <div role="status" aria-live="polite" aria-atomic="true">
+      {!isOnline ? (
+        <div
+          className="flex items-center gap-2 rounded-md px-3 py-2 text-xs font-medium"
+          style={{
+            background: gemMix('--gem-warn', 10),
+            color: 'var(--gem-warn)',
+            border: `1px solid ${gemMix('--gem-warn', 20)}`,
+          }}
+        >
+          Sem conexão — dados podem estar desatualizados
+        </div>
+      ) : wasOffline.current ? (
+        <span className="sr-only">Conexão restaurada</span>
+      ) : null}
     </div>
   )
 }

@@ -7,12 +7,37 @@ export const GEM_CSS_VARS: Record<string, string> = {
   '--gem-well': '#0c1222',
   '--gem-text': '#edf2f7',
   '--gem-muted': '#7a8ba3',
-  '--gem-dim': '#5a6b7f',
+  '--gem-dim': '#8494a7',
   '--gem-faint': '#2a3650',
   '--gem-done': '#10b981',
   '--gem-warn': '#f59e0b',
-  '--gem-danger': '#ef4444',
-  '--gem-accent': '#6366f1',
+  '--gem-danger': '#f87171',
+  '--gem-accent': '#818cf8',
+}
+
+/** Parse a hex color (#rrggbb) to [r, g, b]. */
+function hexToRgb(hex: string): [number, number, number] {
+  const h = hex.replace('#', '')
+  return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)]
+}
+
+/**
+ * Pre-compute an rgba fallback for `color-mix(in srgb, <color> <pct>%, transparent)`.
+ * Works in every browser. Use as inline style value.
+ *
+ * Accepts:
+ *  - CSS var name: `'--gem-accent'`
+ *  - var() wrapper: `'var(--gem-accent)'`
+ *  - raw hex: `'#818cf8'`
+ */
+export function gemMix(colorOrVar: string, pct: number): string {
+  let key = colorOrVar
+  const varMatch = /^var\((--[^)]+)\)$/.exec(key)
+  if (varMatch) key = varMatch[1]!
+  const hex = key.startsWith('--') ? GEM_CSS_VARS[key] : key.startsWith('#') ? key : undefined
+  if (!hex) return `rgba(128,128,128,${(pct / 100).toFixed(2)})`
+  const [r, g, b] = hexToRgb(hex)
+  return `rgba(${r},${g},${b},${(pct / 100).toFixed(2)})`
 }
 
 interface PriorityConfig {
