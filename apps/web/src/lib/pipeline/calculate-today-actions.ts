@@ -9,6 +9,7 @@ import {
   type Stage,
 } from './up-next-constants'
 import { getProductionDeadline } from './get-production-deadline'
+import { computeUrgencyScore } from './compute-urgency-score'
 import type {
   TodayActionsInput,
   TodayActionsResult,
@@ -177,6 +178,12 @@ export function calculateTodayActions(input: TodayActionsInput): TodayActionsRes
           : null,
       channelLabel: schedule.channel_name,
       pubDate: slotDay,
+      urgencyScore: computeUrgencyScore({
+        deadline: deadline,
+        today,
+        stage: best.stage,
+        effortMinutes: minutes,
+      }),
     })
   }
 
@@ -239,6 +246,12 @@ export function calculateTodayActions(input: TodayActionsInput): TodayActionsRes
         playlistContext: null,
         channelLabel: null,
         pubDate: nextPubStr,
+        urgencyScore: computeUrgencyScore({
+          deadline: blogDeadline,
+          today,
+          stage,
+          effortMinutes: minutes,
+        }),
         ...(best === null && { isPhantom: true }),
       })
     }
@@ -282,6 +295,12 @@ export function calculateTodayActions(input: TodayActionsInput): TodayActionsRes
       playlistContext: null,
       channelLabel: null,
       pubDate,
+      urgencyScore: computeUrgencyScore({
+        deadline: deadlineDate,
+        today,
+        stage,
+        effortMinutes: minutes,
+      }),
     })
   }
 
@@ -330,6 +349,8 @@ export function calculateTodayActions(input: TodayActionsInput): TodayActionsRes
             ? `Escrever ${group.length} posts`
             : `Escrever ${group.length} newsletters`
 
+      const maxUrgencyScore = Math.max(...group.map(a => a.urgencyScore ?? 0))
+
       const batchCard: TodayAction = {
         ...first,
         itemTitle: batchTitle,
@@ -339,6 +360,7 @@ export function calculateTodayActions(input: TodayActionsInput): TodayActionsRes
         priority: highestPriority,
         deadline: { label: deadlineLabel(earliestDeadline, today), date: earliestDeadline },
         batchItems: group.map((a) => a.id),
+        urgencyScore: maxUrgencyScore,
       }
       mergedActions.push(batchCard)
     }
@@ -348,16 +370,13 @@ export function calculateTodayActions(input: TodayActionsInput): TodayActionsRes
   /*  Sorting                                                          */
   /* ---------------------------------------------------------------- */
   mergedActions.sort((a, b) => {
-    // 1. urgency ASC
+    // 1. urgencyScore DESC (higher = more urgent = first)
+    const scoreDiff = (b.urgencyScore ?? 0) - (a.urgencyScore ?? 0)
+    if (scoreDiff !== 0) return scoreDiff
+
+    // 2. urgency bucket ASC (tiebreaker within same score)
     const urgencyDiff = (URGENCY_ORDER[a.urgency] ?? 99) - (URGENCY_ORDER[b.urgency] ?? 99)
     if (urgencyDiff !== 0) return urgencyDiff
-
-    // 2. effort: deep=0, medium=1, quick=2 ASC
-    const effortRank = (e: 'deep' | 'medium' | 'quick') => e === 'deep' ? 0 : e === 'medium' ? 1 : 2
-    const effortA = effortRank(a.effort)
-    const effortB = effortRank(b.effort)
-    const effortDiff = effortA - effortB
-    if (effortDiff !== 0) return effortDiff
 
     // 3. priority DESC
     const priorityDiff = b.priority - a.priority

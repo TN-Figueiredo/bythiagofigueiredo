@@ -1,7 +1,7 @@
 'use client'
 
 import useSWR from 'swr'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { UpNextCelebration, type CelebrationItem } from './up-next-celebration'
 import { TodayActionCards } from './today-action-cards'
 import { UpNextSuggestion } from './up-next-suggestion'
@@ -12,7 +12,9 @@ import { CommandCenterEmpty } from './command-center-empty'
 import { OfflineBanner } from './offline-banner'
 import { SectionErrorBoundary } from '../../_shared/section-error-boundary'
 import { useSlotAssignment } from './use-slot-assignment'
+import { X } from 'lucide-react'
 import { gemMix } from '@/lib/pipeline/gem-design'
+import { BufferHealthPills } from './buffer-health-pills'
 import type { UpNextApiResponse, SlotCandidate } from '@/lib/pipeline/up-next-types'
 import { SITE_TIMEZONE } from '@/lib/pipeline/up-next-constants'
 import dynamic from 'next/dynamic'
@@ -45,15 +47,18 @@ const fetcher = (url: string) => fetch(url).then(r => {
 })
 
 export function PipelineOverview({ fallbackData, celebration, activity }: PipelineOverviewProps) {
+  const [fetchError, setFetchError] = useState(false)
   const { data, isLoading, mutate } = useSWR<UpNextApiResponse>(
     '/api/pipeline/up-next',
     fetcher,
     {
       fallbackData,
       revalidateOnFocus: true,
-      dedupingInterval: 300_000,
+      dedupingInterval: 60_000,
       refreshInterval: 300_000,
       errorRetryCount: 3,
+      onError: () => setFetchError(true),
+      onSuccess: () => setFetchError(false),
     }
   )
 
@@ -64,6 +69,7 @@ export function PipelineOverview({ fallbackData, celebration, activity }: Pipeli
 
   const [selectedCandidate, setSelectedCandidate] = useState<SlotCandidate | null>(null)
   const [panelCollapsed, setPanelCollapsed] = useState(false)
+  const weekGridRef = useRef<HTMLElement>(null) as RefObject<HTMLElement | null>
 
   const handleAssignFromPanel = useCallback(async (
     itemId: string, slotDay: string, slotHour: string | null, previousItemId?: string,
@@ -72,8 +78,13 @@ export function PipelineOverview({ fallbackData, celebration, activity }: Pipeli
     setSelectedCandidate(null)
   }, [handleAssignSlot])
 
+  const handleItemAssigned = useCallback(() => setSelectedCandidate(null), [])
+  const handleToggleCollapse = useCallback(() => setPanelCollapsed(p => !p), [])
+
   useEffect(() => {
     if (!selectedCandidate) return
+    const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    weekGridRef.current?.scrollIntoView({ behavior: prefersReduced ? 'instant' : 'smooth', block: 'nearest' })
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setSelectedCandidate(null)
     }
@@ -125,16 +136,29 @@ export function PipelineOverview({ fallbackData, celebration, activity }: Pipeli
       <div role="status" aria-live="polite" className="sr-only">
         {selectedCandidate
           ? `${selectedCandidate.title} selecionado. Clique em um slot compatível para atribuir.`
-          : announcement}
+          : ''}
+      </div>
+      <div role="status" aria-live="polite" className="sr-only">
+        {announcement}
       </div>
       <OfflineBanner />
+
+      {fetchError && (
+        <div
+          role="alert"
+          className="text-xs px-3 py-1.5 rounded"
+          style={{ color: 'var(--gem-text)', background: gemMix('--gem-warn', 15) }}
+        >
+          Falha ao atualizar dados. Mostrando versão anterior.
+        </div>
+      )}
 
       {upNext.errors && Object.entries(upNext.errors).some(([, v]) => v !== null) && (
         <div
           role="status"
           aria-live="polite"
           className="text-xs px-3 py-1.5 rounded"
-          style={{ color: 'var(--gem-warn)', background: gemMix('--gem-warn', 8) }}
+          style={{ color: 'var(--gem-text)', background: gemMix('--gem-warn', 12) }}
         >
           Alguns dados podem estar incompletos. Tente recarregar a página.
         </div>
@@ -172,6 +196,14 @@ export function PipelineOverview({ fallbackData, celebration, activity }: Pipeli
               }}
             />
           </div>
+          {upNext.bufferDepth && (
+            <div className="mt-2">
+              <BufferHealthPills
+                formats={upNext.bufferDepth.formats}
+                overallHealth={upNext.bufferDepth.overallHealth}
+              />
+            </div>
+          )}
         </div>
       )}
 
@@ -200,6 +232,34 @@ export function PipelineOverview({ fallbackData, celebration, activity }: Pipeli
         />
       )}
 
+      {selectedCandidate && (
+        <div
+          className="flex items-center gap-2 rounded-md px-3 py-2 text-xs"
+          style={{
+            background: gemMix('--gem-accent', 10),
+            border: `1px solid ${gemMix('--gem-accent', 30)}`,
+            color: 'var(--gem-accent)',
+          }}
+        >
+          <span className="flex-1 truncate font-medium">
+            Atribuindo &ldquo;{selectedCandidate.title}&rdquo; — clique em um slot compatível
+          </span>
+          <button
+            type="button"
+            onClick={() => setSelectedCandidate(null)}
+            className="flex items-center gap-1 shrink-0 rounded px-2 py-1 min-h-[44px] font-medium hover:opacity-80 motion-safe:transition-opacity focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)] focus-visible:outline-none"
+            style={{
+              background: gemMix('--gem-accent', 15),
+              color: 'var(--gem-accent)',
+            }}
+            aria-label="Cancelar seleção"
+          >
+            <X size={12} aria-hidden="true" />
+            Cancelar
+          </button>
+        </div>
+      )}
+
       <SectionErrorBoundary>
         <UpNextThisWeek
           slots={upNext.weekSlots}
@@ -212,19 +272,19 @@ export function PipelineOverview({ fallbackData, celebration, activity }: Pipeli
           candidates={upNext.candidates}
           onAssignSlot={selectedCandidate ? handleAssignFromPanel : handleAssignSlot}
           selectedItem={selectedCandidate}
-          onItemAssigned={() => setSelectedCandidate(null)}
+          onItemAssigned={handleItemAssigned}
+          gridRef={weekGridRef}
         />
       </SectionErrorBoundary>
 
       {upNext.candidates.length > 0 && (
         <LazyPlaylistSuggestionPanel
           candidates={upNext.candidates}
-          weekSlots={upNext.weekSlots}
           playlistSummaries={upNext.playlists}
           onSelectItem={setSelectedCandidate}
           selectedItem={selectedCandidate}
           collapsed={panelCollapsed}
-          onToggleCollapse={() => setPanelCollapsed(p => !p)}
+          onToggleCollapse={handleToggleCollapse}
         />
       )}
 

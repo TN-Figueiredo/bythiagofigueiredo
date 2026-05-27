@@ -578,6 +578,53 @@ describe('calculateTodayActions', () => {
     expect(v1Actions.length).toBeLessThanOrEqual(1)
   })
 
+  describe('urgencyScore integration', () => {
+    it('attaches urgencyScore to every action', () => {
+      const input: TodayActionsInput = {
+        pipelineItems: [
+          makeItem({ id: 'v1', stage: 'roteiro', format: 'video' }),
+        ],
+        blogCadence: null,
+        newsletterEditions: [],
+        syncSchedules: [makeSchedule()],
+        siteTimezone: 'America/Sao_Paulo',
+        now: new Date('2026-05-22T12:00:00-03:00'),
+        maxCards: 5,
+        doneToday: 0,
+      }
+      const result = calculateTodayActions(input)
+      for (const action of result.actions) {
+        expect(action.urgencyScore).toBeDefined()
+        expect(typeof action.urgencyScore).toBe('number')
+        expect(action.urgencyScore).toBeGreaterThanOrEqual(0)
+        expect(action.urgencyScore).toBeLessThanOrEqual(100)
+      }
+    })
+
+    it('sorts by urgencyScore descending (most urgent first)', () => {
+      const input: TodayActionsInput = {
+        pipelineItems: [
+          makeItem({ id: 'v1', stage: 'idea', format: 'video', youtube_channel_id: 'ch-pt' }),
+          makeItem({ id: 'v2', stage: 'ready', format: 'video', youtube_channel_id: 'ch-en' }),
+        ],
+        blogCadence: null,
+        newsletterEditions: [],
+        syncSchedules: [
+          makeSchedule({ channel_id: 'ch-pt', locale: 'pt', schedule: { day: 'friday', hour: 10 } }),
+          makeSchedule({ channel_id: 'ch-en', channel_name: 'EN Channel', locale: 'en', schedule: { day: 'friday', hour: 18 } }),
+        ],
+        siteTimezone: 'America/Sao_Paulo',
+        now: new Date('2026-05-22T12:00:00-03:00'),
+        maxCards: 5,
+        doneToday: 0,
+      }
+      const result = calculateTodayActions(input)
+      if (result.actions.length >= 2) {
+        expect(result.actions[0]!.urgencyScore).toBeGreaterThanOrEqual(result.actions[1]!.urgencyScore!)
+      }
+    })
+  })
+
   describe('phantom blog action', () => {
     it('marks blog action as phantom when no pipeline item matches', () => {
       const input: TodayActionsInput = {

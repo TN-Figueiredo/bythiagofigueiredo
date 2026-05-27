@@ -69,6 +69,7 @@ export interface TodayAction {
   pubDate: string | null
   batchItems?: string[]
   isPhantom?: boolean
+  urgencyScore?: number
 }
 
 export interface TodayActionsInput {
@@ -131,6 +132,10 @@ export interface UpNextApiResponse {
   nextWeekEmpty: number
   backlogCount: number
   suggestion: { text: string; href: string } | null
+  bufferDepth: {
+    formats: Record<string, { totalSlots: number; filledSlots: number; coveragePercent: number; health: 'green' | 'yellow' | 'red' }>
+    overallHealth: 'green' | 'yellow' | 'red'
+  } | null
   errors: {
     today: string | null
     weekSlots: string | null
