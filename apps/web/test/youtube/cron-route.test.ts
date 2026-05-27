@@ -121,13 +121,13 @@ describe('GET /api/cron/sync-youtube', () => {
     expect(mockRevalidate).toHaveBeenCalledWith('youtube')
   })
 
-  it('does not revalidate cache when no changes', async () => {
+  it('revalidates cache even when no new videos', async () => {
     mockSync.mockResolvedValue({
       videosFound: 3, videosInserted: 0, videosUpdated: 0, quotaUsed: 1,
     })
 
     await GET(makeRequest())
-    expect(mockRevalidate).not.toHaveBeenCalled()
+    expect(mockRevalidate).toHaveBeenCalledWith('youtube')
   })
 
   it('skips channels outside posting window in schedule mode', async () => {

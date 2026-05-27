@@ -63,9 +63,11 @@ export async function GET(req: NextRequest) {
     let totalInserted = 0
     let totalUpdated = 0
     let totalQuota = 0
+    const channelResults: Array<{ id: string; name: string; status: string; detail?: string }> = []
 
     for (const channel of channels as YouTubeChannelRow[]) {
       if (mode === 'schedule' && !isInPostingWindow(channel.sync_schedules)) {
+        channelResults.push({ id: channel.id, name: channel.name, status: 'skipped', detail: 'outside posting window' })
         continue
       }
 
@@ -90,6 +92,12 @@ export async function GET(req: NextRequest) {
         totalInserted += result.videosInserted
         totalUpdated += result.videosUpdated
         totalQuota += result.quotaUsed
+        channelResults.push({
+          id: channel.id,
+          name: channel.name,
+          status: 'completed',
+          detail: `found=${result.videosFound} inserted=${result.videosInserted} updated=${result.videosUpdated} quota=${result.quotaUsed}`,
+        })
 
         if (logId) {
           await supabase.from('youtube_sync_log').update({
@@ -104,6 +112,7 @@ export async function GET(req: NextRequest) {
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
         const errorMsg = err instanceof YouTubeQuotaError ? 'quotaExceeded' : message
+        channelResults.push({ id: channel.id, name: channel.name, status: 'failed', detail: errorMsg })
 
         if (logId) {
           await supabase.from('youtube_sync_log').update({
@@ -114,7 +123,7 @@ export async function GET(req: NextRequest) {
         }
 
         if (err instanceof YouTubeQuotaError) {
-          return { status: 'error' as const, error: 'quotaExceeded', quota_used: totalQuota }
+          return { status: 'error' as const, error: 'quotaExceeded', quota_used: totalQuota, channels: channelResults }
         }
 
         Sentry.captureException(err, {
@@ -124,9 +133,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    if (totalInserted > 0 || totalUpdated > 0) {
-      revalidateTag('youtube')
-    }
+    revalidateTag('youtube')
 
     return {
       status: 'ok' as const,
@@ -134,6 +141,7 @@ export async function GET(req: NextRequest) {
       inserted: totalInserted,
       updated: totalUpdated,
       quota_used: totalQuota,
+      channels: channelResults,
     }
   })
 }
