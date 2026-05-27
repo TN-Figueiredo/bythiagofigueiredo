@@ -4,6 +4,7 @@ import React, { useState, useMemo, useTransition } from 'react'
 import Image from 'next/image'
 import { CategoryBadge, FeaturedToggle, HiddenToggle, PinButton, SyncButton, AbStatusBadge, VideoContextMenu } from './video-row-actions'
 import { triggerSync } from './actions'
+import { VideoOptimizerDrawer } from './video-optimizer-drawer'
 
 export interface VideoRow {
   id: string
@@ -72,6 +73,7 @@ export function VideosConnected({ videos, channels, categories }: Props) {
   const [categoryFilter, setCategoryFilter] = useState<string>('')
   const [search, setSearch] = useState<string>('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [drawerVideo, setDrawerVideo] = useState<VideoRow | null>(null)
   const [, startTransition] = useTransition()
 
   const filtered = useMemo(() => {
@@ -356,11 +358,21 @@ export function VideosConnected({ videos, channels, categories }: Props) {
 
                   {/* Context menu */}
                   <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
-                    <VideoContextMenu
-                      videoId={video.id}
-                      isShort={(video.durationSeconds ?? 0) <= 60}
-                      abTest={video.abTest}
-                    />
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setDrawerVideo(video)}
+                        className="rounded border border-cms-border px-1.5 py-0.5 text-[11px] text-cms-text-muted hover:bg-cms-surface-hover hover:text-cms-text"
+                        title="Abrir Video Optimizer"
+                      >
+                        ⚡
+                      </button>
+                      <VideoContextMenu
+                        videoId={video.id}
+                        isShort={(video.durationSeconds ?? 0) <= 60}
+                        abTest={video.abTest}
+                      />
+                    </div>
                   </td>
                 </tr>
 
@@ -453,6 +465,11 @@ export function VideosConnected({ videos, channels, categories }: Props) {
           </table>
         </div>
       )}
+
+      <VideoOptimizerDrawer
+        video={drawerVideo}
+        onClose={() => setDrawerVideo(null)}
+      />
     </div>
   )
 }

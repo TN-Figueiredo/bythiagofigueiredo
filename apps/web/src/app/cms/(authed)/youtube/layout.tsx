@@ -1,10 +1,11 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
-import { useTransition } from 'react'
+import { useTransition, useState } from 'react'
 import Link from 'next/link'
 import type { ReactNode } from 'react'
 import { triggerSync } from './videos/actions'
+import { YouTubeCoworkPromptModal } from './_components/youtube-cowork-prompt-modal'
 
 const TABS = [
   { label: 'Dashboard', href: '/cms/youtube' },
@@ -19,6 +20,7 @@ const TABS = [
 export default function YouTubeLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const [isSyncing, startTransition] = useTransition()
+  const [showPromptModal, setShowPromptModal] = useState(false)
 
   const activeTab = TABS.find(t => {
     if (t.href === '/cms/youtube') return pathname === '/cms/youtube'
@@ -44,6 +46,13 @@ export default function YouTubeLayout({ children }: { children: ReactNode }) {
             className="rounded border border-cms-border px-3 py-1.5 text-sm font-medium text-cms-text-muted hover:bg-cms-surface-hover disabled:opacity-50"
           >
             {isSyncing ? '⟳ Syncing…' : '⟳ Sync All'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowPromptModal(true)}
+            className="rounded bg-gradient-to-r from-indigo-600 to-indigo-500 px-3 py-1.5 text-sm font-medium text-white shadow-sm hover:from-indigo-500 hover:to-indigo-400"
+          >
+            Copy Cowork Prompt
           </button>
           <Link
             href="/cms/settings?section=youtube"
@@ -79,6 +88,13 @@ export default function YouTubeLayout({ children }: { children: ReactNode }) {
       <div className="p-6">
         {children}
       </div>
+      <YouTubeCoworkPromptModal
+        isOpen={showPromptModal}
+        onClose={() => setShowPromptModal(false)}
+        videos={[]}
+        channelName=""
+        scoredVideoCount={0}
+      />
     </div>
   )
 }
