@@ -9,7 +9,8 @@ import type {
   PipelineItemWithSlot, SyncScheduleWithChannel, BlogCadenceRow,
   NewsletterEditionRow, PlaylistSummary, UpNextApiResponse,
 } from '@/lib/pipeline/up-next-types'
-import { formatISO, startOfISOWeek, endOfISOWeek, addDays, parseISO } from 'date-fns'
+import type { SyncScheduleEntry } from '@/lib/youtube/types'
+import { formatISO, addDays, parseISO } from 'date-fns'
 import { toZonedTime } from 'date-fns-tz'
 
 /**
@@ -28,8 +29,8 @@ export async function fetchUpNextData(
   }
   const zonedNow = toZonedTime(now, tz)
   const today = formatISO(zonedNow, { representation: 'date' })
-  const weekStart = formatISO(startOfISOWeek(zonedNow), { representation: 'date' })
-  const weekEnd = formatISO(endOfISOWeek(zonedNow), { representation: 'date' })
+  const weekStart = today
+  const weekEnd = formatISO(addDays(zonedNow, 6), { representation: 'date' })
 
   const errors: UpNextApiResponse['errors'] = { today: null, weekSlots: null, streak: null, playlists: null }
 
@@ -49,6 +50,7 @@ export async function fetchUpNextData(
       .from('youtube_channels')
       .select('id, name, locale, sync_schedules')
       .eq('site_id', siteId)
+      .eq('sync_enabled', true)
       .limit(100),
 
     supabase
@@ -83,13 +85,14 @@ export async function fetchUpNextData(
 
     supabase
       .from('playlists')
-      .select('id, name_pt, name_en')
+      .select(`id, name_pt, name_en,
+        playlist_items(pipeline_id, content_pipeline(stage))`)
       .eq('site_id', siteId)
       .eq('status', 'published')
       .limit(100),
   ])
 
-  const pipelineItems: PipelineItemWithSlot[] = (itemsRes.data ?? []).map((row: Record<string, unknown>) => {
+  const rawItems = (itemsRes.data ?? []).map((row: Record<string, unknown>) => {
     const pi = (row.playlist_items as Array<Record<string, unknown>> ?? [])[0]
     const pl = pi?.playlists as Record<string, unknown> | undefined
     const yc = row.youtube_channels as Record<string, string> | null
@@ -106,21 +109,31 @@ export async function fetchUpNextData(
       playlist_id: (pi?.playlist_id as string) ?? null,
       playlist_name: (pl?.name_pt as string || pl?.name_en as string) ?? null,
       playlist_position: (pi?.sort_order as number) ?? null,
-      playlist_total: null, // TODO: populate from playlist_items count or remove
+      playlist_total: null as number | null,
       channel_label: yc?.name ?? null,
     }
   })
 
+  const playlistCounts = new Map<string, number>()
+  for (const item of rawItems) {
+    if (item.playlist_id) {
+      playlistCounts.set(item.playlist_id, (playlistCounts.get(item.playlist_id) ?? 0) + 1)
+    }
+  }
+  const pipelineItems: PipelineItemWithSlot[] = rawItems.map(item => ({
+    ...item,
+    playlist_total: item.playlist_id ? (playlistCounts.get(item.playlist_id) ?? null) : null,
+  }))
+
   const syncSchedules: SyncScheduleWithChannel[] = (channelsRes.data ?? []).flatMap(
     (ch: Record<string, unknown>) =>
-      ((ch.sync_schedules as Array<Record<string, unknown>>) ?? [])
+      ((ch.sync_schedules as SyncScheduleEntry[]) ?? [])
         .filter(Boolean)
         .map(s => ({
           channel_id: ch.id as string,
           channel_name: ch.name as string,
           locale: ch.locale as 'pt' | 'en',
-          schedule: s as unknown as { day: string; hour: number },
-          timezone: tz,
+          schedule: s,
         }))
   )
 
@@ -145,7 +158,7 @@ export async function fetchUpNextData(
       syncSchedules, blogCadence, newsletterEditions,
       weekStart, siteTimezone: tz, today,
     })
-    weekSlots = hydrateWeekSlots(emptySlots, pipelineItems)
+    weekSlots = hydrateWeekSlots(emptySlots, pipelineItems, tz)
   } catch (e) {
     console.error('[up-next-fetcher] weekSlots section error:', e instanceof Error ? e.message : 'unknown')
     errors.weekSlots = 'computation_failed'
@@ -165,15 +178,39 @@ export async function fetchUpNextData(
     stageCounts[group] = pipelineItems.filter(item => stages.includes(item.stage as Stage)).length
   }
 
-  const playlists: PlaylistSummary[] = (playlistsRes.data ?? []).map((pl: Record<string, unknown>) => ({
-    id: pl.id as string,
-    name: (pl.name_pt as string || pl.name_en as string) ?? 'Playlist',
-    total_items: 0,
-    done_items: 0,
-    in_progress_items: 0,
-    next_item_title: null,
-    next_item_stage: null,
-  }))
+  let playlists: PlaylistSummary[] = []
+  try {
+    playlists = (playlistsRes.data ?? []).map((pl: Record<string, unknown>) => {
+      const plId = pl.id as string
+      const playlistItemRows = (pl.playlist_items as Array<Record<string, unknown>>) ?? []
+      const totalItems = playlistItemRows.length
+      const doneItems = playlistItemRows.filter(pi => {
+        const cp = pi.content_pipeline as Record<string, unknown> | null
+        const stage = cp?.stage as string | undefined
+        return stage === 'published' || stage === 'scheduled'
+      }).length
+      const inProgressItems = playlistItemRows.filter(pi => {
+        const cp = pi.content_pipeline as Record<string, unknown> | null
+        const stage = cp?.stage as string | undefined
+        return stage !== undefined && stage !== 'idea' && stage !== 'published' && stage !== 'scheduled'
+      }).length
+      const activeInPipeline = pipelineItems.filter(i => i.playlist_id === plId)
+      const nextItem = activeInPipeline
+        .filter(i => i.stage !== 'published' && i.stage !== 'scheduled')
+        .sort((a, b) => (a.playlist_position ?? 0) - (b.playlist_position ?? 0))[0]
+      return {
+        id: plId,
+        name: (pl.name_pt as string || pl.name_en as string) ?? 'Playlist',
+        total_items: totalItems,
+        done_items: doneItems,
+        in_progress_items: inProgressItems,
+        next_item_title: nextItem?.title ?? null,
+        next_item_stage: nextItem?.stage ?? null,
+      }
+    })
+  } catch {
+    errors.playlists = 'computation_failed'
+  }
 
   let suggestion: UpNextApiResponse['suggestion'] = null
   try {
@@ -184,6 +221,19 @@ export async function fetchUpNextData(
 
   const backlogCount = pipelineItems.filter(item => item.stage === 'idea').length
 
+  let nextWeekEmpty = 0
+  try {
+    const nextWeekStart = formatISO(addDays(zonedNow, 7), { representation: 'date' })
+    const nextWeekSlots = generateWeekSlots({
+      syncSchedules, blogCadence, newsletterEditions,
+      weekStart: nextWeekStart, siteTimezone: tz, today,
+    })
+    const hydratedNext = hydrateWeekSlots(nextWeekSlots, pipelineItems, tz)
+    nextWeekEmpty = hydratedNext.filter(s => !s.assignedItem && !s.isRestDay).length
+  } catch {
+    // non-critical — keep 0
+  }
+
   return {
     today: todayResult,
     todayDate: today,
@@ -191,8 +241,11 @@ export async function fetchUpNextData(
     streak,
     stageCounts,
     playlists,
-    candidates: pipelineItems.map(({ id, title, stage, format, language }) => ({ id, title, stage, format, language })),
-    nextWeekEmpty: 0, // TODO: compute from next week's generateWeekSlots or remove
+    candidates: pipelineItems
+      .filter(i => i.stage !== 'scheduled' && i.stage !== 'published')
+      .map(({ id, title, stage, format, language, playlist_id, playlist_name, playlist_position, playlist_total }) =>
+        ({ id, title, stage, format, language, playlist_id, playlist_name, playlist_position, playlist_total })),
+    nextWeekEmpty,
     backlogCount,
     suggestion,
     errors,
