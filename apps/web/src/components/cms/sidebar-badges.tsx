@@ -104,6 +104,27 @@ function UrgencyTooltip({ slots }: { slots: UrgencySlot[] }) {
   )
 }
 
+function PipelineUrgencyTooltip({ slots }: { slots: UrgencySlot[] }) {
+  return (
+    <>
+      <span className="block text-[11px] text-slate-400 font-semibold mb-1">
+        Pipeline deadlines (next 15 days)
+      </span>
+      {slots.map((s, i) => (
+        <span key={i} className="flex items-center gap-2 text-[12px] text-slate-200">
+          <span
+            className={`w-1.5 h-1.5 rounded-full shrink-0 ${DOT_COLORS[computeUrgencyColor(s.daysUntil) ?? 'yellow']}`}
+          />
+          <span className="flex-1 truncate">{s.typeName}</span>
+          <span className={`text-[11px] ${COLOR_CLASSES[computeUrgencyColor(s.daysUntil) ?? 'yellow'].text}`}>
+            {formatSlotDate(s.slotDate)}
+          </span>
+        </span>
+      ))}
+    </>
+  )
+}
+
 function CollapsedDot({ href, color }: { href: string; color: UrgencyColor }) {
   const [target, setTarget] = useState<Element | null>(null)
 
@@ -132,8 +153,9 @@ export function SidebarBadges({ data }: { data: SidebarBadgeData }) {
   const postsHasBadge = data.posts.wip > 0
   const nlHasWip = data.newsletters.wip > 0
   const nlHasUrgency = data.newsletters.urgency !== null
+  const plHasUrgency = data.pipeline.urgency !== null
 
-  if (!postsHasBadge && !nlHasWip && !nlHasUrgency) return null
+  if (!postsHasBadge && !nlHasWip && !nlHasUrgency && !plHasUrgency) return null
 
   if (!isExpanded) {
     return (
@@ -144,6 +166,9 @@ export function SidebarBadges({ data }: { data: SidebarBadgeData }) {
             href="/cms/newsletters"
             color={data.newsletters.urgency?.color ?? 'yellow'}
           />
+        )}
+        {plHasUrgency && (
+          <CollapsedDot href="/cms/pipeline" color={data.pipeline.urgency!.color} />
         )}
       </>
     )
@@ -188,6 +213,21 @@ export function SidebarBadges({ data }: { data: SidebarBadgeData }) {
                 tooltipContent={<UrgencyTooltip slots={data.newsletters.urgency!.slots} />}
               />
             )}
+          </span>
+        </BadgePortal>
+      )}
+
+      {plHasUrgency && (
+        <BadgePortal href="/cms/pipeline">
+          <span className="ml-auto flex items-center gap-1">
+            <Pill
+              count={data.pipeline.urgency!.count}
+              color={data.pipeline.urgency!.color}
+              ariaLabel={`${data.pipeline.urgency!.count} pipeline items with approaching deadlines`}
+              tooltipContent={
+                <PipelineUrgencyTooltip slots={data.pipeline.urgency!.slots} />
+              }
+            />
           </span>
         </BadgePortal>
       )}

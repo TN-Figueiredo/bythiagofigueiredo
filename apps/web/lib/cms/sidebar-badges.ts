@@ -3,6 +3,8 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { generateCadenceSlots } from '@/lib/newsletter/cadence-slots'
 import type { CadencePattern } from '@/lib/newsletter/cadence-pattern'
 import { todayInSiteTz, toDateStringInTz } from '@/lib/cms/format-site-datetime'
+import { getProductionDeadline } from '@/lib/pipeline/get-production-deadline'
+import type { Stage } from '@/lib/pipeline/up-next-constants'
 
 export interface UrgencySlot {
   typeName: string
@@ -25,6 +27,9 @@ export interface SidebarBadgeData {
     wip: number
     wipDraft: number
     wipReady: number
+    urgency: UrgencyBadge | null
+  }
+  pipeline: {
     urgency: UrgencyBadge | null
   }
 }
@@ -50,7 +55,7 @@ async function fetchSidebarBadgesInner(siteId: string, siteTimezone: string): Pr
   const todayStr = todayInSiteTz(siteTimezone)
   const todayMs = new Date(todayStr + 'T00:00:00Z').getTime()
 
-  const [postsRes, editionsWipRes, typesRes, filledEditionsRes] = await Promise.all([
+  const [postsRes, editionsWipRes, typesRes, filledEditionsRes, pipelineRes] = await Promise.all([
     supabase
       .from('blog_posts')
       .select('id', { count: 'exact', head: true })
@@ -73,6 +78,13 @@ async function fetchSidebarBadgesInner(siteId: string, siteTimezone: string): Pr
       .in('status', ['ready', 'scheduled', 'queued', 'sending', 'sent'])
       .not('slot_date', 'is', null)
       .gte('slot_date', todayStr),
+    supabase
+      .from('content_pipeline')
+      .select('id, title_pt, stage, format, scheduled_at')
+      .eq('site_id', siteId)
+      .eq('is_archived', false)
+      .not('stage', 'in', '("published","scheduled")')
+      .not('scheduled_at', 'is', null),
   ])
 
   const postsWip = postsRes.count ?? 0
@@ -109,6 +121,26 @@ async function fetchSidebarBadgesInner(siteId: string, siteTimezone: string): Pr
     }
   }
 
+  const pipelineUrgencySlots: UrgencySlot[] = []
+  for (const item of pipelineRes.data ?? []) {
+    if (!item.scheduled_at) continue
+    const pubDate = (item.scheduled_at as string).slice(0, 10)
+    const deadline = getProductionDeadline(pubDate, item.stage as Stage)
+    if (!deadline) continue
+
+    const deadlineMs = new Date(deadline + 'T00:00:00Z').getTime()
+    const daysUntil = Math.round((deadlineMs - todayMs) / 86_400_000)
+
+    if (daysUntil >= 0 && daysUntil <= 15) {
+      pipelineUrgencySlots.push({
+        typeName: (item.title_pt as string) ?? 'Pipeline item',
+        typeColor: '#818cf8',
+        slotDate: deadline,
+        daysUntil,
+      })
+    }
+  }
+
   return {
     posts: { wip: postsWip },
     newsletters: {
@@ -116,6 +148,9 @@ async function fetchSidebarBadgesInner(siteId: string, siteTimezone: string): Pr
       wipDraft,
       wipReady,
       urgency: computeUrgencyBadge(urgencySlots),
+    },
+    pipeline: {
+      urgency: computeUrgencyBadge(pipelineUrgencySlots),
     },
   }
 }

@@ -5,6 +5,7 @@ import React from 'react'
 import type { UpNextApiResponse, WeekSlot, TodayAction, SlotCandidate } from '../../src/lib/pipeline/up-next-types'
 import type { CelebrationItem } from '../../src/app/cms/(authed)/pipeline/_components/up-next-celebration'
 import type { ActivityEntry } from '../../src/app/cms/(authed)/pipeline/_components/up-next-activity'
+import type { WorkingTodayPin } from '../../src/app/cms/(authed)/pipeline/working-today-actions'
 
 /* ------------------------------------------------------------------ */
 /*  Mocks — all child components as stubs                             */
@@ -106,6 +107,18 @@ vi.mock('../../src/app/cms/(authed)/_shared/section-error-boundary', () => ({
   SectionErrorBoundary: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }))
 
+vi.mock('../../src/app/cms/(authed)/pipeline/_components/pinned-queue', () => ({
+  PinnedQueue: ({ pins }: { pins: unknown[] }) => (
+    <div data-testid="pinned-queue" data-count={pins.length} />
+  ),
+}))
+
+vi.mock('../../src/app/cms/(authed)/pipeline/_components/pipeline-tabs', () => ({
+  PipelineTabs: ({ activeTab, children }: { activeTab: string; children: Record<string, React.ReactNode> }) => (
+    <div data-testid="pipeline-tabs" data-tab={activeTab}>{children[activeTab]}</div>
+  ),
+}))
+
 /* ------------------------------------------------------------------ */
 /*  Import component AFTER mocks                                      */
 /* ------------------------------------------------------------------ */
@@ -170,6 +183,7 @@ function makeApiResponse(overrides: Partial<UpNextApiResponse> = {}): UpNextApiR
     nextWeekEmpty: 0,
     backlogCount: 0,
     suggestion: null,
+    pins: [],
     errors: { today: null, weekSlots: null, streak: null, playlists: null },
     ...overrides,
   }
@@ -193,6 +207,8 @@ function makeCandidate(overrides: Partial<SlotCandidate> = {}): SlotCandidate {
 const defaultProps = {
   celebration: { items: [] as CelebrationItem[] },
   activity: [] as ActivityEntry[],
+  pins: [] as WorkingTodayPin[],
+  onUnpin: vi.fn(),
 }
 
 function renderOverview(
@@ -575,10 +591,10 @@ describe('PipelineOverview', () => {
       const calls = mockMutate.mock.calls
       expect(calls.length).toBeGreaterThanOrEqual(2)
       const lastCall = calls[calls.length - 1]!
-      // Rollback passes the snapshot object and { revalidate: false }
+      // Rollback passes the snapshot object and { revalidate: true }
       expect(lastCall[0]).toBeDefined()
       expect(typeof lastCall[0]).not.toBe('function') // snapshot, not updater
-      expect(lastCall[1]).toEqual({ revalidate: false })
+      expect(lastCall[1]).toEqual({ revalidate: true })
 
       fetchSpy.mockRestore()
     })
@@ -782,8 +798,9 @@ describe('PipelineOverview', () => {
       })
 
       const statuses = screen.getAllByRole('status')
-      const liveRegion = statuses.find(el => el.classList.contains('sr-only'))
-      expect(liveRegion!.textContent).toBe('Item atribuído ao slot')
+      const srOnlyRegions = statuses.filter(el => el.classList.contains('sr-only'))
+      const announcementText = srOnlyRegions.map(el => el.textContent).join('')
+      expect(announcementText).toContain('Item atribuído ao slot')
 
       vi.restoreAllMocks()
     })
@@ -811,8 +828,9 @@ describe('PipelineOverview', () => {
       })
 
       const statuses = screen.getAllByRole('status')
-      const liveRegion = statuses.find(el => el.classList.contains('sr-only'))
-      expect(liveRegion!.textContent).toBe('Slot ocupado')
+      const srOnlyRegions = statuses.filter(el => el.classList.contains('sr-only'))
+      const announcementText = srOnlyRegions.map(el => el.textContent).join('')
+      expect(announcementText).toContain('Slot ocupado')
 
       vi.restoreAllMocks()
     })
@@ -990,7 +1008,10 @@ describe('PipelineOverview', () => {
         },
         weekSlots: [makeSlot()],
       })
-      const cards = screen.getByTestId('today-action-cards')
+      // Desktop + mobile both render TodayActionCards; verify at least one exists with correct props
+      const allCards = screen.getAllByTestId('today-action-cards')
+      expect(allCards.length).toBeGreaterThanOrEqual(1)
+      const cards = allCards[0]!
       expect(cards.dataset.count).toBe('2')
       expect(cards.dataset.overflow).toBe('1')
     })
@@ -1006,7 +1027,9 @@ describe('PipelineOverview', () => {
         },
         weekSlots: [],
       })
-      expect(screen.getByTestId('today-action-cards')).toBeDefined()
+      // Desktop + mobile both render TodayActionCards when weekSlots is empty
+      const allCards = screen.getAllByTestId('today-action-cards')
+      expect(allCards.length).toBeGreaterThanOrEqual(1)
     })
 
     it('does NOT render TodayActionCards when actions empty but weekSlots non-empty', () => {

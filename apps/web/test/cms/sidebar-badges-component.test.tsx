@@ -24,6 +24,7 @@ import type { SidebarBadgeData } from '@/lib/cms/sidebar-badges'
 const EMPTY_DATA: SidebarBadgeData = {
   posts: { wip: 0 },
   newsletters: { wip: 0, wipDraft: 0, wipReady: 0, urgency: null },
+  pipeline: { urgency: null },
 }
 
 async function importComponent() {
@@ -118,6 +119,7 @@ describe('SidebarBadges', () => {
           ],
         },
       },
+      pipeline: { urgency: null },
     }
     render(<SidebarBadges data={data} />)
     await vi.waitFor(() => {
@@ -145,6 +147,7 @@ describe('SidebarBadges', () => {
           ],
         },
       },
+      pipeline: { urgency: null },
     }
     render(<SidebarBadges data={data} />)
     await vi.waitFor(() => {
@@ -179,6 +182,24 @@ describe('SidebarBadges', () => {
     await vi.waitFor(() => {
       const pill = document.querySelector('[role="status"]')
       expect(pill?.getAttribute('tabindex')).toBe('0')
+    })
+  })
+
+  it('renders collapsed dot for pipeline when sidebar is collapsed and urgency exists', async () => {
+    mockIsExpanded = false
+    document.body.innerHTML = '<div data-area="cms"><a href="/cms/pipeline">Pipeline</a></div>'
+    const SidebarBadges = await importComponent()
+    const data: SidebarBadgeData = {
+      ...EMPTY_DATA,
+      pipeline: {
+        urgency: { count: 2, color: 'orange', slots: [] },
+      },
+    }
+    render(<SidebarBadges data={data} />)
+    await vi.waitFor(() => {
+      const dot = document.querySelector('[aria-hidden="true"]')
+      expect(dot).toBeTruthy()
+      expect(dot?.classList.contains('bg-orange-400')).toBe(true)
     })
   })
 })

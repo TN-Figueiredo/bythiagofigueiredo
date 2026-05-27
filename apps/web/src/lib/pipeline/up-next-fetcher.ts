@@ -280,6 +280,8 @@ export async function fetchUpNextData(
     // non-critical — keep null
   }
 
+  const pins: import('./up-next-types').WorkingTodayPinRow[] = []
+
   return {
     today: todayResult,
     todayDate: today,
@@ -296,6 +298,7 @@ export async function fetchUpNextData(
     suggestion,
     bufferDepth,
     modeInference,
+    pins,
     errors,
   }
 }

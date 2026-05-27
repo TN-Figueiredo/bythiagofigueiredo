@@ -15,6 +15,8 @@ import { useSlotAssignment } from './use-slot-assignment'
 import { X } from 'lucide-react'
 import { gemMix } from '@/lib/pipeline/gem-design'
 import { BufferHealthPills } from './buffer-health-pills'
+import { PinnedQueue } from './pinned-queue'
+import type { WorkingTodayPin } from '../working-today-actions'
 import type { UpNextApiResponse, SlotCandidate } from '@/lib/pipeline/up-next-types'
 import { SITE_TIMEZONE } from '@/lib/pipeline/up-next-constants'
 import dynamic from 'next/dynamic'
@@ -30,10 +32,17 @@ const LazyPlaylistSuggestionPanel = dynamic(
   { ssr: false }
 )
 
+const LazyPipelineTabs = dynamic(
+  () => import('./pipeline-tabs').then(m => ({ default: m.PipelineTabs })),
+  { ssr: false }
+)
+
 interface PipelineOverviewProps {
   fallbackData: UpNextApiResponse
   celebration: { items: CelebrationItem[] }
   activity: ActivityEntry[]
+  pins?: WorkingTodayPin[]
+  onUnpin?: (itemId: string) => void
 }
 
 const siteDateFormatter = new Intl.DateTimeFormat('sv-SE', { timeZone: SITE_TIMEZONE })
@@ -46,7 +55,7 @@ const fetcher = (url: string) => fetch(url).then(r => {
   return d.data as UpNextApiResponse
 })
 
-export function PipelineOverview({ fallbackData, celebration, activity }: PipelineOverviewProps) {
+export function PipelineOverview({ fallbackData, celebration, activity, pins = [], onUnpin = () => {} }: PipelineOverviewProps) {
   const [fetchError, setFetchError] = useState(false)
   const { data, isLoading, mutate } = useSWR<UpNextApiResponse>(
     '/api/pipeline/up-next',
@@ -69,6 +78,7 @@ export function PipelineOverview({ fallbackData, celebration, activity }: Pipeli
 
   const [selectedCandidate, setSelectedCandidate] = useState<SlotCandidate | null>(null)
   const [panelCollapsed, setPanelCollapsed] = useState(false)
+  const [mobileTab, setMobileTab] = useState<'queue' | 'grid' | 'health'>('queue')
   const weekGridRef = useRef<HTMLElement>(null) as RefObject<HTMLElement | null>
 
   const handleAssignFromPanel = useCallback(async (
@@ -213,85 +223,144 @@ export function PipelineOverview({ fallbackData, celebration, activity }: Pipeli
         </div>
       )}
 
-      {(upNext.today.actions.length > 0 || upNext.weekSlots.length === 0) && (
-        <SectionErrorBoundary>
-          <TodayActionCards
-            actions={upNext.today.actions}
-            overflow={upNext.today.overflow}
+      {/* Desktop: existing linear layout */}
+      <div className="hidden lg:contents">
+        {(upNext.today.actions.length > 0 || upNext.weekSlots.length === 0) && (
+          <SectionErrorBoundary>
+            <TodayActionCards
+              actions={upNext.today.actions}
+              overflow={upNext.today.overflow}
+            />
+          </SectionErrorBoundary>
+        )}
+
+        <UpNextCelebration items={celebration.items} />
+
+        {suggestion && (
+          <UpNextSuggestion
+            text={suggestion.text}
+            linkHref={suggestion.href}
+            linkLabel="Ver"
           />
-        </SectionErrorBoundary>
-      )}
+        )}
 
-      <UpNextCelebration items={celebration.items} />
-
-      {suggestion && (
-        <UpNextSuggestion
-          text={suggestion.text}
-          linkHref={suggestion.href}
-          linkLabel="Ver"
-        />
-      )}
-
-      {selectedCandidate && (
-        <div
-          className="flex items-center gap-2 rounded-md px-3 py-2 text-xs"
-          style={{
-            background: gemMix('--gem-accent', 10),
-            border: `1px solid ${gemMix('--gem-accent', 30)}`,
-            color: 'var(--gem-accent)',
-          }}
-        >
-          <span className="flex-1 truncate font-medium">
-            Atribuindo &ldquo;{selectedCandidate.title}&rdquo; — clique em um slot compatível
-          </span>
-          <button
-            type="button"
-            onClick={() => setSelectedCandidate(null)}
-            className="flex items-center gap-1 shrink-0 rounded px-2 py-1 min-h-[44px] font-medium hover:opacity-80 motion-safe:transition-opacity focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)] focus-visible:outline-none"
+        {selectedCandidate && (
+          <div
+            className="flex items-center gap-2 rounded-md px-3 py-2 text-xs"
             style={{
-              background: gemMix('--gem-accent', 15),
+              background: gemMix('--gem-accent', 10),
+              border: `1px solid ${gemMix('--gem-accent', 30)}`,
               color: 'var(--gem-accent)',
             }}
-            aria-label="Cancelar seleção"
           >
-            <X size={12} aria-hidden="true" />
-            Cancelar
-          </button>
-        </div>
-      )}
+            <span className="flex-1 truncate font-medium">
+              Atribuindo &ldquo;{selectedCandidate.title}&rdquo; — clique em um slot compatível
+            </span>
+            <button
+              type="button"
+              onClick={() => setSelectedCandidate(null)}
+              className="flex items-center gap-1 shrink-0 rounded px-2 py-1 min-h-[44px] font-medium hover:opacity-80 motion-safe:transition-opacity focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)] focus-visible:outline-none"
+              style={{
+                background: gemMix('--gem-accent', 15),
+                color: 'var(--gem-accent)',
+              }}
+              aria-label="Cancelar seleção"
+            >
+              <X size={12} aria-hidden="true" />
+              Cancelar
+            </button>
+          </div>
+        )}
 
-      <SectionErrorBoundary>
-        <UpNextThisWeek
-          slots={upNext.weekSlots}
-          todayDate={upNext.todayDate}
-          stageCounts={upNext.stageCounts}
-          totalEffortMinutes={upNext.today.totalEffortMinutes}
-          streak={upNext.streak}
-          nextWeekEmpty={upNext.nextWeekEmpty}
-          backlogCount={upNext.backlogCount}
-          candidates={upNext.candidates}
-          onAssignSlot={selectedCandidate ? handleAssignFromPanel : handleAssignSlot}
-          selectedItem={selectedCandidate}
-          onItemAssigned={handleItemAssigned}
-          gridRef={weekGridRef}
-          modeInference={upNext.modeInference}
-        />
-      </SectionErrorBoundary>
+        {(pins.length > 0 || upNext.today.actions.length > 0) && (
+          <SectionErrorBoundary>
+            <PinnedQueue
+              pins={pins}
+              onUnpin={onUnpin}
+              showGhosts={upNext.today.actions.length > 0}
+            />
+          </SectionErrorBoundary>
+        )}
 
-      {upNext.candidates.length > 0 && (
-        <LazyPlaylistSuggestionPanel
-          candidates={upNext.candidates}
-          playlistSummaries={upNext.playlists}
-          onSelectItem={setSelectedCandidate}
-          selectedItem={selectedCandidate}
-          collapsed={panelCollapsed}
-          onToggleCollapse={handleToggleCollapse}
-        />
-      )}
+        <SectionErrorBoundary>
+          <UpNextThisWeek
+            slots={upNext.weekSlots}
+            todayDate={upNext.todayDate}
+            stageCounts={upNext.stageCounts}
+            totalEffortMinutes={upNext.today.totalEffortMinutes}
+            streak={upNext.streak}
+            nextWeekEmpty={upNext.nextWeekEmpty}
+            backlogCount={upNext.backlogCount}
+            candidates={upNext.candidates}
+            onAssignSlot={selectedCandidate ? handleAssignFromPanel : handleAssignSlot}
+            selectedItem={selectedCandidate}
+            onItemAssigned={handleItemAssigned}
+            gridRef={weekGridRef}
+            modeInference={upNext.modeInference}
+          />
+        </SectionErrorBoundary>
 
-      <section aria-label="Atividade recente">
-        <UpNextActivity entries={activity} />
-      </section>
+        {upNext.candidates.length > 0 && (
+          <LazyPlaylistSuggestionPanel
+            candidates={upNext.candidates}
+            playlistSummaries={upNext.playlists}
+            onSelectItem={setSelectedCandidate}
+            selectedItem={selectedCandidate}
+            collapsed={panelCollapsed}
+            onToggleCollapse={handleToggleCollapse}
+          />
+        )}
+
+        <section aria-label="Atividade recente">
+          <UpNextActivity entries={activity} />
+        </section>
+      </div>
+
+      {/* Mobile: tabbed layout */}
+      <div className="lg:hidden">
+        <LazyPipelineTabs activeTab={mobileTab} onTabChange={setMobileTab}>
+          {{
+            queue: (
+              <>
+                {(pins.length > 0 || upNext.today.actions.length > 0) && (
+                  <SectionErrorBoundary>
+                    <PinnedQueue pins={pins} onUnpin={onUnpin} showGhosts={upNext.today.actions.length > 0} />
+                  </SectionErrorBoundary>
+                )}
+                {(upNext.today.actions.length > 0 || upNext.weekSlots.length === 0) && (
+                  <SectionErrorBoundary>
+                    <TodayActionCards actions={upNext.today.actions} overflow={upNext.today.overflow} />
+                  </SectionErrorBoundary>
+                )}
+              </>
+            ),
+            grid: (
+              <SectionErrorBoundary>
+                <UpNextThisWeek
+                  slots={upNext.weekSlots}
+                  todayDate={upNext.todayDate}
+                  stageCounts={upNext.stageCounts}
+                  totalEffortMinutes={upNext.today.totalEffortMinutes}
+                  streak={upNext.streak}
+                  nextWeekEmpty={upNext.nextWeekEmpty}
+                  backlogCount={upNext.backlogCount}
+                  candidates={upNext.candidates}
+                  onAssignSlot={selectedCandidate ? handleAssignFromPanel : handleAssignSlot}
+                  selectedItem={selectedCandidate}
+                  onItemAssigned={handleItemAssigned}
+                  gridRef={weekGridRef}
+                  modeInference={upNext.modeInference}
+                />
+              </SectionErrorBoundary>
+            ),
+            health: (
+              <section aria-label="Atividade recente">
+                <UpNextActivity entries={activity} />
+              </section>
+            ),
+          }}
+        </LazyPipelineTabs>
+      </div>
     </div>
   )
 }

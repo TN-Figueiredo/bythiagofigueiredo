@@ -122,6 +122,15 @@ export type SlotCandidate = Pick<PipelineItemWithSlot,
   | 'playlist_id' | 'playlist_name' | 'playlist_position' | 'playlist_total'
 >
 
+export interface WorkingTodayPinRow {
+  itemId: string
+  title: string
+  stage: string
+  format: string
+  priority: number
+  pinnedAt: string
+}
+
 export interface UpNextApiResponse {
   today: TodayActionsResult
   todayDate: string
@@ -135,6 +144,7 @@ export interface UpNextApiResponse {
   suggestion: { text: string; href: string } | null
   bufferDepth: BufferDepthResult | null
   modeInference: ModeInference
+  pins: WorkingTodayPinRow[]
   errors: {
     today: string | null
     weekSlots: string | null

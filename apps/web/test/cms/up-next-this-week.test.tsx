@@ -70,6 +70,8 @@ vi.mock('next/link', () => ({
 
 vi.mock('lucide-react', () => ({
   Calendar: (props: Record<string, unknown>) => <svg data-testid="icon-calendar" {...props} />,
+  ChevronDown: (props: Record<string, unknown>) => <svg data-testid="icon-chevron-down" {...props} />,
+  ChevronUp: (props: Record<string, unknown>) => <svg data-testid="icon-chevron-up" {...props} />,
   RefreshCw: (props: Record<string, unknown>) => <svg data-testid="icon-swap" {...props} />,
 }))
 
@@ -112,6 +114,14 @@ function makeProps(overrides: Partial<WeekGridProps> = {}): WeekGridProps {
   }
 }
 
+/** When ≥80% of slots are filled the grid auto-collapses. Click the toggle to expand. */
+function expandIfCollapsed() {
+  const toggle = screen.getByRole('button', { name: /Próximos 7 Dias/ })
+  if (toggle.getAttribute('aria-expanded') === 'false') {
+    fireEvent.click(toggle)
+  }
+}
+
 describe('UpNextThisWeek', () => {
   it('returns null when slots is empty', () => {
     const { container } = render(<UpNextThisWeek {...makeProps({ slots: [] })} />)
@@ -143,6 +153,7 @@ describe('UpNextThisWeek', () => {
       }),
     ]
     render(<UpNextThisWeek {...makeProps({ slots })} />)
+    expandIfCollapsed()
     expect(screen.getByText('Meu Video Legal')).toBeDefined()
     const link = screen.getByText('Meu Video Legal').closest('a')
     expect(link?.getAttribute('href')).toBe('/cms/pipeline/items/item-1')
@@ -204,6 +215,7 @@ describe('UpNextThisWeek', () => {
       makeSlot({ day: '2026-05-27', assignedItem: { id: '2', title: 'V2', stage: 'roteiro' } }),
     ]
     render(<UpNextThisWeek {...makeProps({ slots })} />)
+    expandIfCollapsed()
     expect(screen.getByText(/tudo pronto/)).toBeDefined()
   })
 
@@ -256,6 +268,7 @@ describe('UpNextThisWeek', () => {
         {...makeProps({ slots, candidates: [], onAssignSlot: vi.fn() })}
       />
     )
+    expandIfCollapsed()
     expect(screen.getByLabelText('Trocar Meu Video')).toBeDefined()
   })
 
@@ -267,6 +280,7 @@ describe('UpNextThisWeek', () => {
       }),
     ]
     render(<UpNextThisWeek {...makeProps({ slots })} />)
+    expandIfCollapsed()
     expect(screen.queryByLabelText('Trocar Meu Video')).toBeNull()
   })
 
@@ -282,6 +296,7 @@ describe('UpNextThisWeek', () => {
         {...makeProps({ slots, candidates: [], onAssignSlot: vi.fn() })}
       />
     )
+    expandIfCollapsed()
     fireEvent.click(screen.getByLabelText('Trocar Meu Video'))
     expect(screen.getByRole('dialog')).toBeDefined()
   })
@@ -300,6 +315,7 @@ describe('UpNextThisWeek', () => {
         {...makeProps({ slots, candidates: [candidate], onAssignSlot: onAssign })}
       />
     )
+    expandIfCollapsed()
     fireEvent.click(screen.getByLabelText('Trocar Meu Video'))
     const pickerItem = screen.getByText('Novo Video')
     fireEvent.click(pickerItem)
@@ -566,6 +582,7 @@ describe('UpNextThisWeek', () => {
         }),
       ]
       render(<UpNextThisWeek {...makeProps({ slots, todayDate: '2026-05-26' })} />)
+      expandIfCollapsed()
       const link = screen.getByText('Video Passado').closest('a')
       const chip = link?.parentElement
       // isPast=false (today), so no opacity styling on the wrapper
@@ -642,6 +659,7 @@ describe('UpNextThisWeek', () => {
         {...makeProps({ slots, onAssignSlot: vi.fn() })}
       />
     )
+    expandIfCollapsed()
     // Today's filled slot (isPast=false) shows the swap button
     expect(screen.getByLabelText('Trocar Video Hoje')).toBeDefined()
   })
@@ -653,6 +671,7 @@ describe('UpNextThisWeek', () => {
       makeSlot({ day: '2026-05-26', format: 'blog_post', hour: '14:00', effortMinutes: 120, assignedItem: { id: '2', title: 'Blog B', stage: 'draft' } }),
     ]
     render(<UpNextThisWeek {...makeProps({ slots })} />)
+    expandIfCollapsed()
     // dayEffort = 240, Math.round(240/60) = 4, rendered as "~4h"
     const effortLabel = screen.getByText('~4h')
     expect(effortLabel).toBeDefined()
@@ -666,6 +685,7 @@ describe('UpNextThisWeek', () => {
       makeSlot({ day: '2026-05-26', format: 'video', hour: '10:00', effortMinutes: 120, assignedItem: { id: '1', title: 'Video A', stage: 'gravacao' } }),
     ]
     render(<UpNextThisWeek {...makeProps({ slots })} />)
+    expandIfCollapsed()
     // dayEffort = 120, Math.round(120/60) = 2, rendered as "~2h" without warning color
     const effortLabel = screen.getByText('~2h')
     expect(effortLabel).toBeDefined()

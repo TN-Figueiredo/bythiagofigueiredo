@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useMemo, useEffect, memo } from 'react'
 import Link from 'next/link'
-import { Calendar, RefreshCw } from 'lucide-react'
+import { Calendar, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react'
 import { FORMAT_COLORS } from '@/lib/pipeline/colors'
 import { gemMix } from '@/lib/pipeline/gem-design'
 import { DAY_LABELS, DEFAULT_WIP_LIMITS, getWipStatus } from '@/lib/pipeline/up-next-constants'
@@ -297,13 +297,27 @@ export const UpNextThisWeek = memo(function UpNextThisWeek({
     totalCount: slots.length,
   }), [slots])
 
+  const bufferCoverage = totalCount > 0 ? filledCount / totalCount : 0
+  const shouldAutoCollapse = bufferCoverage >= 0.8
+
+  const [collapsed, setCollapsed] = useState(shouldAutoCollapse)
+
+  useEffect(() => {
+    setCollapsed(shouldAutoCollapse)
+  }, [shouldAutoCollapse])
+
   const wipStatus = useMemo(() => getWipStatus(stageCounts), [stageCounts])
 
   if (slots.length === 0) return null
 
   return (
     <section ref={gridRef} aria-label="Grade de conteúdo — próximos 7 dias">
-      <div className="flex items-center justify-between mb-3">
+      <button
+        type="button"
+        onClick={() => setCollapsed(c => !c)}
+        className="flex items-center justify-between w-full text-left mb-3 focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)] focus-visible:outline-none rounded px-1 py-0.5"
+        aria-expanded={!collapsed}
+      >
         <div className="flex items-center gap-2">
           <Calendar size={14} style={{ color: 'var(--gem-accent)' }} aria-hidden="true" />
           <h2
@@ -311,11 +325,19 @@ export const UpNextThisWeek = memo(function UpNextThisWeek({
             style={{ color: 'var(--gem-muted)' }}
           >
             Próximos 7 Dias
+            {bufferCoverage >= 0.8 && (
+              <span className="ml-1.5 text-[10px] font-normal normal-case tracking-normal" style={{ color: 'var(--gem-done)' }}>
+                {Math.round(bufferCoverage * 100)}% preenchido
+              </span>
+            )}
           </h2>
         </div>
-      </div>
+        {collapsed ? <ChevronDown size={14} style={{ color: 'var(--gem-muted)' }} /> : <ChevronUp size={14} style={{ color: 'var(--gem-muted)' }} />}
+      </button>
 
-      <div className="relative">
+      {!collapsed && (
+        <>
+          <div className="relative">
       <div
         className="rounded-lg border overflow-x-auto"
         style={{
@@ -512,6 +534,8 @@ export const UpNextThisWeek = memo(function UpNextThisWeek({
           )}
         </div>
       </div>
+        </>
+      )}
     </section>
   )
 })
