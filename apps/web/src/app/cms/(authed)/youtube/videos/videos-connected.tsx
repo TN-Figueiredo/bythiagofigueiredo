@@ -31,6 +31,8 @@ export interface VideoRow {
   durationSeconds: number | null
   abTest: { id: string; status: string; started_at: string | null; result_metadata: { ctr_lift_percent: number } | null } | null
   sourcePipelineId: string | null
+  cmsNotes: string | null
+  version: number
 }
 
 export interface ChannelOption {

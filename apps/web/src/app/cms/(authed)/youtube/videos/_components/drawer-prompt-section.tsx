@@ -1,10 +1,9 @@
 'use client'
 
 import { useState, useMemo, useCallback } from 'react'
-import { toast } from 'sonner'
 import { buildYoutubePrompt } from '@/lib/youtube/prompt-builders'
 import type { VideoOptimizerData, PromptVideoInfo } from '@/lib/youtube/prompt-types'
-import { logPromptCopy } from '../../_actions/youtube-prompt-actions'
+import { usePromptCopy } from '../../_hooks/use-prompt-copy'
 
 interface DrawerPromptSectionProps {
   data: VideoOptimizerData
@@ -13,29 +12,18 @@ interface DrawerPromptSectionProps {
 
 export function DrawerPromptSection({ data, video }: DrawerPromptSectionProps) {
   const [instructions, setInstructions] = useState('')
-  const [copied, setCopied] = useState(false)
 
   const prompt = useMemo(
     () => instructions.trim() ? buildYoutubePrompt({ preset: 'video-optimizer', data, video, instructions: instructions.trim() }) : '',
     [instructions, data, video],
   )
 
-  const handleCopy = useCallback(async () => {
-    if (!prompt) return
-    if (/pk_[a-zA-Z0-9]{20,}/.test(prompt)) {
-      toast.error('Pipeline key detectada no prompt — remova antes de copiar.')
-      return
-    }
-    try {
-      await navigator.clipboard.writeText(prompt)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-      void logPromptCopy('video-optimizer', prompt.length, data.snapshotAgeHours)
-      toast.success('Prompt copiado!')
-    } catch {
-      toast.error('Falha ao copiar')
-    }
-  }, [prompt, data.snapshotAgeHours])
+  const charCount = prompt.length
+  const { copied, setCopied, copy } = usePromptCopy({ preset: 'video-optimizer', charCount, snapshotAgeHours: data.snapshotAgeHours })
+
+  const handleCopy = useCallback(() => {
+    void copy(prompt)
+  }, [copy, prompt])
 
   return (
     <div className="space-y-2 border-t border-cms-border pt-3">

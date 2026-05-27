@@ -98,8 +98,8 @@ export function VideoOptimizerDrawer({ video, onClose }: VideoOptimizerDrawerPro
 
             <CmsNotesEditor
               videoId={video.id}
-              initialNotes=""
-              version={1}
+              initialNotes={video.cmsNotes ?? ''}
+              version={video.version}
               onSave={handleSaveNotes}
             />
 

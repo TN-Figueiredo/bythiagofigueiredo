@@ -242,6 +242,8 @@ describe('YouTubeCoworkPromptModal', () => {
     const copyBtn = screen.getByRole('button', { name: /copiar prompt/i })
     await act(async () => {
       fireEvent.click(copyBtn)
+      // flush the async clipboard.writeText promise
+      await Promise.resolve()
     })
     expect(screen.getByText(/Copiado!/)).toBeTruthy()
     expect(vi.mocked(toast.success)).toHaveBeenCalledWith('Prompt copiado!')
@@ -260,6 +262,8 @@ describe('YouTubeCoworkPromptModal', () => {
     const copyBtn = screen.getByRole('button', { name: /copiar prompt/i })
     await act(async () => {
       fireEvent.click(copyBtn)
+      // flush the async clipboard.writeText rejection
+      await Promise.resolve()
     })
     expect(vi.mocked(toast.error)).toHaveBeenCalledWith('Falha ao copiar')
   })
@@ -281,7 +285,70 @@ describe('YouTubeCoworkPromptModal', () => {
     resolveData({ ok: true, data: MOCK_CC_DATA })
   })
 
-  // ---- 8. Shows error when fetch fails ----
+  // ---- 8. Focus restoration on close ----
+
+  it('restores focus to trigger element on close', async () => {
+    const onClose = vi.fn()
+
+    // Start with modal closed so the trigger button can receive focus first
+    const { rerender } = render(
+      <>
+        <button id="trigger-btn">Open Modal</button>
+        <YouTubeCoworkPromptModal
+          isOpen={false}
+          onClose={onClose}
+          videos={[]}
+          channelName="Test Channel"
+          scoredVideoCount={0}
+        />
+      </>,
+    )
+
+    // Focus the trigger button (simulating user clicking it to open the modal)
+    const triggerBtn = document.getElementById('trigger-btn') as HTMLButtonElement
+    triggerBtn.focus()
+    expect(document.activeElement).toBe(triggerBtn)
+
+    // Open the modal — effect captures triggerBtn as document.activeElement
+    await act(async () => {
+      rerender(
+        <>
+          <button id="trigger-btn">Open Modal</button>
+          <YouTubeCoworkPromptModal
+            isOpen={true}
+            onClose={onClose}
+            videos={[]}
+            channelName="Test Channel"
+            scoredVideoCount={0}
+          />
+        </>,
+      )
+    })
+
+    // Modal is open
+    expect(screen.getByRole('dialog')).toBeTruthy()
+
+    // Close the modal (isOpen → false) — effect restores focus to triggerBtn
+    await act(async () => {
+      rerender(
+        <>
+          <button id="trigger-btn">Open Modal</button>
+          <YouTubeCoworkPromptModal
+            isOpen={false}
+            onClose={onClose}
+            videos={[]}
+            channelName="Test Channel"
+            scoredVideoCount={0}
+          />
+        </>,
+      )
+    })
+
+    // Focus should have returned to the trigger button
+    expect(document.activeElement).toBe(triggerBtn)
+  })
+
+  // ---- 9. Shows error when fetch fails ----
 
   it('shows error alert when fetch returns ok: false', async () => {
     vi.mocked(fetchContentCalendarData).mockResolvedValueOnce({
@@ -295,5 +362,109 @@ describe('YouTubeCoworkPromptModal', () => {
     const alert = screen.getByRole('alert')
     expect(alert).toBeTruthy()
     expect(alert.textContent).toContain('No sync-enabled channel found')
+  })
+
+  // ---- 10. WAI-ARIA roving tabindex + arrow key navigation ----
+
+  it('selected radio has tabIndex=0, others have tabIndex=-1', async () => {
+    await act(async () => {
+      renderModal(true)
+    })
+    const radios = screen.getAllByRole('radio')
+    expect(radios[0].getAttribute('tabindex')).toBe('0')
+    expect(radios[1].getAttribute('tabindex')).toBe('-1')
+    expect(radios[2].getAttribute('tabindex')).toBe('-1')
+  })
+
+  it('ArrowRight cycles from content-calendar to channel-health', async () => {
+    await act(async () => {
+      renderModal(true)
+    })
+    const radios = screen.getAllByRole('radio')
+    // Default: content-calendar is checked
+    expect(radios[0].getAttribute('aria-checked')).toBe('true')
+    expect(radios[1].getAttribute('aria-checked')).toBe('false')
+
+    await act(async () => {
+      fireEvent.keyDown(radios[0], { key: 'ArrowRight' })
+    })
+
+    const updated = screen.getAllByRole('radio')
+    expect(updated[0].getAttribute('aria-checked')).toBe('false')
+    expect(updated[1].getAttribute('aria-checked')).toBe('true')
+  })
+
+  it('ArrowDown cycles the same as ArrowRight', async () => {
+    await act(async () => {
+      renderModal(true)
+    })
+    const radios = screen.getAllByRole('radio')
+    await act(async () => {
+      fireEvent.keyDown(radios[0], { key: 'ArrowDown' })
+    })
+
+    const updated = screen.getAllByRole('radio')
+    expect(updated[1].getAttribute('aria-checked')).toBe('true')
+  })
+
+  it('ArrowLeft wraps from content-calendar to video-optimizer', async () => {
+    await act(async () => {
+      renderModal(true)
+    })
+    const radios = screen.getAllByRole('radio')
+    // content-calendar is index 0, ArrowLeft should wrap to index 2
+    await act(async () => {
+      fireEvent.keyDown(radios[0], { key: 'ArrowLeft' })
+    })
+
+    const updated = screen.getAllByRole('radio')
+    expect(updated[0].getAttribute('aria-checked')).toBe('false')
+    expect(updated[2].getAttribute('aria-checked')).toBe('true')
+  })
+
+  it('End key jumps to last preset', async () => {
+    await act(async () => {
+      renderModal(true)
+    })
+    const radios = screen.getAllByRole('radio')
+    await act(async () => {
+      fireEvent.keyDown(radios[0], { key: 'End' })
+    })
+
+    const updated = screen.getAllByRole('radio')
+    expect(updated[2].getAttribute('aria-checked')).toBe('true')
+  })
+
+  it('Home key jumps to first preset', async () => {
+    await act(async () => {
+      renderModal(true)
+    })
+    // Move to last first, then Home
+    const radios = screen.getAllByRole('radio')
+    await act(async () => {
+      fireEvent.keyDown(radios[0], { key: 'End' })
+    })
+    const afterEnd = screen.getAllByRole('radio')
+    await act(async () => {
+      fireEvent.keyDown(afterEnd[2], { key: 'Home' })
+    })
+
+    const updated = screen.getAllByRole('radio')
+    expect(updated[0].getAttribute('aria-checked')).toBe('true')
+  })
+
+  it('tabIndex updates when selection changes via arrow key', async () => {
+    await act(async () => {
+      renderModal(true)
+    })
+    const radios = screen.getAllByRole('radio')
+    await act(async () => {
+      fireEvent.keyDown(radios[0], { key: 'ArrowRight' })
+    })
+
+    const updated = screen.getAllByRole('radio')
+    expect(updated[0].getAttribute('tabindex')).toBe('-1')
+    expect(updated[1].getAttribute('tabindex')).toBe('0')
+    expect(updated[2].getAttribute('tabindex')).toBe('-1')
   })
 })

@@ -78,6 +78,8 @@ const mockVideo: VideoRow = {
   durationSeconds: 600,
   abTest: null,
   sourcePipelineId: null,
+  cmsNotes: null,
+  version: 1,
 }
 
 const MOCK_OPTIMIZER_DATA = {

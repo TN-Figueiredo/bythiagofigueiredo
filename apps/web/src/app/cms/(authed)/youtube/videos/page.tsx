@@ -18,7 +18,7 @@ export default async function YouTubeVideosPage() {
     supabase
       .from('youtube_videos')
       .select(
-        'id, youtube_video_id, title, title_translation, published_at, thumbnail_url, view_count, like_count, duration, duration_seconds, is_featured, is_hidden, category_id, auto_suggested_category_id, channel_id, pinned_until, youtube_channels!inner(locale, handle, name)',
+        'id, youtube_video_id, title, title_translation, published_at, thumbnail_url, view_count, like_count, duration, duration_seconds, is_featured, is_hidden, category_id, auto_suggested_category_id, channel_id, pinned_until, cms_notes, version, youtube_channels!inner(locale, handle, name)',
       )
       .eq('site_id', siteId)
       .order('published_at', { ascending: false }),
@@ -97,6 +97,8 @@ export default async function YouTubeVideosPage() {
       durationSeconds: (v.duration_seconds as number | null) ?? null,
       abTest: abTestMap.get(v.id as string) ?? null,
       sourcePipelineId: abTestMap.get(v.id as string)?.sourcePipelineId ?? null,
+      cmsNotes: (v.cms_notes as string | null) ?? null,
+      version: (v.version as number | null) ?? 1,
     }
   })
 

@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useRef, useMemo, useCallback, useEffect } from 'react'
-import { toast } from 'sonner'
 import { useFocusTrap } from '@/lib/hooks/use-focus-trap'
 import { buildYoutubePrompt } from '@/lib/youtube/prompt-builders'
 import { estimateChars } from '@/lib/youtube/prompt-sanitize'
@@ -9,7 +8,8 @@ import { EXAMPLE_PROMPTS, STALENESS_THRESHOLDS, buildVideoInfo } from '@/lib/you
 import type { ContextPreset, ContentCalendarData, ChannelHealthData, VideoOptimizerData, PromptVideoInfo } from '@/lib/youtube/prompt-types'
 import { PromptPreview } from '@/components/prompt-preview'
 import { DataFreshnessBadge } from '../videos/_components/data-freshness-badge'
-import { fetchContentCalendarData, fetchChannelHealthData, fetchVideoOptimizerData, logPromptCopy } from '../_actions/youtube-prompt-actions'
+import { fetchContentCalendarData, fetchChannelHealthData, fetchVideoOptimizerData } from '../_actions/youtube-prompt-actions'
+import { usePromptCopy } from '../_hooks/use-prompt-copy'
 import type { VideoRow } from '../videos/videos-connected'
 
 const PRESET_INFO: { id: ContextPreset; name: string; desc: string; charEstimate: string }[] = [
@@ -40,7 +40,6 @@ export function YouTubeCoworkPromptModal({ isOpen, onClose, videos = [], channel
   const [preset, setPreset] = useState<ContextPreset>('content-calendar')
   const [instructions, setInstructions] = useState('')
   const [selectedVideo, setSelectedVideo] = useState<VideoRow | null>(null)
-  const [copied, setCopied] = useState(false)
   const [showContext, setShowContext] = useState(false)
   const [resolvedChannelName, setResolvedChannelName] = useState(channelName)
 
@@ -97,6 +96,17 @@ export function YouTubeCoworkPromptModal({ isOpen, onClose, videos = [], channel
     return () => controller.abort()
   }, [isOpen, preset, selectedVideo?.id])
 
+  const triggerRef = useRef<HTMLElement | null>(null)
+
+  useEffect(() => {
+    if (isOpen) {
+      triggerRef.current = document.activeElement as HTMLElement | null
+    } else {
+      triggerRef.current?.focus()
+      triggerRef.current = null
+    }
+  }, [isOpen])
+
   useEffect(() => {
     if (isOpen) textareaRef.current?.focus()
   }, [isOpen])
@@ -136,23 +146,11 @@ export function YouTubeCoworkPromptModal({ isOpen, onClose, videos = [], channel
   const charCount = estimateChars(prompt)
   const snapshotAge = currentData?.snapshotAgeHours ?? 0
 
-  const handleCopy = useCallback(async () => {
-    if (!prompt) return
-    const hasPk = /pk_[a-zA-Z0-9]{20,}/.test(prompt)
-    if (hasPk) {
-      toast.error('Pipeline key detectada no prompt — remova antes de copiar.')
-      return
-    }
-    try {
-      await navigator.clipboard.writeText(prompt)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-      void logPromptCopy(preset, charCount, snapshotAge)
-      toast.success('Prompt copiado!')
-    } catch {
-      toast.error('Falha ao copiar')
-    }
-  }, [prompt, preset, charCount, snapshotAge])
+  const { copied, setCopied, copy } = usePromptCopy({ preset, charCount, snapshotAgeHours: snapshotAge })
+
+  const handleCopy = useCallback(() => {
+    void copy(prompt)
+  }, [copy, prompt])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     handleTrapKeyDown(e)
@@ -163,13 +161,44 @@ export function YouTubeCoworkPromptModal({ isOpen, onClose, videos = [], channel
   const handlePresetChange = useCallback((p: ContextPreset) => {
     setPreset(p)
     setCopied(false)
-  }, [])
+  }, [setCopied])
+
+  const handleRadioKeyDown = useCallback((e: React.KeyboardEvent, currentIndex: number) => {
+    const presets = PRESET_INFO.map(p => p.id)
+    let nextIndex: number | null = null
+
+    switch (e.key) {
+      case 'ArrowRight':
+      case 'ArrowDown':
+        nextIndex = (currentIndex + 1) % presets.length
+        break
+      case 'ArrowLeft':
+      case 'ArrowUp':
+        nextIndex = (currentIndex - 1 + presets.length) % presets.length
+        break
+      case 'Home':
+        nextIndex = 0
+        break
+      case 'End':
+        nextIndex = presets.length - 1
+        break
+      default:
+        return
+    }
+
+    e.preventDefault()
+    handlePresetChange(presets[nextIndex]!)
+    // Focus the newly selected radio button
+    const container = (e.target as HTMLElement).parentElement
+    const buttons = container?.querySelectorAll<HTMLElement>('[role="radio"]')
+    buttons?.[nextIndex]?.focus()
+  }, [handlePresetChange])
 
   const handleExampleClick = useCallback((text: string) => {
     setInstructions(text)
     setCopied(false)
     textareaRef.current?.focus()
-  }, [])
+  }, [setCopied])
 
   if (!isOpen) return null
 
@@ -199,13 +228,15 @@ export function YouTubeCoworkPromptModal({ isOpen, onClose, videos = [], channel
 
         <div className="max-h-[70vh] overflow-y-auto p-5 space-y-4">
           <div role="radiogroup" aria-label="Contexto do prompt" className="grid grid-cols-3 gap-2">
-            {PRESET_INFO.map(p => (
+            {PRESET_INFO.map((p, i) => (
               <button
                 key={p.id}
                 type="button"
                 role="radio"
                 aria-checked={preset === p.id}
+                tabIndex={preset === p.id ? 0 : -1}
                 onClick={() => handlePresetChange(p.id)}
+                onKeyDown={(e) => handleRadioKeyDown(e, i)}
                 className={`rounded-lg border p-3 text-left text-xs transition-colors ${
                   preset === p.id
                     ? 'border-indigo-500 bg-indigo-500/10 text-indigo-400'
