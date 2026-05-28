@@ -67,6 +67,8 @@ describe('buildAbBriefingPrompt', () => {
       data: makeAbBriefingData(),
     })
     expect(prompt).toContain('thumbnail + título')
+    expect(prompt).toContain('PACOTE')
+    expect(prompt).toContain('Sinergia')
     expect(prompt).toContain('Sugira exatamente 3 variações (B, C, D).')
   })
 

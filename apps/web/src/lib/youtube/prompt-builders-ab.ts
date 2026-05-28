@@ -74,9 +74,11 @@ Para cada variação (B, C, D), descreva:
 - Hashtags estratégicas
 Sugira exatamente 3 variações (B, C, D).`,
     combo: `Analise o combo atual (thumbnail + título) e sugira 3 combos coerentes para teste A/B.
-Para cada combo (B, C, D), descreva:
-**Thumbnail:** Composição e enquadramento, paleta de cores, texto overlay
-**Título:** Hook emocional, power words, urgência, por que esse combo funciona junto
+IMPORTANTE: Cada combo (B, C, D) é um PACOTE — thumbnail e título devem se reforçar mutuamente.
+Para cada combo, descreva:
+**Thumbnail:** Composição visual, paleta de cores, texto overlay — o que a imagem comunica
+**Título:** Hook emocional, power words — por que funciona COM essa thumbnail específica
+**Sinergia:** Explique como thumb + título juntos criam uma mensagem mais forte
 Sugira exatamente 3 variações (B, C, D).`,
   },
   en: {
@@ -102,9 +104,11 @@ For each variation (B, C, D), describe:
 - Strategic hashtags
 Suggest exactly 3 variations (B, C, D).`,
     combo: `Analyze the current combo (thumbnail + title) and suggest 3 coherent combos for A/B testing.
-For each combo (B, C, D), describe:
-**Thumbnail:** Composition, palette, text overlay
-**Title:** Emotional hook, power words, urgency, why this combo works together
+IMPORTANT: Each combo (B, C, D) is a PACKAGE — thumbnail and title must reinforce each other.
+For each combo, describe:
+**Thumbnail:** Visual composition, palette, text overlay — what the image communicates
+**Title:** Emotional hook, power words — why it works WITH this specific thumbnail
+**Synergy:** Explain how thumb + title together create a stronger message
 Suggest exactly 3 variations (B, C, D).`,
   },
 }

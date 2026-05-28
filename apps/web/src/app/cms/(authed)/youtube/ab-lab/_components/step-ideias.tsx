@@ -330,15 +330,17 @@ export function StepIdeias({
               className="w-full rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface px-3 py-2 text-sm text-cms-text placeholder:text-cms-text-dim focus:outline-none focus:ring-2 focus:ring-cms-accent focus:ring-offset-1 resize-none"
             />
             <div className="flex flex-wrap gap-1.5">
-              {EXAMPLE_CHIPS[testType].map(chip => (
-                <button
-                  key={chip}
-                  onClick={() => onFocusChange(focus ? `${focus}. ${chip}` : chip)}
-                  className="text-[10px] rounded-full border border-cms-border px-2 py-0.5 text-cms-text-muted hover:border-cms-accent hover:text-cms-accent transition-colors"
-                >
-                  {chip}
-                </button>
-              ))}
+              {EXAMPLE_CHIPS[testType]
+                .filter(chip => !focus.includes(chip))
+                .map(chip => (
+                  <button
+                    key={chip}
+                    onClick={() => onFocusChange(focus ? `${focus}. ${chip}` : chip)}
+                    className="text-[10px] rounded-full border border-cms-border px-2 py-0.5 text-cms-text-muted hover:border-cms-accent hover:text-cms-accent transition-colors"
+                  >
+                    {chip}
+                  </button>
+                ))}
             </div>
           </div>
 
