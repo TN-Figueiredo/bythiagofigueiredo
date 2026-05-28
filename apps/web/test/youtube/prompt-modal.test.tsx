@@ -12,6 +12,8 @@ vi.mock('sonner', () => ({
 }))
 
 vi.mock('@/app/cms/(authed)/youtube/_actions/youtube-prompt-actions', () => ({
+  fetchChannels: vi.fn(),
+  fetchChannelVideos: vi.fn(),
   fetchContentCalendarData: vi.fn(),
   fetchChannelHealthData: vi.fn(),
   fetchVideoOptimizerData: vi.fn(),
@@ -56,12 +58,16 @@ Object.defineProperty(navigator, 'clipboard', {
 // ---------------------------------------------------------------------------
 
 import { YouTubeCoworkPromptModal } from '@/app/cms/(authed)/youtube/_components/youtube-cowork-prompt-modal'
-import { fetchContentCalendarData } from '@/app/cms/(authed)/youtube/_actions/youtube-prompt-actions'
+import { fetchChannels, fetchContentCalendarData } from '@/app/cms/(authed)/youtube/_actions/youtube-prompt-actions'
 import { toast } from 'sonner'
 
 // ---------------------------------------------------------------------------
 // Shared test data
 // ---------------------------------------------------------------------------
+
+const MOCK_CHANNELS = [
+  { id: 'ch-1', name: 'Test Channel', locale: 'pt', handle: '@testchannel' },
+]
 
 const MOCK_CC_DATA = {
   channel: { name: 'Test Channel', subscribers: 5000, videoCount: 20, tier: 'micro' as const },
@@ -85,9 +91,6 @@ function renderModal(isOpen = true, onClose = vi.fn()) {
     <YouTubeCoworkPromptModal
       isOpen={isOpen}
       onClose={onClose}
-      videos={[]}
-      channelName="Test Channel"
-      scoredVideoCount={0}
     />,
   )
 }
@@ -100,6 +103,7 @@ describe('YouTubeCoworkPromptModal', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     writeText.mockResolvedValue(undefined)
+    vi.mocked(fetchChannels).mockResolvedValue({ ok: true, data: MOCK_CHANNELS })
     vi.mocked(fetchContentCalendarData).mockResolvedValue({ ok: true, data: MOCK_CC_DATA })
   })
 
@@ -297,9 +301,6 @@ describe('YouTubeCoworkPromptModal', () => {
         <YouTubeCoworkPromptModal
           isOpen={false}
           onClose={onClose}
-          videos={[]}
-          channelName="Test Channel"
-          scoredVideoCount={0}
         />
       </>,
     )
@@ -317,9 +318,6 @@ describe('YouTubeCoworkPromptModal', () => {
           <YouTubeCoworkPromptModal
             isOpen={true}
             onClose={onClose}
-            videos={[]}
-            channelName="Test Channel"
-            scoredVideoCount={0}
           />
         </>,
       )
@@ -336,9 +334,6 @@ describe('YouTubeCoworkPromptModal', () => {
           <YouTubeCoworkPromptModal
             isOpen={false}
             onClose={onClose}
-            videos={[]}
-            channelName="Test Channel"
-            scoredVideoCount={0}
           />
         </>,
       )

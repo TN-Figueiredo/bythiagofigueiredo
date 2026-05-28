@@ -294,6 +294,82 @@ export async function fetchVideoOptimizerData(
   }
 }
 
+export interface ChannelOption {
+  id: string
+  name: string
+  locale: string
+  handle: string
+}
+
+export interface ChannelVideoOption {
+  id: string
+  youtubeVideoId: string
+  title: string
+  thumbnailUrl: string | null
+  duration: string
+  publishedAt: string
+  viewCount: number
+}
+
+export async function fetchChannels(): Promise<ActionResult<ChannelOption[]>> {
+  try {
+    const siteId = await requireReadAccess()
+    const supabase = getSupabaseServiceClient()
+    const { data, error } = await supabase
+      .from('youtube_channels')
+      .select('id, name, locale, handle, subscriber_count')
+      .eq('site_id', siteId)
+      .eq('sync_enabled', true)
+      .order('subscriber_count', { ascending: false })
+
+    if (error) throw error
+    return {
+      ok: true,
+      data: (data ?? []).map(ch => ({
+        id: ch.id as string,
+        name: ch.name as string,
+        locale: (ch.locale as string) ?? 'pt',
+        handle: (ch.handle as string) ?? '',
+      })),
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'unexpected error'
+    return { ok: false, error: msg }
+  }
+}
+
+export async function fetchChannelVideos(channelId: string): Promise<ActionResult<ChannelVideoOption[]>> {
+  try {
+    const siteId = await requireReadAccess()
+    const supabase = getSupabaseServiceClient()
+    const { data, error } = await supabase
+      .from('youtube_videos')
+      .select('id, youtube_video_id, title, thumbnail_url, duration, published_at, view_count')
+      .eq('site_id', siteId)
+      .eq('channel_id', channelId)
+      .eq('is_hidden', false)
+      .order('published_at', { ascending: false })
+      .limit(50)
+
+    if (error) throw error
+    return {
+      ok: true,
+      data: (data ?? []).map(v => ({
+        id: v.id as string,
+        youtubeVideoId: v.youtube_video_id as string,
+        title: v.title as string,
+        thumbnailUrl: (v.thumbnail_url as string | null) ?? null,
+        duration: (v.duration as string) ?? 'PT0S',
+        publishedAt: (v.published_at as string) ?? new Date().toISOString(),
+        viewCount: (v.view_count as number) ?? 0,
+      })),
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'unexpected error'
+    return { ok: false, error: msg }
+  }
+}
+
 const LogPromptCopySchema = z.object({
   preset: z.enum(['content-calendar', 'channel-health', 'video-optimizer']),
   charCount: z.number().int().min(1).max(15000),

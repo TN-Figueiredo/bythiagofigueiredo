@@ -8,9 +8,15 @@ import { EXAMPLE_PROMPTS, STALENESS_THRESHOLDS } from '@/lib/youtube/prompt-type
 import type { ContextPreset, ContentCalendarData, ChannelHealthData, VideoOptimizerData, PromptVideoInfo } from '@/lib/youtube/prompt-types'
 import { PromptPreview } from '@/components/prompt-preview'
 import { DataFreshnessBadge } from '../videos/_components/data-freshness-badge'
-import { fetchContentCalendarData, fetchChannelHealthData, fetchVideoOptimizerData } from '../_actions/youtube-prompt-actions'
+import {
+  fetchChannels,
+  fetchChannelVideos,
+  fetchContentCalendarData,
+  fetchChannelHealthData,
+  fetchVideoOptimizerData,
+} from '../_actions/youtube-prompt-actions'
+import type { ChannelOption, ChannelVideoOption } from '../_actions/youtube-prompt-actions'
 import { usePromptCopy } from '../_hooks/use-prompt-copy'
-import type { VideoRow } from '../videos/videos-connected'
 
 const PRESET_INFO: { id: ContextPreset; name: string; desc: string; charEstimate: string }[] = [
   { id: 'content-calendar', name: 'Content Calendar', desc: 'Tópicos, timing, nichos', charEstimate: '~3k chars' },
@@ -29,22 +35,25 @@ const PLACEHOLDER: Record<ContextPreset, string> = {
 interface YouTubeCoworkPromptModalProps {
   isOpen: boolean
   onClose: () => void
-  videos?: VideoRow[]
-  channelName?: string
-  scoredVideoCount?: number
 }
 
-export function YouTubeCoworkPromptModal({ isOpen, onClose, videos = [], channelName = '', scoredVideoCount = 0 }: YouTubeCoworkPromptModalProps) {
+export function YouTubeCoworkPromptModal({ isOpen, onClose }: YouTubeCoworkPromptModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const handleTrapKeyDown = useFocusTrap(dialogRef, { autoFocus: false })
 
   const [preset, setPreset] = useState<ContextPreset>('content-calendar')
   const [instructions, setInstructions] = useState('')
-  const [selectedVideo, setSelectedVideo] = useState<VideoRow | null>(null)
+  const [selectedVideo, setSelectedVideo] = useState<ChannelVideoOption | null>(null)
   const [showContext, setShowContext] = useState(false)
-  const [resolvedChannelName, setResolvedChannelName] = useState(channelName)
+  const [resolvedChannelName, setResolvedChannelName] = useState('')
 
+  // Multi-channel state
+  const [channels, setChannels] = useState<ChannelOption[]>([])
+  const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null)
+  const [channelVideos, setChannelVideos] = useState<ChannelVideoOption[]>([])
+
+  // Preset data cache
   const [ccData, setCcData] = useState<ContentCalendarData | null>(null)
   const [chData, setChData] = useState<ChannelHealthData | null>(null)
   const [voData, setVoData] = useState<VideoOptimizerData | null>(null)
@@ -53,19 +62,49 @@ export function YouTubeCoworkPromptModal({ isOpen, onClose, videos = [], channel
 
   const abortRef = useRef<AbortController | null>(null)
 
+  // Fetch channels when modal opens; clear state on close
   useEffect(() => {
     if (!isOpen) {
       setCcData(null)
       setChData(null)
       setVoData(null)
+      setChannels([])
+      setSelectedChannelId(null)
+      setChannelVideos([])
+      setSelectedVideo(null)
+      setResolvedChannelName('')
+      return
     }
+    fetchChannels().then(r => {
+      if (r.ok) {
+        setChannels(r.data)
+        if (r.data.length === 1) {
+          setSelectedChannelId(r.data[0]!.id)
+          setResolvedChannelName(r.data[0]!.name)
+        }
+      }
+    })
   }, [isOpen])
 
+  // Handle channel change — clear cached data so fresh data is fetched
+  const handleChannelChange = useCallback((channelId: string) => {
+    setSelectedChannelId(channelId)
+    setCcData(null)
+    setChData(null)
+    setVoData(null)
+    setChannelVideos([])
+    setSelectedVideo(null)
+    const ch = channels.find(c => c.id === channelId)
+    if (ch) setResolvedChannelName(ch.name)
+  }, [channels])
+
+  // Fetch preset data when channel is selected
   useEffect(() => {
-    if (!isOpen) return
+    if (!isOpen || !selectedChannelId) return
     if (preset === 'content-calendar' && ccData) { setLoading(false); return }
     if (preset === 'channel-health' && chData) { setLoading(false); return }
     if (preset === 'video-optimizer' && selectedVideo && voData) { setLoading(false); return }
+
     abortRef.current?.abort()
     const controller = new AbortController()
     abortRef.current = controller
@@ -75,26 +114,31 @@ export function YouTubeCoworkPromptModal({ isOpen, onClose, videos = [], channel
     const loadData = async () => {
       try {
         if (preset === 'content-calendar') {
-          const r = await fetchContentCalendarData()
+          const r = await fetchContentCalendarData(selectedChannelId)
           if (!controller.signal.aborted && r.ok) {
             setCcData(r.data)
-            if (!channelName) setResolvedChannelName(r.data.channel.name)
-          }
-          else if (!controller.signal.aborted && !r.ok) setFetchError(r.error)
+            setResolvedChannelName(r.data.channel.name)
+          } else if (!controller.signal.aborted && !r.ok) setFetchError(r.error)
         } else if (preset === 'channel-health') {
-          const r = await fetchChannelHealthData()
+          const r = await fetchChannelHealthData(selectedChannelId)
           if (!controller.signal.aborted && r.ok) {
             setChData(r.data)
-            if (!channelName) setResolvedChannelName(r.data.channel.name)
+            setResolvedChannelName(r.data.channel.name)
+          } else if (!controller.signal.aborted && !r.ok) setFetchError(r.error)
+        } else if (preset === 'video-optimizer') {
+          // Fetch videos for this channel if not already loaded
+          if (channelVideos.length === 0) {
+            const vr = await fetchChannelVideos(selectedChannelId)
+            if (!controller.signal.aborted && vr.ok) setChannelVideos(vr.data)
           }
-          else if (!controller.signal.aborted && !r.ok) setFetchError(r.error)
-        } else if (preset === 'video-optimizer' && selectedVideo) {
-          const r = await fetchVideoOptimizerData(selectedVideo.id)
-          if (!controller.signal.aborted && r.ok) {
-            setVoData(r.data)
-            if (!channelName) setResolvedChannelName(r.data.channel.name)
+          // Only fetch optimizer data if a video is selected
+          if (selectedVideo) {
+            const r = await fetchVideoOptimizerData(selectedVideo.id)
+            if (!controller.signal.aborted && r.ok) {
+              setVoData(r.data)
+              setResolvedChannelName(r.data.channel.name)
+            } else if (!controller.signal.aborted && !r.ok) setFetchError(r.error)
           }
-          else if (!controller.signal.aborted && !r.ok) setFetchError(r.error)
         }
       } catch {
         if (!controller.signal.aborted) setFetchError('Erro ao buscar dados')
@@ -104,7 +148,8 @@ export function YouTubeCoworkPromptModal({ isOpen, onClose, videos = [], channel
     }
     loadData()
     return () => controller.abort()
-  }, [isOpen, preset, selectedVideo?.id])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, preset, selectedChannelId, selectedVideo?.id])
 
   const triggerRef = useRef<HTMLElement | null>(null)
 
@@ -230,12 +275,39 @@ export function YouTubeCoworkPromptModal({ isOpen, onClose, videos = [], channel
         <div className="flex items-center justify-between border-b border-cms-border px-5 py-3">
           <div>
             <h2 className="text-base font-semibold text-cms-text">YouTube Cowork Prompt</h2>
-            <p className="text-xs text-cms-text-muted">{resolvedChannelName || channelName}</p>
+            <p className="text-xs text-cms-text-muted">{resolvedChannelName}</p>
           </div>
-          <button type="button" onClick={onClose} className="text-cms-text-muted hover:text-cms-text" aria-label="Fechar"><span aria-hidden="true">✕</span></button>
+          <button type="button" onClick={onClose} className="text-cms-text-muted hover:text-cms-text" aria-label="Fechar"><span aria-hidden="true">{'✕'}</span></button>
         </div>
 
         <div className="max-h-[70vh] overflow-y-auto p-5 space-y-4">
+          {channels.length > 1 && (
+            <div>
+              <label htmlFor="prompt-channel-select" className="mb-1 block text-xs font-medium text-cms-text-muted">Canal</label>
+              <select
+                id="prompt-channel-select"
+                value={selectedChannelId ?? ''}
+                onChange={e => handleChannelChange(e.target.value)}
+                className="w-full rounded-md border border-cms-border bg-cms-surface px-3 py-2 text-sm text-cms-text"
+                aria-label="Selecionar canal"
+              >
+                {!selectedChannelId && <option value="">Selecione um canal…</option>}
+                {channels.map(ch => (
+                  <option key={ch.id} value={ch.id}>
+                    {ch.name} ({ch.locale.toUpperCase()})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {channels.length > 0 && !selectedChannelId && (
+            <div className="py-8 text-center text-sm text-cms-text-muted">
+              Selecione um canal acima para começar.
+            </div>
+          )}
+
+          {selectedChannelId && (<>
           <div role="radiogroup" aria-label="Contexto do prompt" className="grid grid-cols-3 gap-2">
             {PRESET_INFO.map((p, i) => (
               <button
@@ -259,9 +331,9 @@ export function YouTubeCoworkPromptModal({ isOpen, onClose, videos = [], channel
             ))}
           </div>
 
-          {preset === 'channel-health' && scoredVideoCount < 10 && (
+          {preset === 'channel-health' && (chData?.totalVideos ?? 0) < 10 && (
             <div className="rounded-md border border-amber-500/20 bg-amber-500/5 p-2 text-xs text-amber-400">
-              Dados insuficientes para diagnóstico completo ({scoredVideoCount} vídeos com score) — considere usar Content Calendar.
+              Dados insuficientes para diagnóstico completo ({chData?.totalVideos ?? 0} vídeos com score) — considere usar Content Calendar.
             </div>
           )}
 
@@ -271,14 +343,14 @@ export function YouTubeCoworkPromptModal({ isOpen, onClose, videos = [], channel
               <select
                 value={selectedVideo?.id ?? ''}
                 onChange={e => {
-                  const v = videos.find(v => v.id === e.target.value) ?? null
+                  const v = channelVideos.find(vid => vid.id === e.target.value) ?? null
                   setSelectedVideo(v)
                 }}
                 className="w-full rounded-md border border-cms-border bg-cms-surface px-3 py-2 text-sm text-cms-text"
                 aria-label="Selecionar vídeo para otimização"
               >
                 <option value="">Escolha um vídeo…</option>
-                {videos.slice(0, 50).map(v => (
+                {channelVideos.map(v => (
                   <option key={v.id} value={v.id}>{v.title}</option>
                 ))}
               </select>
@@ -350,6 +422,7 @@ export function YouTubeCoworkPromptModal({ isOpen, onClose, videos = [], channel
               )}
             </div>
           )}
+          </>)}
         </div>
 
         <div className="flex items-center justify-between border-t border-cms-border px-5 py-3">
