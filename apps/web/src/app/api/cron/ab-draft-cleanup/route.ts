@@ -29,7 +29,7 @@ export async function POST(req: Request): Promise<Response> {
       .from('ab_tests')
       .select('id')
       .eq('status', 'draft')
-      .lt('created_at', archiveCutoff.toISOString())
+      .lt('updated_at', archiveCutoff.toISOString())
       .limit(BATCH_SIZE)
 
     if (draftErr) {
@@ -68,6 +68,29 @@ export async function POST(req: Request): Promise<Response> {
 
     if (oldArchived && oldArchived.length > 0) {
       const ids = oldArchived.map(d => d.id as string)
+
+      // Clean up Vercel Blob storage for variants with blob_url
+      const { data: blobVariants } = await supabase
+        .from('ab_test_variants')
+        .select('blob_url')
+        .in('test_id', ids)
+        .not('blob_url', 'is', null)
+
+      if (blobVariants && blobVariants.length > 0) {
+        const { del } = await import('@vercel/blob')
+        const urls = blobVariants
+          .map(v => v.blob_url as string)
+          .filter(Boolean)
+        if (urls.length > 0) {
+          try {
+            await del(urls)
+          } catch (err) {
+            Sentry.captureException(err, { tags: { component: JOB, phase: 'blob-cleanup' } })
+            // Continue with DB deletion even if blob cleanup fails
+          }
+        }
+      }
+
       const { error: deleteErr } = await supabase
         .from('ab_tests')
         .delete()
