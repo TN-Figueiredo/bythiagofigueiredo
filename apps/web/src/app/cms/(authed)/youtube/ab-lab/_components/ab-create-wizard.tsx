@@ -34,6 +34,7 @@ interface Props {
   onClose: () => void
   onCreated: (testId: string) => void
   prefill?: PrefillData
+  existingDraftId?: string
 }
 
 const DURATION_OPTIONS = [7, 14, 21, 28] as const
@@ -70,8 +71,8 @@ const TYPE_OPTIONS: Array<{
   { type: 'combo', label: 'Combo', description: 'Thumb + título + descrição como pacote', icon: Layers, badge: 'COMBO' },
 ]
 
-export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill }: Props) {
-  const [step, setStep] = useState(prefill?.testType ? 2 : 1)
+export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill, existingDraftId }: Props) {
+  const [step, setStep] = useState(prefill?.testType || existingDraftId ? 2 : 1)
   const [testType, setTestType] = useState<TestType>(prefill?.testType ?? 'thumbnail')
   const [slots, setSlots] = useState<(SlotFile | null)[]>([null, null, null])
   const [slotError, setSlotError] = useState<string | null>(null)
@@ -94,7 +95,7 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill }: P
   const [slotNotes, setSlotNotes] = useState<[string, string, string]>(['', '', ''])
   const [briefingCopied, setBriefingCopied] = useState(false)
   const [briefingData, setBriefingData] = useState<AbBriefingData | null>(null)
-  const [draftTestId, setDraftTestId] = useState<string | null>(null)
+  const [draftTestId, setDraftTestId] = useState<string | null>(existingDraftId ?? null)
   const [draftLoading, setDraftLoading] = useState(false)
 
   const storageKey = `ab-brainstorm-${video.id}`

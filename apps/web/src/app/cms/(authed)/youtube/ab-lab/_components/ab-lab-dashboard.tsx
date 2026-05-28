@@ -2,8 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
-import type { AbTestWithVariants, AbTestSiteSettings } from '@/lib/youtube/ab-types'
+import type { AbTestWithVariants, AbTestSiteSettings, TestType } from '@/lib/youtube/ab-types'
 import { AbTestCard } from './ab-test-card'
 import { AbTestCompletedRow } from './ab-test-completed-row'
 import { AbSettingsPanel } from './ab-settings-panel'
@@ -40,6 +39,7 @@ export function AbLabDashboard({ siteId, active, draft, completed, settings, eli
   } | null>(null)
   const [draftsOpen, setDraftsOpen] = useState(true)
   const [typeFilter, setTypeFilter] = useState<string>('')
+  const [resumeDraft, setResumeDraft] = useState<{ draftId: string; testType: TestType } | null>(null)
 
   const filteredActive = typeFilter ? active.filter(t => t.test_type === typeFilter) : active
   const filteredDraft = typeFilter ? draft.filter(t => t.test_type === typeFilter) : draft
@@ -203,17 +203,28 @@ export function AbLabDashboard({ siteId, active, draft, completed, settings, eli
           </button>
           {draftsOpen && (
             <ul className="border-t border-cms-border divide-y divide-cms-border">
-              {filteredDraft.map(test => (
-                <li key={test.id} className="flex items-center justify-between px-4 py-3">
-                  <span className="text-sm text-cms-text truncate">{test.name}</span>
-                  <Link
-                    href={`/cms/youtube/ab-lab/${test.id}`}
-                    className="text-xs text-cms-accent hover:underline shrink-0 ml-4"
-                  >
-                    Continue Setup
-                  </Link>
-                </li>
-              ))}
+              {filteredDraft.map(test => {
+                const video = eligibleVideos.find(v => v.id === test.youtube_video_id)
+                return (
+                  <li key={test.id} className="flex items-center justify-between px-4 py-3">
+                    <span className="text-sm text-cms-text truncate">{test.name}</span>
+                    <button
+                      onClick={() => {
+                        setSelectedVideo({
+                          id: test.youtube_video_id,
+                          title: video?.title ?? test.name.replace(/^Test:\s*/, ''),
+                          thumbnailUrl: video?.thumbnailUrl ?? test.original_thumbnail_url,
+                          sourcePipelineId: video?.sourcePipelineId ?? test.source_pipeline_id,
+                        })
+                        setResumeDraft({ draftId: test.id, testType: test.test_type })
+                      }}
+                      className="text-xs text-cms-accent hover:underline shrink-0 ml-4"
+                    >
+                      Continue Setup
+                    </button>
+                  </li>
+                )
+              })}
             </ul>
           )}
         </div>
@@ -279,11 +290,14 @@ export function AbLabDashboard({ siteId, active, draft, completed, settings, eli
         <AbCreateWizard
           video={selectedVideo}
           siteId={siteId}
-          onClose={() => setSelectedVideo(null)}
+          onClose={() => { setSelectedVideo(null); setResumeDraft(null) }}
           onCreated={(_testId: string) => {
             setSelectedVideo(null)
+            setResumeDraft(null)
             router.refresh()
           }}
+          prefill={resumeDraft ? { testType: resumeDraft.testType } : undefined}
+          existingDraftId={resumeDraft?.draftId}
         />
       )}
     </div>
