@@ -1,11 +1,31 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
+import { PipelineServiceError } from '@/lib/pipeline/services/types'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const MOCK_SITE_ID = '11111111-1111-1111-1111-111111111111'
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
+
+vi.mock('@/lib/pipeline/services/broll', () => ({
+  importBRollAssets: vi.fn(),
+}))
+
+vi.mock('@/lib/pipeline/services/http-adapter', () => ({
+  authToServiceContext: vi.fn().mockReturnValue({
+    siteId: MOCK_SITE_ID,
+    permissions: ['read', 'write'],
+    supabase: {},
+    source: 'api_key',
+  }),
+  serviceErrorToResponse: vi.fn().mockImplementation((err: unknown) => {
+    if (err instanceof PipelineServiceError) {
+      return new Response(JSON.stringify({ error: { code: err.code, message: err.message } }), { status: err.status })
+    }
+    return new Response(JSON.stringify({ error: { code: 'INTERNAL_ERROR', message: 'unexpected' } }), { status: 500 })
+  }),
+}))
 
 vi.mock('@/lib/pipeline/helpers', () => ({
   authenticateWrite: vi.fn(),
@@ -33,29 +53,8 @@ vi.mock('@/lib/pipeline/logger', () => ({
   pipelineLog: vi.fn(),
 }))
 
-vi.mock('@/lib/pipeline/broll-import', () => ({
-  mapBRollJsonToDbRow: vi.fn((item: Record<string, unknown>) => ({
-    asset_id: item.asset_id,
-    original_filename: item.original_filename,
-    type: item.type ?? 'footage',
-    source: item.source ?? 'local',
-    source_type: item.source_type ?? 'pessoal',
-    resolution: item.resolution ?? '1080p',
-    has_audio: item.has_audio ?? false,
-    reusable: item.reusable ?? true,
-    status: item.status ?? 'available',
-    sha256: item.sha256,
-    tags: item.tags,
-  })),
-  classifyBRollImportItem: vi.fn((_row: Record<string, unknown>, existing: unknown) =>
-    existing ? 'update' : 'create',
-  ),
-  buildBRollDiffLog: vi.fn(() => []),
-}))
-
 import { authenticateWrite, parseBody } from '@/lib/pipeline/helpers'
-import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { classifyBRollImportItem } from '@/lib/pipeline/broll-import'
+import { importBRollAssets } from '@/lib/pipeline/services/broll'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -70,17 +69,6 @@ function mockAuthFailure() {
   vi.mocked(authenticateWrite).mockResolvedValue(
     new Response(JSON.stringify({ error: { code: 'UNAUTHORIZED', message: 'unauthorized' } }), { status: 401 }),
   )
-}
-
-function createMockChain(finalResult: { data?: unknown; error?: unknown }) {
-  const chain: Record<string, ReturnType<typeof vi.fn>> = {}
-  const methods = ['from', 'select', 'insert', 'update', 'delete', 'eq', 'is', 'in',
-    'order', 'limit', 'single', 'filter', 'maybeSingle', 'not', 'neq', 'upsert', 'contains']
-  for (const m of methods) {
-    chain[m] = vi.fn().mockReturnValue(chain)
-  }
-  chain.then = (resolve: (v: { data?: unknown; error?: unknown }) => unknown) => resolve(finalResult)
-  return chain
 }
 
 function createRequest(body?: unknown) {
@@ -124,6 +112,9 @@ describe('POST /api/pipeline/broll-library/import', () => {
   it('returns 400 when schema validation fails (missing schema_version)', async () => {
     mockAuthSuccess()
     vi.mocked(parseBody).mockResolvedValue({ items: [] })
+    vi.mocked(importBRollAssets).mockRejectedValue(
+      new PipelineServiceError('VALIDATION_ERROR', 'schema_version is required', 400),
+    )
 
     const res = await POST(createRequest({ items: [] }))
     expect(res.status).toBe(400)
@@ -135,8 +126,11 @@ describe('POST /api/pipeline/broll-library/import', () => {
     mockAuthSuccess()
     vi.mocked(parseBody).mockResolvedValue({
       schema_version: '1.0.0',
-      items: [{ asset_id: '' }], // asset_id min length is 1, but empty string
+      items: [{ asset_id: '' }],
     })
+    vi.mocked(importBRollAssets).mockRejectedValue(
+      new PipelineServiceError('VALIDATION_ERROR', 'asset_id must not be empty', 400),
+    )
 
     const res = await POST(createRequest())
     expect(res.status).toBe(400)
@@ -154,10 +148,12 @@ describe('POST /api/pipeline/broll-library/import', () => {
         { asset_id: 'clip-002', original_filename: 'clip2.mp4' },
       ],
     })
-    vi.mocked(classifyBRollImportItem).mockReturnValue('create')
-
-    const chain = createMockChain({ data: [], error: null })
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({ from: vi.fn().mockReturnValue(chain) } as never)
+    vi.mocked(importBRollAssets).mockResolvedValue({
+      data: {
+        dry_run: true,
+        preview: { to_create: 2, to_update: 0, to_skip: 0, errors: [] as never[] },
+      },
+    } as never)
 
     const res = await POST(createRequest())
     expect(res.status).toBe(200)
@@ -179,21 +175,12 @@ describe('POST /api/pipeline/broll-library/import', () => {
         { asset_id: 'clip-003', original_filename: 'clip3.mp4' },
       ],
     })
-
-    const existingAssets = [
-      { asset_id: 'clip-002', sha256: 'abc123', tags: ['old'], version: 1 },
-      { asset_id: 'clip-003', sha256: 'def456', tags: ['old'], version: 2 },
-    ]
-    const chain = createMockChain({ data: existingAssets, error: null })
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({ from: vi.fn().mockReturnValue(chain) } as never)
-
-    // First call: clip-001 has no existing -> create
-    // Second call: clip-002 exists -> update
-    // Third call: clip-003 exists -> skip
-    vi.mocked(classifyBRollImportItem)
-      .mockReturnValueOnce('create')
-      .mockReturnValueOnce('update')
-      .mockReturnValueOnce('skip')
+    vi.mocked(importBRollAssets).mockResolvedValue({
+      data: {
+        dry_run: true,
+        preview: { to_create: 1, to_update: 1, to_skip: 1, errors: [] as never[] },
+      },
+    } as never)
 
     const res = await POST(createRequest())
     expect(res.status).toBe(200)
@@ -213,25 +200,16 @@ describe('POST /api/pipeline/broll-library/import', () => {
         { asset_id: 'clip-001', original_filename: 'clip1.mp4' },
       ],
     })
-    vi.mocked(classifyBRollImportItem).mockReturnValue('create')
-
-    // Chain for the select (existing check)
-    const selectChain = createMockChain({ data: [], error: null })
-    // Chain for the upsert
-    const upsertChain = createMockChain({ data: null as unknown as undefined, error: null })
-    // Chain for the import log insert
-    const logChain = createMockChain({ data: { id: 'log-1' }, error: null })
-
-    let fromCallCount = 0
-    const mockClient = {
-      from: vi.fn(() => {
-        fromCallCount++
-        if (fromCallCount === 1) return selectChain // broll_library select
-        if (fromCallCount === 2) return upsertChain // broll_library upsert
-        return logChain // broll_import_log insert
-      }),
-    }
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(mockClient as never)
+    vi.mocked(importBRollAssets).mockResolvedValue({
+      data: {
+        dry_run: false,
+        import_log_id: 'log-1',
+        created: 1,
+        updated: 0,
+        skipped: 0,
+        errors: [],
+      },
+    } as never)
 
     const res = await POST(createRequest())
     expect(res.status).toBe(200)
@@ -250,19 +228,16 @@ describe('POST /api/pipeline/broll-library/import', () => {
       schema_version: '1.0.0',
       items: [],
     })
-
-    const selectChain = createMockChain({ data: [], error: null })
-    const logChain = createMockChain({ data: { id: 'log-empty' }, error: null })
-
-    let fromCallCount = 0
-    const mockClient = {
-      from: vi.fn(() => {
-        fromCallCount++
-        if (fromCallCount === 1) return selectChain
-        return logChain
-      }),
-    }
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(mockClient as never)
+    vi.mocked(importBRollAssets).mockResolvedValue({
+      data: {
+        dry_run: false,
+        import_log_id: 'log-empty',
+        created: 0,
+        updated: 0,
+        skipped: 0,
+        errors: [],
+      },
+    } as never)
 
     const res = await POST(createRequest())
     expect(res.status).toBe(200)
@@ -281,25 +256,16 @@ describe('POST /api/pipeline/broll-library/import', () => {
         { asset_id: 'clip-fail', original_filename: 'fail.mp4' },
       ],
     })
-    vi.mocked(classifyBRollImportItem).mockReturnValue('create')
-
-    // Select chain returns no existing items
-    const selectChain = createMockChain({ data: [], error: null })
-    // Upsert chain returns an error
-    const upsertChain = createMockChain({ data: null as unknown as undefined, error: { message: 'DB error' } })
-    // Import log chain
-    const logChain = createMockChain({ data: { id: 'log-err' }, error: null })
-
-    let fromCallCount = 0
-    const mockClient = {
-      from: vi.fn(() => {
-        fromCallCount++
-        if (fromCallCount === 1) return selectChain
-        if (fromCallCount === 2) return upsertChain
-        return logChain
-      }),
-    }
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(mockClient as never)
+    vi.mocked(importBRollAssets).mockResolvedValue({
+      data: {
+        dry_run: false,
+        import_log_id: 'log-err',
+        created: 0,
+        updated: 0,
+        skipped: 0,
+        errors: [{ asset_id: 'clip-fail', error: 'Batch upsert failed' }],
+      },
+    } as never)
 
     const res = await POST(createRequest())
     expect(res.status).toBe(200)
@@ -317,20 +283,16 @@ describe('POST /api/pipeline/broll-library/import', () => {
         { asset_id: 'clip-skip', original_filename: 'skip.mp4' },
       ],
     })
-    vi.mocked(classifyBRollImportItem).mockReturnValue('skip')
-
-    const selectChain = createMockChain({ data: [{ asset_id: 'clip-skip', sha256: 'same', tags: [], version: 1 }], error: null })
-    const logChain = createMockChain({ data: { id: 'log-skip' }, error: null })
-
-    let fromCallCount = 0
-    const mockClient = {
-      from: vi.fn(() => {
-        fromCallCount++
-        if (fromCallCount === 1) return selectChain
-        return logChain
-      }),
-    }
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(mockClient as never)
+    vi.mocked(importBRollAssets).mockResolvedValue({
+      data: {
+        dry_run: false,
+        import_log_id: 'log-skip',
+        created: 0,
+        updated: 0,
+        skipped: 1,
+        errors: [],
+      },
+    } as never)
 
     const res = await POST(createRequest())
     expect(res.status).toBe(200)

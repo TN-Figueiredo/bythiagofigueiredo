@@ -92,6 +92,7 @@ export function registerResources(server: McpServer): void {
     {
       description: 'API catalog with all capability domains, endpoints, and cross-domain workflows',
       mimeType: 'application/json',
+      size: 8_000,
       annotations: { audience: ['assistant'] },
     },
     async (uri) => {
@@ -110,6 +111,7 @@ export function registerResources(server: McpServer): void {
     {
       description: 'Tier-2 documentation guide for a capability domain (items-and-sections, playlists, libraries, research, youtube, utilities, course)',
       mimeType: 'text/markdown',
+      size: 25_000,
       annotations: { audience: ['assistant'] },
     },
     async (uri, variables) => {
@@ -134,6 +136,7 @@ export function registerResources(server: McpServer): void {
     {
       description: 'Skill-specific reference content for a Cowork skill (ideator, writer, producer, product_eval, perf_review, curator, architect)',
       mimeType: 'text/markdown',
+      size: 12_000,
       annotations: { audience: ['assistant'] },
     },
     async (uri, variables) => {
@@ -172,6 +175,7 @@ export function registerResources(server: McpServer): void {
     {
       description: 'Pipeline statistics: item counts by format, stage, and priority',
       mimeType: 'application/json',
+      size: 2_000,
       annotations: { audience: ['assistant'] },
     },
     async (uri) => {
@@ -220,6 +224,7 @@ export function registerResources(server: McpServer): void {
     {
       description: 'Workflow stage definitions and default production checklists for all content formats',
       mimeType: 'application/json',
+      size: 3_000,
       annotations: { audience: ['assistant'] },
     },
     async (uri) => {
@@ -241,6 +246,7 @@ export function registerResources(server: McpServer): void {
     {
       description: "Today's actions, week grid, production streak, and suggestions from the Command Center",
       mimeType: 'application/json',
+      size: 4_000,
       annotations: { audience: ['assistant'] },
     },
     async (uri) => {
@@ -280,6 +286,7 @@ export function registerResources(server: McpServer): void {
     {
       description: 'YouTube channel intelligence snapshot: health score, grade distribution, top/bottom videos, demographics, search terms',
       mimeType: 'application/json',
+      size: 5_000,
       annotations: { audience: ['assistant'] },
     },
     async (uri) => {
@@ -309,6 +316,7 @@ export function registerResources(server: McpServer): void {
     {
       description: 'Aggregate A/B test winning patterns from completed tests: win rates by type, average CTR lift, top strategies',
       mimeType: 'application/json',
+      size: 3_000,
       annotations: { audience: ['assistant'] },
     },
     async (uri) => {
@@ -353,6 +361,7 @@ export function registerResources(server: McpServer): void {
     {
       description: 'Audio library statistics: counts by category, mood, energy level, most used tracks',
       mimeType: 'application/json',
+      size: 1_000,
       annotations: { audience: ['assistant'] },
     },
     async (uri) => {
@@ -413,6 +422,7 @@ export function registerResources(server: McpServer): void {
     {
       description: 'Hierarchical research topic tree with item counts per topic',
       mimeType: 'application/json',
+      size: 3_000,
       annotations: { audience: ['assistant'] },
     },
     async (uri) => {
@@ -460,6 +470,7 @@ export function registerResources(server: McpServer): void {
     {
       description: 'Single pipeline item skeleton: metadata, section names, and word counts (not full content)',
       mimeType: 'application/json',
+      size: 5_000,
       annotations: { audience: ['assistant'] },
     },
     async (uri, variables) => {

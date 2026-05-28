@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server'
-import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { authenticateRead, pipelineSuccess, pipelineError } from '@/lib/pipeline/helpers'
 import { UUID_REGEX } from '@/lib/pipeline/auth'
+import { authToServiceContext, serviceErrorToResponse } from '@/lib/pipeline/services/http-adapter'
+import { getHistory } from '@/lib/pipeline/services/items'
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -14,25 +15,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const limit = Math.min(parseInt(req.nextUrl.searchParams.get('limit') || '50'), 200)
 
-  const supabase = getSupabaseServiceClient()
-
-  const { data: item } = await supabase
-    .from('content_pipeline')
-    .select('id')
-    .eq('id', id)
-    .eq('site_id', auth.siteId)
-    .single()
-
-  if (!item) return pipelineError('NOT_FOUND', 'Item not found', 404, auth)
-
-  const { data: history, error } = await supabase
-    .from('content_pipeline_history')
-    .select('*')
-    .eq('pipeline_id', id)
-    .order('changed_at', { ascending: false })
-    .limit(limit)
-
-  if (error) return pipelineError('DB_ERROR', 'Failed to load history', 400, auth)
-
-  return pipelineSuccess(history ?? [], 200, auth)
+  try {
+    const ctx = authToServiceContext(auth)
+    const serviceResult = await getHistory(ctx, id, { limit })
+    return pipelineSuccess(serviceResult.data, 200, auth)
+  } catch (err) {
+    return serviceErrorToResponse(err, auth)
+  }
 }

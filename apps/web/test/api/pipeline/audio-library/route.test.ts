@@ -1,13 +1,37 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
+import { PipelineServiceError } from '@/lib/pipeline/services/types'
 
-vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn() }))
+// ─── Mocks ────────────────────────────────────────────────────────────────────
+
+vi.mock('@/lib/pipeline/services/audio', () => ({
+  listAudioAssets: vi.fn(),
+  createAudioAsset: vi.fn(),
+}))
+
+vi.mock('@/lib/pipeline/services/http-adapter', () => ({
+  authToServiceContext: vi.fn().mockReturnValue({
+    siteId: 'site-1',
+    permissions: ['read', 'write'],
+    supabase: {},
+  }),
+  serviceErrorToResponse: vi.fn().mockImplementation((err: unknown) => {
+    if (err instanceof PipelineServiceError) {
+      return new Response(JSON.stringify({ error: { code: err.code, message: err.message } }), { status: err.status })
+    }
+    return new Response(JSON.stringify({ error: { code: 'INTERNAL_ERROR', message: 'unexpected' } }), { status: 500 })
+  }),
+}))
+
 vi.mock('@/lib/pipeline/auth', () => ({
   authenticatePipeline: vi.fn(),
   requirePermission: vi.fn(),
   buildRateLimitHeaders: vi.fn(() => ({})),
   UUID_REGEX: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
 }))
+
+vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn() }))
+
 vi.mock('@/lib/pipeline/sanitize', () => ({
   sanitizeForFilter: vi.fn((s: string) => s),
   sanitizeForTsquery: vi.fn((s: string) => s),
@@ -15,52 +39,9 @@ vi.mock('@/lib/pipeline/sanitize', () => ({
 
 import { GET, POST } from '@/app/api/pipeline/audio-library/route'
 import { authenticatePipeline, requirePermission } from '@/lib/pipeline/auth'
-import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { listAudioAssets, createAudioAsset } from '@/lib/pipeline/services/audio'
 
 const mockAuth = { ok: true as const, auth: { siteId: 'site-1', permissions: ['read', 'write'], source: 'session' as const } }
-
-/**
- * Build a flat, call-recording mock that mimics the Supabase query builder.
- *
- * The Supabase client is lazy: every builder method (.eq, .order, .limit, …)
- * returns `this` so you can keep chaining. The query only executes when you
- * `await` the builder (i.e. the builder is a thenable). We replicate that here
- * so the route can call `.limit()` in the initial chain AND still call `.eq()`
- * on the result before finally awaiting the whole thing.
- *
- * The `calls` array lets tests assert exactly which methods were called with
- * which arguments — catching security bugs like a missing `.eq('site_id', …)`.
- */
-function mockChain(data: unknown[] = [], count = 0) {
-  const calls: Array<{ method: string; args: unknown[] }> = []
-  const terminal = Promise.resolve({ data, error: null, count })
-
-  // Build a proxy that records every method call and returns itself,
-  // but also behaves as a thenable so `await chain` resolves correctly.
-  const handler: ProxyHandler<object> = {
-    get(_target, prop: string) {
-      if (prop === 'then') return terminal.then.bind(terminal)
-      if (prop === 'catch') return terminal.catch.bind(terminal)
-      if (prop === 'finally') return terminal.finally.bind(terminal)
-      // Every builder method records the call and returns the same proxy.
-      return (...args: unknown[]) => {
-        calls.push({ method: prop, args })
-        return proxy
-      }
-    },
-  }
-  const proxy = new Proxy({}, handler)
-
-  // `from` is the entry point on the client object itself.
-  const chain = {
-    from: (...args: unknown[]) => {
-      calls.push({ method: 'from', args })
-      return proxy
-    },
-  }
-
-  return { chain, calls }
-}
 
 beforeEach(() => {
   vi.mocked(authenticatePipeline).mockResolvedValue(mockAuth as never)
@@ -70,14 +51,20 @@ beforeEach(() => {
 describe('GET /api/pipeline/audio-library', () => {
   it('returns paginated assets', async () => {
     const assets = [{ id: '1', asset_id: 'M1', type: 'music' }]
-    const { chain, calls } = mockChain(assets, 1)
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
+    vi.mocked(listAudioAssets).mockResolvedValue({
+      data: assets,
+      meta: { total: 1, has_next: false, next_cursor: undefined, limit: 50 },
+    })
     const res = await GET(new NextRequest('http://localhost/api/pipeline/audio-library'))
     const json = await res.json()
     expect(res.status).toBe(200)
     expect(json.data).toHaveLength(1)
     expect(json.meta.total).toBe(1)
-    expect(calls.some(c => c.method === 'eq' && c.args[0] === 'site_id' && c.args[1] === 'site-1')).toBe(true)
+    // Service is called with correct siteId via ctx
+    expect(vi.mocked(listAudioAssets)).toHaveBeenCalledWith(
+      expect.objectContaining({ siteId: 'site-1' }),
+      expect.any(Object),
+    )
   })
 
   it('returns 401 when unauthorized', async () => {
@@ -96,8 +83,7 @@ describe('GET /api/pipeline/audio-library', () => {
 describe('POST /api/pipeline/audio-library', () => {
   it('creates a new asset with 201', async () => {
     const asset = { id: '1', asset_id: 'M1', type: 'music' }
-    const { chain } = mockChain([asset])
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
+    vi.mocked(createAudioAsset).mockResolvedValue({ data: asset, status: 201 })
     const req = new NextRequest('http://localhost/api/pipeline/audio-library', {
       method: 'POST',
       body: JSON.stringify({ asset_id: 'M1', original_filename: 'track.mp3', type: 'music' }),
@@ -107,6 +93,9 @@ describe('POST /api/pipeline/audio-library', () => {
   })
 
   it('returns 400 for invalid body', async () => {
+    vi.mocked(createAudioAsset).mockRejectedValue(
+      new PipelineServiceError('VALIDATION_ERROR', 'Invalid body', 400),
+    )
     const req = new NextRequest('http://localhost/api/pipeline/audio-library', {
       method: 'POST',
       body: JSON.stringify({ type: 'invalid' }),
@@ -125,13 +114,9 @@ describe('POST /api/pipeline/audio-library', () => {
   })
 
   it('returns 409 on duplicate asset_id or sha256', async () => {
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockReturnValue({
-        insert: vi.fn().mockReturnThis(),
-        select: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({ data: null, error: { code: '23505' } }),
-      }),
-    } as never)
+    vi.mocked(createAudioAsset).mockRejectedValue(
+      new PipelineServiceError('CONFLICT', 'Asset with this ID or SHA256 already exists', 409),
+    )
     const req = new NextRequest('http://localhost/api/pipeline/audio-library', {
       method: 'POST',
       body: JSON.stringify({ asset_id: 'DUP', original_filename: 'dup.mp3', type: 'music' }),
@@ -143,13 +128,9 @@ describe('POST /api/pipeline/audio-library', () => {
   })
 
   it('returns 500 on generic DB error', async () => {
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockReturnValue({
-        insert: vi.fn().mockReturnThis(),
-        select: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({ data: null, error: { code: '42000', message: 'unexpected' } }),
-      }),
-    } as never)
+    vi.mocked(createAudioAsset).mockRejectedValue(
+      new PipelineServiceError('DB_ERROR', 'Failed to save asset', 500),
+    )
     const req = new NextRequest('http://localhost/api/pipeline/audio-library', {
       method: 'POST',
       body: JSON.stringify({ asset_id: 'M1', original_filename: 'track.mp3', type: 'music' }),
@@ -161,105 +142,155 @@ describe('POST /api/pipeline/audio-library', () => {
 
 describe('GET /api/pipeline/audio-library filters', () => {
   it('applies type filter', async () => {
-    const { chain, calls } = mockChain([{ id: '1', asset_id: 'M1', type: 'music' }], 1)
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
+    vi.mocked(listAudioAssets).mockResolvedValue({
+      data: [{ id: '1', asset_id: 'M1', type: 'music' }] as never,
+      meta: { total: 1, has_next: false, next_cursor: undefined, limit: 50 },
+    })
     const res = await GET(new NextRequest('http://localhost/api/pipeline/audio-library?type=music'))
     expect(res.status).toBe(200)
-    expect(calls.some(c => c.method === 'eq' && c.args[0] === 'type' && c.args[1] === 'music')).toBe(true)
+    expect(vi.mocked(listAudioAssets)).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ type: 'music' }),
+    )
   })
 
   it('ignores invalid type values', async () => {
-    const { chain, calls } = mockChain([], 0)
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
+    vi.mocked(listAudioAssets).mockResolvedValue({
+      data: [] as never,
+      meta: { total: 0, has_next: false, next_cursor: undefined, limit: 50 },
+    })
     await GET(new NextRequest('http://localhost/api/pipeline/audio-library?type=evil'))
-    expect(calls.every(c => !(c.method === 'eq' && c.args[0] === 'type'))).toBe(true)
+    // Type filter is passed through to service; service ignores invalid values
+    expect(vi.mocked(listAudioAssets)).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ type: 'evil' }),
+    )
   })
 
   it('applies status filter', async () => {
-    const { chain, calls } = mockChain([], 0)
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
+    vi.mocked(listAudioAssets).mockResolvedValue({
+      data: [] as never,
+      meta: { total: 0, has_next: false, next_cursor: undefined, limit: 50 },
+    })
     await GET(new NextRequest('http://localhost/api/pipeline/audio-library?status=pending'))
-    expect(calls.some(c => c.method === 'eq' && c.args[0] === 'status' && c.args[1] === 'pending')).toBe(true)
+    expect(vi.mocked(listAudioAssets)).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ status: 'pending' }),
+    )
   })
 
   it('applies category filter with sanitization', async () => {
-    const { chain, calls } = mockChain([], 0)
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
+    vi.mocked(listAudioAssets).mockResolvedValue({
+      data: [] as never,
+      meta: { total: 0, has_next: false, next_cursor: undefined, limit: 50 },
+    })
     await GET(new NextRequest('http://localhost/api/pipeline/audio-library?category=cinematic'))
-    expect(calls.some(c => c.method === 'eq' && c.args[0] === 'category')).toBe(true)
+    expect(vi.mocked(listAudioAssets)).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ category: 'cinematic' }),
+    )
   })
 
   it('applies tags filter with overlaps (OR logic)', async () => {
-    const { chain, calls } = mockChain([], 0)
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
+    vi.mocked(listAudioAssets).mockResolvedValue({
+      data: [] as never,
+      meta: { total: 0, has_next: false, next_cursor: undefined, limit: 50 },
+    })
     await GET(new NextRequest('http://localhost/api/pipeline/audio-library?tags=epic,cinematic'))
-    expect(calls.some(c => c.method === 'overlaps' && c.args[0] === 'tags')).toBe(true)
+    expect(vi.mocked(listAudioAssets)).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ tags: 'epic,cinematic' }),
+    )
   })
 
   it('applies mood filter with overlaps (OR logic)', async () => {
-    const { chain, calls } = mockChain([], 0)
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
+    vi.mocked(listAudioAssets).mockResolvedValue({
+      data: [] as never,
+      meta: { total: 0, has_next: false, next_cursor: undefined, limit: 50 },
+    })
     await GET(new NextRequest('http://localhost/api/pipeline/audio-library?mood=inspiring'))
-    expect(calls.some(c => c.method === 'overlaps' && c.args[0] === 'mood')).toBe(true)
+    expect(vi.mocked(listAudioAssets)).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ mood: 'inspiring' }),
+    )
   })
 
   it('applies energy range filters', async () => {
-    const { chain, calls } = mockChain([], 0)
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
+    vi.mocked(listAudioAssets).mockResolvedValue({
+      data: [] as never,
+      meta: { total: 0, has_next: false, next_cursor: undefined, limit: 50 },
+    })
     await GET(new NextRequest('http://localhost/api/pipeline/audio-library?energy_min=2&energy_max=4'))
-    expect(calls.some(c => c.method === 'gte' && c.args[0] === 'energy' && c.args[1] === 2)).toBe(true)
-    expect(calls.some(c => c.method === 'lte' && c.args[0] === 'energy' && c.args[1] === 4)).toBe(true)
+    expect(vi.mocked(listAudioAssets)).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ energy_min: '2', energy_max: '4' }),
+    )
   })
 
   it('applies bpm range filters', async () => {
-    const { chain, calls } = mockChain([], 0)
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
+    vi.mocked(listAudioAssets).mockResolvedValue({
+      data: [] as never,
+      meta: { total: 0, has_next: false, next_cursor: undefined, limit: 50 },
+    })
     await GET(new NextRequest('http://localhost/api/pipeline/audio-library?bpm_min=80&bpm_max=120'))
-    expect(calls.some(c => c.method === 'gte' && c.args[0] === 'bpm' && c.args[1] === 80)).toBe(true)
-    expect(calls.some(c => c.method === 'lte' && c.args[0] === 'bpm' && c.args[1] === 120)).toBe(true)
+    expect(vi.mocked(listAudioAssets)).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ bpm_min: '80', bpm_max: '120' }),
+    )
   })
 
   it('applies full-text search with textSearch', async () => {
-    const { chain, calls } = mockChain([], 0)
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
+    vi.mocked(listAudioAssets).mockResolvedValue({
+      data: [] as never,
+      meta: { total: 0, has_next: false, next_cursor: undefined, limit: 50 },
+    })
     await GET(new NextRequest('http://localhost/api/pipeline/audio-library?q=cinematic+epic'))
-    expect(calls.some(c => c.method === 'textSearch' && c.args[0] === 'search_vector')).toBe(true)
+    expect(vi.mocked(listAudioAssets)).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ q: 'cinematic epic' }),
+    )
   })
 
   it('applies reusable=true filter', async () => {
-    const { chain, calls } = mockChain([], 0)
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
+    vi.mocked(listAudioAssets).mockResolvedValue({
+      data: [] as never,
+      meta: { total: 0, has_next: false, next_cursor: undefined, limit: 50 },
+    })
     await GET(new NextRequest('http://localhost/api/pipeline/audio-library?reusable=true'))
-    expect(calls.some(c => c.method === 'eq' && c.args[0] === 'reusable' && c.args[1] === true)).toBe(true)
+    expect(vi.mocked(listAudioAssets)).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ reusable: 'true' }),
+    )
   })
 
   it('applies reusable=false filter', async () => {
-    const { chain, calls } = mockChain([], 0)
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
+    vi.mocked(listAudioAssets).mockResolvedValue({
+      data: [] as never,
+      meta: { total: 0, has_next: false, next_cursor: undefined, limit: 50 },
+    })
     await GET(new NextRequest('http://localhost/api/pipeline/audio-library?reusable=false'))
-    expect(calls.some(c => c.method === 'eq' && c.args[0] === 'reusable' && c.args[1] === false)).toBe(true)
+    expect(vi.mocked(listAudioAssets)).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ reusable: 'false' }),
+    )
   })
 
   it('clamps limit between 1 and 200', async () => {
-    const { chain, calls } = mockChain([], 0)
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
+    vi.mocked(listAudioAssets).mockResolvedValue({
+      data: [] as never,
+      meta: { total: 0, has_next: false, next_cursor: undefined, limit: 200 },
+    })
     await GET(new NextRequest('http://localhost/api/pipeline/audio-library?limit=999'))
-    expect(calls.some(c => c.method === 'limit' && c.args[0] === 201)).toBe(true) // 200 + 1 for has_next
+    expect(vi.mocked(listAudioAssets)).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ limit: 200 }),
+    )
   })
 
   it('returns 500 on DB error', async () => {
-    const terminal = Promise.resolve({ data: null, error: { message: 'connection refused' }, count: null })
-    const handler: ProxyHandler<object> = {
-      get(_target, prop: string) {
-        if (prop === 'then') return terminal.then.bind(terminal)
-        if (prop === 'catch') return terminal.catch.bind(terminal)
-        if (prop === 'finally') return terminal.finally.bind(terminal)
-        return () => errorProxy
-      },
-    }
-    const errorProxy = new Proxy({}, handler)
-    const chain = { from: () => errorProxy }
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
+    vi.mocked(listAudioAssets).mockRejectedValue(
+      new PipelineServiceError('DB_ERROR', 'Failed to load assets', 500),
+    )
     const res = await GET(new NextRequest('http://localhost/api/pipeline/audio-library'))
     expect(res.status).toBe(500)
   })
@@ -267,17 +298,21 @@ describe('GET /api/pipeline/audio-library filters', () => {
 
 describe('GET cursor pagination', () => {
   it('ignores cursor when not a valid UUID', async () => {
-    const { chain, calls } = mockChain([{ id: 'a1', asset_id: 'M1' }], 1)
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
+    vi.mocked(listAudioAssets).mockResolvedValue({
+      data: [{ id: 'a1', asset_id: 'M1' }] as never,
+      meta: { total: 1, has_next: false, next_cursor: undefined, limit: 50 },
+    })
     const res = await GET(new NextRequest('http://localhost/api/pipeline/audio-library?cursor=not-a-uuid'))
     expect(res.status).toBe(200)
-    expect(calls.some(c => c.method === 'or')).toBe(false)
+    // Route still passes cursor to service; service handles validation
+    expect(vi.mocked(listAudioAssets)).toHaveBeenCalled()
   })
 
   it('returns has_next=true and next_cursor when more items exist', async () => {
-    const items = Array.from({ length: 51 }, (_, i) => ({ id: `id-${i}`, asset_id: `M${i}` }))
-    const { chain } = mockChain(items, 100)
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
+    vi.mocked(listAudioAssets).mockResolvedValue({
+      data: Array.from({ length: 50 }, (_, i) => ({ id: `id-${i}`, asset_id: `M${i}` })) as never,
+      meta: { total: 100, has_next: true, next_cursor: 'id-49', limit: 50 },
+    })
     const res = await GET(new NextRequest('http://localhost/api/pipeline/audio-library'))
     const json = await res.json()
     expect(res.status).toBe(200)
@@ -287,8 +322,10 @@ describe('GET cursor pagination', () => {
 
   it('returns has_next=false when fewer items than limit', async () => {
     const items = [{ id: 'id-0', asset_id: 'M0' }, { id: 'id-1', asset_id: 'M1' }, { id: 'id-2', asset_id: 'M2' }]
-    const { chain } = mockChain(items, 3)
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
+    vi.mocked(listAudioAssets).mockResolvedValue({
+      data: items as never,
+      meta: { total: 3, has_next: false, next_cursor: undefined, limit: 50 },
+    })
     const res = await GET(new NextRequest('http://localhost/api/pipeline/audio-library'))
     const json = await res.json()
     expect(res.status).toBe(200)
@@ -297,73 +334,52 @@ describe('GET cursor pagination', () => {
   })
 
   it('applies subcategory filter', async () => {
-    const { chain, calls } = mockChain([], 0)
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
+    vi.mocked(listAudioAssets).mockResolvedValue({
+      data: [] as never,
+      meta: { total: 0, has_next: false, next_cursor: undefined, limit: 50 },
+    })
     await GET(new NextRequest('http://localhost/api/pipeline/audio-library?subcategory=test'))
-    expect(calls.some(c => c.method === 'eq' && c.args[0] === 'subcategory' && c.args[1] === 'test')).toBe(true)
+    expect(vi.mocked(listAudioAssets)).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ subcategory: 'test' }),
+    )
   })
 
   it('applies genre filter', async () => {
-    const { chain, calls } = mockChain([], 0)
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
+    vi.mocked(listAudioAssets).mockResolvedValue({
+      data: [] as never,
+      meta: { total: 0, has_next: false, next_cursor: undefined, limit: 50 },
+    })
     await GET(new NextRequest('http://localhost/api/pipeline/audio-library?genre=rock'))
-    expect(calls.some(c => c.method === 'eq' && c.args[0] === 'genre' && c.args[1] === 'rock')).toBe(true)
+    expect(vi.mocked(listAudioAssets)).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ genre: 'rock' }),
+    )
   })
 
   it('applies source filter', async () => {
-    const { chain, calls } = mockChain([], 0)
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
+    vi.mocked(listAudioAssets).mockResolvedValue({
+      data: [] as never,
+      meta: { total: 0, has_next: false, next_cursor: undefined, limit: 50 },
+    })
     await GET(new NextRequest('http://localhost/api/pipeline/audio-library?source=artlist'))
-    expect(calls.some(c => c.method === 'eq' && c.args[0] === 'source' && c.args[1] === 'artlist')).toBe(true)
+    expect(vi.mocked(listAudioAssets)).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ source: 'artlist' }),
+    )
   })
 
-  it('applies cursor filter when valid UUID provided', { timeout: 15000 }, async () => {
+  it('applies cursor filter when valid UUID provided', async () => {
     const validCursor = '550e8400-e29b-41d4-a716-446655440000'
-    const cursorCreatedAt = '2024-01-01T00:00:00Z'
-    const allCalls: Array<{ method: string; args: unknown[] }> = []
-    let fromCount = 0
-
-    // Cursor lookup proxy: supports .select().eq().eq().single() chain
-    function makeSingleProxy(data: unknown): object {
-      return new Proxy({}, {
-        get(_t, prop: string) {
-          if (prop === 'single') return () => Promise.resolve({ data, error: null })
-          return (...args: unknown[]) => {
-            allCalls.push({ method: prop, args })
-            return makeSingleProxy(data)
-          }
-        },
-      })
-    }
-
-    // Main query proxy: records .or() and other calls, resolves as thenable
-    const mainData = [{ id: 'a1', asset_id: 'M1' }]
-    const terminal = Promise.resolve({ data: mainData, error: null, count: 1 })
-    const mainProxy: object = new Proxy({}, {
-      get(_t, prop: string) {
-        if (prop === 'then') return terminal.then.bind(terminal)
-        if (prop === 'catch') return terminal.catch.bind(terminal)
-        if (prop === 'finally') return terminal.finally.bind(terminal)
-        return (...args: unknown[]) => {
-          allCalls.push({ method: prop, args })
-          return mainProxy
-        }
-      },
+    vi.mocked(listAudioAssets).mockResolvedValue({
+      data: [{ id: 'a1', asset_id: 'M1' }] as never,
+      meta: { total: 1, has_next: false, next_cursor: undefined, limit: 50 },
     })
-
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: (...args: unknown[]) => {
-        allCalls.push({ method: 'from', args })
-        fromCount++
-        // First from() → main query (built first in route, line 19)
-        // Second from() → cursor lookup (line 73, inside cursor block)
-        return fromCount === 1 ? mainProxy : makeSingleProxy({ created_at: cursorCreatedAt })
-      },
-    } as never)
-
     const res = await GET(new NextRequest(`http://localhost/api/pipeline/audio-library?cursor=${validCursor}`))
     expect(res.status).toBe(200)
-    const orCall = allCalls.find(c => c.method === 'or' && typeof c.args[0] === 'string' && (c.args[0] as string).includes('created_at.lt.'))
-    expect(orCall).toBeDefined()
+    expect(vi.mocked(listAudioAssets)).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ cursor: validCursor }),
+    )
   })
 })

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { authenticateRead, authenticateWrite, pipelineError, parseBody } from '@/lib/pipeline/helpers'
-import { buildRateLimitHeaders, UUID_REGEX } from '@/lib/pipeline/auth'
-import { PipelineItemUpdateSchema, FORMAT_METADATA_SCHEMAS, FORMATS, type Format } from '@/lib/pipeline/schemas'
-import { isValidStage, WORKFLOWS } from '@/lib/pipeline/workflows'
+import { authenticateRead, authenticateWrite, pipelineError, pipelineSuccess, parseBody } from '@/lib/pipeline/helpers'
+import { UUID_REGEX, buildRateLimitHeaders } from '@/lib/pipeline/auth'
+import { authToServiceContext, serviceErrorToResponse } from '@/lib/pipeline/services/http-adapter'
+import { getItem, updateItem, archiveItem } from '@/lib/pipeline/services/items'
+import { PipelineServiceError } from '@/lib/pipeline/services/types'
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -14,33 +14,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (result instanceof Response) return result
   const { auth } = result
 
-  const supabase = getSupabaseServiceClient()
-  const { data: item, error } = await supabase
-    .from('content_pipeline')
-    .select('*')
-    .eq('id', id)
-    .eq('site_id', auth.siteId)
-    .single()
-
-  if (error || !item) return pipelineError('NOT_FOUND', 'Item not found', 404, auth)
-
-  const { data: history } = await supabase
-    .from('content_pipeline_history')
-    .select('*')
-    .eq('pipeline_id', id)
-    .order('changed_at', { ascending: false })
-    .limit(20)
-
-  const { data: deps } = await supabase
-    .from('pipeline_dependencies')
-    .select('blocker_id, blocked_id, dependency_type')
-    .or(`blocker_id.eq.${id},blocked_id.eq.${id}`)
-
-  const headers = buildRateLimitHeaders(auth)
-  return NextResponse.json({
-    data: { ...item, history: history ?? [], dependencies: deps ?? [] },
-    meta: { version: item.version, etag: String(item.version), updated_at: item.updated_at },
-  }, { headers })
+  try {
+    const ctx = authToServiceContext(auth)
+    const serviceResult = await getItem(ctx, id)
+    const headers = buildRateLimitHeaders(auth)
+    return NextResponse.json({
+      data: serviceResult.data,
+      meta: serviceResult.meta,
+    }, { headers })
+  } catch (err) {
+    return serviceErrorToResponse(err, auth)
+  }
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -59,70 +43,27 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const body = await parseBody(req)
   if (body instanceof Response) return body
 
-  const parsed = PipelineItemUpdateSchema.safeParse(body)
-  if (!parsed.success) {
-    return pipelineError('VALIDATION_ERROR', parsed.error.issues.map((i) => i.message).join(', '), 400, auth)
-  }
-
-  const supabase = getSupabaseServiceClient()
-
-  const { data: current } = await supabase
-    .from('content_pipeline')
-    .select('version, format')
-    .eq('id', id)
-    .eq('site_id', auth.siteId)
-    .single()
-
-  if (!current) return pipelineError('NOT_FOUND', 'Item not found', 404, auth)
-
-  if (!FORMATS.includes(current.format as Format)) {
-    return pipelineError('VALIDATION_ERROR', `Unknown format: ${current.format}`, 422, auth)
-  }
-
-  if (parsed.data.stage && !isValidStage(current.format as Format, parsed.data.stage)) {
-    return pipelineError('VALIDATION_ERROR', `Stage "${parsed.data.stage}" is not valid for format "${current.format}". Valid stages: ${WORKFLOWS[current.format as Format].map(s => s.stage).join(', ')}`, 400, auth)
-  }
-
-  if (parsed.data.format_metadata && Object.keys(parsed.data.format_metadata).length > 0) {
-    const metaResult = FORMAT_METADATA_SCHEMAS[current.format as Format].safeParse(parsed.data.format_metadata)
-    if (!metaResult.success) {
-      return pipelineError('VALIDATION_ERROR', `Invalid format_metadata: ${metaResult.error.issues.map(i => i.message).join(', ')}`, 400, auth)
-    }
-  }
-
-  if (current.version !== expectedVersion) {
-    const { data: freshItem } = await supabase.from('content_pipeline').select('*').eq('id', id).single()
+  try {
+    const ctx = authToServiceContext(auth)
+    const serviceResult = await updateItem(ctx, id, { expectedVersion, body })
+    const headers = buildRateLimitHeaders(auth)
     return NextResponse.json({
-      error: {
-        code: 'VERSION_CONFLICT',
-        message: `Version mismatch. Current: ${current.version}`,
-        details: { current_version: current.version, your_version: expectedVersion, current_state: freshItem },
-      },
-    }, { status: 409 })
+      data: serviceResult.data,
+      meta: serviceResult.meta,
+    }, { headers })
+  } catch (err) {
+    if (err instanceof PipelineServiceError && err.code === 'VERSION_CONFLICT' && err.details) {
+      const details = err.details as { current_version: number; your_version: number; current_state: unknown }
+      return NextResponse.json({
+        error: {
+          code: 'VERSION_CONFLICT',
+          message: err.message,
+          details,
+        },
+      }, { status: 409 })
+    }
+    return serviceErrorToResponse(err, auth)
   }
-
-  const updateData: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(parsed.data)) {
-    if (value !== undefined) updateData[key] = value
-  }
-
-  const { data: updated, error } = await supabase
-    .from('content_pipeline')
-    .update(updateData)
-    .eq('id', id)
-    .eq('version', expectedVersion)
-    .select()
-    .single()
-
-  if (error || !updated) {
-    return pipelineError('VERSION_CONFLICT', 'Concurrent modification detected', 409, auth)
-  }
-
-  const headers = buildRateLimitHeaders(auth)
-  return NextResponse.json({
-    data: updated,
-    meta: { version: updated.version, etag: String(updated.version), updated_at: updated.updated_at },
-  }, { headers })
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -134,15 +75,12 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   if (result instanceof Response) return result
   const { auth } = result
 
-  const supabase = getSupabaseServiceClient()
-  const { error } = await supabase
-    .from('content_pipeline')
-    .update({ is_archived: true, archived_at: new Date().toISOString(), archive_reason: 'Archived via API' })
-    .eq('id', id)
-    .eq('site_id', auth.siteId)
-
-  if (error) return pipelineError('DB_ERROR', 'Failed to archive item', 400, auth)
-
-  const headers = buildRateLimitHeaders(auth)
-  return NextResponse.json({ data: { archived: true } }, { headers })
+  try {
+    const ctx = authToServiceContext(auth)
+    const serviceResult = await archiveItem(ctx, id)
+    const headers = buildRateLimitHeaders(auth)
+    return NextResponse.json({ data: serviceResult.data }, { headers })
+  } catch (err) {
+    return serviceErrorToResponse(err, auth)
+  }
 }

@@ -1,12 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { authenticateWrite, pipelineSuccess, pipelineError, parseBody } from '@/lib/pipeline/helpers'
 import { UUID_REGEX } from '@/lib/pipeline/auth'
-import { linkPostToItem } from '@/lib/pipeline/blog-link'
-import { z } from 'zod'
-
-const LinkSchema = z.object({
-  blog_post_id: z.string().uuid(),
-})
+import { authToServiceContext, serviceErrorToResponse } from '@/lib/pipeline/services/http-adapter'
+import { linkBlogPost } from '@/lib/pipeline/services/items'
+import { PipelineServiceError } from '@/lib/pipeline/services/types'
+import { NextResponse } from 'next/server'
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -21,15 +19,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const body = await parseBody(req)
   if (body instanceof Response) return body
 
-  const parsed = LinkSchema.safeParse(body)
-  if (!parsed.success) return pipelineError('VALIDATION_ERROR', parsed.error.issues.map(i => i.message).join(', '), 400, auth)
-
-  const linkResult = await linkPostToItem(id, parsed.data.blog_post_id, auth.siteId, null)
-
-  if (!linkResult.ok) {
-    const status = linkResult.code === 'NOT_FOUND' ? 404 : linkResult.code === 'FORBIDDEN' ? 403 : linkResult.code === 'DUPLICATE' || linkResult.code === 'ALREADY_LINKED' ? 409 : 400
-    return NextResponse.json({ error: { code: linkResult.code ?? 'LINK_FAILED', message: linkResult.error } }, { status })
+  try {
+    const ctx = authToServiceContext(auth)
+    const serviceResult = await linkBlogPost(ctx, id, body)
+    return pipelineSuccess(serviceResult.data, 200, auth)
+  } catch (err) {
+    // Preserve the original error response format for link errors
+    if (err instanceof PipelineServiceError) {
+      return NextResponse.json(
+        { error: { code: err.code, message: err.message } },
+        { status: err.status },
+      )
+    }
+    return serviceErrorToResponse(err, auth)
   }
-
-  return pipelineSuccess({ linked: true, blog_post_id: parsed.data.blog_post_id }, 200, auth)
 }

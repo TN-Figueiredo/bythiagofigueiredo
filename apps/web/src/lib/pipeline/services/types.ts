@@ -12,6 +12,7 @@ export interface ServiceContext {
 
 export interface ServiceResult<T> {
   data: T
+  status?: number
   meta?: {
     total?: number
     has_next?: boolean
@@ -39,8 +40,8 @@ export class PipelineServiceError extends Error {
   }
 }
 
-export function ok<T>(data: T, _status = 200): ServiceResult<T> {
-  return { data }
+export function ok<T>(data: T, status = 200): ServiceResult<T> {
+  return { data, status }
 }
 
 export function err(code: string, message: string, status: number): never {

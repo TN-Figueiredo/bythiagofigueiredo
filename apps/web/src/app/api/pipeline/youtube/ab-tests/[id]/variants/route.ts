@@ -1,32 +1,7 @@
 import { NextRequest } from 'next/server'
-import * as Sentry from '@sentry/nextjs'
-import { authenticateRead, authenticateWrite, pipelineError, pipelineSuccess, parseBody } from '@/lib/pipeline/helpers'
-import { UUID_REGEX } from '@/lib/pipeline/auth'
-import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { BatchVariantUpsertSchema, TestTypeSchema } from '@/lib/youtube/ab-schemas'
-import { VARIANT_LABELS } from '@/lib/youtube/ab-types'
-import type { TestType } from '@/lib/youtube/ab-types'
-
-const VALID_LABELS: Set<string> = new Set(VARIANT_LABELS)
-
-function validateTypeSpecificFields(
-  testType: TestType,
-  variants: Array<{ label: string; title_text?: string | null; description_text?: string | null }>,
-): string[] {
-  const errors: string[] = []
-  for (const v of variants) {
-    if (testType === 'title' && !v.title_text) {
-      errors.push(`Variant ${v.label}: title_text required for title tests`)
-    }
-    if (testType === 'description' && !v.description_text) {
-      errors.push(`Variant ${v.label}: description_text required for description tests`)
-    }
-    if (testType === 'combo' && !v.title_text) {
-      errors.push(`Variant ${v.label}: title_text required for combo tests`)
-    }
-  }
-  return errors
-}
+import { authenticateRead, authenticateWrite, pipelineSuccess, pipelineError, parseBody } from '@/lib/pipeline/helpers'
+import { authToServiceContext, serviceErrorToResponse } from '@/lib/pipeline/services/http-adapter'
+import { listVariants, upsertVariants, deleteVariant, type VariantInput } from '@/lib/pipeline/services/youtube'
 
 export async function POST(
   req: NextRequest,
@@ -37,91 +12,16 @@ export async function POST(
   const { auth } = result
 
   const { id } = await params
-  if (!UUID_REGEX.test(id)) {
-    return pipelineError('VALIDATION_ERROR', 'Invalid test ID format', 400, auth)
-  }
-
   const body = await parseBody(req)
   if (body instanceof Response) return body
 
-  const parsed = BatchVariantUpsertSchema.safeParse(body)
-  if (!parsed.success) {
-    return pipelineError('VALIDATION_ERROR', parsed.error.issues[0]?.message ?? 'Invalid request body', 400, auth)
+  try {
+    const ctx = authToServiceContext(auth)
+    const data = await upsertVariants(ctx, id, body as VariantInput[])
+    return pipelineSuccess(data, 200, auth)
+  } catch (err) {
+    return serviceErrorToResponse(err, auth)
   }
-
-  const labels = parsed.data.variants.map(v => v.label)
-  if (new Set(labels).size !== labels.length) {
-    return pipelineError('VALIDATION_ERROR', 'Duplicate variant labels in batch', 400, auth)
-  }
-
-  const supabase = getSupabaseServiceClient()
-
-  const { data: test, error: testError } = await supabase
-    .from('ab_tests')
-    .select('id, status, site_id, test_type')
-    .eq('id', id)
-    .single()
-
-  if (testError) {
-    Sentry.captureException(testError, { tags: { component: 'ab-variants' } })
-  }
-  if (testError || !test) {
-    return pipelineError('NOT_FOUND', 'Test not found', 404, auth)
-  }
-  if (test.site_id !== auth.siteId) {
-    return pipelineError('NOT_FOUND', 'Test not found', 404, auth)
-  }
-  if (test.status !== 'draft') {
-    return pipelineError('INVALID_STATUS', 'Variants can only be added to draft tests', 409, auth)
-  }
-
-  const parsedType = TestTypeSchema.safeParse(test.test_type)
-  if (!parsedType.success) {
-    return pipelineError('VALIDATION_ERROR', 'Unknown test type', 400, auth)
-  }
-
-  const typeErrors = validateTypeSpecificFields(
-    parsedType.data,
-    parsed.data.variants,
-  )
-  if (typeErrors.length > 0) {
-    return pipelineError('VALIDATION_ERROR', typeErrors.join('; '), 400, auth)
-  }
-
-  const upsertRows = parsed.data.variants.map((v, i) => ({
-    test_id: id,
-    label: v.label,
-    is_original: false,
-    title_text: v.title_text ?? null,
-    description_text: v.description_text ?? null,
-    metadata: v.metadata ?? {},
-    sort_order: i + 1,
-  }))
-
-  const { data: upserted, error: upsertError } = await supabase
-    .from('ab_test_variants')
-    .upsert(upsertRows, { onConflict: 'test_id,label' })
-    .select('id, label')
-
-  if (upsertError) {
-    Sentry.captureException(upsertError, { tags: { component: 'ab-variants' } })
-    return pipelineError('DB_ERROR', 'Failed to save variants', 500, auth)
-  }
-
-  const results = (upserted ?? []).map(r => ({
-    label: r.label,
-    ok: true,
-    id: r.id,
-  }))
-
-  return pipelineSuccess(
-    {
-      results,
-      summary: { total: results.length, succeeded: results.length, failed: 0 },
-    },
-    200,
-    auth,
-  )
 }
 
 export async function GET(
@@ -133,34 +33,14 @@ export async function GET(
   const { auth } = result
 
   const { id } = await params
-  if (!UUID_REGEX.test(id)) {
-    return pipelineError('VALIDATION_ERROR', 'Invalid test ID format', 400, auth)
+
+  try {
+    const ctx = authToServiceContext(auth)
+    const data = await listVariants(ctx, id)
+    return pipelineSuccess(data, 200, auth)
+  } catch (err) {
+    return serviceErrorToResponse(err, auth)
   }
-
-  const supabase = getSupabaseServiceClient()
-
-  const { data: test } = await supabase
-    .from('ab_tests')
-    .select('id, site_id')
-    .eq('id', id)
-    .single()
-
-  if (!test || test.site_id !== auth.siteId) {
-    return pipelineError('NOT_FOUND', 'Test not found', 404, auth)
-  }
-
-  const { data: variants, error } = await supabase
-    .from('ab_test_variants')
-    .select('*')
-    .eq('test_id', id)
-    .order('sort_order', { ascending: true })
-
-  if (error) {
-    Sentry.captureException(error, { tags: { component: 'ab-variants' } })
-    return pipelineError('DB_ERROR', 'Failed to load variants', 500, auth)
-  }
-
-  return pipelineSuccess(variants ?? [], 200, auth)
 }
 
 export async function DELETE(
@@ -172,54 +52,15 @@ export async function DELETE(
   const { auth } = result
 
   const { id } = await params
-  if (!UUID_REGEX.test(id)) {
-    return pipelineError('VALIDATION_ERROR', 'Invalid test ID format', 400, auth)
-  }
-
   const { searchParams } = new URL(req.url)
   const label = searchParams.get('label')
-  if (!label || !VALID_LABELS.has(label)) {
-    return pipelineError('VALIDATION_ERROR', 'Query param "label" must be B, C, or D', 400, auth)
+  if (!label) return pipelineError('VALIDATION_ERROR', 'label query param required', 400, auth)
+
+  try {
+    const ctx = authToServiceContext(auth)
+    const data = await deleteVariant(ctx, id, label)
+    return pipelineSuccess(data, 200, auth)
+  } catch (err) {
+    return serviceErrorToResponse(err, auth)
   }
-
-  const supabase = getSupabaseServiceClient()
-
-  const { data: test } = await supabase
-    .from('ab_tests')
-    .select('id, site_id, status')
-    .eq('id', id)
-    .single()
-
-  if (!test || test.site_id !== auth.siteId) {
-    return pipelineError('NOT_FOUND', 'Test not found', 404, auth)
-  }
-  if (test.status !== 'draft') {
-    return pipelineError('INVALID_STATUS', 'Variants can only be deleted from draft tests', 409, auth)
-  }
-
-  const { data: variant } = await supabase
-    .from('ab_test_variants')
-    .select('id, is_original')
-    .eq('test_id', id)
-    .eq('label', label)
-    .single()
-
-  if (!variant) {
-    return pipelineError('NOT_FOUND', 'Variant not found', 404, auth)
-  }
-  if (variant.is_original) {
-    return pipelineError('VALIDATION_ERROR', 'Cannot delete the original variant', 400, auth)
-  }
-
-  const { error: deleteError } = await supabase
-    .from('ab_test_variants')
-    .delete()
-    .eq('id', variant.id)
-
-  if (deleteError) {
-    Sentry.captureException(deleteError, { tags: { component: 'ab-variants' } })
-    return pipelineError('DB_ERROR', 'Failed to delete variant', 500, auth)
-  }
-
-  return pipelineSuccess({ deleted: true, label }, 200, auth)
 }

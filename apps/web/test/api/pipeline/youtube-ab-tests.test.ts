@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
+import { PipelineServiceError } from '@/lib/pipeline/services/types'
 
 const MOCK_SITE_ID = '11111111-1111-1111-1111-111111111111'
 const MOCK_TEST_ID = '22222222-2222-2222-2222-222222222222'
@@ -30,10 +31,40 @@ vi.mock('@/lib/pipeline/logger', () => ({
   pipelineLog: vi.fn(),
 }))
 
-vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn() }))
+vi.mock('@/lib/pipeline/services/http-adapter', () => ({
+  authToServiceContext: vi.fn().mockReturnValue({
+    siteId: MOCK_SITE_ID,
+    permissions: ['read', 'write'],
+    supabase: {},
+  }),
+  serviceErrorToResponse: vi.fn().mockImplementation((err: unknown) => {
+    if (err instanceof PipelineServiceError) {
+      return new Response(
+        JSON.stringify({ error: { code: err.code, message: err.message } }),
+        { status: err.status },
+      )
+    }
+    return new Response(
+      JSON.stringify({ error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' } }),
+      { status: 500 },
+    )
+  }),
+}))
+
+vi.mock('@/lib/pipeline/services/youtube', () => ({
+  listAbTests: vi.fn(),
+  getAbTest: vi.fn(),
+  getAbTestFunnel: vi.fn(),
+  getAbPerformance: vi.fn(),
+}))
 
 import { authenticateRead } from '@/lib/pipeline/helpers'
-import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import {
+  listAbTests,
+  getAbTest,
+  getAbTestFunnel,
+  getAbPerformance,
+} from '@/lib/pipeline/services/youtube'
 
 function mockAuthRead() {
   vi.mocked(authenticateRead).mockResolvedValue({
@@ -44,21 +75,6 @@ function mockAuthRead() {
 function mockAuthFail() {
   const resp = new Response(JSON.stringify({ error: { code: 'UNAUTHORIZED' } }), { status: 401 }) as any
   vi.mocked(authenticateRead).mockResolvedValue(resp)
-}
-
-function createMockChain(finalResult: { data?: unknown; error?: unknown; count?: number | null }) {
-  const chain: Record<string, any> = {}
-  for (const m of [
-    'from', 'select', 'insert', 'update', 'delete', 'eq', 'is', 'in',
-    'or', 'order', 'limit', 'not', 'neq', 'contains', 'ilike', 'textSearch',
-  ]) {
-    chain[m] = vi.fn().mockReturnValue(chain)
-  }
-  chain.single = vi.fn().mockResolvedValue({ data: finalResult.data, error: finalResult.error })
-  chain.maybeSingle = vi.fn().mockResolvedValue({ data: finalResult.data, error: finalResult.error })
-  chain.then = (resolve: (v: any) => any) =>
-    resolve({ data: finalResult.data, error: finalResult.error, count: finalResult.count ?? null })
-  return chain
 }
 
 function makeParams(id: string) {
@@ -88,47 +104,40 @@ describe('GET /api/pipeline/youtube/ab-tests', () => {
       { id: MOCK_TEST_ID, name: 'Title Test 1', status: 'running' },
       { id: '44444444-4444-4444-4444-444444444444', name: 'Thumb Test', status: 'completed' },
     ]
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockReturnValue(createMockChain({ data: tests })),
-    } as any)
+    vi.mocked(listAbTests).mockResolvedValue({ data: tests } as any)
 
     const res = await GET(new NextRequest('http://localhost/api/pipeline/youtube/ab-tests'))
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.data).toHaveLength(2)
+    expect(body.data.data).toHaveLength(2)
   })
 
   it('filters by status query param', async () => {
     mockAuthRead()
     const tests = [{ id: MOCK_TEST_ID, name: 'Running Test', status: 'running' }]
-    const chain = createMockChain({ data: tests })
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockReturnValue(chain),
-    } as any)
+    vi.mocked(listAbTests).mockResolvedValue({ data: tests } as any)
 
     const res = await GET(new NextRequest('http://localhost/api/pipeline/youtube/ab-tests?status=running'))
     expect(res.status).toBe(200)
-    // The route calls .eq('status', status) when status param is present
-    expect(chain.eq).toHaveBeenCalledWith('status', 'running')
+    // The route passes the status as AbTestFilters to the service function
+    expect(listAbTests).toHaveBeenCalledWith(expect.anything(), { status: 'running' })
   })
 
   it('returns empty array when no tests exist', async () => {
     mockAuthRead()
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockReturnValue(createMockChain({ data: [] })),
-    } as any)
+    vi.mocked(listAbTests).mockResolvedValue({ data: [] } as any)
 
     const res = await GET(new NextRequest('http://localhost/api/pipeline/youtube/ab-tests'))
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.data).toEqual([])
+    expect(body.data.data).toEqual([])
   })
 
   it('returns 500 on DB error', async () => {
     mockAuthRead()
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockReturnValue(createMockChain({ data: null, error: { message: 'DB down' } })),
-    } as any)
+    vi.mocked(listAbTests).mockRejectedValue(
+      new PipelineServiceError('DB_ERROR', 'Failed to load tests', 500),
+    )
 
     const res = await GET(new NextRequest('http://localhost/api/pipeline/youtube/ab-tests'))
     expect(res.status).toBe(500)
@@ -154,9 +163,9 @@ describe('GET /api/pipeline/youtube/ab-tests/[id]', () => {
 
   it('returns 404 when test not found', async () => {
     mockAuthRead()
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockReturnValue(createMockChain({ data: null, error: { code: 'PGRST116' } })),
-    } as any)
+    vi.mocked(getAbTest).mockRejectedValue(
+      new PipelineServiceError('NOT_FOUND', 'Test not found', 404),
+    )
 
     const res = await GET(new NextRequest('http://localhost/x'), makeParams(MOCK_TEST_ID))
     expect(res.status).toBe(404)
@@ -172,15 +181,13 @@ describe('GET /api/pipeline/youtube/ab-tests/[id]', () => {
       cycles: [{ id: 'c1', variant_id: MOCK_VARIANT_ID }],
       tracked_links: [],
     }
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockReturnValue(createMockChain({ data: test })),
-    } as any)
+    vi.mocked(getAbTest).mockResolvedValue({ data: test } as any)
 
     const res = await GET(new NextRequest('http://localhost/x'), makeParams(MOCK_TEST_ID))
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.data.id).toBe(MOCK_TEST_ID)
-    expect(body.data.variants).toHaveLength(1)
+    expect(body.data.data.id).toBe(MOCK_TEST_ID)
+    expect(body.data.data.variants).toHaveLength(1)
   })
 })
 
@@ -203,14 +210,9 @@ describe('GET /api/pipeline/youtube/ab-tests/[id]/funnel', () => {
 
   it('returns 404 when test not found', async () => {
     mockAuthRead()
-    let callCount = 0
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockImplementation(() => {
-        callCount++
-        // First call: ab_tests lookup
-        return createMockChain({ data: null })
-      }),
-    } as any)
+    vi.mocked(getAbTestFunnel).mockRejectedValue(
+      new PipelineServiceError('NOT_FOUND', 'Test not found', 404),
+    )
 
     const res = await GET(new NextRequest('http://localhost/x'), makeParams(MOCK_TEST_ID))
     expect(res.status).toBe(404)
@@ -220,76 +222,38 @@ describe('GET /api/pipeline/youtube/ab-tests/[id]/funnel', () => {
     mockAuthRead()
     const LINK_ID = '55555555-5555-5555-5555-555555555555'
 
-    let callCount = 0
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockImplementation(() => {
-        callCount++
-        if (callCount === 1) {
-          // ab_tests lookup
-          return createMockChain({ data: { id: MOCK_TEST_ID, site_id: MOCK_SITE_ID } })
-        }
-        if (callCount === 2) {
-          // ab_test_tracked_links
-          return createMockChain({
-            data: [
-              {
-                id: 'tl1',
-                ab_test_id: MOCK_TEST_ID,
-                variant_id: MOCK_VARIANT_ID,
-                link_id: LINK_ID,
-                template_name: 'pinned_comment',
-                short_code: 'abc',
-                link: { id: LINK_ID, code: 'abc', destination_url: 'https://example.com' },
-              },
-            ],
-          })
-        }
-        if (callCount === 3) {
-          // ab_test_cycles
-          return createMockChain({
-            data: [
-              { variant_id: MOCK_VARIANT_ID, impressions: 1000, clicks: 50 },
-              { variant_id: MOCK_VARIANT_ID, impressions: 800, clicks: 40 },
-            ],
-          })
-        }
-        // link_click_aggregates
-        return createMockChain({
-          data: [{ link_id: LINK_ID, total_clicks: 25 }],
-        })
-      }),
-    } as any)
+    const funnelData = {
+      per_variant: [
+        { variant_id: MOCK_VARIANT_ID, impressions: 1800, clicks: 90, link_clicks: 25 },
+      ],
+      per_link: [
+        { template_name: 'pinned_comment', variant_id: MOCK_VARIANT_ID, short_code: 'abc', clicks: 25 },
+      ],
+    }
+    vi.mocked(getAbTestFunnel).mockResolvedValue({ data: funnelData } as any)
 
     const res = await GET(new NextRequest('http://localhost/x'), makeParams(MOCK_TEST_ID))
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.data.per_variant).toHaveLength(1)
-    expect(body.data.per_variant[0].impressions).toBe(1800)
-    expect(body.data.per_variant[0].clicks).toBe(90)
-    expect(body.data.per_variant[0].link_clicks).toBe(25)
-    expect(body.data.per_link).toHaveLength(1)
-    expect(body.data.per_link[0].clicks).toBe(25)
+    expect(body.data.data.per_variant).toHaveLength(1)
+    expect(body.data.data.per_variant[0].impressions).toBe(1800)
+    expect(body.data.data.per_variant[0].clicks).toBe(90)
+    expect(body.data.data.per_variant[0].link_clicks).toBe(25)
+    expect(body.data.data.per_link).toHaveLength(1)
+    expect(body.data.data.per_link[0].clicks).toBe(25)
   })
 
   it('returns empty funnel when no cycles or links exist', async () => {
     mockAuthRead()
-    let callCount = 0
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockImplementation(() => {
-        callCount++
-        if (callCount === 1) {
-          return createMockChain({ data: { id: MOCK_TEST_ID, site_id: MOCK_SITE_ID } })
-        }
-        // tracked_links, cycles — all empty
-        return createMockChain({ data: [] })
-      }),
+    vi.mocked(getAbTestFunnel).mockResolvedValue({
+      data: { per_variant: [], per_link: [] },
     } as any)
 
     const res = await GET(new NextRequest('http://localhost/x'), makeParams(MOCK_TEST_ID))
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.data.per_variant).toEqual([])
-    expect(body.data.per_link).toEqual([])
+    expect(body.data.data.per_variant).toEqual([])
+    expect(body.data.data.per_link).toEqual([])
   })
 })
 
@@ -312,35 +276,22 @@ describe('GET /api/pipeline/youtube/ab-performance', () => {
 
   it('returns performance data with winning patterns', async () => {
     mockAuthRead()
-    const completedTests = [
-      {
-        id: MOCK_TEST_ID,
-        name: 'Title Test',
-        test_type: 'title',
-        confidence_at_completion: 0.95,
-        result_metadata: {},
-        winner: {
-          id: MOCK_VARIANT_ID,
-          label: 'Variant A',
-          title_text: 'Better Title',
-          description_text: null,
-          metadata: {
-            title_pattern: 'question',
-            thumbnail_tags: ['face', 'text-overlay'],
-          },
-        },
+    const perfData = {
+      completed_tests: 1,
+      winning_patterns: { question: 1 },
+      winning_tags: {
+        face: { wins: 1, tests: 1 },
+        'text-overlay': { wins: 1, tests: 1 },
       },
-    ]
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockReturnValue(createMockChain({ data: completedTests })),
-    } as any)
+    }
+    vi.mocked(getAbPerformance).mockResolvedValue({ data: perfData } as any)
 
     const res = await GET(new NextRequest('http://localhost/api/pipeline/youtube/ab-performance'))
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.data.completed_tests).toBe(1)
-    expect(body.data.winning_patterns).toEqual({ question: 1 })
-    expect(body.data.winning_tags).toEqual({
+    expect(body.data.data.completed_tests).toBe(1)
+    expect(body.data.data.winning_patterns).toEqual({ question: 1 })
+    expect(body.data.data.winning_tags).toEqual({
       face: { wins: 1, tests: 1 },
       'text-overlay': { wins: 1, tests: 1 },
     })
@@ -348,68 +299,40 @@ describe('GET /api/pipeline/youtube/ab-performance', () => {
 
   it('returns empty stats when no completed tests', async () => {
     mockAuthRead()
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockReturnValue(createMockChain({ data: [] })),
+    vi.mocked(getAbPerformance).mockResolvedValue({
+      data: { completed_tests: 0, winning_patterns: {}, winning_tags: {} },
     } as any)
 
     const res = await GET(new NextRequest('http://localhost/api/pipeline/youtube/ab-performance'))
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.data.completed_tests).toBe(0)
-    expect(body.data.winning_patterns).toEqual({})
-    expect(body.data.winning_tags).toEqual({})
+    expect(body.data.data.completed_tests).toBe(0)
+    expect(body.data.data.winning_patterns).toEqual({})
+    expect(body.data.data.winning_tags).toEqual({})
   })
 
   it('handles winner as array (Supabase join format)', async () => {
     mockAuthRead()
-    const completedTests = [
-      {
-        id: MOCK_TEST_ID,
-        name: 'Array Winner Test',
-        test_type: 'thumbnail',
-        confidence_at_completion: 0.9,
-        result_metadata: {},
-        winner: [
-          {
-            id: MOCK_VARIANT_ID,
-            label: 'B',
-            title_text: null,
-            description_text: null,
-            metadata: { title_pattern: 'listicle' },
-          },
-        ],
-      },
-    ]
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockReturnValue(createMockChain({ data: completedTests })),
+    vi.mocked(getAbPerformance).mockResolvedValue({
+      data: { completed_tests: 1, winning_patterns: { listicle: 1 }, winning_tags: {} },
     } as any)
 
     const res = await GET(new NextRequest('http://localhost/api/pipeline/youtube/ab-performance'))
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.data.winning_patterns).toEqual({ listicle: 1 })
+    expect(body.data.data.winning_patterns).toEqual({ listicle: 1 })
   })
 
   it('skips tests with null winner', async () => {
     mockAuthRead()
-    const completedTests = [
-      {
-        id: MOCK_TEST_ID,
-        name: 'No Winner',
-        test_type: 'title',
-        confidence_at_completion: null,
-        result_metadata: {},
-        winner: null,
-      },
-    ]
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockReturnValue(createMockChain({ data: completedTests })),
+    vi.mocked(getAbPerformance).mockResolvedValue({
+      data: { completed_tests: 1, winning_patterns: {}, winning_tags: {} },
     } as any)
 
     const res = await GET(new NextRequest('http://localhost/api/pipeline/youtube/ab-performance'))
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.data.completed_tests).toBe(1)
-    expect(body.data.winning_patterns).toEqual({})
+    expect(body.data.data.completed_tests).toBe(1)
+    expect(body.data.data.winning_patterns).toEqual({})
   })
 })

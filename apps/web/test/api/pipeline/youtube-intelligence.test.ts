@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
+import { PipelineServiceError } from '@/lib/pipeline/services/types'
 
 const MOCK_SITE_ID = '11111111-1111-1111-1111-111111111111'
 const MOCK_CHANNEL_ID = '22222222-2222-2222-2222-222222222222'
@@ -31,23 +32,42 @@ vi.mock('@/lib/pipeline/logger', () => ({
   pipelineLog: vi.fn(),
 }))
 
-vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn() }))
-
-vi.mock('@/lib/youtube/analytics-sync', () => ({
-  getIsoWeek: vi.fn().mockReturnValue('2026-W21'),
-}))
-
-vi.mock('@/lib/youtube/intelligence-schemas', () => ({
-  PatchPayloadSchema: { safeParse: vi.fn() },
-}))
-
 vi.mock('@sentry/nextjs', () => ({
   captureMessage: vi.fn(),
 }))
 
+vi.mock('@/lib/pipeline/services/http-adapter', () => ({
+  authToServiceContext: vi.fn().mockReturnValue({
+    siteId: MOCK_SITE_ID,
+    permissions: ['read', 'write'],
+    supabase: {},
+  }),
+  serviceErrorToResponse: vi.fn().mockImplementation((err: unknown) => {
+    if (err instanceof PipelineServiceError) {
+      return new Response(
+        JSON.stringify({ error: { code: err.code, message: err.message } }),
+        { status: err.status },
+      )
+    }
+    return new Response(
+      JSON.stringify({ error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' } }),
+      { status: 500 },
+    )
+  }),
+}))
+
+vi.mock('@/lib/pipeline/services/youtube', () => ({
+  getIntelligenceSnapshot: vi.fn(),
+  submitIntelRecommendations: vi.fn(),
+  claimNextTask: vi.fn(),
+}))
+
 import { authenticateRead, authenticateWrite, parseBody } from '@/lib/pipeline/helpers'
-import { PatchPayloadSchema } from '@/lib/youtube/intelligence-schemas'
-import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import {
+  getIntelligenceSnapshot,
+  submitIntelRecommendations,
+  claimNextTask,
+} from '@/lib/pipeline/services/youtube'
 
 function mockAuthRead() {
   vi.mocked(authenticateRead).mockResolvedValue({
@@ -65,22 +85,6 @@ function mockAuthFail(mode: 'read' | 'write' = 'read') {
   const resp = new Response(JSON.stringify({ error: { code: 'UNAUTHORIZED' } }), { status: 401 }) as any
   if (mode === 'read') vi.mocked(authenticateRead).mockResolvedValue(resp)
   else vi.mocked(authenticateWrite).mockResolvedValue(resp)
-}
-
-function createMockChain(finalResult: { data?: unknown; error?: unknown; count?: number | null }) {
-  const chain: Record<string, any> = {}
-  for (const m of [
-    'from', 'select', 'insert', 'update', 'delete', 'eq', 'is', 'in',
-    'or', 'order', 'limit', 'not', 'neq', 'contains', 'ilike', 'textSearch',
-  ]) {
-    chain[m] = vi.fn().mockReturnValue(chain)
-  }
-  chain.single = vi.fn().mockResolvedValue({ data: finalResult.data, error: finalResult.error })
-  chain.maybeSingle = vi.fn().mockResolvedValue({ data: finalResult.data, error: finalResult.error })
-  chain.rpc = vi.fn().mockResolvedValue({ data: null, error: null })
-  chain.then = (resolve: (v: any) => any) =>
-    resolve({ data: finalResult.data, error: finalResult.error, count: finalResult.count ?? null })
-  return chain
 }
 
 // ─── GET /api/pipeline/youtube/intelligence ─────────────────────────────────
@@ -108,14 +112,9 @@ describe('GET /api/pipeline/youtube/intelligence', () => {
 
   it('returns 404 when channel not found', async () => {
     mockAuthRead()
-    let callCount = 0
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockImplementation(() => {
-        callCount++
-        // First call: youtube_channels lookup
-        return createMockChain({ data: null })
-      }),
-    } as any)
+    vi.mocked(getIntelligenceSnapshot).mockRejectedValue(
+      new PipelineServiceError('NOT_FOUND', 'Channel not found', 404),
+    )
 
     const res = await GET(new NextRequest(`http://localhost/api/pipeline/youtube/intelligence?channel_id=${MOCK_CHANNEL_ID}`))
     expect(res.status).toBe(404)
@@ -123,50 +122,40 @@ describe('GET /api/pipeline/youtube/intelligence', () => {
 
   it('returns full intelligence payload', async () => {
     mockAuthRead()
-    const channel = {
-      id: MOCK_CHANNEL_ID,
-      channel_id: 'UC123',
-      name: 'Test Channel',
-      subscriber_count: 10000,
-    }
-    const videos = [
-      {
-        id: MOCK_VIDEO_ID,
-        youtube_video_id: 'yt123',
-        title: 'Test Video',
-        thumbnail_url: 'https://img.youtube.com/vi/yt123/hq.jpg',
-        published_at: '2026-05-01',
-        view_count: 5000,
-        ctr: 0.08,
-        impressions: 60000,
-        avg_view_percentage: 45,
-        avg_view_duration_seconds: 240,
-        retention_curve: null,
-        traffic_sources: null,
+    const snapshot = {
+      channel: {
+        id: MOCK_CHANNEL_ID,
+        channel_id: 'UC123',
+        name: 'Test Channel',
+        subscriber_count: 10000,
       },
-    ]
-    const gradeHistory = [
-      { youtube_video_id: 'yt123', grade: 'B', score: 72, ctr: 7, retention: 6, reach: 8, engagement: 7, growth: 6, sub_impact: 5, week_iso: '2026-W20' },
-    ]
-    const cycles = [{ id: 'c1', state: 'flagged', youtube_video_id: 'yt123' }]
-    const abTests = [{ id: 'ab1', youtube_video_id: 'yt123', name: 'Title test', status: 'running' }]
-    const intelligence = [{ id: 'int1', type: 'video', source: 'cowork' }]
-
-    let callCount = 0
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockImplementation(() => {
-        callCount++
-        if (callCount === 1) return createMockChain({ data: channel })
-        if (callCount === 2) return createMockChain({ data: videos })
-        if (callCount === 3) return createMockChain({ data: gradeHistory })
-        if (callCount === 4) return createMockChain({ data: cycles })
-        if (callCount === 5) return createMockChain({ data: abTests })
-        return createMockChain({ data: intelligence })
-      }),
-    } as any)
+      videos: [
+        {
+          id: MOCK_VIDEO_ID,
+          video_id: 'yt123',
+          title: 'Test Video',
+          thumbnail_url: 'https://img.youtube.com/vi/yt123/hq.jpg',
+          published_at: '2026-05-01',
+          view_count: 5000,
+          ctr: 0.08,
+          impressions: 60000,
+          avg_view_percentage: 45,
+          retention_curve: null,
+          traffic_sources: null,
+        },
+      ],
+      grade_history: [
+        { youtube_video_id: 'yt123', grade: 'B', score: 72, ctr: 7, retention: 6, reach: 8, engagement: 7, growth: 6, sub_impact: 5, week_iso: '2026-W20' },
+      ],
+      optimization_cycles: [{ id: 'c1', state: 'flagged', youtube_video_id: 'yt123' }],
+      ab_tests: [{ id: 'ab1', youtube_video_id: 'yt123', name: 'Title test', status: 'running' }],
+      intelligence: [{ id: 'int1', type: 'video', source: 'cowork' }],
+    }
+    // The route does NextResponse.json(response), where response is the ServiceResult.
+    // Mock returns the data such that the response body matches what the test expects.
+    vi.mocked(getIntelligenceSnapshot).mockResolvedValue(snapshot as any)
 
     const res = await GET(new NextRequest(`http://localhost/api/pipeline/youtube/intelligence?channel_id=${MOCK_CHANNEL_ID}`))
-    // intelligence route uses NextResponse.json, so status is always 200 on success
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.channel.name).toBe('Test Channel')
@@ -204,10 +193,12 @@ describe('PATCH /api/pipeline/youtube/intelligence', () => {
   it('returns 422 on validation failure', async () => {
     mockAuthWrite()
     vi.mocked(parseBody).mockResolvedValue({ bad: 'data' })
-    vi.mocked(PatchPayloadSchema.safeParse).mockReturnValue({
-      success: false,
-      error: { issues: [{ path: ['task_id'], code: 'invalid_type', message: 'Required' }] },
-    } as any)
+
+    vi.mocked(submitIntelRecommendations).mockRejectedValue(
+      new PipelineServiceError('VALIDATION_FAILED', 'Validation failed', 422, {
+        details: [{ path: ['task_id'], code: 'invalid_type', message: 'Required' }],
+      }),
+    )
 
     const req = new NextRequest('http://localhost/x', {
       method: 'PATCH',
@@ -223,14 +214,10 @@ describe('PATCH /api/pipeline/youtube/intelligence', () => {
   it('returns 404 when task not found', async () => {
     mockAuthWrite()
     vi.mocked(parseBody).mockResolvedValue({ task_id: MOCK_TASK_ID })
-    vi.mocked(PatchPayloadSchema.safeParse).mockReturnValue({
-      success: true,
-      data: { task_id: MOCK_TASK_ID },
-    } as any)
 
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockReturnValue(createMockChain({ data: null })),
-    } as any)
+    vi.mocked(submitIntelRecommendations).mockRejectedValue(
+      new PipelineServiceError('NOT_FOUND', 'Task not found', 404),
+    )
 
     const req = new NextRequest('http://localhost/x', {
       method: 'PATCH',
@@ -244,16 +231,10 @@ describe('PATCH /api/pipeline/youtube/intelligence', () => {
   it('returns 409 when task status is not running', async () => {
     mockAuthWrite()
     vi.mocked(parseBody).mockResolvedValue({ task_id: MOCK_TASK_ID })
-    vi.mocked(PatchPayloadSchema.safeParse).mockReturnValue({
-      success: true,
-      data: { task_id: MOCK_TASK_ID },
-    } as any)
 
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockReturnValue(
-        createMockChain({ data: { id: MOCK_TASK_ID, channel_id: MOCK_CHANNEL_ID, status: 'completed' } }),
-      ),
-    } as any)
+    vi.mocked(submitIntelRecommendations).mockRejectedValue(
+      new PipelineServiceError('VERSION_CONFLICT', "Task status is 'completed', expected 'running'", 409),
+    )
 
     const req = new NextRequest('http://localhost/x', {
       method: 'PATCH',
@@ -267,15 +248,10 @@ describe('PATCH /api/pipeline/youtube/intelligence', () => {
   it('completes successfully with minimal payload (no recommendations)', async () => {
     mockAuthWrite()
     vi.mocked(parseBody).mockResolvedValue({ task_id: MOCK_TASK_ID })
-    vi.mocked(PatchPayloadSchema.safeParse).mockReturnValue({
-      success: true,
-      data: { task_id: MOCK_TASK_ID },
-    } as any)
 
-    const chain = createMockChain({ data: { id: MOCK_TASK_ID, channel_id: MOCK_CHANNEL_ID, status: 'running' } })
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockReturnValue(chain),
-      rpc: vi.fn().mockResolvedValue({ data: null, error: null }),
+    vi.mocked(submitIntelRecommendations).mockResolvedValue({
+      status: 'ok',
+      processed: true,
     } as any)
 
     const req = new NextRequest('http://localhost/x', {
@@ -305,24 +281,12 @@ describe('PATCH /api/pipeline/youtube/intelligence', () => {
       ],
     }
     vi.mocked(parseBody).mockResolvedValue(payload)
-    vi.mocked(PatchPayloadSchema.safeParse).mockReturnValue({
-      success: true,
-      data: payload,
-    } as any)
 
-    let callCount = 0
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockImplementation(() => {
-        callCount++
-        if (callCount === 1) {
-          // task lookup: found and running
-          return createMockChain({ data: { id: MOCK_TASK_ID, channel_id: MOCK_CHANNEL_ID, status: 'running' } })
-        }
-        // youtube_videos lookup: no matching videos
-        return createMockChain({ data: [] })
+    vi.mocked(submitIntelRecommendations).mockRejectedValue(
+      new PipelineServiceError('VALIDATION_FAILED', 'Referential integrity check failed', 422, {
+        details: [{ code: 'referential_integrity', video_ids: [MOCK_VIDEO_ID] }],
       }),
-      rpc: vi.fn().mockResolvedValue({ data: null, error: null }),
-    } as any)
+    )
 
     const req = new NextRequest('http://localhost/x', {
       method: 'PATCH',
@@ -356,9 +320,7 @@ describe('GET /api/pipeline/youtube/intelligence/task', () => {
 
   it('returns 204 when no pending task exists', async () => {
     mockAuthRead()
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockReturnValue(createMockChain({ data: null })),
-    } as any)
+    vi.mocked(claimNextTask).mockResolvedValue(null as any)
 
     const res = await GET(new NextRequest('http://localhost/api/pipeline/youtube/intelligence/task'))
     expect(res.status).toBe(204)
@@ -366,27 +328,8 @@ describe('GET /api/pipeline/youtube/intelligence/task', () => {
 
   it('returns 204 when CAS claim fails (race condition)', async () => {
     mockAuthRead()
-    const task = {
-      id: MOCK_TASK_ID,
-      site_id: MOCK_SITE_ID,
-      channel_id: MOCK_CHANNEL_ID,
-      trigger_type: 'manual',
-      requested_at: '2026-05-24T10:00:00Z',
-    }
-
-    let callCount = 0
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockImplementation(() => {
-        callCount++
-        if (callCount === 1) {
-          // task found
-          return createMockChain({ data: task })
-        }
-        // CAS update: no row matched (claimed by another worker)
-        const chain = createMockChain({ data: null })
-        return chain
-      }),
-    } as any)
+    // CAS claim returns null (task was claimed by another worker)
+    vi.mocked(claimNextTask).mockResolvedValue(null as any)
 
     const res = await GET(new NextRequest('http://localhost/api/pipeline/youtube/intelligence/task'))
     expect(res.status).toBe(204)
@@ -401,20 +344,7 @@ describe('GET /api/pipeline/youtube/intelligence/task', () => {
       trigger_type: 'scheduled',
       requested_at: '2026-05-24T10:00:00Z',
     }
-
-    let callCount = 0
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockImplementation(() => {
-        callCount++
-        if (callCount === 1) {
-          // task lookup: found
-          return createMockChain({ data: task })
-        }
-        // CAS update + select: claimed successfully
-        const chain = createMockChain({ data: { id: MOCK_TASK_ID } })
-        return chain
-      }),
-    } as any)
+    vi.mocked(claimNextTask).mockResolvedValue(task as any)
 
     const res = await GET(new NextRequest('http://localhost/api/pipeline/youtube/intelligence/task'))
     expect(res.status).toBe(200)
@@ -425,12 +355,9 @@ describe('GET /api/pipeline/youtube/intelligence/task', () => {
 
   it('uses status query param (defaults to pending)', async () => {
     mockAuthRead()
-    const chain = createMockChain({ data: null })
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockReturnValue(chain),
-    } as any)
+    vi.mocked(claimNextTask).mockResolvedValue(null as any)
 
     await GET(new NextRequest('http://localhost/api/pipeline/youtube/intelligence/task?status=failed'))
-    expect(chain.eq).toHaveBeenCalledWith('status', 'failed')
+    expect(claimNextTask).toHaveBeenCalledWith(expect.anything(), 'failed')
   })
 })

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { authenticateWrite, pipelineError } from '@/lib/pipeline/helpers'
-import { buildRateLimitHeaders, UUID_REGEX } from '@/lib/pipeline/auth'
+import { UUID_REGEX, buildRateLimitHeaders } from '@/lib/pipeline/auth'
+import { authToServiceContext, serviceErrorToResponse } from '@/lib/pipeline/services/http-adapter'
+import { restoreItem } from '@/lib/pipeline/services/items'
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -12,22 +13,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (result instanceof Response) return result
   const { auth } = result
 
-  const supabase = getSupabaseServiceClient()
-  const { data: updated, error } = await supabase
-    .from('content_pipeline')
-    .update({ is_archived: false, archived_at: null, archive_reason: null })
-    .eq('id', id)
-    .eq('site_id', auth.siteId)
-    .select()
-    .single()
-
-  if (error || !updated) return pipelineError('NOT_FOUND', 'Item not found', 404, auth)
-
-  await supabase.from('content_pipeline_history').insert({
-    pipeline_id: id,
-    event_type: 'restored',
-  })
-
-  const headers = buildRateLimitHeaders(auth)
-  return NextResponse.json({ data: updated, meta: { version: updated.version, etag: String(updated.version), updated_at: updated.updated_at } }, { headers })
+  try {
+    const ctx = authToServiceContext(auth)
+    const serviceResult = await restoreItem(ctx, id)
+    const headers = buildRateLimitHeaders(auth)
+    return NextResponse.json({
+      data: serviceResult.data,
+      meta: serviceResult.meta,
+    }, { headers })
+  } catch (err) {
+    return serviceErrorToResponse(err, auth)
+  }
 }

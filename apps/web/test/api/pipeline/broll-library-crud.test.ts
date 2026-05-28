@@ -1,10 +1,34 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
+import { PipelineServiceError } from '@/lib/pipeline/services/types'
 
 const MOCK_SITE_ID = '11111111-1111-1111-1111-111111111111'
 const MOCK_ASSET_ID = '22222222-2222-2222-2222-222222222222'
 
-// ─── Mocks — must cover ALL transitive @/ imports from both route files ──────
+// ─── Mocks — mock service layer instead of Supabase ─────────────────────────
+
+vi.mock('@/lib/pipeline/services/broll', () => ({
+  listBRollAssets: vi.fn(),
+  createBRollAsset: vi.fn(),
+  getBRollAsset: vi.fn(),
+  updateBRollAsset: vi.fn(),
+  retireBRollAsset: vi.fn(),
+}))
+
+vi.mock('@/lib/pipeline/services/http-adapter', () => ({
+  authToServiceContext: vi.fn().mockReturnValue({
+    siteId: MOCK_SITE_ID,
+    permissions: ['read', 'write'],
+    supabase: {},
+    source: 'api_key',
+  }),
+  serviceErrorToResponse: vi.fn().mockImplementation((err: unknown) => {
+    if (err instanceof PipelineServiceError) {
+      return new Response(JSON.stringify({ error: { code: err.code, message: err.message } }), { status: err.status })
+    }
+    return new Response(JSON.stringify({ error: { code: 'INTERNAL_ERROR', message: 'unexpected' } }), { status: 500 })
+  }),
+}))
 
 vi.mock('@/lib/pipeline/helpers', () => ({
   authenticateRead: vi.fn(),
@@ -42,34 +66,30 @@ vi.mock('@/lib/pipeline/logger', () => ({
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn() }))
 
 import { authenticateRead, authenticateWrite, parseBody } from '@/lib/pipeline/helpers'
-import { BRollAssetCreateSchema, BRollAssetUpdateSchema } from '@/lib/pipeline/broll-schemas'
-import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import {
+  getBRollAsset,
+  updateBRollAsset,
+  retireBRollAsset,
+  createBRollAsset,
+} from '@/lib/pipeline/services/broll'
 
 function mockAuthRead() {
   vi.mocked(authenticateRead).mockResolvedValue({
     ok: true, auth: { siteId: MOCK_SITE_ID, permissions: ['read', 'write'], source: 'api_key' as const, keyHash: 'test' },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any)
 }
 function mockAuthWrite() {
   vi.mocked(authenticateWrite).mockResolvedValue({
     ok: true, auth: { siteId: MOCK_SITE_ID, permissions: ['read', 'write'], source: 'api_key' as const, keyHash: 'test' },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any)
 }
 function mockAuthFail(mode: 'read' | 'write' = 'read') {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const resp = new Response(JSON.stringify({ error: { code: 'UNAUTHORIZED' } }), { status: 401 }) as any
   if (mode === 'read') vi.mocked(authenticateRead).mockResolvedValue(resp)
   else vi.mocked(authenticateWrite).mockResolvedValue(resp)
-}
-
-function createMockChain(finalResult: { data?: unknown; error?: unknown; count?: number | null }) {
-  const chain: Record<string, any> = {}
-  for (const m of ['from', 'select', 'insert', 'update', 'delete', 'eq', 'is', 'in', 'or', 'order', 'limit', 'not', 'neq', 'contains', 'ilike', 'textSearch']) {
-    chain[m] = vi.fn().mockReturnValue(chain)
-  }
-  chain.single = vi.fn().mockResolvedValue({ data: finalResult.data, error: finalResult.error })
-  chain.maybeSingle = vi.fn().mockResolvedValue({ data: finalResult.data, error: finalResult.error })
-  chain.then = (resolve: (v: any) => any) => resolve({ data: finalResult.data, error: finalResult.error, count: finalResult.count ?? null })
-  return chain
 }
 
 function makeParams(id: string) { return { params: Promise.resolve({ id }) } }
@@ -98,9 +118,9 @@ describe('GET /api/pipeline/broll-library/[id]', () => {
 
   it('returns 404 when asset not found', async () => {
     mockAuthRead()
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockReturnValue(createMockChain({ data: null, error: { code: 'PGRST116' } })),
-    } as any)
+    vi.mocked(getBRollAsset).mockRejectedValue(
+      new PipelineServiceError('NOT_FOUND', 'Asset not found', 404),
+    )
     const res = await GET(new NextRequest('http://localhost/x'), makeParams(MOCK_ASSET_ID))
     expect(res.status).toBe(404)
   })
@@ -109,15 +129,9 @@ describe('GET /api/pipeline/broll-library/[id]', () => {
     mockAuthRead()
     const asset = { id: MOCK_ASSET_ID, original_filename: 'test.mp4', type: 'footage' }
     const usage = [{ id: 'u1', pipeline_item_id: 'p1', usage_type: 'broll' }]
-
-    let callCount = 0
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockImplementation(() => {
-        callCount++
-        if (callCount === 1) return createMockChain({ data: asset })
-        return createMockChain({ data: usage })
-      }),
-    } as any)
+    vi.mocked(getBRollAsset).mockResolvedValue({
+      data: { ...asset, usage },
+    } as never)
 
     const res = await GET(new NextRequest('http://localhost/x'), makeParams(MOCK_ASSET_ID))
     expect(res.status).toBe(200)
@@ -149,9 +163,9 @@ describe('PATCH /api/pipeline/broll-library/[id]', () => {
   it('rejects invalid body', async () => {
     mockAuthWrite()
     vi.mocked(parseBody).mockResolvedValue({ version: 1, description: 'x' })
-    vi.mocked(BRollAssetUpdateSchema.safeParse).mockReturnValue({
-      success: false, error: { issues: [{ message: 'Invalid field' }] },
-    } as any)
+    vi.mocked(updateBRollAsset).mockRejectedValue(
+      new PipelineServiceError('VALIDATION_ERROR', 'Invalid field', 400),
+    )
     const req = new NextRequest('http://localhost/x', {
       method: 'PATCH', body: '{}', headers: { 'Content-Type': 'application/json' },
     })
@@ -162,13 +176,9 @@ describe('PATCH /api/pipeline/broll-library/[id]', () => {
   it('returns 404 when asset not found during OCC', async () => {
     mockAuthWrite()
     vi.mocked(parseBody).mockResolvedValue({ version: 1, description: 'Updated' })
-    vi.mocked(BRollAssetUpdateSchema.safeParse).mockReturnValue({
-      success: true, data: { version: 1, description: 'Updated' },
-    } as any)
-
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockReturnValue(createMockChain({ data: null })),
-    } as any)
+    vi.mocked(updateBRollAsset).mockRejectedValue(
+      new PipelineServiceError('NOT_FOUND', 'Asset not found', 404),
+    )
 
     const req = new NextRequest('http://localhost/x', {
       method: 'PATCH', body: '{}', headers: { 'Content-Type': 'application/json' },
@@ -180,18 +190,9 @@ describe('PATCH /api/pipeline/broll-library/[id]', () => {
   it('returns 409 on version mismatch', async () => {
     mockAuthWrite()
     vi.mocked(parseBody).mockResolvedValue({ version: 1, description: 'Updated' })
-    vi.mocked(BRollAssetUpdateSchema.safeParse).mockReturnValue({
-      success: true, data: { version: 1, description: 'Updated' },
-    } as any)
-
-    let callCount = 0
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockImplementation(() => {
-        callCount++
-        if (callCount >= 2) return createMockChain({ data: { id: MOCK_ASSET_ID, version: 5 } })
-        return createMockChain({ data: null })
-      }),
-    } as any)
+    vi.mocked(updateBRollAsset).mockRejectedValue(
+      new PipelineServiceError('CONFLICT', 'Version mismatch: expected 1, current 5', 409),
+    )
 
     const req = new NextRequest('http://localhost/x', {
       method: 'PATCH', body: '{}', headers: { 'Content-Type': 'application/json' },
@@ -203,14 +204,8 @@ describe('PATCH /api/pipeline/broll-library/[id]', () => {
   it('updates asset successfully', async () => {
     mockAuthWrite()
     vi.mocked(parseBody).mockResolvedValue({ version: 1, description: 'Updated' })
-    vi.mocked(BRollAssetUpdateSchema.safeParse).mockReturnValue({
-      success: true, data: { version: 1, description: 'Updated' },
-    } as any)
-
     const updated = { id: MOCK_ASSET_ID, version: 2, description: 'Updated' }
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockReturnValue(createMockChain({ data: updated })),
-    } as any)
+    vi.mocked(updateBRollAsset).mockResolvedValue({ data: updated } as never)
 
     const req = new NextRequest('http://localhost/x', {
       method: 'PATCH', body: '{}', headers: { 'Content-Type': 'application/json' },
@@ -248,9 +243,9 @@ describe('DELETE /api/pipeline/broll-library/[id]', () => {
 
   it('returns 404 when asset not found', async () => {
     mockAuthWrite()
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockReturnValue(createMockChain({ data: null, error: { message: 'not found' } })),
-    } as any)
+    vi.mocked(retireBRollAsset).mockRejectedValue(
+      new PipelineServiceError('NOT_FOUND', 'Asset not found', 404),
+    )
     const req = new NextRequest('http://localhost/x', { method: 'DELETE' })
     const res = await DELETE(req, makeParams(MOCK_ASSET_ID))
     expect(res.status).toBe(404)
@@ -259,9 +254,7 @@ describe('DELETE /api/pipeline/broll-library/[id]', () => {
   it('soft-deletes (retires) asset successfully', async () => {
     mockAuthWrite()
     const data = { id: MOCK_ASSET_ID, status: 'retired' }
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockReturnValue(createMockChain({ data })),
-    } as any)
+    vi.mocked(retireBRollAsset).mockResolvedValue({ data } as never)
     const req = new NextRequest('http://localhost/x', { method: 'DELETE' })
     const res = await DELETE(req, makeParams(MOCK_ASSET_ID))
     expect(res.status).toBe(200)
@@ -294,9 +287,9 @@ describe('POST /api/pipeline/broll-library', () => {
   it('rejects invalid body', async () => {
     mockAuthWrite()
     vi.mocked(parseBody).mockResolvedValue({})
-    vi.mocked(BRollAssetCreateSchema.safeParse).mockReturnValue({
-      success: false, error: { issues: [{ message: 'Missing required fields' }] },
-    } as any)
+    vi.mocked(createBRollAsset).mockRejectedValue(
+      new PipelineServiceError('VALIDATION_ERROR', 'Missing required fields', 400),
+    )
     const req = new NextRequest('http://localhost/x', {
       method: 'POST', body: '{}', headers: { 'Content-Type': 'application/json' },
     })
@@ -306,7 +299,7 @@ describe('POST /api/pipeline/broll-library', () => {
 
   it('returns 409 on duplicate SHA256', async () => {
     mockAuthWrite()
-    const assetData = {
+    vi.mocked(parseBody).mockResolvedValue({
       asset_id: 'broll-001',
       original_filename: 'test.mp4',
       sha256: 'abc123def456',
@@ -314,14 +307,10 @@ describe('POST /api/pipeline/broll-library', () => {
       type: 'footage',
       source: 'camera-a',
       source_type: 'pessoal',
-    }
-    vi.mocked(parseBody).mockResolvedValue(assetData)
-    vi.mocked(BRollAssetCreateSchema.safeParse).mockReturnValue({
-      success: true, data: assetData,
-    } as any)
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockReturnValue(createMockChain({ data: null, error: { code: '23505', message: 'duplicate' } })),
-    } as any)
+    })
+    vi.mocked(createBRollAsset).mockRejectedValue(
+      new PipelineServiceError('CONFLICT', 'Asset with this ID or SHA256 already exists', 409),
+    )
     const req = new NextRequest('http://localhost/x', {
       method: 'POST', body: '{}', headers: { 'Content-Type': 'application/json' },
     })
@@ -341,13 +330,8 @@ describe('POST /api/pipeline/broll-library', () => {
       source_type: 'pessoal',
     }
     vi.mocked(parseBody).mockResolvedValue(assetData)
-    vi.mocked(BRollAssetCreateSchema.safeParse).mockReturnValue({
-      success: true, data: assetData,
-    } as any)
     const created = { id: MOCK_ASSET_ID, ...assetData, version: 1 }
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockReturnValue(createMockChain({ data: created })),
-    } as any)
+    vi.mocked(createBRollAsset).mockResolvedValue({ data: created, status: 201 } as never)
     const req = new NextRequest('http://localhost/x', {
       method: 'POST', body: '{}', headers: { 'Content-Type': 'application/json' },
     })

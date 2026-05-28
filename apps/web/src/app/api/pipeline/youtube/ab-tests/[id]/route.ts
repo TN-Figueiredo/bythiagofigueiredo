@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
-import { authenticateRead, pipelineError, pipelineSuccess } from '@/lib/pipeline/helpers'
-import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { authenticateRead, pipelineSuccess } from '@/lib/pipeline/helpers'
+import { authToServiceContext, serviceErrorToResponse } from '@/lib/pipeline/services/http-adapter'
+import { getAbTest } from '@/lib/pipeline/services/youtube'
 
 export async function GET(
   req: NextRequest,
@@ -11,21 +12,12 @@ export async function GET(
   const { auth } = result
 
   const { id } = await params
-  const supabase = getSupabaseServiceClient()
 
-  const { data: test, error } = await supabase
-    .from('ab_tests')
-    .select(`
-      *,
-      variants:ab_test_variants!test_id(*),
-      cycles:ab_test_cycles!test_id(*),
-      tracked_links:ab_test_tracked_links!ab_test_id(*)
-    `)
-    .eq('id', id)
-    .eq('site_id', auth.siteId)
-    .single()
-
-  if (error || !test) return pipelineError('NOT_FOUND', 'Test not found', 404, auth)
-
-  return pipelineSuccess(test, 200, auth)
+  try {
+    const ctx = authToServiceContext(auth)
+    const test = await getAbTest(ctx, id)
+    return pipelineSuccess(test, 200, auth)
+  } catch (err) {
+    return serviceErrorToResponse(err, auth)
+  }
 }

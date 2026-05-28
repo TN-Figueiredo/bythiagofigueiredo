@@ -1,6 +1,7 @@
 import { type NextRequest } from 'next/server'
-import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { authenticateWrite, pipelineError, pipelineSuccess } from '@/lib/pipeline/helpers'
+import { authenticateWrite, pipelineSuccess } from '@/lib/pipeline/helpers'
+import { authToServiceContext, serviceErrorToResponse } from '@/lib/pipeline/services/http-adapter'
+import { deleteEdgeService } from '@/lib/pipeline/services/playlists'
 
 export async function DELETE(
   req: NextRequest,
@@ -11,30 +12,10 @@ export async function DELETE(
   const { auth } = result
   const { id: playlistId, edgeId } = await params
 
-  const supabase = getSupabaseServiceClient()
-
-  const { data: playlist } = await supabase
-    .from('playlists')
-    .select('id')
-    .eq('id', playlistId)
-    .eq('site_id', auth.siteId)
-    .maybeSingle()
-  if (!playlist) return pipelineError('NOT_FOUND', 'Playlist not found', 404, auth)
-
-  const { data: edge } = await supabase
-    .from('playlist_edges')
-    .select('id')
-    .eq('id', edgeId)
-    .eq('playlist_id', playlistId)
-    .maybeSingle()
-  if (!edge) return pipelineError('NOT_FOUND', 'Edge not found in playlist', 404, auth)
-
-  const { error } = await supabase
-    .from('playlist_edges')
-    .delete()
-    .eq('id', edgeId)
-
-  if (error) return pipelineError('DB_ERROR', 'Failed to delete edge', 500, auth)
-
-  return pipelineSuccess({ deleted: true }, 200, auth)
+  try {
+    const data = await deleteEdgeService(authToServiceContext(auth), playlistId, edgeId)
+    return pipelineSuccess(data, 200, auth)
+  } catch (err) {
+    return serviceErrorToResponse(err, auth)
+  }
 }

@@ -1,5 +1,28 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
+import { PipelineServiceError } from '@/lib/pipeline/services/types'
+
+// ─── Mocks ────────────────────────────────────────────────────────────────────
+
+vi.mock('@/lib/pipeline/services/audio', () => ({
+  getAudioAsset: vi.fn(),
+  updateAudioAsset: vi.fn(),
+  retireAudioAsset: vi.fn(),
+}))
+
+vi.mock('@/lib/pipeline/services/http-adapter', () => ({
+  authToServiceContext: vi.fn().mockReturnValue({
+    siteId: 'site-1',
+    permissions: ['read', 'write'],
+    supabase: {},
+  }),
+  serviceErrorToResponse: vi.fn().mockImplementation((err: unknown) => {
+    if (err instanceof PipelineServiceError) {
+      return new Response(JSON.stringify({ error: { code: err.code, message: err.message } }), { status: err.status })
+    }
+    return new Response(JSON.stringify({ error: { code: 'INTERNAL_ERROR', message: 'unexpected' } }), { status: 500 })
+  }),
+}))
 
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn() }))
 vi.mock('@/lib/pipeline/auth', () => ({
@@ -11,7 +34,7 @@ vi.mock('@/lib/pipeline/auth', () => ({
 
 import { GET, PATCH, DELETE } from '@/app/api/pipeline/audio-library/[id]/route'
 import { authenticatePipeline, requirePermission } from '@/lib/pipeline/auth'
-import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { getAudioAsset, updateAudioAsset, retireAudioAsset } from '@/lib/pipeline/services/audio'
 
 const VALID_ID = '00000000-0000-0000-0000-000000000001'
 const mockAuth = { ok: true as const, auth: { siteId: 'site-1', permissions: ['read', 'write'], source: 'session' as const } }
@@ -24,28 +47,16 @@ beforeEach(() => {
 
 describe('GET /:id', () => {
   it('returns asset with usage data', async () => {
-    const asset = { id: VALID_ID, asset_id: 'M1', type: 'music', version: 1 }
-    const chain = {
-      from: vi.fn().mockImplementation((table: string) => ({
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({ data: table === 'audio_assets' ? asset : null, error: null }),
-      })),
-    }
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
+    const asset = { id: VALID_ID, asset_id: 'M1', type: 'music', version: 1, usage: [] }
+    vi.mocked(getAudioAsset).mockResolvedValue({ data: asset })
     const res = await GET(new NextRequest('http://localhost'), { params: makeParams(VALID_ID) })
     expect(res.status).toBe(200)
   })
 
   it('returns 404 for non-existent asset', async () => {
-    const chain = {
-      from: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({ data: null, error: { code: 'PGRST116' } }),
-      }),
-    }
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
+    vi.mocked(getAudioAsset).mockRejectedValue(
+      new PipelineServiceError('NOT_FOUND', 'Asset not found', 404),
+    )
     const res = await GET(new NextRequest('http://localhost'), { params: makeParams(VALID_ID) })
     expect(res.status).toBe(404)
   })
@@ -61,41 +72,16 @@ describe('GET /:id', () => {
 describe('PATCH /:id', () => {
   it('updates asset with correct version', async () => {
     const updated = { id: VALID_ID, track_name: 'New', version: 2 }
-    const chain = {
-      from: vi.fn().mockReturnValue({
-        update: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        select: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({ data: updated, error: null }),
-      }),
-    }
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
+    vi.mocked(updateAudioAsset).mockResolvedValue({ data: updated })
     const req = new NextRequest('http://localhost', { method: 'PATCH', body: JSON.stringify({ version: 1, track_name: 'New' }) })
     const res = await PATCH(req, { params: makeParams(VALID_ID) })
     expect(res.status).toBe(200)
   })
 
   it('returns 409 on version mismatch', async () => {
-    let callCount = 0
-    const chain = {
-      from: vi.fn().mockImplementation(() => {
-        callCount++
-        if (callCount === 1) {
-          return {
-            update: vi.fn().mockReturnThis(),
-            select: vi.fn().mockReturnThis(),
-            eq: vi.fn().mockReturnThis(),
-            single: vi.fn().mockResolvedValue({ data: null, error: { code: 'PGRST116' } }),
-          }
-        }
-        return {
-          select: vi.fn().mockReturnThis(),
-          eq: vi.fn().mockReturnThis(),
-          single: vi.fn().mockResolvedValue({ data: { id: VALID_ID, version: 3 }, error: null }),
-        }
-      }),
-    }
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
+    vi.mocked(updateAudioAsset).mockRejectedValue(
+      new PipelineServiceError('CONFLICT', 'Version mismatch: expected 1, current 3', 409),
+    )
     const req = new NextRequest('http://localhost', { method: 'PATCH', body: JSON.stringify({ version: 1, track_name: 'X' }) })
     const res = await PATCH(req, { params: makeParams(VALID_ID) })
     expect(res.status).toBe(409)
@@ -111,6 +97,9 @@ describe('PATCH /:id', () => {
   })
 
   it('returns 400 for invalid update schema', async () => {
+    vi.mocked(updateAudioAsset).mockRejectedValue(
+      new PipelineServiceError('VALIDATION_ERROR', 'version must be positive', 400),
+    )
     // version must be positive integer; -1 is invalid
     const req = new NextRequest('http://localhost', { method: 'PATCH', body: JSON.stringify({ version: -1 }) })
     const res = await PATCH(req, { params: makeParams(VALID_ID) })
@@ -120,27 +109,9 @@ describe('PATCH /:id', () => {
   })
 
   it('returns 404 when asset does not exist', async () => {
-    let callCount = 0
-    const chain = {
-      from: vi.fn().mockImplementation(() => {
-        callCount++
-        if (callCount === 1) {
-          return {
-            update: vi.fn().mockReturnThis(),
-            select: vi.fn().mockReturnThis(),
-            eq: vi.fn().mockReturnThis(),
-            single: vi.fn().mockResolvedValue({ data: null, error: { code: 'PGRST116' } }),
-          }
-        }
-        // exists check returns null too
-        return {
-          select: vi.fn().mockReturnThis(),
-          eq: vi.fn().mockReturnThis(),
-          single: vi.fn().mockResolvedValue({ data: null, error: null }),
-        }
-      }),
-    }
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
+    vi.mocked(updateAudioAsset).mockRejectedValue(
+      new PipelineServiceError('NOT_FOUND', 'Asset not found', 404),
+    )
     const req = new NextRequest('http://localhost', { method: 'PATCH', body: JSON.stringify({ version: 1, track_name: 'X' }) })
     const res = await PATCH(req, { params: makeParams(VALID_ID) })
     expect(res.status).toBe(404)
@@ -149,15 +120,7 @@ describe('PATCH /:id', () => {
 
 describe('DELETE /:id', () => {
   it('soft-deletes by setting status to retired', async () => {
-    const chain = {
-      from: vi.fn().mockReturnValue({
-        update: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        select: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({ data: { id: VALID_ID, status: 'retired' }, error: null }),
-      }),
-    }
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
+    vi.mocked(retireAudioAsset).mockResolvedValue({ data: { id: VALID_ID, status: 'retired' } })
     const req = new NextRequest('http://localhost', { method: 'DELETE' })
     const res = await DELETE(req, { params: makeParams(VALID_ID) })
     const json = await res.json()
@@ -172,15 +135,9 @@ describe('DELETE /:id', () => {
   })
 
   it('returns 404 when asset does not exist', async () => {
-    const chain = {
-      from: vi.fn().mockReturnValue({
-        update: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        select: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({ data: null, error: { code: 'PGRST116' } }),
-      }),
-    }
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
+    vi.mocked(retireAudioAsset).mockRejectedValue(
+      new PipelineServiceError('NOT_FOUND', 'Asset not found', 404),
+    )
     const req = new NextRequest('http://localhost', { method: 'DELETE' })
     const res = await DELETE(req, { params: makeParams(VALID_ID) })
     expect(res.status).toBe(404)

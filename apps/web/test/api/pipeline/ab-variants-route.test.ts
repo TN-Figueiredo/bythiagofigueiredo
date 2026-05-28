@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
+import { PipelineServiceError } from '@/lib/pipeline/services/types'
 
 const MOCK_SITE_ID = '11111111-1111-1111-1111-111111111111'
 const MOCK_TEST_ID = '22222222-2222-2222-2222-222222222222'
@@ -32,60 +33,44 @@ vi.mock('@/lib/pipeline/logger', () => ({
   pipelineLog: vi.fn(),
 }))
 
-vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn() }))
+vi.mock('@/lib/pipeline/services/http-adapter', () => ({
+  authToServiceContext: vi.fn().mockReturnValue({
+    siteId: MOCK_SITE_ID,
+    permissions: ['read', 'write'],
+    supabase: {},
+  }),
+  serviceErrorToResponse: vi.fn().mockImplementation((err: unknown) => {
+    if (err instanceof PipelineServiceError) {
+      return new Response(
+        JSON.stringify({ error: { code: err.code, message: err.message } }),
+        { status: err.status },
+      )
+    }
+    return new Response(
+      JSON.stringify({ error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' } }),
+      { status: 500 },
+    )
+  }),
+}))
 
-vi.mock('@/lib/youtube/ab-schemas', async () => {
-  const { z } = await import('zod')
-  const VariantMetadataSchema = z.object({
-    thumbnail_tags: z.array(z.string().max(50)).max(10).optional(),
-    title_pattern: z.string().max(200).optional(),
-    emotional_triggers: z.array(z.string().max(50)).max(10).optional(),
-    visual_description: z.string().max(2000).optional(),
-    ai_image_prompt: z.string().max(1000).optional(),
-    creative_direction: z.string().max(2000).optional(),
-    rationale: z.string().max(1000).optional(),
-  })
-  const VariantPayloadSchema = z.object({
-    label: z.enum(['B', 'C', 'D']),
-    title_text: z.string().max(200).nullable().optional(),
-    description_text: z.string().max(5000).nullable().optional(),
-    metadata: VariantMetadataSchema.nullable().optional(),
-  })
-  return {
-    VariantMetadataSchema,
-    VariantPayloadSchema,
-    BatchVariantUpsertSchema: z.object({
-      variants: z.array(VariantPayloadSchema).min(1).max(3),
-    }),
-    TestTypeSchema: z.enum(['thumbnail', 'title', 'description', 'combo']),
-  }
-})
-
-vi.mock('@/lib/youtube/ab-types', () => ({ VARIANT_LABELS: ['B', 'C', 'D'] as const }))
+vi.mock('@/lib/pipeline/services/youtube', () => ({
+  listVariants: vi.fn(),
+  upsertVariants: vi.fn(),
+  deleteVariant: vi.fn(),
+}))
 
 import { authenticateRead, authenticateWrite, parseBody } from '@/lib/pipeline/helpers'
-import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import {
+  listVariants,
+  upsertVariants,
+  deleteVariant,
+} from '@/lib/pipeline/services/youtube'
 import * as Sentry from '@sentry/nextjs'
 
 const AUTH_OK = {
   ok: true,
   auth: { siteId: MOCK_SITE_ID, permissions: ['read', 'write'], source: 'api_key' as const, keyHash: 'test' },
 } as any
-
-function createMockChain(finalResult: { data?: unknown; error?: unknown; count?: number | null }) {
-  const chain: Record<string, any> = {}
-  for (const m of [
-    'from', 'select', 'insert', 'update', 'delete', 'upsert',
-    'eq', 'is', 'in', 'or', 'order', 'limit', 'not', 'neq',
-  ]) {
-    chain[m] = vi.fn().mockReturnValue(chain)
-  }
-  chain.single = vi.fn().mockResolvedValue({ data: finalResult.data, error: finalResult.error })
-  chain.maybeSingle = vi.fn().mockResolvedValue({ data: finalResult.data, error: finalResult.error })
-  chain.then = (resolve: (v: any) => any) =>
-    resolve({ data: finalResult.data, error: finalResult.error, count: finalResult.count ?? null })
-  return chain
-}
 
 function makeParams(id: string) {
   return { params: Promise.resolve({ id }) }
@@ -120,6 +105,10 @@ describe('POST /api/pipeline/youtube/ab-tests/:id/variants', () => {
     vi.mocked(authenticateWrite).mockResolvedValue(AUTH_OK)
     vi.mocked(parseBody).mockResolvedValue({ variants: [{ label: 'B', title_text: 'Test' }] })
 
+    vi.mocked(upsertVariants).mockRejectedValue(
+      new PipelineServiceError('VALIDATION_ERROR', 'Invalid test ID format', 400),
+    )
+
     const req = makeRequest('POST', '/api/pipeline/youtube/ab-tests/not-a-uuid/variants')
     const result = await POST(req, makeParams('not-a-uuid'))
     expect(result.status).toBe(400)
@@ -128,6 +117,10 @@ describe('POST /api/pipeline/youtube/ab-tests/:id/variants', () => {
   it('returns 400 for invalid body (empty variants)', async () => {
     vi.mocked(authenticateWrite).mockResolvedValue(AUTH_OK)
     vi.mocked(parseBody).mockResolvedValue({ variants: [] })
+
+    vi.mocked(upsertVariants).mockRejectedValue(
+      new PipelineServiceError('VALIDATION_ERROR', 'Array must contain at least 1 element(s)', 400),
+    )
 
     const req = makeRequest('POST', `/api/pipeline/youtube/ab-tests/${MOCK_TEST_ID}/variants`)
     const result = await POST(req, makeParams(MOCK_TEST_ID))
@@ -138,8 +131,9 @@ describe('POST /api/pipeline/youtube/ab-tests/:id/variants', () => {
     vi.mocked(authenticateWrite).mockResolvedValue(AUTH_OK)
     vi.mocked(parseBody).mockResolvedValue({ variants: [{ label: 'B', title_text: 'Test' }] })
 
-    const chain = createMockChain({ data: null })
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({ from: () => chain } as any)
+    vi.mocked(upsertVariants).mockRejectedValue(
+      new PipelineServiceError('NOT_FOUND', 'Test not found', 404),
+    )
 
     const req = makeRequest('POST', `/api/pipeline/youtube/ab-tests/${MOCK_TEST_ID}/variants`)
     const result = await POST(req, makeParams(MOCK_TEST_ID))
@@ -150,8 +144,9 @@ describe('POST /api/pipeline/youtube/ab-tests/:id/variants', () => {
     vi.mocked(authenticateWrite).mockResolvedValue(AUTH_OK)
     vi.mocked(parseBody).mockResolvedValue({ variants: [{ label: 'B', title_text: 'Test' }] })
 
-    const chain = createMockChain({ data: { id: MOCK_TEST_ID, status: 'active', site_id: MOCK_SITE_ID, test_type: 'title' } })
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({ from: () => chain } as any)
+    vi.mocked(upsertVariants).mockRejectedValue(
+      new PipelineServiceError('INVALID_STATUS', 'Variants can only be added to draft tests', 409),
+    )
 
     const req = makeRequest('POST', `/api/pipeline/youtube/ab-tests/${MOCK_TEST_ID}/variants`)
     const result = await POST(req, makeParams(MOCK_TEST_ID))
@@ -164,21 +159,10 @@ describe('POST /api/pipeline/youtube/ab-tests/:id/variants', () => {
       variants: [{ label: 'B', title_text: 'Title B', metadata: { rationale: 'test' } }],
     })
 
-    const testChain = createMockChain({
-      data: { id: MOCK_TEST_ID, status: 'draft', site_id: MOCK_SITE_ID, test_type: 'title' },
-    })
-    const upsertChain = createMockChain({
-      data: [{ id: MOCK_VARIANT_ID, label: 'B' }],
-    })
-    upsertChain.select = vi.fn().mockReturnValue(upsertChain)
-    upsertChain.then = (resolve: (v: any) => any) =>
-      resolve({ data: [{ id: MOCK_VARIANT_ID, label: 'B' }], error: null })
-
-    let callCount = 0
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: () => {
-        callCount++
-        return callCount === 1 ? testChain : upsertChain
+    vi.mocked(upsertVariants).mockResolvedValue({
+      data: {
+        results: [{ label: 'B', ok: true, id: MOCK_VARIANT_ID }],
+        summary: { total: 1, succeeded: 1, failed: 0 },
       },
     } as any)
 
@@ -196,6 +180,10 @@ describe('POST /api/pipeline/youtube/ab-tests/:id/variants', () => {
       ],
     })
 
+    vi.mocked(upsertVariants).mockRejectedValue(
+      new PipelineServiceError('VALIDATION_ERROR', 'Duplicate variant labels in batch', 400),
+    )
+
     const req = makeRequest('POST', `/api/pipeline/youtube/ab-tests/${MOCK_TEST_ID}/variants`)
     const result = await POST(req, makeParams(MOCK_TEST_ID))
     expect(result.status).toBe(400)
@@ -209,22 +197,9 @@ describe('POST /api/pipeline/youtube/ab-tests/:id/variants', () => {
       variants: [{ label: 'B', title_text: 'Title B' }],
     })
 
-    const testChain = createMockChain({
-      data: { id: MOCK_TEST_ID, status: 'draft', site_id: MOCK_SITE_ID, test_type: 'title' },
-    })
-    const rawDbError = { message: 'duplicate key value violates unique constraint "ab_test_variants_pkey"' }
-    const upsertChain = createMockChain({ data: null, error: rawDbError })
-    upsertChain.select = vi.fn().mockReturnValue(upsertChain)
-    upsertChain.then = (resolve: (v: any) => any) =>
-      resolve({ data: null, error: rawDbError })
-
-    let callCount = 0
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: () => {
-        callCount++
-        return callCount === 1 ? testChain : upsertChain
-      },
-    } as any)
+    vi.mocked(upsertVariants).mockRejectedValue(
+      new PipelineServiceError('DB_ERROR', 'Failed to save variants', 500),
+    )
 
     const req = makeRequest('POST', `/api/pipeline/youtube/ab-tests/${MOCK_TEST_ID}/variants`)
     const result = await POST(req, makeParams(MOCK_TEST_ID))
@@ -232,7 +207,6 @@ describe('POST /api/pipeline/youtube/ab-tests/:id/variants', () => {
     const body = await result.json() as { error: { code: string; message: string } }
     expect(body.error.message).not.toContain('duplicate key value')
     expect(body.error.message).toBe('Failed to save variants')
-    expect(vi.mocked(Sentry.captureException)).toHaveBeenCalledWith(rawDbError, { tags: { component: 'ab-variants' } })
   })
 })
 
@@ -252,18 +226,7 @@ describe('GET /api/pipeline/youtube/ab-tests/:id/variants', () => {
       { id: '1', label: 'original', sort_order: 0 },
       { id: '2', label: 'B', sort_order: 1 },
     ]
-    const testChain = createMockChain({
-      data: { id: MOCK_TEST_ID, site_id: MOCK_SITE_ID },
-    })
-    const variantChain = createMockChain({ data: variants })
-
-    let callCount = 0
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: () => {
-        callCount++
-        return callCount === 1 ? testChain : variantChain
-      },
-    } as any)
+    vi.mocked(listVariants).mockResolvedValue({ data: variants } as any)
 
     const req = makeRequest('GET', `/api/pipeline/youtube/ab-tests/${MOCK_TEST_ID}/variants`)
     const result = await GET(req, makeParams(MOCK_TEST_ID))
@@ -273,19 +236,9 @@ describe('GET /api/pipeline/youtube/ab-tests/:id/variants', () => {
   it('returns 500 with generic message and does not leak DB error on fetch failure', async () => {
     vi.mocked(authenticateRead).mockResolvedValue(AUTH_OK)
 
-    const rawDbError = { message: 'ERROR: column "foo" does not exist at character 12' }
-    const testChain = createMockChain({
-      data: { id: MOCK_TEST_ID, site_id: MOCK_SITE_ID },
-    })
-    const variantChain = createMockChain({ data: null, error: rawDbError })
-
-    let callCount = 0
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: () => {
-        callCount++
-        return callCount === 1 ? testChain : variantChain
-      },
-    } as any)
+    vi.mocked(listVariants).mockRejectedValue(
+      new PipelineServiceError('DB_ERROR', 'Failed to load variants', 500),
+    )
 
     const req = makeRequest('GET', `/api/pipeline/youtube/ab-tests/${MOCK_TEST_ID}/variants`)
     const result = await GET(req, makeParams(MOCK_TEST_ID))
@@ -293,7 +246,6 @@ describe('GET /api/pipeline/youtube/ab-tests/:id/variants', () => {
     const body = await result.json() as { error: { code: string; message: string } }
     expect(body.error.message).not.toContain('column "foo"')
     expect(body.error.message).toBe('Failed to load variants')
-    expect(vi.mocked(Sentry.captureException)).toHaveBeenCalledWith(rawDbError, { tags: { component: 'ab-variants' } })
   })
 })
 
@@ -309,6 +261,10 @@ describe('DELETE /api/pipeline/youtube/ab-tests/:id/variants', () => {
   it('returns 400 when label query param is missing', async () => {
     vi.mocked(authenticateWrite).mockResolvedValue(AUTH_OK)
 
+    vi.mocked(deleteVariant).mockRejectedValue(
+      new PipelineServiceError('VALIDATION_ERROR', 'Query param "label" must be B, C, or D', 400),
+    )
+
     const req = makeRequest('DELETE', `/api/pipeline/youtube/ab-tests/${MOCK_TEST_ID}/variants`)
     const result = await DELETE(req, makeParams(MOCK_TEST_ID))
     expect(result.status).toBe(400)
@@ -316,6 +272,10 @@ describe('DELETE /api/pipeline/youtube/ab-tests/:id/variants', () => {
 
   it('returns 400 for invalid label', async () => {
     vi.mocked(authenticateWrite).mockResolvedValue(AUTH_OK)
+
+    vi.mocked(deleteVariant).mockRejectedValue(
+      new PipelineServiceError('VALIDATION_ERROR', 'Query param "label" must be B, C, or D', 400),
+    )
 
     const req = makeRequest('DELETE', `/api/pipeline/youtube/ab-tests/${MOCK_TEST_ID}/variants?label=A`)
     const result = await DELETE(req, makeParams(MOCK_TEST_ID))

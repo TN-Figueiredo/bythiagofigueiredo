@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
+import { PipelineServiceError } from '@/lib/pipeline/services/types'
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -15,40 +16,45 @@ vi.mock('@/lib/pipeline/helpers', () => ({
   ),
 }))
 
-vi.mock('@/lib/supabase/service', () => ({
-  getSupabaseServiceClient: vi.fn(),
+vi.mock('@/lib/pipeline/services/http-adapter', () => ({
+  authToServiceContext: vi.fn().mockReturnValue({
+    siteId: 'site-1',
+    permissions: ['read', 'write'],
+    supabase: {},
+  }),
+  serviceErrorToResponse: vi.fn().mockImplementation((err: unknown) => {
+    if (err instanceof PipelineServiceError) {
+      return new Response(
+        JSON.stringify({ error: { code: err.code, message: err.message } }),
+        { status: err.status },
+      )
+    }
+    return new Response(
+      JSON.stringify({ error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' } }),
+      { status: 500 },
+    )
+  }),
+}))
+
+vi.mock('@/lib/pipeline/services/youtube', () => ({
+  listAbTests: vi.fn(),
+  getAbTest: vi.fn(),
+  getAbTestFunnel: vi.fn(),
+  getAbPerformance: vi.fn(),
 }))
 
 import { authenticateRead, pipelineError, pipelineSuccess } from '@/lib/pipeline/helpers'
-import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import {
+  listAbTests,
+  getAbTest,
+  getAbTestFunnel,
+  getAbPerformance,
+} from '@/lib/pipeline/services/youtube'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function createRequest(url: string) {
   return new NextRequest(new URL(url, 'http://localhost:3000'))
-}
-
-function createMockChain(finalResult: { data?: unknown; error?: unknown }) {
-  const chain: Record<string, any> = {}
-  const methods = [
-    'from',
-    'select',
-    'eq',
-    'in',
-    'not',
-    'is',
-    'order',
-    'limit',
-    'single',
-    'filter',
-    'maybeSingle',
-  ]
-  for (const m of methods) {
-    chain[m] = vi.fn().mockReturnValue(chain)
-  }
-  // Terminal awaiting resolves to finalResult
-  chain.then = (resolve: (v: any) => any) => resolve(finalResult)
-  return chain
 }
 
 function mockAuthSuccess() {
@@ -92,18 +98,13 @@ describe('GET /api/pipeline/youtube/ab-tests', () => {
       { id: '1', name: 'Test A', status: 'active' },
       { id: '2', name: 'Test B', status: 'completed' },
     ]
-    const chain = createMockChain({ data: tests, error: null })
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({ from: chain.from } as any)
-    chain.from.mockReturnValue(chain)
+    vi.mocked(listAbTests).mockResolvedValue({ data: tests } as any)
 
     const req = createRequest('/api/pipeline/youtube/ab-tests')
     const res = await GET(req)
 
-    expect(chain.from).toHaveBeenCalledWith('ab_tests')
-    expect(chain.select).toHaveBeenCalled()
-    expect(chain.order).toHaveBeenCalledWith('created_at', { ascending: false })
-    expect(chain.eq).toHaveBeenCalledWith('site_id', 'site-1')
-    expect(pipelineSuccess).toHaveBeenCalledWith(tests, 200, { keyId: 'test-key', siteId: 'site-1' })
+    expect(listAbTests).toHaveBeenCalled()
+    expect(pipelineSuccess).toHaveBeenCalledWith({ data: tests }, 200, { keyId: 'test-key', siteId: 'site-1' })
     expect(res.status).toBe(200)
   })
 
@@ -111,15 +112,14 @@ describe('GET /api/pipeline/youtube/ab-tests', () => {
     mockAuthSuccess()
 
     const tests = [{ id: '1', name: 'Test A', status: 'active' }]
-    const chain = createMockChain({ data: tests, error: null })
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({ from: chain.from } as any)
-    chain.from.mockReturnValue(chain)
+    vi.mocked(listAbTests).mockResolvedValue({ data: tests } as any)
 
     const req = createRequest('/api/pipeline/youtube/ab-tests?status=active')
     const res = await GET(req)
 
-    expect(chain.eq).toHaveBeenCalledWith('status', 'active')
-    expect(pipelineSuccess).toHaveBeenCalledWith(tests, 200, { keyId: 'test-key', siteId: 'site-1' })
+    // The route passes the status as AbTestFilters to the service function
+    expect(listAbTests).toHaveBeenCalledWith(expect.anything(), { status: 'active' })
+    expect(pipelineSuccess).toHaveBeenCalledWith({ data: tests }, 200, { keyId: 'test-key', siteId: 'site-1' })
     expect(res.status).toBe(200)
   })
 })
@@ -140,14 +140,13 @@ describe('GET /api/pipeline/youtube/ab-tests/[id]', () => {
   it('returns 404 when test not found', async () => {
     mockAuthSuccess()
 
-    const chain = createMockChain({ data: null, error: { message: 'not found' } })
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({ from: chain.from } as any)
-    chain.from.mockReturnValue(chain)
+    vi.mocked(getAbTest).mockRejectedValue(
+      new PipelineServiceError('NOT_FOUND', 'Test not found', 404),
+    )
 
     const req = createRequest('/api/pipeline/youtube/ab-tests/missing-id')
     const res = await GET(req, { params: Promise.resolve({ id: 'missing-id' }) })
 
-    expect(pipelineError).toHaveBeenCalledWith('NOT_FOUND', 'Test not found', 404, { keyId: 'test-key', siteId: 'site-1' })
     expect(res.status).toBe(404)
   })
 
@@ -161,17 +160,13 @@ describe('GET /api/pipeline/youtube/ab-tests/[id]', () => {
       cycles: [{ id: 'c1', variant_id: 'v1' }],
       tracked_links: [{ id: 'tl1', link_id: 'link-1' }],
     }
-    const chain = createMockChain({ data: test, error: null })
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({ from: chain.from } as any)
-    chain.from.mockReturnValue(chain)
+    vi.mocked(getAbTest).mockResolvedValue({ data: test } as any)
 
     const req = createRequest('/api/pipeline/youtube/ab-tests/test-1')
     const res = await GET(req, { params: Promise.resolve({ id: 'test-1' }) })
 
-    expect(chain.eq).toHaveBeenCalledWith('id', 'test-1')
-    expect(chain.eq).toHaveBeenCalledWith('site_id', 'site-1')
-    expect(chain.single).toHaveBeenCalled()
-    expect(pipelineSuccess).toHaveBeenCalledWith(test, 200, { keyId: 'test-key', siteId: 'site-1' })
+    expect(getAbTest).toHaveBeenCalledWith(expect.anything(), 'test-1')
+    expect(pipelineSuccess).toHaveBeenCalledWith({ data: test }, 200, { keyId: 'test-key', siteId: 'site-1' })
     expect(res.status).toBe(200)
   })
 })
@@ -192,55 +187,30 @@ describe('GET /api/pipeline/youtube/ab-tests/[id]/funnel', () => {
   it('returns 404 when test not found', async () => {
     mockAuthSuccess()
 
-    const chain = createMockChain({ data: null, error: null })
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({ from: chain.from } as any)
-    chain.from.mockReturnValue(chain)
+    vi.mocked(getAbTestFunnel).mockRejectedValue(
+      new PipelineServiceError('NOT_FOUND', 'Test not found', 404),
+    )
 
     const req = createRequest('/api/pipeline/youtube/ab-tests/missing-id/funnel')
     const res = await GET(req, { params: Promise.resolve({ id: 'missing-id' }) })
 
-    expect(pipelineError).toHaveBeenCalledWith('NOT_FOUND', 'Test not found', 404, { keyId: 'test-key', siteId: 'site-1' })
     expect(res.status).toBe(404)
   })
 
   it('returns per_variant and per_link funnel data correctly aggregated', async () => {
     mockAuthSuccess()
 
-    // We need multiple chained from() calls returning different results
-    let fromCallCount = 0
-    const testChain = createMockChain({ data: { id: 'test-1', site_id: 'site-1' }, error: null })
-    const trackedLinksChain = createMockChain({
-      data: [
-        { link_id: 'link-1', variant_id: 'v1', template_name: 'cta', short_code: 'abc' },
-        { link_id: 'link-2', variant_id: 'v2', template_name: 'cta', short_code: 'def' },
+    const funnelData = {
+      per_variant: [
+        { variant_id: 'v1', impressions: 150, clicks: 15, link_clicks: 7 },
+        { variant_id: 'v2', impressions: 200, clicks: 30, link_clicks: 20 },
       ],
-      error: null,
-    })
-    const cyclesChain = createMockChain({
-      data: [
-        { variant_id: 'v1', impressions: 100, clicks: 10 },
-        { variant_id: 'v1', impressions: 50, clicks: 5 },
-        { variant_id: 'v2', impressions: 200, clicks: 30 },
+      per_link: [
+        { template_name: 'cta', variant_id: 'v1', short_code: 'abc', clicks: 7 },
+        { template_name: 'cta', variant_id: 'v2', short_code: 'def', clicks: 20 },
       ],
-      error: null,
-    })
-    const clickAggsChain = createMockChain({
-      data: [
-        { link_id: 'link-1', total_clicks: 7 },
-        { link_id: 'link-2', total_clicks: 20 },
-      ],
-      error: null,
-    })
-
-    const chains = [testChain, trackedLinksChain, cyclesChain, clickAggsChain]
-
-    const mockFrom = vi.fn().mockImplementation(() => {
-      const chain = chains[fromCallCount]
-      fromCallCount++
-      return chain
-    })
-
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({ from: mockFrom } as any)
+    }
+    vi.mocked(getAbTestFunnel).mockResolvedValue({ data: funnelData } as any)
 
     const req = createRequest('/api/pipeline/youtube/ab-tests/test-1/funnel')
     const res = await GET(req, { params: Promise.resolve({ id: 'test-1' }) })
@@ -248,14 +218,16 @@ describe('GET /api/pipeline/youtube/ab-tests/[id]/funnel', () => {
     expect(res.status).toBe(200)
     expect(pipelineSuccess).toHaveBeenCalledWith(
       {
-        per_variant: expect.arrayContaining([
-          { variant_id: 'v1', impressions: 150, clicks: 15, link_clicks: 7 },
-          { variant_id: 'v2', impressions: 200, clicks: 30, link_clicks: 20 },
-        ]),
-        per_link: expect.arrayContaining([
-          { template_name: 'cta', variant_id: 'v1', short_code: 'abc', clicks: 7 },
-          { template_name: 'cta', variant_id: 'v2', short_code: 'def', clicks: 20 },
-        ]),
+        data: {
+          per_variant: expect.arrayContaining([
+            { variant_id: 'v1', impressions: 150, clicks: 15, link_clicks: 7 },
+            { variant_id: 'v2', impressions: 200, clicks: 30, link_clicks: 20 },
+          ]),
+          per_link: expect.arrayContaining([
+            { template_name: 'cta', variant_id: 'v1', short_code: 'abc', clicks: 7 },
+            { template_name: 'cta', variant_id: 'v2', short_code: 'def', clicks: 20 },
+          ]),
+        },
       },
       200,
       { keyId: 'test-key', siteId: 'site-1' },
@@ -279,40 +251,15 @@ describe('GET /api/pipeline/youtube/ab-performance', () => {
   it('returns winning patterns and tags from completed tests', async () => {
     mockAuthSuccess()
 
-    const completedTests = [
-      {
-        id: 't1',
-        name: 'Test 1',
-        test_type: 'thumbnail',
-        confidence_at_completion: 0.95,
-        result_metadata: {},
-        winner: {
-          id: 'v1',
-          label: 'Bold thumbnail',
-          title_text: null,
-          description_text: null,
-          metadata: { title_pattern: 'question', thumbnail_tags: ['bold', 'face'] },
-        },
+    const perfData = {
+      completed_tests: 2,
+      winning_patterns: { question: 2 },
+      winning_tags: {
+        bold: { wins: 2, tests: 2 },
+        face: { wins: 1, tests: 1 },
       },
-      {
-        id: 't2',
-        name: 'Test 2',
-        test_type: 'title',
-        confidence_at_completion: 0.92,
-        result_metadata: {},
-        winner: {
-          id: 'v2',
-          label: 'Question title',
-          title_text: 'Is this real?',
-          description_text: null,
-          metadata: { title_pattern: 'question', thumbnail_tags: ['bold'] },
-        },
-      },
-    ]
-
-    const chain = createMockChain({ data: completedTests, error: null })
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({ from: chain.from } as any)
-    chain.from.mockReturnValue(chain)
+    }
+    vi.mocked(getAbPerformance).mockResolvedValue({ data: perfData } as any)
 
     const req = createRequest('/api/pipeline/youtube/ab-performance')
     const res = await GET(req)
@@ -320,11 +267,13 @@ describe('GET /api/pipeline/youtube/ab-performance', () => {
     expect(res.status).toBe(200)
     expect(pipelineSuccess).toHaveBeenCalledWith(
       {
-        completed_tests: 2,
-        winning_patterns: { question: 2 },
-        winning_tags: {
-          bold: { wins: 2, tests: 2 },
-          face: { wins: 1, tests: 1 },
+        data: {
+          completed_tests: 2,
+          winning_patterns: { question: 2 },
+          winning_tags: {
+            bold: { wins: 2, tests: 2 },
+            face: { wins: 1, tests: 1 },
+          },
         },
       },
       200,

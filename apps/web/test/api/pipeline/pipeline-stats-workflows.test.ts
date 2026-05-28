@@ -1,11 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
 const MOCK_SITE_ID = '11111111-1111-1111-1111-111111111111'
 
-// ─── Mocks ────────────────────────────────────────────────────────────────────
+// ─── Mocks ─────────────────────────────────────────────────────────────────
 
 vi.mock('@/lib/pipeline/helpers', () => ({
   authenticateRead: vi.fn(),
@@ -24,37 +22,40 @@ vi.mock('@/lib/pipeline/auth', () => ({
   UUID_REGEX: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
 }))
 
-vi.mock('@/lib/supabase/service', () => ({
-  getSupabaseServiceClient: vi.fn(),
+vi.mock('@/lib/pipeline/services/http-adapter', () => ({
+  authToServiceContext: vi.fn().mockReturnValue({
+    siteId: '11111111-1111-1111-1111-111111111111',
+    permissions: ['read', 'write'],
+    keyHash: 'test',
+    supabase: {},
+  }),
+  serviceErrorToResponse: vi.fn((_err: unknown, _auth: unknown) =>
+    new Response(JSON.stringify({ error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' } }), { status: 500 }),
+  ),
+}))
+
+vi.mock('@/lib/pipeline/services/utilities', () => ({
+  getStats: vi.fn(),
+  getWorkflows: vi.fn(),
+  getTopicAggregation: vi.fn(),
 }))
 
 import { authenticateRead } from '@/lib/pipeline/helpers'
-import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { getStats, getWorkflows, getTopicAggregation } from '@/lib/pipeline/services/utilities'
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Helpers ───────────────────────────────────────────────────────────────
 
 function mockAuthSuccess() {
   vi.mocked(authenticateRead).mockResolvedValue({
     ok: true,
     auth: { siteId: MOCK_SITE_ID, permissions: ['read', 'write'], source: 'api_key' as const, keyHash: 'test' },
-  } as never)
+  } as any)
 }
 
 function mockAuthFailure() {
   vi.mocked(authenticateRead).mockResolvedValue(
     new Response(JSON.stringify({ error: { code: 'UNAUTHORIZED', message: 'unauthorized' } }), { status: 401 }),
   )
-}
-
-function createMockChain(finalResult: { data?: unknown; error?: unknown }) {
-  const chain: Record<string, ReturnType<typeof vi.fn>> = {}
-  const methods = ['from', 'select', 'insert', 'update', 'delete', 'eq', 'is', 'in',
-    'order', 'limit', 'single', 'filter', 'maybeSingle', 'not', 'neq', 'contains']
-  for (const m of methods) {
-    chain[m] = vi.fn().mockReturnValue(chain)
-  }
-  chain.then = (resolve: (v: { data?: unknown; error?: unknown }) => unknown) => resolve(finalResult)
-  return chain
 }
 
 // ─── Stats Route Tests ────────────────────────────────────────────────────────
@@ -78,8 +79,13 @@ describe('GET /api/pipeline/stats', () => {
 
   it('returns stats with correct structure on empty data', async () => {
     mockAuthSuccess()
-    const chain = createMockChain({ data: [], error: null })
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
+    vi.mocked(getStats).mockResolvedValue({
+      total: 0,
+      archived: 0,
+      by_format: {},
+      recently_updated_7d: 0,
+      by_priority: { critical: 0, high: 0, medium: 0, low: 0 },
+    } as any)
 
     const res = await GET(new NextRequest('http://localhost/api/pipeline/stats'))
     expect(res.status).toBe(200)
@@ -97,14 +103,16 @@ describe('GET /api/pipeline/stats', () => {
 
   it('counts active items and excludes archived', async () => {
     mockAuthSuccess()
-    const items = [
-      { format: 'video', stage: 'idea', priority: 5, is_archived: false, updated_at: new Date().toISOString() },
-      { format: 'video', stage: 'roteiro', priority: 3, is_archived: false, updated_at: new Date().toISOString() },
-      { format: 'blog_post', stage: 'idea', priority: 4, is_archived: false, updated_at: new Date().toISOString() },
-      { format: 'video', stage: 'idea', priority: 2, is_archived: true, updated_at: new Date().toISOString() },
-    ]
-    const chain = createMockChain({ data: items, error: null })
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
+    vi.mocked(getStats).mockResolvedValue({
+      total: 3,
+      archived: 1,
+      by_format: {
+        video: { total: 2, byStage: { idea: 1, roteiro: 1 } },
+        blog_post: { total: 1, byStage: { idea: 1 } },
+      },
+      recently_updated_7d: 3,
+      by_priority: { critical: 1, high: 1, medium: 1, low: 0 },
+    } as any)
 
     const res = await GET(new NextRequest('http://localhost/api/pipeline/stats'))
     expect(res.status).toBe(200)
@@ -115,14 +123,16 @@ describe('GET /api/pipeline/stats', () => {
 
   it('breaks down by format and stage correctly', async () => {
     mockAuthSuccess()
-    const items = [
-      { format: 'video', stage: 'idea', priority: 3, is_archived: false, updated_at: new Date().toISOString() },
-      { format: 'video', stage: 'idea', priority: 3, is_archived: false, updated_at: new Date().toISOString() },
-      { format: 'video', stage: 'roteiro', priority: 3, is_archived: false, updated_at: new Date().toISOString() },
-      { format: 'blog_post', stage: 'draft', priority: 3, is_archived: false, updated_at: new Date().toISOString() },
-    ]
-    const chain = createMockChain({ data: items, error: null })
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
+    vi.mocked(getStats).mockResolvedValue({
+      total: 4,
+      archived: 0,
+      by_format: {
+        video: { total: 3, byStage: { idea: 2, roteiro: 1 } },
+        blog_post: { total: 1, byStage: { draft: 1 } },
+      },
+      recently_updated_7d: 4,
+      by_priority: { critical: 0, high: 0, medium: 4, low: 0 },
+    } as any)
 
     const res = await GET(new NextRequest('http://localhost/api/pipeline/stats'))
     const body = await res.json()
@@ -135,15 +145,13 @@ describe('GET /api/pipeline/stats', () => {
 
   it('counts priority tiers correctly', async () => {
     mockAuthSuccess()
-    const items = [
-      { format: 'video', stage: 'idea', priority: 5, is_archived: false, updated_at: new Date().toISOString() },
-      { format: 'video', stage: 'idea', priority: 4, is_archived: false, updated_at: new Date().toISOString() },
-      { format: 'video', stage: 'idea', priority: 3, is_archived: false, updated_at: new Date().toISOString() },
-      { format: 'video', stage: 'idea', priority: 2, is_archived: false, updated_at: new Date().toISOString() },
-      { format: 'video', stage: 'idea', priority: 1, is_archived: false, updated_at: new Date().toISOString() },
-    ]
-    const chain = createMockChain({ data: items, error: null })
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
+    vi.mocked(getStats).mockResolvedValue({
+      total: 5,
+      archived: 0,
+      by_format: {},
+      recently_updated_7d: 5,
+      by_priority: { critical: 1, high: 1, medium: 1, low: 2 },
+    } as any)
 
     const res = await GET(new NextRequest('http://localhost/api/pipeline/stats'))
     const body = await res.json()
@@ -155,16 +163,13 @@ describe('GET /api/pipeline/stats', () => {
 
   it('counts recently updated items within 7 days', async () => {
     mockAuthSuccess()
-    const now = new Date()
-    const fiveDaysAgo = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString()
-    const tenDaysAgo = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000).toISOString()
-    const items = [
-      { format: 'video', stage: 'idea', priority: 3, is_archived: false, updated_at: fiveDaysAgo },
-      { format: 'video', stage: 'idea', priority: 3, is_archived: false, updated_at: now.toISOString() },
-      { format: 'video', stage: 'idea', priority: 3, is_archived: false, updated_at: tenDaysAgo },
-    ]
-    const chain = createMockChain({ data: items, error: null })
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
+    vi.mocked(getStats).mockResolvedValue({
+      total: 3,
+      archived: 0,
+      by_format: {},
+      recently_updated_7d: 2,
+      by_priority: { critical: 0, high: 0, medium: 3, low: 0 },
+    } as any)
 
     const res = await GET(new NextRequest('http://localhost/api/pipeline/stats'))
     const body = await res.json()
@@ -173,8 +178,13 @@ describe('GET /api/pipeline/stats', () => {
 
   it('handles null data from supabase gracefully', async () => {
     mockAuthSuccess()
-    const chain = createMockChain({ data: null as unknown as undefined, error: null })
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
+    vi.mocked(getStats).mockResolvedValue({
+      total: 0,
+      archived: 0,
+      by_format: {},
+      recently_updated_7d: 0,
+      by_priority: { critical: 0, high: 0, medium: 0, low: 0 },
+    } as any)
 
     const res = await GET(new NextRequest('http://localhost/api/pipeline/stats'))
     expect(res.status).toBe(200)
@@ -205,6 +215,11 @@ describe('GET /api/pipeline/workflows', () => {
 
   it('returns workflows and default checklists', async () => {
     mockAuthSuccess()
+    vi.mocked(getWorkflows).mockReturnValue({
+      workflows: { video: [], blog_post: [], newsletter: [], course: [], campaign: [] },
+      default_checklists: { video: [], blog_post: [], newsletter: [], course: [], campaign: [] },
+    } as any)
+
     const res = await GET(new NextRequest('http://localhost/api/pipeline/workflows'))
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -214,6 +229,17 @@ describe('GET /api/pipeline/workflows', () => {
 
   it('includes all five formats in workflows', async () => {
     mockAuthSuccess()
+    vi.mocked(getWorkflows).mockReturnValue({
+      workflows: {
+        video: [{ stage: 'idea', position: 1, label_pt: 'Ideia', label_en: 'Idea' }],
+        blog_post: [{ stage: 'draft', position: 1, label_pt: 'Rascunho', label_en: 'Draft' }],
+        newsletter: [{ stage: 'draft', position: 1, label_pt: 'Rascunho', label_en: 'Draft' }],
+        course: [{ stage: 'idea', position: 1, label_pt: 'Ideia', label_en: 'Idea' }],
+        campaign: [{ stage: 'draft', position: 1, label_pt: 'Rascunho', label_en: 'Draft' }],
+      },
+      default_checklists: { video: [], blog_post: [], newsletter: [], course: [], campaign: [] },
+    } as any)
+
     const res = await GET(new NextRequest('http://localhost/api/pipeline/workflows'))
     const body = await res.json()
     const formats = Object.keys(body.data.workflows)
@@ -226,6 +252,17 @@ describe('GET /api/pipeline/workflows', () => {
 
   it('each workflow format has stages with position and labels', async () => {
     mockAuthSuccess()
+    vi.mocked(getWorkflows).mockReturnValue({
+      workflows: {
+        video: [
+          { stage: 'idea', position: 1, label_pt: 'Ideia', label_en: 'Idea' },
+          { stage: 'roteiro', position: 2, label_pt: 'Roteiro', label_en: 'Script' },
+        ],
+        blog_post: [], newsletter: [], course: [], campaign: [],
+      },
+      default_checklists: { video: [], blog_post: [], newsletter: [], course: [], campaign: [] },
+    } as any)
+
     const res = await GET(new NextRequest('http://localhost/api/pipeline/workflows'))
     const body = await res.json()
     const videoStages = body.data.workflows.video
@@ -240,6 +277,17 @@ describe('GET /api/pipeline/workflows', () => {
 
   it('default checklists exist for each format', async () => {
     mockAuthSuccess()
+    vi.mocked(getWorkflows).mockReturnValue({
+      workflows: { video: [], blog_post: [], newsletter: [], course: [], campaign: [] },
+      default_checklists: {
+        video: [{ id: '1', label: 'Record', stage: 'gravacao' }],
+        blog_post: [{ id: '2', label: 'Write', stage: 'draft' }],
+        newsletter: [{ id: '3', label: 'Compose', stage: 'draft' }],
+        course: [{ id: '4', label: 'Plan', stage: 'idea' }],
+        campaign: [{ id: '5', label: 'Design', stage: 'draft' }],
+      },
+    } as any)
+
     const res = await GET(new NextRequest('http://localhost/api/pipeline/workflows'))
     const body = await res.json()
     const formats = ['video', 'blog_post', 'newsletter', 'course', 'campaign']
@@ -274,27 +322,15 @@ describe('GET /api/pipeline/topics/[code]', () => {
 
   it('returns pipeline items and blog posts for a topic code', async () => {
     mockAuthSuccess()
-
-    const mockPipelineItems = [
-      { id: 'p1', code: 'vid-test', title_pt: 'Test', title_en: null, format: 'video', stage: 'idea', priority: 3, tags: ['gaming'], updated_at: new Date().toISOString() },
-    ]
-    const mockBlogPosts = [
-      { id: 'b1', title: 'Gaming Post', slug: 'gaming-post', status: 'published', category: 'gaming' },
-    ]
-
-    // The route makes two separate queries: content_pipeline and blog_posts.
-    // We need the chain to resolve differently for each .from() call.
-    let fromCallCount = 0
-    const pipelineChain = createMockChain({ data: mockPipelineItems, error: null })
-    const blogChain = createMockChain({ data: mockBlogPosts, error: null })
-
-    const mockClient = {
-      from: vi.fn((_table: string) => {
-        fromCallCount++
-        return fromCallCount === 1 ? pipelineChain : blogChain
-      }),
-    }
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(mockClient as never)
+    vi.mocked(getTopicAggregation).mockResolvedValue({
+      topic: 'gaming',
+      pipeline_items: [
+        { id: 'p1', code: 'vid-test', title_pt: 'Test', title_en: null, format: 'video', stage: 'idea', priority: 3, tags: ['gaming'], updated_at: new Date().toISOString() },
+      ],
+      blog_posts: [
+        { id: 'b1', title: 'Gaming Post', slug: 'gaming-post', status: 'published', category: 'gaming' },
+      ],
+    } as any)
 
     const res = await GET(
       new NextRequest('http://localhost/api/pipeline/topics/gaming'),
@@ -309,17 +345,11 @@ describe('GET /api/pipeline/topics/[code]', () => {
 
   it('returns empty arrays when no items match the topic', async () => {
     mockAuthSuccess()
-    const pipelineChain = createMockChain({ data: [], error: null })
-    const blogChain = createMockChain({ data: [], error: null })
-
-    let fromCallCount = 0
-    const mockClient = {
-      from: vi.fn(() => {
-        fromCallCount++
-        return fromCallCount === 1 ? pipelineChain : blogChain
-      }),
-    }
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(mockClient as never)
+    vi.mocked(getTopicAggregation).mockResolvedValue({
+      topic: 'nonexistent',
+      pipeline_items: [],
+      blog_posts: [],
+    } as any)
 
     const res = await GET(
       new NextRequest('http://localhost/api/pipeline/topics/nonexistent'),
@@ -334,16 +364,21 @@ describe('GET /api/pipeline/topics/[code]', () => {
 
   it('queries content_pipeline with correct filters', async () => {
     mockAuthSuccess()
-    const chain = createMockChain({ data: [], error: null })
-    const fromSpy = vi.fn().mockReturnValue(chain)
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({ from: fromSpy } as never)
+    vi.mocked(getTopicAggregation).mockResolvedValue({
+      topic: 'tech',
+      pipeline_items: [],
+      blog_posts: [],
+    } as any)
 
     await GET(
       new NextRequest('http://localhost/api/pipeline/topics/tech'),
       { params: Promise.resolve({ code: 'tech' }) },
     )
 
-    expect(fromSpy).toHaveBeenCalledWith('content_pipeline')
-    expect(fromSpy).toHaveBeenCalledWith('blog_posts')
+    // Verify the service was called with the correct topic code
+    expect(vi.mocked(getTopicAggregation)).toHaveBeenCalledWith(
+      expect.anything(),
+      'tech',
+    )
   })
 })

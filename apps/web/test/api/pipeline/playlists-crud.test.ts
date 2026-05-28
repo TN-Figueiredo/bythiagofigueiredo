@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
+import { PipelineServiceError } from '../../../src/lib/pipeline/services/types'
 
 const MOCK_SITE_ID = '11111111-1111-1111-1111-111111111111'
 const MOCK_PLAYLIST_ID = '22222222-2222-2222-2222-222222222222'
@@ -9,7 +10,7 @@ const MOCK_POST_ID = '55555555-5555-5555-5555-555555555555'
 const MOCK_SOURCE_ITEM = '66666666-6666-6666-6666-666666666666'
 const MOCK_TARGET_ITEM = '77777777-7777-7777-7777-777777777777'
 
-// ─── Mocks — must cover ALL transitive @/ imports from playlist route files ───
+// ─── Mocks — helpers and auth (route-level concerns) ────────────────────────
 
 vi.mock('@/lib/pipeline/helpers', () => ({
   authenticateRead: vi.fn(),
@@ -30,6 +31,8 @@ vi.mock('@/lib/pipeline/auth', () => ({
   UUID_REGEX: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
 }))
 
+// ─── Schemas — still parsed at route level in some handlers ─────────────────
+
 vi.mock('@/lib/pipeline/schemas', () => ({
   PipelineCreatePlaylistSchema: { safeParse: vi.fn() },
   PipelineUpdatePlaylistSchema: { safeParse: vi.fn() },
@@ -40,28 +43,44 @@ vi.mock('@/lib/pipeline/schemas', () => ({
   PipelineReorderSchema: { safeParse: vi.fn() },
 }))
 
-vi.mock('@/lib/playlists/queries', () => ({
-  listPlaylists: vi.fn(),
-  getPlaylistItemCounts: vi.fn(),
-  resolveUniqueSlug: vi.fn(),
-  getPlaylistGraph: vi.fn(),
-  getNextSortOrder: vi.fn(),
+// ─── Service layer mocks ────────────────────────────────────────────────────
+
+vi.mock('@/lib/pipeline/services/http-adapter', () => ({
+  authToServiceContext: vi.fn().mockReturnValue({
+    siteId: '11111111-1111-1111-1111-111111111111',
+    permissions: ['read', 'write'],
+    keyHash: 'test',
+    supabase: {},
+  }),
+  serviceErrorToResponse: vi.fn((err: unknown) => {
+    if (err instanceof PipelineServiceError) {
+      return new Response(
+        JSON.stringify({ error: { code: err.code, message: err.message } }),
+        { status: err.status },
+      )
+    }
+    return new Response(
+      JSON.stringify({ error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' } }),
+      { status: 500 },
+    )
+  }),
 }))
 
-vi.mock('@/lib/playlists/canvas/auto-layout', () => ({
-  computeAutoLayout: vi.fn(),
+vi.mock('@/lib/pipeline/services/playlists', () => ({
+  listPlaylistsService: vi.fn(),
+  createPlaylistService: vi.fn(),
+  getPlaylistService: vi.fn(),
+  updatePlaylistService: vi.fn(),
+  deletePlaylistService: vi.fn(),
+  addItemService: vi.fn(),
+  removeItemService: vi.fn(),
+  bulkAddItemsService: vi.fn(),
+  createEdgeService: vi.fn(),
+  deleteEdgeService: vi.fn(),
+  bulkCreateEdgesService: vi.fn(),
+  reorderItemsService: vi.fn(),
+  autoLayoutService: vi.fn(),
 }))
-
-vi.mock('@/lib/playlists/snapshot-middleware', () => ({
-  withSnapshot: vi.fn((_pid, _sid, _uid, _type, _label, fn) => fn()),
-  createSnapshot: vi.fn().mockResolvedValue({ id: 'snap-1', deduplicated: false }),
-}))
-
-vi.mock('@/lib/pipeline/logger', () => ({
-  pipelineLog: vi.fn(),
-}))
-
-vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn() }))
 
 import { authenticateRead, authenticateWrite, parseBody } from '@/lib/pipeline/helpers'
 import {
@@ -73,9 +92,21 @@ import {
   PipelineBulkCreateEdgesSchema,
   PipelineReorderSchema,
 } from '@/lib/pipeline/schemas'
-import { listPlaylists, getPlaylistItemCounts, resolveUniqueSlug, getPlaylistGraph, getNextSortOrder } from '@/lib/playlists/queries'
-import { computeAutoLayout } from '@/lib/playlists/canvas/auto-layout'
-import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import {
+  listPlaylistsService,
+  createPlaylistService,
+  getPlaylistService,
+  updatePlaylistService,
+  deletePlaylistService,
+  addItemService,
+  removeItemService,
+  bulkAddItemsService,
+  createEdgeService,
+  deleteEdgeService,
+  bulkCreateEdgesService,
+  reorderItemsService,
+  autoLayoutService,
+} from '@/lib/pipeline/services/playlists'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -93,17 +124,6 @@ function mockAuthFail(mode: 'read' | 'write' = 'read') {
   const resp = new Response(JSON.stringify({ error: { code: 'UNAUTHORIZED' } }), { status: 401 })
   if (mode === 'read') vi.mocked(authenticateRead).mockResolvedValue(resp as never)
   else vi.mocked(authenticateWrite).mockResolvedValue(resp as never)
-}
-
-function createMockChain(finalResult: { data?: unknown; error?: unknown; count?: number | null }) {
-  const chain: Record<string, unknown> = {}
-  for (const m of ['from', 'select', 'insert', 'update', 'delete', 'eq', 'is', 'in', 'or', 'order', 'limit', 'not', 'neq', 'contains', 'ilike', 'textSearch']) {
-    chain[m] = vi.fn().mockReturnValue(chain)
-  }
-  chain.single = vi.fn().mockResolvedValue({ data: finalResult.data, error: finalResult.error })
-  chain.maybeSingle = vi.fn().mockResolvedValue({ data: finalResult.data, error: finalResult.error })
-  chain.then = (resolve: (v: unknown) => unknown) => resolve({ data: finalResult.data, error: finalResult.error, count: finalResult.count ?? null })
-  return chain
 }
 
 function makeParams(id: string) { return { params: Promise.resolve({ id }) } }
@@ -132,9 +152,8 @@ describe('GET /api/pipeline/playlists', () => {
 
   it('returns playlists with item counts', async () => {
     mockAuthRead()
-    const playlists = [{ id: MOCK_PLAYLIST_ID, name_pt: 'Lista', name_en: 'List', slug: 'list', status: 'draft', category: null, description_pt: null, description_en: null, cover_image_url: null, created_at: '2026-01-01', updated_at: '2026-01-01' }]
-    vi.mocked(listPlaylists).mockResolvedValue(playlists)
-    vi.mocked(getPlaylistItemCounts).mockResolvedValue(new Map([[MOCK_PLAYLIST_ID, 3]]))
+    const playlists = [{ id: MOCK_PLAYLIST_ID, name_pt: 'Lista', name_en: 'List', slug: 'list', status: 'draft', category: null, description_pt: null, description_en: null, cover_image_url: null, item_count: 3, created_at: '2026-01-01', updated_at: '2026-01-01' }]
+    vi.mocked(listPlaylistsService).mockResolvedValue(playlists as never)
 
     const res = await GET(new NextRequest('http://localhost/x'))
     expect(res.status).toBe(200)
@@ -145,17 +164,15 @@ describe('GET /api/pipeline/playlists', () => {
 
   it('passes filter params from search query', async () => {
     mockAuthRead()
-    vi.mocked(listPlaylists).mockResolvedValue([])
-    vi.mocked(getPlaylistItemCounts).mockResolvedValue(new Map())
+    vi.mocked(listPlaylistsService).mockResolvedValue([] as never)
 
     const url = 'http://localhost/x?status=published&category=series&search=test'
     const res = await GET(new NextRequest(url))
     expect(res.status).toBe(200)
-    expect(vi.mocked(listPlaylists)).toHaveBeenCalledWith(MOCK_SITE_ID, {
-      status: 'published',
-      category: 'series',
-      search: 'test',
-    })
+    expect(vi.mocked(listPlaylistsService)).toHaveBeenCalledWith(
+      expect.anything(),
+      { status: 'published', category: 'series', search: 'test' },
+    )
   })
 })
 
@@ -192,7 +209,9 @@ describe('POST /api/pipeline/playlists', () => {
     vi.mocked(PipelineCreatePlaylistSchema.safeParse).mockReturnValue({
       success: true, data: { name_en: 'Test', name_pt: '', status: 'draft' },
     } as never)
-    vi.mocked(resolveUniqueSlug).mockRejectedValue(new Error('exhausted'))
+    vi.mocked(createPlaylistService).mockRejectedValue(
+      new PipelineServiceError('ALREADY_EXISTS', 'Could not generate unique slug after 99 attempts', 409),
+    )
 
     const res = await POST(postReq())
     expect(res.status).toBe(409)
@@ -205,12 +224,9 @@ describe('POST /api/pipeline/playlists', () => {
     vi.mocked(PipelineCreatePlaylistSchema.safeParse).mockReturnValue({
       success: true, data,
     } as never)
-    vi.mocked(resolveUniqueSlug).mockResolvedValue('test')
 
     const created = { id: MOCK_PLAYLIST_ID, name_en: 'Test', name_pt: '', slug: 'test', status: 'draft', category: null, description_en: null, description_pt: null, cover_image_url: null, created_at: '2026-01-01', updated_at: '2026-01-01' }
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockReturnValue(createMockChain({ data: created })),
-    } as never)
+    vi.mocked(createPlaylistService).mockResolvedValue(created as never)
 
     const res = await POST(postReq())
     expect(res.status).toBe(201)
@@ -225,10 +241,9 @@ describe('POST /api/pipeline/playlists', () => {
     vi.mocked(PipelineCreatePlaylistSchema.safeParse).mockReturnValue({
       success: true, data: { name_en: 'Test', name_pt: '', status: 'draft' },
     } as never)
-    vi.mocked(resolveUniqueSlug).mockResolvedValue('test')
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockReturnValue(createMockChain({ data: null, error: { message: 'constraint violation' } })),
-    } as never)
+    vi.mocked(createPlaylistService).mockRejectedValue(
+      new PipelineServiceError('DB_ERROR', 'Failed to create playlist', 500),
+    )
 
     const res = await POST(postReq())
     expect(res.status).toBe(500)
@@ -254,7 +269,9 @@ describe('GET /api/pipeline/playlists/[id]', () => {
 
   it('returns 404 when playlist not found', async () => {
     mockAuthRead()
-    vi.mocked(getPlaylistGraph).mockResolvedValue(null)
+    vi.mocked(getPlaylistService).mockRejectedValue(
+      new PipelineServiceError('NOT_FOUND', 'Playlist not found', 404),
+    )
     const res = await GET(new NextRequest('http://localhost/x'), makeParams(MOCK_PLAYLIST_ID))
     expect(res.status).toBe(404)
   })
@@ -266,7 +283,7 @@ describe('GET /api/pipeline/playlists/[id]', () => {
       items: [{ id: MOCK_ITEM_ID, title: 'Item 1', content_type: 'blog_post', status: 'active', category: null, metadata: {}, position_x: 0, position_y: 0, sort_order: 1000, is_ghost: false, other_playlist_count: 0 }],
       edges: [{ id: MOCK_EDGE_ID, source_item_id: MOCK_SOURCE_ITEM, target_item_id: MOCK_TARGET_ITEM, edge_type: 'sequence', label: null }],
     }
-    vi.mocked(getPlaylistGraph).mockResolvedValue(graph)
+    vi.mocked(getPlaylistService).mockResolvedValue(graph as never)
 
     const res = await GET(new NextRequest('http://localhost/x'), makeParams(MOCK_PLAYLIST_ID))
     expect(res.status).toBe(200)
@@ -310,9 +327,9 @@ describe('PATCH /api/pipeline/playlists/[id]', () => {
     vi.mocked(PipelineUpdatePlaylistSchema.safeParse).mockReturnValue({
       success: true, data: { name_en: 'Updated' },
     } as never)
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockReturnValue(createMockChain({ data: null, error: { message: 'not found' } })),
-    } as never)
+    vi.mocked(updatePlaylistService).mockRejectedValue(
+      new PipelineServiceError('NOT_FOUND', 'Playlist not found', 404),
+    )
 
     const res = await PATCH(patchReq(), makeParams(MOCK_PLAYLIST_ID))
     expect(res.status).toBe(404)
@@ -325,9 +342,7 @@ describe('PATCH /api/pipeline/playlists/[id]', () => {
       success: true, data: { name_en: 'Updated' },
     } as never)
     const updated = { id: MOCK_PLAYLIST_ID, name_en: 'Updated', name_pt: '', slug: 'test', status: 'draft', category: null, description_en: null, description_pt: null, cover_image_url: null, created_at: '2026-01-01', updated_at: '2026-01-02' }
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockReturnValue(createMockChain({ data: updated })),
-    } as never)
+    vi.mocked(updatePlaylistService).mockResolvedValue(updated as never)
 
     const res = await PATCH(patchReq(), makeParams(MOCK_PLAYLIST_ID))
     expect(res.status).toBe(200)
@@ -355,18 +370,16 @@ describe('DELETE /api/pipeline/playlists/[id]', () => {
 
   it('returns 404 when playlist not found', async () => {
     mockAuthWrite()
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockReturnValue(createMockChain({ data: null })),
-    } as never)
+    vi.mocked(deletePlaylistService).mockRejectedValue(
+      new PipelineServiceError('NOT_FOUND', 'Playlist not found', 404),
+    )
     const res = await DELETE(deleteReq(), makeParams(MOCK_PLAYLIST_ID))
     expect(res.status).toBe(404)
   })
 
   it('deletes playlist successfully', async () => {
     mockAuthWrite()
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockReturnValue(createMockChain({ data: { id: MOCK_PLAYLIST_ID } })),
-    } as never)
+    vi.mocked(deletePlaylistService).mockResolvedValue({ deleted: true } as never)
     const res = await DELETE(deleteReq(), makeParams(MOCK_PLAYLIST_ID))
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -393,19 +406,19 @@ describe('POST /api/pipeline/playlists/[id]/items', () => {
 
   it('returns 404 when playlist not found', async () => {
     mockAuthWrite()
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockReturnValue(createMockChain({ data: null })),
+    vi.mocked(parseBody).mockResolvedValue({})
+    vi.mocked(PipelineAddItemSchema.safeParse).mockReturnValue({
+      success: true, data: { blog_post_id: MOCK_POST_ID },
     } as never)
+    vi.mocked(addItemService).mockRejectedValue(
+      new PipelineServiceError('NOT_FOUND', 'Playlist not found', 404),
+    )
     const res = await POST(postReq(), makeParams(MOCK_PLAYLIST_ID))
     expect(res.status).toBe(404)
   })
 
   it('rejects invalid body', async () => {
     mockAuthWrite()
-    // First chain returns playlist found, then body parse happens
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockReturnValue(createMockChain({ data: { id: MOCK_PLAYLIST_ID } })),
-    } as never)
     vi.mocked(parseBody).mockResolvedValue({})
     vi.mocked(PipelineAddItemSchema.safeParse).mockReturnValue({
       success: false, error: { issues: [{ message: 'Exactly one content reference is required' }] },
@@ -417,21 +430,11 @@ describe('POST /api/pipeline/playlists/[id]/items', () => {
 
   it('returns existing item when duplicate detected', async () => {
     mockAuthWrite()
-    const existingItem = { id: MOCK_ITEM_ID }
-    let callCount = 0
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockImplementation(() => {
-        callCount++
-        // call 1: playlist check => found
-        if (callCount === 1) return createMockChain({ data: { id: MOCK_PLAYLIST_ID } })
-        // call 2: dup check => found
-        return createMockChain({ data: existingItem })
-      }),
-    } as never)
     vi.mocked(parseBody).mockResolvedValue({ blog_post_id: MOCK_POST_ID })
     vi.mocked(PipelineAddItemSchema.safeParse).mockReturnValue({
       success: true, data: { blog_post_id: MOCK_POST_ID },
     } as never)
+    vi.mocked(addItemService).mockResolvedValue({ data: { id: MOCK_ITEM_ID, already_existed: true }, status: 200 } as never)
 
     const res = await POST(postReq(), makeParams(MOCK_PLAYLIST_ID))
     expect(res.status).toBe(200)
@@ -441,23 +444,11 @@ describe('POST /api/pipeline/playlists/[id]/items', () => {
 
   it('creates item successfully', async () => {
     mockAuthWrite()
-    let callCount = 0
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockImplementation(() => {
-        callCount++
-        // call 1: playlist check => found
-        if (callCount === 1) return createMockChain({ data: { id: MOCK_PLAYLIST_ID } })
-        // call 2: dup check => not found
-        if (callCount === 2) return createMockChain({ data: null })
-        // call 3: insert => created
-        return createMockChain({ data: { id: MOCK_ITEM_ID } })
-      }),
-    } as never)
     vi.mocked(parseBody).mockResolvedValue({ blog_post_id: MOCK_POST_ID })
     vi.mocked(PipelineAddItemSchema.safeParse).mockReturnValue({
       success: true, data: { blog_post_id: MOCK_POST_ID },
     } as never)
-    vi.mocked(getNextSortOrder).mockResolvedValue(1000)
+    vi.mocked(addItemService).mockResolvedValue({ data: { id: MOCK_ITEM_ID, already_existed: false }, status: 201 } as never)
 
     const res = await POST(postReq(), makeParams(MOCK_PLAYLIST_ID))
     expect(res.status).toBe(201)
@@ -468,20 +459,13 @@ describe('POST /api/pipeline/playlists/[id]/items', () => {
 
   it('returns 400 on FK violation', async () => {
     mockAuthWrite()
-    let callCount = 0
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockImplementation(() => {
-        callCount++
-        if (callCount === 1) return createMockChain({ data: { id: MOCK_PLAYLIST_ID } })
-        if (callCount === 2) return createMockChain({ data: null })
-        return createMockChain({ data: null, error: { code: '23503', message: 'FK error' } })
-      }),
-    } as never)
     vi.mocked(parseBody).mockResolvedValue({ blog_post_id: MOCK_POST_ID })
     vi.mocked(PipelineAddItemSchema.safeParse).mockReturnValue({
       success: true, data: { blog_post_id: MOCK_POST_ID },
     } as never)
-    vi.mocked(getNextSortOrder).mockResolvedValue(1000)
+    vi.mocked(addItemService).mockRejectedValue(
+      new PipelineServiceError('VALIDATION_ERROR', 'Referenced content does not exist', 400),
+    )
 
     const res = await POST(postReq(), makeParams(MOCK_PLAYLIST_ID))
     expect(res.status).toBe(400)
@@ -507,38 +491,25 @@ describe('DELETE /api/pipeline/playlists/[id]/items/[itemId]', () => {
 
   it('returns 404 when playlist not found', async () => {
     mockAuthWrite()
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockReturnValue(createMockChain({ data: null })),
-    } as never)
+    vi.mocked(removeItemService).mockRejectedValue(
+      new PipelineServiceError('NOT_FOUND', 'Playlist not found', 404),
+    )
     const res = await DELETE(deleteReq(), makeItemParams(MOCK_PLAYLIST_ID, MOCK_ITEM_ID))
     expect(res.status).toBe(404)
   })
 
   it('returns 404 when item not found in playlist', async () => {
     mockAuthWrite()
-    let callCount = 0
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockImplementation(() => {
-        callCount++
-        if (callCount === 1) return createMockChain({ data: { id: MOCK_PLAYLIST_ID } })
-        return createMockChain({ data: null })
-      }),
-    } as never)
+    vi.mocked(removeItemService).mockRejectedValue(
+      new PipelineServiceError('NOT_FOUND', 'Item not found in playlist', 404),
+    )
     const res = await DELETE(deleteReq(), makeItemParams(MOCK_PLAYLIST_ID, MOCK_ITEM_ID))
     expect(res.status).toBe(404)
   })
 
   it('deletes item successfully', async () => {
     mockAuthWrite()
-    let callCount = 0
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockImplementation(() => {
-        callCount++
-        if (callCount === 1) return createMockChain({ data: { id: MOCK_PLAYLIST_ID } })
-        if (callCount === 2) return createMockChain({ data: { id: MOCK_ITEM_ID } })
-        return createMockChain({ data: null, error: null })
-      }),
-    } as never)
+    vi.mocked(removeItemService).mockResolvedValue({ deleted: true } as never)
     const res = await DELETE(deleteReq(), makeItemParams(MOCK_PLAYLIST_ID, MOCK_ITEM_ID))
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -565,18 +536,19 @@ describe('POST /api/pipeline/playlists/[id]/edges', () => {
 
   it('returns 404 when playlist not found', async () => {
     mockAuthWrite()
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockReturnValue(createMockChain({ data: null })),
+    vi.mocked(parseBody).mockResolvedValue({})
+    vi.mocked(PipelineCreateEdgeSchema.safeParse).mockReturnValue({
+      success: true, data: { source_item_id: MOCK_SOURCE_ITEM, target_item_id: MOCK_TARGET_ITEM, edge_type: 'sequence' },
     } as never)
+    vi.mocked(createEdgeService).mockRejectedValue(
+      new PipelineServiceError('NOT_FOUND', 'Playlist not found', 404),
+    )
     const res = await POST(postReq(), makeParams(MOCK_PLAYLIST_ID))
     expect(res.status).toBe(404)
   })
 
   it('rejects invalid body', async () => {
     mockAuthWrite()
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockReturnValue(createMockChain({ data: { id: MOCK_PLAYLIST_ID } })),
-    } as never)
     vi.mocked(parseBody).mockResolvedValue({})
     vi.mocked(PipelineCreateEdgeSchema.safeParse).mockReturnValue({
       success: false, error: { issues: [{ message: 'source_item_id required' }] },
@@ -587,13 +559,13 @@ describe('POST /api/pipeline/playlists/[id]/edges', () => {
 
   it('rejects self-loop', async () => {
     mockAuthWrite()
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockReturnValue(createMockChain({ data: { id: MOCK_PLAYLIST_ID } })),
-    } as never)
     vi.mocked(parseBody).mockResolvedValue({ source_item_id: MOCK_SOURCE_ITEM, target_item_id: MOCK_SOURCE_ITEM, edge_type: 'sequence' })
     vi.mocked(PipelineCreateEdgeSchema.safeParse).mockReturnValue({
       success: true, data: { source_item_id: MOCK_SOURCE_ITEM, target_item_id: MOCK_SOURCE_ITEM, edge_type: 'sequence' },
     } as never)
+    vi.mocked(createEdgeService).mockRejectedValue(
+      new PipelineServiceError('VALIDATION_ERROR', 'Self-loops are not allowed', 400),
+    )
     const res = await POST(postReq(), makeParams(MOCK_PLAYLIST_ID))
     expect(res.status).toBe(400)
     const body = await res.json()
@@ -602,18 +574,11 @@ describe('POST /api/pipeline/playlists/[id]/edges', () => {
 
   it('returns existing edge when duplicate', async () => {
     mockAuthWrite()
-    let callCount = 0
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockImplementation(() => {
-        callCount++
-        if (callCount === 1) return createMockChain({ data: { id: MOCK_PLAYLIST_ID } })
-        return createMockChain({ data: { id: MOCK_EDGE_ID } })
-      }),
-    } as never)
     vi.mocked(parseBody).mockResolvedValue({ source_item_id: MOCK_SOURCE_ITEM, target_item_id: MOCK_TARGET_ITEM, edge_type: 'sequence' })
     vi.mocked(PipelineCreateEdgeSchema.safeParse).mockReturnValue({
       success: true, data: { source_item_id: MOCK_SOURCE_ITEM, target_item_id: MOCK_TARGET_ITEM, edge_type: 'sequence' },
     } as never)
+    vi.mocked(createEdgeService).mockResolvedValue({ data: { id: MOCK_EDGE_ID, already_existed: true }, status: 200 } as never)
 
     const res = await POST(postReq(), makeParams(MOCK_PLAYLIST_ID))
     expect(res.status).toBe(200)
@@ -623,19 +588,11 @@ describe('POST /api/pipeline/playlists/[id]/edges', () => {
 
   it('creates edge successfully', async () => {
     mockAuthWrite()
-    let callCount = 0
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockImplementation(() => {
-        callCount++
-        if (callCount === 1) return createMockChain({ data: { id: MOCK_PLAYLIST_ID } })
-        if (callCount === 2) return createMockChain({ data: null })
-        return createMockChain({ data: { id: MOCK_EDGE_ID } })
-      }),
-    } as never)
     vi.mocked(parseBody).mockResolvedValue({ source_item_id: MOCK_SOURCE_ITEM, target_item_id: MOCK_TARGET_ITEM, edge_type: 'sequence' })
     vi.mocked(PipelineCreateEdgeSchema.safeParse).mockReturnValue({
       success: true, data: { source_item_id: MOCK_SOURCE_ITEM, target_item_id: MOCK_TARGET_ITEM, edge_type: 'sequence' },
     } as never)
+    vi.mocked(createEdgeService).mockResolvedValue({ data: { id: MOCK_EDGE_ID, already_existed: false }, status: 201 } as never)
 
     const res = await POST(postReq(), makeParams(MOCK_PLAYLIST_ID))
     expect(res.status).toBe(201)
@@ -646,19 +603,13 @@ describe('POST /api/pipeline/playlists/[id]/edges', () => {
 
   it('returns 422 on cycle detection', async () => {
     mockAuthWrite()
-    let callCount = 0
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockImplementation(() => {
-        callCount++
-        if (callCount === 1) return createMockChain({ data: { id: MOCK_PLAYLIST_ID } })
-        if (callCount === 2) return createMockChain({ data: null })
-        return createMockChain({ data: null, error: { code: 'P0001', message: 'cycle detected' } })
-      }),
-    } as never)
     vi.mocked(parseBody).mockResolvedValue({ source_item_id: MOCK_SOURCE_ITEM, target_item_id: MOCK_TARGET_ITEM, edge_type: 'sequence' })
     vi.mocked(PipelineCreateEdgeSchema.safeParse).mockReturnValue({
       success: true, data: { source_item_id: MOCK_SOURCE_ITEM, target_item_id: MOCK_TARGET_ITEM, edge_type: 'sequence' },
     } as never)
+    vi.mocked(createEdgeService).mockRejectedValue(
+      new PipelineServiceError('CYCLE_DETECTED', 'Sequence edge would create a cycle', 422),
+    )
 
     const res = await POST(postReq(), makeParams(MOCK_PLAYLIST_ID))
     expect(res.status).toBe(422)
@@ -684,18 +635,19 @@ describe('POST /api/pipeline/playlists/[id]/edges/bulk', () => {
 
   it('returns 404 when playlist not found', async () => {
     mockAuthWrite()
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockReturnValue(createMockChain({ data: null })),
+    vi.mocked(parseBody).mockResolvedValue({})
+    vi.mocked(PipelineBulkCreateEdgesSchema.safeParse).mockReturnValue({
+      success: true, data: { edges: [] },
     } as never)
+    vi.mocked(bulkCreateEdgesService).mockRejectedValue(
+      new PipelineServiceError('NOT_FOUND', 'Playlist not found', 404),
+    )
     const res = await POST(postReq(), makeParams(MOCK_PLAYLIST_ID))
     expect(res.status).toBe(404)
   })
 
   it('rejects invalid body', async () => {
     mockAuthWrite()
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockReturnValue(createMockChain({ data: { id: MOCK_PLAYLIST_ID } })),
-    } as never)
     vi.mocked(parseBody).mockResolvedValue({})
     vi.mocked(PipelineBulkCreateEdgesSchema.safeParse).mockReturnValue({
       success: false, error: { issues: [{ message: 'edges required' }] },
@@ -715,16 +667,17 @@ describe('POST /api/pipeline/playlists/[id]/edges/bulk', () => {
       success: true, data: { edges },
     } as never)
 
-    let callCount = 0
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockImplementation(() => {
-        callCount++
-        if (callCount === 1) return createMockChain({ data: { id: MOCK_PLAYLIST_ID } })
-        // dup check for first edge => not found
-        if (callCount === 2) return createMockChain({ data: null })
-        // insert for first edge => success
-        return createMockChain({ data: { id: MOCK_EDGE_ID } })
-      }),
+    vi.mocked(bulkCreateEdgesService).mockResolvedValue({
+      edges: [{ id: MOCK_EDGE_ID, already_existed: false }],
+      created: 1,
+      skipped: 0,
+      errors: [{
+        index: 1,
+        source_item_id: MOCK_SOURCE_ITEM,
+        target_item_id: MOCK_SOURCE_ITEM,
+        code: 'VALIDATION_ERROR',
+        message: 'Self-loops are not allowed',
+      }],
     } as never)
 
     const res = await POST(postReq(), makeParams(MOCK_PLAYLIST_ID))
@@ -755,38 +708,25 @@ describe('DELETE /api/pipeline/playlists/[id]/edges/[edgeId]', () => {
 
   it('returns 404 when playlist not found', async () => {
     mockAuthWrite()
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockReturnValue(createMockChain({ data: null })),
-    } as never)
+    vi.mocked(deleteEdgeService).mockRejectedValue(
+      new PipelineServiceError('NOT_FOUND', 'Playlist not found', 404),
+    )
     const res = await DELETE(deleteReq(), makeEdgeParams(MOCK_PLAYLIST_ID, MOCK_EDGE_ID))
     expect(res.status).toBe(404)
   })
 
   it('returns 404 when edge not found in playlist', async () => {
     mockAuthWrite()
-    let callCount = 0
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockImplementation(() => {
-        callCount++
-        if (callCount === 1) return createMockChain({ data: { id: MOCK_PLAYLIST_ID } })
-        return createMockChain({ data: null })
-      }),
-    } as never)
+    vi.mocked(deleteEdgeService).mockRejectedValue(
+      new PipelineServiceError('NOT_FOUND', 'Edge not found in playlist', 404),
+    )
     const res = await DELETE(deleteReq(), makeEdgeParams(MOCK_PLAYLIST_ID, MOCK_EDGE_ID))
     expect(res.status).toBe(404)
   })
 
   it('deletes edge successfully', async () => {
     mockAuthWrite()
-    let callCount = 0
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockImplementation(() => {
-        callCount++
-        if (callCount === 1) return createMockChain({ data: { id: MOCK_PLAYLIST_ID } })
-        if (callCount === 2) return createMockChain({ data: { id: MOCK_EDGE_ID } })
-        return createMockChain({ data: null, error: null })
-      }),
-    } as never)
+    vi.mocked(deleteEdgeService).mockResolvedValue({ deleted: true } as never)
     const res = await DELETE(deleteReq(), makeEdgeParams(MOCK_PLAYLIST_ID, MOCK_EDGE_ID))
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -813,18 +753,19 @@ describe('POST /api/pipeline/playlists/[id]/reorder', () => {
 
   it('returns 404 when playlist not found', async () => {
     mockAuthWrite()
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockReturnValue(createMockChain({ data: null })),
+    vi.mocked(parseBody).mockResolvedValue({ item_ids: [MOCK_ITEM_ID] })
+    vi.mocked(PipelineReorderSchema.safeParse).mockReturnValue({
+      success: true, data: { item_ids: [MOCK_ITEM_ID] },
     } as never)
+    vi.mocked(reorderItemsService).mockRejectedValue(
+      new PipelineServiceError('NOT_FOUND', 'Playlist not found', 404),
+    )
     const res = await POST(postReq(), makeParams(MOCK_PLAYLIST_ID))
     expect(res.status).toBe(404)
   })
 
   it('rejects invalid body', async () => {
     mockAuthWrite()
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockReturnValue(createMockChain({ data: { id: MOCK_PLAYLIST_ID } })),
-    } as never)
     vi.mocked(parseBody).mockResolvedValue({})
     vi.mocked(PipelineReorderSchema.safeParse).mockReturnValue({
       success: false, error: { issues: [{ message: 'item_ids required' }] },
@@ -840,18 +781,9 @@ describe('POST /api/pipeline/playlists/[id]/reorder', () => {
     vi.mocked(PipelineReorderSchema.safeParse).mockReturnValue({
       success: true, data: { item_ids: itemIds },
     } as never)
-
-    let callCount = 0
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockImplementation(() => {
-        callCount++
-        if (callCount === 1) return createMockChain({ data: { id: MOCK_PLAYLIST_ID } })
-        // items query returns only one of two
-        const chain = createMockChain({ data: [{ id: MOCK_ITEM_ID }] })
-        chain.then = (resolve: (v: unknown) => unknown) => resolve({ data: [{ id: MOCK_ITEM_ID }], error: null, count: null })
-        return chain
-      }),
-    } as never)
+    vi.mocked(reorderItemsService).mockRejectedValue(
+      new PipelineServiceError('VALIDATION_ERROR', `Items not found in playlist: ${MOCK_SOURCE_ITEM}`, 400),
+    )
 
     const res = await POST(postReq(), makeParams(MOCK_PLAYLIST_ID))
     expect(res.status).toBe(400)
@@ -866,22 +798,7 @@ describe('POST /api/pipeline/playlists/[id]/reorder', () => {
     vi.mocked(PipelineReorderSchema.safeParse).mockReturnValue({
       success: true, data: { item_ids: itemIds },
     } as never)
-
-    let callCount = 0
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockImplementation(() => {
-        callCount++
-        if (callCount === 1) return createMockChain({ data: { id: MOCK_PLAYLIST_ID } })
-        // items found
-        if (callCount === 2) {
-          const chain = createMockChain({ data: [{ id: MOCK_ITEM_ID }, { id: MOCK_SOURCE_ITEM }] })
-          chain.then = (resolve: (v: unknown) => unknown) => resolve({ data: [{ id: MOCK_ITEM_ID }, { id: MOCK_SOURCE_ITEM }], error: null, count: null })
-          return chain
-        }
-        // update calls
-        return createMockChain({ data: null, error: null })
-      }),
-    } as never)
+    vi.mocked(reorderItemsService).mockResolvedValue({ reordered: true, count: 2 } as never)
 
     const res = await POST(postReq(), makeParams(MOCK_PLAYLIST_ID))
     expect(res.status).toBe(200)
@@ -910,18 +827,16 @@ describe('POST /api/pipeline/playlists/[id]/auto-layout', () => {
 
   it('returns 404 when playlist not found', async () => {
     mockAuthWrite()
-    vi.mocked(getPlaylistGraph).mockResolvedValue(null)
+    vi.mocked(autoLayoutService).mockRejectedValue(
+      new PipelineServiceError('NOT_FOUND', 'Playlist not found', 404),
+    )
     const res = await POST(postReq(), makeParams(MOCK_PLAYLIST_ID))
     expect(res.status).toBe(404)
   })
 
   it('returns empty positions when no items', async () => {
     mockAuthWrite()
-    vi.mocked(getPlaylistGraph).mockResolvedValue({
-      playlist: { id: MOCK_PLAYLIST_ID } as never,
-      items: [],
-      edges: [],
-    })
+    vi.mocked(autoLayoutService).mockResolvedValue({ positions: [], layers: 0 } as never)
     const res = await POST(postReq(), makeParams(MOCK_PLAYLIST_ID))
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -931,18 +846,9 @@ describe('POST /api/pipeline/playlists/[id]/auto-layout', () => {
 
   it('computes and applies layout successfully', async () => {
     mockAuthWrite()
-    const items = [{ id: MOCK_ITEM_ID, title: 'A', content_type: 'blog_post', status: 'active', category: null, metadata: {}, position_x: 0, position_y: 0, sort_order: 1000, is_ghost: false, other_playlist_count: 0 }]
-    const edges: never[] = []
-    vi.mocked(getPlaylistGraph).mockResolvedValue({
-      playlist: { id: MOCK_PLAYLIST_ID } as never,
-      items,
-      edges,
-    })
-    vi.mocked(computeAutoLayout).mockReturnValue([
-      { itemId: MOCK_ITEM_ID, x: 0, y: 100 },
-    ])
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockReturnValue(createMockChain({ data: null, error: null })),
+    vi.mocked(autoLayoutService).mockResolvedValue({
+      positions: [{ item_id: MOCK_ITEM_ID, position_x: 0, position_y: 100 }],
+      layers: 1,
     } as never)
 
     const res = await POST(postReq(), makeParams(MOCK_PLAYLIST_ID))
@@ -972,18 +878,19 @@ describe('POST /api/pipeline/playlists/[id]/items/bulk', () => {
 
   it('returns 404 when playlist not found', async () => {
     mockAuthWrite()
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockReturnValue(createMockChain({ data: null })),
+    vi.mocked(parseBody).mockResolvedValue({ items: [] })
+    vi.mocked(PipelineBulkAddItemsSchema.safeParse).mockReturnValue({
+      success: true, data: { items: [] },
     } as never)
+    vi.mocked(bulkAddItemsService).mockRejectedValue(
+      new PipelineServiceError('NOT_FOUND', 'Playlist not found', 404),
+    )
     const res = await POST(postReq(), makeParams(MOCK_PLAYLIST_ID))
     expect(res.status).toBe(404)
   })
 
   it('rejects invalid body', async () => {
     mockAuthWrite()
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockReturnValue(createMockChain({ data: { id: MOCK_PLAYLIST_ID } })),
-    } as never)
     vi.mocked(parseBody).mockResolvedValue({})
     vi.mocked(PipelineBulkAddItemsSchema.safeParse).mockReturnValue({
       success: false, error: { issues: [{ message: 'items required' }] },
@@ -994,14 +901,14 @@ describe('POST /api/pipeline/playlists/[id]/items/bulk', () => {
 
   it('rejects items with multiple content references', async () => {
     mockAuthWrite()
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockReturnValue(createMockChain({ data: { id: MOCK_PLAYLIST_ID } })),
-    } as never)
     vi.mocked(parseBody).mockResolvedValue({ items: [{ blog_post_id: MOCK_POST_ID, pipeline_id: MOCK_SOURCE_ITEM }] })
     vi.mocked(PipelineBulkAddItemsSchema.safeParse).mockReturnValue({
       success: true,
       data: { items: [{ blog_post_id: MOCK_POST_ID, pipeline_id: MOCK_SOURCE_ITEM }] },
     } as never)
+    vi.mocked(bulkAddItemsService).mockRejectedValue(
+      new PipelineServiceError('VALIDATION_ERROR', 'Each item must have exactly one content reference', 400),
+    )
     const res = await POST(postReq(), makeParams(MOCK_PLAYLIST_ID))
     expect(res.status).toBe(400)
     const body = await res.json()
@@ -1018,21 +925,15 @@ describe('POST /api/pipeline/playlists/[id]/items/bulk', () => {
     vi.mocked(PipelineBulkAddItemsSchema.safeParse).mockReturnValue({
       success: true, data: { items },
     } as never)
-    vi.mocked(getNextSortOrder).mockResolvedValue(1000)
 
-    let callCount = 0
-    vi.mocked(getSupabaseServiceClient).mockReturnValue({
-      from: vi.fn().mockImplementation(() => {
-        callCount++
-        // call 1: playlist check
-        if (callCount === 1) return createMockChain({ data: { id: MOCK_PLAYLIST_ID } })
-        // call 2: dup check item 1 => not found
-        if (callCount === 2) return createMockChain({ data: null })
-        // call 3: insert item 1 => ok
-        if (callCount === 3) return createMockChain({ data: { id: MOCK_ITEM_ID } })
-        // call 4: dup check item 2 => already exists
-        return createMockChain({ data: { id: MOCK_EDGE_ID } })
-      }),
+    vi.mocked(bulkAddItemsService).mockResolvedValue({
+      items: [
+        { id: MOCK_ITEM_ID, already_existed: false },
+        { id: MOCK_EDGE_ID, already_existed: true },
+      ],
+      added: 1,
+      skipped: 1,
+      errors: [],
     } as never)
 
     const res = await POST(postReq(), makeParams(MOCK_PLAYLIST_ID))
