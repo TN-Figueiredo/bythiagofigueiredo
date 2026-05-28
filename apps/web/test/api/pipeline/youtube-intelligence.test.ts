@@ -151,20 +151,18 @@ describe('GET /api/pipeline/youtube/intelligence', () => {
       ab_tests: [{ id: 'ab1', youtube_video_id: 'yt123', name: 'Title test', status: 'running' }],
       intelligence: [{ id: 'int1', type: 'video', source: 'cowork' }],
     }
-    // The route does NextResponse.json(response), where response is the ServiceResult.
-    // Mock returns the data such that the response body matches what the test expects.
-    vi.mocked(getIntelligenceSnapshot).mockResolvedValue(snapshot as any)
+    vi.mocked(getIntelligenceSnapshot).mockResolvedValue({ data: snapshot } as any)
 
     const res = await GET(new NextRequest(`http://localhost/api/pipeline/youtube/intelligence?channel_id=${MOCK_CHANNEL_ID}`))
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.channel.name).toBe('Test Channel')
-    expect(body.videos).toHaveLength(1)
-    expect(body.videos[0].video_id).toBe('yt123')
-    expect(body.grade_history).toHaveLength(1)
-    expect(body.optimization_cycles).toHaveLength(1)
-    expect(body.ab_tests).toHaveLength(1)
-    expect(body.intelligence).toHaveLength(1)
+    expect(body.data.channel.name).toBe('Test Channel')
+    expect(body.data.videos).toHaveLength(1)
+    expect(body.data.videos[0].video_id).toBe('yt123')
+    expect(body.data.grade_history).toHaveLength(1)
+    expect(body.data.optimization_cycles).toHaveLength(1)
+    expect(body.data.ab_tests).toHaveLength(1)
+    expect(body.data.intelligence).toHaveLength(1)
   })
 })
 
@@ -250,8 +248,7 @@ describe('PATCH /api/pipeline/youtube/intelligence', () => {
     vi.mocked(parseBody).mockResolvedValue({ task_id: MOCK_TASK_ID })
 
     vi.mocked(submitIntelRecommendations).mockResolvedValue({
-      status: 'ok',
-      processed: true,
+      data: { status: 'ok', processed: true },
     } as any)
 
     const req = new NextRequest('http://localhost/x', {
@@ -262,8 +259,8 @@ describe('PATCH /api/pipeline/youtube/intelligence', () => {
     const res = await PATCH(req)
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.status).toBe('ok')
-    expect(body.processed).toBe(true)
+    expect(body.data.status).toBe('ok')
+    expect(body.data.processed).toBe(true)
   })
 
   it('returns 422 when video_recommendations reference missing videos', async () => {
@@ -320,7 +317,7 @@ describe('GET /api/pipeline/youtube/intelligence/task', () => {
 
   it('returns 204 when no pending task exists', async () => {
     mockAuthRead()
-    vi.mocked(claimNextTask).mockResolvedValue(null as any)
+    vi.mocked(claimNextTask).mockResolvedValue({ data: null } as any)
 
     const res = await GET(new NextRequest('http://localhost/api/pipeline/youtube/intelligence/task'))
     expect(res.status).toBe(204)
@@ -329,7 +326,7 @@ describe('GET /api/pipeline/youtube/intelligence/task', () => {
   it('returns 204 when CAS claim fails (race condition)', async () => {
     mockAuthRead()
     // CAS claim returns null (task was claimed by another worker)
-    vi.mocked(claimNextTask).mockResolvedValue(null as any)
+    vi.mocked(claimNextTask).mockResolvedValue({ data: null } as any)
 
     const res = await GET(new NextRequest('http://localhost/api/pipeline/youtube/intelligence/task'))
     expect(res.status).toBe(204)
@@ -344,18 +341,18 @@ describe('GET /api/pipeline/youtube/intelligence/task', () => {
       trigger_type: 'scheduled',
       requested_at: '2026-05-24T10:00:00Z',
     }
-    vi.mocked(claimNextTask).mockResolvedValue(task as any)
+    vi.mocked(claimNextTask).mockResolvedValue({ data: task } as any)
 
     const res = await GET(new NextRequest('http://localhost/api/pipeline/youtube/intelligence/task'))
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.id).toBe(MOCK_TASK_ID)
-    expect(body.channel_id).toBe(MOCK_CHANNEL_ID)
+    expect(body.data.id).toBe(MOCK_TASK_ID)
+    expect(body.data.channel_id).toBe(MOCK_CHANNEL_ID)
   })
 
   it('uses status query param (defaults to pending)', async () => {
     mockAuthRead()
-    vi.mocked(claimNextTask).mockResolvedValue(null as any)
+    vi.mocked(claimNextTask).mockResolvedValue({ data: null } as any)
 
     await GET(new NextRequest('http://localhost/api/pipeline/youtube/intelligence/task?status=failed'))
     expect(claimNextTask).toHaveBeenCalledWith(expect.anything(), 'failed')

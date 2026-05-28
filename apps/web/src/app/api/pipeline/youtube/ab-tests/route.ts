@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const ctx = authToServiceContext(auth)
-    const data = await listAbTests(ctx, { status })
+    const { data } = await listAbTests(ctx, { status })
     return pipelineSuccess(data, 200, auth)
   } catch (err) {
     return serviceErrorToResponse(err, auth)

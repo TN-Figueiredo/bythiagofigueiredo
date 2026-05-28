@@ -293,6 +293,9 @@ export async function submitIntelRecommendations(
     return err('VERSION_CONFLICT', `Task status is '${task.status}', expected 'running'`, 409)
   }
 
+  // Track DB write failures for partial-failure reporting
+  const dbErrors: string[] = []
+
   // Process video recommendations
   if (video_recommendations?.length) {
     const videoIds = video_recommendations.map(r => r.video_id)
@@ -334,10 +337,16 @@ export async function submitIntelRecommendations(
 
       if (existingIntel) {
         const { error } = await supabase.from('youtube_intelligence').update(intelPayload).eq('id', existingIntel.id)
-        if (error) Sentry.captureMessage(`intelligence update failed: ${error.message}`, { extra: { videoId: rec.video_id } })
+        if (error) {
+          Sentry.captureMessage(`intelligence update failed: ${error.message}`, { extra: { videoId: rec.video_id } })
+          dbErrors.push(`video ${rec.video_id}: ${error.message}`)
+        }
       } else {
         const { error } = await supabase.from('youtube_intelligence').insert(intelPayload)
-        if (error) Sentry.captureMessage(`intelligence insert failed: ${error.message}`, { extra: { videoId: rec.video_id } })
+        if (error) {
+          Sentry.captureMessage(`intelligence insert failed: ${error.message}`, { extra: { videoId: rec.video_id } })
+          dbErrors.push(`video ${rec.video_id}: ${error.message}`)
+        }
       }
 
       // Advance optimization cycle from flagged to diagnosed
@@ -384,10 +393,16 @@ export async function submitIntelRecommendations(
 
     if (existingChannel) {
       const { error } = await supabase.from('youtube_intelligence').update(channelPayload).eq('id', existingChannel.id)
-      if (error) Sentry.captureMessage(`channel intelligence update failed: ${error.message}`)
+      if (error) {
+        Sentry.captureMessage(`channel intelligence update failed: ${error.message}`)
+        dbErrors.push(`channel coaching: ${error.message}`)
+      }
     } else {
       const { error } = await supabase.from('youtube_intelligence').insert(channelPayload)
-      if (error) Sentry.captureMessage(`channel intelligence insert failed: ${error.message}`)
+      if (error) {
+        Sentry.captureMessage(`channel intelligence insert failed: ${error.message}`)
+        dbErrors.push(`channel coaching: ${error.message}`)
+      }
     }
   }
 
@@ -408,14 +423,23 @@ export async function submitIntelRecommendations(
     }
   }
 
-  // Mark task as completed
+  // Mark task status based on whether all writes succeeded
+  const finalStatus = dbErrors.length > 0 ? 'partial_failure' : 'completed'
   await supabase.from('youtube_intelligence_tasks').update({
-    status: 'completed',
+    status: finalStatus,
     completed_at: new Date().toISOString(),
-    result_summary: { recommendations: video_recommendations?.length ?? 0, has_coaching: !!coaching },
+    result_summary: {
+      recommendations: video_recommendations?.length ?? 0,
+      has_coaching: !!coaching,
+      ...(dbErrors.length > 0 && { failed_writes: dbErrors.length }),
+    },
   }).eq('id', task_id)
 
-  return ok({ status: 'ok' as const, processed: true })
+  const result: ServiceResult<TaskResult> = ok({ status: 'ok' as const, processed: true })
+  if (dbErrors.length > 0) {
+    result.warnings = dbErrors
+  }
+  return result
 }
 
 // ---------------------------------------------------------------------------
@@ -441,7 +465,7 @@ export async function claimNextTask(
 
   if (!task) return ok(null)
 
-  // Optimistic CAS: only claim if still pending
+  // Optimistic CAS: only claim if still in the expected status
   const { data: claimed } = await supabase
     .from('youtube_intelligence_tasks')
     .update({
@@ -449,7 +473,7 @@ export async function claimNextTask(
       started_at: new Date().toISOString(),
     })
     .eq('id', task.id)
-    .eq('status', 'pending')
+    .eq('status', status)
     .select('id')
     .maybeSingle()
 
@@ -630,7 +654,8 @@ export async function getAbPerformance(
     .from('ab_tests')
     .select(`
       id, name, test_type, confidence_at_completion, result_metadata,
-      winner:ab_test_variants!winner_variant_id(id, label, title_text, description_text, metadata)
+      winner:ab_test_variants!winner_variant_id(id, label, title_text, description_text, metadata),
+      variants:ab_test_variants!test_id(id, metadata)
     `)
     .eq('site_id', siteId)
     .eq('status', 'completed')
@@ -650,10 +675,25 @@ export async function getAbPerformance(
     if (meta.title_pattern) {
       patterns[meta.title_pattern] = (patterns[meta.title_pattern] ?? 0) + 1
     }
+
+    // Count tests: every tag across ALL variants in this test counts as one test appearance
+    const allVariants = (test.variants ?? []) as Array<{ id: string; metadata: WinnerVariant['metadata'] | null }>
+    const testTags = new Set<string>()
+    for (const v of allVariants) {
+      for (const tag of v.metadata?.thumbnail_tags ?? []) {
+        testTags.add(tag)
+      }
+    }
+    for (const tag of testTags) {
+      const entry = tags[tag] ?? { wins: 0, tests: 0 }
+      entry.tests++
+      tags[tag] = entry
+    }
+
+    // Count wins: only tags from the winning variant
     for (const tag of meta.thumbnail_tags ?? []) {
       const entry = tags[tag] ?? { wins: 0, tests: 0 }
       entry.wins++
-      entry.tests++
       tags[tag] = entry
     }
   }

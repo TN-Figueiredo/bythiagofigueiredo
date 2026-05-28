@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { buildRateLimitHeaders } from '@/lib/pipeline/auth'
-import { authenticateRead } from '@/lib/pipeline/helpers'
+import { authenticateRead, pipelineSuccess } from '@/lib/pipeline/helpers'
 import { authToServiceContext, serviceErrorToResponse } from '@/lib/pipeline/services/http-adapter'
 import { claimNextTask } from '@/lib/pipeline/services/youtube'
 
@@ -15,14 +14,13 @@ export async function GET(req: NextRequest) {
 
   try {
     const ctx = authToServiceContext(auth)
-    const task = await claimNextTask(ctx, status)
+    const { data: task } = await claimNextTask(ctx, status)
 
     if (!task) {
       return new NextResponse(null, { status: 204 })
     }
 
-    const headers = buildRateLimitHeaders(auth)
-    return NextResponse.json(task, { headers: headers ?? {} })
+    return pipelineSuccess(task, 200, auth)
   } catch (err) {
     return serviceErrorToResponse(err, auth)
   }

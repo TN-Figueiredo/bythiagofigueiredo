@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { buildRateLimitHeaders } from '@/lib/pipeline/auth'
-import { authenticateRead, authenticateWrite, pipelineError, parseBody } from '@/lib/pipeline/helpers'
+import { authenticateRead, authenticateWrite, pipelineError, pipelineSuccess, parseBody } from '@/lib/pipeline/helpers'
 import { authToServiceContext, serviceErrorToResponse } from '@/lib/pipeline/services/http-adapter'
 import { PipelineServiceError } from '@/lib/pipeline/services/types'
 import { getIntelligenceSnapshot, submitIntelRecommendations, type IntelRecommendations } from '@/lib/pipeline/services/youtube'
@@ -17,9 +16,8 @@ export async function GET(req: NextRequest) {
 
   try {
     const ctx = authToServiceContext(auth)
-    const response = await getIntelligenceSnapshot(ctx, channelId)
-    const headers = buildRateLimitHeaders(auth)
-    return NextResponse.json(response, { headers: headers ?? {} })
+    const { data } = await getIntelligenceSnapshot(ctx, channelId)
+    return pipelineSuccess(data, 200, auth)
   } catch (err) {
     return serviceErrorToResponse(err, auth)
   }
@@ -35,9 +33,8 @@ export async function PATCH(req: NextRequest) {
 
   try {
     const ctx = authToServiceContext(auth)
-    const response = await submitIntelRecommendations(ctx, body as IntelRecommendations)
-    const headers = buildRateLimitHeaders(auth)
-    return NextResponse.json(response, { headers: headers ?? {} })
+    const { data } = await submitIntelRecommendations(ctx, body as IntelRecommendations)
+    return pipelineSuccess(data, 200, auth)
   } catch (err) {
     if (err instanceof PipelineServiceError && err.code === 'VALIDATION_FAILED' && err.details) {
       const details = err.details as { details: unknown[] }

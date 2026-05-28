@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const ctx = authToServiceContext(auth)
-    const data = await getAbPerformance(ctx)
+    const { data } = await getAbPerformance(ctx)
     return pipelineSuccess(data, 200, auth)
   } catch (err) {
     return serviceErrorToResponse(err, auth)

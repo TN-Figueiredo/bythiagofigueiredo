@@ -17,7 +17,7 @@ export async function POST(
 
   try {
     const ctx = authToServiceContext(auth)
-    const data = await upsertVariants(ctx, id, body as VariantInput[])
+    const { data } = await upsertVariants(ctx, id, body as VariantInput[])
     return pipelineSuccess(data, 200, auth)
   } catch (err) {
     return serviceErrorToResponse(err, auth)
@@ -36,7 +36,7 @@ export async function GET(
 
   try {
     const ctx = authToServiceContext(auth)
-    const data = await listVariants(ctx, id)
+    const { data } = await listVariants(ctx, id)
     return pipelineSuccess(data, 200, auth)
   } catch (err) {
     return serviceErrorToResponse(err, auth)
@@ -58,7 +58,7 @@ export async function DELETE(
 
   try {
     const ctx = authToServiceContext(auth)
-    const data = await deleteVariant(ctx, id, label)
+    const { data } = await deleteVariant(ctx, id, label)
     return pipelineSuccess(data, 200, auth)
   } catch (err) {
     return serviceErrorToResponse(err, auth)

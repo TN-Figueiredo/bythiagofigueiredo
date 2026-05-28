@@ -20,7 +20,7 @@ import {
 } from '@/lib/pipeline/prompt-builders'
 import { WORKFLOWS, DEFAULT_CHECKLISTS } from '@/lib/pipeline/workflows'
 import { SECTION_DEFINITIONS, getSectionKey } from '@/lib/pipeline/sections'
-import { buildAbBriefingPrompt, buildAbWritePrompt } from '@/lib/youtube/prompt-builders-ab'
+import { buildAbBriefingPrompt, buildAbWritePrompt, buildAbReviewPrompt } from '@/lib/youtube/prompt-builders-ab'
 import { buildPlaylistPrompt, type PlaylistPromptInput } from '@/lib/playlists/prompt-builder'
 import type { TestType } from '@/lib/youtube/ab-types'
 import type { AbBriefingData } from '@/lib/youtube/prompt-types'
@@ -103,13 +103,13 @@ async function fetchSnapshotAge(): Promise<number> {
   const supabase = getSupabaseServiceClient()
   const { data } = await supabase
     .from('youtube_intelligence')
-    .select('snapshot_at')
-    .order('snapshot_at', { ascending: false })
+    .select('generated_at')
+    .order('generated_at', { ascending: false })
     .limit(1)
     .single()
 
-  if (!data?.snapshot_at) return 999
-  return Math.floor((Date.now() - new Date(data.snapshot_at as string).getTime()) / 3600000)
+  if (!data?.generated_at) return 999
+  return Math.floor((Date.now() - new Date(data.generated_at as string).getTime()) / 3600000)
 }
 
 /** Read a pipeline docs markdown file. */
@@ -379,10 +379,12 @@ export function registerPrompts(server: McpServer): void {
     {
       test_type: z.string().describe('Test type: thumbnail, title, description, or combo'),
       video_context: z.string().optional().describe('Additional context about the video or focus area'),
+      lang: z.string().optional().describe('Locale: pt or en (default: pt)'),
     },
     async (args) => {
       const testType = args.test_type as TestType
       const videoContext = args.video_context ?? undefined
+      const locale = (args.lang === 'en' ? 'en' : 'pt') as 'pt' | 'en'
 
       if (!['thumbnail', 'title', 'description', 'combo'].includes(testType)) {
         throw new Error(`Invalid test_type: ${testType}. Must be thumbnail, title, description, or combo.`)
@@ -412,7 +414,7 @@ export function registerPrompts(server: McpServer): void {
       // Build briefing data
       const briefingData: AbBriefingData = {
         channel,
-        locale: 'pt',
+        locale,
         video: {
           title: '(specify video when creating a test)',
           thumbnailUrl: null,
@@ -445,11 +447,13 @@ export function registerPrompts(server: McpServer): void {
       test_id: z.string().describe('A/B test UUID'),
       variant_count: z.string().optional().describe('Number of variants to create (default: 3)'),
       slot_notes: z.string().optional().describe('Per-variant direction notes (JSON: {"B": "...", "C": "..."})'),
+      lang: z.string().optional().describe('Locale: pt or en (default: pt)'),
     },
     async (args) => {
       const testId = args.test_id
       const variantCount = args.variant_count ? parseInt(args.variant_count, 10) : 3
       const slotNotes = args.slot_notes ? JSON.parse(args.slot_notes) as Record<string, string> : undefined
+      const locale = (args.lang === 'en' ? 'en' : 'pt') as 'pt' | 'en'
 
       const supabase = getSupabaseServiceClient()
 
@@ -491,7 +495,7 @@ export function registerPrompts(server: McpServer): void {
 
       const briefingData: AbBriefingData = {
         channel,
-        locale: 'pt',
+        locale,
         testId,
         video: {
           youtubeVideoId: test.youtube_video_id as string,
@@ -526,12 +530,67 @@ export function registerPrompts(server: McpServer): void {
         promptText += '\n' + extras.join('\n')
       }
 
+      // Override HTTP workflow steps — MCP clients should use the tool instead
+      const mcpOverride = locale === 'pt'
+        ? `\n\n---\n**MCP: Ignore as instruções HTTP acima.** Use a ferramenta \`manage_ab_test\` com action \`upsert_variants\` para salvar variantes. Exemplo:\n\`\`\`json\n{ "action": "upsert_variants", "test_id": "${testId}", "variants": [...], "dry_run": false }\n\`\`\``
+        : `\n\n---\n**MCP: Ignore the HTTP workflow steps above.** Use the \`manage_ab_test\` tool with action \`upsert_variants\` to save variants. Example:\n\`\`\`json\n{ "action": "upsert_variants", "test_id": "${testId}", "variants": [...], "dry_run": false }\n\`\`\``
+      promptText += mcpOverride
+
       return userMessage(promptText)
     },
   )
 
   // -------------------------------------------------------------------------
-  // 6. playlist-architect — playlist management (delegates to buildPlaylistPrompt)
+  // 6. ab-review — A/B test variant review (delegates to buildAbReviewPrompt)
+  // -------------------------------------------------------------------------
+  server.prompt(
+    'ab-review',
+    'Review A/B test variants: evaluate quality, differentiation, and click probability',
+    {
+      test_id: z.string().describe('A/B test UUID'),
+      lang: z.string().optional().describe('Locale: pt or en (default: pt)'),
+    },
+    async (args) => {
+      const testId = args.test_id
+      const locale = (args.lang === 'en' ? 'en' : 'pt') as 'pt' | 'en'
+
+      const supabase = getSupabaseServiceClient()
+
+      // Fetch test variants
+      const { data: variants, error } = await supabase
+        .from('ab_test_variants')
+        .select('label, title_text, description_text, blob_url, metadata')
+        .eq('test_id', testId)
+        .order('sort_order', { ascending: true })
+
+      if (error) throw new Error(`Failed to fetch variants for test ${testId}: ${error.message}`)
+      if (!variants || variants.length === 0) throw new Error(`No variants found for test ${testId}`)
+
+      // Fetch channel info for tier context
+      const channel = await fetchChannelInfo()
+
+      const promptText = buildAbReviewPrompt({
+        testId,
+        locale,
+        variants: variants.map(v => ({
+          label: v.label as string,
+          title_text: v.title_text as string | null,
+          description_text: v.description_text as string | null,
+          blob_url: v.blob_url as string | null,
+          metadata: (v.metadata ?? {}) as Record<string, unknown>,
+        })),
+        channel: {
+          tier: channel.tier,
+          subscribers: channel.subscribers,
+        },
+      })
+
+      return userMessage(promptText)
+    },
+  )
+
+  // -------------------------------------------------------------------------
+  // 7. playlist-architect — playlist management (delegates to buildPlaylistPrompt)
   // -------------------------------------------------------------------------
   server.prompt(
     'playlist-architect',
@@ -676,7 +735,7 @@ export function registerPrompts(server: McpServer): void {
   )
 
   // -------------------------------------------------------------------------
-  // 7. translate — content translation (delegates to generatePrompt)
+  // 8. translate — content translation (delegates to generatePrompt)
   // -------------------------------------------------------------------------
   server.prompt(
     'translate',

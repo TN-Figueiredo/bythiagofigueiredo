@@ -104,7 +104,7 @@ describe('GET /api/pipeline/youtube/ab-tests', () => {
     const res = await GET(req)
 
     expect(listAbTests).toHaveBeenCalled()
-    expect(pipelineSuccess).toHaveBeenCalledWith({ data: tests }, 200, { keyId: 'test-key', siteId: 'site-1' })
+    expect(pipelineSuccess).toHaveBeenCalledWith(tests, 200, { keyId: 'test-key', siteId: 'site-1' })
     expect(res.status).toBe(200)
   })
 
@@ -119,7 +119,7 @@ describe('GET /api/pipeline/youtube/ab-tests', () => {
 
     // The route passes the status as AbTestFilters to the service function
     expect(listAbTests).toHaveBeenCalledWith(expect.anything(), { status: 'active' })
-    expect(pipelineSuccess).toHaveBeenCalledWith({ data: tests }, 200, { keyId: 'test-key', siteId: 'site-1' })
+    expect(pipelineSuccess).toHaveBeenCalledWith(tests, 200, { keyId: 'test-key', siteId: 'site-1' })
     expect(res.status).toBe(200)
   })
 })
@@ -166,7 +166,7 @@ describe('GET /api/pipeline/youtube/ab-tests/[id]', () => {
     const res = await GET(req, { params: Promise.resolve({ id: 'test-1' }) })
 
     expect(getAbTest).toHaveBeenCalledWith(expect.anything(), 'test-1')
-    expect(pipelineSuccess).toHaveBeenCalledWith({ data: test }, 200, { keyId: 'test-key', siteId: 'site-1' })
+    expect(pipelineSuccess).toHaveBeenCalledWith(test, 200, { keyId: 'test-key', siteId: 'site-1' })
     expect(res.status).toBe(200)
   })
 })
@@ -218,16 +218,14 @@ describe('GET /api/pipeline/youtube/ab-tests/[id]/funnel', () => {
     expect(res.status).toBe(200)
     expect(pipelineSuccess).toHaveBeenCalledWith(
       {
-        data: {
-          per_variant: expect.arrayContaining([
-            { variant_id: 'v1', impressions: 150, clicks: 15, link_clicks: 7 },
-            { variant_id: 'v2', impressions: 200, clicks: 30, link_clicks: 20 },
-          ]),
-          per_link: expect.arrayContaining([
-            { template_name: 'cta', variant_id: 'v1', short_code: 'abc', clicks: 7 },
-            { template_name: 'cta', variant_id: 'v2', short_code: 'def', clicks: 20 },
-          ]),
-        },
+        per_variant: expect.arrayContaining([
+          { variant_id: 'v1', impressions: 150, clicks: 15, link_clicks: 7 },
+          { variant_id: 'v2', impressions: 200, clicks: 30, link_clicks: 20 },
+        ]),
+        per_link: expect.arrayContaining([
+          { template_name: 'cta', variant_id: 'v1', short_code: 'abc', clicks: 7 },
+          { template_name: 'cta', variant_id: 'v2', short_code: 'def', clicks: 20 },
+        ]),
       },
       200,
       { keyId: 'test-key', siteId: 'site-1' },
@@ -267,13 +265,11 @@ describe('GET /api/pipeline/youtube/ab-performance', () => {
     expect(res.status).toBe(200)
     expect(pipelineSuccess).toHaveBeenCalledWith(
       {
-        data: {
-          completed_tests: 2,
-          winning_patterns: { question: 2 },
-          winning_tags: {
-            bold: { wins: 2, tests: 2 },
-            face: { wins: 1, tests: 1 },
-          },
+        completed_tests: 2,
+        winning_patterns: { question: 2 },
+        winning_tags: {
+          bold: { wins: 2, tests: 2 },
+          face: { wins: 1, tests: 1 },
         },
       },
       200,

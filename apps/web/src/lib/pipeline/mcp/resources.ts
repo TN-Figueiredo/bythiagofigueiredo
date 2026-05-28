@@ -14,6 +14,8 @@ import { API_REGISTRY, type DomainId } from '@/lib/pipeline/api-registry'
 import { WORKFLOWS, DEFAULT_CHECKLISTS } from '@/lib/pipeline/workflows'
 
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import * as youtube from '@/lib/pipeline/services/youtube'
+import type { ServiceContext } from '@/lib/pipeline/services/types'
 
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
@@ -56,6 +58,21 @@ const PIPELINE_DOCS_DIR = path.resolve(
 interface ResourceContents {
   [key: string]: unknown
   contents: Array<{ uri: string; mimeType: string; text: string }>
+}
+
+/** Build a read-only ServiceContext for resource handlers. */
+async function buildResourceCtx(): Promise<{ ctx: ServiceContext; siteId: string }> {
+  const supabase = getSupabaseServiceClient()
+  const { data: site } = await supabase.from('sites').select('id').limit(1).single()
+  if (!site) throw new Error('No site found')
+  const ctx: ServiceContext = {
+    siteId: site.id,
+    permissions: ['read'],
+    keyHash: 'resource-reader',
+    supabase,
+    source: 'api_key',
+  }
+  return { ctx, siteId: site.id }
 }
 
 function jsonResource(data: unknown): ResourceContents {
@@ -290,18 +307,22 @@ export function registerResources(server: McpServer): void {
       annotations: { audience: ['assistant'] },
     },
     async (uri) => {
+      const { ctx } = await buildResourceCtx()
       const supabase = getSupabaseServiceClient()
 
-      const { data, error } = await supabase
-        .from('youtube_intelligence')
-        .select('*')
-        .order('snapshot_at', { ascending: false })
+      // Resolve the first channel for the site
+      const { data: channel } = await supabase
+        .from('youtube_channels')
+        .select('id')
         .limit(1)
         .single()
 
-      if (error) throw new Error(`Failed to fetch YouTube intelligence: ${error.message}`)
+      if (!channel) throw new Error('No YouTube channel found')
 
-      const result = jsonResource(data)
+      const snapshot = await youtube.getIntelligenceSnapshot(ctx, channel.id)
+      if (!snapshot.data) throw new Error('Failed to fetch YouTube intelligence snapshot')
+
+      const result = jsonResource(snapshot.data)
       result.contents[0]!.uri = uri.href
       return result
     },
@@ -320,31 +341,12 @@ export function registerResources(server: McpServer): void {
       annotations: { audience: ['assistant'] },
     },
     async (uri) => {
-      const supabase = getSupabaseServiceClient()
-
-      const { data: tests, error } = await supabase
-        .from('youtube_ab_tests')
-        .select('id, test_type, status, winner_variant_id, completed_reason, started_at, completed_at')
-        .eq('status', 'completed')
-        .order('completed_at', { ascending: false })
-        .limit(50)
-
-      if (error) throw new Error(`Failed to fetch AB performance: ${error.message}`)
-
-      // Aggregate patterns
-      const rows = tests ?? []
-      const byType: Record<string, { total: number; withWinner: number }> = {}
-      for (const t of rows) {
-        const type = t.test_type as string
-        if (!byType[type]) byType[type] = { total: 0, withWinner: 0 }
-        byType[type]!.total++
-        if (t.winner_variant_id) byType[type]!.withWinner++
-      }
+      const { ctx } = await buildResourceCtx()
+      const performance = await youtube.getAbPerformance(ctx)
+      if (!performance.data) throw new Error('Failed to fetch AB performance')
 
       const result = jsonResource({
-        completedTests: rows.length,
-        byType,
-        recentTests: rows.slice(0, 10),
+        ...performance.data,
         generatedAt: new Date().toISOString(),
       })
       result.contents[0]!.uri = uri.href

@@ -15,7 +15,7 @@ export async function GET(
 
   try {
     const ctx = authToServiceContext(auth)
-    const test = await getAbTest(ctx, id)
+    const { data: test } = await getAbTest(ctx, id)
     return pipelineSuccess(test, 200, auth)
   } catch (err) {
     return serviceErrorToResponse(err, auth)

@@ -109,7 +109,7 @@ describe('GET /api/pipeline/youtube/ab-tests', () => {
     const res = await GET(new NextRequest('http://localhost/api/pipeline/youtube/ab-tests'))
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.data.data).toHaveLength(2)
+    expect(body.data).toHaveLength(2)
   })
 
   it('filters by status query param', async () => {
@@ -130,7 +130,7 @@ describe('GET /api/pipeline/youtube/ab-tests', () => {
     const res = await GET(new NextRequest('http://localhost/api/pipeline/youtube/ab-tests'))
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.data.data).toEqual([])
+    expect(body.data).toEqual([])
   })
 
   it('returns 500 on DB error', async () => {
@@ -186,8 +186,8 @@ describe('GET /api/pipeline/youtube/ab-tests/[id]', () => {
     const res = await GET(new NextRequest('http://localhost/x'), makeParams(MOCK_TEST_ID))
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.data.data.id).toBe(MOCK_TEST_ID)
-    expect(body.data.data.variants).toHaveLength(1)
+    expect(body.data.id).toBe(MOCK_TEST_ID)
+    expect(body.data.variants).toHaveLength(1)
   })
 })
 
@@ -235,12 +235,12 @@ describe('GET /api/pipeline/youtube/ab-tests/[id]/funnel', () => {
     const res = await GET(new NextRequest('http://localhost/x'), makeParams(MOCK_TEST_ID))
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.data.data.per_variant).toHaveLength(1)
-    expect(body.data.data.per_variant[0].impressions).toBe(1800)
-    expect(body.data.data.per_variant[0].clicks).toBe(90)
-    expect(body.data.data.per_variant[0].link_clicks).toBe(25)
-    expect(body.data.data.per_link).toHaveLength(1)
-    expect(body.data.data.per_link[0].clicks).toBe(25)
+    expect(body.data.per_variant).toHaveLength(1)
+    expect(body.data.per_variant[0].impressions).toBe(1800)
+    expect(body.data.per_variant[0].clicks).toBe(90)
+    expect(body.data.per_variant[0].link_clicks).toBe(25)
+    expect(body.data.per_link).toHaveLength(1)
+    expect(body.data.per_link[0].clicks).toBe(25)
   })
 
   it('returns empty funnel when no cycles or links exist', async () => {
@@ -252,8 +252,8 @@ describe('GET /api/pipeline/youtube/ab-tests/[id]/funnel', () => {
     const res = await GET(new NextRequest('http://localhost/x'), makeParams(MOCK_TEST_ID))
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.data.data.per_variant).toEqual([])
-    expect(body.data.data.per_link).toEqual([])
+    expect(body.data.per_variant).toEqual([])
+    expect(body.data.per_link).toEqual([])
   })
 })
 
@@ -289,9 +289,9 @@ describe('GET /api/pipeline/youtube/ab-performance', () => {
     const res = await GET(new NextRequest('http://localhost/api/pipeline/youtube/ab-performance'))
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.data.data.completed_tests).toBe(1)
-    expect(body.data.data.winning_patterns).toEqual({ question: 1 })
-    expect(body.data.data.winning_tags).toEqual({
+    expect(body.data.completed_tests).toBe(1)
+    expect(body.data.winning_patterns).toEqual({ question: 1 })
+    expect(body.data.winning_tags).toEqual({
       face: { wins: 1, tests: 1 },
       'text-overlay': { wins: 1, tests: 1 },
     })
@@ -306,9 +306,9 @@ describe('GET /api/pipeline/youtube/ab-performance', () => {
     const res = await GET(new NextRequest('http://localhost/api/pipeline/youtube/ab-performance'))
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.data.data.completed_tests).toBe(0)
-    expect(body.data.data.winning_patterns).toEqual({})
-    expect(body.data.data.winning_tags).toEqual({})
+    expect(body.data.completed_tests).toBe(0)
+    expect(body.data.winning_patterns).toEqual({})
+    expect(body.data.winning_tags).toEqual({})
   })
 
   it('handles winner as array (Supabase join format)', async () => {
@@ -320,7 +320,7 @@ describe('GET /api/pipeline/youtube/ab-performance', () => {
     const res = await GET(new NextRequest('http://localhost/api/pipeline/youtube/ab-performance'))
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.data.data.winning_patterns).toEqual({ listicle: 1 })
+    expect(body.data.winning_patterns).toEqual({ listicle: 1 })
   })
 
   it('skips tests with null winner', async () => {
@@ -332,7 +332,7 @@ describe('GET /api/pipeline/youtube/ab-performance', () => {
     const res = await GET(new NextRequest('http://localhost/api/pipeline/youtube/ab-performance'))
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.data.data.completed_tests).toBe(1)
-    expect(body.data.data.winning_patterns).toEqual({})
+    expect(body.data.completed_tests).toBe(1)
+    expect(body.data.winning_patterns).toEqual({})
   })
 })

@@ -15,7 +15,7 @@ export async function GET(
 
   try {
     const ctx = authToServiceContext(auth)
-    const data = await getAbTestFunnel(ctx, id)
+    const { data } = await getAbTestFunnel(ctx, id)
     return pipelineSuccess(data, 200, auth)
   } catch (err) {
     return serviceErrorToResponse(err, auth)

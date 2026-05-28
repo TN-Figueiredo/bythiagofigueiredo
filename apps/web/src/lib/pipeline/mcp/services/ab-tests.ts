@@ -10,7 +10,7 @@ import { mcpRequirePermission } from '@/lib/pipeline/mcp/auth'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { PipelineServiceError } from '@/lib/pipeline/services/types'
 import type { ServiceContext } from '@/lib/pipeline/services/types'
-import type { VariantInput } from '@/lib/pipeline/services/youtube'
+import type { VariantInput, IntelRecommendations } from '@/lib/pipeline/services/youtube'
 import * as youtube from '@/lib/pipeline/services/youtube'
 import { toMcpError, toMcpSuccess } from '../errors'
 
@@ -32,7 +32,7 @@ export async function manageAbTest(params: Params): Promise<CallToolResult> {
 
   try {
     // Write permission guard for mutation actions
-    const WRITE_ACTIONS = ['upsert_variants', 'delete_variant']
+    const WRITE_ACTIONS = ['upsert_variants', 'delete_variant', 'submit_intelligence']
     if (action && WRITE_ACTIONS.includes(action)) {
       const mcp = getMcpContext()
       if (!mcpRequirePermission(mcp, 'write')) {
@@ -145,10 +145,22 @@ export async function manageAbTest(params: Params): Promise<CallToolResult> {
         return toMcpSuccess(result.data)
       }
 
+      case 'submit_intelligence': {
+        const payload = params.intel_payload as IntelRecommendations | undefined
+        if (!payload) return toMcpError({ code: 'VALIDATION_ERROR', message: 'intel_payload is required for submit_intelligence' })
+        const result = await youtube.submitIntelRecommendations(buildCtx(), payload)
+        return toMcpSuccess(result.data)
+      }
+
+      case 'claim_task': {
+        const result = await youtube.claimNextTask(buildCtx())
+        return toMcpSuccess(result.data)
+      }
+
       default:
         return toMcpError({
           code: 'VALIDATION_ERROR',
-          message: `Unknown action "${action ?? '(missing)'}". Supported: list_tests, get_test, get_funnel, get_performance, get_intelligence, list_variants, upsert_variants, delete_variant`,
+          message: `Unknown action "${action ?? '(missing)'}". Supported: list_tests, get_test, get_funnel, get_performance, get_intelligence, list_variants, upsert_variants, delete_variant, submit_intelligence, claim_task`,
         })
     }
   } catch (error) {

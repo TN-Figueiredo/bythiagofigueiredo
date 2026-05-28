@@ -437,10 +437,12 @@ const ManageResearchShape = {
 
 // ---- 15. manage_ab_test ----
 const ManageAbTestShape = {
-  action: z.enum(['list_tests', 'get_test', 'get_funnel', 'get_performance', 'get_intelligence', 'list_variants', 'upsert_variants', 'delete_variant'])
-    .describe('list_tests: all A/B tests with optional status filter. get_test: single test details with variants+cycles. get_funnel: funnel metrics per variant. get_performance: winning patterns from completed tests. get_intelligence: channel intelligence snapshot. list_variants: variants for a test. upsert_variants: create/update variants. delete_variant: remove non-original variant.'),
+  action: z.enum(['list_tests', 'get_test', 'get_funnel', 'get_performance', 'get_intelligence', 'list_variants', 'upsert_variants', 'delete_variant', 'submit_intelligence', 'claim_task'])
+    .describe('list_tests: all A/B tests with optional status filter. get_test: single test details with variants+cycles. get_funnel: funnel metrics per variant. get_performance: winning patterns from completed tests. get_intelligence: channel intelligence snapshot. list_variants: variants for a test. upsert_variants: create/update variants. delete_variant: remove non-original variant. submit_intelligence: submit Cowork recommendations for a running task. claim_task: claim the next pending intelligence task.'),
   test_id: z.string().uuid().optional()
     .describe('A/B test UUID (required for get_test, get_funnel, list_variants, upsert_variants, delete_variant)'),
+  channel_id: z.string().uuid().optional()
+    .describe('YouTube channel UUID (required for get_intelligence)'),
   status: z.string().optional()
     .describe('Filter for list_tests (e.g. "active", "draft", "completed")'),
   variants: z.array(z.object({
@@ -461,6 +463,8 @@ const ManageAbTestShape = {
     .describe('Variants to upsert (for upsert_variants action, max 3)'),
   variant_label: z.enum(['B', 'C', 'D']).optional()
     .describe('Variant label to delete (cannot delete original A)'),
+  intel_payload: z.record(z.unknown()).optional()
+    .describe('Intelligence recommendations payload (for submit_intelligence action). Must include task_id and optional video_recommendations, coaching, notifications, channel_insights.'),
   confirm: z.boolean().optional()
     .describe('Required for delete_variant'),
   dry_run: z.boolean().default(false)
