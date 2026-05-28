@@ -1369,3 +1369,43 @@ export async function fetchAbBriefingData(
     },
   }
 }
+
+// ---------------------------------------------------------------------------
+// fetchAbTestVariants — CMS session-authenticated variant polling
+// ---------------------------------------------------------------------------
+
+export async function fetchAbTestVariants(
+  testId: string,
+): Promise<Array<{
+  label: string
+  is_original: boolean
+  title_text: string | null
+  description_text: string | null
+  metadata: Record<string, unknown> | null
+}>> {
+  const siteId = await requireEditAccess()
+  const supabase = getSupabaseServiceClient()
+
+  const { data: test } = await supabase
+    .from('ab_tests')
+    .select('id')
+    .eq('id', testId)
+    .eq('site_id', siteId)
+    .single()
+
+  if (!test) return []
+
+  const { data: variants } = await supabase
+    .from('ab_test_variants')
+    .select('label, is_original, title_text, description_text, metadata')
+    .eq('test_id', testId)
+    .order('sort_order', { ascending: true })
+
+  return (variants ?? []).map(v => ({
+    label: v.label as string,
+    is_original: v.is_original as boolean,
+    title_text: v.title_text as string | null,
+    description_text: v.description_text as string | null,
+    metadata: v.metadata as Record<string, unknown> | null,
+  }))
+}

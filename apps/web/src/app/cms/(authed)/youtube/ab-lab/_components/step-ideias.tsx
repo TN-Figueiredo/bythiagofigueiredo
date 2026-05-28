@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo, type MutableRefObject } from 'react'
 import { toast } from 'sonner'
 import { Lightbulb, Copy, Check, ChevronDown, ChevronUp } from 'lucide-react'
-import { fetchAbBriefingData } from '../actions'
+import { fetchAbBriefingData, fetchAbTestVariants } from '../actions'
 import useSWR from 'swr'
 import { buildAbBriefingPrompt, buildAbWritePrompt } from '@/lib/youtube/prompt-builders-ab'
 import { estimateChars } from '@/lib/youtube/prompt-sanitize'
@@ -55,11 +55,8 @@ const TYPE_GRADIENT: Record<TestType, string> = {
 
 type StepState = 'pre-copy' | 'waiting' | 'partial' | 'complete'
 
-async function variantsFetcher(url: string) {
-  const r = await fetch(url)
-  if (!r.ok) throw new Error(`Variants fetch failed: ${r.status}`)
-  const d = await r.json()
-  return d.data ?? []
+async function variantsFetcher(testId: string) {
+  return fetchAbTestVariants(testId)
 }
 
 export function StepIdeias({
@@ -90,11 +87,9 @@ export function StepIdeias({
   const fallbackLabelsRef = useRef('')
   const lastNotifiedLabelsRef = externalLabelsRef ?? fallbackLabelsRef
 
-  // Polls until timeout
+  // Polls until timeout — uses server action (CMS session auth), not Pipeline API
   const { data: externalVariants, error: swrError } = useSWR(
-    draftTestId && !pollingTimedOut
-      ? `/api/pipeline/youtube/ab-tests/${draftTestId}/variants`
-      : null,
+    draftTestId && !pollingTimedOut ? draftTestId : null,
     variantsFetcher,
     { refreshInterval: 5_000, revalidateOnFocus: true, dedupingInterval: 4_900 },
   )
