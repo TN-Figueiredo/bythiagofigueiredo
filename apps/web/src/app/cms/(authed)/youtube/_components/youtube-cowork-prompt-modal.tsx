@@ -345,6 +345,7 @@ export function YouTubeCoworkPromptModal({ isOpen, onClose }: YouTubeCoworkPromp
                 onChange={e => {
                   const v = channelVideos.find(vid => vid.id === e.target.value) ?? null
                   setSelectedVideo(v)
+                  setVoData(null)
                 }}
                 className="w-full rounded-md border border-cms-border bg-cms-surface px-3 py-2 text-sm text-cms-text"
                 aria-label="Selecionar vídeo para otimização"
