@@ -524,6 +524,45 @@ describe('buildAbWritePrompt', () => {
     expect(prompt).not.toContain('youtube.com/watch')
     expect(prompt).not.toContain('Thumbnail atual')
   })
+
+  it('injects non-empty slotNotes as per-variant directions', () => {
+    const result = buildAbWritePrompt({
+      testType: 'combo',
+      data: { ...makeAbBriefingData(), testId: 'test-123' },
+      slotNotes: ['Close-up dramático', '', 'Minimalista preto'],
+    })
+    expect(result).toContain('Direções por variação')
+    expect(result).toContain('Variação B: Close-up dramático')
+    expect(result).not.toContain('Variação C:')
+    expect(result).toContain('Variação D: Minimalista preto')
+  })
+
+  it('omits slotNotes section when all notes are empty', () => {
+    const result = buildAbWritePrompt({
+      testType: 'title',
+      data: { ...makeAbBriefingData(), testId: 'test-123' },
+      slotNotes: ['', '', ''],
+    })
+    expect(result).not.toContain('Direções por variação')
+  })
+
+  it('omits slotNotes section when slotNotes is undefined', () => {
+    const result = buildAbWritePrompt({
+      testType: 'title',
+      data: { ...makeAbBriefingData(), testId: 'test-123' },
+    })
+    expect(result).not.toContain('Direções por variação')
+  })
+
+  it('escapes XML tags in slotNotes content', () => {
+    const result = buildAbWritePrompt({
+      testType: 'combo',
+      data: { ...makeAbBriefingData(), testId: 'test-123' },
+      slotNotes: ['Use <bold> text', '', ''],
+    })
+    expect(result).toContain('&lt;bold>')
+    expect(result).not.toContain('<bold>')
+  })
 })
 
 describe('buildAbReviewPrompt', () => {

@@ -156,9 +156,10 @@ export function StepIdeias({
           data: { ...briefingData, testId: draftTestId },
           focus: focus || undefined,
           baseUrl: typeof window !== 'undefined' ? window.location.origin : '',
+          slotNotes,
         })
       : buildAbBriefingPrompt({ testType, data: briefingData, focus: focus || undefined })
-  }, [briefingData, draftTestId, testType, focus])
+  }, [briefingData, draftTestId, testType, focus, slotNotes])
 
   const charCount = useMemo(() => estimateChars(prompt), [prompt])
 

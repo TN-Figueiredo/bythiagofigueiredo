@@ -290,8 +290,9 @@ export function buildAbWritePrompt(options: {
   data: AbBriefingData
   focus?: string
   baseUrl?: string
+  slotNotes?: [string, string, string]
 }): string {
-  const { testType, data, focus, baseUrl = '' } = options
+  const { testType, data, focus, baseUrl = '', slotNotes } = options
 
   if (!data.testId) {
     throw new Error('buildAbWritePrompt requires a testId')
@@ -343,6 +344,17 @@ export function buildAbWritePrompt(options: {
 
   // Type-specific brainstorm instructions
   lines.push(TEST_TYPE_INSTRUCTIONS[locale][testType])
+
+  // Per-variant directions from hypothesis UI
+  if (slotNotes?.some(n => n.trim())) {
+    const labels = ['B', 'C', 'D'] as const
+    const directions = slotNotes
+      .map((note, i) => note.trim() ? `- Variação ${labels[i]}: ${escapeXmlTags(note.trim())}` : null)
+      .filter(Boolean)
+      .join('\n')
+    lines.push('')
+    lines.push(`## Direções por variação\n${directions}`)
+  }
 
   // Optional user focus
   if (focus) {
