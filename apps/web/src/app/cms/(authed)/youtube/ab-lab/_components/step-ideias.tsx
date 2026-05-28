@@ -149,6 +149,7 @@ export function StepIdeias({
           testType,
           data: { ...briefingData, testId: draftTestId },
           focus: focus || undefined,
+          baseUrl: typeof window !== 'undefined' ? window.location.origin : '',
         })
       : buildAbBriefingPrompt({ testType, data: briefingData, focus: focus || undefined })
     : ''

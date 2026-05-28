@@ -313,13 +313,22 @@ describe('buildAbWritePrompt', () => {
     expect(prompt).toContain('X-Pipeline-Key')
   })
 
-  it('includes API endpoint path with POST method', () => {
+  it('includes API endpoint path with POST method and full baseUrl', () => {
+    const prompt = buildAbWritePrompt({
+      testType: 'thumbnail',
+      data: makeAbBriefingData(),
+      baseUrl: 'https://bythiagofigueiredo.com',
+    })
+    expect(prompt).toContain('POST https://bythiagofigueiredo.com/api/pipeline/youtube/ab-tests/')
+    expect(prompt).toContain('/variants')
+  })
+
+  it('uses relative path when baseUrl is empty', () => {
     const prompt = buildAbWritePrompt({
       testType: 'thumbnail',
       data: makeAbBriefingData(),
     })
     expect(prompt).toContain('POST /api/pipeline/youtube/ab-tests/')
-    expect(prompt).toContain('/variants')
   })
 
   it('includes type-specific instructions for title', () => {
@@ -337,7 +346,37 @@ describe('buildAbWritePrompt', () => {
       data: makeAbBriefingData({ locale: 'en' }),
     })
     expect(prompt).toContain('Discuss ideas with the user')
-    expect(prompt).toContain('All output MUST be in English')
+  })
+
+  it('does NOT contain persona text or guardrails', () => {
+    const prompt = buildAbWritePrompt({
+      testType: 'title',
+      data: makeAbBriefingData(),
+    })
+    expect(prompt).not.toContain('# Persona')
+    expect(prompt).not.toContain('Guardrails')
+    expect(prompt).not.toContain('Guia de Confiança')
+    expect(prompt).not.toContain('Você é um consultor de YouTube')
+    expect(prompt).not.toContain('All output MUST be in English')
+    expect(prompt).not.toContain('Não tente fazer requisições HTTP')
+  })
+
+  it('contains --- separator between context and API workflow', () => {
+    const prompt = buildAbWritePrompt({
+      testType: 'title',
+      data: makeAbBriefingData(),
+    })
+    expect(prompt).toContain('---')
+    expect(prompt).toContain('# Auth: include X-Pipeline-Key header in ALL requests.')
+  })
+
+  it('includes On 400 and On 409 error handling', () => {
+    const prompt = buildAbWritePrompt({
+      testType: 'title',
+      data: makeAbBriefingData(),
+    })
+    expect(prompt).toContain('On 400')
+    expect(prompt).toContain('On 409')
   })
 
   it('appends focus text escaped', () => {
@@ -358,6 +397,48 @@ describe('buildAbWritePrompt', () => {
     })
     expect(prompt).not.toContain('Instruções adicionais do usuário:')
   })
+
+  it('includes channel info in context header', () => {
+    const prompt = buildAbWritePrompt({
+      testType: 'title',
+      data: makeAbBriefingData(),
+    })
+    expect(prompt).toContain('Test Channel')
+    expect(prompt).toContain('5000 subs')
+    expect(prompt).toContain('micro')
+  })
+
+  it('includes video metrics when available', () => {
+    const prompt = buildAbWritePrompt({
+      testType: 'title',
+      data: makeAbBriefingData(),
+    })
+    expect(prompt).toContain('CTR: 4.2%')
+    expect(prompt).toContain('Grade: B')
+  })
+
+  it('notes no performance data when video metrics are null', () => {
+    const prompt = buildAbWritePrompt({
+      testType: 'title',
+      data: makeAbBriefingData({
+        video: { title: 'Sem dados', thumbnailUrl: null, ctr: null, avgViewPercentage: null, score: null, grade: null },
+      }),
+    })
+    expect(prompt).toContain('Sem dados de performance disponíveis')
+  })
+
+  it('includes test history summary when available', () => {
+    const prompt = buildAbWritePrompt({
+      testType: 'title',
+      data: makeAbBriefingData({
+        testHistory: [
+          { test_type: 'thumbnail', winner_label: 'B', ctr_lift_percent: 12.5 },
+        ],
+      }),
+    })
+    expect(prompt).toContain('Histórico:')
+    expect(prompt).toContain('1 testes anteriores')
+  })
 })
 
 describe('buildAbReviewPrompt', () => {
@@ -374,7 +455,7 @@ describe('buildAbReviewPrompt', () => {
     expect(prompt).toContain('Title B')
   })
 
-  it('includes locale-appropriate language directive', () => {
+  it('does NOT contain persona text or language directive', () => {
     const prompt = buildAbReviewPrompt({
       testId: 'test-1',
       locale: 'en',
@@ -383,6 +464,60 @@ describe('buildAbReviewPrompt', () => {
       ],
       channel: { tier: 'micro' as const, subscribers: 5000 },
     })
-    expect(prompt).toContain('All output MUST be in English')
+    expect(prompt).not.toContain('# Persona')
+    expect(prompt).not.toContain('Guardrails')
+    expect(prompt).not.toContain('All output MUST be in English')
+    expect(prompt).not.toContain('Você é um consultor de YouTube')
+  })
+
+  it('contains auth line with X-Pipeline-Key', () => {
+    const prompt = buildAbReviewPrompt({
+      testId: 'test-1',
+      locale: 'pt',
+      variants: [
+        { label: 'B', title_text: 'Título B', description_text: null, blob_url: null, metadata: {} },
+      ],
+      channel: { tier: 'micro' as const, subscribers: 5000 },
+    })
+    expect(prompt).toContain('# Auth: include X-Pipeline-Key header in ALL requests.')
+  })
+
+  it('contains --- separator', () => {
+    const prompt = buildAbReviewPrompt({
+      testId: 'test-1',
+      locale: 'pt',
+      variants: [
+        { label: 'B', title_text: 'Título B', description_text: null, blob_url: null, metadata: {} },
+      ],
+      channel: { tier: 'micro' as const, subscribers: 5000 },
+    })
+    expect(prompt).toContain('---')
+  })
+
+  it('includes channel tier and subscribers in header', () => {
+    const prompt = buildAbReviewPrompt({
+      testId: 'test-1',
+      locale: 'pt',
+      variants: [
+        { label: 'B', title_text: 'Título B', description_text: null, blob_url: null, metadata: {} },
+      ],
+      channel: { tier: 'micro' as const, subscribers: 5000 },
+    })
+    expect(prompt).toContain('micro')
+    expect(prompt).toContain('5000 subs')
+  })
+
+  it('includes variant count in header', () => {
+    const prompt = buildAbReviewPrompt({
+      testId: 'test-1',
+      locale: 'en',
+      variants: [
+        { label: 'B', title_text: 'Title B', description_text: null, blob_url: null, metadata: {} },
+        { label: 'C', title_text: 'Title C', description_text: null, blob_url: null, metadata: {} },
+      ],
+      channel: { tier: 'micro' as const, subscribers: 5000 },
+    })
+    expect(prompt).toContain('2 variants')
+    expect(prompt).toContain('test-1')
   })
 })
