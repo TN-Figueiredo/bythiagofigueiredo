@@ -340,10 +340,6 @@ export function buildAbWritePrompt(options: {
     lines.push(`${focusLabel}\n${escapeXmlTags(focus)}`)
   }
 
-  // Separator + API workflow
-  if (!data.testId) {
-    throw new Error('buildAbWritePrompt requires testId')
-  }
   lines.push('')
   lines.push('---')
   lines.push('# Auth: include X-Pipeline-Key header in ALL requests. Rate limit: 100 req/min.')

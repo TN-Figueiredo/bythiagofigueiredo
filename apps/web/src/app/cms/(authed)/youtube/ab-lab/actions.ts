@@ -165,6 +165,42 @@ export async function createAbTest(
 }
 
 // ---------------------------------------------------------------------------
+// updateAbTestType
+// ---------------------------------------------------------------------------
+
+export async function updateAbTestType(
+  testId: string,
+  newType: TestType,
+): Promise<{ ok: boolean; error?: string }> {
+  let siteId: string
+  try {
+    siteId = await requireEditAccess()
+  } catch (e) {
+    return { ok: false, error: (e as Error).message }
+  }
+
+  const supabase = getSupabaseServiceClient()
+
+  const { data: test } = await supabase
+    .from('ab_tests')
+    .select('id, site_id, status')
+    .eq('id', testId)
+    .eq('site_id', siteId)
+    .single()
+
+  if (!test) return { ok: false, error: 'Test not found' }
+  if (test.status !== 'draft') return { ok: false, error: 'Only draft tests can change type' }
+
+  const { error } = await supabase
+    .from('ab_tests')
+    .update({ test_type: newType })
+    .eq('id', testId)
+
+  if (error) return { ok: false, error: error.message }
+  return { ok: true }
+}
+
+// ---------------------------------------------------------------------------
 // uploadVariant
 // ---------------------------------------------------------------------------
 

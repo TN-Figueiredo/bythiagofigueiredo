@@ -30,7 +30,7 @@ interface StepIdeiasProps {
   onBriefingCopied: () => void
   briefingData: AbBriefingData | null
   onBriefingDataChange: (data: AbBriefingData | null) => void
-  draftTestId?: string | null  // Added for Cowork integration (Task 10 will use it)
+  draftTestId?: string | null
 }
 
 const SLOT_LABELS = ['B', 'C', 'D'] as const
@@ -207,7 +207,7 @@ export function StepIdeias({
           <h3 className="text-base font-semibold text-cms-text">Brainstorm com IA</h3>
           <p className="text-xs text-cms-text-dim mt-0.5" role="status" aria-live="polite">
             {briefingCopied
-              ? 'Prompt copiado! Discuta com o Claude e anote por slot.'
+              ? 'Prompt copiado! Discuta com o Cowork e anote por slot.'
               : 'Gere ideias com IA antes de criar as variantes'}
           </p>
         </div>
@@ -449,7 +449,7 @@ export function StepIdeias({
               ) : (
                 <>
                   <p className="text-xs text-cms-text-dim">Aguardando variantes do Cowork...</p>
-                  <p className="text-[10px] text-cms-text-muted mt-1">Copie o prompt e cole no Claude. As variantes aparecerão aqui automaticamente.</p>
+                  <p className="text-[10px] text-cms-text-muted mt-1">Copie o prompt e cole no Cowork. As variantes aparecerão aqui automaticamente.</p>
                 </>
               )}
             </div>

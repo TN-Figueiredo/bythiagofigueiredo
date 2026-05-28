@@ -4,7 +4,7 @@ import { useState, useEffect, useTransition, useRef, useCallback } from 'react'
 import NextImage from 'next/image'
 import { Image, Type, FileText, Layers, Lightbulb, ChevronUp, ChevronDown } from 'lucide-react'
 import { StepIdeias } from './step-ideias'
-import { createAbTest, uploadVariant, startAbTest, pullPipelineThumbnails, createTextVariant } from '../actions'
+import { createAbTest, uploadVariant, startAbTest, pullPipelineThumbnails, createTextVariant, updateAbTestType } from '../actions'
 import type { TestType } from '@/lib/youtube/ab-types'
 import type { AbBriefingData } from '@/lib/youtube/prompt-types'
 
@@ -293,8 +293,14 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill, exi
   async function handleTypeSelect(type: TestType) {
     setTestType(type)
 
-    // If draft already exists, just update the type locally and advance
     if (draftTestId) {
+      setDraftLoading(true)
+      const res = await updateAbTestType(draftTestId, type)
+      setDraftLoading(false)
+      if (!res.ok) {
+        setSubmitError(res.error ?? 'Falha ao atualizar tipo do teste')
+        return
+      }
       setStep(2)
       return
     }
@@ -328,6 +334,9 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill, exi
       onClick={onClose}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Novo Teste A/B"
         className="bg-cms-surface border border-cms-border rounded-[var(--cms-radius)] max-w-[640px] w-full max-h-[90vh] flex flex-col mx-4"
         onClick={e => e.stopPropagation()}
       >

@@ -439,6 +439,61 @@ describe('buildAbWritePrompt', () => {
     expect(prompt).toContain('Histórico:')
     expect(prompt).toContain('1 testes anteriores')
   })
+
+  it('throws when testId is missing', () => {
+    expect(() =>
+      buildAbWritePrompt({
+        testType: 'title',
+        data: makeAbBriefingData({ testId: undefined }),
+      }),
+    ).toThrow('buildAbWritePrompt requires a testId')
+  })
+
+  it('includes GET step 0 for checking existing variants', () => {
+    const prompt = buildAbWritePrompt({
+      testType: 'thumbnail',
+      data: makeAbBriefingData(),
+    })
+    expect(prompt).toContain('0. GET')
+    expect(prompt).toContain('/variants')
+  })
+
+  it('includes DELETE docs for removing variants', () => {
+    const prompt = buildAbWritePrompt({
+      testType: 'thumbnail',
+      data: makeAbBriefingData(),
+    })
+    expect(prompt).toContain('DELETE')
+    expect(prompt).toContain('label=<B|C|D>')
+  })
+
+  it('includes type-specific field docs for thumbnail metadata', () => {
+    const prompt = buildAbWritePrompt({
+      testType: 'thumbnail',
+      data: makeAbBriefingData(),
+    })
+    expect(prompt).toContain('creative_direction')
+    expect(prompt).toContain('ai_image_prompt')
+    expect(prompt).toContain('visual_description')
+    expect(prompt).toContain('thumbnail_tags')
+  })
+
+  it('includes title_text field docs for title type', () => {
+    const prompt = buildAbWritePrompt({
+      testType: 'title',
+      data: makeAbBriefingData(),
+    })
+    expect(prompt).toContain('title_text')
+    expect(prompt).toContain('máx 200 chars')
+  })
+
+  it('includes rate limit info in auth line', () => {
+    const prompt = buildAbWritePrompt({
+      testType: 'title',
+      data: makeAbBriefingData(),
+    })
+    expect(prompt).toContain('Rate limit: 100 req/min')
+  })
 })
 
 describe('buildAbReviewPrompt', () => {
