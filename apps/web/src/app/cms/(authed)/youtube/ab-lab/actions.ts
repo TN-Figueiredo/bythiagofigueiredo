@@ -1270,7 +1270,7 @@ export async function fetchAbBriefingData(
 
   const { data: video, error: videoError } = await supabase
     .from('youtube_videos')
-    .select('id, youtube_video_id, title, thumbnail_url, ctr, avg_view_percentage, channel_id, last_synced_at')
+    .select('id, youtube_video_id, title, thumbnail_url, ctr, avg_view_percentage, channel_id, last_analytics_sync_at')
     .eq('id', videoId)
     .eq('site_id', siteId)
     .single()
@@ -1307,7 +1307,7 @@ export async function fetchAbBriefingData(
       ctr_lift_percent: t.ctr_lift_percent,
     }))
 
-  const lastSyncedAt = (video.last_synced_at as string | null) ?? new Date().toISOString()
+  const lastSyncedAt = (video.last_analytics_sync_at as string | null) ?? new Date().toISOString()
   const snapshotAgeHours = Math.round(((Date.now() - new Date(lastSyncedAt).getTime()) / 3_600_000) * 10) / 10
 
   return {
