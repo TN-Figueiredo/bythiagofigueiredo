@@ -1275,14 +1275,14 @@ export async function fetchAbBriefingData(
     .eq('site_id', siteId)
     .single()
 
-  if (videoError && videoError.code !== 'PGRST116') throw videoError
-  if (!video) return { ok: false, error: 'Vídeo não encontrado' }
+  if (videoError || !video) return { ok: false, error: 'Vídeo não encontrado' }
 
   const { data: channel } = await supabase
     .from('youtube_channels')
     .select('name, subscriber_count')
     .eq('id', video.channel_id as string)
-    .single()
+    .eq('site_id', siteId)
+    .maybeSingle()
 
   const subscribers = (channel?.subscriber_count as number | null) ?? 0
   const tier = getChannelTier(subscribers)

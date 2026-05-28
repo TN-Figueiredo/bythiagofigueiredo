@@ -21,7 +21,6 @@ interface WizardVideo {
 interface StepIdeiasProps {
   testType: TestType
   video: WizardVideo
-  siteId: string
   focus: string
   onFocusChange: (value: string) => void
   slotNotes: [string, string, string]
@@ -74,7 +73,6 @@ const TYPE_GRADIENT: Record<TestType, string> = {
 export function StepIdeias({
   testType,
   video,
-  siteId,
   focus,
   onFocusChange,
   slotNotes,
@@ -90,33 +88,36 @@ export function StepIdeias({
   const [copied, setCopied] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const fetchingRef = useRef(false)
 
   useEffect(() => {
     return () => { if (timerRef.current) clearTimeout(timerRef.current) }
   }, [])
 
-  useEffect(() => {
-    if (briefingData) return
-    let cancelled = false
+  const doFetch = useCallback(() => {
+    if (fetchingRef.current) return
+    fetchingRef.current = true
     setLoading(true)
     setError(null)
 
     fetchAbBriefingData(video.id).then(result => {
-      if (cancelled) return
       if (result.ok) {
         onBriefingDataChange(result.data)
       } else {
         setError(result.error)
       }
-      setLoading(false)
     }).catch(() => {
-      if (cancelled) return
       setError('Falha ao carregar dados do vídeo')
+    }).finally(() => {
       setLoading(false)
+      fetchingRef.current = false
     })
+  }, [video.id, onBriefingDataChange])
 
-    return () => { cancelled = true }
-  }, [video.id, briefingData, onBriefingDataChange])
+  useEffect(() => {
+    if (briefingData) return
+    doFetch()
+  }, [briefingData, doFetch])
 
   useEffect(() => {
     if (!loading) textareaRef.current?.focus()
@@ -201,34 +202,41 @@ export function StepIdeias({
 
       {/* Loading state */}
       {loading && (
-        <div className="space-y-3">
-          <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface p-4 animate-pulse">
-            <div className="h-4 bg-cms-surface-hover rounded w-3/4 mb-2" />
-            <div className="h-3 bg-cms-surface-hover rounded w-1/2" />
+        <div className="space-y-3" aria-busy="true">
+          {/* Matches asset preview card */}
+          <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface p-3 animate-pulse">
+            <div className="flex items-center justify-between mb-2">
+              <div className="h-3 bg-cms-surface-hover rounded w-16" />
+              <div className="h-4 bg-cms-surface-hover rounded w-12" />
+            </div>
+            <div className="flex gap-3 items-center">
+              <div className="w-24 h-[54px] rounded bg-cms-surface-hover shrink-0" />
+              <div className="flex-1 space-y-2">
+                <div className="h-3 bg-cms-surface-hover rounded w-3/4" />
+                <div className="h-2.5 bg-cms-surface-hover rounded w-1/2" />
+              </div>
+            </div>
           </div>
-          <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface p-4 animate-pulse">
-            <div className="h-20 bg-cms-surface-hover rounded" />
+          {/* Matches instructions textarea area */}
+          <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface p-3 animate-pulse space-y-2">
+            <div className="h-3 bg-cms-surface-hover rounded w-32" />
+            <div className="h-14 bg-cms-surface-hover rounded" />
+          </div>
+          {/* Matches prompt card */}
+          <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface p-3 animate-pulse space-y-2">
+            <div className="h-4 bg-cms-surface-hover rounded w-20" />
+            <div className="h-24 bg-cms-surface-hover rounded" />
+            <div className="h-8 bg-cms-surface-hover rounded w-32 ml-auto" />
           </div>
         </div>
       )}
 
       {/* Error state */}
       {error && !loading && (
-        <div className="rounded-[var(--cms-radius)] border border-red-500/30 bg-red-500/10 px-4 py-3">
+        <div role="alert" className="rounded-[var(--cms-radius)] border border-red-500/30 bg-red-500/10 px-4 py-3">
           <p className="text-xs text-red-400">{error}</p>
           <button
-            onClick={() => {
-              setLoading(true)
-              setError(null)
-              fetchAbBriefingData(video.id).then(result => {
-                if (result.ok) onBriefingDataChange(result.data)
-                else setError(result.error)
-                setLoading(false)
-              }).catch(() => {
-                setError('Falha ao carregar dados do vídeo')
-                setLoading(false)
-              })
-            }}
+            onClick={doFetch}
             className="text-xs text-red-300 underline mt-1"
           >
             Tentar novamente
@@ -241,7 +249,7 @@ export function StepIdeias({
         <>
           {/* No-data warning */}
           {videoHasNoData && (
-            <div className="rounded-[var(--cms-radius)] bg-amber-500/10 border border-amber-500/20 px-3 py-2">
+            <div role="status" className="rounded-[var(--cms-radius)] bg-amber-500/10 border border-amber-500/20 px-3 py-2">
               <p className="text-xs text-amber-300">Sem dados de performance — prompt gerado com contexto do canal apenas.</p>
             </div>
           )}

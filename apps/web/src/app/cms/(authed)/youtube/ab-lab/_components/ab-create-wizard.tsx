@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useTransition, useRef } from 'react'
+import { useState, useEffect, useTransition, useRef, useCallback } from 'react'
 import NextImage from 'next/image'
 import { Image, Type, FileText, Layers, Lightbulb, ChevronUp, ChevronDown } from 'lucide-react'
 import { StepIdeias } from './step-ideias'
@@ -97,6 +97,10 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill }: P
 
   const storageKey = `ab-brainstorm-${video.id}`
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handleBriefingDataChange = useCallback((data: AbBriefingData | null) => {
+    setBriefingData(data)
+  }, [])
 
   useEffect(() => {
     try {
@@ -323,12 +327,12 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill }: P
                       </svg>
                     ) : stepNum}
                   </div>
-                  <span className={`text-xs ${isActive ? 'text-cms-text font-medium' : 'text-cms-text-muted'}`}>
+                  <span className={`hidden sm:inline text-xs ${isActive ? 'text-cms-text font-medium' : 'text-cms-text-muted'}`}>
                     {label}
                   </span>
                 </div>
                 {i < STEP_LABELS.length - 1 && (
-                  <div className={`h-px w-8 mx-3 ${step > stepNum ? 'bg-green-600' : 'bg-cms-border'}`} />
+                  <div className={`h-px w-4 sm:w-8 mx-1.5 sm:mx-3 ${step > stepNum ? 'bg-green-600' : 'bg-cms-border'}`} />
                 )}
               </div>
             )
@@ -344,7 +348,6 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill }: P
             <StepIdeias
               testType={testType}
               video={video}
-              siteId={siteId}
               focus={ideiasFocus}
               onFocusChange={setIdeiasFocus}
               slotNotes={slotNotes}
@@ -358,7 +361,7 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill }: P
               briefingCopied={briefingCopied}
               onBriefingCopied={() => setBriefingCopied(true)}
               briefingData={briefingData}
-              onBriefingDataChange={setBriefingData}
+              onBriefingDataChange={handleBriefingDataChange}
             />
           )}
           {step === 3 && (
