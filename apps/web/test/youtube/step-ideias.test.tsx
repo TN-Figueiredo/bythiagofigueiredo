@@ -67,6 +67,8 @@ import type { TestType } from '@/lib/youtube/ab-types'
 function makeAbBriefingData(overrides: Partial<AbBriefingData['video']> = {}): AbBriefingData {
   return {
     channel: { name: 'Test Channel', subscribers: 5000, tier: 'micro' as const },
+    locale: 'pt',
+    testId: '',
     video: {
       title: 'Test Video',
       thumbnailUrl: 'https://example.com/thumb.jpg',

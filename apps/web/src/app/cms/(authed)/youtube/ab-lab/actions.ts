@@ -1264,6 +1264,7 @@ export async function getVideoTestHistory(youtubeVideoId: string): Promise<Array
 
 export async function fetchAbBriefingData(
   videoId: string,
+  testId: string = '',
 ): Promise<{ ok: true; data: AbBriefingData } | { ok: false; error: string }> {
   const siteId = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
@@ -1279,13 +1280,14 @@ export async function fetchAbBriefingData(
 
   const { data: channel } = await supabase
     .from('youtube_channels')
-    .select('name, subscriber_count')
+    .select('name, subscriber_count, locale')
     .eq('id', video.channel_id as string)
     .eq('site_id', siteId)
     .maybeSingle()
 
   const subscribers = (channel?.subscriber_count as number | null) ?? 0
   const tier = getChannelTier(subscribers)
+  const locale = ((channel?.locale as string | null) === 'en' ? 'en' : 'pt') satisfies 'pt' | 'en'
 
   const ctr = (video.ctr as number | null)
   const avgViewPercentage = (video.avg_view_percentage as number | null)
@@ -1318,6 +1320,8 @@ export async function fetchAbBriefingData(
         subscribers,
         tier,
       },
+      locale,
+      testId,
       video: {
         title: video.title as string,
         thumbnailUrl: (video.thumbnail_url as string | null),

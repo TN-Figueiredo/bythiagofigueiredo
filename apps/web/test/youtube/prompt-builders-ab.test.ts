@@ -5,6 +5,8 @@ import type { AbBriefingData } from '@/lib/youtube/prompt-types'
 function makeAbBriefingData(overrides?: Partial<AbBriefingData>): AbBriefingData {
   return {
     channel: { name: 'Test Channel', subscribers: 5000, tier: 'micro' },
+    locale: 'pt',
+    testId: '00000000-0000-0000-0000-000000000000',
     video: {
       title: 'O Que Esperar Do MBK Center em Bangkok',
       thumbnailUrl: 'https://i.ytimg.com/vi/abc123/hqdefault.jpg',
@@ -117,12 +119,12 @@ describe('buildAbBriefingPrompt', () => {
     expect(prompt).not.toContain('historico_ab')
   })
 
-  it('includes prompt version yt-ab-v1 in context', () => {
+  it('includes prompt version yt-ab-v2 in context', () => {
     const prompt = buildAbBriefingPrompt({
       testType: 'thumbnail',
       data: makeAbBriefingData(),
     })
-    expect(prompt).toContain('yt-ab-v1')
+    expect(prompt).toContain('yt-ab-v2')
   })
 
   it('includes video metrics in context block', () => {

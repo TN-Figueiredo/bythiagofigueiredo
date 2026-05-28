@@ -51,6 +51,9 @@ export interface VariantMetadata {
   title_pattern?: string
   emotional_triggers?: string[]
   visual_description?: string
+  ai_image_prompt?: string
+  creative_direction?: string
+  rationale?: string
 }
 
 export interface AbTestVariantRow {
