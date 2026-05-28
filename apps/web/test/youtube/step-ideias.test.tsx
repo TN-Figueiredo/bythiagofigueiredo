@@ -101,6 +101,12 @@ interface RenderProps {
   onBriefingCopied?: () => void
   onBriefingDataChange?: (d: AbBriefingData | null) => void
   draftTestId?: string | null
+  onVariantsReceived?: (variants: Array<{
+    label: string
+    title_text: string | null
+    description_text: string | null
+    metadata: Record<string, unknown> | null
+  }>) => void
 }
 
 function renderStep(props: RenderProps = {}) {
@@ -115,6 +121,7 @@ function renderStep(props: RenderProps = {}) {
     onBriefingCopied = vi.fn(),
     onBriefingDataChange = vi.fn(),
     draftTestId = null,
+    onVariantsReceived,
   } = props
 
   return render(
@@ -130,6 +137,7 @@ function renderStep(props: RenderProps = {}) {
       briefingData={briefingData}
       onBriefingDataChange={onBriefingDataChange}
       draftTestId={draftTestId}
+      onVariantsReceived={onVariantsReceived}
     />,
   )
 }
@@ -175,25 +183,21 @@ describe('StepIdeias', () => {
     expect(retryBtn).toBeTruthy()
   })
 
-  // ---- 3. Ready state renders asset preview, prompt card, and slot notes ----
+  // ---- 3. Ready state renders header, prompt card, and directions ----
 
-  it('renders asset preview, prompt card, and slot notes when briefingData is provided', async () => {
+  it('renders header, prompt card, and directions when briefingData is provided', async () => {
     const data = makeAbBriefingData()
     await act(async () => {
       renderStep({ briefingData: data })
     })
-    // Asset preview: "Vídeo atual" label
-    expect(screen.getByText('Vídeo atual')).toBeTruthy()
-    // Freshness badge from sub-component mock
-    expect(screen.getByTestId('freshness-badge')).toBeTruthy()
+    // v7 compact header
+    expect(screen.getByText('Monte sua hipótese')).toBeTruthy()
     // Prompt card: "Prompt pronto" badge
     expect(screen.getByText('Prompt pronto')).toBeTruthy()
     // Prompt preview renders mock content
     expect(screen.getByTestId('prompt-preview').textContent).toContain('MOCK_BRIEFING_PROMPT')
-    // Slot notes: labels B, C, D
-    expect(screen.getByText('B')).toBeTruthy()
-    expect(screen.getByText('C')).toBeTruthy()
-    expect(screen.getByText('D')).toBeTruthy()
+    // Directions section is collapsible — labels visible after expand
+    expect(screen.getByText('Guiar cada variação')).toBeTruthy()
   })
 
   // ---- 4. Copies prompt to clipboard on button click ----
@@ -215,24 +219,7 @@ describe('StepIdeias', () => {
     expect(onBriefingCopied).toHaveBeenCalledOnce()
   })
 
-  // ---- 5. Cross-test insights bar when testHistory has items ----
-
-  it('shows cross-test insights bar when testHistory has items', async () => {
-    const data = makeAbBriefingData()
-    data.testHistory = [
-      { test_type: 'thumbnail', winner_label: 'B', ctr_lift_percent: 8.5 },
-      { test_type: 'title', winner_label: 'C', ctr_lift_percent: 3.0 },
-    ]
-    await act(async () => {
-      renderStep({ briefingData: data })
-    })
-    // Insights bar text: "Em 2 testes anteriores, lift médio de +X% CTR"
-    const insightsText = screen.getByText(/em 2 testes anteriores/i)
-    expect(insightsText).toBeTruthy()
-    expect(insightsText.textContent).toContain('lift médio')
-  })
-
-  // ---- 6. No-data warning when video has no CTR/score ----
+  // ---- 5. No-data warning when video has no CTR/score ----
 
   it('shows no-data warning when video has no CTR and no score', async () => {
     const data = makeAbBriefingData({ ctr: null, score: null })
@@ -243,7 +230,7 @@ describe('StepIdeias', () => {
     expect(warning).toBeTruthy()
   })
 
-  // ---- 7. Example chips append to focus text on click ----
+  // ---- 6. Example chips append to focus text on click ----
 
   it('example chip appends to existing focus text on click', async () => {
     const data = makeAbBriefingData()
@@ -268,16 +255,18 @@ describe('StepIdeias', () => {
     expect(onFocusChange).toHaveBeenCalledWith('Testar close-up vs paisagem')
   })
 
-  // ---- 8. Slot note inputs update correctly ----
+  // ---- 7. Slot note inputs update correctly (via collapsible directions) ----
 
-  it('slot note input calls onSlotNoteChange with correct index and value', async () => {
+  it('slot note input calls onSlotNoteChange with correct index after expanding directions', async () => {
     const data = makeAbBriefingData()
     const onSlotNoteChange = vi.fn()
     await act(async () => {
       renderStep({ briefingData: data, onSlotNoteChange })
     })
+    // Expand the directions section first
+    fireEvent.click(screen.getByText('Guiar cada variação'))
     // Slot B is index 0 in slotNotes
-    const slotBInput = screen.getByPlaceholderText('Ideia para variante B...')
+    const slotBInput = screen.getByPlaceholderText('Direção para variação B...')
     fireEvent.change(slotBInput, { target: { value: 'Nova ideia B' } })
     expect(onSlotNoteChange).toHaveBeenCalledWith(0, 'Nova ideia B')
   })
@@ -288,24 +277,14 @@ describe('StepIdeias', () => {
     await act(async () => {
       renderStep({ briefingData: data, onSlotNoteChange })
     })
-    const slotCInput = screen.getByPlaceholderText('Ideia para variante C...')
+    // Expand the directions section first
+    fireEvent.click(screen.getByText('Guiar cada variação'))
+    const slotCInput = screen.getByPlaceholderText('Direção para variação C...')
     fireEvent.change(slotCInput, { target: { value: 'Ideia C' } })
     expect(onSlotNoteChange).toHaveBeenCalledWith(1, 'Ideia C')
   })
 
-  // ---- 9. No insights bar when testHistory is empty ----
-
-  it('does not show cross-test insights bar when testHistory is empty', async () => {
-    const data = makeAbBriefingData()
-    data.testHistory = []
-    await act(async () => {
-      renderStep({ briefingData: data })
-    })
-    // The insights text includes "testes anteriores" — should not be present
-    expect(screen.queryByText(/testes anteriores/i)).toBeNull()
-  })
-
-  // ---- 10. Retry button triggers re-fetch ----
+  // ---- 8. Retry button triggers re-fetch ----
 
   it('retry button triggers a new fetch call', async () => {
     vi.mocked(fetchAbBriefingData).mockResolvedValueOnce({ ok: false, error: 'Timeout' })
@@ -328,7 +307,7 @@ describe('StepIdeias', () => {
     expect(vi.mocked(fetchAbBriefingData)).toHaveBeenCalledTimes(2)
   })
 
-  // ---- 11. Write prompt when draftTestId is provided ----
+  // ---- 9. Write prompt when draftTestId is provided ----
 
   it('renders write prompt when draftTestId is provided', async () => {
     const data = makeAbBriefingData()
@@ -338,7 +317,7 @@ describe('StepIdeias', () => {
     expect(screen.getByTestId('prompt-preview').textContent).toContain('MOCK_WRITE_PROMPT')
   })
 
-  // ---- 12. Briefing prompt when no draftTestId ----
+  // ---- 10. Briefing prompt when no draftTestId ----
 
   it('renders briefing prompt when draftTestId is null', async () => {
     const data = makeAbBriefingData()
@@ -348,17 +327,31 @@ describe('StepIdeias', () => {
     expect(screen.getByTestId('prompt-preview').textContent).toContain('MOCK_BRIEFING_PROMPT')
   })
 
-  // ---- 13. Waiting indicator when draftTestId set but no variants ----
+  // ---- 11. Pre-copy state shows empty placeholder ----
 
-  it('shows waiting indicator when draftTestId is set and no external variants', async () => {
+  it('shows empty placeholder in pre-copy state', async () => {
     const data = makeAbBriefingData()
     await act(async () => {
-      renderStep({ briefingData: data, draftTestId: 'test-123' })
+      renderStep({ briefingData: data, briefingCopied: false, draftTestId: 'test-123' })
     })
-    expect(screen.getByText(/aguardando variantes do cowork/i)).toBeTruthy()
+    expect(screen.getByText(/copie o prompt acima/i)).toBeTruthy()
   })
 
-  // ---- 14. Variant cards when SWR returns data ----
+  // ---- 12. Waiting state shows skeleton cards after copy ----
+
+  it('shows skeleton cards in waiting state after briefing is copied', async () => {
+    const data = makeAbBriefingData()
+    await act(async () => {
+      renderStep({ briefingData: data, briefingCopied: true, draftTestId: 'test-123' })
+    })
+    // Should have 3 skeleton cards with animate-pulse
+    const pulsingCards = document.querySelectorAll('.animate-pulse')
+    expect(pulsingCards.length).toBe(3)
+    // Should NOT have the pre-copy placeholder
+    expect(screen.queryByText(/copie o prompt acima/i)).toBeNull()
+  })
+
+  // ---- 13. Variant cards when SWR returns data ----
 
   it('shows variant cards when SWR returns external variants', async () => {
     const useSWR = (await import('swr')).default as unknown as ReturnType<typeof vi.fn>
@@ -373,14 +366,62 @@ describe('StepIdeias', () => {
 
     const data = makeAbBriefingData()
     await act(async () => {
-      renderStep({ briefingData: data, draftTestId: 'test-123' })
+      renderStep({ briefingData: data, draftTestId: 'test-123', briefingCopied: true })
     })
 
-    expect(screen.getByText('Variante B')).toBeTruthy()
+    expect(screen.getByText('Variação B')).toBeTruthy()
     expect(screen.getByText('Title B')).toBeTruthy()
     expect(screen.getByText('test rationale')).toBeTruthy()
-    // Original variant should not appear in variant cards
-    expect(screen.queryByText('Variante A')).toBeNull()
+    // Original shows as "Opção A" gray card
+    expect(screen.getByText('Opção A')).toBeTruthy()
+
+    // Reset mock for other tests
+    useSWR.mockReturnValue({ data: undefined, error: undefined, isLoading: false })
+  })
+
+  // ---- 14. Combo warning shown only for combo type ----
+
+  it('shows combo warning only for combo test type', async () => {
+    const data = makeAbBriefingData()
+
+    // Render with combo type
+    await act(async () => {
+      renderStep({ briefingData: data, testType: 'combo' })
+    })
+    expect(screen.getByText(/teste combo gera variações/i)).toBeTruthy()
+
+    cleanup()
+
+    // Render with thumbnail type — should not have combo warning
+    await act(async () => {
+      renderStep({ briefingData: data, testType: 'thumbnail' })
+    })
+    expect(screen.queryByText(/teste combo gera variações/i)).toBeNull()
+  })
+
+  // ---- 15. onVariantsReceived callback fires when variants arrive ----
+
+  it('calls onVariantsReceived when non-original variants arrive', async () => {
+    const useSWR = (await import('swr')).default as unknown as ReturnType<typeof vi.fn>
+    const onVariantsReceived = vi.fn()
+
+    useSWR.mockReturnValue({
+      data: [
+        { label: 'A', is_original: true, title_text: 'Original' },
+        { label: 'B', is_original: false, title_text: 'Title B', description_text: null, metadata: { rationale: 'r' } },
+      ],
+      error: undefined,
+      isLoading: false,
+    })
+
+    const data = makeAbBriefingData()
+    await act(async () => {
+      renderStep({ briefingData: data, draftTestId: 'test-123', briefingCopied: true, onVariantsReceived })
+    })
+
+    expect(onVariantsReceived).toHaveBeenCalledOnce()
+    expect(onVariantsReceived.mock.calls[0][0]).toHaveLength(1)
+    expect(onVariantsReceived.mock.calls[0][0][0].label).toBe('B')
 
     // Reset mock for other tests
     useSWR.mockReturnValue({ data: undefined, error: undefined, isLoading: false })
