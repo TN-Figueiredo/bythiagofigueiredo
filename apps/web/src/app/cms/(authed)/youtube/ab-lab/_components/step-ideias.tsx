@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo, type MutableRefObject } from 'react'
 import { toast } from 'sonner'
 import { Lightbulb, Copy, Check, ChevronDown, ChevronUp } from 'lucide-react'
 import { fetchAbBriefingData } from '../actions'
@@ -36,6 +36,7 @@ interface StepIdeiasProps {
     description_text: string | null
     metadata: Record<string, unknown> | null
   }>) => void
+  lastNotifiedLabelsRef?: MutableRefObject<string>
 }
 
 const EXAMPLE_CHIPS: Record<TestType, string[]> = {
@@ -74,6 +75,7 @@ export function StepIdeias({
   onBriefingDataChange,
   draftTestId,
   onVariantsReceived,
+  lastNotifiedLabelsRef: externalLabelsRef,
 }: StepIdeiasProps) {
   const [loading, setLoading] = useState(briefingData === null)
   const [error, setError] = useState<string | null>(null)
@@ -85,7 +87,8 @@ export function StepIdeias({
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const fetchingRef = useRef(false)
-  const lastNotifiedLabelsRef = useRef('')
+  const fallbackLabelsRef = useRef('')
+  const lastNotifiedLabelsRef = externalLabelsRef ?? fallbackLabelsRef
 
   // Polls until timeout
   const { data: externalVariants, error: swrError } = useSWR(
@@ -447,6 +450,17 @@ export function StepIdeias({
                     </p>
                   </div>
                 )}
+                {pollingTimedOut && !allVariantsReceived && (
+                  <div className="rounded-[var(--cms-radius)] border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-center space-y-1.5">
+                    <p className="text-[10px] text-amber-400">Tempo limite atingido sem todas as variantes.</p>
+                    <button
+                      onClick={() => { setPollingTimedOut(false); setShowEscalation(false) }}
+                      className="text-[10px] text-amber-300 underline hover:text-amber-200 transition-colors"
+                    >
+                      Tentar novamente (mais 120s)
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -546,6 +560,17 @@ export function StepIdeias({
                     <p className="text-[10px] text-amber-400">
                       Ainda aguardando... Verifique se o prompt foi colado corretamente no Cowork.
                     </p>
+                  </div>
+                )}
+                {pollingTimedOut && !allVariantsReceived && (
+                  <div className="rounded-[var(--cms-radius)] border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-center space-y-1.5">
+                    <p className="text-[10px] text-amber-400">Tempo limite atingido sem todas as variantes.</p>
+                    <button
+                      onClick={() => { setPollingTimedOut(false); setShowEscalation(false) }}
+                      className="text-[10px] text-amber-300 underline hover:text-amber-200 transition-colors"
+                    >
+                      Tentar novamente (mais 120s)
+                    </button>
                   </div>
                 )}
 

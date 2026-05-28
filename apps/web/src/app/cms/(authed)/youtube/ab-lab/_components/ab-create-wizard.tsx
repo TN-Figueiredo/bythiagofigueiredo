@@ -91,17 +91,18 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill, exi
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
   const [isPipelinePending, startPipelineTransition] = useTransition()
+  const [isTypeSelectPending, startTypeSelectTransition] = useTransition()
 
   const [ideiasFocus, setIdeiasFocus] = useState('')
   const [slotNotes, setSlotNotes] = useState<[string, string, string]>(['', '', ''])
   const [briefingCopied, setBriefingCopied] = useState(false)
   const [briefingData, setBriefingData] = useState<AbBriefingData | null>(null)
   const [draftTestId, setDraftTestId] = useState<string | null>(existingDraftId ?? null)
-  const [draftLoading, setDraftLoading] = useState(false)
   const [coworkVariantLabels, setCoworkVariantLabels] = useState<Set<string>>(new Set())
 
   const storageKey = `ab-brainstorm-${video.id}`
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastNotifiedLabelsRef = useRef('')
 
   const handleBriefingDataChange = useCallback((data: AbBriefingData | null) => {
     setBriefingData(data)
@@ -128,7 +129,10 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill, exi
       }
       return next
     })
-    setCoworkVariantLabels(labels)
+    setCoworkVariantLabels(prev => {
+      if (prev.size === labels.size && [...labels].every(l => prev.has(l))) return prev
+      return labels
+    })
   }, [])
 
   const handleBriefingCopied = useCallback(() => setBriefingCopied(true), [])
@@ -170,13 +174,16 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill, exi
     return () => document.removeEventListener('keydown', handler)
   }, [onClose])
 
+  const slotsRef = useRef(slots)
+  slotsRef.current = slots
+
   useEffect(() => {
     return () => {
-      for (const slot of slots) {
+      for (const slot of slotsRef.current) {
         if (slot) URL.revokeObjectURL(slot.previewUrl)
       }
     }
-  }, [slots])
+  }, [])
 
   const variants = slots.filter((s): s is SlotFile => s !== null)
   const hasImageVariant = variants.length > 0
@@ -320,42 +327,39 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill, exi
     })
   }
 
-  async function handleTypeSelect(type: TestType) {
+  function handleTypeSelect(type: TestType) {
     setTestType(type)
 
-    if (draftTestId) {
-      setDraftLoading(true)
-      const res = await updateAbTestType(draftTestId, type)
-      setDraftLoading(false)
-      if (!res.ok) {
-        setSubmitError(res.error ?? 'Falha ao atualizar tipo do teste')
+    startTypeSelectTransition(async () => {
+      if (draftTestId) {
+        const res = await updateAbTestType(draftTestId, type)
+        if (!res.ok) {
+          setSubmitError(res.error ?? 'Falha ao atualizar tipo do teste')
+          return
+        }
+        setStep(2)
         return
       }
-      setStep(2)
-      return
-    }
 
-    setDraftLoading(true)
-    setSubmitError(null)
+      setSubmitError(null)
 
-    const result = await createAbTest({
-      site_id: siteId,
-      youtube_video_id: video.id,
-      name: `Test: ${video.title}`,
-      test_type: type,
-      config,
+      const result = await createAbTest({
+        site_id: siteId,
+        youtube_video_id: video.id,
+        name: `Test: ${video.title}`,
+        test_type: type,
+        config,
+      })
+
+      if (result.ok && result.id) {
+        setDraftTestId(result.id)
+        setStep(2)
+      } else if (result.error?.includes('already exists')) {
+        setSubmitError('Já existe um rascunho para este vídeo. Feche e reabra para continuar.')
+      } else {
+        setSubmitError(result.error ?? 'Falha ao criar rascunho')
+      }
     })
-
-    setDraftLoading(false)
-
-    if (result.ok && result.id) {
-      setDraftTestId(result.id)
-      setStep(2)
-    } else if (result.error?.includes('already exists')) {
-      setSubmitError('Já existe um rascunho para este vídeo. Feche e reabra para continuar.')
-    } else {
-      setSubmitError(result.error ?? 'Falha ao criar rascunho')
-    }
   }
 
   return (
@@ -431,11 +435,10 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill, exi
 
         {/* Body */}
         <div key={step} className="flex-1 overflow-y-auto px-5 py-4" style={{ animation: 'fadeIn 150ms ease-out' }}>
-          <style>{`@keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }`}</style>
           {step === 1 && (
             <div className="relative">
               <Step0TypeSelect onSelect={handleTypeSelect} />
-              {draftLoading && (
+              {isTypeSelectPending && (
                 <div className="absolute inset-0 flex items-center justify-center bg-cms-surface/80 rounded-[var(--cms-radius)]">
                   <p className="text-xs text-cms-text-dim animate-pulse">Criando rascunho…</p>
                 </div>
@@ -456,6 +459,7 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill, exi
               onBriefingDataChange={handleBriefingDataChange}
               draftTestId={draftTestId}
               onVariantsReceived={handleVariantsReceived}
+              lastNotifiedLabelsRef={lastNotifiedLabelsRef}
             />
           )}
           {step === 3 && (
@@ -500,7 +504,7 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill, exi
               <span className="text-[10px] text-cms-text-dim">Pode pular se já sabe o que testar</span>
             )}
             {submitError && (
-              <p className="text-xs text-red-400">{submitError}</p>
+              <p role="alert" className="text-xs text-red-400">{submitError}</p>
             )}
           </div>
           <div className="flex items-center gap-2">
@@ -741,7 +745,7 @@ function ThumbnailUploadSection({
       </div>
 
       {slotError && (
-        <p className="text-xs text-red-400">{slotError}</p>
+        <p role="alert" className="text-xs text-red-400">{slotError}</p>
       )}
 
       {video.sourcePipelineId && (

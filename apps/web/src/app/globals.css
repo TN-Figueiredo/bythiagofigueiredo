@@ -439,6 +439,11 @@ textarea:focus-visible {
   50%      { opacity: 1; }
 }
 
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
 /* ── Pinboard home section utilities ── */
 @media (min-width: 1024px) {
   .pb-mostread-layout {
