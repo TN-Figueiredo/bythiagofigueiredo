@@ -177,7 +177,6 @@ export interface EvaluationResult {
 }
 
 export interface AbTestSiteSettings {
-  max_concurrent_tests: number
   default_duration_days: number
   default_confidence: number
   default_auto_apply: boolean
@@ -201,7 +200,6 @@ export interface AbTestSiteSettings {
 }
 
 export const AB_SITE_SETTINGS_DEFAULTS: AbTestSiteSettings = {
-  max_concurrent_tests: 3,
   default_duration_days: 14,
   default_confidence: 0.95,
   default_auto_apply: true,

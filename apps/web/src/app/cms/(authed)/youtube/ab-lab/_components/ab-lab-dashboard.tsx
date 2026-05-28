@@ -103,7 +103,7 @@ export function AbLabDashboard({ siteId, active, draft, completed, settings, eli
           </span>
         )}
         <span className="text-xs text-cms-text-muted">
-          {active.length}/{settings.max_concurrent_tests} slots
+          {active.length} {active.length === 1 ? 'teste ativo' : 'testes ativos'}
         </span>
         <div className="ml-auto flex items-center gap-2">
           <select

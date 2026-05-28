@@ -186,19 +186,6 @@ export function AbSettingsPanel({ settings, onClose }: AbSettingsPanelProps) {
                 </select>
               </div>
 
-              <div className="flex items-center justify-between gap-4">
-                <label className="text-sm text-cms-text-muted">Max concurrent tests</label>
-                <input
-                  type="number"
-                  min={1}
-                  max={10}
-                  value={edited.max_concurrent_tests}
-                  onChange={(e) => setTop('max_concurrent_tests', Number(e.target.value))}
-                  disabled={isPending}
-                  className={`w-20 ${inputCls}`}
-                />
-              </div>
-
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
                   <label className="text-sm text-cms-text-muted">Confidence threshold</label>
