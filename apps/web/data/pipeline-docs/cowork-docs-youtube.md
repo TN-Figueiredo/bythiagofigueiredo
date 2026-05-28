@@ -336,3 +336,106 @@ Canais menores recebem "benefício da dúvida" — CTR e retenção naturalmente
   ]
 }
 ```
+
+---
+
+### POST /api/pipeline/youtube/ab-tests/:id/variants
+
+Batch upsert variants (B, C, D) para um teste em status `draft`. Usa `ON CONFLICT (test_id, label)` — idempotente.
+
+**Auth:** write
+
+**Body:**
+```json
+{
+  "variants": [
+    {
+      "label": "B",
+      "title_text": "Título alternativo B",
+      "description_text": null,
+      "metadata": {
+        "rationale": "Versão com gancho emocional mais forte",
+        "thumbnail_tags": ["expressão", "close-up"],
+        "emotional_triggers": ["curiosidade", "urgência"]
+      }
+    }
+  ]
+}
+```
+
+**Regras de validação:**
+- `label` deve ser `B`, `C` ou `D` (original não pode ser criado via este endpoint)
+- `title_text` obrigatório para `test_type: title` e `combo`
+- `description_text` obrigatório para `test_type: description`
+- Máximo 3 variantes por chamada
+- Teste deve estar em status `draft` (409 caso contrário)
+
+**Response 200:**
+```json
+{
+  "data": {
+    "results": [{ "label": "B", "ok": true, "id": "uuid" }],
+    "summary": { "total": 1, "succeeded": 1, "failed": 0 }
+  }
+}
+```
+
+---
+
+### GET /api/pipeline/youtube/ab-tests/:id/variants
+
+Lista todas as variantes de um teste, ordenadas por `sort_order` ascendente.
+
+**Auth:** read
+
+**Response 200:**
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "test_id": "uuid",
+      "label": "original",
+      "is_original": true,
+      "title_text": "Título original do vídeo",
+      "description_text": null,
+      "metadata": {},
+      "sort_order": 0
+    },
+    {
+      "id": "uuid",
+      "test_id": "uuid",
+      "label": "B",
+      "is_original": false,
+      "title_text": "Título alternativo B",
+      "description_text": null,
+      "metadata": { "rationale": "Gancho emocional" },
+      "sort_order": 1
+    }
+  ]
+}
+```
+
+---
+
+### DELETE /api/pipeline/youtube/ab-tests/:id/variants?label={label}
+
+Remove uma variante não-original (B, C ou D) de um teste em status `draft`.
+
+**Auth:** write
+
+**Query params:**
+- `label` (obrigatório): `B`, `C` ou `D`
+
+**Erros:**
+- `400` — label ausente ou inválido (ex: `A` ou `original`)
+- `400` — tentativa de deletar variante original (`is_original: true`)
+- `404` — teste ou variante não encontrados
+- `409` — teste não está em status `draft`
+
+**Response 200:**
+```json
+{
+  "data": { "deleted": true, "label": "B" }
+}
+```
