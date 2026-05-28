@@ -93,9 +93,14 @@ export function StepIdeias({
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const fetchingRef = useRef(false)
 
-  const variantsFetcher = (url: string) => fetch(url).then(r => r.json()).then(d => d.data ?? [])
+  const variantsFetcher = async (url: string) => {
+    const r = await fetch(url)
+    if (!r.ok) throw new Error(`Variants fetch failed: ${r.status}`)
+    const d = await r.json()
+    return d.data ?? []
+  }
 
-  const { data: externalVariants } = useSWR(
+  const { data: externalVariants, error: swrError } = useSWR(
     draftTestId ? `/api/pipeline/youtube/ab-tests/${draftTestId}/variants` : null,
     variantsFetcher,
     { refreshInterval: 5_000, revalidateOnFocus: true, dedupingInterval: 3_000 },
@@ -450,8 +455,17 @@ export function StepIdeias({
           {/* Waiting indicator when no variants yet */}
           {draftTestId && nonOriginalVariants.length === 0 && !loading && (
             <div className="rounded-[var(--cms-radius)] border border-dashed border-cms-border bg-cms-surface p-3 text-center">
-              <p className="text-xs text-cms-text-dim">Aguardando variantes do Cowork...</p>
-              <p className="text-[10px] text-cms-text-muted mt-1">Copie o prompt e cole no Claude. As variantes aparecerão aqui automaticamente.</p>
+              {swrError ? (
+                <>
+                  <p className="text-xs text-red-400">Falha ao verificar variantes</p>
+                  <p className="text-[10px] text-cms-text-muted mt-1">Tentando novamente automaticamente...</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-xs text-cms-text-dim">Aguardando variantes do Cowork...</p>
+                  <p className="text-[10px] text-cms-text-muted mt-1">Copie o prompt e cole no Claude. As variantes aparecerão aqui automaticamente.</p>
+                </>
+              )}
             </div>
           )}
 

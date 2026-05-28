@@ -196,22 +196,28 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill }: P
   function handlePipelinePull() {
     if (!video.sourcePipelineId) return
     startPipelineTransition(async () => {
-      const result = await createAbTest({
-        site_id: siteId,
-        youtube_video_id: video.id,
-        name: `Test: ${video.title}`,
-        test_type: testType,
-        config,
-      })
-      if (!result.ok || !result.id) {
-        setSlotError(result.error ?? 'Falha ao criar teste para pull do pipeline')
-        return
+      let testId = draftTestId
+
+      if (!testId) {
+        const result = await createAbTest({
+          site_id: siteId,
+          youtube_video_id: video.id,
+          name: `Test: ${video.title}`,
+          test_type: testType,
+          config,
+        })
+        if (!result.ok || !result.id) {
+          setSlotError(result.error ?? 'Falha ao criar teste para pull do pipeline')
+          return
+        }
+        testId = result.id
       }
-      const pullResult = await pullPipelineThumbnails(result.id, video.sourcePipelineId!)
+
+      const pullResult = await pullPipelineThumbnails(testId, video.sourcePipelineId!)
       if (!pullResult.ok) {
         setSlotError(pullResult.error ?? 'Falha ao puxar thumbnails do pipeline')
       } else {
-        onCreated(result.id)
+        onCreated(testId)
       }
     })
   }
@@ -450,7 +456,7 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill }: P
             )}
           </div>
           <div className="flex items-center gap-2">
-            {step > 1 && (
+            {step > 1 && !(step === 2 && !!draftTestId) && (
               <button
                 onClick={() => setStep(s => s - 1)}
                 disabled={isPending}
