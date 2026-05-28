@@ -102,6 +102,16 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill }: P
     setBriefingData(data)
   }, [])
 
+  const handleBriefingCopied = useCallback(() => setBriefingCopied(true), [])
+
+  const handleSlotNoteChange = useCallback((index: number, value: string) => {
+    setSlotNotes(prev => {
+      const next = [...prev] as [string, string, string]
+      next[index] = value
+      return next
+    })
+  }, [])
+
   useEffect(() => {
     try {
       const saved = sessionStorage.getItem(storageKey)
@@ -309,8 +319,9 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill }: P
               <div key={label} className="flex items-center">
                 <div className="flex items-center gap-2">
                   <div
+                    aria-label={`Passo ${stepNum}: ${label}${isCompleted ? ' (concluído)' : isActive ? ' (atual)' : ''}`}
                     className={[
-                      'w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold shrink-0',
+                      'w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 transition-colors',
                       isCompleted
                         ? 'bg-green-600 text-white'
                         : isActive
@@ -340,7 +351,8 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill }: P
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto px-5 py-4">
+        <div key={step} className="flex-1 overflow-y-auto px-5 py-4" style={{ animation: 'fadeIn 150ms ease-out' }}>
+          <style>{`@keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }`}</style>
           {step === 1 && (
             <Step0TypeSelect onSelect={handleTypeSelect} />
           )}
@@ -351,15 +363,9 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill }: P
               focus={ideiasFocus}
               onFocusChange={setIdeiasFocus}
               slotNotes={slotNotes}
-              onSlotNoteChange={(index, value) => {
-                setSlotNotes(prev => {
-                  const next = [...prev] as [string, string, string]
-                  next[index] = value
-                  return next
-                })
-              }}
+              onSlotNoteChange={handleSlotNoteChange}
               briefingCopied={briefingCopied}
-              onBriefingCopied={() => setBriefingCopied(true)}
+              onBriefingCopied={handleBriefingCopied}
               briefingData={briefingData}
               onBriefingDataChange={handleBriefingDataChange}
             />
