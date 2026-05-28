@@ -26,6 +26,9 @@ import { calculateBayesianConfidence } from '@/lib/youtube/ab-statistics'
 import { captureOriginalMetadata } from '@/lib/youtube/ab-metadata'
 import { parseTemplateTokens } from '@/lib/youtube/ab-templates'
 import { ensureTrackedLink } from '@/lib/links/auto-link'
+import { getChannelTier } from '@/lib/youtube/scoring'
+import { scoreForPrompt } from '@/lib/youtube/prompt-scoring'
+import type { AbBriefingData } from '@/lib/youtube/prompt-types'
 
 const VARIANT_LABELS = ['variant_b', 'variant_c', 'variant_d'] as const
 
@@ -1253,4 +1256,78 @@ export async function getVideoTestHistory(youtubeVideoId: string): Promise<Array
     ctr_lift_percent: (t.result_metadata as { ctr_lift_percent?: number } | null)?.ctr_lift_percent ?? null,
     confidence_at_completion: t.confidence_at_completion as number | null,
   }))
+}
+
+// ---------------------------------------------------------------------------
+// fetchAbBriefingData
+// ---------------------------------------------------------------------------
+
+export async function fetchAbBriefingData(
+  videoId: string,
+): Promise<{ ok: true; data: AbBriefingData } | { ok: false; error: string }> {
+  const siteId = await requireEditAccess()
+  const supabase = getSupabaseServiceClient()
+
+  const { data: video, error: videoError } = await supabase
+    .from('youtube_videos')
+    .select('id, youtube_video_id, title, thumbnail_url, ctr, avg_view_percentage, channel_id, last_synced_at')
+    .eq('id', videoId)
+    .eq('site_id', siteId)
+    .single()
+
+  if (videoError && videoError.code !== 'PGRST116') throw videoError
+  if (!video) return { ok: false, error: 'Vídeo não encontrado' }
+
+  const { data: channel } = await supabase
+    .from('youtube_channels')
+    .select('name, subscriber_count')
+    .eq('id', video.channel_id as string)
+    .single()
+
+  const subscribers = (channel?.subscriber_count as number | null) ?? 0
+  const tier = getChannelTier(subscribers)
+
+  const ctr = (video.ctr as number | null)
+  const avgViewPercentage = (video.avg_view_percentage as number | null)
+
+  let score: number | null = null
+  let grade: string | null = null
+  if (ctr !== null && avgViewPercentage !== null) {
+    const result = scoreForPrompt(ctr, avgViewPercentage)
+    score = result.score
+    grade = result.grade
+  }
+
+  const testHistory = await getVideoTestHistory(video.youtube_video_id as string)
+  const historyForBriefing = testHistory
+    .filter(t => t.status === 'completed')
+    .map(t => ({
+      test_type: t.test_type,
+      winner_label: t.winner_label,
+      ctr_lift_percent: t.ctr_lift_percent,
+    }))
+
+  const lastSyncedAt = (video.last_synced_at as string | null) ?? new Date().toISOString()
+  const snapshotAgeHours = Math.round(((Date.now() - new Date(lastSyncedAt).getTime()) / 3_600_000) * 10) / 10
+
+  return {
+    ok: true,
+    data: {
+      channel: {
+        name: (channel?.name as string | null) ?? 'Canal',
+        subscribers,
+        tier,
+      },
+      video: {
+        title: video.title as string,
+        thumbnailUrl: (video.thumbnail_url as string | null),
+        ctr,
+        avgViewPercentage,
+        score,
+        grade,
+      },
+      testHistory: historyForBriefing,
+      snapshotAgeHours,
+    },
+  }
 }
