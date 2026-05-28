@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { toast } from 'sonner'
 import NextImage from 'next/image'
-import { Lightbulb, Copy, Check, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react'
+import { Lightbulb, Copy, Check, ChevronDown, ChevronUp } from 'lucide-react'
 import { fetchAbBriefingData } from '../actions'
 import useSWR from 'swr'
 import { buildAbBriefingPrompt, buildAbWritePrompt } from '@/lib/youtube/prompt-builders-ab'
@@ -155,7 +155,6 @@ export function StepIdeias({
     : ''
 
   const charCount = estimateChars(prompt)
-  const encodedLength = prompt ? encodeURIComponent(prompt).length : 0
 
   const handleCopy = useCallback(async () => {
     if (!prompt) return
@@ -174,15 +173,6 @@ export function StepIdeias({
       toast.error('Falha ao copiar')
     }
   }, [prompt, onBriefingCopied])
-
-  const handleOpenClaude = useCallback(() => {
-    if (!prompt || encodedLength > 8000) return
-    const url = `https://claude.ai/new?q=${encodeURIComponent(prompt)}`
-    const win = window.open(url, '_blank', 'noreferrer')
-    if (!win) {
-      toast.warning('Popup bloqueado — copie e cole manualmente')
-    }
-  }, [prompt, encodedLength])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
@@ -331,7 +321,7 @@ export function StepIdeias({
               onKeyDown={handleKeyDown}
               rows={2}
               placeholder="Ex: Focar em cores quentes e expressões faciais"
-              className="w-full rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface px-3 py-2 text-sm text-cms-text placeholder:text-cms-text-dim focus:outline-none focus:ring-2 focus:ring-cms-accent resize-none"
+              className="w-full rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface px-3 py-2 text-sm text-cms-text placeholder:text-cms-text-dim focus:outline-none focus:ring-2 focus:ring-cms-accent focus:ring-offset-1 resize-none"
             />
             <div className="flex flex-wrap gap-1.5">
               {EXAMPLE_CHIPS[testType].map(chip => (
@@ -357,7 +347,7 @@ export function StepIdeias({
               </span>
             </div>
 
-            <PromptPreview maxHeight={promptExpanded ? '24rem' : '6rem'}>
+            <PromptPreview maxHeight={promptExpanded ? '24rem' : '9rem'}>
               {prompt}
             </PromptPreview>
 
@@ -386,17 +376,6 @@ export function StepIdeias({
                       ? 'Copiar novamente'
                       : `Copiar Prompt (${typeof navigator !== 'undefined' && navigator.platform?.includes('Mac') ? '⌘' : 'Ctrl'}+Enter)`}
                 </button>
-                <button
-                  onClick={handleOpenClaude}
-                  disabled={!prompt || encodedLength > 8000}
-                  className="flex items-center gap-1 rounded-[var(--cms-radius)] border border-cms-border px-3 py-1.5 text-xs text-cms-text hover:bg-cms-surface-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed group relative"
-                >
-                  <ExternalLink className="w-3 h-3" />
-                  Abrir no Claude
-                  <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 rounded text-[10px] bg-cms-surface-hover text-cms-text-dim border border-cms-border opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                    Abre claude.ai com o prompt — nenhum dado é salvo aqui
-                  </span>
-                </button>
               </div>
             </div>
           </div>
@@ -412,7 +391,7 @@ export function StepIdeias({
                   value={slotNotes[i]}
                   onChange={e => onSlotNoteChange(i, e.target.value)}
                   placeholder={`Ideia para variante ${label}...`}
-                  className="flex-1 rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface px-3 py-1.5 text-sm text-cms-text placeholder:text-cms-text-dim focus:outline-none focus:ring-2 focus:ring-cms-accent"
+                  className="flex-1 rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface px-3 py-1.5 text-sm text-cms-text placeholder:text-cms-text-dim focus:outline-none focus:ring-2 focus:ring-cms-accent focus:ring-offset-1"
                 />
               </div>
             ))}
@@ -455,7 +434,7 @@ export function StepIdeias({
 
           {/* Waiting indicator when no variants yet */}
           {draftTestId && nonOriginalVariants.length === 0 && !loading && (
-            <div className="rounded-[var(--cms-radius)] border border-dashed border-cms-border bg-cms-surface p-3 text-center">
+            <div className="rounded-[var(--cms-radius)] border border-dashed border-cms-border bg-transparent p-3 text-center">
               {swrError ? (
                 <>
                   <p className="text-xs text-red-400">Falha ao verificar variantes</p>

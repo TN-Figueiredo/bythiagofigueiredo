@@ -292,6 +292,13 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill, exi
 
   async function handleTypeSelect(type: TestType) {
     setTestType(type)
+
+    // If draft already exists, just update the type locally and advance
+    if (draftTestId) {
+      setStep(2)
+      return
+    }
+
     setDraftLoading(true)
     setSubmitError(null)
 
@@ -457,7 +464,7 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill, exi
             )}
           </div>
           <div className="flex items-center gap-2">
-            {step > 1 && !(step === 2 && !!draftTestId) && (
+            {step > 1 && (
               <button
                 onClick={() => setStep(s => s - 1)}
                 disabled={isPending}
