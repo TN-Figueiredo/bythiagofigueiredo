@@ -20,25 +20,13 @@ const handler = createMcpHandler(
   },
   {},
   {
-    basePath: '/api/mcp',
+    basePath: '/api',
     maxDuration: 60,
     verboseLogs: process.env.NODE_ENV === 'development',
   },
 )
 
 async function authenticatedHandler(req: Request): Promise<Response> {
-  const accept = req.headers.get('Accept') ?? ''
-  if (accept.includes('text/event-stream')) {
-    return new Response(
-      JSON.stringify({
-        jsonrpc: '2.0',
-        error: { code: -32600, message: 'SSE transport not supported. Use Streamable HTTP.' },
-        id: null,
-      }),
-      { status: 406, headers: { 'Content-Type': 'application/json' } },
-    )
-  }
-
   try {
     const ctx = await resolveMcpAuth(req)
 
