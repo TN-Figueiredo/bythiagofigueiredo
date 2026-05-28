@@ -6,6 +6,7 @@ import { Image, Type, FileText, Layers, Lightbulb, ChevronUp, ChevronDown } from
 import { StepIdeias } from './step-ideias'
 import { createAbTest, uploadVariant, startAbTest, pullPipelineThumbnails, createTextVariant } from '../actions'
 import type { TestType } from '@/lib/youtube/ab-types'
+import type { AbBriefingData } from '@/lib/youtube/prompt-types'
 
 interface WizardVideo {
   id: string
@@ -92,6 +93,7 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill }: P
   const [ideiasFocus, setIdeiasFocus] = useState('')
   const [slotNotes, setSlotNotes] = useState<[string, string, string]>(['', '', ''])
   const [briefingCopied, setBriefingCopied] = useState(false)
+  const [briefingData, setBriefingData] = useState<AbBriefingData | null>(null)
 
   const storageKey = `ab-brainstorm-${video.id}`
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -355,6 +357,8 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill }: P
               }}
               briefingCopied={briefingCopied}
               onBriefingCopied={() => setBriefingCopied(true)}
+              briefingData={briefingData}
+              onBriefingDataChange={setBriefingData}
             />
           )}
           {step === 3 && (

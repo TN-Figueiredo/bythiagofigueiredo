@@ -28,6 +28,8 @@ interface StepIdeiasProps {
   onSlotNoteChange: (index: number, value: string) => void
   briefingCopied: boolean
   onBriefingCopied: () => void
+  briefingData: AbBriefingData | null
+  onBriefingDataChange: (data: AbBriefingData | null) => void
 }
 
 const SLOT_LABELS = ['B', 'C', 'D'] as const
@@ -79,9 +81,10 @@ export function StepIdeias({
   onSlotNoteChange,
   briefingCopied,
   onBriefingCopied,
+  briefingData,
+  onBriefingDataChange,
 }: StepIdeiasProps) {
-  const [briefingData, setBriefingData] = useState<AbBriefingData | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(briefingData === null)
   const [error, setError] = useState<string | null>(null)
   const [promptExpanded, setPromptExpanded] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -93,6 +96,7 @@ export function StepIdeias({
   }, [])
 
   useEffect(() => {
+    if (briefingData) return
     let cancelled = false
     setLoading(true)
     setError(null)
@@ -100,7 +104,7 @@ export function StepIdeias({
     fetchAbBriefingData(video.id).then(result => {
       if (cancelled) return
       if (result.ok) {
-        setBriefingData(result.data)
+        onBriefingDataChange(result.data)
       } else {
         setError(result.error)
       }
@@ -112,7 +116,7 @@ export function StepIdeias({
     })
 
     return () => { cancelled = true }
-  }, [video.id])
+  }, [video.id, briefingData, onBriefingDataChange])
 
   useEffect(() => {
     if (!loading) textareaRef.current?.focus()
@@ -217,7 +221,7 @@ export function StepIdeias({
               setLoading(true)
               setError(null)
               fetchAbBriefingData(video.id).then(result => {
-                if (result.ok) setBriefingData(result.data)
+                if (result.ok) onBriefingDataChange(result.data)
                 else setError(result.error)
                 setLoading(false)
               }).catch(() => {
