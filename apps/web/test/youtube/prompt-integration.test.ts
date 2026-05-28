@@ -204,7 +204,8 @@ describe('Integration: full prompt flow', () => {
     const result = buildYoutubePrompt({ preset: 'content-calendar', data: makeCC(), instructions: 'Test' })
     // micro tier should not have nano calibration
     const lines = result.split('\n')
-    const persona = lines.slice(lines.indexOf('# Persona'), lines.indexOf('## Guardrails')).join('\n')
+    const guardrailIdx = lines.findIndex(l => l.startsWith('## Guardrails'))
+    const persona = lines.slice(lines.indexOf('# Persona'), guardrailIdx).join('\n')
     expect(persona).not.toContain('canal nano')
   })
 })

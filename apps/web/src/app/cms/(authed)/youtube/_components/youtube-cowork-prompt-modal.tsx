@@ -96,6 +96,7 @@ export function YouTubeCoworkPromptModal({ isOpen, onClose }: YouTubeCoworkPromp
     setSelectedVideo(null)
     const ch = channels.find(c => c.id === channelId)
     if (ch) setResolvedChannelName(ch.name)
+    textareaRef.current?.focus()
   }, [channels])
 
   // Fetch preset data when channel is selected
@@ -424,7 +425,12 @@ export function YouTubeCoworkPromptModal({ isOpen, onClose }: YouTubeCoworkPromp
 
               {showContext && (
                 <PromptPreview maxHeight="12rem" className="mt-1">
-                  {prompt.split('<context>')[1]?.split('</context>')[0] ?? ''}
+                  {(() => {
+                    const start = prompt.indexOf('<context>')
+                    const end = prompt.indexOf('</context>')
+                    if (start === -1 || end === -1) return prompt
+                    return prompt.slice(start + 9, end)
+                  })()}
                 </PromptPreview>
               )}
             </div>
@@ -445,10 +451,11 @@ export function YouTubeCoworkPromptModal({ isOpen, onClose }: YouTubeCoworkPromp
               disabled={!prompt || openInClaudeDisabled}
               onClick={() => {
                 const url = `https://claude.ai/new?q=${encodeURIComponent(prompt)}`
-                window.open(url, '_blank')
+                const w = window.open(url, '_blank', 'noreferrer')
+                if (w) w.opener = null
               }}
               className="rounded border border-cms-border px-3 py-1.5 text-sm text-cms-text-muted hover:bg-cms-surface-hover disabled:cursor-not-allowed disabled:opacity-40"
-              title={openInClaudeDisabled ? 'Prompt aparecerá no histórico do navegador' : undefined}
+              title="Dados do canal aparecerão no histórico do navegador. Use Copiar Prompt para mais privacidade."
             >
               Abrir no Claude
             </button>
