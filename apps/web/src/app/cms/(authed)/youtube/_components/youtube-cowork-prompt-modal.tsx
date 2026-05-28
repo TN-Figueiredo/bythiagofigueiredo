@@ -210,8 +210,11 @@ export function YouTubeCoworkPromptModal({ isOpen, onClose }: YouTubeCoworkPromp
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     handleTrapKeyDown(e)
     if (e.key === 'Escape') onClose()
+  }, [handleTrapKeyDown, onClose])
+
+  const handleTextareaKeyDown = useCallback((e: React.KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') handleCopy()
-  }, [handleTrapKeyDown, onClose, handleCopy])
+  }, [handleCopy])
 
   const handlePresetChange = useCallback((p: ContextPreset) => {
     setPreset(p)
@@ -255,11 +258,13 @@ export function YouTubeCoworkPromptModal({ isOpen, onClose }: YouTubeCoworkPromp
     textareaRef.current?.focus()
   }, [setCopied])
 
+  const encodedLength = useMemo(() => prompt ? encodeURIComponent(prompt).length : 0, [prompt])
+
   if (!isOpen) return null
 
   const shortcutLabel = IS_MAC ? '⌘⏎' : 'Ctrl+Enter'
 
-  const openInClaudeDisabled = charCount > 8000 || /pk_[a-zA-Z0-9]{20,}/.test(prompt)
+  const openInClaudeDisabled = encodedLength > 8000 || /pk_[a-zA-Z0-9]{20,}/.test(prompt)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
@@ -363,6 +368,7 @@ export function YouTubeCoworkPromptModal({ isOpen, onClose }: YouTubeCoworkPromp
               ref={textareaRef}
               value={instructions}
               onChange={e => { setInstructions(e.target.value); setCopied(false) }}
+              onKeyDown={handleTextareaKeyDown}
               maxLength={2000}
               rows={4}
               placeholder={PLACEHOLDER[preset]}

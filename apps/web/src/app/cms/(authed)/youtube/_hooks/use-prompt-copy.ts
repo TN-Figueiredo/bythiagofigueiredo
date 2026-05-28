@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { toast } from 'sonner'
 import { logPromptCopy } from '../_actions/youtube-prompt-actions'
 import type { ContextPreset } from '@/lib/youtube/prompt-types'
@@ -13,6 +13,11 @@ interface UsePromptCopyOptions {
 
 export function usePromptCopy({ preset, charCount, snapshotAgeHours }: UsePromptCopyOptions) {
   const [copied, setCopied] = useState(false)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    return () => { if (timerRef.current) clearTimeout(timerRef.current) }
+  }, [])
 
   const copy = useCallback(async (prompt: string) => {
     if (!prompt) return
@@ -23,7 +28,8 @@ export function usePromptCopy({ preset, charCount, snapshotAgeHours }: UsePrompt
     try {
       await navigator.clipboard.writeText(prompt)
       setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      if (timerRef.current) clearTimeout(timerRef.current)
+      timerRef.current = setTimeout(() => setCopied(false), 2000)
       void logPromptCopy(preset, charCount, snapshotAgeHours)
       toast.success('Prompt copiado!')
     } catch {

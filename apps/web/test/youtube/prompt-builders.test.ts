@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildYoutubePrompt, escapeXmlTags } from '@/lib/youtube/prompt-builders'
+import { buildYoutubePrompt, escapeXmlTags, buildVideoInfo, serializeContentCalendarContext } from '@/lib/youtube/prompt-builders'
 import { PROMPT_VERSIONS } from '@/lib/youtube/prompt-types'
 import type {
   ContentCalendarData,
@@ -292,5 +292,100 @@ describe('buildYoutubePrompt', () => {
       instructions: 'Por que a retenção está baixa?',
     })
     expect(result).toContain(`"prompt_version": "${PROMPT_VERSIONS['video-optimizer']}"`)
+  })
+
+  it('guardrails are scoped to analysis mode', () => {
+    const result = buildYoutubePrompt(BASE_CONTENT_OPTIONS)
+    expect(result).toContain('## Guardrails (modo Análise)')
+    expect(result).toContain('[TODOS]')
+  })
+
+  it('confidence guide is scoped to analysis mode', () => {
+    const result = buildYoutubePrompt(BASE_CONTENT_OPTIONS)
+    expect(result).toContain('## Guia de Confiança (modo Análise)')
+    expect(result).toContain('Em modo Criativo, omita o guia de confiança')
+  })
+
+  it('persona includes hybrid mode instructions', () => {
+    const result = buildYoutubePrompt(BASE_CONTENT_OPTIONS)
+    expect(result).toContain('Híbrido')
+    expect(result).toContain('prompt_version')
+    expect(result).toContain('ignore-o na resposta')
+  })
+
+  it('response format uses adaptive word count', () => {
+    const result = buildYoutubePrompt(BASE_CONTENT_OPTIONS)
+    expect(result).toContain('briefings focados até 300 palavras')
+    expect(result).toContain('diagnósticos completos até 900 palavras')
+    expect(result).not.toContain('400-800 palavras')
+  })
+})
+
+describe('buildVideoInfo', () => {
+  it('computes ageDays from publishedAt', () => {
+    const threeDaysAgo = new Date(Date.now() - 3 * 86400000).toISOString()
+    const result = buildVideoInfo({
+      id: 'v1', youtubeVideoId: 'yt1', title: 'Test', thumbnailUrl: null,
+      duration: 'PT10M', publishedAt: threeDaysAgo, viewCount: 100,
+    })
+    expect(result.ageDays).toBe(3)
+    expect(result.lifecycleStage).toBe('fresh')
+  })
+
+  it('returns "evergreen" lifecycle for old videos', () => {
+    const oneYearAgo = new Date(Date.now() - 365 * 86400000).toISOString()
+    const result = buildVideoInfo({
+      id: 'v1', youtubeVideoId: 'yt1', title: 'Old Video', thumbnailUrl: null,
+      duration: 'PT5M', publishedAt: oneYearAgo, viewCount: 5000,
+    })
+    expect(result.ageDays).toBe(365)
+    expect(result.lifecycleStage).toBe('evergreen')
+  })
+
+  it('clamps ageDays to 0 for future publishedAt', () => {
+    const tomorrow = new Date(Date.now() + 86400000).toISOString()
+    const result = buildVideoInfo({
+      id: 'v1', youtubeVideoId: 'yt1', title: 'Scheduled', thumbnailUrl: null,
+      duration: 'PT8M', publishedAt: tomorrow, viewCount: 0,
+    })
+    expect(result.ageDays).toBe(0)
+    expect(result.lifecycleStage).toBe('fresh')
+  })
+
+  it('returns "maturing" for 30-day-old video', () => {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString()
+    const result = buildVideoInfo({
+      id: 'v1', youtubeVideoId: 'yt1', title: 'Mid', thumbnailUrl: null,
+      duration: 'PT12M', publishedAt: thirtyDaysAgo, viewCount: 800,
+    })
+    expect(result.ageDays).toBe(30)
+    expect(result.lifecycleStage).toBe('maturing')
+  })
+
+  it('returns "established" for 120-day-old video', () => {
+    const d = new Date(Date.now() - 120 * 86400000).toISOString()
+    const result = buildVideoInfo({
+      id: 'v1', youtubeVideoId: 'yt1', title: 'Est', thumbnailUrl: null,
+      duration: 'PT15M', publishedAt: d, viewCount: 2000,
+    })
+    expect(result.ageDays).toBe(120)
+    expect(result.lifecycleStage).toBe('established')
+  })
+})
+
+describe('serializeContentCalendarContext', () => {
+  it('includes truncated field when set to true', () => {
+    const data = makeContentCalendarData({ truncated: true })
+    const json = serializeContentCalendarContext(data)
+    const parsed = JSON.parse(json)
+    expect(parsed.truncated).toBe(true)
+  })
+
+  it('omits truncated field when undefined', () => {
+    const data = makeContentCalendarData()
+    delete (data as Record<string, unknown>).truncated
+    const json = serializeContentCalendarContext(data)
+    const parsed = JSON.parse(json)
+    expect(parsed.truncated).toBeUndefined()
   })
 })

@@ -12,19 +12,19 @@ export const STALENESS_THRESHOLDS = { warn: 24, critical: 48 } as const
 
 export const EXAMPLE_PROMPTS: Record<ContextPreset, string[]> = {
   'content-calendar': [
-    'Sugira 3 ideias de vídeo baseadas nos meus search terms com mais views',
-    'Qual categoria tem melhor retenção e está sub-representada nos uploads recentes?',
-    'Monte um briefing de thumbnail para um vídeo sobre [tema]',
+    'Cruze meus search terms com categorias sub-representadas e sugira 3 ideias de vídeo',
+    'Monte um briefing completo de thumbnail para um vídeo sobre [tema]',
+    'Com base nos uploads recentes, qual lacuna de conteúdo devo preencher?',
   ],
   'channel-health': [
+    'Quais vídeos grade D têm potencial de recuperação e por quê?',
+    'Compare meu CTR vs retenção — qual eixo está mais fraco?',
     'O que está segurando o crescimento do canal?',
-    'Quais vídeos devo otimizar primeiro e por quê?',
-    'Compare meu CTR com o benchmark do canal',
   ],
   'video-optimizer': [
-    'Por que a retenção deste vídeo está baixa?',
-    'Sugira 3 variações de título para melhorar o CTR',
-    'O que posso melhorar no título?',
+    'Em que momento da curva de retenção estou perdendo mais espectadores?',
+    'Sugira 3 variações de título para melhorar o CTR deste vídeo',
+    'Vale uma nova rodada de otimização ou este vídeo está exausto?',
   ],
 }
 
