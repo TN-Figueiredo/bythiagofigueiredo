@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { toast } from 'sonner'
 import NextImage from 'next/image'
 import { Lightbulb, Copy, Check, ChevronDown, ChevronUp } from 'lucide-react'
@@ -11,7 +11,7 @@ import { estimateChars } from '@/lib/youtube/prompt-sanitize'
 import { DataFreshnessBadge } from '../../videos/_components/data-freshness-badge'
 import { PromptPreview } from '@/components/prompt-preview'
 import type { AbBriefingData } from '@/lib/youtube/prompt-types'
-import type { TestType } from '@/lib/youtube/ab-types'
+import type { TestType, VariantMetadata } from '@/lib/youtube/ab-types'
 
 interface WizardVideo {
   id: string
@@ -89,6 +89,7 @@ export function StepIdeias({
   const [error, setError] = useState<string | null>(null)
   const [promptExpanded, setPromptExpanded] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [variantsReceived, setVariantsReceived] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const fetchingRef = useRef(false)
@@ -101,14 +102,18 @@ export function StepIdeias({
   }
 
   const { data: externalVariants, error: swrError } = useSWR(
-    draftTestId ? `/api/pipeline/youtube/ab-tests/${draftTestId}/variants` : null,
+    draftTestId && !variantsReceived ? `/api/pipeline/youtube/ab-tests/${draftTestId}/variants` : null,
     variantsFetcher,
-    { refreshInterval: 5_000, revalidateOnFocus: true, dedupingInterval: 3_000 },
+    { refreshInterval: 5_000, revalidateOnFocus: true, dedupingInterval: 4_900 },
   )
 
   const nonOriginalVariants = (externalVariants ?? []).filter(
     (v: { is_original: boolean }) => !v.is_original,
   )
+
+  useEffect(() => {
+    if (nonOriginalVariants.length > 0) setVariantsReceived(true)
+  }, [nonOriginalVariants.length])
 
   useEffect(() => {
     return () => { if (timerRef.current) clearTimeout(timerRef.current) }
@@ -143,8 +148,9 @@ export function StepIdeias({
     if (!loading) textareaRef.current?.focus()
   }, [loading])
 
-  const prompt = briefingData
-    ? draftTestId
+  const prompt = useMemo(() => {
+    if (!briefingData) return ''
+    return draftTestId
       ? buildAbWritePrompt({
           testType,
           data: { ...briefingData, testId: draftTestId },
@@ -152,9 +158,9 @@ export function StepIdeias({
           baseUrl: typeof window !== 'undefined' ? window.location.origin : '',
         })
       : buildAbBriefingPrompt({ testType, data: briefingData, focus: focus || undefined })
-    : ''
+  }, [briefingData, draftTestId, testType, focus])
 
-  const charCount = estimateChars(prompt)
+  const charCount = useMemo(() => estimateChars(prompt), [prompt])
 
   const handleCopy = useCallback(async () => {
     if (!prompt) return
@@ -406,7 +412,7 @@ export function StepIdeias({
                   {nonOriginalVariants.length} recebida{nonOriginalVariants.length > 1 ? 's' : ''}
                 </span>
               </h4>
-              {nonOriginalVariants.map((v: { label: string; title_text: string | null; description_text: string | null; metadata: Record<string, string> }) => (
+              {nonOriginalVariants.map((v: { label: string; title_text: string | null; description_text: string | null; metadata: VariantMetadata }) => (
                 <div
                   key={v.label}
                   className="rounded-[var(--cms-radius)] border border-green-500/20 bg-green-500/5 p-3 space-y-1"
