@@ -53,6 +53,13 @@ const TYPE_GRADIENT: Record<TestType, string> = {
   combo: 'from-pink-500 to-purple-600',
 }
 
+async function variantsFetcher(url: string) {
+  const r = await fetch(url)
+  if (!r.ok) throw new Error(`Variants fetch failed: ${r.status}`)
+  const d = await r.json()
+  return d.data ?? []
+}
+
 export function StepIdeias({
   testType,
   video,
@@ -77,14 +84,7 @@ export function StepIdeias({
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const fetchingRef = useRef(false)
-
-  // SWR fetcher
-  const variantsFetcher = async (url: string) => {
-    const r = await fetch(url)
-    if (!r.ok) throw new Error(`Variants fetch failed: ${r.status}`)
-    const d = await r.json()
-    return d.data ?? []
-  }
+  const lastNotifiedLabelsRef = useRef('')
 
   // Polls until timeout
   const { data: externalVariants, error: swrError } = useSWR(
@@ -138,9 +138,12 @@ export function StepIdeias({
     return 'pre-copy'
   }, [allVariantsReceived, variantCount, briefingCopied])
 
-  // Notify parent when variants arrive
+  // Notify parent when variant set changes (dedup by labels to avoid re-firing on SWR revalidation)
   useEffect(() => {
     if (!nonOriginalVariants.length || !onVariantsReceived) return
+    const currentLabels = nonOriginalVariants.map(v => v.label).sort().join(',')
+    if (currentLabels === lastNotifiedLabelsRef.current) return
+    lastNotifiedLabelsRef.current = currentLabels
     onVariantsReceived(nonOriginalVariants.map(v => ({
       label: v.label,
       title_text: v.title_text,

@@ -113,7 +113,7 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill, exi
     metadata: Record<string, unknown> | null
   }>) => {
     const labelToIndex: Record<string, number> = { B: 0, C: 1, D: 2 }
-    const labels = new Set<string>()
+    const labels = new Set(variants.map(v => v.label).filter(l => l in labelToIndex))
     setTextVariants(prev => {
       const next = [...prev]
       for (const v of variants) {
@@ -123,7 +123,6 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill, exi
             title: v.title_text ?? '',
             description: v.description_text ?? '',
           }
-          labels.add(v.label)
         }
       }
       return next
