@@ -57,6 +57,7 @@ vi.mock('@/lib/youtube/ab-schemas', async () => {
     BatchVariantUpsertSchema: z.object({
       variants: z.array(VariantPayloadSchema).min(1).max(3),
     }),
+    TestTypeSchema: z.enum(['thumbnail', 'title', 'description', 'combo']),
   }
 })
 

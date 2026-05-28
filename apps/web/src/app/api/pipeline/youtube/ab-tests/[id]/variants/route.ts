@@ -3,7 +3,7 @@ import * as Sentry from '@sentry/nextjs'
 import { authenticateRead, authenticateWrite, pipelineError, pipelineSuccess, parseBody } from '@/lib/pipeline/helpers'
 import { UUID_REGEX } from '@/lib/pipeline/auth'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { BatchVariantUpsertSchema } from '@/lib/youtube/ab-schemas'
+import { BatchVariantUpsertSchema, TestTypeSchema } from '@/lib/youtube/ab-schemas'
 import type { TestType } from '@/lib/youtube/ab-types'
 
 const VALID_LABELS = new Set(['B', 'C', 'D'])
@@ -74,8 +74,13 @@ export async function POST(
     return pipelineError('INVALID_STATUS', 'Variants can only be added to draft tests', 409, auth)
   }
 
+  const parsedType = TestTypeSchema.safeParse(test.test_type)
+  if (!parsedType.success) {
+    return pipelineError('VALIDATION_ERROR', 'Unknown test type', 400, auth)
+  }
+
   const typeErrors = validateTypeSpecificFields(
-    test.test_type as TestType,
+    parsedType.data,
     parsed.data.variants,
   )
   if (typeErrors.length > 0) {

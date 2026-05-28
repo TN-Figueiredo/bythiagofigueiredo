@@ -140,7 +140,7 @@ export const AB_BRIEFING_PROMPT_VERSION = 'yt-ab-v2' as const
 export interface AbBriefingData {
   channel: Pick<PromptChannelInfo, 'name' | 'subscribers' | 'tier'>
   locale: 'pt' | 'en'
-  testId: string
+  testId?: string
   video: {
     title: string
     thumbnailUrl: string | null

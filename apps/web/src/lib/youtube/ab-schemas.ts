@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+export const TestTypeSchema = z.enum(['thumbnail', 'title', 'description', 'combo'])
+
 export const VariantMetadataSchema = z.object({
   thumbnail_tags: z.array(z.string().max(50)).max(10).optional(),
   title_pattern: z.string().max(200).optional(),

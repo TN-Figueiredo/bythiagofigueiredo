@@ -188,6 +188,10 @@ export default defineConfig({
         replacement: path.resolve(__dirname, './src/app/api/pipeline/items/[id]/sections/[section]/route.ts'),
       },
       {
+        find: '@/app/api/pipeline/youtube/ab-tests/[id]/variants/route',
+        replacement: path.resolve(__dirname, './src/app/api/pipeline/youtube/ab-tests/[id]/variants/route.ts'),
+      },
+      {
         find: '@/app/api/pipeline/research/[id]/route',
         replacement: path.resolve(__dirname, './src/app/api/pipeline/research/[id]/route.ts'),
       },
