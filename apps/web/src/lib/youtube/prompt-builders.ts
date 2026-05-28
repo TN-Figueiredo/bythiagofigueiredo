@@ -10,8 +10,10 @@ import type {
 import { sanitizeForMarkdown, sanitizeThumbnailUrl } from './prompt-sanitize'
 import { getLifecycle } from './scoring'
 
-const LANGUAGE_DIRECTIVE =
-  'LANGUAGE REQUIREMENT: All output MUST be in Brazilian Portuguese (PT-BR). No exceptions.\nJSON field names stay in English. All prose output in PT-BR.'
+export const LANGUAGE_DIRECTIVES: Record<'pt' | 'en', string> = {
+  pt: 'LANGUAGE REQUIREMENT: All output MUST be in Brazilian Portuguese (PT-BR). No exceptions.\nJSON field names stay in English. All prose output in PT-BR.',
+  en: 'LANGUAGE REQUIREMENT: All output MUST be in English. No exceptions.\nJSON field names stay in English. All prose output in English.',
+}
 
 const PERSONA = `# Persona
 Você é um consultor de YouTube especializado em canais pequenos/médios.
@@ -66,11 +68,14 @@ export function escapeXmlTags(text: string): string {
   return text.replace(/</g, '&lt;')
 }
 
-export function buildSharedBase(channel: Pick<PromptChannelInfo, 'tier' | 'subscribers'>): string {
+export function buildSharedBase(
+  channel: Pick<PromptChannelInfo, 'tier' | 'subscribers'>,
+  locale: 'pt' | 'en' = 'pt',
+): string {
   const persona =
     channel.tier === 'nano' ? `${PERSONA}\n${NANO_CALIBRATION}` : PERSONA
 
-  return [LANGUAGE_DIRECTIVE, persona, GUARDRAILS, RESPONSE_FORMAT, CONFIDENCE_GUIDE].join('\n\n')
+  return [LANGUAGE_DIRECTIVES[locale], persona, GUARDRAILS, RESPONSE_FORMAT, CONFIDENCE_GUIDE].join('\n\n')
 }
 
 function omitNullish<T extends object>(obj: T): Partial<T> {

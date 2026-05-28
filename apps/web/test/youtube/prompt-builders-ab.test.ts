@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildAbBriefingPrompt } from '@/lib/youtube/prompt-builders-ab'
+import { buildAbBriefingPrompt, buildAbWritePrompt, buildAbReviewPrompt } from '@/lib/youtube/prompt-builders-ab'
 import type { AbBriefingData } from '@/lib/youtube/prompt-types'
 
 function makeAbBriefingData(overrides?: Partial<AbBriefingData>): AbBriefingData {
@@ -145,6 +145,24 @@ describe('buildAbBriefingPrompt', () => {
     expect(prompt).toContain('"name": "Test Channel"')
     expect(prompt).toContain('"subscribers": 5000')
   })
+
+  it('locale en produces English instructions for thumbnail', () => {
+    const prompt = buildAbBriefingPrompt({
+      testType: 'thumbnail',
+      data: makeAbBriefingData({ locale: 'en' }),
+    })
+    expect(prompt).toContain('Visual composition')
+    expect(prompt).toContain('All output MUST be in English')
+  })
+
+  it('locale pt produces Portuguese instructions for thumbnail', () => {
+    const prompt = buildAbBriefingPrompt({
+      testType: 'thumbnail',
+      data: makeAbBriefingData({ locale: 'pt' }),
+    })
+    expect(prompt).toContain('Composição visual')
+    expect(prompt).toContain('PT-BR')
+  })
 })
 
 describe('edge cases', () => {
@@ -281,5 +299,90 @@ describe('edge cases', () => {
     expect(prompt).not.toContain('onerror=alert(1)>')
     // The safe parts of the title should survive
     expect(prompt).toContain('Great Video')
+  })
+})
+
+describe('buildAbWritePrompt', () => {
+  it('includes workflow steps with test_id', () => {
+    const prompt = buildAbWritePrompt({
+      testType: 'title',
+      data: makeAbBriefingData({ testId: 'abc-123' }),
+    })
+    expect(prompt).toContain('abc-123')
+    expect(prompt).toContain('/api/pipeline/youtube/ab-tests/')
+    expect(prompt).toContain('X-Pipeline-Key')
+  })
+
+  it('includes API endpoint path with POST method', () => {
+    const prompt = buildAbWritePrompt({
+      testType: 'thumbnail',
+      data: makeAbBriefingData(),
+    })
+    expect(prompt).toContain('POST /api/pipeline/youtube/ab-tests/')
+    expect(prompt).toContain('/variants')
+  })
+
+  it('includes type-specific instructions for title', () => {
+    const prompt = buildAbWritePrompt({
+      testType: 'title',
+      data: makeAbBriefingData({ locale: 'pt' }),
+    })
+    expect(prompt).toContain('Hook emocional')
+    expect(prompt).toContain('power words')
+  })
+
+  it('en locale produces English workflow steps', () => {
+    const prompt = buildAbWritePrompt({
+      testType: 'title',
+      data: makeAbBriefingData({ locale: 'en' }),
+    })
+    expect(prompt).toContain('Discuss ideas with the user')
+    expect(prompt).toContain('All output MUST be in English')
+  })
+
+  it('appends focus text escaped', () => {
+    const prompt = buildAbWritePrompt({
+      testType: 'thumbnail',
+      data: makeAbBriefingData(),
+      focus: 'Focar em <cores quentes>',
+    })
+    expect(prompt).toContain('&lt;cores quentes>')
+    expect(prompt).not.toContain('<cores quentes>')
+  })
+
+  it('omits focus section when focus is empty string', () => {
+    const prompt = buildAbWritePrompt({
+      testType: 'thumbnail',
+      data: makeAbBriefingData(),
+      focus: '',
+    })
+    expect(prompt).not.toContain('Instruções adicionais do usuário:')
+  })
+})
+
+describe('buildAbReviewPrompt', () => {
+  it('includes blob URLs for multimodal analysis', () => {
+    const prompt = buildAbReviewPrompt({
+      testId: 'test-1',
+      locale: 'pt',
+      variants: [
+        { label: 'B', title_text: 'Title B', description_text: null, blob_url: 'https://blob.vercel-storage.com/img.png', metadata: {} },
+      ],
+      channel: { tier: 'micro' as const, subscribers: 5000 },
+    })
+    expect(prompt).toContain('https://blob.vercel-storage.com/img.png')
+    expect(prompt).toContain('Title B')
+  })
+
+  it('includes locale-appropriate language directive', () => {
+    const prompt = buildAbReviewPrompt({
+      testId: 'test-1',
+      locale: 'en',
+      variants: [
+        { label: 'B', title_text: 'Title B', description_text: null, blob_url: null, metadata: {} },
+      ],
+      channel: { tier: 'micro' as const, subscribers: 5000 },
+    })
+    expect(prompt).toContain('All output MUST be in English')
   })
 })
