@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect, useTransition } from 'react'
+import { useState, useEffect, useTransition, useRef } from 'react'
 import NextImage from 'next/image'
-import { Image, Type, FileText, Layers } from 'lucide-react'
+import { Image, Type, FileText, Layers, Lightbulb, ChevronUp, ChevronDown } from 'lucide-react'
+import { StepIdeias } from './step-ideias'
 import { createAbTest, uploadVariant, startAbTest, pullPipelineThumbnails, createTextVariant } from '../actions'
 import type { TestType } from '@/lib/youtube/ab-types'
 
@@ -53,7 +54,7 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-const STEP_LABELS = ['Tipo', 'Variantes', 'Configurar', 'Revisar'] as const
+const STEP_LABELS = ['Tipo', 'Ideias', 'Variantes', 'Config', 'Revisar'] as const
 
 const TYPE_OPTIONS: Array<{
   type: TestType
@@ -87,6 +88,34 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill }: P
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
   const [isPipelinePending, startPipelineTransition] = useTransition()
+
+  const [ideiasFocus, setIdeiasFocus] = useState('')
+  const [slotNotes, setSlotNotes] = useState<[string, string, string]>(['', '', ''])
+  const [briefingCopied, setBriefingCopied] = useState(false)
+
+  const storageKey = `ab-brainstorm-${video.id}`
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem(storageKey)
+      if (saved) {
+        const parsed = JSON.parse(saved) as { focus?: string; slotNotes?: [string, string, string] }
+        if (parsed.focus) setIdeiasFocus(parsed.focus)
+        if (parsed.slotNotes) setSlotNotes(parsed.slotNotes)
+      }
+    } catch { /* ignore corrupt data */ }
+  }, [storageKey])
+
+  useEffect(() => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = setTimeout(() => {
+      try {
+        sessionStorage.setItem(storageKey, JSON.stringify({ focus: ideiasFocus, slotNotes }))
+      } catch { /* storage full — ignore */ }
+    }, 500)
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current) }
+  }, [ideiasFocus, slotNotes, storageKey])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -227,6 +256,7 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill }: P
           return
         }
       }
+      try { sessionStorage.removeItem(storageKey) } catch { /* ignore */ }
       onCreated(testId)
     })
   }
@@ -280,6 +310,9 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill }: P
                         : isActive
                           ? 'bg-cms-accent text-white'
                           : 'bg-cms-surface-hover text-cms-text-muted',
+                      stepNum === 2 && briefingCopied && !isCompleted && !isActive
+                        ? 'ring-2 ring-green-500/50'
+                        : '',
                     ].join(' ')}
                   >
                     {isCompleted ? (
@@ -306,6 +339,25 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill }: P
             <Step0TypeSelect onSelect={handleTypeSelect} />
           )}
           {step === 2 && (
+            <StepIdeias
+              testType={testType}
+              video={video}
+              siteId={siteId}
+              focus={ideiasFocus}
+              onFocusChange={setIdeiasFocus}
+              slotNotes={slotNotes}
+              onSlotNoteChange={(index, value) => {
+                setSlotNotes(prev => {
+                  const next = [...prev] as [string, string, string]
+                  next[index] = value
+                  return next
+                })
+              }}
+              briefingCopied={briefingCopied}
+              onBriefingCopied={() => setBriefingCopied(true)}
+            />
+          )}
+          {step === 3 && (
             <Step1Variants
               testType={testType}
               video={video}
@@ -323,12 +375,13 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill }: P
               }}
               onPipelinePull={handlePipelinePull}
               isPipelinePending={isPipelinePending}
+              slotNotes={slotNotes}
             />
           )}
-          {step === 3 && (
+          {step === 4 && (
             <Step2Configure config={config} onChange={setConfig} />
           )}
-          {step === 4 && (
+          {step === 5 && (
             <Step3Review
               video={video}
               testType={testType}
@@ -342,6 +395,9 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill }: P
         {/* Footer */}
         <div className="flex items-center justify-between px-5 py-4 border-t border-cms-border shrink-0">
           <div>
+            {step === 2 && (
+              <span className="text-[10px] text-cms-text-dim">Pode pular se já sabe o que testar</span>
+            )}
             {submitError && (
               <p className="text-xs text-red-400">{submitError}</p>
             )}
@@ -356,16 +412,16 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill }: P
                 Voltar
               </button>
             )}
-            {step > 1 && step < 4 && (
+            {step >= 2 && step < 5 && (
               <button
                 onClick={() => setStep(s => s + 1)}
-                disabled={step === 2 && !hasVariantForType}
+                disabled={step === 3 && !hasVariantForType}
                 className="bg-cms-accent text-white rounded-[var(--cms-radius)] px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Próximo
               </button>
             )}
-            {step === 4 && (
+            {step === 5 && (
               <>
                 <button
                   onClick={() => handleSubmit(false)}
@@ -439,11 +495,17 @@ interface Step1Props {
   onTextChange: (index: number, field: 'title' | 'description', value: string) => void
   onPipelinePull: () => void
   isPipelinePending: boolean
+  slotNotes: [string, string, string]
 }
 
-function Step1Variants({ testType, video, slots, slotError, textVariants, onFileChange, onTextChange, onPipelinePull, isPipelinePending }: Step1Props) {
+function Step1Variants({ testType, video, slots, slotError, textVariants, onFileChange, onTextChange, onPipelinePull, isPipelinePending, slotNotes }: Step1Props) {
   return (
     <div className="space-y-4">
+      {/* Brainstorm reference panel */}
+      {slotNotes.some(n => n.trim()) && (
+        <BrainstormReferencePanel slotNotes={slotNotes} />
+      )}
+
       {/* Thumbnail upload section — shown for thumbnail and combo */}
       {(testType === 'thumbnail' || testType === 'combo') && (
         <ThumbnailUploadSection
@@ -453,6 +515,7 @@ function Step1Variants({ testType, video, slots, slotError, textVariants, onFile
           onFileChange={onFileChange}
           onPipelinePull={onPipelinePull}
           isPipelinePending={isPipelinePending}
+          slotNotes={slotNotes}
         />
       )}
 
@@ -461,6 +524,7 @@ function Step1Variants({ testType, video, slots, slotError, textVariants, onFile
         <TitleEditorSection
           textVariants={textVariants}
           onTextChange={onTextChange}
+          slotNotes={slotNotes}
         />
       )}
 
@@ -469,7 +533,46 @@ function Step1Variants({ testType, video, slots, slotError, textVariants, onFile
         <DescriptionEditorSection
           textVariants={textVariants}
           onTextChange={onTextChange}
+          slotNotes={slotNotes}
         />
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Brainstorm Reference Panel
+// ---------------------------------------------------------------------------
+
+function BrainstormReferencePanel({ slotNotes }: { slotNotes: [string, string, string] }) {
+  const [expanded, setExpanded] = useState(true)
+  const LABELS = ['B', 'C', 'D'] as const
+
+  return (
+    <div className="rounded-[var(--cms-radius)] border border-indigo-500/20 bg-indigo-500/5 p-3">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center justify-between w-full text-left"
+      >
+        <span className="text-xs font-medium text-indigo-300 flex items-center gap-1.5">
+          <Lightbulb className="w-3.5 h-3.5" />
+          Suas ideias do brainstorm
+        </span>
+        {expanded
+          ? <ChevronUp className="w-3.5 h-3.5 text-indigo-400" />
+          : <ChevronDown className="w-3.5 h-3.5 text-indigo-400" />}
+      </button>
+      {expanded && (
+        <div className="mt-2 space-y-1">
+          {LABELS.map((label, i) => (
+            <div key={label} className="flex items-start gap-2">
+              <span className="text-[10px] font-semibold text-indigo-400 mt-0.5 w-3 shrink-0">{label}:</span>
+              <span className="text-[10px] text-cms-text-dim leading-relaxed">
+                {(slotNotes[i] ?? '').trim() || '(sem anotação)'}
+              </span>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   )
@@ -480,7 +583,7 @@ function Step1Variants({ testType, video, slots, slotError, textVariants, onFile
 // ---------------------------------------------------------------------------
 
 function ThumbnailUploadSection({
-  video, slots, slotError, onFileChange, onPipelinePull, isPipelinePending,
+  video, slots, slotError, onFileChange, onPipelinePull, isPipelinePending, slotNotes,
 }: {
   video: WizardVideo
   slots: (SlotFile | null)[]
@@ -488,6 +591,7 @@ function ThumbnailUploadSection({
   onFileChange: (index: number, file: File | null) => void
   onPipelinePull: () => void
   isPipelinePending: boolean
+  slotNotes?: [string, string, string]
 }) {
   return (
     <div className="space-y-3">
@@ -521,12 +625,19 @@ function ThumbnailUploadSection({
 
         {/* Slots B, C, D */}
         {[0, 1, 2].map(i => (
-          <VariantSlot
-            key={i}
-            label={String.fromCharCode(66 + i)}
-            slot={slots[i] ?? null}
-            onChange={file => onFileChange(i, file)}
-          />
+          <div key={i} className="space-y-1">
+            {slotNotes?.[i]?.trim() && (
+              <p className="text-[10px] text-indigo-300 flex items-start gap-1">
+                <Lightbulb className="w-3 h-3 shrink-0 mt-0.5" />
+                {slotNotes[i]}
+              </p>
+            )}
+            <VariantSlot
+              label={String.fromCharCode(66 + i)}
+              slot={slots[i] ?? null}
+              onChange={file => onFileChange(i, file)}
+            />
+          </div>
         ))}
       </div>
 
@@ -559,9 +670,11 @@ function ThumbnailUploadSection({
 function TitleEditorSection({
   textVariants,
   onTextChange,
+  slotNotes,
 }: {
   textVariants: TextVariant[]
   onTextChange: (index: number, field: 'title' | 'description', value: string) => void
+  slotNotes?: [string, string, string]
 }) {
   return (
     <div className="space-y-3">
@@ -592,6 +705,12 @@ function TitleEditorSection({
                 {charCount}/100
               </span>
             </div>
+            {slotNotes?.[i]?.trim() && (
+              <p className="text-[10px] text-indigo-300 flex items-start gap-1">
+                <Lightbulb className="w-3 h-3 shrink-0 mt-0.5" />
+                {slotNotes[i]}
+              </p>
+            )}
             <input
               type="text"
               value={value}
@@ -614,9 +733,11 @@ function TitleEditorSection({
 function DescriptionEditorSection({
   textVariants,
   onTextChange,
+  slotNotes,
 }: {
   textVariants: TextVariant[]
   onTextChange: (index: number, field: 'title' | 'description', value: string) => void
+  slotNotes?: [string, string, string]
 }) {
   return (
     <div className="space-y-3">
@@ -644,6 +765,12 @@ function DescriptionEditorSection({
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-cms-text">{String.fromCharCode(66 + i)}</span>
             </div>
+            {slotNotes?.[i]?.trim() && (
+              <p className="text-[10px] text-indigo-300 flex items-start gap-1">
+                <Lightbulb className="w-3 h-3 shrink-0 mt-0.5" />
+                {slotNotes[i]}
+              </p>
+            )}
             <textarea
               value={value}
               onChange={e => onTextChange(i, 'description', e.target.value)}
