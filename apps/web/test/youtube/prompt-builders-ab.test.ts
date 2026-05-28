@@ -144,3 +144,140 @@ describe('buildAbBriefingPrompt', () => {
     expect(prompt).toContain('"subscribers": 5000')
   })
 })
+
+describe('edge cases', () => {
+  it('very long focus string (1000+ chars) — included in prompt', () => {
+    const longFocus = 'A'.repeat(1200)
+    const prompt = buildAbBriefingPrompt({
+      testType: 'thumbnail',
+      data: makeAbBriefingData(),
+      focus: longFocus,
+    })
+    // The focus must appear somewhere in the instructions section
+    expect(prompt).toContain('Instruções adicionais do usuário:')
+    // At least the first 1000 chars must be present (no truncation enforced by this layer)
+    expect(prompt).toContain('A'.repeat(1000))
+  })
+
+  it('special characters in focus — HTML tags are escaped', () => {
+    const prompt = buildAbBriefingPrompt({
+      testType: 'thumbnail',
+      data: makeAbBriefingData(),
+      focus: '<script>alert("xss")</script>',
+    })
+    expect(prompt).not.toContain('<script>')
+    expect(prompt).toContain('&lt;script>alert("xss")&lt;/script>')
+  })
+
+  it('multiple test history entries with mixed null winner_label and ctr_lift_percent', () => {
+    const prompt = buildAbBriefingPrompt({
+      testType: 'title',
+      data: makeAbBriefingData({
+        testHistory: [
+          { test_type: 'thumbnail', winner_label: null, ctr_lift_percent: null },
+          { test_type: 'title', winner_label: 'B', ctr_lift_percent: null },
+          { test_type: 'combo', winner_label: null, ctr_lift_percent: 5.0 },
+          { test_type: 'description', winner_label: 'C', ctr_lift_percent: 7.5 },
+        ],
+      }),
+    })
+    // History should still be included (4 entries > 0)
+    expect(prompt).toContain('historico_ab')
+    expect(prompt).toContain('testes_anteriores')
+    // lift_medio should average only completed tests that have a numeric ctr_lift_percent
+    // winner 'C' with 7.5 is the only one with both non-null winner AND non-null lift
+    // winner 'B' with null lift → contributes 0 to sum
+    // avg of [0, 7.5] over 2 completed = 3.75 → "+3.8%"
+    expect(prompt).toContain('+3.8%')
+    // padroes_vencedores lists all non-null winners
+    expect(prompt).toContain('"B"')
+    expect(prompt).toContain('"C"')
+  })
+
+  it('all 4 test types — each includes focus text when provided', () => {
+    const focus = 'Priorizar contraste alto'
+    const testTypes = ['thumbnail', 'title', 'description', 'combo'] as const
+    for (const testType of testTypes) {
+      const prompt = buildAbBriefingPrompt({
+        testType,
+        data: makeAbBriefingData(),
+        focus,
+      })
+      expect(prompt).toContain('Instruções adicionais do usuário:')
+      expect(prompt).toContain(focus)
+    }
+  })
+
+  it('channel with very high subscriber count — tier is reflected in context', () => {
+    const prompt = buildAbBriefingPrompt({
+      testType: 'thumbnail',
+      data: makeAbBriefingData({
+        channel: { name: 'Big Channel', subscribers: 5_000_000, tier: 'large' },
+      }),
+    })
+    expect(prompt).toContain('"subscribers": 5000000')
+    expect(prompt).toContain('"tier": "large"')
+    // Large channels should NOT include nano calibration text
+    expect(prompt).not.toContain('Calibração Nano')
+  })
+
+  it('video title with unicode and emoji characters — included after sanitization', () => {
+    const emojiTitle = '🔥 TOP 10 Lugares Incríveis 🌏 — Parte Nº 1'
+    const prompt = buildAbBriefingPrompt({
+      testType: 'title',
+      data: makeAbBriefingData({
+        video: {
+          title: emojiTitle,
+          thumbnailUrl: null,
+          ctr: 3.1,
+          avgViewPercentage: 40,
+          score: 80,
+          grade: 'A',
+        },
+      }),
+    })
+    // Emojis should survive sanitization
+    expect(prompt).toContain('🔥')
+    expect(prompt).toContain('🌏')
+    // Markdown-sensitive chars like # and | are stripped/escaped by sanitizeForMarkdown
+    // but the base text should still be present
+    expect(prompt).toContain('TOP 10 Lugares')
+  })
+
+  it('empty string focus — treated the same as no focus (no extra instructions block)', () => {
+    const promptWithEmpty = buildAbBriefingPrompt({
+      testType: 'thumbnail',
+      data: makeAbBriefingData(),
+      focus: '',
+    })
+    const promptWithUndefined = buildAbBriefingPrompt({
+      testType: 'thumbnail',
+      data: makeAbBriefingData(),
+    })
+    // Both should omit the "Instruções adicionais" section
+    expect(promptWithEmpty).not.toContain('Instruções adicionais do usuário:')
+    expect(promptWithUndefined).not.toContain('Instruções adicionais do usuário:')
+  })
+
+  it('XSS-like content in video title — angle brackets stripped by sanitizeForMarkdown', () => {
+    const xssTitle = '<img src=x onerror=alert(1)> Great Video'
+    const prompt = buildAbBriefingPrompt({
+      testType: 'combo',
+      data: makeAbBriefingData({
+        video: {
+          title: xssTitle,
+          thumbnailUrl: null,
+          ctr: 2.5,
+          avgViewPercentage: 35,
+          score: 60,
+          grade: 'C',
+        },
+      }),
+    })
+    // sanitizeForMarkdown removes < and > characters
+    expect(prompt).not.toContain('<img')
+    expect(prompt).not.toContain('onerror=alert(1)>')
+    // The safe parts of the title should survive
+    expect(prompt).toContain('Great Video')
+  })
+})
