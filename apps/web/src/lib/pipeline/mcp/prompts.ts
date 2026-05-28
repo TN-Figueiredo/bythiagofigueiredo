@@ -1,0 +1,755 @@
+// ---------------------------------------------------------------------------
+// MCP Prompts — composable prompt templates that auto-inject relevant
+// resources and delegate to existing prompt builder functions.
+//
+// Each prompt accepts typed arguments, fetches necessary data, calls the
+// appropriate builder, and returns a `messages` array for the LLM client.
+// ---------------------------------------------------------------------------
+
+import { z } from 'zod'
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+
+import { getSupabaseServiceClient } from '@/lib/supabase/service'
+
+import {
+  buildPrompt,
+  generatePrompt,
+  summarizeContent,
+  type PipelineItemForPrompt,
+  type SectionForPrompt,
+} from '@/lib/pipeline/prompt-builders'
+import { WORKFLOWS, DEFAULT_CHECKLISTS } from '@/lib/pipeline/workflows'
+import { SECTION_DEFINITIONS, getSectionKey } from '@/lib/pipeline/sections'
+import { buildAbBriefingPrompt, buildAbWritePrompt } from '@/lib/youtube/prompt-builders-ab'
+import { buildPlaylistPrompt, type PlaylistPromptInput } from '@/lib/playlists/prompt-builder'
+import type { TestType } from '@/lib/youtube/ab-types'
+import type { AbBriefingData } from '@/lib/youtube/prompt-types'
+import type { Format } from '@/lib/pipeline/schemas'
+import type { PlaylistEdgeRow, PlaylistItemEnriched, PlaylistRow } from '@/lib/playlists/types'
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Build a single user-role message for MCP prompt responses. */
+function userMessage(text: string) {
+  return {
+    messages: [{
+      role: 'user' as const,
+      content: { type: 'text' as const, text },
+    }],
+  }
+}
+
+/** Fetch skill-specific context references as markdown. */
+async function fetchSkillContext(skill: string): Promise<string> {
+  const supabase = getSupabaseServiceClient()
+  const { data } = await supabase
+    .from('pipeline_context')
+    .select('key, title, body')
+    .contains('skills', [skill])
+    .order('sort_order', { ascending: true })
+
+  if (!data || data.length === 0) return ''
+  return data
+    .map((d: { key: string; title: string; body: string }) => `## ${d.title}\n\n${d.body}`)
+    .join('\n\n---\n\n')
+}
+
+/** Fetch pipeline stats summary as a compact string. */
+async function fetchStatsSummary(): Promise<string> {
+  const supabase = getSupabaseServiceClient()
+  const { data } = await supabase
+    .from('content_pipeline')
+    .select('format, stage, priority')
+    .eq('archived', false)
+
+  const rows = data ?? []
+  const byFormat: Record<string, number> = {}
+  const byStage: Record<string, number> = {}
+  for (const row of rows) {
+    const f = row.format as string
+    const s = row.stage as string
+    byFormat[f] = (byFormat[f] ?? 0) + 1
+    byStage[s] = (byStage[s] ?? 0) + 1
+  }
+
+  const formatLine = Object.entries(byFormat).map(([k, v]) => `${k}: ${v}`).join(', ')
+  const stageLine = Object.entries(byStage).map(([k, v]) => `${k}: ${v}`).join(', ')
+  return `Pipeline: ${rows.length} active items\nBy format: ${formatLine}\nBy stage: ${stageLine}`
+}
+
+/** Fetch YouTube channel info for AB prompts. */
+async function fetchChannelInfo(): Promise<AbBriefingData['channel']> {
+  const supabase = getSupabaseServiceClient()
+  const { data } = await supabase
+    .from('youtube_channels')
+    .select('channel_name, subscriber_count, tier')
+    .limit(1)
+    .single()
+
+  if (!data) {
+    return { name: 'Unknown', subscribers: 0, tier: 'nano' as const }
+  }
+  return {
+    name: data.channel_name as string,
+    subscribers: (data.subscriber_count as number) ?? 0,
+    tier: (data.tier as AbBriefingData['channel']['tier']) ?? 'nano',
+  }
+}
+
+/** Fetch the latest YouTube intelligence snapshot age. */
+async function fetchSnapshotAge(): Promise<number> {
+  const supabase = getSupabaseServiceClient()
+  const { data } = await supabase
+    .from('youtube_intelligence')
+    .select('snapshot_at')
+    .order('snapshot_at', { ascending: false })
+    .limit(1)
+    .single()
+
+  if (!data?.snapshot_at) return 999
+  return Math.floor((Date.now() - new Date(data.snapshot_at as string).getTime()) / 3600000)
+}
+
+/** Read a pipeline docs markdown file. */
+async function fetchDomainDocs(domain: string): Promise<string> {
+  const fs = await import('node:fs/promises')
+  const path = await import('node:path')
+  const filePath = path.resolve(process.cwd(), 'data', 'pipeline-docs', `cowork-docs-${domain}.md`)
+  try {
+    return await fs.readFile(filePath, 'utf-8')
+  } catch {
+    return `(Documentation for domain "${domain}" not available)`
+  }
+}
+
+// ---------------------------------------------------------------------------
+// registerPrompts
+// ---------------------------------------------------------------------------
+
+export function registerPrompts(server: McpServer): void {
+  // -------------------------------------------------------------------------
+  // 1. ideator — content ideation prompt
+  // -------------------------------------------------------------------------
+  server.prompt(
+    'ideator',
+    'Generate content ideas based on topic seed, format, and pipeline context',
+    {
+      topic_seed: z.string().optional().describe('Starting topic or theme (optional)'),
+      format: z.string().optional().describe('Content format: video, blog_post, newsletter, or course'),
+      count: z.string().optional().describe('Number of ideas to generate (default: 5)'),
+    },
+    async (args) => {
+      const topicSeed = args.topic_seed ?? ''
+      const format = args.format ?? 'video'
+      const count = args.count ? parseInt(args.count, 10) : 5
+
+      // Auto-inject: context/ideator + stats
+      const [context, stats] = await Promise.all([
+        fetchSkillContext('ideator'),
+        fetchStatsSummary(),
+      ])
+
+      const lines: string[] = []
+      lines.push('# Content Ideation Prompt')
+      lines.push('')
+
+      if (topicSeed) {
+        lines.push(`## Topic Seed: ${topicSeed}`)
+        lines.push('')
+      }
+
+      lines.push(`Format: ${format} | Ideas requested: ${count}`)
+      lines.push('')
+
+      lines.push('## Current Pipeline State')
+      lines.push(stats)
+      lines.push('')
+
+      if (context) {
+        lines.push('## Ideator Reference Context')
+        lines.push(context)
+        lines.push('')
+      }
+
+      lines.push('## Instructions')
+      lines.push(`Generate ${count} original content ideas${topicSeed ? ` around the topic "${topicSeed}"` : ''} for the ${format} format.`)
+      lines.push('')
+      lines.push('For each idea, provide:')
+      lines.push('1. **Title** (working title, PT-BR)')
+      lines.push('2. **Hook** (one sentence that captures the viewer/reader)')
+      lines.push('3. **Synopsis** (2-3 sentences describing the content)')
+      lines.push('4. **Tags** (3-5 relevant tags)')
+      lines.push('5. **Priority** (1-5, where 5 is highest)')
+      lines.push('6. **Rationale** (why this idea is worth producing now)')
+      lines.push('')
+      lines.push('Consider:')
+      lines.push('- Gaps in the current pipeline (see stats above)')
+      lines.push('- Audience relevance and search demand')
+      lines.push('- Production feasibility and timeline')
+      lines.push('- Alignment with channel strategy (see reference context)')
+
+      return userMessage(lines.join('\n'))
+    },
+  )
+
+  // -------------------------------------------------------------------------
+  // 2. writer — section writing prompt (delegates to buildPrompt)
+  // -------------------------------------------------------------------------
+  server.prompt(
+    'writer',
+    'Write or rewrite a specific section of a pipeline item',
+    {
+      item_id: z.string().describe('Pipeline item UUID'),
+      section_key: z.string().describe('Section type key (e.g., ideia, roteiro, draft, seo)'),
+      instructions: z.string().optional().describe('Writing instructions for the section'),
+      lang: z.string().optional().describe('Language: pt or en (default: pt)'),
+    },
+    async (args) => {
+      const itemId = args.item_id
+      const sectionKey = args.section_key
+      const instructions = args.instructions ?? 'Write this section following the schema guidelines and reference context.'
+      const lang = args.lang ?? 'pt'
+
+      const supabase = getSupabaseServiceClient()
+
+      // Fetch item
+      const { data: item, error } = await supabase
+        .from('content_pipeline')
+        .select('id, code, format, stage, priority, language, title_pt, title_en, hook, synopsis, tags, sections, version')
+        .eq('id', itemId)
+        .single()
+
+      if (error || !item) throw new Error(`Item not found: ${itemId}`)
+
+      // Resolve section
+      const format = item.format as Format
+      const sectionDefs = SECTION_DEFINITIONS[format] ?? []
+      const sectionDef = sectionDefs.find(s => s.key === sectionKey || s.type === sectionKey)
+      const sectionLabel = sectionDef?.label_pt ?? sectionKey
+      const sectionBase = sectionDef?.type ?? sectionKey
+      const fullSectionKey = getSectionKey(sectionBase, lang === 'pt' ? 'pt-br' : lang)
+
+      // Get current section content summary
+      const sections = item.sections as Record<string, unknown> | null
+      const currentContent = sections?.[fullSectionKey]
+      const contentSummary = summarizeContent(currentContent)
+
+      // Determine revision
+      let rev = 0
+      if (currentContent && typeof currentContent === 'object' && currentContent !== null && 'rev' in currentContent) {
+        rev = (currentContent as { rev: number }).rev
+      }
+
+      // Auto-inject: context/writer + docs/items-and-sections
+      const [writerContext, domainDocs] = await Promise.all([
+        fetchSkillContext('writer'),
+        fetchDomainDocs('items-and-sections'),
+      ])
+
+      // Build prompt using existing builder
+      const promptText = buildPrompt({
+        itemCode: item.code as string,
+        itemTitle: (lang === 'en' ? item.title_en : item.title_pt) as string ?? '(sem titulo)',
+        format: item.format as string,
+        stage: item.stage as string,
+        tags: (item.tags as string[]) ?? [],
+        hook: item.hook as string | null,
+        synopsis: item.synopsis as string | null,
+        sectionLabel,
+        sectionKey: fullSectionKey,
+        lang,
+        rev,
+        contentSummary,
+        instructions,
+        itemId,
+        sectionBase,
+        references: new Map(),
+      })
+
+      // Compose with injected context
+      const parts: string[] = [promptText]
+
+      if (writerContext) {
+        parts.push('\n\n---\n\n## Writer Reference Context\n\n' + writerContext)
+      }
+
+      if (domainDocs) {
+        // Include a truncated version — the full docs are very large
+        const truncated = domainDocs.length > 8000
+          ? domainDocs.slice(0, 8000) + '\n\n...(truncated — use pipeline://docs/items-and-sections for full docs)'
+          : domainDocs
+        parts.push('\n\n---\n\n## Section Schema Reference\n\n' + truncated)
+      }
+
+      return userMessage(parts.join(''))
+    },
+  )
+
+  // -------------------------------------------------------------------------
+  // 3. producer — production review prompt
+  // -------------------------------------------------------------------------
+  server.prompt(
+    'producer',
+    'Review production readiness of a pipeline item: checklist, assets, timeline',
+    {
+      item_id: z.string().describe('Pipeline item UUID'),
+    },
+    async (args) => {
+      const itemId = args.item_id
+
+      const supabase = getSupabaseServiceClient()
+      const { data: item, error } = await supabase
+        .from('content_pipeline')
+        .select('id, code, format, stage, priority, language, title_pt, title_en, hook, synopsis, tags, production_checklist, sections, scheduled_at')
+        .eq('id', itemId)
+        .single()
+
+      if (error || !item) throw new Error(`Item not found: ${itemId}`)
+
+      // Auto-inject: context/producer + workflows
+      const producerContext = await fetchSkillContext('producer')
+
+      const format = item.format as Format
+      const workflow = WORKFLOWS[format]
+      const checklist = (item.production_checklist as Array<{ label: string; done: boolean }>) ?? DEFAULT_CHECKLISTS[format]
+      const doneCount = checklist.filter((c: { done: boolean }) => c.done).length
+
+      // Section completeness
+      const sections = item.sections as Record<string, unknown> | null
+      const sectionDefs = SECTION_DEFINITIONS[format] ?? []
+      const sectionStatus = sectionDefs.map(def => {
+        const key = getSectionKey(def.type, 'pt-br')
+        const content = sections?.[key]
+        const hasCont = content !== null && content !== undefined
+        const summary = hasCont ? summarizeContent(content) : 'Empty'
+        return `- ${def.label_pt} (${key}): ${summary}`
+      })
+
+      const lines: string[] = []
+      lines.push(`# Production Review: ${(item.title_pt as string) ?? (item.title_en as string) ?? item.code}`)
+      lines.push(`Code: ${item.code} | Format: ${format} | Stage: ${item.stage} | P${item.priority}`)
+      lines.push('')
+
+      lines.push('## Workflow Progress')
+      const stageIndex = workflow.findIndex(s => s.stage === item.stage)
+      lines.push(`Stage ${stageIndex + 1}/${workflow.length}: ${workflow[stageIndex]?.label_pt ?? item.stage}`)
+      lines.push(`Stages: ${workflow.map((s, i) => i === stageIndex ? `[${s.label_pt}]` : s.label_pt).join(' -> ')}`)
+      lines.push('')
+
+      lines.push('## Production Checklist')
+      lines.push(`Progress: ${doneCount}/${checklist.length}`)
+      for (const c of checklist) {
+        lines.push(`- [${c.done ? 'x' : ' '}] ${c.label}`)
+      }
+      lines.push('')
+
+      lines.push('## Section Completeness')
+      lines.push(sectionStatus.join('\n'))
+      lines.push('')
+
+      if (item.scheduled_at) {
+        lines.push(`## Scheduled: ${item.scheduled_at}`)
+        lines.push('')
+      }
+
+      lines.push('## Instructions')
+      lines.push('Review this item for production readiness:')
+      lines.push('1. Identify incomplete checklist items and prioritize them')
+      lines.push('2. Flag any empty or thin sections that need attention')
+      lines.push('3. Check if the item is ready to advance to the next stage')
+      lines.push('4. Suggest specific next actions with deadlines')
+      lines.push('5. Note any blocking dependencies or asset needs')
+
+      if (producerContext) {
+        lines.push('\n---\n\n## Producer Reference Context\n\n' + producerContext)
+      }
+
+      return userMessage(lines.join('\n'))
+    },
+  )
+
+  // -------------------------------------------------------------------------
+  // 4. ab-ideate — A/B test ideation (delegates to buildAbBriefingPrompt)
+  // -------------------------------------------------------------------------
+  server.prompt(
+    'ab-ideate',
+    'Brainstorm A/B test variants for a YouTube video (thumbnail, title, description, or combo)',
+    {
+      test_type: z.string().describe('Test type: thumbnail, title, description, or combo'),
+      video_context: z.string().optional().describe('Additional context about the video or focus area'),
+    },
+    async (args) => {
+      const testType = args.test_type as TestType
+      const videoContext = args.video_context ?? undefined
+
+      if (!['thumbnail', 'title', 'description', 'combo'].includes(testType)) {
+        throw new Error(`Invalid test_type: ${testType}. Must be thumbnail, title, description, or combo.`)
+      }
+
+      // Auto-inject: youtube/intelligence + youtube/ab-performance
+      const [channel, snapshotAge] = await Promise.all([
+        fetchChannelInfo(),
+        fetchSnapshotAge(),
+      ])
+
+      // Fetch latest AB test history
+      const supabase = getSupabaseServiceClient()
+      const { data: testHistory } = await supabase
+        .from('youtube_ab_tests')
+        .select('test_type, winner_variant_id, completed_reason')
+        .eq('status', 'completed')
+        .order('completed_at', { ascending: false })
+        .limit(10)
+
+      const history = (testHistory ?? []).map((t: Record<string, unknown>) => ({
+        test_type: t.test_type as string,
+        winner_label: t.winner_variant_id ? 'variant' : null,
+        ctr_lift_percent: null,
+      }))
+
+      // Build briefing data
+      const briefingData: AbBriefingData = {
+        channel,
+        locale: 'pt',
+        video: {
+          title: '(specify video when creating a test)',
+          thumbnailUrl: null,
+          ctr: null,
+          avgViewPercentage: null,
+          score: null,
+          grade: null,
+        },
+        testHistory: history,
+        snapshotAgeHours: snapshotAge,
+      }
+
+      const promptText = buildAbBriefingPrompt({
+        testType,
+        data: briefingData,
+        focus: videoContext,
+      })
+
+      return userMessage(promptText)
+    },
+  )
+
+  // -------------------------------------------------------------------------
+  // 5. ab-write — A/B test variant writing (delegates to buildAbWritePrompt)
+  // -------------------------------------------------------------------------
+  server.prompt(
+    'ab-write',
+    'Write A/B test variants for an existing test with API workflow instructions',
+    {
+      test_id: z.string().describe('A/B test UUID'),
+      variant_count: z.string().optional().describe('Number of variants to create (default: 3)'),
+      slot_notes: z.string().optional().describe('Per-variant direction notes (JSON: {"B": "...", "C": "..."})'),
+    },
+    async (args) => {
+      const testId = args.test_id
+      const variantCount = args.variant_count ? parseInt(args.variant_count, 10) : 3
+      const slotNotes = args.slot_notes ? JSON.parse(args.slot_notes) as Record<string, string> : undefined
+
+      const supabase = getSupabaseServiceClient()
+
+      // Fetch test details
+      const { data: test, error } = await supabase
+        .from('youtube_ab_tests')
+        .select('id, test_type, youtube_video_id, original_title, original_thumbnail_url, original_description, status')
+        .eq('id', testId)
+        .single()
+
+      if (error || !test) throw new Error(`A/B test not found: ${testId}`)
+
+      // Fetch video performance
+      const { data: video } = await supabase
+        .from('youtube_videos')
+        .select('id, title, youtube_video_id, thumbnail_url, ctr_percent, avg_view_percentage')
+        .eq('youtube_video_id', test.youtube_video_id)
+        .single()
+
+      // Auto-inject: youtube/intelligence (channel info)
+      const [channel, snapshotAge] = await Promise.all([
+        fetchChannelInfo(),
+        fetchSnapshotAge(),
+      ])
+
+      // Fetch test history
+      const { data: testHistory } = await supabase
+        .from('youtube_ab_tests')
+        .select('test_type, winner_variant_id, completed_reason')
+        .eq('status', 'completed')
+        .order('completed_at', { ascending: false })
+        .limit(10)
+
+      const history = (testHistory ?? []).map((t: Record<string, unknown>) => ({
+        test_type: t.test_type as string,
+        winner_label: t.winner_variant_id ? 'variant' : null,
+        ctr_lift_percent: null,
+      }))
+
+      const briefingData: AbBriefingData = {
+        channel,
+        locale: 'pt',
+        testId,
+        video: {
+          youtubeVideoId: test.youtube_video_id as string,
+          title: (video?.title ?? test.original_title ?? '') as string,
+          thumbnailUrl: (video?.thumbnail_url ?? test.original_thumbnail_url ?? null) as string | null,
+          ctr: (video?.ctr_percent ?? null) as number | null,
+          avgViewPercentage: (video?.avg_view_percentage ?? null) as number | null,
+          score: null,
+          grade: null,
+        },
+        testHistory: history,
+        snapshotAgeHours: snapshotAge,
+      }
+
+      let promptText = buildAbWritePrompt({
+        testType: test.test_type as TestType,
+        data: briefingData,
+      })
+
+      // Append variant count and slot notes
+      const extras: string[] = []
+      if (variantCount !== 3) {
+        extras.push(`\nGenerate exactly ${variantCount} variant(s) (labels: ${['B', 'C', 'D'].slice(0, variantCount).join(', ')}).`)
+      }
+      if (slotNotes) {
+        extras.push('\nPer-variant directions:')
+        for (const [label, note] of Object.entries(slotNotes)) {
+          extras.push(`- ${label}: ${note}`)
+        }
+      }
+      if (extras.length > 0) {
+        promptText += '\n' + extras.join('\n')
+      }
+
+      return userMessage(promptText)
+    },
+  )
+
+  // -------------------------------------------------------------------------
+  // 6. playlist-architect — playlist management (delegates to buildPlaylistPrompt)
+  // -------------------------------------------------------------------------
+  server.prompt(
+    'playlist-architect',
+    'Architect or reorganize a playlist: build, connect, fill gaps, reorg, campaign, or course mode',
+    {
+      playlist_id: z.string().describe('Playlist UUID'),
+      mode: z.string().optional().describe('Architect mode: build, connect, gap, reorg, campaign, or course'),
+      instructions: z.string().optional().describe('Additional instructions for the architect'),
+    },
+    async (args) => {
+      const playlistId = args.playlist_id
+      const mode = args.mode ?? 'build'
+      const instructions = args.instructions ?? ''
+
+      const supabase = getSupabaseServiceClient()
+
+      // Fetch playlist with items and edges
+      const [playlistRes, itemsRes, edgesRes] = await Promise.all([
+        supabase.from('playlists').select('*').eq('id', playlistId).single(),
+        supabase
+          .from('playlist_items')
+          .select(`
+            id, playlist_id, blog_post_id, newsletter_edition_id, pipeline_id,
+            sort_order, position_x, position_y, created_at
+          `)
+          .eq('playlist_id', playlistId)
+          .order('sort_order', { ascending: true }),
+        supabase.from('playlist_edges').select('*').eq('playlist_id', playlistId),
+      ])
+
+      if (playlistRes.error || !playlistRes.data) throw new Error(`Playlist not found: ${playlistId}`)
+
+      const playlist = playlistRes.data as PlaylistRow
+      const rawItems = (itemsRes.data ?? []) as Array<Record<string, unknown>>
+      const edges = (edgesRes.data ?? []) as PlaylistEdgeRow[]
+
+      // Enrich items with pipeline data
+      const pipelineIds = rawItems.map(i => i.pipeline_id).filter(Boolean) as string[]
+
+      const { data: pipelineItems } = pipelineIds.length > 0
+        ? await supabase
+            .from('content_pipeline')
+            .select('id, code, format, stage, language, title_pt, hook, synopsis, tags')
+            .in('id', pipelineIds)
+        : { data: [] }
+
+      const pipelineMap = new Map(
+        (pipelineItems ?? []).map((p: Record<string, unknown>) => [p.id as string, p]),
+      )
+
+      const enrichedItems: PlaylistItemEnriched[] = rawItems.map(item => {
+        const pid = item.pipeline_id as string | null
+        const pi = pid ? pipelineMap.get(pid) : null
+        return {
+          id: item.id as string,
+          playlist_id: item.playlist_id as string,
+          blog_post_id: item.blog_post_id as string | null,
+          newsletter_edition_id: item.newsletter_edition_id as string | null,
+          pipeline_id: pid,
+          sort_order: item.sort_order as number,
+          position_x: item.position_x as number,
+          position_y: item.position_y as number,
+          created_at: item.created_at as string,
+          content_type: pi ? 'pipeline' : null,
+          title: pi ? (pi.title_pt as string ?? '(sem titulo)') : '(sem titulo)',
+          status: pi ? (pi.stage as string) : null,
+          category: pi ? (pi.format as string) : null,
+          metadata: null,
+          is_ghost: !pi && !item.blog_post_id && !item.newsletter_edition_id,
+          other_playlist_count: 0,
+          language: pi ? (pi.language as 'pt-br' | 'en' | null) : null,
+          tags: pi ? (pi.tags as string[]) ?? [] : [],
+          hook: pi ? (pi.hook as string | null) : null,
+          synopsis: pi ? (pi.synopsis as string | null) : null,
+        }
+      })
+
+      // Fetch reuse candidates (items not in this playlist)
+      const { data: candidates } = await supabase
+        .from('content_pipeline')
+        .select('id, title_pt, format, language, stage, tags')
+        .eq('archived', false)
+        .not('id', 'in', `(${pipelineIds.join(',')})`)
+        .limit(20)
+
+      const reuseCandidates = (candidates ?? []).map((c: Record<string, unknown>) => ({
+        id: c.id as string,
+        title: (c.title_pt as string) ?? '(sem titulo)',
+        format: c.format as string,
+        language: (c.language as string) ?? 'pt-br',
+        stage: c.stage as string,
+        tags: (c.tags as string[]) ?? [],
+      }))
+
+      // Build mode instruction prefix
+      const modeInstructions: Record<string, string> = {
+        build: 'BUILD mode: Create the playlist structure from scratch. Add items, set sequence, connect edges.',
+        connect: 'CONNECT mode: Create edges between existing items. Focus on prerequisites, sequences, and related links.',
+        gap: 'GAP mode: Identify missing content gaps. Suggest new items to fill holes in the series.',
+        reorg: 'REORG mode: Reorganize existing items. Optimize order, remove ghosts, rename TBDs.',
+        campaign: 'CAMPAIGN mode: Structure items for a marketing campaign sequence with clear CTAs.',
+        course: 'COURSE mode: Structure as a course with modules, prerequisites, and lesson progression.',
+      }
+
+      const fullInstructions = [
+        modeInstructions[mode] ?? `Mode: ${mode}`,
+        instructions,
+      ].filter(Boolean).join('\n\n')
+
+      const input: PlaylistPromptInput = {
+        playlist,
+        items: enrichedItems,
+        edges,
+        focusedItemIds: [],
+        reuseCandidates,
+        userInstructions: fullInstructions,
+      }
+
+      // Auto-inject: docs/playlists + workflows
+      const [playlistDocs] = await Promise.all([
+        fetchDomainDocs('playlists'),
+      ])
+
+      let promptText = buildPlaylistPrompt(input).text
+
+      if (playlistDocs) {
+        const truncated = playlistDocs.length > 5000
+          ? playlistDocs.slice(0, 5000) + '\n\n...(truncated — use pipeline://docs/playlists for full docs)'
+          : playlistDocs
+        promptText += '\n\n---\n\n## Playlist API Reference\n\n' + truncated
+      }
+
+      // Append workflow info
+      promptText += '\n\n---\n\n## Available Workflows\n\n' + JSON.stringify(
+        { workflows: Object.keys(WORKFLOWS), checklists: Object.keys(DEFAULT_CHECKLISTS) },
+        null,
+        2,
+      )
+
+      return userMessage(promptText)
+    },
+  )
+
+  // -------------------------------------------------------------------------
+  // 7. translate — content translation (delegates to generatePrompt)
+  // -------------------------------------------------------------------------
+  server.prompt(
+    'translate',
+    'Translate a pipeline item to a target locale with cultural adaptation',
+    {
+      item_id: z.string().describe('Pipeline item UUID'),
+      target_locale: z.string().describe('Target locale: pt-br or en'),
+    },
+    async (args) => {
+      const itemId = args.item_id
+      const targetLocale = args.target_locale as 'pt-br' | 'en'
+
+      if (!['pt-br', 'en'].includes(targetLocale)) {
+        throw new Error(`Invalid target_locale: ${targetLocale}. Must be pt-br or en.`)
+      }
+
+      const supabase = getSupabaseServiceClient()
+
+      const { data: item, error } = await supabase
+        .from('content_pipeline')
+        .select('id, code, format, stage, priority, language, title_pt, title_en, hook, synopsis, sections')
+        .eq('id', itemId)
+        .single()
+
+      if (error || !item) throw new Error(`Item not found: ${itemId}`)
+
+      // Build item for prompt
+      const itemForPrompt: PipelineItemForPrompt = {
+        id: item.id as string,
+        code: item.code as string,
+        format: item.format as string,
+        stage: item.stage as string,
+        priority: item.priority as number,
+        language: (item.language as 'pt-br' | 'en' | 'both') ?? 'pt-br',
+        title_pt: item.title_pt as string | null,
+        title_en: item.title_en as string | null,
+        hook: item.hook as string | null,
+        synopsis: item.synopsis as string | null,
+      }
+
+      // Collect sections in the source language
+      const sourceLocale: 'pt-br' | 'en' = targetLocale === 'en' ? 'pt-br' : 'en'
+      const sourceSuffix = sourceLocale === 'pt-br' ? 'pt' : 'en'
+      const sections = item.sections as Record<string, unknown> | null
+      const sectionsForPrompt: SectionForPrompt[] = []
+
+      if (sections) {
+        for (const [key, value] of Object.entries(sections)) {
+          if (key.endsWith(`_${sourceSuffix}`) || key.endsWith('_shared')) {
+            const content = typeof value === 'string' ? value : JSON.stringify(value)
+            sectionsForPrompt.push({
+              section_type: key,
+              language: sourceLocale,
+              content,
+            })
+          }
+        }
+      }
+
+      const { text: promptText } = generatePrompt(itemForPrompt, sectionsForPrompt, targetLocale)
+
+      // Auto-inject: docs/items-and-sections
+      const domainDocs = await fetchDomainDocs('items-and-sections')
+
+      let fullPrompt = promptText
+      if (domainDocs) {
+        const truncated = domainDocs.length > 6000
+          ? domainDocs.slice(0, 6000) + '\n\n...(truncated — use pipeline://docs/items-and-sections for full docs)'
+          : domainDocs
+        fullPrompt += '\n\n---\n\n## Section Schema Reference\n\n' + truncated
+      }
+
+      return userMessage(fullPrompt)
+    },
+  )
+}

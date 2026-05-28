@@ -1,0 +1,49 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`MCP Snapshot — prompts/list > prompts/list output matches snapshot 1`] = `
+[
+  "course_curriculum",
+  "draft_blog_post",
+  "generate_ab_variants",
+  "optimize_thumbnail",
+  "plan_content_week",
+  "research_to_outline",
+  "write_video_script",
+]
+`;
+
+exports[`MCP Snapshot — resources/list > resources/list output matches snapshot 1`] = `
+[
+  "pipeline://audio-library",
+  "pipeline://broll-library",
+  "pipeline://items",
+  "pipeline://playlists",
+  "pipeline://research",
+  "pipeline://stats",
+  "pipeline://workflows",
+  "pipeline://youtube/ab-tests",
+  "pipeline://youtube/intelligence",
+]
+`;
+
+exports[`MCP Snapshot — tools/list > tools/list output matches snapshot 1`] = `
+[
+  "advance_item",
+  "bulk_operations",
+  "create_item",
+  "delete_item",
+  "get_pipeline_stats",
+  "get_up_next",
+  "manage_ab_test",
+  "manage_audio",
+  "manage_broll",
+  "manage_context",
+  "manage_playlist",
+  "manage_research",
+  "read_section",
+  "retreat_item",
+  "search_content",
+  "update_item",
+  "write_section",
+]
+`;
