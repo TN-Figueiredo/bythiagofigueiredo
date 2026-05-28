@@ -20,11 +20,23 @@ function buildCtx(): ServiceContext {
   }
 }
 
+/** Count words in content (handles string, object, or array). */
+function countWords(content: unknown): number {
+  if (typeof content === 'string') return content.split(/\s+/).filter(Boolean).length
+  if (content && typeof content === 'object') return countWords(JSON.stringify(content))
+  return 0
+}
+
+/** Get first N chars of content for preview. */
+function contentPreview(content: unknown, maxChars = 200): string {
+  const text = typeof content === 'string' ? content : JSON.stringify(content) ?? ''
+  return text.length > maxChars ? text.slice(0, maxChars) + '...' : text
+}
+
 export async function manageSections(params: Params): Promise<CallToolResult> {
   try {
     const ctx = buildCtx()
     const action = (params.action as string) ?? 'get'
-    const dryRun = params.dry_run === true
 
     // Batch mode: update multiple sections at once
     const batch = params.batch as Array<Record<string, unknown>> | undefined
@@ -38,14 +50,50 @@ export async function manageSections(params: Params): Promise<CallToolResult> {
         return toMcpError({ code: 'FORBIDDEN', message: 'Write permission required' })
       }
 
-      if (dryRun) {
+      if (params.dry_run !== false) {
+        // Fetch current state for each section to show content diff
+        const summaries = await Promise.all(
+          batch.map(async (b) => {
+            const itemId = b.item_id as string
+            const sec = b.section as string
+            const lang = (b.lang as string) ?? 'en'
+            try {
+              const current = await svc.getSection(ctx, itemId, { section: sec, lang })
+              const currentContent = (current.data as Record<string, unknown>)?.content
+              return {
+                item_id: itemId,
+                section: sec,
+                lang,
+                current: {
+                  word_count: countWords(currentContent),
+                  preview: contentPreview(currentContent),
+                },
+                proposed: {
+                  word_count: countWords(b.content),
+                  preview: contentPreview(b.content),
+                },
+              }
+            } catch {
+              return {
+                item_id: itemId,
+                section: sec,
+                lang,
+                current: { word_count: 0, preview: '(new section)' },
+                proposed: {
+                  word_count: countWords(b.content),
+                  preview: contentPreview(b.content),
+                },
+              }
+            }
+          }),
+        )
+
         return toMcpSuccess({
           dry_run: true,
-          would_update: batch.map((b) => ({
-            item_id: b.item_id,
-            section: b.section,
-            lang: b.lang ?? 'en',
-          })),
+          action: 'batch_update_sections',
+          section_count: batch.length,
+          sections: summaries,
+          message: 'This will replace entire section contents. Call with dry_run: false to execute.',
         })
       }
 
@@ -89,12 +137,29 @@ export async function manageSections(params: Params): Promise<CallToolResult> {
         return toMcpError({ code: 'FORBIDDEN', message: 'Write permission required' })
       }
 
-      if (dryRun) {
-        const current = await svc.getSection(ctx, id, { section, lang })
+      if (params.dry_run !== false) {
+        // Show content diff with word counts and previews
+        let currentContent: unknown = null
+        try {
+          const current = await svc.getSection(ctx, id, { section, lang })
+          currentContent = (current.data as Record<string, unknown>)?.content
+        } catch {
+          // Section doesn't exist yet
+        }
+
         return toMcpSuccess({
           dry_run: true,
-          current: current.data,
-          would_update: { item_id: id, section, lang },
+          action: 'update_section',
+          target: { item_id: id, section, lang },
+          current: {
+            word_count: countWords(currentContent),
+            preview: currentContent ? contentPreview(currentContent) : '(empty)',
+          },
+          proposed: {
+            word_count: countWords(params.content),
+            preview: contentPreview(params.content),
+          },
+          message: 'This will replace the entire section content. Call with dry_run: false to execute.',
         })
       }
 
@@ -106,8 +171,8 @@ export async function manageSections(params: Params): Promise<CallToolResult> {
         })
       }
 
-      const current = await svc.getItem(ctx, id)
-      const expectedVersion = (current.data as Record<string, unknown>).version as number
+      const currentItem = await svc.getItem(ctx, id)
+      const expectedVersion = (currentItem.data as Record<string, unknown>).version as number
 
       const body = {
         content: params.content,

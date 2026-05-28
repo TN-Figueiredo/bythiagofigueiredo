@@ -32,7 +32,6 @@ export async function manageUpNext(params: Params): Promise<CallToolResult> {
   try {
     const ctx = buildCtx()
     const action = typeof params.action === 'string' ? params.action : 'get'
-    const dryRun = params.dry_run === true
 
     if (action === 'assign') {
       const mcp = getMcpContext()
@@ -51,6 +50,14 @@ export async function manageUpNext(params: Params): Promise<CallToolResult> {
 
       // item_id can be null (to clear a slot) or a UUID string
       if (itemId === null) {
+        if (params.dry_run !== false) {
+          return toMcpSuccess({
+            dry_run: true,
+            action: 'clear_slot',
+            target: { day, slot_index: slotIndex },
+            message: 'Call again with dry_run: false to execute.',
+          })
+        }
         // Clear slot: nothing to schedule
         return toMcpSuccess({ cleared: true, day, slot_index: slotIndex })
       }
@@ -59,10 +66,12 @@ export async function manageUpNext(params: Params): Promise<CallToolResult> {
         return toMcpError({ code: 'VALIDATION_ERROR', message: 'item_id is required for assign action (or null to clear)' })
       }
 
-      if (dryRun) {
+      if (params.dry_run !== false) {
         return toMcpSuccess({
           dry_run: true,
+          action: 'assign_slot',
           would_assign: { item_id: itemId, day, slot_index: slotIndex },
+          message: 'Call again with dry_run: false to execute.',
         })
       }
 

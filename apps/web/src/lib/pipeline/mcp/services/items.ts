@@ -7,7 +7,6 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { toMcpError, toMcpSuccess, toPipelineServiceError } from '../errors'
 import {
-  generateConfirmationToken,
   validateConfirmationToken,
   checkRateGovernor,
   formatDryRunResult,
@@ -50,9 +49,10 @@ export async function createItem(params: Params): Promise<CallToolResult> {
     if (denied) return denied
     const ctx = buildCtx()
 
-    if (params.dry_run) {
+    if (params.dry_run !== false) {
       return toMcpSuccess({
         dry_run: true,
+        action: 'create_item',
         would_create: {
           format: params.format,
           title_pt: params.title_pt,
@@ -61,6 +61,7 @@ export async function createItem(params: Params): Promise<CallToolResult> {
           priority: params.priority,
           tags: params.tags,
         },
+        message: 'Call again with dry_run: false to execute.',
       })
     }
 
@@ -92,17 +93,23 @@ export async function updateItem(params: Params): Promise<CallToolResult> {
     const ctx = buildCtx()
     const id = params.id as string
 
-    if (params.dry_run) {
-      // Fetch current to show what would change
+    if (params.dry_run !== false) {
+      // Fetch current to show field-by-field diff
       const current = await svc.getItem(ctx, id)
+      const currentData = current.data as Record<string, unknown>
+      const changes = Object.entries(params)
+        .filter(([k, v]) => !['id', 'dry_run'].includes(k) && v !== undefined)
+        .map(([k, v]) => ({
+          field: k,
+          from: currentData[k],
+          to: v,
+        }))
       return toMcpSuccess({
         dry_run: true,
-        current: current.data,
-        would_update: Object.fromEntries(
-          Object.entries(params).filter(
-            ([k]) => !['id', 'dry_run'].includes(k) && params[k] !== undefined,
-          ),
-        ),
+        action: 'update_item',
+        target: { id, title: currentData.title_pt ?? currentData.title_en },
+        changes,
+        message: 'Call again with dry_run: false to execute.',
       })
     }
 
@@ -138,7 +145,34 @@ export async function advanceItem(params: Params): Promise<CallToolResult> {
     const ctx = buildCtx()
     const id = params.id as string
     const direction = (params.direction as string) ?? 'forward'
-    const dryRun = params.dry_run === true
+    const dryRun = params.dry_run !== false
+
+    if (dryRun) {
+      // Fetch current to show stage transition preview
+      const current = await svc.getItem(ctx, id)
+      const currentStage = (current.data as Record<string, unknown>).stage
+      if (direction === 'backward') {
+        return toMcpSuccess({
+          dry_run: true,
+          action: 'advance_item',
+          target: { id, title: (current.data as Record<string, unknown>).title_pt ?? (current.data as Record<string, unknown>).title_en },
+          current_stage: currentStage,
+          direction: 'backward',
+          message: 'Call again with dry_run: false to execute.',
+        })
+      }
+      // Forward dry run via service
+      const result = await svc.advanceItem(ctx, id, { dryRun: true })
+      const meta: Record<string, unknown> = result.meta ? { ...result.meta } : {}
+      if (result.warnings && result.warnings.length > 0) {
+        meta.warnings = result.warnings
+      }
+      return toMcpSuccess({
+        ...result.data as Record<string, unknown>,
+        action: 'advance_item',
+        message: 'Call again with dry_run: false to execute.',
+      }, Object.keys(meta).length > 0 ? meta : undefined)
+    }
 
     const rateCheck = checkRateGovernor(ctx.keyHash ?? 'anonymous', 'single')
     if (!rateCheck.allowed) {
@@ -149,21 +183,12 @@ export async function advanceItem(params: Params): Promise<CallToolResult> {
     }
 
     if (direction === 'backward') {
-      if (dryRun) {
-        // For dry run on retreat, fetch current to show transition
-        const current = await svc.getItem(ctx, id)
-        return toMcpSuccess({
-          dry_run: true,
-          current_stage: (current.data as Record<string, unknown>).stage,
-          direction: 'backward',
-        })
-      }
       const result = await svc.retreatItem(ctx, id)
       return toMcpSuccess(result.data, result.meta ? { ...result.meta } : undefined)
     }
 
-    // Forward
-    const result = await svc.advanceItem(ctx, id, { dryRun })
+    // Forward execute
+    const result = await svc.advanceItem(ctx, id, { dryRun: false })
     const meta: Record<string, unknown> = result.meta ? { ...result.meta } : {}
     if (result.warnings && result.warnings.length > 0) {
       meta.warnings = result.warnings
@@ -184,13 +209,13 @@ export async function deleteItem(params: Params): Promise<CallToolResult> {
     if (denied) return denied
     const ctx = buildCtx()
     const id = params.id as string
-    const dryRun = params.dry_run === true
     const confirm = params.confirm === true
     const confirmationToken = params.confirmation_token as string | undefined
 
-    // Safety: dry_run always previews
-    if (dryRun) {
+    // Safety: default to preview unless dry_run is explicitly false
+    if (params.dry_run !== false) {
       const result = await svc.archiveItem(ctx, id, { dryRun: true })
+      void result
       return formatDryRunResult(
         'delete_item',
         { id },
@@ -198,7 +223,7 @@ export async function deleteItem(params: Params): Promise<CallToolResult> {
       )
     }
 
-    // Safety: require confirmation for destructive op
+    // Even with dry_run: false, require confirmation for destructive op
     if (!confirm && !confirmationToken) {
       return formatDryRunResult(
         'delete_item',
@@ -243,12 +268,12 @@ export async function graduateItem(params: Params): Promise<CallToolResult> {
     const ctx = buildCtx()
     const id = params.id as string
     const target = params.target as string
-    const dryRun = params.dry_run === true
     const confirm = params.confirm === true
     const confirmationToken = params.confirmation_token as string | undefined
 
-    if (dryRun) {
+    if (params.dry_run !== false) {
       const result = await svc.graduateItem(ctx, id, { target }, { dryRun: true })
+      void result
       return formatDryRunResult(
         'graduate_item',
         { id, target },
@@ -300,7 +325,6 @@ export async function publishItem(params: Params): Promise<CallToolResult> {
     const ctx = buildCtx()
     const id = params.id as string
     const scheduledAt = params.scheduled_at as string | undefined
-    const dryRun = params.dry_run === true
     const confirm = params.confirm === true
     const confirmationToken = params.confirmation_token as string | undefined
 
@@ -310,8 +334,9 @@ export async function publishItem(params: Params): Promise<CallToolResult> {
       scheduledFor: scheduledAt ?? null,
     }
 
-    if (dryRun) {
+    if (params.dry_run !== false) {
       const result = await svc.publishItem(ctx, id, publishBody, { dryRun: true })
+      void result
       return formatDryRunResult(
         'publish_item',
         { id, scheduled_at: scheduledAt },
@@ -366,12 +391,12 @@ export async function bulkItems(params: Params): Promise<CallToolResult> {
     if (denied) return denied
     const ctx = buildCtx()
     const operations = params.operations as unknown[]
-    const dryRun = params.dry_run === true
     const confirm = params.confirm === true
     const confirmationToken = params.confirmation_token as string | undefined
 
-    if (dryRun) {
+    if (params.dry_run !== false) {
       const result = await svc.bulkOperate(ctx, { operations }, { dryRun: true })
+      void result
       const changes = (operations as Array<{ id: string; op: string }>).map((op) => ({
         entity: 'pipeline_item',
         id: op.id,

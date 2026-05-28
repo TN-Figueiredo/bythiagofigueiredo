@@ -54,6 +54,16 @@ export async function managePlaylist(params: Params): Promise<CallToolResult> {
           status: params.status ?? 'draft',
           cover_image_url: params.cover_image_url,
         }
+
+        if (params.dry_run !== false) {
+          return toMcpSuccess({
+            dry_run: true,
+            action: 'create_playlist',
+            would_create: body,
+            message: 'Call again with dry_run: false to execute.',
+          })
+        }
+
         const result = await playlistsService.createPlaylistService(ctx, body)
         return toMcpSuccess(result.data)
       }
@@ -66,6 +76,24 @@ export async function managePlaylist(params: Params): Promise<CallToolResult> {
         for (const key of ['name_en', 'name_pt', 'description_en', 'description_pt', 'category', 'status', 'cover_image_url']) {
           if (params[key] !== undefined) body[key] = params[key]
         }
+
+        if (params.dry_run !== false) {
+          const current = await playlistsService.getPlaylistService(ctx, id)
+          const currentData = (current.data as unknown as Record<string, unknown>).playlist as Record<string, unknown> | undefined
+          const changes = Object.entries(body).map(([k, v]) => ({
+            field: k,
+            from: currentData?.[k],
+            to: v,
+          }))
+          return toMcpSuccess({
+            dry_run: true,
+            action: 'update_playlist',
+            target: { id, name: currentData?.name_pt ?? currentData?.name_en },
+            changes,
+            message: 'Call again with dry_run: false to execute.',
+          })
+        }
+
         const result = await playlistsService.updatePlaylistService(ctx, id, body)
         return toMcpSuccess(result.data)
       }
@@ -74,6 +102,17 @@ export async function managePlaylist(params: Params): Promise<CallToolResult> {
       case 'delete': {
         const id = params.id as string
         if (!id) return toMcpError({ code: 'VALIDATION_ERROR', message: 'id is required for delete action' })
+
+        // Default to preview unless dry_run is explicitly false
+        if (params.dry_run !== false) {
+          const dryResult = await playlistsService.deletePlaylistService(ctx, id, { dryRun: true })
+          const dryData = dryResult.data as { would_delete: true; playlist_id: string; item_count: number; edge_count: number }
+          return formatDryRunResult('manage_playlist:delete', { action: 'delete', id }, [
+            { entity: 'playlist', id, field: 'deleted', from: false, to: true },
+            { entity: 'playlist_items', id, field: 'count', from: dryData.item_count, to: 0 },
+            { entity: 'playlist_edges', id, field: 'count', from: dryData.edge_count, to: 0 },
+          ])
+        }
 
         const confirmToken = params.confirmation_token as string | undefined
 
@@ -87,7 +126,7 @@ export async function managePlaylist(params: Params): Promise<CallToolResult> {
           return toMcpSuccess(result.data)
         }
 
-        // No token and not confirmed — dry run
+        // No token and not confirmed — still require confirmation
         if (!params.confirm) {
           const dryResult = await playlistsService.deletePlaylistService(ctx, id, { dryRun: true })
           const dryData = dryResult.data as { would_delete: true; playlist_id: string; item_count: number; edge_count: number }
@@ -111,6 +150,22 @@ export async function managePlaylist(params: Params): Promise<CallToolResult> {
         if (!itemIds || itemIds.length === 0) {
           return toMcpError({ code: 'VALIDATION_ERROR', message: 'item_ids is required for reorder action' })
         }
+
+        if (params.dry_run !== false) {
+          // Fetch current order to show diff
+          const current = await playlistsService.getPlaylistService(ctx, id)
+          const currentItems = ((current.data as unknown as Record<string, unknown>).items as Array<{ id: string; title?: string }>) ?? []
+          const currentOrder = currentItems.map((i) => i.id)
+          return toMcpSuccess({
+            dry_run: true,
+            action: 'reorder_playlist',
+            target: { id },
+            current_order: currentOrder,
+            proposed_order: itemIds,
+            message: 'Call again with dry_run: false to execute.',
+          })
+        }
+
         const result = await playlistsService.reorderItemsService(ctx, id, { item_ids: itemIds })
         return toMcpSuccess(result.data)
       }
@@ -119,6 +174,20 @@ export async function managePlaylist(params: Params): Promise<CallToolResult> {
       case 'auto_layout': {
         const id = params.id as string
         if (!id) return toMcpError({ code: 'VALIDATION_ERROR', message: 'id is required for auto_layout action' })
+
+        if (params.dry_run !== false) {
+          const current = await playlistsService.getPlaylistService(ctx, id)
+          const currentItems = ((current.data as unknown as Record<string, unknown>).items as Array<{ id: string; position_x?: number; position_y?: number }>) ?? []
+          return toMcpSuccess({
+            dry_run: true,
+            action: 'auto_layout_playlist',
+            target: { id },
+            item_count: currentItems.length,
+            current_positions: currentItems.map((i) => ({ id: i.id, x: i.position_x, y: i.position_y })),
+            message: 'Auto-layout will recompute positions for all items. Call with dry_run: false to execute.',
+          })
+        }
+
         const result = await playlistsService.autoLayoutService(ctx, id)
         return toMcpSuccess(result.data)
       }
@@ -135,6 +204,17 @@ export async function managePlaylist(params: Params): Promise<CallToolResult> {
           position_x: params.position_x,
           position_y: params.position_y,
         }
+
+        if (params.dry_run !== false) {
+          return toMcpSuccess({
+            dry_run: true,
+            action: 'add_item_to_playlist',
+            target: { playlist_id: id },
+            would_add: body,
+            message: 'Call again with dry_run: false to execute.',
+          })
+        }
+
         const result = await playlistsService.addItemService(ctx, id, body)
         return toMcpSuccess(result.data)
       }
@@ -145,6 +225,15 @@ export async function managePlaylist(params: Params): Promise<CallToolResult> {
         const itemId = params.item_id as string
         if (!id || !itemId) {
           return toMcpError({ code: 'VALIDATION_ERROR', message: 'id (playlist) and item_id are required for remove_item action' })
+        }
+
+        // Default to preview unless dry_run is explicitly false
+        if (params.dry_run !== false) {
+          const dryResult = await playlistsService.removeItemService(ctx, id, itemId, { dryRun: true })
+          void dryResult
+          return formatDryRunResult('manage_playlist:remove_item', { action: 'remove_item', id, item_id: itemId }, [
+            { entity: 'playlist_item', id: itemId, field: 'deleted', from: false, to: true },
+          ])
         }
 
         const confirmToken = params.confirmation_token as string | undefined
@@ -160,7 +249,7 @@ export async function managePlaylist(params: Params): Promise<CallToolResult> {
 
         if (!params.confirm) {
           const dryResult = await playlistsService.removeItemService(ctx, id, itemId, { dryRun: true })
-          void dryResult // validates item exists
+          void dryResult
           return formatDryRunResult('manage_playlist:remove_item', { action: 'remove_item', id, item_id: itemId }, [
             { entity: 'playlist_item', id: itemId, field: 'deleted', from: false, to: true },
           ])
@@ -176,6 +265,19 @@ export async function managePlaylist(params: Params): Promise<CallToolResult> {
         if (!id) return toMcpError({ code: 'VALIDATION_ERROR', message: 'id (playlist) is required for bulk_add_items action' })
         const items = params.items as unknown
         if (!items) return toMcpError({ code: 'VALIDATION_ERROR', message: 'items array is required for bulk_add_items action' })
+
+        if (params.dry_run !== false) {
+          const itemArr = Array.isArray(items) ? items : []
+          return toMcpSuccess({
+            dry_run: true,
+            action: 'bulk_add_items_to_playlist',
+            target: { playlist_id: id },
+            item_count: itemArr.length,
+            would_add: itemArr,
+            message: 'Call again with dry_run: false to execute.',
+          })
+        }
+
         const result = await playlistsService.bulkAddItemsService(ctx, id, { items })
         return toMcpSuccess(result.data)
       }

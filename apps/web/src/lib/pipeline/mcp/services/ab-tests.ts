@@ -53,6 +53,30 @@ export async function manageAbTest(params: Params): Promise<CallToolResult> {
         const variants = params.variants as VariantInput[] | undefined
         if (!testId) return toMcpError({ code: 'VALIDATION_ERROR', message: 'test_id is required' })
         if (!variants?.length) return toMcpError({ code: 'VALIDATION_ERROR', message: 'variants array is required and must not be empty' })
+
+        if (params.dry_run !== false) {
+          // Fetch current variants to show diff
+          let currentVariants: unknown[] = []
+          try {
+            const current = await youtube.listVariants(buildCtx(), testId)
+            currentVariants = (current.data as unknown[]) ?? []
+          } catch {
+            // No existing variants
+          }
+          return toMcpSuccess({
+            dry_run: true,
+            action: 'upsert_variants',
+            target: { test_id: testId },
+            current_variant_count: currentVariants.length,
+            proposed_variants: variants.map((v) => ({
+              label: v.label,
+              title_text: v.title_text,
+              description_text: v.description_text,
+            })),
+            message: 'Call again with dry_run: false to execute.',
+          })
+        }
+
         const result = await youtube.upsertVariants(buildCtx(), testId, variants)
         return toMcpSuccess(result.data)
       }
@@ -60,11 +84,22 @@ export async function manageAbTest(params: Params): Promise<CallToolResult> {
       case 'delete_variant': {
         const testId = params.test_id as string
         const label = params.variant_label as string
-        const confirm = params.confirm as boolean | undefined
         if (!testId) return toMcpError({ code: 'VALIDATION_ERROR', message: 'test_id is required' })
         if (!label) return toMcpError({ code: 'VALIDATION_ERROR', message: 'variant_label is required' })
 
-        // Safety layer: dry-run first unless confirm=true
+        // Default to preview unless dry_run is explicitly false
+        if (params.dry_run !== false) {
+          const preview = await youtube.deleteVariant(buildCtx(), testId, label, { dryRun: true })
+          return toMcpSuccess({
+            ...preview.data,
+            dry_run: true,
+            confirm_required: true,
+            message: `Variant "${label}" found. Resend with dry_run: false and confirm: true to delete.`,
+          })
+        }
+
+        const confirm = params.confirm as boolean | undefined
+        // Safety layer: require confirm even after dry_run: false
         if (!confirm) {
           const preview = await youtube.deleteVariant(buildCtx(), testId, label, { dryRun: true })
           return toMcpSuccess({

@@ -49,18 +49,55 @@ export async function manageBroll(params: Params): Promise<CallToolResult> {
 
     switch (action) {
       case 'create': {
+        if (params.dry_run !== false) {
+          const { action: _a, dry_run: _d, ...createFields } = params
+          return toMcpSuccess({
+            dry_run: true,
+            action: 'create_broll',
+            would_create: createFields,
+            message: 'Call again with dry_run: false to execute.',
+          })
+        }
         const result = await createBRollAsset(ctx, params)
         return toMcpSuccess(result.data)
       }
 
       case 'update': {
         const id = params.id as string
+        if (params.dry_run !== false) {
+          const existing = await getBRollAsset(ctx, id)
+          const existingData = existing.data as unknown as Record<string, unknown>
+          const changes = Object.entries(params)
+            .filter(([k, v]) => !['id', 'action', 'dry_run'].includes(k) && v !== undefined)
+            .map(([k, v]) => ({
+              field: k,
+              from: existingData[k],
+              to: v,
+            }))
+          return toMcpSuccess({
+            dry_run: true,
+            action: 'update_broll',
+            target: { id, original_filename: existingData.original_filename },
+            changes,
+            message: 'Call again with dry_run: false to execute.',
+          })
+        }
         const result = await updateBRollAsset(ctx, id, params)
         return toMcpSuccess(result.data)
       }
 
       case 'retire': {
         const id = params.id as string
+
+        // Default to preview unless dry_run is explicitly false
+        if (params.dry_run !== false) {
+          const existing = await getBRollAsset(ctx, id)
+          return formatDryRunResult('retire_broll', params, [
+            { entity: 'broll_asset', id, field: 'status', from: existing.data.status, to: 'retired' },
+            { entity: 'broll_asset', id, field: 'original_filename', from: existing.data.original_filename, to: existing.data.original_filename },
+          ])
+        }
+
         const confirmationToken = params.confirmation_token as string | undefined
 
         if (confirmationToken) {
@@ -72,7 +109,7 @@ export async function manageBroll(params: Params): Promise<CallToolResult> {
           return toMcpSuccess(result.data)
         }
 
-        // Dry-run: show what will be retired and return confirmation token
+        // No token — still show dry-run with confirmation token
         const existing = await getBRollAsset(ctx, id)
         return formatDryRunResult('retire_broll', params, [
           { entity: 'broll_asset', id, field: 'status', from: existing.data.status, to: 'retired' },
@@ -81,6 +118,16 @@ export async function manageBroll(params: Params): Promise<CallToolResult> {
       }
 
       case 'import': {
+        if (params.dry_run !== false) {
+          const items = params.items as unknown[] | undefined
+          return toMcpSuccess({
+            dry_run: true,
+            action: 'import_broll',
+            item_count: Array.isArray(items) ? items.length : 0,
+            would_import: items,
+            message: 'Call again with dry_run: false to execute.',
+          })
+        }
         const result = await importBRollAssets(ctx, params)
         return toMcpSuccess(result.data)
       }

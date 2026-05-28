@@ -56,6 +56,22 @@ export async function manageEdges(params: Params): Promise<CallToolResult> {
           edge_type: params.edge_type,
           label: params.label,
         }
+
+        if (params.dry_run !== false) {
+          return toMcpSuccess({
+            dry_run: true,
+            action: 'create_edge',
+            target: { playlist_id: playlistId },
+            would_create: {
+              from: params.source_item_id,
+              to: params.target_item_id,
+              edge_type: params.edge_type,
+              label: params.label,
+            },
+            message: 'Call again with dry_run: false to execute.',
+          })
+        }
+
         const result = await playlistsService.createEdgeService(ctx, playlistId, body)
         return toMcpSuccess(result.data)
       }
@@ -65,6 +81,15 @@ export async function manageEdges(params: Params): Promise<CallToolResult> {
         const edgeId = params.edge_id as string
         if (!edgeId) {
           return toMcpError({ code: 'VALIDATION_ERROR', message: 'edge_id is required for delete action' })
+        }
+
+        // Default to preview unless dry_run is explicitly false
+        if (params.dry_run !== false) {
+          const dryResult = await playlistsService.deleteEdgeService(ctx, playlistId, edgeId, { dryRun: true })
+          void dryResult
+          return formatDryRunResult('manage_edges:delete', { action: 'delete', playlist_id: playlistId, edge_id: edgeId }, [
+            { entity: 'playlist_edge', id: edgeId, field: 'deleted', from: false, to: true },
+          ])
         }
 
         const confirmToken = params.confirmation_token as string | undefined
@@ -80,7 +105,7 @@ export async function manageEdges(params: Params): Promise<CallToolResult> {
 
         if (!params.confirm) {
           const dryResult = await playlistsService.deleteEdgeService(ctx, playlistId, edgeId, { dryRun: true })
-          void dryResult // validates edge exists
+          void dryResult
           return formatDryRunResult('manage_edges:delete', { action: 'delete', playlist_id: playlistId, edge_id: edgeId }, [
             { entity: 'playlist_edge', id: edgeId, field: 'deleted', from: false, to: true },
           ])
@@ -96,6 +121,24 @@ export async function manageEdges(params: Params): Promise<CallToolResult> {
         if (!edges) {
           return toMcpError({ code: 'VALIDATION_ERROR', message: 'edges array is required for bulk_create action' })
         }
+
+        if (params.dry_run !== false) {
+          const edgeArr = Array.isArray(edges) ? edges : []
+          return toMcpSuccess({
+            dry_run: true,
+            action: 'bulk_create_edges',
+            target: { playlist_id: playlistId },
+            edge_count: edgeArr.length,
+            would_create: edgeArr.map((e: Record<string, unknown>) => ({
+              from: e.source_item_id,
+              to: e.target_item_id,
+              edge_type: e.edge_type,
+              label: e.label,
+            })),
+            message: 'Call again with dry_run: false to execute.',
+          })
+        }
+
         const result = await playlistsService.bulkCreateEdgesService(ctx, playlistId, { edges })
         return toMcpSuccess(result.data)
       }
