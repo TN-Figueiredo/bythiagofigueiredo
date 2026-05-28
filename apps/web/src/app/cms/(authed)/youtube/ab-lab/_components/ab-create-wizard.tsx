@@ -94,6 +94,8 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill }: P
   const [slotNotes, setSlotNotes] = useState<[string, string, string]>(['', '', ''])
   const [briefingCopied, setBriefingCopied] = useState(false)
   const [briefingData, setBriefingData] = useState<AbBriefingData | null>(null)
+  const [draftTestId, setDraftTestId] = useState<string | null>(null)
+  const [draftLoading, setDraftLoading] = useState(false)
 
   const storageKey = `ab-brainstorm-${video.id}`
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -217,18 +219,22 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill }: P
   function handleSubmit(isLaunch: boolean) {
     setSubmitError(null)
     startTransition(async () => {
-      const result = await createAbTest({
-        site_id: siteId,
-        youtube_video_id: video.id,
-        name: `Test: ${video.title}`,
-        test_type: testType,
-        config,
-      })
-      if (!result.ok || !result.id) {
-        setSubmitError(result.error ?? 'Falha ao criar teste')
-        return
+      let testId = draftTestId
+
+      if (!testId) {
+        const result = await createAbTest({
+          site_id: siteId,
+          youtube_video_id: video.id,
+          name: `Test: ${video.title}`,
+          test_type: testType,
+          config,
+        })
+        if (!result.ok || !result.id) {
+          setSubmitError(result.error ?? 'Falha ao criar teste')
+          return
+        }
+        testId = result.id
       }
-      const testId = result.id
 
       // Upload image variants (for thumbnail and combo types)
       if (testType === 'thumbnail' || testType === 'combo') {
@@ -277,9 +283,29 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill }: P
     })
   }
 
-  function handleTypeSelect(type: TestType) {
+  async function handleTypeSelect(type: TestType) {
     setTestType(type)
-    setStep(2)
+    setDraftLoading(true)
+    setSubmitError(null)
+
+    const result = await createAbTest({
+      site_id: siteId,
+      youtube_video_id: video.id,
+      name: `Test: ${video.title}`,
+      test_type: type,
+      config,
+    })
+
+    setDraftLoading(false)
+
+    if (result.ok && result.id) {
+      setDraftTestId(result.id)
+      setStep(2)
+    } else if (result.error?.includes('already exists')) {
+      setSubmitError('Já existe um rascunho para este vídeo. Feche e reabra para continuar.')
+    } else {
+      setSubmitError(result.error ?? 'Falha ao criar rascunho')
+    }
   }
 
   return (
@@ -354,7 +380,14 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill }: P
         <div key={step} className="flex-1 overflow-y-auto px-5 py-4" style={{ animation: 'fadeIn 150ms ease-out' }}>
           <style>{`@keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }`}</style>
           {step === 1 && (
-            <Step0TypeSelect onSelect={handleTypeSelect} />
+            <div className="relative">
+              <Step0TypeSelect onSelect={handleTypeSelect} />
+              {draftLoading && (
+                <div className="absolute inset-0 flex items-center justify-center bg-cms-surface/80 rounded-[var(--cms-radius)]">
+                  <p className="text-xs text-cms-text-dim animate-pulse">Criando rascunho…</p>
+                </div>
+              )}
+            </div>
           )}
           {step === 2 && (
             <StepIdeias
@@ -368,6 +401,7 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill }: P
               onBriefingCopied={handleBriefingCopied}
               briefingData={briefingData}
               onBriefingDataChange={handleBriefingDataChange}
+              draftTestId={draftTestId}
             />
           )}
           {step === 3 && (

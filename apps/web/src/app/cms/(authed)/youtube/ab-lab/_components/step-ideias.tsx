@@ -29,6 +29,7 @@ interface StepIdeiasProps {
   onBriefingCopied: () => void
   briefingData: AbBriefingData | null
   onBriefingDataChange: (data: AbBriefingData | null) => void
+  draftTestId?: string | null  // Added for Cowork integration (Task 10 will use it)
 }
 
 const SLOT_LABELS = ['B', 'C', 'D'] as const
@@ -81,6 +82,7 @@ export function StepIdeias({
   onBriefingCopied,
   briefingData,
   onBriefingDataChange,
+  draftTestId,  // eslint-disable-line @typescript-eslint/no-unused-vars
 }: StepIdeiasProps) {
   const [loading, setLoading] = useState(briefingData === null)
   const [error, setError] = useState<string | null>(null)
