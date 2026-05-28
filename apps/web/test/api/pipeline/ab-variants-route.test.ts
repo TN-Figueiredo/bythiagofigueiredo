@@ -5,6 +5,10 @@ const MOCK_SITE_ID = '11111111-1111-1111-1111-111111111111'
 const MOCK_TEST_ID = '22222222-2222-2222-2222-222222222222'
 const MOCK_VARIANT_ID = '33333333-3333-3333-3333-333333333333'
 
+vi.mock('@sentry/nextjs', () => ({
+  captureException: vi.fn(),
+}))
+
 vi.mock('@/lib/pipeline/helpers', () => ({
   authenticateRead: vi.fn(),
   authenticateWrite: vi.fn(),
@@ -60,6 +64,7 @@ vi.mock('@/lib/youtube/ab-types', () => ({}))
 
 import { authenticateRead, authenticateWrite, parseBody } from '@/lib/pipeline/helpers'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import * as Sentry from '@sentry/nextjs'
 
 const AUTH_OK = {
   ok: true,
@@ -180,6 +185,54 @@ describe('POST /api/pipeline/youtube/ab-tests/:id/variants', () => {
     const result = await POST(req, makeParams(MOCK_TEST_ID))
     expect(result.status).toBe(200)
   })
+
+  it('returns 400 for duplicate variant labels in batch', async () => {
+    vi.mocked(authenticateWrite).mockResolvedValue(AUTH_OK)
+    vi.mocked(parseBody).mockResolvedValue({
+      variants: [
+        { label: 'B', title_text: 'Title B1' },
+        { label: 'B', title_text: 'Title B2' },
+      ],
+    })
+
+    const req = makeRequest('POST', `/api/pipeline/youtube/ab-tests/${MOCK_TEST_ID}/variants`)
+    const result = await POST(req, makeParams(MOCK_TEST_ID))
+    expect(result.status).toBe(400)
+    const body = await result.json() as { error: { code: string; message: string } }
+    expect(body.error.message).toContain('Duplicate variant labels')
+  })
+
+  it('returns 500 with generic message and does not leak DB error on upsert failure', async () => {
+    vi.mocked(authenticateWrite).mockResolvedValue(AUTH_OK)
+    vi.mocked(parseBody).mockResolvedValue({
+      variants: [{ label: 'B', title_text: 'Title B' }],
+    })
+
+    const testChain = createMockChain({
+      data: { id: MOCK_TEST_ID, status: 'draft', site_id: MOCK_SITE_ID, test_type: 'title' },
+    })
+    const rawDbError = { message: 'duplicate key value violates unique constraint "ab_test_variants_pkey"' }
+    const upsertChain = createMockChain({ data: null, error: rawDbError })
+    upsertChain.select = vi.fn().mockReturnValue(upsertChain)
+    upsertChain.then = (resolve: (v: any) => any) =>
+      resolve({ data: null, error: rawDbError })
+
+    let callCount = 0
+    vi.mocked(getSupabaseServiceClient).mockReturnValue({
+      from: () => {
+        callCount++
+        return callCount === 1 ? testChain : upsertChain
+      },
+    } as any)
+
+    const req = makeRequest('POST', `/api/pipeline/youtube/ab-tests/${MOCK_TEST_ID}/variants`)
+    const result = await POST(req, makeParams(MOCK_TEST_ID))
+    expect(result.status).toBe(500)
+    const body = await result.json() as { error: { code: string; message: string } }
+    expect(body.error.message).not.toContain('duplicate key value')
+    expect(body.error.message).toBe('Failed to save variants')
+    expect(vi.mocked(Sentry.captureException)).toHaveBeenCalledWith(rawDbError, { tags: { component: 'ab-variants' } })
+  })
 })
 
 describe('GET /api/pipeline/youtube/ab-tests/:id/variants', () => {
@@ -214,6 +267,32 @@ describe('GET /api/pipeline/youtube/ab-tests/:id/variants', () => {
     const req = makeRequest('GET', `/api/pipeline/youtube/ab-tests/${MOCK_TEST_ID}/variants`)
     const result = await GET(req, makeParams(MOCK_TEST_ID))
     expect(result.status).toBe(200)
+  })
+
+  it('returns 500 with generic message and does not leak DB error on fetch failure', async () => {
+    vi.mocked(authenticateRead).mockResolvedValue(AUTH_OK)
+
+    const rawDbError = { message: 'ERROR: column "foo" does not exist at character 12' }
+    const testChain = createMockChain({
+      data: { id: MOCK_TEST_ID, site_id: MOCK_SITE_ID },
+    })
+    const variantChain = createMockChain({ data: null, error: rawDbError })
+
+    let callCount = 0
+    vi.mocked(getSupabaseServiceClient).mockReturnValue({
+      from: () => {
+        callCount++
+        return callCount === 1 ? testChain : variantChain
+      },
+    } as any)
+
+    const req = makeRequest('GET', `/api/pipeline/youtube/ab-tests/${MOCK_TEST_ID}/variants`)
+    const result = await GET(req, makeParams(MOCK_TEST_ID))
+    expect(result.status).toBe(500)
+    const body = await result.json() as { error: { code: string; message: string } }
+    expect(body.error.message).not.toContain('column "foo"')
+    expect(body.error.message).toBe('Failed to load variants')
+    expect(vi.mocked(Sentry.captureException)).toHaveBeenCalledWith(rawDbError, { tags: { component: 'ab-variants' } })
   })
 })
 

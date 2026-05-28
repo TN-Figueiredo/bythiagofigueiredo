@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import * as Sentry from '@sentry/nextjs'
 import { authenticateRead, authenticateWrite, pipelineError, pipelineSuccess, parseBody } from '@/lib/pipeline/helpers'
 import { UUID_REGEX } from '@/lib/pipeline/auth'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
@@ -47,6 +48,11 @@ export async function POST(
     return pipelineError('VALIDATION_ERROR', parsed.error.issues[0]?.message ?? 'Invalid request body', 400, auth)
   }
 
+  const labels = parsed.data.variants.map(v => v.label)
+  if (new Set(labels).size !== labels.length) {
+    return pipelineError('VALIDATION_ERROR', 'Duplicate variant labels in batch', 400, auth)
+  }
+
   const supabase = getSupabaseServiceClient()
 
   const { data: test, error: testError } = await supabase
@@ -55,6 +61,9 @@ export async function POST(
     .eq('id', id)
     .single()
 
+  if (testError) {
+    Sentry.captureException(testError, { tags: { component: 'ab-variants' } })
+  }
   if (testError || !test) {
     return pipelineError('NOT_FOUND', 'Test not found', 404, auth)
   }
@@ -89,7 +98,8 @@ export async function POST(
     .select('id, label')
 
   if (upsertError) {
-    return pipelineError('DB_ERROR', upsertError.message, 500, auth)
+    Sentry.captureException(upsertError, { tags: { component: 'ab-variants' } })
+    return pipelineError('DB_ERROR', 'Failed to save variants', 500, auth)
   }
 
   const results = (upserted ?? []).map(r => ({
@@ -140,7 +150,8 @@ export async function GET(
     .order('sort_order', { ascending: true })
 
   if (error) {
-    return pipelineError('DB_ERROR', error.message, 500, auth)
+    Sentry.captureException(error, { tags: { component: 'ab-variants' } })
+    return pipelineError('DB_ERROR', 'Failed to load variants', 500, auth)
   }
 
   return pipelineSuccess(variants ?? [], 200, auth)
@@ -200,7 +211,8 @@ export async function DELETE(
     .eq('id', variant.id)
 
   if (deleteError) {
-    return pipelineError('DB_ERROR', deleteError.message, 500, auth)
+    Sentry.captureException(deleteError, { tags: { component: 'ab-variants' } })
+    return pipelineError('DB_ERROR', 'Failed to delete variant', 500, auth)
   }
 
   return pipelineSuccess({ deleted: true, label }, 200, auth)
