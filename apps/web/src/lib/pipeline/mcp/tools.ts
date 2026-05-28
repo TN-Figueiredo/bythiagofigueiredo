@@ -437,10 +437,12 @@ const ManageResearchShape = {
 
 // ---- 15. manage_ab_test ----
 const ManageAbTestShape = {
-  action: z.enum(['list_variants', 'upsert_variants', 'delete_variant'])
-    .describe('list_variants: get all variants for a test. upsert_variants: create or update variants (idempotent). delete_variant: remove a non-original variant.'),
-  test_id: z.string().uuid()
-    .describe('A/B test UUID'),
+  action: z.enum(['list_tests', 'get_test', 'get_funnel', 'get_performance', 'get_intelligence', 'list_variants', 'upsert_variants', 'delete_variant'])
+    .describe('list_tests: all A/B tests with optional status filter. get_test: single test details with variants+cycles. get_funnel: funnel metrics per variant. get_performance: winning patterns from completed tests. get_intelligence: channel intelligence snapshot. list_variants: variants for a test. upsert_variants: create/update variants. delete_variant: remove non-original variant.'),
+  test_id: z.string().uuid().optional()
+    .describe('A/B test UUID (required for get_test, get_funnel, list_variants, upsert_variants, delete_variant)'),
+  status: z.string().optional()
+    .describe('Filter for list_tests (e.g. "active", "draft", "completed")'),
   variants: z.array(z.object({
     label: z.enum(['B', 'C', 'D'])
       .describe('B: first alternative. C: second alternative. D: third alternative.'),

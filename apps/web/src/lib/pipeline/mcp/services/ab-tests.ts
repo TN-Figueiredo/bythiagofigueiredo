@@ -41,6 +41,38 @@ export async function manageAbTest(params: Params): Promise<CallToolResult> {
     }
 
     switch (action) {
+      case 'list_tests': {
+        const status = params.status as string | undefined
+        const result = await youtube.listAbTests(buildCtx(), { status })
+        return toMcpSuccess(result.data)
+      }
+
+      case 'get_test': {
+        const testId = params.test_id as string
+        if (!testId) return toMcpError({ code: 'VALIDATION_ERROR', message: 'test_id is required' })
+        const result = await youtube.getAbTest(buildCtx(), testId)
+        return toMcpSuccess(result.data)
+      }
+
+      case 'get_funnel': {
+        const testId = params.test_id as string
+        if (!testId) return toMcpError({ code: 'VALIDATION_ERROR', message: 'test_id is required' })
+        const result = await youtube.getAbTestFunnel(buildCtx(), testId)
+        return toMcpSuccess(result.data)
+      }
+
+      case 'get_performance': {
+        const result = await youtube.getAbPerformance(buildCtx())
+        return toMcpSuccess(result.data)
+      }
+
+      case 'get_intelligence': {
+        const channelId = params.channel_id as string
+        if (!channelId) return toMcpError({ code: 'VALIDATION_ERROR', message: 'channel_id is required for get_intelligence' })
+        const result = await youtube.getIntelligenceSnapshot(buildCtx(), channelId)
+        return toMcpSuccess(result.data)
+      }
+
       case 'list_variants': {
         const testId = params.test_id as string
         if (!testId) return toMcpError({ code: 'VALIDATION_ERROR', message: 'test_id is required' })
@@ -116,7 +148,7 @@ export async function manageAbTest(params: Params): Promise<CallToolResult> {
       default:
         return toMcpError({
           code: 'VALIDATION_ERROR',
-          message: `Unknown action "${action ?? '(missing)'}". Supported: list_variants, upsert_variants, delete_variant`,
+          message: `Unknown action "${action ?? '(missing)'}". Supported: list_tests, get_test, get_funnel, get_performance, get_intelligence, list_variants, upsert_variants, delete_variant`,
         })
     }
   } catch (error) {
