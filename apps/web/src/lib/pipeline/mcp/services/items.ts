@@ -13,6 +13,7 @@ import {
   formatDryRunResult,
 } from '../safety'
 import { getMcpContext } from '@/lib/pipeline/mcp/context'
+import { mcpRequirePermission } from '@/lib/pipeline/mcp/auth'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import type { ServiceContext } from '@/lib/pipeline/services/types'
 import * as svc from '@/lib/pipeline/services/items'
@@ -26,7 +27,17 @@ function buildCtx(): ServiceContext {
     permissions: mcp.permissions as ServiceContext['permissions'],
     keyHash: mcp.keyHash,
     supabase: getSupabaseServiceClient(),
+    source: 'api_key',
   }
+}
+
+/** Returns a FORBIDDEN error if the current MCP context lacks write permission, or null if allowed. */
+function requireWrite(): CallToolResult | null {
+  const mcp = getMcpContext()
+  if (!mcpRequirePermission(mcp, 'write')) {
+    return toMcpError({ code: 'FORBIDDEN', message: 'Write permission required' })
+  }
+  return null
 }
 
 // ---------------------------------------------------------------------------
@@ -35,6 +46,8 @@ function buildCtx(): ServiceContext {
 
 export async function createItem(params: Params): Promise<CallToolResult> {
   try {
+    const denied = requireWrite()
+    if (denied) return denied
     const ctx = buildCtx()
 
     if (params.dry_run) {
@@ -74,6 +87,8 @@ export async function createItem(params: Params): Promise<CallToolResult> {
 
 export async function updateItem(params: Params): Promise<CallToolResult> {
   try {
+    const denied = requireWrite()
+    if (denied) return denied
     const ctx = buildCtx()
     const id = params.id as string
 
@@ -118,6 +133,8 @@ export async function updateItem(params: Params): Promise<CallToolResult> {
 
 export async function advanceItem(params: Params): Promise<CallToolResult> {
   try {
+    const denied = requireWrite()
+    if (denied) return denied
     const ctx = buildCtx()
     const id = params.id as string
     const direction = (params.direction as string) ?? 'forward'
@@ -163,6 +180,8 @@ export async function advanceItem(params: Params): Promise<CallToolResult> {
 
 export async function deleteItem(params: Params): Promise<CallToolResult> {
   try {
+    const denied = requireWrite()
+    if (denied) return denied
     const ctx = buildCtx()
     const id = params.id as string
     const dryRun = params.dry_run === true
@@ -219,6 +238,8 @@ export async function deleteItem(params: Params): Promise<CallToolResult> {
 
 export async function graduateItem(params: Params): Promise<CallToolResult> {
   try {
+    const denied = requireWrite()
+    if (denied) return denied
     const ctx = buildCtx()
     const id = params.id as string
     const target = params.target as string
@@ -274,6 +295,8 @@ export async function graduateItem(params: Params): Promise<CallToolResult> {
 
 export async function publishItem(params: Params): Promise<CallToolResult> {
   try {
+    const denied = requireWrite()
+    if (denied) return denied
     const ctx = buildCtx()
     const id = params.id as string
     const scheduledAt = params.scheduled_at as string | undefined
@@ -339,6 +362,8 @@ export async function publishItem(params: Params): Promise<CallToolResult> {
 
 export async function bulkItems(params: Params): Promise<CallToolResult> {
   try {
+    const denied = requireWrite()
+    if (denied) return denied
     const ctx = buildCtx()
     const operations = params.operations as unknown[]
     const dryRun = params.dry_run === true

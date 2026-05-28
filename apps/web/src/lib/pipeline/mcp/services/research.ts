@@ -8,6 +8,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { toMcpError, toMcpSuccess, toPipelineServiceError } from '../errors'
 import { formatDryRunResult, validateConfirmationToken } from '../safety'
 import { getMcpContext } from '@/lib/pipeline/mcp/context'
+import { mcpRequirePermission } from '@/lib/pipeline/mcp/auth'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import type { ServiceContext } from '@/lib/pipeline/services/types'
 import {
@@ -42,6 +43,15 @@ export async function manageResearch(params: Params): Promise<CallToolResult> {
   try {
     const ctx = buildCtx()
     const action = params.action as string | undefined
+
+    // Write permission guard for mutation actions
+    const WRITE_ACTIONS = ['create', 'update', 'delete', 'import', 'link', 'unlink', 'create_topic', 'update_topic', 'delete_topic']
+    if (action && WRITE_ACTIONS.includes(action)) {
+      const mcp = getMcpContext()
+      if (!mcpRequirePermission(mcp, 'write')) {
+        return toMcpError({ code: 'FORBIDDEN', message: 'Write permission required' })
+      }
+    }
 
     switch (action) {
       // ----- Research Items -----
@@ -85,14 +95,17 @@ export async function manageResearch(params: Params): Promise<CallToolResult> {
 
       // ----- Research Links -----
       case 'link': {
-        const researchId = params.research_id as string
+        const researchId = params.id as string
+        if (!researchId) return toMcpError({ code: 'VALIDATION_ERROR', message: 'id (research item UUID) is required for link action' })
         const result = await addResearchLink(ctx, researchId, params)
         return toMcpSuccess(result.data)
       }
 
       case 'unlink': {
-        const researchId = params.research_id as string
+        const researchId = params.id as string
         const linkId = params.link_id as string
+        if (!researchId) return toMcpError({ code: 'VALIDATION_ERROR', message: 'id (research item UUID) is required for unlink action' })
+        if (!linkId) return toMcpError({ code: 'VALIDATION_ERROR', message: 'link_id is required for unlink action' })
         const result = await removeResearchLink(ctx, researchId, linkId)
         return toMcpSuccess(result.data)
       }

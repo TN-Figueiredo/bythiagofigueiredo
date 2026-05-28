@@ -6,6 +6,7 @@
  */
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { getMcpContext } from '@/lib/pipeline/mcp/context'
+import { mcpRequirePermission } from '@/lib/pipeline/mcp/auth'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { PipelineServiceError } from '@/lib/pipeline/services/types'
 import type { ServiceContext } from '@/lib/pipeline/services/types'
@@ -22,6 +23,7 @@ function buildCtx(): ServiceContext {
     permissions: mcp.permissions as ServiceContext['permissions'],
     keyHash: mcp.keyHash,
     supabase: getSupabaseServiceClient(),
+    source: 'api_key',
   }
 }
 
@@ -29,6 +31,15 @@ export async function manageAbTest(params: Params): Promise<CallToolResult> {
   const action = params.action as string | undefined
 
   try {
+    // Write permission guard for mutation actions
+    const WRITE_ACTIONS = ['upsert_variants', 'delete_variant']
+    if (action && WRITE_ACTIONS.includes(action)) {
+      const mcp = getMcpContext()
+      if (!mcpRequirePermission(mcp, 'write')) {
+        return toMcpError({ code: 'FORBIDDEN', message: 'Write permission required' })
+      }
+    }
+
     switch (action) {
       case 'list_variants': {
         const testId = params.test_id as string
@@ -48,10 +59,10 @@ export async function manageAbTest(params: Params): Promise<CallToolResult> {
 
       case 'delete_variant': {
         const testId = params.test_id as string
-        const label = params.label as string
+        const label = params.variant_label as string
         const confirm = params.confirm as boolean | undefined
         if (!testId) return toMcpError({ code: 'VALIDATION_ERROR', message: 'test_id is required' })
-        if (!label) return toMcpError({ code: 'VALIDATION_ERROR', message: 'label is required' })
+        if (!label) return toMcpError({ code: 'VALIDATION_ERROR', message: 'variant_label is required' })
 
         // Safety layer: dry-run first unless confirm=true
         if (!confirm) {

@@ -19,6 +19,10 @@ Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_
 }
 ```
 
+## Onboarding
+
+After connecting, read `pipeline://catalog` first. It contains the full API registry with all capability domains, endpoints, and cross-domain workflows. This gives the LLM a map of everything available before invoking any tools.
+
 ## Tools (17)
 
 | Tool | Description |
@@ -45,36 +49,46 @@ Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_
 
 | URI | Description |
 |-----|-------------|
-| `pipeline://workflows` | All workflow definitions and checklists |
-| `pipeline://stats` | Aggregate pipeline statistics |
-| `pipeline://context` | All reference content docs |
-| `pipeline://context/{key}` | Specific reference doc by key |
-| `pipeline://docs/{domain}` | Tier 2 documentation for a capability domain |
-| `pipeline://search?q={query}` | Cross-entity search results |
-| `pipeline://topics/{code}` | Topic aggregation (items + posts by tag) |
-| `pipeline://items/{id}` | Item detail with history and dependencies |
-| `pipeline://playlists/{id}` | Playlist with items and edges graph |
-| `pipeline://youtube/intelligence` | Channel intelligence snapshot |
-| `pipeline://up-next` | Command center: today actions, week grid, streak |
+| `pipeline://catalog` | API catalog with all capability domains, endpoints, and cross-domain workflows |
+| `pipeline://docs/{domain}` | Tier-2 documentation guide for a capability domain (items-and-sections, playlists, libraries, research, youtube, utilities, course) |
+| `pipeline://context/{skill}` | Skill-specific reference content (ideator, writer, producer, product_eval, perf_review, curator, architect) |
+| `pipeline://stats` | Pipeline statistics: item counts by format, stage, and priority |
+| `pipeline://workflows` | Workflow stage definitions and default production checklists for all content formats |
+| `pipeline://up-next` | Today's actions, week grid, production streak, and suggestions from the Command Center |
+| `pipeline://youtube/intelligence` | YouTube channel intelligence snapshot: health score, grade distribution, top/bottom videos |
+| `pipeline://youtube/ab-performance` | Aggregate A/B test winning patterns from completed tests: win rates by type, top strategies |
+| `pipeline://audio/stats` | Audio library statistics: counts by category, mood, energy level, most used tracks |
+| `pipeline://research/topics` | Hierarchical research topic tree with item counts per topic |
+| `pipeline://items/{id}` | Single pipeline item skeleton: metadata, section names, and word counts (not full content) |
 
 ## Prompts (7)
 
-| Prompt | Description |
-|--------|-------------|
-| `create-video` | Guided video creation from premise to script |
-| `create-course` | Course production from curriculum to launch plan |
-| `weekly-review` | Analyze week performance and suggest next actions |
-| `research-brief` | Compile research into actionable content brief |
-| `ab-test-analysis` | Analyze A/B test results and recommend winners |
-| `content-audit` | Audit pipeline items for completeness and quality |
-| `production-checklist` | Walk through pre-publish production checklist |
+| Prompt | Arguments | Description |
+|--------|-----------|-------------|
+| `ideator` | `topic_seed?`, `format?`, `count?` | Generate content ideas based on topic seed, format, and pipeline context |
+| `writer` | `item_id`, `section_key`, `instructions?`, `lang?` | Write or rewrite a specific section of a pipeline item |
+| `producer` | `item_id` | Review production readiness of a pipeline item: checklist, assets, timeline |
+| `ab-ideate` | `test_type`, `video_context?` | Brainstorm A/B test variants for a YouTube video (thumbnail, title, description, or combo) |
+| `ab-write` | `test_id`, `variant_count?`, `slot_notes?` | Write A/B test variants for an existing test with API workflow instructions |
+| `playlist-architect` | `playlist_id`, `mode?`, `instructions?` | Architect or reorganize a playlist: build, connect, fill gaps, reorg, campaign, or course mode |
+| `translate` | `item_id`, `target_locale` | Translate a pipeline item to a target locale with cultural adaptation |
+
+## Permissions
+
+API keys carry permission levels: `read`, `write`, or `admin`.
+
+- **Read** — browse resources, read sections, search, list items
+- **Write** — all read operations plus create, update, delete, advance, graduate, publish, bulk operations
+- **Admin** — all write operations plus key management
+
+Write tools enforce permission checks at the adapter level. A key with only `read` permission will receive a `FORBIDDEN` error when calling any mutation tool.
 
 ## Safety
 
 - `dry_run: true` previews changes without executing
 - Destructive operations (delete, bulk archive) require `confirm: true`
-- Rate limits: 30 writes/min, 5 bulk/min, 2 destructive/5min
-- Confirmation tokens expire after 60 seconds
+- Rate limits: 30 single writes/min, 5 bulk operations/min, 2 destructive ops/5min
+- Confirmation tokens expire after 5 minutes (HMAC-SHA256 signed)
 
 ## Errors
 
@@ -82,15 +96,23 @@ Every error response includes:
 
 ```json
 {
-  "severity": "warning" | "error" | "fatal",
+  "severity": "fatal" | "recoverable" | "transient",
   "retryable": true | false,
   "recovery_action": "Human-readable suggestion for recovery"
 }
 ```
 
+Severity levels:
+- `recoverable` — caller can fix the input and retry (VERSION_CONFLICT, VALIDATION_ERROR, FORBIDDEN)
+- `transient` — temporary failure, retry after delay (RATE_LIMITED, SERVICE_UNAVAILABLE, TIMEOUT)
+- `fatal` — no automatic recovery possible (NOT_FOUND, UNAUTHORIZED, INTERNAL_ERROR)
+
 Common error codes:
-- `VERSION_CONFLICT` — stale `X-Expected-Version`, re-fetch and retry
+- `VERSION_CONFLICT` — stale version, re-fetch and retry
 - `RATE_LIMITED` — too many writes, back off and retry
+- `VALIDATION_ERROR` — fix input parameters and retry
+- `FORBIDDEN` — API key lacks required permission level
 - `CONFIRMATION_REQUIRED` — destructive op needs `confirm: true`
-- `AUTH_FAILED` — invalid or missing pipeline key
 - `NOT_FOUND` — resource does not exist
+- `UNAUTHORIZED` — invalid or revoked API key
+- `INTERNAL_ERROR` — unexpected server error

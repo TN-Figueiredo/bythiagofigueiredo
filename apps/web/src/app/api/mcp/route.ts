@@ -5,10 +5,11 @@ import { pipelineLog } from '@/lib/pipeline/logger'
 import { registerTools } from '@/lib/pipeline/mcp/tools'
 import { registerResources } from '@/lib/pipeline/mcp/resources'
 import { registerPrompts } from '@/lib/pipeline/mcp/prompts'
-import { setMcpContext } from '@/lib/pipeline/mcp/context'
+import { runWithMcpContext } from '@/lib/pipeline/mcp/context'
 
 export const maxDuration = 60
 export const dynamic = 'force-dynamic'
+export const preferredRegion = 'gru1'
 
 const handler = createMcpHandler(
   (server) => {
@@ -40,7 +41,6 @@ async function authenticatedHandler(req: Request): Promise<Response> {
 
   try {
     const ctx = await resolveMcpAuth(req)
-    setMcpContext(ctx)
 
     if (!mcpRequirePermission(ctx, 'read')) {
       return new Response(
@@ -53,7 +53,7 @@ async function authenticatedHandler(req: Request): Promise<Response> {
       )
     }
 
-    return await handler(req)
+    return await runWithMcpContext(ctx, () => handler(req))
   } catch (err) {
     if (err instanceof McpAuthError) {
       return new Response(
@@ -80,8 +80,6 @@ async function authenticatedHandler(req: Request): Promise<Response> {
       }),
       { status: 500, headers: { 'Content-Type': 'application/json' } },
     )
-  } finally {
-    setMcpContext(null)
   }
 }
 

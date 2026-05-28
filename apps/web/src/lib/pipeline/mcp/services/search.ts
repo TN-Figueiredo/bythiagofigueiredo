@@ -19,6 +19,7 @@ function buildCtx(): ServiceContext {
     permissions: mcp.permissions as Permission[],
     keyHash: mcp.keyHash,
     supabase: getSupabaseServiceClient(),
+    source: 'api_key',
   }
 }
 
@@ -27,10 +28,10 @@ type Params = Record<string, unknown>
 export async function searchContent(params: Params): Promise<CallToolResult> {
   try {
     const ctx = buildCtx()
-    const query = typeof params.query === 'string' ? params.query : ''
+    const q = typeof params.q === 'string' ? params.q : ''
     const limit = typeof params.limit === 'number' ? params.limit : undefined
 
-    const result = await searchContentService(ctx, query, { limit })
+    const result = await searchContentService(ctx, q, { limit })
     return toMcpSuccess(result.data)
   } catch (error) {
     return toMcpError(toPipelineServiceError(error))

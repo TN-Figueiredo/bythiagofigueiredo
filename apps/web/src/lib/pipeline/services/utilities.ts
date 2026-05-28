@@ -393,7 +393,21 @@ export async function deleteContext(
   ctx: ServiceContext,
   key: string,
 ): Promise<ServiceResult<{ deleted: true }>> {
-  await ctx.supabase.from('reference_content').delete().eq('site_id', ctx.siteId).eq('key', key)
+  const { data, error } = await ctx.supabase
+    .from('reference_content')
+    .delete()
+    .eq('site_id', ctx.siteId)
+    .eq('key', key)
+    .select('id')
+
+  if (error) {
+    return err('DB_ERROR', 'Failed to delete reference content', 500)
+  }
+
+  if (!data || data.length === 0) {
+    return err('NOT_FOUND', `Reference "${key}" not found`, 404)
+  }
+
   return ok({ deleted: true as const })
 }
 

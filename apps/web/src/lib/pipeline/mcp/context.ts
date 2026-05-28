@@ -1,14 +1,16 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
 import type { McpServiceContext } from './auth'
 
-let _requestContext: McpServiceContext | null = null
+const mcpContextStore = new AsyncLocalStorage<McpServiceContext>()
 
 export function getMcpContext(): McpServiceContext {
-  if (!_requestContext) {
+  const ctx = mcpContextStore.getStore()
+  if (!ctx) {
     throw new Error('MCP context not available — auth did not resolve')
   }
-  return _requestContext
+  return ctx
 }
 
-export function setMcpContext(ctx: McpServiceContext | null): void {
-  _requestContext = ctx
+export function runWithMcpContext<T>(ctx: McpServiceContext, fn: () => T): T {
+  return mcpContextStore.run(ctx, fn)
 }

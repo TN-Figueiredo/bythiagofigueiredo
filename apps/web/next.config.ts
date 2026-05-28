@@ -30,6 +30,9 @@ const nextConfig: NextConfig = {
     ],
   },
   serverExternalPackages: ['@aws-sdk/client-sesv2', 'sharp', 'canvas', '@napi-rs/canvas'],
+  outputFileTracingIncludes: {
+    '/api/mcp': ['./data/pipeline-docs/**/*'],
+  },
   experimental: {
     serverActions: {
       bodySizeLimit: '50mb',

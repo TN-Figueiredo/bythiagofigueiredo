@@ -260,8 +260,8 @@ const ManageEdgesShape = {
 
 // ---- 11. manage_audio ----
 const ManageAudioShape = {
-  action: z.enum(['create', 'update', 'retire', 'import', 'resolve'])
-    .describe('create: register new audio asset. update: patch metadata (requires version). retire: soft-delete. import: batch import. resolve: smart search (read-only).'),
+  action: z.enum(['create', 'update', 'retire', 'import', 'resolve', 'list', 'get', 'export', 'stats'])
+    .describe('create: register new audio asset. update: patch metadata (requires version). retire: soft-delete. import: batch import. resolve: smart search (read-only). list: browse assets with filters. get: fetch single asset by id. export: full library export. stats: aggregate statistics.'),
   id: z.string().uuid().optional()
     .describe('Audio asset UUID (for update/retire)'),
   asset_id: z.string().max(100).optional()
@@ -336,8 +336,8 @@ const MatchAudioShape = {
 
 // ---- 13. manage_broll ----
 const ManageBrollShape = {
-  action: z.enum(['create', 'update', 'retire', 'import'])
-    .describe('create: register new B-roll clip. update: patch metadata (requires version). retire: soft-delete. import: batch import.'),
+  action: z.enum(['create', 'update', 'retire', 'import', 'list', 'get'])
+    .describe('create: register new B-roll clip. update: patch metadata (requires version). retire: soft-delete. import: batch import. list: browse assets with filters. get: fetch single asset by id.'),
   id: z.string().uuid().optional()
     .describe('B-roll asset UUID (for update/retire)'),
   asset_id: z.string().max(100).optional()

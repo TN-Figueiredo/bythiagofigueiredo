@@ -12,6 +12,7 @@ import {
   formatDryRunResult,
 } from '../safety'
 import { getMcpContext } from '@/lib/pipeline/mcp/context'
+import { mcpRequirePermission } from '@/lib/pipeline/mcp/auth'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import type { ServiceContext, Permission } from '@/lib/pipeline/services/types'
 import * as playlistsService from '@/lib/pipeline/services/playlists'
@@ -34,6 +35,12 @@ export async function managePlaylist(params: Params): Promise<CallToolResult> {
   try {
     const ctx = buildServiceContext()
     const action = params.action as string
+
+    // All playlist actions are mutations — require write permission
+    const mcp = getMcpContext()
+    if (!mcpRequirePermission(mcp, 'write')) {
+      return toMcpError({ code: 'FORBIDDEN', message: 'Write permission required' })
+    }
 
     switch (action) {
       // ── create ───────────────────────────────────────────────────

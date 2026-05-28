@@ -9,6 +9,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { toMcpError, toMcpSuccess, toPipelineServiceError } from '../errors'
 import { formatDryRunResult, validateConfirmationToken } from '../safety'
 import { getMcpContext } from '@/lib/pipeline/mcp/context'
+import { mcpRequirePermission } from '@/lib/pipeline/mcp/auth'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import type { ServiceContext } from '@/lib/pipeline/services/types'
 import {
@@ -40,6 +41,15 @@ export async function manageAudio(params: Params): Promise<CallToolResult> {
   try {
     const ctx = buildCtx()
     const action = params.action as string | undefined
+
+    // Write permission guard for mutation actions
+    const WRITE_ACTIONS = ['create', 'update', 'retire', 'import']
+    if (action && WRITE_ACTIONS.includes(action)) {
+      const mcp = getMcpContext()
+      if (!mcpRequirePermission(mcp, 'write')) {
+        return toMcpError({ code: 'FORBIDDEN', message: 'Write permission required' })
+      }
+    }
 
     switch (action) {
       case 'create': {
