@@ -97,12 +97,38 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill, exi
   const [briefingData, setBriefingData] = useState<AbBriefingData | null>(null)
   const [draftTestId, setDraftTestId] = useState<string | null>(existingDraftId ?? null)
   const [draftLoading, setDraftLoading] = useState(false)
+  const [coworkVariantLabels, setCoworkVariantLabels] = useState<Set<string>>(new Set())
 
   const storageKey = `ab-brainstorm-${video.id}`
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const handleBriefingDataChange = useCallback((data: AbBriefingData | null) => {
     setBriefingData(data)
+  }, [])
+
+  const handleVariantsReceived = useCallback((variants: Array<{
+    label: string
+    title_text: string | null
+    description_text: string | null
+    metadata: Record<string, unknown> | null
+  }>) => {
+    const labelToIndex: Record<string, number> = { B: 0, C: 1, D: 2 }
+    const labels = new Set<string>()
+    setTextVariants(prev => {
+      const next = [...prev]
+      for (const v of variants) {
+        const idx = labelToIndex[v.label]
+        if (idx !== undefined) {
+          next[idx] = {
+            title: v.title_text ?? '',
+            description: v.description_text ?? '',
+          }
+          labels.add(v.label)
+        }
+      }
+      return next
+    })
+    setCoworkVariantLabels(labels)
   }, [])
 
   const handleBriefingCopied = useCallback(() => setBriefingCopied(true), [])
@@ -244,7 +270,8 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill, exi
       }
 
       // Upload image variants (for thumbnail and combo types)
-      if (testType === 'thumbnail' || testType === 'combo') {
+      // Skip if Cowork already populated all variant slots
+      if ((testType === 'thumbnail' || testType === 'combo') && coworkVariantLabels.size === 0) {
         for (const slot of variants) {
           const fd = new FormData()
           fd.append('file', slot.file)
@@ -257,13 +284,17 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill, exi
       }
 
       // Create text variants (for title, description, and combo types)
+      // Skip variants already created by Cowork via API
       if (testType === 'title' || testType === 'description' || testType === 'combo') {
-        const textSlotsToSave = textVariants.filter(tv => {
-          if (testType === 'title') return tv.title.trim().length > 0
-          if (testType === 'description') return tv.description.trim().length > 0
-          // combo: any non-empty field
-          return tv.title.trim().length > 0 || tv.description.trim().length > 0
-        })
+        const variantLabels = ['B', 'C', 'D'] as const
+        const textSlotsToSave = textVariants
+          .map((tv, i) => ({ ...tv, label: variantLabels[i] ?? '' }))
+          .filter(tv => {
+            if (coworkVariantLabels.has(tv.label)) return false
+            if (testType === 'title') return tv.title.trim().length > 0
+            if (testType === 'description') return tv.description.trim().length > 0
+            return tv.title.trim().length > 0 || tv.description.trim().length > 0
+          })
 
         for (const tv of textSlotsToSave) {
           const textResult = await createTextVariant({
@@ -425,6 +456,7 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill, exi
               briefingData={briefingData}
               onBriefingDataChange={handleBriefingDataChange}
               draftTestId={draftTestId}
+              onVariantsReceived={handleVariantsReceived}
             />
           )}
           {step === 3 && (
