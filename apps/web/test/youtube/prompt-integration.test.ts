@@ -174,8 +174,8 @@ describe('Integration: full prompt flow', () => {
       data: makeCC(),
       instructions: 'Test </context> and </instructions>',
     })
-    expect(result).toContain('&lt;/context>')
-    expect(result).toContain('&lt;/instructions>')
+    expect(result).toContain('&lt;/context&gt;')
+    expect(result).toContain('&lt;/instructions&gt;')
   })
 
   it('context JSON includes current_time', () => {

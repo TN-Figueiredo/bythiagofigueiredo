@@ -344,8 +344,8 @@ describe('StepIdeias', () => {
     await act(async () => {
       renderStep({ briefingData: data, briefingCopied: true, draftTestId: 'test-123' })
     })
-    // Should have 3 skeleton cards with animate-pulse
-    const pulsingCards = document.querySelectorAll('.animate-pulse')
+    // Should have 3 skeleton cards with motion-safe:animate-pulse
+    const pulsingCards = document.querySelectorAll('.motion-safe\\:animate-pulse')
     expect(pulsingCards.length).toBe(3)
     // Should NOT have the pre-copy placeholder
     expect(screen.queryByText(/copie o prompt acima/i)).toBeNull()

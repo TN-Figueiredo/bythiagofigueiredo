@@ -4,9 +4,10 @@ import { authenticateRead, authenticateWrite, pipelineError, pipelineSuccess, pa
 import { UUID_REGEX } from '@/lib/pipeline/auth'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { BatchVariantUpsertSchema, TestTypeSchema } from '@/lib/youtube/ab-schemas'
+import { VARIANT_LABELS } from '@/lib/youtube/ab-types'
 import type { TestType } from '@/lib/youtube/ab-types'
 
-const VALID_LABELS = new Set(['B', 'C', 'D'])
+const VALID_LABELS: Set<string> = new Set(VARIANT_LABELS)
 
 function validateTypeSpecificFields(
   testType: TestType,

@@ -5,6 +5,7 @@ import NextImage from 'next/image'
 import { Image, Type, FileText, Layers, Lightbulb, ChevronUp, ChevronDown } from 'lucide-react'
 import { StepIdeias } from './step-ideias'
 import { createAbTest, uploadVariant, startAbTest, pullPipelineThumbnails, createTextVariant, updateAbTestType } from '../actions'
+import { VARIANT_LABELS } from '@/lib/youtube/ab-types'
 import type { TestType } from '@/lib/youtube/ab-types'
 import type { AbBriefingData } from '@/lib/youtube/prompt-types'
 
@@ -112,7 +113,7 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill, exi
     description_text: string | null
     metadata: Record<string, unknown> | null
   }>) => {
-    const labelToIndex: Record<string, number> = { B: 0, C: 1, D: 2 }
+    const labelToIndex = Object.fromEntries(VARIANT_LABELS.map((l, i) => [l, i])) as Record<string, number>
     const labels = new Set(variants.map(v => v.label).filter(l => l in labelToIndex))
     setTextVariants(prev => {
       const next = [...prev]
@@ -285,9 +286,8 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill, exi
       // Create text variants (for title, description, and combo types)
       // Skip variants already created by Cowork via API
       if (testType === 'title' || testType === 'description' || testType === 'combo') {
-        const variantLabels = ['B', 'C', 'D'] as const
         const textSlotsToSave = textVariants
-          .map((tv, i) => ({ ...tv, label: variantLabels[i] ?? '' }))
+          .map((tv, i) => ({ ...tv, label: VARIANT_LABELS[i] ?? '' }))
           .filter(tv => {
             if (coworkVariantLabels.has(tv.label)) return false
             if (testType === 'title') return tv.title.trim().length > 0
@@ -647,8 +647,6 @@ function Step1Variants({ testType, video, slots, slotError, textVariants, onFile
 
 function BrainstormReferencePanel({ slotNotes }: { slotNotes: [string, string, string] }) {
   const [expanded, setExpanded] = useState(true)
-  const LABELS = ['B', 'C', 'D'] as const
-
   return (
     <div className="rounded-[var(--cms-radius)] border border-indigo-500/20 bg-indigo-500/5 p-3">
       <button
@@ -665,7 +663,7 @@ function BrainstormReferencePanel({ slotNotes }: { slotNotes: [string, string, s
       </button>
       {expanded && (
         <div className="mt-2 space-y-1">
-          {LABELS.map((label, i) => (
+          {VARIANT_LABELS.map((label, i) => (
             <div key={label} className="flex items-start gap-2">
               <span className="text-[10px] font-semibold text-indigo-400 mt-0.5 w-3 shrink-0">{label}:</span>
               <span className="text-[10px] text-cms-text-dim leading-relaxed">

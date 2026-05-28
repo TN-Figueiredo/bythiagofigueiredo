@@ -110,7 +110,7 @@ describe('buildAbBriefingPrompt', () => {
       data: makeAbBriefingData(),
       focus: 'Focar em <cores quentes> e expressões faciais',
     })
-    expect(prompt).toContain('Focar em &lt;cores quentes> e expressões faciais')
+    expect(prompt).toContain('Focar em &lt;cores quentes&gt; e expressões faciais')
     expect(prompt).not.toContain('<cores quentes>')
   })
 
@@ -189,7 +189,7 @@ describe('edge cases', () => {
       focus: '<script>alert("xss")</script>',
     })
     expect(prompt).not.toContain('<script>')
-    expect(prompt).toContain('&lt;script>alert("xss")&lt;/script>')
+    expect(prompt).toContain('&lt;script&gt;alert("xss")&lt;/script&gt;')
   })
 
   it('multiple test history entries with mixed null winner_label and ctr_lift_percent', () => {
@@ -388,7 +388,7 @@ describe('buildAbWritePrompt', () => {
       data: makeAbBriefingData(),
       focus: 'Focar em <cores quentes>',
     })
-    expect(prompt).toContain('&lt;cores quentes>')
+    expect(prompt).toContain('&lt;cores quentes&gt;')
     expect(prompt).not.toContain('<cores quentes>')
   })
 
@@ -560,7 +560,7 @@ describe('buildAbWritePrompt', () => {
       data: { ...makeAbBriefingData(), testId: 'test-123' },
       slotNotes: ['Use <bold> text', '', ''],
     })
-    expect(result).toContain('&lt;bold>')
+    expect(result).toContain('&lt;bold&gt;')
     expect(result).not.toContain('<bold>')
   })
 })

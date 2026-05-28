@@ -107,39 +107,39 @@ const BASE_CONTENT_OPTIONS = {
 describe('escapeXmlTags', () => {
   it('escapes </context> closing tag', () => {
     const result = escapeXmlTags('text </context> end')
-    expect(result).toContain('&lt;/context>')
+    expect(result).toContain('&lt;/context&gt;')
     expect(result).not.toContain('</context>')
   })
 
   it('escapes <context> opening tag', () => {
     const result = escapeXmlTags('ignore <context> here')
-    expect(result).toContain('&lt;context>')
+    expect(result).toContain('&lt;context&gt;')
     expect(result).not.toContain('<context>')
   })
 
   it('escapes </instructions> closing tag', () => {
     const result = escapeXmlTags('before </instructions> after')
-    expect(result).toContain('&lt;/instructions>')
+    expect(result).toContain('&lt;/instructions&gt;')
     expect(result).not.toContain('</instructions>')
   })
 
   it('escapes <instructions> opening tag', () => {
     const result = escapeXmlTags('before <instructions> after')
-    expect(result).toContain('&lt;instructions>')
+    expect(result).toContain('&lt;instructions&gt;')
     expect(result).not.toContain('<instructions>')
   })
 
   it('is case-insensitive — escapes <CONTEXT> and </INSTRUCTIONS>', () => {
     const result = escapeXmlTags('<CONTEXT> and </INSTRUCTIONS>')
-    expect(result).toContain('&lt;CONTEXT>')
-    expect(result).toContain('&lt;/INSTRUCTIONS>')
+    expect(result).toContain('&lt;CONTEXT&gt;')
+    expect(result).toContain('&lt;/INSTRUCTIONS&gt;')
     expect(result).not.toContain('<CONTEXT>')
     expect(result).not.toContain('</INSTRUCTIONS>')
   })
 
   it('escapes all < characters including unrelated tags like </persona>', () => {
     const result = escapeXmlTags('keep </persona> intact')
-    expect(result).toContain('&lt;/persona>')
+    expect(result).toContain('&lt;/persona&gt;')
     expect(result).not.toContain('</persona>')
   })
 
@@ -153,10 +153,10 @@ describe('escapeXmlTags', () => {
     expect(result).not.toContain('</context>')
     expect(result).not.toContain('<instructions>')
     expect(result).not.toContain('</instructions>')
-    expect(result).toContain('&lt;context>')
-    expect(result).toContain('&lt;/context>')
-    expect(result).toContain('&lt;instructions>')
-    expect(result).toContain('&lt;/instructions>')
+    expect(result).toContain('&lt;context&gt;')
+    expect(result).toContain('&lt;/context&gt;')
+    expect(result).toContain('&lt;instructions&gt;')
+    expect(result).toContain('&lt;/instructions&gt;')
   })
 })
 
@@ -239,8 +239,8 @@ describe('buildYoutubePrompt', () => {
     const result = buildYoutubePrompt({ ...BASE_CONTENT_OPTIONS, instructions })
     const instructionsBlock = result.match(/<instructions>([\s\S]*?)<\/instructions>/)
     expect(instructionsBlock).not.toBeNull()
-    // &lt; entity prevents the raw tag from appearing as a parseable XML tag
-    expect(instructionsBlock![1]).toContain('&lt;/context>')
+    // &lt; and &gt; entities prevent the raw tag from appearing as a parseable XML tag
+    expect(instructionsBlock![1]).toContain('&lt;/context&gt;')
     expect(instructionsBlock![1]).not.toContain('</context>')
   })
 
@@ -249,7 +249,7 @@ describe('buildYoutubePrompt', () => {
     const result = buildYoutubePrompt({ ...BASE_CONTENT_OPTIONS, instructions })
     const instructionsBlock = result.match(/<instructions>([\s\S]*?)<\/instructions>/)
     expect(instructionsBlock).not.toBeNull()
-    expect(instructionsBlock![1]).toContain('&lt;context>')
+    expect(instructionsBlock![1]).toContain('&lt;context&gt;')
     expect(instructionsBlock![1]).not.toContain('<context>')
   })
 
@@ -258,7 +258,7 @@ describe('buildYoutubePrompt', () => {
     const result = buildYoutubePrompt({ ...BASE_CONTENT_OPTIONS, instructions })
     const instructionsBlock = result.match(/<instructions>([\s\S]*?)<\/instructions>/)
     expect(instructionsBlock).not.toBeNull()
-    expect(instructionsBlock![1]).toContain('&lt;INSTRUCTIONS>')
+    expect(instructionsBlock![1]).toContain('&lt;INSTRUCTIONS&gt;')
     expect(instructionsBlock![1]).not.toContain('<INSTRUCTIONS>')
   })
 

@@ -1,3 +1,6 @@
+export const VARIANT_LABELS = ['B', 'C', 'D'] as const
+export type VariantLabel = (typeof VARIANT_LABELS)[number]
+
 export type AbTestStatus = 'draft' | 'active' | 'paused' | 'completed' | 'archived'
 export type CompletedReason = 'auto_resolve' | 'manual_winner' | 'manual_archive' | 'max_duration' | 'inconclusive'
 export type BackfillStatus = 'pending' | 'partial' | 'confirmed' | 'no_data' | 'error'

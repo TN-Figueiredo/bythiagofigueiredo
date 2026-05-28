@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { VARIANT_LABELS } from './ab-types'
 
 export const TestTypeSchema = z.enum(['thumbnail', 'title', 'description', 'combo'])
 
@@ -13,7 +14,7 @@ export const VariantMetadataSchema = z.object({
 })
 
 export const VariantPayloadSchema = z.object({
-  label: z.enum(['B', 'C', 'D']),
+  label: z.enum(VARIANT_LABELS),
   title_text: z.string().max(200).nullable().optional(),
   description_text: z.string().max(5000).nullable().optional(),
   metadata: VariantMetadataSchema.nullable().optional(),

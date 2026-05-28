@@ -5,7 +5,7 @@ import { put } from '@vercel/blob'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { AB_TEST_CONFIG_DEFAULTS, AB_SITE_SETTINGS_DEFAULTS } from '@/lib/youtube/ab-types'
+import { AB_TEST_CONFIG_DEFAULTS, AB_SITE_SETTINGS_DEFAULTS, VARIANT_LABELS } from '@/lib/youtube/ab-types'
 import type {
   AbTestCreateInput,
   AbTestWithVariants,
@@ -29,8 +29,6 @@ import { ensureTrackedLink } from '@/lib/links/auto-link'
 import { getChannelTier } from '@/lib/youtube/scoring'
 import { scoreForPrompt } from '@/lib/youtube/prompt-scoring'
 import type { AbBriefingData } from '@/lib/youtube/prompt-types'
-
-const VARIANT_LABELS = ['B', 'C', 'D'] as const
 
 async function requireEditAccess(): Promise<string> {
   const { siteId } = await getSiteContext()
@@ -1159,8 +1157,7 @@ export async function createTextVariant(
   if ((count ?? 0) >= 4) return { ok: false, error: 'Maximum 4 variants per test' }
 
   const sortOrder = (count ?? 0)
-  const VARIANT_LABELS_TEXT = ['B', 'C', 'D'] as const
-  const label = input.label ?? VARIANT_LABELS_TEXT[sortOrder - 1] ?? `v${sortOrder + 1}`
+  const label = input.label ?? VARIANT_LABELS[sortOrder - 1] ?? `v${sortOrder + 1}`
 
   const { data: variant, error } = await supabase
     .from('ab_test_variants')

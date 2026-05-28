@@ -61,7 +61,7 @@ vi.mock('@/lib/youtube/ab-schemas', async () => {
   }
 })
 
-vi.mock('@/lib/youtube/ab-types', () => ({}))
+vi.mock('@/lib/youtube/ab-types', () => ({ VARIANT_LABELS: ['B', 'C', 'D'] as const }))
 
 import { authenticateRead, authenticateWrite, parseBody } from '@/lib/pipeline/helpers'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'

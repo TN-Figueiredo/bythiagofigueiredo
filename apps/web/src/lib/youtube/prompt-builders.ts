@@ -65,7 +65,7 @@ Três faixas — use APENAS as categorias (strings), sem valores numéricos:
 Prefira sub-estimar confiança.`
 
 export function escapeXmlTags(text: string): string {
-  return text.replace(/</g, '&lt;')
+  return text.replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
 export function buildSharedBase(

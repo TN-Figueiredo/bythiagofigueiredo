@@ -1,5 +1,6 @@
 import { AB_BRIEFING_PROMPT_VERSION } from './prompt-types'
 import type { AbBriefingData } from './prompt-types'
+import { VARIANT_LABELS } from './ab-types'
 import type { TestType, VariantMetadata } from './ab-types'
 import type { PromptChannelInfo } from './prompt-types'
 import { buildSharedBase, escapeXmlTags } from './prompt-builders'
@@ -347,9 +348,8 @@ export function buildAbWritePrompt(options: {
 
   // Per-variant directions from hypothesis UI
   if (slotNotes?.some(n => n.trim())) {
-    const labels = ['B', 'C', 'D'] as const
     const directions = slotNotes
-      .map((note, i) => note.trim() ? `- Variação ${labels[i]}: ${escapeXmlTags(note.trim())}` : null)
+      .map((note, i) => note.trim() ? `- Variação ${VARIANT_LABELS[i]}: ${escapeXmlTags(note.trim())}` : null)
       .filter(Boolean)
       .join('\n')
     lines.push('')
