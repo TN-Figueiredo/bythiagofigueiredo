@@ -17,6 +17,11 @@ vi.mock('@/app/cms/(authed)/youtube/ab-lab/actions', () => ({
 
 vi.mock('@/lib/youtube/prompt-builders-ab', () => ({
   buildAbBriefingPrompt: vi.fn(() => 'MOCK_BRIEFING_PROMPT'),
+  buildAbWritePrompt: vi.fn(() => 'MOCK_WRITE_PROMPT with POST /api/pipeline/youtube/ab-tests/test-id/variants'),
+}))
+
+vi.mock('swr', () => ({
+  default: vi.fn(() => ({ data: undefined, error: undefined, isLoading: false })),
 }))
 
 vi.mock('@/lib/youtube/prompt-sanitize', () => ({
@@ -95,6 +100,7 @@ interface RenderProps {
   onSlotNoteChange?: (i: number, v: string) => void
   onBriefingCopied?: () => void
   onBriefingDataChange?: (d: AbBriefingData | null) => void
+  draftTestId?: string | null
 }
 
 function renderStep(props: RenderProps = {}) {
@@ -108,6 +114,7 @@ function renderStep(props: RenderProps = {}) {
     onSlotNoteChange = vi.fn(),
     onBriefingCopied = vi.fn(),
     onBriefingDataChange = vi.fn(),
+    draftTestId = null,
   } = props
 
   return render(
@@ -122,6 +129,7 @@ function renderStep(props: RenderProps = {}) {
       onBriefingCopied={onBriefingCopied}
       briefingData={briefingData}
       onBriefingDataChange={onBriefingDataChange}
+      draftTestId={draftTestId}
     />,
   )
 }
@@ -318,5 +326,63 @@ describe('StepIdeias', () => {
     })
 
     expect(vi.mocked(fetchAbBriefingData)).toHaveBeenCalledTimes(2)
+  })
+
+  // ---- 11. Write prompt when draftTestId is provided ----
+
+  it('renders write prompt when draftTestId is provided', async () => {
+    const data = makeAbBriefingData()
+    await act(async () => {
+      renderStep({ briefingData: data, draftTestId: 'test-123' })
+    })
+    expect(screen.getByTestId('prompt-preview').textContent).toContain('MOCK_WRITE_PROMPT')
+  })
+
+  // ---- 12. Briefing prompt when no draftTestId ----
+
+  it('renders briefing prompt when draftTestId is null', async () => {
+    const data = makeAbBriefingData()
+    await act(async () => {
+      renderStep({ briefingData: data, draftTestId: null })
+    })
+    expect(screen.getByTestId('prompt-preview').textContent).toContain('MOCK_BRIEFING_PROMPT')
+  })
+
+  // ---- 13. Waiting indicator when draftTestId set but no variants ----
+
+  it('shows waiting indicator when draftTestId is set and no external variants', async () => {
+    const data = makeAbBriefingData()
+    await act(async () => {
+      renderStep({ briefingData: data, draftTestId: 'test-123' })
+    })
+    expect(screen.getByText(/aguardando variantes do cowork/i)).toBeTruthy()
+  })
+
+  // ---- 14. Variant cards when SWR returns data ----
+
+  it('shows variant cards when SWR returns external variants', async () => {
+    const useSWR = (await import('swr')).default as unknown as ReturnType<typeof vi.fn>
+    useSWR.mockReturnValue({
+      data: [
+        { label: 'A', is_original: true, title_text: 'Original' },
+        { label: 'B', is_original: false, title_text: 'Title B', description_text: null, metadata: { rationale: 'test rationale' } },
+      ],
+      error: undefined,
+      isLoading: false,
+    })
+
+    const data = makeAbBriefingData()
+    await act(async () => {
+      renderStep({ briefingData: data, draftTestId: 'test-123' })
+    })
+
+    expect(screen.getByText('Variante B')).toBeTruthy()
+    expect(screen.getByText('Title B')).toBeTruthy()
+    expect(screen.getByText('test rationale')).toBeTruthy()
+    // Original variant should not appear in variant cards
+    expect(screen.queryByText('Variante A')).toBeNull()
+
+    // Reset mock for other tests
+    useSWR.mockReturnValue({ data: undefined, error: undefined, isLoading: false })
   })
 })

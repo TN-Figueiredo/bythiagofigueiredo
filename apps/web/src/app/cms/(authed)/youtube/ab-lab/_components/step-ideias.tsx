@@ -5,7 +5,8 @@ import { toast } from 'sonner'
 import NextImage from 'next/image'
 import { Lightbulb, Copy, Check, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react'
 import { fetchAbBriefingData } from '../actions'
-import { buildAbBriefingPrompt } from '@/lib/youtube/prompt-builders-ab'
+import useSWR from 'swr'
+import { buildAbBriefingPrompt, buildAbWritePrompt } from '@/lib/youtube/prompt-builders-ab'
 import { estimateChars } from '@/lib/youtube/prompt-sanitize'
 import { DataFreshnessBadge } from '../../videos/_components/data-freshness-badge'
 import { PromptPreview } from '@/components/prompt-preview'
@@ -82,7 +83,7 @@ export function StepIdeias({
   onBriefingCopied,
   briefingData,
   onBriefingDataChange,
-  draftTestId,  // eslint-disable-line @typescript-eslint/no-unused-vars
+  draftTestId,
 }: StepIdeiasProps) {
   const [loading, setLoading] = useState(briefingData === null)
   const [error, setError] = useState<string | null>(null)
@@ -91,6 +92,18 @@ export function StepIdeias({
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const fetchingRef = useRef(false)
+
+  const variantsFetcher = (url: string) => fetch(url).then(r => r.json()).then(d => d.data ?? [])
+
+  const { data: externalVariants } = useSWR(
+    draftTestId ? `/api/pipeline/youtube/ab-tests/${draftTestId}/variants` : null,
+    variantsFetcher,
+    { refreshInterval: 5_000, revalidateOnFocus: true, dedupingInterval: 3_000 },
+  )
+
+  const nonOriginalVariants = (externalVariants ?? []).filter(
+    (v: { is_original: boolean }) => !v.is_original,
+  )
 
   useEffect(() => {
     return () => { if (timerRef.current) clearTimeout(timerRef.current) }
@@ -126,7 +139,13 @@ export function StepIdeias({
   }, [loading])
 
   const prompt = briefingData
-    ? buildAbBriefingPrompt({ testType, data: briefingData, focus: focus || undefined })
+    ? draftTestId
+      ? buildAbWritePrompt({
+          testType,
+          data: { ...briefingData, testId: draftTestId },
+          focus: focus || undefined,
+        })
+      : buildAbBriefingPrompt({ testType, data: briefingData, focus: focus || undefined })
     : ''
 
   const charCount = estimateChars(prompt)
@@ -392,6 +411,49 @@ export function StepIdeias({
               </div>
             ))}
           </div>
+
+          {/* External variant cards */}
+          {nonOriginalVariants.length > 0 && (
+            <div className="space-y-2">
+              <h4 className="text-xs font-medium text-cms-text">
+                Variantes do Cowork
+                <span className="ml-1.5 text-[10px] text-green-400 font-normal">
+                  {nonOriginalVariants.length} recebida{nonOriginalVariants.length > 1 ? 's' : ''}
+                </span>
+              </h4>
+              {nonOriginalVariants.map((v: { label: string; title_text: string | null; description_text: string | null; metadata: Record<string, string> }) => (
+                <div
+                  key={v.label}
+                  className="rounded-[var(--cms-radius)] border border-green-500/20 bg-green-500/5 p-3 space-y-1"
+                  style={{ animation: 'fadeIn 300ms ease-out' }}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-green-400">Variante {v.label}</span>
+                  </div>
+                  {v.title_text && (
+                    <p className="text-xs text-cms-text">{v.title_text}</p>
+                  )}
+                  {v.description_text && (
+                    <p className="text-[10px] text-cms-text-dim line-clamp-2">{v.description_text}</p>
+                  )}
+                  {v.metadata?.rationale && (
+                    <p className="text-[10px] text-cms-text-muted italic">{v.metadata.rationale}</p>
+                  )}
+                  {v.metadata?.creative_direction && (
+                    <p className="text-[10px] text-indigo-300">{v.metadata.creative_direction}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Waiting indicator when no variants yet */}
+          {draftTestId && nonOriginalVariants.length === 0 && !loading && (
+            <div className="rounded-[var(--cms-radius)] border border-dashed border-cms-border bg-cms-surface p-3 text-center">
+              <p className="text-xs text-cms-text-dim">Aguardando variantes do Cowork...</p>
+              <p className="text-[10px] text-cms-text-muted mt-1">Copie o prompt e cole no Claude. As variantes aparecerão aqui automaticamente.</p>
+            </div>
+          )}
 
           {/* Tips */}
           <div className="space-y-1.5">

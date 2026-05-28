@@ -259,7 +259,6 @@ export const StoryEditor = forwardRef<StoryEditorHandle, StoryEditorProps>(funct
       {/* Left: slide strip */}
       <SlideStrip
         slides={slides}
-        slideIds={slideIds}
         activeIndex={activeIndex}
         onSelect={goToSlide}
         onReorder={handleReorder}
