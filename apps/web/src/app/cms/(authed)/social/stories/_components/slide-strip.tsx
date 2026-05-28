@@ -23,7 +23,6 @@ export function reorderSlides(slides: CardComposition[], from: number, to: numbe
 /** Duplicate slide at `index`, inserting the copy right after. Returns unchanged array if already at MAX_SLIDES. */
 export function duplicateSlide(slides: CardComposition[], index: number): CardComposition[] {
   if (slides.length >= MAX_SLIDES) return slides
-  if (index < 0 || index >= slides.length) return slides
   const result = [...slides]
   const copy: CardComposition = JSON.parse(JSON.stringify(result[index]))
   result.splice(index + 1, 0, copy)
@@ -33,7 +32,6 @@ export function duplicateSlide(slides: CardComposition[], index: number): CardCo
 /** Remove slide at `index`. Returns unchanged array if only one slide remains. */
 export function removeSlide(slides: CardComposition[], index: number): CardComposition[] {
   if (slides.length <= 1) return slides
-  if (index < 0 || index >= slides.length) return slides
   const result = [...slides]
   result.splice(index, 1)
   return result
@@ -57,10 +55,9 @@ export function addEmptySlide(slides: CardComposition[]): CardComposition[] {
 
 interface SlideStripProps {
   slides: CardComposition[]
-  slideIds: string[]
   activeIndex: number
   onSelect: (index: number) => void
-  onReorder: (slides: CardComposition[], fromIndex: number, toIndex: number) => void
+  onReorder: (slides: CardComposition[]) => void
   onDuplicate: (index: number) => void
   onRemove: (index: number) => void
   onAdd: () => void
@@ -68,7 +65,6 @@ interface SlideStripProps {
 
 export function SlideStrip({
   slides,
-  slideIds,
   activeIndex,
   onSelect,
   onReorder,
@@ -85,7 +81,7 @@ export function SlideStrip({
     e.preventDefault()
     const fromIndex = Number(e.dataTransfer.getData('text/plain'))
     if (!isNaN(fromIndex) && fromIndex !== toIndex) {
-      onReorder(reorderSlides(slides, fromIndex, toIndex), fromIndex, toIndex)
+      onReorder(reorderSlides(slides, fromIndex, toIndex))
     }
   }, [slides, onReorder])
 
@@ -102,16 +98,14 @@ export function SlideStrip({
     >
       {slides.map((slide, index) => (
         <SlideThumb
-          key={slideIds[index] ?? index}
+          key={index}
           slide={slide}
-          slides={slides}
           index={index}
           isActive={index === activeIndex}
           totalSlides={slides.length}
           onSelect={onSelect}
           onDuplicate={onDuplicate}
           onRemove={onRemove}
-          onReorder={onReorder}
           onDragStart={handleDragStart}
           onDrop={handleDrop}
           onDragOver={handleDragOver}
@@ -140,14 +134,12 @@ export function SlideStrip({
 
 interface SlideThumbProps {
   slide: CardComposition
-  slides: CardComposition[]
   index: number
   isActive: boolean
   totalSlides: number
   onSelect: (index: number) => void
   onDuplicate: (index: number) => void
   onRemove: (index: number) => void
-  onReorder: (slides: CardComposition[], fromIndex: number, toIndex: number) => void
   onDragStart: (e: React.DragEvent<HTMLDivElement>, index: number) => void
   onDrop: (e: React.DragEvent<HTMLDivElement>, index: number) => void
   onDragOver: (e: React.DragEvent<HTMLDivElement>) => void
@@ -155,32 +147,18 @@ interface SlideThumbProps {
 
 function SlideThumb({
   slide,
-  slides,
   index,
   isActive,
   totalSlides,
   onSelect,
   onDuplicate,
   onRemove,
-  onReorder,
   onDragStart,
   onDrop,
   onDragOver,
 }: SlideThumbProps) {
   const bg = slide.background
-
-  // Determine thumbnail image: first image element > background image > none
-  const firstImageEl = slide.elements.find((el): el is Extract<typeof el, { type: 'image' }> => el.type === 'image')
-  const thumbImageUrl = firstImageEl?.src ?? (bg.type === 'image' ? bg.url : undefined)
-
-  // Fallback background color for non-image slides
   const thumbBg = bg.type === 'solid' ? bg.color : bg.type === 'gradient' ? bg.stops?.[0]?.color ?? '#0a0a0a' : '#0a0a0a'
-
-  // Text preview for text-only slides (no image)
-  const firstTextEl = !thumbImageUrl
-    ? slide.elements.find((el): el is Extract<typeof el, { type: 'text' }> => el.type === 'text')
-    : undefined
-  const previewText = firstTextEl?.content
 
   return (
     <div
@@ -190,42 +168,20 @@ function SlideThumb({
       draggable
       tabIndex={0}
       aria-label={`Slide ${index + 1}${isActive ? ', selected' : ''}`}
-      aria-current={isActive || undefined}
+      aria-selected={isActive}
       onClick={() => onSelect(index)}
-      onKeyDown={e => {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(index) }
-        if (e.altKey && e.key === 'ArrowUp' && index > 0) { e.preventDefault(); onReorder(reorderSlides(slides, index, index - 1), index, index - 1) }
-        if (e.altKey && e.key === 'ArrowDown' && index < totalSlides - 1) { e.preventDefault(); onReorder(reorderSlides(slides, index, index + 1), index, index + 1) }
-      }}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(index) } }}
       onDragStart={e => onDragStart(e, index)}
       onDrop={e => onDrop(e, index)}
       onDragOver={onDragOver}
     >
       {/* Thumbnail preview */}
       <div
-        className="w-full h-full rounded overflow-hidden"
-        style={thumbImageUrl
-          ? { backgroundImage: `url(${thumbImageUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }
-          : { background: thumbBg }
-        }
+        className="w-full h-full rounded overflow-hidden flex items-center justify-center"
+        style={{ background: thumbBg }}
       >
-        {/* Text preview for text-only slides */}
-        {!thumbImageUrl && previewText && (
-          <div className="w-full h-full flex items-center justify-center p-1.5">
-            <span className="text-[8px] leading-tight text-neutral-400 text-center line-clamp-4 select-none break-words">
-              {previewText}
-            </span>
-          </div>
-        )}
+        <span className="text-[10px] text-neutral-400 font-medium select-none">{index + 1}</span>
       </div>
-
-      {/* Slide number badge */}
-      <span
-        className="absolute bottom-0.5 right-0.5 flex items-center justify-center rounded-full bg-black/70 text-white text-[9px] font-medium select-none pointer-events-none"
-        style={{ width: '18px', height: '18px' }}
-      >
-        {index + 1}
-      </span>
 
       {/* Action buttons — shown on hover/active */}
       <div className="absolute inset-x-0 bottom-0 flex justify-between px-1 pb-1 opacity-0 group-hover:opacity-100 transition-opacity">

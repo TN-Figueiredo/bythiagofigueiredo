@@ -18,7 +18,8 @@ function bracketDirAliasPlugin(): Plugin {
     enforce: 'pre',
     resolveId(source, importer) {
       if (!source.startsWith('@/')) return null
-      if (!importer || (!importer.includes('[') && !importer.includes('(authed)'))) return null
+      const needsHelp = source.includes('(') || source.includes('[') || (importer && (importer.includes('[') || importer.includes('(authed)')))
+      if (!needsHelp) return null
       const relative = source.slice(2) // strip `@/`
       for (const ext of ['', '.ts', '.tsx', '/index.ts', '/index.tsx']) {
         const candidate = path.join(srcRoot, relative + ext)
@@ -212,11 +213,11 @@ export default defineConfig({
       },
       {
         find: /^@\/app\/cms\/\(authed\)(.*)$/,
-        replacement: path.resolve(__dirname, './src/app/cms/(authed)$1'),
+        replacement: `${path.resolve(__dirname, './src/app/cms/(authed)')}$1`,
       },
       {
         find: /^@\/app\/admin\/\(authed\)(.*)$/,
-        replacement: path.resolve(__dirname, './src/app/admin/(authed)$1'),
+        replacement: `${path.resolve(__dirname, './src/app/admin/(authed)')}$1`,
       },
       { find: /^@\/(.*)$/, replacement: path.resolve(__dirname, './src/$1') },
     ],
