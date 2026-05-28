@@ -11,7 +11,7 @@ interface PromptPreviewProps {
 export function PromptPreview({ children, maxHeight = '14rem', className = '' }: PromptPreviewProps) {
   return (
     <pre
-      className={`overflow-auto rounded-md bg-[#0c1222] p-3 text-xs leading-relaxed text-[#a0aec0] ${className}`}
+      className={`overflow-auto rounded-md bg-[#0c1222] p-3 text-xs leading-relaxed text-[#a0aec0] whitespace-pre-wrap break-words ${className}`}
       style={{ maxHeight }}
     >
       {children}
