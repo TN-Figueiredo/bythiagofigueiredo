@@ -42,10 +42,11 @@ export function CmsNotesEditor({ videoId, initialNotes, version: initialVersion,
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between">
-        <label className="text-[10px] font-medium text-cms-text-muted">CMS Notes</label>
+        <label htmlFor={`cms-notes-${videoId}`} className="text-[10px] font-medium text-cms-text-muted">CMS Notes</label>
         <span role="status" aria-live="polite" className="text-[10px] text-cms-text-muted">{saving ? 'Salvando…' : ''}</span>
       </div>
       <textarea
+        id={`cms-notes-${videoId}`}
         value={notes}
         onChange={handleChange}
         rows={3}

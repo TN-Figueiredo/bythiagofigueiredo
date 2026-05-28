@@ -137,10 +137,10 @@ describe('escapeXmlTags', () => {
     expect(result).not.toContain('</INSTRUCTIONS>')
   })
 
-  it('does not touch unrelated tags like </persona>', () => {
-    const input = 'keep </persona> intact'
-    const result = escapeXmlTags(input)
-    expect(result).toBe(input)
+  it('escapes all < characters including unrelated tags like </persona>', () => {
+    const result = escapeXmlTags('keep </persona> intact')
+    expect(result).toContain('&lt;/persona>')
+    expect(result).not.toContain('</persona>')
   })
 
   it('returns empty string unchanged', () => {

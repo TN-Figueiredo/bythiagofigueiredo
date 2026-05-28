@@ -244,7 +244,7 @@ export async function fetchVideoOptimizerData(
     const siteId = await requireReadAccess()
     const supabase = getSupabaseServiceClient()
 
-    const { data: video } = await supabase
+    const { data: video, error: videoError } = await supabase
       .from('youtube_videos')
       .select('id, title, channel_id, view_count, avg_view_percentage, ctr, published_at')
       .eq('id', videoId)
@@ -252,6 +252,7 @@ export async function fetchVideoOptimizerData(
       .eq('is_hidden', false)
       .single()
 
+    if (videoError && videoError.code !== 'PGRST116') throw videoError
     if (!video) return { ok: false, error: 'Video not found' }
 
     const channelResult = await getChannelInfo(siteId, video.channel_id as string)
@@ -304,10 +305,10 @@ export async function logPromptCopy(
   charCount: number,
   snapshotAgeHours: number,
 ): Promise<ActionResult<void>> {
+  await requireReadAccess()
   const parsed = LogPromptCopySchema.safeParse({ preset, charCount, snapshotAgeHours })
   if (!parsed.success)
     return { ok: false, error: parsed.error.issues.map(i => i.message).join(', ') }
-  await requireReadAccess()
   return { ok: true, data: undefined }
 }
 

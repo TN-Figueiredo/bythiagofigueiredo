@@ -2,9 +2,9 @@
 
 import { useState, useRef, useMemo, useCallback, useEffect } from 'react'
 import { useFocusTrap } from '@/lib/hooks/use-focus-trap'
-import { buildYoutubePrompt } from '@/lib/youtube/prompt-builders'
+import { buildYoutubePrompt, buildVideoInfo } from '@/lib/youtube/prompt-builders'
 import { estimateChars } from '@/lib/youtube/prompt-sanitize'
-import { EXAMPLE_PROMPTS, STALENESS_THRESHOLDS, buildVideoInfo } from '@/lib/youtube/prompt-types'
+import { EXAMPLE_PROMPTS, STALENESS_THRESHOLDS } from '@/lib/youtube/prompt-types'
 import type { ContextPreset, ContentCalendarData, ChannelHealthData, VideoOptimizerData, PromptVideoInfo } from '@/lib/youtube/prompt-types'
 import { PromptPreview } from '@/components/prompt-preview'
 import { DataFreshnessBadge } from '../videos/_components/data-freshness-badge'
@@ -17,6 +17,8 @@ const PRESET_INFO: { id: ContextPreset; name: string; desc: string; charEstimate
   { id: 'channel-health', name: 'Channel Health', desc: 'Diagnóstico completo do canal', charEstimate: '~4.5k chars' },
   { id: 'video-optimizer', name: 'Video Optimizer', desc: 'Otimização por vídeo', charEstimate: '~3.2k chars' },
 ]
+
+const IS_MAC = typeof navigator !== 'undefined' && navigator.platform.includes('Mac')
 
 const PLACEHOLDER: Record<ContextPreset, string> = {
   'content-calendar': 'O que quer planejar? Ex: Qual nicho explorar no próximo vídeo?',
@@ -50,6 +52,14 @@ export function YouTubeCoworkPromptModal({ isOpen, onClose, videos = [], channel
   const [fetchError, setFetchError] = useState<string | null>(null)
 
   const abortRef = useRef<AbortController | null>(null)
+
+  useEffect(() => {
+    if (!isOpen) {
+      setCcData(null)
+      setChData(null)
+      setVoData(null)
+    }
+  }, [isOpen])
 
   useEffect(() => {
     if (!isOpen) return
@@ -143,7 +153,7 @@ export function YouTubeCoworkPromptModal({ isOpen, onClose, videos = [], channel
     return ''
   }, [instructions, preset, ccData, chData, voData, videoInfo])
 
-  const charCount = estimateChars(prompt)
+  const charCount = useMemo(() => estimateChars(prompt), [prompt])
   const snapshotAge = currentData?.snapshotAgeHours ?? 0
 
   const { copied, setCopied, copy } = usePromptCopy({ preset, charCount, snapshotAgeHours: snapshotAge })
@@ -202,8 +212,7 @@ export function YouTubeCoworkPromptModal({ isOpen, onClose, videos = [], channel
 
   if (!isOpen) return null
 
-  const isMac = typeof navigator !== 'undefined' && navigator.platform.includes('Mac')
-  const shortcutLabel = isMac ? '⌘⏎' : 'Ctrl+Enter'
+  const shortcutLabel = IS_MAC ? '⌘⏎' : 'Ctrl+Enter'
 
   const openInClaudeDisabled = charCount > 8000 || /pk_[a-zA-Z0-9]{20,}/.test(prompt)
 

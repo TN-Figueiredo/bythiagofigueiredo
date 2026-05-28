@@ -8,6 +8,7 @@ import type {
   PromptVideoInfo,
 } from './prompt-types'
 import { sanitizeForMarkdown, sanitizeThumbnailUrl } from './prompt-sanitize'
+import { getLifecycle } from './scoring'
 
 const LANGUAGE_DIRECTIVE =
   'LANGUAGE REQUIREMENT: All output MUST be in Brazilian Portuguese (PT-BR). No exceptions.\nJSON field names stay in English. All prose output in PT-BR.'
@@ -17,7 +18,8 @@ Você é um analista de YouTube especializado em otimização de canais pequenos
 Seu papel: responder à pergunta do usuário usando APENAS os dados abaixo.
 Comportamento: data-driven, baseado em evidências. Toda afirmação deve ser rastreável aos dados inline. Quando recomendar ações, explicite o dado que fundamenta a recomendação e o nível de confiança.
 Não tente fazer requisições HTTP.
-Cruze dados entre os blocos JSON quando relevante para a análise.`
+Cruze dados entre os blocos JSON quando relevante para a análise.
+Se um campo não estiver no JSON, trate como inexistente — não deduza, não estime, não invente seu valor.`
 
 const NANO_CALIBRATION = `## Calibração Nano (< 1.000 inscritos)
 - Threshold de padrão: 3+ vídeos (não 5+)
@@ -54,13 +56,8 @@ Três faixas — use APENAS as categorias (strings), sem valores numéricos:
 
 Prefira sub-estimar confiança.`
 
-const RE_CONTEXT = /<\/?context>/gi
-const RE_INSTRUCTIONS = /<\/?instructions>/gi
-
 export function escapeXmlTags(text: string): string {
-  return text
-    .replace(RE_CONTEXT, m => m.replace('<', '&lt;'))
-    .replace(RE_INSTRUCTIONS, m => m.replace('<', '&lt;'))
+  return text.replace(/</g, '&lt;')
 }
 
 export function buildSharedBase(channel: Pick<PromptChannelInfo, 'tier' | 'subscribers'>): string {
@@ -143,4 +140,19 @@ export function buildYoutubePrompt(options: BuildYoutubePromptOptions): string {
     `<context>\n\`\`\`json\n${contextJson}\n\`\`\`\n</context>`,
     `<instructions>\n${escaped}\n</instructions>`,
   ].join('\n\n')
+}
+
+export function buildVideoInfo(video: { id: string; youtubeVideoId: string; title: string; thumbnailUrl: string | null; duration: string; publishedAt: string; viewCount: number }): PromptVideoInfo {
+  const ageDays = Math.max(0, Math.floor((Date.now() - new Date(video.publishedAt).getTime()) / 86400000))
+  return {
+    id: video.id,
+    youtubeVideoId: video.youtubeVideoId,
+    title: video.title,
+    thumbnailUrl: video.thumbnailUrl,
+    duration: video.duration,
+    publishedAt: video.publishedAt,
+    ageDays,
+    lifecycleStage: getLifecycle(ageDays),
+    viewCount: video.viewCount,
+  }
 }

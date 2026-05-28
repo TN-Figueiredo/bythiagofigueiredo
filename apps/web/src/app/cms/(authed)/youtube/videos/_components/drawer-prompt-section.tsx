@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useCallback } from 'react'
 import { buildYoutubePrompt } from '@/lib/youtube/prompt-builders'
+import { estimateChars } from '@/lib/youtube/prompt-sanitize'
 import type { VideoOptimizerData, PromptVideoInfo } from '@/lib/youtube/prompt-types'
 import { usePromptCopy } from '../../_hooks/use-prompt-copy'
 
@@ -27,8 +28,9 @@ export function DrawerPromptSection({ data, video }: DrawerPromptSectionProps) {
 
   return (
     <div className="space-y-2 border-t border-cms-border pt-3">
-      <label className="text-[10px] font-medium text-cms-text-muted">Cowork Prompt</label>
+      <label htmlFor="drawer-prompt-input" className="text-[10px] font-medium text-cms-text-muted">Cowork Prompt</label>
       <textarea
+        id="drawer-prompt-input"
         value={instructions}
         onChange={e => { setInstructions(e.target.value); setCopied(false) }}
         rows={3}
@@ -47,6 +49,11 @@ export function DrawerPromptSection({ data, video }: DrawerPromptSectionProps) {
           {copied ? 'Copiado!' : 'Copiar Prompt'}
         </button>
       </div>
+      {prompt && (
+        <div className="text-[10px] text-cms-text-muted">
+          {estimateChars(prompt).toLocaleString('pt-BR')} caracteres
+        </div>
+      )}
     </div>
   )
 }

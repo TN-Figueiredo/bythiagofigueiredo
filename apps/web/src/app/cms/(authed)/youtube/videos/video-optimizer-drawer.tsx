@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import type { VideoRow } from './videos-connected'
 import type { VideoOptimizerData, PromptVideoInfo } from '@/lib/youtube/prompt-types'
-import { buildVideoInfo } from '@/lib/youtube/prompt-types'
+import { buildVideoInfo } from '@/lib/youtube/prompt-builders'
 import { fetchVideoOptimizerData, saveVideoNotes } from '../_actions/youtube-prompt-actions'
 import { DrawerHeader } from './_components/drawer-header'
 import { ThumbnailWithGrade } from './_components/thumbnail-with-grade'
@@ -11,6 +11,7 @@ import { VideoStatsCard } from './_components/video-stats-card'
 import { CmsNotesEditor } from './_components/cms-notes-editor'
 import { DrawerPromptSection } from './_components/drawer-prompt-section'
 import { DataFreshnessBadge } from './_components/data-freshness-badge'
+import { useFocusTrap } from '@/lib/hooks/use-focus-trap'
 
 interface VideoOptimizerDrawerProps {
   video: VideoRow | null
@@ -54,6 +55,8 @@ export function VideoOptimizerDrawer({ video, onClose }: VideoOptimizerDrawerPro
     [video]
   )
 
+  const handleTrapKeyDown = useFocusTrap(drawerRef, { autoFocus: false })
+
   if (!video || !videoInfo) return null
 
   return (
@@ -64,7 +67,7 @@ export function VideoOptimizerDrawer({ video, onClose }: VideoOptimizerDrawerPro
         role="dialog"
         aria-modal="true"
         aria-label="Video Optimizer"
-        onKeyDown={e => { if (e.key === 'Escape') onClose() }}
+        onKeyDown={e => { handleTrapKeyDown(e); if (e.key === 'Escape') onClose() }}
         tabIndex={-1}
         ref={drawerRef}
       >
