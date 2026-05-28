@@ -294,7 +294,7 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill, exi
       // Skip variants already created by Cowork via API
       if (testType === 'title' || testType === 'description' || testType === 'combo') {
         const textSlotsToSave = textVariants
-          .map((tv, i) => ({ ...tv, label: VARIANT_LABELS[i] ?? '' }))
+          .map((tv, i) => ({ ...tv, label: VARIANT_LABELS[i]! ?? '' }))
           .filter(tv => {
             if (coworkVariantLabels.has(tv.label)) return false
             if (testType === 'title') return tv.title.trim().length > 0
@@ -655,6 +655,7 @@ function BrainstormReferencePanel({ slotNotes }: { slotNotes: [string, string, s
     <div className="rounded-[var(--cms-radius)] border border-indigo-500/20 bg-indigo-500/5 p-3">
       <button
         onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
         className="flex items-center justify-between w-full text-left"
       >
         <span className="text-xs font-medium text-indigo-300 flex items-center gap-1.5">
@@ -736,7 +737,7 @@ function ThumbnailUploadSection({
               </p>
             )}
             <VariantSlot
-              label={String.fromCharCode(66 + i)}
+              label={VARIANT_LABELS[i]!}
               slot={slots[i] ?? null}
               onChange={file => onFileChange(i, file)}
             />
@@ -803,7 +804,7 @@ function TitleEditorSection({
         return (
           <div key={i} className="rounded-[var(--cms-radius)] border border-dashed border-cms-border bg-cms-surface p-3 space-y-1.5">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-cms-text">{String.fromCharCode(66 + i)}</span>
+              <span className="text-xs font-semibold text-cms-text">{VARIANT_LABELS[i]!}</span>
               <span className={`text-[10px] ${isOverLimit ? 'text-red-400 font-semibold' : 'text-cms-text-dim'}`}>
                 {charCount}/100
               </span>
@@ -866,7 +867,7 @@ function DescriptionEditorSection({
         return (
           <div key={i} className="rounded-[var(--cms-radius)] border border-dashed border-cms-border bg-cms-surface p-3 space-y-1.5">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-cms-text">{String.fromCharCode(66 + i)}</span>
+              <span className="text-xs font-semibold text-cms-text">{VARIANT_LABELS[i]!}</span>
             </div>
             {slotNotes?.[i]?.trim() && (
               <p className="text-[10px] text-indigo-300 flex items-start gap-1">
@@ -1081,7 +1082,7 @@ function Step3Review({ video, testType, slots, textVariants, config }: Step3Prop
     ? [
         { label: 'A — Original', src: video.thumbnailUrl, isOriginal: true },
         ...slots
-          .map((s, i) => ({ label: String.fromCharCode(66 + i), src: s?.previewUrl ?? null, isOriginal: false }))
+          .map((s, i) => ({ label: VARIANT_LABELS[i]!, src: s?.previewUrl ?? null, isOriginal: false }))
           .filter(s => s.src !== null),
       ]
     : []
@@ -1138,7 +1139,7 @@ function Step3Review({ video, testType, slots, textVariants, config }: Step3Prop
             </div>
             {textVariants.map((tv, i) => tv.title.trim() ? (
               <div key={i} className="flex items-center gap-2 px-3 py-1.5 rounded-[var(--cms-radius)] border border-cms-border">
-                <span className="text-[10px] font-semibold text-cms-text-muted shrink-0">{String.fromCharCode(66 + i)}</span>
+                <span className="text-[10px] font-semibold text-cms-text-muted shrink-0">{VARIANT_LABELS[i]!}</span>
                 <span className="text-xs text-cms-text truncate">{tv.title}</span>
               </div>
             ) : null)}
@@ -1157,7 +1158,7 @@ function Step3Review({ video, testType, slots, textVariants, config }: Step3Prop
             </div>
             {textVariants.map((tv, i) => tv.description.trim() ? (
               <div key={i} className="flex items-start gap-2 px-3 py-1.5 rounded-[var(--cms-radius)] border border-cms-border">
-                <span className="text-[10px] font-semibold text-cms-text-muted shrink-0 mt-0.5">{String.fromCharCode(66 + i)}</span>
+                <span className="text-[10px] font-semibold text-cms-text-muted shrink-0 mt-0.5">{VARIANT_LABELS[i]!}</span>
                 <span className="text-xs text-cms-text line-clamp-3">{tv.description}</span>
               </div>
             ) : null)}
