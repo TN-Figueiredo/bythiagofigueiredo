@@ -1359,6 +1359,7 @@ export async function fetchAbBriefingData(
       locale,
       testId,
       video: {
+        youtubeVideoId: video.youtube_video_id as string,
         title: video.title as string,
         thumbnailUrl: (video.thumbnail_url as string | null),
         ctr,

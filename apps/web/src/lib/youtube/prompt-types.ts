@@ -142,6 +142,7 @@ export interface AbBriefingData {
   locale: 'pt' | 'en'
   testId?: string
   video: {
+    youtubeVideoId?: string
     title: string
     thumbnailUrl: string | null
     ctr: number | null

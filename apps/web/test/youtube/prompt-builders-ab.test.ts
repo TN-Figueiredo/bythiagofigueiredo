@@ -8,6 +8,7 @@ function makeAbBriefingData(overrides?: Partial<AbBriefingData>): AbBriefingData
     locale: 'pt',
     testId: '00000000-0000-0000-0000-000000000000',
     video: {
+      youtubeVideoId: 'abc123',
       title: 'O Que Esperar Do MBK Center em Bangkok',
       thumbnailUrl: 'https://i.ytimg.com/vi/abc123/hqdefault.jpg',
       ctr: 4.2,
@@ -493,6 +494,33 @@ describe('buildAbWritePrompt', () => {
       data: makeAbBriefingData(),
     })
     expect(prompt).toContain('Rate limit: 100 req/min')
+  })
+
+  it('includes YouTube video URL when youtubeVideoId is present', () => {
+    const prompt = buildAbWritePrompt({
+      testType: 'thumbnail',
+      data: makeAbBriefingData({ video: { ...makeAbBriefingData().video, youtubeVideoId: 'dQw4w9WgXcQ' } }),
+    })
+    expect(prompt).toContain('https://youtube.com/watch?v=dQw4w9WgXcQ')
+  })
+
+  it('includes thumbnail URL when available', () => {
+    const prompt = buildAbWritePrompt({
+      testType: 'thumbnail',
+      data: makeAbBriefingData(),
+    })
+    expect(prompt).toContain('Thumbnail atual: https://i.ytimg.com/vi/abc123/hqdefault.jpg')
+  })
+
+  it('omits YouTube URL and thumbnail when not available', () => {
+    const prompt = buildAbWritePrompt({
+      testType: 'title',
+      data: makeAbBriefingData({
+        video: { title: 'Test', thumbnailUrl: null, ctr: 3.0, avgViewPercentage: 40, score: 70, grade: 'B' },
+      }),
+    })
+    expect(prompt).not.toContain('youtube.com/watch')
+    expect(prompt).not.toContain('Thumbnail atual')
   })
 })
 

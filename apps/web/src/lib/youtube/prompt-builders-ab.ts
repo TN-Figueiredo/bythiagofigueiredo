@@ -233,6 +233,7 @@ export function buildAbBriefingPrompt(options: {
     video: {
       title: sanitizeForMarkdown(data.video.title, 200),
       thumbnailUrl: data.video.thumbnailUrl,
+      ...(data.video.youtubeVideoId ? { youtubeUrl: `https://youtube.com/watch?v=${data.video.youtubeVideoId}` } : {}),
       ...(videoHasData
         ? {
             ctr: data.video.ctr,
@@ -304,6 +305,12 @@ export function buildAbWritePrompt(options: {
   // Context header
   lines.push(`A/B Test Brainstorm: ${testTypeLabel} — "${sanitizeForMarkdown(data.video.title, 200)}"`)
   lines.push(`Channel: ${data.channel.name} (${data.channel.subscribers} subs, ${data.channel.tier})`)
+  if (data.video.youtubeVideoId) {
+    lines.push(`Video: https://youtube.com/watch?v=${data.video.youtubeVideoId}`)
+  }
+  if (data.video.thumbnailUrl) {
+    lines.push(`Thumbnail atual: ${data.video.thumbnailUrl}`)
+  }
   lines.push(locale === 'pt' ? 'Idioma: Português (PT-BR)' : 'Language: English')
   lines.push('')
 
