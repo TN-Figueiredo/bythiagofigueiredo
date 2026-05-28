@@ -38,8 +38,8 @@ describe('buildAbBriefingPrompt', () => {
       data: makeAbBriefingData(),
     })
     expect(prompt).toContain('<instructions>')
-    expect(prompt).toContain('composição visual')
-    expect(prompt).toContain('3 variações')
+    expect(prompt).toContain('Composição visual')
+    expect(prompt).toContain('Sugira exatamente 3 variações (B, C, D).')
   })
 
   it('title template includes hook and power word instructions', () => {
@@ -47,8 +47,8 @@ describe('buildAbBriefingPrompt', () => {
       testType: 'title',
       data: makeAbBriefingData(),
     })
-    expect(prompt).toContain('hook emocional')
-    expect(prompt).toContain('power words')
+    expect(prompt).toContain('Hook emocional')
+    expect(prompt).toContain('Power words')
   })
 
   it('description template includes fold and CTA instructions', () => {
@@ -65,8 +65,8 @@ describe('buildAbBriefingPrompt', () => {
       testType: 'combo',
       data: makeAbBriefingData(),
     })
-    expect(prompt).toContain('sinergia')
-    expect(prompt).toContain('3 combos')
+    expect(prompt).toContain('thumbnail + título')
+    expect(prompt).toContain('Sugira exatamente 3 variações (B, C, D).')
   })
 
   it('includes cross-test history when available', () => {
@@ -337,7 +337,7 @@ describe('buildAbWritePrompt', () => {
       data: makeAbBriefingData({ locale: 'pt' }),
     })
     expect(prompt).toContain('Hook emocional')
-    expect(prompt).toContain('power words')
+    expect(prompt).toContain('Power words')
   })
 
   it('en locale produces English workflow steps', () => {

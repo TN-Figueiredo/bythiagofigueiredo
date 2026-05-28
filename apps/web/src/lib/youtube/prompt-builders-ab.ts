@@ -14,6 +14,8 @@ const TYPE_FIELD_DOCS: Record<Locale, Record<TestType, string>> = {
     thumbnail: `         "metadata": {
            "creative_direction": "<direção criativa>",
            "ai_image_prompt": "<prompt para geração de imagem AI>",
+           "visual_description": "<descrição visual detalhada>",
+           "thumbnail_tags": ["<tag1>", "<tag2>"],
            "rationale": "<justificativa da variante>"
          }`,
     combo: `         "title_text": "<título, obrigatório, máx 200 chars>",
@@ -21,6 +23,8 @@ const TYPE_FIELD_DOCS: Record<Locale, Record<TestType, string>> = {
          "metadata": {
            "creative_direction": "<direção criativa, opcional>",
            "ai_image_prompt": "<prompt AI, opcional>",
+           "visual_description": "<descrição visual detalhada, opcional>",
+           "thumbnail_tags": ["<tag1>", "<tag2>"],
            "rationale": "<justificativa do combo>"
          }`,
   },
@@ -30,6 +34,8 @@ const TYPE_FIELD_DOCS: Record<Locale, Record<TestType, string>> = {
     thumbnail: `         "metadata": {
            "creative_direction": "<creative direction>",
            "ai_image_prompt": "<prompt for AI image generation>",
+           "visual_description": "<detailed visual description>",
+           "thumbnail_tags": ["<tag1>", "<tag2>"],
            "rationale": "<rationale for the variant>"
          }`,
     combo: `         "title_text": "<title, required, max 200 chars>",
@@ -37,6 +43,8 @@ const TYPE_FIELD_DOCS: Record<Locale, Record<TestType, string>> = {
          "metadata": {
            "creative_direction": "<creative direction, optional>",
            "ai_image_prompt": "<AI image prompt, optional>",
+           "visual_description": "<detailed visual description, optional>",
+           "thumbnail_tags": ["<tag1>", "<tag2>"],
            "rationale": "<rationale for the combo>"
          }`,
   },
@@ -50,26 +58,26 @@ Para cada variação (B, C, D), descreva:
 - Paleta de cores e contraste
 - Texto overlay (se aplicável)
 - Expressão facial / elemento humano
-Foco: composição visual, paleta de cores, texto overlay, expressão facial. 3 variações.`,
+Sugira exatamente 3 variações (B, C, D).`,
     title: `Analise o título atual e sugira 3 variações para teste A/B.
 Para cada variação (B, C, D), descreva:
 - Hook emocional ou curiosidade
 - Power words e senso de urgência
 - Uso de números, brackets, ou padrões comprovados
 - Comprimento ideal: 50-60 caracteres
-Foco: hook emocional, power words, números/brackets, comprimento 50-60 chars. 3 variações.`,
+Sugira exatamente 3 variações (B, C, D).`,
     description: `Analise a descrição atual e sugira 3 variações para teste A/B.
 Para cada variação (B, C, D), descreva:
 - Posição e texto do CTA principal
 - Conteúdo acima do fold (3 primeiras linhas visíveis)
 - Uso de links rastreados com sintaxe {{link:nome}}
 - Hashtags estratégicas
-Foco: CTA posição, fold (3 primeiras linhas), links {{link:nome}}, hashtags. 3 variações.`,
+Sugira exatamente 3 variações (B, C, D).`,
     combo: `Analise o combo atual (thumbnail + título) e sugira 3 combos coerentes para teste A/B.
 Para cada combo (B, C, D), descreva:
 **Thumbnail:** Composição e enquadramento, paleta de cores, texto overlay
 **Título:** Hook emocional, power words, urgência, por que esse combo funciona junto
-Foco: sinergia thumb+título, complementaridade visual/textual. 3 combos coerentes.`,
+Sugira exatamente 3 variações (B, C, D).`,
   },
   en: {
     thumbnail: `Analyze the current thumbnail and suggest 3 A/B test variations.
@@ -78,31 +86,34 @@ For each variation (B, C, D), describe:
 - Color palette and contrast
 - Text overlay (if applicable)
 - Facial expression / human element
-Focus: visual composition, color palette, text overlay, facial expression. 3 variations.`,
+Suggest exactly 3 variations (B, C, D).`,
     title: `Analyze the current title and suggest 3 A/B test variations.
 For each variation (B, C, D), describe:
 - Emotional hook or curiosity gap
 - Power words and sense of urgency
 - Use of numbers, brackets, or proven patterns
 - Ideal length: 50-60 characters
-Focus: emotional hook, power words, numbers/brackets, length 50-60 chars. 3 variations.`,
+Suggest exactly 3 variations (B, C, D).`,
     description: `Analyze the current description and suggest 3 A/B test variations.
 For each variation (B, C, D), describe:
 - Position and text of the main CTA
 - Content above the fold (first 3 visible lines)
 - Use of tracked links with {{link:name}} syntax
 - Strategic hashtags
-Focus: CTA position, fold (first 3 lines), links {{link:name}}, hashtags. 3 variations.`,
+Suggest exactly 3 variations (B, C, D).`,
     combo: `Analyze the current combo (thumbnail + title) and suggest 3 coherent combos for A/B testing.
 For each combo (B, C, D), describe:
 **Thumbnail:** Composition, palette, text overlay
 **Title:** Emotional hook, power words, urgency, why this combo works together
-Focus: thumb+title synergy, visual/textual complementarity. 3 coherent combos.`,
+Suggest exactly 3 variations (B, C, D).`,
   },
 }
 
 const WORKFLOW_STEPS: Record<Locale, (testId: string, baseUrl: string, fieldDocs: string) => string> = {
   pt: (testId, baseUrl, fieldDocs) => `Workflow para salvar variantes:
+0. GET ${baseUrl}/api/pipeline/youtube/ab-tests/${testId}/variants
+   → Verifique variantes existentes. Pule labels que já existem ou confirme substituição.
+
 1. Discuta as ideias com o usuário até atingir consenso em 1-3 variantes (B, C, D)
 
 2. POST ${baseUrl}/api/pipeline/youtube/ab-tests/${testId}/variants
@@ -119,9 +130,20 @@ ${fieldDocs}
 
    On 400: erro de validação — verificar label (apenas B/C/D), campos obrigatórios por tipo
    On 409: teste não está em status "draft" — variantes só podem ser adicionadas a rascunhos
+   On 404: teste não encontrado ou acesso negado
+   On 500: erro interno — tente novamente
 
-3. Confirme quais variantes foram criadas e seus IDs`,
+3. Confirme quais variantes foram criadas e seus IDs
+
+Outras operações:
+- DELETE ${baseUrl}/api/pipeline/youtube/ab-tests/${testId}/variants?label=<B|C|D>
+  Remove uma variante. Apenas rascunhos. Não é possível deletar a original (A).
+  On 404: variante não encontrada
+  On 409: teste não está em status "draft"`,
   en: (testId, baseUrl, fieldDocs) => `Workflow to save variants:
+0. GET ${baseUrl}/api/pipeline/youtube/ab-tests/${testId}/variants
+   → Check existing variants. Skip labels that already exist or confirm replacement.
+
 1. Discuss ideas with the user until consensus on 1-3 variants (B, C, D)
 
 2. POST ${baseUrl}/api/pipeline/youtube/ab-tests/${testId}/variants
@@ -138,8 +160,16 @@ ${fieldDocs}
 
    On 400: validation error — check label (B/C/D only), required fields per type
    On 409: test is not in "draft" status — variants can only be added to drafts
+   On 404: test not found or access denied
+   On 500: internal error — retry
 
-3. Confirm which variants were created and their IDs`,
+3. Confirm which variants were created and their IDs
+
+Other operations:
+- DELETE ${baseUrl}/api/pipeline/youtube/ab-tests/${testId}/variants?label=<B|C|D>
+  Remove a variant. Draft-only. Cannot delete the original (A).
+  On 404: variant not found
+  On 409: test is not in "draft" status`,
 }
 
 const REVIEW_INSTRUCTIONS: Record<Locale, string> = {
@@ -257,6 +287,11 @@ export function buildAbWritePrompt(options: {
   baseUrl?: string
 }): string {
   const { testType, data, focus, baseUrl = '' } = options
+
+  if (!data.testId) {
+    throw new Error('buildAbWritePrompt requires a testId')
+  }
+
   const locale: Locale = data.locale ?? 'pt'
   const videoHasData = data.video.ctr !== null || data.video.score !== null
 
