@@ -135,6 +135,26 @@ export interface PromptVideoInfo {
   titlePattern?: string
 }
 
+export const AB_BRIEFING_PROMPT_VERSION = 'yt-ab-v1' as const
+
+export interface AbBriefingData {
+  channel: Pick<PromptChannelInfo, 'name' | 'subscribers' | 'tier'>
+  video: {
+    title: string
+    thumbnailUrl: string | null
+    ctr: number | null
+    avgViewPercentage: number | null
+    score: number | null
+    grade: string | null
+  }
+  testHistory: Array<{
+    test_type: string
+    winner_label: string | null
+    ctr_lift_percent: number | null
+  }>
+  snapshotAgeHours: number
+}
+
 export type BuildYoutubePromptOptions =
   | { preset: 'content-calendar'; data: ContentCalendarData; instructions: string }
   | { preset: 'channel-health'; data: ChannelHealthData; instructions: string }
