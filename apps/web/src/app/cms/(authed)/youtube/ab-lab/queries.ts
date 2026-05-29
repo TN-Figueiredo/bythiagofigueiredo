@@ -770,6 +770,20 @@ export function toDetailView(results: AbTestResults): AbTestDetailView {
     } satisfies AbTestPlayoffView
   }
 
+  // Guard: completed test with no real winner → treat as inconclusive
+  if (!test.winner_variant_id || results.variants.every(v => v.total_impressions === 0)) {
+    return {
+      ...base,
+      status: 'completed' as const,
+      outcome: 'playoff' as const,
+      playoffTestId: test.playoff_test_id ?? '',
+      startsIn: '',
+      finalists: [],
+      confidenceReached: results.confidence * 100,
+      reason: test.status_note ?? 'Teste concluído sem dados suficientes para declarar um vencedor',
+    } satisfies AbTestPlayoffView
+  }
+
   // Winner view (default for completed)
   const winnerVariant = test.winner_variant_id
     ? results.variants.find(v => v.variant_id === test.winner_variant_id)
