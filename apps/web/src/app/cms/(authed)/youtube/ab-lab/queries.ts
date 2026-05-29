@@ -14,6 +14,9 @@ import type {
   AbTestDraft,
   DashboardStats,
   DisplayLabel,
+  LearningsData,
+  LearningsTag,
+  SuggestedVideo,
 } from '@/lib/youtube/ab-types'
 import { calculateBayesianConfidence } from '@/lib/youtube/ab-statistics'
 import { toDisplayLabel, variantColor } from './_components/ab-constants'
@@ -479,4 +482,124 @@ export function computeDashboardStats(
       : 0
 
   return { activeTests, avgConfidence, winRate, avgLift }
+}
+
+// ---------------------------------------------------------------------------
+// getLearnings
+// ---------------------------------------------------------------------------
+
+export async function getLearnings(siteId: string): Promise<LearningsData | null> {
+  const supabase = getSupabaseServiceClient()
+
+  const { data: tests } = await supabase
+    .from('ab_tests')
+    .select('id, result_metadata, winner_variant_id, test_type')
+    .eq('site_id', siteId)
+    .eq('status', 'completed')
+    .not('winner_variant_id', 'is', null)
+
+  if (!tests || tests.length < 3) return null
+
+  const winnerIds = tests.map(t => t.winner_variant_id as string)
+  const { data: winners } = await supabase
+    .from('ab_test_variants')
+    .select('id, metadata')
+    .in('id', winnerIds)
+
+  const tagMap = new Map<string, { wins: number; totalLift: number; kind: 'thumb' | 'title' | 'desc' }>()
+
+  for (const test of tests) {
+    const winner = (winners ?? []).find(w => (w.id as string) === (test.winner_variant_id as string))
+    if (!winner) continue
+    const meta = winner.metadata as Record<string, unknown> | null
+    const tags = (meta?.thumbnail_tags as string[]) ?? []
+    const lift = ((test.result_metadata as Record<string, unknown> | null)?.ctr_lift_percent as number) ?? 0
+    const testType = (test.test_type as string) ?? 'thumbnail'
+    const kind = testType === 'title' ? 'title' as const : testType === 'description' ? 'desc' as const : 'thumb' as const
+
+    for (const tag of tags) {
+      const existing = tagMap.get(tag) ?? { wins: 0, totalLift: 0, kind }
+      existing.wins += 1
+      existing.totalLift += lift
+      tagMap.set(tag, existing)
+    }
+  }
+
+  const tags: LearningsTag[] = Array.from(tagMap.entries())
+    .map(([tag, data]) => ({
+      tag,
+      wins: data.wins,
+      avgLift: data.wins > 0 ? data.totalLift / data.wins : 0,
+      kind: data.kind,
+      negative: data.wins > 0 && (data.totalLift / data.wins) < 0 ? true : undefined,
+    }))
+    .sort((a, b) => b.wins - a.wins)
+
+  const topTag = tags[0]
+  const insightText = topTag
+    ? `"${topTag.tag}" appears in ${topTag.wins} winners with avg ${topTag.avgLift >= 0 ? '+' : ''}${topTag.avgLift.toFixed(1)}% lift`
+    : 'Not enough data for insights'
+
+  return { tags, totalTests: tests.length, insightText }
+}
+
+// ---------------------------------------------------------------------------
+// getSuggestedVideos
+// ---------------------------------------------------------------------------
+
+export async function getSuggestedVideos(siteId: string): Promise<SuggestedVideo[]> {
+  const supabase = getSupabaseServiceClient()
+
+  const { data: videos } = await supabase
+    .from('youtube_videos')
+    .select('id, title, thumbnail_url, ctr, youtube_channels!inner(handle)')
+    .eq('site_id', siteId)
+    .not('ctr', 'is', null)
+    .order('published_at', { ascending: false })
+    .limit(200)
+
+  if (!videos || videos.length === 0) return []
+
+  const ctrs = videos.map(v => (v.ctr as number) ?? 0).filter(c => c > 0)
+  if (ctrs.length === 0) return []
+  const sorted = [...ctrs].sort((a, b) => a - b)
+  const median = sorted[Math.floor(sorted.length / 2)]!
+
+  // Get active test video IDs
+  const { data: activeTests } = await supabase
+    .from('ab_tests')
+    .select('youtube_video_id')
+    .eq('site_id', siteId)
+    .in('status', ['draft', 'active', 'paused'])
+
+  const activeVideoIds = new Set((activeTests ?? []).map(t => t.youtube_video_id as string))
+
+  const suggestions: SuggestedVideo[] = videos
+    .filter(v => {
+      const ctr = (v.ctr as number) ?? 0
+      return ctr < median && ctr > 0 && !activeVideoIds.has(v.id as string)
+    })
+    .map(v => {
+      const ctr = (v.ctr as number) ?? 0
+      const ratio = ctr / median
+      const grade = ratio > 0.9 ? 'A' : ratio > 0.7 ? 'B' : ratio > 0.5 ? 'C' : ratio > 0.3 ? 'D' : 'F'
+      const belowPercent = Math.round((1 - ratio) * 100)
+      return {
+        id: v.id as string,
+        title: v.title as string,
+        thumbnailUrl: (v.thumbnail_url as string | null) ?? null,
+        ctr: Math.round(ctr * 100) / 100,
+        channelMedianCtr: Math.round(median * 100) / 100,
+        grade: grade as SuggestedVideo['grade'],
+        reason: `CTR ${belowPercent}% below channel median`,
+        suggest: 'thumbnail' as const,
+      }
+    })
+    .sort((a, b) => {
+      const gradeOrder = { F: 0, D: 1, C: 2, B: 3, A: 4 }
+      return gradeOrder[a.grade] - gradeOrder[b.grade]
+    })
+    .slice(0, 5)
+
+  return suggestions
 }
