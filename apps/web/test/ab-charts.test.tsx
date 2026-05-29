@@ -9,6 +9,8 @@ vi.mock('lucide-react', () => {
 
 import { ConfidenceChart } from '@/app/cms/(authed)/youtube/ab-lab/_components/confidence-chart'
 import { MultiLine } from '@/app/cms/(authed)/youtube/ab-lab/_components/multi-line'
+import { ABBATimeline } from '@/app/cms/(authed)/youtube/ab-lab/_components/abba-timeline'
+import { Gauge } from '@/app/cms/(authed)/youtube/ab-lab/_components/gauge'
 import type { DisplayLabel } from '@/lib/youtube/ab-types'
 
 afterEach(() => cleanup())
@@ -134,5 +136,98 @@ describe('MultiLine', () => {
     )
     const text = container.querySelector('text')
     expect(text?.textContent).toContain('No data')
+  })
+})
+
+describe('ABBATimeline', () => {
+  it('renders correct number of blocks', () => {
+    const { container } = render(
+      <ABBATimeline seq={['A', 'B', 'B', 'A']} total={4} done={2} colors={{ A: '#8A8F98', B: '#E8823C' }} />,
+    )
+    const blocks = container.querySelectorAll('[data-block]')
+    expect(blocks.length).toBe(4)
+  })
+
+  it('marks done blocks with full color', () => {
+    const { container } = render(
+      <ABBATimeline seq={['A', 'B']} total={2} done={1} colors={{ A: '#8A8F98', B: '#E8823C' }} />,
+    )
+    const blocks = container.querySelectorAll('[data-block]')
+    expect(blocks[0]?.getAttribute('style')).toContain('#8A8F98')
+  })
+
+  it('marks pending blocks with low opacity', () => {
+    const { container } = render(
+      <ABBATimeline seq={['A', 'B']} total={2} done={0} colors={{ A: '#8A8F98', B: '#E8823C' }} />,
+    )
+    const blocks = container.querySelectorAll('[data-block]')
+    expect(blocks[0]?.getAttribute('style')).toContain('opacity')
+  })
+
+  it('shows footer with cycle count', () => {
+    const { getByText } = render(
+      <ABBATimeline seq={['A', 'B', 'B', 'A']} total={4} done={2} colors={{ A: '#8A8F98', B: '#E8823C' }} />,
+    )
+    expect(getByText(/2\/4/)).toBeTruthy()
+  })
+
+  it('highlights next variant block with dashed border', () => {
+    const { container } = render(
+      <ABBATimeline
+        seq={['A', 'B', 'B', 'A']} total={4} done={2}
+        colors={{ A: '#8A8F98', B: '#E8823C' }}
+        nextVariant="B"
+      />,
+    )
+    const dashed = container.querySelector('[data-next]')
+    expect(dashed).toBeTruthy()
+  })
+
+  it('enables horizontal scroll for 50+ blocks', () => {
+    const seq = Array.from({ length: 60 }, (_, i) => (i % 2 === 0 ? 'A' : 'B') as DisplayLabel)
+    const { container } = render(
+      <ABBATimeline seq={seq} total={60} done={30} colors={{ A: '#8A8F98', B: '#E8823C' }} />,
+    )
+    const wrapper = container.querySelector('[data-scroll]')
+    expect(wrapper).toBeTruthy()
+  })
+})
+
+describe('Gauge', () => {
+  it('renders with role="meter"', () => {
+    const { container } = render(<Gauge value={75} />)
+    const meter = container.querySelector('[role="meter"]')
+    expect(meter).toBeTruthy()
+    expect(meter?.getAttribute('aria-valuenow')).toBe('75')
+  })
+
+  it('sets aria-valuemin and aria-valuemax', () => {
+    const { container } = render(<Gauge value={50} />)
+    const meter = container.querySelector('[role="meter"]')
+    expect(meter?.getAttribute('aria-valuemin')).toBe('0')
+    expect(meter?.getAttribute('aria-valuemax')).toBe('100')
+  })
+
+  it('clamps value to 0-100', () => {
+    const { container } = render(<Gauge value={150} />)
+    const meter = container.querySelector('[role="meter"]')
+    expect(meter?.getAttribute('aria-valuenow')).toBe('100')
+  })
+
+  it('treats NaN as 0', () => {
+    const { container } = render(<Gauge value={NaN} />)
+    const meter = container.querySelector('[role="meter"]')
+    expect(meter?.getAttribute('aria-valuenow')).toBe('0')
+  })
+
+  it('turns green when value >= target', () => {
+    const { container } = render(<Gauge value={96} target={95} />)
+    const arc = container.querySelector('[data-arc]')
+    expect(arc?.getAttribute('stroke')).toBe('var(--cms-green)')
+  })
+
+  it('renders value text', () => {
+    const { getByText } = render(<Gauge value={88} />)
+    expect(getByText('88%')).toBeTruthy()
   })
 })
