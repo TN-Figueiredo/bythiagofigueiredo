@@ -30,13 +30,17 @@ export {
 } from './posts'
 export type { FeedPostWithDeliveries, CalendarEvent } from './posts'
 
-// Content helpers (get content metadata, create from CMS content, OG scraping, duplicate detection)
+// Content helpers (get content metadata, create from CMS content, OG scraping, duplicate detection, AI captions)
 export {
   getContentForSocialPost,
   createFromContentAction,
   scrapeOgTags,
   checkDuplicatesAction,
+  generateAICaption,
+  translateCaption,
+  getBestTimes,
 } from './content'
+export type { AICaptionResult } from './content'
 
 // Template management
 export {

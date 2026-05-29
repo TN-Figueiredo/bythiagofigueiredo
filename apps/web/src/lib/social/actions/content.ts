@@ -10,7 +10,9 @@ import {
   getDuplicateWarnings,
   type DuplicateWarnings,
 } from '@/lib/social/duplicate-detection'
+import type { DestId } from '../destinations'
 import {
+  type ActionResult,
   SENTRY_TAG,
   zodError,
   requireEditAccess,
@@ -272,5 +274,115 @@ export async function checkDuplicatesAction(
   } catch (err) {
     Sentry.captureException(err, { tags: { ...SENTRY_TAG, action: 'checkDuplicatesAction' } })
     return { ok: false, error: err instanceof Error ? err.message : 'unknown' }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// AI caption generation, translation & best-times
+// ---------------------------------------------------------------------------
+
+export interface AICaptionResult {
+  variations: string[]
+  hashtags: string[]
+  tone: string
+  bestTime: string | null
+}
+
+export async function generateAICaption(
+  destId: DestId,
+  lang: 'pt' | 'en',
+  source?: { title: string; excerpt: string | null; url?: string },
+): Promise<ActionResult<AICaptionResult>> {
+  try {
+    await requireEditAccess()
+
+    const pipelineKey = process.env.PIPELINE_COWORK_KEY
+    if (!pipelineKey) return { ok: false, error: 'Pipeline key not configured' }
+
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+    const response = await fetch(`${baseUrl}/api/pipeline/social/generate-caption`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-pipeline-key': pipelineKey,
+      },
+      body: JSON.stringify({ destId, lang, source }),
+    })
+
+    if (!response.ok) {
+      return { ok: false, error: `Pipeline returned ${response.status}` }
+    }
+
+    const data = await response.json() as AICaptionResult
+    return { ok: true, data }
+  } catch (err) {
+    Sentry.captureException(err, { tags: { ...SENTRY_TAG, action: 'generateAICaption' } })
+    return { ok: false, error: 'Failed to generate AI caption' }
+  }
+}
+
+export async function translateCaption(
+  text: string,
+  from: 'pt' | 'en',
+  to: 'pt' | 'en',
+): Promise<ActionResult<string>> {
+  try {
+    await requireEditAccess()
+
+    const pipelineKey = process.env.PIPELINE_COWORK_KEY
+    if (!pipelineKey) return { ok: false, error: 'Pipeline key not configured' }
+
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+    const response = await fetch(`${baseUrl}/api/pipeline/social/translate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-pipeline-key': pipelineKey,
+      },
+      body: JSON.stringify({ text, from, to }),
+    })
+
+    if (!response.ok) {
+      return { ok: false, error: `Pipeline returned ${response.status}` }
+    }
+
+    const data = await response.json() as { translated: string }
+    return { ok: true, data: data.translated }
+  } catch (err) {
+    Sentry.captureException(err, { tags: { ...SENTRY_TAG, action: 'translateCaption' } })
+    return { ok: false, error: 'Failed to translate caption' }
+  }
+}
+
+export async function getBestTimes(
+  connectionIds: string[],
+): Promise<ActionResult<Record<string, string[]>>> {
+  try {
+    const { siteId } = await requireEditAccess()
+    const supabase = getSupabaseServiceClient()
+
+    const { data: site } = await supabase
+      .from('sites')
+      .select('social_defaults')
+      .eq('id', siteId)
+      .single()
+
+    const defaults = (site?.social_defaults ?? {}) as Record<string, unknown>
+    const bestTimes = (defaults.best_times ?? {}) as Record<string, string[]>
+
+    const { data: connections } = await supabase
+      .from('social_connections')
+      .select('id, provider')
+      .in('id', connectionIds)
+
+    const result: Record<string, string[]> = {}
+    for (const conn of (connections ?? []) as Array<{ id: string; provider: string }>) {
+      result[conn.provider] = bestTimes[conn.provider] ?? ['09:00', '12:00', '18:00']
+    }
+
+    return { ok: true, data: result }
+  } catch (err) {
+    Sentry.captureException(err, { tags: { ...SENTRY_TAG, action: 'getBestTimes' } })
+    return { ok: false, error: 'Failed to get best times' }
   }
 }
