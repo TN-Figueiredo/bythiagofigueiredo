@@ -13,16 +13,19 @@ export interface ActiveTestCardProps {
 
 export function ActiveTestCard({ test, onOpen }: ActiveTestCardProps) {
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') onOpen(test.id)
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      onOpen(test.id)
+    }
   }
 
   return (
     <article
-      role="article"
+      aria-label={test.name}
       tabIndex={0}
       onClick={() => onOpen(test.id)}
       onKeyDown={handleKeyDown}
-      className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-bg p-4 cursor-pointer hover:border-cms-accent/40 transition-colors animate-ab-fade-up"
+      className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-bg p-4 cursor-pointer hover:border-cms-accent/40 transition-colors animate-ab-fade-up focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
     >
       {/* Header */}
       <div className="flex items-center gap-2 flex-wrap mb-2">
@@ -76,7 +79,7 @@ export function ActiveTestCard({ test, onOpen }: ActiveTestCardProps) {
         <div className="flex items-center gap-1.5">
           <VChip label={test.leader} size={18} />
           <span className="text-2xs text-cms-green font-medium">
-            +{formatPercent(test.lift)}
+            {test.lift > 0 ? '+' : ''}{formatPercent(test.lift)}
           </span>
         </div>
 

@@ -364,9 +364,10 @@ export function toCardView(test: AbTestWithVariants): AbTestCardView {
   // Lift: use result_metadata if available
   const lift = test.result_metadata?.ctr_lift_percent ?? 0
 
-  // dayOf: days since started_at
+  // dayOf: days since started_at (use completed_at for finished tests)
+  const endTime = test.completed_at ? new Date(test.completed_at).getTime() : Date.now()
   const dayOf = test.started_at
-    ? Math.floor((Date.now() - new Date(test.started_at).getTime()) / 86400000)
+    ? Math.floor((endTime - new Date(test.started_at).getTime()) / 86400000)
     : 0
 
   const confidence = (test.confidence_at_completion ?? 0) * 100

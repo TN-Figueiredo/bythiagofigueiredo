@@ -84,7 +84,7 @@ export function LearningsPanel({ learnings }: LearningsPanelProps) {
         <button
           type="button"
           onClick={() => setExpanded(true)}
-          className="mt-2 text-2xs text-cms-accent hover:underline"
+          className="mt-2 text-2xs text-cms-accent hover:underline focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
         >
           Show {remaining} more
         </button>

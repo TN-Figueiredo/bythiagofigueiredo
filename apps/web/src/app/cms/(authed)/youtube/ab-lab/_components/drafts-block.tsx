@@ -20,7 +20,7 @@ export function DraftsBlock({ draft, onContinue }: DraftsBlockProps) {
         type="button"
         aria-expanded={open}
         onClick={() => setOpen(v => !v)}
-        className="flex items-center justify-between w-full px-4 py-3 text-left"
+        className="flex items-center justify-between w-full px-4 py-3 text-left focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
       >
         <span className="text-xs font-semibold uppercase tracking-wider text-cms-text-dim">
           Draft in progress
@@ -59,7 +59,7 @@ export function DraftsBlock({ draft, onContinue }: DraftsBlockProps) {
             <button
               type="button"
               onClick={() => onContinue(draft.id)}
-              className="mt-2 px-3 py-1 text-2xs font-medium rounded bg-cms-accent text-white hover:bg-cms-accent/90 transition-colors"
+              className="mt-2 px-3 py-1 text-2xs font-medium rounded bg-cms-accent text-white hover:bg-cms-accent/90 transition-colors focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
             >
               Continue setup
             </button>

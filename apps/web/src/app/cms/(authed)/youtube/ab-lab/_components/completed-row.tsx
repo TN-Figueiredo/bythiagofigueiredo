@@ -11,7 +11,7 @@ export interface CompletedRowProps {
 }
 
 export function CompletedRow({ test, onOpen }: CompletedRowProps) {
-  const isInconclusive = test.lift === 0 && test.confidence < 90
+  const isInconclusive = Math.abs(test.lift) < 0.1 && test.confidence < 90
 
   return (
     <Link
@@ -20,7 +20,7 @@ export function CompletedRow({ test, onOpen }: CompletedRowProps) {
         e.preventDefault()
         onOpen(test.id)
       }}
-      className="flex items-center gap-3 px-4 py-3 border-b border-cms-border last:border-0 hover:bg-cms-surface-hover transition-colors group"
+      className="flex items-center gap-3 px-4 py-3 border-b border-cms-border last:border-0 hover:bg-cms-surface-hover transition-colors group focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
     >
       {/* Left: thumbnail */}
       <div className="w-[78px] h-[44px] rounded overflow-hidden bg-cms-surface-hover shrink-0">

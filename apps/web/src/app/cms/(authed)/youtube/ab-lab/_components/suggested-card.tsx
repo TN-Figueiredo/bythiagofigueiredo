@@ -60,7 +60,7 @@ export function SuggestedCard({ video, onCreate }: SuggestedCardProps) {
         <button
           type="button"
           onClick={() => onCreate(video.id, video.suggest)}
-          className="w-full px-3 py-1.5 text-2xs font-medium rounded bg-cms-accent text-white hover:bg-cms-accent/90 transition-colors"
+          className="w-full px-3 py-1.5 text-2xs font-medium rounded bg-cms-accent text-white hover:bg-cms-accent/90 transition-colors focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
         >
           Test {video.suggest}
         </button>

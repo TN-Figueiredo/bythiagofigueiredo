@@ -31,7 +31,7 @@ function Hero({ onCreate }: { onCreate: EmptyStateProps['onCreate'] }) {
         <button
           type="button"
           onClick={() => onCreate('', 'thumbnail')}
-          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded bg-cms-accent text-white hover:bg-cms-accent/90 transition-colors"
+          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded bg-cms-accent text-white hover:bg-cms-accent/90 transition-colors focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
         >
           <Plus size={14} aria-hidden="true" />
           Start Your First Test

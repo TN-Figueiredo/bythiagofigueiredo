@@ -57,7 +57,8 @@ export function AbLabDashboard({
   }
 
   async function handleSaveSettings(changes: Partial<AbTestSiteSettings>) {
-    await updateAbSiteSettings(changes)
+    const result = await updateAbSiteSettings(changes)
+    if (!result.ok) throw new Error(result.error ?? 'Failed to save settings')
   }
 
   const showKpiStrip = completed.length > 0
@@ -78,7 +79,7 @@ export function AbLabDashboard({
             type="button"
             onClick={() => setShowSettings(true)}
             aria-label="Settings"
-            className="flex items-center justify-center w-8 h-8 rounded-[var(--cms-radius)] border border-cms-border text-cms-text-muted hover:bg-cms-surface-hover hover:text-cms-text transition-colors"
+            className="flex items-center justify-center w-8 h-8 rounded-[var(--cms-radius)] border border-cms-border text-cms-text-muted hover:bg-cms-surface-hover hover:text-cms-text transition-colors focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
               <circle cx="12" cy="12" r="3" />
