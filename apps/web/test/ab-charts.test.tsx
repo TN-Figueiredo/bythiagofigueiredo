@@ -11,7 +11,9 @@ import { ConfidenceChart } from '@/app/cms/(authed)/youtube/ab-lab/_components/c
 import { MultiLine } from '@/app/cms/(authed)/youtube/ab-lab/_components/multi-line'
 import { ABBATimeline } from '@/app/cms/(authed)/youtube/ab-lab/_components/abba-timeline'
 import { Gauge } from '@/app/cms/(authed)/youtube/ab-lab/_components/gauge'
-import type { DisplayLabel } from '@/lib/youtube/ab-types'
+import { CredibleInterval } from '@/app/cms/(authed)/youtube/ab-lab/_components/credible-interval'
+import { RankBars } from '@/app/cms/(authed)/youtube/ab-lab/_components/rank-bars'
+import type { DisplayLabel, StatsVariant } from '@/lib/youtube/ab-types'
 
 afterEach(() => cleanup())
 
@@ -229,5 +231,83 @@ describe('Gauge', () => {
   it('renders value text', () => {
     const { getByText } = render(<Gauge value={88} />)
     expect(getByText('88%')).toBeTruthy()
+  })
+})
+
+describe('CredibleInterval', () => {
+  const variants: StatsVariant[] = [
+    { label: 'A', color: '#8A8F98', ctr: 0.05, impressions: 10000 },
+    { label: 'B', color: '#E8823C', ctr: 0.07, impressions: 10000 },
+  ]
+
+  it('renders one row per variant', () => {
+    const { container } = render(<CredibleInterval variants={variants} />)
+    const rows = container.querySelectorAll('[data-ci-row]')
+    expect(rows.length).toBe(2)
+  })
+
+  it('skips variants with 0 impressions', () => {
+    const withZero = [...variants, { label: 'C' as DisplayLabel, color: '#3FA9C0', ctr: 0.04, impressions: 0 }]
+    const { container } = render(<CredibleInterval variants={withZero} />)
+    const rows = container.querySelectorAll('[data-ci-row]')
+    expect(rows.length).toBe(2)
+  })
+
+  it('highlights leader with ring on VChip', () => {
+    const { container } = render(<CredibleInterval variants={variants} leader="B" />)
+    const ring = container.querySelector('[data-leader-ring]')
+    expect(ring).toBeTruthy()
+  })
+
+  it('renders single variant without error', () => {
+    const { container } = render(
+      <CredibleInterval variants={[variants[0]!]} />,
+    )
+    const rows = container.querySelectorAll('[data-ci-row]')
+    expect(rows.length).toBe(1)
+  })
+
+  it('renders mean dot for each row', () => {
+    const { container } = render(<CredibleInterval variants={variants} />)
+    const dots = container.querySelectorAll('[data-mean-dot]')
+    expect(dots.length).toBe(2)
+  })
+})
+
+describe('RankBars', () => {
+  const variants = [
+    { label: 'A' as DisplayLabel, color: '#8A8F98', pBest: 0.15, pTop2: 0.45 },
+    { label: 'B' as DisplayLabel, color: '#E8823C', pBest: 0.85, pTop2: 0.95 },
+  ]
+
+  it('renders bars sorted descending by pBest', () => {
+    const { container } = render(<RankBars variants={variants} />)
+    const labels = container.querySelectorAll('[data-rank-label]')
+    expect(labels[0]?.textContent).toBe('B')
+    expect(labels[1]?.textContent).toBe('A')
+  })
+
+  it('uses pTop2 when metric is pTop2', () => {
+    const { container } = render(<RankBars variants={variants} metric="pTop2" />)
+    const bars = container.querySelectorAll('[data-rank-bar]')
+    expect(bars.length).toBe(2)
+  })
+
+  it('gives 0% bars a minimum 2px width', () => {
+    const zeroVariants = [
+      { label: 'A' as DisplayLabel, color: '#8A8F98', pBest: 0, pTop2: 0 },
+    ]
+    const { container } = render(<RankBars variants={zeroVariants} />)
+    const bar = container.querySelector('[data-rank-bar]')
+    expect(bar?.getAttribute('style')).toContain('2px')
+  })
+
+  it('clamps values over 100 to 100%', () => {
+    const over = [
+      { label: 'A' as DisplayLabel, color: '#8A8F98', pBest: 1.5, pTop2: 0.5 },
+    ]
+    const { container } = render(<RankBars variants={over} />)
+    const bar = container.querySelector('[data-rank-bar]')
+    expect(bar).toBeTruthy()
   })
 })
