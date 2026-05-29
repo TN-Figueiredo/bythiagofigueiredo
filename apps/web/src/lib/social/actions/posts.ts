@@ -751,3 +751,202 @@ export async function editPublishedPost(
     throw err
   }
 }
+
+/* ------------------------------------------------------------------ */
+/*  Task 1.6 — listFeedPostsWithDeliveries                           */
+/* ------------------------------------------------------------------ */
+
+export interface FeedPostWithDeliveries {
+  post: SocialPostWithPipeline
+  deliveries: Array<{
+    id: string
+    provider: Provider
+    status: string
+    platform_post_id: string | null
+    format: string | null
+  }>
+}
+
+const feedFiltersSchema = z.object({
+  status: z.enum(['all', 'published', 'scheduled', 'failed']).default('all'),
+  limit: z.number().min(1).max(100).default(50),
+  offset: z.number().min(0).default(0),
+})
+
+export async function listFeedPostsWithDeliveries(
+  siteId: string,
+  filters?: { status?: string; limit?: number; offset?: number },
+): Promise<ActionResult<FeedPostWithDeliveries[]>> {
+  try {
+    const { siteId: authedSiteId } = await requireEditAccess()
+    if (authedSiteId !== siteId) return { ok: false, error: 'forbidden' }
+
+    const parsed = feedFiltersSchema.safeParse(filters ?? {})
+    if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
+    const { status, limit, offset } = parsed.data
+
+    const supabase = getSupabaseServiceClient()
+    let query = supabase
+      .from('social_posts')
+      .select('*, social_deliveries(*)')
+      .eq('site_id', siteId)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1)
+
+    if (status === 'published') query = query.eq('status', 'completed')
+    else if (status === 'scheduled') query = query.eq('status', 'scheduled')
+    else if (status === 'failed') query = query.eq('status', 'failed')
+
+    const { data, error } = await query
+
+    if (error) {
+      Sentry.captureException(error, { tags: { ...SENTRY_TAG, action: 'listFeedPostsWithDeliveries' } })
+      return { ok: false, error: error.message }
+    }
+
+    const results: FeedPostWithDeliveries[] = (data ?? []).map((row: Record<string, unknown>) => ({
+      post: toSocialPost(row),
+      deliveries: ((row.social_deliveries ?? []) as Array<Record<string, unknown>>).map(d => ({
+        id: String(d.id),
+        provider: d.provider as Provider,
+        status: String(d.status),
+        platform_post_id: (d.platform_post_id as string) ?? null,
+        format: (d.format as string) ?? null,
+      })),
+    }))
+
+    return { ok: true, data: results }
+  } catch (err) {
+    Sentry.captureException(err, { tags: { ...SENTRY_TAG, action: 'listFeedPostsWithDeliveries' } })
+    return { ok: false, error: 'Failed to list feed posts' }
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Task 1.7 — listCalendarEvents                                     */
+/* ------------------------------------------------------------------ */
+
+export interface CalendarEvent {
+  postId: string
+  title: string
+  provider: Provider
+  destId: string | null
+  status: string
+  scheduledAt: string
+  tint: string
+}
+
+export async function listCalendarEvents(
+  siteId: string,
+  from: string,
+  to: string,
+): Promise<ActionResult<CalendarEvent[]>> {
+  try {
+    const { siteId: authedSiteId } = await requireEditAccess()
+    if (authedSiteId !== siteId) return { ok: false, error: 'forbidden' }
+
+    const supabase = getSupabaseServiceClient()
+    const { data, error } = await supabase
+      .from('social_posts')
+      .select('id, content, status, scheduled_at, published_at, social_deliveries(provider, status)')
+      .eq('site_id', siteId)
+      .or(`scheduled_at.gte.${from},published_at.gte.${from}`)
+      .or(`scheduled_at.lte.${to},published_at.lte.${to}`)
+      .in('status', ['scheduled', 'completed', 'failed', 'publishing'])
+      .order('scheduled_at', { ascending: true })
+
+    if (error) {
+      Sentry.captureException(error, { tags: { ...SENTRY_TAG, action: 'listCalendarEvents' } })
+      return { ok: false, error: error.message }
+    }
+
+    const { DESTINATIONS, DEST_IDS } = await import('../destinations')
+
+    const events: CalendarEvent[] = []
+    for (const row of (data ?? []) as Array<Record<string, unknown>>) {
+      const content = (row.content ?? {}) as Record<string, unknown>
+      const deliveries = (row.social_deliveries ?? []) as Array<Record<string, unknown>>
+      const dateStr = (row.scheduled_at ?? row.published_at ?? '') as string
+
+      for (const del of deliveries) {
+        const provider = del.provider as Provider
+        const dest = DEST_IDS.find(id => DESTINATIONS[id].provider === provider)
+        events.push({
+          postId: String(row.id),
+          title: String(content.title ?? content.description ?? '(sem titulo)'),
+          provider,
+          destId: dest ?? null,
+          status: String(row.status),
+          scheduledAt: dateStr,
+          tint: dest ? DESTINATIONS[dest].tint : '#888',
+        })
+      }
+    }
+
+    return { ok: true, data: events }
+  } catch (err) {
+    Sentry.captureException(err, { tags: { ...SENTRY_TAG, action: 'listCalendarEvents' } })
+    return { ok: false, error: 'Failed to list calendar events' }
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Task 1.8 — reorderQueue                                           */
+/* ------------------------------------------------------------------ */
+
+const reorderQueueSchema = z.object({
+  postId: z.string().uuid(),
+  newPosition: z.number().int().min(0),
+})
+
+export async function reorderQueue(
+  postId: string,
+  newPosition: number,
+): Promise<ActionResult> {
+  const parsed = reorderQueueSchema.safeParse({ postId, newPosition })
+  if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
+
+  try {
+    const { siteId } = await requireEditAccess()
+    const supabase = getSupabaseServiceClient()
+
+    const { data: post, error: postErr } = await supabase
+      .from('social_posts')
+      .select('id, site_id, queue_position')
+      .eq('id', postId)
+      .single()
+
+    if (postErr || !post) return { ok: false, error: 'Post not found' }
+    if (post.site_id !== siteId) return { ok: false, error: 'forbidden' }
+
+    const oldPosition = post.queue_position as number | null
+    if (oldPosition === newPosition) return { ok: true, data: undefined }
+
+    const { data: queued, error: queueErr } = await supabase
+      .from('social_posts')
+      .select('id, queue_position')
+      .eq('site_id', siteId)
+      .in('status', ['scheduled', 'queued'])
+      .not('queue_position', 'is', null)
+      .order('queue_position', { ascending: true })
+
+    if (queueErr) return { ok: false, error: queueErr.message }
+
+    const items = (queued ?? []) as Array<{ id: string; queue_position: number }>
+    const filtered = items.filter(i => i.id !== postId)
+    filtered.splice(newPosition, 0, { id: postId, queue_position: newPosition })
+
+    for (let i = 0; i < filtered.length; i++) {
+      await supabase
+        .from('social_posts')
+        .update({ queue_position: i })
+        .eq('id', filtered[i].id)
+    }
+
+    revalidateSocialPaths()
+    return { ok: true, data: undefined }
+  } catch (err) {
+    Sentry.captureException(err, { tags: { ...SENTRY_TAG, action: 'reorderQueue' } })
+    return { ok: false, error: 'Failed to reorder queue' }
+  }
+}

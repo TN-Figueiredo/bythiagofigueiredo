@@ -13,7 +13,7 @@ export {
 } from './connections'
 export type { ConnectionHealth } from './connections'
 
-// Post management (create, update, cancel, delete, retry, list, get, edit published, batch reorder)
+// Post management (create, update, cancel, delete, retry, list, get, edit published, batch reorder, feed, calendar, queue)
 export {
   createSocialPost,
   updateSocialPost,
@@ -24,7 +24,11 @@ export {
   listSocialPosts,
   editPublishedPost,
   reorderQueuePosts,
+  listFeedPostsWithDeliveries,
+  listCalendarEvents,
+  reorderQueue,
 } from './posts'
+export type { FeedPostWithDeliveries, CalendarEvent } from './posts'
 
 // Content helpers (get content metadata, create from CMS content, OG scraping, duplicate detection)
 export {
