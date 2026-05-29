@@ -11,10 +11,13 @@ function makeVariant(id: string, impressions: number, clicks: number): VariantSt
     variant_id: id,
     label: id,
     blob_url: null,
+    title_text: null,
+    description_text: null,
+    metadata: {},
     is_original: id === 'A',
     total_impressions: impressions,
     total_clicks: clicks,
-    avg_ctr: clicks / impressions,
+    avg_ctr: impressions > 0 ? clicks / impressions : 0,
     cycles_completed: 7,
   }
 }
