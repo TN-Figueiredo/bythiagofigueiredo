@@ -262,3 +262,75 @@ export interface FullChartVariant extends StatsVariant, RankedVariant {
   linkCtr?: number
   retention?: number
 }
+
+/* --- Dashboard view types (Phase 3) --- */
+
+export interface DashboardStats {
+  activeTests: number
+  avgConfidence: number
+  winRate: number
+  avgLift: number
+}
+
+export interface AbTestCardView {
+  id: string
+  name: string
+  type: TestType
+  status: AbTestStatus
+  dayOf: number
+  confidence: number
+  lift: number
+  leader: DisplayLabel
+  leaderColor: string
+  leaderThumbUrl: string | null
+  variants: Array<{ label: DisplayLabel; color: string; thumbUrl: string | null }>
+  hasPlayoff: boolean
+  roundNumber: number
+  createdAt: string
+}
+
+export interface AbTestDraft {
+  id: string
+  name: string
+  type: TestType
+  step: number
+  thumbUrl: string | null
+  createdAt: string
+  createdAgo: string
+}
+
+export interface SuggestedVideo {
+  id: string
+  title: string
+  thumbnailUrl: string | null
+  ctr: number
+  channelMedianCtr: number
+  grade: 'A' | 'B' | 'C' | 'D' | 'F'
+  reason: string
+  suggest: TestType
+}
+
+export interface LearningsTag {
+  tag: string
+  wins: number
+  avgLift: number
+  kind: 'thumb' | 'title' | 'desc'
+  negative?: boolean
+}
+
+export interface LearningsData {
+  tags: LearningsTag[]
+  totalTests: number
+  insightText: string
+}
+
+export interface EligibleVideo {
+  id: string
+  title: string
+  thumbnailUrl: string | null
+  durationSeconds: number
+  channelHandle: string
+  hasActiveTest: boolean
+  previousLift: number | null
+  sourcePipelineId: string | null
+}
