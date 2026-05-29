@@ -8,7 +8,9 @@ import { updateVideoMetadata } from '@/lib/youtube/ab-metadata'
 import { resolveTemplates } from '@/lib/youtube/ab-templates'
 import { buildNotification } from '@/lib/youtube/notification-service'
 import { getIsoWeek } from '@/lib/youtube/analytics-sync'
-import type { AbTestVariantRow, AbTestCycleRow, VariantStats, AbTestConfig } from '@/lib/youtube/ab-types'
+import { checkPlayoffEligibility, selectPlayoffVariants } from '@/lib/youtube/ab-playoff'
+import { startAbTestInternal } from '@/lib/youtube/ab-start'
+import type { AbTestVariantRow, AbTestCycleRow, VariantStats, AbTestConfig, BackfillStatus } from '@/lib/youtube/ab-types'
 
 export const maxDuration = 120
 
@@ -35,6 +37,31 @@ export async function GET(req: NextRequest) {
 
   let evaluated = 0
   let resolved = 0
+
+  // Phase 1: Auto-start Round 2 drafts past cooldown
+  let playoffsStarted = 0
+  {
+    const { data: pendingPlayoffs } = await supabase
+      .from('ab_tests')
+      .select('id, site_id, round_number, parent_test_id, playoff_start_after')
+      .eq('status', 'draft')
+      .eq('round_number', 2)
+      .not('parent_test_id', 'is', null)
+      .not('playoff_start_after', 'is', null)
+      .lte('playoff_start_after', new Date().toISOString())
+
+    for (const playoff of pendingPlayoffs ?? []) {
+      try {
+        const result = await startAbTestInternal(playoff.id as string, playoff.site_id as string)
+        if (result.ok) playoffsStarted++
+      } catch (err) {
+        Sentry.captureException(err, {
+          tags: { cron: 'ab-evaluate', phase: 'playoff-start' },
+          extra: { testId: playoff.id },
+        })
+      }
+    }
+  }
 
   for (const test of tests) {
     try {
@@ -250,5 +277,118 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  return Response.json({ status: 'ok', evaluated, resolved })
+  // Phase 3: Detect inconclusive Round 1 tests eligible for playoff
+  let playoffsCreated = 0
+  {
+    const { data: candidates } = await supabase
+      .from('ab_tests')
+      .select(`
+        *,
+        variants:ab_test_variants!test_id(*),
+        cycles:ab_test_cycles(*)
+      `)
+      .eq('status', 'completed')
+      .eq('completed_reason', 'inconclusive')
+      .in('test_type', ['thumbnail', 'combo'])
+      .eq('round_number', 1)
+      .is('parent_test_id', null)
+      .is('playoff_test_id', null)
+
+    for (const candidate of candidates ?? []) {
+      try {
+        const variants = (candidate.variants as AbTestVariantRow[]).sort(
+          (a, b) => a.sort_order - b.sort_order,
+        )
+        const allCycles = (candidate.cycles as AbTestCycleRow[])
+        const terminalStatuses: BackfillStatus[] = ['confirmed', 'no_data', 'error']
+        const allBackfilled = allCycles.every(c =>
+          terminalStatuses.includes(c.backfill_status),
+        )
+
+        const confirmedCycles = allCycles.filter(c => c.backfill_status === 'confirmed')
+        const variantStats: VariantStats[] = variants.map(v => {
+          const vCycles = confirmedCycles.filter(c => c.variant_id === v.id)
+          const totalImpressions = vCycles.reduce((s, c) => s + (c.impressions ?? 0), 0)
+          const totalClicks = vCycles.reduce((s, c) => s + (c.clicks ?? 0), 0)
+          return {
+            variant_id: v.id,
+            label: v.label,
+            blob_url: v.blob_url,
+            title_text: v.title_text ?? null,
+            description_text: v.description_text ?? null,
+            metadata: v.metadata ?? {},
+            is_original: v.is_original,
+            total_impressions: totalImpressions,
+            total_clicks: totalClicks,
+            avg_ctr: totalImpressions > 0 ? totalClicks / totalImpressions : 0,
+            cycles_completed: vCycles.length,
+          }
+        })
+
+        const eligibility = checkPlayoffEligibility(
+          {
+            completed_reason: candidate.completed_reason,
+            test_type: candidate.test_type,
+            round_number: candidate.round_number ?? 1,
+            parent_test_id: candidate.parent_test_id ?? null,
+            playoff_test_id: candidate.playoff_test_id ?? null,
+            started_at: candidate.started_at,
+          },
+          variantStats,
+          allBackfilled,
+        )
+
+        if (!eligibility.eligible) continue
+
+        const selection = selectPlayoffVariants(variantStats)
+        if (!selection) continue
+
+        const { error: rpcError } = await supabase.rpc('create_playoff_test', {
+          p_parent_test_id: candidate.id,
+          p_variant_ids: selection.variantIds,
+          p_cooldown_hours: 4,
+        })
+
+        if (rpcError) {
+          Sentry.captureException(new Error(rpcError.message), {
+            tags: { cron: 'ab-evaluate', phase: 'playoff-create' },
+            extra: { testId: candidate.id },
+          })
+          continue
+        }
+
+        const weekIso = getIsoWeek(new Date())
+        const notifPayload = buildNotification({
+          type: 'playoff_created',
+          videoId: candidate.youtube_video_id as string,
+          videoTitle: candidate.name ?? 'Vídeo',
+          testName: candidate.name ?? 'A/B Test',
+          variant1Label: selection.labels[0],
+          variant2Label: selection.labels[1],
+          weekIso,
+        })
+
+        await supabase.rpc('create_yt_notification', {
+          p_site_id: candidate.site_id,
+          p_type: notifPayload.type,
+          p_priority: notifPayload.priority,
+          p_title: notifPayload.title,
+          p_message: notifPayload.message,
+          p_dedup_key: notifPayload.dedup_key,
+          p_video_id: notifPayload.video_id ?? null,
+          p_ab_test_id: candidate.id,
+          p_action_href: notifPayload.action_href ?? null,
+        })
+
+        playoffsCreated++
+      } catch (err) {
+        Sentry.captureException(err, {
+          tags: { cron: 'ab-evaluate', phase: 'playoff-detect' },
+          extra: { testId: candidate.id },
+        })
+      }
+    }
+  }
+
+  return Response.json({ status: 'ok', evaluated, resolved, playoffs_started: playoffsStarted, playoffs_created: playoffsCreated })
 }
