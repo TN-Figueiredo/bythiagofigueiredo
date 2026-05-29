@@ -53,6 +53,12 @@ export function niceLine(pts: Array<{ x: number; y: number }>): string {
   return d.join('')
 }
 
+function formatTick(val: number, range: number): string {
+  if (range === 0) return String(val)
+  const decimals = range < 1 ? 3 : range < 10 ? 2 : range < 100 ? 1 : 0
+  return val.toFixed(decimals)
+}
+
 export interface GridLinesProps { min: number; max: number; ticks?: number; cfg?: Cfg }
 export function GridLines({ min, max, ticks = 4, cfg }: GridLinesProps) {
   const c = resolve(cfg)
@@ -63,7 +69,7 @@ export function GridLines({ min, max, ticks = 4, cfg }: GridLinesProps) {
     lines.push(
       React.createElement('g', { key: i },
         React.createElement('line', { x1: c.padL, x2: c.W - c.padR, y1: y, y2: y, stroke: CHART.gridStroke, strokeWidth: 1 }),
-        React.createElement('text', { x: c.padL - 4, y: y + 3, textAnchor: 'end', fill: CHART.axisColor, fontSize: 9, fontFamily: CHART.font }, val.toFixed(1)),
+        React.createElement('text', { x: c.padL - 4, y: y + 3, textAnchor: 'end', fill: CHART.axisColor, fontSize: 9, fontFamily: CHART.font }, formatTick(val, max - min)),
       ),
     )
   }

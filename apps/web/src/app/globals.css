@@ -164,6 +164,12 @@
   --color-cms-rose-subtle:   var(--cms-rose-subtle);
   --color-cms-purple:        var(--cms-purple);
   --color-cms-purple-subtle: var(--cms-purple-subtle);
+
+  /* AB Lab tokens */
+  --color-cms-bg-side:       var(--cms-bg-side);
+  --color-cms-surface-3:     var(--cms-surface-3);
+  --color-cms-cowork:        var(--cms-cowork);
+  --color-cms-cowork-subtle: var(--cms-cowork-subtle);
 }
 
 /* ══════════════════════════════════════════════════════════════

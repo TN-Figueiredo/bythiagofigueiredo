@@ -32,28 +32,52 @@ describe('Badge', () => {
 
 describe('InfoTip', () => {
   it('shows ? button', () => { render(<InfoTip text="Help" />); expect(screen.getByText('?')).toBeDefined() })
-  it('shows tooltip on click', () => {
+  it('shows tooltip on focus', () => {
     render(<InfoTip text="Explanation" />)
-    fireEvent.click(screen.getByText('?'))
+    fireEvent.focus(screen.getByText('?'))
     expect(screen.getByRole('tooltip')).toBeDefined()
     expect(screen.getByText('Explanation')).toBeDefined()
   })
   it('hides tooltip on Escape', () => {
     render(<InfoTip text="Help" />)
-    fireEvent.click(screen.getByText('?'))
+    fireEvent.focus(screen.getByText('?'))
     expect(screen.getByRole('tooltip')).toBeDefined()
     fireEvent.keyDown(screen.getByText('?').parentElement!, { key: 'Escape' })
     expect(screen.queryByRole('tooltip')).toBeNull()
   })
   it('has aria-describedby when open', () => {
     render(<InfoTip text="Help" />)
-    fireEvent.click(screen.getByText('?'))
+    fireEvent.focus(screen.getByText('?'))
     const btn = screen.getByText('?')
     expect(btn.getAttribute('aria-describedby')).toBeTruthy()
   })
   it('no aria-describedby when closed', () => {
     render(<InfoTip text="Help" />)
     expect(screen.getByText('?').getAttribute('aria-describedby')).toBeNull()
+  })
+  it('opens tooltip on focus', () => {
+    render(<InfoTip text="Focus help" />)
+    fireEvent.focus(screen.getByText('?'))
+    expect(screen.getByRole('tooltip')).toBeDefined()
+    expect(screen.getByText('Focus help')).toBeDefined()
+  })
+  it('has aria-expanded attribute', () => {
+    render(<InfoTip text="Help" />)
+    const btn = screen.getByText('?')
+    expect(btn.getAttribute('aria-expanded')).toBe('false')
+    fireEvent.focus(btn)
+    expect(btn.getAttribute('aria-expanded')).toBe('true')
+  })
+  it('has aria-label for screen readers', () => {
+    render(<InfoTip text="Help" />)
+    expect(screen.getByLabelText('More information')).toBeDefined()
+  })
+})
+
+describe('Badge extras', () => {
+  it('applies cowork tone', () => {
+    const { container } = render(<Badge tone="cowork">X</Badge>)
+    expect(container.firstElementChild?.className).toContain('bg-[var(--cms-cowork-subtle)]')
   })
 })
 

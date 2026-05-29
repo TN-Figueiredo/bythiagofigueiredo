@@ -76,9 +76,8 @@ export function InfoTip({ text }: InfoTipProps) {
         aria-label="More information"
         aria-expanded={open}
         aria-describedby={open ? id : undefined}
-        onClick={() => setOpen(o => !o)}
         onFocus={() => setOpen(true)}
-        onBlur={() => setOpen(false)}
+        onBlur={(e) => { if (!e.currentTarget.parentElement?.contains(e.relatedTarget as Node)) setOpen(false) }}
         onMouseEnter={() => setOpen(true)}
         onMouseLeave={() => setOpen(false)}
         className="inline-flex items-center justify-center size-4 rounded-full text-3xs text-cms-text-dim border border-cms-border-subtle hover:text-cms-text-muted focus-visible:ring-2 focus-visible:ring-cms-accent cursor-help"
@@ -116,9 +115,10 @@ export interface SegProps<T extends string> {
   value: T
   onChange: (v: T) => void
   labels?: Partial<Record<T, string>>
+  'aria-label'?: string
 }
 
-export function Seg<T extends string>({ options, value, onChange, labels }: SegProps<T>) {
+export function Seg<T extends string>({ options, value, onChange, labels, 'aria-label': ariaLabel }: SegProps<T>) {
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     const idx = options.indexOf(value)
     if (idx < 0) return
@@ -129,11 +129,11 @@ export function Seg<T extends string>({ options, value, onChange, labels }: SegP
   }, [options, value, onChange])
 
   return (
-    <div role="radiogroup" className="inline-flex rounded-lg bg-cms-surface p-0.5 gap-0.5" onKeyDown={handleKeyDown}>
+    <div role="radiogroup" aria-label={ariaLabel} className="inline-flex rounded-lg bg-cms-surface p-0.5 gap-0.5" onKeyDown={handleKeyDown}>
       {options.map(opt => (
         <button key={opt} type="button" role="radio" aria-checked={opt === value}
           onClick={() => onChange(opt)} tabIndex={opt === value ? 0 : -1}
-          className={`px-2.5 py-1 text-2xs font-medium rounded-md transition-colors duration-150 ${opt === value ? 'bg-cms-accent text-white' : 'text-cms-text-muted hover:text-cms-text'}`}
+          className={`px-2.5 py-1 text-2xs font-medium rounded-md transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-cms-accent ${opt === value ? 'bg-cms-accent text-white' : 'text-cms-text-muted hover:text-cms-text'}`}
         >{labels?.[opt] ?? opt}</button>
       ))}
     </div>
@@ -166,9 +166,9 @@ export function NumberField({ value, onChange, min = 0, max = 100, step = 1, suf
   return (
     <div className="inline-flex items-center gap-1" role="spinbutton" aria-valuenow={value} aria-valuemin={min} aria-valuemax={max}
       aria-valuetext={suffix ? `${value} ${suffix}` : String(value)} tabIndex={0} onKeyDown={handleKey}>
-      <button type="button" onClick={() => onChange(clamp(value - step))} className="size-6 rounded bg-cms-surface text-cms-text-muted hover:text-cms-text flex items-center justify-center" aria-label="Decrease">-</button>
+      <button type="button" tabIndex={-1} onClick={() => onChange(clamp(value - step))} className="size-6 rounded bg-cms-surface text-cms-text-muted hover:text-cms-text flex items-center justify-center" aria-label="Decrease">-</button>
       <span className="min-w-[2.5rem] text-center text-xs font-mono">{value}{suffix && <span className="text-cms-text-dim ml-0.5">{suffix}</span>}</span>
-      <button type="button" onClick={() => onChange(clamp(value + step))} className="size-6 rounded bg-cms-surface text-cms-text-muted hover:text-cms-text flex items-center justify-center" aria-label="Increase">+</button>
+      <button type="button" tabIndex={-1} onClick={() => onChange(clamp(value + step))} className="size-6 rounded bg-cms-surface text-cms-text-muted hover:text-cms-text flex items-center justify-center" aria-label="Increase">+</button>
     </div>
   )
 }
@@ -199,7 +199,7 @@ export function Slider({ value, onChange, min = 0, max = 100, step = 1, format }
       <input type="range" min={min} max={max} step={step} value={value}
         onChange={e => onChange(Number(e.target.value))}
         aria-valuetext={format ? format(value) : String(value)}
-        className="flex-1 h-1 rounded-full appearance-none bg-cms-surface accent-cms-accent" />
+        className="flex-1 h-1 rounded-full bg-cms-surface accent-cms-accent [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:size-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-cms-accent [&::-moz-range-thumb]:size-3.5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-cms-accent [&::-moz-range-thumb]:border-0" />
       <span className="text-xs font-mono text-cms-text-muted min-w-[2.5rem] text-right">{format ? format(value) : value}</span>
     </div>
   )
@@ -216,7 +216,7 @@ export function CfgRow({ label, htmlFor, children, hint }: CfgRowProps) {
         <label id={labelId} htmlFor={htmlFor} className="text-xs text-cms-text">{label}</label>
         {hint && <p className="text-2xs text-cms-text-dim mt-0.5">{hint}</p>}
       </div>
-      <div aria-labelledby={labelId}>{children}</div>
+      <div role="group" aria-labelledby={labelId}>{children}</div>
     </div>
   )
 }

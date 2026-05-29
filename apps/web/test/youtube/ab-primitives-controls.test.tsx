@@ -30,6 +30,24 @@ describe('Seg', () => {
     expect(screen.getByRole('radio', { name: 'b' }).tabIndex).toBe(0)
     expect(screen.getByRole('radio', { name: 'a' }).tabIndex).toBe(-1)
   })
+  it('ArrowRight moves to next option', () => {
+    const fn = vi.fn()
+    render(<Seg options={opts} value="a" onChange={fn} />)
+    fireEvent.keyDown(screen.getByRole('radiogroup'), { key: 'ArrowRight' })
+    expect(fn).toHaveBeenCalledWith('b')
+  })
+  it('ArrowLeft wraps to last option', () => {
+    const fn = vi.fn()
+    render(<Seg options={opts} value="a" onChange={fn} />)
+    fireEvent.keyDown(screen.getByRole('radiogroup'), { key: 'ArrowLeft' })
+    expect(fn).toHaveBeenCalledWith('c')
+  })
+  it('ArrowRight on last wraps to first', () => {
+    const fn = vi.fn()
+    render(<Seg options={opts} value="c" onChange={fn} />)
+    fireEvent.keyDown(screen.getByRole('radiogroup'), { key: 'ArrowRight' })
+    expect(fn).toHaveBeenCalledWith('a')
+  })
 })
 
 describe('Toggle', () => {
@@ -66,6 +84,28 @@ describe('NumberField', () => {
     expect(fn).toHaveBeenCalledWith(10)
   })
   it('has aria-valuenow', () => { render(<NumberField value={3} onChange={() => {}} />); expect(screen.getByRole('spinbutton').getAttribute('aria-valuenow')).toBe('3') })
+  it('clamps to min', () => {
+    const fn = vi.fn()
+    render(<NumberField value={0} min={0} onChange={fn} />)
+    fireEvent.click(screen.getByLabelText('Decrease'))
+    expect(fn).toHaveBeenCalledWith(0)
+  })
+  it('increments on ArrowUp key', () => {
+    const fn = vi.fn()
+    render(<NumberField value={5} onChange={fn} />)
+    fireEvent.keyDown(screen.getByRole('spinbutton'), { key: 'ArrowUp' })
+    expect(fn).toHaveBeenCalledWith(6)
+  })
+  it('decrements on ArrowDown key', () => {
+    const fn = vi.fn()
+    render(<NumberField value={5} onChange={fn} />)
+    fireEvent.keyDown(screen.getByRole('spinbutton'), { key: 'ArrowDown' })
+    expect(fn).toHaveBeenCalledWith(4)
+  })
+  it('aria-valuetext includes suffix', () => {
+    render(<NumberField value={3} suffix="days" onChange={() => {}} />)
+    expect(screen.getByRole('spinbutton').getAttribute('aria-valuetext')).toBe('3 days')
+  })
 })
 
 describe('CheckRow', () => {
