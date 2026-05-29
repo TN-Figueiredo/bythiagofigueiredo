@@ -1,5 +1,5 @@
 import { getSiteContext } from '@/lib/cms/site-context'
-import { getAbTestsForSite, getAbSiteSettings, getEligibleVideosForPicker } from './actions'
+import { getAbTestsForSite, getAbSiteSettings, getEligibleVideosForPicker } from './queries'
 import { AbLabDashboard } from './_components/ab-lab-dashboard'
 
 export const dynamic = 'force-dynamic'

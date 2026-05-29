@@ -27,8 +27,8 @@ export function variantColor(dbLabel: string, isOriginal?: boolean): string {
 
 const DASH = '—'
 
-const numberFmt = new Intl.NumberFormat('pt-BR')
-const dateFmt = new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' })
+const numberFmt = new Intl.NumberFormat('en')
+const dateFmt = new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
 
 export function formatNumber(n: number | null | undefined): string {
   if (n == null || Number.isNaN(n)) return DASH
@@ -48,9 +48,11 @@ export function formatDate(d: string | Date | null | undefined): string {
 }
 
 export function formatCompact(n: number | null | undefined): string {
-  if (n == null || Number.isNaN(n)) return DASH
-  if (n < 1_000) return String(n)
-  if (n < 1_000_000) return `${(n / 1_000).toFixed(1)}k`
-  if (n < 1_000_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-  return `${(n / 1_000_000_000).toFixed(1)}B`
+  if (n == null || !Number.isFinite(n)) return DASH
+  const abs = Math.abs(n)
+  const sign = n < 0 ? '-' : ''
+  if (abs < 1_000) return String(n)
+  if (abs < 1_000_000) return `${sign}${(abs / 1_000).toFixed(1)}k`
+  if (abs < 1_000_000_000) return `${sign}${(abs / 1_000_000).toFixed(1)}M`
+  return `${sign}${(abs / 1_000_000_000).toFixed(1)}B`
 }

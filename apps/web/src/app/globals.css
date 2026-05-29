@@ -105,9 +105,9 @@
   --animate-slide-in: slide-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
   --animate-pulse-subtle: pulse-subtle 2s ease-in-out infinite;
   --animate-ab-fade-up: ab-fade-up 0.35s ease both;
-  --animate-ab-fade-only: ab-fade-only 0.3s ease both;
+  --animate-ab-fade-only: fade-in 0.3s ease both;
   --animate-ab-slot-pulse: ab-slot-pulse 2s ease-in-out infinite;
-  --animate-ab-drawer-in: ab-drawer-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --animate-ab-drawer-in: slide-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
 /* ─── Dynamic bridges: CSS vars → Tailwind classes ─── */
@@ -501,26 +501,19 @@ textarea:focus-visible {
   to   { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes ab-fade-only {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-
 @keyframes ab-slot-pulse {
   0%, 100% { opacity: 1; }
   50%      { opacity: 0.5; }
 }
 
-@keyframes ab-drawer-in {
-  from { transform: translateX(100%); }
-  to   { transform: translateX(0); }
-}
-
+/* AB Lab reduced motion */
 @media (prefers-reduced-motion: reduce) {
-  .ab-lab,
-  .ab-lab * {
+  .animate-ab-fade-up,
+  .animate-ab-fade-only,
+  .animate-ab-slot-pulse,
+  .animate-ab-drawer-in {
     animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
   }
 }
 

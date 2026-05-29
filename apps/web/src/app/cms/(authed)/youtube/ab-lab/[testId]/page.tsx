@@ -1,4 +1,4 @@
-import { getTestResults } from '../actions'
+import { getTestResults } from '../queries'
 import { AbTestDetail } from '../_components/ab-test-detail'
 import { notFound } from 'next/navigation'
 
