@@ -334,3 +334,91 @@ export interface EligibleVideo {
   previousLift: number | null
   sourcePipelineId: string | null
 }
+
+/* --- Detail view types (Phase 4) --- */
+
+export interface GateResult {
+  name: string
+  passed: boolean
+  value: string
+  hint?: string
+}
+
+export interface LiveMonitor {
+  liveCtr: number
+  sparkline: number[]
+  liftVsOriginal: number
+  checkpoints: Array<{ label: string; reached: boolean; date?: string }>
+}
+
+export interface VariantThumb {
+  label: DisplayLabel
+  color: string
+  thumbUrl: string | null
+  isOriginal: boolean
+}
+
+export interface AbTestBaseView {
+  id: string
+  videoTitle: string
+  flag: TestType
+  status: AbTestStatus
+  variants: FullChartVariant[]
+  variantThumbs: VariantThumb[]
+  confTrend: number[]
+  daily: Record<DisplayLabel, number[]>
+  abbaSeq: DisplayLabel[]
+  cycles: { total: number; done: number }
+  durationDays: number
+  confidenceTarget: number
+  totalRounds: number
+  hasPlayoff: boolean
+  gates: GateResult[]
+}
+
+export interface AbTestActiveView extends AbTestBaseView {
+  status: 'active'
+  outcome?: never
+  confirmedData: {
+    confidence: number
+    leader: DisplayLabel
+    leaderColor: string
+    lift: number
+  }
+  liveData?: {
+    confidence: number
+    leader: DisplayLabel
+    leaderColor: string
+    lift: number
+  }
+}
+
+export interface AbTestWinnerView extends AbTestBaseView {
+  status: 'completed'
+  outcome: 'winner'
+  winnerLabel: DisplayLabel
+  winnerColor: string
+  lift: number
+  confidence: number
+  resultMeta: {
+    ctrBefore: number
+    ctrAfter: number
+    totalImpressions: number
+    abbaCycles: number
+    monthlyExtraClicks: number
+  }
+  monitor?: LiveMonitor
+  learning?: string
+}
+
+export interface AbTestPlayoffView extends AbTestBaseView {
+  status: 'completed'
+  outcome: 'playoff'
+  playoffTestId: string
+  startsIn: string
+  finalists: Array<{ label: DisplayLabel; color: string; ctr: number; thumbnailUrl: string | null }>
+  confidenceReached: number
+  reason: string
+}
+
+export type AbTestDetailView = AbTestActiveView | AbTestWinnerView | AbTestPlayoffView
