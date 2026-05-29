@@ -227,7 +227,7 @@ export interface SectionLabelProps { children: React.ReactNode; as?: 'h2' | 'h3'
 export function SectionLabel({ children, as: Tag = 'h3', right }: SectionLabelProps) {
   return (
     <div className="flex items-center justify-between gap-2 mb-2">
-      <Tag className="text-xs font-semibold uppercase tracking-wider text-cms-text-dim">{children}</Tag>
+      <Tag className="text-sm font-semibold text-cms-text">{children}</Tag>
       {right && <div>{right}</div>}
     </div>
   )
