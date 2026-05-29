@@ -14,6 +14,8 @@ import { Gauge } from '@/app/cms/(authed)/youtube/ab-lab/_components/gauge'
 import { CredibleInterval } from '@/app/cms/(authed)/youtube/ab-lab/_components/credible-interval'
 import { RankBars } from '@/app/cms/(authed)/youtube/ab-lab/_components/rank-bars'
 import type { DisplayLabel, StatsVariant } from '@/lib/youtube/ab-types'
+import { RadarChart } from '@/app/cms/(authed)/youtube/ab-lab/_components/radar-chart'
+import { FunnelRow } from '@/app/cms/(authed)/youtube/ab-lab/_components/funnel-row'
 
 afterEach(() => cleanup())
 
@@ -309,5 +311,82 @@ describe('RankBars', () => {
     const { container } = render(<RankBars variants={over} />)
     const bar = container.querySelector('[data-rank-bar]')
     expect(bar).toBeTruthy()
+  })
+})
+
+describe('RadarChart', () => {
+  const variants = [
+    { label: 'A' as DisplayLabel, color: '#8A8F98', ctr: 0.05, impressions: 10000,
+      clicks: 500, pBest: 0.3, pTop2: 0.6, linkCtr: 0.02, retention: 0.45 },
+    { label: 'B' as DisplayLabel, color: '#E8823C', ctr: 0.07, impressions: 10000,
+      clicks: 700, pBest: 0.7, pTop2: 0.9, linkCtr: 0.03, retention: 0.55 },
+  ]
+
+  it('renders 4 grid rings', () => {
+    const { container } = render(<RadarChart variants={variants} />)
+    const polygons = container.querySelectorAll('polygon[data-grid]')
+    expect(polygons.length).toBe(4)
+  })
+
+  it('renders one data polygon per variant', () => {
+    const { container } = render(<RadarChart variants={variants} />)
+    const polygons = container.querySelectorAll('polygon[data-variant]')
+    expect(polygons.length).toBe(2)
+  })
+
+  it('renders nothing with fewer than 2 axes', () => {
+    const { container } = render(
+      <RadarChart variants={variants} axes={[{ key: 'ctr', label: 'CTR' }]} />,
+    )
+    expect(container.querySelector('svg')).toBeNull()
+  })
+
+  it('renders axis labels', () => {
+    const { getByText } = render(<RadarChart variants={variants} />)
+    expect(getByText('CTR')).toBeTruthy()
+    expect(getByText('Win prob')).toBeTruthy()
+  })
+
+  it('handles axisMax=0 by mapping to center', () => {
+    const zeroVariants = [
+      { ...variants[0]!, ctr: 0, clicks: 0, pBest: 0, pTop2: 0 },
+    ]
+    const { container } = render(<RadarChart variants={zeroVariants} />)
+    expect(container.querySelector('svg')).toBeTruthy()
+  })
+})
+
+describe('FunnelRow', () => {
+  it('renders 3 stages with linkClicks', () => {
+    const { container } = render(
+      <FunnelRow variant={{ impressions: 1000, clicks: 50, linkClicks: 10, color: '#E8823C' }} />,
+    )
+    const bars = container.querySelectorAll('[data-funnel-bar]')
+    expect(bars.length).toBe(3)
+  })
+
+  it('renders 2 stages without linkClicks', () => {
+    const { container } = render(
+      <FunnelRow variant={{ impressions: 1000, clicks: 50, color: '#E8823C' }} />,
+    )
+    const bars = container.querySelectorAll('[data-funnel-bar]')
+    expect(bars.length).toBe(2)
+  })
+
+  it('uses minimum 3px for 0-impression stage', () => {
+    const { container } = render(
+      <FunnelRow variant={{ impressions: 0, clicks: 0, color: '#E8823C' }} />,
+    )
+    const bars = container.querySelectorAll('[data-funnel-bar]')
+    expect(bars.length).toBe(2)
+  })
+
+  it('renders labels for each stage', () => {
+    const { getByText } = render(
+      <FunnelRow variant={{ impressions: 1000, clicks: 50, linkClicks: 10, color: '#E8823C' }} />,
+    )
+    expect(getByText('Impressions')).toBeTruthy()
+    expect(getByText('Clicks')).toBeTruthy()
+    expect(getByText('Link clicks')).toBeTruthy()
   })
 })
