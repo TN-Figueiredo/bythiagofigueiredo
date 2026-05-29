@@ -12,6 +12,12 @@ import type {
   AbTestTrackedLinkRow,
   AbTestCardView,
   AbTestDraft,
+  AbTestDetailView,
+  AbTestActiveView,
+  AbTestWinnerView,
+  AbTestPlayoffView,
+  FullChartVariant,
+  VariantThumb,
   DashboardStats,
   DisplayLabel,
   LearningsData,
@@ -19,6 +25,7 @@ import type {
   SuggestedVideo,
 } from '@/lib/youtube/ab-types'
 import { calculateBayesianConfidence } from '@/lib/youtube/ab-statistics'
+import { computeGates } from '@/lib/youtube/ab-gates'
 import { toDisplayLabel, variantColor } from './_components/ab-constants'
 
 async function requireEditAccess(): Promise<string> {
@@ -603,4 +610,182 @@ export async function getSuggestedVideos(siteId: string): Promise<SuggestedVideo
     .slice(0, 5)
 
   return suggestions
+}
+
+// ---------------------------------------------------------------------------
+// toDetailView — maps AbTestResults → discriminated AbTestDetailView
+// ---------------------------------------------------------------------------
+
+export function toDetailView(results: AbTestResults): AbTestDetailView {
+  const test = results.test
+  const variants: FullChartVariant[] = results.variants.map(v => ({
+    label: toDisplayLabel(v.label, v.is_original),
+    color: variantColor(v.label, v.is_original),
+    ctr: v.avg_ctr * 100,
+    impressions: v.total_impressions,
+    clicks: v.total_clicks,
+    pBest: 0,
+    pTop2: 0,
+  }))
+
+  // Compute Bayesian probabilities if enough data
+  if (results.variants.length >= 2 && results.variants.every(v => v.total_impressions >= 100)) {
+    const bayesian = calculateBayesianConfidence(results.variants)
+    for (const v of variants) {
+      const variantId = results.variants.find(
+        rv => toDisplayLabel(rv.label, rv.is_original) === v.label,
+      )?.variant_id
+      if (variantId && bayesian.probabilities[variantId]) {
+        v.pBest = bayesian.probabilities[variantId]!
+      }
+    }
+  }
+
+  const variantThumbs: VariantThumb[] = results.variants.map(v => ({
+    label: toDisplayLabel(v.label, v.is_original),
+    color: variantColor(v.label, v.is_original),
+    thumbUrl: v.blob_url ?? (v.is_original ? test.original_thumbnail_url : null),
+    isOriginal: v.is_original,
+  }))
+
+  // Build confTrend from progressive cycle confidence
+  const confTrend = results.confidence > 0 ? [results.confidence * 100] : []
+
+  // Build daily CTR per variant
+  const daily: Record<DisplayLabel, number[]> = {} as Record<DisplayLabel, number[]>
+  for (const v of results.variants) {
+    const label = toDisplayLabel(v.label, v.is_original)
+    daily[label] = []
+  }
+  const confirmedCycles = results.timeline.filter(
+    c => c.ended_at && c.backfill_status === 'confirmed',
+  )
+  for (const cycle of confirmedCycles) {
+    const variant = results.variants.find(v => v.variant_id === cycle.variant_id)
+    if (variant) {
+      const label = toDisplayLabel(variant.label, variant.is_original)
+      if (daily[label]) daily[label]!.push((cycle.ctr ?? 0) * 100)
+    }
+  }
+
+  // Build ABBA sequence
+  const abbaSeq: DisplayLabel[] = [...results.timeline]
+    .sort((a, b) => a.cycle_number - b.cycle_number)
+    .map(c => {
+      const v = results.variants.find(rv => rv.variant_id === c.variant_id)
+      return v ? toDisplayLabel(v.label, v.is_original) : ('A' as DisplayLabel)
+    })
+
+  const totalCycles = results.timeline.length
+  const doneCycles = results.timeline.filter(c => c.ended_at !== null).length
+
+  // Compute gates
+  const gateInput = {
+    confidence: results.confidence,
+    threshold: test.config.confidence_threshold,
+    minImpressions: results.variants.map(v => v.total_impressions),
+    daysSinceStart: test.started_at
+      ? Math.floor((Date.now() - new Date(test.started_at).getTime()) / 86400000)
+      : 0,
+    confirmedCycles: confirmedCycles.length,
+    burnInDays: test.config.burn_in_days,
+    variantCount: results.variants.length,
+    eligibleCycles: confirmedCycles.length,
+    consecutiveConfident: test.consecutive_confident_evals,
+    stabilityThreshold: test.config.stability_threshold,
+  }
+  const gates = computeGates(gateInput)
+
+  const base = {
+    id: test.id,
+    videoTitle: test.original_title ?? test.name,
+    flag: test.test_type,
+    status: test.status,
+    variants,
+    variantThumbs,
+    confTrend,
+    daily,
+    abbaSeq,
+    cycles: { total: totalCycles, done: doneCycles },
+    durationDays: test.config.max_duration_days,
+    confidenceTarget: test.config.confidence_threshold,
+    totalRounds: test.round_number,
+    hasPlayoff: !!test.playoff_test_id,
+    gates,
+  }
+
+  // Discriminate by status/outcome
+  if (test.status === 'active' || test.status === 'paused') {
+    const leader = variants.reduce(
+      (best, v) => (v.pBest > best.pBest ? v : best),
+      variants[0]!,
+    )
+    return {
+      ...base,
+      status: 'active' as const,
+      confirmedData: {
+        confidence: results.confidence * 100,
+        leader: leader.label,
+        leaderColor: leader.color,
+        lift:
+          leader.label !== 'A' && variants.find(v => v.label === 'A')
+            ? ((leader.ctr - variants.find(v => v.label === 'A')!.ctr) /
+                (variants.find(v => v.label === 'A')!.ctr || 1)) *
+              100
+            : 0,
+      },
+    } satisfies AbTestActiveView
+  }
+
+  if (test.completed_reason === 'inconclusive' && test.playoff_test_id) {
+    const finalistLabels = [...variants].sort((a, b) => b.pTop2 - a.pTop2).slice(0, 2)
+    return {
+      ...base,
+      status: 'completed' as const,
+      outcome: 'playoff' as const,
+      playoffTestId: test.playoff_test_id,
+      startsIn: test.playoff_start_after ?? 'soon',
+      finalists: finalistLabels.map(f => ({
+        label: f.label,
+        color: f.color,
+        ctr: f.ctr,
+        thumbnailUrl: variantThumbs.find(t => t.label === f.label)?.thumbUrl ?? null,
+      })),
+      confidenceReached: results.confidence * 100,
+      reason: test.status_note ?? 'No clear winner after full duration',
+    } satisfies AbTestPlayoffView
+  }
+
+  // Winner view (default for completed)
+  const winnerVariant = test.winner_variant_id
+    ? results.variants.find(v => v.variant_id === test.winner_variant_id)
+    : null
+  const winnerLabel = winnerVariant
+    ? toDisplayLabel(winnerVariant.label, winnerVariant.is_original)
+    : ('A' as DisplayLabel)
+  const winnerColor = winnerVariant
+    ? variantColor(winnerVariant.label, winnerVariant.is_original)
+    : '#8A8F98'
+  const originalVariant = results.variants.find(v => v.is_original)
+  const winnerCtr = winnerVariant?.avg_ctr ?? 0
+  const originalCtr = originalVariant?.avg_ctr ?? 0
+  const lift = originalCtr > 0 ? ((winnerCtr - originalCtr) / originalCtr) * 100 : 0
+
+  return {
+    ...base,
+    status: 'completed' as const,
+    outcome: 'winner' as const,
+    winnerLabel,
+    winnerColor,
+    lift,
+    confidence: results.confidence * 100,
+    resultMeta: {
+      ctrBefore: originalCtr * 100,
+      ctrAfter: winnerCtr * 100,
+      totalImpressions: results.variants.reduce((sum, v) => sum + v.total_impressions, 0),
+      abbaCycles: totalCycles,
+      monthlyExtraClicks: test.result_metadata?.estimated_monthly_extra_clicks ?? 0,
+    },
+    learning: test.status_note ?? undefined,
+  } satisfies AbTestWinnerView
 }

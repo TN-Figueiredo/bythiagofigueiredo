@@ -1,5 +1,7 @@
-import { getTestResults } from '../queries'
-import { AbTestDetail } from '../_components/ab-test-detail'
+import { getTestResults, toDetailView } from '../queries'
+import { ActiveDetail } from '../_components/active-detail'
+import { WinnerDetail } from '../_components/winner-detail'
+import { PlayoffDetail } from '../_components/playoff-detail'
 import { notFound } from 'next/navigation'
 
 export const dynamic = 'force-dynamic'
@@ -12,5 +14,10 @@ export default async function AbTestDetailPage({
   const { testId } = await params
   const results = await getTestResults(testId)
   if (!results) notFound()
-  return <AbTestDetail results={results} />
+
+  const view = toDetailView(results)
+
+  if (view.status === 'active') return <ActiveDetail view={view} />
+  if (view.outcome === 'winner') return <WinnerDetail view={view} />
+  return <PlayoffDetail view={view} />
 }
