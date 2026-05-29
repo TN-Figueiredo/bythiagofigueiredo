@@ -91,3 +91,50 @@ export function calculateBayesianConfidence(variants: VariantStats[]): BayesianR
 
   return { winnerId, confidence: probabilities[winnerId] ?? 0, probabilities }
 }
+
+export interface PlayoffMcResult {
+  bayesian: BayesianResult
+  ptop2: Record<string, number>
+}
+
+export function calculatePlayoffStats(variants: VariantStats[]): PlayoffMcResult {
+  const wins = new Map<string, number>()
+  const top2Counts = new Map<string, number>()
+  for (const v of variants) {
+    wins.set(v.variant_id, 0)
+    top2Counts.set(v.variant_id, 0)
+  }
+
+  for (let i = 0; i < MC_SAMPLES; i++) {
+    const samples: { id: string; val: number }[] = variants.map(v => ({
+      id: v.variant_id,
+      val: sampleBeta(v.total_clicks + 1, v.total_impressions - v.total_clicks + 1),
+    }))
+    samples.sort((a, b) => b.val - a.val)
+
+    wins.set(samples[0]!.id, (wins.get(samples[0]!.id) ?? 0) + 1)
+    top2Counts.set(samples[0]!.id, (top2Counts.get(samples[0]!.id) ?? 0) + 1)
+    if (samples[1]) {
+      top2Counts.set(samples[1].id, (top2Counts.get(samples[1].id) ?? 0) + 1)
+    }
+  }
+
+  let winnerId = ''
+  let maxWins = 0
+  const probabilities: Record<string, number> = {}
+  for (const v of variants) {
+    const w = wins.get(v.variant_id) ?? 0
+    probabilities[v.variant_id] = w / MC_SAMPLES
+    if (w > maxWins) { maxWins = w; winnerId = v.variant_id }
+  }
+
+  const ptop2: Record<string, number> = {}
+  for (const v of variants) {
+    ptop2[v.variant_id] = (top2Counts.get(v.variant_id) ?? 0) / MC_SAMPLES
+  }
+
+  return {
+    bayesian: { winnerId, confidence: probabilities[winnerId] ?? 0, probabilities },
+    ptop2,
+  }
+}

@@ -3,6 +3,7 @@ import {
   calculateBayesianConfidence,
   calculateZTest,
   normalCdf,
+  calculatePlayoffStats,
 } from '@/lib/youtube/ab-statistics'
 import type { VariantStats } from '@/lib/youtube/ab-types'
 
@@ -139,5 +140,73 @@ describe('calculateBayesianConfidence', () => {
     const sum = Object.values(result.probabilities).reduce((a, b) => a + b, 0)
     expect(sum).toBeCloseTo(1, 1)
     expect(Object.keys(result.probabilities)).toHaveLength(4)
+  })
+})
+
+describe('calculatePlayoffStats', () => {
+  it('returns both bayesian and ptop2 from same MC samples', () => {
+    const variants = [
+      makeVariant('A', 3000, 150),
+      makeVariant('B', 3000, 210),
+      makeVariant('C', 3000, 120),
+    ]
+    const result = calculatePlayoffStats(variants)
+
+    expect(result.bayesian.winnerId).toBe('B')
+    expect(result.bayesian.confidence).toBeGreaterThan(0.5)
+    expect(Object.keys(result.ptop2)).toHaveLength(3)
+
+    const ptop2Sum = Object.values(result.ptop2).reduce((a, b) => a + b, 0)
+    expect(ptop2Sum).toBeCloseTo(2, 0)
+  })
+
+  it('P(best) winner always has highest P(top2)', () => {
+    const variants = [
+      makeVariant('A', 5000, 500),
+      makeVariant('B', 5000, 250),
+      makeVariant('C', 5000, 200),
+      makeVariant('D', 5000, 150),
+    ]
+    const result = calculatePlayoffStats(variants)
+    expect(result.bayesian.winnerId).toBe('A')
+    expect(result.ptop2['A']).toBeGreaterThan(0.95)
+  })
+
+  it('weakest variant has lowest P(top2)', () => {
+    const variants = [
+      makeVariant('A', 5000, 300),
+      makeVariant('B', 5000, 350),
+      makeVariant('C', 5000, 200),
+      makeVariant('D', 5000, 50),
+    ]
+    const result = calculatePlayoffStats(variants)
+    const dScore = result.ptop2['D']!
+    for (const [id, score] of Object.entries(result.ptop2)) {
+      if (id !== 'D') expect(dScore).toBeLessThanOrEqual(score)
+    }
+  })
+
+  it('bayesian probabilities sum to 1, ptop2 sums to 2', () => {
+    const variants = [
+      makeVariant('A', 1000, 50),
+      makeVariant('B', 1000, 60),
+      makeVariant('C', 1000, 55),
+      makeVariant('D', 1000, 45),
+    ]
+    const result = calculatePlayoffStats(variants)
+    const bayesianSum = Object.values(result.bayesian.probabilities).reduce((a, b) => a + b, 0)
+    const ptop2Sum = Object.values(result.ptop2).reduce((a, b) => a + b, 0)
+    expect(bayesianSum).toBeCloseTo(1, 1)
+    expect(ptop2Sum).toBeCloseTo(2, 0)
+  })
+
+  it('handles 2 variants — both get P(top2) = 1.0', () => {
+    const variants = [
+      makeVariant('A', 1000, 50),
+      makeVariant('B', 1000, 60),
+    ]
+    const result = calculatePlayoffStats(variants)
+    expect(result.ptop2['A']).toBeCloseTo(1, 1)
+    expect(result.ptop2['B']).toBeCloseTo(1, 1)
   })
 })
