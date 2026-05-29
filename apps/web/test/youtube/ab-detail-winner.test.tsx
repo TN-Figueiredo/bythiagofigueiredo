@@ -159,9 +159,9 @@ describe('WinnerBanner', () => {
       />,
     )
     const statsEl = screen.getByTestId('winner-stats')
-    expect(statsEl.textContent).toContain('Impressions')
-    expect(statsEl.textContent).toContain('Cycles')
-    expect(statsEl.textContent).toContain('Extra clicks/mo')
+    expect(statsEl.textContent).toContain('Impressões no teste')
+    expect(statsEl.textContent).toContain('Ciclos ABBA')
+    expect(statsEl.textContent).toContain('Cliques/mês a mais')
   })
 })
 

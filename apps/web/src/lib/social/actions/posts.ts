@@ -34,7 +34,7 @@ import { getEditRules } from '../types'
 // ---------------------------------------------------------------------------
 
 const createPostSchema = z.object({
-  type: z.enum(['link', 'video', 'image', 'text']),
+  type: z.enum(['link', 'video', 'image', 'text', 'poll', 'manual']),
   content: SocialPostContentSchema,
   platforms: z.array(z.enum(['youtube', 'facebook', 'instagram', 'bluesky'])).min(1),
   scheduledAt: z.string().datetime().optional(),
@@ -136,7 +136,7 @@ export async function createSocialPost(data: {
 }
 
 const updatePostSchema = z.object({
-  type: z.enum(['link', 'video', 'image', 'text']).optional(),
+  type: z.enum(['link', 'video', 'image', 'text', 'poll', 'manual']).optional(),
   content: SocialPostContentSchema.optional(),
   scheduledAt: z.string().datetime().nullable().optional(),
   userTimezone: z.string().optional(),
