@@ -41,7 +41,7 @@ export function HomeCard({ thumbUrl, thumbBg, title, channelName, views, age, du
 export function SearchRow({ thumbUrl, thumbBg, title, channelName, views, age, duration, label }: ContextRendererProps) {
   return (
     <div className="flex gap-3 w-full">
-      <div className="w-[340px] shrink-0">
+      <div className="w-[340px] max-w-[45%] shrink-0">
         <YTThumb
           thumbUrl={thumbUrl}
           thumbBg={thumbBg}
@@ -83,7 +83,7 @@ export function SidebarRow({ thumbUrl, thumbBg, title, channelName, views, age, 
 
 export function MobilePhone({ thumbUrl, thumbBg, title, channelName, views, age, duration, label }: ContextRendererProps) {
   return (
-    <div className="w-[375px] rounded-[40px] border-2 border-cms-border bg-black overflow-hidden">
+    <div className="w-[375px] max-w-full rounded-[40px] border-2 border-cms-border bg-black overflow-hidden">
       <div className="w-[120px] h-[28px] bg-black rounded-b-2xl mx-auto" />
       <div className="bg-[#0f0f0f]">
         <YTThumb

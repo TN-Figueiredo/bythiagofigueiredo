@@ -123,8 +123,15 @@ function wizardReducer(state: WizardState, action: WizardAction): WizardState {
       }
     }
 
-    case 'REMOVE_VARIANT':
-      return { ...state, variants: state.variants.filter((_, i) => i !== action.index) }
+    case 'REMOVE_VARIANT': {
+      const remaining = state.variants.filter((_, i) => i !== action.index)
+      let labelIdx = 0
+      const relabeled = remaining.map(v => {
+        if (v.isOriginal) return v
+        return { ...v, label: NEXT_LABELS[labelIdx++] ?? ('D' as DisplayLabel) }
+      })
+      return { ...state, variants: relabeled }
+    }
 
     case 'UPDATE_CONFIG':
       return { ...state, config: { ...state.config, [action.key]: action.value } }
@@ -148,6 +155,11 @@ function wizardReducer(state: WizardState, action: WizardAction): WizardState {
 /* ------------------------------------------------------------------ */
 
 const STEP_LABELS = ['Tipo', 'Ideias', 'Variantes', 'Config', 'Revisar'] as const
+
+/** Steps visible in the rail — step 1 (Ideias) is a placeholder, not navigable */
+const VISIBLE_STEPS = STEP_LABELS
+  .map((label, i) => ({ label, stepIndex: i }))
+  .filter((_, i) => i !== 1)
 
 function stepIsValid(step: number, state: WizardState): boolean {
   switch (step) {
@@ -499,18 +511,18 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
 function StepRail({ currentStep, onStepClick }: { currentStep: number; onStepClick: (step: number) => void }) {
   return (
     <div className="flex items-center gap-0 px-5 py-4 border-b border-cms-border shrink-0">
-      {STEP_LABELS.map((label, i) => {
-        const isCompleted = currentStep > i
-        const isActive = currentStep === i
-        const isFuture = currentStep < i
+      {VISIBLE_STEPS.map(({ label, stepIndex }, visualIdx) => {
+        const isCompleted = currentStep > stepIndex
+        const isActive = currentStep === stepIndex
+        const isFuture = currentStep < stepIndex
         return (
           <div key={label} className="flex items-center">
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 disabled={isFuture}
-                onClick={() => !isFuture && onStepClick(i)}
-                aria-label={`Step ${i + 1}: ${label}${isCompleted ? ' (complete)' : isActive ? ' (current)' : ''}`}
+                onClick={() => !isFuture && onStepClick(stepIndex)}
+                aria-label={`Step ${visualIdx + 1}: ${label}${isCompleted ? ' (complete)' : isActive ? ' (current)' : ''}`}
                 className={[
                   'w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 transition-colors',
                   isCompleted
@@ -524,13 +536,13 @@ function StepRail({ currentStep, onStepClick }: { currentStep: number; onStepCli
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" aria-hidden="true">
                     <polyline points="20 6 9 17 4 12" />
                   </svg>
-                ) : i + 1}
+                ) : visualIdx + 1}
               </button>
               <span className={`hidden sm:inline text-xs ${isActive ? 'text-cms-text font-medium' : 'text-cms-text-muted'}`}>
                 {label}
               </span>
             </div>
-            {i < STEP_LABELS.length - 1 && (
+            {visualIdx < VISIBLE_STEPS.length - 1 && (
               <div className={`h-px w-4 sm:w-8 mx-1.5 sm:mx-3 ${isCompleted ? 'bg-green-600' : 'bg-cms-border'}`} />
             )}
           </div>

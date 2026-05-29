@@ -85,7 +85,7 @@ function makeWinnerView(overrides?: Partial<AbTestWinnerView>): AbTestWinnerView
     abbaSeq: ['A', 'B', 'B', 'A', 'A', 'B'],
     cycles: { total: 12, done: 12 },
     durationDays: 14,
-    confidenceTarget: 95,
+    confidenceTarget: 0.95,
     totalRounds: 1,
     hasPlayoff: false,
     gates: makeGates(6, true),

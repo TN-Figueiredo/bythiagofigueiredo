@@ -88,7 +88,7 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
             <SectionLabel>Confidence Trend</SectionLabel>
             <ConfidenceChart
               data={view.confTrend}
-              target={view.confidenceTarget}
+              target={view.confidenceTarget * 100}
             />
           </div>
           <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-bg p-4">

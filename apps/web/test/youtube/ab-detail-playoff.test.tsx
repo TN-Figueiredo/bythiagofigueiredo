@@ -68,7 +68,7 @@ function makePlayoffView(overrides?: Partial<AbTestPlayoffView>): AbTestPlayoffV
     abbaSeq: ['A', 'B', 'C', 'B', 'A', 'C'],
     cycles: { total: 12, done: 12 },
     durationDays: 14,
-    confidenceTarget: 95,
+    confidenceTarget: 0.95,
     totalRounds: 2,
     hasPlayoff: true,
     gates: makeGates(6),
@@ -161,7 +161,7 @@ describe('PlayoffDetail', () => {
   })
 
   it('renders inconclusive banner with confidence info', () => {
-    render(<PlayoffDetail view={makePlayoffView({ confidenceReached: 82.4, confidenceTarget: 95 })} />)
+    render(<PlayoffDetail view={makePlayoffView({ confidenceReached: 82.4, confidenceTarget: 0.95 })} />)
     expect(screen.getByText('Test ended inconclusive')).toBeDefined()
     expect(screen.getByText(/82\.4%/)).toBeDefined()
     expect(screen.getByText(/95%/)).toBeDefined()

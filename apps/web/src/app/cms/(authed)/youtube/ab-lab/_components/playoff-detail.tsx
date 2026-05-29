@@ -45,7 +45,7 @@ export function PlayoffDetail({ view }: PlayoffDetailProps) {
           </p>
           <p className="text-2xs text-cms-text-muted mt-0.5">
             Confidence reached {formatPercent(view.confidenceReached, 1)} vs{' '}
-            {formatPercent(view.confidenceTarget, 0)} target
+            {formatPercent(view.confidenceTarget * 100, 0)} target
           </p>
         </div>
       </div>
