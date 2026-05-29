@@ -10,8 +10,13 @@ import type {
   AbTestResults,
   VariantStats,
   AbTestTrackedLinkRow,
+  AbTestCardView,
+  AbTestDraft,
+  DashboardStats,
+  DisplayLabel,
 } from '@/lib/youtube/ab-types'
 import { calculateBayesianConfidence } from '@/lib/youtube/ab-statistics'
+import { toDisplayLabel, variantColor } from './_components/ab-constants'
 
 async function requireEditAccess(): Promise<string> {
   const { siteId } = await getSiteContext()
@@ -318,4 +323,160 @@ export async function getVideoTestHistory(youtubeVideoId: string): Promise<Array
     ctr_lift_percent: (t.result_metadata as { ctr_lift_percent?: number } | null)?.ctr_lift_percent ?? null,
     confidence_at_completion: t.confidence_at_completion as number | null,
   }))
+}
+
+// ---------------------------------------------------------------------------
+// Pure computed helpers (Phase 3)
+// ---------------------------------------------------------------------------
+
+export function toCardView(test: AbTestWithVariants): AbTestCardView {
+  // Build per-variant stats from total impressions * ctr per variant
+  // We derive ctr per variant from cycles: avg_ctr = total_clicks / total_impressions
+  const statsMap = new Map<string, { impressions: number; clicks: number; ctr: number }>()
+  for (const v of test.variants) {
+    statsMap.set(v.id, { impressions: 0, clicks: 0, ctr: 0 })
+  }
+
+  // Use total_cycles as a proxy — but we don't have cycle data in AbTestWithVariants
+  // The leader is determined from winner_variant_id if available, otherwise fall back to original
+  const originalVariant = test.variants.find(v => v.is_original) ?? test.variants[0]
+  const originalLabel: DisplayLabel = toDisplayLabel(
+    originalVariant?.label ?? 'original',
+    originalVariant?.is_original ?? true,
+  )
+
+  // Determine leader: use winner_variant_id if present, else default to original ('A')
+  let leaderVariant = originalVariant
+  if (test.winner_variant_id) {
+    const winner = test.variants.find(v => v.id === test.winner_variant_id)
+    if (winner) leaderVariant = winner
+  }
+
+  const leaderLabel: DisplayLabel = toDisplayLabel(
+    leaderVariant?.label ?? 'original',
+    leaderVariant?.is_original ?? false,
+  )
+  const leaderIsOriginal = leaderVariant?.is_original ?? false
+
+  // Lift: use result_metadata if available
+  const lift = test.result_metadata?.ctr_lift_percent ?? 0
+
+  // dayOf: days since started_at
+  const dayOf = test.started_at
+    ? Math.floor((Date.now() - new Date(test.started_at).getTime()) / 86400000)
+    : 0
+
+  const confidence = (test.confidence_at_completion ?? 0) * 100
+
+  const variants = test.variants.map(v => ({
+    label: toDisplayLabel(v.label, v.is_original),
+    color: variantColor(v.label, v.is_original),
+    thumbUrl: v.blob_url ?? (v.is_original ? test.original_thumbnail_url : null),
+  }))
+
+  const leaderThumbUrl =
+    leaderVariant?.blob_url ??
+    (leaderIsOriginal ? test.original_thumbnail_url : null) ??
+    null
+
+  return {
+    id: test.id,
+    name: test.name,
+    type: test.test_type,
+    status: test.status,
+    dayOf,
+    confidence,
+    lift,
+    leader: leaderLabel,
+    leaderColor: variantColor(leaderVariant?.label ?? 'original', leaderIsOriginal),
+    leaderThumbUrl,
+    variants,
+    hasPlayoff: !!test.playoff_test_id,
+    roundNumber: test.round_number,
+    createdAt: test.created_at,
+  }
+}
+
+export function toLatestDraft(drafts: AbTestWithVariants[]): AbTestDraft | null {
+  if (drafts.length === 0) return null
+
+  const sorted = [...drafts].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  )
+  const latest = sorted[0]!
+
+  // step = number of variants added (0 = no variants yet)
+  const step = latest.variants.length
+
+  // Human-readable relative time
+  const diffMs = Date.now() - new Date(latest.created_at).getTime()
+  const diffSeconds = Math.floor(diffMs / 1000)
+  const diffMinutes = Math.floor(diffSeconds / 60)
+  const diffHours = Math.floor(diffMinutes / 60)
+  const diffDays = Math.floor(diffHours / 24)
+  const diffWeeks = Math.floor(diffDays / 7)
+  const diffMonths = Math.floor(diffDays / 30)
+
+  let createdAgo: string
+  if (diffSeconds < 60) {
+    createdAgo = 'just now'
+  } else if (diffMinutes < 60) {
+    createdAgo = `${diffMinutes} minute${diffMinutes !== 1 ? 's' : ''} ago`
+  } else if (diffHours < 24) {
+    createdAgo = `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`
+  } else if (diffDays < 7) {
+    createdAgo = `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`
+  } else if (diffWeeks < 5) {
+    createdAgo = `${diffWeeks} week${diffWeeks !== 1 ? 's' : ''} ago`
+  } else {
+    createdAgo = `${diffMonths} month${diffMonths !== 1 ? 's' : ''} ago`
+  }
+
+  const originalVariant = latest.variants.find(v => v.is_original)
+
+  return {
+    id: latest.id,
+    name: latest.name,
+    type: latest.test_type,
+    step,
+    thumbUrl:
+      originalVariant?.blob_url ?? latest.original_thumbnail_url ?? null,
+    createdAt: latest.created_at,
+    createdAgo,
+  }
+}
+
+export function computeDashboardStats(
+  active: AbTestWithVariants[],
+  completed: AbTestWithVariants[],
+): DashboardStats {
+  const activeTests = active.length
+
+  // avgConfidence: from completed tests, exclude nulls
+  const confidenceValues = completed
+    .map(t => t.confidence_at_completion)
+    .filter((v): v is number => v !== null)
+  const avgConfidence =
+    confidenceValues.length > 0
+      ? (confidenceValues.reduce((sum, v) => sum + v, 0) / confidenceValues.length) * 100
+      : 0
+
+  // Exclude playoff children (parent_test_id !== null)
+  const rootCompleted = completed.filter(t => t.parent_test_id === null)
+
+  // winRate: % of root completed tests with a winner
+  const winnerCount = rootCompleted.filter(t => t.winner_variant_id !== null).length
+  const winRate =
+    rootCompleted.length > 0 ? (winnerCount / rootCompleted.length) * 100 : 0
+
+  // avgLift: from root completed tests with winners
+  const liftValues = rootCompleted
+    .filter(t => t.winner_variant_id !== null && t.result_metadata !== null)
+    .map(t => t.result_metadata!.ctr_lift_percent)
+  const avgLift =
+    liftValues.length > 0
+      ? liftValues.reduce((sum, v) => sum + v, 0) / liftValues.length
+      : 0
+
+  return { activeTests, avgConfidence, winRate, avgLift }
 }
