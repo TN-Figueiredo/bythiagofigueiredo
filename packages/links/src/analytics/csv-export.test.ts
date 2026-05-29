@@ -46,4 +46,20 @@ describe('generateCsv', () => {
     const csv = generateCsv(columns, rows)
     expect(csv).toContain('"Line1\nLine2"')
   })
+
+  it('escapes CSV injection formulas', () => {
+    const columns = ['Title']
+    const rows: CsvRow[] = [
+      { Title: '=cmd|calc' },
+      { Title: '+cmd|calc' },
+      { Title: '-cmd|calc' },
+      { Title: '@SUM(A1)' },
+    ]
+    const csv = generateCsv(columns, rows)
+    expect(csv).not.toContain('\n=')
+    expect(csv).not.toContain('\n+')
+    expect(csv).not.toContain('\n-')
+    expect(csv).not.toContain('\n@')
+    expect(csv).toContain("\"'=cmd|calc\"")
+  })
 })

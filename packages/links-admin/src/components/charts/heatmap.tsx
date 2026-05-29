@@ -13,7 +13,7 @@ const SHADES = [
 
 export function Heatmap({ grid }: HeatmapProps) {
   return (
-    <div>
+    <div role="img" aria-label="Heatmap of traffic by day and hour">
       <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
         {grid.map((row, d) => (
           <div

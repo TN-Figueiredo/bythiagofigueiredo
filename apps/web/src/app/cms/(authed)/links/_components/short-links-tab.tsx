@@ -2,11 +2,12 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Search, Plus, ChevronRight, AlertTriangle, QrCode, Target, Link2, TrendingUp } from 'lucide-react'
+import { Search, Plus, ChevronRight, AlertTriangle, QrCode } from 'lucide-react'
 import { SOURCE_COLORS, SOURCE_LABELS, type LinkDisplay, type SourceId } from '@tn-figueiredo/links-admin'
 import { Spark, StatTile } from '@tn-figueiredo/links-admin/client'
 import { StatusDot } from './status-dot'
 import { FilterGroup } from './filter-group'
+import { fmt } from './fmt'
 
 const SOURCE_OPTS = [
   { id: 'all', label: 'Tudo' },
@@ -23,10 +24,6 @@ const STATUS_OPTS = [
   { id: 'active', label: 'Ativos' },
   { id: 'paused', label: 'Pausados' },
 ]
-
-function fmt(n: number): string {
-  return n.toLocaleString('pt-BR')
-}
 
 interface ShortLinksTabProps {
   links: LinkDisplay[]

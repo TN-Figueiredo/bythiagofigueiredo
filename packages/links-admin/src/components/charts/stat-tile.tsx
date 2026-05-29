@@ -15,6 +15,8 @@ export function StatTile({ label, value, sub, icon, iconTint, delta, spark }: St
   return (
     <div
       data-stat-tile
+      role="group"
+      aria-label={`${label}: ${value}`}
       style={{
         padding: 16,
         borderRadius: 14,

@@ -26,9 +26,9 @@ export function CountryList({ countries }: CountryListProps) {
   const max = Math.max(...countries.map((c) => c.v), 1)
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div role="list" aria-label="Countries by traffic" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {countries.map((c) => (
-        <div key={c.code} data-country>
+        <div key={c.code} data-country role="listitem">
           <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 5 }}>
             <span style={{ fontSize: 15 }}>{FLAG[c.code] || '\u{1F30E}'}</span>
             <span style={{ fontSize: 12.5, color: 'var(--ink, #ECE6DA)', flex: 1 }}>

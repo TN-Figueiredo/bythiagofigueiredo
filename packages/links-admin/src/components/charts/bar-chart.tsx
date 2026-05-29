@@ -4,6 +4,7 @@ export interface BarChartProps {
   labels?: string[]
   height?: number
   color?: string
+  label?: string
 }
 
 export function BarChart({
@@ -12,6 +13,7 @@ export function BarChart({
   labels,
   height = 150,
   color = 'var(--accent, #F2683C)',
+  label,
 }: BarChartProps) {
   const max = Math.max(...data, ...(prev || [1]), 1)
   const gap = data.length > 16 ? 2 : 6
@@ -20,6 +22,8 @@ export function BarChart({
     <div>
       <div
         data-bar-chart
+        role="img"
+        aria-label={label || 'Bar chart'}
         style={{
           display: 'flex',
           alignItems: 'flex-end',

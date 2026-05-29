@@ -27,6 +27,12 @@ function fmtDate(d: string): string {
   }
 }
 
+function toHealth(raw: unknown): 'ok' | 'warn' | 'broken' {
+  if (raw === 'broken' || raw === 'unhealthy' || raw === 'dns_error' || raw === 'timeout') return 'broken'
+  if (raw === 'warn') return 'warn'
+  return 'ok'
+}
+
 export default async function LinksDashboardPage({ searchParams }: Props) {
   const params = await searchParams
   const { siteId, timezone } = await getSiteContext()
@@ -34,7 +40,8 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
   const authRes = await requireSiteScope({ area: 'cms', siteId, mode: 'view' })
   if (!authRes.ok) redirect('/cms')
 
-  const tab = (params.tab ?? 'tree') as TabId
+  const validTabs: TabId[] = ['tree', 'links', 'analytics']
+  const tab: TabId = validTabs.includes(params.tab as TabId) ? (params.tab as TabId) : 'tree'
 
   const supabase = getSupabaseServiceClient()
 
@@ -43,7 +50,7 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
   const sevenDaysAgoStr = toDateStringInTz(sevenDaysAgo, timezone)
   const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10)
 
-  const [linksRes, dailyRes, sourceRes, linktreeStatsRes, siteDataRes] = await Promise.all([
+  const [linksRes, dailyRes, linktreeStatsRes, siteDataRes] = await Promise.all([
     supabase
       .from('tracked_links')
       .select('*')
@@ -57,14 +64,10 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
       .gte('date', sevenDaysAgoStr)
       .order('date', { ascending: true }),
     supabase
-      .from('tracked_links')
-      .select('source_type, total_clicks')
-      .eq('site_id', siteId)
-      .is('deleted_at', null),
-    supabase
       .from('linktree_daily_metrics')
       .select('date, pageviews, unique_visitors, countries')
-      .eq('site_id', siteId),
+      .eq('site_id', siteId)
+      .gte('date', thirtyDaysAgo),
     supabase
       .from('sites')
       .select('short_domain, primary_domain, linktree_config')
@@ -93,7 +96,7 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
     topCountry: 'BR',
     ctr: 0,
     created: fmtDate((l.created_at as string) ?? ''),
-    health: ((l.health_status as string) === 'broken' ? 'broken' : (l.health_status as string) === 'warn' ? 'warn' : 'ok') as 'ok' | 'warn' | 'broken',
+    health: toHealth(l.health_status),
     redirect: ((l.redirect_type as number) === 302 ? 302 : 301) as 301 | 302,
     clickIds: (l.pass_click_ids as boolean) ?? false,
     spark: Array.from({ length: 14 }, () => 0),
@@ -145,7 +148,7 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
   }
 
   const sourceMap = new Map<string, number>()
-  for (const row of sourceRes.data ?? []) {
+  for (const row of rawLinks) {
     const src = (row.source_type as string) ?? 'manual'
     sourceMap.set(src, (sourceMap.get(src) ?? 0) + ((row.total_clicks as number) ?? 0))
   }
@@ -180,11 +183,7 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
     byDay,
     byDayPrev: Array.from({ length: 30 }, () => 0),
     bySource,
-    devices: [
-      { k: 'Mobile', v: 60, color: '#3FA9C0' },
-      { k: 'Desktop', v: 35, color: '#46B17E' },
-      { k: 'Tablet', v: 5, color: '#E0A23C' },
-    ],
+    devices: [],
     browsers: [],
     os: [],
     referrers: [],

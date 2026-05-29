@@ -8,10 +8,7 @@ import { SourceBars } from './source-bars'
 import { InsightsPanel } from './insights-panel'
 import { RangeTabs } from './range-tabs'
 import { useState } from 'react'
-
-function fmt(n: number): string {
-  return n.toLocaleString('pt-BR')
-}
+import { fmt } from './fmt'
 
 interface AnalyticsViewProps {
   data: AnalyticsDisplay

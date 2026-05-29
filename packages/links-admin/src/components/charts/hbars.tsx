@@ -7,17 +7,19 @@ export interface HBarsProps {
   rows: HBarRow[]
   color?: string
   suffix?: string
+  label?: string
 }
 
 export function HBars({
   rows,
   color = 'var(--accent, #F2683C)',
   suffix = '%',
+  label,
 }: HBarsProps) {
   const max = Math.max(...rows.map((r) => r.v), 1)
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div role="img" aria-label={label || 'Horizontal bar chart'} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       {rows.map((r) => (
         <div
           key={r.k}
@@ -49,6 +51,10 @@ export function HBars({
           >
             <div
               data-hbar-fill
+              role="progressbar"
+              aria-valuenow={r.v}
+              aria-valuemin={0}
+              aria-valuemax={max}
               style={{
                 width: `${(r.v / max) * 100}%`,
                 height: '100%',

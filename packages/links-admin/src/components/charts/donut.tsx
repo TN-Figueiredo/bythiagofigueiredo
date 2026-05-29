@@ -27,7 +27,7 @@ export function Donut({
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
       <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
-        <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
+        <svg width={size} height={size} role="img" aria-label={`Donut chart: ${segments.map(s => `${s.k} ${s.v}%`).join(', ')}`} style={{ transform: 'rotate(-90deg)' }}>
           {segments.map((s, i) => {
             const len = (s.v / total) * c
             const el = (

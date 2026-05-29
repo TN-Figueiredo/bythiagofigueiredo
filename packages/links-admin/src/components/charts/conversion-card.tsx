@@ -15,7 +15,7 @@ export function ConversionCard({ name, rate, progress, label, views, conversions
         <span style={{ fontSize: 18, fontWeight: 700, fontFamily: 'var(--font-mono, monospace)', color: 'var(--accent, #F2683C)' }}>{label}</span>
       </div>
       <div style={{ height: 8, borderRadius: 99, background: 'var(--surface-2, #1E1B16)', overflow: 'hidden', marginBottom: 12 }}>
-        <div data-progress-fill style={{ width: `${Math.min(progress * 100, 100)}%`, height: '100%', borderRadius: 99, background: 'var(--accent, #F2683C)', transition: 'width .5s' }} />
+        <div data-progress-fill role="progressbar" aria-valuenow={Math.round(progress * 100)} aria-valuemin={0} aria-valuemax={100} style={{ width: `${Math.min(progress * 100, 100)}%`, height: '100%', borderRadius: 99, background: 'var(--accent, #F2683C)', transition: 'width .5s' }} />
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--ink-faint, #6E685D)' }}>
         <span>{views} views</span>

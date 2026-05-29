@@ -1,6 +1,9 @@
 export type CsvRow = Record<string, string>
 
 function escapeField(value: string): string {
+  if (/^[=+\-@\t\r]/.test(value)) {
+    return `"'${value.replace(/"/g, '""')}"`
+  }
   if (value.includes(',') || value.includes('"') || value.includes('\n') || value.includes('\r')) {
     return `"${value.replace(/"/g, '""')}"`
   }

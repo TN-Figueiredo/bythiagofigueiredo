@@ -22,12 +22,13 @@ export function UtmPanel({ data, onDimensionChange }: UtmPanelProps) {
   const max = Math.max(...data.map(d => d.clicks), 1)
 
   return (
-    <div data-panel style={{ padding: 18, borderRadius: 14, border: '1px solid var(--line, rgba(255,255,255,0.08))', background: 'var(--surface, #161410)' }}>
+    <div data-panel aria-label="UTM Attribution" style={{ padding: 18, borderRadius: 14, border: '1px solid var(--line, rgba(255,255,255,0.08))', background: 'var(--surface, #161410)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
         <span style={{ fontSize: 13.5, fontWeight: 600, flex: 1, color: 'var(--ink, #ECE6DA)' }}>UTM Attribution</span>
         <div style={{ display: 'flex', gap: 2, background: 'var(--surface-2, #1E1B16)', borderRadius: 7, padding: 2 }}>
           {DIMS.map(d => (
             <button key={d.id} type="button"
+              aria-label={`Filter by ${d.label}`}
               onClick={() => { setActive(d.id); onDimensionChange?.(d.id) }}
               style={{
                 border: 'none', borderRadius: 5, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer',

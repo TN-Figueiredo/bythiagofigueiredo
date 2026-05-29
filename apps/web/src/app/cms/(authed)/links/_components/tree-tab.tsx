@@ -3,10 +3,7 @@
 import Link from 'next/link'
 import { Info, Eye, Users, Target, Trophy } from 'lucide-react'
 import type { LinktreeDisplay } from '@tn-figueiredo/links-admin'
-
-function fmt(n: number): string {
-  return n.toLocaleString('pt-BR')
-}
+import { fmt } from './fmt'
 
 interface TreeTabProps {
   tree: LinktreeDisplay

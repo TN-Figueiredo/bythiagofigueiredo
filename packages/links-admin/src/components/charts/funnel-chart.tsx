@@ -13,7 +13,7 @@ const COLORS = ['var(--accent, #F2683C)', '#E0A23C', '#46B17E']
 
 export function FunnelChart({ steps, overallRate }: FunnelChartProps) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div role="img" aria-label={`Funnel chart: ${steps.map(s => `${s.label} ${s.value}`).join(', ')}`} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {overallRate != null && (
         <div style={{ textAlign: 'right', fontSize: 11, color: 'var(--ink-faint, #6E685D)' }}>
           Taxa geral: <span style={{ fontWeight: 700, color: 'var(--accent, #F2683C)' }}>{overallRate}%</span>

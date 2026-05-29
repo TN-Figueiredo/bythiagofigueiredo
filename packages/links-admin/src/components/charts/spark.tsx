@@ -4,10 +4,11 @@ export interface SparkProps {
   w?: number
   h?: number
   fill?: boolean
+  label?: string
 }
 
-export function Spark({ data, color, w = 90, h = 28, fill = true }: SparkProps) {
-  if (data.length === 0) return <svg width={w} height={h} />
+export function Spark({ data, color, w = 90, h = 28, fill = true, label }: SparkProps) {
+  if (data.length === 0) return <svg width={w} height={h} role="img" aria-label={label || 'Sparkline chart'} />
 
   const max = Math.max(...data, 1)
   const min = Math.min(...data, 0)
@@ -23,7 +24,7 @@ export function Spark({ data, color, w = 90, h = 28, fill = true }: SparkProps) 
   const last = pts[pts.length - 1]!
 
   return (
-    <svg width={w} height={h} style={{ display: 'block', overflow: 'visible' }}>
+    <svg width={w} height={h} role="img" aria-label={label || 'Sparkline chart'} style={{ display: 'block', overflow: 'visible' }}>
       {fill && <path d={area} fill={color} opacity="0.12" />}
       <path
         d={d}
