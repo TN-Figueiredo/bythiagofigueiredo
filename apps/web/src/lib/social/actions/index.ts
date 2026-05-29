@@ -9,7 +9,9 @@ export {
   connectSocial,
   disconnectSocial,
   getConnections,
+  checkConnectionHealth,
 } from './connections'
+export type { ConnectionHealth } from './connections'
 
 // Post management (create, update, cancel, delete, retry, list, get, edit published, batch reorder)
 export {

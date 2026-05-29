@@ -16,7 +16,12 @@ function computeCI(ctr: number, impressions: number): { lo: number; hi: number }
 export function CredibleInterval({ variants, leader }: CredibleIntervalProps) {
   const active = variants.filter(v => v.impressions > 0)
 
-  if (active.length === 0) return null
+  if (active.length === 0) return (
+    <div className="flex flex-col items-center justify-center py-8 text-center">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-cms-text-dim mb-2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" /></svg>
+      <p className="text-xs text-cms-text-muted">Aguardando impressões — os gráficos aparecem quando o teste começar a coletar.</p>
+    </div>
+  )
 
   // Compute CI for all active variants
   const intervals = active.map(v => ({ ...v, ...computeCI(v.ctr, v.impressions) }))

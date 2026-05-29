@@ -38,13 +38,13 @@ export function HeroBand({ confidence, confidenceTarget, leader, lift, trend }: 
         <div className="w-16 h-16">
           <Gauge value={confidence} target={confidenceTarget} ariaLabel="Confidence" />
         </div>
-        <span className="text-2xs text-cms-text-dim">Confidence</span>
+        <span className="text-2xs text-cms-text-dim">Confiança</span>
       </div>
 
-      {/* Cell 2: Leader */}
+      {/* Cell 2: Líder */}
       <div className="flex flex-col items-center justify-center gap-1" data-testid="hero-cell">
         <VChip label={leader.label} size={28} />
-        <span className="text-2xs text-cms-text-dim">Leader</span>
+        <span className="text-2xs text-cms-text-dim">Líder atual</span>
       </div>
 
       {/* Cell 3: Lift */}
@@ -52,14 +52,16 @@ export function HeroBand({ confidence, confidenceTarget, leader, lift, trend }: 
         <span className={`text-sm font-bold ${liftColor} font-mono`} data-testid="lift-value">
           {lift > 0 ? '+' : ''}{formatPercent(lift)}
         </span>
-        <span className="text-2xs text-cms-text-dim">Lift</span>
+        <span className="text-2xs text-cms-text-dim">CTR Lift vs original</span>
       </div>
 
-      {/* Cell 4: Trend */}
+      {/* Cell 4: Tendência */}
       <div className="flex flex-col items-center justify-center gap-1" data-testid="hero-cell">
         <TrendIcon size={20} data-testid={TREND_TESTID[trend]} aria-hidden="true" />
-        <span className="sr-only">{trend === 'up' ? 'Trending up' : trend === 'down' ? 'Trending down' : 'Flat trend'}</span>
-        <span className="text-2xs text-cms-text-dim">Trend</span>
+        <span className={`text-sm font-semibold ${trend === 'up' ? 'text-cms-green' : trend === 'down' ? 'text-red-400' : 'text-cms-text-muted'}`}>
+          {trend === 'up' ? 'subindo' : trend === 'down' ? 'descendo' : 'estável'}
+        </span>
+        <span className="text-2xs text-cms-text-dim">Tendência</span>
       </div>
     </div>
   )

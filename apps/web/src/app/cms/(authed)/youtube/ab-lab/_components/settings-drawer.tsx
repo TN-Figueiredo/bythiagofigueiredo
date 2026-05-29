@@ -134,12 +134,12 @@ export function SettingsDrawer({ settings, onSave, onClose }: SettingsDrawerProp
   }
 
   const statusText = saveStatus === 'saving' || isPending
-    ? 'Saving...'
+    ? 'Salvando...'
     : saveStatus === 'saved'
-      ? 'Saved automatically'
+      ? 'Salvo automaticamente'
       : saveStatus === 'error'
-        ? 'Failed to save'
-        : ''
+        ? 'Erro ao salvar'
+        : 'Salvo automaticamente'
 
   return (
     <>
@@ -156,18 +156,21 @@ export function SettingsDrawer({ settings, onSave, onClose }: SettingsDrawerProp
         ref={drawerRef}
         role="dialog"
         aria-modal="true"
-        aria-label="A/B Test Settings"
+        aria-label="Configurações do A/B Lab"
         className="fixed right-0 top-0 bottom-0 z-95 w-full overflow-y-auto border-l border-cms-border bg-cms-surface animate-ab-drawer-in"
         style={{ maxWidth: 'min(440px, 100%)' }}
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-cms-border px-6 py-4">
-          <h2 className="text-base font-semibold text-cms-text">A/B Test Settings</h2>
+          <div>
+            <h2 className="text-base font-semibold text-cms-text">Configurações do A/B Lab</h2>
+            <p className="text-xs text-cms-text-muted mt-0.5">Valem pra todos os testes deste canal</p>
+          </div>
           <button
             type="button"
             onClick={onClose}
             className="flex h-8 w-8 items-center justify-center rounded-[var(--cms-radius)] text-cms-text-muted hover:bg-cms-surface-hover hover:text-cms-text focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
-            aria-label="Close"
+            aria-label="Fechar"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
               <path d="M18 6L6 18M6 6l12 12" />
@@ -182,9 +185,9 @@ export function SettingsDrawer({ settings, onSave, onClose }: SettingsDrawerProp
           <div className="space-y-8 px-6 py-6">
             {/* Automation */}
             <section data-section="automation">
-              <SectionLabel>Automation</SectionLabel>
+              <SectionLabel>Automação</SectionLabel>
               <div className="space-y-3">
-                <CfgRow label="Auto-apply winner" hint="Apply winning variant automatically when test resolves">
+                <CfgRow label="Aplicar vencedor automaticamente" hint="Troca thumb/título no YouTube ao concluir">
                   <Toggle
                     checked={edited.default_auto_apply}
                     onChange={v => update('default_auto_apply', v)}
@@ -195,9 +198,10 @@ export function SettingsDrawer({ settings, onSave, onClose }: SettingsDrawerProp
 
             {/* Defaults */}
             <section data-section="defaults">
-              <SectionLabel>Defaults</SectionLabel>
+              <SectionLabel>Padrões dos novos testes</SectionLabel>
+              <p className="text-xs text-cms-text-muted mb-3">Pré-preenchem o passo Config do wizard — dá pra mudar caso a caso.</p>
               <div className="space-y-3">
-                <CfgRow label="Duration" hint="Default test duration in days">
+                <CfgRow label="Duração máxima">
                   <NumberField
                     value={edited.default_duration_days}
                     onChange={v => update('default_duration_days', v)}
@@ -206,7 +210,7 @@ export function SettingsDrawer({ settings, onSave, onClose }: SettingsDrawerProp
                     suffix="d"
                   />
                 </CfgRow>
-                <CfgRow label="Confidence threshold">
+                <CfgRow label="Confiança alvo">
                   <Slider
                     value={Math.round(edited.default_confidence * 100)}
                     onChange={v => update('default_confidence', v / 100)}
@@ -215,7 +219,7 @@ export function SettingsDrawer({ settings, onSave, onClose }: SettingsDrawerProp
                     format={v => `${v}%`}
                   />
                 </CfgRow>
-                <CfgRow label="Burn-in period" hint="Ignore early data for this many days">
+                <CfgRow label="Burn-in" hint="Ignora os primeiros dias de dados">
                   <NumberField
                     value={edited.default_burn_in_days}
                     onChange={v => update('default_burn_in_days', v)}
@@ -229,31 +233,31 @@ export function SettingsDrawer({ settings, onSave, onClose }: SettingsDrawerProp
 
             {/* Notifications */}
             <section data-section="notifications">
-              <SectionLabel>Notifications</SectionLabel>
+              <SectionLabel>Notificações</SectionLabel>
               <div className="space-y-1">
                 <CheckRow
                   checked={edited.notifications.test_completed}
                   onChange={v => updateNotification('test_completed', v)}
-                  label="Test completed"
-                  hint="Get notified when a test finishes"
+                  label="Teste concluído"
+                  hint="Notifica quando um teste termina"
                 />
                 <CheckRow
                   checked={edited.notifications.test_auto_paused}
                   onChange={v => updateNotification('test_auto_paused', v)}
-                  label="Test auto-paused"
-                  hint="Alert when a test is paused automatically"
+                  label="Teste pausado automaticamente"
+                  hint="Alerta quando um teste é pausado"
                 />
                 <CheckRow
                   checked={edited.notifications.ctr_drop_alert}
                   onChange={v => updateNotification('ctr_drop_alert', v)}
-                  label="CTR drop alert"
-                  hint="Alert when CTR drops significantly"
+                  label="Alerta de queda de CTR"
+                  hint="Alerta quando o CTR cai significativamente"
                 />
                 <CheckRow
                   checked={edited.notifications.daily_digest}
                   onChange={v => updateNotification('daily_digest', v)}
-                  label="Daily digest"
-                  hint="Receive a daily summary of test activity"
+                  label="Resumo diário"
+                  hint="Receba um resumo diário da atividade"
                 />
               </div>
             </section>

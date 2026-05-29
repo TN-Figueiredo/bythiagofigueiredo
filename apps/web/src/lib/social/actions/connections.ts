@@ -150,3 +150,73 @@ export async function getConnections(
     throw err
   }
 }
+
+// ---------------------------------------------------------------------------
+// Connection health check
+// ---------------------------------------------------------------------------
+
+export interface ConnectionHealth {
+  connectionId: string
+  provider: Provider
+  accountName: string
+  status: 'ok' | 'warn' | 'error'
+  followersCount: number | null
+  tokenExpiresIn: number | null
+}
+
+export async function checkConnectionHealth(
+  siteId: string,
+): Promise<ActionResult<ConnectionHealth[]>> {
+  try {
+    const { siteId: authedSiteId } = await requireEditAccess()
+    if (authedSiteId !== siteId) return { ok: false, error: 'forbidden' }
+
+    const supabase = getSupabaseServiceClient()
+    const { data: connections, error } = await supabase
+      .from('social_connections')
+      .select('id, provider, account_name, token_expires_at, metadata, status')
+      .eq('site_id', siteId)
+      .order('created_at')
+
+    if (error) {
+      Sentry.captureException(error, { tags: { ...SENTRY_TAG, action: 'checkConnectionHealth' } })
+      return { ok: false, error: error.message }
+    }
+
+    const now = Date.now()
+    const results: ConnectionHealth[] = (connections ?? []).map((c) => {
+      const meta = (c.metadata ?? {}) as Record<string, unknown>
+      const followers = typeof meta.followers_count === 'number'
+        ? meta.followers_count
+        : typeof meta.subscriber_count === 'number'
+          ? meta.subscriber_count
+          : null
+
+      let tokenExpiresIn: number | null = null
+      let status: ConnectionHealth['status'] = 'ok'
+
+      if (c.token_expires_at) {
+        const expiresAt = new Date(c.token_expires_at).getTime()
+        tokenExpiresIn = Math.ceil((expiresAt - now) / (1000 * 60 * 60 * 24))
+        if (tokenExpiresIn <= 0) status = 'error'
+        else if (tokenExpiresIn <= 7) status = 'warn'
+      }
+
+      if (c.status === 'revoked' || c.status === 'error') status = 'error'
+
+      return {
+        connectionId: c.id,
+        provider: c.provider as Provider,
+        accountName: c.account_name ?? '',
+        status,
+        followersCount: followers as number | null,
+        tokenExpiresIn,
+      }
+    })
+
+    return { ok: true, data: results }
+  } catch (err) {
+    Sentry.captureException(err, { tags: { ...SENTRY_TAG, action: 'checkConnectionHealth' } })
+    return { ok: false, error: 'Failed to check connection health' }
+  }
+}
