@@ -45,6 +45,10 @@ export {
   Heatmap,
   CountryList,
   Panel,
+  UtmPanel,
+  BotFilterToggle,
+  ConversionCard,
+  FunnelChart,
 } from './components/charts/index'
 export type {
   SparkProps,
