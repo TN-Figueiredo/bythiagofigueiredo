@@ -47,6 +47,10 @@ export interface AbTestRow {
   result_metadata: ResultMetadata | null
   created_at: string
   updated_at: string
+  parent_test_id: string | null
+  round_number: number
+  playoff_test_id: string | null
+  playoff_start_after: string | null
 }
 
 export interface VariantMetadata {
@@ -80,6 +84,7 @@ export interface AbTestVariantRow {
   metadata: VariantMetadata
   sort_order: number
   created_at: string
+  source_variant_id: string | null
 }
 
 export interface AppliedMetadata {

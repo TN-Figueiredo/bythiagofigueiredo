@@ -1,12 +1,14 @@
 export type NotificationType =
   | 'grade_drop' | 'ctr_drop' | 'monitoring_alert' | 'ab_test_completed'
   | 'retest_suggested' | 'optimization_available' | 'trending_viral' | 'optimization_resolved'
+  | 'playoff_created'
 
 export const NOTIFICATION_PRIORITIES: Record<NotificationType, number> = {
   grade_drop: 5,
   ctr_drop: 4,
   monitoring_alert: 4,
   ab_test_completed: 3,
+  playoff_created: 3,
   retest_suggested: 3,
   optimization_available: 2,
   trending_viral: 2,
@@ -102,9 +104,20 @@ interface OptimizationResolvedInput {
   weekIso: string
 }
 
+interface PlayoffCreatedInput {
+  type: 'playoff_created'
+  videoId: string
+  videoTitle: string
+  testName: string
+  variant1Label: string
+  variant2Label: string
+  weekIso: string
+}
+
 type NotificationInput =
   | GradeDropInput | CtrDropInput | MonitoringAlertInput | AbTestCompletedInput
   | RetestSuggestedInput | OptimizationAvailableInput | TrendingViralInput | OptimizationResolvedInput
+  | PlayoffCreatedInput
 
 export function buildNotification(input: NotificationInput): NotificationPayload {
   const priority = NOTIFICATION_PRIORITIES[input.type]!
@@ -194,6 +207,16 @@ export function buildNotification(input: NotificationInput): NotificationPayload
         dedup_key: dedupKey,
         video_id: input.videoId,
         action_href: `${baseHref}?tab=grades&video=${input.videoId}`,
+      }
+    case 'playoff_created':
+      return {
+        type: input.type,
+        priority,
+        title: `Playoff criado: ${input.testName}`,
+        message: `Playoff: ${input.variant1Label} vs ${input.variant2Label}. Início em 4h.`,
+        dedup_key: dedupKey,
+        video_id: input.videoId,
+        action_href: `/cms/youtube/ab-lab`,
       }
   }
 }
