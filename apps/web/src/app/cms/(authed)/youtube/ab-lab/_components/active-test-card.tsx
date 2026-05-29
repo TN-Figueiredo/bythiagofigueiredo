@@ -30,12 +30,9 @@ export function ActiveTestCard({ test, onOpen }: ActiveTestCardProps) {
       {/* Header */}
       <div className="flex items-center gap-2 flex-wrap mb-2">
         <TypeBadge type={test.type} />
-        <Badge tone="live" dot>{`D${test.dayOf}`}</Badge>
-        {test.hasPlayoff && <Badge tone="accent">Playoff</Badge>}
+        <Badge tone="live" dot>{`Dia ${test.dayOf}`}</Badge>
+        {test.hasPlayoff && <Badge tone="accent">Round {test.roundNumber}</Badge>}
       </div>
-
-      {/* Title */}
-      <h3 className="text-sm font-medium text-cms-text line-clamp-2 mb-3">{test.name}</h3>
 
       {/* Mini thumbnail row */}
       <div className="flex items-center gap-1.5 mb-3">
@@ -65,6 +62,9 @@ export function ActiveTestCard({ test, onOpen }: ActiveTestCardProps) {
           </div>
         ))}
       </div>
+
+      {/* Title */}
+      <h3 className="text-sm font-medium text-cms-text line-clamp-2 mb-3">{test.name}</h3>
 
       {/* Footer */}
       <div

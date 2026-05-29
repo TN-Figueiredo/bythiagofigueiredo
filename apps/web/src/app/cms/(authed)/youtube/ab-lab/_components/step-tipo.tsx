@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useCallback } from 'react'
-import { Layers, Image, Type, FileText } from 'lucide-react'
+import { FlaskConical, Image, Type, FileText } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { TestType } from '@/lib/youtube/ab-types'
 import { Badge } from './ab-primitives'
@@ -18,10 +18,10 @@ const TYPES: Array<{
   desc: string
   badge?: string
 }> = [
-  { type: 'combo',       icon: Layers,   title: 'Combo',       desc: 'Test thumbnail + title together',   badge: 'Recommended' },
-  { type: 'thumbnail',   icon: Image,    title: 'Thumbnail',   desc: 'Test different thumbnail images' },
-  { type: 'title',       icon: Type,     title: 'Title',       desc: 'Test different video titles' },
-  { type: 'description', icon: FileText, title: 'Description', desc: 'Test different descriptions',       badge: 'One-off' },
+  { type: 'combo',       icon: FlaskConical, title: 'Combo',       desc: 'Thumb + título testados juntos',      badge: 'Recomendado' },
+  { type: 'thumbnail',   icon: Image,        title: 'Miniatura',   desc: 'Só a miniatura muda' },
+  { type: 'title',       icon: Type,         title: 'Título',      desc: 'Só o título muda' },
+  { type: 'description', icon: FileText,     title: 'Descrição',   desc: 'Descrição + links rastreados',        badge: 'Pontual' },
 ]
 
 export function StepTipo({ selected, onSelect }: StepTipoProps) {
@@ -54,6 +54,10 @@ export function StepTipo({ selected, onSelect }: StepTipoProps) {
   )
 
   return (
+    <>
+      <p className="text-xs text-cms-text-dim mb-3 leading-relaxed">
+        Escolha o que vai ser rotacionado no YouTube. Thumb e título andam juntos — é a dupla que decide o clique.
+      </p>
     <div
       ref={containerRef}
       role="radiogroup"
@@ -122,5 +126,6 @@ export function StepTipo({ selected, onSelect }: StepTipoProps) {
         )
       })}
     </div>
+    </>
   )
 }

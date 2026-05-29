@@ -5,6 +5,7 @@ import { TrendingUp, TrendingDown } from 'lucide-react'
 export interface KPIProps {
   label: string
   value: number
+  prefix?: string
   suffix?: string
   delta?: number
   spark?: number[]
@@ -47,13 +48,13 @@ function Sparkline({ data }: { data: number[] }) {
   )
 }
 
-export function KPI({ label, value, suffix, delta, spark }: KPIProps) {
+export function KPI({ label, value, prefix, suffix, delta, spark }: KPIProps) {
   return (
     <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-bg p-3 flex flex-col gap-1">
       <span className="text-2xs text-cms-text-dim uppercase tracking-wider">{label}</span>
       <div className="flex items-baseline gap-1.5">
         <span className="text-2xl font-bold font-mono" style={{ fontWeight: 700 }}>
-          {value}
+          {prefix}{value}
         </span>
         {suffix && <span className="text-sm text-cms-text-muted">{suffix}</span>}
         {delta != null && delta !== 0 && (

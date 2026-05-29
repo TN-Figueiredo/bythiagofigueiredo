@@ -68,7 +68,7 @@ export function FeedView({ variants, selectedVariant, onSelectVariant }: FeedVie
               >
                 {/* "Your video" badge */}
                 <div className="absolute top-2 right-2 z-10">
-                  <Badge tone="live" dot>Your video</Badge>
+                  <Badge tone="live" dot>Seu vídeo</Badge>
                 </div>
                 <HomeCard
                   thumbUrl={currentVariant.thumbUrl ?? undefined}
@@ -106,7 +106,7 @@ export function FeedView({ variants, selectedVariant, onSelectVariant }: FeedVie
       {variants.length > 1 && (
         <div
           role="radiogroup"
-          aria-label="Select variant to preview"
+          aria-label="Selecionar variante para pré-visualizar"
           className="flex flex-wrap gap-2 pt-1"
         >
           {variants.map((v, idx) => (
@@ -143,10 +143,10 @@ export function FeedView({ variants, selectedVariant, onSelectVariant }: FeedVie
                 </span>
               )}
               {v.isLeader && !v.isWinner && (
-                <Badge tone="amber">Leading</Badge>
+                <Badge tone="amber">Líder</Badge>
               )}
               {v.isWinner && (
-                <Badge tone="green">Winner</Badge>
+                <Badge tone="green">Vencedor</Badge>
               )}
             </button>
           ))}

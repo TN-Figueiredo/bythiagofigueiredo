@@ -3,6 +3,13 @@
 import type { SuggestedVideo, TestType } from '@/lib/youtube/ab-types'
 import { formatPercent } from './ab-constants'
 
+const TYPE_LABELS: Record<TestType, string> = {
+  combo: 'Combo',
+  thumbnail: 'Miniatura',
+  title: 'Título',
+  description: 'Descrição',
+}
+
 export interface SuggestedCardProps {
   video: SuggestedVideo
   onCreate: (videoId: string, type: TestType) => void
@@ -48,8 +55,8 @@ export function SuggestedCard({ video, onCreate }: SuggestedCardProps) {
 
         {/* Mini stats */}
         <div className="flex items-center gap-3 text-2xs text-cms-text-muted mb-2">
-          <span>CTR {formatPercent(video.ctr)}</span>
-          <span>Median {formatPercent(video.channelMedianCtr)}</span>
+          <span>CTR atual {formatPercent(video.ctr)}</span>
+          <span>Mediana canal {formatPercent(video.channelMedianCtr)}</span>
           <span className="text-red-400">
             Gap {formatPercent(video.channelMedianCtr - video.ctr)}
           </span>
@@ -62,7 +69,7 @@ export function SuggestedCard({ video, onCreate }: SuggestedCardProps) {
           onClick={() => onCreate(video.id, video.suggest)}
           className="w-full px-3 py-1.5 text-2xs font-medium rounded bg-cms-accent text-white hover:bg-cms-accent/90 transition-colors focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
         >
-          Test {video.suggest}
+          Testar {TYPE_LABELS[video.suggest]}
         </button>
       </div>
     </article>

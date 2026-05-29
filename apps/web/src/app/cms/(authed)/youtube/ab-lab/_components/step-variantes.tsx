@@ -80,7 +80,7 @@ function ThumbSlot({ url, locked, label }: ThumbSlotProps) {
   return (
     <div className="w-[120px] h-[68px] rounded-[var(--cms-radius)] border-2 border-dashed border-cms-border bg-cms-surface/50 flex flex-col items-center justify-center gap-1 shrink-0 cursor-pointer hover:border-cms-accent/50 transition-colors">
       <span className="text-[9px] text-cms-text-dim text-center leading-tight px-1">
-        Drop image or click to upload
+        Arraste ou clique para enviar
       </span>
     </div>
   )
@@ -136,7 +136,7 @@ function VariantRow({ variant, index, type, onUpdate, onRemove }: VariantRowProp
         {isLocked && (
           <Badge tone="neutral">
             <Lock className="w-2.5 h-2.5 mr-0.5" aria-hidden="true" />
-            Locked
+            Travado
           </Badge>
         )}
 
@@ -178,7 +178,7 @@ function VariantRow({ variant, index, type, onUpdate, onRemove }: VariantRowProp
             <div>
               <div className="flex items-center justify-between gap-2 mb-1">
                 <label htmlFor={titleId} className="text-[10px] font-medium text-cms-text-muted uppercase tracking-wide">
-                  Title
+                  Título
                 </label>
                 {!isLocked && <CharCounter length={variant.titleText.length} />}
               </div>
@@ -202,7 +202,7 @@ function VariantRow({ variant, index, type, onUpdate, onRemove }: VariantRowProp
           {showsDescription(type) && (
             <div>
               <label htmlFor={descId} className="text-[10px] font-medium text-cms-text-muted uppercase tracking-wide mb-1 block">
-                Description
+                Descrição
               </label>
               {isLocked ? (
                 <p className="text-xs text-cms-text-muted line-clamp-2">{variant.descriptionText || 'No description'}</p>
@@ -251,7 +251,7 @@ export function StepVariantes({
           </p>
         </div>
         <span className="text-[10px] text-cms-text-dim font-mono tabular-nums">
-          {challengers.length}/{MAX_CHALLENGERS} challengers
+          {challengers.length}/{MAX_CHALLENGERS} desafiantes
         </span>
       </div>
 
@@ -277,7 +277,7 @@ export function StepVariantes({
           className="w-full rounded-[var(--cms-radius)] border border-dashed border-cms-border bg-transparent py-2.5 flex items-center justify-center gap-1.5 text-xs text-cms-text-muted hover:border-cms-accent/50 hover:text-cms-accent transition-colors"
         >
           <Plus className="w-3.5 h-3.5" />
-          Add variant
+          Adicionar variante
         </button>
       )}
 
@@ -285,7 +285,7 @@ export function StepVariantes({
       {challengers.length === 0 && (
         <div className="rounded-[var(--cms-radius)] bg-amber-500/10 border border-amber-500/20 px-3 py-2 text-center">
           <p className="text-[10px] text-amber-400">
-            Add at least one challenger variant to proceed.
+            Adicione pelo menos uma variante desafiante para continuar.
           </p>
         </div>
       )}
