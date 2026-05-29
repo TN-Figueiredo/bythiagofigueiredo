@@ -60,5 +60,8 @@ apps/*/.env.local-db
 
 # Superpowers brainstorm artifacts
 .superpowers/
+
+# Design mockups (use Figma/CDN, not git — 44MB caused Vercel build timeouts)
+design/
 supabase/backup_*_pre_squash.sql
 apps/web/.env.local.prod-backup
