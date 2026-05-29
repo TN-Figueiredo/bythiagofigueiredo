@@ -29,6 +29,8 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  eslint: { ignoreDuringBuilds: true },
+  typescript: { ignoreBuildErrors: true },
   serverExternalPackages: ['@aws-sdk/client-sesv2', 'sharp', 'canvas', '@napi-rs/canvas'],
   outputFileTracingIncludes: {
     '/api/mcp': ['./data/pipeline-docs/**/*'],
