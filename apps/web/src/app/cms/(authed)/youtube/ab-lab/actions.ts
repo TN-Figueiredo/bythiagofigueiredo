@@ -29,6 +29,7 @@ import { ensureTrackedLink } from '@/lib/links/auto-link'
 import { getChannelTier } from '@/lib/youtube/scoring'
 import { scoreForPrompt } from '@/lib/youtube/prompt-scoring'
 import type { AbBriefingData } from '@/lib/youtube/prompt-types'
+import { startAbTestInternal } from '@/lib/youtube/ab-start'
 
 async function requireEditAccess(): Promise<string> {
   const { siteId } = await getSiteContext()
@@ -511,68 +512,9 @@ export async function startAbTest(
     return { ok: false, error: (e as Error).message }
   }
 
-  const supabase = getSupabaseServiceClient()
-
-  const { data: test, error: testError } = await supabase
-    .from('ab_tests')
-    .select('id, site_id, status, youtube_video_id')
-    .eq('id', testId)
-    .eq('site_id', siteId)
-    .single()
-
-  if (testError || !test) return { ok: false, error: 'Test not found' }
-  if (test.status !== 'draft') return { ok: false, error: 'Only draft tests can be started' }
-
-  const { data: variants, error: variantsError } = await supabase
-    .from('ab_test_variants')
-    .select('id, label, is_original, blob_url, sort_order')
-    .eq('test_id', testId)
-    .order('sort_order', { ascending: true })
-
-  if (variantsError) return { ok: false, error: variantsError.message }
-  if (!variants || variants.length < 2) {
-    return { ok: false, error: 'A test needs at least 2 variants (original + 1) to start' }
-  }
-
-  const firstIndex = getVariantForCycle(variants.length, 0)
-  if (firstIndex < 0 || firstIndex >= variants.length) {
-    return { ok: false, error: 'Invalid variant rotation index' }
-  }
-  const firstVariant = variants[firstIndex] as AbTestVariantRow
-
-  try {
-    const { accessToken } = await ensureFreshToken(siteId, 'youtube')
-    const youtubeVideoId = await resolveYouTubeVideoId(supabase, test.youtube_video_id as string)
-    if (!youtubeVideoId) return { ok: false, error: 'YouTube video ID not found' }
-
-    if (!firstVariant.is_original && firstVariant.blob_url) {
-      const { buffer, contentType } = await fetchVariantImageBuffer(firstVariant.blob_url)
-      await setThumbnail(youtubeVideoId, buffer, contentType, accessToken)
-    }
-  } catch (e) {
-    return { ok: false, error: (e as Error).message }
-  }
-
-  const now = new Date().toISOString()
-
-  const { error: updateError } = await supabase
-    .from('ab_tests')
-    .update({ status: 'active', started_at: now, paused_at: null, updated_at: now })
-    .eq('id', testId)
-
-  if (updateError) return { ok: false, error: updateError.message }
-
-  const { error: cycleError } = await supabase.from('ab_test_cycles').insert({
-    test_id: testId,
-    variant_id: firstVariant.id,
-    cycle_number: 0,
-    started_at: now,
-  })
-
-  if (cycleError) return { ok: false, error: cycleError.message }
-
-  revalidateTag('youtube')
-  return { ok: true }
+  const result = await startAbTestInternal(testId, siteId)
+  if (result.ok) revalidateTag('youtube')
+  return result
 }
 
 // ---------------------------------------------------------------------------
