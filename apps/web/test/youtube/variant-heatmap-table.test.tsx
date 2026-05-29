@@ -136,17 +136,17 @@ describe('VariantHeatmapTable', () => {
     expect(comboCell.className).toContain('text-lg')
   })
 
-  it('renders variant labels in correct colors (B=green, C=blue, D=amber)', () => {
+  it('renders variant labels with correct inline colors from ab-constants', () => {
     render(<VariantHeatmapTable variants={fullVariants()} />)
 
-    const labelB = screen.getByText('B')
-    expect(labelB.className).toContain('text-green-400')
+    const labelB = screen.getByText('B') as HTMLElement
+    expect(labelB.style.color).toBe('#E8823C')
 
-    const labelC = screen.getByText('C')
-    expect(labelC.className).toContain('text-blue-400')
+    const labelC = screen.getByText('C') as HTMLElement
+    expect(labelC.style.color).toBe('#3FA9C0')
 
-    const labelD = screen.getByText('D')
-    expect(labelD.className).toContain('text-amber-400')
+    const labelD = screen.getByText('D') as HTMLElement
+    expect(labelD.style.color).toBe('#A77CE8')
   })
 
   it('handles empty variants array gracefully', () => {

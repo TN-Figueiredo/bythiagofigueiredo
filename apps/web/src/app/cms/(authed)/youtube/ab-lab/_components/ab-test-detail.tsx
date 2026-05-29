@@ -5,9 +5,11 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type { AbTestResults, AbTestWithVariants, AbTestTrackedLinkRow } from '@/lib/youtube/ab-types'
 import { resumeAbTest, archiveAbTest } from '../actions'
-import { AbConfidenceTrend } from './ab-confidence-trend'
-import { AbRotationTimeline } from './ab-rotation-timeline'
-import { AbDailyCtrChart } from './ab-daily-ctr-chart'
+import { ConfidenceChart } from './confidence-chart'
+import { ABBATimeline } from './abba-timeline'
+import { MultiLine } from './multi-line'
+import { VARIANT_COLORS, toDisplayLabel } from './ab-constants'
+import type { DisplayLabel } from '@/lib/youtube/ab-types'
 import { AbEndTestDialog } from './ab-end-test-dialog'
 import { AbPauseDialog } from './ab-pause-dialog'
 import { AbVariantCard } from './ab-variant-card'
@@ -177,20 +179,42 @@ export function AbTestDetail({ results }: AbTestDetailProps) {
     })
   }
 
-  const timelineVariants = useMemo(
-    () =>
-      variants.map(v => ({
-        id: v.variant_id,
-        label: v.label,
-        is_original: v.is_original,
-      })),
-    [variants],
+  const variantIdToLabel = useMemo(() => {
+    const map = new Map<string, DisplayLabel>()
+    for (const v of variants) {
+      map.set(v.variant_id, toDisplayLabel(v.label, v.is_original))
+    }
+    return map
+  }, [variants])
+
+  const timelineSeq = useMemo(() => {
+    const sorted = [...timeline].sort((a, b) => a.cycle_number - b.cycle_number)
+    return sorted.map(c => variantIdToLabel.get(c.variant_id) ?? 'A' as DisplayLabel)
+  }, [timeline, variantIdToLabel])
+
+  const timelineDone = useMemo(
+    () => timeline.filter(c => c.ended_at !== null).length,
+    [timeline],
   )
 
-  const totalDays = useMemo(() => {
-    if (timeline.length === 0) return 1
-    return Math.max(timeline.length, 1)
-  }, [timeline])
+  const timelineColors = useMemo(
+    () => ({ ...VARIANT_COLORS }) as Record<string, string>,
+    [],
+  )
+
+  const multiLineSeries = useMemo(() => {
+    const confirmed = results.timeline
+      .filter(c => c.backfill_status === 'confirmed' && c.ctr !== null)
+      .sort((a, b) => a.cycle_number - b.cycle_number)
+
+    const series = {} as Record<DisplayLabel, number[]>
+    for (const c of confirmed) {
+      const label = variantIdToLabel.get(c.variant_id) ?? ('A' as DisplayLabel)
+      if (!series[label]) series[label] = []
+      series[label].push((c.ctr ?? 0) * 100)
+    }
+    return series
+  }, [results.timeline, variantIdToLabel])
 
   return (
     <div className="space-y-6 p-6 max-w-6xl mx-auto">
@@ -389,9 +413,9 @@ export function AbTestDetail({ results }: AbTestDetailProps) {
           </div>
 
           <div className="flex-1 min-w-0">
-            <AbConfidenceTrend
-              evaluations={evaluations}
-              threshold={test.config.confidence_threshold}
+            <ConfidenceChart
+              data={evaluations.map(e => e.confidence * 100)}
+              target={(test.config.confidence_threshold ?? 0.95) * 100}
             />
           </div>
         </div>
@@ -517,18 +541,19 @@ export function AbTestDetail({ results }: AbTestDetailProps) {
 
       <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface p-5 space-y-3">
         <h3 className="text-sm font-semibold text-cms-text">Rotation Timeline</h3>
-        <AbRotationTimeline
-          cycles={timeline}
-          variants={timelineVariants}
-          today={new Date().toISOString()}
-          totalDays={totalDays}
+        <ABBATimeline
+          seq={timelineSeq}
+          total={timelineSeq.length}
+          done={timelineDone}
+          colors={timelineColors}
         />
       </div>
 
       <section className="space-y-3">
-        <AbDailyCtrChart
-          cycles={results.timeline}
-          variants={results.variants.map(v => ({ id: v.variant_id, label: v.label }))}
+        <h4 className="text-xs font-semibold uppercase tracking-wider text-cms-text-dim">Daily CTR</h4>
+        <MultiLine
+          series={multiLineSeries}
+          colors={{ ...VARIANT_COLORS }}
         />
       </section>
 

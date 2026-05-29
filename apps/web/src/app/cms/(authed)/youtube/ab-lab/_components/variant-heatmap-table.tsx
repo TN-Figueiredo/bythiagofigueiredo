@@ -2,15 +2,10 @@
 
 import type { VariantMetadata } from '@/lib/youtube/ab-types'
 import { VARIANT_LABELS } from '@/lib/youtube/ab-types'
+import { variantColor } from './ab-constants'
 
 interface VariantHeatmapTableProps {
   variants: Array<{ label: string; metadata: VariantMetadata }>
-}
-
-const VARIANT_COLORS: Record<string, string> = {
-  B: 'text-green-400',
-  C: 'text-blue-400',
-  D: 'text-amber-400',
 }
 
 const COLUMNS = ['Thumb', 'Title', 'Combo'] as const
@@ -65,7 +60,7 @@ export function VariantHeatmapTable({ variants }: VariantHeatmapTableProps) {
         <tbody>
           {filtered.map((v) => (
             <tr key={v.label} className="border-t border-cms-border">
-              <th scope="row" className={`px-3 py-2 font-semibold text-left ${VARIANT_COLORS[v.label] ?? 'text-foreground'}`}>
+              <th scope="row" className="px-3 py-2 font-semibold text-left" style={{ color: variantColor(v.label) }}>
                 {v.label}
               </th>
               {scoreCell(v.metadata.score?.thumbnail, false, 'Thumb')}
