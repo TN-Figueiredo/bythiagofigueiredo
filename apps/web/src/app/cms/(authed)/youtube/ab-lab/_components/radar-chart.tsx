@@ -96,82 +96,113 @@ export function RadarChart({ variants, axes = DEFAULT_AXES }: RadarChartProps) {
   const H = CY * 2 + 10
 
   return (
-    <svg
-      viewBox={`0 0 ${W} ${H}`}
-      aria-label="Radar chart"
-      role="img"
-      style={{ overflow: 'visible', width: '100%' }}
-    >
-      {/* Grid rings */}
-      {gridRingPoints.map((pts, ring) => (
-        <polygon
-          key={ring}
-          data-grid
-          points={pts}
-          fill="none"
-          stroke="var(--cms-border-subtle, #2a2a2a)"
-          strokeWidth={0.75}
-        />
-      ))}
-
-      {/* Axis lines from center to vertex */}
-      {axes.map((_, i) => {
-        const outer = polarToCartesian(CX, CY, RADIUS, axisAngle(i, n))
-        return (
-          <line
-            key={i}
-            x1={CX}
-            y1={CY}
-            x2={outer.x.toFixed(2)}
-            y2={outer.y.toFixed(2)}
+    <div className="relative">
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        aria-hidden="true"
+        style={{ overflow: 'visible', width: '100%' }}
+      >
+        {/* Grid rings */}
+        {gridRingPoints.map((pts, ring) => (
+          <polygon
+            key={ring}
+            data-grid
+            points={pts}
+            fill="none"
             stroke="var(--cms-border-subtle, #2a2a2a)"
             strokeWidth={0.75}
           />
-        )
-      })}
+        ))}
 
-      {/* Axis labels */}
-      {axes.map((axis, i) => {
-        const pos = axisLabelPos[i]!
-        return (
-          <text
-            key={i}
-            x={pos.x.toFixed(2)}
-            y={pos.y.toFixed(2)}
-            textAnchor="middle"
-            dominantBaseline="middle"
-            fontSize={9}
-            fill="var(--cms-text-dim, #888)"
-            fontFamily="JetBrains Mono, monospace"
-          >
-            {axis.label}
-          </text>
-        )
-      })}
-
-      {/* Variant data polygons */}
-      {variantPolygons.map(({ variant, pts }) => (
-        <g key={variant.label}>
-          <polygon
-            data-variant
-            points={pointsString(pts)}
-            fill={variant.color}
-            fillOpacity={0.2}
-            stroke={variant.color}
-            strokeWidth={1.5}
-          />
-          {/* Vertex dots */}
-          {pts.map((pt, i) => (
-            <circle
+        {/* Axis lines from center to vertex */}
+        {axes.map((_, i) => {
+          const outer = polarToCartesian(CX, CY, RADIUS, axisAngle(i, n))
+          return (
+            <line
               key={i}
-              cx={pt.x.toFixed(2)}
-              cy={pt.y.toFixed(2)}
-              r={DOT_RADIUS}
-              fill={variant.color}
+              x1={CX}
+              y1={CY}
+              x2={outer.x.toFixed(2)}
+              y2={outer.y.toFixed(2)}
+              stroke="var(--cms-border-subtle, #2a2a2a)"
+              strokeWidth={0.75}
             />
+          )
+        })}
+
+        {/* Axis labels */}
+        {axes.map((axis, i) => {
+          const pos = axisLabelPos[i]!
+          return (
+            <text
+              key={i}
+              x={pos.x.toFixed(2)}
+              y={pos.y.toFixed(2)}
+              textAnchor="middle"
+              dominantBaseline="middle"
+              fontSize={9}
+              fill="var(--cms-text-dim, #888)"
+              fontFamily="JetBrains Mono, monospace"
+            >
+              {axis.label}
+            </text>
+          )
+        })}
+
+        {/* Variant data polygons */}
+        {variantPolygons.map(({ variant, pts }) => (
+          <g key={variant.label}>
+            <polygon
+              data-variant
+              points={pointsString(pts)}
+              fill={variant.color}
+              fillOpacity={0.2}
+              stroke={variant.color}
+              strokeWidth={1.5}
+            />
+            {/* Vertex dots */}
+            {pts.map((pt, i) => (
+              <circle
+                key={i}
+                cx={pt.x.toFixed(2)}
+                cy={pt.y.toFixed(2)}
+                r={DOT_RADIUS}
+                fill={variant.color}
+              />
+            ))}
+          </g>
+        ))}
+      </svg>
+
+      {/* sr-only data table for accessibility */}
+      <table className="sr-only">
+        <caption>Radar chart data per variant</caption>
+        <thead>
+          <tr>
+            <th scope="col">Variant</th>
+            {axes.map(axis => (
+              <th key={axis.key} scope="col" aria-label={axis.label}>{axis.key}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {variants.map(variant => (
+            <tr key={variant.label}>
+              <td>{variant.label}</td>
+              {axes.map((axis, i) => {
+                const rawMax = axisMaxValues[i] ?? 0
+                const val = (variant as unknown as Record<string, number>)[axis.key] ?? 0
+                const pct = rawMax === 0 ? 0 : Math.min((val / rawMax) * 100, 100)
+                return (
+                  <td key={axis.key}>
+                    {val.toLocaleString(undefined, { maximumFractionDigits: 4 })} ({pct.toFixed(0)}%)
+                  </td>
+                )
+              })}
+            </tr>
           ))}
-        </g>
-      ))}
-    </svg>
+        </tbody>
+      </table>
+    </div>
   )
 }

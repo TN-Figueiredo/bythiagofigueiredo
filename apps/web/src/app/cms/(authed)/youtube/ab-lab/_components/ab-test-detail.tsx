@@ -13,7 +13,6 @@ import type { DisplayLabel } from '@/lib/youtube/ab-types'
 import { AbEndTestDialog } from './ab-end-test-dialog'
 import { AbPauseDialog } from './ab-pause-dialog'
 import { AbVariantCard } from './ab-variant-card'
-import { AbVideoHistory } from './ab-video-history'
 
 interface AbTestDetailProps {
   results: AbTestResults

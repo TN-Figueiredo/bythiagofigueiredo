@@ -8,9 +8,10 @@ export interface MultiLineProps {
   series: Record<DisplayLabel, number[]>
   colors: Record<DisplayLabel, string>
   labels?: string[]
+  suffix?: string
 }
 
-export function MultiLine({ series, colors, labels }: MultiLineProps) {
+export function MultiLine({ series, colors, labels, suffix = '%' }: MultiLineProps) {
   const [hoverX, setHoverX] = useState<number | null>(null)
   const [hoverIdx, setHoverIdx] = useState<number | null>(null)
 
@@ -201,7 +202,7 @@ export function MultiLine({ series, colors, labels }: MultiLineProps) {
                   fontFamily={CHART.font}
                   dominantBaseline="middle"
                 >
-                  {k}: {rawVal.toFixed(2)}%
+                  {k}: {rawVal.toFixed(2)}{suffix}
                 </text>
               )
             })}
@@ -227,7 +228,7 @@ export function MultiLine({ series, colors, labels }: MultiLineProps) {
                   <td>{xLabels[i] ?? `D${i + 1}`}</td>
                   {seriesKeys.map(k => {
                     const v = series[k][i]
-                    return <td key={k}>{v !== undefined && Number.isFinite(v) ? `${v.toFixed(2)}%` : '—'}</td>
+                    return <td key={k}>{v !== undefined && Number.isFinite(v) ? `${v.toFixed(2)}${suffix}` : '—'}</td>
                   })}
                 </tr>
               ))}

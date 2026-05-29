@@ -1,7 +1,6 @@
 'use client'
 
 import type { StatsVariant } from '@/lib/youtube/ab-types'
-import { CHART, toX, toY } from './chart-utils'
 
 export interface BayesCurvesProps {
   variants: StatsVariant[]

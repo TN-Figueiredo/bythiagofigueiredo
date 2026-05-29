@@ -10,7 +10,7 @@ export interface CredibleIntervalProps {
 
 function computeCI(ctr: number, impressions: number): { lo: number; hi: number } {
   const sd = Math.sqrt((ctr * (1 - ctr)) / impressions)
-  return { lo: ctr - 1.96 * sd, hi: ctr + 1.96 * sd }
+  return { lo: Math.max(0, ctr - 1.96 * sd), hi: Math.min(1, ctr + 1.96 * sd) }
 }
 
 export function CredibleInterval({ variants, leader }: CredibleIntervalProps) {

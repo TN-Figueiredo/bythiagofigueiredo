@@ -7,7 +7,7 @@ export interface DotsProps {
 }
 
 export function Dots({ total, done, color = 'var(--cms-accent)' }: DotsProps) {
-  if (total <= 0) return null
+  if (!Number.isFinite(total) || total <= 0) return null
 
   const filled = Math.min(done, total)
 

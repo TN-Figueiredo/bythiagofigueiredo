@@ -5,6 +5,8 @@ export interface GaugeProps {
   value: number
   /** Threshold for green color (default 95) */
   target?: number
+  /** Accessible label for the meter (default "Confidence") */
+  ariaLabel?: string
 }
 
 const SIZE = 160
@@ -29,7 +31,7 @@ function arcPath(cx: number, cy: number, r: number, startAngle: number, endAngle
   return `M ${start.x} ${start.y} A ${r} ${r} 0 ${largeArcFlag} 0 ${end.x} ${end.y}`
 }
 
-export function Gauge({ value, target = 95 }: GaugeProps) {
+export function Gauge({ value, target = 95, ariaLabel = 'Confidence' }: GaugeProps) {
   const clamped = Number.isNaN(value) ? 0 : Math.min(100, Math.max(0, value))
   const isGreen = clamped >= target
 
@@ -45,7 +47,7 @@ export function Gauge({ value, target = 95 }: GaugeProps) {
   const arcColor = isGreen ? 'var(--cms-green)' : 'var(--color-accent, #3b82f6)'
 
   return (
-    <div role="meter" aria-valuenow={clamped} aria-valuemin={0} aria-valuemax={100}>
+    <div role="meter" aria-label={ariaLabel} aria-valuenow={clamped} aria-valuemin={0} aria-valuemax={100} aria-valuetext={`${clamped}%`}>
       <svg
         width={SIZE}
         height={SIZE}

@@ -31,7 +31,7 @@ export function ABBATimeline({ seq, total, done, colors, nextVariant }: ABBATime
       : { backgroundColor: color, opacity: 0.4 }
 
     if (isNext) {
-      style.border = '2px dashed currentColor'
+      style.border = `2px dashed ${color}`
     }
 
     return (
