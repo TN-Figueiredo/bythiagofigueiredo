@@ -104,6 +104,10 @@
   --animate-shimmer: shimmer 1.5s ease-in-out infinite;
   --animate-slide-in: slide-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
   --animate-pulse-subtle: pulse-subtle 2s ease-in-out infinite;
+  --animate-ab-fade-up: ab-fade-up 0.35s ease both;
+  --animate-ab-fade-only: ab-fade-only 0.3s ease both;
+  --animate-ab-slot-pulse: ab-slot-pulse 2s ease-in-out infinite;
+  --animate-ab-drawer-in: ab-drawer-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
 /* ─── Dynamic bridges: CSS vars → Tailwind classes ─── */
@@ -218,6 +222,12 @@
   --theme-rose:              #f43f5e;
   --theme-purple:            #8b5cf6;
 
+  /* AB Lab design tokens */
+  --cms-bg-side: #100E0B;
+  --cms-surface-3: #262219;
+  --cms-cowork: #6E63F2;
+  --cms-cowork-subtle: rgba(110,99,242,.15);
+
   /* Backward compat aliases for components using old generic vars */
   --bg:               var(--pb-bg);
   --bg-surface:       var(--pb-paper);
@@ -274,6 +284,12 @@
   --theme-cms-text-muted:    #6A5F48;
   --theme-cms-text-dim:      #756A51;
   --theme-shadow-popover:    0 12px 40px rgba(70,50,20,0.20);
+
+  /* AB Lab design tokens — light */
+  --cms-bg-side: #EDE5D5;
+  --cms-surface-3: #E8DFC9;
+  --cms-cowork: #5B4FD9;
+  --cms-cowork-subtle: rgba(91,79,217,.10);
 
   /* Backward compat aliases — light overrides */
   --ring: rgba(185, 66, 16, 0.3);
@@ -478,6 +494,34 @@ textarea:focus-visible {
 @keyframes citeTooltipIn {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes ab-fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes ab-fade-only {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes ab-slot-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.5; }
+}
+
+@keyframes ab-drawer-in {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ab-lab,
+  .ab-lab * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /* CMS REDESIGN TOKENS — indigo-dark design system */

@@ -237,3 +237,28 @@ export interface AbTestResults {
   data_freshness: string
   tracked_links: AbTestTrackedLinkRow[]
 }
+
+/* --- Chart variant hierarchy (Layer 1 redesign) --- */
+export type DisplayLabel = 'A' | 'B' | 'C' | 'D'
+
+export interface ChartVariant {
+  label: DisplayLabel
+  color: string
+}
+
+export interface StatsVariant extends ChartVariant {
+  ctr: number
+  impressions: number
+}
+
+export interface RankedVariant extends ChartVariant {
+  pBest: number
+  pTop2: number
+}
+
+export interface FullChartVariant extends StatsVariant, RankedVariant {
+  clicks: number
+  linkClicks?: number
+  linkCtr?: number
+  retention?: number
+}
