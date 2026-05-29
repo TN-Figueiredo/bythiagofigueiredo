@@ -94,7 +94,7 @@ describe('PlayoffBanner', () => {
       <PlayoffBanner finalists={finalists} allVariants={allVariants} startsIn="2 days" reason="No clear winner" />,
     )
     expect(screen.getByTestId('icon-Swords')).toBeDefined()
-    expect(screen.getByText('Playoff created automatically')).toBeDefined()
+    expect(screen.getByText('Playoff criado automaticamente')).toBeDefined()
   })
 
   it('renders countdown badge', () => {
@@ -157,12 +157,12 @@ describe('PlayoffDetail', () => {
 
   it('renders Inconclusive badge', () => {
     render(<PlayoffDetail view={makePlayoffView()} />)
-    expect(screen.getByText('Inconclusive')).toBeDefined()
+    expect(screen.getByText('Inconclusivo')).toBeDefined()
   })
 
   it('renders inconclusive banner with confidence info', () => {
     render(<PlayoffDetail view={makePlayoffView({ confidenceReached: 82.4, confidenceTarget: 0.95 })} />)
-    expect(screen.getByText('Test ended inconclusive')).toBeDefined()
+    expect(screen.getByText('Teste encerrou sem vencedor claro')).toBeDefined()
     expect(screen.getByText(/82\.4%/)).toBeDefined()
     expect(screen.getByText(/95%/)).toBeDefined()
   })

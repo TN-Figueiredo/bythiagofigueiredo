@@ -94,7 +94,7 @@ describe('ActiveTestCard', () => {
     const test = makeCardView({ dayOf: 7 })
     render(<ActiveTestCard test={test} onOpen={vi.fn()} />)
     expect(screen.getByText(test.name)).toBeTruthy()
-    expect(screen.getByText('D7')).toBeTruthy()
+    expect(screen.getByText('Dia 7')).toBeTruthy()
   })
 
   it('calls onOpen when clicked', () => {
@@ -126,13 +126,13 @@ describe('ActiveTestCard', () => {
   it('shows Playoff badge when hasPlayoff is true', () => {
     const test = makeCardView({ hasPlayoff: true })
     render(<ActiveTestCard test={test} onOpen={vi.fn()} />)
-    expect(screen.getByText('Playoff')).toBeTruthy()
+    expect(screen.getByText(/^Round/)).toBeTruthy()
   })
 
   it('does not show Playoff badge when hasPlayoff is false', () => {
     const test = makeCardView({ hasPlayoff: false })
     render(<ActiveTestCard test={test} onOpen={vi.fn()} />)
-    expect(screen.queryByText('Playoff')).toBeNull()
+    expect(screen.queryByText(/^Round/)).toBeNull()
   })
 })
 
@@ -183,26 +183,26 @@ describe('DraftsBlock', () => {
     const draft = makeDraft({ step: 3 })
     render(<DraftsBlock draft={draft} onContinue={vi.fn()} />)
     expect(screen.getByText(draft.name)).toBeTruthy()
-    expect(screen.getByText(/step 3 of 5/)).toBeTruthy()
+    expect(screen.getByText(/Parou no passo 3 de 5/)).toBeTruthy()
   })
 
   it('collapses and expands on trigger button click', () => {
     const draft = makeDraft()
     render(<DraftsBlock draft={draft} onContinue={vi.fn()} />)
-    const trigger = screen.getByRole('button', { name: /draft in progress/i })
+    const trigger = screen.getByRole('button', { name: /Rascunhos/i })
     expect(trigger.getAttribute('aria-expanded')).toBe('true')
     fireEvent.click(trigger)
     expect(trigger.getAttribute('aria-expanded')).toBe('false')
-    expect(screen.queryByText('Continue setup')).toBeNull()
+    expect(screen.queryByText('Continuar configuração')).toBeNull()
     fireEvent.click(trigger)
-    expect(screen.getByText('Continue setup')).toBeTruthy()
+    expect(screen.getByText('Continuar configuração')).toBeTruthy()
   })
 
   it('calls onContinue when CTA clicked', () => {
     const draft = makeDraft()
     const onContinue = vi.fn()
     render(<DraftsBlock draft={draft} onContinue={onContinue} />)
-    fireEvent.click(screen.getByText('Continue setup'))
+    fireEvent.click(screen.getByText('Continuar configuração'))
     expect(onContinue).toHaveBeenCalledWith(draft.id)
   })
 })
@@ -213,7 +213,7 @@ describe('DraftsBlock', () => {
 describe('LearningsPanel', () => {
   it('shows empty message when learnings is null', () => {
     render(<LearningsPanel learnings={null} />)
-    expect(screen.getByText(/Complete 3\+ tests to unlock insights/)).toBeTruthy()
+    expect(screen.getByText(/Complete 3\+ testes para desbloquear insights/)).toBeTruthy()
   })
 
   it('renders tag rows with win bars', () => {
@@ -251,13 +251,13 @@ describe('LearningsPanel', () => {
     const { container } = render(<LearningsPanel learnings={data} />)
     const rows = container.querySelectorAll('[data-tag-row]')
     expect(rows.length).toBe(20)
-    expect(screen.getByText('Show 5 more')).toBeTruthy()
+    expect(screen.getByText('Mostrar mais 5')).toBeTruthy()
   })
 
   it('expands to show all tags on "Show N more" click', () => {
     const data = makeLearnings({ tags: 25 })
     const { container } = render(<LearningsPanel learnings={data} />)
-    fireEvent.click(screen.getByText('Show 5 more'))
+    fireEvent.click(screen.getByText('Mostrar mais 5'))
     const rows = container.querySelectorAll('[data-tag-row]')
     expect(rows.length).toBe(25)
   })
@@ -293,7 +293,7 @@ describe('SuggestedCard', () => {
     const video = makeSuggestion({ suggest: 'title' })
     const onCreate = vi.fn()
     render(<SuggestedCard video={video} onCreate={onCreate} />)
-    fireEvent.click(screen.getByText('Test title'))
+    fireEvent.click(screen.getByText('Testar Título'))
     expect(onCreate).toHaveBeenCalledWith(video.id, 'title')
   })
 })
@@ -304,7 +304,7 @@ describe('SuggestedCard', () => {
 describe('EmptyState', () => {
   it('renders single CTA when no suggestions', () => {
     const { container } = render(<EmptyState suggested={[]} onCreate={vi.fn()} />)
-    expect(screen.getByText('Start Your First Test')).toBeTruthy()
+    expect(screen.getByText('+ Novo teste')).toBeTruthy()
     expect(container.querySelector('[data-hero]')).toBeTruthy()
   })
 
@@ -335,7 +335,7 @@ describe('EmptyState', () => {
   it('calls onCreate from hero CTA', () => {
     const onCreate = vi.fn()
     render(<EmptyState suggested={[]} onCreate={onCreate} />)
-    fireEvent.click(screen.getByText('Start Your First Test'))
+    fireEvent.click(screen.getByText('+ Novo teste'))
     expect(onCreate).toHaveBeenCalledWith('', 'thumbnail')
   })
 })
@@ -367,10 +367,10 @@ describe('AbLabDashboard', () => {
     )
     const kpiStrip = container.querySelector('[data-kpi-strip]')
     expect(kpiStrip).toBeTruthy()
-    expect(screen.getByText('Active tests')).toBeTruthy()
-    expect(screen.getByText('Avg Confidence')).toBeTruthy()
-    expect(screen.getByText('Win rate')).toBeTruthy()
-    expect(screen.getByText('Avg Lift')).toBeTruthy()
+    expect(screen.getAllByText('Testes ativos').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByText('Confiança média')).toBeTruthy()
+    expect(screen.getByText('Taxa de vitória')).toBeTruthy()
+    expect(screen.getByText('Lift médio')).toBeTruthy()
   })
 
   it('renders EmptyState when no active tests and no draft', () => {
@@ -386,7 +386,7 @@ describe('AbLabDashboard', () => {
         siteId="site-1"
       />,
     )
-    expect(screen.getByText('Start Your First Test')).toBeTruthy()
+    expect(screen.getByText('+ Novo teste')).toBeTruthy()
   })
 
   it('opens Settings drawer when Settings button is clicked', () => {

@@ -151,8 +151,8 @@ describe('ClickMoment', () => {
     const viewGroup = screen.getByRole('radiogroup', { name: 'View mode' })
     const feedBtn = viewGroup.querySelector('[role="radio"]:last-child')!
     fireEvent.click(feedBtn)
-    // In feed mode, "Your video" badge should appear
-    expect(screen.getByText('Your video')).toBeTruthy()
+    // In feed mode, "Seu vídeo" badge should appear
+    expect(screen.getByText('Seu vídeo')).toBeTruthy()
   })
 })
 
@@ -173,12 +173,12 @@ describe('FeedView', () => {
 
   it('shows "Your video" badge', () => {
     render(<FeedView variants={variants} />)
-    expect(screen.getByText('Your video')).toBeTruthy()
+    expect(screen.getByText('Seu vídeo')).toBeTruthy()
   })
 
   it('renders variant selector', () => {
     render(<FeedView variants={variants} />)
-    expect(screen.getByRole('radiogroup', { name: 'Select variant to preview' })).toBeTruthy()
+    expect(screen.getByRole('radiogroup', { name: 'Selecionar variante para pré-visualizar' })).toBeTruthy()
   })
 
   it('returns null for empty variants', () => {

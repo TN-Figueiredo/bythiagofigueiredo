@@ -123,7 +123,7 @@ describe('SettingsDrawer', () => {
       await Promise.resolve()
     })
 
-    expect(screen.getByText('Failed to save')).toBeTruthy()
+    expect(screen.getByText('Erro ao salvar')).toBeTruthy()
     expect(screen.getByText('Retry')).toBeTruthy()
     vi.useRealTimers()
   })
