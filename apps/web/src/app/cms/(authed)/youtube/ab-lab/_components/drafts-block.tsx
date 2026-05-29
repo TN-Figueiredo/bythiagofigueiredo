@@ -23,7 +23,7 @@ export function DraftsBlock({ draft, onContinue }: DraftsBlockProps) {
         className="flex items-center justify-between w-full px-4 py-3 text-left focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
       >
         <span className="text-xs font-semibold uppercase tracking-wider text-cms-text-dim">
-          Draft in progress
+          Rascunhos
         </span>
         <ChevronDown
           size={14}
@@ -54,14 +54,14 @@ export function DraftsBlock({ draft, onContinue }: DraftsBlockProps) {
           <div className="flex-1 min-w-0">
             <p className="text-sm text-cms-text truncate">{draft.name}</p>
             <p className="text-2xs text-cms-text-muted mt-0.5">
-              Stopped at step {draft.step} of 5 &middot; {draft.createdAgo}
+              Parou no passo {draft.step} de 5 &middot; {draft.createdAgo}
             </p>
             <button
               type="button"
               onClick={() => onContinue(draft.id)}
               className="mt-2 px-3 py-1 text-2xs font-medium rounded bg-cms-accent text-white hover:bg-cms-accent/90 transition-colors focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
             >
-              Continue setup
+              Continuar configuração
             </button>
           </div>
         </div>

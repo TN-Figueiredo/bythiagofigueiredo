@@ -34,12 +34,15 @@ export function WinnerBanner({
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         {/* Left: Trophy + VChip + lift + confidence */}
         <div className="flex items-center gap-3">
-          <Trophy
-            size={28}
-            className="text-cms-green shrink-0"
-            data-testid="icon-Trophy"
-            aria-hidden="true"
-          />
+          <div className="flex flex-col items-center gap-0.5">
+            <Trophy
+              size={28}
+              className="text-cms-green shrink-0"
+              data-testid="icon-Trophy"
+              aria-hidden="true"
+            />
+            <span className="text-2xs text-cms-green font-medium">Vencedor declarado</span>
+          </div>
           <VChip label={winnerLabel} size={28} />
           <div className="flex flex-col">
             <span
@@ -61,19 +64,19 @@ export function WinnerBanner({
             <span className="text-sm font-mono font-semibold text-cms-text">
               {formatCompact(stats.totalImpressions)}
             </span>
-            <span className="text-2xs text-cms-text-dim">Impressions</span>
+            <span className="text-2xs text-cms-text-dim">Impressões no teste</span>
           </div>
           <div className="flex flex-col items-center">
             <span className="text-sm font-mono font-semibold text-cms-text">
               {formatNumber(stats.abbaCycles)}
             </span>
-            <span className="text-2xs text-cms-text-dim">Cycles</span>
+            <span className="text-2xs text-cms-text-dim">Ciclos ABBA</span>
           </div>
           <div className="flex flex-col items-center">
             <span className="text-sm font-mono font-semibold text-cms-text">
               {formatCompact(stats.monthlyExtraClicks)}
             </span>
-            <span className="text-2xs text-cms-text-dim">Extra clicks/mo</span>
+            <span className="text-2xs text-cms-text-dim">Cliques/mês a mais</span>
           </div>
         </div>
       </div>

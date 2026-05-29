@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { Sparkles } from 'lucide-react'
 import type { LearningsData, LearningsTag } from '@/lib/youtube/ab-types'
 
 export interface LearningsPanelProps {
@@ -62,7 +63,7 @@ export function LearningsPanel({ learnings }: LearningsPanelProps) {
     return (
       <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-bg p-6 text-center">
         <p className="text-sm text-cms-text-muted">
-          Complete 3+ tests to unlock insights
+          Complete 3+ testes para desbloquear insights
         </p>
       </div>
     )
@@ -74,6 +75,10 @@ export function LearningsPanel({ learnings }: LearningsPanelProps) {
 
   return (
     <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-bg p-4">
+      <div className="flex items-center gap-1.5 mb-3">
+        <Sparkles size={14} className="text-cms-accent" aria-hidden="true" />
+        <span className="text-xs font-semibold text-cms-text">O que já funciona pra você</span>
+      </div>
       <div className="space-y-0.5">
         {visibleTags.map(tag => (
           <TagRow key={tag.tag} tag={tag} maxWins={maxWins} />
@@ -86,7 +91,7 @@ export function LearningsPanel({ learnings }: LearningsPanelProps) {
           onClick={() => setExpanded(true)}
           className="mt-2 text-2xs text-cms-accent hover:underline focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
         >
-          Show {remaining} more
+          Mostrar mais {remaining}
         </button>
       )}
 

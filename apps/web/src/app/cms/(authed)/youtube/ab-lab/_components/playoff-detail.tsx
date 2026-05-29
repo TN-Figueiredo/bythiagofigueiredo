@@ -25,7 +25,7 @@ export function PlayoffDetail({ view }: PlayoffDetailProps) {
         roundNumber={view.totalRounds}
         totalRounds={view.totalRounds}
         hasPlayoff={view.hasPlayoff}
-        actions={<Badge tone="amber">Inconclusive</Badge>}
+        actions={<Badge tone="amber">Inconclusivo</Badge>}
       />
 
       {/* 2. Inconclusive Banner */}
@@ -41,7 +41,7 @@ export function PlayoffDetail({ view }: PlayoffDetailProps) {
         />
         <div>
           <p className="text-xs font-medium text-cms-text">
-            Test ended inconclusive
+            Teste encerrou sem vencedor claro
           </p>
           <p className="text-2xs text-cms-text-muted mt-0.5">
             Confidence reached {formatPercent(view.confidenceReached, 1)} vs{' '}
@@ -66,17 +66,17 @@ export function PlayoffDetail({ view }: PlayoffDetailProps) {
 
       {/* 4. "Why inconclusive" — CredibleInterval + RankBars with pTop2 */}
       <section data-testid="why-inconclusive">
-        <SectionLabel>Why inconclusive</SectionLabel>
+        <SectionLabel>Por que empatou</SectionLabel>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-bg p-4">
             <p className="text-2xs text-cms-text-dim mb-2 uppercase tracking-wider font-medium">
-              Overlapping Intervals
+              Faixa provável de CTR
             </p>
             <CredibleInterval variants={view.variants} />
           </div>
           <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-bg p-4">
             <p className="text-2xs text-cms-text-dim mb-2 uppercase tracking-wider font-medium">
-              Top 2 Probability
+              P(top 2) por variante
             </p>
             <RankBars variants={view.variants} metric="pTop2" />
           </div>
@@ -85,7 +85,7 @@ export function PlayoffDetail({ view }: PlayoffDetailProps) {
 
       {/* 5. VariantTable with metric="pTop2" */}
       <section data-testid="variant-section">
-        <SectionLabel>Variant Comparison</SectionLabel>
+        <SectionLabel>Placar das variantes</SectionLabel>
         <VariantTable
           variants={view.variants}
           metric="pTop2"

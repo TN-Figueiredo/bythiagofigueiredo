@@ -45,7 +45,7 @@ export function PlayoffBanner({
           aria-hidden="true"
         />
         <span className="text-xs font-semibold text-cms-text">
-          Playoff created automatically
+          Playoff criado automaticamente
         </span>
         <Badge tone="accent">{startsIn}</Badge>
       </div>
