@@ -950,3 +950,97 @@ export async function reorderQueue(
     return { ok: false, error: 'Failed to reorder queue' }
   }
 }
+
+export async function duplicatePost(
+  postId: string,
+): Promise<ActionResult<{ id: string }>> {
+  try {
+    const { siteId, userId } = await requireEditAccess()
+    const supabase = getSupabaseServiceClient()
+
+    const { data: original, error: fetchErr } = await supabase
+      .from('social_posts')
+      .select('*')
+      .eq('id', postId)
+      .single()
+
+    if (fetchErr || !original) return { ok: false, error: 'Post not found' }
+    if (original.site_id !== siteId) return { ok: false, error: 'forbidden' }
+
+    const newRow = {
+      site_id: siteId,
+      created_by: userId,
+      type: original.type,
+      status: 'draft' as const,
+      content: original.content,
+      template_id: original.template_id,
+      idempotency_key: crypto.randomUUID(),
+      user_timezone: original.user_timezone,
+      origin: 'manual',
+    }
+
+    const { data: newPost, error: insertErr } = await supabase
+      .from('social_posts')
+      .insert(newRow)
+      .select('id')
+      .single()
+
+    if (insertErr) {
+      Sentry.captureException(insertErr, { tags: { ...SENTRY_TAG, action: 'duplicatePost' } })
+      return { ok: false, error: insertErr.message }
+    }
+
+    revalidateSocialPaths()
+    return { ok: true, data: { id: newPost!.id as string } }
+  } catch (err) {
+    Sentry.captureException(err, { tags: { ...SENTRY_TAG, action: 'duplicatePost' } })
+    return { ok: false, error: 'Failed to duplicate post' }
+  }
+}
+
+const createAutoDraftSchema = z.object({
+  contentId: z.string().min(1),
+  platforms: z.array(z.enum(['youtube', 'facebook', 'instagram', 'bluesky'])).min(1),
+})
+
+export async function createAutoDraft(
+  contentId: string,
+  platforms: Provider[],
+): Promise<ActionResult<{ id: string }>> {
+  const parsed = createAutoDraftSchema.safeParse({ contentId, platforms })
+  if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
+
+  try {
+    const { siteId, userId } = await requireEditAccess()
+    const supabase = getSupabaseServiceClient()
+
+    const postRow = {
+      site_id: siteId,
+      created_by: userId,
+      type: 'text' as const,
+      status: 'draft' as const,
+      content: { title: '', description: '' },
+      idempotency_key: crypto.randomUUID(),
+      user_timezone: 'America/Sao_Paulo',
+      origin: 'auto',
+      source_content_id: contentId,
+    }
+
+    const { data: post, error: insertErr } = await supabase
+      .from('social_posts')
+      .insert(postRow)
+      .select('id')
+      .single()
+
+    if (insertErr) {
+      Sentry.captureException(insertErr, { tags: { ...SENTRY_TAG, action: 'createAutoDraft' } })
+      return { ok: false, error: insertErr.message }
+    }
+
+    revalidateSocialPaths()
+    return { ok: true, data: { id: post!.id as string } }
+  } catch (err) {
+    Sentry.captureException(err, { tags: { ...SENTRY_TAG, action: 'createAutoDraft' } })
+    return { ok: false, error: 'Failed to create auto draft' }
+  }
+}

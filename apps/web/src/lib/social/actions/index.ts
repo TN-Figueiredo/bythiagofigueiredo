@@ -27,6 +27,8 @@ export {
   listFeedPostsWithDeliveries,
   listCalendarEvents,
   reorderQueue,
+  duplicatePost,
+  createAutoDraft,
 } from './posts'
 export type { FeedPostWithDeliveries, CalendarEvent } from './posts'
 
