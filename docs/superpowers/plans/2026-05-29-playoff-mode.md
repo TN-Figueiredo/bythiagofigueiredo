@@ -4,11 +4,13 @@
 
 **Goal:** Automatically create a focused 2-variant Round 2 A/B test when Round 1 ends as inconclusive, using Monte Carlo P(top2) selection and a 4h cooldown before auto-start.
 
-**Architecture:** Extends the existing `ab-evaluate` cron with two new phases: (1) playoff detection that queries inconclusive Round 1 tests, computes P(top2) via Beta-Binomial MC, and calls a transactional Postgres RPC to atomically create the Round 2 test; (2) playoff auto-start that activates draft Round 2 tests past their cooldown. The core `startAbTest` logic is extracted into a shared `startAbTestInternal` function usable by both the cron and the user-facing action.
+**Architecture:** Extends the existing `ab-evaluate` cron with two new phases: (1) playoff detection that queries inconclusive Round 1 tests, computes P(top2) via Beta-Binomial MC (single pass with P(best)), and calls a hardened transactional Postgres RPC to atomically create the Round 2 test; (2) playoff auto-start that activates draft Round 2 tests past their cooldown. The core `startAbTest` logic is extracted into `lib/youtube/ab-start.ts` (NOT a server action module) with conditional-update optimistic locking.
 
 **Tech Stack:** PostgreSQL (migration + RPC), TypeScript, Next.js server actions, Vitest
 
-**Spec:** `docs/superpowers/specs/2026-05-29-playoff-mode-design.md`
+**Spec:** `docs/superpowers/specs/2026-05-29-playoff-mode-design.md` (v3 — post-adversarial audit)
+
+**Adversarial audit:** 4 agents reviewed schema security, race conditions, statistical correctness, and UX gaps. 31 findings addressed in this plan.
 
 ---
 
@@ -27,11 +29,10 @@ This creates a timestamped file in `supabase/migrations/`.
 
 - [ ] **Step 2: Write the migration SQL**
 
-Write the full migration into the generated file:
+Write the full migration into the generated file. This is the **hardened** version from the adversarial audit:
 
 ```sql
 -- Playoff Mode: Round 2 support for AB Lab
--- Adds parent/child linking between Round 1 and Round 2 tests
 
 -- ab_tests: new columns
 ALTER TABLE ab_tests
@@ -40,7 +41,6 @@ ALTER TABLE ab_tests
   ADD COLUMN IF NOT EXISTS playoff_test_id UUID REFERENCES ab_tests(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS playoff_start_after TIMESTAMPTZ;
 
--- Only one playoff per parent test
 CREATE UNIQUE INDEX IF NOT EXISTS ab_tests_one_playoff_per_parent
   ON ab_tests (parent_test_id) WHERE parent_test_id IS NOT NULL;
 
@@ -48,7 +48,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS ab_tests_one_playoff_per_parent
 ALTER TABLE ab_test_variants
   ADD COLUMN IF NOT EXISTS source_variant_id UUID REFERENCES ab_test_variants(id) ON DELETE SET NULL;
 
--- Transactional RPC to atomically create a playoff test
+-- Prevent duplicate cycles from race conditions (auto-start + user start)
+CREATE UNIQUE INDEX IF NOT EXISTS ab_test_cycles_test_cycle_unique
+  ON ab_test_cycles (test_id, cycle_number);
+
+-- Transactional RPC — hardened after adversarial audit
 CREATE OR REPLACE FUNCTION create_playoff_test(
   p_parent_test_id UUID,
   p_variant_ids UUID[],
@@ -60,20 +64,41 @@ DECLARE
   v_variant RECORD;
   v_new_variant_id UUID;
   v_sort INT := 0;
+  v_copied INT := 0;
 BEGIN
   SELECT * INTO v_parent FROM ab_tests WHERE id = p_parent_test_id FOR UPDATE;
 
-  IF v_parent IS NULL THEN
-    RAISE EXCEPTION 'Parent test not found';
+  IF v_parent IS NULL THEN RAISE EXCEPTION 'Parent test not found'; END IF;
+  IF v_parent.status != 'completed' THEN
+    RAISE EXCEPTION 'Parent must be completed (got: %)', v_parent.status;
+  END IF;
+  IF v_parent.completed_reason != 'inconclusive' THEN
+    RAISE EXCEPTION 'Only inconclusive tests spawn playoffs (got: %)', v_parent.completed_reason;
   END IF;
   IF v_parent.playoff_test_id IS NOT NULL THEN
-    RAISE EXCEPTION 'Playoff already exists';
+    RAISE EXCEPTION 'Playoff already exists: %', v_parent.playoff_test_id;
   END IF;
   IF v_parent.round_number != 1 THEN
     RAISE EXCEPTION 'Only Round 1 tests can spawn playoffs';
   END IF;
-  IF v_parent.completed_reason != 'inconclusive' THEN
-    RAISE EXCEPTION 'Only inconclusive tests can spawn playoffs';
+  IF array_length(p_variant_ids, 1) IS NULL OR array_length(p_variant_ids, 1) != 2 THEN
+    RAISE EXCEPTION 'Playoff requires exactly 2 variant IDs, got %',
+      coalesce(array_length(p_variant_ids, 1), 0);
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM ab_tests
+    WHERE youtube_video_id = v_parent.youtube_video_id
+      AND status IN ('draft', 'active', 'paused')
+      AND id != p_parent_test_id
+  ) THEN
+    RAISE EXCEPTION 'Video already has an active/draft/paused test';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM ab_test_cycles
+    WHERE test_id = p_parent_test_id
+      AND backfill_status IN ('pending', 'partial')
+  ) THEN
+    RAISE EXCEPTION 'Parent test has non-terminal backfill cycles';
   END IF;
 
   INSERT INTO ab_tests (
@@ -87,13 +112,13 @@ BEGIN
     v_parent.name || ' — Playoff', 'draft', v_parent.config, v_parent.test_type,
     v_parent.original_thumbnail_url, v_parent.original_title,
     v_parent.original_description,
-    2, p_parent_test_id,
-    now() + (p_cooldown_hours || ' hours')::INTERVAL
+    2, p_parent_test_id, now() + (p_cooldown_hours * INTERVAL '1 hour')
   );
 
   FOR v_variant IN
     SELECT * FROM ab_test_variants
     WHERE id = ANY(p_variant_ids)
+      AND test_id = p_parent_test_id
     ORDER BY sort_order
   LOOP
     v_new_variant_id := gen_random_uuid();
@@ -108,13 +133,29 @@ BEGIN
       v_variant.metadata, v_sort, v_variant.id
     );
     v_sort := v_sort + 1;
+    v_copied := v_copied + 1;
   END LOOP;
+
+  IF v_copied != 2 THEN
+    RAISE EXCEPTION 'Expected 2 variants from parent test, found %', v_copied;
+  END IF;
+
+  INSERT INTO ab_test_tracked_links (ab_test_id, variant_id, link_id, template_name, short_code)
+  SELECT v_new_test_id, nv.id, tl.link_id, tl.template_name, tl.short_code
+  FROM ab_test_tracked_links tl
+  JOIN ab_test_variants nv ON nv.source_variant_id = tl.variant_id
+  WHERE tl.ab_test_id = p_parent_test_id
+    AND tl.variant_id = ANY(p_variant_ids)
+    AND nv.test_id = v_new_test_id;
 
   UPDATE ab_tests SET playoff_test_id = v_new_test_id WHERE id = p_parent_test_id;
 
   RETURN v_new_test_id;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+REVOKE EXECUTE ON FUNCTION create_playoff_test FROM public, anon, authenticated;
+GRANT EXECUTE ON FUNCTION create_playoff_test TO service_role;
 ```
 
 - [ ] **Step 3: Commit**
@@ -254,44 +295,50 @@ git commit -m "feat(ab-lab): add playoff fields to AbTestRow + playoff_created n
 
 ---
 
-### Task 3: Statistics — calculatePTop2
+### Task 3: Statistics — calculatePlayoffStats (single MC loop)
 
 **Files:**
-- Modify: `apps/web/src/lib/youtube/ab-statistics.ts` (add `calculatePTop2` function)
+- Modify: `apps/web/src/lib/youtube/ab-statistics.ts` (add `calculatePlayoffStats` function)
 - Create: test in `apps/web/test/ab-statistics.test.ts` (add new describe block)
+
+The key audit fix: use a **single MC loop** for both P(best) and P(top2), eliminating disagreement risk.
 
 - [ ] **Step 1: Write the failing tests**
 
 Append to `apps/web/test/ab-statistics.test.ts`:
 
 ```typescript
-import { calculatePTop2 } from '@/lib/youtube/ab-statistics'
+import { calculatePlayoffStats } from '@/lib/youtube/ab-statistics'
 
 // ... add after existing describe blocks:
 
-describe('calculatePTop2', () => {
-  it('returns probabilities summing > 1 for top-2 (each sample picks 2)', () => {
+describe('calculatePlayoffStats', () => {
+  it('returns both bayesian and ptop2 from same MC samples', () => {
     const variants = [
       makeVariant('A', 3000, 150),
       makeVariant('B', 3000, 210),
       makeVariant('C', 3000, 120),
     ]
-    const ptop2 = calculatePTop2(variants)
+    const result = calculatePlayoffStats(variants)
 
-    // Sum should be close to 2.0 (each MC sample picks 2 winners)
-    const sum = Object.values(ptop2).reduce((a, b) => a + b, 0)
-    expect(sum).toBeCloseTo(2, 0)
+    expect(result.bayesian.winnerId).toBe('B')
+    expect(result.bayesian.confidence).toBeGreaterThan(0.5)
+    expect(Object.keys(result.ptop2)).toHaveLength(3)
+
+    const ptop2Sum = Object.values(result.ptop2).reduce((a, b) => a + b, 0)
+    expect(ptop2Sum).toBeCloseTo(2, 0)
   })
 
-  it('dominant variant has P(top2) near 1.0', () => {
+  it('P(best) winner always has highest P(top2)', () => {
     const variants = [
-      makeVariant('A', 5000, 500),  // 10% CTR — dominant
-      makeVariant('B', 5000, 250),  // 5% CTR
-      makeVariant('C', 5000, 200),  // 4% CTR
-      makeVariant('D', 5000, 150),  // 3% CTR
+      makeVariant('A', 5000, 500),
+      makeVariant('B', 5000, 250),
+      makeVariant('C', 5000, 200),
+      makeVariant('D', 5000, 150),
     ]
-    const ptop2 = calculatePTop2(variants)
-    expect(ptop2['A']).toBeGreaterThan(0.95)
+    const result = calculatePlayoffStats(variants)
+    expect(result.bayesian.winnerId).toBe('A')
+    expect(result.ptop2['A']).toBeGreaterThan(0.95)
   })
 
   it('weakest variant has lowest P(top2)', () => {
@@ -301,22 +348,23 @@ describe('calculatePTop2', () => {
       makeVariant('C', 5000, 200),
       makeVariant('D', 5000, 150),
     ]
-    const ptop2 = calculatePTop2(variants)
-    const sorted = Object.entries(ptop2).sort((a, b) => a[1] - b[1])
+    const result = calculatePlayoffStats(variants)
+    const sorted = Object.entries(result.ptop2).sort((a, b) => a[1] - b[1])
     expect(sorted[0]![0]).toBe('D')
   })
 
-  it('returns record keyed by variant_id', () => {
+  it('bayesian probabilities sum to 1, ptop2 sums to 2', () => {
     const variants = [
       makeVariant('A', 1000, 50),
       makeVariant('B', 1000, 60),
       makeVariant('C', 1000, 55),
+      makeVariant('D', 1000, 45),
     ]
-    const ptop2 = calculatePTop2(variants)
-    expect(Object.keys(ptop2)).toHaveLength(3)
-    expect(ptop2).toHaveProperty('A')
-    expect(ptop2).toHaveProperty('B')
-    expect(ptop2).toHaveProperty('C')
+    const result = calculatePlayoffStats(variants)
+    const bayesianSum = Object.values(result.bayesian.probabilities).reduce((a, b) => a + b, 0)
+    const ptop2Sum = Object.values(result.ptop2).reduce((a, b) => a + b, 0)
+    expect(bayesianSum).toBeCloseTo(1, 1)
+    expect(ptop2Sum).toBeCloseTo(2, 0)
   })
 
   it('handles 2 variants — both get P(top2) = 1.0', () => {
@@ -324,9 +372,9 @@ describe('calculatePTop2', () => {
       makeVariant('A', 1000, 50),
       makeVariant('B', 1000, 60),
     ]
-    const ptop2 = calculatePTop2(variants)
-    expect(ptop2['A']).toBeCloseTo(1, 1)
-    expect(ptop2['B']).toBeCloseTo(1, 1)
+    const result = calculatePlayoffStats(variants)
+    expect(result.ptop2['A']).toBeCloseTo(1, 1)
+    expect(result.ptop2['B']).toBeCloseTo(1, 1)
   })
 })
 ```
@@ -337,16 +385,25 @@ describe('calculatePTop2', () => {
 cd apps/web && npx vitest run test/ab-statistics.test.ts
 ```
 
-Expected: FAIL — `calculatePTop2` is not exported from ab-statistics.
+Expected: FAIL — `calculatePlayoffStats` is not exported from ab-statistics.
 
-- [ ] **Step 3: Implement calculatePTop2**
+- [ ] **Step 3: Implement calculatePlayoffStats**
 
-Add to `apps/web/src/lib/youtube/ab-statistics.ts` after the `calculateBayesianConfidence` function (after line 93):
+Add to `apps/web/src/lib/youtube/ab-statistics.ts` after the `calculateBayesianConfidence` function (after line 93). Also add the `PlayoffMcResult` interface export:
 
 ```typescript
-export function calculatePTop2(variants: VariantStats[]): Record<string, number> {
+export interface PlayoffMcResult {
+  bayesian: BayesianResult
+  ptop2: Record<string, number>
+}
+
+export function calculatePlayoffStats(variants: VariantStats[]): PlayoffMcResult {
+  const wins = new Map<string, number>()
   const top2Counts = new Map<string, number>()
-  for (const v of variants) top2Counts.set(v.variant_id, 0)
+  for (const v of variants) {
+    wins.set(v.variant_id, 0)
+    top2Counts.set(v.variant_id, 0)
+  }
 
   for (let i = 0; i < MC_SAMPLES; i++) {
     const samples: { id: string; val: number }[] = variants.map(v => ({
@@ -354,21 +411,36 @@ export function calculatePTop2(variants: VariantStats[]): Record<string, number>
       val: sampleBeta(v.total_clicks + 1, v.total_impressions - v.total_clicks + 1),
     }))
     samples.sort((a, b) => b.val - a.val)
+
+    wins.set(samples[0]!.id, (wins.get(samples[0]!.id) ?? 0) + 1)
     top2Counts.set(samples[0]!.id, (top2Counts.get(samples[0]!.id) ?? 0) + 1)
     if (samples[1]) {
       top2Counts.set(samples[1].id, (top2Counts.get(samples[1].id) ?? 0) + 1)
     }
   }
 
-  const result: Record<string, number> = {}
+  let winnerId = ''
+  let maxWins = 0
+  const probabilities: Record<string, number> = {}
   for (const v of variants) {
-    result[v.variant_id] = (top2Counts.get(v.variant_id) ?? 0) / MC_SAMPLES
+    const w = wins.get(v.variant_id) ?? 0
+    probabilities[v.variant_id] = w / MC_SAMPLES
+    if (w > maxWins) { maxWins = w; winnerId = v.variant_id }
   }
-  return result
+
+  const ptop2: Record<string, number> = {}
+  for (const v of variants) {
+    ptop2[v.variant_id] = (top2Counts.get(v.variant_id) ?? 0) / MC_SAMPLES
+  }
+
+  return {
+    bayesian: { winnerId, confidence: probabilities[winnerId] ?? 0, probabilities },
+    ptop2,
+  }
 }
 ```
 
-Note: `sampleBeta` is already defined as a module-private function in the same file — no export needed.
+Note: `sampleBeta` is already defined as a module-private function in the same file — no export needed. Single MC loop computes both P(best) and P(top2) from same random samples.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
@@ -382,17 +454,18 @@ Expected: all tests PASS (existing + new).
 
 ```bash
 git add apps/web/src/lib/youtube/ab-statistics.ts apps/web/test/ab-statistics.test.ts
-git commit -m "feat(ab-lab): add calculatePTop2 Monte Carlo function"
+git commit -m "feat(ab-lab): add calculatePlayoffStats — single MC loop for P(best)+P(top2)"
 ```
 
 ---
 
-### Task 4: Extract startAbTestInternal from actions.ts
+### Task 4: Extract startAbTestInternal to lib/youtube/ab-start.ts
 
 **Files:**
-- Modify: `apps/web/src/app/cms/(authed)/youtube/ab-lab/actions.ts:504-576` (startAbTest)
+- Create: `apps/web/src/lib/youtube/ab-start.ts` (NOT in `'use server'` module — audit finding #8)
+- Modify: `apps/web/src/app/cms/(authed)/youtube/ab-lab/actions.ts:504-576` (startAbTest wraps it)
 
-The goal is to extract the core start logic (without auth check) into `startAbTestInternal`, so the cron can call it. `startAbTest` becomes a thin wrapper.
+The core start logic lives in a **non-server-action module** so it's not exposed as a public HTTP endpoint. Uses **conditional update** (`WHERE status = 'draft'`) to prevent race between cron and user.
 
 - [ ] **Step 1: Write the test for startAbTestInternal**
 
@@ -411,7 +484,7 @@ vi.mock('@/lib/youtube/ab-rotation', () => ({
   getVariantForCycle: vi.fn(),
 }))
 
-import { startAbTestInternal } from '@/app/cms/(authed)/youtube/ab-lab/actions'
+import { startAbTestInternal } from '@/lib/youtube/ab-start'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { ensureFreshToken } from '@/lib/social/token-refresh'
 import { fetchVariantImageBuffer } from '@/lib/youtube/ab-youtube'
@@ -522,26 +595,34 @@ cd apps/web && npx vitest run test/ab-start-internal.test.ts
 
 Expected: FAIL — `startAbTestInternal` is not exported.
 
-- [ ] **Step 3: Refactor startAbTest into wrapper + internal**
+- [ ] **Step 3: Create lib/youtube/ab-start.ts**
 
-In `apps/web/src/app/cms/(authed)/youtube/ab-lab/actions.ts`, replace the `startAbTest` function (lines 504-576) with:
+Create new file `apps/web/src/lib/youtube/ab-start.ts` (NOT a server action):
 
 ```typescript
+import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { ensureFreshToken } from '@/lib/social/token-refresh'
+import { setThumbnail, fetchVariantImageBuffer } from '@/lib/youtube/ab-youtube'
+import { getVariantForCycle } from '@/lib/youtube/ab-rotation'
+import type { AbTestVariantRow } from '@/lib/youtube/ab-types'
+
+async function resolveYouTubeVideoId(
+  supabase: ReturnType<typeof getSupabaseServiceClient>,
+  internalVideoId: string,
+): Promise<string | null> {
+  const { data } = await supabase
+    .from('youtube_videos')
+    .select('youtube_video_id')
+    .eq('id', internalVideoId)
+    .single()
+  return (data?.youtube_video_id as string | null) ?? null
+}
+
 export async function startAbTestInternal(
   testId: string,
   siteId: string,
 ): Promise<{ ok: boolean; error?: string }> {
   const supabase = getSupabaseServiceClient()
-
-  const { data: test, error: testError } = await supabase
-    .from('ab_tests')
-    .select('id, site_id, status, youtube_video_id')
-    .eq('id', testId)
-    .single()
-
-  if (testError || !test) return { ok: false, error: 'Test not found' }
-  if (test.status !== 'draft') return { ok: false, error: 'Only draft tests can be started' }
-  if ((test.site_id as string) !== siteId) return { ok: false, error: 'site_id mismatch' }
 
   const { data: variants, error: variantsError } = await supabase
     .from('ab_test_variants')
@@ -560,6 +641,17 @@ export async function startAbTestInternal(
   }
   const firstVariant = variants[firstIndex] as AbTestVariantRow
 
+  // Fetch test and resolve YouTube video ID
+  const { data: test } = await supabase
+    .from('ab_tests')
+    .select('id, site_id, status, youtube_video_id')
+    .eq('id', testId)
+    .single()
+
+  if (!test) return { ok: false, error: 'Test not found' }
+  if (test.status !== 'draft') return { ok: false, error: 'Only draft tests can be started' }
+  if ((test.site_id as string) !== siteId) return { ok: false, error: 'site_id mismatch' }
+
   try {
     const { accessToken } = await ensureFreshToken(siteId, 'youtube')
     const youtubeVideoId = await resolveYouTubeVideoId(supabase, test.youtube_video_id as string)
@@ -575,12 +667,14 @@ export async function startAbTestInternal(
 
   const now = new Date().toISOString()
 
-  const { error: updateError } = await supabase
+  // Conditional update: only if still draft (prevents race with concurrent start)
+  const { data: updated, count } = await supabase
     .from('ab_tests')
     .update({ status: 'active', started_at: now, paused_at: null, updated_at: now })
     .eq('id', testId)
+    .eq('status', 'draft')
 
-  if (updateError) return { ok: false, error: updateError.message }
+  if ((count ?? 0) === 0) return { ok: false, error: 'Test already started or not in draft' }
 
   const { error: cycleError } = await supabase.from('ab_test_cycles').insert({
     test_id: testId,
@@ -591,9 +685,16 @@ export async function startAbTestInternal(
 
   if (cycleError) return { ok: false, error: cycleError.message }
 
-  revalidateTag('youtube')
   return { ok: true }
 }
+```
+
+- [ ] **Step 3b: Update actions.ts to wrap startAbTestInternal**
+
+In `apps/web/src/app/cms/(authed)/youtube/ab-lab/actions.ts`, replace the `startAbTest` function (lines 504-576) with:
+
+```typescript
+import { startAbTestInternal } from '@/lib/youtube/ab-start'
 
 export async function startAbTest(
   testId: string,
@@ -605,9 +706,13 @@ export async function startAbTest(
     return { ok: false, error: (e as Error).message }
   }
 
-  return startAbTestInternal(testId, siteId)
+  const result = await startAbTestInternal(testId, siteId)
+  if (result.ok) revalidateTag('youtube')
+  return result
 }
 ```
+
+Also remove the `resolveYouTubeVideoId` private function from actions.ts (it's now in ab-start.ts). Keep it in actions.ts too if other functions still use it — check for other callers first.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
@@ -628,8 +733,8 @@ Expected: all PASS
 - [ ] **Step 6: Commit**
 
 ```bash
-git add apps/web/src/app/cms/\(authed\)/youtube/ab-lab/actions.ts apps/web/test/ab-start-internal.test.ts
-git commit -m "refactor(ab-lab): extract startAbTestInternal for cron use"
+git add apps/web/src/lib/youtube/ab-start.ts apps/web/src/app/cms/\(authed\)/youtube/ab-lab/actions.ts apps/web/test/ab-start-internal.test.ts
+git commit -m "refactor(ab-lab): extract startAbTestInternal to lib/youtube/ab-start.ts (not server action)"
 ```
 
 ---
@@ -865,7 +970,7 @@ Create `apps/web/src/lib/youtube/ab-playoff.ts`:
 
 ```typescript
 import type { VariantStats, CompletedReason, TestType } from './ab-types'
-import { calculateBayesianConfidence, calculatePTop2 } from './ab-statistics'
+import { calculatePlayoffStats } from './ab-statistics'
 
 interface PlayoffTestInfo {
   completed_reason: CompletedReason | null
@@ -942,14 +1047,14 @@ interface PlayoffSelection {
 export function selectPlayoffVariants(
   variants: VariantStats[],
 ): PlayoffSelection | null {
-  const bayesian = calculateBayesianConfidence(variants)
+  if (variants.length < 4) return null
+
+  const { bayesian, ptop2 } = calculatePlayoffStats(variants)
   const originalVariant = variants.find(v => v.is_original)
 
   if (originalVariant && bayesian.winnerId === originalVariant.variant_id) {
     return null
   }
-
-  const ptop2 = calculatePTop2(variants)
 
   const sorted = [...variants]
     .sort((a, b) => {
@@ -958,7 +1063,7 @@ export function selectPlayoffVariants(
       if (a.total_impressions !== b.total_impressions) {
         return b.total_impressions - a.total_impressions
       }
-      return a.is_original ? 1 : b.is_original ? -1 : 0
+      return (a.is_original ? 999 : 0) - (b.is_original ? 999 : 0)
     })
 
   const top2 = sorted.slice(0, 2)
@@ -1044,7 +1149,7 @@ vi.mock('@/lib/youtube/ab-playoff', () => ({
   checkPlayoffEligibility: vi.fn(),
   selectPlayoffVariants: vi.fn(),
 }))
-vi.mock('@/app/cms/(authed)/youtube/ab-lab/actions', () => ({
+vi.mock('@/lib/youtube/ab-start', () => ({
   startAbTestInternal: vi.fn(),
 }))
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn() }))
@@ -1055,7 +1160,7 @@ import { ensureFreshToken } from '@/lib/social/token-refresh'
 import { fetchVariantImageBuffer } from '@/lib/youtube/ab-youtube'
 import { calculateBayesianConfidence } from '@/lib/youtube/ab-statistics'
 import { checkPlayoffEligibility, selectPlayoffVariants } from '@/lib/youtube/ab-playoff'
-import { startAbTestInternal } from '@/app/cms/(authed)/youtube/ab-lab/actions'
+import { startAbTestInternal } from '@/lib/youtube/ab-start'
 
 function createCronRequest() {
   return new NextRequest(new URL('http://localhost:3000/api/cron/ab-evaluate'), {
@@ -1271,21 +1376,13 @@ In `apps/web/src/app/api/cron/ab-evaluate/route.ts`, add the new imports and pha
 
 ```typescript
 import { checkPlayoffEligibility, selectPlayoffVariants } from '@/lib/youtube/ab-playoff'
-import { startAbTestInternal } from '@/app/cms/(authed)/youtube/ab-lab/actions'
+import { startAbTestInternal } from '@/lib/youtube/ab-start'
 import type { AbTestVariantRow, AbTestCycleRow, VariantStats, AbTestConfig, BackfillStatus } from '@/lib/youtube/ab-types'
 ```
 
 (The `BackfillStatus` import is new; the rest are already imported.)
 
-**After auth check and supabase client creation (line 20), add advisory lock:**
-
-```typescript
-  const { data: lockAcquired } = await supabase.rpc('pg_try_advisory_xact_lock', {
-    key: 'ab-evaluate'.split('').reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 0),
-  })
-```
-
-Note: advisory lock is best-effort. If it fails, we proceed — the unique index on `parent_test_id` prevents duplicates anyway.
+**NO advisory lock** — per audit, advisory locks via Supabase PostgREST are no-ops (each HTTP request gets a different pooled connection). Concurrency is guarded by the RPC's `FOR UPDATE` + unique index + conditional updates.
 
 **Phase 1: Playoff auto-start (BEFORE the active tests loop, after lock):**
 
