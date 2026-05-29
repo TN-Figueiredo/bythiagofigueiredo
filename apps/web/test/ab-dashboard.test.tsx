@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, afterEach, vi } from 'vitest'
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest'
 import React from 'react'
 import { render, screen, cleanup, fireEvent } from '@testing-library/react'
 
@@ -14,6 +14,15 @@ vi.mock('next/link', () => ({
   ),
 }))
 
+const mockRouterPush = vi.fn()
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: mockRouterPush, refresh: vi.fn() }),
+}))
+
+vi.mock('@/app/cms/(authed)/youtube/ab-lab/actions', () => ({
+  updateAbSiteSettings: vi.fn().mockResolvedValue({ ok: true }),
+}))
+
 import { KPI } from '@/app/cms/(authed)/youtube/ab-lab/_components/kpi'
 import { ActiveTestCard } from '@/app/cms/(authed)/youtube/ab-lab/_components/active-test-card'
 import { CompletedRow } from '@/app/cms/(authed)/youtube/ab-lab/_components/completed-row'
@@ -21,6 +30,9 @@ import { DraftsBlock } from '@/app/cms/(authed)/youtube/ab-lab/_components/draft
 import { LearningsPanel } from '@/app/cms/(authed)/youtube/ab-lab/_components/learnings-panel'
 import { EmptyState } from '@/app/cms/(authed)/youtube/ab-lab/_components/empty-state'
 import { SuggestedCard } from '@/app/cms/(authed)/youtube/ab-lab/_components/suggested-card'
+import { AbLabDashboard } from '@/app/cms/(authed)/youtube/ab-lab/_components/ab-lab-dashboard'
+import type { DashboardStats, AbTestSiteSettings } from '@/lib/youtube/ab-types'
+import { AB_SITE_SETTINGS_DEFAULTS } from '@/lib/youtube/ab-types'
 import { makeCardView, makeCompleted, makeDraft, makeLearnings, makeSuggestion, makeSuggestions } from './helpers/ab-fixtures'
 
 afterEach(() => cleanup())
@@ -325,5 +337,116 @@ describe('EmptyState', () => {
     render(<EmptyState suggested={[]} onCreate={onCreate} />)
     fireEvent.click(screen.getByText('Start Your First Test'))
     expect(onCreate).toHaveBeenCalledWith('', 'thumbnail')
+  })
+})
+
+/* ============================================================
+ * AbLabDashboard (shell)
+ * ============================================================ */
+describe('AbLabDashboard', () => {
+  const baseStats: DashboardStats = { activeTests: 2, avgConfidence: 92, winRate: 75, avgLift: 8.5 }
+  const baseSettings: AbTestSiteSettings = { ...AB_SITE_SETTINGS_DEFAULTS }
+
+  beforeEach(() => {
+    mockRouterPush.mockClear()
+  })
+
+  it('renders KPI strip when completed tests exist', () => {
+    const completed = [makeCompleted()]
+    const { container } = render(
+      <AbLabDashboard
+        stats={baseStats}
+        cards={[makeCardView()]}
+        draft={null}
+        completed={completed}
+        learnings={null}
+        suggested={[]}
+        settings={baseSettings}
+        siteId="site-1"
+      />,
+    )
+    const kpiStrip = container.querySelector('[data-kpi-strip]')
+    expect(kpiStrip).toBeTruthy()
+    expect(screen.getByText('Active tests')).toBeTruthy()
+    expect(screen.getByText('Avg Confidence')).toBeTruthy()
+    expect(screen.getByText('Win rate')).toBeTruthy()
+    expect(screen.getByText('Avg Lift')).toBeTruthy()
+  })
+
+  it('renders EmptyState when no active tests and no draft', () => {
+    render(
+      <AbLabDashboard
+        stats={{ activeTests: 0, avgConfidence: 0, winRate: 0, avgLift: 0 }}
+        cards={[]}
+        draft={null}
+        completed={[]}
+        learnings={null}
+        suggested={[]}
+        settings={baseSettings}
+        siteId="site-1"
+      />,
+    )
+    expect(screen.getByText('Start Your First Test')).toBeTruthy()
+  })
+
+  it('opens Settings drawer when Settings button is clicked', () => {
+    render(
+      <AbLabDashboard
+        stats={baseStats}
+        cards={[makeCardView()]}
+        draft={null}
+        completed={[]}
+        learnings={null}
+        suggested={[]}
+        settings={baseSettings}
+        siteId="site-1"
+      />,
+    )
+    // Initially no dialog
+    expect(screen.queryByRole('dialog')).toBeNull()
+    // Click settings
+    fireEvent.click(screen.getByLabelText('Settings'))
+    // Dialog should appear
+    expect(screen.getByRole('dialog')).toBeTruthy()
+  })
+
+  it('renders active cards in a 2-col grid', () => {
+    const cards = [makeCardView(), makeCardView()]
+    const { container } = render(
+      <AbLabDashboard
+        stats={baseStats}
+        cards={cards}
+        draft={null}
+        completed={[]}
+        learnings={null}
+        suggested={[]}
+        settings={baseSettings}
+        siteId="site-1"
+      />,
+    )
+    const grid = container.querySelector('[data-active-grid]')
+    expect(grid).toBeTruthy()
+    expect(grid?.className).toContain('lg:grid-cols-2')
+    // Should have 2 articles
+    const articles = grid?.querySelectorAll('article')
+    expect(articles?.length).toBe(2)
+  })
+
+  it('has animate-ab-fade-up on root element', () => {
+    const { container } = render(
+      <AbLabDashboard
+        stats={baseStats}
+        cards={[]}
+        draft={null}
+        completed={[]}
+        learnings={null}
+        suggested={[]}
+        settings={baseSettings}
+        siteId="site-1"
+      />,
+    )
+    const root = container.querySelector('[data-dashboard-root]')
+    expect(root).toBeTruthy()
+    expect(root?.className).toContain('animate-ab-fade-up')
   })
 })
