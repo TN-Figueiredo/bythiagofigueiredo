@@ -31,14 +31,14 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              className="inline-flex items-center gap-1 px-2 py-1 text-2xs text-cms-text-muted hover:text-cms-text transition-colors rounded border border-cms-border"
+              className="inline-flex items-center gap-1 px-2 py-1 text-2xs text-cms-text-muted hover:text-cms-text transition-colors rounded border border-cms-border focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
             >
               <Copy size={12} aria-hidden="true" />
               Duplicate
             </button>
             <button
               type="button"
-              className="inline-flex items-center gap-1 px-2 py-1 text-2xs text-cms-text-muted hover:text-cms-text transition-colors rounded border border-cms-border"
+              className="inline-flex items-center gap-1 px-2 py-1 text-2xs text-cms-text-muted hover:text-cms-text transition-colors rounded border border-cms-border focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
             >
               <Download size={12} aria-hidden="true" />
               Download
@@ -122,7 +122,7 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
       </section>
 
       {/* 8. Placeholder for Click Moment */}
-      <div data-click-moment />
+      <div data-click-moment aria-hidden="true" />
     </div>
   )
 }

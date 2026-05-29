@@ -29,6 +29,7 @@ const TREND_TESTID: Record<string, string> = {
 
 export function HeroBand({ confidence, confidenceTarget, leader, lift, trend }: HeroBandProps) {
   const TrendIcon = TREND_ICON[trend] ?? Minus
+  const liftColor = lift > 0 ? 'text-cms-green' : lift < 0 ? 'text-red-400' : 'text-cms-text-muted'
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 rounded-[var(--cms-radius)] border border-cms-border bg-cms-bg p-4" data-testid="hero-band">
@@ -48,7 +49,7 @@ export function HeroBand({ confidence, confidenceTarget, leader, lift, trend }: 
 
       {/* Cell 3: Lift */}
       <div className="flex flex-col items-center justify-center gap-1" data-testid="hero-cell">
-        <span className="text-sm font-bold text-cms-green font-mono" data-testid="lift-value">
+        <span className={`text-sm font-bold ${liftColor} font-mono`} data-testid="lift-value">
           {lift > 0 ? '+' : ''}{formatPercent(lift)}
         </span>
         <span className="text-2xs text-cms-text-dim">Lift</span>
@@ -57,6 +58,7 @@ export function HeroBand({ confidence, confidenceTarget, leader, lift, trend }: 
       {/* Cell 4: Trend */}
       <div className="flex flex-col items-center justify-center gap-1" data-testid="hero-cell">
         <TrendIcon size={20} data-testid={TREND_TESTID[trend]} aria-hidden="true" />
+        <span className="sr-only">{trend === 'up' ? 'Trending up' : trend === 'down' ? 'Trending down' : 'Flat trend'}</span>
         <span className="text-2xs text-cms-text-dim">Trend</span>
       </div>
     </div>

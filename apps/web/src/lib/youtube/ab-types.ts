@@ -377,7 +377,7 @@ export interface AbTestBaseView {
 }
 
 export interface AbTestActiveView extends AbTestBaseView {
-  status: 'active'
+  status: 'active' | 'paused'
   outcome?: never
   confirmedData: {
     confidence: number

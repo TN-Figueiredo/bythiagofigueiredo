@@ -125,12 +125,12 @@ describe('PlayoffBanner', () => {
     expect(full).toHaveLength(2)
   })
 
-  it('has role="img" with accessible label', () => {
+  it('has role="region" with accessible label', () => {
     render(
       <PlayoffBanner finalists={finalists} allVariants={allVariants} startsIn="2 days" reason="No clear winner" />,
     )
     const banner = screen.getByTestId('playoff-banner')
-    expect(banner.getAttribute('role')).toBe('img')
+    expect(banner.getAttribute('role')).toBe('region')
     expect(banner.getAttribute('aria-label')).toContain('Variant A')
     expect(banner.getAttribute('aria-label')).toContain('Variant B')
   })

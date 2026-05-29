@@ -169,7 +169,7 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
       </div>
 
       {/* Section 10: ClickMoment placeholder (Phase 5) */}
-      <div data-click-moment />
+      <div data-click-moment aria-hidden="true" />
     </div>
   )
 }

@@ -639,6 +639,20 @@ export function toDetailView(results: AbTestResults): AbTestDetailView {
         v.pBest = bayesian.probabilities[variantId]!
       }
     }
+
+    // Approximate pTop2 from pBest ranking
+    if (variants.length === 2) {
+      // Trivially both are in top 2 of 2
+      for (const v of variants) v.pTop2 = 1.0
+    } else {
+      // For 3+ variants, top 2 by pBest get boosted probability, rest get reduced
+      const sorted = [...variants].sort((a, b) => b.pBest - a.pBest)
+      for (let i = 0; i < sorted.length; i++) {
+        sorted[i]!.pTop2 = i < 2
+          ? Math.min(1, sorted[i]!.pBest + (1 - sorted[i]!.pBest) * 0.3)
+          : sorted[i]!.pBest * 0.5
+      }
+    }
   }
 
   const variantThumbs: VariantThumb[] = results.variants.map(v => ({
@@ -722,7 +736,7 @@ export function toDetailView(results: AbTestResults): AbTestDetailView {
     )
     return {
       ...base,
-      status: 'active' as const,
+      status: test.status as 'active' | 'paused',
       confirmedData: {
         confidence: results.confidence * 100,
         leader: leader.label,

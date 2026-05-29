@@ -17,7 +17,7 @@ export default async function AbTestDetailPage({
 
   const view = toDetailView(results)
 
-  if (view.status === 'active') return <ActiveDetail view={view} />
+  if (view.status !== 'completed') return <ActiveDetail view={view} />
   if (view.outcome === 'winner') return <WinnerDetail view={view} />
   return <PlayoffDetail view={view} />
 }

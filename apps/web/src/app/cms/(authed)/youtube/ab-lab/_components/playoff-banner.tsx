@@ -33,7 +33,7 @@ export function PlayoffBanner({
     <div
       data-testid="playoff-banner"
       className="rounded-[var(--cms-radius)] border-2 border-purple-500 bg-purple-500/5 p-4 space-y-4"
-      role="img"
+      role="region"
       aria-label={bracketLabel}
     >
       {/* Header: Swords + title + countdown badge */}

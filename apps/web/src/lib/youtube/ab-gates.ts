@@ -20,7 +20,7 @@ export function computeGates(input: GateInput): GateResult[] {
     eligibleCycles, consecutiveConfident, stabilityThreshold,
   } = input
 
-  const minImp = Math.min(...minImpressions)
+  const minImp = minImpressions.length > 0 ? Math.min(...minImpressions) : 0
 
   return [
     {

@@ -33,6 +33,7 @@ export function GatesPanel({ gates }: GatesPanelProps) {
             ) : (
               <Clock size={14} className="text-cms-amber shrink-0 mt-0.5" aria-hidden="true" />
             )}
+            <span className="sr-only">{gate.passed ? 'Passed' : 'Pending'}</span>
             <div className="min-w-0">
               <p className="text-2xs font-medium text-cms-text truncate">{gate.name}</p>
               <p className="text-2xs text-cms-text-muted">{gate.value}</p>
