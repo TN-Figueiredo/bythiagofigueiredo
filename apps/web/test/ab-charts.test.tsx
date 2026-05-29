@@ -16,6 +16,8 @@ import { RankBars } from '@/app/cms/(authed)/youtube/ab-lab/_components/rank-bar
 import type { DisplayLabel, StatsVariant } from '@/lib/youtube/ab-types'
 import { RadarChart } from '@/app/cms/(authed)/youtube/ab-lab/_components/radar-chart'
 import { FunnelRow } from '@/app/cms/(authed)/youtube/ab-lab/_components/funnel-row'
+import { BayesCurves } from '@/app/cms/(authed)/youtube/ab-lab/_components/bayes-curves'
+import { Dots } from '@/app/cms/(authed)/youtube/ab-lab/_components/dots'
 
 afterEach(() => cleanup())
 
@@ -388,5 +390,90 @@ describe('FunnelRow', () => {
     expect(getByText('Impressions')).toBeTruthy()
     expect(getByText('Clicks')).toBeTruthy()
     expect(getByText('Link clicks')).toBeTruthy()
+  })
+})
+
+describe('BayesCurves', () => {
+  const variants: StatsVariant[] = [
+    { label: 'A', color: '#8A8F98', ctr: 0.05, impressions: 10000 },
+    { label: 'B', color: '#E8823C', ctr: 0.07, impressions: 10000 },
+  ]
+
+  it('renders one path per variant', () => {
+    const { container } = render(<BayesCurves variants={variants} />)
+    const paths = container.querySelectorAll('path[data-curve]')
+    expect(paths.length).toBe(2)
+  })
+
+  it('renders dashed mean lines', () => {
+    const { container } = render(<BayesCurves variants={variants} />)
+    const meanLines = container.querySelectorAll('line[data-mean]')
+    expect(meanLines.length).toBe(2)
+  })
+
+  it('skips variants with sd<=0', () => {
+    const withZeroSD: StatsVariant[] = [
+      ...variants,
+      { label: 'C' as DisplayLabel, color: '#3FA9C0', ctr: 0, impressions: 1000 },
+    ]
+    const { container } = render(<BayesCurves variants={withZeroSD} />)
+    const paths = container.querySelectorAll('path[data-curve]')
+    expect(paths.length).toBe(2)
+  })
+
+  it('skips variants with n=0', () => {
+    const zeroN: StatsVariant[] = [
+      { label: 'A' as DisplayLabel, color: '#8A8F98', ctr: 0.05, impressions: 0 },
+    ]
+    const { container } = render(<BayesCurves variants={zeroN} />)
+    const paths = container.querySelectorAll('path[data-curve]')
+    expect(paths.length).toBe(0)
+  })
+
+  it('renders sr-only table', () => {
+    const { container } = render(<BayesCurves variants={variants} />)
+    expect(container.querySelector('table.sr-only')).toBeTruthy()
+  })
+
+  it('renders gradient fill per curve', () => {
+    const { container } = render(<BayesCurves variants={variants} />)
+    const defs = container.querySelectorAll('linearGradient')
+    expect(defs.length).toBeGreaterThanOrEqual(2)
+  })
+})
+
+describe('Dots', () => {
+  it('renders correct number of dots', () => {
+    const { container } = render(<Dots total={5} done={3} />)
+    const dots = container.querySelectorAll('[data-dot]')
+    expect(dots.length).toBe(5)
+  })
+
+  it('fills done dots with color', () => {
+    const { container } = render(<Dots total={3} done={2} color="#E8823C" />)
+    const dots = container.querySelectorAll('[data-dot]')
+    expect(dots[0]?.getAttribute('style')).toContain('#E8823C')
+    expect(dots[1]?.getAttribute('style')).toContain('#E8823C')
+  })
+
+  it('renders nothing when total=0', () => {
+    const { container } = render(<Dots total={0} done={0} />)
+    const dots = container.querySelectorAll('[data-dot]')
+    expect(dots.length).toBe(0)
+  })
+
+  it('clamps done to total', () => {
+    const { container } = render(<Dots total={3} done={10} />)
+    const dots = container.querySelectorAll('[data-dot]')
+    const filled = Array.from(dots).filter(d => !d.getAttribute('style')?.includes('--cms-surface-3'))
+    expect(filled.length).toBe(3)
+  })
+
+  it('has role="meter" with aria attributes', () => {
+    const { container } = render(<Dots total={5} done={3} />)
+    const meter = container.querySelector('[role="meter"]')
+    expect(meter?.getAttribute('aria-valuenow')).toBe('3')
+    expect(meter?.getAttribute('aria-valuemin')).toBe('0')
+    expect(meter?.getAttribute('aria-valuemax')).toBe('5')
   })
 })
