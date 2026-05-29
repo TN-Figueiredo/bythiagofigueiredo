@@ -74,6 +74,11 @@ export function AbTestCard({ test }: AbTestCardProps) {
         <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${typeBadgeColors[test.test_type ?? 'thumbnail']}`}>
           {typeLabels[test.test_type ?? 'thumbnail']}
         </span>
+        {test.round_number === 2 && (
+          <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-indigo-500/20 text-indigo-400">
+            Round 2
+          </span>
+        )}
         {test.started_at && (
           <span className="text-xs text-cms-text-muted">D{days}</span>
         )}

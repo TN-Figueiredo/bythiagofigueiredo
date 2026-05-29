@@ -47,7 +47,9 @@ export function AbLabDashboard({ siteId, active, draft, completed, settings, eli
 
   const hasAny = active.length + draft.length + completed.length > 0
 
-  const completedWithWinners = completed.filter(
+  const completedForStats = completed.filter(t => !t.playoff_test_id)
+
+  const completedWithWinners = completedForStats.filter(
     t => t.winner_variant_id !== null &&
       (t.completed_reason === 'auto_resolve' || t.completed_reason === 'manual_winner'),
   )
@@ -59,11 +61,11 @@ export function AbLabDashboard({ siteId, active, draft, completed, settings, eli
       : 0
 
   const winRate =
-    completed.length > 0
-      ? Math.round((completedWithWinners.length / completed.length) * 100)
+    completedForStats.length > 0
+      ? Math.round((completedWithWinners.length / completedForStats.length) * 100)
       : 0
 
-  const testsWithPositiveLift = completed.filter(
+  const testsWithPositiveLift = completedForStats.filter(
     t => t.result_metadata !== null && (t.result_metadata.ctr_lift_percent ?? 0) > 0,
   )
 
@@ -75,7 +77,7 @@ export function AbLabDashboard({ siteId, active, draft, completed, settings, eli
         ) / testsWithPositiveLift.length
       : 0
 
-  const insightTests = completed.filter(t => t.winner_variant_id && t.result_metadata)
+  const insightTests = completedForStats.filter(t => t.winner_variant_id && t.result_metadata)
   const totalExtraClicks = insightTests.reduce(
     (sum, t) =>
       sum +
@@ -208,20 +210,26 @@ export function AbLabDashboard({ siteId, active, draft, completed, settings, eli
                 return (
                   <li key={test.id} className="flex items-center justify-between px-4 py-3">
                     <span className="text-sm text-cms-text truncate">{test.name}</span>
-                    <button
-                      onClick={() => {
-                        setSelectedVideo({
-                          id: test.youtube_video_id,
-                          title: video?.title ?? test.name.replace(/^Test:\s*/, ''),
-                          thumbnailUrl: video?.thumbnailUrl ?? test.original_thumbnail_url,
-                          sourcePipelineId: video?.sourcePipelineId ?? test.source_pipeline_id,
-                        })
-                        setResumeDraft({ draftId: test.id, testType: test.test_type })
-                      }}
-                      className="text-xs text-cms-accent hover:underline shrink-0 ml-4"
-                    >
-                      Continue Setup
-                    </button>
+                    {test.round_number === 2 && test.playoff_start_after ? (
+                      <span className="text-xs text-indigo-400 shrink-0 ml-4">
+                        Playoff — início em breve
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setSelectedVideo({
+                            id: test.youtube_video_id,
+                            title: video?.title ?? test.name.replace(/^Test:\s*/, ''),
+                            thumbnailUrl: video?.thumbnailUrl ?? test.original_thumbnail_url,
+                            sourcePipelineId: video?.sourcePipelineId ?? test.source_pipeline_id,
+                          })
+                          setResumeDraft({ draftId: test.id, testType: test.test_type })
+                        }}
+                        className="text-xs text-cms-accent hover:underline shrink-0 ml-4"
+                      >
+                        Continue Setup
+                      </button>
+                    )}
                   </li>
                 )
               })}

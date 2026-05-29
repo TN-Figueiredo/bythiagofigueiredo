@@ -280,6 +280,39 @@ export function AbTestDetail({ results }: AbTestDetailProps) {
         </div>
       </div>
 
+      {test.playoff_test_id && (
+        <div className="flex items-center gap-3 rounded-[var(--cms-radius)] border border-indigo-500/30 bg-indigo-500/10 px-4 py-3">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-indigo-400 shrink-0" aria-hidden="true">
+            <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5C7 4 6.5 6 6.5 6S7 4 9.5 4a2.5 2.5 0 0 1 0 5H8" />
+            <path d="M6 9h12l-1.5 8H7.5L6 9z" />
+          </svg>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-indigo-300">Playoff criado</p>
+            <p className="text-xs text-indigo-400/70">As 2 melhores variantes avançaram para o Round 2</p>
+          </div>
+          <Link
+            href={`/cms/youtube/ab-lab/${test.playoff_test_id}`}
+            className="text-xs font-medium text-indigo-400 hover:text-indigo-300 shrink-0"
+          >
+            Ver Round 2 →
+          </Link>
+        </div>
+      )}
+
+      {test.parent_test_id && (
+        <div className="flex items-center gap-3 rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface px-4 py-2">
+          <span className="inline-flex items-center rounded-full bg-indigo-500/20 px-2 py-0.5 text-xs font-semibold text-indigo-400">
+            Round 2
+          </span>
+          <Link
+            href={`/cms/youtube/ab-lab/${test.parent_test_id}`}
+            className="text-xs text-cms-text-muted hover:text-cms-text"
+          >
+            ← Ver Round 1
+          </Link>
+        </div>
+      )}
+
       {test.status === 'completed' && winnerVariant && ctrLift !== null && (
         <div className="rounded-lg border border-green-500/30 bg-green-500/5 p-4">
           <div className="flex items-center gap-4">

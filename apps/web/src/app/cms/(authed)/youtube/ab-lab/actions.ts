@@ -825,11 +825,25 @@ export async function getAbTestsForSite(): Promise<{
 
   const all = (tests ?? []).map(toWithVariants)
 
-  return {
-    active: all.filter(t => t.status === 'active'),
-    draft: all.filter(t => t.status === 'draft'),
-    completed: all.filter(t => t.status === 'completed' || t.status === 'paused'),
+  const active = all.filter(t => t.status === 'active')
+  const drafts = all.filter(t => t.status === 'draft')
+  const completedRaw = all.filter(t => t.status === 'completed' || t.status === 'paused')
+
+  const completedGrouped: AbTestWithVariants[] = []
+  const round2Map = new Map<string, AbTestWithVariants>()
+  for (const t of completedRaw) {
+    if (t.parent_test_id) {
+      round2Map.set(t.parent_test_id, t)
+    }
   }
+  for (const t of completedRaw) {
+    if (t.parent_test_id) continue
+    completedGrouped.push(t)
+    const playoff = round2Map.get(t.id)
+    if (playoff) completedGrouped.push(playoff)
+  }
+
+  return { active, draft: drafts, completed: completedGrouped }
 }
 
 // ---------------------------------------------------------------------------
