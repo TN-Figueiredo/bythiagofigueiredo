@@ -19,6 +19,7 @@ export type SocialPostWithPipeline = SocialPost & {
   pipeline_snapshot: Record<string, unknown> | null
   graduated_at: string | null
   origin: string | null
+  queue_position: number | null
 }
 
 // ---------------------------------------------------------------------------
@@ -45,6 +46,7 @@ export function toSocialPost(row: Record<string, unknown>): SocialPostWithPipeli
     pipeline_snapshot: row.pipeline_snapshot != null ? (row.pipeline_snapshot as Record<string, unknown>) : null,
     graduated_at: (row.graduated_at as string) ?? null,
     origin: (row.origin as string) ?? null,
+    queue_position: (row.queue_position as number) ?? null,
   }
 }
 
