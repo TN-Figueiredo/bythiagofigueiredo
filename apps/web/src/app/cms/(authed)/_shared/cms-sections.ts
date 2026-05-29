@@ -8,7 +8,7 @@ import {
   Image, Link2,
   Youtube, Send,
   UserPen, UsersRound, MessageSquare,
-  TrendingUp, Kanban, ExternalLink,
+  TrendingUp, Kanban,
 } from 'lucide-react'
 
 const ICON_SIZE = 16
@@ -52,7 +52,6 @@ export function buildCmsSections(): SidebarSection[] {
         { icon: icon(Youtube), label: 'YouTube', href: '/cms/youtube', minRole: 'editor' },
         { icon: icon(Send), label: 'Posts', href: '/cms/social', minRole: 'reporter' },
         { icon: icon(Link2), label: 'Links', href: '/cms/links', minRole: 'editor' },
-        { icon: icon(ExternalLink), label: 'Link in Bio', href: '/cms/link-in-bio', minRole: 'editor' },
       ],
     },
     {

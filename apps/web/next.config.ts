@@ -70,8 +70,9 @@ const nextConfig: NextConfig = {
       { source: '/cms/pipeline/research', destination: '/cms/library/research', permanent: true },
       { source: '/cms/pipeline/reference', destination: '/cms/library/reference', permanent: true },
       { source: '/cms/pipeline/audio', destination: '/cms/library/audio', permanent: true },
-      { source: '/cms/linktree', destination: '/cms/link-in-bio', permanent: true },
-      { source: '/cms/linktree/:path+', destination: '/cms/link-in-bio/:path+', permanent: true },
+      { source: '/cms/link-in-bio', destination: '/cms/links?tab=tree', permanent: true },
+      { source: '/cms/linktree', destination: '/cms/links?tab=tree', permanent: true },
+      { source: '/cms/linktree/analytics', destination: '/cms/links?tab=analytics', permanent: true },
     ]
   },
 
@@ -84,8 +85,6 @@ const nextConfig: NextConfig = {
         { source: '/cms/library/research', destination: '/cms/pipeline/research' },
         { source: '/cms/library/reference', destination: '/cms/pipeline/reference' },
         { source: '/cms/library/audio', destination: '/cms/pipeline/audio' },
-        { source: '/cms/link-in-bio', destination: '/cms/linktree' },
-        { source: '/cms/link-in-bio/:path+', destination: '/cms/linktree/:path+' },
       ],
     }
   },

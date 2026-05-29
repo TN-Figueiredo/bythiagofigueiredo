@@ -1105,3 +1105,7 @@ export async function batchExtendExpiry(
 export async function batchActivateNow(siteId: string, campaign: string): Promise<ActionResult<{ updated: number }>> {
   return batchUpdateLinks(siteId, { utm_campaign: campaign }, { active: true, activates_at: null })
 }
+
+// ─── Linktree Actions (re-exported for unified hub) ───────────────────────
+
+export { saveLinktreeConfig, loadLinktreeConfig } from '../linktree/actions'

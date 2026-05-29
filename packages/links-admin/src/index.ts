@@ -12,7 +12,13 @@ export type {
   Insight,
   AlertRule,
   QrConfig,
+  SourceId,
+  LinkDisplay,
+  LinktreeDisplay,
+  AnalyticsDisplay,
 } from './types.js'
+
+export { SOURCE_COLORS, SOURCE_LABELS } from './types.js'
 
 export type { QrCardBuilderProps } from './components/qr-card-builder/index.js'
 export type { QrTemplate } from './components/qr-card-builder/template-browser.js'

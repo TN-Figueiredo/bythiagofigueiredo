@@ -92,3 +92,98 @@ export interface QrConfig {
   size: number
   format: 'svg' | 'png'
 }
+
+export type SourceId = 'newsletter' | 'social' | 'blog' | 'qr' | 'campaign' | 'manual'
+
+export const SOURCE_COLORS: Record<SourceId, string> = {
+  newsletter: '#A77CE8',
+  social: '#3FA9C0',
+  blog: '#46B17E',
+  qr: '#E0A23C',
+  campaign: '#5B7FD6',
+  manual: '#8A8F98',
+} as const
+
+export const SOURCE_LABELS: Record<SourceId, string> = {
+  newsletter: 'Newsletter',
+  social: 'Social',
+  blog: 'Blog',
+  qr: 'QR',
+  campaign: 'Campanha',
+  manual: 'Manual',
+} as const
+
+export interface LinkDisplay {
+  id: string
+  title: string
+  slug: string
+  source: SourceId
+  badge: string
+  dest: string
+  status: 'active' | 'paused' | 'expired'
+  clicks: number
+  last30: number
+  unique: number
+  scans: number
+  topCountry: string
+  ctr: number
+  created: string
+  health: 'ok' | 'warn' | 'broken'
+  redirect: 301 | 302
+  clickIds: boolean
+  spark: number[]
+}
+
+export interface LinktreeDisplay {
+  url: string
+  pageviews: number
+  last30: number
+  unique: number
+  engagement: number
+  topCountry: string
+  spark: number[]
+  blocks: Array<{
+    id: string
+    label: string
+    section: string
+    clicks: number
+    ctr: number
+  }>
+  sharedLinks: Array<{
+    id: string
+    icon: string
+    labelPt: string
+    labelEn: string
+    url: string
+  }>
+}
+
+export interface AnalyticsDisplay {
+  totalClicks: number
+  prevClicks: number
+  unique: number
+  prevUnique: number
+  ctr: number
+  prevCtr: number
+  qrShare: number
+  byDay: number[]
+  byDayPrev: number[]
+  bySource: Array<{ id: SourceId; clicks: number; pct: number }>
+  devices: Array<{ k: string; v: number; color: string }>
+  browsers: Array<{ k: string; v: number }>
+  os: Array<{ k: string; v: number }>
+  referrers: Array<{ k: string; v: number }>
+  countries: Array<{
+    code: string
+    name: string
+    v: number
+    cities: string[]
+  }>
+  heatmap: number[][]
+  topLinks: LinkDisplay[]
+  insights: Array<{
+    tone: 'up' | 'accent' | 'amber' | 'red'
+    icon: string
+    text: string
+  }>
+}

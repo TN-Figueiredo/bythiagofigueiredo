@@ -33,3 +33,30 @@ export type { AiInsightsPanelProps } from './components/ai-insights-panel'
 export type { LivePulseIndicatorProps } from './components/live-pulse-indicator'
 export type { AlertRulesEditorProps } from './components/alert-rules-editor'
 export type { QrCardBuilderProps } from './components/qr-card-builder/index'
+
+// Charts
+export {
+  Spark,
+  Delta,
+  StatTile,
+  BarChart,
+  Donut,
+  HBars,
+  Heatmap,
+  CountryList,
+  Panel,
+} from './components/charts/index'
+export type {
+  SparkProps,
+  DeltaProps,
+  StatTileProps,
+  BarChartProps,
+  DonutProps,
+  DonutSegment,
+  HBarsProps,
+  HBarRow,
+  HeatmapProps,
+  CountryListProps,
+  CountryItem,
+  PanelProps,
+} from './components/charts/index'
