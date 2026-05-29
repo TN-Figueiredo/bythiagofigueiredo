@@ -29,7 +29,7 @@ export function WinnerBanner({
   return (
     <div
       data-testid="winner-banner"
-      className="rounded-[var(--cms-radius)] border-2 border-cms-green bg-cms-green/5 p-4"
+      className="rounded-lg border border-cms-green/20 bg-cms-green/5 p-5"
     >
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         {/* Left: Trophy + VChip + lift + confidence */}
@@ -46,7 +46,7 @@ export function WinnerBanner({
           <VChip label={winnerLabel} size={28} />
           <div className="flex flex-col">
             <span
-              className="text-2xl font-bold font-mono text-cms-green"
+              className="text-3xl font-bold font-mono text-cms-green leading-none"
               data-testid="winner-lift"
             >
               {lift > 0 ? '+' : ''}
