@@ -54,9 +54,12 @@ function buildMock(testOverrides: Record<string, unknown> = {}) {
         select: vi.fn().mockReturnValue(chainable),
         update: vi.fn((data: unknown) => {
           updates.push({ table, data })
-          const selectResult = { count: 1, data: null, error: null }
           const updateChain: Record<string, unknown> = {}
-          updateChain['select'] = vi.fn().mockResolvedValue(selectResult)
+          updateChain['select'] = vi.fn().mockResolvedValue({
+            data: testOverrides.status === 'draft' || !('status' in testOverrides)
+              ? [{ id: 'test-1' }] : [],
+            error: null,
+          })
           updateChain['eq'] = vi.fn().mockReturnValue(updateChain)
           return updateChain
         }),

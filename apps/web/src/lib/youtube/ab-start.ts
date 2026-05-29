@@ -100,15 +100,15 @@ export async function startAbTestInternal(
 
   // 5. Conditional update — only succeeds when status is still 'draft'.
   //    This prevents two concurrent callers (cron + user) from both winning.
-  const { count, error: updateError } = await supabase
+  const { data: updated, error: updateError } = await supabase
     .from('ab_tests')
     .update({ status: 'active', started_at: now, paused_at: null, updated_at: now })
     .eq('id', testId)
     .eq('status', 'draft')
-    .select('id', { count: 'exact', head: true })
+    .select('id')
 
   if (updateError) return { ok: false, error: updateError.message }
-  if (!count || count === 0) {
+  if (!updated || updated.length === 0) {
     return { ok: false, error: 'Test was already started by another process' }
   }
 

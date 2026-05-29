@@ -70,6 +70,7 @@ export function AbTestDetail({ results }: AbTestDetailProps) {
         metadata: v.metadata ?? {},
         sort_order: v.is_original ? 0 : i,
         created_at: test.created_at,
+        source_variant_id: null,
       })),
       current_cycle: timeline.find(c => !c.ended_at) ?? null,
       total_cycles: timeline.length,
