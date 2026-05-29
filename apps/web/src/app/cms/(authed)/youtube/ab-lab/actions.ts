@@ -25,7 +25,12 @@ import { scoreForPrompt } from '@/lib/youtube/prompt-scoring'
 import type { AbBriefingData } from '@/lib/youtube/prompt-types'
 import { startAbTestInternal } from '@/lib/youtube/ab-start'
 import { getVideoTestHistory as _getVideoTestHistory } from './queries'
-export { getVideoTestHistory } from './queries'
+
+export async function getVideoTestHistory(
+  ...args: Parameters<typeof _getVideoTestHistory>
+): ReturnType<typeof _getVideoTestHistory> {
+  return _getVideoTestHistory(...args)
+}
 
 async function requireEditAccess(): Promise<string> {
   const { siteId } = await getSiteContext()
