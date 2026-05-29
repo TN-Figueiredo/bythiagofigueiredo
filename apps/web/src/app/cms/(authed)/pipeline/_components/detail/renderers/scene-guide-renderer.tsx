@@ -322,7 +322,7 @@ function SubSection({ title, subtitle, children }: { title: string; subtitle?: s
 
 /* ---------- SceneCard ---------- */
 
-function SceneCard({ scene, expandAll, sceneIndex }: { scene: Scene; expandAll: boolean; sceneIndex: number }) {
+function SceneCard({ scene, expandAll, sceneIndex, itemCode }: { scene: Scene; expandAll: boolean; sceneIndex: number; itemCode?: string }) {
   const [expanded, setExpanded] = useState(expandAll)
   const prevExpandAll = useRef(expandAll)
   if (prevExpandAll.current !== expandAll) {
@@ -398,7 +398,7 @@ function SceneCard({ scene, expandAll, sceneIndex }: { scene: Scene; expandAll: 
           )}
 
           {scene.music && (
-            <MusicHeroSection music={scene.music} sceneIndex={sceneIndex} />
+            <MusicHeroSection music={scene.music} sceneIndex={sceneIndex} itemCode={itemCode} />
           )}
 
           {filteredNotes.length > 0 && (
@@ -483,7 +483,7 @@ function SceneCard({ scene, expandAll, sceneIndex }: { scene: Scene; expandAll: 
 
 /* ---------- Main renderer ---------- */
 
-export function SceneGuideRenderer({ content }: RendererProps) {
+export function SceneGuideRenderer({ content, itemCode }: RendererProps) {
   const data = parseContent(content)
   const scenes = useMemo(() => normalizeScenes(data.scenes ?? []), [data.scenes])
   const [allExpanded, setAllExpanded] = useState(true)
@@ -515,7 +515,7 @@ export function SceneGuideRenderer({ content }: RendererProps) {
 
       <div className="space-y-1.5">
         {scenes.map((scene, i) => (
-          <SceneCard key={i} scene={scene} expandAll={allExpanded} sceneIndex={scene.number ?? i + 1} />
+          <SceneCard key={i} scene={scene} expandAll={allExpanded} sceneIndex={scene.number ?? i + 1} itemCode={itemCode} />
         ))}
       </div>
     </div>

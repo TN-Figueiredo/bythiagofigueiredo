@@ -51,6 +51,7 @@ export interface RendererProps {
   blogPostId?: string | null
   blogSlug?: string | null
   socialPostId?: string | null
+  itemCode?: string
 }
 
 interface SectionContentProps extends RendererProps {
@@ -82,7 +83,7 @@ class RendererErrorBoundary extends Component<{ children: ReactNode }, { error: 
   }
 }
 
-export function SectionContent({ sectionType, content, isEditing, lang, format, onContentChange, pipelineItemId, siteId, vvsScore, stage, blogPostId, blogSlug, socialPostId }: SectionContentProps) {
+export function SectionContent({ sectionType, content, isEditing, lang, format, onContentChange, pipelineItemId, siteId, vvsScore, stage, blogPostId, blogSlug, socialPostId, itemCode }: SectionContentProps) {
   const Renderer = REGISTRY[sectionType] ?? GenericRenderer
 
   return (
@@ -100,6 +101,7 @@ export function SectionContent({ sectionType, content, isEditing, lang, format, 
         blogPostId={blogPostId}
         blogSlug={blogSlug}
         socialPostId={socialPostId}
+        itemCode={itemCode}
       />
     </RendererErrorBoundary>
   )

@@ -40,6 +40,20 @@ vi.mock('@/components/prompt-preview', () => ({
   ),
 }))
 
+vi.mock('@/components/cms/cowork-deep-link', () => ({
+  CoworkDeepLink: ({ instruction, label, shortcut }: { instruction: string; label?: string; shortcut?: string }) => (
+    <button data-testid="cowork-deep-link" data-instruction={instruction} data-shortcut={shortcut}>
+      {label ?? 'Abrir no Cowork'}
+    </button>
+  ),
+}))
+
+vi.mock('@/lib/pipeline/cowork-instructions', () => ({
+  buildCoworkInstruction: vi.fn((_template: string, params: Record<string, string>) =>
+    params?.testId ? `MOCK_INSTRUCTION:${params.testId}` : 'MOCK_INSTRUCTION',
+  ),
+}))
+
 // next/image stub
 vi.mock('next/image', () => ({
   default: ({ src, alt }: { src: string; alt: string }) => (
@@ -200,23 +214,26 @@ describe('StepIdeias', () => {
     expect(screen.getByText('Guiar cada variação')).toBeTruthy()
   })
 
-  // ---- 4. Copies prompt to clipboard on button click ----
+  // ---- 4. Renders CoworkDeepLink with correct instruction ----
 
-  it('copies prompt to clipboard when copy button is clicked', async () => {
+  it('renders CoworkDeepLink with prompt instruction', async () => {
     const data = makeAbBriefingData()
-    const onBriefingCopied = vi.fn()
     await act(async () => {
-      renderStep({ briefingData: data, onBriefingCopied })
+      renderStep({ briefingData: data })
     })
-    // Find copy button — it contains "Copiar" text
-    const copyBtn = screen.getByRole('button', { name: /copiar/i })
+    const deepLink = screen.getByTestId('cowork-deep-link')
+    expect(deepLink).toBeTruthy()
+    expect(deepLink.textContent).toContain('Abrir no Cowork')
+    expect(deepLink.getAttribute('data-instruction')).toBe('MOCK_BRIEFING_PROMPT')
+  })
+
+  it('renders CoworkDeepLink with refine instruction when draftTestId exists', async () => {
+    const data = makeAbBriefingData()
     await act(async () => {
-      fireEvent.click(copyBtn)
-      await Promise.resolve()
+      renderStep({ briefingData: data, draftTestId: 'test-123' })
     })
-    expect(writeText).toHaveBeenCalledOnce()
-    expect(writeText.mock.calls[0][0]).toBe('MOCK_BRIEFING_PROMPT')
-    expect(onBriefingCopied).toHaveBeenCalledOnce()
+    const deepLink = screen.getByTestId('cowork-deep-link')
+    expect(deepLink.getAttribute('data-instruction')).toBe('MOCK_INSTRUCTION:test-123')
   })
 
   // ---- 5. No-data warning when video has no CTR/score ----

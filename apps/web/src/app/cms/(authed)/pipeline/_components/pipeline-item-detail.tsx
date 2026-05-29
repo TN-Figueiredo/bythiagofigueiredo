@@ -12,17 +12,16 @@ import { TabContainer } from './detail/tab-container'
 import { useSection } from './detail/use-section'
 import { SectionToolbar } from './detail/section-toolbar'
 import { SaveFooter } from './detail/save-footer'
-import { CoworkRequestPanel } from './detail/cowork-request-panel'
+import { CoworkDeepLink } from '@/components/cms/cowork-deep-link'
+import { buildCoworkInstruction } from '@/lib/pipeline/cowork-instructions'
 import { ConflictBanner } from './detail/conflict-banner'
 import { SectionContent } from './detail/section-content'
-import { ContentCiteSelector } from './detail/content-cite-selector'
 import { EmptySection } from './detail/renderers/empty-section'
 import { getSectionKey, type SectionData, type SectionDefinition } from '@/lib/pipeline/sections'
 import { BLOG_CATEGORIES, LANGUAGES, type Format, type Language } from '@/lib/pipeline/schemas'
 import { computeValidationScore, VVS_PUBLISH_THRESHOLD, type ValidationScore } from '@/lib/pipeline/validation'
 import { BlogPostCard } from './detail/blog-post-card'
 import { BlogPostSearchDialog } from './detail/blog-post-search-dialog'
-import { PromptGeneratorModal } from './prompt-generator-modal'
 import { useMediaGallery } from '../../_shared/media/use-media-gallery'
 import { MediaGalleryModal } from '../../_shared/media/media-gallery-modal'
 import { CROP_PRESETS, type MediaAssetResult } from '../../_shared/media/types'
@@ -183,10 +182,6 @@ function SectionPanel({ sectionDef, activeSub, lang, itemId, itemVersion, itemCo
   const effectiveData = sectionData ?? extractedSeo
 
   const section = useSection({ itemId, sectionKey, initialData: effectiveData, itemVersion })
-  const [showCowork, setShowCowork] = useState(false)
-  const [references, setReferences] = useState<Map<number, string>>(() => new Map())
-  const nextIdRef = useRef(1)
-  const [insertText, setInsertText] = useState<string | null>(null)
   const panelRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -205,26 +200,6 @@ function SectionPanel({ sectionDef, activeSub, lang, itemId, itemVersion, itemCo
     return () => document.removeEventListener('pipeline:toggle-edit', handler)
   }, [section.isEditing, section.setIsEditing])
 
-  const handleCite = useCallback((text: string) => {
-    const id = nextIdRef.current++
-    setReferences(prev => {
-      const next = new Map(prev)
-      next.set(id, text)
-      return next
-    })
-    setInsertText(`[citacao ${id}] `)
-    setShowCowork(true)
-  }, [])
-
-  const handleSendAndWait = useCallback(() => {
-    setReferences(new Map())
-    nextIdRef.current = 1
-    setShowCowork(false)
-    setInsertText(null)
-  }, [])
-
-  const handleInsertConsumed = useCallback(() => setInsertText(null), [])
-
   const activeDef = sectionDef.subSections?.find(s => s.key === sectionType) ?? sectionDef
   const isShared = activeDef.shared
   const title = activeDef.label_pt
@@ -242,6 +217,8 @@ function SectionPanel({ sectionDef, activeSub, lang, itemId, itemVersion, itemCo
         title={title}
         lang={lang}
         showLang={!isShared}
+        itemCode={itemCode}
+        sectionKey={sectionKey}
         source={section.source}
         edited={section.edited}
         isEditing={section.isEditing}
@@ -249,30 +226,6 @@ function SectionPanel({ sectionDef, activeSub, lang, itemId, itemVersion, itemCo
         isDirty={section.isDirty}
         onToggleEdit={section.setIsEditing}
         onSave={() => { void section.save() }}
-        onToggleCowork={() => setShowCowork(prev => !prev)}
-      />
-
-      <CoworkRequestPanel
-        isOpen={showCowork}
-        onClose={() => setShowCowork(false)}
-        itemId={itemId}
-        itemCode={itemCode}
-        itemTitle={itemTitle}
-        sectionLabel={title}
-        sectionKey={sectionKey}
-        lang={lang}
-        rev={section.rev}
-        placeholder={`Instruções para atualizar ${title}...`}
-        format={format}
-        stage={stage}
-        tags={tags}
-        hook={hook}
-        synopsis={synopsis}
-        sectionContent={section.content}
-        references={references}
-        onSendAndWait={handleSendAndWait}
-        insertText={insertText}
-        onInsertConsumed={handleInsertConsumed}
       />
 
       {section.conflict && (
@@ -294,28 +247,24 @@ function SectionPanel({ sectionDef, activeSub, lang, itemId, itemVersion, itemCo
       )}
 
       {section.content != null ? (
-        <ContentCiteSelector
-          enabled={showCowork && !section.isEditing}
-          onCite={handleCite}
-        >
-          <SectionContent
-            sectionType={sectionType}
-            content={section.content}
-            isEditing={section.isEditing}
-            lang={lang}
-            onContentChange={section.setContent}
-            pipelineItemId={itemId}
-            siteId={siteId}
-            vvsScore={vvsScore}
-            format={format}
-            stage={stage}
-            blogPostId={blogPostId}
-            blogSlug={blogSlug}
-            socialPostId={socialPostId}
-          />
-        </ContentCiteSelector>
+        <SectionContent
+          sectionType={sectionType}
+          content={section.content}
+          isEditing={section.isEditing}
+          lang={lang}
+          onContentChange={section.setContent}
+          pipelineItemId={itemId}
+          siteId={siteId}
+          vvsScore={vvsScore}
+          format={format}
+          stage={stage}
+          blogPostId={blogPostId}
+          blogSlug={blogSlug}
+          socialPostId={socialPostId}
+          itemCode={itemCode}
+        />
       ) : (
-        <EmptySection sectionLabel={title} onRequestCowork={() => setShowCowork(true)} />
+        <EmptySection sectionLabel={title} itemCode={itemCode} sectionKey={sectionKey} />
       )}
 
       <SaveFooter isDirty={section.isDirty} rev={section.rev} updatedAt={section.updatedAt ?? undefined} />
@@ -508,8 +457,6 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const manualOverrideRef = useRef(false)
   const [showBlogSearch, setShowBlogSearch] = useState(false)
-  const [showPromptModal, setShowPromptModal] = useState(false)
-  const [promptTargetLocale, setPromptTargetLocale] = useState<'pt-br' | 'en'>('en')
   const [socialExpanded, setSocialExpanded] = useState(() => item.social_config != null)
   const [historyExpanded, setHistoryExpanded] = useState(false)
 
@@ -565,21 +512,6 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
     if (result.ok) { toast.success('Restaurado'); router.refresh() }
     else toast.error(result.error)
   }
-
-  const promptSections = useMemo(() => {
-    const sections = item.sections ?? {}
-    return Object.entries(sections).map(([key, sec]) => {
-      const parts = key.split('_')
-      const suffix = parts.pop() ?? 'pt'
-      const sectionType = parts.join('_')
-      const language = suffix === 'en' ? 'en' : suffix === 'shared' ? 'shared' : 'pt-br'
-      return {
-        section_type: sectionType,
-        language,
-        content: typeof sec.content === 'string' ? sec.content : JSON.stringify(sec.content ?? {}),
-      }
-    })
-  }, [item.sections])
 
   async function handleRepublish() {
     setIsRepublishing(true)
@@ -941,18 +873,14 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
                   ))}
                 </select>
                 {item.language !== 'both' && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPromptTargetLocale(item.language === 'pt-br' ? 'en' : 'pt-br')
-                      setShowPromptModal(true)
-                    }}
-                    className="text-[10px]"
-                    style={{ color: 'var(--gem-accent)' }}
-                    title={`Gerar prompt para ${item.language === 'pt-br' ? 'EN' : 'PT'}`}
-                  >
-                    + {item.language === 'pt-br' ? 'EN' : 'PT'}
-                  </button>
+                  <CoworkDeepLink
+                    instruction={buildCoworkInstruction('pipeline-translate', {
+                      code: item.code,
+                      locale: item.language === 'pt-br' ? 'en' : 'pt-br',
+                    })}
+                    variant="inline"
+                    label={`+ ${item.language === 'pt-br' ? 'EN' : 'PT'}`}
+                  />
                 )}
               </dd>
             </div>
@@ -1100,15 +1028,22 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
           </button>
           {socialExpanded && (
             <div id="sidebar-social-content" className="px-3 pb-3">
-              {item.social_post_id && (
-                <Link
-                  href={`/cms/social/${item.social_post_id}`}
-                  className="text-[10px] hover:underline block mb-2"
-                  style={{ color: 'var(--gem-accent)' }}
-                >
-                  Ver post social →
-                </Link>
-              )}
+              <div className="flex items-center justify-between mb-2">
+                {item.social_post_id && (
+                  <Link
+                    href={`/cms/social/${item.social_post_id}`}
+                    className="text-[10px] hover:underline"
+                    style={{ color: 'var(--gem-accent)' }}
+                  >
+                    Ver post social →
+                  </Link>
+                )}
+                <CoworkDeepLink
+                  instruction={buildCoworkInstruction('pipeline-section', { section: 'social_config', code: item.code })}
+                  variant="inline"
+                  label="Cowork"
+                />
+              </div>
               <SocialConfigEditor
                 config={socialConfig}
                 onChange={handleSocialConfigChange}
@@ -1158,26 +1093,6 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
         )}
         </>)}
       </aside>
-
-      {showPromptModal && (
-        <PromptGeneratorModal
-          item={{
-            id: item.id,
-            code: item.code,
-            format: item.format,
-            stage: item.stage,
-            priority: item.priority,
-            language: item.language as 'pt-br' | 'en' | 'both',
-            title_pt: item.title_pt,
-            title_en: item.title_en,
-            hook: item.hook ?? null,
-            synopsis: item.synopsis ?? null,
-          }}
-          sections={promptSections}
-          targetLocale={promptTargetLocale}
-          onClose={() => setShowPromptModal(false)}
-        />
-      )}
 
       <MediaGalleryModal
         {...coverGallery.galleryProps}

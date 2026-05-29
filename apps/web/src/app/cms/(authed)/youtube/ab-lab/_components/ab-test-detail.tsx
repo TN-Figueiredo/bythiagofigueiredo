@@ -49,6 +49,7 @@ export function AbTestDetail({ results }: AbTestDetailProps) {
   const [showEndDialog, setShowEndDialog] = useState(false)
   const [showPauseDialog, setShowPauseDialog] = useState(false)
   const [dataMode, setDataMode] = useState<DataMode>('confirmed')
+  const [expandedAiContext, setExpandedAiContext] = useState<Set<string>>(new Set())
 
   const { test, variants, confidence, is_significant, suggested_winner_id, timeline, tracked_links } = results
 
@@ -279,27 +280,60 @@ export function AbTestDetail({ results }: AbTestDetailProps) {
         </div>
       </div>
 
-      {test.status === 'completed' && (
-        <div
-          className={[
-            'rounded-[var(--cms-radius)] px-4 py-3 text-sm font-medium',
-            winnerVariant
-              ? 'bg-green-900/30 text-green-300'
-              : 'bg-amber-900/30 text-amber-300',
-          ].join(' ')}
-        >
-          {winnerVariant ? (
-            <>
-              Winner: {winnerVariant.label.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-              {ctrLift !== null && ` — +${ctrLift}% CTR lift`}
-              {` at ${Math.round((test.confidence_at_completion ?? confidence) * 100)}% confidence`}
-            </>
-          ) : (
-            <>
-              Test concluded without a clear winner ({Math.round((test.confidence_at_completion ?? confidence) * 100)}%
-              confidence)
-            </>
-          )}
+      {test.status === 'completed' && winnerVariant && ctrLift !== null && (
+        <div className="rounded-lg border border-green-500/30 bg-green-500/5 p-4">
+          <div className="flex items-center gap-4">
+            {winnerVariant.blob_url && (
+              <div className="flex-shrink-0 overflow-hidden rounded-md border border-cms-border">
+                <img
+                  src={winnerVariant.blob_url}
+                  alt={`Winner: ${winnerVariant.label}`}
+                  width={120}
+                  height={68}
+                  className="object-cover"
+                />
+              </div>
+            )}
+            <div className="flex-1 space-y-1">
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-bold text-green-400">
+                  +{ctrLift}% CTR
+                </span>
+                <span className="text-xs text-cms-text-muted">
+                  Variante {winnerVariant.label} ganhou
+                </span>
+              </div>
+              <div className="flex gap-4 text-xs text-cms-text-muted">
+                <span>Confiança: {((test.confidence_at_completion ?? 0) * 100).toFixed(0)}%</span>
+                {test.result_metadata?.estimated_monthly_extra_clicks != null && (
+                  <span>+{test.result_metadata.estimated_monthly_extra_clicks.toLocaleString()} clicks/mês estimados</span>
+                )}
+                {test.started_at && test.completed_at && (
+                  <span>{Math.ceil((new Date(test.completed_at).getTime() - new Date(test.started_at).getTime()) / 86_400_000)} dias de teste</span>
+                )}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowEndDialog(true)}
+              className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-500 transition-colors"
+            >
+              Aplicar Winner
+            </button>
+          </div>
+        </div>
+      )}
+
+      {test.status === 'completed' && winnerVariant && ctrLift === null && (
+        <div className="rounded-lg border border-cms-border bg-cms-surface p-3 text-sm text-cms-text-muted">
+          Variante {winnerVariant.label} venceu — dados de CTR insuficientes para calcular lift.
+        </div>
+      )}
+
+      {test.status === 'completed' && !winnerVariant && (
+        <div className="rounded-[var(--cms-radius)] px-4 py-3 text-sm font-medium bg-amber-900/30 text-amber-300">
+          Test concluded without a clear winner ({Math.round((test.confidence_at_completion ?? confidence) * 100)}%
+          confidence)
         </div>
       )}
 
@@ -379,6 +413,74 @@ export function AbTestDetail({ results }: AbTestDetailProps) {
         ))}
       </div>
 
+      <div className="mt-4 overflow-x-auto">
+        <table className="w-full text-sm" aria-label="Comparação de variantes">
+          <thead>
+            <tr className="border-b border-cms-border text-left text-xs text-cms-text-muted">
+              <th scope="col" className="pb-2 font-medium">Variante</th>
+              <th scope="col" className="pb-2 font-medium">CTR</th>
+              <th scope="col" className="pb-2 font-medium">Impressões</th>
+              <th scope="col" className="pb-2 font-medium">Cliques</th>
+              <th scope="col" className="pb-2 font-medium">vs Original</th>
+            </tr>
+          </thead>
+          <tbody>
+            {variants.map(v => {
+              const original = variants.find(o => o.is_original)
+              const isWinner = v.variant_id === test.winner_variant_id
+              const delta = original && original.avg_ctr > 0
+                ? (((v.avg_ctr - original.avg_ctr) / original.avg_ctr) * 100).toFixed(1)
+                : null
+              const hasAiContext = !!v.metadata?.rationale || !!v.metadata?.creative_direction
+              const isExpanded = expandedAiContext.has(v.variant_id)
+              return (
+                <tr key={v.variant_id} className={isWinner ? 'bg-green-500/10' : ''}>
+                  <td className="py-2 font-medium">
+                    <span>{v.label}{v.is_original ? ' (Original)' : ''}</span>
+                    {hasAiContext && (
+                      <button
+                        type="button"
+                        aria-expanded={isExpanded}
+                        aria-label={`${isExpanded ? 'Ocultar' : 'Ver'} contexto AI da variante ${v.label}`}
+                        onClick={() => setExpandedAiContext(prev => {
+                          const next = new Set(prev)
+                          if (next.has(v.variant_id)) next.delete(v.variant_id)
+                          else next.add(v.variant_id)
+                          return next
+                        })}
+                        className="ml-2 text-[10px] text-indigo-400 hover:text-indigo-300"
+                      >
+                        {isExpanded ? 'ocultar AI' : 'ver AI'}
+                      </button>
+                    )}
+                    {isExpanded && (
+                      <div className="mt-1 space-y-1 text-xs text-cms-text-muted">
+                        {v.metadata?.rationale && (
+                          <p><span className="font-medium text-cms-text-dim">Rationale:</span> {v.metadata.rationale}</p>
+                        )}
+                        {v.metadata?.creative_direction && (
+                          <p><span className="font-medium text-cms-text-dim">Direção criativa:</span> {v.metadata.creative_direction}</p>
+                        )}
+                      </div>
+                    )}
+                  </td>
+                  <td className="py-2">{(v.avg_ctr * 100).toFixed(2)}%</td>
+                  <td className="py-2">{v.total_impressions.toLocaleString()}</td>
+                  <td className="py-2">{v.total_clicks.toLocaleString()}</td>
+                  <td className={[
+                    'py-2',
+                    delta && parseFloat(delta) < 0 ? 'text-red-400' : '',
+                    delta && parseFloat(delta) > 0 ? 'text-green-400' : '',
+                  ].filter(Boolean).join(' ')}>
+                    {v.is_original ? '—' : delta ? `${parseFloat(delta) > 0 ? '+' : ''}${delta}%` : '—'}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+
       <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface p-5 space-y-3">
         <h3 className="text-sm font-semibold text-cms-text">Rotation Timeline</h3>
         <AbRotationTimeline
@@ -406,8 +508,8 @@ export function AbTestDetail({ results }: AbTestDetailProps) {
                   <span className="text-sm text-cms-text">{link.template_name}</span>
                   <span className="text-xs text-cms-text-muted ml-2">{link.short_code}</span>
                 </div>
-                <span className="text-sm font-medium text-orange-400">
-                  {(link as AbTestTrackedLinkRow & { clicks?: number }).clicks ?? 0} clicks
+                <span className="text-sm font-medium text-cms-text-muted">
+                  —
                 </span>
               </div>
             ))}

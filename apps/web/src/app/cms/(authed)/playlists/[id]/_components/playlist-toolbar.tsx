@@ -2,6 +2,8 @@
 
 import Link from 'next/link'
 import type { PlaylistStatus } from '@/lib/playlists/types'
+import { CoworkDeepLink } from '@/components/cms/cowork-deep-link'
+import { buildCoworkInstruction } from '@/lib/pipeline/cowork-instructions'
 
 type SaveState = 'saved' | 'saving' | 'error'
 
@@ -23,7 +25,6 @@ interface PlaylistToolbarProps {
   exportButtonRef: React.RefObject<HTMLButtonElement | null>
   onToggleSettings: () => void
   hasNotes: boolean
-  onOpenPrompt: () => void
   onRefresh: () => void
   onToggleHistory: () => void
 }
@@ -46,7 +47,6 @@ export function PlaylistToolbar({
   exportButtonRef,
   onToggleSettings,
   hasNotes,
-  onOpenPrompt,
   onRefresh,
   onToggleHistory,
 }: PlaylistToolbarProps) {
@@ -125,15 +125,11 @@ export function PlaylistToolbar({
         >
           <ExportIcon />
         </button>
-        <button
-          type="button"
-          onClick={onOpenPrompt}
-          aria-label="Generate prompt"
-          title="Generate prompt"
-          className="rounded-md px-2 py-1 text-xs font-medium text-indigo-400 transition-colors hover:bg-indigo-600/20"
-        >
-          Prompt
-        </button>
+        <CoworkDeepLink
+          instruction={buildCoworkInstruction('playlist-organize', { name: playlistName })}
+          variant="icon"
+          label="Cowork"
+        />
         <ToolbarButton label="Refresh" onClick={onRefresh}>
           <RefreshIcon />
         </ToolbarButton>

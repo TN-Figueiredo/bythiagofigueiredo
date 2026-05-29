@@ -1,11 +1,12 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
-import { useTransition, useState } from 'react'
+import { useTransition } from 'react'
 import Link from 'next/link'
 import type { ReactNode } from 'react'
 import { triggerSync } from './videos/actions'
-import { YouTubeCoworkPromptModal } from './_components/youtube-cowork-prompt-modal'
+import { CoworkDeepLink } from '@/components/cms/cowork-deep-link'
+import { buildCoworkInstruction } from '@/lib/pipeline/cowork-instructions'
 
 const TABS = [
   { label: 'Dashboard', href: '/cms/youtube' },
@@ -20,7 +21,6 @@ const TABS = [
 export default function YouTubeLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const [isSyncing, startTransition] = useTransition()
-  const [showPromptModal, setShowPromptModal] = useState(false)
 
   const activeTab = TABS.find(t => {
     if (t.href === '/cms/youtube') return pathname === '/cms/youtube'
@@ -47,13 +47,10 @@ export default function YouTubeLayout({ children }: { children: ReactNode }) {
           >
             {isSyncing ? '⟳ Syncing…' : '⟳ Sync All'}
           </button>
-          <button
-            type="button"
-            onClick={() => setShowPromptModal(true)}
-            className="rounded bg-gradient-to-r from-indigo-600 to-indigo-500 px-3 py-1.5 text-sm font-medium text-white shadow-sm hover:from-indigo-500 hover:to-indigo-400"
-          >
-            Copy Cowork Prompt
-          </button>
+          <CoworkDeepLink
+            instruction={buildCoworkInstruction('youtube-intelligence', {} as Record<string, never>)}
+            variant="button"
+          />
           <Link
             href="/cms/settings?section=youtube"
             className="text-sm text-cms-text-muted hover:text-cms-text"
@@ -88,10 +85,6 @@ export default function YouTubeLayout({ children }: { children: ReactNode }) {
       <div className="p-6">
         {children}
       </div>
-      <YouTubeCoworkPromptModal
-        isOpen={showPromptModal}
-        onClose={() => setShowPromptModal(false)}
-      />
     </div>
   )
 }

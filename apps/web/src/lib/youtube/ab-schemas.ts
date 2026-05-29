@@ -11,7 +11,7 @@ export const VariantMetadataSchema = z.object({
   ai_image_prompt: z.string().max(1000).optional(),
   creative_direction: z.string().max(2000).optional(),
   rationale: z.string().max(1000).optional(),
-})
+}).passthrough()
 
 export const VariantPayloadSchema = z.object({
   label: z.enum(VARIANT_LABELS),

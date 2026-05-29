@@ -3,8 +3,9 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { REFERENCE_USAGE } from '@/lib/pipeline/reference-groups'
 import { API_REGISTRY } from '@/lib/pipeline/api-registry'
+import { buildCoworkInstruction } from '@/lib/pipeline/cowork-instructions'
+import { CoworkDeepLink } from '@/components/cms/cowork-deep-link'
 import { ApiCatalogView } from './api-catalog-view'
-import { CoworkPromptModal } from './cowork-prompt-modal'
 
 type ActiveTab = 'references' | 'catalog'
 
@@ -81,19 +82,13 @@ function highlightMatch(text: string, query: string): React.ReactNode {
 
 // ─── Component ─────────────────────────────────────────────────────────────────
 
-export function ReferenceEditor({ docs, groups, onUpsert, pipelineKey }: { docs: ReferenceDoc[]; groups: GroupDef[]; pipelineKey?: string; onUpsert: (key: string, data: { title: string; content_md?: string; content_compact?: Record<string, unknown>; ref_group?: string; sort_order?: number }) => Promise<unknown> }) {
-  // Tab + modal state
+export function ReferenceEditor({ docs, groups, onUpsert }: { docs: ReferenceDoc[]; groups: GroupDef[]; onUpsert: (key: string, data: { title: string; content_md?: string; content_compact?: Record<string, unknown>; ref_group?: string; sort_order?: number }) => Promise<unknown> }) {
+  // Tab state
   const [activeTab, setActiveTab] = useState<ActiveTab>('references')
-  const [showPromptModal, setShowPromptModal] = useState(false)
-
   const totalEndpoints = useMemo(
     () => API_REGISTRY.capabilities.reduce((s, c) => s + c.endpoint_count, 0),
     [],
   )
-
-  const baseUrl = typeof window !== 'undefined'
-    ? `${window.location.protocol}//${window.location.host}`
-    : 'https://bythiagofigueiredo.com'
 
   // State
   const [selected, setSelected] = useState<string | null>(docs[0]?.key ?? null)
@@ -113,6 +108,7 @@ export function ReferenceEditor({ docs, groups, onUpsert, pipelineKey }: { docs:
 
   const searchRef = useRef<HTMLInputElement>(null)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const coworkBtnRef = useRef<HTMLDivElement>(null)
 
   // Hydrate collapse state from localStorage after mount
   useEffect(() => {
@@ -225,10 +221,11 @@ export function ReferenceEditor({ docs, groups, onUpsert, pipelineKey }: { docs:
         searchRef.current?.focus()
         return
       }
-      // Cmd+P: open cowork prompt modal
+      // Cmd+P: open Cowork deep link (delegates to CoworkDeepLink button)
       if ((e.metaKey || e.ctrlKey) && e.key === 'p') {
         e.preventDefault()
-        setShowPromptModal(true)
+        const btn = coworkBtnRef.current?.querySelector('button')
+        btn?.click()
         return
       }
       // Esc: clear search when search is focused
@@ -327,42 +324,14 @@ export function ReferenceEditor({ docs, groups, onUpsert, pipelineKey }: { docs:
           )
         })}
         <div style={{ flex: 1 }} />
-        <button
-          type="button"
-          onClick={() => setShowPromptModal(true)}
-          className="transition-[filter] duration-150 hover:brightness-110"
-          style={{
-            padding: '6px 14px',
-            marginBottom: 6,
-            fontSize: 12,
-            fontWeight: 500,
-            color: '#fff',
-            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-            border: 'none',
-            borderRadius: 6,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 5,
-          }}
-        >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-            <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
-          </svg>
-          Copy Cowork Prompt
-          <span style={{ opacity: 0.5, fontSize: 9, fontFamily: 'monospace', marginLeft: 2 }}>⌘P</span>
-        </button>
+        <div ref={coworkBtnRef} style={{ marginBottom: 6 }}>
+          <CoworkDeepLink
+            instruction={buildCoworkInstruction('reference-overview', {} as Record<string, never>)}
+            variant="button"
+            shortcut="⌘P"
+          />
+        </div>
       </div>
-
-      {/* ─── Prompt modal ──────────────────────────────────────────────── */}
-      {showPromptModal && (
-        <CoworkPromptModal
-          onClose={() => setShowPromptModal(false)}
-          baseUrl={baseUrl}
-          serverKey={pipelineKey}
-        />
-      )}
 
       {/* ─── Tab content ───────────────────────────────────────────────── */}
       {activeTab === 'catalog' ? (

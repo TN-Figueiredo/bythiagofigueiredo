@@ -1,16 +1,16 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import type { VideoRow } from './videos-connected'
-import type { VideoOptimizerData, PromptVideoInfo } from '@/lib/youtube/prompt-types'
-import { buildVideoInfo } from '@/lib/youtube/prompt-builders'
+import type { VideoOptimizerData } from '@/lib/youtube/prompt-types'
 import { fetchVideoOptimizerData, saveVideoNotes } from '../_actions/youtube-prompt-actions'
 import { DrawerHeader } from './_components/drawer-header'
 import { ThumbnailWithGrade } from './_components/thumbnail-with-grade'
 import { VideoStatsCard } from './_components/video-stats-card'
 import { CmsNotesEditor } from './_components/cms-notes-editor'
-import { DrawerPromptSection } from './_components/drawer-prompt-section'
 import { DataFreshnessBadge } from './_components/data-freshness-badge'
+import { CoworkDeepLink } from '@/components/cms/cowork-deep-link'
+import { buildCoworkInstruction } from '@/lib/pipeline/cowork-instructions'
 import { useFocusTrap } from '@/lib/hooks/use-focus-trap'
 
 interface VideoOptimizerDrawerProps {
@@ -50,14 +50,9 @@ export function VideoOptimizerDrawer({ video, onClose }: VideoOptimizerDrawerPro
     return result.data
   }, [])
 
-  const videoInfo: PromptVideoInfo | null = useMemo(() =>
-    video ? buildVideoInfo(video) : null,
-    [video]
-  )
-
   const handleTrapKeyDown = useFocusTrap(drawerRef, { autoFocus: false })
 
-  if (!video || !videoInfo) return null
+  if (!video) return null
 
   return (
     <>
@@ -106,7 +101,13 @@ export function VideoOptimizerDrawer({ video, onClose }: VideoOptimizerDrawerPro
               onSave={handleSaveNotes}
             />
 
-            <DrawerPromptSection data={data} video={videoInfo} />
+            <div className="border-t border-cms-border pt-3">
+              <CoworkDeepLink
+                instruction={buildCoworkInstruction('youtube-video-optimize', { title: video.title })}
+                variant="button"
+                label="Abrir no Cowork"
+              />
+            </div>
           </>
         )}
       </div>

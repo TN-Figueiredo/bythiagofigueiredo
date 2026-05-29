@@ -4,9 +4,13 @@ import { useState, useEffect, useTransition, useRef, useCallback } from 'react'
 import NextImage from 'next/image'
 import { Image, Type, FileText, Layers, Lightbulb, ChevronUp, ChevronDown } from 'lucide-react'
 import { StepIdeias } from './step-ideias'
-import { createAbTest, uploadVariant, startAbTest, pullPipelineThumbnails, createTextVariant, updateAbTestType } from '../actions'
+import { VariantHeatmapTable } from './variant-heatmap-table'
+import { WizardVariantCard } from './wizard-variant-card'
+import { CoworkDeepLink } from '@/components/cms/cowork-deep-link'
+import { buildCoworkInstruction } from '@/lib/pipeline/cowork-instructions'
+import { createAbTest, uploadVariant, startAbTest, pullPipelineThumbnails, createTextVariant, updateAbTestType, fetchAbTestVariants } from '../actions'
 import { VARIANT_LABELS } from '@/lib/youtube/ab-types'
-import type { TestType } from '@/lib/youtube/ab-types'
+import type { TestType, VariantMetadata } from '@/lib/youtube/ab-types'
 import type { AbBriefingData } from '@/lib/youtube/prompt-types'
 
 interface WizardVideo {
@@ -99,6 +103,7 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill, exi
   const [briefingData, setBriefingData] = useState<AbBriefingData | null>(null)
   const [draftTestId, setDraftTestId] = useState<string | null>(existingDraftId ?? null)
   const [coworkVariantLabels, setCoworkVariantLabels] = useState<Set<string>>(new Set())
+  const [variantMetadata, setVariantMetadata] = useState<VariantMetadata[]>([{}, {}, {}])
 
   const storageKey = `ab-brainstorm-${video.id}`
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -132,6 +137,16 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill, exi
     setCoworkVariantLabels(prev => {
       if (prev.size === labels.size && [...labels].every(l => prev.has(l))) return prev
       return labels
+    })
+    setVariantMetadata(prev => {
+      const next = [...prev]
+      for (const v of variants) {
+        const idx = labelToIndex[v.label]
+        if (idx !== undefined && v.metadata) {
+          next[idx] = v.metadata as VariantMetadata
+        }
+      }
+      return next
     })
   }, [])
 
@@ -184,6 +199,40 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill, exi
       }
     }
   }, [])
+
+  // Step 3 mount hydration — fetch variants that arrived after leaving Step 2
+  useEffect(() => {
+    if (step !== 3) return
+    const testId = draftTestId ?? existingDraftId
+    if (!testId) return
+    if (variantMetadata.some(m => m.score || m.rationale)) return // already have data
+    fetchAbTestVariants(testId).then(variants => {
+      if (!variants?.length) return
+      const nonOriginal = variants.filter(v => !v.is_original)
+      if (!nonOriginal.length) return
+      setTextVariants(prev => {
+        const next = [...prev]
+        for (const v of nonOriginal) {
+          const idx = VARIANT_LABELS.indexOf(v.label as typeof VARIANT_LABELS[number])
+          if (idx !== -1) {
+            const current = next[idx] ?? { title: '', description: '' }
+            if (v.title_text && !current.title) current.title = v.title_text
+            if (v.description_text && !current.description) current.description = v.description_text
+            next[idx] = current
+          }
+        }
+        return next
+      })
+      setVariantMetadata(prev => {
+        const next = [...prev]
+        for (const v of nonOriginal) {
+          const idx = VARIANT_LABELS.indexOf(v.label as typeof VARIANT_LABELS[number])
+          if (idx !== -1 && v.metadata) next[idx] = v.metadata as VariantMetadata
+        }
+        return next
+      })
+    })
+  }, [step, draftTestId, existingDraftId])
 
   const variants = slots.filter((s): s is SlotFile => s !== null)
   const hasImageVariant = variants.length > 0
@@ -277,8 +326,8 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill, exi
       }
 
       // Upload image variants (for thumbnail and combo types)
-      // Skip if Cowork already populated all variant slots
-      if ((testType === 'thumbnail' || testType === 'combo') && coworkVariantLabels.size === 0) {
+      // Always upload user-provided images — Cowork only sends text, never images
+      if (testType === 'thumbnail' || testType === 'combo') {
         for (const slot of variants) {
           const fd = new FormData()
           fd.append('file', slot.file)
@@ -329,6 +378,12 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill, exi
 
   function handleTypeSelect(type: TestType) {
     setTestType(type)
+    setTextVariants([{ title: '', description: '' }, { title: '', description: '' }, { title: '', description: '' }])
+    setVariantMetadata([{}, {}, {}])
+    setCoworkVariantLabels(new Set())
+    lastNotifiedLabelsRef.current = ''
+    setSlots([null, null, null])
+    setSlotError(null)
 
     startTypeSelectTransition(async () => {
       if (draftTestId) {
@@ -463,25 +518,94 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill, exi
             />
           )}
           {step === 3 && (
-            <Step1Variants
-              testType={testType}
-              video={video}
-              slots={slots}
-              slotError={slotError}
-              textVariants={textVariants}
-              onFileChange={handleFileChange}
-              onTextChange={(i, field, value) => {
-                setTextVariants(prev => {
-                  const next = [...prev]
-                  const current = next[i] ?? { title: '', description: '' }
-                  next[i] = { ...current, [field]: value }
-                  return next
-                })
-              }}
-              onPipelinePull={handlePipelinePull}
-              isPipelinePending={isPipelinePending}
-              slotNotes={slotNotes}
-            />
+            <div className="space-y-4">
+              {variantMetadata.some(m => m.score) && (
+                <VariantHeatmapTable
+                  variants={VARIANT_LABELS.map((label, i) => ({
+                    label,
+                    metadata: variantMetadata[i]!,
+                  }))}
+                />
+              )}
+
+              <Step1Variants
+                testType={testType}
+                video={video}
+                slots={slots}
+                slotError={slotError}
+                textVariants={textVariants}
+                onFileChange={handleFileChange}
+                onTextChange={(i, field, value) => {
+                  setTextVariants(prev => {
+                    const next = [...prev]
+                    const current = next[i] ?? { title: '', description: '' }
+                    next[i] = { ...current, [field]: value }
+                    return next
+                  })
+                }}
+                onPipelinePull={handlePipelinePull}
+                isPipelinePending={isPipelinePending}
+                slotNotes={slotNotes}
+              />
+
+              {variantMetadata.some(m => m.rationale || m.score || m.composition) && (
+                <div className="grid gap-3 md:grid-cols-3">
+                  {VARIANT_LABELS.map((label, i) => {
+                    const COLORS: Array<'green' | 'blue' | 'amber'> = ['green', 'blue', 'amber']
+                    return (
+                      <WizardVariantCard
+                        key={label}
+                        label={label}
+                        metadata={variantMetadata[i]!}
+                        titleText={textVariants[i]?.title ?? ''}
+                        onTitleChange={(title) => {
+                          setTextVariants(prev => {
+                            const next = [...prev]
+                            next[i] = { ...next[i]!, title }
+                            return next
+                          })
+                        }}
+                        descriptionText={testType === 'description' || testType === 'combo' ? textVariants[i]?.description ?? '' : undefined}
+                        onDescriptionChange={testType === 'description' || testType === 'combo' ? (desc) => {
+                          setTextVariants(prev => {
+                            const next = [...prev]
+                            next[i] = { ...next[i]!, description: desc }
+                            return next
+                          })
+                        } : undefined}
+                        color={COLORS[i]!}
+                      />
+                    )
+                  })}
+                </div>
+              )}
+
+              <div className="flex items-center gap-3">
+                {(draftTestId ?? existingDraftId) && (
+                  <CoworkDeepLink
+                    instruction={buildCoworkInstruction('youtube-ab-refine', { testId: (draftTestId ?? existingDraftId)! })}
+                    variant="inline"
+                    label="Refinar no Cowork"
+                  />
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVariantMetadata([{}, {}, {}])
+                    setTextVariants([{ title: '', description: '' }, { title: '', description: '' }, { title: '', description: '' }])
+                    setCoworkVariantLabels(new Set())
+                    lastNotifiedLabelsRef.current = ''
+                    setBriefingCopied(false)
+                    setSlots([null, null, null])
+                    setSlotError(null)
+                    setStep(2)
+                  }}
+                  className="text-sm text-cms-text-muted hover:text-cms-text"
+                >
+                  Regenerar
+                </button>
+              </div>
+            </div>
           )}
           {step === 4 && (
             <Step2Configure config={config} onChange={setConfig} />

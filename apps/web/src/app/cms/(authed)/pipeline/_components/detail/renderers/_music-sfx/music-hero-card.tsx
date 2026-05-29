@@ -7,10 +7,13 @@ import { EnergyIndicator } from './energy-indicator'
 import { CoworkReasoning } from './cowork-reasoning'
 import { ScoreBreakdown } from './score-breakdown'
 import { computeScorePercent, getScoreColorFromPercent, SCORE_HIGH } from './score-utils'
+import { CoworkDeepLink } from '@/components/cms/cowork-deep-link'
+import { buildCoworkInstruction } from '@/lib/pipeline/cowork-instructions'
 
 interface MusicHeroCardProps {
   recommendation: MusicRecommendation
   music: SceneMusic
+  itemCode?: string
 }
 
 const DOWNLOAD_CTA_STYLE = {
@@ -39,7 +42,7 @@ export function DownloadCTA({ url, size = 'md' }: { url: string; size?: 'sm' | '
   )
 }
 
-export function MusicHeroCard({ recommendation: rec, music }: MusicHeroCardProps) {
+export function MusicHeroCard({ recommendation: rec, music, itemCode }: MusicHeroCardProps) {
   const [expanded, setExpanded] = useState(false)
   const status = RESOLVE_COLORS[rec.resolve_status]
   const pct = computeScorePercent(rec.score, rec.score_max)
@@ -136,6 +139,13 @@ export function MusicHeroCard({ recommendation: rec, music }: MusicHeroCardProps
             <div className="text-[10px] font-mono" style={{ color: '#5a6b7f' }}>{rec.original_filename}</div>
           )}
           {rec.score_breakdown && <ScoreBreakdown breakdown={rec.score_breakdown} />}
+          {itemCode && (
+            <CoworkDeepLink
+              instruction={buildCoworkInstruction('audio-resolve', { code: itemCode })}
+              variant="inline"
+              label="Resolver no Cowork"
+            />
+          )}
         </div>
       )}
     </div>

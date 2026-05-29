@@ -14,7 +14,6 @@ import {
   addItemToPlaylist,
   getAvailableContent,
   updatePlaylistNotes,
-  getReuseCandidates,
   ensureSessionSnapshot,
   createPlaylistSnapshot,
   listPlaylistSnapshots,
@@ -55,7 +54,6 @@ export default async function PlaylistEditorPage({
         onAddItem={addItemToPlaylist}
         onFetchContent={getAvailableContent}
         onSaveNotes={updatePlaylistNotes}
-        onFetchReuseCandidates={getReuseCandidates}
         onGetItemEdgeCount={getItemEdgeCount}
         onCreateSnapshot={createPlaylistSnapshot}
         onListSnapshots={listPlaylistSnapshots}

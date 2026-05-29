@@ -1,13 +1,14 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback, useMemo, type MutableRefObject } from 'react'
-import { toast } from 'sonner'
-import { Lightbulb, Copy, Check, ChevronDown, ChevronUp } from 'lucide-react'
+import { Lightbulb, ChevronDown, ChevronUp } from 'lucide-react'
 import { fetchAbBriefingData, fetchAbTestVariants } from '../actions'
 import useSWR from 'swr'
 import { buildAbBriefingPrompt, buildAbWritePrompt } from '@/lib/youtube/prompt-builders-ab'
 import { estimateChars } from '@/lib/youtube/prompt-sanitize'
 import { PromptPreview } from '@/components/prompt-preview'
+import { CoworkDeepLink } from '@/components/cms/cowork-deep-link'
+import { buildCoworkInstruction } from '@/lib/pipeline/cowork-instructions'
 import type { AbBriefingData } from '@/lib/youtube/prompt-types'
 import { VARIANT_LABELS } from '@/lib/youtube/ab-types'
 import type { TestType, VariantMetadata } from '@/lib/youtube/ab-types'
@@ -77,12 +78,11 @@ export function StepIdeias({
   const [loading, setLoading] = useState(briefingData === null)
   const [error, setError] = useState<string | null>(null)
   const [promptExpanded, setPromptExpanded] = useState(false)
-  const [copied, setCopied] = useState(false)
   const [pollingTimedOut, setPollingTimedOut] = useState(false)
   const [showEscalation, setShowEscalation] = useState(false)
   const [directionsExpanded, setDirectionsExpanded] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const coworkLinkRef = useRef<HTMLDivElement>(null)
   const fetchingRef = useRef(false)
   const fallbackLabelsRef = useRef('')
   const lastNotifiedLabelsRef = externalLabelsRef ?? fallbackLabelsRef
@@ -149,10 +149,6 @@ export function StepIdeias({
     })))
   }, [nonOriginalVariants, onVariantsReceived])
 
-  useEffect(() => {
-    return () => { if (timerRef.current) clearTimeout(timerRef.current) }
-  }, [])
-
   const doFetch = useCallback(() => {
     if (fetchingRef.current) return
     fetchingRef.current = true
@@ -197,30 +193,13 @@ export function StepIdeias({
 
   const charCount = useMemo(() => estimateChars(prompt), [prompt])
 
-  const handleCopy = useCallback(async () => {
-    if (!prompt) return
-    if (/pk_[a-zA-Z0-9]{20,}/.test(prompt)) {
-      toast.error('Pipeline key detectada no prompt — remova antes de copiar.')
-      return
-    }
-    try {
-      await navigator.clipboard.writeText(prompt)
-      setCopied(true)
-      onBriefingCopied()
-      if (timerRef.current) clearTimeout(timerRef.current)
-      timerRef.current = setTimeout(() => setCopied(false), 2000)
-      toast.success('Prompt copiado!')
-    } catch {
-      toast.error('Falha ao copiar')
-    }
-  }, [prompt, onBriefingCopied])
-
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
       e.preventDefault()
-      handleCopy()
+      coworkLinkRef.current?.querySelector('button')?.click()
+      onBriefingCopied()
     }
-  }, [handleCopy])
+  }, [onBriefingCopied])
 
   const videoHasNoData = briefingData &&
     briefingData.video.ctr === null &&
@@ -371,23 +350,16 @@ export function StepIdeias({
                 {promptExpanded ? 'Recolher' : 'Ver prompt completo'}
               </button>
 
-              <button
-                onClick={handleCopy}
-                className={`flex items-center gap-1.5 rounded-[var(--cms-radius)] px-3 py-1.5 text-xs font-medium transition-all ${
-                  copied
-                    ? 'bg-green-600 text-white'
-                    : briefingCopied
-                      ? 'border border-cms-border text-cms-text-muted hover:border-indigo-500'
-                      : `bg-gradient-to-r ${TYPE_GRADIENT[testType]} text-white hover:opacity-90`
-                }`}
-              >
-                {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                {copied
-                  ? 'Copiado!'
-                  : briefingCopied
-                    ? 'Copiar novamente'
-                    : `Copiar Prompt (${typeof navigator !== 'undefined' && navigator.platform?.includes('Mac') ? '⌘' : 'Ctrl'}+Enter)`}
-              </button>
+              <div ref={coworkLinkRef} className="flex items-center gap-2">
+                <CoworkDeepLink
+                  instruction={draftTestId
+                    ? buildCoworkInstruction('youtube-ab-refine', { testId: draftTestId })
+                    : prompt ?? ''}
+                  label={briefingCopied ? 'Abrir novamente' : 'Abrir no Cowork'}
+                  variant="button"
+                  shortcut="⌘↵"
+                />
+              </div>
             </div>
           </div>
 

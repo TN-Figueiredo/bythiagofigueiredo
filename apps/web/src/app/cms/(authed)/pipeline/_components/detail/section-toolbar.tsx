@@ -1,9 +1,15 @@
 'use client'
 
+import { CoworkDeepLink } from '@/components/cms/cowork-deep-link'
+import { buildCoworkInstruction } from '@/lib/pipeline/cowork-instructions'
+import { AiBadge } from '@/components/cms/ai-badge'
+
 interface SectionToolbarProps {
   title: string
   lang: string
   showLang: boolean
+  itemCode: string
+  sectionKey: string
   source?: string | null
   edited?: boolean
   isEditing: boolean
@@ -11,11 +17,10 @@ interface SectionToolbarProps {
   isDirty: boolean
   onToggleEdit: (editing: boolean) => void
   onSave: () => void
-  onToggleCowork: () => void
 }
 
 export function SectionToolbar({
-  title, lang, showLang, isEditing, isSaving, isDirty, onToggleEdit, onSave, onToggleCowork,
+  title, lang, showLang, itemCode, sectionKey, source, edited, isEditing, isSaving, isDirty, onToggleEdit, onSave,
 }: SectionToolbarProps) {
   return (
     <div className="flex justify-between items-center px-4 py-2 flex-wrap gap-1.5" style={{ borderBottom: '1px solid var(--gem-border)', background: 'color-mix(in srgb, var(--gem-surface) 60%, transparent)' }}>
@@ -24,6 +29,7 @@ export function SectionToolbar({
           {title}
           {showLang && <span className="text-[10px] font-bold" style={{ color: 'var(--gem-accent)' }}>{lang.toUpperCase()}</span>}
         </span>
+        <AiBadge source={source} edited={edited} />
         {isDirty && (
           <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'color-mix(in srgb, var(--gem-warn) 12%, transparent)', color: 'var(--gem-warn)' }}>
             ✏️ não salvo
@@ -35,13 +41,10 @@ export function SectionToolbar({
           <input type="checkbox" checked={isEditing} onChange={(e) => onToggleEdit(e.target.checked)} className="w-3 h-3" style={{ accentColor: 'var(--gem-accent)' }} />
           Editar
         </label>
-        <button
-          onClick={onToggleCowork}
-          className="px-2 py-0.5 text-[10px] rounded transition-colors"
-          style={{ background: 'color-mix(in srgb, var(--gem-accent) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--gem-accent) 30%, transparent)', color: 'var(--gem-accent)' }}
-        >
-          🤖 Pedir atualização
-        </button>
+        <CoworkDeepLink
+          instruction={buildCoworkInstruction('pipeline-section', { section: sectionKey, code: itemCode })}
+          variant="icon"
+        />
         <button
           onClick={onSave}
           disabled={!isDirty || isSaving}
@@ -54,7 +57,7 @@ export function SectionToolbar({
             cursor: !isDirty || isSaving ? 'default' : 'pointer',
           }}
         >
-          {isSaving ? '⏳' : '💾'} Salvar <span className="text-[8px] px-1 rounded ml-0.5" style={{ border: '1px solid rgba(255,255,255,0.3)', fontFamily: 'monospace' }}>⌘S</span>
+          {isSaving ? '⏳' : '💾'} Salvar <span className="text-[8px] px-1 rounded ml-0.5" style={{ border: '1px solid rgba(255,255,255,0.3)', fontFamily: 'monospace' }}>&#x2318;S</span>
         </button>
       </div>
     </div>

@@ -5,13 +5,16 @@ import type { PlaylistRow, ActionResult } from '@/lib/playlists/types'
 import { PipelineEditor } from '@/app/cms/(authed)/pipeline/_components/detail/editors/pipeline-editor'
 import type { JSONContent } from '@tiptap/react'
 import { extractTextFromJSON } from '@/lib/playlists/prompt-builder'
+import { CoworkDeepLink } from '@/components/cms/cowork-deep-link'
+import { buildCoworkInstruction } from '@/lib/pipeline/cowork-instructions'
 
 interface NotesDrawerProps {
   playlist: PlaylistRow
+  playlistName: string
   onSaveNotes: (playlistId: string, siteId: string, notes: Record<string, unknown> | null) => Promise<ActionResult<void>>
 }
 
-export function NotesDrawer({ playlist, onSaveNotes }: NotesDrawerProps) {
+export function NotesDrawer({ playlist, playlistName, onSaveNotes }: NotesDrawerProps) {
   const [expanded, setExpanded] = useState(false)
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [wordCount, setWordCount] = useState(() => {
@@ -78,6 +81,13 @@ export function NotesDrawer({ playlist, onSaveNotes }: NotesDrawerProps) {
               onContentChange={handleNotesChange}
               preset="compact"
               placeholder="Anote ideias, decisões e contexto para a próxima discussão..."
+            />
+          </div>
+          <div className="mt-2 flex justify-end">
+            <CoworkDeepLink
+              instruction={buildCoworkInstruction('playlist-organize', { name: playlistName })}
+              variant="inline"
+              label="Discutir no Cowork"
             />
           </div>
         </div>

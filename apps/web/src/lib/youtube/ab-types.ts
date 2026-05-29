@@ -57,6 +57,13 @@ export interface VariantMetadata {
   ai_image_prompt?: string
   creative_direction?: string
   rationale?: string
+  composition?: { face_position?: string; background?: string; product_placement?: string }
+  palette?: Array<{ hex: string; role: string; purpose?: string }>
+  text_overlay?: { text: string; font?: string; size?: string; position?: string }
+  expression?: string
+  synergy?: { division?: string; reinforcement?: string }
+  score?: { thumbnail: number; title: number; combo: number }
+  classification?: 'hero' | 'challenger' | 'safety'
 }
 
 export interface AbTestVariantRow {

@@ -9,6 +9,7 @@ import { MusicContinuationCard } from './music-continuation-card'
 interface MusicHeroSectionProps {
   music: SceneMusic
   sceneIndex: number
+  itemCode?: string
 }
 
 function getFillStatus(music: SceneMusic): 'green' | 'amber' | 'red' | 'dim' {
@@ -22,7 +23,7 @@ function getFillStatus(music: SceneMusic): 'green' | 'amber' | 'red' | 'dim' {
   return 'amber'
 }
 
-export function MusicHeroSection({ music, sceneIndex }: MusicHeroSectionProps) {
+export function MusicHeroSection({ music, sceneIndex, itemCode }: MusicHeroSectionProps) {
   const isContinuation = !!music.continuation
   const fillStatus = getFillStatus(music)
   const safeFavIndex = Math.min(music.favorite_index ?? 0, 2)
@@ -90,7 +91,7 @@ export function MusicHeroSection({ music, sceneIndex }: MusicHeroSectionProps) {
       ) : (
         <>
           {favorite && !favorite.is_empty_slot ? (
-            <MusicHeroCard recommendation={favorite} music={music} />
+            <MusicHeroCard recommendation={favorite} music={music} itemCode={itemCode} />
           ) : favorite ? (
             <MusicAlternativeSlot
               recommendation={favorite}

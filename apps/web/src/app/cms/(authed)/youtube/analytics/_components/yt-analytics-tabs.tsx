@@ -11,6 +11,8 @@ import { YtHealthCoach } from './yt-health-coach'
 import { YtNotificationsBell } from './yt-notifications-bell'
 import { YtDemographicsView } from './yt-demographics'
 import { YtSearchTermsView } from './yt-search-terms'
+import { CoworkDeepLink } from '@/components/cms/cowork-deep-link'
+import { buildCoworkInstruction } from '@/lib/pipeline/cowork-instructions'
 import type {
   YtChannelMetrics,
   YtDailyMetric,
@@ -186,16 +188,20 @@ export function YtAnalyticsTabs({
             </button>
           ))}
         </div>
-        {notifications && (
-          <div className="ml-auto pr-2">
+        <div className="ml-auto flex items-center gap-2 pr-2">
+          <CoworkDeepLink
+            instruction={buildCoworkInstruction('youtube-intelligence', {} as Record<string, never>)}
+            variant="icon"
+          />
+          {notifications && (
             <YtNotificationsBell
               notifications={notifications}
               onMarkRead={onMarkNotificationRead ?? (() => Promise.resolve())}
               onMarkAllRead={onMarkAllNotificationsRead ?? (() => Promise.resolve())}
               onDismiss={onDismissNotification ?? (() => Promise.resolve())}
             />
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <div

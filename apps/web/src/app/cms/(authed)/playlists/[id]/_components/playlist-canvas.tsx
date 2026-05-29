@@ -41,10 +41,8 @@ import { FilterBar } from './filter-bar'
 import { PrintView } from './print-view'
 import { ExportMenu } from './export-menu'
 import { ContentPicker } from './content-picker'
-import { PlaylistPromptModal } from './prompt-generator-modal'
 import { NotesDrawer } from './notes-drawer'
 import type { PickerItem } from '../../actions'
-import type { ReuseCandidateItem } from '@/lib/playlists/prompt-builder'
 import type { SnapshotRow, SnapshotType, RestoreMode } from '@/lib/playlists/types'
 import { checkGraphIntegrity } from '@/lib/playlists/canvas/graph-integrity'
 import { useAutoSnapshot } from '@/lib/playlists/canvas/use-auto-snapshot'
@@ -71,7 +69,6 @@ interface PlaylistCanvasProps {
   onAddItem: (siteId: string, input: unknown) => Promise<ActionResult<{ id: string }>>
   onFetchContent: (siteId: string, playlistId: string) => Promise<ActionResult<PickerItem[]>>
   onSaveNotes: (playlistId: string, siteId: string, notes: Record<string, unknown> | null) => Promise<ActionResult<void>>
-  onFetchReuseCandidates: (siteId: string, playlistId: string) => Promise<ActionResult<ReuseCandidateItem[]>>
   onGetItemEdgeCount: (siteId: string, playlistId: string, itemId: string) => Promise<ActionResult<{ count: number; edges: Array<{ id: string; target_title: string; edge_type: string }> }>>
   onCreateSnapshot: (siteId: string, playlistId: string, type: SnapshotType, label: string) => Promise<ActionResult<{ id: string | null; deduplicated: boolean }>>
   onListSnapshots: (siteId: string, playlistId: string, cursor?: string, limit?: number) => Promise<ActionResult<{ snapshots: SnapshotRow[]; hasMore: boolean }>>
@@ -93,7 +90,6 @@ export function PlaylistCanvas({
   onAddItem,
   onFetchContent,
   onSaveNotes,
-  onFetchReuseCandidates,
   onGetItemEdgeCount,
   onCreateSnapshot,
   onListSnapshots,
@@ -125,8 +121,6 @@ export function PlaylistCanvas({
   })
   const [showExportMenu, setShowExportMenu] = useState(false)
   const exportBtnRef = useRef<HTMLButtonElement>(null)
-  const [showPromptModal, setShowPromptModal] = useState(false)
-  const [reuseCandidates, setReuseCandidates] = useState<ReuseCandidateItem[]>([])
   const [showHistory, setShowHistory] = useState(false)
   const [isPreviewMode, setIsPreviewMode] = useState(false)
   const isPreviewModeRef = useRef(false)
@@ -186,13 +180,6 @@ export function PlaylistCanvas({
   useEffect(() => {
     dispatch({ type: 'LOAD', items: graph.items, edges: graph.edges })
   }, [graph])
-
-  // Load reuse candidates for the prompt modal
-  useEffect(() => {
-    onFetchReuseCandidates(siteId, graph.playlist.id).then((result) => {
-      if (result.ok) setReuseCandidates(result.data)
-    })
-  }, [siteId, graph.playlist.id, onFetchReuseCandidates])
 
   // Canvas hooks
   const {
@@ -967,7 +954,6 @@ export function PlaylistCanvas({
         exportButtonRef={exportBtnRef}
         onToggleSettings={() => setShowSettings(prev => !prev)}
         hasNotes={graph.playlist.notes != null}
-        onOpenPrompt={() => setShowPromptModal(true)}
         onRefresh={() => router.refresh()}
         onToggleHistory={() => { setShowHistory(prev => !prev); setShowSettings(false) }}
       />
@@ -1147,6 +1133,7 @@ export function PlaylistCanvas({
       {/* Notes drawer — bottom panel */}
       <NotesDrawer
         playlist={graph.playlist}
+        playlistName={graph.playlist.name_en || graph.playlist.name_pt || ''}
         onSaveNotes={onSaveNotes}
       />
 
@@ -1293,17 +1280,6 @@ export function PlaylistCanvas({
         onAddItem={onAddItem}
         onItemAdded={() => router.refresh()}
       />
-
-      {showPromptModal && (
-        <PlaylistPromptModal
-          playlist={graph.playlist}
-          items={state.items}
-          edges={state.edges}
-          selectedItemIds={Array.from(state.selectedItemIds)}
-          reuseCandidates={reuseCandidates}
-          onClose={() => setShowPromptModal(false)}
-        />
-      )}
 
     </div>
 
