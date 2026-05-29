@@ -14,9 +14,16 @@ CREATE UNIQUE INDEX IF NOT EXISTS ab_tests_one_playoff_per_parent
 ALTER TABLE ab_test_variants
   ADD COLUMN IF NOT EXISTS source_variant_id UUID REFERENCES ab_test_variants(id) ON DELETE SET NULL;
 
+-- Deduplicate any existing cycle rows before adding unique constraint
+DELETE FROM ab_test_cycles a USING ab_test_cycles b
+WHERE a.id > b.id AND a.test_id = b.test_id AND a.cycle_number = b.cycle_number;
+
 -- Prevent duplicate cycles from race conditions (auto-start + user start)
 CREATE UNIQUE INDEX IF NOT EXISTS ab_test_cycles_test_cycle_unique
   ON ab_test_cycles (test_id, cycle_number);
+
+-- Drop the now-redundant non-unique index (subsumed by the unique one above)
+DROP INDEX IF EXISTS ab_test_cycles_test_id_idx;
 
 -- Transactional RPC — hardened after adversarial audit
 CREATE OR REPLACE FUNCTION create_playoff_test(
@@ -46,6 +53,9 @@ BEGIN
   END IF;
   IF v_parent.round_number != 1 THEN
     RAISE EXCEPTION 'Only Round 1 tests can spawn playoffs';
+  END IF;
+  IF p_cooldown_hours < 0 THEN
+    RAISE EXCEPTION 'Cooldown hours must be non-negative, got %', p_cooldown_hours;
   END IF;
   IF array_length(p_variant_ids, 1) IS NULL OR array_length(p_variant_ids, 1) != 2 THEN
     RAISE EXCEPTION 'Playoff requires exactly 2 variant IDs, got %',

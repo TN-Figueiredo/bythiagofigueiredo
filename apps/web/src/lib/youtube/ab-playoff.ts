@@ -1,6 +1,13 @@
 import type { VariantStats, CompletedReason, TestType } from './ab-types'
 import { calculatePlayoffStats } from './ab-statistics'
 
+const MIN_IMPRESSIONS_PER_VARIANT = 200
+const MIN_DAILY_IMPRESSIONS = 500
+const MIN_PTOP2_GAP = 0.05
+const MIN_CYCLES_PER_VARIANT = 2
+const MIN_NON_ORIGINAL_VARIANTS = 3
+const MIN_VARIANTS_FOR_PLAYOFF = 4
+
 interface PlayoffTestInfo {
   completed_reason: CompletedReason | null
   test_type: TestType
@@ -41,16 +48,16 @@ export function checkPlayoffEligibility(
   }
 
   const nonOriginalWithData = variants.filter(v => !v.is_original && v.total_impressions > 0)
-  if (nonOriginalWithData.length < 3) {
-    return { eligible: false, reason: 'Need ≥ 3 non-original variants with data' }
+  if (nonOriginalWithData.length < MIN_NON_ORIGINAL_VARIANTS) {
+    return { eligible: false, reason: `Need ≥ ${MIN_NON_ORIGINAL_VARIANTS} non-original variants with data` }
   }
 
   for (const v of variants) {
-    if (v.cycles_completed < 2) {
-      return { eligible: false, reason: `Variant ${v.label} has < 2 confirmed cycles` }
+    if (v.cycles_completed < MIN_CYCLES_PER_VARIANT) {
+      return { eligible: false, reason: `Variant ${v.label} has < ${MIN_CYCLES_PER_VARIANT} confirmed cycles` }
     }
-    if (v.total_impressions < 200) {
-      return { eligible: false, reason: `Variant ${v.label} has < 200 impressions` }
+    if (v.total_impressions < MIN_IMPRESSIONS_PER_VARIANT) {
+      return { eligible: false, reason: `Variant ${v.label} has < ${MIN_IMPRESSIONS_PER_VARIANT} impressions` }
     }
   }
 
@@ -60,7 +67,7 @@ export function checkPlayoffEligibility(
     ? (Date.now() - startedAt.getTime()) / (1000 * 60 * 60 * 24)
     : 1
   const avgDailyImpressions = daysSinceStart > 0 ? totalImpressions / daysSinceStart : 0
-  if (avgDailyImpressions < 500) {
+  if (avgDailyImpressions < MIN_DAILY_IMPRESSIONS) {
     return { eligible: false, reason: `Avg daily impressions ${Math.round(avgDailyImpressions)} < 500` }
   }
 
@@ -76,7 +83,7 @@ interface PlayoffSelection {
 export function selectPlayoffVariants(
   variants: VariantStats[],
 ): PlayoffSelection | null {
-  if (variants.length < 4) return null
+  if (variants.length < MIN_VARIANTS_FOR_PLAYOFF) return null
 
   const { bayesian, ptop2 } = calculatePlayoffStats(variants)
   const originalVariant = variants.find(v => v.is_original)
@@ -103,7 +110,7 @@ export function selectPlayoffVariants(
   const secondPtop2 = ptop2[top2[1].variant_id] ?? 0
   const thirdPtop2 = ptop2[third.variant_id] ?? 0
 
-  if (secondPtop2 - thirdPtop2 < 0.05) {
+  if (secondPtop2 - thirdPtop2 < MIN_PTOP2_GAP) {
     return null
   }
 

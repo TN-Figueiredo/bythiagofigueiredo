@@ -171,7 +171,7 @@ export function AbLabDashboard({ siteId, active, draft, completed, settings, eli
           <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface p-4">
             <p className="text-xs text-cms-text-muted uppercase tracking-wider mb-1">Win Rate</p>
             <p className="text-2xl font-bold text-cms-text">
-              {completed.length > 0 ? `${winRate}%` : '—'}
+              {completedForStats.length > 0 ? `${winRate}%` : '—'}
             </p>
           </div>
           <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface p-4">
@@ -273,7 +273,7 @@ export function AbLabDashboard({ siteId, active, draft, completed, settings, eli
             </div>
             <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface p-4">
               <p className="text-xs text-cms-text-muted uppercase tracking-wider">Tests Won</p>
-              <p className="text-xl font-bold text-cms-text">{insightTests.length}/{completed.length}</p>
+              <p className="text-xl font-bold text-cms-text">{insightTests.length}/{completedForStats.length}</p>
             </div>
           </div>
         </section>

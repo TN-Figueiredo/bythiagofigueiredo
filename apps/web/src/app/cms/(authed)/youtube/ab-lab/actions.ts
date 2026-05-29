@@ -535,7 +535,7 @@ export async function pauseAbTest(
 
   const { data: test, error: testError } = await supabase
     .from('ab_tests')
-    .select('id, site_id, status, youtube_video_id')
+    .select('id, site_id, status, youtube_video_id, original_thumbnail_url')
     .eq('id', testId)
     .eq('site_id', siteId)
     .single()
@@ -555,8 +555,9 @@ export async function pauseAbTest(
     const youtubeVideoId = await resolveYouTubeVideoId(supabase, test.youtube_video_id as string)
     if (!youtubeVideoId) return { ok: false, error: 'YouTube video ID not found' }
 
-    if (originalVariant?.blob_url) {
-      const { buffer, contentType } = await fetchVariantImageBuffer(originalVariant.blob_url)
+    const revertUrl = originalVariant?.blob_url ?? (test.original_thumbnail_url as string | null)
+    if (revertUrl) {
+      const { buffer, contentType } = await fetchVariantImageBuffer(revertUrl)
       await setThumbnail(youtubeVideoId, buffer, contentType, accessToken)
     }
   } catch (e) {
@@ -686,7 +687,7 @@ export async function endAbTest(
 
   const { data: test, error: testError } = await supabase
     .from('ab_tests')
-    .select('id, site_id, status, youtube_video_id')
+    .select('id, site_id, status, youtube_video_id, original_thumbnail_url')
     .eq('id', testId)
     .eq('site_id', siteId)
     .single()
@@ -718,8 +719,9 @@ export async function endAbTest(
     const youtubeVideoId = await resolveYouTubeVideoId(supabase, test.youtube_video_id as string)
     if (!youtubeVideoId) return { ok: false, error: 'YouTube video ID not found' }
 
-    if (targetVariant?.blob_url) {
-      const { buffer, contentType } = await fetchVariantImageBuffer(targetVariant.blob_url)
+    const applyUrl = targetVariant?.blob_url ?? (test.original_thumbnail_url as string | null)
+    if (applyUrl) {
+      const { buffer, contentType } = await fetchVariantImageBuffer(applyUrl)
       await setThumbnail(youtubeVideoId, buffer, contentType, accessToken)
     }
   } catch (e) {
@@ -836,11 +838,19 @@ export async function getAbTestsForSite(): Promise<{
       round2Map.set(t.parent_test_id, t)
     }
   }
+  const grouped = new Set<string>()
   for (const t of completedRaw) {
     if (t.parent_test_id) continue
     completedGrouped.push(t)
+    grouped.add(t.id)
     const playoff = round2Map.get(t.id)
-    if (playoff) completedGrouped.push(playoff)
+    if (playoff) {
+      completedGrouped.push(playoff)
+      grouped.add(playoff.id)
+    }
+  }
+  for (const t of completedRaw) {
+    if (!grouped.has(t.id)) completedGrouped.push(t)
   }
 
   return { active, draft: drafts, completed: completedGrouped }
