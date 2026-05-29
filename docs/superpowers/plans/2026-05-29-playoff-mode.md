@@ -220,15 +220,41 @@ cd apps/web && npx vitest run test/ab-playoff-notification.test.ts
 
 Expected: FAIL — `playoff_created` not in NotificationType.
 
-- [ ] **Step 3: Add playoff fields to AbTestRow**
+- [ ] **Step 3: Add playoff fields to AbTestRow and AbTestVariantRow**
 
-In `apps/web/src/lib/youtube/ab-types.ts`, add after line 49 (`updated_at: string`):
+In `apps/web/src/lib/youtube/ab-types.ts`, add after line 49 (`updated_at: string`) in `AbTestRow`:
 
 ```typescript
   parent_test_id: string | null
   round_number: number
   playoff_test_id: string | null
   playoff_start_after: string | null
+```
+
+Also in `AbTestVariantRow` (after line 82, `created_at: string`), add:
+
+```typescript
+  source_variant_id: string | null
+```
+
+Also update the `makeVariant` helper in `apps/web/test/ab-statistics.test.ts` to include missing fields to satisfy the `VariantStats` type:
+
+```typescript
+function makeVariant(id: string, impressions: number, clicks: number): VariantStats {
+  return {
+    variant_id: id,
+    label: id,
+    blob_url: null,
+    title_text: null,
+    description_text: null,
+    metadata: {},
+    is_original: id === 'A',
+    total_impressions: impressions,
+    total_clicks: clicks,
+    avg_ctr: impressions > 0 ? clicks / impressions : 0,
+    cycles_completed: 7,
+  }
+}
 ```
 
 - [ ] **Step 4: Add playoff_created to notification-service.ts**
@@ -668,13 +694,15 @@ export async function startAbTestInternal(
   const now = new Date().toISOString()
 
   // Conditional update: only if still draft (prevents race with concurrent start)
-  const { data: updated, count } = await supabase
+  // Must use .select() with count option — Supabase JS v2 does not return count by default
+  const { count } = await supabase
     .from('ab_tests')
     .update({ status: 'active', started_at: now, paused_at: null, updated_at: now })
     .eq('id', testId)
     .eq('status', 'draft')
+    .select('id', { count: 'exact', head: true })
 
-  if ((count ?? 0) === 0) return { ok: false, error: 'Test already started or not in draft' }
+  if (!count) return { ok: false, error: 'Test already started or not in draft' }
 
   const { error: cycleError } = await supabase.from('ab_test_cycles').insert({
     test_id: testId,
@@ -1125,7 +1153,7 @@ vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn() }))
 vi.mock('@/lib/social/token-refresh', () => ({ ensureFreshToken: vi.fn() }))
 vi.mock('@/lib/youtube/ab-statistics', () => ({
   calculateBayesianConfidence: vi.fn(),
-  calculatePTop2: vi.fn(),
+  calculatePlayoffStats: vi.fn(),
 }))
 vi.mock('@/lib/youtube/ab-youtube', () => ({
   setThumbnail: vi.fn(),
@@ -1713,7 +1741,80 @@ git commit -m "feat(ab-lab): group playoff tests under parent in dashboard"
 
 ---
 
-### Task 10: Build verification + push
+### Task 10: UI — Active card Round 2 badge + Draft cooldown display
+
+**Files:**
+- Modify: `apps/web/src/app/cms/(authed)/youtube/ab-lab/_components/ab-test-card.tsx`
+- Modify: `apps/web/src/app/cms/(authed)/youtube/ab-lab/_components/ab-lab-dashboard.tsx`
+
+- [ ] **Step 1: Add Round 2 badge to AbTestCard**
+
+In `ab-test-card.tsx`, after the existing type badge, add:
+
+```tsx
+{test.round_number === 2 && (
+  <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-indigo-500/20 text-indigo-400">
+    Round 2
+  </span>
+)}
+```
+
+- [ ] **Step 2: Handle Round 2 drafts in dashboard draft section**
+
+In `ab-lab-dashboard.tsx`, in the draft list rendering (the `filteredDraft.map(test => ...)` block), add a conditional for Round 2 drafts:
+
+```tsx
+{test.round_number === 2 && test.playoff_start_after ? (
+  <span className="text-xs text-indigo-400 shrink-0 ml-4">
+    Playoff — início em{' '}
+    {(() => {
+      const ms = new Date(test.playoff_start_after).getTime() - Date.now()
+      if (ms <= 0) return 'breve'
+      const h = Math.floor(ms / 3600000)
+      const m = Math.floor((ms % 3600000) / 60000)
+      return `${h}h ${m}m`
+    })()}
+  </span>
+) : (
+  <button onClick={...} className="...">Continue Setup</button>
+)}
+```
+
+- [ ] **Step 3: Exclude Round 1 with playoff from stats cards**
+
+In `ab-lab-dashboard.tsx`, change the stats computation to exclude superseded Round 1 tests:
+
+```typescript
+const completedForStats = completed.filter(t => !t.playoff_test_id)
+const completedWithWinners = completedForStats.filter(
+  t => t.winner_variant_id !== null &&
+    (t.completed_reason === 'auto_resolve' || t.completed_reason === 'manual_winner'),
+)
+```
+
+Apply the same filter for `winRate`, `avgCtrLift`, and `insightTests`.
+
+- [ ] **Step 4: Verify in browser**
+
+```bash
+cd apps/web && npm run dev
+```
+
+Navigate to `/cms/youtube/ab-lab` and verify:
+- No crashes with no playoff tests
+- Draft section renders without errors
+- Stats cards render without errors
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add apps/web/src/app/cms/\(authed\)/youtube/ab-lab/_components/ab-test-card.tsx apps/web/src/app/cms/\(authed\)/youtube/ab-lab/_components/ab-lab-dashboard.tsx
+git commit -m "feat(ab-lab): Round 2 badge on active cards, cooldown display, stats dedup"
+```
+
+---
+
+### Task 11: Build verification + push
 
 **Files:** None (verification only)
 

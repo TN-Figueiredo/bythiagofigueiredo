@@ -50,6 +50,19 @@ ALTER TABLE ab_test_variants
 
 - `source_variant_id`: Round 2 variant → points to the Round 1 variant it was cloned from.
 
+### TypeScript types
+
+```typescript
+// Add to AbTestRow:
+parent_test_id: string | null
+round_number: number
+playoff_test_id: string | null
+playoff_start_after: string | null
+
+// Add to AbTestVariantRow:
+source_variant_id: string | null
+```
+
 ### Postgres RPC: `create_playoff_test()`
 
 Single transactional function to avoid partial state. Hardened after adversarial audit:
