@@ -63,6 +63,15 @@ vi.mock('@sentry/nextjs', () => ({
   setTag: vi.fn(),
 }))
 
+vi.mock('@/lib/youtube/ab-playoff', () => ({
+  checkPlayoffEligibility: vi.fn().mockReturnValue({ eligible: false }),
+  selectPlayoffVariants: vi.fn().mockReturnValue(null),
+}))
+
+vi.mock('@/lib/youtube/ab-start', () => ({
+  startAbTestInternal: vi.fn().mockResolvedValue({ ok: false }),
+}))
+
 // ── Import after mocks ──────────────────────────────────────────────────────
 import { GET } from '@/app/api/cron/ab-evaluate/route'
 import { calculateBayesianConfidence } from '@/lib/youtube/ab-statistics'
@@ -75,9 +84,17 @@ function makeRequest(authHeader?: string): NextRequest {
 }
 
 function activeTestsQuery(data: unknown[]) {
+  // Returns active tests for .eq('status', 'active'), empty array for all
+  // other chained queries (Phase 1 playoff drafts, Phase 3 candidates).
+  const emptyChain = chainableMock()
   return {
     select: vi.fn().mockReturnValue({
-      eq: vi.fn().mockResolvedValue({ data, error: null }),
+      eq: vi.fn((col: string, val: string) => {
+        if (col === 'status' && val === 'active') {
+          return Promise.resolve({ data, error: null })
+        }
+        return emptyChain
+      }),
     }),
   }
 }

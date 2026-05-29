@@ -9,6 +9,8 @@ vi.mock('@/lib/youtube/ab-metadata', () => ({ updateVideoMetadata: vi.fn() }))
 vi.mock('@/lib/youtube/ab-templates', () => ({ resolveTemplates: vi.fn() }))
 vi.mock('@/lib/youtube/notification-service', () => ({ buildNotification: vi.fn(() => ({ type: 'ab_test_completed', priority: 3, title: 'Test', message: 'Done', dedup_key: 'k', video_id: null, action_href: null })) }))
 vi.mock('@/lib/youtube/analytics-sync', () => ({ getIsoWeek: vi.fn(() => '2026-W20') }))
+vi.mock('@/lib/youtube/ab-playoff', () => ({ checkPlayoffEligibility: vi.fn(() => ({ eligible: false })), selectPlayoffVariants: vi.fn(() => null) }))
+vi.mock('@/lib/youtube/ab-start', () => ({ startAbTestInternal: vi.fn(() => ({ ok: false })) }))
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn() }))
 
 import { GET } from '@/app/api/cron/ab-evaluate/route'
@@ -68,9 +70,27 @@ function buildSupabaseMock(opts: { tests: unknown[]; trackedLinks?: { template_n
 
   const fromMock = vi.fn((table: string) => {
     if (table === 'ab_tests') {
+      // Build a chainable proxy that resolves to opts.tests on the first .eq()
+      // (active tests query) and to [] for deeper chains (playoff Phase 1 & 3).
+      const makeChain = (resolveWith: unknown): Record<string, unknown> => {
+        const chain: Record<string, unknown> = {}
+        for (const method of ['eq', 'not', 'lte', 'in', 'is']) {
+          chain[method] = vi.fn(() => chain)
+        }
+        // Make the chain thenable so it resolves when awaited at any depth
+        chain.then = (resolve: (v: unknown) => void) => resolve(resolveWith)
+        return chain
+      }
       return {
         select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockResolvedValue({ data: opts.tests }),
+          eq: vi.fn((col: string, val: string) => {
+            // Active tests query: .eq('status', 'active') — return opts.tests
+            if (col === 'status' && val === 'active') {
+              return Promise.resolve({ data: opts.tests })
+            }
+            // Playoff queries: deeper chain, resolve to empty
+            return makeChain({ data: [] })
+          }),
         }),
         update: vi.fn((data: unknown) => {
           updateCalls.push({ table, data })
