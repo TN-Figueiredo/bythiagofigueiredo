@@ -223,10 +223,12 @@ export function QrCardBuilder({
   }, [])
 
   const handleReplaceImage = useCallback((elementId: string) => {
-    const MAX_FILE_SIZE = 5 * 1024 * 1024
+    const el = comp.composition.elements.find(e => e.id === elementId)
+    const isGif = el && 'name' in el && typeof el.name === 'string' && el.name.toLowerCase().includes('gif')
+    const MAX_FILE_SIZE = isGif ? 10 * 1024 * 1024 : 5 * 1024 * 1024
     const input = document.createElement('input')
     input.type = 'file'
-    input.accept = 'image/*'
+    input.accept = isGif ? 'image/gif,.gif,image/*' : 'image/*'
     input.onchange = async () => {
       const file = input.files?.[0]
       if (!file || file.size > MAX_FILE_SIZE) return

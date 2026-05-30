@@ -96,9 +96,33 @@ export function GifInspector({
         </button>
       </div>
 
+      {/* ── Trocar GIF button (prominent) ── */}
+      <div>
+        <button
+          type="button"
+          onClick={() => onReplaceImage?.()}
+          style={{
+            width: '100%',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+            padding: '11px 0', borderRadius: 9,
+            border: '1px solid var(--accent)',
+            background: 'var(--accent)',
+            color: 'var(--pb-ink-on-accent, #1A140C)',
+            fontSize: 12.5, fontWeight: 600,
+            cursor: 'pointer',
+          }}
+        >
+          <Upload size={14} strokeWidth={1.8} />
+          Enviar GIF
+        </button>
+      </div>
+
       {/* ── Categoria section (future GIPHY search) ── */}
       <div>
-        <div style={labelStyle}>Categoria</div>
+        <div style={{ ...labelStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span>Categoria</span>
+          <span style={{ fontSize: 9, color: 'var(--ink-faint)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.06em' }}>em breve</span>
+        </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {STICKER_PICKS.map(({ id, icon: Icon, label }) => {
             const active = selectedCategory === id
@@ -131,35 +155,17 @@ export function GifInspector({
         </div>
       </div>
 
-      {/* ── Trocar GIF button ── */}
-      <div>
-        <button
-          type="button"
-          onClick={() => onReplaceImage?.()}
-          style={{
-            width: '100%',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-            padding: '9px 0', borderRadius: 8,
-            border: '1.5px dashed var(--line-strong)',
-            background: 'var(--surface-2)',
-            color: 'var(--ink-dim)', fontSize: 12, fontWeight: 600,
-            cursor: 'pointer',
-          }}
-        >
-          <Upload size={14} strokeWidth={1.8} />
-          Trocar GIF
-        </button>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/gif,.gif"
-          style={{ display: 'none' }}
-          onChange={() => {
-            onReplaceImage?.()
-            if (fileRef.current) fileRef.current.value = ''
-          }}
-        />
-      </div>
+      {/* Hidden file input for replace */}
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/gif,.gif"
+        style={{ display: 'none' }}
+        onChange={() => {
+          onReplaceImage?.()
+          if (fileRef.current) fileRef.current.value = ''
+        }}
+      />
 
       {/* ── Info callout ── */}
       <div style={{
