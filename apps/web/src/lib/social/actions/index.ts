@@ -54,6 +54,7 @@ export {
   deleteTemplate,
   setDefaultTemplate,
   duplicateTemplate,
+  resolveTemplateForDest,
 } from './templates'
 
 // Site-level social settings (defaults matrix, queue slots)

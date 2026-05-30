@@ -83,6 +83,13 @@ export const DESTINATIONS: Record<DestId, Destination> = {
 
 export const DEST_IDS: DestId[] = ['ig_story', 'yt_community', 'fb_page', 'ig_feed'] as const
 
+export const DEST_TO_SLUG_PREFIX: Record<DestId, string> = {
+  ig_story: 'ig-story',
+  ig_feed: 'ig-feed',
+  fb_page: 'fb',
+  yt_community: 'yt',
+}
+
 export function getDestination(id: DestId): Destination {
   return DESTINATIONS[id]
 }

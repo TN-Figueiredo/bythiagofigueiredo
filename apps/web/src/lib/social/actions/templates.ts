@@ -18,6 +18,8 @@ import {
   type TemplateAspectRatio,
   type ContentType,
 } from '../template-schemas'
+import type { DestId } from '../destinations'
+import { DEST_TO_SLUG_PREFIX, DESTINATIONS } from '../destinations'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -93,6 +95,73 @@ export async function listTemplates(
     return { ok: true, data: (data ?? []).map(r => toSocialTemplate(r as Record<string, unknown>)) }
   } catch (err) {
     Sentry.captureException(err, { tags: { ...SENTRY_TAG, action: 'listTemplates' } })
+    throw err
+  }
+}
+
+// ---------------------------------------------------------------------------
+// resolveTemplateForDest
+// ---------------------------------------------------------------------------
+
+export async function resolveTemplateForDest(
+  siteId: string,
+  destId: DestId,
+  contentType: ContentType,
+): Promise<ActionResult<SocialTemplate | null>> {
+  const idParsed = z.string().uuid().safeParse(siteId)
+  if (!idParsed.success) return { ok: false, error: 'Invalid site ID' }
+
+  try {
+    const { siteId: authorizedSiteId } = await requireEditAccess()
+    if (idParsed.data !== authorizedSiteId) return { ok: false, error: 'forbidden' }
+    const supabase = getSupabaseServiceClient()
+
+    const slug = `${DEST_TO_SLUG_PREFIX[destId]}-${contentType}`
+
+    // 1. Try site-specific template with this slug
+    const { data: siteTemplate } = await supabase
+      .from('social_templates')
+      .select('*')
+      .eq('site_id', authorizedSiteId)
+      .eq('slug', slug)
+      .limit(1)
+      .maybeSingle()
+
+    if (siteTemplate) {
+      return { ok: true, data: toSocialTemplate(siteTemplate as Record<string, unknown>) }
+    }
+
+    // 2. Try global template with this slug
+    const { data: globalTemplate } = await supabase
+      .from('social_templates')
+      .select('*')
+      .is('site_id', null)
+      .eq('slug', slug)
+      .limit(1)
+      .maybeSingle()
+
+    if (globalTemplate) {
+      return { ok: true, data: toSocialTemplate(globalTemplate as Record<string, unknown>) }
+    }
+
+    // 3. Fallback: any default template matching the destination's aspect ratio
+    const ratio = DESTINATIONS[destId].ratio as TemplateAspectRatio
+    const { data: fallback } = await supabase
+      .from('social_templates')
+      .select('*')
+      .or(`site_id.eq.${authorizedSiteId},site_id.is.null`)
+      .eq('aspect_ratio', ratio)
+      .order('is_default', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (fallback) {
+      return { ok: true, data: toSocialTemplate(fallback as Record<string, unknown>) }
+    }
+
+    return { ok: true, data: null }
+  } catch (err) {
+    Sentry.captureException(err, { tags: { ...SENTRY_TAG, action: 'resolveTemplateForDest' } })
     throw err
   }
 }
