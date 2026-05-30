@@ -130,7 +130,8 @@ export function PipelineOverview({ fallbackData, celebration, activity, initialP
 
   const upNext = data ?? fallbackData
   const weekdayLabel = useMemo(() => {
-    const [y, m, d] = upNext.todayDate.split('-').map(Number)
+    const dateStr = upNext.todayDate ?? new Date().toISOString().split('T')[0]
+    const [y, m, d] = dateStr.split('-').map(Number)
     return new Date(y!, m! - 1, d!).toLocaleDateString('pt-BR', { weekday: 'long' })
   }, [upNext.todayDate])
 

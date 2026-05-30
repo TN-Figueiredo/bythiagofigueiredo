@@ -469,9 +469,9 @@ function InboxHeader({
   onMarkAllRead: () => void
 }) {
   return (
-    <div className="flex items-start justify-between mb-6">
+    <div className="flex items-start justify-between mb-6 text-left">
       <div>
-        <h1 className="text-lg font-semibold text-cms-text">
+        <h1 className="text-lg font-semibold text-cms-text text-left">
           Caixa de notificacoes
         </h1>
         <p className="text-sm text-cms-text-muted mt-0.5 tabular-nums">
