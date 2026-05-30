@@ -10,7 +10,7 @@ import { ConfidenceChart } from './confidence-chart'
 import { VariantTable } from './variant-table'
 import { GatesPanel } from './gates-panel'
 import { SectionLabel } from './ab-primitives'
-import { Copy, Download } from 'lucide-react'
+import { Copy, Archive } from 'lucide-react'
 
 export interface WinnerDetailProps {
   view: AbTestWinnerView
@@ -18,8 +18,8 @@ export interface WinnerDetailProps {
 
 export function WinnerDetail({ view }: WinnerDetailProps) {
   return (
-    <div className="space-y-6" data-testid="winner-detail">
-      {/* 1. DetailHeader (no toggle, Duplicate/Download actions) */}
+    <div className="space-y-8" data-testid="winner-detail">
+      {/* 1. DetailHeader (no toggle, Duplicate/Archive actions) */}
       <DetailHeader
         title={view.videoTitle}
         flag={view.flag}
@@ -34,14 +34,14 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
               className="inline-flex items-center gap-1 px-2 py-1 text-2xs text-cms-text-muted hover:text-cms-text transition-colors rounded border border-cms-border focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
             >
               <Copy size={12} aria-hidden="true" />
-              Duplicate
+              Duplicar
             </button>
             <button
               type="button"
               className="inline-flex items-center gap-1 px-2 py-1 text-2xs text-cms-text-muted hover:text-cms-text transition-colors rounded border border-cms-border focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
             >
-              <Download size={12} aria-hidden="true" />
-              Download
+              <Archive size={12} aria-hidden="true" />
+              Arquivar
             </button>
           </div>
         }
@@ -56,13 +56,13 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
         stats={view.resultMeta}
       />
 
-      {/* 3. "Why {winner} won" — CredibleInterval + RankBars side by side */}
+      {/* 3. "Por que {winner} venceu" — CredibleInterval + RankBars side by side */}
       <section data-testid="why-won">
-        <SectionLabel>Why {view.winnerLabel} won</SectionLabel>
+        <SectionLabel>Por que {view.winnerLabel} venceu</SectionLabel>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="rounded-lg border border-cms-border bg-cms-bg p-4">
-            <p className="text-2xs text-cms-text-dim mb-2 uppercase tracking-wider font-medium">
-              Credible Intervals
+            <p className="text-2xs text-cms-text-dim mb-2 font-medium">
+              Faixa provável de CTR
             </p>
             <CredibleInterval
               variants={view.variants}
@@ -70,8 +70,8 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
             />
           </div>
           <div className="rounded-lg border border-cms-border bg-cms-bg p-4">
-            <p className="text-2xs text-cms-text-dim mb-2 uppercase tracking-wider font-medium">
-              Win Probability
+            <p className="text-2xs text-cms-text-dim mb-2 font-medium">
+              Chance de vencer
             </p>
             <RankBars variants={view.variants} metric="pBest" />
           </div>
@@ -85,28 +85,28 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
       <section data-testid="confidence-section">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="rounded-lg border border-cms-border bg-cms-bg p-4">
-            <SectionLabel>Confidence Trend</SectionLabel>
+            <SectionLabel>Confiança ao longo do tempo</SectionLabel>
             <ConfidenceChart
               data={view.confTrend}
               target={view.confidenceTarget * 100}
             />
           </div>
           <div className="rounded-lg border border-cms-border bg-cms-bg p-4">
-            <SectionLabel>Learning</SectionLabel>
+            <SectionLabel>O aprendizado</SectionLabel>
             {view.learning ? (
               <p className="text-xs text-cms-text-muted italic" data-testid="learning-text">
                 {view.learning}
               </p>
             ) : (
-              <p className="text-xs text-cms-text-dim">No learning recorded.</p>
+              <p className="text-xs text-cms-text-dim">Nenhum aprendizado registrado.</p>
             )}
           </div>
         </div>
       </section>
 
-      {/* 6. Final Scoreboard — VariantTable with winnerId */}
+      {/* 6. Placar final — VariantTable with winnerId */}
       <section data-testid="scoreboard">
-        <SectionLabel>Final Scoreboard</SectionLabel>
+        <SectionLabel>Placar final</SectionLabel>
         <VariantTable
           variants={view.variants}
           metric="pBest"
@@ -117,7 +117,7 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
 
       {/* 7. GatesPanel */}
       <section data-testid="gates-section">
-        <SectionLabel>Decision Gates</SectionLabel>
+        <SectionLabel>Critérios de resolução</SectionLabel>
         <GatesPanel gates={view.gates} />
       </section>
 
