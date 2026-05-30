@@ -5,29 +5,7 @@ import Image from 'next/image'
 import type { DestId } from '@/lib/social/destinations'
 import { DESTINATIONS } from '@/lib/social/destinations'
 import type { FeedItem } from './feed-grid'
-
-function PlatformChipIcon({ provider, tint }: { provider: string; tint: string }) {
-  if (provider === 'instagram') return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={tint} strokeWidth="1.8">
-      <rect x="3" y="3" width="18" height="18" rx="5" />
-      <circle cx="12" cy="12" r="4" />
-      <circle cx="17.5" cy="6.5" r="1" fill={tint} stroke="none" />
-    </svg>
-  )
-  if (provider === 'youtube') return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={tint} strokeWidth="1.8">
-      <rect x="2.5" y="5" width="19" height="14" rx="4" />
-      <path d="M10 9l5 3-5 3z" fill={tint} stroke="none" />
-    </svg>
-  )
-  if (provider === 'facebook') return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={tint} strokeWidth="1.8">
-      <circle cx="12" cy="12" r="9" />
-      <path d="M13.5 8.5h1.6M13.5 8.5c0-1.2.5-2 2-2M13.5 8.5V18M13.5 12h3" />
-    </svg>
-  )
-  return null
-}
+import { PlatformIcon } from './shared/platform-icon'
 
 function StatusBadge({ status }: { status: string }) {
   if (status === 'completed') return (
@@ -137,7 +115,7 @@ export function FeedCard({ item }: { item: FeedItem }) {
         {/* Dest chip — top left */}
         {dest && (
           <div className="absolute left-[10px] top-[10px] inline-flex items-center gap-1.5 rounded-full px-[9px] py-1" style={{ background: 'rgba(8,7,5,0.78)', backdropFilter: 'blur(4px)' }}>
-            <PlatformChipIcon provider={item.provider} tint={dest.tint} />
+            <PlatformIcon provider={item.provider} size={13} variant="chip" tint={dest.tint} />
             <span className="text-[11px] font-semibold text-white">{dest.sublabel}</span>
           </div>
         )}

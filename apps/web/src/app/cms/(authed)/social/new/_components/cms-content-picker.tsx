@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { PlatformIcon } from '../../_components/shared/platform-icon'
 
 interface ContentItem {
   id: string
@@ -60,22 +61,11 @@ const TYPE_BADGE: Record<string, { label: string; bg: string; color: string }> =
 function PlatformDot({ provider }: { provider: string }) {
   const colors: Record<string, string> = { instagram: '#E8823C', youtube: '#E0574E', facebook: '#5B7FD6' }
   const bg = colors[provider] ?? '#888'
-  if (provider === 'instagram') return (
+  return (
     <div className="flex h-[22px] w-[22px] items-center justify-center rounded-[6px]" style={{ background: bg }}>
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8"><rect x="3" y="3" width="18" height="18" rx="5" /><circle cx="12" cy="12" r="4" /><circle cx="17.5" cy="6.5" r="1" fill="#fff" stroke="none" /></svg>
+      <PlatformIcon provider={provider} size={12} variant="solid" />
     </div>
   )
-  if (provider === 'youtube') return (
-    <div className="flex h-[22px] w-[22px] items-center justify-center rounded-[6px]" style={{ background: bg }}>
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8"><rect x="2.5" y="5" width="19" height="14" rx="4" /><path d="M10 9l5 3-5 3z" fill="#fff" stroke="none" /></svg>
-    </div>
-  )
-  if (provider === 'facebook') return (
-    <div className="flex h-[22px] w-[22px] items-center justify-center rounded-[6px]" style={{ background: bg }}>
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8"><circle cx="12" cy="12" r="9" /><path d="M13.5 8.5h1.6M13.5 8.5c0-1.2.5-2 2-2M13.5 8.5V18M13.5 12h3" /></svg>
-    </div>
-  )
-  return null
 }
 
 export function CMSContentPicker() {

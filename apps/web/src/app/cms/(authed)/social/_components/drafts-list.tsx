@@ -5,6 +5,7 @@ import { deleteSocialPost } from '@/lib/social/actions'
 import { socialToast } from './shared/social-toast'
 import { useRouter } from 'next/navigation'
 import { Sparkles, Settings, ArrowRight } from 'lucide-react'
+import { PlatformIcon } from './shared/platform-icon'
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -109,32 +110,7 @@ function MiniPlatformIcon({ provider }: { provider: string }) {
       className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-[6px]"
       style={{ background: bg }}
     >
-      {provider === 'instagram' && (
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
-          <rect x="3" y="3" width="18" height="18" rx="5" />
-          <circle cx="12" cy="12" r="4" />
-          <circle cx="17.5" cy="6.5" r="1" fill="#fff" stroke="none" />
-        </svg>
-      )}
-      {provider === 'youtube' && (
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
-          <rect x="2.5" y="5" width="19" height="14" rx="4" />
-          <path d="M10 9l5 3-5 3z" fill="#fff" stroke="none" />
-        </svg>
-      )}
-      {provider === 'facebook' && (
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
-          <circle cx="12" cy="12" r="9" />
-          <path d="M13.5 8.5h1.6M13.5 8.5c0-1.2.5-2 2-2M13.5 8.5V18M13.5 12h3" />
-        </svg>
-      )}
-      {provider === 'bluesky' && (
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
-          <path d="M12 4c3 2.5 6 6 6 8.5a3.5 3.5 0 01-7 0" />
-          <path d="M12 4c-3 2.5-6 6-6 8.5a3.5 3.5 0 007 0" />
-          <path d="M8.5 17c1-.5 2.5-1 3.5-1s2.5.5 3.5 1" />
-        </svg>
-      )}
+      <PlatformIcon provider={provider} size={12} variant="solid" />
     </div>
   )
 }

@@ -2,37 +2,13 @@
 
 import { useState } from 'react'
 import { DESTINATIONS, DEST_IDS, type DestId } from '@/lib/social/destinations'
+import { PlatformIcon } from '../../_components/shared/platform-icon'
 
 interface DestinationPickerProps {
   initialOn?: Record<DestId, boolean>
   onToggle?: (id: DestId) => void
   onFocus?: (id: DestId) => void
   focused?: DestId
-}
-
-function PlatformIcon({ provider, active }: { provider: string; active: boolean }) {
-  const color = active ? '#fff' : 'var(--ink-faint)'
-  const fill = active ? '#fff' : 'var(--ink-faint)'
-  if (provider === 'instagram') return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8">
-      <rect x="3" y="3" width="18" height="18" rx="5" />
-      <circle cx="12" cy="12" r="4" />
-      <circle cx="17.5" cy="6.5" r="1" fill={fill} stroke="none" />
-    </svg>
-  )
-  if (provider === 'youtube') return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8">
-      <rect x="2.5" y="5" width="19" height="14" rx="4" />
-      <path d="M10 9l5 3-5 3z" fill={fill} stroke="none" />
-    </svg>
-  )
-  if (provider === 'facebook') return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8">
-      <circle cx="12" cy="12" r="9" />
-      <path d="M13.5 8.5h1.6M13.5 8.5c0-1.2.5-2 2-2M13.5 8.5V18M13.5 12h3" />
-    </svg>
-  )
-  return null
 }
 
 const DEFAULT_ON: Record<DestId, boolean> = {
@@ -129,7 +105,7 @@ export function DestinationPicker({ initialOn, onToggle, onFocus, focused: contr
                     background: isOn && isFocused ? dest.tint : 'var(--surface-3, rgba(255,255,255,0.06))',
                   }}
                 >
-                  <PlatformIcon provider={dest.provider} active={isOn && isFocused} />
+                  <PlatformIcon provider={dest.provider} size={18} variant={isOn && isFocused ? 'solid' : 'outline'} />
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 text-[13.5px] font-semibold text-cms-text">

@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { PlatformIcon } from './shared/platform-icon'
 
 interface CalendarDay {
   dateStr: string
@@ -23,29 +24,6 @@ interface CalendarWeekViewProps {
   prevWeek: string
   nextWeek: string
   dateRange: string
-}
-
-function PlatformMiniIcon({ provider, tint }: { provider: string; tint: string }) {
-  if (provider === 'instagram') return (
-    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={tint} strokeWidth="1.8">
-      <rect x="3" y="3" width="18" height="18" rx="5" />
-      <circle cx="12" cy="12" r="4" />
-      <circle cx="17.5" cy="6.5" r="1" fill={tint} stroke="none" />
-    </svg>
-  )
-  if (provider === 'youtube') return (
-    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={tint} strokeWidth="1.8">
-      <rect x="2.5" y="5" width="19" height="14" rx="4" />
-      <path d="M10 9l5 3-5 3z" fill={tint} stroke="none" />
-    </svg>
-  )
-  if (provider === 'facebook') return (
-    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={tint} strokeWidth="1.8">
-      <circle cx="12" cy="12" r="9" />
-      <path d="M13.5 8.5h1.6M13.5 8.5c0-1.2.5-2 2-2M13.5 8.5V18M13.5 12h3" />
-    </svg>
-  )
-  return null
 }
 
 export function CalendarWeekView({ days, weekLabel, prevWeek, nextWeek, dateRange }: CalendarWeekViewProps) {
@@ -114,7 +92,7 @@ export function CalendarWeekView({ days, weekLabel, prevWeek, nextWeek, dateRang
                   }}
                 >
                   <div className="mb-0.5 flex items-center gap-[5px]">
-                    <PlatformMiniIcon provider={event.provider} tint={event.tint} />
+                    <PlatformIcon provider={event.provider} size={11} variant="chip" tint={event.tint} />
                     <span className="font-mono text-[9.5px] text-cms-text-dim">{event.time}</span>
                   </div>
                   <p className="text-[10.5px] leading-[1.3] text-cms-text">{event.title}</p>

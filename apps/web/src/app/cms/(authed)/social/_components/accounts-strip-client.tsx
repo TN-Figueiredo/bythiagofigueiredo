@@ -2,12 +2,13 @@
 
 import type { ConnectionHealth } from '@/lib/social/actions'
 import Link from 'next/link'
+import { PlatformIcon } from './shared/platform-icon'
 
 interface AccountsStripClientProps {
   connections: ConnectionHealth[]
 }
 
-function PlatformIcon({ provider }: { provider: string }) {
+function AccountPlatformIcon({ provider }: { provider: string }) {
   const colors: Record<string, string> = {
     instagram: '#E8823C',
     youtube: '#E0574E',
@@ -21,32 +22,7 @@ function PlatformIcon({ provider }: { provider: string }) {
       className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px]"
       style={{ background: bg }}
     >
-      {provider === 'instagram' && (
-        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8">
-          <rect x="3" y="3" width="18" height="18" rx="5" />
-          <circle cx="12" cy="12" r="4" />
-          <circle cx="17.5" cy="6.5" r="1" fill="#fff" stroke="none" />
-        </svg>
-      )}
-      {provider === 'youtube' && (
-        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8">
-          <rect x="2.5" y="5" width="19" height="14" rx="4" />
-          <path d="M10 9l5 3-5 3z" fill="#fff" stroke="none" />
-        </svg>
-      )}
-      {provider === 'facebook' && (
-        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8">
-          <circle cx="12" cy="12" r="9" />
-          <path d="M13.5 8.5h1.6M13.5 8.5c0-1.2.5-2 2-2M13.5 8.5V18M13.5 12h3" />
-        </svg>
-      )}
-      {provider === 'bluesky' && (
-        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8">
-          <path d="M12 4c3 2.5 6 6 6 8.5a3.5 3.5 0 01-7 0" />
-          <path d="M12 4c-3 2.5-6 6-6 8.5a3.5 3.5 0 007 0" />
-          <path d="M8.5 17c1-.5 2.5-1 3.5-1s2.5.5 3.5 1" />
-        </svg>
-      )}
+      <PlatformIcon provider={provider} size={19} variant="solid" />
     </div>
   )
 }
@@ -84,7 +60,7 @@ export function AccountsStripClient({ connections }: AccountsStripClientProps) {
             key={conn.connectionId}
             className="flex items-center gap-[11px] rounded-[var(--radius,12px)] border border-cms-border bg-cms-surface p-[14px] transition-[border-color,transform,background] duration-[180ms]"
           >
-            <PlatformIcon provider={conn.provider} />
+            <AccountPlatformIcon provider={conn.provider} />
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-[7px] text-[13px] font-semibold text-cms-text truncate">
                 {conn.accountName}

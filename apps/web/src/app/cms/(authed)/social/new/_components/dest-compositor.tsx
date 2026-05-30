@@ -3,35 +3,13 @@
 import { useState } from 'react'
 import type { DestId } from '@/lib/social/destinations'
 import { DESTINATIONS } from '@/lib/social/destinations'
+import { PlatformIcon } from '../../_components/shared/platform-icon'
 
 interface DestCompositorProps {
   focusedDest: DestId
   destsOn: Record<DestId, boolean>
   caption: string
   onCaptionChange: (value: string) => void
-}
-
-function PlatformIconSmall({ provider }: { provider: string }) {
-  if (provider === 'instagram') return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8">
-      <rect x="3" y="3" width="18" height="18" rx="5" />
-      <circle cx="12" cy="12" r="4" />
-      <circle cx="17.5" cy="6.5" r="1" fill="#fff" stroke="none" />
-    </svg>
-  )
-  if (provider === 'youtube') return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8">
-      <rect x="2.5" y="5" width="19" height="14" rx="4" />
-      <path d="M10 9l5 3-5 3z" fill="#fff" stroke="none" />
-    </svg>
-  )
-  if (provider === 'facebook') return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8">
-      <circle cx="12" cy="12" r="9" />
-      <path d="M13.5 8.5h1.6M13.5 8.5c0-1.2.5-2 2-2M13.5 8.5V18M13.5 12h3" />
-    </svg>
-  )
-  return null
 }
 
 export function DestCompositor({ focusedDest, destsOn, caption, onCaptionChange }: DestCompositorProps) {
@@ -56,7 +34,7 @@ export function DestCompositor({ focusedDest, destsOn, caption, onCaptionChange 
             className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px]"
             style={{ background: dest.tint }}
           >
-            <PlatformIconSmall provider={dest.provider} />
+            <PlatformIcon provider={dest.provider} size={16} variant="solid" />
           </div>
           <div className="flex-1">
             <div className="text-[14px] font-semibold text-cms-text">
