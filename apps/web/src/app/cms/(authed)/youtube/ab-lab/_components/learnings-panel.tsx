@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import { Sparkles } from 'lucide-react'
 import type { LearningsData, LearningsTag } from '@/lib/youtube/ab-types'
 
@@ -8,28 +7,20 @@ export interface LearningsPanelProps {
   learnings: LearningsData | null
 }
 
-const TAG_LIMIT = 20
-
-function WinBar({ wins, maxWins }: { wins: number; maxWins: number }) {
+function StrengthBar({ wins, maxWins }: { wins: number; maxWins: number }) {
   const segments = 5
   const filled = maxWins > 0 ? Math.round((wins / maxWins) * segments) : 0
-  const clamped = Math.min(filled, segments)
 
   return (
-    <div
-      role="meter"
-      aria-valuenow={wins}
-      aria-valuemin={0}
-      aria-valuemax={maxWins}
-      aria-label={`${wins} wins`}
-      className="flex gap-0.5"
-    >
+    <div className="flex gap-[3px]" role="meter" aria-valuenow={wins} aria-valuemin={0} aria-valuemax={maxWins}>
       {Array.from({ length: segments }, (_, i) => (
         <span
           key={i}
-          className="inline-block w-3 h-2 rounded-sm"
+          className="rounded-[2px]"
           style={{
-            backgroundColor: i < clamped ? 'var(--cms-accent)' : 'var(--cms-surface-3, #333)',
+            width: 5,
+            height: 14,
+            background: i < filled ? 'var(--accent)' : 'var(--surface-3, var(--cms-surface-3, #333))',
           }}
         />
       ))}
@@ -38,31 +29,35 @@ function WinBar({ wins, maxWins }: { wins: number; maxWins: number }) {
 }
 
 function TagRow({ tag, maxWins }: { tag: LearningsTag; maxWins: number }) {
-  const liftColor = tag.avgLift >= 0 ? 'text-cms-green' : 'text-red-400'
+  const isNegative = tag.negative || tag.avgLift < 0
 
   return (
-    <div className="flex items-center gap-3 py-1.5" data-tag-row>
+    <div className="flex items-center gap-[10px]">
       <span
-        className={`text-xs text-cms-text flex-1 min-w-0 truncate ${tag.negative ? 'line-through' : ''}`}
+        className="flex-1 text-[13px] min-w-0 truncate"
+        style={{
+          color: isNegative ? 'var(--ink-faint, var(--cms-text-dim))' : 'var(--ink, var(--cms-text))',
+          textDecoration: isNegative ? 'line-through' : 'none',
+        }}
       >
         {tag.tag}
       </span>
-      <WinBar wins={tag.wins} maxWins={maxWins} />
-      <span className={`text-2xs font-mono font-medium ${liftColor} w-14 text-right`}>
-        {tag.avgLift >= 0 ? '+' : ''}
-        {tag.avgLift.toFixed(1)}%
+      <StrengthBar wins={tag.wins} maxWins={maxWins} />
+      <span
+        className="font-mono text-[12px] font-bold w-[44px] text-right"
+        style={{ color: isNegative ? 'var(--cms-red, #ef4444)' : 'var(--green, var(--cms-green))' }}
+      >
+        {tag.avgLift >= 0 ? '+' : ''}{Math.round(tag.avgLift)}%
       </span>
     </div>
   )
 }
 
 export function LearningsPanel({ learnings }: LearningsPanelProps) {
-  const [expanded, setExpanded] = useState(false)
-
   if (!learnings) {
     return (
-      <div className="rounded-lg border border-cms-border bg-cms-bg p-6 text-center">
-        <p className="text-sm text-cms-text-muted">
+      <div className="rounded-[14px] p-[20px]" style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>
+        <p className="text-[13px] text-cms-text-dim text-center py-4">
           Complete 3+ testes para desbloquear insights
         </p>
       </div>
@@ -70,36 +65,32 @@ export function LearningsPanel({ learnings }: LearningsPanelProps) {
   }
 
   const maxWins = Math.max(...learnings.tags.map(t => t.wins), 1)
-  const visibleTags = expanded ? learnings.tags : learnings.tags.slice(0, TAG_LIMIT)
-  const remaining = learnings.tags.length - TAG_LIMIT
 
   return (
-    <div className="rounded-lg border border-cms-border bg-cms-bg p-4">
-      <div className="flex items-center gap-1.5 mb-3">
-        <Sparkles size={14} className="text-cms-accent" aria-hidden="true" />
-        <span className="text-xs font-semibold text-cms-text">O que já funciona pra você</span>
+    <div className="rounded-[14px] p-[20px]" style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>
+      {/* Header */}
+      <div className="flex items-center gap-[9px] mb-[4px]">
+        <Sparkles size={17} className="text-cms-accent" aria-hidden="true" />
+        <h3 className="text-[15px] font-semibold text-cms-text m-0">O que já funciona pra você</h3>
       </div>
-      <div className="space-y-0.5">
-        {visibleTags.map(tag => (
+      <p className="text-[12px] text-cms-text-dim m-0 mb-[16px]">
+        Padrões aprendidos em {learnings.totalTests} testes. O Cowork usa isso pra sugerir variantes melhores.
+      </p>
+
+      {/* Tags */}
+      <div className="flex flex-col gap-[9px]">
+        {learnings.tags.map(tag => (
           <TagRow key={tag.tag} tag={tag} maxWins={maxWins} />
         ))}
       </div>
 
-      {remaining > 0 && !expanded && (
-        <button
-          type="button"
-          onClick={() => setExpanded(true)}
-          className="mt-2 text-2xs text-cms-accent hover:underline focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
-        >
-          Mostrar mais {remaining}
-        </button>
-      )}
-
+      {/* Insight box */}
       {learnings.insightText && (
-        <div className="mt-3 pt-3 border-t border-cms-border">
-          <p className="text-xs text-cms-text-muted italic" data-insight>
-            {learnings.insightText}
-          </p>
+        <div
+          className="mt-[16px] py-[12px] px-[14px] rounded-[10px] text-[12px] text-cms-text-dim leading-[1.5]"
+          style={{ background: 'var(--accent-soft, rgba(255,130,64,0.08))' }}
+        >
+          <b className="text-cms-accent">Insight:</b> {learnings.insightText}
         </div>
       )}
     </div>

@@ -115,17 +115,40 @@ const MOCK_COMPLETED: AbTestCardView[] = [
     roundNumber: 1,
     createdAt: new Date(Date.now() - 45 * 86400000).toISOString(),
   },
+  {
+    id: 'mock-completed-3',
+    name: '🇹🇭 24h Comendo SÓ Comida de Rua na Tailândia',
+    type: 'combo',
+    status: 'completed',
+    dayOf: 14,
+    confidence: 71,
+    lift: 0,
+    leader: 'D',
+    leaderColor: VARIANT_COLORS.D,
+    leaderThumbUrl: null,
+    variants: [
+      { label: 'A', color: VARIANT_COLORS.A, thumbUrl: null },
+      { label: 'B', color: VARIANT_COLORS.B, thumbUrl: null },
+      { label: 'C', color: VARIANT_COLORS.C, thumbUrl: null },
+      { label: 'D', color: VARIANT_COLORS.D, thumbUrl: null },
+    ],
+    hasPlayoff: true,
+    roundNumber: 2,
+    createdAt: new Date(Date.now() - 20 * 86400000).toISOString(),
+  },
 ]
 
 const MOCK_LEARNINGS: LearningsData = {
   tags: [
-    { tag: 'close-up de comida', wins: 5, avgLift: 18.3, kind: 'thumb' },
-    { tag: 'preço no título', wins: 4, avgLift: 22.1, kind: 'title' },
-    { tag: 'emoji de bandeira', wins: 3, avgLift: 8.7, kind: 'title' },
-    { tag: 'texto genérico', wins: 1, avgLift: -4.2, kind: 'thumb', negative: true },
+    { tag: 'ancoragem de preço', wins: 5, avgLift: 22, kind: 'title' },
+    { tag: 'close-up + expressão', wins: 4, avgLift: 19, kind: 'thumb' },
+    { tag: 'número específico no título', wins: 4, avgLift: 17, kind: 'title' },
+    { tag: "primeira pessoa ('Comprei')", wins: 3, avgLift: 12, kind: 'title' },
+    { tag: 'split-screen comparativo', wins: 2, avgLift: 24, kind: 'thumb' },
+    { tag: 'texto longo na thumb', wins: 0, avgLift: -8, kind: 'thumb', negative: true },
   ],
   totalTests: 11,
-  insightText: 'Thumbnails com close-up de comida e preço no título convertem consistentemente melhor. Textos genéricos sem contexto local perdem CTR.',
+  insightText: 'ancoragem de preço venceu 5× com +22% médio. Texto longo na thumb está te custando cliques.',
 }
 
 const MOCK_SUGGESTED: SuggestedVideo[] = [
