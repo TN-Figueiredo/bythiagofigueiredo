@@ -49,8 +49,18 @@ export function DestinationPicker({ initialOn, onToggle, onFocus, focused: contr
   const activeCount = DEST_IDS.filter(id => destsOn[id]).length
 
   function handleToggle(id: DestId) {
-    setDestsOn(prev => ({ ...prev, [id]: !prev[id] }))
+    const wasOn = destsOn[id]
+    const next = { ...destsOn, [id]: !wasOn }
+    setDestsOn(next)
     onToggle?.(id)
+
+    if (wasOn && focused === id) {
+      const nextActive = DEST_IDS.find(d => d !== id && next[d])
+      if (nextActive) {
+        setFocused(nextActive)
+        onFocus?.(nextActive)
+      }
+    }
   }
 
   function handleFocus(id: DestId) {
@@ -80,7 +90,10 @@ export function DestinationPicker({ initialOn, onToggle, onFocus, focused: contr
           return (
             <div
               key={id}
-              onClick={() => { handleToggle(id); handleFocus(id) }}
+              onClick={() => {
+                if (!isOn) { handleToggle(id) }
+                handleFocus(id)
+              }}
               className="relative flex-1 cursor-pointer transition-[border-color,opacity] duration-150"
               style={{
                 minWidth: 168,
