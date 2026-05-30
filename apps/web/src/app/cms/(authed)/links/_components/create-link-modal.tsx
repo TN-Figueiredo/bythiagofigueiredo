@@ -168,14 +168,21 @@ export function CreateLinkModal({ open, onClose, onSubmit }: CreateLinkModalProp
             <div>
               <div style={{ fontSize: 12, color: 'var(--ink-dim)', marginBottom: 7 }}>Slug</div>
               <div style={{
-                display: 'flex', alignItems: 'center', gap: 8,
-                ...inputStyle, padding: '11px 8px 11px 13px',
+                display: 'flex', alignItems: 'center', gap: 0,
+                ...inputStyle, padding: '0 8px 0 0',
               }}>
-                <span className="mono" style={{ fontSize: 13, color: 'var(--accent)' }}>/{slug}</span>
+                <span style={{ fontSize: 13, color: 'var(--accent)', padding: '11px 0 11px 13px', flexShrink: 0 }}>/</span>
+                <input
+                  type="text"
+                  value={slug}
+                  onChange={(e) => setSlug(e.target.value.replace(/[^a-zA-Z0-9_-]/g, ''))}
+                  className="mono"
+                  style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: 13, color: 'var(--accent)', padding: '11px 4px' }}
+                />
                 <button
                   type="button"
                   onClick={() => setSlug(generateSlug())}
-                  style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--ink-faint)', cursor: 'pointer' }}
+                  style={{ background: 'none', border: 'none', color: 'var(--ink-faint)', cursor: 'pointer', flexShrink: 0 }}
                   aria-label="Gerar novo slug"
                 >
                   <RefreshCw size={13} strokeWidth={1.7} />
