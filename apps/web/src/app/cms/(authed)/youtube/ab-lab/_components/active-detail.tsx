@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import type { AbTestActiveView } from '@/lib/youtube/ab-types'
 import { VARIANT_COLORS } from './ab-constants'
-import { InfoTip } from './ab-primitives'
+import { InfoTip, VChip } from './ab-primitives'
 import { DetailHeader } from './detail-header'
 import { LockCountdown } from './lock-countdown'
 import { HeroBand } from './hero-band'
@@ -259,40 +259,62 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
       </div>
 
       {/* Section 8: Rotação ABBA + Funil por variante */}
-      <section data-section="timeline-funnel" className="mb-[28px]">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-[16px]">
-          {/* Left: Rotação ABBA */}
-          <div className="rounded-lg border border-cms-border bg-cms-surface p-[20px]">
-            <div className="flex items-end justify-between gap-[14px] mb-[16px]">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-[16px] mb-[36px]">
+        {/* Left: Rotação ABBA */}
+        <div className="rounded-lg border border-cms-border bg-cms-surface p-[20px]">
+          <div className="flex items-end justify-between gap-[14px] mb-[16px]">
+            <div>
               <div className="flex items-center gap-[9px]">
                 <RefreshCw size={17} className="text-cms-accent" aria-hidden="true" />
-                <h3 className="text-[19px] font-semibold text-cms-text m-0">Rotação ABBA</h3>
+                <h3 className="text-[19px] font-semibold text-cms-text m-0">
+                  Rotação ABBA
+                  <InfoTip text="A rotação ABBA alterna variantes em pares espelhados (A→B→B→A) para cancelar o viés de horário e dia da semana." />
+                </h3>
               </div>
             </div>
-            <ABBATimeline
-              seq={view.abbaSeq}
-              total={view.cycles.total}
-              done={view.cycles.done}
-              colors={abbaColors}
-            />
           </div>
+          <ABBATimeline
+            seq={view.abbaSeq}
+            total={view.cycles.total}
+            done={view.cycles.done}
+            colors={abbaColors}
+          />
+        </div>
 
-          {/* Right: Funil por variante */}
-          <div className="rounded-lg border border-cms-border bg-cms-surface p-[20px]">
-            <div className="flex items-end justify-between gap-[14px] mb-[16px]">
+        {/* Right: Funil por variante */}
+        <div className="rounded-lg border border-cms-border bg-cms-surface p-[20px]">
+          <div className="flex items-end justify-between gap-[14px] mb-[16px]">
+            <div>
               <div className="flex items-center gap-[9px]">
                 <Filter size={17} className="text-cms-accent" aria-hidden="true" />
-                <h3 className="text-[19px] font-semibold text-cms-text m-0">Funil por variante</h3>
+                <h3 className="text-[19px] font-semibold text-cms-text m-0">
+                  Funil por variante
+                  <InfoTip text="Impressão → view (CTR) → clique no link rastreado. Mostra onde cada variante perde audiência." />
+                </h3>
               </div>
-            </div>
-            <div className="space-y-3">
-              {funnelVariants.map((fv, i) => (
-                <FunnelRow key={view.variants[i]?.label ?? i} variant={fv} />
-              ))}
+              <p className="text-[12.5px] text-cms-text-dim mt-[5px] max-w-[540px] m-0">
+                Impressão → view → clique no link rastreado.
+              </p>
             </div>
           </div>
+          <div className="flex flex-col gap-[14px]">
+            {view.variants.map((v, i) => {
+              const isOriginal = v.label === 'A'
+              const isLeader = v.label === data.leader
+              const roleLabel = isOriginal ? 'Original' : isLeader ? 'Hero' : 'Challenger'
+              return (
+                <div key={v.label}>
+                  <div className="flex items-center gap-[8px] mb-[7px]">
+                    <VChip label={v.label} size={16} />
+                    <span className="text-[11.5px] text-cms-text-dim">{roleLabel}</span>
+                  </div>
+                  <FunnelRow variant={funnelVariants[i]!} />
+                </div>
+              )
+            })}
+          </div>
         </div>
-      </section>
+      </div>
 
       {/* Section 9: Critérios de resolução automática */}
       <section data-section="gates" className="mb-[28px]">
