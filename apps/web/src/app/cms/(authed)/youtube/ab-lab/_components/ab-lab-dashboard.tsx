@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus } from 'lucide-react'
+import { Plus, Filter, Settings, Zap } from 'lucide-react'
 import type {
   AbTestCardView,
   AbTestDraft,
@@ -69,32 +69,43 @@ export function AbLabDashboard({
     <div data-dashboard-root className="space-y-6 animate-ab-fade-up">
       {/* 1. Header */}
       <div className="animate-ab-fade-up">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold text-cms-text">A/B Lab</h2>
-            <p className="text-sm text-cms-text-muted mt-0.5">
-              {cards.length > 0 ? `${cards.length} teste${cards.length > 1 ? 's' : ''} ativo${cards.length > 1 ? 's' : ''}` : 'Nenhum teste ativo'}
-            </p>
+        <div className="flex items-center justify-between flex-wrap gap-[12px] mb-[22px]">
+          <div className="flex items-baseline gap-[14px]">
+            <h2 className="text-[22px] font-bold tracking-[-0.01em] text-cms-text m-0">A/B Lab</h2>
+            <span className="text-[13px] text-cms-text-dim">
+              {cards.length > 0
+                ? `${cards.length} teste${cards.length > 1 ? 's' : ''} ativo${cards.length > 1 ? 's' : ''}`
+                : 'Nenhum teste ativo'}
+            </span>
+            <span className="inline-flex items-center gap-[5px] px-[9px] py-[3px] rounded-full text-[10.5px] font-semibold tracking-[0.06em] uppercase bg-cms-surface-hover text-cms-text-dim self-center">
+              <Zap size={11} aria-hidden="true" />
+              quota 1,5% hoje
+            </span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-[10px]">
             <button
               type="button"
-              onClick={() => router.push('/cms/youtube/ab-lab/new')}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cms-accent text-white text-sm font-medium hover:bg-cms-accent-hover transition-colors"
+              className="inline-flex items-center gap-[7px] justify-center py-[6px] px-[11px] text-[12.5px] font-semibold rounded-[9px] border border-cms-border whitespace-nowrap transition-[0.15s] tracking-[-0.01em] bg-cms-surface-hover text-cms-text"
             >
-              <Plus size={14} aria-hidden="true" />
-              Novo teste
+              <Filter size={14} aria-hidden="true" />
+              Todos os tipos
             </button>
             <button
               type="button"
               onClick={() => setShowSettings(true)}
-              aria-label="Settings"
-              className="flex items-center justify-center w-8 h-8 rounded-lg border border-cms-border text-cms-text-muted hover:bg-cms-surface-hover hover:text-cms-text transition-colors focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
+              aria-label="Configurações"
+              className="inline-flex items-center justify-center py-[6px] px-[11px] rounded-[9px] border border-cms-border-strong whitespace-nowrap transition-[0.15s] text-cms-text-dim hover:text-cms-text"
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                <circle cx="12" cy="12" r="3" />
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-              </svg>
+              <Settings size={14} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push('/cms/youtube/ab-lab/new')}
+              className="inline-flex items-center gap-[7px] justify-center py-[9px] px-[15px] text-[13.5px] font-semibold rounded-[9px] border border-cms-accent whitespace-nowrap transition-[0.15s] tracking-[-0.01em] bg-cms-accent"
+              style={{ color: 'rgb(26, 18, 12)' }}
+            >
+              <Plus size={16} aria-hidden="true" />
+              Novo teste
             </button>
           </div>
         </div>
