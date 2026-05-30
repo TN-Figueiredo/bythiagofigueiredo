@@ -229,13 +229,13 @@ function KpiTile({
   circleBg: string
 }) {
   return (
-    <div style={cardStyle}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <div
+    <div style={{ ...cardStyle, padding: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 12 }}>
+        <span
           style={{
             width: 30,
             height: 30,
-            borderRadius: 99,
+            borderRadius: 8,
             background: circleBg,
             display: 'flex',
             alignItems: 'center',
@@ -244,22 +244,21 @@ function KpiTile({
           }}
         >
           <span style={{ color: circleColor, display: 'flex' }}>{icon}</span>
-        </div>
-        <div>
-          <p style={eyebrow}>{label}</p>
-          <p
-            style={{
-              margin: '4px 0 0',
-              fontFamily: 'var(--font-mono)',
-              fontSize: 26,
-              fontWeight: 700,
-              lineHeight: 1,
-              color: 'var(--ink)',
-            }}
-          >
-            {typeof value === 'number' ? formatCompact(value) : value}
-          </p>
-        </div>
+        </span>
+        <span className="eyebrow" style={{ flex: 1, fontSize: '10.5px', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--ink-faint)' }}>
+          {label}
+        </span>
+      </div>
+      <div
+        className="mono"
+        style={{
+          fontSize: 26,
+          fontWeight: 700,
+          lineHeight: 1,
+          color: 'var(--ink)',
+        }}
+      >
+        {typeof value === 'number' ? formatCompact(value) : value}
       </div>
     </div>
   )
