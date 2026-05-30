@@ -235,17 +235,28 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
       </div>
 
       {/* Section 7: CTR diário por variante */}
-      <section data-section="daily-ctr" className="mb-[28px]">
-        <div className="rounded-lg border border-cms-border bg-cms-surface p-[20px]">
-          <div className="flex items-end justify-between gap-[14px] mb-[16px]">
+      <div className="rounded-lg border border-cms-border bg-cms-surface p-[20px] mb-[36px]">
+        <div className="flex items-end justify-between gap-[14px] mb-[16px]">
+          <div>
             <div className="flex items-center gap-[9px]">
-              <LineChart size={17} className="text-cms-accent" aria-hidden="true" />
+              <TrendingUp size={17} className="text-cms-accent" aria-hidden="true" />
               <h3 className="text-[19px] font-semibold text-cms-text m-0">CTR diário por variante</h3>
             </div>
+            <p className="text-[12.5px] text-cms-text-dim mt-[5px] max-w-[540px] m-0">
+              Dia a dia, com a rotação ABBA já contrabalançando o viés de fim de semana.
+            </p>
           </div>
-          <MultiLine series={view.daily} colors={VARIANT_COLORS} />
+          <div className="flex gap-[12px] shrink-0">
+            {view.variants.map(v => (
+              <span key={v.label} className="inline-flex items-center gap-[5px] text-[11.5px] text-cms-text-dim">
+                <span className="rounded-[2px]" style={{ width: 10, height: 3, background: v.color }} aria-hidden="true" />
+                {v.label}
+              </span>
+            ))}
+          </div>
         </div>
-      </section>
+        <MultiLine series={view.daily} colors={VARIANT_COLORS} />
+      </div>
 
       {/* Section 8: Rotação ABBA + Funil por variante */}
       <section data-section="timeline-funnel" className="mb-[28px]">
