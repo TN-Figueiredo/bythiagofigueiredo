@@ -21,11 +21,11 @@ describe('AnalyticsHeader — v3 tabs', () => {
     expect(tabs.length).toBe(6)
   })
 
-  it('tab labels in order: Overview, YouTube, Links, Audience, Fans, Revenue', () => {
+  it('tab labels in order: Overview, YouTube, Conteudo, Links, Audiencia, Fas', () => {
     render(<AnalyticsHeader activeTab="overview" activePeriod="30d" />)
     const tabs = screen.getAllByRole('tab')
     expect(tabs.map(t => t.textContent)).toEqual([
-      'Overview', 'YouTube', 'Links', 'Audience', 'Fans', 'Revenue',
+      'Overview', 'YouTube', 'Conteudo', 'Links', 'Audiencia', 'Fas',
     ])
   })
 
