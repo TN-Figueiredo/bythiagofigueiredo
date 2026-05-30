@@ -3,12 +3,12 @@ import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { CmsTopbar } from '@tn-figueiredo/cms-ui/client'
-import { TelegramConnect } from './_components/telegram-connect'
+import { PreferencesClient } from './_components/preferences-client'
 
 export const dynamic = 'force-dynamic'
 
 export const metadata = {
-  title: 'Notification Settings',
+  title: 'Preferencias de notificacao',
 }
 
 export default async function NotificationsSettingsPage() {
@@ -31,15 +31,9 @@ export default async function NotificationsSettingsPage() {
 
   return (
     <>
-      <CmsTopbar title="Notification Settings" />
-      <div className="p-6 max-w-lg space-y-6">
-        <div>
-          <h2 className="text-base font-semibold text-cms-text">Telegram</h2>
-          <p className="mt-1 text-sm text-cms-text-muted">
-            Connect your Telegram account to receive story-ready notifications.
-          </p>
-        </div>
-        <TelegramConnect
+      <CmsTopbar title="Preferencias" />
+      <div className="p-6">
+        <PreferencesClient
           userId={userId}
           isConnected={isConnected}
           chatId={chatId}

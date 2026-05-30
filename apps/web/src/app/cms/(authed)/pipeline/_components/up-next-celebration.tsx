@@ -1,6 +1,7 @@
 'use client'
 
 import { memo, useState, useEffect, useCallback } from 'react'
+import { X } from 'lucide-react'
 import { getFormatIcon, gemMix } from '@/lib/pipeline/gem-design'
 import { getISOWeek, getISOWeekYear } from 'date-fns'
 
@@ -99,7 +100,7 @@ export const UpNextCelebration = memo(function UpNextCelebration({ items }: UpNe
         aria-label="Dispensar celebração"
         data-testid="celebration-dismiss"
       >
-        ✕
+        <X size={14} aria-hidden="true" />
       </button>
     </section>
   )

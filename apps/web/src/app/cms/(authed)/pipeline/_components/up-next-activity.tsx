@@ -1,8 +1,9 @@
 'use client'
 
 import { memo, useState } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, CheckCheck, ArrowRight, Send, Edit } from 'lucide-react'
 import { getFormatColor } from '@/lib/pipeline/colors'
+import { gemMix } from '@/lib/pipeline/gem-design'
 
 export interface ActivityEntry {
   id: string
@@ -25,26 +26,45 @@ const EVENT_LABELS: Record<string, (toValue: string | null) => string> = {
   graduated: () => 'graduado',
 }
 
+const EVENT_ICONS: Record<string, typeof CheckCheck> = {
+  stage_change: CheckCheck,
+  created: ArrowRight,
+  archived: Edit,
+  restored: ArrowRight,
+  graduated: Send,
+}
+
 function getEventLabel(eventType: string, toValue: string | null): string {
   const fn = EVENT_LABELS[eventType]
   if (fn) return fn(toValue)
   return eventType
 }
 
-function formatRelativeTime(dateStr: string): string {
-  const now = Date.now()
-  const then = new Date(dateStr).getTime()
-  const diffMs = now - then
+function formatActivityTime(dateStr: string): string {
+  const then = new Date(dateStr)
+  const now = new Date()
 
-  if (diffMs < 60_000) return 'agora'
+  // Same calendar day: show HH:MM
+  const isSameDay =
+    then.getFullYear() === now.getFullYear() &&
+    then.getMonth() === now.getMonth() &&
+    then.getDate() === now.getDate()
 
-  const minutes = Math.floor(diffMs / 60_000)
-  if (minutes < 60) return `${minutes}min`
+  if (isSameDay) {
+    return then.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', hour12: false })
+  }
 
-  const hours = Math.floor(diffMs / 3_600_000)
-  if (hours < 24) return `${hours}h`
+  // Yesterday
+  const yesterday = new Date(now)
+  yesterday.setDate(yesterday.getDate() - 1)
+  const isYesterday =
+    then.getFullYear() === yesterday.getFullYear() &&
+    then.getMonth() === yesterday.getMonth() &&
+    then.getDate() === yesterday.getDate()
 
-  const days = Math.floor(diffMs / 86_400_000)
+  if (isYesterday) return 'ontem'
+
+  const days = Math.floor((now.getTime() - then.getTime()) / 86_400_000)
   return `${days}d`
 }
 
@@ -57,10 +77,11 @@ export const UpNextActivity = memo(function UpNextActivity({ entries }: UpNextAc
     <section
       data-testid="activity-section"
       aria-label="Atividade recente"
-      className="rounded-lg"
+      className="rounded-[10px]"
       style={{
         background: 'var(--gem-surface)',
         border: '1px solid var(--gem-border)',
+        boxShadow: '0 1px 0 rgba(255,255,255,0.02) inset, 0 8px 24px -12px rgba(0,0,0,0.6)',
       }}
     >
       <button
@@ -87,37 +108,50 @@ export const UpNextActivity = memo(function UpNextActivity({ entries }: UpNextAc
         <ul
           id="activity-list"
           data-testid="activity-list"
-          className="flex flex-col gap-1 px-4 pb-3"
+          className="flex flex-col px-0 pb-0"
         >
           {entries.map((entry) => {
             const color = getFormatColor(entry.format)
+            const EventIcon = EVENT_ICONS[entry.event_type] ?? ArrowRight
             return (
               <li
                 key={entry.id}
-                className="flex items-center gap-2 text-sm"
-                style={{ color: 'var(--gem-muted)' }}
+                className="flex items-center gap-3 px-4 py-2.5 text-sm"
+                style={{
+                  color: 'var(--gem-text)',
+                  borderBottom: '1px solid var(--gem-border)',
+                }}
               >
                 <span
-                  className="inline-block h-2 w-2 shrink-0 rounded-full"
-                  style={{ backgroundColor: color.accent }}
+                  className="inline-flex items-center justify-center h-7 w-7 shrink-0 rounded-lg"
+                  style={{
+                    backgroundColor: gemMix(color.accent, 14),
+                    color: color.accent,
+                    border: `1px solid ${gemMix(color.accent, 20)}`,
+                  }}
                   aria-hidden="true"
                   data-testid="activity-dot"
-                />
-                <span className="sr-only">{entry.format}</span>
-                <span
-                  className="font-mono text-xs"
-                  style={{ color: 'var(--gem-dim)' }}
                 >
-                  {entry.code}
+                  <EventIcon size={13} />
                 </span>
-                <span>{getEventLabel(entry.event_type, entry.to_value)}</span>
-                <span
-                  className="ml-auto text-xs"
+                <span className="sr-only">{entry.format}</span>
+                <span className="flex-1 min-w-0 text-[13px]">
+                  <span className="font-mono text-xs" style={{ color: 'var(--gem-dim)' }}>
+                    {entry.code}
+                  </span>
+                  {' '}
+                  <span style={{ color: 'var(--gem-muted)' }}>
+                    {getEventLabel(entry.event_type, entry.to_value)}
+                  </span>
+                </span>
+                <time
+                  dateTime={entry.changed_at}
+                  className="ml-auto text-xs font-mono shrink-0 tabular-nums"
                   style={{ color: 'var(--gem-dim)' }}
                   data-testid="activity-time"
                 >
-                  {formatRelativeTime(entry.changed_at)}
-                </span>
+                  {formatActivityTime(entry.changed_at)}
+                </time>
               </li>
             )
           })}

@@ -64,7 +64,7 @@ export type ExportFormat = z.infer<typeof exportFormatSchema>
 /*  New Analytics v2 types                                            */
 /* ------------------------------------------------------------------ */
 
-export type AnalyticsTab = 'overview' | 'content' | 'links' | 'audience' | 'fans' | 'revenue'
+export type AnalyticsTab = 'overview' | 'youtube' | 'content' | 'links' | 'audience' | 'fans'
 
 export interface KpiData {
   label: string

@@ -12,6 +12,8 @@ vi.mock('next/link', () => ({
 vi.mock('lucide-react', () => ({
   Pin: (props: Record<string, unknown>) => <svg data-testid="icon-pin" {...props} />,
   X: (props: Record<string, unknown>) => <svg data-testid="icon-x" {...props} />,
+  Target: (props: Record<string, unknown>) => <svg data-testid="icon-target" {...props} />,
+  Plus: (props: Record<string, unknown>) => <svg data-testid="icon-plus" {...props} />,
 }))
 
 vi.mock('@/lib/pipeline/gem-design', () => ({

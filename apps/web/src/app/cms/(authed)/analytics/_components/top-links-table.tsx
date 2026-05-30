@@ -13,7 +13,7 @@ interface Props {
 export function TopLinksTable({ links }: Props) {
   if (links.length === 0) {
     return (
-      <div className="rounded-lg border border-cms-border bg-cms-surface p-4">
+      <div className="rounded-[10px] border border-cms-border bg-cms-surface p-4">
         <h3 className="text-sm font-medium text-cms-text-dim">Top Links</h3>
         <p className="mt-3 text-sm text-cms-text-muted">No link clicks in this period.</p>
       </div>
@@ -23,7 +23,7 @@ export function TopLinksTable({ links }: Props) {
   const maxClicks = Math.max(...links.map((l) => l.clicks), 1)
 
   return (
-    <div className="rounded-lg border border-cms-border bg-cms-surface p-4" data-testid="top-links-table">
+    <div className="rounded-[10px] border border-cms-border bg-cms-surface p-4" data-testid="top-links-table">
       <h3 className="mb-3 text-sm font-medium text-cms-text-dim">Top Links</h3>
       <div className="space-y-2">
         {links.map((link, i) => {

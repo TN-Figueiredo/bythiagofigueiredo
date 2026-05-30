@@ -10,7 +10,7 @@ import { TYPE_COLORS, TYPE_LABELS } from './schedule-constants'
 /* ------------------------------------------------------------------ */
 
 function getStatusBorderColor(item: CalendarItem): string {
-  if (item.status === 'overdue') return '#ef4444'
+  if (item.status === 'overdue') return 'var(--theme-danger, #ef4444)'
   return TYPE_COLORS[item.type] ?? 'var(--t3)'
 }
 
@@ -28,7 +28,7 @@ function Tooltip({
   return (
     <div
       role="tooltip"
-      className={`absolute top-full z-50 mt-1 w-48 rounded-md border border-[var(--bdr-2)] bg-[var(--bg-2)] p-2.5 shadow-xl ${
+      className={`absolute top-full z-tooltip mt-1.5 w-52 rounded-[var(--radius-xl)] border border-[var(--bdr-2)] bg-[var(--bg-2)] p-3 shadow-xl ${
         flipRight ? 'left-0' : 'right-0'
       }`}
       data-testid="schedule-tooltip"
@@ -41,17 +41,17 @@ function Tooltip({
           className="inline-block h-2 w-2 rounded-full"
           style={{ backgroundColor: TYPE_COLORS[item.type] }}
         />
-        <span className="text-[10px] text-[var(--t3)]">
+        <span className="text-3xs text-[var(--t3)]">
           {TYPE_LABELS[item.type]}
         </span>
       </div>
       {item.time && (
-        <p className="mt-1 text-[10px] text-[var(--t5)]">
+        <p className="mt-1 text-3xs text-[var(--t5)]">
           {item.time}
         </p>
       )}
-      <p className="mt-1 text-[10px] capitalize text-[var(--t5)]">
-        {item.status}
+      <p className="mt-1 text-3xs capitalize text-[var(--t5)]">
+        {item.status === 'published' ? 'Publicado' : item.status === 'scheduled' ? 'Agendado' : item.status === 'overdue' ? 'Atrasado' : item.status === 'queued' ? 'Na fila' : item.status}
       </p>
     </div>
   )
@@ -92,21 +92,20 @@ export function ScheduleItem({ item, colIndex = 0 }: ScheduleItemProps) {
     <div
       ref={ref}
       className="group relative"
-      tabIndex={0}
       onMouseEnter={() => setShowTooltip(true)}
       onMouseLeave={() => setShowTooltip(false)}
-      onFocus={() => setShowTooltip(true)}
-      onBlur={() => setShowTooltip(false)}
-      onKeyDown={(e) => {
-        if (e.key === 'Escape') setShowTooltip(false)
-      }}
       data-testid={`schedule-item-${item.id}`}
     >
       <Link
         href={item.editUrl}
-        className={`block truncate rounded px-1.5 py-0.5 text-[10px] leading-tight transition-colors ${
+        onFocus={() => setShowTooltip(true)}
+        onBlur={() => setShowTooltip(false)}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') setShowTooltip(false)
+        }}
+        className={`flex items-center gap-1 truncate rounded-[var(--radius)] px-1.5 py-1 text-3xs leading-tight transition-colors ${
           item.status === 'queued' ? 'border-l-[3px] border-dashed' : ''
-        } ${item.status === 'scheduled' ? 'border-l-[3px] border-solid' : ''} ${
+        } ${item.status === 'scheduled' ? 'border-l-[3px] border-dotted' : ''} ${
           item.status === 'overdue' ? 'border-l-[3px] border-solid' : ''
         }`}
         style={{
@@ -114,9 +113,19 @@ export function ScheduleItem({ item, colIndex = 0 }: ScheduleItemProps) {
           borderLeftColor:
             item.status !== 'published' ? borderColor : 'transparent',
           color: color,
+          backgroundImage: item.status === 'scheduled'
+            ? 'repeating-linear-gradient(-45deg, transparent, transparent 3px, rgba(255,255,255,0.04) 3px, rgba(255,255,255,0.04) 6px)'
+            : undefined,
         }}
       >
-        {item.title}
+        {/* Type indicator icon */}
+        {item.status === 'scheduled' && (
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5 shrink-0 opacity-70" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+          </svg>
+        )}
+        <span className="sr-only">{TYPE_LABELS[item.type]}: </span>
+        <span className="truncate">{item.title}</span>
       </Link>
       {showTooltip && <Tooltip item={item} flipRight={flipRight} />}
     </div>

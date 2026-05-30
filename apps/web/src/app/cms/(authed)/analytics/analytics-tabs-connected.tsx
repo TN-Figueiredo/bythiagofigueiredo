@@ -59,7 +59,7 @@ const PERIODS = [
 /* ------------------------------------------------------------------ */
 
 function cardCls() {
-  return 'rounded-lg border border-slate-700 bg-slate-800/50 p-4'
+  return 'rounded-[10px] border border-cms-border bg-cms-surface p-4'
 }
 
 function formatDelta(current: number, previous: number | null): string | null {

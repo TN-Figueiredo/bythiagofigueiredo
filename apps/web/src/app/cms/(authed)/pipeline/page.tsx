@@ -70,14 +70,14 @@ export default async function PipelineOverviewPage() {
   return (
     <>
       <CmsTopbar title="Up Next" />
-      <div className="p-6 gem-pipeline-theme" style={GEM_CSS_VARS as React.CSSProperties}>
+      <main className="p-6 gem-pipeline-theme" style={GEM_CSS_VARS as React.CSSProperties}>
         <PipelineOverview
           fallbackData={fallbackData}
           celebration={{ items: celebrationItems }}
           activity={activity}
           initialPins={initialPins}
         />
-      </div>
+      </main>
     </>
   )
 }

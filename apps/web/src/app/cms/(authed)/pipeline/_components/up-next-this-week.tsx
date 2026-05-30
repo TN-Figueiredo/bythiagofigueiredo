@@ -314,7 +314,7 @@ export const UpNextThisWeek = memo(function UpNextThisWeek({
   if (slots.length === 0) return null
 
   return (
-    <section ref={gridRef} aria-label="Grade de conteúdo — próximos 7 dias">
+    <section id="week-grid-section" ref={gridRef} aria-label="Grade de conteúdo — próximos 7 dias">
       <button
         type="button"
         onClick={() => { setCollapsed(c => !c); setUserToggled(true) }}
@@ -462,7 +462,7 @@ export const UpNextThisWeek = memo(function UpNextThisWeek({
         </ul>
       </div>
       <div
-        className="absolute right-0 top-0 bottom-0 w-6 pointer-events-none rounded-r-lg max-[840px]:block hidden"
+        className="absolute right-0 top-0 bottom-0 w-10 pointer-events-none rounded-r-lg max-[840px]:block hidden"
         style={{ background: 'linear-gradient(to right, transparent, var(--gem-surface))' }}
         aria-hidden="true"
       />

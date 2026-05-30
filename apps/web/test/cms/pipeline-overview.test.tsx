@@ -71,7 +71,7 @@ vi.mock('../../src/app/cms/(authed)/pipeline/_components/up-next-this-week', () 
 
 vi.mock('../../src/app/cms/(authed)/pipeline/_components/up-next-activity', () => ({
   UpNextActivity: ({ entries }: { entries: ActivityEntry[] }) => (
-    <div data-testid="up-next-activity" data-count={entries.length} />
+    <section data-testid="up-next-activity" data-count={entries.length} aria-label="Atividade recente" />
   ),
 }))
 

@@ -6,11 +6,11 @@ import type { AnalyticsTab } from '../types'
 
 const TABS: { id: AnalyticsTab; label: string }[] = [
   { id: 'overview', label: 'Overview' },
-  { id: 'content', label: 'Content' },
+  { id: 'youtube', label: 'YouTube' },
+  { id: 'content', label: 'Conteudo' },
   { id: 'links', label: 'Links' },
-  { id: 'audience', label: 'Audience' },
-  { id: 'fans', label: 'Fans' },
-  { id: 'revenue', label: 'Revenue' },
+  { id: 'audience', label: 'Audiencia' },
+  { id: 'fans', label: 'Fas' },
 ]
 
 const PERIODS = ['7d', '30d', '90d'] as const
@@ -54,7 +54,7 @@ export function AnalyticsHeader({ activeTab, activePeriod }: Props) {
       <div className="flex items-center justify-between px-4 py-3 md:px-6">
         <h1 className="text-lg font-semibold text-cms-text">Analytics</h1>
         <div
-          className="flex items-center gap-1 rounded-lg border border-cms-border p-0.5"
+          className="flex items-center gap-1 rounded-[10px] border border-cms-border p-0.5"
           role="group"
           aria-label="Period selector"
         >
@@ -62,8 +62,9 @@ export function AnalyticsHeader({ activeTab, activePeriod }: Props) {
             <button
               key={p}
               type="button"
+              aria-pressed={activePeriod === p}
               onClick={() => handlePeriodChange(p)}
-              className={`rounded-md px-3 py-1.5 text-sm transition-colors ${
+              className={`rounded-[10px] px-3 py-1.5 text-sm transition-colors ${
                 activePeriod === p
                   ? 'bg-[var(--acc)] font-medium text-white'
                   : 'text-cms-text-muted hover:text-cms-text'

@@ -43,7 +43,7 @@ export function ClicksChart({ data }: Props) {
   if (data.length === 0) {
     return (
       <div
-        className="flex h-64 items-center justify-center rounded-lg border border-cms-border bg-cms-surface"
+        className="flex h-64 items-center justify-center rounded-[10px] border border-cms-border bg-cms-surface"
         data-testid="clicks-chart"
       >
         <p className="text-sm text-cms-text-muted">No click data for this period</p>
@@ -76,7 +76,7 @@ export function ClicksChart({ data }: Props) {
   const labelInterval = Math.max(1, Math.ceil(data.length / 10))
 
   return (
-    <div className="rounded-lg border border-cms-border bg-cms-surface p-4" data-testid="clicks-chart">
+    <div className="rounded-[10px] border border-cms-border bg-cms-surface p-4" data-testid="clicks-chart">
       <h3 className="mb-3 text-sm font-medium text-cms-text-dim">Clicks Over Time</h3>
       <div className="relative overflow-x-auto">
         <svg

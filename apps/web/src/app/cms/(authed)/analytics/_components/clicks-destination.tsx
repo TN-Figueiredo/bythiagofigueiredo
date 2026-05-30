@@ -4,7 +4,7 @@ const DESTINATIONS: { key: keyof ClicksDestination; label: string; color: string
   { key: 'inHouse', label: 'In-house', color: 'var(--color-int)' },
   { key: 'external', label: 'External', color: 'var(--color-link)' },
   { key: 'youtube', label: 'YouTube', color: 'var(--color-video)' },
-  { key: 'affiliate', label: 'Affiliate', color: '#fbbf24' }, // no amber token
+  { key: 'affiliate', label: 'Affiliate', color: 'var(--color-newsletter)' },
 ]
 
 interface Props {
@@ -16,14 +16,14 @@ export function ClicksDestinationGrid({ data }: Props) {
 
   if (total === 0) {
     return (
-      <div className="rounded-lg border border-[var(--bdr-1)] bg-[var(--bg-1)] p-6 text-center" data-testid="clicks-destination">
-        <p className="text-sm text-[var(--t3)]">Sem dados de destinos ainda</p>
+      <div className="rounded-[10px] border border-cms-border bg-cms-surface p-6 text-center" data-testid="clicks-destination">
+        <p className="text-sm text-cms-text-muted">Sem dados de destinos ainda</p>
       </div>
     )
   }
 
   return (
-    <div className="rounded-lg border border-cms-border bg-cms-surface p-4" data-testid="clicks-destination">
+    <div className="rounded-[10px] border border-cms-border bg-cms-surface p-4" data-testid="clicks-destination">
       <h3 className="mb-3 text-sm font-medium text-cms-text-dim">Click Destinations</h3>
       <div className="grid grid-cols-2 gap-3">
         {DESTINATIONS.map(({ key, label, color }) => {
@@ -32,8 +32,10 @@ export function ClicksDestinationGrid({ data }: Props) {
           return (
             <div
               key={key}
-              className="rounded-lg p-3"
+              className="rounded-[10px] p-3"
               style={{ backgroundColor: `${color}10`, borderLeft: `3px solid ${color}` }}
+              role="group"
+              aria-label={`${label}: ${count} (${pct}%)`}
             >
               <p className="text-xl font-bold tabular-nums text-cms-text">{count}</p>
               <p className="mt-0.5 text-xs text-cms-text-muted">

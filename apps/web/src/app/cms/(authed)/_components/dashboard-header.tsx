@@ -5,6 +5,7 @@ import type { DashboardPeriod } from './dashboard-queries'
 
 interface DashboardHeaderProps {
   greeting: string
+  userName?: string
   todayLabel: string
   period: DashboardPeriod
 }
@@ -17,6 +18,7 @@ const PERIODS: { value: DashboardPeriod; label: string }[] = [
 
 export function DashboardHeader({
   greeting,
+  userName,
   todayLabel,
   period,
 }: DashboardHeaderProps) {
@@ -35,10 +37,12 @@ export function DashboardHeader({
       data-testid="dashboard-header"
     >
       <div>
-        <h1 className="text-lg font-semibold text-[var(--t1)]">{greeting}</h1>
+        <h1 className="text-lg font-semibold text-[var(--t1)]">
+          {greeting}{userName ? `, ${userName}` : ''}
+        </h1>
         <p className="text-sm text-[var(--t3)] capitalize">{todayLabel}</p>
       </div>
-      <div className="flex gap-1 rounded-lg bg-[var(--bg-2)]/60 p-1" role="tablist">
+      <div className="flex gap-1 rounded-xl bg-[var(--bg-2)]/60 p-1" role="tablist" aria-label="Periodo de analise">
         {PERIODS.map((p) => (
           <button
             key={p.value}

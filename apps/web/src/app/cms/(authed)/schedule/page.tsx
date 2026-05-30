@@ -50,7 +50,7 @@ function ScheduleSkeleton() {
         {Array.from({ length: 4 }).map((_, i) => (
           <div
             key={i}
-            className="h-16 animate-pulse rounded-lg bg-[var(--bg-2)]"
+            className="h-16 animate-pulse rounded-[var(--radius-xl)] bg-[var(--bg-2)]"
           />
         ))}
       </div>
@@ -64,7 +64,7 @@ function ScheduleSkeleton() {
             />
           ))}
         </div>
-        <div className="grid grid-cols-7 gap-px rounded-lg border border-[var(--bdr-1)]/50 bg-[var(--bdr-1)]/50">
+        <div className="grid grid-cols-7 gap-px rounded-[var(--radius-xl)] border border-[var(--bdr-1)]/50 bg-[var(--bdr-1)]/50">
           {Array.from({ length: 42 }).map((_, i) => (
             <div
               key={i}

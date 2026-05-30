@@ -1,6 +1,16 @@
 import type { KpiData } from '../types'
 import { formatNumber } from '../../_shared/format-number'
 
+/** Domain-color rotation for sparklines per KPI index */
+const SPARKLINE_COLORS = [
+  'var(--color-blog)',       // Views - green
+  'var(--color-newsletter)', // Subscribers - purple
+  'var(--color-video)',      // CTR - pink
+  'var(--color-link)',       // Clicks - sky
+  'var(--color-int)',        // Open Rate - blue
+  'var(--acc)',              // Link Clicks - indigo
+]
+
 function trendArrow(current: number, previous: number | null): { text: string; color: string; arrow: string } | null {
   if (previous === null) return null
   if (previous === 0) {
@@ -16,7 +26,7 @@ function trendArrow(current: number, previous: number | null): { text: string; c
   }
 }
 
-function Sparkline({ data }: { data: number[] }) {
+function Sparkline({ data, color }: { data: number[]; color: string }) {
   if (data.length < 2) return null
 
   const max = Math.max(...data, 1)
@@ -35,7 +45,7 @@ function Sparkline({ data }: { data: number[] }) {
       <polyline
         points={points}
         fill="none"
-        stroke="var(--acc)"
+        stroke={color}
         strokeWidth="1.5"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -51,12 +61,16 @@ interface Props {
 export function KpiRow({ kpis }: Props) {
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6" data-testid="kpi-row">
-      {kpis.map((kpi) => {
+      {kpis.map((kpi, idx) => {
         const trend = trendArrow(kpi.value, kpi.previousValue)
+        const sparkColor = SPARKLINE_COLORS[idx % SPARKLINE_COLORS.length]!
         return (
           <div
             key={kpi.label}
-            className="rounded-lg border border-cms-border bg-cms-surface p-4"
+            className="rounded-[10px] border border-cms-border bg-cms-surface p-4"
+            style={{ boxShadow: `inset 0 1px 2px 0 ${sparkColor}18` }}
+            role="group"
+            aria-label={`${kpi.label}: ${formatNumber(kpi.value)}${trend ? `, ${trend.text} vs previous period` : ''}`}
             data-testid={`kpi-${kpi.label.toLowerCase().replace(/\s+/g, '-')}`}
           >
             <p className="text-xs font-medium uppercase tracking-wider text-cms-text-muted">
@@ -66,7 +80,7 @@ export function KpiRow({ kpis }: Props) {
               <p className="text-2xl font-bold tabular-nums text-cms-text">
                 {formatNumber(kpi.value)}
               </p>
-              {kpi.sparkline.length > 1 && <Sparkline data={kpi.sparkline} />}
+              {kpi.sparkline.length > 1 && <Sparkline data={kpi.sparkline} color={sparkColor} />}
             </div>
             {trend && (
               <p className="mt-1 flex items-center gap-1 text-xs" style={{ color: trend.color }}>

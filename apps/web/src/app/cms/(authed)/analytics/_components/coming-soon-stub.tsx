@@ -6,11 +6,11 @@ interface Props {
 
 const TAB_LABELS: Record<AnalyticsTab, string> = {
   overview: 'Overview',
-  content: 'Content',
+  youtube: 'YouTube',
+  content: 'Conteudo',
   links: 'Links',
-  audience: 'Audience',
-  fans: 'Fans',
-  revenue: 'Revenue',
+  audience: 'Audiencia',
+  fans: 'Fas',
 }
 
 export default function ComingSoonStub({ tab }: Props) {

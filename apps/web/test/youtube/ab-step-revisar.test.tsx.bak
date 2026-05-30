@@ -1,0 +1,154 @@
+import { describe, it, expect, vi } from 'vitest'
+import { render, screen } from '@testing-library/react'
+import { StepRevisar } from '@/app/cms/(authed)/youtube/ab-lab/_components/step-revisar'
+import type { ReviewVariant } from '@/app/cms/(authed)/youtube/ab-lab/_components/step-revisar'
+import type { TestType } from '@/lib/youtube/ab-types'
+import type { WizardConfig } from '@/lib/youtube/ab-wizard-adapter'
+
+vi.mock('lucide-react', () => {
+  const icon = (name: string) => (props: Record<string, unknown>) => <svg data-testid={`icon-${name}`} {...props} />
+  return {
+    Image: icon('Image'), Type: icon('Type'), FileText: icon('FileText'), Layers: icon('Layers'),
+    Lock: icon('Lock'), Plus: icon('Plus'), Trash2: icon('Trash2'), Sparkles: icon('Sparkles'),
+    CheckCircle: icon('CheckCircle'), Play: icon('Play'), ChevronDown: icon('ChevronDown'),
+    ChevronRight: icon('ChevronRight'), ArrowLeft: icon('ArrowLeft'), Copy: icon('Copy'),
+    Download: icon('Download'), Pause: icon('Pause'), Square: icon('Square'),
+    LayoutGrid: icon('LayoutGrid'), Search: icon('Search'), ListVideo: icon('ListVideo'),
+    Smartphone: icon('Smartphone'), Trophy: icon('Trophy'), TrendingUp: icon('TrendingUp'),
+    TrendingDown: icon('TrendingDown'),
+  }
+})
+
+vi.mock('@/app/cms/(authed)/youtube/ab-lab/_components/click-moment', () => ({
+  ClickMoment: (props: Record<string, unknown>) => <div data-testid="click-moment" data-variants={JSON.stringify(props.variants)} />,
+}))
+
+const defaultConfig: WizardConfig = {
+  confidence: 95,
+  duration: 14,
+  autoApply: true,
+  burnIn: 1,
+  rotation: 'abba' as const,
+}
+
+const defaultVariants: ReviewVariant[] = [
+  { label: 'A', thumbUrl: 'https://img.example.com/a.jpg', title: 'Original Title', isOriginal: true },
+  { label: 'B', thumbUrl: 'https://img.example.com/b.jpg', title: 'Challenger B Title', isOriginal: false },
+  { label: 'C', thumbUrl: null, title: 'Challenger C Title', isOriginal: false },
+]
+
+function renderRevisar(overrides?: {
+  type?: TestType
+  variants?: ReviewVariant[]
+  config?: Partial<WizardConfig>
+  videoTitle?: string
+}) {
+  return render(
+    <StepRevisar
+      type={overrides?.type ?? 'thumbnail'}
+      variants={overrides?.variants ?? defaultVariants}
+      config={{ ...defaultConfig, ...overrides?.config }}
+      videoTitle={overrides?.videoTitle ?? 'My Great YouTube Video About Testing'}
+    />
+  )
+}
+
+describe('StepRevisar', () => {
+  it('shows "Ready to launch" success banner with CheckCircle icon', () => {
+    renderRevisar()
+    expect(screen.getByText('Ready to launch')).toBeDefined()
+    expect(screen.getByTestId('icon-CheckCircle')).toBeDefined()
+  })
+
+  it('summary section shows video title (truncated via CSS)', () => {
+    renderRevisar({ videoTitle: 'My Great YouTube Video About Testing' })
+    expect(screen.getByText('My Great YouTube Video About Testing')).toBeDefined()
+    expect(screen.getByText('Video')).toBeDefined()
+  })
+
+  it('summary shows test type label', () => {
+    renderRevisar({ type: 'thumbnail' })
+    expect(screen.getByText('Thumbnail')).toBeDefined()
+    expect(screen.getByText('Test type')).toBeDefined()
+  })
+
+  it('summary shows variant count', () => {
+    renderRevisar()
+    // 3 variants: "3 (A + 2 challengers)"
+    expect(screen.getByText('3 (A + 2 challengers)')).toBeDefined()
+  })
+
+  it('summary shows rotation label mapped from config.rotation', () => {
+    renderRevisar({ config: { rotation: 'abba' } })
+    expect(screen.getByText('Rotation')).toBeDefined()
+    expect(screen.getByText('ABBA')).toBeDefined()
+  })
+
+  it('summary shows duration value', () => {
+    renderRevisar({ config: { duration: 14 } })
+    expect(screen.getByText('Duration')).toBeDefined()
+    expect(screen.getByText('14 days max')).toBeDefined()
+  })
+
+  it('summary shows confidence target formatted as percentage', () => {
+    renderRevisar({ config: { confidence: 95 } })
+    expect(screen.getByText('Confidence target')).toBeDefined()
+    // formatPercent(95, 0) => "95%"
+    expect(screen.getByText('95%')).toBeDefined()
+  })
+
+  it('summary shows burn-in value', () => {
+    renderRevisar({ config: { burnIn: 1 } })
+    expect(screen.getByText('Burn-in')).toBeDefined()
+    expect(screen.getByText('1 day')).toBeDefined()
+  })
+
+  it('summary shows auto-apply Yes/No', () => {
+    renderRevisar({ config: { autoApply: true } })
+    expect(screen.getByText('Auto-apply winner')).toBeDefined()
+    expect(screen.getByText('Yes')).toBeDefined()
+  })
+
+  it('playoff mode row does NOT appear', () => {
+    renderRevisar()
+    expect(screen.queryByText(/playoff/i)).toBeNull()
+  })
+
+  it('variant mini cards render for each variant', () => {
+    renderRevisar()
+    // Each variant gets a VChip with aria-label "Variant X"
+    expect(screen.getByLabelText('Variant A')).toBeDefined()
+    expect(screen.getByLabelText('Variant B')).toBeDefined()
+    expect(screen.getByLabelText('Variant C')).toBeDefined()
+  })
+
+  it('original variant shows "Original" badge', () => {
+    renderRevisar()
+    expect(screen.getByText('Original')).toBeDefined()
+  })
+
+  it('missing thumbnail shows gradient placeholder', () => {
+    renderRevisar()
+    // Variant C has null thumbUrl
+    const placeholder = screen.getByLabelText('No thumbnail for variant C')
+    expect(placeholder).toBeDefined()
+    expect(placeholder.style.background).toContain('linear-gradient')
+  })
+
+  it('bottom note mentions "Launch"', () => {
+    renderRevisar()
+    expect(screen.getByText('Launch')).toBeDefined()
+  })
+
+  it('ClickMoment renders when 2+ variants', () => {
+    renderRevisar()
+    expect(screen.getByTestId('click-moment')).toBeDefined()
+  })
+
+  it('ClickMoment does NOT render with fewer than 2 variants', () => {
+    renderRevisar({
+      variants: [{ label: 'A', thumbUrl: null, title: 'Solo', isOriginal: true }],
+    })
+    expect(screen.queryByTestId('click-moment')).toBeNull()
+  })
+})

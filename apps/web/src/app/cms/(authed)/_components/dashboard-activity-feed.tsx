@@ -24,15 +24,15 @@ const ACTION_LABELS: Record<string, string> = {
   unsubscribe: 'desinscreveu',
 }
 
-const RESOURCE_ICONS: Record<string, string> = {
-  blog_post: '📝',
-  newsletter_edition: '📨',
-  campaign: '📣',
-  content_pipeline: '💡',
-  link: '🔗',
-  media: '🖼️',
-  subscriber: '👤',
-  setting: '⚙️',
+const RESOURCE_DOT_COLORS: Record<string, string> = {
+  blog_post: 'bg-[var(--color-blog)]',
+  newsletter_edition: 'bg-[var(--color-newsletter)]',
+  campaign: 'bg-[var(--color-newsletter)]',
+  content_pipeline: 'bg-[var(--color-video)]',
+  link: 'bg-[var(--color-link)]',
+  media: 'bg-[var(--acc)]',
+  subscriber: 'bg-[var(--color-newsletter)]',
+  setting: 'bg-[var(--t4)]',
 }
 
 const RESOURCE_LABELS: Record<string, string> = {
@@ -50,8 +50,8 @@ function getActionLabel(action: string): string {
   return ACTION_LABELS[action] ?? action
 }
 
-function getResourceIcon(resourceType: string): string {
-  return RESOURCE_ICONS[resourceType] ?? '📋'
+function getResourceDotColor(resourceType: string): string {
+  return RESOURCE_DOT_COLORS[resourceType] ?? 'bg-[var(--t5)]'
 }
 
 function getResourceLabel(resourceType: string): string {
@@ -62,7 +62,7 @@ export function DashboardActivityFeed({ items }: DashboardActivityFeedProps) {
   if (items.length === 0) {
     return (
       <div data-testid="activity-feed">
-        <h2 className="mb-4 text-sm font-semibold text-[var(--t2)]">Atividade</h2>
+        <h2 className="mb-4 text-sm font-semibold text-[var(--t2)]">Notificações recentes</h2>
         <p className="text-sm text-[var(--t5)]" data-testid="activity-feed-empty">
           Nenhuma atividade recente
         </p>
@@ -76,9 +76,10 @@ export function DashboardActivityFeed({ items }: DashboardActivityFeedProps) {
       <ul className="space-y-3" data-testid="activity-feed-list">
         {items.map((item) => (
           <li key={item.id} className="flex items-start gap-3">
-            <span className="mt-0.5 shrink-0 text-sm" aria-hidden="true">
-              {getResourceIcon(item.resourceType)}
-            </span>
+            <span
+              className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${getResourceDotColor(item.resourceType)}`}
+              aria-hidden="true"
+            />
             <div className="min-w-0 flex-1">
               <p className="text-sm text-[var(--t2)]">
                 <span className="font-medium text-[var(--t2)]">

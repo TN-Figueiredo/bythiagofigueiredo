@@ -14,7 +14,8 @@ export const UpNextSuggestion = memo(function UpNextSuggestion({ text, linkHref,
   if (text === '') return null
 
   return (
-    <div
+    <aside
+      role="note"
       className="rounded-lg px-4 py-3"
       style={{
         background: gemMix('--gem-accent', 4),
@@ -41,6 +42,6 @@ export const UpNextSuggestion = memo(function UpNextSuggestion({ text, linkHref,
           </>
         )}
       </p>
-    </div>
+    </aside>
   )
 })

@@ -13,10 +13,18 @@ vi.mock('@/lib/pipeline/colors', () => ({
   getFormatColor: vi.fn(() => ({ accent: '#888', bg: '#111', text: '#fff', border: '#333' })),
 }))
 
+vi.mock('@/lib/pipeline/gem-design', () => ({
+  gemMix: vi.fn((color: string, pct: number) => `rgba(0,0,0,${pct / 100})`),
+}))
+
 vi.mock('lucide-react', () => ({
   ChevronDown: ({ size, style, className }: Record<string, unknown>) => (
     <svg data-testid="chevron-icon" width={size as number} style={style as React.CSSProperties} className={className as string} />
   ),
+  CheckCheck: (props: Record<string, unknown>) => <svg data-testid="icon-check-check" {...props} />,
+  ArrowRight: (props: Record<string, unknown>) => <svg data-testid="icon-arrow-right" {...props} />,
+  Send: (props: Record<string, unknown>) => <svg data-testid="icon-send" {...props} />,
+  Edit: (props: Record<string, unknown>) => <svg data-testid="icon-edit" {...props} />,
 }))
 
 /* ------------------------------------------------------------------ */
@@ -86,37 +94,42 @@ describe('UpNextActivity', () => {
     expect(screen.queryByTestId('activity-list')).toBeNull()
   })
 
-  it('shows relative time for recent entries', () => {
+  it('shows HH:MM for same-day entries', () => {
+    const now = new Date()
     render(
       <UpNextActivity
-        entries={[makeEntry({ changed_at: new Date().toISOString() })]}
+        entries={[makeEntry({ changed_at: now.toISOString() })]}
       />,
     )
 
     fireEvent.click(screen.getByTestId('activity-toggle'))
 
     const timeEl = screen.getByTestId('activity-time')
-    expect(timeEl.textContent).toBe('agora')
+    // Same-day entries show HH:MM format
+    expect(timeEl.textContent).toMatch(/^\d{2}:\d{2}$/)
   })
 
-  it('shows "Xmin" for entries minutes ago', () => {
+  it('shows HH:MM for entries minutes ago (same day)', () => {
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60_000).toISOString()
     render(<UpNextActivity entries={[makeEntry({ changed_at: fiveMinutesAgo })]} />)
 
     fireEvent.click(screen.getByTestId('activity-toggle'))
 
     const timeEl = screen.getByTestId('activity-time')
-    expect(timeEl.textContent).toBe('5min')
+    // Same-day entries show HH:MM format
+    expect(timeEl.textContent).toMatch(/^\d{2}:\d{2}$/)
   })
 
-  it('shows "Xh" for entries hours ago', () => {
-    const twoHoursAgo = new Date(Date.now() - 2 * 3_600_000).toISOString()
-    render(<UpNextActivity entries={[makeEntry({ changed_at: twoHoursAgo })]} />)
+  it('shows "ontem" for entries from yesterday', () => {
+    const yesterday = new Date()
+    yesterday.setDate(yesterday.getDate() - 1)
+    yesterday.setHours(12, 0, 0, 0) // midday to avoid edge cases
+    render(<UpNextActivity entries={[makeEntry({ changed_at: yesterday.toISOString() })]} />)
 
     fireEvent.click(screen.getByTestId('activity-toggle'))
 
     const timeEl = screen.getByTestId('activity-time')
-    expect(timeEl.textContent).toBe('2h')
+    expect(timeEl.textContent).toBe('ontem')
   })
 
   it('shows "Xd" for entries days ago', () => {
@@ -168,13 +181,14 @@ describe('UpNextActivity', () => {
     expect(screen.getByText('graduado')).toBeTruthy()
   })
 
-  it('renders colored dot for each entry format', () => {
+  it('renders colored icon container for each entry format', () => {
     render(<UpNextActivity entries={[makeEntry()]} />)
 
     fireEvent.click(screen.getByTestId('activity-toggle'))
 
     const dot = screen.getByTestId('activity-dot')
-    expect(dot.style.backgroundColor).toBe('#888')
+    // gemMix mock returns rgba format; accent '#888' at 14% = rgba(0,0,0,0.14)
+    expect(dot.style.backgroundColor).toBe('rgba(0, 0, 0, 0.14)')
   })
 
   it('activity list has id="activity-list" when expanded', () => {

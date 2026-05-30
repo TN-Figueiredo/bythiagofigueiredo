@@ -11,11 +11,11 @@ export function DashboardYoutubeCard({ data }: Props) {
   const color = data.healthScore >= 65 ? '#34d399' : data.healthScore >= 40 ? '#fbbf24' : '#f87171'
 
   return (
-    <div className="rounded-lg border border-cms-border bg-cms-surface p-4">
-      <div className="mb-2 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-cms-text">Resumo YouTube</h3>
-        <a href="/cms/youtube/analytics" className="text-xs font-medium text-[var(--acc)] hover:underline">
-          Ver Analytics →
+    <div className="rounded-xl border border-[var(--bdr-1)] bg-[var(--bg-2)]/40 p-5 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]" role="region" aria-label="Resumo YouTube">
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-[var(--t2)]">Resumo YouTube</h3>
+        <a href="/cms/youtube/analytics" className="text-xs font-medium text-[var(--acc)] hover:underline transition-colors">
+          Ver Analytics &rarr;
         </a>
       </div>
       <div className="flex items-center gap-4">
@@ -30,30 +30,30 @@ export function DashboardYoutubeCard({ data }: Props) {
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <span className="text-lg font-bold" style={{ color }}>{data.healthScore}</span>
-            <span className="text-[8px] uppercase text-cms-text-muted">Saúde</span>
+            <span className="text-[8px] uppercase text-[var(--t5)]">Saúde</span>
           </div>
         </div>
         <div className="flex-1 space-y-1">
           <div className="flex gap-4 text-xs">
             <div>
-              <span className="text-cms-text-muted">Views (30d)</span>
-              <div className="font-medium tabular-nums text-cms-text">{data.views30d.toLocaleString('pt-BR')}</div>
+              <span className="text-[var(--t5)]">Views (30d)</span>
+              <div className="font-medium tabular-nums text-[var(--t2)]">{data.views30d.toLocaleString('pt-BR')}</div>
             </div>
             <div>
-              <span className="text-cms-text-muted">Subs</span>
-              <div className="font-medium tabular-nums text-cms-text">{data.subsNet >= 0 ? '+' : ''}{data.subsNet.toLocaleString()}</div>
+              <span className="text-[var(--t5)]">Subs</span>
+              <div className="font-medium tabular-nums text-[var(--t2)]">{data.subsNet >= 0 ? '+' : ''}{data.subsNet.toLocaleString()}</div>
             </div>
             <div>
-              <span className="text-cms-text-muted">CTR</span>
-              <div className="font-medium tabular-nums text-cms-text">{data.ctr.toFixed(1)}%</div>
+              <span className="text-[var(--t5)]">CTR</span>
+              <div className="font-medium tabular-nums text-[var(--t2)]">{data.ctr.toFixed(1)}%</div>
             </div>
             <div>
-              <span className="text-cms-text-muted">Retenção</span>
-              <div className="font-medium tabular-nums text-cms-text">{Math.round(data.avgPercentage)}%</div>
+              <span className="text-[var(--t5)]">Retenção</span>
+              <div className="font-medium tabular-nums text-[var(--t2)]">{Math.round(data.avgPercentage)}%</div>
             </div>
           </div>
           {data.milestoneTarget !== null && data.milestoneAway !== null && (
-            <p className="text-[11px] text-cms-text-muted">
+            <p className="text-[11px] text-[var(--t5)]">
               <span aria-hidden="true">🎯</span> {data.milestoneTarget.toLocaleString('pt-BR')} subs — faltam {data.milestoneAway.toLocaleString('pt-BR')}
             </p>
           )}

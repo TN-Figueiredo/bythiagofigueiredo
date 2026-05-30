@@ -20,16 +20,29 @@ const PRIORITY_DOT: Record<AttentionPriority, string> = {
   P3: 'bg-blue-500',
 }
 
+const PRIORITY_LABEL: Record<AttentionPriority, string> = {
+  P1: 'Alta',
+  P2: 'Media',
+  P3: 'Baixa',
+}
+
+const PRIORITY_LABEL_STYLE: Record<AttentionPriority, string> = {
+  P1: 'text-red-400',
+  P2: 'text-amber-400',
+  P3: 'text-blue-400',
+}
+
 export function DashboardNeedsAttention({ items }: DashboardNeedsAttentionProps) {
   const [expanded, setExpanded] = useState(false)
 
   if (items.length === 0) {
     return (
-      <div
-        className="rounded-xl border border-[var(--bdr-1)] bg-[var(--bg-2)]/40 p-5"
+      <section
+        className="rounded-xl border border-[var(--bdr-1)] bg-[var(--bg-2)]/40 p-5 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]"
         data-testid="needs-attention"
+        aria-labelledby="needs-attention-heading-empty"
       >
-        <h2 className="mb-3 text-sm font-semibold text-[var(--t2)]">
+        <h2 id="needs-attention-heading-empty" className="mb-3 text-sm font-semibold text-[var(--t2)]">
           Precisa de Atenção
         </h2>
         <p
@@ -38,7 +51,7 @@ export function DashboardNeedsAttention({ items }: DashboardNeedsAttentionProps)
         >
           Tudo em ordem
         </p>
-      </div>
+      </section>
     )
   }
 
@@ -46,11 +59,12 @@ export function DashboardNeedsAttention({ items }: DashboardNeedsAttentionProps)
   const hasMore = items.length > 3 && !expanded
 
   return (
-    <div
-      className="rounded-xl border border-[var(--bdr-1)] bg-[var(--bg-2)]/40 p-5"
+    <section
+      className="rounded-xl border border-[var(--bdr-1)] bg-[var(--bg-2)]/40 p-5 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]"
       data-testid="needs-attention"
+      aria-labelledby="needs-attention-heading"
     >
-      <h2 className="mb-3 text-sm font-semibold text-[var(--t2)]">
+      <h2 id="needs-attention-heading" className="mb-3 text-sm font-semibold text-[var(--t2)]">
         Precisa de Atenção
       </h2>
       <ul className="space-y-2" data-testid="needs-attention-list">
@@ -64,9 +78,13 @@ export function DashboardNeedsAttention({ items }: DashboardNeedsAttentionProps)
               <div className="flex items-center gap-2">
                 <span
                   className={`h-2 w-2 shrink-0 rounded-full ${PRIORITY_DOT[item.priority]}`}
+                  aria-hidden="true"
                 />
                 <span className="truncate text-sm font-medium text-[var(--t2)]">
                   {item.title}
+                </span>
+                <span className={`ml-auto shrink-0 text-[10px] font-semibold uppercase tracking-wider ${PRIORITY_LABEL_STYLE[item.priority]}`}>
+                  {PRIORITY_LABEL[item.priority]}
                 </span>
               </div>
               <p className="ml-4 mt-0.5 text-xs text-[var(--t5)]">
@@ -87,6 +105,6 @@ export function DashboardNeedsAttention({ items }: DashboardNeedsAttentionProps)
           Ver todos ({items.length})
         </button>
       )}
-    </div>
+    </section>
   )
 }

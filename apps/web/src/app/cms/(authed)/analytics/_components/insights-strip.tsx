@@ -20,7 +20,7 @@ export function InsightsStrip({ insights }: Props) {
         return (
           <div
             key={card.id}
-            className="group rounded-lg border border-cms-border bg-cms-surface p-4 transition-colors hover:border-cms-text-muted"
+            className="group rounded-[10px] border border-cms-border bg-cms-surface p-4 transition-colors hover:border-cms-text-muted"
           >
             <div className="flex items-start gap-2">
               <span

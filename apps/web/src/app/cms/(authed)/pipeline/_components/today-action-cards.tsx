@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { Flame, Clock, Calendar, CalendarDays } from 'lucide-react'
 import { FORMAT_COLORS } from '@/lib/pipeline/colors'
 import { gemMix } from '@/lib/pipeline/gem-design'
 import type { TodayAction } from '@/lib/pipeline/up-next-types'
@@ -30,6 +31,13 @@ const FORMAT_LABELS: Record<string, string> = {
   newsletter: 'Newsletter',
 }
 
+const URGENCY_ICONS: Record<string, typeof Flame> = {
+  overdue: Flame,
+  today: Clock,
+  tomorrow: Calendar,
+  this_week: CalendarDays,
+}
+
 const URGENCY_DISPLAY_ORDER = ['overdue', 'today', 'tomorrow', 'this_week'] as const
 
 function ActionCard({ action }: { action: TodayAction }) {
@@ -46,10 +54,11 @@ function ActionCard({ action }: { action: TodayAction }) {
     <li>
       <Link
         href={href}
-        className="group flex items-stretch gap-3 rounded-lg border p-3 cursor-pointer motion-safe:transition-transform motion-safe:hover:scale-[1.02] motion-safe:active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)] focus-visible:outline-none"
+        className="group flex items-stretch gap-3 rounded-[10px] border p-3 cursor-pointer motion-safe:transition-transform motion-safe:hover:scale-[1.02] motion-safe:active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)] focus-visible:outline-none"
         style={{
           background: 'var(--gem-surface)',
           borderColor: 'var(--gem-border)',
+          boxShadow: '0 1px 0 rgba(255,255,255,0.02) inset, 0 8px 24px -12px rgba(0,0,0,0.6)',
         }}
         aria-label={isBatch
           ? `${action.itemTitle}. ${URGENCY_LABELS[action.urgency] ?? action.urgency}. ${action.effortEstimate} total.`
@@ -64,7 +73,7 @@ function ActionCard({ action }: { action: TodayAction }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <span
-              className="text-[10px] font-medium px-1.5 py-0.5 rounded-full inline-flex items-center gap-1"
+              className="text-[11px] font-medium px-1.5 py-0.5 rounded-full inline-flex items-center gap-1"
               style={{
                 background: gemMix(colors.accent, 10),
                 color: colors.text,
@@ -118,6 +127,7 @@ function ActionCard({ action }: { action: TodayAction }) {
 function UrgencyGroup({ urgency, actions }: { urgency: string; actions: TodayAction[] }) {
   const style = URGENCY_STYLES[urgency] ?? URGENCY_STYLES['this_week']!
   const label = URGENCY_LABELS[urgency] ?? urgency
+  const UrgencyIcon = URGENCY_ICONS[urgency] ?? Clock
 
   return (
     <div className="space-y-2">
@@ -125,15 +135,11 @@ function UrgencyGroup({ urgency, actions }: { urgency: string; actions: TodayAct
         className="text-[11px] font-semibold uppercase tracking-wider flex items-center gap-2"
         style={{ color: style.color }}
       >
-        <span
-          className="inline-block w-1.5 h-1.5 rounded-full"
-          style={{ background: style.color }}
-          aria-hidden="true"
-        />
+        <UrgencyIcon size={13} aria-hidden="true" />
         {label}
         <span
           className="text-[10px] font-normal"
-          style={{ color: 'var(--gem-dim)' }}
+          style={{ color: 'var(--gem-muted)' }}
         >
           ({actions.length})
         </span>
@@ -161,6 +167,7 @@ export function TodayActionCards({ actions, overflow }: TodayActionCardsProps) {
 
   return (
     <section
+      id="queue-section"
       aria-label="Fila de produção"
       className="border-l-2 pl-4"
       style={{ borderLeftColor: 'var(--gem-accent)' }}
@@ -190,9 +197,8 @@ export function TodayActionCards({ actions, overflow }: TodayActionCardsProps) {
 
       {overflow > 0 && (
         <p
-          className="text-xs mt-2 text-center"
+          className="text-xs mt-3 text-center"
           style={{ color: 'var(--gem-muted)' }}
-          aria-live="polite"
         >
           +{overflow} ações adicionais
         </p>

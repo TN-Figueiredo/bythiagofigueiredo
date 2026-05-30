@@ -10,6 +10,7 @@ interface KpiCardProps {
   value: string
   trend?: { direction: 'up' | 'down' | 'flat'; label: string }
   sparkline?: number[]
+  sparklineColor?: string
   testId: string
 }
 
@@ -55,15 +56,16 @@ function TrendArrow({ direction }: { direction: 'up' | 'down' | 'flat' }) {
   )
 }
 
-function KpiCard({ label, value, trend, sparkline, testId }: KpiCardProps) {
+function KpiCard({ label, value, trend, sparkline, sparklineColor, testId }: KpiCardProps) {
   const ariaLabel = trend
     ? `${label}: ${value}, tendência ${trend.direction === 'up' ? 'crescente' : trend.direction === 'down' ? 'decrescente' : 'estável'} ${trend.label}`
     : `${label}: ${value}`
 
   return (
     <div
-      className="flex flex-col justify-between rounded-xl border border-[var(--bdr-1)] bg-[var(--bg-2)]/40 p-4"
+      className="flex flex-col justify-between rounded-xl border border-[var(--bdr-1)] bg-[var(--bg-2)]/40 p-4 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]"
       data-testid={testId}
+      role="group"
       aria-label={ariaLabel}
     >
       <div className="mb-2 flex items-center justify-between">
@@ -71,7 +73,7 @@ function KpiCard({ label, value, trend, sparkline, testId }: KpiCardProps) {
           {label}
         </span>
         {sparkline && (
-          <Sparkline points={sparkline} color="var(--acc)" />
+          <Sparkline points={sparkline} color={sparklineColor ?? 'var(--acc)'} />
         )}
       </div>
       <div className="flex items-baseline gap-2">
@@ -101,6 +103,7 @@ export function DashboardKpiGrid({ data }: DashboardKpiGridProps) {
       label: 'Total Views',
       value: formatNumber(data.totalViews),
       sparkline: data.totalViewsSparkline,
+      sparklineColor: 'var(--color-blog)',
       testId: 'kpi-total-views',
     },
     {
@@ -119,12 +122,14 @@ export function DashboardKpiGrid({ data }: DashboardKpiGridProps) {
               label: `${data.subscribersNet > 0 ? '+' : ''}${data.subscribersNet}`,
             }
           : undefined,
+      sparklineColor: 'var(--color-newsletter)',
       testId: 'kpi-assinantes',
     },
     {
       label: 'Link Clicks',
       value: formatNumber(data.linkClicks),
       sparkline: data.linkClicksSparkline,
+      sparklineColor: 'var(--color-link)',
       testId: 'kpi-link-clicks',
     },
     {

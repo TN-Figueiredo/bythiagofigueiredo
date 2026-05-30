@@ -2,7 +2,7 @@
 
 import { memo } from 'react'
 import Link from 'next/link'
-import { Pin, X } from 'lucide-react'
+import { Target, X, Plus } from 'lucide-react'
 import { gemMix } from '@/lib/pipeline/gem-design'
 import { FORMAT_COLORS } from '@/lib/pipeline/colors'
 import type { WorkingTodayPin } from '../working-today-actions'
@@ -29,10 +29,10 @@ export const PinnedQueue = memo(function PinnedQueue({ pins, onUnpin, showGhosts
   return (
     <section aria-label="Foco de hoje" role="region">
       <h3
-        className="flex items-center gap-1.5 text-xs font-semibold mb-2"
-        style={{ color: 'var(--gem-muted)' }}
+        className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider mb-2"
+        style={{ color: 'var(--gem-dim)' }}
       >
-        <Pin size={12} aria-hidden="true" />
+        <Target size={13} aria-hidden="true" />
         Foco de hoje
         <span className="text-[10px] font-normal" style={{ color: 'var(--gem-dim)' }} aria-hidden="true">
           ({pins.length}/{MAX_PINS})
@@ -52,10 +52,11 @@ export const PinnedQueue = memo(function PinnedQueue({ pins, onUnpin, showGhosts
             <li key={pin.itemId} className="relative group">
               <Link
                 href={`/cms/pipeline/items/${pin.itemId}`}
-                className="flex items-stretch gap-2 rounded-lg border p-2.5 cursor-pointer motion-safe:transition-transform motion-safe:hover:scale-[1.02] focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)] focus-visible:outline-none"
+                className="flex items-stretch gap-2 rounded-xl border p-3 cursor-pointer motion-safe:transition-transform motion-safe:hover:scale-[1.02] focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)] focus-visible:outline-none"
                 style={{
-                  background: 'var(--gem-surface)',
+                  background: 'var(--gem-surface-hi)',
                   borderColor: 'var(--gem-border)',
+                  minHeight: 84,
                 }}
                 aria-label={`${pin.title}. ${STAGE_SHORT[pin.stage] ?? pin.stage}.`}
               >
@@ -95,17 +96,19 @@ export const PinnedQueue = memo(function PinnedQueue({ pins, onUnpin, showGhosts
           <li
             key={`ghost-${i}`}
             data-testid="ghost-suggestion"
-            aria-hidden="true"
-            className="flex items-center justify-center rounded-lg border border-dashed p-4"
+            className="flex items-center justify-center rounded-xl border-[1.5px] border-dashed p-4"
             style={{
-              borderColor: gemMix('--gem-border', 40),
-              background: gemMix('--gem-surface', 30),
+              borderColor: 'var(--gem-border)',
+              minHeight: 84,
             }}
+            aria-label={`Slot de foco vazio ${pins.length + i + 1} de ${MAX_PINS}`}
           >
             <span
-              className="text-[10px]"
-              style={{ color: gemMix('--gem-dim', 50) }}
+              className="flex items-center gap-1.5 text-xs"
+              style={{ color: 'var(--gem-dim)' }}
+              aria-hidden="true"
             >
+              <Plus size={15} />
               Fixe um item da fila
             </span>
           </li>

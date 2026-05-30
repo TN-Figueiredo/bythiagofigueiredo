@@ -34,43 +34,49 @@ function renderConfig(overrides?: Partial<WizardConfig>) {
 }
 
 describe('StepConfig', () => {
-  it('renders all 5 CfgRow controls', () => {
+  it('renders all 6 config rows with Portuguese labels', () => {
     renderConfig()
-    // duration slider
-    expect(screen.getByText('Duração')).toBeDefined()
-    // confidence slider
-    expect(screen.getByText('Confiança mínima')).toBeDefined()
-    // auto-apply toggle
+    expect(screen.getByText('Duração máxima')).toBeDefined()
+    expect(screen.getByText('Confiança alvo')).toBeDefined()
     expect(screen.getByText('Aplicar vencedor automaticamente')).toBeDefined()
-    // burn-in slider
     expect(screen.getByText('Burn-in')).toBeDefined()
-    // rotation segmented control
     expect(screen.getByText('Padrão de rotação')).toBeDefined()
+    expect(screen.getByText('Playoff automático')).toBeDefined()
   })
 
-  it('renders a playoff toggle', () => {
+  it('renders estimate card with title, subtitle, and stats', () => {
     renderConfig()
-    expect(screen.getByText('Modo playoff')).toBeDefined()
-  })
-
-  it('renders estimate card with estimated days, ABBA cycles, and YouTube quota', () => {
-    renderConfig()
-    expect(screen.getByText('Estimativas')).toBeDefined()
+    expect(screen.getByText('Estimativa')).toBeDefined()
+    expect(screen.getByText(/Com ~11k impressões/)).toBeDefined()
     expect(screen.getByText('Tempo estimado')).toBeDefined()
     expect(screen.getByText('Ciclos ABBA')).toBeDefined()
-    expect(screen.getByText('YouTube quota')).toBeDefined()
-    // With duration=14: estimatedDays = ceil(14*0.7) = 10
-    expect(screen.getByText('10 days')).toBeDefined()
+    expect(screen.getByText('Quota')).toBeDefined()
+  })
+
+  it('estimate card shows correct values for duration=14 confidence=95', () => {
+    renderConfig()
+    // estDays = Math.round(14 * 1) = 14 (confidence >= 95 => factor 1)
+    expect(screen.getByText('~14 dias')).toBeDefined()
     // abbaCycles = ceil(14/2)*2 = 14
-    expect(screen.getByText('14 pairs')).toBeDefined()
-    // quotaPerDay = ~ceil(4*2) = ~8
-    expect(screen.getByText('~8 calls/day')).toBeDefined()
+    expect(screen.getByText('14')).toBeDefined()
+    // quota is fixed at 1,5%
+    expect(screen.getByText('1,5%')).toBeDefined()
+  })
+
+  it('estimate adjusts for lower confidence (factor 0.8)', () => {
+    renderConfig({ confidence: 90, duration: 14 })
+    // estDays = Math.round(14 * 0.8) = 11
+    expect(screen.getByText('~11 dias')).toBeDefined()
+  })
+
+  it('estimate card shows 6 gates footer note', () => {
+    renderConfig()
+    expect(screen.getByText(/6 gates precisam passar/)).toBeDefined()
   })
 
   it('duration slider has min=7 max=28', () => {
     renderConfig()
     const sliders = screen.getAllByRole('slider')
-    // Duration is the first slider
     const durationSlider = sliders[0]!
     expect(durationSlider.getAttribute('min')).toBe('7')
     expect(durationSlider.getAttribute('max')).toBe('28')
@@ -79,7 +85,6 @@ describe('StepConfig', () => {
   it('confidence slider has min=80 max=99', () => {
     renderConfig()
     const sliders = screen.getAllByRole('slider')
-    // Confidence is the second slider
     const confidenceSlider = sliders[1]!
     expect(confidenceSlider.getAttribute('min')).toBe('80')
     expect(confidenceSlider.getAttribute('max')).toBe('99')
@@ -88,20 +93,30 @@ describe('StepConfig', () => {
   it('burn-in slider has min=0 max=3', () => {
     renderConfig()
     const sliders = screen.getAllByRole('slider')
-    // Burn-in is the third slider
     const burnInSlider = sliders[2]!
     expect(burnInSlider.getAttribute('min')).toBe('0')
     expect(burnInSlider.getAttribute('max')).toBe('3')
   })
 
-  it('rotation segmented control shows 3 options: ABBA, Sequential, Random', () => {
+  it('rotation segmented control shows 3 Portuguese options', () => {
     renderConfig()
-    const radiogroup = screen.getByRole('radiogroup', { name: 'Rotation pattern' })
+    const radiogroup = screen.getByRole('radiogroup', { name: 'Padrão de rotação' })
     expect(radiogroup).toBeDefined()
     const radios = radiogroup.querySelectorAll('[role="radio"]')
     expect(radios).toHaveLength(3)
     expect(screen.getByText('ABBA')).toBeDefined()
-    expect(screen.getByText('Sequential')).toBeDefined()
-    expect(screen.getByText('Random')).toBeDefined()
+    expect(screen.getByText('Sequencial')).toBeDefined()
+    expect(screen.getByText('Aleatório')).toBeDefined()
+  })
+
+  it('renders two 42x24px toggles for auto-apply and playoff', () => {
+    renderConfig()
+    const switches = screen.getAllByRole('switch')
+    expect(switches).toHaveLength(2)
+    // Both should be 42x24 via inline style
+    for (const sw of switches) {
+      expect(sw.style.width).toBe('42px')
+      expect(sw.style.height).toBe('24px')
+    }
   })
 })

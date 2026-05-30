@@ -15,16 +15,16 @@ export function DashboardAiInsights({ insights }: Props) {
 
   return (
     <div className="space-y-2">
-      <h3 className="text-sm font-semibold text-cms-text">AI Insights</h3>
+      <h3 className="text-sm font-semibold text-[var(--t2)]">AI Insights</h3>
       {insights.map((insight) => {
         const style = COLOR_STYLES[insight.color] ?? COLOR_STYLES['green']!
         return (
-          <div key={insight.id} className={`rounded-lg border border-cms-border ${style.border} border-l-4 bg-cms-surface p-3`}>
+          <div key={insight.id} className={`rounded-xl border border-[var(--bdr-1)] ${style.border} border-l-4 bg-[var(--bg-2)]/40 p-3`}>
             <div className="mb-1 flex items-center gap-2">
-              <span className="text-[10px] font-medium uppercase tracking-wider text-cms-text-muted">{style.label}</span>
+              <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--t5)]">{style.label}</span>
             </div>
-            <p className="text-xs font-medium text-cms-text">{insight.title}</p>
-            <p className="mt-0.5 text-xs text-cms-text-muted">{insight.body}</p>
+            <p className="text-xs font-medium text-[var(--t2)]">{insight.title}</p>
+            <p className="mt-0.5 text-xs text-[var(--t5)]">{insight.body}</p>
           </div>
         )
       })}

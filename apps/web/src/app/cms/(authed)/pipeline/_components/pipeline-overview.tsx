@@ -154,6 +154,15 @@ export function PipelineOverview({ fallbackData, celebration, activity, initialP
 
   return (
     <div className="space-y-6">
+      <nav aria-label="Ir para seção" className="sr-only focus-within:not-sr-only focus-within:absolute focus-within:z-50 focus-within:p-2">
+        <a href="#queue-section" className="text-xs underline px-2 py-1 rounded" style={{ color: 'var(--gem-accent)', background: 'var(--gem-surface)' }}>
+          Ir para Fila de Produção
+        </a>
+        {' '}
+        <a href="#week-grid-section" className="text-xs underline px-2 py-1 rounded" style={{ color: 'var(--gem-accent)', background: 'var(--gem-surface)' }}>
+          Ir para Grade Semanal
+        </a>
+      </nav>
       <div role="status" aria-live="polite" className="sr-only">
         {announcement || (selectedCandidate
           ? `${selectedCandidate.title} selecionado. Clique em um slot compatível para atribuir.`
@@ -186,20 +195,23 @@ export function PipelineOverview({ fallbackData, celebration, activity, initialP
         <div>
           <div className="flex items-center justify-between gap-4">
             <h2
-              className="text-sm font-semibold"
+              className="text-[13px] font-semibold"
               style={{ color: 'var(--gem-text)' }}
             >
-              {weekdayLabel}
-              {' '}&mdash; {doneCount} de {totalActions} feito
-              {remainingHours > 0 && <> · ~{remainingHours}h restantes</>}
+              <span className="capitalize">{weekdayLabel}</span>
+              {' '}
+              <span className="font-normal" style={{ color: 'var(--gem-dim)' }}>
+                &mdash; {doneCount} de {totalActions} feito
+                {remainingHours > 0 && <> · ~{remainingHours}h restantes</>}
+              </span>
             </h2>
             <div className="max-w-sm shrink-0">
               <LazyPipelineSearchDropdown />
             </div>
           </div>
           <div
-            className="mt-1 h-1.5 rounded-full overflow-hidden"
-            style={{ background: 'var(--gem-faint)' }}
+            className="mt-1 h-[7px] rounded-full overflow-hidden"
+            style={{ background: gemMix('--gem-text', 10) }}
             role="progressbar"
             aria-label={`${doneCount} de ${totalActions} tarefas concluídas`}
             aria-valuenow={doneCount}
@@ -319,9 +331,7 @@ export function PipelineOverview({ fallbackData, celebration, activity, initialP
           />
         )}
 
-        <section aria-label="Atividade recente">
-          <UpNextActivity entries={activity} />
-        </section>
+        <UpNextActivity entries={activity} />
       </div>
 
       {/* Mobile: tabbed layout */}
@@ -362,9 +372,7 @@ export function PipelineOverview({ fallbackData, celebration, activity, initialP
               </SectionErrorBoundary>
             ),
             health: (
-              <section aria-label="Atividade recente">
-                <UpNextActivity entries={activity} />
-              </section>
+              <UpNextActivity entries={activity} />
             ),
           }}
         </LazyPipelineTabs>

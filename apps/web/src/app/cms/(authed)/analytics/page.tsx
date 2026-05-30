@@ -42,7 +42,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
   if (!authRes.ok) redirect('/cms')
 
   const periodValue = params.period ?? '30d'
-  const VALID_TABS: AnalyticsTab[] = ['overview', 'content', 'links', 'audience', 'fans', 'revenue']
+  const VALID_TABS: AnalyticsTab[] = ['overview', 'youtube', 'content', 'links', 'audience', 'fans']
   const activeTab: AnalyticsTab = VALID_TABS.includes(params.tab as AnalyticsTab)
     ? (params.tab as AnalyticsTab)
     : 'overview'
@@ -64,6 +64,8 @@ export default async function AnalyticsPage({ searchParams }: Props) {
             <AnalyticsDataSection siteId={siteId} periodInput={periodInput} primaryDomain={primaryDomain} />
           </Suspense>
         </SectionErrorBoundary>
+      ) : activeTab === 'youtube' ? (
+        <ComingSoonStub tab={activeTab} />
       ) : activeTab === 'content' ? (
         <SectionErrorBoundary>
           <Suspense fallback={<AnalyticsSkeleton />}>
@@ -150,11 +152,11 @@ function AnalyticsSkeleton() {
     <div className="animate-pulse space-y-6 p-4 md:p-6">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="h-24 rounded-lg bg-cms-surface" />
+          <div key={i} className="h-24 rounded-[10px] bg-cms-surface" />
         ))}
       </div>
-      <div className="h-48 rounded-lg bg-cms-surface" />
-      <div className="h-36 rounded-lg bg-cms-surface" />
+      <div className="h-48 rounded-[10px] bg-cms-surface" />
+      <div className="h-36 rounded-[10px] bg-cms-surface" />
     </div>
   )
 }

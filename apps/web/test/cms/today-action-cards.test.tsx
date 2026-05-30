@@ -24,6 +24,9 @@ vi.mock('next/link', () => ({
 
 vi.mock('lucide-react', () => ({
   Clock: (props: Record<string, unknown>) => <svg data-testid="icon-clock" {...props} />,
+  Flame: (props: Record<string, unknown>) => <svg data-testid="icon-flame" {...props} />,
+  Calendar: (props: Record<string, unknown>) => <svg data-testid="icon-calendar" {...props} />,
+  CalendarDays: (props: Record<string, unknown>) => <svg data-testid="icon-calendar-days" {...props} />,
   Zap: (props: Record<string, unknown>) => <svg data-testid="icon-zap" {...props} />,
   ChevronRight: (props: Record<string, unknown>) => <svg data-testid="icon-chevron" {...props} />,
 }))

@@ -36,7 +36,7 @@ function getDayProgress(): number {
 
 function WeekItem({ item }: { item: CalendarItem }) {
   const color = TYPE_COLORS[item.type] ?? 'var(--t3)'
-  const borderColor = item.status === 'overdue' ? '#ef4444' : color
+  const borderColor = item.status === 'overdue' ? 'var(--theme-danger, #ef4444)' : color
 
   return (
     <Link
@@ -64,7 +64,7 @@ function WeekItem({ item }: { item: CalendarItem }) {
         <div className="mt-0.5 flex items-center gap-2 text-[10px] text-[var(--t4)]">
           <span style={{ color }}>{TYPE_LABELS[item.type]}</span>
           {item.time && <span>{item.time}</span>}
-          <span className="capitalize">{item.status}</span>
+          <span className="capitalize">{item.status === 'published' ? 'Publicado' : item.status === 'scheduled' ? 'Agendado' : item.status === 'overdue' ? 'Atrasado' : item.status === 'queued' ? 'Na fila' : item.status}</span>
         </div>
       </div>
     </Link>
@@ -72,22 +72,24 @@ function WeekItem({ item }: { item: CalendarItem }) {
 }
 
 function WeekCadenceGhost({ slot }: { slot: CadenceSlot }) {
+  const color = TYPE_COLORS[slot.type] ?? 'var(--t3)'
   return (
     <Link
       href={slot.createUrl}
-      className="group/ghost flex items-center gap-2 rounded-md px-2 py-1.5 opacity-55 transition-opacity hover:opacity-90"
+      className="group/ghost flex items-center gap-2 rounded-[var(--radius)] px-2 py-1.5 opacity-55 transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acc)]"
       style={{
-        backgroundColor: 'rgba(167, 139, 250, 0.06)',
-        borderLeft: '2px dashed rgba(167, 139, 250, 0.4)',
+        backgroundColor: `color-mix(in srgb, ${color} 6%, transparent)`,
+        borderLeft: `2px dashed color-mix(in srgb, ${color} 40%, transparent)`,
       }}
+      aria-label={`Preencher slot de cadência: ${TYPE_LABELS[slot.type]}`}
     >
       <span
         className="inline-block h-2 w-2 flex-shrink-0 rounded-full"
-        style={{ backgroundColor: 'rgba(167, 139, 250, 0.4)' }}
+        style={{ backgroundColor: `color-mix(in srgb, ${color} 40%, transparent)` }}
       />
-      <span className="text-[10px] text-[rgba(167,139,250,0.6)]">
-        <span className="hidden group-hover/ghost:inline">+ Fill cadence slot</span>
-        <span className="group-hover/ghost:hidden">cadence slot</span>
+      <span className="text-3xs" style={{ color: `color-mix(in srgb, ${color} 60%, transparent)` }}>
+        <span className="hidden group-hover/ghost:inline">+ Preencher</span>
+        <span className="group-hover/ghost:hidden">cadência</span>
       </span>
     </Link>
   )
@@ -126,8 +128,8 @@ export function WeekView({ weekStart, today, items, cadenceSlots }: WeekViewProp
   }
 
   return (
-    <div data-testid="week-view">
-      <div className="grid grid-cols-7 gap-px rounded-lg border border-[var(--bdr-1)]/50 bg-[var(--bdr-1)]/50 overflow-hidden">
+    <div data-testid="week-view" role="grid" aria-label="Semana">
+      <div role="row" className="grid grid-cols-7 gap-px rounded-[var(--radius-xl)] border border-[var(--bdr-1)]/50 bg-[var(--bdr-1)]/50 overflow-hidden shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]">
         {days.map((dateKey, i) => {
           const dayNum = parseInt(dateKey.split('-')[2]!, 10)
           const isToday = dateKey === today
@@ -141,19 +143,21 @@ export function WeekView({ weekStart, today, items, cadenceSlots }: WeekViewProp
           return (
             <div
               key={dateKey}
+              role="gridcell"
               className={`relative min-h-[200px] p-2 transition-colors ${
                 isToday
                   ? 'bg-[color-mix(in_srgb,var(--acc)_15%,transparent)] ring-1 ring-inset ring-[var(--acc)]/30'
                   : 'bg-[var(--bg-0)]'
               }`}
               data-testid={`week-cell-${dateKey}`}
+              {...(isToday ? { 'aria-current': 'date' as const } : {})}
             >
               {/* Day header */}
               <div className="mb-2 flex items-baseline gap-1">
                 <span
                   className={`text-[11px] font-medium uppercase tracking-wider ${
                     isToday
-                      ? 'text-sky-300'
+                      ? 'text-[var(--acc)]'
                       : isPast
                         ? 'text-[var(--t5)]'
                         : 'text-[var(--t3)]'
@@ -164,7 +168,7 @@ export function WeekView({ weekStart, today, items, cadenceSlots }: WeekViewProp
                 <span
                   className={`text-sm font-semibold ${
                     isToday
-                      ? 'text-sky-300'
+                      ? 'text-[var(--acc)]'
                       : isPast
                         ? 'text-[var(--t5)]'
                         : 'text-[var(--t1)]'
@@ -191,7 +195,7 @@ export function WeekView({ weekStart, today, items, cadenceSlots }: WeekViewProp
               {isToday && (
                 <div className="absolute inset-x-0 bottom-0 h-0.5 bg-[var(--bg-2)]">
                   <div
-                    className="h-full bg-sky-500/60 transition-all"
+                    className="h-full bg-[var(--acc)]/60 transition-all"
                     style={{ width: `${todayProgress}%` }}
                   />
                 </div>

@@ -21,13 +21,16 @@ export function AnalyticsOverview({ data }: Props) {
   return (
     <div className="space-y-6 p-4 md:p-6">
       <KpiRow kpis={data.kpis} />
-      <ContentFunnel funnel={data.funnel} />
+      {/* 2-col: Content Funnel + Traffic Sources (per spec) */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <ContentFunnel funnel={data.funnel} />
+        <ClicksSourceList data={data.sources} />
+      </div>
       <TopLinksTable links={data.topLinks} />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <ClicksDestinationGrid data={data.destinations} />
-        <ClicksSourceList data={data.sources} />
+        <ClicksChart data={data.clicksChart} />
       </div>
-      <ClicksChart data={data.clicksChart} />
       <InsightsStrip insights={insights} />
     </div>
   )

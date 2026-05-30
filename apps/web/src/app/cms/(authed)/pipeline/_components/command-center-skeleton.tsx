@@ -4,7 +4,7 @@ function Pulse({ className }: { className: string }) {
   return (
     <div
       className={`motion-safe:animate-pulse rounded ${className}`}
-      style={{ background: 'var(--gem-faint)' }}
+      style={{ background: 'var(--gem-border)' }}
     />
   )
 }

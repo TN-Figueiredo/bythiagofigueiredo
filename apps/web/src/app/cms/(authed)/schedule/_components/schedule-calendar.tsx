@@ -13,7 +13,7 @@ import { ScheduleBacklog } from './schedule-backlog'
 function formatMonthLabel(month: string): string {
   const [y, m] = month.split('-').map(Number) as [number, number]
   const date = new Date(Date.UTC(y, m - 1, 1))
-  return date.toLocaleDateString('en-US', {
+  return date.toLocaleDateString('pt-BR', {
     month: 'long',
     year: 'numeric',
     timeZone: 'UTC',
@@ -52,6 +52,7 @@ export function ScheduleCalendar({ data }: ScheduleCalendarProps) {
   const goToday = () => navigateToMonth(currentMonth())
   const goPrev = () => navigateToMonth(shiftMonth(data.month, -1))
   const goNext = () => navigateToMonth(shiftMonth(data.month, 1))
+  const handleNavigateMonth = (delta: number) => navigateToMonth(shiftMonth(data.month, delta))
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-[var(--bg-0)] p-4 md:p-6">
@@ -62,8 +63,8 @@ export function ScheduleCalendar({ data }: ScheduleCalendarProps) {
             <button
               type="button"
               onClick={goPrev}
-              className="rounded-md border border-[var(--bdr-1)] p-1.5 text-[var(--t3)] hover:bg-[var(--bg-2)] hover:text-[var(--t1)]"
-              aria-label="Previous month"
+              className="min-w-11 min-h-11 rounded-md border border-[var(--bdr-1)] p-1.5 text-[var(--t3)] hover:bg-[var(--bg-2)] hover:text-[var(--t1)] flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acc)]"
+              aria-label="Mês anterior"
               data-testid="prev-month"
             >
               <svg
@@ -82,16 +83,16 @@ export function ScheduleCalendar({ data }: ScheduleCalendarProps) {
             <button
               type="button"
               onClick={goToday}
-              className="rounded-md border border-[var(--bdr-1)] px-2.5 py-1 text-xs font-medium text-[var(--t2)] hover:bg-[var(--bg-2)] hover:text-[var(--t1)]"
+              className="min-h-11 rounded-md border border-[var(--bdr-1)] px-3 py-1 text-xs font-medium text-[var(--t2)] hover:bg-[var(--bg-2)] hover:text-[var(--t1)] flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acc)]"
               data-testid="today-button"
             >
-              Today
+              Hoje
             </button>
             <button
               type="button"
               onClick={goNext}
-              className="rounded-md border border-[var(--bdr-1)] p-1.5 text-[var(--t3)] hover:bg-[var(--bg-2)] hover:text-[var(--t1)]"
-              aria-label="Next month"
+              className="min-w-11 min-h-11 rounded-md border border-[var(--bdr-1)] p-1.5 text-[var(--t3)] hover:bg-[var(--bg-2)] hover:text-[var(--t1)] flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acc)]"
+              aria-label="Próximo mês"
               data-testid="next-month"
             >
               <svg
@@ -108,24 +109,31 @@ export function ScheduleCalendar({ data }: ScheduleCalendarProps) {
               </svg>
             </button>
           </div>
-          <h2 className="text-sm font-semibold text-[var(--t1)]">
+          <h2
+            className="text-base font-semibold capitalize text-[var(--t1)]"
+            aria-live="polite"
+          >
             {formatMonthLabel(data.month)}
           </h2>
         </div>
 
         {/* Legend */}
-        <div className="flex items-center gap-4 text-[10px] text-[var(--t5)]">
-          <span className="flex items-center gap-1">
-            <span className="inline-block h-2 w-2 rounded-full bg-[var(--color-blog)]" />
+        <div
+          role="group"
+          aria-label="Legenda do calendário"
+          className="flex flex-wrap items-center gap-4 text-2xs text-[var(--t3)] md:flex-nowrap"
+        >
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-[var(--color-blog)]" aria-hidden="true" />
             Blog
           </span>
-          <span className="flex items-center gap-1">
-            <span className="inline-block h-2 w-2 rounded-full bg-[var(--color-newsletter)]" />
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-[var(--color-newsletter)]" aria-hidden="true" />
             Newsletter
           </span>
-          <span className="flex items-center gap-1">
-            <span className="inline-block h-2 w-2 rounded-full bg-[var(--color-video)]" />
-            Video
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-[var(--color-video)]" aria-hidden="true" />
+            Vídeo
           </span>
         </div>
       </div>
@@ -140,6 +148,7 @@ export function ScheduleCalendar({ data }: ScheduleCalendarProps) {
           today={data.today}
           items={data.items}
           cadenceSlots={data.cadenceSlots}
+          onNavigateMonth={handleNavigateMonth}
         />
       </div>
 

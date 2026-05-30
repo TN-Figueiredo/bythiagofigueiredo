@@ -6,24 +6,43 @@ interface MetricsStripProps {
   metrics: ScheduleMetrics
 }
 
+type StatTone = 'default' | 'success' | 'warning' | 'danger'
+
 function StatCard({
   label,
   value,
-  isAlert,
+  tone = 'default',
 }: {
   label: string
   value: string | number
-  isAlert?: boolean
+  tone?: StatTone
 }) {
+  const borderBg: Record<StatTone, string> = {
+    default: 'border-[var(--bdr-1)]/50 bg-[var(--bg-2)]/50',
+    success: 'border-emerald-500/30 bg-emerald-500/5',
+    warning: 'border-amber-500/30 bg-amber-500/5',
+    danger:  'border-red-500/30 bg-red-500/5',
+  }
+  const valueColor: Record<StatTone, string> = {
+    default: 'text-[var(--t1)]',
+    success: 'text-emerald-400',
+    warning: 'text-amber-400',
+    danger:  'text-red-400',
+  }
+  const isLive = tone === 'danger' || tone === 'warning'
+
   return (
-    <div className="rounded-lg border border-[var(--bdr-1)]/50 bg-[var(--bg-2)]/50 px-4 py-3">
-      <p className="text-[11px] font-medium uppercase tracking-wide text-[var(--t3)]">
+    <div
+      className={`rounded-[var(--radius-xl)] border px-4 py-3 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)] ${borderBg[tone]}`}
+      role={isLive ? 'status' : 'group'}
+      aria-label={`${label}: ${value}`}
+      {...(isLive ? { 'aria-live': 'polite' as const } : {})}
+    >
+      <p className="text-2xs font-medium uppercase tracking-wide text-[var(--t3)]">
         {label}
       </p>
       <p
-        className={`mt-1 text-lg font-semibold ${
-          isAlert ? 'text-red-400' : 'text-[var(--t1)]'
-        }`}
+        className={`mt-1 text-lg font-semibold ${valueColor[tone]}`}
         data-testid={`metric-${label.toLowerCase().replace(/\s+/g, '-')}`}
       >
         {value}
@@ -32,22 +51,29 @@ function StatCard({
   )
 }
 
+function getCadenceTone(pct: number): StatTone {
+  if (pct >= 80) return 'success'
+  if (pct >= 50) return 'warning'
+  return 'danger'
+}
+
 export function MetricsStrip({ metrics }: MetricsStripProps) {
   return (
     <div
       className="grid grid-cols-2 gap-3 md:grid-cols-4"
       data-testid="metrics-strip"
     >
-      <StatCard label="Published this month" value={metrics.publishedThisMonth} />
-      <StatCard label="Scheduled ahead" value={metrics.scheduledAhead} />
+      <StatCard label="Publicados este mês" value={metrics.publishedThisMonth} />
+      <StatCard label="Agendados" value={metrics.scheduledAhead} />
       <StatCard
-        label="Cadence health"
+        label="Saúde da cadência"
         value={`${metrics.cadenceHealthPct}%`}
+        tone={getCadenceTone(metrics.cadenceHealthPct)}
       />
       <StatCard
-        label="Overdue"
+        label="Atrasados"
         value={metrics.overdueCount}
-        isAlert={metrics.overdueCount > 0}
+        tone={metrics.overdueCount > 0 ? 'danger' : 'default'}
       />
     </div>
   )

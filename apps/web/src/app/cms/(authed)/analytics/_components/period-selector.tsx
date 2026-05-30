@@ -59,13 +59,13 @@ export function PeriodSelector({ activePeriod, compareEnabled, onPeriodChange, o
               onCompareToggle(!compareEnabled)
             }
           }}
-          className={`relative h-5 w-9 rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--acc)] ${
+          className={`relative h-[22px] w-[38px] rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--acc)] ${
             compareEnabled ? 'bg-[var(--acc)]' : 'bg-cms-border'
           }`}
         >
           <span
-            className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${
-              compareEnabled ? 'translate-x-4' : 'translate-x-0.5'
+            className={`absolute top-[3px] h-4 w-4 rounded-full bg-white transition-transform ${
+              compareEnabled ? 'translate-x-[18px]' : 'translate-x-[3px]'
             }`}
           />
         </button>

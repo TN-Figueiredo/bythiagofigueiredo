@@ -33,14 +33,14 @@ export function ScheduleBacklog({ backlog }: ScheduleBacklogProps) {
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="flex w-full items-center gap-2 rounded-lg border border-[var(--bdr-1)]/50 bg-[var(--bg-2)]/30 px-4 py-2.5 text-left text-sm font-medium text-[var(--t2)] transition-colors hover:bg-[var(--bg-2)]/60"
+        className="flex w-full items-center gap-2 rounded-[var(--radius-xl)] border border-[var(--bdr-1)]/50 bg-[var(--bg-2)]/30 px-4 py-2.5 text-left text-sm font-medium text-[var(--t2)] transition-colors hover:bg-[var(--bg-2)]/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acc)] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]"
         data-testid="backlog-toggle"
         aria-expanded={expanded}
         aria-controls="schedule-backlog-content"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
-          className={`h-3.5 w-3.5 text-[var(--t3)] transition-transform ${
+          className={`h-3.5 w-3.5 text-[var(--t3)] motion-safe:transition-transform ${
             expanded ? 'rotate-90' : ''
           }`}
           viewBox="0 0 20 20"
@@ -59,7 +59,7 @@ export function ScheduleBacklog({ backlog }: ScheduleBacklogProps) {
       </button>
 
       {expanded && (
-        <div id="schedule-backlog-content" className="mt-3 space-y-4 pl-2">
+        <div id="schedule-backlog-content" className="mt-3 space-y-4 pl-2 motion-safe:animate-fade-in">
           {(Object.entries(grouped) as [ContentType, BacklogItem[]][]).map(
             ([type, items]) => (
               <div key={type}>
@@ -76,7 +76,7 @@ export function ScheduleBacklog({ backlog }: ScheduleBacklogProps) {
                     <Link
                       key={item.id}
                       href={item.editUrl}
-                      className="block truncate rounded px-2 py-1 text-xs text-[var(--t3)] transition-colors hover:bg-[var(--bg-2)] hover:text-[var(--t1)]"
+                      className="flex items-center truncate rounded-[var(--radius)] px-2 py-1.5 min-h-11 text-xs text-[var(--t3)] transition-colors hover:bg-[var(--bg-2)] hover:text-[var(--t1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acc)]"
                     >
                       {item.title}
                     </Link>

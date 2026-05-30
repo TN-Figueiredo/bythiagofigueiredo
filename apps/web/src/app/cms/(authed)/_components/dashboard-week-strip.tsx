@@ -55,7 +55,7 @@ export function DashboardWeekStrip({ days }: DashboardWeekStripProps) {
 
   return (
     <div
-      className="rounded-xl border border-[var(--bdr-1)] bg-[var(--bg-2)]/40 p-5"
+      className="rounded-xl border border-[var(--bdr-1)] bg-[var(--bg-2)]/40 p-5 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]"
       data-testid="week-strip"
       onKeyDown={handleKeyDown}
     >

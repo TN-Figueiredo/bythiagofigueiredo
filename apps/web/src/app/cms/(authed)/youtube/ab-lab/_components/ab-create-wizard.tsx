@@ -3,6 +3,7 @@
 import { useReducer, useEffect, useTransition, useCallback, useRef } from 'react'
 import { Play, X, ArrowRight } from 'lucide-react'
 import { StepTipo } from './step-tipo'
+import { StepIdeias } from './step-ideias'
 import { StepVariantes } from './step-variantes'
 import type { VariantData } from './step-variantes'
 import { StepConfig } from './step-config'
@@ -54,7 +55,7 @@ interface Props {
 /* ------------------------------------------------------------------ */
 
 interface WizardState {
-  step: number // 0=tipo, 1=ideias(placeholder), 2=variantes, 3=config, 4=revisar
+  step: number // 0=tipo, 1=ideias, 2=variantes, 3=config, 4=revisar
   type: TestType | null
   variants: VariantData[]
   config: WizardConfig
@@ -64,6 +65,7 @@ interface WizardState {
   draftTestId: string | null
   isLaunching: boolean
   error: string | null
+  hypothesis: string
 }
 
 type WizardAction =
@@ -77,6 +79,7 @@ type WizardAction =
   | { type: 'SET_DRAFT_ID'; id: string }
   | { type: 'SET_LAUNCHING'; isLaunching: boolean }
   | { type: 'SET_ERROR'; error: string | null }
+  | { type: 'SET_HYPOTHESIS'; text: string }
 
 const NEXT_LABELS: DisplayLabel[] = ['B', 'C', 'D']
 
@@ -145,6 +148,9 @@ function wizardReducer(state: WizardState, action: WizardAction): WizardState {
     case 'SET_ERROR':
       return { ...state, error: action.error }
 
+    case 'SET_HYPOTHESIS':
+      return { ...state, hypothesis: action.text }
+
     default:
       return state
   }
@@ -156,10 +162,8 @@ function wizardReducer(state: WizardState, action: WizardAction): WizardState {
 
 const STEP_LABELS = ['Tipo', 'Ideias', 'Variantes', 'Config', 'Revisar'] as const
 
-/** Steps visible in the rail — step 1 (Ideias) is a placeholder, not navigable */
 const VISIBLE_STEPS = STEP_LABELS
   .map((label, i) => ({ label, stepIndex: i }))
-  .filter((_, i) => i !== 1)
 
 function stepIsValid(step: number, state: WizardState): boolean {
   switch (step) {
@@ -192,6 +196,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
     draftTestId: existingDraftId ?? null,
     isLaunching: false,
     error: null,
+    hypothesis: '',
   })
 
   const [isPending, startTransition] = useTransition()
@@ -236,7 +241,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
           dispatch({ type: 'SET_ERROR', error: res.error ?? 'Failed to update test type' })
           return
         }
-        dispatch({ type: 'SET_STEP', step: 2 })
+        dispatch({ type: 'SET_STEP', step: 1 })
         return
       }
 
@@ -250,7 +255,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
 
       if (result.ok && result.id) {
         dispatch({ type: 'SET_DRAFT_ID', id: result.id })
-        dispatch({ type: 'SET_STEP', step: 2 })
+        dispatch({ type: 'SET_STEP', step: 1 })
       } else if (result.error?.includes('already exists')) {
         dispatch({ type: 'SET_ERROR', error: 'A draft already exists for this video. Close and reopen to continue.' })
       } else {
@@ -345,12 +350,10 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
   // --- Step navigation helpers ---
   const canAdvance = stepIsValid(state.step, state)
   const goBack = () => {
-    const prev = state.step === 2 ? 0 : state.step - 1 // skip step 1 (ideias placeholder)
-    dispatch({ type: 'SET_STEP', step: Math.max(0, prev) })
+    dispatch({ type: 'SET_STEP', step: Math.max(0, state.step - 1) })
   }
   const goNext = () => {
-    const next = state.step === 0 ? 2 : state.step + 1 // skip step 1 (ideias placeholder)
-    dispatch({ type: 'SET_STEP', step: Math.min(4, next) })
+    dispatch({ type: 'SET_STEP', step: Math.min(4, state.step + 1) })
   }
 
   // --- Render current step ---
@@ -364,11 +367,11 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
           />
         )
       case 1:
-        // Ideias placeholder — Cowork integration deferred
         return (
-          <div className="flex items-center justify-center py-12">
-            <p className="text-sm text-cms-text-dim">AI brainstorming — coming soon</p>
-          </div>
+          <StepIdeias
+            hypothesis={state.hypothesis}
+            onHypothesisChange={text => dispatch({ type: 'SET_HYPOTHESIS', text })}
+          />
         )
       case 2:
         return (
@@ -459,6 +462,8 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
           <span className="text-[11.5px] text-cms-text-dim">
             {state.error ? (
               <span className="text-red-400">{state.error}</span>
+            ) : state.step === 1 ? (
+              'A IA é opcional — pode pular'
             ) : (
               `Passo ${state.step + 1} de 5`
             )}
@@ -482,9 +487,19 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
                 Voltar
               </button>
             )}
-            {state.step < 4 && (
+            {state.step === 1 && (
               <button
-                onClick={state.step === 0 ? goNext : goNext}
+                onClick={goNext}
+                className="inline-flex items-center gap-[7px] justify-center py-[9px] px-[15px] text-[13.5px] font-semibold rounded-[9px] whitespace-nowrap transition-[0.15s] tracking-[-0.01em] bg-cms-accent"
+                style={{ border: '1px solid var(--cms-accent)', color: 'rgb(26,18,12)' }}
+              >
+                Pular
+                <ArrowRight size={16} aria-hidden="true" />
+              </button>
+            )}
+            {state.step !== 1 && state.step < 4 && (
+              <button
+                onClick={goNext}
                 disabled={!canAdvance || isPending}
                 className="inline-flex items-center gap-[7px] justify-center py-[9px] px-[15px] text-[13.5px] font-semibold rounded-[9px] whitespace-nowrap transition-[0.15s] tracking-[-0.01em] bg-cms-accent disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{ border: '1px solid var(--cms-accent)', color: 'rgb(26,18,12)' }}
@@ -510,7 +525,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
                   style={{ border: '1px solid var(--cms-accent)', color: 'rgb(26,18,12)' }}
                 >
                   <Play size={14} aria-hidden="true" />
-                  {isPending ? 'Lançando...' : 'Lançar teste'}
+                  {isPending ? 'Ativando...' : 'Ativar teste'}
                 </button>
               </>
             )}
