@@ -173,20 +173,19 @@ export function AnalyticsView({ data }: AnalyticsViewProps) {
         </div>
       </div>
 
-      {/* Charts grid */}
-      <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 1fr' }}>
-
+      {/* Source + Device row */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, alignItems: 'start' }}>
         {/* Source breakdown */}
-        <Panel title="Origem do trafego" icon="so">
+        <Panel title="Por origem" icon="so">
           <SourceBars sources={data.bySource} />
         </Panel>
 
         {/* Devices donut */}
-        <Panel title="Dispositivos" icon="mo">
+        <Panel title="Dispositivo" icon="mo">
           {data.devices.length > 0 ? (
-            <Donut segments={data.devices} centerLabel={`${data.devices[0]?.v ?? 0}%`} centerSub={data.devices[0]?.k ?? ''} />
+            <Donut segments={data.devices} size={120} thickness={16} centerLabel="100%" centerSub="sessões" />
           ) : (
-            <p className="py-6 text-center text-xs text-muted-foreground">Dados de dispositivos ainda nao disponiveis.</p>
+            <p style={{ padding: '16px 0', textAlign: 'center', fontSize: 12, color: 'var(--ink-faint)' }}>Dados de dispositivos ainda nao disponiveis.</p>
           )}
         </Panel>
 
