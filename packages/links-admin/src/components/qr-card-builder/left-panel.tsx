@@ -128,6 +128,7 @@ export function LeftPanel({ comp, interaction, onImageUpload, customPresets = []
   }, [composition, addElement, select, onImageUpload])
 
   const handleAddImage = useCallback(() => handleFileUpload('image/*'), [handleFileUpload])
+  const handleAddGif = useCallback(() => handleFileUpload('image/gif,.gif', 'GIF'), [handleFileUpload])
 
   const handleAddCarimbo = useCallback(() => {
     if (composition.elements.length >= MAX_ELEMENTS) return
@@ -165,6 +166,7 @@ export function LeftPanel({ comp, interaction, onImageUpload, customPresets = []
   const contentButtons = [
     { label: 'Texto', icon: AlignLeft, handler: handleAddText, title: 'Texto — Título, frase ou chamada' },
     { label: 'Imagem', icon: Image, handler: handleAddImage, title: 'Imagem — Foto, logo ou capa' },
+    { label: 'GIF', icon: FileVideo2, handler: handleAddGif, title: 'GIF — Anima a arte (exporta vídeo/GIF)' },
     { label: 'Forma', icon: LayoutTemplate, handler: handleAddText, title: 'Forma — Linha ou divisor' },
   ] as const
 
@@ -453,7 +455,7 @@ export function LeftPanel({ comp, interaction, onImageUpload, customPresets = []
                   opacity: atLimit ? 0.5 : 1,
                 }}
               >
-                {isUploading && label === 'Imagem'
+                {isUploading && (label === 'Imagem' || label === 'GIF')
                   ? <Loader2 size={17} className="animate-spin" style={{ color: 'var(--ink-dim)' }} />
                   : <Icon size={17} style={{ color: 'var(--ink-dim)' }} />
                 }
