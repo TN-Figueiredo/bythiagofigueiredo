@@ -31,6 +31,27 @@ interface DestCompositorProps {
   cmsContent?: { title: string; coverImageUrl: string | null }
 }
 
+function TemplatePreview({ title, coverImageUrl, isStory }: { title: string; coverImageUrl: string | null; isStory: boolean }) {
+  const scale = isStory ? 0.067 : 0.135
+  return (
+    <div className="flex h-full w-full flex-col items-center justify-between overflow-hidden" style={{ background: 'linear-gradient(155deg, rgb(247,241,232), rgb(237,227,210))', padding: `${Math.round(96 * scale)}px ${Math.round(54 * scale)}px` }}>
+      <div className="flex flex-col items-center gap-[2px] w-full">
+        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: Math.max(5, Math.round(14 * scale)), letterSpacing: '0.22em', color: '#9a6b3f', textTransform: 'uppercase' as const, fontWeight: 600 }}>NO BLOG</span>
+        <span className="text-center font-fraunces leading-none" style={{ fontSize: Math.max(6, Math.round(52 * scale)), fontWeight: 700, color: '#1f1b17', lineHeight: 1.02, maxWidth: '90%', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: isStory ? 3 : 2, WebkitBoxOrient: 'vertical' as const }}>{title}</span>
+      </div>
+      {coverImageUrl ? (
+        <img src={coverImageUrl} alt="" className="rounded-[2px] object-cover" style={{ width: '70%', height: isStory ? '26%' : '30%' }} />
+      ) : (
+        <div className="rounded-[2px]" style={{ width: '70%', height: isStory ? '26%' : '30%', background: 'rgba(31,27,23,0.08)' }} />
+      )}
+      <div className="flex flex-col items-center gap-[2px]">
+        <span className="rounded-full bg-white text-center" style={{ fontSize: Math.max(4, Math.round(16 * scale)), fontWeight: 700, color: '#111', padding: `${Math.round(14 * scale)}px ${Math.round(20 * scale)}px`, boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>LER O POST</span>
+        <span className="font-fraunces" style={{ fontSize: Math.max(5, Math.round(28 * scale)), fontWeight: 700, color: '#1f1b17', marginTop: Math.round(20 * scale) }}>TF</span>
+      </div>
+    </div>
+  )
+}
+
 export function DestCompositor({
   focusedDest, destsOn, caption, onCaptionChange,
   siteId, canvasOpen, onOpenCanvas, onCloseCanvas,
@@ -197,6 +218,8 @@ export function DestCompositor({
               >
                 {canvasImageUrl ? (
                   <img src={canvasImageUrl} alt="Canvas preview" className="h-full w-full object-contain" />
+                ) : cmsContent ? (
+                  <TemplatePreview title={cmsContent.title} coverImageUrl={cmsContent.coverImageUrl} isStory={isStory} />
                 ) : (
                   <div className="flex h-full w-full flex-col items-center justify-center gap-2" style={{ background: 'rgb(18,16,12)' }}>
                     <svg width={isStory ? 20 : 28} height={isStory ? 20 : 28} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ color: 'rgba(255,255,255,0.15)' }}>
@@ -363,6 +386,10 @@ export function DestCompositor({
               >
                 {canvasImageUrl ? (
                   <img src={canvasImageUrl} alt="Story preview" className="absolute inset-0 h-full w-full object-cover" />
+                ) : cmsContent ? (
+                  <div className="absolute inset-0">
+                    <TemplatePreview title={cmsContent.title} coverImageUrl={cmsContent.coverImageUrl} isStory />
+                  </div>
                 ) : (
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-3" style={{ background: 'rgb(18,16,12)' }}>
                     <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" style={{ color: 'rgba(255,255,255,0.12)' }}>
@@ -489,6 +516,8 @@ export function DestCompositor({
               <div onClick={onOpenCanvas} className="cursor-pointer" style={{ width: '100%', aspectRatio: '4/5', background: 'rgb(24,25,26)' }}>
                 {canvasImageUrl ? (
                   <img src={canvasImageUrl} alt="Post preview" className="h-full w-full object-cover" />
+                ) : cmsContent ? (
+                  <TemplatePreview title={cmsContent.title} coverImageUrl={cmsContent.coverImageUrl} isStory={false} />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center">
                     <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" style={{ color: 'rgba(255,255,255,0.12)' }}>
@@ -529,6 +558,8 @@ export function DestCompositor({
               <div onClick={onOpenCanvas} className="cursor-pointer" style={{ width: '100%', aspectRatio: '4/5', background: '#111' }}>
                 {canvasImageUrl ? (
                   <img src={canvasImageUrl} alt="Feed preview" className="h-full w-full object-cover" />
+                ) : cmsContent ? (
+                  <TemplatePreview title={cmsContent.title} coverImageUrl={cmsContent.coverImageUrl} isStory={false} />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center">
                     <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" style={{ color: 'rgba(255,255,255,0.12)' }}>

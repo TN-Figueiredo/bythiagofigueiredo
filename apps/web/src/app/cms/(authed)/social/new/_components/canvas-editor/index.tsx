@@ -63,26 +63,39 @@ function getDefaultComposition(ratio: SocialAspectRatio): CardComposition {
 }
 
 /**
- * Replace text placeholder tokens in a composition's text elements using postData.
- * Supported tokens: {{title}}, {{description}}, {{shortUrl}}, {{logoUrl}}, {{coverImageUrl}}
+ * Replace placeholder tokens in a composition using postData.
+ * Text elements: {{title}}, {{description}}, {{shortUrl}}, {{logoUrl}}, {{coverImageUrl}}
+ * Image elements: {{cover_image}}, {{coverImageUrl}} in src field
  */
 function resolveTemplatePlaceholders(composition: CardComposition, postData: SocialPostData): CardComposition {
-  const replacements: Record<string, string> = {
+  const textReplacements: Record<string, string> = {
     '{{title}}': postData.title,
     '{{description}}': postData.description ?? '',
     '{{shortUrl}}': postData.shortUrl ?? '',
     '{{logoUrl}}': postData.logoUrl ?? '',
     '{{coverImageUrl}}': postData.coverImageUrl ?? '',
   }
+  const imageTokens = ['{{cover_image}}', '{{coverImageUrl}}']
+  const coverUrl = postData.coverImageUrl ?? ''
+
   const resolved: CardComposition = {
     ...composition,
     elements: composition.elements.map(el => {
-      if (el.type !== 'text') return el
-      let content = el.content
-      for (const [token, value] of Object.entries(replacements)) {
-        content = content.split(token).join(value)
+      if (el.type === 'text') {
+        let content = el.content
+        for (const [token, value] of Object.entries(textReplacements)) {
+          content = content.split(token).join(value)
+        }
+        return { ...el, content }
       }
-      return { ...el, content }
+      if (el.type === 'image' && el.src) {
+        for (const token of imageTokens) {
+          if (el.src === token && coverUrl) {
+            return { ...el, src: coverUrl }
+          }
+        }
+      }
+      return el
     }),
   }
   return resolved
@@ -96,7 +109,15 @@ export const SocialCanvasEditor = forwardRef<SocialCanvasEditorRef, SocialCanvas
     embedded, onUseInPost,
   }: SocialCanvasEditorProps, ref) {
     const [aspectRatio, setAspectRatio] = useState<SocialAspectRatio>(initialRatio)
-    const comp = useCardComposition(initialComposition ?? getDefaultComposition(initialRatio))
+    const resolvedInitial = useMemo(
+      () => initialComposition
+        ? resolveTemplatePlaceholders(initialComposition, postData)
+        : getDefaultComposition(initialRatio),
+      // Only resolve once on mount — postData/initialComposition changes are handled by handleLoadTemplate
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      [],
+    )
+    const comp = useCardComposition(resolvedInitial)
     const interaction = useCanvasInteraction()
     const canvasRef = useRef<SocialCanvasHandle>(null)
     const containerRef = useRef<HTMLDivElement>(null)
