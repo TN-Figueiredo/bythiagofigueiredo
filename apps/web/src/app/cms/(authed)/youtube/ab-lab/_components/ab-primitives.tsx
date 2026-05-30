@@ -52,7 +52,7 @@ export function Badge({ tone = 'neutral', children, dot, className = '' }: Badge
     ? `bg-[var(--cms-cowork-subtle)] ${BADGE_TONES.cowork}`
     : BADGE_TONES[tone]
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full px-[9px] py-[3px] text-[10.5px] font-semibold tracking-[0.06em] uppercase leading-tight ${toneClass} ${className}`}>
+    <span className={`inline-flex items-center gap-[5px] rounded-full px-[9px] py-[3px] text-[10.5px] font-semibold tracking-[0.06em] uppercase leading-tight ${toneClass} ${className}`}>
       {dot && <span className="size-1.5 rounded-full bg-current animate-ab-slot-pulse" />}
       {children}
     </span>
@@ -102,7 +102,7 @@ export function TypeBadge({ type }: TypeBadgeProps) {
   const meta = TYPE_META[type]
   const Icon = TYPE_ICONS[type]
   return (
-    <Badge tone="neutral" className="gap-1.5">
+    <Badge tone="neutral">
       <Icon size={11} aria-hidden="true" className="-translate-y-px" />
       {meta.label}
     </Badge>
