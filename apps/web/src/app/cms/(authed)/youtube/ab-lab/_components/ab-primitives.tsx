@@ -159,11 +159,12 @@ export function Seg<T extends string>({ options, value, onChange, labels, 'aria-
   }, [options, value, onChange])
 
   return (
-    <div role="radiogroup" aria-label={ariaLabel} className="inline-flex rounded-lg bg-cms-surface p-0.5 gap-0.5" onKeyDown={handleKeyDown}>
+    <div role="radiogroup" aria-label={ariaLabel} className="inline-flex bg-cms-surface" style={{ borderRadius: 9, padding: 3, gap: 2 }} onKeyDown={handleKeyDown}>
       {options.map(opt => (
         <button key={opt} type="button" role="radio" aria-checked={opt === value}
           onClick={() => onChange(opt)} tabIndex={opt === value ? 0 : -1}
-          className={`px-2.5 py-1 text-2xs font-medium rounded-md transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-cms-accent cursor-pointer ${opt === value ? 'bg-cms-accent text-white' : 'text-cms-text-muted hover:text-cms-text'}`}
+          className={`font-semibold transition-all duration-150 focus-visible:ring-2 focus-visible:ring-cms-accent cursor-pointer ${opt === value ? 'bg-cms-accent text-[#1A120C]' : 'bg-transparent text-cms-text-dim hover:text-cms-text'}`}
+          style={{ padding: '6px 13px', borderRadius: 7, border: 'none', fontSize: '12.5px', fontFamily: 'inherit' }}
         >{labels?.[opt] ?? opt}</button>
       ))}
     </div>
@@ -225,7 +226,7 @@ export interface SliderProps { value: number; onChange: (v: number) => void; min
 
 export function Slider({ value, onChange, min = 0, max = 100, step = 1, format }: SliderProps) {
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-3" style={{ minWidth: 200 }}>
       <input type="range" min={min} max={max} step={step} value={value}
         onChange={e => onChange(Number(e.target.value))}
         aria-valuetext={format ? format(value) : String(value)}
@@ -241,10 +242,13 @@ export interface CfgRowProps { label: string; htmlFor?: string; children: React.
 export function CfgRow({ label, htmlFor, children, hint }: CfgRowProps) {
   const labelId = useId()
   return (
-    <div className="flex items-center justify-between gap-4 py-2">
-      <div className="flex-1 min-w-0">
-        <label id={labelId} htmlFor={htmlFor} className="text-xs text-cms-text">{label}</label>
-        {hint && <p className="text-2xs text-cms-text-dim mt-0.5">{hint}</p>}
+    <div
+      className="flex items-center justify-between gap-4 border-t border-cms-border"
+      style={{ padding: '13px 0' }}
+    >
+      <div className="flex-1 min-w-0" style={{ maxWidth: 320 }}>
+        <label id={labelId} htmlFor={htmlFor} className="text-[13.5px] font-semibold text-cms-text">{label}</label>
+        {hint && <p className="text-cms-text-dim mt-0.5" style={{ fontSize: '11.5px', lineHeight: 1.4 }}>{hint}</p>}
       </div>
       <div role="group" aria-labelledby={labelId}>{children}</div>
     </div>
