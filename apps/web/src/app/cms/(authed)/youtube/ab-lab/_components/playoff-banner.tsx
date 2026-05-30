@@ -12,7 +12,7 @@ const THUMB_BG: Record<string, string> = {
 }
 
 const COWORK = 'rgb(155, 147, 246)'
-const COWORK_BG = 'rgba(110, 99, 242, 0.1)'
+const COWORK_BG = 'rgba(110, 99, 242, 0.15)'
 const COWORK_BORDER = 'rgba(110, 99, 242, 0.4)'
 
 export interface PlayoffBannerProps {
