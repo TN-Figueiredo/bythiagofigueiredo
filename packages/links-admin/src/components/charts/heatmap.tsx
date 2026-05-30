@@ -4,11 +4,11 @@ export interface HeatmapProps {
 
 const DAYS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab', 'Dom']
 const SHADES = [
-  'var(--surface-2, #1E1B16)',
-  'rgba(242,104,60,0.25)',
-  'rgba(242,104,60,0.45)',
-  'rgba(242,104,60,0.7)',
-  'var(--accent, #F2683C)',
+  'var(--surface-2, #272219)',
+  'rgba(255,130,64,0.25)',
+  'rgba(255,130,64,0.45)',
+  'rgba(255,130,64,0.7)',
+  'var(--accent, #FF8240)',
 ]
 
 export function Heatmap({ grid }: HeatmapProps) {

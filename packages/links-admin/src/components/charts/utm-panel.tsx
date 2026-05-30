@@ -26,14 +26,14 @@ export function UtmPanel({ data, onDimensionChange }: UtmPanelProps) {
     <div data-panel aria-label="UTM Attribution" style={{ padding: 18, ...CARD_STYLE }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
         <span style={{ fontSize: 13.5, fontWeight: 600, flex: 1, color: 'var(--ink, #ECE6DA)' }}>UTM Attribution</span>
-        <div style={{ display: 'flex', gap: 2, background: 'var(--surface-2, #1E1B16)', borderRadius: 7, padding: 2 }}>
+        <div style={{ display: 'flex', gap: 2, background: 'var(--surface-2, #272219)', borderRadius: 7, padding: 2 }}>
           {DIMS.map(d => (
             <button key={d.id} type="button"
               aria-label={`Filter by ${d.label}`}
               onClick={() => { setActive(d.id); onDimensionChange?.(d.id) }}
               style={{
                 border: 'none', borderRadius: 5, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                background: active === d.id ? 'var(--accent, #F2683C)' : 'transparent',
+                background: active === d.id ? 'var(--accent, #FF8240)' : 'transparent',
                 color: active === d.id ? '#fff' : 'var(--ink-faint, #6E685D)',
               }}
             >{d.label}</button>
@@ -47,8 +47,8 @@ export function UtmPanel({ data, onDimensionChange }: UtmPanelProps) {
           {data.map(r => (
             <div key={r.key} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <span style={{ width: 100, fontSize: 12, color: 'var(--ink, #ECE6DA)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.key}</span>
-              <div style={{ flex: 1, height: 7, borderRadius: 99, background: 'var(--surface-2, #1E1B16)', overflow: 'hidden' }}>
-                <div style={{ width: `${(r.clicks / max) * 100}%`, height: '100%', borderRadius: 99, background: 'var(--accent, #F2683C)' }} />
+              <div style={{ flex: 1, height: 7, borderRadius: 99, background: 'var(--surface-2, #272219)', overflow: 'hidden' }}>
+                <div style={{ width: `${(r.clicks / max) * 100}%`, height: '100%', borderRadius: 99, background: 'var(--accent, #FF8240)' }} />
               </div>
               <span style={{ width: 36, textAlign: 'right', fontSize: 11, fontFamily: 'var(--font-mono, monospace)', color: 'var(--ink-dim, #A39C8E)' }}>{r.pct}%</span>
             </div>

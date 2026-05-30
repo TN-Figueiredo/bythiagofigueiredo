@@ -7,7 +7,7 @@ export const CARD_STYLE: CSSProperties = {
 }
 
 export const COLORS = {
-  accent: 'var(--accent, #F2683C)',
+  accent: 'var(--accent, #FF8240)',
   green: 'var(--green, #46B17E)',
   amber: 'var(--amber, #E0A23C)',
   cyan: 'var(--cyan, #3FA9C0)',
@@ -16,7 +16,7 @@ export const COLORS = {
   ink: 'var(--ink, #ECE6DA)',
   inkDim: 'var(--ink-dim, #A39C8E)',
   inkFaint: 'var(--ink-faint, #6E685D)',
-  surface2: 'var(--surface-2, #1E1B16)',
+  surface2: 'var(--surface-2, #272219)',
   lineStrong: 'var(--line-strong, #3a3630)',
 } as const
 

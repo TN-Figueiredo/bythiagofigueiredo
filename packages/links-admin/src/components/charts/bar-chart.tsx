@@ -14,7 +14,7 @@ export function BarChart({
   prev,
   labels,
   height = 150,
-  color = 'var(--accent, #F2683C)',
+  color = 'var(--accent, #FF8240)',
   label,
 }: BarChartProps) {
   const max = useMemo(() => Math.max(...data, ...(prev || [1]), 1), [data, prev])

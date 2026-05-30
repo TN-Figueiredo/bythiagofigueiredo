@@ -54,9 +54,9 @@ export function GeoMap({ countries, width = 800, height = 450 }: GeoMapProps) {
             cx={coord.x}
             cy={coord.y}
             r={r}
-            fill="var(--accent, #F2683C)"
+            fill="var(--accent, #FF8240)"
             fillOpacity={0.35}
-            stroke="var(--accent, #F2683C)"
+            stroke="var(--accent, #FF8240)"
             strokeWidth={1.5}
           >
             <title>{`${c.name}: ${c.v}%`}</title>

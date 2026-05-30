@@ -54,17 +54,17 @@ export function AnalyticsView({ data }: AnalyticsViewProps) {
             spark: <Spark data={data.byDay.slice(-14)} color="var(--accent)" w={84} h={30} />, sub: null,
           },
           {
-            label: 'Visitantes únicos', Icon: Users, color: 'rgb(63, 169, 192)', tint: 'rgba(63, 169, 192, 0.133)',
+            label: 'Visitantes únicos', Icon: Users, color: 'var(--cyan, #3FA9C0)', tint: 'rgba(63, 169, 192, 0.13)',
             value: fmt(data.unique), delta: <Delta cur={data.unique} prev={data.prevUnique} />,
             spark: <Spark data={data.byDay.slice(-14)} color="#3FA9C0" w={84} h={30} />, sub: null,
           },
           {
-            label: 'Engajamento (CTR)', Icon: Percent, color: 'rgb(70, 177, 126)', tint: 'rgba(70, 177, 126, 0.133)',
+            label: 'Engajamento (CTR)', Icon: Percent, color: 'var(--green)', tint: 'var(--green-soft)',
             value: `${data.ctr}%`, delta: <Delta cur={data.ctr} prev={data.prevCtr} suffix="pp" />,
             spark: null, sub: 'cliques / pageviews',
           },
           {
-            label: 'Via QR / impresso', Icon: QrCode, color: 'rgb(224, 162, 60)', tint: 'rgba(224, 162, 60, 0.133)',
+            label: 'Via QR / impresso', Icon: QrCode, color: 'var(--amber)', tint: 'var(--amber-soft)',
             value: `${data.qrShare}%`, delta: null,
             spark: <Spark data={data.byDay.slice(-14)} color="#E0A23C" w={84} h={30} />, sub: 'do total de cliques',
           },

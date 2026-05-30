@@ -120,7 +120,7 @@ export function TreeTab({ tree, latestPost, latestVideo }: TreeTabProps) {
                 borderRadius: 9,
                 border: '1px solid var(--accent)',
                 background: 'var(--accent)',
-                color: 'rgb(26, 18, 12)',
+                color: 'var(--pb-ink-on-accent, #1A140C)',
                 letterSpacing: '-0.01em',
                 whiteSpace: 'nowrap',
                 transition: '0.15s',
@@ -181,9 +181,9 @@ export function TreeTab({ tree, latestPost, latestVideo }: TreeTabProps) {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
             {[
               { label: 'Pageviews', value: fmt(tree.pageviews), Icon: Eye, color: 'var(--accent)' },
-              { label: 'Últimos 30d', value: fmt(tree.last30), Icon: TrendingUp, color: 'rgb(70, 177, 126)' },
-              { label: 'Únicos', value: fmt(tree.unique), Icon: Users, color: 'rgb(63, 169, 192)' },
-              { label: 'Engajamento', value: `${tree.engagement}%`, Icon: Percent, color: 'rgb(224, 162, 60)' },
+              { label: 'Últimos 30d', value: fmt(tree.last30), Icon: TrendingUp, color: 'var(--green)' },
+              { label: 'Únicos', value: fmt(tree.unique), Icon: Users, color: 'var(--cyan, #3FA9C0)' },
+              { label: 'Engajamento', value: `${tree.engagement}%`, Icon: Percent, color: 'var(--amber)' },
             ].map((s) => (
               <div
                 key={s.label}

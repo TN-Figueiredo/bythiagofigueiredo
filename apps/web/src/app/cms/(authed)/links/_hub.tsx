@@ -57,7 +57,7 @@ export function LinksHub({ tree, links, analytics, activeTab, latestPost, latest
           <button
             type="button"
             onClick={() => setShowCreateModal(true)}
-            className="inline-flex items-center justify-center gap-[7px] whitespace-nowrap rounded-[9px] border border-[var(--accent)] bg-[var(--accent)] px-[15px] py-[9px] text-[13.5px] font-semibold tracking-[-0.01em] text-[rgb(26,18,12)] transition-[0.15s] hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-primary/50"
+            className="inline-flex items-center justify-center gap-[7px] whitespace-nowrap rounded-[9px] border border-[var(--accent)] bg-[var(--accent)] px-[15px] py-[9px] text-[13.5px] font-semibold tracking-[-0.01em] text-[var(--pb-ink-on-accent, #1A140C)] transition-[0.15s] hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-primary/50"
           >
             <Plus size={16} strokeWidth={1.7} />
             Novo link

@@ -19,7 +19,7 @@ export function Panel({ title, icon, right, children, style }: PanelProps) {
         {icon && (
           <span
             data-panel-icon
-            style={{ fontSize: 15, color: 'var(--accent, #F2683C)' }}
+            style={{ fontSize: 15, color: 'var(--accent, #FF8240)' }}
           >
             {icon.slice(0, 2)}
           </span>

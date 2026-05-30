@@ -34,7 +34,7 @@ export function FilterGroup({ label, value, onChange, opts }: FilterGroupProps) 
               fontSize: 12,
               fontWeight: 600,
               background: active ? 'var(--accent)' : 'var(--surface-2)',
-              color: active ? 'rgb(26, 18, 12)' : 'var(--ink-dim)',
+              color: active ? 'var(--pb-ink-on-accent, #1A140C)' : 'var(--ink-dim)',
               cursor: 'pointer',
               transition: '0.15s',
             }}

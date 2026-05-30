@@ -14,7 +14,7 @@ export interface HBarsProps {
 
 export function HBars({
   rows,
-  color = 'var(--accent, #F2683C)',
+  color = 'var(--accent, #FF8240)',
   suffix = '%',
   label,
 }: HBarsProps) {
@@ -46,7 +46,7 @@ export function HBars({
             style={{
               flex: 1,
               height: 8,
-              background: 'var(--surface-2, #1E1B16)',
+              background: 'var(--surface-2, #272219)',
               borderRadius: 99,
               overflow: 'hidden',
             }}

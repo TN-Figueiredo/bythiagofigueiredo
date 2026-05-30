@@ -14,7 +14,7 @@ export function BotFilterToggle({ enabled, botPct, onChange }: BotFilterTogglePr
         onClick={() => onChange(!enabled)}
         style={{
           width: 36, height: 20, borderRadius: 99, border: 'none', cursor: 'pointer', position: 'relative',
-          background: enabled ? 'var(--accent, #F2683C)' : 'var(--surface-2, #1E1B16)',
+          background: enabled ? 'var(--accent, #FF8240)' : 'var(--surface-2, #272219)',
           transition: 'background .2s',
         }}
       >

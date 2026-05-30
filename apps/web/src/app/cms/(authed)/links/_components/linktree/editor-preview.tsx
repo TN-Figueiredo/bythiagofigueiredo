@@ -20,7 +20,7 @@ export function EditorPreview({ config, pageData }: Props) {
   }), [pageData, config])
 
   return (
-    <div style={{ width: 320, background: 'rgb(19, 17, 13)', borderRadius: 16, overflow: 'hidden' }}>
+    <div style={{ width: 320, background: 'var(--pb-bg, #0D0B08)', borderRadius: 16, overflow: 'hidden' }}>
       <div style={{ transform: 'scale(1)', transformOrigin: 'top center' }}>
         <LinktreeClient
           initialLocale="pt-BR"

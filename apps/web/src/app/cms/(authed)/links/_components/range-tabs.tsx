@@ -57,7 +57,7 @@ export function RangeTabs({ value, onChange, onExport, exporting }: RangeTabsPro
                 fontSize: '12.5px',
                 fontWeight: 600,
                 background: value === o.id ? 'var(--accent)' : 'transparent',
-                color: value === o.id ? 'rgb(26, 18, 12)' : 'var(--ink-dim)',
+                color: value === o.id ? 'var(--pb-ink-on-accent, #1A140C)' : 'var(--ink-dim)',
                 cursor: 'pointer',
                 transition: '0.15s',
               }}

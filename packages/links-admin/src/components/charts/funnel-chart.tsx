@@ -9,20 +9,20 @@ interface FunnelChartProps {
   overallRate?: number
 }
 
-const COLORS = ['var(--accent, #F2683C)', '#E0A23C', '#46B17E']
+const COLORS = ['var(--accent, #FF8240)', '#E0A23C', '#46B17E']
 
 export function FunnelChart({ steps, overallRate }: FunnelChartProps) {
   return (
     <div role="img" aria-label={`Funnel chart: ${steps.map(s => `${s.label} ${s.value}`).join(', ')}`} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {overallRate != null && (
         <div style={{ textAlign: 'right', fontSize: 11, color: 'var(--ink-faint, #6E685D)' }}>
-          Taxa geral: <span style={{ fontWeight: 700, color: 'var(--accent, #F2683C)' }}>{overallRate}%</span>
+          Taxa geral: <span style={{ fontWeight: 700, color: 'var(--accent, #FF8240)' }}>{overallRate}%</span>
         </div>
       )}
       {steps.map((s, i) => (
         <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span style={{ width: 110, fontSize: 12, color: 'var(--ink, #ECE6DA)' }}>{s.label}</span>
-          <div style={{ flex: 1, height: 24, borderRadius: 6, background: 'var(--surface-2, #1E1B16)', overflow: 'hidden', position: 'relative' }}>
+          <div style={{ flex: 1, height: 24, borderRadius: 6, background: 'var(--surface-2, #272219)', overflow: 'hidden', position: 'relative' }}>
             <div
               data-funnel-bar
               style={{

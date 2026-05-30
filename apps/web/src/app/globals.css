@@ -312,6 +312,8 @@
   --amber-soft:       rgba(224, 162, 60, 0.13);
   --green-soft:       rgba(70, 177, 126, 0.13);
   --surface-3:        var(--cms-surface-3, var(--surface-2));
+  --bg-side:          var(--cms-bg-side);
+  --cyan:             #3FA9C0;
   --green:            #46B17E;
   --red:              #D9614A;
   --font-mono:        'JetBrains Mono', ui-monospace, monospace;

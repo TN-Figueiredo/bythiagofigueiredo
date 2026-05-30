@@ -12,7 +12,7 @@ export interface StatTileProps {
 }
 
 export function StatTile({ label, value, sub, icon, iconTint, delta, spark }: StatTileProps) {
-  const tint = iconTint || 'var(--accent, #F2683C)'
+  const tint = iconTint || 'var(--accent, #FF8240)'
   return (
     <div
       data-stat-tile

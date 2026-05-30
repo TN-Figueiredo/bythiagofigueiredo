@@ -39,7 +39,7 @@ export function Donut({
             cy={size / 2}
             r={r}
             fill="none"
-            stroke="var(--surface-2, #1E1B16)"
+            stroke="var(--surface-2, #272219)"
             strokeWidth={thickness}
           />
           {segments.map((s, i) => {

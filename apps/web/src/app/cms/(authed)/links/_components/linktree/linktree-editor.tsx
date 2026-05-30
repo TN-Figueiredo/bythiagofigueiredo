@@ -143,7 +143,7 @@ export function LinktreeEditor({ initialConfig, domain, siteId: _siteId, readOnl
               display: 'inline-flex', alignItems: 'center', gap: 7,
               padding: '6px 11px', fontSize: '12.5px', fontWeight: 600,
               borderRadius: 9, border: '1px solid var(--accent)',
-              background: 'var(--accent)', color: 'rgb(26, 18, 12)',
+              background: 'var(--accent)', color: 'var(--pb-ink-on-accent, #1A140C)',
               letterSpacing: '-0.01em', whiteSpace: 'nowrap',
               cursor: 'pointer', opacity: (!hasChanges || readOnly || isPending) ? 0.5 : 1,
             }}

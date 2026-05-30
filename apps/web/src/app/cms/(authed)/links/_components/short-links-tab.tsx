@@ -58,9 +58,9 @@ export function ShortLinksTab({ links, onCreateLink }: ShortLinksTabProps) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 14 }}>
         {[
           { label: 'Total de links', value: fmt(links.length), Icon: Link2, color: 'var(--accent)', tint: 'var(--accent)', spark: null, sub: null },
-          { label: 'Cliques totais', value: fmt(totalClicks), Icon: Zap, color: 'rgb(70, 177, 126)', tint: 'rgba(70, 177, 126, 0.133)', spark: top ? top.spark : null, sub: null },
-          { label: 'Links ativos', value: fmt(active), Icon: Target, color: 'rgb(63, 169, 192)', tint: 'rgba(63, 169, 192, 0.133)', spark: null, sub: null },
-          ...(top ? [{ label: 'Top performer', value: fmt(top.clicks), Icon: Zap, color: 'rgb(224, 162, 60)', tint: 'rgba(224, 162, 60, 0.133)', spark: top.spark, sub: top.slug }] : []),
+          { label: 'Cliques totais', value: fmt(totalClicks), Icon: Zap, color: 'var(--green)', tint: 'var(--green-soft)', spark: top ? top.spark : null, sub: null },
+          { label: 'Links ativos', value: fmt(active), Icon: Target, color: 'var(--cyan, #3FA9C0)', tint: 'rgba(63, 169, 192, 0.13)', spark: null, sub: null },
+          ...(top ? [{ label: 'Top performer', value: fmt(top.clicks), Icon: Zap, color: 'var(--amber)', tint: 'var(--amber-soft)', spark: top.spark, sub: top.slug }] : []),
         ].map((s) => (
           <div
             key={s.label}
@@ -190,7 +190,7 @@ export function ShortLinksTab({ links, onCreateLink }: ShortLinksTabProps) {
               display: 'inline-flex', alignItems: 'center', gap: 7,
               padding: '6px 11px', fontSize: '12.5px', fontWeight: 600,
               borderRadius: 9, border: '1px solid var(--accent)',
-              background: 'var(--accent)', color: 'rgb(26, 18, 12)',
+              background: 'var(--accent)', color: 'var(--pb-ink-on-accent, #1A140C)',
               letterSpacing: '-0.01em', whiteSpace: 'nowrap', transition: '0.15s',
               cursor: 'pointer',
             }}

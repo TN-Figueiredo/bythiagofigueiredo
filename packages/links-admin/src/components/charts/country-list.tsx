@@ -50,7 +50,7 @@ export function CountryList({ countries }: CountryListProps) {
             data-country-bar
             style={{
               height: 6,
-              background: 'var(--surface-2, #1E1B16)',
+              background: 'var(--surface-2, #272219)',
               borderRadius: 99,
               overflow: 'hidden',
             }}
@@ -60,7 +60,7 @@ export function CountryList({ countries }: CountryListProps) {
               style={{
                 width: `${(c.v / max) * 100}%`,
                 height: '100%',
-                background: 'var(--accent, #F2683C)',
+                background: 'var(--accent, #FF8240)',
                 borderRadius: 99,
               }}
             />
