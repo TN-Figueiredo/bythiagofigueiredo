@@ -308,7 +308,12 @@
   --surface:          var(--theme-cms-surface);
   --surface-2:        var(--theme-cms-surface-hover);
   --accent-soft:      rgba(255, 130, 64, 0.08);
+  --amber:            #E0A23C;
+  --amber-soft:       rgba(224, 162, 60, 0.13);
+  --green:            #46B17E;
+  --red:              #D9614A;
   --font-mono:        'JetBrains Mono', ui-monospace, monospace;
+  --r:                14px;
 }
 
 [data-theme="light"] {

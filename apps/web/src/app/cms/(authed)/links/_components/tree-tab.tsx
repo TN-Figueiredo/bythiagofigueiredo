@@ -2,8 +2,9 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Info, Eye, Users, Target, Trophy } from 'lucide-react'
+import { Info, Eye, Users, Target, Trophy, ExternalLink, Type } from 'lucide-react'
 import type { LinktreeDisplay } from '@tn-figueiredo/links-admin'
+import { LinktreePreview } from './linktree/preview'
 import { fmt } from './fmt'
 
 interface TreeTabProps {
@@ -49,31 +50,118 @@ export function TreeTab({ tree }: TreeTabProps) {
       {/* Grid 2-col */}
       <div className="grid grid-cols-1 gap-[18px] min-[1080px]:grid-cols-[340px_1fr]">
         {/* Left: Preview card */}
-        <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-[#161410] p-5">
-          <span className="inline-flex items-center self-start gap-1.5 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium text-amber-400">
-            porta de entrada
-          </span>
-          <div className="font-mono text-xs text-muted-foreground">{tree.url || 'URL nao configurada'}</div>
-
-          {/* Compact preview placeholder */}
-          <div className="flex flex-col items-center gap-2 rounded-xl border border-white/10 bg-[#13110d] p-4 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full border border-[#E0651E] text-sm font-bold text-foreground" style={{ fontFamily: 'Fraunces, serif' }}>
-              TF
-            </div>
-            <div className="text-sm font-semibold text-foreground" style={{ fontFamily: 'Fraunces, serif' }}>Thiago Figueiredo</div>
-            <div className="font-mono text-[10px] text-muted-foreground">{tree.blocks.length} blocos ativos</div>
+        <div
+          className="flex flex-col items-center"
+          style={{
+            background: 'var(--surface)',
+            border: '1px solid var(--line)',
+            borderRadius: 'var(--r, 14px)',
+            padding: 20,
+            gap: 16,
+          }}
+        >
+          {/* Badge row */}
+          <div className="flex items-center self-stretch" style={{ gap: 8 }}>
+            <span
+              className="mono inline-flex items-center shrink-0"
+              style={{
+                gap: 5,
+                padding: '3px 9px',
+                borderRadius: 999,
+                fontSize: '10.5px',
+                fontWeight: 600,
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+                background: 'var(--amber-soft, rgba(224,162,60,0.13))',
+                color: 'var(--amber, #E0A23C)',
+              }}
+            >
+              <ExternalLink size={11} strokeWidth={1.7} />
+              porta de entrada
+            </span>
+            <span className="mono ml-auto" style={{ fontSize: 11, color: 'var(--ink-dim)' }}>
+              {tree.url ? tree.url.replace('https://', '') : 'URL não configurada'}
+            </span>
           </div>
 
-          <div className="flex gap-2">
-            <Link href="/cms/links/linktree" className="flex-1 rounded-lg bg-primary px-3 py-2 text-center text-xs font-semibold text-primary-foreground focus:outline-none focus:ring-2 focus:ring-primary/50">
+          {/* Linktree Preview */}
+          <LinktreePreview
+            width={280}
+            taglinePt="código, produto & vida indie"
+            taglineEn="code, product & indie life"
+            sharedLinks={tree.sharedLinks.map(s => ({
+              id: s.id,
+              icon: s.icon,
+              label_pt: s.labelPt,
+              label_en: s.labelEn,
+              url: s.url,
+            }))}
+          />
+
+          {/* Action buttons */}
+          <div className="flex self-stretch" style={{ gap: 10 }}>
+            <Link
+              href="/cms/links/linktree"
+              className="inline-flex flex-1 items-center justify-center focus:outline-none focus:ring-2 focus:ring-primary/50"
+              style={{
+                gap: 7,
+                padding: '9px 15px',
+                fontSize: '13.5px',
+                fontWeight: 600,
+                borderRadius: 9,
+                border: '1px solid var(--accent)',
+                background: 'var(--accent)',
+                color: 'rgb(26, 18, 12)',
+                letterSpacing: '-0.01em',
+                whiteSpace: 'nowrap',
+                transition: '0.15s',
+              }}
+            >
+              <Type size={16} strokeWidth={1.7} />
               Editar
             </Link>
             {tree.url ? (
-              <a href={tree.url} target="_blank" rel="noopener" className="flex-1 rounded-lg border border-white/10 px-3 py-2 text-center text-xs font-medium text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50">
+              <a
+                href={tree.url}
+                target="_blank"
+                rel="noopener"
+                className="inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-primary/50"
+                style={{
+                  gap: 7,
+                  padding: '9px 15px',
+                  fontSize: '13.5px',
+                  fontWeight: 600,
+                  borderRadius: 9,
+                  border: '1px solid var(--line-strong)',
+                  background: 'transparent',
+                  color: 'var(--ink-dim)',
+                  letterSpacing: '-0.01em',
+                  whiteSpace: 'nowrap',
+                  transition: '0.15s',
+                }}
+              >
+                <ExternalLink size={16} strokeWidth={1.7} />
                 Abrir
               </a>
             ) : (
-              <span className="flex-1 rounded-lg border border-white/10 px-3 py-2 text-center text-xs font-medium text-muted-foreground opacity-50 cursor-not-allowed">Abrir</span>
+              <span
+                className="inline-flex items-center justify-center opacity-40"
+                style={{
+                  gap: 7,
+                  padding: '9px 15px',
+                  fontSize: '13.5px',
+                  fontWeight: 600,
+                  borderRadius: 9,
+                  border: '1px solid var(--line-strong)',
+                  background: 'transparent',
+                  color: 'var(--ink-dim)',
+                  letterSpacing: '-0.01em',
+                  cursor: 'not-allowed',
+                }}
+              >
+                <ExternalLink size={16} strokeWidth={1.7} />
+                Abrir
+              </span>
             )}
           </div>
         </div>
