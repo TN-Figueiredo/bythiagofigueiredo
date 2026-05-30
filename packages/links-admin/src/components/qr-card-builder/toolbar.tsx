@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
-import { Undo2, Redo2, ZoomIn, ZoomOut, Maximize, Grid3X3, Magnet, Save, Download, Move, Scissors } from 'lucide-react'
+import { Undo2, Redo2, ZoomIn, ZoomOut, Maximize, Grid3X3, Magnet, Save, Download, Move, Scissors, ChevronLeft, ChevronRight, Check } from 'lucide-react'
 
 interface ToolbarProps {
   linkCode: string
@@ -54,23 +54,52 @@ function PositionPopover({ onPosition, onClose }: { onPosition: (p: PositionAnch
   const anchors: PositionAnchor[] = ['tl', 'tc', 'tr', 'cl', 'cc', 'cr', 'bl', 'bc', 'br']
 
   return (
-    <div ref={ref} className="absolute top-full mt-1 left-0 bg-neutral-800 border border-neutral-700 rounded-lg shadow-xl p-2 z-50">
-      <p className="text-[9px] text-neutral-500 uppercase tracking-wider mb-1.5 px-0.5">Position on Canvas</p>
-      <div className="grid grid-cols-3 gap-1 w-[84px]">
+    <div ref={ref} style={{
+      position: 'absolute', top: '100%', marginTop: 4, left: 0, zIndex: 50,
+      background: 'var(--surface)', border: '1px solid var(--line-strong)',
+      borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.3)', padding: 8,
+    }}>
+      <p style={{ fontSize: '9px', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--ink-faint)', margin: '0 0 6px 2px' }}>Position on Canvas</p>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 3, width: 84 }}>
         {anchors.map(a => (
           <button
             key={a}
             type="button"
             onClick={() => { onPosition(a); onClose() }}
-            className="w-6 h-6 rounded border border-neutral-600 hover:border-blue-500 hover:bg-blue-600/20 flex items-center justify-center transition-colors"
             title={POSITION_LABELS[a]}
+            style={{
+              width: 24, height: 24, borderRadius: 4,
+              border: 'none', background: 'var(--surface-2)',
+              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
           >
-            <div className={`w-1.5 h-1.5 rounded-full bg-neutral-400 ${a === 'cc' ? 'bg-blue-400' : ''}`} />
+            <span style={{ width: 4, height: 4, borderRadius: 2, background: 'var(--ink-dim)' }} />
           </button>
         ))}
       </div>
     </div>
   )
+}
+
+const iconBtn: React.CSSProperties = {
+  background: 'transparent', border: 'none',
+  color: 'var(--ink-dim)', width: 30, height: 30,
+  borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center',
+  cursor: 'pointer', padding: 0, flexShrink: 0,
+}
+
+const ghostBtn: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', gap: 7, justifyContent: 'center',
+  padding: '6px 11px', fontSize: '12.5px', fontWeight: 600,
+  borderRadius: 9, border: '1px solid var(--line-strong)',
+  whiteSpace: 'nowrap', letterSpacing: '-0.01em',
+  background: 'transparent', color: 'var(--ink-dim)', cursor: 'pointer',
+}
+
+const accentBtn: React.CSSProperties = {
+  ...ghostBtn,
+  border: '1px solid var(--accent)',
+  background: 'var(--accent)', color: 'var(--pb-ink-on-accent, #1A140C)',
 }
 
 export function Toolbar({
@@ -83,76 +112,122 @@ export function Toolbar({
 }: ToolbarProps) {
   const [showPosition, setShowPosition] = useState(false)
 
+  const activeStyle = (active: boolean): React.CSSProperties => ({
+    ...iconBtn,
+    color: active ? 'var(--accent)' : 'var(--ink-faint)',
+    background: active ? 'var(--accent-soft, rgba(255,130,64,0.1))' : 'transparent',
+  })
+
   return (
-    <div className="h-10 bg-neutral-900 border-b border-neutral-800 flex items-center px-3 gap-1">
-      <div className="flex items-center gap-1 text-[11px] text-neutral-400 mr-4">
-        <span className="hover:text-neutral-200 cursor-pointer">Links</span>
-        <span>/</span>
-        <span className="text-neutral-200 font-medium">{linkCode}</span>
-        <span>/</span>
-        <span className="text-blue-400">QR Card</span>
+    <div style={{
+      height: 52, flexShrink: 0,
+      borderBottom: '1px solid var(--line)',
+      background: 'var(--bg-side)',
+      display: 'flex', alignItems: 'center',
+      padding: '0 16px', gap: 14,
+    }}>
+      {/* Back button */}
+      <button
+        type="button"
+        onClick={() => window.history.back()}
+        style={{
+          background: 'transparent', border: 'none',
+          color: 'var(--ink-dim)', display: 'flex', alignItems: 'center', gap: 6,
+          fontSize: 13, cursor: 'pointer', padding: 0,
+        }}
+      >
+        <ChevronLeft size={18} strokeWidth={1.7} />
+        Voltar
+      </button>
+
+      {/* Separator */}
+      <div style={{ width: 1, height: 22, background: 'var(--line)' }} />
+
+      {/* Breadcrumb */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'nowrap', minWidth: 0 }}>
+        <span style={{ fontSize: '12.5px', fontWeight: 500, color: 'var(--ink-dim)', whiteSpace: 'nowrap', flexShrink: 0 }}>
+          Links
+        </span>
+        <ChevronRight size={13} strokeWidth={1.7} style={{ color: 'var(--ink-faint)', opacity: 0.7, flexShrink: 0 }} />
+        <span style={{ fontSize: '12.5px', fontWeight: 500, color: 'var(--ink-dim)', whiteSpace: 'nowrap', flexShrink: 0 }}>
+          /{linkCode}
+        </span>
+        <ChevronRight size={13} strokeWidth={1.7} style={{ color: 'var(--ink-faint)', opacity: 0.7, flexShrink: 0 }} />
+        <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--ink)', whiteSpace: 'nowrap', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', flexShrink: 1 }}>
+          QR Card
+        </span>
       </div>
 
-      <div className="w-px h-5 bg-neutral-700 mx-1" />
-
-      <button type="button" onClick={onUndo} disabled={!canUndo} className="p-1.5 rounded text-neutral-400 hover:text-white disabled:opacity-30" title="Undo (⌘Z)" aria-label="Undo">
-        <Undo2 size={15} />
-      </button>
-      <button type="button" onClick={onRedo} disabled={!canRedo} className="p-1.5 rounded text-neutral-400 hover:text-white disabled:opacity-30" title="Redo (⌘⇧Z)" aria-label="Redo">
-        <Redo2 size={15} />
-      </button>
-
-      <div className="w-px h-5 bg-neutral-700 mx-1" />
-
-      <button type="button" onClick={onZoomOut} className="p-1.5 rounded text-neutral-400 hover:text-white" title="Zoom out" aria-label="Zoom out">
-        <ZoomOut size={15} />
-      </button>
-      <span className="text-[11px] text-neutral-300 w-10 text-center">{Math.round(zoom * 100)}%</span>
-      <button type="button" onClick={onZoomIn} className="p-1.5 rounded text-neutral-400 hover:text-white" title="Zoom in" aria-label="Zoom in">
-        <ZoomIn size={15} />
-      </button>
-      <button type="button" onClick={onFitToView} className="p-1.5 rounded text-neutral-400 hover:text-white" title="Fit to view (⌘0)" aria-label="Fit to view">
-        <Maximize size={14} />
-      </button>
-
-      <div className="w-px h-5 bg-neutral-700 mx-1" />
-
-      <button type="button" onClick={onToggleGuides} className={`p-1.5 rounded ${guidesVisible ? 'text-blue-400 bg-blue-600/10' : 'text-neutral-500'} hover:text-white`} title="Snap guides (⌘G)" aria-label="Toggle snap guides">
-        <Magnet size={14} />
-      </button>
-      <button type="button" onClick={onToggleGrid} className={`p-1.5 rounded ${gridVisible ? 'text-blue-400 bg-blue-600/10' : 'text-neutral-500'} hover:text-white`} title="Snap to grid" aria-label="Toggle grid">
-        <Grid3X3 size={14} />
-      </button>
-      <button type="button" onClick={onToggleClipOverflow} className={`p-1.5 rounded ${clipOverflow ? 'text-blue-400 bg-blue-600/10' : 'text-neutral-500'} hover:text-white`} title="Clip overflow (⌘⇧K)" aria-label="Toggle clip overflow">
-        <Scissors size={14} />
-      </button>
-
-      <div className="relative">
-        <button
-          type="button"
-          onClick={() => setShowPosition(!showPosition)}
-          disabled={!hasSelection}
-          className={`p-1.5 rounded ${showPosition ? 'text-blue-400 bg-blue-600/10' : 'text-neutral-500'} hover:text-white disabled:opacity-30`}
-          title="Position element"
-          aria-label="Position element on canvas"
-        >
-          <Move size={14} />
+      {/* Zoom controls */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 18 }}>
+        <button type="button" onClick={onZoomOut} style={iconBtn} title="Zoom out" aria-label="Zoom out">
+          <ZoomOut size={16} strokeWidth={1.7} />
         </button>
-        {showPosition && hasSelection && (
-          <PositionPopover onPosition={onPositionElement} onClose={() => setShowPosition(false)} />
-        )}
+        <span className="mono" style={{ fontSize: 12, width: 42, textAlign: 'center', color: 'var(--ink-dim)' }}>
+          {Math.round(zoom * 100)}%
+        </span>
+        <button type="button" onClick={onZoomIn} style={iconBtn} title="Zoom in" aria-label="Zoom in">
+          <ZoomIn size={16} strokeWidth={1.7} />
+        </button>
+        <button type="button" onClick={onFitToView} style={iconBtn} title="Fit to view (⌘0)" aria-label="Fit to view">
+          <Maximize size={14} strokeWidth={1.7} />
+        </button>
       </div>
 
-      <div className="flex-1" />
+      {/* Tool toggles */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        <button type="button" onClick={onUndo} disabled={!canUndo} style={{ ...iconBtn, opacity: canUndo ? 1 : 0.3 }} title="Undo (⌘Z)" aria-label="Undo">
+          <Undo2 size={15} strokeWidth={1.7} />
+        </button>
+        <button type="button" onClick={onRedo} disabled={!canRedo} style={{ ...iconBtn, opacity: canRedo ? 1 : 0.3 }} title="Redo (⌘⇧Z)" aria-label="Redo">
+          <Redo2 size={15} strokeWidth={1.7} />
+        </button>
 
-      {isSaving && <span className="text-[10px] text-neutral-500 mr-2">Saving...</span>}
+        <div style={{ width: 1, height: 22, background: 'var(--line)', margin: '0 4px' }} />
 
-      <button type="button" onClick={onOpenTemplates} className="px-2.5 py-1 rounded border border-neutral-700 text-[11px] text-neutral-300 hover:border-neutral-500 mr-1" aria-label="Templates">
-        <Save size={13} className="inline mr-1" />Templates
-      </button>
-      <button type="button" onClick={onOpenExport} className="px-2.5 py-1 rounded bg-blue-600 text-[11px] text-white hover:bg-blue-500" aria-label="Export">
-        <Download size={13} className="inline mr-1" />Export
-      </button>
+        <button type="button" onClick={onToggleGuides} style={activeStyle(guidesVisible)} title="Snap guides (⌘G)" aria-label="Toggle snap guides">
+          <Magnet size={14} strokeWidth={1.7} />
+        </button>
+        <button type="button" onClick={onToggleGrid} style={activeStyle(gridVisible)} title="Snap to grid" aria-label="Toggle grid">
+          <Grid3X3 size={14} strokeWidth={1.7} />
+        </button>
+        <button type="button" onClick={onToggleClipOverflow} style={activeStyle(clipOverflow)} title="Clip overflow (⌘⇧K)" aria-label="Toggle clip overflow">
+          <Scissors size={14} strokeWidth={1.7} />
+        </button>
+
+        <div style={{ position: 'relative' }}>
+          <button
+            type="button"
+            onClick={() => setShowPosition(!showPosition)}
+            disabled={!hasSelection}
+            style={{ ...activeStyle(showPosition), opacity: hasSelection ? 1 : 0.3 }}
+            title="Position element"
+            aria-label="Position element on canvas"
+          >
+            <Move size={14} strokeWidth={1.7} />
+          </button>
+          {showPosition && hasSelection && (
+            <PositionPopover onPosition={onPositionElement} onClose={() => setShowPosition(false)} />
+          )}
+        </div>
+      </div>
+
+      {/* Spacer */}
+      <div style={{ flex: 1 }} />
+
+      {/* Status + Actions */}
+      {isSaving && <span style={{ fontSize: '10.5px', color: 'var(--ink-faint)', marginRight: 4 }}>Saving...</span>}
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <button type="button" onClick={onOpenTemplates} style={ghostBtn} aria-label="Templates">
+          <Save size={14} strokeWidth={1.7} />
+          Templates
+        </button>
+        <button type="button" onClick={onOpenExport} style={{ ...ghostBtn, background: 'var(--surface-2)', color: 'var(--ink)', borderColor: 'var(--line)' }} aria-label="Exportar">
+          <Download size={14} strokeWidth={1.7} />
+          Exportar
+        </button>
+      </div>
     </div>
   )
 }
