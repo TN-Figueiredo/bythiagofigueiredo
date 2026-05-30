@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import type { DestId } from '@/lib/social/destinations'
 import { DESTINATIONS } from '@/lib/social/destinations'
@@ -31,8 +31,15 @@ interface DestCompositorProps {
   cmsContent?: { title: string; coverImageUrl: string | null }
 }
 
+const canvasA11y = (handler: () => void) => ({
+  role: 'button' as const,
+  tabIndex: 0,
+  onKeyDown: (e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handler() } },
+  'aria-label': 'Abrir editor de canvas',
+})
+
 function TemplatePreview({ title, coverImageUrl, isStory }: { title: string; coverImageUrl: string | null; isStory: boolean }) {
-  const scale = isStory ? 0.067 : 0.135
+  const scale = isStory ? 0.12 : 0.17
   return (
     <div className="flex h-full w-full flex-col items-center justify-between overflow-hidden" style={{ background: 'linear-gradient(155deg, rgb(247,241,232), rgb(237,227,210))', padding: `${Math.round(96 * scale)}px ${Math.round(54 * scale)}px` }}>
       <div className="flex flex-col items-center gap-[2px] w-full">
@@ -40,9 +47,9 @@ function TemplatePreview({ title, coverImageUrl, isStory }: { title: string; cov
         <span className="text-center font-fraunces leading-none" style={{ fontSize: Math.max(6, Math.round(52 * scale)), fontWeight: 700, color: '#1f1b17', lineHeight: 1.02, maxWidth: '90%', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: isStory ? 3 : 2, WebkitBoxOrient: 'vertical' as const }}>{title}</span>
       </div>
       {coverImageUrl ? (
-        <img src={coverImageUrl} alt="" className="rounded-[2px] object-cover" style={{ width: '70%', height: isStory ? '26%' : '30%' }} />
+        <img src={coverImageUrl} alt="" className="rounded-[2px] object-cover" style={{ width: '70%', height: isStory ? '26%' : '38%' }} />
       ) : (
-        <div className="rounded-[2px]" style={{ width: '70%', height: isStory ? '26%' : '30%', background: 'rgba(31,27,23,0.08)' }} />
+        <div className="rounded-[2px]" style={{ width: '70%', height: isStory ? '26%' : '38%', background: 'rgba(31,27,23,0.08)' }} />
       )}
       <div className="flex flex-col items-center gap-[2px]">
         <span className="rounded-full bg-white text-center" style={{ fontSize: Math.max(4, Math.round(16 * scale)), fontWeight: 700, color: '#111', padding: `${Math.round(14 * scale)}px ${Math.round(20 * scale)}px`, boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>LER O POST</span>
@@ -80,6 +87,13 @@ export function DestCompositor({
       if (defaultTpl) onCompositionChange(defaultTpl.composition)
     }
   }, [templates, composition, onCompositionChange])
+
+  useEffect(() => {
+    if (!canvasOpen) return
+    function handleKey(e: KeyboardEvent) { if (e.key === 'Escape') onCloseCanvas() }
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
+  }, [canvasOpen, onCloseCanvas])
 
   if (!isActive) return null
 
@@ -200,6 +214,7 @@ export function DestCompositor({
             </div>
             <div
               onClick={onOpenCanvas}
+              {...canvasA11y(onOpenCanvas)}
               className="flex cursor-pointer justify-center rounded-[10px] py-2"
               style={{
                 background:
@@ -365,6 +380,7 @@ export function DestCompositor({
           {isStory ? (
             <div
               onClick={onOpenCanvas}
+              {...canvasA11y(onOpenCanvas)}
               className="mx-auto cursor-pointer"
               style={{
                 width: 309,

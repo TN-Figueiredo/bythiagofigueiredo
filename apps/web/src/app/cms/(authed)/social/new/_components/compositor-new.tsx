@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { CardComposition } from '@tn-figueiredo/links/qr'
 import type { DestId } from '@/lib/social/destinations'
 import { DEST_IDS, DESTINATIONS } from '@/lib/social/destinations'
@@ -127,10 +127,28 @@ export function CompositorNew({ sourceMode = 'freeform', siteId }: CompositorNew
 
   const [captions, setCaptions] = useState<Record<string, string>>({})
 
-  function handleCaptionChange(destId: string, value: string) {
-    setCaptions(prev => ({ ...prev, [destId]: value }))
-    setContentByDest(prev => ({ ...prev, [destId]: value.trim().length > 0 }))
-  }
+  const handleCaptionChange = useCallback((value: string) => {
+    setFocused(f => {
+      setCaptions(prev => ({ ...prev, [f]: value }))
+      setContentByDest(prev => ({ ...prev, [f]: value.trim().length > 0 }))
+      return f
+    })
+  }, [])
+  const openCanvas = useCallback(() => setCanvasOpen(true), [])
+  const closeCanvas = useCallback(() => setCanvasOpen(false), [])
+  const handleCompositionChange = useCallback((comp: CardComposition) => {
+    setFocused(f => { setCompositions(prev => ({ ...prev, [f]: comp })); return f })
+  }, [])
+  const handleCanvasImageChange = useCallback((url: string | null) => {
+    setFocused(f => {
+      setCanvasImages(prev => {
+        const old = prev[f]
+        if (old) URL.revokeObjectURL(old)
+        return { ...prev, [f]: url }
+      })
+      return f
+    })
+  }, [])
 
   function handleCmsSelect(item: ContentItem) {
     setSelectedCmsContent(item)
@@ -143,18 +161,17 @@ export function CompositorNew({ sourceMode = 'freeform', siteId }: CompositorNew
     setContentByDest(Object.fromEntries(DEST_IDS.filter(id => destsOn[id]).map(id => [id, true])))
   }
 
-  function handleToggle(id: DestId) {
-    const wasOn = destsOn[id]
-    const next = { ...destsOn, [id]: !wasOn }
-    setDestsOn(next)
-
-    if (!wasOn) {
-      setFocused(id)
-    } else if (focused === id) {
-      const nextActive = DEST_IDS.find((d) => d !== id && next[d])
-      if (nextActive) setFocused(nextActive)
-    }
-  }
+  const handleToggle = useCallback((id: DestId) => {
+    setDestsOn(prev => {
+      const next = { ...prev, [id]: !prev[id] }
+      if (!prev[id]) {
+        setFocused(id)
+      } else {
+        setFocused(f => f === id ? (DEST_IDS.find((d) => d !== id && next[d]) ?? f) : f)
+      }
+      return next
+    })
+  }, [])
 
   return (
     <>
@@ -196,19 +213,15 @@ export function CompositorNew({ sourceMode = 'freeform', siteId }: CompositorNew
             focusedDest={focused}
             destsOn={destsOn}
             caption={captions[focused] ?? ''}
-            onCaptionChange={(value) => handleCaptionChange(focused, value)}
+            onCaptionChange={handleCaptionChange}
             siteId={siteId}
             canvasOpen={canvasOpen}
-            onOpenCanvas={() => setCanvasOpen(true)}
-            onCloseCanvas={() => setCanvasOpen(false)}
+            onOpenCanvas={openCanvas}
+            onCloseCanvas={closeCanvas}
             composition={compositions[focused] ?? null}
-            onCompositionChange={(comp) => setCompositions(prev => ({ ...prev, [focused]: comp }))}
+            onCompositionChange={handleCompositionChange}
             canvasImageUrl={canvasImages[focused] ?? null}
-            onCanvasImageChange={(url) => setCanvasImages(prev => {
-              const old = prev[focused]
-              if (old) URL.revokeObjectURL(old)
-              return { ...prev, [focused]: url }
-            })}
+            onCanvasImageChange={handleCanvasImageChange}
             cmsContent={selectedCmsContent ? {
               title: selectedCmsContent.title,
               coverImageUrl: selectedCmsContent.thumbnail,
