@@ -116,7 +116,11 @@ export function AccountsStripClient({ connections }: AccountsStripClientProps) {
               )}
               {(conn.status === 'warn' || conn.status === 'error') && (
                 <Link
-                  href="/cms/social/accounts"
+                  href={
+                    conn.provider === 'youtube' ? '/cms/youtube'
+                    : conn.provider === 'instagram' ? '/cms/settings'
+                    : '/cms/social/accounts'
+                  }
                   className="inline-flex items-center gap-[7px] rounded-[9px] border border-cms-border px-[11px] py-1.5 text-[12.5px] font-semibold text-cms-text-dim tracking-[-0.01em] transition-colors hover:text-cms-text"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
