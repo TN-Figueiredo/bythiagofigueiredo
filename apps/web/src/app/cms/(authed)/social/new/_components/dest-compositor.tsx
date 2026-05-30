@@ -48,6 +48,7 @@ export function DestCompositor({ focusedDest, destsOn, onContentChange }: DestCo
 
   const isStory = focusedDest === 'ig_story'
   const isYtCommunity = focusedDest === 'yt_community'
+  const isFacebook = focusedDest === 'fb_page'
 
   return (
     <div className="mt-[10px] grid grid-cols-1 gap-[30px] lg:grid-cols-[1fr_380px]">
@@ -168,8 +169,8 @@ export function DestCompositor({ focusedDest, destsOn, onContentChange }: DestCo
               <div
                 className="overflow-hidden rounded-[6px]"
                 style={{
-                  width: isStory ? 129 : 200,
-                  height: isStory ? 230 : 160,
+                  width: isStory ? 129 : isFacebook ? 184 : 200,
+                  height: isStory ? 230 : isFacebook ? 230 : 160,
                   background:
                     'linear-gradient(155deg, rgb(247,241,232), rgb(237,227,210))',
                   boxShadow: 'rgba(0,0,0,0.7) 0 30px 70px -24px',
@@ -253,7 +254,7 @@ export function DestCompositor({ focusedDest, destsOn, onContentChange }: DestCo
           {isStory ? (
             <input type="text" value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="ex: Saiu no blog 📬" className="w-full rounded-[10px] border bg-cms-surface px-[13px] py-[11px] text-[13.5px] text-cms-text placeholder:text-cms-text-dim/40 focus:border-cms-accent focus:outline-none" style={{ borderColor: 'var(--line-strong, var(--color-cms-border))' }} />
           ) : (
-            <textarea value={caption} onChange={(e) => setCaption(e.target.value)} placeholder={isYtCommunity ? 'Escreva seu post…' : 'O que você quer compartilhar?'} className="w-full rounded-[10px] border bg-cms-surface px-[13px] py-[11px] text-[13.5px] leading-[1.5] text-cms-text placeholder:text-cms-text-dim/40 focus:border-cms-accent focus:outline-none" style={{ borderColor: 'var(--line-strong, var(--color-cms-border))', minHeight: isYtCommunity ? 130 : 100, resize: 'vertical' }} />
+            <textarea value={caption} onChange={(e) => setCaption(e.target.value)} placeholder={isYtCommunity ? 'Escreva seu post…' : 'O que você quer compartilhar?'} className="w-full rounded-[10px] border bg-cms-surface px-[13px] py-[11px] text-[13.5px] leading-[1.5] text-cms-text placeholder:text-cms-text-dim/40 focus:border-cms-accent focus:outline-none" style={{ borderColor: 'var(--line-strong, var(--color-cms-border))', minHeight: isYtCommunity || isFacebook ? 130 : 100, resize: 'vertical' }} />
           )}
         </div>
 
@@ -275,6 +276,14 @@ export function DestCompositor({ focusedDest, destsOn, onContentChange }: DestCo
               Vídeos do canal são gerenciados em Vídeo › não nos Posts.
             </div>
           </>
+        )}
+
+        {/* Facebook-specific info note */}
+        {isFacebook && (
+          <div className="flex items-center gap-1.5 text-[11px] text-cms-text-dim/60">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><circle cx="12" cy="12" r="9" /><path d="M12 11v5" /><path d="M12 8h.01" /></svg>
+            Link gera card de preview automático na timeline.
+          </div>
         )}
       </div>
 
@@ -421,6 +430,48 @@ export function DestCompositor({ focusedDest, destsOn, onContentChange }: DestCo
                 </span>
                 <span className="ml-auto inline-flex items-center gap-1.5">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12v7a1 1 0 001 1h14a1 1 0 001-1v-7" /><path d="M16 6l-4-4-4 4" /><path d="M12 2v13" /></svg>
+                </span>
+              </div>
+            </div>
+          ) : isFacebook ? (
+            /* Facebook Fanpage preview */
+            <div className="w-full max-w-[460px] overflow-hidden rounded-[10px] border border-white/[0.08]" style={{ background: 'rgb(36,37,38)', color: 'rgb(228,230,235)', fontFamily: 'Inter, Helvetica, sans-serif' }}>
+              <div className="flex items-center gap-[10px] px-[14px] pt-3 pb-2">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full font-fraunces text-[16px] font-bold" style={{ background: 'var(--color-cms-accent, #E8823C)', color: '#1a120c' }}>TF</div>
+                <div>
+                  <div className="text-sm font-semibold">Thiago Figueiredo</div>
+                  <div className="flex items-center gap-[5px] text-xs" style={{ color: 'rgb(176,179,184)' }}>
+                    agora &middot;
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="9" /><path d="M3 12h18" /><path d="M12 3c3 3 3 15 0 18" /><path d="M12 3c-3 3-3 15 0 18" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+              <div className="whitespace-pre-wrap px-[14px] pb-[10px] text-sm leading-[1.5]" style={{ color: caption ? 'rgb(228,230,235)' : '#777' }}>
+                {caption || 'No que você está pensando?'}
+              </div>
+              {/* Image placeholder (4:5 aspect) */}
+              <div style={{ width: '100%', aspectRatio: '4/5', background: 'rgb(24,25,26)' }}>
+                <div className="flex h-full w-full items-center justify-center">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" style={{ color: 'rgba(255,255,255,0.12)' }}>
+                    <path d="M3 5h18v14H3z" /><path d="M3 16l5-5 4 4 4-4 5 5" /><path d="M9 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0" />
+                  </svg>
+                </div>
+              </div>
+              {/* Action bar */}
+              <div className="flex items-center justify-between border-t border-white/[0.08] px-[14px] py-2 text-[13px]" style={{ color: 'rgb(176,179,184)', marginTop: 4 }}>
+                <span className="inline-flex items-center gap-1.5">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20s-7-4.6-9.5-9C1 8 2.8 4.5 6 4.5c2 0 3.2 1.3 4 2.4.8-1.1 2-2.4 4-2.4 3.2 0 5 3.5 3.5 6.5C19 15.4 12 20 12 20z" /></svg>
+                  Curtir
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 5h16v11H9l-4 4z" /></svg>
+                  Comentar
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12v7a1 1 0 001 1h14a1 1 0 001-1v-7" /><path d="M16 6l-4-4-4 4" /><path d="M12 2v13" /></svg>
+                  Compartilhar
                 </span>
               </div>
             </div>
