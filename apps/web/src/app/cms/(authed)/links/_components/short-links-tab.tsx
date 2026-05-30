@@ -211,38 +211,95 @@ export function ShortLinksTab({ links, onCreateLink }: ShortLinksTabProps) {
 
       {/* Table */}
       {filtered.length === 0 ? (
-        <p className="py-8 text-center text-sm text-muted-foreground">Nenhum link encontrado.</p>
+        <p style={{ padding: '32px 0', textAlign: 'center', fontSize: 13, color: 'var(--ink-dim)' }}>Nenhum link encontrado.</p>
       ) : (
-        <div className="flex flex-col">
-          <div role="row" aria-label="Cabecalho da tabela de links" className="grid items-center gap-2 border-b border-white/[0.06] px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"
-            style={{ gridTemplateColumns: '1.6fr 1.4fr 90px 90px 110px 70px' }}>
-            <span>Link</span>
-            <span>Destino</span>
-            <span>Tendencia</span>
-            <span>Cliques</span>
-            <span>Status</span>
-            <span />
+        <div style={{
+          background: 'var(--surface)',
+          border: '1px solid var(--line)',
+          borderRadius: 'var(--r)',
+          overflow: 'hidden',
+        }}>
+          {/* Header */}
+          <div
+            role="row"
+            aria-label="Cabecalho da tabela de links"
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1.6fr 1.4fr 90px 90px 110px 70px',
+              gap: 12,
+              padding: '12px 18px',
+              borderBottom: '1px solid var(--line)',
+              background: 'var(--surface-2)',
+            }}
+          >
+            {['Link', 'Destino', 'Tendência', 'Cliques', 'Status', ''].map((h) => (
+              <span key={h} className="eyebrow" style={{ fontSize: '10.5px', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--ink-faint)' }}>
+                {h}
+              </span>
+            ))}
           </div>
-          {paginated.map((l) => (
-            <Link key={l.id} href={`/cms/links/${l.id}`}
-              className="grid items-center gap-2 px-3 py-2.5 hover:bg-muted/50 transition-colors cursor-pointer"
-              style={{ gridTemplateColumns: '1.6fr 1.4fr 90px 90px 110px 70px' }}>
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: SOURCE_COLORS[l.source] }} />
-                  <span className="text-sm font-medium text-foreground truncate">{l.title}</span>
+          {/* Rows */}
+          {paginated.map((l, i) => (
+            <Link
+              key={l.id}
+              href={`/cms/links/${l.id}`}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1.6fr 1.4fr 90px 90px 110px 70px',
+                gap: 12,
+                padding: '13px 18px',
+                borderBottom: i < paginated.length - 1 ? '1px solid var(--line)' : 'none',
+                alignItems: 'center',
+                cursor: 'pointer',
+                background: 'transparent',
+                textDecoration: 'none',
+                color: 'inherit',
+              }}
+            >
+              {/* Link column */}
+              <div style={{ minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: '13.5px', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--ink)' }}>
+                    {l.title}
+                  </span>
+                  <span
+                    title={l.badge}
+                    style={{ width: 7, height: 7, borderRadius: 3, background: SOURCE_COLORS[l.source], flexShrink: 0 }}
+                  />
                 </div>
-                <div className="font-mono text-[10px] text-muted-foreground truncate">{l.slug}</div>
+                <span className="mono" style={{ fontSize: 11, color: 'var(--ink-faint)' }}>{l.slug}</span>
               </div>
-              <div className="font-mono text-[10px] text-muted-foreground truncate">{l.dest}</div>
-              <Spark data={l.spark} color={SOURCE_COLORS[l.source]} w={70} h={22} />
-              <span className="font-mono text-sm font-bold text-foreground">{fmt(l.clicks)}</span>
-              <StatusDot status={l.status} />
-              <div className="flex items-center gap-1 justify-end">
-                <button type="button" aria-label={`QR code para ${l.slug}`} onClick={(e) => e.preventDefault()} className="p-1 text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 rounded">
-                  <QrCode className="h-3.5 w-3.5" />
+              {/* Destination */}
+              <span className="mono" style={{ fontSize: '11.5px', color: 'var(--ink-dim)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {l.dest.replace('https://', '')}
+              </span>
+              {/* Trend */}
+              <Spark data={l.spark} color={SOURCE_COLORS[l.source]} w={70} h={24} />
+              {/* Clicks */}
+              <span className="mono" style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)' }}>{fmt(l.clicks)}</span>
+              {/* Status */}
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12,
+                color: l.status === 'active' ? 'var(--green)' : l.status === 'paused' ? 'var(--amber)' : 'var(--red)',
+              }}>
+                <span style={{
+                  width: 7, height: 7, borderRadius: 99,
+                  background: l.status === 'active' ? 'var(--green)' : l.status === 'paused' ? 'var(--amber)' : 'var(--red)',
+                }} />
+                {l.status === 'active' ? 'Ativo' : l.status === 'paused' ? 'Pausado' : 'Expirado'}
+              </span>
+              {/* Actions */}
+              <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  title="QR"
+                  aria-label={`QR code para ${l.slug}`}
+                  onClick={(e) => e.preventDefault()}
+                  style={{ background: 'transparent', border: 'none', color: 'var(--ink-faint)', padding: 5, borderRadius: 6, cursor: 'pointer' }}
+                >
+                  <QrCode size={16} strokeWidth={1.7} />
                 </button>
-                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                <ChevronRight size={16} strokeWidth={1.7} style={{ color: 'var(--ink-faint)', alignSelf: 'center' }} />
               </div>
             </Link>
           ))}
