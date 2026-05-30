@@ -1,8 +1,10 @@
 'use client'
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import {
   FileVideo2, Copy, Lock, Trash2, RotateCcw, Circle, Move, Info, Upload,
+  Sparkles, Flame, Eye, Clapperboard, MapPin, Flag, MessageCircle, ArrowUp,
 } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import type { ImageElement } from '@tn-figueiredo/links/qr'
 import { PositionInput } from './inspector-field'
 
@@ -19,30 +21,24 @@ const actionBtnStyle: React.CSSProperties = {
   color: 'var(--ink-dim)', fontSize: 11, cursor: 'pointer',
 }
 
-/* ── Emoji quick-pick grid ── */
+/* ── Category icon grid (future GIPHY search categories) ── */
 
-const EMOJI_PICKS = [
-  '✨', '🔥', '👀', '🎬',
-  '📍', '🇹🇭', '💬', '⬆️',
+interface StickerCategory {
+  id: string
+  icon: LucideIcon
+  label: string
+}
+
+const STICKER_PICKS: StickerCategory[] = [
+  { id: 'sparkles', icon: Sparkles, label: 'Brilho' },
+  { id: 'flame', icon: Flame, label: 'Fogo' },
+  { id: 'eye', icon: Eye, label: 'Olhar' },
+  { id: 'clapperboard', icon: Clapperboard, label: 'Acao' },
+  { id: 'map-pin', icon: MapPin, label: 'Local' },
+  { id: 'flag', icon: Flag, label: 'Bandeira' },
+  { id: 'message-circle', icon: MessageCircle, label: 'Chat' },
+  { id: 'arrow-up', icon: ArrowUp, label: 'Seta' },
 ]
-
-/** Render an emoji to a high-res PNG data URL via offscreen canvas. */
-function emojiToDataUrl(emoji: string, size = 256): string {
-  const canvas = document.createElement('canvas')
-  canvas.width = size
-  canvas.height = size
-  const ctx = canvas.getContext('2d')!
-  ctx.font = `${size * 0.8}px serif`
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  ctx.fillText(emoji, size / 2, size / 2)
-  return canvas.toDataURL('image/png')
-}
-
-/** Check if an element name matches a given emoji quick-pick. */
-function isEmojiActive(elementName: string | undefined, emoji: string): boolean {
-  return elementName === `GIF ${emoji}`
-}
 
 /* ── Props ── */
 
@@ -64,6 +60,7 @@ export function GifInspector({
   onDelete,
 }: GifInspectorProps) {
   const fileRef = useRef<HTMLInputElement>(null)
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   /* Derive scale percentage from element width vs a baseline (100 = original) */
   const scalePercent = Math.round(((element.width) / 100) * 100)
 
@@ -99,23 +96,20 @@ export function GifInspector({
         </button>
       </div>
 
-      {/* ── GIF / figurinha section ── */}
+      {/* ── Categoria section (future GIPHY search) ── */}
       <div>
-        <div style={labelStyle}>GIF / figurinha</div>
+        <div style={labelStyle}>Categoria</div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-          {EMOJI_PICKS.map((emoji) => {
-            const active = isEmojiActive(element.name, emoji)
+          {STICKER_PICKS.map(({ id, icon: Icon, label }) => {
+            const active = selectedCategory === id
             return (
               <button
-                key={emoji}
+                key={id}
                 type="button"
-                onClick={() => {
-                  const url = emojiToDataUrl(emoji)
-                  onUpdate({ src: url, name: `GIF ${emoji}` })
-                }}
+                title={label}
+                onClick={() => setSelectedCategory(active ? null : id)}
                 style={{
                   width: 34, height: 34,
-                  fontSize: 18,
                   borderRadius: 8,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   cursor: 'pointer',
@@ -126,7 +120,11 @@ export function GifInspector({
                     : '1px solid var(--line-strong)',
                 }}
               >
-                {emoji}
+                <Icon
+                  size={16}
+                  strokeWidth={1.8}
+                  style={{ color: active ? 'var(--accent)' : 'var(--ink-dim)' }}
+                />
               </button>
             )
           })}
@@ -176,7 +174,7 @@ export function GifInspector({
           style={{ color: 'var(--accent)', flexShrink: 0, marginTop: 1 }}
         />
         <span style={{ fontSize: '11.5px', color: 'var(--ink-dim)', lineHeight: 1.5 }}>
-          Busque por GIF (GIPHY) ou solte o seu. Fica animado por cima do video/foto.
+          Clique em &lsquo;Trocar GIF&rsquo; para enviar o seu. Em breve: busca GIPHY integrada.
         </span>
       </div>
 

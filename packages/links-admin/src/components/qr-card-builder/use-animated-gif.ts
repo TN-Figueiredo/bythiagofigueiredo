@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useRef, useCallback, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { parseGIF, decompressFrames } from 'gifuct-js'
 
 interface GifFrameData {
@@ -32,6 +32,7 @@ export function useAnimatedGif(
   const lastTimeRef = useRef(0)
   const compCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const prevCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const tempCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const onFrameChangeRef = useRef(onFrameChange)
   onFrameChangeRef.current = onFrameChange
 
@@ -76,6 +77,10 @@ export function useAnimatedGif(
         prevCanvas.width = gifWidth
         prevCanvas.height = gifHeight
         prevCanvasRef.current = prevCanvas
+
+        // Reusable scratch canvas for frame patches (avoids per-frame allocation)
+        const tempCanvas = document.createElement('canvas')
+        tempCanvasRef.current = tempCanvas
 
         // The canvas Konva reads from
         const drawCanvas = document.createElement('canvas')
@@ -155,11 +160,12 @@ export function useAnimatedGif(
         prevCtx.drawImage(compCanvas, 0, 0)
       }
 
-      // Draw frame patch
-      const tempCanvas = document.createElement('canvas')
-      tempCanvas.width = frame.dims.width
-      tempCanvas.height = frame.dims.height
+      // Draw frame patch (reuse scratch canvas to avoid per-frame allocation)
+      const tempCanvas = tempCanvasRef.current!
+      if (tempCanvas.width !== frame.dims.width) tempCanvas.width = frame.dims.width
+      if (tempCanvas.height !== frame.dims.height) tempCanvas.height = frame.dims.height
       const tempCtx = tempCanvas.getContext('2d')!
+      tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height)
       tempCtx.putImageData(frame.patch, 0, 0)
       compCtx.drawImage(tempCanvas, frame.dims.left, frame.dims.top)
 
