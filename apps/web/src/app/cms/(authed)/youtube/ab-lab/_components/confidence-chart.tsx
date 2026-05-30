@@ -121,13 +121,14 @@ export function ConfidenceChart({ data, target = 95 }: ConfidenceChartProps) {
         />
         <text
           x={W - padR - 2}
-          y={targetY - 4}
+          y={targetY - 6}
           textAnchor="end"
-          fontSize={9}
+          fontSize={9.5}
+          fontWeight={600}
           fill={TARGET_COLOR}
           fontFamily={CHART.font}
         >
-          {target}%
+          META {target}%
         </text>
 
         {/* End dot — outer halo */}
