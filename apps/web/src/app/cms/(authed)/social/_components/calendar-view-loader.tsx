@@ -1,33 +1,31 @@
 import { listCalendarEvents, type CalendarEvent } from '@/lib/social/actions'
 import { CalendarWeekView } from './calendar-week-view'
 
-function getWeekRange(weekStr?: string): { from: string; to: string; weekLabel: string } {
-  let monday: Date
+function getWeekRange(weekStr?: string): { from: string; to: string; weekLabel: string; startDate: Date } {
+  let startDate: Date
   if (weekStr && /^\d{4}-W\d{2}$/.test(weekStr)) {
     const [year, week] = weekStr.split('-W').map(Number)
     const jan4 = new Date(year, 0, 4)
     const dayOfWeek = jan4.getDay() || 7
-    monday = new Date(jan4)
-    monday.setDate(jan4.getDate() - dayOfWeek + 1 + (week - 1) * 7)
+    startDate = new Date(jan4)
+    startDate.setDate(jan4.getDate() - dayOfWeek + 1 + (week - 1) * 7)
   } else {
-    const now = new Date()
-    const dayOfWeek = now.getDay() || 7
-    monday = new Date(now)
-    monday.setDate(now.getDate() - dayOfWeek + 1)
+    startDate = new Date()
   }
-  monday.setHours(0, 0, 0, 0)
+  startDate.setHours(0, 0, 0, 0)
 
-  const sunday = new Date(monday)
-  sunday.setDate(monday.getDate() + 6)
-  sunday.setHours(23, 59, 59, 999)
+  const endDate = new Date(startDate)
+  endDate.setDate(startDate.getDate() + 6)
+  endDate.setHours(23, 59, 59, 999)
 
-  const weekNum = getISOWeek(monday)
-  const weekLabel = `${monday.getFullYear()}-W${String(weekNum).padStart(2, '0')}`
+  const weekNum = getISOWeek(startDate)
+  const weekLabel = `${startDate.getFullYear()}-W${String(weekNum).padStart(2, '0')}`
 
   return {
-    from: monday.toISOString(),
-    to: sunday.toISOString(),
+    from: startDate.toISOString(),
+    to: endDate.toISOString(),
     weekLabel,
+    startDate,
   }
 }
 
@@ -60,13 +58,13 @@ function getNextWeek(weekLabel: string): string {
 }
 
 export async function CalendarViewLoader({ siteId, week }: { siteId: string; week?: string }) {
-  const { from, to, weekLabel } = getWeekRange(week)
+  const { from, to, weekLabel, startDate } = getWeekRange(week)
   const result = await listCalendarEvents(siteId, from, to)
 
   if (!result.ok) {
     return (
       <div className="mt-4 rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm text-amber-400">
-        Erro ao carregar eventos do calendario
+        Erro ao carregar eventos do calendário
       </div>
     )
   }
@@ -75,17 +73,15 @@ export async function CalendarViewLoader({ siteId, week }: { siteId: string; wee
   const prevWeek = getPrevWeek(weekLabel)
   const nextWeek = getNextWeek(weekLabel)
 
-  // Group events by day of week (0=Mon, 6=Sun)
-  const monday = new Date(from)
-  const sunday = new Date(monday)
-  sunday.setDate(monday.getDate() + 6)
+  const endDate = new Date(startDate)
+  endDate.setDate(startDate.getDate() + 6)
 
-  const dateRange = `${monday.getDate()} ${monday.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')} – ${sunday.getDate()} ${sunday.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')}`
+  const dateRange = `${startDate.getDate()} ${startDate.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')} – ${endDate.getDate()} ${endDate.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')}`
 
   const days: Array<{ date: Date; dateStr: string; events: CalendarEvent[] }> = []
   for (let i = 0; i < 7; i++) {
-    const d = new Date(monday)
-    d.setDate(monday.getDate() + i)
+    const d = new Date(startDate)
+    d.setDate(startDate.getDate() + i)
     const dateStr = d.toISOString().split('T')[0]
     days.push({
       date: d,
