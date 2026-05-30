@@ -5,6 +5,11 @@ import type { CardComposition } from '@tn-figueiredo/links/qr'
 import { compositionToSvg } from '@tn-figueiredo/links/qr'
 import type { CanvasEditorHandle } from './canvas-editor'
 
+/* ── types ── */
+
+type ExportFormat = 'png' | 'jpg' | 'svg' | 'gif' | 'mp4'
+type ExportState = 'idle' | 'exporting' | 'done' | 'error'
+
 interface ExportModalProps {
   composition: CardComposition
   canvasRef: React.RefObject<CanvasEditorHandle | null>
@@ -13,7 +18,7 @@ interface ExportModalProps {
   onClose: () => void
 }
 
-type ExportState = 'idle' | 'exporting' | 'done' | 'error'
+/* ── helpers ── */
 
 function withExportStage<T>(
   stage: import('konva').default.Stage,
@@ -42,10 +47,66 @@ function withExportStage<T>(
   }
 }
 
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function estimateFileSize(w: number, h: number, scale: number, fmt: ExportFormat): number {
+  const pixels = w * h * scale * scale
+  if (fmt === 'jpg') return Math.round(pixels * 0.3)
+  if (fmt === 'png') return Math.round(pixels * 4 / 5) // rough: 4 bytes/px with ~80% compression
+  return 0
+}
+
+/* ── format / scale config ── */
+
+const FORMAT_OPTIONS: { value: ExportFormat; label: string; disabled: boolean }[] = [
+  { value: 'png', label: 'PNG', disabled: false },
+  { value: 'jpg', label: 'JPG', disabled: false },
+  { value: 'svg', label: 'SVG', disabled: false },
+  { value: 'gif', label: 'GIF', disabled: true },
+  { value: 'mp4', label: 'MP4', disabled: true },
+]
+
+const FORMAT_HINTS: Record<string, string> = {
+  png: 'Melhor qualidade, suporta transparência.',
+  jpg: 'Menor tamanho, sem transparência.',
+  svg: 'Vetorial, escalável infinitamente.',
+}
+
+const SCALE_OPTIONS = [
+  { s: 1, label: '1×', desc: 'Rascunho' },
+  { s: 2, label: '2×', desc: 'Padrão' },
+  { s: 3, label: '3×', desc: 'Alta' },
+  { s: 4, label: '4×', desc: 'Impressão' },
+] as const
+
+/* ── styles ── */
+
+const btnActive: React.CSSProperties = {
+  border: '1px solid var(--accent)',
+  background: 'var(--accent-soft)',
+  color: 'var(--accent)',
+}
+const btnInactive: React.CSSProperties = {
+  border: '1px solid var(--line-strong)',
+  background: 'var(--surface-2)',
+  color: 'var(--ink-dim)',
+}
+const btnDisabled: React.CSSProperties = {
+  ...btnInactive,
+  opacity: 0.5,
+  cursor: 'not-allowed',
+}
+
+/* ── component ── */
+
 export function ExportModal({ composition, canvasRef, linkCode, onExport, onClose }: ExportModalProps) {
-  const [format, setFormat] = useState<'png' | 'svg'>('png')
+  const [format, setFormat] = useState<ExportFormat>('png')
   const [scale, setScale] = useState(2)
-  const [saveToBlob, setSaveToBlob] = useState(true)
+  const [saveToLibrary, setSaveToLibrary] = useState(true)
   const [state, setState] = useState<ExportState>('idle')
   const [blobUrl, setBlobUrl] = useState<string | null>(null)
   const [fileSize, setFileSize] = useState<number>(0)
@@ -54,20 +115,28 @@ export function ExportModal({ composition, canvasRef, linkCode, onExport, onClos
   const dialogRef = useRef<HTMLDivElement>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
 
+  const w = composition.canvas.width
+  const h = composition.canvas.height
+  const isRaster = format === 'png' || format === 'jpg'
+  const outW = isRaster ? w * scale : w
+  const outH = isRaster ? h * scale : h
+
+  /* ── preview generation ── */
   useEffect(() => {
     const timer = setTimeout(() => {
       const stage = canvasRef.current?.getStage()
       if (!stage) return
       try {
-        const url = withExportStage(stage, composition.canvas.width, composition.canvas.height, (s) =>
-          s.toDataURL({ pixelRatio: Math.max(0.5, 160 / composition.canvas.width) }),
+        const url = withExportStage(stage, w, h, (s) =>
+          s.toDataURL({ pixelRatio: Math.max(0.5, 160 / w) }),
         )
         setPreviewUrl(url)
       } catch { /* tainted canvas */ }
     }, 100)
     return () => clearTimeout(timer)
-  }, [canvasRef, composition.canvas.width, composition.canvas.height])
+  }, [canvasRef, w, h])
 
+  /* ── keyboard ── */
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose()
@@ -76,11 +145,7 @@ export function ExportModal({ composition, canvasRef, linkCode, onExport, onClos
     return () => document.removeEventListener('keydown', handleKey)
   }, [onClose])
 
-  const w = composition.canvas.width
-  const h = composition.canvas.height
-  const outW = format === 'png' ? w * scale : w
-  const outH = format === 'png' ? h * scale : h
-
+  /* ── export handler ── */
   const handleExport = useCallback(async () => {
     setState('exporting')
     setErrorMsg(null)
@@ -88,16 +153,21 @@ export function ExportModal({ composition, canvasRef, linkCode, onExport, onClos
 
     try {
       let blob: Blob
+      const exportFormat: 'png' | 'svg' = format === 'jpg' ? 'png' : (format as 'png' | 'svg')
 
-      if (format === 'png') {
+      if (format === 'png' || format === 'jpg') {
         await document.fonts.ready
         setStep(2)
         const stage = canvasRef.current?.getStage()
         if (!stage) { setState('idle'); return }
+
+        const mimeType = format === 'jpg' ? 'image/jpeg' : 'image/png'
         blob = await withExportStage(stage, w, h, (s) =>
           new Promise<Blob>((resolve, reject) => {
             s.toBlob({
               pixelRatio: scale,
+              mimeType,
+              quality: format === 'jpg' ? 0.92 : undefined,
               callback: (b: Blob | null) => b ? resolve(b) : reject(new Error('toBlob failed')),
             })
           }),
@@ -112,16 +182,17 @@ export function ExportModal({ composition, canvasRef, linkCode, onExport, onClos
       setStep(3)
 
       let resultUrl: string | null = null
-      if (saveToBlob) {
-        const result = await onExport(blob, { format, scale, width: outW, height: outH })
+      if (saveToLibrary) {
+        const result = await onExport(blob, { format: exportFormat, scale, width: outW, height: outH })
         resultUrl = result?.url ?? null
       }
 
       setStep(4)
+      const ext = format === 'jpg' ? 'jpg' : format
       const downloadUrl = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = downloadUrl
-      a.download = `qr-card-${linkCode}.${format}`
+      a.download = `qr-card-${linkCode}.${ext}`
       a.click()
       setTimeout(() => URL.revokeObjectURL(downloadUrl), 5000)
 
@@ -131,124 +202,317 @@ export function ExportModal({ composition, canvasRef, linkCode, onExport, onClos
       setErrorMsg(err instanceof Error ? err.message : 'Export failed')
       setState('error')
     }
-  }, [format, scale, saveToBlob, composition, canvasRef, linkCode, onExport, outW, outH])
+  }, [format, scale, saveToLibrary, composition, canvasRef, linkCode, onExport, outW, outH, w, h])
 
+  /* ── progress steps ── */
   const steps = [
-    { label: `Rendering canvas at ${scale}x resolution`, done: step >= 2 },
-    { label: `Encoding ${format.toUpperCase()} (${outW}×${outH})`, done: step >= 3 },
-    ...(saveToBlob ? [{ label: 'Uploading to Vercel Blob...', done: step >= 4 }] : []),
-    { label: 'Saving to browser downloads', done: step >= 4 },
+    { label: `Renderizando canvas em ${scale}×...`, done: step >= 2 },
+    { label: `Codificando ${format.toUpperCase()} (${outW}×${outH})`, done: step >= 3 },
+    ...(saveToLibrary ? [{ label: 'Enviando para Vercel Blob...', done: step >= 4 }] : []),
+    { label: 'Salvando nos downloads', done: step >= 4 },
   ]
 
-  const estimatedSize = format === 'png' ? `~${Math.round(outW * outH * 4 / 1024 / 5)} KB` : 'varies'
+  const estimated = estimateFileSize(w, h, scale, format)
+  const downloadLabel = isRaster
+    ? `Baixar ${format.toUpperCase()} · ${scale}× · ~${formatBytes(estimated)}`
+    : `Baixar ${format.toUpperCase()}`
+
+  /* ── preview sizing ── */
+  const previewMaxW = 84
+  const previewScale = previewMaxW / w
+  const previewH = Math.round(h * previewScale)
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+    <div
+      style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      onClick={onClose}
+    >
+      {/* backdrop */}
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(6px)' }} />
+
+      {/* dialog */}
       <div
         ref={dialogRef}
-        className="relative rounded-xl shadow-2xl w-[560px] max-h-[80vh] overflow-auto"
-        style={{ background: 'var(--bg-side)', border: '1px solid var(--line)' }}
-        onClick={e => e.stopPropagation()}
+        style={{
+          position: 'relative',
+          width: 620,
+          maxWidth: '95vw',
+          maxHeight: '80vh',
+          overflow: 'auto',
+          background: 'var(--surface)',
+          border: '1px solid var(--line-strong)',
+          borderRadius: 16,
+          boxShadow: '0 24px 48px rgba(0,0,0,0.4)',
+        }}
+        onClick={(e) => e.stopPropagation()}
         role="dialog"
-        aria-label="Export QR Card"
+        aria-label="Exportar QR Card"
       >
-        <div className="flex items-center justify-between p-4" style={{ borderBottom: '1px solid var(--line-strong)' }}>
-          <h2 className="text-[14px] font-semibold" style={{ color: 'var(--ink)' }}>Export QR Card</h2>
-          <button type="button" onClick={onClose} className="p-1 hover:opacity-80" style={{ color: 'var(--ink-dim)' }} aria-label="Close">
-            <X size={16} />
+        {/* ── header ── */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '18px 22px',
+            borderBottom: '1px solid var(--line)',
+          }}
+        >
+          <h2
+            style={{
+              margin: 0,
+              fontFamily: 'Fraunces, serif',
+              fontSize: 19,
+              fontWeight: 600,
+              color: 'var(--ink)',
+            }}
+          >
+            Exportar
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Fechar"
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: 4,
+              color: 'var(--ink-dim)',
+              display: 'flex',
+              alignItems: 'center',
+            }}
+          >
+            <X size={19} />
           </button>
         </div>
 
-        <div className="p-4 flex gap-6">
-          <div className="shrink-0">
-            <div className="w-[160px] rounded overflow-hidden flex items-center justify-center" style={{ background: 'var(--surface-2)', border: '1px solid var(--line)', aspectRatio: `${w}/${h}` }}>
+        {/* ── body ── */}
+        <div style={{ display: 'flex', gap: 22, padding: 22 }}>
+          {/* ── left: preview ── */}
+          <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div
+              style={{
+                width: previewMaxW + 28, // 14px padding each side
+                borderRadius: 10,
+                border: '1px solid var(--line)',
+                padding: 14,
+                background: 'repeating-conic-gradient(rgb(26,24,19) 0% 25%, rgb(22,20,15) 0% 50%) 50% center / 16px 16px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
               {previewUrl ? (
-                <img src={previewUrl} alt="Card preview" className="w-full h-full object-contain" />
+                <img
+                  src={previewUrl}
+                  alt="Card preview"
+                  style={{
+                    width: previewMaxW,
+                    height: previewH,
+                    objectFit: 'contain',
+                    borderRadius: 4,
+                  }}
+                />
               ) : (
-                <span className="text-[11px]" style={{ color: 'var(--ink-dim)' }}>Preview</span>
+                <div
+                  style={{
+                    width: previewMaxW,
+                    height: previewH,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 10,
+                    color: 'var(--ink-dim)',
+                  }}
+                >
+                  Preview
+                </div>
               )}
             </div>
-            <div className="text-[10px] text-center mt-1" style={{ color: 'var(--ink-dim)' }}>{w}×{h}</div>
+            <span
+              style={{
+                marginTop: 8,
+                fontFamily: 'monospace',
+                fontSize: 10.5,
+                color: 'var(--ink-faint)',
+              }}
+            >
+              {outW}×{outH}px
+            </span>
           </div>
 
-          <div className="flex-1 space-y-4">
+          {/* ── right: controls ── */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 18 }}>
             {state === 'idle' && (
               <>
+                {/* ── Formato ── */}
                 <div>
-                  <div className="text-[10px] mb-1" style={{ color: 'var(--ink-dim)' }}>Format</div>
-                  <div className="flex gap-2">
-                    {(['png', 'svg'] as const).map(f => (
+                  <div
+                    style={{
+                      fontSize: 10.5,
+                      fontWeight: 600,
+                      color: 'var(--ink-dim)',
+                      textTransform: 'uppercase' as const,
+                      letterSpacing: '0.05em',
+                      marginBottom: 8,
+                    }}
+                  >
+                    Formato
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6 }}>
+                    {FORMAT_OPTIONS.map((f) => (
                       <button
-                        key={f}
+                        key={f.value}
                         type="button"
-                        onClick={() => setFormat(f)}
-                        className="flex-1 py-1.5 rounded text-[11px]"
-                        style={format === f
-                          ? { border: '1px solid var(--accent)', background: 'var(--accent-soft)', color: 'var(--accent)' }
-                          : { border: '1px solid var(--line)', color: 'var(--ink-dim)' }
-                        }
+                        disabled={f.disabled}
+                        title={f.disabled ? 'Adicione um GIF ou fundo de vídeo pra exportar animado' : undefined}
+                        onClick={() => !f.disabled && setFormat(f.value)}
+                        style={{
+                          padding: '9px 0',
+                          borderRadius: 8,
+                          fontSize: 12,
+                          fontWeight: 600,
+                          cursor: f.disabled ? 'not-allowed' : 'pointer',
+                          background: 'none',
+                          ...(f.disabled
+                            ? btnDisabled
+                            : format === f.value
+                              ? btnActive
+                              : btnInactive),
+                        }}
                       >
-                        {f.toUpperCase()}
+                        {f.label}
                       </button>
                     ))}
                   </div>
+                  {FORMAT_HINTS[format] && (
+                    <p style={{ fontSize: 10.5, color: 'var(--ink-faint)', marginTop: 6, marginBottom: 0 }}>
+                      {FORMAT_HINTS[format]}
+                    </p>
+                  )}
+                  <p style={{ fontSize: 10.5, color: 'var(--ink-faint)', marginTop: 4, marginBottom: 0 }}>
+                    GIF e MP4 ficam disponíveis quando há um <strong>GIF</strong> ou <strong>fundo de vídeo</strong> na arte.
+                  </p>
                 </div>
 
-                {format === 'png' && (
+                {/* ── Qualidade · escala ── */}
+                {isRaster && (
                   <div>
-                    <div className="text-[10px] mb-1" style={{ color: 'var(--ink-dim)' }}>Quality / Scale</div>
-                    <div className="grid grid-cols-4 gap-1.5">
-                      {([
-                        { s: 1, label: '1×', desc: 'Draft' },
-                        { s: 2, label: '2×', desc: 'Standard' },
-                        { s: 3, label: '3×', desc: 'High' },
-                        { s: 4, label: '4×', desc: 'Print' },
-                      ] as const).map(({ s, label, desc }) => (
+                    <div
+                      style={{
+                        fontSize: 10.5,
+                        fontWeight: 600,
+                        color: 'var(--ink-dim)',
+                        textTransform: 'uppercase' as const,
+                        letterSpacing: '0.05em',
+                        marginBottom: 8,
+                      }}
+                    >
+                      Qualidade · escala
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+                      {SCALE_OPTIONS.map(({ s, label, desc }) => (
                         <button
                           key={s}
                           type="button"
                           onClick={() => setScale(s)}
-                          className="py-1.5 rounded text-[11px]"
-                          style={scale === s
-                            ? { border: '1px solid var(--accent)', background: 'var(--accent-soft)', color: 'var(--accent)' }
-                            : { border: '1px solid var(--line)', color: 'var(--ink-dim)' }
-                          }
+                          style={{
+                            padding: '8px 2px',
+                            borderRadius: 8,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: 2,
+                            cursor: 'pointer',
+                            background: 'none',
+                            ...(scale === s ? btnActive : btnInactive),
+                          }}
                         >
-                          {label} <span className="text-[9px] block" style={{ color: 'var(--ink-dim)' }}>{desc}</span>
+                          <span style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 700 }}>
+                            {label}
+                          </span>
+                          <span style={{ fontSize: 9.5, color: 'var(--ink-dim)' }}>
+                            {desc}
+                          </span>
                         </button>
                       ))}
                     </div>
-                    <p className="text-[9px] mt-1" style={{ color: 'var(--ink-dim)' }}>Output: {outW}×{outH}px — the preview is low-res, export is sharp</p>
                   </div>
                 )}
 
-                <label className="flex items-center gap-2 text-[11px]" style={{ color: 'var(--ink)' }}>
-                  <input type="checkbox" checked={saveToBlob} onChange={e => setSaveToBlob(e.target.checked)} className="rounded" />
-                  Save copy to Vercel Blob
+                {/* ── Salvar cópia ── */}
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 9,
+                    fontSize: 12.5,
+                    color: 'var(--ink-dim)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <span
+                    role="checkbox"
+                    aria-checked={saveToLibrary}
+                    tabIndex={0}
+                    onClick={() => setSaveToLibrary(!saveToLibrary)}
+                    onKeyDown={(e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); setSaveToLibrary(!saveToLibrary) } }}
+                    style={{
+                      width: 18,
+                      height: 18,
+                      borderRadius: 5,
+                      border: saveToLibrary ? 'none' : '1px solid var(--line-strong)',
+                      background: saveToLibrary ? 'var(--accent)' : 'var(--surface-2)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                      transition: 'background 150ms, border 150ms',
+                    }}
+                  >
+                    {saveToLibrary && <Check size={12} style={{ color: 'rgb(26,18,12)' }} />}
+                  </span>
+                  Salvar cópia na biblioteca
                 </label>
 
+                {/* ── Download button ── */}
                 <button
                   type="button"
                   onClick={handleExport}
-                  className="w-full py-2 rounded text-[12px] font-medium hover:opacity-90"
-                  style={{ background: 'var(--accent)', color: 'var(--ink)' }}
+                  style={{
+                    marginTop: 'auto',
+                    width: '100%',
+                    padding: '13px 0',
+                    borderRadius: 10,
+                    background: 'var(--accent)',
+                    color: 'rgb(26,18,12)',
+                    fontSize: 13.5,
+                    fontWeight: 700,
+                    border: 'none',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6,
+                  }}
                 >
-                  <Download size={14} className="inline mr-1.5" />
-                  Download {format.toUpperCase()} · {scale}× · {estimatedSize}
+                  <Download size={16} />
+                  {downloadLabel}
                 </button>
               </>
             )}
 
+            {/* ── exporting progress ── */}
             {state === 'exporting' && (
-              <div className="space-y-2">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {steps.map((s, i) => (
-                  <div key={i} className="flex items-center gap-2 text-[11px]">
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 }}>
                     {s.done
-                      ? <Check size={14} style={{ color: 'var(--green)' }} />
+                      ? <Check size={14} style={{ color: 'var(--green)', flexShrink: 0 }} />
                       : i === step - 1
-                        ? <Loader2 size={14} className="animate-spin" style={{ color: 'var(--accent)' }} />
-                        : <div className="w-3.5 h-3.5 rounded-full" style={{ border: '1px solid var(--ink-faint)' }} />
+                        ? <Loader2 size={14} className="animate-spin" style={{ color: 'var(--accent)', flexShrink: 0 }} />
+                        : <div style={{ width: 14, height: 14, borderRadius: '50%', border: '1px solid var(--ink-faint)', flexShrink: 0 }} />
                     }
                     <span style={{ color: s.done ? 'var(--ink)' : 'var(--ink-dim)' }}>{s.label}</span>
                   </div>
@@ -256,41 +520,144 @@ export function ExportModal({ composition, canvasRef, linkCode, onExport, onClos
               </div>
             )}
 
+            {/* ── success ── */}
             {state === 'done' && (
-              <div className="space-y-3 text-center">
-                <div className="w-10 h-10 mx-auto rounded-full flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--green) 20%, transparent)' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center', textAlign: 'center' }}>
+                <div
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: 'color-mix(in srgb, var(--green) 20%, transparent)',
+                  }}
+                >
                   <Check size={20} style={{ color: 'var(--green)' }} />
                 </div>
-                <p className="text-[13px] font-medium" style={{ color: 'var(--ink)' }}>Card exported successfully</p>
-                <p className="text-[11px]" style={{ color: 'var(--ink-dim)' }}>{`qr-card-${linkCode}.${format}`} · {(fileSize / 1024).toFixed(0)} KB</p>
+                <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)', margin: 0 }}>
+                  Card exportado com sucesso
+                </p>
+                <p style={{ fontSize: 11, color: 'var(--ink-dim)', margin: 0 }}>
+                  {`qr-card-${linkCode}.${format === 'jpg' ? 'jpg' : format}`} · {formatBytes(fileSize)}
+                </p>
                 {blobUrl && (
-                  <div className="flex items-center gap-2 rounded px-2 py-1.5" style={{ background: 'var(--surface-2)' }}>
-                    <span className="flex-1 text-[10px] font-mono truncate" style={{ color: 'var(--ink-dim)' }}>{blobUrl}</span>
-                    <button type="button" onClick={() => navigator.clipboard.writeText(blobUrl)} className="hover:opacity-80" style={{ color: 'var(--ink-dim)' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      borderRadius: 8,
+                      padding: '8px 10px',
+                      background: 'var(--surface-2)',
+                      width: '100%',
+                    }}
+                  >
+                    <span
+                      style={{
+                        flex: 1,
+                        fontSize: 10,
+                        fontFamily: 'monospace',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        color: 'var(--ink-dim)',
+                      }}
+                    >
+                      {blobUrl}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => navigator.clipboard.writeText(blobUrl)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        padding: 2,
+                        color: 'var(--ink-dim)',
+                        display: 'flex',
+                      }}
+                    >
                       <Copy size={12} />
                     </button>
                   </div>
                 )}
-                <div className="flex gap-2">
-                  <button type="button" onClick={onClose} className="flex-1 py-1.5 rounded text-[11px]" style={{ border: '1px solid var(--line)', color: 'var(--ink)' }}>
-                    Back to Editor
+                <div style={{ display: 'flex', gap: 8, width: '100%' }}>
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    style={{
+                      flex: 1,
+                      padding: '10px 0',
+                      borderRadius: 8,
+                      fontSize: 11.5,
+                      fontWeight: 600,
+                      border: '1px solid var(--line)',
+                      background: 'none',
+                      color: 'var(--ink)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Voltar ao Editor
                   </button>
-                  <button type="button" onClick={() => { setState('idle'); setBlobUrl(null) }} className="flex-1 py-1.5 rounded text-[11px]" style={{ border: '1px solid var(--line)', color: 'var(--ink)' }}>
-                    Export Another
+                  <button
+                    type="button"
+                    onClick={() => { setState('idle'); setBlobUrl(null) }}
+                    style={{
+                      flex: 1,
+                      padding: '10px 0',
+                      borderRadius: 8,
+                      fontSize: 11.5,
+                      fontWeight: 600,
+                      border: '1px solid var(--line)',
+                      background: 'none',
+                      color: 'var(--ink)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Exportar Outro
                   </button>
                 </div>
               </div>
             )}
 
+            {/* ── error ── */}
             {state === 'error' && (
-              <div className="space-y-3 text-center">
-                <div className="w-10 h-10 mx-auto rounded-full flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--red) 20%, transparent)' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center', textAlign: 'center' }}>
+                <div
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: 'color-mix(in srgb, var(--red) 20%, transparent)',
+                  }}
+                >
                   <X size={20} style={{ color: 'var(--red)' }} />
                 </div>
-                <p className="text-[13px] font-medium" style={{ color: 'var(--ink)' }}>Export failed</p>
-                <p className="text-[11px]" style={{ color: 'var(--red)' }}>{errorMsg}</p>
-                <button type="button" onClick={() => setState('idle')} className="w-full py-1.5 rounded text-[11px]" style={{ border: '1px solid var(--line)', color: 'var(--ink)' }}>
-                  Try Again
+                <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)', margin: 0 }}>
+                  Falha na exportação
+                </p>
+                <p style={{ fontSize: 11, color: 'var(--red)', margin: 0 }}>{errorMsg}</p>
+                <button
+                  type="button"
+                  onClick={() => setState('idle')}
+                  style={{
+                    width: '100%',
+                    padding: '10px 0',
+                    borderRadius: 8,
+                    fontSize: 11.5,
+                    fontWeight: 600,
+                    border: '1px solid var(--line)',
+                    background: 'none',
+                    color: 'var(--ink)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Tentar Novamente
                 </button>
               </div>
             )}
