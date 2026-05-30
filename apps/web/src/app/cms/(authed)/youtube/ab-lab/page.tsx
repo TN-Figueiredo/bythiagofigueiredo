@@ -9,7 +9,7 @@ import {
   computeDashboardStats,
 } from './queries'
 import { AbLabDashboard } from './_components/ab-lab-dashboard'
-import { MOCK_DASHBOARD } from './_components/mock-dashboard'
+import { AB_SITE_SETTINGS_DEFAULTS } from '@/lib/youtube/ab-types'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,13 +20,23 @@ export default async function AbLabPage({
 }) {
   const sp = await searchParams
   const mockView = typeof sp.view === 'string' ? sp.view : undefined
+  const { siteId } = await getSiteContext()
 
-  if (mockView === 'full') {
-    const { siteId } = await getSiteContext()
-    return <AbLabDashboard siteId={siteId} {...MOCK_DASHBOARD} />
+  if (mockView === 'empty') {
+    return (
+      <AbLabDashboard
+        siteId={siteId}
+        stats={{ activeTests: 0, avgConfidence: 0, winRate: 0, avgLift: 0, completedTests: 0, testsWon: 0 }}
+        cards={[]}
+        drafts={[]}
+        completed={[]}
+        learnings={null}
+        suggested={[]}
+        settings={AB_SITE_SETTINGS_DEFAULTS}
+      />
+    )
   }
 
-  const { siteId } = await getSiteContext()
   const [tests, settings, learnings, suggested] = await Promise.all([
     getAbTestsForSite(),
     getAbSiteSettings(),

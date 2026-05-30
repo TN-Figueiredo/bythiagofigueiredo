@@ -2,9 +2,26 @@ import { getTestResults, toDetailView } from '../queries'
 import { ActiveDetail } from '../_components/active-detail'
 import { WinnerDetail } from '../_components/winner-detail'
 import { PlayoffDetail } from '../_components/playoff-detail'
+import { MOCK_ACTIVE, MOCK_WINNER, MOCK_PLAYOFF } from '../_components/mock-views'
 import { notFound } from 'next/navigation'
+import type { AbTestDetailView } from '@/lib/youtube/ab-types'
 
 export const dynamic = 'force-dynamic'
+
+const MOCK_MAP: Record<string, AbTestDetailView> = {
+  'mock-active-1': MOCK_ACTIVE,
+  'mock-active-2': MOCK_ACTIVE,
+  'mock-completed-1': MOCK_WINNER,
+  'mock-completed-2': MOCK_WINNER,
+  'mock-completed-3': MOCK_PLAYOFF,
+  'mock-draft-1': MOCK_ACTIVE,
+}
+
+function renderView(view: AbTestDetailView) {
+  if (view.status !== 'completed') return <ActiveDetail view={view} />
+  if (view.outcome === 'winner') return <WinnerDetail view={view} />
+  return <PlayoffDetail view={view} />
+}
 
 export default async function AbTestDetailPage({
   params,
@@ -13,14 +30,11 @@ export default async function AbTestDetailPage({
 }) {
   const { testId } = await params
 
-  if (testId.startsWith('mock-')) notFound()
+  const mockView = MOCK_MAP[testId]
+  if (mockView) return renderView(mockView)
 
   const results = await getTestResults(testId)
   if (!results) notFound()
 
-  const view = toDetailView(results)
-
-  if (view.status !== 'completed') return <ActiveDetail view={view} />
-  if (view.outcome === 'winner') return <WinnerDetail view={view} />
-  return <PlayoffDetail view={view} />
+  return renderView(toDetailView(results))
 }
