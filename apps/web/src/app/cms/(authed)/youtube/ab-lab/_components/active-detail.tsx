@@ -369,6 +369,7 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
       </div>
 
       {/* Section 10: O momento de clique */}
+      <div className="mt-[36px]" />
       <ClickMoment
         videoTitle={view.videoTitle}
         winnerLabel={data.leader as any}
