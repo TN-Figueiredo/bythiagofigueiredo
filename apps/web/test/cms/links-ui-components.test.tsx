@@ -54,7 +54,7 @@ describe('FilterGroup', () => {
       <FilterGroup label="Origem" value="newsletter" onChange={() => {}} opts={opts} />
     )
     const btn = getByText('Newsletter')
-    expect(btn.className).toContain('bg-primary')
+    expect(btn.getAttribute('aria-checked')).toBe('true')
   })
 })
 
@@ -118,6 +118,6 @@ describe('RangeTabs', () => {
   it('highlights active tab', () => {
     const { getByText } = render(<RangeTabs value="90d" onChange={() => {}} />)
     const btn = getByText('90 dias')
-    expect(btn.className).toContain('bg-primary')
+    expect(btn.getAttribute('aria-checked')).toBe('true')
   })
 })

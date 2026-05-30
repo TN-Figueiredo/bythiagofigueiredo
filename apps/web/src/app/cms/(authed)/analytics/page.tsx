@@ -58,41 +58,43 @@ export default async function AnalyticsPage({ searchParams }: Props) {
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-cms-bg">
       <AnalyticsHeader activeTab={activeTab} activePeriod={periodValue} />
-      {activeTab === 'overview' ? (
-        <SectionErrorBoundary>
-          <Suspense fallback={<AnalyticsSkeleton />}>
-            <AnalyticsDataSection siteId={siteId} periodInput={periodInput} primaryDomain={primaryDomain} />
-          </Suspense>
-        </SectionErrorBoundary>
-      ) : activeTab === 'youtube' ? (
-        <ComingSoonStub tab={activeTab} />
-      ) : activeTab === 'content' ? (
-        <SectionErrorBoundary>
-          <Suspense fallback={<AnalyticsSkeleton />}>
-            <ContentTab periodInput={periodInput} />
-          </Suspense>
-        </SectionErrorBoundary>
-      ) : activeTab === 'links' ? (
-        <SectionErrorBoundary>
-          <Suspense fallback={<AnalyticsSkeleton />}>
-            <LinksTab periodInput={periodInput} />
-          </Suspense>
-        </SectionErrorBoundary>
-      ) : activeTab === 'audience' ? (
-        <SectionErrorBoundary>
-          <Suspense fallback={<AnalyticsSkeleton />}>
-            <AudienceTab periodInput={periodInput} />
-          </Suspense>
-        </SectionErrorBoundary>
-      ) : activeTab === 'fans' ? (
-        <SectionErrorBoundary>
-          <Suspense fallback={<AnalyticsSkeleton />}>
-            <FansTabSection siteId={siteId} />
-          </Suspense>
-        </SectionErrorBoundary>
-      ) : (
-        <ComingSoonStub tab={activeTab} />
-      )}
+      <div role="tabpanel" aria-label={`${activeTab} tab content`}>
+        {activeTab === 'overview' ? (
+          <SectionErrorBoundary>
+            <Suspense fallback={<AnalyticsSkeleton />}>
+              <AnalyticsDataSection siteId={siteId} periodInput={periodInput} primaryDomain={primaryDomain} />
+            </Suspense>
+          </SectionErrorBoundary>
+        ) : activeTab === 'youtube' ? (
+          <ComingSoonStub tab={activeTab} />
+        ) : activeTab === 'content' ? (
+          <SectionErrorBoundary>
+            <Suspense fallback={<AnalyticsSkeleton />}>
+              <ContentTab periodInput={periodInput} />
+            </Suspense>
+          </SectionErrorBoundary>
+        ) : activeTab === 'links' ? (
+          <SectionErrorBoundary>
+            <Suspense fallback={<AnalyticsSkeleton />}>
+              <LinksTab periodInput={periodInput} />
+            </Suspense>
+          </SectionErrorBoundary>
+        ) : activeTab === 'audience' ? (
+          <SectionErrorBoundary>
+            <Suspense fallback={<AnalyticsSkeleton />}>
+              <AudienceTab periodInput={periodInput} />
+            </Suspense>
+          </SectionErrorBoundary>
+        ) : activeTab === 'fans' ? (
+          <SectionErrorBoundary>
+            <Suspense fallback={<AnalyticsSkeleton />}>
+              <FansTabSection siteId={siteId} />
+            </Suspense>
+          </SectionErrorBoundary>
+        ) : (
+          <ComingSoonStub tab={activeTab} />
+        )}
+      </div>
     </div>
   )
 }

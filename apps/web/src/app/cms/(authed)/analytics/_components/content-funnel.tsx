@@ -16,10 +16,20 @@ interface Props {
 export function ContentFunnel({ funnel }: Props) {
   const maxValue = Math.max(funnel.views, 1)
 
+  const funnelDescription = STAGES.map((stage) => {
+    const value = funnel[stage.key]
+    return `${formatNumber(value)} ${stage.label}`
+  }).join(', ')
+
   return (
-    <div className="rounded-[10px] border border-cms-border bg-cms-surface p-4" data-testid="content-funnel">
+    <div
+      className="rounded-[10px] border border-cms-border bg-cms-surface p-4"
+      data-testid="content-funnel"
+      role="img"
+      aria-label={`Funil de conteudo: ${funnelDescription}`}
+    >
       <h3 className="mb-4 text-sm font-medium text-cms-text-dim">Content Funnel</h3>
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-3" aria-hidden="true">
         {STAGES.map((stage, i) => {
           const value = funnel[stage.key]
           const prevValue = i > 0 ? funnel[STAGES[i - 1]!.key] : null
@@ -56,6 +66,34 @@ export function ContentFunnel({ funnel }: Props) {
           )
         })}
       </div>
+
+      {/* Visually hidden data table for screen readers */}
+      <table className="sr-only">
+        <caption>Content Funnel Data</caption>
+        <thead>
+          <tr>
+            <th scope="col">Stage</th>
+            <th scope="col">Value</th>
+            <th scope="col">Drop-off</th>
+          </tr>
+        </thead>
+        <tbody>
+          {STAGES.map((stage, i) => {
+            const value = funnel[stage.key]
+            const prevValue = i > 0 ? funnel[STAGES[i - 1]!.key] : null
+            const dropOff = prevValue && prevValue > 0
+              ? `${Math.round(((prevValue - value) / prevValue) * 100)}%`
+              : 'N/A'
+            return (
+              <tr key={stage.key}>
+                <td>{stage.label}</td>
+                <td>{formatNumber(value)}</td>
+                <td>{dropOff}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
     </div>
   )
 }
