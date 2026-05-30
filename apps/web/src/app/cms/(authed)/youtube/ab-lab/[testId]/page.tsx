@@ -2,7 +2,7 @@ import { getTestResults, toDetailView } from '../queries'
 import { ActiveDetail } from '../_components/active-detail'
 import { WinnerDetail } from '../_components/winner-detail'
 import { PlayoffDetail } from '../_components/playoff-detail'
-import { MOCK_WINNER, MOCK_WINNER_MINIMAL, MOCK_PLAYOFF, MOCK_PLAYOFF_MINIMAL, MOCK_ACTIVE } from '../_components/mock-views'
+import { MOCK_WINNER, MOCK_WINNER_MINIMAL, MOCK_PLAYOFF, MOCK_PLAYOFF_MINIMAL, MOCK_ACTIVE, MOCK_ACTIVE_MINIMAL } from '../_components/mock-views'
 import { notFound } from 'next/navigation'
 
 export const dynamic = 'force-dynamic'
@@ -13,6 +13,7 @@ const MOCK_VIEWS = {
   playoff: MOCK_PLAYOFF,
   'playoff-minimal': MOCK_PLAYOFF_MINIMAL,
   active: MOCK_ACTIVE,
+  'active-minimal': MOCK_ACTIVE_MINIMAL,
 } as const
 
 export default async function AbTestDetailPage({

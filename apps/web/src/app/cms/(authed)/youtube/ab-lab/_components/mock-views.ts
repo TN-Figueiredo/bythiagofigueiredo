@@ -197,6 +197,44 @@ export const MOCK_PLAYOFF_MINIMAL: AbTestPlayoffView = {
   reason: '',
 }
 
+export const MOCK_ACTIVE_MINIMAL: AbTestActiveView = {
+  id: 'mock-active-minimal-id',
+  videoTitle: 'Test rápido',
+  flag: 'title',
+  status: 'active',
+  variants: [
+    { label: 'A', color: VARIANT_COLORS.A, ctr: 0.051, impressions: 800, clicks: 41, pBest: 0.35, pTop2: 0.35, linkCtr: undefined, retention: undefined },
+    { label: 'B', color: VARIANT_COLORS.B, ctr: 0.054, impressions: 800, clicks: 43, pBest: 0.65, pTop2: 0.65, linkCtr: undefined, retention: undefined },
+  ],
+  variantThumbs: [
+    { label: 'A', color: VARIANT_COLORS.A, thumbUrl: null, isOriginal: true },
+    { label: 'B', color: VARIANT_COLORS.B, thumbUrl: null, isOriginal: false },
+  ],
+  confTrend: [18],
+  daily: { A: [5.1], B: [5.4] } as Record<import('@/lib/youtube/ab-types').DisplayLabel, number[]>,
+  abbaSeq: ['A', 'B'] as unknown as import('@/lib/youtube/ab-types').DisplayLabel[],
+  cycles: { total: 8, done: 1 },
+  durationDays: 14,
+  confidenceTarget: 0.95,
+  totalRounds: 1,
+  hasPlayoff: false,
+  gates: [
+    { name: 'confidence', passed: false, value: '18%', hint: '< 95%' },
+    { name: 'min_impressions', passed: false, value: '800/var', hint: '≥ 1000' },
+    { name: 'min_duration', passed: false, value: '1 dia', hint: '≥ 7 dias' },
+    { name: 'abba_cycles', passed: false, value: '1 ciclo', hint: '≥ 4' },
+    { name: 'burn_in', passed: false, value: '1 dia', hint: '≥ 2 dias' },
+    { name: 'stability', passed: false, value: 'Avaliando', hint: 'Precisa de mais dados' },
+  ],
+  confirmedData: {
+    confidence: 18,
+    leader: 'B',
+    leaderColor: VARIANT_COLORS.B,
+    lift: 5.9,
+  },
+  liveData: undefined,
+}
+
 export const MOCK_ACTIVE: AbTestActiveView = {
   ...BASE,
   status: 'active',
