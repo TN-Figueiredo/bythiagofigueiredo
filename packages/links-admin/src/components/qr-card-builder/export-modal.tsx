@@ -1,6 +1,7 @@
 'use client'
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { X, Check, Loader2, Download, Copy } from 'lucide-react'
+import { encode as encodeGif } from 'modern-gif'
 import type { CardComposition } from '@tn-figueiredo/links/qr'
 import { compositionToSvg } from '@tn-figueiredo/links/qr'
 import type { CanvasEditorHandle } from './canvas-editor'
@@ -57,7 +58,39 @@ function estimateFileSize(w: number, h: number, scale: number, fmt: ExportFormat
   const pixels = w * h * scale * scale
   if (fmt === 'jpg') return Math.round(pixels * 0.3)
   if (fmt === 'png') return Math.round(pixels * 4 / 5) // rough: 4 bytes/px with ~80% compression
+  if (fmt === 'gif') return Math.round(pixels * 0.5) // rough estimate for single-frame; animated will be larger
   return 0
+}
+
+function compositionHasAnimatedGif(composition: CardComposition): boolean {
+  const bgIsGif = composition.background.type === 'image' && composition.background.url.toLowerCase().endsWith('.gif')
+  const elemHasGif = composition.elements.some(el =>
+    el.type === 'image' && (
+      el.name?.includes('GIF') ||
+      el.src.toLowerCase().endsWith('.gif')
+    ),
+  )
+  return bgIsGif || elemHasGif
+}
+
+async function captureGifFrames(
+  stage: import('konva').default.Stage,
+  canvasW: number,
+  canvasH: number,
+  frameCount: number,
+  delayMs: number,
+  onProgress?: (current: number, total: number) => void,
+): Promise<Array<{ data: HTMLCanvasElement; delay: number }>> {
+  const frames: Array<{ data: HTMLCanvasElement; delay: number }> = []
+  for (let i = 0; i < frameCount; i++) {
+    onProgress?.(i + 1, frameCount)
+    await new Promise(r => setTimeout(r, delayMs))
+    const canvas = withExportStage(stage, canvasW, canvasH, (s) =>
+      s.toCanvas({ pixelRatio: 1 }),
+    )
+    frames.push({ data: canvas, delay: delayMs })
+  }
+  return frames
 }
 
 /* ── format / scale config ── */
@@ -66,7 +99,7 @@ const FORMAT_OPTIONS: { value: ExportFormat; label: string; disabled: boolean }[
   { value: 'png', label: 'PNG', disabled: false },
   { value: 'jpg', label: 'JPG', disabled: false },
   { value: 'svg', label: 'SVG', disabled: false },
-  { value: 'gif', label: 'GIF', disabled: true },
+  { value: 'gif', label: 'GIF', disabled: false },
   { value: 'mp4', label: 'MP4', disabled: true },
 ]
 
@@ -74,6 +107,7 @@ const FORMAT_HINTS: Record<string, string> = {
   png: 'Melhor qualidade, suporta transparência.',
   jpg: 'Menor tamanho, sem transparência.',
   svg: 'Vetorial, escalável infinitamente.',
+  gif: 'Animado se houver GIF na arte. Senão, exporta como imagem estática.',
 }
 
 const SCALE_OPTIONS = [
@@ -114,10 +148,13 @@ export function ExportModal({ composition, canvasRef, linkCode, onExport, onClos
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [gifProgress, setGifProgress] = useState<string | null>(null)
 
   const w = composition.canvas.width
   const h = composition.canvas.height
   const isRaster = format === 'png' || format === 'jpg'
+  const isGif = format === 'gif'
+  const hasAnimatedGif = compositionHasAnimatedGif(composition)
   const outW = isRaster ? w * scale : w
   const outH = isRaster ? h * scale : h
 
@@ -149,13 +186,37 @@ export function ExportModal({ composition, canvasRef, linkCode, onExport, onClos
   const handleExport = useCallback(async () => {
     setState('exporting')
     setErrorMsg(null)
+    setGifProgress(null)
     setStep(1)
 
     try {
       let blob: Blob
-      const exportFormat: 'png' | 'svg' = format === 'jpg' ? 'png' : (format as 'png' | 'svg')
+      const exportFormat: 'png' | 'svg' = format === 'gif' ? 'png' : format === 'jpg' ? 'png' : (format as 'png' | 'svg')
 
-      if (format === 'png' || format === 'jpg') {
+      if (format === 'gif') {
+        const stage = canvasRef.current?.getStage()
+        if (!stage) { setState('idle'); return }
+
+        await document.fonts.ready
+        setStep(2)
+
+        const animated = compositionHasAnimatedGif(composition)
+        const frameCount = animated ? 30 : 1
+        const delayMs = animated ? 100 : 0
+
+        const frames = await captureGifFrames(stage, w, h, frameCount, delayMs, (current, total) => {
+          setGifProgress(`Capturando frame ${current} de ${total}...`)
+        })
+
+        setGifProgress('Codificando GIF...')
+        blob = await encodeGif({
+          width: w,
+          height: h,
+          frames: frames.map(f => ({ data: f.data, delay: f.delay })),
+          maxColors: 128,
+          format: 'blob',
+        })
+      } else if (format === 'png' || format === 'jpg') {
         await document.fonts.ready
         setStep(2)
         const stage = canvasRef.current?.getStage()
@@ -179,11 +240,12 @@ export function ExportModal({ composition, canvasRef, linkCode, onExport, onClos
       }
 
       setFileSize(blob.size)
+      setGifProgress(null)
       setStep(3)
 
       let resultUrl: string | null = null
       if (saveToLibrary) {
-        const result = await onExport(blob, { format: exportFormat, scale, width: outW, height: outH })
+        const result = await onExport(blob, { format: exportFormat, scale: format === 'gif' ? 1 : scale, width: format === 'gif' ? w : outW, height: format === 'gif' ? h : outH })
         resultUrl = result?.url ?? null
       }
 
@@ -200,22 +262,36 @@ export function ExportModal({ composition, canvasRef, linkCode, onExport, onClos
       setState('done')
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'Export failed')
+      setGifProgress(null)
       setState('error')
     }
   }, [format, scale, saveToLibrary, composition, canvasRef, linkCode, onExport, outW, outH, w, h])
 
   /* ── progress steps ── */
-  const steps = [
-    { label: `Renderizando canvas em ${scale}×...`, done: step >= 2 },
-    { label: `Codificando ${format.toUpperCase()} (${outW}×${outH})`, done: step >= 3 },
-    ...(saveToLibrary ? [{ label: 'Enviando para Vercel Blob...', done: step >= 4 }] : []),
-    { label: 'Salvando nos downloads', done: step >= 4 },
-  ]
+  const gifFrameCount = hasAnimatedGif ? 30 : 1
+  const steps = isGif
+    ? [
+        { label: gifProgress ?? `Capturando ${gifFrameCount} frames...`, done: step >= 2 && !gifProgress?.startsWith('Capturando') },
+        { label: gifProgress === 'Codificando GIF...' ? gifProgress : `Codificando GIF (${w}×${h})`, done: step >= 3 },
+        ...(saveToLibrary ? [{ label: 'Enviando para Vercel Blob...', done: step >= 4 }] : []),
+        { label: 'Salvando nos downloads', done: step >= 4 },
+      ]
+    : [
+        { label: `Renderizando canvas em ${scale}×...`, done: step >= 2 },
+        { label: `Codificando ${format.toUpperCase()} (${outW}×${outH})`, done: step >= 3 },
+        ...(saveToLibrary ? [{ label: 'Enviando para Vercel Blob...', done: step >= 4 }] : []),
+        { label: 'Salvando nos downloads', done: step >= 4 },
+      ]
 
-  const estimated = estimateFileSize(w, h, scale, format)
-  const downloadLabel = isRaster
-    ? `Baixar ${format.toUpperCase()} · ${scale}× · ~${formatBytes(estimated)}`
-    : `Baixar ${format.toUpperCase()}`
+  const gifEstimated = hasAnimatedGif
+    ? estimateFileSize(w, h, 1, 'gif') * gifFrameCount * 0.6  // animated: multiple frames with inter-frame compression
+    : estimateFileSize(w, h, 1, 'gif')
+  const estimated = isGif ? gifEstimated : estimateFileSize(w, h, scale, format)
+  const downloadLabel = isGif
+    ? `Baixar GIF · ~${formatBytes(estimated)}`
+    : isRaster
+      ? `Baixar ${format.toUpperCase()} · ${scale}× · ~${formatBytes(estimated)}`
+      : `Baixar ${format.toUpperCase()}`
 
   /* ── preview sizing ── */
   const previewMaxW = 84
@@ -338,7 +414,7 @@ export function ExportModal({ composition, canvasRef, linkCode, onExport, onClos
                 color: 'var(--ink-faint)',
               }}
             >
-              {outW}×{outH}px
+              {isGif ? w : outW}×{isGif ? h : outH}px
             </span>
           </div>
 
@@ -366,7 +442,7 @@ export function ExportModal({ composition, canvasRef, linkCode, onExport, onClos
                         key={f.value}
                         type="button"
                         disabled={f.disabled}
-                        title={f.disabled ? 'Adicione um GIF ou fundo de vídeo pra exportar animado' : undefined}
+                        title={f.disabled ? 'MP4 em breve' : undefined}
                         onClick={() => !f.disabled && setFormat(f.value)}
                         style={{
                           padding: '9px 0',
@@ -391,9 +467,11 @@ export function ExportModal({ composition, canvasRef, linkCode, onExport, onClos
                       {FORMAT_HINTS[format]}
                     </p>
                   )}
-                  <p style={{ fontSize: 10.5, color: 'var(--ink-faint)', marginTop: 4, marginBottom: 0 }}>
-                    GIF e MP4 ficam disponíveis quando há um <strong>GIF</strong> ou <strong>fundo de vídeo</strong> na arte.
-                  </p>
+                  {format !== 'gif' && (
+                    <p style={{ fontSize: 10.5, color: 'var(--ink-faint)', marginTop: 4, marginBottom: 0 }}>
+                      MP4 fica disponível em breve.
+                    </p>
+                  )}
                 </div>
 
                 {/* ── Qualidade · escala ── */}

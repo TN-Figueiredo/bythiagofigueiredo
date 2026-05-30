@@ -98,9 +98,10 @@ export function LeftPanel({ comp, interaction, onImageUpload, customPresets = []
     input.accept = accept
     input.onchange = async () => {
       const file = input.files?.[0]
+      if (!file) return
       const isGif = file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif')
       const maxSize = isGif ? 10 * 1024 * 1024 : 5 * 1024 * 1024
-      if (!file || file.size > maxSize) return
+      if (file.size > maxSize) return
       setIsUploading(true)
       try {
         const localUrl = URL.createObjectURL(file)

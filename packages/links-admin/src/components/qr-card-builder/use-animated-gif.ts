@@ -32,6 +32,8 @@ export function useAnimatedGif(
   const lastTimeRef = useRef(0)
   const compCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const prevCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const onFrameChangeRef = useRef(onFrameChange)
+  onFrameChangeRef.current = onFrameChange
 
   useEffect(() => {
     if (!src) {
@@ -129,7 +131,7 @@ export function useAnimatedGif(
 
       frameIdxRef.current = (frameIdxRef.current + 1) % frames.length
       renderFrame(frameIdxRef.current)
-      onFrameChange?.()
+      onFrameChangeRef.current?.()
     }
 
     function renderFrame(idx: number) {

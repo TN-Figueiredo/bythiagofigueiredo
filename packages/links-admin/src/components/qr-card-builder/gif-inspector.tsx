@@ -25,6 +25,24 @@ const EMOJI_PICKS = [
   '📍', '🇹🇭', '💬', '⬆️',
 ]
 
+/** Render an emoji to a high-res PNG data URL via offscreen canvas. */
+function emojiToDataUrl(emoji: string, size = 256): string {
+  const canvas = document.createElement('canvas')
+  canvas.width = size
+  canvas.height = size
+  const ctx = canvas.getContext('2d')!
+  ctx.font = `${size * 0.8}px serif`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(emoji, size / 2, size / 2)
+  return canvas.toDataURL('image/png')
+}
+
+/** Check if an element name matches a given emoji quick-pick. */
+function isEmojiActive(elementName: string | undefined, emoji: string): boolean {
+  return elementName === `GIF ${emoji}`
+}
+
 /* ── Props ── */
 
 interface GifInspectorProps {
@@ -84,27 +102,33 @@ export function GifInspector({
       <div>
         <div style={labelStyle}>GIF / figurinha</div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-          {EMOJI_PICKS.map((emoji, i) => (
-            <button
-              key={emoji}
-              type="button"
-              onClick={() => { /* placeholder — no-op */ }}
-              style={{
-                width: 34, height: 34,
-                fontSize: 18,
-                borderRadius: 8,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                cursor: 'pointer',
-                padding: 0,
-                background: i === 0 ? 'var(--accent-soft)' : 'var(--surface)',
-                border: i === 0
-                  ? '1.5px solid var(--accent)'
-                  : '1px solid var(--line-strong)',
-              }}
-            >
-              {emoji}
-            </button>
-          ))}
+          {EMOJI_PICKS.map((emoji) => {
+            const active = isEmojiActive(element.name, emoji)
+            return (
+              <button
+                key={emoji}
+                type="button"
+                onClick={() => {
+                  const url = emojiToDataUrl(emoji)
+                  onUpdate({ src: url, name: `GIF ${emoji}` })
+                }}
+                style={{
+                  width: 34, height: 34,
+                  fontSize: 18,
+                  borderRadius: 8,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer',
+                  padding: 0,
+                  background: active ? 'var(--accent-soft)' : 'var(--surface)',
+                  border: active
+                    ? '1.5px solid var(--accent)'
+                    : '1px solid var(--line-strong)',
+                }}
+              >
+                {emoji}
+              </button>
+            )
+          })}
         </div>
       </div>
 
