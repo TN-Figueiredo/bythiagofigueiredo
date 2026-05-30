@@ -186,7 +186,7 @@ export function AbLabDashboard({
       {/* 6. Completed + Learnings */}
       {completed.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-[16px] mt-[26px] items-start animate-ab-fade-up">
-          <div className="rounded-[14px] p-[16px]" style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>
+          <div className="rounded-[14px] border border-cms-border bg-cms-surface p-[16px]">
             <div className="flex items-center justify-between mb-[14px]">
               <span className="text-[9px] font-semibold text-cms-text-dim uppercase tracking-[0.08em]">Concluídos</span>
               <button type="button" className="text-[12px] text-cms-text-dim hover:text-cms-accent transition-colors cursor-pointer">ver todos</button>

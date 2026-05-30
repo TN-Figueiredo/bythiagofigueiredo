@@ -56,7 +56,7 @@ function TagRow({ tag, maxWins }: { tag: LearningsTag; maxWins: number }) {
 export function LearningsPanel({ learnings }: LearningsPanelProps) {
   if (!learnings) {
     return (
-      <div className="rounded-[14px] p-[20px]" style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>
+      <div className="rounded-[14px] p-[20px]" style={{ background: 'var(--cms-surface)', border: '1px solid var(--cms-border, #332D25)' }}>
         <p className="text-[13px] text-cms-text-dim text-center py-4">
           Complete 3+ testes para desbloquear insights
         </p>
@@ -67,7 +67,7 @@ export function LearningsPanel({ learnings }: LearningsPanelProps) {
   const maxWins = Math.max(...learnings.tags.map(t => t.wins), 1)
 
   return (
-    <div className="rounded-[14px] p-[20px]" style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>
+    <div className="rounded-[14px] p-[20px]" style={{ background: 'var(--cms-surface)', border: '1px solid var(--cms-border, #332D25)' }}>
       {/* Header */}
       <div className="flex items-center gap-[9px] mb-[4px]">
         <Sparkles size={17} className="text-cms-accent" aria-hidden="true" />
