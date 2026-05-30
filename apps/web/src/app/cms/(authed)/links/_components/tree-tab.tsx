@@ -200,36 +200,57 @@ export function TreeTab({ tree }: TreeTabProps) {
           </div>
 
           {/* Block performance */}
-          <div style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 'var(--r)', padding: 15 }}>
-            <div className="mb-3 flex items-center gap-2">
-              <Trophy className="h-4 w-4 text-amber-400" />
-              <span className="text-[13px] font-semibold text-foreground">Desempenho por bloco</span>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 'var(--r)', padding: 18 }}>
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+              <Trophy size={15} strokeWidth={1.7} style={{ color: 'var(--accent)' }} />
+              <span style={{ fontSize: '13.5px', fontWeight: 600, flex: 1, color: 'var(--ink)' }}>Desempenho por bloco</span>
+              <a
+                href="/cms/links?tab=analytics"
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 7,
+                  padding: '6px 11px', fontSize: '12.5px', fontWeight: 600,
+                  borderRadius: 9, border: '1px solid transparent',
+                  background: 'transparent', color: 'var(--ink-dim)',
+                  letterSpacing: '-0.01em', whiteSpace: 'nowrap', transition: '0.15s',
+                }}
+              >
+                <TrendingUp size={14} strokeWidth={1.7} />
+                Analytics
+              </a>
             </div>
+            {/* Subtitle */}
+            <div style={{ fontSize: '11.5px', color: 'var(--ink-dim)', marginBottom: 14 }}>
+              Qual link da árvore mais converte (CTR = cliques ÷ visualizações).
+            </div>
+            {/* Rows */}
             {tree.blocks.length > 0 ? (
-              <div className="flex flex-col gap-2">
-                {tree.blocks.map((b) => (
-                  <div key={b.id} className="flex items-center gap-3">
-                    <span className="w-32 shrink-0 text-xs text-foreground">{b.label}</span>
-                    <div className="flex-1 h-[7px] rounded-full bg-muted overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-[#F2683C]"
-                        style={{ width: `${(b.ctr / Math.max(...tree.blocks.map(x => x.ctr), 1)) * 100}%` }}
-                      />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
+                {tree.blocks.map((b) => {
+                  const maxClicks = Math.max(...tree.blocks.map(x => x.clicks), 1)
+                  return (
+                    <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+                      <span style={{ width: 120, fontSize: '12.5px', color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flexShrink: 0 }}>
+                        {b.label}
+                      </span>
+                      <span className="mono" style={{ fontSize: '9.5px', color: 'var(--ink-faint)', width: 64, flexShrink: 0 }}>
+                        {b.section}
+                      </span>
+                      <div style={{ flex: 1, height: 8, background: 'var(--surface-2)', borderRadius: 99, overflow: 'hidden' }}>
+                        <div style={{ width: `${(b.clicks / maxClicks) * 100}%`, height: '100%', background: 'var(--accent)', borderRadius: 99 }} />
+                      </div>
+                      <span className="mono" style={{ width: 64, textAlign: 'right', fontSize: '11.5px', color: 'var(--ink-dim)' }}>
+                        {b.clicks} · {b.ctr}%
+                      </span>
                     </div>
-                    <span className="w-12 text-right font-mono text-[11px] text-muted-foreground">{b.ctr}%</span>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             ) : (
-              <p className="py-4 text-center text-xs text-muted-foreground">
+              <p style={{ padding: '16px 0', textAlign: 'center', fontSize: 12, color: 'var(--ink-faint)' }}>
                 Nenhum bloco configurado.
               </p>
             )}
-            <div className="mt-3 flex justify-end">
-              <a href="/cms/links?tab=analytics" className="text-[11px] font-medium text-muted-foreground hover:text-foreground">
-                Analytics →
-              </a>
-            </div>
           </div>
         </div>
       </div>
