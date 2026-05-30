@@ -72,6 +72,8 @@ const MOCK_DRAFTS: AbTestDraft[] = [
     thumbUrl: null,
     createdAt: new Date(Date.now() - 86400000).toISOString(),
     createdAgo: 'ontem',
+    videoId: 'mock-video-1',
+    sourcePipelineId: null,
   },
 ]
 

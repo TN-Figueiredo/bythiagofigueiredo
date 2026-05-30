@@ -51,13 +51,22 @@ export function AbLabDashboard({
   const [showSettings, setShowSettings] = useState(false)
   const [showPicker, setShowPicker] = useState(false)
   const [wizardVideo, setWizardVideo] = useState<WizardVideo | null>(null)
+  const [continueDraft, setContinueDraft] = useState<AbTestDraft | null>(null)
 
   function handleOpenTest(id: string) {
     router.push(`/cms/youtube/ab-lab/${id}`)
   }
 
   function handleContinueDraft(id: string) {
-    router.push(`/cms/youtube/ab-lab/${id}`)
+    const draft = drafts.find(d => d.id === id)
+    if (!draft) return
+    setContinueDraft(draft)
+    setWizardVideo({
+      id: draft.videoId,
+      title: draft.name.replace(/^Test:\s*/, ''),
+      thumbnailUrl: draft.thumbUrl,
+      sourcePipelineId: draft.sourcePipelineId,
+    })
   }
 
   function handleCreateTest(_videoId: string, _type: string) {
@@ -209,7 +218,7 @@ export function AbLabDashboard({
                   Sugerido pelo Intelligence Engine
                 </span>
                 <h3 className="text-[24px] font-semibold leading-[1.2] mt-[14px] mb-[8px] m-0">
-                  {suggested.length} vídeo{suggested.length > 1 ? 's' : ''} que vale a pena testar agora
+                  {suggested.length} {suggested.length > 1 ? 'vídeos que valem' : 'vídeo que vale'} a pena testar agora
                 </h3>
                 <p className="text-[14px] text-cms-text-dim leading-[1.5] m-0">
                   O sistema monitora o CTR de cada vídeo contra a mediana do seu canal. Estes estão abaixo do potencial — um teste A/B pode recuperar cliques que você está perdendo todo dia.
@@ -267,11 +276,17 @@ export function AbLabDashboard({
           video={wizardVideo}
           siteId={siteId}
           settings={settings}
-          onClose={() => setWizardVideo(null)}
+          onClose={() => {
+            setWizardVideo(null)
+            setContinueDraft(null)
+          }}
           onCreated={(testId) => {
             setWizardVideo(null)
+            setContinueDraft(null)
             router.push(`/cms/youtube/ab-lab/${testId}`)
           }}
+          existingDraftId={continueDraft?.id}
+          prefill={continueDraft ? { testType: continueDraft.type } : undefined}
         />
       )}
     </div>

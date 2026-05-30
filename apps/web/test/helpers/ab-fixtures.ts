@@ -83,6 +83,7 @@ export function makeDraft(overrides?: Partial<AbTestDraft>): AbTestDraft {
   return {
     id: uid(), name: 'Draft Test', type: 'thumbnail', step: 1,
     thumbUrl: null, createdAt: new Date().toISOString(), createdAgo: '2 hours ago',
+    videoId: 'yt-video-123', sourcePipelineId: null,
     ...overrides,
   }
 }

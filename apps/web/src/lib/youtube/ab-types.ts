@@ -299,6 +299,8 @@ export interface AbTestDraft {
   thumbUrl: string | null
   createdAt: string
   createdAgo: string
+  videoId: string
+  sourcePipelineId: string | null
 }
 
 export interface SuggestedVideo {
