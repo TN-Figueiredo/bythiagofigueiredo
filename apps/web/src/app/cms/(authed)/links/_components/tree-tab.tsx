@@ -230,10 +230,10 @@ export function TreeTab({ tree }: TreeTabProps) {
                   const maxClicks = Math.max(...tree.blocks.map(x => x.clicks), 1)
                   return (
                     <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
-                      <span style={{ width: 120, fontSize: '12.5px', color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flexShrink: 0 }}>
+                      <span style={{ minWidth: 120, maxWidth: 220, fontSize: '12.5px', color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flexShrink: 0 }}>
                         {b.label}
                       </span>
-                      <span className="mono" style={{ fontSize: '9.5px', color: 'var(--ink-faint)', width: 64, flexShrink: 0 }}>
+                      <span className="mono" style={{ fontSize: '9.5px', color: 'var(--ink-faint)', width: 64, flexShrink: 0, textAlign: 'right' }}>
                         {b.section}
                       </span>
                       <div style={{ flex: 1, height: 8, background: 'var(--surface-2)', borderRadius: 99, overflow: 'hidden' }}>

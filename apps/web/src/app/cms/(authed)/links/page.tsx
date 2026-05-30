@@ -173,13 +173,16 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
     engagement: ltTotalViews > 0 ? Math.round((ltUniqueVisitors / ltTotalViews) * 1000) / 10 : 0,
     topCountry: 'BR',
     spark: Array.from({ length: 30 }, () => 0),
-    blocks: links.map(l => ({
-      id: l.id,
-      label: l.title,
-      section: l.source === 'newsletter' ? 'Newsletter' : l.source === 'blog' ? 'Blog' : l.badge,
-      clicks: l.clicks,
-      ctr: l.clicks > 0 && ltTotalViews > 0 ? Math.round((l.clicks / ltTotalViews) * 1000) / 10 : 0,
-    })),
+    blocks: [
+      { id: 'linktree', label: 'Linktree (porta de entrada)', section: 'Página', clicks: ltTotalViews, ctr: ltTotalViews > 0 ? 100 : 0 },
+      ...links.map(l => ({
+        id: l.id,
+        label: l.title,
+        section: l.source === 'newsletter' ? 'Newsletter' : l.source === 'blog' ? 'Blog' : l.badge,
+        clicks: l.clicks,
+        ctr: l.clicks > 0 && ltTotalViews > 0 ? Math.round((l.clicks / ltTotalViews) * 1000) / 10 : 0,
+      })),
+    ],
     sharedLinks,
   }
 
