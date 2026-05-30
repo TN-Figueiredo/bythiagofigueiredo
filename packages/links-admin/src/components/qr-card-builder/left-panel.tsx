@@ -98,17 +98,24 @@ export function LeftPanel({ comp, interaction, onImageUpload, customPresets = []
     input.accept = accept
     input.onchange = async () => {
       const file = input.files?.[0]
-      if (!file || file.size > 5 * 1024 * 1024) return
+      const isGif = file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif')
+      const maxSize = isGif ? 10 * 1024 * 1024 : 5 * 1024 * 1024
+      if (!file || file.size > maxSize) return
       setIsUploading(true)
       try {
         const localUrl = URL.createObjectURL(file)
-        const { naturalWidth, naturalHeight } = await new Promise<HTMLImageElement>(resolve => {
+        const rawImg = await new Promise<HTMLImageElement>(resolve => {
           const img = new window.Image()
           img.onload = () => resolve(img)
           img.onerror = () => resolve(img)
           img.src = localUrl
         })
         URL.revokeObjectURL(localUrl)
+        let naturalWidth = rawImg.naturalWidth || 200
+        let naturalHeight = rawImg.naturalHeight || 200
+        if (isGif && naturalHeight > naturalWidth * 4) {
+          naturalHeight = naturalWidth
+        }
         const remoteUrl = await onImageUpload(file)
         if (!remoteUrl) {
           console.error('[QR Card] Image upload returned empty URL')

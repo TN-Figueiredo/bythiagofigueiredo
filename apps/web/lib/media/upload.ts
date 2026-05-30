@@ -69,7 +69,8 @@ export async function uploadMediaAsset(
     return fail('processing_failed', 'Image processing failed')
   }
 
-  if (processed.width !== null && processed.height !== null) {
+  const isGif = mimeType === 'image/gif'
+  if (!isGif && processed.width !== null && processed.height !== null) {
     const dimCheck = validateDimensions(processed.width, processed.height, folder)
     if (!dimCheck.ok) return fail(dimCheck.code, dimCheck.error)
   }
