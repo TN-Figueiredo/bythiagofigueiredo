@@ -1,9 +1,19 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import { Link2, ChevronRight } from 'lucide-react'
 import { LinkForm } from '@tn-figueiredo/links-admin/client'
 import type { LinkFormData } from '@tn-figueiredo/links-admin/client'
 import { handleUpdate } from './actions'
+
+const SOURCE_BADGE: Record<string, { bg: string; color: string }> = {
+  newsletter: { bg: 'rgba(167, 124, 232, 0.133)', color: 'rgb(167, 124, 232)' },
+  social: { bg: 'rgba(63, 169, 192, 0.13)', color: 'var(--cyan, #3FA9C0)' },
+  blog: { bg: 'var(--green-soft)', color: 'var(--green)' },
+  campaign: { bg: 'rgba(91, 127, 214, 0.133)', color: 'rgb(91, 127, 214)' },
+  qr: { bg: 'var(--amber-soft)', color: 'var(--amber)' },
+  manual: { bg: 'var(--surface-2)', color: 'var(--ink-dim)' },
+}
 
 interface EditLinkFormProps {
   linkId: string
@@ -24,6 +34,8 @@ interface EditLinkFormProps {
     activates_at?: string
     pass_click_ids?: boolean
     tags: string[]
+    code?: string
+    domain?: string
   }
 }
 
@@ -75,20 +87,62 @@ export function EditLinkForm({ linkId, siteId, initial }: EditLinkFormProps) {
     return { ok: true }
   }
 
+  const sourceBadge = SOURCE_BADGE[initial.source_type] ?? SOURCE_BADGE.manual
+
   return (
-    <div className="mx-auto max-w-2xl">
-      <div className="mb-6">
-        <h1 className="text-lg font-bold text-foreground">Edit Link</h1>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Update link settings and tracking parameters.
-        </p>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      {/* Toolbar */}
+      <div style={{
+        height: 56, flexShrink: 0,
+        borderBottom: '1px solid var(--line)',
+        background: 'var(--bg-side, var(--surface))',
+        display: 'flex', alignItems: 'center',
+        padding: '0 24px', gap: 14,
+      }}>
+        {/* Breadcrumb */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+          <a href="/cms/links" style={{ fontSize: '12.5px', fontWeight: 500, color: 'var(--ink-dim)', display: 'inline-flex', alignItems: 'center', gap: 6, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+            <Link2 size={13} strokeWidth={1.7} />
+            Links
+          </a>
+          <ChevronRight size={13} strokeWidth={1.7} style={{ color: 'var(--ink-faint)', opacity: 0.7, flexShrink: 0 }} />
+          <a href={`/cms/links/${linkId}`} style={{ fontSize: '12.5px', fontWeight: 500, color: 'var(--ink-dim)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+            {initial.title || `/${initial.code || linkId.slice(0, 8)}`}
+          </a>
+          <ChevronRight size={13} strokeWidth={1.7} style={{ color: 'var(--ink-faint)', opacity: 0.7, flexShrink: 0 }} />
+          <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--ink)', whiteSpace: 'nowrap' }}>
+            Editar
+          </span>
+        </div>
+
+        {/* Source badge */}
+        <span className="mono" style={{
+          display: 'inline-flex', alignItems: 'center', gap: 5,
+          padding: '3px 9px', borderRadius: 999,
+          fontSize: '10.5px', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase',
+          background: sourceBadge.bg, color: sourceBadge.color,
+          marginLeft: 4,
+        }}>
+          {initial.source_type}
+        </span>
+
+        {/* Slug */}
+        {initial.code && (
+          <span className="mono" style={{ fontSize: '11.5px', color: 'var(--ink-dim)', marginLeft: 4 }}>
+            /{initial.code}
+          </span>
+        )}
       </div>
-      <LinkForm
-        link={linkData}
-        siteId={siteId}
-        onSubmit={handleSubmit}
-        onCancel={() => router.push(`/cms/links/${linkId}`)}
-      />
+
+      {/* Form */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '26px 30px 60px', maxWidth: 720 }}>
+        <LinkForm
+          link={linkData}
+          siteId={siteId}
+          onSubmit={handleSubmit}
+          onCancel={() => router.push(`/cms/links/${linkId}`)}
+        />
+      </div>
     </div>
   )
 }

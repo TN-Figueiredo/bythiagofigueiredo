@@ -46,6 +46,7 @@ export default async function EditLinkPage({ params }: Props) {
         utm_content: (link.utm_content as string) ?? '',
         expires_at: (link.expires_at as string) ?? '',
         tags: (link.tags as string[]) ?? [],
+        code: (link.code as string) ?? '',
       }}
     />
   )
