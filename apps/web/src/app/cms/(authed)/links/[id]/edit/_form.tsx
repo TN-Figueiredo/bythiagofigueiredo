@@ -7,12 +7,13 @@ import type { LinkFormData } from '@tn-figueiredo/links-admin/client'
 import { handleUpdate } from './actions'
 
 const SOURCE_BADGE: Record<string, { bg: string; color: string }> = {
-  newsletter: { bg: 'rgba(167, 124, 232, 0.133)', color: 'rgb(167, 124, 232)' },
-  social: { bg: 'rgba(63, 169, 192, 0.13)', color: 'var(--cyan, #3FA9C0)' },
-  blog: { bg: 'var(--green-soft)', color: 'var(--green)' },
-  campaign: { bg: 'rgba(91, 127, 214, 0.133)', color: 'rgb(91, 127, 214)' },
-  qr: { bg: 'var(--amber-soft)', color: 'var(--amber)' },
-  manual: { bg: 'var(--surface-2)', color: 'var(--ink-dim)' },
+  newsletter: { bg: 'rgba(167, 124, 232, 0.133)', color: '#A77CE8' },
+  social: { bg: 'rgba(63, 169, 192, 0.13)', color: '#3FA9C0' },
+  blog: { bg: 'rgba(70, 177, 126, 0.13)', color: '#46B17E' },
+  campaign: { bg: 'rgba(91, 127, 214, 0.133)', color: '#5B7FD6' },
+  qr: { bg: 'rgba(224, 162, 60, 0.13)', color: '#E0A23C' },
+  manual: { bg: 'rgba(138, 143, 152, 0.13)', color: '#8A8F98' },
+  print: { bg: 'rgba(224, 162, 60, 0.13)', color: '#E0A23C' },
 }
 
 interface EditLinkFormProps {
