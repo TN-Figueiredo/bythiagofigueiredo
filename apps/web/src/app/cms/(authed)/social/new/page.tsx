@@ -38,12 +38,8 @@ export default async function CompositorPage({ searchParams }: Props) {
           Posts
         </Link>
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="text-cms-text-dim/50 shrink-0"><path d="M9 6l6 6-6 6" /></svg>
-        <span className="text-[12.5px] font-medium text-cms-text-dim shrink-0">
-          {modeLabel}
-        </span>
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="text-cms-text-dim/50 shrink-0"><path d="M9 6l6 6-6 6" /></svg>
         <span className="text-[12.5px] font-semibold text-cms-text truncate max-w-[220px] shrink">
-          Instagram · Story
+          {modeLabel}
         </span>
       </div>
 
