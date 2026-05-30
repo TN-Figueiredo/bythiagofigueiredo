@@ -22,7 +22,7 @@ describe('VChip', () => {
 
 describe('Badge', () => {
   it('renders children', () => { render(<Badge>Active</Badge>); expect(screen.getByText('Active')).toBeDefined() })
-  it('applies neutral tone by default', () => { const { container } = render(<Badge>X</Badge>); expect(container.firstElementChild?.className).toContain('bg-cms-surface') })
+  it('applies neutral tone by default', () => { const { container } = render(<Badge>X</Badge>); expect(container.firstElementChild?.className).toContain('text-cms-text-dim') })
   it('applies accent tone', () => { const { container } = render(<Badge tone="accent">X</Badge>); expect(container.firstElementChild?.className).toContain('bg-cms-accent-subtle') })
   it('applies green tone', () => { const { container } = render(<Badge tone="green">X</Badge>); expect(container.firstElementChild?.className).toContain('bg-cms-green-subtle') })
   it('applies amber tone', () => { const { container } = render(<Badge tone="amber">X</Badge>); expect(container.firstElementChild?.className).toContain('bg-cms-amber-subtle') })

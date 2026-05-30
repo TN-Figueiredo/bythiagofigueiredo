@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { DestId } from '@/lib/social/destinations'
 import { DEST_IDS, DESTINATIONS } from '@/lib/social/destinations'
 import { DestinationPicker } from './destination-picker'
@@ -14,6 +14,19 @@ const DEFAULT_ON: Record<DestId, boolean> = {
   ig_feed: false,
 }
 
+function computeScheduleDays(count: number): Array<{ date: Date; label: string }> {
+  const now = new Date()
+  return Array.from({ length: count }, (_, i) => {
+    const d = new Date(now)
+    d.setDate(now.getDate() + i)
+    d.setHours(0, 0, 0, 0)
+    const label = i === 0 ? 'Hoje'
+      : i === 1 ? 'Amanhã'
+      : `${d.toLocaleDateString('pt-BR', { weekday: 'short' })} ${d.getDate()}`
+    return { date: d, label: label.replace('.', '') }
+  })
+}
+
 interface CompositorNewProps {
   sourceMode?: 'cms' | 'freeform'
 }
@@ -22,7 +35,8 @@ export function CompositorNew({ sourceMode = 'freeform' }: CompositorNewProps) {
   const [destsOn, setDestsOn] = useState<Record<DestId, boolean>>(DEFAULT_ON)
   const [focused, setFocused] = useState<DestId>('ig_story')
   const [schedMode, setSchedMode] = useState<'now' | 'schedule' | 'queue'>('now')
-  const [selectedDay, setSelectedDay] = useState(1)
+  const [selectedDate, setSelectedDate] = useState<Date>(() => { const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(0,0,0,0); return d })
+  const scheduleDays = useMemo(() => computeScheduleDays(5), [])
   const [selectedTime, setSelectedTime] = useState('19:00')
   const [contentByDest, setContentByDest] = useState<Record<string, boolean>>({})
 
@@ -77,8 +91,19 @@ export function CompositorNew({ sourceMode = 'freeform' }: CompositorNewProps) {
             <div>
               <div className="mb-2 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-cms-text-dim">Dia</div>
               <div className="flex gap-1.5">
-                {['Hoje', 'Amanhã', 'Qua 31', 'Qui 1', 'Sex 2'].map((d, i) => (
-                  <button key={d} type="button" onClick={() => setSelectedDay(i)} className={`cursor-pointer rounded-lg border px-3 py-[7px] text-[12.5px] font-semibold transition-colors ${selectedDay === i ? 'border-cms-accent bg-cms-accent/10 text-cms-accent' : 'border-cms-border bg-cms-surface text-cms-text-dim hover:border-cms-text/30'}`}>{d}</button>
+                {scheduleDays.map(day => (
+                  <button
+                    key={day.date.toISOString()}
+                    type="button"
+                    onClick={() => setSelectedDate(day.date)}
+                    className={`cursor-pointer rounded-lg border px-3 py-[7px] text-[12.5px] font-semibold transition-colors ${
+                      selectedDate.getTime() === day.date.getTime()
+                        ? 'border-cms-accent bg-cms-accent/10 text-cms-accent'
+                        : 'border-cms-border bg-cms-surface text-cms-text-dim hover:border-cms-text/30'
+                    }`}
+                  >
+                    {day.label}
+                  </button>
                 ))}
               </div>
             </div>
@@ -136,7 +161,7 @@ export function CompositorNew({ sourceMode = 'freeform' }: CompositorNewProps) {
             ) : schedMode === 'now' ? (
               <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="text-cms-accent"><path d="M13 2L4 14h7l-1 8 9-12h-7z" /></svg> Publica imediatamente nas {activeCount} contas</>
             ) : schedMode === 'schedule' ? (
-              <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 8v4l3 2" /></svg> {['Hoje', 'Amanhã', 'Qua 31', 'Qui 1', 'Sex 2'][selectedDay]} · <b className="font-mono text-cms-text">{selectedTime}</b></>
+              <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 8v4l3 2" /></svg> {scheduleDays.find(d => d.date.getTime() === selectedDate.getTime())?.label ?? 'Hoje'} · <b className="font-mono text-cms-text">{selectedTime}</b></>
             ) : (
               <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6h16" /><path d="M4 12h16" /><path d="M4 18h16" /></svg> Entra na fila · próximo slot amanhã 09:00</>
             )}
