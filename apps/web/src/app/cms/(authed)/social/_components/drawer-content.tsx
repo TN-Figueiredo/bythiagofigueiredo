@@ -53,7 +53,7 @@ export function DrawerContent({ post, siteId: _siteId }: DrawerContentProps) {
       {/* Header */}
       <div className="border-b border-cms-border p-4">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="truncate text-lg font-semibold text-cms-text">{title}</h2>
+          <h2 id="drawer-title" className="truncate text-lg font-semibold text-cms-text">{title}</h2>
           <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[post.status] ?? 'bg-gray-500/20 text-gray-400'}`}>
             {STATUS_LABELS[post.status] ?? post.status}
           </span>
@@ -158,6 +158,22 @@ export function DrawerContent({ post, siteId: _siteId }: DrawerContentProps) {
           >
             Duplicar
           </button>
+        )}
+        {post.status === 'scheduled' && (
+          <>
+            <button
+              onClick={handleDuplicate}
+              className="flex-1 rounded-lg border border-cms-border px-3 py-2 text-sm font-medium text-cms-text hover:bg-cms-surface transition-colors"
+            >
+              Duplicar
+            </button>
+            <Link
+              href={`/cms/social/${post.id}`}
+              className="flex-1 rounded-lg bg-amber-500/20 px-3 py-2 text-center text-sm font-medium text-amber-400 hover:bg-amber-500/30 transition-colors"
+            >
+              Editar
+            </Link>
+          </>
         )}
         {post.status === 'failed' && (
           <Link
