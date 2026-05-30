@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useTransition } from 'react'
 import {
   Rss,
   Gauge,
@@ -13,6 +13,9 @@ import {
   Info,
   ChevronDown,
   ChevronLeft,
+  Save,
+  Check,
+  Clock,
 } from 'lucide-react'
 import { CmsSwitch } from '@/app/cms/(authed)/_shared/cms-switch'
 import { DOMAIN_META, DOMAIN_ORDER } from '@/lib/notifications/domain-colors'
@@ -21,6 +24,7 @@ import type {
   ChannelKey,
   FrequencyPreset,
 } from '@/lib/notifications/types'
+import { savePreferences } from '@/lib/notifications/actions'
 import { TelegramConnect } from './telegram-connect'
 
 /* ------------------------------------------------------------------ */
@@ -31,31 +35,28 @@ const CHANNELS: Array<{
   key: ChannelKey
   label: string
   icon: typeof Bell
-  description: string
+  lockedLabel?: string
 }> = [
   {
     key: 'in_app',
     label: 'In-app',
     icon: Bell,
-    description: 'Centro de notificacoes',
+    lockedLabel: 'Obrigatorio',
   },
   {
     key: 'email',
     label: 'E-mail',
     icon: Mail,
-    description: 'thiagojfreak@gmail.com',
   },
   {
     key: 'push',
     label: 'Push',
     icon: Smartphone,
-    description: 'Pedir permissao',
   },
   {
     key: 'telegram',
     label: 'Telegram',
     icon: Send,
-    description: '@thiago conectado',
   },
 ]
 
@@ -96,6 +97,32 @@ interface PreferencesClientProps {
   userId: string
   isConnected: boolean
   chatId: string | null
+  userEmail: string | null
+  savedChannels: Record<ChannelKey, boolean> | null
+  savedPreset: FrequencyPreset | null
+  savedCategories: Record<NotificationDomain, Record<ChannelKey, boolean>> | null
+  savedQuiet: { enabled: boolean; start: string; end: string } | null
+}
+
+/* ------------------------------------------------------------------ */
+/*  Helper: channel description                                        */
+/* ------------------------------------------------------------------ */
+
+function getChannelDescription(
+  key: ChannelKey,
+  userEmail: string | null,
+  isConnected: boolean
+): string {
+  switch (key) {
+    case 'in_app':
+      return 'Centro de notificacoes'
+    case 'email':
+      return userEmail ?? 'Sem e-mail configurado'
+    case 'push':
+      return 'Pedir permissao'
+    case 'telegram':
+      return isConnected ? 'Conectado' : 'Nao conectado'
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -106,23 +133,32 @@ export function PreferencesClient({
   userId,
   isConnected,
   chatId,
+  userEmail,
+  savedChannels,
+  savedPreset,
+  savedCategories,
+  savedQuiet,
 }: PreferencesClientProps) {
   // -- Global channel state
-  const [channels, setChannels] = useState<Record<ChannelKey, boolean>>({
-    in_app: true,
-    email: true,
-    push: false,
-    telegram: true,
-  })
+  const [channels, setChannels] = useState<Record<ChannelKey, boolean>>(
+    savedChannels ?? {
+      in_app: true,
+      email: true,
+      push: false,
+      telegram: isConnected,
+    }
+  )
 
   // -- Frequency preset
-  const [preset, setPreset] = useState<FrequencyPreset>('regular')
+  const [preset, setPreset] = useState<FrequencyPreset>(
+    savedPreset ?? 'regular'
+  )
 
   // -- Per-category channels
-  const [cats, setCats] = useState<CategoryState>(() => {
+  const defaultCats = (): CategoryState => {
     const o: Partial<CategoryState> = {}
     for (const d of DOMAIN_ORDER) {
-      o[d] = {
+      o[d] = savedCategories?.[d] ?? {
         in_app: true,
         email: d === 'system' || d === 'pipeline',
         push: false,
@@ -130,7 +166,8 @@ export function PreferencesClient({
       }
     }
     return o as CategoryState
-  })
+  }
+  const [cats, setCats] = useState<CategoryState>(defaultCats)
 
   // -- Accordion state
   const [openDomain, setOpenDomain] = useState<NotificationDomain | null>(
@@ -138,7 +175,15 @@ export function PreferencesClient({
   )
 
   // -- Quiet hours
-  const [quietEnabled, setQuietEnabled] = useState(true)
+  const [quietEnabled, setQuietEnabled] = useState(
+    savedQuiet?.enabled ?? true
+  )
+  const [quietStart, setQuietStart] = useState(savedQuiet?.start ?? '22:00')
+  const [quietEnd, setQuietEnd] = useState(savedQuiet?.end ?? '08:00')
+
+  // -- Save state
+  const [isPending, startTransition] = useTransition()
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle')
 
   // -- Frequency radio group keyboard nav
   const presetGroupRef = useRef<HTMLDivElement>(null)
@@ -146,6 +191,7 @@ export function PreferencesClient({
   const toggleChannel = useCallback((key: ChannelKey) => {
     if (key === 'in_app') return // In-app always on (LGPD contract)
     setChannels((c) => ({ ...c, [key]: !c[key] }))
+    setSaveStatus('idle')
   }, [])
 
   const toggleCat = useCallback(
@@ -156,6 +202,7 @@ export function PreferencesClient({
         ...c,
         [dom]: { ...c[dom], [ch]: !c[dom][ch] },
       }))
+      setSaveStatus('idle')
     },
     [channels]
   )
@@ -175,6 +222,7 @@ export function PreferencesClient({
         const nextPreset = PRESET_ORDER[next]
         if (nextPreset) {
           setPreset(nextPreset)
+          setSaveStatus('idle')
           const radios =
             presetGroupRef.current?.querySelectorAll<HTMLButtonElement>(
               '[role="radio"]'
@@ -185,6 +233,21 @@ export function PreferencesClient({
     },
     []
   )
+
+  const handleSave = useCallback(() => {
+    startTransition(async () => {
+      await savePreferences({
+        channels,
+        preset,
+        categories: cats,
+        quietEnabled,
+        quietStart,
+        quietEnd,
+        timezone,
+      })
+      setSaveStatus('saved')
+    })
+  }, [channels, preset, cats, quietEnabled, quietStart, quietEnd, timezone])
 
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
 
@@ -200,13 +263,40 @@ export function PreferencesClient({
             Controle o que chega ate voce e por onde.
           </p>
         </div>
-        <a
-          href="/cms/notifications"
-          className="inline-flex w-fit items-center gap-1.5 rounded-xl border border-cms-border bg-cms-surface px-3 py-2 text-sm text-cms-text-muted transition-colors hover:border-cms-accent hover:text-cms-text focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-cms-accent"
-        >
-          <ChevronLeft size={15} />
-          Voltar a caixa
-        </a>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={isPending}
+            className={[
+              'inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-sm font-medium transition-colors',
+              'focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-cms-accent',
+              saveStatus === 'saved'
+                ? 'border-green-700/40 bg-green-950/30 text-green-400'
+                : 'border-cms-accent/50 bg-cms-accent/10 text-cms-accent hover:bg-cms-accent/20',
+              isPending ? 'cursor-wait opacity-70' : '',
+            ].join(' ')}
+          >
+            {saveStatus === 'saved' ? (
+              <>
+                <Check size={15} />
+                Salvo
+              </>
+            ) : (
+              <>
+                <Save size={15} />
+                {isPending ? 'Salvando...' : 'Salvar'}
+              </>
+            )}
+          </button>
+          <a
+            href="/cms/notifications"
+            className="inline-flex w-fit items-center gap-1.5 rounded-xl border border-cms-border bg-cms-surface px-3 py-2 text-sm text-cms-text-muted transition-colors hover:border-cms-accent hover:text-cms-text focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-cms-accent"
+          >
+            <ChevronLeft size={15} />
+            Voltar a caixa
+          </a>
+        </div>
       </div>
 
       {/* ================================================================
@@ -229,56 +319,79 @@ export function PreferencesClient({
           {CHANNELS.map((ch) => {
             const isOn = channels[ch.key]
             const isLocked = ch.key === 'in_app'
+            const isTelegram = ch.key === 'telegram'
             const IconComp = ch.icon
+            const description = getChannelDescription(
+              ch.key,
+              userEmail,
+              isConnected
+            )
             return (
-              <button
-                key={ch.key}
-                type="button"
-                onClick={() => toggleChannel(ch.key)}
-                aria-pressed={isOn}
-                aria-disabled={isLocked || undefined}
-                className={[
-                  'flex items-center gap-3 rounded-xl border p-[13px_14px] transition-all duration-150',
-                  'focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-cms-accent',
-                  isOn
-                    ? 'border-[color-mix(in_srgb,var(--color-cms-accent)_45%,transparent)] bg-cms-accent-subtle shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]'
-                    : 'border-cms-border bg-cms-surface-hover hover:border-cms-text-dim',
-                  isLocked ? 'cursor-default' : 'cursor-pointer',
-                ].join(' ')}
-              >
-                <div
+              <div key={ch.key} className="flex flex-col gap-0">
+                <button
+                  type="button"
+                  onClick={() => toggleChannel(ch.key)}
+                  aria-pressed={isOn}
+                  aria-disabled={isLocked || undefined}
                   className={[
-                    'grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[9px] border',
+                    'flex items-center gap-3 rounded-xl border p-[13px_14px] transition-all duration-150',
+                    'focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-cms-accent',
                     isOn
-                      ? 'border-transparent text-cms-accent'
-                      : 'border-cms-border bg-cms-surface text-cms-text-muted',
+                      ? 'border-[color-mix(in_srgb,var(--color-cms-accent)_45%,transparent)] bg-cms-accent-subtle shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]'
+                      : 'border-cms-border bg-cms-surface-hover hover:border-cms-text-dim',
+                    isLocked ? 'cursor-default' : 'cursor-pointer',
+                    isTelegram && isOn ? 'rounded-b-none border-b-0' : '',
                   ].join(' ')}
-                  style={
-                    isOn
-                      ? {
-                          backgroundColor:
-                            'color-mix(in srgb, var(--color-cms-accent) 22%, transparent)',
-                        }
-                      : undefined
-                  }
                 >
-                  <IconComp size={17} />
-                </div>
-                <div className="min-w-0 grow text-left">
-                  <div className="text-sm font-medium text-cms-text">
-                    {ch.label}
+                  <div
+                    className={[
+                      'grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[9px] border',
+                      isOn
+                        ? 'border-transparent text-cms-accent'
+                        : 'border-cms-border bg-cms-surface text-cms-text-muted',
+                    ].join(' ')}
+                    style={
+                      isOn
+                        ? {
+                            backgroundColor:
+                              'color-mix(in srgb, var(--color-cms-accent) 22%, transparent)',
+                          }
+                        : undefined
+                    }
+                  >
+                    <IconComp size={17} />
                   </div>
-                  <div className="text-2xs text-cms-text-dim">
-                    {ch.description}
+                  <div className="min-w-0 grow text-left">
+                    <div className="flex items-center gap-2 text-sm font-medium text-cms-text">
+                      {ch.label}
+                      {isLocked && ch.lockedLabel && (
+                        <span className="rounded-md bg-cms-surface-hover px-1.5 py-0.5 text-3xs font-semibold text-cms-text-muted">
+                          {ch.lockedLabel}
+                        </span>
+                      )}
+                    </div>
+                    <div className="truncate text-2xs text-cms-text-dim">
+                      {description}
+                    </div>
                   </div>
-                </div>
-                <CmsSwitch
-                  checked={isOn}
-                  onChange={() => toggleChannel(ch.key)}
-                  label={`${ch.label} ativo`}
-                  locked={isLocked}
-                />
-              </button>
+                  <CmsSwitch
+                    checked={isOn}
+                    onChange={() => toggleChannel(ch.key)}
+                    label={`${ch.label} ativo`}
+                    locked={isLocked}
+                  />
+                </button>
+                {/* Telegram inline connection */}
+                {isTelegram && isOn && (
+                  <div className="rounded-b-xl border border-t-0 border-[color-mix(in_srgb,var(--color-cms-accent)_45%,transparent)] bg-cms-accent-subtle px-4 pb-3 pt-2">
+                    <TelegramConnect
+                      userId={userId}
+                      isConnected={isConnected}
+                      chatId={chatId}
+                    />
+                  </div>
+                )}
+              </div>
             )
           })}
         </div>
@@ -316,7 +429,10 @@ export function PreferencesClient({
                 role="radio"
                 aria-checked={isOn}
                 tabIndex={isOn ? 0 : -1}
-                onClick={() => setPreset(k)}
+                onClick={() => {
+                  setPreset(k)
+                  setSaveStatus('idle')
+                }}
                 onKeyDown={(e) => handlePresetKeyDown(e, idx)}
                 className={[
                   'rounded-xl border p-[15px] text-left transition-all duration-150',
@@ -498,23 +614,72 @@ export function PreferencesClient({
             Horario de silencio
           </h2>
         </div>
-        <div className="flex items-center justify-between gap-4 p-5">
-          <div>
-            <p className="text-sm font-medium text-cms-text">
-              Pausar nao-criticas das 22h as 8h
-            </p>
-            <p className="mt-1 text-xs text-cms-text-dim">
-              So alertas criticos (falhas, tokens) passam nesse periodo.
-            </p>
-            <p className="mt-1 text-2xs text-cms-text-dim">
-              Fuso: {timezone}
-            </p>
+        <div className="p-5">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium text-cms-text">
+                Pausar nao-criticas
+              </p>
+              <p className="mt-1 text-xs text-cms-text-dim">
+                So alertas criticos (falhas, tokens) passam nesse periodo.
+              </p>
+            </div>
+            <CmsSwitch
+              checked={quietEnabled}
+              onChange={(v) => {
+                setQuietEnabled(v)
+                setSaveStatus('idle')
+              }}
+              label="Horario de silencio ativo"
+            />
           </div>
-          <CmsSwitch
-            checked={quietEnabled}
-            onChange={setQuietEnabled}
-            label="Horario de silencio ativo"
-          />
+
+          {quietEnabled && (
+            <div className="mt-4 animate-fade-in">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <Clock size={14} className="text-cms-text-dim" />
+                  <label
+                    htmlFor="quiet-start"
+                    className="text-sm text-cms-text-muted"
+                  >
+                    Das
+                  </label>
+                  <input
+                    id="quiet-start"
+                    type="time"
+                    value={quietStart}
+                    onChange={(e) => {
+                      setQuietStart(e.target.value)
+                      setSaveStatus('idle')
+                    }}
+                    className="rounded-lg border border-cms-border bg-cms-surface-hover px-2.5 py-1.5 text-sm text-cms-text focus:border-cms-accent focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-cms-accent"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <label
+                    htmlFor="quiet-end"
+                    className="text-sm text-cms-text-muted"
+                  >
+                    as
+                  </label>
+                  <input
+                    id="quiet-end"
+                    type="time"
+                    value={quietEnd}
+                    onChange={(e) => {
+                      setQuietEnd(e.target.value)
+                      setSaveStatus('idle')
+                    }}
+                    className="rounded-lg border border-cms-border bg-cms-surface-hover px-2.5 py-1.5 text-sm text-cms-text focus:border-cms-accent focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-cms-accent"
+                  />
+                </div>
+              </div>
+              <p className="mt-2.5 text-2xs text-cms-text-dim">
+                Fuso: {timezone}
+              </p>
+            </div>
+          )}
         </div>
       </section>
 
@@ -524,18 +689,6 @@ export function PreferencesClient({
         Conforme a LGPD: alertas de seguranca nao podem ser desativados;
         e-mail/push exigem opt-in explicito.
       </p>
-
-      {/* ---- Telegram Connect (existing, below fold) ---- */}
-      <section className="mt-6 rounded-xl border border-cms-border bg-cms-surface p-5 shadow-card">
-        <h2 className="mb-3 text-sm font-semibold text-cms-text">
-          Conexao Telegram
-        </h2>
-        <TelegramConnect
-          userId={userId}
-          isConnected={isConnected}
-          chatId={chatId}
-        />
-      </section>
     </div>
   )
 }

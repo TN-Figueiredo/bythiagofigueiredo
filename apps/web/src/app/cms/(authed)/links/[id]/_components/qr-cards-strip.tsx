@@ -95,28 +95,30 @@ export function QrCardsStrip({ linkId, cards }: QrCardsStripProps) {
                 aria-label={`Editar QR Card: ${card.name}`}
                 onClick={() => router.push(`/cms/links/${linkId}/qr?card=${card.id}`)}
                 style={{
-                  width: 130, minWidth: 130, height: 150,
+                  width: 140, minWidth: 140, height: 180,
                   borderRadius: 12,
-                  padding: 12,
+                  padding: 10,
                   display: 'flex', flexDirection: 'column',
-                  alignItems: 'center', gap: 8,
+                  alignItems: 'center', gap: 6,
                   font: 'inherit',
                   color: 'inherit',
                 }}
               >
                 <div style={{
-                  width: 64, height: 64, borderRadius: 8,
-                  background: '#fff', padding: 5, flexShrink: 0,
+                  width: '100%', height: 100, borderRadius: 8,
+                  background: card.previewUrl ? 'var(--surface-2)' : '#fff',
+                  flexShrink: 0,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  overflow: 'hidden',
                 }}>
                   {card.previewUrl ? (
                     <img
                       src={card.previewUrl}
                       alt={`Preview do QR Card: ${card.name}`}
-                      style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: 4 }}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 6 }}
                     />
                   ) : (
-                    <QrCode size={32} strokeWidth={1.4} style={{ color: 'var(--ink-faint)' }} />
+                    <QrCode size={36} strokeWidth={1.3} style={{ color: 'var(--ink-faint)' }} />
                   )}
                 </div>
 
@@ -125,6 +127,7 @@ export function QrCardsStrip({ linkId, cards }: QrCardsStripProps) {
                   textAlign: 'center',
                   overflow: 'hidden', textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap', width: '100%',
+                  marginTop: 2,
                 }}>
                   {card.name}
                 </span>
@@ -145,7 +148,7 @@ export function QrCardsStrip({ linkId, cards }: QrCardsStripProps) {
               aria-label="Criar novo QR Card"
               onClick={() => router.push(`/cms/links/${linkId}/qr`)}
               style={{
-                width: 130, minWidth: 130, height: 150,
+                width: 140, minWidth: 140, height: 180,
                 borderRadius: 12,
                 display: 'flex', flexDirection: 'column',
                 alignItems: 'center', justifyContent: 'center',

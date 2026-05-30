@@ -43,8 +43,11 @@ export function QrCardBuilderPage({ link, shortUrl, initialComposition, template
     fd.append('file', blob, `qr-card.${metadata.format}`)
     fd.append('format', metadata.format)
     const result = await exportQrCard(link.id, fd)
+    if (result.ok && cardId) {
+      await updateQrCard(cardId, link.id, { previewUrl: result.url })
+    }
     return result.ok ? { url: result.url } : null
-  }, [link.id])
+  }, [link.id, cardId])
 
   const handleSaveTemplate = useCallback(async (name: string, composition: CardComposition, thumbnail: Blob) => {
     const fd = new FormData()

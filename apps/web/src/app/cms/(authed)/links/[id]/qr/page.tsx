@@ -42,7 +42,8 @@ export default async function QrCardPage({ params, searchParams }: Props) {
   const shortUrl = buildShortUrl(link.code)
 
   let composition = createDefaultComposition()
-  let cardName = 'Novo QR Card'
+  const linkTitle = (link.title as string) ?? `/${link.code as string}`
+  let cardName = linkTitle
 
   if (cardId) {
     const loaded = await loadQrCardById(cardId, id)

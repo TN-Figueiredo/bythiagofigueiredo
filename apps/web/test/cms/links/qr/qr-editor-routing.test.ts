@@ -53,8 +53,8 @@ describe('QR page routing (page.tsx)', () => {
     expect(page).toContain('cardName={cardName}')
   })
 
-  it('defaults cardName to "Novo QR Card"', () => {
-    expect(page).toContain("let cardName = 'Novo QR Card'")
+  it('defaults cardName to link title (not a generic string)', () => {
+    expect(page).toContain('let cardName = linkTitle')
   })
 
   it('routing has 3 branches: cardId, legacy composition, legacy config', () => {
