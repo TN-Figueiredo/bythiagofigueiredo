@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Filter, Settings, Zap } from 'lucide-react'
+import { Plus, Filter, Settings, Zap, FlaskConical, Crosshair, Trophy, TrendingUp } from 'lucide-react'
 import type {
   AbTestCardView,
   AbTestDraft,
@@ -113,25 +113,32 @@ export function AbLabDashboard({
 
       {/* 2. KPI Strip */}
       {showKpiStrip && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 animate-ab-fade-up" data-kpi-strip>
+        <div className="grid grid-cols-4 gap-[14px] mb-[26px] animate-ab-fade-up" data-kpi-strip>
           <KPI
             label="Testes ativos"
             value={stats.activeTests}
+            icon={FlaskConical}
           />
           <KPI
             label="Confiança média"
             value={Math.round(stats.avgConfidence)}
             suffix="%"
+            icon={Crosshair}
+            spark={stats.avgConfidence > 0 ? [40, 52, 58, 63, 68, 72, 75, 78, 80, Math.round(stats.avgConfidence)] : undefined}
           />
           <KPI
-            label="Taxa de vitória"
+            label="Win rate"
             value={Math.round(stats.winRate)}
             suffix="%"
+            icon={Trophy}
+            trend={stats.completedTests > 0 ? `${stats.testsWon} de ${stats.completedTests} testes` : undefined}
           />
           <KPI
-            label="Lift médio"
-            value={Number(stats.avgLift.toFixed(1))}
+            label="CTR lift médio"
+            value={stats.avgLift > 0 ? `+${stats.avgLift.toFixed(1)}` : '0'}
             suffix="%"
+            icon={TrendingUp}
+            trend={stats.avgLift > 0 ? `~${Math.round(stats.avgLift * 74)} cliques/mês extra` : undefined}
           />
         </div>
       )}

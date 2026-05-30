@@ -478,7 +478,7 @@ export function computeDashboardStats(
       ? liftValues.reduce((sum, v) => sum + v, 0) / liftValues.length
       : 0
 
-  return { activeTests, avgConfidence, winRate, avgLift }
+  return { activeTests, avgConfidence, winRate, avgLift, completedTests: rootCompleted.length, testsWon: winnerCount }
 }
 
 // ---------------------------------------------------------------------------

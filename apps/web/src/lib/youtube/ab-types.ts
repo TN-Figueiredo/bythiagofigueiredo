@@ -270,6 +270,8 @@ export interface DashboardStats {
   avgConfidence: number
   winRate: number
   avgLift: number
+  completedTests: number
+  testsWon: number
 }
 
 export interface AbTestCardView {
