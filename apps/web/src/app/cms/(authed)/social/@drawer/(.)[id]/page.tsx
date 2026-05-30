@@ -14,9 +14,8 @@ interface Props {
 export default async function PostDrawerPage({ params }: Props) {
   const { id } = await params
 
-  if (id === 'new' || id === 'accounts' || id === 'insights' || id === 'queue' || id === 'stories' || id === 'templates') {
-    return null
-  }
+  const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (!UUID_REGEX.test(id)) return null
 
   const ctx = await getSiteContext()
   await requireSiteScope({ area: 'cms', siteId: ctx.siteId, mode: 'view' })
