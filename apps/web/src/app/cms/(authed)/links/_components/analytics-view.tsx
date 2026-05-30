@@ -236,9 +236,16 @@ export function AnalyticsView({ data }: AnalyticsViewProps) {
         </Panel>
 
         {/* Heatmap */}
-        <Panel title="Horários de pico" icon="he">
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 'var(--r)', padding: 18 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--accent)' }}>
+              <path d="M12 3a9 9 0 100 18 9 9 0 000-18z" /><path d="M12 8v4l3 2" />
+            </svg>
+            <span style={{ fontSize: '13.5px', fontWeight: 600, flex: 1, color: 'var(--ink)' }}>Horários de pico</span>
+            <span style={{ fontSize: 11, color: 'var(--ink-faint)' }}>cliques por dia × hora</span>
+          </div>
           <Heatmap grid={data.heatmap} />
-        </Panel>
+        </div>
       </div>
 
       {/* Top Links */}

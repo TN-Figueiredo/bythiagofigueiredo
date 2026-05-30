@@ -125,7 +125,7 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
       .not('os', 'is', null),
     supabase
       .from('linktree_events')
-      .select('created_at, country, device_type')
+      .select('created_at, country, city, device_type')
       .eq('site_id', siteId)
       .eq('event_type', 'pageview')
       .gte('created_at', new Date(Date.now() - 30 * 86_400_000).toISOString()),
@@ -334,18 +334,33 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
     }
   }
 
-  // Countries from linktree_events
+  // Countries + cities from linktree_events
   const countryCounts = new Map<string, number>()
+  const countryCities = new Map<string, Map<string, number>>()
   for (const row of ltDailyEventsRes.data ?? []) {
     const c = (row.country as string | null)
-    if (c) countryCounts.set(c, (countryCounts.get(c) ?? 0) + 1)
+    if (c) {
+      countryCounts.set(c, (countryCounts.get(c) ?? 0) + 1)
+      const city = (row.city as string | null)
+      if (city) {
+        if (!countryCities.has(c)) countryCities.set(c, new Map())
+        const cityMap = countryCities.get(c)!
+        cityMap.set(city, (cityMap.get(city) ?? 0) + 1)
+      }
+    }
   }
   const countryTotal = Array.from(countryCounts.values()).reduce((s, v) => s + v, 0) || 1
-  const COUNTRY_NAMES: Record<string, string> = { BR: 'Brasil', US: 'Estados Unidos', PT: 'Portugal', DE: 'Alemanha', FR: 'França', GB: 'Reino Unido', ES: 'Espanha', AR: 'Argentina', JP: 'Japão' }
+  const COUNTRY_NAMES: Record<string, string> = { BR: 'Brasil', US: 'Estados Unidos', PT: 'Portugal', DE: 'Alemanha', FR: 'França', GB: 'Reino Unido', ES: 'Espanha', AR: 'Argentina', JP: 'Japão', TH: 'Tailândia', MX: 'México', CO: 'Colômbia' }
   const countries = Array.from(countryCounts.entries())
     .sort((a, b) => b[1] - a[1])
     .slice(0, 8)
-    .map(([code, v]) => ({ code, name: COUNTRY_NAMES[code] ?? code, v: Math.round((v / countryTotal) * 100), cities: [] as string[] }))
+    .map(([code, v]) => {
+      const cityMap = countryCities.get(code)
+      const topCities = cityMap
+        ? Array.from(cityMap.entries()).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([name]) => name)
+        : []
+      return { code, name: COUNTRY_NAMES[code] ?? code, v: Math.round((v / countryTotal) * 100), cities: topCities }
+    })
 
   const allClicks = totalClicks + ltTotalViews
   const allUnique = totalUnique + ltUniqueVisitors
