@@ -20,9 +20,17 @@ export function TreeTab({ tree }: TreeTabProps) {
     <div className="space-y-5">
       {/* Merge banner */}
       {!bannerDismissed && (
-        <div className="flex items-center gap-2.5 rounded-[11px] border border-white/[0.08] bg-[var(--accent-soft,rgba(242,104,60,0.06))] px-4 py-3 text-xs text-foreground">
-          <Info className="h-4 w-4 shrink-0 text-[#F2683C]" />
-          <span className="flex-1">Link in Bio agora vive aqui. Tudo unificado sob Links.</span>
+        <div
+          className="flex items-center"
+          style={{ gap: 10, padding: '11px 15px', background: 'var(--accent-soft)', border: '1px solid var(--line)', borderRadius: 11 }}
+        >
+          <Info size={15} strokeWidth={1.7} className="shrink-0" style={{ color: 'var(--accent)' }} />
+          <div className="flex-1 text-[12.5px]" style={{ color: 'var(--ink-dim)' }}>
+            <b style={{ color: 'var(--ink)' }}>Link in Bio agora vive aqui.</b>{' '}
+            Unificamos os dois itens de menu: a sua árvore é a{' '}
+            <b style={{ color: 'var(--ink)' }}>porta de entrada</b>
+            , e os links rastreados ficam na aba ao lado.
+          </div>
           <button
             type="button"
             aria-label="Fechar banner"
@@ -30,7 +38,8 @@ export function TreeTab({ tree }: TreeTabProps) {
               setBannerDismissed(true)
               localStorage.setItem('links-merge-banner-dismissed', '1')
             }}
-            className="shrink-0 text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 rounded"
+            className="shrink-0 rounded focus:outline-none focus:ring-2 focus:ring-primary/50"
+            style={{ color: 'var(--ink-faint)' }}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
           </button>
