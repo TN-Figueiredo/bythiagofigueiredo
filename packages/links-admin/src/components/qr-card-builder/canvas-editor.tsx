@@ -311,6 +311,7 @@ function GifNode({
   const { canvas, loading } = useAnimatedGif(
     element.src,
     () => { layerRef.current?.batchDraw() },
+    true,
   )
   const isPlaceholder = element.src.startsWith('data:') && element.src.length < 200
   const fallback = useLoadedImage(canvas || isPlaceholder ? null : element.src)

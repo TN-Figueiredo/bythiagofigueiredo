@@ -21,6 +21,7 @@ interface UseAnimatedGifReturn {
 export function useAnimatedGif(
   src: string | null,
   onFrameChange?: () => void,
+  forceGif = false,
 ): UseAnimatedGifReturn {
   const [state, setState] = useState<{ loading: boolean; error: boolean; frameCount: number; gifWidth: number; gifHeight: number; canvas: HTMLCanvasElement | null }>({
     loading: false, error: false, frameCount: 0, gifWidth: 0, gifHeight: 0, canvas: null,
@@ -44,8 +45,9 @@ export function useAnimatedGif(
     }
 
     // Only animate real GIFs (skip tiny placeholder data URIs)
-    const isGif = src.toLowerCase().endsWith('.gif') || (src.includes('image/gif') && src.length > 200)
-    if (!isGif) {
+    const isPlaceholder = src.startsWith('data:') && src.length < 200
+    const isGif = forceGif || src.toLowerCase().endsWith('.gif') || (src.includes('image/gif') && src.length > 200)
+    if (isPlaceholder || !isGif) {
       canvasRef.current = null
       setState({ loading: false, error: false, frameCount: 0, gifWidth: 0, gifHeight: 0, canvas: null })
       return
@@ -189,7 +191,7 @@ export function useAnimatedGif(
       cancelled = true
       cancelAnimationFrame(rafRef.current)
     }
-  }, [src]) // Note: onFrameChange intentionally excluded to avoid re-loading
+  }, [src, forceGif]) // Note: onFrameChange intentionally excluded to avoid re-loading
 
   return {
     canvas: state.canvas,
