@@ -22,10 +22,10 @@ interface FeedGridProps {
 }
 
 const FILTERS = [
-  { key: 'all', label: 'Todos' },
-  { key: 'published', label: 'Publicados' },
+  { key: 'all', label: 'Tudo' },
+  { key: 'published', label: 'No ar' },
   { key: 'scheduled', label: 'Agendados' },
-  { key: 'failed', label: 'Falharam' },
+  { key: 'failed', label: 'Falhas' },
 ] as const
 
 export function FeedGrid({ items }: FeedGridProps) {
@@ -45,7 +45,7 @@ export function FeedGrid({ items }: FeedGridProps) {
 
   return (
     <>
-      <div className="mt-4 flex gap-2" role="group" aria-label="Filtrar por status">
+      <div className="mt-4 flex gap-[7px] mb-[18px]" role="group" aria-label="Filtrar por status">
         {FILTERS.map(f => {
           const isActive = activeFilter === f.key
           return (
@@ -53,15 +53,15 @@ export function FeedGrid({ items }: FeedGridProps) {
               key={f.key}
               aria-pressed={isActive}
               onClick={() => setFilter(f.key)}
-              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+              className={`inline-flex items-center gap-1.5 rounded-lg px-[13px] py-1.5 text-[12.5px] font-semibold transition-colors ${
                 isActive
-                  ? 'bg-cms-accent text-white shadow-sm shadow-cms-accent/25'
-                  : 'border border-cms-border bg-transparent text-cms-text-muted hover:bg-cms-surface hover:text-cms-text'
+                  ? 'border border-cms-accent bg-cms-accent/10 text-cms-accent'
+                  : 'border border-cms-border bg-cms-surface text-cms-text-dim'
               }`}
             >
               {f.label}
               {isActive && items.length > 0 && (
-                <span className="inline-flex min-w-[18px] items-center justify-center rounded-full bg-white/20 px-1 py-px text-[10px] font-semibold leading-none text-white">
+                <span className="font-mono opacity-70 text-[12.5px]">
                   {items.length}
                 </span>
               )}
