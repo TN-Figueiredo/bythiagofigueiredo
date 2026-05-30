@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import type { AbTestActiveView } from '@/lib/youtube/ab-types'
 import { VARIANT_COLORS } from './ab-constants'
+import { InfoTip } from './ab-primitives'
 import { DetailHeader } from './detail-header'
 import { LockCountdown } from './lock-countdown'
 import { HeroBand } from './hero-band'
@@ -93,7 +94,7 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
             </button>
           ))}
         </div>
-        <span className="size-[15px] rounded-full border border-cms-border text-cms-text-muted text-[9.5px] font-bold inline-flex items-center justify-center cursor-help font-mono">?</span>
+        <InfoTip text="Confirmado = dados finais da API do YouTube (atraso de 2–3 dias). Live = estimativa do ciclo atual, instantânea mas imprecisa." />
         <button type="button" className={BTN}>
           <Pause size={14} aria-hidden="true" />
           Pausar

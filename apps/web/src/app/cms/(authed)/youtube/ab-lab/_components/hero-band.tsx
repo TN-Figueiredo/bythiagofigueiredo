@@ -2,7 +2,7 @@
 
 import type { DisplayLabel } from '@/lib/youtube/ab-types'
 import { formatPercent } from './ab-constants'
-import { VChip } from './ab-primitives'
+import { VChip, InfoTip } from './ab-primitives'
 import { TrendingUp, Minus, TrendingDown } from 'lucide-react'
 
 export interface HeroBandProps {
@@ -66,9 +66,7 @@ export function HeroBand({ confidence, confidenceTarget, leader, lift, trend }: 
         <div>
           <div className="text-[10px] font-semibold text-cms-text-dim uppercase tracking-[0.08em] mb-[6px]">
             Probabilidade de vencer
-            <span className="relative inline-flex align-middle ml-[5px]">
-              <span className="size-[15px] rounded-full border border-cms-border text-cms-text-muted text-[9.5px] font-bold inline-flex items-center justify-center cursor-help font-mono">?</span>
-            </span>
+            <InfoTip text="P-best: a probabilidade Bayesiana desta variante ser a melhor. Quanto maior, mais confiança. Meta: 95% = o motor só declara vencedor acima desse limiar." />
           </div>
           <div className="text-[12.5px] text-cms-text-dim max-w-[150px] leading-[1.4]">
             Meta {confidenceTarget}% · faltam ~{estimatedDays} dias no ritmo atual
