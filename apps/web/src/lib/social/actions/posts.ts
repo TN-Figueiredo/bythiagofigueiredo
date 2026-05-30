@@ -29,6 +29,8 @@ import {
 } from '../row-parsers'
 import { getEditRules } from '../types'
 
+type ExtendedPostType = PostType | 'poll' | 'manual'
+
 // ---------------------------------------------------------------------------
 // Post management
 // ---------------------------------------------------------------------------
@@ -44,7 +46,7 @@ const createPostSchema = z.object({
 })
 
 export async function createSocialPost(data: {
-  type: PostType
+  type: ExtendedPostType
   content: z.infer<typeof SocialPostContentSchema>
   platforms: Provider[]
   scheduledAt?: string
@@ -146,7 +148,7 @@ const updatePostSchema = z.object({
 export async function updateSocialPost(
   postId: string,
   data: {
-    type?: PostType
+    type?: ExtendedPostType
     content?: z.infer<typeof SocialPostContentSchema>
     scheduledAt?: string | null
     userTimezone?: string
@@ -836,22 +838,30 @@ export interface CalendarEvent {
   tint: string
 }
 
+const calendarParamsSchema = z.object({
+  siteId: z.string().uuid(),
+  from: z.string().min(1),
+  to: z.string().min(1),
+})
+
 export async function listCalendarEvents(
   siteId: string,
   from: string,
   to: string,
 ): Promise<ActionResult<CalendarEvent[]>> {
+  const paramsParsed = calendarParamsSchema.safeParse({ siteId, from, to })
+  if (!paramsParsed.success) return { ok: false, error: zodError(paramsParsed.error) }
+
   try {
     const { siteId: authedSiteId } = await requireEditAccess()
-    if (authedSiteId !== siteId) return { ok: false, error: 'forbidden' }
+    if (authedSiteId !== paramsParsed.data.siteId) return { ok: false, error: 'forbidden' }
 
     const supabase = getSupabaseServiceClient()
     const { data, error } = await supabase
       .from('social_posts')
       .select('id, content, status, scheduled_at, published_at, social_deliveries(provider, status)')
       .eq('site_id', siteId)
-      .or(`scheduled_at.gte.${from},published_at.gte.${from}`)
-      .or(`scheduled_at.lte.${to},published_at.lte.${to}`)
+      .or(`and(scheduled_at.gte.${from},scheduled_at.lte.${to}),and(published_at.gte.${from},published_at.lte.${to})`)
       .in('status', ['scheduled', 'completed', 'failed', 'publishing'])
       .order('scheduled_at', { ascending: true })
 
@@ -936,12 +946,14 @@ export async function reorderQueue(
     const filtered = items.filter(i => i.id !== postId)
     filtered.splice(newPosition, 0, { id: postId, queue_position: newPosition })
 
-    for (let i = 0; i < filtered.length; i++) {
-      await supabase
-        .from('social_posts')
-        .update({ queue_position: i })
-        .eq('id', filtered[i].id)
-    }
+    await Promise.all(
+      filtered.map((item, i) =>
+        supabase
+          .from('social_posts')
+          .update({ queue_position: i })
+          .eq('id', item.id)
+      )
+    )
 
     revalidateSocialPaths()
     return { ok: true, data: undefined }
@@ -954,6 +966,9 @@ export async function reorderQueue(
 export async function duplicatePost(
   postId: string,
 ): Promise<ActionResult<{ id: string }>> {
+  const idParsed = z.string().uuid().safeParse(postId)
+  if (!idParsed.success) return { ok: false, error: 'Invalid post ID' }
+
   try {
     const { siteId, userId } = await requireEditAccess()
     const supabase = getSupabaseServiceClient()
@@ -961,7 +976,7 @@ export async function duplicatePost(
     const { data: original, error: fetchErr } = await supabase
       .from('social_posts')
       .select('*')
-      .eq('id', postId)
+      .eq('id', idParsed.data)
       .single()
 
     if (fetchErr || !original) return { ok: false, error: 'Post not found' }
