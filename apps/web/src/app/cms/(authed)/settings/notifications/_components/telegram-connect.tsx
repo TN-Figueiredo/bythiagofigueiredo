@@ -16,6 +16,8 @@ export function TelegramConnect({
   const [connected, setConnected] = useState(initialConnected)
   const botUsername =
     process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? 'BTFStoryBot'
+  // TODO: Replace raw UUID with HMAC-signed token from telegram_connection_tokens table
+  // See spec Section 1.1 telegram_connection_tokens and Section 5.5 Security
   const deepLink = `https://t.me/${botUsername}?start=${userId}`
 
   // Poll for connection status after user clicks the link

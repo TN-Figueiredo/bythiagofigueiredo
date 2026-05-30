@@ -143,6 +143,13 @@ export class BythiagoLgpdDomainAdapter implements ILgpdDomainAdapter {
       .from('media_assets')
       .update({ uploaded_by: null })
       .eq('uploaded_by', userId);
+
+    // Notification cleanup (7th adapter)
+    await this.supabase.from('notifications').delete().eq('user_id', userId);
+    // CASCADE handles notification_deliveries
+    await this.supabase.from('notification_preferences').delete().eq('user_id', userId);
+    await this.supabase.from('push_subscriptions').delete().eq('user_id', userId);
+    await this.supabase.from('telegram_connection_tokens').delete().eq('user_id', userId);
   }
 
   // ------------------------------------------------------------------
@@ -212,6 +219,9 @@ export class BythiagoLgpdDomainAdapter implements ILgpdDomainAdapter {
       mediaAssets,
       socialPosts,
       passwordResetAttempts,
+      notifications,
+      notificationPreferences,
+      pushSubscriptions,
     ] = await Promise.all([
       this.supabase.auth.admin.getUserById(userId),
       this.queryRows('blog_posts', 'owner_user_id', userId),
@@ -228,6 +238,9 @@ export class BythiagoLgpdDomainAdapter implements ILgpdDomainAdapter {
       this.queryRows('media_assets', 'uploaded_by', userId),
       this.queryRows('social_posts', 'created_by', userId),
       this.queryRows('password_reset_attempts', 'user_id', userId),
+      this.queryRows('notifications', 'user_id', userId),
+      this.queryRows('notification_preferences', 'user_id', userId),
+      this.queryRows('push_subscriptions', 'user_id', userId),
     ]);
 
     // BTF-022: ad_inquiries are keyed by email, not user_id. Fetch after
@@ -309,6 +322,9 @@ export class BythiagoLgpdDomainAdapter implements ILgpdDomainAdapter {
       newsletter_sends: newsletterSends,
       social_posts: socialPosts,
       password_reset_attempts: passwordResetAttempts,
+      notifications,
+      notification_preferences: notificationPreferences,
+      push_subscriptions: pushSubscriptions,
     };
   }
 
