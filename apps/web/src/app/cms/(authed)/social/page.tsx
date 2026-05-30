@@ -4,16 +4,10 @@ import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSocialStrings } from './_i18n'
 import { AccountsStripLoader } from './_components/accounts-strip'
-import { AccountsStripClient } from './_components/accounts-strip-client'
 import { FeedViewLoader } from './_components/feed-view-loader'
-import { FeedGrid } from './_components/feed-grid'
-import { MOCK_CONNECTIONS, MOCK_FEED_ITEMS, MOCK_CALENDAR, MOCK_QUEUE_ITEMS, MOCK_DRAFT_ITEMS } from './_components/design-preview-data'
 import { CalendarViewLoader } from './_components/calendar-view-loader'
-import { CalendarWeekView } from './_components/calendar-week-view'
 import { QueueViewLoader } from './_components/queue-view-loader'
 import { DraftsViewLoader } from './_components/drafts-view-loader'
-import { QueueList } from './_components/queue-list'
-import { DraftsList } from './_components/drafts-list'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,7 +15,7 @@ const TABS = ['feed', 'calendar', 'queue', 'drafts'] as const
 type TabId = (typeof TABS)[number]
 
 interface Props {
-  searchParams: Promise<{ tab?: string; status?: string; week?: string; view?: string }>
+  searchParams: Promise<{ tab?: string; status?: string; week?: string }>
 }
 
 export default async function SocialHubPage({ searchParams }: Props) {
@@ -32,8 +26,6 @@ export default async function SocialHubPage({ searchParams }: Props) {
   const t = getSocialStrings(uiLocale)
   const params = await searchParams
   const tab = (TABS.includes(params.tab as TabId) ? params.tab : 'feed') as TabId
-  const isDesignPreview = params.view === 'design'
-
   return (
     <div className="px-[30px] pt-5 space-y-0">
       {/* Breadcrumb */}
@@ -118,61 +110,28 @@ export default async function SocialHubPage({ searchParams }: Props) {
       <div role="tabpanel" id="social-tabpanel" aria-labelledby={`social-tab-${tab}`} className="pt-6">
         {tab === 'feed' && (
           <>
-            {isDesignPreview ? (
-              <>
-                <AccountsStripClient connections={MOCK_CONNECTIONS} />
-                <FeedGrid items={MOCK_FEED_ITEMS} />
-              </>
-            ) : (
-              <>
-                <Suspense fallback={<AccountsStripSkeleton />}>
-                  <AccountsStripLoader siteId={ctx.siteId} />
-                </Suspense>
-                <Suspense fallback={<FeedSkeleton />}>
-                  <FeedViewLoader siteId={ctx.siteId} status={params.status} />
-                </Suspense>
-              </>
-            )}
+            <Suspense fallback={<AccountsStripSkeleton />}>
+              <AccountsStripLoader siteId={ctx.siteId} />
+            </Suspense>
+            <Suspense fallback={<FeedSkeleton />}>
+              <FeedViewLoader siteId={ctx.siteId} status={params.status} />
+            </Suspense>
           </>
         )}
         {tab === 'calendar' && (
-          <>
-            {isDesignPreview ? (
-              <CalendarWeekView
-                days={MOCK_CALENDAR.days}
-                weekLabel={MOCK_CALENDAR.weekLabel}
-                prevWeek={MOCK_CALENDAR.prevWeek}
-                nextWeek={MOCK_CALENDAR.nextWeek}
-                dateRange={MOCK_CALENDAR.dateRange}
-              />
-            ) : (
-              <Suspense fallback={<CalendarSkeleton />}>
-                <CalendarViewLoader siteId={ctx.siteId} week={params.week} />
-              </Suspense>
-            )}
-          </>
+          <Suspense fallback={<CalendarSkeleton />}>
+            <CalendarViewLoader siteId={ctx.siteId} week={params.week} />
+          </Suspense>
         )}
         {tab === 'queue' && (
-          <>
-            {isDesignPreview ? (
-              <QueueList initialItems={MOCK_QUEUE_ITEMS} />
-            ) : (
-              <Suspense fallback={<QueueSkeleton />}>
-                <QueueViewLoader siteId={ctx.siteId} />
-              </Suspense>
-            )}
-          </>
+          <Suspense fallback={<QueueSkeleton />}>
+            <QueueViewLoader siteId={ctx.siteId} />
+          </Suspense>
         )}
         {tab === 'drafts' && (
-          <>
-            {isDesignPreview ? (
-              <DraftsList items={MOCK_DRAFT_ITEMS} />
-            ) : (
-              <Suspense fallback={<DraftsSkeleton />}>
-                <DraftsViewLoader siteId={ctx.siteId} />
-              </Suspense>
-            )}
-          </>
+          <Suspense fallback={<DraftsSkeleton />}>
+            <DraftsViewLoader siteId={ctx.siteId} />
+          </Suspense>
         )}
       </div>
     </div>
