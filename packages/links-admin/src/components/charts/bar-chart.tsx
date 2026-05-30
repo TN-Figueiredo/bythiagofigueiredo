@@ -68,7 +68,7 @@ export function BarChart({
               style={{
                 width: prev ? '78%' : '70%',
                 height: `${(v / max) * 100}%`,
-                minHeight: v ? 3 : 0,
+                minHeight: 3,
                 background: color,
                 borderRadius: 4,
                 transition: 'height .5s',
