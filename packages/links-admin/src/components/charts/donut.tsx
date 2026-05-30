@@ -33,6 +33,15 @@ export function Donut({
     <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
       <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
         <svg width={size} height={size} role="img" aria-label={`Donut chart: ${segments.map(s => `${s.k} ${s.v}%`).join(', ')}`} style={{ transform: 'rotate(-90deg)' }}>
+          {/* Background ring — visible when all segments are 0 */}
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            fill="none"
+            stroke="var(--surface-2, #1E1B16)"
+            strokeWidth={thickness}
+          />
           {segments.map((s, i) => {
             const len = (s.v / total) * c
             const el = (
