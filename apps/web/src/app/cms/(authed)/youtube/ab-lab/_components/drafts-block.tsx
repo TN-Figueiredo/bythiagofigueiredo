@@ -60,7 +60,9 @@ export function DraftsBlock({ drafts, onContinue }: DraftsBlockProps) {
                   background: 'linear-gradient(135deg, rgb(58,47,40), rgb(31,26,22))',
                   boxShadow: 'rgba(0,0,0,0.4) 0px 0px 60px inset',
                 }}
-              />
+              >
+                <div className="absolute inset-0" style={{ background: 'repeating-linear-gradient(135deg, rgba(255,255,255,0.024) 0px, rgba(255,255,255,0.024) 2px, transparent 2px, transparent 9px)' }} />
+              </div>
             )}
           </div>
 

@@ -156,7 +156,13 @@ export function AbLabDashboard({
       {cards.length > 0 && (
         <div className="animate-ab-fade-up" style={{ margin: '26px 0 14px' }}>
           <div className="flex items-center justify-between mb-[14px]">
-            <span className="text-[9px] font-semibold text-cms-text-dim uppercase tracking-[0.08em]">Testes ativos</span>
+            <div className="flex items-center gap-[8px]">
+              <span className="text-[9px] font-semibold text-cms-text-dim uppercase tracking-[0.08em]">Testes</span>
+              <span className="inline-flex items-center gap-[5px] px-[9px] py-[3px] rounded-full text-[10.5px] font-semibold tracking-[0.06em] uppercase bg-cms-green-subtle text-cms-green font-mono">
+                <span className="size-[6px] rounded-full bg-cms-green animate-ab-slot-pulse" />
+                ativos
+              </span>
+            </div>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-[16px]" data-active-grid>
             {cards.map(card => (
@@ -181,7 +187,10 @@ export function AbLabDashboard({
       {completed.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 animate-ab-fade-up">
           <div>
-            <SectionLabel>Concluídos</SectionLabel>
+            <div className="flex items-center justify-between mb-[14px]">
+              <span className="text-[9px] font-semibold text-cms-text-dim uppercase tracking-[0.08em]">Concluídos</span>
+              <button type="button" className="text-[11.5px] text-cms-text-dim hover:text-cms-accent transition-colors">ver todos</button>
+            </div>
             <div className="rounded-[14px] border border-cms-border bg-cms-bg divide-y divide-cms-border overflow-hidden">
               {completed.map(test => (
                 <CompletedRow key={test.id} test={test} onOpen={handleOpenTest} />

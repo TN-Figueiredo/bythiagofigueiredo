@@ -17,7 +17,7 @@ export function ActiveTestCard({ test, onOpen }: ActiveTestCardProps) {
       tabIndex={0}
       onClick={() => onOpen(test.id)}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(test.id) } }}
-      className="rounded-[14px] bg-cms-surface overflow-hidden cursor-pointer transition-[border-color,transform,background] duration-[0.18s] focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
+      className="rounded-[14px] bg-cms-surface border border-cms-border overflow-hidden cursor-pointer transition-[border-color,transform,background] duration-[0.18s] focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
     >
       {/* Top section */}
       <div className="py-[16px] px-[18px] pb-[14px]">
@@ -64,6 +64,8 @@ export function ActiveTestCard({ test, onOpen }: ActiveTestCardProps) {
                     boxShadow: 'rgba(0,0,0,0.4) 0px 0px 60px inset',
                   }}
                 >
+                  <div className="absolute" style={{ left: '8%', bottom: '-6%', width: '46%', height: '92%', background: 'radial-gradient(at 50% 40%, rgba(255,255,255,0.14), transparent 65%)' }} />
+                  <div className="absolute inset-0" style={{ background: 'repeating-linear-gradient(135deg, rgba(255,255,255,0.024) 0px, rgba(255,255,255,0.024) 2px, transparent 2px, transparent 9px)' }} />
                   <span
                     className="absolute flex items-center justify-center rounded-[6px] font-mono font-bold text-[11px]"
                     style={{
