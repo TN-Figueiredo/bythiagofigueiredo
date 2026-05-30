@@ -152,9 +152,11 @@ export function AbLabDashboard({
 
       {/* 4. Active Grid */}
       {cards.length > 0 && (
-        <div className="animate-ab-fade-up">
-          <SectionLabel>Testes ativos</SectionLabel>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" data-active-grid>
+        <div className="animate-ab-fade-up" style={{ margin: '26px 0 14px' }}>
+          <div className="flex items-center justify-between mb-[14px]">
+            <span className="text-[9px] font-semibold text-cms-text-dim uppercase tracking-[0.08em]">Testes ativos</span>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-[16px]" data-active-grid>
             {cards.map(card => (
               <ActiveTestCard
                 key={card.id}
