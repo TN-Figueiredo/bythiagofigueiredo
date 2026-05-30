@@ -243,8 +243,3 @@ function CalendarSlideOver({ post, platforms, strings: t, onClose }: CalendarSli
   )
 }
 
-export async function CalendarViewLoader({ siteId, week }: { siteId: string; week?: string }) {
-  void siteId
-  void week
-  return null // stub -- replaced in Task 2.5
-}

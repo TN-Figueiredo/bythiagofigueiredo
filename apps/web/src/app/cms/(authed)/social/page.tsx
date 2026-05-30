@@ -7,7 +7,7 @@ import { SocialBreadcrumb } from './_components/shared/social-breadcrumb'
 import { SocialPageHeader } from './_components/shared/social-page-header'
 import { AccountsStripLoader } from './_components/accounts-strip'
 import { FeedViewLoader } from './_components/feed-view-loader'
-import { CalendarViewLoader } from './_components/posts-calendar'
+import { CalendarViewLoader } from './_components/calendar-view-loader'
 import { QueueViewLoader } from './_components/posts-queue'
 import { DraftsViewLoader } from './_components/posts-drafts'
 
