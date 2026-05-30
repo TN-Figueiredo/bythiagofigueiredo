@@ -50,21 +50,20 @@ export function PlayoffDetail({ view }: PlayoffDetailProps) {
       <div className="mb-[16px]">
         <div
           data-testid="inconclusive-banner"
-          className="rounded-lg border border-cms-amber bg-cms-amber/5 p-[20px]"
+          className="flex gap-[13px] py-[16px] px-[20px] bg-cms-amber-subtle rounded-[14px]"
+          style={{ border: '1px solid rgba(224, 162, 60, 0.3)' }}
         >
-          <div className="flex items-start gap-[12px]">
-            <Info
-              size={18}
-              className="text-cms-amber shrink-0 mt-0.5"
-              aria-hidden="true"
-            />
-            <div>
-              <p className="text-[13px] font-semibold text-cms-text m-0">
-                Round {view.totalRounds > 1 ? view.totalRounds - 1 : 1} fechou sem vencedor claro
-              </p>
-              <p className="text-[12.5px] text-cms-text-dim mt-[4px] m-0 max-w-[600px]">
-                Atingiu {view.durationDays} dias com {formatPercent(view.confidenceReached, 0)} de confiança — abaixo dos {formatPercent(view.confidenceTarget * 100, 0)}. Quatro variantes brigando diluem os dados. Em vez de descartar, o sistema afunila.
-              </p>
+          <Info
+            size={20}
+            className="text-cms-amber shrink-0"
+            aria-hidden="true"
+          />
+          <div>
+            <div className="text-[14px] font-semibold text-cms-text">
+              Round {view.totalRounds > 1 ? view.totalRounds - 1 : 1} fechou sem vencedor claro
+            </div>
+            <div className="text-[12.5px] text-cms-text-dim mt-[3px] leading-[1.5] max-w-[680px]">
+              Atingiu {view.durationDays} dias com {formatPercent(view.confidenceReached, 0)} de confiança — abaixo dos {formatPercent(view.confidenceTarget * 100, 0)}. Quatro variantes brigando diluem os dados. Em vez de descartar, o sistema afunila.
             </div>
           </div>
         </div>

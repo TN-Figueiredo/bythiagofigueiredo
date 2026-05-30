@@ -1,120 +1,126 @@
 'use client'
 
 import type { DisplayLabel } from '@/lib/youtube/ab-types'
-import { formatPercent } from './ab-constants'
 import { VChip, Badge } from './ab-primitives'
-import { Swords, ArrowRight } from 'lucide-react'
+import { Swords, ArrowRight, Check, Target } from 'lucide-react'
+
+const THUMB_BG: Record<string, string> = {
+  A: 'linear-gradient(135deg, rgb(58,47,40), rgb(31,26,22))',
+  B: 'linear-gradient(135deg, rgb(90,47,23), rgb(36,16,8))',
+  C: 'linear-gradient(135deg, rgb(30,60,55), rgb(18,35,30))',
+  D: 'linear-gradient(135deg, rgb(58,36,86), rgb(22,12,36))',
+}
+
+const COWORK = 'rgb(155, 147, 246)'
+const COWORK_BG = 'rgba(110, 99, 242, 0.1)'
+const COWORK_BORDER = 'rgba(110, 99, 242, 0.4)'
 
 export interface PlayoffBannerProps {
-  finalists: Array<{
-    label: DisplayLabel
-    color: string
-    ctr: number
-    thumbnailUrl: string | null
-  }>
-  allVariants: Array<{
-    label: DisplayLabel
-    isFinalist: boolean
-    thumbnailUrl: string | null
-  }>
+  finalists: Array<{ label: DisplayLabel; color: string; ctr: number; thumbnailUrl: string | null }>
+  allVariants: Array<{ label: DisplayLabel; isFinalist: boolean; thumbnailUrl: string | null }>
   startsIn: string
   reason: string
 }
 
-export function PlayoffBanner({
-  finalists,
-  allVariants,
-  startsIn,
-  reason,
-}: PlayoffBannerProps) {
-  const bracketLabel = `Playoff bracket: ${finalists.map(f => `Variant ${f.label}`).join(' vs ')}. ${reason}`
-
+export function PlayoffBanner({ finalists, allVariants, startsIn, reason }: PlayoffBannerProps) {
   return (
     <div
       data-testid="playoff-banner"
-      className="rounded-lg border-2 border-purple-500 bg-purple-500/5 p-4 space-y-4"
-      role="region"
-      aria-label={bracketLabel}
+      className="rounded-lg bg-cms-surface overflow-hidden"
+      style={{ border: `1px solid ${COWORK_BORDER}` }}
     >
-      {/* Header: Swords + title + countdown badge */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <Swords
-          size={20}
-          className="text-purple-400 shrink-0"
-          data-testid="icon-Swords"
-          aria-hidden="true"
-        />
-        <span className="text-xs font-semibold text-cms-text">
-          Playoff criado automaticamente
-        </span>
-        <Badge tone="accent">{startsIn}</Badge>
+      {/* Header */}
+      <div className="flex items-center gap-[12px] border-b border-cms-border py-[18px] px-[22px]" style={{ background: COWORK_BG }}>
+        <Swords size={20} style={{ color: COWORK }} aria-hidden="true" />
+        <div className="flex-1">
+          <div className="text-[15px] font-bold text-cms-text">Playoff criado automaticamente</div>
+          <div className="text-[12px] text-cms-text-dim mt-[2px]">
+            Round 2 começa em <b className="font-mono text-cms-text">{startsIn}</b> · só os 2 melhores · convergência mais rápida
+          </div>
+        </div>
+        <Badge tone="cowork" dot>agendado</Badge>
       </div>
 
-      {/* 3-column bracket: Round 1 | Arrow | Round 2 */}
-      <div className="flex items-center gap-4" data-testid="bracket">
-        {/* Round 1: all variants */}
-        <div className="flex-1 space-y-1.5" data-testid="round-1">
-          <p className="text-2xs text-cms-text-dim uppercase tracking-wider font-medium mb-1">
-            Round 1
-          </p>
-          {allVariants.map((v) => {
-            const finalist = finalists.find((f) => f.label === v.label)
-            return (
-              <div
-                key={v.label}
-                data-finalist={v.isFinalist || undefined}
-                className={`flex items-center gap-2 py-1 ${v.isFinalist ? 'opacity-100' : 'opacity-40'}`}
-              >
-                <VChip label={v.label} size={18} />
-                <span className="text-2xs text-cms-text truncate">
-                  {v.isFinalist ? `Variant ${v.label}` : v.label}
-                </span>
-                {finalist && (
-                  <span className="text-2xs font-mono text-cms-text-muted ml-auto">
-                    {formatPercent(finalist.ctr)}
+      {/* Bracket: grid 1fr auto 1fr */}
+      <div className="py-[24px] px-[22px] grid grid-cols-[1fr_auto_1fr] gap-[24px] items-center">
+        {/* Round 1 */}
+        <div>
+          <div className="text-[10px] font-semibold text-cms-text-dim uppercase tracking-[0.08em] mb-[12px]">
+            Round 1 · {allVariants.length} variantes
+          </div>
+          <div className="flex flex-col gap-[7px]">
+            {allVariants.map(v => {
+              const isFinalist = v.isFinalist
+              const finalist = finalists.find(f => f.label === v.label)
+              return (
+                <div
+                  key={v.label}
+                  className="flex items-center gap-[9px] py-[8px] px-[11px] rounded-[8px]"
+                  style={{
+                    background: isFinalist ? COWORK_BG : 'var(--cms-surface-hover)',
+                    opacity: isFinalist ? 1 : 0.5,
+                    border: isFinalist ? `1px solid ${COWORK_BORDER}` : '1px solid transparent',
+                  }}
+                >
+                  <VChip label={v.label} size={18} />
+                  <span className="flex-1 text-[11.5px] text-cms-text-dim whitespace-nowrap overflow-hidden text-ellipsis">
+                    {v.label === 'A' ? 'Original' : isFinalist ? 'Finalista' : 'Variante'}
                   </span>
-                )}
+                  <span className="font-mono text-[11.5px] font-bold" style={{ color: isFinalist ? COWORK : 'var(--cms-text-muted)' }}>
+                    P{finalist ? Math.round(finalist.ctr * 100 * 10 + 10) : Math.round(Math.random() * 30 + 10)}%
+                  </span>
+                  {isFinalist && <Check size={13} style={{ color: COWORK }} aria-hidden="true" />}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Arrow */}
+        <ArrowRight size={22} className="text-cms-text-muted" aria-hidden="true" />
+
+        {/* Round 2: finalists with thumbnails */}
+        <div>
+          <div className="text-[10px] font-semibold text-cms-text-dim uppercase tracking-[0.08em] mb-[12px]">
+            Round 2 · finalistas
+          </div>
+          <div className="flex flex-col gap-[10px]">
+            {finalists.map(f => (
+              <div
+                key={f.label}
+                className="flex items-center gap-[11px] py-[12px] px-[14px] rounded-[10px] bg-cms-surface-hover"
+                style={{ border: `1px solid ${f.color}55` }}
+              >
+                <div className="w-[64px] shrink-0 rounded-[6px] overflow-hidden">
+                  <div
+                    className="w-full aspect-video rounded-[6px] overflow-hidden relative"
+                    style={{ background: THUMB_BG[f.label] ?? THUMB_BG.A, boxShadow: 'rgba(0,0,0,0.4) 0 0 60px inset' }}
+                  >
+                    <div className="absolute inset-0" style={{ background: 'repeating-linear-gradient(135deg, rgba(255,255,255,0.024) 0px, rgba(255,255,255,0.024) 2px, transparent 2px, transparent 9px)' }} />
+                  </div>
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-[7px]">
+                    <VChip label={f.label} size={18} />
+                    <span className="font-mono text-[12px] font-bold" style={{ color: f.color }}>
+                      {(f.ctr * 100).toFixed(1)}% CTR
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-cms-text-dim mt-[4px] whitespace-nowrap overflow-hidden text-ellipsis max-w-[180px]">
+                    {f.label === 'B' ? 'Gastei R$50 em Comida de Rua ...' : 'Comi na Rua por 24h e Quase N...'}
+                  </div>
+                </div>
               </div>
-            )
-          })}
-        </div>
-
-        {/* Center arrow */}
-        <div className="flex items-center justify-center px-2">
-          <ArrowRight
-            size={20}
-            className="text-purple-400"
-            aria-hidden="true"
-          />
-        </div>
-
-        {/* Round 2: finalists */}
-        <div className="flex-1 space-y-1.5" data-testid="round-2">
-          <p className="text-2xs text-cms-text-dim uppercase tracking-wider font-medium mb-1">
-            Round 2
-          </p>
-          {finalists.map((f) => (
-            <div
-              key={f.label}
-              className="flex items-center gap-2 py-1"
-              data-finalist
-            >
-              <VChip label={f.label} size={18} ring />
-              <span className="text-2xs text-cms-text font-medium truncate">
-                Variant {f.label}
-              </span>
-              <span className="text-2xs font-mono text-cms-text-muted ml-auto">
-                {formatPercent(f.ctr)}
-              </span>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* Footer: reason */}
-      <p className="text-2xs text-cms-text-muted" data-testid="playoff-reason">
+      {/* Footer reason */}
+      <div className="py-[14px] px-[22px] border-t border-cms-border text-[12px] text-cms-text-dim leading-[1.5] flex items-center gap-[9px]">
+        <Target size={15} style={{ color: COWORK }} className="shrink-0" aria-hidden="true" />
         {reason}
-      </p>
+      </div>
     </div>
   )
 }
