@@ -18,7 +18,7 @@ export function ActiveTestCard({ test, onOpen }: ActiveTestCardProps) {
       onClick={() => onOpen(test.id)}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(test.id) } }}
       className="rounded-[14px] overflow-hidden cursor-pointer focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
-      style={{ background: 'var(--surface)', border: '1px solid var(--line)', transition: 'border-color 0.18s, transform 0.18s, background 0.18s' }}
+      style={{ background: 'var(--surface)', boxShadow: 'inset 0 0 0 1px #332D25', transition: 'box-shadow 0.18s, transform 0.18s, background 0.18s' }}
     >
       {/* Top section */}
       <div className="py-[16px] px-[18px] pb-[14px]">
