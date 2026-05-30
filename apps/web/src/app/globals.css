@@ -673,6 +673,20 @@ textarea:focus-visible {
   from { width: 0%; }
 }
 
+@keyframes popoverEnter {
+  from { transform: translateY(-4px) scale(0.98); opacity: 0; }
+  to   { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+/* Hide scrollbar but keep scroll functional */
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .gem-pipeline-theme * {
     animation: none !important;
