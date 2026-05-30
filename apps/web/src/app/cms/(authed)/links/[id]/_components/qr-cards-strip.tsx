@@ -133,11 +133,11 @@ export function QrCardsStrip({ linkId, cards }: QrCardsStripProps) {
         }
         .${STRIP_ID}-pill:hover { border-color: var(--accent); color: var(--accent); }
         .${STRIP_ID}-menu-item {
-          width: 100%; display: flex; align-items: center; gap: 8;
-          padding: 8px 12px; border: none; background: transparent;
-          font: inherit; font-size: 12.5px; font-weight: 500;
-          color: var(--ink-dim); cursor: pointer; border-radius: 6px;
-          transition: background 0.1s;
+          width: 100%; display: flex; align-items: center; gap: 10px;
+          padding: 9px 14px; border: none; background: transparent;
+          font: inherit; font-size: 13px; font-weight: 500;
+          color: var(--ink-dim); cursor: pointer; border-radius: 7px;
+          transition: background 0.1s; white-space: nowrap;
         }
         .${STRIP_ID}-menu-item:hover { background: var(--surface-2); color: var(--ink); }
         .${STRIP_ID}-menu-item.danger { color: var(--red); }
@@ -291,7 +291,7 @@ export function QrCardsStrip({ linkId, cards }: QrCardsStripProps) {
           id={`${STRIP_ID}-scroll`}
           style={{
             display: 'flex', gap: 12,
-            overflowX: 'auto',
+            overflowX: menuCardId ? 'visible' : 'auto',
             margin: 0, padding: 0,
             paddingBlockEnd: 4,
             listStyle: 'none',
@@ -300,7 +300,7 @@ export function QrCardsStrip({ linkId, cards }: QrCardsStripProps) {
           }}
         >
           {cards.map((card) => (
-            <li key={card.id} role="listitem" style={{ scrollSnapAlign: 'start', position: 'relative' }}>
+            <li key={card.id} role="listitem" style={{ scrollSnapAlign: 'start', position: 'relative', zIndex: menuCardId === card.id ? 100 : 'auto' }}>
               <button
                 type="button"
                 className={`${STRIP_ID}-card`}
@@ -366,12 +366,12 @@ export function QrCardsStrip({ linkId, cards }: QrCardsStripProps) {
                 <div
                   ref={menuRef}
                   style={{
-                    position: 'absolute', top: 34, right: 4, zIndex: 40,
-                    width: 160, padding: 4,
+                    position: 'absolute', top: 34, right: 4, zIndex: 9999,
+                    width: 170, padding: 4,
                     background: 'var(--surface)',
                     border: '1px solid var(--line-strong)',
                     borderRadius: 10,
-                    boxShadow: '0 8px 24px rgba(0,0,0,0.25)',
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
                   }}
                 >
                   <button
