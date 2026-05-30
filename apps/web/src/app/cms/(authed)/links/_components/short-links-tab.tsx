@@ -159,34 +159,54 @@ export function ShortLinksTab({ links, onCreateLink }: ShortLinksTabProps) {
         </div>
       )}
 
-      {/* Search + create */}
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+      {/* Search + filters card */}
+      <div style={{
+        background: 'var(--surface)',
+        border: '1px solid var(--line)',
+        borderRadius: 'var(--r)',
+        padding: 14,
+      }}>
+        {/* Search row */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          marginBottom: 12, background: 'var(--surface-2)',
+          borderRadius: 9, padding: '9px 12px',
+        }}>
+          <Search size={16} strokeWidth={1.7} style={{ color: 'var(--ink-faint)' }} />
           <input
             type="text"
             aria-label="Buscar links por titulo ou slug"
-            placeholder="Buscar links..."
+            placeholder="Buscar links…"
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-            className="w-full rounded-[9px] bg-muted py-2 pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-primary/50"
+            style={{
+              flex: 1, background: 'transparent', border: 'none',
+              color: 'var(--ink)', fontSize: '13.5px', outline: 'none',
+            }}
           />
+          <button
+            type="button"
+            onClick={onCreateLink}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 7,
+              padding: '6px 11px', fontSize: '12.5px', fontWeight: 600,
+              borderRadius: 9, border: '1px solid var(--accent)',
+              background: 'var(--accent)', color: 'rgb(26, 18, 12)',
+              letterSpacing: '-0.01em', whiteSpace: 'nowrap', transition: '0.15s',
+              cursor: 'pointer',
+            }}
+          >
+            <Plus size={14} strokeWidth={1.7} />
+            Novo link
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={onCreateLink}
-          className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:ring-offset-1 focus:ring-offset-background"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          Novo link
-        </button>
-      </div>
 
-      {/* Filters */}
-      <div className="flex items-center gap-4">
-        <FilterGroup label="Origem" value={sourceFilter} onChange={(v) => { setSourceFilter(v); setPage(1) }} opts={SOURCE_OPTS} />
-        <div className="h-5 w-px bg-white/10" />
-        <FilterGroup label="Status" value={statusFilter} onChange={(v) => { setStatusFilter(v); setPage(1) }} opts={STATUS_OPTS} />
+        {/* Filter chips */}
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+          <FilterGroup label="Origem" value={sourceFilter} onChange={(v) => { setSourceFilter(v); setPage(1) }} opts={SOURCE_OPTS} />
+          <div style={{ width: 1, height: 18, background: 'var(--line)' }} />
+          <FilterGroup label="Status" value={statusFilter} onChange={(v) => { setStatusFilter(v); setPage(1) }} opts={STATUS_OPTS} />
+        </div>
       </div>
 
       {/* Table */}

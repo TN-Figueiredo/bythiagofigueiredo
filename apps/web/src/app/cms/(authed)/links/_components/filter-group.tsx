@@ -14,8 +14,8 @@ interface FilterGroupProps {
 
 export function FilterGroup({ label, value, onChange, opts }: FilterGroupProps) {
   return (
-    <div role="radiogroup" aria-label={label} className="flex items-center gap-[7px] flex-wrap">
-      <span className="mr-[2px] text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+    <div role="radiogroup" aria-label={label} style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+      <span className="eyebrow" style={{ marginRight: 2, fontSize: '10.5px', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--ink-faint)' }}>
         {label}
       </span>
       {opts.map((o) => {
@@ -27,11 +27,17 @@ export function FilterGroup({ label, value, onChange, opts }: FilterGroupProps) 
             role="radio"
             aria-checked={active}
             onClick={() => onChange(o.id)}
-            className={`rounded-[7px] border-none px-[10px] py-1 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 focus:ring-offset-1 focus:ring-offset-background ${
-              active
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted text-muted-foreground hover:text-foreground'
-            }`}
+            style={{
+              padding: '4px 10px',
+              borderRadius: 7,
+              border: 'none',
+              fontSize: 12,
+              fontWeight: 600,
+              background: active ? 'var(--accent)' : 'var(--surface-2)',
+              color: active ? 'rgb(26, 18, 12)' : 'var(--ink-dim)',
+              cursor: 'pointer',
+              transition: '0.15s',
+            }}
           >
             {o.label}
           </button>
