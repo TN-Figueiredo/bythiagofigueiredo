@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
 import { Search, Plus, ChevronRight, AlertTriangle, QrCode, Link2, Zap, Target, Clock, RefreshCw } from 'lucide-react'
 import { SOURCE_COLORS, SOURCE_LABELS, type LinkDisplay, type SourceId } from '@tn-figueiredo/links-admin'
 import { Spark } from '@tn-figueiredo/links-admin/client'
@@ -240,9 +239,12 @@ export function ShortLinksTab({ links, onCreateLink }: ShortLinksTabProps) {
           </div>
           {/* Rows */}
           {paginated.map((l, i) => (
-            <Link
+            <div
               key={l.id}
-              href={`/cms/links/${l.id}`}
+              role="link"
+              tabIndex={0}
+              onClick={() => window.location.href = `/cms/links/${l.id}`}
+              onKeyDown={(e) => { if (e.key === 'Enter') window.location.href = `/cms/links/${l.id}` }}
               style={{
                 display: 'grid',
                 gridTemplateColumns: '1.6fr 1.4fr 90px 90px 110px 70px',
@@ -252,8 +254,6 @@ export function ShortLinksTab({ links, onCreateLink }: ShortLinksTabProps) {
                 alignItems: 'center',
                 cursor: 'pointer',
                 background: 'transparent',
-                textDecoration: 'none',
-                color: 'inherit',
               }}
             >
               {/* Link column */}
@@ -301,7 +301,7 @@ export function ShortLinksTab({ links, onCreateLink }: ShortLinksTabProps) {
                 </button>
                 <ChevronRight size={16} strokeWidth={1.7} style={{ color: 'var(--ink-faint)', alignSelf: 'center' }} />
               </div>
-            </Link>
+            </div>
           ))}
         </div>
       )}
