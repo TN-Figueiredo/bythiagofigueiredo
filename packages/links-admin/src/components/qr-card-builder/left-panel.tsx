@@ -200,7 +200,7 @@ export function LeftPanel({ comp, interaction, onImageUpload }: LeftPanelProps) 
         >
           Formato
         </h3>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 6 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
           {ASPECT_RATIO_PRESETS.map(preset => {
             const isActive = activePreset === preset.name
             return (
