@@ -1,10 +1,13 @@
 'use client'
-import { useEffect, useRef, useState } from 'react'
-import { AlignLeft, AlignCenter, AlignRight, Move } from 'lucide-react'
+import { useEffect, useRef, useState, useCallback } from 'react'
+import {
+  AlignLeft, AlignCenter, AlignRight, Move, Type,
+  Copy, Lock, Trash2, RotateCcw, Circle,
+} from 'lucide-react'
 import { FONT_CATEGORIES, BG_PALETTE } from '@tn-figueiredo/links/qr'
 import type { TextElement, FontCategory } from '@tn-figueiredo/links/qr'
-import { ColorPicker } from './color-picker'
-import { SliderField } from './inspector-field'
+
+/* ── Google Fonts loader ── */
 
 const GOOGLE_FONTS_URL = 'https://fonts.googleapis.com/css2?'
 
@@ -21,6 +24,8 @@ function useFontLoader(fontFamily: string) {
   }, [fontFamily])
 }
 
+/* ── Constants ── */
+
 const QUICK_FONTS = [
   { short: 'Frau', full: 'Fraunces' },
   { short: 'Inte', full: 'Inter' },
@@ -28,6 +33,8 @@ const QUICK_FONTS = [
 ]
 
 const PALETTE = [...BG_PALETTE]
+
+/* ── Shared styles ── */
 
 const labelStyle: React.CSSProperties = {
   fontSize: '11.5px', color: 'var(--ink-dim)', marginBottom: 6,
@@ -49,33 +56,92 @@ function pillBtn(active: boolean): React.CSSProperties {
   }
 }
 
+const actionBtnStyle: React.CSSProperties = {
+  flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+  gap: 5, padding: '7px 0', borderRadius: 7,
+  border: '1px solid var(--line-strong)', background: 'var(--surface-2)',
+  color: 'var(--ink-dim)', fontSize: 11, cursor: 'pointer',
+}
+
+const inputBoxStyle: React.CSSProperties = {
+  background: 'var(--surface)', border: '1px solid var(--line-strong)',
+  borderRadius: 8,
+}
+
+/* ── Props ── */
+
 interface TextInspectorProps {
   element: TextElement
   onUpdate: (patch: Partial<TextElement>) => void
+  onDuplicate?: () => void
+  onDelete?: () => void
 }
 
-export function TextInspector({ element, onUpdate }: TextInspectorProps) {
+/* ── Component ── */
+
+export function TextInspector({ element, onUpdate, onDuplicate, onDelete }: TextInspectorProps) {
   useFontLoader(element.fontFamily)
+
+  const [hexInput, setHexInput] = useState(element.color)
+  useEffect(() => { setHexInput(element.color) }, [element.color])
+
+  const commitHex = useCallback(() => {
+    if (/^#[0-9a-fA-F]{6}$/.test(hexInput)) {
+      onUpdate({ color: hexInput.toLowerCase() })
+    } else {
+      setHexInput(element.color)
+    }
+  }, [hexInput, element.color, onUpdate])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* ── Conteúdo ── */}
+
+      {/* ── Header ── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: -2 }}>
+        <Type size={14} strokeWidth={2} style={{ color: 'var(--accent)' }} />
+        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>
+          {element.name || 'Novo texto'}
+        </span>
+      </div>
+
+      {/* ── Action buttons row ── */}
+      <div style={{ display: 'flex', gap: 6 }}>
+        <button type="button" style={actionBtnStyle} onClick={() => onDuplicate?.()}>
+          <Copy size={13} strokeWidth={1.8} /> Duplicar
+        </button>
+        <button
+          type="button"
+          style={actionBtnStyle}
+          onClick={() => onUpdate({ locked: !element.locked })}
+        >
+          <Lock size={13} strokeWidth={1.8} /> Travar
+        </button>
+        <button
+          type="button"
+          style={{ ...actionBtnStyle, flex: '0 0 38px' }}
+          onClick={() => onDelete?.()}
+        >
+          <Trash2 size={13} strokeWidth={1.8} />
+        </button>
+      </div>
+
+      {/* ── 1. Conteudo ── */}
       <div>
-        <div style={labelStyle}>Conteúdo</div>
+        <div style={labelStyle}>Conteudo</div>
         <textarea
           value={element.content}
           onChange={e => onUpdate({ content: e.target.value })}
           style={{
             width: '100%', minHeight: 60,
-            background: 'var(--surface)', border: '1px solid var(--line-strong)',
-            borderRadius: 8, padding: '9px 11px',
+            ...inputBoxStyle,
+            padding: '9px 11px',
             color: 'var(--ink)', fontSize: 13, resize: 'vertical', lineHeight: 1.4,
             fontFamily: 'inherit',
           }}
         />
       </div>
 
-      {/* ── Fonte (quick-pick pills) ── */}
+      {/* ── 2. Fonte ── */}
       <div>
         <div style={labelStyle}>Fonte</div>
         <div style={pillBar}>
@@ -90,49 +156,104 @@ export function TextInspector({ element, onUpdate }: TextInspectorProps) {
             </button>
           ))}
         </div>
-        <FullFontPicker value={element.fontFamily} onChange={v => onUpdate({ fontFamily: v })} />
+        <FontPreviewBox value={element.fontFamily} onChange={v => onUpdate({ fontFamily: v })} />
       </div>
 
-      {/* ── Tamanho ── */}
+      {/* ── 3. Tamanho ── */}
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
           <span style={{ fontSize: '11.5px', color: 'var(--ink-dim)' }}>Tamanho</span>
-          <span className="mono" style={{ fontSize: 11 }}>{element.fontSize}px</span>
+          <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 11, color: 'var(--ink)' }}>
+            {element.fontSize}px
+          </span>
         </div>
         <input
-          type="range" min={18} max={140}
+          type="range" min={18} max={160}
           value={element.fontSize}
           onChange={e => onUpdate({ fontSize: Number(e.target.value) })}
           style={{ width: '100%' }}
         />
       </div>
 
-      {/* ── Cor (palette swatches) ── */}
+      {/* ── 4. Peso ── */}
+      <div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+          <span style={{ fontSize: '11.5px', color: 'var(--ink-dim)' }}>Peso</span>
+          <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 11, color: 'var(--ink)' }}>
+            {element.fontWeight}
+          </span>
+        </div>
+        <input
+          type="range" min={300} max={900} step={100}
+          value={element.fontWeight}
+          onChange={e => onUpdate({ fontWeight: Number(e.target.value) })}
+          style={{ width: '100%' }}
+        />
+      </div>
+
+      {/* ── 5. Entrelinha ── */}
+      <div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+          <span style={{ fontSize: '11.5px', color: 'var(--ink-dim)' }}>Entrelinha</span>
+          <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 11, color: 'var(--ink)' }}>
+            {(element.lineHeight).toFixed(2)}
+          </span>
+        </div>
+        <input
+          type="range" min={80} max={200}
+          value={Math.round(element.lineHeight * 100)}
+          onChange={e => onUpdate({ lineHeight: Number(e.target.value) / 100 })}
+          style={{ width: '100%' }}
+        />
+      </div>
+
+      {/* ── 6. Cor ── */}
       <div>
         <div style={labelStyle}>Cor</div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
           {PALETTE.map(c => (
             <button
               key={c}
               type="button"
               onClick={() => onUpdate({ color: c })}
               style={{
-                width: 26, height: 26, borderRadius: 7,
-                background: c,
+                width: 26, height: 26, borderRadius: 7, padding: 0,
+                background: c, cursor: 'pointer',
                 border: element.color.toLowerCase() === c.toLowerCase()
                   ? '2px solid var(--accent)'
                   : '1px solid var(--line-strong)',
-                cursor: 'pointer', padding: 0,
               }}
             />
           ))}
         </div>
-        <div style={{ marginTop: 8 }}>
-          <ColorPicker label="" value={element.color} onChange={c => onUpdate({ color: c })} />
+        {/* Inline hex input */}
+        <div style={{
+          ...inputBoxStyle,
+          padding: '6px 9px',
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <div style={{
+            width: 18, height: 18, borderRadius: 5, flexShrink: 0,
+            background: element.color,
+            border: '1px solid var(--line-strong)',
+          }} />
+          <input
+            type="text"
+            value={hexInput}
+            onChange={e => setHexInput(e.target.value)}
+            onBlur={commitHex}
+            onKeyDown={e => e.key === 'Enter' && commitHex()}
+            style={{
+              flex: 1, fontFamily: 'var(--font-mono, monospace)', fontSize: 12,
+              background: 'transparent', border: 'none', outline: 'none',
+              color: 'var(--ink)', padding: 0,
+            }}
+            aria-label="Color hex value"
+          />
         </div>
       </div>
 
-      {/* ── Alinhamento ── */}
+      {/* ── 7. Alinhamento ── */}
       <div>
         <div style={labelStyle}>Alinhamento</div>
         <div style={pillBar}>
@@ -143,61 +264,148 @@ export function TextInspector({ element, onUpdate }: TextInspectorProps) {
               onClick={() => onUpdate({ align: a })}
               style={pillBtn(element.align === a)}
             >
-              {a === 'left' ? '←' : a === 'center' ? '↔' : '→'}
+              {a === 'left' ? <AlignLeft size={14} /> : a === 'center' ? <AlignCenter size={14} /> : <AlignRight size={14} />}
             </button>
           ))}
         </div>
       </div>
 
-      {/* ── Peso + Entrelinha (compact) ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-        <SliderField label="Peso" value={element.fontWeight} onChange={v => onUpdate({ fontWeight: v })} min={100} max={900} step={100} format={v => `${v}`} />
-        <SliderField label="Entrelinha" value={element.lineHeight} onChange={v => onUpdate({ lineHeight: v })} min={0.5} max={3} step={0.1} format={v => `${v.toFixed(1)}`} />
+      {/* ── 8. Maiusculas toggle ── */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ fontSize: '12.5px', color: 'var(--ink)' }}>Maiusculas</span>
+        <ToggleSwitch checked={element.uppercase} onChange={v => onUpdate({ uppercase: v })} />
       </div>
 
-      {/* ── Opções compactas ── */}
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--ink)', cursor: 'pointer' }}>
-          <input type="checkbox" checked={element.uppercase} onChange={e => onUpdate({ uppercase: e.target.checked })} />
-          Maiúsculas
-        </label>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--ink)', cursor: 'pointer' }}>
-          <input type="checkbox" checked={element.locked} onChange={e => onUpdate({ locked: e.target.checked })} />
-          Travar
-        </label>
-      </div>
+      {/* ── Transformar section ── */}
+      <div style={{
+        borderTop: '1px solid var(--line)',
+        marginTop: 2, paddingTop: 16,
+      }}>
+        <div style={{
+          fontSize: 10, fontWeight: 600, textTransform: 'uppercase',
+          letterSpacing: '0.08em', color: 'var(--ink-dim)', marginBottom: 12,
+        }}>
+          Transformar
+        </div>
 
-      {/* ── Display sliders ── */}
-      <SliderField label="Rotação" value={element.rotation} onChange={v => onUpdate({ rotation: v })} min={0} max={360} format={v => `${v}°`} />
-      <SliderField label="Opacidade" value={element.opacity * 100} onChange={v => onUpdate({ opacity: v / 100 })} min={0} max={100} format={v => `${Math.round(v)}%`} />
+        {/* ── 10. X / Y inputs ── */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
+          <PositionInput label="X" value={element.x} onChange={v => onUpdate({ x: v })} />
+          <PositionInput label="Y" value={element.y} onChange={v => onUpdate({ y: v })} />
+        </div>
+
+        {/* ── 11. Rotacao ── */}
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <RotateCcw size={13} strokeWidth={1.7} style={{ color: 'var(--ink-dim)' }} />
+              <span style={{ fontSize: '11.5px', color: 'var(--ink-dim)' }}>Rotacao</span>
+            </div>
+            <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 11, color: 'var(--ink)' }}>
+              {element.rotation}deg
+            </span>
+          </div>
+          <input
+            type="range" min={-180} max={180}
+            value={element.rotation}
+            onChange={e => onUpdate({ rotation: Number(e.target.value) })}
+            style={{ width: '100%' }}
+          />
+        </div>
+
+        {/* ── 12. Opacidade ── */}
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Circle size={13} strokeWidth={1.7} style={{ color: 'var(--ink-dim)' }} />
+              <span style={{ fontSize: '11.5px', color: 'var(--ink-dim)' }}>Opacidade</span>
+            </div>
+            <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 11, color: 'var(--ink)' }}>
+              {Math.round(element.opacity * 100)}%
+            </span>
+          </div>
+          <input
+            type="range" min={10} max={100}
+            value={Math.round(element.opacity * 100)}
+            onChange={e => onUpdate({ opacity: Number(e.target.value) / 100 })}
+            style={{ width: '100%' }}
+          />
+        </div>
+      </div>
 
       {/* ── Hint ── */}
       <div style={{
-        marginTop: 4, paddingTop: 14,
-        borderTop: '1px solid var(--line)',
-        display: 'flex', gap: 7, alignItems: 'center',
         fontSize: 11, color: 'var(--ink-faint)',
+        display: 'flex', gap: 7, alignItems: 'center',
       }}>
-        <Move size={13} strokeWidth={1.7} />
-        Arraste no canvas pra mover · alça laranja pra redimensionar
+        <Move size={13} strokeWidth={1.7} style={{ flexShrink: 0 }} />
+        Arraste no canvas pra mover &middot; alca laranja pra redimensionar
       </div>
     </div>
   )
 }
 
-/* ── Full font picker (expandable dropdown below quick pills) ── */
+/* ── Toggle Switch ── */
 
-const CATEGORY_LABELS: Record<FontCategory, string> = {
-  'sans-serif': 'Sans Serif',
-  'serif': 'Serif',
-  'display': 'Display',
-  'handwriting': 'Handwriting',
-  'monospace': 'Monospace',
+function ToggleSwitch({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      style={{
+        position: 'relative', width: 42, height: 24, borderRadius: 99,
+        background: checked ? 'var(--accent)' : 'var(--surface-3, #3a3630)',
+        border: 'none', cursor: 'pointer', padding: 0,
+        transition: 'background 0.2s',
+      }}
+    >
+      <span style={{
+        position: 'absolute', top: 3,
+        left: checked ? 21 : 3,
+        width: 18, height: 18, borderRadius: '50%',
+        background: '#fff',
+        transition: 'left 0.2s',
+      }} />
+    </button>
+  )
 }
 
-function FullFontPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+/* ── Position input (X / Y) ── */
+
+function PositionInput({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+  return (
+    <div>
+      <div style={{ fontSize: 10, color: 'var(--ink-faint)', marginBottom: 4 }}>{label}</div>
+      <div style={{
+        background: 'var(--surface)', border: '1px solid var(--line-strong)',
+        borderRadius: 7, padding: '0 6px 0 8px',
+        display: 'flex', alignItems: 'center',
+      }}>
+        <input
+          type="number"
+          value={Math.round(value)}
+          onChange={e => onChange(Number(e.target.value))}
+          style={{
+            flex: 1, fontFamily: 'var(--font-mono, monospace)', fontSize: 12,
+            background: 'transparent', border: 'none', outline: 'none',
+            color: 'var(--ink)', padding: '6px 0', width: 0,
+          }}
+        />
+        <span style={{ fontSize: 10, color: 'var(--ink-faint)' }}>px</span>
+      </div>
+    </div>
+  )
+}
+
+/* ── Font preview box (opens full dropdown on click) ── */
+
+function FontPreviewBox({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+
+  useFontLoader(value)
 
   useEffect(() => {
     if (!open) return
@@ -208,8 +416,6 @@ function FullFontPicker({ value, onChange }: { value: string; onChange: (v: stri
     return () => document.removeEventListener('mousedown', handleClick)
   }, [open])
 
-  const isQuickFont = QUICK_FONTS.some(f => f.full === value)
-
   return (
     <div ref={ref} style={{ position: 'relative', marginTop: 6 }}>
       <button
@@ -217,39 +423,52 @@ function FullFontPicker({ value, onChange }: { value: string; onChange: (v: stri
         onClick={() => setOpen(!open)}
         style={{
           width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '6px 10px', borderRadius: 7, fontSize: 11.5,
-          background: 'var(--surface-2)', border: '1px solid var(--line)',
-          color: isQuickFont ? 'var(--ink-dim)' : 'var(--ink)',
-          fontFamily: value, cursor: 'pointer',
+          padding: '9px 11px', borderRadius: 8,
+          background: 'var(--surface)', border: '1px solid var(--line-strong)',
+          cursor: 'pointer',
         }}
       >
-        <span>{value}</span>
-        <span style={{ fontSize: 9, color: 'var(--ink-faint)' }}>{open ? '▲' : '▼'}</span>
+        <span style={{ fontFamily: value, fontSize: 15, color: 'var(--ink)' }}>{value}</span>
+        <span style={{ fontFamily: value, fontSize: 15, color: 'var(--ink-faint)' }}>Ag</span>
       </button>
-      {open && (
-        <div style={{
-          position: 'absolute', zIndex: 50, top: '100%', left: 0, right: 0,
-          marginTop: 4, maxHeight: 280, overflowY: 'auto',
-          background: 'var(--surface)', border: '1px solid var(--line-strong)',
-          borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
-        }}>
-          {(Object.keys(FONT_CATEGORIES) as FontCategory[]).map(cat => (
-            <div key={cat}>
-              <div style={{
-                padding: '6px 10px', fontSize: 9, fontWeight: 600,
-                textTransform: 'uppercase', letterSpacing: '0.08em',
-                color: 'var(--ink-dim)', background: 'var(--surface)',
-                position: 'sticky', top: 0,
-              }}>
-                {CATEGORY_LABELS[cat]}
-              </div>
-              {FONT_CATEGORIES[cat].map(font => (
-                <FontRow key={font} font={font} selected={value === font} onSelect={() => { onChange(font); setOpen(false) }} />
-              ))}
-            </div>
+      {open && <FontDropdown value={value} onSelect={font => { onChange(font); setOpen(false) }} />}
+    </div>
+  )
+}
+
+/* ── Font dropdown (reused from original — but FontPreviewBox supplies context) ── */
+
+const CATEGORY_LABELS: Record<FontCategory, string> = {
+  'sans-serif': 'Sans Serif',
+  'serif': 'Serif',
+  'display': 'Display',
+  'handwriting': 'Handwriting',
+  'monospace': 'Monospace',
+}
+
+function FontDropdown({ value, onSelect }: { value: string; onSelect: (font: string) => void }) {
+  return (
+    <div style={{
+      position: 'absolute', zIndex: 50, top: '100%', left: 0, right: 0,
+      marginTop: 4, maxHeight: 280, overflowY: 'auto',
+      background: 'var(--surface)', border: '1px solid var(--line-strong)',
+      borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+    }}>
+      {(Object.keys(FONT_CATEGORIES) as FontCategory[]).map(cat => (
+        <div key={cat}>
+          <div style={{
+            padding: '6px 10px', fontSize: 9, fontWeight: 600,
+            textTransform: 'uppercase', letterSpacing: '0.08em',
+            color: 'var(--ink-dim)', background: 'var(--surface)',
+            position: 'sticky', top: 0,
+          }}>
+            {CATEGORY_LABELS[cat]}
+          </div>
+          {FONT_CATEGORIES[cat].map(font => (
+            <FontRow key={font} font={font} selected={value === font} onSelect={() => onSelect(font)} />
           ))}
         </div>
-      )}
+      ))}
     </div>
   )
 }
