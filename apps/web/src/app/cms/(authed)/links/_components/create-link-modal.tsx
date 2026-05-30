@@ -1,17 +1,22 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { X, Link2, Loader2 } from 'lucide-react'
-import { SOURCE_COLORS, type SourceId } from '@tn-figueiredo/links-admin'
+import { X, Plus, RefreshCw, Sparkles } from 'lucide-react'
+import { type SourceId } from '@tn-figueiredo/links-admin'
 
 const SOURCES: Array<{ id: SourceId; label: string }> = [
-  { id: 'manual', label: 'Manual' },
   { id: 'newsletter', label: 'Newsletter' },
   { id: 'social', label: 'Social' },
   { id: 'blog', label: 'Blog' },
-  { id: 'campaign', label: 'Campanha' },
-  { id: 'qr', label: 'QR' },
+  { id: 'qr', label: 'QR / impresso' },
 ]
+
+function generateSlug(): string {
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
+  let result = ''
+  for (let i = 0; i < 7; i++) result += chars[Math.floor(Math.random() * chars.length)]
+  return result
+}
 
 interface CreateLinkModalProps {
   open: boolean
@@ -27,14 +32,14 @@ interface CreateLinkModalProps {
 export function CreateLinkModal({ open, onClose, onSubmit }: CreateLinkModalProps) {
   const [url, setUrl] = useState('')
   const [title, setTitle] = useState('')
-  const [source, setSource] = useState<SourceId>('manual')
-  const [code, setCode] = useState('')
+  const [source, setSource] = useState<SourceId>('newsletter')
+  const [slug, setSlug] = useState(generateSlug)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = useCallback(async () => {
     if (!url.trim()) {
-      setError('URL obrigatoria')
+      setError('URL obrigatória')
       return
     }
     setLoading(true)
@@ -44,153 +49,196 @@ export function CreateLinkModal({ open, onClose, onSubmit }: CreateLinkModalProp
         destination_url: url.trim(),
         title: title.trim() || undefined,
         source_type: source,
-        code: code.trim() || undefined,
+        code: slug.trim() || undefined,
       })
       if (!result.ok) {
         setError(result.error)
       } else {
         setUrl('')
         setTitle('')
-        setCode('')
-        setSource('manual')
+        setSlug(generateSlug())
+        setSource('newsletter')
         onClose()
       }
     } finally {
       setLoading(false)
     }
-  }, [url, title, source, code, onSubmit, onClose])
+  }, [url, title, source, slug, onSubmit, onClose])
 
   if (!open) return null
 
+  const inputStyle = {
+    width: '100%',
+    background: 'var(--surface)',
+    border: '1px solid var(--line-strong)',
+    borderRadius: 9,
+    padding: '11px 13px',
+    color: 'var(--ink)',
+    fontSize: '13.5px',
+    outline: 'none',
+  }
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+    <div
+      style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)' }}
+      onClick={onClose}
+    >
       <div
         role="dialog"
         aria-modal="true"
         aria-label="Criar novo link"
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md rounded-2xl border border-white/10 bg-[#161410] p-6 shadow-2xl"
+        style={{
+          width: 'min(520px, 100%)',
+          background: 'var(--surface)',
+          border: '1px solid var(--line-strong)',
+          borderRadius: 16,
+          overflow: 'hidden',
+        }}
       >
         {/* Header */}
-        <div className="mb-5 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <Link2 className="h-5 w-5 text-[#F2683C]" />
-            <h2 className="text-lg font-bold text-foreground" style={{ fontFamily: 'Fraunces, serif' }}>Novo link</h2>
-          </div>
+        <div style={{
+          padding: '20px 24px',
+          borderBottom: '1px solid var(--line)',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        }}>
+          <h3 style={{ margin: 0, fontSize: 19, fontWeight: 600, fontFamily: 'Fraunces, serif', color: 'var(--ink)' }}>
+            Novo link rastreado
+          </h3>
           <button
             type="button"
             aria-label="Fechar"
             onClick={onClose}
-            className="rounded-md p-1 text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+            style={{ background: 'transparent', border: 'none', color: 'var(--ink-dim)', cursor: 'pointer' }}
           >
-            <X className="h-4 w-4" />
+            <X size={19} strokeWidth={1.7} />
           </button>
         </div>
 
         {/* Form */}
-        <div className="flex flex-col gap-4">
+        <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
           {/* URL */}
           <div>
-            <label htmlFor="link-url" className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              URL de destino
-            </label>
+            <div style={{ fontSize: 12, color: 'var(--ink-dim)', marginBottom: 7 }}>Destino (URL)</div>
             <input
-              id="link-url"
               type="url"
-              placeholder="https://example.com/page"
+              placeholder="https://bythiagofigueiredo.com/…"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               aria-required="true"
-              className="w-full rounded-[9px] bg-muted px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-primary/50"
+              style={inputStyle}
             />
           </div>
 
           {/* Title */}
           <div>
-            <label htmlFor="link-title" className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Titulo (opcional)
-            </label>
+            <div style={{ fontSize: 12, color: 'var(--ink-dim)', marginBottom: 7 }}>Título</div>
             <input
-              id="link-title"
               type="text"
-              placeholder="Nome do link"
+              placeholder="Ex: Lançamento do curso"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full rounded-[9px] bg-muted px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-primary/50"
+              style={inputStyle}
             />
           </div>
 
-          {/* Custom code */}
-          <div>
-            <label htmlFor="link-code" className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Codigo curto (opcional)
-            </label>
-            <input
-              id="link-code"
-              type="text"
-              placeholder="codigo-personalizado"
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              className="w-full rounded-[9px] bg-muted px-3 py-2.5 font-mono text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-primary/50"
-            />
-          </div>
-
-          {/* Source */}
-          <div>
-            <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Origem
-            </span>
-            <div className="flex flex-wrap gap-1.5">
-              {SOURCES.map((s) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={source === s.id}
-                  onClick={() => setSource(s.id)}
-                  className={`flex items-center gap-1.5 rounded-[7px] px-2.5 py-1.5 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 ${
-                    source === s.id
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  <span
-                    aria-hidden="true"
-                    className="h-2 w-2 rounded-full"
-                    style={{ background: SOURCE_COLORS[s.id] }}
-                  />
-                  {s.label}
-                </button>
-              ))}
+          {/* Source + Slug row */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <div style={{ fontSize: 12, color: 'var(--ink-dim)', marginBottom: 7 }}>Origem</div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {SOURCES.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => setSource(s.id)}
+                    style={{
+                      padding: '6px 11px', borderRadius: 8,
+                      border: source === s.id ? '1px solid var(--accent)' : '1px solid var(--line-strong)',
+                      background: source === s.id ? 'var(--accent)' : 'var(--surface-2)',
+                      color: source === s.id ? 'var(--pb-ink-on-accent, #1A140C)' : 'var(--ink-dim)',
+                      fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                    }}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
             </div>
+            <div>
+              <div style={{ fontSize: 12, color: 'var(--ink-dim)', marginBottom: 7 }}>Slug</div>
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                ...inputStyle, padding: '11px 8px 11px 13px',
+              }}>
+                <span className="mono" style={{ fontSize: 13, color: 'var(--accent)' }}>/{slug}</span>
+                <button
+                  type="button"
+                  onClick={() => setSlug(generateSlug())}
+                  style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--ink-faint)', cursor: 'pointer' }}
+                  aria-label="Gerar novo slug"
+                >
+                  <RefreshCw size={13} strokeWidth={1.7} />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Info strip */}
+          <div style={{
+            display: 'flex', gap: 8, padding: '10px 12px',
+            background: 'var(--surface-2)', borderRadius: 9,
+            fontSize: '11.5px', color: 'var(--ink-dim)',
+          }}>
+            <Sparkles size={14} strokeWidth={1.7} style={{ color: 'var(--accent)', flexShrink: 0, marginTop: 1 }} />
+            Click IDs ligados · redirect 301 · QR gerado automaticamente.
           </div>
 
           {/* Error */}
           {error && (
-            <p role="alert" className="rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-400">
+            <p role="alert" style={{ borderRadius: 9, background: 'rgba(217,97,74,0.1)', padding: '8px 12px', fontSize: 12, color: 'var(--red)', margin: 0 }}>
               {error}
             </p>
           )}
+        </div>
 
-          {/* Actions */}
-          <div className="flex gap-2 pt-1">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 rounded-lg border border-white/10 px-4 py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-            >
-              Cancelar
-            </button>
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={loading}
-              className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-primary/50"
-            >
-              {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              Criar link
-            </button>
-          </div>
+        {/* Footer */}
+        <div style={{
+          padding: '16px 24px',
+          borderTop: '1px solid var(--line)',
+          display: 'flex', justifyContent: 'flex-end', gap: 10,
+          background: 'var(--bg-side, var(--surface))',
+        }}>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 7,
+              padding: '9px 15px', fontSize: '13.5px', fontWeight: 600,
+              borderRadius: 9, border: '1px solid var(--line-strong)',
+              background: 'transparent', color: 'var(--ink-dim)',
+              cursor: 'pointer',
+            }}
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={loading || !url.trim()}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 7,
+              padding: '9px 15px', fontSize: '13.5px', fontWeight: 600,
+              borderRadius: 9, border: '1px solid var(--accent)',
+              background: 'var(--accent)', color: 'var(--pb-ink-on-accent, #1A140C)',
+              cursor: 'pointer',
+              opacity: (loading || !url.trim()) ? 0.45 : 1,
+              pointerEvents: (loading || !url.trim()) ? 'none' : 'auto',
+            }}
+          >
+            <Plus size={16} strokeWidth={1.7} />
+            Criar link
+          </button>
         </div>
       </div>
     </div>
