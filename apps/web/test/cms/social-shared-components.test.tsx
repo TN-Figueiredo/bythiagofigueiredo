@@ -22,6 +22,17 @@ describe('SocialBreadcrumb', () => {
     const link = screen.getByText('Social').closest('a')
     expect(link?.getAttribute('href')).toBe('/cms/social')
   })
+
+  it('renders single crumb without separator', () => {
+    render(<SocialBreadcrumb crumbs={[{ label: 'Home' }]} />)
+    expect(screen.getByText('Home')).toBeTruthy()
+    expect(screen.queryByText('/')).toBeNull()
+  })
+
+  it('has aria-label Breadcrumb', () => {
+    render(<SocialBreadcrumb crumbs={[{ label: 'Social' }]} />)
+    expect(screen.getByLabelText('Breadcrumb')).toBeTruthy()
+  })
 })
 
 describe('SocialPageHeader', () => {
@@ -35,6 +46,21 @@ describe('SocialPageHeader', () => {
     )
     expect(screen.getByText('Social Studio')).toBeTruthy()
     expect(screen.getByText('Manage posts')).toBeTruthy()
+  })
+
+  it('renders without subtitle when not provided', () => {
+    render(
+      <SocialPageHeader
+        breadcrumb={<span>breadcrumb</span>}
+        title="Social Studio"
+      />
+    )
+    expect(screen.getByText('Social Studio')).toBeTruthy()
+    expect(screen.queryByText('Manage posts')).toBeNull()
+    // No <p> subtitle element should be rendered
+    const heading = screen.getByText('Social Studio')
+    const siblingP = heading.parentElement?.querySelector('p')
+    expect(siblingP).toBeNull()
   })
 
   it('renders actions when provided', () => {

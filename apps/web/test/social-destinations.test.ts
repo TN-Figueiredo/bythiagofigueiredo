@@ -39,7 +39,25 @@ describe('social destinations', () => {
     expect(igDests.map(d => d.id)).toContain('ig_feed')
   })
 
+  it('getDestinationsForProvider returns exactly 1 item for youtube', () => {
+    const ytDests = getDestinationsForProvider('youtube')
+    expect(ytDests).toHaveLength(1)
+    expect(ytDests[0].id).toBe('yt_community')
+  })
+
+  it('getDestinationsForProvider returns 0 items for bluesky', () => {
+    const bsDests = getDestinationsForProvider('bluesky')
+    expect(bsDests).toHaveLength(0)
+  })
+
   it('destIdToProvider maps correctly', () => {
+    expect(destIdToProvider('yt_community')).toBe('youtube')
+    expect(destIdToProvider('fb_page')).toBe('facebook')
+  })
+
+  it('destIdToProvider maps all 4 IDs correctly', () => {
+    expect(destIdToProvider('ig_story')).toBe('instagram')
+    expect(destIdToProvider('ig_feed')).toBe('instagram')
     expect(destIdToProvider('yt_community')).toBe('youtube')
     expect(destIdToProvider('fb_page')).toBe('facebook')
   })
