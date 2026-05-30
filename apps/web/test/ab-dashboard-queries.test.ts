@@ -49,7 +49,7 @@ describe('toLatestDraft', () => {
 describe('computeDashboardStats', () => {
   it('returns all zeros when no tests', () => {
     const s = computeDashboardStats([], [])
-    expect(s).toEqual({ activeTests: 0, avgConfidence: 0, winRate: 0, avgLift: 0 })
+    expect(s).toEqual({ activeTests: 0, avgConfidence: 0, winRate: 0, avgLift: 0, completedTests: 0, testsWon: 0 })
   })
   it('excludes playoff children from winRate', () => {
     const completed = [makeTestWithVariants({ playoffTestId: 'x', hasWinner: true })]

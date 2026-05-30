@@ -36,8 +36,9 @@ describe('LinktreePreview', () => {
   })
 
   it('renders tagline from props', () => {
-    render(<LinktreePreview width={300} taglinePt="codigo, produto & vida indie" taglineEn="code" sharedLinks={[]} />)
-    expect(screen.getByText('codigo, produto & vida indie')).toBeDefined()
+    const { container } = render(<LinktreePreview width={300} taglinePt="codigo, produto & vida indie" taglineEn="code, product & indie life" sharedLinks={[]} />)
+    // Default locale is EN, tagline renders in content area
+    expect(container.textContent).toContain('code, product & indie life')
   })
 
   it('renders English and Portuguese section headers', () => {
@@ -48,13 +49,13 @@ describe('LinktreePreview', () => {
 
   it('renders shared links when provided', () => {
     render(<LinktreePreview width={280} taglinePt="tag" taglineEn="tag" sharedLinks={sharedLinks} />)
-    expect(screen.getByText('Sobre mim')).toBeDefined()
-    expect(screen.getByText('Contato')).toBeDefined()
+    expect(screen.getByText('About me')).toBeDefined()
+    expect(screen.getByText('Contact')).toBeDefined()
   })
 
   it('does not render shared links section when empty', () => {
     render(<LinktreePreview width={280} taglinePt="tag" taglineEn="tag" sharedLinks={[]} />)
-    expect(screen.queryByText('Sobre mim')).toBeNull()
+    expect(screen.queryByText('About me')).toBeNull()
   })
 
   it('applies width prop to container', () => {
