@@ -29,19 +29,22 @@ export const MOCK_QUEUE_ITEMS = [
 
 export const MOCK_DRAFT_ITEMS = [
   {
-    id: 'd1', title: 'Newsletter #043 → Story automático',
-    description: 'Gerado a partir da edição #043 do Thiago\'s Journal',
+    id: 'd1', title: 'Newsletter #043 → Story automatico',
+    description: 'Gerado a partir da edicao #043 do Thiago\'s Journal. Inclui resumo dos destaques e link direto.',
     confidence: 0.92, trigger: 'newsletter_sent', createdAt: new Date(Date.now() - 2 * 3600000).toISOString(),
+    provider: 'instagram', surface: 'Story', lang: 'PT',
   },
   {
-    id: 'd2', title: 'Vídeo MBK Center → Comunidade',
-    description: 'Post automático para YouTube Community baseado no vídeo publicado',
-    confidence: 0.78, trigger: 'video_published', createdAt: new Date(Date.now() - 5 * 3600000).toISOString(),
+    id: 'd2', title: 'Video MBK Center → Comunidade',
+    description: 'Post automatico para YouTube Community baseado no video publicado. Convida a audiencia a comentar.',
+    confidence: 0.78, trigger: 'video_published', createdAt: new Date(Date.now() - 24 * 3600000).toISOString(),
+    provider: 'youtube', surface: 'Comunidade', lang: 'PT',
   },
   {
     id: 'd3', title: 'Blog post → Fanpage',
-    description: 'Aprendi inglês brigando online — compartilhar no Facebook',
-    confidence: 0.55, trigger: 'blog_published', createdAt: new Date(Date.now() - 12 * 3600000).toISOString(),
+    description: 'Aprendi ingles brigando online — compartilhar no Facebook com trecho do post e link.',
+    confidence: 0.55, trigger: 'blog_published', createdAt: new Date(Date.now() - 48 * 3600000).toISOString(),
+    provider: 'facebook', surface: 'Fanpage', lang: 'PT',
   },
 ]
 

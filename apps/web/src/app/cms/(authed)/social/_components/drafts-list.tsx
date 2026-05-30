@@ -4,6 +4,11 @@ import Link from 'next/link'
 import { deleteSocialPost } from '@/lib/social/actions'
 import { socialToast } from './shared/social-toast'
 import { useRouter } from 'next/navigation'
+import { Sparkles, Settings, ArrowRight } from 'lucide-react'
+
+/* ------------------------------------------------------------------ */
+/*  Types                                                              */
+/* ------------------------------------------------------------------ */
 
 interface DraftItem {
   id: string
@@ -12,27 +17,131 @@ interface DraftItem {
   confidence: number | null
   trigger: string
   createdAt: string
+  provider?: string
+  surface?: string
+  lang?: string
 }
 
 interface DraftsListProps {
   items: DraftItem[]
 }
 
+/* ------------------------------------------------------------------ */
+/*  Cowork purple constants                                            */
+/* ------------------------------------------------------------------ */
+
+const COWORK_BG = 'rgba(110,99,242,0.15)'
+const COWORK_FG = 'rgb(155,147,246)'
+
+/* ------------------------------------------------------------------ */
+/*  Sparkle confidence badge (always cowork purple)                    */
+/* ------------------------------------------------------------------ */
+
 function ConfidenceBadge({ value }: { value: number | null }) {
   if (value == null) return null
   const pct = Math.round(value * 100)
-  const color =
-    pct >= 80
-      ? 'text-green-400 bg-green-500/15'
-      : pct >= 50
-        ? 'text-amber-400 bg-amber-500/15'
-        : 'text-red-400 bg-red-500/15'
   return (
-    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${color}`}>
+    <span
+      className="inline-flex items-center gap-[3px] rounded-full px-[7px] py-[2px] font-mono text-[10.5px]"
+      style={{ background: COWORK_BG, color: COWORK_FG }}
+    >
+      <Sparkles className="h-[11px] w-[11px]" />
       {pct}%
     </span>
   )
 }
+
+/* ------------------------------------------------------------------ */
+/*  Trigger icon — camera / document / envelope (38x38)                */
+/* ------------------------------------------------------------------ */
+
+function TriggerIcon({ trigger }: { trigger: string }) {
+  const isVideo = trigger === 'video_published'
+  const isNewsletter = trigger === 'newsletter_sent'
+  // default = blog/document
+
+  return (
+    <div
+      className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[9px]"
+      style={{ background: COWORK_BG }}
+    >
+      {isVideo ? (
+        /* Camera / video icon */
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={COWORK_FG} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="2" y="6" width="14" height="12" rx="2" />
+          <path d="M16 10l5-3v10l-5-3" />
+        </svg>
+      ) : isNewsletter ? (
+        /* Envelope icon */
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={COWORK_FG} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3" y="5" width="18" height="14" rx="2" />
+          <path d="M3 7l9 6 9-6" />
+        </svg>
+      ) : (
+        /* Document / blog icon */
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={COWORK_FG} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+          <path d="M14 2v6h6" />
+          <path d="M8 13h8" />
+          <path d="M8 17h8" />
+        </svg>
+      )}
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/*  Mini platform icon (22x22, solid bg, white SVG)                    */
+/* ------------------------------------------------------------------ */
+
+const PLATFORM_COLORS: Record<string, string> = {
+  instagram: '#E8823C',
+  youtube: '#E0574E',
+  facebook: '#5B7FD6',
+  bluesky: '#0085FF',
+}
+
+function MiniPlatformIcon({ provider }: { provider: string }) {
+  const bg = PLATFORM_COLORS[provider] ?? '#888'
+
+  return (
+    <div
+      className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-[6px]"
+      style={{ background: bg }}
+    >
+      {provider === 'instagram' && (
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
+          <rect x="3" y="3" width="18" height="18" rx="5" />
+          <circle cx="12" cy="12" r="4" />
+          <circle cx="17.5" cy="6.5" r="1" fill="#fff" stroke="none" />
+        </svg>
+      )}
+      {provider === 'youtube' && (
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
+          <rect x="2.5" y="5" width="19" height="14" rx="4" />
+          <path d="M10 9l5 3-5 3z" fill="#fff" stroke="none" />
+        </svg>
+      )}
+      {provider === 'facebook' && (
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
+          <circle cx="12" cy="12" r="9" />
+          <path d="M13.5 8.5h1.6M13.5 8.5c0-1.2.5-2 2-2M13.5 8.5V18M13.5 12h3" />
+        </svg>
+      )}
+      {provider === 'bluesky' && (
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
+          <path d="M12 4c3 2.5 6 6 6 8.5a3.5 3.5 0 01-7 0" />
+          <path d="M12 4c-3 2.5-6 6-6 8.5a3.5 3.5 0 007 0" />
+          <path d="M8.5 17c1-.5 2.5-1 3.5-1s2.5.5 3.5 1" />
+        </svg>
+      )}
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/*  Trigger label map                                                  */
+/* ------------------------------------------------------------------ */
 
 const TRIGGER_LABELS: Record<string, string> = {
   blog_published: 'Blog publicado',
@@ -40,6 +149,28 @@ const TRIGGER_LABELS: Record<string, string> = {
   newsletter_sent: 'Newsletter enviada',
   auto: 'Automatico',
 }
+
+/* ------------------------------------------------------------------ */
+/*  Relative time formatter                                            */
+/* ------------------------------------------------------------------ */
+
+function formatRelativeTime(iso: string): string {
+  const now = Date.now()
+  const then = new Date(iso).getTime()
+  const diffMs = now - then
+  const diffMin = Math.floor(diffMs / 60000)
+  if (diffMin < 1) return 'agora'
+  if (diffMin < 60) return `ha ${diffMin} min`
+  const diffH = Math.floor(diffMin / 60)
+  if (diffH < 24) return `ha ${diffH}h`
+  const diffD = Math.floor(diffH / 24)
+  if (diffD === 1) return 'ha 1 dia'
+  return `ha ${diffD} dias`
+}
+
+/* ------------------------------------------------------------------ */
+/*  DraftsList component                                               */
+/* ------------------------------------------------------------------ */
 
 export function DraftsList({ items }: DraftsListProps) {
   const router = useRouter()
@@ -55,54 +186,101 @@ export function DraftsList({ items }: DraftsListProps) {
   }
 
   return (
-    <div>
+    <div className="max-w-[760px]">
+      {/* Header */}
       <div className="mb-4 flex items-center justify-between">
-        <p className="text-xs text-cms-text-muted">{items.length} rascunhos automaticos</p>
+        {/* Left: Cowork sparkle + title + subtitle */}
+        <div className="flex items-start gap-[10px]">
+          <Sparkles
+            className="mt-[1px] h-[18px] w-[18px] shrink-0"
+            style={{ color: COWORK_FG }}
+          />
+          <div>
+            <p className="text-[14px] font-semibold text-cms-text">Rascunhos da IA</p>
+            <p className="mt-[2px] text-[12px] text-cms-text-dim">
+              O Cowork monitora o CMS e prepara posts sozinho. Revise e publique.
+            </p>
+          </div>
+        </div>
+
+        {/* Right: Automacoes button */}
         <Link
           href="/cms/social/accounts?tab=automations"
-          className="text-xs font-medium text-[var(--cms-cowork,#7c3aed)] hover:underline"
+          className="inline-flex shrink-0 items-center gap-[5px] rounded-[9px] border border-[var(--line-strong,var(--color-cms-border))] bg-transparent px-[10px] py-[5px] text-[12.5px] font-semibold text-cms-text-dim transition-colors hover:text-cms-text"
         >
+          <Settings className="h-[14px] w-[14px]" />
           Automacoes
         </Link>
       </div>
 
-      <div className="space-y-2">
+      {/* Items */}
+      <div className="flex flex-col gap-[11px]">
         {items.map(item => (
-          <div key={item.id} className="flex items-start gap-3 rounded-xl border border-cms-border bg-cms-surface p-4">
-            {/* Cowork icon */}
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--cms-cowork,#7c3aed)]/15 text-[var(--cms-cowork,#7c3aed)]">
-              <span className="text-sm font-bold">AI</span>
-            </div>
+          <div
+            key={item.id}
+            className="flex items-start gap-[13px] rounded-[var(--radius,12px)] border border-cms-border bg-cms-surface p-4"
+          >
+            {/* Trigger icon (38x38) */}
+            <TriggerIcon trigger={item.trigger} />
 
             {/* Content */}
             <div className="min-w-0 flex-1">
+              {/* Title + confidence */}
               <div className="flex items-center gap-2">
-                <p className="truncate text-sm font-medium text-cms-text">{item.title}</p>
+                <p className="truncate text-[14px] font-semibold text-cms-text">{item.title}</p>
                 <ConfidenceBadge value={item.confidence} />
               </div>
-              {item.description && (
-                <p className="mt-0.5 line-clamp-2 text-xs text-cms-text-muted">{item.description}</p>
-              )}
-              <p className="mt-1 text-[10px] text-cms-text-dim">
-                {TRIGGER_LABELS[item.trigger] ?? item.trigger} · {new Date(item.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
-              </p>
-            </div>
 
-            {/* Actions */}
-            <div className="flex shrink-0 gap-2">
-              <button
-                onClick={() => handleDiscard(item.id)}
-                aria-label={`Descartar rascunho: ${item.title}`}
-                className="rounded-lg border border-cms-border px-3 py-1.5 text-xs font-medium text-cms-text-muted hover:text-red-400 hover:border-red-400/30 transition-colors"
-              >
-                Descartar
-              </button>
-              <Link
-                href={`/cms/social/new?draft=${item.id}`}
-                className="rounded-lg bg-cms-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-cms-accent-hover transition-colors"
-              >
-                Revisar
-              </Link>
+              {/* Description */}
+              {item.description && (
+                <p className="mb-[9px] mt-[3px] text-[12.5px] leading-[1.5] text-cms-text-dim">
+                  {item.description}
+                </p>
+              )}
+
+              {/* Footer: platform + trigger + actions */}
+              <div className="flex items-center gap-[6px]">
+                {/* Platform chip */}
+                {item.provider && (
+                  <>
+                    <MiniPlatformIcon provider={item.provider} />
+                    <span className="text-[11.5px] text-cms-text-dim">
+                      {[
+                        item.provider === 'youtube' ? 'YouTube' :
+                        item.provider === 'instagram' ? 'Instagram' :
+                        item.provider === 'facebook' ? 'Facebook' :
+                        item.provider === 'bluesky' ? 'Bluesky' :
+                        item.provider,
+                        item.surface,
+                        item.lang ?? 'PT',
+                      ].filter(Boolean).join(' · ')}
+                    </span>
+                  </>
+                )}
+
+                {/* Trigger text */}
+                <span className="text-[11px] text-[var(--ink-faint,var(--color-cms-text-dim))]">
+                  · {TRIGGER_LABELS[item.trigger] ?? item.trigger} {formatRelativeTime(item.createdAt)}
+                </span>
+
+                {/* Action buttons (pushed right) */}
+                <div className="ml-auto flex shrink-0 gap-2">
+                  <button
+                    onClick={() => handleDiscard(item.id)}
+                    aria-label={`Descartar rascunho: ${item.title}`}
+                    className="rounded-[9px] border border-transparent px-3 py-1.5 text-[12px] font-medium text-cms-text-dim transition-colors hover:border-red-400/30 hover:text-red-400"
+                  >
+                    Descartar
+                  </button>
+                  <Link
+                    href={`/cms/social/new?draft=${item.id}`}
+                    className="inline-flex items-center gap-[5px] rounded-[9px] bg-cms-accent px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-cms-accent-hover"
+                  >
+                    Revisar
+                    <ArrowRight className="h-[13px] w-[13px]" />
+                  </Link>
+                </div>
+              </div>
             </div>
           </div>
         ))}
