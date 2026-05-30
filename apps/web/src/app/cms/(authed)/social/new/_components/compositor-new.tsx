@@ -5,6 +5,7 @@ import type { DestId } from '@/lib/social/destinations'
 import { DEST_IDS, DESTINATIONS } from '@/lib/social/destinations'
 import { DestinationPicker } from './destination-picker'
 import { DestCompositor } from './dest-compositor'
+import { CMSContentPicker } from './cms-content-picker'
 
 const DEFAULT_ON: Record<DestId, boolean> = {
   ig_story: true,
@@ -13,7 +14,11 @@ const DEFAULT_ON: Record<DestId, boolean> = {
   ig_feed: false,
 }
 
-export function CompositorNew() {
+interface CompositorNewProps {
+  sourceMode?: 'cms' | 'freeform'
+}
+
+export function CompositorNew({ sourceMode = 'freeform' }: CompositorNewProps) {
   const [destsOn, setDestsOn] = useState<Record<DestId, boolean>>(DEFAULT_ON)
   const [focused, setFocused] = useState<DestId>('ig_story')
   const [schedMode, setSchedMode] = useState<'now' | 'schedule' | 'queue'>('now')
@@ -47,13 +52,19 @@ export function CompositorNew() {
 
   return (
     <>
-      <DestinationPicker
-        initialOn={destsOn}
-        onToggle={handleToggle}
-        onFocus={setFocused}
-        focused={focused}
-      />
-      <DestCompositor key={focused} focusedDest={focused} destsOn={destsOn} onContentChange={handleContentChange} />
+      {sourceMode === 'cms' ? (
+        <CMSContentPicker />
+      ) : (
+        <>
+          <DestinationPicker
+            initialOn={destsOn}
+            onToggle={handleToggle}
+            onFocus={setFocused}
+            focused={focused}
+          />
+          <DestCompositor key={focused} focusedDest={focused} destsOn={destsOn} onContentChange={handleContentChange} />
+        </>
+      )}
 
       {/* Sticky footer */}
       <div className="sticky bottom-0 z-20 -mx-[30px] mt-auto border-t border-cms-border" style={{ background: 'rgba(16,14,11,0.92)', backdropFilter: 'blur(12px)' }}>
