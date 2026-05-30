@@ -63,7 +63,7 @@ export function PlayoffDetail({ view }: PlayoffDetailProps) {
               Round {view.totalRounds > 1 ? view.totalRounds - 1 : 1} fechou sem vencedor claro
             </div>
             <div className="text-[12.5px] text-cms-text-dim mt-[3px] leading-[1.5] max-w-[680px]">
-              Atingiu {view.durationDays} dias com {formatPercent(view.confidenceReached, 0)} de confiança — abaixo dos {formatPercent(view.confidenceTarget * 100, 0)}. Quatro variantes brigando diluem os dados. Em vez de descartar, o sistema afunila.
+              Atingiu {view.durationDays} dias com {formatPercent(view.confidenceReached, 0)} de confiança — abaixo dos {formatPercent(view.confidenceTarget * 100, 0)}.{view.variants.length > 2 ? ` ${view.variants.length} variantes brigando diluem os dados.` : ''} Em vez de descartar, o sistema afunila.
             </div>
           </div>
         </div>
@@ -96,7 +96,7 @@ export function PlayoffDetail({ view }: PlayoffDetailProps) {
                   <h3 className="text-[19px] font-semibold text-cms-text m-0">Por que empatou</h3>
                 </div>
                 <p className="text-[12.5px] text-cms-text-dim mt-[5px] max-w-[540px] m-0">
-                  As faixas de CTR de B e D se sobrepõem demais — não dá pra cravar. Por isso o playoff.
+                  As faixas de CTR {view.finalists.length >= 2 ? `de ${view.finalists.map(f => f.label).join(' e ')} ` : ''}se sobrepõem demais — não dá pra cravar. Por isso o playoff.
                 </p>
               </div>
             </div>

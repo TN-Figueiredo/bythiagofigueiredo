@@ -35,7 +35,7 @@ export function PlayoffBanner({ finalists, allVariants, startsIn, reason }: Play
         <div className="flex-1 min-w-0">
           <div className="text-[15px] font-bold text-cms-text truncate">Playoff criado automaticamente</div>
           <div className="text-[12px] text-cms-text-dim mt-[2px] truncate">
-            Round 2 começa em <b className="font-mono text-cms-text">{startsIn}</b> · só os 2 melhores · convergência mais rápida
+            {startsIn ? <>Round 2 começa em <b className="font-mono text-cms-text">{startsIn}</b> · </> : 'Round 2 · '}só os 2 melhores · convergência mais rápida
           </div>
         </div>
         <Badge tone="cowork" dot>agendado</Badge>
@@ -117,10 +117,12 @@ export function PlayoffBanner({ finalists, allVariants, startsIn, reason }: Play
       </div>
 
       {/* Footer reason */}
-      <div className="py-[14px] px-[22px] border-t border-cms-border text-[12px] text-cms-text-dim leading-[1.5] flex items-center gap-[9px]">
-        <Target size={15} style={{ color: COWORK }} className="shrink-0" aria-hidden="true" />
-        {reason}
-      </div>
+      {reason && (
+        <div className="py-[14px] px-[22px] border-t border-cms-border text-[12px] text-cms-text-dim leading-[1.5] flex items-center gap-[9px]">
+          <Target size={15} style={{ color: COWORK }} className="shrink-0" aria-hidden="true" />
+          {reason}
+        </div>
+      )}
     </div>
   )
 }

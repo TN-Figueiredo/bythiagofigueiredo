@@ -164,6 +164,39 @@ export const MOCK_WINNER_MINIMAL: AbTestWinnerView = {
   monitor: undefined,
 }
 
+export const MOCK_PLAYOFF_MINIMAL: AbTestPlayoffView = {
+  id: 'mock-playoff-minimal-id',
+  videoTitle: 'Test curto',
+  flag: 'title',
+  status: 'completed',
+  outcome: 'playoff',
+  variants: [
+    { label: 'A', color: VARIANT_COLORS.A, ctr: 0.050, impressions: 1500, clicks: 75, pBest: 0.30, pTop2: 0.45, linkCtr: undefined, retention: undefined },
+    { label: 'B', color: VARIANT_COLORS.B, ctr: 0.052, impressions: 1500, clicks: 78, pBest: 0.70, pTop2: 0.55, linkCtr: undefined, retention: undefined },
+  ],
+  variantThumbs: [
+    { label: 'A', color: VARIANT_COLORS.A, thumbUrl: null, isOriginal: true },
+    { label: 'B', color: VARIANT_COLORS.B, thumbUrl: null, isOriginal: false },
+  ],
+  confTrend: [],
+  daily: { A: [], B: [] } as Record<import('@/lib/youtube/ab-types').DisplayLabel, number[]>,
+  abbaSeq: [] as unknown as import('@/lib/youtube/ab-types').DisplayLabel[],
+  cycles: { total: 4, done: 2 },
+  durationDays: 5,
+  confidenceTarget: 0.95,
+  totalRounds: 1,
+  hasPlayoff: false,
+  gates: [],
+  playoffTestId: '',
+  startsIn: '',
+  finalists: [
+    { label: 'A', color: VARIANT_COLORS.A, ctr: 0.050, thumbnailUrl: null },
+    { label: 'B', color: VARIANT_COLORS.B, ctr: 0.052, thumbnailUrl: null },
+  ],
+  confidenceReached: 42,
+  reason: '',
+}
+
 export const MOCK_ACTIVE: AbTestActiveView = {
   ...BASE,
   status: 'active',
