@@ -17,8 +17,8 @@ export function ActiveTestCard({ test, onOpen }: ActiveTestCardProps) {
       tabIndex={0}
       onClick={() => onOpen(test.id)}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(test.id) } }}
-      className="rounded-[14px] bg-cms-surface overflow-hidden cursor-pointer focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
-      style={{ border: '1px solid var(--line)', transition: 'border-color 0.18s, transform 0.18s, background 0.18s' }}
+      className="rounded-[14px] overflow-hidden cursor-pointer focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
+      style={{ background: 'var(--surface)', border: '1px solid var(--line)', transition: 'border-color 0.18s, transform 0.18s, background 0.18s' }}
     >
       {/* Top section */}
       <div className="py-[16px] px-[18px] pb-[14px]">
@@ -53,7 +53,7 @@ export function ActiveTestCard({ test, onOpen }: ActiveTestCardProps) {
               <div
                 key={v.label}
                 className="relative rounded-[8px] overflow-hidden"
-                style={{ outline: isLeader ? `${color} solid 2px` : '1px solid var(--cms-border)', outlineOffset: '-1px' }}
+                style={{ outline: isLeader ? `${color} solid 2px` : '1px solid var(--line)', outlineOffset: '-1px' }}
               >
                 <div
                   className="relative w-full rounded-[8px] overflow-hidden"
@@ -85,13 +85,13 @@ export function ActiveTestCard({ test, onOpen }: ActiveTestCardProps) {
       </div>
 
       {/* Bottom stats */}
-      <div className="grid grid-cols-3 border-t border-[var(--line)] bg-cms-bg-side">
+      <div className="grid grid-cols-3" style={{ borderTop: '1px solid var(--line)', background: 'var(--bg-side, var(--cms-bg-side))' }}>
         <div className="py-[13px] px-[16px]">
           <div className="text-[9px] font-semibold text-cms-text-dim uppercase tracking-[0.08em] mb-[6px]">Confiança</div>
           <div className="font-mono text-[16px] font-bold text-cms-accent leading-none">{Math.round(test.confidence)}%</div>
           <div className="text-[10.5px] text-cms-text-dim mt-[5px]">meta 95%</div>
         </div>
-        <div className="py-[13px] px-[16px] border-l border-[var(--line)]">
+        <div className="py-[13px] px-[16px]" style={{ borderLeft: '1px solid var(--line)' }}>
           <div className="text-[9px] font-semibold text-cms-text-dim uppercase tracking-[0.08em] mb-[6px]">Líder</div>
           <div className="font-mono text-[16px] font-bold text-cms-text leading-none">
             <span className="inline-flex items-center gap-[6px]">
@@ -101,7 +101,7 @@ export function ActiveTestCard({ test, onOpen }: ActiveTestCardProps) {
           </div>
           <div className="text-[10.5px] text-cms-text-dim mt-[5px]">{Math.round(test.confidence * 0.7)}% prob. vencer</div>
         </div>
-        <div className="py-[13px] px-[16px] border-l border-[var(--line)]">
+        <div className="py-[13px] px-[16px]" style={{ borderLeft: '1px solid var(--line)' }}>
           <div className="text-[9px] font-semibold text-cms-text-dim uppercase tracking-[0.08em] mb-[6px]">Próx. rotação</div>
           <div className="font-mono text-[16px] font-bold text-cms-text leading-none">
             <span className="inline-flex items-center gap-[5px]">—</span>
