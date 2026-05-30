@@ -70,7 +70,7 @@ export function DetailHeader({
   actions,
 }: DetailHeaderProps) {
   return (
-    <header className="space-y-3">
+    <header className="space-y-2.5">
       {/* Breadcrumb */}
       <nav aria-label="Breadcrumb">
         <Link
