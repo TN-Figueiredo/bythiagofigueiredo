@@ -68,7 +68,7 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
   const sevenDaysAgoStr = toDateStringInTz(sevenDaysAgo, timezone)
   const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10)
 
-  const [linksRes, dailyRes, linktreeStatsRes, siteDataRes, sparkRes, latestPost, latestVideo, ltDevicesRes, ltBrowsersRes, ltReferrersRes] = await Promise.all([
+  const [linksRes, dailyRes, linktreeStatsRes, siteDataRes, sparkRes, latestPost, latestVideo, ltDevicesRes, ltBrowsersRes, ltReferrersRes, ltOsRes, ltDailyEventsRes] = await Promise.all([
     supabase
       .from('tracked_links')
       .select('*')
@@ -117,6 +117,18 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
       .eq('site_id', siteId)
       .eq('event_type', 'pageview')
       .not('referrer_source', 'is', null),
+    supabase
+      .from('linktree_events')
+      .select('os')
+      .eq('site_id', siteId)
+      .eq('event_type', 'pageview')
+      .not('os', 'is', null),
+    supabase
+      .from('linktree_events')
+      .select('created_at, country, device_type')
+      .eq('site_id', siteId)
+      .eq('event_type', 'pageview')
+      .gte('created_at', new Date(Date.now() - 30 * 86_400_000).toISOString()),
   ])
 
   const rawLinks = linksRes.data ?? []
@@ -282,6 +294,50 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
     .slice(0, 5)
     .map(([k, v]) => ({ k, v: Math.round((v / referrerTotal) * 100) }))
 
+  // OS aggregation from linktree_events
+  const osCounts = new Map<string, number>()
+  for (const row of ltOsRes.data ?? []) {
+    const o = (row.os as string) ?? 'Outro'
+    osCounts.set(o, (osCounts.get(o) ?? 0) + 1)
+  }
+  const osTotal = Array.from(osCounts.values()).reduce((s, v) => s + v, 0) || 1
+  const osData = Array.from(osCounts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([k, v]) => ({ k, v: Math.round((v / osTotal) * 100) }))
+
+  // Add linktree events to byDay (cliques por dia)
+  for (const row of ltDailyEventsRes.data ?? []) {
+    const d = new Date(row.created_at as string)
+    const daysAgo = Math.floor((Date.now() - d.getTime()) / 86_400_000)
+    if (daysAgo >= 0 && daysAgo < 30) {
+      byDay[29 - daysAgo]! += 1
+    }
+  }
+
+  // Add linktree events to heatmap
+  for (const row of ltDailyEventsRes.data ?? []) {
+    const d = new Date(row.created_at as string)
+    const weekday = (d.getDay() + 6) % 7 // Mon=0, Sun=6
+    const hour = d.getHours()
+    if (weekday >= 0 && weekday < 7 && hour >= 0 && hour < 24) {
+      heatmap[weekday]![hour]! += 1
+    }
+  }
+
+  // Countries from linktree_events
+  const countryCounts = new Map<string, number>()
+  for (const row of ltDailyEventsRes.data ?? []) {
+    const c = (row.country as string | null)
+    if (c) countryCounts.set(c, (countryCounts.get(c) ?? 0) + 1)
+  }
+  const countryTotal = Array.from(countryCounts.values()).reduce((s, v) => s + v, 0) || 1
+  const COUNTRY_NAMES: Record<string, string> = { BR: 'Brasil', US: 'Estados Unidos', PT: 'Portugal', DE: 'Alemanha', FR: 'França', GB: 'Reino Unido', ES: 'Espanha', AR: 'Argentina', JP: 'Japão' }
+  const countries = Array.from(countryCounts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([code, v]) => ({ code, name: COUNTRY_NAMES[code] ?? code, v: Math.round((v / countryTotal) * 100), cities: [] as string[] }))
+
   const analytics: AnalyticsDisplay = {
     totalClicks: totalClicks + ltTotalViews,
     prevClicks: 0,
@@ -295,9 +351,9 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
     bySource,
     devices,
     browsers,
-    os: [],
+    os: osData,
     referrers,
-    countries: [],
+    countries,
     heatmap,
     topLinks: links.slice(0, 10),
     insights: [],
