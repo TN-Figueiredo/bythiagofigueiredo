@@ -21,6 +21,7 @@ import {
   Link2,
   ChevronRight,
   Type,
+  Zap,
 } from 'lucide-react'
 import { deleteLink, toggleLinkActive } from '../actions'
 
@@ -78,13 +79,13 @@ const SOURCE_COLORS: Record<string, { bg: string; color: string }> = {
   manual:     { bg: 'var(--surface-2)',            color: 'var(--ink-dim)' },
 }
 
-const HEALTH_MAP: Record<string, { bg: string; color: string; label: string }> = {
-  healthy:   { bg: 'var(--green-soft)',  color: 'var(--green)', label: 'saudável' },
-  ok:        { bg: 'var(--green-soft)',  color: 'var(--green)', label: 'saudável' },
-  warn:      { bg: 'var(--amber-soft)',  color: 'var(--amber)', label: 'a expirar' },
-  broken:    { bg: 'rgba(217, 97, 74, 0.13)', color: 'var(--red)', label: 'quebrado' },
-  unhealthy: { bg: 'rgba(217, 97, 74, 0.13)', color: 'var(--red)', label: 'quebrado' },
-  unchecked: { bg: 'var(--surface-2)',   color: 'var(--ink-dim)', label: 'Unchecked' },
+const HEALTH_MAP: Record<string, { bg: string; color: string; label: string; icon: boolean }> = {
+  healthy:   { bg: 'var(--green-soft)',  color: 'var(--green)', label: 'saudável', icon: true },
+  ok:        { bg: 'var(--green-soft)',  color: 'var(--green)', label: 'saudável', icon: true },
+  warn:      { bg: 'var(--amber-soft)',  color: 'var(--amber)', label: 'a expirar', icon: false },
+  broken:    { bg: 'rgba(217, 97, 74, 0.13)', color: 'var(--red)', label: 'quebrado', icon: false },
+  unhealthy: { bg: 'rgba(217, 97, 74, 0.13)', color: 'var(--red)', label: 'quebrado', icon: false },
+  unchecked: { bg: 'var(--surface-2)',   color: 'var(--ink-dim)', label: 'não verificado', icon: false },
 }
 
 /* ------------------------------------------------------------------ */
@@ -564,67 +565,33 @@ export function LinkDetail({ link, dailyClicks, topCountry, linkId, shortUrl }: 
           Detalhes
         </p>
 
-        <DetailRow label="Redirect" icon={<ArrowUpRight size={15} strokeWidth={1.7} />}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
-              {link.redirect_type}
-            </span>
-            <span
-              style={badge(
-                link.pass_click_ids ? 'var(--green-soft)' : 'var(--surface-2)',
-                link.pass_click_ids ? 'var(--green)' : 'var(--ink-dim)',
-              )}
-            >
-              {link.pass_click_ids ? 'click IDs on' : 'click IDs off'}
-            </span>
+        <DetailRow label="Redirect" icon={<ExternalLink size={15} strokeWidth={1.7} />}>
+          {link.redirect_type}
+        </DetailRow>
+
+        <DetailRow label="Click IDs" icon={<MousePointerClick size={15} strokeWidth={1.7} />}>
+          <span style={badge(
+            link.pass_click_ids ? 'var(--green-soft)' : 'var(--surface-2)',
+            link.pass_click_ids ? 'var(--green)' : 'var(--ink-dim)',
+          )}>
+            {link.pass_click_ids ? 'on' : 'off'}
+          </span>
+        </DetailRow>
+
+        <DetailRow label="Origem" icon={<Tag size={15} strokeWidth={1.7} />}>
+          <span style={badge(sourceStyle.bg, sourceStyle.color)}>
+            {link.source_type}
           </span>
         </DetailRow>
 
         <DetailRow label="Criado" icon={<Clock size={15} strokeWidth={1.7} />}>
-          {formatDate(link.created_at)}
+          <span style={{ fontSize: '12.5px', color: 'var(--ink-dim)' }}>{formatDate(link.created_at)}</span>
         </DetailRow>
 
-        {link.expires_at && (
-          <DetailRow label="Expira" icon={<Clock size={15} strokeWidth={1.7} />}>
-            {formatDate(link.expires_at)}
-          </DetailRow>
-        )}
-
-        {link.activates_at && (
-          <DetailRow label="Ativa em" icon={<Clock size={15} strokeWidth={1.7} />}>
-            {formatDate(link.activates_at)}
-          </DetailRow>
-        )}
-
-        {link.launched_at && (
-          <DetailRow label="Lancado" icon={<ArrowUpRight size={15} strokeWidth={1.7} />}>
-            {formatDate(link.launched_at)}
-          </DetailRow>
-        )}
-
-        {link.last_clicked_at && (
-          <DetailRow
-            label="Ultimo clique"
-            icon={<MousePointerClick size={15} strokeWidth={1.7} />}
-          >
-            {formatDate(link.last_clicked_at)}
-          </DetailRow>
-        )}
-
-        {link.utm_id && (
-          <DetailRow label="UTM ID">
-            <span style={{ fontFamily: 'var(--font-mono)' }}>{link.utm_id}</span>
-          </DetailRow>
-        )}
-
-        <DetailRow label="Health">
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-            <span style={badge(health.bg, health.color)}>{health.label}</span>
-            {link.health_checked_at && (
-              <span style={{ fontSize: '11px', color: 'var(--ink-dim)' }}>
-                {formatRelativeTime(link.health_checked_at)}
-              </span>
-            )}
+        <DetailRow label="Saúde" icon={<Zap size={15} strokeWidth={1.7} />}>
+          <span style={badge(health.bg, health.color)}>
+            {health.icon && <Check size={11} strokeWidth={1.7} />}
+            {health.label}
           </span>
         </DetailRow>
 
