@@ -41,24 +41,8 @@ export function AnalyticsView({ data }: AnalyticsViewProps) {
 
   return (
     <div className="space-y-5">
-      {/* Range tabs */}
-      <div className="flex items-center justify-end gap-3">
-        <button
-          type="button"
-          onClick={handleExportCsv}
-          disabled={exporting}
-          aria-label="Exportar dados como CSV"
-          className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-primary/50"
-        >
-          {exporting ? 'Exportando...' : 'Exportar CSV'}
-        </button>
-        <RangeTabs value={range} onChange={setRange} />
-      </div>
-
-      {/* Period comparison note */}
-      <p className="text-right text-[10px] text-muted-foreground -mt-3">
-        Comparando com periodo anterior
-      </p>
+      {/* Range tabs + CSV + period note */}
+      <RangeTabs value={range} onChange={setRange} onExport={handleExportCsv} exporting={exporting} />
 
       {/* KPI row */}
       <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
