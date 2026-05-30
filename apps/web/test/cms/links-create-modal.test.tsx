@@ -11,6 +11,9 @@ vi.mock('lucide-react', () => {
     Check: icon('Check'),
     Loader2: icon('Loader2'),
     ChevronDown: icon('ChevronDown'),
+    Plus: icon('Plus'),
+    RefreshCw: icon('RefreshCw'),
+    Sparkles: icon('Sparkles'),
   }
 })
 
@@ -21,7 +24,7 @@ afterEach(() => cleanup())
 describe('CreateLinkModal', () => {
   it('renders modal with title', () => {
     const { getByText } = render(<CreateLinkModal open onClose={() => {}} onSubmit={async () => ({ ok: true, linkId: '1' })} />)
-    expect(getByText('Novo link')).toBeTruthy()
+    expect(getByText('Novo link rastreado')).toBeTruthy()
   })
 
   it('renders destination URL input', () => {
