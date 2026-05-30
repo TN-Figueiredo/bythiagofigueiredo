@@ -24,7 +24,7 @@ export default async function CompositorPage({ searchParams }: Props) {
   const modeLabel = sourceMode === 'cms' ? 'Do CMS' : 'Em branco'
 
   return (
-    <div className="px-[30px] pt-5">
+    <div className="flex min-h-screen flex-col px-[30px] pt-5 pb-[70px]">
       {/* Breadcrumb */}
       <div className="flex items-center gap-[7px] mb-2.5 flex-nowrap min-w-0">
         <span className="flex items-center gap-1.5 text-[12.5px] font-medium text-cms-text-dim shrink-0">
