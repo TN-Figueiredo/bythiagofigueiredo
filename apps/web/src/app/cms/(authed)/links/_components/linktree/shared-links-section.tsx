@@ -40,41 +40,41 @@ function SortableLinkCard({
 
   return (
     <div ref={setNodeRef} style={style} {...attributes}
-      className="rounded border border-border bg-background p-3">
+      style={{ border: '1px solid var(--line)', borderRadius: 12, padding: 14, background: 'var(--surface-2)' }}>
       <div className="mb-2 flex items-center gap-2">
-        <button type="button" {...listeners} className="cursor-grab text-muted-foreground active:cursor-grabbing focus:outline-none focus:ring-2 focus:ring-primary/50 rounded" disabled={readOnly} aria-label="Arrastar para reordenar">
+        <button type="button" {...listeners} style={{ cursor: 'grab', color: 'var(--ink-faint)', background: 'none', border: 'none', padding: 0 }} disabled={readOnly} aria-label="Arrastar para reordenar">
           <GripVertical size={14} />
         </button>
         <IconPicker value={link.icon} onChange={(icon) => onUpdate(index, { icon })} disabled={readOnly} />
         <div className="flex-1" />
         <button type="button" onClick={() => onDelete(index)} disabled={readOnly}
-          className="text-muted-foreground hover:text-red-400 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-primary/50 rounded" aria-label="Remover link">
+          style={{ color: 'var(--ink-faint)', background: 'transparent', border: 'none', cursor: 'pointer', marginLeft: 'auto' }} aria-label="Remover link">
           <Trash2 size={14} />
         </button>
       </div>
       <div className="mb-2 grid grid-cols-2 gap-2">
         <div>
           <div className="mb-0.5 flex items-center gap-1">
-            <span className="text-[10px] text-muted-foreground">Label</span>
+            <span style={{ fontSize: '10.5px', color: 'var(--ink-dim)' }}>Label</span>
             <LangBadge lang="PT" />
           </div>
           <input type="text" value={link.label_pt} onChange={(e) => onUpdate(index, { label_pt: e.target.value })}
-            disabled={readOnly} maxLength={100} aria-label="Label em português" className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground focus:border-primary focus:outline-none disabled:opacity-50" />
+            disabled={readOnly} maxLength={100} aria-label="Label em português" style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--line-strong)', borderRadius: 9, padding: '10px 12px', color: 'var(--ink)', fontSize: 13, outline: 'none' }} className="disabled:opacity-50" />
         </div>
         <div>
           <div className="mb-0.5 flex items-center gap-1">
-            <span className="text-[10px] text-muted-foreground">Label</span>
+            <span style={{ fontSize: '10.5px', color: 'var(--ink-dim)' }}>Label</span>
             <LangBadge lang="EN" />
           </div>
           <input type="text" value={link.label_en} onChange={(e) => onUpdate(index, { label_en: e.target.value })}
-            disabled={readOnly} maxLength={100} aria-label="Label em inglês" className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground focus:border-primary focus:outline-none disabled:opacity-50" />
+            disabled={readOnly} maxLength={100} aria-label="Label em inglês" style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--line-strong)', borderRadius: 9, padding: '10px 12px', color: 'var(--ink)', fontSize: 13, outline: 'none' }} className="disabled:opacity-50" />
         </div>
       </div>
       <div>
         <span className="mb-0.5 block text-[10px] text-muted-foreground">URL</span>
         <input type="url" value={link.url} onChange={(e) => onUpdate(index, { url: e.target.value })}
           disabled={readOnly} maxLength={2048} placeholder="https://..." aria-label="URL do link"
-          className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground focus:border-primary focus:outline-none disabled:opacity-50" />
+          style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--line-strong)', borderRadius: 9, padding: '10px 12px', color: 'var(--ink)', fontSize: 13, outline: 'none' }} className="disabled:opacity-50" />
       </div>
     </div>
   )
@@ -115,7 +115,7 @@ export function SharedLinksSection({ config, onChange, readOnly }: Props) {
 
   return (
     <section>
-      <h2 className="mb-4 text-sm font-bold text-foreground">Shared Links</h2>
+      <div className="eyebrow" style={{ marginBottom: 12, fontSize: '10.5px', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--ink-faint)' }}>Shared Links · {config.shared_links.length}/10</div>
       <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={[restrictToVerticalAxis]} onDragEnd={handleDragEnd}>
         <SortableContext items={links.map((l) => l.id)} strategy={verticalListSortingStrategy}>
           <div className="space-y-3">
@@ -126,12 +126,22 @@ export function SharedLinksSection({ config, onChange, readOnly }: Props) {
         </SortableContext>
       </DndContext>
       {config.shared_links.length < 10 && (
-        <button type="button" onClick={addLink} disabled={readOnly}
-          className="mt-3 flex items-center gap-1.5 rounded border border-dashed border-border px-3 py-2 text-xs text-muted-foreground hover:border-primary hover:text-foreground disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-primary/50">
-          <Plus size={14} /> Adicionar link
+        <button
+          type="button"
+          onClick={addLink}
+          disabled={readOnly}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 7, alignSelf: 'flex-start',
+            padding: '9px 15px', fontSize: '13.5px', fontWeight: 600,
+            borderRadius: 9, border: '1px solid var(--line)',
+            background: 'var(--surface-2)', color: 'var(--ink)',
+            letterSpacing: '-0.01em', whiteSpace: 'nowrap', cursor: 'pointer',
+            marginTop: 12,
+          }}
+        >
+          <Plus size={16} strokeWidth={1.7} /> Adicionar link
         </button>
       )}
-      <p className="mt-2 text-[10px] text-muted-foreground">{config.shared_links.length}/10 links</p>
     </section>
   )
 }

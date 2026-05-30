@@ -22,22 +22,32 @@ export function HighlightSection({ config, onChange, readOnly }: Props) {
 
   return (
     <section>
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-sm font-bold text-foreground">Highlight Card</h2>
-        <label className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span>{h.active ? 'Ativo' : 'Inativo'}</span>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={h.active}
-            aria-label="Ativar Highlight Card"
-            onClick={() => updateHighlight({ active: !h.active })}
-            disabled={readOnly}
-            className={`relative h-5 w-9 rounded-full transition-colors ${h.active ? 'bg-primary' : 'bg-border'}`}
-          >
-            <span className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white transition-transform ${h.active ? 'translate-x-4' : ''}`} />
-          </button>
-        </label>
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '14px 0', borderTop: '1px solid var(--line)', borderBottom: '1px solid var(--line)',
+        margin: '8px 0 18px',
+      }}>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>Highlight Card</div>
+          <div style={{ fontSize: '11.5px', color: 'var(--ink-dim)', marginTop: 2 }}>Destaca um lançamento no topo da árvore.</div>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={h.active}
+          aria-label="Ativar Highlight Card"
+          onClick={() => updateHighlight({ active: !h.active })}
+          disabled={readOnly}
+          style={{
+            width: 42, height: 24, borderRadius: 99, border: 'none', padding: 3,
+            background: h.active ? 'var(--accent)' : 'var(--surface-3, var(--surface-2))',
+            transition: 'background 0.2s',
+            display: 'flex', justifyContent: h.active ? 'flex-end' : 'flex-start',
+            flexShrink: 0, cursor: 'pointer',
+          }}
+        >
+          <span style={{ width: 18, height: 18, borderRadius: 99, background: '#fff', transition: '0.2s' }} />
+        </button>
       </div>
 
       {h.active && (
@@ -51,7 +61,7 @@ export function HighlightSection({ config, onChange, readOnly }: Props) {
               onChange={(e) => updateHighlight({ url: e.target.value })}
               disabled={readOnly}
               maxLength={2048}
-              className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none disabled:opacity-50"
+              style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--line-strong)', borderRadius: 9, padding: '10px 12px', color: 'var(--ink)', fontSize: 13, outline: 'none' }} className="disabled:opacity-50"
               placeholder="https://..."
             />
           </div>
@@ -63,7 +73,7 @@ export function HighlightSection({ config, onChange, readOnly }: Props) {
                 <LangBadge lang="PT" />
               </div>
               <input id="highlight-badge-pt" type="text" value={h.badge_pt} onChange={(e) => updateHighlight({ badge_pt: e.target.value })} disabled={readOnly} maxLength={30}
-                aria-describedby="highlight-badge-pt-count" className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none disabled:opacity-50" />
+                aria-describedby="highlight-badge-pt-count" style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--line-strong)', borderRadius: 9, padding: '10px 12px', color: 'var(--ink)', fontSize: 13, outline: 'none' }} className="disabled:opacity-50" />
               <div className="mt-0.5 text-right"><CharCount current={h.badge_pt.length} max={30} id="highlight-badge-pt-count" /></div>
             </div>
             <div>
@@ -72,7 +82,7 @@ export function HighlightSection({ config, onChange, readOnly }: Props) {
                 <LangBadge lang="EN" />
               </div>
               <input id="highlight-badge-en" type="text" value={h.badge_en} onChange={(e) => updateHighlight({ badge_en: e.target.value })} disabled={readOnly} maxLength={30}
-                aria-describedby="highlight-badge-en-count" className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none disabled:opacity-50" />
+                aria-describedby="highlight-badge-en-count" style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--line-strong)', borderRadius: 9, padding: '10px 12px', color: 'var(--ink)', fontSize: 13, outline: 'none' }} className="disabled:opacity-50" />
               <div className="mt-0.5 text-right"><CharCount current={h.badge_en.length} max={30} id="highlight-badge-en-count" /></div>
             </div>
           </div>
@@ -84,7 +94,7 @@ export function HighlightSection({ config, onChange, readOnly }: Props) {
                 <LangBadge lang="PT" />
               </div>
               <input id="highlight-title-pt" type="text" value={h.title_pt} onChange={(e) => updateHighlight({ title_pt: e.target.value })} disabled={readOnly} maxLength={80}
-                aria-describedby="highlight-title-pt-count" className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none disabled:opacity-50" />
+                aria-describedby="highlight-title-pt-count" style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--line-strong)', borderRadius: 9, padding: '10px 12px', color: 'var(--ink)', fontSize: 13, outline: 'none' }} className="disabled:opacity-50" />
               <div className="mt-0.5 text-right"><CharCount current={h.title_pt.length} max={80} id="highlight-title-pt-count" /></div>
             </div>
             <div>
@@ -93,7 +103,7 @@ export function HighlightSection({ config, onChange, readOnly }: Props) {
                 <LangBadge lang="EN" />
               </div>
               <input id="highlight-title-en" type="text" value={h.title_en} onChange={(e) => updateHighlight({ title_en: e.target.value })} disabled={readOnly} maxLength={80}
-                aria-describedby="highlight-title-en-count" className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none disabled:opacity-50" />
+                aria-describedby="highlight-title-en-count" style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--line-strong)', borderRadius: 9, padding: '10px 12px', color: 'var(--ink)', fontSize: 13, outline: 'none' }} className="disabled:opacity-50" />
               <div className="mt-0.5 text-right"><CharCount current={h.title_en.length} max={80} id="highlight-title-en-count" /></div>
             </div>
           </div>
@@ -104,7 +114,7 @@ export function HighlightSection({ config, onChange, readOnly }: Props) {
               <LangBadge lang="PT" />
             </div>
             <textarea id="highlight-desc-pt" value={h.desc_pt} onChange={(e) => updateHighlight({ desc_pt: e.target.value })} disabled={readOnly} maxLength={200} rows={2}
-              aria-describedby="highlight-desc-pt-count" className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none disabled:opacity-50" />
+              aria-describedby="highlight-desc-pt-count" style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--line-strong)', borderRadius: 9, padding: '10px 12px', color: 'var(--ink)', fontSize: 13, outline: 'none' }} className="disabled:opacity-50" />
             <div className="mt-0.5 text-right"><CharCount current={h.desc_pt.length} max={200} id="highlight-desc-pt-count" /></div>
           </div>
 
@@ -114,7 +124,7 @@ export function HighlightSection({ config, onChange, readOnly }: Props) {
               <LangBadge lang="EN" />
             </div>
             <textarea id="highlight-desc-en" value={h.desc_en} onChange={(e) => updateHighlight({ desc_en: e.target.value })} disabled={readOnly} maxLength={200} rows={2}
-              aria-describedby="highlight-desc-en-count" className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none disabled:opacity-50" />
+              aria-describedby="highlight-desc-en-count" style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--line-strong)', borderRadius: 9, padding: '10px 12px', color: 'var(--ink)', fontSize: 13, outline: 'none' }} className="disabled:opacity-50" />
             <div className="mt-0.5 text-right"><CharCount current={h.desc_en.length} max={200} id="highlight-desc-en-count" /></div>
           </div>
 
@@ -125,7 +135,7 @@ export function HighlightSection({ config, onChange, readOnly }: Props) {
                 <LangBadge lang="PT" />
               </div>
               <input id="highlight-cta-pt" type="text" value={h.cta_pt} onChange={(e) => updateHighlight({ cta_pt: e.target.value })} disabled={readOnly} maxLength={40}
-                aria-describedby="highlight-cta-pt-count" className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none disabled:opacity-50" />
+                aria-describedby="highlight-cta-pt-count" style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--line-strong)', borderRadius: 9, padding: '10px 12px', color: 'var(--ink)', fontSize: 13, outline: 'none' }} className="disabled:opacity-50" />
               <div className="mt-0.5 text-right"><CharCount current={h.cta_pt.length} max={40} id="highlight-cta-pt-count" /></div>
             </div>
             <div>
@@ -134,7 +144,7 @@ export function HighlightSection({ config, onChange, readOnly }: Props) {
                 <LangBadge lang="EN" />
               </div>
               <input id="highlight-cta-en" type="text" value={h.cta_en} onChange={(e) => updateHighlight({ cta_en: e.target.value })} disabled={readOnly} maxLength={40}
-                aria-describedby="highlight-cta-en-count" className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none disabled:opacity-50" />
+                aria-describedby="highlight-cta-en-count" style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--line-strong)', borderRadius: 9, padding: '10px 12px', color: 'var(--ink)', fontSize: 13, outline: 'none' }} className="disabled:opacity-50" />
               <div className="mt-0.5 text-right"><CharCount current={h.cta_en.length} max={40} id="highlight-cta-en-count" /></div>
             </div>
           </div>

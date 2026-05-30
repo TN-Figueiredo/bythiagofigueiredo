@@ -15,11 +15,11 @@ interface Props {
 export function GeneralSection({ config, onChange, readOnly }: Props) {
   return (
     <section>
-      <h2 className="mb-4 text-sm font-bold text-foreground">Geral</h2>
+      <div className="eyebrow" style={{ marginBottom: 14, fontSize: '10.5px', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--ink-faint)' }}>Geral</div>
       <div className="space-y-4">
         <div>
           <div className="mb-1 flex items-center gap-2">
-            <label htmlFor="tagline-pt" className="text-xs font-medium text-foreground">Tagline</label>
+            <label htmlFor="tagline-pt" style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--ink)' }}>Tagline</label>
             <LangBadge lang="PT" />
             <span className="text-[10px] text-red-400">*</span>
           </div>
@@ -32,7 +32,8 @@ export function GeneralSection({ config, onChange, readOnly }: Props) {
             maxLength={120}
             aria-required="true"
             aria-describedby="tagline-pt-count"
-            className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none disabled:opacity-50"
+            style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--line-strong)', borderRadius: 9, padding: '10px 12px', color: 'var(--ink)', fontSize: 13, outline: 'none' }}
+            className="disabled:opacity-50"
             placeholder="Ex: Reflexões sobre tecnologia, fé e propósito"
           />
           <div className="mt-0.5 text-right">
@@ -42,7 +43,7 @@ export function GeneralSection({ config, onChange, readOnly }: Props) {
 
         <div>
           <div className="mb-1 flex items-center gap-2">
-            <label htmlFor="tagline-en" className="text-xs font-medium text-foreground">Tagline</label>
+            <label htmlFor="tagline-en" style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--ink)' }}>Tagline</label>
             <LangBadge lang="EN" />
             <span className="text-[10px] text-red-400">*</span>
           </div>
@@ -55,7 +56,8 @@ export function GeneralSection({ config, onChange, readOnly }: Props) {
             maxLength={120}
             aria-required="true"
             aria-describedby="tagline-en-count"
-            className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none disabled:opacity-50"
+            style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--line-strong)', borderRadius: 9, padding: '10px 12px', color: 'var(--ink)', fontSize: 13, outline: 'none' }}
+            className="disabled:opacity-50"
             placeholder="Ex: Reflections on technology, faith, and purpose"
           />
           <div className="mt-0.5 text-right">
@@ -65,7 +67,7 @@ export function GeneralSection({ config, onChange, readOnly }: Props) {
 
         <div>
           <div className="mb-1 flex items-center gap-2">
-            <label htmlFor="blog-desc-pt" className="text-xs font-medium text-foreground">Descrição do Blog</label>
+            <label htmlFor="blog-desc-pt" style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--ink)' }}>Descrição do Blog</label>
             <LangBadge lang="PT" />
           </div>
           <textarea
@@ -76,7 +78,8 @@ export function GeneralSection({ config, onChange, readOnly }: Props) {
             maxLength={300}
             rows={3}
             aria-describedby="blog-desc-pt-count"
-            className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none disabled:opacity-50"
+            style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--line-strong)', borderRadius: 9, padding: '10px 12px', color: 'var(--ink)', fontSize: 13, outline: 'none' }}
+            className="disabled:opacity-50"
             placeholder="Descrição exibida na seção de blog da linktree"
           />
           <div className="mt-0.5 text-right">
@@ -86,7 +89,7 @@ export function GeneralSection({ config, onChange, readOnly }: Props) {
 
         <div>
           <div className="mb-1 flex items-center gap-2">
-            <label htmlFor="blog-desc-en" className="text-xs font-medium text-foreground">Descrição do Blog</label>
+            <label htmlFor="blog-desc-en" style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--ink)' }}>Descrição do Blog</label>
             <LangBadge lang="EN" />
           </div>
           <textarea
@@ -97,7 +100,8 @@ export function GeneralSection({ config, onChange, readOnly }: Props) {
             maxLength={300}
             rows={3}
             aria-describedby="blog-desc-en-count"
-            className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none disabled:opacity-50"
+            style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--line-strong)', borderRadius: 9, padding: '10px 12px', color: 'var(--ink)', fontSize: 13, outline: 'none' }}
+            className="disabled:opacity-50"
             placeholder="Description shown in the blog section of the linktree"
           />
           <div className="mt-0.5 text-right">

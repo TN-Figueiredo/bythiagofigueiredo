@@ -2,13 +2,27 @@
 
 export function CharCount({ current, max, id }: { current: number; max: number; id?: string }) {
   return (
-    <span id={id} className={`text-[10px] ${current > max ? 'text-red-400' : 'text-muted-foreground'}`}>
+    <span id={id} style={{ fontSize: '10px', color: current > max ? 'var(--red)' : 'var(--ink-faint)' }}>
       {current}/{max}
     </span>
   )
 }
 
 export function LangBadge({ lang }: { lang: 'PT' | 'EN' }) {
-  const colors = lang === 'PT' ? 'bg-green-500/10 text-green-400' : 'bg-cyan-500/10 text-cyan-400'
-  return <span className={`rounded px-1.5 py-0.5 text-[9px] font-bold ${colors}`}>{lang}</span>
+  const isPt = lang === 'PT'
+  return (
+    <span
+      className="mono"
+      style={{
+        fontSize: 9,
+        fontWeight: 700,
+        padding: '1px 6px',
+        borderRadius: 5,
+        background: isPt ? 'var(--accent-soft)' : 'var(--green-soft)',
+        color: isPt ? 'var(--accent)' : 'var(--green)',
+      }}
+    >
+      {lang}
+    </span>
+  )
 }
