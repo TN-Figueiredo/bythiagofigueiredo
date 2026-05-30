@@ -109,8 +109,10 @@ function QrNode({
   return (
     <Group
       id={element.id}
-      x={element.x}
-      y={element.y}
+      x={element.x + element.width / 2}
+      y={element.y + element.height / 2}
+      offsetX={element.width / 2}
+      offsetY={element.height / 2}
       width={element.width}
       height={element.height}
       rotation={element.rotation}
@@ -189,8 +191,10 @@ function TextNode({
   return (
     <Group
       id={element.id}
-      x={element.x - pad}
-      y={element.y - pad}
+      x={element.x - pad + (element.width + pad * 2) / 2}
+      y={element.y - pad + (element.height + pad * 2) / 2}
+      offsetX={(element.width + pad * 2) / 2}
+      offsetY={(element.height + pad * 2) / 2}
       rotation={element.rotation}
       opacity={element.opacity}
       draggable={!element.locked}
@@ -237,8 +241,10 @@ function ImageNode({
   return (
     <Group
       id={element.id}
-      x={element.x}
-      y={element.y}
+      x={element.x + element.width / 2}
+      y={element.y + element.height / 2}
+      offsetX={element.width / 2}
+      offsetY={element.height / 2}
       width={element.width}
       height={element.height}
       rotation={element.rotation}
@@ -414,7 +420,10 @@ export const CanvasEditor = forwardRef<CanvasEditorHandle, CanvasEditorProps>(fu
     const node = e.target
     const id = node.id()
     if (!id) return
-    updateElement(id, { x: node.x(), y: node.y() })
+    updateElement(id, {
+      x: node.x() - node.offsetX(),
+      y: node.y() - node.offsetY(),
+    })
   }, [updateElement])
 
   const handleTransformEnd = useCallback((e: Konva.KonvaEventObject<Event>) => {
@@ -425,11 +434,15 @@ export const CanvasEditor = forwardRef<CanvasEditorHandle, CanvasEditorProps>(fu
     const scaleY = node.scaleY()
     node.scaleX(1)
     node.scaleY(1)
+    const newW = Math.max(10, node.width() * scaleX)
+    const newH = Math.max(10, node.height() * scaleY)
+    node.offsetX(newW / 2)
+    node.offsetY(newH / 2)
     updateElement(id, {
-      x: node.x(),
-      y: node.y(),
-      width: Math.max(10, node.width() * scaleX),
-      height: Math.max(10, node.height() * scaleY),
+      x: node.x() - newW / 2,
+      y: node.y() - newH / 2,
+      width: newW,
+      height: newH,
       rotation: node.rotation(),
     })
   }, [updateElement])
