@@ -159,12 +159,10 @@ export function LinktreeEditor({ initialConfig, domain, siteId: _siteId, readOnl
       {/* Split layout */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         {/* Form panel */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: 24, maxWidth: '60%' }}>
-          <div className="mx-auto max-w-2xl space-y-8">
-            <GeneralSection config={config} onChange={updateConfig} readOnly={readOnly} />
-            <HighlightSection config={config} onChange={updateConfig} readOnly={readOnly} />
-            <SharedLinksSection config={config} onChange={updateConfig} readOnly={readOnly} />
-          </div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '26px 30px', maxWidth: 720 }}>
+          <GeneralSection config={config} onChange={updateConfig} readOnly={readOnly} />
+          <HighlightSection config={config} onChange={updateConfig} readOnly={readOnly} />
+          <SharedLinksSection config={config} onChange={updateConfig} readOnly={readOnly} />
         </div>
 
         {/* Preview panel */}
