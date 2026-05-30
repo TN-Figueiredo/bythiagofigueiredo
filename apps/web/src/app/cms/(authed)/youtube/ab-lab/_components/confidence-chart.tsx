@@ -45,23 +45,12 @@ export function ConfidenceChart({ data, target = 95 }: ConfidenceChartProps) {
   // --- empty state ---
   if (clean.length === 0) {
     return (
-      <svg
-        viewBox={`0 0 ${W} ${H}`}
-        width="100%"
-        aria-label="Confidence chart — no data"
-      >
-        <text
-          x={W / 2}
-          y={H / 2}
-          textAnchor="middle"
-          dominantBaseline="middle"
-          fill="var(--cms-text-dim)"
-          fontSize={13}
-          fontFamily={CHART.font}
-        >
-          No data yet
-        </text>
-      </svg>
+      <div className="flex flex-col items-center justify-center py-12 text-center rounded-lg border border-cms-border bg-cms-bg">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-cms-text-dim mb-3" aria-hidden="true">
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+        </svg>
+        <p className="text-xs text-cms-text-muted max-w-[240px]">Aguardando impressões — a curva de confiança aparece quando o teste começar a coletar.</p>
+      </div>
     )
   }
 
