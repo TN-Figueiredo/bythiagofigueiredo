@@ -270,7 +270,7 @@ export function DestCompositor({ focusedDest, destsOn, caption, onCaptionChange 
       </div>
 
       {/* Right column - preview */}
-      <div className="hidden lg:block">
+      <div className="hidden lg:block" aria-hidden="true">
         <div className="sticky top-4">
           <div className="mb-3 inline-flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-cms-text-dim">
             <svg

@@ -71,6 +71,7 @@ export function CompositorNew({ sourceMode = 'freeform' }: CompositorNewProps) {
   const canPublish = activeDests.length > 0 && allActiveHaveContent
   const hasContent = anyActiveHasContent
 
+  const [queueSlots, setQueueSlots] = useState<string[]>(['amanhã 09:00', 'amanhã 19:00', 'qui 13:00'])
   const [bestTimes, setBestTimes] = useState<string[]>([])
 
   useEffect(() => {
@@ -88,6 +89,23 @@ export function CompositorNew({ sourceMode = 'freeform' }: CompositorNewProps) {
     }
 
     fetchBestTimes()
+    return () => { cancelled = true }
+  }, [schedMode])
+
+  useEffect(() => {
+    if (schedMode !== 'queue') return
+    let cancelled = false
+    async function fetchSlots() {
+      try {
+        const { getQueueSlotConfig } = await import('@/lib/social/actions')
+        const result = await getQueueSlotConfig()
+        if (result.ok && !cancelled) {
+          const slots = (result.data?.slots ?? []).slice(0, 3).map((s: any) => s.label ?? s.time ?? 'próximo slot')
+          if (slots.length > 0) setQueueSlots(slots)
+        }
+      } catch { /* best-effort */ }
+    }
+    fetchSlots()
     return () => { cancelled = true }
   }, [schedMode])
 
@@ -178,11 +196,12 @@ export function CompositorNew({ sourceMode = 'freeform' }: CompositorNewProps) {
           <div className="flex flex-wrap items-center gap-2.5 border-b border-cms-border px-[30px] py-3 text-[12.5px] text-cms-text-dim">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="text-cms-accent"><path d="M4 6h16" /><path d="M4 12h16" /><path d="M4 18h16" /></svg>
             Próximos slots livres da fila:
-            <span className="font-mono font-semibold text-cms-text">amanhã 09:00</span>
-            <span className="text-cms-text-dim/40">·</span>
-            <span className="font-mono font-semibold text-cms-text">amanhã 19:00</span>
-            <span className="text-cms-text-dim/40">·</span>
-            <span className="font-mono font-semibold text-cms-text">qui 13:00</span>
+            {queueSlots.map((slot, i) => (
+              <span key={i} className="contents">
+                {i > 0 && <span className="text-cms-text-dim/40">·</span>}
+                <span className="font-mono font-semibold text-cms-text">{slot}</span>
+              </span>
+            ))}
           </div>
         )}
 
@@ -207,7 +226,7 @@ export function CompositorNew({ sourceMode = 'freeform' }: CompositorNewProps) {
             ) : schedMode === 'schedule' ? (
               <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 8v4l3 2" /></svg> {scheduleDays.find(d => d.date.getTime() === selectedDate.getTime())?.label ?? 'Hoje'} · <b className="font-mono text-cms-text">{selectedTime}</b></>
             ) : (
-              <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6h16" /><path d="M4 12h16" /><path d="M4 18h16" /></svg> Entra na fila · próximo slot amanhã 09:00</>
+              <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6h16" /><path d="M4 12h16" /><path d="M4 18h16" /></svg> Entra na fila · próximo slot {queueSlots[0]}</>
             )}
           </span>
 
@@ -221,6 +240,8 @@ export function CompositorNew({ sourceMode = 'freeform' }: CompositorNewProps) {
                 const result = await createSocialPost(payload)
                 if (result.ok) {
                   window.location.href = '/cms/social?tab=drafts'
+                } else {
+                  alert('Erro ao salvar rascunho')
                 }
               }}
               className="inline-flex items-center gap-[7px] rounded-[9px] border border-cms-border px-[15px] py-[9px] text-[13.5px] font-semibold text-cms-text-dim transition-colors hover:text-cms-text disabled:opacity-40 disabled:pointer-events-none"
@@ -241,6 +262,8 @@ export function CompositorNew({ sourceMode = 'freeform' }: CompositorNewProps) {
                   const result = await createSocialPost(payload)
                   if (result.ok) {
                     window.location.href = '/cms/social'
+                  } else {
+                    alert('Erro ao publicar')
                   }
                 } finally {
                   setPublishing(false)

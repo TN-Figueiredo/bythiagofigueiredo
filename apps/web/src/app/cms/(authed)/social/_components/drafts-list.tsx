@@ -4,7 +4,6 @@ import Link from 'next/link'
 import { deleteSocialPost } from '@/lib/social/actions'
 import { socialToast } from './shared/social-toast'
 import { useRouter } from 'next/navigation'
-import { Sparkles, Settings, ArrowRight } from 'lucide-react'
 import { PlatformIcon } from './shared/platform-icon'
 
 /* ------------------------------------------------------------------ */
@@ -46,7 +45,10 @@ function ConfidenceBadge({ value }: { value: number | null }) {
       className="inline-flex items-center gap-[3px] rounded-full px-[7px] py-[2px] font-mono text-[10.5px]"
       style={{ background: COWORK_BG, color: COWORK_FG }}
     >
-      <Sparkles className="h-[11px] w-[11px]" />
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6z" />
+        <path d="M18 14l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z" />
+      </svg>
       {pct}%
     </span>
   )
@@ -167,10 +169,21 @@ export function DraftsList({ items }: DraftsListProps) {
       <div className="mb-4 flex items-center justify-between">
         {/* Left: Cowork sparkle + title + subtitle */}
         <div className="flex items-start gap-[10px]">
-          <Sparkles
-            className="mt-[1px] h-[18px] w-[18px] shrink-0"
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.7"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="mt-[1px] shrink-0"
             style={{ color: COWORK_FG }}
-          />
+          >
+            <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6z" />
+            <path d="M18 14l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z" />
+          </svg>
           <div>
             <p className="text-[14px] font-semibold text-cms-text">Rascunhos da IA</p>
             <p className="mt-[2px] text-[12px] text-cms-text-dim">
@@ -184,7 +197,10 @@ export function DraftsList({ items }: DraftsListProps) {
           href="/cms/social/accounts?tab=automations"
           className="inline-flex shrink-0 items-center gap-[5px] rounded-[9px] border border-[var(--line-strong,var(--color-cms-border))] bg-transparent px-[10px] py-[5px] text-[12.5px] font-semibold text-cms-text-dim transition-colors hover:text-cms-text"
         >
-          <Settings className="h-[14px] w-[14px]" />
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 9a3 3 0 100 6 3 3 0 000-6z" />
+            <path d="M19.4 13a1.6 1.6 0 00.3 1.7l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.6 1.6 0 00-2.7 1.1V21a2 2 0 11-4 0v-.1a1.6 1.6 0 00-2.7-1.1l-.1.1a2 2 0 11-2.8-2.8l.1-.1A1.6 1.6 0 004 13H3.9a2 2 0 110-4H4a1.6 1.6 0 001.1-2.7l-.1-.1a2 2 0 112.8-2.8l.1.1A1.6 1.6 0 0011 4V3.9a2 2 0 114 0V4a1.6 1.6 0 002.7 1.1l.1-.1a2 2 0 112.8 2.8l-.1.1A1.6 1.6 0 0020 11h.1a2 2 0 110 4z" />
+          </svg>
           Automações
         </Link>
       </div>
@@ -253,7 +269,10 @@ export function DraftsList({ items }: DraftsListProps) {
                     className="inline-flex items-center gap-[5px] rounded-[9px] bg-cms-accent px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-cms-accent-hover"
                   >
                     Revisar
-                    <ArrowRight className="h-[13px] w-[13px]" />
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M5 12h14" />
+                      <path d="M13 6l6 6-6 6" />
+                    </svg>
                   </Link>
                 </div>
               </div>
