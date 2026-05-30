@@ -36,8 +36,3 @@ export function PostsQueue({ posts, strings: t }: PostsQueueProps) {
     </div>
   )
 }
-
-export async function QueueViewLoader({ siteId }: { siteId: string }) {
-  void siteId
-  return null // stub -- replaced in Task 2.6
-}
