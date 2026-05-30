@@ -277,7 +277,7 @@ export function DestCompositor({ focusedDest, destsOn }: DestCompositorProps) {
               type="text"
               value={caption}
               onChange={(e) => setCaption(e.target.value)}
-              placeholder="ex: Saiu no blog"
+              placeholder="ex: Saiu no blog 📬"
               className="w-full rounded-[10px] border border-cms-border bg-cms-surface px-[13px] py-[11px] text-[13.5px] text-cms-text placeholder:text-cms-text-dim/40 focus:border-cms-accent focus:outline-none"
               style={{
                 borderColor: 'var(--line-strong, var(--color-cms-border))',
