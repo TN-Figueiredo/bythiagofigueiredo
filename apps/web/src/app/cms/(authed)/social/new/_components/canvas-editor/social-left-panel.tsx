@@ -36,7 +36,7 @@ interface SocialLeftPanelProps {
   hideAspectRatioSelector?: boolean
 }
 
-type BgTab = 'solid' | 'image' | 'gradient'
+type BgTab = 'solid' | 'image' | 'gradient' | 'video'
 
 export function SocialLeftPanel({
   comp, interaction, onImageUpload, onVideoUpload, onOpenMediaGallery,
@@ -44,8 +44,12 @@ export function SocialLeftPanel({
 }: SocialLeftPanelProps) {
   const { composition, setCanvas, setBackground, addElement } = comp
   const { selectedIds, select } = interaction
-  const [bgTab, setBgTab] = useState<BgTab>(composition.background.type as BgTab)
-  useEffect(() => setBgTab(composition.background.type as BgTab), [composition.background.type])
+  const inferBgTab = (bg: typeof composition.background): BgTab => {
+    if (bg.type === 'image' && (bg as Record<string, unknown>).mediaType === 'video') return 'video'
+    return bg.type as BgTab
+  }
+  const [bgTab, setBgTab] = useState<BgTab>(inferBgTab(composition.background))
+  useEffect(() => setBgTab(inferBgTab(composition.background)), [composition.background])
   const [isUploading, setIsUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
 
@@ -192,6 +196,53 @@ export function SocialLeftPanel({
     }
     input.click()
   }, [onImageUpload, setBackground])
+
+  const handleBgVideoUpload = useCallback(async () => {
+    setUploadError(null)
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'video/mp4,video/webm,video/quicktime'
+    input.onchange = async () => {
+      const file = input.files?.[0]
+      if (!file) return
+      if (file.size > 50 * 1024 * 1024) { setUploadError('Video deve ter no maximo 50 MB'); return }
+      setIsUploading(true)
+      try {
+        const remoteUrl = await onVideoUpload(file)
+        if (!remoteUrl) return
+        // Capture first frame as static image for Konva rendering
+        const frameUrl = await new Promise<string>((resolve, reject) => {
+          const video = document.createElement('video')
+          video.crossOrigin = 'anonymous'
+          video.preload = 'auto'
+          video.onloadeddata = () => { video.currentTime = 0.1 }
+          video.onseeked = () => {
+            try {
+              const canvas = document.createElement('canvas')
+              canvas.width = video.videoWidth
+              canvas.height = video.videoHeight
+              const ctx = canvas.getContext('2d')
+              if (!ctx) { reject(new Error('Canvas context failed')); return }
+              ctx.drawImage(video, 0, 0)
+              resolve(canvas.toDataURL('image/jpeg', 0.8))
+            } catch (err) {
+              reject(err)
+            }
+          }
+          video.onerror = () => reject(new Error('Failed to load video for frame capture'))
+          video.src = remoteUrl
+        })
+        // Set frame as image background, store video URL in metadata
+        setBackground({ type: 'image', url: frameUrl, fallbackColor: '#0a0a0a', blur: 0, mediaType: 'video', videoUrl: remoteUrl })
+      } catch (err) {
+        console.error('[Social Canvas] Video bg upload failed:', err)
+        setUploadError(err instanceof Error ? err.message : 'Upload failed')
+      } finally {
+        setIsUploading(false)
+      }
+    }
+    input.click()
+  }, [onVideoUpload, setBackground])
 
   const handleSolidColor = useCallback((color: string) => {
     setBackground({ type: 'solid', color })
@@ -373,7 +424,7 @@ export function SocialLeftPanel({
       <section className="p-3 border-b border-neutral-800">
         <h3 className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider mb-2">Background</h3>
         <div className="flex gap-1 mb-2">
-          {(['solid', 'image', 'gradient'] as const).map(tab => (
+          {(['solid', 'image', 'gradient', 'video'] as const).map(tab => (
             <button
               key={tab}
               type="button"
@@ -412,6 +463,36 @@ export function SocialLeftPanel({
             ) : (
               <button type="button" onClick={handleBgImageUpload} className="w-full py-2 border border-dashed border-neutral-600 rounded text-[11px] text-neutral-400 hover:border-neutral-400" disabled={isUploading}>
                 {isUploading ? 'Uploading...' : 'Choose image...'}
+              </button>
+            )}
+          </div>
+        )}
+        {bgTab === 'video' && (
+          <div className="space-y-2">
+            <p className="text-[10px] text-neutral-500">
+              Video sera renderizado como frame estatico na exportacao
+            </p>
+            {bg.type === 'image' && (bg as Record<string, unknown>).mediaType === 'video' ? (
+              <>
+                <div className="h-14 rounded bg-neutral-800 bg-cover bg-center border border-neutral-700" style={{ backgroundImage: `url(${bg.url})` }} />
+                <p className="text-[9px] text-neutral-500 truncate" title={(bg as Record<string, unknown>).videoUrl as string}>
+                  {((bg as Record<string, unknown>).videoUrl as string)?.split('/').pop() ?? 'Video loaded'}
+                </p>
+                <button type="button" onClick={handleBgVideoUpload} className="w-full py-1.5 border border-dashed border-neutral-600 rounded text-[11px] text-neutral-400 hover:border-neutral-400" disabled={isUploading}>
+                  {isUploading ? 'Uploading...' : 'Replace video'}
+                </button>
+                <SliderField label="Blur" value={bg.blur ?? 0} onChange={v => setBackground({ ...bg, blur: v })} min={0} max={80} format={v => `${v}px`} />
+                <button
+                  type="button"
+                  onClick={() => { setBackground({ type: 'solid', color: '#0a0a0a' }); setBgTab('solid') }}
+                  className="w-full py-1.5 border border-dashed border-red-700/50 rounded text-[11px] text-red-400 hover:border-red-600"
+                >
+                  Remove
+                </button>
+              </>
+            ) : (
+              <button type="button" onClick={handleBgVideoUpload} className="w-full py-2 border border-dashed border-neutral-600 rounded text-[11px] text-neutral-400 hover:border-neutral-400" disabled={isUploading}>
+                {isUploading ? 'Uploading...' : 'Upload video de fundo'}
               </button>
             )}
           </div>
