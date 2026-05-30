@@ -224,13 +224,8 @@ export function AnalyticsView({ data }: AnalyticsViewProps) {
         </Panel>
       </div>
 
-      {/* Heatmap + Countries */}
-      <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 1fr' }}>
-        {/* Heatmap */}
-        <Panel title="Horários de pico" icon="he" style={{ gridColumn: 'span 2' }}>
-          <Heatmap grid={data.heatmap} />
-        </Panel>
-
+      {/* Countries + Heatmap side by side */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 14, alignItems: 'start' }}>
         {/* Countries */}
         <Panel title="Países" icon="gl">
           {data.countries.length > 0 ? (
@@ -240,9 +235,16 @@ export function AnalyticsView({ data }: AnalyticsViewProps) {
           )}
         </Panel>
 
-        {/* Top Links */}
+        {/* Heatmap */}
+        <Panel title="Horários de pico" icon="he">
+          <Heatmap grid={data.heatmap} />
+        </Panel>
+      </div>
+
+      {/* Top Links */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 14 }}>
         {data.topLinks.length > 0 && (
-          <Panel title="Top links" icon="tr" style={{ gridColumn: 'span 2' }}>
+          <Panel title="Top links" icon="tr">
             <TopLinksTable links={data.topLinks.map(l => ({
               id: l.id,
               title: l.title,
