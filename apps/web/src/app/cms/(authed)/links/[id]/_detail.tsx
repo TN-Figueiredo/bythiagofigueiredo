@@ -686,7 +686,7 @@ export function LinkDetail({ link, dailyClicks, topCountry, linkId, shortUrl }: 
         >
           <TrendingUp size={16} strokeWidth={1.7} style={{ color: 'var(--accent)' }} />
           <span style={{ fontSize: '13.5px', fontWeight: 600, flex: 1, textAlign: 'left' }}>Analytics completo</span>
-          <ChevronRight size={16} strokeWidth={1.7} style={{ color: 'var(--ink-dim)', transform: 'rotate(-90deg)', transition: 'transform 0.2s' }} />
+          <ChevronRight size={16} strokeWidth={1.7} style={{ color: 'var(--ink-dim)' }} />
         </button>
       </div>
 
