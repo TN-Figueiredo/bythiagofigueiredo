@@ -157,9 +157,9 @@ export function LinktreeEditor({ initialConfig, domain, siteId: _siteId, readOnl
       </div>
 
       {/* Split layout */}
-      <div className="flex flex-1 overflow-hidden">
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         {/* Form panel */}
-        <div className="flex-1 overflow-y-auto p-6" style={{ maxWidth: '60%' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: 24, maxWidth: '60%' }}>
           <div className="mx-auto max-w-2xl space-y-8">
             <GeneralSection config={config} onChange={updateConfig} readOnly={readOnly} />
             <HighlightSection config={config} onChange={updateConfig} readOnly={readOnly} />
@@ -167,7 +167,47 @@ export function LinktreeEditor({ initialConfig, domain, siteId: _siteId, readOnl
           </div>
         </div>
 
-        <div className="w-[400px] border-l border-border">
+        {/* Preview panel */}
+        <div style={{
+          width: 400, flexShrink: 0,
+          borderLeft: '1px solid var(--line)',
+          background: 'var(--bg-side, var(--surface))',
+          display: 'flex', flexDirection: 'column', alignItems: 'center',
+          padding: '24px 20px', overflowY: 'auto',
+        }}>
+          {/* Header */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, alignSelf: 'stretch', marginBottom: 16 }}>
+            <span className="eyebrow" style={{ fontSize: '10.5px', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--ink-faint)' }}>
+              Preview ao vivo
+            </span>
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--ink-faint)' }}
+                aria-label="Recarregar preview"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 12a9 9 0 0115-6.7L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 01-15 6.7L3 16" /><path d="M3 21v-5h5" />
+                </svg>
+              </button>
+              {domain && (
+                <a
+                  href={`https://${domain}`}
+                  target="_blank"
+                  rel="noopener"
+                  style={{ color: 'var(--ink-faint)' }}
+                  aria-label="Abrir linktree"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M14 4h6v6" /><path d="M20 4l-9 9" /><path d="M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5" />
+                  </svg>
+                </a>
+              )}
+            </div>
+          </div>
+
+          {/* Live preview */}
           <EditorPreview config={config} pageData={pageData} />
         </div>
       </div>
