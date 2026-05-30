@@ -236,7 +236,8 @@ export function CompositorNew({ sourceMode = 'freeform', siteId }: CompositorNew
         </>
       )}
 
-      {/* Sticky footer */}
+      {/* Sticky footer — hidden during CMS content picker (no content selected yet) */}
+      {!(sourceMode === 'cms' && !selectedCmsContent) && (
       <div className="sticky bottom-0 z-20 -mx-[30px] mt-auto border-t border-cms-border" style={{ background: 'rgba(16,14,11,0.92)', backdropFilter: 'blur(12px)' }}>
         {/* Schedule picker (visible when "Agendar" is selected) */}
         {schedMode === 'schedule' && (
@@ -371,6 +372,7 @@ export function CompositorNew({ sourceMode = 'freeform', siteId }: CompositorNew
           </div>
         </div>
       </div>
+      )}
     </>
   )
 }
