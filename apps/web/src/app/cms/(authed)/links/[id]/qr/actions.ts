@@ -6,6 +6,7 @@ import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { CardCompositionSchema } from '@tn-figueiredo/links/qr'
 import type { CardComposition } from '@tn-figueiredo/links/qr'
+import { sanitizeBlobUrls } from './shared'
 
 type ActionResult<T = object> =
   | ({ ok: true } & T)
@@ -15,14 +16,6 @@ async function requireEditScope(siteId: string) {
   const res = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
   if (!res.ok) throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
   return res.user.id
-}
-
-function sanitizeBlobUrls(comp: CardComposition): CardComposition {
-  const background = comp.background.type === 'image' && comp.background.url.startsWith('blob:')
-    ? { type: 'solid' as const, color: comp.background.fallbackColor }
-    : comp.background
-  const elements = comp.elements.filter(el => !(el.type === 'image' && el.src.startsWith('blob:')))
-  return { ...comp, background, elements }
 }
 
 export async function saveQrCard(

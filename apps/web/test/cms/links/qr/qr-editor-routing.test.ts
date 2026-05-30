@@ -22,7 +22,7 @@ function readFile(filename: string): string {
 
 // ─── page.tsx routing ───────────────────────────────────────────────
 
-describe.skip('QR page routing (page.tsx)', () => { // TODO: broken by refactoring
+describe('QR page routing (page.tsx)', () => {
   const page = readFile('page.tsx')
 
   it('extracts cardId from searchParams.card', () => {
@@ -35,7 +35,6 @@ describe.skip('QR page routing (page.tsx)', () => { // TODO: broken by refactori
   })
 
   it('with invalid card: calls notFound()', () => {
-    // When loadQrCardById returns !ok, page calls notFound()
     expect(page).toContain('if (!loaded.ok) notFound()')
   })
 
@@ -69,8 +68,6 @@ describe.skip('QR page routing (page.tsx)', () => { // TODO: broken by refactori
   })
 
   it('if loadQrCardById succeeds but composition is null, keeps default', () => {
-    // Line: if (loaded.composition) composition = loaded.composition
-    // This means null composition = keep default
     expect(page).toContain('if (loaded.composition) composition = loaded.composition')
   })
 
@@ -99,7 +96,7 @@ describe.skip('QR page routing (page.tsx)', () => { // TODO: broken by refactori
 
 // ─── client.tsx save logic ──────────────────────────────────────────
 
-describe.skip('QR client save logic (client.tsx)', () => { // TODO: broken by refactoring
+describe('QR client save logic (client.tsx)', () => {
   const client = readFile('client.tsx')
 
   it('with cardId: calls updateQrCard', () => {
@@ -114,9 +111,14 @@ describe.skip('QR client save logic (client.tsx)', () => { // TODO: broken by re
     expect(client).toContain('window.location.href = `/cms/links/${link.id}/qr?card=${result.cardId}`')
   })
 
-  it('also saves to legacy tracked_links for backward compatibility', () => {
-    // saveQrCard is still called for backward compat with the tracked_links table
-    expect(client).toContain('saveQrCard(link.id, composition)')
+  it('legacy dual-write has been removed (no saveQrCard in handleSave)', () => {
+    // After refactoring, saveQrCard was removed from the client.
+    // Only createQrCard and updateQrCard are used.
+    const handleSaveBody = client.slice(
+      client.indexOf('const handleSave'),
+      client.indexOf('const handleExport'),
+    )
+    expect(handleSaveBody).not.toContain('saveQrCard')
   })
 
   it('imports card-actions for multi-card operations', () => {
@@ -125,22 +127,29 @@ describe.skip('QR client save logic (client.tsx)', () => { // TODO: broken by re
     expect(client).toContain('updateQrCard')
   })
 
-  it('imports actions.ts for legacy operations', () => {
+  it('imports actions.ts for template and export operations', () => {
     expect(client).toContain("from './actions'")
-    expect(client).toContain('saveQrCard')
+    expect(client).toContain('saveQrTemplate')
+    expect(client).toContain('deleteQrTemplate')
+    expect(client).toContain('exportQrCard')
+    expect(client).toContain('uploadQrImage')
   })
 
   it('handleSave uses cardId to decide create vs update', () => {
     expect(client).toContain('if (cardId)')
   })
 
-  it('handleSave returns after redirect (no legacy save on create path)', () => {
-    // After createQrCard succeeds and redirects, the function returns
+  it('handleSave returns after redirect (no further code runs on create path)', () => {
     const handleSaveBody = client.slice(
       client.indexOf('const handleSave'),
       client.indexOf('const handleExport'),
     )
     expect(handleSaveBody).toContain('return')
+  })
+
+  it('logs errors on save failure', () => {
+    expect(client).toContain("console.error('[QR Card] updateQrCard failed:'")
+    expect(client).toContain("console.error('[QR Card] createQrCard failed:'")
   })
 
   it('is a client component', () => {
@@ -179,7 +188,7 @@ describe.skip('QR client save logic (client.tsx)', () => { // TODO: broken by re
 
 // ─── card-actions.ts exports and structure ──────────────────────────
 
-describe.skip('QR card-actions exports (card-actions.ts)', () => { // TODO: broken by refactoring
+describe('QR card-actions exports (card-actions.ts)', () => {
   const cardActions = readFile('card-actions.ts')
 
   it('exports listQrCards', () => {

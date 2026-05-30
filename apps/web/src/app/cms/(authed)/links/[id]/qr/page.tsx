@@ -45,11 +45,10 @@ export default async function QrCardPage({ params, searchParams }: Props) {
   let cardName = 'Novo QR Card'
 
   if (cardId) {
-    const loaded = await loadQrCardById(cardId)
-    if (loaded.ok && loaded.composition) {
-      composition = loaded.composition
-      cardName = loaded.name
-    }
+    const loaded = await loadQrCardById(cardId, id)
+    if (!loaded.ok) notFound()
+    if (loaded.composition) composition = loaded.composition
+    cardName = loaded.name
   } else if (link.qr_card_composition) {
     const loaded = await loadQrCard(id)
     if (loaded.ok && loaded.composition) {

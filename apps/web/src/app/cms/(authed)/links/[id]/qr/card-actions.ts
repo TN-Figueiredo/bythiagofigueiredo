@@ -1,21 +1,30 @@
 'use server'
 
+import { z } from 'zod'
 import { revalidateTag } from 'next/cache'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { CardCompositionSchema } from '@tn-figueiredo/links/qr'
 import type { CardComposition } from '@tn-figueiredo/links/qr'
+import { sanitizeBlobUrls } from './shared'
 
 type ActionResult<T = object> =
   | ({ ok: true } & T)
   | { ok: false; error: string }
 
-async function requireEdit() {
-  const { siteId } = await getSiteContext()
+const NameSchema = z.string().min(1).max(200).trim()
+
+async function requireReadScope(siteId: string) {
+  const res = await requireSiteScope({ area: 'cms', siteId, mode: 'view' })
+  if (!res.ok) throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
+  return res.user.id
+}
+
+async function requireEditScope(siteId: string) {
   const res = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
-  if (!res.ok) throw new Error('forbidden')
-  return siteId
+  if (!res.ok) throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
+  return res.user.id
 }
 
 export interface QrCardSummary {
@@ -27,6 +36,8 @@ export interface QrCardSummary {
 
 export async function listQrCards(linkId: string): Promise<ActionResult<{ cards: QrCardSummary[] }>> {
   const { siteId } = await getSiteContext()
+  await requireReadScope(siteId)
+
   const supabase = getSupabaseServiceClient()
   const { data, error } = await supabase
     .from('link_qr_cards')
@@ -53,19 +64,33 @@ export async function createQrCard(
   name: string,
   composition: CardComposition,
 ): Promise<ActionResult<{ cardId: string }>> {
-  const siteId = await requireEdit()
+  const { siteId } = await getSiteContext()
+  await requireEditScope(siteId)
+
+  const nameParsed = NameSchema.safeParse(name)
+  if (!nameParsed.success) return { ok: false, error: 'invalid_name' }
+
   const sanitized = sanitizeBlobUrls(composition)
   const parsed = CardCompositionSchema.safeParse(sanitized)
   if (!parsed.success) return { ok: false, error: 'invalid_composition' }
 
   const supabase = getSupabaseServiceClient()
 
+  // Verify the link belongs to this site
+  const { count } = await supabase
+    .from('tracked_links')
+    .select('id', { count: 'exact', head: true })
+    .eq('id', linkId)
+    .eq('site_id', siteId)
+    .is('deleted_at', null)
+  if (!count) return { ok: false, error: 'link_not_found' }
+
   const { data, error } = await supabase
     .from('link_qr_cards')
     .insert({
       link_id: linkId,
       site_id: siteId,
-      name,
+      name: nameParsed.data,
       composition: parsed.data,
     })
     .select('id')
@@ -81,11 +106,17 @@ export async function updateQrCard(
   linkId: string,
   patch: { name?: string; composition?: CardComposition; previewUrl?: string },
 ): Promise<ActionResult> {
-  const siteId = await requireEdit()
+  const { siteId } = await getSiteContext()
+  await requireEditScope(siteId)
+
   const supabase = getSupabaseServiceClient()
 
-  const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() }
-  if (patch.name !== undefined) updateData.name = patch.name
+  const updateData: Record<string, unknown> = {}
+  if (patch.name !== undefined) {
+    const nameParsed = NameSchema.safeParse(patch.name)
+    if (!nameParsed.success) return { ok: false, error: 'invalid_name' }
+    updateData.name = nameParsed.data
+  }
   if (patch.composition !== undefined) {
     const sanitized = sanitizeBlobUrls(patch.composition)
     const parsed = CardCompositionSchema.safeParse(sanitized)
@@ -98,6 +129,7 @@ export async function updateQrCard(
     .from('link_qr_cards')
     .update(updateData)
     .eq('id', cardId)
+    .eq('link_id', linkId)
     .eq('site_id', siteId)
 
   if (error) return { ok: false, error: error.message }
@@ -106,13 +138,16 @@ export async function updateQrCard(
 }
 
 export async function deleteQrCard(cardId: string, linkId: string): Promise<ActionResult> {
-  const siteId = await requireEdit()
+  const { siteId } = await getSiteContext()
+  await requireEditScope(siteId)
+
   const supabase = getSupabaseServiceClient()
 
   const { error } = await supabase
     .from('link_qr_cards')
     .delete()
     .eq('id', cardId)
+    .eq('link_id', linkId)
     .eq('site_id', siteId)
 
   if (error) return { ok: false, error: error.message }
@@ -122,14 +157,18 @@ export async function deleteQrCard(cardId: string, linkId: string): Promise<Acti
 
 export async function loadQrCardById(
   cardId: string,
+  linkId: string,
 ): Promise<ActionResult<{ composition: CardComposition | null; name: string }>> {
   const { siteId } = await getSiteContext()
+  await requireReadScope(siteId)
+
   const supabase = getSupabaseServiceClient()
 
   const { data, error } = await supabase
     .from('link_qr_cards')
     .select('composition, name')
     .eq('id', cardId)
+    .eq('link_id', linkId)
     .eq('site_id', siteId)
     .single()
 
@@ -144,12 +183,4 @@ export async function loadQrCardById(
   }
 
   return { ok: true, composition: null, name: data.name as string }
-}
-
-function sanitizeBlobUrls(comp: CardComposition): CardComposition {
-  const background = comp.background.type === 'image' && comp.background.url.startsWith('blob:')
-    ? { type: 'solid' as const, color: comp.background.fallbackColor }
-    : comp.background
-  const elements = comp.elements.filter(el => !(el.type === 'image' && el.src.startsWith('blob:')))
-  return { ...comp, background, elements }
 }

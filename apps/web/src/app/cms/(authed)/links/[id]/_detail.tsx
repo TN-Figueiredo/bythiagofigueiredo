@@ -25,6 +25,7 @@ import {
 } from 'lucide-react'
 import { deleteLink, toggleLinkActive } from '../actions'
 import { QrCardsStrip } from './_components/qr-cards-strip'
+import type { QrCardSummary } from './qr/card-actions'
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -59,20 +60,13 @@ interface DailyClick {
   unique: number
 }
 
-interface QrCardItem {
-  id: string
-  name: string
-  previewUrl: string | null
-  createdAt: string
-}
-
 interface Props {
   link: LinkData
   dailyClicks: DailyClick[]
   topCountry: string | null
   linkId: string
   shortUrl: string
-  qrCards: QrCardItem[]
+  qrCards: QrCardSummary[]
 }
 
 /* ------------------------------------------------------------------ */
@@ -558,7 +552,7 @@ export function LinkDetail({ link, dailyClicks, topCountry, linkId, shortUrl, qr
       </div>
 
       {/* ── Details + QR Card side by side ──────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 14, alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 14, alignItems: 'start' }}>
 
       {/* Details panel */}
       <div style={{ ...cardStyle, padding: 18 }}>

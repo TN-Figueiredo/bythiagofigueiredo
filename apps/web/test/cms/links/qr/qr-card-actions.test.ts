@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { resolve } from 'path'
 
 // ─── Supabase proxy mock ────────────────────────────────────────────
 
@@ -100,6 +101,22 @@ vi.mock('next/cache', () => ({
   revalidatePath: vi.fn(),
 }))
 
+// ─── Resolve the module path with brackets ─────────────────────────
+// Dynamic import() with `@/app/cms/(authed)/links/[id]/...` fails in
+// vitest forks pool because string-based Vite aliases don't fire for
+// dynamic imports in child processes. Use the resolved absolute path.
+
+const CARD_ACTIONS = resolve(
+  __dirname,
+  '../../../../src/app/cms/(authed)/links/[id]/qr/card-actions.ts',
+)
+
+async function importActions() {
+  return import(/* @vite-ignore */ CARD_ACTIONS) as Promise<
+    typeof import('@/app/cms/(authed)/links/[id]/qr/card-actions')
+  >
+}
+
 // ─── Fixtures ───────────────────────────────────────────────────────
 
 function validComposition() {
@@ -155,9 +172,7 @@ describe('listQrCards', () => {
       { id: 'c1', name: 'Card A', preview_url: 'https://cdn/a.png', created_at: '2026-05-01T00:00:00Z' },
       { id: 'c2', name: 'Card B', preview_url: null, created_at: '2026-05-02T00:00:00Z' },
     ]
-    const { listQrCards } = await import(
-      '@/app/cms/(authed)/links/[id]/qr/card-actions'
-    )
+    const { listQrCards } = await importActions()
     const result = await listQrCards('link-1')
     expect(result.ok).toBe(true)
     if (result.ok) {
@@ -174,9 +189,7 @@ describe('listQrCards', () => {
 
   it('returns empty array when no cards exist', async () => {
     resolvedRows = []
-    const { listQrCards } = await import(
-      '@/app/cms/(authed)/links/[id]/qr/card-actions'
-    )
+    const { listQrCards } = await importActions()
     const result = await listQrCards('link-1')
     expect(result.ok).toBe(true)
     if (result.ok) {
@@ -186,9 +199,7 @@ describe('listQrCards', () => {
 
   it('returns error when Supabase fails', async () => {
     resolvedError = { message: 'db_error' }
-    const { listQrCards } = await import(
-      '@/app/cms/(authed)/links/[id]/qr/card-actions'
-    )
+    const { listQrCards } = await importActions()
     const result = await listQrCards('link-1')
     expect(result.ok).toBe(false)
     if (!result.ok) {
@@ -199,12 +210,10 @@ describe('listQrCards', () => {
   it('requires read scope (calls requireSiteScope with mode=read)', async () => {
     resolvedRows = []
     const { requireSiteScope } = await import('@tn-figueiredo/auth-nextjs/server')
-    const { listQrCards } = await import(
-      '@/app/cms/(authed)/links/[id]/qr/card-actions'
-    )
+    const { listQrCards } = await importActions()
     await listQrCards('link-1')
     expect(requireSiteScope).toHaveBeenCalledWith(
-      expect.objectContaining({ area: 'cms', siteId: 'site-1', mode: 'read' }),
+      expect.objectContaining({ area: 'cms', siteId: 'site-1', mode: 'view' }),
     )
   })
 
@@ -214,21 +223,17 @@ describe('listQrCards', () => {
       ok: false,
       reason: 'insufficient_access',
     })
-    const { listQrCards } = await import(
-      '@/app/cms/(authed)/links/[id]/qr/card-actions'
-    )
+    const { listQrCards } = await importActions()
     await expect(listQrCards('link-1')).rejects.toThrow('forbidden')
   })
 })
 
-describe.skip('createQrCard', () => { // TODO: broken by composition schema change
+describe('createQrCard', () => {
   beforeEach(resetState)
 
   it('validates composition with Zod and creates card', async () => {
     resolvedRows = [{ id: 'new-card-id' }]
-    const { createQrCard } = await import(
-      '@/app/cms/(authed)/links/[id]/qr/card-actions'
-    )
+    const { createQrCard } = await importActions()
     const result = await createQrCard('link-1', 'Test Card', validComposition())
     expect(result.ok).toBe(true)
     if (result.ok) {
@@ -237,9 +242,7 @@ describe.skip('createQrCard', () => { // TODO: broken by composition schema chan
   })
 
   it('rejects invalid composition (canvas width < 200)', async () => {
-    const { createQrCard } = await import(
-      '@/app/cms/(authed)/links/[id]/qr/card-actions'
-    )
+    const { createQrCard } = await importActions()
     const invalid = {
       version: 1 as const,
       canvas: { width: 50, height: 50, aspectRatio: '1:1' },
@@ -254,9 +257,7 @@ describe.skip('createQrCard', () => { // TODO: broken by composition schema chan
   })
 
   it('rejects empty name', async () => {
-    const { createQrCard } = await import(
-      '@/app/cms/(authed)/links/[id]/qr/card-actions'
-    )
+    const { createQrCard } = await importActions()
     const result = await createQrCard('link-1', '', validComposition())
     expect(result.ok).toBe(false)
     if (!result.ok) {
@@ -265,9 +266,7 @@ describe.skip('createQrCard', () => { // TODO: broken by composition schema chan
   })
 
   it('rejects name longer than 200 characters', async () => {
-    const { createQrCard } = await import(
-      '@/app/cms/(authed)/links/[id]/qr/card-actions'
-    )
+    const { createQrCard } = await importActions()
     const result = await createQrCard('link-1', 'A'.repeat(201), validComposition())
     expect(result.ok).toBe(false)
     if (!result.ok) {
@@ -277,9 +276,7 @@ describe.skip('createQrCard', () => { // TODO: broken by composition schema chan
 
   it('accepts name with exactly 200 characters', async () => {
     resolvedRows = [{ id: 'card-200' }]
-    const { createQrCard } = await import(
-      '@/app/cms/(authed)/links/[id]/qr/card-actions'
-    )
+    const { createQrCard } = await importActions()
     const result = await createQrCard('link-1', 'A'.repeat(200), validComposition())
     expect(result.ok).toBe(true)
   })
@@ -287,18 +284,14 @@ describe.skip('createQrCard', () => { // TODO: broken by composition schema chan
   it('calls revalidateTag after successful creation', async () => {
     resolvedRows = [{ id: 'card-99' }]
     const { revalidateTag } = await import('next/cache')
-    const { createQrCard } = await import(
-      '@/app/cms/(authed)/links/[id]/qr/card-actions'
-    )
+    const { createQrCard } = await importActions()
     await createQrCard('link-x', 'Tag Test', validComposition())
     expect(revalidateTag).toHaveBeenCalledWith('link:link-x')
   })
 
   it('verifies link ownership before insert (returns link_not_found)', async () => {
     headCount = 0 // Link not found / not owned by this site
-    const { createQrCard } = await import(
-      '@/app/cms/(authed)/links/[id]/qr/card-actions'
-    )
+    const { createQrCard } = await importActions()
     const result = await createQrCard('link-not-mine', 'Test', validComposition())
     expect(result.ok).toBe(false)
     if (!result.ok) {
@@ -308,9 +301,7 @@ describe.skip('createQrCard', () => { // TODO: broken by composition schema chan
 
   it('sanitizes blob: URLs in background before persisting', async () => {
     resolvedRows = [{ id: 'card-blob' }]
-    const { createQrCard } = await import(
-      '@/app/cms/(authed)/links/[id]/qr/card-actions'
-    )
+    const { createQrCard } = await importActions()
     const comp = validComposition()
     ;(comp as Record<string, unknown>).background = {
       type: 'image',
@@ -318,15 +309,12 @@ describe.skip('createQrCard', () => { // TODO: broken by composition schema chan
       fallbackColor: '#cccccc',
     }
     const result = await createQrCard('link-1', 'Blob Test', comp)
-    // Should succeed -- blob URL gets sanitized to solid background
     expect(result.ok).toBe(true)
   })
 
   it('removes image elements with blob: src', async () => {
     resolvedRows = [{ id: 'card-clean' }]
-    const { createQrCard } = await import(
-      '@/app/cms/(authed)/links/[id]/qr/card-actions'
-    )
+    const { createQrCard } = await importActions()
     const comp = validComposition()
     comp.elements.push({
       id: 'img-blob',
@@ -351,9 +339,7 @@ describe.skip('createQrCard', () => { // TODO: broken by composition schema chan
 
   it('returns error when Supabase insert fails', async () => {
     resolvedError = { message: 'insert_failed' }
-    const { createQrCard } = await import(
-      '@/app/cms/(authed)/links/[id]/qr/card-actions'
-    )
+    const { createQrCard } = await importActions()
     const result = await createQrCard('link-1', 'Fail Card', validComposition())
     expect(result.ok).toBe(false)
     if (!result.ok) {
@@ -367,9 +353,7 @@ describe.skip('createQrCard', () => { // TODO: broken by composition schema chan
       ok: false,
       reason: 'insufficient_access',
     })
-    const { createQrCard } = await import(
-      '@/app/cms/(authed)/links/[id]/qr/card-actions'
-    )
+    const { createQrCard } = await importActions()
     await expect(
       createQrCard('link-1', 'Denied', validComposition()),
     ).rejects.toThrow('forbidden')
@@ -381,9 +365,7 @@ describe.skip('createQrCard', () => { // TODO: broken by composition schema chan
       ok: false,
       reason: 'unauthenticated',
     })
-    const { createQrCard } = await import(
-      '@/app/cms/(authed)/links/[id]/qr/card-actions'
-    )
+    const { createQrCard } = await importActions()
     await expect(
       createQrCard('link-1', 'Denied', validComposition()),
     ).rejects.toThrow('unauthenticated')
@@ -394,17 +376,13 @@ describe('updateQrCard', () => {
   beforeEach(resetState)
 
   it('updates only provided fields in patch (name only)', async () => {
-    const { updateQrCard } = await import(
-      '@/app/cms/(authed)/links/[id]/qr/card-actions'
-    )
+    const { updateQrCard } = await importActions()
     const result = await updateQrCard('card-1', 'link-1', { name: 'Renamed' })
     expect(result.ok).toBe(true)
   })
 
   it('validates composition if provided in patch', async () => {
-    const { updateQrCard } = await import(
-      '@/app/cms/(authed)/links/[id]/qr/card-actions'
-    )
+    const { updateQrCard } = await importActions()
     const badComp = {
       version: 1 as const,
       canvas: { width: 10, height: 10, aspectRatio: '1:1' },
@@ -419,9 +397,7 @@ describe('updateQrCard', () => {
   })
 
   it('accepts patch with valid composition', async () => {
-    const { updateQrCard } = await import(
-      '@/app/cms/(authed)/links/[id]/qr/card-actions'
-    )
+    const { updateQrCard } = await importActions()
     const result = await updateQrCard('card-1', 'link-1', {
       composition: validComposition(),
     })
@@ -429,9 +405,7 @@ describe('updateQrCard', () => {
   })
 
   it('accepts patch with previewUrl', async () => {
-    const { updateQrCard } = await import(
-      '@/app/cms/(authed)/links/[id]/qr/card-actions'
-    )
+    const { updateQrCard } = await importActions()
     const result = await updateQrCard('card-1', 'link-1', {
       previewUrl: 'https://cdn/new-preview.png',
     })
@@ -439,9 +413,7 @@ describe('updateQrCard', () => {
   })
 
   it('rejects invalid name in patch (empty string)', async () => {
-    const { updateQrCard } = await import(
-      '@/app/cms/(authed)/links/[id]/qr/card-actions'
-    )
+    const { updateQrCard } = await importActions()
     const result = await updateQrCard('card-1', 'link-1', { name: '' })
     expect(result.ok).toBe(false)
     if (!result.ok) {
@@ -450,9 +422,7 @@ describe('updateQrCard', () => {
   })
 
   it('rejects name over 200 chars in patch', async () => {
-    const { updateQrCard } = await import(
-      '@/app/cms/(authed)/links/[id]/qr/card-actions'
-    )
+    const { updateQrCard } = await importActions()
     const result = await updateQrCard('card-1', 'link-1', { name: 'X'.repeat(201) })
     expect(result.ok).toBe(false)
     if (!result.ok) {
@@ -462,27 +432,20 @@ describe('updateQrCard', () => {
 
   it('calls revalidateTag after update', async () => {
     const { revalidateTag } = await import('next/cache')
-    const { updateQrCard } = await import(
-      '@/app/cms/(authed)/links/[id]/qr/card-actions'
-    )
+    const { updateQrCard } = await importActions()
     await updateQrCard('card-1', 'link-z', { name: 'X' })
     expect(revalidateTag).toHaveBeenCalledWith('link:link-z')
   })
 
   it('filters by link_id in update query', async () => {
-    const { updateQrCard } = await import(
-      '@/app/cms/(authed)/links/[id]/qr/card-actions'
-    )
+    const { updateQrCard } = await importActions()
     await updateQrCard('card-1', 'link-specific', { name: 'Filtered' })
-    // The proxy .eq() tracker records all eq calls
     expect(deletedFilter).toHaveProperty('link_id', 'link-specific')
   })
 
   it('returns error when Supabase fails', async () => {
     resolvedError = { message: 'update_failed' }
-    const { updateQrCard } = await import(
-      '@/app/cms/(authed)/links/[id]/qr/card-actions'
-    )
+    const { updateQrCard } = await importActions()
     const result = await updateQrCard('card-1', 'link-1', { name: 'Oops' })
     expect(result.ok).toBe(false)
     if (!result.ok) {
@@ -496,9 +459,7 @@ describe('updateQrCard', () => {
       ok: false,
       reason: 'insufficient_access',
     })
-    const { updateQrCard } = await import(
-      '@/app/cms/(authed)/links/[id]/qr/card-actions'
-    )
+    const { updateQrCard } = await importActions()
     await expect(
       updateQrCard('card-1', 'link-1', { name: 'Nope' }),
     ).rejects.toThrow('forbidden')
@@ -509,12 +470,9 @@ describe('deleteQrCard', () => {
   beforeEach(resetState)
 
   it('deletes card by id + link_id + site_id', async () => {
-    const { deleteQrCard } = await import(
-      '@/app/cms/(authed)/links/[id]/qr/card-actions'
-    )
+    const { deleteQrCard } = await importActions()
     const result = await deleteQrCard('card-x', 'link-1')
     expect(result.ok).toBe(true)
-    // Verify all three filters are applied via .eq()
     expect(deletedFilter).toHaveProperty('id', 'card-x')
     expect(deletedFilter).toHaveProperty('link_id', 'link-1')
     expect(deletedFilter).toHaveProperty('site_id', 'site-1')
@@ -522,18 +480,14 @@ describe('deleteQrCard', () => {
 
   it('calls revalidateTag after deletion', async () => {
     const { revalidateTag } = await import('next/cache')
-    const { deleteQrCard } = await import(
-      '@/app/cms/(authed)/links/[id]/qr/card-actions'
-    )
+    const { deleteQrCard } = await importActions()
     await deleteQrCard('card-x', 'link-del')
     expect(revalidateTag).toHaveBeenCalledWith('link:link-del')
   })
 
   it('returns error when Supabase fails', async () => {
     resolvedError = { message: 'delete_failed' }
-    const { deleteQrCard } = await import(
-      '@/app/cms/(authed)/links/[id]/qr/card-actions'
-    )
+    const { deleteQrCard } = await importActions()
     const result = await deleteQrCard('card-x', 'link-1')
     expect(result.ok).toBe(false)
     if (!result.ok) {
@@ -547,9 +501,7 @@ describe('deleteQrCard', () => {
       ok: false,
       reason: 'insufficient_access',
     })
-    const { deleteQrCard } = await import(
-      '@/app/cms/(authed)/links/[id]/qr/card-actions'
-    )
+    const { deleteQrCard } = await importActions()
     await expect(
       deleteQrCard('card-1', 'link-1'),
     ).rejects.toThrow('forbidden')
@@ -562,9 +514,7 @@ describe('loadQrCardById', () => {
   it('returns valid composition when data is correct', async () => {
     const comp = validComposition()
     resolvedRows = [{ composition: comp, name: 'My Card' }]
-    const { loadQrCardById } = await import(
-      '@/app/cms/(authed)/links/[id]/qr/card-actions'
-    )
+    const { loadQrCardById } = await importActions()
     const result = await loadQrCardById('card-1', 'link-1')
     expect(result.ok).toBe(true)
     if (result.ok) {
@@ -579,9 +529,7 @@ describe('loadQrCardById', () => {
       composition: { version: 1, canvas: 'bad-data', background: null, elements: [] },
       name: 'Corrupted',
     }]
-    const { loadQrCardById } = await import(
-      '@/app/cms/(authed)/links/[id]/qr/card-actions'
-    )
+    const { loadQrCardById } = await importActions()
     const result = await loadQrCardById('card-bad', 'link-1')
     expect(result.ok).toBe(true)
     if (result.ok) {
@@ -592,9 +540,7 @@ describe('loadQrCardById', () => {
 
   it('returns not_found for missing card (DB error)', async () => {
     resolvedError = { message: 'not found' }
-    const { loadQrCardById } = await import(
-      '@/app/cms/(authed)/links/[id]/qr/card-actions'
-    )
+    const { loadQrCardById } = await importActions()
     const result = await loadQrCardById('card-missing', 'link-1')
     expect(result.ok).toBe(false)
     if (!result.ok) {
@@ -605,9 +551,7 @@ describe('loadQrCardById', () => {
   it('returns not_found when data is null (PGRST116)', async () => {
     resolvedRows = []
     resolvedError = { message: 'PGRST116' }
-    const { loadQrCardById } = await import(
-      '@/app/cms/(authed)/links/[id]/qr/card-actions'
-    )
+    const { loadQrCardById } = await importActions()
     const result = await loadQrCardById('card-gone', 'link-1')
     expect(result.ok).toBe(false)
     if (!result.ok) {
@@ -617,9 +561,7 @@ describe('loadQrCardById', () => {
 
   it('returns composition null when stored composition is not an object', async () => {
     resolvedRows = [{ composition: 'not-an-object', name: 'String Comp' }]
-    const { loadQrCardById } = await import(
-      '@/app/cms/(authed)/links/[id]/qr/card-actions'
-    )
+    const { loadQrCardById } = await importActions()
     const result = await loadQrCardById('card-str', 'link-1')
     expect(result.ok).toBe(true)
     if (result.ok) {
@@ -630,9 +572,7 @@ describe('loadQrCardById', () => {
 
   it('returns composition null when composition is null in DB', async () => {
     resolvedRows = [{ composition: null, name: 'No Comp' }]
-    const { loadQrCardById } = await import(
-      '@/app/cms/(authed)/links/[id]/qr/card-actions'
-    )
+    const { loadQrCardById } = await importActions()
     const result = await loadQrCardById('card-null', 'link-1')
     expect(result.ok).toBe(true)
     if (result.ok) {
@@ -643,9 +583,7 @@ describe('loadQrCardById', () => {
 
   it('filters by link_id and site_id for tenant isolation', async () => {
     resolvedRows = [{ composition: validComposition(), name: 'Test' }]
-    const { loadQrCardById } = await import(
-      '@/app/cms/(authed)/links/[id]/qr/card-actions'
-    )
+    const { loadQrCardById } = await importActions()
     await loadQrCardById('card-1', 'link-specific')
     expect(deletedFilter).toHaveProperty('link_id', 'link-specific')
     expect(deletedFilter).toHaveProperty('site_id', 'site-1')
@@ -654,12 +592,10 @@ describe('loadQrCardById', () => {
   it('requires read scope (calls requireSiteScope with mode=read)', async () => {
     resolvedRows = [{ composition: null, name: 'Test' }]
     const { requireSiteScope } = await import('@tn-figueiredo/auth-nextjs/server')
-    const { loadQrCardById } = await import(
-      '@/app/cms/(authed)/links/[id]/qr/card-actions'
-    )
+    const { loadQrCardById } = await importActions()
     await loadQrCardById('card-1', 'link-1')
     expect(requireSiteScope).toHaveBeenCalledWith(
-      expect.objectContaining({ mode: 'read' }),
+      expect.objectContaining({ mode: 'view' }),
     )
   })
 
@@ -669,9 +605,7 @@ describe('loadQrCardById', () => {
       ok: false,
       reason: 'insufficient_access',
     })
-    const { loadQrCardById } = await import(
-      '@/app/cms/(authed)/links/[id]/qr/card-actions'
-    )
+    const { loadQrCardById } = await importActions()
     await expect(
       loadQrCardById('card-1', 'link-1'),
     ).rejects.toThrow('forbidden')
@@ -690,13 +624,10 @@ describe('loadQrCardById', () => {
       maintainAspectRatio: true,
     })
     resolvedRows = [{ composition: comp, name: 'With Blob' }]
-    const { loadQrCardById } = await import(
-      '@/app/cms/(authed)/links/[id]/qr/card-actions'
-    )
+    const { loadQrCardById } = await importActions()
     const result = await loadQrCardById('card-1', 'link-1')
     expect(result.ok).toBe(true)
     if (result.ok && result.composition) {
-      // The blob: image element should be filtered out by sanitizeBlobUrls
       const blobImages = result.composition.elements.filter(
         (el) => el.type === 'image' && 'src' in el && (el.src as string).startsWith('blob:'),
       )
@@ -710,9 +641,7 @@ describe('RBAC enforcement (card-actions)', () => {
 
   it('all write actions use requireEditScope (edit mode)', async () => {
     const { requireSiteScope } = await import('@tn-figueiredo/auth-nextjs/server')
-    const { createQrCard, updateQrCard, deleteQrCard } = await import(
-      '@/app/cms/(authed)/links/[id]/qr/card-actions'
-    )
+    const { createQrCard, updateQrCard, deleteQrCard } = await importActions()
 
     resolvedRows = [{ id: 'card-1' }]
     await createQrCard('link-1', 'Test', validComposition())
@@ -735,21 +664,19 @@ describe('RBAC enforcement (card-actions)', () => {
 
   it('read actions use requireReadScope (read mode)', async () => {
     const { requireSiteScope } = await import('@tn-figueiredo/auth-nextjs/server')
-    const { listQrCards, loadQrCardById } = await import(
-      '@/app/cms/(authed)/links/[id]/qr/card-actions'
-    )
+    const { listQrCards, loadQrCardById } = await importActions()
 
     resolvedRows = []
     await listQrCards('link-1')
     expect(requireSiteScope).toHaveBeenCalledWith(
-      expect.objectContaining({ mode: 'read' }),
+      expect.objectContaining({ mode: 'view' }),
     )
 
     vi.clearAllMocks()
     resolvedRows = [{ composition: null, name: 'Test' }]
     await loadQrCardById('card-1', 'link-1')
     expect(requireSiteScope).toHaveBeenCalledWith(
-      expect.objectContaining({ mode: 'read' }),
+      expect.objectContaining({ mode: 'view' }),
     )
   })
 
@@ -759,9 +686,7 @@ describe('RBAC enforcement (card-actions)', () => {
       ok: false,
       reason: 'insufficient_access',
     })
-    const { listQrCards } = await import(
-      '@/app/cms/(authed)/links/[id]/qr/card-actions'
-    )
+    const { listQrCards } = await importActions()
     await expect(listQrCards('link-1')).rejects.toThrow('forbidden')
   })
 })

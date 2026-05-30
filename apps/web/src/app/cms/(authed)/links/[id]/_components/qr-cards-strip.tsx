@@ -1,22 +1,20 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { Plus } from 'lucide-react'
-
-interface QrCardItem {
-  id: string
-  name: string
-  previewUrl: string | null
-  createdAt: string
-}
+import { Plus, QrCode } from 'lucide-react'
+import type { QrCardSummary } from '../qr/card-actions'
 
 interface QrCardsStripProps {
   linkId: string
-  cards: QrCardItem[]
+  cards: QrCardSummary[]
 }
+
+const STRIP_ID = 'qr-cards-strip'
 
 export function QrCardsStrip({ linkId, cards }: QrCardsStripProps) {
   const router = useRouter()
+
+  const hasCards = cards.length > 0
 
   return (
     <div style={{
@@ -24,88 +22,178 @@ export function QrCardsStrip({ linkId, cards }: QrCardsStripProps) {
       borderRadius: 'var(--r)',
       padding: 18,
     }}>
+      <style>{`
+        #${STRIP_ID}-scroll::-webkit-scrollbar {
+          height: 6px;
+        }
+        #${STRIP_ID}-scroll::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        #${STRIP_ID}-scroll::-webkit-scrollbar-thumb {
+          background: var(--line);
+          border-radius: 3px;
+        }
+        .${STRIP_ID}-card {
+          border: 1px solid var(--line);
+          background: var(--surface);
+          cursor: pointer;
+          transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        .${STRIP_ID}-card:hover {
+          border-color: var(--accent);
+        }
+        .${STRIP_ID}-card:focus-visible {
+          outline: none;
+          box-shadow: 0 0 0 2px var(--accent);
+          border-color: var(--accent);
+        }
+        .${STRIP_ID}-create {
+          border: 1px dashed var(--line-strong, var(--line));
+          background: transparent;
+          cursor: pointer;
+          transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+        }
+        .${STRIP_ID}-create:hover {
+          border-color: var(--accent);
+          background: var(--surface);
+        }
+        .${STRIP_ID}-create:focus-visible {
+          outline: none;
+          box-shadow: 0 0 0 2px var(--accent);
+          border-color: var(--accent);
+        }
+      `}</style>
+
       <div style={{
         marginBottom: 12, fontSize: '10.5px', fontWeight: 600,
         letterSpacing: '0.06em', textTransform: 'uppercase',
         color: 'var(--ink-faint)',
       }}>
-        QR Cards · {cards.length}
+        QR Cards{hasCards ? ` · ${cards.length}` : ''}
       </div>
 
-      <div style={{
-        display: 'flex', gap: 12,
-        overflowX: 'auto',
-        paddingBottom: 4,
-      }}>
-        {cards.map((card) => (
-          <div
-            key={card.id}
-            onClick={() => router.push(`/cms/links/${linkId}/qr?card=${card.id}`)}
-            style={{
-              width: 130, minWidth: 130, height: 150,
-              background: 'var(--surface)',
-              border: '1px solid var(--line)',
-              borderRadius: 12,
-              padding: 12,
-              display: 'flex', flexDirection: 'column',
-              alignItems: 'center', gap: 8,
-              cursor: 'pointer',
-              transition: 'border-color 0.15s',
-            }}
-          >
-            <div style={{
-              width: 64, height: 64, borderRadius: 8,
-              background: '#fff', padding: 5, flexShrink: 0,
-            }}>
-              {card.previewUrl ? (
-                <img
-                  src={card.previewUrl}
-                  alt={card.name}
-                  style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: 4 }}
-                />
-              ) : (
-                <div style={{
-                  width: '100%', height: '100%',
-                  background: 'repeating-conic-gradient(#111 0% 25%, #fff 0% 50%) 0 center / 10px 10px',
-                }} />
-              )}
-            </div>
-
-            <span style={{
-              fontSize: 11, fontWeight: 600, color: 'var(--ink)',
-              textAlign: 'center',
-              overflow: 'hidden', textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap', width: '100%',
-            }}>
-              {card.name}
-            </span>
-
-            <span style={{
-              fontSize: '10.5px', color: 'var(--accent)', fontWeight: 600,
-            }}>
-              Editar
-            </span>
-          </div>
-        ))}
-
-        <div
-          onClick={() => router.push(`/cms/links/${linkId}/qr`)}
+      {hasCards ? (
+        <ul
+          role="list"
+          id={`${STRIP_ID}-scroll`}
           style={{
-            width: 130, minWidth: 130, height: 150,
-            border: '1px dashed var(--line-strong, var(--line))',
-            borderRadius: 12,
-            display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center',
-            gap: 8, cursor: 'pointer',
-            transition: 'border-color 0.15s',
+            display: 'flex', gap: 12,
+            overflowX: 'auto',
+            paddingBottom: 4,
+            margin: 0, padding: 0,
+            paddingBlockEnd: 4,
+            listStyle: 'none',
+            scrollSnapType: 'x mandatory',
+            scrollbarWidth: 'thin',
           }}
         >
-          <Plus size={20} strokeWidth={1.7} style={{ color: 'var(--ink-faint)' }} />
-          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink-dim)', textAlign: 'center' }}>
-            Novo QR Card
+          {cards.map((card) => (
+            <li key={card.id} role="listitem" style={{ scrollSnapAlign: 'start' }}>
+              <button
+                type="button"
+                className={`${STRIP_ID}-card`}
+                aria-label={`Editar QR Card: ${card.name}`}
+                onClick={() => router.push(`/cms/links/${linkId}/qr?card=${card.id}`)}
+                style={{
+                  width: 130, minWidth: 130, height: 150,
+                  borderRadius: 12,
+                  padding: 12,
+                  display: 'flex', flexDirection: 'column',
+                  alignItems: 'center', gap: 8,
+                  font: 'inherit',
+                  color: 'inherit',
+                }}
+              >
+                <div style={{
+                  width: 64, height: 64, borderRadius: 8,
+                  background: '#fff', padding: 5, flexShrink: 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  {card.previewUrl ? (
+                    <img
+                      src={card.previewUrl}
+                      alt={`Preview do QR Card: ${card.name}`}
+                      style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: 4 }}
+                    />
+                  ) : (
+                    <QrCode size={32} strokeWidth={1.4} style={{ color: 'var(--ink-faint)' }} />
+                  )}
+                </div>
+
+                <span style={{
+                  fontSize: 11, fontWeight: 600, color: 'var(--ink)',
+                  textAlign: 'center',
+                  overflow: 'hidden', textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap', width: '100%',
+                }}>
+                  {card.name}
+                </span>
+
+                <span style={{
+                  fontSize: '10.5px', color: 'var(--accent)', fontWeight: 600,
+                }}>
+                  Editar
+                </span>
+              </button>
+            </li>
+          ))}
+
+          <li role="listitem" style={{ scrollSnapAlign: 'start' }}>
+            <button
+              type="button"
+              className={`${STRIP_ID}-create`}
+              aria-label="Criar novo QR Card"
+              onClick={() => router.push(`/cms/links/${linkId}/qr`)}
+              style={{
+                width: 130, minWidth: 130, height: 150,
+                borderRadius: 12,
+                display: 'flex', flexDirection: 'column',
+                alignItems: 'center', justifyContent: 'center',
+                gap: 8,
+                font: 'inherit',
+                color: 'inherit',
+                padding: 12,
+              }}
+            >
+              <Plus size={20} strokeWidth={1.7} style={{ color: 'var(--ink-faint)' }} />
+              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink-dim)', textAlign: 'center' }}>
+                Novo QR Card
+              </span>
+            </button>
+          </li>
+        </ul>
+      ) : (
+        <div style={{
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          gap: 12, padding: '24px 16px',
+        }}>
+          <QrCode size={32} strokeWidth={1.4} style={{ color: 'var(--ink-faint)' }} />
+          <span style={{
+            fontSize: 12, color: 'var(--ink-dim)', fontWeight: 500,
+          }}>
+            Nenhum QR Card criado
           </span>
+          <button
+            type="button"
+            className={`${STRIP_ID}-create`}
+            aria-label="Criar novo QR Card"
+            onClick={() => router.push(`/cms/links/${linkId}/qr`)}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: '8px 16px',
+              borderRadius: 8,
+              font: 'inherit',
+              color: 'var(--ink-dim)',
+              cursor: 'pointer',
+              fontSize: 12, fontWeight: 600,
+            }}
+          >
+            <Plus size={14} strokeWidth={2} />
+            Novo QR Card
+          </button>
         </div>
-      </div>
+      )}
     </div>
   )
 }

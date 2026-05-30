@@ -216,6 +216,14 @@ export default defineConfig({
         replacement: path.resolve(__dirname, './src/app/api/pipeline/context/[key]/route.ts'),
       },
       {
+        find: '@/app/cms/(authed)/links/[id]/qr/card-actions',
+        replacement: path.resolve(__dirname, './src/app/cms/(authed)/links/[id]/qr/card-actions.ts'),
+      },
+      {
+        find: '@/app/cms/(authed)/links/[id]/_components/qr-cards-strip',
+        replacement: path.resolve(__dirname, './src/app/cms/(authed)/links/[id]/_components/qr-cards-strip.tsx'),
+      },
+      {
         find: /^@\/app\/cms\/\(authed\)(.*)$/,
         replacement: `${path.resolve(__dirname, './src/app/cms/(authed)')}$1`,
       },

@@ -114,6 +114,7 @@ describe('QR editor route (/cms/links/[id]/qr)', () => {
   it('qr/actions.ts sanitizes blob: URLs before persisting', () => {
     const content = readFileSync(resolve(QR_DIR, 'actions.ts'), 'utf-8')
     expect(content).toContain('sanitizeBlobUrls')
-    expect(content).toContain("startsWith('blob:')")
+    // sanitizeBlobUrls is imported from shared.ts which has the startsWith('blob:') check
+    expect(content).toContain("from './shared'")
   })
 })

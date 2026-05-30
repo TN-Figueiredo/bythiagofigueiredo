@@ -5,7 +5,6 @@ import { QrCardBuilder } from '@tn-figueiredo/links-admin/client'
 import type { QrTemplate } from '@tn-figueiredo/links-admin'
 import type { CardComposition } from '@tn-figueiredo/links/qr'
 import {
-  saveQrCard,
   saveQrTemplate,
   deleteQrTemplate,
   exportQrCard,
@@ -25,16 +24,18 @@ interface Props {
 export function QrCardBuilderPage({ link, shortUrl, initialComposition, templates, cardId, cardName }: Props) {
   const handleSave = useCallback(async (composition: CardComposition) => {
     if (cardId) {
-      await updateQrCard(cardId, link.id, { composition })
+      const result = await updateQrCard(cardId, link.id, { composition })
+      if (!result.ok) {
+        console.error('[QR Card] updateQrCard failed:', result.error)
+      }
     } else {
       const result = await createQrCard(link.id, cardName, composition)
       if (result.ok) {
         window.location.href = `/cms/links/${link.id}/qr?card=${result.cardId}`
         return
       }
+      console.error('[QR Card] createQrCard failed:', result.error)
     }
-    // Also save to legacy tracked_links for backward compat
-    await saveQrCard(link.id, composition)
   }, [link.id, cardId, cardName])
 
   const handleExport = useCallback(async (blob: Blob, metadata: { format: 'png' | 'svg'; scale: number; width: number; height: number }) => {
