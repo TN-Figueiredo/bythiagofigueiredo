@@ -35,7 +35,7 @@ export default async function PostDrawerPage({ params }: Props) {
 
   return (
     <DrawerShell>
-      <DrawerContent post={result.data} siteId={ctx.siteId} />
+      <DrawerContent post={result.data} />
     </DrawerShell>
   )
 }

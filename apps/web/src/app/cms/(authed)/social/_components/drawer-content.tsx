@@ -11,10 +11,9 @@ import { STATUS_LABELS, STATUS_COLORS, getPostTitle, formatPostDate } from './sh
 
 interface DrawerContentProps {
   post: SocialPostWithPipeline & { deliveries: SocialDelivery[] }
-  siteId: string
 }
 
-export function DrawerContent({ post, siteId: _siteId }: DrawerContentProps) {
+export function DrawerContent({ post }: DrawerContentProps) {
   const router = useRouter()
   const title = getPostTitle(post.content)
   const imageUrl = post.content.media_urls?.[0] ?? null

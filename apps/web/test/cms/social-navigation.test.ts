@@ -6,9 +6,9 @@ describe('buildCmsSections — Social section (v3 redesign)', () => {
   const social = sections.find(s => s.label === 'Social')!
   const content = sections.find(s => s.label === 'Content')!
 
-  it('has a Social section with 4 items', () => {
+  it('has a Social section with 3 items', () => {
     expect(social).toBeDefined()
-    expect(social.items.length).toBe(4)
+    expect(social.items.length).toBe(3)
   })
 
   it('includes YouTube in Social section, not Content', () => {
@@ -20,7 +20,7 @@ describe('buildCmsSections — Social section (v3 redesign)', () => {
 
   it('has correct nav items in order', () => {
     const labels = social.items.map(i => i.label)
-    expect(labels).toEqual(['YouTube', 'Posts', 'Links', 'Link in Bio'])
+    expect(labels).toEqual(['YouTube', 'Posts', 'Links'])
   })
 
   it('has correct routes', () => {
@@ -29,7 +29,6 @@ describe('buildCmsSections — Social section (v3 redesign)', () => {
       '/cms/youtube',
       '/cms/social',
       '/cms/links',
-      '/cms/link-in-bio',
     ])
   })
 
@@ -38,9 +37,9 @@ describe('buildCmsSections — Social section (v3 redesign)', () => {
     expect(postsItem.minRole).toBe('reporter')
   })
 
-  it('does not include removed items (Queue, Composer, Insights, Stories, Templates, Accounts)', () => {
+  it('does not include removed items (Queue, Composer, Insights, Stories, Templates, Accounts, Link in Bio)', () => {
     const labels = social.items.map(i => i.label)
-    for (const removed of ['Queue', 'Composer', 'Insights', 'Stories', 'Templates', 'Accounts']) {
+    for (const removed of ['Queue', 'Composer', 'Insights', 'Stories', 'Templates', 'Accounts', 'Link in Bio']) {
       expect(labels).not.toContain(removed)
     }
   })
