@@ -68,7 +68,7 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
   const sevenDaysAgoStr = toDateStringInTz(sevenDaysAgo, timezone)
   const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10)
 
-  const [linksRes, dailyRes, linktreeStatsRes, siteDataRes, sparkRes, latestPost, latestVideo] = await Promise.all([
+  const [linksRes, dailyRes, linktreeStatsRes, siteDataRes, sparkRes, latestPost, latestVideo, ltDevicesRes, ltBrowsersRes, ltReferrersRes] = await Promise.all([
     supabase
       .from('tracked_links')
       .select('*')
@@ -99,6 +99,24 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
       .order('date', { ascending: true }),
     getLatestPost(siteId, 'en'),
     getLatestVideo(siteId),
+    supabase
+      .from('linktree_events')
+      .select('device_type')
+      .eq('site_id', siteId)
+      .eq('event_type', 'pageview')
+      .not('device_type', 'is', null),
+    supabase
+      .from('linktree_events')
+      .select('browser')
+      .eq('site_id', siteId)
+      .eq('event_type', 'pageview')
+      .not('browser', 'is', null),
+    supabase
+      .from('linktree_events')
+      .select('referrer_source')
+      .eq('site_id', siteId)
+      .eq('event_type', 'pageview')
+      .not('referrer_source', 'is', null),
   ])
 
   const rawLinks = linksRes.data ?? []
@@ -228,21 +246,57 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
     }
   }
 
+  // Aggregate linktree events for device/browser/referrer breakdowns
+  const deviceCounts = new Map<string, number>()
+  for (const row of ltDevicesRes.data ?? []) {
+    const dt = (row.device_type as string) ?? 'other'
+    deviceCounts.set(dt, (deviceCounts.get(dt) ?? 0) + 1)
+  }
+  const deviceTotal = Array.from(deviceCounts.values()).reduce((s, v) => s + v, 0) || 1
+  const DEVICE_COLORS: Record<string, string> = { mobile: '#F2683C', desktop: '#3FA9C0', tablet: '#A77CE8', bot: '#8A8F98', other: '#8A8F98' }
+  const DEVICE_LABELS: Record<string, string> = { mobile: 'Mobile', desktop: 'Desktop', tablet: 'Tablet', bot: 'Bot', other: 'Outro' }
+  const devices = Array.from(deviceCounts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([k, v]) => ({ k: DEVICE_LABELS[k] ?? k, v: Math.round((v / deviceTotal) * 100), color: DEVICE_COLORS[k] ?? '#8A8F98' }))
+
+  const browserCounts = new Map<string, number>()
+  for (const row of ltBrowsersRes.data ?? []) {
+    const b = (row.browser as string) ?? 'Outro'
+    browserCounts.set(b, (browserCounts.get(b) ?? 0) + 1)
+  }
+  const browserTotal = Array.from(browserCounts.values()).reduce((s, v) => s + v, 0) || 1
+  const browsers = Array.from(browserCounts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([k, v]) => ({ k, v: Math.round((v / browserTotal) * 100) }))
+
+  const referrerCounts = new Map<string, number>()
+  for (const row of ltReferrersRes.data ?? []) {
+    const r = (row.referrer_source as string) ?? 'direct'
+    const label = r === 'direct' ? 'Direto / QR' : r === 'social' ? 'Social' : r === 'search' ? 'Google' : r === 'email' ? 'Newsletter' : r
+    referrerCounts.set(label, (referrerCounts.get(label) ?? 0) + 1)
+  }
+  const referrerTotal = Array.from(referrerCounts.values()).reduce((s, v) => s + v, 0) || 1
+  const referrers = Array.from(referrerCounts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([k, v]) => ({ k, v: Math.round((v / referrerTotal) * 100) }))
+
   const analytics: AnalyticsDisplay = {
-    totalClicks,
+    totalClicks: totalClicks + ltTotalViews,
     prevClicks: 0,
-    unique: totalUnique,
+    unique: totalUnique + ltUniqueVisitors,
     prevUnique: 0,
-    ctr: 0,
+    ctr: ltTotalViews > 0 ? Math.round((totalClicks / ltTotalViews) * 1000) / 10 : 0,
     prevCtr: 0,
     qrShare: 0,
     byDay,
     byDayPrev: Array.from({ length: 30 }, () => 0),
     bySource,
-    devices: [],
-    browsers: [],
+    devices,
+    browsers,
     os: [],
-    referrers: [],
+    referrers,
     countries: [],
     heatmap,
     topLinks: links.slice(0, 10),
