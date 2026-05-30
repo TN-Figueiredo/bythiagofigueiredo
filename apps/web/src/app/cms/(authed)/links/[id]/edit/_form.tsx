@@ -212,11 +212,14 @@ export function EditLinkForm({ linkId, siteId, initial }: EditLinkFormProps) {
             background-color: var(--accent) !important;
             background: var(--accent) !important;
           }
-          .links-edit-form button[style*="background-color: rgb(34, 197, 94)"],
-          .links-edit-form button[style*="background-color: #22c55e"],
-          .links-edit-form button[style*="background: rgb(34, 197, 94)"] {
+          .links-edit-form .bg-green-500,
+          .links-edit-form .bg-emerald-500 {
             background-color: var(--accent) !important;
-            background: var(--accent) !important;
+          }
+          .links-edit-form .bg-gray-200,
+          .links-edit-form .bg-zinc-700,
+          .links-edit-form .bg-neutral-700 {
+            background-color: var(--surface-2) !important;
           }
           /* Buttons */
           .links-edit-form button[type="submit"],
