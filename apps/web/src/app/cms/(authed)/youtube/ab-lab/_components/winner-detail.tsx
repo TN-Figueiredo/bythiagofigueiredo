@@ -10,7 +10,7 @@ import { ConfidenceChart } from './confidence-chart'
 import { VariantTable } from './variant-table'
 import { GatesPanel } from './gates-panel'
 import { SectionLabel } from './ab-primitives'
-import { Copy, Archive, Download } from 'lucide-react'
+import { Copy, Archive, Download, Trophy } from 'lucide-react'
 
 export interface WinnerDetailProps {
   view: AbTestWinnerView
@@ -60,24 +60,41 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
         />
       </div>
 
-      {/* 3. "Por que {winner} venceu" */}
-      <section data-testid="why-won" className="mb-[28px]">
-        <SectionLabel>Por que {view.winnerLabel} venceu</SectionLabel>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="rounded-lg border border-cms-border bg-cms-bg p-4">
-            <p className="text-2xs text-cms-text-dim mb-2 font-medium">
-              Faixa provável de CTR
-            </p>
-            <CredibleInterval
-              variants={view.variants}
-              leader={view.winnerLabel}
-            />
+      {/* 3. "Por que {winner} venceu" — single card with header + grid */}
+      <section data-testid="why-won" className="mb-[16px]">
+        <div className="rounded-lg border border-cms-border bg-cms-surface p-[20px]">
+          {/* Header row */}
+          <div className="flex items-end justify-between gap-[14px] mb-[16px]">
+            <div>
+              <div className="flex items-center gap-[9px]">
+                <Trophy size={17} className="text-cms-accent" aria-hidden="true" />
+                <h3 className="text-[19px] font-semibold text-cms-text m-0">Por que {view.winnerLabel} venceu</h3>
+              </div>
+              <p className="text-[12.5px] text-cms-text-dim mt-[5px] max-w-[540px] m-0">
+                Não foi sorte: a faixa de CTR do vencedor ficou inteira acima da original, e o motor Bayesiano deu 93% de chance dele ser o melhor.
+              </p>
+            </div>
           </div>
-          <div className="rounded-lg border border-cms-border bg-cms-bg p-4">
-            <p className="text-2xs text-cms-text-dim mb-2 font-medium">
-              Chance de vencer
-            </p>
-            <RankBars variants={view.variants} metric="pBest" />
+
+          {/* Charts grid: 1.2fr 1fr */}
+          <div className="grid grid-cols-[1.2fr_1fr] gap-[28px] items-center">
+            {/* Left: Credible Intervals */}
+            <div>
+              <div className="text-[10px] font-semibold text-cms-text-dim uppercase tracking-[0.08em] mb-[12px]">Faixa provável de CTR</div>
+              <CredibleInterval
+                variants={view.variants}
+                leader={view.winnerLabel}
+              />
+            </div>
+
+            {/* Right: Rank Bars */}
+            <div>
+              <div className="text-[10px] font-semibold text-cms-text-dim uppercase tracking-[0.08em] mb-[12px]">Chance de ser o melhor</div>
+              <RankBars variants={view.variants} metric="pBest" />
+              <p className="text-[11.5px] text-cms-text-dim mt-[12px] leading-[1.5]">
+                As faixas <b className="text-cms-text">não se sobrepõem</b> — por isso o sistema cravou o vencedor, diferente do empate que vira playoff.
+              </p>
+            </div>
           </div>
         </div>
       </section>
