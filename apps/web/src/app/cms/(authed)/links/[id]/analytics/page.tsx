@@ -193,8 +193,100 @@ export default async function LinkAnalyticsPage({ params, searchParams }: Props)
     // Date range changes handled via search params on client side
   }
 
+  const linkTitle = (link.title as string) ?? null
+  const linkCode = link.code as string
+
   return (
-    <div className="flex flex-col gap-6 px-4 py-4 md:px-7">
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      {/* ── Section 1: Toolbar ─────────────────────────────── */}
+      <div style={{
+        height: 52, flexShrink: 0,
+        borderBottom: '1px solid var(--line)',
+        background: 'var(--bg-side)',
+        display: 'flex', alignItems: 'center',
+        padding: '0 16px', gap: 14,
+      }}>
+        {/* Back button */}
+        <a
+          href={`/cms/links/${id}`}
+          style={{
+            background: 'transparent', border: 'none',
+            color: 'var(--ink-dim)',
+            display: 'flex', alignItems: 'center', gap: 6,
+            fontSize: 13, textDecoration: 'none',
+          }}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M15 6l-6 6 6 6" />
+          </svg>
+          Voltar
+        </a>
+
+        {/* Separator */}
+        <div style={{ width: 1, height: 22, background: 'var(--line)' }} />
+
+        {/* Breadcrumb */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'nowrap', minWidth: 0 }}>
+          <a
+            href="/cms/links"
+            style={{
+              fontSize: '12.5px', fontWeight: 500, color: 'var(--ink-dim)',
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              textDecoration: 'none', whiteSpace: 'nowrap', flexShrink: 0,
+            }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 15l6-6" />
+              <path d="M10 6l1-1a4 4 0 016 6l-1 1" />
+              <path d="M14 18l-1 1a4 4 0 01-6-6l1-1" />
+            </svg>
+            Links
+          </a>
+
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--ink-faint)', opacity: 0.7, flexShrink: 0 }}>
+            <path d="M9 6l6 6-6 6" />
+          </svg>
+
+          <a
+            href={`/cms/links/${id}`}
+            style={{
+              fontSize: '12.5px', fontWeight: 500, color: 'var(--ink-dim)',
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              textDecoration: 'none', whiteSpace: 'nowrap', flexShrink: 0,
+            }}
+          >
+            /{linkCode}
+          </a>
+
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--ink-faint)', opacity: 0.7, flexShrink: 0 }}>
+            <path d="M9 6l6 6-6 6" />
+          </svg>
+
+          <span style={{
+            fontSize: '12.5px', fontWeight: 600, color: 'var(--ink)',
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            maxWidth: 220, flexShrink: 1,
+          }}>
+            Analytics
+          </span>
+        </div>
+
+        {/* Right: link title */}
+        {linkTitle && (
+          <span style={{
+            marginLeft: 'auto',
+            fontSize: '12.5px', fontWeight: 500, color: 'var(--ink-dim)',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            maxWidth: 280,
+          }}>
+            {linkTitle}
+          </span>
+        )}
+      </div>
+
+      {/* ── Content ────────────────────────────────────────── */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 24 }}>
       <AnalyticsOverview
         metrics={analyticsMetrics}
         dateRange={dateRange}
@@ -219,6 +311,7 @@ export default async function LinkAnalyticsPage({ params, searchParams }: Props)
           />
         </div>
       </div>
+      </div> {/* end content */}
     </div>
   )
 }
