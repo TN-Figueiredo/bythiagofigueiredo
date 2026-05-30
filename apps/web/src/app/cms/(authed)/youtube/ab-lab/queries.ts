@@ -547,20 +547,15 @@ export async function getLearnings(siteId: string): Promise<LearningsData | null
 export async function getSuggestedVideos(siteId: string): Promise<SuggestedVideo[]> {
   const supabase = getSupabaseServiceClient()
 
-  const { data: videos } = await supabase
+  // Fetch all videos (with or without CTR)
+  const { data: allVideos } = await supabase
     .from('youtube_videos')
-    .select('id, title, thumbnail_url, ctr, youtube_channels!inner(handle)')
+    .select('id, title, thumbnail_url, ctr, view_count')
     .eq('site_id', siteId)
-    .not('ctr', 'is', null)
     .order('published_at', { ascending: false })
     .limit(200)
 
-  if (!videos || videos.length === 0) return []
-
-  const ctrs = videos.map(v => (v.ctr as number) ?? 0).filter(c => c > 0)
-  if (ctrs.length === 0) return []
-  const sorted = [...ctrs].sort((a, b) => a - b)
-  const median = sorted[Math.floor(sorted.length / 2)]!
+  if (!allVideos || allVideos.length === 0) return []
 
   // Get active test video IDs
   const { data: activeTests } = await supabase
@@ -571,34 +566,56 @@ export async function getSuggestedVideos(siteId: string): Promise<SuggestedVideo
 
   const activeVideoIds = new Set((activeTests ?? []).map(t => t.youtube_video_id as string))
 
-  const suggestions: SuggestedVideo[] = videos
-    .filter(v => {
-      const ctr = (v.ctr as number) ?? 0
-      return ctr < median && ctr > 0 && !activeVideoIds.has(v.id as string)
-    })
-    .map(v => {
-      const ctr = (v.ctr as number) ?? 0
-      const ratio = ctr / median
-      const grade = ratio > 0.9 ? 'A' : ratio > 0.7 ? 'B' : ratio > 0.5 ? 'C' : ratio > 0.3 ? 'D' : 'F'
-      const belowPercent = Math.round((1 - ratio) * 100)
-      return {
-        id: v.id as string,
-        title: v.title as string,
-        thumbnailUrl: (v.thumbnail_url as string | null) ?? null,
-        ctr: Math.round(ctr * 100) / 100,
-        channelMedianCtr: Math.round(median * 100) / 100,
-        grade: grade as SuggestedVideo['grade'],
-        reason: `CTR ${belowPercent}% below channel median`,
-        suggest: 'thumbnail' as const,
-      }
-    })
-    .sort((a, b) => {
-      const gradeOrder = { F: 0, D: 1, C: 2, B: 3, A: 4 }
-      return gradeOrder[a.grade] - gradeOrder[b.grade]
-    })
-    .slice(0, 5)
+  // Videos with CTR data
+  const withCtr = allVideos.filter(v => (v.ctr as number | null) != null && (v.ctr as number) > 0)
+  const ctrs = withCtr.map(v => v.ctr as number)
+  const median = ctrs.length > 0
+    ? [...ctrs].sort((a, b) => a - b)[Math.floor(ctrs.length / 2)]!
+    : 5.0
 
-  return suggestions
+  // If we have CTR data, score by below-median
+  if (withCtr.length >= 3) {
+    const suggestions: SuggestedVideo[] = withCtr
+      .filter(v => (v.ctr as number) < median && !activeVideoIds.has(v.id as string))
+      .map(v => {
+        const ctr = v.ctr as number
+        const ratio = ctr / median
+        const grade = ratio > 0.9 ? 'A' : ratio > 0.7 ? 'B' : ratio > 0.5 ? 'C' : ratio > 0.3 ? 'D' : 'F'
+        const belowPercent = Math.round((1 - ratio) * 100)
+        return {
+          id: v.id as string,
+          title: v.title as string,
+          thumbnailUrl: (v.thumbnail_url as string | null) ?? null,
+          ctr: Math.round(ctr * 100) / 100,
+          channelMedianCtr: Math.round(median * 100) / 100,
+          grade: grade as SuggestedVideo['grade'],
+          reason: `CTR ${belowPercent}% abaixo da mediana do canal`,
+          suggest: 'thumbnail' as const,
+        }
+      })
+      .sort((a, b) => {
+        const gradeOrder = { F: 0, D: 1, C: 2, B: 3, A: 4 }
+        return gradeOrder[a.grade] - gradeOrder[b.grade]
+      })
+      .slice(0, 5)
+
+    return suggestions
+  }
+
+  // Fallback: no CTR data — suggest recent videos that don't have active tests
+  return allVideos
+    .filter(v => !activeVideoIds.has(v.id as string))
+    .slice(0, 5)
+    .map(v => ({
+      id: v.id as string,
+      title: v.title as string,
+      thumbnailUrl: (v.thumbnail_url as string | null) ?? null,
+      ctr: 0,
+      channelMedianCtr: 0,
+      grade: 'C' as const,
+      reason: 'Sem dados de CTR — sincronize o YouTube Analytics para ver a nota',
+      suggest: 'thumbnail' as const,
+    }))
 }
 
 // ---------------------------------------------------------------------------
