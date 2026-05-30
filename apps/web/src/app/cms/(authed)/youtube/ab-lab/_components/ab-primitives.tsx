@@ -52,7 +52,7 @@ export function Badge({ tone = 'neutral', children, dot, className = '' }: Badge
     ? `bg-[var(--cms-cowork-subtle)] ${BADGE_TONES.cowork}`
     : BADGE_TONES[tone]
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-2xs font-medium tracking-wide uppercase ${toneClass} ${className}`}>
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-[9px] py-[3px] text-[10.5px] font-semibold tracking-[0.06em] uppercase leading-tight ${toneClass} ${className}`}>
       {dot && <span className="size-1.5 rounded-full bg-current animate-ab-slot-pulse" />}
       {children}
     </span>
