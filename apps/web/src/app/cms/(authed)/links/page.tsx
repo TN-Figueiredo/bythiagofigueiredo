@@ -59,7 +59,7 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
   if (!authRes.ok) redirect('/cms')
 
   const validTabs: TabId[] = ['tree', 'links', 'analytics']
-  const tab: TabId = validTabs.includes(params.tab as TabId) ? (params.tab as TabId) : 'tree'
+  const tab: TabId = validTabs.includes(params.tab as TabId) ? (params.tab as TabId) : 'links'
 
   const supabase = getSupabaseServiceClient()
 

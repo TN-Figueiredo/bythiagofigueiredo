@@ -5,8 +5,8 @@ import Link from 'next/link'
 export type TabId = 'tree' | 'links' | 'analytics'
 
 const TABS: Array<{ id: TabId; label: string }> = [
-  { id: 'tree', label: 'Linktree' },
   { id: 'links', label: 'Short links' },
+  { id: 'tree', label: 'Linktree' },
   { id: 'analytics', label: 'Analytics' },
 ]
 
