@@ -29,25 +29,25 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
         totalRounds={view.totalRounds}
         hasPlayoff={view.hasPlayoff}
         actions={
-          <div className="flex items-center gap-1.5">
+          <div className="flex gap-[9px] shrink-0">
             <button
               type="button"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs text-cms-text-muted hover:text-cms-text transition-colors rounded-lg border border-cms-border hover:border-cms-border-hover focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
+              className="inline-flex items-center gap-[7px] justify-center py-[6px] px-[11px] text-[12.5px] font-semibold rounded-[9px] border border-cms-border whitespace-nowrap transition-[0.15s] tracking-[-0.01em] text-cms-text-dim hover:text-cms-text focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
             >
-              <Copy size={13} aria-hidden="true" />
+              <Copy size={14} aria-hidden="true" />
               Duplicar
             </button>
             <button
               type="button"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs text-cms-text-muted hover:text-cms-text transition-colors rounded-lg border border-cms-border hover:border-cms-border-hover focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
+              className="inline-flex items-center gap-[7px] justify-center py-[6px] px-[11px] text-[12.5px] font-semibold rounded-[9px] border border-cms-border whitespace-nowrap transition-[0.15s] tracking-[-0.01em] text-cms-text-dim hover:text-cms-text focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
             >
-              <Archive size={13} aria-hidden="true" />
+              <Archive size={14} aria-hidden="true" />
               Arquivar
             </button>
             <button
               type="button"
               aria-label="Download"
-              className="inline-flex items-center justify-center size-8 text-cms-text-muted hover:text-cms-text transition-colors rounded-lg border border-cms-border hover:border-cms-border-hover focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
+              className="inline-flex items-center justify-center py-[6px] px-[11px] text-[12.5px] font-semibold rounded-[9px] border border-cms-border whitespace-nowrap transition-[0.15s] text-cms-text-dim hover:text-cms-text focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
             >
               <Download size={14} aria-hidden="true" />
             </button>

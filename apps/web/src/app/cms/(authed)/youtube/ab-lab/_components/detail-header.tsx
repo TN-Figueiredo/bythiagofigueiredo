@@ -70,9 +70,9 @@ export function DetailHeader({
   actions,
 }: DetailHeaderProps) {
   return (
-    <header className="space-y-2.5">
+    <header>
       {/* Breadcrumb */}
-      <nav aria-label="Breadcrumb">
+      <nav aria-label="Breadcrumb" className="mb-3">
         <Link
           href="/cms/youtube/ab-lab"
           className="inline-flex items-center gap-1 text-xs text-cms-text-muted hover:text-cms-accent transition-colors"
@@ -82,23 +82,27 @@ export function DetailHeader({
         </Link>
       </nav>
 
-      {/* Badge row + right side */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-2 flex-wrap">
-          <TypeBadge type={flag} />
-          {totalRounds > 1 && (
-            <Badge tone="accent">
-              R{roundNumber}/{totalRounds}
-            </Badge>
-          )}
-          {hasPlayoff && <Badge tone="accent">Playoff</Badge>}
-          <StatusBadge status={status} outcome={outcome} />
+      {/* Main row: badges+title (left) | actions (right) */}
+      <div className="flex items-start justify-between gap-[18px] flex-wrap">
+        {/* Left: badges + title */}
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 mb-[10px] flex-wrap">
+            <TypeBadge type={flag} />
+            {totalRounds > 1 && (
+              <Badge tone="accent">
+                R{roundNumber}/{totalRounds}
+              </Badge>
+            )}
+            {hasPlayoff && <Badge tone="accent">Playoff</Badge>}
+            <StatusBadge status={status} outcome={outcome} />
+          </div>
+          <h2 className="text-[24px] font-semibold text-cms-text leading-[1.2] max-w-[720px]">{title}</h2>
         </div>
 
-        {/* Right side: signal toggle or actions */}
-        <div className="flex items-center gap-2">
+        {/* Right: signal toggle or actions */}
+        <div className="flex shrink-0">
           {signalToggle ? (
-            <>
+            <div className="flex items-center gap-2">
               <Seg<'confirmed' | 'live'>
                 options={['confirmed', 'live'] as const}
                 value={signalToggle.mode}
@@ -107,15 +111,12 @@ export function DetailHeader({
                 aria-label="Signal mode"
               />
               <InfoTip text="Confirmado usa dados verificados. Live mostra estimativas em tempo real." />
-            </>
+            </div>
           ) : (
             actions
           )}
         </div>
       </div>
-
-      {/* Title */}
-      <h2 className="text-xl font-semibold text-cms-text leading-tight">{title}</h2>
     </header>
   )
 }
