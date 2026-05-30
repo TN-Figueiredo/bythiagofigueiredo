@@ -23,6 +23,10 @@ export default async function AbLabPage({
   const { siteId } = await getSiteContext()
 
   if (mockView === 'empty') {
+    const [settings, suggested] = await Promise.all([
+      getAbSiteSettings(),
+      getSuggestedVideos(siteId),
+    ])
     return (
       <AbLabDashboard
         siteId={siteId}
@@ -31,12 +35,8 @@ export default async function AbLabPage({
         drafts={[]}
         completed={[]}
         learnings={null}
-        suggested={[
-          { id: 'sug-1', title: '🇹🇭 Andei de Tuk-Tuk a 80km/h em Bangkok', thumbnailUrl: null, ctr: 3.1, channelMedianCtr: 5.4, grade: 'D', reason: 'CTR 43% abaixo da mediana do canal há 2 semanas', suggest: 'combo', impressions: '8.2k', confidence: 88 },
-          { id: 'sug-2', title: '🇹🇭 Quanto Custa 1 Semana na Tailândia em 2026', thumbnailUrl: null, ctr: 4.2, channelMedianCtr: 5.4, grade: 'C', reason: 'Bom tema, CTR mediano — thumb não está vendendo o valor', suggest: 'thumbnail', impressions: '14.3k', confidence: 79 },
-          { id: 'sug-3', title: '🇹🇭 Templos Escondidos que Ninguém Te Mostra', thumbnailUrl: null, ctr: 4.6, channelMedianCtr: 5.4, grade: 'C', reason: 'Retenção alta (51%) mas poucos cliques — título genérico', suggest: 'title', impressions: '6.1k', confidence: 74 },
-        ]}
-        settings={AB_SITE_SETTINGS_DEFAULTS}
+        suggested={suggested}
+        settings={settings}
       />
     )
   }

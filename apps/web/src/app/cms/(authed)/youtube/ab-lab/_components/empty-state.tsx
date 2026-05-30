@@ -37,12 +37,13 @@ export function EmptyState({ suggested, onCreate }: EmptyStateProps) {
           <SuggestedCard key={video.id} video={video} onCreate={onCreate} />
         ))}
       </div>
-      <div className="flex items-center justify-center gap-[8px] mt-[22px] text-[13px] text-cms-text-dim">
-        Quer testar outro vídeo?
+      <div className="flex items-center justify-center gap-[8px] mt-[24px] text-[13px]" style={{ color: 'var(--cms-text-dim)' }}>
+        <span>Quer testar outro vídeo?</span>
         <button
           type="button"
           onClick={() => onCreate('', 'thumbnail')}
-          className="inline-flex items-center gap-[5px] text-[13px] text-cms-text-dim hover:text-cms-text transition-colors"
+          className="inline-flex items-center gap-[7px] justify-center py-[6px] px-[11px] text-[12.5px] font-semibold rounded-[9px] whitespace-nowrap transition-[0.15s] tracking-[-0.01em] text-cms-text-dim hover:text-cms-text"
+          style={{ border: '1px solid var(--cms-border, #332D25)' }}
         >
           <Plus size={14} aria-hidden="true" />
           Começar do zero
