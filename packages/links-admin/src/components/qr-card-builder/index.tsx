@@ -326,6 +326,7 @@ export function QrCardBuilder({
           border: 2px solid var(--accent, #FF8240);
           cursor: pointer;
           box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+          margin-top: -5px;
         }
         [role="application"] input[type="range"]::-moz-range-thumb {
           width: 14px;
