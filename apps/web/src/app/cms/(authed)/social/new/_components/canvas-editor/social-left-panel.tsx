@@ -13,9 +13,12 @@ import { SliderField } from '@tn-figueiredo/links-admin/qr-card-builder/inspecto
 import { LayersPanel } from '@tn-figueiredo/links-admin/qr-card-builder/layers-panel'
 
 export const SOCIAL_ASPECT_RATIOS = [
-  { name: '9:16' as const, width: 1080, height: 1920, label: 'Story' },
-  { name: '1:1' as const, width: 1080, height: 1080, label: 'Square' },
-  { name: '16:9' as const, width: 1280, height: 720, label: 'Landscape' },
+  { name: '9:16' as const, width: 1080, height: 1920, label: 'Story 9:16' },
+  { name: '1:1' as const, width: 1080, height: 1080, label: 'Quadrado 1:1' },
+  { name: '4:5' as const, width: 1080, height: 1350, label: 'Feed 4:5' },
+  { name: '16:9' as const, width: 1920, height: 1080, label: 'Paisagem 16:9' },
+  { name: 'wide' as const, width: 1200, height: 630, label: 'Wide/OG' },
+  { name: 'custom' as const, width: 1080, height: 1080, label: 'Custom' },
 ] as const
 
 export type SocialAspectRatio = (typeof SOCIAL_ASPECT_RATIOS)[number]['name']
@@ -203,7 +206,7 @@ export function SocialLeftPanel({
       {!hideAspectRatioSelector && (
         <section className="p-3 border-b border-neutral-800">
           <h3 className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider mb-2">Aspect Ratio</h3>
-          <div className="grid grid-cols-3 gap-1.5">
+          <div className="grid grid-cols-2 gap-1.5">
             {SOCIAL_ASPECT_RATIOS.map(preset => (
               <button
                 key={preset.name}
