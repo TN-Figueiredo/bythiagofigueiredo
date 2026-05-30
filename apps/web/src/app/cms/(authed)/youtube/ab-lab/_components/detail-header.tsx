@@ -4,7 +4,7 @@ import React from 'react'
 import Link from 'next/link'
 import type { TestType, AbTestStatus } from '@/lib/youtube/ab-types'
 import { TypeBadge, Badge, Seg, InfoTip } from './ab-primitives'
-import { ArrowLeft, Trophy, MoreVertical } from 'lucide-react'
+import { ArrowLeft, Trophy } from 'lucide-react'
 import type { BadgeTone } from './ab-primitives'
 
 export type DetailOutcome = 'winner' | 'playoff' | undefined
