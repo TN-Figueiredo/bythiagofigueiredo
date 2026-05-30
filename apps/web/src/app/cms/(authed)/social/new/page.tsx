@@ -20,7 +20,7 @@ export default async function CompositorPage({ searchParams }: Props) {
 
   const params = await searchParams
   const sourceMode: 'cms' | 'freeform' =
-    params.mode === 'blank' ? 'freeform' : 'cms'
+    params.mode === 'cms' ? 'cms' : 'freeform'
   const modeLabel = sourceMode === 'cms' ? 'Do CMS' : 'Em branco'
 
   return (
