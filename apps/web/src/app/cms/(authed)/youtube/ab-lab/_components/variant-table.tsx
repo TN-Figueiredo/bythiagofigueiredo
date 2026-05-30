@@ -4,13 +4,14 @@ import React, { useState, useCallback } from 'react'
 import type { FullChartVariant, VariantThumb, DisplayLabel } from '@/lib/youtube/ab-types'
 import { formatPercent, formatCompact } from './ab-constants'
 import { VChip } from './ab-primitives'
-import { ChevronDown, Trophy, TrendingUp } from 'lucide-react'
+import { ChevronDown, Trophy, TrendingUp, Radio } from 'lucide-react'
 
 export interface VariantTableProps {
   variants: FullChartVariant[]
   metric: 'pBest' | 'pTop2'
   winnerId?: string
   leaderId?: string
+  activeNow?: string
   finalists?: DisplayLabel[]
   thumbs: VariantThumb[]
   videoTitle?: string
@@ -18,7 +19,7 @@ export interface VariantTableProps {
 
 const GRID = 'grid grid-cols-[60px_minmax(0,1fr)_70px_58px_138px_22px] gap-[14px] items-center'
 
-export function VariantTable({ variants, metric, winnerId, leaderId, finalists, thumbs, videoTitle }: VariantTableProps) {
+export function VariantTable({ variants, metric, winnerId, leaderId, activeNow, finalists, thumbs, videoTitle }: VariantTableProps) {
   const [expandedLabel, setExpandedLabel] = useState<string | null>(null)
   const sorted = [...variants].sort((a, b) => b[metric] - a[metric])
 
@@ -67,6 +68,7 @@ export function VariantTable({ variants, metric, winnerId, leaderId, finalists, 
         const thumb = thumbMap.get(variant.label)
         const isWinner = winnerId != null && winnerId === variant.label
         const isLeader = leaderId != null && leaderId === variant.label
+        const isActiveNow = activeNow != null && activeNow === variant.label
         const isHighlighted = isWinner || isLeader
         const isOriginal = thumb?.isOriginal ?? variant.label === 'A'
         const isExpanded = expandedLabel === variant.label
@@ -126,6 +128,12 @@ export function VariantTable({ variants, metric, winnerId, leaderId, finalists, 
                         <span className="inline-flex items-center gap-[5px] px-[6px] py-px rounded-full text-[8.5px] font-semibold tracking-[0.06em] uppercase bg-cms-green-subtle text-cms-green">
                           <TrendingUp size={11} aria-hidden="true" />
                           líder
+                        </span>
+                      )}
+                      {isActiveNow && (
+                        <span className="inline-flex items-center gap-[5px] px-[6px] py-px rounded-full text-[8.5px] font-semibold tracking-[0.06em] uppercase bg-cms-red-subtle text-cms-red">
+                          <Radio size={11} aria-hidden="true" />
+                          no ar
                         </span>
                       )}
                     </div>

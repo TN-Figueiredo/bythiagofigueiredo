@@ -143,6 +143,7 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
           variants={view.variants}
           metric="pBest"
           leaderId={data.leader}
+          activeNow="B"
           thumbs={view.variantThumbs}
           videoTitle={view.videoTitle}
         />
