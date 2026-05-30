@@ -103,12 +103,78 @@ export function AnalyticsView({ data }: AnalyticsViewProps) {
         ))}
       </div>
 
+      {/* Bar chart + Insights row */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 14, alignItems: 'start' }}>
+        {/* Bar chart */}
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 'var(--r)', padding: 18 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+            <TrendingUp size={15} strokeWidth={1.7} style={{ color: 'var(--accent)' }} />
+            <span style={{ fontSize: '13.5px', fontWeight: 600, flex: 1, color: 'var(--ink)' }}>Cliques por dia</span>
+            <div style={{ display: 'flex', gap: 14, fontSize: 11 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: 'var(--ink-dim)' }}>
+                <span style={{ width: 10, height: 10, borderRadius: 3, background: 'var(--accent)' }} />
+                atual
+              </span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: 'var(--ink-dim)' }}>
+                <span style={{ width: 10, height: 10, borderRadius: 3, background: 'var(--line-strong)' }} />
+                anterior
+              </span>
+            </div>
+          </div>
+          <BarChart data={data.byDay} prev={data.byDayPrev} height={170} />
+        </div>
+
+        {/* Insights */}
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 'var(--r)', padding: 18 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--accent)' }}>
+              <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6z" />
+              <path d="M18 14l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z" />
+            </svg>
+            <span style={{ fontSize: '13.5px', fontWeight: 600, flex: 1, color: 'var(--ink)' }}>Insights</span>
+            <span className="mono" style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5,
+              padding: '3px 9px', borderRadius: 999,
+              fontSize: '10.5px', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase',
+              background: 'rgba(110, 99, 242, 0.15)', color: 'rgb(155, 147, 246)',
+            }}>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6z" />
+                <path d="M18 14l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z" />
+              </svg>
+              auto
+            </span>
+          </div>
+          {data.insights.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
+              {data.insights.map((ins) => {
+                const toneColor = ins.tone === 'up' ? 'var(--green)' : ins.tone === 'accent' ? 'var(--accent)' : ins.tone === 'amber' ? 'var(--amber)' : 'var(--red)'
+                return (
+                  <div key={`${ins.tone}-${ins.text.slice(0, 20)}`} style={{ display: 'flex', gap: 11, alignItems: 'flex-start' }}>
+                    <span style={{
+                      width: 26, height: 26, borderRadius: 7,
+                      background: toneColor + '22',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      flexShrink: 0, marginTop: 1,
+                      color: toneColor,
+                    }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                        {ins.tone === 'red' ? <><path d="M12 4l9 16H3z" /><path d="M12 10v4" /><path d="M12 17h.01" /></> : <><path d="M3 17l5-6 4 4 8-9" /><path d="M21 6h-4" /><path d="M21 6v4" /></>}
+                      </svg>
+                    </span>
+                    <span style={{ fontSize: '12.5px', color: 'var(--ink-dim)', lineHeight: 1.5 }}>{ins.text}</span>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <p style={{ padding: '16px 0', textAlign: 'center', fontSize: 12, color: 'var(--ink-faint)' }}>Nenhum insight disponível.</p>
+          )}
+        </div>
+      </div>
+
       {/* Charts grid */}
       <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 1fr' }}>
-        {/* Bar chart */}
-        <Panel title="Cliques por dia" icon="ba" style={{ gridColumn: 'span 2' }}>
-          <BarChart data={data.byDay} prev={data.byDayPrev} height={180} />
-        </Panel>
 
         {/* Source breakdown */}
         <Panel title="Origem do trafego" icon="so">

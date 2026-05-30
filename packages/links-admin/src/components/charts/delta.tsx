@@ -7,6 +7,7 @@ export interface DeltaProps {
 
 export function Delta({ cur, prev, suffix = '%', invert }: DeltaProps) {
   if (prev == null) return null
+  if (prev === 0 && cur === 0) return null
   const pct = prev === 0 ? 100 : Math.round(((cur - prev) / prev) * 100)
   const up = pct >= 0
   const good = invert ? !up : up
