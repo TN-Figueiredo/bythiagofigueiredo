@@ -5,6 +5,7 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { toDateStringInTz } from '@/lib/cms/format-site-datetime'
 import { buildShortUrl } from '@/lib/links/short-url'
 import { LinkDetail } from './_detail'
+import { listQrCards } from './qr/card-actions'
 
 export const dynamic = 'force-dynamic'
 
@@ -72,6 +73,9 @@ export default async function LinkDetailPage({ params }: Props) {
     }
   }
 
+  const qrCardsResult = await listQrCards(id)
+  const qrCards = qrCardsResult.ok ? qrCardsResult.cards : []
+
   return (
     <div className="flex flex-col gap-6 px-4 py-4 md:px-7">
       <LinkDetail
@@ -101,6 +105,7 @@ export default async function LinkDetailPage({ params }: Props) {
         dailyClicks={dailyClicks}
         topCountry={topCountry}
         linkId={id}
+        qrCards={qrCards}
       />
     </div>
   )

@@ -8,16 +8,21 @@ import {
 } from '@tn-figueiredo/links/qr'
 import { buildShortUrl } from '@/lib/links/short-url'
 import { loadQrCard, listQrTemplates } from './actions'
+import { loadQrCardById } from './card-actions'
 import { QrCardBuilderPage } from './client'
 
 export const dynamic = 'force-dynamic'
 
 interface Props {
   params: Promise<{ id: string }>
+  searchParams: Promise<Record<string, string | undefined>>
 }
 
-export default async function QrCardPage({ params }: Props) {
+export default async function QrCardPage({ params, searchParams }: Props) {
   const { id } = await params
+  const sp = await searchParams
+  const cardId = sp.card ?? null
+
   const { siteId } = await getSiteContext()
 
   const authRes = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
@@ -37,7 +42,15 @@ export default async function QrCardPage({ params }: Props) {
   const shortUrl = buildShortUrl(link.code)
 
   let composition = createDefaultComposition()
-  if (link.qr_card_composition) {
+  let cardName = 'Novo QR Card'
+
+  if (cardId) {
+    const loaded = await loadQrCardById(cardId)
+    if (loaded.ok && loaded.composition) {
+      composition = loaded.composition
+      cardName = loaded.name
+    }
+  } else if (link.qr_card_composition) {
     const loaded = await loadQrCard(id)
     if (loaded.ok && loaded.composition) {
       composition = loaded.composition
@@ -55,6 +68,8 @@ export default async function QrCardPage({ params }: Props) {
       shortUrl={shortUrl}
       initialComposition={composition}
       templates={templates}
+      cardId={cardId}
+      cardName={cardName}
     />
   )
 }

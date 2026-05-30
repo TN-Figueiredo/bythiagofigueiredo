@@ -24,6 +24,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { deleteLink, toggleLinkActive } from '../actions'
+import { QrCardsStrip } from './_components/qr-cards-strip'
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -58,12 +59,20 @@ interface DailyClick {
   unique: number
 }
 
+interface QrCardItem {
+  id: string
+  name: string
+  previewUrl: string | null
+  createdAt: string
+}
+
 interface Props {
   link: LinkData
   dailyClicks: DailyClick[]
   topCountry: string | null
   linkId: string
   shortUrl: string
+  qrCards: QrCardItem[]
 }
 
 /* ------------------------------------------------------------------ */
@@ -294,7 +303,7 @@ function DetailRow({
 /*  Main component                                                     */
 /* ------------------------------------------------------------------ */
 
-export function LinkDetail({ link, dailyClicks, topCountry, linkId, shortUrl }: Props) {
+export function LinkDetail({ link, dailyClicks, topCountry, linkId, shortUrl, qrCards }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
@@ -626,41 +635,8 @@ export function LinkDetail({ link, dailyClicks, topCountry, linkId, shortUrl }: 
         )}
       </div>
 
-      {/* QR Card */}
-      <div
-        onClick={() => router.push(`/cms/links/${linkId}/qr`)}
-        style={{
-          background: 'var(--surface-2)',
-          borderRadius: 'var(--r)',
-          padding: 18,
-          cursor: 'pointer',
-        }}
-      >
-        <div className="eyebrow" style={{ marginBottom: 12, fontSize: '10.5px', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--ink-faint)' }}>QR Card</div>
-        <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
-          <div style={{ width: 78, height: 78, borderRadius: 10, background: '#fff', padding: 7, flexShrink: 0 }}>
-            <div style={{ width: '100%', height: '100%', background: 'repeating-conic-gradient(#111 0% 25%, #fff 0% 50%) 0 center / 12px 12px' }} />
-          </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13, color: 'var(--ink-dim)', lineHeight: 1.5 }}>
-              Gere um cartão de QR no <b style={{ color: 'var(--ink)' }}>canvas</b> — templates de impressão, story e adesivo.
-            </div>
-            <button
-              type="button"
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 7,
-                padding: '6px 11px', fontSize: '12.5px', fontWeight: 600,
-                borderRadius: 9, border: '1px solid var(--accent)',
-                background: 'var(--accent)', color: 'var(--pb-ink-on-accent, #1A140C)',
-                marginTop: 12, cursor: 'pointer',
-              }}
-            >
-              <QrCode size={14} strokeWidth={1.7} />
-              Abrir editor de QR
-            </button>
-          </div>
-        </div>
-      </div>
+      {/* QR Cards */}
+      <QrCardsStrip linkId={linkId} cards={qrCards} />
 
       </div> {/* end grid */}
 

@@ -11,18 +11,31 @@ import {
   exportQrCard,
   uploadQrImage,
 } from './actions'
+import { createQrCard, updateQrCard } from './card-actions'
 
 interface Props {
   link: { id: string; code: string; title: string | null }
   shortUrl: string
   initialComposition: CardComposition
   templates: QrTemplate[]
+  cardId: string | null
+  cardName: string
 }
 
-export function QrCardBuilderPage({ link, shortUrl, initialComposition, templates }: Props) {
+export function QrCardBuilderPage({ link, shortUrl, initialComposition, templates, cardId, cardName }: Props) {
   const handleSave = useCallback(async (composition: CardComposition) => {
+    if (cardId) {
+      await updateQrCard(cardId, link.id, { composition })
+    } else {
+      const result = await createQrCard(link.id, cardName, composition)
+      if (result.ok) {
+        window.location.href = `/cms/links/${link.id}/qr?card=${result.cardId}`
+        return
+      }
+    }
+    // Also save to legacy tracked_links for backward compat
     await saveQrCard(link.id, composition)
-  }, [link.id])
+  }, [link.id, cardId, cardName])
 
   const handleExport = useCallback(async (blob: Blob, metadata: { format: 'png' | 'svg'; scale: number; width: number; height: number }) => {
     const fd = new FormData()
