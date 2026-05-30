@@ -33,8 +33,11 @@ export function CompositorNew({ sourceMode = 'freeform' }: CompositorNewProps) {
   const canPublish = activeDests.length > 0 && allActiveHaveContent
   const hasContent = anyActiveHasContent
 
-  function handleContentChange(has: boolean) {
-    setContentByDest(prev => ({ ...prev, [focused]: has }))
+  const [captions, setCaptions] = useState<Record<string, string>>({})
+
+  function handleCaptionChange(destId: string, value: string) {
+    setCaptions(prev => ({ ...prev, [destId]: value }))
+    setContentByDest(prev => ({ ...prev, [destId]: value.trim().length > 0 }))
   }
 
   function handleToggle(id: DestId) {
@@ -62,7 +65,7 @@ export function CompositorNew({ sourceMode = 'freeform' }: CompositorNewProps) {
             onFocus={setFocused}
             focused={focused}
           />
-          <DestCompositor key={focused} focusedDest={focused} destsOn={destsOn} onContentChange={handleContentChange} />
+          <DestCompositor focusedDest={focused} destsOn={destsOn} caption={captions[focused] ?? ''} onCaptionChange={(value) => handleCaptionChange(focused, value)} />
         </>
       )}
 

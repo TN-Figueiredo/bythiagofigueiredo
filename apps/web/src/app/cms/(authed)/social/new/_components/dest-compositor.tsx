@@ -7,7 +7,8 @@ import { DESTINATIONS } from '@/lib/social/destinations'
 interface DestCompositorProps {
   focusedDest: DestId
   destsOn: Record<DestId, boolean>
-  onContentChange?: (hasContent: boolean) => void
+  caption: string
+  onCaptionChange: (value: string) => void
 }
 
 function PlatformIconSmall({ provider }: { provider: string }) {
@@ -33,15 +34,9 @@ function PlatformIconSmall({ provider }: { provider: string }) {
   return null
 }
 
-export function DestCompositor({ focusedDest, destsOn, onContentChange }: DestCompositorProps) {
+export function DestCompositor({ focusedDest, destsOn, caption, onCaptionChange }: DestCompositorProps) {
   const dest = DESTINATIONS[focusedDest]
   const isActive = destsOn[focusedDest]
-  const [caption, setCaptionState] = useState('')
-
-  function setCaption(value: string) {
-    setCaptionState(value)
-    onContentChange?.(value.trim().length > 0)
-  }
   const [lang, setLang] = useState<'PT' | 'EN'>('PT')
 
   if (!isActive) return null
@@ -253,9 +248,9 @@ export function DestCompositor({ focusedDest, destsOn, onContentChange }: DestCo
             </div>
           </div>
           {isStory ? (
-            <input type="text" value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="ex: Saiu no blog 📬" className="w-full rounded-[10px] border bg-cms-surface px-[13px] py-[11px] text-[13.5px] text-cms-text placeholder:text-cms-text-dim/40 focus:border-cms-accent focus:outline-none" style={{ borderColor: 'var(--line-strong, var(--color-cms-border))' }} />
+            <input type="text" value={caption} onChange={(e) => onCaptionChange(e.target.value)} placeholder="ex: Saiu no blog 📬" className="w-full rounded-[10px] border bg-cms-surface px-[13px] py-[11px] text-[13.5px] text-cms-text placeholder:text-cms-text-dim/40 focus:border-cms-accent focus:outline-none" style={{ borderColor: 'var(--line-strong, var(--color-cms-border))' }} />
           ) : (
-            <textarea value={caption} onChange={(e) => setCaption(e.target.value)} placeholder={isYtCommunity ? 'Escreva seu post…' : isIgFeed ? 'Escreva uma legenda…' : 'O que você quer compartilhar?'} className="w-full rounded-[10px] border bg-cms-surface px-[13px] py-[11px] text-[13.5px] leading-[1.5] text-cms-text placeholder:text-cms-text-dim/40 focus:border-cms-accent focus:outline-none" style={{ borderColor: 'var(--line-strong, var(--color-cms-border))', minHeight: isYtCommunity || isFacebook ? 130 : 100, resize: 'vertical' }} />
+            <textarea value={caption} onChange={(e) => onCaptionChange(e.target.value)} placeholder={isYtCommunity ? 'Escreva seu post…' : isIgFeed ? 'Escreva uma legenda…' : 'O que você quer compartilhar?'} className="w-full rounded-[10px] border bg-cms-surface px-[13px] py-[11px] text-[13.5px] leading-[1.5] text-cms-text placeholder:text-cms-text-dim/40 focus:border-cms-accent focus:outline-none" style={{ borderColor: 'var(--line-strong, var(--color-cms-border))', minHeight: isYtCommunity || isFacebook ? 130 : 100, resize: 'vertical' }} />
           )}
         </div>
 
