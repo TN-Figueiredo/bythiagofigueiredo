@@ -166,18 +166,14 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
         />
       </section>
 
-      {/* 7. GatesPanel */}
-      <section data-testid="gates-section" className="mb-[28px]">
-        <SectionLabel>Critérios de resolução</SectionLabel>
-        <GatesPanel gates={view.gates} />
-      </section>
+      {/* 7. GatesPanel — removed, design doesn't show it in winner detail */}
 
       {/* 8. O momento de clique */}
       <ClickMoment
         videoTitle={view.videoTitle}
         winnerLabel={view.winnerLabel}
         winnerColor={view.winnerColor}
-        variants={view.variants.slice(0, 2).map(v => ({
+        variants={view.variants.map(v => ({
           label: v.label,
           color: v.color,
           ctr: v.ctr * 100,
