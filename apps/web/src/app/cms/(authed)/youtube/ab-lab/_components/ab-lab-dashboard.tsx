@@ -18,7 +18,6 @@ import { DraftsBlock } from './drafts-block'
 import { LearningsPanel } from './learnings-panel'
 import { EmptyState } from './empty-state'
 import { SettingsDrawer } from './settings-drawer'
-import { SectionLabel } from './ab-primitives'
 import { updateAbSiteSettings } from '../actions'
 import { VideoPickerDialog } from './video-picker-dialog'
 import type { EligibleVideo } from './video-picker-dialog'
@@ -52,22 +51,13 @@ export function AbLabDashboard({
   const [showSettings, setShowSettings] = useState(false)
   const [showPicker, setShowPicker] = useState(false)
   const [wizardVideo, setWizardVideo] = useState<WizardVideo | null>(null)
-  const [continueDraft, setContinueDraft] = useState<AbTestDraft | null>(null)
 
   function handleOpenTest(id: string) {
     router.push(`/cms/youtube/ab-lab/${id}`)
   }
 
   function handleContinueDraft(id: string) {
-    const draft = drafts.find(d => d.id === id)
-    if (!draft) return
-    setContinueDraft(draft)
-    setWizardVideo({
-      id: draft.videoId,
-      title: draft.name.replace(/^Test:\s*/, ''),
-      thumbnailUrl: draft.thumbUrl,
-      sourcePipelineId: draft.sourcePipelineId,
-    })
+    router.push(`/cms/youtube/ab-lab/${id}`)
   }
 
   function handleCreateTest(_videoId: string, _type: string) {
@@ -277,14 +267,11 @@ export function AbLabDashboard({
           video={wizardVideo}
           siteId={siteId}
           settings={settings}
-          onClose={() => { setWizardVideo(null); setContinueDraft(null) }}
+          onClose={() => setWizardVideo(null)}
           onCreated={(testId) => {
             setWizardVideo(null)
-            setContinueDraft(null)
             router.push(`/cms/youtube/ab-lab/${testId}`)
           }}
-          existingDraftId={continueDraft?.id}
-          prefill={continueDraft ? { testType: continueDraft.type } : undefined}
         />
       )}
     </div>
