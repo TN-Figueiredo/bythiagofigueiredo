@@ -179,7 +179,7 @@ export const MOCK_PLAYOFF_MINIMAL: AbTestPlayoffView = {
     { label: 'B', color: VARIANT_COLORS.B, thumbUrl: null, isOriginal: false },
   ],
   confTrend: [],
-  daily: { A: [], B: [] } as Record<import('@/lib/youtube/ab-types').DisplayLabel, number[]>,
+  daily: { A: [], B: [], C: [], D: [] } as Record<import('@/lib/youtube/ab-types').DisplayLabel, number[]>,
   abbaSeq: [] as unknown as import('@/lib/youtube/ab-types').DisplayLabel[],
   cycles: { total: 4, done: 2 },
   durationDays: 5,

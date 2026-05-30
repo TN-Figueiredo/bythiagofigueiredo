@@ -13,6 +13,12 @@ vi.mock('lucide-react', () => {
     QrCode: icon('QrCode'),
     Target: icon('Target'),
     TrendingUp: icon('TrendingUp'),
+    Zap: icon('Zap'),
+    Clock: icon('Clock'),
+    RefreshCw: icon('RefreshCw'),
+    Tag: icon('Tag'),
+    Users: icon('Users'),
+    Globe: icon('Globe'),
   }
 })
 
@@ -75,7 +81,7 @@ describe('ShortLinksTab', () => {
 
   it('shows health panel when unhealthy links exist', () => {
     const { getByText } = render(<ShortLinksTab links={links} onCreateLink={() => {}} />)
-    expect(getByText(/Saude dos links/)).toBeTruthy()
+    expect(getByText(/Saúde dos links/)).toBeTruthy()
   })
 
   it('renders empty state when no links', () => {

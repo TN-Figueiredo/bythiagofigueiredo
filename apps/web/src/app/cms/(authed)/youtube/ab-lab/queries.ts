@@ -23,6 +23,7 @@ import type {
   LearningsData,
   LearningsTag,
   SuggestedVideo,
+  TestType,
 } from '@/lib/youtube/ab-types'
 import { calculateBayesianConfidence } from '@/lib/youtube/ab-statistics'
 import { computeGates } from '@/lib/youtube/ab-gates'
