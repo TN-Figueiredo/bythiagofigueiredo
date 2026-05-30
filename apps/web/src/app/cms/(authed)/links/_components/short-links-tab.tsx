@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Search, Plus, ChevronRight, AlertTriangle, QrCode, Link2, Zap, Target } from 'lucide-react'
+import { Search, Plus, ChevronRight, AlertTriangle, QrCode, Link2, Zap, Target, Clock, RefreshCw } from 'lucide-react'
 import { SOURCE_COLORS, SOURCE_LABELS, type LinkDisplay, type SourceId } from '@tn-figueiredo/links-admin'
 import { Spark } from '@tn-figueiredo/links-admin/client'
 import { StatusDot } from './status-dot'
@@ -103,19 +103,58 @@ export function ShortLinksTab({ links, onCreateLink }: ShortLinksTabProps) {
 
       {/* Health panel */}
       {unhealthy.length > 0 && (
-        <div className="rounded-[14px] border border-red-500/30 bg-red-500/[0.05] p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <AlertTriangle className="h-4 w-4 text-red-400" />
-            <span className="text-sm font-semibold text-foreground">Saude dos links</span>
-            <span className="ml-1 font-mono text-xs text-muted-foreground">{unhealthy.length}</span>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {unhealthy.map(l => (
-              <Link key={l.id} href={`/cms/links/${l.id}`}
-                className="rounded-md border border-white/10 bg-white/[0.03] px-2 py-1 font-mono text-[10px] text-red-400 hover:bg-white/[0.06]">
-                {l.slug}
-              </Link>
-            ))}
+        <div style={{
+          background: 'rgba(217, 97, 74, 0.05)',
+          border: '1px solid rgba(217, 97, 74, 0.3)',
+          borderRadius: 'var(--r)',
+          padding: 14,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <AlertTriangle size={16} strokeWidth={1.7} style={{ color: 'var(--red)', flexShrink: 0 }} />
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>Saúde dos links</span>
+            <span style={{ fontSize: '12.5px', color: 'var(--ink-dim)' }}>
+              {unhealthy.length} link{unhealthy.length !== 1 ? 's' : ''} precisam de atenção:
+            </span>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', flex: 1 }}>
+              {unhealthy.map(l => {
+                const isBroken = l.health === 'broken'
+                const borderColor = isBroken ? 'rgba(217, 97, 74, 0.4)' : 'rgba(224, 162, 60, 0.4)'
+                const textColor = isBroken ? 'var(--red)' : 'var(--amber)'
+                const StatusIcon = isBroken ? AlertTriangle : Clock
+                const statusLabel = isBroken ? 'destino quebrado' : 'a expirar'
+                return (
+                  <button
+                    key={l.id}
+                    type="button"
+                    className="mono"
+                    onClick={() => window.location.href = `/cms/links/${l.id}`}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
+                      fontSize: '11.5px', padding: '4px 10px', borderRadius: 99,
+                      whiteSpace: 'nowrap', border: `1px solid ${borderColor}`,
+                      background: 'transparent', color: textColor, cursor: 'pointer',
+                    }}
+                  >
+                    <StatusIcon size={12} strokeWidth={1.7} />
+                    {l.slug} · {statusLabel}
+                  </button>
+                )
+              })}
+            </div>
+            <button
+              type="button"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 7,
+                padding: '6px 11px', fontSize: '12.5px', fontWeight: 600,
+                borderRadius: 9, border: '1px solid var(--line-strong)',
+                background: 'transparent', color: 'var(--ink-dim)',
+                letterSpacing: '-0.01em', whiteSpace: 'nowrap', transition: '0.15s',
+                cursor: 'pointer',
+              }}
+            >
+              <RefreshCw size={14} strokeWidth={1.7} />
+              Revalidar
+            </button>
           </div>
         </div>
       )}
