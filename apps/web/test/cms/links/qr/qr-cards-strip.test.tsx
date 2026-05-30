@@ -35,7 +35,12 @@ describe('QrCardsStrip', () => {
   })
 
   it('imports Plus and QrCode icons from lucide-react', () => {
-    expect(src).toContain("import { Plus, QrCode } from 'lucide-react'")
+    expect(src).toContain("from 'lucide-react'")
+    expect(src).toContain('Plus')
+    expect(src).toContain('QrCode')
+    expect(src).toContain('MoreVertical')
+    expect(src).toContain('Pencil')
+    expect(src).toContain('Trash2')
   })
 
   it('imports QrCardSummary type from card-actions', () => {
