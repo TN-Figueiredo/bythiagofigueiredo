@@ -1,43 +1,87 @@
 'use client'
 
+import { useSearchParams, useRouter } from 'next/navigation'
 import { FeedCard } from './feed-card'
-import type { SocialPostWithPipeline } from '@/lib/social/actions'
 import type { DestId } from '@/lib/social/destinations'
+import { STATUS_LABELS } from './shared/social-helpers'
 
 export interface FeedItem {
-  post: SocialPostWithPipeline
+  id: string
+  status: string
+  title: string
+  imageUrl: string | null
+  scheduledAt: string | null
+  publishedAt: string | null
   destId: DestId | null
   destLabel: string
   provider: string
-  deliveryCount: number
+  statusLabel: string
 }
 
 interface FeedGridProps {
   items: FeedItem[]
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  completed: 'Publicado',
-  scheduled: 'Agendado',
-  failed: 'Falhou',
-  draft: 'Rascunho',
-  publishing: 'Publicando',
-  cancelled: 'Cancelado',
-}
+const FILTERS = [
+  { key: 'all', label: 'Todos' },
+  { key: 'published', label: 'Publicados' },
+  { key: 'scheduled', label: 'Agendados' },
+  { key: 'failed', label: 'Falharam' },
+] as const
 
 export function FeedGrid({ items }: FeedGridProps) {
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const activeFilter = searchParams.get('status') ?? 'all'
+
+  function setFilter(key: string) {
+    const params = new URLSearchParams(searchParams.toString())
+    if (key === 'all') {
+      params.delete('status')
+    } else {
+      params.set('status', key)
+    }
+    router.push(`/cms/social?${params.toString()}`)
+  }
+
   return (
-    <div className="mt-4 grid grid-cols-[repeat(auto-fill,minmax(248px,1fr))] gap-4">
-      {items.map(item => (
-        <FeedCard
-          key={item.post.id}
-          post={item.post}
-          destId={item.destId}
-          destLabel={item.destLabel}
-          provider={item.provider}
-          statusLabel={STATUS_LABELS[item.post.status] ?? item.post.status}
-        />
-      ))}
-    </div>
+    <>
+      <div className="mt-4 flex gap-2" role="group" aria-label="Filtrar por status">
+        {FILTERS.map(f => (
+          <button
+            key={f.key}
+            aria-pressed={activeFilter === f.key}
+            onClick={() => setFilter(f.key)}
+            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+              activeFilter === f.key
+                ? 'bg-cms-accent text-white'
+                : 'bg-cms-surface text-cms-text-muted hover:text-cms-text'
+            }`}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+
+      {items.length === 0 ? (
+        <div className="mt-8 flex flex-col items-center gap-3 text-center">
+          <p className="text-sm text-cms-text-muted">
+            {activeFilter === 'all'
+              ? 'Nenhum post encontrado'
+              : `Nenhum post ${FILTERS.find(f => f.key === activeFilter)?.label.toLowerCase() ?? ''}`}
+          </p>
+        </div>
+      ) : (
+        <div className="mt-4 grid grid-cols-[repeat(auto-fill,minmax(248px,1fr))] gap-4" role="list">
+          {items.map(item => (
+            <div key={item.id} role="listitem">
+              <FeedCard item={item} />
+            </div>
+          ))}
+        </div>
+      )}
+    </>
   )
 }
+
+export { STATUS_LABELS }

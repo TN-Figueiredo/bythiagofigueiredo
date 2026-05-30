@@ -30,6 +30,7 @@ export function CalendarWeekView({ days, weekLabel, prevWeek, nextWeek }: Calend
       <div className="mb-4 flex items-center justify-between">
         <Link
           href={`/cms/social?tab=calendar&week=${prevWeek}`}
+          aria-label="Semana anterior"
           className="rounded-lg border border-cms-border px-3 py-1.5 text-sm text-cms-text-muted hover:text-cms-text transition-colors"
         >
           Anterior
@@ -37,6 +38,7 @@ export function CalendarWeekView({ days, weekLabel, prevWeek, nextWeek }: Calend
         <span className="text-sm font-medium text-cms-text">{weekLabel}</span>
         <Link
           href={`/cms/social?tab=calendar&week=${nextWeek}`}
+          aria-label="Proxima semana"
           className="rounded-lg border border-cms-border px-3 py-1.5 text-sm text-cms-text-muted hover:text-cms-text transition-colors"
         >
           Proxima

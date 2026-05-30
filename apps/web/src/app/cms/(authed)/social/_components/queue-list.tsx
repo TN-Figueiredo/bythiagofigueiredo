@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useTransition } from 'react'
 import { useOptimistic } from 'react'
 import Link from 'next/link'
 import { reorderQueue } from '@/lib/social/actions'
@@ -24,6 +24,7 @@ export function QueueList({ initialItems }: QueueListProps) {
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  const [, startTransition] = useTransition()
 
   const moveItem = useCallback(async (fromIndex: number, toIndex: number) => {
     if (fromIndex === toIndex) return
@@ -34,15 +35,16 @@ export function QueueList({ initialItems }: QueueListProps) {
     newItems.splice(toIndex, 0, item)
     const reindexed = newItems.map((it, i) => ({ ...it, queuePosition: i }))
 
-    setOptimisticItems(reindexed)
-    const result = await reorderQueue(item.id, toIndex)
-    if (result.ok) {
-      setItems(reindexed)
-      socialToast('queue_reordered')
-    } else {
-      setOptimisticItems(items)
-    }
-  }, [items, setOptimisticItems])
+    startTransition(async () => {
+      setOptimisticItems(reindexed)
+      const result = await reorderQueue(item.id, toIndex)
+      if (result.ok) {
+        setItems(reindexed)
+        socialToast('queue_reordered')
+      }
+      // On failure, useOptimistic automatically reverts when transition ends
+    })
+  }, [items, setOptimisticItems, startTransition])
 
   function handlePointerDown(e: React.PointerEvent, index: number) {
     if ((e.target as HTMLElement).dataset.handle !== 'true') return
@@ -112,6 +114,11 @@ export function QueueList({ initialItems }: QueueListProps) {
           {/* Position number */}
           <span className="w-6 shrink-0 text-center text-xs font-mono text-cms-text-dim">
             {index + 1}
+          </span>
+
+          {/* Dest badge */}
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-cms-surface text-[10px] text-cms-text-dim">
+            Q
           </span>
 
           {/* Content */}

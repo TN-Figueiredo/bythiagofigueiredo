@@ -38,15 +38,24 @@ function getISOWeek(date: Date): number {
   return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7)
 }
 
+function getISOWeeksInYear(year: number): number {
+  const dec28 = new Date(year, 11, 28)
+  return getISOWeek(dec28)
+}
+
 function getPrevWeek(weekLabel: string): string {
   const [year, week] = weekLabel.split('-W').map(Number)
-  if (week <= 1) return `${year - 1}-W52`
+  if (week <= 1) {
+    const prevYearWeeks = getISOWeeksInYear(year - 1)
+    return `${year - 1}-W${String(prevYearWeeks).padStart(2, '0')}`
+  }
   return `${year}-W${String(week - 1).padStart(2, '0')}`
 }
 
 function getNextWeek(weekLabel: string): string {
   const [year, week] = weekLabel.split('-W').map(Number)
-  if (week >= 52) return `${year + 1}-W01`
+  const maxWeeks = getISOWeeksInYear(year)
+  if (week >= maxWeeks) return `${year + 1}-W01`
   return `${year}-W${String(week + 1).padStart(2, '0')}`
 }
 
@@ -54,7 +63,15 @@ export async function CalendarViewLoader({ siteId, week }: { siteId: string; wee
   const { from, to, weekLabel } = getWeekRange(week)
   const result = await listCalendarEvents(siteId, from, to)
 
-  const events = result.ok ? result.data : []
+  if (!result.ok) {
+    return (
+      <div className="mt-4 rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm text-amber-400">
+        Erro ao carregar eventos do calendario
+      </div>
+    )
+  }
+
+  const events = result.data
   const prevWeek = getPrevWeek(weekLabel)
   const nextWeek = getNextWeek(weekLabel)
 
@@ -78,7 +95,7 @@ export async function CalendarViewLoader({ siteId, week }: { siteId: string; wee
         dateStr: d.dateStr,
         dayName: d.date.toLocaleDateString('pt-BR', { weekday: 'short' }),
         dayNum: d.date.getDate(),
-        isToday: d.dateStr === new Date().toISOString().split('T')[0],
+        isToday: d.dateStr === new Date().toLocaleDateString('sv'),
         events: d.events.map(e => ({
           postId: e.postId,
           title: e.title,

@@ -49,6 +49,8 @@ export function DraftsList({ items }: DraftsListProps) {
     if (result.ok) {
       socialToast('post_deleted')
       router.refresh()
+    } else {
+      socialToast('publish_failed', 'Erro ao excluir rascunho')
     }
   }
 

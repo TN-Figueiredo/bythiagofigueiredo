@@ -6,35 +6,16 @@ import type { SocialDelivery } from '@tn-figueiredo/social'
 import type { SocialPostWithPipeline } from '@/lib/social/actions'
 import { duplicatePost } from '@/lib/social/actions'
 import { socialToast } from './shared/social-toast'
+import { STATUS_LABELS, STATUS_COLORS, getPostTitle, formatPostDate } from './shared/social-helpers'
 
 interface DrawerContentProps {
   post: SocialPostWithPipeline & { deliveries: SocialDelivery[] }
   siteId: string
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  completed: 'Publicado',
-  scheduled: 'Agendado',
-  failed: 'Falhou',
-  draft: 'Rascunho',
-  publishing: 'Publicando',
-  cancelled: 'Cancelado',
-  partial_failure: 'Parcial',
-}
-
-const STATUS_COLORS: Record<string, string> = {
-  completed: 'bg-green-500/20 text-green-400',
-  scheduled: 'bg-blue-500/20 text-blue-400',
-  failed: 'bg-red-500/20 text-red-400',
-  draft: 'bg-yellow-500/20 text-yellow-400',
-  publishing: 'bg-blue-500/20 text-blue-400',
-  cancelled: 'bg-gray-500/20 text-gray-400',
-  partial_failure: 'bg-orange-500/20 text-orange-400',
-}
-
 export function DrawerContent({ post, siteId: _siteId }: DrawerContentProps) {
   const router = useRouter()
-  const title = post.content.title ?? post.content.description ?? '(sem titulo)'
+  const title = getPostTitle(post.content)
   const imageUrl = post.content.media_urls?.[0] ?? null
 
   const publishedDeliveries = post.deliveries.filter(d => d.status === 'published')
@@ -45,6 +26,8 @@ export function DrawerContent({ post, siteId: _siteId }: DrawerContentProps) {
     if (result.ok) {
       socialToast('post_duplicated')
       router.back()
+    } else {
+      socialToast('publish_failed', 'Erro ao duplicar post')
     }
   }
 
@@ -60,24 +43,12 @@ export function DrawerContent({ post, siteId: _siteId }: DrawerContentProps) {
         </div>
         {post.scheduled_at && (
           <p className="mt-1 text-xs text-cms-text-muted">
-            {new Date(post.scheduled_at).toLocaleDateString('pt-BR', {
-              day: '2-digit',
-              month: 'long',
-              year: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
+            {formatPostDate(post.scheduled_at, 'long')}
           </p>
         )}
         {post.published_at && !post.scheduled_at && (
           <p className="mt-1 text-xs text-cms-text-muted">
-            Publicado em {new Date(post.published_at).toLocaleDateString('pt-BR', {
-              day: '2-digit',
-              month: 'long',
-              year: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
+            Publicado em {formatPostDate(post.published_at, 'long')}
           </p>
         )}
       </div>

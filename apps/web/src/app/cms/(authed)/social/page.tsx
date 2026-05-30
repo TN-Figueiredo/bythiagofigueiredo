@@ -67,9 +67,11 @@ export default async function SocialHubPage({ searchParams }: Props) {
         {TABS.map(tabId => (
           <Link
             key={tabId}
+            id={`social-tab-${tabId}`}
             href={tabId === 'feed' ? '/cms/social' : `/cms/social?tab=${tabId}`}
             role="tab"
             aria-selected={tab === tabId}
+            aria-controls="social-tabpanel"
             className={`px-4 py-2 text-sm font-medium transition-colors ${
               tab === tabId
                 ? 'text-cms-accent border-b-2 border-cms-accent'
@@ -82,7 +84,7 @@ export default async function SocialHubPage({ searchParams }: Props) {
       </div>
 
       {/* Tab content */}
-      <div role="tabpanel">
+      <div role="tabpanel" id="social-tabpanel" aria-labelledby={`social-tab-${tab}`}>
         {tab === 'feed' && (
           <>
             <Suspense fallback={<AccountsStripSkeleton />}>
