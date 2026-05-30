@@ -1,8 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, ArrowRight, Layers } from 'lucide-react'
 import type { AbTestDraft } from '@/lib/youtube/ab-types'
+import { TYPE_META } from './ab-constants'
 
 export interface DraftsBlockProps {
   drafts: AbTestDraft[]
@@ -15,58 +16,82 @@ export function DraftsBlock({ drafts, onContinue }: DraftsBlockProps) {
   if (drafts.length === 0) return null
 
   return (
-    <div className="rounded-lg border border-cms-border bg-cms-bg">
+    <div className="rounded-lg border border-cms-border bg-cms-surface overflow-hidden">
+      {/* Header */}
       <button
         type="button"
         aria-expanded={open}
         onClick={() => setOpen(v => !v)}
-        className="flex items-center justify-between w-full px-4 py-3 text-left focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
+        className="flex items-center gap-[10px] w-full py-[14px] px-[18px] text-left cursor-pointer focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
       >
-        <span className="text-xs font-semibold uppercase tracking-wider text-cms-text-dim">
-          Rascunhos
-        </span>
         <ChevronDown
-          size={14}
-          className={`text-cms-text-dim transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+          size={16}
+          className="text-cms-text-dim transition-transform duration-200"
+          style={{ transform: open ? 'none' : 'rotate(-90deg)' }}
           aria-hidden="true"
         />
+        <span className="text-[14px] font-semibold text-cms-text">Rascunhos</span>
+        <span className="inline-flex items-center px-[9px] py-[3px] rounded-full text-[10.5px] font-semibold tracking-[0.06em] uppercase bg-cms-surface-hover text-cms-text-dim font-mono">
+          {drafts.length}
+        </span>
       </button>
 
-      {open && (
-        <div className="px-4 pb-4 flex flex-col gap-4">
-          {drafts.map(draft => (
-            <div key={draft.id} className="flex items-start gap-3">
-              <div className="w-[86px] h-[48px] rounded overflow-hidden bg-cms-surface-hover shrink-0">
-                {draft.thumbUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={draft.thumbUrl}
-                    alt={draft.name}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-cms-text-dim text-2xs">
-                    Draft
-                  </div>
-                )}
+      {/* Draft rows */}
+      {open && drafts.map(draft => (
+        <div
+          key={draft.id}
+          className="flex items-center gap-[14px] border-t border-cms-border py-[12px] px-[14px]"
+        >
+          {/* Thumbnail */}
+          <div className="w-[86px] shrink-0">
+            {draft.thumbUrl ? (
+              <div className="relative w-full aspect-video rounded-[7px] overflow-hidden">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={draft.thumbUrl}
+                  alt={draft.name}
+                  className="w-full h-full object-cover"
+                />
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-cms-text truncate">{draft.name}</p>
-                <p className="text-2xs text-cms-text-muted mt-0.5">
-                  Parou no passo {draft.step} de 5 &middot; {draft.createdAgo}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => onContinue(draft.id)}
-                  className="mt-2 px-3 py-1 text-2xs font-medium rounded bg-cms-accent text-white hover:bg-cms-accent/90 transition-colors focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
-                >
-                  Continuar configuração
-                </button>
-              </div>
+            ) : (
+              <div
+                className="relative w-full aspect-video rounded-[7px] overflow-hidden"
+                style={{
+                  background: 'linear-gradient(135deg, rgb(58,47,40), rgb(31,26,22))',
+                  boxShadow: 'rgba(0,0,0,0.4) 0px 0px 60px inset',
+                }}
+              />
+            )}
+          </div>
+
+          {/* Info */}
+          <div className="flex-1 min-w-0">
+            <div className="text-[13.5px] font-semibold text-cms-text whitespace-nowrap overflow-hidden text-ellipsis">
+              {draft.name}
             </div>
-          ))}
+            <div className="flex items-center gap-[8px] mt-[6px]">
+              <span className="inline-flex items-center gap-[5px] px-[7px] py-[2px] rounded-full text-[9.5px] font-semibold tracking-[0.06em] uppercase bg-cms-surface-hover text-cms-text-dim font-mono">
+                <Layers size={11} aria-hidden="true" />
+                {TYPE_META[draft.type]?.label ?? draft.type}
+              </span>
+              <span className="text-[11.5px] text-cms-text-dim">
+                Parou no passo {draft.step} de 5 · criado {draft.createdAgo}
+              </span>
+            </div>
+          </div>
+
+          {/* CTA */}
+          <button
+            type="button"
+            onClick={() => onContinue(draft.id)}
+            className="inline-flex items-center gap-[7px] justify-center py-[6px] px-[11px] text-[12.5px] font-semibold rounded-[9px] border border-cms-accent whitespace-nowrap transition-[0.15s] tracking-[-0.01em] bg-cms-accent shrink-0"
+            style={{ color: 'rgb(26, 18, 12)' }}
+          >
+            Continuar setup
+            <ArrowRight size={14} aria-hidden="true" />
+          </button>
         </div>
-      )}
+      ))}
     </div>
   )
 }
