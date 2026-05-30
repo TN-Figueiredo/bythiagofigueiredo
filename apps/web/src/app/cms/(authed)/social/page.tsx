@@ -51,7 +51,7 @@ export default async function SocialHubPage({ searchParams }: Props) {
         </h1>
         <div className="flex gap-2.5 flex-wrap">
           {/* Do CMS button — ghost */}
-          <Link
+          <a
             href="/cms/social/new?mode=cms"
             className="inline-flex items-center gap-[7px] justify-center px-[11px] py-1.5 text-[12.5px] font-semibold rounded-[9px] border border-cms-border bg-transparent text-cms-text-dim whitespace-nowrap tracking-[-0.01em] hover:text-cms-text transition-colors"
           >
@@ -62,9 +62,9 @@ export default async function SocialHubPage({ searchParams }: Props) {
               <path d="M9 16h7" />
             </svg>
             Do CMS
-          </Link>
+          </a>
           {/* Novo post button — primary */}
-          <Link
+          <a
             href="/cms/social/new"
             className="inline-flex items-center gap-[7px] justify-center px-[15px] py-[9px] text-[13.5px] font-semibold rounded-[9px] border border-cms-accent bg-cms-accent text-[#1a120c] whitespace-nowrap tracking-[-0.01em] hover:brightness-110 transition-all"
           >
@@ -73,7 +73,7 @@ export default async function SocialHubPage({ searchParams }: Props) {
               <path d="M5 12h14" />
             </svg>
             Novo post
-          </Link>
+          </a>
         </div>
       </div>
 

@@ -13,6 +13,11 @@ interface Props {
 
 export default async function PostDrawerPage({ params }: Props) {
   const { id } = await params
+
+  if (id === 'new' || id === 'accounts' || id === 'insights' || id === 'queue' || id === 'stories' || id === 'templates') {
+    return null
+  }
+
   const ctx = await getSiteContext()
   await requireSiteScope({ area: 'cms', siteId: ctx.siteId, mode: 'view' })
 
