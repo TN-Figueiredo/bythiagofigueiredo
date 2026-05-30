@@ -153,6 +153,8 @@ export default async function CompositorPage({ searchParams }: Props) {
         </div>
       </div>
 
+      <div className="h-[18px]" />
+
       <CompositorNew />
 
       <Suspense fallback={<CompositorSkeleton />}>
