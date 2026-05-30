@@ -15,6 +15,7 @@ import { RankBars } from './rank-bars'
 import { MultiLine } from './multi-line'
 import { ABBATimeline } from './abba-timeline'
 import { FunnelRow } from './funnel-row'
+import { ClickMoment } from './click-moment'
 import {
   Pause, Settings,
   LayoutGrid, TrendingUp, Crosshair, Target, BarChart3, LineChart, RefreshCw, Filter,
@@ -363,8 +364,17 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
         </div>
       </div>
 
-      {/* Section 10: ClickMoment placeholder (Phase 5) */}
-      <div data-click-moment aria-hidden="true" />
+      {/* Section 10: O momento de clique */}
+      <ClickMoment
+        videoTitle={view.videoTitle}
+        winnerLabel={data.leader as any}
+        winnerColor={data.leaderColor}
+        variants={view.variants.map(v => ({
+          label: v.label,
+          color: v.color,
+          ctr: v.ctr * 100,
+        }))}
+      />
     </div>
   )
 }
