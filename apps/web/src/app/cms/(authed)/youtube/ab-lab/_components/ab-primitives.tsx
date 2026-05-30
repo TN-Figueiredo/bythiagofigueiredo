@@ -64,29 +64,58 @@ export interface InfoTipProps { text: string }
 
 export function InfoTip({ text }: InfoTipProps) {
   const [open, setOpen] = useState(false)
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
+  const btnRef = React.useRef<HTMLButtonElement>(null)
   const id = useId()
   const handleKey = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Escape') setOpen(false)
   }, [])
 
+  const show = useCallback(() => {
+    if (btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect()
+      setPos({ top: rect.top - 8, left: rect.left + rect.width / 2 })
+    }
+    setOpen(true)
+  }, [])
+
   return (
     <span className="relative inline-flex" onKeyDown={handleKey}>
       <button
+        ref={btnRef}
         type="button"
         aria-label="More information"
         aria-expanded={open}
         aria-describedby={open ? id : undefined}
-        onFocus={() => setOpen(true)}
+        onFocus={show}
         onBlur={(e) => { if (!e.currentTarget.parentElement?.contains(e.relatedTarget as Node)) setOpen(false) }}
-        onMouseEnter={() => setOpen(true)}
+        onMouseEnter={show}
         onMouseLeave={() => setOpen(false)}
-        className="inline-flex items-center justify-center size-4 rounded-full text-3xs text-cms-text-dim border border-cms-border-subtle hover:text-cms-text-muted focus-visible:ring-2 focus-visible:ring-cms-accent cursor-help"
+        className="inline-flex items-center justify-center rounded-full text-cms-text-dim border border-cms-border hover:text-cms-text-muted focus-visible:ring-2 focus-visible:ring-cms-accent cursor-help"
+        style={{ width: 15, height: 15, fontSize: '9.5px', fontWeight: 700, fontFamily: 'var(--font-jetbrains, monospace)' }}
       >?</button>
-      {open && (
-        <span id={id} role="tooltip"
-          onMouseEnter={() => setOpen(true)}
+      {open && pos && (
+        <span
+          id={id}
+          role="tooltip"
+          onMouseEnter={show}
           onMouseLeave={() => setOpen(false)}
-          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2.5 py-1.5 rounded-lg bg-cms-surface text-2xs text-cms-text shadow-popover z-tooltip animate-ab-fade-up max-w-[280px] text-left leading-[1.4]"
+          className="fixed z-[9999] animate-ab-fade-up"
+          style={{
+            top: pos.top,
+            left: pos.left,
+            transform: 'translate(-50%, -100%)',
+            maxWidth: 340,
+            padding: '10px 14px',
+            borderRadius: 10,
+            background: 'var(--cms-surface)',
+            border: '1px solid var(--cms-border)',
+            boxShadow: '0 8px 30px rgba(0,0,0,0.3)',
+            fontSize: '12.5px',
+            lineHeight: 1.5,
+            color: 'var(--cms-text)',
+            textAlign: 'left',
+          }}
         >{text}</span>
       )}
     </span>
