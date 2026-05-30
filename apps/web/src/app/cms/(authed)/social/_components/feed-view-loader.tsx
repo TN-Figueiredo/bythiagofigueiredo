@@ -15,6 +15,8 @@ export async function FeedViewLoader({ siteId, status }: { siteId: string; statu
       ? DEST_IDS.find(id => DESTINATIONS[id].provider === provider) ?? null
       : null
     const dest = destId ? DESTINATIONS[destId] : null
+    // Source info lives on DB columns not yet in the parsed type — cast raw row
+    const rawContent = item.post.content as Record<string, unknown>
     return {
       id: item.post.id,
       status: item.post.status,
@@ -26,6 +28,9 @@ export async function FeedViewLoader({ siteId, status }: { siteId: string; statu
       destLabel: dest ? `${dest.label} ${dest.sublabel}` : provider ?? '',
       provider: provider ?? '',
       statusLabel: STATUS_LABELS[item.post.status] ?? item.post.status,
+      source: (rawContent.source_title as string) ?? undefined,
+      sourceType: (rawContent.source_content_type as string) ?? undefined,
+      lang: 'PT' as const,
     }
   })
 

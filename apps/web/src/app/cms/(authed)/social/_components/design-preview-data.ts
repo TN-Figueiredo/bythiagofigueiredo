@@ -40,6 +40,10 @@ export const MOCK_FEED_ITEMS: FeedItem[] = [
     destLabel: 'Story',
     provider: 'instagram',
     statusLabel: 'No ar',
+    source: "Thiago's Journal · #042",
+    sourceType: 'newsletter',
+    lang: 'PT',
+    metrics: { views: 1204, comments: 18 },
   },
   {
     id: 'mock-2',
@@ -52,6 +56,10 @@ export const MOCK_FEED_ITEMS: FeedItem[] = [
     destLabel: 'Comunidade',
     provider: 'youtube',
     statusLabel: 'No ar',
+    source: 'MBK Center · Ouro',
+    sourceType: 'video',
+    lang: 'PT',
+    metrics: { likes: 142 },
   },
   {
     id: 'mock-3',
@@ -64,6 +72,8 @@ export const MOCK_FEED_ITEMS: FeedItem[] = [
     destLabel: 'Comunidade',
     provider: 'youtube',
     statusLabel: 'No ar',
+    lang: 'PT',
+    metrics: { likes: 64, engagement: 312 },
   },
   {
     id: 'mock-4',
@@ -76,6 +86,9 @@ export const MOCK_FEED_ITEMS: FeedItem[] = [
     destLabel: 'Fanpage',
     provider: 'facebook',
     statusLabel: 'No ar',
+    source: 'I Learned a Language by Arguing...',
+    sourceType: 'blog',
+    lang: 'PT',
   },
   {
     id: 'mock-5',
@@ -88,6 +101,7 @@ export const MOCK_FEED_ITEMS: FeedItem[] = [
     destLabel: 'Story',
     provider: 'instagram',
     statusLabel: 'No ar',
+    lang: 'PT',
   },
   {
     id: 'mock-6',
@@ -100,5 +114,8 @@ export const MOCK_FEED_ITEMS: FeedItem[] = [
     destLabel: 'Story',
     provider: 'instagram',
     statusLabel: 'Agendado',
+    source: 'I Learned a Language by Arguing...',
+    sourceType: 'blog',
+    lang: 'EN',
   },
 ]

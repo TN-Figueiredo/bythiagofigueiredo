@@ -15,6 +15,15 @@ export interface FeedItem {
   destLabel: string
   provider: string
   statusLabel: string
+  source?: string
+  sourceType?: string
+  lang?: string
+  metrics?: {
+    views?: number
+    comments?: number
+    likes?: number
+    engagement?: number
+  }
 }
 
 interface FeedGridProps {

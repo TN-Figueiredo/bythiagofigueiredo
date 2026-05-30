@@ -62,6 +62,25 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
+function SourceIcon({ type }: { type?: string }) {
+  if (type === 'newsletter') return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+      <path d="M3 5h18v14H3z" /><path d="M3 6l9 7 9-7" />
+    </svg>
+  )
+  if (type === 'video') return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+      <path d="M3 6h13v12H3z" /><path d="M16 9l5-3v12l-5-3" />
+    </svg>
+  )
+  if (type === 'blog') return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+      <path d="M6 3h9l4 4v14H6z" /><path d="M14 3v5h5" /><path d="M9 12h7" /><path d="M9 16h7" />
+    </svg>
+  )
+  return null
+}
+
 function formatRelativeDate(dateStr: string | null): string {
   if (!dateStr) return ''
   const date = new Date(dateStr)
@@ -131,14 +150,64 @@ export function FeedCard({ item }: { item: FeedItem }) {
 
       {/* Footer */}
       <div className="flex flex-1 flex-col gap-2 p-[12px_14px]">
-        <p className="text-[12.5px] leading-[1.45] text-cms-text line-clamp-2">
-          {item.title}
-        </p>
+        {/* Row 1: Title */}
+        {item.title && (
+          <p className="text-[12.5px] leading-[1.45] text-cms-text line-clamp-2">
+            {item.title}
+          </p>
+        )}
+
+        {/* Row 2: Source line */}
+        {item.source && (
+          <div className="flex items-center gap-1.5 text-[11px] text-cms-text-dim/60">
+            <SourceIcon type={item.sourceType} />
+            <span className="truncate">{item.source}</span>
+          </div>
+        )}
+
+        {/* Row 3: Date + Metrics */}
         <div className="mt-auto flex items-center justify-between pt-1">
           <span className="text-[11px] text-cms-text-dim/60">
             {formatRelativeDate(dateStr)}
-            {dateStr && <> · <span className="font-mono">PT</span></>}
+            {(item.lang || dateStr) && <> · <span className="font-mono">{item.lang ?? 'PT'}</span></>}
           </span>
+          {item.metrics && (
+            <div className="flex gap-[11px] text-[11px] text-cms-text-dim">
+              {item.metrics.views != null && (
+                <span className="inline-flex items-center gap-[3px]">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z" />
+                    <path d="M12 9a3 3 0 100 6 3 3 0 000-6z" />
+                  </svg>
+                  {new Intl.NumberFormat('pt-BR').format(item.metrics.views)}
+                </span>
+              )}
+              {item.metrics.comments != null && (
+                <span className="inline-flex items-center gap-[3px]">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 5h16v11H9l-4 4z" />
+                  </svg>
+                  {item.metrics.comments}
+                </span>
+              )}
+              {item.metrics.likes != null && (
+                <span className="inline-flex items-center gap-[3px]">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 20s-7-4.6-9.5-9C1 8 2.8 4.5 6 4.5c2 0 3.2 1.3 4 2.4.8-1.1 2-2.4 4-2.4 3.2 0 5 3.5 3.5 6.5C19 15.4 12 20 12 20z" />
+                  </svg>
+                  {item.metrics.likes}
+                </span>
+              )}
+              {item.metrics.engagement != null && (
+                <span className="inline-flex items-center gap-[3px]">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M5 20V10" /><path d="M12 20V4" /><path d="M19 20v-7" />
+                  </svg>
+                  {item.metrics.engagement}
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </Link>
