@@ -967,7 +967,7 @@ This uses the slug-based resolver when CMS content is selected (contentType is s
 
 - [ ] **Step 4:** Update TemplatePreview with destId + contentType props
 
-Replace the `TemplatePreview` function signature and kicker/CTA logic in `dest-compositor.tsx`:
+Replace the entire `TemplatePreview` function in `dest-compositor.tsx` (find `function TemplatePreview`) with:
 
 ```typescript
 function TemplatePreview({ title, coverImageUrl, isStory, destId, contentType }: {
@@ -985,18 +985,26 @@ function TemplatePreview({ title, coverImageUrl, isStory, destId, contentType }:
     ? (contentType === 'video' ? 'Assista no YouTube ▶' : 'Link nos stories ↗')
     : destId === 'ig_feed' ? 'Link na bio ↑'
     : null
-```
-
-Replace the hardcoded `"NO BLOG"` text in the kicker span with `{kicker}`.
-
-Replace the hardcoded "LER O POST" button with:
-
-```typescript
-{cta && (
-  <span className="rounded-full bg-white text-center" style={{ fontSize: Math.max(4, Math.round(16 * scale)), fontWeight: 700, color: '#111', padding: `${Math.round(14 * scale)}px ${Math.round(20 * scale)}px`, boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
-    {cta}
-  </span>
-)}
+  return (
+    <div className="flex h-full w-full flex-col items-center justify-between overflow-hidden" style={{ background: 'linear-gradient(155deg, rgb(247,241,232), rgb(237,227,210))', padding: `${Math.round(96 * scale)}px ${Math.round(54 * scale)}px` }}>
+      <div className="flex flex-col items-center gap-[2px] w-full">
+        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: Math.max(5, Math.round(14 * scale)), letterSpacing: '0.22em', color: '#9a6b3f', textTransform: 'uppercase' as const, fontWeight: 600 }}>{kicker}</span>
+        <span className="text-center font-fraunces leading-none" style={{ fontSize: Math.max(6, Math.round(52 * scale)), fontWeight: 700, color: '#1f1b17', lineHeight: 1.02, maxWidth: '90%', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: isStory ? 3 : 2, WebkitBoxOrient: 'vertical' as const }}>{title}</span>
+      </div>
+      {coverImageUrl ? (
+        <img src={coverImageUrl} alt="" className="rounded-[2px] object-cover" style={{ width: '70%', height: isStory ? '26%' : '38%' }} />
+      ) : (
+        <div className="rounded-[2px]" style={{ width: '70%', height: isStory ? '26%' : '38%', background: 'rgba(31,27,23,0.08)' }} />
+      )}
+      <div className="flex flex-col items-center gap-[2px]">
+        {cta ? (
+          <span className="rounded-full bg-white text-center" style={{ fontSize: Math.max(4, Math.round(15 * scale)), fontWeight: 700, color: '#111', padding: `${Math.round(14 * scale)}px ${Math.round(20 * scale)}px`, boxShadow: '0 2px 8px rgba(0,0,0,0.08)', borderRadius: 999 }}>{cta}</span>
+        ) : null}
+        <span className="font-fraunces" style={{ fontSize: Math.max(5, Math.round(28 * scale)), fontWeight: 700, color: '#1f1b17', marginTop: Math.round(20 * scale) }}>TF</span>
+      </div>
+    </div>
+  )
+}
 ```
 
 Update ALL 4 call sites in `dest-compositor.tsx` to pass the new props:
@@ -1060,6 +1068,10 @@ git commit --no-verify -m "feat(social): wire per-dest template resolution — s
 - Task 2 is independent (TypeScript only)
 - Task 3 depends on Task 2 (needs ContentType type)
 - Task 4 depends on Task 3 (needs resolveTemplateForDest)
+
+### Test scope note
+
+Tests cover pure logic (slug building, type shape, DEST_TO_SLUG_PREFIX mapping). The `resolveTemplateForDest` action hits Supabase and requires auth — it's verified via manual testing against the dev server, same pattern as all other server actions in this codebase. TemplatePreview rendering is verified visually via the dev server.
 
 ### Key design decisions
 
