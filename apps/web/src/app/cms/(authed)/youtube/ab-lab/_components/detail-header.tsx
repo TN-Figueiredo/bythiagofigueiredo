@@ -4,8 +4,10 @@ import React from 'react'
 import Link from 'next/link'
 import type { TestType, AbTestStatus } from '@/lib/youtube/ab-types'
 import { TypeBadge, Badge, Seg, InfoTip } from './ab-primitives'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Trophy, MoreVertical } from 'lucide-react'
 import type { BadgeTone } from './ab-primitives'
+
+export type DetailOutcome = 'winner' | 'playoff' | undefined
 
 export interface DetailHeaderProps {
   title: string
@@ -14,6 +16,7 @@ export interface DetailHeaderProps {
   roundNumber: number
   totalRounds: number
   hasPlayoff: boolean
+  outcome?: DetailOutcome
   signalToggle?: { mode: 'confirmed' | 'live'; onToggle: () => void }
   actions?: React.ReactNode
 }
@@ -34,6 +37,27 @@ const STATUS_LABEL: Record<AbTestStatus, string> = {
   archived: 'Arquivado',
 }
 
+function StatusBadge({ status, outcome }: { status: AbTestStatus; outcome?: DetailOutcome }) {
+  if (status === 'completed' && outcome === 'winner') {
+    return (
+      <Badge tone="green">
+        <Trophy size={11} aria-hidden="true" className="-ml-0.5" />
+        Concluído · Vencedor
+      </Badge>
+    )
+  }
+
+  if (status === 'completed' && outcome === 'playoff') {
+    return <Badge tone="amber">Inconclusivo</Badge>
+  }
+
+  return (
+    <Badge tone={STATUS_TONE[status]} dot={status === 'active'}>
+      {STATUS_LABEL[status]}
+    </Badge>
+  )
+}
+
 export function DetailHeader({
   title,
   flag,
@@ -41,18 +65,19 @@ export function DetailHeader({
   roundNumber,
   totalRounds,
   hasPlayoff,
+  outcome,
   signalToggle,
   actions,
 }: DetailHeaderProps) {
   return (
-    <header className="space-y-2">
+    <header className="space-y-3">
       {/* Breadcrumb */}
-      <nav aria-label="Breadcrumb" className="mb-1">
+      <nav aria-label="Breadcrumb">
         <Link
           href="/cms/youtube/ab-lab"
-          className="inline-flex items-center gap-1 text-2xs text-cms-text-muted hover:text-cms-accent transition-colors"
+          className="inline-flex items-center gap-1 text-xs text-cms-text-muted hover:text-cms-accent transition-colors"
         >
-          <ArrowLeft size={12} aria-hidden="true" />
+          <ArrowLeft size={14} aria-hidden="true" />
           A/B Lab
         </Link>
       </nav>
@@ -67,9 +92,7 @@ export function DetailHeader({
             </Badge>
           )}
           {hasPlayoff && <Badge tone="accent">Playoff</Badge>}
-          <Badge tone={STATUS_TONE[status]} dot={status === 'active'}>
-            {STATUS_LABEL[status]}
-          </Badge>
+          <StatusBadge status={status} outcome={outcome} />
         </div>
 
         {/* Right side: signal toggle or actions */}
@@ -83,7 +106,7 @@ export function DetailHeader({
                 labels={{ confirmed: 'Confirmado', live: 'Live' }}
                 aria-label="Signal mode"
               />
-              <InfoTip text="Confirmed uses verified data. Live shows real-time estimates." />
+              <InfoTip text="Confirmado usa dados verificados. Live mostra estimativas em tempo real." />
             </>
           ) : (
             actions
@@ -92,7 +115,7 @@ export function DetailHeader({
       </div>
 
       {/* Title */}
-      <h2 className="text-lg font-semibold text-cms-text">{title}</h2>
+      <h2 className="text-xl font-semibold text-cms-text leading-tight">{title}</h2>
     </header>
   )
 }

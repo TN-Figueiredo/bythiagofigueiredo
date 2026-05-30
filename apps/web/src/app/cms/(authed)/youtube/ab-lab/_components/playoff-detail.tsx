@@ -7,7 +7,7 @@ import { PlayoffBanner } from './playoff-banner'
 import { CredibleInterval } from './credible-interval'
 import { RankBars } from './rank-bars'
 import { VariantTable } from './variant-table'
-import { Badge, SectionLabel } from './ab-primitives'
+import { SectionLabel } from './ab-primitives'
 import { Info } from 'lucide-react'
 
 export interface PlayoffDetailProps {
@@ -22,10 +22,10 @@ export function PlayoffDetail({ view }: PlayoffDetailProps) {
         title={view.videoTitle}
         flag={view.flag}
         status={view.status}
+        outcome="playoff"
         roundNumber={view.totalRounds}
         totalRounds={view.totalRounds}
         hasPlayoff={view.hasPlayoff}
-        actions={<Badge tone="amber">Inconclusivo</Badge>}
       />
 
       {/* 2. Inconclusive Banner */}

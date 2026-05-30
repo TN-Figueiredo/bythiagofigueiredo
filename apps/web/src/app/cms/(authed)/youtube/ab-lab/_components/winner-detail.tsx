@@ -10,7 +10,7 @@ import { ConfidenceChart } from './confidence-chart'
 import { VariantTable } from './variant-table'
 import { GatesPanel } from './gates-panel'
 import { SectionLabel } from './ab-primitives'
-import { Copy, Archive } from 'lucide-react'
+import { Copy, Archive, MoreVertical } from 'lucide-react'
 
 export interface WinnerDetailProps {
   view: AbTestWinnerView
@@ -24,24 +24,32 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
         title={view.videoTitle}
         flag={view.flag}
         status={view.status}
+        outcome="winner"
         roundNumber={view.totalRounds}
         totalRounds={view.totalRounds}
         hasPlayoff={view.hasPlayoff}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <button
               type="button"
-              className="inline-flex items-center gap-1 px-2 py-1 text-2xs text-cms-text-muted hover:text-cms-text transition-colors rounded border border-cms-border focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs text-cms-text-muted hover:text-cms-text transition-colors rounded-lg border border-cms-border hover:border-cms-border-hover focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
             >
-              <Copy size={12} aria-hidden="true" />
+              <Copy size={13} aria-hidden="true" />
               Duplicar
             </button>
             <button
               type="button"
-              className="inline-flex items-center gap-1 px-2 py-1 text-2xs text-cms-text-muted hover:text-cms-text transition-colors rounded border border-cms-border focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs text-cms-text-muted hover:text-cms-text transition-colors rounded-lg border border-cms-border hover:border-cms-border-hover focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
             >
-              <Archive size={12} aria-hidden="true" />
+              <Archive size={13} aria-hidden="true" />
               Arquivar
+            </button>
+            <button
+              type="button"
+              aria-label="Mais ações"
+              className="inline-flex items-center justify-center size-8 text-cms-text-muted hover:text-cms-text transition-colors rounded-lg border border-cms-border hover:border-cms-border-hover focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
+            >
+              <MoreVertical size={14} aria-hidden="true" />
             </button>
           </div>
         }
