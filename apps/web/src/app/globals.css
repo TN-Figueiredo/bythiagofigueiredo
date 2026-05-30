@@ -108,6 +108,8 @@
   --animate-ab-fade-only: fade-in 0.3s ease both;
   --animate-ab-slot-pulse: ab-slot-pulse 2s ease-in-out infinite;
   --animate-ab-drawer-in: slide-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --animate-social-drawer-in: slide-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --animate-social-fade-up: ab-fade-up 0.35s ease both;
 }
 
 /* ─── Dynamic bridges: CSS vars → Tailwind classes ─── */
@@ -170,6 +172,31 @@
   --color-cms-surface-3:     var(--cms-surface-3);
   --color-cms-cowork:        var(--cms-cowork);
   --color-cms-cowork-subtle: var(--cms-cowork-subtle);
+
+  /* Social Hub platform tints */
+  --color-social-ig-tint:      var(--social-ig-tint);
+  --color-social-ig-feed-tint: var(--social-ig-feed-tint);
+  --color-social-yt-tint:      var(--social-yt-tint);
+  --color-social-fb-tint:      var(--social-fb-tint);
+
+  /* Notification domain colors (switch via data-theme) */
+  --color-cms-domain-pipeline:   var(--cms-domain-pipeline);
+  --color-cms-domain-youtube:    var(--cms-domain-youtube);
+  --color-cms-domain-newsletter: var(--cms-domain-newsletter);
+  --color-cms-domain-social:     var(--cms-domain-social);
+  --color-cms-domain-links:      var(--cms-domain-links);
+  --color-cms-domain-system:     var(--cms-domain-system);
+  --color-cms-domain-blog:       var(--cms-domain-blog);
+  --color-cms-domain-media:      var(--cms-domain-media);
+
+  --color-cms-domain-pipeline-subtle:   var(--cms-domain-pipeline-subtle);
+  --color-cms-domain-youtube-subtle:    var(--cms-domain-youtube-subtle);
+  --color-cms-domain-newsletter-subtle: var(--cms-domain-newsletter-subtle);
+  --color-cms-domain-social-subtle:     var(--cms-domain-social-subtle);
+  --color-cms-domain-links-subtle:      var(--cms-domain-links-subtle);
+  --color-cms-domain-system-subtle:     var(--cms-domain-system-subtle);
+  --color-cms-domain-blog-subtle:       var(--cms-domain-blog-subtle);
+  --color-cms-domain-media-subtle:      var(--cms-domain-media-subtle);
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -234,6 +261,31 @@
   --cms-cowork: #6E63F2;
   --cms-cowork-subtle: rgba(110,99,242,.15);
 
+  /* Social Hub platform tints — dark */
+  --social-ig-tint: #E8823C;
+  --social-ig-feed-tint: #C964A8;
+  --social-yt-tint: #E0574E;
+  --social-fb-tint: #5B7FD6;
+
+  /* Notification domain colors — dark (WCAG AA on dark surfaces) */
+  --cms-domain-pipeline:   #22b8d6;
+  --cms-domain-youtube:    #ef4444;
+  --cms-domain-newsletter: #a855f7;
+  --cms-domain-social:     #f59e0b;
+  --cms-domain-links:      #22c55e;
+  --cms-domain-system:     #f43f5e;
+  --cms-domain-blog:       #818cf8;
+  --cms-domain-media:      #f472b6;
+
+  --cms-domain-pipeline-subtle:   rgba(34,184,214,0.14);
+  --cms-domain-youtube-subtle:    rgba(239,68,68,0.14);
+  --cms-domain-newsletter-subtle: rgba(168,85,247,0.14);
+  --cms-domain-social-subtle:     rgba(245,158,11,0.14);
+  --cms-domain-links-subtle:      rgba(34,197,94,0.14);
+  --cms-domain-system-subtle:     rgba(244,63,94,0.14);
+  --cms-domain-blog-subtle:       rgba(129,140,248,0.14);
+  --cms-domain-media-subtle:      rgba(244,114,182,0.14);
+
   /* Backward compat aliases for components using old generic vars */
   --bg:               var(--pb-bg);
   --bg-surface:       var(--pb-paper);
@@ -296,6 +348,31 @@
   --cms-surface-3: #E8DFC9;
   --cms-cowork: #5B4FD9;
   --cms-cowork-subtle: rgba(91,79,217,.10);
+
+  /* Social Hub platform tints — light (WCAG AA on light surfaces) */
+  --social-ig-tint: #C06520;
+  --social-ig-feed-tint: #A3488A;
+  --social-yt-tint: #B83E36;
+  --social-fb-tint: #4262B0;
+
+  /* Notification domain colors — light (WCAG AA 4.5:1 on #FBF6EC bg) */
+  --cms-domain-pipeline:   #0e7a8f;
+  --cms-domain-youtube:    #b91c1c;
+  --cms-domain-newsletter: #7e22ce;
+  --cms-domain-social:     #b45309;
+  --cms-domain-links:      #15803d;
+  --cms-domain-system:     #be123c;
+  --cms-domain-blog:       #4338ca;
+  --cms-domain-media:      #be185d;
+
+  --cms-domain-pipeline-subtle:   rgba(14,122,143,0.12);
+  --cms-domain-youtube-subtle:    rgba(185,28,28,0.10);
+  --cms-domain-newsletter-subtle: rgba(126,34,206,0.10);
+  --cms-domain-social-subtle:     rgba(180,83,9,0.12);
+  --cms-domain-links-subtle:      rgba(21,128,61,0.12);
+  --cms-domain-system-subtle:     rgba(190,18,60,0.10);
+  --cms-domain-blog-subtle:       rgba(67,56,202,0.10);
+  --cms-domain-media-subtle:      rgba(190,24,93,0.10);
 
   /* Backward compat aliases — light overrides */
   --ring: rgba(185, 66, 16, 0.3);
@@ -518,6 +595,15 @@ textarea:focus-visible {
   .animate-ab-fade-only,
   .animate-ab-slot-pulse,
   .animate-ab-drawer-in {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+/* Social Hub reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .animate-social-drawer-in,
+  .animate-social-fade-up {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
   }
