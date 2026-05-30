@@ -51,7 +51,7 @@ export default async function CompositorPage({ searchParams }: Props) {
         <div className="flex gap-2.5 flex-wrap">
           {/* Segmented control */}
           <div className="inline-flex rounded-[9px] p-[3px] gap-[2px]" style={{ background: 'var(--surface-2, var(--color-cms-surface))' }}>
-            <Link
+            <a
               href="/cms/social/new?mode=cms"
               className={`inline-flex items-center gap-1.5 rounded-[7px] border-none px-[13px] py-1.5 text-[12.5px] font-semibold transition-colors ${
                 sourceMode === 'cms'
@@ -63,8 +63,8 @@ export default async function CompositorPage({ searchParams }: Props) {
                 <path d="M6 3h9l4 4v14H6z" /><path d="M14 3v5h5" /><path d="M9 12h7" /><path d="M9 16h7" />
               </svg>
               Do CMS
-            </Link>
-            <Link
+            </a>
+            <a
               href="/cms/social/new?mode=blank"
               className={`inline-flex items-center gap-1.5 rounded-[7px] border-none px-[13px] py-1.5 text-[12.5px] font-semibold transition-colors ${
                 sourceMode === 'freeform'
@@ -76,7 +76,7 @@ export default async function CompositorPage({ searchParams }: Props) {
                 <path d="M12 5v14" /><path d="M5 12h14" />
               </svg>
               Em branco
-            </Link>
+            </a>
           </div>
         </div>
       </div>
