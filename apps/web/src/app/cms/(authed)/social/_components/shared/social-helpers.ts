@@ -21,7 +21,13 @@ export const STATUS_COLORS: Record<string, string> = {
 }
 
 export function getPostTitle(content: SocialPostContent): string {
-  return content.title ?? content.description ?? '(sem titulo)'
+  if (content.title) return content.title
+  if (content.description) return content.description
+  const text = (content as Record<string, unknown>).text as string | undefined
+  if (text) return text
+  const caption = (content as Record<string, unknown>).caption as string | undefined
+  if (caption) return caption
+  return ''
 }
 
 export function formatPostDate(dateStr: string | null, format: 'short' | 'long' = 'short'): string {
