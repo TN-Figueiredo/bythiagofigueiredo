@@ -1150,6 +1150,21 @@ export async function exportAnalyticsCsv(): Promise<ActionResult<{ csv: string }
   return { ok: true, csv }
 }
 
-// ─── Linktree Actions (re-exported for unified hub) ───────────────────────
+// ─── Linktree Actions (async wrappers — 'use server' requires async exports) ──
 
-export { saveLinktreeConfig, loadLinktreeConfig } from '../linktree/actions'
+import {
+  saveLinktreeConfig as _saveLinktreeConfig,
+  loadLinktreeConfig as _loadLinktreeConfig,
+} from '../linktree/actions'
+
+export async function saveLinktreeConfig(
+  ...args: Parameters<typeof _saveLinktreeConfig>
+) {
+  return _saveLinktreeConfig(...args)
+}
+
+export async function loadLinktreeConfig(
+  ...args: Parameters<typeof _loadLinktreeConfig>
+) {
+  return _loadLinktreeConfig(...args)
+}
