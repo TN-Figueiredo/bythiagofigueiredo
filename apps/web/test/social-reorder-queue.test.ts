@@ -1,47 +1,35 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const POST_A = '00000000-0000-0000-0000-00000000000a'
-const POST_B = '00000000-0000-0000-0000-00000000000b'
-const POST_C = '00000000-0000-0000-0000-00000000000c'
-
-const mockUpdate = vi.fn().mockReturnValue({ error: null })
+const { mockPost, mockQueued, mockUpdates } = vi.hoisted(() => ({
+  mockPost: { data: null as any, error: null as any },
+  mockQueued: { data: [] as any[], error: null as any },
+  mockUpdates: [] as Array<{ data: any; id: string }>,
+}))
 
 vi.mock('@/lib/supabase/service', () => ({
   getSupabaseServiceClient: () => ({
-    from: (table: string) => {
-      if (table !== 'social_posts') return {}
-      return {
-        select: () => ({
-          eq: (col: string, val: string) => {
-            if (col === 'id') {
-              return {
-                single: () => ({ data: { id: val, site_id: 's1', queue_position: 0 }, error: null }),
-              }
-            }
-            return {
-              in: () => ({
-                not: () => ({
-                  order: () => ({
-                    data: [
-                      { id: POST_A, queue_position: 0 },
-                      { id: POST_B, queue_position: 1 },
-                      { id: POST_C, queue_position: 2 },
-                    ],
-                    error: null,
-                  }),
-                }),
+    from: () => ({
+      select: () => ({
+        eq: (col: string, val: string) => {
+          if (col === 'id') {
+            return { single: () => mockPost }
+          }
+          return {
+            in: () => ({
+              not: () => ({
+                order: () => mockQueued,
               }),
-            }
-          },
-        }),
-        update: (data: unknown) => ({
-          eq: () => {
-            mockUpdate(data)
-            return { error: null }
-          },
-        }),
-      }
-    },
+            }),
+          }
+        },
+      }),
+      update: (data: any) => ({
+        eq: (_col: string, id: string) => {
+          mockUpdates.push({ data, id })
+          return { error: null }
+        },
+      }),
+    }),
   }),
 }))
 
@@ -57,10 +45,70 @@ vi.mock('next/cache', () => ({
   revalidateTag: vi.fn(),
 }))
 
+const POST_A = '00000000-0000-0000-0000-000000000001'
+const POST_B = '00000000-0000-0000-0000-000000000002'
+const POST_C = '00000000-0000-0000-0000-000000000003'
+
 describe('reorderQueue', () => {
-  it('reorders queue positions', async () => {
+  beforeEach(() => {
+    mockPost.data = { id: POST_A, site_id: 's1', queue_position: 0 }
+    mockPost.error = null
+    mockQueued.data = [
+      { id: POST_A, queue_position: 0 },
+      { id: POST_B, queue_position: 1 },
+      { id: POST_C, queue_position: 2 },
+    ]
+    mockQueued.error = null
+    mockUpdates.length = 0
+  })
+
+  it('reorders queue positions correctly', async () => {
     const { reorderQueue } = await import('@/lib/social/actions/posts')
     const result = await reorderQueue(POST_A, 2)
     expect(result.ok).toBe(true)
+    expect(mockUpdates.length).toBe(3)
+    // After moving A from position 0 to position 2:
+    // New order should be: B(0), C(1), A(2)
+    const positionMap = Object.fromEntries(mockUpdates.map(u => [u.id, u.data.queue_position]))
+    expect(positionMap[POST_B]).toBe(0)
+    expect(positionMap[POST_C]).toBe(1)
+    expect(positionMap[POST_A]).toBe(2)
+  })
+
+  it('short-circuits when position unchanged', async () => {
+    mockPost.data = { id: POST_A, site_id: 's1', queue_position: 0 }
+    const { reorderQueue } = await import('@/lib/social/actions/posts')
+    const result = await reorderQueue(POST_A, 0)
+    expect(result.ok).toBe(true)
+    expect(mockUpdates.length).toBe(0)
+  })
+
+  it('returns forbidden when post belongs to different site', async () => {
+    mockPost.data = { id: POST_A, site_id: 'other-site', queue_position: 0 }
+    const { reorderQueue } = await import('@/lib/social/actions/posts')
+    const result = await reorderQueue(POST_A, 1)
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.error).toBe('forbidden')
+  })
+
+  it('returns error when post not found', async () => {
+    mockPost.data = null
+    mockPost.error = { message: 'not found' }
+    const { reorderQueue } = await import('@/lib/social/actions/posts')
+    const result = await reorderQueue(POST_A, 1)
+    expect(result.ok).toBe(false)
+  })
+
+  it('rejects invalid UUID', async () => {
+    const { reorderQueue } = await import('@/lib/social/actions/posts')
+    const result = await reorderQueue('not-a-uuid', 1)
+    expect(result.ok).toBe(false)
+  })
+
+  it('rejects negative position', async () => {
+    const { reorderQueue } = await import('@/lib/social/actions/posts')
+    const result = await reorderQueue(POST_A, -1)
+    expect(result.ok).toBe(false)
   })
 })

@@ -68,3 +68,14 @@ describe('translateCaption', () => {
     expect(result.ok).toBe(false)
   })
 })
+
+describe('getBestTimes edge cases', () => {
+  it('returns default times for unknown provider', async () => {
+    // Already tested implicitly via facebook, but let's be explicit
+    const { getBestTimes } = await import('@/lib/social/actions/content')
+    const result = await getBestTimes(['c2']) // facebook connection
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.data.facebook).toEqual(['09:00', '12:00', '18:00'])
+  })
+})
