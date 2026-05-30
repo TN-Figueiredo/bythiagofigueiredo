@@ -16,6 +16,7 @@ import {
   aspectRatioSchema,
   type SocialTemplate,
   type TemplateAspectRatio,
+  type ContentType,
 } from '../template-schemas'
 
 // ---------------------------------------------------------------------------
@@ -27,6 +28,8 @@ function toSocialTemplate(row: Record<string, unknown>): SocialTemplate {
     id: String(row.id ?? ''),
     site_id: (row.site_id as string) ?? null,
     name: String(row.name ?? ''),
+    slug: (row.slug as string) ?? null,
+    content_type: (row.content_type as ContentType) ?? null,
     aspect_ratio: (row.aspect_ratio as TemplateAspectRatio) ?? '1:1',
     composition: row.composition as SocialTemplate['composition'],
     thumbnail_url: (row.thumbnail_url as string) ?? null,

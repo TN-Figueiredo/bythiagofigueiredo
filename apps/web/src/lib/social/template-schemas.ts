@@ -11,6 +11,9 @@ export const CANONICAL_SIZES: Record<TemplateAspectRatio, { width: number; heigh
   '4:5': { width: 1080, height: 1350 },
 }
 
+export const CONTENT_TYPES = ['blog', 'newsletter', 'video', 'generic'] as const
+export type ContentType = (typeof CONTENT_TYPES)[number]
+
 export const aspectRatioSchema = z.enum(ASPECT_RATIOS)
 
 export const createTemplateSchema = z.object({
@@ -30,6 +33,8 @@ export interface SocialTemplate {
   id: string
   site_id: string | null
   name: string
+  slug: string | null
+  content_type: ContentType | null
   aspect_ratio: TemplateAspectRatio
   composition: z.infer<typeof CardCompositionSchema>
   thumbnail_url: string | null
