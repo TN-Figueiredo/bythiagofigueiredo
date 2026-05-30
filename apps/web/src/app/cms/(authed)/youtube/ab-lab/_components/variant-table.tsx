@@ -2,20 +2,22 @@
 
 import React, { useState, useCallback } from 'react'
 import type { FullChartVariant, VariantThumb } from '@/lib/youtube/ab-types'
-import { formatPercent, formatNumber, formatCompact } from './ab-constants'
-import { VChip } from './ab-primitives'
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import { formatPercent, formatCompact } from './ab-constants'
+import { VChip, Badge } from './ab-primitives'
+import { ChevronDown, Trophy } from 'lucide-react'
 
 export interface VariantTableProps {
   variants: FullChartVariant[]
   metric: 'pBest' | 'pTop2'
   winnerId?: string
   thumbs: VariantThumb[]
+  videoTitle?: string
 }
 
-export function VariantTable({ variants, metric, winnerId, thumbs }: VariantTableProps) {
-  const [expandedLabel, setExpandedLabel] = useState<string | null>(null)
+const GRID = 'grid grid-cols-[60px_minmax(0,1fr)_70px_58px_138px_22px] gap-[14px] items-center'
 
+export function VariantTable({ variants, metric, winnerId, thumbs, videoTitle }: VariantTableProps) {
+  const [expandedLabel, setExpandedLabel] = useState<string | null>(null)
   const sorted = [...variants].sort((a, b) => b[metric] - a[metric])
 
   const toggleExpand = useCallback((label: string) => {
@@ -35,26 +37,27 @@ export function VariantTable({ variants, metric, winnerId, thumbs }: VariantTabl
   const thumbMap = new Map(thumbs.map(t => [t.label, t]))
 
   return (
-    <div role="table" aria-label="Variant comparison" className="rounded-lg border border-cms-border bg-cms-bg overflow-hidden">
+    <div role="table" aria-label="Variant comparison" className="rounded-lg border border-cms-border bg-cms-surface overflow-hidden">
       {/* Header */}
-      <div role="row" className="grid grid-cols-[40px_1fr_60px_60px_100px_28px] gap-2 px-3 py-2 bg-cms-surface text-2xs font-medium text-cms-text-dim">
-        <span role="columnheader" />
-        <span role="columnheader">Variante</span>
-        <span role="columnheader">CTR</span>
-        <span role="columnheader">vs A</span>
-        <span role="columnheader">{metric === 'pBest' ? 'Chance de vencer' : 'Top 2'}</span>
+      <div role="row" className={`${GRID} py-[10px] px-[16px] border-b border-cms-border bg-cms-bg-side`}>
+        <span role="columnheader" className="text-[9px] font-semibold text-cms-text-dim uppercase tracking-[0.08em]">thumb</span>
+        <span role="columnheader" className="text-[9px] font-semibold text-cms-text-dim uppercase tracking-[0.08em]">variante</span>
+        <span role="columnheader" className="text-[9px] font-semibold text-cms-text-dim uppercase tracking-[0.08em] text-right">CTR</span>
+        <span role="columnheader" className="text-[9px] font-semibold text-cms-text-dim uppercase tracking-[0.08em] text-right">vs A</span>
+        <span role="columnheader" className="text-[9px] font-semibold text-cms-text-dim uppercase tracking-[0.08em]">
+          {metric === 'pBest' ? 'chance de vencer' : 'top 2'}
+        </span>
         <span role="columnheader" />
       </div>
 
-      {/* Body */}
+      {/* Rows */}
       {sorted.map((variant, idx) => {
         const thumb = thumbMap.get(variant.label)
-        const isLeader = idx === 0
-        const isWinner = winnerId != null && thumb?.label === sorted[0]?.label && winnerId === variant.label
+        const isWinner = winnerId != null && winnerId === variant.label
+        const isOriginal = thumb?.isOriginal ?? variant.label === 'A'
         const isExpanded = expandedLabel === variant.label
         const chance = variant[metric]
 
-        // Calculate lift vs A
         const variantA = variants.find(v => v.label === 'A')
         const liftVsA = variantA && variantA.ctr > 0
           ? ((variant.ctr - variantA.ctr) / variantA.ctr) * 100
@@ -62,83 +65,106 @@ export function VariantTable({ variants, metric, winnerId, thumbs }: VariantTabl
 
         return (
           <React.Fragment key={variant.label}>
-            <div
-              role="row"
-              data-leader={isLeader || undefined}
-              className={`grid grid-cols-[40px_1fr_60px_60px_100px_28px] gap-2 px-3 py-2 items-center text-xs cursor-pointer hover:bg-cms-surface/50 transition-colors ${isLeader ? 'border-l-2 border-l-cms-accent bg-cms-accent/5' : ''}`}
-              onClick={() => toggleExpand(variant.label)}
-              onKeyDown={(e) => handleKeyDown(e, variant.label)}
-              tabIndex={0}
-              aria-expanded={isExpanded}
-            >
-              {/* Thumbnail */}
-              <div className="w-10 h-[30px] rounded overflow-hidden bg-cms-surface-hover" data-testid="variant-thumb">
-                {thumb?.thumbUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={thumb.thumbUrl}
-                    alt={`Variant ${variant.label}`}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-cms-text-dim text-2xs">
-                    {variant.label}
-                  </div>
-                )}
-              </div>
-
-              {/* Label */}
-              <div className="flex items-center gap-1.5">
-                <VChip label={variant.label} size={18} />
-                <span className="text-cms-text font-medium">
-                  {thumb?.isOriginal ? 'Original' : `Variante ${variant.label}`}
-                </span>
-              </div>
-
-              {/* CTR */}
-              <span className="font-mono text-cms-text">{formatPercent(variant.ctr)}</span>
-
-              {/* Lift vs A */}
-              <span className={`font-mono ${liftVsA > 0 ? 'text-cms-green' : liftVsA < 0 ? 'text-cms-red' : 'text-cms-text-muted'}`}>
-                {variant.label === 'A' ? '—' : `${liftVsA > 0 ? '+' : ''}${formatPercent(liftVsA)}`}
-              </span>
-
-              {/* Chance bar */}
-              <div className="flex items-center gap-1.5">
-                <div className="flex-1 h-1.5 rounded-full bg-cms-surface overflow-hidden">
+            <div className="border-t border-cms-border">
+              <div
+                role="row"
+                className={`${GRID} py-[11px] px-[16px] cursor-pointer transition-[background_0.15s] ${
+                  isWinner ? `bg-[${variant.color}10]` : 'hover:bg-cms-surface-hover'
+                }`}
+                style={isWinner ? { background: `${variant.color}10` } : undefined}
+                onClick={() => toggleExpand(variant.label)}
+                onKeyDown={(e) => handleKeyDown(e, variant.label)}
+                tabIndex={0}
+                aria-expanded={isExpanded}
+              >
+                {/* Thumbnail */}
+                <div
+                  className="rounded-[6px] overflow-hidden"
+                  style={{ outline: isWinner ? `1.5px solid ${variant.color}` : '1px solid var(--cms-border)' }}
+                >
                   <div
-                    className="h-full rounded-full transition-all duration-300"
+                    className="w-full aspect-video rounded-[6px] overflow-hidden"
                     style={{
-                      width: `${Math.min(100, chance * 100)}%`,
-                      backgroundColor: variant.color,
+                      background: isWinner
+                        ? 'linear-gradient(135deg, rgb(90,47,23), rgb(36,16,8))'
+                        : 'linear-gradient(135deg, rgb(58,47,40), rgb(31,26,22))',
+                      boxShadow: 'rgba(0,0,0,0.4) 0px 0px 60px inset',
                     }}
                   />
                 </div>
-                <span className="text-2xs font-mono text-cms-text-muted w-8 text-right">
-                  {formatPercent(chance * 100, 0)}
-                </span>
-              </div>
 
-              {/* Expand chevron */}
-              <div className="flex justify-center">
-                {isExpanded ? (
-                  <ChevronDown size={14} className="text-cms-text-muted" aria-hidden="true" />
-                ) : (
-                  <ChevronRight size={14} className="text-cms-text-muted" aria-hidden="true" />
-                )}
+                {/* Variant info */}
+                <div className="min-w-0 flex items-center gap-[9px]">
+                  <VChip label={variant.label} size={22} ring={isWinner} />
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-[6px]">
+                      <span className="text-[12.5px] font-semibold text-cms-text">
+                        {isWinner ? 'Winner' : isOriginal ? 'Original' : `Variante`}
+                      </span>
+                      {isWinner && (
+                        <span className="inline-flex items-center gap-[5px] px-[6px] py-px rounded-full text-[8.5px] font-semibold tracking-[0.06em] uppercase bg-cms-green-subtle text-cms-green">
+                          <Trophy size={11} aria-hidden="true" />
+                          venceu
+                        </span>
+                      )}
+                    </div>
+                    {videoTitle && (
+                      <div className="text-[11.5px] text-cms-text-dim whitespace-nowrap overflow-hidden text-ellipsis">
+                        {videoTitle}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* CTR */}
+                <span className="font-mono text-[19px] font-bold text-right" style={{ color: variant.color }}>
+                  {(variant.ctr * 100).toFixed(1)}%
+                </span>
+
+                {/* vs A */}
+                <span className={`font-mono text-[12.5px] font-bold text-right ${
+                  variant.label === 'A' ? 'text-cms-text-muted' : liftVsA > 0 ? 'text-cms-green' : 'text-cms-text-muted'
+                }`}>
+                  {variant.label === 'A' ? '—' : `${liftVsA > 0 ? '+' : ''}${liftVsA.toFixed(0)}%`}
+                </span>
+
+                {/* Chance bar */}
+                <div className="flex items-center gap-[9px]">
+                  <div className="flex-1 h-[7px] bg-cms-surface-hover rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${Math.max(2, Math.min(100, chance * 100))}%`,
+                        backgroundColor: variant.color,
+                        transition: 'width 0.6s',
+                      }}
+                    />
+                  </div>
+                  <span className="font-mono text-[13px] font-bold w-[34px] text-right text-cms-text">
+                    {(chance * 100).toFixed(0)}%
+                  </span>
+                </div>
+
+                {/* Chevron */}
+                <ChevronDown
+                  size={15}
+                  className="text-cms-text-muted"
+                  style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}
+                  aria-hidden="true"
+                />
               </div>
             </div>
 
             {/* Expanded detail */}
             {isExpanded && (
-              <div role="row" className="px-3 py-3 bg-cms-surface/30 border-t border-cms-border" data-testid="expanded-row">
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-2xs">
+              <div role="row" className="px-[16px] py-[11px] bg-cms-surface-hover/50 border-t border-cms-border" data-testid="expanded-row">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-[14px] text-2xs">
                   <div>
-                    <p className="text-cms-text-dim">Impressions</p>
+                    <p className="text-cms-text-dim">Impressões</p>
                     <p className="font-mono text-cms-text font-medium">{formatCompact(variant.impressions)}</p>
                   </div>
                   <div>
-                    <p className="text-cms-text-dim">Clicks</p>
+                    <p className="text-cms-text-dim">Cliques</p>
                     <p className="font-mono text-cms-text font-medium">{formatCompact(variant.clicks)}</p>
                   </div>
                   <div>
@@ -146,7 +172,7 @@ export function VariantTable({ variants, metric, winnerId, thumbs }: VariantTabl
                     <p className="font-mono text-cms-text font-medium">{variant.linkCtr != null ? formatPercent(variant.linkCtr) : '—'}</p>
                   </div>
                   <div>
-                    <p className="text-cms-text-dim">Retention</p>
+                    <p className="text-cms-text-dim">Retenção</p>
                     <p className="font-mono text-cms-text font-medium">{variant.retention != null ? formatPercent(variant.retention) : '—'}</p>
                   </div>
                 </div>
@@ -155,6 +181,12 @@ export function VariantTable({ variants, metric, winnerId, thumbs }: VariantTabl
           </React.Fragment>
         )
       })}
+
+      {/* Footer hint */}
+      <div className="py-[9px] px-[16px] border-t border-cms-border text-[10.5px] text-cms-text-muted flex items-center gap-[6px]">
+        <ChevronDown size={11} aria-hidden="true" />
+        Clique numa linha pra ver impressões, cliques e o briefing criativo.
+      </div>
     </div>
   )
 }

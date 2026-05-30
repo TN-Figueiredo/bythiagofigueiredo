@@ -10,7 +10,7 @@ import { ConfidenceChart } from './confidence-chart'
 import { VariantTable } from './variant-table'
 import { GatesPanel } from './gates-panel'
 import { SectionLabel } from './ab-primitives'
-import { Copy, Archive, Download, Trophy, TrendingUp, Sparkles } from 'lucide-react'
+import { Copy, Archive, Download, Trophy, TrendingUp, Sparkles, LayoutGrid } from 'lucide-react'
 
 export interface WinnerDetailProps {
   view: AbTestWinnerView
@@ -144,12 +144,23 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
       </section>
 
       {/* 6. Placar final */}
-      <section data-testid="scoreboard" className="mb-[28px]">
-        <SectionLabel>Placar final</SectionLabel>
+      <section data-testid="scoreboard" className="mb-[36px]">
+        <div className="flex items-end justify-between gap-[14px] mb-[16px]">
+          <div>
+            <div className="flex items-center gap-[9px]">
+              <LayoutGrid size={17} className="text-cms-accent" aria-hidden="true" />
+              <h3 className="text-[19px] font-semibold text-cms-text m-0">Placar final</h3>
+            </div>
+            <p className="text-[12.5px] text-cms-text-dim mt-[5px] max-w-[540px] m-0">
+              O resultado de cada variante no teste.
+            </p>
+          </div>
+        </div>
         <VariantTable
           variants={view.variants}
           metric="pBest"
           winnerId={view.winnerLabel}
+          videoTitle={view.videoTitle}
           thumbs={view.variantThumbs}
         />
       </section>
