@@ -163,6 +163,32 @@ export function LeftPanel({ comp, interaction, onImageUpload, customPresets = []
     select(id)
   }, [composition, addElement, select])
 
+  const handleAddShape = useCallback(() => {
+    if (composition.elements.length >= MAX_ELEMENTS) return
+    const id = crypto.randomUUID()
+    const w = composition.canvas.width * 0.8
+    const el = createTextElement(id, composition.canvas.width, composition.canvas.height, 'Forma')
+    addElement({
+      ...el,
+      content: '__shape:line',
+      fontSize: 1,
+      fontWeight: 400,
+      lineHeight: 1,
+      letterSpacing: '0em',
+      align: 'center',
+      uppercase: false,
+      width: w,
+      height: 6,
+      x: (composition.canvas.width - w) / 2,
+      y: composition.canvas.height / 2,
+      backgroundColor: '#1F1B17',
+      backgroundPadding: 0,
+      backgroundRadius: 0,
+      color: '#1F1B17',
+    })
+    select(id)
+  }, [composition, addElement, select])
+
   const handleAddCarimbo = useCallback(() => {
     if (composition.elements.length >= MAX_ELEMENTS) return
     const id = crypto.randomUUID()
@@ -200,7 +226,7 @@ export function LeftPanel({ comp, interaction, onImageUpload, customPresets = []
     { label: 'Texto', icon: AlignLeft, handler: handleAddText, title: 'Texto — Título, frase ou chamada' },
     { label: 'Imagem', icon: Image, handler: handleAddImage, title: 'Imagem — Foto, logo ou capa' },
     { label: 'GIF', icon: FileVideo2, handler: handleAddGif, title: 'GIF — Anima a arte (exporta vídeo/GIF)' },
-    { label: 'Forma', icon: LayoutTemplate, handler: handleAddText, title: 'Forma — Linha ou divisor' },
+    { label: 'Forma', icon: LayoutTemplate, handler: handleAddShape, title: 'Forma — Linha, bloco ou contorno' },
   ] as const
 
   const brandButtons = [

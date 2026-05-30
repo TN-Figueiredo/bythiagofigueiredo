@@ -4,6 +4,7 @@ import { Pencil, Check, X } from 'lucide-react'
 import type { CardComposition, CardElement } from '@tn-figueiredo/links/qr'
 import { QrInspector } from './qr-inspector'
 import { TextInspector } from './text-inspector'
+import { ShapeInspector, isShapeElement } from './shape-inspector'
 import { ImageInspector } from './image-inspector'
 import { GifInspector } from './gif-inspector'
 import { MultiInspector } from './multi-inspector'
@@ -133,7 +134,15 @@ export function RightPanel({
           onDelete={() => onRemoveElement(element.id)}
         />
       )}
-      {element.type === 'text' && (
+      {element.type === 'text' && isShapeElement(element) && (
+        <ShapeInspector
+          element={element}
+          onUpdate={patch => onUpdateElement(element.id, patch)}
+          onDuplicate={() => {/* handled by parent */}}
+          onDelete={() => onRemoveElement(element.id)}
+        />
+      )}
+      {element.type === 'text' && !isShapeElement(element) && (
         <TextInspector
           element={element}
           onUpdate={patch => onUpdateElement(element.id, patch)}
