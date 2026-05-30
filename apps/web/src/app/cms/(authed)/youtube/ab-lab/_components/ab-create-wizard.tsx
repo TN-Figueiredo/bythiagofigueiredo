@@ -1,7 +1,7 @@
 'use client'
 
 import { useReducer, useEffect, useTransition, useCallback, useRef } from 'react'
-import { Play } from 'lucide-react'
+import { Play, X, ArrowRight } from 'lucide-react'
 import { StepTipo } from './step-tipo'
 import { StepVariantes } from './step-variantes'
 import type { VariantData } from './step-variantes'
@@ -418,24 +418,26 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
         role="dialog"
         aria-modal="true"
         aria-label="Novo Teste A/B"
-        className="bg-cms-surface border border-cms-border rounded-lg max-w-[720px] w-full max-h-[90vh] flex flex-col mx-4"
+        className="flex flex-col mx-4 animate-ab-fade-up"
+        style={{
+          width: 'min(900px, 100%)',
+          maxHeight: 'calc(100vh - 80px)',
+          background: 'var(--cms-surface)',
+          border: '1px solid var(--cms-border, #332D25)',
+          borderRadius: 18,
+          boxShadow: '0 24px 80px rgba(0,0,0,0.5)',
+          overflow: 'hidden',
+        }}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-cms-border shrink-0">
-          <div className="min-w-0">
-            <h2 className="text-sm font-semibold text-cms-text">Novo Teste A/B</h2>
-            <p className="text-xs text-cms-text-dim truncate max-w-[400px]">{video.title}</p>
+        <div className="flex items-start justify-between gap-[16px] py-[20px] px-[24px] shrink-0" style={{ borderBottom: '1px solid var(--cms-border, #332D25)' }}>
+          <div>
+            <h2 className="text-[18px] font-bold text-cms-text m-0">Novo teste A/B</h2>
+            <div className="text-[12.5px] text-cms-text-dim mt-[3px] max-w-[580px] whitespace-nowrap overflow-hidden text-ellipsis">{video.title}</div>
           </div>
-          <button
-            onClick={onClose}
-            className="text-cms-text-muted hover:text-cms-text transition-colors p-1 -mr-1 rounded"
-            aria-label="Fechar"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
+          <button onClick={onClose} className="text-cms-text-dim p-[4px] shrink-0" style={{ background: 'transparent', border: 'none' }} aria-label="Fechar">
+            <X size={20} />
           </button>
         </div>
 
@@ -443,39 +445,52 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
         <StepRail currentStep={state.step} onStepClick={s => dispatch({ type: 'SET_STEP', step: s })} />
 
         {/* Body */}
-        <div key={state.step} className="flex-1 overflow-y-auto px-5 py-4" style={{ animation: 'fadeIn 150ms ease-out' }}>
+        <div key={state.step} className="flex-1 overflow-y-auto p-[24px]" style={{ animation: 'fadeIn 150ms ease-out' }}>
           {isPending && state.step === 0 && (
             <div className="absolute inset-0 flex items-center justify-center bg-cms-surface/80 rounded-lg z-10">
-              <p className="text-xs text-cms-text-dim animate-pulse">Creating draft...</p>
+              <p className="text-xs text-cms-text-dim animate-pulse">Criando rascunho...</p>
             </div>
           )}
           {renderStep()}
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-5 py-4 border-t border-cms-border shrink-0">
-          <div>
-            {state.error && (
-              <p role="alert" className="text-xs text-red-400 max-w-[300px]">{state.error}</p>
+        <div className="flex items-center justify-between py-[16px] px-[24px] shrink-0" style={{ borderTop: '1px solid var(--cms-border, #332D25)', background: 'var(--cms-bg-side)' }}>
+          <span className="text-[11.5px] text-cms-text-dim">
+            {state.error ? (
+              <span className="text-red-400">{state.error}</span>
+            ) : (
+              `Passo ${state.step + 1} de 5`
             )}
-          </div>
-          <div className="flex items-center gap-2">
-            {state.step > 0 && (
+          </span>
+          <div className="flex items-center gap-[10px]">
+            {state.step === 0 ? (
+              <button
+                onClick={onClose}
+                className="inline-flex items-center justify-center py-[9px] px-[15px] text-[13.5px] font-semibold rounded-[9px] whitespace-nowrap transition-[0.15s] tracking-[-0.01em] text-cms-text-dim"
+                style={{ border: '1px solid var(--cms-border, #332D25)' }}
+              >
+                Cancelar
+              </button>
+            ) : (
               <button
                 onClick={goBack}
                 disabled={isPending || state.isLaunching}
-                className="border border-cms-border text-cms-text rounded-lg px-4 py-2 text-sm hover:bg-cms-surface-hover transition-colors disabled:opacity-40"
+                className="inline-flex items-center justify-center py-[9px] px-[15px] text-[13.5px] font-semibold rounded-[9px] whitespace-nowrap transition-[0.15s] tracking-[-0.01em] text-cms-text-dim disabled:opacity-40"
+                style={{ border: '1px solid var(--cms-border, #332D25)' }}
               >
-                Back
+                Voltar
               </button>
             )}
-            {state.step > 0 && state.step < 4 && (
+            {state.step < 4 && (
               <button
-                onClick={goNext}
+                onClick={state.step === 0 ? goNext : goNext}
                 disabled={!canAdvance || isPending}
-                className="bg-cms-accent text-white rounded-lg px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-[7px] justify-center py-[9px] px-[15px] text-[13.5px] font-semibold rounded-[9px] whitespace-nowrap transition-[0.15s] tracking-[-0.01em] bg-cms-accent disabled:opacity-40 disabled:cursor-not-allowed"
+                style={{ border: '1px solid var(--cms-accent)', color: 'rgb(26,18,12)' }}
               >
-                Next
+                Próximo
+                <ArrowRight size={16} aria-hidden="true" />
               </button>
             )}
             {state.step === 4 && (
@@ -483,17 +498,19 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
                 <button
                   onClick={() => handleSubmit(false)}
                   disabled={isPending || state.isLaunching}
-                  className="border border-cms-border text-cms-text rounded-lg px-4 py-2 text-sm hover:bg-cms-surface-hover transition-colors disabled:opacity-40"
+                  className="inline-flex items-center justify-center py-[9px] px-[15px] text-[13.5px] font-semibold rounded-[9px] whitespace-nowrap transition-[0.15s] tracking-[-0.01em] text-cms-text-dim disabled:opacity-40"
+                  style={{ border: '1px solid var(--cms-border, #332D25)' }}
                 >
-                  {isPending ? 'Saving...' : 'Save Draft'}
+                  {isPending ? 'Salvando...' : 'Salvar rascunho'}
                 </button>
                 <button
                   onClick={() => handleSubmit(true)}
                   disabled={isPending || state.isLaunching}
-                  className="bg-cms-accent text-white rounded-lg px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-40 flex items-center gap-1.5"
+                  className="inline-flex items-center gap-[7px] justify-center py-[9px] px-[15px] text-[13.5px] font-semibold rounded-[9px] whitespace-nowrap transition-[0.15s] tracking-[-0.01em] bg-cms-accent disabled:opacity-40"
+                  style={{ border: '1px solid var(--cms-accent)', color: 'rgb(26,18,12)' }}
                 >
-                  <Play className="w-3.5 h-3.5" aria-hidden="true" />
-                  {isPending ? 'Launching...' : 'Launch Test'}
+                  <Play size={14} aria-hidden="true" />
+                  {isPending ? 'Lançando...' : 'Lançar teste'}
                 </button>
               </>
             )}
@@ -510,40 +527,32 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
 
 function StepRail({ currentStep, onStepClick }: { currentStep: number; onStepClick: (step: number) => void }) {
   return (
-    <div className="flex items-center gap-0 px-5 py-4 border-b border-cms-border shrink-0">
+    <div className="flex items-center py-[16px] px-[24px] shrink-0" style={{ borderBottom: '1px solid var(--cms-border, #332D25)' }}>
       {VISIBLE_STEPS.map(({ label, stepIndex }, visualIdx) => {
         const isCompleted = currentStep > stepIndex
         const isActive = currentStep === stepIndex
         const isFuture = currentStep < stepIndex
         return (
-          <div key={label} className="flex items-center">
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                disabled={isFuture}
-                onClick={() => !isFuture && onStepClick(stepIndex)}
-                aria-label={`Step ${visualIdx + 1}: ${label}${isCompleted ? ' (complete)' : isActive ? ' (current)' : ''}`}
-                className={[
-                  'w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 transition-colors',
-                  isCompleted
-                    ? 'bg-green-600 text-white cursor-pointer hover:bg-green-500'
-                    : isActive
-                      ? 'bg-cms-accent text-white'
-                      : 'bg-cms-surface-hover text-cms-text-muted cursor-default',
-                ].join(' ')}
+          <div key={label} className="contents">
+            <div className="flex items-center gap-[9px]" style={{ cursor: isFuture ? 'default' : 'pointer' }} onClick={() => !isFuture && onStepClick(stepIndex)}>
+              <span
+                className="flex items-center justify-center rounded-full font-mono text-[12px] font-bold shrink-0"
+                style={{
+                  width: 26, height: 26,
+                  background: isActive ? 'var(--cms-accent)' : isCompleted ? 'var(--cms-green)' : 'var(--cms-surface-3, var(--cms-surface-hover))',
+                  color: isActive || isCompleted ? 'rgb(21,18,13)' : 'var(--cms-text-dim)',
+                }}
               >
                 {isCompleted ? (
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" aria-hidden="true">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
                 ) : visualIdx + 1}
-              </button>
-              <span className={`hidden sm:inline text-xs ${isActive ? 'text-cms-text font-medium' : 'text-cms-text-muted'}`}>
+              </span>
+              <span className="text-[13px]" style={{ fontWeight: isActive ? 600 : 500, color: isActive ? 'var(--cms-text)' : 'var(--cms-text-dim)' }}>
                 {label}
               </span>
             </div>
             {visualIdx < VISIBLE_STEPS.length - 1 && (
-              <div className={`h-px w-4 sm:w-8 mx-1.5 sm:mx-3 ${isCompleted ? 'bg-green-600' : 'bg-cms-border'}`} />
+              <div className="flex-1 h-px mx-[12px]" style={{ background: 'var(--cms-border, #332D25)' }} />
             )}
           </div>
         )
