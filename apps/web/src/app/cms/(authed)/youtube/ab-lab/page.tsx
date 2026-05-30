@@ -5,7 +5,7 @@ import {
   getLearnings,
   getSuggestedVideos,
   toCardView,
-  toLatestDraft,
+  toDraftList,
   computeDashboardStats,
 } from './queries'
 import { AbLabDashboard } from './_components/ab-lab-dashboard'
@@ -24,14 +24,14 @@ export default async function AbLabPage() {
   const stats = computeDashboardStats(tests.active, tests.completed)
   const cards = tests.active.map(toCardView)
   const completedCards = tests.completed.map(toCardView)
-  const draft = toLatestDraft(tests.draft)
+  const drafts = toDraftList(tests.draft)
 
   return (
     <AbLabDashboard
       siteId={siteId}
       stats={stats}
       cards={cards}
-      draft={draft}
+      drafts={drafts}
       completed={completedCards}
       learnings={learnings}
       suggested={suggested}

@@ -24,7 +24,7 @@ import { updateAbSiteSettings } from '../actions'
 export interface AbLabDashboardProps {
   stats: DashboardStats
   cards: AbTestCardView[]
-  draft: AbTestDraft | null
+  drafts: AbTestDraft[]
   completed: AbTestCardView[]
   learnings: LearningsData | null
   suggested: SuggestedVideo[]
@@ -35,7 +35,7 @@ export interface AbLabDashboardProps {
 export function AbLabDashboard({
   stats,
   cards,
-  draft,
+  drafts,
   completed,
   learnings,
   suggested,
@@ -63,7 +63,7 @@ export function AbLabDashboard({
   }
 
   const showKpiStrip = cards.length > 0 || completed.length > 0
-  const showEmpty = cards.length === 0 && completed.length === 0
+  const showEmpty = cards.length === 0 && completed.length === 0 && drafts.length === 0
 
   return (
     <div data-dashboard-root className="space-y-6 animate-ab-fade-up">
@@ -126,9 +126,9 @@ export function AbLabDashboard({
       )}
 
       {/* 3. DraftsBlock */}
-      {draft && (
+      {drafts.length > 0 && (
         <div className="animate-ab-fade-up">
-          <DraftsBlock draft={draft} onContinue={handleContinueDraft} />
+          <DraftsBlock drafts={drafts} onContinue={handleContinueDraft} />
         </div>
       )}
 

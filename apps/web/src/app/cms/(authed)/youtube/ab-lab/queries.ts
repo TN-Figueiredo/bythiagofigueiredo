@@ -408,53 +408,42 @@ export function toCardView(test: AbTestWithVariants): AbTestCardView {
   }
 }
 
-export function toLatestDraft(drafts: AbTestWithVariants[]): AbTestDraft | null {
-  if (drafts.length === 0) return null
-
-  const sorted = [...drafts].sort(
-    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-  )
-  const latest = sorted[0]!
-
-  // step = number of variants added (0 = no variants yet)
-  const step = latest.variants.length
-
-  // Human-readable relative time
-  const diffMs = Date.now() - new Date(latest.created_at).getTime()
-  const diffSeconds = Math.floor(diffMs / 1000)
-  const diffMinutes = Math.floor(diffSeconds / 60)
+function relativeTime(dateStr: string): string {
+  const diffMs = Date.now() - new Date(dateStr).getTime()
+  const diffMinutes = Math.floor(diffMs / 60000)
   const diffHours = Math.floor(diffMinutes / 60)
   const diffDays = Math.floor(diffHours / 24)
   const diffWeeks = Math.floor(diffDays / 7)
   const diffMonths = Math.floor(diffDays / 30)
+  if (diffMinutes < 1) return 'just now'
+  if (diffMinutes < 60) return `${diffMinutes} minute${diffMinutes !== 1 ? 's' : ''} ago`
+  if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`
+  if (diffDays < 7) return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`
+  if (diffWeeks < 5) return `${diffWeeks} week${diffWeeks !== 1 ? 's' : ''} ago`
+  return `${diffMonths} month${diffMonths !== 1 ? 's' : ''} ago`
+}
 
-  let createdAgo: string
-  if (diffSeconds < 60) {
-    createdAgo = 'just now'
-  } else if (diffMinutes < 60) {
-    createdAgo = `${diffMinutes} minute${diffMinutes !== 1 ? 's' : ''} ago`
-  } else if (diffHours < 24) {
-    createdAgo = `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`
-  } else if (diffDays < 7) {
-    createdAgo = `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`
-  } else if (diffWeeks < 5) {
-    createdAgo = `${diffWeeks} week${diffWeeks !== 1 ? 's' : ''} ago`
-  } else {
-    createdAgo = `${diffMonths} month${diffMonths !== 1 ? 's' : ''} ago`
-  }
+export function toDraftList(drafts: AbTestWithVariants[]): AbTestDraft[] {
+  return [...drafts]
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .map(d => {
+      const originalVariant = d.variants.find(v => v.is_original)
+      return {
+        id: d.id,
+        name: d.name,
+        type: d.test_type,
+        step: d.variants.length,
+        thumbUrl: originalVariant?.blob_url ?? d.original_thumbnail_url ?? null,
+        createdAt: d.created_at,
+        createdAgo: relativeTime(d.created_at),
+      }
+    })
+}
 
-  const originalVariant = latest.variants.find(v => v.is_original)
-
-  return {
-    id: latest.id,
-    name: latest.name,
-    type: latest.test_type,
-    step,
-    thumbUrl:
-      originalVariant?.blob_url ?? latest.original_thumbnail_url ?? null,
-    createdAt: latest.created_at,
-    createdAgo,
-  }
+/** @deprecated Use toDraftList instead */
+export function toLatestDraft(drafts: AbTestWithVariants[]): AbTestDraft | null {
+  const list = toDraftList(drafts)
+  return list[0] ?? null
 }
 
 export function computeDashboardStats(
@@ -729,24 +718,21 @@ export function toDetailView(results: AbTestResults): AbTestDetailView {
   }
 
   // Discriminate by status/outcome
-  if (test.status === 'active' || test.status === 'paused') {
-    const leader = variants.reduce(
-      (best, v) => (v.pBest > best.pBest ? v : best),
-      variants[0]!,
-    )
+  if (test.status === 'draft' || test.status === 'active' || test.status === 'paused') {
+    const leader = variants.length > 0
+      ? variants.reduce((best, v) => (v.pBest > best.pBest ? v : best), variants[0]!)
+      : { label: 'A' as DisplayLabel, color: '#8A8F98', pBest: 0, ctr: 0 }
+    const originalCtr = variants.find(v => v.label === 'A')?.ctr ?? 0
     return {
       ...base,
-      status: test.status as 'active' | 'paused',
+      status: (test.status === 'draft' ? 'active' : test.status) as 'active' | 'paused',
       confirmedData: {
         confidence: results.confidence * 100,
         leader: leader.label,
         leaderColor: leader.color,
-        lift:
-          leader.label !== 'A' && variants.find(v => v.label === 'A')
-            ? ((leader.ctr - variants.find(v => v.label === 'A')!.ctr) /
-                (variants.find(v => v.label === 'A')!.ctr || 1)) *
-              100
-            : 0,
+        lift: leader.label !== 'A' && originalCtr > 0
+          ? ((leader.ctr - originalCtr) / originalCtr) * 100
+          : 0,
       },
     } satisfies AbTestActiveView
   }
