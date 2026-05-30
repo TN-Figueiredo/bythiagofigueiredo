@@ -39,8 +39,8 @@ export function CompositorNew() {
       />
       <DestCompositor focusedDest={focused} destsOn={destsOn} />
 
-      {/* Sticky footer */}
-      <div className="sticky bottom-0 -mx-[30px] border-t border-cms-border" style={{ background: 'rgba(16,14,11,0.92)', backdropFilter: 'blur(12px)' }}>
+      {/* Fixed footer */}
+      <div className="fixed bottom-0 right-0 left-[var(--cms-sidebar-width,168px)] z-20 border-t border-cms-border" style={{ background: 'rgba(16,14,11,0.92)', backdropFilter: 'blur(12px)' }}>
         <div className="flex items-center gap-4 flex-wrap px-[30px] py-[14px]">
           {/* Schedule mode */}
           <div className="inline-flex rounded-[9px] p-[3px] gap-[2px]" style={{ background: 'var(--surface-2, var(--color-cms-surface))' }}>
