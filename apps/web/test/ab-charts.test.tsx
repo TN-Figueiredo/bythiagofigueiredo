@@ -32,21 +32,21 @@ describe('ConfidenceChart', () => {
   it('renders dashed target line at default 95%', () => {
     const { container } = render(<ConfidenceChart data={[50, 60]} />)
     const lines = container.querySelectorAll('line[stroke-dasharray]')
-    const targetLine = Array.from(lines).find(l => l.getAttribute('stroke') === '#22c55e')
+    const targetLine = Array.from(lines).find(l => l.getAttribute('stroke') === 'var(--cms-green)')
     expect(targetLine).toBeTruthy()
   })
 
   it('renders custom target line', () => {
     const { container } = render(<ConfidenceChart data={[50]} target={80} />)
     const texts = container.querySelectorAll('text')
-    const targetLabel = Array.from(texts).find(t => t.textContent === '80%')
+    const targetLabel = Array.from(texts).find(t => t.textContent === 'META 80%')
     expect(targetLabel).toBeTruthy()
   })
 
   it('renders placeholder when data is empty', () => {
     const { container } = render(<ConfidenceChart data={[]} />)
-    const text = container.querySelector('text')
-    expect(text?.textContent).toContain('No data')
+    const p = container.querySelector('p')
+    expect(p?.textContent).toContain('Aguardando')
   })
 
   it('renders single dot for 1-point data', () => {
@@ -67,7 +67,7 @@ describe('ConfidenceChart', () => {
     const { container } = render(<ConfidenceChart data={[50, 70, 96]} target={95} />)
     const circles = container.querySelectorAll('circle')
     const lastCircle = circles[circles.length - 1]
-    expect(lastCircle?.getAttribute('fill')).toContain('#22c55e')
+    expect(lastCircle?.getAttribute('fill')).toBe('var(--cms-green)')
   })
 
   it('includes sr-only data table', () => {
@@ -259,8 +259,10 @@ describe('CredibleInterval', () => {
 
   it('highlights leader with ring on VChip', () => {
     const { container } = render(<CredibleInterval variants={variants} leader="B" />)
-    const ring = container.querySelector('[data-leader-ring]')
-    expect(ring).toBeTruthy()
+    const rows = container.querySelectorAll('[data-ci-row]')
+    // Leader B (second variant) should have a box-shadow ring on its VChip
+    const leaderChip = rows[1]?.querySelector('span')
+    expect(leaderChip?.getAttribute('style')).toContain('box-shadow')
   })
 
   it('renders single variant without error', () => {
@@ -286,9 +288,9 @@ describe('RankBars', () => {
 
   it('renders bars sorted descending by pBest', () => {
     const { container } = render(<RankBars variants={variants} />)
-    const labels = container.querySelectorAll('[data-rank-label]')
-    expect(labels[0]?.textContent).toBe('B')
-    expect(labels[1]?.textContent).toBe('A')
+    const chips = container.querySelectorAll('[aria-label^="Variant"]')
+    expect(chips[0]?.textContent).toBe('B')
+    expect(chips[1]?.textContent).toBe('A')
   })
 
   it('uses pTop2 when metric is pTop2', () => {
@@ -346,7 +348,7 @@ describe('RadarChart', () => {
   it('renders axis labels', () => {
     const { getByText } = render(<RadarChart variants={variants} />)
     expect(getByText('CTR')).toBeTruthy()
-    expect(getByText('Win prob')).toBeTruthy()
+    expect(getByText('Vencer')).toBeTruthy()
   })
 
   it('handles axisMax=0 by mapping to center', () => {

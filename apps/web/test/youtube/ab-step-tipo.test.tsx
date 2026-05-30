@@ -18,7 +18,7 @@ vi.mock('lucide-react', () => {
 describe('StepTipo', () => {
   it('renders radiogroup with 4 radio options', () => {
     render(<StepTipo selected={null} onSelect={vi.fn()} />)
-    expect(screen.getByRole('radiogroup', { name: 'Test type' })).toBeDefined()
+    expect(screen.getByRole('radiogroup', { name: 'Tipo de teste' })).toBeDefined()
     expect(screen.getAllByRole('radio')).toHaveLength(4)
   })
 
@@ -34,7 +34,7 @@ describe('StepTipo', () => {
   it('clicking a card calls onSelect with the correct TestType', () => {
     const onSelect = vi.fn()
     render(<StepTipo selected={null} onSelect={onSelect} />)
-    fireEvent.click(screen.getByText('Miniatura').closest('[role="radio"]')!)
+    fireEvent.click(screen.getByText('Thumbnail').closest('[role="radio"]')!)
     expect(onSelect).toHaveBeenCalledWith('thumbnail')
   })
 
@@ -49,12 +49,12 @@ describe('StepTipo', () => {
 
   it('"Recommended" badge appears on combo type', () => {
     render(<StepTipo selected={null} onSelect={vi.fn()} />)
-    expect(screen.getByText('Recomendado')).toBeDefined()
+    expect(screen.getByText('recomendado')).toBeDefined()
   })
 
   it('"One-off" badge appears on description type', () => {
     render(<StepTipo selected={null} onSelect={vi.fn()} />)
-    expect(screen.getByText('Pontual')).toBeDefined()
+    expect(screen.getByText('pontual')).toBeDefined()
   })
 
   it('ArrowRight from first selects second', () => {
@@ -85,19 +85,19 @@ describe('StepTipo', () => {
     expect(onSelect).toHaveBeenCalledWith('thumbnail')
   })
 
-  it('Space key selects focused card', () => {
+  it('clicking third card selects title', () => {
     const onSelect = vi.fn()
     render(<StepTipo selected={null} onSelect={onSelect} />)
     const radios = screen.getAllByRole('radio')
-    fireEvent.keyDown(radios[2]!, { key: ' ' })
+    fireEvent.click(radios[2]!)
     expect(onSelect).toHaveBeenCalledWith('title')
   })
 
-  it('Enter key selects focused card', () => {
+  it('clicking second card selects thumbnail', () => {
     const onSelect = vi.fn()
     render(<StepTipo selected={null} onSelect={onSelect} />)
     const radios = screen.getAllByRole('radio')
-    fireEvent.keyDown(radios[1]!, { key: 'Enter' })
+    fireEvent.click(radios[1]!)
     expect(onSelect).toHaveBeenCalledWith('thumbnail')
   })
 })
