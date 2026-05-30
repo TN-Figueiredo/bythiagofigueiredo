@@ -8,9 +8,9 @@ export interface CredibleIntervalProps {
   leader?: string
 }
 
-function computeCI(ctr: number, impressions: number): { lo: number; hi: number } {
+function computeCI(ctr: number, impressions: number): { lo: number; hi: number; sd: number } {
   const sd = Math.sqrt((ctr * (1 - ctr)) / impressions)
-  return { lo: Math.max(0, ctr - 1.96 * sd), hi: Math.min(1, ctr + 1.96 * sd) }
+  return { lo: Math.max(0, ctr - 1.96 * sd), hi: Math.min(1, ctr + 1.96 * sd), sd }
 }
 
 export function CredibleInterval({ variants, leader }: CredibleIntervalProps) {
@@ -23,10 +23,8 @@ export function CredibleInterval({ variants, leader }: CredibleIntervalProps) {
     </div>
   )
 
-  // Compute CI for all active variants
   const intervals = active.map(v => ({ ...v, ...computeCI(v.ctr, v.impressions) }))
 
-  // Shared scale: min of all lows, max of all his
   const allLo = intervals.map(i => i.lo)
   const allHi = intervals.map(i => i.hi)
   const scaleMin = Math.min(...allLo)
@@ -37,44 +35,70 @@ export function CredibleInterval({ variants, leader }: CredibleIntervalProps) {
     return ((value - scaleMin) / scaleRange) * 100
   }
 
-  return (
-    <div className="flex flex-col gap-2">
-      {intervals.map(v => {
-        const isLeader = leader === v.label
-        const bandLeft = toPercent(v.lo)
-        const bandRight = 100 - toPercent(v.hi)
-        const meanPos = toPercent(v.ctr)
+  const scaleTicks = [scaleMin, (scaleMin + scaleMax) / 2, scaleMax]
 
-        return (
-          <div key={v.label} data-ci-row className="flex items-center gap-2">
-            <span data-leader-ring={isLeader ? true : undefined}>
-              <VChip label={v.label} ring={isLeader} />
-            </span>
-            <div className="relative flex-1 h-4 rounded bg-cms-surface overflow-visible">
-              {/* CI band */}
-              <div
-                className="absolute top-1 bottom-1 rounded"
-                style={{
-                  left: `${bandLeft}%`,
-                  right: `${bandRight}%`,
-                  backgroundColor: `${v.color}44`,
-                  border: `1px solid ${v.color}88`,
-                }}
-              />
-              {/* Mean dot */}
-              <div
-                data-mean-dot
-                className="absolute top-1/2 -translate-y-1/2 size-2.5 rounded-full border-2 border-white"
-                style={{
-                  left: `${meanPos}%`,
-                  transform: 'translate(-50%, -50%)',
-                  backgroundColor: v.color,
-                }}
-              />
+  return (
+    <div>
+      <div className="flex flex-col gap-[11px]">
+        {intervals.map(v => {
+          const isLeader = leader === v.label
+          const bandLeft = toPercent(v.lo)
+          const bandWidth = toPercent(v.hi) - toPercent(v.lo)
+          const meanPos = toPercent(v.ctr)
+
+          return (
+            <div key={v.label} data-ci-row className="flex items-center gap-[10px]">
+              <VChip label={v.label} size={20} ring={isLeader} />
+              <div className="flex-1 relative h-[26px] bg-cms-surface-hover rounded-[7px]">
+                {/* CI band */}
+                <div
+                  className="absolute top-1 bottom-1 rounded-[6px]"
+                  style={{
+                    left: `${bandLeft}%`,
+                    width: `${bandWidth}%`,
+                    background: `linear-gradient(90deg, ${v.color}33, ${v.color}55, ${v.color}33)`,
+                    border: `1px solid ${v.color}66`,
+                  }}
+                />
+                {/* Mean dot */}
+                <div
+                  data-mean-dot
+                  className="absolute top-1/2"
+                  style={{
+                    left: `${meanPos}%`,
+                    transform: 'translate(-50%, -50%)',
+                    width: 11,
+                    height: 11,
+                    borderRadius: 99,
+                    backgroundColor: v.color,
+                    border: '2px solid var(--cms-surface)',
+                    boxShadow: `${v.color} 0px 0px 0px 2px`,
+                  }}
+                />
+              </div>
+              {/* Value + ±SD */}
+              <span className="font-mono text-[13px] font-bold text-cms-text w-[78px] text-right shrink-0">
+                {(v.ctr * 100).toFixed(1)}%
+                <span className="text-cms-text-muted font-medium text-[10.5px]">
+                  {' '}±{(v.sd * 100).toFixed(1)}
+                </span>
+              </span>
             </div>
-          </div>
-        )
-      })}
+          )
+        })}
+      </div>
+      {/* X-axis scale */}
+      <div className="flex mt-[10px]">
+        <span className="w-[30px]" />
+        <div className="flex-1 flex justify-between">
+          {scaleTicks.map((tick, i) => (
+            <span key={i} className="font-mono text-[9.5px] text-cms-text-muted">
+              {(tick * 100).toFixed(1)}%
+            </span>
+          ))}
+        </div>
+        <span className="w-[78px] text-right font-mono text-[9.5px] text-cms-text-muted">CTR</span>
+      </div>
     </div>
   )
 }

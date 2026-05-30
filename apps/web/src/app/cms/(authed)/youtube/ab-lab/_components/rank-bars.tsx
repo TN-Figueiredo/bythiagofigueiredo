@@ -1,6 +1,7 @@
 'use client'
 
 import type { DisplayLabel } from '@/lib/youtube/ab-types'
+import { VChip } from './ab-primitives'
 
 export interface RankBarsProps {
   variants: Array<{ label: DisplayLabel; color: string; pBest: number; pTop2: number }>
@@ -11,30 +12,28 @@ export function RankBars({ variants, metric = 'pBest' }: RankBarsProps) {
   const sorted = [...variants].sort((a, b) => b[metric] - a[metric])
 
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex flex-col gap-[11px]">
       {sorted.map(v => {
         const raw = v[metric]
         const clamped = Math.min(raw, 1)
         const widthPct = clamped * 100
-        // Use inline style with max() equivalent: at least 2px
         const widthStyle = widthPct === 0 ? '2px' : `${widthPct}%`
 
         return (
-          <div key={v.label} className="flex items-center gap-2">
-            <span data-rank-label className="w-4 text-xs font-mono font-bold text-cms-text shrink-0">
-              {v.label}
-            </span>
-            <div className="flex-1 relative h-5 bg-cms-surface rounded overflow-hidden">
+          <div key={v.label} className="flex items-center gap-[11px]">
+            <VChip label={v.label} size={20} />
+            <div className="flex-1 h-[22px] bg-cms-surface-hover rounded-[6px] overflow-hidden relative">
               <div
                 data-rank-bar
-                className="h-full rounded"
+                className="h-full rounded-[6px]"
                 style={{
                   width: widthStyle,
-                  backgroundColor: v.color,
+                  background: `linear-gradient(90deg, ${v.color}cc, ${v.color})`,
+                  transition: 'width 0.6s cubic-bezier(0.2, 0.7, 0.2, 1)',
                 }}
               />
             </div>
-            <span className="text-2xs font-mono text-cms-text-muted w-10 text-right shrink-0">
+            <span className="font-mono text-[13px] font-bold text-cms-text w-[42px] text-right shrink-0">
               {(Math.min(raw, 1) * 100).toFixed(0)}%
             </span>
           </div>
