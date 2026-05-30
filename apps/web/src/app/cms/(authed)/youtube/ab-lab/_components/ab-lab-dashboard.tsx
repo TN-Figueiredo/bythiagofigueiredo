@@ -176,33 +176,41 @@ export function AbLabDashboard({
         </div>
       )}
 
-      {/* 5. Empty — Suggested hero */}
-      {showEmpty && (
-        <div className="animate-ab-fade-up">
-          <div
-            className="rounded-[14px] p-[28px] mb-[26px] overflow-hidden relative"
-            style={{
-              background: 'linear-gradient(120deg, var(--cms-surface), var(--cms-bg-side))',
-              border: '1px solid var(--cms-border, #332D25)',
-            }}
-          >
-            {/* Giant flask watermark */}
-            <div className="absolute opacity-[0.06]" style={{ right: -30, top: -30 }}>
-              <FlaskConical size={200} aria-hidden="true" />
+      {/* 5. Suggested videos — always shown when available */}
+      {suggested.length > 0 && (
+        <div className="animate-ab-fade-up" style={{ margin: '26px 0 0' }}>
+          {/* Hero banner only when empty */}
+          {showEmpty && (
+            <div
+              className="rounded-[14px] p-[28px] mb-[26px] overflow-hidden relative"
+              style={{
+                background: 'linear-gradient(120deg, var(--cms-surface), var(--cms-bg-side))',
+                border: '1px solid var(--cms-border, #332D25)',
+              }}
+            >
+              <div className="absolute opacity-[0.06]" style={{ right: -30, top: -30 }}>
+                <FlaskConical size={200} aria-hidden="true" />
+              </div>
+              <div className="relative max-w-[560px]">
+                <span className="inline-flex items-center gap-[5px] px-[9px] py-[3px] rounded-full text-[10.5px] font-semibold tracking-[0.06em] uppercase font-mono" style={{ background: 'var(--accent-soft, rgba(255,130,64,0.08))', color: 'var(--cms-accent)' }}>
+                  <Sparkles size={11} aria-hidden="true" />
+                  Sugerido pelo Intelligence Engine
+                </span>
+                <h3 className="text-[24px] font-semibold leading-[1.2] mt-[14px] mb-[8px] m-0">
+                  {suggested.length} vídeo{suggested.length > 1 ? 's' : ''} que vale a pena testar agora
+                </h3>
+                <p className="text-[14px] text-cms-text-dim leading-[1.5] m-0">
+                  O sistema monitora o CTR de cada vídeo contra a mediana do seu canal. Estes estão abaixo do potencial — um teste A/B pode recuperar cliques que você está perdendo todo dia.
+                </p>
+              </div>
             </div>
-            <div className="relative max-w-[560px]">
-              <span className="inline-flex items-center gap-[5px] px-[9px] py-[3px] rounded-full text-[10.5px] font-semibold tracking-[0.06em] uppercase font-mono" style={{ background: 'var(--accent-soft, rgba(255,130,64,0.08))', color: 'var(--cms-accent)' }}>
-                <Sparkles size={11} aria-hidden="true" />
-                Sugerido pelo Intelligence Engine
-              </span>
-              <h3 className="text-[24px] font-semibold leading-[1.2] mt-[14px] mb-[8px] m-0">
-                3 vídeos seus que vale a pena testar agora
-              </h3>
-              <p className="text-[14px] text-cms-text-dim leading-[1.5] m-0">
-                O sistema monitora o CTR de cada vídeo contra a mediana do seu canal. Estes estão abaixo do potencial — um teste A/B pode recuperar cliques que você está perdendo todo dia.
-              </p>
+          )}
+          {/* Compact eyebrow when dashboard has data */}
+          {!showEmpty && (
+            <div className="flex items-center justify-between mb-[14px]">
+              <span className="text-[9px] font-semibold text-cms-text-dim uppercase tracking-[0.08em]">Sugeridos para testar</span>
             </div>
-          </div>
+          )}
           <EmptyState suggested={suggested} onCreate={handleCreateTest} />
         </div>
       )}
