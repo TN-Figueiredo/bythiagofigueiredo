@@ -10,7 +10,7 @@ import { ConfidenceChart } from './confidence-chart'
 import { VariantTable } from './variant-table'
 import { GatesPanel } from './gates-panel'
 import { SectionLabel } from './ab-primitives'
-import { Copy, Archive, Download, Trophy } from 'lucide-react'
+import { Copy, Archive, Download, Trophy, TrendingUp, Sparkles } from 'lucide-react'
 
 export interface WinnerDetailProps {
   view: AbTestWinnerView
@@ -102,24 +102,42 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
       {/* 4. LiveMonitorCard (conditional) */}
       {view.monitor && <div className="mb-[28px]"><LiveMonitorCard monitor={view.monitor} /></div>}
 
-      {/* 5. ConfidenceChart + learning card */}
-      <section data-testid="confidence-section" className="mb-[28px]">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="rounded-lg border border-cms-border bg-cms-bg p-4">
-            <SectionLabel>Confiança ao longo do tempo</SectionLabel>
+      {/* 5. Confiança final + O aprendizado — grid 1fr 1fr */}
+      <section data-testid="confidence-section" className="mb-[30px]">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-[16px]">
+          {/* Confiança final */}
+          <div className="rounded-lg border border-cms-border bg-cms-surface p-[20px]">
+            <div className="flex items-end justify-between gap-[14px] mb-[16px]">
+              <div className="flex items-center gap-[9px]">
+                <TrendingUp size={17} className="text-cms-accent" aria-hidden="true" />
+                <h3 className="text-[19px] font-semibold text-cms-text m-0">Confiança final</h3>
+              </div>
+            </div>
             <ConfidenceChart
               data={view.confTrend}
               target={view.confidenceTarget * 100}
             />
           </div>
-          <div className="rounded-lg border border-cms-border bg-cms-bg p-4">
-            <SectionLabel>O aprendizado</SectionLabel>
+
+          {/* O aprendizado */}
+          <div className="rounded-lg border border-cms-border bg-cms-surface p-[20px]">
+            <div className="flex items-end justify-between gap-[14px] mb-[16px]">
+              <div className="flex items-center gap-[9px]">
+                <Sparkles size={17} className="text-cms-accent" aria-hidden="true" />
+                <h3 className="text-[19px] font-semibold text-cms-text m-0">O aprendizado</h3>
+              </div>
+            </div>
             {view.learning ? (
-              <p className="text-xs text-cms-text-muted italic" data-testid="learning-text">
-                {view.learning}
-              </p>
+              <>
+                <div className="text-[14px] text-cms-text leading-[1.55] py-[14px] px-[16px] bg-cms-accent-subtle rounded-[10px]" data-testid="learning-text">
+                  {view.learning}
+                </div>
+                <p className="text-[12px] text-cms-text-muted mt-[12px] leading-[1.5]">
+                  Esse padrão foi adicionado à sua base de aprendizados e vai influenciar as próximas sugestões da IA.
+                </p>
+              </>
             ) : (
-              <p className="text-xs text-cms-text-dim">Nenhum aprendizado registrado.</p>
+              <p className="text-[12px] text-cms-text-dim">Nenhum aprendizado registrado.</p>
             )}
           </div>
         </div>
