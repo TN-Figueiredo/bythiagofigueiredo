@@ -39,8 +39,15 @@ export function SuggestedCard({ video, onCreate }: SuggestedCardProps) {
             boxShadow: 'rgba(0,0,0,0.4) 0px 0px 60px inset',
           }}
         >
-          <div className="absolute" style={{ left: '8%', bottom: '-6%', width: '46%', height: '92%', background: 'radial-gradient(at 50% 40%, rgba(255,255,255,0.14), transparent 65%)' }} />
-          <div className="absolute inset-0" style={{ background: 'repeating-linear-gradient(135deg, rgba(255,255,255,0.024) 0px, rgba(255,255,255,0.024) 2px, transparent 2px, transparent 9px)' }} />
+          {video.thumbnailUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={video.thumbnailUrl} alt={video.title} className="absolute inset-0 w-full h-full object-cover" />
+          ) : (
+            <>
+              <div className="absolute" style={{ left: '8%', bottom: '-6%', width: '46%', height: '92%', background: 'radial-gradient(at 50% 40%, rgba(255,255,255,0.14), transparent 65%)' }} />
+              <div className="absolute inset-0" style={{ background: 'repeating-linear-gradient(135deg, rgba(255,255,255,0.024) 0px, rgba(255,255,255,0.024) 2px, transparent 2px, transparent 9px)' }} />
+            </>
+          )}
         </div>
         {/* Grade badge */}
         <span
