@@ -23,9 +23,13 @@ export function CompositorNew() {
   const canPublish = activeCount > 0 && hasContent
 
   function handleToggle(id: DestId) {
-    const next = { ...destsOn, [id]: !destsOn[id] }
+    const wasOn = destsOn[id]
+    const next = { ...destsOn, [id]: !wasOn }
     setDestsOn(next)
-    if (destsOn[id] && focused === id) {
+
+    if (!wasOn) {
+      setFocused(id)
+    } else if (focused === id) {
       const nextActive = DEST_IDS.find((d) => d !== id && next[d])
       if (nextActive) setFocused(nextActive)
     }
@@ -39,7 +43,7 @@ export function CompositorNew() {
         onFocus={setFocused}
         focused={focused}
       />
-      <DestCompositor focusedDest={focused} destsOn={destsOn} onContentChange={setHasContent} />
+      <DestCompositor key={focused} focusedDest={focused} destsOn={destsOn} onContentChange={setHasContent} />
 
       {/* Sticky footer — stays at bottom of viewport within CMS content area */}
       <div className="sticky bottom-0 z-20 -mx-[30px] mt-auto border-t border-cms-border" style={{ background: 'rgba(16,14,11,0.92)', backdropFilter: 'blur(12px)' }}>
