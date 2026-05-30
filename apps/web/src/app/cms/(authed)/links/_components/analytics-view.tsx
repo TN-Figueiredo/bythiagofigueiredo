@@ -1,8 +1,9 @@
 'use client'
 
+import { Link2, Users, Percent, QrCode, TrendingUp } from 'lucide-react'
 import type { AnalyticsDisplay } from '@tn-figueiredo/links-admin'
 import {
-  StatTile, Delta, Spark, BarChart, Donut, HBars, Heatmap, CountryList, Panel,
+  Delta, Spark, BarChart, Donut, HBars, Heatmap, CountryList, Panel,
 } from '@tn-figueiredo/links-admin/client'
 import { SourceBars } from './source-bars'
 import { TopLinksTable } from './top-links-table'
@@ -45,29 +46,61 @@ export function AnalyticsView({ data }: AnalyticsViewProps) {
       <RangeTabs value={range} onChange={setRange} onExport={handleExportCsv} exporting={exporting} />
 
       {/* KPI row */}
-      <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
-        <StatTile
-          label="Cliques totais"
-          value={fmt(data.totalClicks)}
-          delta={<Delta cur={data.totalClicks} prev={data.prevClicks} />}
-          spark={<Spark data={data.byDay.slice(-14)} color="#F2683C" w={70} h={24} />}
-        />
-        <StatTile
-          label="Visitantes unicos"
-          value={fmt(data.unique)}
-          delta={<Delta cur={data.unique} prev={data.prevUnique} />}
-        />
-        <StatTile
-          label="CTR medio"
-          value={`${data.ctr}%`}
-          sub="cliques / pageviews"
-          delta={<Delta cur={data.ctr} prev={data.prevCtr} suffix="pp" />}
-        />
-        <StatTile
-          label="QR share"
-          value={`${data.qrShare}%`}
-          sub="do total de cliques"
-        />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+        {[
+          {
+            label: 'Cliques', Icon: Link2, color: 'var(--accent)', tint: 'var(--accent)',
+            value: fmt(data.totalClicks), delta: <Delta cur={data.totalClicks} prev={data.prevClicks} />,
+            spark: <Spark data={data.byDay.slice(-14)} color="var(--accent)" w={84} h={30} />, sub: null,
+          },
+          {
+            label: 'Visitantes únicos', Icon: Users, color: 'rgb(63, 169, 192)', tint: 'rgba(63, 169, 192, 0.133)',
+            value: fmt(data.unique), delta: <Delta cur={data.unique} prev={data.prevUnique} />,
+            spark: <Spark data={data.byDay.slice(-14)} color="#3FA9C0" w={84} h={30} />, sub: null,
+          },
+          {
+            label: 'Engajamento (CTR)', Icon: Percent, color: 'rgb(70, 177, 126)', tint: 'rgba(70, 177, 126, 0.133)',
+            value: `${data.ctr}%`, delta: <Delta cur={data.ctr} prev={data.prevCtr} suffix="pp" />,
+            spark: null, sub: 'cliques / pageviews',
+          },
+          {
+            label: 'Via QR / impresso', Icon: QrCode, color: 'rgb(224, 162, 60)', tint: 'rgba(224, 162, 60, 0.133)',
+            value: `${data.qrShare}%`, delta: null,
+            spark: <Spark data={data.byDay.slice(-14)} color="#E0A23C" w={84} h={30} />, sub: 'do total de cliques',
+          },
+        ].map((s) => (
+          <div
+            key={s.label}
+            data-stat-tile
+            style={{
+              background: 'var(--surface)', border: '1px solid var(--line)',
+              borderRadius: 'var(--r)', padding: 16, minWidth: 0,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 12 }}>
+              <span style={{
+                width: 30, height: 30, borderRadius: 8,
+                background: s.tint + (s.tint.startsWith('var') ? '22' : ''),
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              }}>
+                <s.Icon size={16} strokeWidth={1.7} style={{ color: s.color }} />
+              </span>
+              <span className="eyebrow" style={{ flex: 1, fontSize: '10.5px', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--ink-faint)' }}>
+                {s.label}
+              </span>
+              {s.delta}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10 }}>
+              <div>
+                <div className="mono" style={{ fontSize: 26, fontWeight: 700, lineHeight: 1, color: 'var(--ink)' }}>
+                  {s.value}
+                </div>
+                {s.sub && <div style={{ fontSize: 11, color: 'var(--ink-dim)', marginTop: 4 }}>{s.sub}</div>}
+              </div>
+              {s.spark}
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* Charts grid */}
