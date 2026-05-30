@@ -42,7 +42,7 @@ export function WinnerBanner({
           <div className="text-[13px] text-cms-text-dim mt-3 mb-1">Vencedor declarado</div>
           <div className="flex items-center gap-[10px]">
             <VChip label={winnerLabel} size={34} ring />
-            <span className="text-[38px] font-bold font-mono text-cms-green leading-none" data-testid="winner-lift">
+            <span className={`text-[38px] font-bold font-mono leading-none ${lift > 0 ? 'text-cms-green' : 'text-cms-text'}`} data-testid="winner-lift">
               {lift > 0 ? '+' : ''}{formatPercent(lift)}
             </span>
           </div>

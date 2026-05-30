@@ -9,6 +9,14 @@ export interface RankBarsProps {
 }
 
 export function RankBars({ variants, metric = 'pBest' }: RankBarsProps) {
+  if (variants.length === 0) {
+    return (
+      <div className="flex items-center justify-center py-6 text-xs text-cms-text-muted">
+        Nenhuma variante para exibir.
+      </div>
+    )
+  }
+
   const sorted = [...variants].sort((a, b) => b[metric] - a[metric])
 
   return (

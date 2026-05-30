@@ -8,8 +8,16 @@ export interface GatesPanelProps {
 }
 
 export function GatesPanel({ gates }: GatesPanelProps) {
+  if (gates.length === 0) {
+    return (
+      <div className="rounded-lg border border-cms-border bg-cms-bg p-4">
+        <p className="text-xs text-cms-text-muted text-center py-2">Nenhum gate configurado.</p>
+      </div>
+    )
+  }
+
   const passedCount = gates.filter(g => g.passed).length
-  const allPassed = passedCount === gates.length && gates.length > 0
+  const allPassed = passedCount === gates.length
 
   return (
     <div className="rounded-lg border border-cms-border bg-cms-bg p-4 space-y-3">

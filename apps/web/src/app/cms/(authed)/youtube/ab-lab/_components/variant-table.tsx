@@ -36,6 +36,16 @@ export function VariantTable({ variants, metric, winnerId, thumbs, videoTitle }:
 
   const thumbMap = new Map(thumbs.map(t => [t.label, t]))
 
+  if (sorted.length === 0) {
+    return (
+      <div role="table" aria-label="Variant comparison" className="rounded-lg border border-cms-border bg-cms-surface overflow-hidden">
+        <div className="flex items-center justify-center py-8 text-xs text-cms-text-muted">
+          Nenhuma variante cadastrada.
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div role="table" aria-label="Variant comparison" className="rounded-lg border border-cms-border bg-cms-surface overflow-hidden">
       {/* Header */}
@@ -59,9 +69,10 @@ export function VariantTable({ variants, metric, winnerId, thumbs, videoTitle }:
         const chance = variant[metric]
 
         const variantA = variants.find(v => v.label === 'A')
-        const liftVsA = variantA && variantA.ctr > 0
+        const canComputeLift = variantA != null && variantA.ctr > 0 && variant.label !== 'A'
+        const liftVsA = canComputeLift
           ? ((variant.ctr - variantA.ctr) / variantA.ctr) * 100
-          : 0
+          : null
 
         return (
           <React.Fragment key={variant.label}>
@@ -123,9 +134,9 @@ export function VariantTable({ variants, metric, winnerId, thumbs, videoTitle }:
 
                 {/* vs A */}
                 <span className={`font-mono text-[12.5px] font-bold text-right ${
-                  variant.label === 'A' ? 'text-cms-text-muted' : liftVsA > 0 ? 'text-cms-green' : 'text-cms-text-muted'
+                  variant.label === 'A' || liftVsA == null ? 'text-cms-text-muted' : liftVsA > 0 ? 'text-cms-green' : 'text-cms-text-muted'
                 }`}>
-                  {variant.label === 'A' ? '—' : `${liftVsA > 0 ? '+' : ''}${liftVsA.toFixed(0)}%`}
+                  {variant.label === 'A' || liftVsA == null ? '—' : `${liftVsA > 0 ? '+' : ''}${liftVsA.toFixed(0)}%`}
                 </span>
 
                 {/* Chance bar */}

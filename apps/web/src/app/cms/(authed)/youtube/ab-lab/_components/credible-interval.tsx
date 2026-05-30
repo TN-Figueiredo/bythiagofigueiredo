@@ -9,8 +9,10 @@ export interface CredibleIntervalProps {
 }
 
 function computeCI(ctr: number, impressions: number): { lo: number; hi: number; sd: number } {
-  const sd = Math.sqrt((ctr * (1 - ctr)) / impressions)
-  return { lo: Math.max(0, ctr - 1.96 * sd), hi: Math.min(1, ctr + 1.96 * sd), sd }
+  const clampedCtr = Math.max(0, Math.min(1, ctr))
+  const variance = (clampedCtr * (1 - clampedCtr)) / impressions
+  const sd = Number.isFinite(variance) && variance >= 0 ? Math.sqrt(variance) : 0
+  return { lo: Math.max(0, clampedCtr - 1.96 * sd), hi: Math.min(1, clampedCtr + 1.96 * sd), sd }
 }
 
 export function CredibleInterval({ variants, leader }: CredibleIntervalProps) {

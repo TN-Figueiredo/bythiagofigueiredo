@@ -61,7 +61,7 @@ export function ConfidenceChart({ data, target = 95 }: ConfidenceChartProps) {
   const lastPt = pts[pts.length - 1]!
   const firstPt = pts[0]!
   const bottomY = H - CHART.padB
-  const areaPath = linePath
+  const areaPath = linePath && pts.length >= 2
     ? `${linePath}L${lastPt.x},${bottomY}L${firstPt.x},${bottomY}Z`
     : ''
 
