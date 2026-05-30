@@ -286,14 +286,7 @@ export function AnalyticsView({ data }: AnalyticsViewProps) {
       )}
 
       {/* Potential features */}
-      <PotentialPanel features={[
-        { id: 'utm', label: 'UTM Attribution', desc: 'Veja de onde vem seu trafego por campanha' },
-        { id: 'bots', label: 'Bot Filter', desc: 'Filtre trafego de bots automaticamente' },
-        { id: 'newret', label: 'New vs Returning', desc: 'Compare visitantes novos e recorrentes' },
-        { id: 'goals', label: 'Goals & Conversion', desc: 'Defina metas e acompanhe conversoes' },
-        { id: 'geo', label: 'Geo Map', desc: 'Mapa mundial de visitantes em tempo real' },
-        { id: 'qr', label: 'QR Funnel', desc: 'Funil completo de escaneamento a conversao' },
-      ]} />
+      <PotentialPanel />
     </div>
   )
 }
