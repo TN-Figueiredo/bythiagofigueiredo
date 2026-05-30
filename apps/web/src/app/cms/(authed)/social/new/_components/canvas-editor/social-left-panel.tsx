@@ -237,20 +237,134 @@ export function SocialLeftPanel({
       {/* Add Elements */}
       <section className="p-3 border-b border-neutral-800">
         <h3 className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider mb-2">Add to Canvas</h3>
-        <div className="flex gap-2">
-          <button type="button" onClick={handleAddText} className="flex-1 flex flex-col items-center gap-1 p-2 rounded border border-neutral-700 text-neutral-300 hover:border-blue-500 hover:text-blue-300 text-[10px]" disabled={composition.elements.length >= MAX_ELEMENTS}>
+        <div className="grid grid-cols-4 gap-1.5">
+          <button type="button" onClick={handleAddText} className="flex flex-col items-center gap-1 p-2 rounded border border-neutral-700 text-neutral-300 hover:border-blue-500 hover:text-blue-300 text-[10px]" disabled={composition.elements.length >= MAX_ELEMENTS}>
             <Type size={18} />Text
           </button>
-          <button type="button" onClick={handleAddImage} className="flex-1 flex flex-col items-center gap-1 p-2 rounded border border-neutral-700 text-neutral-300 hover:border-blue-500 hover:text-blue-300 text-[10px]" disabled={composition.elements.length >= MAX_ELEMENTS || isUploading}>
+          <button type="button" onClick={handleAddImage} className="flex flex-col items-center gap-1 p-2 rounded border border-neutral-700 text-neutral-300 hover:border-blue-500 hover:text-blue-300 text-[10px]" disabled={composition.elements.length >= MAX_ELEMENTS || isUploading}>
             {isUploading ? <Loader2 size={18} className="animate-spin" /> : <ImagePlus size={18} />}
             {isUploading ? 'Uploading...' : 'Image'}
           </button>
-          <button type="button" onClick={handleAddVideo} className="flex-1 flex flex-col items-center gap-1 p-2 rounded border border-neutral-700 text-neutral-300 hover:border-blue-500 hover:text-blue-300 text-[10px]" disabled={composition.elements.length >= MAX_ELEMENTS || isUploading}>
+          <button type="button" onClick={handleAddVideo} className="flex flex-col items-center gap-1 p-2 rounded border border-neutral-700 text-neutral-300 hover:border-blue-500 hover:text-blue-300 text-[10px]" disabled={composition.elements.length >= MAX_ELEMENTS || isUploading}>
             {isUploading ? <Loader2 size={18} className="animate-spin" /> : <Film size={18} />}
             {isUploading ? 'Uploading...' : 'Video'}
           </button>
-          <button type="button" onClick={onOpenMediaGallery} className="flex-1 flex flex-col items-center gap-1 p-2 rounded border border-neutral-700 text-neutral-300 hover:border-blue-500 hover:text-blue-300 text-[10px]" disabled={composition.elements.length >= MAX_ELEMENTS}>
+          <button type="button" onClick={onOpenMediaGallery} className="flex flex-col items-center gap-1 p-2 rounded border border-neutral-700 text-neutral-300 hover:border-blue-500 hover:text-blue-300 text-[10px]" disabled={composition.elements.length >= MAX_ELEMENTS}>
             <Square size={18} />Gallery
+          </button>
+
+          {/* GIF */}
+          <button
+            type="button"
+            onClick={() => {
+              if (composition.elements.length >= MAX_ELEMENTS) return
+              const id = crypto.randomUUID()
+              addElement({
+                id,
+                type: 'image' as const,
+                name: nextElementName(composition.elements, 'image'),
+                x: 100, y: 100,
+                width: 200, height: 200,
+                rotation: 0,
+                opacity: 1,
+                src: '',
+                locked: false,
+              })
+              select(id)
+            }}
+            className="flex flex-col items-center gap-1 p-2 rounded border border-neutral-700 text-neutral-300 hover:border-blue-500 hover:text-blue-300 text-[10px]"
+            disabled={composition.elements.length >= MAX_ELEMENTS}
+            title="GIF renderizado como frame estatico na exportacao"
+          >
+            <span className="text-sm">GIF</span>
+            <span className="text-[9px] text-neutral-500">Frame estatico</span>
+          </button>
+
+          {/* Sticker */}
+          <button
+            type="button"
+            onClick={() => {
+              if (composition.elements.length >= MAX_ELEMENTS) return
+              const id = crypto.randomUUID()
+              addElement({
+                id,
+                type: 'text' as const,
+                name: nextElementName(composition.elements, 'text'),
+                x: 100, y: 100,
+                width: 160, height: 44,
+                rotation: 0,
+                opacity: 1,
+                text: 'Saiba mais',
+                fontSize: 14,
+                fontFamily: 'Inter',
+                fontWeight: 'bold',
+                color: '#FFFFFF',
+                align: 'center',
+                locked: false,
+                backgroundColor: '#E8823C',
+                borderRadius: 22,
+                padding: 12,
+              })
+              select(id)
+            }}
+            className="flex flex-col items-center gap-1 p-2 rounded border border-neutral-700 text-neutral-300 hover:border-blue-500 hover:text-blue-300 text-[10px]"
+            disabled={composition.elements.length >= MAX_ELEMENTS}
+          >
+            <span className="text-sm">Sticker</span>
+            <span className="text-[9px] text-neutral-500">Botao com link</span>
+          </button>
+
+          {/* Logo */}
+          <button
+            type="button"
+            onClick={() => {
+              if (composition.elements.length >= MAX_ELEMENTS) return
+              const id = crypto.randomUUID()
+              addElement({
+                id,
+                type: 'image' as const,
+                name: 'Logo',
+                x: 40, y: 40,
+                width: 80, height: 80,
+                rotation: 0,
+                opacity: 0.9,
+                src: '',
+                locked: false,
+              })
+              select(id)
+            }}
+            className="flex flex-col items-center gap-1 p-2 rounded border border-neutral-700 text-neutral-300 hover:border-blue-500 hover:text-blue-300 text-[10px]"
+            disabled={composition.elements.length >= MAX_ELEMENTS}
+          >
+            <span className="text-sm">Logo</span>
+            <span className="text-[9px] text-neutral-500">Marca</span>
+          </button>
+
+          {/* Frame */}
+          <button
+            type="button"
+            onClick={() => {
+              if (composition.elements.length >= MAX_ELEMENTS) return
+              const id = crypto.randomUUID()
+              addElement({
+                id,
+                type: 'image' as const,
+                name: nextElementName(composition.elements, 'image'),
+                x: 0, y: 0,
+                width: composition.canvas.width,
+                height: composition.canvas.height,
+                rotation: 0,
+                opacity: 0.3,
+                src: '',
+                locked: false,
+              })
+              select(id)
+            }}
+            className="flex flex-col items-center gap-1 p-2 rounded border border-neutral-700 text-neutral-300 hover:border-blue-500 hover:text-blue-300 text-[10px]"
+            disabled={composition.elements.length >= MAX_ELEMENTS}
+          >
+            <span className="text-sm">Frame</span>
+            <span className="text-[9px] text-neutral-500">Decorativo</span>
           </button>
         </div>
       </section>
