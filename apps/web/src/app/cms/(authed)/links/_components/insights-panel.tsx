@@ -30,6 +30,7 @@ export function InsightsPanel({ insights }: InsightsPanelProps) {
           className="flex items-start gap-2.5 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5"
         >
           <span
+            aria-hidden="true"
             className="mt-0.5 h-2 w-2 shrink-0 rounded-full"
             style={{ background: TONE_COLOR[ins.tone] || TONE_COLOR.accent }}
           />

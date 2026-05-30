@@ -1,3 +1,5 @@
+import { useMemo } from 'react'
+
 export interface HBarRow {
   k: string
   v: number
@@ -16,7 +18,7 @@ export function HBars({
   suffix = '%',
   label,
 }: HBarsProps) {
-  const max = Math.max(...rows.map((r) => r.v), 1)
+  const max = useMemo(() => Math.max(...rows.map((r) => r.v), 1), [rows])
 
   return (
     <div role="img" aria-label={label || 'Horizontal bar chart'} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

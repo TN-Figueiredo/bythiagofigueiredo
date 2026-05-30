@@ -16,7 +16,7 @@ interface TabBarProps {
 
 export function TabBar({ activeTab }: TabBarProps) {
   return (
-    <div role="tablist" className="flex gap-0 border-b border-border">
+    <div role="tablist" aria-label="Secoes de links" className="flex gap-0 border-b border-border">
       {TABS.map((tab) => {
         const isActive = tab.id === activeTab
         return (

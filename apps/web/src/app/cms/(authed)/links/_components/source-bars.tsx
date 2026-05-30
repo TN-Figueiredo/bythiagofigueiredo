@@ -15,7 +15,7 @@ interface SourceBarsProps {
 export function SourceBars({ sources }: SourceBarsProps) {
   const max = Math.max(...sources.map(s => s.clicks), 1)
   return (
-    <div className="flex flex-col gap-2.5">
+    <div role="img" aria-label="Distribuicao de cliques por origem" className="flex flex-col gap-2.5">
       {sources.map((s) => {
         const color = SOURCE_COLORS[s.id as SourceId] || '#8A8F98'
         const label = SOURCE_LABELS[s.id as SourceId] || s.id
@@ -23,6 +23,7 @@ export function SourceBars({ sources }: SourceBarsProps) {
           <div key={s.id} data-source-row className="flex items-center gap-2.5">
             <span
               data-source-dot
+              aria-hidden="true"
               className="h-[9px] w-[9px] shrink-0 rounded-[3px]"
               style={{ background: color }}
             />

@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import { Info, Eye, Users, Target, Trophy } from 'lucide-react'
 import type { LinktreeDisplay } from '@tn-figueiredo/links-admin'
@@ -10,16 +11,34 @@ interface TreeTabProps {
 }
 
 export function TreeTab({ tree }: TreeTabProps) {
+  const [bannerDismissed, setBannerDismissed] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return localStorage.getItem('links-merge-banner-dismissed') === '1'
+  })
+
   return (
     <div className="space-y-5">
       {/* Merge banner */}
-      <div className="flex items-center gap-2.5 rounded-[11px] border border-white/[0.08] bg-[var(--accent-soft,rgba(242,104,60,0.06))] px-4 py-3 text-xs text-foreground">
-        <Info className="h-4 w-4 shrink-0 text-[#F2683C]" />
-        <span>Link in Bio agora vive aqui. Tudo unificado sob Links.</span>
-      </div>
+      {!bannerDismissed && (
+        <div className="flex items-center gap-2.5 rounded-[11px] border border-white/[0.08] bg-[var(--accent-soft,rgba(242,104,60,0.06))] px-4 py-3 text-xs text-foreground">
+          <Info className="h-4 w-4 shrink-0 text-[#F2683C]" />
+          <span className="flex-1">Link in Bio agora vive aqui. Tudo unificado sob Links.</span>
+          <button
+            type="button"
+            aria-label="Fechar banner"
+            onClick={() => {
+              setBannerDismissed(true)
+              localStorage.setItem('links-merge-banner-dismissed', '1')
+            }}
+            className="shrink-0 text-muted-foreground hover:text-foreground"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+      )}
 
       {/* Grid 2-col */}
-      <div className="grid gap-[18px]" style={{ gridTemplateColumns: '340px 1fr' }}>
+      <div className="grid grid-cols-1 gap-[18px] min-[1080px]:grid-cols-[340px_1fr]">
         {/* Left: Preview card */}
         <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-[#161410] p-5">
           <span className="inline-flex items-center self-start gap-1.5 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium text-amber-400">
@@ -85,6 +104,11 @@ export function TreeTab({ tree }: TreeTabProps) {
                   <span className="w-12 text-right font-mono text-[11px] text-muted-foreground">{b.ctr}%</span>
                 </div>
               ))}
+            </div>
+            <div className="mt-3 flex justify-end">
+              <a href="/cms/links?tab=analytics" className="text-[11px] font-medium text-muted-foreground hover:text-foreground">
+                Analytics →
+              </a>
             </div>
           </div>
         </div>

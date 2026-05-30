@@ -18,6 +18,7 @@ export function StatusDot({ status }: StatusDotProps) {
     <span className={`inline-flex items-center gap-1.5 text-xs ${cfg.text}`}>
       <span
         data-status-dot
+        aria-hidden="true"
         className={`h-[7px] w-[7px] rounded-full ${cfg.dot}`}
       />
       {cfg.label}

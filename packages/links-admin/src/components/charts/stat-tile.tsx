@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { CARD_STYLE } from './tokens'
 
 export interface StatTileProps {
   label: string
@@ -17,13 +18,7 @@ export function StatTile({ label, value, sub, icon, iconTint, delta, spark }: St
       data-stat-tile
       role="group"
       aria-label={`${label}: ${value}`}
-      style={{
-        padding: 16,
-        borderRadius: 14,
-        border: '1px solid var(--line, rgba(255,255,255,0.08))',
-        background: 'var(--surface, #161410)',
-        minWidth: 0,
-      }}
+      style={{ padding: 16, ...CARD_STYLE, minWidth: 0 }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 12 }}>
         {icon && (

@@ -1,3 +1,5 @@
+import { CARD_STYLE } from './tokens'
+
 interface ConversionCardProps {
   name: string
   rate: number
@@ -9,7 +11,7 @@ interface ConversionCardProps {
 
 export function ConversionCard({ name, rate, progress, label, views, conversions }: ConversionCardProps) {
   return (
-    <div data-conversion style={{ padding: 16, borderRadius: 14, border: '1px solid var(--line, rgba(255,255,255,0.08))', background: 'var(--surface, #161410)' }}>
+    <div data-conversion style={{ padding: 16, ...CARD_STYLE }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink, #ECE6DA)' }}>{name}</span>
         <span style={{ fontSize: 18, fontWeight: 700, fontFamily: 'var(--font-mono, monospace)', color: 'var(--accent, #F2683C)' }}>{label}</span>

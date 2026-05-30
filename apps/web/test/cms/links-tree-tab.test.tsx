@@ -1,6 +1,17 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, afterEach, vi } from 'vitest'
-import { render, cleanup } from '@testing-library/react'
+import { render, cleanup, fireEvent } from '@testing-library/react'
+
+// Mock localStorage
+const localStorageMock = {
+  getItem: vi.fn().mockReturnValue(null),
+  setItem: vi.fn(),
+  removeItem: vi.fn(),
+  clear: vi.fn(),
+  length: 0,
+  key: vi.fn(),
+}
+Object.defineProperty(globalThis, 'localStorage', { value: localStorageMock })
 
 vi.mock('lucide-react', () => {
   const icon = (name: string) => (props: Record<string, unknown>) => <svg data-testid={`icon-${name}`} {...props} />
@@ -81,7 +92,31 @@ describe('TreeTab', () => {
   })
 
   it('renders merge banner', () => {
+    localStorageMock.getItem.mockReturnValue(null)
     const { getByText } = render(<TreeTab tree={treeMock} />)
     expect(getByText(/Link in Bio agora vive aqui/)).toBeTruthy()
+  })
+
+  it('hides merge banner when dismissed', () => {
+    localStorageMock.getItem.mockReturnValue(null)
+    const { getByLabelText, queryByText } = render(<TreeTab tree={treeMock} />)
+    fireEvent.click(getByLabelText('Fechar banner'))
+    expect(queryByText(/Link in Bio agora vive aqui/)).toBeNull()
+    expect(localStorageMock.setItem).toHaveBeenCalledWith('links-merge-banner-dismissed', '1')
+  })
+
+  it('does not render banner when already dismissed in localStorage', () => {
+    localStorageMock.getItem.mockReturnValue('1')
+    const { queryByText } = render(<TreeTab tree={treeMock} />)
+    expect(queryByText(/Link in Bio agora vive aqui/)).toBeNull()
+    localStorageMock.getItem.mockReturnValue(null)
+  })
+
+  it('renders analytics link in block performance panel', () => {
+    localStorageMock.getItem.mockReturnValue(null)
+    const { getByText } = render(<TreeTab tree={treeMock} />)
+    const link = getByText('Analytics →')
+    expect(link).toBeTruthy()
+    expect(link.getAttribute('href')).toBe('/cms/links?tab=analytics')
   })
 })

@@ -16,11 +16,13 @@ interface RangeTabsProps {
 
 export function RangeTabs({ value, onChange }: RangeTabsProps) {
   return (
-    <div className="inline-flex rounded-[9px] bg-muted p-[3px] gap-[2px]">
+    <div role="radiogroup" aria-label="Periodo de analise" className="inline-flex rounded-[9px] bg-muted p-[3px] gap-[2px]">
       {RANGE_OPTIONS.map((o) => (
         <button
           key={o.id}
           type="button"
+          role="radio"
+          aria-checked={value === o.id}
           onClick={() => onChange(o.id)}
           className={`rounded-[7px] border-none px-[13px] py-1.5 text-[12.5px] font-semibold transition-colors ${
             value === o.id

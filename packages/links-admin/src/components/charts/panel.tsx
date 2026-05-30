@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react'
+import { CARD_STYLE } from './tokens'
 
 export interface PanelProps {
   title: string
@@ -12,13 +13,7 @@ export function Panel({ title, icon, right, children, style }: PanelProps) {
   return (
     <div
       data-panel
-      style={{
-        padding: 18,
-        borderRadius: 14,
-        border: '1px solid var(--line, rgba(255,255,255,0.08))',
-        background: 'var(--surface, #161410)',
-        ...style,
-      }}
+      style={{ padding: 18, ...CARD_STYLE, ...style }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
         {icon && (

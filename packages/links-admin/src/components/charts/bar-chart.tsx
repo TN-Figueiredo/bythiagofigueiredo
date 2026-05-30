@@ -1,3 +1,5 @@
+import { useMemo } from 'react'
+
 export interface BarChartProps {
   data: number[]
   prev?: number[]
@@ -15,7 +17,7 @@ export function BarChart({
   color = 'var(--accent, #F2683C)',
   label,
 }: BarChartProps) {
-  const max = Math.max(...data, ...(prev || [1]), 1)
+  const max = useMemo(() => Math.max(...data, ...(prev || [1]), 1), [data, prev])
   const gap = data.length > 16 ? 2 : 6
 
   return (

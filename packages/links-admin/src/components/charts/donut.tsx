@@ -1,3 +1,5 @@
+import { useMemo } from 'react'
+
 export interface DonutSegment {
   k: string
   v: number
@@ -19,9 +21,12 @@ export function Donut({
   centerLabel,
   centerSub,
 }: DonutProps) {
-  const total = segments.reduce((s, x) => s + x.v, 0) || 1
-  const r = (size - thickness) / 2
-  const c = 2 * Math.PI * r
+  const { total, r, c } = useMemo(() => {
+    const total = segments.reduce((s, x) => s + x.v, 0) || 1
+    const r = (size - thickness) / 2
+    const c = 2 * Math.PI * r
+    return { total, r, c }
+  }, [segments, size, thickness])
   let off = 0
 
   return (

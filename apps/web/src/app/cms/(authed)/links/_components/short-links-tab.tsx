@@ -86,6 +86,7 @@ export function ShortLinksTab({ links, onCreateLink }: ShortLinksTabProps) {
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
             type="text"
+            aria-label="Buscar links por titulo ou slug"
             placeholder="Buscar links..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -114,7 +115,7 @@ export function ShortLinksTab({ links, onCreateLink }: ShortLinksTabProps) {
         <p className="py-8 text-center text-sm text-muted-foreground">Nenhum link encontrado.</p>
       ) : (
         <div className="flex flex-col">
-          <div className="grid items-center gap-2 border-b border-white/[0.06] px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"
+          <div role="row" aria-label="Cabecalho da tabela de links" className="grid items-center gap-2 border-b border-white/[0.06] px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"
             style={{ gridTemplateColumns: '1.6fr 1.4fr 90px 90px 110px 70px' }}>
             <span>Link</span>
             <span>Destino</span>
@@ -139,7 +140,7 @@ export function ShortLinksTab({ links, onCreateLink }: ShortLinksTabProps) {
               <span className="font-mono text-sm font-bold text-foreground">{fmt(l.clicks)}</span>
               <StatusDot status={l.status} />
               <div className="flex items-center gap-1 justify-end">
-                <button type="button" onClick={(e) => e.preventDefault()} className="p-1 text-muted-foreground hover:text-foreground">
+                <button type="button" aria-label={`QR code para ${l.slug}`} onClick={(e) => e.preventDefault()} className="p-1 text-muted-foreground hover:text-foreground">
                   <QrCode className="h-3.5 w-3.5" />
                 </button>
                 <ChevronRight className="h-4 w-4 text-muted-foreground" />

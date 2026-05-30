@@ -1,3 +1,5 @@
+import { useMemo } from 'react'
+
 export interface SparkProps {
   data: number[]
   color: string
@@ -10,18 +12,21 @@ export interface SparkProps {
 export function Spark({ data, color, w = 90, h = 28, fill = true, label }: SparkProps) {
   if (data.length === 0) return <svg width={w} height={h} role="img" aria-label={label || 'Sparkline chart'} />
 
-  const max = Math.max(...data, 1)
-  const min = Math.min(...data, 0)
-  const rng = max - min || 1
-  const pts = data.map((v, i) => [
-    data.length === 1 ? w / 2 : (i / (data.length - 1)) * w,
-    h - ((v - min) / rng) * (h - 3) - 2,
-  ])
-  const d = pts
-    .map((p, i) => (i ? 'L' : 'M') + p[0]!.toFixed(1) + ' ' + p[1]!.toFixed(1))
-    .join(' ')
-  const area = d + ` L${w} ${h} L0 ${h} Z`
-  const last = pts[pts.length - 1]!
+  const { d, area, last } = useMemo(() => {
+    const max = Math.max(...data, 1)
+    const min = Math.min(...data, 0)
+    const rng = max - min || 1
+    const pts = data.map((v, i) => [
+      data.length === 1 ? w / 2 : (i / (data.length - 1)) * w,
+      h - ((v - min) / rng) * (h - 3) - 2,
+    ])
+    const d = pts
+      .map((p, i) => (i ? 'L' : 'M') + p[0]!.toFixed(1) + ' ' + p[1]!.toFixed(1))
+      .join(' ')
+    const area = d + ` L${w} ${h} L0 ${h} Z`
+    const last = pts[pts.length - 1]!
+    return { d, area, last }
+  }, [data, w, h])
 
   return (
     <svg width={w} height={h} role="img" aria-label={label || 'Sparkline chart'} style={{ display: 'block', overflow: 'visible' }}>

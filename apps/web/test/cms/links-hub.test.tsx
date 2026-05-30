@@ -2,6 +2,17 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
 import { render, cleanup } from '@testing-library/react'
 
+// Mock localStorage
+const localStorageMock = {
+  getItem: vi.fn().mockReturnValue(null),
+  setItem: vi.fn(),
+  removeItem: vi.fn(),
+  clear: vi.fn(),
+  length: 0,
+  key: vi.fn(),
+}
+Object.defineProperty(globalThis, 'localStorage', { value: localStorageMock })
+
 vi.mock('lucide-react', () => {
   const icon = (name: string) => (props: Record<string, unknown>) => <svg data-testid={`icon-${name}`} {...props} />
   return new Proxy({}, { get: (_, key) => icon(key as string) })
@@ -18,50 +29,21 @@ vi.mock('next/link', () => ({
     <a href={href} {...props}>{children}</a>,
 }))
 
-vi.mock('@tn-figueiredo/links-admin', () => ({
-  SOURCE_COLORS: {
-    newsletter: '#A77CE8', social: '#3FA9C0', blog: '#46B17E',
-    qr: '#E0A23C', campaign: '#5B7FD6', manual: '#8A8F98',
-  },
-  SOURCE_LABELS: {
-    newsletter: 'Newsletter', social: 'Social', blog: 'Blog',
-    qr: 'QR', campaign: 'Campanha', manual: 'Manual',
-  },
+// Mock child components to avoid deep dependency resolution
+vi.mock('@/app/cms/(authed)/links/_components/tree-tab', () => ({
+  TreeTab: () => <div data-testid="tree-tab">Link in Bio agora vive aqui</div>,
 }))
 
-vi.mock('@tn-figueiredo/links-admin/client', () => ({
-  StatTile: ({ label, value, sub, delta, spark }: Record<string, unknown>) => (
-    <div data-stat-tile>
-      <span>{label as string}</span>
-      <span>{value as string}</span>
-      {sub && <span>{sub as string}</span>}
-      {delta}
-      {spark}
+vi.mock('@/app/cms/(authed)/links/_components/short-links-tab', () => ({
+  ShortLinksTab: ({ onCreateLink }: { onCreateLink: () => void }) => (
+    <div data-testid="short-links-tab">
+      <button type="button" onClick={onCreateLink}>Novo link</button>
     </div>
   ),
-  Delta: ({ cur, prev, suffix }: { cur: number; prev: number; suffix?: string }) => (
-    <span data-delta>{cur} vs {prev} {suffix ?? '%'}</span>
-  ),
-  Spark: ({ data }: { data: number[] }) => <svg data-spark data-points={data.length} />,
-  BarChart: ({ data, prev }: { data: number[]; prev?: number[] }) => (
-    <div data-bar-chart data-count={data.length} data-prev={prev?.length ?? 0} />
-  ),
-  Donut: ({ segments, centerLabel, centerSub }: Record<string, unknown>) => (
-    <div data-donut>
-      {centerLabel && <span>{centerLabel as string}</span>}
-      {centerSub && <span>{centerSub as string}</span>}
-    </div>
-  ),
-  HBars: ({ rows }: { rows: Array<{ k: string; v: number }> }) => (
-    <div data-hbars>{rows.map(r => <div key={r.k}>{r.k}: {r.v}</div>)}</div>
-  ),
-  Heatmap: ({ grid }: { grid: number[][] }) => <div data-heatmap data-rows={grid.length} />,
-  CountryList: ({ countries }: { countries: Array<{ code: string; name: string }> }) => (
-    <div data-country-list>{countries.map(c => <div key={c.code}>{c.name}</div>)}</div>
-  ),
-  Panel: ({ title, children, style }: { title: string; children: React.ReactNode; style?: Record<string, unknown> }) => (
-    <div data-panel style={style}><h3>{title}</h3>{children}</div>
-  ),
+}))
+
+vi.mock('@/app/cms/(authed)/links/_components/analytics-view', () => ({
+  AnalyticsView: () => <div data-testid="analytics-view">Cliques por dia</div>,
 }))
 
 import { LinksHub } from '@/app/cms/(authed)/links/_hub'
@@ -117,12 +99,18 @@ describe('LinksHub', () => {
   })
 
   it('renders ShortLinksTab when activeTab=links', () => {
-    const { getByText } = render(<LinksHub tree={mockTree} links={mockLinks} analytics={mockAnalytics} activeTab="links" />)
-    expect(getByText('Novo link')).toBeTruthy()
+    const { getAllByText } = render(<LinksHub tree={mockTree} links={mockLinks} analytics={mockAnalytics} activeTab="links" />)
+    // Header + ShortLinksTab both render "Novo link"
+    expect(getAllByText('Novo link').length).toBeGreaterThanOrEqual(1)
   })
 
   it('renders AnalyticsView when activeTab=analytics', () => {
     const { getByText } = render(<LinksHub tree={mockTree} links={mockLinks} analytics={mockAnalytics} activeTab="analytics" />)
     expect(getByText('Cliques por dia')).toBeTruthy()
+  })
+
+  it('renders QR Card button in header', () => {
+    const { getByText } = render(<LinksHub tree={mockTree} links={mockLinks} analytics={mockAnalytics} activeTab="tree" />)
+    expect(getByText('QR Card')).toBeTruthy()
   })
 })

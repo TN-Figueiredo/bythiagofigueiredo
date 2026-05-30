@@ -1,3 +1,5 @@
+import { useMemo } from 'react'
+
 export interface CountryItem {
   code: string
   name: string
@@ -23,7 +25,7 @@ const FLAG: Record<string, string> = {
 }
 
 export function CountryList({ countries }: CountryListProps) {
-  const max = Math.max(...countries.map((c) => c.v), 1)
+  const max = useMemo(() => Math.max(...countries.map((c) => c.v), 1), [countries])
 
   return (
     <div role="list" aria-label="Countries by traffic" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
