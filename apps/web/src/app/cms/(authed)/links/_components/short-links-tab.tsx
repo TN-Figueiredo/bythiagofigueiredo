@@ -2,9 +2,9 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Search, Plus, ChevronRight, AlertTriangle, QrCode } from 'lucide-react'
+import { Search, Plus, ChevronRight, AlertTriangle, QrCode, Link2, Zap, Target } from 'lucide-react'
 import { SOURCE_COLORS, SOURCE_LABELS, type LinkDisplay, type SourceId } from '@tn-figueiredo/links-admin'
-import { Spark, StatTile } from '@tn-figueiredo/links-admin/client'
+import { Spark } from '@tn-figueiredo/links-admin/client'
 import { StatusDot } from './status-dot'
 import { FilterGroup } from './filter-group'
 import { Pagination } from './pagination'
@@ -56,15 +56,49 @@ export function ShortLinksTab({ links, onCreateLink }: ShortLinksTabProps) {
   return (
     <div className="space-y-5">
       {/* Stats */}
-      <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))' }}>
-        <StatTile label="Total de links" value={fmt(links.length)} icon="li" iconTint="#F2683C" />
-        <StatTile label="Cliques totais" value={fmt(totalClicks)} icon="tr" iconTint="#46B17E"
-          spark={top ? <Spark data={top.spark} color="#46B17E" w={70} h={24} /> : undefined} />
-        <StatTile label="Links ativos" value={fmt(active)} icon="ta" iconTint="#3FA9C0" />
-        {top && (
-          <StatTile label="Top performer" value={top.slug} icon="tr" iconTint="#E0A23C"
-            spark={<Spark data={top.spark} color="#E0A23C" w={70} h={24} />} />
-        )}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 14 }}>
+        {[
+          { label: 'Total de links', value: fmt(links.length), Icon: Link2, color: 'var(--accent)', tint: 'var(--accent)', spark: null, sub: null },
+          { label: 'Cliques totais', value: fmt(totalClicks), Icon: Zap, color: 'rgb(70, 177, 126)', tint: 'rgba(70, 177, 126, 0.133)', spark: top ? top.spark : null, sub: null },
+          { label: 'Links ativos', value: fmt(active), Icon: Target, color: 'rgb(63, 169, 192)', tint: 'rgba(63, 169, 192, 0.133)', spark: null, sub: null },
+          ...(top ? [{ label: 'Top performer', value: fmt(top.clicks), Icon: Zap, color: 'rgb(224, 162, 60)', tint: 'rgba(224, 162, 60, 0.133)', spark: top.spark, sub: top.slug }] : []),
+        ].map((s) => (
+          <div
+            key={s.label}
+            data-stat-tile
+            style={{
+              background: 'var(--surface)',
+              border: '1px solid var(--line)',
+              borderRadius: 'var(--r)',
+              padding: 16,
+              minWidth: 0,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 12 }}>
+              <span style={{
+                width: 30, height: 30, borderRadius: 8,
+                background: s.tint + (s.tint.startsWith('var') ? '22' : ''),
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              }}>
+                <s.Icon size={16} strokeWidth={1.7} style={{ color: s.color }} />
+              </span>
+              <span className="eyebrow" style={{ flex: 1, fontSize: '10.5px', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--ink-faint)' }}>
+                {s.label}
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10 }}>
+              <div>
+                <div className="mono" style={{ fontSize: 26, fontWeight: 700, lineHeight: 1, color: 'var(--ink)' }}>
+                  {s.value}
+                </div>
+                {s.sub && (
+                  <div style={{ fontSize: 11, color: 'var(--ink-dim)', marginTop: 4 }}>{s.sub}</div>
+                )}
+              </div>
+              {s.spark && <Spark data={s.spark} color={s.color} w={84} h={30} />}
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* Health panel */}
