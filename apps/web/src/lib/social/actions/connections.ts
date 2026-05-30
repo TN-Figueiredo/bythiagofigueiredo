@@ -174,9 +174,10 @@ export async function checkConnectionHealth(
     const supabase = getSupabaseServiceClient()
     const { data: connections, error } = await supabase
       .from('social_connections')
-      .select('id, provider, account_name, token_expires_at, metadata, status')
+      .select('id, provider, account_name, token_expires_at, metadata, revoked_at')
       .eq('site_id', siteId)
-      .order('created_at')
+      .is('revoked_at', null)
+      .order('connected_at')
 
     if (error) {
       Sentry.captureException(error, { tags: { ...SENTRY_TAG, action: 'checkConnectionHealth' } })
@@ -201,8 +202,6 @@ export async function checkConnectionHealth(
         if (tokenExpiresIn <= 0) status = 'error'
         else if (tokenExpiresIn <= 7) status = 'warn'
       }
-
-      if (c.status === 'revoked' || c.status === 'error') status = 'error'
 
       return {
         connectionId: c.id,

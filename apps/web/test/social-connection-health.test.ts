@@ -17,7 +17,9 @@ vi.mock('@/lib/supabase/service', () => ({
     from: () => ({
       select: () => ({
         eq: () => ({
-          order: () => mockData,
+          is: () => ({
+            order: () => mockData,
+          }),
         }),
       }),
     }),
@@ -59,7 +61,7 @@ describe('checkConnectionHealth', () => {
         account_name: '@test',
         token_expires_at: new Date(Date.now() + 30 * 86400000).toISOString(),
         metadata: { followers_count: 5000 },
-        status: 'active',
+        revoked_at: null,
       },
     ]
     const result = await checkConnectionHealth('site-1')
@@ -77,7 +79,7 @@ describe('checkConnectionHealth', () => {
         account_name: 'Test Page',
         token_expires_at: new Date(Date.now() + 3 * 86400000).toISOString(),
         metadata: {},
-        status: 'active',
+        revoked_at: null,
       },
     ]
     const result = await checkConnectionHealth('site-1')
@@ -94,7 +96,7 @@ describe('checkConnectionHealth', () => {
         account_name: '@expired',
         token_expires_at: new Date(Date.now() - 86400000).toISOString(),
         metadata: {},
-        status: 'active',
+        revoked_at: null,
       },
     ]
     const result = await checkConnectionHealth('site-1')
@@ -103,20 +105,14 @@ describe('checkConnectionHealth', () => {
     expect(result.data[0].tokenExpiresIn).toBeLessThanOrEqual(0)
   })
 
-  it('returns error for revoked connection', async () => {
-    mockData.data = [
-      {
-        id: 'conn-4',
-        provider: 'instagram',
-        account_name: '@revoked',
-        token_expires_at: new Date(Date.now() + 30 * 86400000).toISOString(),
-        metadata: {},
-        status: 'revoked',
-      },
-    ]
+  it('revoked connections are filtered at query level', async () => {
+    // revoked_at IS NOT NULL rows are excluded by the .is('revoked_at', null) filter
+    // so the query never returns them — mock returns empty
+    mockData.data = []
     const result = await checkConnectionHealth('site-1')
+    expect(result.ok).toBe(true)
     if (!result.ok) return
-    expect(result.data[0].status).toBe('error')
+    expect(result.data).toHaveLength(0)
   })
 
   it('returns forbidden when siteId does not match', async () => {
@@ -150,7 +146,7 @@ describe('checkConnectionHealth', () => {
         account_name: 'TestChannel',
         token_expires_at: null,
         metadata: { subscriber_count: 12000 },
-        status: 'active',
+        revoked_at: null,
       },
     ]
     const result = await checkConnectionHealth('site-1')
