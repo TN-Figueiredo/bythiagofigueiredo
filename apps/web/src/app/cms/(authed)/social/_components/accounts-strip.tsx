@@ -1,4 +1,9 @@
+import { checkConnectionHealth } from '@/lib/social/actions'
+import { AccountsStripClient } from './accounts-strip-client'
+
 export async function AccountsStripLoader({ siteId }: { siteId: string }) {
-  void siteId
-  return null // stub -- replaced in Task 2.2
+  const result = await checkConnectionHealth(siteId)
+  if (!result.ok) return null
+  if (result.data.length === 0) return null
+  return <AccountsStripClient connections={result.data} />
 }
