@@ -27,11 +27,11 @@ const STATUS_TONE: Record<AbTestStatus, BadgeTone> = {
 }
 
 const STATUS_LABEL: Record<AbTestStatus, string> = {
-  active: 'Active',
-  paused: 'Paused',
-  completed: 'Completed',
-  draft: 'Draft',
-  archived: 'Archived',
+  active: 'Ativo',
+  paused: 'Pausado',
+  completed: 'Concluído',
+  draft: 'Rascunho',
+  archived: 'Arquivado',
 }
 
 export function DetailHeader({
@@ -80,7 +80,7 @@ export function DetailHeader({
                 options={['confirmed', 'live'] as const}
                 value={signalToggle.mode}
                 onChange={() => signalToggle.onToggle()}
-                labels={{ confirmed: 'Confirmed', live: 'Live' }}
+                labels={{ confirmed: 'Confirmado', live: 'Live' }}
                 aria-label="Signal mode"
               />
               <InfoTip text="Confirmed uses verified data. Live shows real-time estimates." />
