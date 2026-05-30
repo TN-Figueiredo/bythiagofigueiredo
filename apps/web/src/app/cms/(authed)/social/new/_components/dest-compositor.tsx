@@ -169,10 +169,38 @@ export function DestCompositor({ focusedDest, destsOn }: DestCompositorProps) {
                   boxShadow: 'rgba(0,0,0,0.7) 0 30px 70px -24px',
                 }}
               >
-                <div className="flex h-full items-center justify-center text-[10px] text-cms-text-dim/40">
-                  Canvas preview
+                {/* Mini canvas with placeholder elements */}
+                <div className="relative h-full w-full" style={{ background: 'linear-gradient(155deg, rgb(247,241,232), rgb(237,227,210))' }}>
+                  <div className="absolute" style={{ inset: '5%', border: '1px solid rgba(31,27,23,0.25)', borderRadius: 4, pointerEvents: 'none' }} />
+                  <div className="absolute left-1/2 -translate-x-1/2" style={{ top: '13%', width: '84%', textAlign: 'center' }}>
+                    <span className="font-mono" style={{ fontSize: isStory ? 3.1 : 5, letterSpacing: '0.22em', color: 'rgb(154,107,63)', border: '1px solid rgba(154,107,63,0.5)', padding: '3px 6px', borderRadius: 3, display: 'inline-block' }}>NO BLOG</span>
+                  </div>
+                  <div className="absolute left-1/2 -translate-x-1/2" style={{ top: '28%', width: '84%', textAlign: 'center' }}>
+                    <div className="font-fraunces" style={{ fontSize: isStory ? 9.3 : 14, fontWeight: 700, color: 'rgb(31,27,23)', lineHeight: 1.02, letterSpacing: '-0.01em', whiteSpace: 'pre-line' }}>{'Aprendi inglês\nbrigando online'}</div>
+                  </div>
+                  <div className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center overflow-hidden" style={{ top: '56%', transform: 'translate(-50%,-50%)', width: '70%', height: '26%', background: 'linear-gradient(135deg, rgb(58,36,86), rgb(22,12,36))', borderRadius: 8 }}>
+                    <svg width={isStory ? 9 : 14} height={isStory ? 9 : 14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                      <path d="M3 5h18v14H3z" /><path d="M3 16l5-5 4 4 4-4 5 5" /><path d="M9 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0" />
+                    </svg>
+                  </div>
+                  <div className="absolute left-1/2 -translate-x-1/2" style={{ top: '80%', transform: 'translate(-50%,-50%)' }}>
+                    <span className="inline-flex items-center gap-1" style={{ background: '#fff', color: '#111', fontSize: isStory ? 4.1 : 6, fontWeight: 700, padding: '4px 8px', borderRadius: 6, boxShadow: 'rgba(0,0,0,0.25) 0 4px 14px' }}>
+                      <svg width={isStory ? 3.8 : 6} height={isStory ? 3.8 : 6} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M9 15l6-6" /><path d="M10 6l1-1a4 4 0 016 6l-1 1" /><path d="M14 18l-1 1a4 4 0 01-6-6l1-1" /></svg>
+                      LER O POST
+                    </span>
+                  </div>
+                  <div className="absolute left-1/2 -translate-x-1/2" style={{ top: '92%', transform: 'translate(-50%,-50%)' }}>
+                    <div className="flex items-center justify-center font-fraunces" style={{ width: isStory ? 12.9 : 20, height: isStory ? 12.9 : 20, borderRadius: '50%', border: '1.5px solid rgb(224,101,30)', color: 'rgb(31,27,23)', fontWeight: 700, fontSize: isStory ? 5.2 : 8 }}>TF</div>
+                  </div>
                 </div>
               </div>
+            </div>
+            {/* Template footer */}
+            <div className="mt-3 flex items-center gap-1.5 text-[11px] text-cms-text-dim/60">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                <circle cx="12" cy="12" r="9" /><path d="M12 11v5" /><path d="M12 8h.01" />
+              </svg>
+              Template <b className="text-cms-text-dim">Blog → Story</b> aplicado · clique pra editar
             </div>
           </div>
         )}
