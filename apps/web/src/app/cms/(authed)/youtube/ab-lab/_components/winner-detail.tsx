@@ -7,6 +7,7 @@ import { LiveMonitorCard } from './live-monitor'
 import { CredibleInterval } from './credible-interval'
 import { RankBars } from './rank-bars'
 import { ConfidenceChart } from './confidence-chart'
+import { ClickMoment } from './click-moment'
 import { VariantTable } from './variant-table'
 import { GatesPanel } from './gates-panel'
 import { SectionLabel } from './ab-primitives'
@@ -171,8 +172,17 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
         <GatesPanel gates={view.gates} />
       </section>
 
-      {/* 8. Placeholder for Click Moment */}
-      <div data-click-moment aria-hidden="true" />
+      {/* 8. O momento de clique */}
+      <ClickMoment
+        videoTitle={view.videoTitle}
+        winnerLabel={view.winnerLabel}
+        winnerColor={view.winnerColor}
+        variants={view.variants.slice(0, 2).map(v => ({
+          label: v.label,
+          color: v.color,
+          ctr: v.ctr * 100,
+        }))}
+      />
     </div>
   )
 }
