@@ -3,7 +3,7 @@
 import React from 'react'
 import Link from 'next/link'
 import type { TestType, AbTestStatus } from '@/lib/youtube/ab-types'
-import { TypeBadge, Badge, Seg, InfoTip } from './ab-primitives'
+import { TypeBadge, Badge, InfoTip } from './ab-primitives'
 import { ArrowLeft, Trophy, Swords, AlertCircle } from 'lucide-react'
 import type { BadgeTone } from './ab-primitives'
 
@@ -117,14 +117,27 @@ export function DetailHeader({
         {/* Right: signal toggle + actions */}
         <div className="flex items-center gap-[9px] shrink-0">
           {signalToggle && (
-            <div className="flex items-center gap-2">
-              <Seg<'confirmed' | 'live'>
-                options={['confirmed', 'live'] as const}
-                value={signalToggle.mode}
-                onChange={() => signalToggle.onToggle()}
-                labels={{ confirmed: 'Confirmado', live: 'Live' }}
-                aria-label="Signal mode"
-              />
+            <div className="flex items-center gap-[4px]">
+              <div className="inline-flex bg-cms-surface-hover rounded-[9px] p-[3px] gap-[2px]">
+                {(['confirmed', 'live'] as const).map(m => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => { if (m !== signalToggle.mode) signalToggle.onToggle() }}
+                    className="border-none cursor-pointer transition-[0.15s]"
+                    style={{
+                      padding: '6px 13px',
+                      borderRadius: 7,
+                      fontSize: '12.5px',
+                      fontWeight: 600,
+                      background: m === signalToggle.mode ? 'var(--cms-accent)' : 'transparent',
+                      color: m === signalToggle.mode ? 'rgb(20, 15, 8)' : 'var(--cms-text-dim)',
+                    }}
+                  >
+                    {m === 'confirmed' ? 'Confirmado' : 'Live'}
+                  </button>
+                ))}
+              </div>
               <InfoTip text="Confirmado usa dados verificados. Live mostra estimativas em tempo real." />
             </div>
           )}
