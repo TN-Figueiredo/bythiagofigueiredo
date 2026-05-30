@@ -5,6 +5,7 @@ import type { CardComposition, CardElement } from '@tn-figueiredo/links/qr'
 import { QrInspector } from './qr-inspector'
 import { TextInspector } from './text-inspector'
 import { ImageInspector } from './image-inspector'
+import { GifInspector } from './gif-inspector'
 import { MultiInspector } from './multi-inspector'
 
 interface RightPanelProps {
@@ -137,11 +138,22 @@ export function RightPanel({
         />
       )}
       {element.type === 'image' && (
-        <ImageInspector
-          element={element}
-          onUpdate={patch => onUpdateElement(element.id, patch)}
-          onReplaceImage={() => onReplaceImage(element.id)}
-        />
+        (element.name?.includes('GIF') || element.src?.endsWith('.gif'))
+          ? (
+            <GifInspector
+              element={element}
+              onUpdate={patch => onUpdateElement(element.id, patch)}
+              onDuplicate={() => {/* handled by parent */}}
+              onDelete={() => onRemoveElement(element.id)}
+            />
+          )
+          : (
+            <ImageInspector
+              element={element}
+              onUpdate={patch => onUpdateElement(element.id, patch)}
+              onReplaceImage={() => onReplaceImage(element.id)}
+            />
+          )
       )}
     </aside>
   )
