@@ -7,7 +7,6 @@ import {
   Users,
   Globe,
   TrendingUp,
-  Pencil,
   Copy,
   Check,
   QrCode,
@@ -19,8 +18,15 @@ import {
   Pause,
   Play,
   BarChart3,
+  Link2,
+  ChevronRight,
+  Type,
 } from 'lucide-react'
 import { deleteLink, toggleLinkActive } from '../actions'
+
+/* ------------------------------------------------------------------ */
+/*  Types                                                              */
+/* ------------------------------------------------------------------ */
 
 interface LinkData {
   id: string
@@ -59,14 +65,31 @@ interface Props {
   shortUrl: string
 }
 
-const SOURCE_COLORS: Record<string, string> = {
-  manual: 'bg-gray-500/10 text-gray-400',
-  campaign: 'bg-blue-500/10 text-blue-400',
-  newsletter: 'bg-purple-500/10 text-purple-400',
-  blog: 'bg-green-500/10 text-green-400',
-  social: 'bg-pink-500/10 text-pink-400',
-  print: 'bg-amber-500/10 text-amber-400',
+/* ------------------------------------------------------------------ */
+/*  Constants                                                          */
+/* ------------------------------------------------------------------ */
+
+const SOURCE_COLORS: Record<string, { bg: string; color: string }> = {
+  newsletter: { bg: 'rgba(167, 124, 232, 0.133)', color: 'rgb(167, 124, 232)' },
+  social:     { bg: 'rgba(63, 169, 192, 0.133)',  color: 'var(--cyan)' },
+  blog:       { bg: 'var(--green-soft)',           color: 'var(--green)' },
+  campaign:   { bg: 'rgba(91, 127, 214, 0.133)',  color: 'rgb(91, 127, 214)' },
+  qr:         { bg: 'var(--amber-soft)',           color: 'var(--amber)' },
+  manual:     { bg: 'var(--surface-2)',            color: 'var(--ink-dim)' },
 }
+
+const HEALTH_MAP: Record<string, { bg: string; color: string; label: string }> = {
+  healthy:   { bg: 'var(--green-soft)',  color: 'var(--green)', label: 'saudável' },
+  ok:        { bg: 'var(--green-soft)',  color: 'var(--green)', label: 'saudável' },
+  warn:      { bg: 'var(--amber-soft)',  color: 'var(--amber)', label: 'a expirar' },
+  broken:    { bg: 'rgba(217, 97, 74, 0.13)', color: 'var(--red)', label: 'quebrado' },
+  unhealthy: { bg: 'rgba(217, 97, 74, 0.13)', color: 'var(--red)', label: 'quebrado' },
+  unchecked: { bg: 'var(--surface-2)',   color: 'var(--ink-dim)', label: 'Unchecked' },
+}
+
+/* ------------------------------------------------------------------ */
+/*  Helpers                                                            */
+/* ------------------------------------------------------------------ */
 
 function formatRelativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
@@ -84,6 +107,92 @@ function formatCompact(n: number): string {
   return n.toLocaleString()
 }
 
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })
+}
+
+/* ------------------------------------------------------------------ */
+/*  Shared inline-style fragments                                      */
+/* ------------------------------------------------------------------ */
+
+const ghostBtn: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 7,
+  whiteSpace: 'nowrap',
+  borderRadius: 9,
+  border: '1px solid var(--line)',
+  background: 'transparent',
+  padding: '6px 11px',
+  fontSize: '12.5px',
+  fontWeight: 600,
+  letterSpacing: '-0.01em',
+  color: 'var(--ink-dim)',
+  cursor: 'pointer',
+  transition: '0.15s',
+}
+
+const accentBtn: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 7,
+  whiteSpace: 'nowrap',
+  borderRadius: 9,
+  border: '1px solid var(--accent)',
+  background: 'var(--accent)',
+  padding: '6px 15px',
+  fontSize: '12.5px',
+  fontWeight: 600,
+  letterSpacing: '-0.01em',
+  color: 'var(--pb-ink-on-accent, #1A140C)',
+  cursor: 'pointer',
+  transition: '0.15s',
+}
+
+const dangerBtn: React.CSSProperties = {
+  ...ghostBtn,
+  borderColor: 'rgba(217, 97, 74, 0.3)',
+  color: 'var(--red)',
+}
+
+const cardStyle: React.CSSProperties = {
+  background: 'var(--surface)',
+  border: '1px solid var(--line)',
+  borderRadius: 'var(--r)',
+  padding: 18,
+}
+
+const eyebrow: React.CSSProperties = {
+  fontSize: '9.5px',
+  fontWeight: 700,
+  textTransform: 'uppercase',
+  letterSpacing: '0.08em',
+  color: 'var(--ink-dim)',
+  margin: 0,
+}
+
+const badge = (bg: string, color: string): React.CSSProperties => ({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 5,
+  borderRadius: 99,
+  padding: '3px 10px',
+  fontSize: '11px',
+  fontWeight: 600,
+  background: bg,
+  color,
+})
+
+/* ------------------------------------------------------------------ */
+/*  Sub-components                                                     */
+/* ------------------------------------------------------------------ */
+
 function CopyUrlButton({ url }: { url: string }) {
   const [copied, setCopied] = useState(false)
 
@@ -94,45 +203,59 @@ function CopyUrlButton({ url }: { url: string }) {
   }, [url])
 
   return (
-    <button
-      type="button"
-      onClick={handleCopy}
-      className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-[11px] font-medium text-foreground transition-colors hover:bg-muted"
-    >
+    <button type="button" onClick={handleCopy} style={ghostBtn}>
       {copied ? (
-        <Check className="h-3.5 w-3.5 text-green-400" />
+        <Check size={14} strokeWidth={1.7} style={{ color: 'var(--green)' }} />
       ) : (
-        <Copy className="h-3.5 w-3.5" />
+        <Copy size={14} strokeWidth={1.7} />
       )}
-      {copied ? 'Copied!' : 'Copy URL'}
+      {copied ? 'Copiado!' : 'Copiar URL'}
     </button>
   )
 }
 
-function KpiCard({
+function KpiTile({
   icon,
   label,
   value,
-  accentClass,
+  circleColor,
+  circleBg,
 }: {
   icon: React.ReactNode
   label: string
   value: string | number
-  accentClass: string
+  circleColor: string
+  circleBg: string
 }) {
   return (
-    <div className="rounded-[10px] border border-border bg-card p-4 transition-colors hover:border-muted-foreground/30">
-      <div className="flex items-center gap-3">
+    <div style={cardStyle}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <div
-          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${accentClass}`}
+          style={{
+            width: 30,
+            height: 30,
+            borderRadius: 99,
+            background: circleBg,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}
         >
-          {icon}
+          <span style={{ color: circleColor, display: 'flex' }}>{icon}</span>
         </div>
         <div>
-          <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-            {label}
-          </p>
-          <p className="mt-0.5 text-xl font-extrabold tabular-nums text-foreground">
+          <p style={eyebrow}>{label}</p>
+          <p
+            style={{
+              margin: '4px 0 0',
+              fontFamily: 'var(--font-mono)',
+              fontSize: 26,
+              fontWeight: 700,
+              lineHeight: 1,
+              color: 'var(--ink)',
+            }}
+          >
             {typeof value === 'number' ? formatCompact(value) : value}
           </p>
         </div>
@@ -140,6 +263,39 @@ function KpiCard({
     </div>
   )
 }
+
+function DetailRow({
+  label,
+  icon,
+  children,
+}: {
+  label: string
+  icon?: React.ReactNode
+  children: React.ReactNode
+}) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        fontSize: '12.5px',
+        padding: '6px 0',
+        borderBottom: '1px solid var(--line)',
+      }}
+    >
+      <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--ink-dim)' }}>
+        {icon}
+        {label}
+      </span>
+      <span style={{ color: 'var(--ink)', fontWeight: 500 }}>{children}</span>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/*  Main component                                                     */
+/* ------------------------------------------------------------------ */
 
 export function LinkDetail({ link, dailyClicks, topCountry, linkId, shortUrl }: Props) {
   const router = useRouter()
@@ -149,7 +305,7 @@ export function LinkDetail({ link, dailyClicks, topCountry, linkId, shortUrl }: 
   const periodUnique = dailyClicks.reduce((s, m) => s + m.unique, 0)
 
   function handleDelete() {
-    if (!confirm('Delete this link? This action cannot be undone.')) return
+    if (!confirm('Excluir este link? Essa acao nao pode ser desfeita.')) return
     startTransition(async () => {
       await deleteLink(link.id)
       router.push('/cms/links')
@@ -163,280 +319,385 @@ export function LinkDetail({ link, dailyClicks, topCountry, linkId, shortUrl }: 
     })
   }
 
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-lg font-bold text-foreground">
-              {link.title || `/${link.code}`}
-            </h1>
-            <span
-              className={`inline-flex items-center gap-1.5 text-[10px] font-medium ${
-                link.active ? 'text-green-400' : 'text-muted-foreground'
-              }`}
-            >
-              <span
-                className={`h-1.5 w-1.5 rounded-full ${link.active ? 'bg-green-500' : 'bg-muted-foreground/50'}`}
-              />
-              {link.active ? 'Active' : 'Inactive'}
-            </span>
-            <span
-              className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium capitalize ${
-                SOURCE_COLORS[link.source_type] ?? SOURCE_COLORS.manual
-              }`}
-            >
-              {link.source_type}
-            </span>
-          </div>
-          <p className="mt-1 font-mono text-sm text-muted-foreground">/{link.code}</p>
-        </div>
+  const sourceStyle = SOURCE_COLORS[link.source_type] ?? SOURCE_COLORS.manual
+  const healthKey = link.health_status ?? 'unchecked'
+  const health = HEALTH_MAP[healthKey] ?? HEALTH_MAP.unchecked
 
-        <div className="flex items-center gap-2">
+  return (
+    <div style={{ padding: '20px 30px 0' }}>
+      {/* ── Breadcrumb ───────────────────────────────────────────── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 10 }}>
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            fontSize: '12.5px',
+            fontWeight: 500,
+            color: 'var(--ink-dim)',
+          }}
+        >
+          <Link2 size={13} strokeWidth={1.7} />
+          Social
+        </span>
+        <ChevronRight
+          size={13}
+          strokeWidth={1.7}
+          style={{ flexShrink: 0, color: 'var(--ink-faint)', opacity: 0.7 }}
+        />
+        <span
+          style={{
+            fontSize: '12.5px',
+            fontWeight: 500,
+            color: 'var(--ink-dim)',
+            cursor: 'pointer',
+          }}
+          onClick={() => router.push('/cms/links')}
+        >
+          Links
+        </span>
+        <ChevronRight
+          size={13}
+          strokeWidth={1.7}
+          style={{ flexShrink: 0, color: 'var(--ink-faint)', opacity: 0.7 }}
+        />
+        <span
+          style={{
+            fontSize: '12.5px',
+            fontWeight: 600,
+            color: 'var(--ink)',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {link.title || `/${link.code}`}
+        </span>
+      </div>
+
+      {/* ── Title row ────────────────────────────────────────────── */}
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 14,
+          marginBottom: 8,
+        }}
+      >
+        <h1
+          style={{
+            margin: 0,
+            fontFamily: 'Fraunces, serif',
+            fontSize: 29,
+            fontWeight: 600,
+            letterSpacing: '-0.01em',
+            color: 'var(--ink)',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {link.title || `/${link.code}`}
+        </h1>
+
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
           <CopyUrlButton url={shortUrl} />
           <button
             type="button"
-            onClick={() => router.push(`/cms/links/${linkId}/edit`)}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-500 px-3 py-2 text-[11px] font-semibold text-white transition-colors hover:bg-indigo-600"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-            Edit
-          </button>
-          <button
-            type="button"
             onClick={() => router.push(`/cms/links/${linkId}/qr`)}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-[11px] font-medium text-foreground transition-colors hover:bg-muted"
+            style={ghostBtn}
           >
-            <QrCode className="h-3.5 w-3.5" />
+            <QrCode size={14} strokeWidth={1.7} />
             QR
           </button>
           <button
             type="button"
             onClick={handleToggle}
             disabled={isPending}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-[11px] font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50"
+            style={{ ...ghostBtn, opacity: isPending ? 0.5 : 1 }}
           >
             {link.active ? (
-              <Pause className="h-3.5 w-3.5" />
+              <Pause size={14} strokeWidth={1.7} />
             ) : (
-              <Play className="h-3.5 w-3.5" />
+              <Play size={14} strokeWidth={1.7} />
             )}
-            {link.active ? 'Pause' : 'Activate'}
+            {link.active ? 'Pausar' : 'Ativar'}
           </button>
           <button
             type="button"
-            onClick={handleDelete}
-            disabled={isPending}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/30 px-3 py-2 text-[11px] font-medium text-red-400 transition-colors hover:bg-red-500/10 disabled:opacity-50"
+            onClick={() => router.push(`/cms/links/${linkId}/edit`)}
+            style={accentBtn}
           >
-            <Trash2 className="h-3.5 w-3.5" />
-            Delete
+            <Type size={14} strokeWidth={1.7} />
+            Editar
           </button>
         </div>
       </div>
 
-      {/* Destination card */}
-      <div className="rounded-[10px] border border-border bg-card p-4">
-        <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-          Destination
-        </div>
+      {/* ── Status row ───────────────────────────────────────────── */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 12,
+          marginBottom: 24,
+        }}
+      >
+        {/* Active indicator */}
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            fontSize: '12.5px',
+            fontWeight: 600,
+            color: link.active ? 'var(--green)' : 'var(--ink-dim)',
+          }}
+        >
+          <span
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: 99,
+              background: link.active ? 'var(--green)' : 'var(--ink-faint)',
+            }}
+          />
+          {link.active ? 'Ativo' : 'Inativo'}
+        </span>
+
+        {/* Source badge */}
+        <span style={badge(sourceStyle.bg, sourceStyle.color)}>
+          {link.source_type}
+        </span>
+
+        {/* Slug */}
+        <span
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: '12.5px',
+            color: 'var(--ink-dim)',
+          }}
+        >
+          /{link.code}
+        </span>
+
+        {/* Health badge */}
+        <span style={badge(health.bg, health.color)}>
+          {health.label}
+        </span>
+      </div>
+
+      {/* ── Destination card ─────────────────────────────────────── */}
+      <div style={{ ...cardStyle, marginBottom: 18 }}>
+        <p style={{ ...eyebrow, marginBottom: 8 }}>DESTINO</p>
         <a
           href={link.destination_url}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 text-sm text-indigo-400 transition-colors hover:text-indigo-300"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            fontSize: '13.5px',
+            color: 'var(--accent)',
+            textDecoration: 'none',
+            wordBreak: 'break-all',
+            transition: '0.15s',
+          }}
         >
-          <span className="break-all">{link.destination_url}</span>
-          <ExternalLink className="h-3 w-3 shrink-0" />
+          {link.destination_url}
+          <ExternalLink size={13} strokeWidth={1.7} style={{ flexShrink: 0 }} />
         </a>
       </div>
 
-      {/* KPI cards */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <KpiCard
-          icon={<MousePointerClick className="h-4 w-4 text-indigo-400" />}
-          label="Total Clicks"
+      {/* ── KPI row ──────────────────────────────────────────────── */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+          gap: 14,
+          marginBottom: 18,
+        }}
+      >
+        <KpiTile
+          icon={<MousePointerClick size={14} strokeWidth={1.7} />}
+          label="Total Cliques"
           value={link.total_clicks}
-          accentClass="bg-indigo-500/10"
+          circleColor="var(--accent)"
+          circleBg="var(--accent-soft)"
         />
-        <KpiCard
-          icon={<TrendingUp className="h-4 w-4 text-green-400" />}
-          label="Last 30 Days"
+        <KpiTile
+          icon={<TrendingUp size={14} strokeWidth={1.7} />}
+          label="Ultimos 30 Dias"
           value={periodClicks}
-          accentClass="bg-green-500/10"
+          circleColor="var(--green)"
+          circleBg="var(--green-soft)"
         />
-        <KpiCard
-          icon={<Users className="h-4 w-4 text-sky-400" />}
-          label="Unique Visitors"
+        <KpiTile
+          icon={<Users size={14} strokeWidth={1.7} />}
+          label="Visitantes Unicos"
           value={periodUnique}
-          accentClass="bg-sky-500/10"
+          circleColor="var(--cyan)"
+          circleBg="rgba(63, 169, 192, 0.133)"
         />
-        <KpiCard
-          icon={<Globe className="h-4 w-4 text-purple-400" />}
-          label="Top Country"
+        <KpiTile
+          icon={<Globe size={14} strokeWidth={1.7} />}
+          label="Top Pais"
           value={topCountry || '—'}
-          accentClass="bg-purple-500/10"
+          circleColor="var(--amber)"
+          circleBg="var(--amber-soft)"
         />
       </div>
 
-      {/* Sparkline chart */}
-      {dailyClicks.length > 0 && (
-        <div className="rounded-[10px] border border-border bg-card p-4">
-          <div className="mb-3 text-[11px] font-semibold text-foreground">
-            Click Trend (30 days)
-          </div>
-          <div className="flex items-end gap-px" style={{ height: '96px' }}>
-            {dailyClicks.map((d, i) => {
-              const max = Math.max(...dailyClicks.map((x) => x.clicks), 1)
-              const height = Math.max((d.clicks / max) * 100, 2)
-              return (
-                <div
-                  key={i}
-                  className="flex-1 rounded-t-sm bg-indigo-500/70 transition-opacity hover:bg-indigo-400"
-                  style={{ height: `${height}%` }}
-                  title={`${d.date}: ${d.clicks} clicks`}
-                />
-              )
-            })}
-          </div>
-        </div>
-      )}
+      {/* ── Details panel ────────────────────────────────────────── */}
+      <div style={{ ...cardStyle, marginBottom: 18 }}>
+        <p
+          style={{
+            margin: '0 0 14px',
+            fontSize: '13.5px',
+            fontWeight: 600,
+            color: 'var(--ink)',
+          }}
+        >
+          Detalhes
+        </p>
 
-      {/* Details section */}
-      <div className="rounded-[10px] border border-border bg-card p-4">
-        <div className="mb-3 text-[11px] font-semibold text-foreground">Details</div>
-        <div className="space-y-2.5">
-          <div className="flex items-center justify-between text-[11px]">
-            <span className="flex items-center gap-1.5 text-muted-foreground">
-              <ArrowUpRight className="h-3 w-3" />
-              Redirect
+        <DetailRow label="Redirect" icon={<ArrowUpRight size={13} strokeWidth={1.7} />}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
+              {link.redirect_type}
             </span>
-            <div className="flex items-center gap-1.5">
-              <span className="font-mono font-medium text-foreground">{link.redirect_type}</span>
-              <span
-                className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                  link.pass_click_ids
-                    ? 'bg-green-500/10 text-green-400'
-                    : 'bg-muted text-muted-foreground'
-                }`}
-              >
-                {link.pass_click_ids ? 'click IDs on' : 'click IDs off'}
-              </span>
-            </div>
-          </div>
-          <div className="flex items-center justify-between text-[11px]">
-            <span className="flex items-center gap-1.5 text-muted-foreground">
-              <Clock className="h-3 w-3" />
-              Created
+            <span
+              style={badge(
+                link.pass_click_ids ? 'var(--green-soft)' : 'var(--surface-2)',
+                link.pass_click_ids ? 'var(--green)' : 'var(--ink-dim)',
+              )}
+            >
+              {link.pass_click_ids ? 'click IDs on' : 'click IDs off'}
             </span>
-            <span className="font-medium text-foreground">
-              {new Date(link.created_at).toLocaleDateString()}
-            </span>
-          </div>
-          {link.expires_at && (
-            <div className="flex items-center justify-between text-[11px]">
-              <span className="flex items-center gap-1.5 text-muted-foreground">
-                <Clock className="h-3 w-3" />
-                Expires
+          </span>
+        </DetailRow>
+
+        <DetailRow label="Criado" icon={<Clock size={13} strokeWidth={1.7} />}>
+          {formatDate(link.created_at)}
+        </DetailRow>
+
+        {link.expires_at && (
+          <DetailRow label="Expira" icon={<Clock size={13} strokeWidth={1.7} />}>
+            {formatDate(link.expires_at)}
+          </DetailRow>
+        )}
+
+        {link.activates_at && (
+          <DetailRow label="Ativa em" icon={<Clock size={13} strokeWidth={1.7} />}>
+            {formatDate(link.activates_at)}
+          </DetailRow>
+        )}
+
+        {link.launched_at && (
+          <DetailRow label="Lancado" icon={<ArrowUpRight size={13} strokeWidth={1.7} />}>
+            {formatDate(link.launched_at)}
+          </DetailRow>
+        )}
+
+        {link.last_clicked_at && (
+          <DetailRow
+            label="Ultimo clique"
+            icon={<MousePointerClick size={13} strokeWidth={1.7} />}
+          >
+            {formatDate(link.last_clicked_at)}
+          </DetailRow>
+        )}
+
+        {link.utm_id && (
+          <DetailRow label="UTM ID">
+            <span style={{ fontFamily: 'var(--font-mono)' }}>{link.utm_id}</span>
+          </DetailRow>
+        )}
+
+        <DetailRow label="Health">
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            <span style={badge(health.bg, health.color)}>{health.label}</span>
+            {link.health_checked_at && (
+              <span style={{ fontSize: '11px', color: 'var(--ink-dim)' }}>
+                {formatRelativeTime(link.health_checked_at)}
               </span>
-              <span className="font-medium text-foreground">
-                {new Date(link.expires_at).toLocaleDateString()}
-              </span>
+            )}
+          </span>
+        </DetailRow>
+
+        {link.tags.length > 0 && (
+          <div style={{ paddingTop: 10, borderTop: 'none' }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                fontSize: '12.5px',
+                color: 'var(--ink-dim)',
+                marginBottom: 8,
+              }}
+            >
+              <Tag size={13} strokeWidth={1.7} />
+              Tags
             </div>
-          )}
-          {link.last_clicked_at && (
-            <div className="flex items-center justify-between text-[11px]">
-              <span className="flex items-center gap-1.5 text-muted-foreground">
-                <MousePointerClick className="h-3 w-3" />
-                Last click
-              </span>
-              <span className="font-medium text-foreground">
-                {new Date(link.last_clicked_at).toLocaleDateString()}
-              </span>
-            </div>
-          )}
-          {link.utm_id && (
-            <div className="flex items-center justify-between text-[11px]">
-              <span className="text-muted-foreground">UTM ID</span>
-              <span className="font-mono font-medium text-foreground">{link.utm_id}</span>
-            </div>
-          )}
-          {link.activates_at && (
-            <div className="flex items-center justify-between text-[11px]">
-              <span className="flex items-center gap-1.5 text-muted-foreground">
-                <Clock className="h-3 w-3" />
-                Activates
-              </span>
-              <span className="font-medium text-foreground">
-                {new Date(link.activates_at).toLocaleDateString()}
-              </span>
-            </div>
-          )}
-          {link.launched_at && (
-            <div className="flex items-center justify-between text-[11px]">
-              <span className="flex items-center gap-1.5 text-muted-foreground">
-                <ArrowUpRight className="h-3 w-3" />
-                Launched
-              </span>
-              <span className="font-medium text-foreground">
-                {new Date(link.launched_at).toLocaleDateString()}
-              </span>
-            </div>
-          )}
-          {link.health_status && (
-            <div className="flex items-center justify-between text-[11px]">
-              <span className="text-muted-foreground">Health</span>
-              <div className="flex items-center gap-1.5">
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {link.tags.map((t) => (
                 <span
-                  className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium capitalize ${
-                    link.health_status === 'healthy'
-                      ? 'bg-green-500/10 text-green-400'
-                      : link.health_status === 'unhealthy'
-                        ? 'bg-red-500/10 text-red-400'
-                        : 'bg-yellow-500/10 text-yellow-400'
-                  }`}
+                  key={t}
+                  style={{
+                    ...badge('var(--accent-soft)', 'var(--accent)'),
+                    fontSize: '11px',
+                  }}
                 >
-                  {link.health_status}
+                  {t}
                 </span>
-                {link.health_checked_at && (
-                  <span className="text-muted-foreground">
-                    {formatRelativeTime(link.health_checked_at)}
-                  </span>
-                )}
-              </div>
+              ))}
             </div>
-          )}
-          {link.tags.length > 0 && (
-            <div className="pt-1">
-              <div className="mb-1.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                <Tag className="h-3 w-3" />
-                Tags
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {link.tags.map((t) => (
-                  <span
-                    key={t}
-                    className="inline-flex rounded-full bg-indigo-500/10 px-2.5 py-0.5 text-[10px] font-medium text-indigo-400"
-                  >
-                    {t}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
-      {/* Analytics deep link */}
-      <div className="flex justify-center">
+      {/* ── Delete zone ──────────────────────────────────────────── */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'flex-end',
+          marginBottom: 18,
+        }}
+      >
+        <button
+          type="button"
+          onClick={handleDelete}
+          disabled={isPending}
+          style={{ ...dangerBtn, opacity: isPending ? 0.5 : 1 }}
+        >
+          <Trash2 size={14} strokeWidth={1.7} />
+          Excluir
+        </button>
+      </div>
+
+      {/* ── Analytics deep-link ──────────────────────────────────── */}
+      <div style={{ textAlign: 'center', paddingBottom: 30 }}>
         <button
           type="button"
           onClick={() => router.push(`/cms/links/${linkId}/analytics`)}
-          className="inline-flex items-center gap-1.5 text-[11px] font-medium text-indigo-400 transition-colors hover:text-indigo-300"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 7,
+            fontSize: '12.5px',
+            fontWeight: 600,
+            color: 'var(--accent)',
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+            transition: '0.15s',
+          }}
         >
-          <BarChart3 className="h-3.5 w-3.5" />
-          View Full Analytics
+          <BarChart3 size={15} strokeWidth={1.7} />
+          Ver Analytics Completo
         </button>
       </div>
     </div>
