@@ -31,7 +31,7 @@ VALUES (
   'Thiago Figueiredo',
   'bythiagofigueiredo',
   '{bythiagofigueiredo.com,www.bythiagofigueiredo.com}',
-  'en',
+  'pt-BR',
   '{pt-BR,en}',
   '2026-04-17 03:51:08.816185+00',
   '2026-05-06 13:27:53.904037+00',

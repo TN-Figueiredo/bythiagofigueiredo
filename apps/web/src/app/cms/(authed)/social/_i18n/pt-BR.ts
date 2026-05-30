@@ -33,10 +33,10 @@ export const ptBR: SocialStrings = {
     bulk: { reschedule: 'Reagendar', retry: 'Retentar Falhas', moveToQueue: 'Mover para Fila', delete: 'Excluir', deleteConfirm: 'Posts publicados são removidos apenas do CMS — permanecem ativos nas plataformas.' },
     card: { clicks: 'cliques', engagement: 'engajamento', edit: 'Editar', duplicate: 'Duplicar', view: 'Ver', cancel: 'Cancelar', retry: 'Retentar', delete: 'Excluir' },
     hub: {
-      title: 'Social Hub',
-      subtitle: 'Gerencie todos os seus posts sociais',
+      title: 'Social Studio',
+      subtitle: 'Gerenciar posts, agenda e fila de publicacao',
       fromCms: 'Do CMS',
-      newPost: 'Novo Post',
+      newPost: 'Novo post',
     },
     strip: {
       followers: 'Seguidores',

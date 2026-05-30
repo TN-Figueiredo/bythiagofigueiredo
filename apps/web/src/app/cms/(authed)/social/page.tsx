@@ -42,13 +42,13 @@ export default async function SocialHubPage({ searchParams }: Props) {
         href="/cms/social/new?mode=cms"
         className="rounded-lg border border-cms-border px-4 py-2 text-sm font-medium text-cms-text hover:bg-cms-surface transition-colors"
       >
-        Do CMS
+        {t.posts.hub.fromCms}
       </Link>
       <Link
         href="/cms/social/new"
         className="rounded-lg bg-cms-accent px-4 py-2 text-sm font-medium text-white hover:bg-cms-accent-hover transition-colors"
       >
-        Novo post
+        {t.posts.hub.newPost}
       </Link>
     </>
   )
@@ -57,8 +57,8 @@ export default async function SocialHubPage({ searchParams }: Props) {
     <div className="p-6 space-y-6">
       <SocialPageHeader
         breadcrumb={breadcrumb}
-        title="Social Studio"
-        subtitle="Gerenciar posts, agenda e fila de publicacao"
+        title={t.posts.hub.title}
+        subtitle={t.posts.hub.subtitle}
         actions={actions}
       />
 

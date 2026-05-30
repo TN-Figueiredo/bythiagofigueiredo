@@ -33,8 +33,8 @@ export const en: SocialStrings = {
     bulk: { reschedule: 'Reschedule', retry: 'Retry Failed', moveToQueue: 'Move to Queue', delete: 'Delete', deleteConfirm: 'Published posts are removed from CMS only — they remain live on platforms.' },
     card: { clicks: 'clicks', engagement: 'engagement', edit: 'Edit', duplicate: 'Duplicate', view: 'View', cancel: 'Cancel', retry: 'Retry', delete: 'Delete' },
     hub: {
-      title: 'Social Hub',
-      subtitle: 'Manage all your social posts',
+      title: 'Social Studio',
+      subtitle: 'Manage posts, schedule and publishing queue',
       fromCms: 'From CMS',
       newPost: 'New Post',
     },
