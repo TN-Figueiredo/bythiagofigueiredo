@@ -8,15 +8,9 @@ vi.mock('../../src/app/cms/(authed)/links/actions', () => ({
 
 vi.mock('lucide-react', () => {
   const icon = (name: string) => (props: Record<string, unknown>) => <svg data-testid={`icon-${name}`} {...props} />
-  return {
-    BarChart3: icon('BarChart3'),
-    Globe: icon('Globe'),
-    Monitor: icon('Monitor'),
-    Smartphone: icon('Smartphone'),
-    TrendingUp: icon('TrendingUp'),
-    Lightbulb: icon('Lightbulb'),
-    Sparkles: icon('Sparkles'),
-  }
+  return new Proxy({} as Record<string, unknown>, {
+    get: (_target, prop: string) => icon(prop),
+  })
 })
 
 vi.mock('@tn-figueiredo/links-admin', () => ({

@@ -5,7 +5,9 @@ import { render, screen, cleanup, fireEvent } from '@testing-library/react'
 
 vi.mock('lucide-react', () => {
   const icon = (name: string) => (props: Record<string, unknown>) => <svg data-testid={`icon-${name}`} {...props} />
-  return { Image: icon('Image'), Type: icon('Type'), FileText: icon('FileText'), Layers: icon('Layers'), TrendingUp: icon('TrendingUp'), TrendingDown: icon('TrendingDown'), Beaker: icon('Beaker'), Sparkles: icon('Sparkles'), ChevronDown: icon('ChevronDown'), Settings: icon('Settings'), Plus: icon('Plus'), FlaskConical: icon('FlaskConical') }
+  return new Proxy({} as Record<string, unknown>, {
+    get: (_target, prop: string) => icon(prop),
+  })
 })
 
 vi.mock('next/link', () => ({
@@ -52,37 +54,31 @@ describe('KPI', () => {
     expect(screen.getByText('%')).toBeTruthy()
   })
 
-  it('renders positive delta with + sign and green color', () => {
-    const { container } = render(<KPI label="Lift" value={12} delta={3} />)
-    const delta = container.querySelector('[data-delta]')
-    expect(delta).toBeTruthy()
-    expect(delta?.textContent).toContain('+3')
-    expect(delta?.className).toContain('text-cms-green')
+  it('renders trend text with green color', () => {
+    render(<KPI label="Lift" value={12} trend="+3% vs last week" />)
+    expect(screen.getByText('+3% vs last week')).toBeTruthy()
   })
 
-  it('renders negative delta with red color', () => {
-    const { container } = render(<KPI label="Lift" value={8} delta={-2} />)
-    const delta = container.querySelector('[data-delta]')
-    expect(delta).toBeTruthy()
-    expect(delta?.textContent).toContain('-2')
-    expect(delta?.className).toContain('text-red')
+  it('does not render trend when not provided', () => {
+    render(<KPI label="Lift" value={8} />)
+    expect(screen.queryByText(/vs last/)).toBeNull()
   })
 
   it('renders sparkline SVG when spark array provided', () => {
     const { container } = render(<KPI label="CTR" value={5} spark={[1, 3, 2, 5, 4]} />)
-    const svg = container.querySelector('.sparkline')
+    const svg = container.querySelector('svg')
     expect(svg).toBeTruthy()
     expect(svg?.getAttribute('aria-hidden')).toBe('true')
   })
 
   it('does not render sparkline when spark is empty', () => {
     const { container } = render(<KPI label="CTR" value={5} spark={[]} />)
-    expect(container.querySelector('.sparkline')).toBeNull()
+    expect(container.querySelector('svg')).toBeNull()
   })
 
   it('does not render sparkline when spark is undefined', () => {
     const { container } = render(<KPI label="CTR" value={5} />)
-    expect(container.querySelector('.sparkline')).toBeNull()
+    expect(container.querySelector('svg')).toBeNull()
   })
 })
 

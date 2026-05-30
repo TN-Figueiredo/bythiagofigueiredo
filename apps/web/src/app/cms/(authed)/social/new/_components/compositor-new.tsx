@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import type { DestId } from '@/lib/social/destinations'
-import { DEST_IDS } from '@/lib/social/destinations'
+import { DEST_IDS, DESTINATIONS } from '@/lib/social/destinations'
 import { DestinationPicker } from './destination-picker'
 import { DestCompositor } from './dest-compositor'
 
@@ -19,10 +19,18 @@ export function CompositorNew() {
   const [schedMode, setSchedMode] = useState<'now' | 'schedule' | 'queue'>('now')
   const [selectedDay, setSelectedDay] = useState(1)
   const [selectedTime, setSelectedTime] = useState('19:00')
-  const [hasContent, setHasContent] = useState(false)
+  const [contentByDest, setContentByDest] = useState<Record<string, boolean>>({})
 
   const activeCount = DEST_IDS.filter(id => destsOn[id]).length
-  const canPublish = activeCount > 0 && hasContent
+  const activeDests = DEST_IDS.filter(id => destsOn[id])
+  const allActiveHaveContent = activeDests.length > 0 && activeDests.every(id => contentByDest[id])
+  const anyActiveHasContent = activeDests.some(id => contentByDest[id])
+  const canPublish = activeDests.length > 0 && allActiveHaveContent
+  const hasContent = anyActiveHasContent
+
+  function handleContentChange(has: boolean) {
+    setContentByDest(prev => ({ ...prev, [focused]: has }))
+  }
 
   function handleToggle(id: DestId) {
     const wasOn = destsOn[id]
@@ -45,7 +53,7 @@ export function CompositorNew() {
         onFocus={setFocused}
         focused={focused}
       />
-      <DestCompositor key={focused} focusedDest={focused} destsOn={destsOn} onContentChange={setHasContent} />
+      <DestCompositor key={focused} focusedDest={focused} destsOn={destsOn} onContentChange={handleContentChange} />
 
       {/* Sticky footer */}
       <div className="sticky bottom-0 z-20 -mx-[30px] mt-auto border-t border-cms-border" style={{ background: 'rgba(16,14,11,0.92)', backdropFilter: 'blur(12px)' }}>
@@ -106,7 +114,12 @@ export function CompositorNew() {
           </div>
 
           <span className="text-xs text-cms-text-dim inline-flex items-center gap-1.5">
-            {schedMode === 'now' ? (
+            {!allActiveHaveContent && anyActiveHasContent ? (
+              <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="text-amber-400"><path d="M12 4l9 16H3z" /><path d="M12 10v4" /><path d="M12 17h.01" /></svg>
+              <span className="text-amber-400">
+                Falta preencher: {activeDests.filter(id => !contentByDest[id]).map(id => DESTINATIONS[id].label + ' ' + DESTINATIONS[id].sublabel).join(', ')}
+              </span></>
+            ) : schedMode === 'now' ? (
               <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="text-cms-accent"><path d="M13 2L4 14h7l-1 8 9-12h-7z" /></svg> Publica imediatamente nas {activeCount} contas</>
             ) : schedMode === 'schedule' ? (
               <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 8v4l3 2" /></svg> {['Hoje', 'Amanhã', 'Qua 31', 'Qui 1', 'Sex 2'][selectedDay]} · <b className="font-mono text-cms-text">{selectedTime}</b></>
