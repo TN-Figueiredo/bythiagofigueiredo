@@ -25,6 +25,7 @@ function baseState(overrides: Partial<WizardState> = {}): WizardState {
     draftTestId: null,
     isLaunching: false,
     error: null,
+    hypothesis: '',
     ...overrides,
   }
 }
