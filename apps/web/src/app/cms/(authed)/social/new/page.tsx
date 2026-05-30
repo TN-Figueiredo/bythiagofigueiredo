@@ -15,7 +15,7 @@ import type { Provider } from '@tn-figueiredo/social'
 import { getSocialStrings } from '../_i18n'
 import Link from 'next/link'
 import { ComposerShell } from './_components/composer-shell'
-import { DestinationPicker } from './_components/destination-picker'
+import { CompositorNew } from './_components/compositor-new'
 
 export const dynamic = 'force-dynamic'
 
@@ -153,7 +153,7 @@ export default async function CompositorPage({ searchParams }: Props) {
         </div>
       </div>
 
-      <DestinationPicker />
+      <CompositorNew />
 
       <Suspense fallback={<CompositorSkeleton />}>
         <ComposerShell

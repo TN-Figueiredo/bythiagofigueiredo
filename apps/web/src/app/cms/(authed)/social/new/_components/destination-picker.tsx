@@ -43,28 +43,37 @@ const DEFAULT_ON: Record<DestId, boolean> = {
 }
 
 export function DestinationPicker({ initialOn, onToggle, onFocus, focused: controlledFocused }: DestinationPickerProps) {
-  const [destsOn, setDestsOn] = useState<Record<DestId, boolean>>(initialOn ?? DEFAULT_ON)
-  const [focused, setFocused] = useState<DestId>(controlledFocused ?? 'ig_story')
+  const [internalDestsOn, setInternalDestsOn] = useState<Record<DestId, boolean>>(initialOn ?? DEFAULT_ON)
+  const [internalFocused, setInternalFocused] = useState<DestId>(controlledFocused ?? 'ig_story')
+
+  // Fully controlled when parent provides onToggle + initialOn
+  const isControlled = !!(onToggle && initialOn)
+  const destsOn = isControlled ? initialOn : internalDestsOn
+  const focused = isControlled && controlledFocused != null ? controlledFocused : internalFocused
 
   const activeCount = DEST_IDS.filter(id => destsOn[id]).length
 
   function handleToggle(id: DestId) {
-    const wasOn = destsOn[id]
-    const next = { ...destsOn, [id]: !wasOn }
-    setDestsOn(next)
-    onToggle?.(id)
+    if (isControlled) {
+      onToggle(id)
+    } else {
+      const wasOn = destsOn[id]
+      const next = { ...destsOn, [id]: !wasOn }
+      setInternalDestsOn(next)
+      onToggle?.(id)
 
-    if (wasOn && focused === id) {
-      const nextActive = DEST_IDS.find(d => d !== id && next[d])
-      if (nextActive) {
-        setFocused(nextActive)
-        onFocus?.(nextActive)
+      if (wasOn && focused === id) {
+        const nextActive = DEST_IDS.find(d => d !== id && next[d])
+        if (nextActive) {
+          setInternalFocused(nextActive)
+          onFocus?.(nextActive)
+        }
       }
     }
   }
 
   function handleFocus(id: DestId) {
-    setFocused(id)
+    if (!isControlled) setInternalFocused(id)
     onFocus?.(id)
   }
 
