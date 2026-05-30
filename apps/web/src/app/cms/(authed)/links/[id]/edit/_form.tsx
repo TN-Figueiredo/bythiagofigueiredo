@@ -143,6 +143,7 @@ export function EditLinkForm({ linkId, siteId, initial }: EditLinkFormProps) {
           .links-edit-form input[type="number"],
           .links-edit-form input[type="password"],
           .links-edit-form input[type="datetime-local"],
+          .links-edit-form input[type="date"],
           .links-edit-form textarea,
           .links-edit-form select {
             background: var(--surface) !important;
@@ -158,6 +159,10 @@ export function EditLinkForm({ linkId, siteId, initial }: EditLinkFormProps) {
           .links-edit-form select:focus {
             border-color: var(--accent) !important;
           }
+          .links-edit-form input::placeholder,
+          .links-edit-form textarea::placeholder {
+            color: var(--ink-faint) !important;
+          }
           .links-edit-form label {
             color: var(--ink-dim) !important;
             font-size: 12px !important;
@@ -165,14 +170,89 @@ export function EditLinkForm({ linkId, siteId, initial }: EditLinkFormProps) {
           .links-edit-form h2, .links-edit-form h3 {
             color: var(--ink) !important;
           }
-          .links-edit-form p, .links-edit-form span {
+          .links-edit-form p, .links-edit-form span,
+          .links-edit-form small, .links-edit-form div {
             color: var(--ink-dim) !important;
           }
-          .links-edit-form button[type="submit"] {
+          .links-edit-form h1, .links-edit-form h2, .links-edit-form h3,
+          .links-edit-form strong, .links-edit-form b {
+            color: var(--ink) !important;
+          }
+          /* Redirect type cards + toggle cards + any white cards */
+          .links-edit-form [class*="bg-card"],
+          .links-edit-form [class*="bg-background"],
+          .links-edit-form [class*="bg-white"],
+          .links-edit-form [class*="bg-muted"] {
+            background: var(--surface) !important;
+          }
+          .links-edit-form [class*="border-border"],
+          .links-edit-form [class*="border-input"] {
+            border-color: var(--line-strong) !important;
+          }
+          /* Radio/checkbox cards (redirect type grid) */
+          .links-edit-form [role="radio"],
+          .links-edit-form [role="radiogroup"] > *,
+          .links-edit-form [data-state] {
+            background: var(--surface) !important;
+            border-color: var(--line-strong) !important;
+          }
+          .links-edit-form [data-state="checked"],
+          .links-edit-form [aria-checked="true"],
+          .links-edit-form [role="radio"][aria-checked="true"] {
+            border-color: var(--accent) !important;
+            background: var(--surface-2) !important;
+          }
+          /* Toggle switches */
+          .links-edit-form [role="switch"] {
+            background: var(--surface-2) !important;
+          }
+          .links-edit-form [role="switch"][data-state="checked"],
+          .links-edit-form [role="switch"][aria-checked="true"] {
+            background: var(--accent) !important;
+          }
+          /* Buttons */
+          .links-edit-form button[type="submit"],
+          .links-edit-form button[class*="bg-primary"],
+          .links-edit-form button[class*="bg-indigo"] {
             background: var(--accent) !important;
             color: var(--pb-ink-on-accent, #1A140C) !important;
             border: 1px solid var(--accent) !important;
             border-radius: 9px !important;
+          }
+          .links-edit-form button[type="button"][class*="border"],
+          .links-edit-form button[class*="bg-transparent"],
+          .links-edit-form a[class*="border"] {
+            border-color: var(--line-strong) !important;
+            color: var(--ink-dim) !important;
+            background: transparent !important;
+          }
+          /* Section separators */
+          .links-edit-form [class*="border-b"],
+          .links-edit-form hr {
+            border-color: var(--line) !important;
+          }
+          /* Source type pills */
+          .links-edit-form [role="radio"] span,
+          .links-edit-form [role="radiogroup"] span {
+            color: inherit !important;
+          }
+          /* Text colors */
+          .links-edit-form [class*="text-foreground"] {
+            color: var(--ink) !important;
+          }
+          .links-edit-form [class*="text-muted"] {
+            color: var(--ink-dim) !important;
+          }
+          /* Accordion/collapsible sections */
+          .links-edit-form details, .links-edit-form summary,
+          .links-edit-form [class*="accordion"],
+          .links-edit-form [class*="collapsible"] {
+            background: var(--surface) !important;
+            border-color: var(--line) !important;
+          }
+          /* All remaining white backgrounds */
+          .links-edit-form > div > div {
+            background-color: transparent !important;
           }
         `}</style>
         <div className="links-edit-form">
