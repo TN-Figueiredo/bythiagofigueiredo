@@ -225,7 +225,7 @@ export function AnalyticsView({ data }: AnalyticsViewProps) {
       </div>
 
       {/* Countries + Heatmap side by side */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 14, alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 14, alignItems: 'start' }}>
         {/* Countries */}
         <Panel title="Países" icon="gl">
           {data.countries.length > 0 ? (
