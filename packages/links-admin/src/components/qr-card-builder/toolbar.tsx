@@ -28,9 +28,9 @@ interface ToolbarProps {
 export type PositionAnchor = 'tl' | 'tc' | 'tr' | 'cl' | 'cc' | 'cr' | 'bl' | 'bc' | 'br'
 
 const POSITION_LABELS: Record<PositionAnchor, string> = {
-  tl: 'Top Left', tc: 'Top Center', tr: 'Top Right',
-  cl: 'Center Left', cc: 'Center', cr: 'Center Right',
-  bl: 'Bottom Left', bc: 'Bottom Center', br: 'Bottom Right',
+  tl: 'Topo Esquerda', tc: 'Topo Centro', tr: 'Topo Direita',
+  cl: 'Centro Esquerda', cc: 'Centro', cr: 'Centro Direita',
+  bl: 'Base Esquerda', bc: 'Base Centro', br: 'Base Direita',
 }
 
 function PositionPopover({ onPosition, onClose }: { onPosition: (p: PositionAnchor) => void; onClose: () => void }) {
@@ -59,7 +59,7 @@ function PositionPopover({ onPosition, onClose }: { onPosition: (p: PositionAnch
       background: 'var(--surface)', border: '1px solid var(--line-strong)',
       borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.3)', padding: 8,
     }}>
-      <p style={{ fontSize: '9px', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--ink-faint)', margin: '0 0 6px 2px' }}>Position on Canvas</p>
+      <p style={{ fontSize: '9px', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--ink-faint)', margin: '0 0 6px 2px' }}>Posição no canvas</p>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 3, width: 84 }}>
         {anchors.map(a => (
           <button
@@ -160,38 +160,38 @@ export function Toolbar({
 
       {/* Zoom controls */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 18 }}>
-        <button type="button" onClick={onZoomOut} style={iconBtn} title="Zoom out" aria-label="Zoom out">
+        <button type="button" onClick={onZoomOut} style={iconBtn} title="Zoom -" aria-label="Zoom -">
           <ZoomOut size={16} strokeWidth={1.7} />
         </button>
         <span className="mono" style={{ fontSize: 12, width: 42, textAlign: 'center', color: 'var(--ink-dim)' }}>
           {Math.round(zoom * 100)}%
         </span>
-        <button type="button" onClick={onZoomIn} style={iconBtn} title="Zoom in" aria-label="Zoom in">
+        <button type="button" onClick={onZoomIn} style={iconBtn} title="Zoom +" aria-label="Zoom +">
           <ZoomIn size={16} strokeWidth={1.7} />
         </button>
-        <button type="button" onClick={onFitToView} style={iconBtn} title="Fit to view (⌘0)" aria-label="Fit to view">
+        <button type="button" onClick={onFitToView} style={iconBtn} title="Ajustar à tela (⌘0)" aria-label="Ajustar à tela">
           <Maximize size={14} strokeWidth={1.7} />
         </button>
       </div>
 
       {/* Tool toggles */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-        <button type="button" onClick={onUndo} disabled={!canUndo} style={{ ...iconBtn, opacity: canUndo ? 1 : 0.3 }} title="Undo (⌘Z)" aria-label="Undo">
+        <button type="button" onClick={onUndo} disabled={!canUndo} style={{ ...iconBtn, opacity: canUndo ? 1 : 0.3 }} title="Desfazer (⌘Z)" aria-label="Desfazer">
           <Undo2 size={15} strokeWidth={1.7} />
         </button>
-        <button type="button" onClick={onRedo} disabled={!canRedo} style={{ ...iconBtn, opacity: canRedo ? 1 : 0.3 }} title="Redo (⌘⇧Z)" aria-label="Redo">
+        <button type="button" onClick={onRedo} disabled={!canRedo} style={{ ...iconBtn, opacity: canRedo ? 1 : 0.3 }} title="Refazer (⌘⇧Z)" aria-label="Refazer">
           <Redo2 size={15} strokeWidth={1.7} />
         </button>
 
         <div style={{ width: 1, height: 22, background: 'var(--line)', margin: '0 4px' }} />
 
-        <button type="button" onClick={onToggleGuides} style={activeStyle(guidesVisible)} title="Snap guides (⌘G)" aria-label="Toggle snap guides">
+        <button type="button" onClick={onToggleGuides} style={activeStyle(guidesVisible)} title="Guias de alinhamento (⌘G)" aria-label="Guias de alinhamento">
           <Magnet size={14} strokeWidth={1.7} />
         </button>
-        <button type="button" onClick={onToggleGrid} style={activeStyle(gridVisible)} title="Snap to grid" aria-label="Toggle grid">
+        <button type="button" onClick={onToggleGrid} style={activeStyle(gridVisible)} title="Grade" aria-label="Grade">
           <Grid3X3 size={14} strokeWidth={1.7} />
         </button>
-        <button type="button" onClick={onToggleClipOverflow} style={activeStyle(clipOverflow)} title="Clip overflow (⌘⇧K)" aria-label="Toggle clip overflow">
+        <button type="button" onClick={onToggleClipOverflow} style={activeStyle(clipOverflow)} title="Cortar excesso (⌘⇧K)" aria-label="Cortar excesso">
           <Scissors size={14} strokeWidth={1.7} />
         </button>
 
@@ -201,8 +201,8 @@ export function Toolbar({
             onClick={() => setShowPosition(!showPosition)}
             disabled={!hasSelection}
             style={{ ...activeStyle(showPosition), opacity: hasSelection ? 1 : 0.3 }}
-            title="Position element"
-            aria-label="Position element on canvas"
+            title="Posicionar elemento"
+            aria-label="Posicionar elemento no canvas"
           >
             <Move size={14} strokeWidth={1.7} />
           </button>
@@ -216,7 +216,7 @@ export function Toolbar({
       <div style={{ flex: 1 }} />
 
       {/* Status + Actions */}
-      {isSaving && <span style={{ fontSize: '10.5px', color: 'var(--ink-faint)', marginRight: 4 }}>Saving...</span>}
+      {isSaving && <span style={{ fontSize: '10.5px', color: 'var(--ink-faint)', marginRight: 4 }}>Salvando...</span>}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <button type="button" onClick={onOpenTemplates} style={ghostBtn} aria-label="Templates">

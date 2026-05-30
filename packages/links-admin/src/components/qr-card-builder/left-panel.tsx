@@ -594,14 +594,14 @@ export function LeftPanel({ comp, interaction, onImageUpload, customPresets = []
                       cursor: 'pointer',
                       transition: 'transform 0.1s',
                     }}
-                    aria-label={`Set color ${color}`}
+                    aria-label={`Definir cor ${color}`}
                   />
                 )
               })}
             </div>
             {bg.type === 'solid' && (
               <div style={{ marginTop: 10 }}>
-                <ColorPicker value={bg.color} onChange={handleSolidColor} label="Color" />
+                <ColorPicker value={bg.color} onChange={handleSolidColor} label="Cor" />
               </div>
             )}
           </>
@@ -654,7 +654,7 @@ export function LeftPanel({ comp, interaction, onImageUpload, customPresets = []
                 cursor: 'pointer',
               }}
             >
-              Upload / Replace
+              Enviar / Trocar
             </button>
           </div>
         )}
@@ -673,7 +673,7 @@ export function LeftPanel({ comp, interaction, onImageUpload, customPresets = []
                 }}
               >
                 <FileVideo2 size={16} style={{ marginRight: 6 }} />
-                Video uploaded
+                Vídeo enviado
               </div>
             )}
             <button
@@ -711,7 +711,7 @@ export function LeftPanel({ comp, interaction, onImageUpload, customPresets = []
                 cursor: 'pointer',
               }}
             >
-              Upload Video
+              Enviar vídeo
             </button>
           </div>
         )}
@@ -727,7 +727,7 @@ export function LeftPanel({ comp, interaction, onImageUpload, customPresets = []
               }}
             />
             <div className="flex items-center gap-2">
-              <span className="text-[10px]" style={{ color: 'var(--ink-faint)' }}>Angle</span>
+              <span className="text-[10px]" style={{ color: 'var(--ink-faint)' }}>Ângulo</span>
               <input type="range" min={0} max={360} value={bg.angle} onChange={e => handleGradientAngle(Number(e.target.value))} className="flex-1" />
               <span className="text-[10px] w-8 text-right" style={{ color: 'var(--ink-dim)' }}>{bg.angle}&deg;</span>
             </div>

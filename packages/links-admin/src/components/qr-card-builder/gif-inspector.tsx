@@ -4,6 +4,7 @@ import {
   FileVideo2, Copy, Lock, Trash2, RotateCcw, Circle, Move, Info, Upload,
 } from 'lucide-react'
 import type { ImageElement } from '@tn-figueiredo/links/qr'
+import { PositionInput } from './inspector-field'
 
 /* ── Shared styles (mirrors text/image inspectors) ── */
 
@@ -277,29 +278,3 @@ export function GifInspector({
   )
 }
 
-/* ── Position input (X / Y / L) ── */
-
-function PositionInput({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
-  return (
-    <div>
-      <div style={{ fontSize: 10, color: 'var(--ink-faint)', marginBottom: 4 }}>{label}</div>
-      <div style={{
-        background: 'var(--surface)', border: '1px solid var(--line-strong)',
-        borderRadius: 7, padding: '0 6px 0 8px',
-        display: 'flex', alignItems: 'center',
-      }}>
-        <input
-          type="number"
-          value={Math.round(value)}
-          onChange={e => onChange(Number(e.target.value))}
-          style={{
-            flex: 1, fontFamily: 'var(--font-mono, monospace)', fontSize: 12,
-            background: 'transparent', border: 'none', outline: 'none',
-            color: 'var(--ink)', padding: '6px 0', width: 0,
-          }}
-        />
-        <span style={{ fontSize: 10, color: 'var(--ink-faint)' }}>px</span>
-      </div>
-    </div>
-  )
-}

@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { FONT_CATEGORIES, BG_PALETTE } from '@tn-figueiredo/links/qr'
 import type { TextElement, FontCategory } from '@tn-figueiredo/links/qr'
+import { ToggleSwitch, PositionInput } from './inspector-field'
 
 /* ── Google Fonts loader ── */
 
@@ -344,60 +345,6 @@ export function TextInspector({ element, onUpdate, onDuplicate, onDelete }: Text
       }}>
         <Move size={13} strokeWidth={1.7} style={{ flexShrink: 0 }} />
         Arraste no canvas pra mover &middot; alca laranja pra redimensionar
-      </div>
-    </div>
-  )
-}
-
-/* ── Toggle Switch ── */
-
-function ToggleSwitch({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      onClick={() => onChange(!checked)}
-      style={{
-        position: 'relative', width: 42, height: 24, borderRadius: 99,
-        background: checked ? 'var(--accent)' : 'var(--surface-3, #3a3630)',
-        border: 'none', cursor: 'pointer', padding: 0,
-        transition: 'background 0.2s',
-      }}
-    >
-      <span style={{
-        position: 'absolute', top: 3,
-        left: checked ? 21 : 3,
-        width: 18, height: 18, borderRadius: '50%',
-        background: '#fff',
-        transition: 'left 0.2s',
-      }} />
-    </button>
-  )
-}
-
-/* ── Position input (X / Y) ── */
-
-function PositionInput({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
-  return (
-    <div>
-      <div style={{ fontSize: 10, color: 'var(--ink-faint)', marginBottom: 4 }}>{label}</div>
-      <div style={{
-        background: 'var(--surface)', border: '1px solid var(--line-strong)',
-        borderRadius: 7, padding: '0 6px 0 8px',
-        display: 'flex', alignItems: 'center',
-      }}>
-        <input
-          type="number"
-          value={Math.round(value)}
-          onChange={e => onChange(Number(e.target.value))}
-          style={{
-            flex: 1, fontFamily: 'var(--font-mono, monospace)', fontSize: 12,
-            background: 'transparent', border: 'none', outline: 'none',
-            color: 'var(--ink)', padding: '6px 0', width: 0,
-          }}
-        />
-        <span style={{ fontSize: 10, color: 'var(--ink-faint)' }}>px</span>
       </div>
     </div>
   )

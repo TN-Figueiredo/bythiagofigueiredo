@@ -299,8 +299,8 @@ export function QrCardBuilder({
         style={{ background: 'var(--bg-side, #0a0a0a)' }}
       >
         <div className="text-center">
-          <p className="font-medium mb-2" style={{ fontSize: 16, color: 'var(--ink, #ECE6DA)' }}>Desktop Required</p>
-          <p style={{ fontSize: 13, color: 'var(--ink-dim, #A39C8E)' }}>This editor requires a desktop viewport (960px+).</p>
+          <p className="font-medium mb-2" style={{ fontSize: 16, color: 'var(--ink, #ECE6DA)' }}>Desktop necessário</p>
+          <p style={{ fontSize: 13, color: 'var(--ink-dim, #A39C8E)' }}>Este editor requer uma tela de desktop (960px+).</p>
         </div>
       </div>
     )
@@ -407,16 +407,16 @@ export function QrCardBuilder({
       >
         <span>{comp.composition.canvas.width}×{comp.composition.canvas.height}</span>
         <span>{comp.composition.canvas.aspectRatio}</span>
-        <span>{comp.composition.elements.length} elements</span>
+        <span>{comp.composition.elements.length} elementos</span>
         <span className="ml-auto">
           {hasTemporaryUrls(comp.composition) ? (
-            <span style={{ color: 'var(--accent)' }}>Uploading images...</span>
+            <span style={{ color: 'var(--accent)' }}>Enviando imagens...</span>
           ) : isSaving ? (
-            <span style={{ color: 'var(--amber, #E0A23C)' }}>Saving...</span>
+            <span style={{ color: 'var(--amber, #E0A23C)' }}>Salvando...</span>
           ) : hasPendingChanges ? (
-            <span style={{ color: 'var(--ink-faint, #6E685D)' }}>Unsaved changes</span>
+            <span style={{ color: 'var(--ink-faint, #6E685D)' }}>Alterações não salvas</span>
           ) : (
-            <span style={{ color: 'var(--green, #46B17E)' }}>Saved</span>
+            <span style={{ color: 'var(--green, #46B17E)' }}>Salvo</span>
           )}
         </span>
       </div>

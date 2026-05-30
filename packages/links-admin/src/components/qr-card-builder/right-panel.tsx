@@ -129,6 +129,8 @@ export function RightPanel({
           shortUrl={shortUrl}
           linkCode={linkCode}
           onUpdate={patch => onUpdateElement(element.id, patch)}
+          onDuplicate={() => {/* handled by parent */}}
+          onDelete={() => onRemoveElement(element.id)}
         />
       )}
       {element.type === 'text' && (
