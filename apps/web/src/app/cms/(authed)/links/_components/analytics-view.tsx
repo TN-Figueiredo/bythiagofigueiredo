@@ -244,7 +244,29 @@ export function AnalyticsView({ data }: AnalyticsViewProps) {
       {/* Top Links */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 14 }}>
         {data.topLinks.length > 0 && (
-          <Panel title="Top links" icon="tr">
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 'var(--r)', padding: 18 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--accent)' }}>
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+              </svg>
+              <span style={{ fontSize: '13.5px', fontWeight: 600, flex: 1, color: 'var(--ink)' }}>Top links · 30 dias</span>
+              <button
+                type="button"
+                onClick={() => window.location.href = '/cms/links?tab=links'}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 7,
+                  padding: '6px 11px', fontSize: '12.5px', fontWeight: 600,
+                  borderRadius: 9, border: '1px solid transparent',
+                  background: 'transparent', color: 'var(--ink-dim)',
+                  letterSpacing: '-0.01em', cursor: 'pointer',
+                }}
+              >
+                Ver todos
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M5 12h14" /><path d="M13 6l6 6-6 6" />
+                </svg>
+              </button>
+            </div>
             <TopLinksTable links={data.topLinks.map(l => ({
               id: l.id,
               title: l.title,
@@ -252,7 +274,7 @@ export function AnalyticsView({ data }: AnalyticsViewProps) {
               clicks: l.clicks,
               source: l.source,
             }))} />
-          </Panel>
+          </div>
         )}
       </div>
 
