@@ -7,7 +7,7 @@ import { DESTINATIONS } from '@/lib/social/destinations'
 import { PlatformIcon } from '../../_components/shared/platform-icon'
 import type { CardComposition } from '@tn-figueiredo/links/qr'
 import { listTemplates } from '@/lib/social/actions'
-import type { SocialTemplate } from '@/lib/social/template-schemas'
+import type { SocialTemplate, ContentType } from '@/lib/social/template-schemas'
 import type { SocialAspectRatio } from './canvas-editor/social-left-panel'
 
 const SocialCanvasEditor = dynamic(
@@ -29,6 +29,7 @@ interface DestCompositorProps {
   canvasImageUrl: string | null
   onCanvasImageChange: (url: string | null) => void
   cmsContent?: { title: string; coverImageUrl: string | null }
+  contentType?: ContentType
 }
 
 const canvasA11y = (handler: () => void) => ({
@@ -38,12 +39,25 @@ const canvasA11y = (handler: () => void) => ({
   'aria-label': 'Abrir editor de canvas',
 })
 
-function TemplatePreview({ title, coverImageUrl, isStory }: { title: string; coverImageUrl: string | null; isStory: boolean }) {
+function TemplatePreview({ title, coverImageUrl, isStory, destId, contentType }: {
+  title: string
+  coverImageUrl: string | null
+  isStory: boolean
+  destId?: DestId
+  contentType?: ContentType
+}) {
   const scale = isStory ? 0.12 : 0.17
+  const kicker = contentType === 'newsletter' ? 'NEWSLETTER'
+    : contentType === 'video' ? 'NOVO VÍDEO'
+    : 'NO BLOG'
+  const cta = destId === 'ig_story'
+    ? (contentType === 'video' ? 'Assista no YouTube ▶' : 'Link nos stories ↗')
+    : destId === 'ig_feed' ? 'Link na bio ↑'
+    : null
   return (
     <div className="flex h-full w-full flex-col items-center justify-between overflow-hidden" style={{ background: 'linear-gradient(155deg, rgb(247,241,232), rgb(237,227,210))', padding: `${Math.round(96 * scale)}px ${Math.round(54 * scale)}px` }}>
       <div className="flex flex-col items-center gap-[2px] w-full">
-        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: Math.max(5, Math.round(14 * scale)), letterSpacing: '0.22em', color: '#9a6b3f', textTransform: 'uppercase' as const, fontWeight: 600 }}>NO BLOG</span>
+        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: Math.max(5, Math.round(14 * scale)), letterSpacing: '0.22em', color: '#9a6b3f', textTransform: 'uppercase' as const, fontWeight: 600 }}>{kicker}</span>
         <span className="text-center font-fraunces leading-none" style={{ fontSize: Math.max(6, Math.round(52 * scale)), fontWeight: 700, color: '#1f1b17', lineHeight: 1.02, maxWidth: '90%', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: isStory ? 3 : 2, WebkitBoxOrient: 'vertical' as const }}>{title}</span>
       </div>
       {coverImageUrl ? (
@@ -52,7 +66,9 @@ function TemplatePreview({ title, coverImageUrl, isStory }: { title: string; cov
         <div className="rounded-[2px]" style={{ width: '70%', height: isStory ? '26%' : '38%', background: 'rgba(31,27,23,0.08)' }} />
       )}
       <div className="flex flex-col items-center gap-[2px]">
-        <span className="rounded-full bg-white text-center" style={{ fontSize: Math.max(4, Math.round(16 * scale)), fontWeight: 700, color: '#111', padding: `${Math.round(14 * scale)}px ${Math.round(20 * scale)}px`, boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>LER O POST</span>
+        {cta ? (
+          <span className="rounded-full bg-white text-center" style={{ fontSize: Math.max(4, Math.round(15 * scale)), fontWeight: 700, color: '#111', padding: `${Math.round(14 * scale)}px ${Math.round(20 * scale)}px`, boxShadow: '0 2px 8px rgba(0,0,0,0.08)', borderRadius: 999 }}>{cta}</span>
+        ) : null}
         <span className="font-fraunces" style={{ fontSize: Math.max(5, Math.round(28 * scale)), fontWeight: 700, color: '#1f1b17', marginTop: Math.round(20 * scale) }}>TF</span>
       </div>
     </div>
@@ -64,6 +80,7 @@ export function DestCompositor({
   siteId, canvasOpen, onOpenCanvas, onCloseCanvas,
   composition, onCompositionChange, canvasImageUrl, onCanvasImageChange,
   cmsContent,
+  contentType,
 }: DestCompositorProps) {
   const dest = DESTINATIONS[focusedDest]
   const isActive = destsOn[focusedDest]
@@ -73,13 +90,20 @@ export function DestCompositor({
   useEffect(() => {
     let cancelled = false
     async function fetchTemplates() {
-      const ratio = dest.ratio as '9:16' | '1:1' | '16:9' | '4:5'
-      const result = await listTemplates(siteId, ratio)
-      if (result.ok && !cancelled) setTemplates(result.data)
+      if (contentType) {
+        const { resolveTemplateForDest } = await import('@/lib/social/actions')
+        const result = await resolveTemplateForDest(siteId, focusedDest, contentType)
+        if (result.ok && !cancelled) {
+          setTemplates(result.data ? [result.data] : [])
+        }
+      } else {
+        const result = await listTemplates(siteId, dest.ratio as '9:16' | '1:1' | '16:9' | '4:5')
+        if (result.ok && !cancelled) setTemplates(result.data)
+      }
     }
     fetchTemplates()
     return () => { cancelled = true }
-  }, [focusedDest, siteId, dest.ratio])
+  }, [focusedDest, siteId, dest.ratio, contentType])
 
   useEffect(() => {
     if (!composition && templates.length > 0) {
@@ -234,7 +258,7 @@ export function DestCompositor({
                 {canvasImageUrl ? (
                   <img src={canvasImageUrl} alt="Canvas preview" className="h-full w-full object-contain" />
                 ) : cmsContent ? (
-                  <TemplatePreview title={cmsContent.title} coverImageUrl={cmsContent.coverImageUrl} isStory={isStory} />
+                  <TemplatePreview title={cmsContent.title} coverImageUrl={cmsContent.coverImageUrl} isStory={isStory} destId={focusedDest} contentType={contentType} />
                 ) : (
                   <div className="flex h-full w-full flex-col items-center justify-center gap-2" style={{ background: 'rgb(18,16,12)' }}>
                     <svg width={isStory ? 20 : 28} height={isStory ? 20 : 28} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ color: 'rgba(255,255,255,0.15)' }}>
@@ -404,7 +428,7 @@ export function DestCompositor({
                   <img src={canvasImageUrl} alt="Story preview" className="absolute inset-0 h-full w-full object-cover" />
                 ) : cmsContent ? (
                   <div className="absolute inset-0">
-                    <TemplatePreview title={cmsContent.title} coverImageUrl={cmsContent.coverImageUrl} isStory />
+                    <TemplatePreview title={cmsContent.title} coverImageUrl={cmsContent.coverImageUrl} isStory destId={focusedDest} contentType={contentType} />
                   </div>
                 ) : (
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-3" style={{ background: 'rgb(18,16,12)' }}>
@@ -533,7 +557,7 @@ export function DestCompositor({
                 {canvasImageUrl ? (
                   <img src={canvasImageUrl} alt="Post preview" className="h-full w-full object-cover" />
                 ) : cmsContent ? (
-                  <TemplatePreview title={cmsContent.title} coverImageUrl={cmsContent.coverImageUrl} isStory={false} />
+                  <TemplatePreview title={cmsContent.title} coverImageUrl={cmsContent.coverImageUrl} isStory={false} destId={focusedDest} contentType={contentType} />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center">
                     <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" style={{ color: 'rgba(255,255,255,0.12)' }}>
@@ -575,7 +599,7 @@ export function DestCompositor({
                 {canvasImageUrl ? (
                   <img src={canvasImageUrl} alt="Feed preview" className="h-full w-full object-cover" />
                 ) : cmsContent ? (
-                  <TemplatePreview title={cmsContent.title} coverImageUrl={cmsContent.coverImageUrl} isStory={false} />
+                  <TemplatePreview title={cmsContent.title} coverImageUrl={cmsContent.coverImageUrl} isStory={false} destId={focusedDest} contentType={contentType} />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center">
                     <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" style={{ color: 'rgba(255,255,255,0.12)' }}>

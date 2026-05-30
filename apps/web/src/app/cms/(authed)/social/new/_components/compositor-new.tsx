@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { CardComposition } from '@tn-figueiredo/links/qr'
+import type { ContentType } from '@/lib/social/template-schemas'
 import type { DestId } from '@/lib/social/destinations'
 import { DEST_IDS, DESTINATIONS } from '@/lib/social/destinations'
 import { createSocialPost } from '@/lib/social/actions'
@@ -161,6 +162,10 @@ export function CompositorNew({ sourceMode = 'freeform', siteId }: CompositorNew
     setContentByDest(Object.fromEntries(DEST_IDS.filter(id => destsOn[id]).map(id => [id, true])))
   }
 
+  const contentType: ContentType | undefined = selectedCmsContent
+    ? (selectedCmsContent.type === 'campaign' ? 'blog' : selectedCmsContent.type as ContentType)
+    : undefined
+
   const handleToggle = useCallback((id: DestId) => {
     setDestsOn(prev => {
       const next = { ...prev, [id]: !prev[id] }
@@ -226,6 +231,7 @@ export function CompositorNew({ sourceMode = 'freeform', siteId }: CompositorNew
               title: selectedCmsContent.title,
               coverImageUrl: selectedCmsContent.thumbnail,
             } : undefined}
+            contentType={contentType}
           />
         </>
       )}
