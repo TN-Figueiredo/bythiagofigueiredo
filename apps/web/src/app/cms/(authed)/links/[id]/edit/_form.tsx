@@ -202,17 +202,20 @@ export function EditLinkForm({ linkId, siteId, initial }: EditLinkFormProps) {
             border-color: var(--accent) !important;
             background: var(--surface-2) !important;
           }
-          /* Toggle switches */
-          .links-edit-form [role="switch"],
-          .links-edit-form button[class*="bg-green"],
-          .links-edit-form button[class*="bg-emerald"],
-          .links-edit-form [class*="toggle"][class*="bg-"] {
+          /* Toggle switches — force override inline styles */
+          .links-edit-form [role="switch"] {
+            background-color: var(--surface-2) !important;
             background: var(--surface-2) !important;
           }
           .links-edit-form [role="switch"][data-state="checked"],
-          .links-edit-form [role="switch"][aria-checked="true"],
-          .links-edit-form button[class*="bg-green-500"],
-          .links-edit-form button[class*="bg-emerald-500"] {
+          .links-edit-form [role="switch"][aria-checked="true"] {
+            background-color: var(--accent) !important;
+            background: var(--accent) !important;
+          }
+          .links-edit-form button[style*="background-color: rgb(34, 197, 94)"],
+          .links-edit-form button[style*="background-color: #22c55e"],
+          .links-edit-form button[style*="background: rgb(34, 197, 94)"] {
+            background-color: var(--accent) !important;
             background: var(--accent) !important;
           }
           /* Buttons */
