@@ -13,6 +13,8 @@ export default async function AbTestDetailPage({
 }) {
   const { testId } = await params
 
+  if (testId.startsWith('mock-')) notFound()
+
   const results = await getTestResults(testId)
   if (!results) notFound()
 
