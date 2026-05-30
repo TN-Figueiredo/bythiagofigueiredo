@@ -8,6 +8,7 @@ import {
 } from '@tn-figueiredo/links/qr'
 import { buildShortUrl } from '@/lib/links/short-url'
 import { loadQrCard, listQrTemplates } from './actions'
+import { listFormatPresets } from '../../format-actions'
 import { loadQrCardById } from './card-actions'
 import { QrCardBuilderPage } from './client'
 
@@ -60,8 +61,12 @@ export default async function QrCardPage({ params, searchParams }: Props) {
     composition = migrateLegacyQrConfig(link.qr_config as Record<string, string>)
   }
 
-  const templatesResult = await listQrTemplates()
+  const [templatesResult, formatsResult] = await Promise.all([
+    listQrTemplates(),
+    listFormatPresets('qr-card'),
+  ])
   const templates = templatesResult.ok ? templatesResult.templates : []
+  const formatPresets = formatsResult.ok ? formatsResult.presets : []
 
   return (
     <QrCardBuilderPage
@@ -71,6 +76,7 @@ export default async function QrCardPage({ params, searchParams }: Props) {
       templates={templates}
       cardId={cardId}
       cardName={cardName}
+      formatPresets={formatPresets}
     />
   )
 }

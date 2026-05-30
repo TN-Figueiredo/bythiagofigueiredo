@@ -10,6 +10,9 @@ import {
   LayoutTemplate,
   Info,
   Loader2,
+  Plus,
+  X,
+  Trash2,
 } from 'lucide-react'
 import {
   ASPECT_RATIO_PRESETS,
@@ -26,17 +29,27 @@ import type { UseCanvasInteractionReturn } from './use-canvas-interaction'
 import { ColorPicker } from './color-picker'
 import { LayersPanel } from './layers-panel'
 
+export interface CustomPreset {
+  id: string
+  name: string
+  width: number
+  height: number
+}
+
 interface LeftPanelProps {
   comp: UseCardCompositionReturn
   interaction: UseCanvasInteractionReturn
   onImageUpload: (file: File) => Promise<string>
+  customPresets?: CustomPreset[]
+  onAddPreset?: (name: string, width: number, height: number) => Promise<void>
+  onDeletePreset?: (id: string) => Promise<void>
 }
 
 type BgTab = 'solid' | 'image' | 'video' | 'gradient'
 
 const PALETTE_COLORS = [...BG_PALETTE]
 
-export function LeftPanel({ comp, interaction, onImageUpload }: LeftPanelProps) {
+export function LeftPanel({ comp, interaction, onImageUpload, customPresets = [], onAddPreset, onDeletePreset }: LeftPanelProps) {
   const { composition, setCanvas, setBackground, addElement, updateElement, removeElement, reorderElements } = comp
   const { selectedIds, select } = interaction
   const [bgTab, setBgTab] = useState<BgTab>(
@@ -45,6 +58,10 @@ export function LeftPanel({ comp, interaction, onImageUpload }: LeftPanelProps) 
       : composition.background.type as BgTab,
   )
   const [isUploading, setIsUploading] = useState(false)
+  const [addingPreset, setAddingPreset] = useState(false)
+  const [newPresetName, setNewPresetName] = useState('')
+  const [newPresetW, setNewPresetW] = useState(1080)
+  const [newPresetH, setNewPresetH] = useState(1080)
 
   /* ── Format handlers ── */
 
@@ -258,12 +275,154 @@ export function LeftPanel({ comp, interaction, onImageUpload }: LeftPanelProps) 
         )}
 
         {hint && (
-          <div className="flex items-start gap-1.5" style={{ marginTop: 8, marginBottom: 18 }}>
+          <div className="flex items-start gap-1.5" style={{ marginTop: 8 }}>
             <Info size={12} style={{ color: 'var(--ink-faint)', marginTop: 1, flexShrink: 0 }} />
             <span style={{ fontSize: 11, color: 'var(--ink-faint)' }}>{hint}</span>
           </div>
         )}
-        {!hint && <div style={{ marginBottom: 18 }} />}
+
+        {/* Custom presets */}
+        {customPresets.length > 0 && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, marginTop: 8 }}>
+            {customPresets.map(cp => {
+              const isActive = activePreset === `custom-${cp.id}`
+              return (
+                <div key={cp.id} style={{ position: 'relative' }}>
+                  <button
+                    type="button"
+                    onClick={() => setCanvas({ width: cp.width, height: cp.height, aspectRatio: `custom-${cp.id}` })}
+                    className={!isActive ? 'qr-left-preset' : ''}
+                    style={{
+                      width: '100%', padding: '8px 4px', borderRadius: 9, textAlign: 'center',
+                      border: `1px solid ${isActive ? 'var(--accent)' : 'var(--line-strong)'}`,
+                      background: isActive ? 'var(--accent-soft)' : 'var(--surface-2)',
+                      color: isActive ? 'var(--accent)' : 'var(--ink-dim)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <div style={{ fontSize: '11.5px', fontWeight: 600 }}>{cp.name}</div>
+                    <div className="font-mono" style={{ fontSize: '8.5px', marginTop: 2, opacity: 0.8 }}>
+                      {cp.width}×{cp.height}
+                    </div>
+                  </button>
+                  {onDeletePreset && (
+                    <button
+                      type="button"
+                      onClick={() => onDeletePreset(cp.id)}
+                      title="Excluir formato"
+                      style={{
+                        position: 'absolute', top: -4, right: -4, zIndex: 10,
+                        width: 16, height: 16, borderRadius: 8,
+                        background: 'var(--red)', border: 'none',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        cursor: 'pointer', padding: 0,
+                      }}
+                    >
+                      <X size={10} strokeWidth={2.5} style={{ color: '#fff' }} />
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Add preset button / form */}
+        {onAddPreset && (
+          <div style={{ marginTop: 8, marginBottom: 18 }}>
+            {addingPreset ? (
+              <div style={{
+                background: 'var(--surface)', border: '1px solid var(--line-strong)',
+                borderRadius: 9, padding: 10, display: 'flex', flexDirection: 'column', gap: 8,
+              }}>
+                <input
+                  type="text"
+                  placeholder="Nome (ex: A5, Cartão)"
+                  value={newPresetName}
+                  onChange={e => setNewPresetName(e.target.value)}
+                  autoFocus
+                  style={{
+                    width: '100%', padding: '6px 8px', fontSize: 11,
+                    background: 'var(--surface-2)', border: '1px solid var(--line)',
+                    borderRadius: 6, color: 'var(--ink)',
+                  }}
+                />
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <input
+                    type="number" min={200} max={4096} value={newPresetW}
+                    onChange={e => setNewPresetW(Number(e.target.value))}
+                    style={{
+                      width: '100%', padding: '6px 8px', fontSize: 11,
+                      background: 'var(--surface-2)', border: '1px solid var(--line)',
+                      borderRadius: 6, color: 'var(--ink)',
+                    }}
+                    aria-label="Largura"
+                  />
+                  <span style={{ color: 'var(--ink-faint)', fontSize: 11 }}>×</span>
+                  <input
+                    type="number" min={200} max={4096} value={newPresetH}
+                    onChange={e => setNewPresetH(Number(e.target.value))}
+                    style={{
+                      width: '100%', padding: '6px 8px', fontSize: 11,
+                      background: 'var(--surface-2)', border: '1px solid var(--line)',
+                      borderRadius: 6, color: 'var(--ink)',
+                    }}
+                    aria-label="Altura"
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                  <button
+                    type="button"
+                    onClick={() => { setAddingPreset(false); setNewPresetName('') }}
+                    style={{
+                      padding: '5px 10px', fontSize: 11, fontWeight: 600,
+                      border: '1px solid var(--line)', borderRadius: 6,
+                      background: 'transparent', color: 'var(--ink-dim)', cursor: 'pointer',
+                    }}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!newPresetName.trim()}
+                    onClick={async () => {
+                      if (!newPresetName.trim()) return
+                      await onAddPreset(newPresetName.trim(), newPresetW, newPresetH)
+                      setAddingPreset(false)
+                      setNewPresetName('')
+                      setNewPresetW(1080)
+                      setNewPresetH(1080)
+                    }}
+                    style={{
+                      padding: '5px 10px', fontSize: 11, fontWeight: 600,
+                      border: '1px solid var(--accent)', borderRadius: 6,
+                      background: 'var(--accent)', color: 'var(--pb-ink-on-accent, #1A140C)',
+                      cursor: 'pointer', opacity: newPresetName.trim() ? 1 : 0.4,
+                    }}
+                  >
+                    Salvar
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setAddingPreset(true)}
+                className="qr-left-add-btn"
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  padding: '6px 10px', fontSize: 10.5, fontWeight: 600,
+                  border: '1px dashed var(--line)', borderRadius: 7,
+                  background: 'transparent', color: 'var(--ink-dim)', cursor: 'pointer',
+                }}
+              >
+                <Plus size={12} strokeWidth={2} />
+                Novo formato
+              </button>
+            )}
+          </div>
+        )}
+        {!onAddPreset && <div style={{ marginBottom: 18 }} />}
 
         {/* ── ADICIONAR ── */}
         <h3

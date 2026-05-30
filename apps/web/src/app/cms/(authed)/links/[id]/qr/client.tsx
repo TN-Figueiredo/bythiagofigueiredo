@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { QrCardBuilder } from '@tn-figueiredo/links-admin/client'
 import type { QrTemplate } from '@tn-figueiredo/links-admin'
 import type { CardComposition } from '@tn-figueiredo/links/qr'
@@ -11,6 +12,8 @@ import {
   uploadQrImage,
 } from './actions'
 import { createQrCard, updateQrCard } from './card-actions'
+import { createFormatPreset, deleteFormatPreset } from '../../format-actions'
+import type { FormatPreset } from '../../format-actions'
 
 interface Props {
   link: { id: string; code: string; title: string | null }
@@ -19,9 +22,12 @@ interface Props {
   templates: QrTemplate[]
   cardId: string | null
   cardName: string
+  formatPresets: FormatPreset[]
 }
 
-export function QrCardBuilderPage({ link, shortUrl, initialComposition, templates, cardId, cardName }: Props) {
+export function QrCardBuilderPage({ link, shortUrl, initialComposition, templates, cardId, cardName, formatPresets }: Props) {
+  const router = useRouter()
+
   const handleSave = useCallback(async (composition: CardComposition) => {
     if (cardId) {
       const result = await updateQrCard(cardId, link.id, { composition })
@@ -69,6 +75,16 @@ export function QrCardBuilderPage({ link, shortUrl, initialComposition, template
     return result.ok ? result.url : ''
   }, [])
 
+  const handleAddPreset = useCallback(async (name: string, width: number, height: number) => {
+    await createFormatPreset(name, width, height, 'qr-card')
+    router.refresh()
+  }, [router])
+
+  const handleDeletePreset = useCallback(async (id: string) => {
+    await deleteFormatPreset(id)
+    router.refresh()
+  }, [router])
+
   return (
     <QrCardBuilder
       link={link}
@@ -80,6 +96,9 @@ export function QrCardBuilderPage({ link, shortUrl, initialComposition, template
       onSaveTemplate={handleSaveTemplate}
       onDeleteTemplate={handleDeleteTemplate}
       onImageUpload={handleImageUpload}
+      customPresets={formatPresets}
+      onAddPreset={handleAddPreset}
+      onDeletePreset={handleDeletePreset}
     />
   )
 }

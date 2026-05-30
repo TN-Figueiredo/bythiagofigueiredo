@@ -30,11 +30,15 @@ export interface QrCardBuilderProps {
   onSaveTemplate: (name: string, composition: CardComposition, thumbnail: Blob) => Promise<void>
   onDeleteTemplate: (id: string) => Promise<void>
   onImageUpload: (file: File) => Promise<string>
+  customPresets?: Array<{ id: string; name: string; width: number; height: number }>
+  onAddPreset?: (name: string, width: number, height: number) => Promise<void>
+  onDeletePreset?: (id: string) => Promise<void>
 }
 
 export function QrCardBuilder({
   link, shortUrl, initialComposition, templates,
   onSave, onExport, onSaveTemplate, onDeleteTemplate, onImageUpload,
+  customPresets, onAddPreset, onDeletePreset,
 }: QrCardBuilderProps) {
   const comp = useCardComposition(initialComposition)
   const interaction = useCanvasInteraction()
@@ -328,7 +332,7 @@ export function QrCardBuilder({
       />
 
       <div className="flex flex-1 overflow-hidden">
-        <LeftPanel comp={comp} interaction={interaction} onImageUpload={onImageUpload} />
+        <LeftPanel comp={comp} interaction={interaction} onImageUpload={onImageUpload} customPresets={customPresets} onAddPreset={onAddPreset} onDeletePreset={onDeletePreset} />
 
         <div ref={containerRef} className="flex-1 overflow-hidden">
           <CanvasEditor
