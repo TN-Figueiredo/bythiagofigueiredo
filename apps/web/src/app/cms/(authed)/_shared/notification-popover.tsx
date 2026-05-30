@@ -149,8 +149,8 @@ export function NotificationPopover({ onClose }: { onClose: () => void }) {
       role="dialog"
       aria-label="Notificações"
       className="
-        absolute top-[52px] right-0 z-50
-        w-[408px] max-h-[min(640px,80vh)]
+        fixed top-14 right-4 z-[70]
+        w-[408px] max-w-[calc(100vw-2rem)] max-h-[min(640px,80vh)]
         flex flex-col
         bg-[var(--elev,var(--color-cms-surface))] border border-[var(--border-strong,var(--color-cms-border))]
         rounded-[10px] shadow-lg

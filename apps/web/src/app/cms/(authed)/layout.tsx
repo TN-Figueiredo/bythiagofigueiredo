@@ -105,7 +105,7 @@ export default async function Layout({ children }: { children: ReactNode }) {
               sections={CMS_SECTIONS}
               badges={badges}
             >
-              <div className="fixed top-2.5 right-3 z-40 md:top-3 md:right-4">
+              <div className="fixed top-3 right-4 z-[60]">
                 <NotificationBell initialCount={unreadCount} hasCritical={hasCritical} />
               </div>
               <SidebarBadges data={badgeData} />
