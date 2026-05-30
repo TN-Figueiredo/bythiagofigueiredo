@@ -1,11 +1,14 @@
 'use client'
 
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { LinktreeDisplay, LinkDisplay, AnalyticsDisplay } from '@tn-figueiredo/links-admin'
 import { TabBar, type TabId } from './_components/tab-bar'
 import { TreeTab } from './_components/tree-tab'
 import { ShortLinksTab } from './_components/short-links-tab'
 import { AnalyticsView } from './_components/analytics-view'
+import { CreateLinkModal } from './_components/create-link-modal'
+import { createLink } from './actions'
 
 interface LinksHubProps {
   tree: LinktreeDisplay
@@ -16,6 +19,7 @@ interface LinksHubProps {
 
 export function LinksHub({ tree, links, analytics, activeTab }: LinksHubProps) {
   const router = useRouter()
+  const [showCreateModal, setShowCreateModal] = useState(false)
 
   return (
     <div className="space-y-6">
@@ -31,7 +35,7 @@ export function LinksHub({ tree, links, analytics, activeTab }: LinksHubProps) {
           </button>
           <button
             type="button"
-            onClick={() => router.push('/cms/links/new')}
+            onClick={() => setShowCreateModal(true)}
             className="rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
           >
             Novo link
@@ -44,8 +48,18 @@ export function LinksHub({ tree, links, analytics, activeTab }: LinksHubProps) {
 
       {/* Tab content */}
       {activeTab === 'tree' && <TreeTab tree={tree} />}
-      {activeTab === 'links' && <ShortLinksTab links={links} onCreateLink={() => router.push('/cms/links/new')} />}
+      {activeTab === 'links' && <ShortLinksTab links={links} onCreateLink={() => setShowCreateModal(true)} />}
       {activeTab === 'analytics' && <AnalyticsView data={analytics} />}
+
+      {/* Create link modal */}
+      <CreateLinkModal
+        open={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onSubmit={async (data) => {
+          const result = await createLink(data)
+          return result
+        }}
+      />
     </div>
   )
 }

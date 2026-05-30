@@ -5,6 +5,7 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import type { LinkDisplay, LinktreeDisplay, AnalyticsDisplay, SourceId } from '@tn-figueiredo/links-admin'
 import { SOURCE_LABELS } from '@tn-figueiredo/links-admin'
 import { toDateStringInTz } from '@/lib/cms/format-site-datetime'
+import { z } from 'zod'
 import { LinksHub } from './_hub'
 import type { TabId } from './_components/tab-bar'
 
@@ -32,6 +33,22 @@ function toHealth(raw: unknown): 'ok' | 'warn' | 'broken' {
   if (raw === 'warn') return 'warn'
   return 'ok'
 }
+
+const TrackedLinkRow = z.object({
+  id: z.string(),
+  code: z.string(),
+  title: z.string().nullable().default(null),
+  destination_url: z.string().default(''),
+  source_type: z.string().nullable().default(null),
+  active: z.boolean().default(true),
+  expires_at: z.string().nullable().default(null),
+  total_clicks: z.number().default(0),
+  unique_visitors: z.number().default(0),
+  health_status: z.string().nullable().default(null),
+  redirect_type: z.number().default(301),
+  pass_click_ids: z.boolean().default(false),
+  created_at: z.string().default(''),
+}).passthrough()
 
 export default async function LinksDashboardPage({ searchParams }: Props) {
   const params = await searchParams
@@ -98,28 +115,34 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
     }
   }
 
-  // Build LinkDisplay[]
-  const links: LinkDisplay[] = rawLinks.map((l) => ({
-    id: l.id as string,
-    title: (l.title as string) ?? (l.code as string),
-    slug: `/${l.code as string}`,
-    source: toSourceId((l.source_type as string) ?? 'manual'),
-    badge: SOURCE_LABELS[toSourceId((l.source_type as string) ?? 'manual')],
-    dest: (l.destination_url as string) ?? '',
-    status: (l.active as boolean)
-      ? 'active'
-      : ((l.expires_at && new Date(l.expires_at as string) < new Date()) ? 'expired' : 'paused'),
-    clicks: (l.total_clicks as number) ?? 0,
-    last30: 0, // TODO: compute from link_daily_metrics when per-link 30-day view is available
-    unique: (l.unique_visitors as number) ?? 0,
+  // Build LinkDisplay[] — Zod-validated
+  const validLinks = rawLinks.flatMap((raw) => {
+    const parsed = TrackedLinkRow.safeParse(raw)
+    if (!parsed.success) return []
+    return [parsed.data]
+  })
+
+  const links: LinkDisplay[] = validLinks.map((l) => ({
+    id: l.id,
+    title: l.title ?? l.code,
+    slug: `/${l.code}`,
+    source: toSourceId(l.source_type ?? 'manual'),
+    badge: SOURCE_LABELS[toSourceId(l.source_type ?? 'manual')],
+    dest: l.destination_url,
+    status: l.active
+      ? 'active' as const
+      : ((l.expires_at && new Date(l.expires_at) < new Date()) ? 'expired' as const : 'paused' as const),
+    clicks: l.total_clicks,
+    last30: 0,
+    unique: l.unique_visitors,
     scans: 0,
     topCountry: 'BR',
     ctr: 0,
-    created: fmtDate((l.created_at as string) ?? ''),
+    created: fmtDate(l.created_at),
     health: toHealth(l.health_status),
-    redirect: ((l.redirect_type as number) === 302 ? 302 : 301) as 301 | 302,
-    clickIds: (l.pass_click_ids as boolean) ?? false,
-    spark: sparkMap.get(l.id as string) ?? Array.from({ length: 14 }, () => 0),
+    redirect: (l.redirect_type === 302 ? 302 : 301) as 301 | 302,
+    clickIds: l.pass_click_ids,
+    spark: sparkMap.get(l.id) ?? Array.from({ length: 14 }, () => 0),
   }))
 
   // Build LinktreeDisplay
@@ -155,8 +178,8 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
 
   // Build AnalyticsDisplay
   const dailyData = dailyRes.data ?? []
-  const totalClicks = rawLinks.reduce((s, l) => s + ((l.total_clicks as number) ?? 0), 0)
-  const totalUnique = rawLinks.reduce((s, l) => s + ((l.unique_visitors as number) ?? 0), 0)
+  const totalClicks = validLinks.reduce((s, l) => s + l.total_clicks, 0)
+  const totalUnique = validLinks.reduce((s, l) => s + l.unique_visitors, 0)
 
   const byDay = Array.from({ length: 30 }, () => 0)
   for (const row of dailyData) {
@@ -168,9 +191,9 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
   }
 
   const sourceMap = new Map<string, number>()
-  for (const row of rawLinks) {
-    const src = (row.source_type as string) ?? 'manual'
-    sourceMap.set(src, (sourceMap.get(src) ?? 0) + ((row.total_clicks as number) ?? 0))
+  for (const row of validLinks) {
+    const src = row.source_type ?? 'manual'
+    sourceMap.set(src, (sourceMap.get(src) ?? 0) + row.total_clicks)
   }
   const bySource = Array.from(sourceMap.entries()).map(([id, clicks]) => ({
     id: toSourceId(id),
@@ -185,7 +208,7 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
     if (hourly && typeof hourly === 'object' && weekday >= 0 && weekday < 7) {
       for (const [h, count] of Object.entries(hourly)) {
         const hour = parseInt(h, 10)
-        if (hour >= 0 && hour < 24) {
+        if (Number.isFinite(hour) && hour >= 0 && hour < 24) {
           heatmap[weekday]![hour]! += typeof count === 'number' ? count : 0
         }
       }
