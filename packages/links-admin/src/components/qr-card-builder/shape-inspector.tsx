@@ -127,7 +127,7 @@ export function ShapeInspector({ element, onUpdate, onDuplicate, onDelete }: Sha
     const color = currentColor.startsWith('rgba') ? element.color : currentColor
     const base: Partial<TextElement> = {
       content: `${SHAPE_PREFIX}${type}`,
-      fontSize: 1,
+      fontSize: 8,
       fontWeight: 400,
       lineHeight: 1,
       letterSpacing: '0em',
