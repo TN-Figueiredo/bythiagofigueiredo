@@ -29,7 +29,7 @@ export function TopLinksTable({ links }: TopLinksTableProps) {
           key={l.id}
           type="button"
           data-link-row
-          onClick={() => { if (l.id !== 'linktree') window.location.href = `/cms/links/${l.id}` }}
+          onClick={() => window.location.href = l.id === 'linktree' ? '/cms/links?tab=tree' : `/cms/links/${l.id}`}
           style={{
             display: 'flex', alignItems: 'center', gap: 12,
             padding: '11px 6px', border: 'none', background: 'transparent',
