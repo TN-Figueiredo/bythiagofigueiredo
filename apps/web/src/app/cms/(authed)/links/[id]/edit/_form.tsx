@@ -203,11 +203,16 @@ export function EditLinkForm({ linkId, siteId, initial }: EditLinkFormProps) {
             background: var(--surface-2) !important;
           }
           /* Toggle switches */
-          .links-edit-form [role="switch"] {
+          .links-edit-form [role="switch"],
+          .links-edit-form button[class*="bg-green"],
+          .links-edit-form button[class*="bg-emerald"],
+          .links-edit-form [class*="toggle"][class*="bg-"] {
             background: var(--surface-2) !important;
           }
           .links-edit-form [role="switch"][data-state="checked"],
-          .links-edit-form [role="switch"][aria-checked="true"] {
+          .links-edit-form [role="switch"][aria-checked="true"],
+          .links-edit-form button[class*="bg-green-500"],
+          .links-edit-form button[class*="bg-emerald-500"] {
             background: var(--accent) !important;
           }
           /* Buttons */
