@@ -15,18 +15,16 @@ import { RankBars } from './rank-bars'
 import { MultiLine } from './multi-line'
 import { ABBATimeline } from './abba-timeline'
 import { FunnelRow } from './funnel-row'
+import {
+  Pause, Settings,
+  LayoutGrid, TrendingUp, Crosshair, Target, BarChart3, LineChart, RefreshCw, Filter, Shield,
+} from 'lucide-react'
 
 export interface ActiveDetailProps {
   view: AbTestActiveView
 }
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <h3 className="text-sm font-semibold text-cms-text mb-2">
-      {children}
-    </h3>
-  )
-}
+const BTN = 'inline-flex items-center gap-[7px] justify-center py-[6px] px-[11px] text-[12.5px] font-semibold rounded-[9px] border border-cms-border whitespace-nowrap transition-[0.15s] tracking-[-0.01em] text-cms-text-dim hover:text-cms-text focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none'
 
 export function ActiveDetail({ view }: ActiveDetailProps) {
   const [signal, setSignal] = useState<'confirmed' | 'live'>('confirmed')
@@ -59,9 +57,9 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
   }))
 
   return (
-    <div className="space-y-6">
-      {/* Section 1: Header with signal toggle */}
-      <div data-section="header">
+    <div data-testid="active-detail">
+      {/* Section 1: Header with signal toggle + Pausar + Settings */}
+      <div data-section="header" className="mb-[22px]">
         <DetailHeader
           title={view.videoTitle}
           flag={view.flag}
@@ -69,15 +67,27 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
           roundNumber={1}
           totalRounds={view.totalRounds}
           hasPlayoff={view.hasPlayoff}
+          dayInfo={{ dayOf: view.cycles.done, total: view.durationDays }}
           signalToggle={{
             mode: signal,
             onToggle: () => setSignal(s => (s === 'confirmed' ? 'live' : 'confirmed')),
           }}
+          actions={
+            <div className="flex gap-[9px] shrink-0">
+              <button type="button" className={BTN}>
+                <Pause size={14} aria-hidden="true" />
+                Pausar
+              </button>
+              <button type="button" aria-label="Configurações" className={BTN}>
+                <Settings size={14} aria-hidden="true" />
+              </button>
+            </div>
+          }
         />
       </div>
 
       {/* Section 2: Lock Countdown */}
-      <div data-section="lock-countdown">
+      <div data-section="lock-countdown" className="mb-[16px]">
         <LockCountdown
           dayOf={view.cycles.done}
           durationDays={view.durationDays}
@@ -88,7 +98,7 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
       </div>
 
       {/* Section 3: Hero Band */}
-      <div data-section="hero-band">
+      <div data-section="hero-band" className="mb-[28px]">
         <HeroBand
           confidence={data.confidence}
           confidenceTarget={view.confidenceTarget * 100}
@@ -99,74 +109,143 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
       </div>
 
       {/* Section 4: Placar das variantes */}
-      <div data-section="variant-performance">
-        <SectionLabel>Placar das variantes</SectionLabel>
+      <section data-section="variant-performance" className="mb-[28px]">
+        <div className="flex items-end justify-between gap-[14px] mb-[16px]">
+          <div>
+            <div className="flex items-center gap-[9px]">
+              <LayoutGrid size={17} className="text-cms-accent" aria-hidden="true" />
+              <h3 className="text-[19px] font-semibold text-cms-text m-0">Placar das variantes</h3>
+            </div>
+            <p className="text-[12.5px] text-cms-text-dim mt-[5px] max-w-[540px] m-0">
+              Desempenho de cada variante até agora.
+            </p>
+          </div>
+        </div>
         <VariantTable
           variants={view.variants}
           metric="pBest"
           thumbs={view.variantThumbs}
         />
-      </div>
+      </section>
 
-      {/* Section 5: Confiança + Raio-X */}
-      <div data-section="charts-confidence-radar" className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <SectionLabel>Confiança ao longo do tempo</SectionLabel>
-          <ConfidenceChart
-            data={view.confTrend}
-            target={view.confidenceTarget * 100}
-          />
-        </div>
-        <div>
-          <SectionLabel>Raio-X das variantes</SectionLabel>
-          <RadarChart variants={view.variants} />
-        </div>
-      </div>
+      {/* Section 5: Confiança ao longo do tempo + Raio-X das variantes */}
+      <section data-section="charts-confidence-radar" className="mb-[16px]">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-[16px]">
+          {/* Left: Confiança ao longo do tempo */}
+          <div className="rounded-lg border border-cms-border bg-cms-surface p-[20px]">
+            <div className="flex items-end justify-between gap-[14px] mb-[16px]">
+              <div className="flex items-center gap-[9px]">
+                <TrendingUp size={17} className="text-cms-accent" aria-hidden="true" />
+                <h3 className="text-[19px] font-semibold text-cms-text m-0">Confiança ao longo do tempo</h3>
+              </div>
+            </div>
+            <ConfidenceChart
+              data={view.confTrend}
+              target={view.confidenceTarget * 100}
+            />
+          </div>
 
-      {/* Section 6: Faixa provável + Chance de vencer */}
-      <div data-section="charts-ci-rank" className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <SectionLabel>Faixa provável de CTR</SectionLabel>
-          <CredibleInterval variants={view.variants} leader={data.leader} />
-        </div>
-        <div>
-          <SectionLabel>Chance de vencer</SectionLabel>
-          <RankBars variants={view.variants} metric="pBest" />
-        </div>
-      </div>
-
-      {/* Section 7: CTR diário */}
-      <div data-section="daily-ctr">
-        <SectionLabel>CTR diário por variante</SectionLabel>
-        <MultiLine series={view.daily} colors={VARIANT_COLORS} />
-      </div>
-
-      {/* Section 8: Rotação ABBA + Funil */}
-      <div data-section="timeline-funnel" className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <SectionLabel>Rotação ABBA</SectionLabel>
-          <ABBATimeline
-            seq={view.abbaSeq}
-            total={view.cycles.total}
-            done={view.cycles.done}
-            colors={abbaColors}
-          />
-        </div>
-        <div>
-          <SectionLabel>Funil por variante</SectionLabel>
-          <div className="space-y-3">
-            {funnelVariants.map((fv, i) => (
-              <FunnelRow key={view.variants[i]?.label ?? i} variant={fv} />
-            ))}
+          {/* Right: Raio-X das variantes */}
+          <div className="rounded-lg border border-cms-border bg-cms-surface p-[20px]">
+            <div className="flex items-end justify-between gap-[14px] mb-[16px]">
+              <div className="flex items-center gap-[9px]">
+                <Crosshair size={17} className="text-cms-accent" aria-hidden="true" />
+                <h3 className="text-[19px] font-semibold text-cms-text m-0">Raio-X das variantes</h3>
+              </div>
+            </div>
+            <RadarChart variants={view.variants} />
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* Section 9: Critérios de resolução */}
-      <div data-section="gates">
-        <SectionLabel>Critérios de resolução automática</SectionLabel>
-        <GatesPanel gates={view.gates} />
-      </div>
+      {/* Section 6: Faixa provável de CTR + Chance de vencer */}
+      <section data-section="charts-ci-rank" className="mb-[28px]">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-[16px]">
+          {/* Left: Faixa provável de CTR */}
+          <div className="rounded-lg border border-cms-border bg-cms-surface p-[20px]">
+            <div className="flex items-end justify-between gap-[14px] mb-[16px]">
+              <div className="flex items-center gap-[9px]">
+                <Target size={17} className="text-cms-accent" aria-hidden="true" />
+                <h3 className="text-[19px] font-semibold text-cms-text m-0">Faixa provável de CTR</h3>
+              </div>
+            </div>
+            <CredibleInterval variants={view.variants} leader={data.leader} />
+          </div>
+
+          {/* Right: Chance de vencer */}
+          <div className="rounded-lg border border-cms-border bg-cms-surface p-[20px]">
+            <div className="flex items-end justify-between gap-[14px] mb-[16px]">
+              <div className="flex items-center gap-[9px]">
+                <BarChart3 size={17} className="text-cms-accent" aria-hidden="true" />
+                <h3 className="text-[19px] font-semibold text-cms-text m-0">Chance de vencer</h3>
+              </div>
+            </div>
+            <RankBars variants={view.variants} metric="pBest" />
+          </div>
+        </div>
+      </section>
+
+      {/* Section 7: CTR diário por variante */}
+      <section data-section="daily-ctr" className="mb-[28px]">
+        <div className="rounded-lg border border-cms-border bg-cms-surface p-[20px]">
+          <div className="flex items-end justify-between gap-[14px] mb-[16px]">
+            <div className="flex items-center gap-[9px]">
+              <LineChart size={17} className="text-cms-accent" aria-hidden="true" />
+              <h3 className="text-[19px] font-semibold text-cms-text m-0">CTR diário por variante</h3>
+            </div>
+          </div>
+          <MultiLine series={view.daily} colors={VARIANT_COLORS} />
+        </div>
+      </section>
+
+      {/* Section 8: Rotação ABBA + Funil por variante */}
+      <section data-section="timeline-funnel" className="mb-[28px]">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-[16px]">
+          {/* Left: Rotação ABBA */}
+          <div className="rounded-lg border border-cms-border bg-cms-surface p-[20px]">
+            <div className="flex items-end justify-between gap-[14px] mb-[16px]">
+              <div className="flex items-center gap-[9px]">
+                <RefreshCw size={17} className="text-cms-accent" aria-hidden="true" />
+                <h3 className="text-[19px] font-semibold text-cms-text m-0">Rotação ABBA</h3>
+              </div>
+            </div>
+            <ABBATimeline
+              seq={view.abbaSeq}
+              total={view.cycles.total}
+              done={view.cycles.done}
+              colors={abbaColors}
+            />
+          </div>
+
+          {/* Right: Funil por variante */}
+          <div className="rounded-lg border border-cms-border bg-cms-surface p-[20px]">
+            <div className="flex items-end justify-between gap-[14px] mb-[16px]">
+              <div className="flex items-center gap-[9px]">
+                <Filter size={17} className="text-cms-accent" aria-hidden="true" />
+                <h3 className="text-[19px] font-semibold text-cms-text m-0">Funil por variante</h3>
+              </div>
+            </div>
+            <div className="space-y-3">
+              {funnelVariants.map((fv, i) => (
+                <FunnelRow key={view.variants[i]?.label ?? i} variant={fv} />
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Section 9: Critérios de resolução automática */}
+      <section data-section="gates" className="mb-[28px]">
+        <div className="rounded-lg border border-cms-border bg-cms-surface p-[20px]">
+          <div className="flex items-end justify-between gap-[14px] mb-[16px]">
+            <div className="flex items-center gap-[9px]">
+              <Shield size={17} className="text-cms-accent" aria-hidden="true" />
+              <h3 className="text-[19px] font-semibold text-cms-text m-0">Critérios de resolução automática</h3>
+            </div>
+          </div>
+          <GatesPanel gates={view.gates} />
+        </div>
+      </section>
 
       {/* Section 10: ClickMoment placeholder (Phase 5) */}
       <div data-click-moment aria-hidden="true" />

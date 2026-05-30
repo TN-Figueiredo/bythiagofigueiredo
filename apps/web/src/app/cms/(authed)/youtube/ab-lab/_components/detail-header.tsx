@@ -17,6 +17,7 @@ export interface DetailHeaderProps {
   totalRounds: number
   hasPlayoff: boolean
   outcome?: DetailOutcome
+  dayInfo?: { dayOf: number; total: number }
   signalToggle?: { mode: 'confirmed' | 'live'; onToggle: () => void }
   actions?: React.ReactNode
 }
@@ -37,7 +38,7 @@ const STATUS_LABEL: Record<AbTestStatus, string> = {
   archived: 'Arquivado',
 }
 
-function StatusBadge({ status, outcome }: { status: AbTestStatus; outcome?: DetailOutcome }) {
+function StatusBadge({ status, outcome, dayInfo }: { status: AbTestStatus; outcome?: DetailOutcome; dayInfo?: { dayOf: number; total: number } }) {
   if (status === 'completed' && outcome === 'winner') {
     return (
       <Badge tone="green">
@@ -52,6 +53,14 @@ function StatusBadge({ status, outcome }: { status: AbTestStatus; outcome?: Deta
       <Badge tone="amber">
         <AlertCircle size={11} aria-hidden="true" className="-translate-y-px" />
         Inconclusivo
+      </Badge>
+    )
+  }
+
+  if (status === 'active' && dayInfo) {
+    return (
+      <Badge tone={STATUS_TONE[status]} dot>
+        Ativo · dia {dayInfo.dayOf}/{dayInfo.total}
       </Badge>
     )
   }
@@ -71,6 +80,7 @@ export function DetailHeader({
   totalRounds,
   hasPlayoff,
   outcome,
+  dayInfo,
   signalToggle,
   actions,
 }: DetailHeaderProps) {
@@ -99,14 +109,14 @@ export function DetailHeader({
                 Round {roundNumber}/{totalRounds}
               </Badge>
             )}
-            <StatusBadge status={status} outcome={outcome} />
+            <StatusBadge status={status} outcome={outcome} dayInfo={dayInfo} />
           </div>
           <h2 className="text-[24px] font-semibold text-cms-text leading-[1.2] max-w-[720px]">{title}</h2>
         </div>
 
-        {/* Right: signal toggle or actions */}
-        <div className="flex shrink-0">
-          {signalToggle ? (
+        {/* Right: signal toggle + actions */}
+        <div className="flex items-center gap-[9px] shrink-0">
+          {signalToggle && (
             <div className="flex items-center gap-2">
               <Seg<'confirmed' | 'live'>
                 options={['confirmed', 'live'] as const}
@@ -117,9 +127,8 @@ export function DetailHeader({
               />
               <InfoTip text="Confirmado usa dados verificados. Live mostra estimativas em tempo real." />
             </div>
-          ) : (
-            actions
           )}
+          {actions}
         </div>
       </div>
     </header>
