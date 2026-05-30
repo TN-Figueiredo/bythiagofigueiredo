@@ -21,7 +21,7 @@ const actionBtnStyle: React.CSSProperties = {
 
 /* ── GIPHY integration ── */
 
-const GIPHY_KEY = 'GlVGYHkr3WSBnllca54iNt0yFbjz7L65'
+const GIPHY_PROXY = '/api/giphy'
 
 interface GiphyGif {
   id: string
@@ -68,8 +68,8 @@ export function GifInspector({
       setSearching(true)
       try {
         const endpoint = query.trim()
-          ? `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_KEY}&q=${encodeURIComponent(query)}&limit=12&rating=g`
-          : `https://api.giphy.com/v1/gifs/trending?api_key=${GIPHY_KEY}&limit=12&rating=g`
+          ? `${GIPHY_PROXY}?q=${encodeURIComponent(query)}&limit=12`
+          : `${GIPHY_PROXY}?limit=12`
         const res = await fetch(endpoint)
         const json = await res.json()
         if (!cancelled) setGifs(json.data ?? [])
