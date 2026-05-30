@@ -9,7 +9,7 @@ import { AccountsStripLoader } from './_components/accounts-strip'
 import { FeedViewLoader } from './_components/feed-view-loader'
 import { CalendarViewLoader } from './_components/calendar-view-loader'
 import { QueueViewLoader } from './_components/queue-view-loader'
-import { DraftsViewLoader } from './_components/posts-drafts'
+import { DraftsViewLoader } from './_components/drafts-view-loader'
 
 export const dynamic = 'force-dynamic'
 
