@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Info, Eye, Users, Target, Trophy, ExternalLink, Type } from 'lucide-react'
+import { Info, Eye, Users, TrendingUp, Trophy, ExternalLink, Type, Percent } from 'lucide-react'
 import type { LinktreeDisplay } from '@tn-figueiredo/links-admin'
 import { LinktreePreview } from './linktree/preview'
 import { fmt } from './fmt'
@@ -169,25 +169,38 @@ export function TreeTab({ tree }: TreeTabProps) {
         {/* Right: Stats + performance */}
         <div className="flex flex-col gap-4">
           {/* 4 stat cards */}
-          <div className="grid auto-rows-fr gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
             {[
-              { label: 'Pageviews', value: fmt(tree.pageviews), icon: Eye },
-              { label: 'Ultimos 30d', value: fmt(tree.last30), icon: Target },
-              { label: 'Unicos', value: fmt(tree.unique), icon: Users },
-              { label: 'Engajamento', value: `${tree.engagement}%`, icon: Target },
+              { label: 'Pageviews', value: fmt(tree.pageviews), Icon: Eye, color: 'var(--accent)' },
+              { label: 'Últimos 30d', value: fmt(tree.last30), Icon: TrendingUp, color: 'rgb(70, 177, 126)' },
+              { label: 'Únicos', value: fmt(tree.unique), Icon: Users, color: 'rgb(63, 169, 192)' },
+              { label: 'Engajamento', value: `${tree.engagement}%`, Icon: Percent, color: 'rgb(224, 162, 60)' },
             ].map((s) => (
-              <div key={s.label} data-stat-card className="rounded-[14px] border border-white/[0.08] bg-[#161410] p-4">
-                <div className="mb-2 flex items-center gap-2">
-                  <s.icon className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{s.label}</span>
+              <div
+                key={s.label}
+                data-stat-card
+                style={{
+                  background: 'var(--surface)',
+                  border: '1px solid var(--line)',
+                  borderRadius: 'var(--r)',
+                  padding: 15,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                  <s.Icon size={14} strokeWidth={1.7} style={{ color: s.color }} />
+                  <span className="eyebrow" style={{ fontSize: '10.5px', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--ink-faint)' }}>
+                    {s.label}
+                  </span>
                 </div>
-                <div className="font-mono text-xl font-bold text-foreground">{s.value}</div>
+                <div className="mono" style={{ fontSize: 23, fontWeight: 700, color: 'var(--ink)' }}>
+                  {s.value}
+                </div>
               </div>
             ))}
           </div>
 
           {/* Block performance */}
-          <div className="rounded-[14px] border border-white/[0.08] bg-[#161410] p-4">
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 'var(--r)', padding: 15 }}>
             <div className="mb-3 flex items-center gap-2">
               <Trophy className="h-4 w-4 text-amber-400" />
               <span className="text-[13px] font-semibold text-foreground">Desempenho por bloco</span>
