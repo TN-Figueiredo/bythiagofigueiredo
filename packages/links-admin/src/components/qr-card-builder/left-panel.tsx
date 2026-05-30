@@ -4,10 +4,10 @@ import {
   AlignLeft,
   Image,
   FileVideo2,
-  Sticker,
+  Link2,
   QrCode,
   Type,
-  BarChart3,
+  LayoutTemplate,
   Info,
   Loader2,
 } from 'lucide-react'
@@ -111,8 +111,6 @@ export function LeftPanel({ comp, interaction, onImageUpload }: LeftPanelProps) 
   }, [composition, addElement, select, onImageUpload])
 
   const handleAddImage = useCallback(() => handleFileUpload('image/*'), [handleFileUpload])
-  const handleAddGif = useCallback(() => handleFileUpload('.gif', 'GIF'), [handleFileUpload])
-  const handleAddSticker = useCallback(() => handleFileUpload('.png,.webp', 'Sticker'), [handleFileUpload])
 
   const handleAddCarimbo = useCallback(() => {
     if (composition.elements.length >= MAX_ELEMENTS) return
@@ -128,13 +126,6 @@ export function LeftPanel({ comp, interaction, onImageUpload }: LeftPanelProps) 
     select(id)
   }, [composition, addElement, select])
 
-  const handleAddEnquete = useCallback(() => {
-    if (composition.elements.length >= MAX_ELEMENTS) return
-    const id = crypto.randomUUID()
-    const el = createTextElement(id, composition.canvas.width, composition.canvas.height, 'Enquete')
-    addElement({ ...el, content: 'Opcao A vs B' })
-    select(id)
-  }, [composition, addElement, select])
 
   /* ── Background handlers ── */
 
@@ -152,16 +143,18 @@ export function LeftPanel({ comp, interaction, onImageUpload }: LeftPanelProps) 
   const hint = PRESET_HINTS[activePreset] ?? ''
   const atLimit = composition.elements.length >= MAX_ELEMENTS
 
-  /* ── Element button definitions ── */
+  /* ── Element button definitions — 2 subgroups ── */
 
-  const elementButtons = [
-    { label: 'Texto', icon: AlignLeft, handler: handleAddText },
-    { label: 'Imagem', icon: Image, handler: handleAddImage },
-    { label: 'GIF', icon: FileVideo2, handler: handleAddGif },
-    { label: 'Sticker', icon: Sticker, handler: handleAddSticker },
-    { label: 'QR', icon: QrCode, handler: handleAddQr },
-    { label: 'Carimbo', icon: Type, handler: handleAddCarimbo },
-    { label: 'Enquete', icon: BarChart3, handler: handleAddEnquete },
+  const contentButtons = [
+    { label: 'Texto', icon: AlignLeft, handler: handleAddText, title: 'Texto — Título, frase ou chamada' },
+    { label: 'Imagem', icon: Image, handler: handleAddImage, title: 'Imagem — Foto, logo ou capa' },
+    { label: 'Forma', icon: LayoutTemplate, handler: handleAddText, title: 'Forma — Linha ou divisor' },
+  ] as const
+
+  const brandButtons = [
+    { label: 'QR', icon: QrCode, handler: handleAddQr, title: 'QR Code — Aponta pro seu link' },
+    { label: 'Carimbo', icon: Type, handler: handleAddCarimbo, title: 'Carimbo TF — Selo da marca' },
+    { label: 'Botão', icon: Link2, handler: handleAddText, title: 'Botão / CTA — Chamada visual (Aponte a câmera)' },
   ] as const
 
   return (
@@ -279,35 +272,64 @@ export function LeftPanel({ comp, interaction, onImageUpload }: LeftPanelProps) 
         >
           Adicionar
         </h3>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, marginBottom: 18 }}>
-          {elementButtons.map(({ label, icon: Icon, handler }) => (
-            <button
-              key={label}
-              type="button"
-              onClick={handler}
-              className="qr-left-add-btn"
-              disabled={atLimit || isUploading}
-              style={{
-                padding: '11px 4px',
-                borderRadius: 9,
-                border: '1px solid var(--line)',
-                background: 'var(--surface-2)',
-                color: 'var(--ink)',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: 6,
-                cursor: atLimit ? 'not-allowed' : 'pointer',
-                opacity: atLimit ? 0.5 : 1,
-              }}
-            >
-              {isUploading && (label === 'Imagem' || label === 'GIF' || label === 'Sticker')
-                ? <Loader2 size={18} className="animate-spin" style={{ color: 'var(--ink-dim)' }} />
-                : <Icon size={18} style={{ color: 'var(--ink-dim)' }} />
-              }
-              <span style={{ fontSize: '10.5px' }}>{label}</span>
-            </button>
-          ))}
+
+        {/* Subgroup: Conteúdo */}
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 10, color: 'var(--ink-faint)', marginBottom: 6, letterSpacing: '0.04em' }}>Conteúdo</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+            {contentButtons.map(({ label, icon: Icon, handler, title }) => (
+              <button
+                key={label}
+                type="button"
+                title={title}
+                onClick={handler}
+                className="qr-left-add-btn"
+                disabled={atLimit || isUploading}
+                style={{
+                  padding: '10px 3px', borderRadius: 9,
+                  border: '1px solid var(--line)', background: 'var(--surface-2)',
+                  color: 'var(--ink)', display: 'flex', flexDirection: 'column',
+                  alignItems: 'center', gap: 6,
+                  cursor: atLimit ? 'not-allowed' : 'pointer',
+                  opacity: atLimit ? 0.5 : 1,
+                }}
+              >
+                {isUploading && label === 'Imagem'
+                  ? <Loader2 size={17} className="animate-spin" style={{ color: 'var(--ink-dim)' }} />
+                  : <Icon size={17} style={{ color: 'var(--ink-dim)' }} />
+                }
+                <span style={{ fontSize: 10, lineHeight: 1.1, textAlign: 'center', whiteSpace: 'nowrap' }}>{label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Subgroup: Marca & ação */}
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 10, color: 'var(--ink-faint)', marginBottom: 6, letterSpacing: '0.04em' }}>Marca &amp; ação</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+            {brandButtons.map(({ label, icon: Icon, handler, title }) => (
+              <button
+                key={label}
+                type="button"
+                title={title}
+                onClick={handler}
+                className="qr-left-add-btn"
+                disabled={atLimit}
+                style={{
+                  padding: '10px 3px', borderRadius: 9,
+                  border: '1px solid var(--line)', background: 'var(--surface-2)',
+                  color: 'var(--ink)', display: 'flex', flexDirection: 'column',
+                  alignItems: 'center', gap: 6,
+                  cursor: atLimit ? 'not-allowed' : 'pointer',
+                  opacity: atLimit ? 0.5 : 1,
+                }}
+              >
+                <Icon size={17} style={{ color: 'var(--ink-dim)' }} />
+                <span style={{ fontSize: 10, lineHeight: 1.1, textAlign: 'center', whiteSpace: 'nowrap' }}>{label}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* ── FUNDO ── */}
@@ -318,22 +340,15 @@ export function LeftPanel({ comp, interaction, onImageUpload }: LeftPanelProps) 
           Fundo
         </h3>
 
-        {/* Segmented control */}
-        <div style={{
-          display: 'inline-flex',
-          background: 'var(--surface-2)',
-          borderRadius: 9,
-          padding: 3,
-          gap: 2,
-        }}>
-          {(['solid', 'image', 'video', 'gradient'] as const).map(tab => {
+        {/* Background type grid 2×2 */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+          {([
+            { tab: 'solid' as const, label: 'Sólido' },
+            { tab: 'gradient' as const, label: 'Degradê' },
+            { tab: 'image' as const, label: 'Imagem' },
+            { tab: 'video' as const, label: 'Vídeo' },
+          ]).map(({ tab, label }) => {
             const isActive = bgTab === tab
-            const tabLabel: Record<BgTab, string> = {
-              solid: 'Solido',
-              image: 'Imagem',
-              video: 'Video',
-              gradient: 'Degrade',
-            }
             return (
               <button
                 key={tab}
@@ -347,19 +362,18 @@ export function LeftPanel({ comp, interaction, onImageUpload }: LeftPanelProps) 
                     setBackground({ type: 'gradient', angle: 180, stops: [{ color: '#000000', position: 0 }, { color: '#ffffff', position: 1 }] })
                   }
                 }}
-                className={!isActive ? 'qr-left-bg-tab' : ''}
+                className={!isActive ? 'qr-left-preset' : ''}
                 style={{
-                  background: isActive ? 'var(--accent)' : 'transparent',
-                  color: isActive ? 'rgb(26, 18, 12)' : 'var(--ink-dim)',
-                  fontWeight: 600,
-                  borderRadius: 7,
-                  border: 'none',
-                  padding: '5px 10px',
-                  fontSize: 12,
+                  padding: '8px 0',
+                  borderRadius: 8,
+                  border: `1px solid ${isActive ? 'var(--accent)' : 'var(--line-strong)'}`,
+                  background: isActive ? 'var(--accent-soft)' : 'var(--surface-2)',
+                  color: isActive ? 'var(--accent)' : 'var(--ink-dim)',
+                  fontSize: 12, fontWeight: 600,
                   cursor: 'pointer',
                 }}
               >
-                {tabLabel[tab]}
+                {label}
               </button>
             )
           })}
