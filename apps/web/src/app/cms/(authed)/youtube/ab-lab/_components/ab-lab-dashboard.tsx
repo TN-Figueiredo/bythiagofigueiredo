@@ -62,7 +62,7 @@ export function AbLabDashboard({
     if (!result.ok) throw new Error(result.error ?? 'Failed to save settings')
   }
 
-  const showKpiStrip = cards.length > 0 || completed.length > 0
+  const showKpiStrip = true
   const showEmpty = cards.length === 0 && completed.length === 0 && drafts.length === 0
 
   return (
