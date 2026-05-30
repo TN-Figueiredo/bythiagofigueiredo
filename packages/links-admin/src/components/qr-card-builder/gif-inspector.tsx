@@ -61,33 +61,32 @@ export function GifInspector({
   /* Derive scale percentage from element width vs a baseline (100 = original) */
   const scalePercent = Math.round(((element.width) / 100) * 100)
 
-  async function fetchGifs(q: string) {
-    setSearching(true)
-    try {
-      const endpoint = q.trim()
-        ? `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_KEY}&q=${encodeURIComponent(q)}&limit=12&rating=g`
-        : `https://api.giphy.com/v1/gifs/trending?api_key=${GIPHY_KEY}&limit=12&rating=g`
-      const res = await fetch(endpoint)
-      const json = await res.json()
-      setGifs(json.data ?? [])
-    } catch {
-      setGifs([])
-    } finally {
-      setSearching(false)
-    }
-  }
-
-  /* Load trending on mount + auto-focus search */
+  /* Debounced search (also loads trending on mount when query is '') */
   useEffect(() => {
-    fetchGifs('')
+    let cancelled = false
+    const timer = setTimeout(async () => {
+      setSearching(true)
+      try {
+        const endpoint = query.trim()
+          ? `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_KEY}&q=${encodeURIComponent(query)}&limit=12&rating=g`
+          : `https://api.giphy.com/v1/gifs/trending?api_key=${GIPHY_KEY}&limit=12&rating=g`
+        const res = await fetch(endpoint)
+        const json = await res.json()
+        if (!cancelled) setGifs(json.data ?? [])
+      } catch (err) {
+        console.error('[GIPHY] fetch failed:', err)
+        if (!cancelled) setGifs([])
+      } finally {
+        if (!cancelled) setSearching(false)
+      }
+    }, query ? 500 : 0) // immediate for trending, debounced for search
+
     searchRef.current?.focus()
-  }, [])
 
-  /* Debounced search */
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => fetchGifs(query), 500)
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
   }, [query])
 
   return (
