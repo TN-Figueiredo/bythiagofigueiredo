@@ -143,13 +143,20 @@ export interface AspectRatioPreset {
 }
 
 export const ASPECT_RATIO_PRESETS: AspectRatioPreset[] = [
-  { name: 'print', label: 'Print', width: 2480, height: 3508 },
-  { name: 'adesivo', label: 'Adesivo', width: 1080, height: 1080 },
-  { name: 'story', label: 'Story', width: 1080, height: 1920 },
-  { name: 'cartao', label: 'Cartão', width: 1050, height: 600 },
-  { name: 'banner', label: 'Banner', width: 1920, height: 680 },
+  { name: 'vertical', label: 'Vertical', width: 1080, height: 1920 },
+  { name: 'horizontal', label: 'Horizontal', width: 1920, height: 1080 },
+  { name: 'square', label: 'Quadrado', width: 1080, height: 1080 },
   { name: 'custom', label: 'Custom', width: 1080, height: 1080 },
 ]
+
+export const PRESET_HINTS: Record<string, string> = {
+  vertical: 'Story · pôster · cavalete de mesa',
+  horizontal: 'Banner · outdoor · assinatura de e-mail',
+  square: 'Feed · adesivo · cartão',
+  custom: '',
+}
+
+export const BG_PALETTE = ['#1F1B17', '#F7F1E8', '#F2683C', '#9A6B3F', '#46B17E', '#5B7FD6'] as const
 
 export const AVAILABLE_FONTS = [
   // Sans-serif
@@ -202,7 +209,7 @@ export const FONT_CATEGORIES: Record<FontCategory, readonly string[]> = {
 } as const
 
 export function nextElementName(elements: CardElement[], type: 'qr' | 'text' | 'image' | 'video'): string {
-  const labels: Record<string, string> = { qr: 'QR Code', text: 'Text', image: 'Image', video: 'Video' }
+  const labels: Record<string, string> = { qr: 'QR Code', text: 'Texto', image: 'Imagem', video: 'Vídeo' }
   const base = labels[type]!
   const count = elements.filter(e => e.type === type).length
   return count === 0 ? base : `${base} ${count + 1}`
@@ -214,7 +221,7 @@ export const MIN_CANVAS = 200
 export const MAX_CANVAS = 4096
 
 export function createDefaultComposition(
-  preset: AspectRatioPreset = ASPECT_RATIO_PRESETS[1]!,
+  preset: AspectRatioPreset = ASPECT_RATIO_PRESETS[2]!,  // default: Quadrado 1080x1080
 ): CardComposition {
   return {
     version: 1,
@@ -397,7 +404,7 @@ export function migrateLegacyQrConfig(
   canvasWidth = 1080,
   canvasHeight = 1080,
 ): CardComposition {
-  const comp = createDefaultComposition(ASPECT_RATIO_PRESETS[1]!)
+  const comp = createDefaultComposition(ASPECT_RATIO_PRESETS[2]!)
   comp.canvas.width = canvasWidth
   comp.canvas.height = canvasHeight
   comp.background = {

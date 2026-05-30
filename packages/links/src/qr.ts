@@ -18,6 +18,8 @@ export type {
 export {
   CardCompositionSchema,
   ASPECT_RATIO_PRESETS,
+  PRESET_HINTS,
+  BG_PALETTE,
   AVAILABLE_FONTS,
   FONT_CATEGORIES,
   MAX_ELEMENTS,

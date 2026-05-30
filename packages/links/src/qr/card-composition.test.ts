@@ -141,18 +141,18 @@ describe('CardCompositionSchema', () => {
 })
 
 describe('ASPECT_RATIO_PRESETS', () => {
-  it('has 6 presets', () => {
-    expect(ASPECT_RATIO_PRESETS).toHaveLength(6)
+  it('has 4 presets', () => {
+    expect(ASPECT_RATIO_PRESETS).toHaveLength(4)
   })
 
-  it('includes Print A4 2480x3508', () => {
-    const print = ASPECT_RATIO_PRESETS.find(p => p.label === 'Print')
-    expect(print).toEqual({ name: 'print', label: 'Print', width: 2480, height: 3508 })
+  it('includes Vertical 1080x1920', () => {
+    const vertical = ASPECT_RATIO_PRESETS.find(p => p.name === 'vertical')
+    expect(vertical).toEqual({ name: 'vertical', label: 'Vertical', width: 1080, height: 1920 })
   })
 
-  it('includes Adesivo 1080x1080', () => {
-    const adesivo = ASPECT_RATIO_PRESETS.find(p => p.label === 'Adesivo')
-    expect(adesivo).toEqual({ name: 'adesivo', label: 'Adesivo', width: 1080, height: 1080 })
+  it('includes Quadrado 1080x1080', () => {
+    const square = ASPECT_RATIO_PRESETS.find(p => p.name === 'square')
+    expect(square).toEqual({ name: 'square', label: 'Quadrado', width: 1080, height: 1080 })
   })
 })
 
@@ -169,17 +169,17 @@ describe('createDefaultComposition', () => {
     expect(CardCompositionSchema.safeParse(comp).success).toBe(true)
   })
 
-  it('defaults to Adesivo preset', () => {
+  it('defaults to Quadrado preset', () => {
     const comp = createDefaultComposition()
     expect(comp.canvas.width).toBe(1080)
     expect(comp.canvas.height).toBe(1080)
-    expect(comp.canvas.aspectRatio).toBe('adesivo')
+    expect(comp.canvas.aspectRatio).toBe('square')
   })
 
   it('uses provided preset', () => {
     const comp = createDefaultComposition(ASPECT_RATIO_PRESETS[0]!)
-    expect(comp.canvas.width).toBe(2480)
-    expect(comp.canvas.height).toBe(3508)
+    expect(comp.canvas.width).toBe(1080)
+    expect(comp.canvas.height).toBe(1920)
   })
 
   it('starts with solid white background', () => {
@@ -282,8 +282,8 @@ describe('element name field', () => {
 describe('nextElementName', () => {
   it('returns base label for first element of type', () => {
     expect(nextElementName([], 'qr')).toBe('QR Code')
-    expect(nextElementName([], 'text')).toBe('Text')
-    expect(nextElementName([], 'image')).toBe('Image')
+    expect(nextElementName([], 'text')).toBe('Texto')
+    expect(nextElementName([], 'image')).toBe('Imagem')
   })
 
   it('increments for subsequent elements of same type', () => {
@@ -300,8 +300,8 @@ describe('nextElementName', () => {
       createImageElement('3', 'https://x.com/a.png', 1080, 1080),
       createImageElement('4', 'https://x.com/b.png', 1080, 1080),
     ]
-    expect(nextElementName(elements, 'image')).toBe('Image 3')
-    expect(nextElementName(elements, 'text')).toBe('Text 2')
+    expect(nextElementName(elements, 'image')).toBe('Imagem 3')
+    expect(nextElementName(elements, 'text')).toBe('Texto 2')
     expect(nextElementName(elements, 'qr')).toBe('QR Code 2')
   })
 })
