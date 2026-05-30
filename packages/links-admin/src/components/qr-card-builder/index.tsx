@@ -308,6 +308,44 @@ export function QrCardBuilder({
 
   return (
     <div className="fixed inset-0 flex flex-col" role="application" aria-label="QR Card canvas editor" style={{ background: 'var(--bg-side, #0a0a0a)' }}>
+      <style>{`
+        [role="application"] input[type="range"] {
+          -webkit-appearance: none;
+          appearance: none;
+          height: 4px;
+          border-radius: 2px;
+          background: var(--line-strong, #333);
+          outline: none;
+        }
+        [role="application"] input[type="range"]::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          width: 14px;
+          height: 14px;
+          border-radius: 99px;
+          background: var(--accent, #FF8240);
+          border: 2px solid var(--accent, #FF8240);
+          cursor: pointer;
+          box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+        }
+        [role="application"] input[type="range"]::-moz-range-thumb {
+          width: 14px;
+          height: 14px;
+          border-radius: 99px;
+          background: var(--accent, #FF8240);
+          border: 2px solid var(--accent, #FF8240);
+          cursor: pointer;
+          box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+        }
+        [role="application"] input[type="range"]::-webkit-slider-runnable-track {
+          height: 4px;
+          border-radius: 2px;
+        }
+        [role="application"] input[type="range"]::-moz-range-track {
+          height: 4px;
+          border-radius: 2px;
+          background: var(--line-strong, #333);
+        }
+      `}</style>
       <Toolbar
         linkCode={link.code}
         canUndo={comp.canUndo}
