@@ -341,7 +341,8 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
     const c = (row.country as string | null)
     if (c) {
       countryCounts.set(c, (countryCounts.get(c) ?? 0) + 1)
-      const city = (row.city as string | null)
+      const rawCity = (row.city as string | null)
+      const city = rawCity ? decodeURIComponent(rawCity) : null
       if (city) {
         if (!countryCities.has(c)) countryCities.set(c, new Map())
         const cityMap = countryCities.get(c)!
