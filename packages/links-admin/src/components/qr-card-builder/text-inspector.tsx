@@ -210,21 +210,25 @@ export function TextInspector({ element, onUpdate, onDuplicate, onDelete }: Text
       {/* ── 6. Cor ── */}
       <div>
         <div style={labelStyle}>Cor</div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
-          {PALETTE.map(c => (
-            <button
-              key={c}
-              type="button"
-              onClick={() => onUpdate({ color: c })}
-              style={{
-                width: 26, height: 26, borderRadius: 7, padding: 0,
-                background: c, cursor: 'pointer',
-                border: element.color.toLowerCase() === c.toLowerCase()
-                  ? '2px solid var(--accent)'
-                  : '1px solid var(--line-strong)',
-              }}
-            />
-          ))}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+          {PALETTE.map(c => {
+            const isActive = element.color.toLowerCase() === c.toLowerCase()
+            return (
+              <button
+                key={c}
+                type="button"
+                onClick={() => { onUpdate({ color: c }); setHexInput(c) }}
+                style={{
+                  width: 28, height: 28, borderRadius: 7, padding: 0,
+                  background: c, cursor: 'pointer',
+                  border: isActive
+                    ? '3px solid var(--accent)'
+                    : '1px solid var(--line-strong)',
+                  boxShadow: isActive ? '0 0 0 1px var(--accent)' : 'none',
+                }}
+              />
+            )
+          })}
         </div>
         {/* Inline hex input */}
         <div style={{
