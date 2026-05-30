@@ -197,32 +197,42 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
         </div>
       </section>
 
-      {/* Section 6: Faixa provável de CTR + Chance de vencer */}
-      <section data-section="charts-ci-rank" className="mb-[28px]">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-[16px]">
+      {/* Section 6: Faixa provável de CTR & chance de vencer */}
+      <div className="rounded-lg border border-cms-border bg-cms-surface p-[20px] mb-[36px]">
+        <div className="flex items-end justify-between gap-[14px] mb-[16px]">
+          <div>
+            <div className="flex items-center gap-[9px]">
+              <TrendingUp size={17} className="text-cms-accent" aria-hidden="true" />
+              <h3 className="text-[19px] font-semibold text-cms-text m-0">
+                Faixa provável de CTR &amp; chance de vencer
+                <InfoTip text="A faixa é o intervalo credível Bayesiano — 95% de chance do CTR real estar ali. A chance de vencer vem de 10.000 simulações Monte Carlo." />
+              </h3>
+            </div>
+            <p className="text-[12.5px] text-cms-text-dim mt-[5px] max-w-[540px] m-0">
+              A barra é a faixa onde o CTR real de cada variante deve cair. Faixas que se sobrepõem = empate; bem separadas = vencedor claro.
+            </p>
+          </div>
+        </div>
+        <div className="grid grid-cols-[1.2fr_1fr] gap-[28px] items-center">
           {/* Left: Faixa provável de CTR */}
-          <div className="rounded-lg border border-cms-border bg-cms-surface p-[20px]">
-            <div className="flex items-end justify-between gap-[14px] mb-[16px]">
-              <div className="flex items-center gap-[9px]">
-                <Target size={17} className="text-cms-accent" aria-hidden="true" />
-                <h3 className="text-[19px] font-semibold text-cms-text m-0">Faixa provável de CTR</h3>
-              </div>
+          <div>
+            <div className="text-[9px] font-semibold text-cms-text-dim uppercase tracking-[0.08em] mb-[12px]">
+              Faixa provável de CTR (taxa de clique)
             </div>
             <CredibleInterval variants={view.variants} leader={data.leader} />
           </div>
-
-          {/* Right: Chance de vencer */}
-          <div className="rounded-lg border border-cms-border bg-cms-surface p-[20px]">
-            <div className="flex items-end justify-between gap-[14px] mb-[16px]">
-              <div className="flex items-center gap-[9px]">
-                <BarChart3 size={17} className="text-cms-accent" aria-hidden="true" />
-                <h3 className="text-[19px] font-semibold text-cms-text m-0">Chance de vencer</h3>
-              </div>
+          {/* Right: Chance de ser o melhor */}
+          <div>
+            <div className="text-[9px] font-semibold text-cms-text-dim uppercase tracking-[0.08em] mb-[12px]">
+              Chance de ser o melhor
             </div>
             <RankBars variants={view.variants} metric="pBest" />
+            <p className="text-[11.5px] text-cms-text-dim mt-[12px] leading-[1.45] m-0">
+              Calculado por 10.000 simulações do motor Bayesiano — não é só o CTR cru, leva em conta o tamanho da amostra.
+            </p>
           </div>
         </div>
-      </section>
+      </div>
 
       {/* Section 7: CTR diário por variante */}
       <section data-section="daily-ctr" className="mb-[28px]">
