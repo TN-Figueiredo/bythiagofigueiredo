@@ -9,37 +9,11 @@ import {
   computeDashboardStats,
 } from './queries'
 import { AbLabDashboard } from './_components/ab-lab-dashboard'
-import { AB_SITE_SETTINGS_DEFAULTS } from '@/lib/youtube/ab-types'
 
 export const dynamic = 'force-dynamic'
 
-export default async function AbLabPage({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>
-}) {
-  const sp = await searchParams
-  const mockView = typeof sp.view === 'string' ? sp.view : undefined
+export default async function AbLabPage() {
   const { siteId } = await getSiteContext()
-
-  if (mockView === 'empty') {
-    const [settings, suggested] = await Promise.all([
-      getAbSiteSettings(),
-      getSuggestedVideos(siteId),
-    ])
-    return (
-      <AbLabDashboard
-        siteId={siteId}
-        stats={{ activeTests: 0, avgConfidence: 0, winRate: 0, avgLift: 0, completedTests: 0, testsWon: 0 }}
-        cards={[]}
-        drafts={[]}
-        completed={[]}
-        learnings={null}
-        suggested={suggested}
-        settings={settings}
-      />
-    )
-  }
 
   const [tests, settings, learnings, suggested] = await Promise.all([
     getAbTestsForSite(),
