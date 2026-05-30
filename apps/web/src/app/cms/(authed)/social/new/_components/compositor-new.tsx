@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import type { CardComposition } from '@tn-figueiredo/links/qr'
 import type { DestId } from '@/lib/social/destinations'
 import { DEST_IDS, DESTINATIONS } from '@/lib/social/destinations'
 import { createSocialPost } from '@/lib/social/actions'
@@ -39,7 +40,8 @@ function buildPublishPayload(
     .map(([id]) => id as DestId)
 
   const platforms = [...new Set(activeDests.map(id => DESTINATIONS[id].provider))]
-  const primaryCaption = captions[activeDests[0]] ?? ''
+  const firstDest = activeDests[0]
+  const primaryCaption = firstDest ? (captions[firstDest] ?? '') : ''
 
   return {
     type: 'text' as const,
@@ -99,19 +101,26 @@ export function CompositorNew({ sourceMode = 'freeform', siteId }: CompositorNew
     async function fetchSlots() {
       try {
         const { getQueueSlotConfig } = await import('@/lib/social/actions')
-        const result = await getQueueSlotConfig()
+        const result = await getQueueSlotConfig(siteId)
         if (result.ok && !cancelled) {
-          const slots = (result.data?.slots ?? []).slice(0, 3).map((s: any) => s.label ?? s.time ?? 'próximo slot')
-          if (slots.length > 0) setQueueSlots(slots)
+          const dayNames = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'] as const
+          const labels: string[] = []
+          for (const [day, hours] of Object.entries(result.data)) {
+            for (const h of hours ?? []) {
+              const dayLabel = dayNames[['sunday','monday','tuesday','wednesday','thursday','friday','saturday'].indexOf(day)] ?? day
+              labels.push(`${dayLabel} ${String(h).padStart(2, '0')}:00`)
+            }
+          }
+          if (labels.length > 0) setQueueSlots(labels.slice(0, 3))
         }
       } catch { /* best-effort */ }
     }
     fetchSlots()
     return () => { cancelled = true }
-  }, [schedMode])
+  }, [schedMode, siteId])
 
   const [canvasOpen, setCanvasOpen] = useState(false)
-  const [compositions, setCompositions] = useState<Record<string, unknown>>({})
+  const [compositions, setCompositions] = useState<Record<string, CardComposition>>({})
   const [canvasImages, setCanvasImages] = useState<Record<string, string | null>>({})
 
   const [captions, setCaptions] = useState<Record<string, string>>({})
@@ -158,7 +167,11 @@ export function CompositorNew({ sourceMode = 'freeform', siteId }: CompositorNew
             composition={compositions[focused] ?? null}
             onCompositionChange={(comp) => setCompositions(prev => ({ ...prev, [focused]: comp }))}
             canvasImageUrl={canvasImages[focused] ?? null}
-            onCanvasImageChange={(url) => setCanvasImages(prev => ({ ...prev, [focused]: url }))}
+            onCanvasImageChange={(url) => setCanvasImages(prev => {
+              const old = prev[focused]
+              if (old) URL.revokeObjectURL(old)
+              return { ...prev, [focused]: url }
+            })}
           />
         </>
       )}

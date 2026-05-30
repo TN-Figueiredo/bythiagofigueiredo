@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic'
 import type { DestId } from '@/lib/social/destinations'
 import { DESTINATIONS } from '@/lib/social/destinations'
 import { PlatformIcon } from '../../_components/shared/platform-icon'
+import type { CardComposition } from '@tn-figueiredo/links/qr'
 import { listTemplates } from '@/lib/social/actions'
 import type { SocialTemplate } from '@/lib/social/template-schemas'
 import type { SocialAspectRatio } from './canvas-editor/social-left-panel'
@@ -23,8 +24,8 @@ interface DestCompositorProps {
   canvasOpen: boolean
   onOpenCanvas: () => void
   onCloseCanvas: () => void
-  composition: unknown | null
-  onCompositionChange: (comp: unknown) => void
+  composition: CardComposition | null
+  onCompositionChange: (comp: CardComposition) => void
   canvasImageUrl: string | null
   onCanvasImageChange: (url: string | null) => void
 }
@@ -569,7 +570,7 @@ export function DestCompositor({
               composition: t.composition,
             }))}
             postData={{ title: caption, description: caption }}
-            initialComposition={composition as import('@tn-figueiredo/links/qr').CardComposition | undefined}
+            initialComposition={composition ?? undefined}
             hideAspectRatioSelector
             embedded={false}
             onExport={async (blob) => {
