@@ -83,7 +83,7 @@ export default async function CompositorPage({ searchParams }: Props) {
 
       <div className="h-[18px]" />
 
-      <CompositorNew sourceMode={sourceMode} />
+      <CompositorNew sourceMode={sourceMode} siteId={ctx.siteId} />
     </div>
   )
 }

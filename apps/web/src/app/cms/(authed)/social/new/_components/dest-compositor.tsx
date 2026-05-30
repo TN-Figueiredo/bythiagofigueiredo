@@ -1,21 +1,61 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import dynamic from 'next/dynamic'
 import type { DestId } from '@/lib/social/destinations'
 import { DESTINATIONS } from '@/lib/social/destinations'
 import { PlatformIcon } from '../../_components/shared/platform-icon'
+import { listTemplates } from '@/lib/social/actions'
+import type { SocialTemplate } from '@/lib/social/template-schemas'
+import type { SocialAspectRatio } from './canvas-editor/social-left-panel'
+
+const SocialCanvasEditor = dynamic(
+  () => import('./canvas-editor').then(m => ({ default: m.SocialCanvasEditor })),
+  { ssr: false },
+)
 
 interface DestCompositorProps {
   focusedDest: DestId
   destsOn: Record<DestId, boolean>
   caption: string
   onCaptionChange: (value: string) => void
+  siteId: string
+  canvasOpen: boolean
+  onOpenCanvas: () => void
+  onCloseCanvas: () => void
+  composition: unknown | null
+  onCompositionChange: (comp: unknown) => void
+  canvasImageUrl: string | null
+  onCanvasImageChange: (url: string | null) => void
 }
 
-export function DestCompositor({ focusedDest, destsOn, caption, onCaptionChange }: DestCompositorProps) {
+export function DestCompositor({
+  focusedDest, destsOn, caption, onCaptionChange,
+  siteId, canvasOpen, onOpenCanvas, onCloseCanvas,
+  composition, onCompositionChange, canvasImageUrl, onCanvasImageChange,
+}: DestCompositorProps) {
   const dest = DESTINATIONS[focusedDest]
   const isActive = destsOn[focusedDest]
   const [lang, setLang] = useState<'PT' | 'EN'>('PT')
+  const [templates, setTemplates] = useState<SocialTemplate[]>([])
+
+  useEffect(() => {
+    let cancelled = false
+    async function fetchTemplates() {
+      const ratio = dest.ratio as '9:16' | '1:1' | '16:9' | '4:5'
+      const result = await listTemplates(siteId, ratio)
+      if (result.ok && !cancelled) setTemplates(result.data)
+    }
+    fetchTemplates()
+    return () => { cancelled = true }
+  }, [focusedDest, siteId, dest.ratio])
+
+  useEffect(() => {
+    if (!composition && templates.length > 0) {
+      const defaultTpl = templates.find(t => t.is_default) ?? templates[0]
+      if (defaultTpl) onCompositionChange(defaultTpl.composition)
+    }
+  }, [templates, composition, onCompositionChange])
 
   if (!isActive) return null
 
@@ -114,6 +154,7 @@ export function DestCompositor({ focusedDest, destsOn, caption, onCaptionChange 
               </span>
               <button
                 type="button"
+                onClick={onOpenCanvas}
                 className="inline-flex items-center gap-[7px] rounded-[9px] border border-cms-border px-[11px] py-1.5 text-[12.5px] font-semibold text-cms-text-dim transition-colors hover:text-cms-text"
               >
                 <svg
@@ -134,6 +175,7 @@ export function DestCompositor({ focusedDest, destsOn, caption, onCaptionChange 
               </button>
             </div>
             <div
+              onClick={onOpenCanvas}
               className="flex cursor-pointer justify-center rounded-[10px] py-2"
               style={{
                 background:
@@ -150,13 +192,16 @@ export function DestCompositor({ focusedDest, destsOn, caption, onCaptionChange 
                   boxShadow: 'rgba(0,0,0,0.7) 0 30px 70px -24px',
                 }}
               >
-                {/* Empty canvas placeholder */}
-                <div className="flex h-full w-full flex-col items-center justify-center gap-2" style={{ background: 'rgb(18,16,12)' }}>
-                  <svg width={isStory ? 20 : 28} height={isStory ? 20 : 28} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ color: 'rgba(255,255,255,0.15)' }}>
-                    <path d="M3 5h18v14H3z" /><path d="M3 16l5-5 4 4 4-4 5 5" /><path d="M9 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0" />
-                  </svg>
-                  <span style={{ fontSize: isStory ? 5 : 8, color: 'rgba(255,255,255,0.15)' }}>Clique pra editar</span>
-                </div>
+                {canvasImageUrl ? (
+                  <img src={canvasImageUrl} alt="Canvas preview" className="h-full w-full object-contain" />
+                ) : (
+                  <div className="flex h-full w-full flex-col items-center justify-center gap-2" style={{ background: 'rgb(18,16,12)' }}>
+                    <svg width={isStory ? 20 : 28} height={isStory ? 20 : 28} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ color: 'rgba(255,255,255,0.15)' }}>
+                      <path d="M3 5h18v14H3z" /><path d="M3 16l5-5 4 4 4-4 5 5" /><path d="M9 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0" />
+                    </svg>
+                    <span style={{ fontSize: isStory ? 5 : 8, color: 'rgba(255,255,255,0.15)' }}>Clique pra editar</span>
+                  </div>
+                )}
               </div>
             </div>
             {/* Canvas hint */}
@@ -293,7 +338,8 @@ export function DestCompositor({ focusedDest, destsOn, caption, onCaptionChange 
           {/* Phone mockup */}
           {isStory ? (
             <div
-              className="mx-auto"
+              onClick={onOpenCanvas}
+              className="mx-auto cursor-pointer"
               style={{
                 width: 309,
                 border: '8px solid rgb(5,5,5)',
@@ -312,13 +358,16 @@ export function DestCompositor({ focusedDest, destsOn, caption, onCaptionChange 
                   overflow: 'hidden',
                 }}
               >
-                {/* Empty canvas — user hasn't created art yet */}
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3" style={{ background: 'rgb(18,16,12)' }}>
-                  <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" style={{ color: 'rgba(255,255,255,0.12)' }}>
-                    <path d="M12 5v14" /><path d="M5 12h14" />
-                  </svg>
-                  <span className="text-[13px] font-medium" style={{ color: 'rgba(255,255,255,0.2)' }}>Abra o editor pra começar</span>
-                </div>
+                {canvasImageUrl ? (
+                  <img src={canvasImageUrl} alt="Story preview" className="absolute inset-0 h-full w-full object-cover" />
+                ) : (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-3" style={{ background: 'rgb(18,16,12)' }}>
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" style={{ color: 'rgba(255,255,255,0.12)' }}>
+                      <path d="M12 5v14" /><path d="M5 12h14" />
+                    </svg>
+                    <span className="text-[13px] font-medium" style={{ color: 'rgba(255,255,255,0.2)' }}>Abra o editor pra começar</span>
+                  </div>
+                )}
                 {/* Progress bars */}
                 <div className="absolute left-0 right-0 top-0 p-[10px_12px_0]">
                   <div className="mb-2.5 flex gap-1">
@@ -434,12 +483,16 @@ export function DestCompositor({ focusedDest, destsOn, caption, onCaptionChange 
                 {caption || 'No que você está pensando?'}
               </div>
               {/* Image placeholder (4:5 aspect) */}
-              <div style={{ width: '100%', aspectRatio: '4/5', background: 'rgb(24,25,26)' }}>
-                <div className="flex h-full w-full items-center justify-center">
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" style={{ color: 'rgba(255,255,255,0.12)' }}>
-                    <path d="M3 5h18v14H3z" /><path d="M3 16l5-5 4 4 4-4 5 5" /><path d="M9 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0" />
-                  </svg>
-                </div>
+              <div onClick={onOpenCanvas} className="cursor-pointer" style={{ width: '100%', aspectRatio: '4/5', background: 'rgb(24,25,26)' }}>
+                {canvasImageUrl ? (
+                  <img src={canvasImageUrl} alt="Post preview" className="h-full w-full object-cover" />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" style={{ color: 'rgba(255,255,255,0.12)' }}>
+                      <path d="M3 5h18v14H3z" /><path d="M3 16l5-5 4 4 4-4 5 5" /><path d="M9 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0" />
+                    </svg>
+                  </div>
+                )}
               </div>
               {/* Action bar */}
               <div className="flex items-center justify-between border-t border-white/[0.08] px-[14px] py-2 text-[13px]" style={{ color: 'rgb(176,179,184)', marginTop: 4 }}>
@@ -470,12 +523,16 @@ export function DestCompositor({ focusedDest, destsOn, caption, onCaptionChange 
                 <span className="ml-auto inline-flex items-center rounded-full px-[9px] py-[3px] font-mono text-[10.5px] font-semibold uppercase tracking-[0.06em]" style={{ background: 'rgba(224,162,60,0.18)', color: 'var(--amber, #f59e0b)' }}>raro</span>
               </div>
               {/* Image (4:5) */}
-              <div style={{ width: '100%', aspectRatio: '4/5', background: '#111' }}>
-                <div className="flex h-full w-full items-center justify-center">
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" style={{ color: 'rgba(255,255,255,0.12)' }}>
-                    <path d="M3 5h18v14H3z" /><path d="M3 16l5-5 4 4 4-4 5 5" /><path d="M9 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0" />
-                  </svg>
-                </div>
+              <div onClick={onOpenCanvas} className="cursor-pointer" style={{ width: '100%', aspectRatio: '4/5', background: '#111' }}>
+                {canvasImageUrl ? (
+                  <img src={canvasImageUrl} alt="Feed preview" className="h-full w-full object-cover" />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" style={{ color: 'rgba(255,255,255,0.12)' }}>
+                      <path d="M3 5h18v14H3z" /><path d="M3 16l5-5 4 4 4-4 5 5" /><path d="M9 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0" />
+                    </svg>
+                  </div>
+                )}
               </div>
               {/* Actions */}
               <div className="flex items-center gap-4 px-3 py-2.5 pt-2.5">
@@ -498,6 +555,38 @@ export function DestCompositor({ focusedDest, destsOn, caption, onCaptionChange 
           )}
         </div>
       </div>
+
+      {/* Canvas editor overlay */}
+      {canvasOpen && (
+        <div className="fixed inset-0 z-50" style={{ background: 'rgb(14,12,10)' }}>
+          <SocialCanvasEditor
+            aspectRatio={dest.ratio as SocialAspectRatio}
+            templates={templates.map(t => ({
+              id: t.id,
+              name: t.name,
+              thumbnailUrl: t.thumbnail_url,
+              aspectRatio: t.aspect_ratio,
+              composition: t.composition,
+            }))}
+            postData={{ title: caption, description: caption }}
+            initialComposition={composition as import('@tn-figueiredo/links/qr').CardComposition | undefined}
+            hideAspectRatioSelector
+            embedded={false}
+            onExport={async (blob) => {
+              const url = URL.createObjectURL(blob)
+              onCanvasImageChange(url)
+              onCloseCanvas()
+              return { url }
+            }}
+            onCompositionChange={onCompositionChange}
+            onUseInPost={onCloseCanvas}
+            onSaveTemplate={async () => {}}
+            onDeleteTemplate={async () => {}}
+            onImageUpload={async (file) => URL.createObjectURL(file)}
+            onVideoUpload={async (file) => URL.createObjectURL(file)}
+          />
+        </div>
+      )}
     </div>
   )
 }

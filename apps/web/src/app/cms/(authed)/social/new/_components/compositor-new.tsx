@@ -52,9 +52,10 @@ function buildPublishPayload(
 
 interface CompositorNewProps {
   sourceMode?: 'cms' | 'freeform'
+  siteId: string
 }
 
-export function CompositorNew({ sourceMode = 'freeform' }: CompositorNewProps) {
+export function CompositorNew({ sourceMode = 'freeform', siteId }: CompositorNewProps) {
   const [destsOn, setDestsOn] = useState<Record<DestId, boolean>>(DEFAULT_ON)
   const [focused, setFocused] = useState<DestId>('ig_story')
   const [schedMode, setSchedMode] = useState<'now' | 'schedule' | 'queue'>('now')
@@ -109,6 +110,10 @@ export function CompositorNew({ sourceMode = 'freeform' }: CompositorNewProps) {
     return () => { cancelled = true }
   }, [schedMode])
 
+  const [canvasOpen, setCanvasOpen] = useState(false)
+  const [compositions, setCompositions] = useState<Record<string, unknown>>({})
+  const [canvasImages, setCanvasImages] = useState<Record<string, string | null>>({})
+
   const [captions, setCaptions] = useState<Record<string, string>>({})
 
   function handleCaptionChange(destId: string, value: string) {
@@ -141,7 +146,20 @@ export function CompositorNew({ sourceMode = 'freeform' }: CompositorNewProps) {
             onFocus={setFocused}
             focused={focused}
           />
-          <DestCompositor focusedDest={focused} destsOn={destsOn} caption={captions[focused] ?? ''} onCaptionChange={(value) => handleCaptionChange(focused, value)} />
+          <DestCompositor
+            focusedDest={focused}
+            destsOn={destsOn}
+            caption={captions[focused] ?? ''}
+            onCaptionChange={(value) => handleCaptionChange(focused, value)}
+            siteId={siteId}
+            canvasOpen={canvasOpen}
+            onOpenCanvas={() => setCanvasOpen(true)}
+            onCloseCanvas={() => setCanvasOpen(false)}
+            composition={compositions[focused] ?? null}
+            onCompositionChange={(comp) => setCompositions(prev => ({ ...prev, [focused]: comp }))}
+            canvasImageUrl={canvasImages[focused] ?? null}
+            onCanvasImageChange={(url) => setCanvasImages(prev => ({ ...prev, [focused]: url }))}
+          />
         </>
       )}
 
