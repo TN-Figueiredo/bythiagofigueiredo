@@ -10,8 +10,8 @@ export interface ConfidenceChartProps {
   target?: number
 }
 
-const LINE_COLOR = '#3b82f6'
-const TARGET_COLOR = '#22c55e'
+const LINE_COLOR = 'var(--cms-accent)'
+const TARGET_COLOR = 'var(--cms-green)'
 const GRAD_ID = 'conf-chart-grad'
 
 export function ConfidenceChart({ data, target = 95 }: ConfidenceChartProps) {
