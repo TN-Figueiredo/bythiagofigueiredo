@@ -155,9 +155,14 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
           {/* Left: Confiança ao longo do tempo */}
           <div className="rounded-lg border border-cms-border bg-cms-surface p-[20px]">
             <div className="flex items-end justify-between gap-[14px] mb-[16px]">
-              <div className="flex items-center gap-[9px]">
-                <TrendingUp size={17} className="text-cms-accent" aria-hidden="true" />
-                <h3 className="text-[19px] font-semibold text-cms-text m-0">Confiança ao longo do tempo</h3>
+              <div>
+                <div className="flex items-center gap-[9px]">
+                  <TrendingUp size={17} className="text-cms-accent" aria-hidden="true" />
+                  <h3 className="text-[19px] font-semibold text-cms-text m-0">Confiança ao longo do tempo</h3>
+                </div>
+                <p className="text-[12.5px] text-cms-text-dim mt-[5px] max-w-[540px] m-0">
+                  Sobe conforme os ciclos ABBA acumulam dados. Bata a meta = vencedor declarado.
+                </p>
               </div>
             </div>
             <ConfidenceChart
@@ -169,9 +174,22 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
           {/* Right: Raio-X das variantes */}
           <div className="rounded-lg border border-cms-border bg-cms-surface p-[20px]">
             <div className="flex items-end justify-between gap-[14px] mb-[16px]">
-              <div className="flex items-center gap-[9px]">
-                <Crosshair size={17} className="text-cms-accent" aria-hidden="true" />
-                <h3 className="text-[19px] font-semibold text-cms-text m-0">Raio-X das variantes</h3>
+              <div>
+                <div className="flex items-center gap-[9px]">
+                  <Crosshair size={17} className="text-cms-accent" aria-hidden="true" />
+                  <h3 className="text-[19px] font-semibold text-cms-text m-0">Raio-X das variantes</h3>
+                </div>
+                <p className="text-[12.5px] text-cms-text-dim mt-[5px] max-w-[540px] m-0">
+                  Cada eixo é um fator. Quanto mais a forma se estica pra fora, mais forte a variante.
+                </p>
+              </div>
+              <div className="flex gap-[12px] shrink-0">
+                {view.variants.map(v => (
+                  <span key={v.label} className="inline-flex items-center gap-[5px] text-[11.5px] text-cms-text-dim">
+                    <span className="rounded-[2px]" style={{ width: 10, height: 3, background: v.color }} aria-hidden="true" />
+                    {v.label}
+                  </span>
+                ))}
               </div>
             </div>
             <RadarChart variants={view.variants} />
