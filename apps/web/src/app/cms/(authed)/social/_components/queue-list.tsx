@@ -177,7 +177,7 @@ export function QueueList({ initialItems }: QueueListProps) {
   }
 
   return (
-    <div className="mx-auto max-w-[720px]">
+    <div className="max-w-[720px]">
       {/* Info banner */}
       <div className="mb-4 flex items-center gap-[9px] rounded-[11px] border border-cms-border bg-[var(--surface-2)] px-[15px] py-3">
         {/* Queue icon: 3 horizontal lines */}
