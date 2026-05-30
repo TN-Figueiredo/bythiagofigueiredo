@@ -249,8 +249,8 @@ export function AnalyticsView({ data }: AnalyticsViewProps) {
       </div>
 
       {/* Top Links */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 14 }}>
-        {data.topLinks.length > 0 && (
+      {data.topLinks.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 14 }}>
           <div style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 'var(--r)', padding: 18 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--accent)' }}>
@@ -282,8 +282,8 @@ export function AnalyticsView({ data }: AnalyticsViewProps) {
               source: l.source,
             }))} />
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Insights */}
       {data.insights.length > 0 && (
