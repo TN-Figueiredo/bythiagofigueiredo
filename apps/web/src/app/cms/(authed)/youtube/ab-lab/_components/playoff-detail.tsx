@@ -25,7 +25,7 @@ export function PlayoffDetail({ view }: PlayoffDetailProps) {
           flag={view.flag}
           status={view.status}
           outcome="playoff"
-          roundNumber={view.totalRounds}
+          roundNumber={Math.max(1, view.totalRounds - 1)}
           totalRounds={view.totalRounds}
           hasPlayoff={view.hasPlayoff}
           actions={

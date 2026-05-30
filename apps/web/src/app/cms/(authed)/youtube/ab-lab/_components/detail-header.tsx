@@ -4,7 +4,7 @@ import React from 'react'
 import Link from 'next/link'
 import type { TestType, AbTestStatus } from '@/lib/youtube/ab-types'
 import { TypeBadge, Badge, Seg, InfoTip } from './ab-primitives'
-import { ArrowLeft, Trophy } from 'lucide-react'
+import { ArrowLeft, Trophy, Swords, AlertCircle } from 'lucide-react'
 import type { BadgeTone } from './ab-primitives'
 
 export type DetailOutcome = 'winner' | 'playoff' | undefined
@@ -48,7 +48,12 @@ function StatusBadge({ status, outcome }: { status: AbTestStatus; outcome?: Deta
   }
 
   if (status === 'completed' && outcome === 'playoff') {
-    return <Badge tone="amber">Inconclusivo</Badge>
+    return (
+      <Badge tone="amber">
+        <AlertCircle size={11} aria-hidden="true" className="-translate-y-px" />
+        Inconclusivo
+      </Badge>
+    )
   }
 
   return (
@@ -89,11 +94,11 @@ export function DetailHeader({
           <div className="flex items-center gap-2 mb-[10px] flex-wrap">
             <TypeBadge type={flag} />
             {totalRounds > 1 && (
-              <Badge tone="accent">
-                R{roundNumber}/{totalRounds}
+              <Badge tone="cowork">
+                <Swords size={11} aria-hidden="true" className="-translate-y-px" />
+                Round {roundNumber}/{totalRounds}
               </Badge>
             )}
-            {hasPlayoff && <Badge tone="accent">Playoff</Badge>}
             <StatusBadge status={status} outcome={outcome} />
           </div>
           <h2 className="text-[24px] font-semibold text-cms-text leading-[1.2] max-w-[720px]">{title}</h2>
