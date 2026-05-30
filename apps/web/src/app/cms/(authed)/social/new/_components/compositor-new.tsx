@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { DestId } from '@/lib/social/destinations'
 import { DEST_IDS, DESTINATIONS } from '@/lib/social/destinations'
 import { DestinationPicker } from './destination-picker'
@@ -46,6 +46,26 @@ export function CompositorNew({ sourceMode = 'freeform' }: CompositorNewProps) {
   const anyActiveHasContent = activeDests.some(id => contentByDest[id])
   const canPublish = activeDests.length > 0 && allActiveHaveContent
   const hasContent = anyActiveHasContent
+
+  const [bestTimes, setBestTimes] = useState<string[]>([])
+
+  useEffect(() => {
+    if (schedMode !== 'schedule') return
+    let cancelled = false
+
+    async function fetchBestTimes() {
+      try {
+        const { getBestTimes } = await import('@/lib/social/actions')
+        const result = await getBestTimes([])
+        if (!result.ok || cancelled) return
+        const allTimes = Object.values(result.data).flat()
+        setBestTimes([...new Set(allTimes)])
+      } catch { /* best-effort */ }
+    }
+
+    fetchBestTimes()
+    return () => { cancelled = true }
+  }, [schedMode])
 
   const [captions, setCaptions] = useState<Record<string, string>>({})
 
@@ -116,7 +136,7 @@ export function CompositorNew({ sourceMode = 'freeform' }: CompositorNewProps) {
               <div className="flex flex-wrap gap-1.5">
                 {['08:00', '09:00', '12:30', '13:00', '18:00', '19:00', '20:00'].map((t) => {
                   const isSelected = selectedTime === t
-                  const isBest = ['08:00', '09:00', '12:30', '13:00', '18:00', '20:00'].includes(t)
+                  const isBest = bestTimes.includes(t)
                   return (
                     <button key={t} type="button" onClick={() => setSelectedTime(t)} className={`relative cursor-pointer rounded-lg border px-[11px] py-[7px] font-mono text-xs font-semibold transition-colors ${isSelected ? 'border-cms-accent bg-cms-accent text-[#1a120c]' : isBest ? 'border-[rgba(242,104,60,0.4)] bg-cms-accent/10 text-cms-accent hover:bg-cms-accent/20' : 'border-cms-border bg-cms-surface text-cms-text-dim hover:border-cms-text/30'}`}>
                       {t}
