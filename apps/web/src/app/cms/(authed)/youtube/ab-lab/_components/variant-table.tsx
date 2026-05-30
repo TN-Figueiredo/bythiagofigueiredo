@@ -4,12 +4,13 @@ import React, { useState, useCallback } from 'react'
 import type { FullChartVariant, VariantThumb, DisplayLabel } from '@/lib/youtube/ab-types'
 import { formatPercent, formatCompact } from './ab-constants'
 import { VChip } from './ab-primitives'
-import { ChevronDown, Trophy } from 'lucide-react'
+import { ChevronDown, Trophy, TrendingUp } from 'lucide-react'
 
 export interface VariantTableProps {
   variants: FullChartVariant[]
   metric: 'pBest' | 'pTop2'
   winnerId?: string
+  leaderId?: string
   finalists?: DisplayLabel[]
   thumbs: VariantThumb[]
   videoTitle?: string
@@ -17,7 +18,7 @@ export interface VariantTableProps {
 
 const GRID = 'grid grid-cols-[60px_minmax(0,1fr)_70px_58px_138px_22px] gap-[14px] items-center'
 
-export function VariantTable({ variants, metric, winnerId, finalists, thumbs, videoTitle }: VariantTableProps) {
+export function VariantTable({ variants, metric, winnerId, leaderId, finalists, thumbs, videoTitle }: VariantTableProps) {
   const [expandedLabel, setExpandedLabel] = useState<string | null>(null)
   const sorted = [...variants].sort((a, b) => b[metric] - a[metric])
 
@@ -65,6 +66,8 @@ export function VariantTable({ variants, metric, winnerId, finalists, thumbs, vi
       {sorted.map((variant, idx) => {
         const thumb = thumbMap.get(variant.label)
         const isWinner = winnerId != null && winnerId === variant.label
+        const isLeader = leaderId != null && leaderId === variant.label
+        const isHighlighted = isWinner || isLeader
         const isOriginal = thumb?.isOriginal ?? variant.label === 'A'
         const isExpanded = expandedLabel === variant.label
         const chance = variant[metric]
@@ -81,9 +84,9 @@ export function VariantTable({ variants, metric, winnerId, finalists, thumbs, vi
               <div
                 role="row"
                 className={`${GRID} py-[11px] px-[16px] cursor-pointer transition-[background] duration-150 ${
-                  isWinner ? '' : 'hover:bg-cms-surface-hover'
+                  isHighlighted ? '' : 'hover:bg-cms-surface-hover'
                 }`}
-                style={isWinner ? { background: `${variant.color}10` } : undefined}
+                style={isHighlighted ? { background: `${variant.color}10` } : undefined}
                 onClick={() => toggleExpand(variant.label)}
                 onKeyDown={(e) => handleKeyDown(e, variant.label)}
                 tabIndex={0}
@@ -92,12 +95,12 @@ export function VariantTable({ variants, metric, winnerId, finalists, thumbs, vi
                 {/* Thumbnail */}
                 <div
                   className="rounded-[6px] overflow-hidden"
-                  style={{ outline: isWinner ? `1.5px solid ${variant.color}` : '1px solid var(--cms-border)' }}
+                  style={{ outline: isHighlighted ? `1.5px solid ${variant.color}` : '1px solid var(--cms-border)' }}
                 >
                   <div
                     className="w-full aspect-video rounded-[6px] overflow-hidden"
                     style={{
-                      background: isWinner
+                      background: isHighlighted
                         ? 'linear-gradient(135deg, rgb(90,47,23), rgb(36,16,8))'
                         : 'linear-gradient(135deg, rgb(58,47,40), rgb(31,26,22))',
                       boxShadow: 'rgba(0,0,0,0.4) 0px 0px 60px inset',
@@ -107,16 +110,22 @@ export function VariantTable({ variants, metric, winnerId, finalists, thumbs, vi
 
                 {/* Variant info */}
                 <div className="min-w-0 flex items-center gap-[9px]">
-                  <VChip label={variant.label} size={22} ring={isWinner} />
+                  <VChip label={variant.label} size={22} ring={isHighlighted} />
                   <div className="min-w-0">
                     <div className="flex items-center gap-[6px]">
                       <span className="text-[12.5px] font-semibold text-cms-text">
-                        {isWinner ? 'Winner' : isOriginal ? 'Original' : finalists?.includes(variant.label) ? 'Finalista' : 'Variante'}
+                        {isWinner ? 'Winner' : isLeader ? 'Hero' : isOriginal ? 'Original' : finalists?.includes(variant.label) ? 'Finalista' : leaderId != null ? 'Challenger' : 'Variante'}
                       </span>
                       {isWinner && (
                         <span className="inline-flex items-center gap-[5px] px-[6px] py-px rounded-full text-[8.5px] font-semibold tracking-[0.06em] uppercase bg-cms-green-subtle text-cms-green">
                           <Trophy size={11} aria-hidden="true" />
                           venceu
+                        </span>
+                      )}
+                      {isLeader && (
+                        <span className="inline-flex items-center gap-[5px] px-[6px] py-px rounded-full text-[8.5px] font-semibold tracking-[0.06em] uppercase bg-cms-green-subtle text-cms-green">
+                          <TrendingUp size={11} aria-hidden="true" />
+                          líder
                         </span>
                       )}
                     </div>

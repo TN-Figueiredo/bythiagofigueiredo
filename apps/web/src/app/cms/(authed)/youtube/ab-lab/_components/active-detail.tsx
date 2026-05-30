@@ -127,7 +127,7 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
       </div>
 
       {/* Section 4: Placar das variantes */}
-      <section data-section="variant-performance" className="mb-[28px]">
+      <section data-section="variant-performance" className="mb-[36px]">
         <div className="flex items-end justify-between gap-[14px] mb-[16px]">
           <div>
             <div className="flex items-center gap-[9px]">
@@ -135,14 +135,16 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
               <h3 className="text-[19px] font-semibold text-cms-text m-0">Placar das variantes</h3>
             </div>
             <p className="text-[12.5px] text-cms-text-dim mt-[5px] max-w-[540px] m-0">
-              Desempenho de cada variante até agora.
+              O número que decide: CTR e chance de vencer de cada variante. Clique numa linha pra abrir os detalhes.
             </p>
           </div>
         </div>
         <VariantTable
           variants={view.variants}
           metric="pBest"
+          leaderId={data.leader}
           thumbs={view.variantThumbs}
+          videoTitle={view.videoTitle}
         />
       </section>
 
