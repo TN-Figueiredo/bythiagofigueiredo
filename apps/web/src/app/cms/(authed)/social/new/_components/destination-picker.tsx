@@ -80,19 +80,19 @@ export function DestinationPicker({ initialOn, onToggle, onFocus, focused: contr
           return (
             <div
               key={id}
-              onClick={() => handleFocus(id)}
+              onClick={() => { handleToggle(id); handleFocus(id) }}
               className="relative flex-1 cursor-pointer transition-[border-color,opacity] duration-150"
               style={{
                 minWidth: 168,
                 borderRadius: 12,
                 padding: '13px 14px',
                 border: isOn
-                  ? '1.5px solid var(--color-cms-accent, #E8823C)'
+                  ? `1.5px solid ${dest.tint}`
                   : isFocused
                     ? '1.5px solid var(--line-strong, var(--color-cms-border))'
                     : '1.5px solid var(--line, var(--color-cms-border))',
                 background: isOn
-                  ? 'var(--accent-soft, rgba(232,130,60,0.1))'
+                  ? `${dest.tint}1a`
                   : isFocused
                     ? 'var(--surface-2, var(--color-cms-surface))'
                     : 'var(--surface, var(--color-cms-surface))',
@@ -117,10 +117,10 @@ export function DestinationPicker({ initialOn, onToggle, onFocus, focused: contr
                         className="inline-flex items-center rounded-full px-[9px] py-[3px] font-mono text-[10.5px] font-semibold uppercase tracking-[0.06em]"
                         style={{
                           background: dest.badge === 'default'
-                            ? 'var(--accent-soft, rgba(232,130,60,0.15))'
+                            ? `${dest.tint}22`
                             : 'var(--amber-soft, rgba(245,158,11,0.15))',
                           color: dest.badge === 'default'
-                            ? 'var(--accent, #E8823C)'
+                            ? dest.tint
                             : 'var(--amber, #f59e0b)',
                         }}
                       >
@@ -138,9 +138,9 @@ export function DestinationPicker({ initialOn, onToggle, onFocus, focused: contr
                   className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-[6px]"
                   style={{
                     border: isOn
-                      ? '1.5px solid var(--color-cms-accent, #E8823C)'
+                      ? `1.5px solid ${dest.tint}`
                       : '1.5px solid var(--line-strong, var(--color-cms-border))',
-                    background: isOn ? 'var(--color-cms-accent, #E8823C)' : 'transparent',
+                    background: isOn ? dest.tint : 'transparent',
                     color: '#1a120c',
                   }}
                   aria-label={`${isOn ? 'Desativar' : 'Ativar'} ${dest.label} ${dest.sublabel}`}
