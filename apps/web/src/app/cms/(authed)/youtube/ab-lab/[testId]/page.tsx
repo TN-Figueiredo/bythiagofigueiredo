@@ -2,13 +2,14 @@ import { getTestResults, toDetailView } from '../queries'
 import { ActiveDetail } from '../_components/active-detail'
 import { WinnerDetail } from '../_components/winner-detail'
 import { PlayoffDetail } from '../_components/playoff-detail'
-import { MOCK_WINNER, MOCK_PLAYOFF, MOCK_ACTIVE } from '../_components/mock-views'
+import { MOCK_WINNER, MOCK_WINNER_MINIMAL, MOCK_PLAYOFF, MOCK_ACTIVE } from '../_components/mock-views'
 import { notFound } from 'next/navigation'
 
 export const dynamic = 'force-dynamic'
 
 const MOCK_VIEWS = {
   winner: MOCK_WINNER,
+  'winner-minimal': MOCK_WINNER_MINIMAL,
   playoff: MOCK_PLAYOFF,
   active: MOCK_ACTIVE,
 } as const

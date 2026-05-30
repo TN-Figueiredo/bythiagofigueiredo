@@ -68,15 +68,24 @@ export function WinnerBanner({
             <div className="text-[22px] font-bold font-mono text-cms-text leading-none">
               {formatCompact(stats.totalImpressions)}
             </div>
-            <div className="text-[11.5px] text-cms-text-muted mt-2">{stats.abbaCycles} ciclos ABBA</div>
+            <div className="text-[11.5px] text-cms-text-muted mt-2">{stats.abbaCycles} {stats.abbaCycles === 1 ? 'ciclo' : 'ciclos'} ABBA</div>
           </div>
 
           <div className="bg-cms-surface py-[22px] px-[24px]">
             <div className="text-[10px] font-semibold text-cms-text-dim uppercase tracking-[0.08em] mb-[10px]">Ganho estimado</div>
-            <div className="text-[22px] font-bold font-mono leading-none">
-              <span className="text-cms-green">+{formatCompact(stats.monthlyExtraClicks)}</span>
-            </div>
-            <div className="text-[11.5px] text-cms-text-muted mt-2">cliques/mês a mais</div>
+            {stats.monthlyExtraClicks > 0 ? (
+              <>
+                <div className="text-[22px] font-bold font-mono leading-none">
+                  <span className="text-cms-green">+{formatCompact(stats.monthlyExtraClicks)}</span>
+                </div>
+                <div className="text-[11.5px] text-cms-text-muted mt-2">cliques/mês a mais</div>
+              </>
+            ) : (
+              <>
+                <div className="text-[22px] font-bold font-mono leading-none text-cms-text-muted">—</div>
+                <div className="text-[11.5px] text-cms-text-muted mt-2">lift baixo para estimar</div>
+              </>
+            )}
           </div>
         </div>
       </div>
