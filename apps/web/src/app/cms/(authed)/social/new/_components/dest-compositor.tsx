@@ -408,8 +408,17 @@ export function DestCompositor({ focusedDest, destsOn, onContentChange }: DestCo
                   <div className="text-xs" style={{ color: '#aaa' }}>há instantes</div>
                 </div>
               </div>
-              <div className="mb-3 whitespace-pre-wrap text-sm leading-[1.5]" style={{ color: caption ? '#f1f1f1' : '#777' }}>
+              <div className="whitespace-pre-wrap text-sm leading-[1.5]" style={{ color: caption ? '#f1f1f1' : '#777', marginBottom: caption ? 12 : 0 }}>
                 {caption || 'Escreva seu post da comunidade…'}
+              </div>
+              {/* Canvas art image placeholder */}
+              <div className="mb-3 w-full overflow-hidden rounded-[10px]" style={{ maxWidth: 300, aspectRatio: '1/1' }}>
+                <div className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden rounded-[10px] p-[10%] text-center" style={{ background: 'linear-gradient(155deg, rgb(247,241,232), rgb(237,227,210))' }}>
+                  <div className="absolute" style={{ inset: '6%', border: '1px solid rgba(31,27,23,0.25)', borderRadius: 4, pointerEvents: 'none' }} />
+                  <span className="font-mono" style={{ fontSize: 9, letterSpacing: '0.22em', color: 'rgb(154,107,63)', border: '1px solid rgba(154,107,63,0.5)', padding: '3px 7px', borderRadius: 3, marginBottom: 12 }}>NO BLOG</span>
+                  <div className="font-fraunces" style={{ fontSize: 'clamp(15px, 5vw, 26px)', fontWeight: 700, color: 'rgb(31,27,23)', lineHeight: 1.02, whiteSpace: 'pre-line', letterSpacing: '-0.01em' }}>{'Aprendi inglês\nbrigando online'}</div>
+                  <span className="absolute font-mono" style={{ bottom: '9%', fontSize: 8, letterSpacing: '0.15em', color: 'rgb(154,107,63)' }}>bythiagofigueiredo.com</span>
+                </div>
               </div>
               <div className="flex items-center gap-[18px] text-[13px]" style={{ color: '#aaa' }}>
                 <span className="inline-flex items-center gap-1.5">
