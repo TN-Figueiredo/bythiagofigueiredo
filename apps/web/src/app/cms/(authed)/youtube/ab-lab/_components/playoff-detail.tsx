@@ -144,6 +144,7 @@ export function PlayoffDetail({ view }: PlayoffDetailProps) {
         <VariantTable
           variants={view.variants}
           metric="pTop2"
+          finalists={view.finalists.map(f => f.label)}
           thumbs={view.variantThumbs}
           videoTitle={view.videoTitle}
         />

@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useCallback } from 'react'
-import type { FullChartVariant, VariantThumb } from '@/lib/youtube/ab-types'
+import type { FullChartVariant, VariantThumb, DisplayLabel } from '@/lib/youtube/ab-types'
 import { formatPercent, formatCompact } from './ab-constants'
 import { VChip, Badge } from './ab-primitives'
 import { ChevronDown, Trophy } from 'lucide-react'
@@ -10,13 +10,14 @@ export interface VariantTableProps {
   variants: FullChartVariant[]
   metric: 'pBest' | 'pTop2'
   winnerId?: string
+  finalists?: DisplayLabel[]
   thumbs: VariantThumb[]
   videoTitle?: string
 }
 
 const GRID = 'grid grid-cols-[60px_minmax(0,1fr)_70px_58px_138px_22px] gap-[14px] items-center'
 
-export function VariantTable({ variants, metric, winnerId, thumbs, videoTitle }: VariantTableProps) {
+export function VariantTable({ variants, metric, winnerId, finalists, thumbs, videoTitle }: VariantTableProps) {
   const [expandedLabel, setExpandedLabel] = useState<string | null>(null)
   const sorted = [...variants].sort((a, b) => b[metric] - a[metric])
 
@@ -110,7 +111,7 @@ export function VariantTable({ variants, metric, winnerId, thumbs, videoTitle }:
                   <div className="min-w-0">
                     <div className="flex items-center gap-[6px]">
                       <span className="text-[12.5px] font-semibold text-cms-text">
-                        {isWinner ? 'Winner' : isOriginal ? 'Original' : `Variante`}
+                        {isWinner ? 'Winner' : isOriginal ? 'Original' : finalists?.includes(variant.label) ? 'Finalista' : 'Variante'}
                       </span>
                       {isWinner && (
                         <span className="inline-flex items-center gap-[5px] px-[6px] py-px rounded-full text-[8.5px] font-semibold tracking-[0.06em] uppercase bg-cms-green-subtle text-cms-green">
