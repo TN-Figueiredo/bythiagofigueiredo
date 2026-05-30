@@ -1106,6 +1106,50 @@ export async function batchActivateNow(siteId: string, campaign: string): Promis
   return batchUpdateLinks(siteId, { utm_campaign: campaign }, { active: true, activates_at: null })
 }
 
+// ─── CSV Export ────────────────────────────────────────────────────────────
+
+export async function exportAnalyticsCsv(): Promise<ActionResult<{ csv: string }>> {
+  const { siteId } = await getSiteContext()
+  await requireEditScope(siteId)
+
+  const supabase = getSupabaseServiceClient()
+  const { data, error } = await supabase
+    .from('tracked_links')
+    .select('id, code, title, destination_url, source_type, active, total_clicks, unique_visitors, health_status, redirect_type, pass_click_ids, created_at, expires_at')
+    .eq('site_id', siteId)
+    .is('deleted_at', null)
+    .order('total_clicks', { ascending: false })
+
+  if (error) return { ok: false, error: error.message }
+
+  const { buildLinksCsv } = await import('@/lib/links/csv-builder')
+  const { SOURCE_LABELS } = await import('@tn-figueiredo/links-admin')
+
+  const links = (data ?? []).map((l) => ({
+    id: l.id as string,
+    title: (l.title as string) ?? (l.code as string),
+    slug: `/${l.code as string}`,
+    source: (['newsletter', 'social', 'blog', 'qr', 'campaign'].includes(l.source_type as string) ? l.source_type : 'manual') as 'newsletter' | 'social' | 'blog' | 'qr' | 'campaign' | 'manual',
+    badge: SOURCE_LABELS[(['newsletter', 'social', 'blog', 'qr', 'campaign'].includes(l.source_type as string) ? l.source_type : 'manual') as keyof typeof SOURCE_LABELS] ?? 'Manual',
+    dest: (l.destination_url as string) ?? '',
+    status: (l.active as boolean) ? 'active' as const : 'paused' as const,
+    clicks: (l.total_clicks as number) ?? 0,
+    last30: 0,
+    unique: (l.unique_visitors as number) ?? 0,
+    scans: 0,
+    topCountry: '',
+    ctr: 0,
+    created: new Date((l.created_at as string) ?? '').toLocaleDateString('pt-BR'),
+    health: ((l.health_status as string) === 'broken' ? 'broken' : (l.health_status as string) === 'warn' ? 'warn' : 'ok') as 'ok' | 'warn' | 'broken',
+    redirect: 301 as const,
+    clickIds: (l.pass_click_ids as boolean) ?? false,
+    spark: [],
+  }))
+
+  const csv = buildLinksCsv(links)
+  return { ok: true, csv }
+}
+
 // ─── Linktree Actions (re-exported for unified hub) ───────────────────────
 
 export { saveLinktreeConfig, loadLinktreeConfig } from '../linktree/actions'

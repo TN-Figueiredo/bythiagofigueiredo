@@ -86,6 +86,7 @@ export interface LinkClick {
   utmTerm: string | null
   utmContent: string | null
   utmId: string | null
+  isReturning: boolean
   adClickIds: Record<string, string> | null
   clickedAt: Date
 }
@@ -332,6 +333,7 @@ export interface RecordClickInput {
   utmContent?: string
   utmId?: string
   adClickIds?: Record<string, string>
+  isReturning?: boolean
 }
 
 /** Result of redirect resolution */

@@ -49,6 +49,7 @@ export {
   BotFilterToggle,
   ConversionCard,
   FunnelChart,
+  GeoMap,
 } from './components/charts/index'
 export type {
   SparkProps,
@@ -63,4 +64,9 @@ export type {
   CountryListProps,
   CountryItem,
   PanelProps,
+  GeoMapProps,
+  GeoCountry,
 } from './components/charts/index'
+
+// QR Templates
+export { QR_TEMPLATES, QR_CARD_DESIGN } from './components/qr-card-builder/qr-templates'

@@ -22,3 +22,4 @@ export { SOURCE_COLORS, SOURCE_LABELS } from './types.js'
 
 export type { QrCardBuilderProps } from './components/qr-card-builder/index.js'
 export type { QrTemplate } from './components/qr-card-builder/template-browser.js'
+export type { QrTemplateData, QrCardDesign } from './components/qr-card-builder/qr-templates.js'

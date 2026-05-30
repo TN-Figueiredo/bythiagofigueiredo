@@ -2,6 +2,10 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
 import { render, cleanup } from '@testing-library/react'
 
+vi.mock('../../src/app/cms/(authed)/links/actions', () => ({
+  exportAnalyticsCsv: vi.fn().mockResolvedValue({ ok: true, csv: 'header\r\ndata\r\n' }),
+}))
+
 vi.mock('lucide-react', () => {
   const icon = (name: string) => (props: Record<string, unknown>) => <svg data-testid={`icon-${name}`} {...props} />
   return {
@@ -186,5 +190,10 @@ describe('AnalyticsView', () => {
   it('hides top links table when topLinks is empty', () => {
     const { queryByText } = render(<AnalyticsView data={analytics} />)
     expect(queryByText('Top links')).toBeNull()
+  })
+
+  it('renders CSV export button', () => {
+    const { getByText } = render(<AnalyticsView data={analytics} />)
+    expect(getByText('Exportar CSV')).toBeTruthy()
   })
 })

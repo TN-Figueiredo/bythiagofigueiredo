@@ -9,7 +9,8 @@ import { TopLinksTable } from './top-links-table'
 import { InsightsPanel } from './insights-panel'
 import { PotentialPanel } from './potential-panel'
 import { RangeTabs } from './range-tabs'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
+import { exportAnalyticsCsv } from '../actions'
 import { fmt } from './fmt'
 
 interface AnalyticsViewProps {
@@ -18,11 +19,39 @@ interface AnalyticsViewProps {
 
 export function AnalyticsView({ data }: AnalyticsViewProps) {
   const [range, setRange] = useState<'7d' | '30d' | '90d' | '1y'>('30d')
+  const [exporting, setExporting] = useState(false)
+
+  const handleExportCsv = useCallback(async () => {
+    setExporting(true)
+    try {
+      const result = await exportAnalyticsCsv()
+      if (result.ok) {
+        const blob = new Blob([result.csv], { type: 'text/csv;charset=utf-8;' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `links-analytics-${new Date().toISOString().slice(0, 10)}.csv`
+        a.click()
+        URL.revokeObjectURL(url)
+      }
+    } finally {
+      setExporting(false)
+    }
+  }, [])
 
   return (
     <div className="space-y-5">
       {/* Range tabs */}
-      <div className="flex justify-end">
+      <div className="flex items-center justify-end gap-3">
+        <button
+          type="button"
+          onClick={handleExportCsv}
+          disabled={exporting}
+          aria-label="Exportar dados como CSV"
+          className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-primary/50"
+        >
+          {exporting ? 'Exportando...' : 'Exportar CSV'}
+        </button>
         <RangeTabs value={range} onChange={setRange} />
       </div>
 

@@ -32,3 +32,6 @@ export { BotFilterToggle } from './bot-filter-toggle'
 export { ConversionCard } from './conversion-card'
 
 export { FunnelChart } from './funnel-chart'
+
+export { GeoMap } from './geo-map'
+export type { GeoMapProps, GeoCountry } from './geo-map'
