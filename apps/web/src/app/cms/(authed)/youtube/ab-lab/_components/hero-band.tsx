@@ -64,8 +64,8 @@ export function HeroBand({ confidence, confidenceTarget, leader, lift, trend }: 
       <div className="bg-cms-surface py-[22px] px-[26px] flex items-center gap-[18px]">
         <GaugeSVG value={confidence} target={confidenceTarget} />
         <div>
-          <div className="text-[10px] font-semibold text-cms-text-dim uppercase tracking-[0.08em] mb-[6px]">
-            Probabilidade de vencer
+          <div className="flex items-center gap-[5px] mb-[6px]">
+            <span className="text-[10px] font-semibold text-cms-text-dim uppercase tracking-[0.08em]">Probabilidade de vencer</span>
             <InfoTip text="P-best: a probabilidade Bayesiana desta variante ser a melhor. Quanto maior, mais confiança. Meta: 95% = o motor só declara vencedor acima desse limiar." />
           </div>
           <div className="text-[12.5px] text-cms-text-dim max-w-[150px] leading-[1.4]">
