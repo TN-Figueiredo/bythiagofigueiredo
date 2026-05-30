@@ -10,7 +10,7 @@ import { ConfidenceChart } from './confidence-chart'
 import { VariantTable } from './variant-table'
 import { GatesPanel } from './gates-panel'
 import { SectionLabel } from './ab-primitives'
-import { Copy, Archive, MoreVertical } from 'lucide-react'
+import { Copy, Archive, Download } from 'lucide-react'
 
 export interface WinnerDetailProps {
   view: AbTestWinnerView
@@ -46,10 +46,10 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
             </button>
             <button
               type="button"
-              aria-label="Mais ações"
+              aria-label="Download"
               className="inline-flex items-center justify-center size-8 text-cms-text-muted hover:text-cms-text transition-colors rounded-lg border border-cms-border hover:border-cms-border-hover focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
             >
-              <MoreVertical size={14} aria-hidden="true" />
+              <Download size={14} aria-hidden="true" />
             </button>
           </div>
         }
