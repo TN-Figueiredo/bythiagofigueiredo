@@ -84,8 +84,9 @@ describe('QrCardsStrip', () => {
     expect(src).toContain("router.push(`/cms/links/${linkId}/qr?card=${card.id}`)")
   })
 
-  it('clicking "Novo QR Card" navigates to /cms/links/{id}/qr (no card param)', () => {
-    expect(src).toContain("router.push(`/cms/links/${linkId}/qr`)")
+  it('clicking "Novo QR Card" opens naming modal before navigating', () => {
+    expect(src).toContain('setNaming(true)')
+    expect(src).toContain("router.push(`/cms/links/${linkId}/qr?name=${encodeURIComponent(trimmed)}`)")
   })
 
   // --- Accessibility ---

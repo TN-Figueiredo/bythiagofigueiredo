@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, QrCode } from 'lucide-react'
 import type { QrCardSummary } from '../qr/card-actions'
@@ -11,10 +12,40 @@ interface QrCardsStripProps {
 
 const STRIP_ID = 'qr-cards-strip'
 
+const SUGGESTIONS = [
+  'YouTube',
+  'Newsletter',
+  'Site',
+  'Instagram',
+  'Print',
+  'Evento',
+]
+
 export function QrCardsStrip({ linkId, cards }: QrCardsStripProps) {
   const router = useRouter()
+  const [naming, setNaming] = useState(false)
+  const [name, setName] = useState('')
 
   const hasCards = cards.length > 0
+
+  function handleCreate() {
+    const trimmed = name.trim()
+    if (!trimmed) return
+    setNaming(false)
+    setName('')
+    router.push(`/cms/links/${linkId}/qr?name=${encodeURIComponent(trimmed)}`)
+  }
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    background: 'var(--surface)',
+    border: '1px solid var(--line-strong)',
+    borderRadius: 9,
+    padding: '9px 12px',
+    color: 'var(--ink)',
+    fontSize: '13px',
+    outline: 'none',
+  }
 
   return (
     <div style={{
@@ -62,6 +93,22 @@ export function QrCardsStrip({ linkId, cards }: QrCardsStripProps) {
           box-shadow: 0 0 0 2px var(--accent);
           border-color: var(--accent);
         }
+        .${STRIP_ID}-pill {
+          padding: 5px 11px;
+          border-radius: 99px;
+          border: 1px solid var(--line);
+          background: var(--surface);
+          color: var(--ink-dim);
+          font: inherit;
+          font-size: 11.5px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: border-color 0.15s, background 0.15s;
+        }
+        .${STRIP_ID}-pill:hover {
+          border-color: var(--accent);
+          color: var(--accent);
+        }
       `}</style>
 
       <div style={{
@@ -72,6 +119,107 @@ export function QrCardsStrip({ linkId, cards }: QrCardsStripProps) {
         QR Cards{hasCards ? ` · ${cards.length}` : ''}
       </div>
 
+      {/* ── Name prompt modal ─────────────────────────────── */}
+      {naming && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 50,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(0,0,0,0.55)',
+          }}
+          onClick={() => { setNaming(false); setName('') }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              width: 'min(420px, 92vw)',
+              background: 'var(--surface)',
+              border: '1px solid var(--line-strong)',
+              borderRadius: 16,
+              overflow: 'hidden',
+            }}
+          >
+            <div style={{
+              padding: '18px 22px',
+              borderBottom: '1px solid var(--line)',
+            }}>
+              <h3 style={{
+                margin: 0, fontSize: 17, fontWeight: 600,
+                fontFamily: 'Fraunces, serif', color: 'var(--ink)',
+              }}>
+                Novo QR Card
+              </h3>
+              <p style={{
+                margin: '6px 0 0', fontSize: 12.5, color: 'var(--ink-dim)',
+                lineHeight: 1.4,
+              }}>
+                Para qual canal ou uso é este QR?
+              </p>
+            </div>
+
+            <div style={{ padding: '16px 22px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {SUGGESTIONS.filter(s => !cards.some(c => c.name === s)).map(s => (
+                  <button
+                    key={s}
+                    type="button"
+                    className={`${STRIP_ID}-pill`}
+                    onClick={() => setName(s)}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+
+              <input
+                type="text"
+                placeholder="Ex: YouTube Canal 2, Adesivo vitrine..."
+                value={name}
+                onChange={e => setName(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleCreate() }}
+                autoFocus
+                style={inputStyle}
+              />
+            </div>
+
+            <div style={{
+              padding: '14px 22px',
+              borderTop: '1px solid var(--line)',
+              display: 'flex', justifyContent: 'flex-end', gap: 10,
+              background: 'var(--bg-side, var(--surface))',
+            }}>
+              <button
+                type="button"
+                onClick={() => { setNaming(false); setName('') }}
+                style={{
+                  padding: '8px 14px', fontSize: 13, fontWeight: 600,
+                  borderRadius: 9, border: '1px solid var(--line-strong)',
+                  background: 'transparent', color: 'var(--ink-dim)',
+                  cursor: 'pointer', font: 'inherit',
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleCreate}
+                disabled={!name.trim()}
+                style={{
+                  padding: '8px 14px', fontSize: 13, fontWeight: 600,
+                  borderRadius: 9, border: '1px solid var(--accent)',
+                  background: 'var(--accent)', color: 'var(--pb-ink-on-accent, #1A140C)',
+                  cursor: 'pointer', font: 'inherit',
+                  opacity: name.trim() ? 1 : 0.4,
+                }}
+              >
+                Criar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Cards list ────────────────────────────────────── */}
       {hasCards ? (
         <ul
           role="list"
@@ -146,7 +294,7 @@ export function QrCardsStrip({ linkId, cards }: QrCardsStripProps) {
               type="button"
               className={`${STRIP_ID}-create`}
               aria-label="Criar novo QR Card"
-              onClick={() => router.push(`/cms/links/${linkId}/qr`)}
+              onClick={() => setNaming(true)}
               style={{
                 width: 140, minWidth: 140, height: 180,
                 borderRadius: 12,
@@ -181,7 +329,7 @@ export function QrCardsStrip({ linkId, cards }: QrCardsStripProps) {
             type="button"
             className={`${STRIP_ID}-create`}
             aria-label="Criar novo QR Card"
-            onClick={() => router.push(`/cms/links/${linkId}/qr`)}
+            onClick={() => setNaming(true)}
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 6,
               padding: '8px 16px',

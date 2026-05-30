@@ -46,7 +46,7 @@ CREATE POLICY "link_qr_cards_staff_write"
 
 -- 5. Migrate existing QR data from tracked_links
 INSERT INTO link_qr_cards (link_id, site_id, name, composition, config, storage_path)
-SELECT id, site_id, COALESCE(NULLIF(title, ''), '/' || code),
+SELECT id, site_id, 'QR Card',
        qr_card_composition,
        COALESCE(qr_config, '{}'),
        qr_storage_path
