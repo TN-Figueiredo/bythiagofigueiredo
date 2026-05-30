@@ -145,9 +145,9 @@ function MiniPlatformIcon({ provider }: { provider: string }) {
 
 const TRIGGER_LABELS: Record<string, string> = {
   blog_published: 'Blog publicado',
-  video_published: 'Video publicado',
+  video_published: 'Vídeo publicado',
   newsletter_sent: 'Newsletter enviada',
-  auto: 'Automatico',
+  auto: 'Automático',
 }
 
 /* ------------------------------------------------------------------ */
@@ -209,7 +209,7 @@ export function DraftsList({ items }: DraftsListProps) {
           className="inline-flex shrink-0 items-center gap-[5px] rounded-[9px] border border-[var(--line-strong,var(--color-cms-border))] bg-transparent px-[10px] py-[5px] text-[12.5px] font-semibold text-cms-text-dim transition-colors hover:text-cms-text"
         >
           <Settings className="h-[14px] w-[14px]" />
-          Automacoes
+          Automações
         </Link>
       </div>
 
