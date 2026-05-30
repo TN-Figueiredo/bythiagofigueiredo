@@ -77,6 +77,11 @@ export async function CalendarViewLoader({ siteId, week }: { siteId: string; wee
 
   // Group events by day of week (0=Mon, 6=Sun)
   const monday = new Date(from)
+  const sunday = new Date(monday)
+  sunday.setDate(monday.getDate() + 6)
+
+  const dateRange = `${monday.getDate()} ${monday.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')} – ${sunday.getDate()} ${sunday.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')}`
+
   const days: Array<{ date: Date; dateStr: string; events: CalendarEvent[] }> = []
   for (let i = 0; i < 7; i++) {
     const d = new Date(monday)
@@ -102,11 +107,13 @@ export async function CalendarViewLoader({ siteId, week }: { siteId: string; wee
           time: e.scheduledAt ? new Date(e.scheduledAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '',
           tint: e.tint,
           status: e.status,
+          provider: e.provider,
         })),
       }))}
       weekLabel={weekLabel}
       prevWeek={prevWeek}
       nextWeek={nextWeek}
+      dateRange={dateRange}
     />
   )
 }
