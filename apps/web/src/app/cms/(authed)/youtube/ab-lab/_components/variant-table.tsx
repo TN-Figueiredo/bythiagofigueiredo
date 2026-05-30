@@ -3,7 +3,7 @@
 import React, { useState, useCallback } from 'react'
 import type { FullChartVariant, VariantThumb, DisplayLabel } from '@/lib/youtube/ab-types'
 import { formatPercent, formatCompact } from './ab-constants'
-import { VChip, Badge } from './ab-primitives'
+import { VChip } from './ab-primitives'
 import { ChevronDown, Trophy } from 'lucide-react'
 
 export interface VariantTableProps {
@@ -80,8 +80,8 @@ export function VariantTable({ variants, metric, winnerId, finalists, thumbs, vi
             <div className="border-t border-cms-border">
               <div
                 role="row"
-                className={`${GRID} py-[11px] px-[16px] cursor-pointer transition-[background_0.15s] ${
-                  isWinner ? `bg-[${variant.color}10]` : 'hover:bg-cms-surface-hover'
+                className={`${GRID} py-[11px] px-[16px] cursor-pointer transition-[background] duration-150 ${
+                  isWinner ? '' : 'hover:bg-cms-surface-hover'
                 }`}
                 style={isWinner ? { background: `${variant.color}10` } : undefined}
                 onClick={() => toggleExpand(variant.label)}

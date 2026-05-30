@@ -41,7 +41,7 @@ function StatusBadge({ status, outcome }: { status: AbTestStatus; outcome?: Deta
   if (status === 'completed' && outcome === 'winner') {
     return (
       <Badge tone="green">
-        <Trophy size={11} aria-hidden="true" className="-ml-0.5 -translate-y-px" />
+        <Trophy size={11} aria-hidden="true" className="-translate-y-px" />
         Concluído · Vencedor
       </Badge>
     )

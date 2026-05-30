@@ -52,7 +52,7 @@ export function LiveMonitorCard({ monitor }: LiveMonitorProps) {
             <TrendingUp size={17} className="text-cms-accent" aria-hidden="true" />
             <h3 className="text-[19px] font-semibold text-cms-text m-0">Como está agora</h3>
           </div>
-          <p className="text-[12.5px] text-cms-text-dim mt-[5px] max-w-[540px] m-0">
+          <p className="text-[12.5px] text-cms-text-dim mt-[5px] max-w-[540px]">
             O vencedor já está no ar. Os crons puxam a YouTube Analytics 3× por dia — então dá pra ver se o ganho está segurando.
           </p>
         </div>
