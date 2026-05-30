@@ -1,4 +1,6 @@
 import { listSocialPosts } from '@/lib/social/actions'
+import type { SocialPostContent } from '@tn-figueiredo/social'
+import { getPostTitle } from './shared/social-helpers'
 import { QueueList } from './queue-list'
 
 export async function QueueViewLoader({ siteId }: { siteId: string }) {
@@ -20,10 +22,9 @@ export async function QueueViewLoader({ siteId }: { siteId: string }) {
   }
 
   const items = queuedPosts.map(post => {
-    const content = post.content as Record<string, unknown>
     return {
       id: post.id,
-      title: String(content.title ?? content.description ?? '(sem titulo)'),
+      title: getPostTitle(post.content as SocialPostContent),
       queuePosition: post.queue_position ?? 0,
       scheduledAt: post.scheduled_at,
       status: post.status,

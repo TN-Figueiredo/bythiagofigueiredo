@@ -3,7 +3,6 @@
 import { useSearchParams, useRouter } from 'next/navigation'
 import { FeedCard } from './feed-card'
 import type { DestId } from '@/lib/social/destinations'
-import { STATUS_LABELS } from './shared/social-helpers'
 
 export interface FeedItem {
   id: string
@@ -83,5 +82,3 @@ export function FeedGrid({ items }: FeedGridProps) {
     </>
   )
 }
-
-export { STATUS_LABELS }

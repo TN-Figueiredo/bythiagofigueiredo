@@ -1,4 +1,5 @@
 import { listSocialPosts } from '@/lib/social/actions'
+import { getPostTitle } from './shared/social-helpers'
 import { DraftsList } from './drafts-list'
 
 export async function DraftsViewLoader({ siteId }: { siteId: string }) {
@@ -25,7 +26,7 @@ export async function DraftsViewLoader({ siteId }: { siteId: string }) {
     const confidence = typeof pipeline.confidence === 'number' ? pipeline.confidence : null
     return {
       id: post.id,
-      title: post.content.title ?? '(sem titulo)',
+      title: getPostTitle(post.content),
       description: post.content.description ?? '',
       confidence,
       trigger: String(pipeline.trigger ?? 'auto'),

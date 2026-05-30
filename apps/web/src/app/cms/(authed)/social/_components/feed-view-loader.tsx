@@ -1,18 +1,12 @@
 import { listFeedPostsWithDeliveries } from '@/lib/social/actions'
-import { DESTINATIONS, DEST_IDS, type DestId } from '@/lib/social/destinations'
+import { DESTINATIONS, DEST_IDS } from '@/lib/social/destinations'
 import type { Provider } from '@tn-figueiredo/social'
 import { FeedGrid } from './feed-grid'
+import { STATUS_LABELS, getPostTitle } from './shared/social-helpers'
 
 export async function FeedViewLoader({ siteId, status }: { siteId: string; status?: string }) {
   const result = await listFeedPostsWithDeliveries(siteId, { status: status || 'all' })
   if (!result.ok) return <p className="text-sm text-cms-text-muted">Erro ao carregar posts</p>
-  if (result.data.length === 0) {
-    return (
-      <div className="mt-8 flex flex-col items-center gap-3 text-center">
-        <p className="text-sm text-cms-text-muted">Nenhum post encontrado</p>
-      </div>
-    )
-  }
 
   const feedItems = result.data.map(item => {
     const firstDelivery = item.deliveries[0]
@@ -22,11 +16,16 @@ export async function FeedViewLoader({ siteId, status }: { siteId: string; statu
       : null
     const dest = destId ? DESTINATIONS[destId] : null
     return {
-      post: item.post,
+      id: item.post.id,
+      status: item.post.status,
+      title: getPostTitle(item.post.content),
+      imageUrl: item.post.content.media_urls?.[0] ?? null,
+      scheduledAt: item.post.scheduled_at,
+      publishedAt: item.post.published_at,
       destId,
       destLabel: dest ? `${dest.label} ${dest.sublabel}` : provider ?? '',
       provider: provider ?? '',
-      deliveryCount: item.deliveries.length,
+      statusLabel: STATUS_LABELS[item.post.status] ?? item.post.status,
     }
   })
 
