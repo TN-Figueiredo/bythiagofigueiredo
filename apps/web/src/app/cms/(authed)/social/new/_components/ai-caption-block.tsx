@@ -36,6 +36,7 @@ export function AICaptionBlock({
         type="button"
         onClick={handleGenerate}
         disabled={loading}
+        aria-busy={loading}
         className="flex items-center gap-2 rounded-lg border border-[var(--cms-cowork,#7c3aed)]/30 bg-[var(--cms-cowork,#7c3aed)]/10 px-3 py-2 text-sm font-medium text-[var(--cms-cowork,#7c3aed)] hover:bg-[var(--cms-cowork,#7c3aed)]/20 transition-colors disabled:opacity-50"
       >
         {loading ? 'Gerando...' : 'Gerar com IA'}
@@ -45,15 +46,16 @@ export function AICaptionBlock({
 
   return (
     <div className="space-y-3 rounded-lg border border-[var(--cms-cowork,#7c3aed)]/20 bg-[var(--cms-cowork,#7c3aed)]/5 p-3">
-      <p className="text-xs font-medium uppercase tracking-wider text-[var(--cms-cowork,#7c3aed)]">
+      <h4 className="text-xs font-medium uppercase tracking-wider text-[var(--cms-cowork,#7c3aed)]">
         Sugestoes da IA
-      </p>
+      </h4>
       <div className="space-y-2">
         {suggestion.variations.map((text, i) => (
           <button
             key={i}
             type="button"
             onClick={() => onApplyVariation(text)}
+            aria-label={`Variacao ${i + 1}: ${text.slice(0, 50)}`}
             className="block w-full rounded-lg border border-cms-border bg-cms-surface p-2 text-left text-sm text-cms-text hover:border-[var(--cms-cowork,#7c3aed)]/40 transition-colors"
           >
             {text}
@@ -70,6 +72,7 @@ export function AICaptionBlock({
           <button
             type="button"
             onClick={() => onApplyHashtags(suggestion.hashtags)}
+            aria-label="Adicionar hashtags ao post"
             className="text-xs font-medium text-[var(--cms-cowork,#7c3aed)] hover:underline"
           >
             Adicionar

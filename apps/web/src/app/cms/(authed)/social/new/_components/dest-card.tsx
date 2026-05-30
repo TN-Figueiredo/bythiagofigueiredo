@@ -15,10 +15,13 @@ export function DestCard({ destId, isOn, isFocused, onToggle, onFocus }: DestCar
   const dest = DESTINATIONS[destId]
 
   return (
-    <button
-      type="button"
+    <div
+      role="option"
+      aria-selected={isFocused}
+      tabIndex={0}
       onClick={() => onFocus(destId)}
-      className={`relative flex flex-col gap-2 rounded-xl border-2 p-3 text-left transition-all ${
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onFocus(destId) } }}
+      className={`relative flex flex-col gap-2 rounded-xl border-2 p-3 text-left transition-all cursor-pointer ${
         isFocused
           ? 'border-current shadow-sm'
           : 'border-cms-border'
@@ -61,6 +64,6 @@ export function DestCard({ destId, isOn, isFocused, onToggle, onFocus }: DestCar
       )}
 
       <p className="text-xs leading-relaxed text-cms-text-dim">{dest.truth}</p>
-    </button>
+    </div>
   )
 }

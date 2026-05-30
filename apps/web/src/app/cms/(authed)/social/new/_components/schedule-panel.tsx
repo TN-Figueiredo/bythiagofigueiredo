@@ -41,10 +41,12 @@ export function SchedulePanel({ selectedDate, selectedTime, onSelectDate, onSele
       {/* Day chips */}
       <div>
         <p className="mb-2 text-xs font-medium text-cms-text-dim">Dia</p>
-        <div className="flex gap-2 overflow-x-auto">
+        <div className="flex gap-2 overflow-x-auto" role="radiogroup" aria-label="Selecionar dia">
           {days.map(day => (
             <button
               key={day.date}
+              role="radio"
+              aria-checked={selectedDate === day.date}
               onClick={() => onSelectDate(day.date)}
               className={`flex shrink-0 flex-col items-center rounded-lg border px-3 py-2 transition-colors ${
                 selectedDate === day.date
@@ -62,12 +64,14 @@ export function SchedulePanel({ selectedDate, selectedTime, onSelectDate, onSele
       {/* Time chips */}
       <div>
         <p className="mb-2 text-xs font-medium text-cms-text-dim">Horario</p>
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Selecionar horario">
           {HOURS.map(hour => {
             const isBest = bestTimeSet.has(hour)
             return (
               <button
                 key={hour}
+                role="radio"
+                aria-checked={selectedTime === hour}
                 onClick={() => onSelectTime(hour)}
                 className={`relative rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${
                   selectedTime === hour
@@ -77,7 +81,7 @@ export function SchedulePanel({ selectedDate, selectedTime, onSelectDate, onSele
               >
                 {hour}
                 {isBest && (
-                  <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-amber-400" title="Melhor horario" />
+                  <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-amber-400" aria-label="Melhor horario" title="Melhor horario" />
                 )}
               </button>
             )

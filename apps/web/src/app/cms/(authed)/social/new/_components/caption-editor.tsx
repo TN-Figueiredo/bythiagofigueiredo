@@ -40,6 +40,7 @@ export function CaptionEditor({ destId, value, onChange, onAddPoll }: CaptionEdi
           value={value}
           onChange={e => onChange(e.target.value)}
           placeholder={PLACEHOLDERS.ig_story}
+          aria-label="Texto opcional para Story"
           className="w-full rounded-lg border border-cms-border bg-cms-bg px-3 py-2 text-sm text-cms-text placeholder:text-cms-text-dim focus:border-cms-accent focus:outline-none"
         />
       </div>
@@ -57,13 +58,14 @@ export function CaptionEditor({ destId, value, onChange, onAddPoll }: CaptionEdi
           value={value}
           onChange={e => onChange(e.target.value)}
           placeholder={PLACEHOLDERS[destId]}
+          aria-label={`Legenda para ${dest.label} ${dest.sublabel}`}
           rows={5}
           className="w-full resize-none rounded-lg border border-cms-border bg-cms-bg px-3 py-2 text-sm text-cms-text placeholder:text-cms-text-dim focus:border-cms-accent focus:outline-none"
         />
 
         {/* Character counter */}
         {limit > 0 && (
-          <span className={`absolute bottom-2 right-2 text-xs ${
+          <span role="status" aria-live="polite" aria-atomic="true" className={`absolute bottom-2 right-2 text-xs ${
             isOverLimit ? 'text-red-400' : isNearLimit ? 'text-amber-400' : 'text-cms-text-dim'
           }`}>
             {charCount}/{limit}
