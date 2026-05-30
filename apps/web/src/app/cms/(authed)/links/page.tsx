@@ -165,21 +165,6 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
       }))
     : []
 
-  const hardcodedBlocks = [
-    { id: 'blog-en', label: 'Blog (EN)', section: 'English' },
-    { id: 'journal', label: "Thiago's Journal", section: 'English' },
-    { id: 'youtube-en', label: 'YouTube (EN)', section: 'English' },
-    { id: 'blog-pt', label: 'Blog (PT)', section: 'Português' },
-    { id: 'diario', label: 'Diário do Thiago', section: 'Português' },
-    { id: 'youtube-pt', label: 'YouTube (PT)', section: 'Português' },
-  ]
-  const sharedBlocks = sharedLinks.map(s => ({
-    id: `shared-${s.id}`,
-    label: s.labelPt || s.labelEn,
-    section: 'Geral',
-  }))
-  const allBlocks = [...hardcodedBlocks, ...sharedBlocks]
-
   const tree: LinktreeDisplay = {
     url: shortDomain ? `https://${shortDomain}` : '',
     pageviews: ltTotalViews,
@@ -188,7 +173,13 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
     engagement: ltTotalViews > 0 ? Math.round((ltUniqueVisitors / ltTotalViews) * 1000) / 10 : 0,
     topCountry: 'BR',
     spark: Array.from({ length: 30 }, () => 0),
-    blocks: allBlocks.map(b => ({ ...b, clicks: 0, ctr: 0 })),
+    blocks: links.map(l => ({
+      id: l.id,
+      label: l.title,
+      section: l.source === 'newsletter' ? 'Newsletter' : l.source === 'blog' ? 'Blog' : l.badge,
+      clicks: l.clicks,
+      ctr: l.clicks > 0 && ltTotalViews > 0 ? Math.round((l.clicks / ltTotalViews) * 1000) / 10 : 0,
+    })),
     sharedLinks,
   }
 
