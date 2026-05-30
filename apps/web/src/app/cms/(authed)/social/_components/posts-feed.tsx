@@ -144,9 +144,3 @@ export function PostsFeed({ posts, siteId: _siteId, strings: t, platformsByPost 
     </div>
   )
 }
-
-export async function FeedViewLoader({ siteId, status }: { siteId: string; status?: string }) {
-  void siteId
-  void status
-  return null // stub -- replaced in Task 2.3
-}
