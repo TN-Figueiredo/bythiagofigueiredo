@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type { SocialDelivery } from '@tn-figueiredo/social'
@@ -56,9 +57,8 @@ export function DrawerContent({ post, siteId: _siteId }: DrawerContentProps) {
       {/* Preview */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {imageUrl && (
-          <div className="overflow-hidden rounded-lg">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={imageUrl} alt="" className="w-full object-cover" />
+          <div className="relative overflow-hidden rounded-lg" style={{ aspectRatio: '16/9' }}>
+            <Image src={imageUrl} alt="" fill sizes="(max-width: 768px) 100vw, 400px" className="object-cover" />
           </div>
         )}
 

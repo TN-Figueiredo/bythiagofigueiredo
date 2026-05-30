@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
 import type { DestId } from '@/lib/social/destinations'
 import { DESTINATIONS } from '@/lib/social/destinations'
@@ -24,12 +25,10 @@ export function FeedCard({ item }: FeedCardProps) {
         {item.imageUrl ? (
           isStory ? (
             <div className="flex h-full items-center justify-center">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={item.imageUrl} alt="" className="h-[200px] w-[113px] rounded-lg object-cover" />
+              <Image src={item.imageUrl} alt="" width={113} height={200} className="rounded-lg object-cover" />
             </div>
           ) : (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={item.imageUrl} alt="" className="h-full w-full object-cover" />
+            <Image src={item.imageUrl} alt="" fill sizes="(max-width: 768px) 100vw, 248px" className="object-cover" />
           )
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-cms-text-dim">
