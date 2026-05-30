@@ -1,10 +1,10 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
-import { AlignLeft, AlignCenter, AlignRight, ChevronDown } from 'lucide-react'
-import { FONT_CATEGORIES } from '@tn-figueiredo/links/qr'
+import { AlignLeft, AlignCenter, AlignRight, Move } from 'lucide-react'
+import { FONT_CATEGORIES, BG_PALETTE } from '@tn-figueiredo/links/qr'
 import type { TextElement, FontCategory } from '@tn-figueiredo/links/qr'
 import { ColorPicker } from './color-picker'
-import { NumberField, SliderField, SectionTitle } from './inspector-field'
+import { SliderField } from './inspector-field'
 
 const GOOGLE_FONTS_URL = 'https://fonts.googleapis.com/css2?'
 
@@ -21,81 +21,32 @@ function useFontLoader(fontFamily: string) {
   }, [fontFamily])
 }
 
-const CATEGORY_LABELS: Record<FontCategory, string> = {
-  'sans-serif': 'Sans Serif',
-  'serif': 'Serif',
-  'display': 'Display',
-  'handwriting': 'Handwriting',
-  'monospace': 'Monospace',
+const QUICK_FONTS = [
+  { short: 'Frau', full: 'Fraunces' },
+  { short: 'Inte', full: 'Inter' },
+  { short: 'JetB', full: 'JetBrains Mono' },
+]
+
+const PALETTE = [...BG_PALETTE]
+
+const labelStyle: React.CSSProperties = {
+  fontSize: '11.5px', color: 'var(--ink-dim)', marginBottom: 6,
 }
 
-function FontPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-
-  useFontLoader(value)
-
-  useEffect(() => {
-    if (!open) return
-    function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(false)
-    }
-    document.addEventListener('mousedown', handleClick)
-    document.addEventListener('keydown', handleKey)
-    return () => {
-      document.removeEventListener('mousedown', handleClick)
-      document.removeEventListener('keydown', handleKey)
-    }
-  }, [open])
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between rounded px-2 py-1.5 text-[11px] hover:opacity-90"
-        style={{ background: 'var(--surface-2)', border: '1px solid var(--line)', color: 'var(--ink)' }}
-      >
-        <span style={{ fontFamily: value }}>{value}</span>
-        <ChevronDown size={12} className={`transition-transform ${open ? 'rotate-180' : ''}`} style={{ color: 'var(--ink-dim)' }} />
-      </button>
-      {open && (
-        <div className="absolute z-50 top-full left-0 right-0 mt-1 rounded shadow-xl max-h-[320px] overflow-y-auto" style={{ background: 'var(--surface-2)', border: '1px solid var(--line)' }}>
-          {(Object.keys(FONT_CATEGORIES) as FontCategory[]).map(cat => (
-            <div key={cat}>
-              <div className="px-2 py-1 text-[9px] font-semibold uppercase tracking-wider sticky top-0" style={{ color: 'var(--ink-dim)', background: 'var(--surface-2)' }}>
-                {CATEGORY_LABELS[cat]}
-              </div>
-              {FONT_CATEGORIES[cat].map(font => (
-                <FontOption key={font} font={font} selected={value === font} onSelect={() => { onChange(font); setOpen(false) }} />
-              ))}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
+const pillBar: React.CSSProperties = {
+  display: 'inline-flex', background: 'var(--surface-2)',
+  borderRadius: 9, padding: 3, gap: 2,
 }
 
-function FontOption({ font, selected, onSelect }: { font: string; selected: boolean; onSelect: () => void }) {
-  useFontLoader(font)
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      className="w-full text-left px-2 py-1.5 text-[12px] hover:opacity-80"
-      style={{
-        fontFamily: font,
-        background: selected ? 'var(--accent-soft)' : 'transparent',
-        color: selected ? 'var(--accent)' : 'var(--ink)',
-      }}
-    >
-      {font}
-    </button>
-  )
+function pillBtn(active: boolean): React.CSSProperties {
+  return {
+    display: 'inline-flex', alignItems: 'center', gap: 6,
+    padding: '5px 10px', borderRadius: 7,
+    border: 'none', fontSize: 12, fontWeight: 600,
+    background: active ? 'var(--accent)' : 'transparent',
+    color: active ? 'var(--pb-ink-on-accent, #1A140C)' : 'var(--ink-dim)',
+    cursor: 'pointer', transition: '0.15s',
+  }
 }
 
 interface TextInspectorProps {
@@ -107,85 +58,217 @@ export function TextInspector({ element, onUpdate }: TextInspectorProps) {
   useFontLoader(element.fontFamily)
 
   return (
-    <div className="space-y-2">
-      <SectionTitle>Content</SectionTitle>
-      <textarea
-        value={element.content}
-        onChange={e => onUpdate({ content: e.target.value })}
-        rows={3}
-        className="w-full rounded px-2 py-1.5 text-[12px] resize-y"
-        style={{ background: 'var(--surface-2)', border: '1px solid var(--line)', color: 'var(--ink)' }}
-      />
-
-      <SectionTitle>Transform</SectionTitle>
-      <div className="grid grid-cols-2 gap-1.5">
-        <NumberField label="X" value={element.x} onChange={v => onUpdate({ x: v })} unit="px" />
-        <NumberField label="Y" value={element.y} onChange={v => onUpdate({ y: v })} unit="px" />
-        <NumberField label="W" value={element.width} onChange={v => onUpdate({ width: v })} min={20} unit="px" />
-      </div>
-
-      <SectionTitle>Typography</SectionTitle>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* ── Conteúdo ── */}
       <div>
-        <span className="text-[10px]" style={{ color: 'var(--ink-dim)' }}>Font</span>
-        <FontPicker value={element.fontFamily} onChange={v => onUpdate({ fontFamily: v })} />
+        <div style={labelStyle}>Conteúdo</div>
+        <textarea
+          value={element.content}
+          onChange={e => onUpdate({ content: e.target.value })}
+          style={{
+            width: '100%', minHeight: 60,
+            background: 'var(--surface)', border: '1px solid var(--line-strong)',
+            borderRadius: 8, padding: '9px 11px',
+            color: 'var(--ink)', fontSize: 13, resize: 'vertical', lineHeight: 1.4,
+            fontFamily: 'inherit',
+          }}
+        />
       </div>
-      <div className="grid grid-cols-2 gap-1.5">
-        <NumberField label="Size" value={element.fontSize} onChange={v => onUpdate({ fontSize: v })} min={8} max={400} unit="px" />
-        <NumberField label="Wt" value={element.fontWeight} onChange={v => onUpdate({ fontWeight: v })} min={100} max={900} step={100} />
-      </div>
-      <NumberField label="LH" value={element.lineHeight} onChange={v => onUpdate({ lineHeight: v })} min={0.5} max={3} step={0.1} />
-      <div className="flex items-center gap-1">
-        <span className="text-[10px] w-6" style={{ color: 'var(--ink-dim)' }}>Align</span>
-        {(['left', 'center', 'right'] as const).map(a => (
-          <button
-            key={a}
-            type="button"
-            onClick={() => onUpdate({ align: a })}
-            className="p-1 rounded"
-            style={{
-              background: element.align === a ? 'var(--accent-soft)' : 'transparent',
-              color: element.align === a ? 'var(--accent)' : 'var(--ink-dim)',
-            }}
-          >
-            {a === 'left' ? <AlignLeft size={14} /> : a === 'center' ? <AlignCenter size={14} /> : <AlignRight size={14} />}
-          </button>
-        ))}
-      </div>
-      <label className="flex items-center gap-2 text-[11px]" style={{ color: 'var(--ink)' }}>
-        <input type="checkbox" checked={element.uppercase} onChange={e => onUpdate({ uppercase: e.target.checked })} className="rounded" />
-        Uppercase
-      </label>
 
-      <SectionTitle>Color</SectionTitle>
-      <ColorPicker label="Text color" value={element.color} onChange={c => onUpdate({ color: c })} />
-      <div className="space-y-1.5">
-        <label className="flex items-center gap-2 text-[11px]" style={{ color: 'var(--ink)' }}>
-          <input
-            type="checkbox"
-            checked={element.backgroundColor !== null}
-            onChange={e => onUpdate({ backgroundColor: e.target.checked ? '#00000099' : null })}
-            className="rounded"
-          />
-          Background
+      {/* ── Fonte (quick-pick pills) ── */}
+      <div>
+        <div style={labelStyle}>Fonte</div>
+        <div style={pillBar}>
+          {QUICK_FONTS.map(f => (
+            <button
+              key={f.full}
+              type="button"
+              onClick={() => onUpdate({ fontFamily: f.full })}
+              style={pillBtn(element.fontFamily === f.full)}
+            >
+              {f.short}
+            </button>
+          ))}
+        </div>
+        <FullFontPicker value={element.fontFamily} onChange={v => onUpdate({ fontFamily: v })} />
+      </div>
+
+      {/* ── Tamanho ── */}
+      <div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+          <span style={{ fontSize: '11.5px', color: 'var(--ink-dim)' }}>Tamanho</span>
+          <span className="mono" style={{ fontSize: 11 }}>{element.fontSize}px</span>
+        </div>
+        <input
+          type="range" min={18} max={140}
+          value={element.fontSize}
+          onChange={e => onUpdate({ fontSize: Number(e.target.value) })}
+          style={{ width: '100%' }}
+        />
+      </div>
+
+      {/* ── Cor (palette swatches) ── */}
+      <div>
+        <div style={labelStyle}>Cor</div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {PALETTE.map(c => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => onUpdate({ color: c })}
+              style={{
+                width: 26, height: 26, borderRadius: 7,
+                background: c,
+                border: element.color.toLowerCase() === c.toLowerCase()
+                  ? '2px solid var(--accent)'
+                  : '1px solid var(--line-strong)',
+                cursor: 'pointer', padding: 0,
+              }}
+            />
+          ))}
+        </div>
+        <div style={{ marginTop: 8 }}>
+          <ColorPicker label="" value={element.color} onChange={c => onUpdate({ color: c })} />
+        </div>
+      </div>
+
+      {/* ── Alinhamento ── */}
+      <div>
+        <div style={labelStyle}>Alinhamento</div>
+        <div style={pillBar}>
+          {(['left', 'center', 'right'] as const).map(a => (
+            <button
+              key={a}
+              type="button"
+              onClick={() => onUpdate({ align: a })}
+              style={pillBtn(element.align === a)}
+            >
+              {a === 'left' ? '←' : a === 'center' ? '↔' : '→'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Peso + Entrelinha (compact) ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        <SliderField label="Peso" value={element.fontWeight} onChange={v => onUpdate({ fontWeight: v })} min={100} max={900} step={100} format={v => `${v}`} />
+        <SliderField label="Entrelinha" value={element.lineHeight} onChange={v => onUpdate({ lineHeight: v })} min={0.5} max={3} step={0.1} format={v => `${v.toFixed(1)}`} />
+      </div>
+
+      {/* ── Opções compactas ── */}
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--ink)', cursor: 'pointer' }}>
+          <input type="checkbox" checked={element.uppercase} onChange={e => onUpdate({ uppercase: e.target.checked })} />
+          Maiúsculas
         </label>
-        {element.backgroundColor !== null && (
-          <>
-            <ColorPicker label="BG color" value={element.backgroundColor} onChange={c => onUpdate({ backgroundColor: c })} />
-            <SliderField label="Padding" value={element.backgroundPadding ?? 8} onChange={v => onUpdate({ backgroundPadding: v })} min={0} max={40} format={v => `${v}px`} />
-            <SliderField label="Radius" value={element.backgroundRadius ?? 4} onChange={v => onUpdate({ backgroundRadius: v })} min={0} max={30} format={v => `${v}px`} />
-          </>
-        )}
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--ink)', cursor: 'pointer' }}>
+          <input type="checkbox" checked={element.locked} onChange={e => onUpdate({ locked: e.target.checked })} />
+          Travar
+        </label>
       </div>
 
-      <SectionTitle>Display</SectionTitle>
-      <SliderField label="Rotation" value={element.rotation} onChange={v => onUpdate({ rotation: v })} min={0} max={360} format={v => `${v}°`} />
-      <SliderField label="Opacity" value={element.opacity * 100} onChange={v => onUpdate({ opacity: v / 100 })} min={0} max={100} format={v => `${Math.round(v)}%`} />
+      {/* ── Display sliders ── */}
+      <SliderField label="Rotação" value={element.rotation} onChange={v => onUpdate({ rotation: v })} min={0} max={360} format={v => `${v}°`} />
+      <SliderField label="Opacidade" value={element.opacity * 100} onChange={v => onUpdate({ opacity: v / 100 })} min={0} max={100} format={v => `${Math.round(v)}%`} />
 
-      <SectionTitle>Options</SectionTitle>
-      <label className="flex items-center gap-2 text-[11px]" style={{ color: 'var(--ink)' }}>
-        <input type="checkbox" checked={element.locked} onChange={e => onUpdate({ locked: e.target.checked })} className="rounded" />
-        Lock position
-      </label>
+      {/* ── Hint ── */}
+      <div style={{
+        marginTop: 4, paddingTop: 14,
+        borderTop: '1px solid var(--line)',
+        display: 'flex', gap: 7, alignItems: 'center',
+        fontSize: 11, color: 'var(--ink-faint)',
+      }}>
+        <Move size={13} strokeWidth={1.7} />
+        Arraste no canvas pra mover · alça laranja pra redimensionar
+      </div>
     </div>
+  )
+}
+
+/* ── Full font picker (expandable dropdown below quick pills) ── */
+
+const CATEGORY_LABELS: Record<FontCategory, string> = {
+  'sans-serif': 'Sans Serif',
+  'serif': 'Serif',
+  'display': 'Display',
+  'handwriting': 'Handwriting',
+  'monospace': 'Monospace',
+}
+
+function FullFontPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [open])
+
+  const isQuickFont = QUICK_FONTS.some(f => f.full === value)
+
+  return (
+    <div ref={ref} style={{ position: 'relative', marginTop: 6 }}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '6px 10px', borderRadius: 7, fontSize: 11.5,
+          background: 'var(--surface-2)', border: '1px solid var(--line)',
+          color: isQuickFont ? 'var(--ink-dim)' : 'var(--ink)',
+          fontFamily: value, cursor: 'pointer',
+        }}
+      >
+        <span>{value}</span>
+        <span style={{ fontSize: 9, color: 'var(--ink-faint)' }}>{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', zIndex: 50, top: '100%', left: 0, right: 0,
+          marginTop: 4, maxHeight: 280, overflowY: 'auto',
+          background: 'var(--surface)', border: '1px solid var(--line-strong)',
+          borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+        }}>
+          {(Object.keys(FONT_CATEGORIES) as FontCategory[]).map(cat => (
+            <div key={cat}>
+              <div style={{
+                padding: '6px 10px', fontSize: 9, fontWeight: 600,
+                textTransform: 'uppercase', letterSpacing: '0.08em',
+                color: 'var(--ink-dim)', background: 'var(--surface)',
+                position: 'sticky', top: 0,
+              }}>
+                {CATEGORY_LABELS[cat]}
+              </div>
+              {FONT_CATEGORIES[cat].map(font => (
+                <FontRow key={font} font={font} selected={value === font} onSelect={() => { onChange(font); setOpen(false) }} />
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function FontRow({ font, selected, onSelect }: { font: string; selected: boolean; onSelect: () => void }) {
+  useFontLoader(font)
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      style={{
+        width: '100%', textAlign: 'left', padding: '6px 10px',
+        fontSize: 12, fontFamily: font, border: 'none',
+        background: selected ? 'var(--accent-soft)' : 'transparent',
+        color: selected ? 'var(--accent)' : 'var(--ink)',
+        cursor: 'pointer',
+      }}
+    >
+      {font}
+    </button>
   )
 }
