@@ -228,82 +228,54 @@ export function DestCompositor({ focusedDest, destsOn, onContentChange }: DestCo
           <div className="mb-[7px] flex items-center justify-between">
             <span className="text-xs text-cms-text-dim">
               {isStory ? (
-                <>
-                  Texto curto sobre a arte{' '}
-                  <span className="text-cms-text-dim/60">&middot; opcional</span>
-                </>
+                <>Texto curto sobre a arte <span className="text-cms-text-dim/60">· opcional</span></>
               ) : isYtCommunity ? (
-                'Texto do post'
+                'Texto do post de comunidade'
               ) : (
                 'Legenda'
               )}
             </span>
-            <button
-              type="button"
-              className="inline-flex items-center gap-[7px] rounded-[9px] border border-cms-border px-[11px] py-1.5 text-[12.5px] font-semibold text-cms-text transition-colors"
-              style={{
-                background: 'var(--surface-2, var(--color-cms-surface))',
-              }}
-            >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.7"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6z" />
-                <path d="M18 14l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z" />
-              </svg>
-              Gerar com IA
-            </button>
+            <div className="flex items-center gap-2.5">
+              {dest.captionLimit > 0 && (
+                <span className={`font-mono text-[10.5px] ${caption.length >= dest.captionLimit * 0.9 ? caption.length > dest.captionLimit ? 'text-red-400' : 'text-amber-400' : 'text-cms-text-dim/40'}`}>
+                  {caption.length}/{dest.captionLimit}
+                </span>
+              )}
+              <button type="button" className="inline-flex items-center gap-[7px] rounded-[9px] border border-cms-border px-[11px] py-1.5 text-[12.5px] font-semibold text-cms-text transition-colors" style={{ background: 'var(--surface-2, var(--color-cms-surface))' }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6z" />
+                  <path d="M18 14l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z" />
+                </svg>
+                Gerar com IA
+              </button>
+            </div>
           </div>
           {isStory ? (
-            <input
-              type="text"
-              value={caption}
-              onChange={(e) => setCaption(e.target.value)}
-              placeholder="ex: Saiu no blog 📬"
-              className="w-full rounded-[10px] border border-cms-border bg-cms-surface px-[13px] py-[11px] text-[13.5px] text-cms-text placeholder:text-cms-text-dim/40 focus:border-cms-accent focus:outline-none"
-              style={{
-                borderColor: 'var(--line-strong, var(--color-cms-border))',
-              }}
-            />
+            <input type="text" value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="ex: Saiu no blog 📬" className="w-full rounded-[10px] border bg-cms-surface px-[13px] py-[11px] text-[13.5px] text-cms-text placeholder:text-cms-text-dim/40 focus:border-cms-accent focus:outline-none" style={{ borderColor: 'var(--line-strong, var(--color-cms-border))' }} />
           ) : (
-            <textarea
-              value={caption}
-              onChange={(e) => setCaption(e.target.value)}
-              placeholder={
-                isYtCommunity
-                  ? 'Escreva o texto do post...'
-                  : 'O que você quer compartilhar?'
-              }
-              rows={5}
-              className="w-full resize-none rounded-[10px] border border-cms-border bg-cms-surface px-[13px] py-[11px] text-[13.5px] text-cms-text placeholder:text-cms-text-dim/40 focus:border-cms-accent focus:outline-none"
-              style={{
-                borderColor: 'var(--line-strong, var(--color-cms-border))',
-              }}
-            />
-          )}
-          {dest.captionLimit > 0 && (
-            <div className="mt-1 text-right">
-              <span
-                className={`text-xs ${
-                  caption.length >= dest.captionLimit * 0.9
-                    ? caption.length > dest.captionLimit
-                      ? 'text-red-400'
-                      : 'text-amber-400'
-                    : 'text-cms-text-dim/40'
-                }`}
-              >
-                {caption.length}/{dest.captionLimit}
-              </span>
-            </div>
+            <textarea value={caption} onChange={(e) => setCaption(e.target.value)} placeholder={isYtCommunity ? 'Escreva seu post…' : 'O que você quer compartilhar?'} className="w-full rounded-[10px] border bg-cms-surface px-[13px] py-[11px] text-[13.5px] leading-[1.5] text-cms-text placeholder:text-cms-text-dim/40 focus:border-cms-accent focus:outline-none" style={{ borderColor: 'var(--line-strong, var(--color-cms-border))', minHeight: isYtCommunity ? 130 : 100, resize: 'vertical' }} />
           )}
         </div>
+
+        {/* YouTube-specific: poll + image buttons */}
+        {isYtCommunity && (
+          <>
+            <div className="flex gap-2">
+              <button type="button" className="inline-flex items-center gap-[7px] rounded-[9px] border border-cms-border px-[11px] py-1.5 text-[12.5px] font-semibold text-cms-text transition-colors" style={{ background: 'var(--surface-2, var(--color-cms-surface))' }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M5 20V10" /><path d="M12 20V4" /><path d="M19 20v-7" /></svg>
+                Adicionar enquete
+              </button>
+              <button type="button" className="inline-flex items-center gap-[7px] rounded-[9px] border border-cms-border px-[11px] py-1.5 text-[12.5px] font-semibold text-cms-text transition-colors" style={{ background: 'var(--surface-2, var(--color-cms-surface))' }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M3 5h18v14H3z" /><path d="M3 16l5-5 4 4 4-4 5 5" /><path d="M9 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0" /></svg>
+                Adicionar imagem
+              </button>
+            </div>
+            <div className="flex items-center gap-1.5 text-[11px] text-cms-text-dim/60">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><circle cx="12" cy="12" r="9" /><path d="M12 11v5" /><path d="M12 8h.01" /></svg>
+              Vídeos do canal são gerenciados em Vídeo › não nos Posts.
+            </div>
+          </>
+        )}
       </div>
 
       {/* Right column - preview */}
@@ -426,11 +398,35 @@ export function DestCompositor({ focusedDest, destsOn, onContentChange }: DestCo
                 </div>
               </div>
             </div>
+          ) : isYtCommunity ? (
+            /* YouTube Community preview */
+            <div className="w-full max-w-[480px] rounded-xl border border-white/[0.09] p-4" style={{ background: 'rgb(15,15,15)', color: 'rgb(241,241,241)', fontFamily: 'Roboto, Inter, sans-serif' }}>
+              <div className="mb-3 flex items-center gap-[11px]">
+                <div className="flex h-10 w-10 min-w-[40px] items-center justify-center rounded-full font-fraunces text-[16px] font-bold" style={{ background: 'var(--color-cms-accent, #E8823C)', color: '#1a120c' }}>TF</div>
+                <div>
+                  <div className="text-sm font-semibold">ByThiagoFigueiredo</div>
+                  <div className="text-xs" style={{ color: '#aaa' }}>há instantes</div>
+                </div>
+              </div>
+              <div className="mb-3 whitespace-pre-wrap text-sm leading-[1.5]" style={{ color: caption ? '#f1f1f1' : '#777' }}>
+                {caption || 'Escreva seu post da comunidade…'}
+              </div>
+              <div className="flex items-center gap-[18px] text-[13px]" style={{ color: '#aaa' }}>
+                <span className="inline-flex items-center gap-1.5">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20s-7-4.6-9.5-9C1 8 2.8 4.5 6 4.5c2 0 3.2 1.3 4 2.4.8-1.1 2-2.4 4-2.4 3.2 0 5 3.5 3.5 6.5C19 15.4 12 20 12 20z" /></svg>
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 5h16v11H9l-4 4z" /></svg>
+                </span>
+                <span className="ml-auto inline-flex items-center gap-1.5">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12v7a1 1 0 001 1h14a1 1 0 001-1v-7" /><path d="M16 6l-4-4-4 4" /><path d="M12 2v13" /></svg>
+                </span>
+              </div>
+            </div>
           ) : (
+            /* Generic preview fallback */
             <div className="rounded-xl border border-cms-border bg-cms-surface p-4">
-              <p className="text-sm text-cms-text-dim/40">
-                Preview {dest.label} {dest.sublabel}
-              </p>
+              <p className="text-sm text-cms-text-dim/40">Preview {dest.label} {dest.sublabel}</p>
             </div>
           )}
         </div>
