@@ -17,7 +17,7 @@ export function StoryFramesStrip({
   frames, activeFrameId, onSelectFrame, onAddFrame, onRemoveFrame,
 }: StoryFramesStripProps) {
   return (
-    <div className="flex items-center gap-2 border-t border-cms-border bg-cms-bg px-4 py-3 overflow-x-auto">
+    <div className="flex items-center gap-2 border-t border-cms-border bg-cms-bg px-4 py-3 overflow-x-auto" role="listbox" aria-label="Frames do story">
       {frames.map((frame, i) => (
         <div
           key={frame.id}

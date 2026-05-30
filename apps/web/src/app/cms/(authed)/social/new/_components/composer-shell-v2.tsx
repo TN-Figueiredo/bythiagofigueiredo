@@ -169,7 +169,7 @@ export function ComposerShellV2({ connections, initialMode, draftId, siteId }: C
           {/* Destination cards */}
           <div>
             <p className="mb-2 text-xs font-medium text-cms-text-dim">Destinos</p>
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" role="listbox" aria-label="Destinos">
               {DEST_IDS.map(id => (
                 <DestCard
                   key={id}

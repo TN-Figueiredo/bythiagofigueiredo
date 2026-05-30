@@ -92,6 +92,7 @@ export function DraftsList({ items }: DraftsListProps) {
             <div className="flex shrink-0 gap-2">
               <button
                 onClick={() => handleDiscard(item.id)}
+                aria-label={`Descartar rascunho: ${item.title}`}
                 className="rounded-lg border border-cms-border px-3 py-1.5 text-xs font-medium text-cms-text-muted hover:text-red-400 hover:border-red-400/30 transition-colors"
               >
                 Descartar

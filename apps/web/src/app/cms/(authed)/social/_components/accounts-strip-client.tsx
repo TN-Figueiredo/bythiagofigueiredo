@@ -37,7 +37,7 @@ export function AccountsStripClient({ connections }: AccountsStripClientProps) {
             </div>
             <div className="shrink-0">
               {conn.status === 'ok' && (
-                <span className="inline-block h-2.5 w-2.5 rounded-full bg-green-500" title="Conectado" />
+                <span className="inline-block h-2.5 w-2.5 rounded-full bg-green-500" role="img" aria-label="Conectado" />
               )}
               {conn.status === 'warn' && (
                 <Link href="/cms/social/accounts" className="text-xs font-medium text-amber-400 hover:text-amber-300">
