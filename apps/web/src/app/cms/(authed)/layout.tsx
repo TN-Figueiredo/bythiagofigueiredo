@@ -18,8 +18,11 @@ import { getSiteContext } from '@/lib/cms/site-context'
 import { fetchSidebarBadges } from '@/lib/cms/sidebar-badges'
 import { SidebarBadges } from '@/components/cms/sidebar-badges'
 import { SiteTimezoneProvider } from '@/lib/cms/site-timezone-context'
+import { NotificationProvider } from '@/lib/notifications/notification-context'
+import { NotificationBell } from './_shared/notification-bell'
 import { buildCmsSections } from './_shared/cms-sections'
 import Link from 'next/link'
+import type { INotification } from '@/lib/notifications/types'
 
 const CMS_SECTIONS = buildCmsSections()
 
@@ -59,7 +62,7 @@ export default async function Layout({ children }: { children: ReactNode }) {
 
   const { siteId: middlewareSiteId, timezone: siteTimezone } = await getSiteContext()
   const svc = getSupabaseServiceClient()
-  const [badgeData, pendingContactsRes, ytPendingRes, researchUnreadRes] = await Promise.all([
+  const [badgeData, pendingContactsRes, ytPendingRes, researchUnreadRes, notificationsRes] = await Promise.all([
     fetchSidebarBadges(middlewareSiteId, siteTimezone),
     svc.from('contact_submissions').select('id', { count: 'exact', head: true })
       .eq('site_id', middlewareSiteId).is('replied_at', null).is('anonymized_at', null),
@@ -69,31 +72,47 @@ export default async function Layout({ children }: { children: ReactNode }) {
       .is('category_id', null),
     svc.from('research_items').select('id', { count: 'exact', head: true })
       .eq('site_id', middlewareSiteId).eq('status', 'new'),
+    svc.from('notifications').select('*')
+      .eq('site_id', middlewareSiteId)
+      .eq('user_id', user.id)
+      .is('dismissed_at', null)
+      .is('expired_at', null)
+      .order('created_at', { ascending: false })
+      .limit(50),
   ])
   const badges: Record<string, number> = {}
   if (pendingContactsRes.count) badges['/cms/contacts'] = pendingContactsRes.count
   if (ytPendingRes.count) badges['/cms/youtube'] = ytPendingRes.count
   if (researchUnreadRes.count) badges['/cms/library/research'] = researchUnreadRes.count
 
+  const initialNotifications = (notificationsRes.data ?? []) as INotification[]
+  const unreadCount = initialNotifications.filter((n) => !n.read_at).length
+  const hasCritical = initialNotifications.some((n) => n.priority >= 4 && !n.read_at)
+
   return (
     <CmsAdminProvider linkComponent={Link}>
       <SiteTimezoneProvider value={siteTimezone}>
-        <SiteSwitcherProvider sites={sites} initialSiteId={currentSiteId}>
-          <CmsShell
-            siteName={currentSite?.site_name ?? 'OneCMS'}
-            siteInitials={currentSite?.site_name?.slice(0, 2).toUpperCase() ?? 'CM'}
-            logoUrl="/brand/monogram-cms.svg"
-            logoUrlLight="/brand/monogram-cms-light.svg"
-            userDisplayName={userDisplayName}
-            userRole={userRole}
-            siteSwitcher={<CmsSiteSwitcherSlot sites={rawSites} />}
-            sections={CMS_SECTIONS}
-            badges={badges}
-          >
-            <SidebarBadges data={badgeData} />
-            {children}
-          </CmsShell>
-        </SiteSwitcherProvider>
+        <NotificationProvider initialItems={initialNotifications}>
+          <SiteSwitcherProvider sites={sites} initialSiteId={currentSiteId}>
+            <CmsShell
+              siteName={currentSite?.site_name ?? 'OneCMS'}
+              siteInitials={currentSite?.site_name?.slice(0, 2).toUpperCase() ?? 'CM'}
+              logoUrl="/brand/monogram-cms.svg"
+              logoUrlLight="/brand/monogram-cms-light.svg"
+              userDisplayName={userDisplayName}
+              userRole={userRole}
+              siteSwitcher={<CmsSiteSwitcherSlot sites={rawSites} />}
+              sections={CMS_SECTIONS}
+              badges={badges}
+            >
+              <div className="fixed top-2.5 right-3 z-40 md:top-3 md:right-4">
+                <NotificationBell initialCount={unreadCount} hasCritical={hasCritical} />
+              </div>
+              <SidebarBadges data={badgeData} />
+              {children}
+            </CmsShell>
+          </SiteSwitcherProvider>
+        </NotificationProvider>
       </SiteTimezoneProvider>
     </CmsAdminProvider>
   )

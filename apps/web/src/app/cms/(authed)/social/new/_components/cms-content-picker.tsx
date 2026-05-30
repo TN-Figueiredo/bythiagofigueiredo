@@ -1,49 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { PlatformIcon } from '../../_components/shared/platform-icon'
+import { searchContent, type ContentItem } from '../_actions/search-content'
 
-interface ContentItem {
-  id: string
-  type: 'blog' | 'newsletter' | 'video'
-  lang: string
-  title: string
-  description: string
-  thumbnail: string
-  age: string
-  platforms: string[]
+interface CMSContentPickerProps {
+  onSelect: (item: ContentItem) => void
 }
-
-const MOCK_CONTENT: ContentItem[] = [
-  {
-    id: '1', type: 'blog', lang: 'EN', age: 'há 2 dias',
-    title: 'I Learned a Language by Arguing with Strangers Online',
-    description: "In 2009 I was screaming at teammates in broken English. By 2017 I scored 91 on the TOEFL without a single class. Here's how competitive gaming taught me fluency.",
-    thumbnail: 'linear-gradient(135deg, rgb(58,36,86), rgb(22,12,36))',
-    platforms: ['instagram', 'youtube', 'facebook'],
-  },
-  {
-    id: '2', type: 'blog', lang: 'PT', age: 'há 4 dias',
-    title: 'Aprendi Inglês Porque Não Conseguia Passar de Fase',
-    description: 'Em 2009 eu xingava em inglês quebrado no meio de uma partida. Em 2017 tirei 91 no TOEFL sem nenhuma aula formal. A história de como o competitivo virou método.',
-    thumbnail: 'linear-gradient(135deg, rgb(42,51,64), rgb(15,24,32))',
-    platforms: ['instagram', 'youtube', 'facebook'],
-  },
-  {
-    id: '3', type: 'newsletter', lang: 'PT', age: 'há 6 dias',
-    title: "Thiago's Journal · Edição #042",
-    description: 'Uma carta por semana sobre construir, escrever e pensar em voz alta. Bastidores do que eu tô lançando, notas de leitura e o que acertei (e errei) essa semana.',
-    thumbnail: 'linear-gradient(155deg, rgb(247,241,232), rgb(237,227,210))',
-    platforms: ['instagram', 'facebook'],
-  },
-  {
-    id: '4', type: 'video', lang: 'PT', age: 'há 1 dia',
-    title: 'Comprei Ouro por R$47 no MBK Center Bangkok',
-    description: 'Fui até o maior mercado de Bangkok comparar o preço do ouro com o Brasil. R$800 aqui, R$47 lá. Será que vale? Vem comigo.',
-    thumbnail: 'linear-gradient(135deg, rgb(58,36,86), rgb(22,12,36))',
-    platforms: ['instagram', 'youtube', 'facebook'],
-  },
-]
 
 const TABS = [
   { key: 'all', label: 'Todos' },
@@ -55,8 +18,11 @@ const TABS = [
 const TYPE_BADGE: Record<string, { label: string; bg: string; color: string }> = {
   blog: { label: 'BLOG', bg: 'var(--green-soft, rgba(34,197,94,0.15))', color: 'var(--green, #22c55e)' },
   newsletter: { label: 'NEWSLETTER', bg: 'var(--amber-soft, rgba(245,158,11,0.15))', color: 'var(--amber, #f59e0b)' },
+  campaign: { label: 'CAMPANHA', bg: 'rgba(110,99,242,0.15)', color: 'rgb(155,147,246)' },
   video: { label: 'VÍDEO', bg: 'rgba(217,97,74,0.15)', color: 'var(--red, #ef4444)' },
 }
+
+const DEST_PLATFORMS = ['instagram', 'youtube', 'facebook'] as const
 
 function PlatformDot({ provider }: { provider: string }) {
   const colors: Record<string, string> = { instagram: '#E8823C', youtube: '#E0574E', facebook: '#5B7FD6' }
@@ -68,16 +34,40 @@ function PlatformDot({ provider }: { provider: string }) {
   )
 }
 
-export function CMSContentPicker() {
-  const [tab, setTab] = useState<string>('all')
+function formatRelativeTime(iso: string): string {
+  const now = Date.now()
+  const then = new Date(iso).getTime()
+  const diffMs = now - then
+  const diffH = Math.floor(diffMs / 3600000)
+  if (diffH < 1) return 'agora'
+  if (diffH < 24) return `há ${diffH}h`
+  const diffD = Math.floor(diffH / 24)
+  if (diffD === 1) return 'há 1 dia'
+  return `há ${diffD} dias`
+}
 
-  const filtered = tab === 'all' ? MOCK_CONTENT : MOCK_CONTENT.filter(c => c.type === tab)
-  const counts = {
-    all: MOCK_CONTENT.length,
-    blog: MOCK_CONTENT.filter(c => c.type === 'blog').length,
-    newsletter: MOCK_CONTENT.filter(c => c.type === 'newsletter').length,
-    video: MOCK_CONTENT.filter(c => c.type === 'video').length,
-  }
+export function CMSContentPicker({ onSelect }: CMSContentPickerProps) {
+  const [tab, setTab] = useState<string>('all')
+  const [items, setItems] = useState<ContentItem[]>([])
+  const [counts, setCounts] = useState({ all: 0, blog: 0, newsletter: 0, campaign: 0, video: 0 })
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    const typeFilter = tab === 'all' ? undefined : tab as 'blog' | 'newsletter' | 'campaign' | 'video'
+
+    searchContent({ type: typeFilter, limit: 20 }).then(result => {
+      if (cancelled) return
+      setItems(result.items)
+      setCounts(result.counts)
+      setLoading(false)
+    }).catch(() => {
+      if (!cancelled) setLoading(false)
+    })
+
+    return () => { cancelled = true }
+  }, [tab])
 
   return (
     <div>
@@ -106,51 +96,82 @@ export function CMSContentPicker() {
               tab === t.key ? 'font-semibold text-cms-text' : 'font-medium text-cms-text-dim'
             }`}
           >
-            {t.label} <span className="font-mono text-[11px] text-cms-text-dim/60">{counts[t.key as keyof typeof counts]}</span>
+            {t.label} <span className="font-mono text-[11px] text-cms-text-dim/60">{counts[t.key as keyof typeof counts] ?? 0}</span>
             {tab === t.key && <div className="absolute left-0 right-0 -bottom-px h-0.5 rounded-full bg-cms-accent" />}
           </button>
         ))}
       </div>
 
       {/* Content items */}
-      <div className="flex flex-col gap-[10px]">
-        {filtered.map(item => {
-          const badge = TYPE_BADGE[item.type]
-          return (
-            <div key={item.id} className="cursor-pointer rounded-[var(--radius,12px)] bg-cms-surface p-[14px] transition-[border-color,transform] duration-150 hover:-translate-y-px">
-              <div className="flex items-center gap-[14px]">
-                {/* Thumbnail */}
-                <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-[9px]" style={{ background: item.thumbnail }}>
-                  {item.type === 'newsletter' && (
-                    <div className="absolute inset-[18%] flex items-center justify-center rounded-sm border border-[rgba(31,27,23,0.3)]">
-                      <span className="font-fraunces text-xs font-bold" style={{ color: 'rgb(31,27,23)' }}>TF</span>
+      {loading ? (
+        <div className="flex flex-col gap-[10px]">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="h-[88px] animate-pulse rounded-[var(--radius,12px)] bg-cms-surface" />
+          ))}
+        </div>
+      ) : items.length === 0 ? (
+        <div className="flex flex-col items-center gap-2 py-10 text-center">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-cms-text-dim/30">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+            <path d="M14 2v6h6" />
+          </svg>
+          <p className="text-sm text-cms-text-dim">Nenhum conteúdo publicado encontrado</p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-[10px]">
+          {items.map(item => {
+            const badge = TYPE_BADGE[item.type] ?? { label: item.type.toUpperCase(), bg: 'var(--surface-3)', color: 'var(--ink-dim)' }
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => onSelect(item)}
+                className="cursor-pointer rounded-[var(--radius,12px)] border border-cms-border bg-cms-surface p-[14px] text-left transition-[border-color,transform] duration-150 hover:-translate-y-px hover:border-cms-accent/40"
+              >
+                <div className="flex items-center gap-[14px]">
+                  {/* Thumbnail */}
+                  <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-[9px] bg-cms-surface" style={{ background: 'var(--surface-3, rgba(255,255,255,0.06))' }}>
+                    {item.thumbnail ? (
+                      <img src={item.thumbnail} alt="" className="h-full w-full object-cover" />
+                    ) : item.type === 'newsletter' ? (
+                      <div className="flex h-full w-full items-center justify-center" style={{ background: 'linear-gradient(155deg, rgb(247,241,232), rgb(237,227,210))' }}>
+                        <span className="font-fraunces text-xs font-bold" style={{ color: 'rgb(31,27,23)' }}>TF</span>
+                      </div>
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-cms-text-dim/30">
+                          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                          <path d="M14 2v6h6" />
+                        </svg>
+                      </div>
+                    )}
+                  </div>
+                  {/* Content */}
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-1 flex items-center gap-2">
+                      <span className="inline-flex items-center rounded-full px-[9px] py-[3px] font-mono text-[10.5px] font-semibold uppercase tracking-[0.06em]" style={{ background: badge.bg, color: badge.color }}>{badge.label}</span>
+                      <span className="text-[11px] text-cms-text-dim/60">{formatRelativeTime(item.updatedAt)}</span>
                     </div>
-                  )}
-                </div>
-                {/* Content */}
-                <div className="min-w-0 flex-1">
-                  <div className="mb-1 flex items-center gap-2">
-                    <span className="inline-flex items-center rounded-full px-[9px] py-[3px] font-mono text-[10.5px] font-semibold uppercase tracking-[0.06em]" style={{ background: badge.bg, color: badge.color }}>{badge.label}</span>
-                    <span className="inline-flex items-center rounded-full px-[9px] py-[3px] font-mono text-[10.5px] font-semibold uppercase tracking-[0.06em]" style={{ background: 'var(--surface-3, rgba(255,255,255,0.06))', color: 'var(--ink-dim)' }}>{item.lang}</span>
-                    <span className="text-[11px] text-cms-text-dim/60">{item.age}</span>
+                    <div className="truncate text-sm font-semibold leading-[1.3] text-cms-text">{item.title}</div>
+                    {item.description && (
+                      <div className="mt-[3px] truncate text-xs text-cms-text-dim">{item.description}</div>
+                    )}
                   </div>
-                  <div className="truncate text-sm font-semibold leading-[1.3] text-cms-text">{item.title}</div>
-                  <div className="mt-[3px] truncate text-xs text-cms-text-dim">{item.description}</div>
-                </div>
-                {/* Platform dots + chevron */}
-                <div className="flex shrink-0 items-center gap-2">
-                  <div className="flex gap-1">
-                    {item.platforms.map(p => <PlatformDot key={p} provider={p} />)}
+                  {/* Platform dots + chevron */}
+                  <div className="flex shrink-0 items-center gap-2">
+                    <div className="flex gap-1">
+                      {DEST_PLATFORMS.map(p => <PlatformDot key={p} provider={p} />)}
+                    </div>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="text-cms-text-dim/40">
+                      <path d="M9 6l6 6-6 6" />
+                    </svg>
                   </div>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="text-cms-text-dim/40">
-                    <path d="M9 6l6 6-6 6" />
-                  </svg>
                 </div>
-              </div>
-            </div>
-          )
-        })}
-      </div>
+              </button>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

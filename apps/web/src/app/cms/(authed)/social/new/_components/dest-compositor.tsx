@@ -28,12 +28,14 @@ interface DestCompositorProps {
   onCompositionChange: (comp: CardComposition) => void
   canvasImageUrl: string | null
   onCanvasImageChange: (url: string | null) => void
+  cmsContent?: { title: string; coverImageUrl: string | null }
 }
 
 export function DestCompositor({
   focusedDest, destsOn, caption, onCaptionChange,
   siteId, canvasOpen, onOpenCanvas, onCloseCanvas,
   composition, onCompositionChange, canvasImageUrl, onCanvasImageChange,
+  cmsContent,
 }: DestCompositorProps) {
   const dest = DESTINATIONS[focusedDest]
   const isActive = destsOn[focusedDest]
@@ -569,7 +571,11 @@ export function DestCompositor({
               aspectRatio: t.aspect_ratio,
               composition: t.composition,
             }))}
-            postData={{ title: caption, description: caption }}
+            postData={{
+              title: cmsContent?.title ?? caption,
+              description: caption,
+              coverImageUrl: cmsContent?.coverImageUrl ?? undefined,
+            }}
             initialComposition={composition ?? undefined}
             hideAspectRatioSelector
             embedded={false}

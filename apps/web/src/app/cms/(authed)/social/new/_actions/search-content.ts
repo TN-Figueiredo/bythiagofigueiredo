@@ -12,6 +12,7 @@ export interface ContentItem {
   id: string
   type: 'blog' | 'newsletter' | 'campaign' | 'video'
   title: string
+  description: string | null
   thumbnail: string | null
   status: string
   updatedAt: string
@@ -41,7 +42,7 @@ export async function searchContent(params: {
   if (!params.type || params.type === 'blog') {
     let q = supabase
       .from('blog_posts')
-      .select('id, status, cover_image_url, updated_at, blog_translations!inner(title)')
+      .select('id, status, cover_image_url, updated_at, blog_translations!inner(title, excerpt)')
       .eq('site_id', ctx.siteId)
       .eq('status', 'published')
       .order('updated_at', { ascending: false })
@@ -54,13 +55,14 @@ export async function searchContent(params: {
     const { data: blogs } = await q
     for (const b of blogs ?? []) {
       const record = b as unknown as Record<string, unknown>
-      const translations = record.blog_translations as Array<{ title: string }> | undefined
+      const translations = record.blog_translations as Array<{ title: string; excerpt: string | null }> | undefined
       const tx = translations?.[0]
       if (!tx) continue
       items.push({
         id: b.id as string,
         type: 'blog',
         title: tx.title,
+        description: tx.excerpt,
         thumbnail: b.cover_image_url as string | null,
         status: b.status as string,
         updatedAt: b.updated_at as string,
@@ -89,6 +91,7 @@ export async function searchContent(params: {
         id: e.id as string,
         type: 'newsletter',
         title: e.subject as string,
+        description: null,
         thumbnail: null,
         status: e.status as string,
         updatedAt: e.updated_at as string,
@@ -101,7 +104,7 @@ export async function searchContent(params: {
   if (!params.type || params.type === 'campaign') {
     let q = supabase
       .from('campaigns')
-      .select('id, status, updated_at, campaign_translations!inner(meta_title, og_image_url)')
+      .select('id, status, updated_at, campaign_translations!inner(meta_title, og_image_url, meta_description)')
       .eq('site_id', ctx.siteId)
       .eq('status', 'published')
       .order('updated_at', { ascending: false })
@@ -114,13 +117,14 @@ export async function searchContent(params: {
     const { data: campaigns } = await q
     for (const c of campaigns ?? []) {
       const record = c as unknown as Record<string, unknown>
-      const translations = record.campaign_translations as Array<{ meta_title: string; og_image_url: string | null }> | undefined
+      const translations = record.campaign_translations as Array<{ meta_title: string; og_image_url: string | null; meta_description: string | null }> | undefined
       const tx = translations?.[0]
       if (!tx) continue
       items.push({
         id: c.id as string,
         type: 'campaign',
         title: tx.meta_title,
+        description: tx.meta_description,
         thumbnail: tx.og_image_url,
         status: c.status as string,
         updatedAt: c.updated_at as string,

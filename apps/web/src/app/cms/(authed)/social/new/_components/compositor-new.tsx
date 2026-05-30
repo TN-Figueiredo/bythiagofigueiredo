@@ -8,6 +8,7 @@ import { createSocialPost } from '@/lib/social/actions'
 import { DestinationPicker } from './destination-picker'
 import { DestCompositor } from './dest-compositor'
 import { CMSContentPicker } from './cms-content-picker'
+import type { ContentItem } from '../_actions/search-content'
 
 const DEFAULT_ON: Record<DestId, boolean> = {
   ig_story: true,
@@ -66,6 +67,7 @@ export function CompositorNew({ sourceMode = 'freeform', siteId }: CompositorNew
   const [selectedTime, setSelectedTime] = useState('19:00')
   const [contentByDest, setContentByDest] = useState<Record<string, boolean>>({})
   const [publishing, setPublishing] = useState(false)
+  const [selectedCmsContent, setSelectedCmsContent] = useState<ContentItem | null>(null)
 
   const activeCount = DEST_IDS.filter(id => destsOn[id]).length
   const activeDests = DEST_IDS.filter(id => destsOn[id])
@@ -130,6 +132,17 @@ export function CompositorNew({ sourceMode = 'freeform', siteId }: CompositorNew
     setContentByDest(prev => ({ ...prev, [destId]: value.trim().length > 0 }))
   }
 
+  function handleCmsSelect(item: ContentItem) {
+    setSelectedCmsContent(item)
+    const prefill = item.description ?? item.title
+    const initial: Record<string, string> = {}
+    for (const id of DEST_IDS) {
+      if (destsOn[id]) initial[id] = prefill
+    }
+    setCaptions(initial)
+    setContentByDest(Object.fromEntries(DEST_IDS.filter(id => destsOn[id]).map(id => [id, true])))
+  }
+
   function handleToggle(id: DestId) {
     const wasOn = destsOn[id]
     const next = { ...destsOn, [id]: !wasOn }
@@ -145,10 +158,34 @@ export function CompositorNew({ sourceMode = 'freeform', siteId }: CompositorNew
 
   return (
     <>
-      {sourceMode === 'cms' ? (
-        <CMSContentPicker />
+      {sourceMode === 'cms' && !selectedCmsContent ? (
+        <CMSContentPicker onSelect={handleCmsSelect} />
       ) : (
         <>
+          {/* CMS content banner with back button */}
+          {sourceMode === 'cms' && selectedCmsContent && (
+            <div className="mb-[18px] flex items-center gap-3 rounded-xl border border-cms-border bg-cms-surface p-[12px_15px]">
+              <button
+                type="button"
+                onClick={() => { setSelectedCmsContent(null); setCaptions({}); setContentByDest({}) }}
+                className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-cms-border bg-transparent text-cms-text-dim transition-colors hover:text-cms-text"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M15 18l-6-6 6-6" />
+                </svg>
+              </button>
+              {selectedCmsContent.thumbnail && (
+                <img src={selectedCmsContent.thumbnail} alt="" className="h-10 w-10 shrink-0 rounded-lg object-cover" />
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[13.5px] font-semibold text-cms-text">{selectedCmsContent.title}</div>
+                {selectedCmsContent.description && (
+                  <div className="truncate text-[11.5px] text-cms-text-dim">{selectedCmsContent.description}</div>
+                )}
+              </div>
+            </div>
+          )}
+
           <DestinationPicker
             initialOn={destsOn}
             onToggle={handleToggle}
@@ -172,6 +209,10 @@ export function CompositorNew({ sourceMode = 'freeform', siteId }: CompositorNew
               if (old) URL.revokeObjectURL(old)
               return { ...prev, [focused]: url }
             })}
+            cmsContent={selectedCmsContent ? {
+              title: selectedCmsContent.title,
+              coverImageUrl: selectedCmsContent.thumbnail,
+            } : undefined}
           />
         </>
       )}
