@@ -30,7 +30,7 @@ export function VChip({ label, size = 22, ring, onClick }: VChipProps) {
 
 /* --- Badge --- */
 const BADGE_TONES = {
-  neutral: 'bg-cms-surface text-cms-text-muted',
+  neutral: 'text-cms-text-dim',
   accent:  'bg-cms-accent-subtle text-cms-accent',
   green:   'bg-cms-green-subtle text-cms-green',
   amber:   'bg-cms-amber-subtle text-cms-amber',
@@ -51,8 +51,9 @@ export function Badge({ tone = 'neutral', children, dot, className = '' }: Badge
   const toneClass = tone === 'cowork'
     ? `bg-[var(--cms-cowork-subtle)] ${BADGE_TONES.cowork}`
     : BADGE_TONES[tone]
+  const bgStyle = tone === 'neutral' ? { background: 'var(--cms-surface-3, var(--cms-surface-hover))' } : undefined
   return (
-    <span className={`inline-flex items-center gap-[5px] rounded-full px-[9px] py-[3px] text-[10.5px] font-semibold tracking-[0.06em] uppercase leading-tight ${toneClass} ${className}`}>
+    <span className={`inline-flex items-center gap-[5px] rounded-full px-[9px] py-[3px] text-[10.5px] font-semibold tracking-[0.06em] uppercase leading-tight font-mono ${toneClass} ${className}`} style={bgStyle}>
       {dot && <span className="size-1.5 rounded-full bg-current animate-ab-slot-pulse" />}
       {children}
     </span>
