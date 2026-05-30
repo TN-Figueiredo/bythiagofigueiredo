@@ -86,7 +86,7 @@ export function InfoTip({ text }: InfoTipProps) {
         <span id={id} role="tooltip"
           onMouseEnter={() => setOpen(true)}
           onMouseLeave={() => setOpen(false)}
-          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2.5 py-1.5 rounded-lg bg-cms-surface text-2xs text-cms-text shadow-popover whitespace-nowrap z-tooltip animate-ab-fade-up"
+          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2.5 py-1.5 rounded-lg bg-cms-surface text-2xs text-cms-text shadow-popover z-tooltip animate-ab-fade-up max-w-[280px] text-left leading-[1.4]"
         >{text}</span>
       )}
     </span>
