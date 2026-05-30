@@ -8,7 +8,6 @@ import { DetailHeader } from './detail-header'
 import { LockCountdown } from './lock-countdown'
 import { HeroBand } from './hero-band'
 import { VariantTable } from './variant-table'
-import { GatesPanel } from './gates-panel'
 import { ConfidenceChart } from './confidence-chart'
 import { RadarChart } from './radar-chart'
 import { CredibleInterval } from './credible-interval'
@@ -18,7 +17,7 @@ import { ABBATimeline } from './abba-timeline'
 import { FunnelRow } from './funnel-row'
 import {
   Pause, Settings,
-  LayoutGrid, TrendingUp, Crosshair, Target, BarChart3, LineChart, RefreshCw, Filter, Shield,
+  LayoutGrid, TrendingUp, Crosshair, Target, BarChart3, LineChart, RefreshCw, Filter,
 } from 'lucide-react'
 
 export interface ActiveDetailProps {
@@ -317,17 +316,52 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
       </div>
 
       {/* Section 9: Critérios de resolução automática */}
-      <section data-section="gates" className="mb-[28px]">
-        <div className="rounded-lg border border-cms-border bg-cms-surface p-[20px]">
-          <div className="flex items-end justify-between gap-[14px] mb-[16px]">
-            <div className="flex items-center gap-[9px]">
-              <Shield size={17} className="text-cms-accent" aria-hidden="true" />
-              <h3 className="text-[19px] font-semibold text-cms-text m-0">Critérios de resolução automática</h3>
-            </div>
-          </div>
-          <GatesPanel gates={view.gates} />
+      <div className="rounded-lg border border-cms-border bg-cms-surface p-[20px]">
+        <div className="flex items-center justify-between mb-[14px]">
+          <span className="text-[9px] font-semibold text-cms-text-dim uppercase tracking-[0.08em]">
+            Critérios de resolução automática
+            <InfoTip text="O teste só encerra automaticamente quando TODOS os critérios forem atendidos. Se algum falhar, o motor continua coletando dados." />
+          </span>
+          <span className="font-mono text-[12px] text-cms-text-dim">
+            {view.gates.filter(g => g.passed).length}/{view.gates.length} aprovados
+          </span>
         </div>
-      </section>
+        <div className="grid grid-cols-2 gap-x-[18px] gap-y-[10px]">
+          {view.gates.map(gate => (
+            <div key={gate.name} className="flex items-center gap-[10px]">
+              <span
+                className="size-[20px] rounded-full shrink-0 flex items-center justify-center"
+                style={{
+                  background: gate.passed ? 'var(--cms-green-subtle)' : 'var(--cms-surface-3, var(--cms-surface-hover))',
+                  color: gate.passed ? 'var(--cms-green)' : 'var(--cms-text-dim)',
+                }}
+              >
+                {gate.passed ? (
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
+                ) : (
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 8v4l3 2" /></svg>
+                )}
+              </span>
+              <div className="flex-1 min-w-0">
+                <div className={`text-[12.5px] font-medium ${gate.passed ? 'text-cms-text' : 'text-cms-text-dim'}`}>
+                  {gate.name === 'confidence' ? 'Confiança ≥ 95%' :
+                   gate.name === 'min_impressions' ? 'Impressões ≥ 1.000/var' :
+                   gate.name === 'min_duration' ? 'Duração ≥ 7 dias' :
+                   gate.name === 'abba_cycles' ? 'Ciclos ≥ 14' :
+                   gate.name === 'burn_in' ? 'Burn-in aplicado' :
+                   gate.name === 'stability' ? 'Estabilidade 3×' : gate.name}
+                </div>
+                {gate.hint && !gate.passed && (
+                  <div className="text-[10.5px] text-cms-text-dim">{gate.hint}</div>
+                )}
+              </div>
+              <span className={`font-mono text-[12px] font-semibold shrink-0 ${gate.passed ? 'text-cms-green' : 'text-cms-text-dim'}`}>
+                {gate.value}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* Section 10: ClickMoment placeholder (Phase 5) */}
       <div data-click-moment aria-hidden="true" />
