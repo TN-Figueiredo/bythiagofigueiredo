@@ -101,7 +101,7 @@ export function LiveMonitorCard({ monitor }: LiveMonitorProps) {
                 >
                   <div className="flex items-center gap-[6px] mb-[6px]">
                     {reached ? (
-                      <span className="size-4 rounded-full flex items-center justify-center bg-cms-green text-[#1A120C]">
+                      <span className="size-4 rounded-full flex items-center justify-center bg-cms-green text-[rgb(20,15,8)]">
                         <Check size={10} strokeWidth={1.7} />
                       </span>
                     ) : (

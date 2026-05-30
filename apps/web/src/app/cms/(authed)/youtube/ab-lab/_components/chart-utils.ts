@@ -4,7 +4,7 @@ export const CHART = {
   W: 620, H: 200,
   padL: 34, padR: 14, padT: 18, padB: 26,
   font: 'JetBrains Mono, monospace',
-  gridStroke: 'var(--cms-border-subtle)',
+  gridStroke: 'rgba(245,239,230,0.06)',
   axisColor: 'var(--cms-text-dim)',
   easing: 'cubic-bezier(0.2, 0.7, 0.2, 1)',
 } as const

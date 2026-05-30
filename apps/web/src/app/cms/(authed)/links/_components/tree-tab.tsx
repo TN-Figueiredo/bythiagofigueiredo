@@ -44,7 +44,7 @@ export function TreeTab({ tree }: TreeTabProps) {
           <span className="inline-flex items-center self-start gap-1.5 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium text-amber-400">
             porta de entrada
           </span>
-          <div className="font-mono text-xs text-muted-foreground">{tree.url}</div>
+          <div className="font-mono text-xs text-muted-foreground">{tree.url || 'URL nao configurada'}</div>
 
           {/* Compact preview placeholder */}
           <div className="flex flex-col items-center gap-2 rounded-xl border border-white/10 bg-[#13110d] p-4 text-center">
@@ -59,9 +59,13 @@ export function TreeTab({ tree }: TreeTabProps) {
             <Link href="/cms/links/linktree" className="flex-1 rounded-lg bg-primary px-3 py-2 text-center text-xs font-semibold text-primary-foreground focus:outline-none focus:ring-2 focus:ring-primary/50">
               Editar
             </Link>
-            <a href={tree.url} target="_blank" rel="noopener" className="flex-1 rounded-lg border border-white/10 px-3 py-2 text-center text-xs font-medium text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50">
-              Abrir
-            </a>
+            {tree.url ? (
+              <a href={tree.url} target="_blank" rel="noopener" className="flex-1 rounded-lg border border-white/10 px-3 py-2 text-center text-xs font-medium text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50">
+                Abrir
+              </a>
+            ) : (
+              <span className="flex-1 rounded-lg border border-white/10 px-3 py-2 text-center text-xs font-medium text-muted-foreground opacity-50 cursor-not-allowed">Abrir</span>
+            )}
           </div>
         </div>
 
@@ -91,20 +95,26 @@ export function TreeTab({ tree }: TreeTabProps) {
               <Trophy className="h-4 w-4 text-amber-400" />
               <span className="text-[13px] font-semibold text-foreground">Desempenho por bloco</span>
             </div>
-            <div className="flex flex-col gap-2">
-              {tree.blocks.map((b) => (
-                <div key={b.id} className="flex items-center gap-3">
-                  <span className="w-32 shrink-0 text-xs text-foreground">{b.label}</span>
-                  <div className="flex-1 h-[7px] rounded-full bg-muted overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-[#F2683C]"
-                      style={{ width: `${(b.ctr / Math.max(...tree.blocks.map(x => x.ctr), 1)) * 100}%` }}
-                    />
+            {tree.blocks.length > 0 ? (
+              <div className="flex flex-col gap-2">
+                {tree.blocks.map((b) => (
+                  <div key={b.id} className="flex items-center gap-3">
+                    <span className="w-32 shrink-0 text-xs text-foreground">{b.label}</span>
+                    <div className="flex-1 h-[7px] rounded-full bg-muted overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-[#F2683C]"
+                        style={{ width: `${(b.ctr / Math.max(...tree.blocks.map(x => x.ctr), 1)) * 100}%` }}
+                      />
+                    </div>
+                    <span className="w-12 text-right font-mono text-[11px] text-muted-foreground">{b.ctr}%</span>
                   </div>
-                  <span className="w-12 text-right font-mono text-[11px] text-muted-foreground">{b.ctr}%</span>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <p className="py-4 text-center text-xs text-muted-foreground">
+                Nenhum bloco configurado.
+              </p>
+            )}
             <div className="mt-3 flex justify-end">
               <a href="/cms/links?tab=analytics" className="text-[11px] font-medium text-muted-foreground hover:text-foreground">
                 Analytics →

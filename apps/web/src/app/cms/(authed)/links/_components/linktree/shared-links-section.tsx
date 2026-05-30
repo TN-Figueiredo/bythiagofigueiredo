@@ -42,13 +42,13 @@ function SortableLinkCard({
     <div ref={setNodeRef} style={style} {...attributes}
       className="rounded border border-border bg-background p-3">
       <div className="mb-2 flex items-center gap-2">
-        <button type="button" {...listeners} className="cursor-grab text-muted-foreground active:cursor-grabbing" disabled={readOnly} aria-label="Arrastar para reordenar">
+        <button type="button" {...listeners} className="cursor-grab text-muted-foreground active:cursor-grabbing focus:outline-none focus:ring-2 focus:ring-primary/50 rounded" disabled={readOnly} aria-label="Arrastar para reordenar">
           <GripVertical size={14} />
         </button>
         <IconPicker value={link.icon} onChange={(icon) => onUpdate(index, { icon })} disabled={readOnly} />
         <div className="flex-1" />
         <button type="button" onClick={() => onDelete(index)} disabled={readOnly}
-          className="text-muted-foreground hover:text-red-400 disabled:opacity-50" aria-label="Remover link">
+          className="text-muted-foreground hover:text-red-400 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-primary/50 rounded" aria-label="Remover link">
           <Trash2 size={14} />
         </button>
       </div>
@@ -127,7 +127,7 @@ export function SharedLinksSection({ config, onChange, readOnly }: Props) {
       </DndContext>
       {config.shared_links.length < 10 && (
         <button type="button" onClick={addLink} disabled={readOnly}
-          className="mt-3 flex items-center gap-1.5 rounded border border-dashed border-border px-3 py-2 text-xs text-muted-foreground hover:border-primary hover:text-foreground disabled:opacity-50">
+          className="mt-3 flex items-center gap-1.5 rounded border border-dashed border-border px-3 py-2 text-xs text-muted-foreground hover:border-primary hover:text-foreground disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-primary/50">
           <Plus size={14} /> Adicionar link
         </button>
       )}

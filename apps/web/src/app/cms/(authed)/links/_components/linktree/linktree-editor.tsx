@@ -71,7 +71,7 @@ export function LinktreeEditor({ initialConfig, domain, siteId: _siteId, readOnl
       {/* Top bar */}
       <div className="flex items-center justify-between border-b border-border px-4 py-2">
         <div className="flex items-center gap-3">
-          <a href="/cms/links" className="text-muted-foreground hover:text-foreground">
+          <a href="/cms/links" className="text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 rounded">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M19 12H5M12 19l-7-7 7-7" />
             </svg>
@@ -85,7 +85,7 @@ export function LinktreeEditor({ initialConfig, domain, siteId: _siteId, readOnl
               href={`https://${domain}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
+              className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 rounded"
             >
               <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
               {domain}
@@ -106,14 +106,14 @@ export function LinktreeEditor({ initialConfig, domain, siteId: _siteId, readOnl
           {error && <span className="text-[11px] text-red-400">{error}</span>}
           <a
             href="/cms/links"
-            className="rounded border border-border px-3 py-1 text-xs text-muted-foreground hover:bg-accent/5"
+            className="rounded border border-border px-3 py-1 text-xs text-muted-foreground hover:bg-accent/5 focus:outline-none focus:ring-2 focus:ring-primary/50"
           >
             Cancelar
           </a>
           <button
             onClick={handleSave}
             disabled={!hasChanges || readOnly || isPending}
-            className="rounded bg-primary px-3 py-1 text-xs font-medium text-primary-foreground disabled:opacity-50"
+            className="rounded bg-primary px-3 py-1 text-xs font-medium text-primary-foreground disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-primary/50"
           >
             {isPending ? 'Salvando...' : 'Salvar'}{' '}
             <kbd className="ml-1 text-[9px] opacity-60">⌘S</kbd>

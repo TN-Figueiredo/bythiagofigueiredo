@@ -23,9 +23,9 @@ export function InsightsPanel({ insights }: InsightsPanelProps) {
   }
   return (
     <div className="flex flex-col gap-2">
-      {insights.map((ins, i) => (
+      {insights.map((ins) => (
         <div
-          key={i}
+          key={`${ins.tone}-${ins.text.slice(0, 30)}`}
           data-insight-row
           className="flex items-start gap-2.5 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5"
         >

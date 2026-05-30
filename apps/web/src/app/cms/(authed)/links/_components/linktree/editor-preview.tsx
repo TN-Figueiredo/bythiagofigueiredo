@@ -31,13 +31,13 @@ export function EditorPreview({ config, pageData }: Props) {
         <div className="flex items-center gap-1">
           <button
             onClick={() => setLocale('pt-BR')}
-            className={`rounded px-2 py-0.5 text-[10px] font-medium ${isPt ? 'bg-primary/10 text-primary' : 'text-muted-foreground'}`}
+            className={`rounded px-2 py-0.5 text-[10px] font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 ${isPt ? 'bg-primary/10 text-primary' : 'text-muted-foreground'}`}
           >
             PT
           </button>
           <button
             onClick={() => setLocale('en')}
-            className={`rounded px-2 py-0.5 text-[10px] font-medium ${!isPt ? 'bg-primary/10 text-primary' : 'text-muted-foreground'}`}
+            className={`rounded px-2 py-0.5 text-[10px] font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 ${!isPt ? 'bg-primary/10 text-primary' : 'text-muted-foreground'}`}
           >
             EN
           </button>
@@ -45,7 +45,7 @@ export function EditorPreview({ config, pageData }: Props) {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setRefreshKey((k) => k + 1)}
-            className="text-muted-foreground hover:text-foreground"
+            className="text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 rounded"
             title="Refresh"
           >
             <RefreshCw size={12} />
@@ -54,7 +54,7 @@ export function EditorPreview({ config, pageData }: Props) {
             href="/go/linktree"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-muted-foreground hover:text-foreground"
+            className="text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 rounded"
             title="Abrir em nova aba"
           >
             <ExternalLink size={12} />

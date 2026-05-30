@@ -74,7 +74,7 @@ function HomeCard({ v, videoTitle, isWinner, maxCtr, baseline }: { v: { label: D
       {isWinner && <div className="absolute z-10 right-[14px] top-[14px]"><Badge tone="green"><Trophy size={11} aria-hidden="true" />vencedor</Badge></div>}
       <YTThumb label={v.label} />
       <div className="flex gap-[11px] mt-[11px]">
-        <div className="size-[34px] min-w-[34px] rounded-full bg-cms-accent flex items-center justify-center text-[13.6px] font-bold" style={{ color: '#1A120C', fontFamily: 'Fraunces, serif' }}>TF</div>
+        <div className="size-[34px] min-w-[34px] rounded-full bg-cms-accent flex items-center justify-center text-[13.6px] font-bold" style={{ color: 'rgb(20, 15, 8)', fontFamily: 'Fraunces, serif' }}>TF</div>
         <div className="min-w-0">
           <div className="text-[14px] font-semibold text-cms-text leading-[1.3] line-clamp-2">{videoTitle}</div>
           <div className="text-[12.5px] text-cms-text-dim mt-[3px]">ByThiagoFigueiredo</div>
@@ -97,7 +97,7 @@ function SearchCard({ v, videoTitle, isWinner, maxCtr, baseline }: { v: { label:
           <div className="text-[17px] font-semibold text-cms-text leading-[1.25]">{videoTitle}</div>
           <div className="text-[12.5px] text-cms-text-dim mt-[5px]">12 mil visualizações · há 2 dias</div>
           <div className="flex items-center gap-2 my-[9px]">
-            <div className="size-[24px] min-w-[24px] rounded-full bg-cms-accent flex items-center justify-center text-[9.6px] font-bold" style={{ color: '#1A120C', fontFamily: 'Fraunces, serif' }}>TF</div>
+            <div className="size-[24px] min-w-[24px] rounded-full bg-cms-accent flex items-center justify-center text-[9.6px] font-bold" style={{ color: 'rgb(20, 15, 8)', fontFamily: 'Fraunces, serif' }}>TF</div>
             <span className="text-[12.5px] text-cms-text-dim">ByThiagoFigueiredo</span>
           </div>
           <div className="text-[12.5px] text-cms-text-muted leading-[1.4] line-clamp-2">Fui até o MBK Center em Bangkok pra descobrir se vale a pena. Ouro, ternos sob medida e eletrônicos…</div>
@@ -137,7 +137,7 @@ function MobileCard({ v, videoTitle, isWinner, maxCtr, baseline }: { v: { label:
         <div className="pb-[14px]">
           <YTThumb label={v.label} radius={0} />
           <div className="flex gap-[10px] px-[12px] pt-[11px]">
-            <div className="size-[32px] min-w-[32px] rounded-full bg-cms-accent flex items-center justify-center text-[12.8px] font-bold" style={{ color: '#1A120C', fontFamily: 'Fraunces, serif' }}>TF</div>
+            <div className="size-[32px] min-w-[32px] rounded-full bg-cms-accent flex items-center justify-center text-[12.8px] font-bold" style={{ color: 'rgb(20, 15, 8)', fontFamily: 'Fraunces, serif' }}>TF</div>
             <div className="min-w-0">
               <div className="text-[13.5px] font-semibold leading-[1.3] line-clamp-2" style={{ color: '#eee' }}>{videoTitle}</div>
               <div className="text-[11.5px] mt-[3px]" style={{ color: '#9a958c' }}>ByThiagoFigueiredo · 12 mil · há 2 dias</div>
@@ -192,7 +192,7 @@ export function ClickMoment({ videoTitle, winnerLabel, winnerColor, variants }: 
         </div>
         <div className="inline-flex bg-cms-surface-hover rounded-[9px] p-[3px] gap-[2px]">
           {(['compare', 'feed'] as const).map(m => (
-            <button key={m} type="button" onClick={() => setMode(m)} className="border-none cursor-pointer transition-[0.15s]" style={{ padding: '6px 13px', borderRadius: 7, fontSize: '12.5px', fontWeight: 600, background: m === mode ? 'var(--cms-accent)' : 'transparent', color: m === mode ? '#1A120C' : 'var(--cms-text-dim)' }}>
+            <button key={m} type="button" onClick={() => setMode(m)} className="border-none cursor-pointer transition-[0.15s]" style={{ padding: '6px 13px', borderRadius: 7, fontSize: '12.5px', fontWeight: 600, background: m === mode ? 'var(--cms-accent)' : 'transparent', color: m === mode ? 'rgb(20, 15, 8)' : 'var(--cms-text-dim)' }}>
               {m === 'compare' ? 'Comparar' : 'No feed'}
             </button>
           ))}

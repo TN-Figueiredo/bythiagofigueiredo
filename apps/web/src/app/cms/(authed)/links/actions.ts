@@ -703,6 +703,7 @@ export async function getAiInsights(
     .from('link_daily_metrics')
     .select('date, clicks, unique_visitors')
     .eq('link_id', id)
+    .eq('site_id', siteId)
     .order('date', { ascending: false })
     .limit(30)
 
@@ -752,7 +753,7 @@ export async function generateQr(
   if (linkError || !link) return { ok: false, error: 'not_found' }
 
   const shortUrl = buildShortUrl(link.code)
-  const size = config.size ?? 256
+  const size = Math.min(Math.max(config.size ?? 256, 64), 2048)
   const fg = config.foreground ?? '#000000'
   const bg = config.background ?? '#FFFFFF'
 
