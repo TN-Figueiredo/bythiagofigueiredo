@@ -37,12 +37,12 @@ export function VariantTable({ variants, metric, winnerId, thumbs }: VariantTabl
   return (
     <div role="table" aria-label="Variant comparison" className="rounded-lg border border-cms-border bg-cms-bg overflow-hidden">
       {/* Header */}
-      <div role="row" className="grid grid-cols-[40px_1fr_60px_60px_100px_28px] gap-2 px-3 py-2 bg-cms-surface text-2xs font-medium text-cms-text-dim uppercase tracking-wider">
+      <div role="row" className="grid grid-cols-[40px_1fr_60px_60px_100px_28px] gap-2 px-3 py-2 bg-cms-surface text-2xs font-medium text-cms-text-dim">
         <span role="columnheader" />
-        <span role="columnheader">Variant</span>
+        <span role="columnheader">Variante</span>
         <span role="columnheader">CTR</span>
         <span role="columnheader">vs A</span>
-        <span role="columnheader">{metric === 'pBest' ? 'Chance to win' : 'Top 2'}</span>
+        <span role="columnheader">{metric === 'pBest' ? 'Chance de vencer' : 'Top 2'}</span>
         <span role="columnheader" />
       </div>
 
@@ -91,7 +91,7 @@ export function VariantTable({ variants, metric, winnerId, thumbs }: VariantTabl
               <div className="flex items-center gap-1.5">
                 <VChip label={variant.label} size={18} />
                 <span className="text-cms-text font-medium">
-                  {thumb?.isOriginal ? 'Original' : `Variant ${variant.label}`}
+                  {thumb?.isOriginal ? 'Original' : `Variante ${variant.label}`}
                 </span>
               </div>
 
