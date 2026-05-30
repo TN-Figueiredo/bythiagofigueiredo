@@ -16,7 +16,7 @@ export function GatesPanel({ gates }: GatesPanelProps) {
       {/* Header */}
       <div className="flex items-center gap-2">
         <span className={`text-xs font-semibold ${allPassed ? 'text-cms-green' : 'text-cms-text'}`}>
-          {passedCount}/{gates.length} passed
+          {passedCount}/{gates.length} aprovados
         </span>
       </div>
 
@@ -33,7 +33,7 @@ export function GatesPanel({ gates }: GatesPanelProps) {
             ) : (
               <Clock size={14} className="text-cms-amber shrink-0 mt-0.5" aria-hidden="true" />
             )}
-            <span className="sr-only">{gate.passed ? 'Passed' : 'Pending'}</span>
+            <span className="sr-only">{gate.passed ? 'Aprovado' : 'Pendente'}</span>
             <div className="min-w-0">
               <p className="text-2xs font-medium text-cms-text truncate">{gate.name}</p>
               <p className="text-2xs text-cms-text-muted">{gate.value}</p>
