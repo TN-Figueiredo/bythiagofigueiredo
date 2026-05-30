@@ -22,7 +22,7 @@ export interface ActiveDetailProps {
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <h3 className="text-xs font-semibold uppercase tracking-wider text-cms-text-dim mb-2">
+    <h3 className="text-sm font-semibold text-cms-text mb-2">
       {children}
     </h3>
   )
@@ -98,9 +98,9 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
         />
       </div>
 
-      {/* Section 4: Variant Performance */}
+      {/* Section 4: Placar das variantes */}
       <div data-section="variant-performance">
-        <SectionLabel>Variant Performance</SectionLabel>
+        <SectionLabel>Placar das variantes</SectionLabel>
         <VariantTable
           variants={view.variants}
           metric="pBest"
@@ -108,43 +108,43 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
         />
       </div>
 
-      {/* Section 5: Confidence Chart + Radar Chart */}
+      {/* Section 5: Confiança + Raio-X */}
       <div data-section="charts-confidence-radar" className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <SectionLabel>Confidence Trend</SectionLabel>
+          <SectionLabel>Confiança ao longo do tempo</SectionLabel>
           <ConfidenceChart
             data={view.confTrend}
             target={view.confidenceTarget * 100}
           />
         </div>
         <div>
-          <SectionLabel>Variant Radar</SectionLabel>
+          <SectionLabel>Raio-X das variantes</SectionLabel>
           <RadarChart variants={view.variants} />
         </div>
       </div>
 
-      {/* Section 6: Credible Interval + Rank Bars */}
+      {/* Section 6: Faixa provável + Chance de vencer */}
       <div data-section="charts-ci-rank" className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <SectionLabel>Credible Intervals</SectionLabel>
+          <SectionLabel>Faixa provável de CTR</SectionLabel>
           <CredibleInterval variants={view.variants} leader={data.leader} />
         </div>
         <div>
-          <SectionLabel>Win Probability</SectionLabel>
+          <SectionLabel>Chance de vencer</SectionLabel>
           <RankBars variants={view.variants} metric="pBest" />
         </div>
       </div>
 
-      {/* Section 7: Multi-line daily CTR */}
+      {/* Section 7: CTR diário */}
       <div data-section="daily-ctr">
-        <SectionLabel>Daily CTR</SectionLabel>
+        <SectionLabel>CTR diário por variante</SectionLabel>
         <MultiLine series={view.daily} colors={VARIANT_COLORS} />
       </div>
 
-      {/* Section 8: ABBA Timeline + Funnel Row */}
+      {/* Section 8: Rotação ABBA + Funil */}
       <div data-section="timeline-funnel" className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <SectionLabel>ABBA Rotation</SectionLabel>
+          <SectionLabel>Rotação ABBA</SectionLabel>
           <ABBATimeline
             seq={view.abbaSeq}
             total={view.cycles.total}
@@ -153,7 +153,7 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
           />
         </div>
         <div>
-          <SectionLabel>Funnel</SectionLabel>
+          <SectionLabel>Funil por variante</SectionLabel>
           <div className="space-y-3">
             {funnelVariants.map((fv, i) => (
               <FunnelRow key={view.variants[i]?.label ?? i} variant={fv} />
@@ -162,9 +162,9 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
         </div>
       </div>
 
-      {/* Section 9: Gates Panel */}
+      {/* Section 9: Critérios de resolução */}
       <div data-section="gates">
-        <SectionLabel>Decision Gates</SectionLabel>
+        <SectionLabel>Critérios de resolução automática</SectionLabel>
         <GatesPanel gates={view.gates} />
       </div>
 
