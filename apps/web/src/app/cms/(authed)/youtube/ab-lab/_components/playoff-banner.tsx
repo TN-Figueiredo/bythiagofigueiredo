@@ -32,9 +32,9 @@ export function PlayoffBanner({ finalists, allVariants, startsIn, reason }: Play
       {/* Header */}
       <div className="flex items-center gap-[12px] border-b border-cms-border py-[18px] px-[22px]" style={{ background: COWORK_BG }}>
         <Swords size={20} style={{ color: COWORK }} aria-hidden="true" />
-        <div className="flex-1">
-          <div className="text-[15px] font-bold text-cms-text">Playoff criado automaticamente</div>
-          <div className="text-[12px] text-cms-text-dim mt-[2px]">
+        <div className="flex-1 min-w-0">
+          <div className="text-[15px] font-bold text-cms-text truncate">Playoff criado automaticamente</div>
+          <div className="text-[12px] text-cms-text-dim mt-[2px] truncate">
             Round 2 começa em <b className="font-mono text-cms-text">{startsIn}</b> · só os 2 melhores · convergência mais rápida
           </div>
         </div>
