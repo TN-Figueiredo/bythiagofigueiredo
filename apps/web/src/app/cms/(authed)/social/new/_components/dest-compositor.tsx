@@ -49,6 +49,7 @@ export function DestCompositor({ focusedDest, destsOn, onContentChange }: DestCo
   const isStory = focusedDest === 'ig_story'
   const isYtCommunity = focusedDest === 'yt_community'
   const isFacebook = focusedDest === 'fb_page'
+  const isIgFeed = focusedDest === 'ig_feed'
 
   return (
     <div className="mt-[10px] grid grid-cols-1 gap-[30px] lg:grid-cols-[1fr_380px]">
@@ -169,8 +170,8 @@ export function DestCompositor({ focusedDest, destsOn, onContentChange }: DestCo
               <div
                 className="overflow-hidden rounded-[6px]"
                 style={{
-                  width: isStory ? 129 : isFacebook ? 184 : 200,
-                  height: isStory ? 230 : isFacebook ? 230 : 160,
+                  width: isStory ? 129 : isFacebook ? 184 : isIgFeed ? 200 : 200,
+                  height: isStory ? 230 : isFacebook ? 230 : isIgFeed ? 250 : 160,
                   background:
                     'linear-gradient(155deg, rgb(247,241,232), rgb(237,227,210))',
                   boxShadow: 'rgba(0,0,0,0.7) 0 30px 70px -24px',
@@ -254,7 +255,7 @@ export function DestCompositor({ focusedDest, destsOn, onContentChange }: DestCo
           {isStory ? (
             <input type="text" value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="ex: Saiu no blog 📬" className="w-full rounded-[10px] border bg-cms-surface px-[13px] py-[11px] text-[13.5px] text-cms-text placeholder:text-cms-text-dim/40 focus:border-cms-accent focus:outline-none" style={{ borderColor: 'var(--line-strong, var(--color-cms-border))' }} />
           ) : (
-            <textarea value={caption} onChange={(e) => setCaption(e.target.value)} placeholder={isYtCommunity ? 'Escreva seu post…' : 'O que você quer compartilhar?'} className="w-full rounded-[10px] border bg-cms-surface px-[13px] py-[11px] text-[13.5px] leading-[1.5] text-cms-text placeholder:text-cms-text-dim/40 focus:border-cms-accent focus:outline-none" style={{ borderColor: 'var(--line-strong, var(--color-cms-border))', minHeight: isYtCommunity || isFacebook ? 130 : 100, resize: 'vertical' }} />
+            <textarea value={caption} onChange={(e) => setCaption(e.target.value)} placeholder={isYtCommunity ? 'Escreva seu post…' : isIgFeed ? 'Escreva uma legenda…' : 'O que você quer compartilhar?'} className="w-full rounded-[10px] border bg-cms-surface px-[13px] py-[11px] text-[13.5px] leading-[1.5] text-cms-text placeholder:text-cms-text-dim/40 focus:border-cms-accent focus:outline-none" style={{ borderColor: 'var(--line-strong, var(--color-cms-border))', minHeight: isYtCommunity || isFacebook ? 130 : 100, resize: 'vertical' }} />
           )}
         </div>
 
@@ -283,6 +284,14 @@ export function DestCompositor({ focusedDest, destsOn, onContentChange }: DestCo
           <div className="flex items-center gap-1.5 text-[11px] text-cms-text-dim/60">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><circle cx="12" cy="12" r="9" /><path d="M12 11v5" /><path d="M12 8h.01" /></svg>
             Link gera card de preview automático na timeline.
+          </div>
+        )}
+
+        {/* IG Feed info note */}
+        {isIgFeed && (
+          <div className="flex items-center gap-1.5 text-[11px] text-cms-text-dim/60">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><circle cx="12" cy="12" r="9" /><path d="M12 11v5" /><path d="M12 8h.01" /></svg>
+            Fica fixo no perfil. Lembre de arquivar quando o lançamento acabar.
           </div>
         )}
       </div>
@@ -473,6 +482,39 @@ export function DestCompositor({ focusedDest, destsOn, onContentChange }: DestCo
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12v7a1 1 0 001 1h14a1 1 0 001-1v-7" /><path d="M16 6l-4-4-4 4" /><path d="M12 2v13" /></svg>
                   Compartilhar
                 </span>
+              </div>
+            </div>
+          ) : isIgFeed ? (
+            /* Instagram Feed preview */
+            <div className="w-full max-w-[380px] overflow-hidden rounded-lg border border-white/10" style={{ background: '#000', color: '#f1f1f1', fontFamily: 'Inter, sans-serif' }}>
+              {/* Header */}
+              <div className="flex items-center gap-2.5 px-3 py-2.5">
+                {/* IG gradient ring avatar */}
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full p-[2.5px]" style={{ background: 'conic-gradient(from 210deg, #f2683c, #E8823C, #C964A8, #f2683c)' }}>
+                  <div className="flex h-[30px] w-[30px] items-center justify-center rounded-full border-2 border-[#0d0d0f] font-fraunces text-xs font-bold" style={{ background: 'var(--color-cms-accent, #E8823C)', color: '#1a120c' }}>TF</div>
+                </div>
+                <span className="text-[13px] font-semibold">thiago.figueiredo</span>
+                <span className="ml-auto inline-flex items-center rounded-full px-[9px] py-[3px] font-mono text-[10.5px] font-semibold uppercase tracking-[0.06em]" style={{ background: 'rgba(224,162,60,0.18)', color: 'var(--amber, #f59e0b)' }}>raro</span>
+              </div>
+              {/* Image (4:5) */}
+              <div style={{ width: '100%', aspectRatio: '4/5', background: '#111' }}>
+                <div className="flex h-full w-full items-center justify-center">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" style={{ color: 'rgba(255,255,255,0.12)' }}>
+                    <path d="M3 5h18v14H3z" /><path d="M3 16l5-5 4 4 4-4 5 5" /><path d="M9 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0" />
+                  </svg>
+                </div>
+              </div>
+              {/* Actions */}
+              <div className="flex items-center gap-4 px-3 py-2.5 pt-2.5">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20s-7-4.6-9.5-9C1 8 2.8 4.5 6 4.5c2 0 3.2 1.3 4 2.4.8-1.1 2-2.4 4-2.4 3.2 0 5 3.5 3.5 6.5C19 15.4 12 20 12 20z" /></svg>
+                <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 5h16v11H9l-4 4z" /></svg>
+                <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M21 3L3 10l7 3 3 7z" /></svg>
+                <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="ml-auto"><path d="M6 4h12v16l-6-4-6 4z" /></svg>
+              </div>
+              {/* Caption */}
+              <div className="px-3 pb-3.5 text-[13px] leading-[1.45]">
+                <b>thiago.figueiredo</b>{' '}
+                <span style={{ color: caption ? '#ddd' : '#777' }}>{caption || 'Escreva uma legenda…'}</span>
               </div>
             </div>
           ) : (
