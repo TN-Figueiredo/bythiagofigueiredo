@@ -27,6 +27,7 @@ interface SocialToolbarProps {
   onSaveAsTemplate: () => void
   onPositionElement: (position: PositionAnchor) => void
   hasSelection: boolean
+  onUseInPost?: () => void
 }
 
 export type PositionAnchor = 'tl' | 'tc' | 'tr' | 'cl' | 'cc' | 'cr' | 'bl' | 'bc' | 'br'
@@ -80,13 +81,14 @@ export function SocialToolbar({
   guidesVisible, onToggleGuides, gridVisible, onToggleGrid,
   clipOverflow, onToggleClipOverflow,
   isSaving, onOpenTemplates, onExport, onSaveAsTemplate,
-  onPositionElement, hasSelection,
+  onPositionElement, hasSelection, onUseInPost,
 }: SocialToolbarProps) {
   const [showPosition, setShowPosition] = useState(false)
 
   return (
     <div className="h-10 bg-neutral-900 border-b border-neutral-800 flex items-center px-3 gap-1">
       <div className="flex items-center gap-1 text-[11px] text-neutral-400 mr-4">
+        <span className="text-[11px] text-cms-text-dim">Posts &gt; </span>
         <span className="hover:text-neutral-200 cursor-pointer">Social</span>
         <span>/</span>
         <span className="text-blue-400">{aspectRatioLabel}</span>
@@ -155,6 +157,15 @@ export function SocialToolbar({
       <button type="button" onClick={onExport} className="px-2.5 py-1 rounded bg-blue-600 text-[11px] text-white hover:bg-blue-500" aria-label="Export">
         <Download size={13} className="inline mr-1" />Export
       </button>
+      {onUseInPost && (
+        <button
+          type="button"
+          onClick={onUseInPost}
+          className="rounded-lg bg-cms-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-cms-accent-hover transition-colors ml-1"
+        >
+          Usar no post
+        </button>
+      )}
     </div>
   )
 }
