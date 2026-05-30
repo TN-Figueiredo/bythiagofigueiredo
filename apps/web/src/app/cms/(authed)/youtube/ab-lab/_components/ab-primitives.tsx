@@ -20,7 +20,7 @@ export function VChip({ label, size = 22, ring, onClick }: VChipProps) {
   return React.createElement(Tag, {
     'aria-label': `Variant ${label}`,
     ...(onClick ? { role: 'button', onClick, type: 'button' as const } : {}),
-    className: 'inline-flex items-center justify-center rounded font-mono font-bold text-white shrink-0',
+    className: `inline-flex items-center justify-center rounded font-mono font-bold text-white shrink-0${onClick ? ' cursor-pointer' : ''}`,
     style: {
       width: size, height: size, fontSize: size * 0.55, backgroundColor: color,
       ...(ring ? { boxShadow: `0 0 0 2px ${color}44` } : {}),
@@ -163,7 +163,7 @@ export function Seg<T extends string>({ options, value, onChange, labels, 'aria-
       {options.map(opt => (
         <button key={opt} type="button" role="radio" aria-checked={opt === value}
           onClick={() => onChange(opt)} tabIndex={opt === value ? 0 : -1}
-          className={`px-2.5 py-1 text-2xs font-medium rounded-md transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-cms-accent ${opt === value ? 'bg-cms-accent text-white' : 'text-cms-text-muted hover:text-cms-text'}`}
+          className={`px-2.5 py-1 text-2xs font-medium rounded-md transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-cms-accent cursor-pointer ${opt === value ? 'bg-cms-accent text-white' : 'text-cms-text-muted hover:text-cms-text'}`}
         >{labels?.[opt] ?? opt}</button>
       ))}
     </div>
@@ -177,7 +177,7 @@ export function Toggle({ checked, onChange, id }: ToggleProps) {
   return (
     <button id={id} type="button" role="switch" aria-checked={checked}
       onClick={() => onChange(!checked)}
-      className={`relative w-9 h-5 rounded-full transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:ring-offset-1 ${checked ? 'bg-cms-accent' : 'bg-cms-surface'}`}
+      className={`relative w-9 h-5 rounded-full transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:ring-offset-1 cursor-pointer ${checked ? 'bg-cms-accent' : 'bg-cms-surface'}`}
     >
       <span className={`absolute top-0.5 left-0.5 size-4 rounded-full bg-white transition-transform duration-200 ${checked ? 'translate-x-4' : ''}`} />
     </button>
@@ -196,9 +196,9 @@ export function NumberField({ value, onChange, min = 0, max = 100, step = 1, suf
   return (
     <div className="inline-flex items-center gap-1" role="spinbutton" aria-valuenow={value} aria-valuemin={min} aria-valuemax={max}
       aria-valuetext={suffix ? `${value} ${suffix}` : String(value)} tabIndex={0} onKeyDown={handleKey}>
-      <button type="button" tabIndex={-1} onClick={() => onChange(clamp(value - step))} className="size-6 rounded bg-cms-surface text-cms-text-muted hover:text-cms-text flex items-center justify-center" aria-label="Decrease">-</button>
+      <button type="button" tabIndex={-1} onClick={() => onChange(clamp(value - step))} className="size-6 rounded bg-cms-surface text-cms-text-muted hover:text-cms-text flex items-center justify-center cursor-pointer" aria-label="Decrease">-</button>
       <span className="min-w-[2.5rem] text-center text-xs font-mono">{value}{suffix && <span className="text-cms-text-dim ml-0.5">{suffix}</span>}</span>
-      <button type="button" tabIndex={-1} onClick={() => onChange(clamp(value + step))} className="size-6 rounded bg-cms-surface text-cms-text-muted hover:text-cms-text flex items-center justify-center" aria-label="Increase">+</button>
+      <button type="button" tabIndex={-1} onClick={() => onChange(clamp(value + step))} className="size-6 rounded bg-cms-surface text-cms-text-muted hover:text-cms-text flex items-center justify-center cursor-pointer" aria-label="Increase">+</button>
     </div>
   )
 }

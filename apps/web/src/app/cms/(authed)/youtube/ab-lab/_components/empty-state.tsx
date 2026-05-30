@@ -20,7 +20,7 @@ export function EmptyState({ suggested, onCreate }: EmptyStateProps) {
         <button
           type="button"
           onClick={() => onCreate('', 'thumbnail')}
-          className="inline-flex items-center gap-[7px] justify-center py-[9px] px-[15px] text-[13.5px] font-semibold rounded-[9px] bg-cms-accent tracking-[-0.01em]"
+          className="inline-flex items-center gap-[7px] justify-center py-[9px] px-[15px] text-[13.5px] font-semibold rounded-[9px] bg-cms-accent tracking-[-0.01em] cursor-pointer"
           style={{ border: '1px solid var(--cms-accent)', color: 'rgb(26,18,12)' }}
         >
           <Plus size={16} aria-hidden="true" />
@@ -42,7 +42,7 @@ export function EmptyState({ suggested, onCreate }: EmptyStateProps) {
         <button
           type="button"
           onClick={() => onCreate('', 'thumbnail')}
-          className="inline-flex items-center gap-[7px] justify-center py-[6px] px-[11px] text-[12.5px] font-semibold rounded-[9px] whitespace-nowrap transition-[0.15s] tracking-[-0.01em] text-cms-text-dim hover:text-cms-text"
+          className="inline-flex items-center gap-[7px] justify-center py-[6px] px-[11px] text-[12.5px] font-semibold rounded-[9px] whitespace-nowrap transition-[0.15s] tracking-[-0.01em] text-cms-text-dim hover:text-cms-text cursor-pointer"
           style={{ border: '1px solid var(--cms-border, #332D25)' }}
         >
           <Plus size={14} aria-hidden="true" />

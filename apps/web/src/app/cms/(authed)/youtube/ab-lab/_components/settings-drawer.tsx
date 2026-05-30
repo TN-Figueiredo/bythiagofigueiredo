@@ -18,7 +18,7 @@ function SettingsToggle({ checked, onChange }: { checked: boolean; onChange: (v:
       role="switch"
       aria-checked={checked}
       onClick={() => onChange(!checked)}
-      className="shrink-0"
+      className="shrink-0 cursor-pointer"
       style={{
         width: 42, height: 24, borderRadius: 99, border: 'none', padding: 3,
         background: checked ? 'var(--cms-accent)' : 'var(--cms-surface-3, var(--cms-surface-hover))',
@@ -64,9 +64,9 @@ function Stepper({ value, onChange, suffix }: { value: number; onChange: (v: num
       className="inline-flex items-center overflow-hidden shrink-0"
       style={{ width: 92, background: 'var(--cms-surface)', border: '1px solid var(--cms-border, #332D25)', borderRadius: 8 }}
     >
-      <button type="button" onClick={() => onChange(Math.max(0, value - 1))} className="text-cms-text-dim text-[16px]" style={{ width: 28, height: 32, background: 'transparent', border: 'none' }}>−</button>
+      <button type="button" onClick={() => onChange(Math.max(0, value - 1))} className="text-cms-text-dim text-[16px] cursor-pointer" style={{ width: 28, height: 32, background: 'transparent', border: 'none' }}>−</button>
       <span className="flex-1 text-center font-mono text-[13px] font-semibold">{value}{suffix}</span>
-      <button type="button" onClick={() => onChange(value + 1)} className="text-cms-text-dim text-[16px]" style={{ width: 28, height: 32, background: 'transparent', border: 'none' }}>+</button>
+      <button type="button" onClick={() => onChange(value + 1)} className="text-cms-text-dim text-[16px] cursor-pointer" style={{ width: 28, height: 32, background: 'transparent', border: 'none' }}>+</button>
     </div>
   )
 }
@@ -117,7 +117,7 @@ export function SettingsDrawer({ settings, onSave, onClose }: SettingsDrawerProp
 
   return (
     <>
-      <div className="fixed inset-0 z-90 bg-black/50" onClick={onClose} aria-hidden="true" />
+      <div className="fixed inset-0 z-90 bg-black/50 cursor-pointer" onClick={onClose} aria-hidden="true" />
       <div
         ref={drawerRef}
         role="dialog"
@@ -141,7 +141,7 @@ export function SettingsDrawer({ settings, onSave, onClose }: SettingsDrawerProp
             <div className="text-[15px] font-bold text-cms-text">Configurações do A/B Lab</div>
             <div className="text-[11.5px] text-cms-text-dim">Valem pra todos os testes deste canal</div>
           </div>
-          <button type="button" onClick={onClose} className="text-cms-text-dim p-[4px]" style={{ background: 'transparent', border: 'none' }} aria-label="Fechar">
+          <button type="button" onClick={onClose} className="text-cms-text-dim p-[4px] cursor-pointer" style={{ background: 'transparent', border: 'none' }} aria-label="Fechar">
             <X size={19} />
           </button>
         </div>
@@ -188,7 +188,7 @@ export function SettingsDrawer({ settings, onSave, onClose }: SettingsDrawerProp
                 <select
                   value={edited.default_duration_days}
                   onChange={e => update('default_duration_days', Number(e.target.value))}
-                  className="text-[13px] text-cms-text rounded-[8px] py-[8px] px-[12px]"
+                  className="text-[13px] text-cms-text rounded-[8px] py-[8px] px-[12px] cursor-pointer"
                   style={{ background: 'var(--cms-surface)', border: '1px solid var(--cms-border, #332D25)' }}
                 >
                   {[7,14,21,28].map(d => <option key={d} value={d}>{d} dias</option>)}
@@ -275,7 +275,7 @@ export function SettingsDrawer({ settings, onSave, onClose }: SettingsDrawerProp
           <button
             type="button"
             onClick={onClose}
-            className="ml-auto inline-flex items-center justify-center py-[6px] px-[11px] text-[12.5px] font-semibold rounded-[9px] whitespace-nowrap transition-[0.15s] tracking-[-0.01em] text-cms-text-dim"
+            className="ml-auto inline-flex items-center justify-center py-[6px] px-[11px] text-[12.5px] font-semibold rounded-[9px] whitespace-nowrap transition-[0.15s] tracking-[-0.01em] text-cms-text-dim cursor-pointer"
             style={{ border: '1px solid var(--cms-border, #332D25)' }}
           >
             Fechar

@@ -101,7 +101,7 @@ export function SuggestedCard({ video, onCreate }: SuggestedCardProps) {
           <button
             type="button"
             onClick={() => onCreate(video.id, video.suggest)}
-            className="flex-1 inline-flex items-center gap-[7px] justify-center py-[6px] px-[11px] text-[12.5px] font-semibold rounded-[9px] whitespace-nowrap transition-[0.15s] tracking-[-0.01em] bg-cms-accent"
+            className="flex-1 inline-flex items-center gap-[7px] justify-center py-[6px] px-[11px] text-[12.5px] font-semibold rounded-[9px] whitespace-nowrap transition-[0.15s] tracking-[-0.01em] bg-cms-accent cursor-pointer"
             style={{ border: '1px solid var(--cms-accent)', color: 'rgb(26,18,12)' }}
           >
             <FlaskConical size={14} aria-hidden="true" />

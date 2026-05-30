@@ -20,6 +20,10 @@ import { EmptyState } from './empty-state'
 import { SettingsDrawer } from './settings-drawer'
 import { SectionLabel } from './ab-primitives'
 import { updateAbSiteSettings } from '../actions'
+import { VideoPickerDialog } from './video-picker-dialog'
+import type { EligibleVideo } from './video-picker-dialog'
+import { AbCreateWizard } from './ab-create-wizard'
+import type { WizardVideo } from './ab-create-wizard'
 
 export interface AbLabDashboardProps {
   stats: DashboardStats
@@ -30,6 +34,7 @@ export interface AbLabDashboardProps {
   suggested: SuggestedVideo[]
   settings: AbTestSiteSettings
   siteId: string
+  eligibleVideos: EligibleVideo[]
 }
 
 export function AbLabDashboard({
@@ -41,9 +46,12 @@ export function AbLabDashboard({
   suggested,
   settings,
   siteId,
+  eligibleVideos,
 }: AbLabDashboardProps) {
   const router = useRouter()
   const [showSettings, setShowSettings] = useState(false)
+  const [showPicker, setShowPicker] = useState(false)
+  const [wizardVideo, setWizardVideo] = useState<WizardVideo | null>(null)
 
   function handleOpenTest(id: string) {
     router.push(`/cms/youtube/ab-lab/${id}`)
@@ -54,7 +62,12 @@ export function AbLabDashboard({
   }
 
   function handleCreateTest(_videoId: string, _type: string) {
-    router.push('/cms/youtube/ab-lab/new')
+    setShowPicker(true)
+  }
+
+  function handleVideoPicked(video: WizardVideo) {
+    setShowPicker(false)
+    setWizardVideo(video)
   }
 
   async function handleSaveSettings(changes: Partial<AbTestSiteSettings>) {
@@ -85,7 +98,7 @@ export function AbLabDashboard({
           <div className="flex items-center gap-[10px]">
             <button
               type="button"
-              className="inline-flex items-center gap-[7px] justify-center py-[6px] px-[11px] text-[12.5px] font-semibold rounded-[9px] border border-cms-border whitespace-nowrap transition-[0.15s] tracking-[-0.01em] text-cms-text"
+              className="inline-flex items-center gap-[7px] justify-center py-[6px] px-[11px] text-[12.5px] font-semibold rounded-[9px] border border-cms-border whitespace-nowrap transition-[0.15s] tracking-[-0.01em] text-cms-text cursor-pointer"
               style={{ background: 'var(--cms-surface-hover)' }}
             >
               <Filter size={14} aria-hidden="true" />
@@ -95,15 +108,15 @@ export function AbLabDashboard({
               type="button"
               onClick={() => setShowSettings(true)}
               aria-label="Configurações"
-              className="inline-flex items-center justify-center py-[6px] px-[11px] rounded-[9px] border whitespace-nowrap transition-[0.15s] text-cms-text-dim hover:text-cms-text"
+              className="inline-flex items-center justify-center py-[6px] px-[11px] rounded-[9px] border whitespace-nowrap transition-[0.15s] text-cms-text-dim hover:text-cms-text cursor-pointer"
               style={{ borderColor: 'var(--cms-border)' }}
             >
               <Settings size={14} aria-hidden="true" />
             </button>
             <button
               type="button"
-              onClick={() => router.push('/cms/youtube/ab-lab/new')}
-              className="inline-flex items-center gap-[7px] justify-center py-[9px] px-[15px] text-[13.5px] font-semibold rounded-[9px] border border-cms-accent whitespace-nowrap transition-[0.15s] tracking-[-0.01em] bg-cms-accent"
+              onClick={() => setShowPicker(true)}
+              className="inline-flex items-center gap-[7px] justify-center py-[9px] px-[15px] text-[13.5px] font-semibold rounded-[9px] border border-cms-accent whitespace-nowrap transition-[0.15s] tracking-[-0.01em] bg-cms-accent cursor-pointer"
               style={{ color: 'rgb(26, 18, 12)' }}
             >
               <Plus size={16} aria-hidden="true" />
@@ -237,6 +250,29 @@ export function AbLabDashboard({
           settings={settings}
           onSave={handleSaveSettings}
           onClose={() => setShowSettings(false)}
+        />
+      )}
+
+      {/* 8. VideoPickerDialog */}
+      {showPicker && (
+        <VideoPickerDialog
+          eligibleVideos={eligibleVideos}
+          onSelect={handleVideoPicked}
+          onClose={() => setShowPicker(false)}
+        />
+      )}
+
+      {/* 9. AbCreateWizard */}
+      {wizardVideo && (
+        <AbCreateWizard
+          video={wizardVideo}
+          siteId={siteId}
+          settings={settings}
+          onClose={() => setWizardVideo(null)}
+          onCreated={(testId) => {
+            setWizardVideo(null)
+            router.push(`/cms/youtube/ab-lab/${testId}`)
+          }}
         />
       )}
     </div>

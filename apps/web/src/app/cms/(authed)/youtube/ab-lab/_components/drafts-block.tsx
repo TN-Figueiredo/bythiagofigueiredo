@@ -86,7 +86,7 @@ export function DraftsBlock({ drafts, onContinue }: DraftsBlockProps) {
           <button
             type="button"
             onClick={() => onContinue(draft.id)}
-            className="inline-flex items-center gap-[7px] justify-center py-[6px] px-[11px] text-[12.5px] font-semibold rounded-[9px] border border-cms-accent whitespace-nowrap transition-[0.15s] tracking-[-0.01em] bg-cms-accent shrink-0"
+            className="inline-flex items-center gap-[7px] justify-center py-[6px] px-[11px] text-[12.5px] font-semibold rounded-[9px] border border-cms-accent whitespace-nowrap transition-[0.15s] tracking-[-0.01em] bg-cms-accent shrink-0 cursor-pointer"
             style={{ color: 'rgb(26, 18, 12)' }}
           >
             Continuar setup
