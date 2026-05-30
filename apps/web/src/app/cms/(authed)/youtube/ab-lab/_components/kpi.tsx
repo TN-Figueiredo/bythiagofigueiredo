@@ -41,10 +41,10 @@ function Sparkline({ data }: { data: number[] }) {
 
 export function KPI({ label, value, suffix, icon: Icon, spark, trend }: KPIProps) {
   return (
-    <div className="rounded-lg border border-cms-border bg-cms-surface p-[18px] relative overflow-hidden">
+    <div className="rounded-[14px] border border-cms-border bg-cms-surface p-[18px] relative overflow-hidden">
       <div className="flex items-center justify-between">
         <span className="text-[9px] font-semibold text-cms-text-dim uppercase tracking-[0.08em]">{label}</span>
-        {Icon && <Icon size={15} className="text-cms-text-dim" aria-hidden="true" />}
+        {Icon && <Icon size={15} className="text-cms-text-dim opacity-60" aria-hidden="true" />}
       </div>
       <div className="flex items-baseline gap-[4px] mt-[12px]">
         <span className="font-mono text-[30px] font-bold tracking-[-0.02em] leading-none">{value}</span>

@@ -16,7 +16,7 @@ export function DraftsBlock({ drafts, onContinue }: DraftsBlockProps) {
   if (drafts.length === 0) return null
 
   return (
-    <div className="rounded-lg border border-cms-border bg-cms-surface overflow-hidden">
+    <div className="rounded-[14px] border border-cms-border bg-cms-surface overflow-hidden">
       {/* Header */}
       <button
         type="button"
@@ -31,7 +31,7 @@ export function DraftsBlock({ drafts, onContinue }: DraftsBlockProps) {
           aria-hidden="true"
         />
         <span className="text-[14px] font-semibold text-cms-text">Rascunhos</span>
-        <span className="inline-flex items-center px-[9px] py-[3px] rounded-full text-[10.5px] font-semibold tracking-[0.06em] uppercase bg-cms-surface-hover text-cms-text-dim font-mono">
+        <span className="inline-flex items-center px-[9px] py-[3px] rounded-full text-[10.5px] font-semibold tracking-[0.06em] uppercase text-cms-text-dim font-mono" style={{ background: 'var(--cms-surface-3, var(--cms-surface-hover))' }}>
           {drafts.length}
         </span>
       </button>
@@ -70,7 +70,7 @@ export function DraftsBlock({ drafts, onContinue }: DraftsBlockProps) {
               {draft.name}
             </div>
             <div className="flex items-center gap-[8px] mt-[6px]">
-              <span className="inline-flex items-center gap-[5px] px-[7px] py-[2px] rounded-full text-[9.5px] font-semibold tracking-[0.06em] uppercase bg-cms-surface-hover text-cms-text-dim font-mono">
+              <span className="inline-flex items-center gap-[5px] px-[7px] py-[2px] rounded-full text-[9.5px] font-semibold tracking-[0.06em] uppercase text-cms-text-dim font-mono" style={{ background: 'var(--cms-surface-3, var(--cms-surface-hover))' }}>
                 <Layers size={11} aria-hidden="true" />
                 {TYPE_META[draft.type]?.label ?? draft.type}
               </span>

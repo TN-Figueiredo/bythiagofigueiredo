@@ -66,7 +66,7 @@ export function AbLabDashboard({
   const showEmpty = cards.length === 0 && completed.length === 0 && drafts.length === 0
 
   return (
-    <div data-dashboard-root className="space-y-6 animate-ab-fade-up">
+    <div data-dashboard-root className="animate-ab-fade-up">
       {/* 1. Header */}
       <div className="animate-ab-fade-up">
         <div className="flex items-center justify-between flex-wrap gap-[12px] mb-[22px]">
@@ -77,7 +77,7 @@ export function AbLabDashboard({
                 ? `${cards.length} teste${cards.length > 1 ? 's' : ''} ativo${cards.length > 1 ? 's' : ''}`
                 : 'Nenhum teste ativo'}
             </span>
-            <span className="inline-flex items-center gap-[5px] px-[9px] py-[3px] rounded-full text-[10.5px] font-semibold tracking-[0.06em] uppercase bg-cms-surface-hover text-cms-text-dim self-center">
+            <span className="inline-flex items-center gap-[5px] px-[9px] py-[3px] rounded-full text-[10.5px] font-semibold tracking-[0.06em] uppercase text-cms-text-dim self-center font-mono" style={{ background: 'var(--cms-surface-3, var(--cms-surface-hover))' }}>
               <Zap size={11} aria-hidden="true" />
               quota 1,5% hoje
             </span>
@@ -85,7 +85,8 @@ export function AbLabDashboard({
           <div className="flex items-center gap-[10px]">
             <button
               type="button"
-              className="inline-flex items-center gap-[7px] justify-center py-[6px] px-[11px] text-[12.5px] font-semibold rounded-[9px] border border-cms-border whitespace-nowrap transition-[0.15s] tracking-[-0.01em] bg-cms-surface-hover text-cms-text"
+              className="inline-flex items-center gap-[7px] justify-center py-[6px] px-[11px] text-[12.5px] font-semibold rounded-[9px] border border-cms-border whitespace-nowrap transition-[0.15s] tracking-[-0.01em] text-cms-text"
+              style={{ background: 'var(--cms-surface-hover)' }}
             >
               <Filter size={14} aria-hidden="true" />
               Todos os tipos
@@ -94,7 +95,8 @@ export function AbLabDashboard({
               type="button"
               onClick={() => setShowSettings(true)}
               aria-label="Configurações"
-              className="inline-flex items-center justify-center py-[6px] px-[11px] rounded-[9px] border border-cms-border-strong whitespace-nowrap transition-[0.15s] text-cms-text-dim hover:text-cms-text"
+              className="inline-flex items-center justify-center py-[6px] px-[11px] rounded-[9px] border whitespace-nowrap transition-[0.15s] text-cms-text-dim hover:text-cms-text"
+              style={{ borderColor: 'var(--cms-border)' }}
             >
               <Settings size={14} aria-hidden="true" />
             </button>
@@ -180,7 +182,7 @@ export function AbLabDashboard({
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 animate-ab-fade-up">
           <div>
             <SectionLabel>Concluídos</SectionLabel>
-            <div className="rounded-lg border border-cms-border bg-cms-bg divide-y divide-cms-border">
+            <div className="rounded-[14px] border border-cms-border bg-cms-bg divide-y divide-cms-border overflow-hidden">
               {completed.map(test => (
                 <CompletedRow key={test.id} test={test} onOpen={handleOpenTest} />
               ))}
