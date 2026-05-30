@@ -33,6 +33,7 @@
     { "path": "/api/cron/links-check-alerts", "schedule": "*/30 * * * *" },
     { "path": "/api/cron/links-partition-maintenance", "schedule": "0 2 1 * *" },
     { "path": "/api/cron/links-health-check", "schedule": "0 5 * * *" },
-    { "path": "/api/cron/ab-draft-cleanup", "schedule": "0 4 * * *" }
+    { "path": "/api/cron/ab-draft-cleanup", "schedule": "0 4 * * *" },
+    { "path": "/api/cron/social-auto-draft", "schedule": "*/30 * * * *" }
   ]
 }
