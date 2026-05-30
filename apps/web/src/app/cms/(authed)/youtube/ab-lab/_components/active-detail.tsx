@@ -58,8 +58,8 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
 
   return (
     <div data-testid="active-detail">
-      {/* Section 1: Header with signal toggle + Pausar + Settings */}
-      <div data-section="header" className="mb-[22px]">
+      {/* Section 1: Header */}
+      <div data-section="header" className="mb-[16px]">
         <DetailHeader
           title={view.videoTitle}
           flag={view.flag}
@@ -68,22 +68,39 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
           totalRounds={view.totalRounds}
           hasPlayoff={view.hasPlayoff}
           dayInfo={{ dayOf: view.cycles.done, total: view.durationDays }}
-          signalToggle={{
-            mode: signal,
-            onToggle: () => setSignal(s => (s === 'confirmed' ? 'live' : 'confirmed')),
-          }}
-          actions={
-            <div className="flex gap-[9px] shrink-0">
-              <button type="button" className={BTN}>
-                <Pause size={14} aria-hidden="true" />
-                Pausar
-              </button>
-              <button type="button" aria-label="Configurações" className={BTN}>
-                <Settings size={14} aria-hidden="true" />
-              </button>
-            </div>
-          }
         />
+      </div>
+
+      {/* Toolbar: signal toggle + Pausar + Settings — below title */}
+      <div className="flex items-center gap-[8px] mb-[22px]">
+        <div className="inline-flex bg-cms-surface-hover rounded-[9px] p-[3px] gap-[2px]">
+          {(['confirmed', 'live'] as const).map(m => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setSignal(m)}
+              className="border-none cursor-pointer transition-[0.15s]"
+              style={{
+                padding: '6px 13px',
+                borderRadius: 7,
+                fontSize: '12.5px',
+                fontWeight: 600,
+                background: m === signal ? 'var(--cms-accent)' : 'transparent',
+                color: m === signal ? 'rgb(20, 15, 8)' : 'var(--cms-text-dim)',
+              }}
+            >
+              {m === 'confirmed' ? 'Confirmado' : 'Live'}
+            </button>
+          ))}
+        </div>
+        <span className="size-[15px] rounded-full border border-cms-border text-cms-text-muted text-[9.5px] font-bold inline-flex items-center justify-center cursor-help font-mono">?</span>
+        <button type="button" className={BTN}>
+          <Pause size={14} aria-hidden="true" />
+          Pausar
+        </button>
+        <button type="button" aria-label="Configurações" className={BTN}>
+          <Settings size={14} aria-hidden="true" />
+        </button>
       </div>
 
       {/* Section 2: Lock Countdown */}
