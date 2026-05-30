@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { DestId } from '@/lib/social/destinations'
 import { DEST_IDS, DESTINATIONS } from '@/lib/social/destinations'
+import { createSocialPost } from '@/lib/social/actions'
 import { DestinationPicker } from './destination-picker'
 import { DestCompositor } from './dest-compositor'
 import { CMSContentPicker } from './cms-content-picker'
@@ -27,6 +28,28 @@ function computeScheduleDays(count: number): Array<{ date: Date; label: string }
   })
 }
 
+function buildPublishPayload(
+  captions: Record<string, string>,
+  destsOn: Record<DestId, boolean>,
+  schedMode: 'now' | 'schedule' | 'queue',
+  scheduledAt?: string,
+) {
+  const activeDests = (Object.entries(destsOn) as [DestId, boolean][])
+    .filter(([, on]) => on)
+    .map(([id]) => id as DestId)
+
+  const platforms = [...new Set(activeDests.map(id => DESTINATIONS[id].provider))]
+  const primaryCaption = captions[activeDests[0]] ?? ''
+
+  return {
+    type: 'text' as const,
+    content: { title: primaryCaption, description: primaryCaption },
+    platforms,
+    scheduledAt: schedMode === 'schedule' ? scheduledAt : undefined,
+    storyMode: activeDests.includes('ig_story'),
+  }
+}
+
 interface CompositorNewProps {
   sourceMode?: 'cms' | 'freeform'
 }
@@ -39,6 +62,7 @@ export function CompositorNew({ sourceMode = 'freeform' }: CompositorNewProps) {
   const scheduleDays = useMemo(() => computeScheduleDays(5), [])
   const [selectedTime, setSelectedTime] = useState('19:00')
   const [contentByDest, setContentByDest] = useState<Record<string, boolean>>({})
+  const [publishing, setPublishing] = useState(false)
 
   const activeCount = DEST_IDS.filter(id => destsOn[id]).length
   const activeDests = DEST_IDS.filter(id => destsOn[id])
@@ -188,14 +212,47 @@ export function CompositorNew({ sourceMode = 'freeform' }: CompositorNewProps) {
           </span>
 
           <div className="ml-auto flex gap-2.5">
-            <button type="button" disabled={!hasContent} className="inline-flex items-center gap-[7px] rounded-[9px] border border-cms-border px-[15px] py-[9px] text-[13.5px] font-semibold text-cms-text-dim transition-colors hover:text-cms-text disabled:opacity-40 disabled:pointer-events-none">
+            <button
+              type="button"
+              disabled={!hasContent}
+              onClick={async () => {
+                if (!hasContent) return
+                const payload = buildPublishPayload(captions, destsOn, 'now')
+                const result = await createSocialPost(payload)
+                if (result.ok) {
+                  window.location.href = '/cms/social?tab=drafts'
+                }
+              }}
+              className="inline-flex items-center gap-[7px] rounded-[9px] border border-cms-border px-[15px] py-[9px] text-[13.5px] font-semibold text-cms-text-dim transition-colors hover:text-cms-text disabled:opacity-40 disabled:pointer-events-none"
+            >
               Salvar rascunho
             </button>
-            <button type="button" disabled={!canPublish} className="inline-flex items-center gap-[7px] rounded-[9px] border px-[15px] py-[9px] text-[13.5px] font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none" style={{ background: schedMode === 'now' ? 'var(--green, #22c55e)' : 'var(--color-cms-accent, #E8823C)', borderColor: schedMode === 'now' ? 'var(--green, #22c55e)' : 'var(--color-cms-accent, #E8823C)', color: schedMode === 'now' ? 'rgb(12,26,18)' : '#1a120c' }}>
+            <button
+              type="button"
+              disabled={!canPublish || publishing}
+              onClick={async () => {
+                if (!canPublish || publishing) return
+                setPublishing(true)
+                try {
+                  const scheduledAt = schedMode === 'schedule' && selectedDate && selectedTime
+                    ? new Date(`${selectedDate.toISOString().split('T')[0]}T${selectedTime}:00`).toISOString()
+                    : undefined
+                  const payload = buildPublishPayload(captions, destsOn, schedMode, scheduledAt)
+                  const result = await createSocialPost(payload)
+                  if (result.ok) {
+                    window.location.href = '/cms/social'
+                  }
+                } finally {
+                  setPublishing(false)
+                }
+              }}
+              className="inline-flex items-center gap-[7px] rounded-[9px] border px-[15px] py-[9px] text-[13.5px] font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none"
+              style={{ background: schedMode === 'now' ? 'var(--green, #22c55e)' : 'var(--color-cms-accent, #E8823C)', borderColor: schedMode === 'now' ? 'var(--green, #22c55e)' : 'var(--color-cms-accent, #E8823C)', color: schedMode === 'now' ? 'rgb(12,26,18)' : '#1a120c' }}
+            >
               {schedMode === 'now' && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M21 3L3 10l7 3 3 7z" /></svg>}
               {schedMode === 'schedule' && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 5h16v16H4z" /><path d="M4 9h16" /><path d="M8 3v4" /><path d="M16 3v4" /></svg>}
               {schedMode === 'queue' && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 5h16v16H4z" /><path d="M4 9h16" /><path d="M8 3v4" /><path d="M16 3v4" /></svg>}
-              {schedMode === 'now' ? 'Publicar' : schedMode === 'schedule' ? 'Agendar' : 'Adicionar à fila'}
+              {publishing ? 'Publicando...' : schedMode === 'now' ? 'Publicar' : schedMode === 'schedule' ? 'Agendar' : 'Adicionar à fila'}
             </button>
           </div>
         </div>
