@@ -71,6 +71,16 @@ export const MOCK_WINNER: AbTestWinnerView = {
     monthlyExtraClicks: 310,
   },
   learning: 'Thumbnails com comida em close-up e texto de localização específica (nome do restaurante) convertem 23% melhor do que thumbnails genéricas de viagem.',
+  monitor: {
+    liveCtr: 6.5,
+    sparkline: [6.2, 6.0, 6.3, 6.4, 6.1, 6.5, 6.5, 6.4, 6.5],
+    liftVsOriginal: 25,
+    checkpoints: [
+      { label: '7 dias', reached: true, date: '6.6%' },
+      { label: '14 dias', reached: true, date: '6.5%' },
+      { label: '30 dias', reached: false },
+    ],
+  },
 }
 
 export const MOCK_PLAYOFF: AbTestPlayoffView = {
