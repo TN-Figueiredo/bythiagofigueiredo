@@ -143,6 +143,7 @@ export function RightPanel({
             <GifInspector
               element={element}
               onUpdate={patch => onUpdateElement(element.id, patch)}
+              onReplaceImage={() => onReplaceImage(element.id)}
               onDuplicate={() => {/* handled by parent */}}
               onDelete={() => onRemoveElement(element.id)}
             />

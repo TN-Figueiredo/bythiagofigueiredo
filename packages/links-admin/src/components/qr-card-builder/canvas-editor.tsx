@@ -6,6 +6,7 @@ import type { CardComposition, CardElement, QrDotStyle } from '@tn-figueiredo/li
 import { generateStyledQrSvg } from './qr-styled-svg'
 import type { UseCardCompositionReturn } from './use-card-composition'
 import type { UseCanvasInteractionReturn } from './use-canvas-interaction'
+import { useAnimatedGif } from './use-animated-gif'
 
 interface CanvasEditorProps {
   comp: UseCardCompositionReturn
@@ -298,6 +299,56 @@ function ImageNode({
   )
 }
 
+function GifNode({
+  element, onSelect, onDragMove, onDragEnd, layerRef,
+}: {
+  element: CardElement & { type: 'image' }
+  onSelect: (id: string, e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => void
+  onDragMove: (e: Konva.KonvaEventObject<DragEvent>) => void
+  onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => void
+  layerRef: React.RefObject<Konva.Layer | null>
+}) {
+  const { canvas, error } = useAnimatedGif(
+    element.src,
+    () => { layerRef.current?.batchDraw() },
+  )
+
+  return (
+    <Group
+      id={element.id}
+      x={element.x + element.width / 2}
+      y={element.y + element.height / 2}
+      offsetX={element.width / 2}
+      offsetY={element.height / 2}
+      width={element.width}
+      height={element.height}
+      rotation={element.rotation}
+      opacity={element.opacity}
+      draggable={!element.locked}
+      onClick={e => onSelect(element.id, e)}
+      onTap={e => onSelect(element.id, e)}
+      onDragMove={onDragMove}
+      onDragEnd={onDragEnd}
+    >
+      {canvas ? (
+        <KonvaImage
+          image={canvas}
+          width={element.width}
+          height={element.height}
+        />
+      ) : (
+        <Rect
+          width={element.width}
+          height={element.height}
+          fill={error ? '#331111' : '#1a1a2e'}
+          stroke={error ? '#662222' : '#2a2a4a'}
+          strokeWidth={1}
+        />
+      )}
+    </Group>
+  )
+}
+
 function BackgroundRect({ composition }: { composition: CardComposition }) {
   const { canvas, background } = composition
   const { image: bgImage } = useLoadedImage(background.type === 'image' ? background.url : null)
@@ -333,6 +384,7 @@ export const CanvasEditor = forwardRef<CanvasEditorHandle, CanvasEditorProps>(fu
 ) {
   const stageRef = useRef<Konva.Stage>(null)
   const transformerRef = useRef<Konva.Transformer>(null)
+  const layerRef = useRef<Konva.Layer>(null)
   const { composition, updateElement } = comp
   const { selectedIds, select, multiSelect, deselectAll, zoom, clipOverflow, openContextMenu } = interaction
 
@@ -473,8 +525,13 @@ export const CanvasEditor = forwardRef<CanvasEditorHandle, CanvasEditorProps>(fu
         return <QrNode key={el.id} element={el} shortUrl={shortUrl} onSelect={handleSelect} onDragMove={handleDragMove} onDragEnd={handleDragEnd} />
       case 'text':
         return <TextNode key={el.id} element={el} onSelect={handleSelect} onDragMove={handleDragMove} onDragEnd={handleDragEnd} />
-      case 'image':
+      case 'image': {
+        const isGif = (el.name?.toLowerCase().includes('gif')) || el.src.toLowerCase().endsWith('.gif')
+        if (isGif) {
+          return <GifNode key={el.id} element={el} onSelect={handleSelect} onDragMove={handleDragMove} onDragEnd={handleDragEnd} layerRef={layerRef} />
+        }
         return <ImageNode key={el.id} element={el} onSelect={handleSelect} onDragMove={handleDragMove} onDragEnd={handleDragEnd} />
+      }
     }
   }
 
@@ -500,7 +557,7 @@ export const CanvasEditor = forwardRef<CanvasEditorHandle, CanvasEditorProps>(fu
         onTap={handleStageClick}
         onContextMenu={handleContextMenu}
       >
-        <Layer>
+        <Layer ref={layerRef}>
           <Rect
             x={-2}
             y={-2}

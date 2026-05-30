@@ -64,8 +64,12 @@
     "react-konva": "^18.0.0"
   },
   "peerDependenciesMeta": {
-    "konva": { "optional": true },
-    "react-konva": { "optional": true }
+    "konva": {
+      "optional": true
+    },
+    "react-konva": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@testing-library/jest-dom": "6.9.1",
@@ -82,5 +86,9 @@
     "tsup": "^8.0.0",
     "typescript": "^5.8.3",
     "vitest": "^2.0.0"
+  },
+  "dependencies": {
+    "gifuct-js": "2.1.2",
+    "modern-gif": "2.1.0"
   }
 }

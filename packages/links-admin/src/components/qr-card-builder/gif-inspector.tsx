@@ -1,6 +1,7 @@
 'use client'
+import { useRef } from 'react'
 import {
-  FileVideo2, Copy, Lock, Trash2, RotateCcw, Circle, Move, Info,
+  FileVideo2, Copy, Lock, Trash2, RotateCcw, Circle, Move, Info, Upload,
 } from 'lucide-react'
 import type { ImageElement } from '@tn-figueiredo/links/qr'
 
@@ -29,6 +30,7 @@ const EMOJI_PICKS = [
 interface GifInspectorProps {
   element: ImageElement
   onUpdate: (patch: Partial<ImageElement>) => void
+  onReplaceImage?: () => void
   onDuplicate?: () => void
   onDelete?: () => void
 }
@@ -38,9 +40,11 @@ interface GifInspectorProps {
 export function GifInspector({
   element,
   onUpdate,
+  onReplaceImage,
   onDuplicate,
   onDelete,
 }: GifInspectorProps) {
+  const fileRef = useRef<HTMLInputElement>(null)
   /* Derive scale percentage from element width vs a baseline (100 = original) */
   const scalePercent = Math.round(((element.width) / 100) * 100)
 
@@ -102,6 +106,36 @@ export function GifInspector({
             </button>
           ))}
         </div>
+      </div>
+
+      {/* ── Trocar GIF button ── */}
+      <div>
+        <button
+          type="button"
+          onClick={() => onReplaceImage?.()}
+          style={{
+            width: '100%',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+            padding: '9px 0', borderRadius: 8,
+            border: '1.5px dashed var(--line-strong)',
+            background: 'var(--surface-2)',
+            color: 'var(--ink-dim)', fontSize: 12, fontWeight: 600,
+            cursor: 'pointer',
+          }}
+        >
+          <Upload size={14} strokeWidth={1.8} />
+          Trocar GIF
+        </button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/gif,.gif"
+          style={{ display: 'none' }}
+          onChange={() => {
+            onReplaceImage?.()
+            if (fileRef.current) fileRef.current.value = ''
+          }}
+        />
       </div>
 
       {/* ── Info callout ── */}

@@ -135,7 +135,32 @@ export function LeftPanel({ comp, interaction, onImageUpload, customPresets = []
   }, [composition, addElement, select, onImageUpload])
 
   const handleAddImage = useCallback(() => handleFileUpload('image/*'), [handleFileUpload])
-  const handleAddGif = useCallback(() => handleFileUpload('image/gif,.gif', 'GIF'), [handleFileUpload])
+
+  const handleAddGif = useCallback(() => {
+    if (composition.elements.length >= MAX_ELEMENTS) return
+    const PLACEHOLDER_GIF = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
+    const id = crypto.randomUUID()
+    const size = Math.min(composition.canvas.width, composition.canvas.height) * 0.3
+    addElement({
+      type: 'image' as const,
+      id,
+      name: 'GIF',
+      x: (composition.canvas.width - size) / 2,
+      y: (composition.canvas.height - size) / 2,
+      width: size,
+      height: size,
+      rotation: 0,
+      opacity: 1,
+      locked: false,
+      src: PLACEHOLDER_GIF,
+      objectFit: 'cover' as const,
+      borderRadius: 0,
+      borderColor: '#000000',
+      borderWidth: 0,
+      maintainAspectRatio: true,
+    })
+    select(id)
+  }, [composition, addElement, select])
 
   const handleAddCarimbo = useCallback(() => {
     if (composition.elements.length >= MAX_ELEMENTS) return
