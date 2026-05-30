@@ -81,7 +81,7 @@ export function StepTipo({ selected, onSelect }: StepTipoProps) {
               }
             }}
             className={[
-              'relative flex flex-col gap-2 rounded-[var(--cms-radius)] border p-3 cursor-pointer transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:ring-offset-1',
+              'relative flex flex-col gap-2 rounded-lg border p-3 cursor-pointer transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:ring-offset-1',
               isSelected
                 ? 'border-cms-accent bg-cms-accent-subtle'
                 : 'border-cms-border bg-cms-surface hover:border-cms-accent/50 hover:bg-cms-surface/80',
@@ -90,7 +90,7 @@ export function StepTipo({ selected, onSelect }: StepTipoProps) {
             {/* Icon box */}
             <div
               className={[
-                'w-8 h-8 rounded-[var(--cms-radius)] flex items-center justify-center shrink-0',
+                'w-8 h-8 rounded-lg flex items-center justify-center shrink-0',
                 isSelected ? 'bg-cms-accent/20' : 'bg-cms-border/60',
               ].join(' ')}
             >

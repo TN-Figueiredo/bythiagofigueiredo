@@ -31,7 +31,7 @@ export function PlayoffDetail({ view }: PlayoffDetailProps) {
       {/* 2. Inconclusive Banner */}
       <div
         data-testid="inconclusive-banner"
-        className="rounded-[var(--cms-radius)] border border-cms-amber bg-cms-amber/5 p-4 flex items-start gap-3"
+        className="rounded-lg border border-cms-amber bg-cms-amber/5 p-4 flex items-start gap-3"
       >
         <Info
           size={18}
@@ -68,13 +68,13 @@ export function PlayoffDetail({ view }: PlayoffDetailProps) {
       <section data-testid="why-inconclusive">
         <SectionLabel>Por que empatou</SectionLabel>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-bg p-4">
+          <div className="rounded-lg border border-cms-border bg-cms-bg p-4">
             <p className="text-2xs text-cms-text-dim mb-2 uppercase tracking-wider font-medium">
               Faixa provável de CTR
             </p>
             <CredibleInterval variants={view.variants} />
           </div>
-          <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-bg p-4">
+          <div className="rounded-lg border border-cms-border bg-cms-bg p-4">
             <p className="text-2xs text-cms-text-dim mb-2 uppercase tracking-wider font-medium">
               P(top 2) por variante
             </p>

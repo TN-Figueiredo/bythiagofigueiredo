@@ -13,7 +13,7 @@ function Hero({ onCreate }: { onCreate: EmptyStateProps['onCreate'] }) {
   return (
     <div
       data-hero
-      className="relative rounded-[var(--cms-radius)] border border-cms-border bg-gradient-to-br from-cms-accent/10 to-transparent p-8 text-center overflow-hidden"
+      className="relative rounded-lg border border-cms-border bg-gradient-to-br from-cms-accent/10 to-transparent p-8 text-center overflow-hidden"
     >
       <FlaskConical
         size={80}

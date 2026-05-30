@@ -169,7 +169,7 @@ export function SettingsDrawer({ settings, onSave, onClose }: SettingsDrawerProp
           <button
             type="button"
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-[var(--cms-radius)] text-cms-text-muted hover:bg-cms-surface-hover hover:text-cms-text focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-cms-text-muted hover:bg-cms-surface-hover hover:text-cms-text focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
             aria-label="Fechar"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">

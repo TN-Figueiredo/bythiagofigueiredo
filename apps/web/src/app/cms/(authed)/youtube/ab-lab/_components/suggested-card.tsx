@@ -25,7 +25,7 @@ const GRADE_COLORS: Record<string, string> = {
 
 export function SuggestedCard({ video, onCreate }: SuggestedCardProps) {
   return (
-    <article className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-bg overflow-hidden">
+    <article className="rounded-lg border border-cms-border bg-cms-bg overflow-hidden">
       {/* 16:9 thumbnail area */}
       <div className="relative aspect-video bg-cms-surface-hover">
         {video.thumbnailUrl ? (

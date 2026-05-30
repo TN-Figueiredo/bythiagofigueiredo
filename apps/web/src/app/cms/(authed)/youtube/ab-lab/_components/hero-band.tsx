@@ -32,7 +32,7 @@ export function HeroBand({ confidence, confidenceTarget, leader, lift, trend }: 
   const liftColor = lift > 0 ? 'text-cms-green' : lift < 0 ? 'text-red-400' : 'text-cms-text-muted'
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 rounded-[var(--cms-radius)] border border-cms-border bg-cms-bg p-4" data-testid="hero-band">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 rounded-lg border border-cms-border bg-cms-bg p-4" data-testid="hero-band">
       {/* Cell 1: Confidence gauge */}
       <div className="flex flex-col items-center justify-center gap-1" data-testid="hero-cell">
         <div className="w-16 h-16">

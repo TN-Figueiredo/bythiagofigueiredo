@@ -22,7 +22,7 @@ export function LockCountdown({
   const needsMore = confidence < confidenceTarget
 
   return (
-    <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-bg p-3 space-y-2">
+    <div className="rounded-lg border border-cms-border bg-cms-bg p-3 space-y-2">
       {/* Header */}
       <div className="flex items-center gap-2 text-xs text-cms-text">
         <Lock size={14} aria-hidden="true" data-testid="icon-Lock" />

@@ -37,13 +37,13 @@ export function AbPauseDialog({ test, onClose }: AbPauseDialogProps) {
         onClick={onClose}
         aria-hidden="true"
       />
-      <div className="relative w-full max-w-md rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface p-6 shadow-xl">
+      <div className="relative w-full max-w-md rounded-lg border border-cms-border bg-cms-surface p-6 shadow-xl">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-base font-semibold text-cms-text">Pause Test</h2>
           <button
             type="button"
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-[var(--cms-radius)] text-cms-text-muted hover:bg-cms-surface-hover hover:text-cms-text"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-cms-text-muted hover:bg-cms-surface-hover hover:text-cms-text"
             aria-label="Close"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
@@ -63,7 +63,7 @@ export function AbPauseDialog({ test, onClose }: AbPauseDialogProps) {
             type="button"
             onClick={onClose}
             disabled={isPending}
-            className="rounded-[var(--cms-radius)] border border-cms-border bg-transparent px-4 py-2 text-sm font-medium text-cms-text hover:bg-cms-surface-hover disabled:opacity-50"
+            className="rounded-lg border border-cms-border bg-transparent px-4 py-2 text-sm font-medium text-cms-text hover:bg-cms-surface-hover disabled:opacity-50"
           >
             Cancel
           </button>
@@ -71,7 +71,7 @@ export function AbPauseDialog({ test, onClose }: AbPauseDialogProps) {
             type="button"
             onClick={handleConfirm}
             disabled={isPending}
-            className="rounded-[var(--cms-radius)] bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+            className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
           >
             {isPending ? 'Pausing…' : 'Pause Test'}
           </button>

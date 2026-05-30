@@ -12,7 +12,7 @@ export function GatesPanel({ gates }: GatesPanelProps) {
   const allPassed = passedCount === gates.length && gates.length > 0
 
   return (
-    <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-bg p-4 space-y-3">
+    <div className="rounded-lg border border-cms-border bg-cms-bg p-4 space-y-3">
       {/* Header */}
       <div className="flex items-center gap-2">
         <span className={`text-xs font-semibold ${allPassed ? 'text-cms-green' : 'text-cms-text'}`}>

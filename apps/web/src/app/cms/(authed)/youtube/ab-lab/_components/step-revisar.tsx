@@ -63,7 +63,7 @@ function VariantMiniCard({ variant }: VariantMiniCardProps) {
 
   return (
     <div
-      className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface overflow-hidden"
+      className="rounded-lg border border-cms-border bg-cms-surface overflow-hidden"
       style={{ borderTopWidth: 3, borderTopColor: color }}
     >
       {/* Thumbnail */}
@@ -114,7 +114,7 @@ export function StepRevisar({ type, variants, config, videoTitle }: StepRevisarP
     <div className="space-y-5">
 
       {/* Success banner */}
-      <div className="rounded-[var(--cms-radius)] border border-green-500/40 bg-green-500/10 px-4 py-3 flex items-start gap-3">
+      <div className="rounded-lg border border-green-500/40 bg-green-500/10 px-4 py-3 flex items-start gap-3">
         <CheckCircle className="w-5 h-5 text-green-400 shrink-0 mt-0.5" aria-hidden="true" />
         <div className="min-w-0">
           <p className="text-sm font-semibold text-green-300">Ready to launch</p>
@@ -125,7 +125,7 @@ export function StepRevisar({ type, variants, config, videoTitle }: StepRevisarP
       </div>
 
       {/* Summary */}
-      <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface p-4 space-y-1">
+      <div className="rounded-lg border border-cms-border bg-cms-surface p-4 space-y-1">
         <SectionLabel as="h3">Summary</SectionLabel>
 
         <dl className="divide-y divide-cms-border">

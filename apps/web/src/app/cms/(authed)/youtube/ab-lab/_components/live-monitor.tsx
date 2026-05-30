@@ -50,7 +50,7 @@ export function LiveMonitorCard({ monitor }: LiveMonitorProps) {
   return (
     <div
       data-testid="live-monitor"
-      className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-bg p-4"
+      className="rounded-lg border border-cms-border bg-cms-bg p-4"
     >
       <h3 className="text-sm font-semibold text-cms-text mb-3">Como está agora</h3>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

@@ -35,7 +35,7 @@ export function VariantTable({ variants, metric, winnerId, thumbs }: VariantTabl
   const thumbMap = new Map(thumbs.map(t => [t.label, t]))
 
   return (
-    <div role="table" aria-label="Variant comparison" className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-bg overflow-hidden">
+    <div role="table" aria-label="Variant comparison" className="rounded-lg border border-cms-border bg-cms-bg overflow-hidden">
       {/* Header */}
       <div role="row" className="grid grid-cols-[40px_1fr_60px_60px_100px_28px] gap-2 px-3 py-2 bg-cms-surface text-2xs font-medium text-cms-text-dim uppercase tracking-wider">
         <span role="columnheader" />

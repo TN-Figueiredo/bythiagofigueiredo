@@ -80,7 +80,7 @@ export function AbLabDashboard({
             <button
               type="button"
               onClick={() => router.push('/cms/youtube/ab-lab/new')}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--cms-radius)] bg-cms-accent text-white text-sm font-medium hover:bg-cms-accent-hover transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cms-accent text-white text-sm font-medium hover:bg-cms-accent-hover transition-colors"
             >
               <Plus size={14} aria-hidden="true" />
               Novo teste
@@ -89,7 +89,7 @@ export function AbLabDashboard({
               type="button"
               onClick={() => setShowSettings(true)}
               aria-label="Settings"
-              className="flex items-center justify-center w-8 h-8 rounded-[var(--cms-radius)] border border-cms-border text-cms-text-muted hover:bg-cms-surface-hover hover:text-cms-text transition-colors focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
+              className="flex items-center justify-center w-8 h-8 rounded-lg border border-cms-border text-cms-text-muted hover:bg-cms-surface-hover hover:text-cms-text transition-colors focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                 <circle cx="12" cy="12" r="3" />
@@ -160,7 +160,7 @@ export function AbLabDashboard({
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 animate-ab-fade-up">
           <div>
             <SectionLabel>Concluídos</SectionLabel>
-            <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-bg divide-y divide-cms-border">
+            <div className="rounded-lg border border-cms-border bg-cms-bg divide-y divide-cms-border">
               {completed.map(test => (
                 <CompletedRow key={test.id} test={test} onOpen={handleOpenTest} />
               ))}

@@ -15,7 +15,7 @@ export function DraftsBlock({ draft, onContinue }: DraftsBlockProps) {
   if (!draft) return null
 
   return (
-    <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-bg">
+    <div className="rounded-lg border border-cms-border bg-cms-bg">
       <button
         type="button"
         aria-expanded={open}

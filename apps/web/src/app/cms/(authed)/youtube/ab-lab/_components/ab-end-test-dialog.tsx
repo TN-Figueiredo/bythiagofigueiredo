@@ -62,13 +62,13 @@ export function AbEndTestDialog({ test, onClose }: AbEndTestDialogProps) {
         onClick={onClose}
         aria-hidden="true"
       />
-      <div className="relative w-full max-w-md rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface p-6 shadow-xl">
+      <div className="relative w-full max-w-md rounded-lg border border-cms-border bg-cms-surface p-6 shadow-xl">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-base font-semibold text-cms-text">End Test</h2>
           <button
             type="button"
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-[var(--cms-radius)] text-cms-text-muted hover:bg-cms-surface-hover hover:text-cms-text"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-cms-text-muted hover:bg-cms-surface-hover hover:text-cms-text"
             aria-label="Close"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
@@ -78,7 +78,7 @@ export function AbEndTestDialog({ test, onClose }: AbEndTestDialogProps) {
         </div>
 
         {hasLowConfidence && (
-          <div className="mb-4 rounded-[var(--cms-radius)] border border-amber-600/40 bg-amber-900/20 px-4 py-3">
+          <div className="mb-4 rounded-lg border border-amber-600/40 bg-amber-900/20 px-4 py-3">
             <p className="text-xs font-medium text-amber-400">
               Confidence is below the {Math.round(confidenceThreshold * 100)}% threshold. Results may not be statistically significant.
             </p>
@@ -89,7 +89,7 @@ export function AbEndTestDialog({ test, onClose }: AbEndTestDialogProps) {
 
         <div className="space-y-2">
           <label
-            className={`flex cursor-pointer items-start gap-3 rounded-[var(--cms-radius)] border p-3 transition-colors ${
+            className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
               selected === 'leading'
                 ? 'border-cms-accent bg-cms-accent/10'
                 : 'border-cms-border hover:bg-cms-surface-hover'
@@ -123,7 +123,7 @@ export function AbEndTestDialog({ test, onClose }: AbEndTestDialogProps) {
           </label>
 
           <label
-            className={`flex cursor-pointer items-start gap-3 rounded-[var(--cms-radius)] border p-3 transition-colors ${
+            className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
               selected === 'original'
                 ? 'border-cms-accent bg-cms-accent/10'
                 : 'border-cms-border hover:bg-cms-surface-hover'
@@ -155,7 +155,7 @@ export function AbEndTestDialog({ test, onClose }: AbEndTestDialogProps) {
           </label>
 
           <label
-            className={`flex cursor-pointer items-start gap-3 rounded-[var(--cms-radius)] border p-3 transition-colors ${
+            className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
               selected === 'archive'
                 ? 'border-cms-accent bg-cms-accent/10'
                 : 'border-cms-border hover:bg-cms-surface-hover'
@@ -181,7 +181,7 @@ export function AbEndTestDialog({ test, onClose }: AbEndTestDialogProps) {
             type="button"
             onClick={onClose}
             disabled={isPending}
-            className="rounded-[var(--cms-radius)] border border-cms-border bg-transparent px-4 py-2 text-sm font-medium text-cms-text hover:bg-cms-surface-hover disabled:opacity-50"
+            className="rounded-lg border border-cms-border bg-transparent px-4 py-2 text-sm font-medium text-cms-text hover:bg-cms-surface-hover disabled:opacity-50"
           >
             Cancel
           </button>
@@ -189,7 +189,7 @@ export function AbEndTestDialog({ test, onClose }: AbEndTestDialogProps) {
             type="button"
             onClick={handleConfirm}
             disabled={isPending}
-            className="rounded-[var(--cms-radius)] bg-cms-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+            className="rounded-lg bg-cms-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
           >
             {isPending ? 'Ending…' : confirmLabel}
           </button>

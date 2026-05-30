@@ -52,7 +52,7 @@ interface ThumbSlotProps {
 function ThumbSlot({ url, locked, label }: ThumbSlotProps) {
   if (url) {
     return (
-      <div className="relative w-[120px] h-[68px] rounded-[var(--cms-radius)] overflow-hidden shrink-0 border border-cms-border">
+      <div className="relative w-[120px] h-[68px] rounded-lg overflow-hidden shrink-0 border border-cms-border">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={url}
@@ -70,7 +70,7 @@ function ThumbSlot({ url, locked, label }: ThumbSlotProps) {
 
   if (locked) {
     return (
-      <div className="w-[120px] h-[68px] rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface flex items-center justify-center shrink-0">
+      <div className="w-[120px] h-[68px] rounded-lg border border-cms-border bg-cms-surface flex items-center justify-center shrink-0">
         <span className="text-[10px] text-cms-text-dim">Sem thumb</span>
       </div>
     )
@@ -78,7 +78,7 @@ function ThumbSlot({ url, locked, label }: ThumbSlotProps) {
 
   // Editable drop zone placeholder
   return (
-    <div className="w-[120px] h-[68px] rounded-[var(--cms-radius)] border-2 border-dashed border-cms-border bg-cms-surface/50 flex flex-col items-center justify-center gap-1 shrink-0 cursor-pointer hover:border-cms-accent/50 transition-colors">
+    <div className="w-[120px] h-[68px] rounded-lg border-2 border-dashed border-cms-border bg-cms-surface/50 flex flex-col items-center justify-center gap-1 shrink-0 cursor-pointer hover:border-cms-accent/50 transition-colors">
       <span className="text-[9px] text-cms-text-dim text-center leading-tight px-1">
         Arraste ou clique para enviar
       </span>
@@ -119,7 +119,7 @@ function VariantRow({ variant, index, type, onUpdate, onRemove }: VariantRowProp
   return (
     <div
       className={[
-        'rounded-[var(--cms-radius)] border p-3 space-y-2.5',
+        'rounded-lg border p-3 space-y-2.5',
         isLocked
           ? 'border-cms-border bg-cms-surface/60'
           : 'border-cms-border bg-cms-surface',
@@ -192,7 +192,7 @@ function VariantRow({ variant, index, type, onUpdate, onRemove }: VariantRowProp
                   onChange={e => onUpdate({ titleText: e.target.value })}
                   placeholder={`Title for variant ${variant.label}...`}
                   aria-label={`Title for variant ${variant.label}`}
-                  className="w-full rounded-[var(--cms-radius)] border border-cms-border bg-cms-bg px-2.5 py-1.5 text-sm text-cms-text placeholder:text-cms-text-dim focus:outline-none focus:ring-2 focus:ring-cms-accent focus:ring-offset-1"
+                  className="w-full rounded-lg border border-cms-border bg-cms-bg px-2.5 py-1.5 text-sm text-cms-text placeholder:text-cms-text-dim focus:outline-none focus:ring-2 focus:ring-cms-accent focus:ring-offset-1"
                 />
               )}
             </div>
@@ -214,7 +214,7 @@ function VariantRow({ variant, index, type, onUpdate, onRemove }: VariantRowProp
                   placeholder={`Description for variant ${variant.label}...`}
                   aria-label={`Description for variant ${variant.label}`}
                   rows={3}
-                  className="w-full rounded-[var(--cms-radius)] border border-cms-border bg-cms-bg px-2.5 py-1.5 text-sm text-cms-text placeholder:text-cms-text-dim focus:outline-none focus:ring-2 focus:ring-cms-accent focus:ring-offset-1 resize-none"
+                  className="w-full rounded-lg border border-cms-border bg-cms-bg px-2.5 py-1.5 text-sm text-cms-text placeholder:text-cms-text-dim focus:outline-none focus:ring-2 focus:ring-cms-accent focus:ring-offset-1 resize-none"
                 />
               )}
             </div>
@@ -274,7 +274,7 @@ export function StepVariantes({
         <button
           type="button"
           onClick={onAddVariant}
-          className="w-full rounded-[var(--cms-radius)] border border-dashed border-cms-border bg-transparent py-2.5 flex items-center justify-center gap-1.5 text-xs text-cms-text-muted hover:border-cms-accent/50 hover:text-cms-accent transition-colors"
+          className="w-full rounded-lg border border-dashed border-cms-border bg-transparent py-2.5 flex items-center justify-center gap-1.5 text-xs text-cms-text-muted hover:border-cms-accent/50 hover:text-cms-accent transition-colors"
         >
           <Plus className="w-3.5 h-3.5" />
           Adicionar variante
@@ -283,7 +283,7 @@ export function StepVariantes({
 
       {/* Hint when no challengers */}
       {challengers.length === 0 && (
-        <div className="rounded-[var(--cms-radius)] bg-amber-500/10 border border-amber-500/20 px-3 py-2 text-center">
+        <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 px-3 py-2 text-center">
           <p className="text-[10px] text-amber-400">
             Adicione pelo menos uma variante desafiante para continuar.
           </p>

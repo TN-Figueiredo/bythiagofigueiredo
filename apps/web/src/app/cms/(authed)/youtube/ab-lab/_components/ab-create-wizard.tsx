@@ -418,7 +418,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
         role="dialog"
         aria-modal="true"
         aria-label="Novo Teste A/B"
-        className="bg-cms-surface border border-cms-border rounded-[var(--cms-radius)] max-w-[720px] w-full max-h-[90vh] flex flex-col mx-4"
+        className="bg-cms-surface border border-cms-border rounded-lg max-w-[720px] w-full max-h-[90vh] flex flex-col mx-4"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -445,7 +445,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
         {/* Body */}
         <div key={state.step} className="flex-1 overflow-y-auto px-5 py-4" style={{ animation: 'fadeIn 150ms ease-out' }}>
           {isPending && state.step === 0 && (
-            <div className="absolute inset-0 flex items-center justify-center bg-cms-surface/80 rounded-[var(--cms-radius)] z-10">
+            <div className="absolute inset-0 flex items-center justify-center bg-cms-surface/80 rounded-lg z-10">
               <p className="text-xs text-cms-text-dim animate-pulse">Creating draft...</p>
             </div>
           )}
@@ -464,7 +464,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
               <button
                 onClick={goBack}
                 disabled={isPending || state.isLaunching}
-                className="border border-cms-border text-cms-text rounded-[var(--cms-radius)] px-4 py-2 text-sm hover:bg-cms-surface-hover transition-colors disabled:opacity-40"
+                className="border border-cms-border text-cms-text rounded-lg px-4 py-2 text-sm hover:bg-cms-surface-hover transition-colors disabled:opacity-40"
               >
                 Back
               </button>
@@ -473,7 +473,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
               <button
                 onClick={goNext}
                 disabled={!canAdvance || isPending}
-                className="bg-cms-accent text-white rounded-[var(--cms-radius)] px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+                className="bg-cms-accent text-white rounded-lg px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Next
               </button>
@@ -483,14 +483,14 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
                 <button
                   onClick={() => handleSubmit(false)}
                   disabled={isPending || state.isLaunching}
-                  className="border border-cms-border text-cms-text rounded-[var(--cms-radius)] px-4 py-2 text-sm hover:bg-cms-surface-hover transition-colors disabled:opacity-40"
+                  className="border border-cms-border text-cms-text rounded-lg px-4 py-2 text-sm hover:bg-cms-surface-hover transition-colors disabled:opacity-40"
                 >
                   {isPending ? 'Saving...' : 'Save Draft'}
                 </button>
                 <button
                   onClick={() => handleSubmit(true)}
                   disabled={isPending || state.isLaunching}
-                  className="bg-cms-accent text-white rounded-[var(--cms-radius)] px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-40 flex items-center gap-1.5"
+                  className="bg-cms-accent text-white rounded-lg px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-40 flex items-center gap-1.5"
                 >
                   <Play className="w-3.5 h-3.5" aria-hidden="true" />
                   {isPending ? 'Launching...' : 'Launch Test'}

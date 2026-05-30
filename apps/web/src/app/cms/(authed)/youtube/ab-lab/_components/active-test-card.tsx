@@ -25,7 +25,7 @@ export function ActiveTestCard({ test, onOpen }: ActiveTestCardProps) {
       tabIndex={0}
       onClick={() => onOpen(test.id)}
       onKeyDown={handleKeyDown}
-      className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-bg p-4 cursor-pointer hover:border-cms-accent/40 transition-colors animate-ab-fade-up focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
+      className="rounded-lg border border-cms-border bg-cms-bg p-4 cursor-pointer hover:border-cms-accent/40 transition-colors animate-ab-fade-up focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
     >
       {/* Header */}
       <div className="flex items-center gap-2 flex-wrap mb-2">

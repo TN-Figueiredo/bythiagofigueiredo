@@ -89,7 +89,7 @@ export function StepConfig({ config, onChange }: StepConfigProps) {
 
       {/* Right column — estimate card */}
       <div className="lg:sticky lg:top-4 self-start">
-        <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface p-4 space-y-4">
+        <div className="rounded-lg border border-cms-border bg-cms-surface p-4 space-y-4">
           <SectionLabel as="h4">Estimativas</SectionLabel>
 
           <dl className="space-y-3">

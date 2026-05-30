@@ -60,7 +60,7 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
       <section data-testid="why-won">
         <SectionLabel>Why {view.winnerLabel} won</SectionLabel>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-bg p-4">
+          <div className="rounded-lg border border-cms-border bg-cms-bg p-4">
             <p className="text-2xs text-cms-text-dim mb-2 uppercase tracking-wider font-medium">
               Credible Intervals
             </p>
@@ -69,7 +69,7 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
               leader={view.winnerLabel}
             />
           </div>
-          <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-bg p-4">
+          <div className="rounded-lg border border-cms-border bg-cms-bg p-4">
             <p className="text-2xs text-cms-text-dim mb-2 uppercase tracking-wider font-medium">
               Win Probability
             </p>
@@ -84,14 +84,14 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
       {/* 5. ConfidenceChart + learning card side by side */}
       <section data-testid="confidence-section">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-bg p-4">
+          <div className="rounded-lg border border-cms-border bg-cms-bg p-4">
             <SectionLabel>Confidence Trend</SectionLabel>
             <ConfidenceChart
               data={view.confTrend}
               target={view.confidenceTarget * 100}
             />
           </div>
-          <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-bg p-4">
+          <div className="rounded-lg border border-cms-border bg-cms-bg p-4">
             <SectionLabel>Learning</SectionLabel>
             {view.learning ? (
               <p className="text-xs text-cms-text-muted italic" data-testid="learning-text">

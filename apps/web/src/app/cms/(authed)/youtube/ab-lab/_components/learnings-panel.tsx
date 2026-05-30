@@ -61,7 +61,7 @@ export function LearningsPanel({ learnings }: LearningsPanelProps) {
 
   if (!learnings) {
     return (
-      <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-bg p-6 text-center">
+      <div className="rounded-lg border border-cms-border bg-cms-bg p-6 text-center">
         <p className="text-sm text-cms-text-muted">
           Complete 3+ testes para desbloquear insights
         </p>
@@ -74,7 +74,7 @@ export function LearningsPanel({ learnings }: LearningsPanelProps) {
   const remaining = learnings.tags.length - TAG_LIMIT
 
   return (
-    <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-bg p-4">
+    <div className="rounded-lg border border-cms-border bg-cms-bg p-4">
       <div className="flex items-center gap-1.5 mb-3">
         <Sparkles size={14} className="text-cms-accent" aria-hidden="true" />
         <span className="text-xs font-semibold text-cms-text">O que já funciona pra você</span>
