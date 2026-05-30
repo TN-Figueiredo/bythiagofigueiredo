@@ -41,7 +41,7 @@ export function AnalyticsView({ data }: AnalyticsViewProps) {
   }, [])
 
   return (
-    <div className="space-y-5" style={{ paddingBottom: 40 }}>
+    <div className="space-y-5" style={{ paddingBottom: 20 }}>
       {/* Range tabs + CSV + period note */}
       <RangeTabs value={range} onChange={setRange} onExport={handleExportCsv} exporting={exporting} />
 

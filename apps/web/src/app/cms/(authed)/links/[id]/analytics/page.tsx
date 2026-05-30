@@ -161,7 +161,7 @@ export default async function LinkAnalyticsPage({ params }: Props) {
   const linkCode = link.code as string
 
   return (
-    <div style={{ padding: '20px 30px 40px' }}>
+    <div style={{ padding: '20px 30px 20px' }}>
       {/* Breadcrumb */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 7,
