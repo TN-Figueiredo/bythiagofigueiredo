@@ -294,7 +294,7 @@ export function ShortLinksTab({ links, onCreateLink }: ShortLinksTabProps) {
                   type="button"
                   title="QR"
                   aria-label={`QR code para ${l.slug}`}
-                  onClick={(e) => e.preventDefault()}
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); window.location.href = `/cms/links/${l.id}/qr` }}
                   style={{ background: 'transparent', border: 'none', color: 'var(--ink-faint)', padding: 5, borderRadius: 6, cursor: 'pointer' }}
                 >
                   <QrCode size={16} strokeWidth={1.7} />
