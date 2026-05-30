@@ -17,6 +17,8 @@ export function CompositorNew() {
   const [destsOn, setDestsOn] = useState<Record<DestId, boolean>>(DEFAULT_ON)
   const [focused, setFocused] = useState<DestId>('ig_story')
   const [schedMode, setSchedMode] = useState<'now' | 'schedule' | 'queue'>('now')
+  const [selectedDay, setSelectedDay] = useState(1)
+  const [selectedTime, setSelectedTime] = useState('19:00')
   const [hasContent, setHasContent] = useState(false)
 
   const activeCount = DEST_IDS.filter(id => destsOn[id]).length
@@ -54,7 +56,7 @@ export function CompositorNew() {
               <div className="mb-2 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-cms-text-dim">Dia</div>
               <div className="flex gap-1.5">
                 {['Hoje', 'Amanhã', 'Qua 31', 'Qui 1', 'Sex 2'].map((d, i) => (
-                  <button key={d} type="button" className={`rounded-lg border px-3 py-[7px] text-[12.5px] font-semibold transition-colors ${i === 1 ? 'border-cms-accent bg-cms-accent/10 text-cms-accent' : 'border-cms-border bg-cms-surface text-cms-text-dim'}`}>{d}</button>
+                  <button key={d} type="button" onClick={() => setSelectedDay(i)} className={`cursor-pointer rounded-lg border px-3 py-[7px] text-[12.5px] font-semibold transition-colors ${selectedDay === i ? 'border-cms-accent bg-cms-accent/10 text-cms-accent' : 'border-cms-border bg-cms-surface text-cms-text-dim hover:border-cms-text/30'}`}>{d}</button>
                 ))}
               </div>
             </div>
@@ -65,11 +67,11 @@ export function CompositorNew() {
                 <span className="font-normal normal-case tracking-normal text-cms-text-dim/60" style={{ fontFamily: 'Inter, sans-serif' }}>destaque = melhor horário das suas contas</span>
               </div>
               <div className="flex flex-wrap gap-1.5">
-                {['08:00', '09:00', '12:30', '13:00', '18:00', '19:00', '20:00'].map((t, i) => {
-                  const isSelected = i === 5
-                  const isBest = i !== 5
+                {['08:00', '09:00', '12:30', '13:00', '18:00', '19:00', '20:00'].map((t) => {
+                  const isSelected = selectedTime === t
+                  const isBest = ['08:00', '09:00', '12:30', '13:00', '18:00', '20:00'].includes(t)
                   return (
-                    <button key={t} type="button" className={`relative rounded-lg border px-[11px] py-[7px] font-mono text-xs font-semibold transition-colors ${isSelected ? 'border-cms-accent bg-cms-accent text-[#1a120c]' : 'border-[rgba(242,104,60,0.4)] bg-cms-accent/10 text-cms-accent'}`}>
+                    <button key={t} type="button" onClick={() => setSelectedTime(t)} className={`relative cursor-pointer rounded-lg border px-[11px] py-[7px] font-mono text-xs font-semibold transition-colors ${isSelected ? 'border-cms-accent bg-cms-accent text-[#1a120c]' : isBest ? 'border-[rgba(242,104,60,0.4)] bg-cms-accent/10 text-cms-accent hover:bg-cms-accent/20' : 'border-cms-border bg-cms-surface text-cms-text-dim hover:border-cms-text/30'}`}>
                       {t}
                       {isBest && !isSelected && <span className="absolute -right-1 -top-1 h-[7px] w-[7px] rounded-full bg-cms-accent" />}
                     </button>
@@ -107,7 +109,7 @@ export function CompositorNew() {
             {schedMode === 'now' ? (
               <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="text-cms-accent"><path d="M13 2L4 14h7l-1 8 9-12h-7z" /></svg> Publica imediatamente nas {activeCount} contas</>
             ) : schedMode === 'schedule' ? (
-              <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 8v4l3 2" /></svg> Amanhã · <b className="font-mono text-cms-text">19:00</b></>
+              <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 8v4l3 2" /></svg> {['Hoje', 'Amanhã', 'Qua 31', 'Qui 1', 'Sex 2'][selectedDay]} · <b className="font-mono text-cms-text">{selectedTime}</b></>
             ) : (
               <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6h16" /><path d="M4 12h16" /><path d="M4 18h16" /></svg> Entra na fila · próximo slot amanhã 09:00</>
             )}
