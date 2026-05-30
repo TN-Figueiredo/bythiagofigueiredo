@@ -11,21 +11,19 @@ select
   tl.title,
   tl.destination_url,
   tl.source_type,
-  tl.status,
   tl.active,
   tl.total_clicks,
   tl.unique_visitors,
   tl.health_status,
-  tl.health_checked_at,
   tl.redirect_type,
   tl.pass_click_ids,
-  tl.qr_code_url,
+  tl.has_qr,
   tl.created_at,
   tl.expires_at,
   -- Last 30 days clicks
   coalesce(m30.clicks, 0) as last30_clicks,
   coalesce(m30.unique_visitors, 0) as last30_unique,
-  -- QR scans (approximate via referrer_category)
+  -- QR scans (approximate: direct clicks on links that have a QR code)
   coalesce(qr.scans, 0) as qr_scans,
   -- Spark: last 14 days as jsonb array
   coalesce(spark.days, '[]'::jsonb) as spark_14d
@@ -42,7 +40,8 @@ left join lateral (
   select count(*) as scans
   from link_clicks lc
   where lc.link_id = tl.id
-    and lc.referrer_category = 'qr'
+    and lc.referrer_source is null
+    and tl.has_qr = true
 ) qr on true
 left join lateral (
   select jsonb_agg(daily_clicks order by d) as days
