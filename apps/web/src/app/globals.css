@@ -298,6 +298,17 @@
   --border-light:     var(--pb-line);
   --ring:             rgba(255, 130, 64, 0.3);
   --accent:           var(--pb-accent);
+
+  /* Links redesign design tokens — mapped to CMS theme */
+  --ink:              var(--theme-cms-text);
+  --ink-dim:          var(--theme-cms-text-muted);
+  --ink-faint:        var(--theme-cms-text-dim);
+  --line:             var(--theme-cms-border);
+  --line-strong:      var(--theme-cms-border);
+  --surface:          var(--theme-cms-surface);
+  --surface-2:        var(--theme-cms-surface-hover);
+  --accent-soft:      rgba(255, 130, 64, 0.08);
+  --font-mono:        'JetBrains Mono', ui-monospace, monospace;
 }
 
 [data-theme="light"] {
