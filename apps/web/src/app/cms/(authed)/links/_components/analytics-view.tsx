@@ -195,20 +195,37 @@ export function AnalyticsView({ data }: AnalyticsViewProps) {
           />
         </Panel>
 
-        {/* Browsers */}
+      </div>
+
+      {/* Browsers / System / Referrer — 3 columns */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14, alignItems: 'start' }}>
         <Panel title="Navegador" icon="br">
-          <HBars rows={data.browsers.length > 0 ? data.browsers : [
-            { k: 'Chrome', v: 0 }, { k: 'Safari', v: 0 }, { k: 'Firefox', v: 0 }, { k: 'Edge', v: 0 },
-          ]} />
+          {data.browsers.length > 0 ? (
+            <HBars rows={data.browsers} />
+          ) : (
+            <p style={{ padding: '16px 0', textAlign: 'center', fontSize: 12, color: 'var(--ink-faint)' }}>Sem dados ainda.</p>
+          )}
         </Panel>
 
-        {/* OS */}
         <Panel title="Sistema" icon="os">
-          <HBars rows={data.os.length > 0 ? data.os : [
-            { k: 'iOS', v: 0 }, { k: 'Android', v: 0 }, { k: 'Windows', v: 0 }, { k: 'macOS', v: 0 },
-          ]} color="#3FA9C0" />
+          {data.os.length > 0 ? (
+            <HBars rows={data.os} color="#A77CE8" />
+          ) : (
+            <p style={{ padding: '16px 0', textAlign: 'center', fontSize: 12, color: 'var(--ink-faint)' }}>Sem dados ainda.</p>
+          )}
         </Panel>
 
+        <Panel title="Referrer" icon="re">
+          {data.referrers.length > 0 ? (
+            <HBars rows={data.referrers} color="#46B17E" />
+          ) : (
+            <p style={{ padding: '16px 0', textAlign: 'center', fontSize: 12, color: 'var(--ink-faint)' }}>Sem dados ainda.</p>
+          )}
+        </Panel>
+      </div>
+
+      {/* Heatmap + Countries */}
+      <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 1fr' }}>
         {/* Heatmap */}
         <Panel title="Horários de pico" icon="he" style={{ gridColumn: 'span 2' }}>
           <Heatmap grid={data.heatmap} />
@@ -219,15 +236,8 @@ export function AnalyticsView({ data }: AnalyticsViewProps) {
           {data.countries.length > 0 ? (
             <CountryList countries={data.countries} />
           ) : (
-            <p style={{ padding: '16px 0', textAlign: 'center', fontSize: 12, color: 'var(--ink-faint)' }}>Nenhum dado geográfico ainda.</p>
+            <p style={{ padding: '16px 0', textAlign: 'center', fontSize: 12, color: 'var(--ink-faint)' }}>Sem dados geográficos ainda.</p>
           )}
-        </Panel>
-
-        {/* Referrers */}
-        <Panel title="Referrer" icon="re">
-          <HBars rows={data.referrers.length > 0 ? data.referrers : [
-            { k: 'Direto', v: 0 }, { k: 'Google', v: 0 }, { k: 'Outro', v: 0 },
-          ]} color="#A77CE8" />
         </Panel>
 
         {/* Top Links */}
