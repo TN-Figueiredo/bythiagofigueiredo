@@ -1,10 +1,8 @@
 'use client'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
-  FileVideo2, Copy, Lock, Trash2, RotateCcw, Circle, Move, Info, Upload,
-  Sparkles, Flame, Eye, Clapperboard, MapPin, Flag, MessageCircle, ArrowUp,
+  FileVideo2, Copy, Lock, Trash2, RotateCcw, Circle, Move, Upload, Search,
 } from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
 import type { ImageElement } from '@tn-figueiredo/links/qr'
 import { PositionInput } from './inspector-field'
 
@@ -21,24 +19,17 @@ const actionBtnStyle: React.CSSProperties = {
   color: 'var(--ink-dim)', fontSize: 11, cursor: 'pointer',
 }
 
-/* ── Category icon grid (future GIPHY search categories) ── */
+/* ── GIPHY integration ── */
 
-interface StickerCategory {
+const GIPHY_KEY = 'GlVGYHkr3WSBnllca54iNt0yFbjz7L65'
+
+interface GiphyGif {
   id: string
-  icon: LucideIcon
-  label: string
+  images: {
+    fixed_width: { url: string; width: string; height: string }
+    original: { url: string }
+  }
 }
-
-const STICKER_PICKS: StickerCategory[] = [
-  { id: 'sparkles', icon: Sparkles, label: 'Brilho' },
-  { id: 'flame', icon: Flame, label: 'Fogo' },
-  { id: 'eye', icon: Eye, label: 'Olhar' },
-  { id: 'clapperboard', icon: Clapperboard, label: 'Acao' },
-  { id: 'map-pin', icon: MapPin, label: 'Local' },
-  { id: 'flag', icon: Flag, label: 'Bandeira' },
-  { id: 'message-circle', icon: MessageCircle, label: 'Chat' },
-  { id: 'arrow-up', icon: ArrowUp, label: 'Seta' },
-]
 
 /* ── Props ── */
 
@@ -60,9 +51,44 @@ export function GifInspector({
   onDelete,
 }: GifInspectorProps) {
   const fileRef = useRef<HTMLInputElement>(null)
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null)
+
+  const [query, setQuery] = useState('')
+  const [gifs, setGifs] = useState<GiphyGif[]>([])
+  const [searching, setSearching] = useState(false)
+
   /* Derive scale percentage from element width vs a baseline (100 = original) */
   const scalePercent = Math.round(((element.width) / 100) * 100)
+
+  async function fetchGifs(q: string) {
+    setSearching(true)
+    try {
+      const endpoint = q.trim()
+        ? `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_KEY}&q=${encodeURIComponent(q)}&limit=12&rating=g`
+        : `https://api.giphy.com/v1/gifs/trending?api_key=${GIPHY_KEY}&limit=12&rating=g`
+      const res = await fetch(endpoint)
+      const json = await res.json()
+      setGifs(json.data ?? [])
+    } catch {
+      setGifs([])
+    } finally {
+      setSearching(false)
+    }
+  }
+
+  /* Load trending on mount + auto-focus search */
+  useEffect(() => {
+    fetchGifs('')
+    searchRef.current?.focus()
+  }, [])
+
+  /* Debounced search */
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => fetchGifs(query), 500)
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
+  }, [query])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -96,7 +122,91 @@ export function GifInspector({
         </button>
       </div>
 
-      {/* ── Trocar GIF button (prominent) ── */}
+      {/* ── GIPHY search ── */}
+      <div>
+        <div style={labelStyle}>Buscar GIF</div>
+        <div style={{ position: 'relative' }}>
+          <Search
+            size={13}
+            strokeWidth={1.8}
+            style={{
+              position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)',
+              color: 'var(--ink-faint)', pointerEvents: 'none',
+            }}
+          />
+          <input
+            ref={searchRef}
+            type="text"
+            placeholder="Buscar GIF..."
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            style={{
+              width: '100%', boxSizing: 'border-box',
+              padding: '8px 10px 8px 30px', borderRadius: 8,
+              border: '1px solid var(--line-strong)',
+              background: 'var(--surface)',
+              color: 'var(--ink)', fontSize: 12,
+              outline: 'none',
+            }}
+          />
+        </div>
+
+        {/* ── GIF results grid ── */}
+        <div style={{
+          marginTop: 8, maxHeight: 300, overflowY: 'auto',
+          display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6,
+        }}>
+          {searching && gifs.length === 0 && (
+            <div style={{
+              gridColumn: '1 / -1', textAlign: 'center',
+              fontSize: 11, color: 'var(--ink-faint)', padding: '16px 0',
+            }}>
+              Buscando...
+            </div>
+          )}
+          {!searching && gifs.length === 0 && (
+            <div style={{
+              gridColumn: '1 / -1', textAlign: 'center',
+              fontSize: 11, color: 'var(--ink-faint)', padding: '16px 0',
+            }}>
+              Nenhum resultado
+            </div>
+          )}
+          {gifs.map(gif => (
+            <button
+              key={gif.id}
+              type="button"
+              onClick={() => onUpdate({ src: gif.images.original.url })}
+              style={{
+                padding: 0, margin: 0, border: 'none',
+                background: 'none', cursor: 'pointer',
+                borderRadius: 6, overflow: 'hidden',
+                maxHeight: 100, lineHeight: 0,
+              }}
+            >
+              <img
+                src={gif.images.fixed_width.url}
+                alt=""
+                loading="lazy"
+                style={{
+                  width: '100%', borderRadius: 6,
+                  objectFit: 'cover', display: 'block',
+                }}
+              />
+            </button>
+          ))}
+        </div>
+
+        {/* ── GIPHY attribution ── */}
+        <div style={{
+          fontSize: 9, color: 'var(--ink-faint)',
+          textAlign: 'center', marginTop: 4,
+        }}>
+          Powered by GIPHY
+        </div>
+      </div>
+
+      {/* ── Enviar GIF button ── */}
       <div>
         <button
           type="button"
@@ -117,44 +227,6 @@ export function GifInspector({
         </button>
       </div>
 
-      {/* ── Categoria section (future GIPHY search) ── */}
-      <div>
-        <div style={{ ...labelStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span>Categoria</span>
-          <span style={{ fontSize: 9, color: 'var(--ink-faint)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.06em' }}>em breve</span>
-        </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-          {STICKER_PICKS.map(({ id, icon: Icon, label }) => {
-            const active = selectedCategory === id
-            return (
-              <button
-                key={id}
-                type="button"
-                title={label}
-                onClick={() => setSelectedCategory(active ? null : id)}
-                style={{
-                  width: 34, height: 34,
-                  borderRadius: 8,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  cursor: 'pointer',
-                  padding: 0,
-                  background: active ? 'var(--accent-soft)' : 'var(--surface)',
-                  border: active
-                    ? '1.5px solid var(--accent)'
-                    : '1px solid var(--line-strong)',
-                }}
-              >
-                <Icon
-                  size={16}
-                  strokeWidth={1.8}
-                  style={{ color: active ? 'var(--accent)' : 'var(--ink-dim)' }}
-                />
-              </button>
-            )
-          })}
-        </div>
-      </div>
-
       {/* Hidden file input for replace */}
       <input
         ref={fileRef}
@@ -166,23 +238,6 @@ export function GifInspector({
           if (fileRef.current) fileRef.current.value = ''
         }}
       />
-
-      {/* ── Info callout ── */}
-      <div style={{
-        display: 'flex', gap: 8,
-        padding: '10px 12px',
-        background: 'var(--surface-2)',
-        borderRadius: 8,
-      }}>
-        <Info
-          size={14}
-          strokeWidth={1.8}
-          style={{ color: 'var(--accent)', flexShrink: 0, marginTop: 1 }}
-        />
-        <span style={{ fontSize: '11.5px', color: 'var(--ink-dim)', lineHeight: 1.5 }}>
-          Clique em &lsquo;Trocar GIF&rsquo; para enviar o seu. Em breve: busca GIPHY integrada.
-        </span>
-      </div>
 
       {/* ── Tamanho slider ── */}
       <div>
