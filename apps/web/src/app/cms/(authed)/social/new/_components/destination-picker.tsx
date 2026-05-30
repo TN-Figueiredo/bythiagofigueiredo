@@ -108,17 +108,17 @@ export function DestinationPicker({ initialOn, onToggle, onFocus, focused: contr
                 minWidth: 168,
                 borderRadius: 12,
                 padding: '13px 14px',
-                border: isOn
+                border: isOn && isFocused
                   ? `1.5px solid ${dest.tint}`
-                  : isFocused
+                  : isOn
                     ? '1.5px solid var(--line-strong, var(--color-cms-border))'
                     : '1.5px solid var(--line, var(--color-cms-border))',
-                background: isOn
+                background: isOn && isFocused
                   ? `${dest.tint}1a`
-                  : isFocused
+                  : isOn
                     ? 'var(--surface-2, var(--color-cms-surface))'
                     : 'var(--surface, var(--color-cms-surface))',
-                opacity: isOn || isFocused ? 1 : 0.62,
+                opacity: isOn ? 1 : 0.62,
               }}
             >
               {/* Row: icon + text + checkbox */}
@@ -126,10 +126,10 @@ export function DestinationPicker({ initialOn, onToggle, onFocus, focused: contr
                 <div
                   className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[9px]"
                   style={{
-                    background: isOn ? dest.tint : 'var(--surface-3, rgba(255,255,255,0.06))',
+                    background: isOn && isFocused ? dest.tint : 'var(--surface-3, rgba(255,255,255,0.06))',
                   }}
                 >
-                  <PlatformIcon provider={dest.provider} active={isOn} />
+                  <PlatformIcon provider={dest.provider} active={isOn && isFocused} />
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 text-[13.5px] font-semibold text-cms-text">
