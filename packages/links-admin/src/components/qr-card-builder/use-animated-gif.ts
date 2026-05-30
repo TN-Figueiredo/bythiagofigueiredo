@@ -22,8 +22,8 @@ export function useAnimatedGif(
   src: string | null,
   onFrameChange?: () => void,
 ): UseAnimatedGifReturn {
-  const [state, setState] = useState<{ loading: boolean; error: boolean; frameCount: number; gifWidth: number; gifHeight: number }>({
-    loading: false, error: false, frameCount: 0, gifWidth: 0, gifHeight: 0,
+  const [state, setState] = useState<{ loading: boolean; error: boolean; frameCount: number; gifWidth: number; gifHeight: number; canvas: HTMLCanvasElement | null }>({
+    loading: false, error: false, frameCount: 0, gifWidth: 0, gifHeight: 0, canvas: null,
   })
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const framesRef = useRef<GifFrameData[]>([])
@@ -39,15 +39,15 @@ export function useAnimatedGif(
   useEffect(() => {
     if (!src) {
       canvasRef.current = null
-      setState({ loading: false, error: false, frameCount: 0, gifWidth: 0, gifHeight: 0 })
+      setState({ loading: false, error: false, frameCount: 0, gifWidth: 0, gifHeight: 0, canvas: null })
       return
     }
 
-    // Only animate GIFs
-    const isGif = src.toLowerCase().endsWith('.gif') || src.includes('image/gif')
+    // Only animate real GIFs (skip tiny placeholder data URIs)
+    const isGif = src.toLowerCase().endsWith('.gif') || (src.includes('image/gif') && src.length > 200)
     if (!isGif) {
       canvasRef.current = null
-      setState({ loading: false, error: false, frameCount: 0, gifWidth: 0, gifHeight: 0 })
+      setState({ loading: false, error: false, frameCount: 0, gifWidth: 0, gifHeight: 0, canvas: null })
       return
     }
 
@@ -104,6 +104,7 @@ export function useAnimatedGif(
           loading: false, error: false,
           frameCount: frames.length,
           gifWidth, gifHeight,
+          canvas: drawCanvas,
         })
 
         // Start animation
@@ -191,7 +192,7 @@ export function useAnimatedGif(
   }, [src]) // Note: onFrameChange intentionally excluded to avoid re-loading
 
   return {
-    canvas: canvasRef.current,
+    canvas: state.canvas,
     loading: state.loading,
     error: state.error,
     frameCount: state.frameCount,

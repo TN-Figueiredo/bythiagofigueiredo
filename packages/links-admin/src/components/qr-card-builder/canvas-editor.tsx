@@ -308,10 +308,11 @@ function GifNode({
   onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => void
   layerRef: React.RefObject<Konva.Layer | null>
 }) {
-  const { canvas, error } = useAnimatedGif(
+  const { canvas, loading } = useAnimatedGif(
     element.src,
     () => { layerRef.current?.batchDraw() },
   )
+  const fallback = useLoadedImage(canvas ? null : element.src)
 
   return (
     <Group
@@ -336,14 +337,33 @@ function GifNode({
           width={element.width}
           height={element.height}
         />
-      ) : (
-        <Rect
+      ) : fallback.image ? (
+        <KonvaImage
+          image={fallback.image}
           width={element.width}
           height={element.height}
-          fill={error ? '#331111' : '#1a1a2e'}
-          stroke={error ? '#662222' : '#2a2a4a'}
-          strokeWidth={1}
         />
+      ) : (
+        <>
+          <Rect
+            width={element.width}
+            height={element.height}
+            fill="var(--surface-2, #272219)"
+            stroke="var(--line, #333)"
+            strokeWidth={1}
+            cornerRadius={8}
+          />
+          <KonvaText
+            text={loading ? 'Carregando...' : 'GIF'}
+            x={0}
+            y={element.height / 2 - 8}
+            width={element.width}
+            fontSize={14}
+            fontFamily="Inter"
+            fill="#888"
+            align="center"
+          />
+        </>
       )}
     </Group>
   )
