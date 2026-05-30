@@ -1,90 +1,142 @@
+import { Suspense } from 'react'
+import Link from 'next/link'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
-import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { CmsTopbar } from '@tn-figueiredo/cms-ui/client'
-import { listSocialPosts, deleteSocialPost, retrySocialDelivery, retryPostDeliveries } from '@/lib/social/actions'
 import { getSocialStrings } from './_i18n'
-import { PostsFeed } from './_components/posts-feed'
-import { PostsCalendar } from './_components/posts-calendar'
-import { PostsQueue } from './_components/posts-queue'
-import { PostsDrafts } from './_components/posts-drafts'
-import Link from 'next/link'
-import type { Provider } from '@tn-figueiredo/social'
+import { SocialBreadcrumb } from './_components/shared/social-breadcrumb'
+import { SocialPageHeader } from './_components/shared/social-page-header'
+import { AccountsStripLoader } from './_components/accounts-strip'
+import { FeedViewLoader } from './_components/posts-feed'
+import { CalendarViewLoader } from './_components/posts-calendar'
+import { QueueViewLoader } from './_components/posts-queue'
+import { DraftsViewLoader } from './_components/posts-drafts'
 
 export const dynamic = 'force-dynamic'
 
+const TABS = ['feed', 'calendar', 'queue', 'drafts'] as const
+type TabId = (typeof TABS)[number]
+
 interface Props {
-  searchParams: Promise<{ tab?: string }>
+  searchParams: Promise<{ tab?: string; status?: string; week?: string }>
 }
 
-export default async function SocialPostsPage({ searchParams }: Props) {
+export default async function SocialHubPage({ searchParams }: Props) {
   const ctx = await getSiteContext()
   await requireSiteScope({ area: 'cms', siteId: ctx.siteId, mode: 'view' })
 
   const uiLocale = ctx.defaultLocale === 'pt-BR' ? 'pt-BR' : 'en'
   const t = getSocialStrings(uiLocale)
   const params = await searchParams
-  const tab = params.tab ?? 'feed'
+  const tab = (TABS.includes(params.tab as TabId) ? params.tab : 'feed') as TabId
 
-  const result = await listSocialPosts(ctx.siteId)
-  const posts = result.ok ? result.data : []
+  const breadcrumb = (
+    <SocialBreadcrumb crumbs={[
+      { label: 'Social', href: '/cms/social' },
+      { label: t.posts.tabs[tab] },
+    ]} />
+  )
 
-  let platformsByPost = new Map<string, Provider[]>()
-  const postIds = posts.map(p => p.id)
-  if (postIds.length > 0) {
-    const supabase = getSupabaseServiceClient()
-    const { data: deliveries } = await supabase
-      .from('social_deliveries')
-      .select('post_id, provider')
-      .in('post_id', postIds)
-    for (const d of (deliveries ?? []) as Array<{ post_id: string; provider: Provider }>) {
-      const existing = platformsByPost.get(d.post_id) ?? []
-      if (!existing.includes(d.provider)) existing.push(d.provider)
-      platformsByPost.set(d.post_id, existing)
-    }
-  }
-  const platformsMap = Object.fromEntries(platformsByPost)
-
-  return (
+  const actions = (
     <>
-      <CmsTopbar title={t.posts.title} />
-      <div className="p-6 space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="flex gap-2 border-b border-cms-border pb-2">
-            {(['feed', 'calendar', 'queue', 'drafts'] as const).map(tabId => (
-              <a
-                key={tabId}
-                href={tabId === 'feed' ? '/cms/social' : `/cms/social?tab=${tabId}`}
-                aria-current={tab === tabId ? 'page' : undefined}
-                className={`px-3 py-1.5 text-sm font-medium ${tab === tabId ? 'text-cms-accent border-b-2 border-cms-accent' : 'text-cms-text-muted hover:text-cms-text'}`}
-              >
-                {t.posts.tabs[tabId]}
-              </a>
-            ))}
-          </div>
-          <Link
-            href="/cms/social/new"
-            className="rounded-md bg-cms-accent px-4 py-2 text-sm font-medium text-white hover:bg-cms-accent-hover"
-          >
-            {t.posts.newPost}
-          </Link>
-        </div>
-
-        {tab === 'feed' && (
-          <PostsFeed
-            posts={posts}
-            siteId={ctx.siteId}
-            strings={t}
-            platformsByPost={platformsMap}
-            onRetryDelivery={retrySocialDelivery}
-            onDeletePost={deleteSocialPost}
-            onRetryPostDeliveries={retryPostDeliveries}
-          />
-        )}
-        {tab === 'calendar' && <PostsCalendar posts={posts} strings={t} platformsByPost={platformsMap} />}
-        {tab === 'queue' && <PostsQueue posts={posts} strings={t} />}
-        {tab === 'drafts' && <PostsDrafts posts={posts} strings={t} />}
-      </div>
+      <Link
+        href="/cms/social/new?mode=cms"
+        className="rounded-lg border border-cms-border px-4 py-2 text-sm font-medium text-cms-text hover:bg-cms-surface transition-colors"
+      >
+        Do CMS
+      </Link>
+      <Link
+        href="/cms/social/new"
+        className="rounded-lg bg-cms-accent px-4 py-2 text-sm font-medium text-white hover:bg-cms-accent-hover transition-colors"
+      >
+        Novo post
+      </Link>
     </>
   )
+
+  return (
+    <div className="p-6 space-y-6">
+      <SocialPageHeader
+        breadcrumb={breadcrumb}
+        title="Social Studio"
+        subtitle="Gerenciar posts, agenda e fila de publicacao"
+        actions={actions}
+      />
+
+      {/* Tab bar */}
+      <div role="tablist" className="flex gap-1 border-b border-cms-border">
+        {TABS.map(tabId => (
+          <Link
+            key={tabId}
+            href={tabId === 'feed' ? '/cms/social' : `/cms/social?tab=${tabId}`}
+            role="tab"
+            aria-selected={tab === tabId}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              tab === tabId
+                ? 'text-cms-accent border-b-2 border-cms-accent'
+                : 'text-cms-text-muted hover:text-cms-text'
+            }`}
+          >
+            {t.posts.tabs[tabId]}
+          </Link>
+        ))}
+      </div>
+
+      {/* Tab content */}
+      <div role="tabpanel">
+        {tab === 'feed' && (
+          <>
+            <Suspense fallback={<AccountsStripSkeleton />}>
+              <AccountsStripLoader siteId={ctx.siteId} />
+            </Suspense>
+            <Suspense fallback={<FeedSkeleton />}>
+              <FeedViewLoader siteId={ctx.siteId} status={params.status} />
+            </Suspense>
+          </>
+        )}
+        {tab === 'calendar' && (
+          <Suspense fallback={<CalendarSkeleton />}>
+            <CalendarViewLoader siteId={ctx.siteId} week={params.week} />
+          </Suspense>
+        )}
+        {tab === 'queue' && (
+          <Suspense fallback={<QueueSkeleton />}>
+            <QueueViewLoader siteId={ctx.siteId} />
+          </Suspense>
+        )}
+        {tab === 'drafts' && (
+          <Suspense fallback={<DraftsSkeleton />}>
+            <DraftsViewLoader siteId={ctx.siteId} />
+          </Suspense>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function AccountsStripSkeleton() {
+  return <div className="grid grid-cols-[repeat(auto-fit,minmax(252px,1fr))] gap-3 animate-pulse">
+    {[1,2,3].map(i => <div key={i} className="h-20 rounded-lg bg-cms-surface" />)}
+  </div>
+}
+
+function FeedSkeleton() {
+  return <div className="mt-4 grid grid-cols-[repeat(auto-fill,minmax(248px,1fr))] gap-4 animate-pulse">
+    {[1,2,3,4,5,6].map(i => <div key={i} className="h-72 rounded-lg bg-cms-surface" />)}
+  </div>
+}
+
+function CalendarSkeleton() {
+  return <div className="h-96 animate-pulse rounded-lg bg-cms-surface" />
+}
+
+function QueueSkeleton() {
+  return <div className="space-y-2 animate-pulse">
+    {[1,2,3].map(i => <div key={i} className="h-16 rounded-lg bg-cms-surface" />)}
+  </div>
+}
+
+function DraftsSkeleton() {
+  return <div className="space-y-2 animate-pulse">
+    {[1,2,3].map(i => <div key={i} className="h-20 rounded-lg bg-cms-surface" />)}
+  </div>
 }
