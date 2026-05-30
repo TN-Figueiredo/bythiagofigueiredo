@@ -137,12 +137,52 @@ export function EditLinkForm({ linkId, siteId, initial }: EditLinkFormProps) {
 
       {/* Form */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '26px 30px 60px', maxWidth: 720 }}>
-        <LinkForm
-          link={linkData}
-          siteId={siteId}
-          onSubmit={handleSubmit}
-          onCancel={() => router.push(`/cms/links/${linkId}`)}
-        />
+        <style>{`
+          .links-edit-form input[type="text"],
+          .links-edit-form input[type="url"],
+          .links-edit-form input[type="number"],
+          .links-edit-form input[type="password"],
+          .links-edit-form input[type="datetime-local"],
+          .links-edit-form textarea,
+          .links-edit-form select {
+            background: var(--surface) !important;
+            border: 1px solid var(--line-strong) !important;
+            border-radius: 9px !important;
+            padding: 11px 13px !important;
+            color: var(--ink) !important;
+            font-size: 13.5px !important;
+            outline: none !important;
+          }
+          .links-edit-form input:focus,
+          .links-edit-form textarea:focus,
+          .links-edit-form select:focus {
+            border-color: var(--accent) !important;
+          }
+          .links-edit-form label {
+            color: var(--ink-dim) !important;
+            font-size: 12px !important;
+          }
+          .links-edit-form h2, .links-edit-form h3 {
+            color: var(--ink) !important;
+          }
+          .links-edit-form p, .links-edit-form span {
+            color: var(--ink-dim) !important;
+          }
+          .links-edit-form button[type="submit"] {
+            background: var(--accent) !important;
+            color: var(--pb-ink-on-accent, #1A140C) !important;
+            border: 1px solid var(--accent) !important;
+            border-radius: 9px !important;
+          }
+        `}</style>
+        <div className="links-edit-form">
+          <LinkForm
+            link={linkData}
+            siteId={siteId}
+            onSubmit={handleSubmit}
+            onCancel={() => router.push(`/cms/links/${linkId}`)}
+          />
+        </div>
       </div>
     </div>
   )
