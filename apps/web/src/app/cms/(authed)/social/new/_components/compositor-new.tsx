@@ -17,8 +17,10 @@ export function CompositorNew() {
   const [destsOn, setDestsOn] = useState<Record<DestId, boolean>>(DEFAULT_ON)
   const [focused, setFocused] = useState<DestId>('ig_story')
   const [schedMode, setSchedMode] = useState<'now' | 'schedule' | 'queue'>('now')
+  const [hasContent, setHasContent] = useState(false)
 
   const activeCount = DEST_IDS.filter(id => destsOn[id]).length
+  const canPublish = activeCount > 0 && hasContent
 
   function handleToggle(id: DestId) {
     const next = { ...destsOn, [id]: !destsOn[id] }
@@ -37,7 +39,7 @@ export function CompositorNew() {
         onFocus={setFocused}
         focused={focused}
       />
-      <DestCompositor focusedDest={focused} destsOn={destsOn} />
+      <DestCompositor focusedDest={focused} destsOn={destsOn} onContentChange={setHasContent} />
 
       {/* Sticky footer — stays at bottom of viewport within CMS content area */}
       <div className="sticky bottom-0 z-20 -mx-[30px] mt-auto border-t border-cms-border" style={{ background: 'rgba(16,14,11,0.92)', backdropFilter: 'blur(12px)' }}>
@@ -76,13 +78,15 @@ export function CompositorNew() {
           <div className="ml-auto flex gap-2.5">
             <button
               type="button"
-              className="inline-flex items-center gap-[7px] rounded-[9px] border border-cms-border px-[15px] py-[9px] text-[13.5px] font-semibold text-cms-text-dim transition-colors hover:text-cms-text"
+              disabled={!hasContent}
+              className="inline-flex items-center gap-[7px] rounded-[9px] border border-cms-border px-[15px] py-[9px] text-[13.5px] font-semibold text-cms-text-dim transition-colors hover:text-cms-text disabled:opacity-40 disabled:pointer-events-none"
             >
               Salvar rascunho
             </button>
             <button
               type="button"
-              className="inline-flex items-center gap-[7px] rounded-[9px] border px-[15px] py-[9px] text-[13.5px] font-semibold transition-colors"
+              disabled={!canPublish}
+              className="inline-flex items-center gap-[7px] rounded-[9px] border px-[15px] py-[9px] text-[13.5px] font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none"
               style={{
                 background: schedMode === 'now' ? 'var(--green, #22c55e)' : 'var(--color-cms-accent, #E8823C)',
                 borderColor: schedMode === 'now' ? 'var(--green, #22c55e)' : 'var(--color-cms-accent, #E8823C)',

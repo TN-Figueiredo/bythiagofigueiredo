@@ -7,6 +7,7 @@ import { DESTINATIONS } from '@/lib/social/destinations'
 interface DestCompositorProps {
   focusedDest: DestId
   destsOn: Record<DestId, boolean>
+  onContentChange?: (hasContent: boolean) => void
 }
 
 function PlatformIconSmall({ provider }: { provider: string }) {
@@ -32,10 +33,15 @@ function PlatformIconSmall({ provider }: { provider: string }) {
   return null
 }
 
-export function DestCompositor({ focusedDest, destsOn }: DestCompositorProps) {
+export function DestCompositor({ focusedDest, destsOn, onContentChange }: DestCompositorProps) {
   const dest = DESTINATIONS[focusedDest]
   const isActive = destsOn[focusedDest]
-  const [caption, setCaption] = useState('')
+  const [caption, setCaptionState] = useState('')
+
+  function setCaption(value: string) {
+    setCaptionState(value)
+    onContentChange?.(value.trim().length > 0)
+  }
   const [lang, setLang] = useState<'PT' | 'EN'>('PT')
 
   if (!isActive) return null

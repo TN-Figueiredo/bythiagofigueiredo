@@ -31,12 +31,7 @@ vi.mock('konva', () => ({}))
 // vi.mock is hoisted before imports, so react-konva mock is active.
 // Use relative path to avoid Vite alias issues with parenthesized route groups.
 import { SocialCanvasEditor } from '../../src/app/cms/(authed)/social/new/_components/canvas-editor/index'
-
-const SOCIAL_ASPECT_RATIOS = [
-  { name: '9:16', width: 1080, height: 1920, label: 'Story' },
-  { name: '1:1', width: 1080, height: 1080, label: 'Square' },
-  { name: '16:9', width: 1280, height: 720, label: 'Landscape' },
-] as const
+import { SOCIAL_ASPECT_RATIOS } from '../../src/app/cms/(authed)/social/new/_components/canvas-editor/social-left-panel'
 
 const defaultProps = {
   aspectRatio: '9:16' as const,
@@ -69,8 +64,9 @@ describe('SocialCanvasEditor', () => {
   it('renders the three-panel layout', () => {
     render(<SocialCanvasEditor {...defaultProps} />)
     expect(screen.getByRole('application')).toBeDefined()
-    // "Story" appears in breadcrumb, aspect-ratio button, and status bar
-    expect(screen.getAllByText('Story').length).toBeGreaterThanOrEqual(1)
+    // Aspect-ratio label appears in breadcrumb and status bar
+    const storyLabel = SOCIAL_ASPECT_RATIOS.find(r => r.name === '9:16')!.label
+    expect(screen.getAllByText(storyLabel).length).toBeGreaterThanOrEqual(1)
   })
 
   it('displays fixed aspect ratio options without custom sizing', () => {
