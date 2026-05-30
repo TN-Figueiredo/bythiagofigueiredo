@@ -540,9 +540,9 @@ export function LinkDetail({ link, dailyClicks, topCountry, linkId, shortUrl }: 
           circleBg="rgba(63, 169, 192, 0.133)"
         />
         <KpiTile
-          icon={<Globe size={14} strokeWidth={1.7} />}
-          label="Top Pais"
-          value={topCountry || '—'}
+          icon={<QrCode size={15} strokeWidth={1.7} />}
+          label="QR Scans"
+          value={0}
           circleColor="var(--amber)"
           circleBg="var(--amber-soft)"
         />
