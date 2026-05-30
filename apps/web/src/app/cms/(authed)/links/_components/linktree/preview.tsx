@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { Link2, Mail, BookOpen, Youtube, Globe, Users, Phone, Heart } from 'lucide-react'
 
 const ICON_MAP: Record<string, typeof Link2> = {
@@ -58,14 +59,25 @@ interface SharedLinkDisplay {
   url: string
 }
 
+interface LatestContent {
+  title: string
+  meta?: string
+}
+
 interface LinktreePreviewProps {
   width?: number
   taglinePt: string
   taglineEn: string
   sharedLinks: SharedLinkDisplay[]
+  latestPost?: LatestContent | null
+  latestVideo?: LatestContent | null
 }
 
-export function LinktreePreview({ width = 300, taglinePt, taglineEn, sharedLinks }: LinktreePreviewProps) {
+export function LinktreePreview({ width = 300, taglinePt, taglineEn, sharedLinks, latestPost, latestVideo }: LinktreePreviewProps) {
+  const [locale, setLocale] = useState<'PT' | 'EN'>('EN')
+
+  const tagline = locale === 'PT' ? taglinePt : taglineEn
+
   return (
     <div
       className="flex flex-col gap-3.5 rounded-2xl border border-white/10 p-[22px_18px]"
@@ -73,9 +85,16 @@ export function LinktreePreview({ width = 300, taglinePt, taglineEn, sharedLinks
     >
       {/* PT/EN toggle */}
       <div className="mb-0.5 flex justify-center gap-1.5">
-        {['PT', 'EN'].map((l) => (
-          <span key={l} className="rounded-full border border-white/[0.15] px-[9px] py-[3px] font-mono text-[10px] font-bold"
-            style={{ color: l === 'EN' ? '#F2683C' : '#A39C8E' }}>{l}</span>
+        {(['PT', 'EN'] as const).map((l) => (
+          <button
+            key={l}
+            type="button"
+            onClick={() => setLocale(l)}
+            className="rounded-full border border-white/[0.15] px-[9px] py-[3px] font-mono text-[10px] font-bold transition-colors"
+            style={{ color: locale === l ? '#F2683C' : '#A39C8E' }}
+          >
+            {l}
+          </button>
         ))}
       </div>
 
@@ -83,37 +102,53 @@ export function LinktreePreview({ width = 300, taglinePt, taglineEn, sharedLinks
       <div className="flex flex-col items-center gap-1.5 text-center">
         <TFStamp size={54} />
         <div className="mt-0.5 text-[19px] font-semibold text-[#ECE6DA]" style={{ fontFamily: 'Fraunces, serif' }}>Thiago Figueiredo</div>
-        <div className="font-mono text-[10.5px] tracking-[0.04em] text-[#A39C8E]">{taglinePt}</div>
+        <div className="font-mono text-[10.5px] tracking-[0.04em] text-[#A39C8E]">{tagline}</div>
       </div>
 
-      {/* Latest post card */}
+      {/* Latest post + video */}
       <div className="overflow-hidden rounded-xl border border-white/10">
-        <div className="border-l-2 border-[#F2683C] px-[13px] py-[10px]">
-          <div className="mb-[3px] font-mono text-[8.5px] uppercase tracking-[0.16em] text-[#F2683C]">ULTIMO POST</div>
-          <div className="text-[13px] font-semibold leading-tight text-[#ECE6DA]" style={{ fontFamily: 'Fraunces, serif' }}>I Learned a Language by Arguing with Strangers Online</div>
-        </div>
+        {latestPost && (
+          <div className="border-l-2 border-[#F2683C] px-[13px] py-[10px]">
+            <div className="mb-[3px] font-mono text-[8.5px] uppercase tracking-[0.16em] text-[#F2683C]">ÚLTIMO POST</div>
+            <div className="text-[13px] font-semibold leading-tight text-[#ECE6DA]" style={{ fontFamily: 'Fraunces, serif' }}>{latestPost.title}</div>
+            {latestPost.meta && <div className="mt-1 font-mono text-[8.5px] text-[#6E685D]">{latestPost.meta}</div>}
+          </div>
+        )}
+        {latestVideo && (
+          <div className={`border-l-2 border-[#E0574E] px-[13px] py-[10px] ${latestPost ? 'border-t border-t-white/10' : ''}`}>
+            <div className="mb-[3px] font-mono text-[8.5px] uppercase tracking-[0.16em] text-[#E0574E]">🎬 ÚLTIMO VÍDEO</div>
+            <div className="text-[13px] font-semibold leading-tight text-[#ECE6DA]" style={{ fontFamily: 'Fraunces, serif' }}>{latestVideo.title}</div>
+            {latestVideo.meta && <div className="mt-1 font-mono text-[8.5px] text-[#6E685D]">{latestVideo.meta}</div>}
+          </div>
+        )}
+        {!latestPost && !latestVideo && (
+          <div className="border-l-2 border-[#F2683C] px-[13px] py-[10px]">
+            <div className="mb-[3px] font-mono text-[8.5px] uppercase tracking-[0.16em] text-[#F2683C]">ÚLTIMO POST</div>
+            <div className="text-[13px] font-semibold leading-tight text-[#ECE6DA]" style={{ fontFamily: 'Fraunces, serif' }}>—</div>
+          </div>
+        )}
       </div>
 
       {/* English section */}
       <div className="mt-0.5 font-mono text-[9px] uppercase tracking-[0.16em] text-[#6E685D]">ENGLISH</div>
       <div className="flex flex-col gap-2">
         <TreeRow icon="blog" iconColor="#46B17E" title="Blog" sub="code, product & indie life" />
-        <TreeRow icon="mail" iconColor="#E0A23C" title="Thiago&#39;s Journal" sub="Newsletter Weekly" />
+        <TreeRow icon="mail" iconColor="#E0A23C" title="Thiago's Journal" sub="Newsletter Weekly" />
         <TreeRow icon="youtube" title="YouTube" sub="@bythiagofigueiredo" />
       </div>
 
       {/* Portuguese section */}
-      <div className="mt-1 font-mono text-[9px] uppercase tracking-[0.16em] text-[#6E685D]">PORTUGUES</div>
+      <div className="mt-1 font-mono text-[9px] uppercase tracking-[0.16em] text-[#6E685D]">PORTUGUÊS</div>
       <div className="flex flex-col gap-2">
-        <TreeRow icon="blog" iconColor="#46B17E" title="Blog" sub="codigo, produto e vida indie" />
-        <TreeRow icon="mail" iconColor="#E0A23C" title="Diario do Thiago" sub="Newsletter Semanal" />
+        <TreeRow icon="blog" iconColor="#46B17E" title="Blog" sub="código, produto e vida indie" />
+        <TreeRow icon="mail" iconColor="#E0A23C" title="Diário do Thiago" sub="Newsletter Semanal" />
       </div>
 
       {/* Shared links */}
       {sharedLinks.length > 0 && (
         <div className="mt-1 flex flex-col gap-2">
           {sharedLinks.map((s) => (
-            <TreeRow key={s.id} icon={s.icon} iconColor="#8A8F98" title={s.label_pt} />
+            <TreeRow key={s.id} icon={s.icon} iconColor="#8A8F98" title={locale === 'PT' ? s.label_pt : s.label_en} />
           ))}
         </div>
       )}

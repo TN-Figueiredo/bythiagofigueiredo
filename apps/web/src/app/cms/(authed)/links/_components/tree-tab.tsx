@@ -7,11 +7,18 @@ import type { LinktreeDisplay } from '@tn-figueiredo/links-admin'
 import { LinktreePreview } from './linktree/preview'
 import { fmt } from './fmt'
 
-interface TreeTabProps {
-  tree: LinktreeDisplay
+interface LatestContent {
+  title: string
+  meta?: string
 }
 
-export function TreeTab({ tree }: TreeTabProps) {
+interface TreeTabProps {
+  tree: LinktreeDisplay
+  latestPost?: LatestContent | null
+  latestVideo?: LatestContent | null
+}
+
+export function TreeTab({ tree, latestPost, latestVideo }: TreeTabProps) {
   const [bannerDismissed, setBannerDismissed] = useState(() => {
     if (typeof window === 'undefined') return false
     return localStorage.getItem('links-merge-banner-dismissed') === '1'
@@ -89,6 +96,8 @@ export function TreeTab({ tree }: TreeTabProps) {
             width={280}
             taglinePt="código, produto & vida indie"
             taglineEn="code, product & indie life"
+            latestPost={latestPost}
+            latestVideo={latestVideo}
             sharedLinks={tree.sharedLinks.map(s => ({
               id: s.id,
               icon: s.icon,

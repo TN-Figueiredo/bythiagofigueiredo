@@ -10,14 +10,21 @@ import { AnalyticsView } from './_components/analytics-view'
 import { CreateLinkModal } from './_components/create-link-modal'
 import { createLink } from './actions'
 
+interface LatestContent {
+  title: string
+  meta?: string
+}
+
 interface LinksHubProps {
   tree: LinktreeDisplay
   links: LinkDisplay[]
   analytics: AnalyticsDisplay
   activeTab: TabId
+  latestPost?: LatestContent | null
+  latestVideo?: LatestContent | null
 }
 
-export function LinksHub({ tree, links, analytics, activeTab }: LinksHubProps) {
+export function LinksHub({ tree, links, analytics, activeTab, latestPost, latestVideo }: LinksHubProps) {
   const [showCreateModal, setShowCreateModal] = useState(false)
 
   return (
@@ -68,7 +75,7 @@ export function LinksHub({ tree, links, analytics, activeTab }: LinksHubProps) {
 
       {/* Tab content */}
       <div className="pt-5">
-        {activeTab === 'tree' && <TreeTab tree={tree} />}
+        {activeTab === 'tree' && <TreeTab tree={tree} latestPost={latestPost} latestVideo={latestVideo} />}
         {activeTab === 'links' && <ShortLinksTab links={links} onCreateLink={() => setShowCreateModal(true)} />}
         {activeTab === 'analytics' && <AnalyticsView data={analytics} />}
       </div>

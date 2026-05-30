@@ -6,6 +6,7 @@ import type { LinkDisplay, LinktreeDisplay, AnalyticsDisplay, SourceId } from '@
 import { SOURCE_LABELS } from '@tn-figueiredo/links-admin'
 import { toDateStringInTz } from '@/lib/cms/format-site-datetime'
 import { z } from 'zod'
+import { getLatestPost, getLatestVideo } from '@/app/go/linktree/_lib/queries'
 import { LinksHub } from './_hub'
 import type { TabId } from './_components/tab-bar'
 
@@ -67,7 +68,7 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
   const sevenDaysAgoStr = toDateStringInTz(sevenDaysAgo, timezone)
   const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10)
 
-  const [linksRes, dailyRes, linktreeStatsRes, siteDataRes, sparkRes] = await Promise.all([
+  const [linksRes, dailyRes, linktreeStatsRes, siteDataRes, sparkRes, latestPost, latestVideo] = await Promise.all([
     supabase
       .from('tracked_links')
       .select('*')
@@ -96,6 +97,8 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
       .eq('site_id', siteId)
       .gte('date', new Date(Date.now() - 13 * 86_400_000).toISOString().slice(0, 10))
       .order('date', { ascending: true }),
+    getLatestPost(siteId, 'en'),
+    getLatestVideo(siteId),
   ])
 
   const rawLinks = linksRes.data ?? []
@@ -246,12 +249,24 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
     insights: [],
   }
 
+  const latestContentPost = latestPost ? {
+    title: latestPost.title,
+    meta: `${new Date(latestPost.publishedAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })} · ${latestPost.readingTimeMin} min${latestPost.tagName ? ` · ${latestPost.tagName}` : ''}`,
+  } : null
+
+  const latestContentVideo = latestVideo ? {
+    title: latestVideo.title,
+    meta: `${new Date(latestVideo.publishedAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })} · ${latestVideo.duration} · ${latestVideo.viewCount.toLocaleString('pt-BR')} views`,
+  } : null
+
   return (
     <LinksHub
       tree={tree}
       links={links}
       analytics={analytics}
       activeTab={tab}
+      latestPost={latestContentPost}
+      latestVideo={latestContentVideo}
     />
   )
 }
