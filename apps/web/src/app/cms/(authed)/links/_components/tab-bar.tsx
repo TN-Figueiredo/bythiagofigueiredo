@@ -16,7 +16,7 @@ interface TabBarProps {
 
 export function TabBar({ activeTab }: TabBarProps) {
   return (
-    <div role="tablist" aria-label="Secoes de links" className="flex gap-0 border-b border-border">
+    <div role="tablist" aria-label="Secoes de links" className="flex border-b border-[var(--line)]" style={{ gap: 26 }}>
       {TABS.map((tab) => {
         const isActive = tab.id === activeTab
         return (
@@ -25,16 +25,20 @@ export function TabBar({ activeTab }: TabBarProps) {
             href={`/cms/links?tab=${tab.id}`}
             role="tab"
             aria-selected={isActive}
-            className={[
-              'relative px-4 py-2.5 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 focus:ring-inset',
-              isActive
-                ? 'text-foreground'
-                : 'text-muted-foreground hover:text-foreground',
-            ].join(' ')}
+            className="relative cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 focus:ring-inset"
+            style={{
+              padding: '0 1px 13px',
+              fontSize: 14,
+              fontWeight: isActive ? 600 : 500,
+              color: isActive ? 'var(--ink)' : 'var(--ink-dim)',
+            }}
           >
             {tab.label}
             {isActive && (
-              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+              <div
+                className="absolute left-0 right-0"
+                style={{ bottom: -1, height: 2, background: 'var(--accent)', borderRadius: 2 }}
+              />
             )}
           </Link>
         )
