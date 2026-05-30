@@ -312,7 +312,8 @@ function GifNode({
     element.src,
     () => { layerRef.current?.batchDraw() },
   )
-  const fallback = useLoadedImage(canvas ? null : element.src)
+  const isPlaceholder = element.src.startsWith('data:') && element.src.length < 200
+  const fallback = useLoadedImage(canvas || isPlaceholder ? null : element.src)
 
   return (
     <Group
