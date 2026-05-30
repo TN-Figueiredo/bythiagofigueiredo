@@ -310,6 +310,8 @@ export interface SuggestedVideo {
   grade: 'A' | 'B' | 'C' | 'D' | 'F'
   reason: string
   suggest: TestType
+  impressions?: string
+  confidence?: number
 }
 
 export interface LearningsTag {
