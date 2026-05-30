@@ -2,34 +2,22 @@ import { notFound, redirect } from 'next/navigation'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import {
-  AnalyticsOverview,
-  AnalyticsCharts,
-  ClickMap,
-  AiInsightsPanel,
-} from '@tn-figueiredo/links-admin/client'
-import type {
-  AnalyticsMetrics,
-  DeviceData,
-  ReferrerData,
-  GeoDataItem,
-  HourlyData,
-  Insight,
-  DateRange,
-} from '@tn-figueiredo/links-admin'
+import type { AnalyticsDisplay } from '@tn-figueiredo/links-admin'
 import { toDateStringInTz } from '@/lib/cms/format-site-datetime'
-import { getAiInsights } from '../../actions'
+import { AnalyticsView } from '../../_components/analytics-view'
 
 export const dynamic = 'force-dynamic'
 
 interface Props {
   params: Promise<{ id: string }>
-  searchParams: Promise<{ period?: string }>
 }
 
-export default async function LinkAnalyticsPage({ params, searchParams }: Props) {
+const DEVICE_COLORS: Record<string, string> = { mobile: '#F2683C', desktop: '#3FA9C0', tablet: '#A77CE8', bot: '#8A8F98', other: '#8A8F98' }
+const DEVICE_LABELS: Record<string, string> = { mobile: 'Mobile', desktop: 'Desktop', tablet: 'Tablet', bot: 'Bot', other: 'Outro' }
+const COUNTRY_NAMES: Record<string, string> = { BR: 'Brasil', US: 'Estados Unidos', PT: 'Portugal', DE: 'Alemanha', FR: 'França', GB: 'Reino Unido', ES: 'Espanha', AR: 'Argentina', JP: 'Japão', MX: 'México' }
+
+export default async function LinkAnalyticsPage({ params }: Props) {
   const { id } = await params
-  const sp = await searchParams
   const { siteId, timezone } = await getSiteContext()
 
   const authRes = await requireSiteScope({ area: 'cms', siteId, mode: 'view' })
@@ -37,281 +25,203 @@ export default async function LinkAnalyticsPage({ params, searchParams }: Props)
 
   const supabase = getSupabaseServiceClient()
 
-  // Fetch link
   const { data: link, error: linkError } = await supabase
     .from('tracked_links')
-    .select('id, title, code, destination_url, total_clicks, unique_visitors, created_at')
+    .select('id, title, code, destination_url, source_type, total_clicks, unique_visitors, created_at')
     .eq('id', id)
     .eq('site_id', siteId)
     .single()
 
   if (linkError || !link) notFound()
 
-  // Date range from search params (default: 30 days)
-  const period = sp.period ?? '30d'
-  const daysMap: Record<string, number> = { '7d': 7, '30d': 30, '90d': 90, '365d': 365 }
-  const days = daysMap[period] ?? 30
-  const dateFrom = toDateStringInTz(new Date(Date.now() - days * 86_400_000), timezone)
+  const dateFrom = toDateStringInTz(new Date(Date.now() - 30 * 86_400_000), timezone)
   const dateTo = toDateStringInTz(new Date(), timezone)
 
-  // Parallel fetches
-  const [metricsRes, clickEventsRes, insightsResult] = await Promise.all([
+  const [metricsRes, clickEventsRes] = await Promise.all([
     supabase
       .from('link_daily_metrics')
-      .select('date, clicks, unique_visitors, mobile_clicks, desktop_clicks, tablet_clicks, ref_direct, ref_search, ref_social, ref_email, ref_referral, ref_other, countries, hourly_clicks')
+      .select('date, clicks, unique_visitors, countries, hourly_clicks')
       .eq('link_id', id)
       .gte('date', dateFrom)
       .lte('date', dateTo)
       .order('date', { ascending: true }),
     supabase
       .from('link_clicks')
-      .select('country, device_type, browser, os, referrer_domain, clicked_at')
+      .select('country, city, device_type, browser, os, referrer_domain, clicked_at')
       .eq('link_id', id)
       .gte('clicked_at', `${dateFrom}T00:00:00Z`)
       .lte('clicked_at', `${dateTo}T23:59:59Z`)
       .order('clicked_at', { ascending: false })
       .limit(5000),
-    getAiInsights(id),
   ])
 
   const dailyMetrics = metricsRes.data ?? []
   const clickEvents = clickEventsRes.data ?? []
 
-  // Build analytics metrics
-  const dailyClicks = dailyMetrics.map((m) => ({
-    date: m.date as string,
-    clicks: (m.clicks as number) ?? 0,
-    unique: (m.unique_visitors as number) ?? 0,
-  }))
-
-  const periodClicks = dailyClicks.reduce((s, m) => s + m.clicks, 0)
-  const periodUnique = dailyClicks.reduce((s, m) => s + m.unique, 0)
-
-  // Aggregate geo from daily metrics (more accurate than click samples)
-  const countryMap = new Map<string, number>()
-  for (const m of dailyMetrics) {
-    const countries = m.countries as Record<string, number> | null
-    if (countries) {
-      for (const [c, n] of Object.entries(countries)) {
-        countryMap.set(c, (countryMap.get(c) ?? 0) + n)
-      }
-    }
+  // byDay — 30 slots
+  const byDay = Array.from({ length: 30 }, () => 0)
+  for (const row of dailyMetrics) {
+    const d = new Date(row.date as string)
+    const daysAgo = Math.floor((Date.now() - d.getTime()) / 86_400_000)
+    if (daysAgo >= 0 && daysAgo < 30) byDay[29 - daysAgo]! += (row.clicks as number) ?? 0
   }
 
-  let topCountry: string | null = null
-  let topCountryCount = 0
-  for (const [c, n] of countryMap) {
-    if (n > topCountryCount) {
-      topCountryCount = n
-      topCountry = c
-    }
+  const totalClicks = byDay.reduce((s, v) => s + v, 0)
+  const totalUnique = dailyMetrics.reduce((s, m) => s + ((m.unique_visitors as number) ?? 0), 0)
+
+  // Heatmap — 7 days x 24 hours
+  const heatmap: number[][] = Array.from({ length: 7 }, () => new Array(24).fill(0))
+  for (const ev of clickEvents) {
+    const d = new Date(ev.clicked_at as string)
+    const weekday = (d.getDay() + 6) % 7
+    const hour = d.getHours()
+    if (weekday >= 0 && weekday < 7 && hour >= 0 && hour < 24) heatmap[weekday]![hour]! += 1
   }
 
-  // Build device/browser/os/referrer data from click events
-  const deviceMap = new Map<string, number>()
-  const browserMap = new Map<string, number>()
-  const osMap = new Map<string, number>()
-  const referrerMap = new Map<string, number>()
+  // Device / browser / OS / referrer from click events
+  const deviceCounts = new Map<string, number>()
+  const browserCounts = new Map<string, number>()
+  const osCounts = new Map<string, number>()
+  const referrerCounts = new Map<string, number>()
+  const countryCounts = new Map<string, number>()
+  const countryCities = new Map<string, Map<string, number>>()
 
   for (const ev of clickEvents) {
-    const device = (ev.device_type as string) || 'Unknown'
-    deviceMap.set(device, (deviceMap.get(device) ?? 0) + 1)
+    const dt = (ev.device_type as string) || 'other'
+    deviceCounts.set(dt, (deviceCounts.get(dt) ?? 0) + 1)
 
-    const browser = (ev.browser as string) || 'Unknown'
-    browserMap.set(browser, (browserMap.get(browser) ?? 0) + 1)
+    const br = (ev.browser as string) || 'Outro'
+    browserCounts.set(br, (browserCounts.get(br) ?? 0) + 1)
 
-    const os = (ev.os as string) || 'Unknown'
-    osMap.set(os, (osMap.get(os) ?? 0) + 1)
+    const os = (ev.os as string) || 'Outro'
+    osCounts.set(os, (osCounts.get(os) ?? 0) + 1)
 
-    const referrer = (ev.referrer_domain as string) || 'Direct'
-    referrerMap.set(referrer, (referrerMap.get(referrer) ?? 0) + 1)
-  }
+    const ref = (ev.referrer_domain as string) || 'Direto'
+    referrerCounts.set(ref, (referrerCounts.get(ref) ?? 0) + 1)
 
-  function topN(m: Map<string, number>, n = 10) {
-    return Array.from(m.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, n)
-      .map(([name, count]) => ({ name, count }))
-  }
-
-  // Build hourly heatmap from daily metrics (7 days x 24 hours)
-  const matrix: number[][] = Array.from({ length: 7 }, () => new Array(24).fill(0))
-  const last7 = dailyMetrics.slice(-7)
-  for (let dayIdx = 0; dayIdx < last7.length; dayIdx++) {
-    const m = last7[dayIdx]
-    if (!m) continue
-    const hourly = m.hourly_clicks as Record<string, number> | null
-    if (hourly) {
-      for (const [h, c] of Object.entries(hourly)) {
-        const hour = parseInt(h, 10)
-        if (hour >= 0 && hour < 24 && matrix[dayIdx]) {
-          matrix[dayIdx]![hour] = c
-        }
+    const c = ev.country as string | null
+    if (c) {
+      countryCounts.set(c, (countryCounts.get(c) ?? 0) + 1)
+      const rawCity = ev.city as string | null
+      const city = rawCity ? decodeURIComponent(rawCity) : null
+      if (city) {
+        if (!countryCities.has(c)) countryCities.set(c, new Map())
+        const cityMap = countryCities.get(c)!
+        cityMap.set(city, (cityMap.get(city) ?? 0) + 1)
       }
     }
   }
 
-  const analyticsMetrics: AnalyticsMetrics = {
-    totalClicks: periodClicks,
-    uniqueVisitors: periodUnique,
-    conversionRate: null,
-    topCountry,
-    dailyClicks,
+  function pctTop(m: Map<string, number>, n: number) {
+    const total = Array.from(m.values()).reduce((s, v) => s + v, 0) || 1
+    return Array.from(m.entries()).sort((a, b) => b[1] - a[1]).slice(0, n)
+      .map(([k, v]) => ({ k, v: Math.round((v / total) * 100) }))
   }
 
-  const deviceData: DeviceData = {
-    device: topN(deviceMap),
-    browser: topN(browserMap),
-    os: topN(osMap),
-  }
-
-  const referrerData: ReferrerData = {
-    items: Array.from(referrerMap.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
-      .map(([domain, count]) => ({ domain, count })),
-  }
-
-  const geoData: GeoDataItem[] = Array.from(countryMap.entries())
+  const deviceTotal = Array.from(deviceCounts.values()).reduce((s, v) => s + v, 0) || 1
+  const devices = Array.from(deviceCounts.entries())
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 20)
-    .map(([country, count]) => ({ country, count }))
+    .map(([k, v]) => ({ k: DEVICE_LABELS[k] ?? k, v: Math.round((v / deviceTotal) * 100), color: DEVICE_COLORS[k] ?? '#8A8F98' }))
 
-  const hourlyData: HourlyData = { matrix }
+  const countryTotal = Array.from(countryCounts.values()).reduce((s, v) => s + v, 0) || 1
+  const countries = Array.from(countryCounts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([code, v]) => {
+      const cityMap = countryCities.get(code)
+      const topCities = cityMap ? Array.from(cityMap.entries()).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([name]) => name) : []
+      return { code, name: COUNTRY_NAMES[code] ?? code, v: Math.round((v / countryTotal) * 100), cities: topCities }
+    })
 
-  const insights: Insight[] = insightsResult.ok
-    ? (insightsResult.insights as Insight[])
-    : []
+  const linkSource = (link.source_type as string) ?? 'manual'
+  const SOURCE_DISPLAY: Record<string, string> = { newsletter: 'Newsletter', social: 'Social', blog: 'Blog', qr: 'QR / impresso', campaign: 'Campanha', manual: 'Manual', print: 'Print' }
 
-  const dateRange: DateRange = {
-    from: new Date(dateFrom),
-    to: new Date(dateTo),
-  }
-
-  async function handleDateRangeChange(_range: DateRange) {
-    'use server'
-    // Date range changes handled via search params on client side
+  const analytics: AnalyticsDisplay = {
+    totalClicks,
+    prevClicks: 0,
+    unique: totalUnique,
+    prevUnique: 0,
+    ctr: totalClicks > 0 ? Math.round((totalUnique / totalClicks) * 1000) / 10 : 0,
+    prevCtr: 0,
+    qrShare: linkSource === 'qr' ? 100 : 0,
+    byDay,
+    byDayPrev: Array.from({ length: 30 }, () => 0),
+    bySource: [{ id: linkSource as AnalyticsDisplay['bySource'][0]['id'], label: SOURCE_DISPLAY[linkSource] ?? linkSource, clicks: totalClicks, pct: 100 }],
+    devices,
+    browsers: pctTop(browserCounts, 5),
+    os: pctTop(osCounts, 5),
+    referrers: pctTop(referrerCounts, 5),
+    countries,
+    heatmap,
+    topLinks: [],
+    insights: [],
   }
 
   const linkTitle = (link.title as string) ?? null
   const linkCode = link.code as string
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      {/* ── Section 1: Toolbar ─────────────────────────────── */}
+    <div style={{ padding: '20px 30px 0' }}>
+      {/* Breadcrumb */}
       <div style={{
-        height: 52, flexShrink: 0,
-        borderBottom: '1px solid var(--line)',
-        background: 'var(--bg-side)',
-        display: 'flex', alignItems: 'center',
-        padding: '0 16px', gap: 14,
+        display: 'flex', alignItems: 'center', gap: 7,
+        flexWrap: 'nowrap', minWidth: 0, marginBottom: 10,
       }}>
-        {/* Back button */}
+        <span style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          fontSize: '12.5px', fontWeight: 500, color: 'var(--ink-dim)',
+        }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 17H7A5 5 0 017 7h2" />
+            <path d="M15 7h2a5 5 0 110 10h-2" />
+            <line x1="8" x2="16" y1="12" y2="12" />
+          </svg>
+          Social
+        </span>
+
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--ink-faint)', opacity: 0.7, flexShrink: 0 }}>
+          <path d="M9 6l6 6-6 6" />
+        </svg>
+
+        <a
+          href="/cms/links"
+          style={{
+            fontSize: '12.5px', fontWeight: 500, color: 'var(--ink-dim)',
+            cursor: 'pointer', textDecoration: 'none',
+          }}
+        >
+          Links
+        </a>
+
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--ink-faint)', opacity: 0.7, flexShrink: 0 }}>
+          <path d="M9 6l6 6-6 6" />
+        </svg>
+
         <a
           href={`/cms/links/${id}`}
           style={{
-            background: 'transparent', border: 'none',
-            color: 'var(--ink-dim)',
-            display: 'flex', alignItems: 'center', gap: 6,
-            fontSize: 13, textDecoration: 'none',
+            fontSize: '12.5px', fontWeight: 500, color: 'var(--ink-dim)',
+            cursor: 'pointer', textDecoration: 'none',
+            whiteSpace: 'nowrap',
           }}
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M15 6l-6 6 6 6" />
-          </svg>
-          Voltar
+          {linkTitle ?? `/${linkCode}`}
         </a>
 
-        {/* Separator */}
-        <div style={{ width: 1, height: 22, background: 'var(--line)' }} />
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--ink-faint)', opacity: 0.7, flexShrink: 0 }}>
+          <path d="M9 6l6 6-6 6" />
+        </svg>
 
-        {/* Breadcrumb */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'nowrap', minWidth: 0 }}>
-          <a
-            href="/cms/links"
-            style={{
-              fontSize: '12.5px', fontWeight: 500, color: 'var(--ink-dim)',
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-              textDecoration: 'none', whiteSpace: 'nowrap', flexShrink: 0,
-            }}
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 15l6-6" />
-              <path d="M10 6l1-1a4 4 0 016 6l-1 1" />
-              <path d="M14 18l-1 1a4 4 0 01-6-6l1-1" />
-            </svg>
-            Links
-          </a>
-
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--ink-faint)', opacity: 0.7, flexShrink: 0 }}>
-            <path d="M9 6l6 6-6 6" />
-          </svg>
-
-          <a
-            href={`/cms/links/${id}`}
-            style={{
-              fontSize: '12.5px', fontWeight: 500, color: 'var(--ink-dim)',
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-              textDecoration: 'none', whiteSpace: 'nowrap', flexShrink: 0,
-            }}
-          >
-            /{linkCode}
-          </a>
-
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--ink-faint)', opacity: 0.7, flexShrink: 0 }}>
-            <path d="M9 6l6 6-6 6" />
-          </svg>
-
-          <span style={{
-            fontSize: '12.5px', fontWeight: 600, color: 'var(--ink)',
-            display: 'inline-flex', alignItems: 'center', gap: 6,
-            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-            maxWidth: 220, flexShrink: 1,
-          }}>
-            Analytics
-          </span>
-        </div>
-
-        {/* Right: link title */}
-        {linkTitle && (
-          <span style={{
-            marginLeft: 'auto',
-            fontSize: '12.5px', fontWeight: 500, color: 'var(--ink-dim)',
-            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-            maxWidth: 280,
-          }}>
-            {linkTitle}
-          </span>
-        )}
+        <span style={{
+          fontSize: '12.5px', fontWeight: 600, color: 'var(--ink)',
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+        }}>
+          Analytics
+        </span>
       </div>
 
-      {/* ── Content ────────────────────────────────────────── */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 24 }}>
-      <AnalyticsOverview
-        metrics={analyticsMetrics}
-        dateRange={dateRange}
-        onDateRangeChange={handleDateRangeChange}
-      />
-
-      <AnalyticsCharts
-        metrics={analyticsMetrics}
-        deviceData={deviceData}
-        referrerData={referrerData}
-        geoData={geoData}
-        hourlyData={hourlyData}
-      />
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ClickMap geoData={geoData} />
-
-        <div className="space-y-4">
-          <AiInsightsPanel
-            insights={insights}
-            isLoading={false}
-          />
-        </div>
-      </div>
-      </div> {/* end content */}
+      {/* Reuse same analytics layout as hub */}
+      <AnalyticsView data={analytics} />
     </div>
   )
 }
