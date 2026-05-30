@@ -35,6 +35,18 @@ export interface SocialStrings {
     emptyDraftsCta: string
     bulk: { reschedule: string; retry: string; moveToQueue: string; delete: string; deleteConfirm: string }
     card: { clicks: string; engagement: string; edit: string; duplicate: string; view: string; cancel: string; retry: string; delete: string }
+    hub: {
+      title: string
+      subtitle: string
+      fromCms: string
+      newPost: string
+    }
+    strip: {
+      followers: string
+      reconnect: string
+      expired: string
+      connected: string
+    }
   }
   composer: {
     title: string
@@ -280,6 +292,60 @@ export interface SocialStrings {
     published: string
     retrying: string
     skipped: string
+  }
+  compositor: {
+    title: string
+    modeCms: string
+    modeBlank: string
+    destinations: string
+    openEditor: string
+    noArt: string
+    generateAi: string
+    generating: string
+    aiSuggestions: string
+    addHashtags: string
+    bestTime: string
+    saveDraft: string
+    publish: string
+    schedule: string
+    addToQueue: string
+    schedNow: string
+    schedSchedule: string
+    schedQueue: string
+    selectDay: string
+    selectTime: string
+  }
+  publishFlow: {
+    createPost: string
+    shortLink: string
+    prepareDestinations: string
+    deliver: string
+    processing: string
+    published: string
+    error: string
+    close: string
+    viewInFeed: string
+  }
+  calendar: {
+    slotFree: string
+    prevWeek: string
+    nextWeek: string
+  }
+  queue: {
+    dragHandle: string
+    position: string
+    noDate: string
+    empty: string
+    emptyHint: string
+  }
+  drafts: {
+    aiDrafts: string
+    confidence: string
+    discard: string
+    review: string
+    automations: string
+    empty: string
+    emptyHint: string
   }
   platforms: {
     youtube: string
