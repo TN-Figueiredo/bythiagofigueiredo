@@ -61,4 +61,15 @@ describe('BarChart', () => {
     expect(secondStyle).toContain('100%')
     expect(firstStyle).toContain('50%')
   })
+
+  it('renders legend when prev data is provided', () => {
+    const { getByText } = render(<BarChart data={[10, 20]} prev={[5, 15]} />)
+    expect(getByText('Atual')).toBeTruthy()
+    expect(getByText('Anterior')).toBeTruthy()
+  })
+
+  it('does not render legend when prev is not provided', () => {
+    const { queryByText } = render(<BarChart data={[10, 20]} />)
+    expect(queryByText('Atual')).toBeNull()
+  })
 })

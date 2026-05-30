@@ -7,6 +7,7 @@ import { SOURCE_COLORS, SOURCE_LABELS, type LinkDisplay, type SourceId } from '@
 import { Spark, StatTile } from '@tn-figueiredo/links-admin/client'
 import { StatusDot } from './status-dot'
 import { FilterGroup } from './filter-group'
+import { Pagination } from './pagination'
 import { fmt } from './fmt'
 
 const SOURCE_OPTS = [
@@ -34,6 +35,8 @@ export function ShortLinksTab({ links, onCreateLink }: ShortLinksTabProps) {
   const [search, setSearch] = useState('')
   const [sourceFilter, setSourceFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [page, setPage] = useState(1)
+  const PER_PAGE = 20
 
   const totalClicks = links.reduce((s, l) => s + l.clicks, 0)
   const active = links.filter(l => l.status === 'active').length
@@ -46,6 +49,9 @@ export function ShortLinksTab({ links, onCreateLink }: ShortLinksTabProps) {
     if (statusFilter !== 'all' && l.status !== statusFilter) return false
     return true
   })
+
+  const totalPages = Math.ceil(filtered.length / PER_PAGE)
+  const paginated = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE)
 
   return (
     <div className="space-y-5">
@@ -89,14 +95,14 @@ export function ShortLinksTab({ links, onCreateLink }: ShortLinksTabProps) {
             aria-label="Buscar links por titulo ou slug"
             placeholder="Buscar links..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-[9px] bg-muted py-2 pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground outline-none"
+            onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+            className="w-full rounded-[9px] bg-muted py-2 pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-primary/50"
           />
         </div>
         <button
           type="button"
           onClick={onCreateLink}
-          className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground"
+          className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:ring-offset-1 focus:ring-offset-background"
         >
           <Plus className="h-3.5 w-3.5" />
           Novo link
@@ -105,9 +111,9 @@ export function ShortLinksTab({ links, onCreateLink }: ShortLinksTabProps) {
 
       {/* Filters */}
       <div className="flex items-center gap-4">
-        <FilterGroup label="Origem" value={sourceFilter} onChange={setSourceFilter} opts={SOURCE_OPTS} />
+        <FilterGroup label="Origem" value={sourceFilter} onChange={(v) => { setSourceFilter(v); setPage(1) }} opts={SOURCE_OPTS} />
         <div className="h-5 w-px bg-white/10" />
-        <FilterGroup label="Status" value={statusFilter} onChange={setStatusFilter} opts={STATUS_OPTS} />
+        <FilterGroup label="Status" value={statusFilter} onChange={(v) => { setStatusFilter(v); setPage(1) }} opts={STATUS_OPTS} />
       </div>
 
       {/* Table */}
@@ -124,7 +130,7 @@ export function ShortLinksTab({ links, onCreateLink }: ShortLinksTabProps) {
             <span>Status</span>
             <span />
           </div>
-          {filtered.map((l) => (
+          {paginated.map((l) => (
             <Link key={l.id} href={`/cms/links/${l.id}`}
               className="grid items-center gap-2 px-3 py-2.5 hover:bg-muted/50 transition-colors cursor-pointer"
               style={{ gridTemplateColumns: '1.6fr 1.4fr 90px 90px 110px 70px' }}>
@@ -140,7 +146,7 @@ export function ShortLinksTab({ links, onCreateLink }: ShortLinksTabProps) {
               <span className="font-mono text-sm font-bold text-foreground">{fmt(l.clicks)}</span>
               <StatusDot status={l.status} />
               <div className="flex items-center gap-1 justify-end">
-                <button type="button" aria-label={`QR code para ${l.slug}`} onClick={(e) => e.preventDefault()} className="p-1 text-muted-foreground hover:text-foreground">
+                <button type="button" aria-label={`QR code para ${l.slug}`} onClick={(e) => e.preventDefault()} className="p-1 text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 rounded">
                   <QrCode className="h-3.5 w-3.5" />
                 </button>
                 <ChevronRight className="h-4 w-4 text-muted-foreground" />
@@ -149,6 +155,8 @@ export function ShortLinksTab({ links, onCreateLink }: ShortLinksTabProps) {
           ))}
         </div>
       )}
+
+      <Pagination page={page} totalPages={totalPages} onChange={setPage} />
     </div>
   )
 }

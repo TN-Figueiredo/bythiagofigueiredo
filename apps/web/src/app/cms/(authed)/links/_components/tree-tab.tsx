@@ -30,7 +30,7 @@ export function TreeTab({ tree }: TreeTabProps) {
               setBannerDismissed(true)
               localStorage.setItem('links-merge-banner-dismissed', '1')
             }}
-            className="shrink-0 text-muted-foreground hover:text-foreground"
+            className="shrink-0 text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 rounded"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
           </button>
@@ -56,10 +56,10 @@ export function TreeTab({ tree }: TreeTabProps) {
           </div>
 
           <div className="flex gap-2">
-            <Link href="/cms/links/linktree" className="flex-1 rounded-lg bg-primary px-3 py-2 text-center text-xs font-semibold text-primary-foreground">
+            <Link href="/cms/links/linktree" className="flex-1 rounded-lg bg-primary px-3 py-2 text-center text-xs font-semibold text-primary-foreground focus:outline-none focus:ring-2 focus:ring-primary/50">
               Editar
             </Link>
-            <a href={tree.url} target="_blank" rel="noopener" className="flex-1 rounded-lg border border-white/10 px-3 py-2 text-center text-xs font-medium text-muted-foreground hover:text-foreground">
+            <a href={tree.url} target="_blank" rel="noopener" className="flex-1 rounded-lg border border-white/10 px-3 py-2 text-center text-xs font-medium text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50">
               Abrir
             </a>
           </div>

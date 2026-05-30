@@ -26,13 +26,13 @@ export function LinksHub({ tree, links, analytics, activeTab }: LinksHubProps) {
           <p className="mt-1 text-sm text-muted-foreground">Short links, Linktree e analytics unificados.</p>
         </div>
         <div className="flex items-center gap-2">
-          <button type="button" className="rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground">
+          <button type="button" className="rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50">
             QR Card
           </button>
           <button
             type="button"
             onClick={() => router.push('/cms/links/new')}
-            className="rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground"
+            className="rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
           >
             Novo link
           </button>

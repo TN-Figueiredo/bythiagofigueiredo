@@ -27,7 +27,7 @@ export function FilterGroup({ label, value, onChange, opts }: FilterGroupProps) 
             role="radio"
             aria-checked={active}
             onClick={() => onChange(o.id)}
-            className={`rounded-[7px] border-none px-[10px] py-1 text-xs font-semibold transition-colors ${
+            className={`rounded-[7px] border-none px-[10px] py-1 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 focus:ring-offset-1 focus:ring-offset-background ${
               active
                 ? 'bg-primary text-primary-foreground'
                 : 'bg-muted text-muted-foreground hover:text-foreground'

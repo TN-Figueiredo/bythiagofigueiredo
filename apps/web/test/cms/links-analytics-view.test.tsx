@@ -142,4 +142,49 @@ describe('AnalyticsView', () => {
     const { getByText } = render(<AnalyticsView data={analytics} />)
     expect(getByText('Trafego cresceu 25%')).toBeTruthy()
   })
+
+  it('renders empty state messages when data arrays are empty', () => {
+    const emptyAnalytics = {
+      ...analytics,
+      devices: [],
+      browsers: [],
+      os: [],
+      referrers: [],
+      countries: [],
+    }
+    const { getByText } = render(<AnalyticsView data={emptyAnalytics} />)
+    expect(getByText('Dados de dispositivos ainda nao disponiveis.')).toBeTruthy()
+    expect(getByText('Dados de navegadores ainda nao disponiveis.')).toBeTruthy()
+    expect(getByText('Dados de sistemas ainda nao disponiveis.')).toBeTruthy()
+    expect(getByText('Dados de referrers ainda nao disponiveis.')).toBeTruthy()
+    expect(getByText('Dados geograficos ainda nao disponiveis.')).toBeTruthy()
+  })
+
+  it('renders potential features panel', () => {
+    const { getByText } = render(<AnalyticsView data={analytics} />)
+    expect(getByText('Potencial')).toBeTruthy()
+    expect(getByText('UTM Attribution')).toBeTruthy()
+  })
+
+  it('renders period comparison note', () => {
+    const { getByText } = render(<AnalyticsView data={analytics} />)
+    expect(getByText(/Comparando com periodo anterior/)).toBeTruthy()
+  })
+
+  it('renders top links table when topLinks has data', () => {
+    const withTopLinks = {
+      ...analytics,
+      topLinks: [
+        { id: 'l1', title: 'My Link', slug: 'my-link', clicks: 120, source: 'social' as const },
+      ],
+    }
+    const { getByText } = render(<AnalyticsView data={withTopLinks} />)
+    expect(getByText('Top links')).toBeTruthy()
+    expect(getByText('My Link')).toBeTruthy()
+  })
+
+  it('hides top links table when topLinks is empty', () => {
+    const { queryByText } = render(<AnalyticsView data={analytics} />)
+    expect(queryByText('Top links')).toBeNull()
+  })
 })

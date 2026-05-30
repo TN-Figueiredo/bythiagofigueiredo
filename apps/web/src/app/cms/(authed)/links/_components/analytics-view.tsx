@@ -5,7 +5,9 @@ import {
   StatTile, Delta, Spark, BarChart, Donut, HBars, Heatmap, CountryList, Panel,
 } from '@tn-figueiredo/links-admin/client'
 import { SourceBars } from './source-bars'
+import { TopLinksTable } from './top-links-table'
 import { InsightsPanel } from './insights-panel'
+import { PotentialPanel } from './potential-panel'
 import { RangeTabs } from './range-tabs'
 import { useState } from 'react'
 import { fmt } from './fmt'
@@ -23,6 +25,11 @@ export function AnalyticsView({ data }: AnalyticsViewProps) {
       <div className="flex justify-end">
         <RangeTabs value={range} onChange={setRange} />
       </div>
+
+      {/* Period comparison note */}
+      <p className="text-right text-[10px] text-muted-foreground -mt-3">
+        Comparando com periodo anterior
+      </p>
 
       {/* KPI row */}
       <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
@@ -64,17 +71,29 @@ export function AnalyticsView({ data }: AnalyticsViewProps) {
 
         {/* Devices donut */}
         <Panel title="Dispositivos" icon="mo">
-          <Donut segments={data.devices} centerLabel={`${data.devices[0]?.v ?? 0}%`} centerSub={data.devices[0]?.k ?? ''} />
+          {data.devices.length > 0 ? (
+            <Donut segments={data.devices} centerLabel={`${data.devices[0]?.v ?? 0}%`} centerSub={data.devices[0]?.k ?? ''} />
+          ) : (
+            <p className="py-6 text-center text-xs text-muted-foreground">Dados de dispositivos ainda nao disponiveis.</p>
+          )}
         </Panel>
 
         {/* Browsers */}
         <Panel title="Navegadores" icon="br">
-          <HBars rows={data.browsers} />
+          {data.browsers.length > 0 ? (
+            <HBars rows={data.browsers} />
+          ) : (
+            <p className="py-6 text-center text-xs text-muted-foreground">Dados de navegadores ainda nao disponiveis.</p>
+          )}
         </Panel>
 
         {/* OS */}
         <Panel title="Sistemas" icon="os">
-          <HBars rows={data.os} color="#3FA9C0" />
+          {data.os.length > 0 ? (
+            <HBars rows={data.os} color="#3FA9C0" />
+          ) : (
+            <p className="py-6 text-center text-xs text-muted-foreground">Dados de sistemas ainda nao disponiveis.</p>
+          )}
         </Panel>
 
         {/* Heatmap */}
@@ -84,13 +103,34 @@ export function AnalyticsView({ data }: AnalyticsViewProps) {
 
         {/* Countries */}
         <Panel title="Top paises" icon="gl">
-          <CountryList countries={data.countries} />
+          {data.countries.length > 0 ? (
+            <CountryList countries={data.countries} />
+          ) : (
+            <p className="py-6 text-center text-xs text-muted-foreground">Dados geograficos ainda nao disponiveis.</p>
+          )}
         </Panel>
 
         {/* Referrers */}
         <Panel title="Referrers" icon="re">
-          <HBars rows={data.referrers} color="#A77CE8" />
+          {data.referrers.length > 0 ? (
+            <HBars rows={data.referrers} color="#A77CE8" />
+          ) : (
+            <p className="py-6 text-center text-xs text-muted-foreground">Dados de referrers ainda nao disponiveis.</p>
+          )}
         </Panel>
+
+        {/* Top Links */}
+        {data.topLinks.length > 0 && (
+          <Panel title="Top links" icon="tr" style={{ gridColumn: 'span 2' }}>
+            <TopLinksTable links={data.topLinks.map(l => ({
+              id: l.id,
+              title: l.title,
+              slug: l.slug,
+              clicks: l.clicks,
+              source: l.source,
+            }))} />
+          </Panel>
+        )}
       </div>
 
       {/* Insights */}
@@ -99,6 +139,16 @@ export function AnalyticsView({ data }: AnalyticsViewProps) {
           <InsightsPanel insights={data.insights} />
         </Panel>
       )}
+
+      {/* Potential features */}
+      <PotentialPanel features={[
+        { id: 'utm', label: 'UTM Attribution', desc: 'Veja de onde vem seu trafego por campanha' },
+        { id: 'bots', label: 'Bot Filter', desc: 'Filtre trafego de bots automaticamente' },
+        { id: 'newret', label: 'New vs Returning', desc: 'Compare visitantes novos e recorrentes' },
+        { id: 'goals', label: 'Goals & Conversion', desc: 'Defina metas e acompanhe conversoes' },
+        { id: 'geo', label: 'Geo Map', desc: 'Mapa mundial de visitantes em tempo real' },
+        { id: 'qr', label: 'QR Funnel', desc: 'Funil completo de escaneamento a conversao' },
+      ]} />
     </div>
   )
 }

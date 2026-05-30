@@ -95,6 +95,18 @@ export function BarChart({
           ))}
         </div>
       )}
+      {prev && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 14, marginTop: labels ? 4 : 12 }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: 'var(--ink-faint, #6E685D)' }}>
+            <span style={{ width: 10, height: 4, borderRadius: 2, background: color }} />
+            Atual
+          </span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: 'var(--ink-faint, #6E685D)' }}>
+            <span style={{ width: 10, height: 4, borderRadius: 2, background: 'var(--line-strong, #3a3630)' }} />
+            Anterior
+          </span>
+        </div>
+      )}
     </div>
   )
 }

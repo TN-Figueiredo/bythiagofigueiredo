@@ -97,10 +97,12 @@ export function Donut({
         {segments.map((s) => (
           <div
             key={s.k}
+            aria-label={`${s.k}: ${s.v}%`}
             style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5 }}
           >
             <span
               data-legend-dot
+              aria-hidden="true"
               style={{ width: 9, height: 9, borderRadius: 3, background: s.color }}
             />
             <span style={{ color: 'var(--ink, #ECE6DA)', flex: 1 }}>{s.k}</span>

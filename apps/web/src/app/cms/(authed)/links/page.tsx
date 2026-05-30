@@ -50,7 +50,7 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
   const sevenDaysAgoStr = toDateStringInTz(sevenDaysAgo, timezone)
   const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10)
 
-  const [linksRes, dailyRes, linktreeStatsRes, siteDataRes] = await Promise.all([
+  const [linksRes, dailyRes, linktreeStatsRes, siteDataRes, sparkRes] = await Promise.all([
     supabase
       .from('tracked_links')
       .select('*')
@@ -73,10 +73,30 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
       .select('short_domain, primary_domain, linktree_config')
       .eq('id', siteId)
       .single(),
+    supabase
+      .from('link_daily_metrics')
+      .select('link_id, date, clicks')
+      .eq('site_id', siteId)
+      .gte('date', new Date(Date.now() - 13 * 86_400_000).toISOString().slice(0, 10))
+      .order('date', { ascending: true }),
   ])
 
   const rawLinks = linksRes.data ?? []
   const shortDomain = siteDataRes?.data?.short_domain ?? siteDataRes?.data?.primary_domain ?? ''
+
+  // Build per-link sparkline map (last 14 days)
+  const sparkMap = new Map<string, number[]>()
+  for (const row of (sparkRes.data ?? [])) {
+    const linkId = row.link_id as string
+    if (!sparkMap.has(linkId)) {
+      sparkMap.set(linkId, Array.from({ length: 14 }, () => 0))
+    }
+    const d = new Date(row.date as string)
+    const daysAgo = Math.floor((Date.now() - d.getTime()) / 86_400_000)
+    if (daysAgo >= 0 && daysAgo < 14) {
+      sparkMap.get(linkId)![13 - daysAgo] = (row.clicks as number) ?? 0
+    }
+  }
 
   // Build LinkDisplay[]
   const links: LinkDisplay[] = rawLinks.map((l) => ({
@@ -90,7 +110,7 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
       ? 'active'
       : ((l.expires_at && new Date(l.expires_at as string) < new Date()) ? 'expired' : 'paused'),
     clicks: (l.total_clicks as number) ?? 0,
-    last30: 0,
+    last30: 0, // TODO: compute from link_daily_metrics when per-link 30-day view is available
     unique: (l.unique_visitors as number) ?? 0,
     scans: 0,
     topCountry: 'BR',
@@ -99,7 +119,7 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
     health: toHealth(l.health_status),
     redirect: ((l.redirect_type as number) === 302 ? 302 : 301) as 301 | 302,
     clickIds: (l.pass_click_ids as boolean) ?? false,
-    spark: Array.from({ length: 14 }, () => 0),
+    spark: sparkMap.get(l.id as string) ?? Array.from({ length: 14 }, () => 0),
   }))
 
   // Build LinktreeDisplay

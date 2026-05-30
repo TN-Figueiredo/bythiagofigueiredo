@@ -24,7 +24,7 @@ export function RangeTabs({ value, onChange }: RangeTabsProps) {
           role="radio"
           aria-checked={value === o.id}
           onClick={() => onChange(o.id)}
-          className={`rounded-[7px] border-none px-[13px] py-1.5 text-[12.5px] font-semibold transition-colors ${
+          className={`rounded-[7px] border-none px-[13px] py-1.5 text-[12.5px] font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 ${
             value === o.id
               ? 'bg-primary text-primary-foreground'
               : 'bg-transparent text-muted-foreground hover:text-foreground'

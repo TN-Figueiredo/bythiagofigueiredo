@@ -13,11 +13,12 @@ export function Spark({ data, color, w = 90, h = 28, fill = true, label }: Spark
   if (data.length === 0) return <svg width={w} height={h} role="img" aria-label={label || 'Sparkline chart'} />
 
   const { d, area, last } = useMemo(() => {
-    const max = Math.max(...data, 1)
-    const min = Math.min(...data, 0)
+    const safe = data.map(v => (Number.isFinite(v) ? v : 0))
+    const max = Math.max(...safe, 1)
+    const min = Math.min(...safe, 0)
     const rng = max - min || 1
-    const pts = data.map((v, i) => [
-      data.length === 1 ? w / 2 : (i / (data.length - 1)) * w,
+    const pts = safe.map((v, i) => [
+      safe.length === 1 ? w / 2 : (i / (safe.length - 1)) * w,
       h - ((v - min) / rng) * (h - 3) - 2,
     ])
     const d = pts
