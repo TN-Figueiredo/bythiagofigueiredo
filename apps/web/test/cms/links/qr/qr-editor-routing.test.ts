@@ -57,10 +57,11 @@ describe('QR page routing (page.tsx)', () => {
     expect(page).toContain("sp.name ?? 'QR Card'")
   })
 
-  it('routing has 3 branches: cardId, legacy composition, legacy config', () => {
+  it('routing has 3 branches: cardId, legacy composition, legacy config — skips legacy when isNewCard', () => {
     expect(page).toContain('if (cardId)')
-    expect(page).toContain('else if (link.qr_card_composition)')
-    expect(page).toContain('else if (link.qr_config)')
+    expect(page).toContain('!isNewCard && link.qr_card_composition')
+    expect(page).toContain('!isNewCard && link.qr_config')
+    expect(page).toContain('const isNewCard = !!sp.name')
   })
 
   it('starts with a default composition (createDefaultComposition)', () => {

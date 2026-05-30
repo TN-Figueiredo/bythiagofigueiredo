@@ -44,17 +44,19 @@ describe('KpiCard', () => {
   })
 
   it('shows up trend indicator with green styling', () => {
-    render(<KpiCard label="Metric" value="10" trend={{ direction: 'up', pct: 15 }} />)
-    const badge = screen.getByText('↑ 15%')
-    expect(badge).toBeDefined()
-    expect((badge as HTMLElement).className).toContain('green')
+    render(<KpiCard label="Metric" value="10" trend={{ direction: 'up', label: '15%' }} />)
+    const arrow = screen.getByText('↑')
+    expect(arrow).toBeDefined()
+    expect((arrow as HTMLElement).className).toContain('emerald')
+    expect(screen.getByText('15%')).toBeDefined()
   })
 
   it('shows down trend indicator with red styling', () => {
-    render(<KpiCard label="Metric" value="5" trend={{ direction: 'down', pct: 8 }} />)
-    const badge = screen.getByText('↓ 8%')
-    expect(badge).toBeDefined()
-    expect((badge as HTMLElement).className).toContain('red')
+    render(<KpiCard label="Metric" value="5" trend={{ direction: 'down', label: '8%' }} />)
+    const arrow = screen.getByText('↓')
+    expect(arrow).toBeDefined()
+    expect((arrow as HTMLElement).className).toContain('red')
+    expect(screen.getByText('8%')).toBeDefined()
   })
 
   it('renders no trend indicator when trend prop is omitted', () => {

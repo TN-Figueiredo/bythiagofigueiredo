@@ -44,17 +44,19 @@ export default async function QrCardPage({ params, searchParams }: Props) {
   let composition = createDefaultComposition()
   let cardName = sp.name ?? 'QR Card'
 
+  const isNewCard = !!sp.name
+
   if (cardId) {
     const loaded = await loadQrCardById(cardId, id)
     if (!loaded.ok) notFound()
     if (loaded.composition) composition = loaded.composition
     cardName = loaded.name
-  } else if (link.qr_card_composition) {
+  } else if (!isNewCard && link.qr_card_composition) {
     const loaded = await loadQrCard(id)
     if (loaded.ok && loaded.composition) {
       composition = loaded.composition
     }
-  } else if (link.qr_config) {
+  } else if (!isNewCard && link.qr_config) {
     composition = migrateLegacyQrConfig(link.qr_config as Record<string, string>)
   }
 
