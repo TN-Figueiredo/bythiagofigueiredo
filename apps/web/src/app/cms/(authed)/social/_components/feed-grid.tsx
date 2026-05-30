@@ -46,28 +46,48 @@ export function FeedGrid({ items }: FeedGridProps) {
   return (
     <>
       <div className="mt-4 flex gap-2" role="group" aria-label="Filtrar por status">
-        {FILTERS.map(f => (
-          <button
-            key={f.key}
-            aria-pressed={activeFilter === f.key}
-            onClick={() => setFilter(f.key)}
-            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-              activeFilter === f.key
-                ? 'bg-cms-accent text-white'
-                : 'bg-cms-surface text-cms-text-muted hover:text-cms-text'
-            }`}
-          >
-            {f.label}
-          </button>
-        ))}
+        {FILTERS.map(f => {
+          const isActive = activeFilter === f.key
+          return (
+            <button
+              key={f.key}
+              aria-pressed={isActive}
+              onClick={() => setFilter(f.key)}
+              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                isActive
+                  ? 'bg-cms-accent text-white shadow-sm shadow-cms-accent/25'
+                  : 'border border-cms-border bg-transparent text-cms-text-muted hover:bg-cms-surface hover:text-cms-text'
+              }`}
+            >
+              {f.label}
+              {isActive && items.length > 0 && (
+                <span className="inline-flex min-w-[18px] items-center justify-center rounded-full bg-white/20 px-1 py-px text-[10px] font-semibold leading-none text-white">
+                  {items.length}
+                </span>
+              )}
+            </button>
+          )
+        })}
       </div>
 
       {items.length === 0 ? (
-        <div className="mt-8 flex flex-col items-center gap-3 text-center">
+        <div className="mt-12 flex flex-col items-center gap-3 text-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-cms-surface">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-cms-text-muted">
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <path d="M3 9h18" />
+              <path d="M9 21V9" />
+            </svg>
+          </div>
           <p className="text-sm text-cms-text-muted">
             {activeFilter === 'all'
               ? 'Nenhum post encontrado'
               : `Nenhum post ${FILTERS.find(f => f.key === activeFilter)?.label.toLowerCase() ?? ''}`}
+          </p>
+          <p className="text-xs text-cms-text-muted/60">
+            {activeFilter === 'all'
+              ? 'Crie seu primeiro post para comecar'
+              : 'Tente outro filtro ou crie um novo post'}
           </p>
         </div>
       ) : (

@@ -72,10 +72,10 @@ export default async function SocialHubPage({ searchParams }: Props) {
             role="tab"
             aria-selected={tab === tabId}
             aria-controls="social-tabpanel"
-            className={`px-4 py-2 text-sm font-medium transition-colors ${
+            className={`-mb-px px-4 py-2.5 text-sm font-medium transition-colors ${
               tab === tabId
                 ? 'text-cms-accent border-b-2 border-cms-accent'
-                : 'text-cms-text-muted hover:text-cms-text'
+                : 'text-cms-text-muted hover:text-cms-text border-b-2 border-transparent'
             }`}
           >
             {t.posts.tabs[tabId]}
