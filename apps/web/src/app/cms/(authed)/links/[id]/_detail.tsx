@@ -278,17 +278,14 @@ function DetailRow({
       style={{
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        fontSize: '12.5px',
-        padding: '6px 0',
+        gap: 10,
+        padding: '11px 0',
         borderBottom: '1px solid var(--line)',
       }}
     >
-      <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--ink-dim)' }}>
-        {icon}
-        {label}
-      </span>
-      <span style={{ color: 'var(--ink)', fontWeight: 500 }}>{children}</span>
+      {icon && <span style={{ color: 'var(--ink-faint)', flexShrink: 0 }}>{icon}</span>}
+      <span style={{ fontSize: 13, color: 'var(--ink-dim)', flex: 1 }}>{label}</span>
+      <span className="mono" style={{ fontSize: '12.5px', color: 'var(--ink)' }}>{children}</span>
     </div>
   )
 }
@@ -488,9 +485,12 @@ export function LinkDetail({ link, dailyClicks, topCountry, linkId, shortUrl }: 
         </span>
       </div>
 
-      {/* ── Destination card ─────────────────────────────────────── */}
-      <div style={{ ...cardStyle, marginBottom: 18 }}>
-        <p style={{ ...eyebrow, marginBottom: 8 }}>DESTINO</p>
+      {/* ── Content area ─────────────────────────────────────────── */}
+      <div style={{ padding: '0 0 60px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+      {/* Destination card */}
+      <div style={{ ...cardStyle, padding: 16 }}>
+        <div className="eyebrow" style={{ marginBottom: 8, fontSize: '10.5px', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--ink-faint)' }}>Destino</div>
         <a
           href={link.destination_url}
           target="_blank"
@@ -498,26 +498,24 @@ export function LinkDetail({ link, dailyClicks, topCountry, linkId, shortUrl }: 
           style={{
             display: 'inline-flex',
             alignItems: 'center',
-            gap: 6,
-            fontSize: '13.5px',
+            gap: 7,
+            fontSize: 14,
             color: 'var(--accent)',
             textDecoration: 'none',
             wordBreak: 'break-all',
-            transition: '0.15s',
           }}
         >
-          {link.destination_url}
-          <ExternalLink size={13} strokeWidth={1.7} style={{ flexShrink: 0 }} />
+          {link.destination_url.replace('https://', '')}
+          <ExternalLink size={14} strokeWidth={1.7} style={{ flexShrink: 0 }} />
         </a>
       </div>
 
-      {/* ── KPI row ──────────────────────────────────────────────── */}
+      {/* KPI row */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
           gap: 14,
-          marginBottom: 18,
         }}
       >
         <KpiTile
@@ -550,8 +548,11 @@ export function LinkDetail({ link, dailyClicks, topCountry, linkId, shortUrl }: 
         />
       </div>
 
-      {/* ── Details panel ────────────────────────────────────────── */}
-      <div style={{ ...cardStyle, marginBottom: 18 }}>
+      {/* ── Details + QR Card side by side ──────────────────────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 14, alignItems: 'start' }}>
+
+      {/* Details panel */}
+      <div style={{ ...cardStyle, padding: 18 }}>
         <p
           style={{
             margin: '0 0 14px',
@@ -563,7 +564,7 @@ export function LinkDetail({ link, dailyClicks, topCountry, linkId, shortUrl }: 
           Detalhes
         </p>
 
-        <DetailRow label="Redirect" icon={<ArrowUpRight size={13} strokeWidth={1.7} />}>
+        <DetailRow label="Redirect" icon={<ArrowUpRight size={15} strokeWidth={1.7} />}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
               {link.redirect_type}
@@ -579,24 +580,24 @@ export function LinkDetail({ link, dailyClicks, topCountry, linkId, shortUrl }: 
           </span>
         </DetailRow>
 
-        <DetailRow label="Criado" icon={<Clock size={13} strokeWidth={1.7} />}>
+        <DetailRow label="Criado" icon={<Clock size={15} strokeWidth={1.7} />}>
           {formatDate(link.created_at)}
         </DetailRow>
 
         {link.expires_at && (
-          <DetailRow label="Expira" icon={<Clock size={13} strokeWidth={1.7} />}>
+          <DetailRow label="Expira" icon={<Clock size={15} strokeWidth={1.7} />}>
             {formatDate(link.expires_at)}
           </DetailRow>
         )}
 
         {link.activates_at && (
-          <DetailRow label="Ativa em" icon={<Clock size={13} strokeWidth={1.7} />}>
+          <DetailRow label="Ativa em" icon={<Clock size={15} strokeWidth={1.7} />}>
             {formatDate(link.activates_at)}
           </DetailRow>
         )}
 
         {link.launched_at && (
-          <DetailRow label="Lancado" icon={<ArrowUpRight size={13} strokeWidth={1.7} />}>
+          <DetailRow label="Lancado" icon={<ArrowUpRight size={15} strokeWidth={1.7} />}>
             {formatDate(link.launched_at)}
           </DetailRow>
         )}
@@ -604,7 +605,7 @@ export function LinkDetail({ link, dailyClicks, topCountry, linkId, shortUrl }: 
         {link.last_clicked_at && (
           <DetailRow
             label="Ultimo clique"
-            icon={<MousePointerClick size={13} strokeWidth={1.7} />}
+            icon={<MousePointerClick size={15} strokeWidth={1.7} />}
           >
             {formatDate(link.last_clicked_at)}
           </DetailRow>
@@ -639,7 +640,7 @@ export function LinkDetail({ link, dailyClicks, topCountry, linkId, shortUrl }: 
                 marginBottom: 8,
               }}
             >
-              <Tag size={13} strokeWidth={1.7} />
+              <Tag size={15} strokeWidth={1.7} />
               Tags
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -659,47 +660,71 @@ export function LinkDetail({ link, dailyClicks, topCountry, linkId, shortUrl }: 
         )}
       </div>
 
-      {/* ── Delete zone ──────────────────────────────────────────── */}
+      {/* QR Card */}
       <div
+        onClick={() => router.push(`/cms/links/${linkId}/qr`)}
         style={{
-          display: 'flex',
-          justifyContent: 'flex-end',
-          marginBottom: 18,
+          background: 'var(--surface-2)',
+          borderRadius: 'var(--r)',
+          padding: 18,
+          cursor: 'pointer',
+        }}
+      >
+        <div className="eyebrow" style={{ marginBottom: 12, fontSize: '10.5px', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--ink-faint)' }}>QR Card</div>
+        <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+          <div style={{ width: 78, height: 78, borderRadius: 10, background: '#fff', padding: 7, flexShrink: 0 }}>
+            <div style={{ width: '100%', height: '100%', background: 'repeating-conic-gradient(#111 0% 25%, #fff 0% 50%) 0 center / 12px 12px' }} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13, color: 'var(--ink-dim)', lineHeight: 1.5 }}>
+              Gere um cartão de QR no <b style={{ color: 'var(--ink)' }}>canvas</b> — templates de impressão, story e adesivo.
+            </div>
+            <button
+              type="button"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 7,
+                padding: '6px 11px', fontSize: '12.5px', fontWeight: 600,
+                borderRadius: 9, border: '1px solid var(--accent)',
+                background: 'var(--accent)', color: 'var(--pb-ink-on-accent, #1A140C)',
+                marginTop: 12, cursor: 'pointer',
+              }}
+            >
+              <QrCode size={14} strokeWidth={1.7} />
+              Abrir editor de QR
+            </button>
+          </div>
+        </div>
+      </div>
+
+      </div> {/* end grid */}
+
+      {/* ── Analytics accordion ─────────────────────────────────── */}
+      <div
+        onClick={() => router.push(`/cms/links/${linkId}/analytics`)}
+        style={{
+          background: 'var(--surface)',
+          border: '1px solid var(--line)',
+          borderRadius: 'var(--r)',
+          padding: 0,
+          overflow: 'hidden',
+          cursor: 'pointer',
         }}
       >
         <button
           type="button"
-          onClick={handleDelete}
-          disabled={isPending}
-          style={{ ...dangerBtn, opacity: isPending ? 0.5 : 1 }}
+          style={{
+            width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+            padding: '16px 18px', background: 'transparent', border: 'none',
+            color: 'var(--ink)', cursor: 'pointer',
+          }}
         >
-          <Trash2 size={14} strokeWidth={1.7} />
-          Excluir
+          <TrendingUp size={16} strokeWidth={1.7} style={{ color: 'var(--accent)' }} />
+          <span style={{ fontSize: '13.5px', fontWeight: 600, flex: 1, textAlign: 'left' }}>Analytics completo</span>
+          <ChevronRight size={16} strokeWidth={1.7} style={{ color: 'var(--ink-dim)', transform: 'rotate(-90deg)', transition: 'transform 0.2s' }} />
         </button>
       </div>
 
-      {/* ── Analytics deep-link ──────────────────────────────────── */}
-      <div style={{ textAlign: 'center', paddingBottom: 30 }}>
-        <button
-          type="button"
-          onClick={() => router.push(`/cms/links/${linkId}/analytics`)}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 7,
-            fontSize: '12.5px',
-            fontWeight: 600,
-            color: 'var(--accent)',
-            background: 'transparent',
-            border: 'none',
-            cursor: 'pointer',
-            transition: '0.15s',
-          }}
-        >
-          <BarChart3 size={15} strokeWidth={1.7} />
-          Ver Analytics Completo
-        </button>
-      </div>
+      </div> {/* end content area */}
     </div>
   )
 }
