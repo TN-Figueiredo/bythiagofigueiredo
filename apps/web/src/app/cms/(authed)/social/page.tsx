@@ -7,10 +7,13 @@ import { AccountsStripLoader } from './_components/accounts-strip'
 import { AccountsStripClient } from './_components/accounts-strip-client'
 import { FeedViewLoader } from './_components/feed-view-loader'
 import { FeedGrid } from './_components/feed-grid'
-import { MOCK_CONNECTIONS, MOCK_FEED_ITEMS } from './_components/design-preview-data'
+import { MOCK_CONNECTIONS, MOCK_FEED_ITEMS, MOCK_CALENDAR, MOCK_QUEUE_ITEMS, MOCK_DRAFT_ITEMS } from './_components/design-preview-data'
 import { CalendarViewLoader } from './_components/calendar-view-loader'
+import { CalendarWeekView } from './_components/calendar-week-view'
 import { QueueViewLoader } from './_components/queue-view-loader'
 import { DraftsViewLoader } from './_components/drafts-view-loader'
+import { QueueList } from './_components/queue-list'
+import { DraftsList } from './_components/drafts-list'
 
 export const dynamic = 'force-dynamic'
 
@@ -133,19 +136,43 @@ export default async function SocialHubPage({ searchParams }: Props) {
           </>
         )}
         {tab === 'calendar' && (
-          <Suspense fallback={<CalendarSkeleton />}>
-            <CalendarViewLoader siteId={ctx.siteId} week={params.week} />
-          </Suspense>
+          <>
+            {isDesignPreview ? (
+              <CalendarWeekView
+                days={MOCK_CALENDAR.days}
+                weekLabel={MOCK_CALENDAR.weekLabel}
+                prevWeek={MOCK_CALENDAR.prevWeek}
+                nextWeek={MOCK_CALENDAR.nextWeek}
+                dateRange={MOCK_CALENDAR.dateRange}
+              />
+            ) : (
+              <Suspense fallback={<CalendarSkeleton />}>
+                <CalendarViewLoader siteId={ctx.siteId} week={params.week} />
+              </Suspense>
+            )}
+          </>
         )}
         {tab === 'queue' && (
-          <Suspense fallback={<QueueSkeleton />}>
-            <QueueViewLoader siteId={ctx.siteId} />
-          </Suspense>
+          <>
+            {isDesignPreview ? (
+              <QueueList initialItems={MOCK_QUEUE_ITEMS} />
+            ) : (
+              <Suspense fallback={<QueueSkeleton />}>
+                <QueueViewLoader siteId={ctx.siteId} />
+              </Suspense>
+            )}
+          </>
         )}
         {tab === 'drafts' && (
-          <Suspense fallback={<DraftsSkeleton />}>
-            <DraftsViewLoader siteId={ctx.siteId} />
-          </Suspense>
+          <>
+            {isDesignPreview ? (
+              <DraftsList items={MOCK_DRAFT_ITEMS} />
+            ) : (
+              <Suspense fallback={<DraftsSkeleton />}>
+                <DraftsViewLoader siteId={ctx.siteId} />
+              </Suspense>
+            )}
+          </>
         )}
       </div>
     </div>
