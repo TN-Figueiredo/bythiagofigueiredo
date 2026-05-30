@@ -16,56 +16,52 @@ export interface WinnerDetailProps {
   view: AbTestWinnerView
 }
 
+const BTN = 'inline-flex items-center gap-[7px] justify-center py-[6px] px-[11px] text-[12.5px] font-semibold rounded-[9px] border border-cms-border whitespace-nowrap transition-[0.15s] tracking-[-0.01em] text-cms-text-dim hover:text-cms-text focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none'
+
 export function WinnerDetail({ view }: WinnerDetailProps) {
   return (
-    <div className="space-y-8" data-testid="winner-detail">
-      {/* 1. DetailHeader (no toggle, Duplicate/Archive actions) */}
-      <DetailHeader
-        title={view.videoTitle}
-        flag={view.flag}
-        status={view.status}
-        outcome="winner"
-        roundNumber={view.totalRounds}
-        totalRounds={view.totalRounds}
-        hasPlayoff={view.hasPlayoff}
-        actions={
-          <div className="flex gap-[9px] shrink-0">
-            <button
-              type="button"
-              className="inline-flex items-center gap-[7px] justify-center py-[6px] px-[11px] text-[12.5px] font-semibold rounded-[9px] border border-cms-border whitespace-nowrap transition-[0.15s] tracking-[-0.01em] text-cms-text-dim hover:text-cms-text focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
-            >
-              <Copy size={14} aria-hidden="true" />
-              Duplicar
-            </button>
-            <button
-              type="button"
-              className="inline-flex items-center gap-[7px] justify-center py-[6px] px-[11px] text-[12.5px] font-semibold rounded-[9px] border border-cms-border whitespace-nowrap transition-[0.15s] tracking-[-0.01em] text-cms-text-dim hover:text-cms-text focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
-            >
-              <Archive size={14} aria-hidden="true" />
-              Arquivar
-            </button>
-            <button
-              type="button"
-              aria-label="Download"
-              className="inline-flex items-center justify-center py-[6px] px-[11px] text-[12.5px] font-semibold rounded-[9px] border border-cms-border whitespace-nowrap transition-[0.15s] text-cms-text-dim hover:text-cms-text focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
-            >
-              <Download size={14} aria-hidden="true" />
-            </button>
-          </div>
-        }
-      />
+    <div data-testid="winner-detail">
+      {/* 1. DetailHeader */}
+      <div className="mb-[22px]">
+        <DetailHeader
+          title={view.videoTitle}
+          flag={view.flag}
+          status={view.status}
+          outcome="winner"
+          roundNumber={view.totalRounds}
+          totalRounds={view.totalRounds}
+          hasPlayoff={view.hasPlayoff}
+          actions={
+            <div className="flex gap-[9px] shrink-0">
+              <button type="button" className={BTN}>
+                <Copy size={14} aria-hidden="true" />
+                Duplicar
+              </button>
+              <button type="button" className={BTN}>
+                <Archive size={14} aria-hidden="true" />
+                Arquivar
+              </button>
+              <button type="button" aria-label="Download" className={BTN}>
+                <Download size={14} aria-hidden="true" />
+              </button>
+            </div>
+          }
+        />
+      </div>
 
-      {/* 2. WinnerBanner */}
-      <WinnerBanner
-        winnerLabel={view.winnerLabel}
-        winnerColor={view.winnerColor}
-        lift={view.lift}
-        confidence={view.confidence}
-        stats={view.resultMeta}
-      />
+      {/* 2. WinnerBanner — 28px margin-bottom per design */}
+      <div className="mb-[28px]">
+        <WinnerBanner
+          winnerLabel={view.winnerLabel}
+          winnerColor={view.winnerColor}
+          lift={view.lift}
+          confidence={view.confidence}
+          stats={view.resultMeta}
+        />
+      </div>
 
-      {/* 3. "Por que {winner} venceu" — CredibleInterval + RankBars side by side */}
-      <section data-testid="why-won">
+      {/* 3. "Por que {winner} venceu" */}
+      <section data-testid="why-won" className="mb-[28px]">
         <SectionLabel>Por que {view.winnerLabel} venceu</SectionLabel>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="rounded-lg border border-cms-border bg-cms-bg p-4">
@@ -87,10 +83,10 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
       </section>
 
       {/* 4. LiveMonitorCard (conditional) */}
-      {view.monitor && <LiveMonitorCard monitor={view.monitor} />}
+      {view.monitor && <div className="mb-[28px]"><LiveMonitorCard monitor={view.monitor} /></div>}
 
-      {/* 5. ConfidenceChart + learning card side by side */}
-      <section data-testid="confidence-section">
+      {/* 5. ConfidenceChart + learning card */}
+      <section data-testid="confidence-section" className="mb-[28px]">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="rounded-lg border border-cms-border bg-cms-bg p-4">
             <SectionLabel>Confiança ao longo do tempo</SectionLabel>
@@ -112,8 +108,8 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
         </div>
       </section>
 
-      {/* 6. Placar final — VariantTable with winnerId */}
-      <section data-testid="scoreboard">
+      {/* 6. Placar final */}
+      <section data-testid="scoreboard" className="mb-[28px]">
         <SectionLabel>Placar final</SectionLabel>
         <VariantTable
           variants={view.variants}
@@ -124,7 +120,7 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
       </section>
 
       {/* 7. GatesPanel */}
-      <section data-testid="gates-section">
+      <section data-testid="gates-section" className="mb-[28px]">
         <SectionLabel>Critérios de resolução</SectionLabel>
         <GatesPanel gates={view.gates} />
       </section>

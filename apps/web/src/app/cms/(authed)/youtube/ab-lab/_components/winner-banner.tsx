@@ -21,7 +21,6 @@ export interface WinnerBannerProps {
 
 export function WinnerBanner({
   winnerLabel,
-  winnerColor,
   lift,
   confidence,
   stats,
@@ -29,68 +28,55 @@ export function WinnerBanner({
   return (
     <div
       data-testid="winner-banner"
-      className="rounded-lg border border-cms-green/20 bg-cms-green/5 p-6"
+      className="rounded-lg border border-[rgba(70,177,126,0.35)] bg-cms-surface overflow-hidden"
     >
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-        {/* Left: Trophy + VChip + lift + confidence */}
-        <div className="flex items-center gap-4">
-          <div className="flex flex-col items-center gap-1 shrink-0">
-            <Trophy
-              size={32}
-              className="text-cms-green"
-              data-testid="icon-Trophy"
-              aria-hidden="true"
-            />
-            <span className="text-2xs text-cms-green font-medium whitespace-nowrap">Vencedor declarado</span>
+      <div className="grid grid-cols-[auto_1fr]">
+        {/* Left: Trophy column with green bg */}
+        <div className="bg-cms-green-subtle py-[28px] px-[30px] flex flex-col justify-center border-r border-cms-border">
+          <Trophy
+            size={26}
+            className="text-cms-green"
+            data-testid="icon-Trophy"
+            aria-hidden="true"
+          />
+          <div className="text-[13px] text-cms-text-dim mt-3 mb-1">Vencedor declarado</div>
+          <div className="flex items-center gap-[10px]">
+            <VChip label={winnerLabel} size={34} ring />
+            <span className="text-[38px] font-bold font-mono text-cms-green leading-none" data-testid="winner-lift">
+              {lift > 0 ? '+' : ''}{formatPercent(lift)}
+            </span>
           </div>
-          <div className="flex items-center gap-2">
-            <VChip label={winnerLabel} size={32} ring />
-            <div className="flex flex-col">
-              <span
-                className="text-4xl font-bold font-mono text-cms-green leading-none"
-                data-testid="winner-lift"
-              >
-                {lift > 0 ? '+' : ''}
-                {formatPercent(lift)}
-              </span>
-              <span className="text-2xs text-cms-text-muted mt-1">
-                {formatPercent(confidence, 1)} de confiança · aplicado no YouTube
-              </span>
-            </div>
+          <div className="text-[12px] text-cms-text-muted mt-2">
+            {formatPercent(confidence, 1)} de confiança · aplicado no YouTube
           </div>
         </div>
 
-        {/* Right: 3 stat cells with headers */}
-        <div className="flex gap-8 lg:gap-10" data-testid="winner-stats">
-          {/* CTR before → after */}
-          <div className="flex flex-col">
-            <span className="text-3xs font-medium text-cms-text-dim uppercase tracking-wider mb-1">CTR</span>
-            <span className="text-lg font-mono font-semibold text-cms-text leading-tight">
-              {formatPercent(stats.ctrBefore)}
-              <span className="text-cms-text-muted mx-1">→</span>
+        {/* Right: 3 stat cells */}
+        <div className="py-[24px] px-[28px] grid grid-cols-3 gap-[20px] items-center" data-testid="winner-stats">
+          <div className="bg-cms-surface py-[22px] px-[24px]">
+            <div className="text-[10px] font-semibold text-cms-text-dim uppercase tracking-[0.08em] mb-[10px]">CTR</div>
+            <div className="text-[22px] font-bold font-mono text-cms-text leading-none">
+              {formatPercent(stats.ctrBefore)}{' '}
+              <span className="text-cms-text-muted">→</span>{' '}
               {formatPercent(stats.ctrAfter)}
-            </span>
-            <span className="text-2xs text-cms-text-dim mt-0.5">original → vencedor</span>
+            </div>
+            <div className="text-[11.5px] text-cms-text-muted mt-2">original → vencedor</div>
           </div>
 
-          {/* Impressões no teste */}
-          <div className="flex flex-col">
-            <span className="text-3xs font-medium text-cms-text-dim uppercase tracking-wider mb-1">Impressões no teste</span>
-            <span className="text-lg font-mono font-semibold text-cms-text leading-tight">
+          <div className="bg-cms-surface py-[22px] px-[24px]">
+            <div className="text-[10px] font-semibold text-cms-text-dim uppercase tracking-[0.08em] mb-[10px]">Impressões no teste</div>
+            <div className="text-[22px] font-bold font-mono text-cms-text leading-none">
               {formatCompact(stats.totalImpressions)}
-            </span>
-            <span className="text-2xs text-cms-text-dim mt-0.5">
-              {stats.abbaCycles} ciclos ABBA
-            </span>
+            </div>
+            <div className="text-[11.5px] text-cms-text-muted mt-2">{stats.abbaCycles} ciclos ABBA</div>
           </div>
 
-          {/* Ganho estimado */}
-          <div className="flex flex-col">
-            <span className="text-3xs font-medium text-cms-text-dim uppercase tracking-wider mb-1">Ganho estimado</span>
-            <span className="text-lg font-mono font-bold text-cms-green leading-tight">
-              +{formatCompact(stats.monthlyExtraClicks)}
-            </span>
-            <span className="text-2xs text-cms-text-dim mt-0.5">cliques/mês a mais</span>
+          <div className="bg-cms-surface py-[22px] px-[24px]">
+            <div className="text-[10px] font-semibold text-cms-text-dim uppercase tracking-[0.08em] mb-[10px]">Ganho estimado</div>
+            <div className="text-[22px] font-bold font-mono leading-none">
+              <span className="text-cms-green">+{formatCompact(stats.monthlyExtraClicks)}</span>
+            </div>
+            <div className="text-[11.5px] text-cms-text-muted mt-2">cliques/mês a mais</div>
           </div>
         </div>
       </div>
