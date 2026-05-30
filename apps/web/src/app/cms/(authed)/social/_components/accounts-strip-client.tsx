@@ -7,15 +7,16 @@ interface AccountsStripClientProps {
   connections: ConnectionHealth[]
 }
 
-const PROVIDER_ICONS: Record<string, { bg: string; label: string }> = {
-  instagram: { bg: 'bg-[#E8823C]/15', label: 'IG' },
-  youtube: { bg: 'bg-[#E0574E]/15', label: 'YT' },
-  facebook: { bg: 'bg-[#5B7FD6]/15', label: 'FB' },
-  bluesky: { bg: 'bg-sky-500/15', label: 'BS' },
+const PROVIDER_ICONS: Record<string, { bg: string; tint: string; label: string }> = {
+  instagram: { bg: 'bg-[#E8823C]/15', tint: 'text-[#E8823C]', label: 'IG' },
+  youtube:   { bg: 'bg-[#E0574E]/15', tint: 'text-[#E0574E]', label: 'YT' },
+  facebook:  { bg: 'bg-[#5B7FD6]/15', tint: 'text-[#5B7FD6]', label: 'FB' },
+  bluesky:   { bg: 'bg-[#0085FF]/15', tint: 'text-[#0085FF]', label: 'BS' },
 }
 
-function formatFollowers(count: number | null): string {
-  if (count == null) return '--'
+function formatFollowers(count: number | null | undefined): string {
+  if (count == null || count < 0) return '--'
+  if (count === 0) return '0'
   if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1)}M`
   if (count >= 1_000) return `${(count / 1_000).toFixed(1)}K`
   return String(count)
@@ -23,12 +24,15 @@ function formatFollowers(count: number | null): string {
 
 export function AccountsStripClient({ connections }: AccountsStripClientProps) {
   return (
-    <div className="mb-4 grid grid-cols-[repeat(auto-fit,minmax(252px,1fr))] gap-3">
+    <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-[repeat(auto-fit,minmax(252px,1fr))]">
       {connections.map(conn => {
-        const icon = PROVIDER_ICONS[conn.provider] ?? { bg: 'bg-gray-500/15', label: '?' }
+        const icon = PROVIDER_ICONS[conn.provider] ?? { bg: 'bg-gray-500/15', tint: 'text-gray-400', label: '?' }
         return (
-          <div key={conn.connectionId} className="flex items-center gap-3 rounded-xl border border-cms-border bg-cms-surface px-4 py-3">
-            <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${icon.bg} text-sm font-bold`}>
+          <div
+            key={conn.connectionId}
+            className="flex items-center gap-3 rounded-xl border border-cms-border bg-cms-surface px-4 py-3 transition-colors hover:border-cms-text/20"
+          >
+            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${icon.bg} ${icon.tint} text-sm font-bold`}>
               {icon.label}
             </div>
             <div className="min-w-0 flex-1">
@@ -37,15 +41,25 @@ export function AccountsStripClient({ connections }: AccountsStripClientProps) {
             </div>
             <div className="shrink-0">
               {conn.status === 'ok' && (
-                <span className="inline-block h-2.5 w-2.5 rounded-full bg-green-500" role="img" aria-label="Conectado" />
+                <span
+                  className="inline-block h-2.5 w-2.5 rounded-full bg-green-500 ring-2 ring-green-500/25"
+                  role="img"
+                  aria-label="Conectado"
+                />
               )}
               {conn.status === 'warn' && (
-                <Link href="/cms/social/accounts" className="text-xs font-medium text-amber-400 hover:text-amber-300">
+                <Link
+                  href="/cms/social/accounts"
+                  className="text-xs font-medium text-amber-400 underline decoration-amber-400/0 underline-offset-2 transition-colors hover:text-amber-300 hover:decoration-amber-300/80"
+                >
                   Reconectar
                 </Link>
               )}
               {conn.status === 'error' && (
-                <Link href="/cms/social/accounts" className="text-xs font-medium text-red-400 hover:text-red-300">
+                <Link
+                  href="/cms/social/accounts"
+                  className="text-xs font-medium text-red-400 underline decoration-red-400/0 underline-offset-2 transition-colors hover:text-red-300 hover:decoration-red-300/80"
+                >
                   Expirado
                 </Link>
               )}
