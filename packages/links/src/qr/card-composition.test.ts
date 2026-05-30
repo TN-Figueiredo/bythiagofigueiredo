@@ -145,9 +145,9 @@ describe('ASPECT_RATIO_PRESETS', () => {
     expect(ASPECT_RATIO_PRESETS).toHaveLength(4)
   })
 
-  it('includes Vertical 1080x1920', () => {
+  it('includes Vertical 350x960', () => {
     const vertical = ASPECT_RATIO_PRESETS.find(p => p.name === 'vertical')
-    expect(vertical).toEqual({ name: 'vertical', label: 'Vertical', width: 1080, height: 1920 })
+    expect(vertical).toEqual({ name: 'vertical', label: 'Vertical', width: 350, height: 960 })
   })
 
   it('includes Quadrado 1080x1080', () => {
@@ -178,8 +178,8 @@ describe('createDefaultComposition', () => {
 
   it('uses provided preset', () => {
     const comp = createDefaultComposition(ASPECT_RATIO_PRESETS[0]!)
-    expect(comp.canvas.width).toBe(1080)
-    expect(comp.canvas.height).toBe(1920)
+    expect(comp.canvas.width).toBe(350)
+    expect(comp.canvas.height).toBe(960)
   })
 
   it('starts with solid white background', () => {

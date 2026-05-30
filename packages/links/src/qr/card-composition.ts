@@ -143,8 +143,8 @@ export interface AspectRatioPreset {
 }
 
 export const ASPECT_RATIO_PRESETS: AspectRatioPreset[] = [
-  { name: 'vertical', label: 'Vertical', width: 1080, height: 1920 },
-  { name: 'horizontal', label: 'Horizontal', width: 1920, height: 1080 },
+  { name: 'vertical', label: 'Vertical', width: 350, height: 960 },
+  { name: 'horizontal', label: 'Horizontal', width: 960, height: 350 },
   { name: 'square', label: 'Quadrado', width: 1080, height: 1080 },
   { name: 'custom', label: 'Custom', width: 1080, height: 1080 },
 ]
