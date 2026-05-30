@@ -290,17 +290,20 @@ export function QrCardBuilder({
 
   if (viewportTooSmall) {
     return (
-      <div className="fixed inset-0 bg-neutral-950 flex items-center justify-center p-8">
+      <div
+        className="fixed inset-0 flex items-center justify-center p-8"
+        style={{ background: 'var(--bg-side, #0a0a0a)' }}
+      >
         <div className="text-center">
-          <p className="text-[16px] text-neutral-300 font-medium mb-2">Desktop Required</p>
-          <p className="text-[13px] text-neutral-500">This editor requires a desktop viewport (960px+).</p>
+          <p className="font-medium mb-2" style={{ fontSize: 16, color: 'var(--ink, #ECE6DA)' }}>Desktop Required</p>
+          <p style={{ fontSize: 13, color: 'var(--ink-dim, #A39C8E)' }}>This editor requires a desktop viewport (960px+).</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="fixed inset-0 bg-neutral-950 flex flex-col" role="application" aria-label="QR Card canvas editor">
+    <div className="fixed inset-0 flex flex-col" role="application" aria-label="QR Card canvas editor" style={{ background: 'var(--bg-side, #0a0a0a)' }}>
       <Toolbar
         linkCode={link.code}
         canUndo={comp.canUndo}
@@ -349,19 +352,28 @@ export function QrCardBuilder({
         />
       </div>
 
-      <div className="h-[22px] bg-neutral-900 border-t border-neutral-800 flex items-center px-3 gap-4 text-[10px] text-neutral-500">
+      <div
+        className="flex items-center px-3 gap-4"
+        style={{
+          height: 22,
+          background: 'var(--surface, #161410)',
+          borderTop: '1px solid var(--line, rgba(255,255,255,0.08))',
+          fontSize: 10,
+          color: 'var(--ink-dim, #A39C8E)',
+        }}
+      >
         <span>{comp.composition.canvas.width}×{comp.composition.canvas.height}</span>
         <span>{comp.composition.canvas.aspectRatio}</span>
         <span>{comp.composition.elements.length} elements</span>
         <span className="ml-auto">
           {hasTemporaryUrls(comp.composition) ? (
-            <span className="text-blue-400">Uploading images...</span>
+            <span style={{ color: 'var(--accent)' }}>Uploading images...</span>
           ) : isSaving ? (
-            <span className="text-amber-400">Saving...</span>
+            <span style={{ color: 'var(--amber, #E0A23C)' }}>Saving...</span>
           ) : hasPendingChanges ? (
-            <span className="text-neutral-600">Unsaved changes</span>
+            <span style={{ color: 'var(--ink-faint, #6E685D)' }}>Unsaved changes</span>
           ) : (
-            <span className="text-green-600">Saved</span>
+            <span style={{ color: 'var(--green, #46B17E)' }}>Saved</span>
           )}
         </span>
       </div>

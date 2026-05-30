@@ -13,7 +13,7 @@ interface NumberFieldProps {
 export function NumberField({ label, value, onChange, min, max, step = 1, unit }: NumberFieldProps) {
   return (
     <div className="flex items-center gap-2">
-      <label className="text-[10px] text-neutral-400 w-6 shrink-0">{label}</label>
+      <label className="text-[10px] w-6 shrink-0" style={{ color: 'var(--ink-dim)' }}>{label}</label>
       <input
         type="number"
         value={Math.round(value * 100) / 100}
@@ -21,9 +21,10 @@ export function NumberField({ label, value, onChange, min, max, step = 1, unit }
         min={min}
         max={max}
         step={step}
-        className="flex-1 bg-neutral-800 border border-neutral-700 rounded px-1.5 py-0.5 text-[11px] text-neutral-200 w-0"
+        className="flex-1 rounded px-1.5 py-0.5 text-[11px] w-0"
+        style={{ background: 'var(--surface-2)', border: '1px solid var(--line)', color: 'var(--ink)' }}
       />
-      {unit && <span className="text-[9px] text-neutral-500 w-4 shrink-0">{unit}</span>}
+      {unit && <span className="text-[9px] w-4 shrink-0" style={{ color: 'var(--ink-dim)' }}>{unit}</span>}
     </div>
   )
 }
@@ -42,8 +43,8 @@ export function SliderField({ label, value, onChange, min, max, step = 1, format
   return (
     <div>
       <div className="flex justify-between mb-0.5">
-        <span className="text-[10px] text-neutral-400">{label}</span>
-        <span className="text-[10px] text-neutral-500">{format ? format(value) : value}</span>
+        <span className="text-[10px]" style={{ color: 'var(--ink-dim)' }}>{label}</span>
+        <span className="text-[10px]" style={{ color: 'var(--ink-dim)' }}>{format ? format(value) : value}</span>
       </div>
       <input
         type="range"
@@ -59,5 +60,5 @@ export function SliderField({ label, value, onChange, min, max, step = 1, format
 }
 
 export function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <h4 className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider mb-1.5 mt-3 first:mt-0">{children}</h4>
+  return <h4 className="text-[10px] font-semibold uppercase tracking-wider mb-1.5 mt-3 first:mt-0" style={{ color: 'var(--ink-dim)' }}>{children}</h4>
 }

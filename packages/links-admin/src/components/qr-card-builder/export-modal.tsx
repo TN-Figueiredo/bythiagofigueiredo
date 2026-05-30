@@ -147,38 +147,48 @@ export function ExportModal({ composition, canvasRef, linkCode, onExport, onClos
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div
         ref={dialogRef}
-        className="relative bg-neutral-900 border border-neutral-700 rounded-xl shadow-2xl w-[560px] max-h-[80vh] overflow-auto"
+        className="relative rounded-xl shadow-2xl w-[560px] max-h-[80vh] overflow-auto"
+        style={{ background: 'var(--bg-side)', border: '1px solid var(--line)' }}
         onClick={e => e.stopPropagation()}
         role="dialog"
         aria-label="Export QR Card"
       >
-        <div className="flex items-center justify-between p-4 border-b border-neutral-800">
-          <h2 className="text-[14px] font-semibold text-neutral-200">Export QR Card</h2>
-          <button type="button" onClick={onClose} className="p-1 text-neutral-500 hover:text-white" aria-label="Close">
+        <div className="flex items-center justify-between p-4" style={{ borderBottom: '1px solid var(--line-strong)' }}>
+          <h2 className="text-[14px] font-semibold" style={{ color: 'var(--ink)' }}>Export QR Card</h2>
+          <button type="button" onClick={onClose} className="p-1 hover:opacity-80" style={{ color: 'var(--ink-dim)' }} aria-label="Close">
             <X size={16} />
           </button>
         </div>
 
         <div className="p-4 flex gap-6">
           <div className="shrink-0">
-            <div className="w-[160px] bg-neutral-800 rounded border border-neutral-700 overflow-hidden flex items-center justify-center" style={{ aspectRatio: `${w}/${h}` }}>
+            <div className="w-[160px] rounded overflow-hidden flex items-center justify-center" style={{ background: 'var(--surface-2)', border: '1px solid var(--line)', aspectRatio: `${w}/${h}` }}>
               {previewUrl ? (
                 <img src={previewUrl} alt="Card preview" className="w-full h-full object-contain" />
               ) : (
-                <span className="text-[11px] text-neutral-500">Preview</span>
+                <span className="text-[11px]" style={{ color: 'var(--ink-dim)' }}>Preview</span>
               )}
             </div>
-            <div className="text-[10px] text-neutral-500 text-center mt-1">{w}×{h}</div>
+            <div className="text-[10px] text-center mt-1" style={{ color: 'var(--ink-dim)' }}>{w}×{h}</div>
           </div>
 
           <div className="flex-1 space-y-4">
             {state === 'idle' && (
               <>
                 <div>
-                  <div className="text-[10px] text-neutral-400 mb-1">Format</div>
+                  <div className="text-[10px] mb-1" style={{ color: 'var(--ink-dim)' }}>Format</div>
                   <div className="flex gap-2">
                     {(['png', 'svg'] as const).map(f => (
-                      <button key={f} type="button" onClick={() => setFormat(f)} className={`flex-1 py-1.5 rounded text-[11px] border ${format === f ? 'border-blue-500 bg-blue-600/10 text-blue-300' : 'border-neutral-700 text-neutral-400'}`}>
+                      <button
+                        key={f}
+                        type="button"
+                        onClick={() => setFormat(f)}
+                        className="flex-1 py-1.5 rounded text-[11px]"
+                        style={format === f
+                          ? { border: '1px solid var(--accent)', background: 'var(--accent-soft)', color: 'var(--accent)' }
+                          : { border: '1px solid var(--line)', color: 'var(--ink-dim)' }
+                        }
+                      >
                         {f.toUpperCase()}
                       </button>
                     ))}
@@ -187,7 +197,7 @@ export function ExportModal({ composition, canvasRef, linkCode, onExport, onClos
 
                 {format === 'png' && (
                   <div>
-                    <div className="text-[10px] text-neutral-400 mb-1">Quality / Scale</div>
+                    <div className="text-[10px] mb-1" style={{ color: 'var(--ink-dim)' }}>Quality / Scale</div>
                     <div className="grid grid-cols-4 gap-1.5">
                       {([
                         { s: 1, label: '1×', desc: 'Draft' },
@@ -195,21 +205,35 @@ export function ExportModal({ composition, canvasRef, linkCode, onExport, onClos
                         { s: 3, label: '3×', desc: 'High' },
                         { s: 4, label: '4×', desc: 'Print' },
                       ] as const).map(({ s, label, desc }) => (
-                        <button key={s} type="button" onClick={() => setScale(s)} className={`py-1.5 rounded text-[11px] border ${scale === s ? 'border-blue-500 bg-blue-600/10 text-blue-300' : 'border-neutral-700 text-neutral-400'}`}>
-                          {label} <span className="text-[9px] text-neutral-500 block">{desc}</span>
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => setScale(s)}
+                          className="py-1.5 rounded text-[11px]"
+                          style={scale === s
+                            ? { border: '1px solid var(--accent)', background: 'var(--accent-soft)', color: 'var(--accent)' }
+                            : { border: '1px solid var(--line)', color: 'var(--ink-dim)' }
+                          }
+                        >
+                          {label} <span className="text-[9px] block" style={{ color: 'var(--ink-dim)' }}>{desc}</span>
                         </button>
                       ))}
                     </div>
-                    <p className="text-[9px] text-neutral-500 mt-1">Output: {outW}×{outH}px — the preview is low-res, export is sharp</p>
+                    <p className="text-[9px] mt-1" style={{ color: 'var(--ink-dim)' }}>Output: {outW}×{outH}px — the preview is low-res, export is sharp</p>
                   </div>
                 )}
 
-                <label className="flex items-center gap-2 text-[11px] text-neutral-300">
+                <label className="flex items-center gap-2 text-[11px]" style={{ color: 'var(--ink)' }}>
                   <input type="checkbox" checked={saveToBlob} onChange={e => setSaveToBlob(e.target.checked)} className="rounded" />
                   Save copy to Vercel Blob
                 </label>
 
-                <button type="button" onClick={handleExport} className="w-full py-2 rounded bg-blue-600 text-[12px] font-medium text-white hover:bg-blue-500">
+                <button
+                  type="button"
+                  onClick={handleExport}
+                  className="w-full py-2 rounded text-[12px] font-medium hover:opacity-90"
+                  style={{ background: 'var(--accent)', color: 'var(--ink)' }}
+                >
                   <Download size={14} className="inline mr-1.5" />
                   Download {format.toUpperCase()} · {scale}× · {estimatedSize}
                 </button>
@@ -220,8 +244,13 @@ export function ExportModal({ composition, canvasRef, linkCode, onExport, onClos
               <div className="space-y-2">
                 {steps.map((s, i) => (
                   <div key={i} className="flex items-center gap-2 text-[11px]">
-                    {s.done ? <Check size={14} className="text-green-400" /> : i === step - 1 ? <Loader2 size={14} className="text-blue-400 animate-spin" /> : <div className="w-3.5 h-3.5 rounded-full border border-neutral-600" />}
-                    <span className={s.done ? 'text-neutral-300' : 'text-neutral-500'}>{s.label}</span>
+                    {s.done
+                      ? <Check size={14} style={{ color: 'var(--green)' }} />
+                      : i === step - 1
+                        ? <Loader2 size={14} className="animate-spin" style={{ color: 'var(--accent)' }} />
+                        : <div className="w-3.5 h-3.5 rounded-full" style={{ border: '1px solid var(--ink-faint)' }} />
+                    }
+                    <span style={{ color: s.done ? 'var(--ink)' : 'var(--ink-dim)' }}>{s.label}</span>
                   </div>
                 ))}
               </div>
@@ -229,24 +258,24 @@ export function ExportModal({ composition, canvasRef, linkCode, onExport, onClos
 
             {state === 'done' && (
               <div className="space-y-3 text-center">
-                <div className="w-10 h-10 mx-auto bg-green-600/20 rounded-full flex items-center justify-center">
-                  <Check size={20} className="text-green-400" />
+                <div className="w-10 h-10 mx-auto rounded-full flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--green) 20%, transparent)' }}>
+                  <Check size={20} style={{ color: 'var(--green)' }} />
                 </div>
-                <p className="text-[13px] text-neutral-200 font-medium">Card exported successfully</p>
-                <p className="text-[11px] text-neutral-500">{`qr-card-${linkCode}.${format}`} · {(fileSize / 1024).toFixed(0)} KB</p>
+                <p className="text-[13px] font-medium" style={{ color: 'var(--ink)' }}>Card exported successfully</p>
+                <p className="text-[11px]" style={{ color: 'var(--ink-dim)' }}>{`qr-card-${linkCode}.${format}`} · {(fileSize / 1024).toFixed(0)} KB</p>
                 {blobUrl && (
-                  <div className="flex items-center gap-2 bg-neutral-800 rounded px-2 py-1.5">
-                    <span className="flex-1 text-[10px] font-mono text-neutral-400 truncate">{blobUrl}</span>
-                    <button type="button" onClick={() => navigator.clipboard.writeText(blobUrl)} className="text-neutral-500 hover:text-white">
+                  <div className="flex items-center gap-2 rounded px-2 py-1.5" style={{ background: 'var(--surface-2)' }}>
+                    <span className="flex-1 text-[10px] font-mono truncate" style={{ color: 'var(--ink-dim)' }}>{blobUrl}</span>
+                    <button type="button" onClick={() => navigator.clipboard.writeText(blobUrl)} className="hover:opacity-80" style={{ color: 'var(--ink-dim)' }}>
                       <Copy size={12} />
                     </button>
                   </div>
                 )}
                 <div className="flex gap-2">
-                  <button type="button" onClick={onClose} className="flex-1 py-1.5 rounded border border-neutral-700 text-[11px] text-neutral-300">
+                  <button type="button" onClick={onClose} className="flex-1 py-1.5 rounded text-[11px]" style={{ border: '1px solid var(--line)', color: 'var(--ink)' }}>
                     Back to Editor
                   </button>
-                  <button type="button" onClick={() => { setState('idle'); setBlobUrl(null) }} className="flex-1 py-1.5 rounded border border-neutral-700 text-[11px] text-neutral-300">
+                  <button type="button" onClick={() => { setState('idle'); setBlobUrl(null) }} className="flex-1 py-1.5 rounded text-[11px]" style={{ border: '1px solid var(--line)', color: 'var(--ink)' }}>
                     Export Another
                   </button>
                 </div>
@@ -255,12 +284,12 @@ export function ExportModal({ composition, canvasRef, linkCode, onExport, onClos
 
             {state === 'error' && (
               <div className="space-y-3 text-center">
-                <div className="w-10 h-10 mx-auto bg-red-600/20 rounded-full flex items-center justify-center">
-                  <X size={20} className="text-red-400" />
+                <div className="w-10 h-10 mx-auto rounded-full flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--red) 20%, transparent)' }}>
+                  <X size={20} style={{ color: 'var(--red)' }} />
                 </div>
-                <p className="text-[13px] text-neutral-200 font-medium">Export failed</p>
-                <p className="text-[11px] text-red-400">{errorMsg}</p>
-                <button type="button" onClick={() => setState('idle')} className="w-full py-1.5 rounded border border-neutral-700 text-[11px] text-neutral-300">
+                <p className="text-[13px] font-medium" style={{ color: 'var(--ink)' }}>Export failed</p>
+                <p className="text-[11px]" style={{ color: 'var(--red)' }}>{errorMsg}</p>
+                <button type="button" onClick={() => setState('idle')} className="w-full py-1.5 rounded text-[11px]" style={{ border: '1px solid var(--line)', color: 'var(--ink)' }}>
                   Try Again
                 </button>
               </div>

@@ -18,8 +18,8 @@ export function MultiInspector({ elements, onUpdateAll, onDeleteAll, onLockAll, 
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2 mb-2">
-        <span className="bg-blue-600/20 text-blue-300 text-[10px] font-semibold px-2 py-0.5 rounded-full">{elements.length}</span>
-        <span className="text-[12px] text-neutral-300">Elements Selected</span>
+        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}>{elements.length}</span>
+        <span className="text-[12px]" style={{ color: 'var(--ink)' }}>Elements Selected</span>
       </div>
 
       <SectionTitle>Alignment</SectionTitle>
@@ -38,7 +38,8 @@ export function MultiInspector({ elements, onUpdateAll, onDeleteAll, onLockAll, 
             key={a.key}
             type="button"
             onClick={() => onAlign(a.key)}
-            className="py-1.5 rounded border border-neutral-700 text-[9px] text-neutral-400 hover:border-neutral-500 hover:text-neutral-200"
+            className="py-1.5 rounded text-[9px] hover:opacity-80"
+            style={{ border: '1px solid var(--line)', color: 'var(--ink-dim)' }}
           >
             {a.label}
           </button>
@@ -57,10 +58,20 @@ export function MultiInspector({ elements, onUpdateAll, onDeleteAll, onLockAll, 
 
       <SectionTitle>Actions</SectionTitle>
       <div className="flex gap-2">
-        <button type="button" onClick={onLockAll} className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded border border-neutral-700 text-[11px] text-neutral-300 hover:border-neutral-500">
+        <button
+          type="button"
+          onClick={onLockAll}
+          className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded text-[11px] hover:opacity-80"
+          style={{ border: '1px solid var(--line)', color: 'var(--ink)' }}
+        >
           <Lock size={12} />Lock All
         </button>
-        <button type="button" onClick={onDeleteAll} className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded border border-red-800 text-[11px] text-red-400 hover:border-red-600">
+        <button
+          type="button"
+          onClick={onDeleteAll}
+          className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded text-[11px] hover:opacity-80"
+          style={{ border: '1px solid var(--red)', color: 'var(--red)' }}
+        >
           <Trash2 size={12} />Delete All
         </button>
       </div>

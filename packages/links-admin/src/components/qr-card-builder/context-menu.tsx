@@ -55,13 +55,13 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
   return (
     <div
       ref={ref}
-      className="fixed z-[100] bg-neutral-900 border border-neutral-700 rounded-lg py-1 shadow-xl min-w-[180px]"
-      style={{ left: x, top: y }}
+      className="fixed z-[100] rounded-lg py-1 shadow-xl min-w-[180px]"
+      style={{ left: x, top: y, background: 'var(--bg-side)', border: '1px solid var(--line)' }}
       role="menu"
     >
       {items.map((item, i) => {
         if (item.separator) {
-          return <div key={`sep-${i}`} className="border-t border-neutral-700 my-1" />
+          return <div key={`sep-${i}`} className="my-1" style={{ borderTop: '1px solid var(--line)' }} />
         }
         return (
           <button
@@ -70,11 +70,14 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
             role="menuitem"
             disabled={item.disabled}
             onClick={() => { item.onClick(); onClose() }}
-            className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] text-neutral-200 hover:bg-neutral-800 disabled:opacity-40 disabled:cursor-default"
+            className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] disabled:opacity-40 disabled:cursor-default"
+            style={{ color: 'var(--ink)' }}
+            onMouseEnter={e => { if (!item.disabled) (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
           >
             <span>{item.label}</span>
             {item.shortcut && (
-              <span className="text-[10px] text-neutral-500 ml-4">{item.shortcut}</span>
+              <span className="text-[10px] ml-4" style={{ color: 'var(--ink-dim)' }}>{item.shortcut}</span>
             )}
           </button>
         )

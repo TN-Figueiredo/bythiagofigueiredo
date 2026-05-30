@@ -50,7 +50,8 @@ function ElementNameHeader({ element, onUpdate }: { element: CardElement; onUpda
             }
             if (e.key === 'Escape') setEditing(false)
           }}
-          className="flex-1 bg-neutral-800 border border-blue-500 rounded px-2 py-1 text-sm text-neutral-100 outline-none"
+          className="flex-1 rounded px-2 py-1 text-sm outline-none"
+          style={{ background: 'var(--surface-2)', border: '1px solid var(--accent)', color: 'var(--ink)' }}
           maxLength={40}
         />
         <button
@@ -60,11 +61,12 @@ function ElementNameHeader({ element, onUpdate }: { element: CardElement; onUpda
             if (v) onUpdate({ name: v })
             setEditing(false)
           }}
-          className="p-1 text-green-400 hover:text-green-300"
+          className="p-1 hover:opacity-80"
+          style={{ color: 'var(--green)' }}
         >
           <Check size={14} />
         </button>
-        <button type="button" onClick={() => setEditing(false)} className="p-1 text-neutral-500 hover:text-neutral-300">
+        <button type="button" onClick={() => setEditing(false)} className="p-1 hover:opacity-80" style={{ color: 'var(--ink-dim)' }}>
           <X size={14} />
         </button>
       </div>
@@ -73,11 +75,12 @@ function ElementNameHeader({ element, onUpdate }: { element: CardElement; onUpda
 
   return (
     <div className="flex items-center gap-1.5 mb-3 group">
-      <h3 className="text-sm font-medium text-neutral-200 truncate flex-1">{displayName}</h3>
+      <h3 className="text-sm font-medium truncate flex-1" style={{ color: 'var(--ink)' }}>{displayName}</h3>
       <button
         type="button"
         onClick={() => setEditing(true)}
-        className="p-1 text-neutral-600 hover:text-neutral-300 opacity-0 group-hover:opacity-100 transition-opacity"
+        className="p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+        style={{ color: 'var(--ink-faint)' }}
         title="Rename"
       >
         <Pencil size={12} />
@@ -94,15 +97,15 @@ export function RightPanel({
 
   if (selectedElements.length === 0) {
     return (
-      <aside className="w-[244px] shrink-0 bg-neutral-900 border-l border-neutral-800 p-3 overflow-y-auto">
-        <p className="text-[11px] text-neutral-500 text-center mt-8">Select an element to edit its properties</p>
+      <aside className="w-[244px] shrink-0 p-3 overflow-y-auto" style={{ background: 'var(--bg-side)', borderLeft: '1px solid var(--line)' }}>
+        <p className="text-[11px] text-center mt-8" style={{ color: 'var(--ink-dim)' }}>Select an element to edit its properties</p>
       </aside>
     )
   }
 
   if (selectedElements.length > 1) {
     return (
-      <aside className="w-[244px] shrink-0 bg-neutral-900 border-l border-neutral-800 p-3 overflow-y-auto">
+      <aside className="w-[244px] shrink-0 p-3 overflow-y-auto" style={{ background: 'var(--bg-side)', borderLeft: '1px solid var(--line)' }}>
         <MultiInspector
           elements={selectedElements}
           onUpdateAll={patch => selectedElements.forEach(el => onUpdateElement(el.id, patch))}
@@ -117,7 +120,7 @@ export function RightPanel({
   const element = selectedElements[0]!
 
   return (
-    <aside className="w-[244px] shrink-0 bg-neutral-900 border-l border-neutral-800 p-3 overflow-y-auto">
+    <aside className="w-[244px] shrink-0 p-3 overflow-y-auto" style={{ background: 'var(--bg-side)', borderLeft: '1px solid var(--line)' }}>
       <ElementNameHeader element={element} onUpdate={patch => onUpdateElement(element.id, patch)} />
       {element.type === 'qr' && (
         <QrInspector

@@ -55,8 +55,8 @@ export function ColorSwatch({ color, onClick, size = 24 }: { color: string; onCl
     <button
       type="button"
       onClick={onClick}
-      className="rounded border border-neutral-600 shrink-0"
-      style={{ width: size, height: size, backgroundColor: color }}
+      className="rounded shrink-0"
+      style={{ width: size, height: size, backgroundColor: color, border: '1px solid var(--line-strong, #3a3630)' }}
       aria-label={`Color ${color}`}
     />
   )
@@ -120,7 +120,7 @@ export function ColorPicker({ value, onChange, palette = [], label }: ColorPicke
 
   return (
     <div className="relative">
-      {label && <div className="text-[10px] text-neutral-400 mb-1">{label}</div>}
+      {label && <div className="mb-1" style={{ fontSize: 10, color: 'var(--ink-dim, #A39C8E)' }}>{label}</div>}
       <div className="flex items-center gap-2">
         <ColorSwatch color={value} onClick={() => setOpen(!open)} />
         <input
@@ -129,15 +129,25 @@ export function ColorPicker({ value, onChange, palette = [], label }: ColorPicke
           onChange={e => setHexInput(e.target.value)}
           onBlur={handleHexSubmit}
           onKeyDown={e => e.key === 'Enter' && handleHexSubmit()}
-          className="w-[72px] bg-neutral-800 border border-neutral-600 rounded px-1.5 py-0.5 text-[11px] font-mono text-neutral-200"
+          className="w-[72px] rounded px-1.5 py-0.5 font-mono"
+          style={{
+            fontSize: 11,
+            background: 'var(--surface-2, #272219)',
+            border: '1px solid var(--line-strong, #3a3630)',
+            color: 'var(--ink, #ECE6DA)',
+          }}
           aria-label={label ? `${label} hex value` : 'Color hex value'}
         />
       </div>
       {open && (
         <div
           ref={popoverRef}
-          className="absolute z-50 top-full left-0 mt-1 bg-neutral-900 border border-neutral-700 rounded-lg p-3 shadow-xl"
-          style={{ width: 220 }}
+          className="absolute z-50 top-full left-0 mt-1 rounded-lg p-3 shadow-xl"
+          style={{
+            width: 220,
+            background: 'var(--surface, #161410)',
+            border: '1px solid var(--line-strong, #3a3630)',
+          }}
         >
           <div
             className="relative w-full h-[140px] rounded cursor-crosshair mb-2"
@@ -165,18 +175,24 @@ export function ColorPicker({ value, onChange, palette = [], label }: ColorPicke
             aria-label="Hue"
           />
           <div className="flex items-center gap-2 mb-2">
-            <span className="text-[10px] text-neutral-500">HEX</span>
+            <span style={{ fontSize: 10, color: 'var(--ink-dim, #A39C8E)' }}>HEX</span>
             <input
               type="text"
               value={hexInput}
               onChange={e => setHexInput(e.target.value)}
               onBlur={handleHexSubmit}
               onKeyDown={e => e.key === 'Enter' && handleHexSubmit()}
-              className="flex-1 bg-neutral-800 border border-neutral-600 rounded px-1.5 py-0.5 text-[11px] font-mono text-neutral-200"
+              className="flex-1 rounded px-1.5 py-0.5 font-mono"
+              style={{
+                fontSize: 11,
+                background: 'var(--surface-2, #272219)',
+                border: '1px solid var(--line-strong, #3a3630)',
+                color: 'var(--ink, #ECE6DA)',
+              }}
             />
           </div>
           {palette.length > 0 && (
-            <div className="flex flex-wrap gap-1 pt-2 border-t border-neutral-700">
+            <div className="flex flex-wrap gap-1 pt-2" style={{ borderTop: '1px solid var(--line, rgba(255,255,255,0.08))' }}>
               {palette.map(c => (
                 <ColorSwatch key={c} color={c} size={20} onClick={() => onChange(c)} />
               ))}

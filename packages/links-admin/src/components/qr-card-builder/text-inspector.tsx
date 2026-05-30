@@ -56,16 +56,17 @@ function FontPicker({ value, onChange }: { value: string; onChange: (v: string) 
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between bg-neutral-800 border border-neutral-700 rounded px-2 py-1.5 text-[11px] text-neutral-200 hover:border-neutral-600"
+        className="w-full flex items-center justify-between rounded px-2 py-1.5 text-[11px] hover:opacity-90"
+        style={{ background: 'var(--surface-2)', border: '1px solid var(--line)', color: 'var(--ink)' }}
       >
         <span style={{ fontFamily: value }}>{value}</span>
-        <ChevronDown size={12} className={`text-neutral-500 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown size={12} className={`transition-transform ${open ? 'rotate-180' : ''}`} style={{ color: 'var(--ink-dim)' }} />
       </button>
       {open && (
-        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-neutral-800 border border-neutral-700 rounded shadow-xl max-h-[320px] overflow-y-auto">
+        <div className="absolute z-50 top-full left-0 right-0 mt-1 rounded shadow-xl max-h-[320px] overflow-y-auto" style={{ background: 'var(--surface-2)', border: '1px solid var(--line)' }}>
           {(Object.keys(FONT_CATEGORIES) as FontCategory[]).map(cat => (
             <div key={cat}>
-              <div className="px-2 py-1 text-[9px] font-semibold text-neutral-500 uppercase tracking-wider sticky top-0 bg-neutral-800">
+              <div className="px-2 py-1 text-[9px] font-semibold uppercase tracking-wider sticky top-0" style={{ color: 'var(--ink-dim)', background: 'var(--surface-2)' }}>
                 {CATEGORY_LABELS[cat]}
               </div>
               {FONT_CATEGORIES[cat].map(font => (
@@ -85,8 +86,12 @@ function FontOption({ font, selected, onSelect }: { font: string; selected: bool
     <button
       type="button"
       onClick={onSelect}
-      className={`w-full text-left px-2 py-1.5 text-[12px] hover:bg-neutral-700 ${selected ? 'bg-blue-600/20 text-blue-300' : 'text-neutral-200'}`}
-      style={{ fontFamily: font }}
+      className="w-full text-left px-2 py-1.5 text-[12px] hover:opacity-80"
+      style={{
+        fontFamily: font,
+        background: selected ? 'var(--accent-soft)' : 'transparent',
+        color: selected ? 'var(--accent)' : 'var(--ink)',
+      }}
     >
       {font}
     </button>
@@ -108,7 +113,8 @@ export function TextInspector({ element, onUpdate }: TextInspectorProps) {
         value={element.content}
         onChange={e => onUpdate({ content: e.target.value })}
         rows={3}
-        className="w-full bg-neutral-800 border border-neutral-700 rounded px-2 py-1.5 text-[12px] text-neutral-200 resize-y"
+        className="w-full rounded px-2 py-1.5 text-[12px] resize-y"
+        style={{ background: 'var(--surface-2)', border: '1px solid var(--line)', color: 'var(--ink)' }}
       />
 
       <SectionTitle>Transform</SectionTitle>
@@ -120,7 +126,7 @@ export function TextInspector({ element, onUpdate }: TextInspectorProps) {
 
       <SectionTitle>Typography</SectionTitle>
       <div>
-        <span className="text-[10px] text-neutral-400">Font</span>
+        <span className="text-[10px]" style={{ color: 'var(--ink-dim)' }}>Font</span>
         <FontPicker value={element.fontFamily} onChange={v => onUpdate({ fontFamily: v })} />
       </div>
       <div className="grid grid-cols-2 gap-1.5">
@@ -129,19 +135,23 @@ export function TextInspector({ element, onUpdate }: TextInspectorProps) {
       </div>
       <NumberField label="LH" value={element.lineHeight} onChange={v => onUpdate({ lineHeight: v })} min={0.5} max={3} step={0.1} />
       <div className="flex items-center gap-1">
-        <span className="text-[10px] text-neutral-400 w-6">Align</span>
+        <span className="text-[10px] w-6" style={{ color: 'var(--ink-dim)' }}>Align</span>
         {(['left', 'center', 'right'] as const).map(a => (
           <button
             key={a}
             type="button"
             onClick={() => onUpdate({ align: a })}
-            className={`p-1 rounded ${element.align === a ? 'bg-blue-600/30 text-blue-300' : 'text-neutral-400 hover:text-white'}`}
+            className="p-1 rounded"
+            style={{
+              background: element.align === a ? 'var(--accent-soft)' : 'transparent',
+              color: element.align === a ? 'var(--accent)' : 'var(--ink-dim)',
+            }}
           >
             {a === 'left' ? <AlignLeft size={14} /> : a === 'center' ? <AlignCenter size={14} /> : <AlignRight size={14} />}
           </button>
         ))}
       </div>
-      <label className="flex items-center gap-2 text-[11px] text-neutral-300">
+      <label className="flex items-center gap-2 text-[11px]" style={{ color: 'var(--ink)' }}>
         <input type="checkbox" checked={element.uppercase} onChange={e => onUpdate({ uppercase: e.target.checked })} className="rounded" />
         Uppercase
       </label>
@@ -149,7 +159,7 @@ export function TextInspector({ element, onUpdate }: TextInspectorProps) {
       <SectionTitle>Color</SectionTitle>
       <ColorPicker label="Text color" value={element.color} onChange={c => onUpdate({ color: c })} />
       <div className="space-y-1.5">
-        <label className="flex items-center gap-2 text-[11px] text-neutral-300">
+        <label className="flex items-center gap-2 text-[11px]" style={{ color: 'var(--ink)' }}>
           <input
             type="checkbox"
             checked={element.backgroundColor !== null}
@@ -172,7 +182,7 @@ export function TextInspector({ element, onUpdate }: TextInspectorProps) {
       <SliderField label="Opacity" value={element.opacity * 100} onChange={v => onUpdate({ opacity: v / 100 })} min={0} max={100} format={v => `${Math.round(v)}%`} />
 
       <SectionTitle>Options</SectionTitle>
-      <label className="flex items-center gap-2 text-[11px] text-neutral-300">
+      <label className="flex items-center gap-2 text-[11px]" style={{ color: 'var(--ink)' }}>
         <input type="checkbox" checked={element.locked} onChange={e => onUpdate({ locked: e.target.checked })} className="rounded" />
         Lock position
       </label>

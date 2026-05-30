@@ -56,7 +56,13 @@ function InlineRename({ value, onCommit, onCancel }: { value: string; onCommit: 
         if (e.key === 'Escape') onCancel()
       }}
       onClick={e => e.stopPropagation()}
-      className="flex-1 bg-neutral-700 border border-blue-500 rounded px-1 py-0 text-[11px] text-neutral-100 outline-none min-w-0"
+      className="flex-1 px-1 py-0 text-[11px] outline-none min-w-0"
+      style={{
+        background: 'var(--surface)',
+        border: '1px solid var(--accent)',
+        borderRadius: 'var(--r)',
+        color: 'var(--ink)',
+      }}
       maxLength={40}
     />
   )
@@ -107,115 +113,154 @@ export function LayersPanel({ elements, selectedIds, onSelect, onReorder, onUpda
   }, [onUpdateElement])
 
   return (
-    <div className="space-y-0.5">
-      <div className="flex items-center justify-between px-2 py-1">
-        <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">Layers</span>
-        <span className="text-[10px] text-neutral-500">{elements.length}</span>
-      </div>
-      {reversed.length === 0 && (
-        <p className="px-2 py-3 text-[11px] text-neutral-500 text-center">No elements yet</p>
-      )}
-      {reversed.map((el, displayIdx) => {
-        const realIdx = toReal(displayIdx)
-        const isSelected = selectedIds.has(el.id)
-        const isDragging = dragIdx === displayIdx
-        const isOver = overIdx === displayIdx && dragIdx !== null && dragIdx !== displayIdx
-        const isTop = realIdx === elements.length - 1
-        const isBottom = realIdx === 0
-        const isEditing = editingId === el.id
-
-        return (
-          <div
-            key={el.id}
-            draggable={!isEditing}
-            onDragStart={() => handleDragStart(displayIdx)}
-            onDragOver={e => handleDragOver(e, displayIdx)}
-            onDrop={() => handleDrop(displayIdx)}
-            onDragEnd={handleDragEnd}
-            onClick={() => onSelect(el.id)}
-            onDoubleClick={() => setEditingId(el.id)}
-            className={`flex items-center gap-1 px-1.5 py-1.5 rounded text-[11px] cursor-pointer transition-colors ${
-              isDragging ? 'opacity-40' : ''
-            } ${isOver ? 'ring-1 ring-blue-500' : ''} ${
-              isSelected ? 'bg-blue-600/20 text-blue-300' : 'text-neutral-300 hover:bg-neutral-800'
-            }`}
+    <>
+      <style>{`
+        .qr-layer-row:hover {
+          background: var(--surface-2) !important;
+        }
+        .qr-layer-action:hover {
+          color: var(--ink) !important;
+        }
+        .qr-layer-lock:hover {
+          color: var(--ink) !important;
+        }
+      `}</style>
+      <div className="space-y-0.5">
+        <div className="flex items-center justify-between px-2 py-1">
+          <span
+            className="text-[10px] font-semibold uppercase tracking-wider"
+            style={{ color: 'var(--ink-dim)' }}
           >
-            <GripVertical size={12} className="text-neutral-600 shrink-0 cursor-grab" />
-            {elementIcon(el.type)}
-            {isEditing ? (
-              <InlineRename
-                value={elementLabel(el)}
-                onCommit={v => handleRename(el.id, v)}
-                onCancel={() => setEditingId(null)}
+            Layers
+          </span>
+          <span className="text-[10px]" style={{ color: 'var(--ink-faint)' }}>
+            {elements.length}
+          </span>
+        </div>
+        {reversed.length === 0 && (
+          <p
+            className="px-2 py-3 text-[11px] text-center"
+            style={{ color: 'var(--ink-faint)' }}
+          >
+            No elements yet
+          </p>
+        )}
+        {reversed.map((el, displayIdx) => {
+          const realIdx = toReal(displayIdx)
+          const isSelected = selectedIds.has(el.id)
+          const isDragging = dragIdx === displayIdx
+          const isOver = overIdx === displayIdx && dragIdx !== null && dragIdx !== displayIdx
+          const isTop = realIdx === elements.length - 1
+          const isBottom = realIdx === 0
+          const isEditing = editingId === el.id
+
+          return (
+            <div
+              key={el.id}
+              draggable={!isEditing}
+              onDragStart={() => handleDragStart(displayIdx)}
+              onDragOver={e => handleDragOver(e, displayIdx)}
+              onDrop={() => handleDrop(displayIdx)}
+              onDragEnd={handleDragEnd}
+              onClick={() => onSelect(el.id)}
+              onDoubleClick={() => setEditingId(el.id)}
+              className={`flex items-center gap-1 px-1.5 py-1.5 text-[11px] cursor-pointer transition-colors ${
+                isDragging ? 'opacity-40' : ''
+              } ${!isSelected && !isEditing ? 'qr-layer-row' : ''}`}
+              style={{
+                borderRadius: 'var(--r)',
+                outline: isOver ? '1px solid var(--accent)' : undefined,
+                background: isSelected ? 'var(--accent-soft)' : 'transparent',
+                color: isSelected ? 'var(--accent)' : 'var(--ink)',
+              }}
+            >
+              <GripVertical
+                size={12}
+                className="shrink-0 cursor-grab"
+                style={{ color: 'var(--ink-faint)' }}
               />
-            ) : (
-              <>
-                <span className="flex-1 truncate">{elementLabel(el)}</span>
-                {isSelected && (
-                  <button
-                    type="button"
-                    onClick={e => { e.stopPropagation(); setEditingId(el.id) }}
-                    className="p-0.5 text-neutral-600 hover:text-neutral-300"
-                    title="Rename"
-                  >
-                    <Pencil size={10} />
-                  </button>
-                )}
-              </>
-            )}
-            <div className="flex items-center">
-              <button
-                type="button"
-                onClick={e => { e.stopPropagation(); if (!isTop) onReorder(realIdx, elements.length - 1) }}
-                className="p-0.5 text-neutral-600 hover:text-neutral-300 disabled:opacity-20"
-                disabled={isTop}
-                aria-label="Send to front"
-                title="Send to front"
-              >
-                <ChevronsUp size={11} />
-              </button>
-              <button
-                type="button"
-                onClick={e => { e.stopPropagation(); if (!isTop) onReorder(realIdx, realIdx + 1) }}
-                className="p-0.5 text-neutral-600 hover:text-neutral-300 disabled:opacity-20"
-                disabled={isTop}
-                aria-label="Move up"
-                title="Bring forward"
-              >
-                <ChevronUp size={11} />
-              </button>
-              <button
-                type="button"
-                onClick={e => { e.stopPropagation(); if (!isBottom) onReorder(realIdx, realIdx - 1) }}
-                className="p-0.5 text-neutral-600 hover:text-neutral-300 disabled:opacity-20"
-                disabled={isBottom}
-                aria-label="Move down"
-                title="Send backward"
-              >
-                <ChevronDown size={11} />
-              </button>
-              <button
-                type="button"
-                onClick={e => { e.stopPropagation(); if (!isBottom) onReorder(realIdx, 0) }}
-                className="p-0.5 text-neutral-600 hover:text-neutral-300 disabled:opacity-20"
-                disabled={isBottom}
-                aria-label="Send to back"
-                title="Send to back"
-              >
-                <ChevronsDown size={11} />
-              </button>
-              <button
-                type="button"
-                onClick={e => { e.stopPropagation(); onUpdateElement(el.id, { locked: !el.locked }) }}
-                className="p-0.5 ml-0.5 hover:text-white"
-                aria-label={el.locked ? 'Unlock' : 'Lock'}
-              >
-                <Lock size={11} className={el.locked ? 'text-yellow-500' : 'text-neutral-600'} />
-              </button>
+              {elementIcon(el.type)}
+              {isEditing ? (
+                <InlineRename
+                  value={elementLabel(el)}
+                  onCommit={v => handleRename(el.id, v)}
+                  onCancel={() => setEditingId(null)}
+                />
+              ) : (
+                <>
+                  <span className="flex-1 truncate">{elementLabel(el)}</span>
+                  {isSelected && (
+                    <button
+                      type="button"
+                      onClick={e => { e.stopPropagation(); setEditingId(el.id) }}
+                      className="qr-layer-action p-0.5"
+                      style={{ color: 'var(--ink-faint)' }}
+                      title="Rename"
+                    >
+                      <Pencil size={10} />
+                    </button>
+                  )}
+                </>
+              )}
+              <div className="flex items-center">
+                <button
+                  type="button"
+                  onClick={e => { e.stopPropagation(); if (!isTop) onReorder(realIdx, elements.length - 1) }}
+                  className="qr-layer-action p-0.5 disabled:opacity-20"
+                  style={{ color: 'var(--ink-faint)' }}
+                  disabled={isTop}
+                  aria-label="Send to front"
+                  title="Send to front"
+                >
+                  <ChevronsUp size={11} />
+                </button>
+                <button
+                  type="button"
+                  onClick={e => { e.stopPropagation(); if (!isTop) onReorder(realIdx, realIdx + 1) }}
+                  className="qr-layer-action p-0.5 disabled:opacity-20"
+                  style={{ color: 'var(--ink-faint)' }}
+                  disabled={isTop}
+                  aria-label="Move up"
+                  title="Bring forward"
+                >
+                  <ChevronUp size={11} />
+                </button>
+                <button
+                  type="button"
+                  onClick={e => { e.stopPropagation(); if (!isBottom) onReorder(realIdx, realIdx - 1) }}
+                  className="qr-layer-action p-0.5 disabled:opacity-20"
+                  style={{ color: 'var(--ink-faint)' }}
+                  disabled={isBottom}
+                  aria-label="Move down"
+                  title="Send backward"
+                >
+                  <ChevronDown size={11} />
+                </button>
+                <button
+                  type="button"
+                  onClick={e => { e.stopPropagation(); if (!isBottom) onReorder(realIdx, 0) }}
+                  className="qr-layer-action p-0.5 disabled:opacity-20"
+                  style={{ color: 'var(--ink-faint)' }}
+                  disabled={isBottom}
+                  aria-label="Send to back"
+                  title="Send to back"
+                >
+                  <ChevronsDown size={11} />
+                </button>
+                <button
+                  type="button"
+                  onClick={e => { e.stopPropagation(); onUpdateElement(el.id, { locked: !el.locked }) }}
+                  className="qr-layer-lock p-0.5 ml-0.5"
+                  style={{ color: el.locked ? 'var(--amber)' : 'var(--ink-faint)' }}
+                  aria-label={el.locked ? 'Unlock' : 'Lock'}
+                >
+                  <Lock size={11} />
+                </button>
+              </div>
             </div>
-          </div>
-        )
-      })}
-    </div>
+          )
+        })}
+      </div>
+    </>
   )
 }

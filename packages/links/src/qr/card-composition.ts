@@ -143,11 +143,11 @@ export interface AspectRatioPreset {
 }
 
 export const ASPECT_RATIO_PRESETS: AspectRatioPreset[] = [
-  { name: '9:16', label: 'Story', width: 1080, height: 1920 },
-  { name: '1:1', label: 'Square', width: 1080, height: 1080 },
-  { name: '16:9', label: 'Landscape', width: 1920, height: 1080 },
-  { name: '4:5', label: 'Portrait', width: 1080, height: 1350 },
-  { name: '1200:630', label: 'Wide (OG)', width: 1200, height: 630 },
+  { name: 'print', label: 'Print', width: 2480, height: 3508 },
+  { name: 'adesivo', label: 'Adesivo', width: 1080, height: 1080 },
+  { name: 'story', label: 'Story', width: 1080, height: 1920 },
+  { name: 'cartao', label: 'Cartão', width: 1050, height: 600 },
+  { name: 'banner', label: 'Banner', width: 1920, height: 680 },
   { name: 'custom', label: 'Custom', width: 1080, height: 1080 },
 ]
 

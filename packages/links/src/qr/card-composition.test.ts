@@ -145,14 +145,14 @@ describe('ASPECT_RATIO_PRESETS', () => {
     expect(ASPECT_RATIO_PRESETS).toHaveLength(6)
   })
 
-  it('includes Story 1080x1920', () => {
-    const story = ASPECT_RATIO_PRESETS.find(p => p.label === 'Story')
-    expect(story).toEqual({ name: '9:16', label: 'Story', width: 1080, height: 1920 })
+  it('includes Print A4 2480x3508', () => {
+    const print = ASPECT_RATIO_PRESETS.find(p => p.label === 'Print')
+    expect(print).toEqual({ name: 'print', label: 'Print', width: 2480, height: 3508 })
   })
 
-  it('includes Square 1080x1080', () => {
-    const square = ASPECT_RATIO_PRESETS.find(p => p.label === 'Square')
-    expect(square).toEqual({ name: '1:1', label: 'Square', width: 1080, height: 1080 })
+  it('includes Adesivo 1080x1080', () => {
+    const adesivo = ASPECT_RATIO_PRESETS.find(p => p.label === 'Adesivo')
+    expect(adesivo).toEqual({ name: 'adesivo', label: 'Adesivo', width: 1080, height: 1080 })
   })
 })
 
@@ -169,17 +169,17 @@ describe('createDefaultComposition', () => {
     expect(CardCompositionSchema.safeParse(comp).success).toBe(true)
   })
 
-  it('defaults to Square preset', () => {
+  it('defaults to Adesivo preset', () => {
     const comp = createDefaultComposition()
     expect(comp.canvas.width).toBe(1080)
     expect(comp.canvas.height).toBe(1080)
-    expect(comp.canvas.aspectRatio).toBe('1:1')
+    expect(comp.canvas.aspectRatio).toBe('adesivo')
   })
 
   it('uses provided preset', () => {
     const comp = createDefaultComposition(ASPECT_RATIO_PRESETS[0]!)
-    expect(comp.canvas.width).toBe(1080)
-    expect(comp.canvas.height).toBe(1920)
+    expect(comp.canvas.width).toBe(2480)
+    expect(comp.canvas.height).toBe(3508)
   })
 
   it('starts with solid white background', () => {
