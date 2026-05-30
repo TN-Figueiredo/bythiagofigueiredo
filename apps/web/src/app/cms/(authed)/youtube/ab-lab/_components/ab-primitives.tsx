@@ -103,7 +103,7 @@ export function TypeBadge({ type }: TypeBadgeProps) {
   const Icon = TYPE_ICONS[type]
   return (
     <Badge tone="neutral" className="gap-1.5">
-      <Icon size={11} aria-hidden="true" />
+      <Icon size={11} aria-hidden="true" className="-translate-y-px" />
       {meta.label}
     </Badge>
   )
