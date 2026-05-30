@@ -233,16 +233,25 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
     }
   }
 
+  // Count linktree link_click events by key for "Por origem"
+  const ltClickEvents = (ltDailyEventsRes.data ?? []).length
   const sourceMap = new Map<string, number>()
+  sourceMap.set('linktree', ltTotalViews)
   for (const row of validLinks) {
     const src = row.source_type ?? 'manual'
     sourceMap.set(src, (sourceMap.get(src) ?? 0) + row.total_clicks)
   }
-  const bySource = Array.from(sourceMap.entries()).map(([id, clicks]) => ({
-    id: toSourceId(id),
-    clicks,
-    pct: totalClicks > 0 ? Math.round((clicks / totalClicks) * 100) : 0,
-  }))
+  const allSourceTotal = Array.from(sourceMap.values()).reduce((s, v) => s + v, 0) || 1
+  const SOURCE_DISPLAY: Record<string, string> = { linktree: 'Linktree', newsletter: 'Newsletter', social: 'Social', blog: 'Blog', qr: 'QR / impresso', campaign: 'Campanha', manual: 'Manual' }
+  const bySource = Array.from(sourceMap.entries())
+    .filter(([, v]) => v > 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(([id, clicks]) => ({
+      id: toSourceId(id === 'linktree' ? 'manual' : id),
+      label: SOURCE_DISPLAY[id] ?? id,
+      clicks,
+      pct: Math.round((clicks / allSourceTotal) * 100),
+    }))
 
   const heatmap: number[][] = Array.from({ length: 7 }, () => new Array(24).fill(0))
   for (const row of dailyData) {
@@ -338,12 +347,34 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
     .slice(0, 8)
     .map(([code, v]) => ({ code, name: COUNTRY_NAMES[code] ?? code, v: Math.round((v / countryTotal) * 100), cities: [] as string[] }))
 
+  const allClicks = totalClicks + ltTotalViews
+  const allUnique = totalUnique + ltUniqueVisitors
+  const engagementCtr = ltTotalViews > 0 ? Math.round((ltUniqueVisitors / ltTotalViews) * 1000) / 10 : 0
+
+  // Build top links including linktree
+  const linktreeAsLink: LinkDisplay = {
+    id: 'linktree',
+    title: 'Linktree (porta de entrada)',
+    slug: '/go',
+    source: 'manual' as const,
+    badge: 'Linktree',
+    dest: tree.url,
+    status: 'active' as const,
+    clicks: ltTotalViews,
+    last30: lt30dViews,
+    unique: ltUniqueVisitors,
+    scans: 0, topCountry: 'BR', ctr: engagementCtr,
+    created: '', health: 'ok' as const, redirect: 301 as const,
+    clickIds: false, spark: Array.from({ length: 14 }, () => 0),
+  }
+  const allTopLinks = [linktreeAsLink, ...links].sort((a, b) => b.clicks - a.clicks).slice(0, 10)
+
   const analytics: AnalyticsDisplay = {
-    totalClicks: totalClicks + ltTotalViews,
+    totalClicks: allClicks,
     prevClicks: 0,
-    unique: totalUnique + ltUniqueVisitors,
+    unique: allUnique,
     prevUnique: 0,
-    ctr: ltTotalViews > 0 ? Math.round((totalClicks / ltTotalViews) * 1000) / 10 : 0,
+    ctr: engagementCtr,
     prevCtr: 0,
     qrShare: 0,
     byDay,
@@ -355,7 +386,7 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
     referrers,
     countries,
     heatmap,
-    topLinks: links.slice(0, 10),
+    topLinks: allTopLinks,
     insights: [],
   }
 

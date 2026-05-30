@@ -5,6 +5,7 @@ import { fmt } from './fmt'
 
 interface SourceBarData {
   id: string
+  label?: string
   clicks: number
   pct: number
 }
@@ -19,7 +20,7 @@ export function SourceBars({ sources }: SourceBarsProps) {
     <div role="img" aria-label="Distribuicao de cliques por origem" style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
       {sources.map((s) => {
         const color = SOURCE_COLORS[s.id as SourceId] || '#8A8F98'
-        const label = SOURCE_LABELS[s.id as SourceId] || s.id
+        const label = s.label || SOURCE_LABELS[s.id as SourceId] || s.id
         return (
           <div key={s.id} data-source-row style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span

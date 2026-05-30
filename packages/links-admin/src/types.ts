@@ -168,7 +168,7 @@ export interface AnalyticsDisplay {
   qrShare: number
   byDay: number[]
   byDayPrev: number[]
-  bySource: Array<{ id: SourceId; clicks: number; pct: number }>
+  bySource: Array<{ id: SourceId; label?: string; clicks: number; pct: number }>
   devices: Array<{ k: string; v: number; color: string }>
   browsers: Array<{ k: string; v: number }>
   os: Array<{ k: string; v: number }>
