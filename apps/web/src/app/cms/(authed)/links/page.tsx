@@ -154,8 +154,9 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
     .reduce((s, d) => s + ((d.pageviews as number) ?? 0), 0)
 
   const ltConfig = siteDataRes?.data?.linktree_config as Record<string, unknown> | null
-  const sharedLinks = Array.isArray(ltConfig?.sharedLinks)
-    ? (ltConfig.sharedLinks as Array<Record<string, string>>).map((s, i) => ({
+  const rawSharedLinks = (ltConfig?.shared_links ?? ltConfig?.sharedLinks ?? []) as Array<Record<string, string>>
+  const sharedLinks = Array.isArray(rawSharedLinks)
+    ? rawSharedLinks.map((s, i) => ({
         id: String(i),
         icon: s.icon ?? 'link-2',
         labelPt: s.label_pt ?? s.labelPt ?? '',
