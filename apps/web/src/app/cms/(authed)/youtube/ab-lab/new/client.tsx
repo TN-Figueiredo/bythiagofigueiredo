@@ -18,15 +18,34 @@ interface EligibleVideo {
   sourcePipelineId: string | null
 }
 
+interface DraftPrefill {
+  id: string
+  videoId: string
+  videoTitle: string
+  thumbnailUrl: string | null
+  testType: string
+  sourcePipelineId: string | null
+}
+
 interface NewTestClientProps {
   siteId: string
   settings: AbTestSiteSettings
   eligibleVideos: EligibleVideo[]
+  draftPrefill?: DraftPrefill
 }
 
-export function NewTestClient({ siteId, settings, eligibleVideos }: NewTestClientProps) {
+export function NewTestClient({ siteId, settings, eligibleVideos, draftPrefill }: NewTestClientProps) {
   const router = useRouter()
-  const [selectedVideo, setSelectedVideo] = useState<WizardVideo | null>(null)
+  const [selectedVideo, setSelectedVideo] = useState<WizardVideo | null>(
+    draftPrefill
+      ? {
+          id: draftPrefill.videoId,
+          title: draftPrefill.videoTitle,
+          thumbnailUrl: draftPrefill.thumbnailUrl,
+          sourcePipelineId: draftPrefill.sourcePipelineId,
+        }
+      : null,
+  )
   const [search, setSearch] = useState('')
 
   if (selectedVideo) {
@@ -37,6 +56,8 @@ export function NewTestClient({ siteId, settings, eligibleVideos }: NewTestClien
         settings={settings}
         onClose={() => router.push('/cms/youtube/ab-lab')}
         onCreated={(testId) => router.push(`/cms/youtube/ab-lab/${testId}`)}
+        existingDraftId={draftPrefill?.id}
+        prefill={draftPrefill ? { testType: draftPrefill.testType as import('@/lib/youtube/ab-types').TestType } : undefined}
       />
     )
   }

@@ -107,6 +107,41 @@ export async function getAbTestsForSite(): Promise<{
 }
 
 // ---------------------------------------------------------------------------
+// getAbDraftById — fetch a single draft test for continuing setup
+// ---------------------------------------------------------------------------
+
+export async function getAbDraftById(draftId: string): Promise<{
+  id: string
+  videoId: string
+  videoTitle: string
+  thumbnailUrl: string | null
+  testType: TestType
+  sourcePipelineId: string | null
+} | null> {
+  const siteId = await requireEditAccess()
+  const supabase = getSupabaseServiceClient()
+
+  const { data, error } = await supabase
+    .from('ab_tests')
+    .select('id, youtube_video_id, name, original_thumbnail_url, test_type, source_pipeline_id')
+    .eq('id', draftId)
+    .eq('site_id', siteId)
+    .eq('status', 'draft')
+    .single()
+
+  if (error || !data) return null
+
+  return {
+    id: data.id as string,
+    videoId: data.youtube_video_id as string,
+    videoTitle: (data.name as string).replace(/^Test:\s*/, ''),
+    thumbnailUrl: (data.original_thumbnail_url as string) || null,
+    testType: data.test_type as TestType,
+    sourcePipelineId: (data.source_pipeline_id as string) || null,
+  }
+}
+
+// ---------------------------------------------------------------------------
 // getTestResults
 // ---------------------------------------------------------------------------
 
@@ -436,6 +471,8 @@ export function toDraftList(drafts: AbTestWithVariants[]): AbTestDraft[] {
         thumbUrl: originalVariant?.blob_url ?? d.original_thumbnail_url ?? null,
         createdAt: d.created_at,
         createdAgo: relativeTime(d.created_at),
+        videoId: d.youtube_video_id,
+        sourcePipelineId: d.source_pipeline_id,
       }
     })
 }

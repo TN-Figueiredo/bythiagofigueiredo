@@ -4,6 +4,7 @@ import {
   getAbSiteSettings,
   getLearnings,
   getSuggestedVideos,
+  getEligibleVideosForPicker,
   toCardView,
   toDraftList,
   computeDashboardStats,
@@ -15,11 +16,12 @@ export const dynamic = 'force-dynamic'
 export default async function AbLabPage() {
   const { siteId } = await getSiteContext()
 
-  const [tests, settings, learnings, suggested] = await Promise.all([
+  const [tests, settings, learnings, suggested, eligibleVideos] = await Promise.all([
     getAbTestsForSite(),
     getAbSiteSettings(),
     getLearnings(siteId),
     getSuggestedVideos(siteId),
+    getEligibleVideosForPicker(),
   ])
 
   const stats = computeDashboardStats(tests.active, tests.completed)
@@ -37,6 +39,7 @@ export default async function AbLabPage() {
       learnings={learnings}
       suggested={suggested}
       settings={settings}
+      eligibleVideos={eligibleVideos}
     />
   )
 }
