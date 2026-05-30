@@ -38,6 +38,9 @@ interface SocialLeftPanelProps {
 
 type BgTab = 'solid' | 'image' | 'gradient' | 'video'
 
+/** Transparent 1x1 PNG — used as placeholder src for image elements created without a file upload */
+const PLACEHOLDER_SRC = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFHDLAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+
 export function SocialLeftPanel({
   comp, interaction, onImageUpload, onVideoUpload, onOpenMediaGallery,
   aspectRatio, onAspectRatioChange, templates, onLoadTemplate, hideAspectRatioSelector,
@@ -318,7 +321,7 @@ export function SocialLeftPanel({
                 width: 200, height: 200,
                 rotation: 0,
                 opacity: 1,
-                src: '',
+                src: PLACEHOLDER_SRC,
                 locked: false,
               })
               select(id)
@@ -345,16 +348,16 @@ export function SocialLeftPanel({
                 width: 160, height: 44,
                 rotation: 0,
                 opacity: 1,
-                text: 'Saiba mais',
+                content: 'Saiba mais',
                 fontSize: 14,
                 fontFamily: 'Inter',
-                fontWeight: 'bold',
+                fontWeight: 700,
                 color: '#FFFFFF',
                 align: 'center',
                 locked: false,
                 backgroundColor: '#E8823C',
-                borderRadius: 22,
-                padding: 12,
+                backgroundRadius: 22,
+                backgroundPadding: 12,
               })
               select(id)
             }}
@@ -379,7 +382,7 @@ export function SocialLeftPanel({
                 width: 80, height: 80,
                 rotation: 0,
                 opacity: 0.9,
-                src: '',
+                src: PLACEHOLDER_SRC,
                 locked: false,
               })
               select(id)
@@ -406,7 +409,7 @@ export function SocialLeftPanel({
                 height: composition.canvas.height,
                 rotation: 0,
                 opacity: 0.3,
-                src: '',
+                src: PLACEHOLDER_SRC,
                 locked: false,
               })
               select(id)

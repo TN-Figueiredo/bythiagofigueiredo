@@ -16,6 +16,8 @@ export function useComposerPersistence({ state, draftId, onRestore }: Persistenc
   const key = `${STORAGE_PREFIX}${draftId ?? 'new'}`
   const hasRestored = useRef(false)
   const isDirty = useRef(false)
+  const stateRef = useRef(state)
+  stateRef.current = state
 
   useEffect(() => {
     if (hasRestored.current) return
@@ -37,23 +39,24 @@ export function useComposerPersistence({ state, draftId, onRestore }: Persistenc
     const interval = setInterval(() => {
       if (!isDirty.current) return
       try {
+        const s = stateRef.current
         const serializable = {
-          mode: state.mode,
-          lang: state.lang,
-          destsOn: state.destsOn,
-          focused: state.focused,
-          captions: state.captions,
-          poll: state.poll,
-          sched: state.sched,
-          schedDate: state.schedDate,
-          schedTime: state.schedTime,
+          mode: s.mode,
+          lang: s.lang,
+          destsOn: s.destsOn,
+          focused: s.focused,
+          captions: s.captions,
+          poll: s.poll,
+          sched: s.sched,
+          schedDate: s.schedDate,
+          schedTime: s.schedTime,
         }
         sessionStorage.setItem(key, JSON.stringify(serializable))
         isDirty.current = false
       } catch {}
     }, SAVE_INTERVAL)
     return () => clearInterval(interval)
-  }, [key, state])
+  }, [key])
 
   useEffect(() => {
     function handleBeforeUnload(e: BeforeUnloadEvent) {

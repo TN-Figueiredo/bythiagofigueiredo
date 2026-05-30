@@ -17,6 +17,9 @@ import { CMSPicker } from './cms-picker'
 import { SchedulePanel } from './schedule-panel'
 import { socialToast } from '../../_components/shared/social-toast'
 
+const SCHED_LABELS = { now: 'Agora', schedule: 'Agendar', queue: 'Fila' } as const
+const PUBLISH_LABELS = { now: 'Publicar', schedule: 'Agendar', queue: 'Adicionar a fila' } as const
+
 interface ComposerShellV2Props {
   connections: SafeConnection[]
   initialMode: 'cms' | 'blank'
@@ -68,23 +71,23 @@ export function ComposerShellV2({ connections, initialMode, draftId, siteId }: C
 
   const handleApplyVariation = useCallback((text: string) => {
     composer.setCaption(composer.focused, composer.lang, text)
-  }, [composer])
+  }, [composer.setCaption, composer.focused, composer.lang])
 
   const handleApplyHashtags = useCallback((tags: string[]) => {
     const current = composer.getCaption(composer.focused, composer.lang)
     const hashtagStr = tags.map(t => `#${t}`).join(' ')
     composer.setCaption(composer.focused, composer.lang, `${current}\n\n${hashtagStr}`)
-  }, [composer])
+  }, [composer.getCaption, composer.setCaption, composer.focused, composer.lang])
 
   const handleApplyBestTime = useCallback((time: string) => {
     composer.setSched('schedule')
     composer.setSchedTime(time)
-  }, [composer])
+  }, [composer.setSched, composer.setSchedTime])
 
   const handleTranslated = useCallback((text: string, lang: 'pt' | 'en') => {
     composer.setCaption(composer.focused, lang, text)
     composer.setLang(lang)
-  }, [composer])
+  }, [composer.setCaption, composer.focused, composer.setLang])
 
   const handlePublish = useCallback(async () => {
     if (composer.activeDests.length === 0) return
@@ -122,20 +125,19 @@ export function ComposerShellV2({ connections, initialMode, draftId, siteId }: C
     } else {
       socialToast('publish_failed', 'Erro ao publicar')
     }
-  }, [composer, clearPersistence, router])
+  }, [composer.activeDests, composer.setPublishing, composer.getCaption, composer.focused, composer.lang, composer.cmsPicked, composer.sched, composer.schedDate, composer.schedTime, clearPersistence, router])
 
   const focusedDest = DESTINATIONS[composer.focused]
   const currentCaption = composer.getCaption(composer.focused, composer.lang)
   const accountName = connections.find(c => c.provider === focusedDest.provider)?.account_name ?? '@conta'
 
-  const schedLabels = { now: 'Agora', schedule: 'Agendar', queue: 'Fila' } as const
-  const publishLabels = { now: 'Publicar', schedule: 'Agendar', queue: 'Adicionar a fila' } as const
-
   return (
     <div className="mt-6">
       {/* Mode selector */}
-      <div className="mb-6 flex gap-1 rounded-lg bg-cms-surface p-1 w-fit">
+      <div className="mb-6 flex gap-1 rounded-lg bg-cms-surface p-1 w-fit" role="radiogroup" aria-label="Modo de criacao">
         <button
+          role="radio"
+          aria-checked={composer.mode === 'cms'}
           onClick={() => composer.setMode('cms')}
           className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
             composer.mode === 'cms' ? 'bg-cms-bg text-cms-text shadow-sm' : 'text-cms-text-muted'
@@ -144,6 +146,8 @@ export function ComposerShellV2({ connections, initialMode, draftId, siteId }: C
           Do CMS
         </button>
         <button
+          role="radio"
+          aria-checked={composer.mode === 'blank'}
           onClick={() => composer.setMode('blank')}
           className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
             composer.mode === 'blank' ? 'bg-cms-bg text-cms-text shadow-sm' : 'text-cms-text-muted'
@@ -246,18 +250,20 @@ export function ComposerShellV2({ connections, initialMode, draftId, siteId }: C
 
       {/* Sticky footer */}
       <div className="sticky bottom-0 z-10 mt-6 -mx-6 border-t border-cms-border bg-cms-bg/95 px-6 py-4 backdrop-blur-sm">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between" role="toolbar" aria-label="Acoes do post">
           {/* Schedule mode selector */}
-          <div className="flex gap-1 rounded-lg bg-cms-surface p-1">
+          <div className="flex gap-1 rounded-lg bg-cms-surface p-1" role="radiogroup" aria-label="Modo de agendamento">
             {(['now', 'schedule', 'queue'] as const).map(mode => (
               <button
                 key={mode}
+                role="radio"
+                aria-checked={composer.sched === mode}
                 onClick={() => composer.setSched(mode)}
                 className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
                   composer.sched === mode ? 'bg-cms-bg text-cms-text shadow-sm' : 'text-cms-text-muted'
                 }`}
               >
-                {schedLabels[mode]}
+                {SCHED_LABELS[mode]}
               </button>
             ))}
           </div>
@@ -280,7 +286,7 @@ export function ComposerShellV2({ connections, initialMode, draftId, siteId }: C
                 composer.sched === 'now' ? 'bg-green-600 hover:bg-green-700' : 'bg-cms-accent hover:bg-cms-accent-hover'
               }`}
             >
-              {composer.publishing ? 'Publicando...' : publishLabels[composer.sched]}
+              {composer.publishing ? 'Publicando...' : PUBLISH_LABELS[composer.sched]}
             </button>
           </div>
         </div>

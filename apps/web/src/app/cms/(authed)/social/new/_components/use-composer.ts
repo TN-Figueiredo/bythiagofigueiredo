@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import type { DestId } from '@/lib/social/destinations'
 import { DEST_IDS } from '@/lib/social/destinations'
 
@@ -90,7 +90,7 @@ export function useComposer(initialMode: 'cms' | 'blank' = 'cms') {
     setDesign(composition)
   }, [])
 
-  const activeDests = DEST_IDS.filter(id => destsOn[id])
+  const activeDests = useMemo(() => DEST_IDS.filter(id => destsOn[id]), [destsOn])
 
   return {
     mode, lang, destsOn, focused, captions, poll, sched,

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { getContentForSocialPost } from '@/lib/social/actions'
 import type { CMSContent } from './use-composer'
 
@@ -28,23 +28,38 @@ interface ContentItem {
   locale: string
 }
 
+const TYPE_BADGES: Record<string, { label: string; color: string }> = {
+  blog: { label: 'BLOG', color: 'bg-blue-500/15 text-blue-400' },
+  newsletter: { label: 'NEWSLETTER', color: 'bg-green-500/15 text-green-400' },
+  video: { label: 'VIDEO', color: 'bg-red-500/15 text-red-400' },
+}
+
 export function CMSPicker({ siteId, onSelect }: CMSPickerProps) {
   const [tab, setTab] = useState<ContentTab>('all')
   const [items, setItems] = useState<ContentItem[]>([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<string | null>(null)
+  const cache = useRef<Record<string, ContentItem[]>>({})
 
   const loadContent = useCallback(async () => {
+    if (cache.current[tab]) {
+      setItems(cache.current[tab])
+      setLoading(false)
+      return
+    }
     setLoading(true)
     try {
       const types = tab === 'all' ? ['blog', 'newsletter', 'video'] : [tab]
+      const fetchResults = await Promise.all(
+        types.map(type => getContentForSocialPost(type, siteId))
+      )
       const results: ContentItem[] = []
-      for (const type of types) {
-        const result = await getContentForSocialPost(type, siteId)
+      for (let i = 0; i < types.length; i++) {
+        const result = fetchResults[i]
         if (result.ok && result.data) {
           results.push({
             id: result.data.contentId,
-            type,
+            type: types[i],
             title: result.data.title,
             excerpt: result.data.excerpt ?? null,
             imageUrl: result.data.image ?? null,
@@ -53,6 +68,7 @@ export function CMSPicker({ siteId, onSelect }: CMSPickerProps) {
           })
         }
       }
+      cache.current[tab] = results
       setItems(results)
     } finally {
       setLoading(false)
@@ -76,12 +92,6 @@ export function CMSPicker({ siteId, onSelect }: CMSPickerProps) {
     })
   }
 
-  const TYPE_BADGES: Record<string, { label: string; color: string }> = {
-    blog: { label: 'BLOG', color: 'bg-blue-500/15 text-blue-400' },
-    newsletter: { label: 'NEWSLETTER', color: 'bg-green-500/15 text-green-400' },
-    video: { label: 'VIDEO', color: 'bg-red-500/15 text-red-400' },
-  }
-
   return (
     <div className="space-y-4">
       {/* Cowork banner */}
@@ -92,10 +102,12 @@ export function CMSPicker({ siteId, onSelect }: CMSPickerProps) {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1">
+      <div className="flex gap-1" role="tablist" aria-label="Tipo de conteudo">
         {TABS.map(t => (
           <button
             key={t.key}
+            role="tab"
+            aria-selected={tab === t.key}
             onClick={() => setTab(t.key)}
             className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
               tab === t.key
@@ -110,17 +122,18 @@ export function CMSPicker({ siteId, onSelect }: CMSPickerProps) {
 
       {/* Content list */}
       {loading ? (
-        <div className="space-y-3 animate-pulse">
+        <div className="space-y-3 animate-pulse" role="tabpanel">
           {[1,2,3].map(i => <div key={i} className="h-20 rounded-lg bg-cms-surface" />)}
         </div>
       ) : items.length === 0 ? (
-        <p className="text-sm text-cms-text-muted py-8 text-center">Nenhum conteudo encontrado</p>
+        <p className="text-sm text-cms-text-muted py-8 text-center" role="tabpanel">Nenhum conteudo encontrado</p>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-2" role="tabpanel">
           {items.map(item => (
             <button
               key={item.id}
               onClick={() => handleSelect(item)}
+              aria-pressed={selected === item.id}
               className={`flex w-full items-start gap-3 rounded-xl border p-3 text-left transition-all ${
                 selected === item.id
                   ? 'border-cms-accent bg-cms-accent/5'

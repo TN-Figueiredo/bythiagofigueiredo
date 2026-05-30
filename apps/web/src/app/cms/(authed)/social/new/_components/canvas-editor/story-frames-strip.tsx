@@ -19,13 +19,16 @@ export function StoryFramesStrip({
   return (
     <div className="flex items-center gap-2 border-t border-cms-border bg-cms-bg px-4 py-3 overflow-x-auto">
       {frames.map((frame, i) => (
-        <button
+        <div
           key={frame.id}
-          type="button"
-          onClick={() => onSelectFrame(frame.id)}
-          className={`group relative h-16 w-9 shrink-0 overflow-hidden rounded-md border-2 transition-colors ${
+          className={`group relative h-16 w-9 shrink-0 overflow-hidden rounded-md border-2 cursor-pointer transition-colors ${
             frame.id === activeFrameId ? 'border-cms-accent' : 'border-cms-border hover:border-cms-text/30'
           }`}
+          onClick={() => onSelectFrame(frame.id)}
+          role="option"
+          aria-selected={frame.id === activeFrameId}
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectFrame(frame.id) } }}
         >
           {frame.thumbnailUrl ? (
             <img src={frame.thumbnailUrl} alt={`Frame ${i + 1}`} className="h-full w-full object-cover" />
@@ -37,13 +40,13 @@ export function StoryFramesStrip({
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); onRemoveFrame(frame.id) }}
-              className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[8px] text-white opacity-0 group-hover:opacity-100 transition-opacity"
+              className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[8px] text-white opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity"
               aria-label={`Remover frame ${i + 1}`}
             >
               x
             </button>
           )}
-        </button>
+        </div>
       ))}
 
       {frames.length < 10 && (

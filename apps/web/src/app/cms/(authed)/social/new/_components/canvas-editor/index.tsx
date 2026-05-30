@@ -21,6 +21,7 @@ import type { SocialAspectRatio } from './social-left-panel'
 import { SocialRightPanel } from './social-right-panel'
 import { SocialToolbar } from './social-toolbar'
 import type { PositionAnchor } from './social-toolbar'
+import { StoryFramesStrip } from './story-frames-strip'
 
 export interface SocialCanvasEditorRef {
   getComposition: () => CardComposition
@@ -47,6 +48,8 @@ export interface SocialCanvasEditorProps {
   hideAspectRatioSelector?: boolean
   /** When true, fills parent container instead of using fixed positioning (for embedding in StoryEditor) */
   embedded?: boolean
+  /** Called when user clicks "Usar no post" — exports and hands image back to parent */
+  onUseInPost?: () => void
 }
 
 function getDefaultComposition(ratio: SocialAspectRatio): CardComposition {
@@ -90,7 +93,7 @@ export const SocialCanvasEditor = forwardRef<SocialCanvasEditorRef, SocialCanvas
     aspectRatio: initialRatio, templates, postData,
     onExport, onSaveTemplate, onDeleteTemplate, onImageUpload, onVideoUpload,
     initialComposition, onCompositionChange, hideAspectRatioSelector,
-    embedded,
+    embedded, onUseInPost,
   }: SocialCanvasEditorProps, ref) {
     const [aspectRatio, setAspectRatio] = useState<SocialAspectRatio>(initialRatio)
     const comp = useCardComposition(initialComposition ?? getDefaultComposition(initialRatio))
@@ -109,6 +112,8 @@ export const SocialCanvasEditor = forwardRef<SocialCanvasEditorRef, SocialCanvas
     const hasMeasuredContainer = useRef(false)
     const [pausedVideos, setPausedVideos] = useState<Set<string>>(() => new Set())
     const [videoDurations, setVideoDurations] = useState<Map<string, number>>(() => new Map())
+    const [frames, setFrames] = useState([{ id: 'frame-1', thumbnailUrl: null as string | null }])
+    const [activeFrameId, setActiveFrameId] = useState('frame-1')
 
     const handleToggleVideoPlay = useCallback((elementId: string) => {
       setPausedVideos(prev => {
@@ -501,6 +506,7 @@ export const SocialCanvasEditor = forwardRef<SocialCanvasEditorRef, SocialCanvas
           onSaveAsTemplate={() => setShowSaveTemplate(true)}
           onPositionElement={handlePositionElement}
           hasSelection={interaction.selectedIds.size > 0}
+          onUseInPost={onUseInPost}
         />
 
         <div className="flex flex-1 overflow-hidden">
@@ -517,19 +523,38 @@ export const SocialCanvasEditor = forwardRef<SocialCanvasEditorRef, SocialCanvas
             hideAspectRatioSelector={hideAspectRatioSelector}
           />
 
-          <div ref={containerRef} className="flex-1 overflow-hidden">
-            <SocialCanvas
-              ref={canvasRef}
-              comp={comp}
-              interaction={interaction}
-              containerWidth={containerSize.width}
-              containerHeight={containerSize.height}
-              panX={pan.x}
-              panY={pan.y}
-              onPanChange={handlePanChange}
-              playingVideos={playingVideos}
-              onVideoDuration={handleVideoDuration}
-            />
+          <div className="flex flex-1 flex-col overflow-hidden">
+            <div ref={containerRef} className="flex-1 overflow-hidden">
+              <SocialCanvas
+                ref={canvasRef}
+                comp={comp}
+                interaction={interaction}
+                containerWidth={containerSize.width}
+                containerHeight={containerSize.height}
+                panX={pan.x}
+                panY={pan.y}
+                onPanChange={handlePanChange}
+                playingVideos={playingVideos}
+                onVideoDuration={handleVideoDuration}
+              />
+            </div>
+
+            {aspectRatio === '9:16' && (
+              <StoryFramesStrip
+                frames={frames}
+                activeFrameId={activeFrameId}
+                onSelectFrame={setActiveFrameId}
+                onAddFrame={() => {
+                  const newId = `frame-${frames.length + 1}`
+                  setFrames(prev => [...prev, { id: newId, thumbnailUrl: null }])
+                }}
+                onRemoveFrame={(id) => {
+                  if (frames.length <= 1) return
+                  setFrames(prev => prev.filter(f => f.id !== id))
+                  if (activeFrameId === id) setActiveFrameId(frames[0].id)
+                }}
+              />
+            )}
           </div>
 
           <SocialRightPanel
