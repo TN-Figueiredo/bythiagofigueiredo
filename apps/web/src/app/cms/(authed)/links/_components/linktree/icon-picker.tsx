@@ -77,14 +77,21 @@ export function IconPicker({ value, onChange, disabled }: Props) {
         disabled={disabled}
         aria-label="Trocar ícone"
         aria-expanded={open}
-        className="flex items-center gap-2 rounded border border-border bg-background px-3 py-2 text-xs text-muted-foreground hover:border-primary disabled:opacity-50"
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 7,
+          padding: '6px 11px', fontSize: '12.5px', fontWeight: 600,
+          borderRadius: 9, border: '1px solid var(--line-strong)',
+          background: 'transparent', color: 'var(--ink-dim)',
+          letterSpacing: '-0.01em', whiteSpace: 'nowrap',
+          cursor: 'pointer', opacity: disabled ? 0.5 : 1,
+        }}
       >
-        <selected.Icon size={14} />
-        <span>Trocar ícone</span>
+        <selected.Icon size={14} strokeWidth={1.7} />
+        Trocar ícone
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full z-10 mt-1 rounded border border-border bg-background p-2 shadow-md">
+        <div style={{ position: 'absolute', left: 0, top: '100%', zIndex: 10, marginTop: 4, borderRadius: 12, border: '1px solid var(--line)', background: 'var(--surface)', padding: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.3)' }}>
           <input
             type="text"
             value={search}
