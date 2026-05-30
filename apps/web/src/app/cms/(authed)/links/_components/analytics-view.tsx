@@ -182,52 +182,52 @@ export function AnalyticsView({ data }: AnalyticsViewProps) {
 
         {/* Devices donut */}
         <Panel title="Dispositivo" icon="mo">
-          {data.devices.length > 0 ? (
-            <Donut segments={data.devices} size={120} thickness={16} centerLabel="100%" centerSub="sessões" />
-          ) : (
-            <p style={{ padding: '16px 0', textAlign: 'center', fontSize: 12, color: 'var(--ink-faint)' }}>Dados de dispositivos ainda nao disponiveis.</p>
-          )}
+          <Donut
+            segments={data.devices.length > 0 ? data.devices : [
+              { k: 'Mobile', v: 0, color: '#F2683C' },
+              { k: 'Desktop', v: 0, color: '#3FA9C0' },
+              { k: 'Tablet', v: 0, color: '#A77CE8' },
+            ]}
+            size={120}
+            thickness={16}
+            centerLabel={data.devices.length > 0 ? `${data.devices[0]?.v ?? 0}%` : '0%'}
+            centerSub="sessões"
+          />
         </Panel>
 
         {/* Browsers */}
-        <Panel title="Navegadores" icon="br">
-          {data.browsers.length > 0 ? (
-            <HBars rows={data.browsers} />
-          ) : (
-            <p className="py-6 text-center text-xs text-muted-foreground">Dados de navegadores ainda nao disponiveis.</p>
-          )}
+        <Panel title="Navegador" icon="br">
+          <HBars rows={data.browsers.length > 0 ? data.browsers : [
+            { k: 'Chrome', v: 0 }, { k: 'Safari', v: 0 }, { k: 'Firefox', v: 0 }, { k: 'Edge', v: 0 },
+          ]} />
         </Panel>
 
         {/* OS */}
-        <Panel title="Sistemas" icon="os">
-          {data.os.length > 0 ? (
-            <HBars rows={data.os} color="#3FA9C0" />
-          ) : (
-            <p className="py-6 text-center text-xs text-muted-foreground">Dados de sistemas ainda nao disponiveis.</p>
-          )}
+        <Panel title="Sistema" icon="os">
+          <HBars rows={data.os.length > 0 ? data.os : [
+            { k: 'iOS', v: 0 }, { k: 'Android', v: 0 }, { k: 'Windows', v: 0 }, { k: 'macOS', v: 0 },
+          ]} color="#3FA9C0" />
         </Panel>
 
         {/* Heatmap */}
-        <Panel title="Horarios de pico" icon="he" style={{ gridColumn: 'span 2' }}>
+        <Panel title="Horários de pico" icon="he" style={{ gridColumn: 'span 2' }}>
           <Heatmap grid={data.heatmap} />
         </Panel>
 
         {/* Countries */}
-        <Panel title="Top paises" icon="gl">
+        <Panel title="Países" icon="gl">
           {data.countries.length > 0 ? (
             <CountryList countries={data.countries} />
           ) : (
-            <p className="py-6 text-center text-xs text-muted-foreground">Dados geograficos ainda nao disponiveis.</p>
+            <p style={{ padding: '16px 0', textAlign: 'center', fontSize: 12, color: 'var(--ink-faint)' }}>Nenhum dado geográfico ainda.</p>
           )}
         </Panel>
 
         {/* Referrers */}
-        <Panel title="Referrers" icon="re">
-          {data.referrers.length > 0 ? (
-            <HBars rows={data.referrers} color="#A77CE8" />
-          ) : (
-            <p className="py-6 text-center text-xs text-muted-foreground">Dados de referrers ainda nao disponiveis.</p>
-          )}
+        <Panel title="Referrer" icon="re">
+          <HBars rows={data.referrers.length > 0 ? data.referrers : [
+            { k: 'Direto', v: 0 }, { k: 'Google', v: 0 }, { k: 'Outro', v: 0 },
+          ]} color="#A77CE8" />
         </Panel>
 
         {/* Top Links */}
