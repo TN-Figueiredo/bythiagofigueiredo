@@ -22,10 +22,10 @@ export interface RadarChartAxis {
 
 const DEFAULT_AXES: RadarChartAxis[] = [
   { key: 'ctr', label: 'CTR' },
-  { key: 'retention', label: 'Retention' },
+  { key: 'retention', label: 'Retenção' },
   { key: 'linkCtr', label: 'Link CTR' },
-  { key: 'pBest', label: 'Win prob' },
-  { key: 'impressions', label: 'Reach' },
+  { key: 'pBest', label: 'Vencer' },
+  { key: 'impressions', label: 'Alcance' },
 ]
 
 export interface RadarChartProps {
@@ -33,12 +33,13 @@ export interface RadarChartProps {
   axes?: RadarChartAxis[]
 }
 
-const CX = 110
-const CY = 110
-const RADIUS = 80
+const CX = 140
+const CY = 144
+const RADIUS = 94
 const GRID_RINGS = 4
-const LABEL_OFFSET = 14
-const DOT_RADIUS = 3
+const LABEL_OFFSET = 18.8
+const DOT_RADIUS = 2.6
+const GRID_STROKE = 'rgba(245,239,230,0.09)'
 
 function polarToCartesian(cx: number, cy: number, r: number, angleRad: number) {
   return {
@@ -92,15 +93,12 @@ export function RadarChart({ variants, axes = DEFAULT_AXES }: RadarChartProps) {
     return { variant, pts }
   })
 
-  const W = CX * 2
-  const H = CY * 2 + 10
-
   return (
     <div className="relative">
       <svg
-        viewBox={`0 0 ${W} ${H}`}
+        viewBox="-46 0 372 280"
         aria-hidden="true"
-        style={{ overflow: 'visible', width: '100%' }}
+        style={{ width: '100%', maxWidth: 340, display: 'block', margin: '0 auto' }}
       >
         {/* Grid rings */}
         {gridRingPoints.map((pts, ring) => (
@@ -109,8 +107,8 @@ export function RadarChart({ variants, axes = DEFAULT_AXES }: RadarChartProps) {
             data-grid
             points={pts}
             fill="none"
-            stroke="var(--cms-border-subtle, #2a2a2a)"
-            strokeWidth={0.75}
+            stroke={GRID_STROKE}
+            strokeWidth={1}
           />
         ))}
 
@@ -124,8 +122,7 @@ export function RadarChart({ variants, axes = DEFAULT_AXES }: RadarChartProps) {
               y1={CY}
               x2={outer.x.toFixed(2)}
               y2={outer.y.toFixed(2)}
-              stroke="var(--cms-border-subtle, #2a2a2a)"
-              strokeWidth={0.75}
+              stroke={GRID_STROKE}
             />
           )
         })}
@@ -133,16 +130,19 @@ export function RadarChart({ variants, axes = DEFAULT_AXES }: RadarChartProps) {
         {/* Axis labels */}
         {axes.map((axis, i) => {
           const pos = axisLabelPos[i]!
+          const angle = axisAngle(i, n)
+          const anchor = Math.abs(Math.cos(angle)) < 0.01 ? 'middle' : Math.cos(angle) > 0 ? 'start' : 'end'
           return (
             <text
               key={i}
               x={pos.x.toFixed(2)}
               y={pos.y.toFixed(2)}
-              textAnchor="middle"
+              textAnchor={anchor}
               dominantBaseline="middle"
-              fontSize={9}
-              fill="var(--cms-text-dim, #888)"
-              fontFamily="JetBrains Mono, monospace"
+              fontSize={10.5}
+              fontWeight={600}
+              fill="var(--cms-text-dim)"
+              fontFamily="Inter, sans-serif"
             >
               {axis.label}
             </text>
@@ -155,10 +155,10 @@ export function RadarChart({ variants, axes = DEFAULT_AXES }: RadarChartProps) {
             <polygon
               data-variant
               points={pointsString(pts)}
-              fill={variant.color}
-              fillOpacity={0.2}
+              fill={`${variant.color}22`}
               stroke={variant.color}
-              strokeWidth={1.5}
+              strokeWidth={2}
+              strokeLinejoin="round"
             />
             {/* Vertex dots */}
             {pts.map((pt, i) => (

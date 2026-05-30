@@ -74,7 +74,7 @@ export function ConfidenceChart({ data, target = 95 }: ConfidenceChartProps) {
     <>
       <svg
         viewBox={`0 0 ${W} ${H}`}
-        width="100%"
+        style={{ width: '100%', display: 'block' }}
         aria-label="Confidence trend chart"
       >
         <defs>
