@@ -66,6 +66,7 @@ export function makeCardView(overrides?: Partial<AbTestCardView>): AbTestCardVie
       { label: 'B', color: '#E8823C', thumbUrl: 'https://blob.vercel-storage.com/thumb-b.jpg' },
     ],
     hasPlayoff: false, roundNumber: 1, createdAt: new Date().toISOString(),
+    statusNote: null,
     ...overrides,
   }
 }

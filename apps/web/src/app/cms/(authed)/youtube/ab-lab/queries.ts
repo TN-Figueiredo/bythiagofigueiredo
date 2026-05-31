@@ -45,6 +45,7 @@ export async function getAbTestsForSite(): Promise<{
   active: AbTestWithVariants[]
   draft: AbTestWithVariants[]
   completed: AbTestWithVariants[]
+  paused: AbTestWithVariants[]
 }> {
   const siteId = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
@@ -81,7 +82,8 @@ export async function getAbTestsForSite(): Promise<{
 
   const active = all.filter(t => t.status === 'active')
   const drafts = all.filter(t => t.status === 'draft')
-  const completedRaw = all.filter(t => t.status === 'completed' || t.status === 'paused')
+  const paused = all.filter(t => t.status === 'paused')
+  const completedRaw = all.filter(t => t.status === 'completed')
 
   const completedGrouped: AbTestWithVariants[] = []
   const round2Map = new Map<string, AbTestWithVariants>()
@@ -105,7 +107,7 @@ export async function getAbTestsForSite(): Promise<{
     if (!grouped.has(t.id)) completedGrouped.push(t)
   }
 
-  return { active, draft: drafts, completed: completedGrouped }
+  return { active, draft: drafts, completed: completedGrouped, paused }
 }
 
 // ---------------------------------------------------------------------------
@@ -442,6 +444,7 @@ export function toCardView(test: AbTestWithVariants): AbTestCardView {
     hasPlayoff: !!test.playoff_test_id,
     roundNumber: test.round_number,
     createdAt: test.created_at,
+    statusNote: test.status_note ?? null,
   }
 }
 

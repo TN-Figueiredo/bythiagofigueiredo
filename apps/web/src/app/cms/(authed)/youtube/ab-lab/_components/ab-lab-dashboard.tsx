@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Filter, Settings, Zap, FlaskConical, Crosshair, Trophy, TrendingUp, Sparkles } from 'lucide-react'
+import { Plus, Filter, Settings, Zap, FlaskConical, Crosshair, Trophy, TrendingUp, Sparkles, Pause, AlertTriangle } from 'lucide-react'
 import type {
   AbTestCardView,
   AbTestDraft,
@@ -29,6 +29,7 @@ export interface AbLabDashboardProps {
   cards: AbTestCardView[]
   drafts: AbTestDraft[]
   completed: AbTestCardView[]
+  paused: AbTestCardView[]
   learnings: LearningsData | null
   suggested: SuggestedVideo[]
   settings: AbTestSiteSettings
@@ -41,6 +42,7 @@ export function AbLabDashboard({
   cards,
   drafts,
   completed,
+  paused,
   learnings,
   suggested,
   settings,
@@ -83,8 +85,8 @@ export function AbLabDashboard({
     if (!result.ok) throw new Error(result.error ?? 'Failed to save settings')
   }
 
-  const hasAnyData = cards.length > 0 || completed.length > 0 || drafts.length > 0
-  const showEmpty = cards.length === 0 && completed.length === 0 && drafts.length === 0
+  const hasAnyData = cards.length > 0 || completed.length > 0 || drafts.length > 0 || paused.length > 0
+  const showEmpty = cards.length === 0 && completed.length === 0 && drafts.length === 0 && paused.length === 0
 
   return (
     <div data-dashboard-root className="animate-ab-fade-up">
@@ -192,6 +194,51 @@ export function AbLabDashboard({
                 test={card}
                 onOpen={handleOpenTest}
               />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 4b. Paused tests */}
+      {paused.length > 0 && (
+        <div className="animate-ab-fade-up" style={{ margin: '26px 0 14px' }}>
+          <div className="flex items-center justify-between mb-[14px]">
+            <div className="flex items-center gap-[8px]">
+              <span className="text-[9px] font-semibold text-cms-text-dim uppercase tracking-[0.08em]">Testes</span>
+              <span className="inline-flex items-center gap-[5px] px-[9px] py-[3px] rounded-full text-[10.5px] font-semibold tracking-[0.06em] uppercase font-mono" style={{ background: 'rgba(234, 179, 8, 0.08)', color: 'rgb(234, 179, 8)' }}>
+                <Pause size={10} aria-hidden="true" />
+                pausados
+              </span>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-[16px]" data-paused-grid>
+            {paused.map(card => (
+              <div
+                key={card.id}
+                className="rounded-[14px] border border-cms-border bg-cms-surface p-[16px] cursor-pointer hover:border-cms-accent/40 transition-colors"
+                onClick={() => handleOpenTest(card.id)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleOpenTest(card.id) }}
+              >
+                <div className="flex items-start justify-between gap-[12px]">
+                  <div className="flex-1 min-w-0">
+                    <h4 className="text-[14px] font-semibold text-cms-text truncate m-0">{card.name}</h4>
+                    <span className="text-[12px] text-cms-text-dim mt-[4px] block">
+                      Dia {card.dayOf} &middot; {Math.round(card.confidence)}% confiança
+                    </span>
+                  </div>
+                  {card.statusNote && (
+                    <span
+                      className="inline-flex items-center gap-[5px] px-[8px] py-[3px] rounded-[6px] text-[11px] font-medium shrink-0"
+                      style={{ background: 'rgba(234, 179, 8, 0.1)', color: 'rgb(234, 179, 8)' }}
+                    >
+                      <AlertTriangle size={11} aria-hidden="true" />
+                      {card.statusNote}
+                    </span>
+                  )}
+                </div>
+              </div>
             ))}
           </div>
         </div>

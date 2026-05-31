@@ -289,6 +289,7 @@ export interface AbTestCardView {
   hasPlayoff: boolean
   roundNumber: number
   createdAt: string
+  statusNote: string | null
 }
 
 export interface AbTestDraftVariant {

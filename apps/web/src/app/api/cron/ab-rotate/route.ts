@@ -126,6 +126,14 @@ export async function GET(req: NextRequest) {
         applied_metadata: Object.keys(appliedMeta).length ? appliedMeta : null,
       })
 
+      // Success — reset failure counter
+      if (test.config?.consecutive_failures) {
+        await supabase
+          .from('ab_tests')
+          .update({ config: { ...test.config, consecutive_failures: 0 } })
+          .eq('id', test.id)
+      }
+
       processed++
     } catch (err) {
       errors++
@@ -134,20 +142,37 @@ export async function GET(req: NextRequest) {
         extra: { testId: test.id },
       })
 
-      // Auto-pause on auth/quota/permission failure
+      // Track consecutive failures for auth/quota errors — only pause after 3
       const msg = err instanceof Error ? err.message : ''
       if (msg.includes('401') || msg.includes('403') || msg.includes('429')) {
         const reason = msg.includes('401') ? 'token expired'
           : msg.includes('403') ? 'insufficient permissions'
           : 'API quota exceeded'
-        await supabase
-          .from('ab_tests')
-          .update({
-            status: 'paused',
-            status_note: `auto-paused: ${reason}`,
-            paused_at: new Date().toISOString(),
-          })
-          .eq('id', test.id)
+
+        const prevFailures = (test.config?.consecutive_failures as number) ?? 0
+        const failures = prevFailures + 1
+        const MAX_FAILURES = 3
+
+        if (failures >= MAX_FAILURES) {
+          await supabase
+            .from('ab_tests')
+            .update({
+              status: 'paused',
+              status_note: `auto-paused after ${failures} consecutive failures: ${reason}`,
+              paused_at: new Date().toISOString(),
+              config: { ...test.config, consecutive_failures: failures },
+            })
+            .eq('id', test.id)
+        } else {
+          // Keep active but track the failure
+          await supabase
+            .from('ab_tests')
+            .update({
+              config: { ...test.config, consecutive_failures: failures },
+              status_note: `retry ${failures}/${MAX_FAILURES}: ${reason}`,
+            })
+            .eq('id', test.id)
+        }
       }
     }
   }

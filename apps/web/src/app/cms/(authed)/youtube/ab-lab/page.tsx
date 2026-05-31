@@ -27,6 +27,7 @@ export default async function AbLabPage() {
   const stats = computeDashboardStats(tests.active, tests.completed)
   const cards = tests.active.map(toCardView)
   const completedCards = tests.completed.map(toCardView)
+  const pausedCards = tests.paused.map(toCardView)
   const drafts = toDraftList(tests.draft)
 
   return (
@@ -36,6 +37,7 @@ export default async function AbLabPage() {
       cards={cards}
       drafts={drafts}
       completed={completedCards}
+      paused={pausedCards}
       learnings={learnings}
       suggested={suggested}
       settings={settings}
