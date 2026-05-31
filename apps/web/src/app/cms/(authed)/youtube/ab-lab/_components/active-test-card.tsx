@@ -1,5 +1,6 @@
 'use client'
 
+import type React from 'react'
 import type { AbTestCardView } from '@/lib/youtube/ab-types'
 import { VARIANT_COLORS } from './ab-constants'
 import { VChip, Badge, TypeBadge } from './ab-primitives'
@@ -8,6 +9,16 @@ import { ChevronRight, Swords } from 'lucide-react'
 export interface ActiveTestCardProps {
   test: AbTestCardView
   onOpen: (id: string) => void
+}
+
+function cycleHealthDot(cycleStartedAt: string | null): React.ReactNode {
+  if (!cycleStartedAt) return null
+  const hoursAgo = (Date.now() - new Date(cycleStartedAt).getTime()) / 3600000
+  const color = hoursAgo < 26 ? 'bg-green-400' : hoursAgo < 50 ? 'bg-yellow-400' : 'bg-red-400'
+  const label = hoursAgo < 26 ? 'Saudavel' : hoursAgo < 50 ? 'Atrasado' : 'Falhou'
+  return (
+    <span title={label} className={`inline-block h-2 w-2 rounded-full ${color}`} />
+  )
 }
 
 export function ActiveTestCard({ test, onOpen }: ActiveTestCardProps) {
@@ -34,6 +45,7 @@ export function ActiveTestCard({ test, onOpen }: ActiveTestCardProps) {
           <Badge tone="green" dot>
             Dia {test.dayOf}/{test.dayOf + Math.max(0, 14 - test.dayOf)}
           </Badge>
+          {cycleHealthDot(test.cycleStartedAt)}
           <span className="ml-auto text-cms-text-dim">
             <ChevronRight size={16} aria-hidden="true" />
           </span>

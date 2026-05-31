@@ -445,6 +445,7 @@ export function toCardView(test: AbTestWithVariants): AbTestCardView {
     roundNumber: test.round_number,
     createdAt: test.created_at,
     statusNote: test.status_note ?? null,
+    cycleStartedAt: test.current_cycle?.started_at ?? null,
   }
 }
 
