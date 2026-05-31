@@ -171,7 +171,7 @@ export function LeftPanel({ comp, interaction, onImageUpload, customPresets = []
     addElement({
       ...el,
       content: '__shape:line',
-      fontSize: 1,
+      fontSize: 8,
       fontWeight: 400,
       lineHeight: 1,
       letterSpacing: '0em',
