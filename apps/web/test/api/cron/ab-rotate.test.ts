@@ -42,6 +42,11 @@ vi.mock('@/lib/youtube/ab-templates', () => ({
   resolveTemplates: vi.fn((text: string) => text),
 }))
 
+vi.mock('@/lib/cron-health', () => ({
+  recordCronSuccess: vi.fn().mockResolvedValue(undefined),
+  recordCronFailure: vi.fn().mockResolvedValue(undefined),
+}))
+
 vi.mock('@sentry/nextjs', () => ({
   captureException: vi.fn(),
   setTag: vi.fn(),
@@ -88,6 +93,23 @@ function singleQuery(data: unknown) {
     select: vi.fn().mockReturnValue({
       eq: vi.fn().mockReturnValue({
         single: vi.fn().mockResolvedValue({ data, error: null }),
+      }),
+    }),
+  }
+}
+
+function idempotencyQuery(alreadyRotated = false) {
+  return {
+    select: vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        gte: vi.fn().mockReturnValue({
+          limit: vi.fn().mockReturnValue({
+            maybeSingle: vi.fn().mockResolvedValue({
+              data: alreadyRotated ? { id: 'existing-cycle' } : null,
+              error: null,
+            }),
+          }),
+        }),
       }),
     }),
   }
@@ -152,10 +174,11 @@ describe('GET /api/cron/ab-rotate', () => {
 
   it('happy path: rotates variant and opens new cycle', async () => {
     const test = makeTest()
-    const video = { youtube_video_id: 'yt-abc' }
+    const video = { youtube_video_id: 'yt-abc', channel_id: 'ch-1' }
 
     mockEnsureFreshToken.mockResolvedValue({ accessToken: 'tok-123' })
 
+    let cyclesSelectCount = 0
     mockFrom.mockImplementation((table: string) => {
       if (table === 'ab_tests') {
         return {
@@ -164,11 +187,18 @@ describe('GET /api/cron/ab-rotate', () => {
         }
       }
       if (table === 'youtube_videos') return singleQuery(video)
+      if (table === 'youtube_channels') return singleQuery({ channel_id: 'UC123' })
       if (table === 'ab_test_cycles') {
         return {
           ...updateQuery(),
-          ...countQuery(4),
           ...insertQuery(),
+          select: vi.fn().mockImplementation(() => {
+            cyclesSelectCount++
+            if (cyclesSelectCount === 1) {
+              return idempotencyQuery(false).select()
+            }
+            return countQuery(4).select()
+          }),
         }
       }
       if (table === 'ab_test_tracked_links') {
@@ -205,8 +235,14 @@ describe('GET /api/cron/ab-rotate', () => {
           update: mockUpdate,
         }
       }
-      if (table === 'youtube_videos') return singleQuery({ youtube_video_id: 'yt-abc' })
-      if (table === 'ab_test_cycles') return updateQuery()
+      if (table === 'youtube_videos') return singleQuery({ youtube_video_id: 'yt-abc', channel_id: 'ch-1' })
+      if (table === 'youtube_channels') return singleQuery({ channel_id: 'UC123' })
+      if (table === 'ab_test_cycles') {
+        return {
+          ...updateQuery(),
+          ...idempotencyQuery(false),
+        }
+      }
       return {}
     })
 

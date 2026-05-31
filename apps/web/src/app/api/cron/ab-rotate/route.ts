@@ -53,6 +53,18 @@ export async function GET(req: NextRequest) {
 
       if (!video) continue
 
+      // Idempotency: skip if we already rotated today
+      const today = new Date().toISOString().slice(0, 10)
+      const { data: todayCycle } = await supabase
+        .from('ab_test_cycles')
+        .select('id')
+        .eq('test_id', test.id)
+        .gte('started_at', `${today}T00:00:00Z`)
+        .limit(1)
+        .maybeSingle()
+
+      if (todayCycle) continue
+
       // Resolve the YouTube channel_id to use the correct OAuth token
       const { data: channel } = await supabase
         .from('youtube_channels')

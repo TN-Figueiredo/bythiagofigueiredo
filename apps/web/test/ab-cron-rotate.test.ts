@@ -53,21 +53,24 @@ function makeTest(overrides: Record<string, unknown> = {}) {
 
 interface BuildMockOpts {
   tests?: unknown[]
-  video?: { youtube_video_id: string } | null
+  video?: { youtube_video_id: string; channel_id?: string } | null
   cycleCount?: number
   trackedLinks?: { template_name: string; short_code: string }[]
+  alreadyRotatedToday?: boolean
 }
 
 function buildSupabaseMock(opts: BuildMockOpts = {}) {
   const {
     tests = [],
-    video = { youtube_video_id: 'YT_VIDEO_123' },
+    video = { youtube_video_id: 'YT_VIDEO_123', channel_id: 'ch-1' },
     cycleCount = 0,
     trackedLinks = [],
+    alreadyRotatedToday = false,
   } = opts
 
   const updateCalls: { table: string; data: unknown; filters: unknown[] }[] = []
   const insertCalls: { table: string; data: unknown }[] = []
+  let cyclesSelectCallCount = 0
 
   const fromMock = vi.fn((table: string) => {
     if (table === 'ab_tests') {
@@ -105,10 +108,29 @@ function buildSupabaseMock(opts: BuildMockOpts = {}) {
             is: vi.fn().mockResolvedValue({ data: null, error: null }),
           }),
         }),
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            not: vi.fn().mockResolvedValue({ count: cycleCount, data: null, error: null }),
-          }),
+        select: vi.fn().mockImplementation(() => {
+          cyclesSelectCallCount++
+          if (cyclesSelectCallCount % 2 === 1) {
+            // Odd calls = idempotency check (select('id').eq.gte.limit.maybeSingle)
+            return {
+              eq: vi.fn().mockReturnValue({
+                gte: vi.fn().mockReturnValue({
+                  limit: vi.fn().mockReturnValue({
+                    maybeSingle: vi.fn().mockResolvedValue({
+                      data: alreadyRotatedToday ? { id: 'existing-cycle' } : null,
+                      error: null,
+                    }),
+                  }),
+                }),
+              }),
+            }
+          }
+          // Even calls = cycle count (select('*', { count }).eq.not)
+          return {
+            eq: vi.fn().mockReturnValue({
+              not: vi.fn().mockResolvedValue({ count: cycleCount, data: null, error: null }),
+            }),
+          }
         }),
         insert: vi.fn((data: unknown) => {
           insertCalls.push({ table, data })
@@ -348,6 +370,20 @@ describe('GET /api/cron/ab-rotate', () => {
     await GET(req)
 
     expect(getNextVariantIndex).toHaveBeenCalledWith('round_robin', 2, 3)
+  })
+
+  it('skips test if already rotated today (idempotency)', async () => {
+    const test = makeTest()
+    buildSupabaseMock({ tests: [test], alreadyRotatedToday: true })
+
+    const req = createCronRequest('test-secret')
+    const res = await GET(req)
+    const body = await res.json()
+
+    expect(body.processed).toBe(0)
+    expect(ensureFreshToken).not.toHaveBeenCalled()
+    expect(setThumbnail).not.toHaveBeenCalled()
+    expect(updateVideoMetadata).not.toHaveBeenCalled()
   })
 
   it('skips test when getNextVariantIndex returns out-of-bounds index', async () => {
