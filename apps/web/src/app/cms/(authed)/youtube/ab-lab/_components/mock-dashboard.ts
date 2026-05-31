@@ -40,6 +40,7 @@ const MOCK_CARDS: AbTestCardView[] = [
     roundNumber: 1,
     createdAt: new Date(Date.now() - 9 * 86400000).toISOString(),
     statusNote: null,
+    cycleStartedAt: new Date(Date.now() - 3600000).toISOString(),
   },
   {
     id: 'mock-active-2',
@@ -62,6 +63,7 @@ const MOCK_CARDS: AbTestCardView[] = [
     roundNumber: 2,
     createdAt: new Date(Date.now() - 14 * 86400000).toISOString(),
     statusNote: null,
+    cycleStartedAt: new Date(Date.now() - 3600000).toISOString(),
   },
 ]
 
@@ -99,6 +101,7 @@ const MOCK_COMPLETED: AbTestCardView[] = [
     roundNumber: 1,
     createdAt: new Date(Date.now() - 30 * 86400000).toISOString(),
     statusNote: null,
+    cycleStartedAt: new Date(Date.now() - 3600000).toISOString(),
   },
   {
     id: 'mock-completed-2',
@@ -120,6 +123,7 @@ const MOCK_COMPLETED: AbTestCardView[] = [
     roundNumber: 1,
     createdAt: new Date(Date.now() - 45 * 86400000).toISOString(),
     statusNote: null,
+    cycleStartedAt: new Date(Date.now() - 3600000).toISOString(),
   },
   {
     id: 'mock-completed-3',
@@ -142,6 +146,7 @@ const MOCK_COMPLETED: AbTestCardView[] = [
     roundNumber: 2,
     createdAt: new Date(Date.now() - 20 * 86400000).toISOString(),
     statusNote: null,
+    cycleStartedAt: new Date(Date.now() - 3600000).toISOString(),
   },
 ]
 

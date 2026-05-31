@@ -75,16 +75,20 @@ export async function GET(req: NextRequest) {
 
       const preflight = await preflightTokenCheck(test.site_id, 'youtube', channel?.channel_id)
       if (!preflight.ok) {
-        await createNotification({
-          site_id: test.site_id,
-          type: 'youtube.token_invalid',
-          domain: 'youtube',
-          priority: 1,
-          title: 'Token YouTube inválido',
-          message: `Não foi possível acessar a API do YouTube: ${preflight.reason}`,
-          action_href: '/cms/youtube',
-          dedup_key: `token-invalid-${test.site_id}-${new Date().toISOString().slice(0, 10)}`,
-        })
+        const { data: owner } = await supabase.from('site_users').select('user_id').eq('site_id', test.site_id).eq('role', 'super_admin').limit(1).single()
+        if (owner) {
+          await createNotification({
+            site_id: test.site_id,
+            user_id: owner.user_id,
+            type: 'youtube.token_invalid',
+            domain: 'youtube',
+            priority: 1,
+            title: 'Token YouTube inválido',
+            message: `Não foi possível acessar a API do YouTube: ${preflight.reason}`,
+            action_href: '/cms/youtube',
+            dedup_key: `token-invalid-${test.site_id}-${new Date().toISOString().slice(0, 10)}`,
+          })
+        }
         continue
       }
       const accessToken = preflight.accessToken!
