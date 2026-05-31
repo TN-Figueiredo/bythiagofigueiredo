@@ -290,6 +290,7 @@ export interface AbTestCardView {
   roundNumber: number
   createdAt: string
   statusNote: string | null
+  cycleStartedAt: string | null
 }
 
 export interface AbTestDraftVariant {
