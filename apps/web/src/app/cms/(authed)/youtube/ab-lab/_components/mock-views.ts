@@ -53,6 +53,7 @@ const BASE = {
   totalRounds: 1,
   hasPlayoff: false,
   gates: GATES,
+  activeNow: null,
 }
 
 export const MOCK_WINNER: AbTestWinnerView = {
@@ -162,6 +163,7 @@ export const MOCK_WINNER_MINIMAL: AbTestWinnerView = {
   },
   learning: undefined,
   monitor: undefined,
+  activeNow: null,
 }
 
 export const MOCK_PLAYOFF_MINIMAL: AbTestPlayoffView = {
@@ -195,6 +197,7 @@ export const MOCK_PLAYOFF_MINIMAL: AbTestPlayoffView = {
   ],
   confidenceReached: 42,
   reason: '',
+  activeNow: null,
 }
 
 export const MOCK_ACTIVE_MINIMAL: AbTestActiveView = {
@@ -233,6 +236,7 @@ export const MOCK_ACTIVE_MINIMAL: AbTestActiveView = {
     lift: 5.9,
   },
   liveData: undefined,
+  activeNow: 'B',
 }
 
 export const MOCK_ACTIVE: AbTestActiveView = {
