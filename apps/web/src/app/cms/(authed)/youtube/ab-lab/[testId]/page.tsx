@@ -36,5 +36,5 @@ export default async function AbTestDetailPage({
   const results = await getTestResults(testId)
   if (!results) notFound()
 
-  return renderView(toDetailView(results))
+  return renderView(await toDetailView(results))
 }

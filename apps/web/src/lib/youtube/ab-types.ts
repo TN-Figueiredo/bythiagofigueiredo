@@ -419,6 +419,9 @@ export interface AbTestActiveView extends AbTestBaseView {
     lift: number
   }
   pollData?: { viewsDelta: number; likesDelta: number; polledAt: string }
+  outlier?: { multiplier: number; badge: 'blue' | 'purple' | 'red' } | null
+  revenue?: { low: number; high: number; currency: 'BRL'; isDefault: boolean }
+  daysRemaining?: { days: number; model: 'exponential' | 'linear' } | null
 }
 
 export interface AbTestWinnerView extends AbTestBaseView {

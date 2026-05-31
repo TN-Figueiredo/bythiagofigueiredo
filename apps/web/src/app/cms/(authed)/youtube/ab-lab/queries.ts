@@ -28,6 +28,7 @@ import type {
 import { calculateBayesianConfidence } from '@/lib/youtube/ab-statistics'
 import { computeGates } from '@/lib/youtube/ab-gates'
 import { getNextVariantIndex } from '@/lib/youtube/ab-rotation'
+import { computeOutlierScore, computeRevenueRange, computeDaysRemaining } from '@/lib/youtube/ab-computed'
 import { toDisplayLabel, variantColor } from './_components/ab-constants'
 
 async function requireEditAccess(): Promise<string> {
@@ -687,7 +688,7 @@ export async function getSuggestedVideos(siteId: string): Promise<SuggestedVideo
 // toDetailView — maps AbTestResults → discriminated AbTestDetailView
 // ---------------------------------------------------------------------------
 
-export function toDetailView(results: AbTestResults): AbTestDetailView {
+export async function toDetailView(results: AbTestResults): Promise<AbTestDetailView> {
   const test = results.test
   const variants: FullChartVariant[] = results.variants.map(v => ({
     label: toDisplayLabel(v.label, v.is_original),
@@ -874,6 +875,54 @@ export function toDetailView(results: AbTestResults): AbTestDetailView {
       lastPolledAt = latestPolls[0]!.polled_at
     }
 
+    // Compute outlier, revenue, and days remaining metrics
+    const supabase = getSupabaseServiceClient()
+
+    const { data: videoStats } = await supabase
+      .from('youtube_videos')
+      .select('view_count, published_at, channel_id')
+      .eq('id', test.youtube_video_id)
+      .single()
+
+    let outlier: AbTestActiveView['outlier'] = undefined
+    let revenue: AbTestActiveView['revenue'] = undefined
+    let daysRemaining: AbTestActiveView['daysRemaining'] = undefined
+
+    if (videoStats) {
+      // Outlier: compare vs previous 9 videos from same channel
+      const { data: predecessors } = await supabase
+        .from('youtube_videos')
+        .select('view_count')
+        .eq('channel_id', videoStats.channel_id)
+        .eq('site_id', test.site_id)
+        .neq('id', test.youtube_video_id)
+        .not('view_count', 'is', null)
+        .order('published_at', { ascending: false })
+        .limit(9)
+
+      if (predecessors) {
+        outlier = computeOutlierScore(
+          videoStats.view_count ?? 0,
+          predecessors.map(p => p.view_count ?? 0),
+        )
+      }
+
+      // Revenue range
+      revenue = computeRevenueRange(videoStats.view_count ?? 0)
+
+      // Days remaining (from last 5 daily analytics)
+      const { data: dailyStats } = await supabase
+        .from('youtube_video_analytics')
+        .select('views')
+        .eq('youtube_video_id', test.youtube_video_id)
+        .order('date', { ascending: false })
+        .limit(5)
+
+      if (dailyStats && dailyStats.length >= 5) {
+        daysRemaining = computeDaysRemaining(dailyStats.map(d => d.views).reverse())
+      }
+    }
+
     return {
       ...base,
       status: (test.status === 'draft' ? 'active' : test.status) as 'active' | 'paused',
@@ -898,6 +947,9 @@ export function toDetailView(results: AbTestResults): AbTestDetailView {
         likesDelta: liveLikesDelta,
         polledAt: lastPolledAt,
       } : undefined,
+      outlier,
+      revenue,
+      daysRemaining,
     } satisfies AbTestActiveView
   }
 

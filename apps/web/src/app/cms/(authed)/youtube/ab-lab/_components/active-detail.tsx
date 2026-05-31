@@ -142,6 +142,44 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
         />
       </div>
 
+      {/* Computed Metrics */}
+      {(view.outlier || view.revenue || view.daysRemaining) && (
+        <div className="grid grid-cols-3 gap-3 mb-[16px]">
+          {view.outlier && (
+            <div className={`rounded-lg border px-3 py-2 ${
+              view.outlier.badge === 'red' ? 'border-red-500/30 bg-red-500/10' :
+              view.outlier.badge === 'purple' ? 'border-purple-500/30 bg-purple-500/10' :
+              'border-blue-500/30 bg-blue-500/10'
+            }`}>
+              <span className="text-xs text-zinc-400">Outlier</span>
+              <p className={`text-lg font-mono font-bold ${
+                view.outlier.badge === 'red' ? 'text-red-400' :
+                view.outlier.badge === 'purple' ? 'text-purple-400' :
+                'text-blue-400'
+              }`}>{view.outlier.multiplier}x</p>
+            </div>
+          )}
+          {view.revenue && (
+            <div className="rounded-lg border border-zinc-700/30 bg-zinc-800/30 px-3 py-2">
+              <span className="text-xs text-zinc-400">Receita estimada</span>
+              <p className="text-lg font-mono font-bold text-zinc-200">
+                R${view.revenue.low}-{view.revenue.high}
+              </p>
+              {view.revenue.isDefault && <span className="text-[10px] text-zinc-500">faixa padrao</span>}
+            </div>
+          )}
+          {view.daysRemaining && (
+            <div className="rounded-lg border border-zinc-700/30 bg-zinc-800/30 px-3 py-2">
+              <span className="text-xs text-zinc-400">Dias restantes</span>
+              <p className="text-lg font-mono font-bold text-zinc-200">
+                {view.daysRemaining.days > 900 ? '∞' : `~${view.daysRemaining.days}d`}
+              </p>
+              <span className="text-[10px] text-zinc-500">{view.daysRemaining.model}</span>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Section 2: Lock Countdown */}
       <div data-section="lock-countdown" className="mb-[16px]">
         <LockCountdown
