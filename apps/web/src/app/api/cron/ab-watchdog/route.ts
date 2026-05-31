@@ -55,9 +55,14 @@ export async function GET(req: NextRequest) {
 
       // Trigger catch-up rotation — ab-rotate has built-in idempotency
       const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-      await fetch(`${baseUrl}/api/cron/ab-rotate`, {
-        headers: { authorization: `Bearer ${process.env.CRON_SECRET}` },
-      })
+      try {
+        await fetch(`${baseUrl}/api/cron/ab-rotate`, {
+          headers: { authorization: `Bearer ${process.env.CRON_SECRET}` },
+          signal: AbortSignal.timeout(10_000),
+        })
+      } catch {
+        // Non-fatal: catch-up fetch timed out or failed — watchdog still succeeds
+      }
     }
   }
 

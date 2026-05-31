@@ -1040,7 +1040,7 @@ export async function forceRotate(testId: string): Promise<{ ok: boolean; error?
 
   const { data: test } = await supabase
     .from('ab_tests')
-    .select('*, variants:ab_test_variants!test_id(*)')
+    .select('id, site_id, status, youtube_video_id, test_type, original_title, original_description, config, last_applied_variant_id, variants:ab_test_variants!test_id(*)')
     .eq('id', testId)
     .eq('site_id', siteId)
     .eq('status', 'active')
@@ -1068,7 +1068,7 @@ export async function forceRotate(testId: string): Promise<{ ok: boolean; error?
   if (!preflight.ok) {
     return { ok: false, error: `Token inválido: ${preflight.reason}` }
   }
-  const accessToken = preflight.accessToken!
+  const accessToken = preflight.accessToken
 
   // Count completed cycles BEFORE closing current (matches cron logic)
   const { count } = await supabase
@@ -1079,10 +1079,11 @@ export async function forceRotate(testId: string): Promise<{ ok: boolean; error?
 
   const nextCycle = (count ?? 0) + 1
 
-  const variants = ((test as Record<string, unknown>).variants as Array<{ id: string; sort_order: number; blob_url: string | null; is_original: boolean; title_text: string | null; description_text: string | null }>)
+  const variants = (test.variants as Array<{ id: string; sort_order: number; blob_url: string | null; is_original: boolean; title_text: string | null; description_text: string | null }>)
     .sort((a, b) => a.sort_order - b.sort_order)
 
-  const pattern = (test.config as Record<string, unknown> | null)?.rotation_pattern as 'abba' | 'round_robin' | 'random' | undefined ?? 'abba'
+  const config = test.config as Record<string, unknown> | null
+  const pattern = (config?.rotation_pattern as 'abba' | 'round_robin' | 'random' | undefined) ?? 'abba'
   const nextIndex = getNextVariantIndex(pattern, variants.length, nextCycle)
   const nextVariant = variants[nextIndex]
   if (!nextVariant) return { ok: false, error: 'Invalid variant index' }
@@ -1095,7 +1096,7 @@ export async function forceRotate(testId: string): Promise<{ ok: boolean; error?
 
   // Apply variant based on test type (matches cron logic)
   const appliedMeta: Record<string, unknown> = { trigger: 'manual' }
-  const testType = (test as Record<string, unknown>).test_type as string ?? 'thumbnail'
+  const testType = (test.test_type as string) ?? 'thumbnail'
   const youtubeVideoId = video.youtube_video_id as string
 
   if ((testType === 'thumbnail' || testType === 'combo') && nextVariant.blob_url) {
@@ -1109,10 +1110,10 @@ export async function forceRotate(testId: string): Promise<{ ok: boolean; error?
     let descToSet: string | null = null
 
     if (testType === 'title' || testType === 'combo') {
-      titleToSet = nextVariant.title_text ?? (test as Record<string, unknown>).original_title as string ?? null
+      titleToSet = nextVariant.title_text ?? (test.original_title as string | null) ?? null
     }
     if (testType === 'description' || testType === 'combo') {
-      const rawDesc = nextVariant.description_text ?? (test as Record<string, unknown>).original_description as string ?? null
+      const rawDesc = nextVariant.description_text ?? (test.original_description as string | null) ?? null
       if (rawDesc) {
         const { data: linkMappings } = await supabase
           .from('ab_test_tracked_links')

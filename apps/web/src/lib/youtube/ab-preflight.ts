@@ -1,10 +1,8 @@
 import { ensureFreshToken } from '@/lib/social/token-refresh'
 
-interface PreflightResult {
-  ok: boolean
-  reason?: string
-  accessToken?: string
-}
+type PreflightResult =
+  | { ok: true; accessToken: string }
+  | { ok: false; reason: string }
 
 export async function preflightTokenCheck(
   siteId: string,

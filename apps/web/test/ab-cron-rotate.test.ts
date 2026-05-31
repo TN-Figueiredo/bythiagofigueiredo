@@ -446,4 +446,75 @@ describe('GET /api/cron/ab-rotate', () => {
     expect(body.processed).toBe(0)
     expect(recordCronSuccess).toHaveBeenCalledWith('ab-rotate', 'critical')
   })
+
+  it('does not clear write-ahead marker when YouTube API fails', async () => {
+    const test = makeTest({ test_type: 'thumbnail' })
+    const { updateCalls } = buildSupabaseMock({ tests: [test] })
+    ;(setThumbnail as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error('YouTube API returned 401: token expired')
+    )
+
+    const req = createCronRequest('test-secret')
+    const res = await GET(req)
+    const body = await res.json()
+
+    expect(body.errors).toBe(1)
+    expect(body.processed).toBe(0)
+
+    // Write-ahead marker IS set (before YouTube call)
+    expect(updateCalls).toContainEqual(
+      expect.objectContaining({
+        table: 'ab_tests',
+        data: { last_applied_variant_id: 'v2' },
+      }),
+    )
+
+    // Write-ahead marker is NOT cleared (failure path does not null it)
+    expect(updateCalls).not.toContainEqual(
+      expect.objectContaining({
+        table: 'ab_tests',
+        data: expect.objectContaining({ last_applied_variant_id: null }),
+      }),
+    )
+
+    // consecutive_failures incremented
+    expect(updateCalls).toContainEqual(
+      expect.objectContaining({
+        table: 'ab_tests',
+        data: expect.objectContaining({
+          config: expect.objectContaining({ consecutive_failures: 1 }),
+        }),
+      }),
+    )
+  })
+
+  it('auto-pauses test after 3 consecutive failures', async () => {
+    const test = makeTest({
+      test_type: 'thumbnail',
+      config: { rotation_pattern: 'abba', consecutive_failures: 2 },
+    })
+    const { updateCalls } = buildSupabaseMock({ tests: [test] })
+    ;(setThumbnail as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error('YouTube API returned 401: token expired')
+    )
+
+    const req = createCronRequest('test-secret')
+    const res = await GET(req)
+    const body = await res.json()
+
+    expect(body.errors).toBe(1)
+    expect(body.processed).toBe(0)
+
+    // Test is paused with consecutive_failures: 3
+    expect(updateCalls).toContainEqual(
+      expect.objectContaining({
+        table: 'ab_tests',
+        data: expect.objectContaining({
+          status: 'paused',
+          status_note: expect.stringContaining('3 consecutive failures'),
+          config: expect.objectContaining({ consecutive_failures: 3 }),
+        }),
+      }),
+    )
+  })
 })

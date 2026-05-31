@@ -105,7 +105,7 @@ export async function GET(req: NextRequest) {
         }
         continue
       }
-      const accessToken = preflight.accessToken!
+      const accessToken = preflight.accessToken
 
       // Count only completed (closed) cycles for correct ABBA position
       const { count } = await supabase

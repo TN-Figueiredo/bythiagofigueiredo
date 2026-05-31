@@ -147,4 +147,36 @@ describe('ab-watchdog', () => {
       }),
     )
   })
+
+  it('handles catch-up fetch failure gracefully', async () => {
+    const yesterday = new Date(Date.now() - 86400000).toISOString()
+    mockGetHealth.mockResolvedValue({
+      cron_name: 'ab-rotate',
+      last_success_at: yesterday,
+      last_failure_at: null,
+      last_error: null,
+      consecutive_failures: 0,
+      severity: 'critical',
+      updated_at: yesterday,
+    })
+
+    // Make fetch reject (simulating network failure or timeout)
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('fetch failed: ECONNREFUSED'))
+
+    const res = await GET(makeRequest())
+    const body = await res.json()
+
+    // Watchdog still returns 200 OK — catch-up failure is non-fatal
+    expect(res.status).toBe(200)
+    expect(body.status).toBe('ok')
+    expect(body.rotate_healthy).toBe(false)
+
+    // Notifications were still sent (they happen before catch-up)
+    expect(mockNotify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'youtube.rotation_missed',
+        site_id: 'site-1',
+      }),
+    )
+  })
 })
