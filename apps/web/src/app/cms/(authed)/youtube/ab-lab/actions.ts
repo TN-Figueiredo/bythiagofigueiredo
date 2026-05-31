@@ -16,7 +16,7 @@ import type {
 } from '@/lib/youtube/ab-types'
 import { ensureFreshToken } from '@/lib/social/token-refresh'
 import { setThumbnail, fetchVariantImageBuffer } from '@/lib/youtube/ab-youtube'
-import { getVariantForCycle } from '@/lib/youtube/ab-rotation'
+import { getVariantForCycle, getNextVariantIndex } from '@/lib/youtube/ab-rotation'
 import { captureOriginalMetadata } from '@/lib/youtube/ab-metadata'
 import { parseTemplateTokens } from '@/lib/youtube/ab-templates'
 import { ensureTrackedLink } from '@/lib/links/auto-link'
@@ -1011,6 +1011,91 @@ export async function updateTextVariant(
     .eq('id', variantId)
 
   if (error) return { ok: false, error: error.message }
+
+  revalidateTag('ab-tests')
+  revalidatePath('/cms/youtube/ab-lab')
+  return { ok: true }
+}
+
+// ---------------------------------------------------------------------------
+// forceRotate
+// ---------------------------------------------------------------------------
+
+export async function forceRotate(testId: string): Promise<{ ok: boolean; error?: string }> {
+  let siteId: string
+  try {
+    siteId = await requireEditAccess()
+  } catch (e) {
+    return { ok: false, error: (e as Error).message }
+  }
+
+  const supabase = getSupabaseServiceClient()
+
+  const { data: test } = await supabase
+    .from('ab_tests')
+    .select('*, variants:ab_test_variants!test_id(*)')
+    .eq('id', testId)
+    .eq('site_id', siteId)
+    .eq('status', 'active')
+    .single()
+
+  if (!test) return { ok: false, error: 'Test not found or not active' }
+
+  // Resolve channel for correct token
+  const { data: video } = await supabase
+    .from('youtube_videos')
+    .select('youtube_video_id, channel_id')
+    .eq('id', test.youtube_video_id)
+    .single()
+  if (!video) return { ok: false, error: 'Video not found' }
+
+  // Pre-flight token check
+  let accessToken: string
+  try {
+    const result = await ensureFreshToken(siteId, 'youtube')
+    accessToken = result.accessToken
+  } catch (e) {
+    return { ok: false, error: `Token inválido: ${(e as Error).message}` }
+  }
+
+  // Close current cycle
+  await supabase
+    .from('ab_test_cycles')
+    .update({ ended_at: new Date().toISOString() })
+    .eq('test_id', testId)
+    .is('ended_at', null)
+
+  // Count completed cycles for ABBA position
+  const { count } = await supabase
+    .from('ab_test_cycles')
+    .select('*', { count: 'exact', head: true })
+    .eq('test_id', testId)
+    .not('ended_at', 'is', null)
+
+  const variants = ((test as Record<string, unknown>).variants as Array<{ id: string; sort_order: number; blob_url: string | null; is_original: boolean }>)
+    .sort((a, b) => a.sort_order - b.sort_order)
+
+  const nextCycle = count ?? 0
+  const pattern = (test.config as Record<string, unknown> | null)?.rotation_pattern as 'abba' | 'round_robin' | 'random' | undefined ?? 'abba'
+  const nextIndex = getNextVariantIndex(pattern, variants.length, nextCycle)
+  const nextVariant = variants[nextIndex]
+  if (!nextVariant) return { ok: false, error: 'Invalid variant index' }
+
+  // Apply variant on YouTube
+  if (nextVariant.blob_url && !nextVariant.is_original) {
+    const youtubeVideoId = video.youtube_video_id as string
+    const { buffer, contentType } = await fetchVariantImageBuffer(nextVariant.blob_url)
+    await setThumbnail(youtubeVideoId, buffer, contentType, accessToken)
+  }
+
+  // Open new cycle
+  await supabase.from('ab_test_cycles').insert({
+    test_id: testId,
+    variant_id: nextVariant.id,
+    cycle_number: nextCycle,
+    started_at: new Date().toISOString(),
+    applied_metadata: { trigger: 'manual' },
+  })
 
   revalidateTag('ab-tests')
   revalidatePath('/cms/youtube/ab-lab')
