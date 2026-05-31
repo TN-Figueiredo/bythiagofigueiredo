@@ -10,6 +10,10 @@ vi.mock('@/lib/youtube/ab-youtube', () => ({
 }))
 vi.mock('@/lib/youtube/ab-metadata', () => ({ updateVideoMetadata: vi.fn() }))
 vi.mock('@/lib/youtube/ab-templates', () => ({ resolveTemplates: vi.fn() }))
+vi.mock('@/lib/cron-health', () => ({
+  recordCronSuccess: vi.fn().mockResolvedValue(undefined),
+  recordCronFailure: vi.fn().mockResolvedValue(undefined),
+}))
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn() }))
 
 import { GET } from '@/app/api/cron/ab-rotate/route'

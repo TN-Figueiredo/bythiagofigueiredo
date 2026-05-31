@@ -9,6 +9,7 @@ import {
 } from '@/lib/youtube/ab-youtube'
 import { updateVideoMetadata } from '@/lib/youtube/ab-metadata'
 import { resolveTemplates } from '@/lib/youtube/ab-templates'
+import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
 import type { AbTestVariantRow, AppliedMetadata } from '@/lib/youtube/ab-types'
 
 export const maxDuration = 120
@@ -182,6 +183,12 @@ export async function GET(req: NextRequest) {
         }
       }
     }
+  }
+
+  if (errors === 0) {
+    await recordCronSuccess('ab-rotate', 'critical')
+  } else {
+    await recordCronFailure('ab-rotate', `${errors} test(s) failed`, 'critical')
   }
 
   return Response.json({ status: 'ok', processed, errors })
