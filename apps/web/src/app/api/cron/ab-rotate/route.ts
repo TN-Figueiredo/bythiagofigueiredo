@@ -33,6 +33,7 @@ export async function GET(req: NextRequest) {
     .eq('status', 'active')
 
   if (!tests || tests.length === 0) {
+    await recordCronSuccess('ab-rotate', 'critical')
     return Response.json({ status: 'ok', processed: 0 })
   }
 
@@ -65,6 +66,19 @@ export async function GET(req: NextRequest) {
         .maybeSingle()
 
       if (todayCycle) continue
+
+      // Write-ahead marker recovery: if marker is set, previous run crashed after YouTube call
+      if (test.last_applied_variant_id) {
+        Sentry.captureMessage(
+          `ab-rotate: write-ahead marker found for test ${test.id} (variant ${test.last_applied_variant_id}). Previous run likely crashed after YouTube API call. Clearing marker and skipping.`,
+          'warning'
+        )
+        await supabase
+          .from('ab_tests')
+          .update({ last_applied_variant_id: null })
+          .eq('id', test.id)
+        continue
+      }
 
       // Resolve the YouTube channel_id to use the correct OAuth token
       const { data: channel } = await supabase

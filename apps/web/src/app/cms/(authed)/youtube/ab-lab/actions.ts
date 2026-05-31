@@ -15,10 +15,11 @@ import type {
   VariantMetadata,
 } from '@/lib/youtube/ab-types'
 import { ensureFreshToken } from '@/lib/social/token-refresh'
+import { preflightTokenCheck } from '@/lib/youtube/ab-preflight'
 import { setThumbnail, fetchVariantImageBuffer } from '@/lib/youtube/ab-youtube'
 import { getVariantForCycle, getNextVariantIndex } from '@/lib/youtube/ab-rotation'
-import { captureOriginalMetadata } from '@/lib/youtube/ab-metadata'
-import { parseTemplateTokens } from '@/lib/youtube/ab-templates'
+import { captureOriginalMetadata, updateVideoMetadata } from '@/lib/youtube/ab-metadata'
+import { parseTemplateTokens, resolveTemplates } from '@/lib/youtube/ab-templates'
 import { ensureTrackedLink } from '@/lib/links/auto-link'
 import { getChannelTier } from '@/lib/youtube/scoring'
 import { scoreForPrompt } from '@/lib/youtube/prompt-scoring'
@@ -210,19 +211,21 @@ export async function uploadVariant(
   testId: string,
   formData: FormData,
 ): Promise<{ ok: boolean; variantId?: string; error?: string }> {
+  let siteId: string
   try {
-    await requireEditAccess()
+    siteId = await requireEditAccess()
   } catch (e) {
     return { ok: false, error: (e as Error).message }
   }
 
   const supabase = getSupabaseServiceClient()
 
-  // Load test and assert draft status
+  // Load test and assert draft status + site scope
   const { data: test, error: testError } = await supabase
     .from('ab_tests')
     .select('id, status')
     .eq('id', testId)
+    .eq('site_id', siteId)
     .single()
 
   if (testError || !test) return { ok: false, error: 'Test not found' }
@@ -315,8 +318,9 @@ export async function uploadVariant(
 export async function deleteVariant(
   variantId: string,
 ): Promise<{ ok: boolean; error?: string }> {
+  let siteId: string
   try {
-    await requireEditAccess()
+    siteId = await requireEditAccess()
   } catch (e) {
     return { ok: false, error: (e as Error).message }
   }
@@ -326,27 +330,28 @@ export async function deleteVariant(
   // Load variant
   const { data: variant, error: variantError } = await supabase
     .from('ab_test_variants')
-    .select('id, test_id, is_original, blob_key')
+    .select('id, test_id, is_original, blob_url')
     .eq('id', variantId)
     .single()
 
   if (variantError || !variant) return { ok: false, error: 'Variant not found' }
   if (variant.is_original) return { ok: false, error: 'Cannot delete the original variant' }
 
-  // Load parent test
+  // Load parent test (scoped to site for security)
   const { data: test, error: testError } = await supabase
     .from('ab_tests')
     .select('id, status')
     .eq('id', variant.test_id)
+    .eq('site_id', siteId)
     .single()
 
   if (testError || !test) return { ok: false, error: 'Parent test not found' }
   if (test.status !== 'draft') return { ok: false, error: 'Variants can only be deleted from draft tests' }
 
   // Delete blob if present
-  if (variant.blob_key) {
+  if (variant.blob_url) {
     const { del } = await import('@vercel/blob')
-    await del(variant.blob_key)
+    await del(variant.blob_url)
   }
 
   // Delete variant row
@@ -369,8 +374,9 @@ export async function deleteVariant(
 export async function cleanupDraftVariants(
   testId: string,
 ): Promise<{ ok: boolean; error?: string }> {
+  let siteId: string
   try {
-    await requireEditAccess()
+    siteId = await requireEditAccess()
   } catch (e) {
     return { ok: false, error: (e as Error).message }
   }
@@ -381,6 +387,7 @@ export async function cleanupDraftVariants(
     .from('ab_tests')
     .select('id, status')
     .eq('id', testId)
+    .eq('site_id', siteId)
     .single()
 
   if (!test) return { ok: false, error: 'Test not found' }
@@ -1049,53 +1056,106 @@ export async function forceRotate(testId: string): Promise<{ ok: boolean; error?
     .single()
   if (!video) return { ok: false, error: 'Video not found' }
 
-  // Pre-flight token check
-  let accessToken: string
-  try {
-    const result = await ensureFreshToken(siteId, 'youtube')
-    accessToken = result.accessToken
-  } catch (e) {
-    return { ok: false, error: `Token inválido: ${(e as Error).message}` }
+  // Resolve the YouTube channel_id for correct OAuth token selection
+  const { data: channel } = await supabase
+    .from('youtube_channels')
+    .select('channel_id')
+    .eq('id', video.channel_id as string)
+    .single()
+
+  // Pre-flight token check (validates token works against YouTube API)
+  const preflight = await preflightTokenCheck(siteId, 'youtube', channel?.channel_id as string | undefined)
+  if (!preflight.ok) {
+    return { ok: false, error: `Token inválido: ${preflight.reason}` }
   }
+  const accessToken = preflight.accessToken!
 
-  // Close current cycle
-  await supabase
-    .from('ab_test_cycles')
-    .update({ ended_at: new Date().toISOString() })
-    .eq('test_id', testId)
-    .is('ended_at', null)
-
-  // Count completed cycles for ABBA position
+  // Count completed cycles BEFORE closing current (matches cron logic)
   const { count } = await supabase
     .from('ab_test_cycles')
     .select('*', { count: 'exact', head: true })
     .eq('test_id', testId)
     .not('ended_at', 'is', null)
 
-  const variants = ((test as Record<string, unknown>).variants as Array<{ id: string; sort_order: number; blob_url: string | null; is_original: boolean }>)
+  const nextCycle = (count ?? 0) + 1
+
+  const variants = ((test as Record<string, unknown>).variants as Array<{ id: string; sort_order: number; blob_url: string | null; is_original: boolean; title_text: string | null; description_text: string | null }>)
     .sort((a, b) => a.sort_order - b.sort_order)
 
-  const nextCycle = count ?? 0
   const pattern = (test.config as Record<string, unknown> | null)?.rotation_pattern as 'abba' | 'round_robin' | 'random' | undefined ?? 'abba'
   const nextIndex = getNextVariantIndex(pattern, variants.length, nextCycle)
   const nextVariant = variants[nextIndex]
   if (!nextVariant) return { ok: false, error: 'Invalid variant index' }
 
-  // Apply variant on YouTube
-  if (nextVariant.blob_url && !nextVariant.is_original) {
-    const youtubeVideoId = video.youtube_video_id as string
+  // Write-ahead marker: record intent BEFORE calling YouTube API
+  await supabase
+    .from('ab_tests')
+    .update({ last_applied_variant_id: nextVariant.id })
+    .eq('id', testId)
+
+  // Apply variant based on test type (matches cron logic)
+  const appliedMeta: Record<string, unknown> = { trigger: 'manual' }
+  const testType = (test as Record<string, unknown>).test_type as string ?? 'thumbnail'
+  const youtubeVideoId = video.youtube_video_id as string
+
+  if ((testType === 'thumbnail' || testType === 'combo') && nextVariant.blob_url) {
     const { buffer, contentType } = await fetchVariantImageBuffer(nextVariant.blob_url)
     await setThumbnail(youtubeVideoId, buffer, contentType, accessToken)
+    appliedMeta.thumbnail_set = true
   }
 
-  // Open new cycle
+  if (testType === 'title' || testType === 'description' || testType === 'combo') {
+    let titleToSet: string | null = null
+    let descToSet: string | null = null
+
+    if (testType === 'title' || testType === 'combo') {
+      titleToSet = nextVariant.title_text ?? (test as Record<string, unknown>).original_title as string ?? null
+    }
+    if (testType === 'description' || testType === 'combo') {
+      const rawDesc = nextVariant.description_text ?? (test as Record<string, unknown>).original_description as string ?? null
+      if (rawDesc) {
+        const { data: linkMappings } = await supabase
+          .from('ab_test_tracked_links')
+          .select('template_name, short_code')
+          .eq('variant_id', nextVariant.id)
+
+        const linkMap: Record<string, string> = {}
+        const shortDomain = process.env.LINKS_SHORT_DOMAIN ?? 'go.bythiagofigueiredo.com'
+        for (const lm of linkMappings ?? []) {
+          linkMap[lm.template_name as string] = `https://${shortDomain}/${lm.short_code}`
+        }
+        descToSet = resolveTemplates(rawDesc, linkMap)
+        appliedMeta.links_resolved = linkMap
+      }
+    }
+
+    if (titleToSet || descToSet) {
+      await updateVideoMetadata(youtubeVideoId, titleToSet, descToSet, accessToken)
+      appliedMeta.title_set = titleToSet
+      appliedMeta.description_set = descToSet
+    }
+  }
+
+  // Close old cycle + open new cycle AFTER YouTube confirms
+  await supabase
+    .from('ab_test_cycles')
+    .update({ ended_at: new Date().toISOString() })
+    .eq('test_id', testId)
+    .is('ended_at', null)
+
   await supabase.from('ab_test_cycles').insert({
     test_id: testId,
     variant_id: nextVariant.id,
     cycle_number: nextCycle,
     started_at: new Date().toISOString(),
-    applied_metadata: { trigger: 'manual' },
+    applied_metadata: Object.keys(appliedMeta).length ? appliedMeta : null,
   })
+
+  // Clear write-ahead marker after success
+  await supabase
+    .from('ab_tests')
+    .update({ last_applied_variant_id: null })
+    .eq('id', testId)
 
   revalidateTag('ab-tests')
   revalidatePath('/cms/youtube/ab-lab')
@@ -1110,7 +1170,12 @@ export async function fetchAbBriefingData(
   videoId: string,
   testId: string = '',
 ): Promise<{ ok: true; data: AbBriefingData } | { ok: false; error: string }> {
-  const siteId = await requireEditAccess()
+  let siteId: string
+  try {
+    siteId = await requireEditAccess()
+  } catch {
+    return { ok: false, error: 'Sem permissão' }
+  }
   const supabase = getSupabaseServiceClient()
 
   const { data: video, error: videoError } = await supabase

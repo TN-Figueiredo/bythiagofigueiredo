@@ -90,7 +90,7 @@ export function YouTubeShell({ children, hoursUntilExpiry }: YouTubeShellProps) 
       {hoursUntilExpiry !== null && hoursUntilExpiry < 48 && (
         <div className="mx-6 mt-2 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-4 py-2 text-sm text-yellow-300">
           Token do YouTube expira em {Math.round(hoursUntilExpiry)}h.
-          Reconecte em <a href="/cms/youtube" className="underline">Channels</a> para evitar falhas.
+          Reconecte em <a href="/cms/settings?section=youtube" className="underline">Channels</a> para evitar falhas.
         </div>
       )}
 

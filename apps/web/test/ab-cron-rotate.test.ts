@@ -15,7 +15,7 @@ vi.mock('@/lib/cron-health', () => ({
   recordCronSuccess: vi.fn().mockResolvedValue(undefined),
   recordCronFailure: vi.fn().mockResolvedValue(undefined),
 }))
-vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn() }))
+vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
 
 import { GET } from '@/app/api/cron/ab-rotate/route'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
@@ -28,6 +28,7 @@ import {
 } from '@/lib/youtube/ab-youtube'
 import { updateVideoMetadata } from '@/lib/youtube/ab-metadata'
 import { resolveTemplates } from '@/lib/youtube/ab-templates'
+import { recordCronSuccess } from '@/lib/cron-health'
 
 function createCronRequest(secret: string) {
   return new NextRequest(new URL('http://localhost:3000/api/cron/ab-rotate'), {
@@ -149,10 +150,25 @@ function buildSupabaseMock(opts: BuildMockOpts = {}) {
       }
     }
 
+    if (table === 'site_users') {
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              limit: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({ data: { user_id: 'owner-1' }, error: null }),
+              }),
+            }),
+          }),
+        }),
+      }
+    }
+
     // Fallback
     return {
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
       single: vi.fn().mockResolvedValue({ data: null, error: null }),
     }
   })
@@ -399,5 +415,35 @@ describe('GET /api/cron/ab-rotate', () => {
     expect(body.processed).toBe(0)
     expect(setThumbnail).not.toHaveBeenCalled()
     expect(updateVideoMetadata).not.toHaveBeenCalled()
+  })
+
+  it('skips test and clears marker when write-ahead marker is stale (crash recovery)', async () => {
+    const test = makeTest({ last_applied_variant_id: 'variant-123' })
+    const { updateCalls } = buildSupabaseMock({ tests: [test] })
+
+    const req = createCronRequest('test-secret')
+    const res = await GET(req)
+    const body = await res.json()
+
+    expect(body.processed).toBe(0)
+    expect(updateCalls).toContainEqual(
+      expect.objectContaining({
+        table: 'ab_tests',
+        data: { last_applied_variant_id: null },
+      }),
+    )
+    expect(setThumbnail).not.toHaveBeenCalled()
+    expect(updateVideoMetadata).not.toHaveBeenCalled()
+  })
+
+  it('records cron health even with 0 active tests', async () => {
+    buildSupabaseMock({ tests: [] })
+
+    const req = createCronRequest('test-secret')
+    const res = await GET(req)
+    const body = await res.json()
+
+    expect(body.processed).toBe(0)
+    expect(recordCronSuccess).toHaveBeenCalledWith('ab-rotate', 'critical')
   })
 })

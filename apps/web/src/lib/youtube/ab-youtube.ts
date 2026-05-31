@@ -14,6 +14,7 @@ export async function setThumbnail(
       'Content-Type': contentType,
     },
     body: imageBuffer as BodyInit,
+    signal: AbortSignal.timeout(15_000),
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
@@ -32,6 +33,7 @@ export async function getCurrentThumbnailUrl(
   const url = `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}`
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
+    signal: AbortSignal.timeout(15_000),
   })
   if (!res.ok) return null
   const data = await res.json()
@@ -55,6 +57,7 @@ export async function fetchAnalyticsForDateRange(
   const url = `https://youtubeanalytics.googleapis.com/v2/reports?${params}`
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
+    signal: AbortSignal.timeout(15_000),
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
@@ -71,7 +74,7 @@ export async function fetchAnalyticsForDateRange(
 export async function fetchVariantImageBuffer(
   blobUrl: string
 ): Promise<{ buffer: Buffer; contentType: 'image/png' | 'image/jpeg' }> {
-  const res = await fetch(blobUrl)
+  const res = await fetch(blobUrl, { signal: AbortSignal.timeout(15_000) })
   if (!res.ok) throw new Error(`Failed to fetch variant image: ${res.status}`)
   const ct = res.headers.get('content-type') ?? 'image/png'
   const contentType = ct.includes('jpeg') ? ('image/jpeg' as const) : ('image/png' as const)

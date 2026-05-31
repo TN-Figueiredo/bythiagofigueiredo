@@ -11,6 +11,7 @@ export async function updateVideoMetadata(
   const listUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}`
   const listRes = await fetch(listUrl, {
     headers: { Authorization: `Bearer ${accessToken}` },
+    signal: AbortSignal.timeout(15_000),
   })
   if (!listRes.ok) {
     const err = await listRes.json().catch(() => ({}))
@@ -40,6 +41,7 @@ export async function updateVideoMetadata(
         tags: snippet.tags ?? [],
       },
     }),
+    signal: AbortSignal.timeout(15_000),
   })
 
   if (!updateRes.ok) {
@@ -57,6 +59,7 @@ export async function captureOriginalMetadata(
   const url = `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}`
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
+    signal: AbortSignal.timeout(15_000),
   })
   if (!res.ok) return null
 
