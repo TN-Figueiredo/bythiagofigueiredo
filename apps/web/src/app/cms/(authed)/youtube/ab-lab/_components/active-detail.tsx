@@ -163,7 +163,7 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
             <div className="rounded-lg border border-zinc-700/30 bg-zinc-800/30 px-3 py-2">
               <span className="text-xs text-zinc-400">Receita estimada</span>
               <p className="text-lg font-mono font-bold text-zinc-200">
-                R${view.revenue.low}-{view.revenue.high}
+                R${view.revenue.low}-{view.revenue.high}<span className="text-sm font-normal text-zinc-400">/ano</span>
               </p>
               {view.revenue.isDefault && <span className="text-[10px] text-zinc-500">faixa padrao</span>}
             </div>

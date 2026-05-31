@@ -889,26 +889,74 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
     let daysRemaining: AbTestActiveView['daysRemaining'] = undefined
 
     if (videoStats) {
-      // Outlier: compare vs previous 9 videos from same channel
-      const { data: predecessors } = await supabase
-        .from('youtube_videos')
-        .select('view_count')
-        .eq('channel_id', videoStats.channel_id)
-        .eq('site_id', test.site_id)
-        .neq('id', test.youtube_video_id)
-        .not('view_count', 'is', null)
-        .order('published_at', { ascending: false })
-        .limit(9)
+      // Outlier: compare views at same age milestone vs previous 9 uploads
+      const ageHours = videoStats.published_at
+        ? (Date.now() - new Date(videoStats.published_at).getTime()) / 3_600_000
+        : null
 
-      if (predecessors) {
+      let milestoneColumn: string | null = null
+      if (ageHours !== null) {
+        if (ageHours >= 720) milestoneColumn = 'views_at_30d'
+        else if (ageHours >= 168) milestoneColumn = 'views_at_7d'
+        else if (ageHours >= 48) milestoneColumn = 'views_at_48h'
+        else if (ageHours >= 24) milestoneColumn = 'views_at_24h'
+      }
+
+      if (milestoneColumn) {
+        // Get current video's milestone views
+        const { data: currentMilestone } = await supabase
+          .from('youtube_video_analytics')
+          .select(milestoneColumn)
+          .eq('youtube_video_id', test.youtube_video_id)
+          .not(milestoneColumn, 'is', null)
+          .order('date', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+
+        const currentViews = (currentMilestone as unknown as Record<string, number> | null)?.[milestoneColumn] ?? videoStats.view_count ?? 0
+
+        // Get predecessors' milestone views
+        const { data: milestonePredecessors } = await supabase
+          .from('youtube_videos')
+          .select(`id, youtube_video_analytics!inner(${milestoneColumn})`)
+          .eq('channel_id', videoStats.channel_id)
+          .eq('site_id', test.site_id)
+          .neq('id', test.youtube_video_id)
+          .order('published_at', { ascending: false })
+          .limit(9)
+
+        const predecessorViews = (milestonePredecessors as unknown as Array<{ youtube_video_analytics: Record<string, number>[] }> ?? [])
+          .map(p => p.youtube_video_analytics?.[0]?.[milestoneColumn!] ?? 0)
+          .filter((v: number) => v > 0)
+
+        outlier = computeOutlierScore(currentViews, predecessorViews)
+      } else {
+        // Fallback to lifetime views if no milestone available yet
+        const { data: predecessors } = await supabase
+          .from('youtube_videos')
+          .select('view_count')
+          .eq('channel_id', videoStats.channel_id)
+          .eq('site_id', test.site_id)
+          .neq('id', test.youtube_video_id)
+          .not('view_count', 'is', null)
+          .order('published_at', { ascending: false })
+          .limit(9)
+
         outlier = computeOutlierScore(
           videoStats.view_count ?? 0,
-          predecessors.map(p => p.view_count ?? 0),
+          (predecessors ?? []).map(p => p.view_count ?? 0),
         )
       }
 
-      // Revenue range
-      revenue = computeRevenueRange(videoStats.view_count ?? 0)
+      // Revenue: compute from last 28 days of views, annualized
+      const { data: recentViews } = await supabase
+        .from('youtube_video_analytics')
+        .select('views')
+        .eq('youtube_video_id', test.youtube_video_id)
+        .gte('date', new Date(Date.now() - 28 * 86400000).toISOString().slice(0, 10))
+
+      const views28d = (recentViews ?? []).reduce((sum, r) => sum + ((r.views as number) ?? 0), 0)
+      revenue = computeRevenueRange(views28d * 13) // annualize: 28d × 13 ≈ 365d
 
       // Days remaining (from last 5 daily analytics)
       const { data: dailyStats } = await supabase
