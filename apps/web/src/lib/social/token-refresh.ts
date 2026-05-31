@@ -63,7 +63,7 @@ export async function ensureFreshToken(
   const effectiveExpiry =
     provider === 'bluesky' && blueskyExpiresAt ? blueskyExpiresAt : conn.token_expires_at
   const expiresAt = effectiveExpiry ? new Date(effectiveExpiry as string) : null
-  const isExpired = expiresAt && expiresAt.getTime() - Date.now() < 5 * 60 * 1000
+  const isExpired = expiresAt && expiresAt.getTime() - Date.now() < 30 * 60 * 1000
 
   if (!isExpired) {
     return { accessToken, connectionId: conn.id as string }
