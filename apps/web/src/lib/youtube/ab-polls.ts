@@ -50,12 +50,14 @@ export async function insertPollData(
   views: number,
   likes: number,
   source: 'client' | 'cron' = 'client',
-): Promise<void> {
-  await supabase.from('ab_test_polls').insert({
+): Promise<boolean> {
+  const { error } = await supabase.from('ab_test_polls').insert({
     test_id: testId,
     variant_id: variantId,
     views,
     likes,
     source,
   })
+  if (error) console.error(`[ab-polls] insert failed for test=${testId}:`, error.message)
+  return !error
 }

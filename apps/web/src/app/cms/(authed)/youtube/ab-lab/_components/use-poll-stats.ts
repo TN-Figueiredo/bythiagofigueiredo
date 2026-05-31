@@ -45,9 +45,9 @@ export function usePollStats(testId: string, enabled = true) {
     intervalRef.current = setInterval(poll, 60_000)
 
     const onVisibility = () => {
-      if (document.hidden) {
-        if (intervalRef.current) clearInterval(intervalRef.current)
-      } else {
+      if (intervalRef.current) clearInterval(intervalRef.current)
+      intervalRef.current = null
+      if (!document.hidden) {
         poll()
         intervalRef.current = setInterval(poll, 60_000)
       }

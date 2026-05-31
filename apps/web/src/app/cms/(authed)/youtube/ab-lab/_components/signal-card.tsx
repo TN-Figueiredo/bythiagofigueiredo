@@ -30,8 +30,8 @@ export function SignalCard({ live, confirmed }: SignalCardProps) {
             <span className="text-xs font-medium text-green-400 uppercase tracking-wide">Sinal ao vivo</span>
           </div>
           <div className="flex items-baseline gap-4">
-            <Metric label="Views" value={formatDelta(live.viewsDelta)} positive={live.viewsDelta > 0} />
-            <Metric label="Likes" value={formatDelta(live.likesDelta)} positive={live.likesDelta > 0} />
+            <Metric label="Views" value={formatDelta(live.viewsDelta)} delta={live.viewsDelta} />
+            <Metric label="Likes" value={formatDelta(live.likesDelta)} delta={live.likesDelta} />
           </div>
           <FreshnessDot lastUpdated={live.polledAt} label="Views" />
         </div>
@@ -57,9 +57,9 @@ export function SignalCard({ live, confirmed }: SignalCardProps) {
   )
 }
 
-function Metric({ label, value, positive }: { label: string; value: string; positive: boolean }) {
-  const Icon = positive ? TrendingUp : positive === false ? TrendingDown : Minus
-  const color = positive ? 'text-green-400' : 'text-zinc-400'
+function Metric({ label, value, delta }: { label: string; value: string; delta: number }) {
+  const Icon = delta > 0 ? TrendingUp : delta < 0 ? TrendingDown : Minus
+  const color = delta > 0 ? 'text-green-400' : delta < 0 ? 'text-red-400' : 'text-zinc-400'
   return (
     <div className="flex items-center gap-1">
       <Icon className={`h-3 w-3 ${color}`} />

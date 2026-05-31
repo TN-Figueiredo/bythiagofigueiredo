@@ -65,9 +65,11 @@ export function computeDaysRemaining(
   const sumXY = logValues.reduce((s, p) => s + p.x * p.y, 0)
   const sumX2 = logValues.reduce((s, p) => s + p.x * p.x, 0)
 
-  const lambda = -((n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX))
+  const denominator = n * sumX2 - sumX * sumX
+  if (denominator === 0) return { days: 999, model: 'linear' }
+  const lambda = -((n * sumXY - sumX * sumY) / denominator)
 
-  if (lambda < 0.01) {
+  if (lambda < 0.01 || !isFinite(lambda)) {
     const avgDecrease = (last5[0]! - last5[last5.length - 1]!) / (last5.length - 1)
     if (avgDecrease <= 0) return { days: 999, model: 'linear' }
     const current = last5[last5.length - 1]!
@@ -78,5 +80,5 @@ export function computeDaysRemaining(
   const current = last5[last5.length - 1]!
   if (current <= threshold) return { days: 0, model: 'exponential' }
   const days = Math.ceil(Math.log(current / threshold) / lambda)
-  return { days, model: 'exponential' }
+  return { days: Math.max(days, 0), model: 'exponential' }
 }

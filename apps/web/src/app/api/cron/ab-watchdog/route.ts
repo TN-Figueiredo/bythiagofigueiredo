@@ -67,12 +67,13 @@ export async function GET(req: NextRequest) {
   }
 
   // Prune old polls (7-day retention)
-  const supabasePrune = getSupabaseServiceClient()
   const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString()
-  await supabasePrune
+  const pruneClient = getSupabaseServiceClient()
+  const { error: pruneError } = await pruneClient
     .from('ab_test_polls')
     .delete()
     .lt('polled_at', sevenDaysAgo)
+  if (pruneError) console.error('[ab-watchdog] poll prune failed:', pruneError.message)
 
   await recordCronSuccess('ab-watchdog', 'info')
 

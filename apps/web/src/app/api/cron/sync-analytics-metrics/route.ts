@@ -170,12 +170,12 @@ export async function GET(req: NextRequest) {
           .maybeSingle()
 
         if (existing && !(existing as Record<string, unknown>)[ms.column]) {
+          const today = new Date().toISOString().slice(0, 10)
           await supabase
             .from('youtube_video_analytics')
             .update({ [ms.column]: video.view_count })
             .eq('youtube_video_id', video.id)
-            .order('date', { ascending: false })
-            .limit(1)
+            .eq('date', today)
         }
       }
     }
