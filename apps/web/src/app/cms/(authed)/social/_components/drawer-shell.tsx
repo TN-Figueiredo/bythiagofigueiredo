@@ -29,14 +29,14 @@ export function DrawerShell({ children }: DrawerShellProps) {
       )
 
     const elements = focusable()
-    if (elements.length > 0) elements[0].focus()
+    if (elements.length > 0) elements[0]!.focus()
 
     function trapFocus(e: KeyboardEvent) {
       if (e.key !== 'Tab') return
       const elems = focusable()
       if (elems.length === 0) return
-      const first = elems[0]
-      const last = elems[elems.length - 1]
+      const first = elems[0]!
+      const last = elems[elems.length - 1]!
 
       if (e.shiftKey && document.activeElement === first) {
         e.preventDefault()

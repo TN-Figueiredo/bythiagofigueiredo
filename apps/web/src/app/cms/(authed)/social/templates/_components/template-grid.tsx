@@ -18,6 +18,7 @@ const TAB_LABELS: Record<TemplateAspectRatio, string> = {
   '9:16': '9:16 Vertical',
   '1:1': '1:1 Square',
   '16:9': '16:9 Landscape',
+  '4:5': '4:5 Portrait',
 }
 
 export function TemplateGrid({ templates, siteId, onDeleteTemplate, onDuplicateTemplate, onSetDefaultTemplate }: TemplateGridProps) {

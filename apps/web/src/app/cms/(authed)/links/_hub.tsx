@@ -85,7 +85,7 @@ export function LinksHub({ tree, links, analytics, activeTab, latestPost, latest
         open={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onSubmit={async (data) => {
-          const result = await createLink(data)
+          const result = await createLink(data as Parameters<typeof createLink>[0])
           return result
         }}
       />

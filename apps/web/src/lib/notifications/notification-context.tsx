@@ -29,7 +29,7 @@ function latestTimestamp(items: INotification[]): string | null {
   if (items.length === 0) return null
   return items.reduce((max, n) =>
     n.created_at > max ? n.created_at : max,
-    items[0].created_at,
+    items[0]!.created_at,
   )
 }
 

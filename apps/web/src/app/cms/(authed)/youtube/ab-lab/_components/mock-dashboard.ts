@@ -39,6 +39,7 @@ const MOCK_CARDS: AbTestCardView[] = [
     hasPlayoff: false,
     roundNumber: 1,
     createdAt: new Date(Date.now() - 9 * 86400000).toISOString(),
+    statusNote: null,
   },
   {
     id: 'mock-active-2',
@@ -60,6 +61,7 @@ const MOCK_CARDS: AbTestCardView[] = [
     hasPlayoff: true,
     roundNumber: 2,
     createdAt: new Date(Date.now() - 14 * 86400000).toISOString(),
+    statusNote: null,
   },
 ]
 
@@ -96,6 +98,7 @@ const MOCK_COMPLETED: AbTestCardView[] = [
     hasPlayoff: false,
     roundNumber: 1,
     createdAt: new Date(Date.now() - 30 * 86400000).toISOString(),
+    statusNote: null,
   },
   {
     id: 'mock-completed-2',
@@ -116,6 +119,7 @@ const MOCK_COMPLETED: AbTestCardView[] = [
     hasPlayoff: false,
     roundNumber: 1,
     createdAt: new Date(Date.now() - 45 * 86400000).toISOString(),
+    statusNote: null,
   },
   {
     id: 'mock-completed-3',
@@ -137,6 +141,7 @@ const MOCK_COMPLETED: AbTestCardView[] = [
     hasPlayoff: true,
     roundNumber: 2,
     createdAt: new Date(Date.now() - 20 * 86400000).toISOString(),
+    statusNote: null,
   },
 ]
 

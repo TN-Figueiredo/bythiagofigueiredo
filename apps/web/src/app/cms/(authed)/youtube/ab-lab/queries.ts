@@ -798,6 +798,14 @@ export function toDetailView(results: AbTestResults): AbTestDetailView {
   }
   const gates = computeGates(gateInput)
 
+  // Determine which variant is currently on air from the open cycle
+  const openCycle = results.timeline.find(c => !c.ended_at)
+  let activeNow: DisplayLabel | null = null
+  if (openCycle) {
+    const onAirVariant = results.variants.find(v => v.variant_id === openCycle.variant_id)
+    if (onAirVariant) activeNow = toDisplayLabel(onAirVariant.label, onAirVariant.is_original)
+  }
+
   const base = {
     id: test.id,
     videoTitle: test.original_title ?? test.name,
@@ -814,6 +822,7 @@ export function toDetailView(results: AbTestResults): AbTestDetailView {
     totalRounds: test.round_number,
     hasPlayoff: !!test.playoff_test_id,
     gates,
+    activeNow,
   }
 
   // Discriminate by status/outcome

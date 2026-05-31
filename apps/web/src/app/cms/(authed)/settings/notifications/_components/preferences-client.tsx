@@ -234,6 +234,8 @@ export function PreferencesClient({
     []
   )
 
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+
   const handleSave = useCallback(() => {
     startTransition(async () => {
       await savePreferences({
@@ -248,8 +250,6 @@ export function PreferencesClient({
       setSaveStatus('saved')
     })
   }, [channels, preset, cats, quietEnabled, quietStart, quietEnd, timezone])
-
-  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
 
   return (
     <div className="mx-auto w-full max-w-[860px] animate-fade-in">

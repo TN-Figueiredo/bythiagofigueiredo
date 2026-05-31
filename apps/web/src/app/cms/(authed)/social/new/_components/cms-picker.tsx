@@ -56,15 +56,16 @@ export function CMSPicker({ siteId, onSelect }: CMSPickerProps) {
       const results: ContentItem[] = []
       for (let i = 0; i < types.length; i++) {
         const result = fetchResults[i]
-        if (result.ok && result.data) {
+        if (result && result.ok) {
+          const d = result.data
           results.push({
-            id: result.data.contentId,
-            type: types[i],
-            title: result.data.title,
-            excerpt: result.data.excerpt ?? null,
-            imageUrl: result.data.image ?? null,
-            url: result.data.url ?? '',
-            locale: result.data.locale ?? 'pt-BR',
+            id: d.contentId,
+            type: types[i] ?? 'blog',
+            title: d.title,
+            excerpt: d.excerpt ?? null,
+            imageUrl: d.image ?? null,
+            url: d.url ?? '',
+            locale: d.locale ?? 'pt-BR',
           })
         }
       }

@@ -88,7 +88,7 @@ export function EditLinkForm({ linkId, siteId, initial }: EditLinkFormProps) {
     return { ok: true }
   }
 
-  const sourceBadge = SOURCE_BADGE[initial.source_type] ?? SOURCE_BADGE.manual
+  const sourceBadge = (SOURCE_BADGE[initial.source_type] ?? SOURCE_BADGE.manual)!
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>

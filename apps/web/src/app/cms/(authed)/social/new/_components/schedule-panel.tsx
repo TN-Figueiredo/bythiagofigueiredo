@@ -23,7 +23,7 @@ export function SchedulePanel({ selectedDate, selectedTime, onSelectDate, onSele
       const d = new Date(now)
       d.setDate(now.getDate() + i)
       result.push({
-        date: d.toISOString().split('T')[0],
+        date: d.toISOString().split('T')[0]!,
         label: i === 0 ? 'Hoje' : i === 1 ? 'Amanha' : d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }),
         dayName: d.toLocaleDateString('pt-BR', { weekday: 'short' }),
       })

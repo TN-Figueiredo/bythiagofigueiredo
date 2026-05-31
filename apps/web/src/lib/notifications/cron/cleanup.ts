@@ -7,18 +7,16 @@ export async function processCleanup() {
   // Soft expire: set expired_at on old non-dismissed notifications
   const { count: expired } = await supabase
     .from('notifications')
-    .update({ expired_at: new Date().toISOString() })
+    .update({ expired_at: new Date().toISOString() }, { count: 'exact' })
     .is('expired_at', null)
     .lt('created_at', cutoff)
-    .select('id', { count: 'exact', head: true })
 
   // Hard delete: remove expired notifications older than 90 days
   const { count: deleted } = await supabase
     .from('notifications')
-    .delete()
+    .delete({ count: 'exact' })
     .not('expired_at', 'is', null)
     .lt('expired_at', cutoff)
-    .select('id', { count: 'exact', head: true })
 
   return { expired: expired ?? 0, deleted: deleted ?? 0 }
 }

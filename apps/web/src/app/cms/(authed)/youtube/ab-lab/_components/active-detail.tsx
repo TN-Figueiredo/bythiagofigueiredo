@@ -147,7 +147,7 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
           variants={view.variants}
           metric="pBest"
           leaderId={data.leader}
-          activeNow="B"
+          activeNow={view.activeNow ?? undefined}
           thumbs={view.variantThumbs}
           videoTitle={view.videoTitle}
         />

@@ -236,7 +236,7 @@ export function SocialLeftPanel({
           video.src = remoteUrl
         })
         // Set frame as image background, store video URL in metadata
-        setBackground({ type: 'image', url: frameUrl, fallbackColor: '#0a0a0a', blur: 0, mediaType: 'video', videoUrl: remoteUrl })
+        setBackground({ type: 'image', url: frameUrl, fallbackColor: '#0a0a0a', blur: 0, mediaType: 'video' })
       } catch (err) {
         console.error('[Social Canvas] Video bg upload failed:', err)
         setUploadError(err instanceof Error ? err.message : 'Upload failed')
@@ -323,6 +323,11 @@ export function SocialLeftPanel({
                 opacity: 1,
                 src: PLACEHOLDER_SRC,
                 locked: false,
+                maintainAspectRatio: true,
+                objectFit: 'cover',
+                borderRadius: 0,
+                borderColor: '#000000',
+                borderWidth: 0,
               })
               select(id)
             }}
@@ -352,12 +357,15 @@ export function SocialLeftPanel({
                 fontSize: 14,
                 fontFamily: 'Inter',
                 fontWeight: 700,
+                lineHeight: 1.2,
+                letterSpacing: '0em',
                 color: '#FFFFFF',
                 align: 'center',
                 locked: false,
                 backgroundColor: '#E8823C',
                 backgroundRadius: 22,
                 backgroundPadding: 12,
+                uppercase: false,
               })
               select(id)
             }}
@@ -384,6 +392,11 @@ export function SocialLeftPanel({
                 opacity: 0.9,
                 src: PLACEHOLDER_SRC,
                 locked: false,
+                maintainAspectRatio: true,
+                objectFit: 'cover',
+                borderRadius: 0,
+                borderColor: '#000000',
+                borderWidth: 0,
               })
               select(id)
             }}
@@ -411,6 +424,11 @@ export function SocialLeftPanel({
                 opacity: 0.3,
                 src: PLACEHOLDER_SRC,
                 locked: false,
+                maintainAspectRatio: true,
+                objectFit: 'cover',
+                borderRadius: 0,
+                borderColor: '#000000',
+                borderWidth: 0,
               })
               select(id)
             }}

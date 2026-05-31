@@ -390,6 +390,7 @@ export interface AbTestBaseView {
   totalRounds: number
   hasPlayoff: boolean
   gates: GateResult[]
+  activeNow: DisplayLabel | null
 }
 
 export interface AbTestActiveView extends AbTestBaseView {

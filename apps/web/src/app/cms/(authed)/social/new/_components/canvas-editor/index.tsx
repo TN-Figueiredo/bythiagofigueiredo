@@ -572,7 +572,7 @@ export const SocialCanvasEditor = forwardRef<SocialCanvasEditorRef, SocialCanvas
                 onRemoveFrame={(id) => {
                   if (frames.length <= 1) return
                   setFrames(prev => prev.filter(f => f.id !== id))
-                  if (activeFrameId === id) setActiveFrameId(frames[0].id)
+                  if (activeFrameId === id) setActiveFrameId(frames[0]!.id)
                 }}
               />
             )}

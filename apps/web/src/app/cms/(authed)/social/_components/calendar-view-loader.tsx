@@ -4,7 +4,7 @@ import { CalendarWeekView } from './calendar-week-view'
 function getWeekRange(weekStr?: string): { from: string; to: string; weekLabel: string; startDate: Date } {
   let startDate: Date
   if (weekStr && /^\d{4}-W\d{2}$/.test(weekStr)) {
-    const [year, week] = weekStr.split('-W').map(Number)
+    const [year, week] = weekStr.split('-W').map(Number) as [number, number]
     const jan4 = new Date(year, 0, 4)
     const dayOfWeek = jan4.getDay() || 7
     startDate = new Date(jan4)
@@ -42,7 +42,7 @@ function getISOWeeksInYear(year: number): number {
 }
 
 function getPrevWeek(weekLabel: string): string {
-  const [year, week] = weekLabel.split('-W').map(Number)
+  const [year, week] = weekLabel.split('-W').map(Number) as [number, number]
   if (week <= 1) {
     const prevYearWeeks = getISOWeeksInYear(year - 1)
     return `${year - 1}-W${String(prevYearWeeks).padStart(2, '0')}`
@@ -51,7 +51,7 @@ function getPrevWeek(weekLabel: string): string {
 }
 
 function getNextWeek(weekLabel: string): string {
-  const [year, week] = weekLabel.split('-W').map(Number)
+  const [year, week] = weekLabel.split('-W').map(Number) as [number, number]
   const maxWeeks = getISOWeeksInYear(year)
   if (week >= maxWeeks) return `${year + 1}-W01`
   return `${year}-W${String(week + 1).padStart(2, '0')}`
@@ -82,7 +82,7 @@ export async function CalendarViewLoader({ siteId, week }: { siteId: string; wee
   for (let i = 0; i < 7; i++) {
     const d = new Date(startDate)
     d.setDate(startDate.getDate() + i)
-    const dateStr = d.toISOString().split('T')[0]
+    const dateStr = d.toISOString().split('T')[0]!
     days.push({
       date: d,
       dateStr,

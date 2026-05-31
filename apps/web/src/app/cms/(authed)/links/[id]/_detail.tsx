@@ -319,9 +319,9 @@ export function LinkDetail({ link, dailyClicks, topCountry, linkId, shortUrl, qr
     })
   }
 
-  const sourceStyle = SOURCE_COLORS[link.source_type] ?? SOURCE_COLORS.manual
+  const sourceStyle = (SOURCE_COLORS[link.source_type] ?? SOURCE_COLORS.manual)!
   const healthKey = link.health_status ?? 'unchecked'
-  const health = HEALTH_MAP[healthKey] ?? HEALTH_MAP.unchecked
+  const health = (HEALTH_MAP[healthKey] ?? HEALTH_MAP.unchecked)!
 
   return (
     <div style={{ padding: '20px 30px 0' }}>
