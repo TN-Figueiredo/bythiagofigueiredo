@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import type { AbTestActiveView } from '@/lib/youtube/ab-types'
 import { VARIANT_COLORS } from './ab-constants'
 import { InfoTip, VChip } from './ab-primitives'
@@ -16,6 +17,7 @@ import { MultiLine } from './multi-line'
 import { ABBATimeline } from './abba-timeline'
 import { FunnelRow } from './funnel-row'
 import { ClickMoment } from './click-moment'
+import { forceRotate } from '../actions'
 import {
   Pause, Settings,
   LayoutGrid, TrendingUp, Crosshair, Target, BarChart3, LineChart, RefreshCw, Filter,
@@ -28,6 +30,7 @@ export interface ActiveDetailProps {
 const BTN = 'inline-flex items-center gap-[7px] justify-center py-[6px] px-[11px] text-[12.5px] font-semibold rounded-[9px] border border-cms-border whitespace-nowrap transition-[0.15s] tracking-[-0.01em] text-cms-text-dim hover:text-cms-text focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none'
 
 export function ActiveDetail({ view }: ActiveDetailProps) {
+  const router = useRouter()
   const [signal, setSignal] = useState<'confirmed' | 'live'>('confirmed')
 
   const data = signal === 'confirmed' ? view.confirmedData : (view.liveData ?? view.confirmedData)
@@ -105,6 +108,19 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
         </button>
         <button type="button" aria-label="Configurações" className={BTN}>
           <Settings size={14} aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          className={BTN}
+          onClick={async () => {
+            if (!confirm('Forçar rotação agora? A variante atual será trocada imediatamente.')) return
+            const result = await forceRotate(view.id)
+            if (!result.ok) alert(result.error)
+            else router.refresh()
+          }}
+        >
+          <RefreshCw size={14} aria-hidden="true" />
+          Forçar Rotação
         </button>
       </div>
 
