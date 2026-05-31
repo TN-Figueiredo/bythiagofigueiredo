@@ -304,7 +304,7 @@ describe('GET /api/cron/ab-rotate', () => {
     )
   })
 
-  it('auto-pauses on 401 error', async () => {
+  it('tracks failure but stays active on first 401 error', async () => {
     const test = makeTest()
     const { updateCalls } = buildSupabaseMock({ tests: [test] })
     ;(ensureFreshToken as ReturnType<typeof vi.fn>).mockRejectedValue(
@@ -317,16 +317,21 @@ describe('GET /api/cron/ab-rotate', () => {
 
     expect(body.errors).toBe(1)
 
-    // Verify the auto-pause update payload
+    // First failure should NOT pause — only track the failure counter
     expect(updateCalls).toContainEqual(
       expect.objectContaining({
         table: 'ab_tests',
         data: expect.objectContaining({
-          status: 'paused',
-          status_note: expect.stringContaining('token expired'),
+          config: expect.objectContaining({ consecutive_failures: 1 }),
+          status_note: expect.stringContaining('retry 1/3'),
         }),
       })
     )
+    // Should NOT contain a pause update
+    const pauseUpdate = updateCalls.find(
+      (c: { table: string; data: { status?: string } }) => c.table === 'ab_tests' && c.data.status === 'paused'
+    )
+    expect(pauseUpdate).toBeUndefined()
   })
 
   it('uses rotation_pattern from config', async () => {
