@@ -132,7 +132,7 @@ describe('DashboardActivityFeed', () => {
     expect(listItems.length).toBe(5)
   })
 
-  it('shows emoji icons for different resource types', () => {
+  it('shows colored dot indicators for different resource types', () => {
     const items: ActivityFeedItem[] = [
       {
         id: '1',
@@ -154,9 +154,8 @@ describe('DashboardActivityFeed', () => {
     render(<DashboardActivityFeed items={items} />)
 
     const list = screen.getByTestId('activity-feed-list')
-    // Check that emoji icons are present in the content
-    expect(list.textContent).toContain('📝')
-    expect(list.textContent).toContain('📨')
+    const dots = list.querySelectorAll('.rounded-full')
+    expect(dots.length).toBe(2)
   })
 
   it('falls back to action string when unknown', () => {

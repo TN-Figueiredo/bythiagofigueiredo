@@ -192,13 +192,48 @@ export function LeftPanel({ comp, interaction, onImageUpload, customPresets = []
   const handleAddCarimbo = useCallback(() => {
     if (composition.elements.length >= MAX_ELEMENTS) return
     const id = crypto.randomUUID()
-    const el = createTextElement(id, composition.canvas.width, composition.canvas.height, 'Carimbo TF')
+    const cx = composition.canvas.width / 2
+    const cy = composition.canvas.height / 2
+    const size = 80
+    addElement({
+      id,
+      type: 'image' as const,
+      name: '__stamp:monogram',
+      src: '/brand/monogram-dark-bg.svg',
+      x: cx - size / 2,
+      y: cy - size / 2,
+      width: size,
+      height: size,
+      rotation: 0,
+      opacity: 1,
+      locked: false,
+      objectFit: 'cover' as const,
+      borderRadius: 40,
+      borderWidth: 0,
+      borderColor: '#000000',
+      maintainAspectRatio: true,
+    })
+    select(id)
+  }, [composition, addElement, select])
+
+  const handleAddButton = useCallback(() => {
+    if (composition.elements.length >= MAX_ELEMENTS) return
+    const id = crypto.randomUUID()
+    const el = createTextElement(id, composition.canvas.width, composition.canvas.height, 'Botão')
     addElement({
       ...el,
-      fontFamily: 'Fraunces',
+      name: '__button:cta',
+      content: 'LER MAIS',
+      fontFamily: 'Inter',
       fontSize: 14,
+      fontWeight: 700,
       uppercase: true,
-      content: 'CARIMBO',
+      color: '#FFFFFF',
+      backgroundColor: '#1F1B17',
+      backgroundPadding: 12,
+      backgroundRadius: 8,
+      align: 'center' as const,
+      letterSpacing: '0.05em',
     })
     select(id)
   }, [composition, addElement, select])
@@ -232,7 +267,7 @@ export function LeftPanel({ comp, interaction, onImageUpload, customPresets = []
   const brandButtons = [
     { label: 'QR', icon: QrCode, handler: handleAddQr, title: 'QR Code — Aponta pro seu link' },
     { label: 'Carimbo', icon: Type, handler: handleAddCarimbo, title: 'Carimbo TF — Selo da marca' },
-    { label: 'Botão', icon: Link2, handler: handleAddText, title: 'Botão / CTA — Chamada visual (Aponte a câmera)' },
+    { label: 'Botão', icon: Link2, handler: handleAddButton, title: 'Botão / CTA — Chamada visual (Aponte a câmera)' },
   ] as const
 
   return (
@@ -256,8 +291,11 @@ export function LeftPanel({ comp, interaction, onImageUpload, customPresets = []
         }
       `}</style>
       <aside
-        className="shrink-0 overflow-y-auto flex flex-col"
         style={{
+          flexShrink: 0,
+          overflowY: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
           width: 248,
           background: 'var(--bg-side)',
           borderRight: '1px solid var(--line)',
@@ -266,8 +304,14 @@ export function LeftPanel({ comp, interaction, onImageUpload, customPresets = []
       >
         {/* ── FORMATO ── */}
         <h3
-          className="text-[10px] font-semibold uppercase tracking-wider"
-          style={{ color: 'var(--ink-dim)', marginBottom: 10 }}
+          style={{
+            fontSize: 10,
+            fontWeight: 600,
+            textTransform: 'uppercase',
+            letterSpacing: '0.08em',
+            color: 'var(--ink-dim)',
+            marginBottom: 10,
+          }}
         >
           Formato
         </h3>
@@ -291,7 +335,7 @@ export function LeftPanel({ comp, interaction, onImageUpload, customPresets = []
                 }}
               >
                 <div style={{ fontSize: '11.5px', fontWeight: 600 }}>{preset.label}</div>
-                <div className="font-mono" style={{ fontSize: '8.5px', marginTop: 2, opacity: 0.8 }}>
+                <div style={{ fontFamily: 'monospace', fontSize: '8.5px', marginTop: 2, opacity: 0.8 }}>
                   {preset.name === 'custom' ? 'livre' : `${preset.width}×${preset.height}`}
                 </div>
               </button>
@@ -300,15 +344,17 @@ export function LeftPanel({ comp, interaction, onImageUpload, customPresets = []
         </div>
 
         {activePreset === 'custom' && (
-          <div className="flex gap-2 mt-2">
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
             <input
               type="number"
               min={200}
               max={4096}
               value={composition.canvas.width}
               onChange={e => setCanvas({ ...composition.canvas, width: Number(e.target.value) })}
-              className="w-1/2 px-2 py-1 text-[11px]"
               style={{
+                width: '50%',
+                padding: '0 8px',
+                fontSize: 11,
                 background: 'var(--surface-2)',
                 border: '1px solid var(--line)',
                 borderRadius: 'var(--r)',
@@ -316,15 +362,17 @@ export function LeftPanel({ comp, interaction, onImageUpload, customPresets = []
               }}
               aria-label="Width"
             />
-            <span className="self-center" style={{ color: 'var(--ink-faint)' }}>&times;</span>
+            <span style={{ alignSelf: 'center', color: 'var(--ink-faint)' }}>&times;</span>
             <input
               type="number"
               min={200}
               max={4096}
               value={composition.canvas.height}
               onChange={e => setCanvas({ ...composition.canvas, height: Number(e.target.value) })}
-              className="w-1/2 px-2 py-1 text-[11px]"
               style={{
+                width: '50%',
+                padding: '0 8px',
+                fontSize: 11,
                 background: 'var(--surface-2)',
                 border: '1px solid var(--line)',
                 borderRadius: 'var(--r)',
@@ -336,7 +384,7 @@ export function LeftPanel({ comp, interaction, onImageUpload, customPresets = []
         )}
 
         {hint && (
-          <div className="flex items-start gap-1.5" style={{ marginTop: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginTop: 8 }}>
             <Info size={12} style={{ color: 'var(--ink-faint)', marginTop: 1, flexShrink: 0 }} />
             <span style={{ fontSize: 11, color: 'var(--ink-faint)' }}>{hint}</span>
           </div>
@@ -362,7 +410,7 @@ export function LeftPanel({ comp, interaction, onImageUpload, customPresets = []
                     }}
                   >
                     <div style={{ fontSize: '11.5px', fontWeight: 600 }}>{cp.name}</div>
-                    <div className="font-mono" style={{ fontSize: '8.5px', marginTop: 2, opacity: 0.8 }}>
+                    <div style={{ fontFamily: 'monospace', fontSize: '8.5px', marginTop: 2, opacity: 0.8 }}>
                       {cp.width}×{cp.height}
                     </div>
                   </button>
@@ -487,8 +535,14 @@ export function LeftPanel({ comp, interaction, onImageUpload, customPresets = []
 
         {/* ── ADICIONAR ── */}
         <h3
-          className="text-[10px] font-semibold uppercase tracking-wider"
-          style={{ color: 'var(--ink-dim)', marginBottom: 10 }}
+          style={{
+            fontSize: 10,
+            fontWeight: 600,
+            textTransform: 'uppercase',
+            letterSpacing: '0.08em',
+            color: 'var(--ink-dim)',
+            marginBottom: 10,
+          }}
         >
           Adicionar
         </h3>
@@ -554,8 +608,14 @@ export function LeftPanel({ comp, interaction, onImageUpload, customPresets = []
 
         {/* ── FUNDO ── */}
         <h3
-          className="text-[10px] font-semibold uppercase tracking-wider"
-          style={{ color: 'var(--ink-dim)', marginBottom: 10 }}
+          style={{
+            fontSize: 10,
+            fontWeight: 600,
+            textTransform: 'uppercase',
+            letterSpacing: '0.08em',
+            color: 'var(--ink-dim)',
+            marginBottom: 10,
+          }}
         >
           Fundo
         </h3>
@@ -635,11 +695,13 @@ export function LeftPanel({ comp, interaction, onImageUpload, customPresets = []
 
         {/* Image tab */}
         {bgTab === 'image' && (
-          <div className="space-y-2" style={{ marginTop: 10 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
             {bg.type === 'image' && bg.url && bg.mediaType !== 'video' && (
               <div
-                className="h-14 bg-cover bg-center"
                 style={{
+                  height: 56,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
                   borderRadius: 'var(--r)',
                   background: `var(--surface-2) url(${bg.url}) center/cover`,
                 }}
@@ -672,8 +734,11 @@ export function LeftPanel({ comp, interaction, onImageUpload, customPresets = []
                 }
                 input.click()
               }}
-              className="qr-left-upload w-full py-2 text-[11px]"
+              className="qr-left-upload"
               style={{
+                width: '100%',
+                padding: '8px 0',
+                fontSize: 11,
                 border: '1px dashed var(--ink-faint)',
                 borderRadius: 'var(--r)',
                 color: 'var(--ink-dim)',
@@ -687,11 +752,14 @@ export function LeftPanel({ comp, interaction, onImageUpload, customPresets = []
 
         {/* Video tab */}
         {bgTab === 'video' && (
-          <div className="space-y-2" style={{ marginTop: 10 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
             {bg.type === 'image' && bg.url && bg.mediaType === 'video' && (
               <div
-                className="h-14 flex items-center justify-center"
                 style={{
+                  height: 56,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                   borderRadius: 'var(--r)',
                   background: 'var(--surface-2)',
                   color: 'var(--ink-dim)',
@@ -729,8 +797,11 @@ export function LeftPanel({ comp, interaction, onImageUpload, customPresets = []
                 }
                 input.click()
               }}
-              className="qr-left-upload w-full py-2 text-[11px]"
+              className="qr-left-upload"
               style={{
+                width: '100%',
+                padding: '8px 0',
+                fontSize: 11,
                 border: '1px dashed var(--ink-faint)',
                 borderRadius: 'var(--r)',
                 color: 'var(--ink-dim)',
@@ -744,34 +815,34 @@ export function LeftPanel({ comp, interaction, onImageUpload, customPresets = []
 
         {/* Gradient tab */}
         {bgTab === 'gradient' && bg.type === 'gradient' && (
-          <div className="space-y-2" style={{ marginTop: 10 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
             <div
-              className="h-8"
               style={{
+                height: 32,
                 borderRadius: 'var(--r)',
                 background: `linear-gradient(${bg.angle}deg, ${bg.stops.map(s => `${s.color} ${s.position * 100}%`).join(', ')})`,
               }}
             />
-            <div className="flex items-center gap-2">
-              <span className="text-[10px]" style={{ color: 'var(--ink-faint)' }}>Ângulo</span>
-              <input type="range" min={0} max={360} value={bg.angle} onChange={e => handleGradientAngle(Number(e.target.value))} className="flex-1" />
-              <span className="text-[10px] w-8 text-right" style={{ color: 'var(--ink-dim)' }}>{bg.angle}&deg;</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 10, color: 'var(--ink-faint)' }}>Ângulo</span>
+              <input type="range" min={0} max={360} value={bg.angle} onChange={e => handleGradientAngle(Number(e.target.value))} style={{ flex: 1 }} />
+              <span style={{ fontSize: 10, width: 32, textAlign: 'right', color: 'var(--ink-dim)' }}>{bg.angle}&deg;</span>
             </div>
             {bg.stops.map((stop, i) => (
-              <div key={i} className="flex items-center gap-2">
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <ColorPicker value={stop.color} onChange={c => {
                   const stops = [...bg.stops]
                   stops[i] = { ...stop, color: c }
                   setBackground({ ...bg, stops })
                 }} />
-                <span className="text-[10px]" style={{ color: 'var(--ink-dim)' }}>{Math.round(stop.position * 100)}%</span>
+                <span style={{ fontSize: 10, color: 'var(--ink-dim)' }}>{Math.round(stop.position * 100)}%</span>
               </div>
             ))}
           </div>
         )}
 
         {/* ── CAMADAS ── */}
-        <section className="mt-4 flex-1">
+        <section style={{ marginTop: 16, flex: 1 }}>
           <LayersPanel
             elements={composition.elements}
             selectedIds={selectedIds}

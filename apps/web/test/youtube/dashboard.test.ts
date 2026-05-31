@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { getPinState, formatCount, timeAgo, daysLeft } from '@/app/cms/(authed)/youtube/dashboard-connected'
+import { getPinState, formatCount, timeAgo, daysLeft, bustCache } from '@/app/cms/(authed)/youtube/dashboard-connected'
 import type { PinnedVideo } from '@/app/cms/(authed)/youtube/dashboard-connected'
 
 function makePinned(pinnedUntil: string): PinnedVideo {
@@ -80,5 +80,25 @@ describe('daysLeft', () => {
   it('returns 0 or negative for past dates', () => {
     const past = new Date(Date.now() - 86_400_000).toISOString()
     expect(daysLeft(past)).toBeLessThanOrEqual(0)
+  })
+})
+
+describe('bustCache', () => {
+  it('returns null when url is null', () => {
+    expect(bustCache(null, '2026-05-30T12:00:00Z')).toBeNull()
+  })
+
+  it('returns url unchanged when syncedAt is null', () => {
+    expect(bustCache('https://yt3.ggpht.com/avatar', null)).toBe('https://yt3.ggpht.com/avatar')
+  })
+
+  it('appends _v query param with syncedAt value', () => {
+    const result = bustCache('https://yt3.ggpht.com/avatar', '2026-05-30T12:00:00Z')
+    expect(result).toBe('https://yt3.ggpht.com/avatar?_v=2026-05-30T12%3A00%3A00Z')
+  })
+
+  it('uses & separator when url already contains query params', () => {
+    const result = bustCache('https://yt3.ggpht.com/avatar?s=120', '2026-05-30T12:00:00Z')
+    expect(result).toBe('https://yt3.ggpht.com/avatar?s=120&_v=2026-05-30T12%3A00%3A00Z')
   })
 })

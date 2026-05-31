@@ -1,7 +1,7 @@
 'use server'
 
 import { z } from 'zod'
-import { revalidateTag } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
@@ -43,6 +43,7 @@ export async function createCategory(input: z.infer<typeof CategorySchema>) {
 
   if (error) return { ok: false as const, error: error.message }
   revalidateTag('youtube')
+  revalidatePath('/cms/youtube/categories')
   return { ok: true as const }
 }
 
@@ -57,6 +58,7 @@ export async function updateCategory(id: string, input: z.infer<typeof CategoryS
 
   if (error) return { ok: false as const, error: error.message }
   revalidateTag('youtube')
+  revalidatePath('/cms/youtube/categories')
   return { ok: true as const }
 }
 
@@ -69,6 +71,7 @@ export async function deleteCategory(id: string) {
 
   if (error) return { ok: false as const, error: error.message }
   revalidateTag('youtube')
+  revalidatePath('/cms/youtube/categories')
   return { ok: true as const }
 }
 
@@ -83,5 +86,6 @@ export async function reorderCategories(orderedIds: string[]) {
   }
 
   revalidateTag('youtube')
+  revalidatePath('/cms/youtube/categories')
   return { ok: true as const }
 }

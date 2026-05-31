@@ -8,7 +8,6 @@ const REDIRECTED_SOURCES = [
   '/cms/pipeline/research',
   '/cms/pipeline/reference',
   '/cms/pipeline/audio',
-  '/cms/linktree',
 ]
 
 const REWRITE_MAP: Record<string, string> = {
@@ -18,7 +17,6 @@ const REWRITE_MAP: Record<string, string> = {
   '/cms/library/research': '/cms/pipeline/research',
   '/cms/library/reference': '/cms/pipeline/reference',
   '/cms/library/audio': '/cms/pipeline/audio',
-  '/cms/link-in-bio': '/cms/linktree',
 }
 
 describe('URL migration guardrails', () => {
@@ -44,7 +42,6 @@ describe('URL migration guardrails', () => {
     const redirectDestinations = [
       '/cms/up-next', '/cms/video', '/cms/courses',
       '/cms/library/research', '/cms/library/reference', '/cms/library/audio',
-      '/cms/link-in-bio',
     ]
     const rewriteSources = Object.keys(REWRITE_MAP)
     expect(rewriteSources.sort()).toEqual(redirectDestinations.sort())

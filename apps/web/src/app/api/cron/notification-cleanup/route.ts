@@ -1,6 +1,6 @@
 import { withCronLock, newRunId } from '../../../../../lib/logger'
 import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
-import { processCleanup } from '../../../../../lib/notifications/cron/cleanup'
+import { processCleanup } from '@/lib/notifications/cron/cleanup'
 
 const JOB = 'notification-cleanup'
 const LOCK_KEY = 'cron:notification-cleanup'

@@ -95,7 +95,7 @@ describe('fetchVideoDetails', () => {
 describe('fetchChannelStats', () => {
   beforeEach(() => { vi.restoreAllMocks() })
 
-  it('returns subscriber and video counts', async () => {
+  it('returns stats with null thumbnail/banner when only statistics present', async () => {
     const mockResponse = {
       items: [{
         statistics: { subscriberCount: '4200', videoCount: '48' },
@@ -106,7 +106,70 @@ describe('fetchChannelStats', () => {
     )
 
     const stats = await fetchChannelStats('UCtest', 'test-key')
-    expect(stats).toEqual({ subscriberCount: 4200, videoCount: 48 })
+    expect(stats).toEqual({ subscriberCount: 4200, videoCount: 48, thumbnailUrl: null, bannerUrl: null })
+  })
+
+  it('extracts thumbnail and banner when present', async () => {
+    const mockResponse = {
+      items: [{
+        snippet: { thumbnails: { medium: { url: 'https://yt3.ggpht.com/avatar' } } },
+        statistics: { subscriberCount: '100', videoCount: '10' },
+        brandingSettings: { image: { bannerExternalUrl: 'https://yt3.ggpht.com/banner' } },
+      }],
+    }
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(JSON.stringify(mockResponse), { status: 200 }),
+    )
+
+    const stats = await fetchChannelStats('UCtest', 'test-key')
+    expect(stats).toEqual({
+      subscriberCount: 100,
+      videoCount: 10,
+      thumbnailUrl: 'https://yt3.ggpht.com/avatar',
+      bannerUrl: 'https://yt3.ggpht.com/banner',
+    })
+  })
+
+  it('returns zeroed defaults when items array is empty', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(JSON.stringify({ items: [] }), { status: 200 }),
+    )
+    const stats = await fetchChannelStats('UCgone', 'test-key')
+    expect(stats).toEqual({ subscriberCount: 0, videoCount: 0, thumbnailUrl: null, bannerUrl: null })
+  })
+
+  it('returns zeroed defaults when items is undefined', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(JSON.stringify({}), { status: 200 }),
+    )
+    const stats = await fetchChannelStats('UCgone', 'test-key')
+    expect(stats).toEqual({ subscriberCount: 0, videoCount: 0, thumbnailUrl: null, bannerUrl: null })
+  })
+
+  it('returns null thumbnailUrl when snippet exists but thumbnails.medium is missing', async () => {
+    const mockResponse = {
+      items: [{
+        snippet: { thumbnails: {} },
+        statistics: { subscriberCount: '50', videoCount: '3' },
+      }],
+    }
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(JSON.stringify(mockResponse), { status: 200 }),
+    )
+    const stats = await fetchChannelStats('UCtest', 'test-key')
+    expect(stats.thumbnailUrl).toBeNull()
+    expect(stats.subscriberCount).toBe(50)
+  })
+
+  it('requests snippet, statistics, and brandingSettings parts', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(JSON.stringify({ items: [{ statistics: {} }] }), { status: 200 }),
+    )
+
+    await fetchChannelStats('UCtest', 'test-key')
+
+    const url = new URL(fetchSpy.mock.calls[0][0] as string)
+    expect(url.searchParams.get('part')).toBe('snippet,statistics,brandingSettings')
   })
 })
 
@@ -148,7 +211,7 @@ describe('ytFetch retry behavior', () => {
       .mockResolvedValueOnce(new Response(JSON.stringify(okResponse), { status: 200 }))
 
     const stats = await drainTimers(fetchChannelStats('UCtest', 'test-key'))
-    expect(stats).toEqual({ subscriberCount: 100, videoCount: 5 })
+    expect(stats).toEqual({ subscriberCount: 100, videoCount: 5, thumbnailUrl: null, bannerUrl: null })
     expect(fetchSpy).toHaveBeenCalledTimes(2)
   })
 

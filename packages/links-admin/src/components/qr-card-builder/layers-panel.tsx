@@ -1,6 +1,6 @@
 'use client'
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { GripVertical, Lock, Type, Image, QrCode, LayoutTemplate, ChevronUp, ChevronDown, ChevronsUp, ChevronsDown, Pencil } from 'lucide-react'
+import { GripVertical, Lock, Type, Image, QrCode, LayoutTemplate, ChevronUp, ChevronDown, ChevronsUp, ChevronsDown, Pencil, FileText, Stamp } from 'lucide-react'
 import type { CardElement } from '@tn-figueiredo/links/qr'
 import { isShapeElement } from './shape-inspector'
 
@@ -15,19 +15,33 @@ interface LayersPanelProps {
 function elementIcon(el: CardElement) {
   switch (el.type) {
     case 'qr': return <QrCode size={14} />
-    case 'text': return isShapeElement(el) ? <LayoutTemplate size={14} /> : <Type size={14} />
-    case 'image': return <Image size={14} />
+    case 'text': {
+      if (isShapeElement(el)) return <LayoutTemplate size={14} />
+      if (el.name?.startsWith('__button:')) return <FileText size={14} />
+      return <Type size={14} />
+    }
+    case 'image': {
+      if (el.name?.startsWith('__stamp:')) return <Stamp size={14} />
+      return <Image size={14} />
+    }
     default: return null
   }
 }
 
 function elementLabel(el: CardElement): string {
-  if (el.name) return el.name
+  if (el.name && !el.name.startsWith('__')) return el.name
   switch (el.type) {
     case 'qr': return 'QR Code'
-    case 'text': return el.content.startsWith('__shape:') ? 'Forma' : (el.content.slice(0, 20) || 'Text')
-    case 'image': return 'Image'
-    default: return 'Element'
+    case 'text': {
+      if (el.content.startsWith('__shape:')) return 'Forma'
+      if (el.name?.startsWith('__button:')) return 'Botão'
+      return el.content.slice(0, 20) || 'Texto'
+    }
+    case 'image': {
+      if (el.name?.startsWith('__stamp:')) return 'Carimbo'
+      return 'Imagem'
+    }
+    default: return 'Elemento'
   }
 }
 
@@ -57,8 +71,12 @@ function InlineRename({ value, onCommit, onCancel }: { value: string; onCommit: 
         if (e.key === 'Escape') onCancel()
       }}
       onClick={e => e.stopPropagation()}
-      className="flex-1 px-1 py-0 text-[11px] outline-none min-w-0"
       style={{
+        flex: 1,
+        padding: '0 4px',
+        fontSize: 11,
+        outline: 'none',
+        minWidth: 0,
         background: 'var(--surface)',
         border: '1px solid var(--accent)',
         borderRadius: 'var(--r)',
@@ -126,24 +144,28 @@ export function LayersPanel({ elements, selectedIds, onSelect, onReorder, onUpda
           color: var(--ink) !important;
         }
       `}</style>
-      <div className="space-y-0.5">
-        <div className="flex items-center justify-between px-2 py-1">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 8px' }}>
           <span
-            className="text-[10px] font-semibold uppercase tracking-wider"
-            style={{ color: 'var(--ink-dim)' }}
+            style={{
+              fontSize: 10,
+              fontWeight: 600,
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              color: 'var(--ink-dim)',
+            }}
           >
-            Layers
+            Camadas
           </span>
-          <span className="text-[10px]" style={{ color: 'var(--ink-faint)' }}>
+          <span style={{ fontSize: 10, color: 'var(--ink-faint)' }}>
             {elements.length}
           </span>
         </div>
         {reversed.length === 0 && (
           <p
-            className="px-2 py-3 text-[11px] text-center"
-            style={{ color: 'var(--ink-faint)' }}
+            style={{ padding: '12px 8px', fontSize: 11, textAlign: 'center', color: 'var(--ink-faint)' }}
           >
-            No elements yet
+            Nenhum elemento
           </p>
         )}
         {reversed.map((el, displayIdx) => {
@@ -165,10 +187,16 @@ export function LayersPanel({ elements, selectedIds, onSelect, onReorder, onUpda
               onDragEnd={handleDragEnd}
               onClick={() => onSelect(el.id)}
               onDoubleClick={() => setEditingId(el.id)}
-              className={`flex items-center gap-1 px-1.5 py-1.5 text-[11px] cursor-pointer transition-colors ${
-                isDragging ? 'opacity-40' : ''
-              } ${!isSelected && !isEditing ? 'qr-layer-row' : ''}`}
+              className={!isSelected && !isEditing ? 'qr-layer-row' : undefined}
               style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '6px 6px',
+                fontSize: 11,
+                cursor: 'pointer',
+                transition: 'color 0.15s',
+                opacity: isDragging ? 0.4 : undefined,
                 borderRadius: 'var(--r)',
                 outline: isOver ? '1px solid var(--accent)' : undefined,
                 background: isSelected ? 'var(--accent-soft)' : 'transparent',
@@ -177,8 +205,7 @@ export function LayersPanel({ elements, selectedIds, onSelect, onReorder, onUpda
             >
               <GripVertical
                 size={12}
-                className="shrink-0 cursor-grab"
-                style={{ color: 'var(--ink-faint)' }}
+                style={{ flexShrink: 0, cursor: 'grab', color: 'var(--ink-faint)' }}
               />
               {elementIcon(el)}
               {isEditing ? (
@@ -189,26 +216,26 @@ export function LayersPanel({ elements, selectedIds, onSelect, onReorder, onUpda
                 />
               ) : (
                 <>
-                  <span className="flex-1 truncate">{elementLabel(el)}</span>
+                  <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{elementLabel(el)}</span>
                   {isSelected && (
                     <button
                       type="button"
                       onClick={e => { e.stopPropagation(); setEditingId(el.id) }}
-                      className="qr-layer-action p-0.5"
-                      style={{ color: 'var(--ink-faint)' }}
-                      title="Rename"
+                      className="qr-layer-action"
+                      style={{ padding: 2, color: 'var(--ink-faint)' }}
+                      title="Renomear"
                     >
                       <Pencil size={10} />
                     </button>
                   )}
                 </>
               )}
-              <div className="flex items-center">
+              <div style={{ display: 'flex', alignItems: 'center' }}>
                 <button
                   type="button"
                   onClick={e => { e.stopPropagation(); if (!isTop) onReorder(realIdx, elements.length - 1) }}
-                  className="qr-layer-action p-0.5 disabled:opacity-20"
-                  style={{ color: 'var(--ink-faint)' }}
+                  className="qr-layer-action"
+                  style={{ padding: 2, color: 'var(--ink-faint)', opacity: isTop ? 0.2 : undefined }}
                   disabled={isTop}
                   aria-label="Send to front"
                   title="Send to front"
@@ -218,8 +245,8 @@ export function LayersPanel({ elements, selectedIds, onSelect, onReorder, onUpda
                 <button
                   type="button"
                   onClick={e => { e.stopPropagation(); if (!isTop) onReorder(realIdx, realIdx + 1) }}
-                  className="qr-layer-action p-0.5 disabled:opacity-20"
-                  style={{ color: 'var(--ink-faint)' }}
+                  className="qr-layer-action"
+                  style={{ padding: 2, color: 'var(--ink-faint)', opacity: isTop ? 0.2 : undefined }}
                   disabled={isTop}
                   aria-label="Move up"
                   title="Bring forward"
@@ -229,8 +256,8 @@ export function LayersPanel({ elements, selectedIds, onSelect, onReorder, onUpda
                 <button
                   type="button"
                   onClick={e => { e.stopPropagation(); if (!isBottom) onReorder(realIdx, realIdx - 1) }}
-                  className="qr-layer-action p-0.5 disabled:opacity-20"
-                  style={{ color: 'var(--ink-faint)' }}
+                  className="qr-layer-action"
+                  style={{ padding: 2, color: 'var(--ink-faint)', opacity: isBottom ? 0.2 : undefined }}
                   disabled={isBottom}
                   aria-label="Move down"
                   title="Send backward"
@@ -240,8 +267,8 @@ export function LayersPanel({ elements, selectedIds, onSelect, onReorder, onUpda
                 <button
                   type="button"
                   onClick={e => { e.stopPropagation(); if (!isBottom) onReorder(realIdx, 0) }}
-                  className="qr-layer-action p-0.5 disabled:opacity-20"
-                  style={{ color: 'var(--ink-faint)' }}
+                  className="qr-layer-action"
+                  style={{ padding: 2, color: 'var(--ink-faint)', opacity: isBottom ? 0.2 : undefined }}
                   disabled={isBottom}
                   aria-label="Send to back"
                   title="Send to back"
@@ -251,8 +278,8 @@ export function LayersPanel({ elements, selectedIds, onSelect, onReorder, onUpda
                 <button
                   type="button"
                   onClick={e => { e.stopPropagation(); onUpdateElement(el.id, { locked: !el.locked }) }}
-                  className="qr-layer-lock p-0.5 ml-0.5"
-                  style={{ color: el.locked ? 'var(--amber)' : 'var(--ink-faint)' }}
+                  className="qr-layer-lock"
+                  style={{ padding: 2, marginLeft: 2, color: el.locked ? 'var(--amber)' : 'var(--ink-faint)' }}
                   aria-label={el.locked ? 'Unlock' : 'Lock'}
                 >
                   <Lock size={11} />

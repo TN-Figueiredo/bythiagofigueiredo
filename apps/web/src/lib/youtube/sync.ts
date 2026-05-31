@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { fetchRecentVideoIds, fetchVideoDetails, fetchChannelStats, YouTubeQuotaError } from './api-client'
+import { fetchRecentVideoIds, fetchVideoDetails, fetchChannelStats, lookupChannelByHandle, YouTubeQuotaError } from './api-client'
 import { autoCategorize } from './auto-categorize'
 import type { YouTubeChannelRow, YouTubeCategoryRow, SyncMode } from './types'
 
@@ -22,12 +22,45 @@ export async function syncChannel(
     return refreshMetrics(supabase, channel, apiKey, result)
   }
 
-  const videoIds = await fetchRecentVideoIds(channel.uploads_playlist_id, apiKey)
+  let activeChannel = channel
+  let videoIds: string[]
+  try {
+    videoIds = await fetchRecentVideoIds(activeChannel.uploads_playlist_id, apiKey)
+  } catch (err) {
+    if (err instanceof Error && err.message.includes('404')) {
+      const fresh = await lookupChannelByHandle(activeChannel.handle, apiKey)
+      result.quotaUsed += 1
+      if (!fresh) throw new Error(`Channel not found on YouTube: ${activeChannel.handle}`)
+      await supabase.from('youtube_channels').update({
+        channel_id: fresh.channelId,
+        uploads_playlist_id: fresh.uploadsPlaylistId,
+        name: fresh.name,
+        thumbnail_url: fresh.thumbnailUrl,
+        banner_url: fresh.bannerUrl,
+        subscriber_count: fresh.subscriberCount,
+        video_count: fresh.videoCount,
+        custom_url: fresh.customUrl,
+        last_synced_at: new Date().toISOString(),
+      }).eq('id', activeChannel.id)
+      activeChannel = { ...activeChannel, channel_id: fresh.channelId, uploads_playlist_id: fresh.uploadsPlaylistId }
+      try {
+        videoIds = await fetchRecentVideoIds(activeChannel.uploads_playlist_id, apiKey)
+      } catch (retryErr) {
+        if (retryErr instanceof Error && retryErr.message.includes('404')) {
+          videoIds = []
+        } else {
+          throw retryErr
+        }
+      }
+    } else {
+      throw err
+    }
+  }
   result.quotaUsed += Math.ceil(videoIds.length / 50) || 1
   result.videosFound = videoIds.length
 
   if (videoIds.length === 0) {
-    await updateChannelMeta(supabase, channel, apiKey, result)
+    await updateChannelMeta(supabase, activeChannel, apiKey, result)
     return result
   }
 
@@ -43,7 +76,7 @@ export async function syncChannel(
   const newIds = videoIds.filter((id) => !existingIds.has(id))
 
   if (newIds.length === 0) {
-    await updateChannelMeta(supabase, channel, apiKey, result)
+    await updateChannelMeta(supabase, activeChannel, apiKey, result)
     return result
   }
 
@@ -109,6 +142,8 @@ async function updateChannelMeta(
     subscriber_count: stats.subscriberCount,
     video_count: stats.videoCount,
     last_synced_at: new Date().toISOString(),
+    ...(stats.thumbnailUrl ? { thumbnail_url: stats.thumbnailUrl } : {}),
+    ...(stats.bannerUrl ? { banner_url: stats.bannerUrl } : {}),
   }).eq('id', channel.id)
 
   if (updateErr) throw new Error(`Failed to update channel metadata: ${updateErr.message}`)

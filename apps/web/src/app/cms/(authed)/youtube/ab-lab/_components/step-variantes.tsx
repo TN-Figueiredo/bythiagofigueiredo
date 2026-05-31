@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useId } from 'react'
-import { Lock, Plus, Trash2, Sparkles, Video, ImageIcon, ChevronDown, Link2 } from 'lucide-react'
+import { useState, useRef, useCallback, useId } from 'react'
+import { Lock, Plus, Trash2, Sparkles, Video, ImageIcon, ChevronDown, Link2, AlignLeft } from 'lucide-react'
 import type { TestType, DisplayLabel } from '@/lib/youtube/ab-types'
 import { VChip, Badge } from './ab-primitives'
 import { VARIANT_COLORS } from './ab-constants'
@@ -14,6 +14,8 @@ export interface VariantData {
   label: DisplayLabel
   isOriginal: boolean
   thumbUrl: string | null
+  thumbFile?: File | null
+  thumbDataUrl?: string | null
   titleText: string
   descriptionText: string
   isCoworkGenerated?: boolean
@@ -42,6 +44,22 @@ const showsDescription = (type: TestType) => type === 'description' || type === 
 
 const MAX_CHALLENGERS = 3 // B, C, D
 
+function fileToDataUrl(file: File, maxWidth = 640): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => {
+      const scale = Math.min(1, maxWidth / img.width)
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.round(img.width * scale)
+      canvas.height = Math.round(img.height * scale)
+      canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height)
+      resolve(canvas.toDataURL('image/jpeg', 0.8))
+      URL.revokeObjectURL(img.src)
+    }
+    img.src = URL.createObjectURL(file)
+  })
+}
+
 const VARIANT_ROLE_LABELS: Record<string, string> = {
   hero: 'Hero',
   challenger: 'Challenger',
@@ -56,13 +74,41 @@ interface ThumbSlotProps {
   url: string | null
   locked?: boolean
   label: DisplayLabel
+  onFileSelect?: (file: File) => void
 }
 
-function ThumbSlot({ url, locked, label }: ThumbSlotProps) {
+function ThumbSlot({ url, locked, label, onFileSelect }: ThumbSlotProps) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [dragOver, setDragOver] = useState(false)
+
+  const handleFile = useCallback((file: File) => {
+    const allowed = ['image/jpeg', 'image/png', 'image/webp']
+    if (!allowed.includes(file.type)) return
+    onFileSelect?.(file)
+  }, [onFileSelect])
+
+  const handleClick = () => inputRef.current?.click()
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    setDragOver(false)
+    const file = e.dataTransfer.files[0]
+    if (file) handleFile(file)
+  }, [handleFile])
+
+  const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); setDragOver(true) }
+  const handleDragLeave = () => setDragOver(false)
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) handleFile(file)
+    e.target.value = ''
+  }
+
   if (url) {
     return (
       <div
-        className="relative w-full overflow-hidden shrink-0"
+        className="relative w-full overflow-hidden shrink-0 group"
         style={{ aspectRatio: '16/9', borderRadius: 10, outline: '1px solid var(--cms-border, #332D25)' }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -71,10 +117,21 @@ function ThumbSlot({ url, locked, label }: ThumbSlotProps) {
           alt={`Thumbnail for variant ${label}`}
           className="w-full h-full object-cover"
         />
-        {locked && (
+        {locked ? (
           <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
             <Lock className="w-4 h-4 text-white/70" />
           </div>
+        ) : onFileSelect && (
+          <>
+            <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleInputChange} />
+            <button
+              type="button"
+              onClick={handleClick}
+              className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/40 transition-colors cursor-pointer"
+            >
+              <span className="text-xs font-medium text-white/0 group-hover:text-white/90 transition-colors">Trocar</span>
+            </button>
+          </>
         )}
       </div>
     )
@@ -96,21 +153,27 @@ function ThumbSlot({ url, locked, label }: ThumbSlotProps) {
     )
   }
 
-  // Editable drop zone — matches design: dashed border, centered icon + text
   return (
     <div
       className="w-full flex flex-col items-center justify-center gap-1.5 shrink-0 cursor-pointer transition-colors"
       style={{
         aspectRatio: '16/9',
         borderRadius: 10,
-        border: '1.5px dashed var(--cms-border-strong, rgba(245,239,230,.15))',
-        color: 'var(--cms-text-dim)',
+        border: `1.5px dashed ${dragOver ? 'var(--cms-accent)' : 'var(--cms-border-strong, rgba(245,239,230,.15))'}`,
+        color: dragOver ? 'var(--cms-accent)' : 'var(--cms-text-dim)',
+        background: dragOver ? 'rgba(var(--cms-accent-rgb, 59,130,246), 0.05)' : 'transparent',
         fontSize: 12,
       }}
       role="button"
       tabIndex={0}
       aria-label={`Upload thumbnail variante ${label}`}
+      onClick={handleClick}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') handleClick() }}
+      onDrop={handleDrop}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
     >
+      <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleInputChange} />
       <ImageIcon size={24} strokeWidth={1.5} />
       <span style={{ fontWeight: 600, fontSize: 12 }}>Solte a thumb {label}</span>
       <span className="text-[11px]" style={{ color: 'var(--cms-text-dim)' }}>
@@ -295,6 +358,11 @@ function VariantCard({ variant, index, type, onUpdate, onRemove }: VariantCardPr
             url={variant.thumbUrl}
             locked={isLocked}
             label={variant.label}
+            onFileSelect={isLocked ? undefined : (file) => {
+              const url = URL.createObjectURL(file)
+              onUpdate({ thumbUrl: url, thumbFile: file })
+              fileToDataUrl(file).then(dataUrl => onUpdate({ thumbDataUrl: dataUrl }))
+            }}
           />
         )}
 
@@ -496,8 +564,14 @@ function TakesStrip() {
 /*  Description accordion (collapsible)                                */
 /* ------------------------------------------------------------------ */
 
-function DescriptionAccordion() {
+interface DescriptionAccordionProps {
+  variants: VariantData[]
+  onUpdateVariant: (index: number, data: Partial<VariantData>) => void
+}
+
+function DescriptionAccordion({ variants, onUpdateVariant }: DescriptionAccordionProps) {
   const [open, setOpen] = useState(false)
+  const [editing, setEditing] = useState(false)
 
   return (
     <div
@@ -511,33 +585,96 @@ function DescriptionAccordion() {
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-2 transition-colors"
+        className="w-full flex items-center gap-[9px] transition-colors"
         style={{
-          padding: '12px 16px',
+          padding: '12px 14px',
           background: 'transparent',
           border: 'none',
           cursor: 'pointer',
-          color: 'var(--cms-text)',
+          color: 'var(--cms-text-dim)',
           fontFamily: 'inherit',
-          fontSize: 13,
-          fontWeight: 500,
+          fontSize: 12.5,
         }}
       >
         <ChevronDown
           size={14}
           style={{
-            color: 'var(--cms-text-dim)',
             transition: 'transform 0.2s',
             transform: open ? 'rotate(0deg)' : 'rotate(-90deg)',
           }}
         />
-        <Link2 size={14} style={{ color: 'var(--cms-text-dim)' }} />
-        Avancado . variacoes de descricao
-        <Badge tone="neutral" className="ml-1">OPCIONAL</Badge>
+        <Link2 size={15} style={{ color: 'var(--cms-accent)' }} />
+        <span style={{ flex: 1, textAlign: 'left', fontWeight: 600, color: 'var(--cms-text)' }}>
+          Avançado · variações de descrição
+        </span>
+        <Badge tone="neutral">OPCIONAL</Badge>
       </button>
       {open && (
-        <div style={{ padding: '0 16px 16px', color: 'var(--cms-text-dim)', fontSize: '12px' }}>
-          <p>Configure descricoes alternativas para cada variante. Funciona como um complemento ao teste principal.</p>
+        <div style={{ padding: '0 14px 14px', fontSize: '12.5px', color: 'var(--cms-text-dim)', lineHeight: 1.5 }}>
+          <p style={{ margin: 0 }}>
+            Use{' '}
+            <code style={{ background: 'var(--cms-surface-2, #272219)', padding: '1px 5px', borderRadius: 4, color: 'var(--cms-accent)' }}>
+              {'{{link:nome}}'}
+            </code>
+            {' '}em cada descrição — o sistema gera um link rastreado único por variante e mede os cliques separadamente.
+            A descrição é o teste mais &ldquo;solto&rdquo;: dá pra rodar uma vez e depois fixar a vencedora.
+          </p>
+          <div style={{ marginTop: 10 }}>
+            {!editing ? (
+              <button
+                type="button"
+                onClick={() => setEditing(true)}
+                className="inline-flex items-center gap-[7px] transition-colors"
+                style={{
+                  padding: '6px 11px',
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  borderRadius: 9,
+                  border: '1px solid var(--cms-border, #332D25)',
+                  background: 'var(--cms-surface-2, #272219)',
+                  color: 'var(--cms-text)',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                <AlignLeft size={14} />
+                Editar descrições das variantes
+              </button>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 6 }}>
+                {variants.map((v, i) => (
+                  <div key={v.label}>
+                    <div className="flex items-center gap-2" style={{ marginBottom: 4 }}>
+                      <VChip label={v.label} size={18} />
+                      <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--cms-text-dim)' }}>
+                        {v.isOriginal ? 'Original (referência)' : `Variante ${v.label}`}
+                      </span>
+                    </div>
+                    <textarea
+                      value={v.descriptionText}
+                      onChange={e => onUpdateVariant(i, { descriptionText: e.target.value })}
+                      placeholder={v.isOriginal ? 'Descrição original (referência)...' : `Descrição para variante ${v.label}...`}
+                      readOnly={v.isOriginal}
+                      rows={3}
+                      className="w-full resize-none transition-colors"
+                      style={{
+                        padding: '10px 14px',
+                        borderRadius: 10,
+                        border: '1px solid var(--cms-border-strong, rgba(245,239,230,.15))',
+                        background: v.isOriginal ? 'var(--cms-surface)' : 'var(--cms-surface-2, #272219)',
+                        color: v.isOriginal ? 'var(--cms-text-dim)' : 'var(--cms-text)',
+                        fontSize: '13px',
+                        fontFamily: 'inherit',
+                        lineHeight: 1.5,
+                        outline: 'none',
+                        opacity: v.isOriginal ? 0.7 : 1,
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -631,8 +768,10 @@ export function StepVariantes({
         </div>
       )}
 
-      {/* Description accordion — collapsible advanced section */}
-      {showsDescription(type) && <DescriptionAccordion />}
+      {/* Description accordion — for thumbnail/title tests, optionally add descriptions */}
+      {!showsDescription(type) && (
+        <DescriptionAccordion variants={variants} onUpdateVariant={onUpdateVariant} />
+      )}
     </div>
   )
 }

@@ -1,7 +1,7 @@
 'use server'
 
 import { z } from 'zod'
-import { revalidateTag } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
@@ -43,6 +43,7 @@ export async function createComment(input: z.infer<typeof CommentSchema>) {
 
   if (error) return { ok: false as const, error: error.message }
   revalidateTag('youtube')
+  revalidatePath('/cms/youtube/comments')
   return { ok: true as const }
 }
 
@@ -56,6 +57,7 @@ export async function updateComment(id: string, input: Partial<z.infer<typeof Co
 
   if (error) return { ok: false as const, error: error.message }
   revalidateTag('youtube')
+  revalidatePath('/cms/youtube/comments')
   return { ok: true as const }
 }
 
@@ -68,6 +70,7 @@ export async function deleteComment(id: string) {
 
   if (error) return { ok: false as const, error: error.message }
   revalidateTag('youtube')
+  revalidatePath('/cms/youtube/comments')
   return { ok: true as const }
 }
 
@@ -82,5 +85,6 @@ export async function reorderComments(orderedIds: string[]) {
   }
 
   revalidateTag('youtube')
+  revalidatePath('/cms/youtube/comments')
   return { ok: true as const }
 }

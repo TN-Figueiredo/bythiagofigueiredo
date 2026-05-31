@@ -1,7 +1,7 @@
 'use server'
 
 import { z } from 'zod'
-import { revalidateTag } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
@@ -38,6 +38,7 @@ export async function updateVideo(
 
   if (error) return { ok: false as const, error: error.message }
   revalidateTag('youtube')
+  revalidatePath('/cms/youtube/videos')
   return { ok: true as const }
 }
 
@@ -69,6 +70,7 @@ export async function approveCategory(
 
   if (error) return { ok: false as const, error: error.message }
   revalidateTag('youtube')
+  revalidatePath('/cms/youtube/videos')
   return { ok: true as const }
 }
 
@@ -86,6 +88,7 @@ export async function rejectCategory(
 
   if (error) return { ok: false as const, error: error.message }
   revalidateTag('youtube')
+  revalidatePath('/cms/youtube/videos')
   return { ok: true as const }
 }
 
@@ -121,13 +124,23 @@ export async function triggerSync(
   })
   clearTimeout(timeout)
 
+  const body = await res.json().catch(() => null)
+
   if (!res.ok) {
-    const body = await res.json().catch(() => null)
-    const detail = body?.error ?? body?.message ?? res.statusText
+    const detail = body?.error ?? body?.reason ?? body?.message ?? res.statusText
     return { ok: false as const, error: `sync failed (${res.status}): ${detail}` }
   }
+
+  if (channelId && body?.channels?.length === 1) {
+    const ch = body.channels[0] as { status?: string; detail?: string }
+    if (ch.status === 'failed') {
+      return { ok: false as const, error: ch.detail ?? 'sync failed' }
+    }
+  }
+
   syncCooldowns.set(cooldownKey, Date.now())
   revalidateTag('youtube')
+  revalidatePath('/cms/youtube')
   return { ok: true as const }
 }
 
@@ -165,6 +178,8 @@ export async function pinWeeklyPick(
 
   if (error) return { ok: false, error: error.message }
   revalidateTag('youtube')
+  revalidatePath('/cms/youtube')
+  revalidatePath('/cms/youtube/videos')
   return { ok: true }
 }
 
@@ -187,5 +202,7 @@ export async function unpinWeeklyPick(
 
   if (error) return { ok: false, error: error.message }
   revalidateTag('youtube')
+  revalidatePath('/cms/youtube')
+  revalidatePath('/cms/youtube/videos')
   return { ok: true }
 }

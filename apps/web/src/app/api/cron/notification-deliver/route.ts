@@ -1,6 +1,6 @@
 import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
 import { withCronLock, newRunId } from '../../../../../lib/logger'
-import { processDeliveryQueue } from '../../../../../lib/notifications/cron/deliver'
+import { processDeliveryQueue } from '@/lib/notifications/cron/deliver'
 import * as Sentry from '@sentry/nextjs'
 
 const JOB = 'notification-deliver'

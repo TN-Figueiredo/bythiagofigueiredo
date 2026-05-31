@@ -63,7 +63,7 @@ export function AbLabDashboard({
     setContinueDraft(draft)
     setWizardVideo({
       id: draft.videoId,
-      title: draft.name.replace(/^Test:\s*/, ''),
+      title: draft.name,
       thumbnailUrl: draft.thumbUrl,
       sourcePipelineId: draft.sourcePipelineId,
     })
@@ -281,12 +281,12 @@ export function AbLabDashboard({
             setContinueDraft(null)
           }}
           onCreated={(testId) => {
-            setWizardVideo(null)
-            setContinueDraft(null)
+            // Don't close the wizard — let it stay visible with "Ativando..."
+            // loading state until router.push completes the navigation.
             router.push(`/cms/youtube/ab-lab/${testId}`)
           }}
           existingDraftId={continueDraft?.id}
-          prefill={continueDraft ? { testType: continueDraft.type } : undefined}
+          prefill={continueDraft ? { testType: continueDraft.type, draftVariants: continueDraft.variants } : undefined}
         />
       )}
     </div>

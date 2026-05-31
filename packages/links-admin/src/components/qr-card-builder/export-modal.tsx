@@ -589,7 +589,7 @@ export function ExportModal({ composition, canvasRef, linkCode, onExport, onClos
                     {s.done
                       ? <Check size={14} style={{ color: 'var(--green)', flexShrink: 0 }} />
                       : i === step - 1
-                        ? <Loader2 size={14} className="animate-spin" style={{ color: 'var(--accent)', flexShrink: 0 }} />
+                        ? <Loader2 size={14} style={{ color: 'var(--accent)', flexShrink: 0, animation: 'spin 1s linear infinite' }} />
                         : <div style={{ width: 14, height: 14, borderRadius: '50%', border: '1px solid var(--ink-faint)', flexShrink: 0 }} />
                     }
                     <span style={{ color: s.done ? 'var(--ink)' : 'var(--ink-dim)' }}>{s.label}</span>

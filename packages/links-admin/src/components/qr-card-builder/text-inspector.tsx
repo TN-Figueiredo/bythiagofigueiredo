@@ -7,6 +7,7 @@ import {
 import { FONT_CATEGORIES, BG_PALETTE } from '@tn-figueiredo/links/qr'
 import type { TextElement, FontCategory } from '@tn-figueiredo/links/qr'
 import { ToggleSwitch, PositionInput } from './inspector-field'
+import { labelStyle, actionBtnStyle, pillBar, pillBtn, inputBoxStyle, hintStyle, sectionDivider, sectionLabel } from './inspector-styles'
 
 /* ── Google Fonts loader ── */
 
@@ -34,40 +35,6 @@ const QUICK_FONTS = [
 ]
 
 const PALETTE = [...BG_PALETTE]
-
-/* ── Shared styles ── */
-
-const labelStyle: React.CSSProperties = {
-  fontSize: '11.5px', color: 'var(--ink-dim)', marginBottom: 6,
-}
-
-const pillBar: React.CSSProperties = {
-  display: 'inline-flex', background: 'var(--surface-2)',
-  borderRadius: 9, padding: 3, gap: 2,
-}
-
-function pillBtn(active: boolean): React.CSSProperties {
-  return {
-    display: 'inline-flex', alignItems: 'center', gap: 6,
-    padding: '5px 10px', borderRadius: 7,
-    border: 'none', fontSize: 12, fontWeight: 600,
-    background: active ? 'var(--accent)' : 'transparent',
-    color: active ? 'var(--pb-ink-on-accent, #1A140C)' : 'var(--ink-dim)',
-    cursor: 'pointer', transition: '0.15s',
-  }
-}
-
-const actionBtnStyle: React.CSSProperties = {
-  flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-  gap: 5, padding: '7px 0', borderRadius: 7,
-  border: '1px solid var(--line-strong)', background: 'var(--surface-2)',
-  color: 'var(--ink-dim)', fontSize: 11, cursor: 'pointer',
-}
-
-const inputBoxStyle: React.CSSProperties = {
-  background: 'var(--surface)', border: '1px solid var(--line-strong)',
-  borderRadius: 8,
-}
 
 /* ── Props ── */
 
@@ -121,6 +88,7 @@ export function TextInspector({ element, onUpdate, onDuplicate, onDelete }: Text
           type="button"
           style={{ ...actionBtnStyle, flex: '0 0 38px' }}
           onClick={() => onDelete?.()}
+          aria-label="Excluir"
         >
           <Trash2 size={13} strokeWidth={1.8} />
         </button>
@@ -172,6 +140,7 @@ export function TextInspector({ element, onUpdate, onDuplicate, onDelete }: Text
           type="range" min={18} max={160}
           value={element.fontSize}
           onChange={e => onUpdate({ fontSize: Number(e.target.value) })}
+          aria-label="Tamanho"
           style={{ width: '100%' }}
         />
       </div>
@@ -188,6 +157,7 @@ export function TextInspector({ element, onUpdate, onDuplicate, onDelete }: Text
           type="range" min={300} max={900} step={100}
           value={element.fontWeight}
           onChange={e => onUpdate({ fontWeight: Number(e.target.value) })}
+          aria-label="Peso"
           style={{ width: '100%' }}
         />
       </div>
@@ -204,6 +174,7 @@ export function TextInspector({ element, onUpdate, onDuplicate, onDelete }: Text
           type="range" min={80} max={200}
           value={Math.round(element.lineHeight * 100)}
           onChange={e => onUpdate({ lineHeight: Number(e.target.value) / 100 })}
+          aria-label="Entrelinha"
           style={{ width: '100%' }}
         />
       </div>
@@ -253,7 +224,7 @@ export function TextInspector({ element, onUpdate, onDuplicate, onDelete }: Text
               background: 'transparent', border: 'none', outline: 'none',
               color: 'var(--ink)', padding: 0,
             }}
-            aria-label="Color hex value"
+            aria-label="Valor hexadecimal da cor"
           />
         </div>
       </div>
@@ -282,38 +253,34 @@ export function TextInspector({ element, onUpdate, onDuplicate, onDelete }: Text
       </div>
 
       {/* ── Transformar section ── */}
-      <div style={{
-        borderTop: '1px solid var(--line)',
-        marginTop: 2, paddingTop: 16,
-      }}>
-        <div style={{
-          fontSize: 10, fontWeight: 600, textTransform: 'uppercase',
-          letterSpacing: '0.08em', color: 'var(--ink-dim)', marginBottom: 12,
-        }}>
+      <div style={sectionDivider}>
+        <div style={sectionLabel}>
           Transformar
         </div>
 
         {/* ── 10. X / Y inputs ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 14 }}>
           <PositionInput label="X" value={element.x} onChange={v => onUpdate({ x: v })} />
           <PositionInput label="Y" value={element.y} onChange={v => onUpdate({ y: v })} />
+          <PositionInput label="L" value={element.width} onChange={v => onUpdate({ width: v })} />
         </div>
 
-        {/* ── 11. Rotacao ── */}
+        {/* ── 11. Rotação ── */}
         <div style={{ marginBottom: 14 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <RotateCcw size={13} strokeWidth={1.7} style={{ color: 'var(--ink-dim)' }} />
-              <span style={{ fontSize: '11.5px', color: 'var(--ink-dim)' }}>Rotacao</span>
+              <span style={{ fontSize: '11.5px', color: 'var(--ink-dim)' }}>Rotação</span>
             </div>
             <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 11, color: 'var(--ink)' }}>
-              {element.rotation}deg
+              {element.rotation}&deg;
             </span>
           </div>
           <input
             type="range" min={-180} max={180}
             value={element.rotation}
             onChange={e => onUpdate({ rotation: Number(e.target.value) })}
+            aria-label="Rotação"
             style={{ width: '100%' }}
           />
         </div>
@@ -333,18 +300,16 @@ export function TextInspector({ element, onUpdate, onDuplicate, onDelete }: Text
             type="range" min={10} max={100}
             value={Math.round(element.opacity * 100)}
             onChange={e => onUpdate({ opacity: Number(e.target.value) / 100 })}
+            aria-label="Opacidade"
             style={{ width: '100%' }}
           />
         </div>
       </div>
 
       {/* ── Hint ── */}
-      <div style={{
-        fontSize: 11, color: 'var(--ink-faint)',
-        display: 'flex', gap: 7, alignItems: 'center',
-      }}>
+      <div style={hintStyle}>
         <Move size={13} strokeWidth={1.7} style={{ flexShrink: 0 }} />
-        Arraste no canvas pra mover &middot; alca laranja pra redimensionar
+        Arraste no canvas pra mover &middot; alça laranja pra redimensionar
       </div>
     </div>
   )

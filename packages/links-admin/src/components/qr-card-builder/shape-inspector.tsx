@@ -6,6 +6,7 @@ import {
 import { BG_PALETTE } from '@tn-figueiredo/links/qr'
 import type { TextElement } from '@tn-figueiredo/links/qr'
 import { PositionInput } from './inspector-field'
+import { labelStyle, actionBtnStyle, pillBar, pillBtn, inputBoxStyle, hintStyle, sectionDivider, sectionLabel } from './inspector-styles'
 
 /* ── Shape sub-types ── */
 
@@ -39,40 +40,6 @@ const SHAPE_OPTS: { key: ShapeType; label: string }[] = [
   { key: 'block', label: 'Bloco' },
   { key: 'outline', label: 'Contorno' },
 ]
-
-/* ── Shared styles (match text-inspector) ── */
-
-const labelStyle: React.CSSProperties = {
-  fontSize: '11.5px', color: 'var(--ink-dim)', marginBottom: 6,
-}
-
-const pillBar: React.CSSProperties = {
-  display: 'inline-flex', background: 'var(--surface-2)',
-  borderRadius: 9, padding: 3, gap: 2,
-}
-
-function pillBtn(active: boolean): React.CSSProperties {
-  return {
-    display: 'inline-flex', alignItems: 'center', gap: 6,
-    padding: '5px 10px', borderRadius: 7,
-    border: 'none', fontSize: 12, fontWeight: 600,
-    background: active ? 'var(--accent)' : 'transparent',
-    color: active ? 'var(--pb-ink-on-accent, #1A140C)' : 'var(--ink-dim)',
-    cursor: 'pointer', transition: '0.15s',
-  }
-}
-
-const actionBtnStyle: React.CSSProperties = {
-  flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-  gap: 5, padding: '7px 0', borderRadius: 7,
-  border: '1px solid var(--line-strong)', background: 'var(--surface-2)',
-  color: 'var(--ink-dim)', fontSize: 11, cursor: 'pointer',
-}
-
-const inputBoxStyle: React.CSSProperties = {
-  background: 'var(--surface)', border: '1px solid var(--line-strong)',
-  borderRadius: 8,
-}
 
 /* ── Helpers ── */
 
@@ -211,6 +178,7 @@ export function ShapeInspector({ element, onUpdate, onDuplicate, onDelete }: Sha
           type="button"
           style={{ ...actionBtnStyle, flex: '0 0 38px' }}
           onClick={() => onDelete?.()}
+          aria-label="Excluir"
         >
           <Trash2 size={13} strokeWidth={1.8} />
         </button>
@@ -278,7 +246,7 @@ export function ShapeInspector({ element, onUpdate, onDuplicate, onDelete }: Sha
               background: 'transparent', border: 'none', outline: 'none',
               color: 'var(--ink)', padding: 0,
             }}
-            aria-label="Color hex value"
+            aria-label="Valor hexadecimal da cor"
           />
         </div>
       </div>
@@ -296,6 +264,7 @@ export function ShapeInspector({ element, onUpdate, onDuplicate, onDelete }: Sha
             type="range" min={2} max={40}
             value={Math.round(element.height)}
             onChange={e => onUpdate({ height: Number(e.target.value) })}
+            aria-label="Espessura"
             style={{ width: '100%' }}
           />
         </div>
@@ -314,6 +283,7 @@ export function ShapeInspector({ element, onUpdate, onDuplicate, onDelete }: Sha
             type="range" min={10} max={600}
             value={Math.round(element.height)}
             onChange={e => onUpdate({ height: Number(e.target.value) })}
+            aria-label="Altura"
             style={{ width: '100%' }}
           />
         </div>
@@ -332,20 +302,15 @@ export function ShapeInspector({ element, onUpdate, onDuplicate, onDelete }: Sha
             type="range" min={0} max={30}
             value={element.backgroundRadius ?? 0}
             onChange={e => onUpdate({ backgroundRadius: Number(e.target.value) })}
+            aria-label="Cantos"
             style={{ width: '100%' }}
           />
         </div>
       )}
 
       {/* ── Transformar section ── */}
-      <div style={{
-        borderTop: '1px solid var(--line)',
-        marginTop: 2, paddingTop: 16,
-      }}>
-        <div style={{
-          fontSize: 10, fontWeight: 600, textTransform: 'uppercase',
-          letterSpacing: '0.08em', color: 'var(--ink-dim)', marginBottom: 12,
-        }}>
+      <div style={sectionDivider}>
+        <div style={sectionLabel}>
           Transformar
         </div>
 
@@ -356,21 +321,22 @@ export function ShapeInspector({ element, onUpdate, onDuplicate, onDelete }: Sha
           <PositionInput label="L" value={element.width} onChange={v => onUpdate({ width: v })} />
         </div>
 
-        {/* ── Rotacao ── */}
+        {/* ── Rotação ── */}
         <div style={{ marginBottom: 14 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <RotateCcw size={13} strokeWidth={1.7} style={{ color: 'var(--ink-dim)' }} />
-              <span style={{ fontSize: '11.5px', color: 'var(--ink-dim)' }}>Rotacao</span>
+              <span style={{ fontSize: '11.5px', color: 'var(--ink-dim)' }}>Rotação</span>
             </div>
             <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 11, color: 'var(--ink)' }}>
-              {element.rotation}deg
+              {element.rotation}&deg;
             </span>
           </div>
           <input
             type="range" min={-180} max={180}
             value={element.rotation}
             onChange={e => onUpdate({ rotation: Number(e.target.value) })}
+            aria-label="Rotação"
             style={{ width: '100%' }}
           />
         </div>
@@ -390,18 +356,16 @@ export function ShapeInspector({ element, onUpdate, onDuplicate, onDelete }: Sha
             type="range" min={10} max={100}
             value={Math.round(element.opacity * 100)}
             onChange={e => onUpdate({ opacity: Number(e.target.value) / 100 })}
+            aria-label="Opacidade"
             style={{ width: '100%' }}
           />
         </div>
       </div>
 
       {/* ── Hint ── */}
-      <div style={{
-        fontSize: 11, color: 'var(--ink-faint)',
-        display: 'flex', gap: 7, alignItems: 'center',
-      }}>
+      <div style={hintStyle}>
         <Move size={13} strokeWidth={1.7} style={{ flexShrink: 0 }} />
-        Arraste no canvas pra mover &middot; alca laranja pra redimensionar
+        Arraste no canvas pra mover &middot; alça laranja pra redimensionar
       </div>
     </div>
   )

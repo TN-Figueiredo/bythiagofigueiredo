@@ -152,19 +152,28 @@ export async function fetchVideoDetails(
 export async function fetchChannelStats(
   channelId: string,
   apiKey: string,
-): Promise<{ subscriberCount: number; videoCount: number }> {
+): Promise<{
+  subscriberCount: number
+  videoCount: number
+  thumbnailUrl: string | null
+  bannerUrl: string | null
+}> {
   const params = new URLSearchParams({
-    part: 'statistics',
+    part: 'snippet,statistics,brandingSettings',
     id: channelId,
     key: apiKey,
   })
   const data = (await ytFetch(`${BASE}/channels?${params}`)) as { items?: Array<{
-    statistics: { subscriberCount?: string; videoCount?: string }
+    snippet?: { thumbnails?: { medium?: { url?: string } } }
+    statistics?: { subscriberCount?: string; videoCount?: string }
+    brandingSettings?: { image?: { bannerExternalUrl?: string } }
   }> }
-  const stats = data.items?.[0]?.statistics
+  const item = data.items?.[0]
   return {
-    subscriberCount: parseInt(stats?.subscriberCount ?? '0', 10),
-    videoCount: parseInt(stats?.videoCount ?? '0', 10),
+    subscriberCount: parseInt(item?.statistics?.subscriberCount ?? '0', 10),
+    videoCount: parseInt(item?.statistics?.videoCount ?? '0', 10),
+    thumbnailUrl: item?.snippet?.thumbnails?.medium?.url ?? null,
+    bannerUrl: item?.brandingSettings?.image?.bannerExternalUrl ?? null,
   }
 }
 
@@ -211,7 +220,7 @@ export async function lookupChannelByHandle(
   const isChannelId = parsed.startsWith('UC')
 
   const params = new URLSearchParams({
-    part: 'snippet,statistics,contentDetails',
+    part: 'snippet,statistics,contentDetails,brandingSettings',
     key: apiKey,
   })
   if (isChannelId) params.set('id', parsed)

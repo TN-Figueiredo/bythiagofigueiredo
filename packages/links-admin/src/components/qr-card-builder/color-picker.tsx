@@ -55,8 +55,14 @@ export function ColorSwatch({ color, onClick, size = 24 }: { color: string; onCl
     <button
       type="button"
       onClick={onClick}
-      className="rounded shrink-0"
-      style={{ width: size, height: size, backgroundColor: color, border: '1px solid var(--line-strong, #3a3630)' }}
+      style={{
+        width: size,
+        height: size,
+        backgroundColor: color,
+        border: '1px solid var(--line-strong, #3a3630)',
+        borderRadius: 6,
+        flexShrink: 0,
+      }}
       aria-label={`Color ${color}`}
     />
   )
@@ -119,9 +125,9 @@ export function ColorPicker({ value, onChange, palette = [], label }: ColorPicke
   }, [hexInput, onChange, value])
 
   return (
-    <div className="relative">
-      {label && <div className="mb-1" style={{ fontSize: 10, color: 'var(--ink-dim, #A39C8E)' }}>{label}</div>}
-      <div className="flex items-center gap-2">
+    <div style={{ position: 'relative' }}>
+      {label && <div style={{ marginBottom: 4, fontSize: 10, color: 'var(--ink-dim, #A39C8E)' }}>{label}</div>}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <ColorSwatch color={value} onClick={() => setOpen(!open)} />
         <input
           type="text"
@@ -129,8 +135,11 @@ export function ColorPicker({ value, onChange, palette = [], label }: ColorPicke
           onChange={e => setHexInput(e.target.value)}
           onBlur={handleHexSubmit}
           onKeyDown={e => e.key === 'Enter' && handleHexSubmit()}
-          className="w-[72px] rounded px-1.5 py-0.5 font-mono"
           style={{
+            width: 72,
+            borderRadius: 6,
+            padding: '2px 6px',
+            fontFamily: 'monospace',
             fontSize: 11,
             background: 'var(--surface-2, #272219)',
             border: '1px solid var(--line-strong, #3a3630)',
@@ -142,24 +151,46 @@ export function ColorPicker({ value, onChange, palette = [], label }: ColorPicke
       {open && (
         <div
           ref={popoverRef}
-          className="absolute z-50 top-full left-0 mt-1 rounded-lg p-3 shadow-xl"
           style={{
+            position: 'absolute',
+            zIndex: 50,
+            top: '100%',
+            left: 0,
+            marginTop: 4,
+            borderRadius: 8,
+            padding: 12,
+            boxShadow: '0 20px 25px -5px rgba(0,0,0,0.3), 0 8px 10px -6px rgba(0,0,0,0.2)',
             width: 220,
             background: 'var(--surface, #161410)',
             border: '1px solid var(--line-strong, #3a3630)',
           }}
         >
           <div
-            className="relative w-full h-[140px] rounded cursor-crosshair mb-2"
             style={{
+              position: 'relative',
+              width: '100%',
+              height: 140,
+              borderRadius: 6,
+              cursor: 'crosshair',
+              marginBottom: 8,
               background: `linear-gradient(to right, #fff, hsl(${hue * 360}, 100%, 50%))`,
             }}
             onClick={handleSvClick}
           >
-            <div className="absolute inset-0 rounded" style={{ background: 'linear-gradient(to top, #000, transparent)' }} />
+            <div style={{ position: 'absolute', inset: 0, borderRadius: 6, background: 'linear-gradient(to top, #000, transparent)' }} />
             <div
-              className="absolute w-3 h-3 rounded-full border-2 border-white shadow -translate-x-1/2 -translate-y-1/2 pointer-events-none"
-              style={{ left: `${hsv.s * 100}%`, top: `${(1 - hsv.v) * 100}%` }}
+              style={{
+                position: 'absolute',
+                width: 12,
+                height: 12,
+                borderRadius: '50%',
+                border: '2px solid white',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
+                transform: 'translate(-50%, -50%)',
+                pointerEvents: 'none',
+                left: `${hsv.s * 100}%`,
+                top: `${(1 - hsv.v) * 100}%`,
+              }}
             />
           </div>
           <input
@@ -168,13 +199,18 @@ export function ColorPicker({ value, onChange, palette = [], label }: ColorPicke
             max={360}
             value={Math.round(hue * 360)}
             onChange={handleHueChange}
-            className="w-full h-3 mb-2 rounded appearance-none"
             style={{
+              width: '100%',
+              height: 12,
+              marginBottom: 8,
+              borderRadius: 6,
+              appearance: 'none',
+              WebkitAppearance: 'none',
               background: 'linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)',
             }}
             aria-label="Hue"
           />
-          <div className="flex items-center gap-2 mb-2">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
             <span style={{ fontSize: 10, color: 'var(--ink-dim, #A39C8E)' }}>HEX</span>
             <input
               type="text"
@@ -182,8 +218,11 @@ export function ColorPicker({ value, onChange, palette = [], label }: ColorPicke
               onChange={e => setHexInput(e.target.value)}
               onBlur={handleHexSubmit}
               onKeyDown={e => e.key === 'Enter' && handleHexSubmit()}
-              className="flex-1 rounded px-1.5 py-0.5 font-mono"
               style={{
+                flex: 1,
+                borderRadius: 6,
+                padding: '2px 6px',
+                fontFamily: 'monospace',
                 fontSize: 11,
                 background: 'var(--surface-2, #272219)',
                 border: '1px solid var(--line-strong, #3a3630)',
@@ -192,7 +231,7 @@ export function ColorPicker({ value, onChange, palette = [], label }: ColorPicke
             />
           </div>
           {palette.length > 0 && (
-            <div className="flex flex-wrap gap-1 pt-2" style={{ borderTop: '1px solid var(--line, rgba(255,255,255,0.08))' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, paddingTop: 8, borderTop: '1px solid var(--line, rgba(255,255,255,0.08))' }}>
               {palette.map(c => (
                 <ColorSwatch key={c} color={c} size={20} onClick={() => onChange(c)} />
               ))}

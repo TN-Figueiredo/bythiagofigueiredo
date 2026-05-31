@@ -29,6 +29,7 @@ vi.mock('@/lib/supabase/service', () => ({
 
 vi.mock('next/cache', () => ({
   revalidateTag: vi.fn(),
+  revalidatePath: vi.fn(),
 }))
 
 import { pinWeeklyPick, unpinWeeklyPick, updateVideo } from '../../src/app/cms/(authed)/youtube/videos/actions'

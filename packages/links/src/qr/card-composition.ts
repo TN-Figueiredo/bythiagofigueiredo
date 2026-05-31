@@ -146,7 +146,7 @@ export const ASPECT_RATIO_PRESETS: AspectRatioPreset[] = [
   { name: 'vertical', label: 'Vertical', width: 350, height: 960 },
   { name: 'horizontal', label: 'Horizontal', width: 960, height: 350 },
   { name: 'square', label: 'Quadrado', width: 1080, height: 1080 },
-  { name: 'custom', label: 'Custom', width: 1080, height: 1080 },
+  { name: 'custom', label: 'Personalizado', width: 1080, height: 1080 },
 ]
 
 export const PRESET_HINTS: Record<string, string> = {
@@ -285,7 +285,7 @@ export function createTextElement(
     rotation: 0,
     opacity: 1,
     locked: false,
-    content: 'Your text here',
+    content: 'Seu texto aqui',
     fontFamily: 'Inter',
     fontSize: 24,
     fontWeight: 400,

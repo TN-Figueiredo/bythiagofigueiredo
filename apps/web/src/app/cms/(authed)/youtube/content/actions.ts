@@ -1,7 +1,7 @@
 'use server'
 
 import { z } from 'zod'
-import { revalidateTag } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
@@ -135,6 +135,7 @@ export async function savePageContent(
   if (error) return { ok: false, error: error.message }
 
   revalidateTag('page-content:youtube')
+  revalidatePath('/cms/youtube/content')
   return { ok: true }
 }
 
@@ -160,5 +161,6 @@ export async function resetPageContent(
   if (error) return { ok: false, error: error.message }
 
   revalidateTag('page-content:youtube')
+  revalidatePath('/cms/youtube/content')
   return { ok: true, content: defaults }
 }

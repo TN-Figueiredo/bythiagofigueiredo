@@ -43,10 +43,10 @@ describe('ContentFunnel', () => {
 
   it('displays stage labels', () => {
     render(<ContentFunnel funnel={mockFunnel} />)
-    expect(screen.getByText('Views')).toBeTruthy()
-    expect(screen.getByText('Leu 50%+')).toBeTruthy()
-    expect(screen.getByText('Clicked Link')).toBeTruthy()
-    expect(screen.getByText('Abreu NL')).toBeTruthy()
-    expect(screen.getByText('Assinou')).toBeTruthy()
+    expect(screen.getAllByText('Views').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Leu 50%+').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Clicked Link').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Abreu NL').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Assinou').length).toBeGreaterThanOrEqual(1)
   })
 })

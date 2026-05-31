@@ -64,6 +64,13 @@ export function timeAgo(iso: string): string {
   return `${days}d ago`
 }
 
+export function bustCache(url: string | null, syncedAt: string | null): string | null {
+  if (!url) return null
+  if (!syncedAt) return url
+  const sep = url.includes('?') ? '&' : '?'
+  return `${url}${sep}_v=${encodeURIComponent(syncedAt)}`
+}
+
 export type PinState = 'active' | 'expiring' | 'expired' | 'none'
 
 export function getPinState(pinnedVideo: PinnedVideo | null): PinState {
@@ -147,7 +154,7 @@ function ChannelCard({ channel }: { channel: ChannelDashboard }) {
       <div className="flex items-center justify-between border-b border-cms-border px-4 py-3">
         <div className="flex items-center gap-3">
           {channel.thumbnailUrl ? (
-            <img src={channel.thumbnailUrl} alt="" width={48} height={48} referrerPolicy="no-referrer" className="h-12 w-12 rounded-full object-cover" />
+            <img src={bustCache(channel.thumbnailUrl, channel.lastSyncedAt)!} alt="" width={48} height={48} referrerPolicy="no-referrer" className="h-12 w-12 rounded-full object-cover" />
           ) : (
             <span className="text-2xl">{flag}</span>
           )}
@@ -180,6 +187,12 @@ function ChannelCard({ channel }: { channel: ChannelDashboard }) {
           </button>
         </div>
       </div>
+
+      {syncError && (
+        <div role="alert" className="border-t border-red-900/30 bg-red-900/10 px-4 py-2">
+          <span className="text-xs text-red-400">{syncError}</span>
+        </div>
+      )}
 
       {channel.videoCount === 0 && neverSynced ? (
         <div className="px-4 py-6 text-center">
@@ -231,12 +244,6 @@ function ChannelCard({ channel }: { channel: ChannelDashboard }) {
               </span>
             )}
           </div>
-
-          {syncError && (
-            <div role="alert" className="border-t border-red-900/30 bg-red-900/10 px-4 py-2">
-              <span className="text-xs text-red-400">{syncError}</span>
-            </div>
-          )}
 
           {/* Weekly Pick */}
           <div className={`border-l-[3px] ${pinAccent} px-4 py-3`}>

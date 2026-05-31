@@ -5,6 +5,7 @@ vi.mock('@/lib/youtube/api-client', () => ({
   fetchRecentVideoIds: vi.fn(),
   fetchVideoDetails: vi.fn(),
   fetchChannelStats: vi.fn(),
+  lookupChannelByHandle: vi.fn(),
   YouTubeQuotaError: class YouTubeQuotaError extends Error {
     constructor() { super('quotaExceeded') }
   },
@@ -15,12 +16,13 @@ vi.mock('@/lib/youtube/auto-categorize', () => ({
 }))
 
 import { syncChannel } from '@/lib/youtube/sync'
-import { fetchRecentVideoIds, fetchVideoDetails, fetchChannelStats } from '@/lib/youtube/api-client'
+import { fetchRecentVideoIds, fetchVideoDetails, fetchChannelStats, lookupChannelByHandle } from '@/lib/youtube/api-client'
 import { autoCategorize } from '@/lib/youtube/auto-categorize'
 
 const mockFetchRecent = vi.mocked(fetchRecentVideoIds)
 const mockFetchDetails = vi.mocked(fetchVideoDetails)
 const mockFetchStats = vi.mocked(fetchChannelStats)
+const mockLookup = vi.mocked(lookupChannelByHandle)
 const mockAutoCategorize = vi.mocked(autoCategorize)
 
 function makeChannel(overrides: Partial<YouTubeChannelRow> = {}): YouTubeChannelRow {
@@ -104,7 +106,7 @@ describe('syncChannel', () => {
     const channel = makeChannel()
 
     mockFetchRecent.mockResolvedValue(['vid-1', 'vid-2'])
-    mockFetchStats.mockResolvedValue({ subscriberCount: 1000, videoCount: 50 })
+    mockFetchStats.mockResolvedValue({ subscriberCount: 1000, videoCount: 50, thumbnailUrl: null, bannerUrl: null })
     supabase.from = vi.fn((table: string) => {
       if (table === 'youtube_videos') {
         return {
@@ -142,7 +144,7 @@ describe('syncChannel', () => {
     const channel = makeChannel()
 
     mockFetchRecent.mockResolvedValue([])
-    mockFetchStats.mockResolvedValue({ subscriberCount: 2, videoCount: 0 })
+    mockFetchStats.mockResolvedValue({ subscriberCount: 2, videoCount: 0, thumbnailUrl: null, bannerUrl: null })
 
     const result = await syncChannel(supabase, channel, 'key', 'manual')
 
@@ -172,7 +174,7 @@ describe('syncChannel', () => {
       likeCount: 10,
       commentCount: 5,
     }])
-    mockFetchStats.mockResolvedValue({ subscriberCount: 1200, videoCount: 51 })
+    mockFetchStats.mockResolvedValue({ subscriberCount: 1200, videoCount: 51, thumbnailUrl: 'https://yt3.ggpht.com/new-thumb', bannerUrl: null })
 
     const result = await syncChannel(supabase, channel, 'key', 'catchall')
 
@@ -209,7 +211,7 @@ describe('syncChannel', () => {
       likeCount: 5,
       commentCount: 1,
     }])
-    mockFetchStats.mockResolvedValue({ subscriberCount: 100, videoCount: 10 })
+    mockFetchStats.mockResolvedValue({ subscriberCount: 100, videoCount: 10, thumbnailUrl: null, bannerUrl: null })
     mockAutoCategorize.mockReturnValue({ categoryId: 'cat-bip', autoApprove: true })
 
     await syncChannel(supabase, channel, 'key', 'catchall')
@@ -242,7 +244,7 @@ describe('syncChannel', () => {
       likeCount: 3,
       commentCount: 0,
     }])
-    mockFetchStats.mockResolvedValue({ subscriberCount: 100, videoCount: 10 })
+    mockFetchStats.mockResolvedValue({ subscriberCount: 100, videoCount: 10, thumbnailUrl: null, bannerUrl: null })
     mockAutoCategorize.mockReturnValue({ categoryId: 'cat-debug', autoApprove: false })
 
     await syncChannel(supabase, channel, 'key', 'catchall')
@@ -451,7 +453,7 @@ describe('syncChannel', () => {
     const channel = makeChannel()
 
     mockFetchRecent.mockResolvedValue([])
-    mockFetchStats.mockResolvedValue({ subscriberCount: 500, videoCount: 25 })
+    mockFetchStats.mockResolvedValue({ subscriberCount: 500, videoCount: 25, thumbnailUrl: null, bannerUrl: null })
 
     const supabase = {
       from: vi.fn((table: string) => {
@@ -489,7 +491,7 @@ describe('syncChannel', () => {
 
     const channel = makeChannel()
     mockFetchRecent.mockResolvedValue([])
-    mockFetchStats.mockResolvedValue({ subscriberCount: 2, videoCount: 0 })
+    mockFetchStats.mockResolvedValue({ subscriberCount: 2, videoCount: 0, thumbnailUrl: 'https://yt3.ggpht.com/thumb', bannerUrl: 'https://yt3.ggpht.com/banner' })
 
     const result = await syncChannel(supabase, channel, 'key', 'catchall')
 
@@ -500,8 +502,36 @@ describe('syncChannel', () => {
       expect.objectContaining({
         subscriber_count: 2,
         video_count: 0,
+        thumbnail_url: 'https://yt3.ggpht.com/thumb',
+        banner_url: 'https://yt3.ggpht.com/banner',
       }),
     )
+  })
+
+  it('omits thumbnail_url and banner_url from update when API returns null', async () => {
+    const channelUpdateEq = vi.fn().mockResolvedValue({ data: null, error: null })
+    const channelUpdateFn = vi.fn().mockReturnValue({ eq: channelUpdateEq })
+
+    const supabase = {
+      from: vi.fn((table: string) => {
+        if (table === 'youtube_channels') {
+          return { update: channelUpdateFn }
+        }
+        return {}
+      }),
+    } as unknown as Parameters<typeof syncChannel>[0]
+
+    const channel = makeChannel({ thumbnail_url: 'https://old.jpg', banner_url: 'https://old-banner.jpg' })
+    mockFetchRecent.mockResolvedValue([])
+    mockFetchStats.mockResolvedValue({ subscriberCount: 5, videoCount: 1, thumbnailUrl: null, bannerUrl: null })
+
+    await syncChannel(supabase, channel, 'key', 'catchall')
+
+    const payload = channelUpdateFn.mock.calls[0][0]
+    expect(payload).toHaveProperty('subscriber_count', 5)
+    expect(payload).toHaveProperty('video_count', 1)
+    expect(payload).not.toHaveProperty('thumbnail_url')
+    expect(payload).not.toHaveProperty('banner_url')
   })
 
   it('metrics mode throws on video update error', async () => {
@@ -536,6 +566,67 @@ describe('syncChannel', () => {
 
     await expect(syncChannel(supabase, makeChannel(), 'key', 'metrics')).rejects.toThrow(
       'Failed to update video metrics: disk full',
+    )
+  })
+
+  it('self-heals on 404 by re-looking up channel by handle', async () => {
+    const channelUpdateFn = vi.fn().mockReturnValue({
+      eq: vi.fn().mockResolvedValue({ data: null, error: null }),
+    })
+
+    const supabase = {
+      from: vi.fn((table: string) => {
+        if (table === 'youtube_channels') {
+          return { update: channelUpdateFn }
+        }
+        return {}
+      }),
+    } as unknown as Parameters<typeof syncChannel>[0]
+
+    const channel = makeChannel({ channel_id: 'UC_old_bad_id', uploads_playlist_id: 'UU_old_bad_id' })
+
+    mockFetchRecent
+      .mockRejectedValueOnce(new Error('YouTube API 404'))
+      .mockResolvedValueOnce([])
+
+    mockLookup.mockResolvedValue({
+      channelId: 'UC_correct_id',
+      handle: '@canal',
+      name: 'Meu Canal',
+      description: null,
+      uploadsPlaylistId: 'UU_correct_id',
+      subscriberCount: 100,
+      videoCount: 5,
+      thumbnailUrl: 'https://yt3.ggpht.com/new-thumb',
+      bannerUrl: null,
+      customUrl: '@canal',
+    })
+    mockFetchStats.mockResolvedValue({ subscriberCount: 100, videoCount: 5, thumbnailUrl: 'https://yt3.ggpht.com/new-thumb', bannerUrl: null })
+
+    const result = await syncChannel(supabase, channel, 'key', 'catchall')
+
+    expect(mockLookup).toHaveBeenCalledWith('@canal', 'key')
+    expect(channelUpdateFn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channel_id: 'UC_correct_id',
+        uploads_playlist_id: 'UU_correct_id',
+        thumbnail_url: 'https://yt3.ggpht.com/new-thumb',
+      }),
+    )
+    expect(mockFetchRecent).toHaveBeenCalledTimes(2)
+    expect(mockFetchRecent).toHaveBeenLastCalledWith('UU_correct_id', 'key')
+    expect(result.quotaUsed).toBeGreaterThan(0)
+  })
+
+  it('throws descriptive error when 404 and handle lookup finds nothing', async () => {
+    const supabase = { from: vi.fn() } as unknown as Parameters<typeof syncChannel>[0]
+    const channel = makeChannel({ handle: '@nonexistent' })
+
+    mockFetchRecent.mockRejectedValueOnce(new Error('YouTube API 404'))
+    mockLookup.mockResolvedValue(null)
+
+    await expect(syncChannel(supabase, channel, 'key', 'catchall')).rejects.toThrow(
+      'Channel not found on YouTube: @nonexistent',
     )
   })
 })

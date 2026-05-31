@@ -273,6 +273,7 @@ export function TemplateBrowser({
   const [saveName, setSaveName] = useState('')
   const [showSaveInput, setShowSaveInput] = useState(false)
   const [hoverDelete, setHoverDelete] = useState<string | null>(null)
+  const [hoverCard, setHoverCard] = useState<string | null>(null)
 
   /* Escape key */
   useEffect(() => {
@@ -672,6 +673,8 @@ export function TemplateBrowser({
             {templates.map((tpl) => (
               <div
                 key={tpl.id}
+                onMouseEnter={() => setHoverCard(tpl.id)}
+                onMouseLeave={() => setHoverCard(null)}
                 style={{
                   position: 'relative',
                   borderRadius: 12,
@@ -777,23 +780,15 @@ export function TemplateBrowser({
                       hoverDelete === tpl.id
                         ? 'var(--red)'
                         : 'var(--ink-faint)',
-                    opacity: 0,
+                    opacity: hoverCard === tpl.id ? 1 : 0,
                     transition: 'opacity 150ms, color 150ms',
                   }}
-                  // CSS hover handled via parent group
-                  className="tpl-delete-btn"
                 >
                   <Trash2 size={13} />
                 </button>
               </div>
             ))}
           </div>
-
-          {/* Hover style for delete buttons — injected once */}
-          <style>{`
-            .tpl-delete-btn { opacity: 0 !important; }
-            div:hover > .tpl-delete-btn { opacity: 1 !important; }
-          `}</style>
         </div>
       </div>
     </div>

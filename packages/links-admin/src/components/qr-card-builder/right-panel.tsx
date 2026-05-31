@@ -7,6 +7,8 @@ import { TextInspector } from './text-inspector'
 import { ShapeInspector, isShapeElement } from './shape-inspector'
 import { ImageInspector } from './image-inspector'
 import { GifInspector } from './gif-inspector'
+import { StampInspector, isStampElement } from './stamp-inspector'
+import { ButtonInspector, isButtonElement } from './button-inspector'
 import { MultiInspector } from './multi-inspector'
 
 interface RightPanelProps {
@@ -22,10 +24,19 @@ interface RightPanelProps {
 function defaultLabel(el: CardElement): string {
   switch (el.type) {
     case 'qr': return 'QR Code'
-    case 'text': return el.content.startsWith('__shape:') ? 'Forma' : (el.content.slice(0, 20) || 'Text')
-    case 'image': return 'Image'
-    default: return 'Element'
+    case 'text': return el.content.startsWith('__shape:') ? 'Forma' : (el.content.slice(0, 20) || 'Texto')
+    case 'image': return 'Imagem'
+    default: return 'Elemento'
   }
+}
+
+const asideStyle: React.CSSProperties = {
+  width: 244,
+  flexShrink: 0,
+  padding: 12,
+  overflowY: 'auto',
+  background: 'var(--bg-side)',
+  borderLeft: '1px solid var(--line)',
 }
 
 function ElementNameHeader({ element, onUpdate }: { element: CardElement; onUpdate: (patch: Partial<CardElement>) => void }) {
@@ -39,7 +50,7 @@ function ElementNameHeader({ element, onUpdate }: { element: CardElement; onUpda
 
   if (editing) {
     return (
-      <div className="flex items-center gap-1 mb-3">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 12 }}>
         <input
           ref={inputRef}
           autoFocus
@@ -52,8 +63,10 @@ function ElementNameHeader({ element, onUpdate }: { element: CardElement; onUpda
             }
             if (e.key === 'Escape') setEditing(false)
           }}
-          className="flex-1 rounded px-2 py-1 text-sm outline-none"
-          style={{ background: 'var(--surface-2)', border: '1px solid var(--accent)', color: 'var(--ink)' }}
+          style={{
+            flex: 1, borderRadius: 4, padding: '4px 8px', fontSize: 14, outline: 'none',
+            background: 'var(--surface-2)', border: '1px solid var(--accent)', color: 'var(--ink)',
+          }}
           maxLength={40}
         />
         <button
@@ -63,12 +76,15 @@ function ElementNameHeader({ element, onUpdate }: { element: CardElement; onUpda
             if (v) onUpdate({ name: v })
             setEditing(false)
           }}
-          className="p-1 hover:opacity-80"
-          style={{ color: 'var(--green)' }}
+          style={{ padding: 4, border: 'none', background: 'none', cursor: 'pointer', color: 'var(--green)' }}
         >
           <Check size={14} />
         </button>
-        <button type="button" onClick={() => setEditing(false)} className="p-1 hover:opacity-80" style={{ color: 'var(--ink-dim)' }}>
+        <button
+          type="button"
+          onClick={() => setEditing(false)}
+          style={{ padding: 4, border: 'none', background: 'none', cursor: 'pointer', color: 'var(--ink-dim)' }}
+        >
           <X size={14} />
         </button>
       </div>
@@ -76,14 +92,20 @@ function ElementNameHeader({ element, onUpdate }: { element: CardElement; onUpda
   }
 
   return (
-    <div className="flex items-center gap-1.5 mb-3 group">
-      <h3 className="text-sm font-medium truncate flex-1" style={{ color: 'var(--ink)' }}>{displayName}</h3>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }} className="group">
+      <h3 style={{
+        fontSize: 14, fontWeight: 500, flex: 1,
+        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        color: 'var(--ink)', margin: 0,
+      }}>
+        {displayName}
+      </h3>
       <button
         type="button"
         onClick={() => setEditing(true)}
-        className="p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-        style={{ color: 'var(--ink-faint)' }}
-        title="Rename"
+        className="opacity-0 group-hover:opacity-100 transition-opacity"
+        style={{ padding: 4, border: 'none', background: 'none', cursor: 'pointer', color: 'var(--ink-faint)' }}
+        title="Renomear"
       >
         <Pencil size={12} />
       </button>
@@ -99,15 +121,17 @@ export function RightPanel({
 
   if (selectedElements.length === 0) {
     return (
-      <aside className="w-[244px] shrink-0 p-3 overflow-y-auto" style={{ background: 'var(--bg-side)', borderLeft: '1px solid var(--line)' }}>
-        <p className="text-[11px] text-center mt-8" style={{ color: 'var(--ink-dim)' }}>Select an element to edit its properties</p>
+      <aside style={asideStyle}>
+        <p style={{ fontSize: 11, textAlign: 'center', marginTop: 32, color: 'var(--ink-dim)' }}>
+          Selecione um elemento para editar
+        </p>
       </aside>
     )
   }
 
   if (selectedElements.length > 1) {
     return (
-      <aside className="w-[244px] shrink-0 p-3 overflow-y-auto" style={{ background: 'var(--bg-side)', borderLeft: '1px solid var(--line)' }}>
+      <aside style={asideStyle}>
         <MultiInspector
           elements={selectedElements}
           onUpdateAll={patch => selectedElements.forEach(el => onUpdateElement(el.id, patch))}
@@ -122,7 +146,7 @@ export function RightPanel({
   const element = selectedElements[0]!
 
   return (
-    <aside className="w-[244px] shrink-0 p-3 overflow-y-auto" style={{ background: 'var(--bg-side)', borderLeft: '1px solid var(--line)' }}>
+    <aside style={asideStyle}>
       <ElementNameHeader element={element} onUpdate={patch => onUpdateElement(element.id, patch)} />
       {element.type === 'qr' && (
         <QrInspector
@@ -142,13 +166,29 @@ export function RightPanel({
           onDelete={() => onRemoveElement(element.id)}
         />
       )}
-      {element.type === 'text' && !isShapeElement(element) && (
+      {element.type === 'text' && isButtonElement(element) && (
+        <ButtonInspector
+          element={element}
+          onUpdate={patch => onUpdateElement(element.id, patch)}
+          onDuplicate={() => {/* handled by parent */}}
+          onDelete={() => onRemoveElement(element.id)}
+        />
+      )}
+      {element.type === 'text' && !isShapeElement(element) && !isButtonElement(element) && (
         <TextInspector
           element={element}
           onUpdate={patch => onUpdateElement(element.id, patch)}
         />
       )}
-      {element.type === 'image' && (
+      {element.type === 'image' && isStampElement(element) && (
+        <StampInspector
+          element={element}
+          onUpdate={patch => onUpdateElement(element.id, patch)}
+          onDuplicate={() => {/* handled by parent */}}
+          onDelete={() => onRemoveElement(element.id)}
+        />
+      )}
+      {element.type === 'image' && !isStampElement(element) && (
         (element.name?.includes('GIF') || element.src?.endsWith('.gif'))
           ? (
             <GifInspector

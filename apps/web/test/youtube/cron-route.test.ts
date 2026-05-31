@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server'
 
 vi.mock('next/cache', () => ({
   revalidateTag: vi.fn(),
+  revalidatePath: vi.fn(),
 }))
 
 vi.mock('@sentry/nextjs', () => ({

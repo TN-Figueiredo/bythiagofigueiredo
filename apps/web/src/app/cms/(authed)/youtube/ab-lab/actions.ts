@@ -1,6 +1,6 @@
 'use server'
 
-import { revalidateTag } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 import { put } from '@vercel/blob'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
@@ -161,6 +161,7 @@ export async function createAbTest(
   }
 
   revalidateTag('youtube')
+  revalidatePath('/cms/youtube/ab-lab')
   return { ok: true, id: test.id }
 }
 
@@ -197,6 +198,7 @@ export async function updateAbTestType(
     .eq('id', testId)
 
   if (error) return { ok: false, error: error.message }
+  revalidatePath('/cms/youtube/ab-lab')
   return { ok: true }
 }
 
@@ -287,6 +289,8 @@ export async function uploadVariant(
       blob_key: blob.pathname,
       file_size_bytes: file.size,
       sort_order: sortOrder,
+      title_text: formData.get('title_text') as string | null ?? null,
+      description_text: formData.get('description_text') as string | null ?? null,
     })
     .select('id')
     .single()
@@ -300,6 +304,7 @@ export async function uploadVariant(
   }
 
   revalidateTag('youtube')
+  revalidatePath('/cms/youtube/ab-lab')
   return { ok: true, variantId: variant.id }
 }
 
@@ -353,6 +358,52 @@ export async function deleteVariant(
   if (deleteError) return { ok: false, error: deleteError.message }
 
   revalidateTag('youtube')
+  revalidatePath('/cms/youtube/ab-lab')
+  return { ok: true }
+}
+
+// ---------------------------------------------------------------------------
+// cleanupDraftVariants — remove non-original variants from a draft test
+// ---------------------------------------------------------------------------
+
+export async function cleanupDraftVariants(
+  testId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await requireEditAccess()
+  } catch (e) {
+    return { ok: false, error: (e as Error).message }
+  }
+
+  const supabase = getSupabaseServiceClient()
+
+  const { data: test } = await supabase
+    .from('ab_tests')
+    .select('id, status')
+    .eq('id', testId)
+    .single()
+
+  if (!test) return { ok: false, error: 'Test not found' }
+  if (test.status !== 'draft') return { ok: false, error: 'Can only clean up draft tests' }
+
+  const { data: variants } = await supabase
+    .from('ab_test_variants')
+    .select('id, blob_url')
+    .eq('test_id', testId)
+    .eq('is_original', false)
+
+  if (variants && variants.length > 0) {
+    const { del } = await import('@vercel/blob')
+    for (const v of variants) {
+      if (v.blob_url) await del(v.blob_url).catch(() => {})
+    }
+    await supabase
+      .from('ab_test_variants')
+      .delete()
+      .eq('test_id', testId)
+      .eq('is_original', false)
+  }
+
   return { ok: true }
 }
 
@@ -476,6 +527,7 @@ export async function pullPipelineThumbnails(
     .eq('id', testId)
 
   revalidateTag('youtube')
+  revalidatePath('/cms/youtube/ab-lab')
   return { ok: true, added }
 }
 
@@ -514,7 +566,10 @@ export async function startAbTest(
   }
 
   const result = await startAbTestInternal(testId, siteId)
-  if (result.ok) revalidateTag('youtube')
+  if (result.ok) {
+    revalidateTag('youtube')
+    revalidatePath('/cms/youtube/ab-lab')
+  }
   return result
 }
 
@@ -583,6 +638,7 @@ export async function pauseAbTest(
     .is('ended_at', null)
 
   revalidateTag('youtube')
+  revalidatePath('/cms/youtube/ab-lab')
   return { ok: true }
 }
 
@@ -666,6 +722,7 @@ export async function resumeAbTest(
   if (updateError) return { ok: false, error: updateError.message }
 
   revalidateTag('youtube')
+  revalidatePath('/cms/youtube/ab-lab')
   return { ok: true }
 }
 
@@ -754,6 +811,7 @@ export async function endAbTest(
   if (updateError) return { ok: false, error: updateError.message }
 
   revalidateTag('youtube')
+  revalidatePath('/cms/youtube/ab-lab')
   return { ok: true }
 }
 
@@ -783,6 +841,7 @@ export async function archiveAbTest(
   if (updateError) return { ok: false, error: updateError.message }
 
   revalidateTag('youtube')
+  revalidatePath('/cms/youtube/ab-lab')
   return { ok: true }
 }
 
@@ -825,6 +884,7 @@ export async function updateAbSiteSettings(
   if (updateError) return { ok: false, error: updateError.message }
 
   revalidateTag('youtube')
+  revalidatePath('/cms/youtube/ab-lab')
   return { ok: true }
 }
 
@@ -905,6 +965,7 @@ export async function createTextVariant(
   }
 
   revalidateTag('ab-tests')
+  revalidatePath('/cms/youtube/ab-lab')
   return { ok: true, id: variant.id }
 }
 
@@ -952,6 +1013,7 @@ export async function updateTextVariant(
   if (error) return { ok: false, error: error.message }
 
   revalidateTag('ab-tests')
+  revalidatePath('/cms/youtube/ab-lab')
   return { ok: true }
 }
 

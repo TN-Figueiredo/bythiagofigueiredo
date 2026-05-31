@@ -27,6 +27,7 @@ import type {
 } from '@/lib/youtube/ab-types'
 import { calculateBayesianConfidence } from '@/lib/youtube/ab-statistics'
 import { computeGates } from '@/lib/youtube/ab-gates'
+import { getNextVariantIndex } from '@/lib/youtube/ab-rotation'
 import { toDisplayLabel, variantColor } from './_components/ab-constants'
 
 async function requireEditAccess(): Promise<string> {
@@ -135,7 +136,7 @@ export async function getAbDraftById(draftId: string): Promise<{
   return {
     id: data.id as string,
     videoId: data.youtube_video_id as string,
-    videoTitle: (data.name as string).replace(/^Test:\s*/, ''),
+    videoTitle: (data.name as string).replace(/^Test:\s*/i, ''),
     thumbnailUrl: (data.original_thumbnail_url as string) || null,
     testType: data.test_type as TestType,
     sourcePipelineId: (data.source_pipeline_id as string) || null,
@@ -428,7 +429,7 @@ export function toCardView(test: AbTestWithVariants): AbTestCardView {
 
   return {
     id: test.id,
-    name: test.name,
+    name: test.name.replace(/^Test:\s*/i, ''),
     type: test.test_type,
     status: test.status,
     dayOf,
@@ -466,7 +467,7 @@ export function toDraftList(drafts: AbTestWithVariants[]): AbTestDraft[] {
       const originalVariant = d.variants.find(v => v.is_original)
       return {
         id: d.id,
-        name: d.name,
+        name: d.name.replace(/^Test:\s*/i, ''),
         type: d.test_type,
         step: d.variants.length,
         thumbUrl: originalVariant?.blob_url ?? d.original_thumbnail_url ?? null,
@@ -474,6 +475,13 @@ export function toDraftList(drafts: AbTestWithVariants[]): AbTestDraft[] {
         createdAgo: relativeTime(d.created_at),
         videoId: d.youtube_video_id,
         sourcePipelineId: d.source_pipeline_id,
+        variants: d.variants.map(v => ({
+          label: v.label,
+          isOriginal: v.is_original,
+          thumbUrl: v.blob_url ?? null,
+          titleText: v.title_text ?? '',
+          descriptionText: v.description_text ?? '',
+        })),
       }
     })
 }
@@ -726,15 +734,48 @@ export function toDetailView(results: AbTestResults): AbTestDetailView {
     }
   }
 
-  // Build ABBA sequence
-  const abbaSeq: DisplayLabel[] = [...results.timeline]
-    .sort((a, b) => a.cycle_number - b.cycle_number)
-    .map(c => {
-      const v = results.variants.find(rv => rv.variant_id === c.variant_id)
-      return v ? toDisplayLabel(v.label, v.is_original) : ('A' as DisplayLabel)
-    })
+  // Build ABBA sequence — merge real cycle data with planned rotation slots.
+  // When the timeline has fewer entries than the planned total (e.g. a fresh
+  // test with 0 cycles), we fill in the remaining slots using the rotation
+  // algorithm so the UI always shows the full planned pattern.
+  const variantCount = results.variants.length
+  const blockSize = variantCount >= 2 ? 2 * variantCount : 2
+  const plannedTotal = Math.max(
+    results.timeline.length,
+    // At least one full rotation block, rounded up to a full block
+    Math.ceil(test.config.max_duration_days / blockSize) * blockSize,
+  )
 
-  const totalCycles = results.timeline.length
+  // Map variant sort order to DisplayLabel for rotation-generated slots
+  const sortedVariants = [...results.variants].sort((a, b) => {
+    // Original first (index 0 = 'A'), then by label order
+    if (a.is_original !== b.is_original) return a.is_original ? -1 : 1
+    return a.label.localeCompare(b.label)
+  })
+  const indexToLabel = (idx: number): DisplayLabel =>
+    sortedVariants[idx]
+      ? toDisplayLabel(sortedVariants[idx]!.label, sortedVariants[idx]!.is_original)
+      : ('A' as DisplayLabel)
+
+  // Real timeline entries keyed by cycle_number
+  const timelineByNumber = new Map(
+    results.timeline.map(c => [c.cycle_number, c]),
+  )
+
+  const abbaSeq: DisplayLabel[] = []
+  for (let i = 0; i < plannedTotal; i++) {
+    const cycle = timelineByNumber.get(i)
+    if (cycle) {
+      const v = results.variants.find(rv => rv.variant_id === cycle.variant_id)
+      abbaSeq.push(v ? toDisplayLabel(v.label, v.is_original) : ('A' as DisplayLabel))
+    } else {
+      // Planned slot — use the rotation algorithm
+      const idx = getNextVariantIndex(test.config.rotation_pattern, variantCount, i)
+      abbaSeq.push(indexToLabel(idx))
+    }
+  }
+
+  const totalCycles = plannedTotal
   const doneCycles = results.timeline.filter(c => c.ended_at !== null).length
 
   // Compute gates

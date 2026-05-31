@@ -291,6 +291,14 @@ export interface AbTestCardView {
   createdAt: string
 }
 
+export interface AbTestDraftVariant {
+  label: string
+  isOriginal: boolean
+  thumbUrl: string | null
+  titleText: string
+  descriptionText: string
+}
+
 export interface AbTestDraft {
   id: string
   name: string
@@ -301,6 +309,7 @@ export interface AbTestDraft {
   createdAgo: string
   videoId: string
   sourcePipelineId: string | null
+  variants?: AbTestDraftVariant[]
 }
 
 export interface SuggestedVideo {

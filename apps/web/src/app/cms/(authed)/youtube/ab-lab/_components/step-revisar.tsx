@@ -58,13 +58,13 @@ function buildSummaryText(
   return parts.join(' · ')
 }
 
-/** Mock CTR values for the ClickMoment preview in the wizard */
 function buildClickMomentVariants(variants: ReviewVariant[]) {
   const baseCtr = 4.2
   return variants.map((v, i) => ({
     label: v.label,
     color: VARIANT_COLORS[v.label],
     ctr: i === 0 ? baseCtr : +(baseCtr + (i * 1.1)).toFixed(1),
+    thumbUrl: v.thumbUrl,
   }))
 }
 

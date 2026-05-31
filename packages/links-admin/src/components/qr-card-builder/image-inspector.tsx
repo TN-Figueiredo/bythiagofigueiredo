@@ -5,16 +5,9 @@ import {
 } from 'lucide-react'
 import type { ImageElement } from '@tn-figueiredo/links/qr'
 import { ToggleSwitch, PositionInput } from './inspector-field'
+import { actionBtnStyle, hintStyle, sectionDivider, sectionLabel, labelStyle } from './inspector-styles'
 
-/* ── Shared styles (mirrors text-inspector) ── */
-
-const actionBtnStyle: React.CSSProperties = {
-  flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-  gap: 5, padding: '7px 0', borderRadius: 7,
-  border: '1px solid var(--line-strong)', background: 'var(--surface-2)',
-  color: 'var(--ink-dim)', fontSize: 11, cursor: 'pointer',
-}
-
+/* ── image-inspector uses a variant with flex+padding built in ── */
 const inputBoxStyle: React.CSSProperties = {
   background: 'var(--surface)', border: '1px solid var(--line-strong)',
   borderRadius: 7, padding: '0 6px 0 8px',
@@ -69,6 +62,7 @@ export function ImageInspector({
           type="button"
           style={{ ...actionBtnStyle, flex: '0 0 38px' }}
           onClick={() => onDelete?.()}
+          aria-label="Excluir"
         >
           <Trash2 size={13} strokeWidth={1.8} />
         </button>
@@ -150,7 +144,7 @@ export function ImageInspector({
 
       {/* ── Object Fit ── */}
       <div>
-        <div style={{ fontSize: 11.5, color: 'var(--ink-dim)', marginBottom: 6 }}>
+        <div style={labelStyle}>
           Ajuste
         </div>
         <div style={{
@@ -182,7 +176,7 @@ export function ImageInspector({
 
       {/* ── Border controls ── */}
       <div>
-        <div style={{ fontSize: 11.5, color: 'var(--ink-dim)', marginBottom: 6 }}>
+        <div style={labelStyle}>
           Borda
         </div>
 
@@ -255,7 +249,7 @@ export function ImageInspector({
 
       {/* ── Aspect ratio lock ── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ fontSize: 12.5, color: 'var(--ink)' }}>Manter proporcao</span>
+        <span style={{ fontSize: 12.5, color: 'var(--ink)' }}>Manter proporção</span>
         <ToggleSwitch
           checked={element.maintainAspectRatio}
           onChange={v => onUpdate({ maintainAspectRatio: v })}
@@ -263,14 +257,8 @@ export function ImageInspector({
       </div>
 
       {/* ── Transformar section ── */}
-      <div style={{
-        borderTop: '1px solid var(--line)',
-        marginTop: 2, paddingTop: 16,
-      }}>
-        <div style={{
-          fontSize: 10, fontWeight: 600, textTransform: 'uppercase',
-          letterSpacing: '0.08em', color: 'var(--ink-dim)', marginBottom: 12,
-        }}>
+      <div style={sectionDivider}>
+        <div style={sectionLabel}>
           Transformar
         </div>
 
@@ -292,21 +280,22 @@ export function ImageInspector({
           />
         </div>
 
-        {/* ── Rotacao ── */}
+        {/* ── Rotação ── */}
         <div style={{ marginBottom: 14 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <RotateCcw size={13} strokeWidth={1.7} style={{ color: 'var(--ink-dim)' }} />
-              <span style={{ fontSize: 11.5, color: 'var(--ink-dim)' }}>Rotacao</span>
+              <span style={{ fontSize: 11.5, color: 'var(--ink-dim)' }}>Rotação</span>
             </div>
             <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 11, color: 'var(--ink)' }}>
-              {element.rotation}deg
+              {element.rotation}&deg;
             </span>
           </div>
           <input
             type="range" min={-180} max={180}
             value={element.rotation}
             onChange={e => onUpdate({ rotation: Number(e.target.value) })}
+            aria-label="Rotação"
             style={{ width: '100%' }}
           />
         </div>
@@ -326,18 +315,16 @@ export function ImageInspector({
             type="range" min={10} max={100}
             value={Math.round(element.opacity * 100)}
             onChange={e => onUpdate({ opacity: Number(e.target.value) / 100 })}
+            aria-label="Opacidade"
             style={{ width: '100%' }}
           />
         </div>
       </div>
 
       {/* ── Hint ── */}
-      <div style={{
-        fontSize: 11, color: 'var(--ink-faint)',
-        display: 'flex', gap: 7, alignItems: 'center',
-      }}>
+      <div style={hintStyle}>
         <Move size={13} strokeWidth={1.7} style={{ flexShrink: 0 }} />
-        Arraste no canvas pra mover &middot; alca laranja pra redimensionar
+        Arraste no canvas pra mover &middot; alça laranja pra redimensionar
       </div>
     </div>
   )
@@ -346,9 +333,9 @@ export function ImageInspector({
 /* ── Object-fit options ── */
 
 const FIT_OPTIONS = [
-  { value: 'fill', label: 'Fill' },
-  { value: 'cover', label: 'Cover' },
-  { value: 'contain', label: 'Contain' },
-  { value: 'stretch', label: 'Stretch' },
+  { value: 'fill', label: 'Preencher' },
+  { value: 'cover', label: 'Cobrir' },
+  { value: 'contain', label: 'Conter' },
+  { value: 'stretch', label: 'Esticar' },
 ] as const
 

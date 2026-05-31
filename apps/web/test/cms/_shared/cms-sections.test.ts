@@ -19,8 +19,8 @@ describe('buildCmsSections — v3 nav redesign', () => {
     ])
   })
 
-  it('section item counts: 4, 6, 4, 4, 3', () => {
-    expect(sections.map(s => s.items.length)).toEqual([4, 6, 4, 4, 3])
+  it('section item counts: 5, 6, 4, 3, 3', () => {
+    expect(sections.map(s => s.items.length)).toEqual([5, 6, 4, 3, 3])
   })
 
   it('all hrefs are unique (no duplicate nav entries)', () => {
@@ -33,18 +33,18 @@ describe('buildCmsSections — v3 nav redesign', () => {
     expect(new Set(allLabels).size).toBe(allLabels.length)
   })
 
-  describe('Overview (4 items)', () => {
+  describe('Overview (5 items)', () => {
     const overview = sections.find(s => s.label === 'Overview')!
 
-    it('items in order: Dashboard, Up Next, Schedule, Analytics', () => {
+    it('items in order: Dashboard, Up Next, Schedule, Analytics, Notificações', () => {
       expect(overview.items.map(i => i.label)).toEqual([
-        'Dashboard', 'Up Next', 'Schedule', 'Analytics',
+        'Dashboard', 'Up Next', 'Schedule', 'Analytics', 'Notificações',
       ])
     })
 
     it('correct hrefs', () => {
       expect(overview.items.map(i => i.href)).toEqual([
-        '/cms', '/cms/up-next', '/cms/schedule', '/cms/analytics',
+        '/cms', '/cms/up-next', '/cms/schedule', '/cms/analytics', '/cms/notifications',
       ])
     })
 
@@ -109,24 +109,24 @@ describe('buildCmsSections — v3 nav redesign', () => {
     })
   })
 
-  describe('Social (4 items)', () => {
+  describe('Social (3 items)', () => {
     const social = sections.find(s => s.label === 'Social')!
 
-    it('items in order: YouTube, Posts, Links, Link in Bio', () => {
+    it('items in order: YouTube, Posts, Links', () => {
       expect(social.items.map(i => i.label)).toEqual([
-        'YouTube', 'Posts', 'Links', 'Link in Bio',
+        'YouTube', 'Posts', 'Links',
       ])
     })
 
     it('correct hrefs', () => {
       expect(social.items.map(i => i.href)).toEqual([
-        '/cms/youtube', '/cms/social', '/cms/links', '/cms/link-in-bio',
+        '/cms/youtube', '/cms/social', '/cms/links',
       ])
     })
 
-    it('no Queue, Composer, Insights, Stories, Templates, Accounts', () => {
+    it('no Queue, Composer, Insights, Stories, Templates, Accounts, Link in Bio', () => {
       const labels = social.items.map(i => i.label)
-      for (const removed of ['Queue', 'Composer', 'Insights', 'Stories', 'Templates', 'Accounts']) {
+      for (const removed of ['Queue', 'Composer', 'Insights', 'Stories', 'Templates', 'Accounts', 'Link in Bio']) {
         expect(labels).not.toContain(removed)
       }
     })

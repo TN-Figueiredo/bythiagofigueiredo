@@ -1,6 +1,6 @@
 import { withCronLock, newRunId } from '../../../../../lib/logger'
 import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
-import { processUnsnooze } from '../../../../../lib/notifications/cron/unsnooze'
+import { processUnsnooze } from '@/lib/notifications/cron/unsnooze'
 
 const JOB = 'notification-unsnooze'
 const LOCK_KEY = 'cron:notification-unsnooze'

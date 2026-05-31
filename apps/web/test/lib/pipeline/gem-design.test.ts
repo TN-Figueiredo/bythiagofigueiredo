@@ -15,8 +15,8 @@ import {
 describe('gem-design', () => {
   describe('GEM_CSS_VARS', () => {
     it('exports surface vars', () => {
-      expect(GEM_CSS_VARS['--gem-surface']).toBe('#161d2d')
-      expect(GEM_CSS_VARS['--gem-well']).toBe('#0c1222')
+      expect(GEM_CSS_VARS['--gem-surface']).toBe('#15161d')
+      expect(GEM_CSS_VARS['--gem-well']).toBe('#0b0c10')
     })
   })
 
@@ -272,10 +272,10 @@ describe('gem-design', () => {
     })
 
     // Verify actual RGB channels for a second known var
-    // --gem-accent: #818cf8 → rgb(129, 140, 248)
+    // --gem-accent: #FF8240 → rgb(255, 130, 64)
     it('correctly decodes RGB channels for --gem-accent', () => {
       const result = gemMix('--gem-accent', 100)
-      expect(result).toBe('rgba(129,140,248,1.00)')
+      expect(result).toBe('rgba(255,130,64,1.00)')
     })
   })
 })

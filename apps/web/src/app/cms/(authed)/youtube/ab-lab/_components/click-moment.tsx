@@ -9,7 +9,7 @@ interface ClickMomentProps {
   videoTitle: string
   winnerLabel: DisplayLabel
   winnerColor: string
-  variants: Array<{ label: DisplayLabel; color: string; ctr: number }>
+  variants: Array<{ label: DisplayLabel; color: string; ctr: number; thumbUrl?: string | null }>
 }
 
 type Context = 'home' | 'search' | 'sidebar' | 'mobile'
@@ -35,7 +35,15 @@ const CTX_BUTTONS: Array<{ ctx: Context; icon: typeof LayoutGrid; label: string 
   { ctx: 'mobile', icon: Smartphone, label: 'Mobile' },
 ]
 
-function YTThumb({ label, radius = 10 }: { label: DisplayLabel; radius?: number }) {
+function YTThumb({ label, radius = 10, thumbUrl }: { label: DisplayLabel; radius?: number; thumbUrl?: string | null }) {
+  if (thumbUrl) {
+    return (
+      <div className="relative w-full overflow-hidden" style={{ aspectRatio: '16/9', borderRadius: radius }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={thumbUrl} alt={`Thumbnail variante ${label}`} className="w-full h-full object-cover" />
+      </div>
+    )
+  }
   const overlay = OVERLAY_TEXT[label] ?? [label]
   return (
     <div className="relative w-full overflow-hidden" style={{ aspectRatio: '16/9', borderRadius: radius, background: THUMB_BG[label], boxShadow: 'rgba(0,0,0,0.4) 0 0 60px inset' }}>
@@ -67,12 +75,12 @@ function BehaviorStrip({ label, color, ctr, maxCtr, isWinner, lift }: { label: D
   )
 }
 
-function HomeCard({ v, videoTitle, isWinner, maxCtr, baseline }: { v: { label: DisplayLabel; color: string; ctr: number }; videoTitle: string; isWinner: boolean; maxCtr: number; baseline: number }) {
+function HomeCard({ v, videoTitle, isWinner, maxCtr, baseline }: { v: { label: DisplayLabel; color: string; ctr: number; thumbUrl?: string | null }; videoTitle: string; isWinner: boolean; maxCtr: number; baseline: number }) {
   const lift = baseline > 0 && v.label !== 'A' ? Math.round(((v.ctr - baseline) / baseline) * 100) : null
   return (
     <div className="relative overflow-hidden rounded-lg bg-cms-surface" style={{ border: isWinner ? `1px solid ${v.color}66` : '1px solid var(--cms-border)', padding: 16 }}>
       {isWinner && <div className="absolute z-10 right-[14px] top-[14px]"><Badge tone="green"><Trophy size={11} aria-hidden="true" />vencedor</Badge></div>}
-      <YTThumb label={v.label} />
+      <YTThumb label={v.label} thumbUrl={v.thumbUrl} />
       <div className="flex gap-[11px] mt-[11px]">
         <div className="size-[34px] min-w-[34px] rounded-full bg-cms-accent flex items-center justify-center text-[13.6px] font-bold" style={{ color: 'rgb(20, 15, 8)', fontFamily: 'Fraunces, serif' }}>TF</div>
         <div className="min-w-0">
@@ -86,13 +94,13 @@ function HomeCard({ v, videoTitle, isWinner, maxCtr, baseline }: { v: { label: D
   )
 }
 
-function SearchCard({ v, videoTitle, isWinner, maxCtr, baseline }: { v: { label: DisplayLabel; color: string; ctr: number }; videoTitle: string; isWinner: boolean; maxCtr: number; baseline: number }) {
+function SearchCard({ v, videoTitle, isWinner, maxCtr, baseline }: { v: { label: DisplayLabel; color: string; ctr: number; thumbUrl?: string | null }; videoTitle: string; isWinner: boolean; maxCtr: number; baseline: number }) {
   const lift = baseline > 0 && v.label !== 'A' ? Math.round(((v.ctr - baseline) / baseline) * 100) : null
   return (
     <div className="relative overflow-hidden rounded-lg bg-cms-surface" style={{ border: isWinner ? `1px solid ${v.color}66` : '1px solid var(--cms-border)', padding: 16 }}>
       {isWinner && <div className="absolute z-10 right-[14px] top-[14px]"><Badge tone="green"><Trophy size={11} aria-hidden="true" />vencedor</Badge></div>}
       <div className="flex gap-[16px]">
-        <div className="w-[340px] shrink-0"><YTThumb label={v.label} /></div>
+        <div className="w-[340px] shrink-0"><YTThumb label={v.label} thumbUrl={v.thumbUrl} /></div>
         <div className="min-w-0 pt-[2px]">
           <div className="text-[17px] font-semibold text-cms-text leading-[1.25]">{videoTitle}</div>
           <div className="text-[12.5px] text-cms-text-dim mt-[5px]">12 mil visualizações · há 2 dias</div>
@@ -108,13 +116,13 @@ function SearchCard({ v, videoTitle, isWinner, maxCtr, baseline }: { v: { label:
   )
 }
 
-function SidebarCard({ v, videoTitle, isWinner, maxCtr, baseline }: { v: { label: DisplayLabel; color: string; ctr: number }; videoTitle: string; isWinner: boolean; maxCtr: number; baseline: number }) {
+function SidebarCard({ v, videoTitle, isWinner, maxCtr, baseline }: { v: { label: DisplayLabel; color: string; ctr: number; thumbUrl?: string | null }; videoTitle: string; isWinner: boolean; maxCtr: number; baseline: number }) {
   const lift = baseline > 0 && v.label !== 'A' ? Math.round(((v.ctr - baseline) / baseline) * 100) : null
   return (
     <div className="relative overflow-hidden rounded-lg bg-cms-surface" style={{ border: isWinner ? `1px solid ${v.color}66` : '1px solid var(--cms-border)', padding: 16 }}>
       {isWinner && <div className="absolute z-10 right-[14px] top-[14px]"><Badge tone="green"><Trophy size={11} aria-hidden="true" />vencedor</Badge></div>}
       <div className="flex gap-[10px]">
-        <div className="w-[168px] shrink-0"><YTThumb label={v.label} radius={8} /></div>
+        <div className="w-[168px] shrink-0"><YTThumb label={v.label} thumbUrl={v.thumbUrl} radius={8} /></div>
         <div className="min-w-0">
           <div className="text-[13px] font-semibold text-cms-text leading-[1.25] line-clamp-2">{videoTitle}</div>
           <div className="text-[11.5px] text-cms-text-dim mt-[5px]">ByThiagoFigueiredo</div>
@@ -126,7 +134,7 @@ function SidebarCard({ v, videoTitle, isWinner, maxCtr, baseline }: { v: { label
   )
 }
 
-function MobileCard({ v, videoTitle, isWinner, maxCtr, baseline }: { v: { label: DisplayLabel; color: string; ctr: number }; videoTitle: string; isWinner: boolean; maxCtr: number; baseline: number }) {
+function MobileCard({ v, videoTitle, isWinner, maxCtr, baseline }: { v: { label: DisplayLabel; color: string; ctr: number; thumbUrl?: string | null }; videoTitle: string; isWinner: boolean; maxCtr: number; baseline: number }) {
   const lift = baseline > 0 && v.label !== 'A' ? Math.round(((v.ctr - baseline) / baseline) * 100) : null
   return (
     <div className="relative overflow-hidden rounded-lg">
@@ -135,7 +143,7 @@ function MobileCard({ v, videoTitle, isWinner, maxCtr, baseline }: { v: { label:
           <div className="w-[70px] h-[16px] bg-[#050505] rounded-full" />
         </div>
         <div className="pb-[14px]">
-          <YTThumb label={v.label} radius={0} />
+          <YTThumb label={v.label} thumbUrl={v.thumbUrl} radius={0} />
           <div className="flex gap-[10px] px-[12px] pt-[11px]">
             <div className="size-[32px] min-w-[32px] rounded-full bg-cms-accent flex items-center justify-center text-[12.8px] font-bold" style={{ color: 'rgb(20, 15, 8)', fontFamily: 'Fraunces, serif' }}>TF</div>
             <div className="min-w-0">

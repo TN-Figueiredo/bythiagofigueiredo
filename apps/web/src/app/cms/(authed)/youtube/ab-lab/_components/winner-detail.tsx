@@ -177,6 +177,7 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
           label: v.label,
           color: v.color,
           ctr: v.ctr * 100,
+          thumbUrl: view.variantThumbs.find(t => t.label === v.label)?.thumbUrl ?? null,
         }))}
       />
     </div>

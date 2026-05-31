@@ -1,6 +1,6 @@
 import { timingSafeEqual } from 'node:crypto'
 import { NextRequest } from 'next/server'
-import { revalidateTag } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
 import { withCronLock, newRunId } from '../../../../../lib/logger'
@@ -44,7 +44,9 @@ export async function GET(req: NextRequest) {
   const supabase = getSupabaseServiceClient()
   const runId = newRunId()
 
-  return withCronLock(supabase, `sync-youtube-${mode}`, runId, 'sync-youtube', async () => {
+  const lockKey = channelId ? `sync-youtube-${mode}-${channelId}` : `sync-youtube-${mode}`
+
+  return withCronLock(supabase, lockKey, runId, 'sync-youtube', async () => {
     let query = supabase
       .from('youtube_channels')
       .select('*')
@@ -134,6 +136,7 @@ export async function GET(req: NextRequest) {
     }
 
     revalidateTag('youtube')
+    revalidatePath('/cms/youtube')
 
     return {
       status: 'ok' as const,

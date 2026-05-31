@@ -1,6 +1,6 @@
 'use server'
 
-import { revalidateTag } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 import { z } from 'zod'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
@@ -424,6 +424,7 @@ export async function saveVideoNotes(
     if (!data) return { ok: false, error: 'conflict: version mismatch' }
 
     revalidateTag('youtube')
+    revalidatePath('/cms/youtube/videos')
     return { ok: true, data: { version: data.version as number } }
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'unexpected error'

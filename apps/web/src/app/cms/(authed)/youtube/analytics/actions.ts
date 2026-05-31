@@ -5,7 +5,7 @@ import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { scoreVideo, computeOutliers, computeTrend, computeBaseline } from '@/lib/youtube/scoring'
 import type { VideoScoreInput } from '@/lib/youtube/scoring-types'
-import { revalidateTag } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -165,6 +165,7 @@ export async function markNotificationRead(notificationId: string) {
   const supabase = getSupabaseServiceClient()
   await supabase.from('yt_notifications').update({ read: true }).eq('id', notificationId).eq('site_id', siteId)
   revalidateTag('yt-notifications')
+  revalidatePath('/cms/youtube/analytics')
 }
 
 export async function markAllNotificationsRead() {
@@ -174,6 +175,7 @@ export async function markAllNotificationsRead() {
   const supabase = getSupabaseServiceClient()
   await supabase.from('yt_notifications').update({ read: true }).eq('site_id', siteId).eq('read', false)
   revalidateTag('yt-notifications')
+  revalidatePath('/cms/youtube/analytics')
 }
 
 export async function dismissNotification(notificationId: string) {
@@ -184,6 +186,7 @@ export async function dismissNotification(notificationId: string) {
   const supabase = getSupabaseServiceClient()
   await supabase.from('yt_notifications').update({ dismissed: true }).eq('id', notificationId).eq('site_id', siteId)
   revalidateTag('yt-notifications')
+  revalidatePath('/cms/youtube/analytics')
 }
 
 export async function requestIntelligenceAnalysis(channelId: string) {

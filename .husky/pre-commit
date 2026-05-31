@@ -13,7 +13,7 @@ if [ $PKG_EXIT -ne 0 ]; then
 fi
 
 echo "🧪 Rodando testes do web..."
-if ! ( cd apps/web && npx vitest run --bail 1 2>&1 ); then
+if ! ( cd apps/web && npx vitest run --bail 1 --forceExit 2>&1 ); then
   echo ""
   echo "❌ Testes do web falharam. Commit bloqueado."
   exit 1
@@ -33,7 +33,7 @@ if [ $WEB_BUILD_EXIT -ne 0 ]; then
 fi
 
 echo "🧪 Rodando testes da API..."
-if ! ( cd apps/api && npx vitest run --bail 1 2>&1 ); then
+if ! ( cd apps/api && npx vitest run --bail 1 --forceExit 2>&1 ); then
   echo ""
   echo "❌ Testes da API falharam. Commit bloqueado."
   exit 1

@@ -79,6 +79,8 @@ vi.mock('@/lib/supabase/service', () => {
   chainable.is = vi.fn(() => chainable)
   chainable.in = vi.fn(() => chainable)
   chainable.not = vi.fn(() => chainable)
+  chainable.order = vi.fn(() => chainable)
+  chainable.limit = vi.fn(() => chainable)
   chainable.then = (resolve: (v: unknown) => void) => resolve(result)
   return {
     getSupabaseServiceClient: vi.fn(() => ({

@@ -363,8 +363,8 @@ function GifNode({
           <Rect
             width={element.width}
             height={element.height}
-            fill="var(--surface-2, #272219)"
-            stroke="var(--line, #333)"
+            fill="#272219"
+            stroke="#333"
             strokeWidth={1}
             cornerRadius={8}
           />
@@ -561,6 +561,10 @@ export const CanvasEditor = forwardRef<CanvasEditorHandle, CanvasEditorProps>(fu
       case 'text':
         return <TextNode key={el.id} element={el} onSelect={handleSelect} onDragMove={handleDragMove} onDragEnd={handleDragEnd} />
       case 'image': {
+        // Stamp element — circular brand mark (uses ImageNode with borderRadius)
+        if (el.name?.startsWith('__stamp:')) {
+          return <ImageNode key={el.id} element={el} onSelect={handleSelect} onDragMove={handleDragMove} onDragEnd={handleDragEnd} />
+        }
         const isGif = (el.name?.toLowerCase().includes('gif')) || el.src.toLowerCase().endsWith('.gif')
         if (isGif) {
           return <GifNode key={el.id} element={el} onSelect={handleSelect} onDragMove={handleDragMove} onDragEnd={handleDragEnd} layerRef={layerRef} />

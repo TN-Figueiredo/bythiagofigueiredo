@@ -99,15 +99,24 @@ export function VariantTable({ variants, metric, winnerId, leaderId, activeNow, 
                   className="rounded-[6px] overflow-hidden"
                   style={{ outline: isHighlighted ? `1.5px solid ${variant.color}` : '1px solid var(--cms-border)' }}
                 >
-                  <div
-                    className="w-full aspect-video rounded-[6px] overflow-hidden"
-                    style={{
-                      background: isHighlighted
-                        ? 'linear-gradient(135deg, rgb(90,47,23), rgb(36,16,8))'
-                        : 'linear-gradient(135deg, rgb(58,47,40), rgb(31,26,22))',
-                      boxShadow: 'rgba(0,0,0,0.4) 0px 0px 60px inset',
-                    }}
-                  />
+                  {thumb?.thumbUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={thumb.thumbUrl}
+                      alt={`Thumbnail variante ${variant.label}`}
+                      className="w-full aspect-video rounded-[6px] object-cover"
+                    />
+                  ) : (
+                    <div
+                      className="w-full aspect-video rounded-[6px] overflow-hidden"
+                      style={{
+                        background: isHighlighted
+                          ? 'linear-gradient(135deg, rgb(90,47,23), rgb(36,16,8))'
+                          : 'linear-gradient(135deg, rgb(58,47,40), rgb(31,26,22))',
+                        boxShadow: 'rgba(0,0,0,0.4) 0px 0px 60px inset',
+                      }}
+                    />
+                  )}
                 </div>
 
                 {/* Variant info */}

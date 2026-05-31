@@ -28,6 +28,7 @@ vi.mock('@sentry/nextjs', () => ({
 
 vi.mock('next/cache', () => ({
   revalidateTag: vi.fn(),
+  revalidatePath: vi.fn(),
 }))
 
 const mockSyncChannel = vi.fn()

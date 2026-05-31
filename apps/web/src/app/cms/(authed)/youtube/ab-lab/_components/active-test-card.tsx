@@ -59,14 +59,27 @@ export function ActiveTestCard({ test, onOpen }: ActiveTestCardProps) {
                   className="relative w-full rounded-[8px] overflow-hidden"
                   style={{
                     aspectRatio: '16/9',
-                    background: isLeader
-                      ? `linear-gradient(135deg, ${hexToGrad(color, 0.3)}, ${hexToGrad(color, 0.1)})`
-                      : 'linear-gradient(135deg, rgb(58,47,40), rgb(31,26,22))',
-                    boxShadow: 'rgba(0,0,0,0.4) 0px 0px 60px inset',
+                    background: v.thumbUrl
+                      ? undefined
+                      : isLeader
+                        ? `linear-gradient(135deg, ${hexToGrad(color, 0.3)}, ${hexToGrad(color, 0.1)})`
+                        : 'linear-gradient(135deg, rgb(58,47,40), rgb(31,26,22))',
+                    boxShadow: v.thumbUrl ? undefined : 'rgba(0,0,0,0.4) 0px 0px 60px inset',
                   }}
                 >
-                  <div className="absolute" style={{ left: '8%', bottom: '-6%', width: '46%', height: '92%', background: 'radial-gradient(at 50% 40%, rgba(255,255,255,0.14), transparent 65%)' }} />
-                  <div className="absolute inset-0" style={{ background: 'repeating-linear-gradient(135deg, rgba(255,255,255,0.024) 0px, rgba(255,255,255,0.024) 2px, transparent 2px, transparent 9px)' }} />
+                  {v.thumbUrl ? (
+                    <img
+                      src={v.thumbUrl}
+                      alt={`Variant ${v.label}`}
+                      className="absolute inset-0 w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <>
+                      <div className="absolute" style={{ left: '8%', bottom: '-6%', width: '46%', height: '92%', background: 'radial-gradient(at 50% 40%, rgba(255,255,255,0.14), transparent 65%)' }} />
+                      <div className="absolute inset-0" style={{ background: 'repeating-linear-gradient(135deg, rgba(255,255,255,0.024) 0px, rgba(255,255,255,0.024) 2px, transparent 2px, transparent 9px)' }} />
+                    </>
+                  )}
                   <span
                     className="absolute flex items-center justify-center rounded-[6px] font-mono font-bold text-[11px]"
                     style={{

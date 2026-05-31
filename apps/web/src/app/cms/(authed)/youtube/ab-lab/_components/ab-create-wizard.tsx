@@ -16,6 +16,7 @@ import {
   startAbTest,
   createTextVariant,
   updateAbTestType,
+  cleanupDraftVariants,
 } from '../actions'
 import type { TestType, DisplayLabel, AbTestSiteSettings } from '@/lib/youtube/ab-types'
 
@@ -34,10 +35,19 @@ export interface WizardVideo {
 /*  Props                                                              */
 /* ------------------------------------------------------------------ */
 
+interface DraftVariant {
+  label: string
+  isOriginal: boolean
+  thumbUrl: string | null
+  titleText: string
+  descriptionText: string
+}
+
 interface PrefillData {
   testType?: TestType
   suggestedDescription?: string
   fromOptimizationCycle?: string
+  draftVariants?: DraftVariant[]
 }
 
 interface Props {
@@ -83,8 +93,56 @@ type WizardAction =
 
 const NEXT_LABELS: DisplayLabel[] = ['B', 'C', 'D']
 
-function makeOriginalVariant(videoTitle: string): VariantData {
-  return { label: 'A', isOriginal: true, thumbUrl: null, titleText: videoTitle, descriptionText: '' }
+function draftStorageKey(videoId: string): string {
+  return `ab-wizard-draft-${videoId}`
+}
+
+interface PersistedDraft {
+  step: number
+  type: TestType | null
+  variants: Array<Omit<VariantData, 'thumbFile'> & { thumbFile?: null }>
+  config: WizardConfig
+  hypothesis: string
+  savedAt: number
+}
+
+function saveDraft(videoId: string, state: WizardState): void {
+  try {
+    const draft: PersistedDraft = {
+      step: state.step,
+      type: state.type,
+      variants: state.variants.map(v => ({
+        ...v,
+        thumbFile: null,
+        thumbUrl: v.thumbDataUrl ?? (v.thumbUrl?.startsWith('blob:') ? null : v.thumbUrl),
+      })),
+      config: state.config,
+      hypothesis: state.hypothesis,
+      savedAt: Date.now(),
+    }
+    localStorage.setItem(draftStorageKey(videoId), JSON.stringify(draft))
+  } catch { /* quota exceeded — ignore */ }
+}
+
+function loadDraft(videoId: string): PersistedDraft | null {
+  try {
+    const raw = localStorage.getItem(draftStorageKey(videoId))
+    if (!raw) return null
+    const draft = JSON.parse(raw) as PersistedDraft
+    if (Date.now() - draft.savedAt > 7 * 24 * 60 * 60 * 1000) {
+      localStorage.removeItem(draftStorageKey(videoId))
+      return null
+    }
+    return draft
+  } catch { return null }
+}
+
+function clearDraft(videoId: string): void {
+  try { localStorage.removeItem(draftStorageKey(videoId)) } catch { /* ignore */ }
+}
+
+function makeOriginalVariant(videoTitle: string, thumbUrl?: string | null): VariantData {
+  return { label: 'A', isOriginal: true, thumbUrl: thumbUrl ?? null, titleText: videoTitle, descriptionText: '' }
 }
 
 function makeEmptyVariant(label: DisplayLabel): VariantData {
@@ -102,7 +160,7 @@ function wizardReducer(state: WizardState, action: WizardAction): WizardState {
         type: action.testType,
         // Reset variants to original + one blank challenger
         variants: [
-          makeOriginalVariant(state.videoTitle),
+          makeOriginalVariant(state.videoTitle, state.originalThumbUrl),
           makeEmptyVariant('B'),
         ],
         error: null,
@@ -181,33 +239,62 @@ function stepIsValid(step: number, state: WizardState): boolean {
 /* ------------------------------------------------------------------ */
 
 export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, prefill, existingDraftId }: Props) {
-  const initialStep = prefill?.testType || existingDraftId ? 2 : 0
+  const continuingDraft = Boolean(existingDraftId && prefill?.draftVariants && prefill.draftVariants.length > 1)
 
-  const [state, dispatch] = useReducer(wizardReducer, {
-    step: initialStep,
-    type: prefill?.testType ?? null,
-    variants: prefill?.testType
-      ? [makeOriginalVariant(video.title), makeEmptyVariant('B')]
-      : [makeOriginalVariant(video.title)],
-    config: initWizardConfig(settings),
+  // When continuing a DB draft, ignore stale localStorage
+  if (continuingDraft) clearDraft(video.id)
+  const saved = continuingDraft ? null : loadDraft(video.id)
+
+  const defaultVariants = prefill?.testType
+    ? [makeOriginalVariant(video.title, video.thumbnailUrl), makeEmptyVariant('B')]
+    : [makeOriginalVariant(video.title, video.thumbnailUrl)]
+
+  const dbVariants = prefill?.draftVariants?.map(v => ({
+    label: v.label as DisplayLabel,
+    isOriginal: v.isOriginal,
+    thumbUrl: v.thumbUrl ?? (v.isOriginal ? video.thumbnailUrl : null),
+    thumbFile: null as File | null,
+    thumbDataUrl: null as string | null,
+    titleText: v.titleText,
+    descriptionText: v.descriptionText,
+  })) as VariantData[] | undefined
+
+  const restoredVariants = saved?.variants?.map(v => ({
+    ...v,
+    thumbUrl: v.thumbUrl ?? v.thumbDataUrl ?? (v.isOriginal ? video.thumbnailUrl : null),
+    thumbFile: null,
+  })) as VariantData[] | undefined
+
+  const [state, rawDispatch] = useReducer(wizardReducer, {
+    step: continuingDraft ? 4 : (saved?.step ?? (prefill?.testType || existingDraftId ? 2 : 0)),
+    type: prefill?.testType ?? saved?.type ?? null,
+    variants: continuingDraft ? (dbVariants ?? defaultVariants) : (restoredVariants ?? dbVariants ?? defaultVariants),
+    config: saved?.config ?? initWizardConfig(settings),
     videoId: video.id,
     videoTitle: video.title,
     originalThumbUrl: video.thumbnailUrl,
     draftTestId: existingDraftId ?? null,
     isLaunching: false,
     error: null,
-    hypothesis: '',
+    hypothesis: saved?.hypothesis ?? '',
   })
+
+  const draftCleared = useRef(false)
+  const dispatch = useCallback((action: WizardAction) => { rawDispatch(action) }, [])
+
+  useEffect(() => {
+    if (!state.isLaunching && !draftCleared.current) saveDraft(video.id, state)
+  }, [video.id, state])
 
   const [isPending, startTransition] = useTransition()
   const dialogRef = useRef<HTMLDivElement>(null)
 
   // --- Escape key ---
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape' && !state.isLaunching) onClose() }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [onClose])
+  }, [onClose, state.isLaunching])
 
   // --- Focus trap ---
   useEffect(() => {
@@ -248,7 +335,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
       const result = await createAbTest({
         site_id: siteId,
         youtube_video_id: video.id,
-        name: `Test: ${video.title}`,
+        name: video.title,
         test_type: testType,
         config: wizardConfigToAbConfig(state.config),
       })
@@ -277,7 +364,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
         const result = await createAbTest({
           site_id: siteId,
           youtube_video_id: video.id,
-          name: `Test: ${video.title}`,
+          name: video.title,
           test_type: state.type!,
           config: wizardConfigToAbConfig(state.config),
         })
@@ -289,15 +376,37 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
         testId = result.id
       }
 
+      dispatch({ type: 'SET_DRAFT_ID', id: testId })
+
       // 2. Upload image variants (thumbnail/combo)
       if (state.type === 'thumbnail' || state.type === 'combo') {
-        for (const v of state.variants) {
-          if (v.isOriginal || !v.thumbUrl) continue
-          // Only upload if it's a blob URL (user-provided file)
-          if (v.thumbUrl.startsWith('blob:')) {
-            const blob = await fetch(v.thumbUrl).then(r => r.blob())
+        const variantsWithNewData = state.variants.filter(v =>
+          !v.isOriginal && (v.thumbFile || v.thumbUrl?.startsWith('data:')),
+        )
+
+        if (variantsWithNewData.length > 0) {
+          const cleanupRes = await cleanupDraftVariants(testId)
+          if (!cleanupRes.ok) {
+            dispatch({ type: 'SET_ERROR', error: cleanupRes.error ?? 'Failed to clean up draft' })
+            dispatch({ type: 'SET_LAUNCHING', isLaunching: false })
+            return
+          }
+
+          for (const v of variantsWithNewData) {
+            let file: File | Blob | null = v.thumbFile ?? null
+            if (!file && v.thumbUrl?.startsWith('data:')) {
+              const [header, b64] = v.thumbUrl.split(',')
+              const mime = header?.match(/:(.*?);/)?.[1] ?? 'image/jpeg'
+              const bytes = atob(b64 ?? '')
+              const arr = new Uint8Array(bytes.length)
+              for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i)
+              file = new Blob([arr], { type: mime })
+            }
+            if (!file) continue
             const fd = new FormData()
-            fd.append('file', blob, `variant-${v.label}.jpg`)
+            fd.append('file', file, `variant-${v.label}.jpg`)
+            if (v.titleText?.trim()) fd.append('title_text', v.titleText.trim())
+            if (v.descriptionText?.trim()) fd.append('description_text', v.descriptionText.trim())
             const uploadResult = await uploadVariant(testId, fd)
             if (!uploadResult.ok) {
               dispatch({ type: 'SET_ERROR', error: uploadResult.error ?? 'Failed to upload variant' })
@@ -308,14 +417,13 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
         }
       }
 
-      // 3. Create text variants (title/description/combo)
-      if (state.type === 'title' || state.type === 'description' || state.type === 'combo') {
+      // 4. Create text-only variants (title/description — NOT combo, which was handled in step 3)
+      if (state.type === 'title' || state.type === 'description') {
         const textVariants = state.variants
           .filter(v => !v.isOriginal && !v.isCoworkGenerated)
           .filter(v => {
             if (state.type === 'title') return v.titleText.trim().length > 0
-            if (state.type === 'description') return v.descriptionText.trim().length > 0
-            return v.titleText.trim().length > 0 || v.descriptionText.trim().length > 0
+            return v.descriptionText.trim().length > 0
           })
 
         for (const tv of textVariants) {
@@ -342,10 +450,18 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
         }
       }
 
-      dispatch({ type: 'SET_LAUNCHING', isLaunching: false })
-      onCreated(testId)
+      draftCleared.current = true
+      clearDraft(video.id)
+      if (isLaunch) {
+        // Keep isLaunching=true so the wizard stays in "Ativando..." state
+        // until navigation completes — avoids flashing back to the dashboard.
+        onCreated(testId)
+      } else {
+        dispatch({ type: 'SET_LAUNCHING', isLaunching: false })
+        onClose()
+      }
     })
-  }, [state.draftTestId, state.type, state.variants, state.config, siteId, video.id, video.title, onCreated])
+  }, [state.draftTestId, state.type, state.variants, state.config, siteId, video.id, video.title, onCreated, onClose])
 
   // --- Step navigation helpers ---
   const canAdvance = stepIsValid(state.step, state)
@@ -414,7 +530,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
       style={{ backdropFilter: 'blur(6px)' }}
-      onClick={onClose}
+      onClick={state.isLaunching ? undefined : onClose}
     >
       <div
         ref={dialogRef}
@@ -439,7 +555,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
             <h2 className="text-[18px] font-bold text-cms-text m-0">Novo teste A/B</h2>
             <div className="text-[12.5px] text-cms-text-dim mt-[3px] max-w-[580px] whitespace-nowrap overflow-hidden text-ellipsis">{video.title}</div>
           </div>
-          <button onClick={onClose} className="text-cms-text-dim p-[4px] shrink-0" style={{ background: 'transparent', border: 'none' }} aria-label="Fechar">
+          <button onClick={onClose} disabled={state.isLaunching} className="text-cms-text-dim p-[4px] shrink-0 disabled:opacity-40" style={{ background: 'transparent', border: 'none' }} aria-label="Fechar">
             <X size={20} />
           </button>
         </div>
