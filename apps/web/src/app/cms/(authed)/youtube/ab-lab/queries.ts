@@ -235,6 +235,20 @@ export async function getTestResults(testId: string): Promise<AbTestResults | nu
     .select('*')
     .eq('ab_test_id', testId)
 
+  // Fetch latest polls for live signal (active/paused tests only)
+  let latestPolls: AbTestResults['latestPolls'] = undefined
+  if (test.status === 'draft' || test.status === 'active' || test.status === 'paused') {
+    const { data: polls } = await supabase
+      .from('ab_test_polls')
+      .select('variant_id, views, likes, polled_at')
+      .eq('test_id', testId)
+      .order('polled_at', { ascending: false })
+      .limit(10)
+    if (polls && polls.length > 0) {
+      latestPolls = polls as AbTestResults['latestPolls']
+    }
+  }
+
   return {
     test: test as AbTestResults['test'],
     variants: variantStats,
@@ -244,6 +258,7 @@ export async function getTestResults(testId: string): Promise<AbTestResults | nu
     timeline: allCycles,
     data_freshness: new Date().toISOString(),
     tracked_links: (trackedLinks ?? []) as AbTestTrackedLinkRow[],
+    latestPolls,
   } as AbTestResults
 }
 
@@ -832,6 +847,33 @@ export function toDetailView(results: AbTestResults): AbTestDetailView {
       ? variants.reduce((best, v) => (v.pBest > best.pBest ? v : best), variants[0]!)
       : { label: 'A' as DisplayLabel, color: '#8A8F98', pBest: 0, ctr: 0 }
     const originalCtr = variants.find(v => v.label === 'A')?.ctr ?? 0
+
+    // Compute live delta from the two most recent polls
+    const latestPolls = results.latestPolls
+    let liveViewsDelta = 0
+    let liveLikesDelta = 0
+    let lastPolledAt: string | null = null
+
+    if (latestPolls && latestPolls.length >= 2) {
+      lastPolledAt = latestPolls[0]!.polled_at
+      // Group by variant, compute delta for each
+      const seen = new Set<string>()
+      const pairs: Array<{ curr: typeof latestPolls[0]; prev: typeof latestPolls[0] }> = []
+      for (const poll of latestPolls) {
+        if (seen.has(poll.variant_id)) {
+          const curr = latestPolls.find((p: typeof latestPolls[0]) => p.variant_id === poll.variant_id && p !== poll)
+          if (curr) pairs.push({ curr, prev: poll })
+        }
+        seen.add(poll.variant_id)
+      }
+      for (const { curr, prev } of pairs) {
+        liveViewsDelta += (curr!.views - prev!.views)
+        liveLikesDelta += (curr!.likes - prev!.likes)
+      }
+    } else if (latestPolls && latestPolls.length === 1) {
+      lastPolledAt = latestPolls[0]!.polled_at
+    }
+
     return {
       ...base,
       status: (test.status === 'draft' ? 'active' : test.status) as 'active' | 'paused',
@@ -843,6 +885,19 @@ export function toDetailView(results: AbTestResults): AbTestDetailView {
           ? ((leader.ctr - originalCtr) / originalCtr) * 100
           : 0,
       },
+      liveData: lastPolledAt ? {
+        confidence: results.confidence * 100,
+        leader: leader.label,
+        leaderColor: leader.color,
+        lift: leader.label !== 'A' && originalCtr > 0
+          ? ((leader.ctr - originalCtr) / originalCtr) * 100
+          : 0,
+      } : undefined,
+      pollData: lastPolledAt ? {
+        viewsDelta: liveViewsDelta,
+        likesDelta: liveLikesDelta,
+        polledAt: lastPolledAt,
+      } : undefined,
     } satisfies AbTestActiveView
   }
 

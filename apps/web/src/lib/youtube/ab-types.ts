@@ -228,6 +228,13 @@ export const AB_SITE_SETTINGS_DEFAULTS: AbTestSiteSettings = {
   notifications: { test_completed: true, test_auto_paused: true, ctr_drop_alert: false, daily_digest: false },
 }
 
+export interface AbTestPollRow {
+  variant_id: string
+  views: number
+  likes: number
+  polled_at: string
+}
+
 export interface AbTestResults {
   test: AbTestRow
   variants: VariantStats[]
@@ -237,6 +244,7 @@ export interface AbTestResults {
   timeline: AbTestCycleRow[]
   data_freshness: string
   tracked_links: AbTestTrackedLinkRow[]
+  latestPolls?: AbTestPollRow[]
 }
 
 /* --- Chart variant hierarchy (Layer 1 redesign) --- */
@@ -410,6 +418,7 @@ export interface AbTestActiveView extends AbTestBaseView {
     leaderColor: string
     lift: number
   }
+  pollData?: { viewsDelta: number; likesDelta: number; polledAt: string }
 }
 
 export interface AbTestWinnerView extends AbTestBaseView {

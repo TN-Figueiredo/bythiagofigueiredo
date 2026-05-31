@@ -18,6 +18,8 @@ import { ABBATimeline } from './abba-timeline'
 import { FunnelRow } from './funnel-row'
 import { ClickMoment } from './click-moment'
 import { forceRotate } from '../actions'
+import { usePollStats } from './use-poll-stats'
+import { SignalCard } from './signal-card'
 import {
   Pause, Settings,
   LayoutGrid, TrendingUp, Crosshair, Target, BarChart3, LineChart, RefreshCw, Filter,
@@ -32,6 +34,7 @@ const BTN = 'inline-flex items-center gap-[7px] justify-center py-[6px] px-[11px
 export function ActiveDetail({ view }: ActiveDetailProps) {
   const router = useRouter()
   const [signal, setSignal] = useState<'confirmed' | 'live'>('confirmed')
+  const { data: livePoll } = usePollStats(view.id, view.status === 'active')
 
   const data = signal === 'confirmed' ? view.confirmedData : (view.liveData ?? view.confirmedData)
 
@@ -122,6 +125,21 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
           <RefreshCw size={14} aria-hidden="true" />
           Forçar Rotação
         </button>
+      </div>
+
+      {/* Signal Card: live poll data */}
+      <div className="mb-[16px]">
+        <SignalCard
+          live={livePoll?.delta ? {
+            viewsDelta: livePoll.delta.views,
+            likesDelta: livePoll.delta.likes,
+            polledAt: livePoll.polledAt,
+          } : view.pollData ? {
+            viewsDelta: view.pollData.viewsDelta,
+            likesDelta: view.pollData.likesDelta,
+            polledAt: view.pollData.polledAt,
+          } : undefined}
+        />
       </div>
 
       {/* Section 2: Lock Countdown */}
