@@ -29,7 +29,12 @@ vi.mock('@sentry/nextjs', () => ({
   setTag: vi.fn(),
 }))
 
-// ── Import after mocks ──────────────────────────────────────────────────────
+vi.mock('@/lib/cron-health', () => ({
+  recordCronSuccess: vi.fn(),
+  recordCronFailure: vi.fn(),
+}))
+
+// ── Import after mocks ─���─────────��──────────────────────────────────────────
 import { GET } from '@/app/api/cron/ab-backfill/route'
 
 // ── Helpers ─────────────────────────────────────────────────────────────────

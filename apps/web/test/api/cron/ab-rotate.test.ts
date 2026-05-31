@@ -42,6 +42,15 @@ vi.mock('@/lib/youtube/ab-templates', () => ({
   resolveTemplates: vi.fn((text: string) => text),
 }))
 
+const mockPreflightTokenCheck = vi.fn().mockResolvedValue({ ok: true, accessToken: 'tok-mock' })
+vi.mock('@/lib/youtube/ab-preflight', () => ({
+  preflightTokenCheck: (...args: unknown[]) => mockPreflightTokenCheck(...args),
+}))
+
+vi.mock('@/lib/notifications/create', () => ({
+  createNotification: vi.fn().mockResolvedValue(undefined),
+}))
+
 vi.mock('@/lib/cron-health', () => ({
   recordCronSuccess: vi.fn().mockResolvedValue(undefined),
   recordCronFailure: vi.fn().mockResolvedValue(undefined),
@@ -221,13 +230,15 @@ describe('GET /api/cron/ab-rotate', () => {
   })
 
   it('auto-pauses test on 401 auth error', async () => {
-    const test = makeTest()
+    const test = makeTest({ config: { rotation_pattern: 'abba', consecutive_failures: 2 } })
     const mockUpdate = vi.fn().mockReturnValue({
       eq: vi.fn().mockResolvedValue({ error: null }),
     })
 
-    mockEnsureFreshToken.mockRejectedValue(new Error('401 unauthorized'))
+    // Simulate YouTube API returning 401 when setThumbnail is called
+    mockSetThumbnail.mockRejectedValueOnce(new Error('401 unauthorized'))
 
+    let cyclesSelectCount = 0
     mockFrom.mockImplementation((table: string) => {
       if (table === 'ab_tests') {
         return {
@@ -240,7 +251,14 @@ describe('GET /api/cron/ab-rotate', () => {
       if (table === 'ab_test_cycles') {
         return {
           ...updateQuery(),
-          ...idempotencyQuery(false),
+          ...insertQuery(),
+          select: vi.fn().mockImplementation(() => {
+            cyclesSelectCount++
+            if (cyclesSelectCount === 1) {
+              return idempotencyQuery(false).select()
+            }
+            return countQuery(4).select()
+          }),
         }
       }
       return {}

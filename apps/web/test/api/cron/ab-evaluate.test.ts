@@ -72,6 +72,11 @@ vi.mock('@/lib/youtube/ab-start', () => ({
   startAbTestInternal: vi.fn().mockResolvedValue({ ok: false }),
 }))
 
+vi.mock('@/lib/cron-health', () => ({
+  recordCronSuccess: vi.fn(),
+  recordCronFailure: vi.fn(),
+}))
+
 // ── Import after mocks ──────────────────────────────────────────────────────
 import { GET } from '@/app/api/cron/ab-evaluate/route'
 import { calculateBayesianConfidence } from '@/lib/youtube/ab-statistics'

@@ -6,6 +6,7 @@ import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
 import { withCronLock, newRunId } from '../../../../../lib/logger'
 import { syncChannel, YouTubeQuotaError } from '@/lib/youtube/sync'
 import { isInPostingWindow } from '@/lib/youtube/schedule-window'
+import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
 import type { YouTubeChannelRow, SyncMode } from '@/lib/youtube/types'
 
 export const runtime = 'nodejs'
@@ -125,6 +126,7 @@ export async function GET(req: NextRequest) {
         }
 
         if (err instanceof YouTubeQuotaError) {
+          await recordCronFailure('sync-youtube', 'quotaExceeded', 'critical')
           return { status: 'error' as const, error: 'quotaExceeded', quota_used: totalQuota, channels: channelResults }
         }
 
@@ -137,6 +139,13 @@ export async function GET(req: NextRequest) {
 
     revalidateTag('youtube')
     revalidatePath('/cms/youtube')
+
+    const failedChannels = channelResults.filter(c => c.status === 'failed')
+    if (failedChannels.length === 0) {
+      await recordCronSuccess('sync-youtube', 'critical')
+    } else {
+      await recordCronFailure('sync-youtube', `${failedChannels.length} channel(s) failed`, 'critical')
+    }
 
     return {
       status: 'ok' as const,

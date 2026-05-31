@@ -3,6 +3,7 @@ import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { ensureFreshToken } from '@/lib/social/token-refresh'
 import { fetchAnalyticsForDateRange } from '@/lib/youtube/ab-youtube'
+import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
 
 export const maxDuration = 120
 
@@ -101,6 +102,12 @@ export async function GET(req: NextRequest) {
         .update({ backfill_status: 'error' })
         .eq('id', cycle.id)
     }
+  }
+
+  if (errors === 0) {
+    await recordCronSuccess('ab-backfill', 'critical')
+  } else {
+    await recordCronFailure('ab-backfill', `${errors} cycle(s) failed`, 'critical')
   }
 
   return Response.json({ status: 'ok', backfilled, errors })

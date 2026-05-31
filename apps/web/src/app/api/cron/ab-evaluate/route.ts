@@ -10,6 +10,7 @@ import { buildNotification } from '@/lib/youtube/notification-service'
 import { getIsoWeek } from '@/lib/youtube/analytics-sync'
 import { checkPlayoffEligibility, selectPlayoffVariants } from '@/lib/youtube/ab-playoff'
 import { startAbTestInternal } from '@/lib/youtube/ab-start'
+import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
 import type { AbTestVariantRow, AbTestCycleRow, VariantStats, AbTestConfig, BackfillStatus } from '@/lib/youtube/ab-types'
 
 export const maxDuration = 120
@@ -37,6 +38,7 @@ export async function GET(req: NextRequest) {
 
   let evaluated = 0
   let resolved = 0
+  let errors = 0
 
   // Phase 1: Auto-start Round 2 drafts past cooldown
   let playoffsStarted = 0
@@ -270,6 +272,7 @@ export async function GET(req: NextRequest) {
 
       evaluated++
     } catch (err) {
+      errors++
       Sentry.captureException(err, {
         tags: { cron: 'ab-evaluate' },
         extra: { testId: test.id },
@@ -382,6 +385,7 @@ export async function GET(req: NextRequest) {
 
         playoffsCreated++
       } catch (err) {
+        errors++
         Sentry.captureException(err, {
           tags: { cron: 'ab-evaluate', phase: 'playoff-detect' },
           extra: { testId: candidate.id },
@@ -390,5 +394,11 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  return Response.json({ status: 'ok', evaluated, resolved, playoffs_started: playoffsStarted, playoffs_created: playoffsCreated })
+  if (errors === 0) {
+    await recordCronSuccess('ab-evaluate', 'critical')
+  } else {
+    await recordCronFailure('ab-evaluate', `${errors} test(s) failed`, 'critical')
+  }
+
+  return Response.json({ status: 'ok', evaluated, resolved, errors, playoffs_started: playoffsStarted, playoffs_created: playoffsCreated })
 }

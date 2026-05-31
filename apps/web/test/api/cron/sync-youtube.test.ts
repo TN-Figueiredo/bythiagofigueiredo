@@ -50,6 +50,11 @@ vi.mock('@/lib/youtube/schedule-window', () => ({
   isInPostingWindow: vi.fn(() => true),
 }))
 
+vi.mock('@/lib/cron-health', () => ({
+  recordCronSuccess: vi.fn(),
+  recordCronFailure: vi.fn(),
+}))
+
 // ── Import after mocks ──────────────────────────────────────────────────────
 import { GET } from '../../../src/app/api/cron/sync-youtube/route'
 import { revalidateTag } from 'next/cache'

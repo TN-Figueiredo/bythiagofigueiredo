@@ -36,6 +36,11 @@ vi.mock('@/lib/youtube/schedule-window', () => ({
   isInPostingWindow: vi.fn(() => true),
 }))
 
+vi.mock('@/lib/cron-health', () => ({
+  recordCronSuccess: vi.fn(),
+  recordCronFailure: vi.fn(),
+}))
+
 import { GET } from '@/app/api/cron/sync-youtube/route'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { syncChannel, YouTubeQuotaError } from '@/lib/youtube/sync'
