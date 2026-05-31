@@ -13,7 +13,7 @@ describe('preflightTokenCheck', () => {
       accessToken: 'valid-token',
       connectionId: 'conn-1',
     })
-    global.fetch = vi.fn().mockResolvedValue({ status: 200 })
+    global.fetch = vi.fn().mockResolvedValue({ status: 200, ok: true })
 
     const result = await preflightTokenCheck('site-1', 'youtube', 'UC_x')
     expect(result.ok).toBe(true)
@@ -25,7 +25,7 @@ describe('preflightTokenCheck', () => {
       accessToken: 'bad-token',
       connectionId: 'conn-1',
     })
-    global.fetch = vi.fn().mockResolvedValue({ status: 403 })
+    global.fetch = vi.fn().mockResolvedValue({ status: 403, ok: false })
 
     const result = await preflightTokenCheck('site-1', 'youtube', 'UC_x')
     expect(result.ok).toBe(false)
@@ -37,7 +37,7 @@ describe('preflightTokenCheck', () => {
       accessToken: 'expired-token',
       connectionId: 'conn-1',
     })
-    global.fetch = vi.fn().mockResolvedValue({ status: 401 })
+    global.fetch = vi.fn().mockResolvedValue({ status: 401, ok: false })
 
     const result = await preflightTokenCheck('site-1', 'youtube', 'UC_x')
     expect(result.ok).toBe(false)
@@ -52,5 +52,29 @@ describe('preflightTokenCheck', () => {
     const result = await preflightTokenCheck('site-1', 'youtube', 'UC_x')
     expect(result.ok).toBe(false)
     expect(result.reason).toContain('No connection found')
+  })
+
+  it('returns not ok on network timeout', async () => {
+    ;(ensureFreshToken as ReturnType<typeof vi.fn>).mockResolvedValue({
+      accessToken: 'token',
+      connectionId: 'conn-1',
+    })
+    global.fetch = vi.fn().mockRejectedValue(new DOMException('The operation was aborted', 'AbortError'))
+
+    const result = await preflightTokenCheck('site-1', 'youtube', 'UC_x')
+    expect(result.ok).toBe(false)
+    expect(result.reason).toContain('aborted')
+  })
+
+  it('returns not ok when YouTube API returns 500', async () => {
+    ;(ensureFreshToken as ReturnType<typeof vi.fn>).mockResolvedValue({
+      accessToken: 'token',
+      connectionId: 'conn-1',
+    })
+    global.fetch = vi.fn().mockResolvedValue({ status: 500, ok: false })
+
+    const result = await preflightTokenCheck('site-1', 'youtube', 'UC_x')
+    expect(result.ok).toBe(false)
+    expect(result.reason).toContain('500')
   })
 })

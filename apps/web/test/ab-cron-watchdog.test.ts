@@ -22,18 +22,27 @@ function makeRequest(secret = 'test-secret') {
   })
 }
 
+function makeChainMock(resolveValue: unknown) {
+  const chain: Record<string, unknown> = {}
+  chain.eq = vi.fn(() => chain)
+  chain.limit = vi.fn(() => chain)
+  chain.single = vi.fn(() => Promise.resolve(resolveValue))
+  chain.then = (resolve: (v: unknown) => void) => resolve(resolveValue)
+  return chain
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   vi.stubEnv('CRON_SECRET', 'test-secret')
   ;(getSupabaseServiceClient as ReturnType<typeof vi.fn>).mockReturnValue({
-    from: vi.fn(() => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          limit: vi.fn(() => ({
-            then: (resolve: (v: unknown) => void) => resolve({ data: [{ site_id: 'site-1' }], error: null }),
-          })),
-        })),
-      })),
+    from: vi.fn((table: string) => ({
+      select: vi.fn(() => {
+        if (table === 'ab_tests') {
+          return makeChainMock({ data: [{ site_id: 'site-1' }], error: null })
+        }
+        // site_users
+        return makeChainMock({ data: { user_id: 'user-1' }, error: null })
+      }),
     })),
   })
 })
@@ -83,5 +92,14 @@ describe('ab-watchdog', () => {
         priority: 1,
       }),
     )
+  })
+
+  it('sends notification when cron_health has no record', async () => {
+    mockGetHealth.mockResolvedValue(null)
+
+    const res = await GET(makeRequest())
+    const body = await res.json()
+    expect(body.rotate_healthy).toBe(false)
+    expect(mockNotify).toHaveBeenCalled()
   })
 })
