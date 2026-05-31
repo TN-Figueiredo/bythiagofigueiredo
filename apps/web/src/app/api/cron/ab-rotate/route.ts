@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { ensureFreshToken } from '@/lib/social/token-refresh'
+import { preflightTokenCheck } from '@/lib/youtube/ab-preflight'
 import { getNextVariantIndex } from '@/lib/youtube/ab-rotation'
 import {
   setThumbnail,
@@ -10,6 +10,7 @@ import {
 import { updateVideoMetadata } from '@/lib/youtube/ab-metadata'
 import { resolveTemplates } from '@/lib/youtube/ab-templates'
 import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
+import { createNotification } from '@/lib/notifications/create'
 import type { AbTestVariantRow, AppliedMetadata } from '@/lib/youtube/ab-types'
 
 export const maxDuration = 120
@@ -72,7 +73,21 @@ export async function GET(req: NextRequest) {
         .eq('id', video.channel_id)
         .single()
 
-      const { accessToken } = await ensureFreshToken(test.site_id, 'youtube', channel?.channel_id)
+      const preflight = await preflightTokenCheck(test.site_id, 'youtube', channel?.channel_id)
+      if (!preflight.ok) {
+        await createNotification({
+          site_id: test.site_id,
+          type: 'youtube.token_invalid',
+          domain: 'youtube',
+          priority: 1,
+          title: 'Token YouTube inválido',
+          message: `Não foi possível acessar a API do YouTube: ${preflight.reason}`,
+          action_href: '/cms/youtube',
+          dedup_key: `token-invalid-${test.site_id}-${new Date().toISOString().slice(0, 10)}`,
+        })
+        continue
+      }
+      const accessToken = preflight.accessToken!
 
       // Count only completed (closed) cycles for correct ABBA position
       const { count } = await supabase

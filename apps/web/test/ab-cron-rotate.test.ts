@@ -2,7 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn() }))
-vi.mock('@/lib/social/token-refresh', () => ({ ensureFreshToken: vi.fn() }))
+vi.mock('@/lib/youtube/ab-preflight', () => ({ preflightTokenCheck: vi.fn() }))
+vi.mock('@/lib/notifications/create', () => ({ createNotification: vi.fn().mockResolvedValue({ success: true }) }))
 vi.mock('@/lib/youtube/ab-rotation', () => ({ getNextVariantIndex: vi.fn() }))
 vi.mock('@/lib/youtube/ab-youtube', () => ({
   setThumbnail: vi.fn(),
@@ -18,7 +19,8 @@ vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn() }))
 
 import { GET } from '@/app/api/cron/ab-rotate/route'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { ensureFreshToken } from '@/lib/social/token-refresh'
+import { preflightTokenCheck } from '@/lib/youtube/ab-preflight'
+import { createNotification } from '@/lib/notifications/create'
 import { getNextVariantIndex } from '@/lib/youtube/ab-rotation'
 import {
   setThumbnail,
@@ -165,7 +167,8 @@ beforeEach(() => {
   vi.stubEnv('CRON_SECRET', 'test-secret')
   vi.stubEnv('LINKS_SHORT_DOMAIN', 'go.test.com')
   vi.clearAllMocks()
-  ;(ensureFreshToken as ReturnType<typeof vi.fn>).mockResolvedValue({
+  ;(preflightTokenCheck as ReturnType<typeof vi.fn>).mockResolvedValue({
+    ok: true,
     accessToken: 'fresh-token-123',
   })
   ;(getNextVariantIndex as ReturnType<typeof vi.fn>).mockReturnValue(1)
@@ -330,34 +333,32 @@ describe('GET /api/cron/ab-rotate', () => {
     )
   })
 
-  it('tracks failure but stays active on first 401 error', async () => {
+  it('skips rotation and sends notification when preflight fails', async () => {
     const test = makeTest()
-    const { updateCalls } = buildSupabaseMock({ tests: [test] })
-    ;(ensureFreshToken as ReturnType<typeof vi.fn>).mockRejectedValue(
-      new Error('401 Unauthorized')
-    )
+    buildSupabaseMock({ tests: [test] })
+    ;(preflightTokenCheck as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: false,
+      reason: 'token_invalid_401',
+    })
 
     const req = createCronRequest('test-secret')
     const res = await GET(req)
     const body = await res.json()
 
-    expect(body.errors).toBe(1)
-
-    // First failure should NOT pause — only track the failure counter
-    expect(updateCalls).toContainEqual(
+    expect(body.processed).toBe(0)
+    expect(body.errors).toBe(0)
+    expect(createNotification).toHaveBeenCalledWith(
       expect.objectContaining({
-        table: 'ab_tests',
-        data: expect.objectContaining({
-          config: expect.objectContaining({ consecutive_failures: 1 }),
-          status_note: expect.stringContaining('retry 1/3'),
-        }),
+        site_id: 'site-1',
+        type: 'youtube.token_invalid',
+        domain: 'youtube',
+        priority: 1,
+        title: 'Token YouTube inválido',
+        message: expect.stringContaining('token_invalid_401'),
       })
     )
-    // Should NOT contain a pause update
-    const pauseUpdate = updateCalls.find(
-      (c: { table: string; data: { status?: string } }) => c.table === 'ab_tests' && c.data.status === 'paused'
-    )
-    expect(pauseUpdate).toBeUndefined()
+    expect(setThumbnail).not.toHaveBeenCalled()
+    expect(updateVideoMetadata).not.toHaveBeenCalled()
   })
 
   it('uses rotation_pattern from config', async () => {
@@ -381,7 +382,7 @@ describe('GET /api/cron/ab-rotate', () => {
     const body = await res.json()
 
     expect(body.processed).toBe(0)
-    expect(ensureFreshToken).not.toHaveBeenCalled()
+    expect(preflightTokenCheck).not.toHaveBeenCalled()
     expect(setThumbnail).not.toHaveBeenCalled()
     expect(updateVideoMetadata).not.toHaveBeenCalled()
   })
