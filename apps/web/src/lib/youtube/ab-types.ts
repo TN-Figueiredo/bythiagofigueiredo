@@ -51,6 +51,7 @@ export interface AbTestRow {
   round_number: number
   playoff_test_id: string | null
   playoff_start_after: string | null
+  last_applied_variant_id: string | null
 }
 
 export interface VariantMetadata {

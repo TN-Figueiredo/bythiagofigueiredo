@@ -369,7 +369,7 @@ describe('GET /api/cron/ab-rotate', () => {
     const req = createCronRequest('test-secret')
     await GET(req)
 
-    expect(getNextVariantIndex).toHaveBeenCalledWith('round_robin', 2, 3)
+    expect(getNextVariantIndex).toHaveBeenCalledWith('round_robin', 2, 4)
   })
 
   it('skips test if already rotated today (idempotency)', async () => {

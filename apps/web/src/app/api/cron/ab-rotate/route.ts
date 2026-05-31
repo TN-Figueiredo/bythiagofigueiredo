@@ -74,26 +74,25 @@ export async function GET(req: NextRequest) {
 
       const { accessToken } = await ensureFreshToken(test.site_id, 'youtube', channel?.channel_id)
 
-      // Close current cycle
-      await supabase
-        .from('ab_test_cycles')
-        .update({ ended_at: new Date().toISOString() })
-        .eq('test_id', test.id)
-        .is('ended_at', null)
-
-      // Count only completed cycles for correct ABBA position
+      // Count only completed (closed) cycles for correct ABBA position
       const { count } = await supabase
         .from('ab_test_cycles')
         .select('*', { count: 'exact', head: true })
         .eq('test_id', test.id)
         .not('ended_at', 'is', null)
 
-      const nextCycle = count ?? 0
+      const nextCycle = (count ?? 0) + 1
       const pattern = test.config?.rotation_pattern ?? 'abba'
       const nextVariantIndex = getNextVariantIndex(pattern, variants.length, nextCycle)
       const nextVariant = variants[nextVariantIndex]
 
       if (!nextVariant) continue
+
+      // Write-ahead marker: record intent BEFORE calling YouTube API
+      await supabase
+        .from('ab_tests')
+        .update({ last_applied_variant_id: nextVariant.id })
+        .eq('id', test.id)
 
       // Apply variant based on test type
       const appliedMeta: AppliedMetadata = {}
@@ -137,7 +136,13 @@ export async function GET(req: NextRequest) {
         }
       }
 
-      // Open new cycle
+      // Close old cycle + open new cycle AFTER YouTube confirms
+      await supabase
+        .from('ab_test_cycles')
+        .update({ ended_at: new Date().toISOString() })
+        .eq('test_id', test.id)
+        .is('ended_at', null)
+
       await supabase.from('ab_test_cycles').insert({
         test_id: test.id,
         variant_id: nextVariant.id,
