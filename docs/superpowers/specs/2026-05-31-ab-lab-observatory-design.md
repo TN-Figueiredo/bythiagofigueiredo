@@ -3,7 +3,7 @@
 > **Date:** 2026-05-31
 > **Status:** Approved
 > **Research:** 3 rounds of recursive critique, 42 AI agents, ~800K tokens of analysis
-> **Scope:** P1-P4 CORE (~85h) | P5-P6 PROVISIONAL (~35h, decision-gated)
+> **Scope:** P1-P4 CORE (~85h) | P5-P6 PROVISIONAL (~35h, decision-gated) | P7 HARDENING (~8h, audit-gated)
 
 ## 1. Overview
 
@@ -11,7 +11,7 @@ The AB Lab Observatory transforms the YouTube AB Lab from a basic A/B testing to
 
 **Competitive positioning:** Beats TubeBuddy ($49/mo, max 3 variants, z-test) on multi-variant ABBA + Bayesian. Beats ThumbnailTest ($29/mo, Chrome extension dependency) on server-side analytics. Beats vidIQ (no AB testing). Beats ViewStats (observation only, $50/mo). Free, combo testing (title × thumbnail already implemented), tracked links.
 
-**Scope:** 6 phases. P1-P4 are CORE (~85h). P5-P6 are PROVISIONAL with explicit decision gates.
+**Scope:** 7 phases. P1-P4 are CORE (~85h). P5-P6 are PROVISIONAL with decision gates. P7 is HARDENING (~8h, audit-gated — runs last to close known debt).
 
 ## 2. Navigation Restructure
 
@@ -308,6 +308,47 @@ CREATE TABLE competitor_changes (id uuid PK, video_id uuid FK, change_type text,
 | Competitor thumbs | YES | Blocked on P5 |
 | DNA extraction | No | P1-4 only |
 | Niche style | YES | Blocked on P5 |
+
+---
+
+## Phase 7: Hardening & Debt (~8h)
+
+**Goal:** Close all known gaps from P1 audit that were deferred for pragmatic reasons. Run as final phase to verify everything was either addressed by an intermediate phase or explicitly resolved here.
+
+**Success metrics:** Re-audit score ≥ 98/100 across all 4 dimensions.
+
+### 7.1 Drift Detection (P1 spec item 1.6)
+- Watchdog compares current YouTube thumbnail (via `thumbnails.list` API) against expected variant's `blob_url` using pHash hamming distance
+- If hamming > 5: external change detected → pause test + notify "Thumbnail alterado externamente"
+- Quota cost: 1 unit per active test per day (negligible)
+- **Review gate:** May already be solved by P4 automation — if auto-apply winner restores correct state, drift detection becomes a monitoring signal rather than a pause trigger
+
+### 7.2 Transactional Cycle Close+Open
+- Create Supabase edge function `rotate_cycle(test_id, variant_id, cycle_number, metadata)` that:
+  1. Closes current open cycle (sets `ended_at`)
+  2. Inserts new cycle
+  3. Clears write-ahead marker
+  All in a single transaction — no partial state possible
+- Wire into both `ab-rotate` cron and `forceRotate` action
+- **Review gate:** If P2-P4 never hit the partial-state bug in prod, this becomes low priority
+
+### 7.3 Notification Escalation
+- If `cron_health.consecutive_failures >= 3` AND same cron has been failing for 3+ calendar days:
+  - Send Resend email to site super_admin (not just in-app notification)
+  - Include direct link to health dashboard
+- **Review gate:** If P3 auto-pause prevents extended failures, escalation may be redundant
+
+### 7.4 Parallel Processing for Scale
+- If active tests > 5: process in batches of 5 with `Promise.allSettled`
+- Each batch shares the same `accessToken` (avoids N token refreshes)
+- Guard: `maxDuration: 300` (5min) to handle 20+ tests safely
+- **Review gate:** If user never exceeds 5 concurrent tests, this is premature — skip
+
+### Verification Checklist (run at P7 start)
+- [ ] Re-run 4-dimension audit (code quality, test coverage, spec compliance, production readiness)
+- [ ] For each item: if resolved by P2-P6 work, mark ✅ and document which phase fixed it
+- [ ] For remaining items: implement fix
+- [ ] Final score must be ≥ 98/100
 
 ---
 
