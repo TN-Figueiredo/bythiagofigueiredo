@@ -43,16 +43,23 @@ export async function GET(req: NextRequest) {
         (a, b) => a.sort_order - b.sort_order
       )
 
-      // Get youtube_video_id from the youtube_videos table
+      // Get youtube_video_id and channel info for correct token selection
       const { data: video } = await supabase
         .from('youtube_videos')
-        .select('youtube_video_id')
+        .select('youtube_video_id, channel_id')
         .eq('id', test.youtube_video_id)
         .single()
 
       if (!video) continue
 
-      const { accessToken } = await ensureFreshToken(test.site_id, 'youtube')
+      // Resolve the YouTube channel_id to use the correct OAuth token
+      const { data: channel } = await supabase
+        .from('youtube_channels')
+        .select('channel_id')
+        .eq('id', video.channel_id)
+        .single()
+
+      const { accessToken } = await ensureFreshToken(test.site_id, 'youtube', channel?.channel_id)
 
       // Close current cycle
       await supabase
