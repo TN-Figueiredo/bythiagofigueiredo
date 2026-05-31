@@ -9,7 +9,7 @@
 
 The AB Lab Observatory transforms the YouTube AB Lab from a basic A/B testing tool into a complete thumbnail and title optimization system with reliability infrastructure, live data streaming, workflow automation, statistical insights, competitor tracking, and thumbnail intelligence.
 
-**Competitive positioning:** Beats TubeBuddy ($49/mo, 2 variants, z-test) on multi-variant ABBA + Bayesian. Beats ThumbnailTest ($29/mo, Chrome extension dependency) on server-side analytics. Beats vidIQ (no AB testing). Beats ViewStats (observation only, $50/mo). Free, combo testing (title × thumbnail), tracked links.
+**Competitive positioning:** Beats TubeBuddy ($49/mo, max 3 variants, z-test) on multi-variant ABBA + Bayesian. Beats ThumbnailTest ($29/mo, Chrome extension dependency) on server-side analytics. Beats vidIQ (no AB testing). Beats ViewStats (observation only, $50/mo). Free, combo testing (title × thumbnail already implemented), tracked links.
 
 **Scope:** 6 phases. P1-P4 are CORE (~85h). P5-P6 are PROVISIONAL with explicit decision gates.
 
@@ -23,11 +23,11 @@ The AB Lab Observatory transforms the YouTube AB Lab from a basic A/B testing to
 |---------|-------|---------|
 | **HUB** (4) | Dashboard, Up Next, Schedule, Notificações | Renamed from "Overview" |
 | **CONTENT** (6) | Blog, Pipeline, Courses, Newsletters, Campaigns, Playlists | "Video" → "Pipeline" |
-| **LIBRARY** (3) | Research, Reference, Media | Audio removed (doesn't exist) |
+| **LIBRARY** (4) | Research, Reference, Media, Audio | Unchanged |
 | **YOUTUBE** (4→6) | Channels, Videos, A/B Lab, Performance | "Analytics" → "Performance". Future: +Competitors (P5), +Thumbnails (P6) |
 | **SOCIAL** (2) | Posts, Links | YouTube removed to own section |
 | **AUDIENCE** (3) | Authors, Subscribers, Contacts | Renamed from "People" |
-| **Settings** | Gear icon in sidebar footer | YouTube/Instagram config removed |
+| **Settings** | Gear icon in sidebar footer (new — does not exist yet) | YouTube/Instagram config removed |
 
 **Key moves:** Categories → inside Channels config. YouTube channel config → Channels page. A/B Lab settings (gear drawer) → Channels page.
 
@@ -36,6 +36,8 @@ The AB Lab Observatory transforms the YouTube AB Lab from a basic A/B testing to
 ## Phase 1: Reliability (~28h)
 
 **Goal:** AB tests never break silently again.
+
+**Success metrics:** Zero missed rotations in 30 days. Mean detection time < 2h. Token expiry warnings sent 48h+ before expiry.
 
 ### 1.1 Watchdog Cron
 - **Primary:** 10:00 UTC (2h after ab-rotate). Checks cron_health. If rotation missed: catch-up inline.
@@ -95,14 +97,18 @@ Yellow banner in YouTube section header when any token expires within 48h.
 
 **Goal:** Eliminate "I don't know if it's working" anxiety during 48-72h YouTube Analytics lag.
 
+**Success metrics:** Live view delta visible within 60min of test start. Outlier score computed for 100% of videos with 9+ predecessors. Revenue range shown on all completed tests.
+
 ### 2.1 Adaptive Polling
 Reuses sync-youtube route with `?mode=poll`. Uses `videos.list(statistics)` — 1 unit/50 videos.
 
-| Video state | Interval |
-|---|---|
-| Active variant, first 48h | 15 min |
-| Steady state (active test, >48h) | 60 min |
-| Inactive (>30 days, no test) | 6 hours |
+**Trigger mechanism:** Vercel cron minimum interval is 1 hour. The polling cron runs hourly (`0 * * * *`). For the "first 48h" fast-poll need, the active-detail page includes a client-side `setInterval(60_000)` that calls a lightweight API route (`/api/youtube/poll-stats`) to fetch fresh viewCount. This client-side polling only runs while the user has the page open — no server cost when inactive.
+
+| Video state | Mechanism | Interval |
+|---|---|---|
+| Active variant, user viewing detail | Client-side fetch | 60 seconds |
+| Active test (background) | Vercel cron `?mode=poll` | 1 hour |
+| Inactive (>30 days, no test) | Vercel cron (standard sync) | 6 hours |
 
 Dedup guard: skip if last poll < 5min ago.
 
@@ -149,6 +155,8 @@ Retention: ab_test_polls pruned after 7 days.
 
 **Goal:** Zero manual effort for the common test lifecycle.
 
+**Success metrics:** Winners auto-applied within 25h of detection. 80%+ of suggested videos are relevant (user doesn't dismiss). Batch start works for 2-5 videos without errors.
+
 ### 3.1 Auto-Apply Winner with Safety Net
 
 **State machine:**
@@ -160,7 +168,7 @@ test_completed → grace_pending (24h) → applying → applied | apply_failed
                                                reverted    permanently_failed → notify
 ```
 
-- **Grace period:** 24h countdown. User sees "Apply Now" / "Cancel" buttons.
+- **Grace period:** 24h countdown. `grace_expires_at` set to `completed_at + 24h`. The `ab-evaluate` cron (runs daily at 12:00 UTC) checks `WHERE status = 'grace_pending' AND grace_expires_at <= now()` and transitions to `applying`. User sees "Apply Now" / "Cancel" buttons.
 - **Backup:** original already in `ab_tests.original_thumbnail_url` + original variant blob. No new storage.
 - **Revert window:** 7 days. Side-by-side preview of original vs current.
 - **Combo partial failure:** thumbnail first, then title. Retry only failed part.
@@ -173,7 +181,7 @@ ALTER TABLE ab_tests ADD COLUMN winner_applied_at timestamptz, applied_by text C
 Hard dependency on P1 pre-flight token check.
 
 ### 3.2 Auto-Suggest with Quality Filters
-Score: `impressions × (1 - CTR/channel_avg_CTR)`. Three DB-level filters: age > 14 days, views >= 1000, no test in last 60 days. P4 fatigue integration: +0.3 priority boost for fatigued videos.
+Score: `impressions × (1 - CTR/channel_avg_CTR)` where `channel_avg_CTR` = rolling 28-day average CTR across all channel videos with >= 1000 impressions. Three DB-level filters: age > 14 days, views >= 1000, no test in last 60 days. P4 fatigue integration: +0.3 priority boost for fatigued videos. P2 outlier integration: videos with outlier score < 0.5x (underperformers) get +0.2 boost.
 
 ### 3.3 Batch Start with Stagger
 Select 2-5 suggested videos → inline errors for ineligible → first starts immediately → remaining get `queue_start_after` staggered 1 day apart.
@@ -196,10 +204,12 @@ ab-rotate cron adds: `WHERE status = 'queued' AND queue_start_after <= now()`.
 
 **Goal:** Transform test results into actionable knowledge.
 
+**Success metrics:** Fatigue alerts detected for 100% of videos with CTR drop > 1.5σ below decay curve. Learnings dashboard shows patterns after 3 completed tests. Zero false positive fatigue alerts on videos < 30 days old.
+
 ### 4.1 Fatigue Detector (Hero Feature)
 Works with **0 completed tests** — analyzes all videos with 60+ days of analytics.
 
-- **Algorithm:** log-linear regression on `log(CTR)` vs `log(days_since_publish)`. Alert when 7-day rolling z-score < -1.5.
+- **Algorithm:** log-linear regression on `log(CTR)` vs `log(days_since_publish)` using last 60 days of `youtube_video_analytics`. Fit via simple OLS (no external library — 20 lines of math). For each video, compute per-day residuals. Alert when 7-day rolling mean of residuals has z-score < -1.5 against the video's own residual distribution.
 - **Guards:** impressions_7d >= 1000, age >= 30 days, not in active test.
 - **Run:** daily, inside sync-youtube cron.
 - **UI:** "CTR fadiga" badge on video cards. "Needs Attention" list in AB Lab dashboard with one-click "Create Test."
@@ -308,9 +318,26 @@ CREATE TABLE competitor_changes (id uuid PK, video_id uuid FK, change_type text,
 | P1 cron_health → generic, all crons | Designed |
 | P1 pre-flight → P3 auto-apply uses same path | Designed |
 | P1 notifications → extensible (type+channel+payload) | Designed |
-| P2 outlier → P3 auto-suggest boosts outliers | Designed |
+| P2 outlier → P3 auto-suggest boosts underperformers (< 0.5x score get +0.2) | Designed |
 | P4 fatigue → P3 auto-suggest (fatigued = candidate) | Designed |
 | P4 learnings → P6 library (when exists) | Deferred |
 | P5 bookmark → P6 library (same flag) | Deferred |
 | P6 longevity fading → P4 fatigue alert | Designed |
 | No circular dependencies | Verified |
+
+---
+
+## Glossary
+
+| Term | Definition |
+|------|-----------|
+| **ABBA rotation** | Balanced Latin square pattern (A→B→C→D→D→C→B→A) that controls for time-of-day and day-of-week confounds |
+| **pHash** | Perceptual hash — 8-byte image fingerprint tolerant to resizing/recompression. Hamming distance > 5 = visually different |
+| **Wilson score** | Confidence interval for proportions that works well with small samples. Used for learnings pattern reliability |
+| **z-score** | Number of standard deviations from the mean. z < -1.5 = significantly below expected |
+| **CTR fatigue** | Progressive decline in click-through rate for a thumbnail beyond normal lifecycle decay |
+| **Grace period** | 24h window between winner declaration and auto-application, allowing user override |
+| **Write-ahead marker** | `last_applied_variant_id` column set before YouTube API call, enabling crash recovery |
+| **Outlier score** | Video views at age T divided by median of previous 9 uploads at same age. > 2x = notable |
+| **RPM** | Revenue Per Mille — earnings per 1000 views. Varies 30-50% by geography and season |
+| **Dedup guard** | Check preventing duplicate cron executions within a minimum interval |
