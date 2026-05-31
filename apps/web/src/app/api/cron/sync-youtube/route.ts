@@ -6,6 +6,7 @@ import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
 import { withCronLock, newRunId } from '../../../../../lib/logger'
 import { syncChannel, YouTubeQuotaError } from '@/lib/youtube/sync'
 import { isInPostingWindow } from '@/lib/youtube/schedule-window'
+import { pollVideoStats, shouldSkipPoll, getLastPollTime, insertPollData } from '@/lib/youtube/ab-polls'
 import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
 import type { YouTubeChannelRow, SyncMode } from '@/lib/youtube/types'
 
@@ -27,7 +28,7 @@ export async function GET(req: NextRequest) {
   }
 
   const rawMode = req.nextUrl.searchParams.get('mode') ?? 'catchall'
-  if (!['schedule', 'catchall', 'metrics', 'manual'].includes(rawMode)) {
+  if (!['schedule', 'catchall', 'metrics', 'manual', 'ab-poll'].includes(rawMode)) {
     return Response.json({ error: 'invalid mode' }, { status: 400 })
   }
   const mode = rawMode as SyncMode
@@ -48,6 +49,55 @@ export async function GET(req: NextRequest) {
   const lockKey = channelId ? `sync-youtube-${mode}-${channelId}` : `sync-youtube-${mode}`
 
   return withCronLock(supabase, lockKey, runId, 'sync-youtube', async () => {
+    // AB Lab poll mode — separate flow
+    if (mode === 'ab-poll') {
+      const { data: activeTests } = await supabase
+        .from('ab_tests')
+        .select('id, youtube_video_id')
+        .eq('status', 'active')
+
+      if (!activeTests?.length) {
+        await recordCronSuccess('sync-youtube-ab-poll', 'info')
+        return { status: 'ok' as const, mode: 'ab-poll', polled: 0 }
+      }
+
+      let polled = 0
+      for (const test of activeTests) {
+        const lastPoll = await getLastPollTime(supabase, test.id)
+        if (shouldSkipPoll(lastPoll)) continue
+
+        // Get external YouTube video ID
+        const { data: video } = await supabase
+          .from('youtube_videos')
+          .select('youtube_video_id')
+          .eq('id', test.youtube_video_id)
+          .single()
+
+        if (!video?.youtube_video_id) continue
+
+        const stats = await pollVideoStats(video.youtube_video_id, apiKey)
+        if (!stats) continue
+
+        // Get the active variant from open cycle
+        const { data: openCycle } = await supabase
+          .from('ab_test_cycles')
+          .select('variant_id')
+          .eq('test_id', test.id)
+          .is('ended_at', null)
+          .order('started_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+
+        if (openCycle?.variant_id) {
+          await insertPollData(supabase, test.id, openCycle.variant_id, stats.views, stats.likes, 'cron')
+        }
+        polled++
+      }
+
+      await recordCronSuccess('sync-youtube-ab-poll', 'info')
+      return { status: 'ok' as const, mode: 'ab-poll', polled }
+    }
+
     let query = supabase
       .from('youtube_channels')
       .select('*')

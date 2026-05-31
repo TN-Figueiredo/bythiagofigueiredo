@@ -173,5 +173,5 @@ export interface YouTubePageData {
   totalDurationSeconds: number
 }
 
-export type SyncMode = 'schedule' | 'catchall' | 'metrics' | 'manual'
+export type SyncMode = 'schedule' | 'catchall' | 'metrics' | 'manual' | 'ab-poll'
 export type SyncStatus = 'started' | 'completed' | 'failed' | 'skipped'
