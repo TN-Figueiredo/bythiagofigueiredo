@@ -31,6 +31,7 @@ export async function GET(req: NextRequest) {
   let errors = 0
   const errorDetails: string[] = []
   const notifications: Array<{ siteId: string; payload: ReturnType<typeof buildNotification> }> = []
+  const processedVideos: Array<{ id: string; published_at: string | null; view_count: number }> = []
 
   for (const channel of channels) {
     try {
@@ -72,7 +73,7 @@ export async function GET(req: NextRequest) {
 
       const { data: videos } = await supabase
         .from('youtube_videos')
-        .select('id, youtube_video_id, title, view_count, view_count_yesterday, view_count_delta_today')
+        .select('id, youtube_video_id, title, view_count, view_count_yesterday, view_count_delta_today, published_at')
         .eq('channel_id', channel.id)
 
       const videoMap = new Map((videos ?? []).map(v => [v.youtube_video_id, v]))
@@ -130,6 +131,12 @@ export async function GET(req: NextRequest) {
             }),
           })
         }
+
+        processedVideos.push({
+          id: dbVideo.id,
+          published_at: dbVideo.published_at ?? null,
+          view_count: dbVideo.view_count ?? 0,
+        })
       }
 
       synced++
@@ -137,6 +144,40 @@ export async function GET(req: NextRequest) {
       Sentry.captureException(e)
       errorDetails.push(`${channel.channel_id}: ${e instanceof Error ? e.message : String(e)}`)
       errors++
+    }
+  }
+
+  // Milestone view snapshots — capture view_count at key ages
+  const milestones = [
+    { column: 'views_at_24h', minAge: 24, maxAge: 48 },
+    { column: 'views_at_48h', minAge: 48, maxAge: 72 },
+    { column: 'views_at_7d', minAge: 168, maxAge: 192 },
+    { column: 'views_at_30d', minAge: 720, maxAge: 744 },
+  ] as const
+
+  for (const video of processedVideos) {
+    if (!video.published_at) continue
+    const ageHours = (Date.now() - new Date(video.published_at).getTime()) / 3_600_000
+
+    for (const ms of milestones) {
+      if (ageHours >= ms.minAge && ageHours < ms.maxAge) {
+        const { data: existing } = await supabase
+          .from('youtube_video_analytics')
+          .select(ms.column)
+          .eq('youtube_video_id', video.id)
+          .order('date', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+
+        if (existing && !(existing as Record<string, unknown>)[ms.column]) {
+          await supabase
+            .from('youtube_video_analytics')
+            .update({ [ms.column]: video.view_count })
+            .eq('youtube_video_id', video.id)
+            .order('date', { ascending: false })
+            .limit(1)
+        }
+      }
     }
   }
 
