@@ -178,14 +178,16 @@ function TextNode({
   onDragMove: (e: Konva.KonvaEventObject<DragEvent>) => void
   onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => void
 }) {
-  const text = element.uppercase ? element.content.toUpperCase() : element.content
+  const isShape = element.content.startsWith('__shape:')
+  const text = isShape ? '' : (element.uppercase ? element.content.toUpperCase() : element.content)
   const textRef = useRef<Konva.Text>(null)
   const [textHeight, setTextHeight] = useState(element.fontSize * element.lineHeight)
 
   useEffect(() => {
-    if (textRef.current) setTextHeight(textRef.current.height())
-  }, [text, element.fontSize, element.fontFamily, element.fontWeight, element.lineHeight, element.letterSpacing, element.width])
+    if (textRef.current && !isShape) setTextHeight(textRef.current.height())
+  }, [text, element.fontSize, element.fontFamily, element.fontWeight, element.lineHeight, element.letterSpacing, element.width, isShape])
 
+  const effectiveHeight = isShape ? element.height : textHeight
   const pad = element.backgroundColor ? (element.backgroundPadding ?? 8) : 0
   const radius = element.backgroundColor ? (element.backgroundRadius ?? 4) : 0
 
@@ -193,9 +195,9 @@ function TextNode({
     <Group
       id={element.id}
       x={element.x - pad + (element.width + pad * 2) / 2}
-      y={element.y - pad + (element.height + pad * 2) / 2}
+      y={element.y - pad + (effectiveHeight + pad * 2) / 2}
       offsetX={(element.width + pad * 2) / 2}
-      offsetY={(element.height + pad * 2) / 2}
+      offsetY={(effectiveHeight + pad * 2) / 2}
       rotation={element.rotation}
       opacity={element.opacity}
       draggable={!element.locked}
@@ -207,8 +209,19 @@ function TextNode({
       {element.backgroundColor && (
         <Rect
           width={element.width + pad * 2}
-          height={textHeight + pad * 2}
+          height={effectiveHeight + pad * 2}
           fill={element.backgroundColor}
+          cornerRadius={radius}
+          stroke={isShape && element.content === '__shape:outline' ? element.color : undefined}
+          strokeWidth={isShape && element.content === '__shape:outline' ? 2 : 0}
+        />
+      )}
+      {isShape && !element.backgroundColor && (
+        <Rect
+          width={element.width}
+          height={effectiveHeight}
+          stroke={element.color}
+          strokeWidth={2}
           cornerRadius={radius}
         />
       )}
