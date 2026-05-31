@@ -66,6 +66,14 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // Prune old polls (7-day retention)
+  const supabasePrune = getSupabaseServiceClient()
+  const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString()
+  await supabasePrune
+    .from('ab_test_polls')
+    .delete()
+    .lt('polled_at', sevenDaysAgo)
+
   await recordCronSuccess('ab-watchdog', 'info')
 
   return Response.json({

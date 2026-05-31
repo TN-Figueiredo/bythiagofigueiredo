@@ -150,6 +150,20 @@ function buildSupabaseMock(opts: BuildMockOpts = {}) {
       }
     }
 
+    if (table === 'ab_test_polls') {
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            order: vi.fn().mockReturnValue({
+              limit: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+              }),
+            }),
+          }),
+        }),
+      }
+    }
+
     if (table === 'site_users') {
       return {
         select: vi.fn().mockReturnValue({

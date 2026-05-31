@@ -169,10 +169,23 @@ export async function GET(req: NextRequest) {
         }
       }
 
+      // Snapshot latest poll stats before closing cycle
+      const { data: cyclePolls } = await supabase
+        .from('ab_test_polls')
+        .select('views, likes')
+        .eq('test_id', test.id)
+        .order('polled_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
       // Close old cycle + open new cycle AFTER YouTube confirms
       await supabase
         .from('ab_test_cycles')
-        .update({ ended_at: new Date().toISOString() })
+        .update({
+          ended_at: new Date().toISOString(),
+          views: cyclePolls?.views ?? null,
+          likes: cyclePolls?.likes ?? null,
+        })
         .eq('test_id', test.id)
         .is('ended_at', null)
 

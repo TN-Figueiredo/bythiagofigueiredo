@@ -37,6 +37,13 @@ function buildMockSupabase(activeTests: { site_id: string }[] | null) {
   const from = vi.fn((table: string) => {
     if (table === 'ab_tests') return { select: abTestsSelect }
     if (table === 'site_users') return { select: siteUsersSelect }
+    if (table === 'ab_test_polls') {
+      return {
+        delete: vi.fn().mockReturnValue({
+          lt: vi.fn().mockResolvedValue({ data: null, error: null }),
+        }),
+      }
+    }
     return { select: vi.fn() }
   })
 
