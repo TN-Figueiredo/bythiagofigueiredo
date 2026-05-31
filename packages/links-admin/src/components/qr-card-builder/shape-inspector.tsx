@@ -22,8 +22,12 @@ export function getShapeType(content: string): ShapeType {
   return 'line'
 }
 
-export function isShapeElement(el: { type: string; name?: string }): boolean {
-  return el.type === 'text' && (el.name?.includes('Forma') ?? false)
+export function isShapeElement(el: { type: string; name?: string; content?: string }): boolean {
+  if (el.type !== 'text') return false
+  // Primary check: content marker is authoritative (survives renames)
+  if ((el as { content?: string }).content?.startsWith('__shape:')) return true
+  // Fallback: original name convention (for shapes created before content marker)
+  return el.name?.includes('Forma') ?? false
 }
 
 /* ── Constants ── */
@@ -78,11 +82,23 @@ function shapeColor(el: TextElement, type: ShapeType): string {
   return el.backgroundColor ?? el.color
 }
 
-/** Convert hex (#rrggbb) to rgba with given alpha */
+/** Convert hex (#rrggbb or #rgb) to rgba with given alpha. Returns fallback on bad input. */
 function hexToRgba(hex: string, alpha: number): string {
-  const r = parseInt(hex.slice(1, 3), 16)
-  const g = parseInt(hex.slice(3, 5), 16)
-  const b = parseInt(hex.slice(5, 7), 16)
+  if (!hex || hex[0] !== '#') return `rgba(0,0,0,${alpha})`
+  let r: number, g: number, b: number
+  const h = hex.slice(1)
+  if (h.length === 3) {
+    r = parseInt(h[0]! + h[0]!, 16)
+    g = parseInt(h[1]! + h[1]!, 16)
+    b = parseInt(h[2]! + h[2]!, 16)
+  } else if (h.length >= 6) {
+    r = parseInt(h.slice(0, 2), 16)
+    g = parseInt(h.slice(2, 4), 16)
+    b = parseInt(h.slice(4, 6), 16)
+  } else {
+    return `rgba(0,0,0,${alpha})`
+  }
+  if (Number.isNaN(r) || Number.isNaN(g) || Number.isNaN(b)) return `rgba(0,0,0,${alpha})`
   return `rgba(${r},${g},${b},${alpha})`
 }
 
@@ -104,27 +120,28 @@ export function ShapeInspector({ element, onUpdate, onDuplicate, onDelete }: Sha
   const [hexInput, setHexInput] = useState(currentColor)
   useEffect(() => { setHexInput(currentColor) }, [currentColor])
 
-  const commitHex = useCallback(() => {
-    if (/^#[0-9a-fA-F]{6}$/.test(hexInput)) {
-      applyColor(hexInput.toLowerCase())
-    } else {
-      setHexInput(currentColor)
-    }
-  }, [hexInput, currentColor]) // eslint-disable-line react-hooks/exhaustive-deps
-
   /** Apply a color change respecting shape type */
   const applyColor = useCallback((color: string) => {
     if (shapeType === 'outline') {
-      onUpdate({ color, backgroundColor: hexToRgba(color, 0.08) })
+      // Contorno = stroke only, no fill — transparent background
+      onUpdate({ color, backgroundColor: 'transparent' })
     } else {
       onUpdate({ color, backgroundColor: color })
     }
     setHexInput(color)
   }, [shapeType, onUpdate])
 
+  const commitHex = useCallback(() => {
+    if (/^#[0-9a-fA-F]{6}$/.test(hexInput)) {
+      applyColor(hexInput.toLowerCase())
+    } else {
+      setHexInput(currentColor)
+    }
+  }, [hexInput, currentColor, applyColor])
+
   /** Switch shape type and adjust element properties accordingly */
   const switchType = useCallback((type: ShapeType) => {
-    const color = currentColor.startsWith('rgba') ? element.color : currentColor
+    const color = (currentColor.startsWith('rgba') || currentColor === 'transparent') ? element.color : currentColor
     const base: Partial<TextElement> = {
       content: `${SHAPE_PREFIX}${type}`,
       fontSize: 8,
@@ -159,7 +176,7 @@ export function ShapeInspector({ element, onUpdate, onDuplicate, onDelete }: Sha
         onUpdate({
           ...base,
           height: Math.max(element.height, 40),
-          backgroundColor: hexToRgba(color, 0.08),
+          backgroundColor: 'transparent',
           backgroundRadius: element.backgroundRadius ?? 0,
           color,
         })

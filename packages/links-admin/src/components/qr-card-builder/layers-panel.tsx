@@ -1,7 +1,8 @@
 'use client'
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { GripVertical, Lock, Type, Image, QrCode, ChevronUp, ChevronDown, ChevronsUp, ChevronsDown, Pencil } from 'lucide-react'
+import { GripVertical, Lock, Type, Image, QrCode, LayoutTemplate, ChevronUp, ChevronDown, ChevronsUp, ChevronsDown, Pencil } from 'lucide-react'
 import type { CardElement } from '@tn-figueiredo/links/qr'
+import { isShapeElement } from './shape-inspector'
 
 interface LayersPanelProps {
   elements: CardElement[]
@@ -11,10 +12,10 @@ interface LayersPanelProps {
   onUpdateElement: (id: string, patch: Partial<CardElement>) => void
 }
 
-function elementIcon(type: string) {
-  switch (type) {
+function elementIcon(el: CardElement) {
+  switch (el.type) {
     case 'qr': return <QrCode size={14} />
-    case 'text': return <Type size={14} />
+    case 'text': return isShapeElement(el) ? <LayoutTemplate size={14} /> : <Type size={14} />
     case 'image': return <Image size={14} />
     default: return null
   }
@@ -24,7 +25,7 @@ function elementLabel(el: CardElement): string {
   if (el.name) return el.name
   switch (el.type) {
     case 'qr': return 'QR Code'
-    case 'text': return el.content.slice(0, 20) || 'Text'
+    case 'text': return el.content.startsWith('__shape:') ? 'Forma' : (el.content.slice(0, 20) || 'Text')
     case 'image': return 'Image'
     default: return 'Element'
   }
@@ -179,7 +180,7 @@ export function LayersPanel({ elements, selectedIds, onSelect, onReorder, onUpda
                 className="shrink-0 cursor-grab"
                 style={{ color: 'var(--ink-faint)' }}
               />
-              {elementIcon(el.type)}
+              {elementIcon(el)}
               {isEditing ? (
                 <InlineRename
                   value={elementLabel(el)}

@@ -117,7 +117,7 @@ export function useAnimatedGif(
       } catch (err) {
         if (!cancelled) {
           console.error('[GIF] Failed to load:', err)
-          setState({ loading: false, error: true, frameCount: 0, gifWidth: 0, gifHeight: 0 })
+          setState({ loading: false, error: true, frameCount: 0, gifWidth: 0, gifHeight: 0, canvas: null })
         }
       }
     }
