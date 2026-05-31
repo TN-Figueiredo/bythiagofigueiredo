@@ -170,13 +170,14 @@ export async function GET(req: NextRequest) {
         applied_metadata: Object.keys(appliedMeta).length ? appliedMeta : null,
       })
 
-      // Success — reset failure counter
-      if (test.config?.consecutive_failures) {
-        await supabase
-          .from('ab_tests')
-          .update({ config: { ...test.config, consecutive_failures: 0 } })
-          .eq('id', test.id)
-      }
+      // Success — reset failure counter + clear write-ahead marker
+      await supabase
+        .from('ab_tests')
+        .update({
+          last_applied_variant_id: null,
+          ...(test.config?.consecutive_failures ? { config: { ...test.config, consecutive_failures: 0 } } : {}),
+        })
+        .eq('id', test.id)
 
       processed++
     } catch (err) {

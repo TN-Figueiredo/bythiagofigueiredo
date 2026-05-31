@@ -19,6 +19,7 @@
     { "path": "/api/cron/ab-rotate", "schedule": "0 8 * * *" },
     { "path": "/api/cron/ab-backfill", "schedule": "0 11 * * *" },
     { "path": "/api/cron/ab-evaluate", "schedule": "0 12 * * *" },
+    { "path": "/api/cron/ab-watchdog", "schedule": "0 10 * * *" },
     { "path": "/api/cron/sync-analytics-metrics", "schedule": "0 12 * * *" },
     { "path": "/api/cron/weekly-grade-snapshot", "schedule": "0 6 * * 1" },
     { "path": "/api/cron/youtube-intelligence-dispatch", "schedule": "0 8 * * 1" },

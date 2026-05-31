@@ -22,8 +22,8 @@ export async function preflightTokenCheck(
       },
     )
 
-    if (res.status === 401 || res.status === 403) {
-      return { ok: false, reason: `token_invalid_${res.status}` }
+    if (!res.ok) {
+      return { ok: false, reason: `youtube_api_${res.status}` }
     }
 
     return { ok: true, accessToken }
