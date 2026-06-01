@@ -511,3 +511,31 @@ export interface CompetitorChange {
   detectedAt: string
   bookmarked: boolean
 }
+
+// P6: Thumbnail Intelligence
+export interface ThumbnailLibraryEntry {
+  id: string
+  siteId: string
+  sourceTestId: string | null
+  sourceType: 'test_winner' | 'manual_upload' | 'competitor_bookmark'
+  blobUrl: string
+  title: string | null
+  tags: string[]
+  videoTitle: string | null
+  ctrAtWin: number | null
+  liftAtWin: number | null
+  createdAt: string
+}
+
+export type LongevityStatus = 'holding' | 'fading' | 'growing'
+
+export interface ThumbnailLongevity {
+  id: string
+  libraryId: string
+  checkpointDays: 7 | 30 | 60 | 90
+  ctrAtCheckpoint: number | null
+  ctrAtWin: number | null
+  changePercent: number | null
+  status: LongevityStatus
+  checkedAt: string
+}
