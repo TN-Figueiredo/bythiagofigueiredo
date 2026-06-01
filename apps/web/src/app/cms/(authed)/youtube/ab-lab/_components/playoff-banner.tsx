@@ -67,7 +67,7 @@ export function PlayoffBanner({ finalists, allVariants, startsIn, reason }: Play
                     {v.label === 'A' ? 'Original' : isFinalist ? 'Finalista' : 'Variante'}
                   </span>
                   <span className="font-mono text-[11.5px] font-bold" style={{ color: isFinalist ? COWORK : 'var(--cms-text-muted)' }}>
-                    P{finalist ? Math.round(finalist.ctr * 1000 + 10) : Math.round((v.label.charCodeAt(0) % 20) + 10)}%
+                    {finalist ? `${(finalist.ctr * 100).toFixed(1)}%` : '—'}
                   </span>
                   {isFinalist && <Check size={13} style={{ color: COWORK }} aria-hidden="true" />}
                 </div>

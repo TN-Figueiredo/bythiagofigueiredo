@@ -125,7 +125,7 @@ export function SuggestedCard({ video, onCreate, checked, onToggle }: SuggestedC
             Testar {TYPE_LABELS[video.suggest]}
           </button>
           <span className="font-mono text-[10.5px] text-cms-text-dim shrink-0">
-            {video.confidence ?? 85}% conf.
+            {video.confidence ? `${video.confidence}% conf.` : ''}
           </span>
         </div>
       </div>

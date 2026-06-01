@@ -57,7 +57,7 @@ export function LiveMonitorCard({ monitor }: LiveMonitorProps) {
           </p>
         </div>
         <Badge tone="green" dot>
-          ao vivo · últ. checagem há 2h
+          ao vivo
         </Badge>
       </div>
 
@@ -76,7 +76,7 @@ export function LiveMonitorCard({ monitor }: LiveMonitorProps) {
               </span>
             </div>
             <div className="text-[11.5px] text-cms-text-muted mt-[6px]">
-              vs 5.2% da original · segurando há 12 dias
+              vs original · monitorando
             </div>
           </div>
           <Sparkline data={monitor.sparkline} />

@@ -51,8 +51,6 @@ export function HeroBand({ confidence, confidenceTarget, leader, lift, trend }: 
   const trendLabel = trend === 'up' ? 'subindo' : trend === 'down' ? 'descendo' : 'estável'
 
   const estimatedDays = confidence > 0 ? Math.max(1, Math.ceil((confidenceTarget - confidence) / 2.5)) : '—'
-  const originalCtr = leader.label === 'A' ? 0 : 5.2
-  const leaderCtr = originalCtr > 0 ? originalCtr * (1 + lift / 100) : 0
 
   return (
     <div
@@ -75,22 +73,22 @@ export function HeroBand({ confidence, confidenceTarget, leader, lift, trend }: 
       </div>
 
       {/* Cell 2: Líder atual */}
-      <StatCell eyebrow="Líder atual" subtitle={`${Math.round(leader.label === 'B' ? 93 : 54)}% de chance de ser o melhor`}>
+      <StatCell eyebrow="Líder atual" subtitle={`${Math.round(confidence)}% de confiança`}>
         <span className="inline-flex items-center gap-[9px]">
           <VChip label={leader.label} size={28} ring />
-          Hero
+          {leader.label === 'A' ? 'Original' : `Variante ${leader.label}`}
         </span>
       </StatCell>
 
       {/* Cell 3: CTR lift */}
-      <StatCell eyebrow="CTR lift vs original" subtitle={originalCtr > 0 ? `${originalCtr.toFixed(1)}% → ${leaderCtr.toFixed(1)}%` : '—'}>
+      <StatCell eyebrow="CTR lift vs original" subtitle={lift !== 0 ? 'vs variante original' : '—'}>
         <span style={{ color: lift > 0 ? 'var(--cms-green)' : 'var(--cms-text-muted)' }}>
           {lift > 0 ? '+' : ''}{formatPercent(lift)}
         </span>
       </StatCell>
 
       {/* Cell 4: Tendência */}
-      <StatCell eyebrow="Tendência" subtitle={`${Math.round(confidence / 10)}/14 ciclos · estável 2/3`}>
+      <StatCell eyebrow="Tendência" subtitle={trend === 'flat' ? 'estável' : trend === 'up' ? 'melhorando' : 'piorando'}>
         <span className="inline-flex items-center gap-[8px]" style={{ color: trendColor }}>
           <TrendIcon size={22} aria-hidden="true" />
           {trendLabel}

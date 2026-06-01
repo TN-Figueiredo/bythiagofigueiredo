@@ -201,7 +201,7 @@ export function AbLabDashboard({
             value={Math.round(stats.avgConfidence)}
             suffix="%"
             icon={Crosshair}
-            spark={stats.avgConfidence > 0 ? [40, 52, 58, 63, 68, 72, 75, 78, 80, Math.round(stats.avgConfidence)] : undefined}
+            spark={undefined}
           />
           <KPI
             label="Win rate"
@@ -215,7 +215,7 @@ export function AbLabDashboard({
             value={stats.avgLift > 0 ? `+${stats.avgLift.toFixed(1)}` : '0'}
             suffix="%"
             icon={TrendingUp}
-            trend={stats.avgLift > 0 ? `~${Math.round(stats.avgLift * 74)} cliques/mês extra` : undefined}
+            trend={stats.avgLift > 0 ? `média dos testes concluídos` : undefined}
           />
         </div>
       )}
