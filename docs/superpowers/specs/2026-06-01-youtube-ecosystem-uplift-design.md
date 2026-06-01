@@ -1377,7 +1377,79 @@ Items DENTRO de uma fase que podem ser paralelizados:
 | Fase 3: Cross-feature connections | 6-8h | 1 sessao |
 | Fase 4: Design consistency | 4-6h | 1 sessao |
 | Fase 5: Observabilidade | 2h | Pode combinar com 4 |
-| **Total** | **38-50h** | **5-7 sessoes** |
+| Fase 6: Gerar spec proxima sprint | 1-2h | Ao final desta sprint |
+| **Total** | **39-52h** | **5-8 sessoes** |
+
+---
+
+## Fase 6: Gerar Spec da Proxima Sprint (~1-2h)
+
+> Executar ao FINAL de todas as fases anteriores, quando o ecossistema estiver estavel.
+> O objetivo e preparar o proximo ciclo de melhorias com spec completo pronto pra implementar.
+
+### 6.1 Collections Feature (Library evoluida)
+
+Evoluir a Thumbnail Library de uma lista flat com tags para um sistema de colecoes nomeadas:
+
+**Escopo do spec a gerar:**
+- Colecoes nomeadas (ex: "Thumbnails com Close-up", "Texto Bold", "Antes/Depois")
+- Drag-to-collection para organizar entries
+- Collection-level metadata (descricao, cor, icone)
+- Browse por colecao com filtros internos
+- Share collection como inspiracao (read-only link)
+- Import de thumbnails de competidores para colecoes (via competitor observatory)
+- Auto-collection de winners agrupados por pattern tag (ex: "ancoragem de preco" auto-agrupa winners com essa tag)
+- UI: sidebar de colecoes + grid de entries, similar ao Finder do macOS ou Pinterest boards
+
+**Dependencias:** Fase 2b (competitor UI com thumbnails enriquecidas), Fase 3.5 (LibraryPickerDialog)
+
+### 6.2 Perceptual Hash (pHash) para Drift Detection
+
+Substituir comparacao de URLs por comparacao de conteudo visual das thumbnails:
+
+**Escopo do spec a gerar:**
+- Implementar pHash (perceptual hash) ou dHash (difference hash) para comparar imagens
+- No sync/apply, computar hash da thumbnail e armazenar em `ab_test_cycles.applied_metadata.thumbnail_hash`
+- No watchdog drift check, baixar thumbnail atual do YouTube, computar hash, comparar com hash armazenado
+- Threshold de Hamming distance para determinar "mesma imagem" vs "diferente" (tipicamente <= 10 bits de diferenca = mesma imagem)
+- Vantagens: elimina falsos positivos de URL (CDN hostname rotation, query param changes), detecta mudancas REAIS no conteudo visual
+- Opcoes de implementacao: (a) sharp + custom dHash em Node.js (~50 linhas), (b) biblioteca `imghash` do npm, (c) Vercel Edge Image Analysis se disponivel
+- Performance: computar hash de uma thumbnail 480x360 < 50ms, comparar dois hashes < 1ms
+- Fallback: se hash computation falhar, cair de volta pra URL comparison (current fix 0.1)
+- Testes: testar com imagens identicas (hash match), thumbnails diferentes (hash diverge), mesma imagem em resolucoes diferentes (hash match), imagem com compressao JPEG diferente (hash match dentro do threshold)
+
+**Dependencias:** Fase 0.1 (drift detection fix com URL comparison como baseline)
+
+### 6.3 Runtime Quota Monitoring
+
+Dashboard e alertas para monitorar consumo da YouTube Data API quota:
+
+**Escopo do spec a gerar:**
+- Nova tabela `youtube_quota_daily` com colunas: date, operation, units_used, cron_source
+- Cada chamada a YouTube API registra units consumidas (channels.list=1, videos.list=1, playlistItems=1, thumbnails.set=50, videos.update=50, search.list=100)
+- Dashboard em `/cms/youtube/settings` ou sub-tab de Performance mostrando:
+  - Barra de progresso diaria (usado/10,000)
+  - Breakdown por operacao (pie chart)
+  - Historico 30 dias (area chart)
+  - Top consumers (quais crons gastam mais)
+- Alertas:
+  - Warning quando usage > 50% (5,000 units) -- log + Sentry info
+  - Critical quando usage > 80% (8,000 units) -- pausar operacoes de prioridade 4 (competitor sync)
+  - Emergency quando usage > 95% (9,500 units) -- pausar tudo exceto AB rotations
+- Scaling scenarios: tabela mostrando projecao de quota para N testes ativos x M canais competidores
+- Retry budget: cada operacao tem max 2 retries, cada retry conta quota. Abort apos 2 retries pra nao desperdicar quota em failures.
+- Integracao com cron health: cron que falha por quota exhaustion deve reportar `reason: 'quota_exhausted'` no cron_health
+
+**Dependencias:** Todas as fases anteriores (pra ter dados reais de consumo), especialmente Fase 2a (competitor sync enriquecido que consome mais)
+
+### Gate de verificacao -- Fase 6
+
+Para CADA sub-spec (6.1, 6.2, 6.3):
+1. Spec escrito em `docs/superpowers/specs/YYYY-MM-DD-{topic}-design.md`
+2. Spec revisado por 3+ sub-agents especializados
+3. Score >= 85/110
+4. Spec commitado no git
+5. Pronto pra implementacao na proxima sprint
 
 ---
 
@@ -1391,3 +1463,4 @@ Items DENTRO de uma fase que podem ser paralelizados:
 6. **Fase 3: Cross-feature connections** (~6-8h) -- ecossistema integrado
 7. **Fase 4: Design consistency + i18n** (~4-6h) -- visual unificado, portugues
 8. **Fase 5: Observabilidade** (~2h) -- Sentry, LGPD, security hardening
+9. **Fase 6: Gerar specs proxima sprint** (~1-2h) -- Collections, pHash, Quota monitoring
