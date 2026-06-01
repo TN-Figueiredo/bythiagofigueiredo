@@ -69,6 +69,12 @@ vi.mock('@/lib/cms/auth-guards', () => ({
 }))
 vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({
   requireSiteScope: () => Promise.resolve({ ok: true }),
+  createServerClient: vi.fn(() => ({
+    auth: {
+      getUser: () =>
+        Promise.resolve({ data: { user: { id: 'user-1', email: 'test@test.com' } } }),
+    },
+  })),
 }))
 vi.mock('next/cache', () => ({
   revalidatePath: vi.fn(),
