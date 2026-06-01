@@ -74,6 +74,24 @@ export async function fetchAnalyticsForDateRange(
 export async function fetchVariantImageBuffer(
   blobUrl: string
 ): Promise<{ buffer: Buffer; contentType: 'image/png' | 'image/jpeg' }> {
+  // Defense-in-depth: only allow known image hosts
+  const allowed = [
+    '.public.blob.vercel-storage.com',
+    '.blob.vercel-storage.com',
+    '.ytimg.com',
+    '.ggpht.com',
+    '.googleusercontent.com',
+  ]
+  try {
+    const hostname = new URL(blobUrl).hostname
+    if (!allowed.some(suffix => hostname.endsWith(suffix))) {
+      throw new Error(`Blocked image fetch from untrusted host: ${hostname}`)
+    }
+  } catch (e) {
+    if ((e as Error).message.startsWith('Blocked')) throw e
+    throw new Error(`Invalid URL for image fetch: ${blobUrl}`)
+  }
+
   const res = await fetch(blobUrl, { signal: AbortSignal.timeout(15_000) })
   if (!res.ok) throw new Error(`Failed to fetch variant image: ${res.status}`)
   const ct = res.headers.get('content-type') ?? 'image/png'
