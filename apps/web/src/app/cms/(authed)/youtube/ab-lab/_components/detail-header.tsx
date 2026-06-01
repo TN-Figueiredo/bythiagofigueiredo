@@ -28,6 +28,7 @@ const STATUS_TONE: Record<AbTestStatus, BadgeTone> = {
   completed: 'neutral',
   draft: 'neutral',
   archived: 'neutral',
+  queued: 'amber',
 }
 
 const STATUS_LABEL: Record<AbTestStatus, string> = {
@@ -36,6 +37,7 @@ const STATUS_LABEL: Record<AbTestStatus, string> = {
   completed: 'Concluído',
   draft: 'Rascunho',
   archived: 'Arquivado',
+  queued: 'Na fila',
 }
 
 function StatusBadge({ status, outcome, dayInfo }: { status: AbTestStatus; outcome?: DetailOutcome; dayInfo?: { dayOf: number; total: number } }) {

@@ -1286,3 +1286,120 @@ export async function fetchAbTestVariants(
     metadata: v.metadata as Record<string, unknown> | null,
   }))
 }
+
+// ---------------------------------------------------------------------------
+// batchStartTests — start multiple suggested videos with 1-day stagger
+// ---------------------------------------------------------------------------
+
+export async function batchStartTests(
+  videoIds: string[],
+): Promise<{ ok: boolean; started: number; queued: number; error?: string }> {
+  let siteId: string
+  try {
+    siteId = await requireEditAccess()
+  } catch (e) {
+    return { ok: false, started: 0, queued: 0, error: (e as Error).message }
+  }
+
+  if (videoIds.length < 2 || videoIds.length > 5) {
+    return { ok: false, started: 0, queued: 0, error: 'Select 2-5 videos' }
+  }
+
+  const supabase = getSupabaseServiceClient()
+
+  // Validate all videos are eligible (no active/draft/paused test, view_count >= 1000)
+  const { data: existingTests } = await supabase
+    .from('ab_tests')
+    .select('youtube_video_id')
+    .eq('site_id', siteId)
+    .in('status', ['draft', 'active', 'paused', 'queued'])
+    .in('youtube_video_id', videoIds)
+
+  const ineligible = new Set((existingTests ?? []).map(t => t.youtube_video_id))
+  const eligible = videoIds.filter(id => !ineligible.has(id))
+
+  if (eligible.length === 0) {
+    return { ok: false, started: 0, queued: 0, error: 'All videos already have active tests' }
+  }
+
+  let started = 0
+  let queued = 0
+
+  for (let i = 0; i < eligible.length; i++) {
+    const videoId = eligible[i]!
+
+    // Get video info for test name
+    const { data: video } = await supabase
+      .from('youtube_videos')
+      .select('id, title, thumbnail_hq_url')
+      .eq('id', videoId)
+      .eq('site_id', siteId)
+      .single()
+
+    if (!video) continue
+
+    if (i === 0) {
+      // First video starts immediately
+      const { data: test } = await supabase
+        .from('ab_tests')
+        .insert({
+          site_id: siteId,
+          youtube_video_id: videoId,
+          name: `Batch: ${video.title?.slice(0, 40)}`,
+          status: 'draft',
+          test_type: 'thumbnail',
+          original_thumbnail_url: video.thumbnail_hq_url,
+          config: {},
+        })
+        .select('id')
+        .single()
+
+      if (test) {
+        // Insert original variant
+        await supabase.from('ab_test_variants').insert({
+          test_id: test.id,
+          label: 'original',
+          is_original: true,
+          blob_url: video.thumbnail_hq_url,
+          blob_key: null,
+          sort_order: 0,
+        })
+        started++
+      }
+    } else {
+      // Remaining videos get queued with stagger
+      const staggerDays = i
+      const queueStartAfter = new Date(Date.now() + staggerDays * 86400000).toISOString()
+
+      const { data: test } = await supabase
+        .from('ab_tests')
+        .insert({
+          site_id: siteId,
+          youtube_video_id: videoId,
+          name: `Batch: ${video.title?.slice(0, 40)}`,
+          status: 'queued',
+          test_type: 'thumbnail',
+          original_thumbnail_url: video.thumbnail_hq_url,
+          config: {},
+          queue_start_after: queueStartAfter,
+        })
+        .select('id')
+        .single()
+
+      if (test) {
+        await supabase.from('ab_test_variants').insert({
+          test_id: test.id,
+          label: 'original',
+          is_original: true,
+          blob_url: video.thumbnail_hq_url,
+          blob_key: null,
+          sort_order: 0,
+        })
+        queued++
+      }
+    }
+  }
+
+  revalidatePath('/cms/youtube/ab-lab')
+  return { ok: true, started, queued }
+}

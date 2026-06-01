@@ -11,6 +11,7 @@ import { updateVideoMetadata } from '@/lib/youtube/ab-metadata'
 import { resolveTemplates } from '@/lib/youtube/ab-templates'
 import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
 import { createNotification } from '@/lib/notifications/create'
+import { startAbTestInternal } from '@/lib/youtube/ab-start'
 import type { AbTestVariantRow, AppliedMetadata } from '@/lib/youtube/ab-types'
 
 export const maxDuration = 120
@@ -22,6 +23,31 @@ export async function GET(req: NextRequest) {
   }
 
   const supabase = getSupabaseServiceClient()
+
+  // Process queued tests whose start time has arrived
+  const { data: queuedTests } = await supabase
+    .from('ab_tests')
+    .select('id, site_id, youtube_video_id, name')
+    .eq('status', 'queued')
+    .not('queue_start_after', 'is', null)
+    .lte('queue_start_after', new Date().toISOString())
+
+  if (queuedTests?.length) {
+    for (const queued of queuedTests) {
+      try {
+        // Flip to draft so startAbTestInternal can pick it up
+        await supabase
+          .from('ab_tests')
+          .update({ status: 'draft' })
+          .eq('id', queued.id)
+          .eq('status', 'queued')
+
+        await startAbTestInternal(queued.id, queued.site_id)
+      } catch (err) {
+        console.error(`[ab-rotate] Failed to start queued test ${queued.id}:`, err)
+      }
+    }
+  }
 
   // Query all active tests with their variants and video info
   const { data: tests } = await supabase

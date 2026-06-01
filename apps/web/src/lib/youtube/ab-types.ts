@@ -1,7 +1,7 @@
 export const VARIANT_LABELS = ['B', 'C', 'D'] as const
 export type VariantLabel = (typeof VARIANT_LABELS)[number]
 
-export type AbTestStatus = 'draft' | 'active' | 'paused' | 'completed' | 'archived'
+export type AbTestStatus = 'draft' | 'active' | 'paused' | 'completed' | 'archived' | 'queued'
 export type CompletedReason = 'auto_resolve' | 'manual_winner' | 'manual_archive' | 'max_duration' | 'inconclusive'
 export type BackfillStatus = 'pending' | 'partial' | 'confirmed' | 'no_data' | 'error'
 export type TestType = 'thumbnail' | 'title' | 'description' | 'combo'
@@ -52,6 +52,7 @@ export interface AbTestRow {
   playoff_test_id: string | null
   playoff_start_after: string | null
   last_applied_variant_id: string | null
+  queue_start_after: string | null
 }
 
 export interface VariantMetadata {
