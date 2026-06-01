@@ -25,6 +25,7 @@ import { getChannelTier } from '@/lib/youtube/scoring'
 import { scoreForPrompt } from '@/lib/youtube/prompt-scoring'
 import type { AbBriefingData } from '@/lib/youtube/prompt-types'
 import { startAbTestInternal } from '@/lib/youtube/ab-start'
+import { autoImportWinner } from '@/lib/youtube/thumbnail-library'
 import { getVideoTestHistory as _getVideoTestHistory } from './queries'
 
 export async function getVideoTestHistory(
@@ -1290,6 +1291,13 @@ export async function applyWinnerNow(
       grace_expires_at: null,
     })
     .eq('id', testId)
+
+  // Auto-import winning thumbnail to library
+  try {
+    await autoImportWinner(testId, siteId)
+  } catch {
+    // Non-fatal — library import failure shouldn't block test completion
+  }
 
   revalidatePath('/cms/youtube/ab-lab')
   return { ok: true }

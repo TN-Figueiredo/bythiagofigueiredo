@@ -95,3 +95,88 @@ export async function checkLongevity(
 
   return { status, changePercent }
 }
+
+export async function checkAndPersistLongevity(
+  libraryId: string,
+  checkpointDays: 7 | 30 | 60 | 90,
+  currentViews: number,
+  viewsAtWin: number,
+): Promise<void> {
+  const { status, changePercent } = await checkLongevity(libraryId, checkpointDays, currentViews, viewsAtWin)
+
+  const supabase = getSupabaseServiceClient()
+  await supabase.from('thumbnail_longevity').upsert({
+    library_id: libraryId,
+    checkpoint_days: checkpointDays,
+    ctr_at_checkpoint: currentViews,  // stores views (column name is legacy)
+    ctr_at_win: viewsAtWin,
+    change_percent: changePercent,
+    status,
+    checked_at: new Date().toISOString(),
+  }, { onConflict: 'library_id,checkpoint_days' })
+}
+
+export async function runLongevityChecks(siteId: string): Promise<number> {
+  const supabase = getSupabaseServiceClient()
+
+  // Get library entries from test winners with youtube_video_id
+  const { data: entries } = await supabase
+    .from('thumbnail_library')
+    .select('id, youtube_video_id, created_at, source_test_id')
+    .eq('site_id', siteId)
+    .eq('source_type', 'test_winner')
+    .not('youtube_video_id', 'is', null)
+
+  if (!entries?.length) return 0
+
+  let checked = 0
+  const checkpoints: Array<{ days: 7 | 30 | 60 | 90; ms: number }> = [
+    { days: 7, ms: 7 * 86400000 },
+    { days: 30, ms: 30 * 86400000 },
+    { days: 60, ms: 60 * 86400000 },
+    { days: 90, ms: 90 * 86400000 },
+  ]
+
+  for (const entry of entries) {
+    const ageMs = Date.now() - new Date(entry.created_at).getTime()
+
+    for (const cp of checkpoints) {
+      if (ageMs < cp.ms) continue // not old enough for this checkpoint
+
+      // Check if already recorded
+      const { data: existing } = await supabase
+        .from('thumbnail_longevity')
+        .select('id')
+        .eq('library_id', entry.id)
+        .eq('checkpoint_days', cp.days)
+        .maybeSingle()
+
+      if (existing) continue // already checked
+
+      // Get current view count
+      const { data: video } = await supabase
+        .from('youtube_videos')
+        .select('view_count')
+        .eq('id', entry.youtube_video_id)
+        .single()
+
+      if (!video) continue
+
+      // Get view count at time of win (from the test's cycles)
+      const { data: winCycles } = await supabase
+        .from('ab_test_cycles')
+        .select('views')
+        .eq('test_id', entry.source_test_id)
+        .not('ended_at', 'is', null)
+        .order('ended_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      const viewsAtWin = winCycles?.views ?? 0
+      await checkAndPersistLongevity(entry.id, cp.days, video.view_count ?? 0, viewsAtWin)
+      checked++
+    }
+  }
+
+  return checked
+}

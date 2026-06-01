@@ -9,6 +9,7 @@ import { buildNotification } from '@/lib/youtube/notification-service'
 import { getIsoWeek } from '@/lib/youtube/analytics-sync'
 import { checkPlayoffEligibility, selectPlayoffVariants } from '@/lib/youtube/ab-playoff'
 import { startAbTestInternal } from '@/lib/youtube/ab-start'
+import { autoImportWinner } from '@/lib/youtube/thumbnail-library'
 import type { AbTestVariantRow, AbTestCycleRow, VariantStats, AbTestConfig, BackfillStatus } from '@/lib/youtube/ab-types'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 
@@ -308,6 +309,13 @@ export async function phaseEvaluateActiveTests(supabase: SupabaseClient): Promis
           }).eq('id', cycle.id)
         }
 
+        // Auto-import winning thumbnail to library
+        try {
+          await autoImportWinner(test.id, test.site_id)
+        } catch {
+          // Non-fatal — library import failure shouldn't block test completion
+        }
+
         resolved++
       } else if (test.grace_expires_at && newConsecutive < stabilityThreshold) {
         // Confidence dropped during grace period — cancel auto-apply
@@ -477,6 +485,13 @@ export async function phaseRetryFailedApplies(supabase: SupabaseClient): Promise
           test_completed_at: new Date().toISOString(),
           test_winner_applied_at: new Date().toISOString(),
         }).eq('id', cycle.id)
+      }
+
+      // Auto-import winning thumbnail to library
+      try {
+        await autoImportWinner(pending.id, pending.site_id)
+      } catch {
+        // Non-fatal — library import failure shouldn't block test completion
       }
 
       processed++
