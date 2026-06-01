@@ -132,6 +132,13 @@ export async function GET(req: NextRequest) {
         await recordCronSuccess('sync-youtube-competitors', 'info')
       }
 
+      Sentry.addBreadcrumb({
+        category: 'cron',
+        message: `Competitor sync: ${synced} ok, ${errors} failed`,
+        level: errors > 0 ? 'warning' : 'info',
+        data: { synced, errors },
+      })
+
       return { status: 'ok' as const, mode: 'competitors', synced, errors }
     }
 

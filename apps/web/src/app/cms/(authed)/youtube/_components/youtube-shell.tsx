@@ -124,7 +124,7 @@ export function YouTubeShell({ children, hoursUntilExpiry }: YouTubeShellProps) 
       </div>
 
       {/* Tab bar */}
-      <nav className="flex gap-0 border-b border-cms-border px-6" aria-label="YouTube sections">
+      <nav className="flex gap-0 overflow-x-auto border-b border-cms-border px-6" aria-label="YouTube sections">
         {TABS.map(tab => {
           const isActive = tab.href === activeTab
           return (
