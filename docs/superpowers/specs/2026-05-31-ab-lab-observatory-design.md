@@ -409,6 +409,26 @@ CREATE TABLE competitor_changes (id uuid PK, video_id uuid FK, change_type text,
 - ab-evaluate combo/multi-test/error-isolation: 6 scenarios
 - Target: 48 tests, coverage to 95%+
 
+### 7.15 Wire applyVariantToYouTube Into All Callers
+- Helper `src/lib/youtube/ab-apply.ts` exists with 5 tests passing
+- Replace duplicated apply logic in: forceRotate, applyWinnerNow, revertWinner, ab-rotate, ab-evaluate
+- Each caller should call `applyVariantToYouTube()` instead of inline setThumbnail/updateVideoMetadata
+- ~150 lines of duplication eliminated
+- Update test mocks to mock `ab-apply` instead of individual YouTube helpers
+
+### 7.16 Mock Quality Improvement
+- Current mocks are over-coupled to Supabase chain method order
+- Rewrite key test mocks to use spies on actual behavior (what was called with what args)
+- Replace Proxy-based `makeChain` with explicit mock objects that validate column names
+- Goal: tests that catch real regressions, not implementation detail changes
+
+### 7.17 Remaining Edge Case Tests (~15)
+- Concurrency: two simultaneous cron invocations (double rotation guard)
+- Integration contracts: verify Supabase query shape matches DB schema
+- startAbTestInternal unit tests (currently only mocked)
+- Watchdog poll cleanup assertion (7-day threshold correctness)
+- Multiple variants in same poll cycle (correct attribution)
+
 ### Verification Checklist (run at P7 start)
 - [ ] Re-run 4-dimension audit (code quality, test coverage, spec compliance, production readiness)
 - [ ] For each item: if resolved by P2-P6 work, mark ✅ and document which phase fixed it
