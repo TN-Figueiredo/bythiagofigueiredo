@@ -111,11 +111,13 @@ export async function GET(req: NextRequest) {
       }
 
       let synced = 0
+      let errors = 0
       for (const channel of competitorChannels) {
         try {
           await syncCompetitorChannel(channel, apiKey)
           synced++
         } catch (err) {
+          errors++
           console.error(`[sync-youtube:competitors] Failed ${channel.channel_id}:`, err)
           Sentry.captureException(err, {
             tags: { component: 'sync-youtube', mode: 'competitors' },
@@ -124,8 +126,13 @@ export async function GET(req: NextRequest) {
         }
       }
 
-      await recordCronSuccess('sync-youtube-competitors', 'info')
-      return { status: 'ok' as const, mode: 'competitors', synced }
+      if (errors > 0 && synced === 0) {
+        await recordCronFailure('sync-youtube-competitors', `All ${errors} channels failed`)
+      } else {
+        await recordCronSuccess('sync-youtube-competitors', 'info')
+      }
+
+      return { status: 'ok' as const, mode: 'competitors', synced, errors }
     }
 
     let query = supabase
@@ -218,6 +225,7 @@ export async function GET(req: NextRequest) {
     }
 
     revalidateTag('youtube')
+    revalidateTag('layout-counts')
     revalidatePath('/cms/youtube')
 
     const failedChannels = channelResults.filter(c => c.status === 'failed')

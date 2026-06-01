@@ -76,6 +76,20 @@ vi.mock('@tn-figueiredo/auth-nextjs', () => ({
   })),
 }))
 
+vi.mock('@/lib/cms/site-timezone-context', () => ({
+  SiteTimezoneProvider: ({ children }: { children: React.ReactNode }) => children,
+}))
+
+vi.mock('@/lib/notifications/notification-context', () => ({
+  NotificationProvider: ({ children }: { children: React.ReactNode }) => children,
+}))
+
+vi.mock('@/lib/notifications/types', () => ({}))
+
+vi.mock('./_shared/notification-bell', () => ({
+  NotificationBell: () => null,
+}))
+
 vi.mock('@/lib/cms/layout-counts', () => ({
   fetchLayoutCounts: vi.fn(async () => ({
     pendingContacts: 0,
