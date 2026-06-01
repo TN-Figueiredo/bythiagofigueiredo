@@ -82,19 +82,17 @@ export async function GET(req: NextRequest) {
         for (const test of driftTests) {
           if (test.test_type !== 'thumbnail' && test.test_type !== 'combo') continue
 
-          // Get current cycle's applied_metadata (stores YouTube URL after apply)
+          // Get current variant's thumbnail
           const { data: openCycle } = await driftClient
             .from('ab_test_cycles')
-            .select('id, variant_id, applied_metadata')
+            .select('variant_id, ab_test_variants!inner(blob_url)')
             .eq('test_id', test.id)
             .is('ended_at', null)
             .limit(1)
             .maybeSingle()
 
           if (!openCycle) continue
-          const appliedMeta = openCycle.applied_metadata as import('@/lib/youtube/ab-types').AppliedMetadata | null
-          const expectedUrl = appliedMeta?.youtube_thumbnail_url ?? null
-          if (!expectedUrl) continue
+          const expectedUrl = (openCycle as any).ab_test_variants?.blob_url
 
           // Get YouTube video ID
           const { data: video } = await driftClient
@@ -108,12 +106,41 @@ export async function GET(req: NextRequest) {
           const { drifted } = await checkDrift(test.id, video.youtube_video_id, expectedUrl, apiKey)
 
           if (drifted) {
-            // Pause test + notify
+            const now = new Date().toISOString()
+
+            // 1. Close the open cycle
+            await driftClient
+              .from('ab_test_cycles')
+              .update({ ended_at: now })
+              .eq('test_id', test.id)
+              .is('ended_at', null)
+
+            // 2. Attempt thumbnail revert to original
+            try {
+              const { data: testFull } = await driftClient
+                .from('ab_tests')
+                .select('original_thumbnail_url, site_id')
+                .eq('id', test.id)
+                .single()
+
+              if (testFull?.original_thumbnail_url?.includes('blob.vercel-storage.com')) {
+                const { ensureFreshToken } = await import('@/lib/social/token-refresh')
+                const { fetchVariantImageBuffer, setThumbnail } = await import('@/lib/youtube/ab-youtube')
+                const { accessToken } = await ensureFreshToken(testFull.site_id, 'youtube')
+                const { buffer, contentType } = await fetchVariantImageBuffer(testFull.original_thumbnail_url)
+                await setThumbnail(video.youtube_video_id, buffer, contentType, accessToken)
+              }
+            } catch (revertErr) {
+              Sentry.captureException(revertErr, { extra: { context: 'ab-watchdog-revert', testId: test.id } })
+            }
+
+            // 3. Pause the test
             await driftClient
               .from('ab_tests')
-              .update({ status: 'paused', status_note: 'Thumbnail alterado externamente' })
+              .update({ status: 'paused', paused_at: now, status_note: 'Thumbnail alterado externamente' })
               .eq('id', test.id)
 
+            // 4. Notify owner
             const { data: owner } = await driftClient
               .from('site_users')
               .select('user_id')

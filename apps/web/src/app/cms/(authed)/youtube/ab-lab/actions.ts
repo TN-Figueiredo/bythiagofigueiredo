@@ -705,6 +705,30 @@ export async function pauseAbTest(
 }
 
 // ---------------------------------------------------------------------------
+// acknowledgeAbTestDrift
+// ---------------------------------------------------------------------------
+
+export async function acknowledgeAbTestDrift(
+  testId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  let siteId: string
+  try { siteId = await requireEditAccess() } catch (e) { return { ok: false, error: (e as Error).message } }
+
+  const supabase = getSupabaseServiceClient()
+  const { error } = await supabase
+    .from('ab_tests')
+    .update({ drift_acknowledged_at: new Date().toISOString(), status_note: null })
+    .eq('id', testId)
+    .eq('site_id', siteId)
+    .eq('status', 'paused')
+
+  if (error) return { ok: false, error: error.message }
+  revalidateTag('youtube')
+  revalidatePath('/cms/youtube/ab-lab')
+  return { ok: true }
+}
+
+// ---------------------------------------------------------------------------
 // resumeAbTest
 // ---------------------------------------------------------------------------
 
@@ -722,13 +746,16 @@ export async function resumeAbTest(
 
   const { data: test, error: testError } = await supabase
     .from('ab_tests')
-    .select('id, site_id, status, youtube_video_id')
+    .select('id, site_id, status, status_note, drift_acknowledged_at, youtube_video_id')
     .eq('id', testId)
     .eq('site_id', siteId)
     .single()
 
   if (testError || !test) return { ok: false, error: 'Test not found' }
   if (test.status !== 'paused') return { ok: false, error: 'Only paused tests can be resumed' }
+  if (test.status_note === 'Thumbnail alterado externamente' && !test.drift_acknowledged_at) {
+    return { ok: false, error: 'Drift nao reconhecido. Reconheca a mudanca antes de retomar o teste.' }
+  }
 
   const { data: variants } = await supabase
     .from('ab_test_variants')
@@ -778,7 +805,7 @@ export async function resumeAbTest(
 
   const { error: updateError } = await supabase
     .from('ab_tests')
-    .update({ status: 'active', paused_at: null, updated_at: now })
+    .update({ status: 'active', paused_at: null, drift_acknowledged_at: null, status_note: null, updated_at: now })
     .eq('id', testId)
 
   if (updateError) return { ok: false, error: updateError.message }
