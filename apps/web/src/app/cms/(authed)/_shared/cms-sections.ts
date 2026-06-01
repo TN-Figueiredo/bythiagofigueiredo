@@ -9,6 +9,7 @@ import {
   Youtube, Send,
   UserPen, UsersRound, MessageSquare,
   TrendingUp, Kanban, Bell,
+  FlaskConical, Eye,
 } from 'lucide-react'
 
 const ICON_SIZE = 16
@@ -18,12 +19,11 @@ const icon = (Icon: LucideIcon) => createElement(Icon, { size: ICON_SIZE, stroke
 export function buildCmsSections(): SidebarSection[] {
   return [
     {
-      label: 'Overview',
+      label: 'HUB',
       items: [
         { icon: icon(LayoutDashboard), label: 'Dashboard', href: '/cms' },
         { icon: icon(Kanban), label: 'Up Next', href: '/cms/up-next', minRole: 'editor' },
         { icon: icon(Calendar), label: 'Schedule', href: '/cms/schedule' },
-        { icon: icon(TrendingUp), label: 'Analytics', href: '/cms/analytics', minRole: 'editor' },
         { icon: icon(Bell), label: 'Notificações', href: '/cms/notifications' },
       ],
     },
@@ -31,7 +31,7 @@ export function buildCmsSections(): SidebarSection[] {
       label: 'Content',
       items: [
         { icon: icon(FileText), label: 'Blog', href: '/cms/blog' },
-        { icon: icon(Video), label: 'Video', href: '/cms/video', minRole: 'editor' },
+        { icon: icon(Kanban), label: 'Pipeline', href: '/cms/video', minRole: 'editor' },
         { icon: icon(GraduationCap), label: 'Courses', href: '/cms/courses', minRole: 'editor' },
         { icon: icon(Mail), label: 'Newsletters', href: '/cms/newsletters', minRole: 'editor' },
         { icon: icon(Megaphone), label: 'Campaigns', href: '/cms/campaigns', minRole: 'editor' },
@@ -48,15 +48,24 @@ export function buildCmsSections(): SidebarSection[] {
       ],
     },
     {
+      label: 'YouTube',
+      items: [
+        { icon: icon(Youtube), label: 'Channels', href: '/cms/youtube', minRole: 'editor' },
+        { icon: icon(Video), label: 'Videos', href: '/cms/youtube/videos', minRole: 'editor' },
+        { icon: icon(FlaskConical), label: 'A/B Lab', href: '/cms/youtube/ab-lab', minRole: 'editor' },
+        { icon: icon(TrendingUp), label: 'Performance', href: '/cms/youtube/analytics', minRole: 'editor' },
+        { icon: icon(Eye), label: 'Competitors', href: '/cms/youtube/competitors', minRole: 'editor' },
+      ],
+    },
+    {
       label: 'Social',
       items: [
-        { icon: icon(Youtube), label: 'YouTube', href: '/cms/youtube', minRole: 'editor' },
         { icon: icon(Send), label: 'Posts', href: '/cms/social', minRole: 'reporter' },
         { icon: icon(Link2), label: 'Links', href: '/cms/links', minRole: 'editor' },
       ],
     },
     {
-      label: 'People',
+      label: 'Audience',
       items: [
         { icon: icon(UserPen), label: 'Authors', href: '/cms/authors', minRole: 'editor' },
         { icon: icon(UsersRound), label: 'Subscribers', href: '/cms/subscribers', minRole: 'org_admin' },
