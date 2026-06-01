@@ -1,5 +1,5 @@
 import { AB_BRIEFING_PROMPT_VERSION } from './prompt-types'
-import type { AbBriefingData } from './prompt-types'
+import type { AbBriefingData, AbBriefingLearning } from './prompt-types'
 import { VARIANT_LABELS } from './ab-types'
 import type { TestType, VariantMetadata } from './ab-types'
 import type { PromptChannelInfo } from './prompt-types'
@@ -190,6 +190,63 @@ Dê uma nota de 1-5 para cada variante e recomende a melhor para testar primeiro
 Rate each variant 1-5 and recommend the best one to test first.`,
 }
 
+function formatLearningTag(t: AbBriefingLearning): string {
+  const lift = t.avgLift > 0 ? `+${t.avgLift.toFixed(1)}%` : `${t.avgLift.toFixed(1)}%`
+  return `${t.tag} (${lift} avg lift, ${t.wins} wins, ${t.kind})`
+}
+
+function buildLearningsPayload(
+  learnings: NonNullable<AbBriefingData['learnings']>,
+  locale: Locale,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {}
+
+  if (learnings.winning.length > 0) {
+    payload[locale === 'pt' ? 'padroes_vencedores' : 'winning_patterns'] = learnings.winning.map(formatLearningTag)
+  }
+
+  if (learnings.losing.length > 0) {
+    payload[locale === 'pt' ? 'padroes_perdedores' : 'losing_patterns'] = learnings.losing.map(formatLearningTag)
+  }
+
+  if (locale === 'pt') {
+    payload.instrucao = 'Priorize variantes que reforcem padrões vencedores e evitem padrões perdedores.'
+  } else {
+    payload.instruction = 'Prioritize variants that reinforce winning patterns and avoid losing patterns.'
+  }
+
+  return payload
+}
+
+function buildLearningsLines(
+  learnings: NonNullable<AbBriefingData['learnings']>,
+  locale: Locale,
+): string[] {
+  const lines: string[] = []
+
+  if (locale === 'pt') {
+    lines.push('PADRÕES DE TESTES ANTERIORES:')
+    if (learnings.winning.length > 0) {
+      lines.push(`Padrões vencedores: ${learnings.winning.map(formatLearningTag).join(' | ')}`)
+    }
+    if (learnings.losing.length > 0) {
+      lines.push(`Padrões perdedores: ${learnings.losing.map(formatLearningTag).join(' | ')}`)
+    }
+    lines.push('→ Priorize variantes que reforcem padrões vencedores e evitem padrões perdedores.')
+  } else {
+    lines.push('PATTERNS FROM PAST TESTS:')
+    if (learnings.winning.length > 0) {
+      lines.push(`Winning patterns: ${learnings.winning.map(formatLearningTag).join(' | ')}`)
+    }
+    if (learnings.losing.length > 0) {
+      lines.push(`Losing patterns: ${learnings.losing.map(formatLearningTag).join(' | ')}`)
+    }
+    lines.push('→ Prioritize variants that reinforce winning patterns and avoid losing patterns.')
+  }
+
+  return lines
+}
+
 function buildHistorySection(testHistory: AbBriefingData['testHistory']): string {
   if (testHistory.length === 0) return ''
 
@@ -257,6 +314,10 @@ export function buildAbBriefingPrompt(options: {
   const historySection = buildHistorySection(data.testHistory)
   if (historySection) {
     contextPayload.historico_ab = (JSON.parse(historySection) as { historico_ab: unknown }).historico_ab
+  }
+
+  if (data.learnings) {
+    contextPayload.learnings_from_past_tests = buildLearningsPayload(data.learnings, locale)
   }
 
   const contextJson = JSON.stringify(contextPayload, null, 2)
@@ -341,6 +402,15 @@ export function buildAbWritePrompt(options: {
       ? `Histórico: ${h.testes_anteriores} testes anteriores | lift médio: ${h.lift_medio} | vencedores: ${h.padroes_vencedores.join(', ') || 'N/A'}`
       : `History: ${h.testes_anteriores} previous tests | avg lift: ${h.lift_medio} | winners: ${h.padroes_vencedores.join(', ') || 'N/A'}`)
     lines.push('')
+  }
+
+  // Learnings from past tests
+  if (data.learnings) {
+    const learningsLines = buildLearningsLines(data.learnings, locale)
+    if (learningsLines.length > 0) {
+      lines.push(...learningsLines)
+      lines.push('')
+    }
   }
 
   // Type-specific brainstorm instructions

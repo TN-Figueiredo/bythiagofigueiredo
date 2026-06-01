@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { YtScoreBar } from './yt-score-bar'
 import { YtVideoDiagnostic } from './yt-video-diagnostic'
 import type { VideoGradeRow } from './types'
@@ -26,6 +27,7 @@ const STATE_BADGES: Record<string, { label: string; color: string }> = {
 }
 
 export function YtGradesV2({ videos }: Props) {
+  const router = useRouter()
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [gradeFilter, setGradeFilter] = useState<Grade | 'all'>('all')
   const [sortBy, setSortBy] = useState<'score' | 'ctr' | 'trend'>('score')
@@ -134,6 +136,9 @@ export function YtGradesV2({ videos }: Props) {
                     recommendation: video.recommendation,
                     optimizationState: video.optimizationState,
                     trafficSources: video.trafficSources,
+                  }}
+                  onCreateAbTest={(videoId) => {
+                    router.push(`/cms/youtube/ab-lab/new?videoId=${videoId}`)
                   }}
                 />
               </div>

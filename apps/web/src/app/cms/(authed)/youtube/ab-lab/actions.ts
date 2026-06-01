@@ -27,7 +27,7 @@ import { scoreForPrompt } from '@/lib/youtube/prompt-scoring'
 import type { AbBriefingData } from '@/lib/youtube/prompt-types'
 import { startAbTestInternal } from '@/lib/youtube/ab-start'
 import { autoImportWinner } from '@/lib/youtube/thumbnail-library'
-import { getVideoTestHistory as _getVideoTestHistory } from './queries'
+import { getVideoTestHistory as _getVideoTestHistory, getLearnings } from './queries'
 
 async function preserveOriginalThumbnail(ytUrl: string): Promise<string> {
   const imgRes = await fetch(ytUrl, { signal: AbortSignal.timeout(15_000) })
@@ -1538,6 +1538,29 @@ export async function fetchAbBriefingData(
   const lastSyncedAt = (video.last_analytics_sync_at as string | null) ?? new Date().toISOString()
   const snapshotAgeHours = Math.round(((Date.now() - new Date(lastSyncedAt).getTime()) / 3_600_000) * 10) / 10
 
+  // Fetch learnings from past tests
+  let learnings: import('@/lib/youtube/prompt-types').AbBriefingData['learnings']
+  try {
+    const learningsData = await getLearnings(siteId)
+    if (learningsData) {
+      const winning = learningsData.tags
+        .filter(t => !t.negative)
+        .sort((a, b) => b.avgLift - a.avgLift)
+        .slice(0, 5)
+        .map(t => ({ tag: t.tag, avgLift: t.avgLift, wins: t.wins, kind: t.kind as 'thumb' | 'title' | 'desc' }))
+      const losing = learningsData.tags
+        .filter(t => t.negative === true)
+        .sort((a, b) => a.avgLift - b.avgLift)
+        .slice(0, 3)
+        .map(t => ({ tag: t.tag, avgLift: t.avgLift, wins: t.wins, kind: t.kind as 'thumb' | 'title' | 'desc', negative: true as const }))
+      if (winning.length > 0 || losing.length > 0) {
+        learnings = { winning, losing }
+      }
+    }
+  } catch {
+    // Non-fatal
+  }
+
   return {
     ok: true,
     data: {
@@ -1559,6 +1582,7 @@ export async function fetchAbBriefingData(
       },
       testHistory: historyForBriefing,
       snapshotAgeHours,
+      ...(learnings ? { learnings } : {}),
     },
   }
 }

@@ -285,9 +285,17 @@ export function CompetitorDashboard({ activeTab, channels, changes, outliers, in
                   <span className="text-[10px] text-cms-text-dim">{change.view_count_at_change.toLocaleString('pt-BR')} views</span>
                 )}
               </div>
-              <button onClick={() => toggleBookmark(change.id)} className={`rounded p-1 ${change.bookmarked ? 'text-yellow-400' : 'text-cms-text-dim hover:text-cms-text-muted'}`}>
-                <Bookmark className="h-4 w-4" fill={change.bookmarked ? 'currentColor' : 'none'} />
-              </button>
+              <div className="flex items-center gap-1 shrink-0">
+                <a
+                  href={`/cms/youtube/ab-lab/new?ref=competitor&type=${change.change_type === 'thumbnail' ? 'thumbnail' : 'title'}`}
+                  className="rounded px-2 py-1 text-[10px] font-medium text-cms-accent hover:bg-cms-accent/10 transition-colors"
+                >
+                  Testar esta abordagem →
+                </a>
+                <button onClick={() => toggleBookmark(change.id)} className={`rounded p-1 ${change.bookmarked ? 'text-yellow-400' : 'text-cms-text-dim hover:text-cms-text-muted'}`}>
+                  <Bookmark className="h-4 w-4" fill={change.bookmarked ? 'currentColor' : 'none'} />
+                </button>
+              </div>
             </div>
           ))}
         </div>

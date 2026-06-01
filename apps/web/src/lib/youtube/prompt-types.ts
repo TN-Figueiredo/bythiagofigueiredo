@@ -135,7 +135,15 @@ export interface PromptVideoInfo {
   titlePattern?: string
 }
 
-export const AB_BRIEFING_PROMPT_VERSION = 'yt-ab-v2' as const
+export const AB_BRIEFING_PROMPT_VERSION = 'yt-ab-v3' as const
+
+export interface AbBriefingLearning {
+  tag: string
+  avgLift: number
+  wins: number
+  kind: 'thumb' | 'title' | 'desc'
+  negative?: boolean
+}
 
 export interface AbBriefingData {
   channel: Pick<PromptChannelInfo, 'name' | 'subscribers' | 'tier'>
@@ -156,6 +164,10 @@ export interface AbBriefingData {
     ctr_lift_percent: number | null
   }>
   snapshotAgeHours: number
+  learnings?: {
+    winning: AbBriefingLearning[]
+    losing: AbBriefingLearning[]
+  }
 }
 
 export type BuildYoutubePromptOptions =
