@@ -475,3 +475,39 @@ export interface AbTestPlayoffView extends AbTestBaseView {
 }
 
 export type AbTestDetailView = AbTestActiveView | AbTestWinnerView | AbTestPlayoffView
+
+// P5: Competitor Observatory
+export interface CompetitorChannel {
+  id: string
+  siteId: string
+  channelId: string
+  channelName: string
+  thumbnailUrl: string | null
+  subscriberCount: number | null
+  addedAt: string
+  lastSyncedAt: string | null
+}
+
+export interface CompetitorVideo {
+  id: string
+  competitorChannelId: string
+  videoId: string
+  title: string | null
+  thumbnailUrl: string | null
+  viewCount: number
+  publishedAt: string | null
+}
+
+export interface CompetitorChange {
+  id: string
+  videoId: string
+  siteId: string
+  changeType: 'title' | 'description' | 'thumbnail'
+  oldTitle: string | null
+  newTitle: string | null
+  oldThumbnailUrl: string | null
+  newThumbnailUrl: string | null
+  viewCountAtChange: number | null
+  detectedAt: string
+  bookmarked: boolean
+}
