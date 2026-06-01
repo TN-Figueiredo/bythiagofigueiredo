@@ -26,6 +26,7 @@ interface LibraryEntry {
 
 export function LibraryDashboard({ entries }: { entries: LibraryEntry[] }) {
   const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
   const [filter, setFilter] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -36,10 +37,12 @@ export function LibraryDashboard({ entries }: { entries: LibraryEntry[] }) {
     const file = e.target.files?.[0]
     if (!file) return
     setUploading(true)
+    setUploadError(null)
     const fd = new FormData()
     fd.set('file', file)
     fd.set('title', file.name.replace(/\.[^.]+$/, ''))
-    await uploadToLibrary(fd)
+    const result = await uploadToLibrary(fd)
+    if (!result.ok) setUploadError(result.error ?? 'Upload failed')
     setUploading(false)
     if (fileRef.current) fileRef.current.value = ''
   }
@@ -54,6 +57,7 @@ export function LibraryDashboard({ entries }: { entries: LibraryEntry[] }) {
           <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleUpload} />
         </label>
       </div>
+      {uploadError && <p className="text-xs text-red-400">{uploadError}</p>}
 
       {/* Tag filter */}
       {allTags.length > 0 && (
@@ -76,7 +80,7 @@ export function LibraryDashboard({ entries }: { entries: LibraryEntry[] }) {
             <div className="relative aspect-video">
               <img src={entry.blob_url} alt={entry.title ?? ''} className="h-full w-full object-cover" />
               <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                <button onClick={() => deleteFromLibrary(entry.id)} className="rounded-full bg-red-600 p-2 text-white">
+                <button onClick={() => { if (window.confirm('Remover esta thumbnail da biblioteca?')) { deleteFromLibrary(entry.id) } }} className="rounded-full bg-red-600 p-2 text-white">
                   <Trash2 className="h-4 w-4" />
                 </button>
               </div>
