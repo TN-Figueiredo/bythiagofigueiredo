@@ -1,6 +1,6 @@
 import { createElement } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import type { SidebarSection } from '@tn-figueiredo/cms-ui'
+import type { SidebarSection, SidebarNavItem } from '@tn-figueiredo/cms-ui'
 import {
   LayoutDashboard, Calendar,
   FileText, Mail, Megaphone, ListMusic,
@@ -9,7 +9,7 @@ import {
   Youtube, Send,
   UserPen, UsersRound, MessageSquare,
   TrendingUp, Kanban, Bell,
-  FlaskConical, Eye,
+  FlaskConical, Eye, Settings,
 } from 'lucide-react'
 
 const ICON_SIZE = 16
@@ -73,4 +73,10 @@ export function buildCmsSections(): SidebarSection[] {
       ],
     },
   ]
+}
+
+export const CMS_SETTINGS_ITEM: SidebarNavItem = {
+  icon: icon(Settings),
+  label: 'Settings',
+  href: '/cms/settings',
 }

@@ -19,7 +19,7 @@ import { SidebarBadges } from '@/components/cms/sidebar-badges'
 import { SiteTimezoneProvider } from '@/lib/cms/site-timezone-context'
 import { NotificationProvider } from '@/lib/notifications/notification-context'
 import { NotificationBell } from './_shared/notification-bell'
-import { buildCmsSections } from './_shared/cms-sections'
+import { buildCmsSections, CMS_SETTINGS_ITEM } from './_shared/cms-sections'
 import Link from 'next/link'
 
 const CMS_SECTIONS = buildCmsSections()
@@ -92,6 +92,7 @@ export default async function Layout({ children }: { children: ReactNode }) {
               userRole={userRole}
               siteSwitcher={<CmsSiteSwitcherSlot sites={rawSites} />}
               sections={CMS_SECTIONS}
+              settingsItem={CMS_SETTINGS_ITEM}
               badges={badges}
             >
               <div className="fixed top-3 right-4 z-[60]">
