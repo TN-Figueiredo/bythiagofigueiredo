@@ -132,6 +132,12 @@ export async function GET(req: NextRequest) {
         await recordCronSuccess('sync-youtube-competitors', 'info')
       }
 
+      Sentry.captureMessage('Competitor sync completed', {
+        level: 'info',
+        extra: { channelsProcessed: synced + errors, totalChanges: synced, totalErrors: errors },
+        tags: { cron: 'sync-youtube-competitors' },
+      })
+
       return { status: 'ok' as const, mode: 'competitors', synced, errors }
     }
 
