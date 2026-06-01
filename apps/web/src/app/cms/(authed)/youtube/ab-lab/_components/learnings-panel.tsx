@@ -7,6 +7,7 @@ import type { ChannelLearningsData, LearningsData, LearningsTag } from '@/lib/yo
 export interface LearningsPanelProps {
   learnings: LearningsData | null
   channelLearnings?: ChannelLearningsData | null
+  totalTests?: number
 }
 
 function StrengthBar({ wins, maxWins }: { wins: number; maxWins: number }) {
@@ -84,15 +85,24 @@ function LearningsContent({ data }: { data: LearningsData }) {
   )
 }
 
-export function LearningsPanel({ learnings, channelLearnings }: LearningsPanelProps) {
+export function LearningsPanel({ learnings, channelLearnings, totalTests = 0 }: LearningsPanelProps) {
   const [activeTab, setActiveTab] = useState<string>('combined')
 
   if (!learnings) {
+    const progress = Math.min(totalTests, 3)
     return (
       <div className="rounded-[14px] p-[20px]" style={{ background: 'var(--cms-surface)', border: '1px solid var(--cms-border, #332D25)' }}>
-        <p className="text-[13px] text-cms-text-dim text-center py-4">
-          Complete 3+ testes para desbloquear insights
-        </p>
+        <div className="flex flex-col items-center py-4">
+          <p className="text-[13px] text-cms-text-dim">
+            Coletando dados... ({progress}/3 testes completados)
+          </p>
+          <div className="mt-2 h-1.5 w-32 rounded-full bg-zinc-700">
+            <div
+              className="h-full rounded-full bg-blue-500 transition-all"
+              style={{ width: `${Math.min((totalTests / 3) * 100, 100)}%` }}
+            />
+          </div>
+        </div>
       </div>
     )
   }
