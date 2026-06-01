@@ -5,6 +5,7 @@ import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
 import { withCronLock, newRunId } from '../../../../../lib/logger'
 import { syncChannel, YouTubeQuotaError } from '@/lib/youtube/sync'
+import { syncCompetitorChannel } from '@/lib/youtube/competitor-sync'
 import { isInPostingWindow } from '@/lib/youtube/schedule-window'
 import { pollVideoStats, shouldSkipPoll, getLastPollTime, insertPollData } from '@/lib/youtube/ab-polls'
 import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
@@ -28,7 +29,7 @@ export async function GET(req: NextRequest) {
   }
 
   const rawMode = req.nextUrl.searchParams.get('mode') ?? 'catchall'
-  if (!['schedule', 'catchall', 'metrics', 'manual', 'ab-poll'].includes(rawMode)) {
+  if (!['schedule', 'catchall', 'metrics', 'manual', 'ab-poll', 'competitors'].includes(rawMode)) {
     return Response.json({ error: 'invalid mode' }, { status: 400 })
   }
   const mode = rawMode as SyncMode
@@ -96,6 +97,35 @@ export async function GET(req: NextRequest) {
 
       await recordCronSuccess('sync-youtube-ab-poll', 'info')
       return { status: 'ok' as const, mode: 'ab-poll', polled }
+    }
+
+    // Competitor observatory mode — separate flow
+    if (mode === 'competitors') {
+      const { data: competitorChannels } = await supabase
+        .from('competitor_channels')
+        .select('id, channel_id, site_id')
+
+      if (!competitorChannels?.length) {
+        await recordCronSuccess('sync-youtube-competitors', 'info')
+        return { status: 'ok' as const, mode: 'competitors', synced: 0 }
+      }
+
+      let synced = 0
+      for (const channel of competitorChannels) {
+        try {
+          await syncCompetitorChannel(channel, apiKey)
+          synced++
+        } catch (err) {
+          console.error(`[sync-youtube:competitors] Failed ${channel.channel_id}:`, err)
+          Sentry.captureException(err, {
+            tags: { component: 'sync-youtube', mode: 'competitors' },
+            extra: { channelId: channel.channel_id, siteId: channel.site_id },
+          })
+        }
+      }
+
+      await recordCronSuccess('sync-youtube-competitors', 'info')
+      return { status: 'ok' as const, mode: 'competitors', synced }
     }
 
     let query = supabase
