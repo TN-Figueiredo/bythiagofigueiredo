@@ -477,29 +477,32 @@ export async function pullPipelineThumbnails(
   testId: string,
   pipelineId: string,
 ): Promise<{ ok: boolean; added?: number; error?: string }> {
+  let siteId: string
   try {
-    await requireEditAccess()
+    siteId = await requireEditAccess()
   } catch (e) {
     return { ok: false, error: (e as Error).message }
   }
 
   const supabase = getSupabaseServiceClient()
 
-  // Load test
+  // Load test (scoped to site)
   const { data: test, error: testError } = await supabase
     .from('ab_tests')
     .select('id, status')
     .eq('id', testId)
+    .eq('site_id', siteId)
     .single()
 
   if (testError || !test) return { ok: false, error: 'Test not found' }
   if (test.status !== 'draft') return { ok: false, error: 'Pipeline thumbnails can only be added to draft tests' }
 
-  // Load pipeline entry
+  // Load pipeline entry (scoped to site)
   const { data: pipeline, error: pipelineError } = await supabase
     .from('content_pipeline')
     .select('id, social_config')
     .eq('id', pipelineId)
+    .eq('site_id', siteId)
     .single()
 
   if (pipelineError || !pipeline) return { ok: false, error: 'Pipeline entry not found' }

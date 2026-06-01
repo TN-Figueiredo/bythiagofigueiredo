@@ -21,8 +21,10 @@ import { forceRotate, applyWinnerNow, cancelGracePeriod, acknowledgeAbTestDrift,
 import { DRIFT_STATUS_NOTE } from '@/lib/youtube/ab-types'
 import { usePollStats } from './use-poll-stats'
 import { SignalCard } from './signal-card'
+import { AbPauseDialog } from './ab-pause-dialog'
+import { AbEndTestDialog } from './ab-end-test-dialog'
 import {
-  Pause, Settings,
+  Pause, Square, Settings,
   LayoutGrid, TrendingUp, Crosshair, Target, BarChart3, LineChart, RefreshCw, Filter,
 } from 'lucide-react'
 
@@ -35,6 +37,8 @@ const BTN = 'inline-flex items-center gap-[7px] justify-center py-[6px] px-[11px
 export function ActiveDetail({ view }: ActiveDetailProps) {
   const router = useRouter()
   const [signal, setSignal] = useState<'confirmed' | 'live'>('confirmed')
+  const [showPause, setShowPause] = useState(false)
+  const [showEnd, setShowEnd] = useState(false)
   const [driftBusy, setDriftBusy] = useState(false)
   const { data: livePoll } = usePollStats(view.id, view.status === 'active')
 
@@ -124,25 +128,17 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
         <div className="mx-0 mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-medium text-amber-300">
-                Teste pausado automaticamente — thumbnail alterada fora do A/B Lab
-              </p>
-              <p className="text-xs text-amber-400/70 mt-0.5">
-                Verifique a situação no YouTube e reconecte o token antes de retomar.
-              </p>
+              <p className="text-sm font-medium text-amber-300">Teste pausado automaticamente — thumbnail alterada fora do A/B Lab</p>
+              <p className="text-xs text-amber-400/70 mt-0.5">Verifique a situação no YouTube e reconecte o token antes de retomar.</p>
             </div>
-            <button
-              disabled={driftBusy}
-              onClick={async () => {
-                setDriftBusy(true)
-                const ack = await acknowledgeAbTestDrift(view.id)
-                if (!ack.ok) { alert(ack.error); setDriftBusy(false); return }
-                const res = await resumeAbTest(view.id)
-                if (!res.ok) { alert(`Falha ao retomar: ${res.error}. Reconecte o token do YouTube e tente novamente.`); setDriftBusy(false); router.refresh(); return }
-                router.refresh()
-              }}
-              className="shrink-0 rounded-md bg-amber-500 px-4 py-2 text-xs font-semibold text-black hover:bg-amber-400 disabled:opacity-50"
-            >
+            <button disabled={driftBusy} onClick={async () => {
+              setDriftBusy(true)
+              const ack = await acknowledgeAbTestDrift(view.id)
+              if (!ack.ok) { alert(ack.error); setDriftBusy(false); return }
+              const res = await resumeAbTest(view.id)
+              if (!res.ok) { alert(`Falha ao retomar: ${res.error}`); setDriftBusy(false); router.refresh(); return }
+              router.refresh()
+            }} className="shrink-0 rounded-md bg-amber-500 px-4 py-2 text-xs font-semibold text-black hover:bg-amber-400 disabled:opacity-50">
               {driftBusy ? 'Retomando…' : 'Reconhecer e Retomar'}
             </button>
           </div>
@@ -153,19 +149,13 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
       {view.status === 'paused' && view.statusNote !== DRIFT_STATUS_NOTE && (
         <div className="mx-0 mb-4 rounded-lg border border-blue-500/30 bg-blue-500/10 px-4 py-3">
           <div className="flex items-center justify-between gap-3">
-            <p className="text-sm font-medium text-blue-300">
-              Teste pausado. Reconecte o token do YouTube se necessário e retome a rotação.
-            </p>
-            <button
-              disabled={driftBusy}
-              onClick={async () => {
-                setDriftBusy(true)
-                const res = await resumeAbTest(view.id)
-                if (!res.ok) { alert(`Falha ao retomar: ${res.error}`); setDriftBusy(false); return }
-                router.refresh()
-              }}
-              className="shrink-0 rounded-md bg-blue-500 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-400 disabled:opacity-50"
-            >
+            <p className="text-sm font-medium text-blue-300">Teste pausado. Reconecte o token do YouTube se necessário e retome a rotação.</p>
+            <button disabled={driftBusy} onClick={async () => {
+              setDriftBusy(true)
+              const res = await resumeAbTest(view.id)
+              if (!res.ok) { alert(`Falha ao retomar: ${res.error}`); setDriftBusy(false); return }
+              router.refresh()
+            }} className="shrink-0 rounded-md bg-blue-500 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-400 disabled:opacity-50">
               {driftBusy ? 'Retomando…' : 'Retomar Teste'}
             </button>
           </div>
@@ -199,12 +189,16 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
             <InfoTip text="Confirmado = dados finais da API do YouTube (atraso de 2–3 dias). Live = estimativa do ciclo atual, instantânea mas imprecisa." />
           </>
         )}
-        <button type="button" disabled title="Em breve" className={`${BTN} disabled:opacity-50 disabled:cursor-not-allowed`}>
+        <button type="button" onClick={() => setShowPause(true)} className={BTN}>
           <Pause size={14} aria-hidden="true" />
           Pausar
         </button>
-        <button type="button" disabled title="Em breve" aria-label="Configurações" className={`${BTN} disabled:opacity-50 disabled:cursor-not-allowed`}>
+        <button type="button" aria-label="Configurações" className={BTN}>
           <Settings size={14} aria-hidden="true" />
+        </button>
+        <button type="button" onClick={() => setShowEnd(true)} className={BTN}>
+          <Square size={14} aria-hidden="true" />
+          Encerrar
         </button>
         <button
           type="button"
@@ -547,6 +541,21 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
           thumbUrl: view.variantThumbs.find(t => t.label === v.label)?.thumbUrl ?? null,
         }))}
       />
+
+      {showPause && (
+        <AbPauseDialog
+          testId={view.id}
+          onClose={() => setShowPause(false)}
+        />
+      )}
+      {showEnd && (
+        <AbEndTestDialog
+          testId={view.id}
+          variants={view.variantDb}
+          confidenceThreshold={view.confidenceTarget}
+          onClose={() => setShowEnd(false)}
+        />
+      )}
     </div>
   )
 }

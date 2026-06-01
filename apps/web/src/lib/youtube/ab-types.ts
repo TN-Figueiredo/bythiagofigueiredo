@@ -56,7 +56,6 @@ export interface AbTestRow {
   grace_expires_at: string | null
   winner_applied_at: string | null
   revert_expires_at: string | null
-  drift_acknowledged_at: string | null
   applied_by: string | null
 }
 
@@ -94,14 +93,11 @@ export interface AbTestVariantRow {
   source_variant_id: string | null
 }
 
-export const DRIFT_STATUS_NOTE = 'Thumbnail alterado externamente' as const
-
 export interface AppliedMetadata {
   thumbnail_set?: boolean
   title_set?: string | null
   description_set?: string | null
   links_resolved?: Record<string, string>
-  youtube_thumbnail_url?: string
 }
 
 export interface AbTestCycleRow {
@@ -407,6 +403,13 @@ export interface VariantThumb {
   isOriginal: boolean
 }
 
+export interface VariantDbEntry {
+  id: string
+  label: DisplayLabel
+  is_original: boolean
+  blob_url: string | null
+}
+
 export interface AbTestBaseView {
   id: string
   videoTitle: string
@@ -414,6 +417,8 @@ export interface AbTestBaseView {
   status: AbTestStatus
   variants: FullChartVariant[]
   variantThumbs: VariantThumb[]
+  /** DB row IDs for each variant — used by action dialogs (pause/end/archive). */
+  variantDb: VariantDbEntry[]
   confTrend: number[]
   daily: Record<DisplayLabel, number[]>
   abbaSeq: DisplayLabel[]
@@ -445,8 +450,6 @@ export interface AbTestActiveView extends AbTestBaseView {
   outlier?: { multiplier: number; badge: 'blue' | 'purple' | 'red' } | null
   revenue?: { low: number; high: number; currency: 'BRL'; isDefault: boolean }
   daysRemaining?: { days: number; model: 'exponential' | 'linear' } | null
-  statusNote: string | null
-  driftAcknowledgedAt: string | null
   graceExpiresAt?: string | null
   winnerAppliedAt?: string | null
 }

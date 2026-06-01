@@ -2,15 +2,14 @@
 
 import { useTransition, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import type { AbTestWithVariants } from '@/lib/youtube/ab-types'
 import { pauseAbTest } from '../actions'
 
 interface AbPauseDialogProps {
-  test: AbTestWithVariants
+  testId: string
   onClose: () => void
 }
 
-export function AbPauseDialog({ test, onClose }: AbPauseDialogProps) {
+export function AbPauseDialog({ testId, onClose }: AbPauseDialogProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
@@ -24,7 +23,7 @@ export function AbPauseDialog({ test, onClose }: AbPauseDialogProps) {
 
   function handleConfirm() {
     startTransition(async () => {
-      await pauseAbTest(test.id)
+      await pauseAbTest(testId)
       router.refresh()
       onClose()
     })
@@ -73,7 +72,7 @@ export function AbPauseDialog({ test, onClose }: AbPauseDialogProps) {
             disabled={isPending}
             className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
           >
-            {isPending ? 'Pausing…' : 'Pause Test'}
+            {isPending ? 'Pausing...' : 'Pause Test'}
           </button>
         </div>
       </div>

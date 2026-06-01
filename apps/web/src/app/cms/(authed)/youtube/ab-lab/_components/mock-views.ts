@@ -4,6 +4,7 @@ import type {
   AbTestActiveView,
   FullChartVariant,
   VariantThumb,
+  VariantDbEntry,
   GateResult,
 } from '@/lib/youtube/ab-types'
 import { VARIANT_COLORS } from './ab-constants'
@@ -20,6 +21,13 @@ const THUMBS: VariantThumb[] = [
   { label: 'B', color: VARIANT_COLORS.B, thumbUrl: null, isOriginal: false },
   { label: 'C', color: VARIANT_COLORS.C, thumbUrl: null, isOriginal: false },
   { label: 'D', color: VARIANT_COLORS.D, thumbUrl: null, isOriginal: false },
+]
+
+const VARIANT_DB: VariantDbEntry[] = [
+  { id: 'mock-var-a', label: 'A', is_original: true, blob_url: null },
+  { id: 'mock-var-b', label: 'B', is_original: false, blob_url: null },
+  { id: 'mock-var-c', label: 'C', is_original: false, blob_url: null },
+  { id: 'mock-var-d', label: 'D', is_original: false, blob_url: null },
 ]
 
 const CONF_TREND = [12, 28, 35, 42, 55, 61, 68, 74, 79, 84, 88, 91, 94, 97.2]
@@ -39,6 +47,7 @@ const BASE = {
   flag: 'thumbnail' as const,
   variants: VARIANTS,
   variantThumbs: THUMBS,
+  variantDb: VARIANT_DB,
   confTrend: CONF_TREND,
   daily: {
     A: [5.1, 5.0, 5.3, 5.2, 5.1, 5.0, 5.2, 5.1, 5.3, 5.2, 5.1, 5.2, 5.2, 5.2],
@@ -131,6 +140,10 @@ export const MOCK_WINNER_MINIMAL: AbTestWinnerView = {
     { label: 'A', color: VARIANT_COLORS.A, thumbUrl: null, isOriginal: true },
     { label: 'B', color: VARIANT_COLORS.B, thumbUrl: null, isOriginal: false },
   ],
+  variantDb: [
+    { id: 'mock-min-var-a', label: 'A', is_original: true, blob_url: null },
+    { id: 'mock-min-var-b', label: 'B', is_original: false, blob_url: null },
+  ],
   confTrend: [],
   daily: {
     A: [5.1],
@@ -180,6 +193,10 @@ export const MOCK_PLAYOFF_MINIMAL: AbTestPlayoffView = {
     { label: 'A', color: VARIANT_COLORS.A, thumbUrl: null, isOriginal: true },
     { label: 'B', color: VARIANT_COLORS.B, thumbUrl: null, isOriginal: false },
   ],
+  variantDb: [
+    { id: 'mock-pmin-var-a', label: 'A', is_original: true, blob_url: null },
+    { id: 'mock-pmin-var-b', label: 'B', is_original: false, blob_url: null },
+  ],
   confTrend: [],
   daily: { A: [], B: [], C: [], D: [] } as Record<import('@/lib/youtube/ab-types').DisplayLabel, number[]>,
   abbaSeq: [] as unknown as import('@/lib/youtube/ab-types').DisplayLabel[],
@@ -213,6 +230,10 @@ export const MOCK_ACTIVE_MINIMAL: AbTestActiveView = {
     { label: 'A', color: VARIANT_COLORS.A, thumbUrl: null, isOriginal: true },
     { label: 'B', color: VARIANT_COLORS.B, thumbUrl: null, isOriginal: false },
   ],
+  variantDb: [
+    { id: 'mock-amin-var-a', label: 'A', is_original: true, blob_url: null },
+    { id: 'mock-amin-var-b', label: 'B', is_original: false, blob_url: null },
+  ],
   confTrend: [18],
   daily: { A: [5.1], B: [5.4] } as Record<import('@/lib/youtube/ab-types').DisplayLabel, number[]>,
   abbaSeq: ['A', 'B'] as unknown as import('@/lib/youtube/ab-types').DisplayLabel[],
@@ -237,8 +258,6 @@ export const MOCK_ACTIVE_MINIMAL: AbTestActiveView = {
   },
   liveData: undefined,
   activeNow: 'B',
-  statusNote: null,
-  driftAcknowledgedAt: null,
 }
 
 export const MOCK_ACTIVE: AbTestActiveView = {
@@ -274,6 +293,4 @@ export const MOCK_ACTIVE: AbTestActiveView = {
     leaderColor: VARIANT_COLORS.B,
     lift: 19.5,
   },
-  statusNote: null,
-  driftAcknowledgedAt: null,
 }

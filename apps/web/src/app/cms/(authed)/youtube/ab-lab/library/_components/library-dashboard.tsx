@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useRef } from 'react'
-import { Upload, Tag, Trash2, TrendingUp, TrendingDown, Minus } from 'lucide-react'
+import { useState, useRef, useTransition } from 'react'
+import { Upload, Tag, Trash2, TrendingUp, TrendingDown, Minus, Pencil, X, Check } from 'lucide-react'
 import { uploadToLibrary, updateLibraryTags, deleteFromLibrary } from '../actions'
 
 interface LongevityCheckpoint {
@@ -22,6 +22,77 @@ interface LibraryEntry {
   lift_at_win: number | null
   created_at: string
   thumbnail_longevity: LongevityCheckpoint[]
+}
+
+function InlineTagEditor({ entryId, currentTags }: { entryId: string; currentTags: string[] }) {
+  const [editing, setEditing] = useState(false)
+  const [tags, setTags] = useState(currentTags)
+  const [input, setInput] = useState('')
+  const [saving, startTransition] = useTransition()
+
+  const addTag = () => {
+    const t = input.trim().toLowerCase()
+    if (t && !tags.includes(t) && tags.length < 20) {
+      setTags([...tags, t])
+    }
+    setInput('')
+  }
+
+  const removeTag = (tag: string) => setTags(tags.filter(t => t !== tag))
+
+  const save = () => {
+    startTransition(async () => {
+      await updateLibraryTags(entryId, tags)
+      setEditing(false)
+    })
+  }
+
+  const cancel = () => {
+    setTags(currentTags)
+    setInput('')
+    setEditing(false)
+  }
+
+  if (!editing) {
+    return (
+      <div className="flex items-center gap-1 flex-wrap">
+        {currentTags.map(tag => (
+          <span key={tag} className="rounded bg-zinc-800 px-1.5 py-0.5 text-[9px] text-zinc-400">{tag}</span>
+        ))}
+        <button onClick={() => setEditing(true)} className="rounded p-0.5 text-zinc-600 hover:text-zinc-400" title="Editar tags">
+          <Pencil className="h-3 w-3" />
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-1 flex-wrap">
+        {tags.map(tag => (
+          <span key={tag} className="inline-flex items-center gap-0.5 rounded bg-zinc-700 px-1.5 py-0.5 text-[9px] text-zinc-300">
+            {tag}
+            <button onClick={() => removeTag(tag)} className="text-zinc-500 hover:text-red-400"><X className="h-2.5 w-2.5" /></button>
+          </span>
+        ))}
+      </div>
+      <div className="flex gap-1">
+        <input
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTag() } }}
+          placeholder="Nova tag..."
+          className="flex-1 min-w-0 rounded border border-zinc-700 bg-zinc-900 px-1.5 py-0.5 text-[10px] text-zinc-300 placeholder:text-zinc-600"
+        />
+        <button onClick={save} disabled={saving} className="rounded bg-green-600 p-1 text-white hover:bg-green-500 disabled:opacity-50">
+          <Check className="h-3 w-3" />
+        </button>
+        <button onClick={cancel} className="rounded bg-zinc-700 p-1 text-zinc-400 hover:bg-zinc-600">
+          <X className="h-3 w-3" />
+        </button>
+      </div>
+    </div>
+  )
 }
 
 export function LibraryDashboard({ entries }: { entries: LibraryEntry[] }) {
@@ -109,11 +180,7 @@ export function LibraryDashboard({ entries }: { entries: LibraryEntry[] }) {
                 </div>
               )}
               {/* Tags */}
-              <div className="flex gap-1 flex-wrap">
-                {entry.tags.map(tag => (
-                  <span key={tag} className="rounded bg-zinc-800 px-1.5 py-0.5 text-[9px] text-zinc-400">{tag}</span>
-                ))}
-              </div>
+              <InlineTagEditor entryId={entry.id} currentTags={entry.tags} />
             </div>
           </div>
         ))}

@@ -17,7 +17,9 @@ import {
   createTextVariant,
   updateAbTestType,
   cleanupDraftVariants,
+  fetchAbBriefingData,
 } from '../actions'
+import { buildAbBriefingPrompt } from '@/lib/youtube/prompt-builders-ab'
 import type { TestType, DisplayLabel, AbTestSiteSettings } from '@/lib/youtube/ab-types'
 
 /* ------------------------------------------------------------------ */
@@ -351,6 +353,19 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
     })
   }, [state.draftTestId, state.config, siteId, video.id, video.title])
 
+  // --- Cowork briefing handler ---
+  const handleCoworkClick = useCallback(async () => {
+    if (!state.type) throw new Error('Selecione o tipo de teste antes de usar o Cowork')
+    const result = await fetchAbBriefingData(video.id, state.draftTestId ?? '')
+    if (!result.ok) throw new Error(result.error)
+    const prompt = buildAbBriefingPrompt({
+      testType: state.type,
+      data: result.data,
+      focus: state.hypothesis.trim() || undefined,
+    })
+    await navigator.clipboard.writeText(prompt)
+  }, [video.id, state.type, state.draftTestId, state.hypothesis])
+
   // --- Launch / save handler ---
   const handleSubmit = useCallback((isLaunch: boolean) => {
     dispatch({ type: 'SET_ERROR', error: null })
@@ -487,6 +502,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
           <StepIdeias
             hypothesis={state.hypothesis}
             onHypothesisChange={text => dispatch({ type: 'SET_HYPOTHESIS', text })}
+            onCoworkClick={handleCoworkClick}
           />
         )
       case 2:

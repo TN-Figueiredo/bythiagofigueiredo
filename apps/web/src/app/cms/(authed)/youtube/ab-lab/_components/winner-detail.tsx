@@ -12,7 +12,7 @@ import { ClickMoment } from './click-moment'
 import { VariantTable } from './variant-table'
 import { GatesPanel } from './gates-panel'
 import { SectionLabel } from './ab-primitives'
-import { revertWinner } from '../actions'
+import { revertWinner, archiveAbTest } from '../actions'
 import { Copy, Archive, Download, Trophy, TrendingUp, Sparkles, LayoutGrid, Undo2 } from 'lucide-react'
 
 export interface WinnerDetailProps {
@@ -41,7 +41,12 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
                 <Copy size={14} aria-hidden="true" />
                 Duplicar
               </button>
-              <button type="button" className={BTN}>
+              <button type="button" onClick={async () => {
+                if (!confirm('Arquivar este teste? Os dados serão preservados mas o teste sairá da lista principal.')) return
+                const result = await archiveAbTest(view.id)
+                if (!result.ok) alert(result.error)
+                else router.push('/cms/youtube/ab-lab')
+              }} className={BTN}>
                 <Archive size={14} aria-hidden="true" />
                 Arquivar
               </button>

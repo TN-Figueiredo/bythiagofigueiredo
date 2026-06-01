@@ -1102,6 +1102,13 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
     if (onAirVariant) activeNow = toDisplayLabel(onAirVariant.label, onAirVariant.is_original)
   }
 
+  const variantDb: import('@/lib/youtube/ab-types').VariantDbEntry[] = results.variants.map(v => ({
+    id: v.variant_id,
+    label: toDisplayLabel(v.label, v.is_original),
+    is_original: v.is_original,
+    blob_url: v.blob_url ?? (v.is_original ? test.original_thumbnail_url : null),
+  }))
+
   const base = {
     id: test.id,
     videoTitle: test.original_title ?? test.name,
@@ -1109,6 +1116,7 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
     status: test.status,
     variants,
     variantThumbs,
+    variantDb,
     confTrend,
     daily,
     abbaSeq,
@@ -1277,8 +1285,6 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
       outlier,
       revenue,
       daysRemaining,
-      statusNote: test.status_note ?? null,
-      driftAcknowledgedAt: test.drift_acknowledged_at ?? null,
       graceExpiresAt: test.grace_expires_at,
       winnerAppliedAt: test.winner_applied_at,
     } satisfies AbTestActiveView

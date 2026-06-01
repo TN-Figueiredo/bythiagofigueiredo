@@ -2,17 +2,19 @@
 
 import { useState, useTransition, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import type { AbTestWithVariants } from '@/lib/youtube/ab-types'
+import type { VariantDbEntry } from '@/lib/youtube/ab-types'
 import { endAbTest } from '../actions'
 
 interface AbEndTestDialogProps {
-  test: AbTestWithVariants
+  testId: string
+  variants: VariantDbEntry[]
+  confidenceThreshold: number
   onClose: () => void
 }
 
 type EndOption = 'leading' | 'original' | 'archive'
 
-export function AbEndTestDialog({ test, onClose }: AbEndTestDialogProps) {
+export function AbEndTestDialog({ testId, variants, confidenceThreshold, onClose }: AbEndTestDialogProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [selected, setSelected] = useState<EndOption>('leading')
@@ -25,13 +27,12 @@ export function AbEndTestDialog({ test, onClose }: AbEndTestDialogProps) {
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [onClose])
 
-  const originalVariant = test.variants.find((v) => v.is_original)
-  const nonOriginalVariants = test.variants.filter((v) => !v.is_original)
+  const originalVariant = variants.find((v) => v.is_original)
+  const nonOriginalVariants = variants.filter((v) => !v.is_original)
 
   const leadingVariant =
     nonOriginalVariants.length > 0 ? nonOriginalVariants[0] : originalVariant
 
-  const confidenceThreshold = test.config.confidence_threshold
   const hasLowConfidence = false
 
   const confirmLabel =
@@ -44,11 +45,11 @@ export function AbEndTestDialog({ test, onClose }: AbEndTestDialogProps) {
   function handleConfirm() {
     startTransition(async () => {
       if (selected === 'leading' && leadingVariant && !leadingVariant.is_original) {
-        await endAbTest(test.id, leadingVariant.id)
+        await endAbTest(testId, leadingVariant.id)
       } else if (selected === 'original' && originalVariant) {
-        await endAbTest(test.id, originalVariant.id)
+        await endAbTest(testId, originalVariant.id)
       } else {
-        await endAbTest(test.id)
+        await endAbTest(testId)
       }
       router.refresh()
       onClose()
@@ -191,7 +192,7 @@ export function AbEndTestDialog({ test, onClose }: AbEndTestDialogProps) {
             disabled={isPending}
             className="rounded-lg bg-cms-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
           >
-            {isPending ? 'Ending…' : confirmLabel}
+            {isPending ? 'Ending...' : confirmLabel}
           </button>
         </div>
       </div>

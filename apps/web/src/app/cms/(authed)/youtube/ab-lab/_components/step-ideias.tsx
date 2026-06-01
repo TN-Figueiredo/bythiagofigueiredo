@@ -1,6 +1,7 @@
 'use client'
 
-import { Sparkles, Info, ExternalLink, Image, BarChart3, FlaskConical, Lightbulb } from 'lucide-react'
+import { useState } from 'react'
+import { Sparkles, Info, ExternalLink, Image, BarChart3, FlaskConical, Lightbulb, Check, Loader2 } from 'lucide-react'
 
 /* ------------------------------------------------------------------ */
 /*  Props                                                              */
@@ -9,6 +10,7 @@ import { Sparkles, Info, ExternalLink, Image, BarChart3, FlaskConical, Lightbulb
 interface StepIdeiasProps {
   hypothesis: string
   onHypothesisChange: (text: string) => void
+  onCoworkClick?: () => Promise<void>
 }
 
 /* ------------------------------------------------------------------ */
@@ -26,7 +28,25 @@ const COWORK_RECEIVES = [
 /*  StepIdeias                                                         */
 /* ------------------------------------------------------------------ */
 
-export function StepIdeias({ hypothesis, onHypothesisChange }: StepIdeiasProps) {
+export function StepIdeias({ hypothesis, onHypothesisChange, onCoworkClick }: StepIdeiasProps) {
+  const [coworkState, setCoworkState] = useState<'idle' | 'loading' | 'copied' | 'error'>('idle')
+  const [coworkError, setCoworkError] = useState<string | null>(null)
+
+  async function handleCoworkClick() {
+    if (!onCoworkClick || coworkState === 'loading') return
+    setCoworkState('loading')
+    setCoworkError(null)
+    try {
+      await onCoworkClick()
+      setCoworkState('copied')
+      setTimeout(() => setCoworkState('idle'), 3000)
+    } catch (err) {
+      setCoworkError((err as Error).message ?? 'Erro ao gerar briefing')
+      setCoworkState('error')
+      setTimeout(() => setCoworkState('idle'), 4000)
+    }
+  }
+
   return (
     <div className="space-y-[20px]">
       {/* --- 1. Cowork banner --- */}
@@ -117,17 +137,31 @@ export function StepIdeias({ hypothesis, onHypothesisChange }: StepIdeiasProps) 
         {/* "Abrir no Cowork" button */}
         <button
           type="button"
-          className="inline-flex items-center gap-[8px] text-[13px] font-semibold transition-opacity hover:opacity-80"
+          disabled={!onCoworkClick || coworkState === 'loading'}
+          onClick={handleCoworkClick}
+          className="inline-flex items-center gap-[8px] text-[13px] font-semibold transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50"
           style={{
-            color: 'var(--cms-cowork, #9B93F6)',
+            color: coworkState === 'copied' ? 'var(--cms-green, #4ade80)' : coworkState === 'error' ? 'var(--cms-red, #f87171)' : 'var(--cms-cowork, #9B93F6)',
             background: 'var(--cms-cowork-subtle, rgba(110,99,242,.15))',
             border: '1px solid color-mix(in srgb, var(--cms-cowork, #9B93F6) 30%, transparent)',
             borderRadius: 9,
             padding: '9px 16px',
           }}
         >
-          <ExternalLink size={14} aria-hidden="true" />
-          Abrir no Cowork
+          {coworkState === 'loading' ? (
+            <Loader2 size={14} className="animate-spin" aria-hidden="true" />
+          ) : coworkState === 'copied' ? (
+            <Check size={14} aria-hidden="true" />
+          ) : (
+            <ExternalLink size={14} aria-hidden="true" />
+          )}
+          {coworkState === 'loading'
+            ? 'Gerando briefing...'
+            : coworkState === 'copied'
+              ? 'Copiado!'
+              : coworkState === 'error'
+                ? (coworkError ?? 'Erro')
+                : 'Copiar briefing Cowork'}
         </button>
       </div>
 
