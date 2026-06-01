@@ -3,6 +3,17 @@ import crypto from 'crypto'
 
 const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3'
 
+/** Normalize URL for comparison: strip query params + trailing slash */
+function normalizeUrl(url: string): string {
+  try {
+    const u = new URL(url)
+    u.search = ''
+    return u.toString().replace(/\/$/, '')
+  } catch {
+    return url
+  }
+}
+
 interface SyncResult {
   videosChecked: number
   changesDetected: number
@@ -121,7 +132,7 @@ export async function syncCompetitorChannel(
       changesDetected++
     }
 
-    if (existing.thumbnail_url && thumbnailUrl && existing.thumbnail_url !== thumbnailUrl) {
+    if (existing.thumbnail_url && thumbnailUrl && normalizeUrl(existing.thumbnail_url) !== normalizeUrl(thumbnailUrl)) {
       await supabase.from('competitor_changes').insert({
         video_id: existing.id,
         site_id: channelRow.site_id,

@@ -23,6 +23,13 @@ interface Props {
     view_count_at_change: number | null
     detected_at: string
     bookmarked: boolean
+    competitor_videos: Array<{
+      title: string | null
+      video_id: string
+      competitor_channels: Array<{
+        channel_name: string
+      }>
+    }>
   }>
 }
 
@@ -98,8 +105,14 @@ export function CompetitorDashboard({ channels, changes }: Props) {
                   change.change_type === 'title' ? 'bg-blue-500/20 text-blue-400' :
                   'bg-amber-500/20 text-amber-400'
                 }`}>{change.change_type}</span>
+                {change.competitor_videos[0]?.competitor_channels[0]?.channel_name && (
+                  <span className="text-xs text-zinc-400">{change.competitor_videos[0].competitor_channels[0].channel_name}</span>
+                )}
                 <span className="text-xs text-zinc-500">{new Date(change.detected_at).toLocaleDateString('pt-BR')}</span>
               </div>
+              {change.competitor_videos[0]?.title && (
+                <p className="mt-0.5 truncate text-xs text-zinc-400">{change.competitor_videos[0].title}</p>
+              )}
               {change.change_type === 'title' && change.old_title && change.new_title && (
                 <div className="mt-1 text-xs">
                   <span className="text-red-400 line-through">{change.old_title}</span>

@@ -147,6 +147,15 @@ export async function GET(req: NextRequest) {
       .lt('polled_at', sevenDaysAgo)
     if (pruneError) console.error('[ab-watchdog] poll prune failed:', pruneError.message)
 
+    // Prune old competitor changes (90-day retention)
+    const ninetyDaysAgo = new Date(Date.now() - 90 * 86400000).toISOString()
+    const { error: competitorPruneError } = await pruneClient
+      .from('competitor_changes')
+      .delete()
+      .lt('detected_at', ninetyDaysAgo)
+      .eq('bookmarked', false)
+    if (competitorPruneError) console.error('[ab-watchdog] competitor change prune failed:', competitorPruneError.message)
+
     await recordCronSuccess('ab-watchdog', 'info')
 
     return Response.json({
