@@ -1,7 +1,6 @@
 import { notFound } from 'next/navigation'
 import { cookies } from 'next/headers'
-import { createServerClient } from '@supabase/ssr'
-import type { CookieOptions } from '@supabase/ssr'
+import { createServerClient } from '@tn-figueiredo/auth-nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { EditionEditor } from './edition-editor'
@@ -49,18 +48,19 @@ export default async function EditEditionPage({
     .order('sort_order')
 
   const cookieStore = await cookies()
-  const userClient = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() { return cookieStore.getAll() },
-        setAll(c: Array<{ name: string; value: string; options?: CookieOptions }>) {
-          for (const { name, value, options } of c) cookieStore.set(name, value, options)
-        },
+  const userClient = createServerClient({
+    env: {
+      apiBaseUrl: process.env.NEXT_PUBLIC_API_URL ?? '',
+      supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    },
+    cookies: {
+      getAll: () => cookieStore.getAll(),
+      setAll: (list) => {
+        for (const { name, value, options } of list) cookieStore.set(name, value, options)
       },
     },
-  )
+  })
   const { data: { user } } = await userClient.auth.getUser()
 
   return (

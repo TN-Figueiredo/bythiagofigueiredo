@@ -1,4 +1,6 @@
 import { Suspense } from 'react'
+import { cookies } from 'next/headers'
+import { createServerClient } from '@tn-figueiredo/auth-nextjs'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { HubClient } from './_hub/hub-client'
 import { TabSkeleton } from './_hub/tab-skeleton'
@@ -99,11 +101,20 @@ async function TabContent({ tab, siteId, typeFilter, locale, types, siteTimezone
         typeId: e.newsletter_type_id as string | null,
       }))
 
-      const userClient = (await import('@supabase/ssr')).createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        { cookies: { async getAll() { return (await (await import('next/headers')).cookies()).getAll() }, async setAll() {} } },
-      )
+      const cookieStore = await cookies()
+      const userClient = createServerClient({
+        env: {
+          apiBaseUrl: process.env.NEXT_PUBLIC_API_URL ?? '',
+          supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        },
+        cookies: {
+          getAll: () => cookieStore.getAll(),
+          setAll: (list) => {
+            for (const { name, value, options } of list) cookieStore.set(name, value, options)
+          },
+        },
+      })
       const { data: { user } } = await userClient.auth.getUser()
       return (
         <TestCenterTab

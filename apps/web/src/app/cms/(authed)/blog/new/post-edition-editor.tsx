@@ -23,7 +23,12 @@ import {
   CircleDot,
 } from 'lucide-react'
 import type { Editor } from '@tiptap/core'
-import { TipTapEditor } from '../../_shared/editor/tiptap-editor'
+import dynamic from 'next/dynamic'
+
+const TipTapEditor = dynamic(
+  () => import('../../_shared/editor/tiptap-editor').then(m => ({ default: m.TipTapEditor })),
+  { ssr: false, loading: () => <div className="h-64 animate-pulse rounded-lg bg-cms-border" /> }
+)
 import { useAutosave } from '../../_shared/editor/use-autosave'
 import { AutosaveIndicator } from '../../_shared/editor/autosave-indicator'
 import { SaveBar } from '../../_shared/editor/save-bar'

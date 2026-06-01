@@ -1,8 +1,7 @@
 'use server'
 
 import { cookies } from 'next/headers'
-import { createServerClient } from '@supabase/ssr'
-import type { CookieOptions } from '@supabase/ssr'
+import { createServerClient } from '@tn-figueiredo/auth-nextjs'
 import { render } from '@react-email/render'
 import { ConfirmEmail } from '@/emails/confirm'
 import { WelcomeEmail } from '@/emails/welcome'
@@ -77,20 +76,19 @@ export async function _resetRateLimits(): Promise<void> {
 
 async function getUserClient() {
   const cookieStore = await cookies()
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll(c: Array<{ name: string; value: string; options?: CookieOptions }>) {
-          for (const { name, value, options } of c) cookieStore.set(name, value, options)
-        },
+  return createServerClient({
+    env: {
+      apiBaseUrl: process.env.NEXT_PUBLIC_API_URL ?? '',
+      supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    },
+    cookies: {
+      getAll: () => cookieStore.getAll(),
+      setAll: (list) => {
+        for (const { name, value, options } of list) cookieStore.set(name, value, options)
       },
     },
-  )
+  })
 }
 
 // ─── Mock data for template rendering ──────────────────────────────────────

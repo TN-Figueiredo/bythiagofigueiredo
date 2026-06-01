@@ -55,7 +55,6 @@ export default async function Layout({ children }: { children: ReactNode }) {
   ])
   if (staffRes.error || !staffRes.data) redirect('/?error=insufficient_access')
 
-  const user = { id: rawUser.id, email: rawUser.email ?? '' }
   const rawSites = (sitesRes.data ?? []) as RpcAccessibleSite[]
   const sites = rawSites.map((s) => ({
     id: s.site_id,
@@ -96,7 +95,7 @@ export default async function Layout({ children }: { children: ReactNode }) {
               badges={badges}
             >
               <div className="fixed top-3 right-4 z-[60]">
-                <NotificationBell initialCount={0} />
+                <NotificationBell />
               </div>
               <SidebarBadges data={badgeData} />
               {children}

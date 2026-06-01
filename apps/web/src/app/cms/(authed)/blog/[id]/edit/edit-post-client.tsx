@@ -3,7 +3,12 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { PostEditor } from '@tn-figueiredo/cms'
-import { TipTapEditor } from '../../../_shared/editor/tiptap-editor'
+import dynamic from 'next/dynamic'
+
+const TipTapEditor = dynamic(
+  () => import('../../../_shared/editor/tiptap-editor').then(m => ({ default: m.TipTapEditor })),
+  { ssr: false, loading: () => <div className="h-64 animate-pulse rounded-lg bg-cms-border" /> }
+)
 import type { JSONContent } from '@tiptap/core'
 import { StructuredFields } from '../../_shared/structured-fields'
 import { HashtagInput } from '../../_shared/hashtag-input'

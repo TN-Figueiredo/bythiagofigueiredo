@@ -1,7 +1,8 @@
 'use client'
-import { useState, useCallback } from 'react'
+import { useState } from 'react'
 import { Bell } from 'lucide-react'
 import dynamic from 'next/dynamic'
+import { useNotifications } from '@/lib/notifications/notification-context'
 
 // Lazy load the popover
 const NotificationPopover = dynamic(
@@ -9,15 +10,11 @@ const NotificationPopover = dynamic(
   { ssr: false }
 )
 
-interface NotificationBellProps {
-  initialCount: number
-  hasCritical?: boolean
-}
-
-export function NotificationBell({ initialCount, hasCritical = false }: NotificationBellProps) {
+export function NotificationBell() {
+  const { state } = useNotifications()
   const [open, setOpen] = useState(false)
-  const [bumpKey, setBumpKey] = useState(0)
-  const count = initialCount // TODO: connect to NotificationContext
+  const count = state.unreadCount
+  const hasCritical = state.hasCritical
 
   return (
     <div className="relative">
@@ -40,7 +37,7 @@ export function NotificationBell({ initialCount, hasCritical = false }: Notifica
         <Bell className="h-[18px] w-[18px]" strokeWidth={2} />
         {count > 0 && (
           <span
-            key={bumpKey}
+            key={count}
             className={`
               absolute max-sm:-top-0.5 max-sm:-right-0.5 sm:top-1.5 sm:right-1.5
               min-w-4 h-4 px-1 rounded-[10px]

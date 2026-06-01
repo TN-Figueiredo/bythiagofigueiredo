@@ -1,3 +1,4 @@
+import { unstable_cache } from 'next/cache'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
@@ -23,49 +24,60 @@ interface HistoryRow {
   content_pipeline: { code: string; format: string } | null
 }
 
+const fetchPipelineBoardCached = unstable_cache(
+  async (siteId: string, timezone: string) => {
+    const supabase = getSupabaseServiceClient()
+    const now = new Date()
+    const sevenDaysAgo = new Date(Date.now() - 7 * 86_400_000).toISOString()
+
+    const [fallbackData, celebrationRes, activityRes] = await Promise.all([
+      fetchUpNextData(supabase, siteId, timezone, now, 5),
+
+      supabase
+        .from('content_pipeline')
+        .select('id, code, title_pt, format')
+        .eq('site_id', siteId)
+        .eq('is_archived', false)
+        .in('stage', [...FINAL_STAGES])
+        .gte('updated_at', sevenDaysAgo)
+        .order('updated_at', { ascending: false })
+        .limit(5),
+
+      supabase
+        .from('content_pipeline_history')
+        .select('id, event_type, to_value, changed_at, pipeline_id, content_pipeline!inner(code, format, site_id)')
+        .eq('content_pipeline.site_id', siteId)
+        .order('changed_at', { ascending: false })
+        .limit(10),
+    ])
+
+    const celebrationItems: CelebrationItem[] = (celebrationRes.data ?? []).map((item) => ({
+      id: item.id, code: item.code, title_pt: item.title_pt, format: item.format,
+    }))
+
+    const activity: ActivityEntry[] = ((activityRes.data ?? []) as unknown as HistoryRow[])
+      .filter((h) => h.content_pipeline)
+      .map((h) => ({
+        id: h.id, code: h.content_pipeline!.code, format: h.content_pipeline!.format,
+        event_type: h.event_type, to_value: h.to_value, changed_at: h.changed_at,
+      }))
+
+    return { fallbackData, celebrationItems, activity }
+  },
+  ['pipeline-board'],
+  { tags: ['pipeline-board', 'pipeline-blog'], revalidate: 60 },
+)
+
 export default async function PipelineOverviewPage() {
   const { siteId } = await getSiteContext()
   const scope = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
   if (!scope.ok) { throw new Error('Forbidden') }
-  const supabase = getSupabaseServiceClient()
 
-  const now = new Date()
-  const sevenDaysAgo = new Date(Date.now() - 7 * 86_400_000).toISOString()
-
-  // Run fetcher + independent queries in parallel (celebration & activity don't depend on fetcher)
-  const [fallbackData, celebrationRes, activityRes, initialPins] = await Promise.all([
-    fetchUpNextData(supabase, siteId, SITE_TIMEZONE, now, 5),
-
-    supabase
-      .from('content_pipeline')
-      .select('id, code, title_pt, format')
-      .eq('site_id', siteId)
-      .eq('is_archived', false)
-      .in('stage', [...FINAL_STAGES])
-      .gte('updated_at', sevenDaysAgo)
-      .order('updated_at', { ascending: false })
-      .limit(5),
-
-    supabase
-      .from('content_pipeline_history')
-      .select('id, event_type, to_value, changed_at, pipeline_id, content_pipeline!inner(code, format, site_id)')
-      .eq('content_pipeline.site_id', siteId)
-      .order('changed_at', { ascending: false })
-      .limit(10),
-
+  // Cached board data + user-specific pins in parallel
+  const [{ fallbackData, celebrationItems, activity }, initialPins] = await Promise.all([
+    fetchPipelineBoardCached(siteId, SITE_TIMEZONE),
     getWorkingTodayPins().catch(() => []),
   ])
-
-  const celebrationItems: CelebrationItem[] = (celebrationRes.data ?? []).map((item) => ({
-    id: item.id, code: item.code, title_pt: item.title_pt, format: item.format,
-  }))
-
-  const activity: ActivityEntry[] = ((activityRes.data ?? []) as unknown as HistoryRow[])
-    .filter((h) => h.content_pipeline)
-    .map((h) => ({
-      id: h.id, code: h.content_pipeline!.code, format: h.content_pipeline!.format,
-      event_type: h.event_type, to_value: h.to_value, changed_at: h.changed_at,
-    }))
 
   return (
     <>

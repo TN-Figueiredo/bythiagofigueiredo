@@ -122,6 +122,7 @@ export interface NotificationState {
 
 export type NotificationAction =
   | { type: 'SET_INITIAL'; items: INotification[]; lastReceived: string | null }
+  | { type: 'SET_COUNT_ONLY'; unreadCount: number; hasCritical: boolean }
   | { type: 'ADD'; item: INotification }
   | { type: 'MARK_READ'; id: string }
   | { type: 'MARK_UNREAD'; id: string }

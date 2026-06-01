@@ -80,6 +80,36 @@ describe('notificationReducer', () => {
   })
 
   // -----------------------------------------------------------------------
+  // SET_COUNT_ONLY
+  // -----------------------------------------------------------------------
+  describe('SET_COUNT_ONLY', () => {
+    it('sets unreadCount and hasCritical without modifying items', () => {
+      const state = stateWith([makeNotification({ id: 'a' })])
+      const next = notificationReducer(state, {
+        type: 'SET_COUNT_ONLY',
+        unreadCount: 5,
+        hasCritical: true,
+      })
+      expect(next.unreadCount).toBe(5)
+      expect(next.hasCritical).toBe(true)
+      // Items remain untouched
+      expect(next.items).toHaveLength(1)
+      expect(next.items[0].id).toBe('a')
+    })
+
+    it('works on empty state', () => {
+      const next = notificationReducer(INITIAL_STATE, {
+        type: 'SET_COUNT_ONLY',
+        unreadCount: 3,
+        hasCritical: false,
+      })
+      expect(next.unreadCount).toBe(3)
+      expect(next.hasCritical).toBe(false)
+      expect(next.items).toHaveLength(0)
+    })
+  })
+
+  // -----------------------------------------------------------------------
   // ADD
   // -----------------------------------------------------------------------
   describe('ADD', () => {

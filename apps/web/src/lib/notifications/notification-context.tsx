@@ -3,6 +3,7 @@
 import {
   createContext,
   useContext,
+  useEffect,
   useReducer,
   type ReactNode,
   type Dispatch,
@@ -59,6 +60,16 @@ export function notificationReducer(
         unreadCount: computeUnreadCount(items),
         hasCritical: computeHasCritical(items),
         lastReceived: action.lastReceived ?? latestTimestamp(items),
+      }
+    }
+
+    case 'SET_COUNT_ONLY': {
+      // Lightweight update — only sets badge counts without full item list.
+      // Used on mount to avoid fetching 50 rows on every navigation.
+      return {
+        ...state,
+        unreadCount: action.unreadCount,
+        hasCritical: action.hasCritical,
       }
     }
 
@@ -222,23 +233,33 @@ const NotificationContext = createContext<NotificationContextValue | null>(null)
 // ---------------------------------------------------------------------------
 
 interface NotificationProviderProps {
-  initialItems?: INotification[]
   children: ReactNode
 }
 
 export function NotificationProvider({
-  initialItems = [],
   children,
 }: NotificationProviderProps) {
-  const initial: NotificationState = {
-    ...INITIAL_STATE,
-    items: initialItems,
-    unreadCount: computeUnreadCount(initialItems),
-    hasCritical: computeHasCritical(initialItems),
-    lastReceived: latestTimestamp(initialItems),
-  }
+  const [state, dispatch] = useReducer(notificationReducer, INITIAL_STATE)
 
-  const [state, dispatch] = useReducer(notificationReducer, initial)
+  // Fetch lightweight count on mount instead of 50-row full query
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/notifications/count')
+      .then((r) => r.json())
+      .then((data: { unreadCount: number; hasCritical: boolean }) => {
+        if (!cancelled) {
+          dispatch({
+            type: 'SET_COUNT_ONLY',
+            unreadCount: data.unreadCount,
+            hasCritical: data.hasCritical,
+          })
+        }
+      })
+      .catch(() => {
+        // Silently fail — badge will show 0 until next realtime event
+      })
+    return () => { cancelled = true }
+  }, [])
 
   return (
     <NotificationContext.Provider value={{ state, dispatch }}>

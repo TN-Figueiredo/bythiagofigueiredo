@@ -44,6 +44,24 @@ export function NotificationPopover({ onClose }: { onClose: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const chipGroupRef = useRef<HTMLDivElement>(null)
 
+  // ---- Lazy-load full notification list on popover open ----
+  useEffect(() => {
+    // Skip if items already loaded (e.g. from realtime ADD events)
+    if (state.items.length > 0) return
+    let cancelled = false
+    fetch('/api/notifications/list')
+      .then((r) => r.json())
+      .then((data: { items: import('@/lib/notifications/types').INotification[] }) => {
+        if (!cancelled && data.items.length > 0) {
+          dispatch({ type: 'SET_INITIAL', items: data.items, lastReceived: null })
+        }
+      })
+      .catch(() => {
+        // Silently fail — popover will show empty state
+      })
+    return () => { cancelled = true }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   // ---- Close on Escape ----
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {

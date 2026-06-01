@@ -6,7 +6,12 @@ import Link from 'next/link'
 import { toast } from 'sonner'
 import type { JSONContent } from '@tiptap/core'
 import { ArrowLeft, Calendar, Eye, BarChart3, RotateCcw, Command } from 'lucide-react'
-import { TipTapEditor } from '../../../_shared/editor/tiptap-editor'
+import dynamic from 'next/dynamic'
+
+const TipTapEditor = dynamic(
+  () => import('../../../_shared/editor/tiptap-editor').then(m => ({ default: m.TipTapEditor })),
+  { ssr: false, loading: () => <div className="h-64 animate-pulse rounded-lg bg-cms-border" /> }
+)
 import { useMediaGallery } from '../../../_shared/media/use-media-gallery'
 import { MediaGalleryModal } from '../../../_shared/media/media-gallery-modal'
 import { CROP_PRESETS } from '../../../_shared/media/types'
