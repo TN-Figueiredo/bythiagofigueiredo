@@ -75,12 +75,19 @@ function buildSupabaseMock(opts: BuildMockOpts = {}) {
   const insertCalls: { table: string; data: unknown }[] = []
   let cyclesSelectCallCount = 0
 
+  let abTestsSelectCount = 0
   const fromMock = vi.fn((table: string) => {
     if (table === 'ab_tests') {
-      // May be a SELECT (active tests) or UPDATE (pause)
+      abTestsSelectCount++
+      // First select = queued tests query (returns empty), second = active tests
       return {
         select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockResolvedValue({ data: tests }),
+          eq: vi.fn((_col: string, _val: string) => {
+            if (_val === 'queued') {
+              return { not: vi.fn().mockReturnValue({ lte: vi.fn().mockResolvedValue({ data: [] }) }) }
+            }
+            return { data: tests }
+          }),
         }),
         update: vi.fn((data: unknown) => {
           const chain = {
