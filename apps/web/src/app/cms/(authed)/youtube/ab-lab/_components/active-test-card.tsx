@@ -90,6 +90,7 @@ export function ActiveTestCard({ test, onOpen }: ActiveTestCardProps) {
                     <img
                       src={v.thumbUrl}
                       alt={`Variant ${v.label}`}
+                      referrerPolicy="no-referrer"
                       className="absolute inset-0 w-full h-full object-cover"
                       loading="lazy"
                     />

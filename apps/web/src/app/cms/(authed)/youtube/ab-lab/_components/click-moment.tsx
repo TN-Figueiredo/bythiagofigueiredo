@@ -40,7 +40,7 @@ function YTThumb({ label, radius = 10, thumbUrl }: { label: DisplayLabel; radius
     return (
       <div className="relative w-full overflow-hidden" style={{ aspectRatio: '16/9', borderRadius: radius }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={thumbUrl} alt={`Thumbnail variante ${label}`} className="w-full h-full object-cover" />
+        <img src={thumbUrl} alt={`Thumbnail variante ${label}`} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
       </div>
     )
   }

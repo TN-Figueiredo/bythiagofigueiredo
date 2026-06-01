@@ -43,7 +43,7 @@ export function SuggestedCard({ video, onCreate, checked, onToggle }: SuggestedC
         >
           {video.thumbnailUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={video.thumbnailUrl} alt={video.title} className="absolute inset-0 w-full h-full object-cover" />
+            <img src={video.thumbnailUrl} alt={video.title} referrerPolicy="no-referrer" className="absolute inset-0 w-full h-full object-cover" />
           ) : (
             <>
               <div className="absolute" style={{ left: '8%', bottom: '-6%', width: '46%', height: '92%', background: 'radial-gradient(at 50% 40%, rgba(255,255,255,0.14), transparent 65%)' }} />

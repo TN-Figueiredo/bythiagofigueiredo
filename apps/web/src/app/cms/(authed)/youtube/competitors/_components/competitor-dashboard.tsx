@@ -104,7 +104,7 @@ export function CompetitorDashboard({ channels, changes }: Props) {
                 onClick={() => handleSelectChannel(result.channelId)}
                 className="flex items-center gap-3 w-full px-3 py-2.5 text-left hover:bg-zinc-700 transition-colors"
               >
-                {result.thumbnail && <img src={result.thumbnail} alt="" className="h-8 w-8 rounded-full flex-shrink-0" />}
+                {result.thumbnail && <img src={result.thumbnail} alt="" referrerPolicy="no-referrer" className="h-8 w-8 rounded-full flex-shrink-0" />}
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-zinc-200 truncate">{result.name}</p>
                   <p className="text-xs text-zinc-500 truncate">{result.description}</p>
@@ -120,7 +120,7 @@ export function CompetitorDashboard({ channels, changes }: Props) {
       <div className="space-y-2">
         {channels.map(ch => (
           <div key={ch.id} className="flex items-center gap-3 rounded-lg border border-zinc-700/50 bg-zinc-800/50 p-3">
-            {ch.thumbnail_url && <img src={ch.thumbnail_url} alt="" className="h-8 w-8 rounded-full" />}
+            {ch.thumbnail_url && <img src={ch.thumbnail_url} alt="" referrerPolicy="no-referrer" className="h-8 w-8 rounded-full" />}
             <div className="flex-1">
               <p className="text-sm font-medium text-zinc-200">{ch.channel_name}</p>
               <p className="text-xs text-zinc-500">{ch.subscriber_count?.toLocaleString('pt-BR')} subs</p>
@@ -171,8 +171,8 @@ export function CompetitorDashboard({ channels, changes }: Props) {
               )}
               {change.change_type === 'thumbnail' && (
                 <div className="mt-1 flex gap-2">
-                  {change.old_thumbnail_url && <img src={change.old_thumbnail_url} alt="antes" className="h-12 w-20 rounded object-cover opacity-50" />}
-                  {change.new_thumbnail_url && <img src={change.new_thumbnail_url} alt="depois" className="h-12 w-20 rounded object-cover" />}
+                  {change.old_thumbnail_url && <img src={change.old_thumbnail_url} alt="antes" referrerPolicy="no-referrer" className="h-12 w-20 rounded object-cover opacity-50" />}
+                  {change.new_thumbnail_url && <img src={change.new_thumbnail_url} alt="depois" referrerPolicy="no-referrer" className="h-12 w-20 rounded object-cover" />}
                 </div>
               )}
               {change.view_count_at_change && (

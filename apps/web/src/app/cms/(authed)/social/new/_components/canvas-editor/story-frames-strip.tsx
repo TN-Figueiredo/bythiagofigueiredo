@@ -31,7 +31,7 @@ export function StoryFramesStrip({
           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectFrame(frame.id) } }}
         >
           {frame.thumbnailUrl ? (
-            <img src={frame.thumbnailUrl} alt={`Frame ${i + 1}`} className="h-full w-full object-cover" />
+            <img src={frame.thumbnailUrl} alt={`Frame ${i + 1}`} referrerPolicy="no-referrer" className="h-full w-full object-cover" />
           ) : (
             <span className="flex h-full items-center justify-center text-[8px] text-cms-text-dim">{i + 1}</span>
           )}

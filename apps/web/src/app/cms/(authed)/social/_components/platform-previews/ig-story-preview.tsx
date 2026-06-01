@@ -16,13 +16,13 @@ export function IgStoryPreview({ imageUrl, accountName, avatarUrl, className = '
       <div className="absolute top-5 left-3 right-3 flex items-center gap-2 z-10">
         <div className="h-8 w-8 rounded-full bg-gradient-to-br from-yellow-400 via-pink-500 to-purple-500 p-0.5">
           <div className="h-full w-full rounded-full bg-black overflow-hidden">
-            {avatarUrl && <img src={avatarUrl} alt="" className="h-full w-full object-cover" />}
+            {avatarUrl && <img src={avatarUrl} alt="" referrerPolicy="no-referrer" className="h-full w-full object-cover" />}
           </div>
         </div>
         <span className="text-xs font-medium text-white">{accountName}</span>
       </div>
       {imageUrl ? (
-        <img src={imageUrl} alt="Story preview" className="h-full w-full object-cover" />
+        <img src={imageUrl} alt="Story preview" referrerPolicy="no-referrer" className="h-full w-full object-cover" />
       ) : (
         <div className="flex h-full items-center justify-center text-sm text-white/40">
           Arte do Canvas

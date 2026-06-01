@@ -132,7 +132,7 @@ export function CMSContentPicker({ onSelect }: CMSContentPickerProps) {
                   {/* Thumbnail */}
                   <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-[9px] bg-cms-surface" style={{ background: 'var(--surface-3, rgba(255,255,255,0.06))' }}>
                     {item.thumbnail ? (
-                      <img src={item.thumbnail} alt="" className="h-full w-full object-cover" />
+                      <img src={item.thumbnail} alt="" referrerPolicy="no-referrer" className="h-full w-full object-cover" />
                     ) : item.type === 'newsletter' ? (
                       <div className="flex h-full w-full items-center justify-center" style={{ background: 'linear-gradient(155deg, rgb(247,241,232), rgb(237,227,210))' }}>
                         <span className="font-fraunces text-xs font-bold" style={{ color: 'rgb(31,27,23)' }}>TF</span>

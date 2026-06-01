@@ -50,6 +50,7 @@ export function DraftsBlock({ drafts, onContinue }: DraftsBlockProps) {
                 <img
                   src={draft.thumbUrl}
                   alt={draft.name}
+                  referrerPolicy="no-referrer"
                   className="w-full h-full object-cover"
                 />
               </div>

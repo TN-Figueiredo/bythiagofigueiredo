@@ -15,7 +15,7 @@ export function FbPagePost({ caption, imageUrl, accountName, avatarUrl, linkUrl,
     <div className={`rounded-xl bg-[#242526] overflow-hidden ${className}`}>
       <div className="flex items-center gap-2.5 px-4 py-3">
         <div className="h-10 w-10 rounded-full bg-[#3a3b3c] overflow-hidden">
-          {avatarUrl && <img src={avatarUrl} alt="" className="h-full w-full object-cover" />}
+          {avatarUrl && <img src={avatarUrl} alt="" referrerPolicy="no-referrer" className="h-full w-full object-cover" />}
         </div>
         <div>
           <p className="text-sm font-semibold text-white">{accountName}</p>
@@ -24,7 +24,7 @@ export function FbPagePost({ caption, imageUrl, accountName, avatarUrl, linkUrl,
       </div>
       {caption && <p className="px-4 pb-3 text-sm text-[#e4e6eb] whitespace-pre-wrap">{caption}</p>}
       {imageUrl && (
-        <img src={imageUrl} alt="" className="w-full object-cover" style={{ aspectRatio: '4/5' }} />
+        <img src={imageUrl} alt="" referrerPolicy="no-referrer" className="w-full object-cover" style={{ aspectRatio: '4/5' }} />
       )}
       {linkUrl && (
         <div className="mx-4 my-3 rounded-lg border border-[#3a3b3c] bg-[#3a3b3c]/50 p-3">

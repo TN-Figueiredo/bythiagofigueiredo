@@ -21,7 +21,7 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
-        hostname: 'yt3.ggpht.com',
+        hostname: '*.ggpht.com',
       },
       {
         protocol: 'https',
@@ -127,7 +127,7 @@ const nextConfig: NextConfig = {
       "default-src 'self'",
       scriptSrc,
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob: https://*.supabase.co https://*.supabase.in https://i.ytimg.com https://yt3.ggpht.com https://*.googleusercontent.com https://*.public.blob.vercel-storage.com https://*.giphy.com",
+      "img-src 'self' data: blob: https://*.supabase.co https://*.supabase.in https://i.ytimg.com https://*.ggpht.com https://*.googleusercontent.com https://*.public.blob.vercel-storage.com https://*.giphy.com",
       "font-src 'self' data:",
       "connect-src 'self' https://*.supabase.co https://*.supabase.in https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://challenges.cloudflare.com https://cloudflareinsights.com https://*.public.blob.vercel-storage.com https://*.giphy.com",
       "media-src 'self' blob: https://*.public.blob.vercel-storage.com",

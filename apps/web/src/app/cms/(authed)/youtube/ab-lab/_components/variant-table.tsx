@@ -104,6 +104,7 @@ export function VariantTable({ variants, metric, winnerId, leaderId, activeNow, 
                     <img
                       src={thumb.thumbUrl}
                       alt={`Thumbnail variante ${variant.label}`}
+                      referrerPolicy="no-referrer"
                       className="w-full aspect-video rounded-[6px] object-cover"
                     />
                   ) : (

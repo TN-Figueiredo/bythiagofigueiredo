@@ -19,7 +19,7 @@ export function YtCommunityCard({ caption, imageUrl, accountName, avatarUrl, pol
     <div className={`rounded-xl bg-[#272727] p-4 ${className}`}>
       <div className="mb-3 flex items-center gap-3">
         <div className="h-10 w-10 rounded-full bg-[#3d3d3d] overflow-hidden">
-          {avatarUrl && <img src={avatarUrl} alt="" className="h-full w-full object-cover" />}
+          {avatarUrl && <img src={avatarUrl} alt="" referrerPolicy="no-referrer" className="h-full w-full object-cover" />}
         </div>
         <div>
           <p className="text-sm font-medium text-white">{accountName}</p>
@@ -29,7 +29,7 @@ export function YtCommunityCard({ caption, imageUrl, accountName, avatarUrl, pol
       {caption && <p className="mb-3 text-sm text-white whitespace-pre-wrap">{caption}</p>}
       {imageUrl && (
         <div className="mb-3 overflow-hidden rounded-lg">
-          <img src={imageUrl} alt="" className="w-full object-cover" style={{ aspectRatio: '1/1' }} />
+          <img src={imageUrl} alt="" referrerPolicy="no-referrer" className="w-full object-cover" style={{ aspectRatio: '1/1' }} />
         </div>
       )}
       {poll && poll.length > 0 && (

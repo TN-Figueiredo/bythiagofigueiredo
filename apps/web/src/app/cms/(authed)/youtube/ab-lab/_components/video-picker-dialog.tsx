@@ -153,6 +153,7 @@ export function VideoPickerDialog({ eligibleVideos, onSelect, onClose }: VideoPi
                     <img
                       src={v.thumbnailUrl}
                       alt=""
+                      referrerPolicy="no-referrer"
                       className="w-full h-full object-cover"
                     />
                   ) : (

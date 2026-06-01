@@ -199,7 +199,7 @@ export function CompositorNew({ sourceMode = 'freeform', siteId }: CompositorNew
                 </svg>
               </button>
               {selectedCmsContent.thumbnail && (
-                <img src={selectedCmsContent.thumbnail} alt="" className="h-10 w-10 shrink-0 rounded-lg object-cover" />
+                <img src={selectedCmsContent.thumbnail} alt="" referrerPolicy="no-referrer" className="h-10 w-10 shrink-0 rounded-lg object-cover" />
               )}
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[13.5px] font-semibold text-cms-text">{selectedCmsContent.title}</div>

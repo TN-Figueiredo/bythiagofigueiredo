@@ -60,6 +60,7 @@ function SidekickCard({ video, locale, theme }: { video: YouTubeVideoView; local
             <img
               src={video.thumbnailHqUrl ?? video.thumbnailUrl ?? ''}
               alt={video.title}
+              referrerPolicy="no-referrer"
               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
             />
           ) : (

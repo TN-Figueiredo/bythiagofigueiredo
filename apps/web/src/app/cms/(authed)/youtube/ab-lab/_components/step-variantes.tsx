@@ -115,6 +115,7 @@ function ThumbSlot({ url, locked, label, onFileSelect }: ThumbSlotProps) {
         <img
           src={url}
           alt={`Thumbnail for variant ${label}`}
+          referrerPolicy="no-referrer"
           className="w-full h-full object-cover"
         />
         {locked ? (

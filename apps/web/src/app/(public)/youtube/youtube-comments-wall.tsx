@@ -84,6 +84,7 @@ function CommentCard({
                 <img
                   src={comment.authorAvatarUrl}
                   alt={comment.authorHandle}
+                  referrerPolicy="no-referrer"
                   style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                 />
               ) : (

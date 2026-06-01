@@ -40,7 +40,7 @@ function Podium({ title, items, unit, emptyLabel }: { title: string; items: Lead
               <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${i === 0 ? 'bg-yellow-500/20 text-yellow-400' : 'bg-gray-700 text-gray-400'}`}>
                 {i + 1}
               </span>
-              {item.thumbnailUrl && <img src={item.thumbnailUrl} alt={item.label} className="h-8 w-12 rounded object-cover" />}
+              {item.thumbnailUrl && <img src={item.thumbnailUrl} alt={item.label} referrerPolicy="no-referrer" className="h-8 w-12 rounded object-cover" />}
               <span className="flex-1 text-sm text-cms-text truncate">{item.label}</span>
               <span className="text-xs font-medium text-cms-accent">{item.value}{unit}</span>
               {item.badge && <span className="rounded-full bg-green-500/15 px-1.5 py-0.5 text-[10px] text-green-400">{item.badge}</span>}

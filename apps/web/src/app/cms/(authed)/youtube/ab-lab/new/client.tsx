@@ -120,6 +120,7 @@ export function NewTestClient({ siteId, settings, eligibleVideos, draftPrefill }
                 <img
                   src={v.thumbnailUrl}
                   alt=""
+                  referrerPolicy="no-referrer"
                   className="w-full h-full object-cover"
                 />
               ) : (

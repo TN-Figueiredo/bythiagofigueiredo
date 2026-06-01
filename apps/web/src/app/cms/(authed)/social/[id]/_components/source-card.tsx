@@ -28,7 +28,7 @@ export function SourceCard({ contentType, contentId, title, thumbnail, date }: S
     <div className="rounded-lg border border-cms-border bg-cms-surface p-4">
       <div className="flex gap-3">
         {thumbnail && (
-          <img src={thumbnail} alt="" className="h-16 w-16 rounded-md object-cover shrink-0" />
+          <img src={thumbnail} alt="" referrerPolicy="no-referrer" className="h-16 w-16 rounded-md object-cover shrink-0" />
         )}
         <div className="min-w-0 flex-1">
           <span className={`inline-block text-[9px] font-medium uppercase rounded px-1.5 py-0.5 mb-1 ${badge.color}`}>

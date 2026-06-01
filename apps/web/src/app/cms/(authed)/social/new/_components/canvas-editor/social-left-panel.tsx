@@ -533,7 +533,7 @@ export function SocialLeftPanel({
                 className="rounded border border-neutral-700 hover:border-blue-500 overflow-hidden"
               >
                 {t.thumbnailUrl ? (
-                  <img src={t.thumbnailUrl} alt={t.name} className="w-full aspect-video object-cover" />
+                  <img src={t.thumbnailUrl} alt={t.name} referrerPolicy="no-referrer" className="w-full aspect-video object-cover" />
                 ) : (
                   <div className="w-full aspect-video bg-neutral-800 flex items-center justify-center text-[10px] text-neutral-500">
                     {t.name}

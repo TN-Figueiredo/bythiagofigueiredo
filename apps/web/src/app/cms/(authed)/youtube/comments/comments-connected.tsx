@@ -452,6 +452,7 @@ export function CommentsConnected({ comments, videos }: Props) {
                     <img
                       src={comment.authorAvatarUrl}
                       alt={comment.authorHandle}
+                      referrerPolicy="no-referrer"
                       className="mt-0.5 h-8 w-8 shrink-0 rounded-full object-cover"
                     />
                   ) : (

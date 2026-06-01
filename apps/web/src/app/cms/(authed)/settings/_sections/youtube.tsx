@@ -216,7 +216,7 @@ function AddChannelForm({
         <div className="mt-3 rounded-md border border-slate-600 bg-slate-800/50 p-3">
           <div className="flex items-center gap-3">
             {preview.thumbnailUrl && (
-              <img src={preview.thumbnailUrl} alt="" className="h-10 w-10 rounded-full" />
+              <img src={preview.thumbnailUrl} alt="" referrerPolicy="no-referrer" className="h-10 w-10 rounded-full" />
             )}
             <div>
               <p className="text-sm font-medium text-slate-200">{preview.name}</p>

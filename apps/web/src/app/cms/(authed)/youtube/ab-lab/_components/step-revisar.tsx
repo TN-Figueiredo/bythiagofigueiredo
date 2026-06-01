@@ -92,6 +92,7 @@ function VariantMiniCard({ variant }: VariantMiniCardProps) {
         <img
           src={variant.thumbUrl!}
           alt={`Thumbnail da variante ${variant.label}`}
+          referrerPolicy="no-referrer"
           className="w-full aspect-video object-cover"
         />
       ) : (

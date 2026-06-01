@@ -18,7 +18,7 @@ export function FatigueCard({ alert, onCreate, onDismiss }: FatigueCardProps) {
       {/* Thumbnail */}
       <div className="relative h-12 w-20 flex-shrink-0 overflow-hidden rounded">
         {alert.thumbnailUrl ? (
-          <img src={alert.thumbnailUrl} alt="" className="h-full w-full object-cover" />
+          <img src={alert.thumbnailUrl} alt="" referrerPolicy="no-referrer" className="h-full w-full object-cover" />
         ) : (
           <div className="h-full w-full bg-zinc-800" />
         )}

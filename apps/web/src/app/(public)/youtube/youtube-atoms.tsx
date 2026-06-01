@@ -49,6 +49,7 @@ export function VideoThumbnail({ video, aspect = '16/9', lazy = false }: { video
           src={src}
           alt={video.title}
           loading={lazy ? 'lazy' : undefined}
+          referrerPolicy="no-referrer"
           style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
         />
       ) : (

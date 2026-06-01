@@ -17,7 +17,7 @@ export function YTThumb({ thumbUrl, thumbBg, overlayText, duration, label, mini,
     <div className={`relative aspect-video rounded-lg overflow-hidden bg-[#1a1814] ${className}`}>
       {thumbUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={thumbUrl} alt={overlayText ?? ''} className="size-full object-cover" />
+        <img src={thumbUrl} alt={overlayText ?? ''} referrerPolicy="no-referrer" className="size-full object-cover" />
       ) : thumbBg ? (
         <div className="size-full" style={{
           background: `linear-gradient(135deg, ${thumbBg}33 0%, ${thumbBg}11 50%, #1a181400 100%)`,

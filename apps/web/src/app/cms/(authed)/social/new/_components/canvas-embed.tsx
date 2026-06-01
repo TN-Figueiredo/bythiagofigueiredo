@@ -10,7 +10,7 @@ export function CanvasEmbed({ thumbnailUrl, onOpenEditor }: CanvasEmbedProps) {
     <div className="rounded-xl border border-cms-border bg-cms-surface overflow-hidden">
       <div className="relative aspect-video bg-cms-bg">
         {thumbnailUrl ? (
-          <img src={thumbnailUrl} alt="Canvas preview" className="h-full w-full object-contain" />
+          <img src={thumbnailUrl} alt="Canvas preview" referrerPolicy="no-referrer" className="h-full w-full object-contain" />
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-cms-text-dim">
             Sem arte
