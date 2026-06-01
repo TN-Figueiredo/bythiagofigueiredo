@@ -9,7 +9,7 @@ import { createNotification } from '@/lib/notifications/create'
 import { startAbTestInternal } from '@/lib/youtube/ab-start'
 import type { AbTestVariantRow } from '@/lib/youtube/ab-types'
 
-export const maxDuration = 120
+export const maxDuration = 300 // 5min for 20+ concurrent tests
 
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization')
