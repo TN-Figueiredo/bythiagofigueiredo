@@ -9,6 +9,7 @@ import {
   phaseDetectPlayoffEligibility,
 } from '@/lib/youtube/ab-evaluate-phases'
 import { runLongevityChecks } from '@/lib/youtube/thumbnail-library'
+import { checkAndEscalate } from '@/lib/youtube/ab-escalation'
 
 export const maxDuration = 120
 
@@ -47,6 +48,22 @@ export async function GET(req: NextRequest) {
     await recordCronSuccess('ab-evaluate', 'critical')
   } else {
     await recordCronFailure('ab-evaluate', `${totalErrors} error(s)`, 'critical')
+  }
+
+  // Escalation: email alert after 3+ days of consecutive failures
+  try {
+    const { data: anySite } = await supabase
+      .from('ab_tests')
+      .select('site_id')
+      .limit(1)
+      .single()
+
+    if (anySite) {
+      await checkAndEscalate('ab-rotate', anySite.site_id)
+      await checkAndEscalate('ab-evaluate', anySite.site_id)
+    }
+  } catch {
+    // Non-critical — don't block response
   }
 
   return Response.json({
