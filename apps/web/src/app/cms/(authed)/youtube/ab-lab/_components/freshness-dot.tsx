@@ -25,3 +25,25 @@ export function FreshnessDot({ lastUpdated, label }: FreshnessDotProps) {
     </span>
   )
 }
+
+/* ─── Per-metric freshness bar ─── */
+
+interface FreshnessMetric {
+  label: string
+  lastUpdated: string | null
+  confirmed?: boolean
+}
+
+export function FreshnessBar({ metrics }: { metrics: FreshnessMetric[] }) {
+  return (
+    <div className="flex items-center gap-2 text-xs text-zinc-400">
+      {metrics.map((m, i) => (
+        <span key={m.label} className="inline-flex items-center gap-1">
+          {i > 0 && <span className="text-zinc-600">|</span>}
+          <FreshnessDot lastUpdated={m.lastUpdated} label={m.label} />
+          {m.confirmed && <span className="text-zinc-500">(confirmado)</span>}
+        </span>
+      ))}
+    </div>
+  )
+}

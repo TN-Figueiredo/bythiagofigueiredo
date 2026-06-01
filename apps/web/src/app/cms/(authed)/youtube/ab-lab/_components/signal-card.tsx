@@ -1,7 +1,8 @@
 'use client'
 
+import { useEffect, useRef, useState } from 'react'
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react'
-import { FreshnessDot } from './freshness-dot'
+import { FreshnessDot, FreshnessBar } from './freshness-dot'
 
 interface SignalCardProps {
   live?: {
@@ -17,6 +18,18 @@ interface SignalCardProps {
 }
 
 export function SignalCard({ live, confirmed }: SignalCardProps) {
+  const [showConfirmedPill, setShowConfirmedPill] = useState(false)
+  const prevConfirmedRef = useRef(confirmed?.views)
+
+  useEffect(() => {
+    if (confirmed?.views && confirmed.views !== prevConfirmedRef.current) {
+      prevConfirmedRef.current = confirmed.views
+      setShowConfirmedPill(true)
+      const timer = setTimeout(() => setShowConfirmedPill(false), 5000)
+      return () => clearTimeout(timer)
+    }
+  }, [confirmed?.views])
+
   return (
     <div className="rounded-xl border border-zinc-700/50 bg-zinc-900/50 p-4 space-y-3">
       {/* TOP: Live proxy */}
@@ -45,14 +58,28 @@ export function SignalCard({ live, confirmed }: SignalCardProps) {
           <div className="flex items-center gap-2">
             <span className="h-2 w-2 rounded-full bg-zinc-500" />
             <span className="text-xs font-medium text-zinc-400 uppercase tracking-wide">Confirmado</span>
+            {showConfirmedPill && (
+              <span
+                className="rounded-full bg-green-600 px-2 py-0.5 text-[10px] font-medium text-white"
+                style={{ animation: 'fadeIn 0.3s ease-in' }}
+              >
+                Dados confirmados
+              </span>
+            )}
           </div>
           <div className="flex items-baseline gap-4">
             <span className="text-sm text-zinc-300">{confirmed.views.toLocaleString('pt-BR')} views</span>
             <span className="text-sm text-zinc-300">{formatAvd(confirmed.avdSeconds)} AVD</span>
           </div>
-          <FreshnessDot lastUpdated={confirmed.lastSyncAt} label="Analytics" />
+          <FreshnessBar metrics={[
+            { label: 'Views', lastUpdated: confirmed.lastSyncAt, confirmed: true },
+            { label: 'AVD', lastUpdated: confirmed.lastSyncAt, confirmed: true },
+          ]} />
         </div>
       )}
+
+      {/* Keyframe for crossfade animation */}
+      <style>{`@keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }`}</style>
     </div>
   )
 }
