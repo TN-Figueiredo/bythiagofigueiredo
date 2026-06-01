@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Filter, Settings, Zap, FlaskConical, Crosshair, Trophy, TrendingUp, Sparkles, Pause, AlertTriangle } from 'lucide-react'
+import Link from 'next/link'
+import { Plus, Filter, Settings, Zap, FlaskConical, Crosshair, Trophy, TrendingUp, Sparkles, Pause, AlertTriangle, ImageIcon } from 'lucide-react'
 import type {
   AbTestCardView,
   AbTestDraft,
@@ -150,6 +151,13 @@ export function AbLabDashboard({
             </span>
           </div>
           <div className="flex items-center gap-[10px]">
+            <Link
+              href="/cms/youtube/ab-lab/library"
+              className="flex items-center gap-1.5 rounded-lg border border-cms-border px-3 py-1.5 text-sm text-cms-text-muted hover:bg-cms-surface-hover"
+            >
+              <ImageIcon className="h-4 w-4" />
+              Library
+            </Link>
             <button
               type="button"
               className="inline-flex items-center gap-[7px] justify-center py-[6px] px-[11px] text-[12.5px] font-semibold rounded-[9px] border border-cms-border whitespace-nowrap transition-[0.15s] tracking-[-0.01em] text-cms-text cursor-pointer"
