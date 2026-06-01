@@ -115,7 +115,7 @@ const fetchYouTubeDashboardCached = unstable_cache(
     }
   },
   ['youtube-dashboard'],
-  { tags: ['youtube-dashboard', 'youtube'], revalidate: 120 },
+  { tags: ['youtube'], revalidate: 120 },
 )
 
 export default async function YouTubeDashboardPage() {

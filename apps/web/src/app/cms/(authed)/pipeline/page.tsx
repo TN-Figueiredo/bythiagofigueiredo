@@ -65,7 +65,7 @@ const fetchPipelineBoardCached = unstable_cache(
     return { fallbackData, celebrationItems, activity }
   },
   ['pipeline-board'],
-  { tags: ['pipeline-board', 'pipeline-blog'], revalidate: 60 },
+  { tags: ['pipeline-blog'], revalidate: 60 },
 )
 
 export default async function PipelineOverviewPage() {

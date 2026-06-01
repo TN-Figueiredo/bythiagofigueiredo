@@ -412,7 +412,7 @@ const fetchLinksDashboardCached = unstable_cache(
     return { tree, links, analytics, latestPost: latestContentPost, latestVideo: latestContentVideo }
   },
   ['links-dashboard'],
-  { tags: ['links-dashboard', 'links-hub'], revalidate: 300 },
+  { tags: ['links-hub'], revalidate: 300 },
 )
 
 export default async function LinksDashboardPage({ searchParams }: Props) {

@@ -222,6 +222,7 @@ export async function deleteResearchTopic(id: string): Promise<ActionResult> {
     .eq('site_id', siteId)
 
   if (error) return { ok: false, error: error.message }
+  revalidateTag('layout-counts')
   revalidatePath('/cms/library/research')
   return { ok: true }
 }

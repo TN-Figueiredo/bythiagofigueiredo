@@ -37,9 +37,18 @@ import {
 } from './_sections/_shared'
 
 /* Lazy-loaded heavy sections */
-const ContactPageSection = dynamic(() => import('./_sections/contact').then(m => ({ default: m.ContactPageSection })))
-const InstagramSection = dynamic(() => import('./_sections/instagram').then(m => ({ default: m.InstagramSection })))
-const YouTubeSection = dynamic(() => import('./_sections/youtube').then(m => ({ default: m.YouTubeSection })))
+const ContactPageSection = dynamic(
+  () => import('./_sections/contact').then(m => ({ default: m.ContactPageSection })),
+  { loading: () => <div className="p-6 space-y-4">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-20 animate-pulse rounded-lg bg-cms-border" />)}</div> }
+)
+const InstagramSection = dynamic(
+  () => import('./_sections/instagram').then(m => ({ default: m.InstagramSection })),
+  { loading: () => <div className="p-6 space-y-4">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-20 animate-pulse rounded-lg bg-cms-border" />)}</div> }
+)
+const YouTubeSection = dynamic(
+  () => import('./_sections/youtube').then(m => ({ default: m.YouTubeSection })),
+  { loading: () => <div className="p-6 space-y-4">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-20 animate-pulse rounded-lg bg-cms-border" />)}</div> }
+)
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                             */
