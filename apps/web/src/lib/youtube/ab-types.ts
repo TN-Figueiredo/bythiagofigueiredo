@@ -305,6 +305,7 @@ export interface AbTestCardView {
   createdAt: string
   statusNote: string | null
   cycleStartedAt: string | null
+  queueStartAfter: string | null
 }
 
 export interface AbTestDraftVariant {

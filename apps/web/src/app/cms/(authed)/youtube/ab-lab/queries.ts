@@ -501,6 +501,7 @@ export function toCardView(test: AbTestWithVariants): AbTestCardView {
     createdAt: test.created_at,
     statusNote: test.status_note ?? null,
     cycleStartedAt: test.current_cycle?.started_at ?? null,
+    queueStartAfter: test.queue_start_after ?? null,
   }
 }
 

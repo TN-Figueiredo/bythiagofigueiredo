@@ -68,6 +68,7 @@ export function makeCardView(overrides?: Partial<AbTestCardView>): AbTestCardVie
     hasPlayoff: false, roundNumber: 1, createdAt: new Date().toISOString(),
     statusNote: null,
     cycleStartedAt: new Date(Date.now() - 3600000).toISOString(),
+    queueStartAfter: null,
     ...overrides,
   }
 }

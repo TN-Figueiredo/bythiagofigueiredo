@@ -45,7 +45,7 @@ export function ActiveTestCard({ test, onOpen }: ActiveTestCardProps) {
           {test.status === 'queued' ? (
             <Badge tone="amber">
               <Clock size={11} aria-hidden="true" />
-              Na fila
+              Na fila{test.queueStartAfter && ` — inicia em ${Math.max(1, Math.ceil((new Date(test.queueStartAfter).getTime() - Date.now()) / 86400000))}d`}
             </Badge>
           ) : (
             <Badge tone="green" dot>
