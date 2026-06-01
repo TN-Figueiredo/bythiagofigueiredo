@@ -1,7 +1,8 @@
 'use client'
 
-import { useTransition, useState } from 'react'
+import { useTransition, useState, useCallback, useEffect, useRef } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import type { SyncStatus } from '@/lib/youtube/types'
 import { triggerSync, unpinWeeklyPick, pinWeeklyPick } from './videos/actions'
 
@@ -115,6 +116,63 @@ function SyncStatusBadge({ channel }: { channel: ChannelDashboard }) {
   return <span className="text-xs text-amber-400">Syncing…</span>
 }
 
+function ReconnectTokenButton() {
+  const router = useRouter()
+  const [isConnecting, startTransition] = useTransition()
+  const messageListenerRef = useRef<((e: MessageEvent) => void) | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (messageListenerRef.current) {
+        window.removeEventListener('message', messageListenerRef.current)
+        messageListenerRef.current = null
+      }
+    }
+  }, [])
+
+  const handleReconnect = useCallback(() => {
+    startTransition(() => {
+      const width = 600
+      const height = 700
+      const left = window.screenX + (window.outerWidth - width) / 2
+      const top = window.screenY + (window.outerHeight - height) / 2
+      const popup = window.open(
+        '/api/social/oauth/google',
+        'social-oauth',
+        `width=${width},height=${height},left=${left},top=${top}`,
+      )
+
+      if (messageListenerRef.current) {
+        window.removeEventListener('message', messageListenerRef.current)
+      }
+
+      const onMessage = (event: MessageEvent) => {
+        if (event.data?.type === 'social-oauth-result') {
+          window.removeEventListener('message', onMessage)
+          messageListenerRef.current = null
+          popup?.close()
+          if (event.data.success) {
+            router.refresh()
+          }
+        }
+      }
+      messageListenerRef.current = onMessage
+      window.addEventListener('message', onMessage)
+    })
+  }, [router])
+
+  return (
+    <button
+      type="button"
+      onClick={handleReconnect}
+      disabled={isConnecting}
+      className="rounded border border-cms-border px-2 py-1 text-xs text-cms-text-muted hover:bg-cms-surface-hover disabled:opacity-50"
+    >
+      {isConnecting ? 'Conectando…' : 'Reconectar Token'}
+    </button>
+  )
+}
+
 function ChannelCard({ channel }: { channel: ChannelDashboard }) {
   const [isPending, startTransition] = useTransition()
   const [showUnpinConfirm, setShowUnpinConfirm] = useState(false)
@@ -154,7 +212,7 @@ function ChannelCard({ channel }: { channel: ChannelDashboard }) {
       <div className="flex items-center justify-between border-b border-cms-border px-4 py-3">
         <div className="flex items-center gap-3">
           {channel.thumbnailUrl ? (
-            <img src={bustCache(channel.thumbnailUrl, channel.lastSyncedAt)!} alt="" width={48} height={48} referrerPolicy="no-referrer" className="h-12 w-12 rounded-full object-cover" />
+            <img src={channel.thumbnailUrl} alt="" width={48} height={48} referrerPolicy="no-referrer" className="h-12 w-12 rounded-full object-cover" />
           ) : (
             <span className="text-2xl">{flag}</span>
           )}
@@ -163,7 +221,9 @@ function ChannelCard({ channel }: { channel: ChannelDashboard }) {
               <span className="text-sm">{flag}</span>
               <span className="text-sm font-semibold text-cms-text">{channel.name}</span>
             </div>
-            <span className="text-xs text-cms-text-dim">{channel.handle}</span>
+            <span className="text-xs text-cms-text-dim">
+              {channel.handle.startsWith('@') ? channel.handle : `@${channel.handle}`}
+            </span>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -371,6 +431,17 @@ function ChannelCard({ channel }: { channel: ChannelDashboard }) {
           )}
         </>
       )}
+
+      {/* Channel actions footer */}
+      <div className="flex items-center gap-2 border-t border-cms-border px-4 py-2.5">
+        <Link
+          href="/cms/settings?section=youtube"
+          className="inline-flex items-center gap-1 rounded border border-cms-border px-2.5 py-1 text-xs text-cms-text-muted hover:bg-cms-surface-hover"
+        >
+          Configurar
+        </Link>
+        <ReconnectTokenButton />
+      </div>
     </div>
   )
 }
