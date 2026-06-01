@@ -17,6 +17,8 @@ import { MultiLine } from './multi-line'
 import { ABBATimeline } from './abba-timeline'
 import { FunnelRow } from './funnel-row'
 import { ClickMoment } from './click-moment'
+import { FeedView } from './feed-view'
+import { BayesCurves } from './bayes-curves'
 import { forceRotate, applyWinnerNow, cancelGracePeriod } from '../actions'
 import { usePollStats } from './use-poll-stats'
 import { SignalCard } from './signal-card'
@@ -312,6 +314,17 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
         </div>
       </section>
 
+      {/* Bayesian probability curves */}
+      {view.variants.length >= 2 && (
+        <div className="rounded-lg border border-cms-border bg-cms-surface p-[20px] mb-[16px]">
+          <div className="flex items-center gap-[9px] mb-[16px]">
+            <BarChart3 size={17} className="text-cms-accent" aria-hidden="true" />
+            <h3 className="text-[19px] font-semibold text-cms-text m-0">Curvas Bayesianas</h3>
+          </div>
+          <BayesCurves variants={view.variants} />
+        </div>
+      )}
+
       {/* Section 6: Faixa provável de CTR & chance de vencer */}
       <div className="rounded-lg border border-cms-border bg-cms-surface p-[20px] mb-[36px]">
         <div className="flex items-end justify-between gap-[14px] mb-[16px]">
@@ -492,6 +505,23 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
           thumbUrl: view.variantThumbs.find(t => t.label === v.label)?.thumbUrl ?? null,
         }))}
       />
+
+      {/* Section: YouTube Preview */}
+      <div className="mt-[36px]">
+        <div className="flex items-center gap-[9px] mb-[16px]">
+          <LayoutGrid size={17} className="text-cms-accent" aria-hidden="true" />
+          <h3 className="text-[19px] font-semibold text-cms-text m-0">Preview no YouTube</h3>
+        </div>
+        <FeedView
+          variants={view.variants.map(v => ({
+            label: v.label,
+            color: v.color,
+            ctr: v.ctr,
+            thumbUrl: view.variantThumbs.find(t => t.label === v.label)?.thumbUrl ?? null,
+            title: view.videoTitle,
+          }))}
+        />
+      </div>
     </div>
   )
 }
