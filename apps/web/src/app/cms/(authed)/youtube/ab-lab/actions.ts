@@ -613,6 +613,18 @@ async function resolveYouTubeVideoId(
   return (data?.youtube_video_id as string | null) ?? null
 }
 
+async function resolveChannelAccountId(
+  supabase: ReturnType<typeof getSupabaseServiceClient>,
+  internalVideoId: string,
+): Promise<string | undefined> {
+  const { data } = await supabase
+    .from('youtube_videos')
+    .select('youtube_channels!inner(channel_id)')
+    .eq('id', internalVideoId)
+    .single()
+  return (data as any)?.youtube_channels?.channel_id ?? undefined
+}
+
 // ---------------------------------------------------------------------------
 // startAbTest
 // ---------------------------------------------------------------------------
@@ -669,7 +681,8 @@ export async function pauseAbTest(
   const originalVariant = variants?.find(v => v.is_original)
 
   try {
-    const { accessToken } = await ensureFreshToken(siteId, 'youtube')
+    const channelAccountId = await resolveChannelAccountId(supabase, test.youtube_video_id as string)
+    const { accessToken } = await ensureFreshToken(siteId, 'youtube', channelAccountId)
     const youtubeVideoId = await resolveYouTubeVideoId(supabase, test.youtube_video_id as string)
     if (!youtubeVideoId) return { ok: false, error: 'YouTube video ID not found' }
 
@@ -780,7 +793,8 @@ export async function resumeAbTest(
   const nextVariant = variants[nextIndex] as AbTestVariantRow
 
   try {
-    const { accessToken } = await ensureFreshToken(siteId, 'youtube')
+    const channelAccountId = await resolveChannelAccountId(supabase, test.youtube_video_id as string)
+    const { accessToken } = await ensureFreshToken(siteId, 'youtube', channelAccountId)
     const youtubeVideoId = await resolveYouTubeVideoId(supabase, test.youtube_video_id as string)
     if (!youtubeVideoId) return { ok: false, error: 'YouTube video ID not found' }
 
@@ -862,7 +876,8 @@ export async function endAbTest(
     : variants.find(v => v.is_original)
 
   try {
-    const { accessToken } = await ensureFreshToken(siteId, 'youtube')
+    const channelAccountId = await resolveChannelAccountId(supabase, test.youtube_video_id as string)
+    const { accessToken } = await ensureFreshToken(siteId, 'youtube', channelAccountId)
     const youtubeVideoId = await resolveYouTubeVideoId(supabase, test.youtube_video_id as string)
     if (!youtubeVideoId) return { ok: false, error: 'YouTube video ID not found' }
 
