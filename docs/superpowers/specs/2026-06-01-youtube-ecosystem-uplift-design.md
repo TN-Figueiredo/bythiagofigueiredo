@@ -1471,6 +1471,14 @@ Items identificados por reviewers adversariais que ficaram pendentes:
 - **Testes para acknowledgeAbTestDrift + resumeAbTest drift gate** — nenhum teste cobre o flow acknowledge → resume. Adicionar em `ab-p3-actions.test.ts`: (1) resume bloqueado sem ack, (2) resume permitido apos ack, (3) ack limpa status_note
 - **Testes para watchdog drift branch** — `ab-cron-watchdog.test.ts` nao testa o bloco de drift detection (ciclo fechado, revert tentado, notificacao enviada). Estender buildMockSupabase para modelar ab_test_cycles
 - **|| 0 fallback consistente** em fetchYtChannelMetrics indices 0-8 (atualmente sem fallback, so indices 9-10 tem)
+- **AB test detection query** — spec 2.4: query para identificar videos com 2+ thumbnail changes em 14 dias retornando Map<videoId, changeCount>. Feature flag COMPETITOR_AB_DETECTION_ENABLED. Expor como funcao em competitor-sync.ts ou actions.ts
+- **YouTube quota error classification** — competitor-sync.ts usa raw fetch que throws Error generico em 403. Nao distingue quota exceeded de permission denied. Cron route tem early-exit para YouTubeQuotaError mas competitor sync nao propaga esse tipo. Fix: parse 403 body ou reusar ytFetch() de api-client.ts
+- **video_count integer→bigint** na tabela competitor_channel_snapshots pra consistencia com subscriber_count/view_count (ambos bigint)
+- **Supabase mutation error handling** — 8 calls (insert/update/upsert) em competitor-sync.ts ignoram silenciosamente o campo `.error` do retorno. Adicionar `.throwOnError()` ou check explicito nos criticos
+- **pullPipelineThumbnails UI button** — spec 1.3 pede botao "Importar do Pipeline" em step-variantes.tsx quando sourcePipelineId presente. Backend security fixado mas sem trigger na UI
+- **AbEndTestDialog leadingVariant logic** — picks nonOriginalVariants[0] (array order) em vez do melhor performer. Passar leaderId do active-detail
+- **AbEndTestDialog hasLowConfidence** — hardcoded false (linha 36). Computar de currentConfidence < confidenceThreshold passado como prop
+- **OAuth per-channel completo** — spec 1.4: aceitar channelId no OAuth route, login_hint, validacao no callback. Parcialmente feito (resolveChannelAccountId resolve token, mas OAuth popup ainda generico)
 
 **Dependencias:** Nenhuma — pode ser implementado a qualquer momento
 
