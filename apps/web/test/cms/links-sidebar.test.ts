@@ -4,13 +4,14 @@ import { buildCmsSections } from '../../src/app/cms/(authed)/_shared/cms-section
 describe('buildCmsSections — Links & YouTube placement', () => {
   const sections = buildCmsSections()
 
-  it('YouTube is in Social, not Content', () => {
+  it('YouTube has its own section, not in Content', () => {
     const content = sections.find(s => s.label === 'Content')!
-    const social = sections.find(s => s.label === 'Social')!
+    const youtube = sections.find(s => s.label === 'YouTube')!
     expect(content.items.find(i => i.label === 'YouTube')).toBeUndefined()
-    const yt = social.items.find(i => i.label === 'YouTube')!
-    expect(yt).toBeDefined()
-    expect(yt.href).toBe('/cms/youtube')
+    expect(youtube).toBeDefined()
+    const channels = youtube.items.find(i => i.label === 'Channels')!
+    expect(channels).toBeDefined()
+    expect(channels.href).toBe('/cms/youtube')
   })
 
   it('Links is in Social with correct href and minRole', () => {

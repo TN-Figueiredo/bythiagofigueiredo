@@ -5,8 +5,10 @@ vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn() }))
 vi.mock('@/lib/cron-health', () => ({
   getCronHealth: vi.fn(),
   recordCronSuccess: vi.fn(),
+  recordCronFailure: vi.fn(),
 }))
 vi.mock('@/lib/notifications/create', () => ({ createNotification: vi.fn() }))
+vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), addBreadcrumb: vi.fn() }))
 
 import { GET } from '@/app/api/cron/ab-watchdog/route'
 import { getCronHealth } from '@/lib/cron-health'
@@ -41,6 +43,15 @@ function buildMockSupabase(activeTests: { site_id: string }[] | null) {
       return {
         delete: vi.fn().mockReturnValue({
           lt: vi.fn().mockResolvedValue({ data: null, error: null }),
+        }),
+      }
+    }
+    if (table === 'competitor_changes') {
+      return {
+        delete: vi.fn().mockReturnValue({
+          lt: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({ data: null, error: null }),
+          }),
         }),
       }
     }

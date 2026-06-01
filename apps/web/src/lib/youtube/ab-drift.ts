@@ -1,3 +1,5 @@
+import * as Sentry from '@sentry/nextjs'
+
 export async function checkDrift(
   testId: string,
   youtubeVideoId: string,
@@ -21,6 +23,12 @@ export async function checkDrift(
     // Normalize: strip query params for comparison
     const normalize = (url: string) => url.split('?')[0]
     const drifted = normalize(currentUrl) !== normalize(expectedThumbnailUrl)
+
+    Sentry.addBreadcrumb({
+      category: 'ab-drift',
+      message: `Drift check: test=${testId}, expected=${normalize(expectedThumbnailUrl)}, current=${normalize(currentUrl)}, drifted=${drifted}`,
+      level: drifted ? 'warning' : 'info',
+    })
 
     return { drifted, currentUrl }
   } catch {

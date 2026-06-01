@@ -82,17 +82,19 @@ export async function GET(req: NextRequest) {
         for (const test of driftTests) {
           if (test.test_type !== 'thumbnail' && test.test_type !== 'combo') continue
 
-          // Get current variant's thumbnail
+          // Get current cycle's applied_metadata (stores YouTube URL after apply)
           const { data: openCycle } = await driftClient
             .from('ab_test_cycles')
-            .select('variant_id, ab_test_variants!inner(blob_url)')
+            .select('id, variant_id, applied_metadata')
             .eq('test_id', test.id)
             .is('ended_at', null)
             .limit(1)
             .maybeSingle()
 
           if (!openCycle) continue
-          const expectedUrl = (openCycle as any).ab_test_variants?.blob_url
+          const appliedMeta = openCycle.applied_metadata as import('@/lib/youtube/ab-types').AppliedMetadata | null
+          const expectedUrl = appliedMeta?.youtube_thumbnail_url ?? null
+          if (!expectedUrl) continue
 
           // Get YouTube video ID
           const { data: video } = await driftClient

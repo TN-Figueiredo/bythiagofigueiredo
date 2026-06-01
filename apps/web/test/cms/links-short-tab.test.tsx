@@ -27,6 +27,12 @@ vi.mock('next/link', () => ({
     <a href={href} {...props}>{children}</a>,
 }))
 
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn(), back: vi.fn(), prefetch: vi.fn() }),
+  usePathname: () => '/cms/links',
+  useSearchParams: () => new URLSearchParams(),
+}))
+
 import { ShortLinksTab } from '@/app/cms/(authed)/links/_components/short-links-tab'
 
 afterEach(() => cleanup())
