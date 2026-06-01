@@ -1628,6 +1628,27 @@ export async function batchStartTests(
 
     if (!video) continue
 
+    // Preserve original thumbnail as immutable Blob copy (same as createAbTest)
+    let batchImmutableUrl: string | null = video.thumbnail_hq_url ?? null
+    if (video.thumbnail_hq_url && video.thumbnail_hq_url.includes('ytimg.com')) {
+      try {
+        const imgRes = await fetch(video.thumbnail_hq_url, { signal: AbortSignal.timeout(15_000) })
+        if (imgRes.ok) {
+          const buffer = Buffer.from(await imgRes.arrayBuffer())
+          const ct = imgRes.headers.get('content-type') ?? 'image/jpeg'
+          const ext = ct.includes('png') ? 'png' : 'jpg'
+          const blob = await put(
+            `ab-originals/${crypto.randomUUID()}/original.${ext}`,
+            buffer,
+            { access: 'public', contentType: ct, addRandomSuffix: true },
+          )
+          batchImmutableUrl = blob.url
+        }
+      } catch {
+        continue // non-fatal in batch — skip this video
+      }
+    }
+
     const { data: test } = await supabase
       .from('ab_tests')
       .insert({
@@ -1636,7 +1657,7 @@ export async function batchStartTests(
         name: `Batch: ${video.title?.slice(0, 40)}`,
         status: 'draft',
         test_type: 'thumbnail',
-        original_thumbnail_url: video.thumbnail_hq_url,
+        original_thumbnail_url: batchImmutableUrl,
         config: {},
       })
       .select('id')
@@ -1647,7 +1668,7 @@ export async function batchStartTests(
         test_id: test.id,
         label: 'original',
         is_original: true,
-        blob_url: video.thumbnail_hq_url,
+        blob_url: batchImmutableUrl,
         blob_key: null,
         sort_order: 0,
       })
