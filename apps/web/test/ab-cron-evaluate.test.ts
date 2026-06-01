@@ -7,6 +7,7 @@ vi.mock('@/lib/youtube/ab-statistics', () => ({ calculateBayesianConfidence: vi.
 vi.mock('@/lib/youtube/ab-youtube', () => ({ setThumbnail: vi.fn(), fetchVariantImageBuffer: vi.fn() }))
 vi.mock('@/lib/youtube/ab-metadata', () => ({ updateVideoMetadata: vi.fn() }))
 vi.mock('@/lib/youtube/ab-templates', () => ({ resolveTemplates: vi.fn() }))
+vi.mock('@/lib/youtube/ab-preflight', () => ({ preflightTokenCheck: vi.fn(() => ({ ok: true, accessToken: 'token-retry' })) }))
 vi.mock('@/lib/youtube/notification-service', () => ({ buildNotification: vi.fn(() => ({ type: 'ab_test_completed', priority: 3, title: 'Test', message: 'Done', dedup_key: 'k', video_id: null, action_href: null })) }))
 vi.mock('@/lib/youtube/analytics-sync', () => ({ getIsoWeek: vi.fn(() => '2026-W20') }))
 vi.mock('@/lib/youtube/ab-playoff', () => ({ checkPlayoffEligibility: vi.fn(() => ({ eligible: false })), selectPlayoffVariants: vi.fn(() => null) }))
@@ -72,16 +73,17 @@ function buildSupabaseMock(opts: { tests: unknown[]; trackedLinks?: { template_n
   const fromMock = vi.fn((table: string) => {
     if (table === 'ab_tests') {
       // Build a chainable proxy that resolves to opts.tests on the first .eq()
-      // (active tests query) and to [] for deeper chains (playoff Phase 1 & 3).
+      // (active tests query) and to [] for deeper chains (playoff Phase 1, 3, retry).
       const makeChain = (resolveWith: unknown): Record<string, unknown> => {
         const chain: Record<string, unknown> = {}
-        for (const method of ['eq', 'not', 'lte', 'in', 'is']) {
+        for (const method of ['eq', 'not', 'lte', 'lt', 'in', 'is']) {
           chain[method] = vi.fn(() => chain)
         }
         // Make the chain thenable so it resolves when awaited at any depth
         chain.then = (resolve: (v: unknown) => void) => resolve(resolveWith)
         return chain
       }
+      const emptyChain = makeChain({ data: [] })
       return {
         select: vi.fn().mockReturnValue({
           eq: vi.fn((col: string, val: string) => {
@@ -92,6 +94,8 @@ function buildSupabaseMock(opts: { tests: unknown[]; trackedLinks?: { template_n
             // Playoff queries: deeper chain, resolve to empty
             return makeChain({ data: [] })
           }),
+          // Phase 3 retry query starts with .not() after .select()
+          not: vi.fn(() => emptyChain),
         }),
         update: vi.fn((data: unknown) => {
           updateCalls.push({ table, data })
@@ -267,8 +271,42 @@ describe('GET /api/cron/ab-evaluate', () => {
     )
   })
 
-  it('auto-resolves when all 6 gates pass (thumbnail test)', async () => {
+  it('starts grace period when all gates pass for the first time', async () => {
     const test = makeActiveTest()
+    const { updateCalls, client } = buildSupabaseMock({ tests: [test] })
+
+    const req = createCronRequest('test-secret')
+    const res = await GET(req)
+    const body = await res.json()
+
+    // Should NOT resolve yet — grace period started
+    expect(body.resolved).toBe(0)
+    expect(setThumbnail).not.toHaveBeenCalled()
+
+    // Should set grace_expires_at and winner_variant_id
+    expect(updateCalls).toContainEqual(
+      expect.objectContaining({
+        table: 'ab_tests',
+        data: expect.objectContaining({
+          grace_expires_at: expect.any(String),
+          winner_variant_id: 'v2',
+          confidence_at_completion: 0.97,
+        }),
+      })
+    )
+
+    // Should send winner_pending notification
+    expect(client.rpc).toHaveBeenCalledWith('create_yt_notification', expect.objectContaining({
+      p_type: 'ab_test_winner_pending',
+    }))
+  })
+
+  it('auto-resolves when grace period has expired (thumbnail test)', async () => {
+    // grace_expires_at set to 1 hour ago — should apply now
+    const test = makeActiveTest({
+      grace_expires_at: new Date(Date.now() - 3600000).toISOString(),
+      winner_variant_id: 'v2',
+    })
     const { updateCalls } = buildSupabaseMock({ tests: [test] })
 
     const req = createCronRequest('test-secret')
@@ -287,21 +325,42 @@ describe('GET /api/cron/ab-evaluate', () => {
       })
     )
 
-    // Should complete the test
+    // Should complete the test with revert_expires_at
     expect(updateCalls).toContainEqual(
       expect.objectContaining({
         table: 'ab_tests',
         data: expect.objectContaining({
           status: 'completed',
           completed_reason: 'auto_resolve',
+          applied_by: 'auto',
+          winner_applied_at: expect.any(String),
+          revert_expires_at: expect.any(String),
         }),
       })
     )
   })
 
+  it('does not apply when grace period has not expired yet', async () => {
+    // grace_expires_at set 12 hours in the future
+    const test = makeActiveTest({
+      grace_expires_at: new Date(Date.now() + 12 * 3600000).toISOString(),
+      winner_variant_id: 'v2',
+    })
+    buildSupabaseMock({ tests: [test] })
+
+    const req = createCronRequest('test-secret')
+    const res = await GET(req)
+    const body = await res.json()
+
+    expect(body.resolved).toBe(0)
+    expect(setThumbnail).not.toHaveBeenCalled()
+  })
+
   it('auto-resolves title test with original as winner — calls updateVideoMetadata with original_title', async () => {
     const test = makeActiveTest({
       test_type: 'title',
+      grace_expires_at: new Date(Date.now() - 3600000).toISOString(),
+      winner_variant_id: 'v1',
       variants: [
         { id: 'v1', label: 'original', is_original: true, sort_order: 0, blob_url: null, title_text: null, description_text: null, metadata: {} },
         { id: 'v2', label: 'variant_b', is_original: false, sort_order: 1, blob_url: null, title_text: 'Challenger', description_text: null, metadata: {} },
@@ -325,6 +384,8 @@ describe('GET /api/cron/ab-evaluate', () => {
   it('auto-resolves description test — calls resolveTemplates then updateVideoMetadata', async () => {
     const test = makeActiveTest({
       test_type: 'description',
+      grace_expires_at: new Date(Date.now() - 3600000).toISOString(),
+      winner_variant_id: 'v2',
       variants: [
         { id: 'v1', label: 'original', is_original: true, sort_order: 0, blob_url: null, title_text: null, description_text: null, metadata: {} },
         { id: 'v2', label: 'variant_b', is_original: false, sort_order: 1, blob_url: null, title_text: null, description_text: 'New Desc {{link:promo}}', metadata: {} },
@@ -350,6 +411,35 @@ describe('GET /api/cron/ab-evaluate', () => {
       'token-123'
     )
     expect(setThumbnail).not.toHaveBeenCalled()
+  })
+
+  it('cancels grace period when confidence drops', async () => {
+    const test = makeActiveTest({
+      consecutive_confident_evals: 1,
+      grace_expires_at: new Date(Date.now() + 12 * 3600000).toISOString(),
+      winner_variant_id: 'v2',
+    })
+    ;(calculateBayesianConfidence as ReturnType<typeof vi.fn>).mockReturnValue({
+      winnerId: 'v2',
+      confidence: 0.65,
+      probabilities: { v1: 0.35, v2: 0.65 },
+    })
+
+    const { updateCalls } = buildSupabaseMock({ tests: [test] })
+    const req = createCronRequest('test-secret')
+    await GET(req)
+
+    // Should clear grace_expires_at
+    expect(updateCalls).toContainEqual(
+      expect.objectContaining({
+        table: 'ab_tests',
+        data: expect.objectContaining({
+          grace_expires_at: null,
+          winner_variant_id: null,
+          confidence_at_completion: null,
+        }),
+      })
+    )
   })
 
   it('marks test as inconclusive when max_duration_days exceeded', async () => {

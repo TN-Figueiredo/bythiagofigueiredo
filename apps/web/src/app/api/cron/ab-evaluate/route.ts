@@ -6,6 +6,7 @@ import { calculateBayesianConfidence } from '@/lib/youtube/ab-statistics'
 import { setThumbnail, fetchVariantImageBuffer } from '@/lib/youtube/ab-youtube'
 import { updateVideoMetadata } from '@/lib/youtube/ab-metadata'
 import { resolveTemplates } from '@/lib/youtube/ab-templates'
+import { preflightTokenCheck } from '@/lib/youtube/ab-preflight'
 import { buildNotification } from '@/lib/youtube/notification-service'
 import { getIsoWeek } from '@/lib/youtube/analytics-sync'
 import { checkPlayoffEligibility, selectPlayoffVariants } from '@/lib/youtube/ab-playoff'
@@ -128,8 +129,44 @@ export async function GET(req: NextRequest) {
       const allPass = gates.every(g => g.passed) && newConsecutive >= stabilityThreshold
 
       if (allPass && (config.auto_apply_winner ?? true)) {
-        // Auto-resolve: apply winner
-        const winner = variants.find(v => v.id === bayesian.winnerId)
+        const winnerId = bayesian.winnerId
+        const winnerLabel = variants.find(v => v.id === winnerId)?.label ?? 'Variante'
+
+        if (!test.grace_expires_at) {
+          // FIRST TIME winner detected — start 24h grace period
+          await supabase
+            .from('ab_tests')
+            .update({
+              grace_expires_at: new Date(Date.now() + 24 * 3600000).toISOString(),
+              winner_variant_id: winnerId,
+              confidence_at_completion: bayesian.confidence,
+            })
+            .eq('id', test.id)
+
+          // Notify user: winner pending
+          await supabase.rpc('create_yt_notification', {
+            p_site_id: test.site_id,
+            p_type: 'ab_test_winner_pending',
+            p_priority: 3,
+            p_title: `Vencedor detectado: ${winnerLabel}`,
+            p_message: `O teste "${test.name}" tem um vencedor. Será aplicado automaticamente em 24h.`,
+            p_action_href: `/cms/youtube/ab-lab/${test.id}`,
+            p_video_id: test.youtube_video_id,
+          })
+
+          evaluated++
+          continue // Don't apply yet — wait for grace period
+        }
+
+        // Grace period set — check if expired
+        if (new Date(test.grace_expires_at) > new Date()) {
+          // Grace period not yet expired
+          evaluated++
+          continue
+        }
+
+        // GRACE PERIOD EXPIRED — now apply winner
+        const winner = variants.find(v => v.id === winnerId)
 
         const { data: video } = await supabase
           .from('youtube_videos')
@@ -200,6 +237,9 @@ export async function GET(req: NextRequest) {
             completed_reason: 'auto_resolve',
             winner_variant_id: bayesian.winnerId,
             confidence_at_completion: bayesian.confidence,
+            winner_applied_at: new Date().toISOString(),
+            applied_by: 'auto',
+            revert_expires_at: new Date(Date.now() + 7 * 86400000).toISOString(),
             result_metadata: {
               ctr_lift_percent: Math.round(ctrLift * 10) / 10,
               winner_label: winner?.label ?? '',
@@ -249,6 +289,16 @@ export async function GET(req: NextRequest) {
         }
 
         resolved++
+      } else if (!allPass && test.grace_expires_at && newConsecutive < stabilityThreshold) {
+        // Confidence dropped during grace period — cancel auto-apply
+        await supabase
+          .from('ab_tests')
+          .update({
+            grace_expires_at: null,
+            winner_variant_id: null,
+            confidence_at_completion: null,
+          })
+          .eq('id', test.id)
       }
 
       // Check max duration — mark inconclusive if exceeded
@@ -280,7 +330,140 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Phase 3: Detect inconclusive Round 1 tests eligible for playoff
+  // Phase 3: Retry failed applies (grace expired, winner set, not yet applied)
+  let appliesRetried = 0
+  {
+    const { data: pendingApplies } = await supabase
+      .from('ab_tests')
+      .select('id, site_id, winner_variant_id, youtube_video_id, test_type, original_title, original_description, apply_attempts, name')
+      .not('grace_expires_at', 'is', null)
+      .is('winner_applied_at', null)
+      .not('winner_variant_id', 'is', null)
+      .lte('grace_expires_at', new Date().toISOString())
+      .lt('apply_attempts', 3)
+      .eq('status', 'active')
+
+    for (const pending of pendingApplies ?? []) {
+      try {
+        const preflight = await preflightTokenCheck(pending.site_id, 'youtube')
+        if (!preflight.ok) throw new Error(`preflight_failed: ${preflight.reason}`)
+
+        const { data: video } = await supabase
+          .from('youtube_videos')
+          .select('youtube_video_id')
+          .eq('id', pending.youtube_video_id)
+          .single()
+
+        if (!video) throw new Error('video_not_found')
+
+        const { data: winner } = await supabase
+          .from('ab_test_variants')
+          .select('id, label, blob_url, title_text, description_text')
+          .eq('id', pending.winner_variant_id!)
+          .single()
+
+        if (!winner) throw new Error('winner_variant_not_found')
+
+        // Apply thumbnail
+        if (winner.blob_url && (pending.test_type === 'thumbnail' || pending.test_type === 'combo')) {
+          const { buffer, contentType } = await fetchVariantImageBuffer(winner.blob_url)
+          await setThumbnail(video.youtube_video_id, buffer, contentType, preflight.accessToken)
+        }
+
+        // Apply title/description
+        if (pending.test_type === 'title' || pending.test_type === 'description' || pending.test_type === 'combo') {
+          const titleToApply = (pending.test_type === 'title' || pending.test_type === 'combo')
+            ? (winner.title_text ?? pending.original_title ?? null) : null
+          let descToApply: string | null = null
+          if (pending.test_type === 'description' || pending.test_type === 'combo') {
+            const rawDesc = winner.description_text ?? pending.original_description ?? null
+            if (rawDesc) {
+              const { data: linkMappings } = await supabase
+                .from('ab_test_tracked_links')
+                .select('template_name, short_code')
+                .eq('variant_id', winner.id)
+              const linkMap: Record<string, string> = {}
+              const shortDomain = process.env.LINKS_SHORT_DOMAIN ?? 'go.bythiagofigueiredo.com'
+              for (const lm of linkMappings ?? []) {
+                linkMap[lm.template_name] = `https://${shortDomain}/${lm.short_code}`
+              }
+              descToApply = resolveTemplates(rawDesc, linkMap)
+            }
+          }
+          if (titleToApply || descToApply) {
+            await updateVideoMetadata(video.youtube_video_id, titleToApply, descToApply, preflight.accessToken)
+          }
+        }
+
+        // Success — close cycle and mark completed
+        await supabase
+          .from('ab_test_cycles')
+          .update({ ended_at: new Date().toISOString() })
+          .eq('test_id', pending.id)
+          .is('ended_at', null)
+
+        await supabase
+          .from('ab_tests')
+          .update({
+            status: 'completed',
+            completed_at: new Date().toISOString(),
+            completed_reason: 'auto_resolve',
+            winner_applied_at: new Date().toISOString(),
+            applied_by: 'auto',
+            revert_expires_at: new Date(Date.now() + 7 * 86400000).toISOString(),
+          })
+          .eq('id', pending.id)
+
+        // Transition optimization cycle
+        const { data: cycle } = await supabase
+          .from('optimization_cycles')
+          .select('id')
+          .eq('youtube_video_id', pending.youtube_video_id)
+          .eq('state', 'testing')
+          .single()
+
+        if (cycle) {
+          await supabase.from('optimization_cycles').update({
+            state: 'post_test_monitoring',
+            test_completed_at: new Date().toISOString(),
+            test_winner_applied_at: new Date().toISOString(),
+          }).eq('id', cycle.id)
+        }
+
+        appliesRetried++
+        resolved++
+      } catch (err) {
+        const attempts = (pending.apply_attempts ?? 0) + 1
+        await supabase
+          .from('ab_tests')
+          .update({
+            apply_attempts: attempts,
+            last_apply_error: err instanceof Error ? err.message : 'unknown',
+          })
+          .eq('id', pending.id)
+
+        // After 3 failures — send notification
+        if (attempts >= 3) {
+          await supabase.rpc('create_yt_notification', {
+            p_site_id: pending.site_id,
+            p_type: 'ab_test_apply_failed',
+            p_priority: 4,
+            p_title: `Falha ao aplicar vencedor: ${pending.name}`,
+            p_message: `O teste "${pending.name}" falhou 3x ao aplicar o vencedor. Ação manual necessária.`,
+            p_action_href: `/cms/youtube/ab-lab/${pending.id}`,
+            p_video_id: pending.youtube_video_id,
+          })
+        }
+
+        Sentry.captureException(err, {
+          tags: { cron: 'ab-evaluate', phase: 'apply-retry' },
+          extra: { testId: pending.id, attempts },
+        })
+      }
+    }
+  }
+
+  // Phase 4: Detect inconclusive Round 1 tests eligible for playoff
   let playoffsCreated = 0
   {
     const { data: candidates } = await supabase
@@ -400,5 +583,5 @@ export async function GET(req: NextRequest) {
     await recordCronFailure('ab-evaluate', `${errors} test(s) failed`, 'critical')
   }
 
-  return Response.json({ status: 'ok', evaluated, resolved, errors, playoffs_started: playoffsStarted, playoffs_created: playoffsCreated })
+  return Response.json({ status: 'ok', evaluated, resolved, errors, applies_retried: appliesRetried, playoffs_started: playoffsStarted, playoffs_created: playoffsCreated })
 }

@@ -42,6 +42,10 @@ vi.mock('@/lib/youtube/ab-templates', () => ({
   resolveTemplates: vi.fn((text: string) => text),
 }))
 
+vi.mock('@/lib/youtube/ab-preflight', () => ({
+  preflightTokenCheck: vi.fn().mockResolvedValue({ ok: true, accessToken: 'tok-mock' }),
+}))
+
 vi.mock('@/lib/youtube/notification-service', () => ({
   buildNotification: vi.fn().mockReturnValue({
     type: 'ab_test_completed',
@@ -90,7 +94,7 @@ function makeRequest(authHeader?: string): NextRequest {
 
 function activeTestsQuery(data: unknown[]) {
   // Returns active tests for .eq('status', 'active'), empty array for all
-  // other chained queries (Phase 1 playoff drafts, Phase 3 candidates).
+  // other chained queries (Phase 1 playoff drafts, Phase 3 retry, Phase 4 candidates).
   const emptyChain = chainableMock()
   return {
     select: vi.fn().mockReturnValue({
@@ -100,6 +104,8 @@ function activeTestsQuery(data: unknown[]) {
         }
         return emptyChain
       }),
+      // Phase 3 retry query starts with .not() after .select()
+      not: vi.fn().mockReturnValue(emptyChain),
     }),
   }
 }
