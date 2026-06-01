@@ -9,7 +9,9 @@ interface FatigueCardProps {
 }
 
 export function FatigueCard({ alert, onCreate, onDismiss }: FatigueCardProps) {
-  const ctrDrop = Math.round((1 - alert.actualCtr / alert.expectedCtr) * 100)
+  const ctrDrop = alert.expectedCtr > 0
+    ? Math.round((1 - alert.actualCtr / alert.expectedCtr) * 100)
+    : 0
 
   return (
     <div className="flex items-center gap-3 rounded-lg border border-red-500/20 bg-red-500/5 p-3">
@@ -29,7 +31,7 @@ export function FatigueCard({ alert, onCreate, onDismiss }: FatigueCardProps) {
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-zinc-200 truncate">{alert.videoTitle}</p>
         <p className="text-xs text-red-400">
-          CTR caiu {ctrDrop}% vs esperado (z={alert.zScore})
+          Views caiu {ctrDrop}% vs esperado (z={alert.zScore})
         </p>
       </div>
 

@@ -35,16 +35,20 @@ export async function GET(req: NextRequest) {
   if (queuedTests?.length) {
     for (const queued of queuedTests) {
       try {
-        // Flip to draft so startAbTestInternal can pick it up
         await supabase
           .from('ab_tests')
-          .update({ status: 'draft' })
+          .update({ status: 'draft', queue_start_after: null })
           .eq('id', queued.id)
           .eq('status', 'queued')
 
         await startAbTestInternal(queued.id, queued.site_id)
       } catch (err) {
-        console.error(`[ab-rotate] Failed to start queued test ${queued.id}:`, err)
+        // Revert status on failure
+        await supabase
+          .from('ab_tests')
+          .update({ status: 'queued' })
+          .eq('id', queued.id)
+        Sentry.captureException(err, { extra: { testId: queued.id, context: 'queue-start' } })
       }
     }
   }

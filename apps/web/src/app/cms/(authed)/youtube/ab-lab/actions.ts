@@ -1270,13 +1270,20 @@ export async function applyWinnerNow(
     return { ok: false, error: `YouTube API error: ${(err as Error).message}` }
   }
 
+  // Close the open cycle
+  await supabase
+    .from('ab_test_cycles')
+    .update({ ended_at: new Date().toISOString() })
+    .eq('test_id', testId)
+    .is('ended_at', null)
+
   // Mark applied
   await supabase
     .from('ab_tests')
     .update({
       status: 'completed',
       completed_at: new Date().toISOString(),
-      completed_reason: 'auto_resolve',
+      completed_reason: 'manual_apply',
       winner_applied_at: new Date().toISOString(),
       applied_by: 'manual',
       revert_expires_at: new Date(Date.now() + 7 * 86400000).toISOString(),
@@ -1303,6 +1310,19 @@ export async function cancelGracePeriod(
   }
 
   const supabase = getSupabaseServiceClient()
+
+  // Guard: ensure test is actually in grace period
+  const { data: test } = await supabase
+    .from('ab_tests')
+    .select('id, status, grace_expires_at')
+    .eq('id', testId)
+    .eq('site_id', siteId)
+    .single()
+
+  if (!test || !test.grace_expires_at || test.status !== 'active') {
+    return { ok: false, error: 'Test not in grace period' }
+  }
+
   await supabase
     .from('ab_tests')
     .update({
