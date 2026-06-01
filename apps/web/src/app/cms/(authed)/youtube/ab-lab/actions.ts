@@ -161,6 +161,13 @@ export async function createAbTest(
     return { ok: false, error: variantError.message }
   }
 
+  // Auto-resolve any pending fatigue alert for this video
+  await supabase
+    .from('youtube_fatigue_alerts')
+    .update({ status: 'resolved', resolved_by_test_id: test.id })
+    .eq('video_id', input.youtube_video_id)
+    .eq('status', 'pending')
+
   revalidateTag('youtube')
   revalidatePath('/cms/youtube/ab-lab')
   return { ok: true, id: test.id }
@@ -926,7 +933,7 @@ export async function createTextVariant(
 
   const { count } = await supabase
     .from('ab_test_variants')
-    .select('*', { count: 'exact', head: true })
+    .select('id', { count: 'exact', head: true })
     .eq('test_id', input.test_id)
 
   if ((count ?? 0) >= 4) return { ok: false, error: 'Maximum 4 variants per test' }
@@ -1073,7 +1080,7 @@ export async function forceRotate(testId: string): Promise<{ ok: boolean; error?
   // Count completed cycles BEFORE closing current (matches cron logic)
   const { count } = await supabase
     .from('ab_test_cycles')
-    .select('*', { count: 'exact', head: true })
+    .select('id', { count: 'exact', head: true })
     .eq('test_id', testId)
     .not('ended_at', 'is', null)
 

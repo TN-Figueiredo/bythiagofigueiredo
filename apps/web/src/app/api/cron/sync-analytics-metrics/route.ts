@@ -3,6 +3,7 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { ensureFreshToken } from '@/lib/social/token-refresh'
 import { detectViral, getIsoWeek } from '@/lib/youtube/analytics-sync'
 import { buildNotification } from '@/lib/youtube/notification-service'
+import { detectFatigue, filterFatigueCandidates } from '@/lib/youtube/ab-fatigue'
 import * as Sentry from '@sentry/nextjs'
 
 const YT_ANALYTICS_BASE = 'https://youtubeanalytics.googleapis.com/v2/reports'
@@ -195,5 +196,68 @@ export async function GET(req: NextRequest) {
     })
   }
 
-  return NextResponse.json({ synced, errors, notifications: notifications.length, ...(errorDetails.length > 0 && { errorDetails }) })
+  // Phase 3: Fatigue detection (once per site, after all channels processed)
+  let fatigueAlerts = 0
+  const siteIds = [...new Set(channels.map(c => c.site_id))]
+
+  for (const siteId of siteIds) {
+    try {
+      const { data: allVideos } = await supabase
+        .from('youtube_videos')
+        .select('id, published_at, view_count')
+        .eq('site_id', siteId)
+        .not('published_at', 'is', null)
+
+      const { data: activeTestVideos } = await supabase
+        .from('ab_tests')
+        .select('youtube_video_id')
+        .eq('site_id', siteId)
+        .in('status', ['active', 'draft', 'paused', 'queued'])
+
+      const activeVideoIds = new Set((activeTestVideos ?? []).map(t => t.youtube_video_id))
+      const candidates = filterFatigueCandidates(allVideos ?? [], activeVideoIds)
+
+      for (const candidate of candidates) {
+        const sixtyDaysAgo = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10)
+        const { data: metrics } = await supabase
+          .from('youtube_video_analytics')
+          .select('date, ctr, views')
+          .eq('youtube_video_id', candidate.id)
+          .gte('date', sixtyDaysAgo)
+          .order('date', { ascending: true })
+
+        if (!metrics?.length) continue
+
+        const result = detectFatigue(
+          metrics.map(m => ({ date: m.date as string, ctr: (m.ctr as number | null) ?? 0, views: (m.views as number | null) ?? 0 })),
+          candidate.published_at,
+        )
+
+        if (result?.isFatigued) {
+          const { data: existing } = await supabase
+            .from('youtube_fatigue_alerts')
+            .select('id')
+            .eq('video_id', candidate.id)
+            .eq('status', 'pending')
+            .limit(1)
+            .maybeSingle()
+
+          if (!existing) {
+            await supabase.from('youtube_fatigue_alerts').insert({
+              video_id: candidate.id,
+              site_id: siteId,
+              z_score: result.zScore,
+              expected_ctr: result.expectedCtr,
+              actual_ctr: result.actualCtr,
+            })
+            fatigueAlerts++
+          }
+        }
+      }
+    } catch (e) {
+      Sentry.captureException(e)
+    }
+  }
+
+  return NextResponse.json({ synced, errors, notifications: notifications.length, fatigueAlerts, ...(errorDetails.length > 0 && { errorDetails }) })
 }
