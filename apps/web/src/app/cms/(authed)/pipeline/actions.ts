@@ -11,8 +11,8 @@ import { generateCode, DEFAULT_CHECKLISTS, getNextStage, getPreviousStage, getSt
 import type { Format } from '@/lib/pipeline/schemas'
 import type { PipelineItem } from '@/lib/pipeline/graduation'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- server actions return polymorphic data shapes; callers cast to known types
-type ActionResult = { ok: true; data?: any } | { ok: false; error: string }
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- default `any` keeps backward compat; callers opt-in to stricter types via generic
+type ActionResult<T = any> = { ok: true; data?: T } | { ok: false; error: string }
 
 function zodError(err: z.ZodError): string {
   return err.issues.map((i) => i.message).join(', ') || 'Validation failed'

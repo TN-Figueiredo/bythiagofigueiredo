@@ -1164,6 +1164,213 @@ export async function forceRotate(testId: string): Promise<{ ok: boolean; error?
 }
 
 // ---------------------------------------------------------------------------
+// applyWinnerNow — Manual early apply (skips grace period)
+// ---------------------------------------------------------------------------
+
+export async function applyWinnerNow(
+  testId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  let siteId: string
+  try {
+    siteId = await requireEditAccess()
+  } catch (e) {
+    return { ok: false, error: (e as Error).message }
+  }
+
+  const supabase = getSupabaseServiceClient()
+
+  const { data: test } = await supabase
+    .from('ab_tests')
+    .select('id, site_id, status, winner_variant_id, youtube_video_id, test_type, original_title, original_description, grace_expires_at, winner_applied_at')
+    .eq('id', testId)
+    .eq('site_id', siteId)
+    .single()
+
+  if (!test || !test.winner_variant_id || test.winner_applied_at) {
+    return { ok: false, error: 'Test not in grace period or already applied' }
+  }
+
+  // Get winner variant
+  const { data: variant } = await supabase
+    .from('ab_test_variants')
+    .select('id, blob_url, title_text, description_text, is_original')
+    .eq('id', test.winner_variant_id)
+    .single()
+
+  if (!variant) return { ok: false, error: 'Winner variant not found' }
+
+  // Get channel for preflight
+  const { data: channel } = await supabase
+    .from('youtube_channels')
+    .select('channel_id')
+    .eq('site_id', siteId)
+    .limit(1)
+    .single()
+
+  // Pre-flight check
+  const preflight = await preflightTokenCheck(siteId, 'youtube', channel?.channel_id as string | undefined)
+  if (!preflight.ok) return { ok: false, error: `Token inválido: ${preflight.reason}` }
+
+  // Get YouTube video ID
+  const { data: video } = await supabase
+    .from('youtube_videos')
+    .select('youtube_video_id')
+    .eq('id', test.youtube_video_id)
+    .single()
+
+  if (!video?.youtube_video_id) return { ok: false, error: 'Video not found' }
+
+  // Apply based on test_type
+  const testType = test.test_type as string
+  try {
+    if (testType === 'thumbnail' || testType === 'combo') {
+      if (variant.blob_url) {
+        const { buffer, contentType } = await fetchVariantImageBuffer(variant.blob_url as string)
+        await setThumbnail(video.youtube_video_id as string, buffer, contentType, preflight.accessToken)
+      }
+    }
+    if (testType === 'title' || testType === 'description' || testType === 'combo') {
+      const title = (variant.title_text as string | null) ?? (test.original_title as string | null)
+      const description = (variant.description_text as string | null) ?? (test.original_description as string | null)
+      if (title || description) {
+        await updateVideoMetadata(video.youtube_video_id as string, title, description, preflight.accessToken)
+      }
+    }
+  } catch (err) {
+    return { ok: false, error: `YouTube API error: ${(err as Error).message}` }
+  }
+
+  // Mark applied
+  await supabase
+    .from('ab_tests')
+    .update({
+      status: 'completed',
+      completed_at: new Date().toISOString(),
+      completed_reason: 'auto_resolve',
+      winner_applied_at: new Date().toISOString(),
+      applied_by: 'manual',
+      revert_expires_at: new Date(Date.now() + 7 * 86400000).toISOString(),
+      grace_expires_at: null,
+    })
+    .eq('id', testId)
+
+  revalidatePath('/cms/youtube/ab-lab')
+  return { ok: true }
+}
+
+// ---------------------------------------------------------------------------
+// cancelGracePeriod — Cancel auto-apply, complete without applying winner
+// ---------------------------------------------------------------------------
+
+export async function cancelGracePeriod(
+  testId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  let siteId: string
+  try {
+    siteId = await requireEditAccess()
+  } catch (e) {
+    return { ok: false, error: (e as Error).message }
+  }
+
+  const supabase = getSupabaseServiceClient()
+  await supabase
+    .from('ab_tests')
+    .update({
+      status: 'completed',
+      completed_at: new Date().toISOString(),
+      completed_reason: 'manual_no_apply',
+      grace_expires_at: null,
+    })
+    .eq('id', testId)
+    .eq('site_id', siteId)
+
+  revalidatePath('/cms/youtube/ab-lab')
+  return { ok: true }
+}
+
+// ---------------------------------------------------------------------------
+// revertWinner — Restore original (7-day window)
+// ---------------------------------------------------------------------------
+
+export async function revertWinner(
+  testId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  let siteId: string
+  try {
+    siteId = await requireEditAccess()
+  } catch (e) {
+    return { ok: false, error: (e as Error).message }
+  }
+
+  const supabase = getSupabaseServiceClient()
+
+  const { data: test } = await supabase
+    .from('ab_tests')
+    .select('id, site_id, youtube_video_id, test_type, original_thumbnail_url, original_title, original_description, revert_expires_at, winner_applied_at')
+    .eq('id', testId)
+    .eq('site_id', siteId)
+    .single()
+
+  if (!test || !test.winner_applied_at) {
+    return { ok: false, error: 'Test has no applied winner' }
+  }
+
+  if (!test.revert_expires_at || new Date(test.revert_expires_at as string) < new Date()) {
+    return { ok: false, error: 'Revert window expired (7 days)' }
+  }
+
+  // Get channel for preflight
+  const { data: channel } = await supabase
+    .from('youtube_channels')
+    .select('channel_id')
+    .eq('site_id', siteId)
+    .limit(1)
+    .single()
+
+  const preflight = await preflightTokenCheck(siteId, 'youtube', channel?.channel_id as string | undefined)
+  if (!preflight.ok) return { ok: false, error: `Token inválido: ${preflight.reason}` }
+
+  const { data: video } = await supabase
+    .from('youtube_videos')
+    .select('youtube_video_id')
+    .eq('id', test.youtube_video_id)
+    .single()
+
+  if (!video?.youtube_video_id) return { ok: false, error: 'Video not found' }
+
+  const testType = test.test_type as string
+  try {
+    if ((testType === 'thumbnail' || testType === 'combo') && test.original_thumbnail_url) {
+      const { buffer, contentType } = await fetchVariantImageBuffer(test.original_thumbnail_url as string)
+      await setThumbnail(video.youtube_video_id as string, buffer, contentType, preflight.accessToken)
+    }
+    if (testType === 'title' || testType === 'description' || testType === 'combo') {
+      await updateVideoMetadata(
+        video.youtube_video_id as string,
+        test.original_title as string | null,
+        test.original_description as string | null,
+        preflight.accessToken,
+      )
+    }
+  } catch (err) {
+    return { ok: false, error: `YouTube API error: ${(err as Error).message}` }
+  }
+
+  // Clear applied state
+  await supabase
+    .from('ab_tests')
+    .update({
+      winner_applied_at: null,
+      revert_expires_at: null,
+      applied_by: null,
+    })
+    .eq('id', testId)
+
+  revalidatePath('/cms/youtube/ab-lab')
+  return { ok: true }
+}
+
+// ---------------------------------------------------------------------------
 // fetchAbBriefingData
 // ---------------------------------------------------------------------------
 

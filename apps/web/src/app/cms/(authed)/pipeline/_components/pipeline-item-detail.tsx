@@ -4,31 +4,25 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import { updatePipelineItem, advancePipelineItem, retreatPipelineItem, archivePipelineItem, restorePipelineItem, toggleChecklist, searchBlogPostsAction, graduatePipelineToSocial } from '../actions'
-import { WORKFLOWS } from '@/lib/pipeline/workflows'
-import { getPriorityConfig, getStaleness, getFormatIcon, getChecklistProgress, getVvsTier } from '@/lib/pipeline/gem-design'
-import { GemVvsRing } from './gem-vvs-ring'
+import { updatePipelineItem, advancePipelineItem, retreatPipelineItem, archivePipelineItem, restorePipelineItem, toggleChecklist, searchBlogPostsAction } from '../actions'
+import { getFormatIcon, getPriorityConfig } from '@/lib/pipeline/gem-design'
 import { TabContainer } from './detail/tab-container'
 import { useSection } from './detail/use-section'
 import { SectionToolbar } from './detail/section-toolbar'
 import { SaveFooter } from './detail/save-footer'
-import { CoworkDeepLink } from '@/components/cms/cowork-deep-link'
-import { buildCoworkInstruction } from '@/lib/pipeline/cowork-instructions'
 import { ConflictBanner } from './detail/conflict-banner'
 import { SectionContent } from './detail/section-content'
 import { EmptySection } from './detail/renderers/empty-section'
 import { getSectionKey, type SectionData, type SectionDefinition } from '@/lib/pipeline/sections'
-import { BLOG_CATEGORIES, LANGUAGES, type Format, type Language } from '@/lib/pipeline/schemas'
-import { computeValidationScore, VVS_PUBLISH_THRESHOLD, type ValidationScore } from '@/lib/pipeline/validation'
-import { BlogPostCard } from './detail/blog-post-card'
-import { BlogPostSearchDialog } from './detail/blog-post-search-dialog'
+import { type Format, type Language } from '@/lib/pipeline/schemas'
+import { computeValidationScore, type ValidationScore } from '@/lib/pipeline/validation'
 import { useMediaGallery } from '../../_shared/media/use-media-gallery'
 import { MediaGalleryModal } from '../../_shared/media/media-gallery-modal'
 import { CROP_PRESETS, type MediaAssetResult } from '../../_shared/media/types'
 import { trackMediaUsageAction } from '../../media/actions'
 import { PipelineMediaProvider, type ImageSelectResult } from './detail/editors/pipeline-media-context'
-import { ImageIcon, X, ChevronDown } from 'lucide-react'
-import { SocialConfigEditor } from './detail/social-config-editor'
+import { ImageIcon, X } from 'lucide-react'
+import { PipelineSidebar } from './detail/pipeline-sidebar'
 import type { SocialConfig } from '@/lib/social/types'
 
 interface ChecklistItem { label: string; done: boolean; toggled_at: string | null }
@@ -77,16 +71,6 @@ interface Props {
   dependencies: Dependency[]
 }
 
-const HISTORY_EVENT_LABELS: Record<string, string> = {
-  stage_change: 'Stage',
-  field_update: 'Campo',
-  section_save: 'Seção',
-  checklist_toggle: 'Checklist',
-  status_change: 'Status',
-  archive: 'Arquivo',
-  restore: 'Restaurado',
-}
-
 function hasPendingChanges(item: ItemData): boolean {
   if (!item.sections || item.stage !== 'published') return false
 
@@ -112,23 +96,11 @@ function hasPendingChanges(item: ItemData): boolean {
   return false
 }
 
-// ─── ActiveTabObserver ─────────────────────────────────────────────────────────
-function ActiveTabObserver({
-  activeTab,
-  onCollapse,
-  manualOverrideRef,
-  children,
-}: {
-  activeTab: string
-  onCollapse: (collapsed: boolean) => void
-  manualOverrideRef: React.RefObject<boolean>
-  children: React.ReactNode
-}) {
-  useEffect(() => {
-    if (manualOverrideRef.current) return
-    onCollapse(activeTab === 'draft')
-  }, [activeTab, onCollapse, manualOverrideRef])
-  return <>{children}</>
+// ─── ActiveTabSync ─────────────────────────────────────────────────────────────
+// Syncs activeTab from the TabContainer render prop back to the parent via useEffect.
+function ActiveTabSync({ activeTab, onTabChange }: { activeTab: string; onTabChange: (tab: string) => void }) {
+  useEffect(() => { onTabChange(activeTab) }, [activeTab, onTabChange])
+  return null
 }
 
 // ─── SectionPanel ──────────────────────────────────────────────────────────────
@@ -242,7 +214,7 @@ function SectionPanel({ sectionDef, activeSub, lang, itemId, itemVersion, itemCo
           className="mx-4 mt-3 flex items-center gap-2 rounded-md px-3 py-2 text-xs"
           style={{ background: 'color-mix(in srgb, var(--gem-accent) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--gem-accent) 25%, transparent)', color: 'var(--gem-accent)' }}
         >
-          Dados extraídos do Rascunho. Salve para criar a seção SEO separada.
+          Dados extraidos do Rascunho. Salve para criar a secao SEO separada.
         </div>
       )}
 
@@ -272,35 +244,52 @@ function SectionPanel({ sectionDef, activeSub, lang, itemId, itemVersion, itemCo
   )
 }
 
-function GraduateSocialButton({ itemRef, onSuccess }: { itemRef: React.RefObject<ItemData>; onSuccess: () => void }) {
-  const [state, setState] = useState<'idle' | 'creating' | 'done'>('idle')
+// ─── CoverImageSection ────────────────────────────────────────────────────────
+function CoverImageSection({
+  coverImageUrl,
+  itemTitle,
+  onOpenGallery,
+  onRemove,
+}: {
+  coverImageUrl: string | null
+  itemTitle: string
+  onOpenGallery: () => void
+  onRemove: () => void
+}) {
+  if (coverImageUrl) {
+    return (
+      <div className="relative group rounded-lg overflow-hidden" style={{ maxHeight: 240 }}>
+        <img src={coverImageUrl} alt={itemTitle || 'Cover image'} className="w-full object-cover" style={{ maxHeight: 240 }} />
+        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+          <button
+            type="button"
+            onClick={onOpenGallery}
+            className="text-xs text-white bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-md transition-colors"
+          >
+            Trocar
+          </button>
+          <button
+            type="button"
+            onClick={onRemove}
+            aria-label="Remover capa"
+            className="text-xs text-white bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-md transition-colors"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <button
       type="button"
-      disabled={state !== 'idle'}
-      className="w-full mt-2 px-3 py-1.5 rounded text-xs font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
-      style={{ background: 'var(--gem-accent)', color: '#fff' }}
-      onClick={async () => {
-        if (state !== 'idle') return
-        setState('creating')
-        try {
-          const current = itemRef.current
-          const result = await graduatePipelineToSocial(current.id, current.version)
-          if (result.ok) {
-            setState('done')
-            toast.success('Post social criado!')
-            onSuccess()
-          } else {
-            setState('idle')
-            toast.error(result.error || 'Erro ao criar post social')
-          }
-        } catch {
-          setState('idle')
-          toast.error('Erro inesperado ao criar post social')
-        }
-      }}
+      onClick={onOpenGallery}
+      className="w-full flex items-center justify-center gap-2 rounded-lg border border-dashed py-6 transition-colors hover:border-[var(--gem-accent)] hover:bg-[var(--gem-accent)]/5"
+      style={{ borderColor: 'var(--gem-border)', color: 'var(--gem-dim)' }}
     >
-      {state === 'creating' ? 'Criando...' : state === 'done' ? 'Criado' : 'Criar Post Social'}
+      <ImageIcon size={16} />
+      <span className="text-xs">Adicionar capa</span>
     </button>
   )
 }
@@ -324,13 +313,8 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
     }
   }, [])
 
-  const stages = WORKFLOWS[item.format as Format] || []
-  const currentStage = stages.find((s) => s.stage === item.stage)
-  const currentPosition = currentStage?.position ?? 0
-  const priority = getPriorityConfig(item.priority)
-  const staleness = getStaleness(item.updated_at)
   const formatIcon = getFormatIcon(item.format)
-  const checklist = getChecklistProgress(item.production_checklist)
+  const priority = getPriorityConfig(item.priority)
 
   const [coverImageUrl, setCoverImageUrl] = useState<string | null>(item.cover_image_url)
   const [category, setCategory] = useState<string | null>(item.category)
@@ -341,7 +325,6 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
   const [socialConfig, setSocialConfig] = useState<SocialConfig | null>(() => {
     const raw = item.social_config
     if (!raw || typeof raw !== 'object' || typeof (raw as Record<string, unknown>).enabled !== 'boolean') return null
-    // Supabase client untyped; runtime shape check above validates structure
     return raw as unknown as SocialConfig
   })
   const socialConfigDebounceRef = useRef<ReturnType<typeof setTimeout>>(null)
@@ -436,8 +419,8 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
     const newLang = value as Language
     const current = itemRef.current
     if (current.language === 'both' && newLang !== 'both') {
-      const dropping = newLang === 'pt-br' ? 'inglês' : 'português'
-      if (!window.confirm(`Isso vai marcar o conteúdo em ${dropping} como não necessário. Continuar?`)) return
+      const dropping = newLang === 'pt-br' ? 'ingles' : 'portugues'
+      if (!window.confirm(`Isso vai marcar o conteudo em ${dropping} como nao necessario. Continuar?`)) return
     }
     const result = await updatePipelineItem(current.id, current.version, { language: newLang })
     if (result.ok && result.data) { setItem(result.data as typeof item); toast.success('Idioma atualizado') }
@@ -454,18 +437,15 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
   const [isAdvancing, setIsAdvancing] = useState(false)
   const [isRetreating, setIsRetreating] = useState(false)
   const [isRepublishing, setIsRepublishing] = useState(false)
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const manualOverrideRef = useRef(false)
   const [showBlogSearch, setShowBlogSearch] = useState(false)
-  const [socialExpanded, setSocialExpanded] = useState(() => item.social_config != null)
-  const [historyExpanded, setHistoryExpanded] = useState(false)
+  const [activeTab, setActiveTab] = useState<string | undefined>(undefined)
 
   const handleBlogSearch = useCallback(async (query: string) => {
     return searchBlogPostsAction(item.site_id, query)
   }, [item.site_id])
 
   const handleGraduate = useCallback(async (): Promise<{ entity_id?: string }> => {
-    const res = await fetch(`/api/pipeline/items/${item.id}/graduate`, {
+    const res = await fetch(`/api/pipeline/items/${itemRef.current.id}/graduate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ target: 'blog_post' }),
@@ -476,49 +456,66 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
       router.push(`/cms/posts/${json.data.entity_id}`)
     }
     return { entity_id: json.data?.entity_id }
-  }, [item.id, router])
+  }, [router])
 
-  async function handleAdvance() {
+  const handleAdvance = useCallback(async () => {
     setIsAdvancing(true)
     try {
-      const result = await advancePipelineItem(item.id, item.version)
-      if (result.ok) { toast.success('Avançado!'); router.refresh() }
+      const current = itemRef.current
+      const result = await advancePipelineItem(current.id, current.version)
+      if (result.ok) { toast.success('Avancado!'); router.refresh() }
       else toast.error(result.error)
+    } catch {
+      toast.error('Erro ao avancar')
     } finally {
       setIsAdvancing(false)
     }
-  }
+  }, [router])
 
-  async function handleRetreat() {
+  const handleRetreat = useCallback(async () => {
     setIsRetreating(true)
     try {
-      const result = await retreatPipelineItem(item.id, item.version)
+      const current = itemRef.current
+      const result = await retreatPipelineItem(current.id, current.version)
       if (result.ok) { toast.success('Recuado'); router.refresh() }
       else toast.error(result.error)
+    } catch {
+      toast.error('Erro ao recuar')
     } finally {
       setIsRetreating(false)
     }
-  }
+  }, [router])
 
-  async function handleArchive() {
+  const handleArchive = useCallback(async () => {
     if (!confirm('Arquivar este item?')) return
-    const result = await archivePipelineItem(item.id)
-    if (result.ok) { toast.success('Arquivado'); router.push(`/cms/pipeline/${item.format}`) }
-    else toast.error(result.error)
-  }
+    try {
+      const current = itemRef.current
+      const result = await archivePipelineItem(current.id)
+      if (result.ok) { toast.success('Arquivado'); router.push(`/cms/pipeline/${current.format}`) }
+      else toast.error(result.error)
+    } catch {
+      toast.error('Erro ao arquivar')
+    }
+  }, [router])
 
-  async function handleRestore() {
-    const result = await restorePipelineItem(item.id)
-    if (result.ok) { toast.success('Restaurado'); router.refresh() }
-    else toast.error(result.error)
-  }
+  const handleRestore = useCallback(async () => {
+    try {
+      const current = itemRef.current
+      const result = await restorePipelineItem(current.id)
+      if (result.ok) { toast.success('Restaurado'); router.refresh() }
+      else toast.error(result.error)
+    } catch {
+      toast.error('Erro ao restaurar')
+    }
+  }, [router])
 
-  async function handleRepublish() {
+  const handleRepublish = useCallback(async () => {
     setIsRepublishing(true)
     try {
+      const current = itemRef.current
       const { materializeBlogPost } = await import('@/lib/pipeline/materialize-blog-client')
       const result = await materializeBlogPost({
-        pipelineItemId: item.id,
+        pipelineItemId: current.id,
         targetStage: 'published',
         scheduledFor: null,
         vvsScore: vvsBreakdown.overall,
@@ -534,15 +531,16 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
     } finally {
       setIsRepublishing(false)
     }
-  }
+  }, [router])
 
-  async function handleToggleChecklist(index: number, done: boolean) {
-    const optimistic = { ...item, production_checklist: item.production_checklist.map((c, i) => i === index ? { ...c, done } : c) }
+  const handleToggleChecklist = useCallback(async (index: number, done: boolean) => {
+    const current = itemRef.current
+    const optimistic = { ...current, production_checklist: current.production_checklist.map((c, i) => i === index ? { ...c, done } : c) }
     setItem(optimistic)
-    const result = await toggleChecklist(item.id, index, done)
+    const result = await toggleChecklist(current.id, index, done)
     if (result.ok && result.data) setItem(result.data as typeof item)
-    else setItem(item)
-  }
+    else setItem(current)
+  }, [])
 
   // Normalise sections to a safe Record
   const sectionsMap = (item.sections ?? {}) as Record<string, SectionData>
@@ -561,11 +559,9 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
     language: item.language,
   }), [item.title_pt, item.title_en, item.hook, item.synopsis, item.body_content, item.tags, item.production_checklist, item.format_metadata, item.format, item.sections, item.language])
 
-  const vvsColor = getVvsTier(vvsBreakdown.overall).color
-
   return (
     <PipelineMediaProvider onRequestImage={handleRequestInlineImage}>
-    <div className="flex gap-5" style={{ padding: '20px 24px', maxWidth: 1440, margin: '0 auto' }}>
+    <div className="flex flex-col lg:flex-row gap-5" style={{ padding: '20px 24px', maxWidth: 1440, margin: '0 auto' }}>
       {/* Main content */}
       <div className="flex-1 min-w-0 flex flex-col gap-3.5">
         {/* Breadcrumb */}
@@ -578,46 +574,20 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
         </nav>
 
         {/* Cover image */}
-        {coverImageUrl ? (
-          <div className="relative group rounded-lg overflow-hidden" style={{ maxHeight: 240 }}>
-            <img src={coverImageUrl} alt={item.title_pt || item.title_en || 'Cover image'} className="w-full object-cover" style={{ maxHeight: 240 }} />
-            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
-              <button
-                type="button"
-                onClick={() => coverGallery.openGallery({ folder: 'blog', cropPreset: CROP_PRESETS['blog-cover'] })}
-                className="text-xs text-white bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-md transition-colors"
-              >
-                Trocar
-              </button>
-              <button
-                type="button"
-                onClick={handleCoverRemove}
-                aria-label="Remover capa"
-                className="text-xs text-white bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-md transition-colors"
-              >
-                <X size={14} />
-              </button>
-            </div>
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => coverGallery.openGallery({ folder: 'blog', cropPreset: CROP_PRESETS['blog-cover'] })}
-            className="w-full flex items-center justify-center gap-2 rounded-lg border border-dashed py-6 transition-colors hover:border-[var(--gem-accent)] hover:bg-[var(--gem-accent)]/5"
-            style={{ borderColor: 'var(--gem-border)', color: 'var(--gem-dim)' }}
-          >
-            <ImageIcon size={16} />
-            <span className="text-xs">Adicionar capa</span>
-          </button>
-        )}
+        <CoverImageSection
+          coverImageUrl={coverImageUrl}
+          itemTitle={item.title_pt || item.title_en || ''}
+          onOpenGallery={() => coverGallery.openGallery({ folder: 'blog', cropPreset: CROP_PRESETS['blog-cover'] })}
+          onRemove={handleCoverRemove}
+        />
 
         <input
           type="text"
           value={titlePt}
           onChange={(e) => { setTitlePt(e.target.value); debouncedSave('title_pt', e.target.value) }}
-          placeholder="Título do conteúdo"
-          aria-label="Título do conteúdo"
-          className="w-full bg-transparent border border-transparent rounded-lg hover:border-[var(--gem-border)] hover:bg-[var(--gem-surface-hi)] focus:border-[var(--gem-accent)] focus:bg-[var(--gem-well)] focus:shadow-[0_0_0_2px_rgba(99,102,241,0.12)] focus:outline-none transition-all duration-150"
+          placeholder="Titulo do conteudo"
+          aria-label="Titulo do conteudo"
+          className="w-full bg-transparent border border-transparent rounded-lg hover:border-[var(--gem-border)] hover:bg-[var(--gem-surface-hi)] focus:border-[var(--gem-accent)] focus:bg-[var(--gem-well)] focus:shadow-[var(--gem-shadow-focus)] focus:outline-none transition-all duration-150"
           style={{ color: 'var(--gem-text)', fontSize: 24, fontWeight: 700, letterSpacing: '-0.4px', lineHeight: 1.3, padding: '10px 14px' }}
         />
 
@@ -637,10 +607,10 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
             onChange={(e) => { setHook(e.target.value); debouncedSave('hook', e.target.value) }}
             onFocus={() => setFocusedField('hook')}
             onBlur={() => setFocusedField(null)}
-            placeholder="O que prende a audiência em uma frase?"
-            aria-label="Hook do conteúdo"
+            placeholder="O que prende a audiencia em uma frase?"
+            aria-label="Hook do conteudo"
             aria-labelledby={hook ? `hook-label-${item.id}` : undefined}
-            className="w-full bg-transparent border border-transparent rounded-r-lg hover:border-[var(--gem-border)] hover:bg-[var(--gem-surface-hi)] focus:border-[var(--gem-accent)] focus:bg-[var(--gem-well)] focus:shadow-[0_0_0_2px_rgba(99,102,241,0.12)] focus:outline-none transition-all duration-150"
+            className="w-full bg-transparent border border-transparent rounded-r-lg hover:border-[var(--gem-border)] hover:bg-[var(--gem-surface-hi)] focus:border-[var(--gem-accent)] focus:bg-[var(--gem-well)] focus:shadow-[var(--gem-shadow-focus)] focus:outline-none transition-all duration-150"
             style={{
               color: hook ? '#b8c5d6' : undefined,
               fontSize: 15,
@@ -674,11 +644,11 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
             onChange={(e) => { setSynopsis(e.target.value); debouncedSave('synopsis', e.target.value) }}
             onFocus={() => setFocusedField('synopsis')}
             onBlur={() => setFocusedField(null)}
-            placeholder="Sobre o que é esse conteúdo? Contexto, tese, estrutura..."
+            placeholder="Sobre o que e esse conteudo? Contexto, tese, estrutura..."
             aria-label="Sinopse"
             aria-labelledby={synopsis ? `synopsis-label-${item.id}` : undefined}
             rows={3}
-            className="w-full bg-transparent border border-transparent rounded-r-lg hover:border-[var(--gem-border)] hover:bg-[var(--gem-surface-hi)] focus:border-[var(--gem-accent)] focus:bg-[var(--gem-well)] focus:shadow-[0_0_0_2px_rgba(99,102,241,0.12)] focus:outline-none transition-all duration-150 resize-y"
+            className="w-full bg-transparent border border-transparent rounded-r-lg hover:border-[var(--gem-border)] hover:bg-[var(--gem-surface-hi)] focus:border-[var(--gem-accent)] focus:bg-[var(--gem-well)] focus:shadow-[var(--gem-shadow-focus)] focus:outline-none transition-all duration-150 resize-y"
             style={{
               color: 'var(--gem-muted)',
               fontSize: 13,
@@ -708,19 +678,16 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
           itemTitle={item.title_pt || item.title_en || ''}
           itemLanguage={item.language as 'pt-br' | 'en' | 'both'}
         >
-          {({ activeTab, activeSub, lang: tabLang, sections, sectionDefs }) => {
-            const activeDef = sectionDefs.find(s => s.key === activeTab)
+          {({ activeTab: tabActiveTab, activeSub, lang: tabLang, sections, sectionDefs }) => {
+            const activeDef = sectionDefs.find(s => s.key === tabActiveTab)
             if (!activeDef) return null
             return (
-              <ActiveTabObserver
-                activeTab={activeTab}
-                onCollapse={setSidebarCollapsed}
-                manualOverrideRef={manualOverrideRef}
-              >
+              <>
+                <ActiveTabSync activeTab={tabActiveTab} onTabChange={setActiveTab} />
                 {hasPendingChanges(item) && (
                   <div className="flex items-center gap-2 ml-4 mb-2">
                     <span className="text-xs text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded">
-                      Mudanças pendentes
+                      Mudancas pendentes
                     </span>
                     <button
                       onClick={handleRepublish}
@@ -732,7 +699,7 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
                   </div>
                 )}
                 <SectionPanel
-                  key={`${activeTab}-${activeSub ?? ''}-${tabLang}`}
+                  key={`${tabActiveTab}-${activeSub ?? ''}-${tabLang}`}
                   sectionDef={activeDef}
                   activeSub={activeSub}
                   lang={tabLang}
@@ -752,347 +719,39 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
                   blogSlug={typeof item.format_metadata?.slug === 'string' ? item.format_metadata.slug : null}
                   socialPostId={item.social_post_id}
                 />
-              </ActiveTabObserver>
+              </>
             )
           }}
         </TabContainer>
       </div>
 
       {/* Sidebar */}
-      <aside
-        className={`shrink-0 flex flex-col gap-2.5 sticky top-5 self-start max-h-[calc(100vh-40px)] overflow-y-auto transition-all duration-200 ease-in-out ${sidebarCollapsed ? 'w-12' : 'w-68'}`}
-        style={{ scrollbarWidth: 'thin' }}
-        aria-label="Item details"
-      >
-        {sidebarCollapsed ? (
-          <div className="flex flex-col items-center gap-2.5 py-3">
-            <div className="w-8 h-8 rounded-full border-2 flex items-center justify-center text-xs font-bold"
-              style={{ borderColor: vvsColor, color: vvsColor }}>
-              {vvsBreakdown.overall || '—'}
-            </div>
-            <button onClick={() => { manualOverrideRef.current = true; setSidebarCollapsed(false) }} title="Expandir painel lateral"
-              className="w-7 h-7 rounded-md flex items-center justify-center text-xs hover:opacity-80"
-              style={{ background: 'var(--gem-well)', color: 'var(--gem-muted)' }}>
-              &raquo;
-            </button>
-          </div>
-        ) : (
-        <>{/* Collapse button */}
-        <div className="flex justify-end">
-          <button onClick={() => { manualOverrideRef.current = true; setSidebarCollapsed(true) }} title="Recolher painel lateral"
-            className="w-7 h-7 rounded-md flex items-center justify-center text-xs hover:opacity-80"
-            style={{ background: 'var(--gem-well)', color: 'var(--gem-muted)' }}>
-            &laquo;
-          </button>
-        </div>
-
-        {/* ── Group 1: Stage & Metadata ── */}
-        <div className="rounded-lg border p-4" style={{ backgroundColor: 'var(--gem-surface)', borderColor: 'var(--gem-border)' }}>
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-medium px-2 py-0.5 rounded" style={{ backgroundColor: priority.accentDim, color: priority.accent }}>
-              {currentStage?.label_pt || item.stage}
-            </span>
-            <span className="text-[10px]" style={{ color: 'var(--gem-dim)' }}>{staleness.label}</span>
-          </div>
-          <div className="flex gap-1 mb-3" role="progressbar" aria-valuemin={0} aria-valuenow={currentPosition} aria-valuemax={stages.length - 1} aria-label="Stage progress">
-            {stages.map((s) => {
-              const status = s.position < currentPosition ? 'completed' : s.position === currentPosition ? 'active' : 'pending'
-              return (
-                <div
-                  key={s.stage}
-                  className="h-1.5 flex-1 rounded-sm transition-colors"
-                  title={s.label_pt}
-                  aria-label={`${s.label_pt}: ${status === 'completed' ? 'concluído' : status === 'active' ? 'atual' : 'pendente'}`}
-                  style={{
-                    backgroundColor: status === 'completed' ? 'var(--gem-done)' : status === 'active' ? priority.accent : 'transparent',
-                    border: status === 'pending' ? '1px dashed var(--gem-border)' : 'none',
-                  }}
-                />
-              )
-            })}
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={handleRetreat}
-              disabled={isRetreating || isAdvancing || currentPosition === 0}
-              className="flex-1 text-xs py-1.5 rounded border transition-colors hover:bg-white/5"
-              style={{
-                borderColor: 'var(--gem-border)',
-                color: 'var(--gem-muted)',
-                opacity: isRetreating || isAdvancing || currentPosition === 0 ? 0.4 : 1,
-                cursor: isRetreating || isAdvancing || currentPosition === 0 ? 'default' : 'pointer',
-              }}
-            >
-              {isRetreating ? '⏳ Recuando...' : '← Recuar'}
-            </button>
-            <button
-              onClick={handleAdvance}
-              disabled={isAdvancing || isRetreating}
-              className="flex-1 text-xs py-1.5 rounded transition-opacity hover:opacity-80"
-              style={{
-                backgroundColor: 'var(--gem-done)',
-                color: 'white',
-                opacity: isAdvancing || isRetreating ? 0.5 : 1,
-                cursor: isAdvancing || isRetreating ? 'default' : 'pointer',
-              }}
-            >
-              {isAdvancing ? '⏳ Avançando...' : 'Avançar →'}
-            </button>
-          </div>
-          {item.is_archived ? (
-            <button onClick={handleRestore} className="w-full mt-2 text-xs py-1.5 rounded border transition-colors hover:bg-emerald-500/10" style={{ borderColor: 'var(--gem-done)', color: 'var(--gem-done)' }}>
-              Restaurar
-            </button>
-          ) : (
-            <button onClick={handleArchive} className="w-full mt-2 text-xs py-1.5 rounded transition-colors hover:bg-red-500/20" style={{ backgroundColor: 'color-mix(in srgb, var(--gem-danger) 10%, transparent)', color: 'var(--gem-danger)' }}>
-              Arquivar
-            </button>
-          )}
-
-          {/* Metadata */}
-          <dl className="mt-3 pt-3 space-y-1.5 text-xs" style={{ borderTop: '1px solid var(--gem-border)' }}>
-            <div className="flex justify-between">
-              <dt style={{ color: 'var(--gem-dim)' }}>Formato</dt>
-              <dd className="flex items-center gap-1">
-                <span>{formatIcon.icon}</span>
-                <span style={{ color: 'var(--gem-muted)' }}>{formatIcon.label}</span>
-              </dd>
-            </div>
-            <div className="flex justify-between items-center">
-              <dt style={{ color: 'var(--gem-dim)' }}>Idioma</dt>
-              <dd className="flex items-center gap-1.5">
-                <select
-                  value={item.language}
-                  onChange={(e) => { void handleLanguageChange(e.target.value) }}
-                  aria-label="Idioma do conteúdo"
-                  className="text-[10px] px-1.5 py-0.5 rounded bg-transparent border cursor-pointer focus:outline-none focus:border-[var(--gem-accent)]"
-                  style={{ color: 'var(--gem-muted)', borderColor: 'var(--gem-border)' }}
-                >
-                  {LANGUAGES.map((l) => (
-                    <option key={l} value={l}>{l === 'pt-br' ? 'PT-BR' : l === 'en' ? 'EN' : 'PT+EN'}</option>
-                  ))}
-                </select>
-                {item.language !== 'both' && (
-                  <CoworkDeepLink
-                    instruction={buildCoworkInstruction('pipeline-translate', {
-                      code: item.code,
-                      locale: item.language === 'pt-br' ? 'en' : 'pt-br',
-                    })}
-                    variant="inline"
-                    label={`+ ${item.language === 'pt-br' ? 'EN' : 'PT'}`}
-                  />
-                )}
-              </dd>
-            </div>
-            <div className="flex justify-between">
-              <dt style={{ color: 'var(--gem-dim)' }}>Prioridade</dt>
-              <dd><span className="text-[10px] px-1 py-0.5 rounded" style={{ backgroundColor: priority.accentDim, color: priority.accent }}>{priority.label}</span></dd>
-            </div>
-            {item.format === 'blog_post' && (
-              <div className="flex justify-between items-center">
-                <dt style={{ color: 'var(--gem-dim)' }}>Categoria</dt>
-                <dd>
-                  <select
-                    value={category ?? ''}
-                    onChange={(e) => handleCategoryChange(e.target.value)}
-                    aria-label="Categoria do post"
-                    className="text-[10px] px-1.5 py-0.5 rounded bg-transparent border cursor-pointer focus:outline-none focus:border-[var(--gem-accent)]"
-                    style={{ color: 'var(--gem-muted)', borderColor: 'var(--gem-border)' }}
-                  >
-                    <option value="">Selecionar</option>
-                    {BLOG_CATEGORIES.map((cat) => (
-                      <option key={cat} value={cat}>{cat.charAt(0).toUpperCase() + cat.slice(1)}</option>
-                    ))}
-                  </select>
-                </dd>
-              </div>
-            )}
-            <div className="flex justify-between">
-              <dt style={{ color: 'var(--gem-dim)' }}>Versão</dt>
-              <dd style={{ color: 'var(--gem-muted)' }}>{item.version}</dd>
-            </div>
-          </dl>
-          {item.tags.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1">
-              {item.tags.map((tag) => <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-900/50 text-cyan-300">{tag}</span>)}
-            </div>
-          )}
-          {dependencies.length > 0 && (
-            <div className="mt-2">
-              <p className="text-[10px] mb-1" style={{ color: 'var(--gem-dim)' }}>Dependências:</p>
-              <div className="flex flex-wrap gap-1">
-                {dependencies.map((d, i) => (
-                  <span key={i} className="text-[10px] px-1 py-0.5 rounded bg-red-900/30 text-red-300">{d.depends_on_pipeline.code}</span>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* ── Group 2: Readiness (VVS + Checklist) ── */}
-        <div className="rounded-lg border p-4" style={{ backgroundColor: 'var(--gem-surface)', borderColor: 'var(--gem-border)' }}>
-          <div className="flex items-center gap-3 mb-3">
-            <GemVvsRing score={vvsBreakdown.overall} size={44} />
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium" style={{ color: 'var(--gem-text)' }}>
-                Prontidão {vvsBreakdown.overall > 0 ? `${vvsBreakdown.overall}%` : '—'}
-              </p>
-              <p className="text-[10px]" style={{ color: vvsBreakdown.overall >= VVS_PUBLISH_THRESHOLD ? 'var(--gem-done)' : 'var(--gem-dim)' }}>
-                {vvsBreakdown.overall >= VVS_PUBLISH_THRESHOLD ? 'Pronto para publicar' : `Mínimo ${VVS_PUBLISH_THRESHOLD}% para publicar`}
-              </p>
-            </div>
-          </div>
-          {/* VVS breakdown grid */}
-          <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs mb-3">
-            {([
-              ['Título', vvsBreakdown.breakdown.has_title],
-              ['Hook', vvsBreakdown.breakdown.has_hook],
-              ['Sinopse', vvsBreakdown.breakdown.has_synopsis],
-              ['Conteúdo', vvsBreakdown.breakdown.has_body],
-              ['Tags', vvsBreakdown.breakdown.has_tags],
-              ['Metadata', vvsBreakdown.breakdown.metadata_complete],
-              ...(item.format === 'blog_post' ? [
-                ['Slug', vvsBreakdown.breakdown.has_slug ?? false],
-                ['Resumo', vvsBreakdown.breakdown.has_excerpt ?? false],
-                ['SEO', vvsBreakdown.breakdown.has_seo ?? false],
-                ['Capa', vvsBreakdown.breakdown.has_cover ?? false],
-              ] : []),
-            ] as [string, boolean][]).map(([label, ok]) => (
-              <span key={label} className="flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: ok ? 'var(--gem-done)' : 'transparent', border: ok ? 'none' : '1px solid var(--gem-dim)' }} />
-                <span style={{ color: ok ? 'var(--gem-muted)' : 'var(--gem-dim)' }}>{label}</span>
-              </span>
-            ))}
-          </div>
-          {/* Interactive checklist */}
-          {item.production_checklist.length > 0 && (
-            <div className="space-y-1.5" style={{ borderTop: '1px solid var(--gem-border)', paddingTop: '0.5rem' }}>
-              {item.production_checklist.map((c, i) => (
-                <label key={i} className="flex items-center gap-2 cursor-pointer group">
-                  <input
-                    type="checkbox"
-                    checked={c.done}
-                    onChange={(e) => { void handleToggleChecklist(i, e.target.checked) }}
-                    className="rounded border-slate-600 w-3.5 h-3.5 accent-emerald-500"
-                  />
-                  <span className={`text-xs transition-colors ${c.done ? 'line-through' : 'group-hover:text-white/80'}`} style={{ color: c.done ? 'var(--gem-dim)' : 'var(--gem-muted)' }}>
-                    {c.label}
-                  </span>
-                </label>
-              ))}
-              {checklist.total > 0 && (
-                <div className="flex gap-0.5 mt-1">
-                  {checklist.segments.map((done, i) => (
-                    <div key={i} className="h-1 flex-1 rounded-sm" style={{ backgroundColor: done ? 'var(--gem-done)' : 'var(--gem-well)', boxShadow: done ? '0 0 4px color-mix(in srgb, var(--gem-done) 30%, transparent)' : 'none' }} />
-                  ))}
-                </div>
-              )}
-              {checklist.total > 0 && (
-                <p className="text-[10px] mt-0.5" style={{ color: 'var(--gem-dim)' }}>{checklist.done}/{checklist.total}</p>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* ── Group 3: Blog Post + Social ── */}
-        <BlogPostCard
-          itemId={item.id}
-          linkedPost={item.linked_post ?? null}
-          onGraduate={handleGraduate}
-          onShowSearch={() => setShowBlogSearch(true)}
-        />
-        <BlogPostSearchDialog
-          itemId={item.id}
-          siteId={item.site_id}
-          open={showBlogSearch}
-          onClose={() => setShowBlogSearch(false)}
-          onSearch={handleBlogSearch}
-        />
-
-        {/* Social — collapsible */}
-        <div className="rounded-lg border" style={{ backgroundColor: 'var(--gem-surface)', borderColor: 'var(--gem-border)' }}>
-          <button
-            onClick={() => setSocialExpanded(!socialExpanded)}
-            className="w-full flex items-center justify-between p-3 text-xs font-medium hover:opacity-80"
-            style={{ color: 'var(--gem-text)' }}
-            aria-expanded={socialExpanded}
-            aria-controls="sidebar-social-content"
-          >
-            <span className="flex items-center gap-2">
-              Social
-              {item.social_post_id && (
-                <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--gem-done)' }} />
-              )}
-            </span>
-            <ChevronDown size={14} className={`transition-transform ${socialExpanded ? 'rotate-180' : ''}`} style={{ color: 'var(--gem-dim)' }} />
-          </button>
-          {socialExpanded && (
-            <div id="sidebar-social-content" className="px-3 pb-3">
-              <div className="flex items-center justify-between mb-2">
-                {item.social_post_id && (
-                  <Link
-                    href={`/cms/social/${item.social_post_id}`}
-                    className="text-[10px] hover:underline"
-                    style={{ color: 'var(--gem-accent)' }}
-                  >
-                    Ver post social →
-                  </Link>
-                )}
-                <CoworkDeepLink
-                  instruction={buildCoworkInstruction('pipeline-section', { section: 'social_config', code: item.code })}
-                  variant="inline"
-                  label="Cowork"
-                />
-              </div>
-              <SocialConfigEditor
-                config={socialConfig}
-                onChange={handleSocialConfigChange}
-                disabled={!!item.social_post_id}
-                contentFormat={item.format}
-                autoFillHook={item.hook}
-                autoFillTags={item.tags}
-              />
-              {!item.social_post_id && socialConfig?.enabled && (
-                <GraduateSocialButton itemRef={itemRef} onSuccess={() => router.refresh()} />
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* ── Group 4: History — collapsible ── */}
-        {history.length > 0 && (
-          <div className="rounded-lg border" style={{ backgroundColor: 'var(--gem-surface)', borderColor: 'var(--gem-border)' }}>
-            <button
-              onClick={() => setHistoryExpanded(!historyExpanded)}
-              className="w-full flex items-center justify-between p-3 text-xs font-medium hover:opacity-80"
-              style={{ color: 'var(--gem-text)' }}
-              aria-expanded={historyExpanded}
-              aria-controls="sidebar-history-content"
-            >
-              <span>Histórico <span className="font-normal" style={{ color: 'var(--gem-dim)' }}>({history.length})</span></span>
-              <ChevronDown size={14} className={`transition-transform ${historyExpanded ? 'rotate-180' : ''}`} style={{ color: 'var(--gem-dim)' }} />
-            </button>
-            {historyExpanded && (
-              <div id="sidebar-history-content" className="px-3 pb-3 space-y-2">
-                {history.slice(0, 10).map((h) => (
-                  <div key={h.id} className="flex items-center gap-2 text-xs">
-                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: 'var(--gem-accent)' }} />
-                    <span style={{ color: 'var(--gem-muted)' }}>{HISTORY_EVENT_LABELS[h.event_type] ?? h.event_type}</span>
-                    {h.to_value && <span style={{ color: 'var(--gem-text)' }}>→ {h.to_value}</span>}
-                    <span className="ml-auto text-[10px] shrink-0" style={{ color: 'var(--gem-dim)' }}>
-                      {new Date(h.changed_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
-                    </span>
-                  </div>
-                ))}
-                {history.length > 10 && (
-                  <p className="text-[10px] pt-1" style={{ color: 'var(--gem-dim)' }}>+ {history.length - 10} mais</p>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-        </>)}
-      </aside>
+      <PipelineSidebar
+        item={item}
+        history={history}
+        dependencies={dependencies}
+        vvsBreakdown={vvsBreakdown}
+        onAdvance={handleAdvance}
+        onRetreat={handleRetreat}
+        onArchive={handleArchive}
+        onRestore={handleRestore}
+        onToggleChecklist={handleToggleChecklist}
+        onRepublish={handleRepublish}
+        onCategoryChange={handleCategoryChange}
+        onLanguageChange={handleLanguageChange}
+        onSocialConfigChange={handleSocialConfigChange}
+        onShowBlogSearch={() => setShowBlogSearch(true)}
+        onGraduate={handleGraduate}
+        isAdvancing={isAdvancing}
+        isRetreating={isRetreating}
+        isRepublishing={isRepublishing}
+        socialConfig={socialConfig}
+        showBlogSearch={showBlogSearch}
+        onCloseBlogSearch={() => setShowBlogSearch(false)}
+        onBlogSearch={handleBlogSearch}
+        itemRef={itemRef}
+        activeTab={activeTab}
+      />
 
       <MediaGalleryModal
         {...coverGallery.galleryProps}

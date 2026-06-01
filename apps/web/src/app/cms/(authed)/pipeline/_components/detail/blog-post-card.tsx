@@ -74,7 +74,7 @@ export function BlogPostCard({ itemId, linkedPost, onGraduate, onShowSearch }: P
       style={{
         backgroundColor: 'var(--gem-surface)',
         borderColor: 'var(--gem-border)',
-        borderLeftColor: isPublished ? '#10b981' : undefined,
+        borderLeftColor: isPublished ? 'var(--gem-done)' : undefined,
         borderLeftWidth: isPublished ? 3 : undefined,
       }}
     >
@@ -91,7 +91,7 @@ export function BlogPostCard({ itemId, linkedPost, onGraduate, onShowSearch }: P
               className="text-[10px] px-1 py-0.5 rounded font-medium"
               style={{
                 backgroundColor: isPublished ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)',
-                color: isPublished ? '#10b981' : '#f59e0b',
+                color: isPublished ? 'var(--gem-done)' : 'var(--gem-warn)',
               }}
             >
               {linkedPost.status}
@@ -123,7 +123,7 @@ export function BlogPostCard({ itemId, linkedPost, onGraduate, onShowSearch }: P
                   <button
                     onClick={() => { setShowMenu(false); setShowConfirm(true) }}
                     className="w-full text-left px-2.5 py-1.5 text-xs rounded hover:bg-red-500/10 transition-colors"
-                    style={{ color: '#ef4444' }}
+                    style={{ color: 'var(--gem-danger)' }}
                   >
                     Desvincular
                   </button>
@@ -132,7 +132,7 @@ export function BlogPostCard({ itemId, linkedPost, onGraduate, onShowSearch }: P
             </div>
           </div>
           {showConfirm && (
-            <div className="mt-2 p-2 rounded border" style={{ borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.05)' }}>
+            <div className="mt-2 p-2 rounded border" style={{ borderColor: 'var(--gem-danger)', backgroundColor: 'rgba(239,68,68,0.05)' }}>
               <p className="text-xs mb-2" style={{ color: 'var(--gem-muted)' }}>
                 Desvincular &ldquo;{linkedPost.title}&rdquo;? O post continuará existindo independentemente.
               </p>
@@ -148,7 +148,7 @@ export function BlogPostCard({ itemId, linkedPost, onGraduate, onShowSearch }: P
                   onClick={handleUnlink}
                   disabled={isUnlinking}
                   className="text-xs px-2 py-1 rounded"
-                  style={{ backgroundColor: '#ef4444', color: 'white', opacity: isUnlinking ? 0.5 : 1 }}
+                  style={{ backgroundColor: 'var(--gem-danger)', color: 'white', opacity: isUnlinking ? 0.5 : 1 }}
                 >
                   {isUnlinking ? 'Desvinculando...' : 'Confirmar'}
                 </button>

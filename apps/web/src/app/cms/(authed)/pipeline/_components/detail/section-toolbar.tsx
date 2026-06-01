@@ -30,17 +30,23 @@ export function SectionToolbar({
           {showLang && <span className="text-[10px] font-bold" style={{ color: 'var(--gem-accent)' }}>{lang.toUpperCase()}</span>}
         </span>
         <AiBadge source={source} edited={edited} />
-        {isDirty && (
-          <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'color-mix(in srgb, var(--gem-warn) 12%, transparent)', color: 'var(--gem-warn)' }}>
-            ✏️ não salvo
-          </span>
-        )}
       </div>
       <div className="flex gap-1.5 items-center">
-        <label className="flex items-center gap-1.5 text-[10px] cursor-pointer select-none" style={{ color: 'var(--gem-dim)' }}>
-          <input type="checkbox" checked={isEditing} onChange={(e) => onToggleEdit(e.target.checked)} className="w-3 h-3" style={{ accentColor: 'var(--gem-accent)' }} />
-          Editar
-        </label>
+        <button
+          type="button"
+          aria-pressed={isEditing}
+          onClick={() => onToggleEdit(!isEditing)}
+          className="px-2.5 py-1 text-[10px] font-semibold rounded cursor-pointer select-none flex items-center gap-1.5 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+          style={{
+            background: isEditing ? 'color-mix(in srgb, var(--gem-accent) 15%, transparent)' : 'color-mix(in srgb, var(--gem-surface) 80%, transparent)',
+            color: isEditing ? 'var(--gem-accent)' : 'var(--gem-dim)',
+            border: `1px solid ${isEditing ? 'var(--gem-accent)' : 'var(--gem-border)'}`,
+            outlineColor: 'var(--gem-accent)',
+          }}
+        >
+          {isEditing ? 'Editando' : 'Editar'}
+          <span style={{ fontSize: '8px', opacity: 0.6, fontFamily: 'monospace' }}>&#x2318;E</span>
+        </button>
         <CoworkDeepLink
           instruction={buildCoworkInstruction('pipeline-section', { section: sectionKey, code: itemCode })}
           variant="icon"
@@ -48,16 +54,17 @@ export function SectionToolbar({
         <button
           onClick={onSave}
           disabled={!isDirty || isSaving}
-          className="px-3 py-0.5 text-[10px] font-semibold rounded transition-opacity"
+          className="px-3 py-1 text-[10px] font-semibold rounded transition-opacity focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
           style={{
-            background: 'var(--gem-done)',
-            border: '1px solid var(--gem-done)',
+            background: '#15803d',
+            border: '1px solid #15803d',
             color: 'white',
             opacity: !isDirty || isSaving ? 0.3 : 1,
             cursor: !isDirty || isSaving ? 'default' : 'pointer',
+            outlineColor: 'var(--gem-accent)',
           }}
         >
-          {isSaving ? '⏳' : '💾'} Salvar <span className="text-[8px] px-1 rounded ml-0.5" style={{ border: '1px solid rgba(255,255,255,0.3)', fontFamily: 'monospace' }}>&#x2318;S</span>
+          {isSaving ? 'Salvando...' : 'Salvar'} <span className="text-[8px] px-1 rounded ml-0.5" style={{ border: '1px solid rgba(255,255,255,0.3)', fontFamily: 'monospace' }}>&#x2318;S</span>
         </button>
       </div>
     </div>

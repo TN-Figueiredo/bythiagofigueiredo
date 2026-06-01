@@ -19,7 +19,7 @@ export function ConflictBanner({ onKeepLocal, onAcceptRemote, localContent, remo
 
   return (
     <>
-      <div className="px-4 py-2 flex items-center justify-between flex-wrap gap-1.5 text-xs" style={{ background: 'rgba(245,158,11,0.08)', borderBottom: '1px solid rgba(245,158,11,0.2)' }}>
+      <div role="alert" className="px-4 py-2 flex items-center justify-between flex-wrap gap-1.5 text-xs" style={{ background: 'rgba(245,158,11,0.08)', borderBottom: '1px solid rgba(245,158,11,0.2)' }}>
         <span className="flex items-center gap-1.5" style={{ color: 'var(--gem-warn)' }}>
           ⚠️ Cowork atualizou esta seção. Você tem edições locais não salvas.
         </span>

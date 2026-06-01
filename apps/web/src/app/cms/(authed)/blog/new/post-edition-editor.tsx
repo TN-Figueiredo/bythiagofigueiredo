@@ -1,6 +1,6 @@
 'use client'
 
-import DOMPurify from 'isomorphic-dompurify'
+import DOMPurify from 'dompurify'
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'

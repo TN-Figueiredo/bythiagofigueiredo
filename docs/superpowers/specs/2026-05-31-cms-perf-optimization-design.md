@@ -12,7 +12,7 @@ Every navigation in the CMS triggers 14+ Supabase calls across 3 blocking layers
 
 1. **CMS layout re-executes ~10 queries on every navigation** — 3 sequential auth calls (requireUser → requireArea with internal getUser → user_accessible_sites) + 5 parallel queries (sidebar badges, contacts count, youtube count, research count, 50 notifications with select('*')). Only sidebar badges is cached (unstable_cache 60s TTL).
 
-2. **Zero loading.tsx outside /social** — 69+ CMS routes have no skeleton. No visual feedback while server queries run.
+2. **Few loading.tsx outside /social** — most CMS routes lack skeletons. Some exist (settings, pipeline, contacts, youtube sub-routes) but the top-level CMS layout has none, meaning the shell itself blocks. No visual feedback while layout queries run.
 
 3. **Middleware runs uncached DB query on every request** — `getSiteByDomain()` hits Supabase on all 168 routes including 42 crons that never use site headers.
 
@@ -32,7 +32,7 @@ Total:      ~520ms p50, up to 1.5s+ p95
 **File:** `apps/web/next.config.ts`
 **Change:** Add `staleTimes: { dynamic: 15 }` to the existing `experimental` block after `serverActions`.
 **Impact:** 15-second client-side Router Cache for dynamic pages. Rapid back/forth navigation becomes instant.
-**Risk:** Low. Stable Next.js 15 config. `router.refresh()` bypasses it after mutations.
+**Risk:** Low-Medium. Stable Next.js 15 config. `router.refresh()` bypasses it after mutations. **However:** server actions that end with `redirect()` do NOT trigger `router.refresh()` — the redirect goes through the Router Cache. Must audit all CMS mutation server actions: those using `redirect()` after mutations need `revalidatePath()` called before the redirect to bust the cache. Without this, users may see stale data for up to 15s after creating/editing content.
 
 ### 1.2 Create top-level CMS loading.tsx
 **File:** `apps/web/src/app/cms/(authed)/loading.tsx` (new)
@@ -42,9 +42,9 @@ Total:      ~520ms p50, up to 1.5s+ p95
 
 ### 1.3 Narrow notifications select
 **File:** `apps/web/src/app/cms/(authed)/layout.tsx` line 75
-**Change:** Replace `select('*')` with `select('id, site_id, user_id, domain, title, body, action_href, priority, read_at, dismissed_at, expired_at, created_at')`.
+**Change:** Replace `select('*')` with `select('id, site_id, user_id, type, domain, title, message, action_href, suggested_action, priority, read_at, dismissed_at, expired_at, snoozed_until, dedup_key, group_key, created_at')`. Excludes only `payload` (heavy JSONB column).
 **Impact:** Drops JSONB payload column from 50-row response on every navigation.
-**Risk:** Low. Must verify all columns against INotification type.
+**Risk:** Low. Column list verified against INotification type. Note: `message` is the correct field name (not `body`). `type` is required by `TYPE_COLORS[n.type]` in notification-center.tsx. `suggested_action` is rendered in notification-row.tsx.
 
 ### 1.4 Narrow pipeline detail selects
 **File:** `apps/web/src/lib/pipeline/load-pipeline-detail.ts` lines 22-23
@@ -69,6 +69,7 @@ Total:      ~520ms p50, up to 1.5s+ p95
 **Change:** `import DOMPurify from 'isomorphic-dompurify'` → `import DOMPurify from 'dompurify'`. This is a `'use client'` component.
 **Impact:** Reduces client bundle (5MB → 656KB for dompurify). Identical API.
 **Risk:** Low. Verify dompurify is in deps (or add it).
+**WARNING:** `isomorphic-dompurify` also appears in `newsletter/archive/[id]/page.tsx` and `blog-article-html.tsx` — those are SERVER components where plain `dompurify` will NOT work (needs jsdom). DO NOT replace in those files.
 
 ### 1.8 Replace window.location.href with router.push (notifications)
 **File:** `apps/web/src/app/cms/(authed)/_shared/notification-popover.tsx` line 141
@@ -102,11 +103,17 @@ Total:      ~520ms p50, up to 1.5s+ p95
 **Impact:** Reduces auth from ~260ms (4 sequential calls) to ~130ms (1 sequential + 2 parallel).
 **Risk:** Medium. Inlines requireArea gate logic. Must maintain security equivalence. Add comment linking to auth-nextjs package.
 
-### 2A.4 Parallelize all layout queries into single Promise.all
+### 2A.4 Parallelize layout queries (auth-first, then data)
 **File:** `apps/web/src/app/cms/(authed)/layout.tsx`
-**Change:** After 2A.3, merge the two Promise.all blocks into one 7-way blast: `[staffRes, sitesRes, badgeData, contactsRes, ytRes, researchRes, notifsRes]`. `getSiteContext()` is sync (headers read), so it runs before the Promise.all. Notifications query uses `rawUser.id` which is available after `getUser()`.
-**Impact:** Cuts layout time from sequential(auth) + parallel(data) to sequential(getUser) + parallel(everything_else).
-**Risk:** Low-Medium. Unauthorized users briefly trigger 5 extra queries before redirect. Acceptable — service role queries, data discarded.
+**Change:** After 2A.3, structure as 3 stages:
+1. `getUser()` — single auth round-trip
+2. `Promise.all([rpc('is_member_staff'), rpc('user_accessible_sites')])` — auth RPCs in parallel
+3. Check `is_member_staff` → redirect if denied
+4. `Promise.all([badgeData, contactsRes, ytRes, researchRes, notifsRes])` — data queries only AFTER auth verified
+
+**Security invariant:** No CMS data queries execute for non-staff users. The `is_member_staff` check MUST complete before any service-client queries run. This preserves the same guarantee as the current `requireArea()` → data pattern.
+**Impact:** Cuts layout time from 4 sequential calls to 1 sequential + 2 parallel + 5 parallel (two stages). Saves ~130ms vs current.
+**Risk:** Low. Security gate maintained before data access. Non-staff users never trigger service-client queries.
 
 ### 2A.5 Cache user_accessible_sites with React.cache()
 **File:** New `apps/web/lib/cms/accessible-sites.ts`
@@ -140,31 +147,24 @@ Total:      ~520ms p50, up to 1.5s+ p95
 **Impact:** Eliminates duplicate WebSocket connections.
 **Risk:** Low. `createBrowserClient` is designed for reuse.
 
-### 2B.5 Add loading.tsx to 8 high-traffic route segments
-**Files:** `youtube/loading.tsx`, `youtube/videos/loading.tsx`, `youtube/analytics/loading.tsx`, `youtube/ab-lab/loading.tsx`, `links/loading.tsx`, `pipeline/loading.tsx`, `contacts/loading.tsx`, `settings/loading.tsx`
-**Change:** Create route-specific skeleton components matching each page's visual structure (table, kanban, chart, form).
-**Impact:** Page-specific loading indicators for heaviest CMS routes.
-**Risk:** None. New files only.
+### 2B.5 Add loading.tsx to route segments that lack them
+**Change:** Before creating files, verify which routes already have loading.tsx (several already exist for settings, pipeline, contacts, youtube sub-routes). Only create for routes that are MISSING them. Check with: `find apps/web/src/app/cms -name "loading.tsx"` and cross-reference against high-traffic routes.
+**Impact:** Fill gaps in loading state coverage.
+**Risk:** None. New files only. Do NOT overwrite existing loading.tsx files.
 
-## Phase 2C — Query Optimization (~1h)
+## Phase 2C — Query Optimization (~30min)
 
 ### 2C.1 Replace select('*') with select('id') in count-only queries
-**Files:** `hub-queries.ts`, `pipeline/brolls/page.tsx`, `pipeline/audio/page.tsx`
-**Change:** Find all `select('*', { count: 'exact', head: true })` and replace with `select('id', { count: 'exact', head: true })`.
+**Files:** `subscribers/page.tsx` (4 instances), `subscriber-kpis.tsx` (3 instances), `ab-lab/actions.ts` (2 instances), `hub-queries.ts` (where applicable)
+**Change:** Find all `select('*', { count: 'exact', head: true })` and replace with `select('id', { count: 'exact', head: true })`. Note: `brolls/page.tsx` and `audio/page.tsx` already use `select('id')`.
 **Impact:** Minor per-query (5-20ms), cumulative across pages with 5-6 count queries.
 **Risk:** None. `head: true` prevents row data return anyway.
 
-### 2C.2 Parallelize contacts page queries
-**File:** `apps/web/src/app/cms/(authed)/contacts/page.tsx`
-**Change:** Move `pendingCountRes` and `anonymizedRes` into the initial Promise.all batch.
-**Impact:** Eliminates 60-100ms of sequential latency.
-**Risk:** Low. Queries have no dependencies on prior results.
+### ~~2C.2 Parallelize contacts page queries~~ REMOVED
+Contacts page already uses a single Promise.all for all queries. No sequential latency to eliminate.
 
-### 2C.3 Parallelize authors page queries
-**File:** `apps/web/src/app/cms/(authed)/authors/page.tsx`
-**Change:** Run authors query and sites query in parallel via Promise.all.
-**Impact:** Saves 30-50ms per load.
-**Risk:** Low.
+### ~~2C.3 Parallelize authors page queries~~ REMOVED
+Authors page already parallelizes authors + sites queries via Promise.all. Post-count query is correctly sequential (depends on author IDs result).
 
 ## Execution Order (Blitz Sprint)
 
@@ -184,7 +184,8 @@ Total:      ~520ms p50, up to 1.5s+ p95
    → npm run test:web
    → npm run build (full next build — pre-commit equivalent)
 
-5. Single commit + push                           ~10 min
+5. Two commits (Phase 1 separate from Phase 2)     ~10 min
+   → Enables granular rollback if Phase 2 auth changes cause issues
 ```
 
 ## Out of Scope (Phase 3 — separate sessions)
@@ -206,6 +207,10 @@ Total:      ~520ms p50, up to 1.5s+ p95
 | Missing revalidateTag for cached counts | Audit all mutation server actions before caching. |
 | Pipeline select column list incomplete | Verify against DB migration schema before applying. |
 | Item 1.6 response header leak fix is complex | Defer to Phase 3 — mergeSiteHeaders() reads from response headers. |
+| staleTimes + redirect() = stale data | Audit all CMS server actions using redirect() after mutations. Add revalidatePath() before redirect(). |
+| isomorphic-dompurify in SSR files | DO NOT replace in newsletter/archive or blog-article-html.tsx — SSR requires isomorphic-dompurify. |
+| React.cache() dedup lost from requireArea | After inlining 2A.3, child components calling requireArea('cms') lose dedup. Monitor for extra RPC calls. |
+| Middleware Map cache per-isolate on Edge | Each Vercel edge isolate has its own Map. Hit rate is modest but correctness is preserved. |
 
 ## Success Criteria
 

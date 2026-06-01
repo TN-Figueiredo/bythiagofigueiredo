@@ -1040,6 +1040,8 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
       outlier,
       revenue,
       daysRemaining,
+      graceExpiresAt: test.grace_expires_at,
+      winnerAppliedAt: test.winner_applied_at,
     } satisfies AbTestActiveView
   }
 
@@ -1107,5 +1109,7 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
       monthlyExtraClicks: test.result_metadata?.estimated_monthly_extra_clicks ?? 0,
     },
     learning: test.status_note ?? undefined,
+    revertExpiresAt: test.revert_expires_at,
+    winnerAppliedAt: test.winner_applied_at,
   } satisfies AbTestWinnerView
 }

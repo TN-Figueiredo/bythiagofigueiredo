@@ -39,6 +39,9 @@ const nextConfig: NextConfig = {
     serverActions: {
       bodySizeLimit: '50mb',
     },
+    staleTimes: {
+      dynamic: 15,
+    },
   },
   // Only packages that ship raw TypeScript or preserved JSX need transpilation.
   // @app/shared: raw TS (no build step). @tn-figueiredo/cms: ships .jsx in dist/.

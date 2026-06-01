@@ -25,12 +25,12 @@ export default async function AudioPage() {
       .order('created_at', { ascending: false })
       .order('id', { ascending: false })
       .limit(PAGE_SIZE + 1),
-    supabase.from('audio_assets').select('*', { count: 'exact', head: true }).eq('site_id', siteId),
-    supabase.from('audio_assets').select('*', { count: 'exact', head: true }).eq('site_id', siteId).eq('type', 'music'),
-    supabase.from('audio_assets').select('*', { count: 'exact', head: true }).eq('site_id', siteId).eq('type', 'sfx'),
-    supabase.from('audio_assets').select('*', { count: 'exact', head: true }).eq('site_id', siteId).eq('status', 'downloaded'),
-    supabase.from('audio_assets').select('*', { count: 'exact', head: true }).eq('site_id', siteId).eq('status', 'pending'),
-    supabase.from('audio_assets').select('*', { count: 'exact', head: true }).eq('site_id', siteId).eq('status', 'retired'),
+    supabase.from('audio_assets').select('id', { count: 'exact', head: true }).eq('site_id', siteId),
+    supabase.from('audio_assets').select('id', { count: 'exact', head: true }).eq('site_id', siteId).eq('type', 'music'),
+    supabase.from('audio_assets').select('id', { count: 'exact', head: true }).eq('site_id', siteId).eq('type', 'sfx'),
+    supabase.from('audio_assets').select('id', { count: 'exact', head: true }).eq('site_id', siteId).eq('status', 'downloaded'),
+    supabase.from('audio_assets').select('id', { count: 'exact', head: true }).eq('site_id', siteId).eq('status', 'pending'),
+    supabase.from('audio_assets').select('id', { count: 'exact', head: true }).eq('site_id', siteId).eq('status', 'retired'),
     supabase.from('audio_assets').select('tags').eq('site_id', siteId).neq('status', 'retired'),
   ])
 

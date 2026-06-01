@@ -6,13 +6,35 @@ interface SaveFooterProps {
   updatedAt?: string
 }
 
+function relativeTime(iso: string): string {
+  const now = Date.now()
+  const then = new Date(iso).getTime()
+  const diffMs = now - then
+  if (diffMs < 0 || Number.isNaN(diffMs)) return ''
+
+  const diffSec = Math.floor(diffMs / 1000)
+  if (diffSec < 60) return 'agora'
+
+  const diffMin = Math.floor(diffSec / 60)
+  if (diffMin < 60) return `há ${diffMin} min`
+
+  const diffHr = Math.floor(diffMin / 60)
+  if (diffHr < 24) return `há ${diffHr} h`
+
+  return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
+}
+
 export function SaveFooter({ isDirty, rev, updatedAt }: SaveFooterProps) {
+  const timeLabel = updatedAt ? relativeTime(updatedAt) : ''
+
   return (
     <div
+      role="status"
+      aria-live="polite"
       className="flex justify-between items-center px-4 py-1.5 text-[10px]"
       style={{
-        borderTop: isDirty ? '2px solid var(--gem-warn)' : '1px solid var(--gem-border)',
-        background: 'rgba(26,29,40,0.6)',
+        borderTop: '1px solid var(--gem-border)',
+        background: 'var(--gem-surface, rgba(26,29,40,0.4))',
       }}
     >
       <span className="flex items-center gap-1">
@@ -20,7 +42,6 @@ export function SaveFooter({ isDirty, rev, updatedAt }: SaveFooterProps) {
           className="w-1.5 h-1.5 rounded-full inline-block"
           style={{
             background: isDirty ? 'var(--gem-warn)' : 'var(--gem-done)',
-            animation: isDirty ? 'pulse 1.5s infinite' : 'none',
           }}
         />
         <span style={{ color: isDirty ? 'var(--gem-warn)' : 'var(--gem-done)' }}>
@@ -28,9 +49,11 @@ export function SaveFooter({ isDirty, rev, updatedAt }: SaveFooterProps) {
         </span>
       </span>
       <span style={{ color: 'var(--gem-dim)' }}>
-        rev.{rev}
-        {updatedAt && ` · ${new Date(updatedAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}`}
-        {isDirty && <span className="ml-1 px-1 rounded" style={{ border: '1px solid var(--gem-border)', fontFamily: 'monospace', fontSize: '8px' }}>⌘S</span>}
+        {isDirty
+          ? timeLabel
+          : timeLabel
+            ? `Salvo ${timeLabel}`
+            : 'Salvo'}
       </span>
     </div>
   )

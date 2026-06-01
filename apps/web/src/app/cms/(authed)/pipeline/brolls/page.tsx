@@ -18,11 +18,11 @@ export default async function BRollPage() {
 
   const [assetsRes, totalRes, pessoalRes, genericoRes, readyRes, pendingRes] = await Promise.all([
     supabase.from('broll_assets').select('*').eq('site_id', siteId).order('created_at', { ascending: false }).limit(50),
-    supabase.from('broll_assets').select('*', { count: 'exact', head: true }).eq('site_id', siteId),
-    supabase.from('broll_assets').select('*', { count: 'exact', head: true }).eq('site_id', siteId).eq('source_type', 'pessoal'),
-    supabase.from('broll_assets').select('*', { count: 'exact', head: true }).eq('site_id', siteId).eq('source_type', 'generico'),
-    supabase.from('broll_assets').select('*', { count: 'exact', head: true }).eq('site_id', siteId).eq('status', 'ready'),
-    supabase.from('broll_assets').select('*', { count: 'exact', head: true }).eq('site_id', siteId).eq('status', 'pending'),
+    supabase.from('broll_assets').select('id', { count: 'exact', head: true }).eq('site_id', siteId),
+    supabase.from('broll_assets').select('id', { count: 'exact', head: true }).eq('site_id', siteId).eq('source_type', 'pessoal'),
+    supabase.from('broll_assets').select('id', { count: 'exact', head: true }).eq('site_id', siteId).eq('source_type', 'generico'),
+    supabase.from('broll_assets').select('id', { count: 'exact', head: true }).eq('site_id', siteId).eq('status', 'ready'),
+    supabase.from('broll_assets').select('id', { count: 'exact', head: true }).eq('site_id', siteId).eq('status', 'pending'),
   ])
 
   if (assetsRes.error) console.error('[broll] assets query:', assetsRes.error.message)

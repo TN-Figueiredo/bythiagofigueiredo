@@ -106,6 +106,21 @@ function getRingContext(): SupabaseRingContext {
   return cachedRing
 }
 
+const SITE_CACHE_TTL_MS = 60_000
+const siteByDomainCache = new Map<string, { site: Awaited<ReturnType<InstanceType<typeof SupabaseRingContext>['getSiteByDomain']>>; exp: number }>()
+
+async function getSiteByDomainCached(
+  ring: InstanceType<typeof SupabaseRingContext>,
+  hostname: string,
+) {
+  const now = Date.now()
+  const hit = siteByDomainCache.get(hostname)
+  if (hit && hit.exp > now) return hit.site
+  const site = await ring.getSiteByDomain(hostname)
+  siteByDomainCache.set(hostname, { site, exp: now + SITE_CACHE_TTL_MS })
+  return site
+}
+
 export async function middleware(
   request: NextRequest,
 ): Promise<NextResponse> {
@@ -143,9 +158,14 @@ export async function middleware(
         : rawBaseDomain
     const code = pathname === '/' ? '' : pathname.slice(1)
 
+    const passthrough = ['robots.txt', 'favicon.ico', 'manifest.webmanifest', 'icon.svg']
+    if (passthrough.includes(code)) {
+      return NextResponse.next()
+    }
+
     const ring = getRingContext()
     try {
-      const site = await ring.getSiteByDomain(baseDomain)
+      const site = await getSiteByDomainCached(ring, baseDomain)
       if (!site) {
         const rewriteUrl = request.nextUrl.clone()
         rewriteUrl.pathname = '/go/not-found'
@@ -168,11 +188,6 @@ export async function middleware(
       }
       if (!detectedLocale || !supportedLocales.includes(detectedLocale)) {
         detectedLocale = 'pt-BR'
-      }
-
-      const passthrough = ['robots.txt', 'favicon.ico', 'manifest.webmanifest', 'icon.svg']
-      if (passthrough.includes(code)) {
-        return NextResponse.next()
       }
 
       if (code === 'og/linktree') {
@@ -214,6 +229,14 @@ export async function middleware(
       rewriteUrl.pathname = '/go/not-found'
       return NextResponse.rewrite(rewriteUrl)
     }
+  }
+
+  const isCronOrWebhook =
+    pathname.startsWith('/api/cron/') ||
+    pathname.startsWith('/api/webhooks/') ||
+    pathname.startsWith('/auth/')
+  if (isCronOrWebhook) {
+    return NextResponse.next()
   }
 
   // --- i18n: locale prefix detection + legacy redirects ---
@@ -332,7 +355,7 @@ async function resolveSite(
 ): Promise<SiteResolution> {
   try {
     const ring = getRingContext()
-    const site = await ring.getSiteByDomain(hostname)
+    const site = await getSiteByDomainCached(ring, hostname)
     if (!site) {
       Sentry.captureException(new Error(`Unknown hostname: ${hostname}`), {
         level: 'warning',

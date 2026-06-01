@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import type { Format } from '@/lib/pipeline/schemas'
 import { getSectionsForFormat, getSectionKey, type SectionDefinition } from '@/lib/pipeline/sections'
 import type { SectionData } from '@/lib/pipeline/sections'
@@ -75,6 +75,9 @@ export function TabContainer({ format, stage, itemId, itemVersion, sections, ite
   const [activeSub, setActiveSub] = useState<string | null>(null)
   const [lang, setLang] = useState(() => itemLanguage === 'en' ? 'en' : 'pt')
   const [langTransition, setLangTransition] = useState(false)
+  const [showScrollRight, setShowScrollRight] = useState(false)
+  const [showShortcuts, setShowShortcuts] = useState(false)
+  const tabsRef = useRef<HTMLDivElement>(null)
 
   const enabledTabs = useMemo(() => {
     const enabled = new Set<string>()
@@ -124,6 +127,23 @@ export function TabContainer({ format, stage, itemId, itemVersion, sections, ite
     window.history.replaceState(null, '', `#${hashParts.join('/')}`)
   }, [activeTab, activeSub, lang])
 
+  useEffect(() => {
+    const el = tabsRef.current
+    if (!el) return
+    const check = () => {
+      setShowScrollRight(el.scrollWidth > el.clientWidth && el.scrollLeft + el.clientWidth < el.scrollWidth - 4)
+    }
+    check()
+    el.addEventListener('scroll', check)
+    window.addEventListener('resize', check)
+    return () => { el.removeEventListener('scroll', check); window.removeEventListener('resize', check) }
+  }, [sectionDefs])
+
+  useEffect(() => {
+    const el = tabsRef.current?.querySelector(`[data-tab="${activeTab}"]`) as HTMLElement | null
+    el?.scrollIntoView({ inline: 'center', behavior: 'smooth', block: 'nearest' })
+  }, [activeTab])
+
   const checkDirtyGuard = useCallback((): boolean => {
     const dirty = document.querySelector('[data-section-dirty="true"]')
     if (dirty && !window.confirm('Há alterações não salvas nesta seção. Deseja trocar mesmo assim?')) return false
@@ -151,9 +171,22 @@ export function TabContainer({ format, stage, itemId, itemVersion, sections, ite
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
+      // Escape closes shortcuts panel regardless of meta key
+      if (e.key === 'Escape' && showShortcuts) {
+        e.preventDefault()
+        setShowShortcuts(false)
+        return
+      }
+
       if (!(e.metaKey || e.ctrlKey)) return
       const tag = (e.target as HTMLElement)?.tagName
       const isEditable = tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement)?.isContentEditable
+
+      if (e.key === '?' || (e.shiftKey && e.key === '/')) {
+        e.preventDefault()
+        setShowShortcuts(s => !s)
+        return
+      }
 
       if (e.key === 's') {
         e.preventDefault()
@@ -196,7 +229,7 @@ export function TabContainer({ format, stage, itemId, itemVersion, sections, ite
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [activeTab, sectionDefs, lang, itemLanguage, handleTabSwitch, handleLangSwitch])
+  }, [activeTab, sectionDefs, lang, itemLanguage, handleTabSwitch, handleLangSwitch, showShortcuts])
 
   const activeDef = sectionDefs.find(s => s.key === activeTab)
   const hasSubs = activeDef?.subSections && activeDef.subSections.length > 0
@@ -205,44 +238,51 @@ export function TabContainer({ format, stage, itemId, itemVersion, sections, ite
     <div className="flex flex-col gap-3">
       {/* Primary tabs + language toggle */}
       <div className="flex items-end justify-between" style={{ borderBottom: '1px solid var(--gem-border)' }}>
-        <div className="flex overflow-x-auto" role="tablist" aria-label="Seções do pipeline item" style={{ scrollbarWidth: 'none' }}>
-          {sectionDefs.map((def, i) => {
-            const isActive = activeTab === def.key
-            const hasContent = hasAnyContent(def, sections)
-            const isEnabled = enabledTabs.has(def.key)
-            const isStageLocked = !isEnabled && format === 'blog_post' && stage
-              ? !(BLOG_TAB_ACCESS[stage] ?? []).includes(def.key)
-              : false
-            const disabledTitle = isStageLocked
-              ? 'Avance o stage para desbloquear'
-              : !isEnabled
-                ? 'Complete a seção anterior primeiro'
-                : undefined
-            return (
-              <button
-                key={def.key}
-                role="tab"
-                aria-selected={isActive}
-                aria-disabled={!isEnabled}
-                aria-controls={`panel-${def.key}`}
-                className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium whitespace-nowrap select-none transition-colors"
-                style={{
-                  color: !isEnabled ? 'var(--gem-border)' : isActive ? 'var(--gem-text)' : 'var(--gem-dim)',
-                  borderBottom: isActive ? '2px solid var(--gem-accent)' : '2px solid transparent',
-                  cursor: isEnabled ? 'pointer' : 'not-allowed',
-                  opacity: isEnabled ? 1 : 0.4,
-                }}
-                onClick={() => handleTabSwitch(def.key)}
-                title={disabledTitle}
-              >
-                <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: hasContent ? 'var(--gem-done)' : 'transparent', border: hasContent ? 'none' : '1px solid var(--gem-dim)' }} />
-                {def.label_pt}
-                {def.subSections && <span className="text-[10px] ml-0.5" style={{ color: 'var(--gem-dim)' }}>{def.subSections.length}</span>}
-              </button>
-            )
-          })}
+        <div className="relative flex-1 min-w-0">
+          <div ref={tabsRef} className="flex overflow-x-auto" role="tablist" aria-label="Seções do pipeline item" style={{ scrollbarWidth: 'none' }}>
+            {sectionDefs.map((def, i) => {
+              const isActive = activeTab === def.key
+              const hasContent = hasAnyContent(def, sections)
+              const isEnabled = enabledTabs.has(def.key)
+              const isStageLocked = !isEnabled && format === 'blog_post' && stage
+                ? !(BLOG_TAB_ACCESS[stage] ?? []).includes(def.key)
+                : false
+              const disabledTitle = isStageLocked
+                ? 'Avance o stage para desbloquear'
+                : !isEnabled
+                  ? 'Complete a seção anterior primeiro'
+                  : undefined
+              return (
+                <button
+                  key={def.key}
+                  data-tab={def.key}
+                  role="tab"
+                  aria-selected={isActive}
+                  aria-disabled={!isEnabled}
+                  aria-controls={`panel-${def.key}`}
+                  className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium whitespace-nowrap select-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)]/30"
+                  style={{
+                    color: !isEnabled ? 'var(--gem-border)' : isActive ? 'var(--gem-text)' : 'var(--gem-dim)',
+                    borderBottom: isActive ? '2px solid var(--gem-accent)' : '2px solid transparent',
+                    cursor: isEnabled ? 'pointer' : 'not-allowed',
+                    opacity: isEnabled ? 1 : 0.4,
+                    outline: 'none',
+                  }}
+                  onClick={() => handleTabSwitch(def.key)}
+                  title={disabledTitle}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: hasContent ? 'var(--gem-done)' : 'transparent', border: hasContent ? 'none' : '1px solid var(--gem-dim)' }} />
+                  {def.label_pt}
+                  {def.subSections && <span className="text-[10px] ml-0.5" style={{ color: 'var(--gem-dim)' }}>{def.subSections.length}</span>}
+                </button>
+              )
+            })}
+          </div>
+          {showScrollRight && (
+            <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 40, background: 'linear-gradient(to right, transparent, var(--gem-surface))', pointerEvents: 'none', zIndex: 5 }} />
+          )}
         </div>
-        {itemLanguage === 'both' && (
+        {itemLanguage === 'both' && !(activeDef?.shared) && (
           <div className="flex mb-2 rounded overflow-hidden" style={{ border: '1px solid var(--gem-border)' }}>
             {(['pt', 'en'] as const).map(l => {
               const isShared = activeDef?.shared ?? false
@@ -285,8 +325,8 @@ export function TabContainer({ format, stage, itemId, itemVersion, sections, ite
                 aria-selected={isSubActive}
                 className="px-3 py-1.5 text-xs whitespace-nowrap transition-colors"
                 style={{
-                  color: isSubActive ? '#22d3ee' : 'var(--gem-dim)',
-                  borderBottom: isSubActive ? '2px solid #22d3ee' : '2px solid transparent',
+                  color: isSubActive ? 'var(--gem-accent)' : 'var(--gem-dim)',
+                  borderBottom: isSubActive ? '2px solid var(--gem-accent)' : '2px solid transparent',
                 }}
                 onClick={() => handleSubSwitch(sub.key)}
               >
@@ -315,6 +355,33 @@ export function TabContainer({ format, stage, itemId, itemVersion, sections, ite
           setLang,
         })}
       </div>
+
+      {/* Keyboard shortcuts overlay */}
+      {showShortcuts && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={() => setShowShortcuts(false)}>
+          <div className="rounded-xl p-6 max-w-sm w-full" style={{ background: 'var(--gem-surface)', border: '1px solid var(--gem-border)' }} onClick={e => e.stopPropagation()}>
+            <h3 className="text-sm font-semibold mb-4" style={{ color: 'var(--gem-text)' }}>Atalhos de Teclado</h3>
+            <div className="grid grid-cols-1 gap-2 text-xs">
+              {([
+                ['Salvar seção', '⌘S'],
+                ['Toggle edição', '⌘E'],
+                ['Ir para tab N', '⌘1-9'],
+                ['Tab anterior/próx', '⌘← →'],
+                ['Trocar idioma', '⌘L'],
+                ['Este painel', '⌘?'],
+              ] as const).map(([label, key]) => (
+                <div key={key} className="flex justify-between items-center py-1" style={{ borderBottom: '1px solid var(--gem-border)' }}>
+                  <span style={{ color: 'var(--gem-muted)' }}>{label}</span>
+                  <kbd className="px-1.5 py-0.5 rounded text-[10px] font-mono" style={{ background: 'var(--gem-well)', color: 'var(--gem-dim)', border: '1px solid var(--gem-border)' }}>{key}</kbd>
+                </div>
+              ))}
+            </div>
+            <p className="text-[10px] mt-4 text-center" style={{ color: 'var(--gem-dim)' }}>
+              Pressione Esc ou {'⌘'}? para fechar
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

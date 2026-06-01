@@ -17,7 +17,7 @@ import { MultiLine } from './multi-line'
 import { ABBATimeline } from './abba-timeline'
 import { FunnelRow } from './funnel-row'
 import { ClickMoment } from './click-moment'
-import { forceRotate } from '../actions'
+import { forceRotate, applyWinnerNow, cancelGracePeriod } from '../actions'
 import { usePollStats } from './use-poll-stats'
 import { SignalCard } from './signal-card'
 import {
@@ -77,6 +77,45 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
           dayInfo={{ dayOf: view.cycles.done, total: view.durationDays }}
         />
       </div>
+
+      {/* Grace Period Banner */}
+      {view.graceExpiresAt && !view.winnerAppliedAt && (
+        <div className="mx-0 mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-amber-300">
+                Vencedor detectado — aplicação automática em{' '}
+                {Math.max(0, Math.ceil((new Date(view.graceExpiresAt).getTime() - Date.now()) / 3600000))}h
+              </p>
+              <p className="text-xs text-amber-400/70 mt-0.5">
+                O vencedor será aplicado automaticamente quando o período de graça expirar.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={async () => {
+                  const result = await applyWinnerNow(view.id)
+                  if (!result.ok) alert(result.error)
+                  else window.location.reload()
+                }}
+                className="rounded bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-500"
+              >
+                Aplicar Agora
+              </button>
+              <button
+                onClick={async () => {
+                  const result = await cancelGracePeriod(view.id)
+                  if (!result.ok) alert(result.error)
+                  else window.location.reload()
+                }}
+                className="rounded bg-zinc-700 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-zinc-600"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Toolbar: signal toggle + Pausar + Settings — below title */}
       <div className="flex items-center gap-[8px] mb-[22px]">

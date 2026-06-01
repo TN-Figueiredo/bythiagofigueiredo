@@ -8,6 +8,7 @@
 .pipeline-editor .ProseMirror {
   outline: none;
   min-height: 200px;
+  max-width: 48rem; /* 768px — comfortable reading width */
   padding: 1rem;
   font-size: 0.9375rem;
   line-height: 1.75;
@@ -405,6 +406,16 @@
 
 .script-beat-editor .ProseMirror ::selection {
   background: color-mix(in srgb, var(--gem-accent) 25%, transparent);
+}
+
+/* ── Reduced Motion ─────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .pipeline-editor *,
+  .script-beat-editor * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /* ── Script Section — Print ──────────────────────────── */

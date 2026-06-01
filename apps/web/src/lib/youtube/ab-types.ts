@@ -2,7 +2,7 @@ export const VARIANT_LABELS = ['B', 'C', 'D'] as const
 export type VariantLabel = (typeof VARIANT_LABELS)[number]
 
 export type AbTestStatus = 'draft' | 'active' | 'paused' | 'completed' | 'archived' | 'queued'
-export type CompletedReason = 'auto_resolve' | 'manual_winner' | 'manual_archive' | 'max_duration' | 'inconclusive'
+export type CompletedReason = 'auto_resolve' | 'manual_winner' | 'manual_archive' | 'manual_no_apply' | 'max_duration' | 'inconclusive'
 export type BackfillStatus = 'pending' | 'partial' | 'confirmed' | 'no_data' | 'error'
 export type TestType = 'thumbnail' | 'title' | 'description' | 'combo'
 
@@ -53,6 +53,10 @@ export interface AbTestRow {
   playoff_start_after: string | null
   last_applied_variant_id: string | null
   queue_start_after: string | null
+  grace_expires_at: string | null
+  winner_applied_at: string | null
+  revert_expires_at: string | null
+  applied_by: string | null
 }
 
 export interface VariantMetadata {
@@ -423,6 +427,8 @@ export interface AbTestActiveView extends AbTestBaseView {
   outlier?: { multiplier: number; badge: 'blue' | 'purple' | 'red' } | null
   revenue?: { low: number; high: number; currency: 'BRL'; isDefault: boolean }
   daysRemaining?: { days: number; model: 'exponential' | 'linear' } | null
+  graceExpiresAt?: string | null
+  winnerAppliedAt?: string | null
 }
 
 export interface AbTestWinnerView extends AbTestBaseView {
@@ -441,6 +447,8 @@ export interface AbTestWinnerView extends AbTestBaseView {
   }
   monitor?: LiveMonitor
   learning?: string
+  revertExpiresAt?: string | null
+  winnerAppliedAt?: string | null
 }
 
 export interface AbTestPlayoffView extends AbTestBaseView {

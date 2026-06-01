@@ -1,8 +1,7 @@
 import {
   createServerClient,
-  requireArea,
-  requireUser,
 } from '@tn-figueiredo/auth-nextjs'
+import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 import type { ReactNode } from 'react'
 import {
@@ -16,6 +15,7 @@ import { CmsAdminProvider } from '@tn-figueiredo/cms-admin/client'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { fetchSidebarBadges } from '@/lib/cms/sidebar-badges'
+import { fetchLayoutCounts } from '@/lib/cms/layout-counts'
 import { SidebarBadges } from '@/components/cms/sidebar-badges'
 import { SiteTimezoneProvider } from '@/lib/cms/site-timezone-context'
 import { NotificationProvider } from '@/lib/notifications/notification-context'
@@ -43,11 +43,22 @@ export default async function Layout({ children }: { children: ReactNode }) {
       },
     },
   })
-  const user = await requireUser(supabase)
-  await requireArea('cms')
+  // --- Auth gate (inlined from requireArea('cms')) ---
+  // Single getUser() round-trip. requireArea internally called getUser() a
+  // second time + is_member_staff RPC sequentially. We do both RPCs in parallel.
+  // Security: getUser() validates against auth server (not just JWT).
+  // If @tn-figueiredo/auth-nextjs updates requireArea semantics, update here.
+  const { data: { user: rawUser }, error: userErr } = await supabase.auth.getUser()
+  if (userErr || !rawUser) redirect('/cms/login')
 
-  const { data: sitesData } = await supabase.rpc('user_accessible_sites')
-  const rawSites = (sitesData ?? []) as RpcAccessibleSite[]
+  const [staffRes, sitesRes] = await Promise.all([
+    supabase.rpc('is_member_staff'),
+    supabase.rpc('user_accessible_sites'),
+  ])
+  if (staffRes.error || !staffRes.data) redirect('/?error=insufficient_access')
+
+  const user = { id: rawUser.id, email: rawUser.email ?? '' }
+  const rawSites = (sitesRes.data ?? []) as RpcAccessibleSite[]
   const sites = rawSites.map((s) => ({
     id: s.site_id,
     slug: s.site_slug,
@@ -57,22 +68,15 @@ export default async function Layout({ children }: { children: ReactNode }) {
   })) as AccessibleSite[]
   const currentSiteId = rawSites[0]?.site_id ?? ''
   const currentSite = rawSites.find((s) => s.site_id === currentSiteId)
-  const userDisplayName = user.email ?? 'User'
+  const userDisplayName = rawUser.email ?? 'User'
   const userRole = currentSite?.user_role ?? 'reporter'
 
   const { siteId: middlewareSiteId, timezone: siteTimezone } = await getSiteContext()
   const svc = getSupabaseServiceClient()
-  const [badgeData, pendingContactsRes, ytPendingRes, researchUnreadRes, notificationsRes] = await Promise.all([
+  const [badgeData, layoutCounts, notificationsRes] = await Promise.all([
     fetchSidebarBadges(middlewareSiteId, siteTimezone),
-    svc.from('contact_submissions').select('id', { count: 'exact', head: true })
-      .eq('site_id', middlewareSiteId).is('replied_at', null).is('anonymized_at', null),
-    svc.from('youtube_videos').select('id', { count: 'exact', head: true })
-      .eq('site_id', middlewareSiteId)
-      .not('auto_suggested_category_id', 'is', null)
-      .is('category_id', null),
-    svc.from('research_items').select('id', { count: 'exact', head: true })
-      .eq('site_id', middlewareSiteId).eq('status', 'new'),
-    svc.from('notifications').select('*')
+    fetchLayoutCounts(middlewareSiteId),
+    svc.from('notifications').select('id, site_id, user_id, type, domain, title, message, action_href, suggested_action, priority, read_at, dismissed_at, expired_at, snoozed_until, dedup_key, group_key, created_at')
       .eq('site_id', middlewareSiteId)
       .eq('user_id', user.id)
       .is('dismissed_at', null)
@@ -81,9 +85,9 @@ export default async function Layout({ children }: { children: ReactNode }) {
       .limit(50),
   ])
   const badges: Record<string, number> = {}
-  if (pendingContactsRes.count) badges['/cms/contacts'] = pendingContactsRes.count
-  if (ytPendingRes.count) badges['/cms/youtube'] = ytPendingRes.count
-  if (researchUnreadRes.count) badges['/cms/library/research'] = researchUnreadRes.count
+  if (layoutCounts.pendingContacts) badges['/cms/contacts'] = layoutCounts.pendingContacts
+  if (layoutCounts.ytPending) badges['/cms/youtube'] = layoutCounts.ytPending
+  if (layoutCounts.researchUnread) badges['/cms/library/research'] = layoutCounts.researchUnread
 
   const initialNotifications = (notificationsRes.data ?? []) as INotification[]
   const unreadCount = initialNotifications.filter((n) => !n.read_at).length
