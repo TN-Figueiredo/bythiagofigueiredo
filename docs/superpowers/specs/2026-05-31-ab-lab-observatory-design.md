@@ -375,12 +375,39 @@ CREATE TABLE competitor_changes (id uuid PK, video_id uuid FK, change_type text,
 - Revert action: test revert within window, test revert after window expired, test preflight failure during revert
 - Target: 15+ new tests covering the P3 state machine
 
-### 7.10 P3 Batch Start UI
+### 7.10 P3 Batch Start UI + Functional Fix
+- **CRITICAL:** batchStartTests creates tests with only original variant — no challenger. Fix: either auto-create placeholder variant or change UX to open wizard per video.
 - Multi-select on suggestion cards (checkboxes)
 - "Iniciar Lote" button appears when 2+ suggestions selected
 - Inline validation errors for ineligible videos
 - Queue status display in dashboard (show "Na fila — inicia em Xd")
-- **Review gate:** Current batchStartTests action works via direct call — UI polish is optional if user triggers via other means
+
+### 7.11 P3 Retry Timing (Exponential Backoff)
+- Spec: retry at 1h/4h/12h. Current: retries once per daily cron (24h apart).
+- Fix: store `next_retry_at`. Evaluate cron checks `next_retry_at <= now()`. On failure: set to `now() + [1h, 4h, 12h][attempt-1]`.
+- **Review gate:** If daily retry is acceptable for single-user workflow, skip.
+
+### 7.12 P3 Spec Compliance Gaps
+- Blob HEAD validation before apply (404 → apply_failed: asset_missing)
+- Combo partial failure tracking (retry only failed part)
+- channel_avg_CTR rolling 28-day window (not all-time static)
+- Fatigue +0.3 boost in auto-suggest scoring
+- Side-by-side preview in revert UI (current vs original thumbnails)
+
+### 7.13 P4 Learnings Enhancements
+- Wilson score confidence per pattern (currently simple win count)
+- Insight text: top 3 positive + top 2 negative (currently top 1)
+- "Coletando dados..." with progress X/3
+- Fatigue badge on general video cards (not just AB Lab)
+- Impressions guard `impressions_7d >= 1000` (currently views >= 50)
+
+### 7.14 P3+P4 Test Coverage (~48 critical scenarios)
+- 5 server actions: applyWinnerNow, cancelGracePeriod, revertWinner, batchStartTests, dismissFatigueAlert
+- Queue processing: 4 scenarios
+- Fatigue cron: 4 scenarios
+- getChannelLearnings: 6 scenarios
+- ab-evaluate combo/multi-test/error-isolation: 6 scenarios
+- Target: 48 tests, coverage to 95%+
 
 ### Verification Checklist (run at P7 start)
 - [ ] Re-run 4-dimension audit (code quality, test coverage, spec compliance, production readiness)
