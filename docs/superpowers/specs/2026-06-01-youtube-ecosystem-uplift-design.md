@@ -1460,9 +1460,23 @@ Dashboard e alertas para monitorar consumo da YouTube Data API quota:
 
 **Dependencias:** Todas as fases anteriores (pra ter dados reais de consumo), especialmente Fase 2a (competitor sync enriquecido que consome mais)
 
+### 6.5 Pendencias tecnicas das Fases 0-1a
+
+Items identificados por reviewers adversariais que ficaram pendentes:
+
+**Escopo do spec a gerar:**
+- **analytics-client.test.ts atualizar** — test 'returns core metrics with impressions always 0' ainda valida o comportamento antigo. Renomear para 'returns core metrics with real impressions', estender coreRow para 11 elementos (indices 9-10 com valores reais), assert impressions > 0
+- **KPI sparkline com dados reais** — o card "Confianca media" no dashboard passa `spark={undefined}`. Computar sparkline real a partir de `completed` tests' confidence values. Se nenhum teste completado, mostrar trend text como fallback
+- **mock-dashboard.ts mover para test fixtures** — arquivo existe em producao `src/` mas so e usado por `test/youtube/ab-low.test.ts`. Problema: imports relativos (`./ab-constants`). Solucao: criar barrel export em `test/helpers/ab-mock-dashboard.ts` que re-exporta com paths corrigidos
+- **Testes para acknowledgeAbTestDrift + resumeAbTest drift gate** — nenhum teste cobre o flow acknowledge → resume. Adicionar em `ab-p3-actions.test.ts`: (1) resume bloqueado sem ack, (2) resume permitido apos ack, (3) ack limpa status_note
+- **Testes para watchdog drift branch** — `ab-cron-watchdog.test.ts` nao testa o bloco de drift detection (ciclo fechado, revert tentado, notificacao enviada). Estender buildMockSupabase para modelar ab_test_cycles
+- **|| 0 fallback consistente** em fetchYtChannelMetrics indices 0-8 (atualmente sem fallback, so indices 9-10 tem)
+
+**Dependencias:** Nenhuma — pode ser implementado a qualquer momento
+
 ### Gate de verificacao -- Fase 6
 
-Para CADA sub-spec (6.1, 6.2, 6.3, 6.4):
+Para CADA sub-spec (6.1, 6.2, 6.3, 6.4, 6.5):
 1. Spec escrito em `docs/superpowers/specs/YYYY-MM-DD-{topic}-design.md`
 2. Spec revisado por 3+ sub-agents especializados
 3. Score >= 85/110
