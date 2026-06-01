@@ -22,6 +22,7 @@ import type {
   DisplayLabel,
   LearningsData,
   LearningsTag,
+  ChannelLearningsData,
   SuggestedVideo,
   TestType,
 } from '@/lib/youtube/ab-types'
@@ -548,6 +549,57 @@ export function computeDashboardStats(
 }
 
 // ---------------------------------------------------------------------------
+// aggregateTags (shared helper for learnings)
+// ---------------------------------------------------------------------------
+
+interface TestForLearning {
+  winner_variant_id: string | null
+  result_metadata: unknown
+  test_type?: string | null
+}
+
+function aggregateTags(
+  winners: Array<{ id: unknown; metadata: unknown }>,
+  tests: TestForLearning[],
+): LearningsTag[] {
+  const tagMap = new Map<string, { wins: number; totalLift: number; kind: 'thumb' | 'title' | 'desc' }>()
+
+  for (const test of tests) {
+    const winner = winners.find(w => (w.id as string) === (test.winner_variant_id as string))
+    if (!winner) continue
+    const meta = winner.metadata as Record<string, unknown> | null
+    const tags = (meta?.thumbnail_tags as string[]) ?? []
+    const lift = ((test.result_metadata as Record<string, unknown> | null)?.ctr_lift_percent as number) ?? 0
+    const testType = (test.test_type as string | undefined) ?? 'thumbnail'
+    const kind = testType === 'title' ? 'title' as const : testType === 'description' ? 'desc' as const : 'thumb' as const
+
+    for (const tag of tags) {
+      const existing = tagMap.get(tag) ?? { wins: 0, totalLift: 0, kind }
+      existing.wins += 1
+      existing.totalLift += lift
+      tagMap.set(tag, existing)
+    }
+  }
+
+  return Array.from(tagMap.entries())
+    .map(([tag, data]) => ({
+      tag,
+      wins: data.wins,
+      avgLift: data.wins > 0 ? data.totalLift / data.wins : 0,
+      kind: data.kind,
+      negative: data.wins > 0 && (data.totalLift / data.wins) < 0 ? true : undefined,
+    }))
+    .sort((a, b) => b.wins - a.wins)
+}
+
+function buildInsightText(tags: LearningsTag[]): string {
+  const topTag = tags[0]
+  return topTag
+    ? `"${topTag.tag}" appears in ${topTag.wins} winners with avg ${topTag.avgLift >= 0 ? '+' : ''}${topTag.avgLift.toFixed(1)}% lift`
+    : 'Not enough data for insights'
+}
+
+// ---------------------------------------------------------------------------
 // getLearnings
 // ---------------------------------------------------------------------------
 
@@ -569,41 +621,87 @@ export async function getLearnings(siteId: string): Promise<LearningsData | null
     .select('id, metadata')
     .in('id', winnerIds)
 
-  const tagMap = new Map<string, { wins: number; totalLift: number; kind: 'thumb' | 'title' | 'desc' }>()
+  const tags = aggregateTags(winners ?? [], tests)
+  return { tags, totalTests: tests.length, insightText: buildInsightText(tags) }
+}
 
-  for (const test of tests) {
-    const winner = (winners ?? []).find(w => (w.id as string) === (test.winner_variant_id as string))
-    if (!winner) continue
-    const meta = winner.metadata as Record<string, unknown> | null
-    const tags = (meta?.thumbnail_tags as string[]) ?? []
-    const lift = ((test.result_metadata as Record<string, unknown> | null)?.ctr_lift_percent as number) ?? 0
-    const testType = (test.test_type as string) ?? 'thumbnail'
-    const kind = testType === 'title' ? 'title' as const : testType === 'description' ? 'desc' as const : 'thumb' as const
+// ---------------------------------------------------------------------------
+// getChannelLearnings
+// ---------------------------------------------------------------------------
 
-    for (const tag of tags) {
-      const existing = tagMap.get(tag) ?? { wins: 0, totalLift: 0, kind }
-      existing.wins += 1
-      existing.totalLift += lift
-      tagMap.set(tag, existing)
-    }
+export async function getChannelLearnings(siteId: string): Promise<ChannelLearningsData | null> {
+  const supabase = getSupabaseServiceClient()
+
+  // Get all completed tests with winner, including channel info
+  const { data: tests } = await supabase
+    .from('ab_tests')
+    .select('id, youtube_video_id, result_metadata, winner_variant_id, test_type, youtube_videos!inner(channel_id)')
+    .eq('site_id', siteId)
+    .eq('status', 'completed')
+    .not('winner_variant_id', 'is', null)
+
+  if (!tests?.length || tests.length < 3) {
+    return null
   }
 
-  const tags: LearningsTag[] = Array.from(tagMap.entries())
-    .map(([tag, data]) => ({
-      tag,
-      wins: data.wins,
-      avgLift: data.wins > 0 ? data.totalLift / data.wins : 0,
-      kind: data.kind,
-      negative: data.wins > 0 && (data.totalLift / data.wins) < 0 ? true : undefined,
-    }))
-    .sort((a, b) => b.wins - a.wins)
+  // Group tests by channel
+  const byChannel = new Map<string, typeof tests>()
+  for (const test of tests) {
+    const channelId = (test as Record<string, unknown>).youtube_videos
+      ? ((test as Record<string, unknown>).youtube_videos as Record<string, unknown>)?.channel_id as string | undefined
+      : undefined
+    if (!channelId) continue
+    const group = byChannel.get(channelId) ?? []
+    group.push(test)
+    byChannel.set(channelId, group)
+  }
 
-  const topTag = tags[0]
-  const insightText = topTag
-    ? `"${topTag.tag}" appears in ${topTag.wins} winners with avg ${topTag.avgLift >= 0 ? '+' : ''}${topTag.avgLift.toFixed(1)}% lift`
-    : 'Not enough data for insights'
+  // Get channel names
+  const channelIds = [...byChannel.keys()]
+  const { data: channels } = await supabase
+    .from('youtube_channels')
+    .select('id, name')
+    .in('id', channelIds)
 
-  return { tags, totalTests: tests.length, insightText }
+  const channelNameMap = new Map((channels ?? []).map(c => [c.id as string, (c.name as string | null) ?? 'Canal']))
+
+  // Get all winner variants in one query
+  const allWinnerIds = tests.map(t => t.winner_variant_id as string)
+  const { data: allWinners } = await supabase
+    .from('ab_test_variants')
+    .select('id, metadata')
+    .in('id', allWinnerIds)
+
+  // Compute learnings per channel (only channels with 3+ tests)
+  const channelLearnings: ChannelLearningsData['channels'] = []
+
+  for (const [channelId, channelTests] of byChannel) {
+    if (channelTests.length < 3) continue
+
+    const channelWinnerIds = new Set(channelTests.map(t => t.winner_variant_id as string))
+    const channelWinners = (allWinners ?? []).filter(w => channelWinnerIds.has(w.id as string))
+    const tags = aggregateTags(channelWinners, channelTests)
+
+    channelLearnings.push({
+      channelId,
+      channelName: channelNameMap.get(channelId) ?? 'Canal',
+      learnings: {
+        tags,
+        totalTests: channelTests.length,
+        insightText: buildInsightText(tags),
+      },
+    })
+  }
+
+  // Combined learnings from all tests
+  const combinedTags = aggregateTags(allWinners ?? [], tests)
+  const combined: LearningsData = {
+    tags: combinedTags,
+    totalTests: tests.length,
+    insightText: buildInsightText(combinedTags),
+  }
+
+  return { channels: channelLearnings, combined }
 }
 
 // ---------------------------------------------------------------------------

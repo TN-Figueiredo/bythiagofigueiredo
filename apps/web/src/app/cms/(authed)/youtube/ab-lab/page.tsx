@@ -2,7 +2,7 @@ import { getSiteContext } from '@/lib/cms/site-context'
 import {
   getAbTestsForSite,
   getAbSiteSettings,
-  getLearnings,
+  getChannelLearnings,
   getSuggestedVideos,
   getEligibleVideosForPicker,
   toCardView,
@@ -16,10 +16,10 @@ export const dynamic = 'force-dynamic'
 export default async function AbLabPage() {
   const { siteId } = await getSiteContext()
 
-  const [tests, settings, learnings, suggested, eligibleVideos] = await Promise.all([
+  const [tests, settings, channelLearnings, suggested, eligibleVideos] = await Promise.all([
     getAbTestsForSite(),
     getAbSiteSettings(),
-    getLearnings(siteId),
+    getChannelLearnings(siteId),
     getSuggestedVideos(siteId),
     getEligibleVideosForPicker(),
   ])
@@ -38,7 +38,8 @@ export default async function AbLabPage() {
       drafts={drafts}
       completed={completedCards}
       paused={pausedCards}
-      learnings={learnings}
+      learnings={channelLearnings?.combined ?? null}
+      channelLearnings={channelLearnings}
       suggested={suggested}
       settings={settings}
       eligibleVideos={eligibleVideos}

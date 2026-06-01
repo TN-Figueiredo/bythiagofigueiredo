@@ -7,6 +7,7 @@ import type {
   AbTestCardView,
   AbTestDraft,
   AbTestSiteSettings,
+  ChannelLearningsData,
   DashboardStats,
   LearningsData,
   SuggestedVideo,
@@ -31,6 +32,7 @@ export interface AbLabDashboardProps {
   completed: AbTestCardView[]
   paused: AbTestCardView[]
   learnings: LearningsData | null
+  channelLearnings: ChannelLearningsData | null
   suggested: SuggestedVideo[]
   settings: AbTestSiteSettings
   siteId: string
@@ -44,6 +46,7 @@ export function AbLabDashboard({
   completed,
   paused,
   learnings,
+  channelLearnings,
   suggested,
   settings,
   siteId,
@@ -295,7 +298,7 @@ export function AbLabDashboard({
               <CompletedRow key={test.id} test={test} onOpen={handleOpenTest} />
             ))}
           </div>
-          <LearningsPanel learnings={learnings} />
+          <LearningsPanel learnings={learnings} channelLearnings={channelLearnings} />
         </div>
       )}
 

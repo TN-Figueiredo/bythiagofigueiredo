@@ -355,6 +355,17 @@ export interface LearningsData {
   insightText: string
 }
 
+export interface ChannelLearningsEntry {
+  channelId: string
+  channelName: string
+  learnings: LearningsData
+}
+
+export interface ChannelLearningsData {
+  channels: ChannelLearningsEntry[]
+  combined: LearningsData
+}
+
 export interface EligibleVideo {
   id: string
   title: string

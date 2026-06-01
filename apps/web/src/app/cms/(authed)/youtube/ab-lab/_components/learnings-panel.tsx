@@ -1,10 +1,12 @@
 'use client'
 
+import { useState } from 'react'
 import { Sparkles } from 'lucide-react'
-import type { LearningsData, LearningsTag } from '@/lib/youtube/ab-types'
+import type { ChannelLearningsData, LearningsData, LearningsTag } from '@/lib/youtube/ab-types'
 
 export interface LearningsPanelProps {
   learnings: LearningsData | null
+  channelLearnings?: ChannelLearningsData | null
 }
 
 function StrengthBar({ wins, maxWins }: { wins: number; maxWins: number }) {
@@ -53,7 +55,38 @@ function TagRow({ tag, maxWins }: { tag: LearningsTag; maxWins: number }) {
   )
 }
 
-export function LearningsPanel({ learnings }: LearningsPanelProps) {
+function LearningsContent({ data }: { data: LearningsData }) {
+  const maxWins = Math.max(...data.tags.map(t => t.wins), 1)
+
+  return (
+    <>
+      <p className="text-[12px] text-cms-text-dim m-0 mb-[16px]">
+        Padrões aprendidos em {data.totalTests} testes. O Cowork usa isso pra sugerir variantes melhores.
+      </p>
+
+      {/* Tags */}
+      <div className="flex flex-col gap-[9px]">
+        {data.tags.map(tag => (
+          <TagRow key={tag.tag} tag={tag} maxWins={maxWins} />
+        ))}
+      </div>
+
+      {/* Insight box */}
+      {data.insightText && (
+        <div
+          className="mt-[16px] py-[12px] px-[14px] rounded-[10px] text-[12px] text-cms-text-dim leading-[1.5]"
+          style={{ background: 'var(--accent-soft, rgba(255,130,64,0.08))' }}
+        >
+          <b className="text-cms-accent">Insight:</b> {data.insightText}
+        </div>
+      )}
+    </>
+  )
+}
+
+export function LearningsPanel({ learnings, channelLearnings }: LearningsPanelProps) {
+  const [activeTab, setActiveTab] = useState<string>('combined')
+
   if (!learnings) {
     return (
       <div className="rounded-[14px] p-[20px]" style={{ background: 'var(--cms-surface)', border: '1px solid var(--cms-border, #332D25)' }}>
@@ -64,7 +97,15 @@ export function LearningsPanel({ learnings }: LearningsPanelProps) {
     )
   }
 
-  const maxWins = Math.max(...learnings.tags.map(t => t.wins), 1)
+  // Only show channel tabs when 2+ channels have enough data
+  const showChannelTabs = (channelLearnings?.channels.length ?? 0) >= 2
+
+  // Determine which data to display
+  let activeData: LearningsData = learnings
+  if (activeTab !== 'combined' && channelLearnings) {
+    const channel = channelLearnings.channels.find(c => c.channelId === activeTab)
+    if (channel) activeData = channel.learnings
+  }
 
   return (
     <div className="rounded-[14px] p-[20px]" style={{ background: 'var(--cms-surface)', border: '1px solid var(--cms-border, #332D25)' }}>
@@ -73,26 +114,39 @@ export function LearningsPanel({ learnings }: LearningsPanelProps) {
         <Sparkles size={17} className="text-cms-accent" aria-hidden="true" />
         <h3 className="text-[15px] font-semibold text-cms-text m-0">O que já funciona pra você</h3>
       </div>
-      <p className="text-[12px] text-cms-text-dim m-0 mb-[16px]">
-        Padrões aprendidos em {learnings.totalTests} testes. O Cowork usa isso pra sugerir variantes melhores.
-      </p>
 
-      {/* Tags */}
-      <div className="flex flex-col gap-[9px]">
-        {learnings.tags.map(tag => (
-          <TagRow key={tag.tag} tag={tag} maxWins={maxWins} />
-        ))}
-      </div>
-
-      {/* Insight box */}
-      {learnings.insightText && (
-        <div
-          className="mt-[16px] py-[12px] px-[14px] rounded-[10px] text-[12px] text-cms-text-dim leading-[1.5]"
-          style={{ background: 'var(--accent-soft, rgba(255,130,64,0.08))' }}
-        >
-          <b className="text-cms-accent">Insight:</b> {learnings.insightText}
+      {/* Channel tabs */}
+      {showChannelTabs && (
+        <div className="flex gap-[6px] mt-[12px] mb-[12px] overflow-x-auto">
+          <button
+            type="button"
+            onClick={() => setActiveTab('combined')}
+            className="px-[10px] py-[4px] rounded-[8px] text-[11px] font-medium whitespace-nowrap cursor-pointer transition-colors border-0"
+            style={{
+              background: activeTab === 'combined' ? 'var(--accent)' : 'var(--surface-3, var(--cms-surface-3, #333))',
+              color: activeTab === 'combined' ? '#fff' : 'var(--ink-faint, var(--cms-text-dim))',
+            }}
+          >
+            Todos os canais
+          </button>
+          {channelLearnings!.channels.map(ch => (
+            <button
+              key={ch.channelId}
+              type="button"
+              onClick={() => setActiveTab(ch.channelId)}
+              className="px-[10px] py-[4px] rounded-[8px] text-[11px] font-medium whitespace-nowrap cursor-pointer transition-colors border-0"
+              style={{
+                background: activeTab === ch.channelId ? 'var(--accent)' : 'var(--surface-3, var(--cms-surface-3, #333))',
+                color: activeTab === ch.channelId ? '#fff' : 'var(--ink-faint, var(--cms-text-dim))',
+              }}
+            >
+              {ch.channelName}
+            </button>
+          ))}
         </div>
       )}
+
+      <LearningsContent data={activeData} />
     </div>
   )
 }
