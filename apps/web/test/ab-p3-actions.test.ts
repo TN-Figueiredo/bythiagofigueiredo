@@ -412,6 +412,26 @@ describe('revertWinner', () => {
     expect(result).toEqual({ ok: false, error: 'Test has no applied winner' })
     expect(setThumbnail).not.toHaveBeenCalled()
   })
+
+  it('restores original title and description for title test (no setThumbnail)', async () => {
+    setupRevertMock({
+      test_type: 'title',
+      original_thumbnail_url: null,
+    })
+
+    const result = await revertWinner('test-1')
+
+    expect(result).toEqual({ ok: true })
+    // Should call updateVideoMetadata with original title + description
+    expect(updateVideoMetadata).toHaveBeenCalledWith(
+      'YT_VID_001',
+      'Orig Title',
+      'Orig Desc',
+      'fresh-token',
+    )
+    // Should NOT call setThumbnail since it's a title test
+    expect(setThumbnail).not.toHaveBeenCalled()
+  })
 })
 
 // ===========================================================================

@@ -605,4 +605,66 @@ describe('GET /api/cron/ab-rotate', () => {
       }),
     )
   })
+
+  it('records cycle even when metadata update fails in combo test', async () => {
+    const test = makeTest({
+      test_type: 'combo',
+      variants: [
+        {
+          id: 'v1',
+          sort_order: 0,
+          blob_url: 'https://blob.example/a.jpg',
+          title_text: 'Title A',
+          description_text: 'Desc A',
+        },
+        {
+          id: 'v2',
+          sort_order: 1,
+          blob_url: 'https://blob.example/b.jpg',
+          title_text: 'Title B',
+          description_text: 'Desc B',
+        },
+      ],
+    })
+    const { updateCalls } = buildSupabaseMock({ tests: [test] })
+
+    // Thumbnail succeeds, metadata throws
+    ;(setThumbnail as ReturnType<typeof vi.fn>).mockResolvedValue(undefined)
+    ;(updateVideoMetadata as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error('YouTube API returned 401: token expired')
+    )
+
+    const req = createCronRequest('test-secret')
+    const res = await GET(req)
+    const body = await res.json()
+
+    expect(body.errors).toBe(1)
+    expect(body.processed).toBe(0)
+
+    // Write-ahead marker was set (before YouTube calls)
+    expect(updateCalls).toContainEqual(
+      expect.objectContaining({
+        table: 'ab_tests',
+        data: { last_applied_variant_id: 'v2' },
+      }),
+    )
+
+    // consecutive_failures incremented
+    expect(updateCalls).toContainEqual(
+      expect.objectContaining({
+        table: 'ab_tests',
+        data: expect.objectContaining({
+          config: expect.objectContaining({ consecutive_failures: 1 }),
+        }),
+      }),
+    )
+
+    // Thumbnail WAS called (succeeded before metadata failed)
+    expect(setThumbnail).toHaveBeenCalledWith(
+      'YT_VIDEO_123',
+      expect.any(Buffer),
+      'image/jpeg',
+      'fresh-token-123',
+    )
+  })
 })

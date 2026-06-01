@@ -186,4 +186,32 @@ describe('ab-watchdog', () => {
       }),
     )
   })
+
+  it('handles first-ever run when cron_health has no row (null)', async () => {
+    // getCronHealth returns null — no row exists yet (first deployment)
+    mockGetHealth.mockResolvedValue(null)
+
+    const res = await GET(makeRequest())
+    const body = await res.json()
+
+    // With no health record, rotation never ran = missed
+    expect(body.rotate_healthy).toBe(false)
+
+    // Should send notification because rotation has never run
+    expect(mockNotify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'youtube.rotation_missed',
+        priority: 1,
+        site_id: 'site-1',
+      }),
+    )
+
+    // Should trigger catch-up rotation
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      'http://localhost:3000/api/cron/ab-rotate',
+      expect.objectContaining({
+        headers: { authorization: 'Bearer test-secret' },
+      }),
+    )
+  })
 })
