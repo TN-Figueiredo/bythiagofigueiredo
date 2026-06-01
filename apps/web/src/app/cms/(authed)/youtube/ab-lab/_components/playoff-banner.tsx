@@ -107,7 +107,7 @@ export function PlayoffBanner({ finalists, allVariants, startsIn, reason }: Play
                     </span>
                   </div>
                   <div className="text-[11px] text-cms-text-dim mt-[4px] whitespace-nowrap overflow-hidden text-ellipsis max-w-[180px]">
-                    {f.label === 'B' ? 'Gastei R$50 em Comida de Rua ...' : 'Comi na Rua por 24h e Quase N...'}
+                    {f.label === 'A' ? 'Original' : `Variante ${f.label}`}
                   </div>
                 </div>
               </div>

@@ -76,7 +76,7 @@ export function LiveMonitorCard({ monitor }: LiveMonitorProps) {
               </span>
             </div>
             <div className="text-[11.5px] text-cms-text-muted mt-[6px]">
-              vs original · monitorando
+              {monitor.liftVsOriginal > 0 ? `+${monitor.liftVsOriginal}% vs original` : 'vs original'} · monitorando
             </div>
           </div>
           <Sparkline data={monitor.sparkline} />

@@ -202,22 +202,22 @@ export async function fetchYtDailyMetrics(siteId: string, days: number, channelI
   const coreReport = await queryYtAnalytics(tokenInfo.accessToken, tokenInfo.channelId, {
     startDate: toDateStr(start),
     endDate: toDateStr(end),
-    metrics: 'views,estimatedMinutesWatched,subscribersGained,subscribersLost,likes,comments,shares',
+    metrics: 'views,estimatedMinutesWatched,subscribersGained,subscribersLost,likes,comments,shares,impressions,impressionClickThroughRate',
     dimensions: 'day',
     sort: 'day',
   })
 
   return (coreReport.rows ?? []).map((row) => ({
     date: String(row[0]),
-    views: Number(row[1]),
-    estimatedMinutesWatched: Number(row[2]),
-    subscribersGained: Number(row[3]),
-    subscribersLost: Number(row[4]),
-    impressions: 0,
-    impressionClickThroughRate: 0,
-    likes: Number(row[5]),
-    comments: Number(row[6]),
-    shares: Number(row[7]),
+    views: Number(row[1]) || 0,
+    estimatedMinutesWatched: Number(row[2]) || 0,
+    subscribersGained: Number(row[3]) || 0,
+    subscribersLost: Number(row[4]) || 0,
+    likes: Number(row[5]) || 0,
+    comments: Number(row[6]) || 0,
+    shares: Number(row[7]) || 0,
+    impressions: Number(row[8]) || 0,
+    impressionClickThroughRate: Number(row[9]) || 0,
   }))
 }
 

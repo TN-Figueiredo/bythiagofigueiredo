@@ -50,6 +50,7 @@ export function HeroBand({ confidence, confidenceTarget, leader, lift, trend }: 
   const trendColor = trend === 'up' ? 'var(--cms-green)' : trend === 'down' ? 'var(--cms-red)' : 'var(--cms-text-muted)'
   const trendLabel = trend === 'up' ? 'subindo' : trend === 'down' ? 'descendo' : 'estável'
 
+  const warmingUp = confidence < 5
   const estimatedDays = confidence > 0 ? Math.max(1, Math.ceil((confidenceTarget - confidence) / 2.5)) : '—'
 
   return (
@@ -67,13 +68,13 @@ export function HeroBand({ confidence, confidenceTarget, leader, lift, trend }: 
             <InfoTip text="P-best: a probabilidade Bayesiana desta variante ser a melhor. Quanto maior, mais confiança. Meta: 95% = o motor só declara vencedor acima desse limiar." />
           </div>
           <div className="text-[12.5px] text-cms-text-dim max-w-[150px] leading-[1.4]">
-            Meta {confidenceTarget}% · faltam ~{estimatedDays} dias no ritmo atual
+            {warmingUp ? 'Coletando dados dos primeiros ciclos...' : `Meta ${confidenceTarget}% · faltam ~${estimatedDays} dias no ritmo atual`}
           </div>
         </div>
       </div>
 
       {/* Cell 2: Líder atual */}
-      <StatCell eyebrow="Líder atual" subtitle={`${Math.round(confidence)}% de confiança`}>
+      <StatCell eyebrow="Líder atual" subtitle={warmingUp ? 'Aguardando dados' : `${Math.round(confidence)}% de confiança`}>
         <span className="inline-flex items-center gap-[9px]">
           <VChip label={leader.label} size={28} ring />
           {leader.label === 'A' ? 'Original' : `Variante ${leader.label}`}
