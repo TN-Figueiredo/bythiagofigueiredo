@@ -613,75 +613,117 @@ export async function getLearnings(siteId: string): Promise<LearningsData | null
 export async function getSuggestedVideos(siteId: string): Promise<SuggestedVideo[]> {
   const supabase = getSupabaseServiceClient()
 
-  // Fetch all videos (with or without CTR)
+  const now = new Date()
+  const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000).toISOString()
+  const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000).toISOString()
+
+  // 1. Fetch eligible videos: >= 1000 views, published > 14 days ago
   const { data: allVideos } = await supabase
     .from('youtube_videos')
-    .select('id, title, thumbnail_url, ctr, view_count')
+    .select('id, title, thumbnail_url, ctr, view_count, impressions')
     .eq('site_id', siteId)
-    .order('published_at', { ascending: false })
-    .limit(200)
+    .gte('view_count', 1000)
+    .lt('published_at', fourteenDaysAgo)
+    .order('view_count', { ascending: false })
+    .limit(300)
 
   if (!allVideos || allVideos.length === 0) return []
 
-  // Get active test video IDs
-  const { data: activeTests } = await supabase
+  // 2. Get video IDs tested in last 60 days
+  const { data: recentTests } = await supabase
     .from('ab_tests')
     .select('youtube_video_id')
     .eq('site_id', siteId)
-    .in('status', ['draft', 'active', 'paused'])
+    .gte('created_at', sixtyDaysAgo)
 
-  const activeVideoIds = new Set((activeTests ?? []).map(t => t.youtube_video_id as string))
+  const recentlyTestedIds = new Set((recentTests ?? []).map(t => t.youtube_video_id as string))
 
-  // Videos with CTR data
-  const withCtr = allVideos.filter(v => (v.ctr as number | null) != null && (v.ctr as number) > 0)
-  const ctrs = withCtr.map(v => v.ctr as number)
-  const median = ctrs.length > 0
-    ? [...ctrs].sort((a, b) => a - b)[Math.floor(ctrs.length / 2)]!
-    : 5.0
+  // 3. Exclude recently-tested videos
+  const eligible = allVideos.filter(v => !recentlyTestedIds.has(v.id as string))
 
-  // If we have CTR data, score by below-median
-  if (withCtr.length >= 3) {
-    const suggestions: SuggestedVideo[] = withCtr
-      .filter(v => (v.ctr as number) < median && !activeVideoIds.has(v.id as string))
-      .map(v => {
-        const ctr = v.ctr as number
-        const ratio = ctr / median
-        const grade = ratio > 0.9 ? 'A' : ratio > 0.7 ? 'B' : ratio > 0.5 ? 'C' : ratio > 0.3 ? 'D' : 'F'
-        const belowPercent = Math.round((1 - ratio) * 100)
-        return {
-          id: v.id as string,
-          title: v.title as string,
-          thumbnailUrl: (v.thumbnail_url as string | null) ?? null,
-          ctr: Math.round(ctr * 100) / 100,
-          channelMedianCtr: Math.round(median * 100) / 100,
-          grade: grade as SuggestedVideo['grade'],
-          reason: `CTR ${belowPercent}% abaixo da mediana do canal`,
-          suggest: 'thumbnail' as const,
-        }
-      })
-      .sort((a, b) => {
-        const gradeOrder = { F: 0, D: 1, C: 2, B: 3, A: 4 }
-        return gradeOrder[a.grade] - gradeOrder[b.grade]
-      })
-      .slice(0, 5)
+  if (eligible.length === 0) return []
 
-    return suggestions
+  // 4. Compute channel_avg_CTR from videos with CTR > 0 and view_count >= 1000
+  const withCtr = eligible.filter(v => (v.ctr as number | null) != null && (v.ctr as number) > 0)
+  const channelAvgCtr = withCtr.length > 0
+    ? withCtr.reduce((sum, v) => sum + (v.ctr as number), 0) / withCtr.length
+    : 0
+
+  // 5. Score each video
+  type ScoredVideo = {
+    id: string
+    title: string
+    thumbnailUrl: string | null
+    ctr: number
+    viewCount: number
+    score: number
+    hasCtr: boolean
   }
 
-  // Fallback: no CTR data — suggest recent videos that don't have active tests
-  return allVideos
-    .filter(v => !activeVideoIds.has(v.id as string))
-    .slice(0, 5)
-    .map(v => ({
+  const scored: ScoredVideo[] = eligible.map(v => {
+    const ctr = (v.ctr as number | null) ?? 0
+    const viewCount = v.view_count as number
+    const hasCtr = ctr > 0 && channelAvgCtr > 0
+
+    // score = views * (1 - CTR / channelAvgCtr)
+    // For videos without CTR data, use viewCount as fallback score
+    const score = hasCtr
+      ? viewCount * (1 - ctr / channelAvgCtr)
+      : viewCount
+
+    return {
       id: v.id as string,
       title: v.title as string,
       thumbnailUrl: (v.thumbnail_url as string | null) ?? null,
-      ctr: 0,
-      channelMedianCtr: 0,
-      grade: 'C' as const,
-      reason: 'Sem dados de CTR — sincronize o YouTube Analytics para ver a nota',
+      ctr,
+      viewCount,
+      score,
+      hasCtr,
+    }
+  })
+
+  // 6. Boost: underperformers with outlier score (score relative to median < 0.5x)
+  const scores = scored.filter(v => v.hasCtr).map(v => v.score)
+  const medianScore = scores.length > 0
+    ? [...scores].sort((a, b) => a - b)[Math.floor(scores.length / 2)]!
+    : 0
+
+  if (medianScore > 0) {
+    for (const v of scored) {
+      if (v.hasCtr && v.score > medianScore * 2) {
+        // Strong underperformer relative to channel — boost priority
+        v.score *= 1.2
+      }
+    }
+  }
+
+  // 7. Sort by score DESC, limit 5
+  scored.sort((a, b) => b.score - a.score)
+  const top = scored.slice(0, 5)
+
+  // 8. Map to SuggestedVideo[] with updated reason text
+  return top.map(v => {
+    const ratio = channelAvgCtr > 0 && v.hasCtr ? v.ctr / channelAvgCtr : 0
+    const belowPercent = Math.round((1 - ratio) * 100)
+    const grade: SuggestedVideo['grade'] = !v.hasCtr
+      ? 'C'
+      : ratio > 0.9 ? 'A' : ratio > 0.7 ? 'B' : ratio > 0.5 ? 'C' : ratio > 0.3 ? 'D' : 'F'
+
+    const reason = v.hasCtr
+      ? `Score: ${Math.round(v.score).toLocaleString()} — ${belowPercent}% abaixo da média do canal`
+      : `Alto alcance sem teste (${v.viewCount.toLocaleString()} views)`
+
+    return {
+      id: v.id,
+      title: v.title,
+      thumbnailUrl: v.thumbnailUrl,
+      ctr: Math.round(v.ctr * 100) / 100,
+      channelMedianCtr: Math.round(channelAvgCtr * 100) / 100,
+      grade,
+      reason,
       suggest: 'thumbnail' as const,
-    }))
+    }
+  })
 }
 
 // ---------------------------------------------------------------------------
