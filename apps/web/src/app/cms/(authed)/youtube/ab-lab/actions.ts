@@ -106,6 +106,29 @@ export async function createAbTest(
     return { ok: false, error: 'Video has no thumbnail — sync first' }
   }
 
+  // Preserve original thumbnail as immutable Vercel Blob copy
+  // YouTube CDN URLs (ytimg.com) are mutable — rotation changes what they serve
+  let immutableOriginalUrl: string | null = video.thumbnail_hq_url ?? null
+
+  if (video.thumbnail_hq_url && video.thumbnail_hq_url.includes('ytimg.com')) {
+    try {
+      const imgRes = await fetch(video.thumbnail_hq_url, { signal: AbortSignal.timeout(15_000) })
+      if (imgRes.ok) {
+        const buffer = Buffer.from(await imgRes.arrayBuffer())
+        const ct = imgRes.headers.get('content-type') ?? 'image/jpeg'
+        const ext = ct.includes('png') ? 'png' : 'jpg'
+        const blob = await put(
+          `ab-originals/${crypto.randomUUID()}/original.${ext}`,
+          buffer,
+          { access: 'public', contentType: ct, addRandomSuffix: true },
+        )
+        immutableOriginalUrl = blob.url
+      }
+    } catch {
+      return { ok: false, error: 'Falha ao salvar thumbnail original. Tente novamente.' }
+    }
+  }
+
   // Check for existing active/draft/paused test on the same video
   const { data: existing } = await supabase
     .from('ab_tests')
@@ -158,7 +181,7 @@ export async function createAbTest(
       name: input.name,
       status: 'draft',
       config,
-      original_thumbnail_url: video.thumbnail_hq_url ?? null,
+      original_thumbnail_url: immutableOriginalUrl,
       test_type: testType,
       original_title: originalTitle,
       original_description: originalDescription,
@@ -175,7 +198,7 @@ export async function createAbTest(
     test_id: test.id,
     label: 'original',
     is_original: true,
-    blob_url: video.thumbnail_hq_url ?? null,
+    blob_url: immutableOriginalUrl,
     blob_key: null,
     sort_order: 0,
   })
