@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { X, TrendingUp, TrendingDown, Minus } from 'lucide-react'
-import { getSupabaseServiceClient } from '@/lib/supabase/service'
 
 interface LibraryEntry {
   id: string

@@ -121,7 +121,7 @@ export async function syncCompetitorChannel(
     const durationStr = video.contentDetails?.duration as string | undefined
     if (durationStr) {
       const match = durationStr.match(/P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/)
-      if (match) {
+      if (match && (match[1] || match[2] || match[3] || match[4])) {
         durationSeconds = (parseInt(match[1] ?? '0', 10) * 86400) +
                           (parseInt(match[2] ?? '0', 10) * 3600) +
                           (parseInt(match[3] ?? '0', 10) * 60) +

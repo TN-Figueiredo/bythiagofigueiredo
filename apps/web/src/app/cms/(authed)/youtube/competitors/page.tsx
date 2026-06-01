@@ -35,9 +35,11 @@ export default async function CompetitorsPage({
   const { data: allVideos } = channelIds.length > 0
     ? await supabase
         .from('competitor_videos')
-        .select('id, competitor_channel_id, video_id, title, thumbnail_url, view_count, published_at')
+        .select('id, competitor_channel_id, video_id, title, thumbnail_url, view_count, published_at, tags')
         .in('competitor_channel_id', channelIds)
-    : { data: [] as Array<{ id: string; competitor_channel_id: string; video_id: string; title: string | null; thumbnail_url: string | null; view_count: number | null; published_at: string | null }> }
+        .order('published_at', { ascending: false })
+        .limit(750)
+    : { data: [] as Array<{ id: string; competitor_channel_id: string; video_id: string; title: string | null; thumbnail_url: string | null; view_count: number | null; published_at: string | null; tags: string[] | null }> }
 
   // Group videos by channel
   const videosByChannel = new Map<string, typeof allVideos>()

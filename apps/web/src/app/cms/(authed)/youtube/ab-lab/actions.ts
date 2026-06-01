@@ -30,6 +30,9 @@ import { autoImportWinner } from '@/lib/youtube/thumbnail-library'
 import { getVideoTestHistory as _getVideoTestHistory, getLearnings } from './queries'
 
 async function preserveOriginalThumbnail(ytUrl: string): Promise<string> {
+  const hostname = new URL(ytUrl).hostname
+  const allowed = ['.ytimg.com', '.ggpht.com', '.googleusercontent.com', '.blob.vercel-storage.com']
+  if (!allowed.some(s => hostname.endsWith(s))) throw new Error(`Blocked fetch from untrusted host: ${hostname}`)
   const imgRes = await fetch(ytUrl, { signal: AbortSignal.timeout(15_000) })
   if (!imgRes.ok) throw new Error(`Fetch failed: ${imgRes.status}`)
   const buffer = Buffer.from(await imgRes.arrayBuffer())
@@ -539,11 +542,8 @@ export async function pullPipelineThumbnails(
     if (!label) break
 
     try {
-      // Fetch image from URL
-      const response = await fetch(url)
-      if (!response.ok) continue
-
-      const contentType = response.headers.get('content-type') ?? 'image/jpeg'
+      // Fetch image with SSRF protection (uses fetchVariantImageBuffer allowlist)
+      const { buffer, contentType } = await fetchVariantImageBuffer(url)
       const allowedTypes = ['image/jpeg', 'image/png', 'image/webp']
       if (!allowedTypes.includes(contentType)) continue
 
@@ -553,9 +553,6 @@ export async function pullPipelineThumbnails(
         'image/webp': 'webp',
       }
       const ext = extMap[contentType] ?? 'jpg'
-
-      const arrayBuffer = await response.arrayBuffer()
-      const buffer = Buffer.from(arrayBuffer)
 
       const blobPath = `ab-test/${testId}/${label}.${ext}`
       const blob = await put(blobPath, buffer, {

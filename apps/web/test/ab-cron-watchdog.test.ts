@@ -54,6 +54,13 @@ function buildMockSupabase(activeTests: { site_id: string }[] | null) {
         }),
       }
     }
+    if (table === 'competitor_channel_snapshots') {
+      return {
+        delete: vi.fn().mockReturnValue({
+          lt: vi.fn().mockResolvedValue({ data: null, error: null }),
+        }),
+      }
+    }
     return { select: vi.fn() }
   })
 
