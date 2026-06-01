@@ -22,7 +22,7 @@ export default async function PipelineItemPage({
     <>
       <CmsTopbar title={`Pipeline: ${item.title_pt || item.title_en || item.code}`} />
       <div className="gem-pipeline-theme" style={GEM_CSS_VARS as React.CSSProperties}>
-        <PipelineItemDetail item={item} history={history} dependencies={dependencies} />
+        <PipelineItemDetail item={item as any} history={history} dependencies={dependencies} />
       </div>
     </>
   )
