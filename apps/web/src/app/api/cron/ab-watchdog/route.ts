@@ -188,6 +188,13 @@ export async function GET(req: NextRequest) {
       .eq('bookmarked', false)
     if (competitorPruneError) console.error('[ab-watchdog] competitor change prune failed:', competitorPruneError.message)
 
+    // Prune old channel snapshots (365-day retention)
+    const oneYearAgo = new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10)
+    await pruneClient
+      .from('competitor_channel_snapshots')
+      .delete()
+      .lt('snapshot_date', oneYearAgo)
+
     await recordCronSuccess('ab-watchdog', 'info')
 
     return Response.json({

@@ -51,16 +51,20 @@ export async function syncCompetitorChannel(
     })
     .eq('id', channelRow.id)
 
-  // Insert daily channel snapshot for growth tracking
-  await supabase
-    .from('competitor_channel_snapshots')
-    .upsert({
-      competitor_channel_id: channelRow.id,
-      subscriber_count: parseInt(stats?.subscriberCount ?? '0', 10),
-      video_count: parseInt(stats?.videoCount ?? '0', 10),
-      view_count: parseInt(stats?.viewCount ?? '0', 10),
-      snapshot_date: new Date().toISOString().slice(0, 10),
-    }, { onConflict: 'competitor_channel_id,snapshot_date' })
+  // Insert daily channel snapshot for growth tracking (non-blocking)
+  try {
+    await supabase
+      .from('competitor_channel_snapshots')
+      .upsert({
+        competitor_channel_id: channelRow.id,
+        subscriber_count: parseInt(stats?.subscriberCount ?? '0', 10),
+        video_count: parseInt(stats?.videoCount ?? '0', 10),
+        view_count: parseInt(stats?.viewCount ?? '0', 10),
+        snapshot_date: new Date().toISOString().slice(0, 10),
+      }, { onConflict: 'competitor_channel_id,snapshot_date' })
+  } catch {
+    // Non-fatal: snapshot failure should not block video sync
+  }
 
   // 2. Get latest 50 videos
   const playlistRes = await fetch(
