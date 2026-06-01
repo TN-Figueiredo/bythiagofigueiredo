@@ -51,9 +51,20 @@ export async function syncCompetitorChannel(
     })
     .eq('id', channelRow.id)
 
-  // 2. Get latest 10 videos
+  // Insert daily channel snapshot for growth tracking
+  await supabase
+    .from('competitor_channel_snapshots')
+    .upsert({
+      competitor_channel_id: channelRow.id,
+      subscriber_count: parseInt(stats?.subscriberCount ?? '0', 10),
+      video_count: parseInt(stats?.videoCount ?? '0', 10),
+      view_count: parseInt(stats?.viewCount ?? '0', 10),
+      snapshot_date: new Date().toISOString().slice(0, 10),
+    }, { onConflict: 'competitor_channel_id,snapshot_date' })
+
+  // 2. Get latest 50 videos
   const playlistRes = await fetch(
-    `${YOUTUBE_API_BASE}/playlistItems?part=snippet&playlistId=${uploadsPlaylistId}&maxResults=10&key=${apiKey}`,
+    `${YOUTUBE_API_BASE}/playlistItems?part=snippet&playlistId=${uploadsPlaylistId}&maxResults=50&key=${apiKey}`,
     { signal: AbortSignal.timeout(10_000) },
   )
   if (!playlistRes.ok) throw new Error(`YouTube API ${playlistRes.status} for playlist ${uploadsPlaylistId}`)
@@ -71,7 +82,7 @@ export async function syncCompetitorChannel(
 
   // 3. Get video details (statistics + snippet)
   const videosRes = await fetch(
-    `${YOUTUBE_API_BASE}/videos?part=snippet,statistics&id=${videoIds.join(',')}&key=${apiKey}`,
+    `${YOUTUBE_API_BASE}/videos?part=snippet,statistics,contentDetails&id=${videoIds.join(',')}&key=${apiKey}`,
     { signal: AbortSignal.timeout(10_000) },
   )
   if (!videosRes.ok) throw new Error(`YouTube API ${videosRes.status} for video details`)
@@ -87,6 +98,24 @@ export async function syncCompetitorChannel(
     const thumbnailUrl = video.snippet?.thumbnails?.maxres?.url ?? video.snippet?.thumbnails?.high?.url ?? null
     const viewCount = parseInt(video.statistics?.viewCount ?? '0', 10)
     const publishedAt = video.snippet?.publishedAt ?? null
+    const likeCount = parseInt(video.statistics?.likeCount ?? '0', 10)
+    const commentCount = parseInt(video.statistics?.commentCount ?? '0', 10)
+    const tags: string[] = video.snippet?.tags ?? []
+    const categoryId: string | null = video.snippet?.categoryId ?? null
+
+    // Parse ISO 8601 duration (PT1H2M3S → seconds)
+    let durationSeconds: number | null = null
+    const durationStr = video.contentDetails?.duration as string | undefined
+    if (durationStr) {
+      const match = durationStr.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/)
+      if (match) {
+        durationSeconds = (parseInt(match[1] ?? '0', 10) * 3600) +
+                          (parseInt(match[2] ?? '0', 10) * 60) +
+                          parseInt(match[3] ?? '0', 10)
+      }
+    }
+    const isShort = (durationSeconds !== null && durationSeconds <= 60) ||
+                    (title?.includes('#Shorts') ?? false)
 
     // Check existing record
     const { data: existing } = await supabase
@@ -105,6 +134,13 @@ export async function syncCompetitorChannel(
         thumbnail_url: thumbnailUrl,
         view_count: viewCount,
         published_at: publishedAt,
+        like_count: likeCount,
+        comment_count: commentCount,
+        duration_seconds: durationSeconds,
+        is_short: isShort,
+        tags,
+        category_id: categoryId,
+        original_thumbnail_url: thumbnailUrl,
       })
       continue
     }
@@ -153,6 +189,12 @@ export async function syncCompetitorChannel(
         thumbnail_url: thumbnailUrl,
         view_count: viewCount,
         last_checked_at: new Date().toISOString(),
+        like_count: likeCount,
+        comment_count: commentCount,
+        duration_seconds: durationSeconds,
+        is_short: isShort,
+        tags,
+        category_id: categoryId,
       })
       .eq('id', existing.id)
   }
