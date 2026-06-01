@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { z } from 'zod'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
@@ -103,9 +104,9 @@ export default async function NewStoryPage({ searchParams }: Props) {
       {!hasIg && (
         <div className="mx-6 mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
           Nenhuma conta Instagram conectada.{' '}
-          <a href="/cms/social/connections" className="underline hover:text-amber-100">
+          <Link href="/cms/social/connections" className="underline hover:text-amber-100">
             Conectar agora
-          </a>{' '}
+          </Link>{' '}
           para publicar stories diretamente.
         </div>
       )}

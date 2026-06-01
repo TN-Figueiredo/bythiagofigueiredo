@@ -44,20 +44,20 @@ export async function SubscriberKpis({ siteId }: SubscriberKpisProps) {
 
   const { count: totalActive } = await supabase
     .from('newsletter_subscriptions')
-    .select('*', { count: 'exact', head: true })
+    .select('id', { count: 'exact', head: true })
     .eq('site_id', siteId)
     .eq('status', 'confirmed')
 
   const { count: newLast30d } = await supabase
     .from('newsletter_subscriptions')
-    .select('*', { count: 'exact', head: true })
+    .select('id', { count: 'exact', head: true })
     .eq('site_id', siteId)
     .eq('status', 'confirmed')
     .gte('confirmed_at', thirtyDaysAgo)
 
   const { count: unsubLast30d } = await supabase
     .from('newsletter_subscriptions')
-    .select('*', { count: 'exact', head: true })
+    .select('id', { count: 'exact', head: true })
     .eq('site_id', siteId)
     .eq('status', 'unsubscribed')
     .gte('unsubscribed_at', thirtyDaysAgo)

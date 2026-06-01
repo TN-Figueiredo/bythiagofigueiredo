@@ -11,6 +11,7 @@ import { InsightsPanel } from './insights-panel'
 import { PotentialPanel } from './potential-panel'
 import { RangeTabs } from './range-tabs'
 import { useCallback, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { exportAnalyticsCsv } from '../actions'
 import { fmt } from './fmt'
 
@@ -19,6 +20,7 @@ interface AnalyticsViewProps {
 }
 
 export function AnalyticsView({ data }: AnalyticsViewProps) {
+  const router = useRouter()
   const [range, setRange] = useState<'7d' | '30d' | '90d' | '1y'>('30d')
   const [exporting, setExporting] = useState(false)
 
@@ -259,7 +261,7 @@ export function AnalyticsView({ data }: AnalyticsViewProps) {
               <span style={{ fontSize: '13.5px', fontWeight: 600, flex: 1, color: 'var(--ink)' }}>Top links · 30 dias</span>
               <button
                 type="button"
-                onClick={() => window.location.href = '/cms/links?tab=links'}
+                onClick={() => router.push('/cms/links?tab=links')}
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 7,
                   padding: '6px 11px', fontSize: '12.5px', fontWeight: 600,

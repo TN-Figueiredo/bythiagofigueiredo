@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import type { YtDashboardSummary } from './dashboard-queries'
 
 interface Props {
@@ -14,9 +15,9 @@ export function DashboardYoutubeCard({ data }: Props) {
     <div className="rounded-xl border border-[var(--bdr-1)] bg-[var(--bg-2)]/40 p-5 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]" role="region" aria-label="Resumo YouTube">
       <div className="mb-3 flex items-center justify-between">
         <h3 className="text-sm font-semibold text-[var(--t2)]">Resumo YouTube</h3>
-        <a href="/cms/youtube/analytics" className="text-xs font-medium text-[var(--acc)] hover:underline transition-colors">
+        <Link href="/cms/youtube/analytics" className="text-xs font-medium text-[var(--acc)] hover:underline transition-colors">
           Ver Analytics &rarr;
-        </a>
+        </Link>
       </div>
       <div className="flex items-center gap-4">
         <div className="relative h-20 w-20 shrink-0">

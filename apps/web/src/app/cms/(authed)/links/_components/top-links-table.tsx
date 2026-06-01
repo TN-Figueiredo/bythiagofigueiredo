@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import { type SourceId } from '@tn-figueiredo/links-admin'
 import { fmt } from './fmt'
 
@@ -16,6 +17,8 @@ interface TopLinksTableProps {
 }
 
 export function TopLinksTable({ links }: TopLinksTableProps) {
+  const router = useRouter()
+
   if (links.length === 0) {
     return <p style={{ padding: '16px 0', textAlign: 'center', fontSize: 12, color: 'var(--ink-faint)' }}>Nenhum link encontrado.</p>
   }
@@ -29,7 +32,7 @@ export function TopLinksTable({ links }: TopLinksTableProps) {
           key={l.id}
           type="button"
           data-link-row
-          onClick={() => window.location.href = l.id === 'linktree' ? '/cms/links?tab=tree' : `/cms/links/${l.id}`}
+          onClick={() => router.push(l.id === 'linktree' ? '/cms/links?tab=tree' : `/cms/links/${l.id}`)}
           style={{
             display: 'flex', alignItems: 'center', gap: 12,
             padding: '11px 6px', border: 'none', background: 'transparent',

@@ -86,22 +86,22 @@ export default async function SubscribersPage({ searchParams }: Props) {
   const [confirmedRes, pendingRes, unsubRes, consentRes] = await Promise.all([
     supabase
       .from('newsletter_subscriptions')
-      .select('*', { count: 'exact', head: true })
+      .select('id', { count: 'exact', head: true })
       .eq('site_id', siteId)
       .eq('status', 'confirmed'),
     supabase
       .from('newsletter_subscriptions')
-      .select('*', { count: 'exact', head: true })
+      .select('id', { count: 'exact', head: true })
       .eq('site_id', siteId)
       .eq('status', 'pending_confirmation'),
     supabase
       .from('newsletter_subscriptions')
-      .select('*', { count: 'exact', head: true })
+      .select('id', { count: 'exact', head: true })
       .eq('site_id', siteId)
       .eq('status', 'unsubscribed'),
     supabase
       .from('newsletter_subscriptions')
-      .select('*', { count: 'exact', head: true })
+      .select('id', { count: 'exact', head: true })
       .eq('site_id', siteId)
       .eq('tracking_consent', true),
   ])

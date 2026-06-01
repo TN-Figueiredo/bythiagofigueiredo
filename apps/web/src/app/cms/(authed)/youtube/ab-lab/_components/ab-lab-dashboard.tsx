@@ -12,6 +12,7 @@ import type {
   LearningsData,
   SuggestedVideo,
 } from '@/lib/youtube/ab-types'
+import type { FatigueAlert } from '../queries'
 import { KPI } from './kpi'
 import { ActiveTestCard } from './active-test-card'
 import { CompletedRow } from './completed-row'
@@ -19,7 +20,8 @@ import { DraftsBlock } from './drafts-block'
 import { LearningsPanel } from './learnings-panel'
 import { EmptyState } from './empty-state'
 import { SettingsDrawer } from './settings-drawer'
-import { updateAbSiteSettings } from '../actions'
+import { updateAbSiteSettings, dismissFatigueAlert } from '../actions'
+import { FatigueCard } from './fatigue-card'
 import { VideoPickerDialog } from './video-picker-dialog'
 import type { EligibleVideo } from './video-picker-dialog'
 import { AbCreateWizard } from './ab-create-wizard'
@@ -37,6 +39,7 @@ export interface AbLabDashboardProps {
   settings: AbTestSiteSettings
   siteId: string
   eligibleVideos: EligibleVideo[]
+  fatigueAlerts: FatigueAlert[]
 }
 
 export function AbLabDashboard({
@@ -51,6 +54,7 @@ export function AbLabDashboard({
   settings,
   siteId,
   eligibleVideos,
+  fatigueAlerts,
 }: AbLabDashboardProps) {
   const router = useRouter()
   const [showSettings, setShowSettings] = useState(false)
@@ -76,6 +80,24 @@ export function AbLabDashboard({
 
   function handleCreateTest(_videoId: string, _type: string) {
     setShowPicker(true)
+  }
+
+  function handleFatigueCreate(videoId: string) {
+    const video = eligibleVideos.find(v => v.id === videoId)
+    if (video) {
+      setWizardVideo({
+        id: video.id,
+        title: video.title,
+        thumbnailUrl: video.thumbnailUrl,
+        sourcePipelineId: video.sourcePipelineId,
+      })
+    } else {
+      setShowPicker(true)
+    }
+  }
+
+  async function handleFatigueDismiss(alertId: string) {
+    await dismissFatigueAlert(alertId)
   }
 
   function handleVideoPicked(video: WizardVideo) {
@@ -242,6 +264,31 @@ export function AbLabDashboard({
                   )}
                 </div>
               </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 4c. Fatigue alerts — "Precisa de Atenção" */}
+      {fatigueAlerts.length > 0 && (
+        <div className="animate-ab-fade-up" style={{ margin: '26px 0 14px' }}>
+          <div className="flex items-center justify-between mb-[14px]">
+            <div className="flex items-center gap-[8px]">
+              <span className="text-[9px] font-semibold text-cms-text-dim uppercase tracking-[0.08em]">Precisa de Atenção</span>
+              <span className="inline-flex items-center gap-[5px] px-[9px] py-[3px] rounded-full text-[10.5px] font-semibold tracking-[0.06em] uppercase font-mono" style={{ background: 'rgba(239, 68, 68, 0.08)', color: 'rgb(239, 68, 68)' }}>
+                <AlertTriangle size={10} aria-hidden="true" />
+                {fatigueAlerts.length} alerta{fatigueAlerts.length > 1 ? 's' : ''}
+              </span>
+            </div>
+          </div>
+          <div className="flex flex-col gap-[10px]">
+            {fatigueAlerts.map(alert => (
+              <FatigueCard
+                key={alert.id}
+                alert={alert}
+                onCreate={handleFatigueCreate}
+                onDismiss={handleFatigueDismiss}
+              />
             ))}
           </div>
         </div>

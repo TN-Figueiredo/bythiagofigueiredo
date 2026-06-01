@@ -392,6 +392,44 @@ export async function getVideoTestHistory(youtubeVideoId: string): Promise<Array
 }
 
 // ---------------------------------------------------------------------------
+// getFatigueAlerts
+// ---------------------------------------------------------------------------
+
+export interface FatigueAlert {
+  id: string
+  videoId: string
+  videoTitle: string
+  thumbnailUrl: string | null
+  zScore: number
+  expectedCtr: number
+  actualCtr: number
+  detectedAt: string
+}
+
+export async function getFatigueAlerts(siteId: string): Promise<FatigueAlert[]> {
+  const supabase = getSupabaseServiceClient()
+
+  const { data } = await supabase
+    .from('youtube_fatigue_alerts')
+    .select('id, video_id, z_score, expected_ctr, actual_ctr, detected_at, youtube_videos!inner(id, title, thumbnail_url)')
+    .eq('site_id', siteId)
+    .eq('status', 'pending')
+    .order('detected_at', { ascending: false })
+    .limit(5)
+
+  return (data ?? []).map(alert => ({
+    id: alert.id,
+    videoId: alert.video_id,
+    videoTitle: (alert as any).youtube_videos?.title ?? 'Video',
+    thumbnailUrl: (alert as any).youtube_videos?.thumbnail_url ?? null,
+    zScore: alert.z_score,
+    expectedCtr: alert.expected_ctr,
+    actualCtr: alert.actual_ctr,
+    detectedAt: alert.detected_at,
+  }))
+}
+
+// ---------------------------------------------------------------------------
 // Pure computed helpers (Phase 3)
 // ---------------------------------------------------------------------------
 

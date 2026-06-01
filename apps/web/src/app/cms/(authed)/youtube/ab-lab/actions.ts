@@ -33,6 +33,29 @@ export async function getVideoTestHistory(
   return _getVideoTestHistory(...args)
 }
 
+// ---------------------------------------------------------------------------
+// dismissFatigueAlert
+// ---------------------------------------------------------------------------
+
+export async function dismissFatigueAlert(alertId: string): Promise<{ ok: boolean }> {
+  let siteId: string
+  try {
+    siteId = await requireEditAccess()
+  } catch {
+    return { ok: false }
+  }
+
+  const supabase = getSupabaseServiceClient()
+  await supabase
+    .from('youtube_fatigue_alerts')
+    .update({ status: 'dismissed' })
+    .eq('id', alertId)
+    .eq('site_id', siteId)
+
+  revalidatePath('/cms/youtube/ab-lab')
+  return { ok: true }
+}
+
 async function requireEditAccess(): Promise<string> {
   const { siteId } = await getSiteContext()
   const res = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })

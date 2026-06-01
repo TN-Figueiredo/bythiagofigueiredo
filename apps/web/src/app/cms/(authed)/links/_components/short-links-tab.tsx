@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Search, Plus, ChevronRight, AlertTriangle, QrCode, Link2, Zap, Target, Clock, RefreshCw } from 'lucide-react'
 import { SOURCE_COLORS, SOURCE_LABELS, type LinkDisplay, type SourceId } from '@tn-figueiredo/links-admin'
 import { Spark } from '@tn-figueiredo/links-admin/client'
@@ -31,6 +32,7 @@ interface ShortLinksTabProps {
 }
 
 export function ShortLinksTab({ links, onCreateLink }: ShortLinksTabProps) {
+  const router = useRouter()
   const [search, setSearch] = useState('')
   const [sourceFilter, setSourceFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -126,7 +128,7 @@ export function ShortLinksTab({ links, onCreateLink }: ShortLinksTabProps) {
                     key={l.id}
                     type="button"
                     className="mono"
-                    onClick={() => window.location.href = `/cms/links/${l.id}`}
+                    onClick={() => router.push(`/cms/links/${l.id}`)}
                     style={{
                       display: 'inline-flex', alignItems: 'center', gap: 6,
                       fontSize: '11.5px', padding: '4px 10px', borderRadius: 99,
@@ -243,8 +245,8 @@ export function ShortLinksTab({ links, onCreateLink }: ShortLinksTabProps) {
               key={l.id}
               role="link"
               tabIndex={0}
-              onClick={() => window.location.href = `/cms/links/${l.id}`}
-              onKeyDown={(e) => { if (e.key === 'Enter') window.location.href = `/cms/links/${l.id}` }}
+              onClick={() => router.push(`/cms/links/${l.id}`)}
+              onKeyDown={(e) => { if (e.key === 'Enter') router.push(`/cms/links/${l.id}`) }}
               style={{
                 display: 'grid',
                 gridTemplateColumns: '1.6fr 1.4fr 90px 90px 110px 70px',
@@ -294,7 +296,7 @@ export function ShortLinksTab({ links, onCreateLink }: ShortLinksTabProps) {
                   type="button"
                   title="QR"
                   aria-label={`QR code para ${l.slug}`}
-                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); window.location.href = `/cms/links/${l.id}/qr` }}
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); router.push(`/cms/links/${l.id}/qr`) }}
                   style={{ background: 'transparent', border: 'none', color: 'var(--ink-faint)', padding: '8px 10px', borderRadius: 6, cursor: 'pointer', margin: '-8px -4px' }}
                 >
                   <QrCode size={16} strokeWidth={1.7} />

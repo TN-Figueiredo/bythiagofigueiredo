@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useState, useCallback, useTransition, useEffect } from 'react'
 import type { z } from 'zod'
 import type { LinktreeConfigSchema, LinktreePageData } from '@/app/go/linktree/_lib/types'
@@ -78,18 +79,18 @@ export function LinktreeEditor({ initialConfig, domain, siteId: _siteId, readOnl
       }}>
         {/* Breadcrumb */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
-          <a href="/cms/links" style={{ fontSize: '12.5px', fontWeight: 500, color: 'var(--ink-dim)', display: 'inline-flex', alignItems: 'center', gap: 6, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+          <Link href="/cms/links" style={{ fontSize: '12.5px', fontWeight: 500, color: 'var(--ink-dim)', display: 'inline-flex', alignItems: 'center', gap: 6, textDecoration: 'none', whiteSpace: 'nowrap' }}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
               <path d="M9 15l6-6" /><path d="M10 6l1-1a4 4 0 016 6l-1 1" /><path d="M14 18l-1 1a4 4 0 01-6-6l1-1" />
             </svg>
             Links
-          </a>
+          </Link>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--ink-faint)', opacity: 0.7, flexShrink: 0 }}>
             <path d="M9 6l6 6-6 6" />
           </svg>
-          <a href="/cms/links?tab=tree" style={{ fontSize: '12.5px', fontWeight: 500, color: 'var(--ink-dim)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+          <Link href="/cms/links?tab=tree" style={{ fontSize: '12.5px', fontWeight: 500, color: 'var(--ink-dim)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
             Linktree
-          </a>
+          </Link>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--ink-faint)', opacity: 0.7, flexShrink: 0 }}>
             <path d="M9 6l6 6-6 6" />
           </svg>
@@ -124,7 +125,7 @@ export function LinktreeEditor({ initialConfig, domain, siteId: _siteId, readOnl
             </span>
           )}
           {error && <span style={{ fontSize: 11, color: 'var(--red)', alignSelf: 'center' }}>{error}</span>}
-          <a
+          <Link
             href="/cms/links"
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 7,
@@ -135,7 +136,7 @@ export function LinktreeEditor({ initialConfig, domain, siteId: _siteId, readOnl
             }}
           >
             Cancelar
-          </a>
+          </Link>
           <button
             onClick={handleSave}
             disabled={!hasChanges || readOnly || isPending}

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Settings, CheckCheck, X, ChevronRight } from 'lucide-react'
 import { markRead, dismiss, markAllRead } from '@/lib/notifications/actions'
@@ -39,6 +40,7 @@ const MAX_ITEMS = 8
 export function NotificationPopover({ onClose }: { onClose: () => void }) {
   const { state, dispatch } = useNotifications()
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all')
+  const router = useRouter()
   const containerRef = useRef<HTMLDivElement>(null)
   const chipGroupRef = useRef<HTMLDivElement>(null)
 
@@ -134,13 +136,15 @@ export function NotificationPopover({ onClose }: { onClose: () => void }) {
   const handleAction = useCallback(
     (id: string, href: string | null) => {
       if (!href) return
-      // Mark as read optimistically
       dispatch({ type: 'MARK_READ', id })
       markRead(id)
-      // Navigate
-      window.location.href = href
+      if (href.startsWith('/')) {
+        router.push(href)
+      } else {
+        window.location.href = href
+      }
     },
-    [dispatch],
+    [dispatch, router],
   )
 
   return (

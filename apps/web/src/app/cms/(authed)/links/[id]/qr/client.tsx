@@ -37,7 +37,7 @@ export function QrCardBuilderPage({ link, shortUrl, initialComposition, template
     } else {
       const result = await createQrCard(link.id, cardName, composition)
       if (result.ok) {
-        window.location.href = `/cms/links/${link.id}/qr?card=${result.cardId}`
+        router.push(`/cms/links/${link.id}/qr?card=${result.cardId}`)
         return
       }
       console.error('[QR Card] createQrCard failed:', result.error)

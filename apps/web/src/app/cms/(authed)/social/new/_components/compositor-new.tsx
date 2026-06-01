@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import type { CardComposition } from '@tn-figueiredo/links/qr'
 import type { ContentType } from '@/lib/social/template-schemas'
 import type { DestId } from '@/lib/social/destinations'
@@ -60,6 +61,7 @@ interface CompositorNewProps {
 }
 
 export function CompositorNew({ sourceMode = 'freeform', siteId }: CompositorNewProps) {
+  const router = useRouter()
   const [destsOn, setDestsOn] = useState<Record<DestId, boolean>>(DEFAULT_ON)
   const [focused, setFocused] = useState<DestId>('ig_story')
   const [schedMode, setSchedMode] = useState<'now' | 'schedule' | 'queue'>('now')
@@ -331,7 +333,7 @@ export function CompositorNew({ sourceMode = 'freeform', siteId }: CompositorNew
                 const payload = buildPublishPayload(captions, destsOn, 'now')
                 const result = await createSocialPost(payload)
                 if (result.ok) {
-                  window.location.href = '/cms/social?tab=drafts'
+                  router.push('/cms/social?tab=drafts')
                 } else {
                   alert('Erro ao salvar rascunho')
                 }
@@ -353,7 +355,7 @@ export function CompositorNew({ sourceMode = 'freeform', siteId }: CompositorNew
                   const payload = buildPublishPayload(captions, destsOn, schedMode, scheduledAt)
                   const result = await createSocialPost(payload)
                   if (result.ok) {
-                    window.location.href = '/cms/social'
+                    router.push('/cms/social')
                   } else {
                     alert('Erro ao publicar')
                   }

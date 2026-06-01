@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createBrowserClient } from '@supabase/ssr'
+import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 import type { PostStatus, SocialDelivery } from '@tn-figueiredo/social'
 
 function parseSocialDelivery(row: Record<string, unknown>): SocialDelivery {
@@ -22,13 +22,6 @@ function parseSocialDelivery(row: Record<string, unknown>): SocialDelivery {
     created_at: row.created_at as string,
     format: row.format as SocialDelivery['format'],
   }
-}
-
-function getSupabaseBrowserClient() {
-  return createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  )
 }
 
 export function useSocialDeliveries(postId: string): SocialDelivery[] {

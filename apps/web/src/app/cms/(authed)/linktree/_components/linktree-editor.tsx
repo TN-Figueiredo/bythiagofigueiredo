@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useState, useCallback, useTransition, useEffect } from 'react'
 import type { z } from 'zod'
 import type { LinktreeConfigSchema, LinktreePageData } from '@/app/go/linktree/_lib/types'
@@ -71,11 +72,11 @@ export function LinktreeEditor({ initialConfig, domain, siteId: _siteId, readOnl
       {/* Top bar */}
       <div className="flex items-center justify-between border-b border-border px-4 py-2">
         <div className="flex items-center gap-3">
-          <a href="/cms/links" className="text-muted-foreground hover:text-foreground">
+          <Link href="/cms/links" className="text-muted-foreground hover:text-foreground">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M19 12H5M12 19l-7-7 7-7" />
             </svg>
-          </a>
+          </Link>
           <h1 className="text-sm font-bold text-foreground">Editar Linktree</h1>
           <span className="rounded bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-400">
             Porta de Entrada
@@ -104,12 +105,12 @@ export function LinktreeEditor({ initialConfig, domain, siteId: _siteId, readOnl
             </span>
           )}
           {error && <span className="text-[11px] text-red-400">{error}</span>}
-          <a
+          <Link
             href="/cms/links"
             className="rounded border border-border px-3 py-1 text-xs text-muted-foreground hover:bg-accent/5"
           >
             Cancelar
-          </a>
+          </Link>
           <button
             onClick={handleSave}
             disabled={!hasChanges || readOnly || isPending}

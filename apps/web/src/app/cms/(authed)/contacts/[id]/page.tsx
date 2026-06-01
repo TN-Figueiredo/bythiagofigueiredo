@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 import { createServerClient } from '@supabase/ssr'
@@ -98,9 +99,9 @@ export default async function CmsContactDetailPage({ params }: Props) {
   return (
     <main className="p-8 max-w-2xl">
       <nav className="mb-6 text-sm text-cms-text-muted">
-        <a href="/cms/contacts" className="hover:underline hover:text-cms-text">
+        <Link href="/cms/contacts" className="hover:underline hover:text-cms-text">
           ← Contatos
-        </a>
+        </Link>
       </nav>
 
       <h1 className="text-2xl font-bold mb-6 text-cms-text">Contato de {sub.name as string}</h1>
