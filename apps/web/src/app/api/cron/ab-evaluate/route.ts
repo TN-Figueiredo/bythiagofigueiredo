@@ -289,7 +289,7 @@ export async function GET(req: NextRequest) {
         }
 
         resolved++
-      } else if (!allPass && test.grace_expires_at && newConsecutive < stabilityThreshold) {
+      } else if (test.grace_expires_at && newConsecutive < stabilityThreshold) {
         // Confidence dropped during grace period — cancel auto-apply
         await supabase
           .from('ab_tests')

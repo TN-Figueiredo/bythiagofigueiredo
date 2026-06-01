@@ -1,8 +1,8 @@
 /**
- * Fatigue detection via log-linear regression on CTR time series.
+ * Fatigue detection via log-linear regression on daily views time series.
  *
  * Algorithm:
- * 1. Fit OLS regression on log(CTR) vs log(days_since_publish) using last 60 days
+ * 1. Fit OLS regression on log(views) vs log(days_since_publish) using last 60 days
  * 2. Compute per-day residuals (actual - predicted)
  * 3. Compute 7-day rolling mean of residuals
  * 4. Alert when 7-day rolling mean z-score < -1.5 against the video's own residual distribution
@@ -10,7 +10,6 @@
 
 interface DailyMetric {
   date: string
-  ctr: number
   views: number
 }
 
@@ -25,16 +24,16 @@ export function detectFatigue(
   dailyMetrics: DailyMetric[],
   publishedAt: string,
 ): FatigueResult | null {
-  // Need at least 30 days of data with CTR > 0
-  const validDays = dailyMetrics.filter(d => d.ctr > 0 && d.views >= 100)
+  // Need at least 30 days of data with meaningful views
+  const validDays = dailyMetrics.filter(d => d.views >= 50)
   if (validDays.length < 30) return null
 
   // Compute days since publish for each data point
   const publishDate = new Date(publishedAt).getTime()
   const points = validDays.map(d => ({
     x: Math.log(Math.max((new Date(d.date).getTime() - publishDate) / 86400000, 1)),
-    y: Math.log(Math.max(d.ctr, 0.0001)),
-    ctr: d.ctr,
+    y: Math.log(Math.max(d.views, 1)),
+    views: d.views,
   }))
 
   // OLS regression: y = a + b*x (log-log space)
@@ -68,11 +67,11 @@ export function detectFatigue(
 
   const zScore = (rollingMean - meanResidual) / stdResidual
 
-  // Expected CTR = exp(a + b * log(current_age))
+  // Expected views = exp(a + b * log(current_age))
   const currentAge = Math.log(Math.max((Date.now() - publishDate) / 86400000, 1))
-  const expectedLogCtr = a + b * currentAge
-  const expectedCtr = Math.exp(expectedLogCtr)
-  const actualCtr = validDays[validDays.length - 1]!.ctr
+  const expectedLogViews = a + b * currentAge
+  const expectedCtr = Math.exp(expectedLogViews)
+  const actualCtr = validDays[validDays.length - 1]!.views
 
   return {
     isFatigued: zScore < -1.5,

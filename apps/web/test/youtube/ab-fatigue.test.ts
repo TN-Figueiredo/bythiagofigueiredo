@@ -4,32 +4,30 @@ import { detectFatigue, filterFatigueCandidates } from '@/lib/youtube/ab-fatigue
 describe('detectFatigue', () => {
   const publishedAt = new Date(Date.now() - 90 * 86400000).toISOString()
 
-  function generateDailyMetrics(days: number, baseCtr: number, decay = 0): Array<{ date: string; ctr: number; views: number }> {
+  function generateDailyMetrics(days: number, baseViews: number, decay = 0): Array<{ date: string; views: number }> {
     return Array.from({ length: days }, (_, i) => ({
       date: new Date(Date.now() - (days - i) * 86400000).toISOString().slice(0, 10),
-      ctr: Math.max(baseCtr - decay * i, 0.001),
-      views: 500,
+      views: Math.max(baseViews - decay * i, 1),
     }))
   }
 
   it('returns null with fewer than 30 valid data points', () => {
-    const metrics = generateDailyMetrics(20, 0.05)
+    const metrics = generateDailyMetrics(20, 500)
     expect(detectFatigue(metrics, publishedAt)).toBeNull()
   })
 
-  it('returns not fatigued for stable CTR', () => {
-    const metrics = generateDailyMetrics(60, 0.05)
+  it('returns not fatigued for stable views', () => {
+    const metrics = generateDailyMetrics(60, 500)
     const result = detectFatigue(metrics, publishedAt)
     expect(result).not.toBeNull()
     expect(result!.isFatigued).toBe(false)
   })
 
-  it('detects fatigue when CTR drops sharply in last 7 days', () => {
-    const stable = generateDailyMetrics(53, 0.05)
+  it('detects fatigue when views drop sharply in last 7 days', () => {
+    const stable = generateDailyMetrics(53, 500)
     const dropping = Array.from({ length: 7 }, (_, i) => ({
       date: new Date(Date.now() - (7 - i) * 86400000).toISOString().slice(0, 10),
-      ctr: 0.02 - i * 0.002, // sharp drop
-      views: 500,
+      views: 100 - i * 12, // sharp drop
     }))
     const metrics = [...stable, ...dropping]
     const result = detectFatigue(metrics, publishedAt)
@@ -38,19 +36,18 @@ describe('detectFatigue', () => {
     expect(result!.zScore).toBeLessThan(-1.5)
   })
 
-  it('returns expectedCtr and actualCtr', () => {
-    const metrics = generateDailyMetrics(60, 0.05)
+  it('returns expectedCtr and actualCtr (views-based)', () => {
+    const metrics = generateDailyMetrics(60, 500)
     const result = detectFatigue(metrics, publishedAt)
     expect(result).not.toBeNull()
     expect(result!.expectedCtr).toBeGreaterThan(0)
     expect(result!.actualCtr).toBeGreaterThan(0)
   })
 
-  it('filters out days with views < 100', () => {
+  it('filters out days with views < 50', () => {
     const metrics = Array.from({ length: 60 }, (_, i) => ({
       date: new Date(Date.now() - (60 - i) * 86400000).toISOString().slice(0, 10),
-      ctr: 0.05,
-      views: i < 30 ? 50 : 500, // first 30 days have low views
+      views: i < 30 ? 20 : 500, // first 30 days have low views
     }))
     const result = detectFatigue(metrics, publishedAt)
     expect(result).not.toBeNull() // still works with 30 valid days

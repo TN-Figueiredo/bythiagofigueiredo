@@ -221,7 +221,7 @@ export async function GET(req: NextRequest) {
         const sixtyDaysAgo = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10)
         const { data: metrics } = await supabase
           .from('youtube_video_analytics')
-          .select('date, ctr, views')
+          .select('date, views')
           .eq('youtube_video_id', candidate.id)
           .gte('date', sixtyDaysAgo)
           .order('date', { ascending: true })
@@ -229,7 +229,7 @@ export async function GET(req: NextRequest) {
         if (!metrics?.length) continue
 
         const result = detectFatigue(
-          metrics.map(m => ({ date: m.date as string, ctr: (m.ctr as number | null) ?? 0, views: (m.views as number | null) ?? 0 })),
+          metrics.map(m => ({ date: m.date as string, views: (m.views as number | null) ?? 0 })),
           candidate.published_at,
         )
 
