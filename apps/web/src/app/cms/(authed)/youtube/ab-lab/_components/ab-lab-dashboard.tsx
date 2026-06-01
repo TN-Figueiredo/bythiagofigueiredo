@@ -20,7 +20,7 @@ import { DraftsBlock } from './drafts-block'
 import { LearningsPanel } from './learnings-panel'
 import { EmptyState } from './empty-state'
 import { SettingsDrawer } from './settings-drawer'
-import { updateAbSiteSettings, dismissFatigueAlert } from '../actions'
+import { updateAbSiteSettings, dismissFatigueAlert, batchStartTests } from '../actions'
 import { FatigueCard } from './fatigue-card'
 import { VideoPickerDialog } from './video-picker-dialog'
 import type { EligibleVideo } from './video-picker-dialog'
@@ -61,6 +61,25 @@ export function AbLabDashboard({
   const [showPicker, setShowPicker] = useState(false)
   const [wizardVideo, setWizardVideo] = useState<WizardVideo | null>(null)
   const [continueDraft, setContinueDraft] = useState<AbTestDraft | null>(null)
+  const [selectedForBatch, setSelectedForBatch] = useState<Set<string>>(new Set())
+
+  const toggleBatchSelect = (videoId: string) => {
+    setSelectedForBatch(prev => {
+      const next = new Set(prev)
+      next.has(videoId) ? next.delete(videoId) : next.add(videoId)
+      return next
+    })
+  }
+
+  const handleBatchStart = async () => {
+    const ids = [...selectedForBatch]
+    if (ids.length < 2) return
+    const result = await batchStartTests(ids)
+    if (result.ok) {
+      setSelectedForBatch(new Set())
+      router.refresh()
+    }
+  }
 
   function handleOpenTest(id: string) {
     router.push(`/cms/youtube/ab-lab/${id}`)
@@ -327,9 +346,34 @@ export function AbLabDashboard({
           {!showEmpty && (
             <div className="flex items-center justify-between mb-[14px]">
               <span className="text-[9px] font-semibold text-cms-text-dim uppercase tracking-[0.08em]">Sugeridos para testar</span>
+              {selectedForBatch.size >= 2 && (
+                <button
+                  type="button"
+                  onClick={handleBatchStart}
+                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 transition-colors cursor-pointer"
+                >
+                  Iniciar Lote ({selectedForBatch.size})
+                </button>
+              )}
             </div>
           )}
-          <EmptyState suggested={suggested} onCreate={handleCreateTest} />
+          {showEmpty && selectedForBatch.size >= 2 && (
+            <div className="flex justify-end mb-[14px]">
+              <button
+                type="button"
+                onClick={handleBatchStart}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 transition-colors cursor-pointer"
+              >
+                Iniciar Lote ({selectedForBatch.size})
+              </button>
+            </div>
+          )}
+          <EmptyState
+            suggested={suggested}
+            onCreate={handleCreateTest}
+            selectedForBatch={selectedForBatch}
+            onToggleBatchSelect={toggleBatchSelect}
+          />
         </div>
       )}
 
@@ -345,7 +389,7 @@ export function AbLabDashboard({
               <CompletedRow key={test.id} test={test} onOpen={handleOpenTest} />
             ))}
           </div>
-          <LearningsPanel learnings={learnings} channelLearnings={channelLearnings} />
+          <LearningsPanel learnings={learnings} channelLearnings={channelLearnings} totalTests={stats.completedTests} />
         </div>
       )}
 

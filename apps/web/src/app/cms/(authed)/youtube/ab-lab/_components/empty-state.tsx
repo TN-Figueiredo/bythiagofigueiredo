@@ -7,9 +7,11 @@ import { SuggestedCard } from './suggested-card'
 export interface EmptyStateProps {
   suggested: SuggestedVideo[]
   onCreate: (videoId: string, type: TestType) => void
+  selectedForBatch?: Set<string>
+  onToggleBatchSelect?: (videoId: string) => void
 }
 
-export function EmptyState({ suggested, onCreate }: EmptyStateProps) {
+export function EmptyState({ suggested, onCreate, selectedForBatch, onToggleBatchSelect }: EmptyStateProps) {
   if (suggested.length === 0) {
     return (
       <div className="rounded-[14px] border border-cms-border bg-cms-surface p-[28px] text-center">
@@ -34,7 +36,13 @@ export function EmptyState({ suggested, onCreate }: EmptyStateProps) {
     <div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-[16px]">
         {suggested.slice(0, 3).map(video => (
-          <SuggestedCard key={video.id} video={video} onCreate={onCreate} />
+          <SuggestedCard
+            key={video.id}
+            video={video}
+            onCreate={onCreate}
+            checked={selectedForBatch?.has(video.id) ?? false}
+            onToggle={onToggleBatchSelect}
+          />
         ))}
       </div>
       <div className="flex items-center justify-center gap-[8px] mt-[24px] text-[13px]" style={{ color: 'var(--cms-text-dim)' }}>

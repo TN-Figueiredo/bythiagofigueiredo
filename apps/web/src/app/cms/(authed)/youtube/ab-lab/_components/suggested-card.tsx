@@ -21,9 +21,11 @@ const GRADE_COLORS: Record<string, string> = {
 export interface SuggestedCardProps {
   video: SuggestedVideo
   onCreate: (videoId: string, type: TestType) => void
+  checked?: boolean
+  onToggle?: (videoId: string) => void
 }
 
-export function SuggestedCard({ video, onCreate }: SuggestedCardProps) {
+export function SuggestedCard({ video, onCreate, checked, onToggle }: SuggestedCardProps) {
   const gradeColor = GRADE_COLORS[video.grade] ?? GRADE_COLORS.C
   const ctrColor = video.grade === 'D' || video.grade === 'F' ? 'var(--cms-red, #ef4444)' : gradeColor
 
@@ -62,6 +64,21 @@ export function SuggestedCard({ video, onCreate }: SuggestedCardProps) {
         >
           NOTA {video.grade}
         </span>
+        {/* Batch select checkbox */}
+        {onToggle && (
+          <label
+            className="absolute flex items-center justify-center rounded-[6px] cursor-pointer"
+            style={{ right: 9, top: 9, width: 24, height: 24, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <input
+              type="checkbox"
+              checked={checked ?? false}
+              onChange={() => onToggle(video.id)}
+              className="h-4 w-4 rounded border-zinc-600 bg-zinc-800 accent-blue-500 cursor-pointer"
+            />
+          </label>
+        )}
       </div>
 
       {/* Content */}

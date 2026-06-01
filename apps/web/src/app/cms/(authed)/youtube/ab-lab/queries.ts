@@ -82,7 +82,7 @@ export async function getAbTestsForSite(): Promise<{
 
   const all = (tests ?? []).map(toWithVariants)
 
-  const active = all.filter(t => t.status === 'active')
+  const active = all.filter(t => t.status === 'active' || t.status === 'queued')
   const drafts = all.filter(t => t.status === 'draft')
   const paused = all.filter(t => t.status === 'paused')
   const completedRaw = all.filter(t => t.status === 'completed')

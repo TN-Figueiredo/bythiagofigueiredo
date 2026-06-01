@@ -4,7 +4,7 @@ import type React from 'react'
 import type { AbTestCardView } from '@/lib/youtube/ab-types'
 import { VARIANT_COLORS } from './ab-constants'
 import { VChip, Badge, TypeBadge } from './ab-primitives'
-import { ChevronRight, Swords } from 'lucide-react'
+import { ChevronRight, Swords, Clock } from 'lucide-react'
 
 export interface ActiveTestCardProps {
   test: AbTestCardView
@@ -42,9 +42,16 @@ export function ActiveTestCard({ test, onOpen }: ActiveTestCardProps) {
               Round {test.roundNumber - 1}/{test.roundNumber}
             </Badge>
           )}
-          <Badge tone="green" dot>
-            Dia {test.dayOf}/{test.dayOf + Math.max(0, 14 - test.dayOf)}
-          </Badge>
+          {test.status === 'queued' ? (
+            <Badge tone="amber">
+              <Clock size={11} aria-hidden="true" />
+              Na fila
+            </Badge>
+          ) : (
+            <Badge tone="green" dot>
+              Dia {test.dayOf}/{test.dayOf + Math.max(0, 14 - test.dayOf)}
+            </Badge>
+          )}
           {cycleHealthDot(test.cycleStartedAt)}
           <span className="ml-auto text-cms-text-dim">
             <ChevronRight size={16} aria-hidden="true" />
