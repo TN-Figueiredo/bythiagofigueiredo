@@ -21,7 +21,7 @@ export async function syncCompetitorChannel(
     `${YOUTUBE_API_BASE}/channels?part=contentDetails,snippet,statistics&id=${channelRow.channel_id}&key=${apiKey}`,
     { signal: AbortSignal.timeout(10_000) },
   )
-  if (!channelRes.ok) return { videosChecked: 0, changesDetected: 0 }
+  if (!channelRes.ok) throw new Error(`YouTube API ${channelRes.status} for channel ${channelRow.channel_id}`)
 
   const channelData = await channelRes.json()
   const uploadsPlaylistId = channelData.items?.[0]?.contentDetails?.relatedPlaylists?.uploads
@@ -45,7 +45,7 @@ export async function syncCompetitorChannel(
     `${YOUTUBE_API_BASE}/playlistItems?part=snippet&playlistId=${uploadsPlaylistId}&maxResults=10&key=${apiKey}`,
     { signal: AbortSignal.timeout(10_000) },
   )
-  if (!playlistRes.ok) return { videosChecked: 0, changesDetected: 0 }
+  if (!playlistRes.ok) throw new Error(`YouTube API ${playlistRes.status} for playlist ${uploadsPlaylistId}`)
 
   const playlistData = await playlistRes.json()
   const videoIds = (playlistData.items ?? [])
@@ -63,7 +63,7 @@ export async function syncCompetitorChannel(
     `${YOUTUBE_API_BASE}/videos?part=snippet,statistics&id=${videoIds.join(',')}&key=${apiKey}`,
     { signal: AbortSignal.timeout(10_000) },
   )
-  if (!videosRes.ok) return { videosChecked: 0, changesDetected: 0 }
+  if (!videosRes.ok) throw new Error(`YouTube API ${videosRes.status} for video details`)
 
   const videosData = await videosRes.json()
 

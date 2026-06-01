@@ -29,12 +29,18 @@ interface Props {
 export function CompetitorDashboard({ channels, changes }: Props) {
   const [newChannelId, setNewChannelId] = useState('')
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const handleAdd = async () => {
     if (!newChannelId.trim()) return
     setLoading(true)
-    await addCompetitorChannel(newChannelId.trim())
-    setNewChannelId('')
+    setError(null)
+    const result = await addCompetitorChannel(newChannelId.trim())
+    if (!result.ok) {
+      setError(result.error ?? 'Erro desconhecido')
+    } else {
+      setNewChannelId('')
+    }
     setLoading(false)
   }
 
@@ -58,6 +64,7 @@ export function CompetitorDashboard({ channels, changes }: Props) {
           <Plus className="h-4 w-4" />
         </button>
       </div>
+      {error && <p className="text-xs text-red-400">{error}</p>}
 
       {/* Channel list */}
       <div className="space-y-2">

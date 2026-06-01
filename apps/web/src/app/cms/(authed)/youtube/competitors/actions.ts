@@ -14,6 +14,12 @@ async function requireEditAccess(): Promise<string> {
 }
 
 export async function addCompetitorChannel(channelId: string): Promise<{ ok: boolean; error?: string }> {
+  // Validate channel ID format
+  const trimmed = channelId.trim()
+  if (trimmed.length < 2 || trimmed.length > 50) {
+    return { ok: false, error: 'Channel ID inválido' }
+  }
+
   let siteId: string
   try { siteId = await requireEditAccess() } catch { return { ok: false, error: 'forbidden' } }
 
@@ -32,15 +38,15 @@ export async function addCompetitorChannel(channelId: string): Promise<{ ok: boo
     .from('competitor_channels')
     .select('id')
     .eq('site_id', siteId)
-    .eq('channel_id', channelId)
+    .eq('channel_id', trimmed)
     .maybeSingle()
 
   if (existing) return { ok: false, error: 'Canal já adicionado' }
 
   const { error } = await supabase.from('competitor_channels').insert({
     site_id: siteId,
-    channel_id: channelId,
-    channel_name: channelId,
+    channel_id: trimmed,
+    channel_name: trimmed,
   })
 
   if (error) return { ok: false, error: error.message }
