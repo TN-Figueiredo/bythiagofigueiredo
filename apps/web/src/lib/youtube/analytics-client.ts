@@ -165,9 +165,8 @@ export async function fetchYtChannelMetrics(
   const start = new Date()
   start.setDate(start.getDate() - days)
 
-  const coreMetrics = 'views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,subscribersGained,subscribersLost,likes,comments,shares'
+  const coreMetrics = 'views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,subscribersGained,subscribersLost,likes,comments,shares,impressions,impressionClickThroughRate'
 
-  // impressions/impressionClickThroughRate are NOT available in YouTube Analytics API v2
   const coreReport = await queryYtAnalytics(tokenInfo.accessToken, tokenInfo.channelId, {
     startDate: toDateStr(start),
     endDate: toDateStr(end),
@@ -184,8 +183,8 @@ export async function fetchYtChannelMetrics(
     averageViewPercentage: Number(row[3]),
     subscribersGained: Number(row[4]),
     subscribersLost: Number(row[5]),
-    impressions: 0,
-    impressionClickThroughRate: 0,
+    impressions: Number(row[9]) || 0,
+    impressionClickThroughRate: Number(row[10]) || 0,
     likes: Number(row[6]),
     comments: Number(row[7]),
     shares: Number(row[8]),
