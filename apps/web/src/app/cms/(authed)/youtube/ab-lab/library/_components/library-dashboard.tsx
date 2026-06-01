@@ -50,10 +50,10 @@ export function LibraryDashboard({ entries }: { entries: LibraryEntry[] }) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-zinc-100">Thumbnail Library</h2>
+        <h2 className="text-lg font-semibold text-zinc-100">Biblioteca de Thumbnails</h2>
         <label className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 cursor-pointer">
           <Upload className="h-4 w-4" />
-          {uploading ? 'Enviando...' : 'Upload'}
+          {uploading ? 'Enviando...' : 'Enviar'}
           <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleUpload} />
         </label>
       </div>
