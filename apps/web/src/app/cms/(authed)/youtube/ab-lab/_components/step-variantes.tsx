@@ -31,6 +31,7 @@ export interface StepVariantesProps {
   onUpdateVariant: (index: number, data: Partial<VariantData>) => void
   onAddVariant: () => void
   onRemoveVariant: (index: number) => void
+  onPickFromLibrary?: (variantIndex: number) => void
 }
 
 /* ------------------------------------------------------------------ */
@@ -276,9 +277,10 @@ interface VariantCardProps {
   type: TestType
   onUpdate: (data: Partial<VariantData>) => void
   onRemove?: () => void
+  onPickFromLibrary?: () => void
 }
 
-function VariantCard({ variant, index, type, onUpdate, onRemove }: VariantCardProps) {
+function VariantCard({ variant, index, type, onUpdate, onRemove, onPickFromLibrary }: VariantCardProps) {
   const titleId = useId()
   const descId = useId()
   const isLocked = variant.isOriginal
@@ -355,16 +357,27 @@ function VariantCard({ variant, index, type, onUpdate, onRemove }: VariantCardPr
       >
         {/* Left: Thumbnail slot */}
         {showsThumbnail(type) && (
-          <ThumbSlot
-            url={variant.thumbUrl}
-            locked={isLocked}
-            label={variant.label}
-            onFileSelect={isLocked ? undefined : (file) => {
-              const url = URL.createObjectURL(file)
-              onUpdate({ thumbUrl: url, thumbFile: file })
-              fileToDataUrl(file).then(dataUrl => onUpdate({ thumbDataUrl: dataUrl }))
-            }}
-          />
+          <div className="space-y-2">
+            <ThumbSlot
+              url={variant.thumbUrl}
+              locked={isLocked}
+              label={variant.label}
+              onFileSelect={isLocked ? undefined : (file) => {
+                const url = URL.createObjectURL(file)
+                onUpdate({ thumbUrl: url, thumbFile: file })
+                fileToDataUrl(file).then(dataUrl => onUpdate({ thumbDataUrl: dataUrl }))
+              }}
+            />
+            {!isLocked && onPickFromLibrary && (
+              <button
+                type="button"
+                onClick={onPickFromLibrary}
+                className="w-full rounded-lg border border-dashed border-cms-border py-1.5 text-[11px] text-cms-text-muted hover:border-cms-accent hover:text-cms-accent transition-colors"
+              >
+                📚 Escolher da Biblioteca
+              </button>
+            )}
+          </div>
         )}
 
         {/* Right: Text fields */}
@@ -693,6 +706,7 @@ export function StepVariantes({
   onUpdateVariant,
   onAddVariant,
   onRemoveVariant,
+  onPickFromLibrary,
 }: StepVariantesProps) {
   const challengers = variants.filter(v => !v.isOriginal)
   const canAdd = challengers.length < MAX_CHALLENGERS
@@ -727,6 +741,7 @@ export function StepVariantes({
           type={type}
           onUpdate={data => onUpdateVariant(index, data)}
           onRemove={variant.isOriginal ? undefined : () => onRemoveVariant(index)}
+          onPickFromLibrary={variant.isOriginal ? undefined : onPickFromLibrary ? () => onPickFromLibrary(index) : undefined}
         />
       ))}
 

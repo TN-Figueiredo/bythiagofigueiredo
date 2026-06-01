@@ -1,6 +1,6 @@
 'use client'
 
-import { useReducer, useEffect, useTransition, useCallback, useRef } from 'react'
+import { useState, useReducer, useEffect, useTransition, useCallback, useRef } from 'react'
 import { Play, X, ArrowRight } from 'lucide-react'
 import { StepTipo } from './step-tipo'
 import { StepIdeias } from './step-ideias'
@@ -8,6 +8,7 @@ import { StepVariantes } from './step-variantes'
 import type { VariantData } from './step-variantes'
 import { StepConfig } from './step-config'
 import { StepRevisar } from './step-revisar'
+import { LibraryPickerDialog } from './library-picker-dialog'
 import { initWizardConfig, wizardConfigToAbConfig } from '@/lib/youtube/ab-wizard-adapter'
 import type { WizardConfig } from '@/lib/youtube/ab-wizard-adapter'
 import {
@@ -18,6 +19,7 @@ import {
   updateAbTestType,
   cleanupDraftVariants,
   fetchAbBriefingData,
+  fetchLibraryEntries,
 } from '../actions'
 import { buildAbBriefingPrompt } from '@/lib/youtube/prompt-builders-ab'
 import type { TestType, DisplayLabel, AbTestSiteSettings } from '@/lib/youtube/ab-types'
@@ -290,6 +292,8 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
 
   const [isPending, startTransition] = useTransition()
   const dialogRef = useRef<HTMLDivElement>(null)
+  const [libraryPickerFor, setLibraryPickerFor] = useState<number | null>(null)
+  const [libraryEntries, setLibraryEntries] = useState<Awaited<ReturnType<typeof fetchLibraryEntries>> | null>(null)
 
   // --- Escape key ---
   useEffect(() => {
@@ -514,6 +518,13 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
             onUpdateVariant={(i, d) => dispatch({ type: 'UPDATE_VARIANT', index: i, data: d })}
             onAddVariant={() => dispatch({ type: 'ADD_VARIANT' })}
             onRemoveVariant={i => dispatch({ type: 'REMOVE_VARIANT', index: i })}
+            onPickFromLibrary={async (variantIndex) => {
+              if (!libraryEntries) {
+                const entries = await fetchLibraryEntries()
+                setLibraryEntries(entries)
+              }
+              setLibraryPickerFor(variantIndex)
+            }}
           />
         )
       case 3:
@@ -664,6 +675,20 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
           </div>
         </div>
       </div>
+      {libraryPickerFor !== null && libraryEntries && (
+        <LibraryPickerDialog
+          entries={libraryEntries}
+          onSelect={(blobUrl, liftAtWin) => {
+            dispatch({
+              type: 'UPDATE_VARIANT',
+              index: libraryPickerFor,
+              data: { thumbUrl: blobUrl, briefing: liftAtWin ? `Da Biblioteca: +${liftAtWin}% lift` : undefined },
+            })
+            setLibraryPickerFor(null)
+          }}
+          onClose={() => setLibraryPickerFor(null)}
+        />
+      )}
     </div>
   )
 }

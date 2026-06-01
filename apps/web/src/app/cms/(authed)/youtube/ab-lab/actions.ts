@@ -1588,6 +1588,28 @@ export async function fetchAbBriefingData(
 }
 
 // ---------------------------------------------------------------------------
+// fetchLibraryEntries — for LibraryPickerDialog
+// ---------------------------------------------------------------------------
+
+export async function fetchLibraryEntries(): Promise<Array<{
+  id: string; blob_url: string; title: string | null; tags: string[]; lift_at_win: number | null; source_type: string;
+  thumbnail_longevity: Array<{ checkpoint_days: number; status: string; change_percent: number | null }>
+}>> {
+  let siteId: string
+  try { siteId = await requireEditAccess() } catch { return [] }
+
+  const supabase = getSupabaseServiceClient()
+  const { data } = await supabase
+    .from('thumbnail_library')
+    .select('id, blob_url, title, tags, lift_at_win, source_type, thumbnail_longevity(checkpoint_days, status, change_percent)')
+    .eq('site_id', siteId)
+    .order('created_at', { ascending: false })
+    .limit(50)
+
+  return (data ?? []) as any
+}
+
+// ---------------------------------------------------------------------------
 // fetchAbTestVariants — CMS session-authenticated variant polling
 // ---------------------------------------------------------------------------
 
