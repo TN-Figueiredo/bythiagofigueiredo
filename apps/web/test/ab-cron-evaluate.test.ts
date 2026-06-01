@@ -662,8 +662,16 @@ describe('GET /api/cron/ab-evaluate', () => {
             selectCallCount++
             const call = selectCallCount
 
-            // Call 1: active tests query (.eq('status', 'active'))
+            // Call 1: Phase 1 — draft playoffs (.eq('status', 'draft'))
             if (call === 1) {
+              const chain: Record<string, unknown> = {}
+              for (const m of ['eq', 'not', 'lte', 'lt', 'in', 'is']) chain[m] = vi.fn(() => chain)
+              chain.then = (r: (v: unknown) => void) => r({ data: [] })
+              return { eq: vi.fn(() => chain), not: vi.fn(() => chain) }
+            }
+
+            // Call 2: Phase 2 — active tests query (.eq('status', 'active'))
+            if (call === 2) {
               return {
                 eq: vi.fn((_col: string, _val: string) => {
                   return Promise.resolve({ data: [skippableActiveTest] })
@@ -675,14 +683,6 @@ describe('GET /api/cron/ab-evaluate', () => {
                   return chain
                 }),
               }
-            }
-
-            // Call 2: Phase 1 — draft playoffs (.eq('status', 'draft'))
-            if (call === 2) {
-              const chain: Record<string, unknown> = {}
-              for (const m of ['eq', 'not', 'lte', 'lt', 'in', 'is']) chain[m] = vi.fn(() => chain)
-              chain.then = (r: (v: unknown) => void) => r({ data: [] })
-              return { eq: vi.fn(() => chain), not: vi.fn(() => chain) }
             }
 
             // Call 3: Phase 3 — retry applies (.not('grace_expires_at'...))
