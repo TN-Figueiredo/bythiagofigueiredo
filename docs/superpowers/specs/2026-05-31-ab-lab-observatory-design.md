@@ -429,6 +429,15 @@ CREATE TABLE competitor_changes (id uuid PK, video_id uuid FK, change_type text,
 - Watchdog poll cleanup assertion (7-day threshold correctness)
 - Multiple variants in same poll cycle (correct attribution)
 
+### 7.18 P5 Competitor Hardening
+- **N+1 DB queries**: `syncCompetitorChannel` does 5+ DB calls per video (SELECT + INSERT/UPDATE + up to 3 change INSERTs). Batch via upsert or bulk insert for 10 videos.
+- **Thumbnail false positives**: YouTube serves same image from different CDN URLs. Use normalized URL (strip query params) or pHash comparison instead of string equality.
+- **Missing RLS policies**: `competitor_videos` needs INSERT policy, `competitor_channels` needs UPDATE policy. Currently works via service_role but not defense-in-depth.
+- **Migration 000009 pending in prod**: `fix_competitor_video_unique` — drops global unique, adds composite unique `(competitor_channel_id, video_id)`. Run `npm run db:push:prod`.
+- **Change feed missing context**: page.tsx fetches channel_name via join but dashboard component doesn't render it. Wire `channel_name` and `video_title` into change cards.
+- **No change pruning**: `competitor_changes` grows unbounded. Add 90-day retention via watchdog prune (same pattern as ab_test_polls).
+- **subscriber_count integer→bigint**: cosmetic, no channel exceeds 2.1B today, but inconsistent with view_count bigint.
+
 ### Verification Checklist (run at P7 start)
 - [ ] Re-run 4-dimension audit (code quality, test coverage, spec compliance, production readiness)
 - [ ] For each item: if resolved by P2-P6 work, mark ✅ and document which phase fixed it
