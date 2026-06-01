@@ -2,7 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('next/cache', () => ({ revalidateTag: vi.fn() }))
 vi.mock('@/lib/cms/site-context', () => ({ getSiteContext: vi.fn() }))
-vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: vi.fn() }))
+vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({
+  createServerClient: vi.fn().mockReturnValue({ auth: { getUser: () => Promise.resolve({ data: { user: { id: 'user-1', email: 'test@test.com' } } }) } }), requireSiteScope: vi.fn() }))
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn() }))
 vi.mock('@/lib/links/auto-link', () => ({ ensureTrackedLink: vi.fn() }))
 vi.mock('@/lib/social/token-refresh', () => ({ ensureFreshToken: vi.fn() }))

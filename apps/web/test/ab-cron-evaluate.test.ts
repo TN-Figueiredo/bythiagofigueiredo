@@ -14,7 +14,7 @@ vi.mock('@/lib/youtube/ab-playoff', () => ({ checkPlayoffEligibility: vi.fn(() =
 vi.mock('@/lib/youtube/ab-start', () => ({ startAbTestInternal: vi.fn(() => ({ ok: false })) }))
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn() }))
 vi.mock('@/lib/cron-health', () => ({ recordCronSuccess: vi.fn(), recordCronFailure: vi.fn() }))
-vi.mock('@tn-figueiredo/email', () => ({ ResendEmailAdapter: vi.fn() }))
+vi.mock('@/lib/youtube/ab-escalation', () => ({ checkAndEscalate: vi.fn() }))
 
 import { GET } from '@/app/api/cron/ab-evaluate/route'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'

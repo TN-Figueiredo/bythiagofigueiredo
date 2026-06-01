@@ -35,6 +35,7 @@ vi.mock('@/lib/cms/site-context', () => ({
 
 // Mock requireSiteScope — always returns ok: true so requireEditAccess passes.
 vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({
+  createServerClient: vi.fn().mockReturnValue({ auth: { getUser: () => Promise.resolve({ data: { user: { id: 'user-1', email: 'test@test.com' } } }) } }),
   requireSiteScope: vi.fn(async () => ({ ok: true, user: { id: 'user-mock' } })),
 }))
 

@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // ---- Mocks ----
 // Mock the auth-nextjs server helpers (requireUser + createServerClient).
 vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({
+  createServerClient: vi.fn().mockReturnValue({ auth: { getUser: () => Promise.resolve({ data: { user: { id: 'user-1', email: 'test@test.com' } } }) } }),
   requireUser: vi.fn(),
   createServerClient: vi.fn(),
   UnauthenticatedError: class UnauthenticatedError extends Error {

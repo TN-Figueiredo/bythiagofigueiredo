@@ -34,6 +34,7 @@ vi.mock('@/lib/supabase/service', () => ({
 }))
 
 vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({
+  createServerClient: vi.fn().mockReturnValue({ auth: { getUser: () => Promise.resolve({ data: { user: { id: 'user-1', email: 'test@test.com' } } }) } }),
   requireSiteScope: () => ({ ok: true, user: { id: 'u1' } }),
 }))
 vi.mock('@/lib/cms/site-context', () => ({

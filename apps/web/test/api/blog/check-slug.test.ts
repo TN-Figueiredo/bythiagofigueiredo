@@ -10,6 +10,7 @@ const mockSupabase = {
 const mockRequireUser = vi.fn()
 
 vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({
+  createServerClient: vi.fn().mockReturnValue({ auth: { getUser: () => Promise.resolve({ data: { user: { id: 'user-1', email: 'test@test.com' } } }) } }),
   createServerClient: vi.fn(() => mockSupabase),
   requireUser: (...args: unknown[]) => mockRequireUser(...args),
   UnauthenticatedError: class UnauthenticatedError extends Error {
