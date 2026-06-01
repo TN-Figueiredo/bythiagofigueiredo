@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { getCronHealth, recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
 import { createNotification } from '@/lib/notifications/create'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { checkDrift } from '@/lib/youtube/ab-drift'
 import * as Sentry from '@sentry/nextjs'
 
 export const maxDuration = 60
@@ -24,7 +25,7 @@ export async function GET(req: NextRequest) {
       const supabase = getSupabaseServiceClient()
       const { data: activeTests } = await supabase
         .from('ab_tests')
-        .select('site_id')
+        .select('id, site_id, test_type, youtube_video_id')
         .eq('status', 'active')
 
       if (activeTests && activeTests.length > 0) {
@@ -64,6 +65,75 @@ export async function GET(req: NextRequest) {
           })
         } catch {
           // Non-fatal: catch-up fetch timed out or failed — watchdog still succeeds
+        }
+      }
+    }
+
+    // Drift detection: compare current YouTube thumbnail vs expected variant
+    const apiKey = process.env.YOUTUBE_API_KEY
+    if (apiKey) {
+      const driftClient = getSupabaseServiceClient()
+      const { data: driftTests } = await driftClient
+        .from('ab_tests')
+        .select('id, site_id, test_type, youtube_video_id')
+        .eq('status', 'active')
+
+      if (driftTests?.length) {
+        for (const test of driftTests) {
+          if (test.test_type !== 'thumbnail' && test.test_type !== 'combo') continue
+
+          // Get current variant's thumbnail
+          const { data: openCycle } = await driftClient
+            .from('ab_test_cycles')
+            .select('variant_id, ab_test_variants!inner(blob_url)')
+            .eq('test_id', test.id)
+            .is('ended_at', null)
+            .limit(1)
+            .maybeSingle()
+
+          if (!openCycle) continue
+          const expectedUrl = (openCycle as any).ab_test_variants?.blob_url
+
+          // Get YouTube video ID
+          const { data: video } = await driftClient
+            .from('youtube_videos')
+            .select('youtube_video_id')
+            .eq('id', test.youtube_video_id)
+            .single()
+
+          if (!video?.youtube_video_id) continue
+
+          const { drifted } = await checkDrift(test.id, video.youtube_video_id, expectedUrl, apiKey)
+
+          if (drifted) {
+            // Pause test + notify
+            await driftClient
+              .from('ab_tests')
+              .update({ status: 'paused', status_note: 'Thumbnail alterado externamente' })
+              .eq('id', test.id)
+
+            const { data: owner } = await driftClient
+              .from('site_users')
+              .select('user_id')
+              .eq('site_id', test.site_id)
+              .eq('role', 'super_admin')
+              .limit(1)
+              .single()
+
+            if (owner) {
+              await createNotification({
+                site_id: test.site_id,
+                user_id: owner.user_id,
+                type: 'youtube.drift_detected',
+                domain: 'youtube',
+                priority: 1,
+                title: 'Thumbnail alterado externamente',
+                message: 'O teste foi pausado porque a thumbnail do YouTube foi modificada fora do sistema.',
+                action_href: `/cms/youtube/ab-lab/${test.id}`,
+                dedup_key: `drift-${test.id}-${new Date().toISOString().slice(0, 10)}`,
+              })
+            }
+          }
         }
       }
     }
