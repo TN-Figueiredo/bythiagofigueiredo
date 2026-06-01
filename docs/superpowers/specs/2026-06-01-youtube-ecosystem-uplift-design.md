@@ -1420,7 +1420,25 @@ Substituir comparacao de URLs por comparacao de conteudo visual das thumbnails:
 
 **Dependencias:** Fase 0.1 (drift detection fix com URL comparison como baseline)
 
-### 6.3 Runtime Quota Monitoring
+### 6.3 Social Blade-style Channel Analytics
+
+Adicionar features inspiradas no Social Blade para canais proprios e competidores:
+
+**Escopo do spec a gerar:**
+- **Projecao de crescimento** — "em 1 ano: X inscritos" usando regressao linear sobre `competitor_channel_snapshots` (dados da Fase 2a). Para canais proprios, usar `youtube_channels` snapshots. Mostrar projecao 30d, 90d, 1 ano.
+- **Ranking dentro do nicho** — leaderboard entre seus competidores trackeados (nao global). Ranking por: subs, views/video, engagement rate, upload frequency. Badge: "#1 no seu nicho" / "#3 de 15".
+- **Daily subscriber delta** — grafico de "+X subs/dia" derivado de `competitor_channel_snapshots`. Barras verdes (ganho) e vermelhas (perda). Comparar com media do periodo.
+- **Channel grade card** — similar ao Social Blade grades (A+, A, B+, etc.) mas baseado em metricas relativas ao nicho, nao globais. Eixos: crescimento de subs, regularidade de upload, engajamento, views/video.
+- **Comparison table** — tabela side-by-side: seu canal vs competidores com todas as metricas.
+- **Growth alerts** — notificacao quando um competidor cresce >10% em 7 dias (spike de growth).
+
+**Dados necessarios:** `competitor_channel_snapshots` (Fase 2a — ja planejado). Para canais proprios, snapshots equivalentes (adicionar `youtube_channel_snapshots` ou reusar analytics daily metrics).
+
+**UI:** Sub-tab "Growth" dentro da aba Insights do Competitor Observatory, e widget "Social Blade" no Dashboard principal.
+
+**Dependencias:** Fase 2a (competitor channel snapshots), Fase 2b (competitor UI com abas)
+
+### 6.4 Runtime Quota Monitoring
 
 Dashboard e alertas para monitorar consumo da YouTube Data API quota:
 
@@ -1444,7 +1462,7 @@ Dashboard e alertas para monitorar consumo da YouTube Data API quota:
 
 ### Gate de verificacao -- Fase 6
 
-Para CADA sub-spec (6.1, 6.2, 6.3):
+Para CADA sub-spec (6.1, 6.2, 6.3, 6.4):
 1. Spec escrito em `docs/superpowers/specs/YYYY-MM-DD-{topic}-design.md`
 2. Spec revisado por 3+ sub-agents especializados
 3. Score >= 85/110
@@ -1463,4 +1481,4 @@ Para CADA sub-spec (6.1, 6.2, 6.3):
 6. **Fase 3: Cross-feature connections** (~6-8h) -- ecossistema integrado
 7. **Fase 4: Design consistency + i18n** (~4-6h) -- visual unificado, portugues
 8. **Fase 5: Observabilidade** (~2h) -- Sentry, LGPD, security hardening
-9. **Fase 6: Gerar specs proxima sprint** (~1-2h) -- Collections, pHash, Quota monitoring
+9. **Fase 6: Gerar specs proxima sprint** (~1-2h) -- Collections, pHash, Social Blade analytics, Quota monitoring
