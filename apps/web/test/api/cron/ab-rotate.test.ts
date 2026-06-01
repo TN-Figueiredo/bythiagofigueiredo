@@ -89,6 +89,18 @@ function makeTest(overrides: Record<string, unknown> = {}) {
   }
 }
 
+function queuedTestsQuery(data: unknown[] = []) {
+  return {
+    select: vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        not: vi.fn().mockReturnValue({
+          lte: vi.fn().mockResolvedValue({ data, error: null }),
+        }),
+      }),
+    }),
+  }
+}
+
 function activeTestsQuery(data: unknown[]) {
   return {
     select: vi.fn().mockReturnValue({
@@ -169,8 +181,13 @@ describe('GET /api/cron/ab-rotate', () => {
   })
 
   it('returns processed: 0 when no active tests', async () => {
+    let abTestsCallCount = 0
     mockFrom.mockImplementation((table: string) => {
-      if (table === 'ab_tests') return activeTestsQuery([])
+      if (table === 'ab_tests') {
+        abTestsCallCount++
+        if (abTestsCallCount === 1) return queuedTestsQuery([])
+        return activeTestsQuery([])
+      }
       return {}
     })
 
@@ -187,9 +204,12 @@ describe('GET /api/cron/ab-rotate', () => {
 
     mockEnsureFreshToken.mockResolvedValue({ accessToken: 'tok-123' })
 
+    let abTestsCallCount = 0
     let cyclesSelectCount = 0
     mockFrom.mockImplementation((table: string) => {
       if (table === 'ab_tests') {
+        abTestsCallCount++
+        if (abTestsCallCount === 1) return queuedTestsQuery([])
         return {
           ...activeTestsQuery([test]),
           ...updateQuery(),
@@ -217,6 +237,32 @@ describe('GET /api/cron/ab-rotate', () => {
           }),
         }
       }
+      if (table === 'ab_test_polls') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              order: vi.fn().mockReturnValue({
+                limit: vi.fn().mockReturnValue({
+                  maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+                }),
+              }),
+            }),
+          }),
+        }
+      }
+      if (table === 'site_users') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                limit: vi.fn().mockReturnValue({
+                  single: vi.fn().mockResolvedValue({ data: { user_id: 'owner-1' }, error: null }),
+                }),
+              }),
+            }),
+          }),
+        }
+      }
       return {}
     })
 
@@ -238,9 +284,12 @@ describe('GET /api/cron/ab-rotate', () => {
     // Simulate YouTube API returning 401 when setThumbnail is called
     mockSetThumbnail.mockRejectedValueOnce(new Error('401 unauthorized'))
 
+    let abTestsCallCount = 0
     let cyclesSelectCount = 0
     mockFrom.mockImplementation((table: string) => {
       if (table === 'ab_tests') {
+        abTestsCallCount++
+        if (abTestsCallCount === 1) return queuedTestsQuery([])
         return {
           ...activeTestsQuery([test]),
           update: mockUpdate,
