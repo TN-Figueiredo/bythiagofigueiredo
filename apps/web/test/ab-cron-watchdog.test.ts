@@ -187,6 +187,32 @@ describe('ab-watchdog', () => {
     )
   })
 
+  it('does not send notification when no active tests exist', async () => {
+    const yesterday = new Date(Date.now() - 86400000).toISOString()
+    mockGetHealth.mockResolvedValue({
+      cron_name: 'ab-rotate',
+      last_success_at: yesterday,
+      last_failure_at: null,
+      last_error: null,
+      consecutive_failures: 0,
+      severity: 'critical',
+      updated_at: yesterday,
+    })
+
+    // Active tests query returns empty array
+    ;(getSupabaseServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(
+      buildMockSupabase([])
+    )
+
+    const res = await GET(makeRequest())
+    const body = await res.json()
+
+    // Rotation missed but no active tests — no notification needed, no catch-up
+    expect(body.rotate_healthy).toBe(false)
+    expect(mockNotify).not.toHaveBeenCalled()
+    expect(globalThis.fetch).not.toHaveBeenCalled()
+  })
+
   it('handles first-ever run when cron_health has no row (null)', async () => {
     // getCronHealth returns null — no row exists yet (first deployment)
     mockGetHealth.mockResolvedValue(null)

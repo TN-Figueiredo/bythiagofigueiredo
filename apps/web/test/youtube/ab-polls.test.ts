@@ -62,4 +62,16 @@ describe('pollVideoStats', () => {
     const result = await pollVideoStats('vid', 'key')
     expect(result).toBeNull()
   })
+
+  it('pollVideoStats handles missing likeCount field gracefully', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({
+        items: [{ statistics: { viewCount: '100' } }],
+      }),
+    })
+
+    const result = await pollVideoStats('vid-no-likes', 'api-key')
+    expect(result).toEqual({ views: 100, likes: 0 })
+  })
 })

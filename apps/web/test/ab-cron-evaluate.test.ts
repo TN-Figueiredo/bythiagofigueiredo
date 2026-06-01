@@ -548,6 +548,71 @@ describe('GET /api/cron/ab-evaluate', () => {
     )
   })
 
+  it('does not start grace when auto_apply_winner is false', async () => {
+    const test = makeActiveTest({
+      config: {
+        confidence_threshold: 0.95,
+        burn_in_days: 0,
+        auto_apply_winner: false,
+        max_duration_days: 14,
+        stability_threshold: 3,
+      },
+    })
+    ;(calculateBayesianConfidence as ReturnType<typeof vi.fn>).mockReturnValue({
+      winnerId: 'v2',
+      confidence: 0.97,
+      probabilities: { v1: 0.03, v2: 0.97 },
+    })
+
+    const { updateCalls, client } = buildSupabaseMock({ tests: [test] })
+    const req = createCronRequest('test-secret')
+    const res = await GET(req)
+    const body = await res.json()
+
+    // No grace period set
+    const graceUpdates = updateCalls.filter(
+      c => c.table === 'ab_tests' && (c.data as Record<string, unknown>).grace_expires_at
+    )
+    expect(graceUpdates).toHaveLength(0)
+
+    // No thumbnail/title applied
+    expect(setThumbnail).not.toHaveBeenCalled()
+    expect(updateVideoMetadata).not.toHaveBeenCalled()
+
+    // Not marked completed (stays active, no auto_resolve)
+    const completionUpdates = updateCalls.filter(
+      c => c.table === 'ab_tests' && (c.data as Record<string, unknown>).status === 'completed'
+    )
+    expect(completionUpdates).toHaveLength(0)
+
+    // Still evaluated
+    expect(body.evaluated).toBe(1)
+    expect(body.resolved).toBe(0)
+  })
+
+  it('error in one test does not abort evaluation of others', async () => {
+    const test1 = makeActiveTest({ id: 'test-bad' })
+    const test2 = makeActiveTest({ id: 'test-good', consecutive_confident_evals: 0 })
+
+    // First test throws during confidence calculation, second works normally
+    ;(calculateBayesianConfidence as ReturnType<typeof vi.fn>)
+      .mockImplementationOnce(() => { throw new Error('stats explosion') })
+      .mockReturnValueOnce({
+        winnerId: 'v2',
+        confidence: 0.65,
+        probabilities: { v1: 0.35, v2: 0.65 },
+      })
+
+    buildSupabaseMock({ tests: [test1, test2] })
+    const req = createCronRequest('test-secret')
+    const res = await GET(req)
+    const body = await res.json()
+
+    // First test errored, second evaluated successfully
+    expect(body.errors).toBe(1)
+    expect(body.evaluated).toBe(1)
+  })
+
   it('creates playoff when round 1 test is inconclusive and eligible', async () => {
     // Phase 4 only runs after the active-test loop. We need at least 1 active test
     // to avoid the early return. Use a test with < 2 variants having impressions (quickly skipped).

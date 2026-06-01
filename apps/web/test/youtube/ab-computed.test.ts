@@ -29,6 +29,13 @@ describe('computeOutlierScore', () => {
     expect(result).toEqual({ multiplier: 15, badge: 'red' })
   })
 
+  it('computeOutlierScore with even number of predecessors (median of two middle values)', () => {
+    const predecessors = [50, 60, 70, 80, 90, 100, 110, 120, 130, 140]
+    const result = computeOutlierScore(500, predecessors)
+    // median = (90+100)/2 = 95, multiplier = round(500/95) = 5, badge = 'purple'
+    expect(result).toEqual({ multiplier: 5, badge: 'purple' })
+  })
+
   it('handles zero median safely (uses 1 as floor)', () => {
     const predecessors = [0, 0, 0, 0, 0, 0, 0, 0, 0]
     const result = computeOutlierScore(100, predecessors)
