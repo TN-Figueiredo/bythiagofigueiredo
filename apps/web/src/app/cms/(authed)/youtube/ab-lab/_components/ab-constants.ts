@@ -27,8 +27,8 @@ export function variantColor(dbLabel: string, isOriginal?: boolean): string {
 
 const DASH = '—'
 
-const numberFmt = new Intl.NumberFormat('en')
-const dateFmt = new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
+const numberFmt = new Intl.NumberFormat('pt-BR')
+const dateFmt = new Intl.DateTimeFormat('pt-BR', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
 
 export function formatNumber(n: number | null | undefined): string {
   if (n == null || Number.isNaN(n)) return DASH

@@ -10,14 +10,14 @@ import { CoworkDeepLink } from '@/components/cms/cowork-deep-link'
 import { buildCoworkInstruction } from '@/lib/pipeline/cowork-instructions'
 
 const TABS = [
-  { label: 'Dashboard', href: '/cms/youtube' },
+  { label: 'Painel', href: '/cms/youtube' },
   { label: 'Videos', href: '/cms/youtube/videos' },
   { label: 'A/B Lab', href: '/cms/youtube/ab-lab' },
-  { label: 'Categories', href: '/cms/youtube/categories' },
-  { label: 'Comments', href: '/cms/youtube/comments' },
-  { label: 'Content', href: '/cms/youtube/content' },
-  { label: 'Competitors', href: '/cms/youtube/competitors' },
-  { label: 'Performance', href: '/cms/youtube/analytics' },
+  { label: 'Categorias', href: '/cms/youtube/categories' },
+  { label: 'Comentários', href: '/cms/youtube/comments' },
+  { label: 'Conteúdo', href: '/cms/youtube/content' },
+  { label: 'Competidores', href: '/cms/youtube/competitors' },
+  { label: 'Desempenho', href: '/cms/youtube/analytics' },
 ] as const
 
 function TokenExpiryBanner({ hoursUntilExpiry }: { hoursUntilExpiry: number }) {

@@ -64,11 +64,11 @@ export function formatCount(n: number): string {
 export function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
   const mins = Math.floor(diff / 60_000)
-  if (mins < 60) return `${mins}m ago`
+  if (mins < 60) return `${mins}m atrás`
   const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h ago`
+  if (hours < 24) return `${hours}h atrás`
   const days = Math.floor(hours / 24)
-  return `${days}d ago`
+  return `${days}d atrás`
 }
 
 export function bustCache(url: string | null, syncedAt: string | null): string | null {
@@ -250,7 +250,7 @@ function ChannelCard({ channel }: { channel: ChannelDashboard }) {
           <div className="flex items-center gap-1.5">
             <span className={`h-2 w-2 rounded-full ${neverSynced ? 'bg-amber-400' : 'bg-emerald-400'}`} />
             <span className={`text-xs ${neverSynced ? 'text-amber-400' : 'text-cms-text-dim'}`}>
-              {neverSynced ? 'Never' : timeAgo(channel.lastSyncedAt!)}
+              {neverSynced ? 'Nunca' : timeAgo(channel.lastSyncedAt!)}
             </span>
           </div>
           <button
@@ -320,7 +320,7 @@ function ChannelCard({ channel }: { channel: ChannelDashboard }) {
             )}
             {channel.latestVideoAt && (
               <span className="text-xs text-cms-text-dim" title={channel.latestVideoAt}>
-                Latest: {timeAgo(channel.latestVideoAt)}
+                Mais recente: {timeAgo(channel.latestVideoAt)}
               </span>
             )}
           </div>
@@ -342,7 +342,7 @@ function ChannelCard({ channel }: { channel: ChannelDashboard }) {
                 }`}>
                   {pinState === 'expiring'
                     ? `⚠ Expires ${daysLeft(channel.pinnedVideo.pinnedUntil) <= 1 ? 'tomorrow' : `in ${daysLeft(channel.pinnedVideo.pinnedUntil)} days`}`
-                    : `until ${new Date(channel.pinnedVideo.pinnedUntil).toLocaleDateString('en', { month: 'short', day: 'numeric' })} (${daysLeft(channel.pinnedVideo.pinnedUntil)}d left)`
+                    : `until ${new Date(channel.pinnedVideo.pinnedUntil).toLocaleDateString('pt-BR', { month: 'short', day: 'numeric' })} (${daysLeft(channel.pinnedVideo.pinnedUntil)}d left)`
                   }
                 </span>
               )}
