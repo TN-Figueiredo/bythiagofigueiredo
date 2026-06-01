@@ -172,4 +172,30 @@ describe('GET /api/youtube/poll-stats', () => {
     const body = await res.json()
     expect(body.error).toBe('test_not_found_or_inactive')
   })
+
+  it('returns 502 when YouTube API is unavailable', async () => {
+    buildSupabaseMock({
+      test: { id: 'test-1', youtube_video_id: 'db-vid-1', site_id: 'site-1', status: 'active' },
+      video: { youtube_video_id: 'YT_VIDEO_123' },
+      openCycle: null,
+    })
+    ;(pollVideoStats as ReturnType<typeof vi.fn>).mockResolvedValue(null)
+
+    const req = makeRequest({ testId: 'test-1' })
+    const res = await GET(req)
+    expect(res.status).toBe(502)
+    const body = await res.json()
+    expect(body.error).toBe('youtube_unavailable')
+  })
+
+  it('returns 404 when test is not active (paused)', async () => {
+    // The query filters by status='active', so a paused test returns null
+    buildSupabaseMock({ test: null })
+
+    const req = makeRequest({ testId: 'paused-test-1' })
+    const res = await GET(req)
+    expect(res.status).toBe(404)
+    const body = await res.json()
+    expect(body.error).toBe('test_not_found_or_inactive')
+  })
 })

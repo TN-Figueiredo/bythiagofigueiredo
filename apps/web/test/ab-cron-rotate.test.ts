@@ -606,6 +606,53 @@ describe('GET /api/cron/ab-rotate', () => {
     )
   })
 
+  it('does not process queued tests with future queue_start_after', async () => {
+    // The query uses .lte('queue_start_after', now), so future tests are NOT returned by DB
+    buildSupabaseMock({ queuedTests: [], tests: [] })
+
+    const req = createCronRequest('test-secret')
+    const res = await GET(req)
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.processed).toBe(0)
+    expect(startAbTestInternal).not.toHaveBeenCalled()
+  })
+
+  it('processes multiple queued tests in one run', async () => {
+    const queued1 = {
+      id: 'queued-a',
+      site_id: 'site-1',
+      youtube_video_id: 'db-video-qa',
+      name: 'Queued A',
+      queue_start_after: new Date(Date.now() - 120_000).toISOString(),
+    }
+    const queued2 = {
+      id: 'queued-b',
+      site_id: 'site-1',
+      youtube_video_id: 'db-video-qb',
+      name: 'Queued B',
+      queue_start_after: new Date(Date.now() - 60_000).toISOString(),
+    }
+    const { updateCalls } = buildSupabaseMock({ queuedTests: [queued1, queued2], tests: [] })
+    ;(startAbTestInternal as ReturnType<typeof vi.fn>).mockResolvedValue(undefined)
+
+    const req = createCronRequest('test-secret')
+    const res = await GET(req)
+    expect(res.status).toBe(200)
+
+    // Both queued tests should be started
+    expect(startAbTestInternal).toHaveBeenCalledTimes(2)
+    expect(startAbTestInternal).toHaveBeenCalledWith('queued-a', 'site-1')
+    expect(startAbTestInternal).toHaveBeenCalledWith('queued-b', 'site-1')
+
+    // Both should have status changed to draft (each update generates 2 eq calls)
+    expect(updateCalls.filter(c =>
+      c.table === 'ab_tests' &&
+      (c.data as Record<string, unknown>).status === 'draft'
+    ).length).toBeGreaterThanOrEqual(2)
+  })
+
   it('records cycle even when metadata update fails in combo test', async () => {
     const test = makeTest({
       test_type: 'combo',

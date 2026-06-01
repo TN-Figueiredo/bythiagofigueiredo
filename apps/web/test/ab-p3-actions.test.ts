@@ -254,6 +254,106 @@ describe('applyWinnerNow', () => {
     expect(result).toEqual({ ok: false, error: 'Token inválido: token_expired' })
     expect(setThumbnail).not.toHaveBeenCalled()
   })
+
+  it('for title test applies title without thumbnail', async () => {
+    const testRow = {
+      id: 'test-1',
+      site_id: 'site-1',
+      status: 'active',
+      winner_variant_id: 'v-winner',
+      youtube_video_id: 'vid-db-1',
+      test_type: 'title',
+      original_title: 'Orig Title',
+      original_description: 'Orig Desc',
+      grace_expires_at: new Date(Date.now() + 86400000).toISOString(),
+      winner_applied_at: null,
+    }
+
+    const variantRow = {
+      id: 'v-winner',
+      blob_url: null,
+      title_text: 'New Winner Title',
+      description_text: null,
+      is_original: false,
+    }
+
+    const channelRow = { channel_id: 'ch-1' }
+    const videoRow = { youtube_video_id: 'YT_VID_001' }
+
+    const fromMock = vi.fn((table: string) => {
+      if (table === 'ab_tests') {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                single: vi.fn().mockResolvedValue({ data: testRow, error: null }),
+              })),
+            })),
+          })),
+          update: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              eq: vi.fn().mockResolvedValue({ data: null, error: null }),
+            })),
+          })),
+        }
+      }
+      if (table === 'ab_test_variants') {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              single: vi.fn().mockResolvedValue({ data: variantRow, error: null }),
+            })),
+          })),
+        }
+      }
+      if (table === 'youtube_channels') {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              limit: vi.fn(() => ({
+                single: vi.fn().mockResolvedValue({ data: channelRow, error: null }),
+              })),
+            })),
+          })),
+        }
+      }
+      if (table === 'youtube_videos') {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              single: vi.fn().mockResolvedValue({ data: videoRow, error: null }),
+            })),
+          })),
+        }
+      }
+      if (table === 'ab_test_cycles') {
+        return {
+          update: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              is: vi.fn().mockResolvedValue({ data: null, error: null }),
+            })),
+          })),
+        }
+      }
+      return makeChain({ data: null, error: null })
+    })
+
+    const client = { from: fromMock }
+    ;(getSupabaseServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(client)
+
+    const result = await applyWinnerNow('test-1')
+
+    expect(result).toEqual({ ok: true })
+    // Title test should call updateVideoMetadata with the winner title
+    expect(updateVideoMetadata).toHaveBeenCalledWith(
+      'YT_VID_001',
+      'New Winner Title',
+      null,
+      'fresh-token',
+    )
+    // Should NOT call setThumbnail since it's a title test with no blob_url
+    expect(setThumbnail).not.toHaveBeenCalled()
+  })
 })
 
 // ===========================================================================
@@ -432,6 +532,32 @@ describe('revertWinner', () => {
     // Should NOT call setThumbnail since it's a title test
     expect(setThumbnail).not.toHaveBeenCalled()
   })
+
+  it('for combo test applies both thumbnail and metadata', async () => {
+    setupRevertMock({
+      test_type: 'combo',
+      original_thumbnail_url: 'https://blob/original-combo.jpg',
+    })
+
+    const result = await revertWinner('test-1')
+
+    expect(result).toEqual({ ok: true })
+    // Should restore thumbnail
+    expect(fetchVariantImageBuffer).toHaveBeenCalledWith('https://blob/original-combo.jpg')
+    expect(setThumbnail).toHaveBeenCalledWith(
+      'YT_VID_001',
+      expect.any(Buffer),
+      'image/jpeg',
+      'fresh-token',
+    )
+    // Should also restore metadata
+    expect(updateVideoMetadata).toHaveBeenCalledWith(
+      'YT_VID_001',
+      'Orig Title',
+      'Orig Desc',
+      'fresh-token',
+    )
+  })
 })
 
 // ===========================================================================
@@ -524,6 +650,14 @@ describe('batchStartTests', () => {
     setupBatchMock()
 
     const result = await batchStartTests(['vid-1'])
+
+    expect(result).toEqual({ ok: false, created: 0, error: 'Select 2-5 videos' })
+  })
+
+  it('rejects more than 5 videos', async () => {
+    setupBatchMock()
+
+    const result = await batchStartTests(['v1', 'v2', 'v3', 'v4', 'v5', 'v6'])
 
     expect(result).toEqual({ ok: false, created: 0, error: 'Select 2-5 videos' })
   })

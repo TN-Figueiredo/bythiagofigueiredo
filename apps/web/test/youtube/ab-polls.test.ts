@@ -4,7 +4,8 @@ vi.mock('@/lib/supabase/service', () => ({
   getSupabaseServiceClient: vi.fn(),
 }))
 
-import { pollVideoStats, shouldSkipPoll } from '@/lib/youtube/ab-polls'
+import { pollVideoStats, shouldSkipPoll, getLastPollTime, insertPollData } from '@/lib/youtube/ab-polls'
+import { getSupabaseServiceClient } from '@/lib/supabase/service'
 
 describe('shouldSkipPoll', () => {
   it('returns true if last poll was less than 5 minutes ago', () => {
@@ -73,5 +74,69 @@ describe('pollVideoStats', () => {
 
     const result = await pollVideoStats('vid-no-likes', 'api-key')
     expect(result).toEqual({ views: 100, likes: 0 })
+  })
+})
+
+describe('getLastPollTime', () => {
+  it('returns latest poll timestamp', async () => {
+    const mockSupabase = {
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            order: vi.fn().mockReturnValue({
+              limit: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({
+                  data: { polled_at: '2026-05-30T12:00:00Z' },
+                  error: null,
+                }),
+              }),
+            }),
+          }),
+        }),
+      }),
+    }
+    ;(getSupabaseServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(mockSupabase)
+
+    const result = await getLastPollTime(mockSupabase as never, 'test-1')
+    expect(result).toBe('2026-05-30T12:00:00Z')
+    expect(mockSupabase.from).toHaveBeenCalledWith('ab_test_polls')
+  })
+
+  it('returns null when no polls exist', async () => {
+    const mockSupabase = {
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            order: vi.fn().mockReturnValue({
+              limit: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({
+                  data: null,
+                  error: null,
+                }),
+              }),
+            }),
+          }),
+        }),
+      }),
+    }
+    ;(getSupabaseServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(mockSupabase)
+
+    const result = await getLastPollTime(mockSupabase as never, 'test-nonexistent')
+    expect(result).toBeNull()
+  })
+})
+
+describe('insertPollData', () => {
+  it('returns true on success', async () => {
+    const mockSupabase = {
+      from: vi.fn().mockReturnValue({
+        insert: vi.fn().mockResolvedValue({ error: null }),
+      }),
+    }
+    ;(getSupabaseServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(mockSupabase)
+
+    const result = await insertPollData(mockSupabase as never, 'test-1', 'v1', 5000, 200, 'cron')
+    expect(result).toBe(true)
+    expect(mockSupabase.from).toHaveBeenCalledWith('ab_test_polls')
   })
 })
