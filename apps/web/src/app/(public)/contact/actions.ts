@@ -1,7 +1,7 @@
 'use server'
 
 import { headers } from 'next/headers'
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 import { z } from 'zod'
 import { contactReceivedTemplate, contactAdminAlertTemplate } from '@tn-figueiredo/email'
 import type { IEmailTemplate } from '@tn-figueiredo/email'
@@ -128,6 +128,7 @@ export async function submitContact(formData: FormData): Promise<ContactResult> 
   }
 
   // Revalidate admin list so new row appears.
+  revalidateTag('layout-counts')
   revalidatePath('/cms/contacts')
 
   // Fire emails in background — failures must not surface.

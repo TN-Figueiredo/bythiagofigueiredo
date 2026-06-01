@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useState, useCallback, useTransition, useEffect } from 'react'
 import type { z } from 'zod'
 import type { LinktreeConfigSchema, LinktreePageData } from '@/app/go/linktree/_lib/types'
@@ -21,6 +22,7 @@ interface Props {
 }
 
 export function LinktreeEditor({ initialConfig, domain, siteId: _siteId, readOnly, pageData }: Props) {
+  const router = useRouter()
   const [config, setConfig] = useState<Config>(initialConfig)
   const [savedConfig, setSavedConfig] = useState<Config>(initialConfig)
   const [isPending, startTransition] = useTransition()
@@ -182,7 +184,7 @@ export function LinktreeEditor({ initialConfig, domain, siteId: _siteId, readOnl
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
               <button
                 type="button"
-                onClick={() => window.location.reload()}
+                onClick={() => router.refresh()}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--ink-faint)' }}
                 aria-label="Recarregar preview"
               >

@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Link2, ChevronRight } from 'lucide-react'
 import { LinkForm } from '@tn-figueiredo/links-admin/client'
 import type { LinkFormData } from '@tn-figueiredo/links-admin/client'
@@ -102,14 +103,14 @@ export function EditLinkForm({ linkId, siteId, initial }: EditLinkFormProps) {
       }}>
         {/* Breadcrumb */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
-          <a href="/cms/links" style={{ fontSize: '12.5px', fontWeight: 500, color: 'var(--ink-dim)', display: 'inline-flex', alignItems: 'center', gap: 6, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+          <Link href="/cms/links" style={{ fontSize: '12.5px', fontWeight: 500, color: 'var(--ink-dim)', display: 'inline-flex', alignItems: 'center', gap: 6, textDecoration: 'none', whiteSpace: 'nowrap' }}>
             <Link2 size={13} strokeWidth={1.7} />
             Links
-          </a>
+          </Link>
           <ChevronRight size={13} strokeWidth={1.7} style={{ color: 'var(--ink-faint)', opacity: 0.7, flexShrink: 0 }} />
-          <a href={`/cms/links/${linkId}`} style={{ fontSize: '12.5px', fontWeight: 500, color: 'var(--ink-dim)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+          <Link href={`/cms/links/${linkId}`} style={{ fontSize: '12.5px', fontWeight: 500, color: 'var(--ink-dim)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
             {initial.title || `/${initial.code || linkId.slice(0, 8)}`}
-          </a>
+          </Link>
           <ChevronRight size={13} strokeWidth={1.7} style={{ color: 'var(--ink-faint)', opacity: 0.7, flexShrink: 0 }} />
           <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--ink)', whiteSpace: 'nowrap' }}>
             Editar

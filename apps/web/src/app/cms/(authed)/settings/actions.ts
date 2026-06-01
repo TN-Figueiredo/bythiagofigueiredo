@@ -509,6 +509,7 @@ export async function removeYouTubeChannel(input: z.infer<typeof removeChannelSc
   if (error) return { ok: false, error: error.message }
 
   revalidateTag('youtube')
+  revalidateTag('layout-counts')
   revalidatePath('/cms/settings')
   revalidatePath('/')
   return { ok: true }

@@ -71,6 +71,7 @@ export async function deleteCategory(id: string) {
 
   if (error) return { ok: false as const, error: error.message }
   revalidateTag('youtube')
+  revalidateTag('layout-counts')
   revalidatePath('/cms/youtube/categories')
   return { ok: true as const }
 }

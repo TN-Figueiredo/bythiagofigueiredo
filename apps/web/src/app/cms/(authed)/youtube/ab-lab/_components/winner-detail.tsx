@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import type { AbTestWinnerView } from '@/lib/youtube/ab-types'
 import { DetailHeader } from './detail-header'
 import { WinnerBanner } from './winner-banner'
@@ -21,6 +22,7 @@ export interface WinnerDetailProps {
 const BTN = 'inline-flex items-center gap-[7px] justify-center py-[6px] px-[11px] text-[12.5px] font-semibold rounded-[9px] border border-cms-border whitespace-nowrap transition-[0.15s] tracking-[-0.01em] text-cms-text-dim hover:text-cms-text focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none'
 
 export function WinnerDetail({ view }: WinnerDetailProps) {
+  const router = useRouter()
   return (
     <div data-testid="winner-detail">
       {/* 1. DetailHeader */}
@@ -80,7 +82,7 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
                 if (!confirm('Reverter para o original? Isso desfaz a aplicação do vencedor no YouTube.')) return
                 const result = await revertWinner(view.id)
                 if (!result.ok) alert(result.error)
-                else window.location.reload()
+                else router.refresh()
               }}
               className="inline-flex items-center gap-1.5 rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500"
             >

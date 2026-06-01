@@ -1,6 +1,7 @@
 'use client'
 
 import { useTransition } from 'react'
+import Link from 'next/link'
 import { scrapeOgTags } from '@/lib/social/actions'
 
 interface ValidationItem {
@@ -61,9 +62,9 @@ export function OgValidation({ result, postId }: OgValidationProps) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <a href={`/cms/social/${postId}`} className="text-sm text-cms-accent hover:underline">
+        <Link href={`/cms/social/${postId}`} className="text-sm text-cms-accent hover:underline">
           &larr; Voltar
-        </a>
+        </Link>
         <div className="flex gap-2">
           <button
             type="button"

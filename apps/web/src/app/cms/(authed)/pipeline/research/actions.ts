@@ -1,7 +1,7 @@
 'use server'
 
 import { z } from 'zod'
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
@@ -56,6 +56,7 @@ export async function saveResearchItem(
     .single()
 
   if (error || !updated) return { ok: false, error: 'Version conflict or item not found' }
+  revalidateTag('layout-counts')
   revalidatePath('/cms/library/research')
   return { ok: true, data: updated }
 }
@@ -83,6 +84,7 @@ export async function updateResearchStatus(
     .single()
 
   if (error || !updated) return { ok: false, error: version !== undefined ? 'Version conflict or item not found' : 'Item not found' }
+  revalidateTag('layout-counts')
   revalidatePath('/cms/library/research')
   return { ok: true, data: updated }
 }
@@ -130,6 +132,7 @@ export async function deleteResearchItem(id: string): Promise<ActionResult> {
     .eq('site_id', siteId)
 
   if (error) return { ok: false, error: error.message }
+  revalidateTag('layout-counts')
   revalidatePath('/cms/library/research')
   return { ok: true }
 }

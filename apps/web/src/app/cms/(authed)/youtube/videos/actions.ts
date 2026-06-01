@@ -38,6 +38,7 @@ export async function updateVideo(
 
   if (error) return { ok: false as const, error: error.message }
   revalidateTag('youtube')
+  revalidateTag('layout-counts')
   revalidatePath('/cms/youtube/videos')
   return { ok: true as const }
 }
@@ -70,6 +71,7 @@ export async function approveCategory(
 
   if (error) return { ok: false as const, error: error.message }
   revalidateTag('youtube')
+  revalidateTag('layout-counts')
   revalidatePath('/cms/youtube/videos')
   return { ok: true as const }
 }
@@ -88,6 +90,7 @@ export async function rejectCategory(
 
   if (error) return { ok: false as const, error: error.message }
   revalidateTag('youtube')
+  revalidateTag('layout-counts')
   revalidatePath('/cms/youtube/videos')
   return { ok: true as const }
 }
@@ -140,6 +143,7 @@ export async function triggerSync(
 
   syncCooldowns.set(cooldownKey, Date.now())
   revalidateTag('youtube')
+  revalidateTag('layout-counts')
   revalidatePath('/cms/youtube')
   return { ok: true as const }
 }

@@ -1,7 +1,7 @@
 'use server'
 
 import { z } from 'zod'
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
@@ -50,6 +50,7 @@ export async function markReplied(id: string): Promise<ActionResult> {
     })
     return { ok: false, error: error.message }
   }
+  revalidateTag('layout-counts')
   revalidatePath('/cms/contacts')
   return { ok: true }
 }
@@ -74,6 +75,7 @@ export async function undoMarkReplied(id: string): Promise<ActionResult> {
     })
     return { ok: false, error: error.message }
   }
+  revalidateTag('layout-counts')
   revalidatePath('/cms/contacts')
   return { ok: true }
 }
@@ -97,6 +99,7 @@ export async function anonymizeSubmission(id: string): Promise<ActionResult> {
     })
     return { ok: false, error: error.message }
   }
+  revalidateTag('layout-counts')
   revalidatePath('/cms/contacts')
   return { ok: true }
 }
@@ -123,6 +126,7 @@ export async function bulkAnonymize(ids: string[]): Promise<ActionResult> {
       errors.push(id)
     }
   }
+  revalidateTag('layout-counts')
   revalidatePath('/cms/contacts')
   if (errors.length > 0) {
     return { ok: false, error: `Failed to anonymize ${errors.length} submission(s)` }
@@ -203,6 +207,7 @@ export async function sendReply(
     metadata: { submission_id: id },
   })
 
+  revalidateTag('layout-counts')
   revalidatePath('/cms/contacts')
   return { ok: true }
 }

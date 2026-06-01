@@ -96,7 +96,7 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
                 onClick={async () => {
                   const result = await applyWinnerNow(view.id)
                   if (!result.ok) alert(result.error)
-                  else window.location.reload()
+                  else router.refresh()
                 }}
                 className="rounded bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-500"
               >
@@ -106,7 +106,7 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
                 onClick={async () => {
                   const result = await cancelGracePeriod(view.id)
                   if (!result.ok) alert(result.error)
-                  else window.location.reload()
+                  else router.refresh()
                 }}
                 className="rounded bg-zinc-700 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-zinc-600"
               >
