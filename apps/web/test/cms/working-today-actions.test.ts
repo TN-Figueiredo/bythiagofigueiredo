@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 
 vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({
+  createServerClient: vi.fn().mockReturnValue({ auth: { getUser: () => Promise.resolve({ data: { user: { id: 'user-1', email: 'test@test.com' } } }) } }),
   requireSiteScope: vi.fn().mockResolvedValue({ ok: true, user: { id: 'user-1' } }),
 }))
 

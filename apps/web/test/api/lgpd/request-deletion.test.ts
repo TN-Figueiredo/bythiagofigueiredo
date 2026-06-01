@@ -6,6 +6,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // and retrieve references with vi.mocked() after the imports.
 
 vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({
+  createServerClient: vi.fn().mockReturnValue({ auth: { getUser: () => Promise.resolve({ data: { user: { id: 'user-1', email: 'test@test.com' } } }) } }),
   createServerClient: vi.fn().mockReturnValue({
     auth: { getUser: vi.fn() },
   }),

@@ -55,6 +55,7 @@ vi.mock('@/lib/cms/auth-guards', () => ({
 let mockAuthResult: { ok: boolean; user?: { id: string }; reason?: string } = { ok: true, user: { id: 'user-1' } }
 
 vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({
+  createServerClient: vi.fn().mockReturnValue({ auth: { getUser: () => Promise.resolve({ data: { user: { id: 'user-1', email: 'test@test.com' } } }) } }),
   requireSiteScope: () => Promise.resolve(mockAuthResult),
 }))
 

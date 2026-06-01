@@ -106,12 +106,41 @@ export async function GET(req: NextRequest) {
           const { drifted } = await checkDrift(test.id, video.youtube_video_id, expectedUrl, apiKey)
 
           if (drifted) {
-            // Pause test + notify
+            const now = new Date().toISOString()
+
+            // 1. Close the open cycle
+            await driftClient
+              .from('ab_test_cycles')
+              .update({ ended_at: now })
+              .eq('test_id', test.id)
+              .is('ended_at', null)
+
+            // 2. Attempt thumbnail revert to original
+            try {
+              const { data: testFull } = await driftClient
+                .from('ab_tests')
+                .select('original_thumbnail_url, site_id')
+                .eq('id', test.id)
+                .single()
+
+              if (testFull?.original_thumbnail_url?.includes('blob.vercel-storage.com')) {
+                const { ensureFreshToken } = await import('@/lib/social/token-refresh')
+                const { fetchVariantImageBuffer, setThumbnail } = await import('@/lib/youtube/ab-youtube')
+                const { accessToken } = await ensureFreshToken(testFull.site_id, 'youtube')
+                const { buffer, contentType } = await fetchVariantImageBuffer(testFull.original_thumbnail_url)
+                await setThumbnail(video.youtube_video_id, buffer, contentType, accessToken)
+              }
+            } catch (revertErr) {
+              Sentry.captureException(revertErr, { extra: { context: 'ab-watchdog-revert', testId: test.id } })
+            }
+
+            // 3. Pause the test
             await driftClient
               .from('ab_tests')
-              .update({ status: 'paused', status_note: 'Thumbnail alterado externamente' })
+              .update({ status: 'paused', paused_at: now, status_note: 'Thumbnail alterado externamente' })
               .eq('id', test.id)
 
+            // 4. Notify owner
             const { data: owner } = await driftClient
               .from('site_users')
               .select('user_id')

@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // ── Mocks — NO top-level variables referenced inside vi.mock factories ────
 
 vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({
+  createServerClient: vi.fn().mockReturnValue({ auth: { getUser: () => Promise.resolve({ data: { user: { id: 'user-1', email: 'test@test.com' } } }) } }),
   createServerClient: vi.fn().mockReturnValue({
     auth: { getUser: vi.fn() },
   }),

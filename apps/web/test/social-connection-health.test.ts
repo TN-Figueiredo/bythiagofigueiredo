@@ -35,6 +35,7 @@ vi.mock('@tn-figueiredo/social/vault', () => ({
 }))
 
 vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({
+  createServerClient: vi.fn().mockReturnValue({ auth: { getUser: () => Promise.resolve({ data: { user: { id: 'user-1', email: 'test@test.com' } } }) } }),
   requireSiteScope: () => ({ ok: true, user: { id: 'u1' } }),
 }))
 
