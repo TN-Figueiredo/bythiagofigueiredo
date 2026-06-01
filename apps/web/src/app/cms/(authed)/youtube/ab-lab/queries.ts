@@ -596,12 +596,23 @@ interface TestForLearning {
   test_type?: string | null
 }
 
+function wilsonScore(wins: number, total: number, z = 1.96): number {
+  if (total === 0) return 0
+  const p = wins / total
+  const denom = 1 + (z * z) / total
+  const center = p + (z * z) / (2 * total)
+  const spread = z * Math.sqrt((p * (1 - p) + (z * z) / (4 * total)) / total)
+  return (center - spread) / denom
+}
+
 function aggregateTags(
   winners: Array<{ id: unknown; metadata: unknown }>,
   tests: TestForLearning[],
+  allVariants?: Array<{ id: unknown; metadata: unknown }>,
 ): LearningsTag[] {
-  const tagMap = new Map<string, { wins: number; totalLift: number; kind: 'thumb' | 'title' | 'desc' }>()
+  const tagMap = new Map<string, { wins: number; total: number; totalLift: number; kind: 'thumb' | 'title' | 'desc' }>()
 
+  // Count wins (tag appeared on the winning variant)
   for (const test of tests) {
     const winner = winners.find(w => (w.id as string) === (test.winner_variant_id as string))
     if (!winner) continue
@@ -612,10 +623,31 @@ function aggregateTags(
     const kind = testType === 'title' ? 'title' as const : testType === 'description' ? 'desc' as const : 'thumb' as const
 
     for (const tag of tags) {
-      const existing = tagMap.get(tag) ?? { wins: 0, totalLift: 0, kind }
+      const existing = tagMap.get(tag) ?? { wins: 0, total: 0, totalLift: 0, kind }
       existing.wins += 1
       existing.totalLift += lift
       tagMap.set(tag, existing)
+    }
+  }
+
+  // Count total appearances (tag appeared on ANY variant in a completed test)
+  if (allVariants) {
+    // Build a set of test_ids from our tests (the completed ones with winners)
+    const testVariantIds = new Set<string>()
+    for (const v of allVariants) testVariantIds.add(v.id as string)
+
+    for (const variant of allVariants) {
+      const meta = variant.metadata as Record<string, unknown> | null
+      const tags = (meta?.thumbnail_tags as string[]) ?? []
+      for (const tag of tags) {
+        const existing = tagMap.get(tag)
+        if (existing) existing.total += 1
+      }
+    }
+  } else {
+    // Fallback: total = wins (all appearances were on winners)
+    for (const entry of tagMap.values()) {
+      entry.total = entry.wins
     }
   }
 
@@ -623,18 +655,28 @@ function aggregateTags(
     .map(([tag, data]) => ({
       tag,
       wins: data.wins,
+      total: data.total,
+      confidence: wilsonScore(data.wins, data.total),
       avgLift: data.wins > 0 ? data.totalLift / data.wins : 0,
       kind: data.kind,
       negative: data.wins > 0 && (data.totalLift / data.wins) < 0 ? true : undefined,
     }))
-    .sort((a, b) => b.wins - a.wins)
+    .sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0))
 }
 
 function buildInsightText(tags: LearningsTag[]): string {
-  const topTag = tags[0]
-  return topTag
-    ? `"${topTag.tag}" appears in ${topTag.wins} winners with avg ${topTag.avgLift >= 0 ? '+' : ''}${topTag.avgLift.toFixed(1)}% lift`
-    : 'Not enough data for insights'
+  if (!tags.length) return 'Not enough data for insights'
+  const positive = tags.filter(t => !t.negative).slice(0, 3)
+  const negative = tags.filter(t => t.negative).slice(0, 2)
+
+  const parts: string[] = []
+  if (positive.length) {
+    parts.push(`Padrões que funcionam: ${positive.map(t => `"${t.tag}" (${t.wins}×)`).join(', ')}`)
+  }
+  if (negative.length) {
+    parts.push(`Evitar: ${negative.map(t => `"${t.tag}" (${Math.abs(Math.round(t.avgLift))}% queda)`).join(', ')}`)
+  }
+  return parts.join('. ') || 'Not enough data for insights'
 }
 
 // ---------------------------------------------------------------------------
@@ -653,13 +695,21 @@ export async function getLearnings(siteId: string): Promise<LearningsData | null
 
   if (!tests || tests.length < 3) return null
 
+  const testIds = tests.map(t => t.id as string)
   const winnerIds = tests.map(t => t.winner_variant_id as string)
+
   const { data: winners } = await supabase
     .from('ab_test_variants')
     .select('id, metadata')
     .in('id', winnerIds)
 
-  const tags = aggregateTags(winners ?? [], tests)
+  // Fetch all variants for total count (tag appeared on ANY variant)
+  const { data: allVariants } = await supabase
+    .from('ab_test_variants')
+    .select('id, metadata')
+    .in('test_id', testIds)
+
+  const tags = aggregateTags(winners ?? [], tests, allVariants ?? undefined)
   return { tags, totalTests: tests.length, insightText: buildInsightText(tags) }
 }
 
@@ -710,15 +760,24 @@ export async function getChannelLearnings(siteId: string): Promise<ChannelLearni
     .select('id, metadata')
     .in('id', allWinnerIds)
 
+  // Fetch ALL variants for total count
+  const allTestIds = tests.map(t => t.id as string)
+  const { data: everyVariant } = await supabase
+    .from('ab_test_variants')
+    .select('id, test_id, metadata')
+    .in('test_id', allTestIds)
+
   // Compute learnings per channel (only channels with 3+ tests)
   const channelLearnings: ChannelLearningsData['channels'] = []
 
   for (const [channelId, channelTests] of byChannel) {
     if (channelTests.length < 3) continue
 
+    const channelTestIds = new Set(channelTests.map(t => t.id as string))
     const channelWinnerIds = new Set(channelTests.map(t => t.winner_variant_id as string))
     const channelWinners = (allWinners ?? []).filter(w => channelWinnerIds.has(w.id as string))
-    const tags = aggregateTags(channelWinners, channelTests)
+    const channelAllVariants = (everyVariant ?? []).filter(v => channelTestIds.has(v.test_id as string))
+    const tags = aggregateTags(channelWinners, channelTests, channelAllVariants)
 
     channelLearnings.push({
       channelId,
@@ -732,7 +791,7 @@ export async function getChannelLearnings(siteId: string): Promise<ChannelLearni
   }
 
   // Combined learnings from all tests
-  const combinedTags = aggregateTags(allWinners ?? [], tests)
+  const combinedTags = aggregateTags(allWinners ?? [], tests, everyVariant ?? undefined)
   const combined: LearningsData = {
     tags: combinedTags,
     totalTests: tests.length,

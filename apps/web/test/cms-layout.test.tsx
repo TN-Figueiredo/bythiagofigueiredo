@@ -56,12 +56,32 @@ vi.mock('@tn-figueiredo/cms-ui/client', () => ({
     ),
 }))
 
+vi.mock('next/navigation', () => ({
+  redirect: vi.fn(),
+}))
+
 vi.mock('@tn-figueiredo/auth-nextjs', () => ({
   createServerClient: vi.fn(() => ({
-    rpc: vi.fn(async () => ({ data: [], error: null })),
+    auth: {
+      getUser: vi.fn(async () => ({
+        data: { user: { id: 'u1', email: 'thiago@example.com', user_metadata: {} } },
+        error: null,
+      })),
+    },
+    rpc: vi.fn(async (name: string) => {
+      if (name === 'is_member_staff') return { data: true, error: null }
+      if (name === 'user_accessible_sites') return { data: [], error: null }
+      return { data: null, error: null }
+    }),
   })),
-  requireUser: vi.fn(async () => ({ id: 'u1', email: 'thiago@example.com' })),
-  requireArea: vi.fn(async () => undefined),
+}))
+
+vi.mock('@/lib/cms/layout-counts', () => ({
+  fetchLayoutCounts: vi.fn(async () => ({
+    pendingContacts: 0,
+    ytPending: 0,
+    researchUnread: 0,
+  })),
 }))
 
 vi.mock('@/lib/cms/site-context', () => ({
@@ -69,6 +89,7 @@ vi.mock('@/lib/cms/site-context', () => ({
     siteId: 'site-1',
     orgId: 'org-1',
     defaultLocale: 'pt-BR',
+    timezone: 'America/Sao_Paulo',
   })),
 }))
 

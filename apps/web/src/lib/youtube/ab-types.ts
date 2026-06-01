@@ -344,6 +344,8 @@ export interface SuggestedVideo {
 export interface LearningsTag {
   tag: string
   wins: number
+  total?: number
+  confidence?: number
   avgLift: number
   kind: 'thumb' | 'title' | 'desc'
   negative?: boolean

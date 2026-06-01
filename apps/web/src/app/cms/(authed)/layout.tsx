@@ -89,7 +89,10 @@ export default async function Layout({ children }: { children: ReactNode }) {
   if (layoutCounts.ytPending) badges['/cms/youtube'] = layoutCounts.ytPending
   if (layoutCounts.researchUnread) badges['/cms/library/research'] = layoutCounts.researchUnread
 
-  const initialNotifications = (notificationsRes.data ?? []) as INotification[]
+  const initialNotifications = (notificationsRes.data ?? []).map((n) => ({
+    ...n,
+    payload: null,
+  })) as INotification[]
   const unreadCount = initialNotifications.filter((n) => !n.read_at).length
   const hasCritical = initialNotifications.some((n) => n.priority >= 4 && !n.read_at)
 

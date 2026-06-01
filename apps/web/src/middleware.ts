@@ -107,6 +107,7 @@ function getRingContext(): SupabaseRingContext {
 }
 
 const SITE_CACHE_TTL_MS = 60_000
+const SITE_CACHE_MAX_ENTRIES = 50
 const siteByDomainCache = new Map<string, { site: Awaited<ReturnType<InstanceType<typeof SupabaseRingContext>['getSiteByDomain']>>; exp: number }>()
 
 async function getSiteByDomainCached(
@@ -116,6 +117,7 @@ async function getSiteByDomainCached(
   const now = Date.now()
   const hit = siteByDomainCache.get(hostname)
   if (hit && hit.exp > now) return hit.site
+  if (siteByDomainCache.size >= SITE_CACHE_MAX_ENTRIES) siteByDomainCache.clear()
   const site = await ring.getSiteByDomain(hostname)
   siteByDomainCache.set(hostname, { site, exp: now + SITE_CACHE_TTL_MS })
   return site
@@ -231,11 +233,11 @@ export async function middleware(
     }
   }
 
-  const isCronOrWebhook =
+  const skipSiteResolution =
     pathname.startsWith('/api/cron/') ||
     pathname.startsWith('/api/webhooks/') ||
-    pathname.startsWith('/auth/')
-  if (isCronOrWebhook) {
+    pathname.startsWith('/auth/callback')
+  if (skipSiteResolution) {
     return NextResponse.next()
   }
 
