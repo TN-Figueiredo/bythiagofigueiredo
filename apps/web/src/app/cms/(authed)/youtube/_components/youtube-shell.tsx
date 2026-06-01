@@ -1,8 +1,9 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
-import { useTransition } from 'react'
+import { useTransition, useCallback, useEffect, useRef } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import type { ReactNode } from 'react'
 import { triggerSync } from '../videos/actions'
 import { CoworkDeepLink } from '@/components/cms/cowork-deep-link'
@@ -18,6 +19,68 @@ const TABS = [
   { label: 'Competitors', href: '/cms/youtube/competitors' },
   { label: 'Performance', href: '/cms/youtube/analytics' },
 ] as const
+
+function TokenExpiryBanner({ hoursUntilExpiry }: { hoursUntilExpiry: number }) {
+  const router = useRouter()
+  const [isConnecting, startReconnect] = useTransition()
+  const messageListenerRef = useRef<((e: MessageEvent) => void) | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (messageListenerRef.current) {
+        window.removeEventListener('message', messageListenerRef.current)
+        messageListenerRef.current = null
+      }
+    }
+  }, [])
+
+  const handleReconnect = useCallback(() => {
+    startReconnect(() => {
+      const width = 600
+      const height = 700
+      const left = window.screenX + (window.outerWidth - width) / 2
+      const top = window.screenY + (window.outerHeight - height) / 2
+      const popup = window.open(
+        '/api/social/oauth/google',
+        'social-oauth',
+        `width=${width},height=${height},left=${left},top=${top}`,
+      )
+
+      if (messageListenerRef.current) {
+        window.removeEventListener('message', messageListenerRef.current)
+      }
+
+      const onMessage = (event: MessageEvent) => {
+        if (event.data?.type === 'social-oauth-result') {
+          window.removeEventListener('message', onMessage)
+          messageListenerRef.current = null
+          popup?.close()
+          if (event.data.success) {
+            router.refresh()
+          }
+        }
+      }
+      messageListenerRef.current = onMessage
+      window.addEventListener('message', onMessage)
+    })
+  }, [router])
+
+  return (
+    <div className="mx-6 mt-2 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-4 py-2.5 flex items-center justify-between gap-3">
+      <span className="text-sm text-yellow-300">
+        Token do YouTube expira em {Math.round(hoursUntilExpiry)}h. Reconecte para evitar falhas de sync.
+      </span>
+      <button
+        type="button"
+        onClick={handleReconnect}
+        disabled={isConnecting}
+        className="shrink-0 rounded-md bg-yellow-500 px-3 py-1.5 text-xs font-semibold text-black hover:bg-yellow-400 disabled:opacity-50"
+      >
+        {isConnecting ? 'Conectando…' : '🔑 Reconectar Token'}
+      </button>
+    </div>
+  )
+}
 
 interface YouTubeShellProps {
   children: ReactNode
@@ -83,14 +146,7 @@ export function YouTubeShell({ children, hoursUntilExpiry }: YouTubeShellProps) 
 
       {/* Token expiry warning */}
       {hoursUntilExpiry !== null && hoursUntilExpiry < 48 && (
-        <div className="mx-6 mt-2 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-4 py-2 text-sm text-yellow-300">
-          Token do YouTube expira em {Math.round(hoursUntilExpiry)}h.{' '}
-          Use o botao &ldquo;Reconectar Token&rdquo; na{' '}
-          <Link href="/cms/youtube" className="underline">
-            pagina de Canais
-          </Link>{' '}
-          para evitar falhas.
-        </div>
+        <TokenExpiryBanner hoursUntilExpiry={hoursUntilExpiry} />
       )}
 
       {/* Content */}

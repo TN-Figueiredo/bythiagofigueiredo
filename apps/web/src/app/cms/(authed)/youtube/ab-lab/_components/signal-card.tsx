@@ -31,7 +31,7 @@ export function SignalCard({ live, confirmed }: SignalCardProps) {
   }, [confirmed?.views])
 
   return (
-    <div className="rounded-xl border border-zinc-700/50 bg-zinc-900/50 p-4 space-y-3">
+    <div className="rounded-xl border border-cms-border/50 bg-cms-bg/50 p-4 space-y-3">
       {/* TOP: Live proxy */}
       {live && (
         <div className="space-y-1">
@@ -50,14 +50,14 @@ export function SignalCard({ live, confirmed }: SignalCardProps) {
         </div>
       )}
 
-      {live && confirmed && <div className="border-t border-zinc-700/30" />}
+      {live && confirmed && <div className="border-t border-cms-border/30" />}
 
       {/* BOTTOM: Confirmed */}
       {confirmed && (
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-zinc-500" />
-            <span className="text-xs font-medium text-zinc-400 uppercase tracking-wide">Confirmado</span>
+            <span className="h-2 w-2 rounded-full bg-cms-text-dim" />
+            <span className="text-xs font-medium text-cms-text-muted uppercase tracking-wide">Confirmado</span>
             {showConfirmedPill && (
               <span
                 className="rounded-full bg-green-600 px-2 py-0.5 text-[10px] font-medium text-white"
@@ -68,8 +68,8 @@ export function SignalCard({ live, confirmed }: SignalCardProps) {
             )}
           </div>
           <div className="flex items-baseline gap-4">
-            <span className="text-sm text-zinc-300">{confirmed.views.toLocaleString('pt-BR')} views</span>
-            <span className="text-sm text-zinc-300">{formatAvd(confirmed.avdSeconds)} AVD</span>
+            <span className="text-sm text-cms-text">{confirmed.views.toLocaleString('pt-BR')} views</span>
+            <span className="text-sm text-cms-text">{formatAvd(confirmed.avdSeconds)} AVD</span>
           </div>
           <FreshnessBar metrics={[
             { label: 'Views', lastUpdated: confirmed.lastSyncAt, confirmed: true },
@@ -86,12 +86,12 @@ export function SignalCard({ live, confirmed }: SignalCardProps) {
 
 function Metric({ label, value, delta }: { label: string; value: string; delta: number }) {
   const Icon = delta > 0 ? TrendingUp : delta < 0 ? TrendingDown : Minus
-  const color = delta > 0 ? 'text-green-400' : delta < 0 ? 'text-red-400' : 'text-zinc-400'
+  const color = delta > 0 ? 'text-green-400' : delta < 0 ? 'text-red-400' : 'text-cms-text-muted'
   return (
     <div className="flex items-center gap-1">
       <Icon className={`h-3 w-3 ${color}`} />
       <span className={`text-lg font-mono font-bold ${color}`}>{value}</span>
-      <span className="text-xs text-zinc-500">{label}</span>
+      <span className="text-xs text-cms-text-dim">{label}</span>
     </div>
   )
 }

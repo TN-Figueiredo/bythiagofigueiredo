@@ -116,7 +116,7 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
                   if (!result.ok) alert(result.error)
                   else router.refresh()
                 }}
-                className="rounded bg-zinc-700 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-zinc-600"
+                className="rounded bg-cms-surface-hover px-3 py-1.5 text-xs font-medium text-cms-text hover:bg-cms-surface-hover"
               >
                 Cancelar
               </button>
@@ -241,7 +241,7 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
               view.outlier.badge === 'purple' ? 'border-purple-500/30 bg-purple-500/10' :
               'border-blue-500/30 bg-blue-500/10'
             }`}>
-              <span className="text-xs text-zinc-400">Outlier</span>
+              <span className="text-xs text-cms-text-muted">Outlier</span>
               <p className={`text-lg font-mono font-bold ${
                 view.outlier.badge === 'red' ? 'text-red-400' :
                 view.outlier.badge === 'purple' ? 'text-purple-400' :
@@ -250,21 +250,21 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
             </div>
           )}
           {view.revenue && (
-            <div className="rounded-lg border border-zinc-700/30 bg-zinc-800/30 px-3 py-2">
-              <span className="text-xs text-zinc-400">Receita estimada</span>
-              <p className="text-lg font-mono font-bold text-zinc-200">
-                R${view.revenue.low}-{view.revenue.high}<span className="text-sm font-normal text-zinc-400">/ano</span>
+            <div className="rounded-lg border border-cms-border/30 bg-cms-surface/30 px-3 py-2">
+              <span className="text-xs text-cms-text-muted">Receita estimada</span>
+              <p className="text-lg font-mono font-bold text-cms-text">
+                R${view.revenue.low}-{view.revenue.high}<span className="text-sm font-normal text-cms-text-muted">/ano</span>
               </p>
-              {view.revenue.isDefault && <span className="text-[10px] text-zinc-500">faixa padrao</span>}
+              {view.revenue.isDefault && <span className="text-[10px] text-cms-text-dim">faixa padrao</span>}
             </div>
           )}
           {view.daysRemaining && (
-            <div className="rounded-lg border border-zinc-700/30 bg-zinc-800/30 px-3 py-2">
-              <span className="text-xs text-zinc-400">Dias restantes</span>
-              <p className="text-lg font-mono font-bold text-zinc-200">
+            <div className="rounded-lg border border-cms-border/30 bg-cms-surface/30 px-3 py-2">
+              <span className="text-xs text-cms-text-muted">Dias restantes</span>
+              <p className="text-lg font-mono font-bold text-cms-text">
                 {view.daysRemaining.days > 900 ? '∞' : `~${view.daysRemaining.days}d`}
               </p>
-              <span className="text-[10px] text-zinc-500">{view.daysRemaining.model}</span>
+              <span className="text-[10px] text-cms-text-dim">{view.daysRemaining.model}</span>
             </div>
           )}
         </div>

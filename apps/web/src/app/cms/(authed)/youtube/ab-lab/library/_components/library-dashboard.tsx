@@ -57,9 +57,9 @@ function InlineTagEditor({ entryId, currentTags }: { entryId: string; currentTag
     return (
       <div className="flex items-center gap-1 flex-wrap">
         {currentTags.map(tag => (
-          <span key={tag} className="rounded bg-zinc-800 px-1.5 py-0.5 text-[9px] text-zinc-400">{tag}</span>
+          <span key={tag} className="rounded bg-cms-surface px-1.5 py-0.5 text-[9px] text-cms-text-muted">{tag}</span>
         ))}
-        <button onClick={() => setEditing(true)} className="rounded p-0.5 text-zinc-600 hover:text-zinc-400" title="Editar tags">
+        <button onClick={() => setEditing(true)} className="rounded p-0.5 text-cms-text-dim hover:text-cms-text-muted" title="Editar tags">
           <Pencil className="h-3 w-3" />
         </button>
       </div>
@@ -70,9 +70,9 @@ function InlineTagEditor({ entryId, currentTags }: { entryId: string; currentTag
     <div className="space-y-1.5">
       <div className="flex items-center gap-1 flex-wrap">
         {tags.map(tag => (
-          <span key={tag} className="inline-flex items-center gap-0.5 rounded bg-zinc-700 px-1.5 py-0.5 text-[9px] text-zinc-300">
+          <span key={tag} className="inline-flex items-center gap-0.5 rounded bg-cms-surface-hover px-1.5 py-0.5 text-[9px] text-cms-text">
             {tag}
-            <button onClick={() => removeTag(tag)} className="text-zinc-500 hover:text-red-400"><X className="h-2.5 w-2.5" /></button>
+            <button onClick={() => removeTag(tag)} className="text-cms-text-dim hover:text-red-400"><X className="h-2.5 w-2.5" /></button>
           </span>
         ))}
       </div>
@@ -82,12 +82,12 @@ function InlineTagEditor({ entryId, currentTags }: { entryId: string; currentTag
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTag() } }}
           placeholder="Nova tag..."
-          className="flex-1 min-w-0 rounded border border-zinc-700 bg-zinc-900 px-1.5 py-0.5 text-[10px] text-zinc-300 placeholder:text-zinc-600"
+          className="flex-1 min-w-0 rounded border border-cms-border bg-cms-bg px-1.5 py-0.5 text-[10px] text-cms-text placeholder:text-cms-text-dim"
         />
         <button onClick={save} disabled={saving} className="rounded bg-green-600 p-1 text-white hover:bg-green-500 disabled:opacity-50">
           <Check className="h-3 w-3" />
         </button>
-        <button onClick={cancel} className="rounded bg-zinc-700 p-1 text-zinc-400 hover:bg-zinc-600">
+        <button onClick={cancel} className="rounded bg-cms-surface-hover p-1 text-cms-text-muted hover:bg-cms-surface-hover">
           <X className="h-3 w-3" />
         </button>
       </div>
@@ -121,7 +121,7 @@ export function LibraryDashboard({ entries }: { entries: LibraryEntry[] }) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-zinc-100">Biblioteca de Thumbnails</h2>
+        <h2 className="text-lg font-semibold text-cms-text">Biblioteca de Thumbnails</h2>
         <label className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 cursor-pointer">
           <Upload className="h-4 w-4" />
           {uploading ? 'Enviando...' : 'Enviar'}
@@ -133,11 +133,11 @@ export function LibraryDashboard({ entries }: { entries: LibraryEntry[] }) {
       {/* Tag filter */}
       {allTags.length > 0 && (
         <div className="flex gap-2 flex-wrap">
-          <button onClick={() => setFilter(null)} className={`rounded-full px-3 py-1 text-xs ${!filter ? 'bg-blue-600 text-white' : 'bg-zinc-800 text-zinc-400'}`}>
+          <button onClick={() => setFilter(null)} className={`rounded-full px-3 py-1 text-xs ${!filter ? 'bg-blue-600 text-white' : 'bg-cms-surface text-cms-text-muted'}`}>
             Todos ({entries.length})
           </button>
           {allTags.map(tag => (
-            <button key={tag} onClick={() => setFilter(tag)} className={`rounded-full px-3 py-1 text-xs ${filter === tag ? 'bg-blue-600 text-white' : 'bg-zinc-800 text-zinc-400'}`}>
+            <button key={tag} onClick={() => setFilter(tag)} className={`rounded-full px-3 py-1 text-xs ${filter === tag ? 'bg-blue-600 text-white' : 'bg-cms-surface text-cms-text-muted'}`}>
               {tag}
             </button>
           ))}
@@ -147,7 +147,7 @@ export function LibraryDashboard({ entries }: { entries: LibraryEntry[] }) {
       {/* Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
         {filtered.map(entry => (
-          <div key={entry.id} className="group rounded-xl border border-zinc-700/50 bg-zinc-900/50 overflow-hidden">
+          <div key={entry.id} className="group rounded-xl border border-cms-border/50 bg-cms-bg/50 overflow-hidden">
             <div className="relative aspect-video">
               <img src={entry.blob_url} alt={entry.title ?? ''} className="h-full w-full object-cover" />
               <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
@@ -160,8 +160,8 @@ export function LibraryDashboard({ entries }: { entries: LibraryEntry[] }) {
               )}
             </div>
             <div className="p-3 space-y-1.5">
-              <p className="text-xs font-medium text-zinc-200 truncate">{entry.title}</p>
-              {entry.video_title && <p className="text-[10px] text-zinc-500 truncate">{entry.video_title}</p>}
+              <p className="text-xs font-medium text-cms-text truncate">{entry.title}</p>
+              {entry.video_title && <p className="text-[10px] text-cms-text-dim truncate">{entry.video_title}</p>}
               {entry.lift_at_win !== null && (
                 <span className={`text-xs font-mono ${entry.lift_at_win > 0 ? 'text-green-400' : 'text-red-400'}`}>
                   {entry.lift_at_win > 0 ? '+' : ''}{entry.lift_at_win}% lift
@@ -172,9 +172,9 @@ export function LibraryDashboard({ entries }: { entries: LibraryEntry[] }) {
                 <div className="flex gap-1.5">
                   {[7, 30, 60, 90].map(days => {
                     const cp = entry.thumbnail_longevity.find(l => l.checkpoint_days === days)
-                    if (!cp) return <span key={days} className="h-2 w-2 rounded-full bg-zinc-700" title={`${days}d: pendente`} />
+                    if (!cp) return <span key={days} className="h-2 w-2 rounded-full bg-cms-surface-hover" title={`${days}d: pendente`} />
                     const Icon = cp.status === 'growing' ? TrendingUp : cp.status === 'fading' ? TrendingDown : Minus
-                    const color = cp.status === 'growing' ? 'text-green-400' : cp.status === 'fading' ? 'text-red-400' : 'text-zinc-400'
+                    const color = cp.status === 'growing' ? 'text-green-400' : cp.status === 'fading' ? 'text-red-400' : 'text-cms-text-muted'
                     return <span key={days} title={`${days}d: ${cp.status} (${cp.change_percent ?? 0}%)`}><Icon className={`h-3 w-3 ${color}`} /></span>
                   })}
                 </div>
@@ -187,7 +187,7 @@ export function LibraryDashboard({ entries }: { entries: LibraryEntry[] }) {
       </div>
 
       {filtered.length === 0 && (
-        <div className="text-center py-12 text-zinc-500 text-sm">
+        <div className="text-center py-12 text-cms-text-dim text-sm">
           {entries.length === 0 ? 'Nenhuma thumbnail na biblioteca. Complete testes A/B ou faca upload.' : 'Nenhum resultado para esse filtro.'}
         </div>
       )}

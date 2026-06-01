@@ -75,7 +75,7 @@ export function SuggestedCard({ video, onCreate, checked, onToggle }: SuggestedC
               type="checkbox"
               checked={checked ?? false}
               onChange={() => onToggle(video.id)}
-              className="h-4 w-4 rounded border-zinc-600 bg-zinc-800 accent-blue-500 cursor-pointer"
+              className="h-4 w-4 rounded border-cms-border bg-cms-surface accent-blue-500 cursor-pointer"
             />
           </label>
         )}

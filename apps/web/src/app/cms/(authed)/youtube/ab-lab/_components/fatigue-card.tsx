@@ -20,7 +20,7 @@ export function FatigueCard({ alert, onCreate, onDismiss }: FatigueCardProps) {
         {alert.thumbnailUrl ? (
           <img src={alert.thumbnailUrl} alt="" referrerPolicy="no-referrer" className="h-full w-full object-cover" />
         ) : (
-          <div className="h-full w-full bg-zinc-800" />
+          <div className="h-full w-full bg-cms-surface" />
         )}
         <span className="absolute top-0.5 left-0.5 rounded bg-red-600 px-1 py-0.5 text-[9px] font-bold text-white">
           FADIGA
@@ -29,7 +29,7 @@ export function FatigueCard({ alert, onCreate, onDismiss }: FatigueCardProps) {
 
       {/* Info */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-zinc-200 truncate">{alert.videoTitle}</p>
+        <p className="text-sm font-medium text-cms-text truncate">{alert.videoTitle}</p>
         <p className="text-xs text-red-400">
           Views caiu {ctrDrop}% vs esperado (z={alert.zScore})
         </p>
@@ -45,7 +45,7 @@ export function FatigueCard({ alert, onCreate, onDismiss }: FatigueCardProps) {
         </button>
         <button
           onClick={() => onDismiss(alert.id)}
-          className="rounded bg-zinc-700 px-2 py-1 text-xs text-zinc-400 hover:bg-zinc-600"
+          className="rounded bg-cms-surface-hover px-2 py-1 text-xs text-cms-text-muted hover:bg-cms-surface-hover"
         >
           ✕
         </button>
