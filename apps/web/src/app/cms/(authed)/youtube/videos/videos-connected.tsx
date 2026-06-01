@@ -446,7 +446,7 @@ export function VideosConnected({ videos, channels, categories }: Props) {
                               <div className="flex items-center justify-between">
                                 <p className="text-sm text-cms-text-muted">No test running</p>
                                 <a
-                                  href="/cms/youtube/ab-lab"
+                                  href={`/cms/youtube/ab-lab/new?videoId=${video.id}`}
                                   onClick={(e) => e.stopPropagation()}
                                   className="text-xs text-cms-accent hover:underline"
                                 >

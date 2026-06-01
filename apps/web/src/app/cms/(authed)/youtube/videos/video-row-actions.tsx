@@ -301,7 +301,7 @@ export function AbStatusBadge({ test, videoId, isShort }: {
   if (!test) {
     return (
       <Link
-        href="/cms/youtube/ab-lab"
+        href={`/cms/youtube/ab-lab/new?videoId=${videoId}`}
         className="text-[11px] px-2 py-0.5 rounded border border-cms-border text-cms-text-muted hover:text-cms-text hover:border-cms-accent transition-colors"
       >
         Start A/B
@@ -349,7 +349,7 @@ interface VideoContextMenuProps {
   abTest: { id: string; status: string } | null
 }
 
-export function VideoContextMenu({ videoId: _videoId, isShort, abTest }: VideoContextMenuProps) {
+export function VideoContextMenu({ videoId, isShort, abTest }: VideoContextMenuProps) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -372,7 +372,7 @@ export function VideoContextMenu({ videoId: _videoId, isShort, abTest }: VideoCo
   const items: Array<{ label: string; href: string; className?: string }> = []
 
   if (!isShort && !abTest) {
-    items.push({ label: 'Start A/B Test', href: '/cms/youtube/ab-lab' })
+    items.push({ label: 'Start A/B Test', href: `/cms/youtube/ab-lab/new?videoId=${videoId}` })
   }
   if (abTest) {
     items.push({ label: 'View Test Details', href: `/cms/youtube/ab-lab/${abTest.id}` })
