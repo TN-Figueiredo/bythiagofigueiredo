@@ -262,7 +262,7 @@ describe('POST /api/pipeline/items/[id]/publish', () => {
     mockAuthSuccess()
     vi.mocked(parseBody).mockResolvedValue({
       targetStage: 'scheduled',
-      scheduledFor: '2026-06-01T10:00:00Z',
+      scheduledFor: '2099-06-01T10:00:00Z',
     })
 
     const pipelineChain = createMockChain({

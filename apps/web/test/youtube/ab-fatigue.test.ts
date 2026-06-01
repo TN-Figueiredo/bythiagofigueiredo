@@ -47,7 +47,7 @@ describe('detectFatigue', () => {
   it('filters out days with views < 50', () => {
     const metrics = Array.from({ length: 60 }, (_, i) => ({
       date: new Date(Date.now() - (60 - i) * 86400000).toISOString().slice(0, 10),
-      views: i < 30 ? 20 : 500, // first 30 days have low views
+      views: i < 30 ? 20 : 500 + i, // first 30 days have low views, rest have variance
     }))
     const result = detectFatigue(metrics, publishedAt)
     expect(result).not.toBeNull() // still works with 30 valid days
@@ -66,7 +66,7 @@ describe('detectFatigue', () => {
     // 30 days with views >= 50 (valid) + 10 days below threshold (filtered out)
     const metrics = Array.from({ length: 40 }, (_, i) => ({
       date: new Date(Date.now() - (40 - i) * 86400000).toISOString().slice(0, 10),
-      views: i < 10 ? 20 : 500, // first 10 invalid, last 30 valid
+      views: i < 10 ? 20 : 500 + i, // first 10 invalid, last 30 valid with variance
     }))
     const result = detectFatigue(metrics, publishedAt)
     expect(result).not.toBeNull()
