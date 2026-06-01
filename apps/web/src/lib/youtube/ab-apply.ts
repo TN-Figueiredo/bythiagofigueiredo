@@ -48,18 +48,15 @@ export async function applyVariantToYouTube(input: ApplyVariantInput): Promise<A
   try {
     // Thumbnail
     if ((testType === 'thumbnail' || testType === 'combo') && variant.blob_url) {
-      const { buffer, contentType } = await fetchVariantImageBuffer(variant.blob_url)
-      await setThumbnail(youtubeVideoId, buffer, contentType, accessToken)
-      appliedThumbnail = true
-      meta.thumbnail_set = true
-
-      // Capture the YouTube-assigned thumbnail URL for drift detection.
-      // Non-fatal: if this fails, drift detection will skip this cycle.
+      // Capture current YouTube thumbnail URL BEFORE upload as drift baseline.
+      // YouTube CDN takes minutes to propagate a new thumbnail, so reading
+      // AFTER setThumbnail would return the old URL — causing false drift.
       const apiKey = process.env.YOUTUBE_API_KEY
       if (apiKey) {
         try {
           const ytRes = await fetch(
             `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${youtubeVideoId}&key=${apiKey}`,
+            { signal: AbortSignal.timeout(10_000) },
           )
           if (ytRes.ok) {
             const ytData = await ytRes.json()
@@ -72,6 +69,11 @@ export async function applyVariantToYouTube(input: ApplyVariantInput): Promise<A
           // Non-fatal — drift detection will skip this cycle
         }
       }
+
+      const { buffer, contentType } = await fetchVariantImageBuffer(variant.blob_url)
+      await setThumbnail(youtubeVideoId, buffer, contentType, accessToken)
+      appliedThumbnail = true
+      meta.thumbnail_set = true
     }
 
     // Metadata (title/description)

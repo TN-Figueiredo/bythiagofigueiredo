@@ -1277,6 +1277,8 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
       outlier,
       revenue,
       daysRemaining,
+      statusNote: test.status_note ?? null,
+      driftAcknowledgedAt: test.drift_acknowledged_at ?? null,
       graceExpiresAt: test.grace_expires_at,
       winnerAppliedAt: test.winner_applied_at,
     } satisfies AbTestActiveView

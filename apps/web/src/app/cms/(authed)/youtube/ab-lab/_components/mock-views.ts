@@ -237,6 +237,8 @@ export const MOCK_ACTIVE_MINIMAL: AbTestActiveView = {
   },
   liveData: undefined,
   activeNow: 'B',
+  statusNote: null,
+  driftAcknowledgedAt: null,
 }
 
 export const MOCK_ACTIVE: AbTestActiveView = {
@@ -272,4 +274,6 @@ export const MOCK_ACTIVE: AbTestActiveView = {
     leaderColor: VARIANT_COLORS.B,
     lift: 19.5,
   },
+  statusNote: null,
+  driftAcknowledgedAt: null,
 }

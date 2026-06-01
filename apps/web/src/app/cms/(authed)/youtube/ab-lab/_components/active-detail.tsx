@@ -17,7 +17,8 @@ import { MultiLine } from './multi-line'
 import { ABBATimeline } from './abba-timeline'
 import { FunnelRow } from './funnel-row'
 import { ClickMoment } from './click-moment'
-import { forceRotate, applyWinnerNow, cancelGracePeriod } from '../actions'
+import { forceRotate, applyWinnerNow, cancelGracePeriod, acknowledgeAbTestDrift, resumeAbTest } from '../actions'
+import { DRIFT_STATUS_NOTE } from '@/lib/youtube/ab-types'
 import { usePollStats } from './use-poll-stats'
 import { SignalCard } from './signal-card'
 import {
@@ -34,6 +35,7 @@ const BTN = 'inline-flex items-center gap-[7px] justify-center py-[6px] px-[11px
 export function ActiveDetail({ view }: ActiveDetailProps) {
   const router = useRouter()
   const [signal, setSignal] = useState<'confirmed' | 'live'>('confirmed')
+  const [driftBusy, setDriftBusy] = useState(false)
   const { data: livePoll } = usePollStats(view.id, view.status === 'active')
 
   const data = signal === 'confirmed' ? view.confirmedData : (view.liveData ?? view.confirmedData)
@@ -117,6 +119,36 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
         </div>
       )}
 
+      {/* Drift Recovery Banner */}
+      {view.status === 'paused' && view.statusNote === DRIFT_STATUS_NOTE && (
+        <div className="mx-0 mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-amber-300">
+                Teste pausado automaticamente — thumbnail alterada fora do A/B Lab
+              </p>
+              <p className="text-xs text-amber-400/70 mt-0.5">
+                Verifique a situação no YouTube antes de retomar. A rotação será retomada do próximo ciclo ABBA.
+              </p>
+            </div>
+            <button
+              disabled={driftBusy}
+              onClick={async () => {
+                setDriftBusy(true)
+                const ack = await acknowledgeAbTestDrift(view.id)
+                if (!ack.ok) { alert(ack.error); setDriftBusy(false); return }
+                const res = await resumeAbTest(view.id)
+                if (!res.ok) { alert(res.error); setDriftBusy(false); return }
+                router.refresh()
+              }}
+              className="shrink-0 rounded-md bg-amber-500 px-4 py-2 text-xs font-semibold text-black hover:bg-amber-400 disabled:opacity-50"
+            >
+              {driftBusy ? 'Retomando…' : 'Reconhecer e Retomar'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Toolbar: signal toggle + Pausar + Settings — below title */}
       <div className="flex items-center gap-[8px] mb-[22px]">
         {view.liveData && (
@@ -144,11 +176,11 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
             <InfoTip text="Confirmado = dados finais da API do YouTube (atraso de 2–3 dias). Live = estimativa do ciclo atual, instantânea mas imprecisa." />
           </>
         )}
-        <button type="button" className={BTN}>
+        <button type="button" disabled title="Em breve" className={`${BTN} disabled:opacity-50 disabled:cursor-not-allowed`}>
           <Pause size={14} aria-hidden="true" />
           Pausar
         </button>
-        <button type="button" aria-label="Configurações" className={BTN}>
+        <button type="button" disabled title="Em breve" aria-label="Configurações" className={`${BTN} disabled:opacity-50 disabled:cursor-not-allowed`}>
           <Settings size={14} aria-hidden="true" />
         </button>
         <button

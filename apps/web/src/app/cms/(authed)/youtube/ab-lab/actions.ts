@@ -5,7 +5,7 @@ import { put } from '@vercel/blob'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { AB_TEST_CONFIG_DEFAULTS, VARIANT_LABELS } from '@/lib/youtube/ab-types'
+import { AB_TEST_CONFIG_DEFAULTS, VARIANT_LABELS, DRIFT_STATUS_NOTE } from '@/lib/youtube/ab-types'
 import type {
   AbTestCreateInput,
   AbTestVariantRow,
@@ -28,6 +28,20 @@ import type { AbBriefingData } from '@/lib/youtube/prompt-types'
 import { startAbTestInternal } from '@/lib/youtube/ab-start'
 import { autoImportWinner } from '@/lib/youtube/thumbnail-library'
 import { getVideoTestHistory as _getVideoTestHistory } from './queries'
+
+async function preserveOriginalThumbnail(ytUrl: string): Promise<string> {
+  const imgRes = await fetch(ytUrl, { signal: AbortSignal.timeout(15_000) })
+  if (!imgRes.ok) throw new Error(`Fetch failed: ${imgRes.status}`)
+  const buffer = Buffer.from(await imgRes.arrayBuffer())
+  const ct = imgRes.headers.get('content-type') ?? 'image/jpeg'
+  const ext = ct.includes('png') ? 'png' : 'jpg'
+  const blob = await put(
+    `ab-originals/${crypto.randomUUID()}/original.${ext}`,
+    buffer,
+    { access: 'public', contentType: ct, addRandomSuffix: true },
+  )
+  return blob.url
+}
 
 export async function getVideoTestHistory(
   ...args: Parameters<typeof _getVideoTestHistory>
@@ -106,24 +120,10 @@ export async function createAbTest(
     return { ok: false, error: 'Video has no thumbnail — sync first' }
   }
 
-  // Preserve original thumbnail as immutable Vercel Blob copy
-  // YouTube CDN URLs (ytimg.com) are mutable — rotation changes what they serve
   let immutableOriginalUrl: string | null = video.thumbnail_hq_url ?? null
-
-  if (video.thumbnail_hq_url && video.thumbnail_hq_url.includes('ytimg.com')) {
+  if (video.thumbnail_hq_url?.includes('ytimg.com')) {
     try {
-      const imgRes = await fetch(video.thumbnail_hq_url, { signal: AbortSignal.timeout(15_000) })
-      if (imgRes.ok) {
-        const buffer = Buffer.from(await imgRes.arrayBuffer())
-        const ct = imgRes.headers.get('content-type') ?? 'image/jpeg'
-        const ext = ct.includes('png') ? 'png' : 'jpg'
-        const blob = await put(
-          `ab-originals/${crypto.randomUUID()}/original.${ext}`,
-          buffer,
-          { access: 'public', contentType: ct, addRandomSuffix: true },
-        )
-        immutableOriginalUrl = blob.url
-      }
+      immutableOriginalUrl = await preserveOriginalThumbnail(video.thumbnail_hq_url)
     } catch {
       return { ok: false, error: 'Falha ao salvar thumbnail original. Tente novamente.' }
     }
@@ -753,8 +753,8 @@ export async function resumeAbTest(
 
   if (testError || !test) return { ok: false, error: 'Test not found' }
   if (test.status !== 'paused') return { ok: false, error: 'Only paused tests can be resumed' }
-  if (test.status_note === 'Thumbnail alterado externamente' && !test.drift_acknowledged_at) {
-    return { ok: false, error: 'Drift nao reconhecido. Reconheca a mudanca antes de retomar o teste.' }
+  if (test.status_note === DRIFT_STATUS_NOTE && !test.drift_acknowledged_at) {
+    return { ok: false, error: 'Drift não reconhecido. Reconheça a mudança antes de retomar o teste.' }
   }
 
   const { data: variants } = await supabase
@@ -1628,24 +1628,12 @@ export async function batchStartTests(
 
     if (!video) continue
 
-    // Preserve original thumbnail as immutable Blob copy (same as createAbTest)
     let batchImmutableUrl: string | null = video.thumbnail_hq_url ?? null
-    if (video.thumbnail_hq_url && video.thumbnail_hq_url.includes('ytimg.com')) {
+    if (video.thumbnail_hq_url?.includes('ytimg.com')) {
       try {
-        const imgRes = await fetch(video.thumbnail_hq_url, { signal: AbortSignal.timeout(15_000) })
-        if (imgRes.ok) {
-          const buffer = Buffer.from(await imgRes.arrayBuffer())
-          const ct = imgRes.headers.get('content-type') ?? 'image/jpeg'
-          const ext = ct.includes('png') ? 'png' : 'jpg'
-          const blob = await put(
-            `ab-originals/${crypto.randomUUID()}/original.${ext}`,
-            buffer,
-            { access: 'public', contentType: ct, addRandomSuffix: true },
-          )
-          batchImmutableUrl = blob.url
-        }
+        batchImmutableUrl = await preserveOriginalThumbnail(video.thumbnail_hq_url)
       } catch {
-        continue // non-fatal in batch — skip this video
+        continue
       }
     }
 

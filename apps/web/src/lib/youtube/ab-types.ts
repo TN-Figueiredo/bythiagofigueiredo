@@ -56,6 +56,7 @@ export interface AbTestRow {
   grace_expires_at: string | null
   winner_applied_at: string | null
   revert_expires_at: string | null
+  drift_acknowledged_at: string | null
   applied_by: string | null
 }
 
@@ -92,6 +93,8 @@ export interface AbTestVariantRow {
   created_at: string
   source_variant_id: string | null
 }
+
+export const DRIFT_STATUS_NOTE = 'Thumbnail alterado externamente' as const
 
 export interface AppliedMetadata {
   thumbnail_set?: boolean
@@ -442,6 +445,8 @@ export interface AbTestActiveView extends AbTestBaseView {
   outlier?: { multiplier: number; badge: 'blue' | 'purple' | 'red' } | null
   revenue?: { low: number; high: number; currency: 'BRL'; isDefault: boolean }
   daysRemaining?: { days: number; model: 'exponential' | 'linear' } | null
+  statusNote: string | null
+  driftAcknowledgedAt: string | null
   graceExpiresAt?: string | null
   winnerAppliedAt?: string | null
 }

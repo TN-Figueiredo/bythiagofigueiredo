@@ -64,6 +64,7 @@ describe('applyVariantToYouTube – youtube_thumbnail_url capture', () => {
     expect(result.meta.youtube_thumbnail_url).toBe(ytThumbnailUrl)
     expect(globalThis.fetch).toHaveBeenCalledWith(
       expect.stringContaining('youtube/v3/videos?part=snippet&id=YT123&key=test-api-key'),
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
     )
   })
 

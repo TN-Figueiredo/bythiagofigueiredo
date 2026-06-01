@@ -3,6 +3,7 @@ import { getCronHealth, recordCronSuccess, recordCronFailure } from '@/lib/cron-
 import { createNotification } from '@/lib/notifications/create'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { checkDrift } from '@/lib/youtube/ab-drift'
+import { DRIFT_STATUS_NOTE } from '@/lib/youtube/ab-types'
 import * as Sentry from '@sentry/nextjs'
 
 export const maxDuration = 60
@@ -82,17 +83,19 @@ export async function GET(req: NextRequest) {
         for (const test of driftTests) {
           if (test.test_type !== 'thumbnail' && test.test_type !== 'combo') continue
 
-          // Get current variant's thumbnail
+          // Read YouTube URL from cycle's applied_metadata (not variant blob_url)
           const { data: openCycle } = await driftClient
             .from('ab_test_cycles')
-            .select('variant_id, ab_test_variants!inner(blob_url)')
+            .select('id, variant_id, applied_metadata')
             .eq('test_id', test.id)
             .is('ended_at', null)
             .limit(1)
             .maybeSingle()
 
           if (!openCycle) continue
-          const expectedUrl = (openCycle as any).ab_test_variants?.blob_url
+          const appliedMeta = openCycle.applied_metadata as import('@/lib/youtube/ab-types').AppliedMetadata | null
+          const expectedUrl = appliedMeta?.youtube_thumbnail_url ?? null
+          if (!expectedUrl) continue
 
           // Get YouTube video ID
           const { data: video } = await driftClient
@@ -137,7 +140,7 @@ export async function GET(req: NextRequest) {
             // 3. Pause the test
             await driftClient
               .from('ab_tests')
-              .update({ status: 'paused', paused_at: now, status_note: 'Thumbnail alterado externamente' })
+              .update({ status: 'paused', paused_at: now, status_note: DRIFT_STATUS_NOTE })
               .eq('id', test.id)
 
             // 4. Notify owner
@@ -156,8 +159,8 @@ export async function GET(req: NextRequest) {
                 type: 'youtube.drift_detected',
                 domain: 'youtube',
                 priority: 1,
-                title: 'Thumbnail alterado externamente',
-                message: 'O teste foi pausado porque a thumbnail do YouTube foi modificada fora do sistema.',
+                title: DRIFT_STATUS_NOTE,
+                message: 'O teste foi pausado automaticamente. Acesse o teste para reconhecer a mudança e retomar a rotação.',
                 action_href: `/cms/youtube/ab-lab/${test.id}`,
                 dedup_key: `drift-${test.id}-${new Date().toISOString().slice(0, 10)}`,
               })
