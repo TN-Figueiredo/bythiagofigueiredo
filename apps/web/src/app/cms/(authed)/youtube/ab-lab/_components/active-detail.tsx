@@ -128,7 +128,7 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
                 Teste pausado automaticamente — thumbnail alterada fora do A/B Lab
               </p>
               <p className="text-xs text-amber-400/70 mt-0.5">
-                Verifique a situação no YouTube antes de retomar. A rotação será retomada do próximo ciclo ABBA.
+                Verifique a situação no YouTube e reconecte o token antes de retomar.
               </p>
             </div>
             <button
@@ -138,12 +138,35 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
                 const ack = await acknowledgeAbTestDrift(view.id)
                 if (!ack.ok) { alert(ack.error); setDriftBusy(false); return }
                 const res = await resumeAbTest(view.id)
-                if (!res.ok) { alert(res.error); setDriftBusy(false); return }
+                if (!res.ok) { alert(`Falha ao retomar: ${res.error}. Reconecte o token do YouTube e tente novamente.`); setDriftBusy(false); router.refresh(); return }
                 router.refresh()
               }}
               className="shrink-0 rounded-md bg-amber-500 px-4 py-2 text-xs font-semibold text-black hover:bg-amber-400 disabled:opacity-50"
             >
               {driftBusy ? 'Retomando…' : 'Reconhecer e Retomar'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Resume Banner (post-acknowledge or manual pause) */}
+      {view.status === 'paused' && view.statusNote !== DRIFT_STATUS_NOTE && (
+        <div className="mx-0 mb-4 rounded-lg border border-blue-500/30 bg-blue-500/10 px-4 py-3">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm font-medium text-blue-300">
+              Teste pausado. Reconecte o token do YouTube se necessário e retome a rotação.
+            </p>
+            <button
+              disabled={driftBusy}
+              onClick={async () => {
+                setDriftBusy(true)
+                const res = await resumeAbTest(view.id)
+                if (!res.ok) { alert(`Falha ao retomar: ${res.error}`); setDriftBusy(false); return }
+                router.refresh()
+              }}
+              className="shrink-0 rounded-md bg-blue-500 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-400 disabled:opacity-50"
+            >
+              {driftBusy ? 'Retomando…' : 'Retomar Teste'}
             </button>
           </div>
         </div>
