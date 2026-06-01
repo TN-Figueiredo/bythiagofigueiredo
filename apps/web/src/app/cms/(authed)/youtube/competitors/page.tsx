@@ -4,7 +4,14 @@ import { CompetitorDashboard } from './_components/competitor-dashboard'
 
 export const dynamic = 'force-dynamic'
 
-export default async function CompetitorsPage() {
+export default async function CompetitorsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>
+}) {
+  const { tab } = await searchParams
+  const validTabs = ['canais', 'mudancas', 'outliers', 'insights'] as const
+  const activeTab = (validTabs.includes(tab as any) ? tab : 'canais') as typeof validTabs[number]
   const { siteId } = await getSiteContext()
   const supabase = getSupabaseServiceClient()
 
@@ -95,5 +102,10 @@ export default async function CompetitorsPage() {
     engagementByChannel,
   }
 
-  return <CompetitorDashboard channels={safeChannels} changes={changes ?? []} outliers={outliers} insights={insights} />
+  const channelsWithVideos = safeChannels.map(ch => ({
+    ...ch,
+    videos: (videosByChannel.get(ch.id) ?? []).slice(0, 12),
+  }))
+
+  return <CompetitorDashboard activeTab={activeTab} channels={channelsWithVideos} changes={changes ?? []} outliers={outliers} insights={insights} />
 }

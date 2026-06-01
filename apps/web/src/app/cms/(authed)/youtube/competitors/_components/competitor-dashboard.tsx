@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { RefreshCw, Trash2, Bookmark, ArrowRight } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { RefreshCw, Trash2, Bookmark, ArrowRight, Eye } from 'lucide-react'
 import { addCompetitorChannel, removeCompetitorChannel, syncCompetitorNow, toggleBookmark } from '../actions'
 
 interface SearchResult {
@@ -33,6 +34,14 @@ interface Props {
     thumbnail_url: string | null
     subscriber_count: number | null
     last_synced_at: string | null
+    videos: Array<{
+      id: string
+      video_id: string
+      title: string | null
+      thumbnail_url: string | null
+      view_count: number | null
+      published_at: string | null
+    }>
   }>
   changes: Array<{
     id: string
@@ -52,6 +61,7 @@ interface Props {
       }>
     }>
   }>
+  activeTab: TabId
   outliers: OutlierItem[]
   insights: {
     uploadsByDay: number[]
@@ -69,13 +79,14 @@ function formatCount(n: number): string {
 
 type TabId = 'canais' | 'mudancas' | 'outliers' | 'insights'
 
-export function CompetitorDashboard({ channels, changes, outliers, insights }: Props) {
-  const [activeTab, setActiveTab] = useState<TabId>('canais')
+export function CompetitorDashboard({ activeTab, channels, changes, outliers, insights }: Props) {
+  const router = useRouter()
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [searching, setSearching] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [expandedChannel, setExpandedChannel] = useState<string | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const handleSearch = (value: string) => {
@@ -128,7 +139,7 @@ export function CompetitorDashboard({ channels, changes, outliers, insights }: P
         {tabs.map(tab => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => router.push(`/cms/youtube/competitors?tab=${tab.id}`)}
             className={`px-3 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
               activeTab === tab.id
                 ? 'border-cms-text text-cms-text'
@@ -177,22 +188,55 @@ export function CompetitorDashboard({ channels, changes, outliers, insights }: P
           {error && <p className="text-xs text-red-400">{error}</p>}
 
           {/* Channel list */}
-          <div className="space-y-2">
-            {channels.map(ch => (
-              <div key={ch.id} className="flex items-center gap-3 rounded-lg border border-cms-border/50 bg-cms-surface/50 p-3">
-                {ch.thumbnail_url && <img src={ch.thumbnail_url} alt="" referrerPolicy="no-referrer" className="h-8 w-8 rounded-full" />}
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-cms-text">{ch.channel_name}</p>
-                  <p className="text-xs text-cms-text-dim">{ch.subscriber_count?.toLocaleString('pt-BR')} subs</p>
+          <div className="space-y-3">
+            {channels.map(ch => {
+              const isExpanded = expandedChannel === ch.id
+              return (
+                <div key={ch.id} className="rounded-xl border border-cms-border/50 bg-cms-surface/50 overflow-hidden">
+                  <div className="flex items-center gap-3 p-3">
+                    {ch.thumbnail_url && <img src={ch.thumbnail_url} alt="" referrerPolicy="no-referrer" className="h-10 w-10 rounded-full" />}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-cms-text">{ch.channel_name}</p>
+                      <div className="flex items-center gap-3 text-xs text-cms-text-dim">
+                        {ch.subscriber_count != null && <span>{formatCount(ch.subscriber_count)} subs</span>}
+                        {ch.videos.length > 0 && <span>{ch.videos.length} vídeos</span>}
+                      </div>
+                    </div>
+                    <button onClick={() => setExpandedChannel(isExpanded ? null : ch.id)} className="rounded p-1.5 text-cms-text-muted hover:bg-cms-surface-hover hover:text-cms-text" title={isExpanded ? 'Recolher' : 'Ver vídeos'}>
+                      <Eye className="h-3.5 w-3.5" />
+                    </button>
+                    <button onClick={() => syncCompetitorNow(ch.id)} className="rounded p-1.5 text-cms-text-muted hover:bg-cms-surface-hover hover:text-cms-text">
+                      <RefreshCw className="h-3.5 w-3.5" />
+                    </button>
+                    <button onClick={() => removeCompetitorChannel(ch.id)} className="rounded p-1.5 text-cms-text-muted hover:bg-red-900/30 hover:text-red-400">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  {isExpanded && ch.videos.length > 0 && (
+                    <div className="border-t border-cms-border/30 px-3 py-3">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                        {ch.videos.map(v => (
+                          <a key={v.id} href={`https://www.youtube.com/watch?v=${v.video_id}`} target="_blank" rel="noopener noreferrer" className="group rounded-lg border border-cms-border/30 bg-cms-bg/50 overflow-hidden hover:border-cms-accent/40 transition-colors">
+                            {v.thumbnail_url ? (
+                              <img src={v.thumbnail_url} alt={v.title ?? ''} referrerPolicy="no-referrer" className="w-full aspect-video object-cover" loading="lazy" />
+                            ) : (
+                              <div className="w-full aspect-video bg-cms-bg flex items-center justify-center text-cms-text-dim text-[10px]">Sem thumb</div>
+                            )}
+                            <div className="p-1.5">
+                              <p className="text-[10px] font-medium text-cms-text line-clamp-2 group-hover:text-cms-accent">{v.title}</p>
+                              <span className="text-[9px] text-cms-text-dim">{v.view_count != null ? formatCount(v.view_count) + ' views' : ''}</span>
+                            </div>
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {isExpanded && ch.videos.length === 0 && (
+                    <div className="border-t border-cms-border/30 px-3 py-4 text-center text-xs text-cms-text-dim">Nenhum vídeo. Sincronize o canal.</div>
+                  )}
                 </div>
-                <button onClick={() => syncCompetitorNow(ch.id)} className="rounded p-1.5 text-cms-text-muted hover:bg-cms-surface-hover hover:text-cms-text">
-                  <RefreshCw className="h-3.5 w-3.5" />
-                </button>
-                <button onClick={() => removeCompetitorChannel(ch.id)} className="rounded p-1.5 text-cms-text-muted hover:bg-red-900/30 hover:text-red-400">
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            ))}
+              )
+            })}
           </div>
           {channels.length === 0 && (
             <div className="rounded-lg border border-dashed border-cms-border py-8 text-center">
