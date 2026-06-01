@@ -22,6 +22,7 @@ import { calculateBayesianConfidence } from '@/lib/youtube/ab-statistics'
 import { setThumbnail, fetchVariantImageBuffer } from '@/lib/youtube/ab-youtube'
 import { updateVideoMetadata } from '@/lib/youtube/ab-metadata'
 import { resolveTemplates } from '@/lib/youtube/ab-templates'
+import { checkPlayoffEligibility, selectPlayoffVariants } from '@/lib/youtube/ab-playoff'
 
 function createCronRequest(secret: string) {
   return new NextRequest(new URL('http://localhost:3000/api/cron/ab-evaluate'), {
@@ -511,5 +512,143 @@ describe('GET /api/cron/ab-evaluate', () => {
     expect(completionUpdates).toHaveLength(0)
     expect(setThumbnail).not.toHaveBeenCalled()
     expect(updateVideoMetadata).not.toHaveBeenCalled()
+  })
+
+  it('auto-resolves combo test (thumbnail + title) when grace period expired', async () => {
+    const test = makeActiveTest({
+      test_type: 'combo',
+      grace_expires_at: new Date(Date.now() - 3600000).toISOString(),
+      winner_variant_id: 'v2',
+      variants: [
+        { id: 'v1', label: 'original', is_original: true, sort_order: 0, blob_url: 'https://blob/a.jpg', title_text: null, description_text: null, metadata: {} },
+        { id: 'v2', label: 'variant_b', is_original: false, sort_order: 1, blob_url: 'https://blob/b.jpg', title_text: 'Combo Title B', description_text: null, metadata: {} },
+      ],
+    })
+
+    const { updateCalls } = buildSupabaseMock({ tests: [test] })
+    const req = createCronRequest('test-secret')
+    const res = await GET(req)
+    const body = await res.json()
+
+    expect(body.resolved).toBe(1)
+    // Thumbnail applied
+    expect(fetchVariantImageBuffer).toHaveBeenCalledWith('https://blob/b.jpg')
+    expect(setThumbnail).toHaveBeenCalledWith('YT_123', expect.any(Buffer), 'image/jpeg', 'token-123')
+    // Metadata (title) applied
+    expect(updateVideoMetadata).toHaveBeenCalledWith('YT_123', 'Combo Title B', null, 'token-123')
+    // Test marked completed
+    expect(updateCalls).toContainEqual(
+      expect.objectContaining({
+        table: 'ab_tests',
+        data: expect.objectContaining({
+          status: 'completed',
+          completed_reason: 'auto_resolve',
+        }),
+      })
+    )
+  })
+
+  it('creates playoff when round 1 test is inconclusive and eligible', async () => {
+    // No active tests — the playoff logic runs in Phase 4 on completed tests
+    // We need to mock the Phase 4 query which goes through a SEPARATE .select().eq('status', 'completed')... chain
+    const completedTest = {
+      id: 'completed-1',
+      site_id: 'site-1',
+      youtube_video_id: 'vid-1',
+      status: 'completed',
+      test_type: 'thumbnail',
+      completed_reason: 'inconclusive',
+      round_number: 1,
+      parent_test_id: null,
+      playoff_test_id: null,
+      started_at: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
+      name: 'Test 1',
+      variants: [
+        { id: 'v1', label: 'original', is_original: true, sort_order: 0, blob_url: 'https://blob/a.jpg', title_text: null, description_text: null, metadata: {} },
+        { id: 'v2', label: 'variant_b', is_original: false, sort_order: 1, blob_url: 'https://blob/b.jpg', title_text: null, description_text: null, metadata: {} },
+      ],
+      cycles: [
+        { id: 'c0', variant_id: 'v1', cycle_number: 0, backfill_status: 'confirmed', impressions: 3000, clicks: 150, ended_at: new Date().toISOString() },
+        { id: 'c1', variant_id: 'v2', cycle_number: 1, backfill_status: 'confirmed', impressions: 3000, clicks: 155, ended_at: new Date().toISOString() },
+      ],
+    }
+
+    // Override checkPlayoffEligibility to return eligible
+    ;(checkPlayoffEligibility as ReturnType<typeof vi.fn>).mockReturnValue({ eligible: true, reason: 'close_race' })
+    ;(selectPlayoffVariants as ReturnType<typeof vi.fn>).mockReturnValue({ variantIds: ['v1', 'v2'], labels: ['original', 'variant_b'] })
+
+    // Build a custom mock that returns completedTest in Phase 4 query
+    const updateCalls: { table: string; data: unknown }[] = []
+    const rpcMock = vi.fn().mockResolvedValue({ data: null, error: null })
+
+    const fromMock = vi.fn((table: string) => {
+      if (table === 'ab_tests') {
+        const makeCompletedChain = (): Record<string, unknown> => {
+          const chain: Record<string, unknown> = {}
+          for (const method of ['eq', 'not', 'in', 'is', 'lte', 'lt']) {
+            chain[method] = vi.fn(() => chain)
+          }
+          chain.then = (resolve: (v: unknown) => void) => resolve({ data: [completedTest] })
+          return chain
+        }
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn((col: string, val: string) => {
+              if (col === 'status' && val === 'active') {
+                return Promise.resolve({ data: [] }) // No active tests
+              }
+              if (col === 'status' && val === 'completed') {
+                return makeCompletedChain()
+              }
+              // Phase 1 (draft playoff) and Phase 3 (retry) queries
+              const emptyChain: Record<string, unknown> = {}
+              for (const method of ['eq', 'not', 'lte', 'lt', 'in', 'is']) {
+                emptyChain[method] = vi.fn(() => emptyChain)
+              }
+              emptyChain.then = (resolve: (v: unknown) => void) => resolve({ data: [] })
+              return emptyChain
+            }),
+            not: vi.fn(() => {
+              const emptyChain: Record<string, unknown> = {}
+              for (const method of ['eq', 'not', 'lte', 'lt', 'in', 'is']) {
+                emptyChain[method] = vi.fn(() => emptyChain)
+              }
+              emptyChain.then = (resolve: (v: unknown) => void) => resolve({ data: [] })
+              return emptyChain
+            }),
+          }),
+          update: vi.fn((data: unknown) => {
+            updateCalls.push({ table, data })
+            return { eq: vi.fn().mockResolvedValue({ data: null, error: null }) }
+          }),
+        }
+      }
+      if (table === 'optimization_cycles') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({ data: null, error: null }),
+              }),
+            }),
+          }),
+        }
+      }
+      return { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis() }
+    })
+
+    const client = { from: fromMock, rpc: rpcMock }
+    ;(getSupabaseServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(client)
+
+    const req = createCronRequest('test-secret')
+    const res = await GET(req)
+    const body = await res.json()
+
+    expect(body.playoffs_created).toBe(1)
+    expect(rpcMock).toHaveBeenCalledWith('create_playoff_test', {
+      p_parent_test_id: 'completed-1',
+      p_variant_ids: ['v1', 'v2'],
+      p_cooldown_hours: 4,
+    })
   })
 })

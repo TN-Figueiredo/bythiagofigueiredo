@@ -175,7 +175,17 @@ export async function GET(req: NextRequest) {
           .single()
 
         if (video) {
-          const { accessToken } = await ensureFreshToken(test.site_id, 'youtube')
+          const { data: videoForChannel } = await supabase
+            .from('youtube_videos')
+            .select('channel_id')
+            .eq('id', test.youtube_video_id)
+            .single()
+
+          const { data: channelRow } = videoForChannel?.channel_id
+            ? await supabase.from('youtube_channels').select('channel_id').eq('id', videoForChannel.channel_id).single()
+            : { data: null }
+
+          const { accessToken } = await ensureFreshToken(test.site_id, 'youtube', channelRow?.channel_id)
 
           // Apply thumbnail for thumbnail/combo tests
           if (winner?.blob_url && (test.test_type === 'thumbnail' || test.test_type === 'combo')) {
@@ -345,7 +355,17 @@ export async function GET(req: NextRequest) {
 
     for (const pending of pendingApplies ?? []) {
       try {
-        const preflight = await preflightTokenCheck(pending.site_id, 'youtube')
+        const { data: videoForChannel2 } = await supabase
+          .from('youtube_videos')
+          .select('channel_id')
+          .eq('id', pending.youtube_video_id)
+          .single()
+
+        const { data: channelRow2 } = videoForChannel2?.channel_id
+          ? await supabase.from('youtube_channels').select('channel_id').eq('id', videoForChannel2.channel_id).single()
+          : { data: null }
+
+        const preflight = await preflightTokenCheck(pending.site_id, 'youtube', channelRow2?.channel_id)
         if (!preflight.ok) throw new Error(`preflight_failed: ${preflight.reason}`)
 
         const { data: video } = await supabase

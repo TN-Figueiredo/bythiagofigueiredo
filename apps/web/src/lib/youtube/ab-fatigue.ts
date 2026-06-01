@@ -16,8 +16,8 @@ interface DailyMetric {
 interface FatigueResult {
   isFatigued: boolean
   zScore: number
-  expectedCtr: number
-  actualCtr: number
+  expectedViews: number
+  actualViews: number
 }
 
 export function detectFatigue(
@@ -70,14 +70,12 @@ export function detectFatigue(
   // Expected views = exp(a + b * log(current_age))
   const currentAge = Math.log(Math.max((Date.now() - publishDate) / 86400000, 1))
   const expectedLogViews = a + b * currentAge
-  const expectedCtr = Math.exp(expectedLogViews)
-  const actualCtr = validDays[validDays.length - 1]!.views
 
   return {
     isFatigued: zScore < -1.5,
     zScore: Math.round(zScore * 100) / 100,
-    expectedCtr: Math.round(expectedCtr * 10000) / 10000,
-    actualCtr: Math.round(actualCtr * 10000) / 10000,
+    expectedViews: Math.round(Math.exp(expectedLogViews)),
+    actualViews: validDays[validDays.length - 1]!.views,
   }
 }
 

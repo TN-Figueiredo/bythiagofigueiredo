@@ -247,8 +247,8 @@ export async function GET(req: NextRequest) {
               video_id: candidate.id,
               site_id: siteId,
               z_score: result.zScore,
-              expected_ctr: result.expectedCtr,
-              actual_ctr: result.actualCtr,
+              expected_ctr: result.expectedViews,
+              actual_ctr: result.actualViews,
             })
             fatigueAlerts++
           }

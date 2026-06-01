@@ -108,8 +108,8 @@ describe('QR client save logic (client.tsx)', () => {
     expect(client).toContain('createQrCard(link.id, cardName, composition)')
   })
 
-  it('redirects after creating new card with window.location.href', () => {
-    expect(client).toContain('window.location.href = `/cms/links/${link.id}/qr?card=${result.cardId}`')
+  it('redirects after creating new card with router.push', () => {
+    expect(client).toContain('router.push(`/cms/links/${link.id}/qr?card=${result.cardId}`)')
   })
 
   it('legacy dual-write has been removed (no saveQrCard in handleSave)', () => {

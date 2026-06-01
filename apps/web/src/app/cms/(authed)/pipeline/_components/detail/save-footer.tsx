@@ -2,7 +2,6 @@
 
 interface SaveFooterProps {
   isDirty: boolean
-  rev: number
   updatedAt?: string
 }
 
@@ -24,7 +23,7 @@ function relativeTime(iso: string): string {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
 }
 
-export function SaveFooter({ isDirty, rev, updatedAt }: SaveFooterProps) {
+export function SaveFooter({ isDirty, updatedAt }: SaveFooterProps) {
   const timeLabel = updatedAt ? relativeTime(updatedAt) : ''
 
   return (
@@ -39,6 +38,7 @@ export function SaveFooter({ isDirty, rev, updatedAt }: SaveFooterProps) {
     >
       <span className="flex items-center gap-1">
         <span
+          aria-hidden="true"
           className="w-1.5 h-1.5 rounded-full inline-block"
           style={{
             background: isDirty ? 'var(--gem-warn)' : 'var(--gem-done)',
@@ -51,9 +51,7 @@ export function SaveFooter({ isDirty, rev, updatedAt }: SaveFooterProps) {
       <span style={{ color: 'var(--gem-dim)' }}>
         {isDirty
           ? timeLabel
-          : timeLabel
-            ? `Salvo ${timeLabel}`
-            : 'Salvo'}
+          : timeLabel || null}
       </span>
     </div>
   )

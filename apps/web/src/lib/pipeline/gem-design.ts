@@ -3,7 +3,7 @@ import type { Format, Language } from './schemas'
 export const GEM_CSS_VARS: Record<string, string> = {
   '--gem-surface': '#15161d',
   '--gem-surface-hi': '#1a1c24',
-  '--gem-border': '#2e3039',
+  '--gem-border': '#606370',
   '--gem-well': '#0b0c10',
   '--gem-text': '#ececf1',
   '--gem-muted': '#9a9ca8',
@@ -15,6 +15,7 @@ export const GEM_CSS_VARS: Record<string, string> = {
   '--gem-accent': '#FF8240',
   '--gem-shadow-focus': '0 0 0 2px rgba(255, 130, 64, 0.3)',
   '--gem-shadow-card': '0 2px 8px rgba(0,0,0,0.3)',
+  '--gem-on-accent': '#1a1100',
 }
 
 /** Parse a hex color (#rrggbb) to [r, g, b]. */

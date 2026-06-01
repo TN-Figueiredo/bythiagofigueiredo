@@ -1,3 +1,7 @@
+import { getSupabaseServiceClient } from '@/lib/supabase/service'
+
+type SupabaseClient = ReturnType<typeof getSupabaseServiceClient>
+
 const DEDUP_MINUTES = 5
 
 export function shouldSkipPoll(lastPollAt: string | null): boolean {
@@ -29,7 +33,7 @@ export async function pollVideoStats(
 }
 
 export async function getLastPollTime(
-  supabase: any,
+  supabase: SupabaseClient,
   testId: string,
 ): Promise<string | null> {
   const { data } = await supabase
@@ -44,7 +48,7 @@ export async function getLastPollTime(
 }
 
 export async function insertPollData(
-  supabase: any,
+  supabase: SupabaseClient,
   testId: string,
   variantId: string,
   views: number,

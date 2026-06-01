@@ -62,7 +62,7 @@ const TAB_DEPENDENCIES: Record<string, string[]> = {
 }
 
 export function TabContainer({ format, stage, itemId, itemVersion, sections, itemCode, itemTitle, itemLanguage, children }: TabContainerProps) {
-  const sectionDefs = getSectionsForFormat(format)
+  const sectionDefs = useMemo(() => getSectionsForFormat(format), [format])
   const [activeTab, setActiveTab] = useState(() => {
     const skip = new Set(['seo', 'images', 'publish'])
     for (let i = sectionDefs.length - 1; i >= 0; i--) {
@@ -76,8 +76,11 @@ export function TabContainer({ format, stage, itemId, itemVersion, sections, ite
   const [lang, setLang] = useState(() => itemLanguage === 'en' ? 'en' : 'pt')
   const [langTransition, setLangTransition] = useState(false)
   const [showScrollRight, setShowScrollRight] = useState(false)
+  const [showScrollLeft, setShowScrollLeft] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
   const tabsRef = useRef<HTMLDivElement>(null)
+  const shortcutsRef = useRef<HTMLDivElement>(null)
+  const previousFocusRef = useRef<Element | null>(null)
 
   const enabledTabs = useMemo(() => {
     const enabled = new Set<string>()
@@ -132,9 +135,10 @@ export function TabContainer({ format, stage, itemId, itemVersion, sections, ite
     if (!el) return
     const check = () => {
       setShowScrollRight(el.scrollWidth > el.clientWidth && el.scrollLeft + el.clientWidth < el.scrollWidth - 4)
+      setShowScrollLeft(el.scrollLeft > 4)
     }
     check()
-    el.addEventListener('scroll', check)
+    el.addEventListener('scroll', check, { passive: true })
     window.addEventListener('resize', check)
     return () => { el.removeEventListener('scroll', check); window.removeEventListener('resize', check) }
   }, [sectionDefs])
@@ -193,7 +197,7 @@ export function TabContainer({ format, stage, itemId, itemVersion, sections, ite
         document.dispatchEvent(new CustomEvent('pipeline:save-section'))
         return
       }
-      if (isEditable && e.key !== 'l') return
+      if (isEditable && e.key !== 'l' && e.key !== 'e') return
 
       if (e.key >= '1' && e.key <= '9') {
         e.preventDefault()
@@ -231,6 +235,37 @@ export function TabContainer({ format, stage, itemId, itemVersion, sections, ite
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [activeTab, sectionDefs, lang, itemLanguage, handleTabSwitch, handleLangSwitch, showShortcuts])
 
+  useEffect(() => {
+    if (!showShortcuts) return
+    previousFocusRef.current = document.activeElement
+    const el = shortcutsRef.current
+    if (el) el.focus()
+    function trapFocus(e: KeyboardEvent) {
+      if (e.key !== 'Tab' || !el) return
+      const focusable = el.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      )
+      const items = Array.from(focusable).filter(f => f.offsetParent !== null)
+      if (items.length === 0) { e.preventDefault(); el.focus(); return }
+      const first = items[0]!
+      const last = items[items.length - 1]!
+      if (e.shiftKey) {
+        if (document.activeElement === first || document.activeElement === el) {
+          e.preventDefault(); last.focus()
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault(); first.focus()
+        }
+      }
+    }
+    document.addEventListener('keydown', trapFocus)
+    return () => {
+      document.removeEventListener('keydown', trapFocus)
+      if (previousFocusRef.current instanceof HTMLElement) previousFocusRef.current.focus()
+    }
+  }, [showShortcuts])
+
   const activeDef = sectionDefs.find(s => s.key === activeTab)
   const hasSubs = activeDef?.subSections && activeDef.subSections.length > 0
 
@@ -255,11 +290,13 @@ export function TabContainer({ format, stage, itemId, itemVersion, sections, ite
               return (
                 <button
                   key={def.key}
+                  id={`tab-${def.key}`}
                   data-tab={def.key}
                   role="tab"
                   aria-selected={isActive}
                   aria-disabled={!isEnabled}
                   aria-controls={`panel-${def.key}`}
+                  tabIndex={isEnabled ? 0 : -1}
                   className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium whitespace-nowrap select-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)]/30"
                   style={{
                     color: !isEnabled ? 'var(--gem-border)' : isActive ? 'var(--gem-text)' : 'var(--gem-dim)',
@@ -278,6 +315,9 @@ export function TabContainer({ format, stage, itemId, itemVersion, sections, ite
               )
             })}
           </div>
+          {showScrollLeft && (
+            <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 40, background: 'linear-gradient(to left, transparent, var(--gem-surface))', pointerEvents: 'none', zIndex: 5 }} />
+          )}
           {showScrollRight && (
             <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 40, background: 'linear-gradient(to right, transparent, var(--gem-surface))', pointerEvents: 'none', zIndex: 5 }} />
           )}
@@ -291,7 +331,7 @@ export function TabContainer({ format, stage, itemId, itemVersion, sections, ite
               return (
                 <button
                   key={l}
-                  className="px-2.5 py-0.5 text-[10px] font-bold tracking-wider transition-colors flex items-center gap-1"
+                  className="px-2.5 py-0.5 text-[10px] font-bold tracking-wider transition-colors flex items-center gap-1 focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)]/30 outline-none"
                   style={{
                     background: lang === l ? 'var(--gem-accent)' : 'transparent',
                     color: lang === l ? 'white' : 'var(--gem-dim)',
@@ -323,7 +363,7 @@ export function TabContainer({ format, stage, itemId, itemVersion, sections, ite
                 key={sub.key}
                 role="tab"
                 aria-selected={isSubActive}
-                className="px-3 py-1.5 text-xs whitespace-nowrap transition-colors"
+                className="px-3 py-1.5 text-xs whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)]/30 outline-none"
                 style={{
                   color: isSubActive ? 'var(--gem-accent)' : 'var(--gem-dim)',
                   borderBottom: isSubActive ? '2px solid var(--gem-accent)' : '2px solid transparent',
@@ -339,6 +379,9 @@ export function TabContainer({ format, stage, itemId, itemVersion, sections, ite
 
       {/* Render children with tab state + lang transition */}
       <div
+        id={`panel-${activeTab}`}
+        role="tabpanel"
+        aria-labelledby={`tab-${activeTab}`}
         style={{
           opacity: langTransition ? 0.5 : 1,
           transition: 'opacity 150ms ease-in-out',
@@ -358,9 +401,17 @@ export function TabContainer({ format, stage, itemId, itemVersion, sections, ite
 
       {/* Keyboard shortcuts overlay */}
       {showShortcuts && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={() => setShowShortcuts(false)}>
-          <div className="rounded-xl p-6 max-w-sm w-full" style={{ background: 'var(--gem-surface)', border: '1px solid var(--gem-border)' }} onClick={e => e.stopPropagation()}>
-            <h3 className="text-sm font-semibold mb-4" style={{ color: 'var(--gem-text)' }}>Atalhos de Teclado</h3>
+        <div role="dialog" aria-modal="true" aria-labelledby="shortcuts-title" className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={() => setShowShortcuts(false)}>
+          <div ref={shortcutsRef} tabIndex={-1} className="rounded-xl p-6 max-w-sm w-full relative" style={{ background: 'var(--gem-surface)', border: '1px solid var(--gem-border)', outline: 'none' }} onClick={e => e.stopPropagation()}>
+            <button
+              aria-label="Fechar"
+              className="absolute top-3 right-3 p-1 rounded transition-colors hover:bg-[var(--gem-well)]"
+              style={{ color: 'var(--gem-dim)' }}
+              onClick={() => setShowShortcuts(false)}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+            </button>
+            <h3 id="shortcuts-title" className="text-sm font-semibold mb-4" style={{ color: 'var(--gem-text)' }}>Atalhos de Teclado</h3>
             <div className="grid grid-cols-1 gap-2 text-xs">
               {([
                 ['Salvar seção', '⌘S'],

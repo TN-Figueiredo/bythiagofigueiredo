@@ -239,7 +239,7 @@ function SectionPanel({ sectionDef, activeSub, lang, itemId, itemVersion, itemCo
         <EmptySection sectionLabel={title} itemCode={itemCode} sectionKey={sectionKey} />
       )}
 
-      <SaveFooter isDirty={section.isDirty} rev={section.rev} updatedAt={section.updatedAt ?? undefined} />
+      <SaveFooter isDirty={section.isDirty} updatedAt={section.updatedAt ?? undefined} />
     </div>
   )
 }
@@ -260,7 +260,7 @@ function CoverImageSection({
     return (
       <div className="relative group rounded-lg overflow-hidden" style={{ maxHeight: 240 }}>
         <img src={coverImageUrl} alt={itemTitle || 'Cover image'} className="w-full object-cover" style={{ maxHeight: 240 }} />
-        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity flex items-center justify-center gap-3">
           <button
             type="button"
             onClick={onOpenGallery}
@@ -306,6 +306,8 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
   const itemRef = useRef(item)
   useEffect(() => { itemRef.current = item }, [item])
 
+  const vvsRef = useRef<ValidationScore>(null!)
+
   useEffect(() => {
     return () => {
       Object.values(debounceRefs.current).forEach(clearTimeout)
@@ -317,7 +319,6 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
   const priority = getPriorityConfig(item.priority)
 
   const [coverImageUrl, setCoverImageUrl] = useState<string | null>(item.cover_image_url)
-  const [category, setCategory] = useState<string | null>(item.category)
   const coverGallery = useMediaGallery()
   const inlineGallery = useMediaGallery()
   const pendingInlineSelectRef = useRef<((result: ImageSelectResult) => void) | null>(null)
@@ -404,12 +405,10 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
 
   const handleCategoryChange = useCallback(async (value: string) => {
     const newCategory = value || null
-    setCategory(newCategory)
     const current = itemRef.current
     const result = await updatePipelineItem(current.id, current.version, { category: newCategory })
     if (result.ok && result.data) setItem(result.data as typeof item)
     else if (!result.ok) {
-      setCategory(current.category)
       if (result.error.includes('Version conflict')) { toast.error('Item atualizado por outro processo. Recarregando...'); router.refresh() }
       else toast.error('Erro ao salvar categoria')
     }
@@ -518,7 +517,7 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
         pipelineItemId: current.id,
         targetStage: 'published',
         scheduledFor: null,
-        vvsScore: vvsBreakdown.overall,
+        vvsScore: vvsRef.current.overall,
       })
       if (result.ok) {
         toast.success('Post atualizado no site')
@@ -558,6 +557,8 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
     sections: item.sections,
     language: item.language,
   }), [item.title_pt, item.title_en, item.hook, item.synopsis, item.body_content, item.tags, item.production_checklist, item.format_metadata, item.format, item.sections, item.language])
+
+  useEffect(() => { vvsRef.current = vvsBreakdown }, [vvsBreakdown])
 
   return (
     <PipelineMediaProvider onRequestImage={handleRequestInlineImage}>
@@ -736,7 +737,6 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
         onArchive={handleArchive}
         onRestore={handleRestore}
         onToggleChecklist={handleToggleChecklist}
-        onRepublish={handleRepublish}
         onCategoryChange={handleCategoryChange}
         onLanguageChange={handleLanguageChange}
         onSocialConfigChange={handleSocialConfigChange}
@@ -744,7 +744,6 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
         onGraduate={handleGraduate}
         isAdvancing={isAdvancing}
         isRetreating={isRetreating}
-        isRepublishing={isRepublishing}
         socialConfig={socialConfig}
         showBlogSearch={showBlogSearch}
         onCloseBlogSearch={() => setShowBlogSearch(false)}

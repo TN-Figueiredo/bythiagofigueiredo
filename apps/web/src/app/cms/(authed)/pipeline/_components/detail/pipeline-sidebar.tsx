@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
+import { toast } from 'sonner'
 import { ChevronDown } from 'lucide-react'
 import { GemVvsRing } from '../gem-vvs-ring'
 import { BlogPostCard } from './blog-post-card'
@@ -9,7 +10,7 @@ import { BlogPostSearchDialog } from './blog-post-search-dialog'
 import { SocialConfigEditor } from './social-config-editor'
 import { CoworkDeepLink } from '@/components/cms/cowork-deep-link'
 import { buildCoworkInstruction } from '@/lib/pipeline/cowork-instructions'
-import { getPriorityConfig, getStaleness, getFormatIcon, getChecklistProgress, getVvsTier } from '@/lib/pipeline/gem-design'
+import { getPriorityConfig, getStaleness, getFormatIcon, getVvsTier } from '@/lib/pipeline/gem-design'
 import { VVS_PUBLISH_THRESHOLD, type ValidationScore } from '@/lib/pipeline/validation'
 import { WORKFLOWS, type WorkflowStage } from '@/lib/pipeline/workflows'
 import { BLOG_CATEGORIES, LANGUAGES, type Format, type Language } from '@/lib/pipeline/schemas'
@@ -66,7 +67,6 @@ export interface PipelineSidebarProps {
   onArchive: () => void
   onRestore: () => void
   onToggleChecklist: (index: number, done: boolean) => void
-  onRepublish: () => void
   onCategoryChange: (value: string) => void
   onLanguageChange: (value: string) => void
   onSocialConfigChange: (config: SocialConfig) => void
@@ -74,7 +74,6 @@ export interface PipelineSidebarProps {
   onGraduate: () => Promise<{ entity_id?: string }>
   isAdvancing: boolean
   isRetreating: boolean
-  isRepublishing: boolean
   socialConfig: SocialConfig | null
   showBlogSearch: boolean
   onCloseBlogSearch: () => void
@@ -113,9 +112,11 @@ function GraduateSocialButton({ itemRef, onSuccess }: { itemRef: React.RefObject
             setState('done')
             onSuccess()
           } else {
+            toast.error(result.error || 'Erro ao criar post social')
             setState('idle')
           }
         } catch {
+          toast.error('Erro inesperado ao criar post social')
           setState('idle')
         }
       }}
@@ -135,7 +136,6 @@ export function PipelineSidebar({
   onArchive,
   onRestore,
   onToggleChecklist,
-  onRepublish,
   onCategoryChange,
   onLanguageChange,
   onSocialConfigChange,
@@ -143,7 +143,6 @@ export function PipelineSidebar({
   onGraduate,
   isAdvancing,
   isRetreating,
-  isRepublishing,
   socialConfig,
   showBlogSearch,
   onCloseBlogSearch,
@@ -159,7 +158,10 @@ export function PipelineSidebar({
 
   // ── Auto-collapse on draft tab ──
   useEffect(() => {
-    if (manualOverrideRef.current) return
+    if (manualOverrideRef.current) {
+      if (activeTab !== 'draft') manualOverrideRef.current = false
+      return
+    }
     if (activeTab != null) {
       setSidebarCollapsed(activeTab === 'draft')
     }
@@ -171,12 +173,11 @@ export function PipelineSidebar({
   const priority = getPriorityConfig(item.priority)
   const staleness = getStaleness(item.updated_at)
   const formatIcon = getFormatIcon(item.format)
-  const checklist = getChecklistProgress(item.production_checklist)
   const vvsColor = getVvsTier(vvsBreakdown.overall).color
 
   return (
     <aside
-      className={`shrink-0 flex flex-col gap-2.5 sticky top-5 self-start max-h-[calc(100vh-40px)] overflow-y-auto transition-all duration-200 ease-in-out w-full ${sidebarCollapsed ? 'lg:w-12' : 'lg:w-68'}`}
+      className={`shrink-0 flex flex-col gap-2.5 lg:sticky lg:top-5 lg:self-start lg:max-h-[calc(100vh-40px)] overflow-y-auto transition-all duration-200 ease-in-out w-full ${sidebarCollapsed ? 'lg:w-12' : 'lg:w-68'}`}
       style={{ scrollbarWidth: 'thin' }}
       aria-label="Item details"
     >
@@ -187,7 +188,7 @@ export function PipelineSidebar({
             {vvsBreakdown.overall || '—'}
           </div>
           <button onClick={() => { manualOverrideRef.current = true; setSidebarCollapsed(false) }} title="Expandir painel lateral"
-            className="w-7 h-7 rounded-md flex items-center justify-center text-xs hover:opacity-80"
+            className="w-7 h-7 rounded-md hidden lg:flex items-center justify-center text-xs hover:opacity-80"
             style={{ background: 'var(--gem-well)', color: 'var(--gem-muted)' }}>
             &raquo;
           </button>
@@ -197,7 +198,7 @@ export function PipelineSidebar({
         {/* Sticky stage header */}
         <div className="sticky top-0 z-10 pb-2" style={{ background: 'var(--gem-surface)' }}>
           {/* Collapse button */}
-          <div className="flex justify-end mb-2">
+          <div className="hidden lg:flex justify-end mb-2">
             <button onClick={() => { manualOverrideRef.current = true; setSidebarCollapsed(true) }} title="Recolher painel lateral"
               className="w-7 h-7 rounded-md flex items-center justify-center text-xs hover:opacity-80"
               style={{ background: 'var(--gem-well)', color: 'var(--gem-muted)' }}>

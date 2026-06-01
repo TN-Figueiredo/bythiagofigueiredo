@@ -8,7 +8,7 @@ const ARCHIVE_AFTER_HOURS = 24
 const HARD_DELETE_AFTER_DAYS = 30
 const BATCH_SIZE = 50
 
-export async function POST(req: Request): Promise<Response> {
+export async function GET(req: Request): Promise<Response> {
   const auth = req.headers.get('authorization')
   const secret = process.env.CRON_SECRET
   if (!secret || auth !== `Bearer ${secret}`) {

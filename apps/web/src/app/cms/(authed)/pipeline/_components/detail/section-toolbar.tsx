@@ -35,6 +35,7 @@ export function SectionToolbar({
         <button
           type="button"
           aria-pressed={isEditing}
+          aria-label={isEditing ? 'Desativar edição (Cmd+E)' : 'Ativar edição (Cmd+E)'}
           onClick={() => onToggleEdit(!isEditing)}
           className="px-2.5 py-1 text-[10px] font-semibold rounded cursor-pointer select-none flex items-center gap-1.5 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
           style={{
@@ -45,13 +46,14 @@ export function SectionToolbar({
           }}
         >
           {isEditing ? 'Editando' : 'Editar'}
-          <span style={{ fontSize: '8px', opacity: 0.6, fontFamily: 'monospace' }}>&#x2318;E</span>
+          <span aria-hidden="true" style={{ fontSize: '8px', opacity: 0.6, fontFamily: 'monospace' }}>&#x2318;E</span>
         </button>
         <CoworkDeepLink
           instruction={buildCoworkInstruction('pipeline-section', { section: sectionKey, code: itemCode })}
           variant="icon"
         />
         <button
+          type="button"
           onClick={onSave}
           disabled={!isDirty || isSaving}
           className="px-3 py-1 text-[10px] font-semibold rounded transition-opacity focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
@@ -64,7 +66,7 @@ export function SectionToolbar({
             outlineColor: 'var(--gem-accent)',
           }}
         >
-          {isSaving ? 'Salvando...' : 'Salvar'} <span className="text-[8px] px-1 rounded ml-0.5" style={{ border: '1px solid rgba(255,255,255,0.3)', fontFamily: 'monospace' }}>&#x2318;S</span>
+          {isSaving ? 'Salvando...' : 'Salvar'} <span aria-hidden="true" className="text-[8px] px-1 rounded ml-0.5" style={{ border: '1px solid rgba(255,255,255,0.3)', fontFamily: 'monospace' }}>&#x2318;S</span>
         </button>
       </div>
     </div>

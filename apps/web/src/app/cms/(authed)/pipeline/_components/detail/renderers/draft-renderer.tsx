@@ -184,6 +184,14 @@ export function DraftRenderer({ content, isEditing, lang, format, onContentChang
   // Track whether user has manually edited the slug
   const slugTouched = useRef(false)
 
+  // On mount / edit mode entry, detect if slug was manually set
+  useEffect(() => {
+    if (draft.slug && draft.title) {
+      slugTouched.current = draft.slug !== slugify(draft.title)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditing])
+
   const updateField = useCallback((field: string, value: unknown) => {
     const base = typeof contentRef.current === 'object' && !Array.isArray(contentRef.current)
       ? contentRef.current as Record<string, unknown>
@@ -193,10 +201,13 @@ export function DraftRenderer({ content, isEditing, lang, format, onContentChang
 
   // Auto-derive slug from title when slug hasn't been manually touched
   useEffect(() => {
-    if (isEditing && draft.title && !slugTouched.current) {
-      updateField('slug', slugify(draft.title))
+    if (isEditing && !slugTouched.current) {
+      const newSlug = slugify(draft.title)
+      if (newSlug !== draft.slug) {
+        updateField('slug', newSlug)
+      }
     }
-  }, [draft.title, isEditing, updateField])
+  }, [draft.title, isEditing, updateField, draft.slug])
 
   const handleBodyChange = useCallback((json: JSONContent) => {
     const base = typeof contentRef.current === 'object' && !Array.isArray(contentRef.current)
@@ -206,6 +217,21 @@ export function DraftRenderer({ content, isEditing, lang, format, onContentChang
   }, [onContentChange])
 
   const isBlogPost = format === 'blog_post'
+
+  // Character count color for excerpt
+  const excerptLen = draft.excerpt?.length ?? 0
+  const excerptCountColor =
+    excerptLen >= 290 ? 'var(--gem-danger, #ef4444)' :
+    excerptLen >= 250 ? 'var(--gem-warn)' :
+    'var(--gem-dim)'
+
+  // Auto-open structured fields in read mode when they have content
+  const hasStructuredContent = draft.key_points.length > 0 || !!draft.pull_quote || !!draft.colophon
+
+  const [structuredOpen, setStructuredOpen] = useState(false)
+  useEffect(() => {
+    if (!isEditing && hasStructuredContent) setStructuredOpen(true)
+  }, [isEditing, hasStructuredContent])
 
   const isEmpty =
     !draft.body ||
@@ -219,16 +245,6 @@ export function DraftRenderer({ content, isEditing, lang, format, onContentChang
       </div>
     )
   }
-
-  // Character count color for excerpt
-  const excerptLen = draft.excerpt?.length ?? 0
-  const excerptCountColor =
-    excerptLen >= 290 ? '#ef4444' :
-    excerptLen >= 250 ? 'var(--gem-warn)' :
-    'var(--gem-dim)'
-
-  // Auto-open structured fields in read mode when they have content
-  const hasStructuredContent = draft.key_points.length > 0 || !!draft.pull_quote || !!draft.colophon
 
   const fullSlugUrl = `bythiagofigueiredo.com/blog/${lang}/`
 
@@ -252,7 +268,7 @@ export function DraftRenderer({ content, isEditing, lang, format, onContentChang
             <div className="text-[10px] font-semibold uppercase tracking-widest mb-1" style={{ color: 'var(--gem-dim)' }}>Titulo do Post</div>
             {isEditing ? (
               <input
-                className="w-full text-2xl font-bold bg-transparent border-none outline-none focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)]/30 focus-visible:ring-offset-1 text-[var(--foreground)] placeholder:text-[var(--muted)]"
+                className="w-full text-2xl font-bold bg-transparent border-none outline-none focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)]/30 text-[var(--foreground)] placeholder:text-[var(--muted)]"
                 placeholder="Titulo do post..."
                 aria-label="Post title"
                 value={draft.title}
@@ -272,7 +288,7 @@ export function DraftRenderer({ content, isEditing, lang, format, onContentChang
               <div className="flex items-center gap-1 text-xs text-[var(--muted)]">
                 <span className="shrink-0 opacity-60">{fullSlugUrl}</span>
                 <input
-                  className="bg-transparent border-b border-[var(--border)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)]/30 focus-visible:ring-offset-1 text-[var(--muted)] flex-1"
+                  className="bg-transparent border-b border-[var(--border)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)]/30 text-[var(--muted)] flex-1"
                   placeholder="slug-do-post"
                   aria-label="URL slug"
                   value={draft.slug}
@@ -281,7 +297,10 @@ export function DraftRenderer({ content, isEditing, lang, format, onContentChang
                     updateField('slug', slugify(e.target.value))
                   }}
                   onBlur={() => {
-                    if (!draft.slug && draft.title) updateField('slug', slugify(draft.title))
+                    if (!draft.slug) {
+                      slugTouched.current = false
+                      if (draft.title) updateField('slug', slugify(draft.title))
+                    }
                   }}
                 />
                 {slugConflict && <span className="text-red-400">Slug ja existe</span>}
@@ -293,8 +312,14 @@ export function DraftRenderer({ content, isEditing, lang, format, onContentChang
                 </span>
                 {draft.slug && (
                   <button
-                    onClick={() => navigator.clipboard.writeText(`https://${fullSlugUrl}${draft.slug}`)}
-                    className="text-xs text-[var(--gem-dim)] hover:text-[var(--foreground)] transition-colors"
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(`https://${fullSlugUrl}${draft.slug}`)
+                      } catch {
+                        // Clipboard API may not be available in some contexts
+                      }
+                    }}
+                    className="text-xs text-[var(--gem-dim)] hover:text-[var(--foreground)] transition-colors focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)]/30 rounded outline-none"
                     aria-label="Copy URL"
                     title="Copiar URL"
                   >
@@ -311,7 +336,7 @@ export function DraftRenderer({ content, isEditing, lang, format, onContentChang
             {isEditing ? (
               <>
                 <textarea
-                  className="w-full text-sm italic text-[var(--muted)] bg-transparent border-l-2 border-amber-500/20 pl-3 resize-none outline-none focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)]/30 focus-visible:ring-offset-1"
+                  className="w-full text-sm italic text-[var(--muted)] bg-transparent border-l-2 border-amber-500/20 pl-3 resize-none outline-none focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)]/30"
                   placeholder="Resumo do post (excerpt)..."
                   aria-label="Post excerpt"
                   rows={2}
@@ -346,68 +371,90 @@ export function DraftRenderer({ content, isEditing, lang, format, onContentChang
       {isBlogPost && (
         <details
           className="mt-4 border border-[var(--border)] rounded-lg"
-          open={!isEditing && hasStructuredContent ? true : undefined}
+          open={structuredOpen || undefined}
+          onToggle={(e) => setStructuredOpen((e.target as HTMLDetailsElement).open)}
         >
-          <summary className="px-3 py-2 text-xs font-semibold cursor-pointer text-[var(--muted)] hover:text-[var(--foreground)]">
+          <summary className="px-3 py-2 text-xs font-semibold cursor-pointer text-[var(--muted)] hover:text-[var(--foreground)] focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)]/30 rounded outline-none">
             Destaques e Extras
           </summary>
           <div className="p-3 space-y-3">
             <div>
               <label className="text-xs text-[var(--muted)] mb-1 block">Key Points</label>
-              {(draft.key_points || []).map((kp: string, i: number) => (
-                <div key={i} className="flex items-center gap-1 mb-1">
-                  <input
-                    className="flex-1 text-xs bg-[var(--gem-well)] rounded px-2 py-1 outline-none focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)]/30 focus-visible:ring-offset-1"
-                    aria-label={`Key point ${i + 1}`}
-                    value={kp}
-                    readOnly={!isEditing}
-                    onChange={e => {
-                      const u = [...(draft.key_points || [])]
-                      u[i] = e.target.value
-                      updateField('key_points', u)
+              {isEditing ? (
+                <>
+                  {(draft.key_points || []).map((kp: string, i: number) => (
+                    <div key={i} className="flex items-center gap-1 mb-1">
+                      <input
+                        className="flex-1 text-xs bg-[var(--gem-well)] rounded px-2 py-1 outline-none focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)]/30"
+                        aria-label={`Key point ${i + 1}`}
+                        value={kp}
+                        onChange={e => {
+                          const u = [...(draft.key_points || [])]
+                          u[i] = e.target.value
+                          updateField('key_points', u)
+                        }}
+                      />
+                      <button
+                        onClick={() => {
+                          const u = draft.key_points.filter((_, j) => j !== i)
+                          updateField('key_points', u)
+                        }}
+                        className="text-xs text-red-400 hover:text-red-300 ml-1 focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)]/30 rounded outline-none"
+                        aria-label={`Remove key point ${i + 1}`}
+                      >
+                        &times;
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    onClick={() => {
+                      const kps = draft.key_points || []
+                      if (kps.length > 0 && !kps[kps.length - 1]) return
+                      updateField('key_points', [...kps, ''])
                     }}
-                  />
-                  {isEditing && (
-                    <button
-                      onClick={() => {
-                        const u = draft.key_points.filter((_, j) => j !== i)
-                        updateField('key_points', u)
-                      }}
-                      className="text-xs text-red-400 hover:text-red-300 ml-1"
-                      aria-label={`Remove key point ${i + 1}`}
-                    >
-                      &times;
-                    </button>
-                  )}
-                </div>
-              ))}
-              {isEditing && (
-                <button
-                  onClick={() => updateField('key_points', [...(draft.key_points || []), ''])}
-                  className="text-xs text-indigo-400"
-                >
-                  + Add
-                </button>
+                    className="text-xs text-indigo-400 focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)]/30 rounded outline-none"
+                  >
+                    + Add
+                  </button>
+                </>
+              ) : draft.key_points.length > 0 ? (
+                <ul className="list-disc list-inside space-y-0.5">
+                  {draft.key_points.map((kp, i) => (
+                    <li key={i} className="text-xs text-[var(--muted)]">{kp}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-xs italic" style={{ color: 'var(--gem-dim)' }}>Nenhum ponto-chave</p>
               )}
             </div>
             <div>
               <label className="text-xs text-[var(--muted)] mb-1 block">Pull Quote</label>
-              <textarea
-                className="w-full text-xs bg-[var(--gem-well)] rounded px-2 py-1 resize-none outline-none focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)]/30 focus-visible:ring-offset-1"
-                rows={2}
-                value={draft.pull_quote || ''}
-                readOnly={!isEditing}
-                onChange={e => updateField('pull_quote', e.target.value)}
-              />
+              {isEditing ? (
+                <textarea
+                  className="w-full text-xs bg-[var(--gem-well)] rounded px-2 py-1 resize-none outline-none focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)]/30"
+                  rows={2}
+                  value={draft.pull_quote || ''}
+                  onChange={e => updateField('pull_quote', e.target.value)}
+                />
+              ) : draft.pull_quote ? (
+                <p className="text-xs italic text-[var(--muted)] border-l-2 border-[var(--gem-accent)]/30 pl-2">{draft.pull_quote}</p>
+              ) : (
+                <p className="text-xs italic" style={{ color: 'var(--gem-dim)' }}>Nenhuma citacao</p>
+              )}
             </div>
             <div>
               <label className="text-xs text-[var(--muted)] mb-1 block">Colophon</label>
-              <input
-                className="w-full text-xs bg-[var(--gem-well)] rounded px-2 py-1 outline-none focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)]/30 focus-visible:ring-offset-1"
-                value={draft.colophon || ''}
-                readOnly={!isEditing}
-                onChange={e => updateField('colophon', e.target.value)}
-              />
+              {isEditing ? (
+                <input
+                  className="w-full text-xs bg-[var(--gem-well)] rounded px-2 py-1 outline-none focus-visible:ring-2 focus-visible:ring-[var(--gem-accent)]/30"
+                  value={draft.colophon || ''}
+                  onChange={e => updateField('colophon', e.target.value)}
+                />
+              ) : draft.colophon ? (
+                <p className="text-xs text-[var(--muted)]">{draft.colophon}</p>
+              ) : (
+                <p className="text-xs italic" style={{ color: 'var(--gem-dim)' }}>Sem colophon</p>
+              )}
             </div>
           </div>
         </details>

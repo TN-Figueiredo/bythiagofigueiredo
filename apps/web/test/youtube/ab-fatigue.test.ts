@@ -36,12 +36,12 @@ describe('detectFatigue', () => {
     expect(result!.zScore).toBeLessThan(-1.5)
   })
 
-  it('returns expectedCtr and actualCtr (views-based)', () => {
+  it('returns expectedViews and actualViews', () => {
     const metrics = generateDailyMetrics(60, 500)
     const result = detectFatigue(metrics, publishedAt)
     expect(result).not.toBeNull()
-    expect(result!.expectedCtr).toBeGreaterThan(0)
-    expect(result!.actualCtr).toBeGreaterThan(0)
+    expect(result!.expectedViews).toBeGreaterThan(0)
+    expect(result!.actualViews).toBeGreaterThan(0)
   })
 
   it('filters out days with views < 50', () => {
