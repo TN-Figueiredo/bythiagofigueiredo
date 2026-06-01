@@ -80,4 +80,19 @@ describe('computeDaysRemaining', () => {
     expect(result).not.toBeNull()
     expect(result!.days).toBe(0)
   })
+
+  it('returns linear fallback for constant impressions (degenerate regression)', () => {
+    const impressions = [100, 100, 100, 100, 100]
+    const result = computeDaysRemaining(impressions)
+    expect(result).not.toBeNull()
+    expect(result!.model).toBe('linear')
+    expect(result!.days).toBe(999)
+  })
+
+  it('returns non-negative days for increasing impressions', () => {
+    const impressions = [100, 200, 400, 800, 1600]
+    const result = computeDaysRemaining(impressions)
+    expect(result).not.toBeNull()
+    expect(result!.days).toBeGreaterThanOrEqual(0)
+  })
 })
