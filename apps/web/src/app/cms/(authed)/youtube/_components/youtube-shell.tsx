@@ -15,7 +15,8 @@ const TABS = [
   { label: 'Categories', href: '/cms/youtube/categories' },
   { label: 'Comments', href: '/cms/youtube/comments' },
   { label: 'Content', href: '/cms/youtube/content' },
-  { label: 'Analytics', href: '/cms/youtube/analytics' },
+  { label: 'Competitors', href: '/cms/youtube/competitors' },
+  { label: 'Performance', href: '/cms/youtube/analytics' },
 ] as const
 
 interface YouTubeShellProps {
@@ -56,12 +57,6 @@ export function YouTubeShell({ children, hoursUntilExpiry }: YouTubeShellProps) 
             instruction={buildCoworkInstruction('youtube-intelligence', {} as Record<string, never>)}
             variant="button"
           />
-          <Link
-            href="/cms/settings?section=youtube"
-            className="text-sm text-cms-text-muted hover:text-cms-text"
-          >
-            Manage Channels
-          </Link>
         </div>
       </div>
 
