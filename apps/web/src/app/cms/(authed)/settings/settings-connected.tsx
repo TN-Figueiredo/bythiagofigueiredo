@@ -9,7 +9,6 @@ import {
 } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
-import type { SyncScheduleEntry } from '@/lib/youtube/types'
 import {
   updateBranding,
   updateIdentity,
@@ -43,10 +42,6 @@ const ContactPageSection = dynamic(
 )
 const InstagramSection = dynamic(
   () => import('./_sections/instagram').then(m => ({ default: m.InstagramSection })),
-  { loading: () => <div className="p-6 space-y-4">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-20 animate-pulse rounded-lg bg-cms-border" />)}</div> }
-)
-const YouTubeSection = dynamic(
-  () => import('./_sections/youtube').then(m => ({ default: m.YouTubeSection })),
   { loading: () => <div className="p-6 space-y-4">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-20 animate-pulse rounded-lg bg-cms-border" />)}</div> }
 )
 
@@ -92,16 +87,6 @@ interface SeoFlags {
   aiCrawlersBlocked: boolean
 }
 
-interface YouTubeChannelData {
-  id: string
-  name: string
-  handle: string
-  locale: string
-  sync_enabled: boolean
-  sync_schedules: SyncScheduleEntry[] | null
-  schedule_label: string | null
-}
-
 interface InstagramAccountData {
   id: string
   locale: 'pt' | 'en' | 'all'
@@ -124,7 +109,6 @@ interface Props {
   site: SiteData
   newsletterTypes: NewsletterTypeData[]
   blogCadence: BlogCadenceData[]
-  youtubeChannels?: YouTubeChannelData[]
   instagramAccounts?: InstagramAccountData[]
   contactSettings?: Record<string, unknown>[]
   contactVisibility?: Record<string, unknown> | null
@@ -139,7 +123,6 @@ type SectionId =
   | 'seo'
   | 'newsletters'
   | 'blog-cadence'
-  | 'youtube'
   | 'instagram'
   | 'contact-page'
   | 'localization'
@@ -150,7 +133,6 @@ const SECTIONS: { id: SectionId; label: string; badge?: 'new' }[] = [
   { id: 'seo', label: 'SEO' },
   { id: 'newsletters', label: 'Newsletters' },
   { id: 'blog-cadence', label: 'Blog Cadence' },
-  { id: 'youtube', label: 'YouTube' },
   { id: 'instagram', label: 'Instagram' },
   { id: 'contact-page', label: 'Contact Page', badge: 'new' as const },
   { id: 'localization', label: 'Localization' },
@@ -1245,7 +1227,6 @@ export function SettingsConnected({
   site,
   newsletterTypes,
   blogCadence,
-  youtubeChannels,
   instagramAccounts,
   contactSettings = [],
   contactVisibility = null,
@@ -1412,9 +1393,6 @@ export function SettingsConnected({
               site={site}
               readOnly={readOnly}
             />
-          )}
-          {activeSection === 'youtube' && (
-            <YouTubeSection channels={youtubeChannels ?? []} readOnly={readOnly} />
           )}
           {activeSection === 'instagram' && (
             <InstagramSection accounts={instagramAccounts ?? []} readOnly={readOnly} />

@@ -22,7 +22,7 @@ export default async function SettingsPage({ searchParams }: Props) {
   const readOnly = !editRes.ok
 
   const supabase = getSupabaseServiceClient()
-  const [siteRes, typesRes, cadenceRes, ytChannelsRes, igAccountsRes, contactSettingsRes, contactVisRes, defaultAuthorRes] = await Promise.all([
+  const [siteRes, typesRes, cadenceRes, igAccountsRes, contactSettingsRes, contactVisRes, defaultAuthorRes] = await Promise.all([
     supabase.from('sites').select('*').eq('id', siteId).single(),
     supabase
       .from('newsletter_types')
@@ -34,9 +34,6 @@ export default async function SettingsPage({ searchParams }: Props) {
       .select('*')
       .eq('site_id', siteId)
       .order('locale'),
-    supabase.from('youtube_channels')
-      .select('id, name, handle, locale, sync_enabled, sync_schedules, schedule_label')
-      .eq('site_id', siteId),
     supabase.from('instagram_accounts')
       .select('id, locale, handle, sync_enabled, display_slots, layout_type, section_title_pt, section_title_en, section_subtitle_pt, section_subtitle_en, last_synced_at, token_expires_at')
       .eq('site_id', siteId)
@@ -105,7 +102,6 @@ export default async function SettingsPage({ searchParams }: Props) {
         site={siteRes.data}
         newsletterTypes={typesRes.data ?? []}
         blogCadence={cadenceRes.data ?? []}
-        youtubeChannels={ytChannelsRes.data ?? []}
         instagramAccounts={instagramData}
         contactSettings={contactSettingsRes.data ?? []}
         contactVisibility={contactVisRes.data ?? null}

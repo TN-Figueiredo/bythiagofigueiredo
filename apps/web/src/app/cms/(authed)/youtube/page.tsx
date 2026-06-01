@@ -15,7 +15,7 @@ const fetchYouTubeDashboardCached = unstable_cache(
 
     const [channelsRes, uncategorizedRes, recentSyncRes, pinnedRes, videoStatsRes] = await Promise.all([
       supabase.from('youtube_channels')
-        .select('id, locale, handle, name, subscriber_count, video_count, thumbnail_url, last_synced_at, sync_schedules, schedule_label')
+        .select('id, locale, handle, name, subscriber_count, video_count, thumbnail_url, last_synced_at, sync_enabled, sync_schedules, schedule_label')
         .eq('site_id', siteId)
         .order('locale'),
       supabase.from('youtube_videos')
@@ -106,6 +106,9 @@ const fetchYouTubeDashboardCached = unstable_cache(
         latestVideoAt: stats?.latestAt ?? null,
         lastSync: syncInfo,
         scheduleLabel: label,
+        syncEnabled: (ch.sync_enabled as boolean) ?? true,
+        syncSchedules: schedules,
+        rawScheduleLabel: (ch.schedule_label as string | null) ?? null,
       }
     })
 

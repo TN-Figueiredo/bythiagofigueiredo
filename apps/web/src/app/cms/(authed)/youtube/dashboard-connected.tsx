@@ -1,10 +1,13 @@
 'use client'
 
-import { useTransition, useState, useCallback, useEffect, useRef } from 'react'
+import { useTransition, useState, useCallback, useEffect, useRef, type FormEvent } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import type { SyncStatus } from '@/lib/youtube/types'
+import type { SyncScheduleEntry, SyncStatus } from '@/lib/youtube/types'
+import { deriveScheduleLabel } from '@/lib/youtube/schedule-label'
+import { groupSchedules, explodeGroups, type ScheduleGroup } from '@/lib/youtube/schedule-group'
 import { triggerSync, unpinWeeklyPick, pinWeeklyPick } from './videos/actions'
+import { updateYouTubeChannelSettings } from '../settings/actions'
 
 export interface PinnedVideo {
   id: string
@@ -42,6 +45,9 @@ export interface ChannelDashboard {
   latestVideoAt: string | null
   lastSync: LastSyncInfo | null
   scheduleLabel: string | null
+  syncEnabled: boolean
+  syncSchedules: SyncScheduleEntry[]
+  rawScheduleLabel: string | null
 }
 
 interface Props {
@@ -87,6 +93,19 @@ export function getPinState(pinnedVideo: PinnedVideo | null): PinState {
 export function daysLeft(pinnedUntil: string): number {
   return Math.ceil((new Date(pinnedUntil).getTime() - Date.now()) / 86_400_000)
 }
+
+/* ------------------------------------------------------------------ */
+/*  Schedule editor constants                                         */
+/* ------------------------------------------------------------------ */
+
+const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const
+
+const DAY_LABELS: Record<typeof DAYS[number], string> = {
+  monday: 'Seg', tuesday: 'Ter', wednesday: 'Qua', thursday: 'Qui',
+  friday: 'Sex', saturday: 'Sab', sunday: 'Dom',
+}
+
+type ScheduleSaveState = 'idle' | 'saving' | 'success' | 'error'
 
 function SyncStatusBadge({ channel }: { channel: ChannelDashboard }) {
   if (!channel.lastSync) {
@@ -176,6 +195,7 @@ function ReconnectTokenButton() {
 function ChannelCard({ channel }: { channel: ChannelDashboard }) {
   const [isPending, startTransition] = useTransition()
   const [showUnpinConfirm, setShowUnpinConfirm] = useState(false)
+  const [showConfig, setShowConfig] = useState(false)
   const [syncError, setSyncError] = useState<string | null>(null)
   const flag = channel.locale === 'pt' ? '🇧🇷' : '🇺🇸'
   const pinState = getPinState(channel.pinnedVideo)
@@ -434,15 +454,190 @@ function ChannelCard({ channel }: { channel: ChannelDashboard }) {
 
       {/* Channel actions footer */}
       <div className="flex items-center gap-2 border-t border-cms-border px-4 py-2.5">
-        <Link
-          href="/cms/settings?section=youtube"
+        <button
+          type="button"
+          onClick={() => setShowConfig(prev => !prev)}
           className="inline-flex items-center gap-1 rounded border border-cms-border px-2.5 py-1 text-xs text-cms-text-muted hover:bg-cms-surface-hover"
         >
-          Configurar
-        </Link>
+          {showConfig ? 'Fechar config' : 'Configurar'}
+        </button>
         <ReconnectTokenButton />
       </div>
+
+      {/* Inline schedule config */}
+      {showConfig && (
+        <ChannelScheduleEditor channel={channel} />
+      )}
     </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/*  Inline Channel Schedule Editor                                    */
+/* ------------------------------------------------------------------ */
+
+function ChannelScheduleEditor({ channel }: { channel: ChannelDashboard }) {
+  const [, startTransition] = useTransition()
+  const [saveState, setSaveState] = useState<ScheduleSaveState>('idle')
+  const [syncEnabled, setSyncEnabled] = useState(channel.syncEnabled)
+  const nextIdRef = useRef(0)
+  const nextId = () => ++nextIdRef.current
+  const [groups, setGroups] = useState<ScheduleGroup[]>(() =>
+    groupSchedules(channel.syncSchedules ?? [], nextId),
+  )
+  const [scheduleLabel, setScheduleLabel] = useState(channel.rawScheduleLabel ?? '')
+
+  useEffect(() => {
+    if (saveState === 'success' || saveState === 'error') {
+      const t = setTimeout(() => setSaveState('idle'), saveState === 'success' ? 2000 : 3000)
+      return () => clearTimeout(t)
+    }
+  }, [saveState])
+
+  const handleSave = (e: FormEvent) => {
+    e.preventDefault()
+    setSaveState('saving')
+    startTransition(async () => {
+      try {
+        const res = await updateYouTubeChannelSettings({
+          channel_id: channel.id,
+          sync_enabled: syncEnabled,
+          sync_schedules: explodeGroups(groups),
+          schedule_label: scheduleLabel.trim() || null,
+        })
+        setSaveState(res.ok ? 'success' : 'error')
+      } catch {
+        setSaveState('error')
+      }
+    })
+  }
+
+  const addGroup = () => {
+    setGroups(prev => [...prev, { _id: nextId(), days: [], hour: 10, tz: 'America/Sao_Paulo', label: '' }])
+  }
+
+  const removeGroup = (groupId: number) => {
+    setGroups(prev => prev.filter(g => g._id !== groupId))
+  }
+
+  const toggleDay = (groupId: number, day: SyncScheduleEntry['day']) => {
+    setGroups(prev => prev.map(g =>
+      g._id !== groupId ? g :
+      { ...g, days: g.days.includes(day) ? g.days.filter(d => d !== day) : [...g.days, day].sort((a, b) => DAYS.indexOf(a) - DAYS.indexOf(b)) }
+    ))
+  }
+
+  const updateGroup = (groupId: number, patch: Partial<ScheduleGroup>) => {
+    setGroups(prev => prev.map(g => g._id !== groupId ? g : { ...g, ...patch }))
+  }
+
+  return (
+    <form onSubmit={handleSave} className="border-t border-cms-border px-4 py-4 space-y-4">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold uppercase tracking-wider text-cms-text-muted">Schedule Config</span>
+        <label className="flex items-center gap-2 text-xs text-cms-text-muted">
+          <input
+            type="checkbox"
+            checked={syncEnabled}
+            onChange={(e) => setSyncEnabled(e.target.checked)}
+            className="accent-indigo-500"
+          />
+          Sync enabled
+        </label>
+      </div>
+
+      {syncEnabled && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-cms-text-muted">Posting Schedule</span>
+            <button
+              type="button"
+              onClick={addGroup}
+              disabled={groups.length >= 3}
+              title={groups.length >= 3 ? 'Max 3 groups' : undefined}
+              className="text-xs text-indigo-400 hover:text-indigo-300 disabled:opacity-50"
+            >
+              + Add group
+            </button>
+          </div>
+
+          {groups.length === 0 && (
+            <p className="text-xs text-cms-text-dim">No schedule configured. Daily cron (07:00) still syncs.</p>
+          )}
+
+          {groups.map((group, groupIdx) => (
+            <div key={group._id} className="flex flex-wrap items-center gap-2 rounded-md border border-cms-border bg-cms-surface p-2">
+              <div role="group" aria-label="Days" className="flex items-center gap-1">
+                {DAYS.map(day => (
+                  <button
+                    key={day}
+                    type="button"
+                    onClick={() => toggleDay(group._id, day)}
+                    aria-pressed={group.days.includes(day)}
+                    className={`min-h-[32px] min-w-[32px] rounded-full px-1.5 text-[10px] font-medium ${group.days.includes(day) ? 'bg-indigo-500 text-white' : 'bg-slate-700 text-slate-400'}`}
+                  >
+                    {DAY_LABELS[day]}
+                  </button>
+                ))}
+              </div>
+              <input
+                type="number"
+                min={0}
+                max={23}
+                value={group.hour}
+                onChange={(e) => updateGroup(group._id, { hour: Math.max(0, Math.min(23, parseInt(e.target.value) || 0)) })}
+                aria-label={`Hour group ${groupIdx + 1}`}
+                className="w-12 rounded border border-cms-border bg-cms-surface px-1.5 py-0.5 text-xs text-cms-text focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+              <span className="text-xs text-cms-text-dim">h</span>
+              <input
+                type="text"
+                value={group.label}
+                onChange={(e) => updateGroup(group._id, { label: e.target.value })}
+                placeholder="Label"
+                aria-label={`Label group ${groupIdx + 1}`}
+                className="flex-1 min-w-[60px] rounded border border-cms-border bg-cms-surface px-1.5 py-0.5 text-xs text-cms-text placeholder:text-cms-text-dim focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+              <button
+                type="button"
+                onClick={() => removeGroup(group._id)}
+                aria-label={`Remove group ${groupIdx + 1}`}
+                className="min-h-[32px] min-w-[32px] flex items-center justify-center text-xs text-red-400 hover:text-red-300"
+              >
+                x
+              </button>
+            </div>
+          ))}
+
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-cms-text-muted">Schedule Label (public site)</label>
+            <input
+              type="text"
+              value={scheduleLabel}
+              onChange={(e) => setScheduleLabel(e.target.value)}
+              placeholder={deriveScheduleLabel(explodeGroups(groups), channel.locale) ?? 'Auto-derived from schedules'}
+              className="w-full rounded border border-cms-border bg-cms-surface px-2 py-1 text-xs text-cms-text placeholder:text-cms-text-dim focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            />
+            <p className="text-[10px] text-cms-text-dim">Leave empty to auto-derive from posting schedule.</p>
+          </div>
+        </div>
+      )}
+
+      <div className="flex items-center justify-end gap-2 pt-1">
+        {saveState === 'success' && <span className="text-xs text-emerald-400">Saved</span>}
+        {saveState === 'error' && <span className="text-xs text-red-400">Error saving</span>}
+        <button
+          type="submit"
+          disabled={saveState === 'saving'}
+          className="inline-flex items-center gap-1.5 rounded bg-indigo-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-400 disabled:opacity-50"
+        >
+          {saveState === 'saving' && (
+            <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />
+          )}
+          Save
+        </button>
+      </div>
+    </form>
   )
 }
 
@@ -452,10 +647,7 @@ export function DashboardConnected({ channels, uncategorizedCount }: Props) {
       <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface px-6 py-16 text-center">
         <p className="text-lg font-medium text-cms-text">No YouTube channels configured</p>
         <p className="mt-2 text-sm text-cms-text-muted">
-          Add channels in{' '}
-          <Link href="/cms/settings?section=youtube" className="text-cms-accent hover:underline">
-            Settings → YouTube
-          </Link>
+          Use the YouTube API lookup in the admin panel to add channels.
         </p>
       </div>
     )
