@@ -1479,6 +1479,10 @@ Items identificados por reviewers adversariais que ficaram pendentes:
 - **AbEndTestDialog leadingVariant logic** — picks nonOriginalVariants[0] (array order) em vez do melhor performer. Passar leaderId do active-detail
 - **AbEndTestDialog hasLowConfidence** — hardcoded false (linha 36). Computar de currentConfidence < confidenceThreshold passado como prop
 - **OAuth per-channel completo** — spec 1.4: aceitar channelId no OAuth route, login_hint, validacao no callback. Parcialmente feito (resolveChannelAccountId resolve token, mas OAuth popup ainda generico)
+- **Competitor remove channel confirmation** — dialog de confirmacao antes de deletar canal (existia na versao original, perdido no merge do Outliers agent)
+- **Competitor sync/remove loading states** — useTransition + spinner nos botoes sync e remove (existia, perdido no merge)
+- **Tags cast cleanup** — `(v as Record<string, unknown>).tags as string[]` em page.tsx. Deveria tipar corretamente via select ou assertion segura
+- **Competitor video expand — lazy loading** — adicionar `loading="lazy"` nas imgs (ja adicionado) + considerar paginacao se canal tem 50+ videos
 
 **Dependencias:** Nenhuma — pode ser implementado a qualquer momento
 
