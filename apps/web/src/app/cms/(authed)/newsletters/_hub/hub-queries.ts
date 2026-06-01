@@ -36,14 +36,14 @@ export const fetchSharedData = unstable_cache(
 
     const { count: editorialBadge } = await supabase
       .from('newsletter_editions')
-      .select('*', { count: 'exact', head: true })
+      .select('id', { count: 'exact', head: true })
       .eq('site_id', siteId)
       .in('status', ['idea', 'draft', 'ready', 'scheduled'])
 
     const oneDayAgo = new Date(Date.now() - 86400000).toISOString()
     const { count: autoIncidents } = await supabase
       .from('newsletter_types')
-      .select('*', { count: 'exact', head: true })
+      .select('id', { count: 'exact', head: true })
       .eq('site_id', siteId)
       .eq('cadence_paused', true)
       .gte('last_sent_at', oneDayAgo)
@@ -113,7 +113,7 @@ export const fetchOverviewData = unstable_cache(
       { data: subCounts },
       { data: consents },
     ] = await Promise.all([
-      supabase.from('newsletter_subscriptions').select('*', { count: 'exact', head: true }).eq('site_id', siteId).in('status', ['confirmed', 'pending_confirmation']),
+      supabase.from('newsletter_subscriptions').select('id', { count: 'exact', head: true }).eq('site_id', siteId).in('status', ['confirmed', 'pending_confirmation']),
       supabase.from('newsletter_editions').select('id, subject, newsletter_type_id, stats_delivered, stats_opens, stats_clicks, stats_bounces, stats_complaints, sent_at').eq('site_id', siteId).eq('status', 'sent').gte('sent_at', thirtyDaysAgo).order('sent_at'),
       supabase.from('newsletter_editions').select('stats_delivered, stats_opens, stats_clicks, stats_bounces').eq('site_id', siteId).eq('status', 'sent').gte('sent_at', sixtyDaysAgo).lt('sent_at', thirtyDaysAgo),
       supabase.from('newsletter_types').select('id, name, color, cadence_paused').eq('site_id', siteId).eq('active', true),
@@ -805,10 +805,10 @@ export const fetchAudienceData = unstable_cache(
       { data: allSubsForLocale },
       { data: sentEditions },
     ] = await Promise.all([
-      supabase.from('newsletter_subscriptions').select('*', { count: 'exact', head: true }).eq('site_id', siteId).in('status', ['confirmed', 'pending_confirmation']),
-      supabase.from('newsletter_subscriptions').select('*', { count: 'exact', head: true }).eq('site_id', siteId).eq('status', 'confirmed'),
-      supabase.from('newsletter_subscriptions').select('*', { count: 'exact', head: true }).eq('site_id', siteId).eq('status', 'pending_confirmation'),
-      supabase.from('newsletter_subscriptions').select('*', { count: 'exact', head: true }).eq('site_id', siteId),
+      supabase.from('newsletter_subscriptions').select('id', { count: 'exact', head: true }).eq('site_id', siteId).in('status', ['confirmed', 'pending_confirmation']),
+      supabase.from('newsletter_subscriptions').select('id', { count: 'exact', head: true }).eq('site_id', siteId).eq('status', 'confirmed'),
+      supabase.from('newsletter_subscriptions').select('id', { count: 'exact', head: true }).eq('site_id', siteId).eq('status', 'pending_confirmation'),
+      supabase.from('newsletter_subscriptions').select('id', { count: 'exact', head: true }).eq('site_id', siteId),
       supabase.from('newsletter_subscriptions').select('created_at').eq('site_id', siteId).eq('status', 'confirmed').gte('created_at', thirtyDaysAgo).order('created_at'),
       supabase.from('newsletter_subscriptions').select('unsubscribed_at').eq('site_id', siteId).eq('status', 'unsubscribed').gte('unsubscribed_at', thirtyDaysAgo),
       supabase.from('newsletter_types').select('id, name, color, cadence_paused').eq('site_id', siteId).eq('active', true),

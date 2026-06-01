@@ -33,8 +33,8 @@ export default async function CmsContactsPage({ searchParams }: Props) {
   const page = Math.max(1, parseInt(params.page || '1', 10) || 1)
   const offset = (page - 1) * PAGE_SIZE
 
-  // Fetch submissions and KPI data in parallel
-  const [submissionsRes, totalRes, pendingRes, repliedRes, delta30dRes, avgResponseRes] =
+  // Fetch submissions and KPI data in parallel (including pending count and anonymized count)
+  const [submissionsRes, totalRes, pendingOldestRes, pendingCountRes, repliedRes, delta30dRes, avgResponseRes, anonymizedRes] =
     await Promise.all([
       // Main submissions query
       supabase
@@ -52,7 +52,7 @@ export default async function CmsContactsPage({ searchParams }: Props) {
         .select('id', { count: 'exact', head: true })
         .eq('site_id', siteId),
 
-      // Pending count + oldest
+      // Oldest pending (for oldestPendingDays)
       supabase
         .from('contact_submissions')
         .select('submitted_at')
@@ -61,6 +61,14 @@ export default async function CmsContactsPage({ searchParams }: Props) {
         .is('anonymized_at', null)
         .order('submitted_at', { ascending: true })
         .limit(1),
+
+      // Pending count
+      supabase
+        .from('contact_submissions')
+        .select('id', { count: 'exact', head: true })
+        .eq('site_id', siteId)
+        .is('replied_at', null)
+        .is('anonymized_at', null),
 
       // Replied count
       supabase
@@ -85,6 +93,13 @@ export default async function CmsContactsPage({ searchParams }: Props) {
         .is('anonymized_at', null)
         .order('replied_at', { ascending: false })
         .limit(100),
+
+      // Anonymized count (for reply rate denominator)
+      supabase
+        .from('contact_submissions')
+        .select('id', { count: 'exact', head: true })
+        .eq('site_id', siteId)
+        .not('anonymized_at', 'is', null),
     ])
 
   const submissions = (submissionsRes.data ?? []).map((s) => ({
@@ -103,34 +118,19 @@ export default async function CmsContactsPage({ searchParams }: Props) {
 
   const total = totalRes.count ?? 0
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
-  const pendingCount = pendingRes.data?.length
-    ? (await supabase
-        .from('contact_submissions')
-        .select('id', { count: 'exact', head: true })
-        .eq('site_id', siteId)
-        .is('replied_at', null)
-        .is('anonymized_at', null)
-      ).count ?? 0
-    : 0
+  const pendingCount = pendingCountRes.count ?? 0
   const repliedCount = repliedRes.count ?? 0
   const totalDelta30d = delta30dRes.count ?? 0
 
   // Oldest pending days
   let oldestPendingDays: number | null = null
-  if (pendingRes.data && pendingRes.data.length > 0 && pendingRes.data[0]) {
-    const oldest = new Date(pendingRes.data[0].submitted_at as string)
+  if (pendingOldestRes.data && pendingOldestRes.data.length > 0 && pendingOldestRes.data[0]) {
+    const oldest = new Date(pendingOldestRes.data[0].submitted_at as string)
     oldestPendingDays = Math.floor((Date.now() - oldest.getTime()) / 86400000)
   }
 
   // Reply rate
-  const nonAnonymizedTotal = total - (submissions.filter((s) => s.anonymized_at).length > 0
-    ? (await supabase
-        .from('contact_submissions')
-        .select('id', { count: 'exact', head: true })
-        .eq('site_id', siteId)
-        .not('anonymized_at', 'is', null)
-      ).count ?? 0
-    : 0)
+  const nonAnonymizedTotal = total - (anonymizedRes.count ?? 0)
   const replyRate = nonAnonymizedTotal > 0 ? (repliedCount / nonAnonymizedTotal) * 100 : 0
 
   // Avg response time

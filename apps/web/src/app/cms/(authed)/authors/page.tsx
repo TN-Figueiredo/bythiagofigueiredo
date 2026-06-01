@@ -35,15 +35,22 @@ export default async function AuthorsPage() {
 
   const supabase = getSupabaseServiceClient()
 
-  const { data: authors } = await supabase
-    .from('authors')
-    .select(
-      'id, display_name, name, slug, bio, avatar_url, avatar_color, user_id, social_links, sort_order, is_default, about_photo_url',
-    )
-    .eq('site_id', siteId)
-    .order('sort_order')
+  const [{ data: authors }, { data: siteRow }] = await Promise.all([
+    supabase
+      .from('authors')
+      .select(
+        'id, display_name, name, slug, bio, avatar_url, avatar_color, user_id, social_links, sort_order, is_default, about_photo_url',
+      )
+      .eq('site_id', siteId)
+      .order('sort_order'),
+    supabase
+      .from('sites')
+      .select('supported_locales')
+      .eq('id', siteId)
+      .single(),
+  ])
 
-  // Count posts per author (via author_id FK)
+  // Count posts per author (via author_id FK) — depends on authors result
   const authorIds = ((authors as AuthorRow[] | null) ?? []).map((a) => a.id)
   const { data: postCountRows } =
     authorIds.length > 0
@@ -58,12 +65,6 @@ export default async function AuthorsPage() {
   for (const row of (postCountRows ?? []) as { author_id: string }[]) {
     postCounts[row.author_id] = (postCounts[row.author_id] ?? 0) + 1
   }
-
-  const { data: siteRow } = await supabase
-    .from('sites')
-    .select('supported_locales')
-    .eq('id', siteId)
-    .single()
   const supportedLocales: string[] = (siteRow as unknown as { supported_locales: string[] } | null)?.supported_locales ?? ['pt-BR']
 
   const authorData: AuthorData[] = ((authors as AuthorRow[] | null) ?? []).map(

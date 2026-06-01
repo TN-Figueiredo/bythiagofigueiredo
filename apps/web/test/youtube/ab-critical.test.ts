@@ -4,7 +4,19 @@
  * Covers: toDetailView, computeDashboardStats, toCardView, toDraftList,
  *         Bayesian edge cases, and gates edge cases.
  */
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
+
+const mockChain: Record<string, any> = {}
+const methods = ['select', 'eq', 'neq', 'not', 'is', 'in', 'gte', 'lt', 'order', 'limit', 'from']
+for (const m of methods) mockChain[m] = vi.fn().mockReturnValue(mockChain)
+mockChain.single = vi.fn().mockResolvedValue({ data: null, error: null })
+mockChain.maybeSingle = vi.fn().mockResolvedValue({ data: null, error: null })
+mockChain.then = undefined
+
+vi.mock('@/lib/supabase/service', () => ({
+  getSupabaseServiceClient: () => mockChain,
+}))
+
 import {
   toCardView,
   toDraftList,
@@ -93,17 +105,17 @@ function makeResults(overrides?: {
 /* ================================================================== */
 
 describe('toDetailView — 0 variants', () => {
-  it('returns a view without crashing when variants array is empty', () => {
+  it('returns a view without crashing when variants array is empty', async () => {
     const results = makeResults({ variants: [] })
-    const view = toDetailView(results)
+    const view = await toDetailView(results)
     expect(view).toBeDefined()
     expect(view.variants).toEqual([])
     expect(view.variantThumbs).toEqual([])
   })
 
-  it('returns gates even with 0 variants', () => {
+  it('returns gates even with 0 variants', async () => {
     const results = makeResults({ variants: [] })
-    const view = toDetailView(results)
+    const view = await toDetailView(results)
     expect(view.gates).toBeDefined()
     expect(view.gates.length).toBeGreaterThan(0)
   })
@@ -114,18 +126,18 @@ describe('toDetailView — 0 variants', () => {
 /* ================================================================== */
 
 describe('toDetailView — status discrimination', () => {
-  it('maps draft status to active view (drafts are treated as active)', () => {
+  it('maps draft status to active view (drafts are treated as active)', async () => {
     const results = makeResults({ status: 'draft' })
-    const view = toDetailView(results)
+    const view = await toDetailView(results)
     expect(view.status).toBe('active')
     // ActiveView has confirmedData, not outcome
     expect('confirmedData' in view).toBe(true)
     expect('outcome' in view && view.outcome).toBeFalsy()
   })
 
-  it('maps active status to active view with confirmedData', () => {
+  it('maps active status to active view with confirmedData', async () => {
     const results = makeResults({ status: 'active', confidence: 0.74 })
-    const view = toDetailView(results)
+    const view = await toDetailView(results)
     expect(view.status).toBe('active')
     expect('confirmedData' in view).toBe(true)
     if ('confirmedData' in view) {
@@ -133,14 +145,14 @@ describe('toDetailView — status discrimination', () => {
     }
   })
 
-  it('maps paused status to active view with paused status', () => {
+  it('maps paused status to active view with paused status', async () => {
     const results = makeResults({ status: 'paused' })
-    const view = toDetailView(results)
+    const view = await toDetailView(results)
     expect(view.status).toBe('paused')
     expect('confirmedData' in view).toBe(true)
   })
 
-  it('maps completed + winner to winner view', () => {
+  it('maps completed + winner to winner view', async () => {
     const results = makeResults({
       status: 'completed',
       winnerId: 'v-b',
@@ -152,7 +164,7 @@ describe('toDetailView — status discrimination', () => {
         estimated_monthly_extra_clicks: 310,
       },
     })
-    const view = toDetailView(results)
+    const view = await toDetailView(results)
     expect(view.status).toBe('completed')
     expect('outcome' in view && view.outcome).toBe('winner')
     if ('outcome' in view && view.outcome === 'winner') {
@@ -161,7 +173,7 @@ describe('toDetailView — status discrimination', () => {
     }
   })
 
-  it('maps completed + inconclusive + playoff to playoff view', () => {
+  it('maps completed + inconclusive + playoff to playoff view', async () => {
     const results = makeResults({
       status: 'completed',
       completedReason: 'inconclusive',
@@ -169,7 +181,7 @@ describe('toDetailView — status discrimination', () => {
       confidence: 0.71,
       statusNote: 'Too close to call',
     })
-    const view = toDetailView(results)
+    const view = await toDetailView(results)
     expect(view.status).toBe('completed')
     expect('outcome' in view && view.outcome).toBe('playoff')
     if ('outcome' in view && view.outcome === 'playoff') {
@@ -178,7 +190,7 @@ describe('toDetailView — status discrimination', () => {
     }
   })
 
-  it('maps completed with no winner and no data to playoff fallback', () => {
+  it('maps completed with no winner and no data to playoff fallback', async () => {
     const results = makeResults({
       status: 'completed',
       winnerId: null,
@@ -187,7 +199,7 @@ describe('toDetailView — status discrimination', () => {
         makeVariantStats('v-b', 'B', 0, 0, false),
       ],
     })
-    const view = toDetailView(results)
+    const view = await toDetailView(results)
     expect(view.status).toBe('completed')
     expect('outcome' in view && view.outcome).toBe('playoff')
   })
@@ -598,7 +610,7 @@ describe('computeGates — edge cases', () => {
 /* ================================================================== */
 
 describe('toDetailView — winner lift', () => {
-  it('computes lift as percentage relative to original CTR', () => {
+  it('computes lift as percentage relative to original CTR', async () => {
     const results = makeResults({
       status: 'completed',
       winnerId: 'v-b',
@@ -608,14 +620,14 @@ describe('toDetailView — winner lift', () => {
         makeVariantStats('v-b', 'B', 5000, 350, false),          // 7% CTR
       ],
     })
-    const view = toDetailView(results)
+    const view = await toDetailView(results)
     if ('outcome' in view && view.outcome === 'winner') {
       // lift = ((7 - 5) / 5) * 100 = 40%
       expect(view.lift).toBeCloseTo(40, 0)
     }
   })
 
-  it('returns 0 lift when original CTR is 0', () => {
+  it('returns 0 lift when original CTR is 0', async () => {
     const results = makeResults({
       status: 'completed',
       winnerId: 'v-b',
@@ -625,7 +637,7 @@ describe('toDetailView — winner lift', () => {
         makeVariantStats('v-b', 'B', 5000, 350, false),
       ],
     })
-    const view = toDetailView(results)
+    const view = await toDetailView(results)
     if ('outcome' in view && view.outcome === 'winner') {
       expect(view.lift).toBe(0)
     }
@@ -637,21 +649,21 @@ describe('toDetailView — winner lift', () => {
 /* ================================================================== */
 
 describe('toDetailView — confTrend and daily arrays', () => {
-  it('produces empty confTrend when confidence is 0', () => {
+  it('produces empty confTrend when confidence is 0', async () => {
     const results = makeResults({ confidence: 0 })
-    const view = toDetailView(results)
+    const view = await toDetailView(results)
     expect(view.confTrend).toEqual([])
   })
 
-  it('produces single-element confTrend when confidence is set', () => {
+  it('produces single-element confTrend when confidence is set', async () => {
     const results = makeResults({ confidence: 0.88 })
-    const view = toDetailView(results)
+    const view = await toDetailView(results)
     expect(view.confTrend).toEqual([88])
   })
 
-  it('builds daily arrays keyed by DisplayLabel', () => {
+  it('builds daily arrays keyed by DisplayLabel', async () => {
     const results = makeResults()
-    const view = toDetailView(results)
+    const view = await toDetailView(results)
     expect(view.daily).toHaveProperty('A')
     expect(view.daily).toHaveProperty('B')
   })
