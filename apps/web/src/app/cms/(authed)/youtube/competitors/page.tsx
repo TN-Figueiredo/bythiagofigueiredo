@@ -21,5 +21,51 @@ export default async function CompetitorsPage() {
     .order('detected_at', { ascending: false })
     .limit(20)
 
-  return <CompetitorDashboard channels={channels ?? []} changes={changes ?? []} />
+  // Fetch videos per channel and compute outliers
+  const safeChannels = channels ?? []
+  const channelIds = safeChannels.map(ch => ch.id)
+
+  const { data: allVideos } = channelIds.length > 0
+    ? await supabase
+        .from('competitor_videos')
+        .select('id, competitor_channel_id, video_id, title, thumbnail_url, view_count, published_at')
+        .in('competitor_channel_id', channelIds)
+    : { data: [] as Array<{ id: string; competitor_channel_id: string; video_id: string; title: string | null; thumbnail_url: string | null; view_count: number | null; published_at: string | null }> }
+
+  // Group videos by channel
+  const videosByChannel = new Map<string, typeof allVideos>()
+  for (const v of allVideos ?? []) {
+    const list = videosByChannel.get(v.competitor_channel_id) ?? []
+    list.push(v)
+    videosByChannel.set(v.competitor_channel_id, list)
+  }
+
+  // Compute outliers: videos with views > 2x channel average
+  const outliers: Array<{
+    video: NonNullable<typeof allVideos>[number]
+    channelName: string
+    channelThumb: string | null
+    multiplier: number
+  }> = []
+
+  for (const ch of safeChannels) {
+    const videos = videosByChannel.get(ch.id) ?? []
+    if (videos.length < 3) continue
+    const avgViews = videos.reduce((sum, v) => sum + (v.view_count ?? 0), 0) / videos.length
+    if (avgViews <= 0) continue
+    for (const v of videos) {
+      const mult = (v.view_count ?? 0) / avgViews
+      if (mult >= 2.0) {
+        outliers.push({
+          video: v,
+          channelName: ch.channel_name,
+          channelThumb: ch.thumbnail_url,
+          multiplier: mult,
+        })
+      }
+    }
+  }
+  outliers.sort((a, b) => b.multiplier - a.multiplier)
+
+  return <CompetitorDashboard channels={safeChannels} changes={changes ?? []} outliers={outliers} />
 }
