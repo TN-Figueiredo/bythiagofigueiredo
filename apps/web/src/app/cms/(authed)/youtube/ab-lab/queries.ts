@@ -838,13 +838,36 @@ export async function getSuggestedVideos(siteId: string): Promise<SuggestedVideo
 
   if (eligible.length === 0) return []
 
-  // 4. Compute channel_avg_CTR from videos with CTR > 0 and view_count >= 1000
+  // 4. Compute channel average using rolling 28-day window from analytics
+  const twentyEightDaysAgo = new Date(Date.now() - 28 * 86400000).toISOString().slice(0, 10)
+  const { data: recentAnalytics } = await supabase
+    .from('youtube_video_analytics')
+    .select('youtube_video_id, views')
+    .eq('site_id', siteId)
+    .gte('date', twentyEightDaysAgo)
+
+  // Compute total views per video in last 28d
+  const viewsLast28d = new Map<string, number>()
+  for (const row of recentAnalytics ?? []) {
+    viewsLast28d.set(
+      row.youtube_video_id as string,
+      (viewsLast28d.get(row.youtube_video_id as string) ?? 0) + (row.views as number),
+    )
+  }
+
+  // channelAvgViews28d = average across videos with data
+  const videosWithRecentData = [...viewsLast28d.values()]
+  const channelAvgViews28d = videosWithRecentData.length > 0
+    ? videosWithRecentData.reduce((s, v) => s + v, 0) / videosWithRecentData.length
+    : 1
+
+  // Keep legacy CTR avg for grade display
   const withCtr = eligible.filter(v => (v.ctr as number | null) != null && (v.ctr as number) > 0)
   const channelAvgCtr = withCtr.length > 0
     ? withCtr.reduce((sum, v) => sum + (v.ctr as number), 0) / withCtr.length
     : 0
 
-  // 5. Score each video
+  // 5. Score each video using 28d rolling window
   type ScoredVideo = {
     id: string
     title: string
@@ -853,18 +876,18 @@ export async function getSuggestedVideos(siteId: string): Promise<SuggestedVideo
     viewCount: number
     score: number
     hasCtr: boolean
+    reason: string
   }
 
   const scored: ScoredVideo[] = eligible.map(v => {
     const ctr = (v.ctr as number | null) ?? 0
     const viewCount = v.view_count as number
-    const hasCtr = ctr > 0 && channelAvgCtr > 0
+    const videoViews28d = viewsLast28d.get(v.id as string) ?? 0
+    const ratio = channelAvgViews28d > 0 ? videoViews28d / channelAvgViews28d : 1
 
-    // score = views * (1 - CTR / channelAvgCtr)
-    // For videos without CTR data, use viewCount as fallback score
-    const score = hasCtr
-      ? viewCount * (1 - ctr / channelAvgCtr)
-      : viewCount
+    // Score: higher = more underperforming relative to channel average in last 28d
+    // video_views_28d / channelAvgViews28d < 1 means underperforming
+    const score = viewCount * Math.max(1 - ratio, 0.1)
 
     return {
       id: v.id as string,
@@ -873,7 +896,8 @@ export async function getSuggestedVideos(siteId: string): Promise<SuggestedVideo
       ctr,
       viewCount,
       score,
-      hasCtr,
+      hasCtr: ctr > 0 && channelAvgCtr > 0,
+      reason: '',
     }
   })
 
@@ -892,6 +916,22 @@ export async function getSuggestedVideos(siteId: string): Promise<SuggestedVideo
     }
   }
 
+  // 6b. Fatigue boost: +30% for videos with pending fatigue alerts
+  const { data: fatigueAlerts } = await supabase
+    .from('youtube_fatigue_alerts')
+    .select('video_id')
+    .eq('site_id', siteId)
+    .eq('status', 'pending')
+
+  const fatiguedVideoIds = new Set((fatigueAlerts ?? []).map(a => a.video_id as string))
+
+  for (const video of scored) {
+    if (fatiguedVideoIds.has(video.id)) {
+      video.score *= 1.3
+      video.reason = '⚠️ CTR em declínio'
+    }
+  }
+
   // 7. Sort by score DESC, limit 5
   scored.sort((a, b) => b.score - a.score)
   const top = scored.slice(0, 5)
@@ -904,9 +944,10 @@ export async function getSuggestedVideos(siteId: string): Promise<SuggestedVideo
       ? 'C'
       : ratio > 0.9 ? 'A' : ratio > 0.7 ? 'B' : ratio > 0.5 ? 'C' : ratio > 0.3 ? 'D' : 'F'
 
-    const reason = v.hasCtr
+    const baseReason = v.hasCtr
       ? `Score: ${Math.round(v.score).toLocaleString()} — ${belowPercent}% abaixo da média do canal`
       : `Alto alcance sem teste (${v.viewCount.toLocaleString()} views)`
+    const reason = v.reason ? `${v.reason} — ${baseReason}` : baseReason
 
     return {
       id: v.id,
