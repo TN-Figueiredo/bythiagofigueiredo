@@ -2,8 +2,27 @@
 
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
+import { createServerClient } from '@tn-figueiredo/auth-nextjs'
+import { cookies } from 'next/headers'
 import { getSiteContext } from '@/lib/cms/site-context'
 import type { ChannelKey, FrequencyPreset, NotificationDomain } from './types'
+
+async function getAuthenticatedUser() {
+  const cookieStore = await cookies()
+  const supabase = createServerClient({
+    env: {
+      apiBaseUrl: process.env.NEXT_PUBLIC_API_URL ?? '',
+      supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    },
+    cookies: {
+      getAll: () => cookieStore.getAll(),
+      setAll: () => {},
+    },
+  })
+  const { data: { user } } = await supabase.auth.getUser()
+  return user
+}
 
 /* ------------------------------------------------------------------ */
 /*  Preferences — save                                                 */
@@ -78,31 +97,49 @@ export async function savePreferences(input: SavePreferencesInput) {
 /* ------------------------------------------------------------------ */
 
 export async function markRead(id: string) {
+  const user = await getAuthenticatedUser()
+  if (!user) return
+
   const supabase = getSupabaseServiceClient()
-  await supabase.from('notifications').update({ read_at: new Date().toISOString() }).eq('id', id)
+  await supabase.from('notifications').update({ read_at: new Date().toISOString() }).eq('id', id).eq('user_id', user.id)
 }
 
 export async function markUnread(id: string) {
+  const user = await getAuthenticatedUser()
+  if (!user) return
+
   const supabase = getSupabaseServiceClient()
-  await supabase.from('notifications').update({ read_at: null }).eq('id', id)
+  await supabase.from('notifications').update({ read_at: null }).eq('id', id).eq('user_id', user.id)
 }
 
 export async function dismiss(id: string) {
+  const user = await getAuthenticatedUser()
+  if (!user) return
+
   const supabase = getSupabaseServiceClient()
-  await supabase.from('notifications').update({ dismissed_at: new Date().toISOString() }).eq('id', id)
+  await supabase.from('notifications').update({ dismissed_at: new Date().toISOString() }).eq('id', id).eq('user_id', user.id)
 }
 
 export async function markAllRead(siteId: string) {
+  const user = await getAuthenticatedUser()
+  if (!user) return
+
   const supabase = getSupabaseServiceClient()
-  await supabase.from('notifications').update({ read_at: new Date().toISOString() }).is('read_at', null).eq('site_id', siteId)
+  await supabase.from('notifications').update({ read_at: new Date().toISOString() }).is('read_at', null).eq('site_id', siteId).eq('user_id', user.id)
 }
 
 export async function bulkDismiss(ids: string[]) {
+  const user = await getAuthenticatedUser()
+  if (!user) return
+
   const supabase = getSupabaseServiceClient()
-  await supabase.from('notifications').update({ dismissed_at: new Date().toISOString() }).in('id', ids)
+  await supabase.from('notifications').update({ dismissed_at: new Date().toISOString() }).in('id', ids).eq('user_id', user.id)
 }
 
 export async function snooze(id: string, until: string) {
+  const user = await getAuthenticatedUser()
+  if (!user) return
+
   const supabase = getSupabaseServiceClient()
-  await supabase.from('notifications').update({ snoozed_until: until }).eq('id', id)
+  await supabase.from('notifications').update({ snoozed_until: until }).eq('id', id).eq('user_id', user.id)
 }

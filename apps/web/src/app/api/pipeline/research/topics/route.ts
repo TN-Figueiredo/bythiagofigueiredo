@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { authenticateRead, authenticateWrite, pipelineSuccess, parseBody } from '@/lib/pipeline/helpers'
 import { authToServiceContext, serviceErrorToResponse } from '@/lib/pipeline/services/http-adapter'
 import { listTopics, createTopic } from '@/lib/pipeline/services/research'
@@ -28,6 +29,7 @@ export async function POST(req: NextRequest) {
   try {
     const ctx = authToServiceContext(auth)
     const data = await createTopic(ctx, body)
+    revalidateTag('layout-counts')
     return pipelineSuccess(data, 201, auth)
   } catch (err) {
     return serviceErrorToResponse(err, auth)

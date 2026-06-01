@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { buildRateLimitHeaders } from '@/lib/pipeline/auth'
 import { authenticateRead, authenticateWrite, parseBody } from '@/lib/pipeline/helpers'
 import { authToServiceContext, serviceErrorToResponse } from '@/lib/pipeline/services/http-adapter'
@@ -44,6 +45,7 @@ export async function POST(req: NextRequest) {
     const ctx = authToServiceContext(auth)
     const result = await createResearchItem(ctx, body)
 
+    revalidateTag('layout-counts')
     const headers = buildRateLimitHeaders(auth)
     return NextResponse.json({ data: result.data }, { status: result.data.upserted ? 200 : 201, headers })
   } catch (err) {

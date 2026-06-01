@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { authenticateWrite, pipelineSuccess, parseBody } from '@/lib/pipeline/helpers'
 import { authToServiceContext, serviceErrorToResponse } from '@/lib/pipeline/services/http-adapter'
 import { updateTopic, deleteTopic } from '@/lib/pipeline/services/research'
@@ -16,6 +17,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   try {
     const ctx = authToServiceContext(auth)
     const data = await updateTopic(ctx, id, body)
+    revalidateTag('layout-counts')
     return pipelineSuccess(data, 200, auth)
   } catch (err) {
     return serviceErrorToResponse(err, auth)
@@ -32,6 +34,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   try {
     const ctx = authToServiceContext(auth)
     const data = await deleteTopic(ctx, id)
+    revalidateTag('layout-counts')
     return pipelineSuccess(data, 200, auth)
   } catch (err) {
     return serviceErrorToResponse(err, auth)

@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { authenticateWrite, pipelineSuccess } from '@/lib/pipeline/helpers'
 import { authToServiceContext, serviceErrorToResponse } from '@/lib/pipeline/services/http-adapter'
 import { removeResearchLink } from '@/lib/pipeline/services/research'
@@ -13,6 +14,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   try {
     const ctx = authToServiceContext(auth)
     const data = await removeResearchLink(ctx, id, linkId)
+    revalidateTag('layout-counts')
     return pipelineSuccess(data, 200, auth)
   } catch (err) {
     return serviceErrorToResponse(err, auth)

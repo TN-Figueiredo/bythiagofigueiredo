@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { authenticateWrite, pipelineSuccess, parseBody } from '@/lib/pipeline/helpers'
 import { authToServiceContext, serviceErrorToResponse } from '@/lib/pipeline/services/http-adapter'
 import { addResearchLink } from '@/lib/pipeline/services/research'
@@ -16,6 +17,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   try {
     const ctx = authToServiceContext(auth)
     const { data } = await addResearchLink(ctx, id, body)
+    revalidateTag('layout-counts')
     return pipelineSuccess(data, 201, auth)
   } catch (err) {
     return serviceErrorToResponse(err, auth)

@@ -19,9 +19,9 @@ export async function loadPipelineItemDetail(id: string, siteId: string) {
   const supabase = getSupabaseServiceClient()
 
   const [itemRes, historyRes, depsRes] = await Promise.all([
-    supabase.from('content_pipeline').select('id, site_id, code, stage, format, priority, status, language, title_pt, title_en, hook, synopsis, body_content, tags, production_checklist, format_metadata, sections, blog_post_id, scheduled_at, is_archived, version, created_at, updated_at, category, cover_image_url, social_config, social_post_id, materialized_rev_pt, materialized_rev_en').eq('id', id).eq('site_id', siteId).single(),
+    supabase.from('content_pipeline').select('id, site_id, code, stage, format, priority, language, title_pt, title_en, hook, synopsis, body_content, tags, production_checklist, format_metadata, sections, blog_post_id, scheduled_at, is_archived, version, created_at, updated_at, category, cover_image_url, social_config, social_post_id, materialized_rev_pt, materialized_rev_en').eq('id', id).eq('site_id', siteId).single(),
     supabase.from('content_pipeline_history').select('id, pipeline_id, event_type, from_value, to_value, changed_by, changed_at').eq('pipeline_id', id).order('changed_at', { ascending: false }).limit(20),
-    supabase.from('content_pipeline_dependencies').select('dependency_type, depends_on_pipeline:depends_on_id(code)').eq('pipeline_id', id),
+    supabase.from('pipeline_dependencies').select('dependency_type, depends_on_pipeline:content_pipeline!pipeline_dependencies_blocker_id_fkey(code)').eq('blocked_id', id),
   ])
 
   if (itemRes.error || !itemRes.data) notFound()

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { buildRateLimitHeaders } from '@/lib/pipeline/auth'
 import { authenticateWrite, parseBody } from '@/lib/pipeline/helpers'
 import { authToServiceContext, serviceErrorToResponse } from '@/lib/pipeline/services/http-adapter'
@@ -16,6 +17,7 @@ export async function POST(req: NextRequest) {
     const ctx = authToServiceContext(auth)
     const data = await importResearchItems(ctx, body)
 
+    revalidateTag('layout-counts')
     const headers = buildRateLimitHeaders(auth)
     return NextResponse.json({ data }, { headers })
   } catch (err) {

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { buildRateLimitHeaders } from '@/lib/pipeline/auth'
 import { authenticateRead, authenticateWrite, pipelineError, pipelineSuccess, parseBody } from '@/lib/pipeline/helpers'
 import { authToServiceContext, serviceErrorToResponse } from '@/lib/pipeline/services/http-adapter'
@@ -41,6 +42,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const ctx = authToServiceContext(auth)
     const { data, meta } = await updateResearchItem(ctx, id, body, expectedVersion)
 
+    revalidateTag('layout-counts')
     const headers = buildRateLimitHeaders(auth)
     return NextResponse.json({ data, meta }, { headers })
   } catch (err) {
@@ -67,6 +69,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   try {
     const ctx = authToServiceContext(auth)
     const data = await deleteResearchItem(ctx, id)
+    revalidateTag('layout-counts')
     return pipelineSuccess(data, 200, auth)
   } catch (err) {
     return serviceErrorToResponse(err, auth)
