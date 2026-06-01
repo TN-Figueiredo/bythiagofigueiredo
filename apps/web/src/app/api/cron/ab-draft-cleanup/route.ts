@@ -1,5 +1,6 @@
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { withCronLock, newRunId } from '@/lib/logger'
+import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
 import * as Sentry from '@sentry/nextjs'
 
 const JOB = 'ab-draft-cleanup'
@@ -34,6 +35,7 @@ export async function GET(req: Request): Promise<Response> {
 
     if (draftErr) {
       Sentry.captureException(draftErr, { tags: { component: JOB } })
+      await recordCronFailure('ab-draft-cleanup', draftErr.message)
       return { status: 'error' as const, error: draftErr.message }
     }
 
@@ -46,6 +48,7 @@ export async function GET(req: Request): Promise<Response> {
 
       if (updateErr) {
         Sentry.captureException(updateErr, { tags: { component: JOB } })
+        await recordCronFailure('ab-draft-cleanup', updateErr.message)
         return { status: 'error' as const, error: updateErr.message }
       }
       archived = ids.length
@@ -63,6 +66,7 @@ export async function GET(req: Request): Promise<Response> {
 
     if (oldErr) {
       Sentry.captureException(oldErr, { tags: { component: JOB } })
+      await recordCronFailure('ab-draft-cleanup', oldErr.message)
       return { status: 'error' as const, error: oldErr.message }
     }
 
@@ -103,6 +107,7 @@ export async function GET(req: Request): Promise<Response> {
       }
     }
 
+    await recordCronSuccess('ab-draft-cleanup', 'info')
     return { status: 'ok' as const, ok: true, archived, hardDeleted }
   })
 }

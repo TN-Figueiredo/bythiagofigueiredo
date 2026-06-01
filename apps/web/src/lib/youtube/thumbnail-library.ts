@@ -114,6 +114,35 @@ export async function checkAndPersistLongevity(
     status,
     checked_at: new Date().toISOString(),
   }, { onConflict: 'library_id,checkpoint_days' })
+
+  if (status === 'fading') {
+    // Get video_id from the library entry
+    const { data: entry } = await supabase
+      .from('thumbnail_library')
+      .select('youtube_video_id, site_id')
+      .eq('id', libraryId)
+      .single()
+
+    if (entry?.youtube_video_id) {
+      // Check if fatigue alert already exists
+      const { data: existing } = await supabase
+        .from('youtube_fatigue_alerts')
+        .select('id')
+        .eq('video_id', entry.youtube_video_id)
+        .eq('status', 'pending')
+        .maybeSingle()
+
+      if (!existing) {
+        await supabase.from('youtube_fatigue_alerts').insert({
+          video_id: entry.youtube_video_id,
+          site_id: entry.site_id,
+          z_score: -2.0, // synthetic score for longevity-triggered fatigue
+          expected_ctr: 0, // not computed from regression
+          actual_ctr: 0,
+        })
+      }
+    }
+  }
 }
 
 export async function runLongevityChecks(siteId: string): Promise<number> {
