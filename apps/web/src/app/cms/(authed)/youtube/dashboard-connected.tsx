@@ -110,29 +110,29 @@ type ScheduleSaveState = 'idle' | 'saving' | 'success' | 'error'
 function SyncStatusBadge({ channel }: { channel: ChannelDashboard }) {
   if (!channel.lastSync) {
     return (
-      <span className="text-xs text-cms-text-dim">No sync data</span>
+      <span className="text-xs text-cms-text-dim">Sem dados de sync</span>
     )
   }
   const { status, videosFound, videosInserted, videosUpdated } = channel.lastSync
   if (status === 'failed') {
     return (
       <span className="line-clamp-1 text-xs text-red-400" title={channel.lastSync?.errorMessage ?? undefined}>
-        Last sync failed{channel.lastSync?.errorMessage ? `: ${channel.lastSync.errorMessage}` : ''}
+        Último sync falhou{channel.lastSync?.errorMessage ? `: ${channel.lastSync.errorMessage}` : ''}
       </span>
     )
   }
   if (status === 'completed') {
     const parts: string[] = []
-    if (videosInserted > 0) parts.push(`${videosInserted} new`)
-    if (videosUpdated > 0) parts.push(`${videosUpdated} updated`)
-    const detail = parts.length > 0 ? parts.join(', ') : 'no changes'
+    if (videosInserted > 0) parts.push(`${videosInserted} novos`)
+    if (videosUpdated > 0) parts.push(`${videosUpdated} atualizados`)
+    const detail = parts.length > 0 ? parts.join(', ') : 'sem mudanças'
     return (
       <span className="text-xs text-cms-text-dim">
-        Last sync: {videosFound} checked, {detail}
+        Último sync: {videosFound} verificados, {detail}
       </span>
     )
   }
-  return <span className="text-xs text-amber-400">Syncing…</span>
+  return <span className="text-xs text-amber-400">Sincronizando…</span>
 }
 
 function ReconnectTokenButton() {
@@ -263,7 +263,7 @@ function ChannelCard({ channel }: { channel: ChannelDashboard }) {
                 : 'border border-cms-border text-cms-text-muted hover:bg-cms-surface-hover'
             }`}
           >
-            {isPending ? '⟳ …' : neverSynced ? '⟳ First Sync' : '⟳ Sync'}
+            {isPending ? '⟳ …' : neverSynced ? '⟳ Primeiro Sync' : '⟳ Sync'}
           </button>
         </div>
       </div>
@@ -277,7 +277,7 @@ function ChannelCard({ channel }: { channel: ChannelDashboard }) {
       {channel.videoCount === 0 && neverSynced ? (
         <div className="px-4 py-6 text-center">
           <p className="text-sm text-cms-text-dim">
-            Canal sem vídeos — clique em &lsquo;First Sync&rsquo; para importar
+            Canal sem vídeos — clique em &lsquo;Primeiro Sync&rsquo; para importar
           </p>
         </div>
       ) : (
@@ -288,24 +288,24 @@ function ChannelCard({ channel }: { channel: ChannelDashboard }) {
               <span className="font-semibold text-cms-text">{channel.videoCount}</span> videos
             </div>
             <div className="text-xs text-cms-text-muted">
-              <span className="font-semibold text-cms-text">{formatCount(channel.subscriberCount)}</span> subscribers
+              <span className="font-semibold text-cms-text">{formatCount(channel.subscriberCount)}</span> inscritos
             </div>
             <div className="text-xs text-cms-text-muted">
-              <span className="font-semibold text-cms-text">{formatCount(channel.totalViews)}</span> total views
+              <span className="font-semibold text-cms-text">{formatCount(channel.totalViews)}</span> views totais
             </div>
             <div className="text-xs text-cms-text-muted">
-              <span className="font-semibold text-cms-text">{formatCount(channel.totalLikes)}</span> total likes
+              <span className="font-semibold text-cms-text">{formatCount(channel.totalLikes)}</span> curtidas totais
             </div>
             {(channel.featuredCount > 0 || channel.hiddenCount > 0) && (
               <>
                 {channel.featuredCount > 0 && (
                   <div className="text-xs text-cms-text-muted">
-                    <span className="font-semibold text-amber-400">★ {channel.featuredCount}</span> featured
+                    <span className="font-semibold text-amber-400">★ {channel.featuredCount}</span> destaque
                   </div>
                 )}
                 {channel.hiddenCount > 0 && (
                   <div className="text-xs text-cms-text-muted">
-                    <span className="font-semibold text-cms-text-dim">{channel.hiddenCount}</span> hidden
+                    <span className="font-semibold text-cms-text-dim">{channel.hiddenCount}</span> oculto
                   </div>
                 )}
               </>
@@ -341,8 +341,8 @@ function ChannelCard({ channel }: { channel: ChannelDashboard }) {
                   pinState === 'expiring' ? 'font-medium text-amber-500' : 'text-cms-text-dim'
                 }`}>
                   {pinState === 'expiring'
-                    ? `⚠ Expires ${daysLeft(channel.pinnedVideo.pinnedUntil) <= 1 ? 'tomorrow' : `in ${daysLeft(channel.pinnedVideo.pinnedUntil)} days`}`
-                    : `until ${new Date(channel.pinnedVideo.pinnedUntil).toLocaleDateString('en', { month: 'short', day: 'numeric' })} (${daysLeft(channel.pinnedVideo.pinnedUntil)}d left)`
+                    ? `⚠ Expira ${daysLeft(channel.pinnedVideo.pinnedUntil) <= 1 ? 'amanhã' : `em ${daysLeft(channel.pinnedVideo.pinnedUntil)} dias`}`
+                    : `até ${new Date(channel.pinnedVideo.pinnedUntil).toLocaleDateString('pt-BR', { month: 'short', day: 'numeric' })} (${daysLeft(channel.pinnedVideo.pinnedUntil)}d restantes)`
                   }
                 </span>
               )}
@@ -379,7 +379,7 @@ function ChannelCard({ channel }: { channel: ChannelDashboard }) {
                         })}
                         className="text-xs font-medium text-emerald-400 hover:underline disabled:opacity-50"
                       >
-                        Extend 7d →
+                        Estender 7d →
                       </button>
                       <span className="text-cms-text-dim">|</span>
                     </>
@@ -388,7 +388,7 @@ function ChannelCard({ channel }: { channel: ChannelDashboard }) {
                     href={`/cms/youtube/videos?channel=${channel.id}`}
                     className="text-xs font-medium text-cms-accent hover:underline"
                   >
-                    Change pick →
+                    Trocar vídeo →
                   </Link>
                   <span className="text-cms-text-dim">|</span>
                   <button
@@ -396,28 +396,28 @@ function ChannelCard({ channel }: { channel: ChannelDashboard }) {
                     onClick={() => setShowUnpinConfirm(true)}
                     className="text-xs text-red-400 hover:text-red-300"
                   >
-                    Unpin
+                    Desafixar
                   </button>
                 </div>
               </>
             ) : pinState === 'expired' ? (
               <div className="py-2 text-center">
-                <p className="mb-2 text-sm text-red-400">Pin expired — home page shows latest video as fallback</p>
+                <p className="mb-2 text-sm text-red-400">Fixação expirada — home page mostra último vídeo como fallback</p>
                 <Link
                   href={`/cms/youtube/videos?channel=${channel.id}`}
                   className="inline-flex items-center gap-1 rounded bg-cms-accent/10 px-3 py-1.5 text-xs font-medium text-cms-accent hover:bg-cms-accent/20"
                 >
-                  ☆ Choose New Pick →
+                  ☆ Escolher Novo Vídeo →
                 </Link>
               </div>
             ) : (
               <div className="py-2 text-center">
-                <p className="mb-2 text-sm text-cms-text-dim">No video pinned this week</p>
+                <p className="mb-2 text-sm text-cms-text-dim">Nenhum vídeo fixado esta semana</p>
                 <Link
                   href={`/cms/youtube/videos?channel=${channel.id}`}
                   className="inline-flex items-center gap-1 rounded bg-cms-accent/10 px-3 py-1.5 text-xs font-medium text-cms-accent hover:bg-cms-accent/20"
                 >
-                  ☆ Choose Weekly Pick →
+                  ☆ Escolher Vídeo da Semana →
                 </Link>
               </div>
             )}
@@ -426,9 +426,9 @@ function ChannelCard({ channel }: { channel: ChannelDashboard }) {
           {/* Unpin confirmation dialog */}
           {showUnpinConfirm && (
             <div className="border-t border-cms-border px-4 py-3">
-              <p className="mb-1 text-sm font-medium text-cms-text">Remove weekly pick?</p>
+              <p className="mb-1 text-sm font-medium text-cms-text">Remover vídeo da semana?</p>
               <p className="mb-3 text-xs text-cms-text-muted">
-                The home page will fall back to showing the latest video for this channel.
+                A home page mostrará o último vídeo deste canal.
               </p>
               <div className="flex justify-end gap-2">
                 <button
@@ -436,7 +436,7 @@ function ChannelCard({ channel }: { channel: ChannelDashboard }) {
                   onClick={() => setShowUnpinConfirm(false)}
                   className="rounded border border-cms-border px-3 py-1 text-xs text-cms-text-muted hover:bg-cms-surface-hover"
                 >
-                  Cancel
+                  Cancelar
                 </button>
                 <button
                   type="button"
@@ -444,7 +444,7 @@ function ChannelCard({ channel }: { channel: ChannelDashboard }) {
                   onClick={handleUnpin}
                   className="rounded bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-500 disabled:opacity-50"
                 >
-                  Unpin
+                  Desafixar
                 </button>
               </div>
             </div>
@@ -534,7 +534,7 @@ function ChannelScheduleEditor({ channel }: { channel: ChannelDashboard }) {
   return (
     <form onSubmit={handleSave} className="border-t border-cms-border px-4 py-4 space-y-4">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-wider text-cms-text-muted">Schedule Config</span>
+        <span className="text-xs font-semibold uppercase tracking-wider text-cms-text-muted">Configuração de Agenda</span>
         <label className="flex items-center gap-2 text-xs text-cms-text-muted">
           <input
             type="checkbox"
@@ -542,27 +542,27 @@ function ChannelScheduleEditor({ channel }: { channel: ChannelDashboard }) {
             onChange={(e) => setSyncEnabled(e.target.checked)}
             className="accent-indigo-500"
           />
-          Sync enabled
+          Sync ativado
         </label>
       </div>
 
       {syncEnabled && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-cms-text-muted">Posting Schedule</span>
+            <span className="text-xs font-medium text-cms-text-muted">Agenda de Publicação</span>
             <button
               type="button"
               onClick={addGroup}
               disabled={groups.length >= 3}
-              title={groups.length >= 3 ? 'Max 3 groups' : undefined}
+              title={groups.length >= 3 ? 'Máximo 3 grupos' : undefined}
               className="text-xs text-indigo-400 hover:text-indigo-300 disabled:opacity-50"
             >
-              + Add group
+              + Adicionar grupo
             </button>
           </div>
 
           {groups.length === 0 && (
-            <p className="text-xs text-cms-text-dim">No schedule configured. Daily cron (07:00) still syncs.</p>
+            <p className="text-xs text-cms-text-dim">Nenhuma agenda configurada. Cron diário (07:00) ainda sincroniza.</p>
           )}
 
           {groups.map((group, groupIdx) => (
@@ -610,7 +610,7 @@ function ChannelScheduleEditor({ channel }: { channel: ChannelDashboard }) {
           ))}
 
           <div className="space-y-1">
-            <label className="text-xs font-medium text-cms-text-muted">Schedule Label (public site)</label>
+            <label className="text-xs font-medium text-cms-text-muted">Label da Agenda (site público)</label>
             <input
               type="text"
               value={scheduleLabel}
@@ -618,14 +618,14 @@ function ChannelScheduleEditor({ channel }: { channel: ChannelDashboard }) {
               placeholder={deriveScheduleLabel(explodeGroups(groups), channel.locale) ?? 'Auto-derived from schedules'}
               className="w-full rounded border border-cms-border bg-cms-surface px-2 py-1 text-xs text-cms-text placeholder:text-cms-text-dim focus:outline-none focus:ring-1 focus:ring-indigo-500"
             />
-            <p className="text-[10px] text-cms-text-dim">Leave empty to auto-derive from posting schedule.</p>
+            <p className="text-[10px] text-cms-text-dim">Deixe vazio para derivar automaticamente da agenda.</p>
           </div>
         </div>
       )}
 
       <div className="flex items-center justify-end gap-2 pt-1">
-        {saveState === 'success' && <span className="text-xs text-emerald-400">Saved</span>}
-        {saveState === 'error' && <span className="text-xs text-red-400">Error saving</span>}
+        {saveState === 'success' && <span className="text-xs text-emerald-400">Salvo</span>}
+        {saveState === 'error' && <span className="text-xs text-red-400">Erro ao salvar</span>}
         <button
           type="submit"
           disabled={saveState === 'saving'}
@@ -634,7 +634,7 @@ function ChannelScheduleEditor({ channel }: { channel: ChannelDashboard }) {
           {saveState === 'saving' && (
             <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />
           )}
-          Save
+          Salvar
         </button>
       </div>
     </form>
@@ -645,9 +645,9 @@ export function DashboardConnected({ channels, uncategorizedCount }: Props) {
   if (channels.length === 0) {
     return (
       <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface px-6 py-16 text-center">
-        <p className="text-lg font-medium text-cms-text">No YouTube channels configured</p>
+        <p className="text-lg font-medium text-cms-text">Nenhum canal YouTube configurado</p>
         <p className="mt-2 text-sm text-cms-text-muted">
-          Use the YouTube API lookup in the admin panel to add channels.
+          Use a busca da API do YouTube no painel admin para adicionar canais.
         </p>
       </div>
     )
@@ -659,13 +659,13 @@ export function DashboardConnected({ channels, uncategorizedCount }: Props) {
       {uncategorizedCount > 0 && (
         <div className="flex items-center gap-2 rounded-[var(--cms-radius)] border border-amber-900/40 bg-amber-900/10 px-4 py-2.5">
           <span className="text-sm text-amber-400">
-            {uncategorizedCount} video{uncategorizedCount !== 1 ? 's' : ''} with pending category suggestions
+            {uncategorizedCount} video{uncategorizedCount !== 1 ? 's' : ''} com sugestões de categoria pendentes
           </span>
           <Link
             href="/cms/youtube/videos"
             className="ml-auto text-xs font-medium text-cms-accent hover:underline"
           >
-            Review →
+            Revisar →
           </Link>
         </div>
       )}
