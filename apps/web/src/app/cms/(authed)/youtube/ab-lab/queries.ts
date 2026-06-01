@@ -839,6 +839,27 @@ export async function getSuggestedVideos(siteId: string): Promise<SuggestedVideo
 
   if (eligible.length === 0) return []
 
+  // 3b. Fetch latest grades from video_grade_history (6-axis scoring)
+  const eligibleIds = eligible.map(v => v.id as string)
+  const { data: latestGrades } = await supabase
+    .from('video_grade_history')
+    .select('youtube_video_id, grade, score, ctr, retention, reach, engagement, week_iso')
+    .eq('site_id', siteId)
+    .in('youtube_video_id', eligibleIds)
+    .order('recorded_at', { ascending: false })
+
+  const gradeMap = new Map<string, { grade: SuggestedVideo['grade']; score: number; ctr: number | null }>()
+  for (const g of latestGrades ?? []) {
+    const vid = g.youtube_video_id as string
+    if (!gradeMap.has(vid)) {
+      gradeMap.set(vid, {
+        grade: g.grade as SuggestedVideo['grade'],
+        score: Number(g.score),
+        ctr: g.ctr != null ? Number(g.ctr) : null,
+      })
+    }
+  }
+
   // 4. Compute channel average using rolling 28-day window from analytics
   const twentyEightDaysAgo = new Date(Date.now() - 28 * 86400000).toISOString().slice(0, 10)
   const { data: recentAnalytics } = await supabase
@@ -886,9 +907,12 @@ export async function getSuggestedVideos(siteId: string): Promise<SuggestedVideo
     const videoViews28d = viewsLast28d.get(v.id as string) ?? 0
     const ratio = channelAvgViews28d > 0 ? videoViews28d / channelAvgViews28d : 1
 
-    // Score: higher = more underperforming relative to channel average in last 28d
-    // video_views_28d / channelAvgViews28d < 1 means underperforming
-    const score = viewCount * Math.max(1 - ratio, 0.1)
+    // Use grade-based scoring when available, fall back to crude formula
+    const gradeData = gradeMap.get(v.id as string)
+    const gradePenalty = gradeData
+      ? (gradeData.grade === 'D' ? 3 : gradeData.grade === 'C' ? 2 : gradeData.grade === 'B' ? 1 : 0.5)
+      : 1
+    const score = viewCount * gradePenalty * Math.max(1 - ratio, 0.1)
 
     return {
       id: v.id as string,
@@ -941,9 +965,8 @@ export async function getSuggestedVideos(siteId: string): Promise<SuggestedVideo
   return top.map(v => {
     const ratio = channelAvgCtr > 0 && v.hasCtr ? v.ctr / channelAvgCtr : 0
     const belowPercent = Math.round((1 - ratio) * 100)
-    const grade: SuggestedVideo['grade'] = !v.hasCtr
-      ? 'C'
-      : ratio > 0.9 ? 'A' : ratio > 0.7 ? 'B' : ratio > 0.5 ? 'C' : ratio > 0.3 ? 'D' : 'F'
+    const grade: SuggestedVideo['grade'] = gradeMap.get(v.id)?.grade
+      ?? (!v.hasCtr ? 'C' : ratio > 0.9 ? 'A' : ratio > 0.7 ? 'B' : ratio > 0.5 ? 'C' : ratio > 0.3 ? 'D' : 'F')
 
     const baseReason = v.hasCtr
       ? `Score: ${Math.round(v.score).toLocaleString()} — ${belowPercent}% abaixo da média do canal`
