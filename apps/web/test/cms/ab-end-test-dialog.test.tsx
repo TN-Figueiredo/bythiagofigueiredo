@@ -36,26 +36,26 @@ const mockTest = {
 
 describe('AbEndTestDialog', () => {
   it('renders with "End Test" title', () => {
-    render(<AbEndTestDialog test={mockTest} onClose={vi.fn()} />)
+    render(<AbEndTestDialog testId={mockTest.id} variants={mockTest.variants} confidenceThreshold={mockTest.config.confidence_threshold} onClose={vi.fn()} />)
     expect(screen.getByText('End Test')).toBeTruthy()
   })
 
   it('shows 3 radio options: Apply leading, Keep original, Archive', () => {
-    render(<AbEndTestDialog test={mockTest} onClose={vi.fn()} />)
+    render(<AbEndTestDialog testId={mockTest.id} variants={mockTest.variants} confidenceThreshold={mockTest.config.confidence_threshold} onClose={vi.fn()} />)
     expect(screen.getByText('Apply leading variant')).toBeTruthy()
     expect(screen.getByText('Keep original')).toBeTruthy()
     expect(screen.getByText('Archive without applying')).toBeTruthy()
   })
 
   it('"Apply leading" is selected by default', () => {
-    render(<AbEndTestDialog test={mockTest} onClose={vi.fn()} />)
+    render(<AbEndTestDialog testId={mockTest.id} variants={mockTest.variants} confidenceThreshold={mockTest.config.confidence_threshold} onClose={vi.fn()} />)
     const radios = screen.getAllByRole('radio') as HTMLInputElement[]
     const leadingRadio = radios.find((r) => r.value === 'leading')!
     expect(leadingRadio.checked).toBe(true)
   })
 
   it('clicking option changes selection', () => {
-    render(<AbEndTestDialog test={mockTest} onClose={vi.fn()} />)
+    render(<AbEndTestDialog testId={mockTest.id} variants={mockTest.variants} confidenceThreshold={mockTest.config.confidence_threshold} onClose={vi.fn()} />)
     const radios = screen.getAllByRole('radio') as HTMLInputElement[]
     const archiveRadio = radios.find((r) => r.value === 'archive')!
     fireEvent.click(archiveRadio)
@@ -63,12 +63,12 @@ describe('AbEndTestDialog', () => {
   })
 
   it('confirm button shows "Apply & End" for leading option', () => {
-    render(<AbEndTestDialog test={mockTest} onClose={vi.fn()} />)
+    render(<AbEndTestDialog testId={mockTest.id} variants={mockTest.variants} confidenceThreshold={mockTest.config.confidence_threshold} onClose={vi.fn()} />)
     expect(screen.getByText('Apply & End')).toBeTruthy()
   })
 
   it('confirm button shows "Keep Original & End" for original option', () => {
-    render(<AbEndTestDialog test={mockTest} onClose={vi.fn()} />)
+    render(<AbEndTestDialog testId={mockTest.id} variants={mockTest.variants} confidenceThreshold={mockTest.config.confidence_threshold} onClose={vi.fn()} />)
     const radios = screen.getAllByRole('radio') as HTMLInputElement[]
     const originalRadio = radios.find((r) => r.value === 'original')!
     fireEvent.click(originalRadio)
@@ -76,7 +76,7 @@ describe('AbEndTestDialog', () => {
   })
 
   it('confirm button shows "Archive Test" for archive option', () => {
-    render(<AbEndTestDialog test={mockTest} onClose={vi.fn()} />)
+    render(<AbEndTestDialog testId={mockTest.id} variants={mockTest.variants} confidenceThreshold={mockTest.config.confidence_threshold} onClose={vi.fn()} />)
     const radios = screen.getAllByRole('radio') as HTMLInputElement[]
     const archiveRadio = radios.find((r) => r.value === 'archive')!
     fireEvent.click(archiveRadio)
@@ -85,21 +85,21 @@ describe('AbEndTestDialog', () => {
 
   it('cancel button calls onClose', () => {
     const onClose = vi.fn()
-    render(<AbEndTestDialog test={mockTest} onClose={onClose} />)
+    render(<AbEndTestDialog testId={mockTest.id} variants={mockTest.variants} confidenceThreshold={mockTest.config.confidence_threshold} onClose={onClose} />)
     fireEvent.click(screen.getByText('Cancel'))
     expect(onClose).toHaveBeenCalledOnce()
   })
 
   it('escape key calls onClose', () => {
     const onClose = vi.fn()
-    render(<AbEndTestDialog test={mockTest} onClose={onClose} />)
+    render(<AbEndTestDialog testId={mockTest.id} variants={mockTest.variants} confidenceThreshold={mockTest.config.confidence_threshold} onClose={onClose} />)
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(onClose).toHaveBeenCalledOnce()
   })
 
   it('clicking backdrop calls onClose', () => {
     const onClose = vi.fn()
-    const { container } = render(<AbEndTestDialog test={mockTest} onClose={onClose} />)
+    const { container } = render(<AbEndTestDialog testId={mockTest.id} variants={mockTest.variants} confidenceThreshold={mockTest.config.confidence_threshold} onClose={onClose} />)
     const backdrop = container.querySelector('[aria-hidden="true"]')!
     fireEvent.click(backdrop)
     expect(onClose).toHaveBeenCalledOnce()
