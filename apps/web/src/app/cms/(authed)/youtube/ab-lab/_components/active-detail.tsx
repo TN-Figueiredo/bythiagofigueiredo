@@ -17,6 +17,8 @@ import { MultiLine } from './multi-line'
 import { ABBATimeline } from './abba-timeline'
 import { FunnelRow } from './funnel-row'
 import { ClickMoment } from './click-moment'
+import { FeedView } from './feed-view'
+import { BayesCurves } from './bayes-curves'
 import { forceRotate, applyWinnerNow, cancelGracePeriod, acknowledgeAbTestDrift, resumeAbTest } from '../actions'
 import { DRIFT_STATUS_NOTE } from '@/lib/youtube/ab-types'
 import { usePollStats } from './use-poll-stats'
@@ -541,6 +543,30 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
           thumbUrl: view.variantThumbs.find(t => t.label === v.label)?.thumbUrl ?? null,
         }))}
       />
+
+      {/* Bayesian Curves */}
+      {view.variants.length >= 2 && (
+        <div className="rounded-lg border border-cms-border bg-cms-surface p-[20px] mb-[36px]">
+          <div className="flex items-center gap-[9px] mb-[16px]">
+            <BarChart3 size={17} className="text-cms-accent" aria-hidden="true" />
+            <h3 className="text-[19px] font-semibold text-cms-text m-0">Curvas Bayesianas</h3>
+          </div>
+          <BayesCurves variants={view.variants} />
+        </div>
+      )}
+
+      {/* YouTube Feed Preview */}
+      <div className="mt-[36px]">
+        <FeedView
+          videoTitle={view.videoTitle}
+          variants={view.variants.map(v => ({
+            label: v.label,
+            color: v.color,
+            ctr: v.ctr * 100,
+            thumbUrl: view.variantThumbs.find(t => t.label === v.label)?.thumbUrl ?? null,
+          }))}
+        />
+      </div>
 
       {showPause && (
         <AbPauseDialog

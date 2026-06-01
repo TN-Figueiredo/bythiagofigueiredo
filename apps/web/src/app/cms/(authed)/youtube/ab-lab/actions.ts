@@ -917,6 +917,10 @@ export async function endAbTest(
 
   if (updateError) return { ok: false, error: updateError.message }
 
+  if (winnerId) {
+    try { await autoImportWinner(testId, siteId) } catch { /* non-fatal */ }
+  }
+
   revalidateTag('youtube')
   revalidatePath('/cms/youtube/ab-lab')
   return { ok: true }
