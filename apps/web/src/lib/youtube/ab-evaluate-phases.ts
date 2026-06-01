@@ -1,9 +1,7 @@
 import * as Sentry from '@sentry/nextjs'
 import { ensureFreshToken } from '@/lib/social/token-refresh'
 import { calculateBayesianConfidence } from '@/lib/youtube/ab-statistics'
-import { setThumbnail, fetchVariantImageBuffer } from '@/lib/youtube/ab-youtube'
-import { updateVideoMetadata } from '@/lib/youtube/ab-metadata'
-import { resolveTemplates } from '@/lib/youtube/ab-templates'
+import { applyVariantToYouTube } from '@/lib/youtube/ab-apply'
 import { preflightTokenCheck } from '@/lib/youtube/ab-preflight'
 import { buildNotification } from '@/lib/youtube/notification-service'
 import { getIsoWeek } from '@/lib/youtube/analytics-sync'
@@ -198,35 +196,20 @@ export async function phaseEvaluateActiveTests(supabase: SupabaseClient): Promis
 
           const { accessToken } = await ensureFreshToken(test.site_id, 'youtube', channelRow?.channel_id)
 
-          // Apply thumbnail for thumbnail/combo tests
-          if (winner?.blob_url && (test.test_type === 'thumbnail' || test.test_type === 'combo')) {
-            const { buffer, contentType } = await fetchVariantImageBuffer(winner.blob_url)
-            await setThumbnail(video.youtube_video_id, buffer, contentType, accessToken)
-          }
-
-          // Apply title/description for title/description/combo tests
-          if (winner && (test.test_type === 'title' || test.test_type === 'description' || test.test_type === 'combo')) {
-            const titleToApply = (test.test_type === 'title' || test.test_type === 'combo')
-              ? (winner.title_text ?? test.original_title ?? null) : null
-            let descToApply: string | null = null
-            if (test.test_type === 'description' || test.test_type === 'combo') {
-              const rawDesc = winner.description_text ?? test.original_description ?? null
-              if (rawDesc) {
-                const { data: linkMappings } = await supabase
-                  .from('ab_test_tracked_links')
-                  .select('template_name, short_code')
-                  .eq('variant_id', winner.id)
-                const linkMap: Record<string, string> = {}
-                const shortDomain = process.env.LINKS_SHORT_DOMAIN ?? 'go.bythiagofigueiredo.com'
-                for (const lm of linkMappings ?? []) {
-                  linkMap[lm.template_name] = `https://${shortDomain}/${lm.short_code}`
-                }
-                descToApply = resolveTemplates(rawDesc, linkMap)
-              }
-            }
-            if (titleToApply || descToApply) {
-              await updateVideoMetadata(video.youtube_video_id, titleToApply, descToApply, accessToken)
-            }
+          if (winner) {
+            await applyVariantToYouTube({
+              youtubeVideoId: video.youtube_video_id,
+              accessToken,
+              testType: test.test_type as 'thumbnail' | 'title' | 'description' | 'combo',
+              variant: {
+                id: winner.id,
+                blob_url: winner.blob_url,
+                title_text: winner.title_text,
+                description_text: winner.description_text,
+              },
+              originalTitle: test.original_title,
+              originalDescription: test.original_description,
+            })
           }
         }
 
@@ -418,39 +401,27 @@ export async function phaseRetryFailedApplies(supabase: SupabaseClient): Promise
 
       if (!winner) throw new Error('winner_variant_not_found')
 
-      // Apply thumbnail (with blob HEAD validation)
+      // Validate blob asset before applying
       if (winner.blob_url && (pending.test_type === 'thumbnail' || pending.test_type === 'combo')) {
         const headRes = await fetch(winner.blob_url, { method: 'HEAD', signal: AbortSignal.timeout(5000) })
         if (!headRes.ok) throw new Error(`asset_missing: blob returned ${headRes.status}`)
-
-        const { buffer, contentType } = await fetchVariantImageBuffer(winner.blob_url)
-        await setThumbnail(video.youtube_video_id, buffer, contentType, preflight.accessToken)
       }
 
-      // Apply title/description
-      if (pending.test_type === 'title' || pending.test_type === 'description' || pending.test_type === 'combo') {
-        const titleToApply = (pending.test_type === 'title' || pending.test_type === 'combo')
-          ? (winner.title_text ?? pending.original_title ?? null) : null
-        let descToApply: string | null = null
-        if (pending.test_type === 'description' || pending.test_type === 'combo') {
-          const rawDesc = winner.description_text ?? pending.original_description ?? null
-          if (rawDesc) {
-            const { data: linkMappings } = await supabase
-              .from('ab_test_tracked_links')
-              .select('template_name, short_code')
-              .eq('variant_id', winner.id)
-            const linkMap: Record<string, string> = {}
-            const shortDomain = process.env.LINKS_SHORT_DOMAIN ?? 'go.bythiagofigueiredo.com'
-            for (const lm of linkMappings ?? []) {
-              linkMap[lm.template_name] = `https://${shortDomain}/${lm.short_code}`
-            }
-            descToApply = resolveTemplates(rawDesc, linkMap)
-          }
-        }
-        if (titleToApply || descToApply) {
-          await updateVideoMetadata(video.youtube_video_id, titleToApply, descToApply, preflight.accessToken)
-        }
-      }
+      const applyResult = await applyVariantToYouTube({
+        youtubeVideoId: video.youtube_video_id,
+        accessToken: preflight.accessToken,
+        testType: pending.test_type as 'thumbnail' | 'title' | 'description' | 'combo',
+        variant: {
+          id: winner.id,
+          blob_url: winner.blob_url,
+          title_text: winner.title_text,
+          description_text: winner.description_text,
+        },
+        originalTitle: pending.original_title,
+        originalDescription: pending.original_description,
+      })
+
+      if (!applyResult.ok) throw new Error(applyResult.error ?? 'apply failed')
 
       // Success — close cycle and mark completed
       await supabase

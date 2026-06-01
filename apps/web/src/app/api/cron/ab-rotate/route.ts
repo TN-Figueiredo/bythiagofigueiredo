@@ -3,16 +3,11 @@ import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { preflightTokenCheck } from '@/lib/youtube/ab-preflight'
 import { getNextVariantIndex } from '@/lib/youtube/ab-rotation'
-import {
-  setThumbnail,
-  fetchVariantImageBuffer,
-} from '@/lib/youtube/ab-youtube'
-import { updateVideoMetadata } from '@/lib/youtube/ab-metadata'
-import { resolveTemplates } from '@/lib/youtube/ab-templates'
+import { applyVariantToYouTube } from '@/lib/youtube/ab-apply'
 import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
 import { createNotification } from '@/lib/notifications/create'
 import { startAbTestInternal } from '@/lib/youtube/ab-start'
-import type { AbTestVariantRow, AppliedMetadata } from '@/lib/youtube/ab-types'
+import type { AbTestVariantRow } from '@/lib/youtube/ab-types'
 
 export const maxDuration = 120
 
@@ -158,46 +153,24 @@ export async function GET(req: NextRequest) {
         .eq('id', test.id)
 
       // Apply variant based on test type
-      const appliedMeta: AppliedMetadata = {}
       const testType = test.test_type ?? 'thumbnail'
 
-      if ((testType === 'thumbnail' || testType === 'combo') && nextVariant.blob_url) {
-        const { buffer, contentType } = await fetchVariantImageBuffer(nextVariant.blob_url)
-        await setThumbnail(video.youtube_video_id, buffer, contentType, accessToken)
-        appliedMeta.thumbnail_set = true
-      }
+      const applyResult = await applyVariantToYouTube({
+        youtubeVideoId: video.youtube_video_id,
+        accessToken,
+        testType: testType as 'thumbnail' | 'title' | 'description' | 'combo',
+        variant: {
+          id: nextVariant.id,
+          blob_url: nextVariant.blob_url,
+          title_text: nextVariant.title_text,
+          description_text: nextVariant.description_text,
+        },
+        originalTitle: test.original_title,
+        originalDescription: test.original_description,
+      })
 
-      if (testType === 'title' || testType === 'description' || testType === 'combo') {
-        let titleToSet: string | null = null
-        let descToSet: string | null = null
-
-        if (testType === 'title' || testType === 'combo') {
-          titleToSet = nextVariant.title_text ?? test.original_title ?? null
-        }
-        if (testType === 'description' || testType === 'combo') {
-          const rawDesc = nextVariant.description_text ?? test.original_description ?? null
-          if (rawDesc) {
-            const { data: linkMappings } = await supabase
-              .from('ab_test_tracked_links')
-              .select('template_name, short_code')
-              .eq('variant_id', nextVariant.id)
-
-            const linkMap: Record<string, string> = {}
-            const shortDomain = process.env.LINKS_SHORT_DOMAIN ?? 'go.bythiagofigueiredo.com'
-            for (const lm of linkMappings ?? []) {
-              linkMap[lm.template_name] = `https://${shortDomain}/${lm.short_code}`
-            }
-            descToSet = resolveTemplates(rawDesc, linkMap)
-            appliedMeta.links_resolved = linkMap
-          }
-        }
-
-        if (titleToSet || descToSet) {
-          await updateVideoMetadata(video.youtube_video_id, titleToSet, descToSet, accessToken)
-          appliedMeta.title_set = titleToSet
-          appliedMeta.description_set = descToSet
-        }
-      }
+      if (!applyResult.ok) throw new Error(applyResult.error ?? 'apply failed')
+      const appliedMeta = applyResult.meta
 
       // Snapshot latest poll stats before closing cycle
       const { data: cyclePolls } = await supabase

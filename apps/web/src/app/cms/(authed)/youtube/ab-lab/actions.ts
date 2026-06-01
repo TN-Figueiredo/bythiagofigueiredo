@@ -19,7 +19,8 @@ import { preflightTokenCheck } from '@/lib/youtube/ab-preflight'
 import { setThumbnail, fetchVariantImageBuffer } from '@/lib/youtube/ab-youtube'
 import { getVariantForCycle, getNextVariantIndex } from '@/lib/youtube/ab-rotation'
 import { captureOriginalMetadata, updateVideoMetadata } from '@/lib/youtube/ab-metadata'
-import { parseTemplateTokens, resolveTemplates } from '@/lib/youtube/ab-templates'
+import { parseTemplateTokens } from '@/lib/youtube/ab-templates'
+import { applyVariantToYouTube } from '@/lib/youtube/ab-apply'
 import { ensureTrackedLink } from '@/lib/links/auto-link'
 import { getChannelTier } from '@/lib/youtube/scoring'
 import { scoreForPrompt } from '@/lib/youtube/prompt-scoring'
@@ -1126,47 +1127,25 @@ export async function forceRotate(testId: string): Promise<{ ok: boolean; error?
     .eq('id', testId)
 
   // Apply variant based on test type (matches cron logic)
-  const appliedMeta: Record<string, unknown> = { trigger: 'manual' }
   const testType = (test.test_type as string) ?? 'thumbnail'
   const youtubeVideoId = video.youtube_video_id as string
 
-  if ((testType === 'thumbnail' || testType === 'combo') && nextVariant.blob_url) {
-    const { buffer, contentType } = await fetchVariantImageBuffer(nextVariant.blob_url)
-    await setThumbnail(youtubeVideoId, buffer, contentType, accessToken)
-    appliedMeta.thumbnail_set = true
-  }
+  const applyResult = await applyVariantToYouTube({
+    youtubeVideoId,
+    accessToken,
+    testType: testType as 'thumbnail' | 'title' | 'description' | 'combo',
+    variant: {
+      id: nextVariant.id,
+      blob_url: nextVariant.blob_url,
+      title_text: nextVariant.title_text,
+      description_text: nextVariant.description_text,
+    },
+    originalTitle: test.original_title as string | null,
+    originalDescription: test.original_description as string | null,
+  })
 
-  if (testType === 'title' || testType === 'description' || testType === 'combo') {
-    let titleToSet: string | null = null
-    let descToSet: string | null = null
-
-    if (testType === 'title' || testType === 'combo') {
-      titleToSet = nextVariant.title_text ?? (test.original_title as string | null) ?? null
-    }
-    if (testType === 'description' || testType === 'combo') {
-      const rawDesc = nextVariant.description_text ?? (test.original_description as string | null) ?? null
-      if (rawDesc) {
-        const { data: linkMappings } = await supabase
-          .from('ab_test_tracked_links')
-          .select('template_name, short_code')
-          .eq('variant_id', nextVariant.id)
-
-        const linkMap: Record<string, string> = {}
-        const shortDomain = process.env.LINKS_SHORT_DOMAIN ?? 'go.bythiagofigueiredo.com'
-        for (const lm of linkMappings ?? []) {
-          linkMap[lm.template_name as string] = `https://${shortDomain}/${lm.short_code}`
-        }
-        descToSet = resolveTemplates(rawDesc, linkMap)
-        appliedMeta.links_resolved = linkMap
-      }
-    }
-
-    if (titleToSet || descToSet) {
-      await updateVideoMetadata(youtubeVideoId, titleToSet, descToSet, accessToken)
-      appliedMeta.title_set = titleToSet
-      appliedMeta.description_set = descToSet
-    }
-  }
+  if (!applyResult.ok) return { ok: false, error: applyResult.error ?? 'apply failed' }
+  const appliedMeta: Record<string, unknown> = { trigger: 'manual', ...applyResult.meta }
 
   // Close old cycle + open new cycle AFTER YouTube confirms
   await supabase
@@ -1253,22 +1232,22 @@ export async function applyWinnerNow(
 
   // Apply based on test_type
   const testType = test.test_type as string
-  try {
-    if (testType === 'thumbnail' || testType === 'combo') {
-      if (variant.blob_url) {
-        const { buffer, contentType } = await fetchVariantImageBuffer(variant.blob_url as string)
-        await setThumbnail(video.youtube_video_id as string, buffer, contentType, preflight.accessToken)
-      }
-    }
-    if (testType === 'title' || testType === 'description' || testType === 'combo') {
-      const title = (variant.title_text as string | null) ?? (test.original_title as string | null)
-      const description = (variant.description_text as string | null) ?? (test.original_description as string | null)
-      if (title || description) {
-        await updateVideoMetadata(video.youtube_video_id as string, title, description, preflight.accessToken)
-      }
-    }
-  } catch (err) {
-    return { ok: false, error: `YouTube API error: ${(err as Error).message}` }
+  const applyResult = await applyVariantToYouTube({
+    youtubeVideoId: video.youtube_video_id as string,
+    accessToken: preflight.accessToken,
+    testType: testType as 'thumbnail' | 'title' | 'description' | 'combo',
+    variant: {
+      id: variant.id as string,
+      blob_url: variant.blob_url as string | null,
+      title_text: variant.title_text as string | null,
+      description_text: variant.description_text as string | null,
+    },
+    originalTitle: test.original_title as string | null,
+    originalDescription: test.original_description as string | null,
+  })
+
+  if (!applyResult.ok) {
+    return { ok: false, error: `YouTube API error: ${applyResult.error}` }
   }
 
   // Close the open cycle
