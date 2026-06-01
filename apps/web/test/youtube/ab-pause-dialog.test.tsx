@@ -36,12 +36,12 @@ const mockTest = {
 
 describe('AbPauseDialog', () => {
   it('renders with "Pause Test" title', () => {
-    render(<AbPauseDialog test={mockTest} onClose={vi.fn()} />)
+    render(<AbPauseDialog testId={mockTest.id} onClose={vi.fn()} />)
     expect(screen.getByRole('heading', { name: 'Pause Test' })).toBeTruthy()
   })
 
   it('shows explanation text about restoring original thumbnail', () => {
-    render(<AbPauseDialog test={mockTest} onClose={vi.fn()} />)
+    render(<AbPauseDialog testId={mockTest.id} onClose={vi.fn()} />)
     expect(screen.getByText('Pausing will restore the original thumbnail immediately.')).toBeTruthy()
     expect(screen.getByText(/All collected data is preserved/)).toBeTruthy()
     expect(screen.getByText(/You can resume at any time/)).toBeTruthy()
@@ -49,20 +49,20 @@ describe('AbPauseDialog', () => {
 
   it('cancel button calls onClose', () => {
     const onClose = vi.fn()
-    render(<AbPauseDialog test={mockTest} onClose={onClose} />)
+    render(<AbPauseDialog testId={mockTest.id} onClose={onClose} />)
     fireEvent.click(screen.getByText('Cancel'))
     expect(onClose).toHaveBeenCalledOnce()
   })
 
   it('escape key calls onClose', () => {
     const onClose = vi.fn()
-    render(<AbPauseDialog test={mockTest} onClose={onClose} />)
+    render(<AbPauseDialog testId={mockTest.id} onClose={onClose} />)
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(onClose).toHaveBeenCalledOnce()
   })
 
   it('Pause Test button renders', () => {
-    render(<AbPauseDialog test={mockTest} onClose={vi.fn()} />)
+    render(<AbPauseDialog testId={mockTest.id} onClose={vi.fn()} />)
     // There's the title "Pause Test" and the button "Pause Test"
     const buttons = screen.getAllByText('Pause Test')
     const pauseButton = buttons.find((el) => el.tagName === 'BUTTON')
@@ -71,7 +71,7 @@ describe('AbPauseDialog', () => {
 
   it('clicking backdrop calls onClose', () => {
     const onClose = vi.fn()
-    const { container } = render(<AbPauseDialog test={mockTest} onClose={onClose} />)
+    const { container } = render(<AbPauseDialog testId={mockTest.id} onClose={onClose} />)
     const backdrop = container.querySelector('[aria-hidden="true"]')!
     fireEvent.click(backdrop)
     expect(onClose).toHaveBeenCalledOnce()
