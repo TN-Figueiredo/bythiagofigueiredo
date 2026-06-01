@@ -52,6 +52,26 @@ export async function applyVariantToYouTube(input: ApplyVariantInput): Promise<A
       await setThumbnail(youtubeVideoId, buffer, contentType, accessToken)
       appliedThumbnail = true
       meta.thumbnail_set = true
+
+      // Capture the YouTube-assigned thumbnail URL for drift detection.
+      // Non-fatal: if this fails, drift detection will skip this cycle.
+      const apiKey = process.env.YOUTUBE_API_KEY
+      if (apiKey) {
+        try {
+          const ytRes = await fetch(
+            `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${youtubeVideoId}&key=${apiKey}`,
+          )
+          if (ytRes.ok) {
+            const ytData = await ytRes.json()
+            const highUrl = ytData?.items?.[0]?.snippet?.thumbnails?.high?.url
+            if (typeof highUrl === 'string') {
+              meta.youtube_thumbnail_url = highUrl
+            }
+          }
+        } catch {
+          // Non-fatal — drift detection will skip this cycle
+        }
+      }
     }
 
     // Metadata (title/description)

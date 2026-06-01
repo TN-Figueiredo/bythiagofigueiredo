@@ -98,6 +98,7 @@ export interface AppliedMetadata {
   title_set?: string | null
   description_set?: string | null
   links_resolved?: Record<string, string>
+  youtube_thumbnail_url?: string
 }
 
 export interface AbTestCycleRow {
