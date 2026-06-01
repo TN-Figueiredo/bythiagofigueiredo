@@ -71,7 +71,7 @@ export default async function CompetitorsPage() {
   const flatVideos = allVideos ?? []
   const uploadsByDay = [0, 0, 0, 0, 0, 0, 0]
   for (const v of flatVideos) {
-    if (v.published_at) uploadsByDay[new Date(v.published_at).getDay()]++
+    if (v.published_at) { const day = new Date(v.published_at).getDay(); uploadsByDay[day] = (uploadsByDay[day] ?? 0) + 1 }
   }
   const tagCounts = new Map<string, number>()
   for (const v of flatVideos) {

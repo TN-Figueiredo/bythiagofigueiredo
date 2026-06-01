@@ -119,25 +119,25 @@ export function CompetitorDashboard({ channels, changes, outliers, insights }: P
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-zinc-100">Observatório de Competidores</h2>
-        <span className="text-xs text-zinc-500">{channels.length}/15 canais</span>
+        <h2 className="text-lg font-semibold text-cms-text">Observatório de Competidores</h2>
+        <span className="text-xs text-cms-text-dim">{channels.length}/15 canais</span>
       </div>
 
       {/* Tab navigation */}
-      <div className="flex gap-1 border-b border-zinc-700/50">
+      <div className="flex gap-1 border-b border-cms-border/50">
         {tabs.map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={`px-3 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
               activeTab === tab.id
-                ? 'border-zinc-100 text-zinc-100'
-                : 'border-transparent text-zinc-500 hover:text-zinc-300'
+                ? 'border-cms-text text-cms-text'
+                : 'border-transparent text-cms-text-dim hover:text-cms-text'
             }`}
           >
             {tab.label}
             {tab.count != null && tab.count > 0 && (
-              <span className="ml-1.5 rounded-full bg-zinc-700 px-1.5 py-0.5 text-[10px] font-normal">{tab.count}</span>
+              <span className="ml-1.5 rounded-full bg-cms-surface-hover px-1.5 py-0.5 text-[10px] font-normal">{tab.count}</span>
             )}
           </button>
         ))}
@@ -153,21 +153,21 @@ export function CompetitorDashboard({ channels, changes, outliers, insights }: P
               onChange={e => handleSearch(e.target.value)}
               placeholder="Buscar canal no YouTube..."
               disabled={loading}
-              className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-500 disabled:opacity-50"
+              className="w-full rounded-lg border border-cms-border bg-cms-surface px-3 py-2 text-sm text-cms-text placeholder:text-cms-text-dim disabled:opacity-50"
             />
-            {searching && <span className="absolute right-3 top-2.5 text-xs text-zinc-500">Buscando...</span>}
+            {searching && <span className="absolute right-3 top-2.5 text-xs text-cms-text-dim">Buscando...</span>}
             {searchResults.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-1 rounded-lg border border-zinc-700 bg-zinc-800 shadow-xl z-50 overflow-hidden">
+              <div className="absolute top-full left-0 right-0 mt-1 rounded-lg border border-cms-border bg-cms-surface shadow-xl z-50 overflow-hidden">
                 {searchResults.map(result => (
                   <button
                     key={result.channelId}
                     onClick={() => handleSelectChannel(result.channelId)}
-                    className="flex items-center gap-3 w-full px-3 py-2.5 text-left hover:bg-zinc-700 transition-colors"
+                    className="flex items-center gap-3 w-full px-3 py-2.5 text-left hover:bg-cms-surface-hover transition-colors"
                   >
                     {result.thumbnail && <img src={result.thumbnail} alt="" referrerPolicy="no-referrer" className="h-8 w-8 rounded-full flex-shrink-0" />}
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-zinc-200 truncate">{result.name}</p>
-                      <p className="text-xs text-zinc-500 truncate">{result.description}</p>
+                      <p className="text-sm font-medium text-cms-text truncate">{result.name}</p>
+                      <p className="text-xs text-cms-text-dim truncate">{result.description}</p>
                     </div>
                   </button>
                 ))}
@@ -179,25 +179,25 @@ export function CompetitorDashboard({ channels, changes, outliers, insights }: P
           {/* Channel list */}
           <div className="space-y-2">
             {channels.map(ch => (
-              <div key={ch.id} className="flex items-center gap-3 rounded-lg border border-zinc-700/50 bg-zinc-800/50 p-3">
+              <div key={ch.id} className="flex items-center gap-3 rounded-lg border border-cms-border/50 bg-cms-surface/50 p-3">
                 {ch.thumbnail_url && <img src={ch.thumbnail_url} alt="" referrerPolicy="no-referrer" className="h-8 w-8 rounded-full" />}
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-zinc-200">{ch.channel_name}</p>
-                  <p className="text-xs text-zinc-500">{ch.subscriber_count?.toLocaleString('pt-BR')} subs</p>
+                  <p className="text-sm font-medium text-cms-text">{ch.channel_name}</p>
+                  <p className="text-xs text-cms-text-dim">{ch.subscriber_count?.toLocaleString('pt-BR')} subs</p>
                 </div>
-                <button onClick={() => syncCompetitorNow(ch.id)} className="rounded p-1.5 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200">
+                <button onClick={() => syncCompetitorNow(ch.id)} className="rounded p-1.5 text-cms-text-muted hover:bg-cms-surface-hover hover:text-cms-text">
                   <RefreshCw className="h-3.5 w-3.5" />
                 </button>
-                <button onClick={() => removeCompetitorChannel(ch.id)} className="rounded p-1.5 text-zinc-400 hover:bg-red-900/30 hover:text-red-400">
+                <button onClick={() => removeCompetitorChannel(ch.id)} className="rounded p-1.5 text-cms-text-muted hover:bg-red-900/30 hover:text-red-400">
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
               </div>
             ))}
           </div>
           {channels.length === 0 && (
-            <div className="rounded-lg border border-dashed border-zinc-700 py-8 text-center">
-              <p className="text-sm text-zinc-400">Nenhum canal competidor adicionado.</p>
-              <p className="text-xs text-zinc-500 mt-1">Busque acima para adicionar canais e acompanhar mudanças.</p>
+            <div className="rounded-lg border border-dashed border-cms-border py-8 text-center">
+              <p className="text-sm text-cms-text-muted">Nenhum canal competidor adicionado.</p>
+              <p className="text-xs text-cms-text-dim mt-1">Busque acima para adicionar canais e acompanhar mudanças.</p>
             </div>
           )}
         </>
@@ -206,9 +206,9 @@ export function CompetitorDashboard({ channels, changes, outliers, insights }: P
       {/* Mudanças tab */}
       {activeTab === 'mudancas' && (
         <div className="space-y-2">
-          {changes.length === 0 && <p className="text-xs text-zinc-500">Nenhuma mudanca ainda. Sincronize os canais.</p>}
+          {changes.length === 0 && <p className="text-xs text-cms-text-dim">Nenhuma mudanca ainda. Sincronize os canais.</p>}
           {changes.map(change => (
-            <div key={change.id} className="flex items-start gap-3 rounded-lg border border-zinc-700/30 bg-zinc-900/50 p-3">
+            <div key={change.id} className="flex items-start gap-3 rounded-lg border border-cms-border/30 bg-cms-bg/50 p-3">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${
@@ -217,17 +217,17 @@ export function CompetitorDashboard({ channels, changes, outliers, insights }: P
                     'bg-amber-500/20 text-amber-400'
                   }`}>{change.change_type}</span>
                   {change.competitor_videos[0]?.competitor_channels[0]?.channel_name && (
-                    <span className="text-xs text-zinc-400">{change.competitor_videos[0].competitor_channels[0].channel_name}</span>
+                    <span className="text-xs text-cms-text-muted">{change.competitor_videos[0].competitor_channels[0].channel_name}</span>
                   )}
-                  <span className="text-xs text-zinc-500">{new Date(change.detected_at).toLocaleDateString('pt-BR')}</span>
+                  <span className="text-xs text-cms-text-dim">{new Date(change.detected_at).toLocaleDateString('pt-BR')}</span>
                 </div>
                 {change.competitor_videos[0]?.title && (
-                  <p className="mt-0.5 truncate text-xs text-zinc-400">{change.competitor_videos[0].title}</p>
+                  <p className="mt-0.5 truncate text-xs text-cms-text-muted">{change.competitor_videos[0].title}</p>
                 )}
                 {change.change_type === 'title' && change.old_title && change.new_title && (
                   <div className="mt-1 text-xs">
                     <span className="text-red-400 line-through">{change.old_title}</span>
-                    <ArrowRight className="mx-1 inline h-3 w-3 text-zinc-500" />
+                    <ArrowRight className="mx-1 inline h-3 w-3 text-cms-text-dim" />
                     <span className="text-green-400">{change.new_title}</span>
                   </div>
                 )}
@@ -238,10 +238,10 @@ export function CompetitorDashboard({ channels, changes, outliers, insights }: P
                   </div>
                 )}
                 {change.view_count_at_change && (
-                  <span className="text-[10px] text-zinc-500">{change.view_count_at_change.toLocaleString('pt-BR')} views</span>
+                  <span className="text-[10px] text-cms-text-dim">{change.view_count_at_change.toLocaleString('pt-BR')} views</span>
                 )}
               </div>
-              <button onClick={() => toggleBookmark(change.id)} className={`rounded p-1 ${change.bookmarked ? 'text-yellow-400' : 'text-zinc-600 hover:text-zinc-400'}`}>
+              <button onClick={() => toggleBookmark(change.id)} className={`rounded p-1 ${change.bookmarked ? 'text-yellow-400' : 'text-cms-text-dim hover:text-cms-text-muted'}`}>
                 <Bookmark className="h-4 w-4" fill={change.bookmarked ? 'currentColor' : 'none'} />
               </button>
             </div>
@@ -259,13 +259,13 @@ export function CompetitorDashboard({ channels, changes, outliers, insights }: P
                 href={`https://www.youtube.com/watch?v=${o.video.video_id}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="group rounded-xl border border-zinc-700/50 bg-zinc-800/50 overflow-hidden hover:border-zinc-500/60 transition-colors"
+                className="group rounded-xl border border-cms-border/50 bg-cms-surface/50 overflow-hidden hover:border-cms-accent/40 transition-colors"
               >
                 <div className="relative">
                   {o.video.thumbnail_url ? (
                     <img src={o.video.thumbnail_url} alt="" referrerPolicy="no-referrer" className="w-full aspect-video object-cover" />
                   ) : (
-                    <div className="w-full aspect-video bg-zinc-900 flex items-center justify-center text-zinc-500 text-xs">Sem thumbnail</div>
+                    <div className="w-full aspect-video bg-cms-bg flex items-center justify-center text-cms-text-dim text-xs">Sem thumbnail</div>
                   )}
                   <span className={`absolute top-2 right-2 rounded-lg px-2 py-1 font-mono text-sm font-bold ${
                     o.multiplier >= 10 ? 'bg-red-500/90 text-white' :
@@ -276,12 +276,12 @@ export function CompetitorDashboard({ channels, changes, outliers, insights }: P
                   </span>
                 </div>
                 <div className="p-3">
-                  <p className="text-xs font-medium text-zinc-200 line-clamp-2 group-hover:text-zinc-100">{o.video.title}</p>
+                  <p className="text-xs font-medium text-cms-text line-clamp-2 group-hover:text-cms-text">{o.video.title}</p>
                   <div className="flex items-center gap-2 mt-1.5">
                     {o.channelThumb && <img src={o.channelThumb} alt="" referrerPolicy="no-referrer" className="h-4 w-4 rounded-full" />}
-                    <span className="text-[10px] text-zinc-500">{o.channelName}</span>
+                    <span className="text-[10px] text-cms-text-dim">{o.channelName}</span>
                   </div>
-                  <div className="flex items-center gap-2 mt-1 text-[10px] text-zinc-500">
+                  <div className="flex items-center gap-2 mt-1 text-[10px] text-cms-text-dim">
                     {o.video.view_count != null && <span>{formatCount(o.video.view_count)} views</span>}
                     {o.video.published_at && <span>{new Date(o.video.published_at).toLocaleDateString('pt-BR')}</span>}
                   </div>
@@ -290,7 +290,7 @@ export function CompetitorDashboard({ channels, changes, outliers, insights }: P
             ))}
           </div>
         ) : (
-          <div className="text-center py-12 text-zinc-500">
+          <div className="text-center py-12 text-cms-text-dim">
             <p className="text-sm">Sem outliers nos competidores trackeados.</p>
             <p className="text-xs mt-1">Adicione mais canais e aguarde dados suficientes (minimo 3 videos por canal).</p>
           </div>
