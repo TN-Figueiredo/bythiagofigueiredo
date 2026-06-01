@@ -1,10 +1,22 @@
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { CompetitorDashboard } from './_components/competitor-dashboard'
+import type { CompetitorTab } from './_components/competitor-tabs'
 
 export const dynamic = 'force-dynamic'
 
-export default async function CompetitorsPage() {
+const VALID_TABS: CompetitorTab[] = ['canais', 'mudancas', 'outliers', 'insights']
+
+export default async function CompetitorsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>
+}) {
+  const { tab } = await searchParams
+  const activeTab: CompetitorTab = VALID_TABS.includes(tab as CompetitorTab)
+    ? (tab as CompetitorTab)
+    : 'canais'
+
   const { siteId } = await getSiteContext()
   const supabase = getSupabaseServiceClient()
 
@@ -21,5 +33,5 @@ export default async function CompetitorsPage() {
     .order('detected_at', { ascending: false })
     .limit(20)
 
-  return <CompetitorDashboard channels={channels ?? []} changes={changes ?? []} />
+  return <CompetitorDashboard activeTab={activeTab} channels={channels ?? []} changes={changes ?? []} />
 }

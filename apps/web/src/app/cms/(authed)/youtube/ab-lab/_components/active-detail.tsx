@@ -558,12 +558,12 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
       {/* YouTube Feed Preview */}
       <div className="mt-[36px]">
         <FeedView
-          videoTitle={view.videoTitle}
           variants={view.variants.map(v => ({
             label: v.label,
             color: v.color,
             ctr: v.ctr * 100,
             thumbUrl: view.variantThumbs.find(t => t.label === v.label)?.thumbUrl ?? null,
+            title: view.videoTitle,
           }))}
         />
       </div>

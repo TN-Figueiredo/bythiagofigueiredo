@@ -43,13 +43,22 @@ export async function addCompetitorChannel(channelId: string): Promise<{ ok: boo
 
   if (existing) return { ok: false, error: 'Canal já adicionado' }
 
-  const { error } = await supabase.from('competitor_channels').insert({
+  const { data: inserted, error } = await supabase.from('competitor_channels').insert({
     site_id: siteId,
     channel_id: trimmed,
     channel_name: trimmed,
-  })
+  }).select('id, channel_id, site_id').single()
 
   if (error) return { ok: false, error: error.message }
+
+  const apiKey = process.env.YOUTUBE_API_KEY
+  if (apiKey && inserted) {
+    try {
+      await syncCompetitorChannel(inserted, apiKey)
+    } catch {
+      // sync failure is non-fatal — channel was added, sync can retry later
+    }
+  }
 
   revalidatePath('/cms/youtube/competitors')
   return { ok: true }
