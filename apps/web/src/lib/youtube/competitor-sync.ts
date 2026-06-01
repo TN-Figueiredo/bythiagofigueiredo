@@ -1,4 +1,5 @@
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { createNotification } from '@/lib/notifications/create'
 import crypto from 'crypto'
 
 const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3'
@@ -93,6 +94,14 @@ export async function syncCompetitorChannel(
 
   const videosData = await videosRes.json()
 
+  // Batch fetch existing videos to avoid N+1 queries
+  const { data: existingVideos } = await supabase
+    .from('competitor_videos')
+    .select('id, video_id, title, description_hash, thumbnail_url, view_count')
+    .eq('competitor_channel_id', channelRow.id)
+    .in('video_id', videoIds as string[])
+  const existingMap = new Map((existingVideos ?? []).map(v => [v.video_id, v]))
+
   for (const video of videosData.items ?? []) {
     videosChecked++
     const videoId = video.id
@@ -111,22 +120,18 @@ export async function syncCompetitorChannel(
     let durationSeconds: number | null = null
     const durationStr = video.contentDetails?.duration as string | undefined
     if (durationStr) {
-      const match = durationStr.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/)
+      const match = durationStr.match(/P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/)
       if (match) {
-        durationSeconds = (parseInt(match[1] ?? '0', 10) * 3600) +
-                          (parseInt(match[2] ?? '0', 10) * 60) +
-                          parseInt(match[3] ?? '0', 10)
+        durationSeconds = (parseInt(match[1] ?? '0', 10) * 86400) +
+                          (parseInt(match[2] ?? '0', 10) * 3600) +
+                          (parseInt(match[3] ?? '0', 10) * 60) +
+                          parseInt(match[4] ?? '0', 10)
       }
     }
     const isShort = (durationSeconds !== null && durationSeconds <= 60) ||
                     (title?.includes('#Shorts') ?? false)
 
-    // Check existing record
-    const { data: existing } = await supabase
-      .from('competitor_videos')
-      .select('id, title, description_hash, thumbnail_url, view_count')
-      .eq('video_id', videoId)
-      .maybeSingle()
+    const existing = existingMap.get(videoId) ?? null
 
     if (!existing) {
       // New video — insert
@@ -201,6 +206,35 @@ export async function syncCompetitorChannel(
         category_id: categoryId,
       })
       .eq('id', existing.id)
+  }
+
+  // Notify owner about detected changes (max 1 per channel per sync)
+  if (changesDetected > 0 && process.env.COMPETITOR_NOTIFICATIONS_ENABLED !== 'false') {
+    try {
+      const { data: owner } = await supabase
+        .from('site_users')
+        .select('user_id')
+        .eq('site_id', channelRow.site_id)
+        .eq('role', 'super_admin')
+        .limit(1)
+        .single()
+
+      if (owner) {
+        await createNotification({
+          site_id: channelRow.site_id,
+          user_id: owner.user_id,
+          type: 'youtube.competitor_change',
+          domain: 'youtube',
+          priority: 2,
+          title: `${changesDetected} mudança(s) em ${snippet?.title ?? channelRow.channel_id}`,
+          message: `Detectamos mudanças em vídeos de ${snippet?.title ?? 'competidor'}. Confira no Observatório.`,
+          action_href: '/cms/youtube/competitors?tab=mudancas',
+          dedup_key: `competitor-change-${channelRow.id}-${new Date().toISOString().slice(0, 10)}`,
+        })
+      }
+    } catch {
+      // Non-fatal
+    }
   }
 
   return { videosChecked, changesDetected }
