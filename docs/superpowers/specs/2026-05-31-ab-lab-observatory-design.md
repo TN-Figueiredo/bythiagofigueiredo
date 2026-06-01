@@ -368,6 +368,20 @@ CREATE TABLE competitor_changes (id uuid PK, video_id uuid FK, change_type text,
 - Enhancement: weight comparison by content similarity (same category, similar duration)
 - **Review gate:** Current approach is statistically valid — enhancement only if user requests
 
+### 7.9 P3 Auto-Apply Test Coverage
+- Grace period state machine: test confidence drop cancellation, retry schedule (1h/4h/12h), 3-failure notification
+- Batch start: test stagger timing, queue_start_after processing in ab-rotate, eligibility validation
+- Auto-suggest scoring: test formula correctness, filter boundaries (14d/1000v/60d), fallback path
+- Revert action: test revert within window, test revert after window expired, test preflight failure during revert
+- Target: 15+ new tests covering the P3 state machine
+
+### 7.10 P3 Batch Start UI
+- Multi-select on suggestion cards (checkboxes)
+- "Iniciar Lote" button appears when 2+ suggestions selected
+- Inline validation errors for ineligible videos
+- Queue status display in dashboard (show "Na fila — inicia em Xd")
+- **Review gate:** Current batchStartTests action works via direct call — UI polish is optional if user triggers via other means
+
 ### Verification Checklist (run at P7 start)
 - [ ] Re-run 4-dimension audit (code quality, test coverage, spec compliance, production readiness)
 - [ ] For each item: if resolved by P2-P6 work, mark ✅ and document which phase fixed it
