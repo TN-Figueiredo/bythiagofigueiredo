@@ -343,9 +343,12 @@ export async function GET(req: NextRequest) {
   // Phase 3: Retry failed applies (grace expired, winner set, not yet applied)
   let appliesRetried = 0
   {
+    // Exponential backoff delays: attempt 0→1 waits 1h, 1→2 waits 4h, 2→3 waits 12h
+    const retryDelaysMs = [3_600_000, 14_400_000, 43_200_000] // 1h, 4h, 12h
+
     const { data: pendingApplies } = await supabase
       .from('ab_tests')
-      .select('id, site_id, winner_variant_id, youtube_video_id, test_type, original_title, original_description, apply_attempts, name')
+      .select('id, site_id, winner_variant_id, youtube_video_id, test_type, original_title, original_description, apply_attempts, name, grace_expires_at')
       .not('grace_expires_at', 'is', null)
       .is('winner_applied_at', null)
       .not('winner_variant_id', 'is', null)
@@ -355,6 +358,11 @@ export async function GET(req: NextRequest) {
 
     for (const pending of pendingApplies ?? []) {
       try {
+        // Exponential backoff: skip if not enough time since grace expired
+        const timeSinceGraceExpired = Date.now() - new Date(pending.grace_expires_at!).getTime()
+        const attemptIndex = Math.min(pending.apply_attempts ?? 0, retryDelaysMs.length - 1)
+        const requiredDelay = retryDelaysMs[attemptIndex]!
+        if (timeSinceGraceExpired < requiredDelay) continue
         const { data: videoForChannel2 } = await supabase
           .from('youtube_videos')
           .select('channel_id')
@@ -384,8 +392,11 @@ export async function GET(req: NextRequest) {
 
         if (!winner) throw new Error('winner_variant_not_found')
 
-        // Apply thumbnail
+        // Apply thumbnail (with blob HEAD validation)
         if (winner.blob_url && (pending.test_type === 'thumbnail' || pending.test_type === 'combo')) {
+          const headRes = await fetch(winner.blob_url, { method: 'HEAD', signal: AbortSignal.timeout(5000) })
+          if (!headRes.ok) throw new Error(`asset_missing: blob returned ${headRes.status}`)
+
           const { buffer, contentType } = await fetchVariantImageBuffer(winner.blob_url)
           await setThumbnail(video.youtube_video_id, buffer, contentType, preflight.accessToken)
         }
