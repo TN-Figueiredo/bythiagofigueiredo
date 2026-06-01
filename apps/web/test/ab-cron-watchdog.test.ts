@@ -5,8 +5,11 @@ vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn() }))
 vi.mock('@/lib/cron-health', () => ({
   getCronHealth: vi.fn(),
   recordCronSuccess: vi.fn(),
+  recordCronFailure: vi.fn(),
 }))
 vi.mock('@/lib/notifications/create', () => ({ createNotification: vi.fn() }))
+vi.mock('@/lib/youtube/ab-drift', () => ({ checkDrift: vi.fn().mockResolvedValue({ drifted: false }) }))
+vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn() }))
 
 import { GET } from '@/app/api/cron/ab-watchdog/route'
 import { getCronHealth } from '@/lib/cron-health'
@@ -22,8 +25,26 @@ function makeRequest(secret = 'test-secret') {
   })
 }
 
-function buildMockSupabase(activeTests: { site_id: string }[] | null) {
-  // Mock for ab_tests query: .from('ab_tests').select('site_id').eq('status', 'active')
+function buildMockSupabase(activeTests: { site_id: string; test_type?: string; youtube_video_id?: string }[] | null) {
+  // Generic chain helper: returns a proxy that supports arbitrary chaining
+  function chainProxy(result: unknown): Record<string, unknown> {
+    const handler: ProxyHandler<Record<string, unknown>> = {
+      get(_target, prop) {
+        if (prop === 'then') return undefined // Not thenable
+        if (prop === 'data') return Array.isArray(result) ? result : (result as Record<string, unknown>)?.data ?? result
+        if (prop === 'error') return null
+        // Terminal methods
+        if (prop === 'single' || prop === 'maybeSingle') {
+          return () => Promise.resolve({ data: null, error: null })
+        }
+        // Chainable
+        return (..._args: unknown[]) => chainProxy(result)
+      },
+    }
+    return new Proxy({} as Record<string, unknown>, handler)
+  }
+
+  // Mock for ab_tests query: .from('ab_tests').select(...).eq('status', 'active')
   const abTestsEq = vi.fn().mockReturnValue({ data: activeTests, error: null })
   const abTestsSelect = vi.fn().mockReturnValue({ eq: abTestsEq })
 
@@ -37,14 +58,17 @@ function buildMockSupabase(activeTests: { site_id: string }[] | null) {
   const from = vi.fn((table: string) => {
     if (table === 'ab_tests') return { select: abTestsSelect }
     if (table === 'site_users') return { select: siteUsersSelect }
-    if (table === 'ab_test_polls') {
+    if (table === 'ab_test_polls' || table === 'competitor_changes') {
       return {
         delete: vi.fn().mockReturnValue({
-          lt: vi.fn().mockResolvedValue({ data: null, error: null }),
+          lt: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({ data: null, error: null }),
+          }),
         }),
       }
     }
-    return { select: vi.fn() }
+    // Generic fallback for drift-detection tables (ab_test_cycles, youtube_videos, etc.)
+    return chainProxy(null)
   })
 
   return { from }

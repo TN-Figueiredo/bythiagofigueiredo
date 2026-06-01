@@ -82,6 +82,7 @@ vi.mock('@/lib/cms/site-timezone-context', () => ({
 
 vi.mock('@/lib/notifications/notification-context', () => ({
   NotificationProvider: ({ children }: { children: React.ReactNode }) => children,
+  useNotifications: () => ({ state: { unreadCount: 0, notifications: [], loading: false }, dispatch: vi.fn() }),
 }))
 
 vi.mock('@/lib/notifications/types', () => ({}))

@@ -4,29 +4,30 @@ import { buildCmsSections } from '@/app/cms/(authed)/_shared/cms-sections'
 describe('buildCmsSections — Social section (v3 redesign)', () => {
   const sections = buildCmsSections()
   const social = sections.find(s => s.label === 'Social')!
+  const youtube = sections.find(s => s.label === 'YouTube')!
   const content = sections.find(s => s.label === 'Content')!
 
-  it('has a Social section with 3 items', () => {
+  it('has a Social section with 2 items', () => {
     expect(social).toBeDefined()
-    expect(social.items.length).toBe(3)
+    expect(social.items.length).toBe(2)
   })
 
-  it('includes YouTube in Social section, not Content', () => {
+  it('YouTube has its own section, not in Social or Content', () => {
+    expect(youtube).toBeDefined()
     const socialHrefs = social.items.map(i => i.href)
-    expect(socialHrefs).toContain('/cms/youtube')
+    expect(socialHrefs).not.toContain('/cms/youtube')
     const contentHrefs = content.items.map(i => i.href)
     expect(contentHrefs).not.toContain('/cms/youtube')
   })
 
   it('has correct nav items in order', () => {
     const labels = social.items.map(i => i.label)
-    expect(labels).toEqual(['YouTube', 'Posts', 'Links'])
+    expect(labels).toEqual(['Posts', 'Links'])
   })
 
   it('has correct routes', () => {
     const hrefs = social.items.map(i => i.href)
     expect(hrefs).toEqual([
-      '/cms/youtube',
       '/cms/social',
       '/cms/links',
     ])

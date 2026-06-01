@@ -54,8 +54,23 @@ vi.mock('@/lib/cms/auth-guards', () => ({
 
 let mockAuthResult: { ok: boolean; user?: { id: string }; reason?: string } = { ok: true, user: { id: 'user-1' } }
 
+let mockUserEmail: string | null = 'admin@test.com'
+let mockUserId: string | null = 'user-1'
+
 vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({
   requireSiteScope: () => Promise.resolve(mockAuthResult),
+  createServerClient: () => ({
+    auth: {
+      getUser: () =>
+        Promise.resolve({
+          data: {
+            user: mockUserId
+              ? { id: mockUserId, email: mockUserEmail }
+              : null,
+          },
+        }),
+    },
+  }),
 }))
 
 vi.mock('next/cache', () => ({
@@ -70,9 +85,6 @@ vi.mock('next/headers', () => ({
       set: vi.fn(),
     }),
 }))
-
-let mockUserEmail: string | null = 'admin@test.com'
-let mockUserId: string | null = 'user-1'
 
 vi.mock('@supabase/ssr', () => ({
   createServerClient: () => ({
