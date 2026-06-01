@@ -134,7 +134,7 @@ export function StepConfig({ config, onChange }: StepConfigProps) {
           <SectionLabel as="h4">Estimativa</SectionLabel>
 
           <p className="text-2xs text-cms-text-dim mb-4" style={{ lineHeight: 1.5 }}>
-            Com ~11k impressões/variante e CTR atual de 4,9%:
+            Estimativa baseada na configuração:
           </p>
 
           <dl className="space-y-3">
