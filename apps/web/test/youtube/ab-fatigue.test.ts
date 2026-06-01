@@ -52,6 +52,25 @@ describe('detectFatigue', () => {
     const result = detectFatigue(metrics, publishedAt)
     expect(result).not.toBeNull() // still works with 30 valid days
   })
+
+  it('returns null for video with all views below threshold (50)', () => {
+    const metrics = Array.from({ length: 60 }, (_, i) => ({
+      date: new Date(Date.now() - (60 - i) * 86400000).toISOString().slice(0, 10),
+      views: 30, // all below 50 threshold
+    }))
+    const result = detectFatigue(metrics, publishedAt)
+    expect(result).toBeNull()
+  })
+
+  it('handles exactly 30 valid days (minimum threshold)', () => {
+    // 30 days with views >= 50 (valid) + 10 days below threshold (filtered out)
+    const metrics = Array.from({ length: 40 }, (_, i) => ({
+      date: new Date(Date.now() - (40 - i) * 86400000).toISOString().slice(0, 10),
+      views: i < 10 ? 20 : 500, // first 10 invalid, last 30 valid
+    }))
+    const result = detectFatigue(metrics, publishedAt)
+    expect(result).not.toBeNull()
+  })
 })
 
 describe('filterFatigueCandidates', () => {

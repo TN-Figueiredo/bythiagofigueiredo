@@ -11,6 +11,7 @@ vi.mock('@/lib/youtube/ab-youtube', () => ({
 }))
 vi.mock('@/lib/youtube/ab-metadata', () => ({ updateVideoMetadata: vi.fn() }))
 vi.mock('@/lib/youtube/ab-templates', () => ({ resolveTemplates: vi.fn() }))
+vi.mock('@/lib/youtube/ab-start', () => ({ startAbTestInternal: vi.fn() }))
 vi.mock('@/lib/cron-health', () => ({
   recordCronSuccess: vi.fn().mockResolvedValue(undefined),
   recordCronFailure: vi.fn().mockResolvedValue(undefined),
@@ -28,7 +29,9 @@ import {
 } from '@/lib/youtube/ab-youtube'
 import { updateVideoMetadata } from '@/lib/youtube/ab-metadata'
 import { resolveTemplates } from '@/lib/youtube/ab-templates'
+import { startAbTestInternal } from '@/lib/youtube/ab-start'
 import { recordCronSuccess } from '@/lib/cron-health'
+import * as Sentry from '@sentry/nextjs'
 
 function createCronRequest(secret: string) {
   return new NextRequest(new URL('http://localhost:3000/api/cron/ab-rotate'), {
@@ -56,6 +59,7 @@ function makeTest(overrides: Record<string, unknown> = {}) {
 
 interface BuildMockOpts {
   tests?: unknown[]
+  queuedTests?: unknown[]
   video?: { youtube_video_id: string; channel_id?: string } | null
   cycleCount?: number
   trackedLinks?: { template_name: string; short_code: string }[]
@@ -65,6 +69,7 @@ interface BuildMockOpts {
 function buildSupabaseMock(opts: BuildMockOpts = {}) {
   const {
     tests = [],
+    queuedTests = [],
     video = { youtube_video_id: 'YT_VIDEO_123', channel_id: 'ch-1' },
     cycleCount = 0,
     trackedLinks = [],
@@ -79,24 +84,30 @@ function buildSupabaseMock(opts: BuildMockOpts = {}) {
   const fromMock = vi.fn((table: string) => {
     if (table === 'ab_tests') {
       abTestsSelectCount++
-      // First select = queued tests query (returns empty), second = active tests
+      // First select = queued tests query, second = active tests
       return {
         select: vi.fn().mockReturnValue({
           eq: vi.fn((_col: string, _val: string) => {
             if (_val === 'queued') {
-              return { not: vi.fn().mockReturnValue({ lte: vi.fn().mockResolvedValue({ data: [] }) }) }
+              return { not: vi.fn().mockReturnValue({ lte: vi.fn().mockResolvedValue({ data: queuedTests }) }) }
             }
             return { data: tests }
           }),
         }),
         update: vi.fn((data: unknown) => {
-          const chain = {
-            eq: vi.fn((_col: string, _val: string) => {
+          const makeEqChain = (): Record<string, unknown> => {
+            const result = Promise.resolve({ data: null, error: null })
+            const eqFn = vi.fn((_col: string, _val: string) => {
               updateCalls.push({ table, data, filters: [{ _col, _val }] })
-              return Promise.resolve({ data: null, error: null })
-            }),
+              return makeEqChain()
+            })
+            // Combine promise-like + chainable .eq()
+            return { eq: eqFn, then: result.then.bind(result), catch: result.catch.bind(result) }
           }
-          return chain
+          return { eq: vi.fn((_col: string, _val: string) => {
+            updateCalls.push({ table, data, filters: [{ _col, _val }] })
+            return makeEqChain()
+          }) }
         }),
       }
     }
@@ -506,6 +517,62 @@ describe('GET /api/cron/ab-rotate', () => {
           config: expect.objectContaining({ consecutive_failures: 1 }),
         }),
       }),
+    )
+  })
+
+  it('processes queued test when queue_start_after has passed', async () => {
+    const queued = {
+      id: 'queued-1',
+      site_id: 'site-1',
+      youtube_video_id: 'db-video-q1',
+      name: 'Queued Test',
+      queue_start_after: new Date(Date.now() - 60_000).toISOString(),
+    }
+    const { updateCalls } = buildSupabaseMock({ queuedTests: [queued] })
+    ;(startAbTestInternal as ReturnType<typeof vi.fn>).mockResolvedValue(undefined)
+
+    const req = createCronRequest('test-secret')
+    const res = await GET(req)
+    expect(res.status).toBe(200)
+
+    // Status flipped to draft
+    expect(updateCalls).toContainEqual(
+      expect.objectContaining({
+        table: 'ab_tests',
+        data: { status: 'draft', queue_start_after: null },
+      }),
+    )
+    // startAbTestInternal called with correct args
+    expect(startAbTestInternal).toHaveBeenCalledWith('queued-1', 'site-1')
+  })
+
+  it('reverts queued test to queued status on start failure', async () => {
+    const queued = {
+      id: 'queued-2',
+      site_id: 'site-1',
+      youtube_video_id: 'db-video-q2',
+      name: 'Queued Fail',
+      queue_start_after: new Date(Date.now() - 60_000).toISOString(),
+    }
+    const { updateCalls } = buildSupabaseMock({ queuedTests: [queued] })
+    const startError = new Error('YouTube token expired')
+    ;(startAbTestInternal as ReturnType<typeof vi.fn>).mockRejectedValue(startError)
+
+    const req = createCronRequest('test-secret')
+    const res = await GET(req)
+    expect(res.status).toBe(200)
+
+    // Status reverted to queued
+    expect(updateCalls).toContainEqual(
+      expect.objectContaining({
+        table: 'ab_tests',
+        data: { status: 'queued' },
+      }),
+    )
+    // Sentry captured the exception
+    expect(Sentry.captureException).toHaveBeenCalledWith(
+      startError,
+      expect.objectContaining({ extra: { testId: 'queued-2', context: 'queue-start' } }),
     )
   })
 
