@@ -344,6 +344,30 @@ CREATE TABLE competitor_changes (id uuid PK, video_id uuid FK, change_type text,
 - Guard: `maxDuration: 300` (5min) to handle 20+ tests safely
 - **Review gate:** If user never exceeds 5 concurrent tests, this is premature — skip
 
+### 7.5 Signal Card Crossfade Animation (P2 spec item 2.2)
+- When confirmed analytics data arrives (daily cron writes `youtube_video_analytics`), animate a crossfade transition on the Signal Card bottom layer
+- Show "Dados confirmados" pill for 5s then fade to static display
+- Implement via CSS `@keyframes` + React state transition (no external library)
+- **Review gate:** Cosmetic — skip if user doesn't notice the static behavior
+
+### 7.6 Per-Metric Freshness Format (P2 spec item 2.3)
+- Change from single FreshnessDot per section to per-metric format: `Views: 3 min atrás | AVD: 51h atrás (confirmado)`
+- Add "(confirmado)" suffix to bottom-layer metrics
+- Requires tracking `lastUpdatedAt` per individual metric, not per section
+- **Review gate:** Low impact — current dot-per-section is adequate for single-user CMS
+
+### 7.7 Missing Test Coverage (P2)
+- `usePollStats` hook: 11 untested scenarios (interval lifecycle, visibility, delta computation, cleanup)
+- `ab-poll` cron mode in sync-youtube: 9 untested scenarios (dedup, error paths, variant attribution)
+- `liveData` delta computation in queries.ts: 6 untested scenarios (variant grouping, edge cases)
+- Cycle stats snapshot in ab-rotate: 5 untested scenarios
+- Target: 30+ new tests bringing P2 coverage to parity with P1
+
+### 7.8 Outlier Score Enhancement
+- Currently uses `views_at_Xh` milestone if available, falls back to lifetime views
+- Enhancement: weight comparison by content similarity (same category, similar duration)
+- **Review gate:** Current approach is statistically valid — enhancement only if user requests
+
 ### Verification Checklist (run at P7 start)
 - [ ] Re-run 4-dimension audit (code quality, test coverage, spec compliance, production readiness)
 - [ ] For each item: if resolved by P2-P6 work, mark ✅ and document which phase fixed it
