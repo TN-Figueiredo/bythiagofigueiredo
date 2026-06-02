@@ -41,24 +41,25 @@ export function GatesPanel({ gates }: GatesPanelProps) {
       </div>
 
       {/* 2-col gates grid */}
-      <div role="list" className="gates-grid grid grid-cols-2 gap-x-[18px] gap-y-[10px]">
+      <div role="list" className="gates-grid grid grid-cols-2 gap-[10px]">
         {gates.map(gate => (
           <div
             key={gate.name}
             role="listitem"
-            className={`gate flex items-center gap-[10px] ${gate.passed ? 'pass' : ''}`}
+            className={`gate-item ${gate.passed ? 'pass' : ''}`}
           >
             <span
-              className="size-[20px] rounded-full shrink-0 flex items-center justify-center"
+              className="size-[24px] shrink-0 grid place-items-center"
               style={{
-                background: gate.passed ? 'var(--cms-green-subtle)' : 'var(--cms-surface-3, var(--cms-surface-hover))',
-                color: gate.passed ? 'var(--cms-green)' : 'var(--cms-text-dim)',
+                borderRadius: 7,
+                background: gate.passed ? 'var(--cms-green)' : 'var(--cms-surface-3, var(--cms-surface-hover))',
+                color: gate.passed ? '#11150f' : 'var(--cms-text-dim)',
               }}
             >
               {gate.passed ? (
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5" /></svg>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5" /></svg>
               ) : (
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 8v4l3 2" /></svg>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 8v4l3 2" /></svg>
               )}
             </span>
             <div className="flex-1 min-w-0">

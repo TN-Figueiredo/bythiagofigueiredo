@@ -30,8 +30,8 @@ export function WinnerBanner({
       data-testid="winner-banner"
       className="fade-in rounded-[16px] overflow-hidden"
       style={{
-        border: '1px solid rgba(70,177,126,0.35)',
-        background: 'linear-gradient(135deg, var(--cms-green-subtle) 0%, var(--cms-surface) 60%)',
+        border: '1px solid rgba(70,177,126,0.3)',
+        background: 'linear-gradient(120deg, var(--cms-green-soft, rgba(70,177,126,0.13)), var(--cms-surface))',
       }}
     >
       <div className="grid grid-cols-[auto_1fr_1fr_1fr]" style={{ gap: 1, background: 'var(--cms-border)' }}>

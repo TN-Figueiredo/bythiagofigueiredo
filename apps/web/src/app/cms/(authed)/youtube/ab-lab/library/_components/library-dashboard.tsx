@@ -426,7 +426,7 @@ export function LibraryDashboard({
                       </div>
 
                       {/* Card body */}
-                      <div style={{ padding: '10px 12px' }} className="space-y-1.5">
+                      <div className="lib-body space-y-1.5" style={{ padding: '11px 13px 13px' }}>
                         <p
                           className="truncate"
                           style={{ fontSize: 12, fontWeight: 500, color: 'var(--cms-text)' }}

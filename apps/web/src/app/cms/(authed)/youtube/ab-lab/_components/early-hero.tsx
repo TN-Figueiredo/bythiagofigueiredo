@@ -12,11 +12,11 @@ export function EarlyHero({ checkpoints, pipelineId }: EarlyHeroProps) {
   return (
     <div
       data-testid="early-hero"
-      className="grid grid-cols-1 md:grid-cols-2 gap-[16px] rounded-[14px] border border-cms-border bg-cms-surface overflow-hidden"
+      className="early-hero-grid"
     >
       {/* Left: pulsing dots + headline */}
-      <div className="py-[28px] px-[26px]">
-        <div className="early-dots flex items-center gap-[6px] mb-[14px]">
+      <div className="bg-cms-surface py-[20px] px-[22px]">
+        <div className="early-dots flex items-center gap-[4px] mb-[14px]">
           <i aria-hidden="true" />
           <i aria-hidden="true" />
           <i aria-hidden="true" />
@@ -41,11 +41,11 @@ export function EarlyHero({ checkpoints, pipelineId }: EarlyHeroProps) {
       </div>
 
       {/* Right: checkpoints with ETA */}
-      <div className="py-[28px] px-[26px] border-t md:border-t-0 md:border-l border-cms-border">
+      <div className="bg-cms-surface py-[20px] px-[22px] flex flex-col">
         <div className="eyebrow mb-[16px]">Próximos marcos</div>
         <div className="flex flex-col gap-[14px]">
           {checkpoints.map((cp, i) => (
-            <div key={i} className="flex items-start gap-[10px]">
+            <div key={i} className={`flex items-start gap-[10px] ${cp.isSoon ? 'soon' : ''}`}>
               <span
                 className="size-[22px] rounded-full shrink-0 flex items-center justify-center mt-[1px]"
                 style={{
@@ -74,7 +74,7 @@ export function EarlyHero({ checkpoints, pipelineId }: EarlyHeroProps) {
                   {cp.label}
                 </div>
                 {cp.eta && !cp.reached && (
-                  <div className={`text-[11.5px] mt-[2px] ${
+                  <div className={`text-[11.5px] mt-[2px] font-semibold ${
                     cp.isSoon ? 'text-cms-accent' : 'text-cms-text-dim'
                   }`}>
                     ETA: {cp.eta}

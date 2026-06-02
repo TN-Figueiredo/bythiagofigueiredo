@@ -32,32 +32,29 @@ export function EmptyChart({ icon, title, message, eta }: EmptyChartProps) {
   return (
     <div
       data-testid="empty-chart"
-      className="rounded-[14px] border border-cms-border bg-cms-surface p-[20px]"
+      className="empty-chart-centered rounded-[14px] border border-cms-border bg-cms-surface"
     >
-      {/* Skeleton bars */}
-      <div className="empty-chart-skel flex items-end gap-[8px] h-[60px] mb-[16px]">
-        <span style={{ width: '22%', height: '45%' }} />
-        <span style={{ width: '22%', height: '70%' }} />
-        <span style={{ width: '22%', height: '55%' }} />
-        <span style={{ width: '22%', height: '85%' }} />
+      {/* Skeleton bars — fixed-width with gradient and top-only radius */}
+      <div className="empty-chart-skel flex items-end gap-[10px]" style={{ height: 70, opacity: 0.5 }}>
+        <span style={{ width: 26, height: '40%', borderRadius: '5px 5px 0 0', background: 'linear-gradient(180deg, var(--cms-surface-3, #2E281F), var(--cms-surface-2, #272219))' }} />
+        <span style={{ width: 26, height: '65%', borderRadius: '5px 5px 0 0', background: 'linear-gradient(180deg, var(--cms-surface-3, #2E281F), var(--cms-surface-2, #272219))' }} />
+        <span style={{ width: 26, height: '50%', borderRadius: '5px 5px 0 0', background: 'linear-gradient(180deg, var(--cms-surface-3, #2E281F), var(--cms-surface-2, #272219))' }} />
+        <span style={{ width: 26, height: '80%', borderRadius: '5px 5px 0 0', background: 'linear-gradient(180deg, var(--cms-surface-3, #2E281F), var(--cms-surface-2, #272219))' }} />
       </div>
 
-      {/* Icon + text */}
-      <div className="flex items-start gap-[10px]">
+      {/* Icon + text — centered below bars */}
+      <div className="flex items-center gap-[8px] text-center" style={{ maxWidth: 340, lineHeight: 1.4 }}>
         <IconComponent
-          size={20}
-          className="text-cms-text-dim shrink-0 mt-[1px]"
+          size={18}
+          className="text-cms-text-muted shrink-0"
           aria-hidden="true"
         />
         <div className="min-w-0">
-          <div className="text-[13px] font-semibold text-cms-text mb-[3px]">
-            {title}
-          </div>
-          <div className="text-[12px] text-cms-text-dim leading-[1.5]">
-            {message}
+          <div className="text-[12.5px] text-cms-text-muted">
+            {title} — {message}
           </div>
           {eta && (
-            <div className="text-[11px] text-cms-accent mt-[6px] mono">
+            <div className="text-[11px] text-cms-accent mt-[4px] mono">
               ETA: {eta}
             </div>
           )}

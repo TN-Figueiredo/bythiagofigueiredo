@@ -18,7 +18,7 @@ export interface VariantTableProps {
   videoTitle?: string
 }
 
-const GRID = 'grid grid-cols-[60px_minmax(0,1fr)_72px_56px_140px_22px] gap-[14px] items-center'
+const GRID = 'grid grid-cols-[52px_minmax(0,1fr)_70px_56px_130px_24px] gap-[10px] items-center'
 
 export function VariantTable({ variants, metric, winnerId, leaderId, activeNow, finalists, thumbs, videoTitle }: VariantTableProps) {
   const [expandedLabel, setExpandedLabel] = useState<string | null>(null)
@@ -160,7 +160,7 @@ export function VariantTable({ variants, metric, winnerId, leaderId, activeNow, 
                 </div>
 
                 {/* CTR */}
-                <span className="font-mono tnum text-[19px] font-bold text-right" style={{ color: variant.color }}>
+                <span className="font-mono tnum text-[18px] font-bold text-right" style={{ color: variant.color }}>
                   {brDec(variant.ctr * 100, 1)}%
                 </span>
 

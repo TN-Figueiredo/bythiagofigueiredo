@@ -13,20 +13,21 @@ interface LibEmptyProps {
  */
 export function LibEmpty({ onUpload, onCreateTest }: LibEmptyProps) {
   return (
-    <div className="fade-in flex flex-col items-center text-center py-16 px-4">
-      {/* Icon in accent-soft circle */}
+    <div className="lib-empty fade-in flex flex-col items-center text-center" style={{ padding: '60px 24px' }}>
+      {/* Icon — 64x64 rounded-18px per design */}
       <div
-        className="flex items-center justify-center rounded-full"
+        className="lib-empty-ico grid place-items-center"
         style={{
-          width: 96,
-          height: 96,
-          background: 'var(--cms-accent-soft, rgba(255,130,64,0.12))',
-          marginBottom: 20,
+          width: 64,
+          height: 64,
+          borderRadius: 18,
+          background: 'var(--cms-accent-soft, rgba(255,130,64,0.10))',
+          marginBottom: 18,
         }}
       >
         <Library
-          size={64}
-          strokeWidth={1.2}
+          size={28}
+          strokeWidth={1.5}
           style={{ color: 'var(--cms-accent, #E8823C)' }}
           aria-hidden="true"
         />
@@ -34,9 +35,11 @@ export function LibEmpty({ onUpload, onCreateTest }: LibEmptyProps) {
 
       {/* Title */}
       <h3
+        className="lib-empty-title"
         style={{
           fontSize: 19,
           fontWeight: 600,
+          letterSpacing: '-0.3px',
           color: 'var(--cms-text)',
           margin: '0 0 8px 0',
         }}
@@ -46,11 +49,12 @@ export function LibEmpty({ onUpload, onCreateTest }: LibEmptyProps) {
 
       {/* Subtitle */}
       <p
+        className="lib-empty-sub"
         style={{
-          fontSize: 13,
-          lineHeight: 1.5,
-          color: 'var(--cms-text-dim, #7C7060)',
-          maxWidth: 400,
+          fontSize: 13.5,
+          lineHeight: 1.55,
+          color: 'var(--cms-text-muted, #A89B86)',
+          maxWidth: 440,
           margin: '0 0 24px 0',
         }}
       >

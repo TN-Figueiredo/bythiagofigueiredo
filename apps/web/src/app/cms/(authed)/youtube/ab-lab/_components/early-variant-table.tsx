@@ -15,7 +15,7 @@ export interface EarlyVariantTableProps {
   videoTitle?: string
 }
 
-const GRID = 'grid grid-cols-[60px_minmax(0,1fr)_70px_138px_22px] gap-[14px] items-center'
+const GRID = 'grid grid-cols-[52px_minmax(0,1fr)_70px_130px_24px] gap-[10px] items-center'
 
 const THUMB_BG: Record<string, string> = {
   A: 'linear-gradient(135deg, rgb(58,47,40), rgb(31,26,22))',

@@ -128,23 +128,31 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
 
       {/* Drift Recovery Banner */}
       {view.status === 'paused' && view.statusNote === DRIFT_STATUS_NOTE && (
-        <div className="mx-0 mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-medium text-amber-300">Teste pausado automaticamente — thumbnail alterada fora do A/B Lab</p>
-              <p className="text-xs text-amber-400/70 mt-0.5">Verifique a situação no YouTube e reconecte o token antes de retomar.</p>
-            </div>
-            <button disabled={driftBusy} onClick={async () => {
-              setDriftBusy(true)
-              const ack = await acknowledgeAbTestDrift(view.id)
-              if (!ack.ok) { alert(ack.error); setDriftBusy(false); return }
-              const res = await resumeAbTest(view.id)
-              if (!res.ok) { alert(`Falha ao retomar: ${res.error}`); setDriftBusy(false); router.refresh(); return }
-              router.refresh()
-            }} className="shrink-0 rounded-md bg-amber-500 px-4 py-2 text-xs font-semibold text-black hover:bg-amber-400 disabled:opacity-50">
-              {driftBusy ? 'Retomando…' : 'Reconhecer e Retomar'}
-            </button>
+        <div
+          className="drift-banner mx-0 mb-4 flex gap-[14px] py-[18px] px-[20px]"
+          style={{
+            borderRadius: 'var(--radius, 14px)',
+            background: 'var(--cms-amber-soft, rgba(224,162,60,0.14))',
+            border: '1px solid rgba(224,162,60,0.32)',
+          }}
+        >
+          <span className="drift-ico">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--cms-amber, #E0A23C)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          </span>
+          <div className="flex-1 min-w-0">
+            <p className="text-[14px] font-semibold text-cms-text m-0">Teste pausado automaticamente — thumbnail alterada fora do A/B Lab</p>
+            <p className="text-[12.5px] text-cms-text-dim mt-[3px] leading-[1.5] m-0">Verifique a situação no YouTube e reconecte o token antes de retomar.</p>
           </div>
+          <button disabled={driftBusy} onClick={async () => {
+            setDriftBusy(true)
+            const ack = await acknowledgeAbTestDrift(view.id)
+            if (!ack.ok) { alert(ack.error); setDriftBusy(false); return }
+            const res = await resumeAbTest(view.id)
+            if (!res.ok) { alert(`Falha ao retomar: ${res.error}`); setDriftBusy(false); router.refresh(); return }
+            router.refresh()
+          }} className="btn primary sm shrink-0 self-center" style={{ whiteSpace: 'nowrap' }}>
+            {driftBusy ? 'Retomando…' : 'Reconhecer e Retomar'}
+          </button>
         </div>
       )}
 

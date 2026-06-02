@@ -41,7 +41,7 @@ export function EarlyBand({ dayOf, totalDays }: EarlyBandProps) {
             className="early-bar h-full rounded-full"
             style={{
               width: `${Math.max(2, progress * 100)}%`,
-              background: 'var(--cms-accent)',
+              background: 'linear-gradient(90deg, var(--cms-accent), var(--cms-accent-soft-2, rgba(255,130,64,0.18)))',
               transition: 'width 0.6s',
             }}
           />

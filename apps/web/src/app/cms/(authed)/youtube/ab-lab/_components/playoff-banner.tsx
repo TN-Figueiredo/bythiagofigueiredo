@@ -124,7 +124,7 @@ export function PlayoffBanner({ finalists, allVariants, startsIn, reason }: Play
           className="bracket-note py-[13px] px-[22px] border-t text-[12px] text-cms-text-dim leading-[1.5] flex items-center gap-[9px]"
           style={{
             borderColor: 'rgba(224, 162, 60, 0.3)',
-            background: 'rgba(224, 162, 60, 0.06)',
+            background: 'var(--cms-amber-soft, rgba(224,162,60,0.14))',
           }}
         >
           <Target size={15} className="text-cms-amber shrink-0" aria-hidden="true" />

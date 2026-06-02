@@ -24,15 +24,15 @@ function GaugeSVG({ value, target }: { value: number; target: number }) {
   const CY = SIZE / 2
 
   return (
-    <div className="relative">
+    <div className="relative hero-gauge" style={{ width: SIZE, height: SIZE }}>
       <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} style={{ transform: 'rotate(-90deg)' }}>
         <circle cx={CX} cy={CY} r={r} fill="none" stroke="var(--cms-surface-3)" strokeWidth={7} />
         <circle cx={CX} cy={CY} r={r} fill="none" stroke="var(--cms-accent)" strokeWidth={7} strokeLinecap="round" strokeDasharray={`${dashFill} ${C}`} style={{ transition: 'stroke-dasharray 0.8s cubic-bezier(0.2,0.7,0.2,1)' }} />
         <line x1={SIZE * 0.85} y1={CY} x2={SIZE * 0.96} y2={CY} stroke="var(--cms-green)" strokeWidth={2} transform={`rotate(${targetAngle} ${CX} ${CY})`} />
       </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="font-mono text-[22px] font-bold leading-none">{Math.round(value)}%</span>
-        <span className="text-[8px] font-semibold text-cms-text-dim uppercase tracking-[0.08em]">confianca</span>
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-[1px]">
+        <span className="mono text-[30px] font-bold leading-none" style={{ letterSpacing: '-1px' }}>{Math.round(value)}%</span>
+        <span className="text-[14px] text-cms-text-dim" style={{ marginTop: 6 }}>confianca</span>
       </div>
     </div>
   )
@@ -40,9 +40,9 @@ function GaugeSVG({ value, target }: { value: number; target: number }) {
 
 function StatCell({ eyebrow, children, subtitle }: { eyebrow: string; children: React.ReactNode; subtitle: string }) {
   return (
-    <div className="bg-cms-surface py-[20px] px-[22px]">
+    <div className="hero-cell bg-cms-surface py-[18px] px-[20px] flex flex-col">
       <div className="eyebrow mb-[8px]">{eyebrow}</div>
-      <div className="font-mono text-[20px] font-bold leading-none">{children}</div>
+      <div className="hero-big font-mono text-[26px] font-bold leading-none flex items-center" style={{ letterSpacing: '-0.5px' }}>{children}</div>
       <div className="text-[11px] text-cms-text-muted mt-[7px]">{subtitle}</div>
     </div>
   )
@@ -58,21 +58,21 @@ export function HeroBand({ confidence, confidenceTarget, leader, lift, trend }: 
 
   return (
     <div
-      className="grid grid-cols-[auto_1fr_1fr_1fr] overflow-hidden rounded-[16px] border border-cms-border"
-      style={{ gap: 1, background: 'var(--cms-border)' }}
+      className="hero-band-grid grid overflow-hidden rounded-[16px] border border-cms-border"
+      style={{ gap: 1, background: 'var(--cms-border)', gridTemplateColumns: 'repeat(4, 1fr)' }}
       data-testid="hero-band"
     >
       {/* Cell 1: Gauge + probability text */}
-      <div className="bg-cms-surface py-[20px] px-[22px] flex items-center gap-[16px]">
-        <GaugeSVG value={confidence} target={confidenceTarget} />
-        <div>
-          <div className="flex items-center gap-[5px] mb-[5px]">
-            <span className="eyebrow">Probabilidade de vencer</span>
-            <InfoTip text="P-best: a probabilidade Bayesiana desta variante ser a melhor. Quanto maior, mais confianca. Meta: 95% = o motor so declara vencedor acima desse limiar." />
-          </div>
-          <div className="text-[12px] text-cms-text-dim max-w-[140px] leading-[1.4]">
-            {warmingUp ? 'Coletando dados dos primeiros ciclos...' : `Meta ${confidenceTarget}% · faltam ~${estimatedDays} dias no ritmo atual`}
-          </div>
+      <div className="hero-cell bg-cms-surface py-[18px] px-[20px] flex flex-col">
+        <div className="flex items-center gap-[5px] mb-[5px]">
+          <span className="eyebrow">Probabilidade de vencer</span>
+          <InfoTip text="P-best: a probabilidade Bayesiana desta variante ser a melhor. Quanto maior, mais confianca. Meta: 95% = o motor so declara vencedor acima desse limiar." />
+        </div>
+        <div className="flex-1 flex items-center justify-center" style={{ margin: '6px 0' }}>
+          <GaugeSVG value={confidence} target={confidenceTarget} />
+        </div>
+        <div className="text-[12px] text-cms-text-dim leading-[1.4]">
+          {warmingUp ? 'Coletando dados dos primeiros ciclos...' : `Meta ${confidenceTarget}% · faltam ~${estimatedDays} dias no ritmo atual`}
         </div>
       </div>
 
