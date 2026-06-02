@@ -35,12 +35,12 @@ import type { Axis } from '@/lib/youtube/scoring-types'
 import type { VideoGradeRow, Notification, OutlierVideo } from './types'
 
 const SUB_TABS = [
-  { id: 'overview', label: 'Visao geral' },
-  { id: 'notes', label: 'Notas' },
-  { id: 'coach', label: 'Health Coach' },
-  { id: 'outliers', label: 'Outliers' },
-  { id: 'demographics', label: 'Demografia' },
-  { id: 'search', label: 'Busca' },
+  { id: 'overview', label: 'Visao geral', countKey: null },
+  { id: 'notes', label: 'Notas', countKey: 'notes' },
+  { id: 'coach', label: 'Health Coach', countKey: 'coach' },
+  { id: 'outliers', label: 'Outliers', countKey: 'outliers' },
+  { id: 'demographics', label: 'Demografia', countKey: null },
+  { id: 'search', label: 'Busca', countKey: 'search' },
 ] as const
 
 type TabId = (typeof SUB_TABS)[number]['id']
@@ -165,6 +165,17 @@ export function YtAnalyticsTabs({
     [intelligenceVideos]
   )
 
+  /** Tab badge counts — only shown when > 0 */
+  const tabCounts = useMemo(() => {
+    const outlierCount = intelligenceOutliers?.length ?? 0
+    return {
+      notes: DEMO_NOTES.length,
+      coach: coachingCards.length,
+      outliers: outlierCount,
+      search: searchTerms.length,
+    } as Record<string, number>
+  }, [coachingCards, intelligenceOutliers, searchTerms])
+
   return (
     <div>
       {/* Channel selector (multi-channel) */}
@@ -193,8 +204,8 @@ export function YtAnalyticsTabs({
       {/* Page head */}
       <div className="page-head mb-4 flex items-start justify-between gap-4">
         <div>
-          <h1 className="page-h1 text-lg font-bold text-cms-text">Desempenho</h1>
-          <p className="page-desc mt-0.5 text-xs text-cms-text-muted">
+          <h1 className="page-h1">Desempenho</h1>
+          <p className="page-desc">
             Saude do canal, retencao e os numeros que movem o ponteiro — dados reais da YouTube Analytics.
           </p>
         </div>
@@ -250,20 +261,26 @@ export function YtAnalyticsTabs({
           className="flex gap-0"
           onKeyDown={handleKeyDown}
         >
-          {SUB_TABS.map((tab) => (
-            <button
-              key={tab.id}
-              role="tab"
-              aria-selected={activeTab === tab.id}
-              tabIndex={activeTab === tab.id ? 0 : -1}
-              id={`tab-yt-${tab.id}`}
-              aria-controls={`panel-yt-${tab.id}`}
-              onClick={() => setActiveTab(tab.id)}
-              className={`subtab${activeTab === tab.id ? ' active' : ''}`}
-            >
-              {tab.label}
-            </button>
-          ))}
+          {SUB_TABS.map((tab) => {
+            const count = tab.countKey ? tabCounts[tab.countKey] : undefined
+            return (
+              <button
+                key={tab.id}
+                role="tab"
+                aria-selected={activeTab === tab.id}
+                tabIndex={activeTab === tab.id ? 0 : -1}
+                id={`tab-yt-${tab.id}`}
+                aria-controls={`panel-yt-${tab.id}`}
+                onClick={() => setActiveTab(tab.id)}
+                className={`subtab${activeTab === tab.id ? ' active' : ''}`}
+              >
+                {tab.label}
+                {count != null && count > 0 && (
+                  <span className="subtab-count">{count}</span>
+                )}
+              </button>
+            )
+          })}
         </div>
       </div>
 

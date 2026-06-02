@@ -173,54 +173,54 @@ export function YtOverview({ metrics, dailyMetrics, intelligenceHealthScore, int
   return (
     <div className="fade-in flex flex-col gap-4">
       {/* perf-top: HealthCard + HealthRadar */}
-      <div className="perf-top grid gap-4" style={{ gridTemplateColumns: '1.5fr 1fr' }}>
+      <div className="perf-top">
         {/* HealthCard */}
-        <div className="health-card rounded-lg border border-cms-border bg-cms-surface p-4">
-          <div className="mb-3 flex items-center justify-between">
+        <div className="health-card rounded-lg border border-cms-border bg-cms-surface">
+          <div className="flex items-center justify-between px-5 pt-4 pb-2">
             <h3 className="text-sm font-semibold text-cms-text">Saude do Canal</h3>
             <span className={`rounded px-1.5 py-0.5 text-[9px] ${useIntelligence ? 'bg-cms-purple-soft text-cms-purple' : 'bg-cms-border text-cms-text-muted'}`}>
               {useIntelligence ? '6 eixos . AI' : '6 eixos . API'}
             </span>
           </div>
 
-          {/* Gauge */}
-          <div className="flex items-center justify-center">
-            <YtHealthRing score={health.overall} size={150} />
-          </div>
+          {/* health-body: gauge | breakdown side-by-side */}
+          <div className="health-body">
+            {/* Gauge column */}
+            <div className="health-gauge-wrap">
+              <YtHealthRing score={health.overall} size={150} />
+              <span className="mt-2 text-xs text-cms-text-muted">
+                meta 80 &middot; faltam {Math.max(0, 80 - health.overall)} pts
+              </span>
+            </div>
 
-          <div className="mt-2 text-center">
-            <span className="text-xs text-cms-text-muted">
-              meta 80 &middot; faltam {Math.max(0, 80 - health.overall)} pts
-            </span>
-          </div>
-
-          {/* 6-axis breakdown */}
-          <div className="health-breakdown mt-4 flex flex-col gap-2">
-            {health.axes.map((axis) => {
-              const color = GRADE_COLORS[axis.grade] ?? '#888'
-              return (
-                <div key={axis.label} className="hb-row flex items-center gap-2 text-xs">
-                  <span className="w-[72px] shrink-0 text-cms-text-muted">{axis.label}</span>
-                  <div className="flex-1">
-                    <div
-                      className="h-2 rounded-full"
-                      style={{
-                        width: `${Math.max(axis.value, 2)}%`,
-                        background: color,
-                        opacity: 0.8,
-                      }}
-                    />
+            {/* 6-axis breakdown column */}
+            <div className="health-breakdown">
+              {health.axes.map((axis) => {
+                const color = GRADE_COLORS[axis.grade] ?? '#888'
+                return (
+                  <div key={axis.label} className="hb-row">
+                    <span className="hb-label">{axis.label}</span>
+                    <div className="flex-1">
+                      <div
+                        className="h-2 rounded-full"
+                        style={{
+                          width: `${Math.max(axis.value, 2)}%`,
+                          background: color,
+                          opacity: 0.8,
+                        }}
+                      />
+                    </div>
+                    <span className="hb-score mono">{Math.round(axis.value)}</span>
+                    <span
+                      className="hb-note"
+                      style={{ color }}
+                    >
+                      {axis.grade}
+                    </span>
                   </div>
-                  <span className="mono w-8 shrink-0 text-right text-cms-text">{Math.round(axis.value)}</span>
-                  <span
-                    className="w-4 shrink-0 text-center text-[10px] font-bold"
-                    style={{ color }}
-                  >
-                    {axis.grade}
-                  </span>
-                </div>
-              )
-            })}
+                )
+              })}
+            </div>
           </div>
         </div>
 
@@ -244,24 +244,16 @@ export function YtOverview({ metrics, dailyMetrics, intelligenceHealthScore, int
       {/* KPI strip — 6 KPIs with sparklines, NO lift on hover */}
       <div className="kpi-strip stagger">
         {kpis.map((kpi) => (
-          <div key={kpi.label} className="kpi-card rounded-lg border border-cms-border bg-cms-surface p-3">
-            <div className="flex items-center gap-1.5">
-              <span className="text-cms-text-muted">
-                <KpiIcon name={kpi.icon} />
-              </span>
-              <span className="eyebrow">{kpi.label}</span>
+          <div key={kpi.label} className="kpi-card rounded-lg border border-cms-border bg-cms-surface">
+            <div className="metric-label flex items-center gap-1.5">
+              <KpiIcon name={kpi.icon} />
+              {kpi.label}
             </div>
-            <p className="tnum mt-1 text-[25px] font-bold leading-none text-cms-text" style={{ letterSpacing: '-0.6px', fontWeight: 700 }}>
+            <p className="kpi-val mono">
               {kpi.value}
             </p>
             <div className="mt-1.5 flex items-center justify-between">
-              <span
-                className={`tnum rounded px-1 py-0.5 text-[10px] font-medium ${
-                  kpi.delta >= 0
-                    ? 'bg-[#22c55e]/10 text-[#22c55e]'
-                    : 'bg-[#ef4444]/10 text-[#ef4444]'
-                }`}
-              >
+              <span className={`kpi-delta ${kpi.delta >= 0 ? 'up' : 'down'}`}>
                 {kpi.delta >= 0 ? '+' : ''}
                 {brDec(kpi.delta, 1)}%
               </span>

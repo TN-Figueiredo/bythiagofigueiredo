@@ -33,12 +33,12 @@ export function NotesView({ notes }: NotesViewProps) {
   return (
     <div className="fade-in flex flex-col gap-4" style={{ maxWidth: 720 }}>
       {/* Input area */}
-      <div className="notes-input flex flex-col gap-2">
+      <div className="flex flex-col gap-2">
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Escreva uma nota sobre o desempenho do canal..."
-          className="min-h-[80px] w-full resize-y rounded-lg border border-cms-border bg-cms-surface p-3 text-sm text-cms-text placeholder:text-cms-text-muted focus:border-[var(--accent)] focus:outline-none"
+          className="notes-input"
         />
         <div className="flex justify-end">
           <button
@@ -58,15 +58,11 @@ export function NotesView({ notes }: NotesViewProps) {
           {notes.map((note) => (
             <div
               key={note.id}
-              className="note-row flex gap-3 rounded-lg border border-cms-border bg-cms-surface p-3"
+              className="note-row rounded-lg border border-cms-border bg-cms-surface"
             >
               {/* Avatar */}
               <div
-                className={`note-av flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
-                  note.isBot
-                    ? 'bg-cyan-500/15 text-cyan-400'
-                    : 'bg-cms-border text-cms-text-muted'
-                }`}
+                className={`note-av${note.isBot ? ' bot' : ''}`}
               >
                 {note.isBot ? (
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

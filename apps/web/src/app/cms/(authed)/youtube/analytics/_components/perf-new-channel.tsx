@@ -40,13 +40,10 @@ export function PerfNewChannel() {
         {PLACEHOLDER_KPIS.map((kpi) => (
           <div
             key={kpi.label}
-            className="kpi-card rounded-lg border border-cms-border bg-cms-surface p-3"
+            className="kpi-card rounded-lg border border-cms-border bg-cms-surface"
           >
             <p className="eyebrow">{kpi.label}</p>
-            <p
-              className="tnum mt-1 text-lg font-bold"
-              style={{ color: 'var(--text-faint, #5C5345)' }}
-            >
+            <p className="kpi-val" style={{ color: 'var(--text-faint, #5C5345)' }}>
               --
             </p>
             <p className="mt-0.5 text-[10px] text-cms-text-muted">aguardando coleta</p>

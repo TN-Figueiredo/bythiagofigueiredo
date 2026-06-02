@@ -86,9 +86,9 @@ export function YtDemographicsView({ demographics, apiError }: Props) {
         <div className="rounded-lg border border-cms-border bg-cms-surface p-4">
           <h3 className="mb-3 text-sm font-semibold text-cms-text">Genero</h3>
           <div className="flex flex-col gap-3">
-            {/* Segmented bar */}
-            <div className="gender-bar flex h-6 w-full overflow-hidden rounded-full">
-              <div
+            {/* Segmented bar — 14px height per handoff */}
+            <div className="gender-bar">
+              <span
                 className="flex items-center justify-center text-[10px] font-medium text-white"
                 style={{ width: `${malePct}%`, background: 'var(--blue)' }}
                 role="progressbar"
@@ -98,8 +98,8 @@ export function YtDemographicsView({ demographics, apiError }: Props) {
                 aria-label={`Masculino: ${Math.round(malePct)}%`}
               >
                 {Math.round(malePct)}%
-              </div>
-              <div
+              </span>
+              <span
                 className="flex items-center justify-center text-[10px] font-medium text-white"
                 style={{ width: `${femalePct}%`, background: '#F472B6' }}
                 role="progressbar"
@@ -109,7 +109,7 @@ export function YtDemographicsView({ demographics, apiError }: Props) {
                 aria-label={`Feminino: ${Math.round(femalePct)}%`}
               >
                 {Math.round(femalePct)}%
-              </div>
+              </span>
             </div>
             {/* Legend */}
             <div className="flex gap-4 text-xs text-cms-text-muted">

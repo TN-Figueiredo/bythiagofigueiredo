@@ -152,14 +152,9 @@ export function YtSearchTermsView({ terms, apiError }: Props) {
             handleSort(key)
           }
         }}
-        className={`sortable cursor-pointer select-none pb-2 text-right font-medium ${
-          isActive ? 'text-[var(--accent)]' : 'text-cms-text-muted hover:text-cms-text'
-        }`}
-        style={{
-          transition: 'color var(--t-fast) var(--ease-out)',
-        }}
+        className={`sortable ta-r${isActive ? ' on' : ''}`}
       >
-        <span className="inline-flex items-center gap-1">
+        <span className="sort-h">
           {label}
           <svg
             width="12"
@@ -185,7 +180,7 @@ export function YtSearchTermsView({ terms, apiError }: Props) {
   }
 
   return (
-    <div className="fade-in rounded-lg border border-cms-border bg-cms-surface p-4">
+    <div className="fade-in card rounded-lg border border-cms-border bg-cms-surface p-4">
       {/* Card head */}
       <div className="mb-3 flex items-center justify-between">
         <h3 className="text-sm font-semibold text-cms-text">
@@ -198,15 +193,15 @@ export function YtSearchTermsView({ terms, apiError }: Props) {
 
       {/* Table */}
       <div className="overflow-x-auto">
-        <table className="search-table w-full text-xs">
+        <table className="search-table">
           <thead>
-            <tr className="border-b border-cms-border text-left text-cms-text-muted">
-              <th scope="col" className="pb-2 font-medium">
+            <tr>
+              <th scope="col">
                 Termo
               </th>
               {sortTh('views', 'Views')}
               {sortTh('ctr', 'CTR')}
-              <th scope="col" className="pb-2 text-right font-medium">
+              <th scope="col" className="ta-r">
                 Tendencia
               </th>
             </tr>
@@ -215,17 +210,17 @@ export function YtSearchTermsView({ terms, apiError }: Props) {
             {sorted.map((t) => (
               <tr
                 key={t.term}
-                className="search-row border-b border-cms-border/50"
+                className="search-row"
                 role="button"
                 tabIndex={0}
                 title={`Criar roteiro para "${t.term}"`}
                 onClick={() => handleRowClick(t.term)}
                 onKeyDown={(e) => handleRowKeyDown(e, t.term)}
               >
-                <td className="py-2.5 font-medium text-cms-text">
-                  <span className="inline-flex items-center gap-2">
+                <td>
+                  <span className="search-term">
                     {t.term}
-                    <span className="search-cta inline-flex items-center gap-1 text-[11px] whitespace-nowrap">
+                    <span className="search-cta">
                       Criar roteiro
                       <svg
                         width="11"
@@ -244,13 +239,13 @@ export function YtSearchTermsView({ terms, apiError }: Props) {
                     </span>
                   </span>
                 </td>
-                <td className="tnum py-2.5 text-right text-cms-text">
+                <td className="tnum ta-r">
                   {fmtC(t.views)}
                 </td>
-                <td className="tnum py-2.5 text-right text-cms-text">
+                <td className="tnum ta-r">
                   {brDec(t.ctr, 1)}%
                 </td>
-                <td className="py-2.5 text-right">
+                <td className="ta-r">
                   {t.trend === 'up' && (
                     <svg
                       width="13"

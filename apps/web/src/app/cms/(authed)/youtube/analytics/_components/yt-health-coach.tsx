@@ -115,19 +115,15 @@ export function YtHealthCoach({
   return (
     <div className="fade-in flex flex-col gap-4">
       {/* Coach summary banner */}
-      <div
-        className="coach-summary flex items-center justify-between rounded-lg p-4"
-        style={{
-          background: 'linear-gradient(135deg, var(--accent-soft) 0%, var(--surface) 100%)',
-          border: '1px solid var(--border)',
-        }}
-      >
+      <div className="coach-summary rounded-lg" style={{ border: '1px solid var(--border)' }}>
         <div className="flex items-center gap-3">
           {/* Sparkles icon */}
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
-            <path d="M5 3v4" /><path d="M19 17v4" /><path d="M3 5h4" /><path d="M17 19h4" />
-          </svg>
+          <div className="coach-sum-ico">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
+              <path d="M5 3v4" /><path d="M19 17v4" /><path d="M3 5h4" /><path d="M17 19h4" />
+            </svg>
+          </div>
           <div>
             <p className="text-sm font-semibold text-cms-text">
               Health Coach &middot; Score {healthScore}/100
