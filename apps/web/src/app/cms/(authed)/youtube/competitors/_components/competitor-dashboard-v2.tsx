@@ -1,10 +1,9 @@
 'use client'
 
-import { useState, useMemo, useRef, useCallback } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search, Plus, Users, Activity, Flame, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
-import { fmtC } from '@/lib/youtube/format'
 import { ChannelCard } from './channel-card'
 import { ChannelDrawer } from './channel-drawer'
 import { VideoModal } from './video-modal'
@@ -12,7 +11,8 @@ import { MudancasTab } from './mudancas-tab'
 import { OutliersTab } from './outliers-tab'
 import { InsightsTab } from './insights-tab'
 import { RemoveChannelDialog } from './remove-channel-dialog'
-import { addCompetitorChannel, removeCompetitorChannel, syncCompetitorNow } from '../actions'
+import { AddChannelModal } from './add-channel-modal'
+import { removeCompetitorChannel, syncCompetitorNow } from '../actions'
 import type {
   CompetitorChannelView,
   CompetitorChangeView,
@@ -212,15 +212,6 @@ interface CompetitorDashboardV2Props {
   activeTab: SubTab
 }
 
-interface SearchResult {
-  channelId: string
-  name: string
-  thumbnail: string | null
-  description: string
-  handle: string | null
-  subscriberCount: number | null
-}
-
 export function CompetitorDashboardV2({
   channels,
   changes,
@@ -233,13 +224,9 @@ export function CompetitorDashboardV2({
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<SubTab>(initialTab)
 
-  // Channel search state
-  const [searchQuery, setSearchQuery] = useState('')
+  // Channel filter + add modal state
   const [channelFilter, setChannelFilter] = useState('')
-  const [searchResults, setSearchResults] = useState<SearchResult[]>([])
-  const [searching, setSearching] = useState(false)
-  const [adding, setAdding] = useState(false)
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [addModalOpen, setAddModalOpen] = useState(false)
 
   // Drawer & modal state
   const [drawerChannelId, setDrawerChannelId] = useState<string | null>(null)
@@ -282,38 +269,6 @@ export function CompetitorDashboardV2({
   const handleTabChange = (tab: SubTab) => {
     setActiveTab(tab)
     router.push(`/cms/youtube/competitors?tab=${tab}`, { scroll: false })
-  }
-
-  // Add channel search
-  const handleSearch = (value: string) => {
-    setSearchQuery(value)
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    if (value.length < 2) { setSearchResults([]); return }
-
-    debounceRef.current = setTimeout(async () => {
-      setSearching(true)
-      try {
-        const res = await fetch(`/api/youtube/search-channels?q=${encodeURIComponent(value)}`)
-        const data = await res.json()
-        setSearchResults(data.results ?? [])
-      } catch {
-        setSearchResults([])
-      }
-      setSearching(false)
-    }, 500)
-  }
-
-  const handleAddChannel = async (channelId: string) => {
-    setAdding(true)
-    const result = await addCompetitorChannel(channelId)
-    if (result.ok) {
-      toast.success('Canal adicionado com sucesso.')
-    } else {
-      toast.error(result.error ?? 'Erro ao adicionar canal.')
-    }
-    setSearchQuery('')
-    setSearchResults([])
-    setAdding(false)
   }
 
   const handleSync = async (channelId: string) => {
@@ -393,6 +348,10 @@ export function CompetitorDashboardV2({
             Monitore canais concorrentes — thumbnails, títulos, outliers e lacunas.
           </p>
         </div>
+        <button className="btn primary" onClick={() => setAddModalOpen(true)}>
+          <Plus style={{ width: 15, height: 15 }} aria-hidden="true" />
+          Adicionar canal
+        </button>
       </div>
 
       {/* Sub-tabs */}
@@ -415,7 +374,7 @@ export function CompetitorDashboardV2({
       {/* Canais tab */}
       {activeTab === 'canais' && (
         <div className="fade-in" key="canais" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {/* Top bar: search + counter + add */}
+          {/* Top bar: filter + counter */}
           <div className="flex items-center gap-3 flex-wrap">
             {/* Filter existing channels */}
             <div className="search-wrap relative" style={{ minWidth: 320, maxWidth: 440, flex: '1 1 320px' }}>
@@ -434,67 +393,8 @@ export function CompetitorDashboardV2({
             </div>
 
             <span className="counter-pill text-xs mono" style={{ color: 'var(--text-dim)' }}>
-              {channels.length} /{maxChannels} canais monitorados
+              {channels.length} / {maxChannels} canais monitorados
             </span>
-
-            {/* Add channel: search input + button */}
-            <div className="flex gap-2 items-center">
-              <div className="relative" style={{ width: 220 }}>
-                <input
-                  value={searchQuery}
-                  onChange={e => handleSearch(e.target.value)}
-                  placeholder="Buscar canal no YouTube..."
-                  disabled={adding}
-                  className="w-full rounded-[9px] py-2 px-3 text-xs"
-                  style={{
-                    background: 'var(--surface)',
-                    border: '1px solid var(--border)',
-                    color: 'var(--text)',
-                  }}
-                />
-                {searching && (
-                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px]" style={{ color: 'var(--text-dim)' }}>Buscando...</span>
-                )}
-                {searchResults.length > 0 && (
-                  <div
-                    className="absolute mt-1 rounded-[9px] z-20"
-                    style={{
-                      top: '100%',
-                      left: 0,
-                      width: '100%',
-                      maxHeight: 300,
-                      overflowY: 'auto',
-                      background: 'var(--surface)',
-                      border: '1px solid var(--border)',
-                      boxShadow: 'var(--shadow-pop)',
-                    }}
-                  >
-                    {searchResults.map(result => (
-                      <button
-                        key={result.channelId}
-                        onClick={() => handleAddChannel(result.channelId)}
-                        className="flex items-center gap-3 w-full px-3 py-2.5 text-left text-xs hover:bg-black/5 dark:hover:bg-white/5"
-                        style={{ color: 'var(--text)' }}
-                      >
-                        {result.thumbnail && <img src={result.thumbnail} alt="" referrerPolicy="no-referrer" className="h-7 w-7 rounded-full flex-shrink-0" />}
-                        <div className="min-w-0">
-                          <p className="font-medium truncate">{result.name}</p>
-                          {result.handle ? (
-                            <p className="truncate text-[11px]" style={{ color: 'var(--text-muted)' }}>{result.handle}</p>
-                          ) : result.subscriberCount != null ? (
-                            <p className="truncate text-[11px]" style={{ color: 'var(--text-muted)' }}>{fmtC(result.subscriberCount)} inscritos</p>
-                          ) : null}
-                          {result.description && (
-                            <p className="truncate" style={{ color: 'var(--text-dim)' }}>{result.description}</p>
-                          )}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-              {/* "Adicionar" button removed — clicking a search result adds directly */}
-            </div>
           </div>
 
           {/* obs-grid */}
@@ -516,7 +416,7 @@ export function CompetitorDashboardV2({
               {channels.length === 0 ? (
                 <>
                   <p className="text-sm">Nenhum canal competidor adicionado.</p>
-                  <p className="text-xs mt-1">Busque acima para adicionar canais e acompanhar mudanças.</p>
+                  <p className="text-xs mt-1">Use o botao &quot;Adicionar canal&quot; para monitorar canais concorrentes.</p>
                 </>
               ) : (
                 <p className="text-sm">Nenhum canal corresponde ao filtro.</p>
@@ -582,6 +482,14 @@ export function CompetitorDashboardV2({
           onClose={() => setRemoveTarget(null)}
         />
       )}
+
+      {/* Add Channel Modal */}
+      <AddChannelModal
+        open={addModalOpen}
+        onClose={() => setAddModalOpen(false)}
+        existingChannelIds={channels.map(c => c.channelId)}
+        slotsRemaining={maxChannels - channels.length}
+      />
     </div>
   )
 }

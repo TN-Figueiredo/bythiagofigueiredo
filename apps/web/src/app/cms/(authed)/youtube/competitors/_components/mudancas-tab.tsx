@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useCallback, useRef } from 'react'
-import { Search, Bookmark, ChevronDown, ChevronUp, ZoomIn, ArrowRight, X, Filter } from 'lucide-react'
+import { Search, Bookmark, ChevronDown, ChevronUp, ZoomIn, ArrowRight, X, Filter, FlaskConical } from 'lucide-react'
 import { YtPortal } from '../../_components/yt-portal'
 import { useModalFocusTrap } from '../../../_shared/editor/use-modal-focus-trap'
 import { fmtC, fmtRelative } from '@/lib/youtube/format'
@@ -275,6 +275,11 @@ function ChangeCard({
                 <div className="md-mini relative flex-shrink-0">
                   <img src={c.oldThumbnailUrl} alt="antes" referrerPolicy="no-referrer" className="h-14 w-24 rounded-lg object-cover" style={{ opacity: 0.5 }} />
                   <span className="absolute top-0.5 left-0.5 rounded px-1 py-0.5 text-[8px] font-bold" style={{ background: 'rgba(0,0,0,0.6)', color: '#fff' }}>ANTES</span>
+                  <div className="absolute inset-0 flex items-center justify-center" aria-hidden="true">
+                    <div className="rounded-full flex items-center justify-center" style={{ width: 22, height: 22, background: 'rgba(0,0,0,0.55)' }}>
+                      <PlayIcon size={9} />
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <div className="h-14 w-24 rounded-lg flex items-center justify-center text-[8px] flex-shrink-0" style={{ background: 'var(--surface-3)', color: 'var(--text-dim)' }}>ANTES</div>
@@ -284,6 +289,11 @@ function ChangeCard({
                 <div className="md-mini relative flex-shrink-0">
                   <img src={c.newThumbnailUrl} alt="depois" referrerPolicy="no-referrer" className="h-14 w-24 rounded-lg object-cover" />
                   <span className="absolute top-0.5 left-0.5 rounded px-1 py-0.5 text-[8px] font-bold" style={{ background: 'rgba(0,0,0,0.6)', color: '#fff' }}>DEPOIS</span>
+                  <div className="absolute inset-0 flex items-center justify-center" aria-hidden="true">
+                    <div className="rounded-full flex items-center justify-center" style={{ width: 22, height: 22, background: 'rgba(0,0,0,0.55)' }}>
+                      <PlayIcon size={9} />
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <div className="h-14 w-24 rounded-lg flex items-center justify-center text-[8px] flex-shrink-0" style={{ background: 'var(--surface-3)', color: 'var(--text-dim)' }}>DEPOIS</div>
@@ -465,27 +475,28 @@ function ZoomModal({ change, onClose }: { change: CompetitorChangeView; onClose:
             background: 'var(--bg, #1A1714)',
             boxShadow: 'var(--shadow-pop)',
             border: '1px solid var(--border)',
-            maxWidth: 700,
+            maxWidth: 720,
             width: '95%',
             animation: 'fade var(--t-enter) var(--ease-out) both',
           }}
           onClick={e => e.stopPropagation()}
         >
-          {/* Header: badge + title + close */}
+          {/* Header: badge + title (inline) + close */}
           <div className="flex items-start gap-3 p-5 pb-0">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1.5">
-                <span
-                  className="rounded-md px-2 py-0.5 text-[10px] font-bold uppercase flex-shrink-0"
-                  style={{ background: tc.bg, color: tc.color }}
-                >
-                  {TYPE_LABELS[change.changeType] ?? change.changeType}
-                </span>
-              </div>
+            <div className="flex-1 min-w-0" style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+              <span
+                className="rounded-md px-2 py-0.5 text-[10px] font-bold uppercase flex-shrink-0"
+                style={{ background: tc.bg, color: tc.color }}
+              >
+                {TYPE_LABELS[change.changeType] ?? change.changeType}
+              </span>
               {change.videoTitle && (
-                <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
+                <span
+                  className="text-sm font-semibold truncate"
+                  style={{ color: 'var(--text)' }}
+                >
                   {change.videoTitle}
-                </p>
+                </span>
               )}
             </div>
             <button className="ic-btn flex-shrink-0" onClick={handleClose} aria-label="Fechar">
@@ -540,7 +551,7 @@ function ZoomModal({ change, onClose }: { change: CompetitorChangeView; onClose:
                   <ArrowRight className="h-5 w-5" style={{ color: 'var(--text-dim)' }} aria-hidden="true" />
                 </div>
                 <div>
-                  <p className="eyebrow mb-2">DEPOIS</p>
+                  <p className="eyebrow mb-2" style={{ color: 'var(--accent)' }}>DEPOIS</p>
                   {change.newThumbnailUrl ? (
                     <div className="relative">
                       <img
@@ -582,7 +593,7 @@ function ZoomModal({ change, onClose }: { change: CompetitorChangeView; onClose:
                   <p className="text-sm">{change.oldTitle}</p>
                 </div>
                 <div className="mdz-textbox new">
-                  <p className="eyebrow mb-1">DEPOIS</p>
+                  <p className="eyebrow mb-1" style={{ color: 'var(--accent)' }}>DEPOIS</p>
                   <p className="text-sm">{change.newTitle}</p>
                 </div>
               </div>
@@ -620,6 +631,7 @@ function ZoomModal({ change, onClose }: { change: CompetitorChangeView; onClose:
                 handleClose()
               }}
             >
+              <FlaskConical className="h-3.5 w-3.5" aria-hidden="true" />
               Testar esta abordagem
             </button>
           </div>
@@ -630,9 +642,9 @@ function ZoomModal({ change, onClose }: { change: CompetitorChangeView; onClose:
 }
 
 /** Play button triangle icon for thumbnail overlays. */
-function PlayIcon() {
+function PlayIcon({ size = 16 }: { size?: number }) {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">
       <path d="M4 2.5L13 8L4 13.5V2.5Z" fill="#fff" />
     </svg>
   )
@@ -648,7 +660,7 @@ function ThumbPlaceholder() {
         color: 'var(--text-dim)',
       }}
     >
-      Indisponivel
+      <span className="thumb-label">frame do video</span>
     </div>
   )
 }

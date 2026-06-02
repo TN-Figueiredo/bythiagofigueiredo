@@ -119,3 +119,77 @@ export async function toggleBookmark(changeId: string): Promise<{ ok: boolean }>
   revalidatePath('/cms/youtube/competitors')
   return { ok: true }
 }
+
+export async function syncFullHistory(channelRowId: string): Promise<{ ok: boolean; error?: string }> {
+  let siteId: string
+  try { siteId = await requireEditAccess() } catch { return { ok: false, error: 'forbidden' } }
+
+  const apiKey = process.env.YOUTUBE_API_KEY
+  if (!apiKey) return { ok: false, error: 'API key not configured' }
+
+  const supabase = getSupabaseServiceClient()
+
+  // Backpressure: max 1 full sync per site at a time
+  const { count: syncing } = await supabase
+    .from('competitor_channels')
+    .select('id', { count: 'exact', head: true })
+    .eq('site_id', siteId)
+    .eq('sync_status', 'syncing')
+    .gt('sync_started_at', new Date(Date.now() - 10 * 60_000).toISOString())
+
+  if ((syncing ?? 0) > 0) return { ok: false, error: 'Outro canal está sincronizando. Aguarde.' }
+
+  // Set sync_mode to full
+  await supabase
+    .from('competitor_channels')
+    .update({ sync_mode: 'full', full_sync_completed_at: null })
+    .eq('id', channelRowId)
+    .eq('site_id', siteId)
+
+  const { data: channel } = await supabase
+    .from('competitor_channels')
+    .select('id, channel_id, site_id')
+    .eq('id', channelRowId)
+    .eq('site_id', siteId)
+    .single()
+
+  if (!channel) return { ok: false, error: 'Canal não encontrado' }
+
+  try {
+    await syncCompetitorChannel(channel, apiKey)
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Sync failed' }
+  } finally {
+    revalidatePath('/cms/youtube/competitors')
+  }
+}
+
+export async function getSyncStatus(channelRowId: string): Promise<{
+  status: string
+  progress: number
+  youtubeVideoCount: number | null
+  error: string | null
+}> {
+  let siteId: string
+  try { siteId = await requireEditAccess() } catch {
+    return { status: 'idle', progress: 0, youtubeVideoCount: null, error: null }
+  }
+
+  const supabase = getSupabaseServiceClient()
+  const { data } = await supabase
+    .from('competitor_channels')
+    .select('sync_status, sync_progress, youtube_video_count, sync_error')
+    .eq('id', channelRowId)
+    .eq('site_id', siteId)
+    .single()
+
+  if (!data) return { status: 'idle', progress: 0, youtubeVideoCount: null, error: null }
+
+  return {
+    status: data.sync_status,
+    progress: data.sync_progress,
+    youtubeVideoCount: data.youtube_video_count,
+    error: data.sync_error,
+  }
+}

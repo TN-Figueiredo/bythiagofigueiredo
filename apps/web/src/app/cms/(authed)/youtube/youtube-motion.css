@@ -269,6 +269,43 @@ button[aria-label="Notificações"] {
   border: none !important;
 }
 
+/* ── Full sync progress bar ── */
+[data-cms-section="youtube"] .sync-bar {
+  width: 100%;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  overflow: hidden;
+  margin-top: 6px;
+}
+[data-cms-section="youtube"] .sync-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width var(--t-fast) var(--ease-out);
+}
+
+/* ── Inline action link (buscar historico / tentar novamente) ── */
+[data-cms-section="youtube"] .sync-action {
+  font-size: 10.5px;
+  color: var(--accent);
+  cursor: pointer;
+  transition: color var(--t-fast);
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+[data-cms-section="youtube"] .sync-action:hover {
+  color: var(--accent-hover);
+}
+[data-cms-section="youtube"] .sync-action:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
 /* ─── Reduced-motion Guard (YouTube scope) ─── */
 
 @media (prefers-reduced-motion: reduce) {
@@ -1985,4 +2022,69 @@ button[aria-label="Notificações"] {
   [data-cms-section="youtube"] .vd-stats {
     grid-template-columns: repeat(2, 1fr);
   }
+}
+
+/* ═══════ Add Channel Modal (Observatory) ═══════ */
+
+[data-cms-section="youtube"] .om-modal {
+  position: relative;
+  width: 100%;
+  max-width: 520px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface, #1E1A14);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 18px);
+  box-shadow: var(--shadow-pop);
+  animation: fade var(--t-enter) var(--ease-out) both;
+}
+
+[data-cms-section="youtube"] .om-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+[data-cms-section="youtube"] .om-body {
+  padding: 18px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+[data-cms-section="youtube"] .om-results {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-top: 10px;
+}
+
+[data-cms-section="youtube"] .om-result {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 6px;
+  border-bottom: 1px solid var(--border-subtle);
+  transition: background var(--t-fast) var(--ease-out);
+}
+
+[data-cms-section="youtube"] .om-result:last-child {
+  border-bottom: none;
+}
+
+[data-cms-section="youtube"] .om-result:hover {
+  background: var(--surface-hover);
+}
+
+[data-cms-section="youtube"] .om-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
 }
