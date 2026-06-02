@@ -39,6 +39,8 @@ interface SearchResult {
   name: string
   thumbnail: string | null
   description: string
+  handle: string | null
+  subscriberCount: number | null
 }
 
 export function CompetitorDashboardV2({
@@ -235,51 +237,66 @@ export function CompetitorDashboardV2({
               {channels.length} /{maxChannels} canais monitorados
             </span>
 
-            {/* Add channel dropdown */}
-            <div className="relative">
-              <div className="flex gap-2">
+            {/* Add channel: search input + button */}
+            <div className="flex gap-2 items-center">
+              <div className="relative" style={{ width: 220 }}>
                 <input
                   value={searchQuery}
                   onChange={e => handleSearch(e.target.value)}
                   placeholder="Buscar canal no YouTube..."
                   disabled={adding}
-                  className="rounded-[9px] py-2 px-3 text-xs"
+                  className="w-full rounded-[9px] py-2 px-3 text-xs"
                   style={{
-                    width: 220,
                     background: 'var(--surface)',
                     border: '1px solid var(--border)',
                     color: 'var(--text)',
                   }}
                 />
-                <button className="btn primary sm" disabled={adding}>
-                  <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-                  Adicionar
-                </button>
+                {searching && (
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px]" style={{ color: 'var(--text-dim)' }}>Buscando...</span>
+                )}
+                {searchResults.length > 0 && (
+                  <div
+                    className="absolute mt-1 rounded-[9px] z-20"
+                    style={{
+                      top: '100%',
+                      left: 0,
+                      width: '100%',
+                      maxHeight: 300,
+                      overflowY: 'auto',
+                      background: 'var(--surface)',
+                      border: '1px solid var(--border)',
+                      boxShadow: 'var(--shadow-pop)',
+                    }}
+                  >
+                    {searchResults.map(result => (
+                      <button
+                        key={result.channelId}
+                        onClick={() => handleAddChannel(result.channelId)}
+                        className="flex items-center gap-3 w-full px-3 py-2.5 text-left text-xs hover:bg-black/5 dark:hover:bg-white/5"
+                        style={{ color: 'var(--text)' }}
+                      >
+                        {result.thumbnail && <img src={result.thumbnail} alt="" referrerPolicy="no-referrer" className="h-7 w-7 rounded-full flex-shrink-0" />}
+                        <div className="min-w-0">
+                          <p className="font-medium truncate">{result.name}</p>
+                          {result.handle ? (
+                            <p className="truncate text-[11px]" style={{ color: 'var(--text-muted)' }}>{result.handle}</p>
+                          ) : result.subscriberCount != null ? (
+                            <p className="truncate text-[11px]" style={{ color: 'var(--text-muted)' }}>{fmtC(result.subscriberCount)} inscritos</p>
+                          ) : null}
+                          {result.description && (
+                            <p className="truncate" style={{ color: 'var(--text-dim)' }}>{result.description}</p>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
-              {searching && (
-                <span className="absolute right-16 top-2.5 text-[10px]" style={{ color: 'var(--text-dim)' }}>Buscando...</span>
-              )}
-              {searchResults.length > 0 && (
-                <div
-                  className="absolute top-full left-0 right-0 mt-1 rounded-[9px] overflow-hidden z-50"
-                  style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-pop)' }}
-                >
-                  {searchResults.map(result => (
-                    <button
-                      key={result.channelId}
-                      onClick={() => handleAddChannel(result.channelId)}
-                      className="flex items-center gap-3 w-full px-3 py-2.5 text-left text-xs"
-                      style={{ color: 'var(--text)' }}
-                    >
-                      {result.thumbnail && <img src={result.thumbnail} alt="" referrerPolicy="no-referrer" className="h-7 w-7 rounded-full flex-shrink-0" />}
-                      <div className="min-w-0">
-                        <p className="font-medium truncate">{result.name}</p>
-                        <p className="truncate" style={{ color: 'var(--text-dim)' }}>{result.description}</p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
+              <button className="btn primary sm" disabled={adding}>
+                <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                Adicionar
+              </button>
             </div>
           </div>
 
