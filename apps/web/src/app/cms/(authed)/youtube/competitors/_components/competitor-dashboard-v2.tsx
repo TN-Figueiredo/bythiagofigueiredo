@@ -303,10 +303,7 @@ export function CompetitorDashboardV2({
                   </div>
                 )}
               </div>
-              <button className="btn primary sm" disabled={adding}>
-                <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-                Adicionar
-              </button>
+              {/* "Adicionar" button removed — clicking a search result adds directly */}
             </div>
           </div>
 
