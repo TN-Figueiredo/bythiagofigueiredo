@@ -240,15 +240,7 @@ export function YtAnalyticsTabs({
             Pedir diagnostico ao Cowork
           </button>
 
-          {/* Notifications */}
-          {notifications && (
-            <YtNotificationsBell
-              notifications={notifications}
-              onMarkRead={onMarkNotificationRead ?? (() => Promise.resolve())}
-              onMarkAllRead={onMarkAllNotificationsRead ?? (() => Promise.resolve())}
-              onDismiss={onDismissNotification ?? (() => Promise.resolve())}
-            />
-          )}
+          {/* Notifications bell removed — feature incomplete, will return in future sprint */}
         </div>
       </div>
 

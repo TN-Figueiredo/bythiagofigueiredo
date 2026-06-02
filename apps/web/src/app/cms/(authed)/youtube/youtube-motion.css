@@ -248,6 +248,13 @@
   --purple: #A78BFA;
 }
 
+/* ─── Hide notification bell in YouTube section (feature incomplete) ─── */
+
+[data-cms-section="youtube"] .lucide-bell,
+[data-cms-section="youtube"] button:has(.lucide-bell) {
+  display: none !important;
+}
+
 /* ─── Reduced-motion Guard (YouTube scope) ─── */
 
 @media (prefers-reduced-motion: reduce) {
