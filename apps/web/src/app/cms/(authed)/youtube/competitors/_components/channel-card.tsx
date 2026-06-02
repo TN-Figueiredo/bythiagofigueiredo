@@ -227,7 +227,9 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
               <div>
                 <p className="metric-label">Engaj. médio</p>
                 <p className="mono" style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)', marginTop: 2 }}>
-                  {ch.avgEngagement != null ? `${brDec(ch.avgEngagement * 100, 1)}%` : '—'}
+                  {ch.avgEngagement != null && ch.avgEngagement > 0
+                    ? `${brDec(ch.avgEngagement * 100, 1)}%`
+                    : '—'}
                 </p>
               </div>
 
@@ -293,14 +295,14 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
           >
             <Users style={{ width: 11, height: 11, stroke: 'var(--text-dim)', flexShrink: 0 }} />
             <span style={{ color: 'var(--text-dim)' }}>vs você</span>
-            <span style={{ color: ch.vsYou.engagementDelta <= 0 ? 'var(--green)' : 'var(--amber)' }}>
+            <span style={{ color: ch.vsYou.engagementDelta > 0 ? 'var(--amber)' : 'var(--green)', fontWeight: 600 }}>
               engaj {ch.vsYou.engagementDelta > 0 ? '+' : ''}{brDec(ch.vsYou.engagementDelta * 100, 1)} pts
             </span>
             <span style={{ color: 'var(--text-dim)' }}>·</span>
-            <span style={{ color: ch.vsYou.avgViewsDelta <= 0 ? 'var(--green)' : 'var(--amber)' }}>
+            <span style={{ color: ch.vsYou.avgViewsDelta > 0 ? 'var(--amber)' : 'var(--green)', fontWeight: 600 }}>
               {ch.vsYou.avgViewsDelta > 0
-                ? `cresce ${brDec(ch.vsYou.avgViewsDelta, 1)}× + rápido`
-                : `cresce ${brDec(Math.abs(ch.vsYou.avgViewsDelta), 1)}× + lento`
+                ? `+${fmtC(Math.round(ch.vsYou.avgViewsDelta))} views/vídeo`
+                : `${fmtC(Math.round(ch.vsYou.avgViewsDelta))} views/vídeo`
               }
             </span>
           </div>
