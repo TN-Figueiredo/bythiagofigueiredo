@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState, useCallback } from 'react'
-import { X, ExternalLink, ChevronDown } from 'lucide-react'
+import { X, ExternalLink, ChevronDown, Users } from 'lucide-react'
 import { YtPortal } from '../../_components/yt-portal'
 import { useModalFocusTrap } from '../../../_shared/editor/use-modal-focus-trap'
 import { fmtC, brDec, fmtRelative } from '@/lib/youtube/format'
@@ -169,20 +169,7 @@ export function ChannelDrawer({ channel, open, onClose, onVideoClick }: ChannelD
           </button>
         </div>
 
-        {/* cd-versus */}
-        {ch.vsYou && (
-          <div className="px-6 py-3" style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
-            <p className="eyebrow mb-2">VOCÊ vs {ch.channelName.toUpperCase()}</p>
-            <div className="flex flex-wrap gap-2">
-              <VsPill label="Inscritos" delta={ch.vsYou.subsDelta} format={fmtC} />
-              <VsPill label="Engaj." delta={ch.vsYou.engagementDelta} format={v => `${brDec(v * 100, 1)}pp`} />
-              <VsPill label="Views méd." delta={ch.vsYou.avgViewsDelta} format={fmtC} />
-              <VsPill label="Frequência" delta={ch.vsYou.frequencyDelta} format={v => `${brDec(v, 1)}/mês`} />
-            </div>
-          </div>
-        )}
-
-        {/* cd-stats — handoff: 5 stat cards with metric-label + mono value + dim sub-label */}
+        {/* cd-stats — handoff: 5 stat cards (comes BEFORE cd-versus per handoff order) */}
         <div className="cd-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, padding: '14px 22px', borderBottom: '1px solid var(--border)' }}>
           {(() => {
             const outlierVideos = allVideos.filter(v => (v.outlierMultiplier ?? 0) >= 2)
@@ -230,6 +217,52 @@ export function ChannelDrawer({ channel, open, onClose, onVideoClick }: ChannelD
             </>)
           })()}
         </div>
+
+        {/* cd-versus — handoff: label with Users icon + grid 4-col with vs-item (metric-label + value + vs-pill) */}
+        {ch.vsYou && (
+          <div className="cd-versus" style={{ padding: '12px 22px 14px', borderBottom: '1px solid var(--border)', background: 'rgba(0,0,0,0.1)' }}>
+            <span className="cd-versus-label" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 600, letterSpacing: '0.04em', color: 'var(--text-muted)', textTransform: 'uppercase' as const }}>
+              <Users style={{ width: 12, height: 12, stroke: 'var(--text-dim)' }} aria-hidden="true" />
+              vs. você · tnFigueiredo
+            </span>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginTop: 10 }}>
+              {/* Engajamento */}
+              <div className="vs-item">
+                <span className="metric-label">Engajamento</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
+                  {ch.avgEngagement != null && ch.avgEngagement > 0 && (
+                    <span className="mono" style={{ fontSize: 12.5, fontWeight: 600 }}>{brDec(ch.avgEngagement * 100, 1)}%</span>
+                  )}
+                  <VsPill label="" delta={ch.vsYou.engagementDelta} format={v => `${brDec(Math.abs(v * 100), 1)} pts`} />
+                </div>
+              </div>
+              {/* Cresce/sem */}
+              <div className="vs-item">
+                <span className="metric-label">Cresce/sem</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
+                  <VsPill label="" delta={ch.vsYou.subsDelta} format={v => {
+                    const ratio = ch.subscriberCount && ch.subscriberCount > 0 ? Math.abs(v) / ch.subscriberCount : 0
+                    return ratio > 0 ? `${brDec(ratio, 1)}×` : fmtC(Math.abs(Math.round(v)))
+                  }} />
+                </div>
+              </div>
+              {/* Cadência */}
+              <div className="vs-item">
+                <span className="metric-label">Cadência</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
+                  <VsPill label="" delta={ch.vsYou.frequencyDelta} format={v => `${brDec(Math.abs(v), 1)}×`} />
+                </div>
+              </div>
+              {/* Views médias */}
+              <div className="vs-item">
+                <span className="metric-label">Views médias</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
+                  <VsPill label="" delta={ch.vsYou.avgViewsDelta} format={v => `${brDec(Math.abs(v), 1)}×`} />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* cd-controls */}
         <div className="flex items-center gap-3 px-6 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
