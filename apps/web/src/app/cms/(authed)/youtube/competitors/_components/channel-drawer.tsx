@@ -41,6 +41,7 @@ function fmtDur(seconds: number): string {
 /** Tier color from outlier multiplier. */
 function multTierColor(mult: number | null): string {
   if (mult == null) return 'var(--text-dim)'
+  if (mult >= 10) return 'var(--tier-top)'
   if (mult >= 5) return 'var(--tier-high)'
   if (mult >= 2) return 'var(--tier-mid)'
   return 'var(--text-dim)'
@@ -415,8 +416,8 @@ export function ChannelDrawer({ channel, open, onClose, onVideoClick }: ChannelD
               className="cd-more"
               onClick={() => setVisibleCount(c => c + BATCH_SIZE)}
             >
-              Carregar mais {Math.min(BATCH_SIZE, remaining)} de {remaining}
-              <ChevronDown className="h-4 w-4" aria-hidden="true" />
+              <ChevronDown style={{ width: 15, height: 15 }} aria-hidden="true" />
+              Carregar mais {remaining} de {sorted.length}
             </button>
           )}
         </div>
@@ -430,6 +431,7 @@ export function ChannelDrawer({ channel, open, onClose, onVideoClick }: ChannelD
 function VideoRow({ video: v, onClick }: { video: CompetitorVideoView; onClick: () => void }) {
   const mult = v.outlierMultiplier ?? 0
   const tierColor = multTierColor(v.outlierMultiplier)
+  const hasEngData = v.likeCount > 0 || v.commentCount > 0
   const eng = engRate(v)
 
   return (
@@ -448,17 +450,12 @@ function VideoRow({ video: v, onClick }: { video: CompetitorVideoView; onClick: 
           />
         ) : (
           <div
-            className="flex items-center justify-center"
             style={{
               width: '100%',
               aspectRatio: '16 / 9',
-              background: 'var(--surface-3)',
-              color: 'var(--text-dim)',
-              fontSize: 9,
+              background: 'linear-gradient(145deg, var(--surface-3), var(--surface-2))',
             }}
-          >
-            Sem thumb
-          </div>
+          />
         )}
         {v.durationSeconds != null && (
           <span className="cd-dur sm">{fmtDur(v.durationSeconds)}</span>
@@ -490,7 +487,9 @@ function VideoRow({ video: v, onClick }: { video: CompetitorVideoView; onClick: 
         </div>
         {/* engaj. */}
         <div className="cd-rs">
-          <span className="mono cd-rs-v">{brDec(eng * 100, 1)}%</span>
+          <span className="mono cd-rs-v" style={!hasEngData ? { color: 'var(--text-dim)' } : undefined}>
+            {hasEngData ? `${brDec(eng * 100, 1)}%` : '—'}
+          </span>
           <span className="metric-label">engaj.</span>
         </div>
         {/* outlier */}
