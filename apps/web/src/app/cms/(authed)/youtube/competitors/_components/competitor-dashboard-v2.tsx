@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search, Plus } from 'lucide-react'
+import { Search, Plus, Users, Activity, Flame, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 import { fmtC } from '@/lib/youtube/format'
 import { ChannelCard } from './channel-card'
@@ -374,11 +374,11 @@ export function CompetitorDashboardV2({
     setModalVideo({ video, channelName: outlier.channelName })
   }, [])
 
-  const tabs: Array<{ id: SubTab; label: string; count?: number }> = [
-    { id: 'canais', label: 'Canais', count: channels.length },
-    { id: 'mudancas', label: 'Mudanças', count: displayChanges.length },
-    { id: 'outliers', label: 'Outliers', count: displayOutliers.length },
-    { id: 'insights', label: 'Insights' },
+  const tabs: Array<{ id: SubTab; label: string; count?: number; icon: React.ReactNode }> = [
+    { id: 'canais', label: 'Canais', count: channels.length, icon: <Users style={{ width: 15, height: 15 }} aria-hidden="true" /> },
+    { id: 'mudancas', label: 'Mudanças', count: displayChanges.length, icon: <Activity style={{ width: 15, height: 15 }} aria-hidden="true" /> },
+    { id: 'outliers', label: 'Outliers', count: displayOutliers.length, icon: <Flame style={{ width: 15, height: 15 }} aria-hidden="true" /> },
+    { id: 'insights', label: 'Insights', icon: <Sparkles style={{ width: 15, height: 15 }} aria-hidden="true" /> },
   ]
 
   return (
@@ -403,6 +403,7 @@ export function CompetitorDashboardV2({
             className={`subtab ${activeTab === tab.id ? 'active' : ''}`}
             onClick={() => handleTabChange(tab.id)}
           >
+            {tab.icon}
             {tab.label}
             {tab.count != null && (
               <span className="subtab-count tnum">{tab.count}</span>

@@ -702,6 +702,9 @@ button[aria-label="Notificações"] {
 }
 
 [data-cms-section="youtube"] .subtab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 10px 14px 12px;
   font-size: 13.5px;
   font-weight: 500;
