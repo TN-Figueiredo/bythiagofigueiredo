@@ -249,7 +249,8 @@ export function ChannelDrawer({ channel, open, onClose, onVideoClick }: ChannelD
                   </span>
                 )}
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginTop: 10 }}>
+              {/* cd-versus-items: handoff grid 4-col, each with metric-label + value mono + vs-pill badge */}
+              <div className="cd-versus-items" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginTop: 10 }}>
                 {/* Engajamento */}
                 <div className="vs-item">
                   <span className="metric-label">Engajamento</span>
@@ -257,31 +258,90 @@ export function ChannelDrawer({ channel, open, onClose, onVideoClick }: ChannelD
                     {ch.avgEngagement != null && ch.avgEngagement > 0 && (
                       <span className="mono" style={{ fontSize: 12.5, fontWeight: 600 }}>{brDec(ch.avgEngagement * 100, 1)}%</span>
                     )}
-                    <VsPill label="" delta={vs.engagementDelta} format={v => `${brDec(Math.abs(v * 100), 1)} pts`} />
+                    {(() => {
+                      const d = vs.engagementDelta
+                      const isGood = d <= 0
+                      const color = isGood ? 'var(--green)' : 'var(--amber)'
+                      return (
+                        <span className="vs-pill" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontFamily: 'var(--font-jetbrains)', fontSize: 11, fontWeight: 700, padding: '2px 6px', borderRadius: 6, color, background: `color-mix(in srgb, ${color} 15%, transparent)` }}>
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            {isGood
+                              ? <><path d="M22 17l-8.5-8.5-5 5L2 7" /><path d="M16 17h6v-6" /></>
+                              : <><path d="M22 7l-8.5 8.5-5-5L2 17" /><path d="M16 7h6v6" /></>
+                            }
+                          </svg>
+                          {d > 0 ? '+' : '−'}{brDec(Math.abs(d * 100), 1)} pts
+                        </span>
+                      )
+                    })()}
                   </div>
                 </div>
                 {/* Cresce/sem */}
                 <div className="vs-item">
                   <span className="metric-label">Cresce/sem</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
-                    <VsPill label="" delta={vs.subsDelta} format={v => {
-                      const ratio = ch.subscriberCount && ch.subscriberCount > 0 ? Math.abs(v) / ch.subscriberCount : 0
-                      return ratio > 0 ? `${brDec(ratio, 1)}×` : fmtC(Math.abs(Math.round(v)))
-                    }} />
+                    {(() => {
+                      const d = vs.subsDelta
+                      const ratio = ch.subscriberCount && ch.subscriberCount > 0 ? d / (ch.subscriberCount || 1) : 0
+                      const isGood = d <= 0
+                      const color = isGood ? 'var(--green)' : 'var(--amber)'
+                      const label = Math.abs(ratio) > 0.01 ? `${brDec(Math.abs(ratio), 1)}×` : fmtC(Math.abs(Math.round(d)))
+                      return (
+                        <span className="vs-pill" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontFamily: 'var(--font-jetbrains)', fontSize: 11, fontWeight: 700, padding: '2px 6px', borderRadius: 6, color, background: `color-mix(in srgb, ${color} 15%, transparent)` }}>
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            {isGood
+                              ? <><path d="M22 17l-8.5-8.5-5 5L2 7" /><path d="M16 17h6v-6" /></>
+                              : <><path d="M22 7l-8.5 8.5-5-5L2 17" /><path d="M16 7h6v6" /></>
+                            }
+                          </svg>
+                          {label}
+                        </span>
+                      )
+                    })()}
                   </div>
                 </div>
                 {/* Cadência */}
                 <div className="vs-item">
                   <span className="metric-label">Cadência</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
-                    <VsPill label="" delta={vs.frequencyDelta} format={v => `${brDec(Math.abs(v), 1)}×`} />
+                    {(() => {
+                      const d = vs.frequencyDelta
+                      const isGood = d <= 0
+                      const color = isGood ? 'var(--green)' : 'var(--amber)'
+                      return (
+                        <span className="vs-pill" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontFamily: 'var(--font-jetbrains)', fontSize: 11, fontWeight: 700, padding: '2px 6px', borderRadius: 6, color, background: `color-mix(in srgb, ${color} 15%, transparent)` }}>
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            {isGood
+                              ? <><path d="M22 17l-8.5-8.5-5 5L2 7" /><path d="M16 17h6v-6" /></>
+                              : <><path d="M22 7l-8.5 8.5-5-5L2 17" /><path d="M16 7h6v6" /></>
+                            }
+                          </svg>
+                          {brDec(Math.abs(d), 1)}×
+                        </span>
+                      )
+                    })()}
                   </div>
                 </div>
                 {/* Views médias */}
                 <div className="vs-item">
                   <span className="metric-label">Views médias</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
-                    <VsPill label="" delta={vs.avgViewsDelta} format={v => `${brDec(Math.abs(v), 1)}×`} />
+                    {(() => {
+                      const d = vs.avgViewsDelta
+                      const isGood = d <= 0
+                      const color = isGood ? 'var(--green)' : 'var(--amber)'
+                      return (
+                        <span className="vs-pill" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontFamily: 'var(--font-jetbrains)', fontSize: 11, fontWeight: 700, padding: '2px 6px', borderRadius: 6, color, background: `color-mix(in srgb, ${color} 15%, transparent)` }}>
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            {isGood
+                              ? <><path d="M22 17l-8.5-8.5-5 5L2 7" /><path d="M16 17h6v-6" /></>
+                              : <><path d="M22 7l-8.5 8.5-5-5L2 17" /><path d="M16 7h6v6" /></>
+                            }
+                          </svg>
+                          {brDec(Math.abs(d), 1)}×
+                        </span>
+                      )
+                    })()}
                   </div>
                 </div>
               </div>
