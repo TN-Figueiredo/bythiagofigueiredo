@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useCallback, useRef } from 'react'
-import { Search, Bookmark, ChevronDown, ChevronUp, ZoomIn, ArrowRight, X, Filter, FlaskConical } from 'lucide-react'
+import { Search, Bookmark, ChevronRight, ChevronDown, ChevronUp, ZoomIn, ArrowRight, X, Filter, FlaskConical, RotateCcw, Image, List, MessageSquare } from 'lucide-react'
 import { YtPortal } from '../../_components/yt-portal'
 import { useModalFocusTrap } from '../../../_shared/editor/use-modal-focus-trap'
 import { fmtC, fmtRelative } from '@/lib/youtube/format'
@@ -161,14 +161,14 @@ export function MudancasTab({ changes, channelNames }: MudancasTabProps) {
           {isFiltered && <p className="text-xs mt-1">Tente ajustar os filtros.</p>}
         </div>
       ) : (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col" style={{ gap: 12 }}>
           {grouped.map(([day, dayChanges]) => (
             <div key={day} className="change-group">
               <div className="change-day">
                 <span className="eyebrow">{day}</span>
                 <div className="change-day-line" />
               </div>
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col" style={{ gap: 12 }}>
                 {dayChanges.map(c => (
                   <ChangeCard
                     key={c.id}
@@ -192,6 +192,57 @@ export function MudancasTab({ changes, channelNames }: MudancasTabProps) {
   )
 }
 
+/* ── Palette: deterministic color per channel name (same as channel-card) ── */
+
+const CHANNEL_COLORS = [
+  '#E8753A',
+  '#A78BFA',
+  '#60A5FA',
+  '#F472B6',
+  '#34D399',
+  '#FBBF24',
+  '#F87171',
+  '#818CF8',
+]
+
+function colorFor(name: string): string {
+  let h = 0
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0
+  return CHANNEL_COLORS[Math.abs(h) % CHANNEL_COLORS.length]!
+}
+
+const CHANGE_TYPE_ICON: Record<string, typeof Image> = {
+  thumbnail: Image,
+  title: List,
+  description: MessageSquare,
+}
+
+const BADGE_VARIANT: Record<string, string> = {
+  thumbnail: 'purple',
+  title: 'blue',
+  description: 'amber',
+}
+
+/** Count changes by type across the main change + its full history. */
+function countByType(c: CompetitorChangeView): Record<string, number> {
+  const counts: Record<string, number> = {}
+  const all = [c, ...c.history]
+  for (const ev of all) {
+    counts[ev.changeType] = (counts[ev.changeType] ?? 0) + 1
+  }
+  return counts
+}
+
+/** Check if probable AB test (2+ changes in 14 days). */
+function isProbableAbTest(c: CompetitorChangeView): boolean {
+  const total = 1 + c.history.length
+  if (total < 2) return false
+  const all = [c, ...c.history]
+  const dates = all.map(ev => new Date(ev.detectedAt).getTime())
+  const range = Math.max(...dates) - Math.min(...dates)
+  return range <= 14 * 24 * 60 * 60 * 1000
+}
+
 function ChangeCard({
   change: c,
   expanded,
@@ -204,250 +255,215 @@ function ChangeCard({
   onZoom: () => void
 }) {
   const [optimisticBookmark, setOptimisticBookmark] = useState(c.bookmarked)
-  const tc = TYPE_COLORS[c.changeType] ?? { bg: 'var(--surface)', color: 'var(--text-muted)' }
+  const channelColor = colorFor(c.channelName)
+  const totalChanges = 1 + c.history.length
+  const abTest = isProbableAbTest(c)
+  const typeCounts = countByType(c)
 
   const handleBookmark = async () => {
     setOptimisticBookmark(v => !v)
     await toggleBookmark(c.id)
   }
 
+  // Build summary string: "N trocas de thumbnail · N trocas de titulo"
+  const summaryParts: string[] = []
+  if (typeCounts['thumbnail']) summaryParts.push(`${typeCounts['thumbnail']} troca${typeCounts['thumbnail']! > 1 ? 's' : ''} de thumbnail`)
+  if (typeCounts['title']) summaryParts.push(`${typeCounts['title']} troca${typeCounts['title']! > 1 ? 's' : ''} de titulo`)
+  if (typeCounts['description']) summaryParts.push(`${typeCounts['description']} troca${typeCounts['description']! > 1 ? 's' : ''} de descricao`)
+
   return (
-    <div
-      className="md-card rounded-[14px] overflow-hidden"
-      style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
-    >
-      <div className="flex items-start gap-3 p-3">
-        {/* Bookmark */}
-        <button
-          className={`md-mark flex-shrink-0 rounded-lg p-1.5 ${optimisticBookmark ? 'on' : ''}`}
-          style={{ border: '1px solid var(--border)' }}
-          onClick={handleBookmark}
-          aria-label={optimisticBookmark ? 'Remover marcação' : 'Marcar'}
-        >
-          <Bookmark className="h-3.5 w-3.5" fill={optimisticBookmark ? 'currentColor' : 'none'} aria-hidden="true" />
-        </button>
+    <div className="md-card">
+      {/* Left color rail */}
+      <div className="change-rail" style={{ background: channelColor }} />
 
-        <div className="flex-1 min-w-0">
-          {/* Top row: badge + channel + time */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <span
-              className="rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase"
-              style={{ background: tc.bg, color: tc.color }}
-            >
-              {TYPE_LABELS[c.changeType] ?? c.changeType}
+      {/* Card body */}
+      <div className="md-card-body">
+        {/* Header row: channel name + badges + bookmark */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 flex-wrap" style={{ minWidth: 0 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: channelColor }}>{c.channelName}</span>
+            <span className="md-badge">
+              <RotateCcw className="h-[11px] w-[11px]" aria-hidden="true" />
+              {totalChanges} mudanca{totalChanges > 1 ? 's' : ''}
             </span>
-            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{c.channelName}</span>
-            <span className="text-xs" style={{ color: 'var(--text-dim)' }}>{fmtRelative(c.detectedAt)}</span>
-          </div>
-
-          {/* Video title */}
-          {c.videoTitle && (
-            <p className="text-xs font-medium mt-1 truncate" style={{ color: 'var(--text)' }}>{c.videoTitle}</p>
-          )}
-
-          {/* Change content */}
-          {c.changeType === 'title' && c.oldTitle && c.newTitle && (
-            <div
-              className="mt-2 text-xs flex items-center gap-1.5 flex-wrap cursor-pointer"
-              role="button"
-              tabIndex={0}
-              onClick={onZoom}
-              onKeyDown={e => handleKeyAction(e, onZoom)}
-              aria-label="Ampliar comparação de título"
-            >
-              <span className="line-through" style={{ color: 'var(--red, #EF4444)', opacity: 0.7 }}>{c.oldTitle}</span>
-              <ArrowRight className="h-3 w-3 flex-shrink-0" style={{ color: 'var(--text-dim)' }} aria-hidden="true" />
-              <span style={{ color: 'var(--green)' }}>{c.newTitle}</span>
-              <ZoomIn className="h-3 w-3 flex-shrink-0 ml-1" style={{ color: 'var(--text-dim)' }} aria-hidden="true" />
-            </div>
-          )}
-
-          {c.changeType === 'thumbnail' && (
-            <div
-              className="mt-2 flex items-center gap-2 cursor-pointer"
-              role="button"
-              tabIndex={0}
-              onClick={onZoom}
-              onKeyDown={e => handleKeyAction(e, onZoom)}
-              aria-label="Ampliar comparação de thumbnail"
-            >
-              {c.oldThumbnailUrl ? (
-                <div className="md-mini relative flex-shrink-0">
-                  <img src={c.oldThumbnailUrl} alt="antes" referrerPolicy="no-referrer" className="h-14 w-24 rounded-lg object-cover" style={{ opacity: 0.5 }} />
-                  <span className="absolute top-0.5 left-0.5 rounded px-1 py-0.5 text-[8px] font-bold" style={{ background: 'rgba(0,0,0,0.6)', color: '#fff' }}>ANTES</span>
-                  <div className="absolute inset-0 flex items-center justify-center" aria-hidden="true">
-                    <div className="rounded-full flex items-center justify-center" style={{ width: 22, height: 22, background: 'rgba(0,0,0,0.55)' }}>
-                      <PlayIcon size={9} />
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="h-14 w-24 rounded-lg flex items-center justify-center text-[8px] flex-shrink-0" style={{ background: 'var(--surface-3)', color: 'var(--text-dim)' }}>ANTES</div>
-              )}
-              <ArrowRight className="h-3 w-3 flex-shrink-0" style={{ color: 'var(--text-dim)' }} aria-hidden="true" />
-              {c.newThumbnailUrl ? (
-                <div className="md-mini relative flex-shrink-0">
-                  <img src={c.newThumbnailUrl} alt="depois" referrerPolicy="no-referrer" className="h-14 w-24 rounded-lg object-cover" />
-                  <span className="absolute top-0.5 left-0.5 rounded px-1 py-0.5 text-[8px] font-bold" style={{ background: 'rgba(0,0,0,0.6)', color: '#fff' }}>DEPOIS</span>
-                  <div className="absolute inset-0 flex items-center justify-center" aria-hidden="true">
-                    <div className="rounded-full flex items-center justify-center" style={{ width: 22, height: 22, background: 'rgba(0,0,0,0.55)' }}>
-                      <PlayIcon size={9} />
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="h-14 w-24 rounded-lg flex items-center justify-center text-[8px] flex-shrink-0" style={{ background: 'var(--surface-3)', color: 'var(--text-dim)' }}>DEPOIS</div>
-              )}
-              <ZoomIn className="h-3.5 w-3.5 flex-shrink-0" style={{ color: 'var(--text-dim)' }} aria-hidden="true" />
-            </div>
-          )}
-
-          {c.changeType === 'description' && (
-            <div
-              className="text-[10px] mt-1.5 cursor-pointer inline-flex items-center gap-1"
-              role="button"
-              tabIndex={0}
-              onClick={onZoom}
-              onKeyDown={e => handleKeyAction(e, onZoom)}
-              style={{ color: 'var(--text-dim)' }}
-            >
-              <span>
-                Descricao alterada
-                {c.viewCountAtChange != null && <> · {fmtC(c.viewCountAtChange)} views na mudanca</>}
+            {abTest && (
+              <span className="md-badge amber">
+                <FlaskConical className="h-[11px] w-[11px]" aria-hidden="true" />
+                Provavel A/B test
               </span>
-              <ZoomIn className="h-2.5 w-2.5 flex-shrink-0" aria-hidden="true" />
-            </div>
+            )}
+          </div>
+          <button
+            className={`md-mark flex-shrink-0 rounded-lg p-1.5 ${optimisticBookmark ? 'on' : ''}`}
+            style={{ border: '1px solid var(--border)' }}
+            onClick={handleBookmark}
+            aria-label={optimisticBookmark ? 'Remover marcacao' : 'Marcar'}
+          >
+            <Bookmark style={{ width: 15, height: 15 }} fill={optimisticBookmark ? 'currentColor' : 'none'} aria-hidden="true" />
+          </button>
+        </div>
+
+        {/* Video title */}
+        {c.videoTitle && (
+          <p style={{ fontSize: 14.5, fontWeight: 600, lineHeight: 1.3, color: 'var(--text)', marginTop: 6 }}>
+            {c.videoTitle}
+          </p>
+        )}
+
+        {/* Meta row: views + published + summary */}
+        <div className="flex items-center gap-2 flex-wrap" style={{ marginTop: 5 }}>
+          {c.viewCountAtChange != null && (
+            <span className="mono" style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+              {fmtC(c.viewCountAtChange)} views · publicado {fmtRelative(c.detectedAt)}
+            </span>
           )}
-
-          {/* View count */}
-          {c.changeType !== 'description' && c.viewCountAtChange != null && (
-            <p className="text-[10px] mt-1 tnum" style={{ color: 'var(--text-dim)' }}>
-              {fmtC(c.viewCountAtChange)} views na mudança
-            </p>
+          {summaryParts.length > 0 && (
+            <span className="md-summary">{summaryParts.join(' · ')}</span>
           )}
+        </div>
 
-          {/* History toggle */}
-          {c.history.length > 0 && (
-            <>
-              <button
-                className="md-history-toggle flex items-center gap-1 mt-2 text-[10px] font-medium"
-                style={{ color: 'var(--text-muted)' }}
-                onClick={onToggleExpand}
-                aria-expanded={expanded}
-              >
-                {expanded ? <ChevronUp className="h-3 w-3" aria-hidden="true" /> : <ChevronDown className="h-3 w-3" aria-hidden="true" />}
-                {expanded ? 'Esconder' : `Ver histórico completo (${c.history.length})`}
-              </button>
+        {/* "Mudanca mais recente" section */}
+        <div className="md-latest">
+          <span className="section-label">Mudanca mais recente</span>
 
-              {expanded && (
-                <div className="mt-3 ml-2 flex flex-col gap-0" style={{ borderLeft: '2px solid var(--border)', paddingLeft: 14 }}>
-                  {c.history.map((h, idx) => {
-                    const htc = TYPE_COLORS[h.changeType] ?? { bg: 'var(--surface)', color: 'var(--text-muted)' }
-                    return (
-                      <div
-                        key={h.id}
-                        className="fade-in relative py-2.5"
-                        style={{
-                          animationDelay: `${idx * 50}ms`,
-                          borderBottom: idx < c.history.length - 1 ? '1px solid var(--border-subtle, rgba(255,255,255,0.04))' : 'none',
-                        }}
-                      >
-                        {/* Timeline dot */}
-                        <div
-                          className="absolute rounded-full"
-                          style={{
-                            width: 7, height: 7,
-                            background: htc.color,
-                            left: -18,
-                            top: 14,
-                          }}
-                          aria-hidden="true"
-                        />
+          <div className="md-ev">
+            <ChangeEventInline ev={c} onZoom={onZoom} />
+            <span className="mono dim md-ev-time">{fmtRelative(c.detectedAt)}</span>
+          </div>
+        </div>
 
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span
-                            className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase"
-                            style={{ background: htc.bg, color: htc.color }}
-                          >
-                            {TYPE_LABELS[h.changeType] ?? h.changeType}
-                          </span>
-                          <span className="text-[10px]" style={{ color: 'var(--text-dim)' }}>
-                            {fmtRelative(h.detectedAt)}
-                          </span>
-                          {h.viewCountAtChange != null && (
-                            <span className="text-[10px] tnum" style={{ color: 'var(--text-dim)' }}>
-                              {fmtC(h.viewCountAtChange)} views
-                            </span>
-                          )}
-                        </div>
+        {/* History toggle */}
+        {c.history.length > 0 && (
+          <>
+            <button
+              className="md-history-toggle"
+              onClick={onToggleExpand}
+              aria-expanded={expanded}
+            >
+              {expanded
+                ? <ChevronDown className="h-3 w-3" aria-hidden="true" />
+                : <ChevronRight className="h-3 w-3" aria-hidden="true" />
+              }
+              {expanded ? 'Esconder historico' : `Ver historico completo (${c.history.length})`}
+            </button>
 
-                        {/* Content per type */}
-                        {h.changeType === 'title' && h.oldTitle && h.newTitle && (
-                          <div className="mt-1 text-[11px] flex items-center gap-1.5 flex-wrap">
-                            <span className="line-through" style={{ color: 'var(--red, #EF4444)', opacity: 0.7 }}>
-                              {h.oldTitle}
-                            </span>
-                            <ArrowRight className="h-2.5 w-2.5 flex-shrink-0" style={{ color: 'var(--text-dim)' }} aria-hidden="true" />
-                            <span style={{ color: 'var(--green)' }}>{h.newTitle}</span>
-                          </div>
-                        )}
+            {expanded && (
+              <div className="mt-3 ml-2 flex flex-col gap-0" style={{ borderLeft: '2px solid var(--border)', paddingLeft: 14 }}>
+                {c.history.map((h, idx) => (
+                  <div
+                    key={h.id}
+                    className="fade-in relative py-2.5"
+                    style={{
+                      animationDelay: `${idx * 50}ms`,
+                      borderBottom: idx < c.history.length - 1 ? '1px solid var(--border-subtle, rgba(255,255,255,0.04))' : 'none',
+                    }}
+                  >
+                    {/* Timeline dot */}
+                    <div
+                      className="absolute rounded-full"
+                      style={{
+                        width: 7, height: 7,
+                        background: TYPE_COLORS[h.changeType]?.color ?? 'var(--text-muted)',
+                        left: -18,
+                        top: 14,
+                      }}
+                      aria-hidden="true"
+                    />
+                    <div className="md-ev">
+                      <ChangeEventInline ev={h} onZoom={onZoom} />
+                      <span className="mono dim md-ev-time">{fmtRelative(h.detectedAt)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
 
-                        {h.changeType === 'thumbnail' && (
-                          <div className="mt-1.5 flex items-center gap-1.5">
-                            {h.oldThumbnailUrl ? (
-                              <div className="relative flex-shrink-0">
-                                <img
-                                  src={h.oldThumbnailUrl}
-                                  alt="antes"
-                                  referrerPolicy="no-referrer"
-                                  className="h-10 w-[72px] rounded object-cover"
-                                  style={{ opacity: 0.5 }}
-                                />
-                              </div>
-                            ) : (
-                              <div
-                                className="h-10 w-[72px] rounded flex items-center justify-center text-[8px] flex-shrink-0"
-                                style={{ background: 'var(--surface-3)', color: 'var(--text-dim)' }}
-                              >
-                                antes
-                              </div>
-                            )}
-                            <ArrowRight className="h-2.5 w-2.5 flex-shrink-0" style={{ color: 'var(--text-dim)' }} aria-hidden="true" />
-                            {h.newThumbnailUrl ? (
-                              <div className="relative flex-shrink-0">
-                                <img
-                                  src={h.newThumbnailUrl}
-                                  alt="depois"
-                                  referrerPolicy="no-referrer"
-                                  className="h-10 w-[72px] rounded object-cover"
-                                />
-                              </div>
-                            ) : (
-                              <div
-                                className="h-10 w-[72px] rounded flex items-center justify-center text-[8px] flex-shrink-0"
-                                style={{ background: 'var(--surface-3)', color: 'var(--text-dim)' }}
-                              >
-                                depois
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {h.changeType === 'description' && (
-                          <p className="mt-1 text-[10px]" style={{ color: 'var(--text-dim)' }}>
-                            Descricao alterada
-                          </p>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </>
-          )}
+        {/* CTA button */}
+        <div className="flex items-center gap-2" style={{ marginTop: 14 }}>
+          <button className="btn primary sm" onClick={onZoom}>
+            <FlaskConical className="h-3.5 w-3.5" aria-hidden="true" />
+            Testar esta abordagem
+          </button>
         </div>
       </div>
     </div>
+  )
+}
+
+/** Inline rendering of a single change event (used in "Mudanca mais recente" and history). */
+function ChangeEventInline({ ev, onZoom }: { ev: CompetitorChangeView; onZoom: () => void }) {
+  const variant = BADGE_VARIANT[ev.changeType] ?? ''
+  const Icon = CHANGE_TYPE_ICON[ev.changeType] ?? MessageSquare
+
+  return (
+    <>
+      <span className={`md-badge ${variant}`}>
+        <Icon className="h-[11px] w-[11px]" aria-hidden="true" />
+        {TYPE_LABELS[ev.changeType] ?? ev.changeType}
+      </span>
+
+      {ev.changeType === 'thumbnail' && (
+        <div
+          className="md-ev-ba thumbs"
+          role="button"
+          tabIndex={0}
+          onClick={onZoom}
+          onKeyDown={e => handleKeyAction(e, onZoom)}
+          aria-label="Ampliar comparacao de thumbnail"
+        >
+          <div className="md-mini-wrap">
+            {ev.oldThumbnailUrl ? (
+              <img src={ev.oldThumbnailUrl} alt="antes" referrerPolicy="no-referrer" className="md-mini thumb" style={{ opacity: 0.55 }} />
+            ) : (
+              <div className="md-mini thumb flex items-center justify-center text-[7px]" style={{ background: 'var(--surface-3)', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>?</div>
+            )}
+            <span className="md-mini-label">antes</span>
+          </div>
+          <ArrowRight className="h-3 w-3 flex-shrink-0" style={{ color: 'var(--text-dim)' }} aria-hidden="true" />
+          <div className="md-mini-wrap">
+            {ev.newThumbnailUrl ? (
+              <img src={ev.newThumbnailUrl} alt="depois" referrerPolicy="no-referrer" className="md-mini thumb after" />
+            ) : (
+              <div className="md-mini thumb flex items-center justify-center text-[7px]" style={{ background: 'var(--surface-3)', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>?</div>
+            )}
+            <span className="md-mini-label">depois</span>
+          </div>
+          <ZoomIn className="h-3 w-3 flex-shrink-0" style={{ color: 'var(--text-dim)' }} aria-hidden="true" />
+        </div>
+      )}
+
+      {ev.changeType === 'title' && ev.oldTitle && ev.newTitle && (
+        <div
+          className="md-ev-ba text"
+          role="button"
+          tabIndex={0}
+          onClick={onZoom}
+          onKeyDown={e => handleKeyAction(e, onZoom)}
+          aria-label="Ampliar comparacao de titulo"
+        >
+          <span className="ba-strike">{ev.oldTitle}</span>
+          <ArrowRight className="h-3 w-3 flex-shrink-0" style={{ color: 'var(--text-dim)' }} aria-hidden="true" />
+          <span className="ba-new">{ev.newTitle}</span>
+          <ZoomIn className="h-3 w-3 flex-shrink-0" style={{ color: 'var(--text-dim)' }} aria-hidden="true" />
+        </div>
+      )}
+
+      {ev.changeType === 'description' && (
+        <div
+          className="md-ev-ba text"
+          role="button"
+          tabIndex={0}
+          onClick={onZoom}
+          onKeyDown={e => handleKeyAction(e, onZoom)}
+          aria-label="Ampliar comparacao de descricao"
+        >
+          <span style={{ color: 'var(--text-dim)' }}>Descricao alterada</span>
+          <ZoomIn className="h-3 w-3 flex-shrink-0" style={{ color: 'var(--text-dim)' }} aria-hidden="true" />
+        </div>
+      )}
+    </>
   )
 }
 
