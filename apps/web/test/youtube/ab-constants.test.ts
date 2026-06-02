@@ -35,7 +35,7 @@ describe('TYPE_META', () => {
 })
 
 describe('formatNumber', () => {
-  it('formats with en locale', () => { expect(formatNumber(1234)).toBe('1,234') })
+  it('formats with pt-BR locale', () => { expect(formatNumber(1234)).toBe('1.234') })
   it('returns dash for null', () => { expect(formatNumber(null)).toBe('—') })
   it('returns dash for undefined', () => { expect(formatNumber(undefined)).toBe('—') })
   it('returns dash for NaN', () => { expect(formatNumber(NaN)).toBe('—') })
