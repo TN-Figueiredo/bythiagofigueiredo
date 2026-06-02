@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import { ChevronDown } from 'lucide-react'
 import { brDec, fmtC, fmtRelative } from '@/lib/youtube/format'
 import type { CompetitorOutlierView } from '@/lib/youtube/observatory-types'
 
@@ -26,11 +27,16 @@ const TIER_META: Record<string, { label: string; color: string; range: string }>
 
 export function OutliersTab({ outliers, onVideoClick }: OutliersTabProps) {
   const [tierFilter, setTierFilter] = useState<TierFilter>('all')
+  const [visibleCount, setVisibleCount] = useState(16)
 
   const filtered = useMemo(() => {
     if (tierFilter === 'all') return outliers
     return outliers.filter(o => o.tier === tierFilter)
   }, [outliers, tierFilter])
+
+  const visible = filtered.slice(0, visibleCount)
+  const hasMore = visibleCount < filtered.length
+  const remaining = filtered.length - visibleCount
 
   if (outliers.length === 0) {
     return (
@@ -50,7 +56,7 @@ export function OutliersTab({ outliers, onVideoClick }: OutliersTabProps) {
             <button
               key={t}
               className={`chip ${tierFilter === t ? 'on' : ''}`}
-              onClick={() => setTierFilter(t)}
+              onClick={() => { setTierFilter(t); setVisibleCount(16) }}
             >
               {t === 'all' ? 'Todos' : TIER_META[t]?.label}
               {t !== 'all' && TIER_META[t] && (
@@ -82,7 +88,7 @@ export function OutliersTab({ outliers, onVideoClick }: OutliersTabProps) {
         </div>
       ) : (
         <div className="outlier-grid stagger">
-          {filtered.map(o => {
+          {visible.map(o => {
             const meta = TIER_META[o.tier] ?? { label: o.tier, color: 'var(--tier-mid)', range: '' }
             return (
               <div
@@ -144,6 +150,24 @@ export function OutliersTab({ outliers, onVideoClick }: OutliersTabProps) {
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {filtered.length > 0 && (
+        <div className="flex items-center justify-between" style={{ marginTop: 8 }}>
+          <span className="mono" style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+            {visible.length} de {filtered.length} outliers
+          </span>
+          {hasMore && (
+            <button
+              className="cd-more"
+              onClick={() => setVisibleCount(prev => prev + 16)}
+            >
+              <ChevronDown style={{ width: 15, height: 15 }} aria-hidden="true" />
+              Carregar mais {Math.min(remaining, 16)} de {remaining}
+            </button>
+          )}
         </div>
       )}
     </div>
