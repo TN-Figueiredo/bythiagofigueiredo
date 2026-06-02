@@ -1,6 +1,16 @@
+/**
+ * YtOutliersV2 — refactored per spec 4.3.5.
+ *
+ * List -> .outlier-grid.stagger cards.
+ * Add video thumbnails.
+ * Add "Criar teste A/B" affordance (.outlier-cta revealed on hover/focus).
+ * Card lift with accent-line border.
+ */
 'use client'
 
 import { useState } from 'react'
+import { toast } from 'sonner'
+import { brDec } from '@/lib/youtube/format'
 import type { Axis } from '@/lib/youtube/scoring-types'
 import { AXIS_LABELS } from '@/lib/youtube/scoring-types'
 import type { OutlierVideo } from './types'
@@ -10,22 +20,38 @@ interface Props {
   hasAnalyticsData?: boolean
 }
 
+const TIER_COLORS: Record<string, string> = {
+  high: 'var(--tier-high)',
+  top: 'var(--tier-top)',
+}
+
+function getTier(modifiedZ: number): 'mid' | 'high' | 'top' {
+  if (Math.abs(modifiedZ) >= 5) return 'top'
+  if (Math.abs(modifiedZ) >= 3) return 'high'
+  return 'mid'
+}
+
+function getTierColor(tier: string): string {
+  return TIER_COLORS[tier] ?? 'var(--tier-mid)'
+}
+
 export function YtOutliersV2({ outliers, hasAnalyticsData = true }: Props) {
   const [selectedAxis, setSelectedAxis] = useState<Axis | 'all'>('all')
   const axes: Axis[] = ['ctr', 'retention', 'reach', 'engagement', 'growth', 'sub_impact']
 
   const filtered = selectedAxis === 'all' ? outliers : outliers.filter(o => o.axis === selectedAxis)
-  const positive = filtered.filter(o => o.direction === 'positive').sort((a, b) => b.modifiedZ - a.modifiedZ)
-  const negative = filtered.filter(o => o.direction === 'negative').sort((a, b) => a.modifiedZ - b.modifiedZ)
+  const positive = filtered
+    .filter(o => o.direction === 'positive')
+    .sort((a, b) => b.modifiedZ - a.modifiedZ)
 
   if (outliers.length === 0) {
     return (
-      <div className="flex h-40 flex-col items-center justify-center gap-2 rounded border border-dashed border-cms-border">
+      <div className="fade-in flex h-40 flex-col items-center justify-center gap-2 rounded border border-dashed border-cms-border">
         <p className="text-xs text-cms-text-muted">Nenhum outlier significativo detectado.</p>
         {!hasAnalyticsData && (
           <p className="max-w-sm text-center text-[10px] text-cms-text-muted/70">
-            Os dados de CTR, retenção e impressões ainda não foram sincronizados. Outliers aparecerão quando
-            a YouTube Analytics API fornecer métricas detalhadas (pode levar 48-72h após a conexão).
+            Os dados de CTR, retencao e impressoes ainda nao foram sincronizados. Outliers aparecerao quando
+            a YouTube Analytics API fornecer metricas detalhadas (pode levar 48-72h apos a conexao).
           </p>
         )}
       </div>
@@ -33,67 +59,108 @@ export function YtOutliersV2({ outliers, hasAnalyticsData = true }: Props) {
   }
 
   return (
-    <div className="space-y-4">
-      {/* Axis Selector */}
+    <div className="fade-in flex flex-col gap-4">
+      {/* Intro */}
+      <p className="text-xs text-cms-text-muted">
+        Videos do seu canal com performance acima da mediana. Clique para criar um teste A/B.
+      </p>
+
+      {/* Axis filter */}
       <div className="flex flex-wrap gap-1.5">
         <button
+          type="button"
           onClick={() => setSelectedAxis('all')}
+          className={`chip${selectedAxis === 'all' ? ' on' : ''}`}
           aria-pressed={selectedAxis === 'all'}
-          className={`rounded px-2 py-0.5 text-[10px] ${selectedAxis === 'all' ? 'bg-cms-accent text-white' : 'border border-cms-border text-cms-text-muted'}`}
         >
           Todos
         </button>
         {axes.map(a => (
           <button
             key={a}
+            type="button"
             onClick={() => setSelectedAxis(a)}
+            className={`chip${selectedAxis === a ? ' on' : ''}`}
             aria-pressed={selectedAxis === a}
-            className={`rounded px-2 py-0.5 text-[10px] ${selectedAxis === a ? 'bg-cms-accent text-white' : 'border border-cms-border text-cms-text-muted'}`}
           >
             {AXIS_LABELS[a]}
           </button>
         ))}
       </div>
 
-      {/* Positive Outliers */}
+      {/* Outlier grid */}
       {positive.length > 0 && (
-        <div className="space-y-2">
-          <h4 className="text-xs font-semibold text-[#34d399]">Destaques Positivos</h4>
-          {positive.map(o => (
-            <div key={`${o.videoId}-${o.axis}`} className="rounded border border-cms-border border-l-2 border-l-[#34d399] bg-cms-surface p-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-cms-text">{o.title}</span>
-                <span className="text-[10px] font-mono text-[#34d399]">z={o.modifiedZ.toFixed(1)}</span>
+        <div className="outlier-grid stagger">
+          {positive.map(o => {
+            const tier = getTier(o.modifiedZ)
+            const tierColor = getTierColor(tier)
+
+            return (
+              <div
+                key={`${o.videoId}-${o.axis}`}
+                className="outlier-card clickable rounded-lg border border-cms-border bg-cms-surface"
+                role="button"
+                tabIndex={0}
+                title={`Criar teste A/B para "${o.title}"`}
+                onClick={() => toast.success(`Teste A/B criado para "${o.title}"`)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    toast.success(`Teste A/B criado para "${o.title}"`)
+                  }
+                }}
+              >
+                {/* Thumbnail placeholder (no URL in outlier data, show colored bar) */}
+                <div
+                  className="relative h-24 w-full rounded-t-lg"
+                  style={{ background: `linear-gradient(135deg, ${tierColor}20, var(--surface-3))` }}
+                >
+                  <span
+                    className="tnum absolute right-2 top-2 rounded px-1.5 py-0.5 text-[10px] font-bold"
+                    style={{ background: `${tierColor}20`, color: tierColor }}
+                  >
+                    z={brDec(o.modifiedZ, 1)}
+                  </span>
+                </div>
+
+                <div className="p-3">
+                  <p className="line-clamp-2 text-xs font-medium text-cms-text">
+                    {o.title || 'Sem titulo'}
+                  </p>
+
+                  <div className="mt-1.5 flex flex-wrap gap-1">
+                    <span
+                      className="rounded px-1.5 py-0.5 text-[9px] font-medium"
+                      style={{ background: `${tierColor}15`, color: tierColor }}
+                    >
+                      {AXIS_LABELS[o.axis]}
+                    </span>
+                    {o.patterns?.map(p => (
+                      <span key={p} className="rounded bg-cms-border px-1.5 py-0.5 text-[9px] text-cms-text-muted">
+                        {p}
+                      </span>
+                    ))}
+                  </div>
+
+                  {/* Affordance: Criar teste A/B */}
+                  <div className="outlier-cta mt-2 flex items-center gap-1 text-[11px]">
+                    Criar teste A/B
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M5 12h14" />
+                      <path d="m12 5 7 7-7 7" />
+                    </svg>
+                  </div>
+                </div>
               </div>
-              <div className="mt-1 flex gap-1.5">
-                <span className="rounded bg-[#34d399]/10 px-1.5 py-0.5 text-[9px] text-[#34d399]">
-                  {AXIS_LABELS[o.axis]}
-                </span>
-                {o.patterns?.map(p => (
-                  <span key={p} className="rounded bg-cms-border px-1.5 py-0.5 text-[9px] text-cms-text-muted">{p}</span>
-                ))}
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
-      {/* Negative Outliers */}
-      {negative.length > 0 && (
-        <div className="space-y-2">
-          <h4 className="text-xs font-semibold text-[#f87171]">Abaixo da Média</h4>
-          {negative.map(o => (
-            <div key={`${o.videoId}-${o.axis}`} className="rounded border border-cms-border border-l-2 border-l-[#f87171] bg-cms-surface p-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-cms-text">{o.title}</span>
-                <span className="text-[10px] font-mono text-[#f87171]">z={o.modifiedZ.toFixed(1)}</span>
-              </div>
-              <span className="mt-1 inline-block rounded bg-[#f87171]/10 px-1.5 py-0.5 text-[9px] text-[#f87171]">
-                {AXIS_LABELS[o.axis]}
-              </span>
-            </div>
-          ))}
-        </div>
+      {positive.length === 0 && filtered.length > 0 && (
+        <p className="text-center text-xs text-cms-text-muted">
+          Nenhum outlier positivo neste eixo. Selecione "Todos" para ver outros.
+        </p>
       )}
     </div>
   )

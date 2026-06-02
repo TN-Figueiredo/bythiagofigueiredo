@@ -1,4 +1,12 @@
+/**
+ * YtDemographicsView — refactored per spec 4.3.6.
+ *
+ * .insights-grid.stagger (2->1 col).
+ * 4 cards: Faixa etaria (BarList), Genero (segmented bar), Paises (BarList), Dispositivos (BarList).
+ */
+
 import type { YtDemographics } from '@/lib/youtube/analytics-types'
+import { BarList } from '../../_components/bar-list'
 
 interface Props {
   demographics: YtDemographics
@@ -12,28 +20,31 @@ export function YtDemographicsView({ demographics, apiError }: Props) {
         {apiError === 'scope' ? (
           <>
             <p className="text-sm text-cms-text-muted">
-              Permissão insuficiente para acessar dados demográficos.
+              Permissao insuficiente para acessar dados demograficos.
             </p>
-            <p className="mt-2 max-w-md mx-auto text-xs text-cms-text-dim">
-              O token OAuth do YouTube não tem o escopo <code className="bg-cms-border px-1 rounded">yt-analytics.readonly</code>. Reconecte o canal em Conexões para solicitar a permissão necessária.
+            <p className="mx-auto mt-2 max-w-md text-xs text-cms-text-dim">
+              O token OAuth do YouTube nao tem o escopo{' '}
+              <code className="rounded bg-cms-border px-1">yt-analytics.readonly</code>.
+              Reconecte o canal em Conexoes para solicitar a permissao necessaria.
             </p>
           </>
         ) : apiError ? (
           <>
             <p className="text-sm text-cms-text-muted">
-              Erro ao carregar dados demográficos da API do YouTube.
+              Erro ao carregar dados demograficos da API do YouTube.
             </p>
-            <p className="mt-2 max-w-md mx-auto text-xs text-cms-text-dim">
-              A API retornou um erro temporário. Tente novamente em alguns minutos.
+            <p className="mx-auto mt-2 max-w-md text-xs text-cms-text-dim">
+              A API retornou um erro temporario. Tente novamente em alguns minutos.
             </p>
           </>
         ) : (
           <>
             <p className="text-sm text-cms-text-muted">
-              Dados demográficos não disponíveis para este canal.
+              Dados demograficos nao disponiveis para este canal.
             </p>
-            <p className="mt-2 max-w-md mx-auto text-xs text-cms-text-dim">
-              O YouTube só libera dados demográficos quando o canal atinge um volume mínimo de visualizações no período. Canais menores podem não ter dados suficientes para o YouTube gerar relatórios de idade, gênero e localização.
+            <p className="mx-auto mt-2 max-w-md text-xs text-cms-text-dim">
+              O YouTube so libera dados demograficos quando o canal atinge um volume minimo
+              de visualizacoes no periodo.
             </p>
           </>
         )}
@@ -41,73 +52,107 @@ export function YtDemographicsView({ demographics, apiError }: Props) {
     )
   }
 
+  // Compute age group totals for BarList
+  const ageItems = demographics.ageGender.map((ag) => ({
+    label: ag.ageGroup,
+    value: Math.round(ag.male + ag.female),
+  }))
+
+  // Gender totals for segmented bar
+  const totalMale = demographics.ageGender.reduce((s, ag) => s + ag.male, 0)
+  const totalFemale = demographics.ageGender.reduce((s, ag) => s + ag.female, 0)
+  const totalGender = totalMale + totalFemale
+  const malePct = totalGender > 0 ? (totalMale / totalGender) * 100 : 50
+  const femalePct = totalGender > 0 ? (totalFemale / totalGender) * 100 : 50
+
   return (
-    <div className="space-y-4">
+    <div className="fade-in insights-grid stagger">
+      {/* Card 1: Faixa etaria */}
       {demographics.ageGender.length > 0 && (
         <div className="rounded-lg border border-cms-border bg-cms-surface p-4">
-          <h3 className="mb-3 text-sm font-semibold text-cms-text">Idade e Gênero</h3>
-          <div className="space-y-2">
-            {demographics.ageGender.map((ag) => (
-              <div key={ag.ageGroup} className="flex items-center gap-2 text-xs" role="group" aria-label={`${ag.ageGroup}: ${Math.round(ag.male)}% masculino, ${Math.round(ag.female)}% feminino`}>
-                <span className="w-14 text-cms-text-muted">{ag.ageGroup}</span>
-                <div className="flex flex-1 gap-0.5" role="presentation">
-                  <div
-                    className="h-4 rounded-l bg-blue-400/80"
-                    style={{ width: `${ag.male}%` }}
-                    role="progressbar"
-                    aria-valuenow={Math.round(ag.male)}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-label={`Masculino: ${Math.round(ag.male)}%`}
-                  />
-                  <div
-                    className="h-4 rounded-r bg-pink-400/80"
-                    style={{ width: `${ag.female}%` }}
-                    role="progressbar"
-                    aria-valuenow={Math.round(ag.female)}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-label={`Feminino: ${Math.round(ag.female)}%`}
-                  />
-                </div>
-                <span className="w-10 text-right tabular-nums text-cms-text-muted">
-                  {Math.round(ag.male + ag.female)}%
-                </span>
+          <h3 className="mb-3 text-sm font-semibold text-cms-text">Faixa etaria</h3>
+          <BarList
+            items={ageItems}
+            keyf={(item) => item.label}
+            valf={(item) => item.value}
+            color="var(--blue)"
+            fmtVal={(v) => `${v}%`}
+          />
+        </div>
+      )}
+
+      {/* Card 2: Genero */}
+      {demographics.ageGender.length > 0 && (
+        <div className="rounded-lg border border-cms-border bg-cms-surface p-4">
+          <h3 className="mb-3 text-sm font-semibold text-cms-text">Genero</h3>
+          <div className="flex flex-col gap-3">
+            {/* Segmented bar */}
+            <div className="gender-bar flex h-6 w-full overflow-hidden rounded-full">
+              <div
+                className="flex items-center justify-center text-[10px] font-medium text-white"
+                style={{ width: `${malePct}%`, background: 'var(--blue)' }}
+                role="progressbar"
+                aria-valuenow={Math.round(malePct)}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label={`Masculino: ${Math.round(malePct)}%`}
+              >
+                {Math.round(malePct)}%
               </div>
-            ))}
+              <div
+                className="flex items-center justify-center text-[10px] font-medium text-white"
+                style={{ width: `${femalePct}%`, background: '#F472B6' }}
+                role="progressbar"
+                aria-valuenow={Math.round(femalePct)}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label={`Feminino: ${Math.round(femalePct)}%`}
+              >
+                {Math.round(femalePct)}%
+              </div>
+            </div>
+            {/* Legend */}
+            <div className="flex gap-4 text-xs text-cms-text-muted">
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: 'var(--blue)' }} />
+                Masculino
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: '#F472B6' }} />
+                Feminino
+              </span>
+            </div>
           </div>
         </div>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        {demographics.countries.length > 0 && (
-          <div className="rounded-lg border border-cms-border bg-cms-surface p-4">
-            <h3 className="mb-3 text-sm font-semibold text-cms-text">Principais Países</h3>
-            <div className="space-y-2">
-              {demographics.countries.map((c) => (
-                <div key={c.country} className="flex items-center justify-between text-xs">
-                  <span className="text-cms-text">{c.country}</span>
-                  <span className="tabular-nums text-cms-text-muted">{c.percentage}%</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+      {/* Card 3: Paises */}
+      {demographics.countries.length > 0 && (
+        <div className="rounded-lg border border-cms-border bg-cms-surface p-4">
+          <h3 className="mb-3 text-sm font-semibold text-cms-text">Paises</h3>
+          <BarList
+            items={demographics.countries}
+            keyf={(c) => c.country}
+            valf={(c) => c.percentage}
+            color="var(--accent)"
+            fmtVal={(v) => `${v}%`}
+          />
+        </div>
+      )}
 
-        {demographics.devices.length > 0 && (
-          <div className="rounded-lg border border-cms-border bg-cms-surface p-4">
-            <h3 className="mb-3 text-sm font-semibold text-cms-text">Tipos de Dispositivo</h3>
-            <div className="space-y-2">
-              {demographics.devices.map((d) => (
-                <div key={d.deviceType} className="flex items-center justify-between text-xs">
-                  <span className="text-cms-text capitalize">{d.deviceType}</span>
-                  <span className="tabular-nums text-cms-text-muted">{d.percentage}%</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
+      {/* Card 4: Dispositivos */}
+      {demographics.devices.length > 0 && (
+        <div className="rounded-lg border border-cms-border bg-cms-surface p-4">
+          <h3 className="mb-3 text-sm font-semibold text-cms-text">Dispositivos</h3>
+          <BarList
+            items={demographics.devices}
+            keyf={(d) => d.deviceType}
+            valf={(d) => d.percentage}
+            color="var(--purple)"
+            fmtVal={(v) => `${v}%`}
+          />
+        </div>
+      )}
     </div>
   )
 }

@@ -81,7 +81,7 @@ export function VideoModal({ video, channelName, open, onClose }: VideoModalProp
               <span
                 className="absolute top-3 left-3 rounded-lg px-2 py-1 text-xs font-bold mono"
                 style={{
-                  background: v.outlierTier === 'top' ? '#D9614A' : v.outlierTier === 'high' ? '#A78BFA' : '#60A5FA',
+                  background: v.outlierTier === 'top' ? 'var(--tier-top)' : v.outlierTier === 'high' ? 'var(--tier-high)' : 'var(--tier-mid)',
                   color: '#fff',
                 }}
               >
@@ -122,7 +122,7 @@ export function VideoModal({ video, channelName, open, onClose }: VideoModalProp
               <div className="vd-compare flex items-center gap-2 mt-3 text-xs" style={{ color: 'var(--text-dim)' }}>
                 <BarChart3 className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
                 <span>
-                  Delta: <span className="tnum font-medium" style={{ color: v.viewDelta >= 0 ? '#22C55E' : '#FBBF24' }}>
+                  Delta: <span className="tnum font-medium" style={{ color: v.viewDelta >= 0 ? 'var(--green)' : 'var(--amber)' }}>
                     {v.viewDelta >= 0 ? '+' : ''}{fmtC(v.viewDelta)} views
                   </span> desde monitoramento
                 </span>
@@ -139,7 +139,7 @@ export function VideoModal({ video, channelName, open, onClose }: VideoModalProp
             {isABDetected && (
               <div
                 className="vd-flag flex items-center gap-2 mt-3 rounded-lg px-3 py-2 text-xs font-medium"
-                style={{ background: 'rgba(251,191,36,0.12)', color: '#FBBF24', border: '1px solid rgba(251,191,36,0.25)' }}
+                style={{ background: 'var(--amber-soft)', color: 'var(--amber)', border: '1px solid var(--amber-soft)' }}
               >
                 <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" />
                 Possível teste A/B detectado neste vídeo

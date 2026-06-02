@@ -75,7 +75,7 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
                 <span
                   key={f.type}
                   className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold"
-                  style={{ background: 'rgba(167,139,250,0.18)', color: 'var(--purple)' }}
+                  style={{ background: 'var(--purple-soft)', color: 'var(--purple)' }}
                 >
                   trocou {f.type === 'thumbnail' ? 'thumb' : f.type} {fmtRelative(f.latestAt)}
                 </span>
@@ -84,7 +84,7 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
           )}
         </div>
         {/* Action buttons — stop propagation so card click doesn't fire */}
-        <div className="flex gap-1 flex-shrink-0" onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}>
+        <div className="flex gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
           <button
             className="ic-btn"
             onClick={() => onSync(ch.id)}
@@ -113,14 +113,14 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
         <div className="flex items-center gap-2 flex-shrink-0">
           <div className="min-w-0">
             <p className="eyebrow mb-1">Crescimento</p>
-            <p className="text-sm font-semibold tnum" style={{ color: ch.growthDelta != null && ch.growthDelta >= 0 ? 'var(--green, #22C55E)' : 'var(--amber, #FBBF24)' }}>
+            <p className="text-sm font-semibold tnum" style={{ color: ch.growthDelta != null && ch.growthDelta >= 0 ? 'var(--green)' : 'var(--amber)' }}>
               {ch.growthDelta != null ? `${ch.growthDelta >= 0 ? '+' : ''}${fmtC(ch.growthDelta)}/mês` : '—'}
             </p>
           </div>
           {ch.growthSparkline.length > 1 && (
             <SparklineChart
               data={ch.growthSparkline}
-              color={ch.growthDelta != null && ch.growthDelta >= 0 ? '#22C55E' : '#FBBF24'}
+              color={ch.growthDelta != null && ch.growthDelta >= 0 ? 'var(--green)' : 'var(--amber)'}
               fill
             />
           )}
@@ -186,7 +186,7 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
         style={{ borderTop: '1px solid var(--border)' }}
       >
         <span className="chan-open-hint">
-          <ChevronRight className="h-3 w-3" />
+          <ChevronRight className="h-3 w-3" aria-hidden="true" />
         </span>
       </div>
     </div>
@@ -196,7 +196,7 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
 function VsPill({ label, delta, format }: { label: string; delta: number; format: (n: number) => string }) {
   const isPositive = delta > 0
   return (
-    <span className="tnum" style={{ color: isPositive ? '#22C55E' : delta < 0 ? '#FBBF24' : 'var(--text-dim)' }}>
+    <span className="tnum" style={{ color: isPositive ? 'var(--green)' : delta < 0 ? 'var(--amber)' : 'var(--text-dim)' }}>
       {isPositive ? '+' : ''}{format(delta)} {label}
     </span>
   )

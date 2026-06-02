@@ -23,10 +23,10 @@ interface Props {
 }
 
 const GRADE_COLORS: Record<string, string> = {
-  A: '#22C55E',
-  B: '#60A5FA',
-  C: '#FBBF24',
-  D: '#EF4444',
+  A: 'var(--green)',
+  B: 'var(--tier-mid)',
+  C: 'var(--amber)',
+  D: 'var(--red)',
 }
 
 function computeFallbackHealth(m: YtChannelMetrics): {
@@ -178,7 +178,7 @@ export function YtOverview({ metrics, dailyMetrics, intelligenceHealthScore, int
         <div className="health-card rounded-lg border border-cms-border bg-cms-surface p-4">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-cms-text">Saude do Canal</h3>
-            <span className={`rounded px-1.5 py-0.5 text-[9px] ${useIntelligence ? 'bg-[#A78BFA]/10 text-[#A78BFA]' : 'bg-cms-border text-cms-text-muted'}`}>
+            <span className={`rounded px-1.5 py-0.5 text-[9px] ${useIntelligence ? 'bg-cms-purple-soft text-cms-purple' : 'bg-cms-border text-cms-text-muted'}`}>
               {useIntelligence ? '6 eixos . AI' : '6 eixos . API'}
             </span>
           </div>
@@ -251,7 +251,7 @@ export function YtOverview({ metrics, dailyMetrics, intelligenceHealthScore, int
               </span>
               <span className="eyebrow">{kpi.label}</span>
             </div>
-            <p className="tnum mt-1 text-[20px] font-bold leading-none text-cms-text">
+            <p className="tnum mt-1 text-[25px] font-bold leading-none text-cms-text" style={{ letterSpacing: '-0.6px', fontWeight: 700 }}>
               {kpi.value}
             </p>
             <div className="mt-1.5 flex items-center justify-between">

@@ -2,6 +2,7 @@
 
 import { useTransition, useState, useRef, useEffect, useCallback } from 'react'
 import Link from 'next/link'
+import { toast } from 'sonner'
 import { updateVideo, approveCategory, rejectCategory, pinWeeklyPick, unpinWeeklyPick } from './actions'
 
 interface CategoryBadgeProps {
@@ -36,7 +37,7 @@ export function CategoryBadge({
           <button
             type="button"
             disabled={isPending}
-            onClick={() => startTransition(async () => { await approveCategory(videoId) })}
+            onClick={() => startTransition(async () => { await approveCategory(videoId); toast.success('Categoria aprovada.') })}
             className="rounded px-1.5 py-0.5 text-xs font-medium bg-emerald-900/40 text-emerald-400 hover:bg-emerald-900/70 disabled:opacity-50"
           >
             Approve
@@ -44,7 +45,7 @@ export function CategoryBadge({
           <button
             type="button"
             disabled={isPending}
-            onClick={() => startTransition(async () => { await rejectCategory(videoId) })}
+            onClick={() => startTransition(async () => { await rejectCategory(videoId); toast.success('Sugestao de categoria rejeitada.') })}
             className="rounded px-1.5 py-0.5 text-xs font-medium bg-red-900/40 text-red-400 hover:bg-red-900/70 disabled:opacity-50"
           >
             Reject

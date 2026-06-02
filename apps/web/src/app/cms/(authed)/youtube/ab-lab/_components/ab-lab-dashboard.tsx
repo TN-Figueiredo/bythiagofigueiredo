@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { brDec } from '@/lib/youtube/format'
 import { Plus, Filter, Settings, Zap, FlaskConical, Crosshair, Trophy, TrendingUp, Sparkles, Pause, AlertTriangle, ImageIcon } from 'lucide-react'
 import type {
   AbTestCardView,
@@ -190,7 +191,7 @@ export function AbLabDashboard({
 
       {/* 2. KPI Strip */}
       {hasAnyData && (
-        <div className="grid grid-cols-4 gap-[14px] mb-[26px] animate-ab-fade-up" data-kpi-strip>
+        <div className="kpi-strip mb-[26px] animate-ab-fade-up" data-kpi-strip>
           <KPI
             label="Testes ativos"
             value={stats.activeTests}
@@ -212,7 +213,7 @@ export function AbLabDashboard({
           />
           <KPI
             label="CTR lift médio"
-            value={stats.avgLift > 0 ? `+${stats.avgLift.toFixed(1)}` : '0'}
+            value={stats.avgLift > 0 ? `+${brDec(stats.avgLift, 1)}` : '0'}
             suffix="%"
             icon={TrendingUp}
             trend={stats.avgLift > 0 ? `média dos testes concluídos` : undefined}

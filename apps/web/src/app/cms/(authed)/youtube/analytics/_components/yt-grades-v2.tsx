@@ -12,18 +12,18 @@ interface Props {
 }
 
 const GRADE_COLORS: Record<Grade, string> = {
-  A: 'bg-[#34d399] text-black',
-  B: 'bg-[#60a5fa] text-black',
-  C: 'bg-[#fbbf24] text-black',
-  D: 'bg-[#f87171] text-white',
+  A: 'bg-cms-green text-black',
+  B: 'bg-[var(--color-tier-mid)] text-black',
+  C: 'bg-cms-amber text-black',
+  D: 'bg-cms-red text-white',
 }
 
 const STATE_BADGES: Record<string, { label: string; color: string }> = {
-  flagged: { label: 'Sinalizado', color: 'text-[#fbbf24]' },
-  diagnosed: { label: 'Diagnosticado', color: 'text-[#f59e0b]' },
-  test_suggested: { label: 'Teste Sugerido', color: 'text-[#60a5fa]' },
-  testing: { label: 'Em Teste', color: 'text-[#8b5cf6]' },
-  post_test_monitoring: { label: 'Monitorando', color: 'text-[#06b6d4]' },
+  flagged: { label: 'Sinalizado', color: 'text-cms-amber' },
+  diagnosed: { label: 'Diagnosticado', color: 'text-cms-amber' },
+  test_suggested: { label: 'Teste Sugerido', color: 'text-[var(--color-tier-mid)]' },
+  testing: { label: 'Em Teste', color: 'text-cms-purple' },
+  post_test_monitoring: { label: 'Monitorando', color: 'text-cms-cyan' },
 }
 
 export function YtGradesV2({ videos }: Props) {
@@ -48,9 +48,9 @@ export function YtGradesV2({ videos }: Props) {
       {/* Summary Strip */}
       <div className="flex items-center gap-4 text-xs text-cms-text-muted">
         <span>{videos.length} vídeos</span>
-        <span className="text-[#f87171]">{counts.D} Grade D</span>
-        <span className="text-[#fbbf24]">{counts.C} Grade C</span>
-        {inTest > 0 && <span className="text-[#8b5cf6]">{inTest} em teste</span>}
+        <span className="text-cms-red">{counts.D} Grade D</span>
+        <span className="text-cms-amber">{counts.C} Grade C</span>
+        {inTest > 0 && <span className="text-cms-purple">{inTest} em teste</span>}
       </div>
 
       {/* Filters */}
@@ -116,7 +116,7 @@ export function YtGradesV2({ videos }: Props) {
               {/* Score + Trend */}
               <div className="flex shrink-0 items-center gap-2">
                 <span className="text-sm font-medium text-cms-text">{Math.round(video.score)}</span>
-                <span className={`text-xs ${video.trend.direction === 'up' ? 'text-[#34d399]' : video.trend.direction === 'down' ? 'text-[#f87171]' : 'text-cms-text-muted'}`}>
+                <span className={`text-xs ${video.trend.direction === 'up' ? 'text-cms-green' : video.trend.direction === 'down' ? 'text-cms-red' : 'text-cms-text-muted'}`}>
                   {video.trend.direction === 'up' ? '↑' : video.trend.direction === 'down' ? '↓' : '→'}
                 </span>
               </div>

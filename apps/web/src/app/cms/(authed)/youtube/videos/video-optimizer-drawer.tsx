@@ -57,7 +57,7 @@ export function VideoOptimizerDrawer({ video, onClose }: VideoOptimizerDrawerPro
 
   return (
     <YtPortal>
-      <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} role="button" tabIndex={-1} onKeyDown={(e) => { if (e.key === 'Escape') onClose() }} aria-label="Fechar drawer" />
+      <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} aria-hidden="true" />
       <div
         className="fixed inset-y-0 right-0 z-40 flex w-[480px] flex-col border-l border-cms-border bg-cms-surface shadow-xl"
         role="dialog"
