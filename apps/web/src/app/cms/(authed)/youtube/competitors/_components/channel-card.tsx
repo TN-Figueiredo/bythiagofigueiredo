@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import {
   RefreshCw,
   Trash2,
@@ -38,7 +39,7 @@ function colorFor(name: string): string {
 interface ChannelCardProps {
   channel: CompetitorChannelView
   onOpen: (channelId: string) => void
-  onSync: (channelId: string) => void
+  onSync: (channelId: string) => void | Promise<void>
   onRemove: (channelId: string) => void
   onVideoClick: (video: CompetitorVideoView, channelName: string) => void
 }
@@ -108,6 +109,7 @@ function getOutlierStats(videos: CompetitorVideoView[]) {
    ══════════════════════════════════════════════════════════════ */
 
 export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }: ChannelCardProps) {
+  const [isSyncing, setIsSyncing] = useState(false)
   const ch = channel
   const sparkColor = ch.growthDelta == null ? 'var(--text-dim)' : ch.growthDelta >= 0 ? 'var(--green)' : 'var(--amber)'
   const outlierStats = getOutlierStats(ch.recentVideos)
@@ -199,11 +201,15 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
                 onClick={e => e.stopPropagation()}
               >
                 <button
-                  className="ic-btn"
-                  onClick={() => onSync(ch.id)}
-                  aria-label="Sincronizar canal"
+                  className={`ic-btn${isSyncing ? ' syncing' : ''}`}
+                  disabled={isSyncing}
+                  onClick={async () => {
+                    setIsSyncing(true)
+                    try { await onSync(ch.id) } finally { setIsSyncing(false) }
+                  }}
+                  aria-label={isSyncing ? 'Sincronizando...' : 'Sincronizar canal'}
                 >
-                  <RefreshCw style={{ width: 15, height: 15 }} />
+                  <RefreshCw style={{ width: 15, height: 15 }} aria-hidden="true" />
                 </button>
                 <button
                   className="ic-btn danger"
