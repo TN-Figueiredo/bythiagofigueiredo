@@ -112,28 +112,60 @@ export function ChannelDrawer({ channel, open, onClose, onVideoClick }: ChannelD
           animation: 'fade var(--t-enter) var(--ease-out) both',
         }}
       >
-        {/* cd-head */}
-        <div className="flex items-center gap-3 px-6 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
-          <div className="flex-1 min-w-0">
-            <h2 className="text-lg font-semibold truncate" style={{ color: 'var(--text)' }}>
-              {ch.channelName}
-            </h2>
-            <a
-              href={`https://www.youtube.com/channel/${ch.channelId}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="cd-yt inline-flex items-center gap-1 text-xs mt-0.5"
-              style={{ color: 'var(--text-muted)' }}
-            >
-              Abrir no YouTube <ExternalLink className="h-3 w-3" aria-hidden="true" />
-            </a>
+        {/* cd-head — matches handoff: avatar 46px + name 17px + YouTube link + meta */}
+        <div className="cd-head" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 22px', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', gap: 12, minWidth: 0, alignItems: 'center' }}>
+            {/* Avatar 46x46, border-radius 10px */}
+            {ch.thumbnailUrl ? (
+              <img
+                src={ch.thumbnailUrl}
+                alt=""
+                referrerPolicy="no-referrer"
+                style={{ width: 46, height: 46, borderRadius: 10, flexShrink: 0, objectFit: 'cover' }}
+              />
+            ) : (
+              <div style={{
+                width: 46, height: 46, borderRadius: 10, flexShrink: 0,
+                display: 'grid', placeItems: 'center',
+                background: `linear-gradient(145deg, var(--accent), rgba(255,130,64,0.6))`,
+                color: 'var(--on-accent)', fontWeight: 700, fontSize: 15.6, letterSpacing: '-0.5px',
+              }}>
+                {ch.channelName.split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase()}
+              </div>
+            )}
+            <div style={{ minWidth: 0 }}>
+              {/* Name 17px/600 + YouTube link inline */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <h2 style={{ fontSize: 17, fontWeight: 600, color: 'var(--text)', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {ch.channelName}
+                </h2>
+                <a
+                  href={`https://www.youtube.com/channel/${ch.channelId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="cd-yt"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 }}
+                  onClick={e => e.stopPropagation()}
+                >
+                  <ExternalLink style={{ width: 12, height: 12 }} aria-hidden="true" />
+                  YouTube
+                </a>
+              </div>
+              {/* Meta: 11.5px mono dim — "N inscritos · N vídeos · sync há Xh" */}
+              <span className="mono" style={{ fontSize: 11.5, color: 'var(--text-dim)', marginTop: 2, display: 'block' }}>
+                {ch.subscriberCount != null ? fmtC(ch.subscriberCount) : '—'} inscritos
+                {' · '}{ch.videoCount} vídeos
+                {' · sync '}{ch.lastSyncedAt ? fmtRelative(ch.lastSyncedAt) : '—'}
+              </span>
+            </div>
           </div>
           <button
             className="ic-btn"
             onClick={handleClose}
             aria-label="Fechar"
+            style={{ flexShrink: 0 }}
           >
-            <X className="h-4 w-4" aria-hidden="true" />
+            <X style={{ width: 16, height: 16 }} aria-hidden="true" />
           </button>
         </div>
 
