@@ -22,6 +22,184 @@ import type {
   OurChannelStats,
 } from '@/lib/youtube/observatory-types'
 
+// ── Dev-only mock data for empty Observatory tabs ──────────────────────────
+const IS_DEV = process.env.NODE_ENV === 'development'
+
+function hoursAgo(h: number): string {
+  return new Date(Date.now() - h * 3_600_000).toISOString()
+}
+
+const MOCK_CHANGES: CompetitorChangeView[] = IS_DEV ? [
+  {
+    id: 'mock-ch-1',
+    videoId: 'v1',
+    videoTitle: 'Quanto Custa Morar no Vietnã em 2026',
+    channelName: 'Nomade Raiz',
+    channelThumbnailUrl: null,
+    changeType: 'thumbnail',
+    oldTitle: null,
+    newTitle: null,
+    oldThumbnailUrl: null,
+    newThumbnailUrl: null,
+    viewCountAtChange: 84_200,
+    detectedAt: hoursAgo(2),
+    bookmarked: false,
+    history: [],
+  },
+  {
+    id: 'mock-ch-2',
+    videoId: 'v2',
+    videoTitle: 'Quanto Custa Morar no Vietnã em 2026',
+    channelName: 'Nomade Raiz',
+    channelThumbnailUrl: null,
+    changeType: 'title',
+    oldTitle: 'Quanto custa morar no Vietnã?',
+    newTitle: 'Morar no Vietnam por R$2.500/mês — vale a pena?',
+    oldThumbnailUrl: null,
+    newThumbnailUrl: null,
+    viewCountAtChange: 79_300,
+    detectedAt: hoursAgo(4),
+    bookmarked: true,
+    history: [],
+  },
+  {
+    id: 'mock-ch-3',
+    videoId: 'v3',
+    videoTitle: 'COMO EU GANHO DINHEIRO VIAJANDO',
+    channelName: 'Matheus Fonseca',
+    channelThumbnailUrl: null,
+    changeType: 'thumbnail',
+    oldTitle: null,
+    newTitle: null,
+    oldThumbnailUrl: null,
+    newThumbnailUrl: null,
+    viewCountAtChange: 210_000,
+    detectedAt: hoursAgo(24),
+    bookmarked: false,
+    history: [],
+  },
+  {
+    id: 'mock-ch-4',
+    videoId: 'v4',
+    videoTitle: 'Fed Chair Press Conference — June 2026',
+    channelName: 'Esq Untd Daily',
+    channelThumbnailUrl: null,
+    changeType: 'description',
+    oldTitle: null,
+    newTitle: null,
+    oldThumbnailUrl: null,
+    newThumbnailUrl: null,
+    viewCountAtChange: 53_800,
+    detectedAt: hoursAgo(48),
+    bookmarked: false,
+    history: [],
+  },
+  {
+    id: 'mock-ch-5',
+    videoId: 'v5',
+    videoTitle: 'Roteiro de 15 Dias pela Tailândia',
+    channelName: 'Nomade Raiz',
+    channelThumbnailUrl: null,
+    changeType: 'thumbnail',
+    oldTitle: null,
+    newTitle: null,
+    oldThumbnailUrl: null,
+    newThumbnailUrl: null,
+    viewCountAtChange: 122_500,
+    detectedAt: hoursAgo(72),
+    bookmarked: true,
+    history: [
+      {
+        id: 'mock-ch-5h',
+        videoId: 'v5',
+        videoTitle: 'Roteiro de 15 Dias pela Tailândia',
+        channelName: 'Nomade Raiz',
+        channelThumbnailUrl: null,
+        changeType: 'thumbnail',
+        oldTitle: null,
+        newTitle: null,
+        oldThumbnailUrl: null,
+        newThumbnailUrl: null,
+        viewCountAtChange: 95_000,
+        detectedAt: hoursAgo(240),
+        bookmarked: false,
+        history: [],
+      },
+    ],
+  },
+  {
+    id: 'mock-ch-6',
+    videoId: 'v6',
+    videoTitle: 'O que NÃO fazer em Bangkok',
+    channelName: 'Matheus Fonseca',
+    channelThumbnailUrl: null,
+    changeType: 'title',
+    oldTitle: 'Erros em Bangkok',
+    newTitle: 'O que NÃO fazer em Bangkok (aprendi da pior forma)',
+    oldThumbnailUrl: null,
+    newThumbnailUrl: null,
+    viewCountAtChange: 175_000,
+    detectedAt: hoursAgo(120),
+    bookmarked: false,
+    history: [],
+  },
+] : []
+
+const MOCK_OUTLIERS: CompetitorOutlierView[] = IS_DEV ? [
+  { id: 'mock-ol-1', videoId: 'ol1', title: 'SAIU! Visto Digital Nomad pro Japão — como tirar', thumbnailUrl: null, channelName: 'Nomade Raiz', viewCount: 2_050_000, publishedAt: hoursAgo(48), multiplier: 21.5, tier: 'top' },
+  { id: 'mock-ol-2', videoId: 'ol2', title: 'Morei 1 Mês no Japão por R$3.000', thumbnailUrl: null, channelName: 'Nomade Raiz', viewCount: 1_200_000, publishedAt: hoursAgo(168), multiplier: 12.6, tier: 'top' },
+  { id: 'mock-ol-3', videoId: 'ol3', title: 'O Colapso do Mercado Imobiliário Chinês', thumbnailUrl: null, channelName: 'Esq Untd Daily', viewCount: 890_000, publishedAt: hoursAgo(96), multiplier: 8.4, tier: 'high' },
+  { id: 'mock-ol-4', videoId: 'ol4', title: 'COMO EU GANHO R$30K/MÊS VIAJANDO', thumbnailUrl: null, channelName: 'Matheus Fonseca', viewCount: 540_000, publishedAt: hoursAgo(240), multiplier: 7.1, tier: 'high' },
+  { id: 'mock-ol-5', videoId: 'ol5', title: 'Inflação Global — O Que Esperar em 2027', thumbnailUrl: null, channelName: 'Esq Untd Daily', viewCount: 410_000, publishedAt: hoursAgo(72), multiplier: 5.2, tier: 'high' },
+  { id: 'mock-ol-6', videoId: 'ol6', title: 'Custo de Vida na Coreia do Sul — Realidade', thumbnailUrl: null, channelName: 'Nomade Raiz', viewCount: 185_000, publishedAt: hoursAgo(360), multiplier: 3.8, tier: 'mid' },
+  { id: 'mock-ol-7', videoId: 'ol7', title: 'Meu Setup de Trabalho Remoto em Bali', thumbnailUrl: null, channelName: 'Matheus Fonseca', viewCount: 120_000, publishedAt: hoursAgo(480), multiplier: 2.9, tier: 'mid' },
+  { id: 'mock-ol-8', videoId: 'ol8', title: 'Bangkok vs Chiang Mai — Qual Escolher?', thumbnailUrl: null, channelName: 'Nomade Raiz', viewCount: 52_000, publishedAt: hoursAgo(600), multiplier: 2.1, tier: 'mid' },
+] : []
+
+const MOCK_INSIGHTS: CompetitorInsights = IS_DEV ? {
+  heatmap: [
+    /* Seg */ [0,0,0,0,0,1,3,8,22,35,28,18,14,16,20,25,30,38,42,35,22,12,5,1],
+    /* Ter */ [0,0,0,0,0,1,2,9,25,38,32,20,15,17,22,28,34,40,45,38,25,14,6,2],
+    /* Qua */ [0,0,0,0,0,1,4,10,28,42,36,24,16,18,24,30,36,44,48,40,28,16,7,2],
+    /* Qui */ [0,0,0,0,0,1,3,9,24,36,30,22,15,17,21,27,32,39,43,36,24,13,6,1],
+    /* Sex */ [0,0,0,0,0,0,2,7,20,30,26,18,14,15,18,22,28,34,38,32,20,11,4,1],
+    /* Sab */ [0,0,0,0,0,0,1,3,8,14,18,22,20,18,16,14,12,15,18,20,16,10,4,1],
+    /* Dom */ [0,0,0,0,0,0,0,2,6,10,14,18,16,14,12,10,8,10,14,16,12,8,3,0],
+  ],
+  tags: [
+    { tag: 'viagem', count: 87, avgViews: 145_000 },
+    { tag: 'asia', count: 64, avgViews: 168_000 },
+    { tag: 'nomade digital', count: 52, avgViews: 132_000 },
+    { tag: 'bangkok', count: 41, avgViews: 112_000 },
+    { tag: 'custo de vida', count: 38, avgViews: 195_000 },
+    { tag: 'trabalho remoto', count: 34, avgViews: 98_000 },
+    { tag: 'tailândia', count: 29, avgViews: 124_000 },
+    { tag: 'visto', count: 25, avgViews: 210_000 },
+    { tag: 'japão', count: 22, avgViews: 185_000 },
+    { tag: 'morando fora', count: 18, avgViews: 78_000 },
+  ],
+  engagement: [
+    { channelName: 'Nomade Raiz', channelThumbnailUrl: null, engagementRate: 0.072, isUs: false },
+    { channelName: 'VOCÊ', channelThumbnailUrl: null, engagementRate: 0.058, isUs: true },
+    { channelName: 'Matheus Fonseca', channelThumbnailUrl: null, engagementRate: 0.045, isUs: false },
+    { channelName: 'Esq Untd Daily', channelThumbnailUrl: null, engagementRate: 0.038, isUs: false },
+    { channelName: 'Canal Viajante', channelThumbnailUrl: null, engagementRate: 0.029, isUs: false },
+  ],
+  gaps: [
+    { topic: 'vietnã', competitorCount: 3, avgViews: 165_000, weCover: false },
+    { topic: 'japão', competitorCount: 3, avgViews: 185_000, weCover: false },
+    { topic: 'coreia', competitorCount: 2, avgViews: 142_000, weCover: false },
+    { topic: 'tailândia', competitorCount: 3, avgViews: 124_000, weCover: true },
+    { topic: 'bangkok', competitorCount: 3, avgViews: 112_000, weCover: true },
+    { topic: 'bali', competitorCount: 2, avgViews: 98_000, weCover: false },
+  ],
+} : {
+  heatmap: Array.from({ length: 7 }, () => Array.from({ length: 24 }, () => 0)),
+  tags: [],
+  engagement: [],
+  gaps: [],
+}
+
 type SubTab = 'canais' | 'mudancas' | 'outliers' | 'insights'
 
 interface CompetitorDashboardV2Props {
@@ -87,8 +265,19 @@ export function CompetitorDashboardV2({
     return channels.filter(c => c.channelName.toLowerCase().includes(q))
   }, [channels, channelFilter])
 
+  // Dev-only fallbacks for empty tabs
+  const displayChanges = changes.length > 0 ? changes : MOCK_CHANGES
+  const displayOutliers = outliers.length > 0 ? outliers : MOCK_OUTLIERS
+  const displayInsights = useMemo(() => {
+    const hasReal = insights.tags.length > 0 || insights.engagement.length > 0 || insights.gaps.length > 0
+    return hasReal ? insights : MOCK_INSIGHTS
+  }, [insights])
+
   // Channel names for Mudancas filter
-  const channelNames = useMemo(() => [...new Set(channels.map(c => c.channelName))].sort(), [channels])
+  const channelNames = useMemo(() => {
+    const src = displayChanges
+    return [...new Set(src.map(c => c.channelName))].sort()
+  }, [displayChanges])
 
   const handleTabChange = (tab: SubTab) => {
     setActiveTab(tab)
@@ -187,8 +376,8 @@ export function CompetitorDashboardV2({
 
   const tabs: Array<{ id: SubTab; label: string; count?: number }> = [
     { id: 'canais', label: 'Canais', count: channels.length },
-    { id: 'mudancas', label: 'Mudanças', count: changes.length },
-    { id: 'outliers', label: 'Outliers', count: outliers.length },
+    { id: 'mudancas', label: 'Mudanças', count: displayChanges.length },
+    { id: 'outliers', label: 'Outliers', count: displayOutliers.length },
     { id: 'insights', label: 'Insights' },
   ]
 
@@ -344,21 +533,21 @@ export function CompetitorDashboardV2({
       {/* Mudancas tab */}
       {activeTab === 'mudancas' && (
         <div key="mudancas">
-          <MudancasTab changes={changes} channelNames={channelNames} />
+          <MudancasTab changes={displayChanges} channelNames={channelNames} />
         </div>
       )}
 
       {/* Outliers tab */}
       {activeTab === 'outliers' && (
         <div key="outliers">
-          <OutliersTab outliers={outliers} onVideoClick={handleOutlierClick} />
+          <OutliersTab outliers={displayOutliers} onVideoClick={handleOutlierClick} />
         </div>
       )}
 
       {/* Insights tab */}
       {activeTab === 'insights' && (
         <div key="insights">
-          <InsightsTab insights={insights} />
+          <InsightsTab insights={displayInsights} />
         </div>
       )}
 
