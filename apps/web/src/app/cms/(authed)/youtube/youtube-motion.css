@@ -1173,8 +1173,7 @@
   align-items: center;
   justify-content: center;
   gap: 7px;
-  width: calc(100% - 40px);
-  margin: 0 20px 16px;
+  width: 100%;
   padding: 9px;
   border-radius: var(--radius-sm, 9px);
   background: var(--surface-2);
@@ -1201,7 +1200,7 @@
 [data-cms-section="youtube"] .chan-shelf {
   border-top: 1px solid var(--border-subtle);
   background: rgba(0, 0, 0, 0.12);
-  padding: 11px 20px 0;
+  padding: 11px 20px 16px;
 }
 
 [data-cms-section="youtube"] .chan-shelf-head {
