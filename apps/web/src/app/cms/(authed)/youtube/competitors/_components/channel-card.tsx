@@ -367,6 +367,24 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
                   ) : (
                     <div className="thumb" style={{ aspectRatio: '16/9', background: 'linear-gradient(150deg, var(--surface-3), var(--surface-2))' }} />
                   )}
+                  {v.outlierMultiplier != null && v.outlierMultiplier >= 2 && (
+                    <span
+                      className="mono"
+                      style={{
+                        position: 'absolute',
+                        top: 4,
+                        right: 4,
+                        fontSize: 9,
+                        fontWeight: 700,
+                        padding: '1px 5px',
+                        borderRadius: 4,
+                        color: '#fff',
+                        background: v.outlierMultiplier >= 10 ? 'var(--tier-top)' : v.outlierMultiplier >= 5 ? 'var(--tier-high)' : 'var(--tier-mid)',
+                      }}
+                    >
+                      {brDec(v.outlierMultiplier, 1)}x
+                    </span>
+                  )}
                 </div>
                 <div className="shelf-cap">
                   <span className="mono">{fmtC(v.viewCount)}</span>
