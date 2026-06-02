@@ -5,6 +5,7 @@ import type { AbTestWinnerView } from '@/lib/youtube/ab-types'
 import { DetailHeader } from './detail-header'
 import { WinnerBanner } from './winner-banner'
 import { LiveMonitorCard } from './live-monitor'
+import { ComoEstaAgora } from './como-esta-agora'
 import { CredibleInterval } from './credible-interval'
 import { RankBars } from './rank-bars'
 import { ConfidenceChart } from './confidence-chart'
@@ -137,8 +138,13 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
         </div>
       </section>
 
-      {/* 4. LiveMonitorCard (conditional) */}
-      {view.monitor && <div className="mb-[28px]"><LiveMonitorCard monitor={view.monitor} /></div>}
+      {/* 4. ComoEstaAgora + LiveMonitorCard (conditional) */}
+      {view.monitor && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-[16px] mb-[28px]">
+          <ComoEstaAgora monitor={view.monitor} />
+          <LiveMonitorCard monitor={view.monitor} />
+        </div>
+      )}
 
       {/* 5. Confiança final + O aprendizado — grid 1fr 1fr */}
       <section data-testid="confidence-section" className="mb-[30px]">

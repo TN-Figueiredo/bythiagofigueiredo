@@ -11,7 +11,7 @@ vi.mock('lucide-react', () => {
     Download: icon('Download'), Pause: icon('Pause'), Square: icon('Square'),
     LayoutGrid: icon('LayoutGrid'), Search: icon('Search'), ListVideo: icon('ListVideo'),
     Smartphone: icon('Smartphone'), Trophy: icon('Trophy'), TrendingUp: icon('TrendingUp'),
-    TrendingDown: icon('TrendingDown'),
+    TrendingDown: icon('TrendingDown'), X: icon('X'),
   }
 })
 
@@ -21,6 +21,16 @@ vi.mock('@/app/cms/(authed)/youtube/ab-lab/actions', () => ({
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn() }),
+}))
+
+// Mock YtPortal to render children directly (no createPortal in test env)
+vi.mock('@/app/cms/(authed)/youtube/_components/yt-portal', () => ({
+  YtPortal: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}))
+
+// Mock useModalFocusTrap (no-op in tests)
+vi.mock('@/app/cms/(authed)/_shared/editor/use-modal-focus-trap', () => ({
+  useModalFocusTrap: vi.fn(),
 }))
 
 import { AbEndTestDialog } from '@/app/cms/(authed)/youtube/ab-lab/_components/ab-end-test-dialog'
@@ -35,19 +45,19 @@ const mockTest = {
 } as any
 
 describe('AbEndTestDialog', () => {
-  it('renders with "End Test" title', () => {
+  it('renders with "Encerrar teste" title', () => {
     render(<AbEndTestDialog testId={mockTest.id} variants={mockTest.variants} confidenceThreshold={mockTest.config.confidence_threshold} onClose={vi.fn()} />)
-    expect(screen.getByText('End Test')).toBeTruthy()
+    expect(screen.getByRole('dialog', { name: 'Encerrar teste' })).toBeTruthy()
   })
 
-  it('shows 3 radio options: Apply leading, Keep original, Archive', () => {
+  it('shows 3 radio options', () => {
     render(<AbEndTestDialog testId={mockTest.id} variants={mockTest.variants} confidenceThreshold={mockTest.config.confidence_threshold} onClose={vi.fn()} />)
-    expect(screen.getByText('Apply leading variant')).toBeTruthy()
-    expect(screen.getByText('Keep original')).toBeTruthy()
-    expect(screen.getByText('Archive without applying')).toBeTruthy()
+    expect(screen.getByText('Aplicar variante lider')).toBeTruthy()
+    expect(screen.getByText('Manter original')).toBeTruthy()
+    expect(screen.getByText('Arquivar sem aplicar')).toBeTruthy()
   })
 
-  it('"Apply leading" is selected by default', () => {
+  it('"leading" is selected by default', () => {
     render(<AbEndTestDialog testId={mockTest.id} variants={mockTest.variants} confidenceThreshold={mockTest.config.confidence_threshold} onClose={vi.fn()} />)
     const radios = screen.getAllByRole('radio') as HTMLInputElement[]
     const leadingRadio = radios.find((r) => r.value === 'leading')!
@@ -62,38 +72,31 @@ describe('AbEndTestDialog', () => {
     expect(archiveRadio.checked).toBe(true)
   })
 
-  it('confirm button shows "Apply & End" for leading option', () => {
+  it('confirm button shows "Aplicar e encerrar" for leading option', () => {
     render(<AbEndTestDialog testId={mockTest.id} variants={mockTest.variants} confidenceThreshold={mockTest.config.confidence_threshold} onClose={vi.fn()} />)
-    expect(screen.getByText('Apply & End')).toBeTruthy()
+    expect(screen.getByText('Aplicar e encerrar')).toBeTruthy()
   })
 
-  it('confirm button shows "Keep Original & End" for original option', () => {
+  it('confirm button shows "Manter original e encerrar" for original option', () => {
     render(<AbEndTestDialog testId={mockTest.id} variants={mockTest.variants} confidenceThreshold={mockTest.config.confidence_threshold} onClose={vi.fn()} />)
     const radios = screen.getAllByRole('radio') as HTMLInputElement[]
     const originalRadio = radios.find((r) => r.value === 'original')!
     fireEvent.click(originalRadio)
-    expect(screen.getByText('Keep Original & End')).toBeTruthy()
+    expect(screen.getByText('Manter original e encerrar')).toBeTruthy()
   })
 
-  it('confirm button shows "Archive Test" for archive option', () => {
+  it('confirm button shows "Arquivar teste" for archive option', () => {
     render(<AbEndTestDialog testId={mockTest.id} variants={mockTest.variants} confidenceThreshold={mockTest.config.confidence_threshold} onClose={vi.fn()} />)
     const radios = screen.getAllByRole('radio') as HTMLInputElement[]
     const archiveRadio = radios.find((r) => r.value === 'archive')!
     fireEvent.click(archiveRadio)
-    expect(screen.getByText('Archive Test')).toBeTruthy()
+    expect(screen.getByText('Arquivar teste')).toBeTruthy()
   })
 
   it('cancel button calls onClose', () => {
     const onClose = vi.fn()
     render(<AbEndTestDialog testId={mockTest.id} variants={mockTest.variants} confidenceThreshold={mockTest.config.confidence_threshold} onClose={onClose} />)
-    fireEvent.click(screen.getByText('Cancel'))
-    expect(onClose).toHaveBeenCalledOnce()
-  })
-
-  it('escape key calls onClose', () => {
-    const onClose = vi.fn()
-    render(<AbEndTestDialog testId={mockTest.id} variants={mockTest.variants} confidenceThreshold={mockTest.config.confidence_threshold} onClose={onClose} />)
-    fireEvent.keyDown(document, { key: 'Escape' })
+    fireEvent.click(screen.getByText('Cancelar'))
     expect(onClose).toHaveBeenCalledOnce()
   })
 

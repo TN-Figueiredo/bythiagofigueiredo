@@ -1,9 +1,12 @@
 'use client'
 
-import { useState, useTransition, useEffect } from 'react'
+import { useState, useTransition, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import type { VariantDbEntry } from '@/lib/youtube/ab-types'
 import { endAbTest } from '../actions'
+import { YtPortal } from '../../_components/yt-portal'
+import { useModalFocusTrap } from '../../../_shared/editor/use-modal-focus-trap'
+import { Square, X } from 'lucide-react'
 
 interface AbEndTestDialogProps {
   testId: string
@@ -18,14 +21,9 @@ export function AbEndTestDialog({ testId, variants, confidenceThreshold, onClose
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [selected, setSelected] = useState<EndOption>('leading')
+  const dialogRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [onClose])
+  useModalFocusTrap(dialogRef, true, onClose)
 
   const originalVariant = variants.find((v) => v.is_original)
   const nonOriginalVariants = variants.filter((v) => !v.is_original)
@@ -33,14 +31,12 @@ export function AbEndTestDialog({ testId, variants, confidenceThreshold, onClose
   const leadingVariant =
     nonOriginalVariants.length > 0 ? nonOriginalVariants[0] : originalVariant
 
-  const hasLowConfidence = false
-
   const confirmLabel =
     selected === 'leading'
-      ? 'Apply & End'
+      ? 'Aplicar e encerrar'
       : selected === 'original'
-        ? 'Keep Original & End'
-        : 'Archive Test'
+        ? 'Manter original e encerrar'
+        : 'Arquivar teste'
 
   function handleConfirm() {
     startTransition(async () => {
@@ -56,146 +52,124 @@ export function AbEndTestDialog({ testId, variants, confidenceThreshold, onClose
     })
   }
 
+  const options: Array<{ value: EndOption; title: string; desc: string; thumb?: string | null }> = [
+    {
+      value: 'leading',
+      title: 'Aplicar variante lider',
+      desc: 'Define a melhor thumbnail como permanente',
+      thumb: leadingVariant?.blob_url,
+    },
+    {
+      value: 'original',
+      title: 'Manter original',
+      desc: 'Restaura a thumbnail original',
+      thumb: originalVariant?.blob_url,
+    },
+    {
+      value: 'archive',
+      title: 'Arquivar sem aplicar',
+      desc: 'Encerra o teste e mantem o que esta no ar',
+    },
+  ]
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div
-        className="absolute inset-0"
-        onClick={onClose}
-        aria-hidden="true"
-      />
-      <div className="relative w-full max-w-md rounded-lg border border-cms-border bg-cms-surface p-6 shadow-xl">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-base font-semibold text-cms-text">End Test</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-cms-text-muted hover:bg-cms-surface-hover hover:text-cms-text"
-            aria-label="Close"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-              <path d="M18 6L6 18M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        {hasLowConfidence && (
-          <div className="mb-4 rounded-lg border border-amber-600/40 bg-amber-900/20 px-4 py-3">
-            <p className="text-xs font-medium text-amber-400">
-              Confidence is below the {Math.round(confidenceThreshold * 100)}% threshold. Results may not be statistically significant.
-            </p>
+    <YtPortal>
+      <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}>
+        <div
+          className="absolute inset-0"
+          onClick={onClose}
+          aria-hidden="true"
+        />
+        <div
+          ref={dialogRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Encerrar teste"
+          className="relative w-full max-w-[440px] rounded-[14px] border border-cms-border bg-cms-surface overflow-hidden"
+          style={{ boxShadow: 'var(--shadow-pop, 0 24px 60px -20px rgba(0,0,0,0.7), 0 2px 8px rgba(0,0,0,0.4))' }}
+        >
+          {/* Header */}
+          <div className="flex items-center gap-[11px] py-[18px] px-[20px] border-b border-cms-border">
+            <span
+              className="flex items-center justify-center rounded-[9px]"
+              style={{ width: 32, height: 32, background: 'var(--cms-red-soft, rgba(239,68,68,0.1))' }}
+            >
+              <Square size={16} className="text-cms-red" aria-hidden="true" />
+            </span>
+            <h2 className="text-[15px] font-bold text-cms-text flex-1 m-0">Encerrar teste</h2>
+            <button
+              type="button"
+              onClick={onClose}
+              className="ic-btn"
+              aria-label="Fechar"
+            >
+              <X size={15} />
+            </button>
           </div>
-        )}
 
-        <p className="mb-4 text-xs text-cms-text-muted">Choose how to end this test:</p>
-
-        <div className="space-y-2">
-          <label
-            className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
-              selected === 'leading'
-                ? 'border-cms-accent bg-cms-accent/10'
-                : 'border-cms-border hover:bg-cms-surface-hover'
-            }`}
-          >
-            <input
-              type="radio"
-              name="end-option"
-              value="leading"
-              checked={selected === 'leading'}
-              onChange={() => setSelected('leading')}
-              className="mt-0.5 accent-[var(--cms-accent)]"
-            />
-            <div className="flex flex-1 items-start justify-between gap-3">
-              <div>
-                <p className="text-sm font-medium text-cms-text">Apply leading variant</p>
-                <p className="text-xs text-cms-text-dim">
-                  Set the best-performing thumbnail as permanent
-                </p>
-              </div>
-              {leadingVariant?.blob_url && (
-                <img
-                  src={leadingVariant.blob_url}
-                  alt={leadingVariant.label}
-                  width={60}
-                  height={34}
-                  className="shrink-0 rounded object-cover"
-                />
-              )}
+          {/* Body */}
+          <div className="py-[18px] px-[20px]">
+            <p className="text-[12.5px] text-cms-text-dim mb-[14px] m-0">Escolha como encerrar este teste:</p>
+            <div className="space-y-[8px]">
+              {options.map(opt => (
+                <label
+                  key={opt.value}
+                  className={`flex cursor-pointer items-start gap-[10px] rounded-[10px] border p-[12px] transition-[border-color,background] duration-150 ${
+                    selected === opt.value
+                      ? 'border-cms-accent bg-cms-accent/10'
+                      : 'border-cms-border hover:bg-cms-surface-hover'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="end-option"
+                    value={opt.value}
+                    checked={selected === opt.value}
+                    onChange={() => setSelected(opt.value)}
+                    className="mt-[2px] accent-[var(--cms-accent)]"
+                  />
+                  <div className="flex flex-1 items-start justify-between gap-[10px]">
+                    <div>
+                      <p className="text-[13px] font-semibold text-cms-text m-0">{opt.title}</p>
+                      <p className="text-[11.5px] text-cms-text-dim m-0 mt-[2px]">{opt.desc}</p>
+                    </div>
+                    {opt.thumb && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={opt.thumb}
+                        alt={opt.title}
+                        width={56}
+                        height={32}
+                        className="shrink-0 rounded-[5px] object-cover"
+                      />
+                    )}
+                  </div>
+                </label>
+              ))}
             </div>
-          </label>
+          </div>
 
-          <label
-            className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
-              selected === 'original'
-                ? 'border-cms-accent bg-cms-accent/10'
-                : 'border-cms-border hover:bg-cms-surface-hover'
-            }`}
-          >
-            <input
-              type="radio"
-              name="end-option"
-              value="original"
-              checked={selected === 'original'}
-              onChange={() => setSelected('original')}
-              className="mt-0.5 accent-[var(--cms-accent)]"
-            />
-            <div className="flex flex-1 items-start justify-between gap-3">
-              <div>
-                <p className="text-sm font-medium text-cms-text">Keep original</p>
-                <p className="text-xs text-cms-text-dim">Restore the original thumbnail</p>
-              </div>
-              {originalVariant?.blob_url && (
-                <img
-                  src={originalVariant.blob_url}
-                  alt="original"
-                  width={60}
-                  height={34}
-                  className="shrink-0 rounded object-cover"
-                />
-              )}
-            </div>
-          </label>
-
-          <label
-            className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
-              selected === 'archive'
-                ? 'border-cms-accent bg-cms-accent/10'
-                : 'border-cms-border hover:bg-cms-surface-hover'
-            }`}
-          >
-            <input
-              type="radio"
-              name="end-option"
-              value="archive"
-              checked={selected === 'archive'}
-              onChange={() => setSelected('archive')}
-              className="mt-0.5 accent-[var(--cms-accent)]"
-            />
-            <div>
-              <p className="text-sm font-medium text-cms-text">Archive without applying</p>
-              <p className="text-xs text-cms-text-dim">End the test and keep whatever is live now</p>
-            </div>
-          </label>
-        </div>
-
-        <div className="mt-6 flex items-center justify-end gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={isPending}
-            className="rounded-lg border border-cms-border bg-transparent px-4 py-2 text-sm font-medium text-cms-text hover:bg-cms-surface-hover disabled:opacity-50"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleConfirm}
-            disabled={isPending}
-            className="rounded-lg bg-cms-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
-          >
-            {isPending ? 'Ending...' : confirmLabel}
-          </button>
+          {/* Footer */}
+          <div className="flex items-center justify-end gap-[10px] py-[14px] px-[20px] border-t border-cms-border">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isPending}
+              className="btn sm"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirm}
+              disabled={isPending}
+              className="btn sm primary"
+            >
+              {isPending ? 'Encerrando...' : confirmLabel}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </YtPortal>
   )
 }

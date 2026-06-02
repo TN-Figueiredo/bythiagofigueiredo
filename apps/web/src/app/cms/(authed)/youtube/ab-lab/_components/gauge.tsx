@@ -5,16 +5,15 @@ export interface GaugeProps {
   value: number
   /** Threshold for green color (default 95) */
   target?: number
+  /** SVG size in px (default 132, was hardcoded 160). */
+  size?: number
+  /** Custom arc color override (CSS value). Falls back to accent/green logic. */
+  color?: string
+  /** Force green arc regardless of value vs target. */
+  reached?: boolean
   /** Accessible label for the meter (default "Confidence") */
   ariaLabel?: string
 }
-
-const SIZE = 160
-const CX = SIZE / 2
-const CY = SIZE / 2
-const R = 60
-const STROKE_WIDTH = 14
-const CIRCUMFERENCE = 2 * Math.PI * R
 
 function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
   const rad = ((angleDeg - 90) * Math.PI) / 180
@@ -31,27 +30,43 @@ function arcPath(cx: number, cy: number, r: number, startAngle: number, endAngle
   return `M ${start.x} ${start.y} A ${r} ${r} 0 ${largeArcFlag} 0 ${end.x} ${end.y}`
 }
 
-export function Gauge({ value, target = 95, ariaLabel = 'Confidence' }: GaugeProps) {
+export function Gauge({
+  value,
+  target = 95,
+  size = 132,
+  color,
+  reached,
+  ariaLabel = 'Confidence',
+}: GaugeProps) {
   const clamped = Number.isNaN(value) ? 0 : Math.min(100, Math.max(0, value))
-  const isGreen = clamped >= target
+  const isGreen = reached ?? clamped >= target
 
-  // Arc spans from -135° to 135° (270° total sweep)
+  // Compute geometry from size
+  const CX = size / 2
+  const CY = size / 2
+  const R = size * 0.375 // 60/160 ratio preserved
+  const STROKE_WIDTH = size * 0.0875 // 14/160 ratio preserved
+
+  // Arc spans from -135deg to 135deg (270deg total sweep)
   const START_ANGLE = -135
   const END_ANGLE = 135
-  const SWEEP = END_ANGLE - START_ANGLE // 270°
+  const SWEEP = END_ANGLE - START_ANGLE // 270deg
 
   const fillAngle = START_ANGLE + (clamped / 100) * SWEEP
   const trackPath = arcPath(CX, CY, R, START_ANGLE, END_ANGLE)
   const valuePath = clamped > 0 ? arcPath(CX, CY, R, START_ANGLE, fillAngle) : null
 
-  const arcColor = isGreen ? 'var(--cms-green)' : 'var(--color-accent, #3b82f6)'
+  const arcColor = color ?? (isGreen ? 'var(--cms-green)' : 'var(--color-accent, #3b82f6)')
+
+  // Text size scales with gauge size
+  const fontSize = Math.round(size * 0.125) // 20/160
 
   return (
     <div role="meter" aria-label={ariaLabel} aria-valuenow={clamped} aria-valuemin={0} aria-valuemax={100} aria-valuetext={`${clamped}%`}>
       <svg
-        width={SIZE}
-        height={SIZE}
-        viewBox={`0 0 ${SIZE} ${SIZE}`}
+        width={size}
+        height={size}
+        viewBox={`0 0 ${size} ${size}`}
         aria-hidden="true"
       >
         {/* Track (gray background arc) */}
@@ -81,7 +96,7 @@ export function Gauge({ value, target = 95, ariaLabel = 'Confidence' }: GaugePro
           y={CY}
           textAnchor="middle"
           dominantBaseline="middle"
-          fontSize="20"
+          fontSize={fontSize}
           fontWeight="bold"
           fill="currentColor"
         >

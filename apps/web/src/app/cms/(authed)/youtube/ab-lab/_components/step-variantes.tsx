@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback, useId } from 'react'
-import { Lock, Plus, Trash2, Sparkles, Video, ImageIcon, ChevronDown, Link2, AlignLeft } from 'lucide-react'
+import { Lock, Plus, Trash2, Sparkles, Video, ImageIcon, ChevronDown, Link2, AlignLeft, Image as ImageLucide } from 'lucide-react'
 import type { TestType, DisplayLabel } from '@/lib/youtube/ab-types'
 import { VChip, Badge } from './ab-primitives'
 import { VARIANT_COLORS } from './ab-constants'
@@ -32,6 +32,7 @@ export interface StepVariantesProps {
   onAddVariant: () => void
   onRemoveVariant: (index: number) => void
   onPickFromLibrary?: (variantIndex: number) => void
+  onPickFromPipeline?: (variantIndex: number) => void
 }
 
 /* ------------------------------------------------------------------ */
@@ -278,9 +279,10 @@ interface VariantCardProps {
   onUpdate: (data: Partial<VariantData>) => void
   onRemove?: () => void
   onPickFromLibrary?: () => void
+  onPickFromPipeline?: () => void
 }
 
-function VariantCard({ variant, index, type, onUpdate, onRemove, onPickFromLibrary }: VariantCardProps) {
+function VariantCard({ variant, index, type, onUpdate, onRemove, onPickFromLibrary, onPickFromPipeline }: VariantCardProps) {
   const titleId = useId()
   const descId = useId()
   const isLocked = variant.isOriginal
@@ -368,14 +370,29 @@ function VariantCard({ variant, index, type, onUpdate, onRemove, onPickFromLibra
                 fileToDataUrl(file).then(dataUrl => onUpdate({ thumbDataUrl: dataUrl }))
               }}
             />
-            {!isLocked && onPickFromLibrary && (
-              <button
-                type="button"
-                onClick={onPickFromLibrary}
-                className="w-full rounded-lg border border-dashed border-cms-border py-1.5 text-[11px] text-cms-text-muted hover:border-cms-accent hover:text-cms-accent transition-colors"
-              >
-                📚 Escolher da Biblioteca
-              </button>
+            {!isLocked && (onPickFromLibrary || onPickFromPipeline) && (
+              <div className="flex gap-1.5">
+                {onPickFromLibrary && (
+                  <button
+                    type="button"
+                    onClick={onPickFromLibrary}
+                    className="flex-1 rounded-lg border border-dashed border-cms-border py-1.5 text-[11px] text-cms-text-muted hover:border-cms-accent hover:text-cms-accent transition-colors"
+                  >
+                    📚 Escolher da Biblioteca
+                  </button>
+                )}
+                {onPickFromPipeline && (
+                  <button
+                    type="button"
+                    onClick={onPickFromPipeline}
+                    className="btn cowork sm"
+                    style={{ fontSize: '11px', padding: '5px 9px' }}
+                  >
+                    <ImageLucide size={12} aria-hidden="true" />
+                    Importar do Pipeline
+                  </button>
+                )}
+              </div>
             )}
           </div>
         )}
@@ -707,6 +724,7 @@ export function StepVariantes({
   onAddVariant,
   onRemoveVariant,
   onPickFromLibrary,
+  onPickFromPipeline,
 }: StepVariantesProps) {
   const challengers = variants.filter(v => !v.isOriginal)
   const canAdd = challengers.length < MAX_CHALLENGERS
@@ -742,6 +760,7 @@ export function StepVariantes({
           onUpdate={data => onUpdateVariant(index, data)}
           onRemove={variant.isOriginal ? undefined : () => onRemoveVariant(index)}
           onPickFromLibrary={variant.isOriginal ? undefined : onPickFromLibrary ? () => onPickFromLibrary(index) : undefined}
+          onPickFromPipeline={variant.isOriginal ? undefined : onPickFromPipeline ? () => onPickFromPipeline(index) : undefined}
         />
       ))}
 

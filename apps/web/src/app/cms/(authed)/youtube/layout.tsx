@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { YouTubeShell } from './_components/youtube-shell'
+import './youtube-motion.css'
 
 export default async function YouTubeLayout({ children }: { children: ReactNode }) {
   const supabase = getSupabaseServiceClient()
@@ -24,8 +25,10 @@ export default async function YouTubeLayout({ children }: { children: ReactNode 
     : null
 
   return (
-    <YouTubeShell hoursUntilExpiry={hoursUntilExpiry}>
-      {children}
-    </YouTubeShell>
+    <div data-cms-section="youtube">
+      <YouTubeShell hoursUntilExpiry={hoursUntilExpiry}>
+        {children}
+      </YouTubeShell>
+    </div>
   )
 }

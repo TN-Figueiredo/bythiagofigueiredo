@@ -217,6 +217,51 @@ export const MOCK_PLAYOFF_MINIMAL: AbTestPlayoffView = {
   activeNow: null,
 }
 
+export const MOCK_EARLY: AbTestActiveView = {
+  id: 'mock-early-id',
+  videoTitle: '🇻🇳 Morei 1 Mês no Vietnã por R$800 — Vale a Pena?',
+  flag: 'thumbnail',
+  status: 'active',
+  variants: [
+    { label: 'A', color: VARIANT_COLORS.A, ctr: 0, impressions: 0, clicks: 0, pBest: 0, pTop2: 0, linkCtr: undefined, retention: undefined },
+    { label: 'B', color: VARIANT_COLORS.B, ctr: 0, impressions: 0, clicks: 0, pBest: 0, pTop2: 0, linkCtr: undefined, retention: undefined },
+  ],
+  variantThumbs: [
+    { label: 'A', color: VARIANT_COLORS.A, thumbUrl: null, isOriginal: true },
+    { label: 'B', color: VARIANT_COLORS.B, thumbUrl: null, isOriginal: false },
+  ],
+  variantDb: [
+    { id: 'mock-early-var-a', label: 'A', is_original: true, blob_url: null },
+    { id: 'mock-early-var-b', label: 'B', is_original: false, blob_url: null },
+  ],
+  confTrend: [],
+  daily: { A: [], B: [], C: [], D: [] } as Record<import('@/lib/youtube/ab-types').DisplayLabel, number[]>,
+  abbaSeq: [] as unknown as import('@/lib/youtube/ab-types').DisplayLabel[],
+  cycles: { total: 16, done: 0 },
+  durationDays: 14,
+  confidenceTarget: 0.95,
+  totalRounds: 1,
+  hasPlayoff: false,
+  gates: [
+    { name: 'confidence', passed: false, value: '0%', hint: '< 95%' },
+    { name: 'min_impressions', passed: false, value: '0/var', hint: '≥ 1000' },
+    { name: 'min_duration', passed: false, value: '0 dias', hint: '≥ 7 dias' },
+    { name: 'abba_cycles', passed: false, value: '0 ciclos', hint: '≥ 4' },
+    { name: 'burn_in', passed: false, value: '0 dias', hint: '≥ 2 dias' },
+    { name: 'stability', passed: false, value: 'Aguardando', hint: 'Precisa de dados' },
+  ],
+  confirmedData: {
+    confidence: 0,
+    leader: 'A',
+    leaderColor: VARIANT_COLORS.A,
+    lift: 0,
+  },
+  liveData: undefined,
+  activeNow: 'A',
+  statusNote: null,
+  driftAcknowledgedAt: null,
+}
+
 export const MOCK_ACTIVE_MINIMAL: AbTestActiveView = {
   id: 'mock-active-minimal-id',
   videoTitle: 'Test rápido',

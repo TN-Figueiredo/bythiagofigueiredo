@@ -1,8 +1,11 @@
 'use client'
 
-import { useTransition, useEffect } from 'react'
+import { useTransition, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { pauseAbTest } from '../actions'
+import { YtPortal } from '../../_components/yt-portal'
+import { useModalFocusTrap } from '../../../_shared/editor/use-modal-focus-trap'
+import { Pause, X } from 'lucide-react'
 
 interface AbPauseDialogProps {
   testId: string
@@ -12,14 +15,9 @@ interface AbPauseDialogProps {
 export function AbPauseDialog({ testId, onClose }: AbPauseDialogProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
+  const dialogRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [onClose])
+  useModalFocusTrap(dialogRef, true, onClose)
 
   function handleConfirm() {
     startTransition(async () => {
@@ -30,52 +28,74 @@ export function AbPauseDialog({ testId, onClose }: AbPauseDialogProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div
-        className="absolute inset-0"
-        onClick={onClose}
-        aria-hidden="true"
-      />
-      <div className="relative w-full max-w-md rounded-lg border border-cms-border bg-cms-surface p-6 shadow-xl">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-base font-semibold text-cms-text">Pause Test</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-cms-text-muted hover:bg-cms-surface-hover hover:text-cms-text"
-            aria-label="Close"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-              <path d="M18 6L6 18M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+    <YtPortal>
+      {/* Scrim */}
+      <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}>
+        <div
+          className="absolute inset-0"
+          onClick={onClose}
+          aria-hidden="true"
+        />
+        <div
+          ref={dialogRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Pausar teste"
+          className="relative w-full max-w-[420px] rounded-[14px] border border-cms-border bg-cms-surface overflow-hidden"
+          style={{ boxShadow: 'var(--shadow-pop, 0 24px 60px -20px rgba(0,0,0,0.7), 0 2px 8px rgba(0,0,0,0.4))' }}
+        >
+          {/* Header */}
+          <div className="flex items-center gap-[11px] py-[18px] px-[20px] border-b border-cms-border">
+            <span
+              className="flex items-center justify-center rounded-[9px]"
+              style={{ width: 32, height: 32, background: 'rgba(224, 162, 60, 0.12)' }}
+            >
+              <Pause size={16} className="text-cms-amber" aria-hidden="true" />
+            </span>
+            <h2 className="text-[15px] font-bold text-cms-text flex-1 m-0">Pausar teste</h2>
+            <button
+              type="button"
+              onClick={onClose}
+              className="ic-btn"
+              aria-label="Fechar"
+            >
+              <X size={15} />
+            </button>
+          </div>
 
-        <div className="space-y-3 text-sm text-cms-text-muted">
-          <p>Pausing will restore the original thumbnail immediately.</p>
-          <p>The current rotation cycle will be closed. All collected data is preserved.</p>
-          <p>You can resume at any time — the test will continue from where it left off.</p>
-        </div>
+          {/* Body */}
+          <div className="py-[18px] px-[20px] space-y-[10px] text-[13px] text-cms-text-dim leading-[1.55]">
+            <p className="m-0">Pausar vai restaurar a thumbnail original imediatamente.</p>
+            <p className="m-0">O ciclo atual sera fechado. Todos os dados coletados ficam preservados.</p>
+            <p className="m-0">Voce pode retomar a qualquer momento — o teste continua de onde parou.</p>
+          </div>
 
-        <div className="mt-6 flex items-center justify-end gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={isPending}
-            className="rounded-lg border border-cms-border bg-transparent px-4 py-2 text-sm font-medium text-cms-text hover:bg-cms-surface-hover disabled:opacity-50"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleConfirm}
-            disabled={isPending}
-            className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
-          >
-            {isPending ? 'Pausing...' : 'Pause Test'}
-          </button>
+          {/* Footer */}
+          <div className="flex items-center justify-end gap-[10px] py-[14px] px-[20px] border-t border-cms-border">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isPending}
+              className="btn sm"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirm}
+              disabled={isPending}
+              className="btn sm"
+              style={{
+                background: 'var(--cms-amber, #d97706)',
+                color: '#1A120A',
+                borderColor: 'transparent',
+              }}
+            >
+              {isPending ? 'Pausando...' : 'Pausar teste'}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </YtPortal>
   )
 }

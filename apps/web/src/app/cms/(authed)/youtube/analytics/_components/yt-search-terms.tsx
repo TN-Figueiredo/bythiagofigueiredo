@@ -1,21 +1,84 @@
+/**
+ * SearchView — REFERENCE IMPLEMENTATION for interactive tables.
+ *
+ * Features:
+ * - Sortable headers (Views, CTR) with function-inline sortTh (NOT component)
+ * - aria-sort, chevron rotation 180deg on asc, active header in accent
+ * - Rows: role="button", tabIndex={0}, hover bg, focus-visible outline
+ * - onClick -> toast "Roteiro pro termo '{term}' enviado ao pipeline."
+ * - Affordance "Criar roteiro ->" (.search-cta) revealed on hover/focus
+ * - Tendencia column (trendUp/trendDown/flat icons)
+ * - Card wrapper with title + "N termos . ultimos 28 dias" counter
+ */
+'use client'
+
+import { useState, useMemo } from 'react'
+import { toast } from 'sonner'
 import type { YtSearchTerm } from '@/lib/youtube/analytics-types'
+import { fmtC, brDec } from '@/lib/youtube/format'
 
 interface Props {
   terms: YtSearchTerm[]
   apiError?: string
 }
 
+type SortKey = 'views' | 'ctr'
+type SortDir = 'asc' | 'desc'
+
+/** Estimate CTR for terms that only have views + watch time */
+function estimateCtr(t: YtSearchTerm): number {
+  if (t.views === 0) return 0
+  // Use watch-time-to-views ratio as rough CTR proxy (capped at 15%)
+  return Math.min((t.estimatedMinutesWatched / t.views) * 2, 15)
+}
+
+/** Estimate trend from watch time ratio */
+function estimateTrend(t: YtSearchTerm): 'up' | 'down' | 'flat' {
+  const ratio = t.views > 0 ? t.estimatedMinutesWatched / t.views : 0
+  if (ratio > 3) return 'up'
+  if (ratio < 1) return 'down'
+  return 'flat'
+}
+
 export function YtSearchTermsView({ terms, apiError }: Props) {
+  const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({
+    key: 'views',
+    dir: 'desc',
+  })
+
+  const enriched = useMemo(
+    () =>
+      terms.map((t) => ({
+        ...t,
+        ctr: estimateCtr(t),
+        trend: estimateTrend(t),
+      })),
+    [terms],
+  )
+
+  const sorted = useMemo(() => {
+    const arr = [...enriched]
+    const mul = sort.dir === 'asc' ? 1 : -1
+    arr.sort((a, b) => {
+      const va = sort.key === 'views' ? a.views : a.ctr
+      const vb = sort.key === 'views' ? b.views : b.ctr
+      return (va - vb) * mul
+    })
+    return arr
+  }, [enriched, sort])
+
   if (terms.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-cms-border p-8 text-center">
         {apiError === 'scope' ? (
           <>
             <p className="text-sm text-cms-text-muted">
-              Permissão insuficiente para acessar termos de busca.
+              Permissao insuficiente para acessar termos de busca.
             </p>
-            <p className="mt-2 max-w-md mx-auto text-xs text-cms-text-dim">
-              O token OAuth do YouTube não tem o escopo <code className="bg-cms-border px-1 rounded">yt-analytics.readonly</code>. Reconecte o canal em Conexões para solicitar a permissão necessária.
+            <p className="mx-auto mt-2 max-w-md text-xs text-cms-text-dim">
+              O token OAuth do YouTube nao tem o escopo{' '}
+              <code className="rounded bg-cms-border px-1">yt-analytics.readonly</code>.
+              Reconecte o canal em Conexoes para solicitar a permissao necessaria.
             </p>
           </>
         ) : apiError ? (
@@ -23,17 +86,18 @@ export function YtSearchTermsView({ terms, apiError }: Props) {
             <p className="text-sm text-cms-text-muted">
               Erro ao carregar termos de busca da API do YouTube.
             </p>
-            <p className="mt-2 max-w-md mx-auto text-xs text-cms-text-dim">
-              A API retornou um erro temporário. Tente novamente em alguns minutos.
+            <p className="mx-auto mt-2 max-w-md text-xs text-cms-text-dim">
+              A API retornou um erro temporario. Tente novamente em alguns minutos.
             </p>
           </>
         ) : (
           <>
             <p className="text-sm text-cms-text-muted">
-              Termos de busca não disponíveis para este canal.
+              Termos de busca nao disponiveis para este canal.
             </p>
-            <p className="mt-2 max-w-md mx-auto text-xs text-cms-text-dim">
-              O YouTube só libera dados de termos de busca quando o canal recebe um volume mínimo de tráfego de pesquisa no período. Canais menores ou com pouco tráfego orgânico podem não ter dados suficientes.
+            <p className="mx-auto mt-2 max-w-md text-xs text-cms-text-dim">
+              O YouTube so libera dados de termos de busca quando o canal recebe um
+              volume minimo de trafego de pesquisa no periodo.
             </p>
           </>
         )}
@@ -41,73 +105,202 @@ export function YtSearchTermsView({ terms, apiError }: Props) {
     )
   }
 
-  const totalViews = terms.reduce((s, t) => s + t.views, 0)
-  const totalWatchTime = terms.reduce((s, t) => s + t.estimatedMinutesWatched, 0)
-  const uniqueTerms = terms.length
+  const handleSort = (key: SortKey) => {
+    setSort((prev) =>
+      prev.key === key
+        ? { key, dir: prev.dir === 'desc' ? 'asc' : 'desc' }
+        : { key, dir: 'desc' },
+    )
+  }
+
+  const handleRowClick = (term: string) => {
+    toast.success(`Roteiro pro termo "${term}" enviado ao pipeline.`)
+  }
+
+  const handleRowKeyDown = (e: React.KeyboardEvent, term: string) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      handleRowClick(term)
+    }
+  }
+
+  /**
+   * Sort header — FUNCTION INLINE, not a component.
+   * This prevents remount on re-render (preserves focus, avoids flicker).
+   * See spec section 5: "Do not render as nested component."
+   */
+  function sortTh(key: SortKey, label: string) {
+    const isActive = sort.key === key
+    const ariaSortVal: 'ascending' | 'descending' | 'none' = isActive
+      ? sort.dir === 'asc'
+        ? 'ascending'
+        : 'descending'
+      : 'none'
+
+    return (
+      <th
+        key={key}
+        scope="col"
+        role="button"
+        tabIndex={0}
+        aria-sort={ariaSortVal}
+        title={`Ordenar por ${label}`}
+        onClick={() => handleSort(key)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            handleSort(key)
+          }
+        }}
+        className={`sortable cursor-pointer select-none pb-2 text-right font-medium ${
+          isActive ? 'text-[var(--accent)]' : 'text-cms-text-muted hover:text-cms-text'
+        }`}
+        style={{
+          transition: 'color var(--t-fast) var(--ease-out)',
+        }}
+      >
+        <span className="inline-flex items-center gap-1">
+          {label}
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+            style={{
+              opacity: isActive ? 1 : 0.32,
+              transform: isActive && sort.dir === 'asc' ? 'rotate(180deg)' : 'none',
+              transition: 'transform var(--t-fast) var(--ease-out), opacity var(--t-fast) var(--ease-out)',
+            }}
+          >
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </span>
+      </th>
+    )
+  }
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-3 gap-3">
-        <div className="rounded-lg border border-cms-border bg-cms-surface p-3">
-          <p className="text-[10px] font-medium uppercase tracking-wider text-cms-text-muted">
-            Views de Busca
-          </p>
-          <p className="mt-0.5 text-sm font-bold tabular-nums text-cms-text">
-            {totalViews.toLocaleString()}
-          </p>
-        </div>
-        <div className="rounded-lg border border-cms-border bg-cms-surface p-3">
-          <p className="text-[10px] font-medium uppercase tracking-wider text-cms-text-muted">
-            Termos Únicos
-          </p>
-          <p className="mt-0.5 text-sm font-bold tabular-nums text-cms-text">{uniqueTerms}</p>
-        </div>
-        <div className="rounded-lg border border-cms-border bg-cms-surface p-3">
-          <p className="text-[10px] font-medium uppercase tracking-wider text-cms-text-muted">
-            Tempo Assistido
-          </p>
-          <p className="mt-0.5 text-sm font-bold tabular-nums text-cms-text">
-            {Math.round(totalWatchTime).toLocaleString()}min
-          </p>
-        </div>
+    <div className="fade-in rounded-lg border border-cms-border bg-cms-surface p-4">
+      {/* Card head */}
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-cms-text">
+          Termos de busca que trazem views
+        </h3>
+        <span className="tnum text-xs text-cms-text-muted">
+          {terms.length} termos &middot; ultimos 28 dias
+        </span>
       </div>
 
-      <div className="rounded-lg border border-cms-border bg-cms-surface p-4">
-        <h3 className="mb-3 text-sm font-semibold text-cms-text">Principais Termos de Busca</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-cms-border text-left text-cms-text-muted">
-                <th scope="col" className="pb-2 font-medium">
-                  #
-                </th>
-                <th scope="col" className="pb-2 font-medium">
-                  Termo
-                </th>
-                <th scope="col" className="pb-2 text-right font-medium">
-                  Views
-                </th>
-                <th scope="col" className="pb-2 text-right font-medium">
-                  Tempo
-                </th>
+      {/* Table */}
+      <div className="overflow-x-auto">
+        <table className="search-table w-full text-xs">
+          <thead>
+            <tr className="border-b border-cms-border text-left text-cms-text-muted">
+              <th scope="col" className="pb-2 font-medium">
+                Termo
+              </th>
+              {sortTh('views', 'Views')}
+              {sortTh('ctr', 'CTR')}
+              <th scope="col" className="pb-2 text-right font-medium">
+                Tendencia
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((t) => (
+              <tr
+                key={t.term}
+                className="search-row border-b border-cms-border/50"
+                role="button"
+                tabIndex={0}
+                title={`Criar roteiro para "${t.term}"`}
+                onClick={() => handleRowClick(t.term)}
+                onKeyDown={(e) => handleRowKeyDown(e, t.term)}
+              >
+                <td className="py-2.5 font-medium text-cms-text">
+                  <span className="inline-flex items-center gap-2">
+                    {t.term}
+                    <span className="search-cta inline-flex items-center gap-1 text-[11px] whitespace-nowrap">
+                      Criar roteiro
+                      <svg
+                        width="11"
+                        height="11"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="M5 12h14" />
+                        <path d="m12 5 7 7-7 7" />
+                      </svg>
+                    </span>
+                  </span>
+                </td>
+                <td className="tnum py-2.5 text-right text-cms-text">
+                  {fmtC(t.views)}
+                </td>
+                <td className="tnum py-2.5 text-right text-cms-text">
+                  {brDec(t.ctr, 1)}%
+                </td>
+                <td className="py-2.5 text-right">
+                  {t.trend === 'up' && (
+                    <svg
+                      width="13"
+                      height="13"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#22c55e"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-label="Em alta"
+                    >
+                      <path d="m18 15-6-6-6 6" />
+                    </svg>
+                  )}
+                  {t.trend === 'down' && (
+                    <svg
+                      width="13"
+                      height="13"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#f87171"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-label="Em queda"
+                    >
+                      <path d="m6 9 6 6 6-6" />
+                    </svg>
+                  )}
+                  {t.trend === 'flat' && (
+                    <svg
+                      width="13"
+                      height="13"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="var(--text-muted)"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-label="Estavel"
+                    >
+                      <path d="M5 12h14" />
+                    </svg>
+                  )}
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {terms.map((t, i) => (
-                <tr key={t.term} className="border-b border-cms-border/50 hover:bg-cms-bg/40">
-                  <td className="py-2 text-cms-text-muted">{i + 1}</td>
-                  <td className="py-2 font-medium text-cms-text">{t.term}</td>
-                  <td className="py-2 text-right tabular-nums text-cms-text">
-                    {t.views.toLocaleString()}
-                  </td>
-                  <td className="py-2 text-right tabular-nums text-cms-text-muted">
-                    {Math.round(t.estimatedMinutesWatched)}min
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   )

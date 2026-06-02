@@ -4,6 +4,8 @@ import { useState, useEffect, useRef, useCallback, useTransition } from 'react'
 import type { AbTestSiteSettings } from '@/lib/youtube/ab-types'
 import { Settings, X, Zap, FlaskConical, Mail, Check } from 'lucide-react'
 import { InfoTip } from './ab-primitives'
+import { YtPortal } from '../../_components/yt-portal'
+import { useModalFocusTrap } from '../../../_shared/editor/use-modal-focus-trap'
 
 export interface SettingsDrawerProps {
   settings: AbTestSiteSettings | null
@@ -80,13 +82,9 @@ export function SettingsDrawer({ settings, onSave, onClose }: SettingsDrawerProp
   const drawerRef = useRef<HTMLDivElement>(null)
   latestEdited.current = edited
 
-  useEffect(() => { if (settings && !edited) setEdited(settings) }, [settings, edited])
+  useModalFocusTrap(drawerRef, true, onClose)
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [onClose])
+  useEffect(() => { if (settings && !edited) setEdited(settings) }, [settings, edited])
 
   useEffect(() => { return () => { if (debounceRef.current) clearTimeout(debounceRef.current) } }, [])
 
@@ -116,8 +114,8 @@ export function SettingsDrawer({ settings, onSave, onClose }: SettingsDrawerProp
   }
 
   return (
-    <>
-      <div className="fixed inset-0 z-90 bg-black/50 cursor-pointer" onClick={onClose} aria-hidden="true" />
+    <YtPortal>
+      <div className="fixed inset-0 z-90 cursor-pointer" onClick={onClose} aria-hidden="true" style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }} />
       <div
         ref={drawerRef}
         role="dialog"
@@ -128,7 +126,7 @@ export function SettingsDrawer({ settings, onSave, onClose }: SettingsDrawerProp
           width: 'min(440px, 100%)',
           background: 'var(--cms-surface)',
           borderLeft: '1px solid var(--cms-border, #332D25)',
-          boxShadow: 'rgba(0,0,0,0.6) -24px 0 60px -20px',
+          boxShadow: 'var(--shadow-pop, rgba(0,0,0,0.6) -24px 0 60px -20px)',
           animation: '0.28s cubic-bezier(0.2,0.7,0.2,1) 0s 1 normal both running drawerIn',
         }}
       >
@@ -282,6 +280,6 @@ export function SettingsDrawer({ settings, onSave, onClose }: SettingsDrawerProp
           </button>
         </div>
       </div>
-    </>
+    </YtPortal>
   )
 }

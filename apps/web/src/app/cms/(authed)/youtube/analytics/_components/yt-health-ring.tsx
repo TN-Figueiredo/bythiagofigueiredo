@@ -1,39 +1,58 @@
 interface Props {
   score: number
+  /** Diameter in px. Default 150 (spec: 150 for Performance, 108 for AB Lab). */
+  size?: number
 }
 
-export function YtHealthRing({ score }: Props) {
-  const radius = 50
+export function YtHealthRing({ score, size = 150 }: Props) {
+  const half = size / 2
+  const strokeW = size * 0.08
+  const radius = half - strokeW
   const circumference = 2 * Math.PI * radius
   const clamped = Math.max(0, Math.min(100, score))
   const filled = (clamped / 100) * circumference
-  const color = clamped >= 65 ? '#34d399' : clamped >= 40 ? '#fbbf24' : '#f87171'
+  const color = clamped >= 65 ? '#22c55e' : clamped >= 40 ? '#fbbf24' : '#f87171'
+
+  // Font sizes proportional to ring size
+  const numSize = Math.round(size * 0.28)
+  const subSize = Math.round(size * 0.06)
 
   return (
-    <div className="relative" style={{ width: 120, height: 120 }}>
+    <div className="relative" style={{ width: size, height: size }}>
       <svg
-        viewBox="0 0 120 120"
-        width={120}
-        height={120}
+        viewBox={`0 0 ${size} ${size}`}
+        width={size}
+        height={size}
         role="img"
-        aria-label={`Saúde do canal: ${clamped} de 100`}
+        aria-label={`Saude do canal: ${clamped} de 100`}
       >
-        <circle cx="60" cy="60" r={radius} fill="none" stroke="var(--bdr-1)" strokeWidth="10" />
         <circle
-          cx="60"
-          cy="60"
+          cx={half}
+          cy={half}
+          r={radius}
+          fill="none"
+          stroke="var(--bdr-1)"
+          strokeWidth={strokeW}
+        />
+        <circle
+          cx={half}
+          cy={half}
           r={radius}
           fill="none"
           stroke={color}
-          strokeWidth="10"
+          strokeWidth={strokeW}
           strokeDasharray={`${filled} ${circumference}`}
           strokeLinecap="round"
-          transform="rotate(-90 60 60)"
+          transform={`rotate(-90 ${half} ${half})`}
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-2xl font-bold text-cms-text">{clamped}</span>
-        <span className="text-[9px] text-cms-text-muted">/ 100</span>
+        <span className="mono font-bold text-cms-text" style={{ fontSize: numSize }}>
+          {clamped}
+        </span>
+        <span className="text-cms-text-muted" style={{ fontSize: subSize }}>
+          / 100
+        </span>
       </div>
     </div>
   )

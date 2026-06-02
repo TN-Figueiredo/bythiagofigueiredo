@@ -5,13 +5,16 @@ import { useTransition, useCallback, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type { ReactNode } from 'react'
+import { Toaster } from 'sonner'
+import { RefreshCw } from 'lucide-react'
 import { triggerSync } from '../videos/actions'
 import { CoworkDeepLink } from '@/components/cms/cowork-deep-link'
 import { buildCoworkInstruction } from '@/lib/pipeline/cowork-instructions'
+import { useTabEdgeFades } from '../_hooks/use-tab-edge-fades'
 
 const TABS = [
   { label: 'Painel', href: '/cms/youtube' },
-  { label: 'Videos', href: '/cms/youtube/videos' },
+  { label: 'Vídeos', href: '/cms/youtube/videos' },
   { label: 'A/B Lab', href: '/cms/youtube/ab-lab' },
   { label: 'Categorias', href: '/cms/youtube/categories' },
   { label: 'Comentários', href: '/cms/youtube/comments' },
@@ -90,11 +93,25 @@ interface YouTubeShellProps {
 export function YouTubeShell({ children, hoursUntilExpiry }: YouTubeShellProps) {
   const pathname = usePathname()
   const [isSyncing, startTransition] = useTransition()
+  const tabBarRef = useTabEdgeFades<HTMLElement>()
 
   const activeTab = TABS.find(t => {
     if (t.href === '/cms/youtube') return pathname === '/cms/youtube'
     return pathname.startsWith(t.href)
   })?.href ?? '/cms/youtube'
+
+  // Auto-scroll active tab into view on mount
+  useEffect(() => {
+    const bar = tabBarRef.current
+    if (!bar) return
+    const activeEl = bar.querySelector<HTMLElement>('.yt-tab.active')
+    if (!activeEl) return
+    // Use scrollLeft calculation for smooth centering
+    const barRect = bar.getBoundingClientRect()
+    const tabRect = activeEl.getBoundingClientRect()
+    const offset = tabRect.left - barRect.left + bar.scrollLeft - barRect.width / 2 + tabRect.width / 2
+    bar.scrollTo({ left: Math.max(0, offset), behavior: 'instant' })
+  }, [pathname])
 
   const handleSyncAll = () => {
     startTransition(async () => {
@@ -105,37 +122,40 @@ export function YouTubeShell({ children, hoursUntilExpiry }: YouTubeShellProps) 
   return (
     <div className="flex flex-col gap-0">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-cms-border px-6 py-4">
-        <h1 className="text-lg font-semibold text-cms-text">YouTube</h1>
+      <div className="flex items-center justify-between border-b border-cms-border" style={{ padding: '16px 28px' }}>
+        <h1 className="display text-[22px] font-semibold text-cms-text">YouTube</h1>
         <div className="flex items-center gap-3">
           <button
             type="button"
             disabled={isSyncing}
             onClick={handleSyncAll}
-            className="rounded border border-cms-border px-3 py-1.5 text-sm font-medium text-cms-text-muted hover:bg-cms-surface-hover disabled:opacity-50"
+            className={`btn ghost sm${isSyncing ? ' syncing' : ''}`}
           >
-            {isSyncing ? '⟳ Syncing…' : '⟳ Sync All'}
+            <RefreshCw size={14} aria-hidden="true" />
+            {isSyncing ? 'Sincronizando...' : 'Sincronizar tudo'}
           </button>
           <CoworkDeepLink
             instruction={buildCoworkInstruction('youtube-intelligence', {} as Record<string, never>)}
             variant="button"
+            className="btn cowork sm"
           />
         </div>
       </div>
 
       {/* Tab bar */}
-      <nav className="flex gap-0 overflow-x-auto border-b border-cms-border px-6" aria-label="YouTube sections">
+      <nav
+        ref={tabBarRef}
+        className="yt-tab-bar border-b border-cms-border"
+        style={{ padding: '0 28px' }}
+        aria-label="Seções do YouTube"
+      >
         {TABS.map(tab => {
           const isActive = tab.href === activeTab
           return (
             <Link
               key={tab.href}
               href={tab.href}
-              className={`px-4 py-2.5 text-sm font-medium transition-colors ${
-                isActive
-                  ? 'border-b-2 border-cms-accent text-cms-accent'
-                  : 'text-cms-text-muted hover:text-cms-text'
-              }`}
+              className={`yt-tab${isActive ? ' active' : ''}`}
               aria-current={isActive ? 'page' : undefined}
             >
               {tab.label}
@@ -150,9 +170,21 @@ export function YouTubeShell({ children, hoursUntilExpiry }: YouTubeShellProps) 
       )}
 
       {/* Content */}
-      <div className="p-6">
+      <div style={{ padding: '24px 28px 80px', maxWidth: 1340, margin: '0 auto', width: '100%' }}>
         {children}
       </div>
+
+      <Toaster
+        theme="dark"
+        position="bottom-center"
+        duration={2800}
+        toastOptions={{
+          style: {
+            borderRadius: '999px',
+            boxShadow: 'var(--shadow-pop)',
+          },
+        }}
+      />
     </div>
   )
 }

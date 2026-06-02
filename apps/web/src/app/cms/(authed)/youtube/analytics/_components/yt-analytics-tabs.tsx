@@ -1,18 +1,27 @@
+/**
+ * YtAnalyticsTabs — Performance tab container.
+ *
+ * Refactored per spec 4.3:
+ * - page-head with: title "Desempenho", description, demo-switch, "Pedir diagnostico ao Cowork" button
+ * - key={activeTab} on tabpanel for .fade-in re-animation
+ * - Replaced "grades"/"Notas" tab with NotesView
+ * - Demo-switch toggles Overview / PerfNewChannel
+ */
 'use client'
 
 import { useState, useRef, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { YtOverview } from './yt-overview'
-import { YtGrades } from './yt-grades'
-import { YtGradesV2 } from './yt-grades-v2'
 import { YtOutliers } from './yt-outliers'
 import { YtOutliersV2 } from './yt-outliers-v2'
 import { YtHealthCoach } from './yt-health-coach'
 import { YtNotificationsBell } from './yt-notifications-bell'
 import { YtDemographicsView } from './yt-demographics'
 import { YtSearchTermsView } from './yt-search-terms'
-import { CoworkDeepLink } from '@/components/cms/cowork-deep-link'
-import { buildCoworkInstruction } from '@/lib/pipeline/cowork-instructions'
+import { NotesView } from './notes-view'
+import type { NoteEntry } from './notes-view'
+import { PerfNewChannel } from './perf-new-channel'
 import type {
   YtChannelMetrics,
   YtDailyMetric,
@@ -26,12 +35,12 @@ import type { Axis } from '@/lib/youtube/scoring-types'
 import type { VideoGradeRow, Notification, OutlierVideo } from './types'
 
 const SUB_TABS = [
-  { id: 'overview', label: 'Visão Geral' },
-  { id: 'grades', label: 'Notas' },
+  { id: 'overview', label: 'Visao geral' },
+  { id: 'notes', label: 'Notas' },
   { id: 'coach', label: 'Health Coach' },
   { id: 'outliers', label: 'Outliers' },
   { id: 'demographics', label: 'Demografia' },
-  { id: 'search', label: 'Termos de Busca' },
+  { id: 'search', label: 'Busca' },
 ] as const
 
 type TabId = (typeof SUB_TABS)[number]['id']
@@ -58,6 +67,24 @@ interface Props {
   demographicsError?: string
 }
 
+/** Demo notes for the NotesView */
+const DEMO_NOTES: NoteEntry[] = [
+  {
+    id: 'n1',
+    author: 'Cowork',
+    text: 'CTR caiu 12% na ultima semana. Recomendo testar novas thumbnails com texto overlay nos proximos 3 videos.',
+    timestamp: new Date(Date.now() - 2 * 3600000).toISOString(),
+    isBot: true,
+  },
+  {
+    id: 'n2',
+    author: 'Thiago',
+    text: 'Experimentar formato "talking head" com fundo desfocado nos proximos videos de tutorial.',
+    timestamp: new Date(Date.now() - 48 * 3600000).toISOString(),
+    isBot: false,
+  },
+]
+
 export function YtAnalyticsTabs({
   metrics,
   dailyMetrics,
@@ -81,6 +108,7 @@ export function YtAnalyticsTabs({
 }: Props) {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<TabId>('overview')
+  const [demoMode, setDemoMode] = useState<'established' | 'new'>('established')
   const [analysisState, setAnalysisState] = useState<'idle' | 'pending' | 'cooldown' | 'success'>('idle')
   const tablistRef = useRef<HTMLDivElement>(null)
 
@@ -139,9 +167,10 @@ export function YtAnalyticsTabs({
 
   return (
     <div>
+      {/* Channel selector (multi-channel) */}
       {channels && channels.length > 1 && (
         <div className="mb-3 flex items-center gap-2">
-          <label htmlFor="yt-channel-select" className="text-xs font-medium text-cms-text-muted">Channel:</label>
+          <label htmlFor="yt-channel-select" className="text-xs font-medium text-cms-text-muted">Canal:</label>
           <select
             id="yt-channel-select"
             value={activeChannelId ?? ''}
@@ -150,7 +179,7 @@ export function YtAnalyticsTabs({
               url.searchParams.set('channel', e.target.value)
               router.push(url.pathname + url.search)
             }}
-            className="rounded border border-cms-border bg-cms-surface px-2 py-1 text-xs text-cms-text focus:outline-none focus:ring-1 focus:ring-[var(--acc)]"
+            className="rounded border border-cms-border bg-cms-surface px-2 py-1 text-xs text-cms-text focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
           >
             {channels.map((ch) => (
               <option key={ch.channelId} value={ch.channelId}>
@@ -161,7 +190,59 @@ export function YtAnalyticsTabs({
         </div>
       )}
 
-      <div className="mb-4 flex items-center border-b border-cms-border">
+      {/* Page head */}
+      <div className="page-head mb-4 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="page-h1 text-lg font-bold text-cms-text">Desempenho</h1>
+          <p className="page-desc mt-0.5 text-xs text-cms-text-muted">
+            Saude do canal, retencao e os numeros que movem o ponteiro — dados reais da YouTube Analytics.
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          {/* Demo switch */}
+          <div className="seg-pills demo-switch">
+            <button
+              type="button"
+              className={`seg-pill${demoMode === 'established' ? ' on' : ''}`}
+              onClick={() => setDemoMode('established')}
+            >
+              Estabelecido
+            </button>
+            <button
+              type="button"
+              className={`seg-pill${demoMode === 'new' ? ' on' : ''}`}
+              onClick={() => setDemoMode('new')}
+            >
+              Canal novo
+            </button>
+          </div>
+
+          {/* Cowork diagnosis button */}
+          <button
+            type="button"
+            className="btn cowork sm"
+            onClick={() => toast.success('Diagnostico enviado ao Cowork.')}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
+            </svg>
+            Pedir diagnostico ao Cowork
+          </button>
+
+          {/* Notifications */}
+          {notifications && (
+            <YtNotificationsBell
+              notifications={notifications}
+              onMarkRead={onMarkNotificationRead ?? (() => Promise.resolve())}
+              onMarkAllRead={onMarkAllNotificationsRead ?? (() => Promise.resolve())}
+              onDismiss={onDismissNotification ?? (() => Promise.resolve())}
+            />
+          )}
+        </div>
+      </div>
+
+      {/* Sub-tab bar */}
+      <div className="mb-4 border-b border-cms-border">
         <div
           ref={tablistRef}
           role="tablist"
@@ -178,49 +259,35 @@ export function YtAnalyticsTabs({
               id={`tab-yt-${tab.id}`}
               aria-controls={`panel-yt-${tab.id}`}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-2.5 text-sm font-medium transition-colors ${
-                activeTab === tab.id
-                  ? 'border-b-2 border-[var(--acc)] text-cms-text'
-                  : 'text-cms-text-muted hover:text-cms-text'
-              }`}
+              className={`subtab${activeTab === tab.id ? ' active' : ''}`}
             >
               {tab.label}
             </button>
           ))}
         </div>
-        <div className="ml-auto flex items-center gap-2 pr-2">
-          <CoworkDeepLink
-            instruction={buildCoworkInstruction('youtube-intelligence', {} as Record<string, never>)}
-            variant="icon"
-          />
-          {notifications && (
-            <YtNotificationsBell
-              notifications={notifications}
-              onMarkRead={onMarkNotificationRead ?? (() => Promise.resolve())}
-              onMarkAllRead={onMarkAllNotificationsRead ?? (() => Promise.resolve())}
-              onDismiss={onDismissNotification ?? (() => Promise.resolve())}
-            />
-          )}
-        </div>
       </div>
 
+      {/* Tab panel — key forces remount for .fade-in animation */}
       <div
+        key={activeTab}
         role="tabpanel"
         id={`panel-yt-${activeTab}`}
         aria-labelledby={`tab-yt-${activeTab}`}
       >
         {activeTab === 'overview' && (
-          <YtOverview
-            metrics={metrics}
-            dailyMetrics={dailyMetrics}
-            intelligenceHealthScore={healthScore}
-            intelligenceRadar={radarData.length > 0 ? radarData : undefined}
-          />
+          demoMode === 'new' ? (
+            <PerfNewChannel />
+          ) : (
+            <YtOverview
+              metrics={metrics}
+              dailyMetrics={dailyMetrics}
+              intelligenceHealthScore={healthScore}
+              intelligenceRadar={radarData.length > 0 ? radarData : undefined}
+            />
+          )
         )}
-        {activeTab === 'grades' && (
-          intelligenceVideos && intelligenceVideos.length > 0
-            ? <YtGradesV2 videos={intelligenceVideos} />
-            : <YtGrades grades={grades} />
+        {activeTab === 'notes' && (
+          <NotesView notes={DEMO_NOTES} />
         )}
         {activeTab === 'coach' && (
           <YtHealthCoach
@@ -262,28 +329,28 @@ function computeRadarData(videos: VideoGradeRow[]): Array<{ label: string; value
 
 const COACHING_DIAGNOSTICS: Record<Axis, { diagnosis: string; action: string }> = {
   ctr: {
-    diagnosis: 'Sua taxa de clique está abaixo da média. Thumbnails e títulos precisam de mais impacto visual.',
-    action: 'Teste novas thumbnails com texto overlay e expressões faciais. Considere criar um A/B test.',
+    diagnosis: 'Sua taxa de clique esta abaixo da media. Thumbnails e titulos precisam de mais impacto visual.',
+    action: 'Teste novas thumbnails com texto overlay e expressoes faciais. Considere criar um A/B test.',
   },
   retention: {
-    diagnosis: 'Os espectadores estão saindo antes do vídeo terminar. O conteúdo pode precisar de mais ganchos internos.',
+    diagnosis: 'Os espectadores estao saindo antes do video terminar. O conteudo pode precisar de mais ganchos internos.',
     action: 'Adicione pattern interrupts a cada 2-3 minutos. Comece com a promessa mais forte nos primeiros 30 segundos.',
   },
   reach: {
-    diagnosis: 'O tráfego vem de poucas fontes. Diversifique para reduzir dependência do browse/sugestões.',
-    action: 'Otimize títulos para search (palavras-chave), compartilhe em redes sociais, e crie playlists temáticas.',
+    diagnosis: 'O trafego vem de poucas fontes. Diversifique para reduzir dependencia do browse/sugestoes.',
+    action: 'Otimize titulos para search (palavras-chave), compartilhe em redes sociais, e crie playlists tematicas.',
   },
   engagement: {
-    diagnosis: 'A taxa de interação (likes, comentários, compartilhamentos) está baixa em relação às views.',
-    action: 'Inclua CTAs claros pedindo likes/comentários. Faça perguntas ao público no vídeo e na descrição.',
+    diagnosis: 'A taxa de interacao (likes, comentarios, compartilhamentos) esta baixa em relacao as views.',
+    action: 'Inclua CTAs claros pedindo likes/comentarios. Faca perguntas ao publico no video e na descricao.',
   },
   growth: {
-    diagnosis: 'O crescimento diário de views está estagnado ou em declínio.',
-    action: 'Publique com mais consistência. Explore tópicos trending no seu nicho. Revise horários de publicação.',
+    diagnosis: 'O crescimento diario de views esta estagnado ou em declinio.',
+    action: 'Publique com mais consistencia. Explore topicos trending no seu nicho. Revise horarios de publicacao.',
   },
   sub_impact: {
-    diagnosis: 'Poucos espectadores estão se inscrevendo após assistir seus vídeos.',
-    action: 'Adicione telas finais com botão de inscrição. Mencione o canal no início do vídeo. Ofereça valor exclusivo para inscritos.',
+    diagnosis: 'Poucos espectadores estao se inscrevendo apos assistir seus videos.',
+    action: 'Adicione telas finais com botao de inscricao. Mencione o canal no inicio do video. Ofereca valor exclusivo para inscritos.',
   },
 }
 
