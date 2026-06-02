@@ -335,66 +335,33 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
             )}
           </div>
 
-          {/* shelf row: 3 videos */}
+          {/* shelf row: 3 videos — handoff: shelf-vid buttons, thumb 16:9, shelf-cap (views mono + · time dim) */}
           <div className="chan-shelf-row">
             {ch.recentVideos.slice(0, 3).map(v => (
               <button
                 key={v.id}
                 className="shelf-vid"
-                style={{
-                  flex: 1,
-                  minWidth: 0,
-                  cursor: 'pointer',
-                  borderRadius: 8,
-                  overflow: 'hidden',
-                  border: '1px solid var(--border)',
-                  background: 'none',
-                  padding: 0,
-                  textAlign: 'left',
-                  color: 'inherit',
-                }}
+                title={v.title ?? ''}
                 onClick={e => { e.stopPropagation(); onVideoClick(v, ch.channelName) }}
                 onKeyDown={e => { e.stopPropagation(); handleKeyAction(e, () => onVideoClick(v, ch.channelName)) }}
               >
-                {v.thumbnailUrl ? (
-                  <img
-                    src={v.thumbnailUrl}
-                    alt={v.title ?? ''}
-                    referrerPolicy="no-referrer"
-                    className="thumb"
-                    loading="lazy"
-                    style={{
-                      width: '100%',
-                      aspectRatio: '16/9',
-                      objectFit: 'cover',
-                      display: 'block',
-                      borderColor: 'transparent',
-                      transition: 'border-color var(--t-fast) var(--ease-out)',
-                    }}
-                  />
-                ) : (
-                  <div
-                    style={{
-                      width: '100%',
-                      aspectRatio: '16/9',
-                      background: 'linear-gradient(135deg, var(--surface-3), var(--surface-2))',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: 9,
-                      color: 'var(--text-dim)',
-                    }}
-                  >
-                    Sem thumb
-                  </div>
-                )}
-                <div className="shelf-cap" style={{ padding: '4px 6px' }}>
-                  <span className="mono" style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                    {fmtC(v.viewCount)}
-                  </span>
-                  <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>
-                    {' · '}{v.publishedAt ? fmtRelative(v.publishedAt) : '—'}
-                  </span>
+                <div style={{ position: 'relative' }}>
+                  {v.thumbnailUrl ? (
+                    <img
+                      src={v.thumbnailUrl}
+                      alt={v.title ?? ''}
+                      referrerPolicy="no-referrer"
+                      className="thumb"
+                      loading="lazy"
+                      style={{ width: '100%', aspectRatio: '16/9', objectFit: 'cover', display: 'block' }}
+                    />
+                  ) : (
+                    <div className="thumb" style={{ aspectRatio: '16/9', background: 'linear-gradient(150deg, var(--surface-3), var(--surface-2))' }} />
+                  )}
+                </div>
+                <div className="shelf-cap">
+                  <span className="mono">{fmtC(v.viewCount)}</span>
+                  <span className="dim"> · {v.publishedAt ? fmtRelative(v.publishedAt) : '—'}</span>
                 </div>
               </button>
             ))}

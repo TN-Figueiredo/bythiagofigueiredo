@@ -806,8 +806,21 @@
 
 /* Minor lifts */
 [data-cms-section="youtube"] .shelf-vid {
+  cursor: pointer;
+  border-radius: 6px;
+  overflow: hidden;
+  border: none;
+  background: none;
+  padding: 0;
+  text-align: left;
+  color: inherit;
   transition:
     transform var(--t-fast) var(--ease-out);
+}
+
+[data-cms-section="youtube"] .shelf-vid .thumb {
+  border-radius: 6px;
+  overflow: hidden;
 }
 
 [data-cms-section="youtube"] .shelf-vid:hover {
