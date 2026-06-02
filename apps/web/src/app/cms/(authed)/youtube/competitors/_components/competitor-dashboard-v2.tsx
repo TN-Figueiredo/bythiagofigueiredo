@@ -184,7 +184,7 @@ export function CompetitorDashboardV2({
             {tab.icon}
             {tab.label}
             {tab.count != null && (
-              <span className="subtab-count tnum">{tab.count}</span>
+              <span className="subtab-count mono">{tab.count}</span>
             )}
           </button>
         ))}
