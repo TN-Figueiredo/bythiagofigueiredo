@@ -42,40 +42,40 @@ describe('formatNumber', () => {
 })
 
 describe('formatPercent', () => {
-  it('formats with 1 decimal by default', () => { expect(formatPercent(12.34)).toBe('12.3%') })
-  it('accepts custom decimals', () => { expect(formatPercent(12.345, 2)).toBe('12.35%') })
+  it('formats with 1 decimal (pt-BR comma)', () => { expect(formatPercent(12.34)).toBe('12,3%') })
+  it('accepts custom decimals', () => { expect(formatPercent(12.345, 2)).toBe('12,35%') })
   it('returns dash for null', () => { expect(formatPercent(null)).toBe('—') })
   it('returns dash for NaN', () => { expect(formatPercent(NaN)).toBe('—') })
 })
 
 describe('formatDate', () => {
-  it('formats ISO string', () => { expect(formatDate('2026-01-15')).toMatch(/Jan/) })
-  it('formats Date object', () => { expect(formatDate(new Date('2026-06-15T12:00:00'))).toMatch(/Jun/) })
+  it('formats ISO string (pt-BR)', () => { expect(formatDate('2026-01-15')).toMatch(/jan/i) })
+  it('formats Date object (pt-BR)', () => { expect(formatDate(new Date('2026-06-15T12:00:00'))).toMatch(/jun/i) })
   it('returns dash for null', () => { expect(formatDate(null)).toBe('—') })
   it('returns dash for invalid date', () => { expect(formatDate('not-a-date')).toBe('—') })
 })
 
 describe('formatPercent extras', () => {
-  it('formats zero', () => { expect(formatPercent(0)).toBe('0.0%') })
-  it('formats 100', () => { expect(formatPercent(100)).toBe('100.0%') })
+  it('formats zero', () => { expect(formatPercent(0)).toBe('0,0%') })
+  it('formats 100', () => { expect(formatPercent(100)).toBe('100,0%') })
 })
 
 describe('formatDate extras', () => {
   it('returns dash for undefined', () => { expect(formatDate(undefined)).toBe('—') })
-  it('handles UTC midnight correctly', () => { expect(formatDate('2026-05-01')).toMatch(/May/) })
+  it('handles UTC midnight correctly (pt-BR)', () => { expect(formatDate('2026-05-01')).toMatch(/mai/i) })
 })
 
 describe('formatCompact', () => {
   it('shows raw number under 1k', () => { expect(formatCompact(999)).toBe('999') })
   it('formats zero', () => { expect(formatCompact(0)).toBe('0') })
-  it('formats exact boundary 1000', () => { expect(formatCompact(1000)).toBe('1.0k') })
-  it('formats thousands', () => { expect(formatCompact(1500)).toBe('1.5k') })
-  it('formats millions', () => { expect(formatCompact(1_200_000)).toBe('1.2M') })
-  it('formats billions', () => { expect(formatCompact(1_500_000_000)).toBe('1.5B') })
+  it('formats exact boundary 1000 (pt-BR comma)', () => { expect(formatCompact(1000)).toBe('1,0k') })
+  it('formats thousands', () => { expect(formatCompact(1500)).toBe('1,5k') })
+  it('formats millions', () => { expect(formatCompact(1_200_000)).toBe('1,2M') })
+  it('formats billions', () => { expect(formatCompact(1_500_000_000)).toBe('1,5B') })
   it('returns dash for null', () => { expect(formatCompact(null)).toBe('—') })
   it('returns dash for NaN', () => { expect(formatCompact(NaN)).toBe('—') })
   it('returns dash for Infinity', () => { expect(formatCompact(Infinity)).toBe('—') })
-  it('handles negative millions', () => { expect(formatCompact(-1_500_000)).toBe('-1.5M') })
+  it('handles negative millions', () => { expect(formatCompact(-1_500_000)).toBe('-1,5M') })
 })
 
 describe('VARIANT_COLORS completeness', () => {

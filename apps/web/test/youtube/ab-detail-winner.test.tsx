@@ -13,7 +13,10 @@ vi.mock('lucide-react', () => {
     ChevronRight: icon('ChevronRight'), ArrowLeft: icon('ArrowLeft'), Copy: icon('Copy'),
     Archive: icon('Archive'), Download: icon('Download'), Swords: icon('Swords'),
     Info: icon('Info'), Target: icon('Target'), ArrowRight: icon('ArrowRight'),
-    Lock: icon('Lock'), Minus: icon('Minus'), Sparkles: icon('Sparkles') }
+    Lock: icon('Lock'), Minus: icon('Minus'), Sparkles: icon('Sparkles'),
+    LayoutGrid: icon('LayoutGrid'), Search: icon('Search'), ListVideo: icon('ListVideo'),
+    Smartphone: icon('Smartphone'), BarChart3: icon('BarChart3'), Eye: icon('Eye'),
+    ThumbsUp: icon('ThumbsUp'), MessageCircle: icon('MessageCircle'), Share2: icon('Share2') }
 })
 
 /* ─── Helpers ─── */
@@ -132,7 +135,7 @@ describe('WinnerBanner', () => {
         stats={{ ctrBefore: 4.5, ctrAfter: 5.2, totalImpressions: 50000, abbaCycles: 12, monthlyExtraClicks: 350 }}
       />,
     )
-    expect(screen.getByTestId('winner-lift').textContent).toBe('+15.3%')
+    expect(screen.getByTestId('winner-lift').textContent).toBe('+15,3%')
   })
 
   it('renders confidence text', () => {
@@ -145,7 +148,7 @@ describe('WinnerBanner', () => {
         stats={{ ctrBefore: 4.5, ctrAfter: 5.2, totalImpressions: 50000, abbaCycles: 12, monthlyExtraClicks: 350 }}
       />,
     )
-    expect(screen.getByText('97.2% confidence')).toBeDefined()
+    expect(screen.getByText(/97,2%.*confianca/i)).toBeDefined()
   })
 
   it('renders 3 stat cells', () => {

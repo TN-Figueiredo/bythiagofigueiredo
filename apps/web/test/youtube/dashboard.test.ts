@@ -43,31 +43,31 @@ describe('formatCount', () => {
     expect(formatCount(999)).toBe('999')
   })
 
-  it('formats thousands with K suffix', () => {
-    expect(formatCount(1000)).toBe('1.0K')
-    expect(formatCount(15_200)).toBe('15.2K')
+  it('formats thousands with K suffix (pt-BR comma)', () => {
+    expect(formatCount(1000)).toBe('1,0K')
+    expect(formatCount(15_200)).toBe('15,2K')
   })
 
-  it('formats millions with M suffix', () => {
-    expect(formatCount(1_000_000)).toBe('1.0M')
-    expect(formatCount(2_500_000)).toBe('2.5M')
+  it('formats millions with M suffix (pt-BR comma)', () => {
+    expect(formatCount(1_000_000)).toBe('1,0M')
+    expect(formatCount(2_500_000)).toBe('2,5M')
   })
 })
 
 describe('timeAgo', () => {
-  it('formats minutes', () => {
+  it('formats minutes (pt-BR)', () => {
     const fiveMinAgo = new Date(Date.now() - 5 * 60_000).toISOString()
-    expect(timeAgo(fiveMinAgo)).toBe('5m ago')
+    expect(timeAgo(fiveMinAgo)).toBe('5m atrás')
   })
 
-  it('formats hours', () => {
+  it('formats hours (pt-BR)', () => {
     const twoHoursAgo = new Date(Date.now() - 2 * 3_600_000).toISOString()
-    expect(timeAgo(twoHoursAgo)).toBe('2h ago')
+    expect(timeAgo(twoHoursAgo)).toBe('2h atrás')
   })
 
-  it('formats days', () => {
+  it('formats days (pt-BR)', () => {
     const threeDaysAgo = new Date(Date.now() - 3 * 86_400_000).toISOString()
-    expect(timeAgo(threeDaysAgo)).toBe('3d ago')
+    expect(timeAgo(threeDaysAgo)).toBe('3d atrás')
   })
 })
 

@@ -63,7 +63,7 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
           <p className="text-sm font-semibold truncate" style={{ color: 'var(--text)' }}>
             {ch.channelName}
           </p>
-          <p className="text-xs mt-0.5 tnum" style={{ color: 'var(--text-dim)' }}>
+          <p className="text-[11px] mt-0.5 tnum" style={{ color: 'var(--text-dim)' }}>
             {ch.subscriberCount != null ? `${fmtC(ch.subscriberCount)} inscritos` : '—'}
             {' · '}
             {ch.videoCount} vídeos
@@ -74,8 +74,8 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
               {ch.changeFlags.map(f => (
                 <span
                   key={f.type}
-                  className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold"
-                  style={{ background: 'var(--purple-soft)', color: 'var(--purple)' }}
+                  className="inline-flex items-center gap-1 text-[10.5px] font-medium"
+                  style={{ background: 'var(--purple-soft)', color: 'var(--purple)', borderRadius: 999, padding: '2px 7px' }}
                 >
                   trocou {f.type === 'thumbnail' ? 'thumb' : f.type} {fmtRelative(f.latestAt)}
                 </span>
@@ -105,15 +105,15 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
       {/* Metrics row */}
       <div className="flex items-center gap-4 px-4 pb-3">
         <div className="flex-1 min-w-0">
-          <p className="eyebrow mb-1">Engaj. médio</p>
-          <p className="text-sm font-semibold tnum" style={{ color: 'var(--text)' }}>
+          <p className="text-[10px] uppercase mb-1" style={{ letterSpacing: '0.06em', color: 'var(--text-dim)' }}>Engaj. médio</p>
+          <p className="font-semibold tnum text-[16px]" style={{ color: 'var(--text)' }}>
             {ch.avgEngagement != null ? `${brDec(ch.avgEngagement * 100, 1)}%` : '—'}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <div className="min-w-0">
-            <p className="eyebrow mb-1">Crescimento</p>
-            <p className="text-sm font-semibold tnum" style={{ color: ch.growthDelta != null && ch.growthDelta >= 0 ? 'var(--green)' : 'var(--amber)' }}>
+            <p className="text-[10px] uppercase mb-1" style={{ letterSpacing: '0.06em', color: 'var(--text-dim)' }}>Crescimento</p>
+            <p className="font-semibold tnum text-[16px]" style={{ color: ch.growthDelta != null && ch.growthDelta >= 0 ? 'var(--green)' : 'var(--amber)' }}>
               {ch.growthDelta != null ? `${ch.growthDelta >= 0 ? '+' : ''}${fmtC(ch.growthDelta)}/mês` : '—'}
             </p>
           </div>
@@ -130,8 +130,8 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
       {/* vs-you comparison */}
       {ch.vsYou && (
         <div
-          className="flex items-center gap-3 px-4 py-2 text-xs"
-          style={{ borderTop: '1px dashed var(--border)', color: 'var(--text-dim)' }}
+          className="flex items-center px-4 py-2 text-[11px]"
+          style={{ gap: 6, borderTop: '1px dashed var(--border-subtle)', color: 'var(--text-dim)' }}
         >
           <span style={{ color: 'var(--text-muted)' }}>vs você:</span>
           <VsPill label="inscritos" delta={ch.vsYou.subsDelta} format={fmtC} />
@@ -142,9 +142,9 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
 
       {/* Video shelf */}
       {ch.recentVideos.length > 0 && (
-        <div className="px-3 py-3" style={{ background: 'var(--surface-2)', borderTop: '1px solid var(--border)' }}>
-          <p className="eyebrow mb-2 px-1">Vídeos recentes</p>
-          <div className="flex gap-2">
+        <div style={{ padding: '16px 20px 14px', background: 'rgba(0,0,0,0.12)', borderTop: '1px solid var(--border-subtle)' }}>
+          <p className="text-xs uppercase mb-2 px-1" style={{ letterSpacing: '0.06em', color: 'var(--text-dim)' }}>Vídeos recentes</p>
+          <div className="flex gap-3">
             {ch.recentVideos.slice(0, 3).map(v => (
               <div
                 key={v.id}
@@ -163,7 +163,7 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
                   </div>
                 )}
                 <div className="p-1">
-                  <p className="text-[10px] font-medium line-clamp-1" style={{ color: 'var(--text-muted)' }}>{v.title}</p>
+                  <p className="text-xs font-medium line-clamp-1" style={{ color: 'var(--text-muted)' }}>{v.title}</p>
                   <span className="text-[9px] tnum" style={{ color: 'var(--text-dim)' }}>
                     {fmtC(v.viewCount)} views
                   </span>
@@ -175,7 +175,7 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
             className="chan-seeall w-full mt-2 text-xs"
             onClick={e => { e.stopPropagation(); onOpen(ch.id) }}
           >
-            Ver todos
+            Ver todos os {ch.videoCount} vídeos &rarr;
           </button>
         </div>
       )}

@@ -36,20 +36,20 @@ import {
 /* ================================================================== */
 
 describe('formatPercent — edge cases', () => {
-  it('formats 0 correctly', () => {
-    expect(formatPercent(0)).toBe('0.0%')
+  it('formats 0 correctly (pt-BR comma)', () => {
+    expect(formatPercent(0)).toBe('0,0%')
   })
 
   it('formats negative numbers', () => {
-    expect(formatPercent(-5.67)).toBe('-5.7%')
+    expect(formatPercent(-5.67)).toBe('-5,7%')
   })
 
   it('formats very large numbers', () => {
-    expect(formatPercent(99999.99)).toBe('100000.0%')
+    expect(formatPercent(99999.99)).toBe('100000,0%')
   })
 
   it('formats very small positive numbers', () => {
-    expect(formatPercent(0.001)).toBe('0.0%')
+    expect(formatPercent(0.001)).toBe('0,0%')
   })
 
   it('formats with 0 decimals', () => {
@@ -57,7 +57,7 @@ describe('formatPercent — edge cases', () => {
   })
 
   it('formats with 3 decimals', () => {
-    expect(formatPercent(12.5678, 3)).toBe('12.568%')
+    expect(formatPercent(12.5678, 3)).toBe('12,568%')
   })
 
   it('returns dash for null', () => {
@@ -73,7 +73,7 @@ describe('formatPercent — edge cases', () => {
   })
 
   it('handles -0', () => {
-    expect(formatPercent(-0)).toBe('0.0%')
+    expect(formatPercent(-0)).toBe('0,0%')
   })
 })
 
@@ -86,12 +86,12 @@ describe('formatCompact — edge cases', () => {
     expect(formatCompact(-500)).toBe('-500')
   })
 
-  it('formats negative thousands', () => {
-    expect(formatCompact(-1500)).toBe('-1.5k')
+  it('formats negative thousands (pt-BR comma)', () => {
+    expect(formatCompact(-1500)).toBe('-1,5k')
   })
 
-  it('formats very large numbers (billions)', () => {
-    expect(formatCompact(2_500_000_000)).toBe('2.5B')
+  it('formats very large numbers (billions, pt-BR comma)', () => {
+    expect(formatCompact(2_500_000_000)).toBe('2,5B')
   })
 
   it('returns dash for null', () => {
@@ -114,16 +114,16 @@ describe('formatCompact — edge cases', () => {
     expect(formatCompact(-Infinity)).toBe('—')
   })
 
-  it('formats exact boundary 1000 to 1.0k', () => {
-    expect(formatCompact(1000)).toBe('1.0k')
+  it('formats exact boundary 1000 to 1,0k (pt-BR comma)', () => {
+    expect(formatCompact(1000)).toBe('1,0k')
   })
 
-  it('formats exact boundary 1_000_000 to 1.0M', () => {
-    expect(formatCompact(1_000_000)).toBe('1.0M')
+  it('formats exact boundary 1_000_000 to 1,0M (pt-BR comma)', () => {
+    expect(formatCompact(1_000_000)).toBe('1,0M')
   })
 
-  it('formats exact boundary 1_000_000_000 to 1.0B', () => {
-    expect(formatCompact(1_000_000_000)).toBe('1.0B')
+  it('formats exact boundary 1_000_000_000 to 1,0B (pt-BR comma)', () => {
+    expect(formatCompact(1_000_000_000)).toBe('1,0B')
   })
 
   it('formats 999 as raw number', () => {
