@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState, useCallback } from 'react'
-import { X, ExternalLink, ChevronDown, Users } from 'lucide-react'
+import { X, ExternalLink, ChevronDown, Users, Search, List, LayoutGrid } from 'lucide-react'
 import { YtPortal } from '../../_components/yt-portal'
 import { useModalFocusTrap } from '../../../_shared/editor/use-modal-focus-trap'
 import { fmtC, brDec, fmtRelative } from '@/lib/youtube/format'
@@ -59,6 +59,7 @@ export function ChannelDrawer({ channel, open, onClose, onVideoClick }: ChannelD
   const [sortKey, setSortKey] = useState<SortKey>('recent')
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
   const [vsYouIdx, setVsYouIdx] = useState(0)
+  const [searchQuery, setSearchQuery] = useState('')
 
   const handleClose = useCallback(() => onClose(), [onClose])
   useModalFocusTrap(drawerRef, open, handleClose)
@@ -68,8 +69,13 @@ export function ChannelDrawer({ channel, open, onClose, onVideoClick }: ChannelD
   const ch = channel
   const allVideos = [...ch.recentVideos]
 
+  // Filter by search query
+  const filtered = searchQuery.trim()
+    ? allVideos.filter(v => v.title?.toLowerCase().includes(searchQuery.toLowerCase()))
+    : allVideos
+
   // Sort
-  const sorted = [...allVideos].sort((a, b) => {
+  const sorted = [...filtered].sort((a, b) => {
     if (sortKey === 'views') return b.viewCount - a.viewCount
     if (sortKey === 'outlier') return (b.outlierMultiplier ?? 0) - (a.outlierMultiplier ?? 0)
     if (sortKey === 'engagement') return engRate(b) - engRate(a)
@@ -325,8 +331,20 @@ export function ChannelDrawer({ channel, open, onClose, onVideoClick }: ChannelD
           </div>
         ))}
 
-        {/* cd-controls */}
-        <div className="flex items-center gap-3 px-6 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
+        {/* cd-controls — handoff: search-wrap + sort pills + view mode pills */}
+        <div className="cd-controls" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 22px', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
+          {/* Search input */}
+          <div className="search-wrap" style={{ display: 'flex', alignItems: 'center', gap: 8, flex: '1 1 0%', minWidth: 180, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 9, padding: '6px 10px' }}>
+            <Search style={{ width: 14, height: 14, stroke: 'var(--text-dim)', flexShrink: 0 }} aria-hidden="true" />
+            <input
+              className="search-input"
+              placeholder="Buscar vídeo…"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              style={{ background: 'none', border: 'none', outline: 'none', color: 'var(--text)', fontSize: 13, flex: 1, padding: 0 }}
+            />
+          </div>
+          {/* Sort pills */}
           <div className="seg-pills">
             {(['recent', 'views', 'outlier', 'engagement'] as const).map(k => (
               <button
@@ -338,16 +356,22 @@ export function ChannelDrawer({ channel, open, onClose, onVideoClick }: ChannelD
               </button>
             ))}
           </div>
-          <div className="seg-pills ml-auto">
-            {(['list', 'grid'] as const).map(m => (
-              <button
-                key={m}
-                className={`seg-pill ${viewMode === m ? 'on' : ''}`}
-                onClick={() => setViewMode(m)}
-              >
-                {m === 'list' ? 'Lista' : 'Grade'}
-              </button>
-            ))}
+          {/* View mode pills (icons) */}
+          <div className="seg-pills">
+            <button
+              className={`seg-pill ${viewMode === 'list' ? 'on' : ''}`}
+              onClick={() => setViewMode('list')}
+              title="Lista"
+            >
+              <List style={{ width: 14, height: 14 }} aria-hidden="true" />
+            </button>
+            <button
+              className={`seg-pill ${viewMode === 'grid' ? 'on' : ''}`}
+              onClick={() => setViewMode('grid')}
+              title="Grade"
+            >
+              <LayoutGrid style={{ width: 14, height: 14 }} aria-hidden="true" />
+            </button>
           </div>
         </div>
 
