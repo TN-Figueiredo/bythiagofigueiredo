@@ -27,6 +27,13 @@ export interface CompetitorChannelView {
   vsYou: VsYouEntry[] | null
   /** Unread change flags since last visit. */
   changeFlags: ChangeFlag[]
+  // --- Full sync fields ---
+  syncMode: 'recent' | 'full'
+  syncStatus: 'idle' | 'syncing' | 'error'
+  syncProgress: number
+  syncError: string | null
+  youtubeVideoCount: number | null
+  fullSyncCompletedAt: string | null
 }
 
 /** Competitor video as rendered in shelf, drawer, and modal. */

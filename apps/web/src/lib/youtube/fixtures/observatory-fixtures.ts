@@ -83,6 +83,12 @@ export const FIXTURE_CHANNELS: CompetitorChannelView[] = CHANNEL_NAMES.map((name
       },
     ],
     changeFlags: idx % 3 === 0 ? [{ type: 'thumbnail' as const, count: 1, latestAt: new Date(Date.now() - 7200_000).toISOString() }] : [],
+    syncMode: 'recent' as const,
+    syncStatus: 'idle' as const,
+    syncProgress: 0,
+    syncError: null,
+    youtubeVideoCount: 30 + Math.round(Math.random() * 200),
+    fullSyncCompletedAt: null,
   }
 })
 

@@ -14,6 +14,7 @@ import type {
 } from '@/lib/youtube/observatory-types'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 const MAX_CHANNELS = 15
 
@@ -31,27 +32,30 @@ export default async function CompetitorsPage({
   // ── 1. Fetch competitor channels ──
   const { data: rawChannels } = await supabase
     .from('competitor_channels')
-    .select('id, channel_id, channel_name, thumbnail_url, subscriber_count, last_synced_at, added_at')
+    .select('id, channel_id, channel_name, thumbnail_url, subscriber_count, last_synced_at, added_at, sync_mode, sync_status, sync_started_at, sync_progress, sync_error, full_sync_completed_at, youtube_video_count')
     .eq('site_id', siteId)
     .order('added_at', { ascending: false })
 
   const safeChannels = rawChannels ?? []
   const channelIds = safeChannels.map(ch => ch.id)
 
-  // ── 2. Fetch all videos (enriched with like_count, comment_count, duration, tags) ──
-  const { data: allVideos } = channelIds.length > 0
-    ? await supabase
-        .from('competitor_videos')
-        .select('id, competitor_channel_id, video_id, title, thumbnail_url, view_count, published_at, tags, like_count, comment_count, duration_seconds')
-        .in('competitor_channel_id', channelIds)
-        .order('published_at', { ascending: false })
-        .limit(750)
-    : { data: [] as Array<{
-        id: string; competitor_channel_id: string; video_id: string; title: string | null
-        thumbnail_url: string | null; view_count: number | null; published_at: string | null
-        tags: string[] | null; like_count: number | null; comment_count: number | null
-        duration_seconds: number | null
-      }> }
+  // ── 2. Fetch videos per-channel (guarantees fair distribution, max 200 per channel) ──
+  type VideoRow = {
+    id: string; competitor_channel_id: string; video_id: string; title: string | null
+    thumbnail_url: string | null; view_count: number | null; published_at: string | null
+    tags: string[] | null; like_count: number | null; comment_count: number | null
+    duration_seconds: number | null; last_checked_at: string | null
+  }
+  const allVideos: VideoRow[] = []
+  for (const chId of channelIds) {
+    const { data: chVideos } = await supabase
+      .from('competitor_videos')
+      .select('id, competitor_channel_id, video_id, title, thumbnail_url, view_count, published_at, tags, like_count, comment_count, duration_seconds, last_checked_at')
+      .eq('competitor_channel_id', chId)
+      .order('published_at', { ascending: false })
+      .limit(200)
+    if (chVideos) allVideos.push(...(chVideos as VideoRow[]))
+  }
 
   // ── 3. Fetch changes ──
   const { data: rawChanges } = await supabase
@@ -142,8 +146,8 @@ export default async function CompetitorsPage({
   }
 
   // ── Group videos by channel ──
-  const videosByChannel = new Map<string, NonNullable<typeof allVideos>>()
-  for (const v of allVideos ?? []) {
+  const videosByChannel = new Map<string, VideoRow[]>()
+  for (const v of allVideos) {
     const list = videosByChannel.get(v.competitor_channel_id) ?? []
     list.push(v)
     videosByChannel.set(v.competitor_channel_id, list)
@@ -234,9 +238,11 @@ export default async function CompetitorsPage({
     }
     const changeFlags = [...flagMap.values()]
 
-    // Recent videos as CompetitorVideoView
-    const medianViews = videos.length > 0
-      ? [...videos].sort((a, b) => (a.view_count ?? 0) - (b.view_count ?? 0))[Math.floor(videos.length / 2)]?.view_count ?? 0
+    // Recent videos as CompetitorVideoView — exclude stale from median
+    const sevenDaysAgo = new Date(Date.now() - 7 * 86_400_000).toISOString()
+    const freshForMedian = videos.filter(v => v.last_checked_at ? v.last_checked_at > sevenDaysAgo : true)
+    const medianViews = freshForMedian.length > 0
+      ? [...freshForMedian].sort((a, b) => (a.view_count ?? 0) - (b.view_count ?? 0))[Math.floor(freshForMedian.length / 2)]?.view_count ?? 0
       : 0
 
     const recentVideos: CompetitorVideoView[] = videos.map(v => {
@@ -273,6 +279,12 @@ export default async function CompetitorsPage({
       recentVideos,
       vsYou: vsYouResult,
       changeFlags,
+      syncMode: (ch.sync_mode ?? 'recent') as 'recent' | 'full',
+      syncStatus: (ch.sync_status ?? 'idle') as 'idle' | 'syncing' | 'error',
+      syncProgress: ch.sync_progress ?? 0,
+      syncError: ch.sync_error ?? null,
+      youtubeVideoCount: ch.youtube_video_count ?? null,
+      fullSyncCompletedAt: ch.full_sync_completed_at ?? null,
     }
   })
 
@@ -299,14 +311,16 @@ export default async function CompetitorsPage({
   })
 
   // ── Build outlier views ──
+  const outlierStaleCutoff = new Date(Date.now() - 7 * 86_400_000).toISOString()
   const outliers: CompetitorOutlierView[] = []
   for (const ch of safeChannels) {
     const videos = videosByChannel.get(ch.id) ?? []
-    if (videos.length < 3) continue
-    const sortedViews = [...videos]
+    const freshVids = videos.filter(v => v.last_checked_at ? v.last_checked_at > outlierStaleCutoff : true)
+    if (freshVids.length < 3) continue
+    const sortedViews = [...freshVids]
       .map(v => v.view_count ?? 0)
       .sort((a, b) => a - b)
-    const median = sortedViews[Math.floor(sortedViews.length / 2)]
+    const median = sortedViews[Math.floor(sortedViews.length / 2)] ?? 0
     if (median <= 0) continue
 
     for (const v of videos) {

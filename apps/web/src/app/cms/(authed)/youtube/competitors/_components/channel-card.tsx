@@ -13,6 +13,9 @@ import {
 } from 'lucide-react'
 import { fmtC, brDec, fmtRelative } from '@/lib/youtube/format'
 import { SparklineChart } from './sparkline-chart'
+import { ConfirmFullSyncDialog } from './confirm-full-sync-dialog'
+import { useFullSyncProgress } from './useFullSyncProgress'
+import { syncFullHistory } from '../actions'
 import type { CompetitorChannelView, CompetitorVideoView } from '@/lib/youtube/observatory-types'
 
 /* ── Palette: deterministic gradient per channel name ── */
@@ -110,7 +113,10 @@ function getOutlierStats(videos: CompetitorVideoView[]) {
 
 export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }: ChannelCardProps) {
   const [isSyncing, setIsSyncing] = useState(false)
+  const [showFullSyncDialog, setShowFullSyncDialog] = useState(false)
   const ch = channel
+  const isFullSyncing = ch.syncStatus === 'syncing' && ch.syncMode === 'full'
+  const syncProgress = useFullSyncProgress(ch.id, isFullSyncing)
   const sparkColor = ch.growthDelta == null ? 'var(--text-dim)' : ch.growthDelta >= 0 ? 'var(--green)' : 'var(--amber)'
   const outlierStats = getOutlierStats(ch.recentVideos)
 
@@ -165,7 +171,14 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
                 >
                   {ch.subscriberCount != null ? `${fmtC(ch.subscriberCount)} inscritos` : '—'}
                   {' · '}
-                  {ch.videoCount} vídeos
+                  {ch.syncStatus === 'syncing'
+                    ? 'sincronizando...'
+                    : ch.syncMode === 'full' && ch.fullSyncCompletedAt && ch.youtubeVideoCount && ch.videoCount < ch.youtubeVideoCount
+                      ? `${ch.videoCount} de ~${fmtC(ch.youtubeVideoCount)} vídeos`
+                      : ch.syncMode === 'recent' && !ch.fullSyncCompletedAt
+                        ? `${ch.videoCount} vídeos (recentes)`
+                        : `${ch.videoCount} vídeos`
+                  }
                 </p>
 
                 {/* Change flags: pill, 10.5px/500 */}
@@ -320,15 +333,71 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
         })()}
 
         {/* ── Sync time + open hint ── */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
-          <span className="mono" style={{ fontSize: 10.5, color: 'var(--text-dim)' }}>
-            {ch.lastSyncedAt ? `sincronizado ${fmtRelative(ch.lastSyncedAt)}` : 'nunca sincronizado'}
-          </span>
-          <span className="chan-open-hint" style={{ fontSize: 12, fontWeight: 500 }}>
-            ver canal
-            <ArrowRight style={{ width: 12, height: 12 }} />
-          </span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 10 }}>
+          {ch.syncStatus === 'error' ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span className="mono" style={{ fontSize: 10.5, color: 'var(--red)' }}>
+                Sync falhou · {ch.videoCount} vídeos importados
+              </span>
+              <button
+                className="sync-action"
+                onClick={e => { e.stopPropagation(); setShowFullSyncDialog(true) }}
+              >
+                tentar novamente
+              </button>
+            </div>
+          ) : isFullSyncing ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <span className="mono" style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>
+                Buscando histórico... {syncProgress.progress}
+                {syncProgress.total ? ` de ~${fmtC(syncProgress.total)}` : ''} vídeos
+              </span>
+              <div className="sync-bar">
+                <span style={{ width: `${syncProgress.percent}%` }} />
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span className="mono" style={{ fontSize: 10.5, color: 'var(--text-dim)' }}>
+                {ch.lastSyncedAt ? `sincronizado ${fmtRelative(ch.lastSyncedAt)}` : 'nunca sincronizado'}
+                {ch.syncMode === 'recent' && !ch.fullSyncCompletedAt
+                  ? ' · 50 recentes'
+                  : ch.fullSyncCompletedAt && ch.youtubeVideoCount && ch.videoCount >= 2000 && ch.videoCount < ch.youtubeVideoCount
+                    ? ` · ${fmtC(ch.videoCount)} de ~${fmtC(ch.youtubeVideoCount)} (limite)`
+                    : ''
+                }
+              </span>
+              {ch.syncMode === 'recent' && !ch.fullSyncCompletedAt ? (
+                <button
+                  className="sync-action"
+                  onClick={e => { e.stopPropagation(); setShowFullSyncDialog(true) }}
+                >
+                  buscar histórico ›
+                </button>
+              ) : (
+                <span className="chan-open-hint" style={{ fontSize: 12, fontWeight: 500 }}>
+                  ver canal
+                  <ArrowRight style={{ width: 12, height: 12 }} />
+                </span>
+              )}
+            </div>
+          )}
         </div>
+
+        {showFullSyncDialog && (
+          <ConfirmFullSyncDialog
+            channelName={ch.channelName}
+            youtubeVideoCount={ch.youtubeVideoCount}
+            onConfirm={async () => {
+              const result = await syncFullHistory(ch.id)
+              setShowFullSyncDialog(false)
+              if (!result.ok && result.error) {
+                console.error('[full-sync]', result.error)
+              }
+            }}
+            onClose={() => setShowFullSyncDialog(false)}
+          />
+        )}
       </div>
 
       {/* ── chan-shelf ── */}
@@ -336,7 +405,12 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
         <div className="chan-shelf">
           {/* shelf header */}
           <div className="chan-shelf-head">
-            <span className="section-label">Vídeos recentes</span>
+            <span className="section-label">
+              Vídeos{' '}
+              <span className="mono" style={{ fontSize: 10, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>
+                ({ch.fullSyncCompletedAt ? 'histórico' : '50 recentes'})
+              </span>
+            </span>
             {outlierStats.count > 0 && outlierStats.bestMult != null && (
               <span className="mono" style={{ fontSize: 10.5, color: 'var(--accent)' }}>
                 {outlierStats.count} outlier{outlierStats.count > 1 ? 's' : ''} · melhor {brDec(outlierStats.bestMult, 0)}x
