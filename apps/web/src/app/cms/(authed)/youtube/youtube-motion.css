@@ -2094,7 +2094,7 @@ button[aria-label="Notificações"] {
 [data-cms-section="youtube"] .md-card {
   display: flex;
   gap: 16px;
-  padding: 16px 18px 16px 0;
+  padding: 16px 18px 16px 16px;
   border-radius: var(--radius, 14px);
   border: 1px solid var(--border);
   background: var(--surface);
