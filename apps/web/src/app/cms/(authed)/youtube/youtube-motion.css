@@ -1290,14 +1290,14 @@ button[aria-label="Notificações"] {
 /* ─── Observatory: Mudancas Timeline ─── */
 
 [data-cms-section="youtube"] .change-group {
-  margin-bottom: 22px;
+  /* no margin — parent gap handles spacing */
 }
 
 [data-cms-section="youtube"] .change-day {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 [data-cms-section="youtube"] .change-day .eyebrow {
