@@ -320,24 +320,9 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
 
       {/* ── chan-shelf ── */}
       {ch.recentVideos.length > 0 && (
-        <div
-          className="chan-shelf"
-          style={{
-            background: 'rgba(0,0,0,0.12)',
-            borderTop: '1px solid var(--border-subtle)',
-            padding: '14px 18px 12px',
-          }}
-        >
+        <div className="chan-shelf">
           {/* shelf header */}
-          <div
-            className="chan-shelf-head"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: 10,
-            }}
-          >
+          <div className="chan-shelf-head">
             <span className="section-label">Vídeos recentes</span>
             {outlierStats.count > 0 && outlierStats.bestMult != null && (
               <span className="mono" style={{ fontSize: 10.5, color: 'var(--accent)' }}>
@@ -347,7 +332,7 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
           </div>
 
           {/* shelf row: 3 videos */}
-          <div className="chan-shelf-row" style={{ display: 'flex', gap: 8 }}>
+          <div className="chan-shelf-row">
             {ch.recentVideos.slice(0, 3).map(v => (
               <button
                 key={v.id}
@@ -414,7 +399,6 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
           {/* see-all button */}
           <button
             className="chan-seeall"
-            style={{ width: '100%', marginTop: 8 }}
             onClick={e => { e.stopPropagation(); onOpen(ch.id) }}
           >
             <BarChart3 style={{ width: 14, height: 14 }} />
