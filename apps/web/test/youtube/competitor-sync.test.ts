@@ -4,6 +4,10 @@ vi.mock('@/lib/supabase/service', () => ({
   getSupabaseServiceClient: vi.fn(),
 }))
 
+vi.mock('@/lib/notifications/create', () => ({
+  createNotification: vi.fn(),
+}))
+
 import { syncCompetitorChannel } from '@/lib/youtube/competitor-sync'
 
 describe('syncCompetitorChannel', () => {
@@ -21,19 +25,25 @@ describe('syncCompetitorChannel', () => {
         if (table === 'competitor_channels') {
           return { update: () => ({ eq: () => Promise.resolve({}) }) }
         }
+        if (table === 'competitor_channel_snapshots') {
+          return { upsert: () => Promise.resolve({}) }
+        }
         if (table === 'competitor_videos') {
           return {
             select: () => ({
               eq: () => ({
-                maybeSingle: () =>
+                in: () =>
                   Promise.resolve({
-                    data: {
-                      id: 'v-1',
-                      title: 'Old Title',
-                      description_hash: '97864e878fe129a3',
-                      thumbnail_url: 'http://old.jpg',
-                      view_count: 100,
-                    },
+                    data: [
+                      {
+                        id: 'v-1',
+                        video_id: 'vid-1',
+                        title: 'Old Title',
+                        description_hash: '97864e878fe129a3',
+                        thumbnail_url: 'http://old.jpg',
+                        view_count: 100,
+                      },
+                    ],
                   }),
               }),
             }),
@@ -51,6 +61,9 @@ describe('syncCompetitorChannel', () => {
               return Promise.resolve({})
             }),
           }
+        }
+        if (table === 'site_users') {
+          return { select: () => ({ eq: () => ({ eq: () => ({ limit: () => ({ single: () => Promise.resolve({ data: null }) }) }) }) }) }
         }
         return { update: () => ({ eq: () => Promise.resolve({}) }) }
       }),
@@ -113,11 +126,14 @@ describe('syncCompetitorChannel', () => {
         if (table === 'competitor_channels') {
           return { update: () => ({ eq: () => Promise.resolve({}) }) }
         }
+        if (table === 'competitor_channel_snapshots') {
+          return { upsert: () => Promise.resolve({}) }
+        }
         if (table === 'competitor_videos') {
           return {
             select: () => ({
               eq: () => ({
-                maybeSingle: () => Promise.resolve({ data: null }),
+                in: () => Promise.resolve({ data: [] }),
               }),
             }),
             insert: vi.fn((data: Record<string, unknown>) => {
@@ -198,24 +214,35 @@ describe('syncCompetitorChannel', () => {
 
   it('detects thumbnail change', async () => {
     const insertCalls: Record<string, unknown>[] = []
+
+    const crypto = await import('crypto')
+    const desc = 'same description'
+    const expectedHash = crypto.createHash('sha256').update(desc).digest('hex').slice(0, 16)
+
     const mockSupabase = {
       from: vi.fn((table: string) => {
         if (table === 'competitor_channels') {
           return { update: () => ({ eq: () => Promise.resolve({}) }) }
         }
+        if (table === 'competitor_channel_snapshots') {
+          return { upsert: () => Promise.resolve({}) }
+        }
         if (table === 'competitor_videos') {
           return {
             select: () => ({
               eq: () => ({
-                maybeSingle: () =>
+                in: () =>
                   Promise.resolve({
-                    data: {
-                      id: 'v-1',
-                      title: 'Same Title',
-                      description_hash: 'abc123',
-                      thumbnail_url: 'http://old.jpg',
-                      view_count: 100,
-                    },
+                    data: [
+                      {
+                        id: 'v-1',
+                        video_id: 'vid-1',
+                        title: 'Same Title',
+                        description_hash: expectedHash,
+                        thumbnail_url: 'http://old.jpg',
+                        view_count: 100,
+                      },
+                    ],
                   }),
               }),
             }),
@@ -233,6 +260,9 @@ describe('syncCompetitorChannel', () => {
               return Promise.resolve({})
             }),
           }
+        }
+        if (table === 'site_users') {
+          return { select: () => ({ eq: () => ({ eq: () => ({ limit: () => ({ single: () => Promise.resolve({ data: null }) }) }) }) }) }
         }
         return { update: () => ({ eq: () => Promise.resolve({}) }) }
       }),
@@ -240,57 +270,6 @@ describe('syncCompetitorChannel', () => {
 
     const { getSupabaseServiceClient } = await import('@/lib/supabase/service')
     ;(getSupabaseServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(mockSupabase)
-
-    // Need description to produce hash 'abc123' — we just use a description whose hash starts with abc123
-    // Actually, we just need the hash to MATCH so no description change is detected.
-    // The implementation hashes with sha256 and takes first 16 chars, so we mock fetch to return
-    // a description that produces the same hash as what's stored.
-    // Simpler approach: set the stored hash to match what the implementation will compute.
-    const crypto = await import('crypto')
-    const desc = 'same description'
-    const expectedHash = crypto.createHash('sha256').update(desc).digest('hex').slice(0, 16)
-
-    // Re-mock supabase with correct hash
-    const mockSupabase2 = {
-      from: vi.fn((table: string) => {
-        if (table === 'competitor_channels') {
-          return { update: () => ({ eq: () => Promise.resolve({}) }) }
-        }
-        if (table === 'competitor_videos') {
-          return {
-            select: () => ({
-              eq: () => ({
-                maybeSingle: () =>
-                  Promise.resolve({
-                    data: {
-                      id: 'v-1',
-                      title: 'Same Title',
-                      description_hash: expectedHash,
-                      thumbnail_url: 'http://old.jpg',
-                      view_count: 100,
-                    },
-                  }),
-              }),
-            }),
-            insert: vi.fn((data: Record<string, unknown>) => {
-              insertCalls.push({ table: 'videos', ...data })
-              return Promise.resolve({})
-            }),
-            update: () => ({ eq: () => Promise.resolve({}) }),
-          }
-        }
-        if (table === 'competitor_changes') {
-          return {
-            insert: vi.fn((data: Record<string, unknown>) => {
-              insertCalls.push({ table: 'changes', ...data })
-              return Promise.resolve({})
-            }),
-          }
-        }
-        return { update: () => ({ eq: () => Promise.resolve({}) }) }
-      }),
-    }
-    ;(getSupabaseServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(mockSupabase2)
 
     global.fetch = vi
       .fn()
@@ -354,19 +333,25 @@ describe('syncCompetitorChannel', () => {
         if (table === 'competitor_channels') {
           return { update: () => ({ eq: () => Promise.resolve({}) }) }
         }
+        if (table === 'competitor_channel_snapshots') {
+          return { upsert: () => Promise.resolve({}) }
+        }
         if (table === 'competitor_videos') {
           return {
             select: () => ({
               eq: () => ({
-                maybeSingle: () =>
+                in: () =>
                   Promise.resolve({
-                    data: {
-                      id: 'v-1',
-                      title: 'Old Title',
-                      description_hash: matchingHash,
-                      thumbnail_url: 'http://old-thumb.jpg',
-                      view_count: 50,
-                    },
+                    data: [
+                      {
+                        id: 'v-1',
+                        video_id: 'vid-1',
+                        title: 'Old Title',
+                        description_hash: matchingHash,
+                        thumbnail_url: 'http://old-thumb.jpg',
+                        view_count: 50,
+                      },
+                    ],
                   }),
               }),
             }),
@@ -384,6 +369,9 @@ describe('syncCompetitorChannel', () => {
               return Promise.resolve({})
             }),
           }
+        }
+        if (table === 'site_users') {
+          return { select: () => ({ eq: () => ({ eq: () => ({ limit: () => ({ single: () => Promise.resolve({ data: null }) }) }) }) }) }
         }
         return { update: () => ({ eq: () => Promise.resolve({}) }) }
       }),
@@ -454,6 +442,9 @@ describe('syncCompetitorChannel', () => {
       from: vi.fn((table: string) => {
         if (table === 'competitor_channels') {
           return { update: () => ({ eq: () => Promise.resolve({}) }) }
+        }
+        if (table === 'competitor_channel_snapshots') {
+          return { upsert: () => Promise.resolve({}) }
         }
         return { update: () => ({ eq: () => Promise.resolve({}) }) }
       }),

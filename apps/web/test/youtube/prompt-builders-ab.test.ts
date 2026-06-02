@@ -122,12 +122,12 @@ describe('buildAbBriefingPrompt', () => {
     expect(prompt).not.toContain('historico_ab')
   })
 
-  it('includes prompt version yt-ab-v2 in context', () => {
+  it('includes prompt version yt-ab-v3 in context', () => {
     const prompt = buildAbBriefingPrompt({
       testType: 'thumbnail',
       data: makeAbBriefingData(),
     })
-    expect(prompt).toContain('yt-ab-v2')
+    expect(prompt).toContain('yt-ab-v3')
   })
 
   it('includes video metrics in context block', () => {
