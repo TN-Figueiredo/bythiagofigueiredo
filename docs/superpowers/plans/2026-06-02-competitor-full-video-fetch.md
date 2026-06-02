@@ -160,34 +160,42 @@ vi.mock('@/lib/notifications/create', () => ({
   createNotification: vi.fn(),
 }))
 
-// Helper to build a chain mock for supabase query builder
-function chainMock(data: unknown = null, error: unknown = null) {
-  const chain: Record<string, unknown> = {}
-  const methods = ['select', 'insert', 'update', 'upsert', 'delete', 'eq', 'in', 'single', 'maybeSingle', 'limit', 'order', 'gt', 'lt', 'lte', 'gte']
+// Helper: build a Supabase-compatible chain mock that resolves via await
+function chainMock(data: unknown = [], error: unknown = null) {
+  const chain: Record<string, ReturnType<typeof vi.fn>> = {}
+  const methods = ['select', 'insert', 'update', 'upsert', 'delete', 'eq', 'in',
+    'single', 'maybeSingle', 'limit', 'order', 'gt', 'lt', 'lte', 'gte', 'or']
   for (const m of methods) {
     chain[m] = vi.fn().mockReturnValue(chain)
   }
-  // Terminal calls return data
-  chain.then = undefined
-  Object.defineProperty(chain, 'then', {
-    value: (resolve: (v: unknown) => void) => resolve({ data, error }),
-  })
+  // Make the chain awaitable — return Promise so `await supabase.from(...)...` resolves
+  chain.then = vi.fn().mockImplementation(
+    (resolve: (v: { data: unknown; error: unknown }) => void) =>
+      Promise.resolve({ data, error }).then(resolve)
+  )
   return chain
+}
+
+// Helper: mock fetch responses in sequence
+function mockFetchSequence(responses: Array<{ ok: boolean; json: () => unknown }>) {
+  let callIndex = 0
+  return vi.fn().mockImplementation(() => {
+    const res = responses[callIndex] ?? responses[responses.length - 1]
+    callIndex++
+    return Promise.resolve(res)
+  })
 }
 
 describe('syncCompetitorChannel — CAS lock', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.restoreAllMocks()
   })
 
   it('should skip sync when channel is already syncing (CAS returns 0 rows)', async () => {
-    // The CAS update returns no rows — channel is locked
-    const updateChain = chainMock(null, null)
-    // Override: make the RPC return empty array (0 rows updated)
-    mockSupabase.from.mockImplementation((table: string) => {
-      if (table === 'competitor_channels') return updateChain
-      return chainMock()
-    })
+    // CAS update returns empty array (no rows matched = lock not acquired)
+    const casChain = chainMock([], null) // empty = locked by another process
+    mockSupabase.from.mockReturnValue(casChain)
 
     const { syncCompetitorChannel } = await import('@/lib/youtube/competitor-sync')
 
@@ -197,6 +205,66 @@ describe('syncCompetitorChannel — CAS lock', () => {
     )
 
     expect(result).toEqual({ videosChecked: 0, changesDetected: 0, skipped: true })
+  })
+
+  it('should acquire lock when sync_status is idle', async () => {
+    // CAS returns the row (lock acquired)
+    const casChain = chainMock([{ id: 'ch-1', sync_mode: 'recent', full_sync_completed_at: null }])
+    mockSupabase.from.mockReturnValue(casChain)
+
+    // Mock YouTube API responses: channel metadata + 1 playlist page (empty)
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = mockFetchSequence([
+      { ok: true, json: () => ({ items: [{ contentDetails: { relatedPlaylists: { uploads: 'UU123' } }, snippet: { title: 'Test' }, statistics: { subscriberCount: '100', videoCount: '5', viewCount: '1000' } }] }) },
+      { ok: true, json: () => ({ items: [] }) }, // empty playlist = no videos
+    ])
+
+    const { syncCompetitorChannel } = await import('@/lib/youtube/competitor-sync')
+    const result = await syncCompetitorChannel(
+      { id: 'ch-1', channel_id: 'UC123', site_id: 'site-1' },
+      'fake-api-key',
+    )
+
+    expect(result.skipped).toBeUndefined()
+    expect(result.videosChecked).toBe(0)
+    globalThis.fetch = originalFetch
+  })
+
+  it('should recover stale lock after 10 minutes', async () => {
+    // CAS .or() matches because sync_started_at is old — lock recovered
+    const casChain = chainMock([{ id: 'ch-1', sync_mode: 'recent', full_sync_completed_at: null }])
+    mockSupabase.from.mockReturnValue(casChain)
+
+    globalThis.fetch = mockFetchSequence([
+      { ok: true, json: () => ({ items: [{ contentDetails: { relatedPlaylists: { uploads: 'UU123' } }, snippet: { title: 'Test' }, statistics: { subscriberCount: '100', videoCount: '5', viewCount: '1000' } }] }) },
+      { ok: true, json: () => ({ items: [] }) },
+    ])
+
+    const { syncCompetitorChannel } = await import('@/lib/youtube/competitor-sync')
+    const result = await syncCompetitorChannel(
+      { id: 'ch-1', channel_id: 'UC123', site_id: 'site-1' },
+      'fake-api-key',
+    )
+
+    // Lock was acquired (not skipped)
+    expect(result.skipped).toBeUndefined()
+  })
+
+  it('should set error status on API failure and preserve partial data', async () => {
+    const casChain = chainMock([{ id: 'ch-1', sync_mode: 'recent', full_sync_completed_at: null }])
+    mockSupabase.from.mockReturnValue(casChain)
+
+    // Channel API fails
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500 })
+
+    const { syncCompetitorChannel } = await import('@/lib/youtube/competitor-sync')
+
+    await expect(
+      syncCompetitorChannel({ id: 'ch-1', channel_id: 'UC123', site_id: 'site-1' }, 'fake-key')
+    ).rejects.toThrow('YouTube API 500')
+
+    // Verify error status was set via supabase update
+    expect(mockSupabase.from).toHaveBeenCalledWith('competitor_channels')
   })
 })
 ```
@@ -578,9 +646,17 @@ git commit -m "feat(sync): paginated full sync with CAS lock, smart incremental,
 **Files:**
 - Modify: `apps/web/src/app/cms/(authed)/youtube/competitors/actions.ts`
 
-- [ ] **Step 1: Add syncFullHistory and getSyncStatus actions**
+- [ ] **Step 1: Add maxDuration export and new server actions**
 
-Add these two actions at the end of `actions.ts` (before the closing of the file, after `toggleBookmark`):
+At the top of `actions.ts`, after the `'use server'` directive (line 1), add:
+
+```typescript
+export const maxDuration = 120
+```
+
+This is critical — without it, server actions default to 15s on Vercel, and full sync can take 20-30s.
+
+Then add these two actions at the end of `actions.ts` (after `toggleBookmark`):
 
 ```typescript
 export async function syncFullHistory(channelRowId: string): Promise<{ ok: boolean; error?: string }> {
@@ -620,12 +696,12 @@ export async function syncFullHistory(channelRowId: string): Promise<{ ok: boole
 
   try {
     await syncCompetitorChannel(channel, apiKey)
+    return { ok: true }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Sync failed' }
+  } finally {
+    revalidatePath('/cms/youtube/competitors')
   }
-
-  revalidatePath('/cms/youtube/competitors')
-  return { ok: true }
 }
 
 export async function getSyncStatus(channelRowId: string): Promise<{
@@ -698,25 +774,32 @@ to:
 .select('id, channel_id, channel_name, thumbnail_url, subscriber_count, last_synced_at, added_at, sync_mode, sync_status, sync_started_at, sync_progress, sync_error, full_sync_completed_at, youtube_video_count')
 ```
 
-- [ ] **Step 2: Fix the video limit from 750 to per-channel cap**
+- [ ] **Step 2: Fix the video limit — per-channel queries instead of single global query**
 
-Replace the video query (lines 42-54) with:
+The current `.limit(750)` global query silently drops data when one channel dominates the result set. A simple `limit(N)` multiplier doesn't fix distribution. Replace the video query (lines 42-54) with per-channel fetching:
 
 ```typescript
-const { data: allVideos } = channelIds.length > 0
-  ? await supabase
-      .from('competitor_videos')
-      .select('id, competitor_channel_id, video_id, title, thumbnail_url, view_count, published_at, tags, like_count, comment_count, duration_seconds, last_checked_at')
-      .in('competitor_channel_id', channelIds)
-      .order('published_at', { ascending: false })
-      .limit(100 * channelIds.length)
-  : { data: [] as Array<{
-      id: string; competitor_channel_id: string; video_id: string; title: string | null
-      thumbnail_url: string | null; view_count: number | null; published_at: string | null
-      tags: string[] | null; like_count: number | null; comment_count: number | null
-      duration_seconds: number | null; last_checked_at: string | null
-    }> }
+type VideoRow = {
+  id: string; competitor_channel_id: string; video_id: string; title: string | null
+  thumbnail_url: string | null; view_count: number | null; published_at: string | null
+  tags: string[] | null; like_count: number | null; comment_count: number | null
+  duration_seconds: number | null; last_checked_at: string | null
+}
+
+// Fetch per-channel to guarantee fair distribution (max 200 per channel)
+const allVideos: VideoRow[] = []
+for (const chId of channelIds) {
+  const { data: chVideos } = await supabase
+    .from('competitor_videos')
+    .select('id, competitor_channel_id, video_id, title, thumbnail_url, view_count, published_at, tags, like_count, comment_count, duration_seconds, last_checked_at')
+    .eq('competitor_channel_id', chId)
+    .order('published_at', { ascending: false })
+    .limit(200)
+  if (chVideos) allVideos.push(...(chVideos as VideoRow[]))
+}
 ```
+
+This guarantees each channel gets up to 200 videos regardless of how many videos other channels have. With 15 channels × 200 = max 3000 rows — well within server component limits.
 
 - [ ] **Step 3: Add sync fields to channel view construction**
 
@@ -748,7 +831,41 @@ return {
 }
 ```
 
-- [ ] **Step 4: Typecheck**
+- [ ] **Step 4: Exclude stale videos from outlier/median calculations (data staleness)**
+
+The spec requires that videos with `last_checked_at` older than 7 days are excluded from statistical computations. In the outlier calculation section (around line 302-330 in the original), find the line:
+
+```typescript
+const sortedViews = [...videos]
+```
+
+Replace the outlier loop to filter stale videos:
+
+```typescript
+const sevenDaysAgo = new Date(Date.now() - 7 * 86_400_000).toISOString()
+const freshVideos = videos.filter(v =>
+  (v as { last_checked_at?: string | null }).last_checked_at
+    ? (v as { last_checked_at?: string | null }).last_checked_at! > sevenDaysAgo
+    : true
+)
+if (freshVideos.length < 3) continue
+const sortedViews = [...freshVideos]
+```
+
+Also update the median calculation inside `safeChannels.map()` for `recentVideos` to use fresh videos only:
+
+```typescript
+const freshForMedian = videos.filter(v =>
+  (v as { last_checked_at?: string | null }).last_checked_at
+    ? (v as { last_checked_at?: string | null }).last_checked_at! > sevenDaysAgo
+    : true
+)
+const medianViews = freshForMedian.length > 0
+  ? [...freshForMedian].sort((a, b) => (a.view_count ?? 0) - (b.view_count ?? 0))[Math.floor(freshForMedian.length / 2)]?.view_count ?? 0
+  : 0
+```
+
+- [ ] **Step 5: Typecheck**
 
 ```bash
 npx tsc --noEmit -p apps/web/tsconfig.json 2>&1 | head -20
@@ -756,11 +873,11 @@ npx tsc --noEmit -p apps/web/tsconfig.json 2>&1 | head -20
 
 Expected: Remaining errors only in `channel-card.tsx` (doesn't use new fields yet — fixed in Task 8).
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add apps/web/src/app/cms/(authed)/youtube/competitors/page.tsx
-git commit -m "feat(page): fix global video limit, add sync columns to channel view"
+git commit -m "feat(page): fix global video limit, add sync columns, exclude stale from outliers"
 ```
 
 ---
@@ -1030,9 +1147,9 @@ const isFullSyncing = ch.syncStatus === 'syncing' && ch.syncMode === 'full'
 const syncProgress = useFullSyncProgress(ch.id, isFullSyncing)
 ```
 
-- [ ] **Step 2: Update the meta line (video count) — around line 161-169**
+- [ ] **Step 2: Update the meta line (video count) — the `<p>` with "inscritos · vídeos"**
 
-Replace the video count paragraph with honest labels:
+Find the `<p className="mono">` that renders `{ch.subscriberCount}...{ch.videoCount} vídeos` (search for `vídeos` in the component). Replace with honest labels:
 
 ```typescript
 <p className="mono" style={{ fontSize: 11.5, color: 'var(--text-dim)', marginTop: 2 }}>
@@ -1049,9 +1166,9 @@ Replace the video count paragraph with honest labels:
 </p>
 ```
 
-- [ ] **Step 3: Update the shelf header — around line 339**
+- [ ] **Step 3: Update the shelf header — the `.chan-shelf-head` with "Vídeos recentes"**
 
-Replace the shelf head label:
+Find the `<div className="chan-shelf-head">` containing `<span className="section-label">`. Replace the label:
 
 ```typescript
 <div className="chan-shelf-head">
@@ -1065,9 +1182,9 @@ Replace the shelf head label:
 </div>
 ```
 
-- [ ] **Step 4: Restructure the footer — replace lines 323-331**
+- [ ] **Step 4: Restructure the footer — replace the `{/* Sync time + open hint */}` block**
 
-Replace the entire footer div with:
+Find the `<div>` containing `sincronizado` and `chan-open-hint` (the last div inside `card-pad`, after the vs-you section). Replace entirely with:
 
 ```typescript
 <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 10 }}>
@@ -1100,7 +1217,12 @@ Replace the entire footer div with:
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
       <span className="mono" style={{ fontSize: 10.5, color: 'var(--text-dim)' }}>
         {ch.lastSyncedAt ? `sincronizado ${fmtRelative(ch.lastSyncedAt)}` : 'nunca sincronizado'}
-        {ch.syncMode === 'recent' && !ch.fullSyncCompletedAt ? ' · 50 recentes' : ''}
+        {ch.syncMode === 'recent' && !ch.fullSyncCompletedAt
+          ? ' · 50 recentes'
+          : ch.fullSyncCompletedAt && ch.youtubeVideoCount && ch.videoCount >= 2000 && ch.videoCount < ch.youtubeVideoCount
+            ? ` · ${fmtC(ch.videoCount)} de ~${fmtC(ch.youtubeVideoCount)} (limite)`
+            : ''
+        }
       </span>
       {ch.syncMode === 'recent' && !ch.fullSyncCompletedAt ? (
         <button
@@ -1166,36 +1288,120 @@ git commit -m "feat(card): restructured footer with progress bar, honest labels,
 **Files:**
 - Modify: `apps/web/test/cms/competitors/competitor-sync.test.ts`
 
-- [ ] **Step 1: Add tests for smart incremental and full sync pagination**
+- [ ] **Step 1: Add full sync pagination and change detection tests**
 
 Add to the existing test file:
 
 ```typescript
-describe('syncCompetitorChannel — smart incremental', () => {
-  it('should stop paginating when hitting a known video in incremental mode', async () => {
-    // Setup: channel in 'recent' mode with full_sync_completed_at set
-    // Mock: page 1 has 50 new videos, page 2 has a known video
-    // Assert: stops at page 2, does not fetch page 3
-    // (Implementation depends on mock setup — verify via fetch call count)
-  })
-})
-
-describe('syncCompetitorChannel — full sync', () => {
-  it('should paginate all pages for full sync mode', async () => {
-    // Setup: channel in 'full' mode, full_sync_completed_at = null
-    // Mock: 3 pages of 50 videos each (150 total)
-    // Assert: all 3 pages fetched, sync_progress updated, full_sync_completed_at set
+describe('syncCompetitorChannel — full sync pagination', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.restoreAllMocks()
   })
 
-  it('should stop at 2000 video cap', async () => {
-    // Setup: channel in 'full' mode
-    // Mock: 50 pages of 50 videos (2500 total)
-    // Assert: stops after 2000 videos
+  it('should paginate all pages in full sync mode', async () => {
+    // CAS returns full mode channel
+    const casChain = chainMock([{ id: 'ch-1', sync_mode: 'full', full_sync_completed_at: null }])
+    const updateChain = chainMock()
+    const insertChain = chainMock()
+    const selectChain = chainMock([], null) // no existing videos
+
+    mockSupabase.from.mockImplementation((table: string) => {
+      if (table === 'competitor_channels') return casChain
+      if (table === 'competitor_videos') return selectChain
+      if (table === 'competitor_channel_snapshots') return insertChain
+      return chainMock()
+    })
+
+    // Build 3 pages of playlist data
+    const makeVideoItem = (id: string) => ({
+      snippet: { resourceId: { videoId: id } },
+    })
+    const makeVideoDetail = (id: string) => ({
+      id,
+      snippet: { title: `Video ${id}`, description: 'desc', publishedAt: new Date().toISOString(), tags: [], categoryId: '22', thumbnails: { high: { url: `https://img/${id}` } } },
+      statistics: { viewCount: '1000', likeCount: '10', commentCount: '2' },
+      contentDetails: { duration: 'PT5M30S' },
+    })
+
+    let fetchCallCount = 0
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = vi.fn().mockImplementation((url: string) => {
+      fetchCallCount++
+      if (url.includes('/channels?')) {
+        return Promise.resolve({ ok: true, json: () => ({ items: [{ contentDetails: { relatedPlaylists: { uploads: 'UU123' } }, snippet: { title: 'Test' }, statistics: { subscriberCount: '100', videoCount: '6', viewCount: '6000' } }] }) })
+      }
+      if (url.includes('/playlistItems?')) {
+        const hasToken = url.includes('pageToken=')
+        const page = hasToken ? 2 : 1
+        const items = page === 1
+          ? [makeVideoItem('v1'), makeVideoItem('v2')]
+          : [makeVideoItem('v3')]
+        const nextPageToken = page === 1 ? 'token2' : undefined
+        return Promise.resolve({ ok: true, json: () => ({ items, nextPageToken }) })
+      }
+      if (url.includes('/videos?')) {
+        const ids = new URL(url).searchParams.get('id')?.split(',') ?? []
+        return Promise.resolve({ ok: true, json: () => ({ items: ids.map(makeVideoDetail) }) })
+      }
+      return Promise.resolve({ ok: false, status: 404 })
+    })
+
+    const { syncCompetitorChannel } = await import('@/lib/youtube/competitor-sync')
+    const result = await syncCompetitorChannel(
+      { id: 'ch-1', channel_id: 'UC123', site_id: 'site-1' },
+      'fake-key',
+    )
+
+    // 3 videos across 2 pages
+    expect(result.videosChecked).toBe(3)
+    expect(result.skipped).toBeUndefined()
+    // Verify: 1 channel call + 2 playlist pages + 2 video detail calls = 5 fetches
+    expect(fetchCallCount).toBe(5)
+    globalThis.fetch = originalFetch
   })
 
-  it('should skip change detection for old videos', async () => {
-    // Setup: existing video with published_at 6 months ago, title changed
-    // Assert: no entry in competitor_changes
+  it('should skip change detection for videos older than 90 days', async () => {
+    const casChain = chainMock([{ id: 'ch-1', sync_mode: 'recent', full_sync_completed_at: '2026-01-01' }])
+    const oldDate = '2025-01-01T00:00:00Z' // > 90 days ago
+    const existingVideo = { id: 'ev-1', video_id: 'v1', title: 'Old Title', description_hash: 'aaaa', thumbnail_url: 'https://old', view_count: 500 }
+    const selectChain = chainMock([existingVideo])
+    const insertCallArgs: unknown[] = []
+
+    mockSupabase.from.mockImplementation((table: string) => {
+      if (table === 'competitor_channels') return casChain
+      if (table === 'competitor_videos') return selectChain
+      if (table === 'competitor_changes') {
+        const mock = chainMock()
+        ;(mock.insert as ReturnType<typeof vi.fn>).mockImplementation((data: unknown) => {
+          insertCallArgs.push(data)
+          return mock
+        })
+        return mock
+      }
+      return chainMock()
+    })
+
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/channels?')) {
+        return Promise.resolve({ ok: true, json: () => ({ items: [{ contentDetails: { relatedPlaylists: { uploads: 'UU123' } }, snippet: { title: 'Test' }, statistics: { subscriberCount: '100', videoCount: '1', viewCount: '500' } }] }) })
+      }
+      if (url.includes('/playlistItems?')) {
+        return Promise.resolve({ ok: true, json: () => ({ items: [{ snippet: { resourceId: { videoId: 'v1' } } }] }) })
+      }
+      if (url.includes('/videos?')) {
+        return Promise.resolve({ ok: true, json: () => ({ items: [{ id: 'v1', snippet: { title: 'New Title', description: 'desc', publishedAt: oldDate, tags: [], categoryId: '22', thumbnails: { high: { url: 'https://new-thumb' } } }, statistics: { viewCount: '600', likeCount: '5', commentCount: '1' }, contentDetails: { duration: 'PT3M' } }] }) })
+      }
+      return Promise.resolve({ ok: false })
+    })
+
+    const { syncCompetitorChannel } = await import('@/lib/youtube/competitor-sync')
+    await syncCompetitorChannel({ id: 'ch-1', channel_id: 'UC123', site_id: 'site-1' }, 'key')
+
+    // Title changed but video is old — no change detection
+    expect(insertCallArgs.length).toBe(0)
+    globalThis.fetch = originalFetch
   })
 })
 ```
