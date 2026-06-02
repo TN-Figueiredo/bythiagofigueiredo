@@ -165,7 +165,11 @@ export async function fetchYtChannelMetrics(
   const start = new Date()
   start.setDate(start.getDate() - days)
 
-  const coreMetrics = 'views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,subscribersGained,subscribersLost,likes,comments,shares,impressions,impressionClickThroughRate'
+  // Core metrics available in the YouTube Analytics Reporting API.
+  // NOTE: "impressions" and "impressionClickThroughRate" are YouTube Studio
+  // metrics (Data API) — NOT available via the Analytics Reporting API.
+  // Requesting them causes HTTP 400 "Unknown identifier".
+  const coreMetrics = 'views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,subscribersGained,subscribersLost,likes,comments,shares'
 
   const coreReport = await queryYtAnalytics(tokenInfo.accessToken, tokenInfo.channelId, {
     startDate: toDateStr(start),
@@ -183,8 +187,8 @@ export async function fetchYtChannelMetrics(
     averageViewPercentage: Number(row[3]),
     subscribersGained: Number(row[4]),
     subscribersLost: Number(row[5]),
-    impressions: Number(row[9]) || 0,
-    impressionClickThroughRate: Number(row[10]) || 0,
+    impressions: 0,
+    impressionClickThroughRate: 0,
     likes: Number(row[6]),
     comments: Number(row[7]),
     shares: Number(row[8]),
@@ -199,10 +203,12 @@ export async function fetchYtDailyMetrics(siteId: string, days: number, channelI
   const start = new Date()
   start.setDate(start.getDate() - days)
 
+  // NOTE: "impressions" and "impressionClickThroughRate" are NOT available
+  // via the YouTube Analytics Reporting API — requesting them causes HTTP 400.
   const coreReport = await queryYtAnalytics(tokenInfo.accessToken, tokenInfo.channelId, {
     startDate: toDateStr(start),
     endDate: toDateStr(end),
-    metrics: 'views,estimatedMinutesWatched,subscribersGained,subscribersLost,likes,comments,shares,impressions,impressionClickThroughRate',
+    metrics: 'views,estimatedMinutesWatched,subscribersGained,subscribersLost,likes,comments,shares',
     dimensions: 'day',
     sort: 'day',
   })
@@ -216,8 +222,8 @@ export async function fetchYtDailyMetrics(siteId: string, days: number, channelI
     likes: Number(row[5]) || 0,
     comments: Number(row[6]) || 0,
     shares: Number(row[7]) || 0,
-    impressions: Number(row[8]) || 0,
-    impressionClickThroughRate: Number(row[9]) || 0,
+    impressions: 0,
+    impressionClickThroughRate: 0,
   }))
 }
 

@@ -18,7 +18,7 @@ describe('A/B YouTube API helpers', () => {
 
       const calledUrl = new URL(mockFetch.mock.calls[0][0] as string)
       expect(calledUrl.searchParams.get('ids')).toBe('channel==MINE')
-      expect(calledUrl.searchParams.get('metrics')).toBe('impressions,impressionClickThroughRate')
+      expect(calledUrl.searchParams.get('metrics')).toBe('views')
       expect(calledUrl.searchParams.get('dimensions')).toBe('day')
       expect(calledUrl.searchParams.get('filters')).toBe('video==VIDEO123')
       expect(calledUrl.searchParams.get('startDate')).toBe('2026-05-10')
@@ -54,13 +54,13 @@ describe('A/B YouTube API helpers', () => {
       vi.unstubAllGlobals()
     })
 
-    it('maps row data correctly (CTR as ratio)', async () => {
+    it('maps row data correctly (views as impressions fallback, ctr always 0)', async () => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
         ok: true,
         json: () => Promise.resolve({
           rows: [
-            ['2026-05-10', 500, 0.08],
-            ['2026-05-11', 600, 0.06],
+            ['2026-05-10', 500],
+            ['2026-05-11', 600],
           ],
         }),
       }))
@@ -69,8 +69,8 @@ describe('A/B YouTube API helpers', () => {
       const result = await mod.fetchAnalyticsForDateRange('V1', '2026-05-10', '2026-05-11', 'T')
 
       expect(result).toHaveLength(2)
-      expect(result[0]).toEqual({ day: '2026-05-10', impressions: 500, ctr: 0.08 })
-      expect(result[1]).toEqual({ day: '2026-05-11', impressions: 600, ctr: 0.06 })
+      expect(result[0]).toEqual({ day: '2026-05-10', impressions: 500, ctr: 0 })
+      expect(result[1]).toEqual({ day: '2026-05-11', impressions: 600, ctr: 0 })
 
       vi.unstubAllGlobals()
     })

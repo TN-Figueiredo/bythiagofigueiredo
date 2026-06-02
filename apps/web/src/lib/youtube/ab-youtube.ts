@@ -46,11 +46,16 @@ export async function fetchAnalyticsForDateRange(
   endDate: string,
   accessToken: string
 ): Promise<{ day: string; impressions: number; ctr: number }[]> {
+  // "impressions" and "impressionClickThroughRate" are YouTube Studio metrics
+  // NOT available via the Analytics Reporting API. Use "views" as the primary
+  // metric and derive a placeholder. The AB test system stores real
+  // impressions/ctr from the Data API via the cycle collector, so this
+  // fallback only affects the initial fetch path.
   const params = new URLSearchParams({
     ids: 'channel==MINE',
     startDate,
     endDate,
-    metrics: 'impressions,impressionClickThroughRate',
+    metrics: 'views',
     dimensions: 'day',
     filters: `video==${videoId}`,
   })
@@ -66,8 +71,8 @@ export async function fetchAnalyticsForDateRange(
   const data = await res.json()
   return (data.rows ?? []).map((row: string[]) => ({
     day: row[0],
-    impressions: Number(row[1]),
-    ctr: Number(row[2]),
+    impressions: Number(row[1]) || 0,
+    ctr: 0,
   }))
 }
 
