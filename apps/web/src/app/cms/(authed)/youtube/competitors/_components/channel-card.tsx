@@ -287,34 +287,37 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
           </div>
         </div>
 
-        {/* ── vs-you ── */}
-        {ch.vsYou && (
-          <div
-            className="vs-you"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              marginTop: 11,
-              paddingTop: 10,
-              borderTop: '1px dashed var(--border-subtle)',
-              fontSize: 11,
-            }}
-          >
-            <Users style={{ width: 11, height: 11, stroke: 'var(--text-dim)', flexShrink: 0 }} />
-            <span style={{ color: 'var(--text-dim)' }}>vs você</span>
-            <span style={{ color: ch.vsYou.engagementDelta > 0 ? 'var(--amber)' : 'var(--green)', fontWeight: 600 }}>
-              engaj {ch.vsYou.engagementDelta > 0 ? '+' : ''}{brDec(ch.vsYou.engagementDelta * 100, 1)} pts
-            </span>
-            <span style={{ color: 'var(--text-dim)' }}>·</span>
-            <span style={{ color: ch.vsYou.avgViewsDelta > 0 ? 'var(--amber)' : 'var(--green)', fontWeight: 600 }}>
-              {ch.vsYou.avgViewsDelta > 0
-                ? `+${fmtC(Math.round(ch.vsYou.avgViewsDelta))} views/vídeo`
-                : `${fmtC(Math.round(ch.vsYou.avgViewsDelta))} views/vídeo`
-              }
-            </span>
-          </div>
-        )}
+        {/* ── vs-you (first own channel only on card) ── */}
+        {ch.vsYou && ch.vsYou.length > 0 && (() => {
+          const vs = ch.vsYou[0]!
+          return (
+            <div
+              className="vs-you"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                marginTop: 11,
+                paddingTop: 10,
+                borderTop: '1px dashed var(--border-subtle)',
+                fontSize: 11,
+              }}
+            >
+              <Users style={{ width: 11, height: 11, stroke: 'var(--text-dim)', flexShrink: 0 }} />
+              <span style={{ color: 'var(--text-dim)' }}>vs {vs.channelName}</span>
+              <span style={{ color: vs.engagementDelta > 0 ? 'var(--amber)' : 'var(--green)', fontWeight: 600 }}>
+                engaj {vs.engagementDelta > 0 ? '+' : ''}{brDec(vs.engagementDelta * 100, 1)} pts
+              </span>
+              <span style={{ color: 'var(--text-dim)' }}>·</span>
+              <span style={{ color: vs.avgViewsDelta > 0 ? 'var(--amber)' : 'var(--green)', fontWeight: 600 }}>
+                {vs.avgViewsDelta > 0
+                  ? `+${fmtC(Math.round(vs.avgViewsDelta))} views/vídeo`
+                  : `${fmtC(Math.round(vs.avgViewsDelta))} views/vídeo`
+                }
+              </span>
+            </div>
+          )
+        })()}
 
         {/* ── Sync time + open hint ── */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>

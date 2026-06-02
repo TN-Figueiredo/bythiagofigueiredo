@@ -23,8 +23,8 @@ export interface CompetitorChannelView {
   growthSparkline: number[]
   /** All tracked videos (most recent first). Card shelf shows 3; drawer shows all. */
   recentVideos: CompetitorVideoView[]
-  /** vs-you comparison — null if our channel has no data yet. */
-  vsYou: VsYouComparison | null
+  /** vs-you comparison — one entry per own channel, null if no data. */
+  vsYou: VsYouEntry[] | null
   /** Unread change flags since last visit. */
   changeFlags: ChangeFlag[]
 }
@@ -132,6 +132,14 @@ export interface VsYouComparison {
   avgViewsDelta: number
   /** Upload frequency difference in videos/month (positive = they post more). */
   frequencyDelta: number
+}
+
+/** VsYou entry for multi-channel comparison (one per own channel). */
+export interface VsYouEntry extends VsYouComparison {
+  /** Own channel display name. */
+  channelName: string
+  /** Own channel DB id. */
+  channelId: string
 }
 
 /** Badge indicating recent activity on a competitor channel. */

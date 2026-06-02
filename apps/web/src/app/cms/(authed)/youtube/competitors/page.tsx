@@ -10,7 +10,7 @@ import type {
   CompetitorVideoView,
   OurChannelStats,
   ChangeFlag,
-  VsYouComparison,
+  VsYouEntry,
 } from '@/lib/youtube/observatory-types'
 
 export const dynamic = 'force-dynamic'
@@ -71,39 +71,74 @@ export default async function CompetitorsPage({
         .limit(500)
     : { data: [] as Array<{ competitor_channel_id: string; subscriber_count: number | null; snapshot_date: string }> }
 
-  // ── 5. Fetch own channel stats ──
+  // ── 5. Fetch own channel stats (ALL channels) ──
   const { data: ownChannels } = await supabase
     .from('youtube_channels')
-    .select('id, subscriber_count, video_count')
+    .select('id, name, channel_id, subscriber_count, video_count')
     .eq('site_id', siteId)
-    .limit(1)
 
   const { data: ownVideos } = await supabase
     .from('youtube_videos')
-    .select('view_count, like_count, comment_count, published_at')
+    .select('view_count, like_count, comment_count, published_at, channel_id')
     .eq('site_id', siteId)
     .eq('is_hidden', false)
     .order('published_at', { ascending: false })
-    .limit(100)
+    .limit(200)
 
-  // ── Compute own stats ──
-  const ownChannel = ownChannels?.[0]
-  const ownVids = ownVideos ?? []
-  const ownTotalViews = ownVids.reduce((s, v) => s + (v.view_count ?? 0), 0)
-  const ownAvgViews = ownVids.length > 0 ? Math.round(ownTotalViews / ownVids.length) : 0
-  const ownTotalEngagement = ownVids.reduce((s, v) => s + (v.like_count ?? 0) + (v.comment_count ?? 0), 0)
-  const ownEngRate = ownTotalViews > 0 ? ownTotalEngagement / ownTotalViews : 0
-
-  // Upload frequency (videos per month over last 90 days)
+  // ── Compute per-channel own stats ──
   const ninetyDaysAgo = Date.now() - 90 * 86_400_000
-  const recentOwnVids = ownVids.filter(v => v.published_at && new Date(v.published_at).getTime() > ninetyDaysAgo)
-  const ownUploadFreq = recentOwnVids.length > 0 ? (recentOwnVids.length / 3) : 0
+  const ownVideosByChannel = new Map<string, NonNullable<typeof ownVideos>>()
+  for (const v of ownVideos ?? []) {
+    const chId = (v as { channel_id?: string }).channel_id
+    if (!chId) continue
+    const list = ownVideosByChannel.get(chId) ?? []
+    list.push(v)
+    ownVideosByChannel.set(chId, list)
+  }
+
+  interface OwnChannelComputed {
+    id: string
+    name: string
+    channelId: string
+    subscriberCount: number
+    avgViews: number
+    engagementRate: number
+    uploadFrequency: number
+  }
+
+  const ourChannels: OwnChannelComputed[] = (ownChannels ?? []).map(ch => {
+    const vids = ownVideosByChannel.get(ch.id) ?? []
+    const totalViews = vids.reduce((s, v) => s + (v.view_count ?? 0), 0)
+    const avg = vids.length > 0 ? Math.round(totalViews / vids.length) : 0
+    const totalEng = vids.reduce((s, v) => s + (v.like_count ?? 0) + (v.comment_count ?? 0), 0)
+    const eng = totalViews > 0 ? totalEng / totalViews : 0
+    const recent = vids.filter(v => v.published_at && new Date(v.published_at).getTime() > ninetyDaysAgo)
+    const freq = recent.length > 0 ? recent.length / 3 : 0
+    return {
+      id: ch.id,
+      name: ch.name ?? ch.channel_id ?? 'Canal',
+      channelId: ch.channel_id ?? ch.id,
+      subscriberCount: ch.subscriber_count ?? 0,
+      avgViews: avg,
+      engagementRate: eng,
+      uploadFrequency: Math.round(freq * 10) / 10,
+    }
+  })
+
+  // Aggregate stats for ourStats (used by insights engagement comparison)
+  const allOwnVids = ownVideos ?? []
+  const aggTotalViews = allOwnVids.reduce((s, v) => s + (v.view_count ?? 0), 0)
+  const aggAvgViews = allOwnVids.length > 0 ? Math.round(aggTotalViews / allOwnVids.length) : 0
+  const aggTotalEng = allOwnVids.reduce((s, v) => s + (v.like_count ?? 0) + (v.comment_count ?? 0), 0)
+  const aggEngRate = aggTotalViews > 0 ? aggTotalEng / aggTotalViews : 0
+  const aggRecentVids = allOwnVids.filter(v => v.published_at && new Date(v.published_at).getTime() > ninetyDaysAgo)
+  const aggUploadFreq = aggRecentVids.length > 0 ? aggRecentVids.length / 3 : 0
 
   const ourStats: OurChannelStats = {
-    subscriberCount: ownChannel?.subscriber_count ?? 0,
-    avgViews: ownAvgViews,
-    engagementRate: ownEngRate,
-    uploadFrequency: Math.round(ownUploadFreq * 10) / 10,
+    subscriberCount: ourChannels.reduce((s, c) => s + c.subscriberCount, 0),
+    avgViews: aggAvgViews,
+    engagementRate: aggEngRate,
+    uploadFrequency: Math.round(aggUploadFreq * 10) / 10,
   }
 
   // ── Group videos by channel ──
@@ -162,17 +197,24 @@ export default async function CompetitorsPage({
       }
     }
 
-    // vs-you comparison
+    // vs-you comparison (one entry per own channel)
     const chAvgViews = videos.length > 0 ? Math.round(totalViews / videos.length) : 0
     const recentVids = videos.filter(v => v.published_at && new Date(v.published_at).getTime() > ninetyDaysAgo)
     const chUploadFreq = recentVids.length > 0 ? recentVids.length / 3 : 0
 
-    const vsYou: VsYouComparison | null = ourStats.subscriberCount > 0 ? {
-      subsDelta: (ch.subscriber_count ?? 0) - ourStats.subscriberCount,
-      engagementDelta: (avgEngagement ?? 0) - ourStats.engagementRate,
-      avgViewsDelta: chAvgViews - ourStats.avgViews,
-      frequencyDelta: Math.round((chUploadFreq - ourStats.uploadFrequency) * 10) / 10,
-    } : null
+    const vsYou: VsYouEntry[] | null = ourChannels.length > 0
+      ? ourChannels
+          .filter(oc => oc.subscriberCount > 0)
+          .map(oc => ({
+            channelName: oc.name,
+            channelId: oc.id,
+            subsDelta: (ch.subscriber_count ?? 0) - oc.subscriberCount,
+            engagementDelta: (avgEngagement ?? 0) - oc.engagementRate,
+            avgViewsDelta: chAvgViews - oc.avgViews,
+            frequencyDelta: Math.round((chUploadFreq - oc.uploadFrequency) * 10) / 10,
+          }))
+      : null
+    const vsYouResult = vsYou && vsYou.length > 0 ? vsYou : null
 
     // Change flags (recent changes per type for this channel's videos)
     const channelVideoIds = new Set(videos.map(v => v.video_id))
@@ -229,7 +271,7 @@ export default async function CompetitorsPage({
       growthDelta,
       growthSparkline,
       recentVideos,
-      vsYou,
+      vsYou: vsYouResult,
       changeFlags,
     }
   })

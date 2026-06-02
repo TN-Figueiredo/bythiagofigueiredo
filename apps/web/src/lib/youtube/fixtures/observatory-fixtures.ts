@@ -64,12 +64,24 @@ export const FIXTURE_CHANNELS: CompetitorChannelView[] = CHANNEL_NAMES.map((name
     growthDelta: Math.round((Math.random() - 0.3) * 5000),
     growthSparkline: makeSparkline(30, subs, subs * 0.005),
     recentVideos: [0, 1, 2].map(i => makeVideo(i, idx)),
-    vsYou: {
-      subsDelta: Math.round((Math.random() - 0.5) * 100_000),
-      engagementDelta: +(Math.random() - 0.5).toFixed(3) * 0.04,
-      avgViewsDelta: Math.round((Math.random() - 0.5) * 50_000),
-      frequencyDelta: +(Math.random() - 0.5).toFixed(1) * 4,
-    },
+    vsYou: [
+      {
+        channelName: 'tnFigueiredo',
+        channelId: 'ch-own-1',
+        subsDelta: Math.round((Math.random() - 0.5) * 100_000),
+        engagementDelta: +(Math.random() - 0.5).toFixed(3) * 0.04,
+        avgViewsDelta: Math.round((Math.random() - 0.5) * 50_000),
+        frequencyDelta: +(Math.random() - 0.5).toFixed(1) * 4,
+      },
+      {
+        channelName: 'Thiago Figueiredo',
+        channelId: 'ch-own-2',
+        subsDelta: Math.round((Math.random() - 0.5) * 80_000),
+        engagementDelta: +(Math.random() - 0.5).toFixed(3) * 0.03,
+        avgViewsDelta: Math.round((Math.random() - 0.5) * 40_000),
+        frequencyDelta: +(Math.random() - 0.5).toFixed(1) * 3,
+      },
+    ],
     changeFlags: idx % 3 === 0 ? [{ type: 'thumbnail' as const, count: 1, latestAt: new Date(Date.now() - 7200_000).toISOString() }] : [],
   }
 })
