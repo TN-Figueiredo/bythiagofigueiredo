@@ -182,13 +182,53 @@ export function ChannelDrawer({ channel, open, onClose, onVideoClick }: ChannelD
           </div>
         )}
 
-        {/* cd-stats */}
-        <div className="grid grid-cols-5 gap-3 px-6 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
-          <StatBox label="Views totais" value={fmtC(totalViews)} highlight />
-          <StatBox label="Média/vídeo" value={fmtC(avgViews)} />
-          <StatBox label="Inscritos" value={ch.subscriberCount != null ? fmtC(ch.subscriberCount) : '—'} />
-          <StatBox label="Engajamento" value={`${brDec(avgEngRate * 100, 1)}%`} />
-          <StatBox label="Último upload" value={daysSinceLast != null ? `${daysSinceLast}d atrás` : '—'} />
+        {/* cd-stats — handoff: 5 stat cards with metric-label + mono value + dim sub-label */}
+        <div className="cd-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, padding: '14px 22px', borderBottom: '1px solid var(--border)' }}>
+          {(() => {
+            const outlierVideos = allVideos.filter(v => (v.outlierMultiplier ?? 0) >= 2)
+            const bestMult = outlierVideos.reduce<number | null>((m, v) => v.outlierMultiplier != null && (m === null || v.outlierMultiplier > m) ? v.outlierMultiplier : m, null)
+            const tierColor = bestMult != null ? (bestMult >= 10 ? 'var(--tier-top)' : bestMult >= 5 ? 'var(--tier-high)' : 'var(--tier-mid)') : undefined
+            const recentDays = 28
+            const recentVideos = allVideos.filter(v => v.publishedAt && (Date.now() - new Date(v.publishedAt).getTime()) < recentDays * 86_400_000)
+            const cadence = recentDays > 0 ? recentVideos.length / (recentDays / 7) : 0
+
+            return (<>
+              <div className="cd-stat" style={{ background: 'var(--surface-2)', borderRadius: 9, padding: '10px 12px' }}>
+                <span className="metric-label">Melhor outlier</span>
+                <span className="mono" style={{ fontSize: 16, fontWeight: 600, display: 'block', marginTop: 4, color: tierColor ?? 'var(--text)' }}>
+                  {bestMult != null ? `${brDec(bestMult, 1)}x` : '—'}
+                </span>
+                <span style={{ fontSize: 10.5, color: 'var(--text-dim)' }}>vs. mediana</span>
+              </div>
+              <div className="cd-stat" style={{ background: 'var(--surface-2)', borderRadius: 9, padding: '10px 12px' }}>
+                <span className="metric-label">Views médias</span>
+                <span className="mono" style={{ fontSize: 16, fontWeight: 600, display: 'block', marginTop: 4 }}>
+                  {fmtC(avgViews)}
+                </span>
+                <span style={{ fontSize: 10.5, color: 'var(--text-dim)' }}>por vídeo</span>
+              </div>
+              <div className="cd-stat" style={{ background: 'var(--surface-2)', borderRadius: 9, padding: '10px 12px' }}>
+                <span className="metric-label">Cadência</span>
+                <span className="mono" style={{ fontSize: 16, fontWeight: 600, display: 'block', marginTop: 4 }}>
+                  {brDec(cadence, 1)}/sem
+                </span>
+                <span style={{ fontSize: 10.5, color: 'var(--text-dim)' }}>ritmo de upload</span>
+              </div>
+              <div className="cd-stat" style={{ background: 'var(--surface-2)', borderRadius: 9, padding: '10px 12px' }}>
+                <span className="metric-label">Outliers</span>
+                <span className="mono" style={{ fontSize: 16, fontWeight: 600, display: 'block', marginTop: 4, color: outlierVideos.length > 0 ? 'var(--accent)' : undefined }}>
+                  {outlierVideos.length}
+                </span>
+                <span style={{ fontSize: 10.5, color: 'var(--text-dim)' }}>&ge; 2x mediana</span>
+              </div>
+              <div className="cd-stat" style={{ background: 'var(--surface-2)', borderRadius: 9, padding: '10px 12px' }}>
+                <span className="metric-label">Último upload</span>
+                <span className="mono" style={{ fontSize: 16, fontWeight: 600, display: 'block', marginTop: 4 }}>
+                  {daysSinceLast != null ? `há ${daysSinceLast}d` : '—'}
+                </span>
+              </div>
+            </>)
+          })()}
         </div>
 
         {/* cd-controls */}
