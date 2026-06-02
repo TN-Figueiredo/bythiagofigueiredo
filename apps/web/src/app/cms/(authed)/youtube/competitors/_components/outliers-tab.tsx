@@ -105,13 +105,19 @@ export function OutliersTab({ outliers, onVideoClick }: OutliersTabProps) {
                       loading="lazy"
                     />
                   ) : (
-                    <div className="w-full aspect-video flex items-center justify-center text-xs" style={{ background: 'var(--surface-3)', color: 'var(--text-dim)' }}>
+                    <div
+                      className="w-full aspect-video flex items-center justify-center text-xs"
+                      style={{
+                        background: 'linear-gradient(135deg, var(--surface-3), var(--surface-2))',
+                        color: 'var(--text-dim)',
+                      }}
+                    >
                       Sem thumbnail
                     </div>
                   )}
                   <span
                     className="mult-badge absolute top-2 right-2 rounded-lg px-2 py-1 text-xs font-bold mono"
-                    style={{ background: meta.color, color: '#fff' }}
+                    style={{ background: meta.color, color: '#16110b' }}
                   >
                     {brDec(o.multiplier, 1)}x
                   </span>

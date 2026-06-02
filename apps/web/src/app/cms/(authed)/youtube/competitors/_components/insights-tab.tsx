@@ -173,14 +173,11 @@ function EngagementCard({ engagement }: { engagement: CompetitorInsights['engage
           return (
             <div
               key={e.channelName}
-              className="eng-row flex items-center gap-2 rounded-lg px-2 py-1.5"
-              style={{
-                background: isUs ? 'var(--accent-soft, rgba(255,130,64,0.1))' : 'transparent',
-                border: isUs ? '1px solid var(--accent-line, rgba(255,130,64,0.3))' : '1px solid transparent',
-              }}
+              className={`eng-row flex items-center gap-2 rounded-lg px-2 py-1.5${isUs ? ' us' : ''}`}
+              style={isUs ? undefined : { border: '1px solid transparent' }}
             >
-              <span className="text-[11px] w-28 truncate text-right flex items-center gap-1 justify-end" style={{ color: isUs ? 'var(--accent)' : 'var(--text-muted)' }}>
-                {isUs && <span className="us-tag rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ background: 'var(--accent)', color: 'var(--on-accent, #1A120A)' }}>VOCÊ</span>}
+              <span className={`eng-name text-[11px] w-28 truncate text-right flex items-center gap-1 justify-end${isUs ? ' us' : ''}`} style={{ color: isUs ? 'var(--accent)' : 'var(--text-muted)' }}>
+                {isUs && <span className="us-tag">VOCÊ</span>}
                 {e.channelName}
               </span>
               <div className="flex-1 h-4 rounded" style={{ background: 'var(--surface-2)' }}>
@@ -227,8 +224,7 @@ function GapsCard({ gaps }: { gaps: CompetitorInsights['gaps'] }) {
             {theirTopics.map(g => (
               <div
                 key={g.topic}
-                className="gap-chip clickable rounded-lg px-2 py-1.5 cursor-pointer"
-                style={{ background: 'var(--accent-soft, rgba(255,130,64,0.1))', border: '1px solid var(--accent-line, rgba(255,130,64,0.2))' }}
+                className="gap-chip gap clickable rounded-lg px-2 py-1.5 cursor-pointer"
                 role="button"
                 tabIndex={0}
                 onClick={() => handleGapClick(g.topic)}
@@ -247,9 +243,7 @@ function GapsCard({ gaps }: { gaps: CompetitorInsights['gaps'] }) {
         </div>
 
         {/* Divider */}
-        <div className="flex items-stretch justify-center">
-          <div style={{ width: 1, background: 'var(--border)' }} />
-        </div>
+        <div className="gap-divider" />
 
         {/* Our topics */}
         <div>
@@ -258,8 +252,7 @@ function GapsCard({ gaps }: { gaps: CompetitorInsights['gaps'] }) {
             {ourTopics.map(g => (
               <div
                 key={g.topic}
-                className="rounded-lg px-2 py-1.5"
-                style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}
+                className="gap-chip ours rounded-lg px-2 py-1.5"
               >
                 <p className="text-[11px] font-medium" style={{ color: 'var(--text-muted)' }}>{g.topic}</p>
                 <p className="text-[9px] tnum" style={{ color: 'var(--text-dim)' }}>

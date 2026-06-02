@@ -141,7 +141,7 @@ export function MudancasTab({ changes, channelNames }: MudancasTabProps) {
       {isFiltered && (
         <div
           className="md-context flex items-center gap-2 rounded-lg px-3 py-2 text-xs"
-          style={{ background: 'var(--amber-soft)', color: 'var(--amber)', border: '1px solid var(--amber-soft)' }}
+          style={{ background: 'var(--accent-soft)', color: 'var(--text)', border: '1px solid var(--accent-line)' }}
         >
           <Filter className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
           Mostrando {filtered.length} de {changes.length} mudanças
@@ -163,8 +163,11 @@ export function MudancasTab({ changes, channelNames }: MudancasTabProps) {
       ) : (
         <div className="flex flex-col gap-4">
           {grouped.map(([day, dayChanges]) => (
-            <div key={day}>
-              <p className="eyebrow mb-2">{day}</p>
+            <div key={day} className="change-group">
+              <div className="change-day">
+                <span className="eyebrow">{day}</span>
+                <div className="change-day-line" />
+              </div>
               <div className="flex flex-col gap-2">
                 {dayChanges.map(c => (
                   <ChangeCard
@@ -367,35 +370,38 @@ function ZoomModal({ change, onClose }: { change: CompetitorChangeView; onClose:
           </p>
 
           {change.changeType === 'thumbnail' && (
-            <div className="grid grid-cols-2 gap-4">
+            <div className="mdz-thumbs">
               <div>
                 <p className="eyebrow mb-2">ANTES</p>
                 {change.oldThumbnailUrl ? (
                   <img src={change.oldThumbnailUrl} alt="Thumbnail anterior" referrerPolicy="no-referrer" className="w-full rounded-lg" style={{ opacity: 0.7 }} />
                 ) : (
-                  <div className="w-full aspect-video rounded-lg flex items-center justify-center text-xs" style={{ background: 'var(--surface-3)', color: 'var(--text-dim)' }}>Indisponível</div>
+                  <div className="w-full aspect-video rounded-lg flex items-center justify-center text-xs" style={{ background: 'linear-gradient(135deg, var(--surface-3), var(--surface-2))', color: 'var(--text-dim)' }}>Indisponível</div>
                 )}
+              </div>
+              <div className="mdz-arrow">
+                <ArrowRight className="h-5 w-5" style={{ color: 'var(--text-dim)' }} aria-hidden="true" />
               </div>
               <div>
                 <p className="eyebrow mb-2">DEPOIS</p>
                 {change.newThumbnailUrl ? (
                   <img src={change.newThumbnailUrl} alt="Thumbnail nova" referrerPolicy="no-referrer" className="w-full rounded-lg" />
                 ) : (
-                  <div className="w-full aspect-video rounded-lg flex items-center justify-center text-xs" style={{ background: 'var(--surface-3)', color: 'var(--text-dim)' }}>Indisponível</div>
+                  <div className="w-full aspect-video rounded-lg flex items-center justify-center text-xs" style={{ background: 'linear-gradient(135deg, var(--surface-3), var(--surface-2))', color: 'var(--text-dim)' }}>Indisponível</div>
                 )}
               </div>
             </div>
           )}
 
           {change.changeType === 'title' && (
-            <div className="flex flex-col gap-3">
-              <div>
+            <div className="mdz-text">
+              <div className="mdz-textbox strike">
                 <p className="eyebrow mb-1">ANTES</p>
-                <p className="text-sm line-through" style={{ color: 'var(--red, #EF4444)', opacity: 0.7 }}>{change.oldTitle}</p>
+                <p className="text-sm">{change.oldTitle}</p>
               </div>
-              <div>
+              <div className="mdz-textbox new">
                 <p className="eyebrow mb-1">DEPOIS</p>
-                <p className="text-sm" style={{ color: 'var(--green)' }}>{change.newTitle}</p>
+                <p className="text-sm">{change.newTitle}</p>
               </div>
             </div>
           )}

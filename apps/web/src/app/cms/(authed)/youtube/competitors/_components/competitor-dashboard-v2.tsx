@@ -327,11 +327,9 @@ export function CompetitorDashboardV2({
             </div>
           )}
 
-          {/* Load end */}
-          {filteredChannels.length > 0 && filteredChannels.length === channels.length && (
-            <p className="load-end text-center text-xs py-2" style={{ color: 'var(--text-dim)' }}>
-              — fim —
-            </p>
+          {/* Load end — all channels shown */}
+          {filteredChannels.length > 0 && (
+            <p className="load-end">— fim —</p>
           )}
         </div>
       )}

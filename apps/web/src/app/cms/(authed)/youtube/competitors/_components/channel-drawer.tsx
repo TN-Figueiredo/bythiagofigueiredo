@@ -5,8 +5,14 @@ import { X, ExternalLink, ChevronDown } from 'lucide-react'
 import { YtPortal } from '../../_components/yt-portal'
 import { useModalFocusTrap } from '../../../_shared/editor/use-modal-focus-trap'
 import { fmtC, brDec, fmtRelative } from '@/lib/youtube/format'
-import { SparklineChart } from './sparkline-chart'
-import type { CompetitorChannelView, CompetitorVideoView, VsYouComparison } from '@/lib/youtube/observatory-types'
+import type { CompetitorChannelView, CompetitorVideoView } from '@/lib/youtube/observatory-types'
+
+/* ── Constants ── */
+
+const PAGE_SIZE = 16
+const BATCH_SIZE = 8
+
+/* ── Helpers ── */
 
 interface ChannelDrawerProps {
   channel: CompetitorChannelView
@@ -16,7 +22,7 @@ interface ChannelDrawerProps {
 }
 
 type ViewMode = 'list' | 'grid'
-type SortKey = 'recent' | 'views' | 'engagement'
+type SortKey = 'recent' | 'views' | 'outlier' | 'engagement'
 
 function handleKeyAction(e: React.KeyboardEvent, fn: () => void) {
   if (e.key === 'Enter' || e.key === ' ') {
@@ -25,11 +31,33 @@ function handleKeyAction(e: React.KeyboardEvent, fn: () => void) {
   }
 }
 
+/** Duration formatter: 125 -> "2:05" */
+function fmtDur(seconds: number): string {
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return `${m}:${String(s).padStart(2, '0')}`
+}
+
+/** Tier color from outlier multiplier. */
+function multTierColor(mult: number | null): string {
+  if (mult == null) return 'var(--text-dim)'
+  if (mult >= 5) return 'var(--tier-high)'
+  if (mult >= 2) return 'var(--tier-mid)'
+  return 'var(--text-dim)'
+}
+
+/** Engagement rate: (likes + comments) / views */
+function engRate(v: CompetitorVideoView): number {
+  return v.viewCount > 0 ? (v.likeCount + v.commentCount) / v.viewCount : 0
+}
+
+/* ── Main Component ── */
+
 export function ChannelDrawer({ channel, open, onClose, onVideoClick }: ChannelDrawerProps) {
   const drawerRef = useRef<HTMLDivElement>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('list')
   const [sortKey, setSortKey] = useState<SortKey>('recent')
-  const [visibleCount, setVisibleCount] = useState(10)
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
 
   const handleClose = useCallback(() => onClose(), [onClose])
   useModalFocusTrap(drawerRef, open, handleClose)
@@ -42,16 +70,14 @@ export function ChannelDrawer({ channel, open, onClose, onVideoClick }: ChannelD
   // Sort
   const sorted = [...allVideos].sort((a, b) => {
     if (sortKey === 'views') return b.viewCount - a.viewCount
-    if (sortKey === 'engagement') {
-      const engA = a.viewCount > 0 ? (a.likeCount + a.commentCount) / a.viewCount : 0
-      const engB = b.viewCount > 0 ? (b.likeCount + b.commentCount) / b.viewCount : 0
-      return engB - engA
-    }
+    if (sortKey === 'outlier') return (b.outlierMultiplier ?? 0) - (a.outlierMultiplier ?? 0)
+    if (sortKey === 'engagement') return engRate(b) - engRate(a)
     return (b.publishedAt ?? '').localeCompare(a.publishedAt ?? '')
   })
 
   const visible = sorted.slice(0, visibleCount)
   const hasMore = visibleCount < sorted.length
+  const remaining = sorted.length - visibleCount
 
   // Compute stats
   const totalViews = allVideos.reduce((s, v) => s + v.viewCount, 0)
@@ -77,7 +103,7 @@ export function ChannelDrawer({ channel, open, onClose, onVideoClick }: ChannelD
         role="dialog"
         aria-modal="true"
         aria-label={`Detalhes de ${ch.channelName}`}
-        className="fixed top-0 right-0 bottom-0 z-50 flex flex-col overflow-y-auto"
+        className="fixed top-0 right-0 bottom-0 z-50 flex flex-col overflow-hidden"
         style={{
           width: '100%',
           maxWidth: 780,
@@ -136,13 +162,13 @@ export function ChannelDrawer({ channel, open, onClose, onVideoClick }: ChannelD
         {/* cd-controls */}
         <div className="flex items-center gap-3 px-6 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
           <div className="seg-pills">
-            {(['recent', 'views', 'engagement'] as const).map(k => (
+            {(['recent', 'views', 'outlier', 'engagement'] as const).map(k => (
               <button
                 key={k}
                 className={`seg-pill ${sortKey === k ? 'on' : ''}`}
                 onClick={() => setSortKey(k)}
               >
-                {k === 'recent' ? 'Recentes' : k === 'views' ? 'Views' : 'Engaj.'}
+                {k === 'recent' ? 'Recentes' : k === 'views' ? 'Mais vistos' : k === 'outlier' ? 'Outlier' : 'Engaj.'}
               </button>
             ))}
           </div>
@@ -160,103 +186,209 @@ export function ChannelDrawer({ channel, open, onClose, onVideoClick }: ChannelD
         </div>
 
         {/* cd-body */}
-        <div className="flex-1 px-6 py-4 overflow-y-auto">
+        <div className="cd-body">
+          {/* header row */}
+          <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
+            <span className="dim" style={{ fontSize: 12, color: 'var(--text-dim)' }}>
+              {sorted.length} vídeos · mostrando {visible.length}
+            </span>
+            <span className="dim" style={{ fontSize: 11.5, color: 'var(--text-dim)' }}>
+              multiplicador = views ÷ mediana do canal
+            </span>
+          </div>
+
           {viewMode === 'list' ? (
-            <div className="flex flex-col gap-2">
+            <div className="cd-list">
               {visible.map(v => (
-                <div
+                <VideoRow
                   key={v.id}
-                  className="cd-row flex items-center gap-3 rounded-lg p-2 cursor-pointer"
-                  style={{ border: '1px solid transparent' }}
-                  role="button"
-                  tabIndex={0}
+                  video={v}
                   onClick={() => onVideoClick(v, ch.channelName)}
-                  onKeyDown={e => handleKeyAction(e, () => onVideoClick(v, ch.channelName))}
-                >
-                  <div className="relative flex-shrink-0">
-                    {v.thumbnailUrl ? (
-                      <img
-                        src={v.thumbnailUrl}
-                        alt={v.title ?? ''}
-                        referrerPolicy="no-referrer"
-                        className="cd-row-thumb h-14 w-24 rounded-lg object-cover"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <div className="h-14 w-24 rounded-lg flex items-center justify-center text-[9px]" style={{ background: 'var(--surface-3)', color: 'var(--text-dim)' }}>
-                        Sem thumb
-                      </div>
-                    )}
-                    {v.durationSeconds != null && (
-                      <span className="cd-dur absolute bottom-1 right-1 rounded px-1 py-0.5 text-[9px] font-medium" style={{ background: 'rgba(0,0,0,0.75)', color: '#fff' }}>
-                        {Math.floor(v.durationSeconds / 60)}:{(v.durationSeconds % 60).toString().padStart(2, '0')}
-                      </span>
-                    )}
-                    {v.outlierMultiplier != null && v.outlierMultiplier >= 2 && (
-                      <span
-                        className="cd-mult absolute top-1 right-1 rounded px-1 py-0.5 text-[9px] font-bold mono"
-                        style={{
-                          background: v.outlierTier === 'top' ? 'var(--tier-top)' : v.outlierTier === 'high' ? 'var(--tier-high)' : 'var(--tier-mid)',
-                          color: '#fff',
-                        }}
-                      >
-                        {brDec(v.outlierMultiplier, 1)}x
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium truncate" style={{ color: 'var(--text)' }}>{v.title}</p>
-                    <div className="flex items-center gap-3 mt-0.5 text-[10px] tnum" style={{ color: 'var(--text-dim)' }}>
-                      <span>{fmtC(v.viewCount)} views</span>
-                      {v.publishedAt && <span>{fmtRelative(v.publishedAt)}</span>}
-                      {v.likeCount > 0 && <span>{fmtC(v.likeCount)} likes</span>}
-                    </div>
-                  </div>
-                </div>
+                />
               ))}
             </div>
           ) : (
             <div className="grid grid-cols-3 gap-3">
               {visible.map(v => (
-                <div
+                <VideoCard
                   key={v.id}
-                  className="cd-row rounded-lg overflow-hidden cursor-pointer"
-                  style={{ border: '1px solid var(--border)' }}
-                  role="button"
-                  tabIndex={0}
+                  video={v}
                   onClick={() => onVideoClick(v, ch.channelName)}
-                  onKeyDown={e => handleKeyAction(e, () => onVideoClick(v, ch.channelName))}
-                >
-                  {v.thumbnailUrl ? (
-                    <img src={v.thumbnailUrl} alt={v.title ?? ''} referrerPolicy="no-referrer" className="w-full aspect-video object-cover" loading="lazy" />
-                  ) : (
-                    <div className="w-full aspect-video flex items-center justify-center text-[9px]" style={{ background: 'var(--surface-3)', color: 'var(--text-dim)' }}>Sem thumb</div>
-                  )}
-                  <div className="p-2">
-                    <p className="text-[10px] font-medium line-clamp-2" style={{ color: 'var(--text)' }}>{v.title}</p>
-                    <p className="text-[9px] tnum mt-0.5" style={{ color: 'var(--text-dim)' }}>{fmtC(v.viewCount)} views</p>
-                  </div>
-                </div>
+                />
               ))}
             </div>
           )}
 
-          {/* cd-more */}
+          {/* cd-more pagination */}
           {hasMore && (
-            <div className="flex justify-center mt-4">
-              <button
-                className="cd-more"
-                onClick={() => setVisibleCount(c => c + 10)}
-              >
-                Carregar mais <ChevronDown className="h-3 w-3" aria-hidden="true" />
-              </button>
-            </div>
+            <button
+              className="cd-more"
+              onClick={() => setVisibleCount(c => c + BATCH_SIZE)}
+            >
+              Carregar mais {Math.min(BATCH_SIZE, remaining)} de {remaining}
+              <ChevronDown className="h-4 w-4" aria-hidden="true" />
+            </button>
           )}
         </div>
       </div>
     </YtPortal>
   )
 }
+
+/* ── VideoRow (list mode) — matches handoff cd-row exactly ── */
+
+function VideoRow({ video: v, onClick }: { video: CompetitorVideoView; onClick: () => void }) {
+  const mult = v.outlierMultiplier ?? 0
+  const tierColor = multTierColor(v.outlierMultiplier)
+  const eng = engRate(v)
+
+  return (
+    <button
+      className="cd-row"
+      onClick={onClick}
+    >
+      {/* cd-row-thumb */}
+      <div className="cd-row-thumb">
+        {v.thumbnailUrl ? (
+          <img
+            src={v.thumbnailUrl}
+            alt={v.title ?? ''}
+            referrerPolicy="no-referrer"
+            loading="lazy"
+          />
+        ) : (
+          <div
+            className="flex items-center justify-center"
+            style={{
+              width: '100%',
+              aspectRatio: '16 / 9',
+              background: 'var(--surface-3)',
+              color: 'var(--text-dim)',
+              fontSize: 9,
+            }}
+          >
+            Sem thumb
+          </div>
+        )}
+        {v.durationSeconds != null && (
+          <span className="cd-dur sm">{fmtDur(v.durationSeconds)}</span>
+        )}
+      </div>
+
+      {/* title + date */}
+      <div style={{ flexGrow: 1, minWidth: 0 }}>
+        <div
+          className="line-clamp-2"
+          style={{ fontSize: 13, fontWeight: 500, lineHeight: 1.3, color: 'var(--text)' }}
+        >
+          {v.title}
+        </div>
+        <div
+          className="mono"
+          style={{ fontSize: 10.5, marginTop: 4, color: 'var(--text-dim)' }}
+        >
+          {v.publishedAt ? fmtRelative(v.publishedAt) : '—'}
+        </div>
+      </div>
+
+      {/* cd-row-stats: 3 columns */}
+      <div className="cd-row-stats">
+        {/* views */}
+        <div className="cd-rs">
+          <span className="mono cd-rs-v">{fmtC(v.viewCount)}</span>
+          <span className="metric-label">views</span>
+        </div>
+        {/* engaj. */}
+        <div className="cd-rs">
+          <span className="mono cd-rs-v">{brDec(eng * 100, 1)}%</span>
+          <span className="metric-label">engaj.</span>
+        </div>
+        {/* outlier */}
+        <div className="cd-rs">
+          <span
+            className="mono cd-rs-v"
+            style={{ color: mult >= 2 ? tierColor : 'var(--text-dim)' }}
+          >
+            {mult >= 2 ? `${brDec(mult, 1)}x` : '—'}
+          </span>
+          <span className="metric-label">outlier</span>
+        </div>
+      </div>
+    </button>
+  )
+}
+
+/* ── VideoCard (grid mode) ── */
+
+function VideoCard({ video: v, onClick }: { video: CompetitorVideoView; onClick: () => void }) {
+  const mult = v.outlierMultiplier ?? 0
+  const tierColor = multTierColor(v.outlierMultiplier)
+
+  return (
+    <div
+      className="cd-row rounded-lg overflow-hidden cursor-pointer"
+      style={{ border: '1px solid var(--border)', display: 'block', padding: 0, borderBottom: 'none' }}
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={e => handleKeyAction(e, onClick)}
+    >
+      <div style={{ position: 'relative' }}>
+        {v.thumbnailUrl ? (
+          <img
+            src={v.thumbnailUrl}
+            alt={v.title ?? ''}
+            referrerPolicy="no-referrer"
+            className="w-full aspect-video object-cover"
+            loading="lazy"
+          />
+        ) : (
+          <div
+            className="w-full aspect-video flex items-center justify-center"
+            style={{ background: 'var(--surface-3)', color: 'var(--text-dim)', fontSize: 9 }}
+          >
+            Sem thumb
+          </div>
+        )}
+        {v.durationSeconds != null && (
+          <span className="cd-dur">{fmtDur(v.durationSeconds)}</span>
+        )}
+        {mult >= 2 && (
+          <span
+            className="cd-mult"
+            style={{
+              position: 'absolute',
+              top: 6,
+              right: 6,
+              fontFamily: 'var(--font-mono)',
+              fontSize: 11,
+              fontWeight: 700,
+              color: '#16110b',
+              padding: '2px 6px',
+              borderRadius: 5,
+              background: tierColor,
+            }}
+          >
+            {brDec(mult, 1)}x
+          </span>
+        )}
+      </div>
+      <div style={{ padding: '9px 11px 11px' }}>
+        <p className="line-clamp-2" style={{ fontSize: 12.5, fontWeight: 500, lineHeight: 1.3, color: 'var(--text)', minHeight: 33 }}>
+          {v.title}
+        </p>
+        <div className="flex items-center justify-between" style={{ marginTop: 7 }}>
+          <span className="mono" style={{ fontSize: 11.5, fontWeight: 600 }}>{fmtC(v.viewCount)}</span>
+          <span className="mono" style={{ fontSize: 10.5, color: 'var(--text-dim)' }}>
+            {v.publishedAt ? fmtRelative(v.publishedAt) : '—'}
+          </span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ── Sub-components (StatBox, VsPill) ── */
 
 function StatBox({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
   return (
@@ -268,7 +400,7 @@ function StatBox({ label, value, highlight }: { label: string; value: string; hi
       }}
     >
       <p className="eyebrow mb-1">{label}</p>
-      <p className={`text-sm font-semibold mono ${highlight ? '' : ''}`} style={{ color: highlight ? 'var(--accent)' : 'var(--text)', fontSize: highlight ? '21px' : undefined }}>
+      <p className="text-sm font-semibold mono" style={{ color: highlight ? 'var(--accent)' : 'var(--text)', fontSize: highlight ? '21px' : undefined }}>
         {value}
       </p>
     </div>
