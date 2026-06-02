@@ -109,7 +109,7 @@ function getOutlierStats(videos: CompetitorVideoView[]) {
 
 export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }: ChannelCardProps) {
   const ch = channel
-  const sparkColor = ch.growthDelta != null && ch.growthDelta >= 0 ? 'var(--green)' : 'var(--amber)'
+  const sparkColor = ch.growthDelta == null ? 'var(--text-dim)' : ch.growthDelta >= 0 ? 'var(--green)' : 'var(--amber)'
   const outlierStats = getOutlierStats(ch.recentVideos)
 
   return (
@@ -248,10 +248,12 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
                     marginTop: 2,
                   }}
                 >
-                  {ch.growthDelta != null && ch.growthDelta >= 0
-                    ? <TrendingUp style={{ width: 13, height: 13 }} />
-                    : <TrendingDown style={{ width: 13, height: 13 }} />
-                  }
+                  {ch.growthDelta != null && ch.growthDelta >= 0 && (
+                    <TrendingUp style={{ width: 13, height: 13 }} />
+                  )}
+                  {ch.growthDelta != null && ch.growthDelta < 0 && (
+                    <TrendingDown style={{ width: 13, height: 13 }} />
+                  )}
                   {ch.growthDelta != null
                     ? `${ch.growthDelta >= 0 ? '+' : ''}${fmtC(ch.growthDelta)}`
                     : '—'
@@ -274,7 +276,7 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
               />
             )}
             <span className="mono" style={{ fontSize: 9, color: 'var(--text-dim)' }}>
-              inscritos · 12 sem
+              inscritos · 30 dias
             </span>
           </div>
         </div>

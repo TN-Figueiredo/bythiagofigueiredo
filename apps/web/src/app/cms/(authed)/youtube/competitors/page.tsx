@@ -142,17 +142,24 @@ export default async function CompetitorsPage({
     const totalViews = videos.reduce((s, v) => s + (v.view_count ?? 0), 0)
     const avgEngagement = totalViews > 0 ? totalEngagement / totalViews : null
 
-    // Growth sparkline from snapshots
+    // Growth sparkline from snapshots (last 30 days)
     const growthSparkline = snaps
       .slice(-30)
       .map(s => s.subscriber_count ?? 0)
 
-    // Growth delta
+    // Growth delta — 7-day subscriber change (matches /sem label)
     let growthDelta: number | null = null
-    if (growthSparkline.length >= 2) {
-      const last = growthSparkline[growthSparkline.length - 1] ?? 0
-      const first = growthSparkline[0] ?? 0
-      growthDelta = last - first
+    if (snaps.length >= 2) {
+      const latest = snaps[snaps.length - 1]!
+      const sevenDaysAgoStr = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10)
+      // Find the snapshot closest to 7 days ago (or oldest if < 7 days of data)
+      const weekAgoSnap = snaps.reduce<(typeof snaps)[number] | null>((best, s) => {
+        if (s.snapshot_date <= sevenDaysAgoStr) return s // last one <= 7d ago (ascending order)
+        return best
+      }, null) ?? snaps[0]!
+      if (weekAgoSnap.snapshot_date !== latest.snapshot_date) {
+        growthDelta = (latest.subscriber_count ?? 0) - (weekAgoSnap.subscriber_count ?? 0)
+      }
     }
 
     // vs-you comparison

@@ -437,6 +437,101 @@ describe('syncCompetitorChannel', () => {
     ).rejects.toThrow('YouTube API 403 for channel UC_test')
   })
 
+  it('writes daily channel snapshot with subscriber, video, and view counts', async () => {
+    const upsertSpy = vi.fn().mockResolvedValue({ error: null })
+    const mockSupabase = {
+      from: vi.fn((table: string) => {
+        if (table === 'competitor_channels') {
+          return { update: () => ({ eq: () => Promise.resolve({}) }) }
+        }
+        if (table === 'competitor_channel_snapshots') {
+          return { upsert: upsertSpy }
+        }
+        return { update: () => ({ eq: () => Promise.resolve({}) }) }
+      }),
+    }
+
+    const { getSupabaseServiceClient } = await import('@/lib/supabase/service')
+    ;(getSupabaseServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(mockSupabase)
+
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            items: [
+              {
+                contentDetails: { relatedPlaylists: { uploads: 'UU_test' } },
+                snippet: { title: 'Channel' },
+                statistics: { subscriberCount: '5000', videoCount: '42', viewCount: '100000' },
+              },
+            ],
+          }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ items: [] }),
+      })
+
+    await syncCompetitorChannel({ id: 'cc-1', channel_id: 'UC_test', site_id: 'site-1' }, 'key')
+    expect(upsertSpy).toHaveBeenCalledOnce()
+    const [payload, opts] = upsertSpy.mock.calls[0] as [Record<string, unknown>, Record<string, unknown>]
+    expect(payload.competitor_channel_id).toBe('cc-1')
+    expect(payload.subscriber_count).toBe(5000)
+    expect(payload.video_count).toBe(42)
+    expect(payload.view_count).toBe(100000)
+    expect(payload.snapshot_date).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    expect(opts.onConflict).toBe('competitor_channel_id,snapshot_date')
+  })
+
+  it('logs snapshot upsert error without breaking sync', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const mockSupabase = {
+      from: vi.fn((table: string) => {
+        if (table === 'competitor_channels') {
+          return { update: () => ({ eq: () => Promise.resolve({}) }) }
+        }
+        if (table === 'competitor_channel_snapshots') {
+          return { upsert: () => Promise.resolve({ error: { message: 'unique violation' } }) }
+        }
+        return { update: () => ({ eq: () => Promise.resolve({}) }) }
+      }),
+    }
+
+    const { getSupabaseServiceClient } = await import('@/lib/supabase/service')
+    ;(getSupabaseServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(mockSupabase)
+
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            items: [
+              {
+                contentDetails: { relatedPlaylists: { uploads: 'UU_test' } },
+                snippet: { title: 'Channel' },
+                statistics: { subscriberCount: '100' },
+              },
+            ],
+          }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ items: [] }),
+      })
+
+    // Should not throw
+    const result = await syncCompetitorChannel({ id: 'cc-1', channel_id: 'UC_test', site_id: 'site-1' }, 'key')
+    expect(result).toEqual({ videosChecked: 0, changesDetected: 0 })
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Snapshot upsert failed'),
+      'unique violation',
+    )
+    consoleSpy.mockRestore()
+  })
+
   it('handles empty video list gracefully', async () => {
     const mockSupabase = {
       from: vi.fn((table: string) => {
