@@ -2107,6 +2107,9 @@ button[aria-label="Notificações"] {
 
 [data-cms-section="youtube"] .md-latest {
   margin-top: 14px;
+  padding: 12px 14px;
+  background: rgba(0, 0, 0, 0.12);
+  border-radius: 9px;
 }
 
 [data-cms-section="youtube"] .md-ev {
