@@ -1880,3 +1880,106 @@ button[aria-label="Notificações"] {
   background: rgba(224, 162, 60, 0.16);
   flex-shrink: 0;
 }
+
+/* ═══════ Video Detail Modal ═══════ */
+
+[data-cms-section="youtube"] .vd-modal {
+  position: relative;
+  width: 100%;
+  max-width: 520px;
+  max-height: 90vh;
+  overflow-y: auto;
+  background: var(--surface, #1E1A14);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 18px);
+  box-shadow: var(--shadow-pop);
+  animation: fade var(--t-enter) var(--ease-out) both;
+}
+
+[data-cms-section="youtube"] .vd-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+[data-cms-section="youtube"] .vd-body {
+  padding: 18px;
+}
+
+[data-cms-section="youtube"] .vd-title {
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--text);
+  margin-top: 14px;
+}
+
+[data-cms-section="youtube"] .vd-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-top: 16px;
+}
+
+[data-cms-section="youtube"] .vd-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+}
+
+[data-cms-section="youtube"] .vd-stat-val {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+[data-cms-section="youtube"] .vd-trend {
+  /* padding handled inline */
+}
+
+[data-cms-section="youtube"] .vd-compare {
+  /* padding handled inline */
+}
+
+[data-cms-section="youtube"] .vd-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  border-top: 1px solid var(--border);
+}
+
+[data-cms-section="youtube"] .bar {
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+
+[data-cms-section="youtube"] .tip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  font-size: 8.5px;
+  font-weight: 700;
+  background: var(--surface-3);
+  color: var(--text-dim);
+  cursor: help;
+  flex-shrink: 0;
+}
+
+@media (max-width: 480px) {
+  [data-cms-section="youtube"] .vd-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

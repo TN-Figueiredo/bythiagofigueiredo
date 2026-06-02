@@ -41,7 +41,7 @@ interface ChannelCardProps {
   onOpen: (channelId: string) => void
   onSync: (channelId: string) => void | Promise<void>
   onRemove: (channelId: string) => void
-  onVideoClick: (video: CompetitorVideoView, channelName: string) => void
+  onVideoClick: (video: CompetitorVideoView, channelName: string, channelThumbnailUrl?: string | null, allVideos?: CompetitorVideoView[]) => void
 }
 
 function handleKeyAction(e: React.KeyboardEvent, fn: () => void) {
@@ -351,8 +351,8 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
                 key={v.id}
                 className="shelf-vid"
                 title={v.title ?? ''}
-                onClick={e => { e.stopPropagation(); onVideoClick(v, ch.channelName) }}
-                onKeyDown={e => { e.stopPropagation(); handleKeyAction(e, () => onVideoClick(v, ch.channelName)) }}
+                onClick={e => { e.stopPropagation(); onVideoClick(v, ch.channelName, ch.thumbnailUrl, ch.recentVideos) }}
+                onKeyDown={e => { e.stopPropagation(); handleKeyAction(e, () => onVideoClick(v, ch.channelName, ch.thumbnailUrl, ch.recentVideos)) }}
               >
                 <div style={{ position: 'relative' }}>
                   {v.thumbnailUrl ? (

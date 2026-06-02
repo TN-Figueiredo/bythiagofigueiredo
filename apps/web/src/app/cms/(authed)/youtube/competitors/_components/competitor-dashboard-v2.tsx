@@ -65,7 +65,12 @@ export function CompetitorDashboardV2({
 
   // Drawer & modal state
   const [drawerChannelId, setDrawerChannelId] = useState<string | null>(null)
-  const [modalVideo, setModalVideo] = useState<{ video: CompetitorVideoView; channelName: string } | null>(null)
+  const [modalVideo, setModalVideo] = useState<{
+    video: CompetitorVideoView
+    channelName: string
+    channelThumbnailUrl?: string | null
+    allVideos?: CompetitorVideoView[]
+  } | null>(null)
 
   // Remove confirmation state
   const [removeTarget, setRemoveTarget] = useState<{ id: string; name: string } | null>(null)
@@ -153,8 +158,13 @@ export function CompetitorDashboardV2({
     setRemoveTarget(null)
   }
 
-  const handleVideoClick = useCallback((video: CompetitorVideoView, channelName: string) => {
-    setModalVideo({ video, channelName })
+  const handleVideoClick = useCallback((
+    video: CompetitorVideoView,
+    channelName: string,
+    channelThumbnailUrl?: string | null,
+    allVideos?: CompetitorVideoView[],
+  ) => {
+    setModalVideo({ video, channelName, channelThumbnailUrl, allVideos })
   }, [])
 
   const handleOutlierClick = useCallback((outlier: CompetitorOutlierView) => {
@@ -370,6 +380,8 @@ export function CompetitorDashboardV2({
         <VideoModal
           video={modalVideo.video}
           channelName={modalVideo.channelName}
+          channelThumbnailUrl={modalVideo.channelThumbnailUrl}
+          allVideos={modalVideo.allVideos}
           open={modalVideo != null}
           onClose={() => setModalVideo(null)}
         />

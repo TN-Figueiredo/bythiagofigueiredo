@@ -18,7 +18,7 @@ interface ChannelDrawerProps {
   channel: CompetitorChannelView
   open: boolean
   onClose: () => void
-  onVideoClick: (video: CompetitorVideoView, channelName: string) => void
+  onVideoClick: (video: CompetitorVideoView, channelName: string, channelThumbnailUrl?: string | null, allVideos?: CompetitorVideoView[]) => void
 }
 
 type ViewMode = 'list' | 'grid'
@@ -394,7 +394,7 @@ export function ChannelDrawer({ channel, open, onClose, onVideoClick }: ChannelD
                 <VideoRow
                   key={v.id}
                   video={v}
-                  onClick={() => onVideoClick(v, ch.channelName)}
+                  onClick={() => onVideoClick(v, ch.channelName, ch.thumbnailUrl, allVideos)}
                 />
               ))}
             </div>
@@ -404,7 +404,7 @@ export function ChannelDrawer({ channel, open, onClose, onVideoClick }: ChannelD
                 <VideoCard
                   key={v.id}
                   video={v}
-                  onClick={() => onVideoClick(v, ch.channelName)}
+                  onClick={() => onVideoClick(v, ch.channelName, ch.thumbnailUrl, allVideos)}
                 />
               ))}
             </div>
