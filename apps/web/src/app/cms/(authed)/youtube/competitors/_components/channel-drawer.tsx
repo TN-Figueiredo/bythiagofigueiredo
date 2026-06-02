@@ -219,36 +219,13 @@ export function ChannelDrawer({ channel, open, onClose, onVideoClick }: ChannelD
           })()}
         </div>
 
-        {/* cd-versus — multi-channel seg-pills + comparison grid */}
-        {ch.vsYou && ch.vsYou.length > 0 && (() => {
-          const safeIdx = Math.min(vsYouIdx, ch.vsYou.length - 1)
-          const vs = ch.vsYou[safeIdx]!
-          const hasMultiple = ch.vsYou.length > 1
-          return (
-            <div className="cd-versus" style={{ padding: '12px 22px 14px', borderBottom: '1px solid var(--border)', background: 'rgba(0,0,0,0.1)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                <span className="cd-versus-label" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 600, letterSpacing: '0.04em', color: 'var(--text-muted)', textTransform: 'uppercase' as const }}>
-                  <Users style={{ width: 12, height: 12, stroke: 'var(--text-dim)' }} aria-hidden="true" />
-                  vs. você
-                </span>
-                {hasMultiple ? (
-                  <div className="seg-pills">
-                    {ch.vsYou.map((entry, i) => (
-                      <button
-                        key={entry.channelId}
-                        className={`seg-pill ${safeIdx === i ? 'on' : ''}`}
-                        onClick={() => setVsYouIdx(i)}
-                      >
-                        {entry.channelName}
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.04em', color: 'var(--text-muted)', textTransform: 'uppercase' as const }}>
-                    · {vs.channelName}
-                  </span>
-                )}
-              </div>
+        {/* cd-versus — one row per own channel (no toggle, show all at once) */}
+        {ch.vsYou && ch.vsYou.length > 0 && ch.vsYou.map((vs, vsIdx) => (
+          <div key={vs.channelId} className="cd-versus" style={{ padding: '12px 22px 14px', borderBottom: '1px solid var(--border)', background: 'rgba(0,0,0,0.1)' }}>
+            <span className="cd-versus-label" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 600, letterSpacing: '0.04em', color: 'var(--text-muted)', textTransform: 'uppercase' as const }}>
+              <Users style={{ width: 12, height: 12, stroke: 'var(--text-dim)' }} aria-hidden="true" />
+              vs. você · {vs.channelName}
+            </span>
               {/* cd-versus-items: handoff grid 4-col, each with metric-label + value mono + vs-pill badge */}
               <div className="cd-versus-items" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginTop: 10 }}>
                 {/* Engajamento */}
@@ -345,9 +322,8 @@ export function ChannelDrawer({ channel, open, onClose, onVideoClick }: ChannelD
                   </div>
                 </div>
               </div>
-            </div>
-          )
-        })()}
+          </div>
+        ))}
 
         {/* cd-controls */}
         <div className="flex items-center gap-3 px-6 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
