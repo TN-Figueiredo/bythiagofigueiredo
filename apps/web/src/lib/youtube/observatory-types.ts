@@ -81,7 +81,11 @@ export interface CompetitorOutlierView {
   title: string | null
   thumbnailUrl: string | null
   channelName: string
+  channelThumbnailUrl: string | null
   viewCount: number
+  likeCount: number
+  commentCount: number
+  durationSeconds: number | null
   publishedAt: string | null
   /** How many times above the channel median view count. */
   multiplier: number

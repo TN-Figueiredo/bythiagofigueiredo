@@ -137,15 +137,15 @@ export function CompetitorDashboardV2({
       title: outlier.title,
       thumbnailUrl: outlier.thumbnailUrl,
       viewCount: outlier.viewCount,
-      likeCount: 0,
-      commentCount: 0,
+      likeCount: outlier.likeCount,
+      commentCount: outlier.commentCount,
       publishedAt: outlier.publishedAt,
-      durationSeconds: null,
+      durationSeconds: outlier.durationSeconds,
       viewDelta: null,
       outlierMultiplier: outlier.multiplier,
       outlierTier: outlier.tier,
     }
-    setModalVideo({ video, channelName: outlier.channelName })
+    setModalVideo({ video, channelName: outlier.channelName, channelThumbnailUrl: outlier.channelThumbnailUrl })
   }, [])
 
   const tabs: Array<{ id: SubTab; label: string; count?: number; icon: React.ReactNode }> = [

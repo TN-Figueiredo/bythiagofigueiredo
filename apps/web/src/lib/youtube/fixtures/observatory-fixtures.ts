@@ -291,12 +291,12 @@ export const FIXTURE_CHANGES: CompetitorChangeView[] = [
 ]
 
 export const FIXTURE_OUTLIERS: CompetitorOutlierView[] = [
-  { id: 'out-1', videoId: 'yt-out-1', title: 'FUI ASSALTADO na Tailandia (a verdade)', thumbnailUrl: null, channelName: 'Dev Nomade', viewCount: 890_000, publishedAt: new Date(Date.now() - 86_400_000 * 5).toISOString(), multiplier: 12.4, tier: 'top' },
-  { id: 'out-2', videoId: 'yt-out-2', title: 'Quanto ganhei trabalhando da praia', thumbnailUrl: null, channelName: 'Codigo Viajante', viewCount: 450_000, publishedAt: new Date(Date.now() - 86_400_000 * 8).toISOString(), multiplier: 8.2, tier: 'high' },
-  { id: 'out-3', videoId: 'yt-out-3', title: 'Setup de 500 reais vs 5000 reais', thumbnailUrl: null, channelName: 'Tech Abroad', viewCount: 320_000, publishedAt: new Date(Date.now() - 86_400_000 * 3).toISOString(), multiplier: 6.7, tier: 'high' },
-  { id: 'out-4', videoId: 'yt-out-4', title: 'Um dia na vida de dev nomade', thumbnailUrl: null, channelName: 'Pixel Travel', viewCount: 210_000, publishedAt: new Date(Date.now() - 86_400_000 * 12).toISOString(), multiplier: 4.3, tier: 'mid' },
-  { id: 'out-5', videoId: 'yt-out-5', title: 'NAS caseiro por R$300', thumbnailUrl: null, channelName: 'Nerd na Estrada', viewCount: 180_000, publishedAt: new Date(Date.now() - 86_400_000 * 7).toISOString(), multiplier: 3.1, tier: 'mid' },
-  { id: 'out-6', videoId: 'yt-out-6', title: 'Passaporte brasileiro — vale a pena?', thumbnailUrl: null, channelName: 'Byte & Bagagem', viewCount: 145_000, publishedAt: new Date(Date.now() - 86_400_000 * 14).toISOString(), multiplier: 2.8, tier: 'mid' },
+  { id: 'out-1', videoId: 'yt-out-1', title: 'FUI ASSALTADO na Tailandia (a verdade)', thumbnailUrl: null, channelName: 'Dev Nomade', channelThumbnailUrl: null, viewCount: 890_000, likeCount: 42_000, commentCount: 3_100, durationSeconds: 912, publishedAt: new Date(Date.now() - 86_400_000 * 5).toISOString(), multiplier: 12.4, tier: 'top' },
+  { id: 'out-2', videoId: 'yt-out-2', title: 'Quanto ganhei trabalhando da praia', thumbnailUrl: null, channelName: 'Codigo Viajante', channelThumbnailUrl: null, viewCount: 450_000, likeCount: 18_500, commentCount: 1_200, durationSeconds: 720, publishedAt: new Date(Date.now() - 86_400_000 * 8).toISOString(), multiplier: 8.2, tier: 'high' },
+  { id: 'out-3', videoId: 'yt-out-3', title: 'Setup de 500 reais vs 5000 reais', thumbnailUrl: null, channelName: 'Tech Abroad', channelThumbnailUrl: null, viewCount: 320_000, likeCount: 14_200, commentCount: 890, durationSeconds: 1080, publishedAt: new Date(Date.now() - 86_400_000 * 3).toISOString(), multiplier: 6.7, tier: 'high' },
+  { id: 'out-4', videoId: 'yt-out-4', title: 'Um dia na vida de dev nomade', thumbnailUrl: null, channelName: 'Pixel Travel', channelThumbnailUrl: null, viewCount: 210_000, likeCount: 9_800, commentCount: 540, durationSeconds: 600, publishedAt: new Date(Date.now() - 86_400_000 * 12).toISOString(), multiplier: 4.3, tier: 'mid' },
+  { id: 'out-5', videoId: 'yt-out-5', title: 'NAS caseiro por R$300', thumbnailUrl: null, channelName: 'Nerd na Estrada', channelThumbnailUrl: null, viewCount: 180_000, likeCount: 7_200, commentCount: 410, durationSeconds: 840, publishedAt: new Date(Date.now() - 86_400_000 * 7).toISOString(), multiplier: 3.1, tier: 'mid' },
+  { id: 'out-6', videoId: 'yt-out-6', title: 'Passaporte brasileiro — vale a pena?', thumbnailUrl: null, channelName: 'Byte & Bagagem', channelThumbnailUrl: null, viewCount: 145_000, likeCount: 5_600, commentCount: 320, durationSeconds: 480, publishedAt: new Date(Date.now() - 86_400_000 * 14).toISOString(), multiplier: 2.8, tier: 'mid' },
 ]
 
 export const FIXTURE_INSIGHTS: CompetitorInsights = {
