@@ -186,7 +186,7 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
         style={{ borderTop: '1px solid var(--border)' }}
       >
         <span className="chan-open-hint">
-          Ver detalhes <ChevronRight className="h-3 w-3" />
+          <ChevronRight className="h-3 w-3" />
         </span>
       </div>
     </div>

@@ -190,7 +190,7 @@ export default async function CompetitorsPage({
       ? [...videos].sort((a, b) => (a.view_count ?? 0) - (b.view_count ?? 0))[Math.floor(videos.length / 2)]?.view_count ?? 0
       : 0
 
-    const recentVideos: CompetitorVideoView[] = videos.slice(0, 3).map(v => {
+    const recentVideos: CompetitorVideoView[] = videos.map(v => {
       const vc = v.view_count ?? 0
       const mult = medianViews > 0 ? vc / medianViews : null
       return {

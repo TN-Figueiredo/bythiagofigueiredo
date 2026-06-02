@@ -1,0 +1,1112 @@
+/* ══════════════════════════════════════════════════════════════
+   YouTube CMS — Motion Engine + Component CSS
+   Scoped to [data-cms-section="youtube"]
+   RULE: NEVER use transition: all — always list exact properties.
+   ══════════════════════════════════════════════════════════════ */
+
+/* ─── Keyframes ─── */
+
+@keyframes fade {
+  from { transform: translateY(8px); }
+  to   { transform: none; }
+}
+
+@keyframes rise {
+  from { transform: translateY(5px); }
+  to   { transform: none; }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.5); }
+  50%      { box-shadow: 0 0 0 6px rgba(34,197,94,0); }
+}
+
+@keyframes earlyPulse {
+  0%, 100% { background: var(--accent-soft); }
+  50%      { background: var(--accent-soft-2); }
+}
+
+@keyframes earlyGrow {
+  0%, 100% { opacity: 0.6; }
+  50%      { opacity: 1; }
+}
+
+@keyframes earlyDot {
+  0%, 100% { transform: translateY(0); opacity: 0.4; }
+  50%      { transform: translateY(-3px); opacity: 1; }
+}
+
+@keyframes skelBar {
+  0%, 100% { opacity: 0.4; }
+  50%      { opacity: 0.9; }
+}
+
+/* ─── Entry Animation ─── */
+
+.fade-in {
+  animation: fade var(--t-enter) var(--ease-out) both;
+}
+
+/* ─── Stagger System ─── */
+
+.stagger > * {
+  animation: rise var(--t-enter) var(--ease-out) both;
+}
+
+.stagger > *:nth-child(1) { animation-delay: 0ms; }
+.stagger > *:nth-child(2) { animation-delay: 35ms; }
+.stagger > *:nth-child(3) { animation-delay: 65ms; }
+.stagger > *:nth-child(4) { animation-delay: 90ms; }
+.stagger > *:nth-child(5) { animation-delay: 110ms; }
+.stagger > *:nth-child(6) { animation-delay: 125ms; }
+.stagger > *:nth-child(n+7) { animation-delay: 140ms; }
+
+/* ─── Responsive Grids ─── */
+
+.obs-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+@media (max-width: 1180px) {
+  .obs-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 680px) {
+  .obs-grid { grid-template-columns: 1fr; }
+}
+
+.outlier-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+
+@media (max-width: 1180px) {
+  .outlier-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+@media (max-width: 920px) {
+  .outlier-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+.kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
+}
+
+@media (max-width: 1100px) {
+  .kpi-strip { grid-template-columns: repeat(3, 1fr); }
+}
+
+@media (max-width: 560px) {
+  .kpi-strip { grid-template-columns: repeat(2, 1fr); }
+}
+
+.lib-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+
+@media (max-width: 1080px) {
+  .lib-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+@media (max-width: 760px) {
+  .lib-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+.insights-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 18px;
+}
+
+@media (max-width: 920px) {
+  .insights-grid { grid-template-columns: 1fr; }
+}
+
+/* ─── Loading Animations ─── */
+
+.early-dots i {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: earlyDot 1.4s ease-in-out infinite;
+}
+
+.early-dots i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.early-dots i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+.empty-chart-skel span {
+  display: block;
+  background: var(--surface-3);
+  border-radius: 4px;
+  animation: skelBar 1.8s ease-in-out infinite;
+}
+
+.empty-chart-skel span:nth-child(1) { animation-delay: 0s; }
+.empty-chart-skel span:nth-child(2) { animation-delay: 0.2s; }
+.empty-chart-skel span:nth-child(3) { animation-delay: 0.4s; }
+.empty-chart-skel span:nth-child(4) { animation-delay: 0.6s; }
+
+.early-pulse {
+  animation: earlyPulse 2s ease-in-out infinite;
+}
+
+.early-bar {
+  animation: earlyGrow 2.4s ease-in-out infinite;
+}
+
+.ic-btn.syncing svg {
+  animation: spin 0.8s linear infinite;
+}
+
+.live-dot {
+  animation: pulse 1.8s ease infinite;
+}
+
+/* ─── Typography Utilities ─── */
+
+.display {
+  font-family: var(--font-fraunces-var), Georgia, serif;
+}
+
+.mono {
+  font-family: var(--font-jetbrains), 'JetBrains Mono', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+.eyebrow {
+  font-family: var(--font-jetbrains), 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+/* ─── Scoped Token Overrides ─── */
+
+[data-cms-section="youtube"] {
+  --radius-sm: 9px;
+  --radius: 14px;
+  --radius-lg: 18px;
+  --shadow: 0 1px 0 rgba(255,255,255,0.02) inset, 0 10px 30px -16px rgba(0,0,0,0.7);
+  --text-muted: #A89B86;
+  --text-dim: #7C7060;
+  --surface-3: #2E281F;
+  --accent-hover: #FF9559;
+  --purple: #A78BFA;
+}
+
+/* ─── Reduced-motion Guard (YouTube scope) ─── */
+
+@media (prefers-reduced-motion: reduce) {
+  [data-cms-section="youtube"] *,
+  [data-cms-section="youtube"] *::before,
+  [data-cms-section="youtube"] *::after {
+    animation-duration: 0.001ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   Component Interaction CSS (Section 3)
+   ══════════════════════════════════════════════════════════════ */
+
+/* ─── 3.1 Button .btn ─── */
+
+[data-cms-section="youtube"] .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  cursor: pointer;
+  transition:
+    background var(--t-fast) var(--ease-out),
+    border-color var(--t-fast) var(--ease-out),
+    transform var(--t-fast) var(--ease-out),
+    color var(--t-fast) var(--ease-out);
+}
+
+[data-cms-section="youtube"] .btn:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-strong);
+}
+
+[data-cms-section="youtube"] .btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+[data-cms-section="youtube"] .btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+[data-cms-section="youtube"] .btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Variant: primary */
+[data-cms-section="youtube"] .btn.primary {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: transparent;
+}
+
+[data-cms-section="youtube"] .btn.primary:hover {
+  background: var(--accent-hover);
+  border-color: transparent;
+}
+
+/* Variant: ghost */
+[data-cms-section="youtube"] .btn.ghost {
+  background: none;
+  border-color: transparent;
+  color: var(--text-muted);
+}
+
+[data-cms-section="youtube"] .btn.ghost:hover {
+  background: var(--surface-hover);
+  border-color: transparent;
+  color: var(--text);
+}
+
+/* Variant: cowork */
+[data-cms-section="youtube"] .btn.cowork {
+  background: var(--cowork-soft);
+  color: var(--cowork);
+  border-color: transparent;
+}
+
+[data-cms-section="youtube"] .btn.cowork:hover {
+  background: var(--cowork-soft);
+  color: var(--cowork);
+  border-color: var(--cowork);
+}
+
+/* Variant: danger */
+[data-cms-section="youtube"] .btn.danger {
+  background: var(--red-soft);
+  color: var(--red);
+  border-color: transparent;
+}
+
+[data-cms-section="youtube"] .btn.danger:hover {
+  background: var(--red-soft);
+  color: var(--red);
+  border-color: var(--red);
+}
+
+/* Size: sm */
+[data-cms-section="youtube"] .btn.sm {
+  padding: 6px 11px;
+  font-size: 12.5px;
+  border-radius: 8px;
+}
+
+/* Size: icon (square) */
+[data-cms-section="youtube"] .btn.icon {
+  padding: 0;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+}
+
+/* ─── 3.2 Chip .chip ─── */
+
+[data-cms-section="youtube"] .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  cursor: pointer;
+  transition:
+    color var(--t-fast) var(--ease-out),
+    border-color var(--t-fast) var(--ease-out),
+    background var(--t-fast) var(--ease-out),
+    transform var(--t-fast) var(--ease-out);
+}
+
+[data-cms-section="youtube"] .chip:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+[data-cms-section="youtube"] .chip:active {
+  transform: translateY(1px);
+}
+
+[data-cms-section="youtube"] .chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+[data-cms-section="youtube"] .chip.on {
+  background: var(--accent-soft-2);
+  color: var(--accent);
+  border-color: transparent;
+}
+
+/* ─── 3.3 Segmented Pill .seg-pills + .seg-pill ─── */
+
+[data-cms-section="youtube"] .seg-pills {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+}
+
+[data-cms-section="youtube"] .seg-pill {
+  padding: 5px 11px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  border-radius: 7px;
+  cursor: pointer;
+  transition:
+    color var(--t-fast) var(--ease-out),
+    background var(--t-fast) var(--ease-out),
+    transform var(--t-fast) var(--ease-out);
+}
+
+[data-cms-section="youtube"] .seg-pill:hover {
+  color: var(--text);
+}
+
+[data-cms-section="youtube"] .seg-pill:active {
+  transform: translateY(1px);
+}
+
+[data-cms-section="youtube"] .seg-pill:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+[data-cms-section="youtube"] .seg-pill.on {
+  background: var(--accent-soft-2);
+  color: var(--accent);
+}
+
+[data-cms-section="youtube"] .seg-pills.demo-switch {
+  border-style: dashed;
+}
+
+/* ─── 3.4 Icon Button .ic-btn ─── */
+
+[data-cms-section="youtube"] .ic-btn {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  cursor: pointer;
+  transition:
+    color var(--t-fast) var(--ease-out),
+    background var(--t-fast) var(--ease-out),
+    border-color var(--t-fast) var(--ease-out),
+    transform var(--t-fast) var(--ease-out);
+}
+
+[data-cms-section="youtube"] .ic-btn:hover {
+  color: var(--text);
+  background: var(--surface-hover);
+  border-color: var(--border-strong);
+}
+
+[data-cms-section="youtube"] .ic-btn:active {
+  transform: translateY(1px);
+}
+
+[data-cms-section="youtube"] .ic-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+[data-cms-section="youtube"] .ic-btn.danger:hover {
+  color: var(--red);
+  background: var(--red-soft);
+  border-color: transparent;
+}
+
+[data-cms-section="youtube"] .ic-btn.syncing {
+  color: var(--accent);
+}
+
+/* ─── 3.5 Toggle .yt-toggle ─── */
+
+[data-cms-section="youtube"] .yt-toggle {
+  position: relative;
+  width: 42px;
+  height: 24px;
+  background: var(--surface-3);
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  cursor: pointer;
+  transition:
+    background var(--t-med) var(--ease-out),
+    border-color var(--t-med) var(--ease-out);
+}
+
+[data-cms-section="youtube"] .yt-toggle.on {
+  background: var(--accent);
+  border-color: transparent;
+}
+
+[data-cms-section="youtube"] .yt-toggle::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  transition:
+    left var(--t-med) var(--ease-spring),
+    width var(--t-fast) var(--ease-out);
+}
+
+[data-cms-section="youtube"] .yt-toggle.on::after {
+  left: 20px;
+}
+
+[data-cms-section="youtube"] .yt-toggle:active::after {
+  width: 21px;
+}
+
+[data-cms-section="youtube"] .yt-toggle.on:active::after {
+  left: 17px;
+  width: 21px;
+}
+
+[data-cms-section="youtube"] .yt-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ─── 3.6 Slider .yt-slider ─── */
+
+[data-cms-section="youtube"] .yt-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 5px;
+  background: var(--surface-3);
+  border-radius: 999px;
+  outline: none;
+  cursor: pointer;
+}
+
+[data-cms-section="youtube"] .yt-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  background: var(--accent);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  transition:
+    transform var(--t-fast) var(--ease-spring),
+    box-shadow var(--t-fast) var(--ease-spring);
+}
+
+[data-cms-section="youtube"] .yt-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: var(--accent);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+[data-cms-section="youtube"] .yt-slider:hover::-webkit-slider-thumb {
+  box-shadow: 0 0 0 5px var(--accent-soft);
+}
+
+[data-cms-section="youtube"] .yt-slider:hover::-moz-range-thumb {
+  box-shadow: 0 0 0 5px var(--accent-soft);
+}
+
+[data-cms-section="youtube"] .yt-slider:active::-webkit-slider-thumb {
+  transform: scale(1.18);
+  box-shadow: 0 0 0 6px var(--accent-soft-2);
+}
+
+[data-cms-section="youtube"] .yt-slider:active::-moz-range-thumb {
+  transform: scale(1.18);
+  box-shadow: 0 0 0 6px var(--accent-soft-2);
+}
+
+[data-cms-section="youtube"] .yt-slider:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Wizard slider variant */
+[data-cms-section="youtube"] .wz-slider::-webkit-slider-thumb {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+[data-cms-section="youtube"] .wz-slider:hover::-webkit-slider-thumb {
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.4),
+    0 0 0 5px var(--accent-soft);
+}
+
+[data-cms-section="youtube"] .wz-slider:active::-webkit-slider-thumb {
+  transform: scale(1.18);
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.4),
+    0 0 0 6px var(--accent-soft-2);
+}
+
+/* ─── 3.7 Tabs .yt-tab + .subtab + .subtab-count ─── */
+
+[data-cms-section="youtube"] .yt-tab {
+  padding: 11px 14px;
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    color var(--t-fast) var(--ease-out),
+    border-color var(--t-fast) var(--ease-out);
+}
+
+[data-cms-section="youtube"] .yt-tab:hover {
+  color: var(--text);
+}
+
+[data-cms-section="youtube"] .yt-tab:active {
+  color: var(--text);
+}
+
+[data-cms-section="youtube"] .yt-tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+[data-cms-section="youtube"] .yt-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+[data-cms-section="youtube"] .subtab {
+  padding: 10px 14px 12px;
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition:
+    color var(--t-fast) var(--ease-out),
+    border-color var(--t-fast) var(--ease-out);
+}
+
+[data-cms-section="youtube"] .subtab:hover {
+  color: var(--text);
+}
+
+[data-cms-section="youtube"] .subtab:active {
+  color: var(--text);
+}
+
+[data-cms-section="youtube"] .subtab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+[data-cms-section="youtube"] .subtab.active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+
+[data-cms-section="youtube"] .subtab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--text-dim);
+  background: var(--surface-2);
+  border-radius: 6px;
+  margin-left: 4px;
+}
+
+[data-cms-section="youtube"] .subtab.active .subtab-count {
+  background: var(--accent-soft-2);
+  color: var(--accent);
+}
+
+/* ─── 3.8 Card Lift ─── */
+
+[data-cms-section="youtube"] .chan-card.clickable,
+[data-cms-section="youtube"] .outlier-card.clickable,
+[data-cms-section="youtube"] .lib-card {
+  transition:
+    border-color var(--t-fast) var(--ease-out),
+    transform var(--t-fast) var(--ease-out),
+    box-shadow var(--t-fast) var(--ease-out);
+}
+
+/* Channel card lift */
+[data-cms-section="youtube"] .chan-card.clickable:hover {
+  transform: translateY(var(--lift));
+  box-shadow: var(--shadow-lift);
+  border-color: var(--border-strong);
+}
+
+[data-cms-section="youtube"] .chan-card.clickable:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+[data-cms-section="youtube"] .chan-card.clickable:focus-visible {
+  transform: translateY(var(--lift));
+  box-shadow: var(--shadow-lift);
+  border-color: var(--border-strong);
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* Outlier card lift */
+[data-cms-section="youtube"] .outlier-card.clickable:hover {
+  transform: translateY(var(--lift));
+  box-shadow: var(--shadow-lift);
+  border-color: var(--accent-line);
+}
+
+[data-cms-section="youtube"] .outlier-card.clickable:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+[data-cms-section="youtube"] .outlier-card.clickable:focus-visible {
+  transform: translateY(var(--lift));
+  box-shadow: var(--shadow-lift);
+  border-color: var(--accent-line);
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* Library card lift */
+[data-cms-section="youtube"] .lib-card:hover {
+  transform: translateY(var(--lift));
+  box-shadow: var(--shadow-lift);
+  border-color: var(--border-strong);
+}
+
+[data-cms-section="youtube"] .lib-card:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+[data-cms-section="youtube"] .lib-card:focus-visible {
+  transform: translateY(var(--lift));
+  box-shadow: var(--shadow-lift);
+  border-color: var(--border-strong);
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* Minor lifts */
+[data-cms-section="youtube"] .shelf-vid {
+  transition:
+    transform var(--t-fast) var(--ease-out);
+}
+
+[data-cms-section="youtube"] .shelf-vid:hover {
+  transform: translateY(-2px);
+}
+
+[data-cms-section="youtube"] .shelf-vid:hover .thumb {
+  border-color: var(--accent-line);
+}
+
+[data-cms-section="youtube"] .take:hover .thumb {
+  transform: translateY(-2px);
+  border-color: var(--accent-line);
+}
+
+[data-cms-section="youtube"] .gap-chip.clickable {
+  transition:
+    background var(--t-fast) var(--ease-out),
+    transform var(--t-fast) var(--ease-out);
+}
+
+[data-cms-section="youtube"] .gap-chip.clickable:hover {
+  background: var(--accent-soft-2);
+  transform: translateY(-1px);
+}
+
+[data-cms-section="youtube"] .gap-chip.clickable:active {
+  transform: translateY(0);
+}
+
+[data-cms-section="youtube"] .gap-chip.clickable:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* ─── 3.9 Affordance Reveals ─── */
+
+/* 1. Channel open hint */
+[data-cms-section="youtube"] .chan-open-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  opacity: 0;
+  color: var(--text-muted);
+  transition:
+    opacity var(--t-fast) var(--ease-out),
+    color var(--t-fast) var(--ease-out),
+    gap var(--t-fast) var(--ease-out);
+}
+
+[data-cms-section="youtube"] .chan-card.clickable:hover .chan-open-hint,
+[data-cms-section="youtube"] .chan-card.clickable:focus-visible .chan-open-hint {
+  opacity: 1;
+  color: var(--accent);
+  gap: 5px;
+}
+
+/* 2. Outlier CTA */
+[data-cms-section="youtube"] .outlier-cta {
+  opacity: 0;
+  color: var(--text-muted);
+  transition:
+    opacity var(--t-fast) var(--ease-out),
+    color var(--t-fast) var(--ease-out);
+}
+
+[data-cms-section="youtube"] .outlier-card.clickable:hover .outlier-cta,
+[data-cms-section="youtube"] .outlier-card.clickable:focus-visible .outlier-cta {
+  opacity: 1;
+  color: var(--accent);
+}
+
+/* 3. Search CTA */
+[data-cms-section="youtube"] .search-cta {
+  opacity: 0;
+  transform: translateX(-4px);
+  color: var(--accent);
+  transition:
+    opacity var(--t-fast) var(--ease-out),
+    transform var(--t-fast) var(--ease-out);
+}
+
+[data-cms-section="youtube"] .search-row:hover .search-cta,
+[data-cms-section="youtube"] .search-row:focus-visible .search-cta {
+  opacity: 1;
+  transform: none;
+}
+
+/* 4. Library hover overlay */
+[data-cms-section="youtube"] .lib-hover {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  opacity: 0;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: inherit;
+  transition:
+    opacity var(--t-fast) var(--ease-out);
+}
+
+[data-cms-section="youtube"] .lib-thumb-wrap:hover .lib-hover,
+[data-cms-section="youtube"] .lib-thumb-wrap:focus-visible .lib-hover,
+[data-cms-section="youtube"] .lib-card:hover .lib-hover,
+[data-cms-section="youtube"] .lib-card:focus-visible .lib-hover {
+  opacity: 1;
+}
+
+/* ─── 3.10 Table Row Hovers ─── */
+
+[data-cms-section="youtube"] .search-table tbody tr {
+  transition:
+    background var(--t-fast) var(--ease-out);
+}
+
+[data-cms-section="youtube"] .search-table tbody tr:hover {
+  background: var(--surface-hover);
+}
+
+[data-cms-section="youtube"] .search-row {
+  cursor: pointer;
+}
+
+[data-cms-section="youtube"] .search-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* Channel drawer rows */
+[data-cms-section="youtube"] .cd-row {
+  transition:
+    background var(--t-fast) var(--ease-out),
+    border-color var(--t-fast) var(--ease-out);
+}
+
+[data-cms-section="youtube"] .cd-row:hover {
+  background: var(--surface);
+  border-color: var(--border);
+}
+
+[data-cms-section="youtube"] .cd-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* Mudancas event badge rows */
+[data-cms-section="youtube"] .md-ev-ba {
+  transition:
+    background var(--t-fast) var(--ease-out);
+}
+
+[data-cms-section="youtube"] .md-ev-ba:hover {
+  background: var(--surface-hover);
+}
+
+[data-cms-section="youtube"] .md-ev-ba:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* Mudancas bookmark mark */
+[data-cms-section="youtube"] .md-mark {
+  transition:
+    color var(--t-fast) var(--ease-out),
+    border-color var(--t-fast) var(--ease-out),
+    background var(--t-fast) var(--ease-out);
+}
+
+[data-cms-section="youtube"] .md-mark:hover {
+  color: var(--accent);
+  border-color: var(--accent-line);
+}
+
+[data-cms-section="youtube"] .md-mark:active {
+  transform: translateY(1px);
+}
+
+[data-cms-section="youtube"] .md-mark:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+[data-cms-section="youtube"] .md-mark.on {
+  color: var(--accent);
+  background: var(--accent-soft-2);
+  border-color: transparent;
+}
+
+[data-cms-section="youtube"] .md-mark.on svg {
+  fill: var(--accent);
+}
+
+/* ─── 3.11 Ghost Action Buttons ─── */
+
+[data-cms-section="youtube"] .load-more,
+[data-cms-section="youtube"] .cd-more,
+[data-cms-section="youtube"] .chan-seeall,
+[data-cms-section="youtube"] .add-variant {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: none;
+  border: 1px dashed var(--border-strong);
+  border-radius: 9px;
+  cursor: pointer;
+  transition:
+    border-color var(--t-fast) var(--ease-out),
+    color var(--t-fast) var(--ease-out),
+    background var(--t-fast) var(--ease-out),
+    transform var(--t-fast) var(--ease-out);
+}
+
+[data-cms-section="youtube"] .load-more:hover,
+[data-cms-section="youtube"] .cd-more:hover,
+[data-cms-section="youtube"] .chan-seeall:hover,
+[data-cms-section="youtube"] .add-variant:hover {
+  border-color: var(--accent-line);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+[data-cms-section="youtube"] .load-more:active,
+[data-cms-section="youtube"] .cd-more:active,
+[data-cms-section="youtube"] .chan-seeall:active,
+[data-cms-section="youtube"] .add-variant:active {
+  transform: translateY(1px);
+}
+
+[data-cms-section="youtube"] .load-more:focus-visible,
+[data-cms-section="youtube"] .cd-more:focus-visible,
+[data-cms-section="youtube"] .chan-seeall:focus-visible,
+[data-cms-section="youtube"] .add-variant:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* ─── Focus Ring Utility ─── */
+
+[data-cms-section="youtube"] .yt-focus-ring:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* ─── Edge Fade CSS (.yt-tab-bar) ─── */
+
+[data-cms-section="youtube"] .yt-tab-bar {
+  position: relative;
+  display: flex;
+  gap: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  scroll-snap-type: x proximity;
+}
+
+[data-cms-section="youtube"] .yt-tab-bar > a,
+[data-cms-section="youtube"] .yt-tab-bar > button {
+  scroll-snap-align: start;
+}
+
+/* Chrome breakpoint: reduce padding on smaller screens */
+@media (max-width: 760px) {
+  [data-cms-section="youtube"] .yt-tab-bar {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  [data-cms-section="youtube"] .yt-tab {
+    padding: 9px 10px;
+    font-size: 12.5px;
+  }
+}
+
+[data-cms-section="youtube"] .yt-tab-bar::-webkit-scrollbar {
+  display: none;
+}
+
+[data-cms-section="youtube"] .yt-tab-bar::before,
+[data-cms-section="youtube"] .yt-tab-bar::after {
+  content: '';
+  position: sticky;
+  top: 0;
+  bottom: 0;
+  width: 34px;
+  min-width: 34px;
+  pointer-events: none;
+  z-index: 1;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity var(--t-fast) var(--ease-out);
+}
+
+[data-cms-section="youtube"] .yt-tab-bar::before {
+  left: 0;
+  background: linear-gradient(to right, var(--bg, #1A1714), transparent);
+}
+
+[data-cms-section="youtube"] .yt-tab-bar::after {
+  right: 0;
+  background: linear-gradient(to left, var(--bg, #1A1714), transparent);
+}
+
+[data-cms-section="youtube"] .yt-tab-bar.scrolled::before {
+  opacity: 1;
+}
+
+[data-cms-section="youtube"] .yt-tab-bar:not(.at-end)::after {
+  opacity: 1;
+}
+
+/* ─── Performance: perf-top responsive ─── */
+
+@media (max-width: 760px) {
+  .perf-top {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ─── Performance: page-head responsive ─── */
+
+@media (max-width: 680px) {
+  .page-head {
+    flex-direction: column;
+    gap: 12px;
+  }
+}

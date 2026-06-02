@@ -11,6 +11,7 @@ import { VideoModal } from './video-modal'
 import { MudancasTab } from './mudancas-tab'
 import { OutliersTab } from './outliers-tab'
 import { InsightsTab } from './insights-tab'
+import { RemoveChannelDialog } from './remove-channel-dialog'
 import { addCompetitorChannel, removeCompetitorChannel, syncCompetitorNow } from '../actions'
 import type {
   CompetitorChannelView,
@@ -63,6 +64,9 @@ export function CompetitorDashboardV2({
   // Drawer & modal state
   const [drawerChannelId, setDrawerChannelId] = useState<string | null>(null)
   const [modalVideo, setModalVideo] = useState<{ video: CompetitorVideoView; channelName: string } | null>(null)
+
+  // Remove confirmation state
+  const [removeTarget, setRemoveTarget] = useState<{ id: string; name: string } | null>(null)
 
   const drawerChannel = useMemo(
     () => channels.find(c => c.id === drawerChannelId) ?? null,
@@ -118,13 +122,33 @@ export function CompetitorDashboardV2({
 
   const handleSync = async (channelId: string) => {
     toast('Sincronizando canal...')
-    await syncCompetitorNow(channelId)
-    toast.success('Sincronização concluída.')
+    try {
+      const res = await syncCompetitorNow(channelId)
+      if (res.ok) {
+        const r = res.result
+        toast.success(
+          r
+            ? `Canal sincronizado — ${r.videosChecked} vídeos verificados, ${r.changesDetected} mudanças detectadas.`
+            : 'Canal sincronizado com sucesso.',
+        )
+      } else {
+        toast.error('Falha ao sincronizar canal.')
+      }
+    } catch {
+      toast.error('Erro inesperado ao sincronizar canal.')
+    }
   }
 
-  const handleRemove = async (channelId: string) => {
-    await removeCompetitorChannel(channelId)
+  const handleRemove = (channelId: string) => {
+    const ch = channels.find(c => c.id === channelId)
+    setRemoveTarget({ id: channelId, name: ch?.channelName ?? 'Canal' })
+  }
+
+  const handleConfirmRemove = async () => {
+    if (!removeTarget) return
+    await removeCompetitorChannel(removeTarget.id)
     toast.success('Canal removido.')
+    setRemoveTarget(null)
   }
 
   const handleVideoClick = useCallback((video: CompetitorVideoView, channelName: string) => {
@@ -333,6 +357,15 @@ export function CompetitorDashboardV2({
           channelName={modalVideo.channelName}
           open={modalVideo != null}
           onClose={() => setModalVideo(null)}
+        />
+      )}
+
+      {/* Remove Channel Confirmation Dialog */}
+      {removeTarget && (
+        <RemoveChannelDialog
+          channelName={removeTarget.name}
+          onConfirm={handleConfirmRemove}
+          onClose={() => setRemoveTarget(null)}
         />
       )}
     </div>
