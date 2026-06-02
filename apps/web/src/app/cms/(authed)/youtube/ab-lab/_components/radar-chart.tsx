@@ -1,6 +1,7 @@
 'use client'
 
 import type { DisplayLabel } from '@/lib/youtube/ab-types'
+import { brDec } from '@/lib/youtube/format'
 
 export interface RadarChartVariant {
   label: DisplayLabel
@@ -211,7 +212,7 @@ export function RadarChart({ variants, axes = DEFAULT_AXES, size = DEFAULT_SIZE,
                 const pct = rawMax === 0 ? 0 : Math.min((val / rawMax) * 100, 100)
                 return (
                   <td key={axis.key}>
-                    {val.toLocaleString(undefined, { maximumFractionDigits: 4 })} ({pct.toFixed(0)}%)
+                    {val.toLocaleString('pt-BR', { maximumFractionDigits: 4 })} ({brDec(pct, 0)}%)
                   </td>
                 )
               })}

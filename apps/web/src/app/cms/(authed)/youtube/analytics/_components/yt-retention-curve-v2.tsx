@@ -1,6 +1,7 @@
 'use client'
 
 import { useId } from 'react'
+import { brDec } from '@/lib/youtube/format'
 
 interface Props {
   retentionCurve: number[] | null
@@ -61,7 +62,7 @@ export function YtRetentionCurveV2({ retentionCurve, avgViewPercentage }: Props)
       </svg>
       <div className="mt-1 flex items-center justify-between text-[9px] text-cms-text-muted">
         <span>0%</span>
-        <span>Retenção média: {avgViewPercentage.toFixed(0)}%</span>
+        <span>Retenção média: {brDec(avgViewPercentage, 0)}%</span>
         <span>100%</span>
       </div>
     </div>

@@ -969,8 +969,8 @@ export async function getSuggestedVideos(siteId: string): Promise<SuggestedVideo
       ?? (!v.hasCtr ? 'C' : ratio > 0.9 ? 'A' : ratio > 0.7 ? 'B' : ratio > 0.5 ? 'C' : ratio > 0.3 ? 'D' : 'F')
 
     const baseReason = v.hasCtr
-      ? `Score: ${Math.round(v.score).toLocaleString()} — ${belowPercent}% abaixo da média do canal`
-      : `Alto alcance sem teste (${v.viewCount.toLocaleString()} views)`
+      ? `Score: ${Math.round(v.score).toLocaleString('pt-BR')} — ${belowPercent}% abaixo da média do canal`
+      : `Alto alcance sem teste (${v.viewCount.toLocaleString('pt-BR')} views)`
     const reason = v.reason ? `${v.reason} — ${baseReason}` : baseReason
 
     return {

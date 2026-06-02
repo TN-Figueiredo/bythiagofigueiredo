@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
+import { brDec } from '@/lib/youtube/format'
 import { CHART, toX, toY, niceLine, GridLines, GradientDef, XLabels } from './chart-utils'
 
 export interface ConfidenceChartProps {
@@ -158,7 +159,7 @@ export function ConfidenceChart({ data, target = 95, height = 200, accent, final
             fill={dotColor}
             fontFamily={CHART.font}
           >
-            {lastVal.toFixed(1)}%
+            {brDec(lastVal, 1)}%
           </text>
         )}
 
@@ -175,7 +176,7 @@ export function ConfidenceChart({ data, target = 95, height = 200, accent, final
               {clean.map((v, i) => (
                 <tr key={i}>
                   <td>D{i + 1}</td>
-                  <td>{v.toFixed(1)}%</td>
+                  <td>{brDec(v, 1)}%</td>
                 </tr>
               ))}
             </tbody>

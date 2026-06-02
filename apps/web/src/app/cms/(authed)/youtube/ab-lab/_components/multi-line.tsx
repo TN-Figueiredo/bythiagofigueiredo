@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { brDec } from '@/lib/youtube/format'
 import { CHART, toX, toY, niceLine, GridLines } from './chart-utils'
 import type { DisplayLabel } from '@/lib/youtube/ab-types'
 
@@ -212,7 +213,7 @@ export function MultiLine({ series, colors, labels, unit, suffix, height = 220 }
                   fontFamily={CHART.font}
                   dominantBaseline="middle"
                 >
-                  {k}: {rawVal.toFixed(2)}{displayUnit}
+                  {k}: {brDec(rawVal, 2)}{displayUnit}
                 </text>
               )
             })}
@@ -238,7 +239,7 @@ export function MultiLine({ series, colors, labels, unit, suffix, height = 220 }
                   <td>{xLabels[i] ?? `D${i + 1}`}</td>
                   {seriesKeys.map(k => {
                     const v = series[k][i]
-                    return <td key={k}>{v !== undefined && Number.isFinite(v) ? `${v.toFixed(2)}${displayUnit}` : '—'}</td>
+                    return <td key={k}>{v !== undefined && Number.isFinite(v) ? `${brDec(v, 2)}${displayUnit}` : '—'}</td>
                   })}
                 </tr>
               ))}

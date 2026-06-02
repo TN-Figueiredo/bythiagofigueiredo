@@ -3,6 +3,7 @@
 import { useTransition, useState, useCallback, useEffect, useRef, type FormEvent } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { brDec } from '@/lib/youtube/format'
 import type { SyncScheduleEntry, SyncStatus } from '@/lib/youtube/types'
 import { deriveScheduleLabel } from '@/lib/youtube/schedule-label'
 import { groupSchedules, explodeGroups, type ScheduleGroup } from '@/lib/youtube/schedule-group'
@@ -56,8 +57,8 @@ interface Props {
 }
 
 export function formatCount(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
+  if (n >= 1_000_000) return `${brDec(n / 1_000_000, 1)}M`
+  if (n >= 1_000) return `${brDec(n / 1_000, 1)}K`
   return String(n)
 }
 

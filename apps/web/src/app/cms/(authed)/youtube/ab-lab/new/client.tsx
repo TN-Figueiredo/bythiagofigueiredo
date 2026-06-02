@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { brDec } from '@/lib/youtube/format'
 import { AbCreateWizard } from '../_components/ab-create-wizard'
 import type { WizardVideo } from '../_components/ab-create-wizard'
 import type { AbTestSiteSettings } from '@/lib/youtube/ab-types'
@@ -137,7 +138,7 @@ export function NewTestClient({ siteId, settings, eligibleVideos, draftPrefill }
               )}
               {v.previousLift != null && (
                 <p className="text-2xs text-cms-text-dim mt-0.5">
-                  Previous lift: {v.previousLift > 0 ? '+' : ''}{v.previousLift.toFixed(1)}%
+                  Lift anterior: {v.previousLift > 0 ? '+' : ''}{brDec(v.previousLift, 1)}%
                 </p>
               )}
             </div>

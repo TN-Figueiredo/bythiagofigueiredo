@@ -1,6 +1,7 @@
 'use client'
 
 import type { DisplayLabel } from '@/lib/youtube/ab-types'
+import { brDec } from '@/lib/youtube/format'
 import { VChip } from './ab-primitives'
 
 export interface RankBarsProps {
@@ -42,7 +43,7 @@ export function RankBars({ variants, metric = 'pBest' }: RankBarsProps) {
               />
             </div>
             <span className="font-mono text-[13px] font-bold text-cms-text w-[42px] text-right shrink-0">
-              {(Math.min(raw, 1) * 100).toFixed(0)}%
+              {brDec(Math.min(raw, 1) * 100, 0)}%
             </span>
           </div>
         )

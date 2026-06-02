@@ -40,7 +40,7 @@ export function VideosTab({ videos }: VideosTabProps) {
               <p className="text-sm font-medium text-cms-text truncate">{video.title}</p>
               <p className="text-xs text-cms-text-dim">{video.publishedAt ? new Date(video.publishedAt).toLocaleDateString() : ''}</p>
             </div>
-            <div className="text-xs text-cms-text-muted">{views.toLocaleString()} views</div>
+            <div className="text-xs text-cms-text-muted">{views.toLocaleString('pt-BR')} views</div>
             <div>
               <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${views > 10000 ? 'bg-green-500/15 text-green-400' : views > 1000 ? 'bg-yellow-500/15 text-yellow-400' : 'bg-gray-500/15 text-gray-400'}`}>
                 {views > 10000 ? 'A+' : views > 1000 ? 'B+' : 'C'}

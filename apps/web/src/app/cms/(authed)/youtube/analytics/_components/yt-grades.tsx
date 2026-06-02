@@ -1,4 +1,5 @@
 import type { YtVideoGrade } from '@/lib/youtube/analytics-types'
+import { brDec } from '@/lib/youtube/format'
 
 interface Props {
   grades: YtVideoGrade[]
@@ -60,13 +61,13 @@ export function YtGrades({ grades }: Props) {
                   </td>
                   <td className="py-2 font-medium text-cms-text">{v.title}</td>
                   <td className="py-2 text-right tabular-nums text-cms-text">
-                    {v.views7d.toLocaleString()}
+                    {v.views7d.toLocaleString('pt-BR')}
                   </td>
                   <td
                     className="py-2 text-right tabular-nums font-bold"
                     style={{ color: GRADE_COLORS[v.grade] }}
                   >
-                    {v.score.toFixed(1)}×
+                    {brDec(v.score, 1)}×
                   </td>
                 </tr>
               ))}

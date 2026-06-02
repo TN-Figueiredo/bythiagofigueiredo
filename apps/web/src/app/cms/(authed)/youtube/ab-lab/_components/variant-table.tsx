@@ -2,6 +2,7 @@
 
 import React, { useState, useCallback } from 'react'
 import type { FullChartVariant, VariantThumb, DisplayLabel } from '@/lib/youtube/ab-types'
+import { brDec } from '@/lib/youtube/format'
 import { formatPercent, formatCompact } from './ab-constants'
 import { VChip } from './ab-primitives'
 import { ChevronDown, Trophy, TrendingUp, Radio } from 'lucide-react'
@@ -160,14 +161,14 @@ export function VariantTable({ variants, metric, winnerId, leaderId, activeNow, 
 
                 {/* CTR */}
                 <span className="font-mono tnum text-[19px] font-bold text-right" style={{ color: variant.color }}>
-                  {(variant.ctr * 100).toFixed(1)}%
+                  {brDec(variant.ctr * 100, 1)}%
                 </span>
 
                 {/* vs A */}
                 <span className={`font-mono tnum text-[12.5px] font-bold text-right ${
                   variant.label === 'A' || liftVsA == null ? 'text-cms-text-muted' : liftVsA > 0 ? 'text-cms-green' : 'text-cms-text-muted'
                 }`}>
-                  {variant.label === 'A' || liftVsA == null ? '—' : `${liftVsA > 0 ? '+' : ''}${liftVsA.toFixed(0)}%`}
+                  {variant.label === 'A' || liftVsA == null ? '—' : `${liftVsA > 0 ? '+' : ''}${brDec(liftVsA, 0)}%`}
                 </span>
 
                 {/* Chance bar */}
@@ -183,7 +184,7 @@ export function VariantTable({ variants, metric, winnerId, leaderId, activeNow, 
                     />
                   </div>
                   <span className="font-mono tnum text-[13px] font-bold w-[34px] text-right text-cms-text">
-                    {(chance * 100).toFixed(0)}%
+                    {brDec(chance * 100, 0)}%
                   </span>
                 </div>
 

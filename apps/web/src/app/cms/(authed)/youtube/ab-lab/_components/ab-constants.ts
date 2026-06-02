@@ -1,4 +1,5 @@
 import type { TestType, DisplayLabel } from '@/lib/youtube/ab-types'
+import { brDec } from '@/lib/youtube/format'
 export type { TestType, DisplayLabel } from '@/lib/youtube/ab-types'
 
 export const VARIANT_COLORS = {
@@ -37,7 +38,7 @@ export function formatNumber(n: number | null | undefined): string {
 
 export function formatPercent(n: number | null | undefined, decimals = 1): string {
   if (n == null || Number.isNaN(n)) return DASH
-  return `${n.toFixed(decimals)}%`
+  return `${brDec(n, decimals)}%`
 }
 
 export function formatDate(d: string | Date | null | undefined): string {
@@ -52,7 +53,7 @@ export function formatCompact(n: number | null | undefined): string {
   const abs = Math.abs(n)
   const sign = n < 0 ? '-' : ''
   if (abs < 1_000) return String(n)
-  if (abs < 1_000_000) return `${sign}${(abs / 1_000).toFixed(1)}k`
-  if (abs < 1_000_000_000) return `${sign}${(abs / 1_000_000).toFixed(1)}M`
-  return `${sign}${(abs / 1_000_000_000).toFixed(1)}B`
+  if (abs < 1_000_000) return `${sign}${brDec(abs / 1_000, 1)}k`
+  if (abs < 1_000_000_000) return `${sign}${brDec(abs / 1_000_000, 1)}M`
+  return `${sign}${brDec(abs / 1_000_000_000, 1)}B`
 }

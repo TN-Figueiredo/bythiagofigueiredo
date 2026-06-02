@@ -1,6 +1,7 @@
 'use client'
 
 import type { DisplayLabel } from '@/lib/youtube/ab-types'
+import { brDec } from '@/lib/youtube/format'
 import { VChip } from './ab-primitives'
 
 interface BehaviorStripProps {
@@ -26,11 +27,11 @@ export function BehaviorStrip({ label, color, ctr, maxCtr, isLeader, isBaseline,
         />
       </div>
       <span className="min-w-[3rem] text-right text-xs font-mono font-bold" style={{ fontFamily: 'var(--font-jetbrains)' }}>
-        {ctr.toFixed(2)}%
+        {brDec(ctr, 2)}%
       </span>
       {!isBaseline && delta != null && (
         <span className={`min-w-[2.5rem] text-right text-2xs font-medium ${delta > 0 ? 'text-cms-green' : delta < 0 ? 'text-red-400' : 'text-cms-text-muted'}`}>
-          {delta > 0 ? '+' : ''}{delta.toFixed(0)}%
+          {delta > 0 ? '+' : ''}{brDec(delta, 0)}%
         </span>
       )}
     </div>

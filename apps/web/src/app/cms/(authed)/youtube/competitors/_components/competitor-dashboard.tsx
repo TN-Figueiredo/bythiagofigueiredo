@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import { brDec } from '@/lib/youtube/format'
 import { RefreshCw, Trash2, Bookmark, ArrowRight, Eye } from 'lucide-react'
 import { addCompetitorChannel, removeCompetitorChannel, syncCompetitorNow, toggleBookmark } from '../actions'
 
@@ -72,8 +73,8 @@ interface Props {
 }
 
 function formatCount(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
+  if (n >= 1_000_000) return `${brDec(n / 1_000_000, 1)}M`
+  if (n >= 1_000) return `${brDec(n / 1_000, 1)}K`
   return n.toLocaleString('pt-BR')
 }
 
@@ -324,7 +325,7 @@ export function CompetitorDashboard({ activeTab, channels, changes, outliers, in
                     o.multiplier >= 5 ? 'bg-purple-500/90 text-white' :
                     'bg-blue-500/90 text-white'
                   }`}>
-                    {o.multiplier.toFixed(1)}x
+                    {brDec(o.multiplier, 1)}x
                   </span>
                 </div>
                 <div className="p-3">

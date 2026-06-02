@@ -1,6 +1,7 @@
 'use client'
 
 import type { AbTestCardView } from '@/lib/youtube/ab-types'
+import { brDec } from '@/lib/youtube/format'
 import { VChip, TypeBadge, Badge } from './ab-primitives'
 import { ChevronRight, Swords } from 'lucide-react'
 
@@ -67,11 +68,11 @@ export function CompletedRow({ test, onOpen }: CompletedRowProps) {
             <div className="inline-flex items-center gap-[6px]">
               <VChip label={test.leader} size={18} />
               <span className="font-mono text-[16px] font-bold text-cms-green">
-                +{test.lift.toFixed(1)}%
+                +{brDec(test.lift, 1)}%
               </span>
             </div>
             <div className="text-[10.5px] text-cms-text-dim mt-[4px]">
-              {test.confidence.toFixed(1)}% confiança
+              {brDec(test.confidence, 1)}% confiança
             </div>
           </>
         )}

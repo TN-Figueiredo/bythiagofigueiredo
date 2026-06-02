@@ -1,6 +1,7 @@
 'use client'
 
 import type { StatsVariant } from '@/lib/youtube/ab-types'
+import { brDec } from '@/lib/youtube/format'
 import { VChip } from './ab-primitives'
 
 export interface CredibleIntervalProps {
@@ -80,9 +81,9 @@ export function CredibleInterval({ variants, leader }: CredibleIntervalProps) {
               </div>
               {/* Value + ±SD */}
               <span className="font-mono text-[13px] font-bold text-cms-text w-[78px] text-right shrink-0">
-                {(v.ctr * 100).toFixed(1)}%
+                {brDec(v.ctr * 100, 1)}%
                 <span className="text-cms-text-muted font-medium text-[10.5px]">
-                  {' '}±{(v.sd * 100).toFixed(1)}
+                  {' '}±{brDec(v.sd * 100, 1)}
                 </span>
               </span>
             </div>
@@ -95,7 +96,7 @@ export function CredibleInterval({ variants, leader }: CredibleIntervalProps) {
         <div className="flex-1 flex justify-between">
           {scaleTicks.map((tick, i) => (
             <span key={i} className="font-mono text-[9.5px] text-cms-text-muted">
-              {(tick * 100).toFixed(1)}%
+              {brDec(tick * 100, 1)}%
             </span>
           ))}
         </div>

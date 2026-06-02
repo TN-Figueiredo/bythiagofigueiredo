@@ -1,4 +1,5 @@
 import type { YtVideoGrade } from '@/lib/youtube/analytics-types'
+import { brDec } from '@/lib/youtube/format'
 
 interface Props {
   grades: YtVideoGrade[]
@@ -34,10 +35,10 @@ export function YtOutliers({ grades }: Props) {
             >
               <div className="flex items-center justify-between">
                 <span className="font-medium text-cms-text">{v.title}</span>
-                <span className="text-sm font-bold text-green-400">{v.score.toFixed(1)}× avg</span>
+                <span className="text-sm font-bold text-green-400">{brDec(v.score, 1)}× avg</span>
               </div>
               <p className="mt-1 text-xs text-cms-text-muted">
-                {v.views7d.toLocaleString()} views
+                {v.views7d.toLocaleString('pt-BR')} views
               </p>
             </div>
           ))}
@@ -53,10 +54,10 @@ export function YtOutliers({ grades }: Props) {
             >
               <div className="flex items-center justify-between">
                 <span className="font-medium text-cms-text">{v.title}</span>
-                <span className="text-sm font-bold text-red-400">{v.score.toFixed(1)}× avg</span>
+                <span className="text-sm font-bold text-red-400">{brDec(v.score, 1)}× avg</span>
               </div>
               <p className="mt-1 text-xs text-cms-text-muted">
-                {v.views7d.toLocaleString()} views
+                {v.views7d.toLocaleString('pt-BR')} views
               </p>
             </div>
           ))}

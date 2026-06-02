@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useTransition } from 'react'
 import Image from 'next/image'
+import { brDec } from '@/lib/youtube/format'
 import { CategoryBadge, FeaturedToggle, HiddenToggle, PinButton, SyncButton, AbStatusBadge, VideoContextMenu } from './video-row-actions'
 import { triggerSync } from './actions'
 import { VideoOptimizerDrawer } from './video-optimizer-drawer'
@@ -66,8 +67,8 @@ function formatDate(iso: string): string {
 }
 
 function formatCount(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
+  if (n >= 1_000_000) return `${brDec(n / 1_000_000, 1)}M`
+  if (n >= 1_000) return `${brDec(n / 1_000, 1)}K`
   return String(n)
 }
 
@@ -357,7 +358,7 @@ export function VideosConnected({ videos, channels, categories }: Props) {
 
                   {/* Views */}
                   <td className="px-3 py-2 text-right text-xs text-cms-text-muted whitespace-nowrap">
-                    <span title={`${video.viewCount.toLocaleString()} views`}>
+                    <span title={`${video.viewCount.toLocaleString('pt-BR')} views`}>
                       {formatCount(video.viewCount)}
                     </span>
                     {video.likeCount > 0 && (
@@ -417,7 +418,7 @@ export function VideosConnected({ videos, channels, categories }: Props) {
                               <p className="mt-0.5 text-sm text-cms-text-muted italic">{video.titleTranslation}</p>
                             )}
                             <p className="mt-1 text-xs text-cms-text-dim">
-                              {video.channelHandle.startsWith('@') ? video.channelHandle : `@${video.channelHandle}`} · {video.duration} · {video.viewCount.toLocaleString()} views
+                              {video.channelHandle.startsWith('@') ? video.channelHandle : `@${video.channelHandle}`} · {video.duration} · {video.viewCount.toLocaleString('pt-BR')} views
                             </p>
                           </div>
 

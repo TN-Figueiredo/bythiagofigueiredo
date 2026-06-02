@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import type { DisplayLabel } from '@/lib/youtube/ab-types'
+import { brDec } from '@/lib/youtube/format'
 import { VChip, Badge } from './ab-primitives'
 import { LayoutGrid, Search, ListVideo, Smartphone, MousePointerClick, Trophy } from 'lucide-react'
 
@@ -67,7 +68,7 @@ function BehaviorStrip({ label, color, ctr, maxCtr, isWinner, lift }: { label: D
       <div className="flex-1 h-[6px] bg-cms-surface-hover rounded-full overflow-hidden">
         <div className="h-full rounded-full" style={{ width: `${barWidth}%`, backgroundColor: color, transition: 'width 0.6s' }} />
       </div>
-      <span className="font-mono text-[15px] font-bold text-cms-text">{ctr.toFixed(1)}%</span>
+      <span className="font-mono text-[15px] font-bold text-cms-text">{brDec(ctr, 1)}%</span>
       {lift != null && lift > 0 && (
         <span className="font-mono text-[11.5px] font-semibold text-cms-green w-[46px] text-right">+{lift}%</span>
       )}

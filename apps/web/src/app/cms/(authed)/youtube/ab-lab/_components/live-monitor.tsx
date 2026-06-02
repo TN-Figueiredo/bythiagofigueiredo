@@ -1,6 +1,7 @@
 'use client'
 
 import type { LiveMonitor } from '@/lib/youtube/ab-types'
+import { brDec } from '@/lib/youtube/format'
 import { Badge } from './ab-primitives'
 import { TrendingUp, Check, Clock } from 'lucide-react'
 
@@ -69,7 +70,7 @@ export function LiveMonitorCard({ monitor }: LiveMonitorProps) {
             <div className="text-[10px] font-semibold text-cms-text-dim uppercase tracking-[0.08em] mb-[6px]">CTR ao vivo</div>
             <div className="flex items-baseline gap-2">
               <span className="font-mono tnum text-[34px] font-bold text-cms-green leading-none">
-                {monitor.liveCtr.toFixed(1)}%
+                {brDec(monitor.liveCtr, 1)}%
               </span>
               <span className="font-mono tnum text-[13px] font-semibold text-cms-green">
                 +{monitor.liftVsOriginal}%

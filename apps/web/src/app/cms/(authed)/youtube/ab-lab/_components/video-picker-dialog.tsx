@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { brDec } from '@/lib/youtube/format'
 import { Search, X } from 'lucide-react'
 import type { WizardVideo } from './ab-create-wizard'
 import { YtPortal } from '../../_components/yt-portal'
@@ -172,7 +173,7 @@ export function VideoPickerDialog({ eligibleVideos, onSelect, onClose }: VideoPi
                   )}
                   {v.previousLift != null && (
                     <p className="text-2xs text-cms-text-dim mt-0.5">
-                      Lift anterior: {v.previousLift > 0 ? '+' : ''}{v.previousLift.toFixed(1)}%
+                      Lift anterior: {v.previousLift > 0 ? '+' : ''}{brDec(v.previousLift, 1)}%
                     </p>
                   )}
                 </div>

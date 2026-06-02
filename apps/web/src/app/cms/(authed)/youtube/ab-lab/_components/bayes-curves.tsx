@@ -1,6 +1,7 @@
 'use client'
 
 import type { StatsVariant } from '@/lib/youtube/ab-types'
+import { brDec } from '@/lib/youtube/format'
 
 export interface BayesCurvesProps {
   variants: StatsVariant[]
@@ -180,9 +181,9 @@ export function BayesCurves({ variants }: BayesCurvesProps) {
             return (
               <tr key={v.label}>
                 <td>{v.label}</td>
-                <td>{(v.ctr * 100).toFixed(2)}%</td>
-                <td>{v.impressions.toLocaleString()}</td>
-                <td>{(sd * 100).toFixed(3)}%</td>
+                <td>{brDec(v.ctr * 100, 2)}%</td>
+                <td>{v.impressions.toLocaleString('pt-BR')}</td>
+                <td>{brDec(sd * 100, 3)}%</td>
               </tr>
             )
           })}

@@ -53,7 +53,7 @@ export function FunnelRow({ variant }: FunnelRowProps) {
               />
             </div>
             <span className="text-2xs font-mono text-cms-text-muted w-14 shrink-0">
-              {stage.count.toLocaleString()}
+              {stage.count.toLocaleString('pt-BR')}
             </span>
           </div>
         )
