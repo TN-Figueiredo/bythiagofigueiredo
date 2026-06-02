@@ -8,13 +8,22 @@ export interface ConfidenceChartProps {
   data: number[]
   /** Target confidence threshold (default 95) */
   target?: number
+  /** Chart height in SVG units (default 200) */
+  height?: number
+  /** Color override for the main line */
+  accent?: string
+  /** When true (test concluded), uses a solid muted style instead of gradient */
+  final?: boolean
 }
 
-const LINE_COLOR = 'var(--cms-accent)'
+const DEFAULT_LINE_COLOR = 'var(--cms-accent)'
 const TARGET_COLOR = 'var(--cms-green)'
+const FINAL_LINE_COLOR = 'var(--cms-text-dim)'
 const GRAD_ID = 'conf-chart-grad'
 
-export function ConfidenceChart({ data, target = 95 }: ConfidenceChartProps) {
+export function ConfidenceChart({ data, target = 95, height = 200, accent, final: isFinal = false }: ConfidenceChartProps) {
+  const LINE_COLOR = accent ?? (isFinal ? FINAL_LINE_COLOR : DEFAULT_LINE_COLOR)
+  const cfg: import('./chart-utils').Cfg = { H: height }
   const { clean, pts, min, max, lastVal, reached, targetY, xLabels } = useMemo(() => {
     const clean = data.filter(v => Number.isFinite(v))
 
@@ -27,20 +36,22 @@ export function ConfidenceChart({ data, target = 95 }: ConfidenceChartProps) {
     const total = clean.length
 
     const pts = clean.map((v, i) => ({
-      x: toX(i, total),
-      y: toY(v, min, max),
+      x: toX(i, total, cfg),
+      y: toY(v, min, max, cfg),
     }))
 
     const lastVal = clean[clean.length - 1] ?? null
     const reached = lastVal !== null && lastVal >= target
 
-    const targetY = toY(target, min, max)
+    const targetY = toY(target, min, max, cfg)
     const xLabels = clean.map((_, i) => `D${i + 1}`)
 
     return { clean, pts, min, max, lastVal, reached, targetY, xLabels }
-  }, [data, target])
+  }, [data, target, height])
 
-  const { W, H, padL, padR, padT } = CHART
+  const W = CHART.W
+  const H = height
+  const { padL, padR } = CHART
 
   // --- empty state ---
   if (clean.length === 0) {
@@ -60,7 +71,7 @@ export function ConfidenceChart({ data, target = 95 }: ConfidenceChartProps) {
   // --- area fill path: spline + bottom-right + bottom-left close ---
   const lastPt = pts[pts.length - 1]!
   const firstPt = pts[0]!
-  const bottomY = H - CHART.padB
+  const bottomY = H - (cfg.padB ?? CHART.padB)
   const areaPath = linePath && pts.length >= 2
     ? `${linePath}L${lastPt.x},${bottomY}L${firstPt.x},${bottomY}Z`
     : ''
@@ -78,14 +89,14 @@ export function ConfidenceChart({ data, target = 95 }: ConfidenceChartProps) {
         aria-label="Confidence trend chart"
       >
         <defs>
-          <GradientDef id={GRAD_ID} color={LINE_COLOR} topOpacity={0.25} />
+          <GradientDef id={GRAD_ID} color={LINE_COLOR} topOpacity={isFinal ? 0.1 : 0.25} />
         </defs>
 
         {/* Grid lines */}
-        <GridLines min={min} max={max} ticks={4} />
+        <GridLines min={min} max={max} ticks={4} cfg={cfg} />
 
         {/* X-axis labels */}
-        <XLabels labels={xLabels} />
+        <XLabels labels={xLabels} cfg={cfg} />
 
         {/* Gradient area fill */}
         {areaPath && (

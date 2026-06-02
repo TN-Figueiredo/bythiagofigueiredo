@@ -31,11 +31,16 @@ const DEFAULT_AXES: RadarChartAxis[] = [
 export interface RadarChartProps {
   variants: RadarChartVariant[]
   axes?: RadarChartAxis[]
+  /** Overall SVG size in px (default 280) */
+  size?: number
+  /** Maximum value for normalisation when no axis.max is set (default 100) */
+  max?: number
 }
 
-const CX = 140
-const CY = 144
-const RADIUS = 94
+const DEFAULT_SIZE = 280
+const BASE_CX = 140
+const BASE_CY = 144
+const BASE_RADIUS = 94
 const GRID_RINGS = 4
 const LABEL_OFFSET = 18.8
 const DOT_RADIUS = 2.6
@@ -57,8 +62,13 @@ function pointsString(points: Array<{ x: number; y: number }>): string {
   return points.map(p => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ')
 }
 
-export function RadarChart({ variants, axes = DEFAULT_AXES }: RadarChartProps) {
+export function RadarChart({ variants, axes = DEFAULT_AXES, size = DEFAULT_SIZE, max = 100 }: RadarChartProps) {
   if (axes.length < 2) return null
+
+  const scale = size / DEFAULT_SIZE
+  const CX = BASE_CX * scale
+  const CY = BASE_CY * scale
+  const RADIUS = BASE_RADIUS * scale
 
   const n = axes.length
 
@@ -66,7 +76,7 @@ export function RadarChart({ variants, axes = DEFAULT_AXES }: RadarChartProps) {
   const axisMaxValues = axes.map(axis => {
     if (axis.max !== undefined) return axis.max
     const vals = variants.map(v => (v as unknown as Record<string, number>)[axis.key] ?? 0)
-    return Math.max(...vals, 0)
+    return Math.max(...vals, max)
   })
 
   // Grid ring polygons
@@ -77,9 +87,10 @@ export function RadarChart({ variants, axes = DEFAULT_AXES }: RadarChartProps) {
   })
 
   // Axis label positions (outside the outer ring)
+  const labelOffset = LABEL_OFFSET * scale
   const axisLabelPos = axes.map((_, i) => {
     const angle = axisAngle(i, n)
-    return polarToCartesian(CX, CY, RADIUS + LABEL_OFFSET, angle)
+    return polarToCartesian(CX, CY, RADIUS + labelOffset, angle)
   })
 
   // Data polygons per variant
@@ -93,12 +104,17 @@ export function RadarChart({ variants, axes = DEFAULT_AXES }: RadarChartProps) {
     return { variant, pts }
   })
 
+  const vbW = Math.round(372 * scale)
+  const vbH = Math.round(280 * scale)
+  const vbX = Math.round(-46 * scale)
+  const maxW = Math.round(340 * scale)
+
   return (
     <div className="relative">
       <svg
-        viewBox="-46 0 372 280"
+        viewBox={`${vbX} 0 ${vbW} ${vbH}`}
         aria-hidden="true"
-        style={{ width: '100%', maxWidth: 340, display: 'block', margin: '0 auto' }}
+        style={{ width: '100%', maxWidth: maxW, display: 'block', margin: '0 auto' }}
       >
         {/* Grid rings */}
         {gridRingPoints.map((pts, ring) => (

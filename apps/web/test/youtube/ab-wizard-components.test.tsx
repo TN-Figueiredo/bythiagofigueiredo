@@ -1101,9 +1101,9 @@ describe('StepConfig component', () => {
       expect(screen.getByText('Estimativa')).toBeDefined()
     })
 
-    it('shows subtitle with impressions info', () => {
+    it('shows subtitle with estimate description', () => {
       renderConfig()
-      expect(screen.getByText(/Com ~11k impressões/)).toBeDefined()
+      expect(screen.getByText(/Estimativa baseada na configuração/)).toBeDefined()
     })
 
     it('shows stat labels: Tempo estimado, Ciclos ABBA, Quota', () => {

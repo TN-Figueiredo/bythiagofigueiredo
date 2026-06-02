@@ -12,6 +12,7 @@ import { DataFreshnessBadge } from './_components/data-freshness-badge'
 import { CoworkDeepLink } from '@/components/cms/cowork-deep-link'
 import { buildCoworkInstruction } from '@/lib/pipeline/cowork-instructions'
 import { useFocusTrap } from '@/lib/hooks/use-focus-trap'
+import { YtPortal } from '../_components/yt-portal'
 
 interface VideoOptimizerDrawerProps {
   video: VideoRow | null
@@ -55,8 +56,8 @@ export function VideoOptimizerDrawer({ video, onClose }: VideoOptimizerDrawerPro
   if (!video) return null
 
   return (
-    <>
-      <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
+    <YtPortal>
+      <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} role="button" tabIndex={-1} onKeyDown={(e) => { if (e.key === 'Escape') onClose() }} aria-label="Fechar drawer" />
       <div
         className="fixed inset-y-0 right-0 z-40 flex w-[480px] flex-col border-l border-cms-border bg-cms-surface shadow-xl"
         role="dialog"
@@ -112,6 +113,6 @@ export function VideoOptimizerDrawer({ video, onClose }: VideoOptimizerDrawerPro
         )}
       </div>
       </div>
-    </>
+    </YtPortal>
   )
 }

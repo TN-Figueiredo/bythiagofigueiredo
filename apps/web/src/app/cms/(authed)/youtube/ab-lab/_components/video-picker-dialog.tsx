@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Search, X } from 'lucide-react'
 import type { WizardVideo } from './ab-create-wizard'
+import { YtPortal } from '../../_components/yt-portal'
 
 export interface EligibleVideo {
   id: string
@@ -63,6 +64,7 @@ export function VideoPickerDialog({ eligibleVideos, onSelect, onClose }: VideoPi
   )
 
   return (
+    <YtPortal>
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
       style={{ backdropFilter: 'blur(6px)' }}
@@ -194,5 +196,6 @@ export function VideoPickerDialog({ eligibleVideos, onSelect, onClose }: VideoPi
         </div>
       </div>
     </div>
+    </YtPortal>
   )
 }

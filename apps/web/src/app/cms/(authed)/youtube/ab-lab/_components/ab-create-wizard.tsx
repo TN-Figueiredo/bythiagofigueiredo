@@ -23,6 +23,7 @@ import {
 } from '../actions'
 import { buildAbBriefingPrompt } from '@/lib/youtube/prompt-builders-ab'
 import type { TestType, DisplayLabel, AbTestSiteSettings } from '@/lib/youtube/ab-types'
+import { YtPortal } from '../../_components/yt-portal'
 
 /* ------------------------------------------------------------------ */
 /*  Wizard video — same shape the dashboard already uses              */
@@ -554,6 +555,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
   }
 
   return (
+    <YtPortal>
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
       style={{ backdropFilter: 'blur(6px)' }}
@@ -690,6 +692,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
         />
       )}
     </div>
+    </YtPortal>
   )
 }
 
@@ -706,7 +709,12 @@ function StepRail({ currentStep, onStepClick }: { currentStep: number; onStepCli
         const isFuture = currentStep < stepIndex
         return (
           <div key={label} className="contents">
-            <div className="flex items-center gap-[9px]" style={{ cursor: isFuture ? 'default' : 'pointer' }} onClick={() => !isFuture && onStepClick(stepIndex)}>
+            <div
+              className="flex items-center gap-[9px]"
+              style={{ cursor: isFuture ? 'default' : 'pointer' }}
+              onClick={() => !isFuture && onStepClick(stepIndex)}
+              {...(!isFuture ? { role: 'button' as const, tabIndex: 0, onKeyDown: (e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onStepClick(stepIndex) } } } : {})}
+            >
               <span
                 className="flex items-center justify-center rounded-full font-mono text-[12px] font-bold shrink-0"
                 style={{

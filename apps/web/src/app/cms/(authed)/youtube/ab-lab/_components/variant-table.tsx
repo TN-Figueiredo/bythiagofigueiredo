@@ -17,7 +17,7 @@ export interface VariantTableProps {
   videoTitle?: string
 }
 
-const GRID = 'grid grid-cols-[60px_minmax(0,1fr)_70px_58px_138px_22px] gap-[14px] items-center'
+const GRID = 'grid grid-cols-[60px_minmax(0,1fr)_72px_56px_140px_22px] gap-[14px] items-center'
 
 export function VariantTable({ variants, metric, winnerId, leaderId, activeNow, finalists, thumbs, videoTitle }: VariantTableProps) {
   const [expandedLabel, setExpandedLabel] = useState<string | null>(null)
@@ -88,7 +88,10 @@ export function VariantTable({ variants, metric, winnerId, leaderId, activeNow, 
                 className={`${GRID} py-[11px] px-[16px] cursor-pointer transition-[background] duration-150 ${
                   isHighlighted ? '' : 'hover:bg-cms-surface-hover'
                 }`}
-                style={isHighlighted ? { background: `${variant.color}10` } : undefined}
+                style={isHighlighted ? {
+                  background: `${variant.color}10`,
+                  boxShadow: `inset 3px 0 0 ${variant.color}`,
+                } : undefined}
                 onClick={() => toggleExpand(variant.label)}
                 onKeyDown={(e) => handleKeyDown(e, variant.label)}
                 tabIndex={0}
@@ -156,12 +159,12 @@ export function VariantTable({ variants, metric, winnerId, leaderId, activeNow, 
                 </div>
 
                 {/* CTR */}
-                <span className="font-mono text-[19px] font-bold text-right" style={{ color: variant.color }}>
+                <span className="font-mono tnum text-[19px] font-bold text-right" style={{ color: variant.color }}>
                   {(variant.ctr * 100).toFixed(1)}%
                 </span>
 
                 {/* vs A */}
-                <span className={`font-mono text-[12.5px] font-bold text-right ${
+                <span className={`font-mono tnum text-[12.5px] font-bold text-right ${
                   variant.label === 'A' || liftVsA == null ? 'text-cms-text-muted' : liftVsA > 0 ? 'text-cms-green' : 'text-cms-text-muted'
                 }`}>
                   {variant.label === 'A' || liftVsA == null ? '—' : `${liftVsA > 0 ? '+' : ''}${liftVsA.toFixed(0)}%`}
@@ -179,7 +182,7 @@ export function VariantTable({ variants, metric, winnerId, leaderId, activeNow, 
                       }}
                     />
                   </div>
-                  <span className="font-mono text-[13px] font-bold w-[34px] text-right text-cms-text">
+                  <span className="font-mono tnum text-[13px] font-bold w-[34px] text-right text-cms-text">
                     {(chance * 100).toFixed(0)}%
                   </span>
                 </div>
@@ -196,7 +199,7 @@ export function VariantTable({ variants, metric, winnerId, leaderId, activeNow, 
 
             {/* Expanded detail */}
             {isExpanded && (
-              <div role="row" className="px-[16px] py-[11px] bg-cms-surface-hover/50 border-t border-cms-border" data-testid="expanded-row">
+              <div role="row" className="fade-in px-[16px] py-[11px] bg-cms-surface-hover/50 border-t border-cms-border" data-testid="expanded-row">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-[14px] text-2xs">
                   <div>
                     <p className="text-cms-text-dim">Impressões</p>

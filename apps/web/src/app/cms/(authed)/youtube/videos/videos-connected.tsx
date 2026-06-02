@@ -222,6 +222,9 @@ export function VideosConnected({ videos, channels, categories }: Props) {
                 <React.Fragment key={video.id}>
                 <tr
                   onClick={() => setExpandedId(expandedId === video.id ? null : video.id)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedId(expandedId === video.id ? null : video.id) } }}
                   className={`border-b border-cms-border last:border-0 cursor-pointer hover:bg-cms-surface-hover ${
                     video.pinnedUntil && new Date(video.pinnedUntil) > new Date()
                       ? 'shadow-[inset_3px_0_0_0_#f59e0b]'

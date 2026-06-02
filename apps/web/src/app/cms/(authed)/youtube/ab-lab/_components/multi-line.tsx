@@ -8,10 +8,16 @@ export interface MultiLineProps {
   series: Record<DisplayLabel, number[]>
   colors: Record<DisplayLabel, string>
   labels?: string[]
+  /** Canonical prop name for the value unit displayed in tooltips */
+  unit?: string
+  /** @deprecated Use `unit` instead */
   suffix?: string
+  /** Chart height in SVG units (default 220) */
+  height?: number
 }
 
-export function MultiLine({ series, colors, labels, suffix = '%' }: MultiLineProps) {
+export function MultiLine({ series, colors, labels, unit, suffix, height = 220 }: MultiLineProps) {
+  const displayUnit = unit ?? suffix ?? '%'
   const [hoverX, setHoverX] = useState<number | null>(null)
   const [hoverIdx, setHoverIdx] = useState<number | null>(null)
 
@@ -43,21 +49,25 @@ export function MultiLine({ series, colors, labels, suffix = '%' }: MultiLinePro
     const yMax = dataMax + range * 0.3
 
     // Build points per series
+    const cfg: import('./chart-utils').Cfg = { H: height }
     const allPts = {} as Record<DisplayLabel, Array<{ x: number; y: number }>>
     for (const k of seriesKeys) {
       allPts[k] = []
       for (let i = 0; i < length; i++) {
         const v = series[k][i]
         if (v !== undefined && Number.isFinite(v)) {
-          allPts[k].push({ x: toX(i, length), y: toY(v, yMin, yMax) })
+          allPts[k].push({ x: toX(i, length, cfg), y: toY(v, yMin, yMax, cfg) })
         }
       }
     }
 
     return { seriesKeys, length, yMin, yMax, allPts }
-  }, [series])
+  }, [series, height])
 
-  const { W, H, padL, padR } = CHART
+  const W = CHART.W
+  const H = height
+  const { padL, padR } = CHART
+  const cfg: import('./chart-utils').Cfg = { H: height }
 
   // --- empty state ---
   if (seriesKeys.length === 0) {
@@ -83,7 +93,7 @@ export function MultiLine({ series, colors, labels, suffix = '%' }: MultiLinePro
   }
 
   // Compute crosshair x-label positions for vertical hover line
-  const xPositions = Array.from({ length }, (_, i) => toX(i, length))
+  const xPositions = Array.from({ length }, (_, i) => toX(i, length, cfg))
 
   function handleMouseMove(e: React.MouseEvent<SVGSVGElement>) {
     const rect = e.currentTarget.getBoundingClientRect()
@@ -121,14 +131,14 @@ export function MultiLine({ series, colors, labels, suffix = '%' }: MultiLinePro
         style={{ cursor: 'crosshair' }}
       >
         {/* Grid lines */}
-        <GridLines min={yMin} max={yMax} ticks={4} />
+        <GridLines min={yMin} max={yMax} ticks={4} cfg={cfg} />
 
         {/* X-axis labels */}
         <g aria-hidden="true">
           {xLabels.map((l, i) => (
             <text
               key={i}
-              x={toX(i, length)}
+              x={toX(i, length, cfg)}
               y={H - 4}
               textAnchor="middle"
               fill="var(--cms-text-dim)"
@@ -202,7 +212,7 @@ export function MultiLine({ series, colors, labels, suffix = '%' }: MultiLinePro
                   fontFamily={CHART.font}
                   dominantBaseline="middle"
                 >
-                  {k}: {rawVal.toFixed(2)}{suffix}
+                  {k}: {rawVal.toFixed(2)}{displayUnit}
                 </text>
               )
             })}
@@ -228,7 +238,7 @@ export function MultiLine({ series, colors, labels, suffix = '%' }: MultiLinePro
                   <td>{xLabels[i] ?? `D${i + 1}`}</td>
                   {seriesKeys.map(k => {
                     const v = series[k][i]
-                    return <td key={k}>{v !== undefined && Number.isFinite(v) ? `${v.toFixed(2)}${suffix}` : '—'}</td>
+                    return <td key={k}>{v !== undefined && Number.isFinite(v) ? `${v.toFixed(2)}${displayUnit}` : '—'}</td>
                   })}
                 </tr>
               ))}

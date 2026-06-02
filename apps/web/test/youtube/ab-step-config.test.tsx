@@ -47,7 +47,7 @@ describe('StepConfig', () => {
   it('renders estimate card with title, subtitle, and stats', () => {
     renderConfig()
     expect(screen.getByText('Estimativa')).toBeDefined()
-    expect(screen.getByText(/Com ~11k impressões/)).toBeDefined()
+    expect(screen.getByText(/Estimativa baseada na configuração/)).toBeDefined()
     expect(screen.getByText('Tempo estimado')).toBeDefined()
     expect(screen.getByText('Ciclos ABBA')).toBeDefined()
     expect(screen.getByText('Quota')).toBeDefined()
