@@ -1171,7 +1171,30 @@ export async function duplicatePost(
     if (fetchErr || !original) return { ok: false, error: 'Post not found' }
     if (original.site_id !== siteId) return { ok: false, error: 'forbidden' }
 
-    const newRow = {
+    // Re-use the tracked link from the original post (idempotent — returns existing)
+    let shortLinkId: string | null = null
+    const sourceContentId = (original.source_content_id as string) ?? null
+    const sourceContentType = (original.source_content_type as string) ?? null
+    const contentUrl = (original.content as Record<string, unknown>)?.url as string | undefined
+
+    if (sourceContentId && sourceContentType && contentUrl) {
+      try {
+        const linkResult = await ensureTrackedLink(
+          supabase,
+          siteId,
+          sourceContentId,
+          sourceContentType,
+          contentUrl,
+          ((original.content as Record<string, unknown>)?.description as string) ?? '',
+          `social-dup-${crypto.randomUUID()}`,
+        )
+        if (linkResult) shortLinkId = linkResult.linkId
+      } catch (err) {
+        Sentry.captureException(err, { tags: { ...SENTRY_TAG, action: 'duplicatePost:trackedLink' } })
+      }
+    }
+
+    const newRow: Record<string, unknown> = {
       site_id: siteId,
       created_by: userId,
       type: original.type,
@@ -1181,6 +1204,9 @@ export async function duplicatePost(
       idempotency_key: crypto.randomUUID(),
       user_timezone: original.user_timezone,
       origin: 'manual',
+      source_content_id: sourceContentId,
+      source_content_type: sourceContentType,
+      short_link_id: shortLinkId,
     }
 
     const { data: newPost, error: insertErr } = await supabase
