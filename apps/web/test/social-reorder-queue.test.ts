@@ -45,6 +45,38 @@ vi.mock('next/cache', () => ({
   revalidatePath: vi.fn(),
   revalidateTag: vi.fn(),
 }))
+vi.mock('next/server', () => ({ after: vi.fn() }))
+vi.mock('@/lib/links/auto-link', () => ({
+  ensureTrackedLink: vi.fn().mockResolvedValue(null),
+}))
+vi.mock('@/lib/links/short-url', () => ({
+  buildShortUrl: (code: string) => `https://bythiagofigueiredo.com/go/${code}`,
+}))
+vi.mock('@tn-figueiredo/social', async () => {
+  const zod = await import('zod')
+  return {
+    PROVIDERS: ['youtube', 'facebook', 'instagram', 'bluesky'],
+    RETRY_DELAYS: [50, 100, 200],
+    SocialPostContentSchema: zod.z.object({
+      title: zod.z.string().optional(),
+      description: zod.z.string().optional(),
+      url: zod.z.string().url().optional(),
+    }),
+  }
+})
+vi.mock('@tn-figueiredo/social/vault', () => ({
+  decrypt: vi.fn((v: string) => `dec-${v}`),
+  getMasterKey: vi.fn(() => 'test-master-key'),
+}))
+vi.mock('@tn-figueiredo/links/qr', () => ({
+  CardCompositionSchema: (async () => {
+    const zod = await import('zod')
+    return zod.z.object({})
+  })(),
+}))
+vi.mock('../src/lib/social/workflows', () => ({
+  publishSocialPost: vi.fn().mockResolvedValue(undefined),
+}))
 
 const POST_A = '00000000-0000-0000-0000-000000000001'
 const POST_B = '00000000-0000-0000-0000-000000000002'

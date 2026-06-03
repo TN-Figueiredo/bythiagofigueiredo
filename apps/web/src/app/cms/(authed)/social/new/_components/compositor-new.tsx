@@ -9,6 +9,8 @@ import { DEST_IDS, DESTINATIONS } from '@/lib/social/destinations'
 import { PLATFORM_CAPTION_DEFAULTS, resolveCaption } from '@/lib/social/caption-variables'
 import { createSocialPost } from '@/lib/social/actions'
 import { buildPublishPayload } from '@/lib/social/build-payload'
+import { useMediaGallery } from '@/app/cms/(authed)/_shared/media/use-media-gallery'
+import { MediaGalleryModal } from '@/app/cms/(authed)/_shared/media/media-gallery-modal'
 import { DestinationPicker } from './destination-picker'
 import { DestCompositor } from './dest-compositor'
 import { CMSContentPicker } from './cms-content-picker'
@@ -108,6 +110,25 @@ export function CompositorNew({ sourceMode = 'freeform', siteId }: CompositorNew
   const [canvasOpen, setCanvasOpen] = useState(false)
   const [compositions, setCompositions] = useState<Record<string, CardComposition>>({})
   const [canvasImages, setCanvasImages] = useState<Record<string, string | null>>({})
+
+  const mediaGallery = useMediaGallery()
+  const [attachedMedia, setAttachedMedia] = useState<string[]>([])
+
+  // Merge canvas-generated images with gallery-attached images for payload and IG validation
+  const allMediaComputed = useMemo(
+    () => [...Object.values(canvasImages).filter(Boolean) as string[], ...attachedMedia],
+    [canvasImages, attachedMedia],
+  )
+  const needsMedia = (destsOn.ig_feed || destsOn.ig_story) && allMediaComputed.length === 0
+
+  function handleMediaSelect(asset: { url: string }) {
+    setAttachedMedia(prev => [...prev, asset.url])
+    mediaGallery.closeGallery()
+  }
+
+  function handleMediaRemove(index: number) {
+    setAttachedMedia(prev => prev.filter((_, i) => i !== index))
+  }
 
   const [captions, setCaptions] = useState<Record<string, string>>({})
 
@@ -222,6 +243,31 @@ export function CompositorNew({ sourceMode = 'freeform', siteId }: CompositorNew
         </>
       )}
 
+      {/* Media attachments */}
+      {!(sourceMode === 'cms' && !selectedCmsContent) && (
+        <div className="flex items-center gap-2 flex-wrap mt-3">
+          {attachedMedia.map((url, i) => (
+            <div key={url} className="relative w-16 h-16 rounded-lg overflow-hidden border border-cms-border">
+              <img src={url} alt="" className="w-full h-full object-cover" />
+              <button
+                type="button"
+                onClick={() => handleMediaRemove(i)}
+                className="absolute top-0 right-0 bg-black/60 text-white text-xs px-1 rounded-bl"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() => mediaGallery.openGallery({ folder: 'social' })}
+            className="w-16 h-16 rounded-lg border-2 border-dashed border-cms-border flex items-center justify-center text-cms-text-muted hover:border-cms-accent transition-colors"
+          >
+            +
+          </button>
+        </div>
+      )}
+
       {/* Sticky footer — hidden during CMS content picker (no content selected yet) */}
       {!(sourceMode === 'cms' && !selectedCmsContent) && (
       <div className="sticky bottom-0 z-20 -mx-[30px] mt-auto border-t border-cms-border" style={{ background: 'rgba(16,14,11,0.92)', backdropFilter: 'blur(12px)' }}>
@@ -308,6 +354,12 @@ export function CompositorNew({ sourceMode = 'freeform', siteId }: CompositorNew
             )}
           </span>
 
+          {needsMedia && (
+            <p className="text-xs text-amber-400 mt-1">
+              Instagram requer pelo menos uma imagem para publicar.
+            </p>
+          )}
+
           <div className="ml-auto flex gap-2.5">
             <button
               type="button"
@@ -320,7 +372,7 @@ export function CompositorNew({ sourceMode = 'freeform', siteId }: CompositorNew
                 const payload = buildPublishPayload(captions, destsOn, 'now', {
                   sourceContentId: selectedCmsContent?.id,
                   sourceContentType: cmsType,
-                  mediaUrls: Object.values(canvasImages).filter(Boolean) as string[],
+                  mediaUrls: allMediaComputed.length > 0 ? allMediaComputed : undefined,
                 })
                 const result = await createSocialPost(payload)
                 if (result.ok) {
@@ -335,7 +387,7 @@ export function CompositorNew({ sourceMode = 'freeform', siteId }: CompositorNew
             </button>
             <button
               type="button"
-              disabled={!canPublish || publishing}
+              disabled={!canPublish || publishing || needsMedia}
               onClick={async () => {
                 if (!canPublish || publishing) return
                 setPublishing(true)
@@ -351,7 +403,7 @@ export function CompositorNew({ sourceMode = 'freeform', siteId }: CompositorNew
                     publishNow: schedMode === 'now' ? true : undefined,
                     sourceContentId: selectedCmsContent?.id,
                     sourceContentType: cmsType,
-                    mediaUrls: Object.values(canvasImages).filter(Boolean) as string[],
+                    mediaUrls: allMediaComputed.length > 0 ? allMediaComputed : undefined,
                   })
                   const result = await createSocialPost(payload)
                   if (result.ok) {
@@ -380,6 +432,13 @@ export function CompositorNew({ sourceMode = 'freeform', siteId }: CompositorNew
         </div>
       </div>
       )}
+
+      <MediaGalleryModal
+        {...mediaGallery.galleryProps}
+        onSelect={handleMediaSelect}
+        locale="pt-BR"
+        siteId={siteId}
+      />
     </>
   )
 }

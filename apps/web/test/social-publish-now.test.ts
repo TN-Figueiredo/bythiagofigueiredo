@@ -171,6 +171,18 @@ vi.mock('@tn-figueiredo/links/qr', () => ({
 }))
 
 /* ------------------------------------------------------------------ */
+/*  Mock: tracked link helpers (no-op — not tested here)               */
+/* ------------------------------------------------------------------ */
+
+vi.mock('@/lib/links/auto-link', () => ({
+  ensureTrackedLink: vi.fn().mockResolvedValue(null),
+}))
+
+vi.mock('@/lib/links/short-url', () => ({
+  buildShortUrl: (code: string) => `https://bythiagofigueiredo.com/go/${code}`,
+}))
+
+/* ------------------------------------------------------------------ */
 /*  Import under test (after mocks) — use relative path               */
 /* ------------------------------------------------------------------ */
 

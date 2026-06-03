@@ -14,6 +14,8 @@ import {
   type SocialDelivery,
 } from '@tn-figueiredo/social'
 import { decrypt, getMasterKey } from '@tn-figueiredo/social/vault'
+import { ensureTrackedLink } from '@/lib/links/auto-link'
+import { buildShortUrl } from '@/lib/links/short-url'
 import {
   type ActionResult,
   SENTRY_TAG,
@@ -97,6 +99,27 @@ export async function createSocialPost(data: {
       postRow.source_content_type = parsed.data.sourceContentType
     }
 
+    // Tracked link: create for source-linked content (blog, newsletter, etc.)
+    if (parsed.data.content.url && parsed.data.sourceContentId && parsed.data.sourceContentType) {
+      try {
+        const linkResult = await ensureTrackedLink(
+          supabase,
+          siteId,
+          parsed.data.sourceContentId,
+          parsed.data.sourceContentType,
+          parsed.data.content.url,
+          parsed.data.content.description ?? '',
+          `social-${idempotencyKey}`,
+        )
+        if (linkResult) {
+          postRow.short_link_id = linkResult.linkId
+          ;(postRow.content as Record<string, unknown>).url = buildShortUrl(linkResult.code)
+        }
+      } catch (err) {
+        Sentry.captureException(err, { tags: { ...SENTRY_TAG, action: 'createSocialPost:trackedLink' } })
+      }
+    }
+
     const { data: post, error: postError } = await supabase
       .from('social_posts')
       .insert(postRow)
@@ -124,22 +147,30 @@ export async function createSocialPost(data: {
     }
 
     if (connections && connections.length > 0) {
-      const deliveryRows = connections.map((conn) => ({
-        post_id: postId,
-        connection_id: conn.id as string,
-        provider: conn.provider as Provider,
-        status: 'pending' as const,
-        attempt: 0,
-        max_attempts: 3,
-        // Set format based on provider and post type
-        format: conn.provider === 'instagram' && parsed.data.storyMode
-          ? 'story'
-          : conn.provider === 'instagram'
-            ? 'image_post'
-            : conn.provider === 'bluesky'
-              ? 'link_card'
-              : 'link_share',
-      }))
+      const deliveryRows = connections.map((conn) => {
+        const provider = conn.provider as string
+        const platformCaptions = (parsed.data.content as Record<string, unknown>).captions as Record<string, string> | undefined
+
+        return {
+          post_id: postId,
+          connection_id: conn.id as string,
+          provider: provider as Provider,
+          status: 'pending' as const,
+          attempt: 0,
+          max_attempts: 3,
+          // Set format based on provider and post type
+          format: conn.provider === 'instagram' && parsed.data.storyMode
+            ? 'story'
+            : conn.provider === 'instagram'
+              ? 'image_post'
+              : conn.provider === 'bluesky'
+                ? 'link_card'
+                : 'link_share',
+          content_override: platformCaptions?.[provider]
+            ? { description: platformCaptions[provider] }
+            : null,
+        }
+      })
 
       const { error: deliveryError } = await supabase
         .from('social_deliveries')
@@ -148,6 +179,32 @@ export async function createSocialPost(data: {
       if (deliveryError) {
         Sentry.captureException(deliveryError, { tags: { ...SENTRY_TAG, action: 'createSocialPost' } })
         return { ok: false, error: deliveryError.message }
+      }
+    }
+
+    // Tracked link: for manual posts without source content, create after insert (postId now known)
+    if (parsed.data.content.url && !parsed.data.sourceContentId) {
+      try {
+        const linkResult = await ensureTrackedLink(
+          supabase,
+          siteId,
+          postId,
+          'social',
+          parsed.data.content.url,
+          parsed.data.content.description ?? '',
+          `social-${idempotencyKey}`,
+        )
+        if (linkResult) {
+          await supabase
+            .from('social_posts')
+            .update({
+              short_link_id: linkResult.linkId,
+              content: { ...parsed.data.content, url: buildShortUrl(linkResult.code) },
+            })
+            .eq('id', postId)
+        }
+      } catch (err) {
+        Sentry.captureException(err, { tags: { ...SENTRY_TAG, action: 'createSocialPost:manualLink' } })
       }
     }
 

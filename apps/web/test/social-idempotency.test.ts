@@ -162,6 +162,14 @@ vi.mock('@tn-figueiredo/links/qr', () => ({
   })(),
 }))
 
+vi.mock('@/lib/links/auto-link', () => ({
+  ensureTrackedLink: vi.fn().mockResolvedValue(null),
+}))
+
+vi.mock('@/lib/links/short-url', () => ({
+  buildShortUrl: (code: string) => `https://bythiagofigueiredo.com/go/${code}`,
+}))
+
 // ---------------------------------------------------------------------------
 // Import under test (after all mocks)
 // ---------------------------------------------------------------------------

@@ -186,6 +186,14 @@ vi.mock('@/lib/social/slide-metadata', () => ({
   extractSlideMetadata: vi.fn(() => ({ title: '', coverImageUrl: undefined })),
 }))
 
+vi.mock('@/lib/links/auto-link', () => ({
+  ensureTrackedLink: vi.fn().mockResolvedValue(null),
+}))
+
+vi.mock('@/lib/links/short-url', () => ({
+  buildShortUrl: (code: string) => `https://bythiagofigueiredo.com/go/${code}`,
+}))
+
 // ---------------------------------------------------------------------------
 // Imports — AFTER mocks
 // ---------------------------------------------------------------------------
