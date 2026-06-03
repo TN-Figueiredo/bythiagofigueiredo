@@ -150,69 +150,64 @@ export function YtHealthCoach({
       )}
 
       {/* Coaching Cards */}
-      <div className="flex flex-col gap-3">
-        {sortedCards.length === 0 && (
-          <div className="rounded border border-[#22c55e]/20 bg-[#22c55e]/5 p-4 text-center">
-            <p className="text-sm font-medium text-[#22c55e]">Canal saudavel em todos os eixos</p>
-            <p className="mt-1 text-xs text-cms-text-muted">
-              Todos os indicadores estao acima do benchmark. Continue monitorando.
-            </p>
-          </div>
-        )}
-        {sortedCards.map((card, i) => {
-          const severity = getSeverity(card.score)
-          const styles = SEVERITY_STYLES[severity]
+      {sortedCards.length === 0 && (
+        <div className="rounded border border-[#22c55e]/20 bg-[#22c55e]/5 p-4 text-center">
+          <p className="text-sm font-medium text-[#22c55e]">Canal saudavel em todos os eixos</p>
+          <p className="mt-1 text-xs text-cms-text-muted">
+            Todos os indicadores estao acima do benchmark. Continue monitorando.
+          </p>
+        </div>
+      )}
+      {sortedCards.map((card, i) => {
+        const severity = getSeverity(card.score)
+        const color = SEVERITY_STYLES[severity].icon
 
-          return (
-            <div
-              key={card.axis}
-              className="coach-item rounded-lg border bg-cms-surface p-4"
-              style={{
-                borderColor: styles.border,
-                borderLeftWidth: 3,
-                background: styles.bg,
-              }}
-            >
-              <div className="flex items-start gap-3">
-                <SeverityIcon severity={severity} />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-cms-text">
-                      #{i + 1} {AXIS_LABELS[card.axis]}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <span className="tnum text-xs text-cms-text-muted">
-                        {brDec(card.score, 1)}/10
-                      </span>
-                      <span className={`rounded px-1.5 py-0.5 text-[9px] ${card.source === 'cowork' ? 'bg-cms-purple-soft text-cms-purple' : 'bg-cms-border text-cms-text-muted'}`}>
-                        {card.source === 'cowork' ? 'Analise AI' : 'Diagnostico basico'}
-                      </span>
-                    </div>
-                  </div>
-                  <p className="mt-2 text-xs leading-relaxed text-cms-text-muted">{card.diagnosis}</p>
-
-                  {/* Coach action */}
-                  <div className="coach-action mt-3 flex items-center justify-between rounded-lg bg-cms-surface p-2">
-                    <div className="flex items-center gap-2">
-                      <span className="coach-impact rounded bg-[#22c55e]/10 px-1.5 py-0.5 text-[9px] font-medium text-[#22c55e]">
-                        impacto {card.score < 3 ? 'alto' : card.score < 5 ? 'medio' : 'baixo'}
-                      </span>
-                      <span className="text-xs text-cms-text">{card.action}</span>
-                    </div>
-                    <button
-                      type="button"
-                      className="btn sm ghost"
-                      onClick={() => toast.success(`Acao "${AXIS_LABELS[card.axis]}" enviada ao pipeline.`)}
-                    >
-                      Aplicar
-                    </button>
-                  </div>
-                </div>
-              </div>
+        return (
+          <div key={card.axis} className="card coach-item">
+            <div className="coach-item-ico" style={{ background: `color-mix(in srgb, ${color} 14%, transparent)`, color }}>
+              <SeverityIcon severity={severity} />
             </div>
-          )
-        })}
-      </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2" style={{ marginBottom: 5 }}>
+                <span style={{ fontSize: 14, fontWeight: 600 }}>
+                  #{i + 1} {AXIS_LABELS[card.axis]}
+                </span>
+                <span
+                  className="rounded-full px-2 py-0.5"
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color,
+                    background: `color-mix(in srgb, ${color} 14%, transparent)`,
+                  }}
+                >
+                  {card.score < 3 ? 'Alta' : card.score < 5 ? 'Media' : 'Baixa'}
+                </span>
+                <span className="tnum text-[10px] text-cms-text-muted" style={{ marginLeft: 'auto' }}>
+                  {brDec(card.score, 1)}/10
+                </span>
+              </div>
+              <p className="text-cms-text-muted" style={{ fontSize: 13, lineHeight: 1.5 }}>
+                {card.diagnosis}
+              </p>
+            </div>
+            {card.action && (
+              <div className="coach-action">
+                <button
+                  type="button"
+                  className="btn sm"
+                  onClick={() => toast.success(`Acao "${AXIS_LABELS[card.axis]}" enviada ao pipeline.`)}
+                >
+                  Aplicar
+                </button>
+                <span className="mono coach-impact">
+                  {card.score < 3 ? 'alto' : card.score < 5 ? 'medio' : 'baixo'}
+                </span>
+              </div>
+            )}
+          </div>
+        )
+      })}
 
       {/* Request Analysis Button */}
       {onRequestAnalysis && (

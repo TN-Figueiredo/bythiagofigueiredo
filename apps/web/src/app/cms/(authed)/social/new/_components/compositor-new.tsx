@@ -6,6 +6,7 @@ import type { CardComposition } from '@tn-figueiredo/links/qr'
 import type { ContentType } from '@/lib/social/template-schemas'
 import type { DestId } from '@/lib/social/destinations'
 import { DEST_IDS, DESTINATIONS } from '@/lib/social/destinations'
+import { PLATFORM_CAPTION_DEFAULTS, resolveCaption } from '@/lib/social/caption-variables'
 import { createSocialPost } from '@/lib/social/actions'
 import { DestinationPicker } from './destination-picker'
 import { DestCompositor } from './dest-compositor'
@@ -155,10 +156,13 @@ export function CompositorNew({ sourceMode = 'freeform', siteId }: CompositorNew
 
   function handleCmsSelect(item: ContentItem) {
     setSelectedCmsContent(item)
-    const prefill = item.description ?? item.title
+    const title = item.description ?? item.title
     const initial: Record<string, string> = {}
     for (const id of DEST_IDS) {
-      if (destsOn[id]) initial[id] = prefill
+      if (!destsOn[id]) continue
+      const provider = DESTINATIONS[id].provider
+      const template = PLATFORM_CAPTION_DEFAULTS[provider] ?? '{{title}}\n\n{{link}}'
+      initial[id] = resolveCaption(template, { title, link: '{{link}}', url: '' })
     }
     setCaptions(initial)
     setContentByDest(Object.fromEntries(DEST_IDS.filter(id => destsOn[id]).map(id => [id, true])))

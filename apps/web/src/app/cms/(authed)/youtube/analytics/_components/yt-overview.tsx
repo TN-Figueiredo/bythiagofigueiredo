@@ -275,7 +275,7 @@ export function YtOverview({ metrics, dailyMetrics, intelligenceHealthScore, int
         <h3 className="mb-3 text-sm font-semibold text-cms-text">
           Curva de Retencao Media (ultimos 10 videos)
         </h3>
-        <YtRetentionCurve avgPercentage={metrics.averageViewPercentage} />
+        <YtRetentionCurve avgViewPercentage={metrics.averageViewPercentage} />
       </div>
     </div>
   )
