@@ -393,7 +393,20 @@ bsky_feed: { provider: 'bluesky', label: 'Bluesky', ... }
 
 ---
 
-## 12. Success Criteria
+## 12. Known Risks
+
+| Risk | Impact | Mitigation |
+|------|--------|-----------|
+| **Meta App Review** — `pages_manage_posts` + `instagram_content_publish` permissions may not be approved | Facebook/Instagram publish blocked entirely | Verify permissions in Meta Developer Dashboard before implementation. If pending, test with test users (sandbox mode). |
+| **Instagram container polling timeout** — 5min default may be too short for large images or slow API responses | Delivery stuck in `publishing`, eventually marked `failed` | Increase timeout to 8min for image containers. Add Sentry breadcrumb per poll attempt for debugging. |
+| **Konva on Vercel serverless** — `node-canvas` (Konva dependency) may have native binary compatibility issues in Vercel's runtime | Story rendering fails silently, black/empty output | Test story rendering in Vercel preview deploy early. If broken, fallback to sharp-based image composition (no Konva). |
+| **OG warming latency** — 3 retries × 10s = 30s in worst case, may cause `after()` timeout on cold starts | Facebook link posts without OG preview (no image, no title) | Move OG warming to `platform_prepare` pipeline step (already exists in cron path). For immediate publish, do 1 attempt with 5s timeout — accept degraded preview over blocking. |
+| **Vercel `after()` reliability** — undocumented behavior if function instance is recycled mid-execution | Workflow dies, post stuck in `publishing` | Stuck post recovery (Section 8.3) is the safety net. Also add Sentry transaction for the entire workflow so failures are visible. |
+| **Bluesky blob upload 1MB limit** — Media Gallery images can exceed 1MB | Blob upload rejected by AT Protocol | Resize images >1MB to fit before upload using sharp. Add platform-specific size limits in media validation. |
+
+---
+
+## 13. Success Criteria
 
 The sprint is done when:
 
