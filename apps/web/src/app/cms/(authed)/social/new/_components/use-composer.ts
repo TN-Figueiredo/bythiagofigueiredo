@@ -48,6 +48,7 @@ const DEFAULT_DESTS_ON: Record<DestId, boolean> = {
   yt_community: true,
   fb_page: true,
   ig_feed: false,
+  bsky_feed: false,
 }
 
 export function useComposer(initialMode: 'cms' | 'blank' = 'cms') {

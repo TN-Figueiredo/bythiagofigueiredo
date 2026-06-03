@@ -15,6 +15,7 @@ const PLACEHOLDERS: Record<DestId, string> = {
   yt_community: 'Escreva o texto do post...',
   fb_page: 'O que voce quer compartilhar?',
   ig_feed: 'Escreva a legenda...',
+  bsky_feed: 'O que voce quer compartilhar? (max 300 chars)',
 }
 
 const PLATFORM_NOTES: Record<DestId, string | null> = {
@@ -22,6 +23,7 @@ const PLATFORM_NOTES: Record<DestId, string | null> = {
   yt_community: 'Post preparado para copy-paste no YouTube Studio.',
   fb_page: null,
   ig_feed: null,
+  bsky_feed: null,
 }
 
 export function CaptionEditor({ destId, value, onChange, onAddPoll }: CaptionEditorProps) {

@@ -16,6 +16,7 @@ const DEFAULT_ON: Record<DestId, boolean> = {
   yt_community: false,
   fb_page: true,
   ig_feed: false,
+  bsky_feed: false,
 }
 
 export function DestinationPicker({ initialOn, onToggle, onFocus, focused: controlledFocused }: DestinationPickerProps) {

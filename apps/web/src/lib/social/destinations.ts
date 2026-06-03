@@ -1,6 +1,6 @@
 import type { Provider } from '@tn-figueiredo/social'
 
-export type DestId = 'ig_story' | 'yt_community' | 'fb_page' | 'ig_feed'
+export type DestId = 'ig_story' | 'yt_community' | 'fb_page' | 'ig_feed' | 'bsky_feed'
 
 export interface Destination {
   id: DestId
@@ -79,15 +79,31 @@ export const DESTINATIONS: Record<DestId, Destination> = {
     badge: 'rare',
     truth: 'Usado apenas para lancamentos. Story e o padrao da casa.',
   },
+  bsky_feed: {
+    id: 'bsky_feed',
+    provider: 'bluesky',
+    surface: 'Feed',
+    label: 'Bluesky',
+    sublabel: 'Feed',
+    ratio: '1:1',
+    width: 1080,
+    height: 1080,
+    captionLimit: 300,
+    tint: '#0085FF',
+    tintSubtle: 'rgba(0,133,255,.15)',
+    badge: null,
+    truth: 'Texto com link card. OG preview buscado server-side.',
+  },
 }
 
-export const DEST_IDS: DestId[] = ['ig_story', 'yt_community', 'fb_page', 'ig_feed'] as const
+export const DEST_IDS: DestId[] = ['ig_story', 'yt_community', 'fb_page', 'ig_feed', 'bsky_feed'] as const
 
 export const DEST_TO_SLUG_PREFIX: Record<DestId, string> = {
   ig_story: 'ig-story',
   ig_feed: 'ig-feed',
   fb_page: 'fb',
   yt_community: 'yt',
+  bsky_feed: 'bsky',
 }
 
 export function getDestination(id: DestId): Destination {

@@ -231,18 +231,20 @@ async function renderImageElement(
   if (src === '{{cover_image}}' && context.cover_image) src = context.cover_image
   else if (src === '{{logo}}' && context.logo) src = context.logo
 
-  // If src is still a placeholder or empty, render a gray fallback rect
+  // If src is still a placeholder or empty, render a warm gradient fallback rect
   if (!src || src.startsWith('{{')) {
     const rect = new Konva.Rect({
       x: el.x * scaleX,
       y: el.y * scaleY,
       width: el.width * scaleX,
       height: el.height * scaleY,
-      fill: '#333333',
-      opacity: el.opacity * 0.3,
-      cornerRadius: el.borderRadius * Math.min(scaleX, scaleY),
-      rotation: el.rotation,
+      opacity: el.opacity ?? 1,
+      cornerRadius: (el.borderRadius ?? 0) * Math.min(scaleX, scaleY),
+      rotation: el.rotation ?? 0,
     })
+    rect.fillLinearGradientStartPoint({ x: 0, y: 0 })
+    rect.fillLinearGradientEndPoint({ x: el.width * scaleX, y: el.height * scaleY })
+    rect.fillLinearGradientColorStops([0, '#E8823C', 0.5, '#C964A8', 1, '#5B7FD6'])
     layer.add(rect)
     return
   }
@@ -258,11 +260,13 @@ async function renderImageElement(
       y: el.y * scaleY,
       width: el.width * scaleX,
       height: el.height * scaleY,
-      fill: '#333333',
-      opacity: (el.opacity ?? 1) * 0.3,
-      cornerRadius: el.borderRadius * Math.min(scaleX, scaleY),
+      opacity: el.opacity ?? 1,
+      cornerRadius: (el.borderRadius ?? 0) * Math.min(scaleX, scaleY),
       rotation: el.rotation ?? 0,
     })
+    rect.fillLinearGradientStartPoint({ x: 0, y: 0 })
+    rect.fillLinearGradientEndPoint({ x: el.width * scaleX, y: el.height * scaleY })
+    rect.fillLinearGradientColorStops([0, '#E8823C', 0.5, '#C964A8', 1, '#5B7FD6'])
     layer.add(rect)
     return
   }
@@ -297,11 +301,13 @@ async function renderImageElement(
       y: el.y * scaleY,
       width: el.width * scaleX,
       height: el.height * scaleY,
-      fill: '#333333',
-      opacity: (el.opacity ?? 1) * 0.3,
-      cornerRadius: el.borderRadius * Math.min(scaleX, scaleY),
+      opacity: el.opacity ?? 1,
+      cornerRadius: (el.borderRadius ?? 0) * Math.min(scaleX, scaleY),
       rotation: el.rotation ?? 0,
     })
+    rect.fillLinearGradientStartPoint({ x: 0, y: 0 })
+    rect.fillLinearGradientEndPoint({ x: el.width * scaleX, y: el.height * scaleY })
+    rect.fillLinearGradientColorStops([0, '#E8823C', 0.5, '#C964A8', 1, '#5B7FD6'])
     layer.add(rect)
   }
 }

@@ -28,6 +28,9 @@ export function DestPreview({ destId, caption, imageUrl, accountName, avatarUrl,
       return <IgFeedPost caption={caption} imageUrl={imageUrl} accountName={accountName} avatarUrl={avatarUrl} className={className} />
     case 'fb_page':
       return <FbPagePost caption={caption} imageUrl={imageUrl} accountName={accountName} avatarUrl={avatarUrl} linkUrl={linkUrl} linkTitle={linkTitle} className={className} />
+    case 'bsky_feed':
+      // Bluesky: text + link card preview. Reuse fb_page post layout (similar structure).
+      return <FbPagePost caption={caption} imageUrl={imageUrl} accountName={accountName} avatarUrl={avatarUrl} linkUrl={linkUrl} linkTitle={linkTitle} className={className} />
     default: {
       const _exhaustive: never = destId
       return null
