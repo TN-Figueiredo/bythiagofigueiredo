@@ -49,6 +49,7 @@ export const SocialPostContentSchema = z.object({
   hashtags: z.array(z.string()).optional(),
   media_urls: z.array(z.string().url()).optional(),
   video_id: z.string().optional(),
+  captions: z.record(z.string(), z.string()).optional(),
 })
 export type SocialPostContent = z.infer<typeof SocialPostContentSchema>
 
