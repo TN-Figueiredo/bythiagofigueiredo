@@ -108,6 +108,8 @@ export class InstagramProvider implements ISocialProvider {
 
   constructor(
     private readonly decryptToken: (enc: string) => string,
+    private readonly appId?: string,
+    private readonly appSecret?: string,
   ) {}
 
   async publish(
@@ -121,6 +123,11 @@ export class InstagramProvider implements ISocialProvider {
 
     const mediaUrls = post.content.media_urls ?? []
     const firstMedia = mediaUrls[0]
+
+    // Feed posts (non-story, non-reel) require at least one image
+    if (!firstMedia && delivery.format !== 'story' && delivery.format !== 'reel') {
+      throw new Error('Instagram feed posts require at least one image')
+    }
 
     const isVideo = firstMedia
       ? /\.(mp4|mov|webm)(\?|$)/i.test(firstMedia)
@@ -148,6 +155,24 @@ export class InstagramProvider implements ISocialProvider {
   ): Promise<void> {
     const token = this.decryptToken(connection.page_token_enc!)
     await deleteInstagramMedia(platformPostId, token)
+  }
+
+  async refreshToken(
+    connection: SocialConnection,
+  ): Promise<{ access_token: string; expires_at?: Date } | null> {
+    if (!this.appId || !this.appSecret) return null
+
+    const currentToken = this.decryptToken(connection.access_token_enc)
+    const result = await exchangeForLongLivedToken(
+      currentToken,
+      this.appId,
+      this.appSecret,
+    )
+
+    return {
+      access_token: result.access_token,
+      expires_at: new Date(Date.now() + result.expires_in * 1000),
+    }
   }
 
   async validateConnection(connection: SocialConnection): Promise<boolean> {

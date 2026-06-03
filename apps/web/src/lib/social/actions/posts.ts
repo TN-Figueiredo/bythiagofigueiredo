@@ -2,6 +2,7 @@
 
 import { z } from 'zod'
 import * as Sentry from '@sentry/nextjs'
+import { after } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import {
@@ -28,6 +29,8 @@ import {
   type SocialPostWithPipeline,
 } from '../row-parsers'
 import { getEditRules } from '../types'
+import { publishSocialPost } from '../workflows'
+import type { SocialPostWithSlides } from '../workflows'
 
 type ExtendedPostType = PostType | 'poll' | 'manual'
 
@@ -43,6 +46,9 @@ const createPostSchema = z.object({
   userTimezone: z.string().optional(),
   templateId: z.string().optional(),
   storyMode: z.boolean().optional(),
+  publishNow: z.boolean().optional(),
+  sourceContentId: z.string().uuid().optional(),
+  sourceContentType: z.enum(['blog', 'newsletter', 'campaign', 'video']).optional(),
 })
 
 export async function createSocialPost(data: {
@@ -53,6 +59,9 @@ export async function createSocialPost(data: {
   userTimezone?: string
   templateId?: string
   storyMode?: boolean
+  publishNow?: boolean
+  sourceContentId?: string
+  sourceContentType?: 'blog' | 'newsletter' | 'campaign' | 'video'
 }): Promise<ActionResult<{ id: string }>> {
   const parsed = createPostSchema.safeParse(data)
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
@@ -62,10 +71,14 @@ export async function createSocialPost(data: {
     const supabase = getSupabaseServiceClient()
     const ctx = await getSiteContext()
 
-    const status: PostStatus = parsed.data.scheduledAt ? 'scheduled' : 'draft'
+    const status: PostStatus = parsed.data.scheduledAt
+      ? 'scheduled'
+      : parsed.data.publishNow
+        ? 'publishing'
+        : 'draft'
     const idempotencyKey = crypto.randomUUID()
 
-    const postRow = {
+    const postRow: Record<string, unknown> = {
       site_id: siteId,
       created_by: userId,
       type: parsed.data.type,
@@ -75,6 +88,13 @@ export async function createSocialPost(data: {
       user_timezone: parsed.data.userTimezone ?? ctx.timezone ?? 'America/Sao_Paulo',
       template_id: parsed.data.templateId ?? null,
       idempotency_key: idempotencyKey,
+    }
+
+    if (parsed.data.sourceContentId) {
+      postRow.source_content_id = parsed.data.sourceContentId
+    }
+    if (parsed.data.sourceContentType) {
+      postRow.source_content_type = parsed.data.sourceContentType
     }
 
     const { data: post, error: postError } = await supabase
@@ -114,9 +134,11 @@ export async function createSocialPost(data: {
         // Set format based on provider and post type
         format: conn.provider === 'instagram' && parsed.data.storyMode
           ? 'story'
-          : conn.provider === 'bluesky'
-            ? 'link_card'
-            : 'link_share',
+          : conn.provider === 'instagram'
+            ? 'image_post'
+            : conn.provider === 'bluesky'
+              ? 'link_card'
+              : 'link_share',
       }))
 
       const { error: deliveryError } = await supabase
@@ -126,6 +148,44 @@ export async function createSocialPost(data: {
       if (deliveryError) {
         Sentry.captureException(deliveryError, { tags: { ...SENTRY_TAG, action: 'createSocialPost' } })
         return { ok: false, error: deliveryError.message }
+      }
+    }
+
+    // Trigger publish workflow when publishNow is set (and not scheduled)
+    if (parsed.data.publishNow && !parsed.data.scheduledAt) {
+      // Re-fetch the full post row to build SocialPostWithSlides
+      const { data: fullPost } = await supabase
+        .from('social_posts')
+        .select('*')
+        .eq('id', postId)
+        .single()
+
+      if (fullPost) {
+        const now = new Date().toISOString()
+        const row = fullPost as Record<string, unknown>
+        const socialPost: SocialPostWithSlides = {
+          id: postId,
+          site_id: siteId,
+          created_by: userId,
+          type: (row.type as PostType) ?? parsed.data.type,
+          status: 'publishing',
+          content: parsed.data.content,
+          scheduled_at: null,
+          user_timezone: (row.user_timezone as string) ?? parsed.data.userTimezone ?? 'America/Sao_Paulo',
+          published_at: null,
+          template_id: (row.template_id as string) ?? null,
+          idempotency_key: (row.idempotency_key as string) ?? idempotencyKey,
+          created_at: (row.created_at as string) ?? now,
+          updated_at: now,
+        }
+
+        after(
+          publishSocialPost(socialPost).catch((err: unknown) => {
+            Sentry.captureException(err, {
+              tags: { ...SENTRY_TAG, action: 'createSocialPost:workflow', postId },
+            })
+          }),
+        )
       }
     }
 

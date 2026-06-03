@@ -45,7 +45,7 @@ async function getProvider(provider: Provider): Promise<ISocialProvider> {
     }
     case 'instagram': {
       const mod = await import('@tn-figueiredo/social/providers/meta')
-      return new mod.InstagramProvider(decryptToken)
+      return new mod.InstagramProvider(decryptToken, config.meta.appId, config.meta.appSecret)
     }
     case 'bluesky': {
       const mod = await import('@tn-figueiredo/social/providers/bluesky')

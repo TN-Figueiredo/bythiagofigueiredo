@@ -37,7 +37,12 @@ function buildPublishPayload(
   captions: Record<string, string>,
   destsOn: Record<DestId, boolean>,
   schedMode: 'now' | 'schedule' | 'queue',
-  scheduledAt?: string,
+  opts?: {
+    scheduledAt?: string
+    publishNow?: boolean
+    sourceContentId?: string
+    sourceContentType?: 'blog' | 'newsletter' | 'campaign' | 'video'
+  },
 ) {
   const activeDests = (Object.entries(destsOn) as [DestId, boolean][])
     .filter(([, on]) => on)
@@ -51,8 +56,11 @@ function buildPublishPayload(
     type: 'text' as const,
     content: { title: primaryCaption, description: primaryCaption },
     platforms,
-    scheduledAt: schedMode === 'schedule' ? scheduledAt : undefined,
+    scheduledAt: schedMode === 'schedule' ? opts?.scheduledAt : undefined,
     storyMode: activeDests.includes('ig_story'),
+    publishNow: opts?.publishNow,
+    sourceContentId: opts?.sourceContentId,
+    sourceContentType: opts?.sourceContentType,
   }
 }
 
@@ -334,7 +342,13 @@ export function CompositorNew({ sourceMode = 'freeform', siteId }: CompositorNew
               disabled={!hasContent}
               onClick={async () => {
                 if (!hasContent) return
-                const payload = buildPublishPayload(captions, destsOn, 'now')
+                const cmsType = selectedCmsContent
+                  ? (selectedCmsContent.type === 'campaign' ? 'blog' : selectedCmsContent.type) as 'blog' | 'newsletter' | 'campaign' | 'video'
+                  : undefined
+                const payload = buildPublishPayload(captions, destsOn, 'now', {
+                  sourceContentId: selectedCmsContent?.id,
+                  sourceContentType: cmsType,
+                })
                 const result = await createSocialPost(payload)
                 if (result.ok) {
                   router.push('/cms/social?tab=drafts')
@@ -356,10 +370,23 @@ export function CompositorNew({ sourceMode = 'freeform', siteId }: CompositorNew
                   const scheduledAt = schedMode === 'schedule' && selectedDate && selectedTime
                     ? new Date(`${selectedDate.toISOString().split('T')[0]}T${selectedTime}:00`).toISOString()
                     : undefined
-                  const payload = buildPublishPayload(captions, destsOn, schedMode, scheduledAt)
+                  const cmsType = selectedCmsContent
+                    ? (selectedCmsContent.type === 'campaign' ? 'blog' : selectedCmsContent.type) as 'blog' | 'newsletter' | 'campaign' | 'video'
+                    : undefined
+                  const payload = buildPublishPayload(captions, destsOn, schedMode, {
+                    scheduledAt,
+                    publishNow: schedMode === 'now' ? true : undefined,
+                    sourceContentId: selectedCmsContent?.id,
+                    sourceContentType: cmsType,
+                  })
                   const result = await createSocialPost(payload)
                   if (result.ok) {
-                    router.push('/cms/social')
+                    // Redirect to post detail when publishing immediately so user can see progress
+                    if (schedMode === 'now') {
+                      router.push(`/cms/social/${result.data.id}`)
+                    } else {
+                      router.push('/cms/social')
+                    }
                   } else {
                     alert('Erro ao publicar')
                   }
