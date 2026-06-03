@@ -811,4 +811,270 @@ export function registerPrompts(server: McpServer): void {
       return userMessage(fullPrompt)
     },
   )
+
+  // -------------------------------------------------------------------------
+  // 9. youtube-analyst — complete channel analysis with coaching
+  // -------------------------------------------------------------------------
+  server.prompt(
+    'youtube-analyst',
+    'Generate a complete YouTube channel analysis with coaching recommendations',
+    {
+      channel_id: z.string().describe('YouTube channel UUID (internal DB id)'),
+    },
+    async (args) => {
+      const channelId = args.channel_id
+
+      // Auto-inject: channel info + snapshot age + youtube docs
+      const [channel, snapshotAge, youtubeDocs] = await Promise.all([
+        fetchChannelInfo(),
+        fetchSnapshotAge(),
+        fetchDomainDocs('youtube'),
+      ])
+
+      const lines: string[] = []
+      lines.push('# YouTube Channel Analyst — Complete Analysis')
+      lines.push('')
+      lines.push(`Channel: ${channel.name} | ${channel.subscribers.toLocaleString()} subscribers | Tier: ${channel.tier}`)
+      lines.push(`Intelligence snapshot age: ${snapshotAge}h`)
+      lines.push('')
+
+      lines.push('## Step 1: Collect Channel Health')
+      lines.push('')
+      lines.push('Call `manage_ab_test` with action `get_intelligence` and `channel_id: "' + channelId + '"` to retrieve the full channel intelligence snapshot.')
+      lines.push('')
+      lines.push('From the response, extract:')
+      lines.push('- Channel summary (subscribers, tier)')
+      lines.push('- All videos with CTR, retention, impressions, traffic sources')
+      lines.push('- Grade history (weekly grades per video)')
+      lines.push('- Active optimization cycles')
+      lines.push('- Existing intelligence recommendations')
+      lines.push('')
+
+      lines.push('## Step 2: Evaluate Video Performance')
+      lines.push('')
+      lines.push('For each video in the snapshot, compute:')
+      lines.push('1. **CTR Score** — compare vs channel median CTR (weight: 25%)')
+      lines.push('2. **Retention Score** — avg_view_percentage vs median (weight: 25%)')
+      lines.push('3. **Reach Score** — impressions log2 normalized (weight: 15%)')
+      lines.push('4. **Engagement Score** — (likes+comments+shares)/views (weight: 15%)')
+      lines.push('5. **Growth Score** — daily view velocity (weight: 12%)')
+      lines.push('6. **Sub Impact Score** — subscribers gained (weight: 8%)')
+      lines.push('')
+      lines.push('Apply lifecycle modifiers: < 7 days = 120% CTR weight; > 180 days = evergreen bonus.')
+      lines.push('Apply tier modifiers: Nano +0.5 CTR / +0.3 retention; Micro +0.2 / +0.1; etc.')
+      lines.push('')
+      lines.push('Grade: A >= 85, B >= 65, C >= 40, D < 40')
+      lines.push('')
+
+      lines.push('## Step 3: Analyze Competitor Intelligence')
+      lines.push('')
+      lines.push('If competitor data is available, call `manage_ab_test` with action `get_intelligence` to check for competitor insights.')
+      lines.push('Cross-reference:')
+      lines.push('- Content gaps (topics competitors cover that we don\'t)')
+      lines.push('- Title formulas with high multiplier')
+      lines.push('- Upload timing patterns (heatmap analysis)')
+      lines.push('- Engagement rate comparison')
+      lines.push('')
+
+      lines.push('## Step 4: Identify Weak Axes & Recommend Actions')
+      lines.push('')
+      lines.push('Sort the 6 axes by score (ascending = worst first). For each weak axis:')
+      lines.push('- Write a specific diagnosis (max 300 chars, PT-BR)')
+      lines.push('- Write a concrete action executable in 7 days (max 300 chars, PT-BR)')
+      lines.push('- Assign confidence (0.9+ = clear pattern, 0.5-0.7 = hypothesis)')
+      lines.push('')
+      lines.push('For videos with grade C/D:')
+      lines.push('- Suggest specific action_type: thumbnail_test, title_test, retention_fix, seo_optimization, etc.')
+      lines.push('- Include data in reasoning (e.g., "CTR 1.8% vs channel avg 3.2%")')
+      lines.push('')
+
+      lines.push('## Step 5: Submit Coaching Data')
+      lines.push('')
+      lines.push('Call `manage_ab_test` with action `submit_intelligence` and the following `intel_payload`:')
+      lines.push('')
+      lines.push('```json')
+      lines.push('{')
+      lines.push('  "task_id": "<from claim_task>",')
+      lines.push('  "video_recommendations": [')
+      lines.push('    {')
+      lines.push('      "video_id": "<uuid>",')
+      lines.push('      "action_type": "thumbnail_test | title_test | retention_fix | seo_optimization | engagement_boost",')
+      lines.push('      "priority": "high | medium | low",')
+      lines.push('      "confidence": 0.0-1.0,')
+      lines.push('      "reasoning": "Explanation in PT-BR, max 500 chars"')
+      lines.push('    }')
+      lines.push('  ],')
+      lines.push('  "coaching": {')
+      lines.push('    "summary": "1-2 sentence channel state summary, PT-BR",')
+      lines.push('    "priorities": [')
+      lines.push('      {')
+      lines.push('        "axis": "ctr | retention | reach | engagement | growth | sub_impact",')
+      lines.push('        "score": 0-10,')
+      lines.push('        "diagnosis": "What is happening (max 300 chars)",')
+      lines.push('        "action": "What to do to improve (max 300 chars)"')
+      lines.push('      }')
+      lines.push('    ]')
+      lines.push('  },')
+      lines.push('  "notifications": [')
+      lines.push('    {')
+      lines.push('      "type": "optimization_available | grade_drop | ctr_drop | trending_viral",')
+      lines.push('      "video_id": "<uuid>",')
+      lines.push('      "priority": 1-5,')
+      lines.push('      "title": "Short title",')
+      lines.push('      "message": "Detailed message"')
+      lines.push('    }')
+      lines.push('  ]')
+      lines.push('}')
+      lines.push('```')
+      lines.push('')
+
+      lines.push('## Rules')
+      lines.push('- Max 25 video_recommendations per submission')
+      lines.push('- Max 6 coaching priorities (one per axis)')
+      lines.push('- Order priorities by score ascending (worst first)')
+      lines.push('- All text in PT-BR')
+      lines.push('- Do not suggest thumbnail_test if video is already in testing cycle')
+      lines.push('- Confidence 0.9+ = clear data pattern; 0.5-0.7 = hypothesis')
+
+      if (youtubeDocs) {
+        const truncated = youtubeDocs.length > 8000
+          ? youtubeDocs.slice(0, 8000) + '\n\n...(truncated — use pipeline://docs/youtube for full docs)'
+          : youtubeDocs
+        lines.push('\n---\n\n## YouTube Intelligence Reference\n\n' + truncated)
+      }
+
+      return userMessage(lines.join('\n'))
+    },
+  )
+
+  // -------------------------------------------------------------------------
+  // 10. competitor-report — competitor landscape report
+  // -------------------------------------------------------------------------
+  server.prompt(
+    'competitor-report',
+    'Generate a competitor landscape report with actionable insights',
+    {},
+    async () => {
+      // Auto-inject: channel info + youtube docs
+      const [channel, youtubeDocs] = await Promise.all([
+        fetchChannelInfo(),
+        fetchDomainDocs('youtube'),
+      ])
+
+      const lines: string[] = []
+      lines.push('# Competitor Landscape Report')
+      lines.push('')
+      lines.push(`Your channel: ${channel.name} | ${channel.subscribers.toLocaleString()} subscribers | Tier: ${channel.tier}`)
+      lines.push('')
+
+      lines.push('## Step 1: Gather Competitor Data')
+      lines.push('')
+      lines.push('Execute the following tool calls in sequence:')
+      lines.push('')
+      lines.push('### 1a. List tracked competitors')
+      lines.push('Call the **Competitor Observatory** endpoint `GET /api/pipeline/youtube/competitors/channels` to retrieve all tracked competitor channels.')
+      lines.push('')
+      lines.push('For each channel, note:')
+      lines.push('- Channel name, subscriber count, video count')
+      lines.push('- Average engagement rate')
+      lines.push('- Growth delta (30-day subscriber change)')
+      lines.push('- Recent videos (titles, views, outlier status)')
+      lines.push('- VsYou comparison (subs delta, engagement delta, frequency delta)')
+      lines.push('')
+
+      lines.push('### 1b. Identify outlier videos')
+      lines.push('Call `GET /api/pipeline/youtube/competitors/outliers` to find viral competitor videos.')
+      lines.push('')
+      lines.push('Categorize by tier:')
+      lines.push('- **Top tier (>10x median):** Study these deeply — title formula, thumbnail style, topic, length')
+      lines.push('- **High tier (5-10x):** Note patterns across multiple channels')
+      lines.push('- **Mid tier (2-5x):** Track recurring topics and formats')
+      lines.push('')
+
+      lines.push('### 1c. Get aggregated insights')
+      lines.push('Call `GET /api/pipeline/youtube/competitors/insights` for the full intelligence picture.')
+      lines.push('')
+
+      lines.push('## Step 2: Analyze & Produce Report')
+      lines.push('')
+      lines.push('Structure your report with these sections:')
+      lines.push('')
+
+      lines.push('### Play of the Week')
+      lines.push('From `insights.play`, present the single highest-leverage content opportunity:')
+      lines.push('- **Topic:** What to cover (from `topicBold`)')
+      lines.push('- **Formula:** Title pattern to use (from `formulaBold` with `formulaMult` multiplier)')
+      lines.push('- **Timing:** When to publish (from `windowBold` with `windowReason`)')
+      lines.push('- **Why now:** Explain urgency based on competitor activity and gaps')
+      lines.push('')
+
+      lines.push('### Gap Analysis')
+      lines.push('From `insights.gaps`, list topics where `weCover: false`:')
+      lines.push('- Topic name')
+      lines.push('- Number of competitors covering it')
+      lines.push('- Average views for that topic')
+      lines.push('- Which competitor channels cover it')
+      lines.push('- Recommended priority (high if avgViews > channel median AND competitorCount >= 2)')
+      lines.push('')
+
+      lines.push('### Timing Recommendations')
+      lines.push('From `insights.heatmap` and `insights.hitsHeatmap`:')
+      lines.push('- Identify the 3 best publishing windows (day + hour)')
+      lines.push('- Cross-reference heatmap (avg views) with hitsHeatmap (outlier concentration)')
+      lines.push('- Compare with our current publishing pattern')
+      lines.push('')
+
+      lines.push('### Title Patterns')
+      lines.push('From `insights.formulas`, rank the top 5 title formulas:')
+      lines.push('- Formula label and multiplier')
+      lines.push('- Example title')
+      lines.push('- Copywriting hint')
+      lines.push('- How many competitor videos use this pattern')
+      lines.push('')
+
+      lines.push('### Engagement Comparison')
+      lines.push('From `insights.engagement`:')
+      lines.push('- Rank all channels (competitors + ours) by engagement rate')
+      lines.push('- Highlight our position (the entry with `isUs: true`)')
+      lines.push('- Identify who outperforms us and what they do differently')
+      lines.push('')
+
+      lines.push('### Upload Cadence')
+      lines.push('From `insights.cadence`:')
+      lines.push('- Each competitor\'s upload frequency (videos/week)')
+      lines.push('- Days since their last upload')
+      lines.push('- Recommend if we should increase or maintain our cadence')
+      lines.push('')
+
+      lines.push('### Tag Intelligence')
+      lines.push('From `insights.tags`, `insights.ownTagsByChannel`, `insights.competitorTagsByChannel`:')
+      lines.push('- Top 10 competitor tags by frequency')
+      lines.push('- Tags competitors use that we don\'t')
+      lines.push('- Tags we use that competitors don\'t (potential differentiators)')
+      lines.push('')
+
+      lines.push('## Step 3: Actionable Next Steps')
+      lines.push('')
+      lines.push('Conclude with 3-5 prioritized actions:')
+      lines.push('1. Each action must reference specific data from the report')
+      lines.push('2. Include expected impact (based on multiplier, views, or gap size)')
+      lines.push('3. Include timeline (this week / this month / next quarter)')
+      lines.push('4. When appropriate, suggest creating a pipeline item via `create_item` tool')
+      lines.push('')
+
+      lines.push('## Output Format')
+      lines.push('')
+      lines.push('All text in PT-BR. Use markdown formatting. Include data points to support each recommendation.')
+      lines.push('The report should be actionable — every insight must map to a concrete next step.')
+
+      if (youtubeDocs) {
+        const truncated = youtubeDocs.length > 6000
+          ? youtubeDocs.slice(0, 6000) + '\n\n...(truncated — use pipeline://docs/youtube for full docs)'
+          : youtubeDocs
+        lines.push('\n\n---\n\n## YouTube Observatory Reference\n\n' + truncated)
+      }
+
+      return userMessage(lines.join('\n'))
+    },
+  )
 }

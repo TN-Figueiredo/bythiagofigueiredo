@@ -9,6 +9,9 @@ import * as audioService from './services/audio'
 import * as brollService from './services/broll'
 import * as researchService from './services/research'
 import * as abTestService from './services/ab-tests'
+import * as observatoryService from './services/youtube-observatory'
+import * as analyticsService from './services/youtube-analytics'
+import * as videosService from './services/youtube-videos'
 import * as searchService from './services/search'
 import * as upNextService from './services/up-next'
 
@@ -437,12 +440,14 @@ const ManageResearchShape = {
 
 // ---- 15. manage_ab_test ----
 const ManageAbTestShape = {
-  action: z.enum(['list_tests', 'get_test', 'get_funnel', 'get_performance', 'get_intelligence', 'list_variants', 'upsert_variants', 'delete_variant', 'submit_intelligence', 'claim_task'])
-    .describe('list_tests: all A/B tests with optional status filter. get_test: single test details with variants+cycles. get_funnel: funnel metrics per variant. get_performance: winning patterns from completed tests. get_intelligence: channel intelligence snapshot. list_variants: variants for a test. upsert_variants: create/update variants. delete_variant: remove non-original variant. submit_intelligence: submit Cowork recommendations for a running task. claim_task: claim the next pending intelligence task.'),
+  action: z.enum(['list_tests', 'get_test', 'get_funnel', 'get_performance', 'get_intelligence', 'list_variants', 'upsert_variants', 'delete_variant', 'submit_intelligence', 'claim_task', 'get_learnings', 'get_suggestions', 'get_fatigue_alerts', 'get_dashboard', 'get_history'])
+    .describe('list_tests: all A/B tests with optional status filter. get_test: single test details with variants+cycles. get_funnel: funnel metrics per variant. get_performance: winning patterns from completed tests. get_intelligence: channel intelligence snapshot. list_variants: variants for a test. upsert_variants: create/update variants. delete_variant: remove non-original variant. submit_intelligence: submit Cowork recommendations for a running task. claim_task: claim the next pending intelligence task. get_learnings: tag win rates and channel insights from completed tests. get_suggestions: suggested videos for testing. get_fatigue_alerts: pending CTR fatigue alerts. get_dashboard: aggregate dashboard stats. get_history: test history for a video.'),
   test_id: z.string().uuid().optional()
     .describe('A/B test UUID (required for get_test, get_funnel, list_variants, upsert_variants, delete_variant)'),
   channel_id: z.string().uuid().optional()
     .describe('YouTube channel UUID (required for get_intelligence)'),
+  video_id: z.string().optional()
+    .describe('YouTube video ID string (required for get_history)'),
   status: z.string().optional()
     .describe('Filter for list_tests (e.g. "active", "draft", "completed")'),
   variants: z.array(z.object({
@@ -488,7 +493,41 @@ const SearchContentShape = {
     .describe('Pagination cursor from previous response'),
 }
 
-// ---- 17. manage_upnext ----
+// ---- 17. youtube_observatory ----
+const YoutubeObservatoryShape = {
+  action: z.enum(['list_channels', 'get_changes', 'get_outliers', 'get_insights'])
+    .describe('list_channels: tracked competitor channels. get_changes: recent title/thumbnail/description changes. get_outliers: bookmarked notable changes. get_insights: aggregated competitor intelligence.'),
+  channel_id: z.string().uuid().optional()
+    .describe('Competitor channel UUID (filters get_changes and get_outliers)'),
+  limit: z.number().int().min(1).max(100).default(50)
+    .describe('Max results for get_changes'),
+}
+
+// ---- 18. youtube_analytics ----
+const YoutubeAnalyticsShape = {
+  action: z.enum(['get_overview', 'get_grades', 'get_demographics', 'get_search_terms', 'get_notes'])
+    .describe('get_overview: channel summary + recent videos. get_grades: 6-axis performance grades per video. get_demographics: audience demographics. get_search_terms: top search terms. get_notes: channel notes/annotations.'),
+  channel_id: z.string().uuid().optional()
+    .describe('YouTube channel UUID (required for get_grades, get_demographics, get_search_terms, get_notes)'),
+}
+
+// ---- 19. youtube_videos ----
+const YoutubeVideosShape = {
+  action: z.enum(['list', 'get', 'list_categories'])
+    .describe('list: browse videos with pagination. get: single video with full details + grade. list_categories: all video categories.'),
+  video_id: z.string().uuid().optional()
+    .describe('YouTube video UUID (required for get action)'),
+  channel_id: z.string().uuid().optional()
+    .describe('Filter by channel (for list action)'),
+  category_id: z.string().uuid().optional()
+    .describe('Filter by category (for list action)'),
+  limit: z.number().int().min(1).max(100).default(50)
+    .describe('Max results for list'),
+  cursor: z.string().optional()
+    .describe('Pagination cursor (published_at of last item)'),
+}
+
+// ---- 20. manage_upnext ----
 const ManageUpNextShape = {
   action: z.enum(['get', 'assign'])
     .describe('get: retrieve command center data (today actions, week grid, streak, suggestions). assign: place a pipeline item into a week slot.'),
@@ -645,7 +684,7 @@ export function registerTools(server: McpServer): void {
   // 15. manage_ab_test
   server.tool(
     'manage_ab_test',
-    'List, upsert, or delete A/B test variants (B, C, D) for YouTube title/thumbnail/description experiments.',
+    'Manage A/B tests: list tests, get details, upsert/delete variants, view learnings, suggestions, fatigue alerts, dashboard stats, and video test history.',
     ManageAbTestShape,
     WRITE_IDEMPOTENT,
     async (params) => abTestService.manageAbTest(params),
@@ -660,7 +699,34 @@ export function registerTools(server: McpServer): void {
     async (params) => searchService.searchContent(params),
   )
 
-  // 17. manage_upnext
+  // 17. youtube_observatory
+  server.tool(
+    'youtube_observatory',
+    'Track competitor YouTube channels: list tracked channels, view title/thumbnail changes, get outliers, and aggregate intelligence.',
+    YoutubeObservatoryShape,
+    READ_ONLY,
+    async (params) => observatoryService.youtubeObservatory(params),
+  )
+
+  // 18. youtube_analytics
+  server.tool(
+    'youtube_analytics',
+    'YouTube channel analytics: overview, 6-axis video grades, demographics, search terms, and channel notes.',
+    YoutubeAnalyticsShape,
+    READ_ONLY,
+    async (params) => analyticsService.youtubeAnalytics(params),
+  )
+
+  // 19. youtube_videos
+  server.tool(
+    'youtube_videos',
+    'Browse and inspect YouTube videos: paginated list, single video detail with grades, and video categories.',
+    YoutubeVideosShape,
+    READ_ONLY,
+    async (params) => videosService.youtubeVideos(params),
+  )
+
+  // 20. manage_upnext
   server.tool(
     'manage_upnext',
     'Get the command center (today actions, week grid, streak) or assign a pipeline item to a week slot.',

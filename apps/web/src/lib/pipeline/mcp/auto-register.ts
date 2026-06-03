@@ -1,7 +1,7 @@
 /**
  * Maps API_REGISTRY endpoints to MCP tool names for coverage tracking.
  *
- * Each of the 79 real endpoints (course domain has 0) maps to one of 17 MCP tools.
+ * Each of the real endpoints (course domain has 0) maps to one of 20 MCP tools.
  * Tests use this to verify MCP covers all API endpoints.
  */
 
@@ -108,8 +108,27 @@ const TOOL_RULES: Array<{ tool: string; match: ToolMatcher }> = [
 
   // ── YouTube ───────────────────────────────────────────────────────
   {
+    tool: 'youtube_observatory',
+    match: (ep) => ep.path.includes('/competitors/'),
+  },
+  {
+    tool: 'youtube_analytics',
+    match: (ep) =>
+      ep.path.includes('/analytics/') ||
+      ep.path.includes('/youtube/intelligence'),
+  },
+  {
+    tool: 'youtube_videos',
+    match: (ep) =>
+      ep.path.startsWith('/api/pipeline/youtube/videos') ||
+      ep.path.startsWith('/api/pipeline/youtube/categories'),
+  },
+  {
     tool: 'manage_ab_test',
-    match: (ep) => ep.path.includes('/ab-test') || ep.path.includes('/ab-performance'),
+    match: (ep) =>
+      ep.path.includes('/ab-test') ||
+      ep.path.includes('/ab-performance') ||
+      ep.path.includes('/thumbnails/'),
   },
 
   // ── Utilities ─────────────────────────────────────────────────────
@@ -127,7 +146,6 @@ const TOOL_RULES: Array<{ tool: string; match: ToolMatcher }> = [
       ep.path.startsWith('/api/pipeline/topics') ||
       ep.path.startsWith('/api/pipeline/workflows') ||
       ep.path.startsWith('/api/pipeline/docs') ||
-      ep.path.startsWith('/api/pipeline/youtube/intelligence') ||
       (ep.path === '/api/pipeline/up-next' && ep.method === 'GET') ||
       (ep.path === '/api/pipeline/items' && ep.method === 'GET') ||
       ep.path === '/api/pipeline/items/:id' ||
@@ -162,7 +180,7 @@ export function getRegistryCoverage(): {
   return { mapped, unmapped }
 }
 
-/** All 17 MCP tool names in the pipeline server */
+/** All 20 MCP tool names in the pipeline server */
 export const MCP_TOOL_NAMES = [
   'create_item',
   'update_item',
@@ -181,6 +199,9 @@ export const MCP_TOOL_NAMES = [
   'manage_ab_test',
   'search_content',
   'manage_upnext',
+  'youtube_observatory',
+  'youtube_analytics',
+  'youtube_videos',
 ] as const
 
 export type McpToolName = (typeof MCP_TOOL_NAMES)[number]

@@ -157,10 +157,37 @@ export async function manageAbTest(params: Params): Promise<CallToolResult> {
         return toMcpSuccess(result.data)
       }
 
+      case 'get_learnings': {
+        const result = await youtube.getAbLearnings(buildCtx())
+        return toMcpSuccess(result.data)
+      }
+
+      case 'get_suggestions': {
+        const result = await youtube.getAbSuggestions(buildCtx())
+        return toMcpSuccess(result.data)
+      }
+
+      case 'get_fatigue_alerts': {
+        const result = await youtube.getAbFatigueAlerts(buildCtx())
+        return toMcpSuccess(result.data)
+      }
+
+      case 'get_dashboard': {
+        const result = await youtube.getAbDashboard(buildCtx())
+        return toMcpSuccess(result.data)
+      }
+
+      case 'get_history': {
+        const videoId = params.video_id as string
+        if (!videoId) return toMcpError({ code: 'VALIDATION_ERROR', message: 'video_id is required for get_history' })
+        const result = await youtube.getAbVideoHistory(buildCtx(), videoId)
+        return toMcpSuccess(result.data)
+      }
+
       default:
         return toMcpError({
           code: 'VALIDATION_ERROR',
-          message: `Unknown action "${action ?? '(missing)'}". Supported: list_tests, get_test, get_funnel, get_performance, get_intelligence, list_variants, upsert_variants, delete_variant, submit_intelligence, claim_task`,
+          message: `Unknown action "${action ?? '(missing)'}". Supported: list_tests, get_test, get_funnel, get_performance, get_intelligence, list_variants, upsert_variants, delete_variant, submit_intelligence, claim_task, get_learnings, get_suggestions, get_fatigue_alerts, get_dashboard, get_history`,
         })
     }
   } catch (error) {

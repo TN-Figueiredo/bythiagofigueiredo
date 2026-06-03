@@ -527,4 +527,466 @@ export function registerResources(server: McpServer): void {
       return result
     },
   )
+
+  // -------------------------------------------------------------------------
+  // 12. pipeline://youtube/ab-tests — A/B test list
+  // -------------------------------------------------------------------------
+  server.resource(
+    'youtube-ab-tests',
+    'pipeline://youtube/ab-tests',
+    {
+      description: 'All A/B tests with variants, grouped by status',
+      mimeType: 'application/json',
+      size: 8_000,
+      annotations: { audience: ['assistant'] },
+    },
+    async (uri) => {
+      const { ctx } = await buildResourceCtx()
+      const data = await youtube.listAbTests(ctx, {})
+      const result = jsonResource(data.data)
+      result.contents[0]!.uri = uri.href
+      return result
+    },
+  )
+
+  // -------------------------------------------------------------------------
+  // 13. pipeline://youtube/ab-learnings — learnings from completed tests
+  // -------------------------------------------------------------------------
+  server.resource(
+    'youtube-ab-learnings',
+    'pipeline://youtube/ab-learnings',
+    {
+      description: 'Tag win rates and channel insights from completed A/B tests',
+      mimeType: 'application/json',
+      size: 3_000,
+      annotations: { audience: ['assistant'] },
+    },
+    async (uri) => {
+      const { ctx } = await buildResourceCtx()
+      const data = await youtube.getAbLearnings(ctx)
+      const result = jsonResource(data.data)
+      result.contents[0]!.uri = uri.href
+      return result
+    },
+  )
+
+  // -------------------------------------------------------------------------
+  // 14. pipeline://youtube/ab-suggestions — suggested videos for testing
+  // -------------------------------------------------------------------------
+  server.resource(
+    'youtube-ab-suggestions',
+    'pipeline://youtube/ab-suggestions',
+    {
+      description: 'Suggested videos for A/B testing based on underperformance signals',
+      mimeType: 'application/json',
+      size: 2_000,
+      annotations: { audience: ['assistant'] },
+    },
+    async (uri) => {
+      const { ctx } = await buildResourceCtx()
+      const data = await youtube.getAbSuggestions(ctx)
+      const result = jsonResource(data.data)
+      result.contents[0]!.uri = uri.href
+      return result
+    },
+  )
+
+  // -------------------------------------------------------------------------
+  // 15. pipeline://youtube/ab-fatigue — pending fatigue alerts
+  // -------------------------------------------------------------------------
+  server.resource(
+    'youtube-ab-fatigue',
+    'pipeline://youtube/ab-fatigue',
+    {
+      description: 'Pending CTR fatigue alerts for videos with declining performance',
+      mimeType: 'application/json',
+      size: 2_000,
+      annotations: { audience: ['assistant'] },
+    },
+    async (uri) => {
+      const { ctx } = await buildResourceCtx()
+      const data = await youtube.getAbFatigueAlerts(ctx)
+      const result = jsonResource(data.data)
+      result.contents[0]!.uri = uri.href
+      return result
+    },
+  )
+
+  // -------------------------------------------------------------------------
+  // 16. pipeline://youtube/ab-dashboard — aggregate dashboard stats
+  // -------------------------------------------------------------------------
+  server.resource(
+    'youtube-ab-dashboard',
+    'pipeline://youtube/ab-dashboard',
+    {
+      description: 'Aggregate A/B test dashboard: active tests, avg confidence, win rate, avg lift, tests by status',
+      mimeType: 'application/json',
+      size: 1_000,
+      annotations: { audience: ['assistant'] },
+    },
+    async (uri) => {
+      const { ctx } = await buildResourceCtx()
+      const data = await youtube.getAbDashboard(ctx)
+      const result = jsonResource(data.data)
+      result.contents[0]!.uri = uri.href
+      return result
+    },
+  )
+
+  // -------------------------------------------------------------------------
+  // 17. pipeline://youtube/thumbnails/library — thumbnail library
+  // -------------------------------------------------------------------------
+  server.resource(
+    'youtube-thumbnails-library',
+    'pipeline://youtube/thumbnails/library',
+    {
+      description: 'Winning thumbnails library with lift data, tags, and longevity scores',
+      mimeType: 'application/json',
+      size: 5_000,
+      annotations: { audience: ['assistant'] },
+    },
+    async (uri) => {
+      const { ctx } = await buildResourceCtx()
+      const data = await youtube.getThumbnailLibrary(ctx)
+      const result = jsonResource(data.data)
+      result.contents[0]!.uri = uri.href
+      return result
+    },
+  )
+
+  // -------------------------------------------------------------------------
+  // 18. pipeline://youtube/thumbnails/fatigue — thumbnail fatigue alerts
+  // -------------------------------------------------------------------------
+  server.resource(
+    'youtube-thumbnails-fatigue',
+    'pipeline://youtube/thumbnails/fatigue',
+    {
+      description: 'Pending thumbnail fatigue alerts with CTR decline data',
+      mimeType: 'application/json',
+      size: 2_000,
+      annotations: { audience: ['assistant'] },
+    },
+    async (uri) => {
+      const { ctx } = await buildResourceCtx()
+      const data = await youtube.getThumbnailFatigueAlerts(ctx)
+      const result = jsonResource(data.data)
+      result.contents[0]!.uri = uri.href
+      return result
+    },
+  )
+
+  // -------------------------------------------------------------------------
+  // 19. pipeline://youtube/competitors/channels — tracked competitor channels
+  // -------------------------------------------------------------------------
+  server.resource(
+    'youtube-competitors-channels',
+    'pipeline://youtube/competitors/channels',
+    {
+      description: 'Tracked competitor YouTube channels with sync status',
+      mimeType: 'application/json',
+      size: 3_000,
+      annotations: { audience: ['assistant'] },
+    },
+    async (uri) => {
+      const supabase = getSupabaseServiceClient()
+      const { siteId } = await buildResourceCtx()
+
+      const { data } = await supabase
+        .from('competitor_channels')
+        .select('id, channel_id, channel_name, subscriber_count, video_count, youtube_video_count, sync_status, last_synced_at')
+        .eq('site_id', siteId)
+        .order('created_at', { ascending: false })
+
+      const result = jsonResource({ channels: data ?? [] })
+      result.contents[0]!.uri = uri.href
+      return result
+    },
+  )
+
+  // -------------------------------------------------------------------------
+  // 20. pipeline://youtube/competitors/changes — recent competitor changes
+  // -------------------------------------------------------------------------
+  server.resource(
+    'youtube-competitors-changes',
+    'pipeline://youtube/competitors/changes',
+    {
+      description: 'Recent title/thumbnail/description changes detected on competitor channels',
+      mimeType: 'application/json',
+      size: 5_000,
+      annotations: { audience: ['assistant'] },
+    },
+    async (uri) => {
+      const supabase = getSupabaseServiceClient()
+      const { siteId } = await buildResourceCtx()
+
+      const { data } = await supabase
+        .from('competitor_changes')
+        .select('id, competitor_channel_id, youtube_video_id, field, old_value, new_value, bookmarked, detected_at')
+        .eq('site_id', siteId)
+        .order('detected_at', { ascending: false })
+        .limit(50)
+
+      const result = jsonResource({ changes: data ?? [] })
+      result.contents[0]!.uri = uri.href
+      return result
+    },
+  )
+
+  // -------------------------------------------------------------------------
+  // 21. pipeline://youtube/competitors/outliers — bookmarked competitor changes
+  // -------------------------------------------------------------------------
+  server.resource(
+    'youtube-competitors-outliers',
+    'pipeline://youtube/competitors/outliers',
+    {
+      description: 'Bookmarked notable competitor changes for study',
+      mimeType: 'application/json',
+      size: 3_000,
+      annotations: { audience: ['assistant'] },
+    },
+    async (uri) => {
+      const supabase = getSupabaseServiceClient()
+      const { siteId } = await buildResourceCtx()
+
+      const { data } = await supabase
+        .from('competitor_changes')
+        .select('id, competitor_channel_id, youtube_video_id, field, old_value, new_value, detected_at')
+        .eq('site_id', siteId)
+        .eq('bookmarked', true)
+        .order('detected_at', { ascending: false })
+        .limit(20)
+
+      const result = jsonResource({ outliers: data ?? [] })
+      result.contents[0]!.uri = uri.href
+      return result
+    },
+  )
+
+  // -------------------------------------------------------------------------
+  // 22. pipeline://youtube/competitors/insights — aggregate competitor insights
+  // -------------------------------------------------------------------------
+  server.resource(
+    'youtube-competitors-insights',
+    'pipeline://youtube/competitors/insights',
+    {
+      description: 'Aggregate competitor intelligence: change counts, most active channels',
+      mimeType: 'application/json',
+      size: 2_000,
+      annotations: { audience: ['assistant'] },
+    },
+    async (uri) => {
+      const supabase = getSupabaseServiceClient()
+      const { siteId } = await buildResourceCtx()
+
+      const [channelsRes, changesRes] = await Promise.all([
+        supabase
+          .from('competitor_channels')
+          .select('id, channel_name, subscriber_count, video_count')
+          .eq('site_id', siteId),
+        supabase
+          .from('competitor_changes')
+          .select('field, competitor_channel_id')
+          .eq('site_id', siteId)
+          .gte('detected_at', new Date(Date.now() - 7 * 86400000).toISOString()),
+      ])
+
+      const changesByField: Record<string, number> = {}
+      for (const c of changesRes.data ?? []) {
+        const field = c.field as string
+        changesByField[field] = (changesByField[field] ?? 0) + 1
+      }
+
+      const result = jsonResource({
+        totalChannels: (channelsRes.data ?? []).length,
+        recentChanges7d: (changesRes.data ?? []).length,
+        changesByField,
+        generatedAt: new Date().toISOString(),
+      })
+      result.contents[0]!.uri = uri.href
+      return result
+    },
+  )
+
+  // -------------------------------------------------------------------------
+  // 23. pipeline://youtube/videos — recent videos summary
+  // -------------------------------------------------------------------------
+  server.resource(
+    'youtube-videos',
+    'pipeline://youtube/videos',
+    {
+      description: 'Recent YouTube videos with key metrics (view count, CTR, impressions)',
+      mimeType: 'application/json',
+      size: 5_000,
+      annotations: { audience: ['assistant'] },
+    },
+    async (uri) => {
+      const supabase = getSupabaseServiceClient()
+      const { siteId } = await buildResourceCtx()
+
+      const { data } = await supabase
+        .from('youtube_videos')
+        .select('id, youtube_video_id, title, published_at, view_count, ctr, impressions, avg_view_percentage, category_id, is_featured, channel_id')
+        .eq('site_id', siteId)
+        .eq('is_hidden', false)
+        .order('published_at', { ascending: false })
+        .limit(30)
+
+      const result = jsonResource({ videos: data ?? [] })
+      result.contents[0]!.uri = uri.href
+      return result
+    },
+  )
+
+  // -------------------------------------------------------------------------
+  // 24. pipeline://youtube/categories — video categories
+  // -------------------------------------------------------------------------
+  server.resource(
+    'youtube-categories',
+    'pipeline://youtube/categories',
+    {
+      description: 'YouTube video categories with slugs, colors, and match keywords',
+      mimeType: 'application/json',
+      size: 2_000,
+      annotations: { audience: ['assistant'] },
+    },
+    async (uri) => {
+      const supabase = getSupabaseServiceClient()
+      const { siteId } = await buildResourceCtx()
+
+      const { data } = await supabase
+        .from('youtube_categories')
+        .select('id, slug, name_pt, name_en, color, match_keywords, auto_approve, sort_order')
+        .eq('site_id', siteId)
+        .order('sort_order', { ascending: true })
+
+      const result = jsonResource({ categories: data ?? [] })
+      result.contents[0]!.uri = uri.href
+      return result
+    },
+  )
+
+  // -------------------------------------------------------------------------
+  // 25. pipeline://youtube/channels — channel summary
+  // -------------------------------------------------------------------------
+  server.resource(
+    'youtube-channels',
+    'pipeline://youtube/channels',
+    {
+      description: 'YouTube channels linked to this site with subscriber counts and sync status',
+      mimeType: 'application/json',
+      size: 2_000,
+      annotations: { audience: ['assistant'] },
+    },
+    async (uri) => {
+      const supabase = getSupabaseServiceClient()
+      const { siteId } = await buildResourceCtx()
+
+      const { data } = await supabase
+        .from('youtube_channels')
+        .select('id, channel_id, name, handle, subscriber_count, total_views, video_count, locale, last_synced_at')
+        .eq('site_id', siteId)
+
+      const result = jsonResource({ channels: data ?? [] })
+      result.contents[0]!.uri = uri.href
+      return result
+    },
+  )
+
+  // -------------------------------------------------------------------------
+  // 26. pipeline://youtube/grades — latest video grades
+  // -------------------------------------------------------------------------
+  server.resource(
+    'youtube-grades',
+    'pipeline://youtube/grades',
+    {
+      description: 'Latest 6-axis video performance grades (ctr, retention, reach, engagement, growth, sub_impact)',
+      mimeType: 'application/json',
+      size: 5_000,
+      annotations: { audience: ['assistant'] },
+    },
+    async (uri) => {
+      const supabase = getSupabaseServiceClient()
+      const { siteId } = await buildResourceCtx()
+
+      // Get latest grade per video using distinct-on pattern
+      const { data } = await supabase
+        .from('video_grade_history')
+        .select('youtube_video_id, grade, score, ctr, retention, reach, engagement, growth, sub_impact, week_iso')
+        .eq('site_id', siteId)
+        .order('recorded_at', { ascending: false })
+        .limit(100)
+
+      // Deduplicate: keep only latest per video
+      const seen = new Set<string>()
+      const unique = (data ?? []).filter(g => {
+        const vid = g.youtube_video_id as string
+        if (seen.has(vid)) return false
+        seen.add(vid)
+        return true
+      })
+
+      const result = jsonResource({ grades: unique })
+      result.contents[0]!.uri = uri.href
+      return result
+    },
+  )
+
+  // -------------------------------------------------------------------------
+  // 27. pipeline://youtube/notes — channel notes
+  // -------------------------------------------------------------------------
+  server.resource(
+    'youtube-notes',
+    'pipeline://youtube/notes',
+    {
+      description: 'Human and bot notes/annotations on YouTube channels',
+      mimeType: 'application/json',
+      size: 3_000,
+      annotations: { audience: ['assistant'] },
+    },
+    async (uri) => {
+      const supabase = getSupabaseServiceClient()
+      const { siteId } = await buildResourceCtx()
+
+      const { data } = await supabase
+        .from('youtube_notes')
+        .select('id, channel_id, author_name, text, is_bot, source, created_at')
+        .eq('site_id', siteId)
+        .order('created_at', { ascending: false })
+        .limit(50)
+
+      const result = jsonResource({ notes: data ?? [] })
+      result.contents[0]!.uri = uri.href
+      return result
+    },
+  )
+
+  // -------------------------------------------------------------------------
+  // 28. pipeline://youtube/optimization-cycles — active optimization cycles
+  // -------------------------------------------------------------------------
+  server.resource(
+    'youtube-optimization-cycles',
+    'pipeline://youtube/optimization-cycles',
+    {
+      description: 'Active optimization cycles: flagged/diagnosed/treated videos with state progression',
+      mimeType: 'application/json',
+      size: 3_000,
+      annotations: { audience: ['assistant'] },
+    },
+    async (uri) => {
+      const supabase = getSupabaseServiceClient()
+      const { siteId } = await buildResourceCtx()
+
+      const { data } = await supabase
+        .from('optimization_cycles')
+        .select('id, youtube_video_id, state, diagnosis_summary, created_at, diagnosed_at, treated_at')
+        .eq('site_id', siteId)
+        .not('state', 'in', '("resolved","exhausted","unmonitored")')
+        .order('created_at', { ascending: false })
+        .limit(20)
+
+      const result = jsonResource({ cycles: data ?? [] })
+      result.contents[0]!.uri = uri.href
+      return result
+    },
+  )
 }

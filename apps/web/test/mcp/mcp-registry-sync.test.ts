@@ -9,10 +9,10 @@ describe('MCP Registry Sync', () => {
     expect(unmapped.length).toBeLessThan(10)
   })
 
-  it('has exactly 17 unique MCP tools', () => {
+  it('has exactly 20 unique MCP tools', () => {
     const { mapped } = getRegistryCoverage()
     const tools = new Set(mapped.map((m) => m.mcpTool))
-    expect(tools.size).toBe(17)
+    expect(tools.size).toBe(20)
   })
 
   it('every mapped tool is a known MCP tool name', () => {
@@ -23,9 +23,9 @@ describe('MCP Registry Sync', () => {
     }
   })
 
-  it('covers all 79 registry endpoints', () => {
+  it('covers all registry endpoints', () => {
     const { mapped, unmapped } = getRegistryCoverage()
-    // 79 endpoints total across all domains (course has 0)
-    expect(mapped.length + unmapped.length).toBe(79)
+    // Sum: items(18) + playlists(13) + libraries(15) + research(12) + youtube(31) + utilities(11) + course(0) = 100
+    expect(mapped.length + unmapped.length).toBe(100)
   })
 })

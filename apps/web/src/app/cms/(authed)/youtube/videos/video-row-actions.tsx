@@ -33,24 +33,46 @@ export function CategoryBadge({
           <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
             <path d="M12 2a10 10 0 100 20A10 10 0 0012 2zm0 15a1 1 0 110-2 1 1 0 010 2zm1-4H11V7h2v6z" />
           </svg>
-          {suggestedCategoryName ?? 'Suggested'}
+          {suggestedCategoryName ?? 'Sugerida'}
         </span>
         <div className="flex gap-1">
           <button
             type="button"
             disabled={isPending}
-            onClick={() => startTransition(async () => { await approveCategory(videoId); toast.success('Categoria aprovada.') })}
+            onClick={() => startTransition(async () => {
+              try {
+                const result = await approveCategory(videoId)
+                if (result?.ok === false) {
+                  toast.error(result.error ?? 'Erro ao aprovar categoria.')
+                } else {
+                  toast.success('Categoria aprovada.')
+                }
+              } catch {
+                toast.error('Erro ao aprovar categoria.')
+              }
+            })}
             className="rounded px-1.5 py-0.5 text-xs font-medium bg-emerald-900/40 text-emerald-400 hover:bg-emerald-900/70 disabled:opacity-50"
           >
-            Approve
+            Aprovar
           </button>
           <button
             type="button"
             disabled={isPending}
-            onClick={() => startTransition(async () => { await rejectCategory(videoId); toast.success('Sugestao de categoria rejeitada.') })}
+            onClick={() => startTransition(async () => {
+              try {
+                const result = await rejectCategory(videoId)
+                if (result?.ok === false) {
+                  toast.error(result.error ?? 'Erro ao rejeitar categoria.')
+                } else {
+                  toast.success('Sugestao de categoria rejeitada.')
+                }
+              } catch {
+                toast.error('Erro ao rejeitar categoria.')
+              }
+            })}
             className="rounded px-1.5 py-0.5 text-xs font-medium bg-red-900/40 text-red-400 hover:bg-red-900/70 disabled:opacity-50"
           >
-            Reject
+            Rejeitar
           </button>
         </div>
       </div>
@@ -90,11 +112,11 @@ export function FeaturedToggle({ videoId, isFeatured }: FeaturedToggleProps) {
       }
       role="switch"
       aria-checked={isFeatured}
-      title={isFeatured ? 'Remove from featured' : 'Mark as featured'}
+      title={isFeatured ? 'Remover dos destaques' : 'Marcar como destaque'}
       className={`flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50 ${
         isFeatured ? 'bg-cms-accent' : 'bg-cms-surface-hover'
       }`}
-      aria-label="Featured"
+      aria-label="Destaque"
     >
       <span
         className={`h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${
@@ -122,11 +144,11 @@ export function HiddenToggle({ videoId, isHidden }: HiddenToggleProps) {
       }
       role="switch"
       aria-checked={isHidden}
-      title={isHidden ? 'Unhide video' : 'Hide video from public page'}
+      title={isHidden ? 'Mostrar video' : 'Ocultar video da pagina publica'}
       className={`flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50 ${
         isHidden ? 'bg-amber-600' : 'bg-cms-surface-hover'
       }`}
-      aria-label="Hidden"
+      aria-label="Oculto"
     >
       <span
         className={`h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${
@@ -190,29 +212,29 @@ export function PinButton({ videoId, channelId, pinnedUntil, hasExistingPin }: P
   }
 
   if (isPinned) {
-    const until = new Date(pinnedUntil!).toLocaleDateString('en', { month: 'short', day: 'numeric' })
+    const until = new Date(pinnedUntil!).toLocaleDateString('pt-BR', { month: 'short', day: 'numeric' })
     return (
       <div className="flex flex-col items-center gap-1">
         <span className="inline-flex items-center rounded-full bg-amber-900/30 px-2 py-0.5 text-xs font-semibold text-amber-400">
-          ★ Pinned until {until}
+          ★ Fixado ate {until}
         </span>
         {showUnpinConfirm ? (
           <div className="flex items-center gap-1">
-            <span className="text-[10px] text-cms-text-muted">Remove pin?</span>
+            <span className="text-[10px] text-cms-text-muted">Remover fixacao?</span>
             <button
               type="button"
               disabled={isPending}
               onClick={handleUnpin}
               className="text-[10px] font-medium text-red-400 hover:text-red-300 disabled:opacity-50"
             >
-              Confirm
+              Confirmar
             </button>
             <button
               type="button"
               onClick={() => setShowUnpinConfirm(false)}
               className="text-[10px] text-cms-text-dim hover:text-cms-text"
             >
-              Cancel
+              Cancelar
             </button>
           </div>
         ) : (
@@ -222,7 +244,7 @@ export function PinButton({ videoId, channelId, pinnedUntil, hasExistingPin }: P
             onClick={() => setShowUnpinConfirm(true)}
             className="text-[10px] text-red-400 hover:text-red-300 disabled:opacity-50"
           >
-            Unpin
+            Desafixar
           </button>
         )}
       </div>
@@ -233,7 +255,7 @@ export function PinButton({ videoId, channelId, pinnedUntil, hasExistingPin }: P
 
   function untilDate(days: number): string {
     const d = new Date(Date.now() + days * 86_400_000)
-    return d.toLocaleDateString('en', { month: 'short', day: 'numeric' })
+    return d.toLocaleDateString('pt-BR', { month: 'short', day: 'numeric' })
   }
 
   return (
@@ -243,17 +265,17 @@ export function PinButton({ videoId, channelId, pinnedUntil, hasExistingPin }: P
         disabled={isPending}
         onClick={() => setShowDropdown(!showDropdown)}
         className="text-xs text-cms-text-dim hover:text-cms-text disabled:opacity-50"
-        title="Pin as weekly pick"
+        title="Fixar como Video da Semana"
       >
-        ☆ Pin as Weekly Pick
+        ☆ Fixar como Video da Semana
       </button>
       {hasExistingPin && !isPinned && (
-        <span className="block text-[9px] italic text-cms-text-dim">replaces current</span>
+        <span className="block text-[9px] italic text-cms-text-dim">substitui atual</span>
       )}
       {showDropdown && (
         <div className="absolute right-0 top-6 z-10 min-w-[220px] rounded-lg border border-cms-border bg-cms-surface p-1 shadow-lg">
           <div className="px-2.5 py-1 text-[9px] font-semibold uppercase tracking-wider text-cms-text-dim">
-            Pin Duration
+            Duracao da fixacao
           </div>
           {presets.map(d => (
             <button
@@ -263,12 +285,12 @@ export function PinButton({ videoId, channelId, pinnedUntil, hasExistingPin }: P
               onClick={() => handlePin(d)}
               className="flex w-full items-center justify-between rounded px-2.5 py-1.5 text-xs text-cms-text hover:bg-cms-surface-hover disabled:opacity-50"
             >
-              <span>{d} days</span>
-              <span className="text-cms-text-dim">until {untilDate(d)}</span>
+              <span>{d} dias</span>
+              <span className="text-cms-text-dim">ate {untilDate(d)}</span>
             </button>
           ))}
           <div className="mt-1 flex items-center gap-1.5 border-t border-cms-border px-2.5 pt-2 pb-1">
-            <span className="text-[10px] text-cms-text-dim">Custom:</span>
+            <span className="text-[10px] text-cms-text-dim">Personalizado:</span>
             <input
               type="number"
               min={1}
@@ -276,7 +298,7 @@ export function PinButton({ videoId, channelId, pinnedUntil, hasExistingPin }: P
               step={1}
               value={customDays}
               onChange={e => setCustomDays(e.target.value)}
-              placeholder="days"
+              placeholder="dias"
               className="w-14 rounded border border-cms-border bg-cms-surface px-1.5 py-0.5 text-[10px] text-cms-text"
             />
             <button
@@ -285,7 +307,7 @@ export function PinButton({ videoId, channelId, pinnedUntil, hasExistingPin }: P
               onClick={() => handlePin(Number(customDays))}
               className="rounded bg-cms-accent px-2 py-0.5 text-[10px] font-medium text-white disabled:opacity-50"
             >
-              Pin
+              Fixar
             </button>
           </div>
         </div>
@@ -307,7 +329,7 @@ export function AbStatusBadge({ test, videoId, isShort }: {
         href={`/cms/youtube/ab-lab/new?videoId=${videoId}`}
         className="text-[11px] px-2 py-0.5 rounded border border-cms-border text-cms-text-muted hover:text-cms-text hover:border-cms-accent transition-colors"
       >
-        Start A/B
+        Iniciar A/B
       </Link>
     )
   }
@@ -329,7 +351,7 @@ export function AbStatusBadge({ test, videoId, isShort }: {
   if (test.status === 'paused') {
     return (
       <Link href={href} className="text-[11px] px-2 py-0.5 rounded-full bg-amber-900/30 text-amber-400">
-        Paused
+        Pausado
       </Link>
     )
   }
@@ -404,14 +426,14 @@ export function VideoContextMenu({ videoId, isShort, abTest }: VideoContextMenuP
   const items: MenuItem[] = []
 
   if (!isShort && !abTest) {
-    items.push({ kind: 'link', label: 'Start A/B Test', href: `/cms/youtube/ab-lab/new?videoId=${videoId}` })
+    items.push({ kind: 'link', label: 'Iniciar Teste A/B', href: `/cms/youtube/ab-lab/new?videoId=${videoId}` })
   }
   if (abTest) {
-    items.push({ kind: 'link', label: 'View Test Details', href: `/cms/youtube/ab-lab/${abTest.id}` })
+    items.push({ kind: 'link', label: 'Ver Detalhes do Teste', href: `/cms/youtube/ab-lab/${abTest.id}` })
   }
   if (abTest?.status === 'active') {
-    items.push({ kind: 'action', action: 'pause', label: 'Pause Test', className: 'text-amber-400' })
-    items.push({ kind: 'action', action: 'end', label: 'End Test', className: 'text-red-400' })
+    items.push({ kind: 'action', action: 'pause', label: 'Pausar Teste', className: 'text-amber-400' })
+    items.push({ kind: 'action', action: 'end', label: 'Encerrar Teste', className: 'text-red-400' })
   }
 
   if (items.length === 0) return null
@@ -422,7 +444,7 @@ export function VideoContextMenu({ videoId, isShort, abTest }: VideoContextMenuP
         type="button"
         onClick={() => setOpen(!open)}
         className="p-1 rounded text-cms-text-dim hover:text-cms-text hover:bg-cms-surface-hover"
-        aria-label="More actions"
+        aria-label="Mais acoes"
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
           <circle cx="12" cy="5" r="2" />
@@ -518,7 +540,7 @@ export function SyncButton({ onSync }: SyncButtonProps) {
         <path d="M3 12a9 9 0 0115-6.7L21 8M3 22v-6h6" />
         <path d="M21 12a9 9 0 01-15 6.7L3 16" />
       </svg>
-      {isPending ? 'Syncing…' : 'Sync Now'}
+      {isPending ? 'Sincronizando...' : 'Sincronizar agora'}
     </button>
   )
 }

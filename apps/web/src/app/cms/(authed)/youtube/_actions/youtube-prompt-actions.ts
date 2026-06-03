@@ -34,6 +34,8 @@ import type { YtDemographics } from '@/lib/youtube/analytics-types'
 
 type ActionResult<T> = { ok: true; data: T } | { ok: false; error: string }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 async function requireReadAccess(): Promise<string> {
   const { siteId } = await getSiteContext()
   const res = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
@@ -109,6 +111,9 @@ async function getChannelInfo(
 export async function fetchContentCalendarData(
   channelId?: string,
 ): Promise<ActionResult<ContentCalendarData>> {
+  if (channelId && !UUID_RE.test(channelId))
+    return { ok: false, error: 'invalid_input' }
+
   try {
     const siteId = await requireReadAccess()
     const channelResult = await getChannelInfo(siteId, channelId)
@@ -204,6 +209,9 @@ export async function fetchContentCalendarData(
 export async function fetchChannelHealthData(
   channelId?: string,
 ): Promise<ActionResult<ChannelHealthData>> {
+  if (channelId && !UUID_RE.test(channelId))
+    return { ok: false, error: 'invalid_input' }
+
   try {
     const siteId = await requireReadAccess()
     const channelResult = await getChannelInfo(siteId, channelId)
@@ -514,6 +522,9 @@ export async function fetchChannelHealthData(
 export async function fetchVideoOptimizerData(
   videoId: string,
 ): Promise<ActionResult<VideoOptimizerData>> {
+  if (!UUID_RE.test(videoId))
+    return { ok: false, error: 'invalid_input' }
+
   try {
     const siteId = await requireReadAccess()
     const supabase = getSupabaseServiceClient()
@@ -770,6 +781,9 @@ export async function fetchChannels(): Promise<ActionResult<ChannelOption[]>> {
 }
 
 export async function fetchChannelVideos(channelId: string): Promise<ActionResult<ChannelVideoOption[]>> {
+  if (!UUID_RE.test(channelId))
+    return { ok: false, error: 'invalid_input' }
+
   try {
     const siteId = await requireReadAccess()
     const supabase = getSupabaseServiceClient()

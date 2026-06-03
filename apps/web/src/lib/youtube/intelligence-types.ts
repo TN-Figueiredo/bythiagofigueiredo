@@ -369,18 +369,13 @@ export type PatternCategory =
 // ── Coaching Output ──
 
 export interface CoachingOutput {
-  summary: string                   // 2-3 sentences, big picture PT-BR
-  priorities: CoachingPriority[]    // max 5, ordered by rank
-  next_video_advice: string         // specific advice for the next upload
-}
-
-export interface CoachingPriority {
-  rank: number                      // 1-5
-  action: string                    // what to do
-  impact: 'high' | 'medium' | 'low'
-  effort: 'high' | 'medium' | 'low'
-  estimated_lift: string            // e.g. "+2.500 views/mês"
-  timeline: string                  // e.g. "Esta semana"
+  summary: string
+  priorities: Array<{
+    axis: 'ctr' | 'retention' | 'reach' | 'engagement' | 'growth' | 'sub_impact'
+    score: number
+    diagnosis: string
+    action: string
+  }>
 }
 
 

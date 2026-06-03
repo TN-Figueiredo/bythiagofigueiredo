@@ -37,6 +37,7 @@ function terminal(value: { data: unknown; error: unknown; count?: number }): unk
     in: vi.fn(() => terminal(value)),
     is: vi.fn(() => terminal(value)),
     not: vi.fn(() => terminal(value)),
+    or: vi.fn(() => terminal(value)),
     lte: vi.fn(() => terminal(value)),
     gte: vi.fn(() => terminal(value)),
     limit: vi.fn(() => terminal(value)),
@@ -413,7 +414,7 @@ describe('2. PublishNow happy path: immediate publish to completion', () => {
 
   it('publishSocialPost completes when all deliveries succeed', async () => {
     tableOverrides = {
-      social_posts: { update: { data: null, error: null } },
+      social_posts: { update: { data: { id: POST_ID }, error: null } },
       social_deliveries: {
         select: {
           data: [
