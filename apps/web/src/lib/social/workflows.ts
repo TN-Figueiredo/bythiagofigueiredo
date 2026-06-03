@@ -16,6 +16,7 @@ import { decrypt, encrypt, getMasterKey } from '@tn-figueiredo/social/vault'
 import type { OGTags } from '@tn-figueiredo/social/providers/bluesky'
 import { getSocialConfig } from './config'
 import { extractSlideMetadata } from './slide-metadata'
+import { adaptContent } from './adapt-content'
 
 const SENTRY_TAG = { component: 'social-workflows' }
 
@@ -484,7 +485,16 @@ export async function publishSocialPost(
         }
 
         try {
-          let processedPost = post
+          const adaptedContent = adaptContent(
+            post.content,
+            delivery.provider as 'facebook' | 'instagram' | 'youtube' | 'bluesky',
+            (delivery.format as string) ?? 'link_share',
+            (delivery as unknown as { content_override?: Record<string, unknown> | null }).content_override ?? null,
+          )
+
+          let processedPost: SocialPostWithSlides = { ...post, content: adaptedContent }
+
+          // Story prep still uses original post for media_urls
           if (delivery.format === 'story' && delivery.provider === 'instagram') {
             processedPost = await prepareStoryDelivery(post, delivery)
           }
