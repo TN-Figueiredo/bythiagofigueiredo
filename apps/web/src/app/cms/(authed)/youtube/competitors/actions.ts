@@ -165,6 +165,22 @@ export async function syncFullHistory(channelRowId: string): Promise<{ ok: boole
   }
 }
 
+export async function updateVideoLimit(channelRowId: string, limit: number): Promise<{ ok: boolean }> {
+  const clamped = Math.max(50, Math.min(200, limit))
+  let siteId: string
+  try { siteId = await requireEditAccess() } catch { return { ok: false } }
+
+  const supabase = getSupabaseServiceClient()
+  await supabase
+    .from('competitor_channels')
+    .update({ video_limit: clamped })
+    .eq('id', channelRowId)
+    .eq('site_id', siteId)
+
+  revalidatePath('/cms/youtube/competitors')
+  return { ok: true }
+}
+
 export async function getSyncStatus(channelRowId: string): Promise<{
   status: string
   progress: number

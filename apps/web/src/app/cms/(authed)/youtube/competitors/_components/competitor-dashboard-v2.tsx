@@ -60,7 +60,8 @@ export function CompetitorDashboardV2({
   } | null>(null)
 
   // Remove confirmation state
-  const [removeTarget, setRemoveTarget] = useState<{ id: string; name: string } | null>(null)
+  const [removeTarget, setRemoveTarget] = useState<{ id: string; name: string; channelId: string } | null>(null)
+  const [removedChannelIds, setRemovedChannelIds] = useState<Set<string>>(new Set())
 
   const drawerChannel = useMemo(
     () => channels.find(c => c.id === drawerChannelId) ?? null,
@@ -111,14 +112,17 @@ export function CompetitorDashboardV2({
 
   const handleRemove = (channelId: string) => {
     const ch = channels.find(c => c.id === channelId)
-    setRemoveTarget({ id: channelId, name: ch?.channelName ?? 'Canal' })
+    setRemoveTarget({ id: channelId, name: ch?.channelName ?? 'Canal', channelId: ch?.channelId ?? '' })
   }
 
   const handleConfirmRemove = async () => {
     if (!removeTarget) return
+    const ytChannelId = removeTarget.channelId
     await removeCompetitorChannel(removeTarget.id)
+    if (ytChannelId) setRemovedChannelIds(prev => new Set(prev).add(ytChannelId))
     toast.success('Canal removido.')
     setRemoveTarget(null)
+    router.refresh()
   }
 
   const handleVideoClick = useCallback((
@@ -306,7 +310,7 @@ export function CompetitorDashboardV2({
       <AddChannelModal
         open={addModalOpen}
         onClose={() => setAddModalOpen(false)}
-        existingChannelIds={channels.map(c => c.channelId)}
+        existingChannelIds={channels.map(c => c.channelId).filter(id => !removedChannelIds.has(id))}
         slotsRemaining={maxChannels - channels.length}
       />
     </div>

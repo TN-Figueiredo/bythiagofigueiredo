@@ -34,6 +34,7 @@ export interface CompetitorChannelView {
   syncError: string | null
   youtubeVideoCount: number | null
   fullSyncCompletedAt: string | null
+  videoLimit: number
 }
 
 /** Competitor video as rendered in shelf, drawer, and modal. */

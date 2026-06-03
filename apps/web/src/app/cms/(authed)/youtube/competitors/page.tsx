@@ -52,28 +52,30 @@ export default async function CompetitorsPage({
   // ── 1. Fetch competitor channels ──
   const { data: rawChannels } = await supabase
     .from('competitor_channels')
-    .select('id, channel_id, channel_name, thumbnail_url, subscriber_count, last_synced_at, added_at, sync_mode, sync_status, sync_started_at, sync_progress, sync_error, full_sync_completed_at, youtube_video_count')
+    .select('id, channel_id, channel_name, thumbnail_url, subscriber_count, last_synced_at, added_at, sync_mode, sync_status, sync_started_at, sync_progress, sync_error, full_sync_completed_at, youtube_video_count, video_limit')
     .eq('site_id', siteId)
     .order('added_at', { ascending: false })
 
   const safeChannels = rawChannels ?? []
   const channelIds = safeChannels.map(ch => ch.id)
 
-  // ── 2. Fetch videos per-channel (guarantees fair distribution, max 200 per channel) ──
+  // ── 2. Fetch videos per-channel (respects per-channel video_limit, default 50, max 200) ──
   type VideoRow = {
     id: string; competitor_channel_id: string; video_id: string; title: string | null
     thumbnail_url: string | null; view_count: number | null; published_at: string | null
     tags: string[] | null; like_count: number | null; comment_count: number | null
     duration_seconds: number | null; last_checked_at: string | null
   }
+  const videoLimitByChannel = new Map(safeChannels.map(ch => [ch.id, Math.min(ch.video_limit ?? 50, 200)]))
   const allVideos: VideoRow[] = []
   for (const chId of channelIds) {
+    const limit = videoLimitByChannel.get(chId) ?? 50
     const { data: chVideos } = await supabase
       .from('competitor_videos')
       .select('id, competitor_channel_id, video_id, title, thumbnail_url, view_count, published_at, tags, like_count, comment_count, duration_seconds, last_checked_at')
       .eq('competitor_channel_id', chId)
       .order('published_at', { ascending: false })
-      .limit(200)
+      .limit(limit)
     if (chVideos) allVideos.push(...(chVideos as VideoRow[]))
   }
 
@@ -305,6 +307,7 @@ export default async function CompetitorsPage({
       syncError: ch.sync_error ?? null,
       youtubeVideoCount: ch.youtube_video_count ?? null,
       fullSyncCompletedAt: ch.full_sync_completed_at ?? null,
+      videoLimit: ch.video_limit ?? 50,
     }
   })
 

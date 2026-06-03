@@ -15,7 +15,7 @@ import { fmtC, brDec, fmtRelative } from '@/lib/youtube/format'
 import { SparklineChart } from './sparkline-chart'
 import { ConfirmFullSyncDialog } from './confirm-full-sync-dialog'
 import { useFullSyncProgress } from './useFullSyncProgress'
-import { syncFullHistory } from '../actions'
+import { syncFullHistory, updateVideoLimit } from '../actions'
 import type { CompetitorChannelView, CompetitorVideoView } from '@/lib/youtube/observatory-types'
 
 /* ── Palette: deterministic gradient per channel name ── */
@@ -117,6 +117,9 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
   const ch = channel
   const isFullSyncing = ch.syncStatus === 'syncing' && ch.syncMode === 'full'
   const syncProgress = useFullSyncProgress(ch.id, isFullSyncing)
+  const isLimitReached = ch.videoCount >= ch.videoLimit
+  const hasAllYouTube = !!(ch.youtubeVideoCount && ch.videoCount >= ch.youtubeVideoCount)
+  const isComplete = hasAllYouTube || !!ch.fullSyncCompletedAt || isLimitReached
   const sparkColor = ch.growthDelta == null ? 'var(--text-dim)' : ch.growthDelta >= 0 ? 'var(--green)' : 'var(--amber)'
   const outlierStats = getOutlierStats(ch.recentVideos)
 
@@ -173,11 +176,7 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
                   {' · '}
                   {(() => {
                     if (ch.syncStatus === 'syncing') return 'sincronizando...'
-                    const hasAll = ch.youtubeVideoCount && ch.videoCount >= ch.youtubeVideoCount
-                    if (ch.youtubeVideoCount && ch.videoCount < ch.youtubeVideoCount && ch.videoCount >= 2000)
-                      return `${ch.videoCount} de ~${fmtC(ch.youtubeVideoCount)} vídeos`
-                    if (hasAll || ch.fullSyncCompletedAt)
-                      return `${ch.videoCount} vídeos (completo)`
+                    if (isComplete) return `${ch.videoCount} vídeos (completo)`
                     return `${ch.videoCount} vídeos (recentes)`
                   })()}
                 </p>
@@ -361,29 +360,37 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span className="mono" style={{ fontSize: 10.5, color: 'var(--text-dim)' }}>
                 {ch.lastSyncedAt ? `sincronizado ${fmtRelative(ch.lastSyncedAt)}` : 'nunca sincronizado'}
-                {(() => {
-                  const hasAll = ch.youtubeVideoCount && ch.videoCount >= ch.youtubeVideoCount
-                  if (hasAll || ch.fullSyncCompletedAt) {
-                    if (ch.youtubeVideoCount && ch.videoCount >= 2000 && ch.videoCount < ch.youtubeVideoCount)
-                      return ` · ${fmtC(ch.videoCount)} de ~${fmtC(ch.youtubeVideoCount)} (limite)`
-                    return ` · ${ch.videoCount} vídeos (completo)`
-                  }
-                  return ' · 50 recentes'
-                })()}
+                {isComplete
+                  ? ` · ${ch.videoCount} vídeos (completo)`
+                  : ` · ${ch.videoCount} recentes`}
               </span>
-              {!ch.fullSyncCompletedAt && !(ch.youtubeVideoCount && ch.videoCount >= ch.youtubeVideoCount) ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <button
                   className="sync-action"
-                  onClick={e => { e.stopPropagation(); setShowFullSyncDialog(true) }}
+                  title="Limite de vídeos monitorados — clique pra alternar"
+                  onClick={e => {
+                    e.stopPropagation()
+                    const steps = [50, 100, 200] as const
+                    const next = steps[(steps.indexOf(ch.videoLimit as 50 | 100 | 200) + 1) % steps.length] ?? 50
+                    updateVideoLimit(ch.id, next)
+                  }}
                 >
-                  buscar histórico ›
+                  limite: {ch.videoLimit}
                 </button>
-              ) : (
-                <span className="chan-open-hint" style={{ fontSize: 12, fontWeight: 500 }}>
-                  ver canal
-                  <ArrowRight style={{ width: 12, height: 12 }} />
-                </span>
-              )}
+                {isComplete ? (
+                  <span className="chan-open-hint" style={{ fontSize: 12, fontWeight: 500 }}>
+                    ver canal
+                    <ArrowRight style={{ width: 12, height: 12 }} />
+                  </span>
+                ) : (
+                  <button
+                    className="sync-action"
+                    onClick={e => { e.stopPropagation(); setShowFullSyncDialog(true) }}
+                  >
+                    buscar histórico ›
+                  </button>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -412,7 +419,7 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
             <span className="section-label">
               Vídeos{' '}
               <span className="mono" style={{ fontSize: 10, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>
-                ({ch.fullSyncCompletedAt ? 'histórico' : '50 recentes'})
+                ({ch.fullSyncCompletedAt ? 'histórico' : `${ch.recentVideos.length} ${isComplete ? 'completo' : 'recentes'}`})
               </span>
             </span>
             {outlierStats.count > 0 && outlierStats.bestMult != null && (

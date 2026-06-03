@@ -36,7 +36,7 @@ export async function syncCompetitorChannel(
     })
     .eq('id', channelRow.id)
     .or(`sync_status.neq.syncing,sync_started_at.lt.${new Date(Date.now() - 10 * 60_000).toISOString()}`)
-    .select('id, sync_mode, full_sync_completed_at')
+    .select('id, sync_mode, full_sync_completed_at, video_limit')
 
   if (!locked || locked.length === 0) {
     return { videosChecked: 0, changesDetected: 0, skipped: true }
@@ -44,6 +44,8 @@ export async function syncCompetitorChannel(
 
   const syncMode = (locked[0] as { sync_mode: string }).sync_mode
   const fullSyncDone = (locked[0] as { full_sync_completed_at: string | null }).full_sync_completed_at
+  const videoLimit = (locked[0] as { video_limit: number | null }).video_limit ?? 50
+  const maxIncrementalPages = Math.max(1, Math.ceil(videoLimit / 50))
 
   let videosChecked = 0
   let changesDetected = 0
@@ -264,8 +266,8 @@ export async function syncCompetitorChannel(
         if (videosChecked >= MAX_FULL_SYNC_VIDEOS) break
         if (nextPageToken) await sleep(PAGE_DELAY_MS)
       } else {
-        // Smart incremental: stop when we hit a known video or reach page cap
-        if (hitKnownVideo || pageCount >= MAX_INCREMENTAL_PAGES) break
+        // Smart incremental: stop when we hit a known video or reach per-channel page cap
+        if (hitKnownVideo || pageCount >= maxIncrementalPages) break
       }
     } while (nextPageToken)
 
