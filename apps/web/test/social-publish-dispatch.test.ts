@@ -44,10 +44,14 @@ function terminal(value: { data: unknown; error: unknown }): unknown {
     eq: vi.fn(() => terminal(value)),
     in: vi.fn(() => terminal(value)),
     is: vi.fn(() => terminal(value)),
+    or: vi.fn(() => terminal(value)),
+    not: vi.fn(() => terminal(value)),
     gte: vi.fn(() => terminal(value)),
     lte: vi.fn(() => terminal(value)),
     limit: vi.fn(() => terminal(value)),
+    select: vi.fn(() => terminal(value)),
     single: vi.fn(() => Promise.resolve(value)),
+    maybeSingle: vi.fn(() => Promise.resolve(value)),
     then: (resolve: (v: unknown) => void) => Promise.resolve(value).then(resolve),
   }
   return handler
@@ -293,7 +297,7 @@ describe('publishSocialPost', () => {
   it('sets status to publishing', async () => {
     // No pending deliveries → completes immediately
     tableOverrides = {
-      social_posts: { update: { data: null, error: null }, select: { data: [], error: null } },
+      social_posts: { update: { data: { id: 'post-001' }, error: null }, select: { data: [], error: null } },
       social_deliveries: { select: { data: [], error: null }, update: { data: null, error: null } },
     }
 
@@ -315,7 +319,7 @@ describe('publishSocialPost', () => {
     mockFacebookPublish.mockResolvedValue({ id: 'fb-123', url: 'https://fb.com/123' })
 
     tableOverrides = {
-      social_posts: { update: { data: null, error: null }, select: { data: [], error: null } },
+      social_posts: { update: { data: { id: 'post-001' }, error: null }, select: { data: [], error: null } },
       social_deliveries: {
         select: { data: deliveries, error: null },
         update: { data: null, error: null },
@@ -347,7 +351,7 @@ describe('publishSocialPost', () => {
     mockFacebookPublish.mockResolvedValue({ id: 'fb-post-1', url: 'https://fb.com/1' })
 
     tableOverrides = {
-      social_posts: { update: { data: null, error: null }, select: { data: [], error: null } },
+      social_posts: { update: { data: { id: 'post-001' }, error: null }, select: { data: [], error: null } },
       social_deliveries: {
         select: { data: [delivery], error: null },
         update: { data: null, error: null },
@@ -377,7 +381,7 @@ describe('publishSocialPost', () => {
     mockFacebookPublish.mockResolvedValue({ id: 'fb-post-99', url: 'https://fb.com/99' })
 
     tableOverrides = {
-      social_posts: { update: { data: null, error: null }, select: { data: [], error: null } },
+      social_posts: { update: { data: { id: 'post-001' }, error: null }, select: { data: [], error: null } },
       social_deliveries: {
         select: { data: [delivery], error: null },
         update: { data: null, error: null },
@@ -453,7 +457,7 @@ describe('publishSocialPost', () => {
     })
 
     tableOverrides = {
-      social_posts: { update: { data: null, error: null }, select: { data: [], error: null } },
+      social_posts: { update: { data: { id: 'post-001' }, error: null }, select: { data: [], error: null } },
       social_deliveries: {
         select: { data: deliveries, error: null },
         update: { data: null, error: null },
@@ -477,7 +481,7 @@ describe('publishSocialPost', () => {
     ]
 
     tableOverrides = {
-      social_posts: { update: { data: null, error: null }, select: { data: [], error: null } },
+      social_posts: { update: { data: { id: 'post-001' }, error: null }, select: { data: [], error: null } },
       social_deliveries: {
         select: { data: deliveries, error: null },
         update: { data: null, error: null },
@@ -499,7 +503,7 @@ describe('publishSocialPost', () => {
 
   it('handles empty deliveries — no pending → post status = failed', async () => {
     tableOverrides = {
-      social_posts: { update: { data: null, error: null }, select: { data: [], error: null } },
+      social_posts: { update: { data: { id: 'post-001' }, error: null }, select: { data: [], error: null } },
       social_deliveries: { select: { data: [], error: null }, update: { data: null, error: null } },
     }
 

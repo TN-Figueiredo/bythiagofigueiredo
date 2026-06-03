@@ -470,10 +470,18 @@ export async function publishDraftPost(postId: string): Promise<ActionResult> {
       updated_at: now,
     }
 
-    await supabase
+    // CAS guard: only transition if status is still 'draft'.
+    // If a concurrent call already moved it to 'publishing', maybeSingle() returns
+    // null and we return early — idempotent success, no double-publish.
+    const { data: locked } = await supabase
       .from('social_posts')
       .update({ status: 'publishing' as PostStatus, updated_at: now })
       .eq('id', parsed.data)
+      .eq('status', 'draft')
+      .select('id')
+      .maybeSingle()
+
+    if (!locked) return { ok: true, data: undefined }
 
     after(
       publishSocialPost(socialPost).catch((err: unknown) => {

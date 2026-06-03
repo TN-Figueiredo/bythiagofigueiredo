@@ -380,11 +380,19 @@ export async function publishSocialPost(
   const supabase = getSupabaseServiceClient()
 
   try {
-    // Step 1: Set post status to 'publishing'
-    await supabase
+    // Step 1: Set post status to 'publishing' via CAS.
+    // Only transition if status is still 'draft' or 'scheduled'.
+    // If a concurrent call already moved it to 'publishing', maybeSingle() returns
+    // null and we return early — idempotent, no double-publish.
+    const { data: locked } = await supabase
       .from('social_posts')
       .update({ status: 'publishing' as PostStatus, updated_at: new Date().toISOString() })
       .eq('id', post.id)
+      .or('status.eq.draft,status.eq.scheduled')
+      .select('id')
+      .maybeSingle()
+
+    if (!locked) return
 
     // Step 2: Get pending deliveries
     let { data: deliveries, error: delError } = await supabase
