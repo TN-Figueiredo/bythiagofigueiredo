@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { brDec } from '@/lib/youtube/format'
 import type { Axis } from '@/lib/youtube/scoring-types'
@@ -55,6 +56,7 @@ export function YtHealthCoach({
   onRequestAnalysis,
   analysisState,
 }: Props) {
+  const router = useRouter()
   const sortedCards = [...coachingCards].sort((a, b) => a.score - b.score)
 
   const potentialScore = sortedCards.length > 0
@@ -141,10 +143,16 @@ export function YtHealthCoach({
                 type="button"
                 className="btn sm"
                 title={card.action}
-                onClick={() => toast.success(`"${card.action}" — encaminhado ao seu fluxo.`)}
+                onClick={() => {
+                  if (card.axis === 'ctr') {
+                    router.push('/cms/youtube/ab-lab/new')
+                  } else {
+                    toast.success(`Ação anotada: "${card.action}"`)
+                  }
+                }}
               >
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
-                {actionLabel}
+                {card.axis === 'ctr' ? 'Criar A/B Test' : actionLabel}
               </button>
               {impactPts > 0 && <span className="mono coach-impact">+{impactPts} pts</span>}
             </div>

@@ -11,12 +11,10 @@
 
 import { useState, useRef, useCallback, useMemo, type SyntheticEvent } from 'react'
 import { useRouter } from 'next/navigation'
-import { toast } from 'sonner'
 import { YtOverview } from './yt-overview'
 import { YtOutliers } from './yt-outliers'
 import { YtOutliersV2 } from './yt-outliers-v2'
 import { YtHealthCoach } from './yt-health-coach'
-import { YtNotificationsBell } from './yt-notifications-bell'
 import { YtDemographicsView } from './yt-demographics'
 import { YtSearchTermsView } from './yt-search-terms'
 import { NotesView } from './notes-view'
@@ -32,7 +30,7 @@ import type {
 import type { YtConnectedChannel } from '@/lib/youtube/analytics-client'
 import { AXIS_LABELS } from '@/lib/youtube/scoring-types'
 import type { Axis } from '@/lib/youtube/scoring-types'
-import type { VideoGradeRow, Notification, OutlierVideo } from './types'
+import type { VideoGradeRow, OutlierVideo } from './types'
 
 function ChannelAvatar({ url, name }: { url: string | null; name: string }) {
   const [failed, setFailed] = useState(false)
@@ -73,34 +71,15 @@ interface Props {
   channelInternalId?: string
   intelligenceVideos?: VideoGradeRow[]
   intelligenceOutliers?: OutlierVideo[]
-  notifications?: Notification[]
+  notes?: NoteEntry[]
   healthScore?: number
-  onMarkNotificationRead?: (id: string) => Promise<void>
-  onMarkAllNotificationsRead?: () => Promise<void>
-  onDismissNotification?: (id: string) => Promise<void>
+  onCreateNote?: (input: { channelId: string; text: string }) => Promise<{ ok: boolean; error?: string }>
+  onDeleteNote?: (noteId: string) => Promise<{ ok: boolean; error?: string }>
   onRequestAnalysis?: (channelId: string) => Promise<unknown>
   lastAnalysisAt?: string | null
   searchTermsError?: string
   demographicsError?: string
 }
-
-/** Demo notes for the NotesView */
-const DEMO_NOTES: NoteEntry[] = [
-  {
-    id: 'n1',
-    author: 'Cowork',
-    text: 'CTR caiu 12% na ultima semana. Recomendo testar novas thumbnails com texto overlay nos proximos 3 videos.',
-    timestamp: new Date(Date.now() - 2 * 3600000).toISOString(),
-    isBot: true,
-  },
-  {
-    id: 'n2',
-    author: 'Thiago',
-    text: 'Experimentar formato "talking head" com fundo desfocado nos proximos videos de tutorial.',
-    timestamp: new Date(Date.now() - 48 * 3600000).toISOString(),
-    isBot: false,
-  },
-]
 
 export function YtAnalyticsTabs({
   metrics,
@@ -113,11 +92,10 @@ export function YtAnalyticsTabs({
   channelInternalId,
   intelligenceVideos,
   intelligenceOutliers,
-  notifications,
+  notes,
   healthScore,
-  onMarkNotificationRead,
-  onMarkAllNotificationsRead,
-  onDismissNotification,
+  onCreateNote,
+  onDeleteNote,
   onRequestAnalysis,
   lastAnalysisAt,
   searchTermsError,
@@ -186,7 +164,7 @@ export function YtAnalyticsTabs({
   const tabCounts = useMemo(() => {
     const outlierCount = intelligenceOutliers?.length ?? 0
     return {
-      notes: DEMO_NOTES.length,
+      notes: notes?.length ?? 0,
       coach: coachingCards.length,
       outliers: outlierCount,
       search: searchTerms.length,
@@ -237,13 +215,14 @@ export function YtAnalyticsTabs({
           <button
             type="button"
             className="btn cowork"
-            onClick={() => toast.success('Diagnostico solicitado ao Cowork — chega em instantes.')}
+            disabled={!onRequestAnalysis || !channelInternalId || analysisState !== 'idle'}
+            onClick={handleRequestAnalysis}
           >
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z" />
               <path d="M5 18l.7 1.8L7.5 20l-1.8.7L5 22l-.7-1.3L2.5 20l1.8-.2z" />
             </svg>
-            Pedir diagnostico ao Cowork
+            {analysisState === 'pending' ? 'Solicitando...' : analysisState === 'success' ? 'Solicitado!' : analysisState === 'cooldown' ? 'Aguarde...' : 'Pedir diagnostico ao Cowork'}
           </button>
         </div>
       </div>
@@ -299,7 +278,12 @@ export function YtAnalyticsTabs({
           )
         )}
         {activeTab === 'notes' && (
-          <NotesView notes={DEMO_NOTES} />
+          <NotesView
+            notes={notes ?? []}
+            channelId={channelInternalId ?? ''}
+            onCreateNote={onCreateNote}
+            onDeleteNote={onDeleteNote}
+          />
         )}
         {activeTab === 'coach' && (
           <YtHealthCoach
@@ -339,6 +323,7 @@ function computeRadarData(videos: VideoGradeRow[]): Array<{ label: string; value
   })
 }
 
+/** Static coaching fallbacks. TODO: replace with intelligence pipeline when available (source: 'cowork'). */
 const COACHING_DIAGNOSTICS: Record<Axis, { diagnosis: string; action: string }> = {
   ctr: {
     diagnosis: 'Sua taxa de clique esta abaixo da media. Thumbnails e titulos precisam de mais impacto visual.',

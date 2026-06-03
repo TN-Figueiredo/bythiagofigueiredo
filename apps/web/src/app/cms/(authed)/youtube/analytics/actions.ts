@@ -5,7 +5,8 @@ import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { scoreVideo, computeOutliers, computeTrend, computeBaseline } from '@/lib/youtube/scoring'
 import type { VideoScoreInput } from '@/lib/youtube/scoring-types'
-import { revalidatePath, revalidateTag } from 'next/cache'
+import { revalidatePath } from 'next/cache'
+import { z } from 'zod'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -138,57 +139,6 @@ export async function fetchGradesData(channelId: string) {
   return { videos: scoredVideos, outliers }
 }
 
-export async function fetchNotifications() {
-  const { siteId } = await getSiteContext()
-  const auth = await requireSiteScope({ area: 'cms', siteId, mode: 'view' })
-  if (!auth.ok) throw new Error(auth.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
-  const supabase = getSupabaseServiceClient()
-
-  const { data } = await supabase
-    .from('yt_notifications')
-    .select('id, type, priority, title, message, read, action_href, created_at')
-    .eq('site_id', siteId)
-    .is('expired_at', null)
-    .eq('dismissed', false)
-    .order('priority', { ascending: false })
-    .order('created_at', { ascending: false })
-    .limit(50)
-
-  return data ?? []
-}
-
-export async function markNotificationRead(notificationId: string) {
-  if (!UUID_RE.test(notificationId)) throw new Error('invalid_input')
-  const { siteId } = await getSiteContext()
-  const auth = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
-  if (!auth.ok) throw new Error(auth.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
-  const supabase = getSupabaseServiceClient()
-  await supabase.from('yt_notifications').update({ read: true }).eq('id', notificationId).eq('site_id', siteId)
-  revalidateTag('yt-notifications')
-  revalidatePath('/cms/youtube/analytics')
-}
-
-export async function markAllNotificationsRead() {
-  const { siteId } = await getSiteContext()
-  const auth = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
-  if (!auth.ok) throw new Error(auth.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
-  const supabase = getSupabaseServiceClient()
-  await supabase.from('yt_notifications').update({ read: true }).eq('site_id', siteId).eq('read', false)
-  revalidateTag('yt-notifications')
-  revalidatePath('/cms/youtube/analytics')
-}
-
-export async function dismissNotification(notificationId: string) {
-  if (!UUID_RE.test(notificationId)) throw new Error('invalid_input')
-  const { siteId } = await getSiteContext()
-  const auth = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
-  if (!auth.ok) throw new Error(auth.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
-  const supabase = getSupabaseServiceClient()
-  await supabase.from('yt_notifications').update({ dismissed: true }).eq('id', notificationId).eq('site_id', siteId)
-  revalidateTag('yt-notifications')
-  revalidatePath('/cms/youtube/analytics')
-}
-
 export async function requestIntelligenceAnalysis(channelId: string) {
   if (!UUID_RE.test(channelId)) throw new Error('invalid_input')
   const { siteId } = await getSiteContext()
@@ -236,6 +186,91 @@ export async function requestIntelligenceAnalysis(channelId: string) {
     trigger_type: 'manual',
   })
 
+  return { ok: true }
+}
+
+/* ─── Notes ─── */
+
+const noteInputSchema = z.object({
+  channelId: z.string().regex(UUID_RE),
+  text: z.string().min(1).max(5000),
+})
+
+export interface NoteRow {
+  id: string
+  author_name: string
+  text: string
+  is_bot: boolean
+  source: string | null
+  created_at: string
+}
+
+export async function listNotes(channelId: string) {
+  if (!UUID_RE.test(channelId)) throw new Error('invalid_input')
+  const { siteId } = await getSiteContext()
+  const auth = await requireSiteScope({ area: 'cms', siteId, mode: 'view' })
+  if (!auth.ok) throw new Error(auth.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
+  const supabase = getSupabaseServiceClient()
+
+  const { data } = await supabase
+    .from('youtube_notes')
+    .select('id, author_name, text, is_bot, source, created_at')
+    .eq('site_id', siteId)
+    .eq('channel_id', channelId)
+    .order('created_at', { ascending: false })
+    .limit(100)
+
+  return (data ?? []).map((n: NoteRow) => ({
+    id: n.id,
+    author: n.author_name,
+    text: n.text,
+    timestamp: n.created_at,
+    isBot: n.is_bot,
+  }))
+}
+
+export async function createNote(input: { channelId: string; text: string }): Promise<{ ok: boolean; error?: string }> {
+  const parsed = noteInputSchema.safeParse(input)
+  if (!parsed.success) return { ok: false, error: 'invalid_input' }
+  const { channelId, text } = parsed.data
+
+  const { siteId } = await getSiteContext()
+  const auth = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
+  if (!auth.ok) return { ok: false, error: auth.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden' }
+
+  const supabase = getSupabaseServiceClient()
+  const { data: { user } } = await supabase.auth.admin.getUserById(auth.user.id)
+  const authorName = user?.user_metadata?.full_name ?? user?.email?.split('@')[0] ?? 'Anonimo'
+
+  const { error } = await supabase.from('youtube_notes').insert({
+    site_id: siteId,
+    channel_id: channelId,
+    author_id: auth.user.id,
+    author_name: authorName,
+    text,
+    source: 'manual',
+  })
+
+  if (error) return { ok: false, error: error.message }
+  revalidatePath('/cms/youtube/analytics')
+  return { ok: true }
+}
+
+export async function deleteNote(noteId: string): Promise<{ ok: boolean; error?: string }> {
+  if (!UUID_RE.test(noteId)) return { ok: false, error: 'invalid_input' }
+  const { siteId } = await getSiteContext()
+  const auth = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
+  if (!auth.ok) return { ok: false, error: auth.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden' }
+
+  const supabase = getSupabaseServiceClient()
+  const { error } = await supabase
+    .from('youtube_notes')
+    .delete()
+    .eq('id', noteId)
+    .eq('site_id', siteId)
+
+  if (error) return { ok: false, error: error.message }
+  revalidatePath('/cms/youtube/analytics')
   return { ok: true }
 }
 

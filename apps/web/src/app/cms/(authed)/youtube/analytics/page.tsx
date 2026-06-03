@@ -10,10 +10,9 @@ import {
 } from '@/lib/youtube/analytics-queries'
 import {
   fetchGradesData,
-  fetchNotifications,
-  markNotificationRead,
-  markAllNotificationsRead,
-  dismissNotification,
+  listNotes,
+  createNote,
+  deleteNote,
   requestIntelligenceAnalysis,
 } from './actions'
 import { YtAnalyticsTabs } from './_components/yt-analytics-tabs'
@@ -49,14 +48,14 @@ export default async function YouTubeAnalyticsPage({
   const activeChannel = channels.find(c => c.channelId === selectedChannelId) ?? channels[0]!
 
   const supabaseForLastAnalysis = getSupabaseServiceClient()
-  const [metrics, dailyMetrics, grades, searchTermsResult, demographicsResult, intelligenceData, notifications, lastAnalysisRow] = await Promise.all([
+  const [metrics, dailyMetrics, grades, searchTermsResult, demographicsResult, intelligenceData, notes, lastAnalysisRow] = await Promise.all([
     fetchYtChannelMetrics(siteId, 30, activeChannel.channelId),
     fetchYtDailyMetrics(siteId, 30, activeChannel.channelId),
     fetchVideoGrades(siteId, activeChannel.internalId),
     getCachedYtSearchTerms(siteId, 90, activeChannel.channelId),
     getCachedYtDemographics(siteId, 90, activeChannel.channelId),
     fetchGradesData(activeChannel.internalId).catch(() => ({ videos: [], outliers: [] })),
-    fetchNotifications().catch(() => []),
+    listNotes(activeChannel.internalId).catch(() => []),
     supabaseForLastAnalysis
       .from('youtube_intelligence_tasks')
       .select('completed_at')
@@ -104,12 +103,11 @@ export default async function YouTubeAnalyticsPage({
       channelInternalId={activeChannel.internalId}
       intelligenceVideos={intelligenceData.videos}
       intelligenceOutliers={enrichedOutliers}
-      notifications={notifications}
+      notes={notes}
       healthScore={healthScore}
       lastAnalysisAt={lastAnalysisRow?.completed_at ?? null}
-      onMarkNotificationRead={markNotificationRead}
-      onMarkAllNotificationsRead={markAllNotificationsRead}
-      onDismissNotification={dismissNotification}
+      onCreateNote={createNote}
+      onDeleteNote={deleteNote}
       onRequestAnalysis={requestIntelligenceAnalysis}
     />
   )

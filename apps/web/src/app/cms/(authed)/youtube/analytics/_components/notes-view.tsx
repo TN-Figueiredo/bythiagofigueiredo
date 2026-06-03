@@ -14,15 +14,45 @@ export interface NoteEntry {
 
 interface NotesViewProps {
   notes: NoteEntry[]
+  channelId: string
+  onCreateNote?: (input: { channelId: string; text: string }) => Promise<{ ok: boolean; error?: string }>
+  onDeleteNote?: (noteId: string) => Promise<{ ok: boolean; error?: string }>
 }
 
-export function NotesView({ notes }: NotesViewProps) {
+export function NotesView({ notes, channelId, onCreateNote, onDeleteNote }: NotesViewProps) {
   const [text, setText] = useState('')
+  const [saving, setSaving] = useState(false)
 
-  const handleSave = () => {
-    if (!text.trim()) return
-    toast.success('Nota salva.')
-    setText('')
+  const handleSave = async () => {
+    if (!text.trim() || !onCreateNote || saving) return
+    setSaving(true)
+    try {
+      const result = await onCreateNote({ channelId, text: text.trim() })
+      if (result.ok) {
+        toast.success('Nota salva.')
+        setText('')
+      } else {
+        toast.error(result.error ?? 'Erro ao salvar nota.')
+      }
+    } catch {
+      toast.error('Erro ao salvar nota.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDelete = async (noteId: string) => {
+    if (!onDeleteNote) return
+    try {
+      const result = await onDeleteNote(noteId)
+      if (result.ok) {
+        toast.success('Nota removida.')
+      } else {
+        toast.error(result.error ?? 'Erro ao remover nota.')
+      }
+    } catch {
+      toast.error('Erro ao remover nota.')
+    }
   }
 
   return (
@@ -32,7 +62,7 @@ export function NotesView({ notes }: NotesViewProps) {
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Anotar algo sobre o desempenho deste periodo…"
+            placeholder="Anotar algo sobre o desempenho deste periodo..."
             className="notes-input"
           />
           <div className="flex items-center justify-between" style={{ marginTop: 10 }}>
@@ -40,11 +70,11 @@ export function NotesView({ notes }: NotesViewProps) {
             <button
               type="button"
               className="btn primary sm"
-              disabled={!text.trim()}
+              disabled={!text.trim() || saving}
               onClick={handleSave}
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>
-              Salvar nota
+              {saving ? 'Salvando...' : 'Salvar nota'}
             </button>
           </div>
         </div>
@@ -70,9 +100,22 @@ export function NotesView({ notes }: NotesViewProps) {
                     </span>
                   )}
                 </span>
-                <span className="mono dim" style={{ fontSize: 11 }}>
-                  {fmtRelative(note.timestamp)}
-                </span>
+                <div className="flex items-center" style={{ gap: 8 }}>
+                  <span className="mono dim" style={{ fontSize: 11 }}>
+                    {fmtRelative(note.timestamp)}
+                  </span>
+                  {onDeleteNote && !note.isBot && (
+                    <button
+                      type="button"
+                      className="ic-btn danger"
+                      style={{ width: 24, height: 24 }}
+                      title="Remover nota"
+                      onClick={() => handleDelete(note.id)}
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    </button>
+                  )}
+                </div>
               </div>
               <p style={{ fontSize: 13, marginTop: 5, lineHeight: 1.5 }}>
                 {note.text}

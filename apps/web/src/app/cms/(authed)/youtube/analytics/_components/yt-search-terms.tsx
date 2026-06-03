@@ -13,7 +13,9 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { createPipelineItem } from '@/app/cms/(authed)/pipeline/actions'
 import type { YtSearchTerm } from '@/lib/youtube/analytics-types'
 import { fmtC, brDec } from '@/lib/youtube/format'
 
@@ -41,19 +43,23 @@ function estimateTrend(t: YtSearchTerm): 'up' | 'down' | 'flat' {
 }
 
 export function YtSearchTermsView({ terms, apiError }: Props) {
+  const router = useRouter()
+  const [creatingTerm, setCreatingTerm] = useState<string | null>(null)
   const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({
     key: 'views',
     dir: 'desc',
   })
 
+  const activeTerms = terms
+
   const enriched = useMemo(
     () =>
-      terms.map((t) => ({
+      activeTerms.map((t) => ({
         ...t,
         ctr: estimateCtr(t),
         trend: estimateTrend(t),
       })),
-    [terms],
+    [activeTerms],
   )
 
   const sorted = useMemo(() => {
@@ -67,7 +73,7 @@ export function YtSearchTermsView({ terms, apiError }: Props) {
     return arr
   }, [enriched, sort])
 
-  if (terms.length === 0) {
+  if (activeTerms.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-cms-border p-8 text-center">
         {apiError === 'scope' ? (
@@ -113,8 +119,27 @@ export function YtSearchTermsView({ terms, apiError }: Props) {
     )
   }
 
-  const handleRowClick = (term: string) => {
-    toast.success(`Roteiro pro termo "${term}" enviado ao pipeline.`)
+  const handleRowClick = async (term: string) => {
+    if (creatingTerm) return
+    setCreatingTerm(term)
+    try {
+      const result = await createPipelineItem({
+        format: 'video',
+        title_pt: `Roteiro: ${term}`,
+        synopsis: `Video baseado no termo de busca "${term}".`,
+        tags: ['search-term', 'youtube-analytics'],
+      })
+      if (result.ok) {
+        toast.success(`Roteiro "${term}" criado no pipeline.`)
+        router.push(`/cms/pipeline/${result.data.id}`)
+      } else {
+        toast.error(result.error || 'Erro ao criar roteiro.')
+      }
+    } catch {
+      toast.error('Erro ao criar roteiro. Tente novamente.')
+    } finally {
+      setCreatingTerm(null)
+    }
   }
 
   const handleRowKeyDown = (e: React.KeyboardEvent, term: string) => {
@@ -180,20 +205,15 @@ export function YtSearchTermsView({ terms, apiError }: Props) {
   }
 
   return (
-    <div className="fade-in card rounded-lg border border-cms-border bg-cms-surface p-4">
-      {/* Card head */}
-      <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-cms-text">
-          Termos de busca que trazem views
-        </h3>
-        <span className="tnum text-xs text-cms-text-muted">
-          {terms.length} termos &middot; ultimos 28 dias
+    <div className="fade-in card">
+      <div className="card-head">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--text-dim)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/></svg>
+        <span className="card-title">Termos de busca que trazem views</span>
+        <span className="dim" style={{ fontSize: 11.5, marginLeft: 'auto' }}>
+          {activeTerms.length} termos &middot; ultimos 28 dias
         </span>
       </div>
-
-      {/* Table */}
-      <div className="overflow-x-auto">
-        <table className="search-table">
+      <table className="search-table">
           <thead>
             <tr>
               <th scope="col">
@@ -207,7 +227,9 @@ export function YtSearchTermsView({ terms, apiError }: Props) {
             </tr>
           </thead>
           <tbody>
-            {sorted.map((t) => (
+            {sorted.map((t) => {
+              const isCreating = creatingTerm === t.term
+              return (
               <tr
                 key={t.term}
                 className="search-row"
@@ -216,12 +238,13 @@ export function YtSearchTermsView({ terms, apiError }: Props) {
                 title={`Criar roteiro para "${t.term}"`}
                 onClick={() => handleRowClick(t.term)}
                 onKeyDown={(e) => handleRowKeyDown(e, t.term)}
+                style={isCreating ? { opacity: 0.55, pointerEvents: 'none' } : undefined}
               >
                 <td>
                   <span className="search-term">
-                    {t.term}
+                    <span style={{ fontSize: 13, fontWeight: 500 }}>{t.term}</span>
                     <span className="search-cta">
-                      Criar roteiro
+                      {isCreating ? 'Criando...' : 'Criar roteiro'}
                       <svg
                         width="11"
                         height="11"
@@ -242,61 +265,25 @@ export function YtSearchTermsView({ terms, apiError }: Props) {
                 <td className="tnum ta-r">
                   {fmtC(t.views)}
                 </td>
-                <td className="tnum ta-r">
+                <td className="tnum ta-r" style={{ color: 'var(--accent)' }}>
                   {brDec(t.ctr, 1)}%
                 </td>
                 <td className="ta-r">
                   {t.trend === 'up' && (
-                    <svg
-                      width="13"
-                      height="13"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="#22c55e"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-label="Em alta"
-                    >
-                      <path d="m18 15-6-6-6 6" />
-                    </svg>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-label="Em alta" style={{ display: 'inline' }}><path d="M22 7l-8.5 8.5-5-5L2 17"/><path d="M16 7h6v6"/></svg>
                   )}
                   {t.trend === 'down' && (
-                    <svg
-                      width="13"
-                      height="13"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="#f87171"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-label="Em queda"
-                    >
-                      <path d="m6 9 6 6 6-6" />
-                    </svg>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--red)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-label="Em queda" style={{ display: 'inline' }}><path d="M22 17l-8.5-8.5-5 5L2 7"/><path d="M16 17h6v-6"/></svg>
                   )}
                   {t.trend === 'flat' && (
-                    <svg
-                      width="13"
-                      height="13"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="var(--text-muted)"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-label="Estavel"
-                    >
-                      <path d="M5 12h14" />
-                    </svg>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--text-dim)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-label="Estavel" style={{ display: 'inline' }}><path d="M5 12h14"/></svg>
                   )}
                 </td>
               </tr>
-            ))}
+              )
+            })}
           </tbody>
-        </table>
-      </div>
+      </table>
     </div>
   )
 }

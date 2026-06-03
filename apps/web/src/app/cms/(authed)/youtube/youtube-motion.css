@@ -268,14 +268,6 @@
   --cowork-soft: rgba(110,99,242,0.15);
 }
 
-/* ─── Hide notification bell in YouTube section (feature incomplete) ─── */
-/* Covers both scoped elements AND CmsShell button outside scope */
-.lucide-bell,
-button:has(.lucide-bell),
-button[aria-label="Notificações"] {
-  display: none !important;
-}
-
 /* ─── Skeleton pulse (warm, not cold gray) ─── */
 
 @keyframes skeletonPulse {
@@ -1721,6 +1713,14 @@ button[aria-label="Notificações"] {
 .gender-bar > span {
   display: block;
   height: 100%;
+}
+
+.legend-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 /* ─── Performance: Search Table ─── */
