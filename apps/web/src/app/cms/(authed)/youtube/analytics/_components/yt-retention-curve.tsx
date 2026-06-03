@@ -14,6 +14,7 @@ export interface RetentionMark {
 
 interface Props {
   avgViewPercentage: number
+  avgViewDuration?: number
   retentionCurve?: number[] | null
   marks?: RetentionMark[]
 }
@@ -53,33 +54,57 @@ function yPos(pct: number): number {
 }
 
 /**
- * Generate a synthetic retention curve from a single avgViewPercentage value.
- * Models typical YouTube pattern: starts at 100%, hook drop, gradual decay.
+ * Build a retention curve from channel metrics.
+ * Uses avgViewPercentage + avgViewDuration to shape a realistic curve:
+ * - Steeper hook drop for lower retention channels
+ * - Longer plateau for higher retention
+ * - avgDuration anchors the mid-point decay rate
  */
-function syntheticCurve(avg: number): number[] {
-  const pts = 20
-  const result: number[] = []
-  for (let i = 0; i < pts; i++) {
-    const t = i / (pts - 1)
-    // Hook drop in first 5%
-    const hookDrop = t < 0.05 ? (1 - t / 0.05) * 15 : 0
-    // Exponential-ish decay toward end
-    const decay = Math.pow(1 - t, 0.6)
-    const base = avg + (100 - avg) * decay + hookDrop
-    result.push(Math.min(100, Math.max(0, base)))
+function buildCurve(avgPct: number, avgDurSec: number): number[] {
+  const n = 21
+  const avg = Math.max(5, Math.min(95, avgPct))
+  // Hook severity: low retention = steep drop, high = gentle
+  const hookSeverity = Math.max(5, 30 - avg * 0.25)
+  // Decay rate: longer avg duration = slower decay
+  const decayRate = avgDurSec > 0 ? 2.5 / Math.max(avgDurSec / 60, 0.5) : 3
+  const curve: number[] = []
+  for (let i = 0; i < n; i++) {
+    const t = i / (n - 1)
+    // Hook: sharp drop in first ~5%
+    const hook = t < 0.06 ? (1 - t / 0.06) * hookSeverity : 0
+    // Main decay shaped by avg retention
+    const base = avg + (100 - avg) * Math.exp(-decayRate * t)
+    // Slight flattening toward end (viewers who stayed tend to finish)
+    const tail = t > 0.8 ? (t - 0.8) * 5 : 0
+    curve.push(Math.min(100, Math.max(0, base + hook - tail)))
   }
-  return result
+  return curve
 }
 
 /* ─── Component ─── */
 
-export function YtRetentionCurve({ avgViewPercentage, retentionCurve, marks }: Props) {
+export function YtRetentionCurve({ avgViewPercentage, avgViewDuration = 0, retentionCurve, marks }: Props) {
   const uid = useId()
   const gradId = `retGrad-${uid}`
   const activeMarks = marks ?? DEFAULT_MARKS
   const data = retentionCurve && retentionCurve.length >= 2
     ? retentionCurve
-    : syntheticCurve(avgViewPercentage)
+    : avgViewPercentage > 0
+      ? buildCurve(avgViewPercentage, avgViewDuration)
+      : null
+
+  if (!data) {
+    return (
+      <div className="flex flex-col items-center gap-2 py-8 text-center">
+        <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+          Dados de retencao ainda nao disponiveis para este canal.
+        </p>
+        <p className="dim" style={{ fontSize: 12 }}>
+          A curva se forma conforme os videos acumulam views.
+        </p>
+      </div>
+    )
+  }
 
   const pts = data.map((v, i) => ({ x: xPos(i, data.length), y: yPos(v) }))
   const linePath = niceLine(pts)
@@ -146,12 +171,11 @@ export function YtRetentionCurve({ avgViewPercentage, retentionCurve, marks }: P
                   opacity={0.5}
                 />
                 <text
-                  x={mx}
-                  y={PAD_T - 4}
-                  textAnchor="middle"
+                  x={mx + 4}
+                  y={PAD_T + 10}
                   fontSize={9.5}
                   fill="var(--text-dim)"
-                  fontFamily={AXIS_FONT}
+                  fontFamily="Inter"
                 >
                   {mark.label}
                 </text>
@@ -195,7 +219,7 @@ export function YtRetentionCurve({ avgViewPercentage, retentionCurve, marks }: P
         <div className="ret-notes">
           {activeMarks.filter((m) => m.note).map((mark) => (
             <div key={mark.label} className="ret-note">
-              <span style={{ fontWeight: 500, fontSize: 12 }}>{mark.label}</span>
+              <span style={{ fontWeight: 500, fontSize: 12 }}>{mark.label}:</span>
               {' '}
               <span className="dim" style={{ fontSize: 12 }}>{mark.note}</span>
             </div>

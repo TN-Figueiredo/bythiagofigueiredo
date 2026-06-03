@@ -1,11 +1,3 @@
-/**
- * YtHealthCoach — refactored per spec 4.3.4.
- *
- * Removed: ring/radar duplicate from top.
- * Added: coach-summary banner (gradient accent, sparkles icon, projection "+N pts").
- * Added: severity icons per score (<3 red, <5 amber, >=5 green).
- * Added: coach-action with impact badge + action button.
- */
 'use client'
 
 import { toast } from 'sonner'
@@ -33,42 +25,25 @@ interface Props {
   analysisState: 'idle' | 'pending' | 'cooldown' | 'success'
 }
 
+const SEV_COLORS = {
+  critical: 'var(--red)',
+  warning: 'var(--amber)',
+  healthy: 'var(--green)',
+} as const
+
 function getSeverity(score: number): 'critical' | 'warning' | 'healthy' {
   if (score < 3) return 'critical'
   if (score < 5) return 'warning'
   return 'healthy'
 }
 
-const SEVERITY_STYLES = {
-  critical: { border: '#ef4444', bg: 'rgba(239,68,68,0.06)', icon: '#ef4444' },
-  warning: { border: '#f59e0b', bg: 'rgba(245,158,11,0.06)', icon: '#f59e0b' },
-  healthy: { border: '#22c55e', bg: 'rgba(34,197,94,0.06)', icon: '#22c55e' },
-} as const
-
 function SeverityIcon({ severity }: { severity: 'critical' | 'warning' | 'healthy' }) {
-  const color = SEVERITY_STYLES[severity].icon
-  const props = { width: 15, height: 15, viewBox: '0 0 24 24', fill: 'none', stroke: color, strokeWidth: '2', strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true as const }
-
-  if (severity === 'critical') {
-    return <svg {...props}><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
-  }
-  if (severity === 'warning') {
-    return <svg {...props}><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
-  }
-  // healthy
-  return <svg {...props}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-}
-
-function StalenessIndicator({ lastAt }: { lastAt: string }) {
-  const days = Math.floor((Date.now() - new Date(lastAt).getTime()) / 86400000)
-  const color = days < 7 ? 'bg-[#22c55e]' : days < 14 ? 'bg-[#f59e0b]' : 'bg-[#ef4444]'
-
-  return (
-    <div className="flex items-center gap-1.5 text-[10px] text-cms-text-muted">
-      <span className={`h-1.5 w-1.5 rounded-full ${color}`} />
-      Ultima analise: {days === 0 ? 'hoje' : `${days}d atras`}
-    </div>
-  )
+  const props = { width: 17, height: 17, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2', strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true as const }
+  if (severity === 'critical')
+    return <svg {...props}><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+  if (severity === 'warning')
+    return <svg {...props}><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+  return <svg {...props}><path d="M20 6L9 17l-5-5"/></svg>
 }
 
 export function YtHealthCoach({
@@ -82,29 +57,22 @@ export function YtHealthCoach({
 }: Props) {
   const sortedCards = [...coachingCards].sort((a, b) => a.score - b.score)
 
-  // Projection: estimate potential score gain from fixing worst areas
-  const potentialGain = sortedCards.reduce((sum, c) => {
-    const gap = c.benchmark - c.score
-    return sum + (gap > 0 ? Math.round(gap * 1.5) : 0)
-  }, 0)
+  const potentialScore = sortedCards.length > 0
+    ? Math.min(100, healthScore + sortedCards.reduce((sum, c) => sum + Math.max(0, Math.round((c.benchmark - c.score) * 1.5)), 0))
+    : healthScore
+  const potentialGain = potentialScore - healthScore
 
   if (videoCount === 0) {
     return (
       <div className="fade-in flex flex-col items-center justify-center gap-3 rounded border border-dashed border-cms-border p-12 text-center">
-        <div className="h-24 w-24 rounded-full border-4 border-cms-border" />
-        <p className="text-sm text-cms-text-muted">
+        <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
           Nenhuma analise de inteligencia disponivel ainda.
         </p>
-        <p className="max-w-md text-xs text-cms-text-dim">
+        <p className="dim" style={{ fontSize: 12, maxWidth: 400 }}>
           O Health Coach usa dados de performance do canal para gerar diagnosticos personalizados.
         </p>
         {onRequestAnalysis && (
-          <button
-            type="button"
-            onClick={onRequestAnalysis}
-            disabled={analysisState !== 'idle'}
-            className="btn primary mt-2"
-          >
+          <button type="button" onClick={onRequestAnalysis} disabled={analysisState !== 'idle'} className="btn primary mt-2">
             Solicitar Nova Analise
           </button>
         )}
@@ -113,101 +81,85 @@ export function YtHealthCoach({
   }
 
   return (
-    <div className="fade-in flex flex-col gap-4">
+    <div className="fade-in flex flex-col" style={{ gap: 16 }}>
       {/* Coach summary banner */}
-      <div className="coach-summary rounded-lg" style={{ border: '1px solid var(--border)' }}>
-        <div className="flex items-center gap-3">
-          {/* Sparkles icon */}
-          <div className="coach-sum-ico">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
-              <path d="M5 3v4" /><path d="M19 17v4" /><path d="M3 5h4" /><path d="M17 19h4" />
-            </svg>
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-cms-text">
-              Health Coach &middot; Score {healthScore}/100
-            </p>
-            <p className="mt-0.5 text-xs text-cms-text-muted">
-              {sortedCards.length > 0
-                ? `${sortedCards.length} area${sortedCards.length > 1 ? 's' : ''} para melhorar`
-                : 'Canal saudavel em todos os eixos'}
-            </p>
-          </div>
+      <div className="card coach-summary">
+        <div className="coach-sum-ico">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/>
+            <path d="M5 18l.7 1.8L7.5 20l-1.8.7L5 22l-.7-1.3L2.5 20l1.8-.2z"/>
+          </svg>
+        </div>
+        <div className="flex-1">
+          <span className="section-label">Diagnostico do Cowork</span>
+          <p style={{ fontSize: 14, lineHeight: 1.55, marginTop: 6 }}>
+            {sortedCards.length > 0
+              ? `O canal esta em ${healthScore}/100. ${sortedCards.length} eixo${sortedCards.length > 1 ? 's' : ''} puxa${sortedCards.length > 1 ? 'm' : ''} pra baixo. Resolver levaria o score pra ~${potentialScore}.`
+              : 'Canal saudavel em todos os eixos — continue monitorando.'}
+          </p>
         </div>
         {potentialGain > 0 && (
-          <div className="coach-proj rounded-lg bg-cms-surface px-3 py-1.5">
-            <span className="tnum text-sm font-bold text-[#22c55e]">
+          <div className="coach-proj">
+            <span className="metric-label">Potencial</span>
+            <span className="mono" style={{ fontSize: 26, fontWeight: 700 }}>{potentialScore}</span>
+            <span className="kpi-delta up">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M22 7l-8.5 8.5-5-5L2 17"/><path d="M16 7h6v6"/></svg>
               +{potentialGain} pts
             </span>
-            <p className="text-[9px] text-cms-text-muted">potencial</p>
           </div>
         )}
       </div>
 
-      {lastAnalysisAt && (
-        <StalenessIndicator lastAt={lastAnalysisAt} />
-      )}
-
       {/* Coaching Cards */}
-      {sortedCards.length === 0 && (
-        <div className="rounded border border-[#22c55e]/20 bg-[#22c55e]/5 p-4 text-center">
-          <p className="text-sm font-medium text-[#22c55e]">Canal saudavel em todos os eixos</p>
-          <p className="mt-1 text-xs text-cms-text-muted">
-            Todos os indicadores estao acima do benchmark. Continue monitorando.
-          </p>
-        </div>
-      )}
-      {sortedCards.map((card, i) => {
+      {sortedCards.map((card) => {
         const severity = getSeverity(card.score)
-        const color = SEVERITY_STYLES[severity].icon
+        const color = SEV_COLORS[severity]
+        const impactPts = Math.max(0, Math.round((card.benchmark - card.score) * 1.5))
+        const actionLabel = card.action.length > 35 ? card.action.slice(0, 32) + '...' : card.action
 
         return (
           <div key={card.axis} className="card coach-item">
             <div className="coach-item-ico" style={{ background: `color-mix(in srgb, ${color} 14%, transparent)`, color }}>
               <SeverityIcon severity={severity} />
             </div>
-            <div className="flex-1">
-              <div className="flex items-center gap-2" style={{ marginBottom: 5 }}>
-                <span style={{ fontSize: 14, fontWeight: 600 }}>
-                  #{i + 1} {AXIS_LABELS[card.axis]}
-                </span>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center" style={{ gap: 9, marginBottom: 5 }}>
+                <span style={{ fontSize: 14, fontWeight: 600 }}>{AXIS_LABELS[card.axis]}</span>
                 <span
                   className="rounded-full px-2 py-0.5"
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 600,
-                    color,
-                    background: `color-mix(in srgb, ${color} 14%, transparent)`,
-                  }}
+                  style={{ fontSize: 11, fontWeight: 600, color, background: `color-mix(in srgb, ${color} 14%, transparent)`, borderColor: 'transparent', whiteSpace: 'nowrap' }}
                 >
-                  {card.score < 3 ? 'Alta' : card.score < 5 ? 'Media' : 'Baixa'}
-                </span>
-                <span className="tnum text-[10px] text-cms-text-muted" style={{ marginLeft: 'auto' }}>
-                  {brDec(card.score, 1)}/10
+                  {severity === 'critical' ? 'Alta' : severity === 'warning' ? 'Media' : 'Baixa'}
                 </span>
               </div>
-              <p className="text-cms-text-muted" style={{ fontSize: 13, lineHeight: 1.5 }}>
+              <p style={{ fontSize: 13, lineHeight: 1.5, color: 'var(--text-muted)' }}>
                 {card.diagnosis}
               </p>
             </div>
-            {card.action && (
-              <div className="coach-action">
-                <button
-                  type="button"
-                  className="btn sm"
-                  onClick={() => toast.success(`Acao "${AXIS_LABELS[card.axis]}" enviada ao pipeline.`)}
-                >
-                  Aplicar
-                </button>
-                <span className="mono coach-impact">
-                  {card.score < 3 ? 'alto' : card.score < 5 ? 'medio' : 'baixo'}
-                </span>
-              </div>
-            )}
+            <div className="coach-action">
+              <button
+                type="button"
+                className="btn sm"
+                title={card.action}
+                onClick={() => toast.success(`"${card.action}" — encaminhado ao seu fluxo.`)}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+                {actionLabel}
+              </button>
+              {impactPts > 0 && <span className="mono coach-impact">+{impactPts} pts</span>}
+            </div>
           </div>
         )
       })}
+
+      {sortedCards.length === 0 && (
+        <div className="card" style={{ padding: 16, textAlign: 'center' }}>
+          <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--green)' }}>Canal saudavel em todos os eixos</p>
+          <p className="dim" style={{ fontSize: 12, marginTop: 4 }}>
+            Todos os indicadores estao acima do benchmark. Continue monitorando.
+          </p>
+        </div>
+      )}
 
       {/* Request Analysis Button */}
       {onRequestAnalysis && (
@@ -218,13 +170,10 @@ export function YtHealthCoach({
             disabled={analysisState !== 'idle'}
             className="btn sm"
           >
-            {analysisState === 'pending'
-              ? 'Em fila...'
-              : analysisState === 'cooldown'
-                ? 'Disponivel em breve'
-                : analysisState === 'success'
-                  ? 'Analise solicitada!'
-                  : 'Solicitar Nova Analise'}
+            {analysisState === 'pending' ? 'Em fila...'
+              : analysisState === 'cooldown' ? 'Disponivel em breve'
+              : analysisState === 'success' ? 'Analise solicitada!'
+              : 'Solicitar Nova Analise'}
           </button>
         </div>
       )}

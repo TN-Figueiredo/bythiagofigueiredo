@@ -130,6 +130,7 @@ function buildKpiData(m: YtChannelMetrics, daily: YtDailyMetric[]) {
       delta: m.impressionClickThroughRate > 0 ? delta7d(ctrSpark) : 0,
       sparkline: m.impressionClickThroughRate > 0 ? ctrSpark : [],
       icon: 'mouse-pointer-click',
+      accent: true,
     },
     {
       label: 'Duracao media',
@@ -143,7 +144,7 @@ function buildKpiData(m: YtChannelMetrics, daily: YtDailyMetric[]) {
 
 /** KPI icon by name (inline SVGs to avoid importing 6 separate lucide components) */
 function KpiIcon({ name }: { name: string }) {
-  const props = { width: 13, height: 13, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2', strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true as const }
+  const props = { width: 13, height: 13, viewBox: '0 0 24 24', fill: 'none', stroke: 'var(--text-faint)', strokeWidth: '2', strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true as const, style: { verticalAlign: '-2px' as const, marginRight: 5 } }
   switch (name) {
     case 'eye':
       return <svg {...props}><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>
@@ -237,31 +238,40 @@ export function YtOverview({ metrics, dailyMetrics, intelligenceHealthScore, int
 
       {/* KPI strip */}
       <div className="kpi-strip stagger">
-        {kpis.map((kpi) => (
-          <div key={kpi.label} className="card kpi-card">
-            <div className="metric-label flex items-center gap-1.5">
-              <KpiIcon name={kpi.icon} />
-              {kpi.label}
-            </div>
-            <p className="kpi-val mono">
-              {kpi.value}
-            </p>
-            <div className="flex items-center justify-between" style={{ marginTop: 8 }}>
-              <span className={`kpi-delta ${kpi.delta >= 0 ? 'up' : 'down'}`}>
-                {kpi.delta >= 0 ? '+' : ''}
-                {brDec(kpi.delta, 1)}%
+        {kpis.map((kpi) => {
+          const isUp = kpi.delta >= 0
+          const isAccent = 'accent' in kpi && kpi.accent
+          const sparkColor = isAccent ? 'var(--accent)' : isUp ? 'var(--green)' : 'var(--red)'
+          return (
+            <div key={kpi.label} className="card kpi-card">
+              <span className="metric-label">
+                <KpiIcon name={kpi.icon} />
+                {kpi.label}
               </span>
-              {kpi.sparkline.length >= 2 && (
-                <PSparkline
-                  data={kpi.sparkline}
-                  width={72}
-                  height={26}
-                  color={kpi.delta >= 0 ? 'var(--green)' : 'var(--red)'}
-                />
-              )}
+              <div className="mono kpi-val" style={isAccent ? { color: 'var(--accent)' } : undefined}>
+                {kpi.value}
+              </div>
+              <div className="flex items-center justify-between" style={{ marginTop: 8 }}>
+                <span className={`kpi-delta ${isUp ? 'up' : 'down'}`}>
+                  {isUp ? (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M22 7l-8.5 8.5-5-5L2 17"/><path d="M16 7h6v6"/></svg>
+                  ) : (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M22 17l-8.5-8.5-5 5L2 7"/><path d="M16 17h6v-6"/></svg>
+                  )}
+                  {isUp ? '+' : ''}{brDec(kpi.delta, 1)}%
+                </span>
+                {kpi.sparkline.length >= 2 && (
+                  <PSparkline
+                    data={kpi.sparkline}
+                    width={72}
+                    height={26}
+                    color={sparkColor}
+                  />
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       {/* Retention Curve */}
@@ -272,7 +282,7 @@ export function YtOverview({ metrics, dailyMetrics, intelligenceHealthScore, int
           <span className="dim" style={{ fontSize: 11.5, marginLeft: 'auto' }}>% da audiencia ao longo do video</span>
         </div>
         <div className="card-pad">
-          <YtRetentionCurve avgViewPercentage={metrics.averageViewPercentage} />
+          <YtRetentionCurve avgViewPercentage={metrics.averageViewPercentage} avgViewDuration={metrics.averageViewDuration} />
         </div>
       </div>
     </div>

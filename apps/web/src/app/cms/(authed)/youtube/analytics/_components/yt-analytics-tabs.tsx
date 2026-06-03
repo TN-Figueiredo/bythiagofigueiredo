@@ -9,7 +9,7 @@
  */
 'use client'
 
-import { useState, useRef, useCallback, useMemo } from 'react'
+import { useState, useRef, useCallback, useMemo, type SyntheticEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { YtOverview } from './yt-overview'
@@ -34,6 +34,14 @@ import { AXIS_LABELS } from '@/lib/youtube/scoring-types'
 import type { Axis } from '@/lib/youtube/scoring-types'
 import type { VideoGradeRow, Notification, OutlierVideo } from './types'
 
+function ChannelAvatar({ url, name }: { url: string | null; name: string }) {
+  const [failed, setFailed] = useState(false)
+  if (!url || failed) {
+    return <span className="ch-tab-av ch-tab-av-fallback">{name.charAt(0)}</span>
+  }
+  return <img src={url} alt="" className="ch-tab-av" onError={() => setFailed(true)} />
+}
+
 const SUB_TABS = [
   { id: 'overview', label: 'Visao geral', countKey: null },
   { id: 'notes', label: 'Notas', countKey: 'notes' },
@@ -42,6 +50,15 @@ const SUB_TABS = [
   { id: 'demographics', label: 'Demografia', countKey: null },
   { id: 'search', label: 'Busca', countKey: 'search' },
 ] as const
+
+const TAB_ICONS: Record<string, React.ReactNode> = {
+  overview: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>,
+  notes: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>,
+  coach: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M5 18l.7 1.8L7.5 20l-1.8.7L5 22l-.7-1.3L2.5 20l1.8-.2z"/></svg>,
+  outliers: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 2c1 3 4 5 4 9a4 4 0 0 1-8 0c0-1 .5-2 1-2.5C9 11 12 8 12 2Z"/></svg>,
+  demographics: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><path d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13A4 4 0 0 1 16 11"/></svg>,
+  search: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/></svg>,
+}
 
 type TabId = (typeof SUB_TABS)[number]['id']
 
@@ -108,7 +125,7 @@ export function YtAnalyticsTabs({
 }: Props) {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<TabId>('overview')
-  const [demoMode, setDemoMode] = useState<'established' | 'new'>('established')
+  const isNewChannel = metrics.views === 0 && dailyMetrics.length < 7
   const [analysisState, setAnalysisState] = useState<'idle' | 'pending' | 'cooldown' | 'success'>('idle')
   const tablistRef = useRef<HTMLDivElement>(null)
 
@@ -178,102 +195,88 @@ export function YtAnalyticsTabs({
 
   return (
     <div>
-      {/* Channel selector (multi-channel) */}
+      {/* Channel tabs (multi-channel) */}
       {channels && channels.length > 1 && (
-        <div className="mb-3 flex items-center gap-2">
-          <label htmlFor="yt-channel-select" className="text-xs font-medium text-cms-text-muted">Canal:</label>
-          <select
-            id="yt-channel-select"
-            value={activeChannelId ?? ''}
-            onChange={(e) => {
-              const url = new URL(window.location.href)
-              url.searchParams.set('channel', e.target.value)
-              router.push(url.pathname + url.search)
-            }}
-            className="rounded border border-cms-border bg-cms-surface px-2 py-1 text-xs text-cms-text focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
-          >
-            {channels.map((ch) => (
-              <option key={ch.channelId} value={ch.channelId}>
-                {ch.name} ({ch.handle.startsWith('@') ? ch.handle : `@${ch.handle}`})
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      {/* Page head */}
-      <div className="page-head mb-4 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="page-h1">Desempenho</h1>
-          <p className="page-desc">
-            Saude do canal, retencao e os numeros que movem o ponteiro — dados reais da YouTube Analytics.
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          {/* Demo switch */}
-          <div className="seg-pills demo-switch">
-            <button
-              type="button"
-              className={`seg-pill${demoMode === 'established' ? ' on' : ''}`}
-              onClick={() => setDemoMode('established')}
-            >
-              Estabelecido
-            </button>
-            <button
-              type="button"
-              className={`seg-pill${demoMode === 'new' ? ' on' : ''}`}
-              onClick={() => setDemoMode('new')}
-            >
-              Canal novo
-            </button>
-          </div>
-
-          {/* Cowork diagnosis button */}
-          <button
-            type="button"
-            className="btn cowork sm"
-            onClick={() => toast.success('Diagnostico enviado ao Cowork.')}
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
-            </svg>
-            Pedir diagnostico ao Cowork
-          </button>
-
-          {/* Notifications bell removed — feature incomplete, will return in future sprint */}
-        </div>
-      </div>
-
-      {/* Sub-tab bar */}
-      <div className="mb-4 border-b border-cms-border">
-        <div
-          ref={tablistRef}
-          role="tablist"
-          aria-label="YouTube Analytics sub-navigation"
-          className="flex gap-0"
-          onKeyDown={handleKeyDown}
-        >
-          {SUB_TABS.map((tab) => {
-            const count = tab.countKey ? tabCounts[tab.countKey] : undefined
+        <div className="ch-tabs mb-4">
+          {channels.map((ch, i) => {
+            const isActive = ch.channelId === activeChannelId
+            const handle = ch.handle.startsWith('@') ? ch.handle : `@${ch.handle}`
             return (
               <button
-                key={tab.id}
-                role="tab"
-                aria-selected={activeTab === tab.id}
-                tabIndex={activeTab === tab.id ? 0 : -1}
-                id={`tab-yt-${tab.id}`}
-                aria-controls={`panel-yt-${tab.id}`}
-                onClick={() => setActiveTab(tab.id)}
-                className={`subtab${activeTab === tab.id ? ' active' : ''}`}
+                key={ch.channelId}
+                type="button"
+                className={`ch-tab${isActive ? ' active' : ''}`}
+                style={{ '--ch-i': i, '--ch-n': channels.length } as React.CSSProperties}
+                onClick={() => {
+                  if (isActive) return
+                  const url = new URL(window.location.href)
+                  url.searchParams.set('channel', ch.channelId)
+                  router.push(url.pathname + url.search)
+                }}
               >
-                {tab.label}
-                {count != null && count > 0 && (
-                  <span className="subtab-count">{count}</span>
-                )}
+                <ChannelAvatar url={ch.thumbnailUrl} name={ch.name} />
+                <span className="ch-tab-info">
+                  <span className="ch-tab-name">{ch.name}</span>
+                  <span className="ch-tab-handle">{handle}</span>
+                </span>
               </button>
             )
           })}
         </div>
+      )}
+
+      {/* Page head */}
+      <div className="page-head mb-4">
+        <div>
+          <h2 className="page-h1">Desempenho</h2>
+          <p className="page-desc">
+            Saude do canal, retencao e os numeros que movem o ponteiro — dados reais da YouTube Analytics.
+          </p>
+        </div>
+        <div className="flex items-center" style={{ gap: 10 }}>
+          <button
+            type="button"
+            className="btn cowork"
+            onClick={() => toast.success('Diagnostico solicitado ao Cowork — chega em instantes.')}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z" />
+              <path d="M5 18l.7 1.8L7.5 20l-1.8.7L5 22l-.7-1.3L2.5 20l1.8-.2z" />
+            </svg>
+            Pedir diagnostico ao Cowork
+          </button>
+        </div>
+      </div>
+
+      {/* Sub-tab bar */}
+      <div
+        ref={tablistRef}
+        role="tablist"
+        aria-label="YouTube Analytics sub-navigation"
+        className="subtabs mb-4"
+        onKeyDown={handleKeyDown}
+      >
+        {SUB_TABS.map((tab) => {
+          const count = tab.countKey ? tabCounts[tab.countKey] : undefined
+          return (
+            <button
+              key={tab.id}
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              tabIndex={activeTab === tab.id ? 0 : -1}
+              id={`tab-yt-${tab.id}`}
+              aria-controls={`panel-yt-${tab.id}`}
+              onClick={() => setActiveTab(tab.id)}
+              className={`subtab${activeTab === tab.id ? ' active' : ''}`}
+            >
+              {TAB_ICONS[tab.id]}
+              {tab.label}
+              {count != null && count > 0 && (
+                <span className="subtab-count">{count}</span>
+              )}
+            </button>
+          )
+        })}
       </div>
 
       {/* Tab panel — key forces remount for .fade-in animation */}
@@ -284,7 +287,7 @@ export function YtAnalyticsTabs({
         aria-labelledby={`tab-yt-${activeTab}`}
       >
         {activeTab === 'overview' && (
-          demoMode === 'new' ? (
+          isNewChannel ? (
             <PerfNewChannel />
           ) : (
             <YtOverview
