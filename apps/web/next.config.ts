@@ -35,7 +35,11 @@ const nextConfig: NextConfig = {
   },
   eslint: { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: true },
-  serverExternalPackages: ['@aws-sdk/client-sesv2', 'sharp', 'canvas', '@napi-rs/canvas'],
+  serverExternalPackages: [
+    '@aws-sdk/client-sesv2', 'sharp', 'canvas', '@napi-rs/canvas',
+    'konva', '@atproto/api', '@opentelemetry/api',
+    '@react-email/components', '@react-email/render',
+  ],
   outputFileTracingIncludes: {
     '/api/mcp': ['./data/pipeline-docs/**/*'],
   },
@@ -46,6 +50,7 @@ const nextConfig: NextConfig = {
     staleTimes: {
       dynamic: 15,
     },
+    webpackMemoryOptimizations: true,
   },
   // Only packages that ship raw TypeScript or preserved JSX need transpilation.
   // @app/shared: raw TS (no build step). @tn-figueiredo/cms: ships .jsx in dist/.
@@ -204,5 +209,11 @@ export default sentryUploadEnabled
       project: process.env.SENTRY_PROJECT,
       authToken: process.env.SENTRY_AUTH_TOKEN,
       disableLogger: true,
+      sourcemaps: {
+        disable: true,
+      },
+      autoInstrumentServerFunctions: false,
+      autoInstrumentAppDirectory: false,
+      autoInstrumentMiddleware: false,
     })
   : finalConfig
