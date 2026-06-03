@@ -111,14 +111,14 @@ export function ConfirmFlow({ token, copy, locale }: ConfirmFlowProps) {
       expired: { title: copy.expired_title, body: copy.expired_body, accent: '#E5A100', icon: '⏳' },
       error: { title: copy.rpc_error_title, body: copy.rpc_error_body, accent: '#C14513', icon: '⚠' },
     }
-    const err = errorMap[result.state] ?? errorMap.error
+    const err = errorMap[result.state] ?? errorMap.error!
     return (
-      <ResultView accent={err.accent} icon={err.icon}>
+      <ResultView accent={err!.accent} icon={err!.icon}>
         <h1 className="confirm-title font-fraunces font-medium m-0 mb-4" style={{ fontSize: 'clamp(26px, 5vw, 30px)', color: 'var(--pb-ink)', lineHeight: 1.2, letterSpacing: '-0.02em' }}>
-          {err.title}
+          {err!.title}
         </h1>
         <p className="font-source-serif leading-[1.65] mx-auto" style={{ fontSize: 17, maxWidth: 420, color: 'var(--pb-muted)', marginBottom: 0 }}>
-          {err.body}
+          {err!.body}
         </p>
         <hr className="border-none" style={{ width: '100%', height: 1, background: 'var(--pb-line)', margin: '32px 0' }} />
         <a href={homePath} className="font-inter no-underline" style={{ fontSize: 13, fontWeight: 500, color: 'var(--pb-faint)' }}>
@@ -141,7 +141,7 @@ export function ConfirmFlow({ token, copy, locale }: ConfirmFlowProps) {
         {copy.confirm_body}
       </p>
 
-      <form action={confirmSubscription.bind(null, token)}>
+      <form action={async () => { await confirmSubscription(token) }}>
         <button
           type="submit"
           onClick={(e) => {

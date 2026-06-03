@@ -101,6 +101,13 @@ const MOCK_PROPS: Record<StateKind, {
     locale: 'pt-BR',
     lang: 'pt-BR',
   },
+  prompt: {
+    title: 'Confirmar inscricao',
+    body: 'Clique abaixo para confirmar sua inscricao na newsletter.',
+    backLabel: '← Voltar ao inicio',
+    locale: 'pt-BR',
+    lang: 'pt-BR',
+  },
 }
 
 /* ── Page component ─────────────────────────────────────────────────────── */
