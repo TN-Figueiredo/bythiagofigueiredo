@@ -7,20 +7,22 @@ import type {
   SocialPostContent,
 } from '../../core/types.js'
 import { exchangeForLongLivedToken } from './oauth.js'
-import { postToPage, warmOGCache, deletePagePost } from './facebook.js'
+import { postToPage, postPhotoToPage, warmOGCache, deletePagePost } from './facebook.js'
 import {
   publishInstagramMedia,
   deleteInstagramMedia,
 } from './instagram.js'
 
-function formatFacebookContent(
+export function formatFacebookContent(
   content: SocialPostContent,
   limit: number,
 ): { message: string; link?: string } {
   const parts: string[] = []
 
-  if (content.title) parts.push(content.title)
-  if (content.description) parts.push(content.description)
+  const desc = content.description ?? ''
+  const title = content.title ?? ''
+  if (title && title !== desc) parts.push(title)
+  if (desc) parts.push(desc)
   if (content.hashtags?.length) parts.push(content.hashtags.map((h) => `#${h}`).join(' '))
 
   let message = parts.join('\n\n')
@@ -62,7 +64,15 @@ export class FacebookProvider implements ISocialProvider {
   ): Promise<PlatformResult> {
     const pageToken = this.decryptToken(connection.page_token_enc!)
     const pageId = connection.account_id
+    const mediaUrls = post.content.media_urls ?? []
     const content = formatFacebookContent(post.content, 63_206)
+
+    if (mediaUrls.length > 0) {
+      const caption = content.link
+        ? `${content.message}\n\n${content.link}`
+        : content.message
+      return postPhotoToPage(pageId, pageToken, mediaUrls[0]!, caption)
+    }
 
     if (content.link) {
       await warmOGCache(content.link, pageToken)
@@ -194,6 +204,7 @@ export {
 
 export {
   postToPage,
+  postPhotoToPage,
   warmOGCache,
   deletePagePost,
 } from './facebook.js'

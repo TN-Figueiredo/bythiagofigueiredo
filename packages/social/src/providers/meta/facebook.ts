@@ -38,6 +38,37 @@ export async function postToPage(
   }
 }
 
+export async function postPhotoToPage(
+  pageId: string,
+  pageToken: string,
+  imageUrl: string,
+  message: string,
+): Promise<PlatformResult> {
+  const body = { url: imageUrl, message }
+
+  const res = await fetch(`${GRAPH_BASE}/${pageId}/photos`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${pageToken}`,
+    },
+    body: JSON.stringify(body),
+  })
+
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`Facebook photo post failed (${res.status}): ${text}`)
+  }
+
+  const data = (await res.json()) as { id: string; post_id?: string }
+  const postId = data.post_id ?? data.id
+
+  return {
+    id: data.id,
+    url: `https://facebook.com/${pageId}/posts/${postId}`,
+  }
+}
+
 export async function warmOGCache(
   url: string,
   accessToken: string,
