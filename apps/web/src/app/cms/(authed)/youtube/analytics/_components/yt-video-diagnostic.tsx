@@ -1,7 +1,7 @@
 'use client'
 
 import { YtScoreBar } from './yt-score-bar'
-import { YtRetentionCurveV2 } from './yt-retention-curve-v2'
+import { YtRetentionCurve } from './yt-retention-curve'
 import type { Axis } from '@/lib/youtube/scoring-types'
 import { AXIS_LABELS } from '@/lib/youtube/scoring-types'
 
@@ -43,7 +43,7 @@ export function YtVideoDiagnostic({ video, onCreateAbTest }: Props) {
       </div>
 
       {/* Retention Curve */}
-      <YtRetentionCurveV2
+      <YtRetentionCurve
         retentionCurve={video.retentionCurve}
         avgViewPercentage={video.avgViewPercentage}
       />
