@@ -8,6 +8,7 @@ import type { DestId } from '@/lib/social/destinations'
 import { DEST_IDS, DESTINATIONS } from '@/lib/social/destinations'
 import { PLATFORM_CAPTION_DEFAULTS, resolveCaption } from '@/lib/social/caption-variables'
 import { createSocialPost } from '@/lib/social/actions'
+import { buildPublishPayload } from '@/lib/social/build-payload'
 import { DestinationPicker } from './destination-picker'
 import { DestCompositor } from './dest-compositor'
 import { CMSContentPicker } from './cms-content-picker'
@@ -34,36 +35,6 @@ function computeScheduleDays(count: number): Array<{ date: Date; label: string }
   })
 }
 
-function buildPublishPayload(
-  captions: Record<string, string>,
-  destsOn: Record<DestId, boolean>,
-  schedMode: 'now' | 'schedule' | 'queue',
-  opts?: {
-    scheduledAt?: string
-    publishNow?: boolean
-    sourceContentId?: string
-    sourceContentType?: 'blog' | 'newsletter' | 'campaign' | 'video'
-  },
-) {
-  const activeDests = (Object.entries(destsOn) as [DestId, boolean][])
-    .filter(([, on]) => on)
-    .map(([id]) => id as DestId)
-
-  const platforms = [...new Set(activeDests.map(id => DESTINATIONS[id].provider))]
-  const firstDest = activeDests[0]
-  const primaryCaption = firstDest ? (captions[firstDest] ?? '') : ''
-
-  return {
-    type: 'text' as const,
-    content: { title: primaryCaption, description: primaryCaption },
-    platforms,
-    scheduledAt: schedMode === 'schedule' ? opts?.scheduledAt : undefined,
-    storyMode: activeDests.includes('ig_story'),
-    publishNow: opts?.publishNow,
-    sourceContentId: opts?.sourceContentId,
-    sourceContentType: opts?.sourceContentType,
-  }
-}
 
 interface CompositorNewProps {
   sourceMode?: 'cms' | 'freeform'
@@ -349,6 +320,7 @@ export function CompositorNew({ sourceMode = 'freeform', siteId }: CompositorNew
                 const payload = buildPublishPayload(captions, destsOn, 'now', {
                   sourceContentId: selectedCmsContent?.id,
                   sourceContentType: cmsType,
+                  mediaUrls: Object.values(canvasImages).filter(Boolean) as string[],
                 })
                 const result = await createSocialPost(payload)
                 if (result.ok) {
@@ -379,6 +351,7 @@ export function CompositorNew({ sourceMode = 'freeform', siteId }: CompositorNew
                     publishNow: schedMode === 'now' ? true : undefined,
                     sourceContentId: selectedCmsContent?.id,
                     sourceContentType: cmsType,
+                    mediaUrls: Object.values(canvasImages).filter(Boolean) as string[],
                   })
                   const result = await createSocialPost(payload)
                   if (result.ok) {
