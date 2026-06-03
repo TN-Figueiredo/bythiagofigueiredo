@@ -238,7 +238,87 @@ Show warning in compositor if Instagram is selected but no image attached.
 
 ---
 
-## 8. Test Strategy
+## 8. Safety: Idempotency, Rate Limiting, Recovery
+
+### 8.1 Idempotent Status Transitions (CAS locks)
+
+All status transitions MUST use compare-and-swap to prevent double-execution:
+
+```typescript
+// publishDraftPost: only transition if currently draft
+.update({ status: 'publishing' })
+.eq('id', postId)
+.eq('status', 'draft')        // ← CAS guard
+.select('id')
+.maybeSingle()
+// If null → already transitioned, return early (not an error)
+
+// publishSocialPost workflow: only if not already publishing
+.update({ status: 'publishing' })
+.eq('id', post.id)
+.or('status.eq.draft,status.eq.scheduled')  // ← CAS guard
+```
+
+**Apply to:** `publishDraftPost()`, `publishSocialPost()`, cron batch processor.
+**UI:** Disable "Publicar agora" button while `isPending` (already done via `useTransition`).
+
+### 8.2 Rate Limiting (activate existing DB infrastructure)
+
+DB columns already exist on `social_connections`: `circuit_open_until`, `rate_window_start`, `rate_window_count`. Currently dead code.
+
+**Design:**
+- Before each `provider.publish()` in `executeWithRetry()`, check `connection.circuit_open_until > now` → skip with `error_type: 'transient'`
+- After publish, increment `rate_window_count`. If window exceeded → set `circuit_open_until = now + cooldown`
+- After 429 response, set `circuit_open_until` from `Retry-After` header (Meta's `rate-budget.ts` already parses this)
+- Cooldown: Facebook 60s, Instagram 120s, Bluesky 30s
+
+### 8.3 Stuck Post Recovery
+
+Posts in `publishing` for >10 minutes are stuck (workflow died in `after()`).
+
+**Design — add to cron:**
+```sql
+-- In social_publish_fair_batch() RPC or in the cron route:
+SELECT * FROM social_posts
+WHERE status = 'publishing'
+  AND updated_at < now() - interval '10 minutes'
+```
+- Cron picks these up alongside `scheduled` posts
+- Re-runs `publishSocialPost()` → idempotent (CAS prevents re-transition, but pending deliveries still process)
+- Sets `sync_error` on post if delivery already completed (edge case)
+
+### 8.4 content_override → Provider Merge
+
+`content_override` is stored but never read. The workflow must merge it:
+
+```typescript
+// In publishSocialPost(), before provider.publish():
+const effectiveContent = delivery.content_override
+  ? { ...post.content, ...delivery.content_override }
+  : post.content
+const effectivePost = { ...post, content: effectiveContent }
+// Pass effectivePost to provider.publish()
+```
+
+This makes per-platform captions actually work.
+
+### 8.5 Backward Compatibility
+
+- `SocialPostContentSchema` has all fields `.optional()` → adding `captions` field is safe
+- Add to schema: `captions: z.record(z.string(), z.string()).optional()`
+- Existing posts without `captions` field validate and publish as before (description used for all platforms)
+- `adaptContent()` checks `content.captions?.[provider]` first, falls back to `content.description`
+
+### 8.6 Bluesky Destination
+
+Missing from `DESTINATIONS` map in `destinations.ts`. Add:
+```typescript
+bsky_feed: { provider: 'bluesky', label: 'Bluesky', ... }
+```
+
+---
+
+## 9. Test Strategy
 
 ### Unit Tests (new/updated):
 
@@ -252,8 +332,10 @@ Show warning in compositor if Instagram is selected but no image attached.
 | Story rendering fallback | Gradient bg when cover_image null (not black) |
 | `duplicatePost` link reuse | Copies source fields, `ensureTrackedLink` returns existing |
 | Queue slot wiring | `getNextQueueSlot()` returns valid UTC datetime |
-| `publishDraftPost` flow | draft → publishing → workflow triggered |
-| `content_override` per delivery | Per-platform captions stored in delivery row |
+| `publishDraftPost` CAS | Second call returns early (not error), no double-publish |
+| `content_override` merge | Per-platform caption from delivery.content_override used by provider |
+| Rate limit circuit breaker | Publish skipped when `circuit_open_until > now` |
+| Stuck post recovery | Post in `publishing` for >10min re-processed by cron |
 
 ### Integration Tests:
 
@@ -263,6 +345,8 @@ Show warning in compositor if Instagram is selected but no image attached.
 | Schedule → cron → publish | Create scheduled post → simulate cron trigger → verify published |
 | Repost → same tracked link | Duplicate post → publish → verify same `short_link_id` |
 | Draft → edit → publish | Create draft → update caption → publishDraftPost → verify content |
+| Double-publish idempotency | Call publishDraftPost twice concurrently → only 1 publish runs |
+| Stuck recovery | Set post to publishing + old updated_at → cron picks it up |
 
 ### Manual Verification (before merge):
 
@@ -272,27 +356,32 @@ Show warning in compositor if Instagram is selected but no image attached.
 - [ ] Schedule post for +5min → wait → verify auto-published
 - [ ] Duplicate published post → publish again → verify same tracked link in Links page
 - [ ] Verify tracked link appears in /cms/links with clicks tracking
+- [ ] Double-click "Publicar agora" rapidly → verify only 1 post appears on platform
+- [ ] Publish to FB+IG → verify different captions per platform (if set)
 
 ---
 
-## 9. Files to Modify
+## 10. Files to Modify
 
 | File | Change |
 |------|--------|
 | `apps/web/src/app/cms/(authed)/social/new/_components/compositor-new.tsx` | Rewrite `buildPublishPayload()`, add media gallery/dropzone, fix queue wiring |
 | `apps/web/src/app/cms/(authed)/social/new/_components/dest-compositor.tsx` | Wire media selection to compositor state |
-| `apps/web/src/lib/social/actions/posts.ts` | Add tracked link creation, media upload, `content_override` per delivery, fix `duplicatePost()` |
-| `apps/web/src/lib/social/actions/index.ts` | Export any new functions |
-| `apps/web/src/lib/social/workflows.ts` | Add `adaptContent()`, fix story rendering fallback |
-| `packages/social/src/providers/meta/index.ts` | Fix `formatFacebookContent()`, add `postPhotoToPage()` |
-| `packages/social/src/providers/meta/facebook.ts` | Add photo post API function |
+| `apps/web/src/lib/social/actions/posts.ts` | Tracked link creation, media upload, `content_override`, fix `duplicatePost()`, CAS on `publishDraftPost()` |
+| `apps/web/src/lib/social/actions/index.ts` | Export new functions |
+| `apps/web/src/lib/social/workflows.ts` | `adaptContent()`, `content_override` merge, CAS on status transition, story fallback |
+| `apps/web/src/app/api/cron/social-publish/route.ts` | Add stuck post recovery (publishing >10min) |
+| `packages/social/src/providers/meta/index.ts` | Fix `formatFacebookContent()`, add photo post support |
+| `packages/social/src/providers/meta/facebook.ts` | Add `postPhotoToPage()` API function |
+| `packages/social/src/core/types.ts` | Add `captions` to `SocialPostContentSchema` |
+| `apps/web/src/lib/social/destinations.ts` | Add `bsky_feed` destination |
 | `apps/web/src/lib/social/story-slides.ts` | Gradient fallback for null cover_image |
 | `apps/web/src/lib/social/konva-renderer.ts` | Warm gradient instead of dark gray for missing images |
-| 10+ test files | New and updated tests per Section 8 |
+| 12+ test files | New and updated tests per Section 9 |
 
 ---
 
-## 10. Out of Scope
+## 11. Out of Scope
 
 - YouTube community posts (API doesn't support; only video publish)
 - Instagram carousel (multi-image feed posts) — single image first
@@ -304,7 +393,7 @@ Show warning in compositor if Instagram is selected but no image attached.
 
 ---
 
-## 11. Success Criteria
+## 12. Success Criteria
 
 The sprint is done when:
 
@@ -317,4 +406,7 @@ The sprint is done when:
 7. **Repost:** Duplicate uses same tracked link, publishes successfully
 8. **Draft → publish:** "Publicar agora" works from detail page
 9. **Per-platform captions:** Each platform gets its own caption text
-10. **All tests pass:** Unit + integration, 0 regressions
+10. **Idempotent:** Double-click "Publicar" = 1 post on platform, not 2
+11. **Recovery:** Post stuck in `publishing` >10min auto-recovered by cron
+12. **Bluesky:** Destination available in compositor, publishes with link card
+13. **All tests pass:** Unit + integration, 0 regressions
