@@ -9,6 +9,11 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import * as Sentry from '@sentry/nextjs'
 import { normalizeAllUtmFields, slugifyForCampaign } from '@tn-figueiredo/links'
 
+const APP_HOSTNAME = (() => {
+  try { return new URL(process.env.NEXT_PUBLIC_APP_URL ?? 'https://bythiagofigueiredo.com').hostname }
+  catch { return 'bythiagofigueiredo.com' }
+})()
+
 // ---------------------------------------------------------------------------
 // Shared utility — cryptographic short-code generator (rejection sampling)
 // ---------------------------------------------------------------------------
@@ -119,6 +124,7 @@ export async function ensureTrackedLink(
         source_type: sourceType,
         source_id: sourceId,
         ...normalizeAllUtmFields({
+          utm_source: APP_HOSTNAME,
           utm_medium: sourceType === 'social' ? 'social' : sourceType === 'newsletter' ? 'email' : 'referral',
           utm_campaign: utmCampaign ?? `${sourceType}-${slugifyForCampaign(title) || sourceId.slice(0, 8)}`,
         }),

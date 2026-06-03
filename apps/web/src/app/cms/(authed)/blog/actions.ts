@@ -11,6 +11,8 @@ import { isValidTransition } from './_hub/hub-utils'
 import { syncPipelineOnPostStatusChange } from '@/lib/pipeline/blog-sync'
 import { prepareBlogTranslationPatch, type BlogContentPatch } from '@/lib/pipeline/draft-to-blog'
 import { ensureTrackedLink, deactivateSourceLinks } from '@/lib/links/auto-link'
+import { buildShortUrl } from '@/lib/links/short-url'
+import * as Sentry from '@sentry/nextjs'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://bythiagofigueiredo.com'
 import { socialConfigSchema } from '@/lib/social/schemas'
@@ -41,26 +43,32 @@ export async function bulkPublish(
     .in('id', postIds)
     .eq('site_id', siteId)
     .in('status', ['draft', 'ready', 'pending_review'])
-    .select('id, social_config, blog_translations(locale, slug)')
+    .select('id, locale, social_config, blog_translations(locale, slug)')
 
   if (error) return { ok: false, error: error.message }
 
   const published = data ?? []
   for (const post of published) {
+    const postLocale = (post as { id: string; locale?: string }).locale
     const translations = (post as { id: string; blog_translations: Array<{ locale: string; slug: string }> }).blog_translations ?? []
+    translations.sort((a, b) => {
+      if (a.locale === postLocale) return -1
+      if (b.locale === postLocale) return 1
+      return a.locale.localeCompare(b.locale)
+    })
     for (const tx of translations) {
       revalidateBlogPostSeo(siteId, post.id, tx.locale, tx.slug)
     }
     // Create tracked link (idempotent)
     const primaryTx = translations[0]
     if (primaryTx) {
-      ensureTrackedLink(supabase, siteId, post.id, 'blog', `${APP_URL}/${primaryTx.locale}/blog/${primaryTx.slug}`, primaryTx.slug).catch(() => {})
+      ensureTrackedLink(supabase, siteId, post.id, 'blog', `${APP_URL}/${primaryTx.locale}/blog/${primaryTx.slug}`, primaryTx.slug).catch(err => Sentry.captureException(err, { tags: { component: 'blog-actions', action: 'ensure-tracked-link' } }))
     }
   }
 
   revalidatePath('/cms/blog')
   for (const post of published) {
-    syncPipelineOnPostStatusChange(post.id, 'published', 'draft').catch(() => {})
+    syncPipelineOnPostStatusChange(post.id, 'published', 'draft').catch(err => Sentry.captureException(err, { tags: { component: 'blog-actions', action: 'pipeline-sync' } }))
   }
   // Social auto-share: fire-and-forget for each published post with social_config
   for (const post of published) {
@@ -75,7 +83,7 @@ export async function bulkPublish(
           config: p.social_config as unknown as SocialConfig,
           origin: 'auto',
           userId: 'system',
-        }).catch(() => {}),
+        }).catch(err => Sentry.captureException(err, { tags: { component: 'blog-actions', action: 'social-publish' } })),
       )
     }
   }
@@ -110,7 +118,7 @@ export async function bulkArchive(
       revalidateBlogPostSeo(siteId, post.id, tx.locale, tx.slug)
     }
     // Deactivate tracked links on archive
-    deactivateSourceLinks(supabase, post.id, 'blog').catch(() => {})
+    deactivateSourceLinks(supabase, post.id, 'blog').catch(err => Sentry.captureException(err, { tags: { component: 'blog-actions', action: 'deactivate-links' } }))
   }
 
   revalidatePath('/cms/blog')
@@ -154,6 +162,7 @@ export async function bulkDelete(
     for (const tx of translations) {
       revalidateBlogPostSeo(siteId, post.id, tx.locale, tx.slug)
     }
+    deactivateSourceLinks(supabase, post.id, 'blog').catch(err => Sentry.captureException(err, { tags: { component: 'blog-actions', action: 'deactivate-links' } }))
   }
 
   revalidatePath('/cms/blog')
@@ -314,7 +323,7 @@ export async function movePost(
   postId: string,
   newStatus: string,
   scheduledFor?: string,
-): Promise<{ ok: true } | { ok: false; error: string }> {
+): Promise<{ ok: true; shortUrl?: string } | { ok: false; error: string }> {
   const { siteId } = await getSiteContext()
   await requireEditScope(siteId)
 
@@ -322,7 +331,7 @@ export async function movePost(
 
   const { data: current, error: fetchError } = await supabase
     .from('blog_posts')
-    .select('id, status, site_id, tag_id, social_config, blog_translations(locale, slug)')
+    .select('id, status, locale, site_id, tag_id, social_config, blog_translations(locale, slug)')
     .eq('id', postId)
     .eq('site_id', siteId)
     .single()
@@ -360,16 +369,26 @@ export async function movePost(
   if (updateError) return { ok: false, error: updateError.message }
   if (!updated || updated.length === 0) return { ok: false, error: 'conflict' }
 
+  const postLocale = (current as { locale?: string }).locale
   const translations = (current as { id: string; status: string; site_id: string; blog_translations: Array<{ locale: string; slug: string }> }).blog_translations ?? []
+  translations.sort((a, b) => {
+    if (a.locale === postLocale) return -1
+    if (b.locale === postLocale) return 1
+    return a.locale.localeCompare(b.locale)
+  })
   for (const tx of translations) {
     revalidateBlogPostSeo(siteId, postId, tx.locale, tx.slug)
   }
 
   // Link lifecycle: create on publish, deactivate on archive
+  let shortUrl: string | undefined
   if (newStatus === 'published') {
     const primaryTx = translations[0]
     if (primaryTx) {
-      ensureTrackedLink(supabase, siteId, postId, 'blog', `${APP_URL}/${primaryTx.locale}/blog/${primaryTx.slug}`, primaryTx.slug).catch(() => {})
+      const linkResult = await ensureTrackedLink(supabase, siteId, postId, 'blog', `${APP_URL}/${primaryTx.locale}/blog/${primaryTx.slug}`, primaryTx.slug).catch(() => null)
+      if (linkResult) {
+        shortUrl = buildShortUrl(linkResult.code)
+      }
     }
     // Social auto-share: fire-and-forget
     const rawSocialConfig = (current as { social_config?: unknown }).social_config
@@ -384,16 +403,16 @@ export async function movePost(
           config: parsedSocialConfig.data as SocialConfig,
           origin: 'auto',
           userId: 'system',
-        }).catch(err => console.error('[blog] movePost social', err)),
+        }).catch(err => Sentry.captureException(err, { tags: { component: 'blog-actions', action: 'social-publish' } })),
       )
     }
   } else if (newStatus === 'archived') {
-    deactivateSourceLinks(supabase, postId, 'blog').catch(() => {})
+    deactivateSourceLinks(supabase, postId, 'blog').catch(err => Sentry.captureException(err, { tags: { component: 'blog-actions', action: 'deactivate-links' } }))
   }
 
   revalidateBlogHub(siteId)
-  syncPipelineOnPostStatusChange(postId, newStatus, current.status as string).catch(() => {})
-  return { ok: true }
+  syncPipelineOnPostStatusChange(postId, newStatus, current.status as string).catch(err => Sentry.captureException(err, { tags: { component: 'blog-actions', action: 'pipeline-sync' } }))
+  return { ok: true, shortUrl }
 }
 
 export async function deleteHubPost(
@@ -434,6 +453,7 @@ export async function deleteHubPost(
   for (const tx of translations) {
     revalidateBlogPostSeo(siteId, postId, tx.locale, tx.slug)
   }
+  deactivateSourceLinks(supabase, postId, 'blog').catch(() => {})
 
   revalidateBlogHub(siteId)
   return { ok: true }

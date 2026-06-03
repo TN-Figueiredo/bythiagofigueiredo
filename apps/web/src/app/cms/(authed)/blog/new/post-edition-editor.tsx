@@ -909,7 +909,15 @@ export function PostEditionEditor({
     const result = await movePost(postId, newStatus)
     if (result.ok) {
       setCurrentStatus(newStatus)
-      toast.success(newStatus === 'published' ? 'Published!' : `Moved to ${newStatus}`)
+      if (newStatus === 'published' && result.shortUrl) {
+        const copied = await navigator.clipboard.writeText(result.shortUrl).then(() => true).catch(() => false)
+        toast.success(
+          copied ? `Published! Link copied: ${result.shortUrl}` : `Published! Link: ${result.shortUrl}`,
+          { duration: 6000 },
+        )
+      } else {
+        toast.success(newStatus === 'published' ? 'Published!' : `Moved to ${newStatus}`)
+      }
       if (newStatus === 'published') {
         router.push('/cms/blog')
       }

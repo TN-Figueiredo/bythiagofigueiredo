@@ -170,6 +170,7 @@ import {
 } from '../../src/app/cms/(authed)/blog/tag-actions'
 
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
+import { ensureTrackedLink, deactivateSourceLinks } from '@/lib/links/auto-link'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -512,7 +513,7 @@ describe('movePost', () => {
       },
     })
     const result = await movePost('p1', 'published')
-    expect(result).toEqual({ ok: true })
+    expect(result).toMatchObject({ ok: true })
     const updateCall = callLog.find((c) => c.method === 'update')
     const patch = updateCall!.args[0] as Record<string, unknown>
     expect(patch.status).toBe('published')
@@ -600,6 +601,48 @@ describe('movePost', () => {
   it('throws when RBAC check fails', async () => {
     vi.mocked(requireSiteScope).mockResolvedValueOnce({ ok: false, reason: 'forbidden' } as never)
     await expect(movePost('p1', 'draft')).rejects.toThrow(/forbidden/)
+  })
+
+  it('creates tracked link when transitioning to published', async () => {
+    resetMockState({
+      perTable: {
+        blog_posts: [{ id: 'p1', status: 'ready', site_id: 'site-1', blog_translations: [{ locale: 'pt-BR', slug: 'meu-post' }] }],
+      },
+    })
+    await movePost('p1', 'published')
+    await new Promise((r) => setTimeout(r, 0))
+    expect(vi.mocked(ensureTrackedLink)).toHaveBeenCalledWith(
+      expect.anything(),
+      'site-1', 'p1', 'blog',
+      expect.stringContaining('/pt-BR/blog/meu-post'),
+      'meu-post',
+    )
+  })
+
+  it('does NOT create tracked link for non-publish transitions', async () => {
+    await movePost('p1', 'ready')
+    await new Promise((r) => setTimeout(r, 0))
+    expect(vi.mocked(ensureTrackedLink)).not.toHaveBeenCalled()
+  })
+
+  it('deactivates tracked links when transitioning to archived', async () => {
+    resetMockState({
+      perTable: {
+        blog_posts: [{ id: 'p1', status: 'published', site_id: 'site-1', blog_translations: [{ locale: 'en', slug: 'post' }] }],
+      },
+    })
+    await movePost('p1', 'archived')
+    await new Promise((r) => setTimeout(r, 0))
+    expect(vi.mocked(deactivateSourceLinks)).toHaveBeenCalledWith(
+      expect.anything(),
+      'p1', 'blog',
+    )
+  })
+
+  it('does NOT deactivate links for non-archive transitions', async () => {
+    await movePost('p1', 'ready')
+    await new Promise((r) => setTimeout(r, 0))
+    expect(vi.mocked(deactivateSourceLinks)).not.toHaveBeenCalled()
   })
 })
 
@@ -724,6 +767,15 @@ describe('deleteHubPost', () => {
   it('throws when RBAC check fails', async () => {
     vi.mocked(requireSiteScope).mockResolvedValueOnce({ ok: false, reason: 'unauthenticated' } as never)
     await expect(deleteHubPost('p1')).rejects.toThrow(/unauthenticated/)
+  })
+
+  it('deactivates tracked links on delete', async () => {
+    await deleteHubPost('p1')
+    await new Promise((r) => setTimeout(r, 0))
+    expect(vi.mocked(deactivateSourceLinks)).toHaveBeenCalledWith(
+      expect.anything(),
+      'p1', 'blog',
+    )
   })
 })
 

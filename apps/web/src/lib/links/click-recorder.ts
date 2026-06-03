@@ -31,19 +31,24 @@ function classifyDevice(ua: string): 'mobile' | 'tablet' | 'desktop' {
   return 'desktop'
 }
 
-function classifyReferrer(referrer: string | null): string {
+function classifyReferrer(referrer: string | null): 'direct' | 'search' | 'social' | 'email' | 'referral' | 'other' {
   if (!referrer) return 'direct'
   try {
     const host = new URL(referrer).hostname.toLowerCase()
-    if (host.includes('google')) return 'google'
-    if (host.includes('youtube')) return 'youtube'
-    if (host.includes('facebook') || host.includes('fb.com')) return 'facebook'
-    if (host.includes('instagram')) return 'instagram'
-    if (host.includes('twitter') || host.includes('x.com')) return 'twitter'
-    if (host.includes('linkedin')) return 'linkedin'
-    if (host.includes('tiktok')) return 'tiktok'
-    if (host.includes('reddit')) return 'reddit'
-    if (host.includes('pinterest')) return 'pinterest'
+    // Search engines
+    if (host.includes('google')) return 'search'
+    if (host.includes('bing')) return 'search'
+    if (host.includes('duckduckgo')) return 'search'
+    if (host.includes('yahoo')) return 'search'
+    // Social platforms
+    if (host.includes('youtube')) return 'social'
+    if (host.includes('facebook') || host.includes('fb.com')) return 'social'
+    if (host.includes('instagram')) return 'social'
+    if (host.includes('twitter') || host === 'x.com' || host.endsWith('.x.com')) return 'social'
+    if (host.includes('linkedin')) return 'social'
+    if (host.includes('tiktok')) return 'social'
+    if (host.includes('reddit')) return 'social'
+    if (host.includes('pinterest')) return 'social'
     return 'other'
   } catch {
     return 'other'
@@ -133,6 +138,7 @@ export async function recordClick(input: RecordClickInput): Promise<RecordClickR
     region: geo.region,
     is_bot: bot,
     is_unique: isUnique,
+    is_returning: !isUnique,
     clicked_at: new Date().toISOString(),
     utm_source: utmSource ?? null,
     utm_medium: utmMedium ?? null,

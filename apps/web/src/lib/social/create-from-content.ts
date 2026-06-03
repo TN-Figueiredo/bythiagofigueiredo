@@ -12,6 +12,7 @@ import { CONTENT_FORMAT_MAP } from './types'
 import { extractContentMetadata } from './content-metadata'
 import { createInitialPipelineSteps } from './pipeline'
 import { ensureTrackedLink } from '@/lib/links/auto-link'
+import { buildShortUrl } from '@/lib/links/short-url'
 
 interface CreateParams {
   supabase: SupabaseClient
@@ -78,11 +79,11 @@ export async function createSocialPostFromContent(
   )
   if (linkResult) shortLinkId = linkResult.linkId
 
-  // Build social post content JSONB
+  // Build social post content JSONB — use tracked short URL when available
   const postContent = {
     title: metadata.title,
     description: metadata.excerpt ?? '',
-    url: metadata.url,
+    url: linkResult ? buildShortUrl(linkResult.code) : metadata.url,
     hashtags: config.hashtags,
     media_urls: metadata.image ? [metadata.image] : [],
     captions: config.captions,

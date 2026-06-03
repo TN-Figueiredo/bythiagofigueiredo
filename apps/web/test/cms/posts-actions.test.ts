@@ -24,6 +24,21 @@ vi.mock('@/lib/seo/cache-invalidation', () => ({
   revalidateSiteBranding: vi.fn(),
 }))
 
+const ensureTrackedLinkMock = vi.fn().mockResolvedValue({ linkId: 'link-1', code: 'abc1234', isNew: true })
+const deactivateSourceLinksMock = vi.fn().mockResolvedValue(0)
+vi.mock('@/lib/links/auto-link', () => ({
+  ensureTrackedLink: (...args: unknown[]) => ensureTrackedLinkMock(...args),
+  deactivateSourceLinks: (...args: unknown[]) => deactivateSourceLinksMock(...args),
+}))
+
+vi.mock('@/lib/pipeline/blog-sync', () => ({
+  syncPipelineOnPostStatusChange: vi.fn().mockResolvedValue(undefined),
+}))
+
+vi.mock('@/lib/social/create-from-content', () => ({
+  createSocialPostFromContent: vi.fn().mockResolvedValue({ ok: true }),
+}))
+
 // Chainable Supabase mock builder
 const updateMock = vi.fn()
 const deleteMock = vi.fn()
@@ -105,6 +120,8 @@ function setupChain(opts: {
 describe('bulkPublish', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    ensureTrackedLinkMock.mockClear()
+    deactivateSourceLinksMock.mockClear()
   })
 
   it('returns count 0 for empty postIds', async () => {
@@ -145,11 +162,35 @@ describe('bulkPublish', () => {
     vi.mocked(requireSiteScope).mockResolvedValueOnce({ ok: false, reason: 'unauthenticated' } as never)
     await expect(bulkPublish(['p1'])).rejects.toThrow(/unauthenticated/)
   })
+
+  it('creates tracked links for each published post', async () => {
+    setupChain({
+      updateResult: makeChainResult([
+        { id: 'p1', blog_translations: [{ locale: 'pt-BR', slug: 'hello' }] },
+        { id: 'p2', blog_translations: [{ locale: 'en', slug: 'world' }] },
+      ]),
+    })
+
+    await bulkPublish(['p1', 'p2'])
+    await new Promise((r) => setTimeout(r, 0))
+
+    expect(ensureTrackedLinkMock).toHaveBeenCalledTimes(2)
+    expect(ensureTrackedLinkMock).toHaveBeenCalledWith(
+      expect.anything(), 's1', 'p1', 'blog',
+      expect.stringContaining('/pt-BR/blog/hello'), 'hello',
+    )
+    expect(ensureTrackedLinkMock).toHaveBeenCalledWith(
+      expect.anything(), 's1', 'p2', 'blog',
+      expect.stringContaining('/en/blog/world'), 'world',
+    )
+  })
 })
 
 describe('bulkArchive', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    ensureTrackedLinkMock.mockClear()
+    deactivateSourceLinksMock.mockClear()
   })
 
   it('returns count 0 for empty postIds', async () => {
@@ -177,11 +218,29 @@ describe('bulkArchive', () => {
     const result = await bulkArchive(['p1'])
     expect(result).toEqual({ ok: false, error: 'db-fail' })
   })
+
+  it('deactivates tracked links for each archived post', async () => {
+    setupChain({
+      updateResult: makeChainResult([
+        { id: 'p1', blog_translations: [{ locale: 'pt-BR', slug: 'hi' }] },
+      ]),
+    })
+
+    await bulkArchive(['p1'])
+    await new Promise((r) => setTimeout(r, 0))
+
+    expect(deactivateSourceLinksMock).toHaveBeenCalledTimes(1)
+    expect(deactivateSourceLinksMock).toHaveBeenCalledWith(
+      expect.anything(), 'p1', 'blog',
+    )
+  })
 })
 
 describe('bulkDelete', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    ensureTrackedLinkMock.mockClear()
+    deactivateSourceLinksMock.mockClear()
   })
 
   it('returns count 0 for empty postIds', async () => {
@@ -219,11 +278,30 @@ describe('bulkDelete', () => {
     const result = await bulkDelete(['p1'])
     expect(result).toEqual({ ok: false, error: 'fetch-err' })
   })
+
+  it('deactivates tracked links for each deleted post', async () => {
+    setupChain({
+      selectResult: makeChainResult([
+        { id: 'p1', blog_translations: [{ locale: 'pt-BR', slug: 'bye' }] },
+      ]),
+      deleteResult: makeChainResult(null),
+    })
+
+    await bulkDelete(['p1'])
+    await new Promise((r) => setTimeout(r, 0))
+
+    expect(deactivateSourceLinksMock).toHaveBeenCalledTimes(1)
+    expect(deactivateSourceLinksMock).toHaveBeenCalledWith(
+      expect.anything(), 'p1', 'blog',
+    )
+  })
 })
 
 describe('bulkChangeAuthor', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    ensureTrackedLinkMock.mockClear()
+    deactivateSourceLinksMock.mockClear()
   })
 
   it('returns count 0 for empty postIds', async () => {

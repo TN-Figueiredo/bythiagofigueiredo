@@ -13,6 +13,12 @@ vi.mock('@/lib/social/create-from-content', () => ({
   createSocialPostFromContent: vi.fn().mockResolvedValue({ postId: 'sp-1', shortLinkId: null }),
 }));
 
+const ensureTrackedLinkMock = vi.fn().mockResolvedValue({ linkId: 'link-1', code: 'abc1234', isNew: true })
+vi.mock('@/lib/links/auto-link', () => ({
+  ensureTrackedLink: (...args: unknown[]) => ensureTrackedLinkMock(...args),
+  deactivateSourceLinks: vi.fn().mockResolvedValue(0),
+}))
+
 import { POST } from '../../src/app/api/cron/publish-scheduled/route';
 import { getSupabaseServiceClient } from '../../lib/supabase/service';
 import { setLogger, resetLogger } from '../../lib/logger';
@@ -42,6 +48,7 @@ function fakeClient(posts: unknown[] = [], camps: unknown[] = [], throwOn?: stri
 beforeEach(() => {
   process.env.CRON_SECRET = 'topsecret';
   vi.clearAllMocks();
+  ensureTrackedLinkMock.mockResolvedValue({ linkId: 'link-1', code: 'abc1234', isNew: true });
   setLogger({ warn: () => {}, error: () => {} });
 });
 afterEach(() => { vi.restoreAllMocks(); resetLogger(); });
@@ -63,7 +70,7 @@ describe('POST /api/cron/publish-scheduled', () => {
   });
 
   it('200 with correct bearer, logs cron_runs ok', async () => {
-    const c = fakeClient([{ id: 'p1' }, { id: 'p2' }], [{ id: 'c1' }]);
+    const c = fakeClient([{ id: 'p1', site_id: 'site-1', blog_translations: [{ locale: 'pt-BR', slug: 'post-1' }] }, { id: 'p2', site_id: 'site-1', blog_translations: [{ locale: 'en', slug: 'post-2' }] }], [{ id: 'c1' }]);
     vi.mocked(getSupabaseServiceClient).mockReturnValue(c as never);
     const req = new Request('http://x/api/cron/publish-scheduled', {
       method: 'POST', headers: { authorization: 'Bearer topsecret' },
@@ -89,6 +96,46 @@ describe('POST /api/cron/publish-scheduled', () => {
       job: 'publish-scheduled', status: 'error',
     }));
   });
+
+  it('creates tracked links for each published post', async () => {
+    const posts = [
+      { id: 'p1', site_id: 'site-1', social_config: null, blog_translations: [{ locale: 'pt-BR', slug: 'meu-post' }] },
+      { id: 'p2', site_id: 'site-1', social_config: null, blog_translations: [{ locale: 'en', slug: 'my-post' }] },
+    ]
+    const c = fakeClient(posts, [])
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(c as never)
+    const req = new Request('http://x/api/cron/publish-scheduled', {
+      method: 'POST', headers: { authorization: 'Bearer topsecret' },
+    })
+    await POST(req)
+    await new Promise((r) => setTimeout(r, 50))
+
+    expect(ensureTrackedLinkMock).toHaveBeenCalledTimes(2)
+    expect(ensureTrackedLinkMock).toHaveBeenCalledWith(
+      expect.anything(),
+      'site-1', 'p1', 'blog',
+      expect.stringContaining('/pt-BR/blog/meu-post'),
+      'meu-post',
+    )
+    expect(ensureTrackedLinkMock).toHaveBeenCalledWith(
+      expect.anything(),
+      'site-1', 'p2', 'blog',
+      expect.stringContaining('/en/blog/my-post'),
+      'my-post',
+    )
+  })
+
+  it('skips tracked link when post has no translations', async () => {
+    const posts = [{ id: 'p1', site_id: 'site-1', social_config: null, blog_translations: [] }]
+    const c = fakeClient(posts, [])
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(c as never)
+    const req = new Request('http://x/api/cron/publish-scheduled', {
+      method: 'POST', headers: { authorization: 'Bearer topsecret' },
+    })
+    await POST(req)
+    await new Promise((r) => setTimeout(r, 50))
+    expect(ensureTrackedLinkMock).not.toHaveBeenCalled()
+  })
 });
 
 describe('POST /api/cron/publish-scheduled — social trigger', () => {

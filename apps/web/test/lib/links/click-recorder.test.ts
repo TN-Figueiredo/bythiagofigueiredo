@@ -142,7 +142,52 @@ describe('ClickRecorder', () => {
       headers: new Headers({}),
     })
     const insertData = mockInsert.mock.calls[0][0]
-    expect(insertData.referrer_source).toBe('youtube')
+    expect(insertData.referrer_source).toBe('social')
+  })
+
+  it('classifies google referrer as search', async () => {
+    mockSelect.mockResolvedValue({ data: null, error: null })
+    const { recordClick } = await import('../../../src/lib/links/click-recorder')
+    await recordClick({
+      linkId: 'link-1',
+      siteId: 'site-1',
+      ip: '1.2.3.4',
+      userAgent: 'Mozilla/5.0',
+      referrer: 'https://www.google.com/search?q=test',
+      headers: new Headers({}),
+    })
+    const insertData = mockInsert.mock.calls[0][0]
+    expect(insertData.referrer_source).toBe('search')
+  })
+
+  it('classifies facebook referrer as social', async () => {
+    mockSelect.mockResolvedValue({ data: null, error: null })
+    const { recordClick } = await import('../../../src/lib/links/click-recorder')
+    await recordClick({
+      linkId: 'link-1',
+      siteId: 'site-1',
+      ip: '1.2.3.4',
+      userAgent: 'Mozilla/5.0',
+      referrer: 'https://www.facebook.com/post/123',
+      headers: new Headers({}),
+    })
+    const insertData = mockInsert.mock.calls[0][0]
+    expect(insertData.referrer_source).toBe('social')
+  })
+
+  it('classifies unknown referrer as other', async () => {
+    mockSelect.mockResolvedValue({ data: null, error: null })
+    const { recordClick } = await import('../../../src/lib/links/click-recorder')
+    await recordClick({
+      linkId: 'link-1',
+      siteId: 'site-1',
+      ip: '1.2.3.4',
+      userAgent: 'Mozilla/5.0',
+      referrer: 'https://somerandomsite.example.com/page',
+      headers: new Headers({}),
+    })
+    const insertData = mockInsert.mock.calls[0][0]
+    expect(insertData.referrer_source).toBe('other')
   })
 
   it('sets referrer_source to direct when referrer is null', async () => {

@@ -1,4 +1,41 @@
+import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '../../../lib/supabase/service'
+
+interface CacheEntry {
+  data: ResolvedLink | null
+  expires: number
+}
+
+const linkCache = new Map<string, CacheEntry>()
+const CACHE_TTL_MS = 30_000
+const CACHE_MAX = 200
+
+function getCached(key: string): ResolvedLink | null | undefined {
+  const entry = linkCache.get(key)
+  if (!entry) return undefined
+  if (Date.now() > entry.expires) {
+    linkCache.delete(key)
+    return undefined
+  }
+  return entry.data
+}
+
+function setCached(key: string, data: ResolvedLink | null): void {
+  if (linkCache.size >= CACHE_MAX) {
+    const oldest = linkCache.keys().next().value
+    if (oldest) linkCache.delete(oldest)
+  }
+  linkCache.set(key, { data, expires: Date.now() + CACHE_TTL_MS })
+}
+
+export function invalidateLinkCache(siteId: string, code: string): void {
+  linkCache.delete(`${siteId}:${code}`)
+}
+
+/** Clears the entire link cache. Intended for use in tests only. */
+export function _clearLinkCacheForTesting(): void {
+  linkCache.clear()
+}
 
 export interface ResolvedLink {
   id: string
@@ -30,6 +67,10 @@ export interface ResolvedLink {
  * Uses service-role client to bypass RLS (cron/redirect context).
  */
 export async function resolveLink(siteId: string, code: string): Promise<ResolvedLink | null> {
+  const cacheKey = `${siteId}:${code}`
+  const cached = getCached(cacheKey)
+  if (cached !== undefined) return cached
+
   const supabase = getSupabaseServiceClient()
   const { data, error } = await supabase
     .from('tracked_links')
@@ -40,6 +81,12 @@ export async function resolveLink(siteId: string, code: string): Promise<Resolve
     .eq('code', code)
     .maybeSingle()
 
-  if (error || !data) return null
-  return data as ResolvedLink
+  if (error) {
+    Sentry.captureException(error, { tags: { links: 'true', component: 'resolver' } })
+    return null  // DON'T cache errors
+  }
+  if (!data) return null  // DON'T cache not-found (link might be being created right now)
+  const result = data as ResolvedLink
+  setCached(cacheKey, result)
+  return result
 }
