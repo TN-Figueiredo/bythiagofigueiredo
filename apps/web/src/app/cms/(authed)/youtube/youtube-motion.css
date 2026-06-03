@@ -130,6 +130,10 @@
   gap: 18px;
 }
 
+.insights-grid > .ins-full {
+  grid-column: 1 / -1;
+}
+
 @media (max-width: 920px) {
   .insights-grid { grid-template-columns: 1fr; }
 }
@@ -246,6 +250,8 @@
   --surface-3: #2E281F;
   --accent-hover: #FF9559;
   --purple: #A78BFA;
+  --cowork: #9B93F6;
+  --cowork-soft: rgba(110,99,242,0.15);
 }
 
 /* ─── Hide notification bell in YouTube section (feature incomplete) ─── */
@@ -778,7 +784,9 @@ button[aria-label="Notificações"] {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 1px 6px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
   font-family: var(--font-jetbrains), 'JetBrains Mono', ui-monospace, monospace;
   font-size: 10.5px;
   font-weight: 600;
@@ -790,8 +798,8 @@ button[aria-label="Notificações"] {
 }
 
 [data-cms-section="youtube"] .subtab.active .subtab-count {
-  background: var(--accent-soft-2);
-  color: var(--accent);
+  background: var(--accent);
+  color: #16110b;
 }
 
 /* ─── 3.8 Card Lift ─── */
@@ -941,11 +949,18 @@ button[aria-label="Notificações"] {
 
 /* 2. Outlier CTA */
 [data-cms-section="youtube"] .outlier-cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 11px;
+  padding-top: 11px;
+  border-top: 1px solid var(--border-subtle, var(--border));
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-dim);
   opacity: 0;
-  color: var(--text-muted);
-  transition:
-    opacity var(--t-fast) var(--ease-out),
-    color var(--t-fast) var(--ease-out);
+  transition: opacity 0.13s ease;
 }
 
 [data-cms-section="youtube"] .outlier-card.clickable:hover .outlier-cta,
@@ -1379,29 +1394,7 @@ button[aria-label="Notificações"] {
   border: 1px solid var(--accent-line);
 }
 
-[data-cms-section="youtube"] .gap-chip {
-  display: inline-flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 5px 10px;
-  border-radius: var(--radius-sm, 9px);
-  font-size: 12px;
-  background: var(--surface-2);
-  border: 1px solid var(--border-subtle);
-  color: var(--text-muted);
-}
-
-[data-cms-section="youtube"] .gap-chip.gap {
-  background: var(--accent-soft);
-  border-color: var(--accent-line);
-  color: var(--accent);
-  font-weight: 500;
-}
-
-[data-cms-section="youtube"] .gap-chip.ours {
-  background: var(--surface-2);
-  color: var(--text);
-}
+/* gap-chip styles moved to section 6.5 */
 
 [data-cms-section="youtube"] .gap-divider {
   width: 1px;
@@ -2243,3 +2236,107 @@ button[aria-label="Notificações"] {
   flex: 1;
   min-width: 0;
 }
+
+/* ─── 6. Insights Tab Components ─── */
+
+/* 6.0 Shared Utility */
+[data-cms-section="youtube"] .dim { color: var(--text-dim); }
+
+/* 6.0b Shared Card Base */
+[data-cms-section="youtube"] .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+[data-cms-section="youtube"] .card-head { display: flex; align-items: center; gap: 8px; padding: 14px 18px 0; }
+[data-cms-section="youtube"] .card-title { font-size: 13.5px; font-weight: 600; color: var(--text); }
+[data-cms-section="youtube"] .card-pad { padding: 12px 18px 14px; }
+
+/* 6.1 Play Card (Jogada da Semana) */
+[data-cms-section="youtube"] .play-card { position: relative; overflow: hidden; background: linear-gradient(120deg, var(--accent-soft) 0%, var(--surface) 60%) !important; }
+[data-cms-section="youtube"] .play-main { padding: 18px 22px; display: flex; flex-direction: column; gap: 10px; }
+[data-cms-section="youtube"] .play-eyebrow { display: flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+[data-cms-section="youtube"] .play-text { font-size: 14px; line-height: 1.55; color: var(--text-muted); max-width: 820px; }
+[data-cms-section="youtube"] .play-text b { color: var(--text); font-weight: 600; }
+[data-cms-section="youtube"] .play-text .dim { color: var(--text-dim); }
+[data-cms-section="youtube"] .play-cta { position: absolute; right: 18px; top: 50%; transform: translateY(-50%); }
+
+/* 6.2 Cadence Card */
+[data-cms-section="youtube"] .cad-legend { display: flex; align-items: center; gap: 14px; margin-left: auto; font-size: 11px; color: var(--text-dim); }
+[data-cms-section="youtube"] .cad-leg-item { display: inline-flex; align-items: center; gap: 5px; }
+[data-cms-section="youtube"] .cad-leg-tick { width: 12px; height: 1px; background: var(--text-dim); opacity: 0.5; flex-shrink: 0; }
+[data-cms-section="youtube"] .cad-leg-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+[data-cms-section="youtube"] .cad-lanes { display: flex; flex-direction: column; gap: 0; }
+[data-cms-section="youtube"] .cad-axis { display: flex; align-items: center; gap: 0; padding: 0 0 8px; }
+[data-cms-section="youtube"] .cad-axis-ticks { position: relative; flex: 1; height: 16px; margin-right: 8px; }
+[data-cms-section="youtube"] .cad-axis-ticks > span { position: absolute; font-size: 10px; color: var(--text-dim); transform: translateX(-50%); white-space: nowrap; }
+[data-cms-section="youtube"] .cad-axis-ticks > span:first-child { transform: none; }
+[data-cms-section="youtube"] .cad-axis-ticks > span:last-child { transform: translateX(-100%); }
+[data-cms-section="youtube"] .cad-row { display: flex; align-items: center; gap: 0; padding: 8px 0; border-top: 1px solid var(--border); cursor: pointer; transition: background 0.13s; }
+[data-cms-section="youtube"] .cad-row:hover { background: var(--surface-2); }
+[data-cms-section="youtube"] .cad-id { display: flex; align-items: center; gap: 10px; width: 200px; flex-shrink: 0; }
+[data-cms-section="youtube"] .cad-av { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-size: 10px; font-weight: 700; color: #16110b; flex-shrink: 0; }
+[data-cms-section="youtube"] .cad-meta { min-width: 0; }
+[data-cms-section="youtube"] .cad-name { font-size: 12.5px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+[data-cms-section="youtube"] .cad-sub { display: flex; align-items: center; gap: 4px; font-size: 10.5px; color: var(--text-dim); }
+[data-cms-section="youtube"] .cad-freq { color: var(--text-muted); }
+[data-cms-section="youtube"] .cad-lane { position: relative; flex: 1; height: 28px; border-radius: 6px; background: linear-gradient(to right, var(--surface-2), var(--surface-3)); }
+[data-cms-section="youtube"] .cad-tick { position: absolute; top: 2px; bottom: 2px; width: 1px; opacity: 0.3; transform: translateX(-0.5px); }
+[data-cms-section="youtube"] .cad-dot { position: absolute; top: 50%; transform: translate(-50%, -50%); border-radius: 50%; cursor: pointer; transition: transform 0.15s; }
+[data-cms-section="youtube"] .cad-dot:hover { transform: translate(-50%, -50%) scale(1.4); z-index: 1; }
+[data-cms-section="youtube"] .cad-last { width: 48px; text-align: right; font-size: 11px; color: var(--text-dim); flex-shrink: 0; }
+[data-cms-section="youtube"] .cad-last.fresh { color: var(--green); }
+
+/* 6.3 Formula Card */
+[data-cms-section="youtube"] .formula-row { padding: 8px 0; cursor: pointer; transition: background 0.13s; }
+[data-cms-section="youtube"] .formula-row + .formula-row { border-top: 1px solid var(--border); }
+[data-cms-section="youtube"] .formula-row:hover { background: var(--surface-2); border-radius: 8px; }
+[data-cms-section="youtube"] .formula-top { display: flex; align-items: center; justify-content: space-between; }
+[data-cms-section="youtube"] .formula-label { font-size: 13px; font-weight: 600; color: var(--text); }
+[data-cms-section="youtube"] .formula-mult { font-size: 13px; }
+[data-cms-section="youtube"] .formula-bar { height: 4px; border-radius: 2px; background: var(--surface-2); margin: 6px 0; }
+[data-cms-section="youtube"] .formula-bar > span { display: block; height: 100%; border-radius: 2px; }
+[data-cms-section="youtube"] .formula-eg { font-size: 11px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+[data-cms-section="youtube"] .formula-hint { color: var(--text-muted); font-style: italic; }
+[data-cms-section="youtube"] .formula-count { margin: 0 2px; }
+
+/* 6.3b Heatmap */
+[data-cms-section="youtube"] .heatmap { display: grid; grid-template-columns: auto 1fr; gap: 2px 0; align-items: center; }
+[data-cms-section="youtube"] .heat-corner { width: 32px; }
+[data-cms-section="youtube"] .heat-hours { display: grid; grid-template-columns: repeat(8, 1fr); }
+[data-cms-section="youtube"] .heat-hlabel { font-size: 9px; text-align: center; color: var(--text-dim); }
+[data-cms-section="youtube"] .heat-dlabel { font-size: 10px; color: var(--text-dim); padding-right: 6px; text-align: right; }
+[data-cms-section="youtube"] .heat-row { display: grid; grid-template-columns: repeat(24, 1fr); gap: 2px; }
+[data-cms-section="youtube"] .heat-cell { aspect-ratio: 1; border-radius: 3px; min-height: 14px; }
+[data-cms-section="youtube"] .heat-scale { display: flex; gap: 2px; }
+[data-cms-section="youtube"] .heat-scale .heat-cell { width: 14px; height: 14px; min-height: unset; aspect-ratio: unset; }
+
+/* 6.4 Insight Note */
+[data-cms-section="youtube"] .insight-note { display: flex; align-items: flex-start; gap: 8px; padding: 10px 14px; background: var(--surface-2); border-radius: 10px; font-size: 12px; line-height: 1.5; color: var(--text-muted); margin-top: 14px; }
+[data-cms-section="youtube"] .insight-note b { color: var(--text); font-weight: 600; }
+
+/* 6.5 Gap Chips */
+[data-cms-section="youtube"] .gap-cols { display: flex; gap: 0; }
+[data-cms-section="youtube"] .gap-col { flex: 1; padding: 0 16px; }
+[data-cms-section="youtube"] .gap-divider { width: 1px; background: var(--border); flex-shrink: 0; }
+[data-cms-section="youtube"] .gap-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+[data-cms-section="youtube"] .gap-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 999px; font-size: 11.5px; background: var(--surface-2); color: var(--text-muted); }
+[data-cms-section="youtube"] .gap-chip.gap { border: 1px dashed var(--border); background: transparent; cursor: pointer; transition: background 0.13s, border-color 0.13s, color 0.13s; }
+[data-cms-section="youtube"] .gap-chip.gap:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+[data-cms-section="youtube"] .gap-chip.ours { background: var(--accent-soft); color: var(--accent); }
+
+/* 6.6 Tag rows */
+[data-cms-section="youtube"] .tag-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; cursor: pointer; transition: background 0.13s; }
+[data-cms-section="youtube"] .tag-row:hover { background: var(--surface-2); border-radius: 6px; }
+[data-cms-section="youtube"] .tag-name { font-size: 12.5px; font-weight: 500; color: var(--text); width: 120px; flex-shrink: 0; }
+[data-cms-section="youtube"] .tag-count { font-size: 11px; width: 28px; text-align: right; flex-shrink: 0; }
+[data-cms-section="youtube"] .tag-go { opacity: 0; transition: opacity 0.13s; flex-shrink: 0; }
+[data-cms-section="youtube"] .tag-row:hover .tag-go { opacity: 1; }
+
+/* 6.7 Engagement rows */
+[data-cms-section="youtube"] .eng-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; cursor: pointer; transition: background 0.13s; }
+[data-cms-section="youtube"] .eng-row:hover { background: var(--surface-2); border-radius: 6px; }
+[data-cms-section="youtube"] .eng-name { font-size: 12.5px; font-weight: 500; color: var(--text); width: 130px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+[data-cms-section="youtube"] .eng-name.us { color: var(--accent); }
+[data-cms-section="youtube"] .us-tag { display: inline-flex; align-items: center; padding: 1px 6px; margin-left: 6px; font-size: 9.5px; font-weight: 600; border-radius: 999px; background: var(--accent-soft); color: var(--accent); vertical-align: middle; }
+[data-cms-section="youtube"] .eng-val { font-size: 12px; width: 42px; text-align: right; flex-shrink: 0; }
+
+/* 6.8 Bar (shared between tags and engagement) */
+[data-cms-section="youtube"] .bar { height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
+[data-cms-section="youtube"] .bar > span { display: block; height: 100%; border-radius: 3px; }

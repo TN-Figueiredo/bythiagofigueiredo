@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback } from 'react'
-import { Plus, Search, X, Check } from 'lucide-react'
+import { Plus, Search, X, Check, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { YtPortal } from '../../_components/yt-portal'
 import { useModalFocusTrap } from '../../../_shared/editor/use-modal-focus-trap'
@@ -203,11 +203,11 @@ export function AddChannelModal({ open, onClose, existingChannelIds, slotsRemain
                         <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {result.name}
                         </div>
-                        {result.subscriberCount != null && (
-                          <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)' }}>
-                            {fmtC(result.subscriberCount)} inscritos
-                          </div>
-                        )}
+                        <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+                          {result.handle && <span>{result.handle}</span>}
+                          {result.handle && result.subscriberCount != null && <span> · </span>}
+                          {result.subscriberCount != null && <span>{fmtC(result.subscriberCount)} inscritos</span>}
+                        </div>
                         {result.description && (
                           <div style={{
                             fontSize: 11.5,
@@ -243,9 +243,13 @@ export function AddChannelModal({ open, onClose, existingChannelIds, slotsRemain
                           className="btn primary sm"
                           onClick={() => handleAdd(result.channelId)}
                           disabled={isAdding || noSlots}
-                          style={{ flexShrink: 0 }}
+                          style={{ flexShrink: 0, minWidth: 110 }}
                         >
-                          <Plus style={{ width: 13, height: 13 }} aria-hidden="true" />
+                          {isAdding ? (
+                            <Loader2 style={{ width: 13, height: 13, animation: 'spin 1s linear infinite' }} aria-hidden="true" />
+                          ) : (
+                            <Plus style={{ width: 13, height: 13 }} aria-hidden="true" />
+                          )}
                           {isAdding ? 'Adicionando...' : 'Adicionar'}
                         </button>
                       )}

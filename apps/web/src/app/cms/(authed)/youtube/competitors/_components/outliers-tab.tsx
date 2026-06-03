@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, FlaskConical, ArrowRight } from 'lucide-react'
 import { brDec, fmtC, fmtRelative } from '@/lib/youtube/format'
 import type { CompetitorOutlierView } from '@/lib/youtube/observatory-types'
 
@@ -143,8 +143,10 @@ export function OutliersTab({ outliers, onVideoClick }: OutliersTabProps) {
                   </div>
 
                   {/* Outlier CTA (revealed on hover) */}
-                  <div className="outlier-cta mt-2 text-[11px] font-medium">
-                    Analisar vídeo →
+                  <div className="outlier-cta">
+                    <FlaskConical style={{ width: 12, height: 12 }} aria-hidden="true" />
+                    <span>Ver por que viralizou</span>
+                    <ArrowRight style={{ width: 12, height: 12 }} aria-hidden="true" />
                   </div>
                 </div>
               </div>

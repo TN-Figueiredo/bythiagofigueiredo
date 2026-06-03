@@ -11,12 +11,33 @@ import type {
   OurChannelStats,
   ChangeFlag,
   VsYouEntry,
+  CadenceChannel,
+  CadenceVideo,
+  TitleFormula,
+  PlayOfTheWeek,
 } from '@/lib/youtube/observatory-types'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 const MAX_CHANNELS = 15
+
+const CHANNEL_COLORS = [
+  'rgb(232, 130, 60)', 'rgb(167, 124, 232)', 'rgb(63, 169, 192)',
+  'rgb(217, 97, 74)', 'rgb(96, 165, 250)', 'rgb(70, 177, 126)',
+  'rgb(224, 162, 60)', 'rgb(190, 90, 150)', 'rgb(120, 180, 80)',
+]
+
+const BR_DAY_NAMES = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'] as const
+
+const FORMULA_PATTERNS: Array<{ label: string; hint: string; test: (t: string) => boolean }> = [
+  { label: 'Nome do lugar', hint: 'o estrangeiro nítido', test: t => /\b(bangkok|tailândia|vietnam|vietnã|japão|tóquio|coreia|seul|bali|índia|filipinas|china|asia|ásia|europa|delhi|hanói)\b/i.test(t) },
+  { label: 'Primeira pessoa', hint: '"larguei tudo"', test: t => /^(eu |fui |larguei |cheguei |morei |voltei |tentei |decidi |saí )/i.test(t) },
+  { label: 'Preço em R$', hint: 'o número que dói', test: t => /R\$\s*[\d.,]+|por apenas|custou/i.test(t) },
+  { label: 'Em dólar', hint: 'arbitragem de moeda', test: t => /dólar|dollar|ganhando em/i.test(t) },
+  { label: 'Número/lista', hint: 'concretude', test: t => /^\d+\s|TOP \d|\d+ (coisas|razões|motivos|dicas|erros|lugares)/i.test(t) },
+  { label: 'Passaporte BR · solo', hint: 'flex geográfico', test: t => /passaporte|sozinho|solo/i.test(t) && /brasil|brasileiro/i.test(t) },
+]
 
 export default async function CompetitorsPage({
   searchParams,
@@ -83,7 +104,7 @@ export default async function CompetitorsPage({
 
   const { data: ownVideos } = await supabase
     .from('youtube_videos')
-    .select('view_count, like_count, comment_count, published_at, channel_id')
+    .select('view_count, like_count, comment_count, published_at, channel_id, tags')
     .eq('site_id', siteId)
     .eq('is_hidden', false)
     .order('published_at', { ascending: false })
@@ -380,20 +401,31 @@ export default async function CompetitorsPage({
   }
 
   // Tags
-  const tagStats = new Map<string, { count: number; totalViews: number }>()
+  const tagStats = new Map<string, { count: number; totalViews: number; channels: Set<string> }>()
+  const compTagsByChMap = new Map<string, Set<string>>()
   for (const v of flatVideos) {
     const tags = (v.tags as string[] | null) ?? []
+    const chName = safeChannels.find(c => c.id === v.competitor_channel_id)?.channel_name ?? ''
+    if (chName) {
+      const chSet = compTagsByChMap.get(chName) ?? new Set<string>()
+      for (const tag of tags) chSet.add(tag)
+      compTagsByChMap.set(chName, chSet)
+    }
     for (const tag of tags) {
-      const s = tagStats.get(tag) ?? { count: 0, totalViews: 0 }
+      const s = tagStats.get(tag) ?? { count: 0, totalViews: 0, channels: new Set<string>() }
       s.count++
       s.totalViews += v.view_count ?? 0
+      if (chName) s.channels.add(chName)
       tagStats.set(tag, s)
     }
   }
   const tagsSorted = [...tagStats.entries()]
-    .map(([tag, s]) => ({ tag, count: s.count, avgViews: s.count > 0 ? Math.round(s.totalViews / s.count) : 0 }))
+    .map(([tag, s]) => ({ tag, count: s.count, avgViews: s.count > 0 ? Math.round(s.totalViews / s.count) : 0, channelNames: [...s.channels] }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 15)
+  const competitorTagsByChannel = [...compTagsByChMap.entries()]
+    .map(([channelName, tags]) => ({ channelName, tags: [...tags].slice(0, 15) }))
+    .sort((a, b) => b.tags.length - a.tags.length)
 
   // Engagement comparison
   const engagement = safeChannels
@@ -420,19 +452,177 @@ export default async function CompetitorsPage({
   })
   engagement.sort((a, b) => b.engagementRate - a.engagementRate)
 
-  // Gaps: topics competitors cover (approximate — own video tags not fetched)
+  const ownTagSet = new Set<string>()
+  const ownTagsByChannelMap = new Map<string, Set<string>>()
+  for (const v of allOwnVids) {
+    const vTags = (v as { tags?: string[] | null }).tags
+    const chId = (v as { channel_id?: string }).channel_id
+    if (!vTags || !chId) continue
+    for (const t of vTags) ownTagSet.add(t.toLowerCase())
+    const set = ownTagsByChannelMap.get(chId) ?? new Set<string>()
+    for (const t of vTags) set.add(t.toLowerCase())
+    ownTagsByChannelMap.set(chId, set)
+  }
+  const ownTagsByChannel = (ownChannels ?? []).map(ch => ({
+    channelName: ch.name || ch.channel_id || ch.id,
+    tags: [...(ownTagsByChannelMap.get(ch.id) ?? [])].slice(0, 15),
+  }))
+
   const gaps = tagsSorted.slice(0, 10).map(t => ({
     topic: t.tag,
     competitorCount: t.count,
     avgViews: t.avgViews,
-    weCover: false, // simplified — would need own video tags
+    weCover: ownTagSet.has(t.tag.toLowerCase()),
+    channelNames: t.channelNames,
   }))
+
+  // ── Cadence per channel ──
+  const twentyOneDaysAgo = Date.now() - 21 * 86_400_000
+  const cadence: CadenceChannel[] = safeChannels.map((ch, idx) => {
+    const videos = videosByChannel.get(ch.id) ?? []
+    const recentCadence = videos.filter(v => v.published_at && new Date(v.published_at).getTime() > twentyOneDaysAgo)
+    const freq = Math.round((recentCadence.length / 3) * 10) / 10
+
+    const slotCounts = new Map<string, number>()
+    for (const v of videos) {
+      if (!v.published_at) continue
+      const d = new Date(v.published_at)
+      const dayIdx = (d.getDay() + 6) % 7
+      const slot = `${BR_DAY_NAMES[dayIdx]} ${d.getHours()}h`
+      slotCounts.set(slot, (slotCounts.get(slot) ?? 0) + 1)
+    }
+    let window = '—'
+    let maxSlot = 0
+    for (const [slot, count] of slotCounts) {
+      if (count > maxSlot) { maxSlot = count; window = slot }
+    }
+
+    const cadenceVideos: CadenceVideo[] = videos
+      .filter((v): v is VideoRow & { published_at: string } => v.published_at != null)
+      .sort((a, b) => b.published_at.localeCompare(a.published_at))
+      .map(v => ({ title: v.title ?? '', viewCount: v.view_count ?? 0, publishedAt: v.published_at }))
+
+    const lastUploadDays = cadenceVideos.length > 0
+      ? Math.floor((Date.now() - new Date(cadenceVideos[0]!.publishedAt).getTime()) / 86_400_000)
+      : -1
+
+    return {
+      channelName: ch.channel_name,
+      channelId: ch.channel_id,
+      color: CHANNEL_COLORS[idx % CHANNEL_COLORS.length]!,
+      freq,
+      window,
+      videos: cadenceVideos,
+      lastUploadDays,
+    }
+  })
+
+  // ── Hits heatmap (outlier videos only: view_count > 2x channel median) ──
+  const channelMedians = new Map<string, number>()
+  for (const ch of safeChannels) {
+    const videos = videosByChannel.get(ch.id) ?? []
+    const freshVids = videos.filter(v => v.last_checked_at ? v.last_checked_at > outlierStaleCutoff : true)
+    if (freshVids.length < 3) continue
+    const sorted = [...freshVids].map(v => v.view_count ?? 0).sort((a, b) => a - b)
+    const median = sorted[Math.floor(sorted.length / 2)] ?? 0
+    if (median > 0) channelMedians.set(ch.id, median)
+  }
+
+  const hitsHeatmap: number[][] = Array.from({ length: 7 }, () => Array.from({ length: 24 }, () => 0))
+  for (const v of flatVideos) {
+    if (!v.published_at) continue
+    const median = channelMedians.get(v.competitor_channel_id)
+    if (median == null) continue
+    if ((v.view_count ?? 0) <= 2 * median) continue
+    const d = new Date(v.published_at)
+    const dayIdx = (d.getDay() + 6) % 7
+    const hourIdx = d.getHours()
+    const dayRow = hitsHeatmap[dayIdx]
+    if (dayRow) dayRow[hourIdx] = (dayRow[hourIdx] ?? 0) + 1
+  }
+
+  // ── Formulas (title pattern detection on outlier videos) ──
+  const formulaAccum = new Map<string, { label: string; hint: string; totalMult: number; count: number; bestTitle: string; bestMult: number }>()
+  for (const o of outliers) {
+    const title = o.title ?? ''
+    for (const p of FORMULA_PATTERNS) {
+      if (!p.test(title)) continue
+      const acc = formulaAccum.get(p.label) ?? { label: p.label, hint: p.hint, totalMult: 0, count: 0, bestTitle: '', bestMult: 0 }
+      acc.totalMult += o.multiplier
+      acc.count++
+      if (o.multiplier > acc.bestMult) { acc.bestMult = o.multiplier; acc.bestTitle = title }
+      formulaAccum.set(p.label, acc)
+    }
+  }
+  const formulas: TitleFormula[] = [...formulaAccum.values()]
+    .filter(f => f.count > 0)
+    .map(f => ({
+      label: f.label,
+      hint: f.hint,
+      multiplier: Math.round((f.totalMult / f.count) * 10) / 10,
+      count: f.count,
+      exampleTitle: f.bestTitle,
+    }))
+    .sort((a, b) => b.multiplier - a.multiplier)
+
+  // ── Play (Jogada da Semana) ──
+  let play: PlayOfTheWeek | null = null
+  if (outliers.length >= 3 && formulas.length > 0) {
+    const topicBold = gaps.find(g => !g.weCover)?.topic ?? tagsSorted[0]?.tag ?? ''
+    const topFormula = formulas[0]!
+
+    let windowBold = ''
+    let windowReason = 'onde nascem os hits e o volume é fraco'
+    let bestScore = Infinity
+    for (let d = 0; d < 7; d++) {
+      const heatRow = heatmap[d]
+      const hitsRow = hitsHeatmap[d]
+      if (!heatRow || !hitsRow) continue
+      for (let h = 0; h < 24; h++) {
+        const hitsCount = hitsRow[h] ?? 0
+        const volume = heatRow[h] ?? 0
+        if (hitsCount === 0) continue
+        const score = volume / (hitsCount + 1)
+        if (score < bestScore) {
+          bestScore = score
+          windowBold = `${BR_DAY_NAMES[d]} ${h}h`
+        }
+      }
+    }
+    if (!windowBold) {
+      let minVol = Infinity
+      for (let d = 0; d < 7; d++) {
+        const row = heatmap[d]
+        if (!row) continue
+        for (let h = 0; h < 24; h++) {
+          const vol = row[h] ?? 0
+          if (vol > 0 && vol < minVol) { minVol = vol; windowBold = `${BR_DAY_NAMES[d]} ${h}h` }
+        }
+      }
+    }
+
+    if (topicBold && windowBold) {
+      play = {
+        topicBold,
+        formulaBold: topFormula.label,
+        formulaMult: topFormula.multiplier,
+        windowBold,
+        windowReason,
+      }
+    }
+  }
 
   const insights: CompetitorInsights = {
     heatmap,
+    hitsHeatmap,
     tags: tagsSorted,
     engagement,
     gaps,
+    cadence,
+    formulas,
+    play,
+    ownTagsByChannel,
+    competitorTagsByChannel,
   }
 
   const useV2 = useRedesignScreen('competitors')

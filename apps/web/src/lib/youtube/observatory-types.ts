@@ -103,6 +103,21 @@ export interface CompetitorInsights {
   engagement: CompetitorEngagementStat[]
   /** Content gaps: topics competitors cover that we don't. */
   gaps: CompetitorGap[]
+  /** 7x24 matrix: rows = days (mon-sun), cols = hours (0-23). Values = hit count (outlier videos published). */
+  hitsHeatmap: number[][]
+  /** Upload cadence breakdown per competitor channel. */
+  cadence: CadenceChannel[]
+  /** Title formula patterns extracted from top-performing competitor videos. */
+  formulas: TitleFormula[]
+  /** The single highest-leverage play of the week, or null if insufficient data. */
+  play: PlayOfTheWeek | null
+  ownTagsByChannel: OwnChannelTags[]
+  competitorTagsByChannel: CompetitorTagsByChannel[]
+}
+
+export interface OwnChannelTags {
+  channelName: string
+  tags: string[]
 }
 
 export interface CompetitorTagStat {
@@ -123,14 +138,16 @@ export interface CompetitorEngagementStat {
 }
 
 export interface CompetitorGap {
-  /** Topic or keyword cluster they cover that we don't. */
   topic: string
-  /** Number of competitor channels covering this topic. */
   competitorCount: number
-  /** Average views for this topic across competitors. */
   avgViews: number
-  /** Whether we have any video matching this topic. */
   weCover: boolean
+  channelNames: string[]
+}
+
+export interface CompetitorTagsByChannel {
+  channelName: string
+  tags: string[]
 }
 
 /** Side-by-side comparison pill between a competitor and our channel. */
@@ -180,6 +197,55 @@ export interface OurChannelStats {
   engagementRate: number
   /** Videos per month. */
   uploadFrequency: number
+}
+
+/** Upload cadence data for a single competitor channel. */
+export interface CadenceChannel {
+  channelName: string
+  channelId: string
+  color: string
+  /** Average uploads per week over the cadence window. */
+  freq: number
+  /** Human-readable window label (e.g. "last 90 days"). */
+  window: string
+  videos: CadenceVideo[]
+  /** Days since the channel's most recent upload. */
+  lastUploadDays: number
+}
+
+/** Lightweight video entry used inside CadenceChannel. */
+export interface CadenceVideo {
+  title: string
+  viewCount: number
+  publishedAt: string
+}
+
+/** A title formula pattern extracted from top-performing competitor videos. */
+export interface TitleFormula {
+  /** Human-readable pattern label (e.g. "How to X in Y"). */
+  label: string
+  /** Average view multiplier vs channel median for videos matching this formula. */
+  multiplier: number
+  /** Short copywriting tip for applying this formula. */
+  hint: string
+  /** Number of competitor videos matching this formula. */
+  count: number
+  /** A representative title from the matched videos. */
+  exampleTitle: string
+}
+
+/** The single highest-leverage content play recommended for the current week. */
+export interface PlayOfTheWeek {
+  /** Topic to cover, bolded in UI. */
+  topicBold: string
+  /** Title formula to use, bolded in UI. */
+  formulaBold: string
+  /** View multiplier of the recommended formula. */
+  formulaMult: number
+  /** Optimal publish window, bolded in UI (e.g. "Tuesday 18h"). */
+  windowBold: string
+  /** One-sentence explanation for why this window was chosen. */
+  windowReason: string
 }
 
 /** Props for the top-level CompetitorDashboard component. */

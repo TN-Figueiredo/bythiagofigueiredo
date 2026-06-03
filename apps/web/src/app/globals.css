@@ -353,6 +353,7 @@
   --surface:          var(--theme-cms-surface);
   --surface-2:        var(--theme-cms-surface-hover);
   --accent-soft:      rgba(255, 130, 64, 0.10);
+  --accent-soft-2:    rgba(255, 130, 64, 0.18);
   --amber:            #E0A23C;
   --amber-soft:       rgba(224, 162, 60, 0.13);
   --green-soft:       rgba(70, 177, 126, 0.13);

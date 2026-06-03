@@ -324,12 +324,40 @@ export const FIXTURE_INSIGHTS: CompetitorInsights = {
     { channelName: 'Nerd na Estrada', channelThumbnailUrl: null, engagementRate: 0.038, isUs: false },
   ],
   gaps: [
-    { topic: 'vlog diario', competitorCount: 4, avgViews: 85_000, weCover: false },
-    { topic: 'financas pessoais', competitorCount: 3, avgViews: 120_000, weCover: false },
-    { topic: 'review de equipamento', competitorCount: 5, avgViews: 95_000, weCover: true },
-    { topic: 'entrevistas', competitorCount: 2, avgViews: 60_000, weCover: false },
-    { topic: 'morar no exterior', competitorCount: 6, avgViews: 140_000, weCover: true },
-    { topic: 'saude mental', competitorCount: 2, avgViews: 70_000, weCover: false },
+    { topic: 'vlog diario', competitorCount: 4, avgViews: 85_000, weCover: false, channelNames: ['Nômade Raiz', 'Código Fonte TV'] },
+    { topic: 'financas pessoais', competitorCount: 3, avgViews: 120_000, weCover: false, channelNames: ['Nômade Raiz'] },
+    { topic: 'review de equipamento', competitorCount: 5, avgViews: 95_000, weCover: true, channelNames: ['Código Fonte TV'] },
+    { topic: 'entrevistas', competitorCount: 2, avgViews: 60_000, weCover: false, channelNames: ['Nômade Raiz'] },
+    { topic: 'morar no exterior', competitorCount: 6, avgViews: 140_000, weCover: true, channelNames: ['Nômade Raiz', 'Código Fonte TV'] },
+    { topic: 'saude mental', competitorCount: 2, avgViews: 70_000, weCover: false, channelNames: ['Código Fonte TV'] },
+  ],
+  hitsHeatmap: Array.from({ length: 7 }, () =>
+    Array.from({ length: 24 }, () => Math.random() > 0.7 ? Math.ceil(Math.random() * 3) : 0)
+  ),
+  cadence: [
+    { channelName: 'Dev Nomade', channelId: 'ch-dn', color: 'rgb(232, 130, 60)', freq: 2.3, window: 'Ter 18h', videos: [{ title: 'FUI ASSALTADO na Tailandia', viewCount: 890_000, publishedAt: new Date(Date.now() - 86_400_000 * 2).toISOString() }], lastUploadDays: 2 },
+    { channelName: 'Codigo Viajante', channelId: 'ch-cv', color: 'rgb(167, 124, 232)', freq: 1.7, window: 'Qui 14h', videos: [{ title: 'Quanto ganhei trabalhando da praia', viewCount: 450_000, publishedAt: new Date(Date.now() - 86_400_000 * 5).toISOString() }], lastUploadDays: 5 },
+    { channelName: 'Tech Abroad', channelId: 'ch-ta', color: 'rgb(63, 169, 192)', freq: 1.0, window: 'Sex 10h', videos: [{ title: 'Setup de 500 reais vs 5000 reais', viewCount: 320_000, publishedAt: new Date(Date.now() - 86_400_000 * 8).toISOString() }], lastUploadDays: 8 },
+  ],
+  formulas: [
+    { label: 'Nome do lugar', hint: 'o estrangeiro nítido', multiplier: 8.4, count: 5, exampleTitle: 'FUI ASSALTADO na Tailandia (a verdade)' },
+    { label: 'Primeira pessoa', hint: '"larguei tudo"', multiplier: 6.2, count: 3, exampleTitle: 'Quanto ganhei trabalhando da praia' },
+    { label: 'Preço em R$', hint: 'o número que dói', multiplier: 4.8, count: 2, exampleTitle: 'Setup de 500 reais vs 5000 reais' },
+  ],
+  play: {
+    topicBold: 'vlog diario',
+    formulaBold: 'Nome do lugar',
+    formulaMult: 8.4,
+    windowBold: 'Ter 18h',
+    windowReason: 'onde nascem os hits e o volume é fraco',
+  },
+  ownTagsByChannel: [
+    { channelName: 'tnFigueiredo', tags: ['programação', 'IA', 'setup remoto'] },
+    { channelName: 'BrightCurios', tags: ['games', 'NAS caseiro'] },
+  ],
+  competitorTagsByChannel: [
+    { channelName: 'Nômade Raiz', tags: ['morar fora', 'nômade digital', 'ásia', 'custo de vida', 'vietnã'] },
+    { channelName: 'Código Fonte TV', tags: ['programação', 'IA', 'tecnologia'] },
   ],
 }
 

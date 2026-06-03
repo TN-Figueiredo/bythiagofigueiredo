@@ -171,14 +171,15 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
                 >
                   {ch.subscriberCount != null ? `${fmtC(ch.subscriberCount)} inscritos` : '—'}
                   {' · '}
-                  {ch.syncStatus === 'syncing'
-                    ? 'sincronizando...'
-                    : ch.syncMode === 'full' && ch.fullSyncCompletedAt && ch.youtubeVideoCount && ch.videoCount < ch.youtubeVideoCount
-                      ? `${ch.videoCount} de ~${fmtC(ch.youtubeVideoCount)} vídeos`
-                      : ch.syncMode === 'recent' && !ch.fullSyncCompletedAt
-                        ? `${ch.videoCount} vídeos (recentes)`
-                        : `${ch.videoCount} vídeos`
-                  }
+                  {(() => {
+                    if (ch.syncStatus === 'syncing') return 'sincronizando...'
+                    const hasAll = ch.youtubeVideoCount && ch.videoCount >= ch.youtubeVideoCount
+                    if (ch.youtubeVideoCount && ch.videoCount < ch.youtubeVideoCount && ch.videoCount >= 2000)
+                      return `${ch.videoCount} de ~${fmtC(ch.youtubeVideoCount)} vídeos`
+                    if (hasAll || ch.fullSyncCompletedAt)
+                      return `${ch.videoCount} vídeos (completo)`
+                    return `${ch.videoCount} vídeos (recentes)`
+                  })()}
                 </p>
 
                 {/* Change flags: pill, 10.5px/500 */}
@@ -360,14 +361,17 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span className="mono" style={{ fontSize: 10.5, color: 'var(--text-dim)' }}>
                 {ch.lastSyncedAt ? `sincronizado ${fmtRelative(ch.lastSyncedAt)}` : 'nunca sincronizado'}
-                {ch.syncMode === 'recent' && !ch.fullSyncCompletedAt
-                  ? ' · 50 recentes'
-                  : ch.fullSyncCompletedAt && ch.youtubeVideoCount && ch.videoCount >= 2000 && ch.videoCount < ch.youtubeVideoCount
-                    ? ` · ${fmtC(ch.videoCount)} de ~${fmtC(ch.youtubeVideoCount)} (limite)`
-                    : ''
-                }
+                {(() => {
+                  const hasAll = ch.youtubeVideoCount && ch.videoCount >= ch.youtubeVideoCount
+                  if (hasAll || ch.fullSyncCompletedAt) {
+                    if (ch.youtubeVideoCount && ch.videoCount >= 2000 && ch.videoCount < ch.youtubeVideoCount)
+                      return ` · ${fmtC(ch.videoCount)} de ~${fmtC(ch.youtubeVideoCount)} (limite)`
+                    return ` · ${ch.videoCount} vídeos (completo)`
+                  }
+                  return ' · 50 recentes'
+                })()}
               </span>
-              {ch.syncMode === 'recent' && !ch.fullSyncCompletedAt ? (
+              {!ch.fullSyncCompletedAt && !(ch.youtubeVideoCount && ch.videoCount >= ch.youtubeVideoCount) ? (
                 <button
                   className="sync-action"
                   onClick={e => { e.stopPropagation(); setShowFullSyncDialog(true) }}
