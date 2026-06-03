@@ -171,52 +171,40 @@ export function YtOverview({ metrics, dailyMetrics, intelligenceHealthScore, int
   const kpis = buildKpiData(metrics, dailyMetrics)
 
   return (
-    <div className="fade-in flex flex-col gap-4">
+    <div className="fade-in flex flex-col" style={{ gap: 16 }}>
       {/* perf-top: HealthCard + HealthRadar */}
       <div className="perf-top">
         {/* HealthCard */}
-        <div className="health-card rounded-lg border border-cms-border bg-cms-surface">
-          <div className="flex items-center justify-between px-5 pt-4 pb-2">
-            <h3 className="text-sm font-semibold text-cms-text">Saude do Canal</h3>
-            <span className={`rounded px-1.5 py-0.5 text-[9px] ${useIntelligence ? 'bg-cms-purple-soft text-cms-purple' : 'bg-cms-border text-cms-text-muted'}`}>
-              {useIntelligence ? '6 eixos . AI' : '6 eixos . API'}
-            </span>
+        <div className="card health-card">
+          <div className="card-head">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--text-dim)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            <span className="card-title">Saude do canal</span>
+            <span className="dim" style={{ fontSize: 11.5, marginLeft: 'auto' }}>ultimos 28 dias</span>
           </div>
-
-          {/* health-body: gauge | breakdown side-by-side */}
           <div className="health-body">
-            {/* Gauge column */}
             <div className="health-gauge-wrap">
               <YtHealthRing score={health.overall} size={150} />
-              <span className="mt-2 text-xs text-cms-text-muted">
+              {health.overall >= 60 && (
+                <span className="mt-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'rgba(34,197,94,0.12)', color: 'var(--green)' }}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+                  Saudavel
+                </span>
+              )}
+              <span className="dim" style={{ fontSize: 11, marginTop: 6 }}>
                 meta 80 &middot; faltam {Math.max(0, 80 - health.overall)} pts
               </span>
             </div>
-
-            {/* 6-axis breakdown column */}
             <div className="health-breakdown">
               {health.axes.map((axis) => {
-                const color = GRADE_COLORS[axis.grade] ?? '#888'
+                const barColor = axis.value >= 75 ? 'var(--green)' : axis.value >= 60 ? 'var(--accent)' : 'var(--amber)'
                 return (
                   <div key={axis.label} className="hb-row">
                     <span className="hb-label">{axis.label}</span>
-                    <div className="flex-1">
-                      <div
-                        className="h-2 rounded-full"
-                        style={{
-                          width: `${Math.max(axis.value, 2)}%`,
-                          background: color,
-                          opacity: 0.8,
-                        }}
-                      />
+                    <div className="bar">
+                      <span style={{ width: `${Math.max(axis.value, 2)}%`, background: barColor }} />
                     </div>
-                    <span className="hb-score mono">{Math.round(axis.value)}</span>
-                    <span
-                      className="hb-note"
-                      style={{ color }}
-                    >
-                      {axis.grade}
-                    </span>
+                    <span className="mono hb-score">{Math.round(axis.value)}</span>
+                    <span className="hb-note dim">{axis.grade}</span>
                   </div>
                 )
               })}
@@ -225,26 +213,32 @@ export function YtOverview({ metrics, dailyMetrics, intelligenceHealthScore, int
         </div>
 
         {/* HealthRadar */}
-        <div className="card rounded-lg border border-cms-border bg-cms-surface p-4">
-          <h3 className="mb-3 text-sm font-semibold text-cms-text">Radar de Performance</h3>
-          <YtRadarChart axes={health.axes} />
-          <div className="mt-2 flex items-center justify-center gap-4 text-[10px] text-cms-text-muted">
-            <span className="flex items-center gap-1">
-              <span className="inline-block h-2 w-2 rounded-full" style={{ background: 'var(--accent)', opacity: 0.4 }} />
-              Canal
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="inline-block h-2 w-2 rounded-full border border-cms-text-muted" />
-              Meta
-            </span>
+        <div className="card">
+          <div className="card-head">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--text-dim)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+            <span className="card-title">Radar &middot; canal vs meta</span>
+            <span className="dim" style={{ fontSize: 11.5, marginLeft: 'auto' }}>6 eixos</span>
+          </div>
+          <div className="card-pad">
+            <YtRadarChart axes={health.axes} />
+            <div className="flex items-center justify-center gap-4" style={{ marginTop: 6 }}>
+              <span className="flex items-center gap-1.5" style={{ fontSize: 12 }}>
+                <span style={{ width: 10, height: 10, borderRadius: 3, background: 'var(--accent)' }} />
+                Canal
+              </span>
+              <span className="flex items-center gap-1.5" style={{ fontSize: 12 }}>
+                <span style={{ width: 10, height: 10, borderRadius: 3, background: 'var(--green)', opacity: 0.5 }} />
+                Meta
+              </span>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* KPI strip — 6 KPIs with sparklines, NO lift on hover */}
+      {/* KPI strip */}
       <div className="kpi-strip stagger">
         {kpis.map((kpi) => (
-          <div key={kpi.label} className="kpi-card rounded-lg border border-cms-border bg-cms-surface">
+          <div key={kpi.label} className="card kpi-card">
             <div className="metric-label flex items-center gap-1.5">
               <KpiIcon name={kpi.icon} />
               {kpi.label}
@@ -252,7 +246,7 @@ export function YtOverview({ metrics, dailyMetrics, intelligenceHealthScore, int
             <p className="kpi-val mono">
               {kpi.value}
             </p>
-            <div className="mt-1.5 flex items-center justify-between">
+            <div className="flex items-center justify-between" style={{ marginTop: 8 }}>
               <span className={`kpi-delta ${kpi.delta >= 0 ? 'up' : 'down'}`}>
                 {kpi.delta >= 0 ? '+' : ''}
                 {brDec(kpi.delta, 1)}%
@@ -262,7 +256,7 @@ export function YtOverview({ metrics, dailyMetrics, intelligenceHealthScore, int
                   data={kpi.sparkline}
                   width={72}
                   height={26}
-                  color={kpi.delta >= 0 ? '#22c55e' : '#ef4444'}
+                  color={kpi.delta >= 0 ? 'var(--green)' : 'var(--red)'}
                 />
               )}
             </div>
@@ -271,11 +265,15 @@ export function YtOverview({ metrics, dailyMetrics, intelligenceHealthScore, int
       </div>
 
       {/* Retention Curve */}
-      <div className="card rounded-lg border border-cms-border bg-cms-surface p-4">
-        <h3 className="mb-3 text-sm font-semibold text-cms-text">
-          Curva de Retencao Media (ultimos 10 videos)
-        </h3>
-        <YtRetentionCurve avgViewPercentage={metrics.averageViewPercentage} />
+      <div className="card">
+        <div className="card-head">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--text-dim)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          <span className="card-title">Curva de retencao</span>
+          <span className="dim" style={{ fontSize: 11.5, marginLeft: 'auto' }}>% da audiencia ao longo do video</span>
+        </div>
+        <div className="card-pad">
+          <YtRetentionCurve avgViewPercentage={metrics.averageViewPercentage} />
+        </div>
       </div>
     </div>
   )
