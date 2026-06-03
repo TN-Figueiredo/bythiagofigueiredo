@@ -3,6 +3,7 @@ import { render } from '@react-email/render'
 import { getEmailService } from '../email/service'
 import { captureServerActionError } from '../../src/lib/sentry-wrap'
 import { ConfirmEmail } from '../../src/emails/confirm'
+import { getServerEnv } from '../../src/lib/env'
 
 export function generateConfirmToken(): string {
   return crypto.randomBytes(32).toString('hex')
@@ -13,7 +14,7 @@ export function hashConfirmToken(raw: string): string {
 }
 
 function getUnsubscribeKey(): Buffer {
-  const secret = process.env.CRON_SECRET ?? 'dev-fallback-key'
+  const secret = getServerEnv().CRON_SECRET
   return crypto.createHash('sha256').update(`unsubscribe-token:${secret}`).digest()
 }
 
@@ -43,12 +44,15 @@ export async function sendNewsletterConfirmEmail(opts: SendConfirmEmailOpts): Pr
   const isPt = locale === 'pt-BR'
   const domain = process.env.NEWSLETTER_FROM_DOMAIN ?? 'bythiagofigueiredo.com'
   try {
-    const html = await render(ConfirmEmail({ confirmUrl, locale, newsletterNames }))
+    const confirmTemplate = ConfirmEmail({ confirmUrl, locale, newsletterNames })
+    const html = await render(confirmTemplate)
+    const text = await render(confirmTemplate, { plainText: true })
     await getEmailService().send({
       from: { name: 'Thiago Figueiredo', email: `no-reply@${domain}` },
       to,
       subject: isPt ? 'Confirme sua inscrição' : 'Confirm your subscription',
       html,
+      text,
     })
     return true
   } catch (err) {

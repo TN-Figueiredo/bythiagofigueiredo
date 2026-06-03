@@ -232,9 +232,6 @@ export function computeReachDiversityFromRecord(sources: Record<string, number> 
   return maxEntropy > 0 ? (entropy / maxEntropy) * 100 : 0
 }
 
-/** @deprecated Use computeReachDiversityFromRecord instead */
-export const computeReachDiversityForBaseline = computeReachDiversityFromRecord
-
 export function computeBaseline(
   videos: BaselineVideoInput[],
   dailyByVideo: Map<string, Array<BaselineDailyRow>>,

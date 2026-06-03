@@ -21,28 +21,33 @@ export interface FormatPreset {
 }
 
 export async function listFormatPresets(context = 'qr-card'): Promise<ActionResult<{ presets: FormatPreset[] }>> {
-  const { siteId } = await getSiteContext()
-  const res = await requireSiteScope({ area: 'cms', siteId, mode: 'view' })
-  if (!res.ok) throw new Error('forbidden')
+  try {
+    const { siteId } = await getSiteContext()
+    const res = await requireSiteScope({ area: 'cms', siteId, mode: 'view' })
+    if (!res.ok) return { ok: false, error: 'forbidden' }
 
-  const supabase = getSupabaseServiceClient()
-  const { data, error } = await supabase
-    .from('canvas_format_presets')
-    .select('id, name, width, height')
-    .eq('site_id', siteId)
-    .eq('context', context)
-    .order('sort_order', { ascending: true })
-    .order('created_at', { ascending: true })
+    const supabase = getSupabaseServiceClient()
+    const { data, error } = await supabase
+      .from('canvas_format_presets')
+      .select('id, name, width, height')
+      .eq('site_id', siteId)
+      .eq('context', context)
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: true })
 
-  if (error) return { ok: false, error: error.message }
-  return {
-    ok: true,
-    presets: (data ?? []).map(r => ({
-      id: r.id as string,
-      name: r.name as string,
-      width: r.width as number,
-      height: r.height as number,
-    })),
+    if (error) return { ok: false, error: error.message }
+    return {
+      ok: true,
+      presets: (data ?? []).map(r => ({
+        id: r.id as string,
+        name: r.name as string,
+        width: r.width as number,
+        height: r.height as number,
+      })),
+    }
+  } catch (err) {
+    console.error('[listFormatPresets]', err)
+    return { ok: false, error: err instanceof Error ? err.message : 'list_failed' }
   }
 }
 
@@ -52,47 +57,57 @@ export async function createFormatPreset(
   height: number,
   context = 'qr-card',
 ): Promise<ActionResult<{ id: string }>> {
-  const parsed = NameSchema.safeParse(name)
-  if (!parsed.success) return { ok: false, error: 'invalid_name' }
-  const wParsed = DimSchema.safeParse(width)
-  const hParsed = DimSchema.safeParse(height)
-  if (!wParsed.success || !hParsed.success) return { ok: false, error: 'invalid_dimensions' }
+  try {
+    const parsed = NameSchema.safeParse(name)
+    if (!parsed.success) return { ok: false, error: 'invalid_name' }
+    const wParsed = DimSchema.safeParse(width)
+    const hParsed = DimSchema.safeParse(height)
+    if (!wParsed.success || !hParsed.success) return { ok: false, error: 'invalid_dimensions' }
 
-  const { siteId } = await getSiteContext()
-  const res = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
-  if (!res.ok) throw new Error('forbidden')
+    const { siteId } = await getSiteContext()
+    const res = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
+    if (!res.ok) return { ok: false, error: 'forbidden' }
 
-  const supabase = getSupabaseServiceClient()
-  const { data, error } = await supabase
-    .from('canvas_format_presets')
-    .insert({
-      site_id: siteId,
-      context,
-      name: parsed.data,
-      width: wParsed.data,
-      height: hParsed.data,
-    })
-    .select('id')
-    .single()
+    const supabase = getSupabaseServiceClient()
+    const { data, error } = await supabase
+      .from('canvas_format_presets')
+      .insert({
+        site_id: siteId,
+        context,
+        name: parsed.data,
+        width: wParsed.data,
+        height: hParsed.data,
+      })
+      .select('id')
+      .single()
 
-  if (error) return { ok: false, error: error.message }
-  revalidateTag('canvas-formats')
-  return { ok: true, id: data.id as string }
+    if (error) return { ok: false, error: error.message }
+    revalidateTag('canvas-formats')
+    return { ok: true, id: data.id as string }
+  } catch (err) {
+    console.error('[createFormatPreset]', err)
+    return { ok: false, error: err instanceof Error ? err.message : 'create_failed' }
+  }
 }
 
 export async function deleteFormatPreset(presetId: string): Promise<ActionResult> {
-  const { siteId } = await getSiteContext()
-  const res = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
-  if (!res.ok) throw new Error('forbidden')
+  try {
+    const { siteId } = await getSiteContext()
+    const res = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
+    if (!res.ok) return { ok: false, error: 'forbidden' }
 
-  const supabase = getSupabaseServiceClient()
-  const { error } = await supabase
-    .from('canvas_format_presets')
-    .delete()
-    .eq('id', presetId)
-    .eq('site_id', siteId)
+    const supabase = getSupabaseServiceClient()
+    const { error } = await supabase
+      .from('canvas_format_presets')
+      .delete()
+      .eq('id', presetId)
+      .eq('site_id', siteId)
 
-  if (error) return { ok: false, error: error.message }
-  revalidateTag('canvas-formats')
-  return { ok: true }
+    if (error) return { ok: false, error: error.message }
+    revalidateTag('canvas-formats')
+    return { ok: true }
+  } catch (err) {
+    console.error('[deleteFormatPreset]', err)
+    return { ok: false, error: err instanceof Error ? err.message : 'delete_failed' }
+  }
 }

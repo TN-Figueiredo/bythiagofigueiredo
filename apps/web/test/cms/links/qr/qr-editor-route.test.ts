@@ -98,16 +98,13 @@ describe('QR editor route (/cms/links/[id]/qr)', () => {
 
   it('qr/actions.ts enforces edit scope on all write actions', () => {
     const content = readFileSync(resolve(QR_DIR, 'actions.ts'), 'utf-8')
-    // Every exported async function (except requireEditScope itself) should call requireEditScope
     const exportedFns = content.match(/export async function (\w+)/g) ?? []
     expect(exportedFns.length).toBeGreaterThanOrEqual(5)
-    // Each exported function body should reference requireEditScope
     for (const fn of exportedFns) {
       const fnName = fn.replace('export async function ', '')
-      // Find the function body
       const fnIndex = content.indexOf(`export async function ${fnName}`)
       const bodySlice = content.slice(fnIndex, fnIndex + 500)
-      expect(bodySlice).toContain('requireEditScope')
+      expect(bodySlice).toContain('checkEditScope')
     }
   })
 

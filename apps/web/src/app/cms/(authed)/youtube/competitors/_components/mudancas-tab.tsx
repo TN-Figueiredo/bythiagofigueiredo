@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useCallback, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { Search, Bookmark, ChevronRight, ChevronDown, ChevronUp, ZoomIn, ArrowRight, X, Filter, FlaskConical, RotateCcw, Image, List, MessageSquare } from 'lucide-react'
 import { YtPortal } from '../../_components/yt-portal'
 import { useModalFocusTrap } from '../../../_shared/editor/use-modal-focus-trap'
@@ -468,6 +469,7 @@ function ChangeEventInline({ ev, onZoom }: { ev: CompetitorChangeView; onZoom: (
 }
 
 function ZoomModal({ change, onClose }: { change: CompetitorChangeView; onClose: () => void }) {
+  const router = useRouter()
   const modalRef = useRef<HTMLDivElement>(null)
   const handleClose = useCallback(() => onClose(), [onClose])
   useModalFocusTrap(modalRef, true, handleClose)
@@ -643,8 +645,11 @@ function ZoomModal({ change, onClose }: { change: CompetitorChangeView; onClose:
             <button
               className="btn sm primary flex-shrink-0"
               onClick={() => {
-                // Navigate to AB Lab create wizard with this as inspiration
-                handleClose()
+                const params = new URLSearchParams({ ref: 'competitor' })
+                if (change.changeType) params.set('changeType', change.changeType)
+                if (change.changeType === 'thumbnail' && change.newThumbnailUrl) params.set('competitorThumb', change.newThumbnailUrl)
+                if (change.changeType === 'title' && change.newTitle) params.set('competitorTitle', change.newTitle)
+                router.push(`/cms/youtube/ab-lab/new?${params.toString()}`)
               }}
             >
               <FlaskConical className="h-3.5 w-3.5" aria-hidden="true" />

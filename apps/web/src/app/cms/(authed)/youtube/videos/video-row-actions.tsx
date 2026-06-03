@@ -2,8 +2,10 @@
 
 import { useTransition, useState, useRef, useEffect, useCallback } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { updateVideo, approveCategory, rejectCategory, pinWeeklyPick, unpinWeeklyPick } from './actions'
+import { pauseAbTest, endAbTest } from '../ab-lab/actions'
 
 interface CategoryBadgeProps {
   videoId: string
@@ -352,15 +354,23 @@ interface VideoContextMenuProps {
 
 export function VideoContextMenu({ videoId, isShort, abTest }: VideoContextMenuProps) {
   const [open, setOpen] = useState(false)
+  const [confirmAction, setConfirmAction] = useState<'pause' | 'end' | null>(null)
+  const [isPending, startTransition] = useTransition()
   const ref = useRef<HTMLDivElement>(null)
+  const router = useRouter()
+
+  const closeMenu = useCallback(() => {
+    setOpen(false)
+    setConfirmAction(null)
+  }, [])
 
   useEffect(() => {
     if (!open) return
     const handleClickOutside = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+      if (ref.current && !ref.current.contains(e.target as Node)) closeMenu()
     }
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false)
+      if (e.key === 'Escape') closeMenu()
     }
     document.addEventListener('mousedown', handleClickOutside)
     document.addEventListener('keydown', handleEscape)
@@ -368,19 +378,40 @@ export function VideoContextMenu({ videoId, isShort, abTest }: VideoContextMenuP
       document.removeEventListener('mousedown', handleClickOutside)
       document.removeEventListener('keydown', handleEscape)
     }
-  }, [open])
+  }, [open, closeMenu])
 
-  const items: Array<{ label: string; href: string; className?: string }> = []
+  const handleConfirm = (action: 'pause' | 'end') => {
+    if (!abTest) return
+    startTransition(async () => {
+      const result = action === 'pause'
+        ? await pauseAbTest(abTest.id)
+        : await endAbTest(abTest.id)
+      if (result.ok) {
+        toast.success(action === 'pause' ? 'Teste pausado.' : 'Teste encerrado.')
+        router.refresh()
+        closeMenu()
+      } else {
+        toast.error(result.error ?? 'Erro ao executar acao.')
+        setConfirmAction(null)
+      }
+    })
+  }
+
+  type MenuItem =
+    | { kind: 'link'; label: string; href: string; className?: string }
+    | { kind: 'action'; action: 'pause' | 'end'; label: string; className: string }
+
+  const items: MenuItem[] = []
 
   if (!isShort && !abTest) {
-    items.push({ label: 'Start A/B Test', href: `/cms/youtube/ab-lab/new?videoId=${videoId}` })
+    items.push({ kind: 'link', label: 'Start A/B Test', href: `/cms/youtube/ab-lab/new?videoId=${videoId}` })
   }
   if (abTest) {
-    items.push({ label: 'View Test Details', href: `/cms/youtube/ab-lab/${abTest.id}` })
+    items.push({ kind: 'link', label: 'View Test Details', href: `/cms/youtube/ab-lab/${abTest.id}` })
   }
   if (abTest?.status === 'active') {
-    items.push({ label: 'Pause Test', href: `/cms/youtube/ab-lab/${abTest.id}`, className: 'text-amber-400' })
-    items.push({ label: 'End Test', href: `/cms/youtube/ab-lab/${abTest.id}`, className: 'text-red-400' })
+    items.push({ kind: 'action', action: 'pause', label: 'Pause Test', className: 'text-amber-400' })
+    items.push({ kind: 'action', action: 'end', label: 'End Test', className: 'text-red-400' })
   }
 
   if (items.length === 0) return null
@@ -400,17 +431,59 @@ export function VideoContextMenu({ videoId, isShort, abTest }: VideoContextMenuP
         </svg>
       </button>
       {open && (
-        <div className="absolute right-0 top-7 z-10 min-w-[160px] rounded-lg border border-cms-border bg-cms-surface p-1 shadow-lg">
-          {items.map((item) => (
-            <a
-              key={item.label}
-              href={item.href}
-              onClick={() => setOpen(false)}
-              className={`block w-full rounded px-3 py-1.5 text-left text-xs hover:bg-cms-surface-hover ${item.className ?? 'text-cms-text'}`}
-            >
-              {item.label}
-            </a>
-          ))}
+        <div className="absolute right-0 top-7 z-10 min-w-[180px] rounded-lg border border-cms-border bg-cms-surface p-1 shadow-lg">
+          {items.map((item) => {
+            if (item.kind === 'link') {
+              return (
+                <a
+                  key={item.label}
+                  href={item.href}
+                  onClick={() => closeMenu()}
+                  className={`block w-full rounded px-3 py-1.5 text-left text-xs hover:bg-cms-surface-hover ${item.className ?? 'text-cms-text'}`}
+                >
+                  {item.label}
+                </a>
+              )
+            }
+
+            // Action item with confirmation
+            if (confirmAction === item.action) {
+              return (
+                <div key={item.label} className="flex items-center gap-1 px-3 py-1.5">
+                  <span className={`text-[10px] ${item.className}`}>
+                    {item.action === 'pause' ? 'Pausar?' : 'Encerrar?'}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={isPending}
+                    onClick={() => handleConfirm(item.action)}
+                    className="text-[10px] font-medium text-green-400 hover:text-green-300 disabled:opacity-50"
+                  >
+                    {isPending ? 'Aguarde...' : 'Confirmar'}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isPending}
+                    onClick={() => setConfirmAction(null)}
+                    className="text-[10px] text-cms-text-dim hover:text-cms-text disabled:opacity-50"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              )
+            }
+
+            return (
+              <button
+                key={item.label}
+                type="button"
+                onClick={() => setConfirmAction(item.action)}
+                className={`block w-full rounded px-3 py-1.5 text-left text-xs hover:bg-cms-surface-hover ${item.className}`}
+              >
+                {item.label}
+              </button>
+            )
+          })}
         </div>
       )}
     </div>

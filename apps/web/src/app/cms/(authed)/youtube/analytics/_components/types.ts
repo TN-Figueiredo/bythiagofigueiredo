@@ -16,17 +16,6 @@ export interface VideoGradeRow {
   trafficSources: Record<string, number> | null
 }
 
-export interface Notification {
-  id: string
-  type: string
-  priority: number
-  title: string
-  message: string
-  read: boolean
-  action_href: string | null
-  created_at: string
-}
-
 export interface OutlierVideo {
   videoId: string
   title: string

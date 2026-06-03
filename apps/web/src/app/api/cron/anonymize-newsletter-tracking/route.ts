@@ -25,11 +25,25 @@ export async function POST(req: Request): Promise<Response> {
       .lt('opened_at', cutoff)
       .not('open_ip', 'is', null)
 
-    const { count: clicksAnon } = await supabase
-      .from('newsletter_click_events')
-      .update({ ip: null, user_agent: null })
-      .lt('clicked_at', cutoff)
-      .not('ip', 'is', null)
+    // newsletter_click_events is a VIEW — update the underlying link_clicks table
+    // for newsletter-sourced clicks instead.
+    const { data: newsletterLinks } = await supabase
+      .from('tracked_links' as never)
+      .select('id')
+      .eq('source_type', 'newsletter')
+
+    const newsletterLinkIds = (newsletterLinks ?? []).map((l: { id: string }) => l.id)
+
+    let clicksAnon = 0
+    if (newsletterLinkIds.length > 0) {
+      const { count } = await supabase
+        .from('link_clicks' as never)
+        .update({ ip: null, user_agent: null })
+        .in('link_id', newsletterLinkIds)
+        .lt('clicked_at', cutoff)
+        .not('ip', 'is', null)
+      clicksAnon = count ?? 0
+    }
 
     return {
       status: 'ok' as const,

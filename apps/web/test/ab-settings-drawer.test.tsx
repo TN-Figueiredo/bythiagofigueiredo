@@ -8,6 +8,23 @@ vi.mock('lucide-react', () => {
   return { Settings: icon('Settings'), X: icon('X'), Zap: icon('Zap'), FlaskConical: icon('FlaskConical'), Mail: icon('Mail'), Check: icon('Check'), Image: icon('Image'), Type: icon('Type'), FileText: icon('FileText'), Layers: icon('Layers') }
 })
 
+// Mock YtPortal to render children directly (no createPortal in test env)
+vi.mock('@/app/cms/(authed)/youtube/_components/yt-portal', () => ({
+  YtPortal: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}))
+
+// Mock useModalFocusTrap — simulates Escape key handling
+vi.mock('@/app/cms/(authed)/_shared/editor/use-modal-focus-trap', () => ({
+  useModalFocusTrap: (_ref: unknown, open: boolean, onClose: () => void) => {
+    React.useEffect(() => {
+      if (!open) return
+      const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+      document.addEventListener('keydown', handler)
+      return () => document.removeEventListener('keydown', handler)
+    }, [open, onClose])
+  },
+}))
+
 import { SettingsDrawer } from '@/app/cms/(authed)/youtube/ab-lab/_components/settings-drawer'
 import { AB_SITE_SETTINGS_DEFAULTS } from '@/lib/youtube/ab-types'
 import type { AbTestSiteSettings } from '@/lib/youtube/ab-types'

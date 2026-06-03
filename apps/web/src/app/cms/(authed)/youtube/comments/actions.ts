@@ -49,10 +49,11 @@ export async function createComment(input: z.infer<typeof CommentSchema>) {
 
 export async function updateComment(id: string, input: Partial<z.infer<typeof CommentSchema>>) {
   const siteId = await requireEditAccess()
+  const parsed = CommentSchema.partial().parse(input)
   const supabase = getSupabaseServiceClient()
 
   const { error } = await supabase.from('youtube_curated_comments')
-    .update({ ...input, updated_at: new Date().toISOString() })
+    .update({ ...parsed, updated_at: new Date().toISOString() })
     .eq('id', id).eq('site_id', siteId)
 
   if (error) return { ok: false as const, error: error.message }

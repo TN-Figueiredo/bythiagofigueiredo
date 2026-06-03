@@ -102,18 +102,18 @@ describe('confirm-email shared module', () => {
       expect(arg.subject).toBe('Confirme sua inscrição')
     })
 
-    it('calls render() to generate HTML', async () => {
+    it('calls render() to generate HTML and plain text', async () => {
       await sendNewsletterConfirmEmail({ to: 'user@example.com', rawToken: 'abcdef1234', locale: 'en' })
-      expect(mockRender).toHaveBeenCalledOnce()
-      // Actual URL rendering is verified by confirm-email-render.test.ts
+      expect(mockRender).toHaveBeenCalledTimes(2)
     })
 
-    it('HTML is provided by the render() call', async () => {
+    it('HTML and text are provided by the render() calls', async () => {
       await sendNewsletterConfirmEmail({ to: 'user@example.com', rawToken: 'abc', locale: 'en' })
-      expect(mockRender).toHaveBeenCalledOnce()
-      const html = mockSend.mock.calls[0][0].html as string
-      expect(html).not.toContain('${')
-      expect(html).toBe('<html>rendered</html>')
+      expect(mockRender).toHaveBeenCalledTimes(2)
+      const msg = mockSend.mock.calls[0][0]
+      expect(msg.html).not.toContain('${')
+      expect(msg.html).toBe('<html>rendered</html>')
+      expect(msg.text).toBe('<html>rendered</html>')
     })
 
     it('returns false when email send fails', async () => {

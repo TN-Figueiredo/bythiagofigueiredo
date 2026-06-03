@@ -6,7 +6,7 @@ vi.mock('@/lib/youtube/ab-preflight', () => ({ preflightTokenCheck: vi.fn() }))
 vi.mock('@/lib/notifications/create', () => ({ createNotification: vi.fn().mockResolvedValue({ success: true }) }))
 vi.mock('@/lib/youtube/ab-rotation', () => ({ getNextVariantIndex: vi.fn() }))
 vi.mock('@/lib/youtube/ab-youtube', () => ({
-  setThumbnail: vi.fn(),
+  setThumbnail: vi.fn().mockResolvedValue({ highUrl: 'https://i.ytimg.com/vi/test/hqdefault.jpg' }),
   fetchVariantImageBuffer: vi.fn(),
 }))
 vi.mock('@/lib/youtube/ab-metadata', () => ({ updateVideoMetadata: vi.fn() }))
@@ -676,7 +676,7 @@ describe('GET /api/cron/ab-rotate', () => {
     const { updateCalls } = buildSupabaseMock({ tests: [test] })
 
     // Thumbnail succeeds, metadata throws
-    ;(setThumbnail as ReturnType<typeof vi.fn>).mockResolvedValue(undefined)
+    ;(setThumbnail as ReturnType<typeof vi.fn>).mockResolvedValue({ highUrl: 'https://i.ytimg.com/vi/test/hqdefault.jpg' })
     ;(updateVideoMetadata as ReturnType<typeof vi.fn>).mockRejectedValue(
       new Error('YouTube API returned 401: token expired')
     )

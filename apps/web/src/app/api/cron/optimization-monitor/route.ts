@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { buildNotification } from '@/lib/youtube/notification-service'
+import { fanOutToSiteAdmins } from '@/lib/notifications/fan-out-to-admins'
 import { getIsoWeek } from '@/lib/youtube/analytics-sync'
 import { OPTIMIZATION_CONFIG } from '@/lib/youtube/optimization-loop'
 import * as Sentry from '@sentry/nextjs'
@@ -79,15 +80,18 @@ export async function GET(req: NextRequest) {
                 videoTitle: video?.title ?? 'Video',
                 weekIso,
               })
-              await supabase.rpc('create_yt_notification', {
-                p_site_id: cycle.site_id,
-                p_type: payload.type,
-                p_priority: payload.priority,
-                p_title: payload.title,
-                p_message: payload.message,
-                p_dedup_key: payload.dedup_key,
-                p_video_id: payload.video_id ?? null,
-                p_action_href: payload.action_href ?? null,
+              await fanOutToSiteAdmins({
+                siteId: cycle.site_id,
+                domain: 'youtube',
+                type: `youtube.${payload.type}`,
+                priority: payload.priority,
+                title: payload.title,
+                message: payload.message,
+                dedupKey: payload.dedup_key,
+                payload: {
+                  ...(payload.video_id ? { videoId: payload.video_id } : {}),
+                },
+                actionHref: payload.action_href,
               })
             } else {
               await supabase.from('optimization_cycles').update({
@@ -101,15 +105,18 @@ export async function GET(req: NextRequest) {
                 videoTitle: video?.title ?? 'Video',
                 weekIso,
               })
-              await supabase.rpc('create_yt_notification', {
-                p_site_id: cycle.site_id,
-                p_type: payload.type,
-                p_priority: payload.priority,
-                p_title: payload.title,
-                p_message: payload.message,
-                p_dedup_key: payload.dedup_key,
-                p_video_id: payload.video_id ?? null,
-                p_action_href: payload.action_href ?? null,
+              await fanOutToSiteAdmins({
+                siteId: cycle.site_id,
+                domain: 'youtube',
+                type: `youtube.${payload.type}`,
+                priority: payload.priority,
+                title: payload.title,
+                message: payload.message,
+                dedupKey: payload.dedup_key,
+                payload: {
+                  ...(payload.video_id ? { videoId: payload.video_id } : {}),
+                },
+                actionHref: payload.action_href,
               })
             }
           }

@@ -86,13 +86,20 @@ export async function GET(req: NextRequest) {
           // Read YouTube URL from cycle's applied_metadata (not variant blob_url)
           const { data: openCycle } = await driftClient
             .from('ab_test_cycles')
-            .select('id, variant_id, applied_metadata')
+            .select('id, variant_id, applied_metadata, started_at')
             .eq('test_id', test.id)
             .is('ended_at', null)
             .limit(1)
             .maybeSingle()
 
           if (!openCycle) continue
+
+          // Skip drift checks for cycles started less than 3 hours ago —
+          // YouTube CDN needs time to propagate uploaded thumbnails.
+          const cycleAge = Date.now() - new Date(openCycle.started_at).getTime()
+          const THREE_HOURS = 3 * 60 * 60 * 1000
+          if (cycleAge < THREE_HOURS) continue
+
           const appliedMeta = openCycle.applied_metadata as import('@/lib/youtube/ab-types').AppliedMetadata | null
           const expectedUrl = appliedMeta?.youtube_thumbnail_url ?? null
           if (!expectedUrl) continue

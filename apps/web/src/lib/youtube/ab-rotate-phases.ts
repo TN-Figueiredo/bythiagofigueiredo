@@ -70,18 +70,23 @@ export async function phaseRotateActiveTests(supabase: SupabaseClient): Promise<
   let errors = 0
 
   for (const test of tests) {
+    // Hoist video + channel so they're accessible in the catch block (auto-pause-revert)
+    let video: { youtube_video_id: string; channel_id: string } | null = null
+    let channel: { channel_id: string } | null = null
+
     try {
       const variants = (test.variants as AbTestVariantRow[]).sort(
         (a, b) => a.sort_order - b.sort_order
       )
 
       // Get youtube_video_id and channel info for correct token selection
-      const { data: video } = await supabase
+      const { data: videoRow } = await supabase
         .from('youtube_videos')
         .select('youtube_video_id, channel_id')
         .eq('id', test.youtube_video_id)
         .single()
 
+      video = videoRow
       if (!video) continue
 
       // Idempotency: skip if we already rotated today
@@ -110,11 +115,12 @@ export async function phaseRotateActiveTests(supabase: SupabaseClient): Promise<
       }
 
       // Resolve the YouTube channel_id to use the correct OAuth token
-      const { data: channel } = await supabase
+      const { data: channelRow } = await supabase
         .from('youtube_channels')
         .select('channel_id')
         .eq('id', video.channel_id)
         .single()
+      channel = channelRow
 
       const preflight = await preflightTokenCheck(test.site_id, 'youtube', channel?.channel_id)
       if (!preflight.ok) {
@@ -233,6 +239,26 @@ export async function phaseRotateActiveTests(supabase: SupabaseClient): Promise<
         const MAX_FAILURES = 3
 
         if (failures >= MAX_FAILURES) {
+          try {
+            const { data: testFull } = await supabase
+              .from('ab_tests')
+              .select('original_thumbnail_url, site_id')
+              .eq('id', test.id)
+              .single()
+            if (testFull?.original_thumbnail_url?.includes('blob.vercel-storage.com') && video) {
+              const { ensureFreshToken } = await import('@/lib/social/token-refresh')
+              const { fetchVariantImageBuffer, setThumbnail } = await import('@/lib/youtube/ab-youtube')
+              const { accessToken } = await ensureFreshToken(testFull.site_id, 'youtube', channel?.channel_id)
+              const { buffer, contentType } = await fetchVariantImageBuffer(testFull.original_thumbnail_url)
+              await setThumbnail(video.youtube_video_id, buffer, contentType, accessToken)
+            }
+          } catch (revertErr) {
+            Sentry.captureException(revertErr, {
+              tags: { cron: 'ab-rotate', action: 'auto-pause-revert' },
+              extra: { testId: test.id },
+            })
+          }
+
           await supabase
             .from('ab_tests')
             .update({

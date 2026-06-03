@@ -84,6 +84,10 @@ export async function subscribeNewsletterInline(
       if (existing.status === 'confirmed') {
         return { success: true }
       }
+      // Block bounced/complained subscribers silently (no oracle)
+      if (existing.status === 'bounced' || existing.status === 'complained') {
+        return { success: true }
+      }
       const { error: updateErr } = await db
         .from('newsletter_subscriptions')
         .update({
@@ -127,7 +131,10 @@ export async function subscribeNewsletterInline(
         .maybeSingle()
       if (nlType?.name) newsletterNames = [nlType.name as string]
     } catch { /* best-effort */ }
-    await sendNewsletterConfirmEmail({ to: email, rawToken, locale, action: 'newsletter_inline', newsletterNames })
+    const sent = await sendNewsletterConfirmEmail({ to: email, rawToken, locale, action: 'newsletter_inline', newsletterNames })
+    if (!sent) {
+      return { success: false, error: 'email_failed' }
+    }
     return { success: true }
   } catch (err) {
     captureServerActionError(err, { action: 'newsletter_inline', branch: 'outer_catch' })

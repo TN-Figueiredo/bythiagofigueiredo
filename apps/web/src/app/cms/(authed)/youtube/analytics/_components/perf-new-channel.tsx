@@ -3,7 +3,7 @@
  * Shows early-band, kpi-strip with "--" values, skeleton chart.
  */
 
-const PLACEHOLDER_KPIS = [
+const NEW_CHANNEL_KPIS = [
   { label: 'Visualizacoes', icon: 'eye' },
   { label: 'Tempo assistido', icon: 'clock' },
   { label: 'Inscritos', icon: 'user-plus' },
@@ -37,7 +37,7 @@ export function PerfNewChannel() {
 
       {/* KPI strip with placeholder values */}
       <div className="kpi-strip stagger">
-        {PLACEHOLDER_KPIS.map((kpi) => (
+        {NEW_CHANNEL_KPIS.map((kpi) => (
           <div
             key={kpi.label}
             className="kpi-card rounded-lg border border-cms-border bg-cms-surface"

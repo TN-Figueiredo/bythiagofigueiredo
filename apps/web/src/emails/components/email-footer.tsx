@@ -36,10 +36,20 @@ export function EmailFooter({ unsubscribeUrl, archiveUrl, locale = 'pt-BR', show
         fontFamily: EMAIL_FONTS.sans,
         fontSize: 12,
         color: EMAIL_COLORS.faint,
-        margin: '0 0 20px',
+        margin: '0 0 4px',
         letterSpacing: '0.02em',
       }}>
         bythiagofigueiredo.com
+      </Text>
+      <Text className="email-faint" style={{
+        fontFamily: EMAIL_FONTS.sans,
+        fontSize: 10,
+        color: EMAIL_COLORS.faint,
+        margin: '0 0 20px',
+        opacity: 0.7,
+        lineHeight: '1.4',
+      }}>
+        Rua Example, 123 — São Paulo, SP — Brasil
       </Text>
       {unsubscribeUrl && (
         <Text className="email-faint" style={{

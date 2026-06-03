@@ -7,11 +7,12 @@
  * exposing internal functions to the network.
  */
 
+import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { ensureFreshToken } from '@/lib/social/token-refresh'
 import { setThumbnail, fetchVariantImageBuffer } from '@/lib/youtube/ab-youtube'
 import { getVariantForCycle } from '@/lib/youtube/ab-rotation'
-import type { AbTestVariantRow } from '@/lib/youtube/ab-types'
+import type { AbTestVariantRow, AppliedMetadata } from '@/lib/youtube/ab-types'
 
 // ---------------------------------------------------------------------------
 // Internal helper — mirrors the one in actions.ts (kept separate to avoid
@@ -83,6 +84,7 @@ export async function startAbTestInternal(
   const firstVariant = variants[firstIndex] as AbTestVariantRow
 
   // 4. Set thumbnail on YouTube — resolve correct channel token.
+  let cycle0Meta: AppliedMetadata = {}
   try {
     const { data: vidInfo } = await supabase
       .from('youtube_videos')
@@ -98,7 +100,38 @@ export async function startAbTestInternal(
 
     if (!firstVariant.is_original && firstVariant.blob_url) {
       const { buffer, contentType } = await fetchVariantImageBuffer(firstVariant.blob_url)
-      await setThumbnail(youtubeVideoId, buffer, contentType, accessToken)
+      const result = await setThumbnail(youtubeVideoId, buffer, contentType, accessToken)
+      cycle0Meta.thumbnail_set = true
+      if (result.highUrl) {
+        cycle0Meta.youtube_thumbnail_url = result.highUrl
+      }
+    } else if (firstVariant.is_original) {
+      // Original stays on YouTube — snapshot current URL for drift baseline
+      const apiKey = process.env.YOUTUBE_API_KEY
+      if (!apiKey) {
+        Sentry.addBreadcrumb({
+          category: 'ab-start',
+          message: 'YOUTUBE_API_KEY not set — cycle 0 will have no drift baseline',
+          level: 'warning',
+        })
+      }
+      if (apiKey) {
+        try {
+          const ytRes = await fetch(
+            `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${youtubeVideoId}&key=${apiKey}`,
+            { signal: AbortSignal.timeout(10_000) },
+          )
+          if (ytRes.ok) {
+            const ytData = await ytRes.json()
+            const highUrl = ytData?.items?.[0]?.snippet?.thumbnails?.high?.url
+            if (typeof highUrl === 'string') {
+              cycle0Meta.youtube_thumbnail_url = highUrl
+            }
+          }
+        } catch {
+          // Non-fatal
+        }
+      }
     }
   } catch (e) {
     return { ok: false, error: (e as Error).message }
@@ -126,6 +159,7 @@ export async function startAbTestInternal(
     variant_id: firstVariant.id,
     cycle_number: 0,
     started_at: now,
+    applied_metadata: Object.keys(cycle0Meta).length ? cycle0Meta : null,
   })
 
   if (cycleError) return { ok: false, error: cycleError.message }

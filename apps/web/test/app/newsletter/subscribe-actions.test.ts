@@ -248,7 +248,7 @@ describe('subscribeToNewsletter', () => {
     expect(captureServerActionErrorSpy).toHaveBeenCalled()
   })
 
-  it('returns success even when email send fails (non-fatal)', async () => {
+  it('returns email_failed error when email send fails', async () => {
     const notFoundChain = {
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
@@ -265,7 +265,7 @@ describe('subscribeToNewsletter', () => {
     const fd = makeFormData(VALID_FIELDS)
     const result = await subscribeToNewsletter(fd)
 
-    expect(result).toEqual({ status: 'ok' })
+    expect(result).toEqual({ status: 'error', code: 'email_failed' })
   })
 
   it('catches unexpected errors via outer try/catch', async () => {

@@ -84,6 +84,11 @@ export async function subscribeToNewsletters(
           subscribedIds.push(newsletterId)
           continue
         }
+        // Block bounced/complained subscribers silently (no oracle)
+        if (existing.status === 'bounced' || existing.status === 'complained') {
+          subscribedIds.push(newsletterId)
+          continue
+        }
         const { error: updateErr } = await db
           .from('newsletter_subscriptions')
           .update({
@@ -148,7 +153,10 @@ export async function subscribeToNewsletters(
         .select('id, name')
         .in('id', subscribedIds)
       const newsletterNames = types?.map((t: { id: string; name: string }) => t.name) ?? []
-      await sendNewsletterConfirmEmail({ to: normalizedEmail, rawToken, locale, newsletterNames })
+      const sent = await sendNewsletterConfirmEmail({ to: normalizedEmail, rawToken, locale, newsletterNames })
+      if (!sent) {
+        return { error: locale === 'pt-BR' ? 'Erro ao enviar email. Tente novamente.' : 'Failed to send email. Try again.' }
+      }
     }
 
     return { success: true, subscribedIds, needsConfirmation }

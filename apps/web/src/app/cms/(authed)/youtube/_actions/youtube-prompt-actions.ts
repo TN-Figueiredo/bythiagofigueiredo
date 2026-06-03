@@ -6,14 +6,29 @@ import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { fetchYtSearchTerms, fetchYtDemographics } from '@/lib/youtube/analytics-client'
-import { getChannelTier } from '@/lib/youtube/scoring'
-import { scoreForPrompt } from '@/lib/youtube/prompt-scoring'
-import type { Grade } from '@/lib/youtube/scoring-types'
+import {
+  getChannelTier,
+  computeBaseline,
+  scoreVideo,
+  computeTrend,
+  computeOutliers,
+  assignGrade,
+} from '@/lib/youtube/scoring'
+import type { BaselineDailyRow } from '@/lib/youtube/scoring'
+import { getMaxCycles } from '@/lib/youtube/optimization-loop'
+import {
+  aggregateCategoryPerformance,
+  detectOutlierSuccesses,
+  computeBestPerformingDay,
+  computeBestPerformingHour,
+} from '@/lib/youtube/prompt-query-helpers'
+import type { Axis, Grade } from '@/lib/youtube/scoring-types'
 import type {
   ContentCalendarData,
   ChannelHealthData,
   VideoOptimizerData,
   PromptChannelInfo,
+  OutlierRow,
 } from '@/lib/youtube/prompt-types'
 import type { YtDemographics } from '@/lib/youtube/analytics-types'
 
@@ -102,7 +117,7 @@ export async function fetchContentCalendarData(
     const { info, channelDbId, lastSyncedAt } = channelResult
     const supabase = getSupabaseServiceClient()
 
-    const [rawSearchTerms, demographics, videosRes, categoriesRes] = await Promise.all([
+    const [rawSearchTerms, demographics, recentVideosRes, widerVideosRes, categoriesRes] = await Promise.all([
       fetchYtSearchTerms(siteId, 28, channelDbId),
       fetchYtDemographics(siteId, 28, channelDbId),
       supabase
@@ -113,6 +128,14 @@ export async function fetchContentCalendarData(
         .eq('is_hidden', false)
         .order('published_at', { ascending: false })
         .limit(5),
+      supabase
+        .from('youtube_videos')
+        .select('id, title, published_at, category_id, view_count, avg_view_percentage')
+        .eq('site_id', siteId)
+        .eq('channel_id', channelDbId)
+        .eq('is_hidden', false)
+        .order('published_at', { ascending: false })
+        .limit(100),
       supabase
         .from('youtube_categories')
         .select('id, slug, name_pt, name_en, sort_order')
@@ -126,7 +149,7 @@ export async function fetchContentCalendarData(
       (categoriesRes.data ?? []).map((c: { id: string; slug: string; name_pt: string; name_en: string; sort_order: number }) => [c.id, c]),
     )
 
-    const recentUploads = (videosRes.data ?? []).map(
+    const recentUploads = (recentVideosRes.data ?? []).map(
       (v: { id: string; title: string; published_at: string; category_id: string | null; view_count: number }) => {
         const cat = v.category_id ? categoryMap.get(v.category_id) : null
         return {
@@ -137,17 +160,34 @@ export async function fetchContentCalendarData(
       },
     )
 
+    // --- Compute stub fields from wider video set ---
+    const widerVideos = (widerVideosRes.data ?? []).map(
+      (v: { id: string; title: string; published_at: string; category_id: string | null; view_count: number; avg_view_percentage: number | null }) => ({
+        id: v.id as string,
+        title: v.title as string,
+        category_id: (v.category_id as string | null),
+        view_count: (v.view_count as number) ?? 0,
+        avg_view_percentage: v.avg_view_percentage as number | null,
+        published_at: v.published_at as string,
+      }),
+    )
+
+    const topPerformingCategories = aggregateCategoryPerformance(widerVideos, categoryMap)
+    const outlierSuccesses = detectOutlierSuccesses(widerVideos)
+    const bestPerformingDay = computeBestPerformingDay(widerVideos)
+    const bestPerformingHour = computeBestPerformingHour(widerVideos)
+
     const snapshotAt = lastSyncedAt
     const snapshotAgeHours = computeSnapshotAgeHours(snapshotAt)
 
     const data: ContentCalendarData = {
       channel: info,
       searchTerms,
-      topPerformingCategories: [],
+      topPerformingCategories,
       demographics: formatDemographics(demographics),
-      outlierSuccesses: [],
-      bestPerformingDay: null,
-      bestPerformingHour: null,
+      outlierSuccesses,
+      bestPerformingDay,
+      bestPerformingHour,
       recentUploads,
       snapshotAt,
       snapshotAgeHours,
@@ -172,57 +212,291 @@ export async function fetchChannelHealthData(
     const { info, channelDbId, lastSyncedAt } = channelResult
     const supabase = getSupabaseServiceClient()
 
-    const [rawSearchTerms, demographics, videosRes] = await Promise.all([
+    const [rawSearchTerms, demographics, videosRes, abTestsRes, cyclesRes, channelRes] = await Promise.all([
       fetchYtSearchTerms(siteId, 28, channelDbId),
       fetchYtDemographics(siteId, 28, channelDbId),
       supabase
         .from('youtube_videos')
-        .select('id, youtube_video_id, title, view_count, avg_view_percentage, ctr')
+        .select('id, youtube_video_id, title, view_count, avg_view_percentage, ctr, traffic_sources, published_at, impressions')
         .eq('site_id', siteId)
         .eq('channel_id', channelDbId)
         .eq('is_hidden', false)
         .order('view_count', { ascending: false })
         .limit(50),
+      supabase
+        .from('ab_tests')
+        .select('name, test_type, winner_variant_id, confidence_at_completion, youtube_video_id')
+        .eq('site_id', siteId)
+        .eq('status', 'completed')
+        .not('winner_variant_id', 'is', null)
+        .order('completed_at', { ascending: false })
+        .limit(10),
+      supabase
+        .from('optimization_cycles')
+        .select('state')
+        .eq('site_id', siteId),
+      supabase
+        .from('youtube_channels')
+        .select('subscriber_count')
+        .eq('id', channelDbId)
+        .single(),
     ])
 
     const videos = videosRes.data ?? []
+    const subscriberCount = (channelRes.data?.subscriber_count as number | null) ?? info.subscribers
 
+    // --- Fetch video IDs for daily analytics + grade history ---
+    const videoIds = videos.map((v: { id: string }) => v.id as string)
+
+    const [dailyRes, gradeHistoryRes] = await Promise.all([
+      videoIds.length > 0
+        ? supabase
+            .from('youtube_video_analytics')
+            .select('youtube_video_id, date, views, likes, comments, shares, subscribers_gained, impressions')
+            .eq('site_id', siteId)
+            .in('youtube_video_id', videoIds)
+            .gte('date', new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10))
+            .order('date')
+        : Promise.resolve({ data: [] }),
+      videoIds.length > 0
+        ? supabase
+            .from('video_grade_history')
+            .select('youtube_video_id, score, week_iso')
+            .eq('site_id', siteId)
+            .in('youtube_video_id', videoIds)
+            .order('week_iso', { ascending: true })
+        : Promise.resolve({ data: [] }),
+    ])
+
+    // --- Build daily-by-video map ---
+    const dailyByVideo = new Map<string, BaselineDailyRow[]>()
+    for (const r of (dailyRes.data ?? []) as Array<{ youtube_video_id: string; date: string; views: number; likes: number; comments: number; shares: number; subscribers_gained: number; impressions: number }>) {
+      const vid = r.youtube_video_id as string
+      const arr = dailyByVideo.get(vid) ?? []
+      arr.push({
+        date: r.date as string,
+        views: r.views as number,
+        likes: r.likes as number,
+        comments: r.comments as number,
+        shares: r.shares as number,
+        subscribers_gained: r.subscribers_gained as number,
+        impressions: r.impressions as number,
+      })
+      dailyByVideo.set(vid, arr)
+    }
+
+    // --- Compute baseline ---
+    const baselineInputs = videos.map(
+      (v: { ctr: number | null; avg_view_percentage: number | null; traffic_sources: unknown; view_count: number | null }) => ({
+        ctr: v.ctr as number | null,
+        avg_view_percentage: v.avg_view_percentage as number | null,
+        traffic_sources: v.traffic_sources as unknown,
+        view_count: (v.view_count as number | null) ?? 0,
+      }),
+    )
+    const baseline = computeBaseline(baselineInputs, dailyByVideo, subscriberCount)
+
+    // --- Build grade history map per video ---
+    const gradeHistoryMap = new Map<string, number[]>()
+    for (const row of (gradeHistoryRes.data ?? []) as Array<{ youtube_video_id: string; score: number; week_iso: string }>) {
+      const vid = row.youtube_video_id as string
+      const arr = gradeHistoryMap.get(vid) ?? []
+      arr.push(Number(row.score))
+      gradeHistoryMap.set(vid, arr)
+    }
+
+    // --- Score each video with full 6-axis scoring ---
     const gradeDistribution: Record<Grade, number> = { A: 0, B: 0, C: 0, D: 0 }
     const scored = videos.map(
-      (v: { id: string; youtube_video_id: string; title: string; view_count: number; avg_view_percentage: number | null; ctr: number | null }) => {
-        const retention = (v.avg_view_percentage as number | null) ?? 0
-        const { score, grade } = scoreForPrompt((v.ctr as number | null) ?? 0, retention)
+      (v: { id: string; youtube_video_id: string; title: string; view_count: number; avg_view_percentage: number | null; ctr: number | null; traffic_sources: unknown; published_at: string; impressions: number | null }) => {
+        const videoDaily = dailyByVideo.get(v.id as string) ?? []
+        const dailyViews = videoDaily.map(d => ({ date: d.date, views: d.views }))
+        const totalViews = videoDaily.reduce((s, d) => s + d.views, 0)
+        const totalLikes = videoDaily.reduce((s, d) => s + (d.likes ?? 0), 0)
+        const totalComments = videoDaily.reduce((s, d) => s + (d.comments ?? 0), 0)
+        const totalShares = videoDaily.reduce((s, d) => s + (d.shares ?? 0), 0)
+        const totalSubsGained = videoDaily.reduce((s, d) => s + (d.subscribers_gained ?? 0), 0)
+        const engRate = totalViews > 0 ? ((totalLikes + totalComments + totalShares) / totalViews) * 100 : 0
+
+        const rawTs = v.traffic_sources as Record<string, number> | null
+        const ts = rawTs
+          ? {
+              browse: rawTs.browse ?? 0,
+              search: rawTs.search ?? 0,
+              suggested: rawTs.suggested ?? 0,
+              external: rawTs.external ?? 0,
+              direct: rawTs.direct ?? 0,
+              notifications: rawTs.notifications ?? 0,
+              playlists: rawTs.playlists ?? 0,
+            }
+          : null
+
+        const result = scoreVideo(
+          {
+            videoId: v.id as string,
+            publishedAt: v.published_at as string,
+            ctr: (v.ctr as number | null) ?? 0,
+            avgViewPercentage: (v.avg_view_percentage as number | null) ?? 0,
+            impressions: (v.impressions as number | null) ?? 0,
+            trafficSources: ts,
+            engagementRate: engRate,
+            dailyViews,
+            subscribersGained: totalSubsGained,
+            viewCount: (v.view_count as number) ?? 0,
+          },
+          baseline,
+        )
+
+        const grade = result.grade
         gradeDistribution[grade]++
+
+        // Compute per-video trend from grade history
+        const weeklyScores = gradeHistoryMap.get(v.id as string) ?? []
+        const trend = computeTrend(weeklyScores)
+
         return {
           id: v.id as string,
           youtubeVideoId: v.youtube_video_id as string,
           title: v.title as string,
-          score,
+          score: result.overall,
           grade,
-          retention,
-          trend: 'flat' as const,
+          retention: (v.avg_view_percentage as number | null) ?? 0,
+          trend: trend.direction,
+          lifecycleStage: result.lifecycle,
+          _axes: result.axes,
         }
       },
     )
 
-    const topVideos = scored.slice(0, 5)
-    const bottomVideos = [...scored].sort((a, b) => a.score - b.score).slice(0, 5)
+    const topVideos = scored
+      .slice()
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5)
+      .map(({ _axes: _, ...rest }) => rest)
+    const bottomVideos = scored
+      .slice()
+      .sort((a, b) => a.score - b.score)
+      .slice(0, 5)
+      .map(({ _axes: _, ...rest }) => rest)
     const truncated = rawSearchTerms.length > 10
+
+    // --- Health score: average 6-axis scores across all videos ---
+    let healthScore: ChannelHealthData['healthScore'] = null
+    if (scored.length > 0) {
+      const axisNames: Axis[] = ['ctr', 'retention', 'reach', 'engagement', 'growth', 'sub_impact']
+      const axisSums = new Map<Axis, { total: number; count: number }>()
+      for (const axis of axisNames) axisSums.set(axis, { total: 0, count: 0 })
+
+      for (const v of scored) {
+        for (const a of v._axes) {
+          const s = axisSums.get(a.axis)!
+          s.total += a.normalized
+          s.count++
+        }
+      }
+
+      const baselineMedians: Record<Axis, number> = {
+        ctr: baseline.medianCtr,
+        retention: baseline.medianRetention,
+        reach: baseline.medianReach,
+        engagement: baseline.medianEngagement,
+        growth: baseline.medianGrowth,
+        sub_impact: baseline.medianSubImpact,
+      }
+
+      const healthAxes = axisNames.map(axis => {
+        const s = axisSums.get(axis)!
+        const avgScore = s.count > 0 ? Math.round((s.total / s.count) * 10) / 10 : 0
+        return {
+          axis,
+          score: avgScore,
+          grade: assignGrade(avgScore),
+          benchmark: Math.round(baselineMedians[axis] * 10) / 10,
+          weight: scored[0]?._axes.find(a => a.axis === axis)?.weight ?? 0,
+        }
+      })
+
+      const overallHealth = Math.round(
+        healthAxes.reduce((sum, a) => sum + a.score * a.weight, 0) * 10,
+      ) / 10
+
+      healthScore = { overall: overallHealth, axes: healthAxes }
+    }
+
+    // --- Outliers per axis ---
+    const positiveOutliers: OutlierRow[] = []
+    const negativeOutliers: OutlierRow[] = []
+    const outlierAxes: Axis[] = ['ctr', 'retention', 'reach', 'engagement', 'growth', 'sub_impact']
+    for (const axis of outlierAxes) {
+      const axisScores = scored.map(v => ({
+        videoId: v.id,
+        score: v._axes.find(a => a.axis === axis)?.normalized ?? 0,
+      }))
+      const outlierResults = computeOutliers(axisScores, axis)
+      for (const o of outlierResults) {
+        const v = scored.find(s => s.id === o.videoId)
+        if (!v) continue
+        const row: OutlierRow = {
+          title: v.title,
+          modifiedZ: Math.round(o.modifiedZ * 100) / 100,
+          views: videos.find((vv: { id: string; view_count: number }) => (vv.id as string) === o.videoId)?.view_count as number ?? 0,
+          axis,
+        }
+        if (o.direction === 'positive') positiveOutliers.push(row)
+        else negativeOutliers.push(row)
+      }
+    }
+
+    // --- AB test results ---
+    const abTests = abTestsRes.data ?? []
+    const abWinnerVariantIds = abTests
+      .map((t: { winner_variant_id: string | null }) => t.winner_variant_id as string)
+      .filter(Boolean)
+
+    const winnerLabels = new Map<string, string>()
+    if (abWinnerVariantIds.length > 0) {
+      const { data: variants } = await supabase
+        .from('ab_test_variants')
+        .select('id, label')
+        .in('id', abWinnerVariantIds)
+      for (const vr of (variants ?? []) as Array<{ id: string; label: string }>) {
+        winnerLabels.set(vr.id as string, vr.label as string)
+      }
+    }
+
+    const abTestResults = abTests.map(
+      (t: { name: string; test_type: string; winner_variant_id: string | null; confidence_at_completion: number | null }) => ({
+        videoTitle: t.name as string,
+        testType: t.test_type as string,
+        winner: winnerLabels.get(t.winner_variant_id as string) ?? 'unknown',
+        confidence: Number(t.confidence_at_completion ?? 0),
+      }),
+    )
+
+    // --- Cycles summary ---
+    const allCycles = cyclesRes.data ?? []
+    const activeStates = new Set(['flagged', 'diagnosed', 'test_suggested', 'testing', 'post_test_monitoring', 'retest_needed'])
+    const cyclesSummary = { active: 0, resolved: 0, exhausted: 0 }
+    for (const c of allCycles as Array<{ state: string }>) {
+      if (activeStates.has(c.state as string)) cyclesSummary.active++
+      else if ((c.state as string) === 'resolved') cyclesSummary.resolved++
+      else if ((c.state as string) === 'exhausted') cyclesSummary.exhausted++
+    }
 
     const snapshotAt = lastSyncedAt
     const snapshotAgeHours = computeSnapshotAgeHours(snapshotAt)
 
     const data: ChannelHealthData = {
       channel: info,
-      healthScore: null,
+      healthScore,
       topVideos,
       bottomVideos,
       gradeDistribution,
       demographics: formatDemographics(demographics),
       searchTerms: rawSearchTerms.slice(0, 10),
-      outliers: { positive: [], negative: [] },
-      abTestResults: [],
-      cyclesSummary: { active: 0, resolved: 0, exhausted: 0 },
+      outliers: { positive: positiveOutliers, negative: negativeOutliers },
+      abTestResults,
+      cyclesSummary,
       totalVideos: videos.length,
       showingTopN: Math.min(50, videos.length),
       snapshotAt,
@@ -246,7 +520,7 @@ export async function fetchVideoOptimizerData(
 
     const { data: video, error: videoError } = await supabase
       .from('youtube_videos')
-      .select('id, title, channel_id, view_count, avg_view_percentage, ctr, published_at')
+      .select('id, title, channel_id, view_count, avg_view_percentage, ctr, published_at, retention_curve, traffic_sources, impressions')
       .eq('id', videoId)
       .eq('site_id', siteId)
       .eq('is_hidden', false)
@@ -258,31 +532,188 @@ export async function fetchVideoOptimizerData(
     const channelResult = await getChannelInfo(siteId, video.channel_id as string)
     if (!channelResult) return { ok: false, error: 'Channel not found' }
 
-    const { info, lastSyncedAt } = channelResult
+    const { info, channelDbId, lastSyncedAt } = channelResult
     const snapshotAt = lastSyncedAt
     const snapshotAgeHours = computeSnapshotAgeHours(snapshotAt)
 
-    const retention = (video.avg_view_percentage as number | null) ?? 0
-    const ctr = (video.ctr as number | null) ?? 0
-    const { score, grade } = scoreForPrompt(ctr, retention)
+    // --- Parallel queries: peer videos, grade history, optimization cycle ---
+    const [peersRes, gradeHistoryRes, cycleRes] = await Promise.all([
+      supabase
+        .from('youtube_videos')
+        .select('id, ctr, avg_view_percentage, traffic_sources, view_count, published_at')
+        .eq('site_id', siteId)
+        .eq('channel_id', channelDbId)
+        .eq('is_hidden', false)
+        .not('ctr', 'is', null)
+        .order('published_at', { ascending: false })
+        .limit(50),
+      supabase
+        .from('video_grade_history')
+        .select('score, week_iso')
+        .eq('youtube_video_id', videoId)
+        .eq('site_id', siteId)
+        .order('week_iso', { ascending: true })
+        .limit(8),
+      supabase
+        .from('optimization_cycles')
+        .select('state, cycle_number, cooldown_until, diagnosis_summary')
+        .eq('youtube_video_id', videoId)
+        .eq('site_id', siteId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ])
+
+    const peers = peersRes.data ?? []
+    const allVideoIds = [
+      videoId,
+      ...peers.filter((p: { id: string }) => (p.id as string) !== videoId).map((p: { id: string }) => p.id as string),
+    ]
+
+    // --- Daily analytics for all peers + target (last 90 days) ---
+    const cutoff90 = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10)
+    const { data: dailyRows } = await supabase
+      .from('youtube_video_analytics')
+      .select('youtube_video_id, date, views, likes, comments, shares, subscribers_gained, impressions')
+      .eq('site_id', siteId)
+      .in('youtube_video_id', allVideoIds)
+      .gte('date', cutoff90)
+      .order('date')
+
+    const dailyByVideo = new Map<string, BaselineDailyRow[]>()
+    for (const r of (dailyRows ?? []) as Array<{ youtube_video_id: string; date: string; views: number; likes: number; comments: number; shares: number; subscribers_gained: number; impressions: number }>) {
+      const vid = r.youtube_video_id as string
+      const arr = dailyByVideo.get(vid) ?? []
+      arr.push({
+        date: r.date as string,
+        views: r.views as number,
+        likes: r.likes as number,
+        comments: r.comments as number,
+        shares: r.shares as number,
+        subscribers_gained: r.subscribers_gained as number,
+        impressions: r.impressions as number,
+      })
+      dailyByVideo.set(vid, arr)
+    }
+
+    // --- Compute baseline ---
+    const peerInputs = peers.map((p: { ctr: number | null; avg_view_percentage: number | null; traffic_sources: unknown; view_count: number | null }) => ({
+      ctr: p.ctr as number | null,
+      avg_view_percentage: p.avg_view_percentage as number | null,
+      traffic_sources: p.traffic_sources as unknown,
+      view_count: (p.view_count as number | null) ?? 0,
+    }))
+    const baseline = computeBaseline(peerInputs, dailyByVideo, info.subscribers)
+
+    // --- Score the target video ---
+    const videoDailyViews = (dailyByVideo.get(videoId) ?? []).map(d => ({ date: d.date, views: d.views }))
+    const videoDaily = dailyByVideo.get(videoId) ?? []
+    const totalVideoViews = videoDaily.reduce((s, d) => s + d.views, 0)
+    const totalVideoLikes = videoDaily.reduce((s, d) => s + (d.likes ?? 0), 0)
+    const totalVideoComments = videoDaily.reduce((s, d) => s + (d.comments ?? 0), 0)
+    const totalVideoShares = videoDaily.reduce((s, d) => s + (d.shares ?? 0), 0)
+    const totalVideoSubsGained = videoDaily.reduce((s, d) => s + (d.subscribers_gained ?? 0), 0)
+    const engagementRate = totalVideoViews > 0
+      ? ((totalVideoLikes + totalVideoComments + totalVideoShares) / totalVideoViews) * 100
+      : 0
+
+    const rawTraffic = video.traffic_sources as Record<string, number> | null
+
+    const videoScoreResult = scoreVideo(
+      {
+        videoId,
+        publishedAt: video.published_at as string,
+        ctr: (video.ctr as number | null) ?? 0,
+        avgViewPercentage: (video.avg_view_percentage as number | null) ?? 0,
+        impressions: (video.impressions as number | null) ?? 0,
+        trafficSources: rawTraffic
+          ? {
+              browse: rawTraffic.browse ?? 0,
+              search: rawTraffic.search ?? 0,
+              suggested: rawTraffic.suggested ?? 0,
+              external: rawTraffic.external ?? 0,
+              direct: rawTraffic.direct ?? 0,
+              notifications: rawTraffic.notifications ?? 0,
+              playlists: rawTraffic.playlists ?? 0,
+            }
+          : null,
+        engagementRate,
+        dailyViews: videoDailyViews,
+        subscribersGained: totalVideoSubsGained,
+        viewCount: (video.view_count as number) ?? 0,
+      },
+      baseline,
+    )
+
+    // --- Axes for prompt context ---
+    const axes = videoScoreResult.axes.map(a => ({
+      axis: a.axis,
+      score: Math.round(a.normalized * 10) / 10,
+      channelMedian: Math.round(
+        (a.axis === 'ctr' ? baseline.medianCtr
+          : a.axis === 'retention' ? baseline.medianRetention
+          : a.axis === 'reach' ? baseline.medianReach
+          : a.axis === 'engagement' ? baseline.medianEngagement
+          : a.axis === 'growth' ? baseline.medianGrowth
+          : baseline.medianSubImpact) * 10,
+      ) / 10,
+      status: (a.normalized >= 50 ? 'above' : 'below') as 'above' | 'below',
+    }))
+
+    // --- Trend from grade history ---
+    const weeklyScores = (gradeHistoryRes.data ?? []).map(
+      (g: { score: number }) => Number(g.score),
+    )
+    const trendData = computeTrend(weeklyScores)
+
+    // --- Retention curve from video JSONB ---
+    const retentionCurve = Array.isArray(video.retention_curve)
+      ? (video.retention_curve as number[])
+      : []
+
+    // --- Traffic sources: collapse external+direct+notifications+playlists into "other" ---
+    let trafficSources = { browse: 0, search: 0, suggested: 0, other: 0 }
+    if (rawTraffic) {
+      trafficSources = {
+        browse: rawTraffic.browse ?? 0,
+        search: rawTraffic.search ?? 0,
+        suggested: rawTraffic.suggested ?? 0,
+        other:
+          (rawTraffic.external ?? 0) +
+          (rawTraffic.direct ?? 0) +
+          (rawTraffic.notifications ?? 0) +
+          (rawTraffic.playlists ?? 0),
+      }
+    }
+
+    // --- Optimization cycle data ---
+    const cycle = cycleRes.data as {
+      state: string
+      cycle_number: number
+      cooldown_until: string | null
+      diagnosis_summary: string | null
+    } | null
 
     const data: VideoOptimizerData = {
       channel: info,
       grade: {
-        score,
-        grade,
-        axes: [],
-        trend: 'flat',
-        streak: 0,
+        score: videoScoreResult.overall,
+        grade: videoScoreResult.grade,
+        axes,
+        trend: trendData.direction,
+        streak: trendData.streak,
       },
-      retentionCurve: [],
-      trafficSources: { browse: 0, search: 0, suggested: 0, other: 0 },
-      optimizationState: 'idle',
-      cycleNumber: 0,
-      maxCycles: 3,
-      cooldownUntil: null,
-      previousDiagnosis: null,
-      channelBaseline: { medianCtr: 0, medianRetention: 0 },
+      retentionCurve,
+      trafficSources,
+      optimizationState: cycle?.state ?? 'unmonitored',
+      cycleNumber: cycle?.cycle_number ?? 0,
+      maxCycles: getMaxCycles(),
+      cooldownUntil: cycle?.cooldown_until ?? null,
+      previousDiagnosis: cycle?.diagnosis_summary ?? null,
+      channelBaseline: {
+        medianCtr: Math.round(baseline.medianCtr * 100) / 100,
+        medianRetention: Math.round(baseline.medianRetention * 100) / 100,
+      },
       snapshotAt,
       snapshotAgeHours,
     }
@@ -368,24 +799,6 @@ export async function fetchChannelVideos(channelId: string): Promise<ActionResul
     const msg = err instanceof Error ? err.message : 'unexpected error'
     return { ok: false, error: msg }
   }
-}
-
-const LogPromptCopySchema = z.object({
-  preset: z.enum(['content-calendar', 'channel-health', 'video-optimizer']),
-  charCount: z.number().int().min(1).max(15000),
-  snapshotAgeHours: z.number().min(0).max(720),
-})
-
-export async function logPromptCopy(
-  preset: string,
-  charCount: number,
-  snapshotAgeHours: number,
-): Promise<ActionResult<void>> {
-  await requireReadAccess()
-  const parsed = LogPromptCopySchema.safeParse({ preset, charCount, snapshotAgeHours })
-  if (!parsed.success)
-    return { ok: false, error: parsed.error.issues.map(i => i.message).join(', ') }
-  return { ok: true, data: undefined }
 }
 
 const SaveVideoNotesSchema = z.object({

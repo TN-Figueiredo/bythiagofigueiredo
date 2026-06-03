@@ -35,77 +35,6 @@ function tierColor(tier: 'mid' | 'high' | 'top' | null): string {
   return 'var(--text-dim)'
 }
 
-/* ── SVG Trend Chart ── */
-
-function TrendChart({ viewCount }: { viewCount: number }) {
-  // Simulated S-curve for view accumulation (no real hourly data available)
-  const points = 20
-  const data: number[] = []
-  for (let i = 0; i <= points; i++) {
-    const t = i / points
-    // S-curve: slow start, rapid middle, plateau
-    const val = viewCount * (1 / (1 + Math.exp(-10 * (t - 0.35))))
-    data.push(val)
-  }
-
-  const w = 460
-  const h = 70
-  const padY = 4
-  const min = 0
-  const max = Math.max(...data) || 1
-  const range = max - min || 1
-
-  const pts: Array<[number, number]> = data.map((v, i) => [
-    (i / (data.length - 1)) * w,
-    padY + (1 - (v - min) / range) * (h - padY * 2),
-  ])
-
-  // Build smooth cubic bezier path
-  let linePath = `M ${pts[0]![0]},${pts[0]![1]}`
-  for (let i = 1; i < pts.length; i++) {
-    const prev = pts[i - 1]!
-    const cur = pts[i]!
-    const cpx = (prev[0] + cur[0]) / 2
-    linePath += ` C ${cpx},${prev[1]} ${cpx},${cur[1]} ${cur[0]},${cur[1]}`
-  }
-
-  const fillPath = `${linePath} L ${w},${h} L 0,${h} Z`
-
-  // Estimate "first 48h" percentage (heuristic: ~35% for a typical video)
-  const pct48h = Math.min(95, Math.max(10, 25 + Math.random() * 20))
-
-  return (
-    <div className="vd-trend" style={{ marginTop: 18 }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8 }}>
-        <span className="section-label">Tendencia de views</span>
-        <span className="mono" style={{ fontSize: 10.5, color: 'var(--accent)' }}>
-          {brDec(pct48h, 0)}% nas primeiras 48h
-        </span>
-      </div>
-      <svg
-        width="100%"
-        viewBox={`0 0 ${w} ${h}`}
-        preserveAspectRatio="none"
-        aria-hidden="true"
-        style={{ display: 'block' }}
-      >
-        <defs>
-          <linearGradient id="vd-trend-grad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.25} />
-            <stop offset="100%" stopColor="var(--accent)" stopOpacity={0.02} />
-          </linearGradient>
-        </defs>
-        <path d={fillPath} fill="url(#vd-trend-grad)" />
-        <path d={linePath} fill="none" stroke="var(--accent)" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-        <span className="mono" style={{ fontSize: 9.5, color: 'var(--text-dim)' }}>publicacao</span>
-        <span className="mono" style={{ fontSize: 9.5, color: 'var(--text-dim)' }}>hoje</span>
-      </div>
-    </div>
-  )
-}
-
 /* ── Stat Card ── */
 
 interface StatCardProps {
@@ -167,10 +96,9 @@ export function VideoModal({ video, channelName, channelThumbnailUrl, allVideos,
       ? ((v.likeCount + v.commentCount) / v.viewCount) * 100
       : null
 
-    // CTR heuristic: 3.4 + (mult * 0.7) capped at 15%
-    const mult = v.outlierMultiplier ?? 1
-    const ctrRaw = 3.4 + (mult * 0.7)
-    const ctr = Math.min(15, ctrRaw)
+    const ageDays = v.publishedAt
+      ? Math.floor((Date.now() - new Date(v.publishedAt).getTime()) / 86_400_000)
+      : null
 
     // Ranking: position in allVideos sorted by viewCount desc
     let ranking: { pos: number; total: number } | null = null
@@ -190,13 +118,13 @@ export function VideoModal({ video, channelName, channelThumbnailUrl, allVideos,
         : sorted[mid]!
     }
 
-    return { engagement, ctr, ranking, medianViews }
+    return { engagement, ageDays, ranking, medianViews }
   }, [video, allVideos])
 
   if (!open) return null
 
   const v = video
-  const { engagement, ctr, ranking, medianViews } = stats
+  const { engagement, ageDays, ranking, medianViews } = stats
 
   // Compare bar ratio
   const compareRatio = medianViews && medianViews > 0
@@ -313,9 +241,9 @@ export function VideoModal({ video, channelName, channelThumbnailUrl, allVideos,
                 valueColor={v.outlierMultiplier != null ? tierColor(v.outlierTier) : undefined}
               />
               <StatCard
-                label="ctr estimado"
-                value={`${brDec(ctr, 1)}%`}
-                tooltip="Heuristica baseada no desempenho relativo do video"
+                label="idade"
+                value={ageDays != null ? `${ageDays}d` : '--'}
+                tooltip="Dias desde a publicacao do video"
               />
               <StatCard
                 label="ranking"
@@ -327,9 +255,6 @@ export function VideoModal({ video, channelName, channelThumbnailUrl, allVideos,
               <StatCard label="comentarios" value={v.commentCount > 0 ? fmtC(v.commentCount) : '—'} />
               <StatCard label="duracao" value={fmtDur(v.durationSeconds)} />
             </div>
-
-            {/* Trend chart */}
-            <TrendChart viewCount={v.viewCount} />
 
             {/* Compare section */}
             {medianViews != null && compareBarPct != null && (

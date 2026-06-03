@@ -10,7 +10,7 @@ vi.mock('@/lib/social/token-refresh', () => ({ ensureFreshToken: vi.fn() }))
 vi.mock('@/lib/youtube/ab-metadata', () => ({ captureOriginalMetadata: vi.fn() }))
 vi.mock('@vercel/blob', () => ({ put: vi.fn() }))
 vi.mock('@/lib/youtube/ab-youtube', () => ({
-  setThumbnail: vi.fn(),
+  setThumbnail: vi.fn().mockResolvedValue({ highUrl: 'https://i.ytimg.com/vi/test/hqdefault.jpg' }),
   fetchVariantImageBuffer: vi.fn(),
 }))
 vi.mock('@/lib/youtube/ab-rotation', () => ({ getVariantForCycle: vi.fn() }))

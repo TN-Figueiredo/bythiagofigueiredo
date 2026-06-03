@@ -78,7 +78,10 @@ describe('A/B YouTube API helpers', () => {
 
   describe('setThumbnail', () => {
     it('calls YouTube API with correct endpoint and headers', async () => {
-      const mockFetch = vi.fn().mockResolvedValue({ ok: true })
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ items: [{ high: { url: 'https://i.ytimg.com/vi/VIDEO123/hqdefault.jpg' } }] }),
+      })
       vi.stubGlobal('fetch', mockFetch)
 
       const mod = await import('@/lib/youtube/ab-youtube')
@@ -122,7 +125,7 @@ describe('A/B YouTube API helpers', () => {
       }))
 
       const mod = await import('@/lib/youtube/ab-youtube')
-      const result = await mod.fetchVariantImageBuffer('https://blob.vercel-storage.com/test.jpg')
+      const result = await mod.fetchVariantImageBuffer('https://abc.public.blob.vercel-storage.com/test.jpg')
 
       expect(result.contentType).toBe('image/jpeg')
       expect(result.buffer).toBeInstanceOf(Buffer)
@@ -138,7 +141,7 @@ describe('A/B YouTube API helpers', () => {
       }))
 
       const mod = await import('@/lib/youtube/ab-youtube')
-      const result = await mod.fetchVariantImageBuffer('https://blob.vercel-storage.com/test.png')
+      const result = await mod.fetchVariantImageBuffer('https://abc.public.blob.vercel-storage.com/test.png')
       expect(result.contentType).toBe('image/png')
 
       vi.unstubAllGlobals()
@@ -151,8 +154,66 @@ describe('A/B YouTube API helpers', () => {
       }))
 
       const mod = await import('@/lib/youtube/ab-youtube')
-      await expect(mod.fetchVariantImageBuffer('https://blob.vercel-storage.com/missing.jpg'))
+      await expect(mod.fetchVariantImageBuffer('https://abc.public.blob.vercel-storage.com/missing.jpg'))
         .rejects.toThrow('Failed to fetch variant image: 404')
+
+      vi.unstubAllGlobals()
+    })
+  })
+
+  describe('getCurrentThumbnailUrl', () => {
+    it('returns high thumbnail URL on success', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({
+          items: [{ snippet: { thumbnails: { high: { url: 'https://i.ytimg.com/vi/V1/hqdefault.jpg' } } } }],
+        }),
+      }))
+
+      const mod = await import('@/lib/youtube/ab-youtube')
+      const result = await mod.getCurrentThumbnailUrl('V1', 'TOKEN')
+      expect(result).toBe('https://i.ytimg.com/vi/V1/hqdefault.jpg')
+
+      vi.unstubAllGlobals()
+    })
+
+    it('returns null on API failure', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        ok: false,
+        status: 403,
+      }))
+
+      const mod = await import('@/lib/youtube/ab-youtube')
+      const result = await mod.getCurrentThumbnailUrl('V1', 'TOKEN')
+      expect(result).toBeNull()
+
+      vi.unstubAllGlobals()
+    })
+
+    it('returns null when no items in response', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ items: [] }),
+      }))
+
+      const mod = await import('@/lib/youtube/ab-youtube')
+      const result = await mod.getCurrentThumbnailUrl('V1', 'TOKEN')
+      expect(result).toBeNull()
+
+      vi.unstubAllGlobals()
+    })
+
+    it('returns null when no high thumbnail', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({
+          items: [{ snippet: { thumbnails: { default: { url: 'https://i.ytimg.com/vi/V1/default.jpg' } } } }],
+        }),
+      }))
+
+      const mod = await import('@/lib/youtube/ab-youtube')
+      const result = await mod.getCurrentThumbnailUrl('V1', 'TOKEN')
+      expect(result).toBeNull()
 
       vi.unstubAllGlobals()
     })

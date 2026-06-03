@@ -4,6 +4,7 @@ import { calculateBayesianConfidence } from '@/lib/youtube/ab-statistics'
 import { applyVariantToYouTube } from '@/lib/youtube/ab-apply'
 import { preflightTokenCheck } from '@/lib/youtube/ab-preflight'
 import { buildNotification } from '@/lib/youtube/notification-service'
+import { fanOutToSiteAdmins } from '@/lib/notifications/fan-out-to-admins'
 import { getIsoWeek } from '@/lib/youtube/analytics-sync'
 import { checkPlayoffEligibility, selectPlayoffVariants } from '@/lib/youtube/ab-playoff'
 import { startAbTestInternal } from '@/lib/youtube/ab-start'
@@ -153,14 +154,16 @@ export async function phaseEvaluateActiveTests(supabase: SupabaseClient): Promis
             .eq('id', test.id)
 
           // Notify user: winner pending
-          await supabase.rpc('create_yt_notification', {
-            p_site_id: test.site_id,
-            p_type: 'ab_test_winner_pending',
-            p_priority: 3,
-            p_title: `Vencedor detectado: ${winnerLabel}`,
-            p_message: `O teste "${test.name}" tem um vencedor. Será aplicado automaticamente em 24h.`,
-            p_action_href: `/cms/youtube/ab-lab/${test.id}`,
-            p_video_id: test.youtube_video_id,
+          await fanOutToSiteAdmins({
+            siteId: test.site_id,
+            domain: 'youtube',
+            type: 'youtube.ab_test_winner_pending',
+            priority: 3,
+            title: `Vencedor detectado: ${winnerLabel}`,
+            message: `O teste "${test.name}" tem um vencedor. Será aplicado automaticamente em 24h.`,
+            dedupKey: `ab_test_winner_pending:${test.id}`,
+            payload: { videoId: test.youtube_video_id, testId: test.id },
+            actionHref: `/cms/youtube/ab-lab/${test.id}`,
           })
 
           evaluated++
@@ -264,16 +267,19 @@ export async function phaseEvaluateActiveTests(supabase: SupabaseClient): Promis
           ctrLift: Math.round(ctrLift * 10) / 10,
           weekIso,
         })
-        await supabase.rpc('create_yt_notification', {
-          p_site_id: test.site_id,
-          p_type: notifPayload.type,
-          p_priority: notifPayload.priority,
-          p_title: notifPayload.title,
-          p_message: notifPayload.message,
-          p_dedup_key: notifPayload.dedup_key,
-          p_video_id: notifPayload.video_id ?? null,
-          p_ab_test_id: test.id,
-          p_action_href: notifPayload.action_href ?? null,
+        await fanOutToSiteAdmins({
+          siteId: test.site_id,
+          domain: 'youtube',
+          type: `youtube.${notifPayload.type}`,
+          priority: notifPayload.priority,
+          title: notifPayload.title,
+          message: notifPayload.message,
+          dedupKey: notifPayload.dedup_key,
+          payload: {
+            ...(notifPayload.video_id ? { videoId: notifPayload.video_id } : {}),
+            testId: test.id,
+          },
+          actionHref: notifPayload.action_href,
         })
 
         // Transition optimization cycle to post_test_monitoring
@@ -314,6 +320,34 @@ export async function phaseEvaluateActiveTests(supabase: SupabaseClient): Promis
 
       // Check max duration — mark inconclusive if exceeded
       if (!allPass && daysSinceStart >= (config.max_duration_days ?? 14)) {
+        // Best-effort revert to original thumbnail
+        try {
+          if (test.original_thumbnail_url?.includes('blob.vercel-storage.com')) {
+            const { data: revertVideo } = await supabase
+              .from('youtube_videos')
+              .select('youtube_video_id')
+              .eq('id', test.youtube_video_id)
+              .single()
+
+            if (revertVideo) {
+              const { fetchVariantImageBuffer, setThumbnail } = await import('@/lib/youtube/ab-youtube')
+              const { data: revertVideoChannel } = await supabase
+                .from('youtube_videos')
+                .select('channel_id')
+                .eq('id', test.youtube_video_id)
+                .single()
+              const { data: revertChannel } = revertVideoChannel?.channel_id
+                ? await supabase.from('youtube_channels').select('channel_id').eq('id', revertVideoChannel.channel_id).single()
+                : { data: null }
+              const { accessToken } = await ensureFreshToken(test.site_id, 'youtube', revertChannel?.channel_id)
+              const { buffer, contentType } = await fetchVariantImageBuffer(test.original_thumbnail_url)
+              await setThumbnail(revertVideo.youtube_video_id, buffer, contentType, accessToken)
+            }
+          }
+        } catch (e) {
+          Sentry.captureException(e, { extra: { context: 'max-duration-revert', testId: test.id } })
+        }
+
         await supabase
           .from('ab_test_cycles')
           .update({ ended_at: new Date().toISOString() })
@@ -480,14 +514,16 @@ export async function phaseRetryFailedApplies(supabase: SupabaseClient): Promise
 
       // After 3 failures — send notification
       if (attempts >= 3) {
-        await supabase.rpc('create_yt_notification', {
-          p_site_id: pending.site_id,
-          p_type: 'ab_test_apply_failed',
-          p_priority: 4,
-          p_title: `Falha ao aplicar vencedor: ${pending.name}`,
-          p_message: `O teste "${pending.name}" falhou 3x ao aplicar o vencedor. Ação manual necessária.`,
-          p_action_href: `/cms/youtube/ab-lab/${pending.id}`,
-          p_video_id: pending.youtube_video_id,
+        await fanOutToSiteAdmins({
+          siteId: pending.site_id,
+          domain: 'youtube',
+          type: 'youtube.ab_test_apply_failed',
+          priority: 4,
+          title: `Falha ao aplicar vencedor: ${pending.name}`,
+          message: `O teste "${pending.name}" falhou 3x ao aplicar o vencedor. Ação manual necessária.`,
+          dedupKey: `ab_test_apply_failed:${pending.id}`,
+          payload: { videoId: pending.youtube_video_id, testId: pending.id },
+          actionHref: `/cms/youtube/ab-lab/${pending.id}`,
         })
       }
 
@@ -595,16 +631,19 @@ export async function phaseDetectPlayoffEligibility(supabase: SupabaseClient): P
         weekIso,
       })
 
-      await supabase.rpc('create_yt_notification', {
-        p_site_id: candidate.site_id,
-        p_type: notifPayload.type,
-        p_priority: notifPayload.priority,
-        p_title: notifPayload.title,
-        p_message: notifPayload.message,
-        p_dedup_key: notifPayload.dedup_key,
-        p_video_id: notifPayload.video_id ?? null,
-        p_ab_test_id: candidate.id,
-        p_action_href: notifPayload.action_href ?? null,
+      await fanOutToSiteAdmins({
+        siteId: candidate.site_id,
+        domain: 'youtube',
+        type: `youtube.${notifPayload.type}`,
+        priority: notifPayload.priority,
+        title: notifPayload.title,
+        message: notifPayload.message,
+        dedupKey: notifPayload.dedup_key,
+        payload: {
+          ...(notifPayload.video_id ? { videoId: notifPayload.video_id } : {}),
+          testId: candidate.id,
+        },
+        actionHref: notifPayload.action_href,
       })
 
       processed++

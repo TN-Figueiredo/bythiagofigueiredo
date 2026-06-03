@@ -41,6 +41,10 @@ vi.mock('@/lib/youtube/notification-service', () => ({
   })),
 }))
 
+vi.mock('@/lib/notifications/fan-out-to-admins', () => ({
+  fanOutToSiteAdmins: vi.fn().mockResolvedValue(1),
+}))
+
 // ── Import after mocks ──────────────────────────────────────────────────────
 import { GET } from '../../../src/app/api/cron/sync-analytics-metrics/route'
 

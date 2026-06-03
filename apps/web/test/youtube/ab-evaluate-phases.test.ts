@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn() }))
 vi.mock('@/lib/social/token-refresh', () => ({ ensureFreshToken: vi.fn() }))
 vi.mock('@/lib/youtube/ab-statistics', () => ({ calculateBayesianConfidence: vi.fn() }))
-vi.mock('@/lib/youtube/ab-youtube', () => ({ setThumbnail: vi.fn(), fetchVariantImageBuffer: vi.fn() }))
+vi.mock('@/lib/youtube/ab-youtube', () => ({ setThumbnail: vi.fn().mockResolvedValue({ highUrl: 'https://i.ytimg.com/vi/test/hqdefault.jpg' }), fetchVariantImageBuffer: vi.fn() }))
 vi.mock('@/lib/youtube/ab-metadata', () => ({ updateVideoMetadata: vi.fn() }))
 vi.mock('@/lib/youtube/ab-templates', () => ({ resolveTemplates: vi.fn() }))
 vi.mock('@/lib/youtube/ab-preflight', () => ({
@@ -24,6 +24,7 @@ vi.mock('@/lib/youtube/ab-playoff', () => ({
 vi.mock('@/lib/youtube/ab-start', () => ({ startAbTestInternal: vi.fn() }))
 vi.mock('@/lib/youtube/thumbnail-library', () => ({ autoImportWinner: vi.fn() }))
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn() }))
+vi.mock('@/lib/notifications/fan-out-to-admins', () => ({ fanOutToSiteAdmins: vi.fn().mockResolvedValue(1) }))
 
 import {
   phaseEvaluateActiveTests,
@@ -35,6 +36,7 @@ import { fetchVariantImageBuffer } from '@/lib/youtube/ab-youtube'
 import { ensureFreshToken } from '@/lib/social/token-refresh'
 import { resolveTemplates } from '@/lib/youtube/ab-templates'
 import { startAbTestInternal } from '@/lib/youtube/ab-start'
+import { fanOutToSiteAdmins } from '@/lib/notifications/fan-out-to-admins'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -270,11 +272,10 @@ describe('phaseEvaluateActiveTests', () => {
     const expected24h = Date.now() + 24 * 3_600_000
     expect(Math.abs(graceExpires - expected24h)).toBeLessThan(10_000)
 
-    // Should send winner_pending notification
-    const pendingNotif = rpcCalls.find(
-      c => c.fn === 'create_yt_notification' && (c.args as Record<string, unknown>).p_type === 'ab_test_winner_pending',
+    // Should send winner_pending notification via fanOutToSiteAdmins
+    expect(fanOutToSiteAdmins).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'youtube.ab_test_winner_pending' }),
     )
-    expect(pendingNotif).toBeDefined()
   })
 
   it('applies winner when grace expired', async () => {
@@ -384,12 +385,13 @@ describe('phaseRetryFailedApplies', () => {
     )
     expect(attemptsUpdate).toBeDefined()
 
-    // Should send ab_test_apply_failed notification (attempts >= 3)
-    const failNotif = rpcCalls.find(
-      c => c.fn === 'create_yt_notification' && (c.args as Record<string, unknown>).p_type === 'ab_test_apply_failed',
+    // Should send ab_test_apply_failed notification via fanOutToSiteAdmins (attempts >= 3)
+    expect(fanOutToSiteAdmins).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'youtube.ab_test_apply_failed',
+        priority: 4,
+      }),
     )
-    expect(failNotif).toBeDefined()
-    expect((failNotif!.args as Record<string, unknown>).p_priority).toBe(4)
   })
 })
 

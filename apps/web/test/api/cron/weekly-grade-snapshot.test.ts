@@ -67,6 +67,10 @@ vi.mock('@sentry/nextjs', () => ({
   setTag: vi.fn(),
 }))
 
+vi.mock('@/lib/notifications/fan-out-to-admins', () => ({
+  fanOutToSiteAdmins: vi.fn().mockResolvedValue(1),
+}))
+
 // ── Import after mocks ──────────────────────────────────────────────────────
 import { GET } from '@/app/api/cron/weekly-grade-snapshot/route'
 

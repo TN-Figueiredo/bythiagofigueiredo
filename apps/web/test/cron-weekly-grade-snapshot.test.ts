@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeBaseline, computeReachDiversityForBaseline } from '@/lib/youtube/scoring'
+import { computeBaseline, computeReachDiversityFromRecord } from '@/lib/youtube/scoring'
 import type { BaselineVideoInput } from '@/lib/youtube/scoring'
 
 // Helper to build a dailyByVideo map matching the shape the cron constructs
@@ -36,8 +36,8 @@ describe('computeBaseline (used by weekly-grade-snapshot)', () => {
       playlists: 0,
     }
 
-    const evenScore = computeReachDiversityForBaseline(evenTraffic)
-    const singleScore = computeReachDiversityForBaseline(singleSource)
+    const evenScore = computeReachDiversityFromRecord(evenTraffic)
+    const singleScore = computeReachDiversityFromRecord(singleSource)
 
     // Even distribution → max entropy → score near 100
     expect(evenScore).toBeCloseTo(100, 0)

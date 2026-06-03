@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useTransition } from 'react'
+import { useState, useRef, useEffect, useTransition, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, QrCode, MoreVertical, Pencil, Trash2 } from 'lucide-react'
 import type { QrCardSummary } from '../qr/card-actions'
@@ -38,8 +38,10 @@ export function QrCardsStrip({ linkId, cards }: QrCardsStripProps) {
   const [renaming, setRenaming] = useState<{ id: string; current: string } | null>(null)
   const [renameTo, setRenameTo] = useState('')
 
-  // Delete confirm
+  // Delete confirm — track batch-deleted IDs so sequential deletes skip already-removed cards
   const [deleting, setDeleting] = useState<{ id: string; name: string } | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const deletedIdsRef = useRef(new Set<string>())
 
   const hasCards = cards.length > 0
 
@@ -65,18 +67,45 @@ export function QrCardsStrip({ linkId, cards }: QrCardsStripProps) {
 
   async function handleRename() {
     if (!renaming || !renameTo.trim()) return
-    await updateQrCard(renaming.id, linkId, { name: renameTo.trim() })
-    setRenaming(null)
-    setRenameTo('')
-    startTransition(() => router.refresh())
+    try {
+      await updateQrCard(renaming.id, linkId, { name: renameTo.trim() })
+      setRenaming(null)
+      setRenameTo('')
+      startTransition(() => router.refresh())
+    } catch (err) {
+      console.error('[QrCardsStrip] rename failed:', err)
+    }
   }
 
-  async function handleDelete() {
-    if (!deleting) return
-    await deleteQrCard(deleting.id, linkId)
-    setDeleting(null)
-    startTransition(() => router.refresh())
-  }
+  const handleDelete = useCallback(async () => {
+    if (!deleting || isDeleting) return
+    setIsDeleting(true)
+    try {
+      const deletedId = deleting.id
+      await deleteQrCard(deletedId, linkId)
+      deletedIdsRef.current.add(deletedId)
+
+      const remaining = cards.filter(c => !deletedIdsRef.current.has(c.id))
+      if (remaining.length > 0) {
+        const deletedIdx = cards.findIndex(c => c.id === deletedId)
+        const nextIdx = Math.min(deletedIdx, remaining.length - 1)
+        const next = remaining[nextIdx]!
+        setDeleting({ id: next.id, name: next.name })
+      } else {
+        setDeleting(null)
+        deletedIdsRef.current.clear()
+      }
+      startTransition(() => router.refresh())
+    } catch (err) {
+      console.error('[QrCardsStrip] delete failed:', err)
+    } finally {
+      setIsDeleting(false)
+    }
+  }, [deleting, isDeleting, cards, linkId, router])
+
+  // Derived values for delete modal
+  const batchDeleteCount = deletedIdsRef.current.size
+  const remainingCards = cards.filter(c => !deletedIdsRef.current.has(c.id))
 
   const inputStyle: React.CSSProperties = {
     width: '100%',
@@ -160,7 +189,7 @@ export function QrCardsStrip({ linkId, cards }: QrCardsStripProps) {
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             background: 'rgba(0,0,0,0.55)',
           }}
-          onClick={() => { setNaming(false); setName(''); setRenaming(null); setDeleting(null) }}
+          onClick={() => { if (isDeleting) return; setNaming(false); setName(''); setRenaming(null); setDeleting(null); deletedIdsRef.current.clear() }}
         >
           <div
             onClick={e => e.stopPropagation()}
@@ -261,21 +290,28 @@ export function QrCardsStrip({ linkId, cards }: QrCardsStripProps) {
                     Excluir QR Card
                   </h3>
                   <p style={{ margin: '8px 0 0', fontSize: 13, color: 'var(--ink-dim)', lineHeight: 1.5 }}>
-                    Tem certeza que deseja excluir <strong style={{ color: 'var(--ink)' }}>{deleting.name}</strong>? Esta ação não pode ser desfeita.
+                    {batchDeleteCount > 0 && (
+                      <span style={{ display: 'block', marginBottom: 4, fontSize: 11, color: 'var(--accent)', fontWeight: 600 }}>
+                        {batchDeleteCount} excluído{batchDeleteCount > 1 ? 's' : ''} · {remainingCards.length} restante{remainingCards.length > 1 ? 's' : ''}
+                      </span>
+                    )}
+                    Excluir <strong style={{ color: 'var(--ink)' }}>{deleting.name}</strong>?
                   </p>
                 </div>
                 <div style={{
                   padding: '14px 22px', borderTop: '1px solid var(--line)',
                   display: 'flex', justifyContent: 'flex-end', gap: 10,
                   background: 'var(--bg-side, var(--surface))',
+                  opacity: isDeleting ? 0.6 : 1,
+                  transition: 'opacity 0.15s',
                 }}>
-                  <button type="button" onClick={() => setDeleting(null)}
-                    style={{ padding: '8px 14px', fontSize: 13, fontWeight: 600, borderRadius: 9, border: '1px solid var(--line-strong)', background: 'transparent', color: 'var(--ink-dim)', cursor: 'pointer', font: 'inherit' }}>
-                    Cancelar
+                  <button type="button" disabled={isDeleting} onClick={() => { setDeleting(null); deletedIdsRef.current.clear() }}
+                    style={{ padding: '8px 14px', fontSize: 13, fontWeight: 600, borderRadius: 9, border: '1px solid var(--line-strong)', background: 'transparent', color: 'var(--ink-dim)', cursor: isDeleting ? 'not-allowed' : 'pointer', font: 'inherit' }}>
+                    {batchDeleteCount > 0 ? 'Pronto' : 'Cancelar'}
                   </button>
-                  <button type="button" onClick={handleDelete}
-                    style={{ padding: '8px 14px', fontSize: 13, fontWeight: 600, borderRadius: 9, border: '1px solid rgba(217,97,74,0.5)', background: 'rgba(217,97,74,0.1)', color: 'var(--red)', cursor: 'pointer', font: 'inherit' }}>
-                    Excluir
+                  <button type="button" disabled={isDeleting} onClick={handleDelete}
+                    style={{ padding: '8px 14px', fontSize: 13, fontWeight: 600, borderRadius: 9, border: '1px solid rgba(217,97,74,0.5)', background: 'rgba(217,97,74,0.1)', color: 'var(--red)', cursor: isDeleting ? 'not-allowed' : 'pointer', font: 'inherit' }}>
+                    {isDeleting ? 'Excluindo...' : 'Excluir'}
                   </button>
                 </div>
               </>

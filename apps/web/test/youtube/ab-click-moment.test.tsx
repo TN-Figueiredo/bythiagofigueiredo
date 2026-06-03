@@ -67,7 +67,7 @@ describe('BehaviorStrip', () => {
 
   it('shows CTR value', () => {
     render(<BehaviorStrip label="B" color="#E8823C" ctr={6.5} maxCtr={7.0} />)
-    expect(screen.getByText('6.50%')).toBeTruthy()
+    expect(screen.getByText((t) => /6[.,]50\s*%/.test(t))).toBeTruthy()
   })
 
   it('shows green delta for positive lift', () => {

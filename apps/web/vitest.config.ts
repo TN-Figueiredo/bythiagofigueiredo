@@ -78,6 +78,7 @@ export default defineConfig({
         perFile: false,
         'src/lib/lgpd/**': { lines: 90, functions: 90, branches: 85 },
         'src/components/lgpd/**': { lines: 90, functions: 90, branches: 85 },
+        'src/lib/youtube/**': { lines: 75, functions: 75, branches: 65 },
       },
     },
   },

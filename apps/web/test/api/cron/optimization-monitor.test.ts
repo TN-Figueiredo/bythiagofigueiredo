@@ -45,6 +45,11 @@ vi.mock('@sentry/nextjs', () => ({
   setTag: vi.fn(),
 }))
 
+const mockFanOut = vi.fn().mockResolvedValue(1)
+vi.mock('@/lib/notifications/fan-out-to-admins', () => ({
+  fanOutToSiteAdmins: (...args: unknown[]) => mockFanOut(...args),
+}))
+
 // ── Import after mocks ──────────────────────────────────────────────────────
 import { GET } from '@/app/api/cron/optimization-monitor/route'
 
@@ -197,8 +202,8 @@ describe('GET /api/cron/optimization-monitor', () => {
     const body = await res.json()
     // Day 30 check should be logged
     expect(body.checked).toBeGreaterThanOrEqual(1)
-    // Should have called rpc for notification
-    expect(mockRpc).toHaveBeenCalled()
+    // Should have sent notification via fanOutToSiteAdmins
+    expect(mockFanOut).toHaveBeenCalled()
   })
 
   it('captures Sentry exception on cycle processing error', async () => {

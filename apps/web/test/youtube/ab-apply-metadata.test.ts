@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
-const mockSetThumbnail = vi.fn().mockResolvedValue(undefined)
+const mockSetThumbnail = vi.fn().mockResolvedValue({})
 const mockFetchVariantImageBuffer = vi.fn().mockResolvedValue({
   buffer: Buffer.from('img'),
   contentType: 'image/jpeg',
@@ -39,18 +39,7 @@ describe('applyVariantToYouTube – youtube_thumbnail_url capture', () => {
 
   it('captures youtube_thumbnail_url in meta after successful thumbnail apply', async () => {
     const ytThumbnailUrl = 'https://i.ytimg.com/vi/YT123/hqdefault.jpg'
-    globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({
-        items: [{
-          snippet: {
-            thumbnails: {
-              high: { url: ytThumbnailUrl },
-            },
-          },
-        }],
-      }),
-    })
+    mockSetThumbnail.mockResolvedValueOnce({ highUrl: ytThumbnailUrl })
 
     const result = await applyVariantToYouTube({
       youtubeVideoId: 'YT123',
@@ -62,18 +51,16 @@ describe('applyVariantToYouTube – youtube_thumbnail_url capture', () => {
     expect(result.ok).toBe(true)
     expect(result.meta.thumbnail_set).toBe(true)
     expect(result.meta.youtube_thumbnail_url).toBe(ytThumbnailUrl)
-    expect(globalThis.fetch).toHaveBeenCalledWith(
-      expect.stringContaining('youtube/v3/videos?part=snippet&id=YT123&key=test-api-key'),
-      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    expect(mockSetThumbnail).toHaveBeenCalledWith(
+      'YT123',
+      expect.any(Buffer),
+      'image/jpeg',
+      'tok',
     )
   })
 
-  it('sets youtube_thumbnail_url to undefined when YouTube API fails', async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: false,
-      status: 500,
-      json: () => Promise.resolve({ error: 'Internal Server Error' }),
-    })
+  it('sets youtube_thumbnail_url to undefined when setThumbnail returns no highUrl', async () => {
+    mockSetThumbnail.mockResolvedValueOnce({})
 
     const result = await applyVariantToYouTube({
       youtubeVideoId: 'YT123',

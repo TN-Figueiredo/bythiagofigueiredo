@@ -14,6 +14,10 @@ vi.mock('../../../lib/newsletter/welcome-email', () => ({
   sendWelcomeEmail: vi.fn(),
 }))
 
+vi.mock('../../../src/lib/env', () => ({
+  getServerEnv: () => ({ CRON_SECRET: 'test-secret' }),
+}))
+
 vi.mock('@sentry/nextjs', () => ({
   captureException: vi.fn(),
 }))

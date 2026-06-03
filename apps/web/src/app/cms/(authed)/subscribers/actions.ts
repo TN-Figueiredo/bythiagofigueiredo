@@ -1,6 +1,7 @@
 'use server'
 
 import { z } from 'zod'
+import { createHash } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
@@ -80,9 +81,12 @@ export async function exportSubscribers(
   const { data: rows, error } = await query
   if (error) return { ok: false, error: error.message }
 
-  // Exclude anonymized rows (LGPD)
+  // Exclude anonymized rows (LGPD) — both legacy @anon format and SHA-256 hex hashes
   const filtered = (rows ?? []).filter(
-    (r) => !/^[a-f0-9]{8,}\.\.\.@anon$/.test(r.email as string),
+    (r) => {
+      const email = r.email as string
+      return !/^[a-f0-9]{8,}\.\.\.@anon$/.test(email) && !/^[a-f0-9]{64}$/.test(email)
+    },
   )
 
   if (parsed.data.format === 'csv') {
@@ -115,14 +119,32 @@ export async function batchUnsubscribe(
   const supabase = getSupabaseServiceClient()
 
   const now = new Date().toISOString()
-  const { error } = await supabase
+
+  // Fetch emails before unsubscribing so we can hash them (LGPD compliance)
+  const { data: rows } = await supabase
     .from('newsletter_subscriptions')
-    .update({ status: 'unsubscribed', unsubscribed_at: now })
+    .select('id, email')
     .in('id', parsed.data.ids)
     .eq('site_id', siteId)
     .neq('status', 'unsubscribed')
 
-  if (error) return { ok: false, error: error.message }
+  if (!rows?.length) return { ok: true }
+
+  // Anonymize emails to SHA-256 hash, matching unsubscribe_via_token RPC behavior
+  for (const row of rows) {
+    const emailHash = createHash('sha256').update(row.email.toLowerCase()).digest('hex')
+    await supabase
+      .from('newsletter_subscriptions')
+      .update({
+        status: 'unsubscribed',
+        unsubscribed_at: now,
+        email: emailHash,
+        ip: null,
+        user_agent: null,
+        locale: null,
+      })
+      .eq('id', row.id)
+  }
 
   revalidatePath('/cms/subscribers')
   return { ok: true }

@@ -245,8 +245,12 @@ export function ExportModal({ composition, canvasRef, linkCode, onExport, onClos
 
       let resultUrl: string | null = null
       if (saveToLibrary) {
-        const result = await onExport(blob, { format: exportFormat, scale: format === 'gif' ? 1 : scale, width: format === 'gif' ? w : outW, height: format === 'gif' ? h : outH })
-        resultUrl = result?.url ?? null
+        try {
+          const result = await onExport(blob, { format: exportFormat, scale: format === 'gif' ? 1 : scale, width: format === 'gif' ? w : outW, height: format === 'gif' ? h : outH })
+          resultUrl = result?.url ?? null
+        } catch {
+          // Library save failed — still proceed with download
+        }
       }
 
       setStep(4)
@@ -365,8 +369,8 @@ export function ExportModal({ composition, canvasRef, linkCode, onExport, onClos
 
         {/* ── body ── */}
         <div style={{ display: 'flex', gap: 22, padding: 22 }}>
-          {/* ── left: preview ── */}
-          <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          {/* ── left: preview (hidden in done/error states) ── */}
+          <div style={{ flexShrink: 0, display: (state === 'done' || state === 'error') ? 'none' : 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <div
               style={{
                 width: previewMaxW + 28, // 14px padding each side
@@ -419,7 +423,7 @@ export function ExportModal({ composition, canvasRef, linkCode, onExport, onClos
           </div>
 
           {/* ── right: controls ── */}
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 18 }}>
             {state === 'idle' && (
               <>
                 {/* ── Formato ── */}

@@ -3,6 +3,7 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { scoreVideo, computeBaseline } from '@/lib/youtube/scoring'
 import { getIsoWeek } from '@/lib/youtube/analytics-sync'
 import { buildNotification, buildGroupNotification, shouldAggregate } from '@/lib/youtube/notification-service'
+import { fanOutToSiteAdmins } from '@/lib/notifications/fan-out-to-admins'
 import type { VideoScoreInput } from '@/lib/youtube/scoring-types'
 import * as Sentry from '@sentry/nextjs'
 
@@ -175,14 +176,15 @@ export async function GET(req: NextRequest) {
       if (gradeDrops.length > 0) {
         if (shouldAggregate(gradeDrops.length)) {
           const group = buildGroupNotification('grade_drop', gradeDrops, weekIso)
-          await supabase.rpc('create_yt_notification', {
-            p_site_id: channel.site_id,
-            p_type: group.type,
-            p_priority: group.priority,
-            p_title: group.title,
-            p_message: group.message,
-            p_dedup_key: group.dedup_key,
-            p_action_href: group.action_href ?? null,
+          await fanOutToSiteAdmins({
+            siteId: channel.site_id,
+            domain: 'youtube',
+            type: `youtube.${group.type}`,
+            priority: group.priority,
+            title: group.title,
+            message: group.message,
+            dedupKey: group.dedup_key,
+            actionHref: group.action_href,
           })
         } else {
           for (const drop of gradeDrops) {
@@ -194,15 +196,18 @@ export async function GET(req: NextRequest) {
               newGrade: drop.newGrade,
               weekIso,
             })
-            await supabase.rpc('create_yt_notification', {
-              p_site_id: channel.site_id,
-              p_type: payload.type,
-              p_priority: payload.priority,
-              p_title: payload.title,
-              p_message: payload.message,
-              p_dedup_key: payload.dedup_key,
-              p_video_id: payload.video_id ?? null,
-              p_action_href: payload.action_href ?? null,
+            await fanOutToSiteAdmins({
+              siteId: channel.site_id,
+              domain: 'youtube',
+              type: `youtube.${payload.type}`,
+              priority: payload.priority,
+              title: payload.title,
+              message: payload.message,
+              dedupKey: payload.dedup_key,
+              payload: {
+                ...(payload.video_id ? { videoId: payload.video_id } : {}),
+              },
+              actionHref: payload.action_href,
             })
           }
         }

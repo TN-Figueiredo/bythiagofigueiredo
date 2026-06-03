@@ -25,12 +25,15 @@ export async function sendWelcomeEmail(opts: WelcomeEmailOpts): Promise<boolean>
   const domain = process.env.NEWSLETTER_FROM_DOMAIN ?? 'bythiagofigueiredo.com'
 
   try {
-    const html = await render(WelcomeEmail({ locale, newsletterNames, latestArticle, unsubscribeUrl, archiveUrl }))
+    const welcomeTemplate = WelcomeEmail({ locale, newsletterNames, latestArticle, unsubscribeUrl, archiveUrl })
+    const html = await render(welcomeTemplate)
+    const text = await render(welcomeTemplate, { plainText: true })
     await getEmailService().send({
       from: { name: 'Thiago Figueiredo', email: `no-reply@${domain}` },
       to,
       subject: isPt ? 'Bem-vindo à newsletter!' : 'Welcome to the newsletter!',
       html,
+      text,
       metadata: {
         headers: {
           'List-Unsubscribe': `<mailto:unsubscribe@${domain}?subject=unsubscribe>, <${unsubscribeUrl}>`,

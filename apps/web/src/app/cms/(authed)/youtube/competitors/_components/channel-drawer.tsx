@@ -576,35 +576,3 @@ function VideoCard({ video: v, onClick }: { video: CompetitorVideoView; onClick:
     </div>
   )
 }
-
-/* ── Sub-components (StatBox, VsPill) ── */
-
-function StatBox({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
-  return (
-    <div
-      className="rounded-lg p-3"
-      style={{
-        background: highlight ? 'var(--accent-soft, rgba(255,130,64,0.1))' : 'var(--surface)',
-        border: '1px solid var(--border)',
-      }}
-    >
-      <p className="eyebrow mb-1">{label}</p>
-      <p className="text-sm font-semibold mono" style={{ color: highlight ? 'var(--accent)' : 'var(--text)', fontSize: highlight ? '21px' : undefined }}>
-        {value}
-      </p>
-    </div>
-  )
-}
-
-function VsPill({ label, delta, format }: { label: string; delta: number; format: (n: number) => string }) {
-  const isPositive = delta > 0
-  const color = isPositive ? 'var(--green)' : delta < 0 ? 'var(--amber)' : 'var(--text-dim)'
-  return (
-    <span
-      className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium mono"
-      style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', color }}
-    >
-      {label}: {isPositive ? '+' : ''}{format(delta)}
-    </span>
-  )
-}

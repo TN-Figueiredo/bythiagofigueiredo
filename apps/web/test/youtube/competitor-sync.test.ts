@@ -10,8 +10,31 @@ vi.mock('@/lib/notifications/create', () => ({
 
 import { syncCompetitorChannel } from '@/lib/youtube/competitor-sync'
 
+/** Helper: creates a competitor_channels mock that supports the CAS lock chain (.update().eq().or().select()) */
+function competitorChannelsMock() {
+  const lockData = { data: [{ id: 'cc-1', sync_mode: 'incremental', full_sync_completed_at: null }] }
+  return {
+    update: () => ({
+      eq: () => {
+        const chain = Promise.resolve({})
+        ;(chain as Record<string, unknown>).or = () => ({ select: () => Promise.resolve(lockData) })
+        return chain
+      },
+    }),
+  }
+}
+
 describe('syncCompetitorChannel', () => {
   it('throws when channel API fails', async () => {
+    const mockSupabase = {
+      from: vi.fn((table: string) => {
+        if (table === 'competitor_channels') return competitorChannelsMock()
+        return { update: () => ({ eq: () => Promise.resolve({}) }) }
+      }),
+    }
+    const { getSupabaseServiceClient } = await import('@/lib/supabase/service')
+    ;(getSupabaseServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(mockSupabase)
+
     global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500 })
     await expect(
       syncCompetitorChannel({ id: 'cc-1', channel_id: 'UC_test', site_id: 'site-1' }, 'api-key'),
@@ -22,9 +45,7 @@ describe('syncCompetitorChannel', () => {
     const insertCalls: Record<string, unknown>[] = []
     const mockSupabase = {
       from: vi.fn((table: string) => {
-        if (table === 'competitor_channels') {
-          return { update: () => ({ eq: () => Promise.resolve({}) }) }
-        }
+        if (table === 'competitor_channels') return competitorChannelsMock()
         if (table === 'competitor_channel_snapshots') {
           return { upsert: () => Promise.resolve({}) }
         }
@@ -105,7 +126,7 @@ describe('syncCompetitorChannel', () => {
                   title: 'New Title',
                   description: 'desc',
                   thumbnails: { high: { url: 'http://old.jpg' } },
-                  publishedAt: '2026-01-01T00:00:00Z',
+                  publishedAt: new Date().toISOString(),
                 },
                 statistics: { viewCount: '200' },
               },
@@ -123,9 +144,7 @@ describe('syncCompetitorChannel', () => {
     const insertCalls: Record<string, unknown>[] = []
     const mockSupabase = {
       from: vi.fn((table: string) => {
-        if (table === 'competitor_channels') {
-          return { update: () => ({ eq: () => Promise.resolve({}) }) }
-        }
+        if (table === 'competitor_channels') return competitorChannelsMock()
         if (table === 'competitor_channel_snapshots') {
           return { upsert: () => Promise.resolve({}) }
         }
@@ -221,9 +240,7 @@ describe('syncCompetitorChannel', () => {
 
     const mockSupabase = {
       from: vi.fn((table: string) => {
-        if (table === 'competitor_channels') {
-          return { update: () => ({ eq: () => Promise.resolve({}) }) }
-        }
+        if (table === 'competitor_channels') return competitorChannelsMock()
         if (table === 'competitor_channel_snapshots') {
           return { upsert: () => Promise.resolve({}) }
         }
@@ -304,7 +321,7 @@ describe('syncCompetitorChannel', () => {
                   title: 'Same Title',
                   description: desc,
                   thumbnails: { high: { url: 'http://new.jpg' } },
-                  publishedAt: '2026-01-01T00:00:00Z',
+                  publishedAt: new Date().toISOString(),
                 },
                 statistics: { viewCount: '200' },
               },
@@ -330,9 +347,7 @@ describe('syncCompetitorChannel', () => {
 
     const mockSupabase = {
       from: vi.fn((table: string) => {
-        if (table === 'competitor_channels') {
-          return { update: () => ({ eq: () => Promise.resolve({}) }) }
-        }
+        if (table === 'competitor_channels') return competitorChannelsMock()
         if (table === 'competitor_channel_snapshots') {
           return { upsert: () => Promise.resolve({}) }
         }
@@ -413,7 +428,7 @@ describe('syncCompetitorChannel', () => {
                   title: 'New Title',
                   description: desc,
                   thumbnails: { high: { url: 'http://new-thumb.jpg' } },
-                  publishedAt: '2026-01-01T00:00:00Z',
+                  publishedAt: new Date().toISOString(),
                 },
                 statistics: { viewCount: '300' },
               },
@@ -431,6 +446,15 @@ describe('syncCompetitorChannel', () => {
   })
 
   it('throws when channel API returns non-OK (403)', async () => {
+    const mockSupabase = {
+      from: vi.fn((table: string) => {
+        if (table === 'competitor_channels') return competitorChannelsMock()
+        return { update: () => ({ eq: () => Promise.resolve({}) }) }
+      }),
+    }
+    const { getSupabaseServiceClient } = await import('@/lib/supabase/service')
+    ;(getSupabaseServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(mockSupabase)
+
     global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 403 })
     await expect(
       syncCompetitorChannel({ id: 'cc-1', channel_id: 'UC_test', site_id: 'site-1' }, 'api-key'),
@@ -441,9 +465,7 @@ describe('syncCompetitorChannel', () => {
     const upsertSpy = vi.fn().mockResolvedValue({ error: null })
     const mockSupabase = {
       from: vi.fn((table: string) => {
-        if (table === 'competitor_channels') {
-          return { update: () => ({ eq: () => Promise.resolve({}) }) }
-        }
+        if (table === 'competitor_channels') return competitorChannelsMock()
         if (table === 'competitor_channel_snapshots') {
           return { upsert: upsertSpy }
         }
@@ -485,15 +507,12 @@ describe('syncCompetitorChannel', () => {
     expect(opts.onConflict).toBe('competitor_channel_id,snapshot_date')
   })
 
-  it('logs snapshot upsert error without breaking sync', async () => {
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+  it('silently handles snapshot upsert error without breaking sync', async () => {
     const mockSupabase = {
       from: vi.fn((table: string) => {
-        if (table === 'competitor_channels') {
-          return { update: () => ({ eq: () => Promise.resolve({}) }) }
-        }
+        if (table === 'competitor_channels') return competitorChannelsMock()
         if (table === 'competitor_channel_snapshots') {
-          return { upsert: () => Promise.resolve({ error: { message: 'unique violation' } }) }
+          return { upsert: () => { throw new Error('unique violation') } }
         }
         return { update: () => ({ eq: () => Promise.resolve({}) }) }
       }),
@@ -522,22 +541,15 @@ describe('syncCompetitorChannel', () => {
         json: () => Promise.resolve({ items: [] }),
       })
 
-    // Should not throw
+    // Should not throw — error is silently caught
     const result = await syncCompetitorChannel({ id: 'cc-1', channel_id: 'UC_test', site_id: 'site-1' }, 'key')
     expect(result).toEqual({ videosChecked: 0, changesDetected: 0 })
-    expect(consoleSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Snapshot upsert failed'),
-      'unique violation',
-    )
-    consoleSpy.mockRestore()
   })
 
   it('handles empty video list gracefully', async () => {
     const mockSupabase = {
       from: vi.fn((table: string) => {
-        if (table === 'competitor_channels') {
-          return { update: () => ({ eq: () => Promise.resolve({}) }) }
-        }
+        if (table === 'competitor_channels') return competitorChannelsMock()
         if (table === 'competitor_channel_snapshots') {
           return { upsert: () => Promise.resolve({}) }
         }

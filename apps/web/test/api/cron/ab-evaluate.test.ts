@@ -27,7 +27,7 @@ vi.mock('@/lib/youtube/ab-statistics', () => ({
 }))
 
 vi.mock('@/lib/youtube/ab-youtube', () => ({
-  setThumbnail: vi.fn().mockResolvedValue(undefined),
+  setThumbnail: vi.fn().mockResolvedValue({ highUrl: 'https://i.ytimg.com/vi/test/hqdefault.jpg' }),
   fetchVariantImageBuffer: vi.fn().mockResolvedValue({
     buffer: Buffer.from('img'),
     contentType: 'image/png',

@@ -29,18 +29,22 @@ export function QrCardBuilderPage({ link, shortUrl, initialComposition, template
   const router = useRouter()
 
   const handleSave = useCallback(async (composition: CardComposition) => {
-    if (cardId) {
-      const result = await updateQrCard(cardId, link.id, { composition })
-      if (!result.ok) {
-        console.error('[QR Card] updateQrCard failed:', result.error)
+    try {
+      if (cardId) {
+        const result = await updateQrCard(cardId, link.id, { composition })
+        if (!result.ok) {
+          console.error('[QR Card] updateQrCard failed:', result.error)
+        }
+      } else {
+        const result = await createQrCard(link.id, cardName, composition)
+        if (result.ok) {
+          router.push(`/cms/links/${link.id}/qr?card=${result.cardId}`)
+          return
+        }
+        console.error('[QR Card] createQrCard failed:', result.error)
       }
-    } else {
-      const result = await createQrCard(link.id, cardName, composition)
-      if (result.ok) {
-        router.push(`/cms/links/${link.id}/qr?card=${result.cardId}`)
-        return
-      }
-      console.error('[QR Card] createQrCard failed:', result.error)
+    } catch (err) {
+      console.error('[QR Card] handleSave threw:', err)
     }
   }, [link.id, cardId, cardName])
 
@@ -49,40 +53,71 @@ export function QrCardBuilderPage({ link, shortUrl, initialComposition, template
     fd.append('file', blob, `qr-card.${metadata.format}`)
     fd.append('format', metadata.format)
     const result = await exportQrCard(link.id, fd)
-    if (result.ok && cardId) {
-      await updateQrCard(cardId, link.id, { previewUrl: result.url })
+    if (!result.ok) {
+      console.error('[QR Card] exportQrCard failed:', result.error)
+      return null
     }
-    return result.ok ? { url: result.url } : null
+    if (cardId) {
+      updateQrCard(cardId, link.id, { previewUrl: result.url }).catch(() => {})
+    }
+    return { url: result.url }
   }, [link.id, cardId])
 
   const handleSaveTemplate = useCallback(async (name: string, composition: CardComposition, thumbnail: Blob) => {
-    const fd = new FormData()
-    fd.append('thumbnail', thumbnail, 'thumbnail.png')
-    await saveQrTemplate(name, composition, fd)
+    try {
+      const fd = new FormData()
+      fd.append('thumbnail', thumbnail, 'thumbnail.png')
+      const result = await saveQrTemplate(name, composition, fd)
+      if (!result.ok) {
+        console.error('[QR Card] saveQrTemplate failed:', result.error)
+      }
+    } catch (err) {
+      console.error('[QR Card] handleSaveTemplate threw:', err)
+    }
   }, [])
 
   const handleDeleteTemplate = useCallback(async (id: string) => {
-    await deleteQrTemplate(id)
+    try {
+      const result = await deleteQrTemplate(id)
+      if (!result.ok) {
+        console.error('[QR Card] deleteQrTemplate failed:', result.error)
+      }
+    } catch (err) {
+      console.error('[QR Card] handleDeleteTemplate threw:', err)
+    }
   }, [])
 
   const handleImageUpload = useCallback(async (file: File) => {
-    const fd = new FormData()
-    fd.append('file', file)
-    const result = await uploadQrImage(fd)
-    if (!result.ok) {
-      console.error('[QR Card] uploadQrImage failed:', result.error)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const result = await uploadQrImage(fd)
+      if (!result.ok) {
+        console.error('[QR Card] uploadQrImage failed:', result.error)
+      }
+      return result.ok ? result.url : ''
+    } catch (err) {
+      console.error('[QR Card] uploadQrImage threw:', err)
+      return ''
     }
-    return result.ok ? result.url : ''
   }, [])
 
   const handleAddPreset = useCallback(async (name: string, width: number, height: number) => {
-    await createFormatPreset(name, width, height, 'qr-card')
-    router.refresh()
+    try {
+      await createFormatPreset(name, width, height, 'qr-card')
+      router.refresh()
+    } catch (err) {
+      console.error('[QR Card] handleAddPreset threw:', err)
+    }
   }, [router])
 
   const handleDeletePreset = useCallback(async (id: string) => {
-    await deleteFormatPreset(id)
-    router.refresh()
+    try {
+      await deleteFormatPreset(id)
+      router.refresh()
+    } catch (err) {
+      console.error('[QR Card] handleDeletePreset threw:', err)
+    }
   }, [router])
 
   return (

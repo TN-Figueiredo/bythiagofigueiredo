@@ -1,5 +1,18 @@
 import * as Sentry from '@sentry/nextjs'
 
+export function normalizeYouTubeThumbnailUrl(url: string): string {
+  try {
+    const u = new URL(url)
+    if (u.hostname.endsWith('.ytimg.com')) {
+      u.hostname = 'i.ytimg.com'
+    }
+    u.search = ''
+    return u.toString().replace(/\/$/, '')
+  } catch {
+    return url.split('?')[0] ?? url
+  }
+}
+
 export async function checkDrift(
   testId: string,
   youtubeVideoId: string,
@@ -19,14 +32,13 @@ export async function checkDrift(
     const currentUrl = data.items?.[0]?.snippet?.thumbnails?.high?.url ?? null
     if (!currentUrl) return { drifted: false }
 
-    // Simple URL comparison (P7.18 notes pHash as future enhancement)
-    // Normalize: strip query params for comparison
-    const normalize = (url: string) => url.split('?')[0]
-    const drifted = normalize(currentUrl) !== normalize(expectedThumbnailUrl)
+    const normalizedCurrent = normalizeYouTubeThumbnailUrl(currentUrl)
+    const normalizedExpected = normalizeYouTubeThumbnailUrl(expectedThumbnailUrl)
+    const drifted = normalizedCurrent !== normalizedExpected
 
     Sentry.addBreadcrumb({
       category: 'ab-drift',
-      message: `Drift check: test=${testId}, expected=${normalize(expectedThumbnailUrl)}, current=${normalize(currentUrl)}, drifted=${drifted}`,
+      message: `Drift check: test=${testId}, expected=${normalizedExpected}, current=${normalizedCurrent}, drifted=${drifted}`,
       level: drifted ? 'warning' : 'info',
     })
 

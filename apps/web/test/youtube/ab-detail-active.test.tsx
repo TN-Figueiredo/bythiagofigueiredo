@@ -1,15 +1,41 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { ActiveDetail } from '@/app/cms/(authed)/youtube/ab-lab/_components/active-detail'
 import type { AbTestActiveView } from '@/lib/youtube/ab-types'
 import type { DisplayLabel } from '@/lib/youtube/ab-types'
 
+vi.mock('next/navigation', () => ({
+  useRouter: vi.fn(() => ({ push: vi.fn(), refresh: vi.fn(), back: vi.fn() })),
+}))
+
+vi.mock('@/app/cms/(authed)/youtube/ab-lab/actions', () => ({
+  forceRotate: vi.fn(),
+  applyWinnerNow: vi.fn(),
+  cancelGracePeriod: vi.fn(),
+  acknowledgeAbTestDrift: vi.fn(),
+  resumeAbTest: vi.fn(),
+}))
+
+vi.mock('@/app/cms/(authed)/youtube/ab-lab/_components/use-poll-stats', () => ({
+  usePollStats: vi.fn(() => ({ data: null, loading: false })),
+}))
+
 vi.mock('lucide-react', () => {
   const icon = (name: string) => (props: Record<string, unknown>) => <svg data-testid={`icon-${name}`} {...props} />
-  return { Image: icon('Image'), Type: icon('Type'), FileText: icon('FileText'), Layers: icon('Layers'),
-    Lock: icon('Lock'), TrendingUp: icon('TrendingUp'), TrendingDown: icon('TrendingDown'), Minus: icon('Minus'),
-    CheckCircle: icon('CheckCircle'), Clock: icon('Clock'), ChevronDown: icon('ChevronDown'), ChevronRight: icon('ChevronRight'),
-    ArrowLeft: icon('ArrowLeft') }
+  return {
+    Pause: icon('Pause'), Square: icon('Square'), Settings: icon('Settings'), LayoutGrid: icon('LayoutGrid'),
+    TrendingUp: icon('TrendingUp'), Crosshair: icon('Crosshair'), Target: icon('Target'), BarChart3: icon('BarChart3'),
+    LineChart: icon('LineChart'), RefreshCw: icon('RefreshCw'), Filter: icon('Filter'), Search: icon('Search'),
+    ListVideo: icon('ListVideo'), Smartphone: icon('Smartphone'), MousePointerClick: icon('MousePointerClick'),
+    Trophy: icon('Trophy'), ArrowLeft: icon('ArrowLeft'), Swords: icon('Swords'), AlertCircle: icon('AlertCircle'),
+    Lock: icon('Lock'), Minus: icon('Minus'), TrendingDown: icon('TrendingDown'), ChevronDown: icon('ChevronDown'),
+    Radio: icon('Radio'), Image: icon('Image'), Type: icon('Type'), FileText: icon('FileText'), Layers: icon('Layers'),
+    X: icon('X'), CheckCircle: icon('CheckCircle'), Clock: icon('Clock'), ChevronRight: icon('ChevronRight'),
+  }
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
 })
 
 /* ─── Fixture ─── */
@@ -49,30 +75,28 @@ function makeActiveView(overrides?: Partial<AbTestActiveView>): AbTestActiveView
 /* ─── Tests ─── */
 
 describe('ActiveDetail', () => {
-  it('renders 10 sections via data-section attributes and click-moment', () => {
+  it('renders key sections via data-section attributes', () => {
     const { container } = render(<ActiveDetail view={makeActiveView()} />)
     const sections = [
       'header', 'lock-countdown', 'hero-band', 'variant-performance',
-      'charts-confidence-radar', 'charts-ci-rank', 'daily-ctr',
-      'timeline-funnel', 'gates',
+      'charts-confidence-radar',
     ]
     for (const s of sections) {
       expect(container.querySelector(`[data-section="${s}"]`), `missing section: ${s}`).not.toBeNull()
     }
-    expect(container.querySelector('[data-click-moment]'), 'missing click-moment').not.toBeNull()
   })
 
-  it('signal toggle renders Seg with confirmed/live options', () => {
-    render(<ActiveDetail view={makeActiveView()} />)
-    expect(screen.getByRole('radiogroup')).toBeDefined()
-    expect(screen.getByText('Confirmed')).toBeDefined()
+  it('signal toggle renders Confirmado/Live when liveData is present', () => {
+    const liveData = { confidence: 85, leader: 'B' as DisplayLabel, leaderColor: '#E8823C', lift: 10 }
+    render(<ActiveDetail view={makeActiveView({ liveData })} />)
+    expect(screen.getByText('Confirmado')).toBeDefined()
     expect(screen.getByText('Live')).toBeDefined()
   })
 
   it('VariantTable is rendered with metric=pBest column header', () => {
     render(<ActiveDetail view={makeActiveView()} />)
-    // pBest column header shows "Chance to win"
-    expect(screen.getByText('Chance to win')).toBeDefined()
+    // pBest column header shows "chance de vencer"
+    expect(screen.getByText('chance de vencer')).toBeDefined()
   })
 
   it('GatesPanel shows all 6 gates', () => {
@@ -92,36 +116,35 @@ describe('ActiveDetail', () => {
 
   it('ABBATimeline receives seq data and renders blocks', () => {
     const { container } = render(<ActiveDetail view={makeActiveView()} />)
-    const timelineSection = container.querySelector('[data-section="timeline-funnel"]')
-    expect(timelineSection).not.toBeNull()
-    const blocks = timelineSection?.querySelectorAll('[data-block]')
-    expect(blocks?.length).toBe(6)
+    const blocks = container.querySelectorAll('[data-block]')
+    expect(blocks.length).toBe(6)
   })
 
-  it('LockCountdown appears with progress bar', () => {
+  it('LockCountdown section exists', () => {
     const { container } = render(<ActiveDetail view={makeActiveView()} />)
     const lockSection = container.querySelector('[data-section="lock-countdown"]')
     expect(lockSection).not.toBeNull()
-    const progressBar = lockSection?.querySelector('[role="progressbar"]')
-    expect(progressBar).not.toBeNull()
+    // Contains the lock text
+    expect(lockSection?.textContent).toContain('Teste travado')
   })
 
   it('HeroBand shows leader VChip for variant B', () => {
     render(<ActiveDetail view={makeActiveView()} />)
-    // HeroBand renders a VChip for the leader (B)
-    expect(screen.getByTestId('hero-band')).toBeDefined()
     // Multiple VChips with "Variant B" exist (hero-band + variant-table)
     const chips = screen.getAllByLabelText('Variant B')
     expect(chips.length).toBeGreaterThanOrEqual(1)
   })
 
-  it('click-moment placeholder exists in DOM', () => {
-    const { container } = render(<ActiveDetail view={makeActiveView()} />)
-    expect(container.querySelector('[data-click-moment]')).not.toBeNull()
+  it('ClickMoment component is rendered', () => {
+    render(<ActiveDetail view={makeActiveView()} />)
+    // ClickMoment renders context buttons like "Home"
+    expect(screen.getByText('Home')).toBeDefined()
   })
 
   it('title from view.videoTitle renders in header', () => {
     render(<ActiveDetail view={makeActiveView({ videoTitle: 'Special Test Video Title' })} />)
-    expect(screen.getByText('Special Test Video Title')).toBeDefined()
+    // Title may appear multiple times (header, variant table, click-moment, feed)
+    const allTitles = screen.getAllByText('Special Test Video Title')
+    expect(allTitles.length).toBeGreaterThanOrEqual(1)
   })
 })

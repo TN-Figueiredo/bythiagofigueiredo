@@ -1,5 +1,6 @@
 'use server'
 
+import * as Sentry from '@sentry/nextjs'
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { put } from '@vercel/blob'
 import { getSiteContext } from '@/lib/cms/site-context'
@@ -124,7 +125,7 @@ export async function createAbTest(
   }
 
   let immutableOriginalUrl: string | null = video.thumbnail_hq_url ?? null
-  if (video.thumbnail_hq_url?.includes('ytimg.com')) {
+  if (video.thumbnail_hq_url && /\.(ytimg|ggpht|googleusercontent)\.com/.test(video.thumbnail_hq_url)) {
     try {
       immutableOriginalUrl = await preserveOriginalThumbnail(video.thumbnail_hq_url)
     } catch {
@@ -759,7 +760,7 @@ export async function resumeAbTest(
 
   const { data: test, error: testError } = await supabase
     .from('ab_tests')
-    .select('id, site_id, status, status_note, drift_acknowledged_at, youtube_video_id')
+    .select('id, site_id, status, status_note, drift_acknowledged_at, youtube_video_id, test_type, original_title, original_description, config')
     .eq('id', testId)
     .eq('site_id', siteId)
     .single()
@@ -772,7 +773,7 @@ export async function resumeAbTest(
 
   const { data: variants } = await supabase
     .from('ab_test_variants')
-    .select('id, label, is_original, blob_url, sort_order')
+    .select('id, label, is_original, blob_url, title_text, description_text, sort_order')
     .eq('test_id', testId)
     .order('sort_order', { ascending: true })
 
@@ -786,22 +787,35 @@ export async function resumeAbTest(
     .eq('test_id', testId)
 
   const nextCycleNumber = totalCycleCount ?? 0
-  const nextIndex = getVariantForCycle(variants.length, nextCycleNumber)
+  const nextIndex = getNextVariantIndex(test.config?.rotation_pattern ?? 'abba', variants.length, nextCycleNumber)
   if (nextIndex < 0 || nextIndex >= variants.length) {
     return { ok: false, error: 'Invalid variant rotation index' }
   }
   const nextVariant = variants[nextIndex] as AbTestVariantRow
 
+  let appliedMeta: import('@/lib/youtube/ab-types').AppliedMetadata = {}
   try {
     const channelAccountId = await resolveChannelAccountId(supabase, test.youtube_video_id as string)
     const { accessToken } = await ensureFreshToken(siteId, 'youtube', channelAccountId)
     const youtubeVideoId = await resolveYouTubeVideoId(supabase, test.youtube_video_id as string)
     if (!youtubeVideoId) return { ok: false, error: 'YouTube video ID not found' }
 
-    if (nextVariant.blob_url) {
-      const { buffer, contentType } = await fetchVariantImageBuffer(nextVariant.blob_url)
-      await setThumbnail(youtubeVideoId, buffer, contentType, accessToken)
-    }
+    const testType = (test.test_type ?? 'thumbnail') as 'thumbnail' | 'title' | 'description' | 'combo'
+    const applyResult = await applyVariantToYouTube({
+      youtubeVideoId,
+      accessToken,
+      testType,
+      variant: {
+        id: nextVariant.id,
+        blob_url: nextVariant.blob_url,
+        title_text: nextVariant.title_text,
+        description_text: nextVariant.description_text,
+      },
+      originalTitle: test.original_title,
+      originalDescription: test.original_description,
+    })
+    if (!applyResult.ok) throw new Error(applyResult.error ?? 'apply failed')
+    appliedMeta = applyResult.meta
   } catch (e) {
     return { ok: false, error: (e as Error).message }
   }
@@ -813,6 +827,7 @@ export async function resumeAbTest(
     variant_id: nextVariant.id,
     cycle_number: nextCycleNumber,
     started_at: now,
+    applied_metadata: Object.keys(appliedMeta).length ? appliedMeta : null,
   })
 
   if (cycleError) return { ok: false, error: cycleError.message }
@@ -1370,13 +1385,29 @@ export async function cancelGracePeriod(
   // Guard: ensure test is actually in grace period
   const { data: test } = await supabase
     .from('ab_tests')
-    .select('id, status, grace_expires_at')
+    .select('id, status, grace_expires_at, youtube_video_id, original_thumbnail_url')
     .eq('id', testId)
     .eq('site_id', siteId)
     .single()
 
   if (!test || !test.grace_expires_at || test.status !== 'active') {
     return { ok: false, error: 'Test not in grace period' }
+  }
+
+  // Revert thumbnail to original before completing (best-effort)
+  try {
+    const revertUrl = test.original_thumbnail_url as string | null
+    if (revertUrl?.includes('blob.vercel-storage.com')) {
+      const channelAccountId = await resolveChannelAccountId(supabase, test.youtube_video_id as string)
+      const { accessToken } = await ensureFreshToken(siteId, 'youtube', channelAccountId)
+      const youtubeVideoId = await resolveYouTubeVideoId(supabase, test.youtube_video_id as string)
+      if (youtubeVideoId) {
+        const { buffer, contentType } = await fetchVariantImageBuffer(revertUrl)
+        await setThumbnail(youtubeVideoId, buffer, contentType, accessToken)
+      }
+    }
+  } catch (revertErr) {
+    Sentry.captureException(revertErr, { extra: { context: 'cancelGracePeriod-revert', testId } })
   }
 
   await supabase
@@ -1694,7 +1725,7 @@ export async function batchStartTests(
     if (!video) continue
 
     let batchImmutableUrl: string | null = video.thumbnail_hq_url ?? null
-    if (video.thumbnail_hq_url?.includes('ytimg.com')) {
+    if (video.thumbnail_hq_url && /\.(ytimg|ggpht|googleusercontent)\.com/.test(video.thumbnail_hq_url)) {
       try {
         batchImmutableUrl = await preserveOriginalThumbnail(video.thumbnail_hq_url)
       } catch {

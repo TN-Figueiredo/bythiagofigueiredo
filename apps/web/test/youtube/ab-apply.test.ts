@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
 
 vi.mock('@/lib/youtube/ab-youtube', () => ({
-  setThumbnail: vi.fn().mockResolvedValue(undefined),
-  fetchVariantImageBuffer: vi.fn().mockResolvedValue(Buffer.from('img')),
+  setThumbnail: vi.fn().mockResolvedValue({ highUrl: 'https://i.ytimg.com/vi/test/hqdefault.jpg' }),
+  fetchVariantImageBuffer: vi.fn().mockResolvedValue({ buffer: Buffer.from('img'), contentType: 'image/jpeg' }),
 }))
 vi.mock('@/lib/youtube/ab-metadata', () => ({
   updateVideoMetadata: vi.fn().mockResolvedValue(undefined),
@@ -56,6 +56,25 @@ describe('applyVariantToYouTube', () => {
     })
     expect(result.ok).toBe(false)
     expect(result.error).toContain('quota exceeded')
+  })
+
+  it('captures youtube_thumbnail_url from setThumbnail response', async () => {
+    const result = await applyVariantToYouTube({
+      youtubeVideoId: 'YT123', accessToken: 'tok',
+      testType: 'thumbnail', variant: { blob_url: 'https://blob/img.jpg' },
+    })
+    expect(result.ok).toBe(true)
+    expect(result.meta.youtube_thumbnail_url).toBe('https://i.ytimg.com/vi/test/hqdefault.jpg')
+  })
+
+  it('does not set youtube_thumbnail_url when highUrl is undefined', async () => {
+    ;(setThumbnail as any).mockResolvedValueOnce({ highUrl: undefined })
+    const result = await applyVariantToYouTube({
+      youtubeVideoId: 'YT123', accessToken: 'tok',
+      testType: 'thumbnail', variant: { blob_url: 'https://blob/img.jpg' },
+    })
+    expect(result.ok).toBe(true)
+    expect(result.meta.youtube_thumbnail_url).toBeUndefined()
   })
 
   it('skips thumbnail when blob_url is null', async () => {

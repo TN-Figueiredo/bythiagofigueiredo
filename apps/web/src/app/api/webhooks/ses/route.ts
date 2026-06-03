@@ -4,6 +4,7 @@ import { revalidateTag } from 'next/cache'
 import { SesWebhookProcessor } from '@tn-figueiredo/email/webhooks'
 import type { NormalizedWebhookEvent } from '@tn-figueiredo/email/webhooks'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { getServerEnv } from '@/lib/env'
 import * as Sentry from '@sentry/nextjs'
 
 const SNS_CERT_URL_RE = /^https:\/\/sns\.[a-z0-9-]+\.amazonaws\.com\//
@@ -69,6 +70,14 @@ export async function POST(req: Request): Promise<Response> {
   const valid = await verifySnsSignature(body).catch(() => false)
   if (!valid && body.Type !== 'SubscriptionConfirmation') {
     return NextResponse.json({ error: 'invalid_signature' }, { status: 401 })
+  }
+
+  // Validate SNS TopicArn for Notification messages when allowlist is configured
+  if (body.Type === 'Notification') {
+    const expectedArn = getServerEnv().SNS_EXPECTED_TOPIC_ARN
+    if (expectedArn && body.TopicArn !== expectedArn) {
+      return NextResponse.json({ error: 'topic_arn_mismatch' }, { status: 403 })
+    }
   }
 
   if (body.Type === 'SubscriptionConfirmation') {

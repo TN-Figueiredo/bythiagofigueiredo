@@ -9,10 +9,13 @@ import * as Sentry from '@sentry/nextjs'
 import { rewriteLinksForTracking, rewriteLinksUnified } from '../../../../../lib/newsletter/link-tracking'
 import { sanitizeForEmail } from '../../../../../lib/newsletter/email-sanitizer'
 
+export const maxDuration = 300
+
 const JOB = 'send-scheduled-newsletters'
 const LOCK_KEY = 'cron:send-newsletters'
 const BATCH_SIZE = 100
 const THROTTLE_MS = 50
+const SUBSCRIBER_PAGE_SIZE = 500
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms))
@@ -29,6 +32,30 @@ export async function POST(req: Request): Promise<Response> {
   const runId = newRunId()
 
   return withCronLock(supabase, LOCK_KEY, runId, JOB, async () => {
+    // ── Stuck-edition recovery ───────────────────────────────────────────
+    // Editions stuck in 'sending' for >2h are likely from a crashed run.
+    // Reset them to 'scheduled' so they get retried on the next cycle.
+    try {
+      const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
+      const { data: stuck } = await supabase
+        .from('newsletter_editions')
+        .update({ status: 'scheduled' })
+        .eq('status', 'sending')
+        .lt('updated_at', twoHoursAgo)
+        .select('id')
+      if (stuck?.length) {
+        Sentry.captureMessage(`Recovered ${stuck.length} stuck edition(s)`, {
+          level: 'warning',
+          tags: { component: 'cron', job: JOB },
+          extra: { editionIds: stuck.map((e) => e.id) },
+        })
+      }
+    } catch (err) {
+      Sentry.captureException(err, {
+        tags: { component: 'cron', job: JOB, phase: 'stuck_recovery' },
+      })
+    }
+
     const { data: editions } = await supabase
       .from('newsletter_editions')
       .select('id, newsletter_type_id, subject, preheader, content_html, content_mdx, segment, site_id')
@@ -74,14 +101,25 @@ async function sendEdition(
 
   if (!claimed?.length) return 0
 
-  const { data: subscribers } = await supabase
-    .from('newsletter_subscriptions')
-    .select('email, locale')
-    .eq('newsletter_id', edition.newsletter_type_id)
-    .eq('site_id', edition.site_id)
-    .eq('status', 'confirmed')
+  // Paginated fetch — Supabase silently truncates at max_rows (1000).
+  const subscribers: Array<{ email: string; locale: string | null }> = []
+  let offset = 0
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const { data: page } = await supabase
+      .from('newsletter_subscriptions')
+      .select('email, locale')
+      .eq('newsletter_id', edition.newsletter_type_id)
+      .eq('site_id', edition.site_id)
+      .eq('status', 'confirmed')
+      .range(offset, offset + SUBSCRIBER_PAGE_SIZE - 1)
+    if (!page?.length) break
+    subscribers.push(...page)
+    if (page.length < SUBSCRIBER_PAGE_SIZE) break
+    offset += SUBSCRIBER_PAGE_SIZE
+  }
 
-  if (!subscribers?.length) {
+  if (!subscribers.length) {
     await supabase.from('newsletter_editions').update({
       status: 'sent',
       sent_at: new Date().toISOString(),
@@ -101,16 +139,31 @@ async function sendEdition(
     status: 'queued',
   }))
 
-  await supabase.from('newsletter_sends').upsert(sendRows, {
-    onConflict: 'edition_id,subscriber_email',
-    ignoreDuplicates: true,
-  })
+  // Chunk upsert into pages of 500 to avoid PostgREST body-size limits.
+  const UPSERT_PAGE = 500
+  for (let u = 0; u < sendRows.length; u += UPSERT_PAGE) {
+    await supabase.from('newsletter_sends').upsert(
+      sendRows.slice(u, u + UPSERT_PAGE),
+      { onConflict: 'edition_id,subscriber_email', ignoreDuplicates: true },
+    )
+  }
 
-  const { data: unsent } = await supabase
-    .from('newsletter_sends')
-    .select('id, subscriber_email')
-    .eq('edition_id', edition.id)
-    .is('provider_message_id', null)
+  // Paginated fetch of unsent rows — Supabase silently truncates at max_rows (1000).
+  const unsent: Array<{ id: string; subscriber_email: string }> = []
+  let unsentOffset = 0
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const { data: unsentPage } = await supabase
+      .from('newsletter_sends')
+      .select('id, subscriber_email')
+      .eq('edition_id', edition.id)
+      .is('provider_message_id', null)
+      .range(unsentOffset, unsentOffset + SUBSCRIBER_PAGE_SIZE - 1)
+    if (!unsentPage?.length) break
+    unsent.push(...unsentPage)
+    if (unsentPage.length < SUBSCRIBER_PAGE_SIZE) break
+    unsentOffset += SUBSCRIBER_PAGE_SIZE
+  }
 
   if (!unsent?.length) {
     await supabase.from('newsletter_editions').update({
@@ -159,6 +212,43 @@ async function sendEdition(
       .upsert(tokenRows, { onConflict: 'site_id,email', ignoreDuplicates: false })
   }
 
+  // ── Pre-render template ONCE with placeholder tokens ──────────────────
+  // sanitizeForEmail + Newsletter + render produce identical output for every
+  // subscriber (only unsubscribeUrl and archiveUrl differ). Doing this once
+  // changes O(n) renders to O(1), raising the ceiling from ~750 to ~5000+.
+  const UNSUB_PLACEHOLDER = '__UNSUB_URL__'
+  const ARCHIVE_PLACEHOLDER = '__ARCHIVE_URL__'
+
+  const sanitizedContent = sanitizeForEmail(
+    edition.content_html ?? `<p>${edition.content_mdx ?? edition.subject}</p>`,
+    typeColor,
+  )
+
+  const newsletterTemplate = Newsletter({
+    subject: edition.subject,
+    preheader: edition.preheader ?? undefined,
+    contentHtml: sanitizedContent,
+    typeName,
+    typeColor,
+    unsubscribeUrl: UNSUB_PLACEHOLDER,
+    archiveUrl: ARCHIVE_PLACEHOLDER,
+  })
+  let preRenderedHtml = await render(newsletterTemplate)
+  const preRenderedText = await render(newsletterTemplate, { plainText: true })
+
+  // Apply link rewriting ONCE on the pre-rendered HTML (with placeholder unsub URL).
+  if (shortDomain) {
+    const rewriteResult = await rewriteLinksUnified({
+      html: preRenderedHtml,
+      supabase,
+      siteId: edition.site_id,
+      editionId: edition.id,
+      shortDomain,
+      campaignSlug,
+    })
+    preRenderedHtml = rewriteResult.html
+  }
+
   const emailService = getEmailService()
   let sentCount = 0
   let errorCount = 0
@@ -174,37 +264,16 @@ async function sendEdition(
         const localePrefix = subscriberLocale === 'pt-BR' ? '/pt' : ''
         const archiveUrl = `${appUrl}${localePrefix}/newsletter/archive/${edition.id}`
 
-        // Sanitize and inline-style content before rendering.
-        const sanitizedContent = sanitizeForEmail(
-          edition.content_html ?? `<p>${edition.content_mdx ?? edition.subject}</p>`,
-          typeColor,
-        )
+        // Fast per-subscriber string replacement instead of full render.
+        let html = preRenderedHtml
+          .replace(/__UNSUB_URL__/g, unsubscribeUrl)
+          .replace(/__ARCHIVE_URL__/g, archiveUrl)
+        const text = preRenderedText
+          .replace(/__UNSUB_URL__/g, unsubscribeUrl)
+          .replace(/__ARCHIVE_URL__/g, archiveUrl)
 
-        // Render the React Email template to HTML.
-        let html = await render(Newsletter({
-          subject: edition.subject,
-          preheader: edition.preheader ?? undefined,
-          contentHtml: sanitizedContent,
-          typeName,
-          typeColor,
-          unsubscribeUrl,
-          archiveUrl,
-          locale: subscriberLocale ?? undefined,
-        }))
-
-        // Apply link rewriting BEFORE sending.
-        if (shortDomain) {
-          const rewriteResult = await rewriteLinksUnified({
-            html,
-            supabase,
-            siteId: edition.site_id,
-            editionId: edition.id,
-            shortDomain,
-            campaignSlug,
-          })
-          html = rewriteResult.html
-        } else {
-          // Legacy path: inline base64-encoded click-tracking URL
+        // Legacy path: per-subscriber click-tracking rewrite (only when no shortDomain).
+        if (!shortDomain) {
           html = rewriteLinksForTracking(html, send.id, appUrl)
         }
 
@@ -213,6 +282,7 @@ async function sendEdition(
           to: send.subscriber_email,
           subject: edition.subject,
           html,
+          text,
           metadata: {
             configurationSet: process.env.SES_MARKETING_CONFIG_SET ?? 'bythiago-marketing',
             headers: {
@@ -247,10 +317,18 @@ async function sendEdition(
     }
   }
 
+  // Query actual sent count from DB — after crash-resume sentCount only
+  // reflects the current run, so we ask the DB for the true total.
+  const { count: totalSentCount } = await supabase
+    .from('newsletter_sends')
+    .select('id', { count: 'exact', head: true })
+    .eq('edition_id', edition.id)
+    .not('provider_message_id', 'is', null)
+
   await supabase.from('newsletter_editions').update({
     status: 'sent',
     sent_at: new Date().toISOString(),
-    send_count: sentCount,
+    send_count: totalSentCount ?? sentCount,
   }).eq('id', edition.id)
 
   await supabase.from('newsletter_types').update({

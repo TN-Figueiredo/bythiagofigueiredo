@@ -22,7 +22,9 @@ describe('VideosTab', () => {
 
   it('shows view count', () => {
     render(<VideosTab videos={mockVideos} />)
-    expect(screen.getByText('1,000 views')).toBeDefined()
+    expect(screen.getByText((content, element) => {
+      return element?.textContent?.replace(/\s+/g, ' ').trim() === '1.000 views'
+    })).toBeDefined()
   })
 
   it('shows "Share on Social" action', () => {

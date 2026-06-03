@@ -99,6 +99,10 @@ export async function subscribeToNewsletter(formData: FormData): Promise<Subscri
       if (existing.status === 'confirmed') {
         return { status: 'ok' }
       }
+      // Block bounced/complained subscribers silently (no oracle)
+      if (existing.status === 'bounced' || existing.status === 'complained') {
+        return { status: 'ok' }
+      }
       const rawToken = generateConfirmToken()
       const expiresAt = new Date(Date.now() + CONFIRMATION_TTL_MS)
       const { error: updateErr } = await supabase
@@ -122,7 +126,8 @@ export async function subscribeToNewsletter(formData: FormData): Promise<Subscri
       }
 
       const names = await fetchNewsletterName(supabase, newsletter_id)
-      await sendNewsletterConfirmEmail({ to: email, rawToken, locale, newsletterNames: names })
+      const sent = await sendNewsletterConfirmEmail({ to: email, rawToken, locale, newsletterNames: names })
+      if (!sent) return { status: 'error', code: 'email_failed' }
       return { status: 'ok' }
     }
 
@@ -149,7 +154,8 @@ export async function subscribeToNewsletter(formData: FormData): Promise<Subscri
     }
 
     const names = await fetchNewsletterName(supabase, newsletter_id)
-    await sendNewsletterConfirmEmail({ to: email, rawToken, locale, newsletterNames: names })
+    const sent = await sendNewsletterConfirmEmail({ to: email, rawToken, locale, newsletterNames: names })
+    if (!sent) return { status: 'error', code: 'email_failed' }
     return { status: 'ok' }
   } catch (err) {
     captureServerActionError(err, { action: 'newsletter_subscribe', branch: 'outer_catch' })

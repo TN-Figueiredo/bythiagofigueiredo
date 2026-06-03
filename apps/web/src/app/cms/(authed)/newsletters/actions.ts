@@ -142,6 +142,8 @@ export async function createIdea(
   notes?: string,
   typeId?: string,
 ): Promise<ActionResult> {
+  if (!title?.trim()) return { ok: false, error: 'title_required' }
+
   const ctx = await getSiteContext()
   const res = await requireSiteScope({ area: 'cms', siteId: ctx.siteId, mode: 'edit' })
   if (!res.ok) throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
@@ -981,6 +983,14 @@ function revalidateNewsletterHub() {
   revalidateTag('sidebar-badges')
 }
 
+const newsletterTypeSchema = z.object({
+  name: z.string().min(1).max(100),
+  locale: z.enum(['en', 'pt-BR']),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+  colorDark: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+  slug: z.string().min(3).max(80).regex(/^[a-z0-9][a-z0-9-]*[a-z0-9]$/),
+})
+
 export async function createNewsletterType(data: {
   name: string
   locale: string
@@ -995,6 +1005,15 @@ export async function createNewsletterType(data: {
   sortOrder?: number
   linkedTagId?: string
 }): Promise<ActionResult> {
+  const validation = newsletterTypeSchema.safeParse({
+    name: data.name,
+    locale: data.locale,
+    color: data.color ?? '#7c3aed',
+    colorDark: data.colorDark,
+    slug: data.slug?.trim() || generateSlug(data.name),
+  })
+  if (!validation.success) return { ok: false, error: 'validation_failed' }
+
   const ctx = await getSiteContext()
   const res = await requireSiteScope({ area: 'cms', siteId: ctx.siteId, mode: 'edit' })
   if (!res.ok) throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
@@ -1080,6 +1099,18 @@ export async function updateNewsletterType(
     linkedTagId?: string | null
   },
 ): Promise<ActionResult> {
+  const partialSchema = newsletterTypeSchema.partial()
+  const fieldsToValidate: Record<string, unknown> = {}
+  if (patch.name !== undefined) fieldsToValidate.name = patch.name
+  if (patch.locale !== undefined) fieldsToValidate.locale = patch.locale
+  if (patch.color !== undefined) fieldsToValidate.color = patch.color
+  if (patch.colorDark !== undefined && patch.colorDark !== null) fieldsToValidate.colorDark = patch.colorDark
+  if (patch.slug !== undefined) fieldsToValidate.slug = patch.slug
+  if (Object.keys(fieldsToValidate).length > 0) {
+    const validation = partialSchema.safeParse(fieldsToValidate)
+    if (!validation.success) return { ok: false, error: 'validation_failed' }
+  }
+
   const ctx = await getSiteContext()
   const res = await requireSiteScope({ area: 'cms', siteId: ctx.siteId, mode: 'edit' })
   if (!res.ok) throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')

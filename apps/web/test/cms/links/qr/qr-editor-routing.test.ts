@@ -257,26 +257,26 @@ describe('QR card-actions exports (card-actions.ts)', () => {
     expect(loadBlock).toContain(".eq('site_id', siteId)")
   })
 
-  it('write functions use requireEditScope', () => {
+  it('write functions use checkEditScope', () => {
     for (const fn of ['createQrCard', 'updateQrCard', 'deleteQrCard']) {
       const fnIndex = cardActions.indexOf(`export async function ${fn}`)
       const nextExportIndex = cardActions.indexOf('export async function', fnIndex + 1)
       const fnBody = nextExportIndex > -1
         ? cardActions.slice(fnIndex, nextExportIndex)
         : cardActions.slice(fnIndex, fnIndex + 500)
-      expect(fnBody).toContain('requireEditScope(siteId)')
+      expect(fnBody).toContain('checkEditScope(siteId)')
     }
   })
 
-  it('read functions use requireReadScope (not requireEditScope)', () => {
+  it('read functions use checkReadScope (not checkEditScope)', () => {
     for (const fn of ['listQrCards', 'loadQrCardById']) {
       const fnIndex = cardActions.indexOf(`export async function ${fn}`)
       const nextExportIndex = cardActions.indexOf('export async function', fnIndex + 1)
       const fnBody = nextExportIndex > -1
         ? cardActions.slice(fnIndex, nextExportIndex)
         : cardActions.slice(fnIndex, fnIndex + 500)
-      expect(fnBody).toContain('requireReadScope(siteId)')
-      expect(fnBody).not.toContain('requireEditScope(siteId)')
+      expect(fnBody).toContain('checkReadScope(siteId)')
+      expect(fnBody).not.toContain('checkEditScope(siteId)')
     }
   })
 

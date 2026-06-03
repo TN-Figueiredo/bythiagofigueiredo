@@ -75,18 +75,3 @@ export async function deleteCategory(id: string) {
   revalidatePath('/cms/youtube/categories')
   return { ok: true as const }
 }
-
-export async function reorderCategories(orderedIds: string[]) {
-  const siteId = await requireEditAccess()
-  const supabase = getSupabaseServiceClient()
-
-  for (let i = 0; i < orderedIds.length; i++) {
-    await supabase.from('youtube_categories')
-      .update({ sort_order: i })
-      .eq('id', orderedIds[i]).eq('site_id', siteId)
-  }
-
-  revalidateTag('youtube')
-  revalidatePath('/cms/youtube/categories')
-  return { ok: true as const }
-}

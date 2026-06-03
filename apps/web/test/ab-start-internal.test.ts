@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn() }))
 vi.mock('@/lib/social/token-refresh', () => ({ ensureFreshToken: vi.fn() }))
 vi.mock('@/lib/youtube/ab-youtube', () => ({
-  setThumbnail: vi.fn(),
+  setThumbnail: vi.fn().mockResolvedValue({ highUrl: 'https://i.ytimg.com/vi/test/hqdefault.jpg' }),
   fetchVariantImageBuffer: vi.fn(),
 }))
 vi.mock('@/lib/youtube/ab-rotation', () => ({
@@ -117,5 +117,49 @@ describe('startAbTestInternal', () => {
     const result = await startAbTestInternal('test-1', 'site-1')
     expect(result.ok).toBe(false)
     expect(result.error).toContain('draft')
+  })
+
+  it('cycle 0 includes applied_metadata when variant is not original', async () => {
+    const { inserts } = buildMock()
+    const result = await startAbTestInternal('test-1', 'site-1')
+
+    expect(result.ok).toBe(true)
+    const cycleInsert = inserts.find(i => i.table === 'ab_test_cycles')
+    expect(cycleInsert).toBeDefined()
+    const data = cycleInsert!.data as Record<string, unknown>
+    expect(data.applied_metadata).toEqual({
+      thumbnail_set: true,
+      youtube_thumbnail_url: 'https://i.ytimg.com/vi/test/hqdefault.jpg',
+    })
+  })
+
+  it('cycle 0 captures current YouTube URL when first variant is original', async () => {
+    ;(getVariantForCycle as ReturnType<typeof vi.fn>).mockReturnValue(0)
+
+    vi.stubEnv('YOUTUBE_API_KEY', 'fake-key')
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          items: [{
+            snippet: {
+              thumbnails: {
+                high: { url: 'https://i.ytimg.com/vi/YT_ABC/hqdefault.jpg' },
+              },
+            },
+          }],
+        }),
+      ),
+    )
+
+    const { inserts } = buildMock()
+    const result = await startAbTestInternal('test-1', 'site-1')
+
+    expect(result.ok).toBe(true)
+    const cycleInsert = inserts.find(i => i.table === 'ab_test_cycles')
+    expect(cycleInsert).toBeDefined()
+    const data = cycleInsert!.data as Record<string, unknown>
+    expect(data.applied_metadata).toEqual({
+      youtube_thumbnail_url: 'https://i.ytimg.com/vi/YT_ABC/hqdefault.jpg',
+    })
   })
 })

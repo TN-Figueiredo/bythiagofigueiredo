@@ -24,6 +24,12 @@ const serverSchema = z.object({
   AD_GOOGLE_ENABLED: z.string().optional(),
   AD_TRACKING_ENABLED: z.string().optional(),
   AD_REVENUE_SYNC_ENABLED: z.string().optional(),
+  AWS_SES_REGION: z.string().min(1),
+  AWS_SES_ACCESS_KEY_ID: z.string().min(1),
+  AWS_SES_SECRET_ACCESS_KEY: z.string().min(1),
+  SES_DEFAULT_CONFIG_SET: z.string().optional(),
+  SES_MARKETING_CONFIG_SET: z.string().optional(),
+  SNS_EXPECTED_TOPIC_ARN: z.string().optional(),
 })
 
 // ---------------------------------------------------------------------------

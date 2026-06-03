@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback, useId } from 'react'
-import { Lock, Plus, Trash2, Sparkles, Video, ImageIcon, ChevronDown, Link2, AlignLeft, Image as ImageLucide } from 'lucide-react'
+import { Lock, Plus, Trash2, Sparkles, ImageIcon, ChevronDown, Link2, AlignLeft, Image as ImageLucide } from 'lucide-react'
 import type { TestType, DisplayLabel } from '@/lib/youtube/ab-types'
 import { VChip, Badge } from './ab-primitives'
 import { VARIANT_COLORS } from './ab-constants'
@@ -224,7 +224,7 @@ function BriefingBox({ briefing, tags }: BriefingBoxProps) {
         borderRadius: 10,
       }}
     >
-      <div className="flex items-center justify-between" style={{ marginBottom: 6 }}>
+      <div className="flex items-center" style={{ marginBottom: 6 }}>
         <span
           className="inline-flex items-center gap-1 font-semibold uppercase tracking-[0.14em]"
           style={{ fontSize: 10, color: 'var(--cms-text-dim)' }}
@@ -232,14 +232,6 @@ function BriefingBox({ briefing, tags }: BriefingBoxProps) {
           <Sparkles size={10} />
           BRIEFING DA THUMB
         </span>
-        <a
-          href="#"
-          className="transition-colors hover:underline"
-          style={{ fontSize: '10.5px', color: 'var(--cms-accent)', textDecoration: 'none' }}
-          onClick={e => e.preventDefault()}
-        >
-          regerar
-        </a>
       </div>
       {briefing && (
         <p style={{ fontSize: '11.5px', lineHeight: 1.5, color: 'var(--cms-text-dim)', margin: 0 }}>
@@ -502,96 +494,6 @@ function VariantCard({ variant, index, type, onUpdate, onRemove, onPickFromLibra
 }
 
 /* ------------------------------------------------------------------ */
-/*  Takes strip (video frame thumbnails)                               */
-/* ------------------------------------------------------------------ */
-
-const PLACEHOLDER_TAKES = [
-  { time: '0:14', bg: 'linear-gradient(135deg,#3a2f28 40%,#2a2018)' },
-  { time: '1:42', bg: 'linear-gradient(135deg,#3a3020 40%,#2a2418)' },
-  { time: '4:08', bg: 'linear-gradient(135deg,#2a3028 40%,#1a2418)' },
-  { time: '8:31', bg: 'linear-gradient(135deg,#382a20 40%,#281a10)' },
-  { time: '11:55', bg: 'linear-gradient(135deg,#302830 40%,#201820)' },
-]
-
-function TakesStrip() {
-  return (
-    <div
-      style={{
-        padding: 14,
-        background: 'var(--cms-surface-2, #272219)',
-        borderRadius: 'var(--cms-radius, 10px)',
-        marginBottom: 16,
-        border: '1px solid var(--cms-border, #332D25)',
-      }}
-    >
-      {/* Header */}
-      <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
-        <span
-          className="inline-flex items-center gap-[5px] font-semibold uppercase tracking-[0.14em]"
-          style={{ fontSize: 10, color: 'var(--cms-text-dim)' }}
-        >
-          <Video size={12} />
-          TAKES DO VIDEO . BASE PRAS THUMBS
-        </span>
-        <span style={{ fontSize: '10.5px', color: 'var(--cms-text-dim)' }}>
-          frames extraidos automaticamente
-        </span>
-      </div>
-
-      {/* 5-col grid of frame placeholders */}
-      <div
-        className="takes-grid"
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(5, 1fr)',
-          gap: 8,
-        }}
-      >
-        {PLACEHOLDER_TAKES.map(take => (
-          <div
-            key={take.time}
-            style={{
-              aspectRatio: '16/9',
-              borderRadius: 7,
-              background: take.bg,
-              outline: '1px solid var(--cms-border, #332D25)',
-              cursor: 'pointer',
-              position: 'relative',
-              overflow: 'hidden',
-            }}
-          >
-            <div
-              style={{
-                position: 'absolute',
-                inset: 0,
-                background: 'repeating-linear-gradient(45deg,rgba(255,255,255,.02) 0 1px,transparent 1px 8px)',
-              }}
-            />
-            <span
-              className="font-mono"
-              style={{
-                position: 'absolute',
-                right: 4,
-                bottom: 4,
-                fontSize: 8,
-                color: 'var(--cms-text-dim)',
-              }}
-            >
-              {take.time}
-            </span>
-          </div>
-        ))}
-      </div>
-
-      {/* Info text */}
-      <p style={{ fontSize: '10.5px', color: 'var(--cms-text-dim)', marginTop: 8, margin: '8px 0 0 0' }}>
-        O Cowork usa estes frames + os briefings pra gerar variantes. Voce pode trocar qualquer thumb depois.
-      </p>
-    </div>
-  )
-}
-
-/* ------------------------------------------------------------------ */
 /*  Description accordion (collapsible)                                */
 /* ------------------------------------------------------------------ */
 
@@ -746,9 +648,6 @@ export function StepVariantes({
           <Badge tone="neutral">MAX. 4 VARIANTES</Badge>
         </div>
       </div>
-
-      {/* Takes strip — video frame thumbnails */}
-      {showsThumbnail(type) && <TakesStrip />}
 
       {/* Variant cards */}
       {variants.map((variant, index) => (

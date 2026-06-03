@@ -289,12 +289,12 @@ describe('subscribeToNewsletters', () => {
 
   /* ====== Email send failure (non-fatal) ====== */
 
-  it('returns success even when email send fails', async () => {
+  it('returns error when email send fails', async () => {
     const sendError = new Error('SMTP connection timeout')
     mockSend.mockRejectedValueOnce(sendError)
     const result = await subscribeToNewsletters('user@example.com', ['nl-1'], 'en')
-    expect(result.success).toBe(true)
-    expect(result.subscribedIds).toEqual(['nl-1'])
+    expect(result.error).toBe('Failed to send email. Try again.')
+    expect(result.success).toBeUndefined()
   })
 
   it('logs email send failure to Sentry via captureServerActionError', async () => {

@@ -60,12 +60,16 @@ export class BythiagoLgpdDomainAdapter implements ILgpdDomainAdapter {
     }
     const userEmail = userRes?.user?.email ?? null;
 
+    // newsletter_subscriptions has no user_id column — look up by email.
+    // contact_submissions does have user_id, so we query by that.
     const [subsRes, contactsRes] = await Promise.all([
-      this.supabase
-        .from('newsletter_subscriptions')
-        .select('email')
-        .eq('user_id', userId)
-        .limit(1000),
+      userEmail
+        ? this.supabase
+            .from('newsletter_subscriptions')
+            .select('email')
+            .eq('email', userEmail)
+            .limit(1000)
+        : Promise.resolve({ data: [] as Array<{ email: string }>, error: null }),
       this.supabase
         .from('contact_submissions')
         .select('email')
@@ -203,12 +207,13 @@ export class BythiagoLgpdDomainAdapter implements ILgpdDomainAdapter {
     // single query fails, the collection fails, because portability is
     // all-or-nothing. The API route wraps this in try/catch and marks the
     // request failed + emails the user on failure.
+    // newsletter_subscriptions has no user_id column — it must be queried by
+    // email, so we fetch it in the second batch after resolving the user.
     const [
       userRes,
       blogPosts,
       campaigns,
       authors,
-      newsletterSubs,
       contactSubs,
       orgMembers,
       siteMembers,
@@ -227,7 +232,6 @@ export class BythiagoLgpdDomainAdapter implements ILgpdDomainAdapter {
       this.queryRows('blog_posts', 'owner_user_id', userId),
       this.queryRows('campaigns', 'owner_user_id', userId),
       this.queryRows('authors', 'user_id', userId),
-      this.queryRows('newsletter_subscriptions', 'user_id', userId),
       this.queryRows('contact_submissions', 'user_id', userId),
       this.queryRows('organization_members', 'user_id', userId),
       this.queryRows('site_memberships', 'user_id', userId),
@@ -243,7 +247,8 @@ export class BythiagoLgpdDomainAdapter implements ILgpdDomainAdapter {
       this.queryRows('push_subscriptions', 'user_id', userId),
     ]);
 
-    // BTF-022: ad_inquiries are keyed by email, not user_id. Fetch after
+    // BTF-022: ad_inquiries, newsletter_subscriptions, sent_emails, and
+    // newsletter_sends are keyed by email, not user_id. Fetch after
     // resolving the user so we have the email for the query.
     if (userRes.error) {
       throw new Error(`collectUserData: getUserById failed: ${userRes.error.message}`);
@@ -251,11 +256,16 @@ export class BythiagoLgpdDomainAdapter implements ILgpdDomainAdapter {
     const user = userRes.data?.user ?? null;
     const userEmail = user?.email ?? null;
 
+    let newsletterSubs: unknown[] = [];
     let adInquiries: unknown[] = [];
     let sentEmails: unknown[] = [];
     let newsletterSends: unknown[] = [];
     if (userEmail) {
-      const [adRes, sentRes, nlSendsRes] = await Promise.all([
+      const [nlSubsRes, adRes, sentRes, nlSendsRes] = await Promise.all([
+        this.supabase
+          .from('newsletter_subscriptions')
+          .select('*')
+          .eq('email', userEmail),
         this.supabase
           .from('ad_inquiries')
           .select('*')
@@ -269,6 +279,10 @@ export class BythiagoLgpdDomainAdapter implements ILgpdDomainAdapter {
           .select('id, edition_id, subscriber_email, status, delivered_at, opened_at, clicked_at, created_at')
           .eq('subscriber_email', userEmail),
       ]);
+      if (nlSubsRes.error) {
+        throw new Error(`collectUserData: query newsletter_subscriptions failed: ${nlSubsRes.error.message}`);
+      }
+      newsletterSubs = nlSubsRes.data ?? [];
       if (adRes.error) {
         throw new Error(`collectUserData: query ad_inquiries failed: ${adRes.error.message}`);
       }

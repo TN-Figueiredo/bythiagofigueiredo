@@ -140,7 +140,7 @@ describe('subscribeNewsletterInline', () => {
     expect(mockRateCheck).toHaveBeenCalledWith('newsletter_rate_check', expect.objectContaining({ p_ip: expect.any(String) }))
   })
 
-  it('returns success even when email send fails (non-fatal)', async () => {
+  it('returns email_failed error when email send fails', async () => {
     mockRateCheck.mockResolvedValueOnce({ data: true, error: null })
     mockSend.mockRejectedValueOnce(new Error('SMTP timeout'))
 
@@ -151,7 +151,8 @@ describe('subscribeNewsletterInline', () => {
     fd.set('turnstile_token', 'ok-token')
 
     const result = await subscribeNewsletterInline(undefined, fd)
-    expect(result.success).toBe(true)
+    expect(result.success).toBeFalsy()
+    expect(result.error).toBe('email_failed')
   })
 
   it('returns success without email for already-confirmed subscription', async () => {

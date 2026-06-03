@@ -1,16 +1,25 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useState, useRef, useEffect, useTransition } from 'react'
 import { subscribeNewsletterInline, type InlineState } from '@/app/(public)/actions/newsletter-inline'
 import { Tape } from '@/app/(public)/components/Tape'
+
+// ─── Turnstile global ─────────────────────────────────────────────────────────
+
+declare global {
+  interface Window {
+    turnstile?: {
+      render(el: HTMLElement, opts: { sitekey: string; callback: (tok: string) => void }): string
+      reset(id?: string): void
+    }
+  }
+}
 
 type Props = {
   category: string | null
   locale: string
   newsletterId?: string
 }
-
-const INITIAL: InlineState = {}
 
 const CATEGORY_LABEL: Record<string, string> = {
   Ensaios: 'Caderno de Campo',
@@ -25,6 +34,7 @@ const COPY = {
     placeholder: 'seu@email.com',
     cta: (label: string) => `Assinar ${label}`,
     vanity: 'cancelar é um clique',
+    errorTurnstile: 'Verificação de segurança ainda carregando. Aguarde e tente novamente.',
   },
   en: {
     headline: 'Liked it? Get the next ones in your inbox.',
@@ -32,13 +42,77 @@ const COPY = {
     placeholder: 'you@email.com',
     cta: (label: string) => `Subscribe ${label}`,
     vanity: 'unsubscribe is one click',
+    errorTurnstile: 'Security check still loading. Please wait and try again.',
   },
 } as const
 
 export function NewsletterCta({ category, locale, newsletterId }: Props) {
-  const [state, dispatch, pending] = useActionState(subscribeNewsletterInline, INITIAL)
+  const [state, setState] = useState<InlineState>({})
+  const [error, setError] = useState<string | null>(null)
+  const [, startTransition] = useTransition()
+  const [pending, setPending] = useState(false)
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
+  const turnstileRef = useRef<HTMLDivElement>(null)
+  const widgetIdRef = useRef<string | null>(null)
+
+  const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY
+
   const ctaLabel = category ? CATEGORY_LABEL[category] ?? 'Caderno de Campo' : 'Caderno de Campo'
   const c = COPY[locale === 'pt-BR' ? 'pt-BR' : 'en']
+
+  useEffect(() => {
+    if (!siteKey || !turnstileRef.current) return
+    const script = document.createElement('script')
+    script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js'
+    script.async = true
+    script.defer = true
+    script.onload = () => {
+      if (window.turnstile && turnstileRef.current) {
+        const id = window.turnstile.render(turnstileRef.current, {
+          sitekey: siteKey,
+          callback: (tok) => setTurnstileToken(tok),
+        })
+        widgetIdRef.current = id
+      }
+    }
+    document.head.appendChild(script)
+    return () => {
+      script.remove()
+    }
+  }, [siteKey])
+
+  function resetTurnstile() {
+    if (window.turnstile && widgetIdRef.current) {
+      window.turnstile.reset(widgetIdRef.current)
+    }
+    setTurnstileToken(null)
+  }
+
+  function handleAction(formData: FormData) {
+    setError(null)
+
+    // Client-side guard: Turnstile required only when key is configured
+    if (siteKey && !turnstileToken) {
+      setError(c.errorTurnstile)
+      return
+    }
+
+    if (turnstileToken) {
+      formData.set('turnstile_token', turnstileToken)
+    }
+
+    setPending(true)
+    startTransition(async () => {
+      const result = await subscribeNewsletterInline(undefined, formData)
+      if (result.success) {
+        setState({ success: true })
+      } else {
+        setError(result.error ?? null)
+        resetTurnstile()
+      }
+      setPending(false)
+    })
+  }
 
   return (
     <div className="blog-nl-cta">
@@ -57,7 +131,7 @@ export function NewsletterCta({ category, locale, newsletterId }: Props) {
       {state.success ? (
         <p className="text-pb-accent font-jetbrains text-sm py-4">{c.success}</p>
       ) : (
-        <form action={dispatch} className="flex gap-2 flex-wrap">
+        <form action={handleAction} className="flex gap-2 flex-wrap">
           {newsletterId && <input type="hidden" name="newsletter_id" value={newsletterId} />}
           <input type="hidden" name="locale" value={locale} />
           <input
@@ -88,7 +162,8 @@ export function NewsletterCta({ category, locale, newsletterId }: Props) {
           >
             {pending ? '...' : c.cta(ctaLabel)}
           </button>
-          {state.error && <p className="text-pb-yt font-jetbrains text-xs w-full">{state.error}</p>}
+          {siteKey ? <div ref={turnstileRef} className="w-full" /> : null}
+          {error && <p className="text-pb-yt font-jetbrains text-xs w-full" role="alert">{error}</p>}
         </form>
       )}
       <div className="text-[11px] mt-2.5 font-jetbrains" style={{ opacity: 0.65 }}>

@@ -16,7 +16,7 @@ vi.mock('@vercel/blob', () => ({ put: vi.fn() }))
 
 // These are imported by the actions file but not exercised in text-variant tests
 vi.mock('@/lib/youtube/ab-youtube', () => ({
-  setThumbnail: vi.fn(),
+  setThumbnail: vi.fn().mockResolvedValue({ highUrl: 'https://i.ytimg.com/vi/test/hqdefault.jpg' }),
   fetchVariantImageBuffer: vi.fn(),
 }))
 vi.mock('@/lib/youtube/ab-rotation', () => ({ getVariantForCycle: vi.fn() }))

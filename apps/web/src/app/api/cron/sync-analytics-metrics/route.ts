@@ -3,6 +3,7 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { ensureFreshToken } from '@/lib/social/token-refresh'
 import { detectViral, getIsoWeek } from '@/lib/youtube/analytics-sync'
 import { buildNotification } from '@/lib/youtube/notification-service'
+import { fanOutToSiteAdmins } from '@/lib/notifications/fan-out-to-admins'
 import { detectFatigue, filterFatigueCandidates } from '@/lib/youtube/ab-fatigue'
 import * as Sentry from '@sentry/nextjs'
 
@@ -183,16 +184,19 @@ export async function GET(req: NextRequest) {
   }
 
   for (const { siteId, payload } of notifications) {
-    await supabase.rpc('create_yt_notification', {
-      p_site_id: siteId,
-      p_type: payload.type,
-      p_priority: payload.priority,
-      p_title: payload.title,
-      p_message: payload.message,
-      p_dedup_key: payload.dedup_key,
-      p_video_id: payload.video_id ?? null,
-      p_suggested_action: payload.suggested_action ?? null,
-      p_action_href: payload.action_href ?? null,
+    await fanOutToSiteAdmins({
+      siteId,
+      domain: 'youtube',
+      type: `youtube.${payload.type}`,
+      priority: payload.priority,
+      title: payload.title,
+      message: payload.message,
+      dedupKey: payload.dedup_key,
+      payload: {
+        ...(payload.video_id ? { videoId: payload.video_id } : {}),
+      },
+      suggestedAction: payload.suggested_action,
+      actionHref: payload.action_href,
     })
   }
 

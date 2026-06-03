@@ -519,6 +519,7 @@ export default async function NewsletterLandingPage({ params }: PageProps) {
                     newsletterName={type.name}
                     strings={formStrings}
                     privacyHref={privacyHref}
+                    turnstileSiteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
                     onSubscribe={subscribeToNewsletters}
                     suggestions={suggestions}
                     suggestionStrings={suggestionStrings}

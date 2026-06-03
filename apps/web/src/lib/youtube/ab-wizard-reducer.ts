@@ -151,7 +151,7 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
 export function stepIsValid(step: number, state: WizardState): boolean {
   switch (step) {
     case 0: return state.type !== null
-    case 1: return true // placeholder — always valid
+    case 1: return true // always valid — step is optional
     case 2: return state.variants.some(v => !v.isOriginal && (v.titleText.trim() || v.descriptionText.trim() || v.thumbUrl))
     case 3: return true // has defaults
     case 4: return true

@@ -1,11 +1,15 @@
 import * as Sentry from '@sentry/nextjs'
 
+export interface SetThumbnailResult {
+  highUrl?: string
+}
+
 export async function setThumbnail(
   videoId: string,
   imageBuffer: Buffer,
   contentType: 'image/png' | 'image/jpeg',
   accessToken: string
-): Promise<void> {
+): Promise<SetThumbnailResult> {
   const url = `https://www.googleapis.com/upload/youtube/v3/thumbnails/set?videoId=${videoId}&uploadType=media`
   const res = await fetch(url, {
     method: 'POST',
@@ -24,6 +28,9 @@ export async function setThumbnail(
     })
     throw new Error(msg)
   }
+  const data = await res.json().catch(() => ({}))
+  const highUrl: string | undefined = data?.items?.[0]?.high?.url ?? data?.items?.[0]?.default?.url
+  return { highUrl }
 }
 
 export async function getCurrentThumbnailUrl(

@@ -1,11 +1,13 @@
 'use client'
 
-import { useState, Fragment } from 'react'
+import { useState, useTransition, Fragment } from 'react'
+import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
-  Zap, Activity, Calendar, BarChart3, Target, Sparkles, ArrowRight, Plus, FlaskConical,
+  Zap, Activity, Calendar, BarChart3, Target, Sparkles, ArrowRight, Plus, FlaskConical, Check,
 } from 'lucide-react'
 import { fmtC, brDec, fmtRelative } from '@/lib/youtube/format'
+import { createPipelineItem } from '@/app/cms/(authed)/pipeline/actions'
 import type { CompetitorInsights } from '@/lib/youtube/observatory-types'
 
 interface InsightsTabProps {
@@ -83,7 +85,7 @@ function PlayCard({ play }: { play: NonNullable<CompetitorInsights['play']> }) {
           e publique na janela vazia de <b>{play.windowBold}</b> — {play.windowReason}
         </p>
       </div>
-      <button className="btn cowork play-cta" onClick={() => toast('Roteiro em breve — Cowork integration.')}>
+      <button className="btn cowork play-cta" disabled title="Integração com Cowork em desenvolvimento" style={{ opacity: 0.5, cursor: 'not-allowed' }}>
         <Sparkles style={{ width: 14, height: 14 }} aria-hidden="true" />
         Montar roteiro
       </button>
@@ -93,6 +95,64 @@ function PlayCard({ play }: { play: NonNullable<CompetitorInsights['play']> }) {
 
 /* ── 2. Cadencia por Canal ── */
 
+const CADENCE_DAY_NAMES = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'] as const
+
+function computeCadenceInsight(cadence: CompetitorInsights['cadence']): string | null {
+  const allVideos = cadence.flatMap(c => c.videos)
+  if (allVideos.length < 10) return null
+
+  // Build 7x24 volume grid and hits grid (top quartile by viewCount)
+  const volumeGrid: number[][] = Array.from({ length: 7 }, () => Array.from({ length: 24 }, () => 0))
+  const hitsGrid: number[][] = Array.from({ length: 7 }, () => Array.from({ length: 24 }, () => 0))
+
+  const sortedViews = [...allVideos].map(v => v.viewCount).sort((a, b) => a - b)
+  const topQuartileThreshold = sortedViews[Math.floor(sortedViews.length * 0.75)] ?? 0
+
+  for (const v of allVideos) {
+    const d = new Date(v.publishedAt)
+    const dayIdx = (d.getDay() + 6) % 7 // 0=Mon
+    const hourIdx = d.getHours()
+    const dayRow = volumeGrid[dayIdx]
+    if (dayRow) dayRow[hourIdx] = (dayRow[hourIdx] ?? 0) + 1
+
+    if (v.viewCount >= topQuartileThreshold && topQuartileThreshold > 0) {
+      const hitsRow = hitsGrid[dayIdx]
+      if (hitsRow) hitsRow[hourIdx] = (hitsRow[hourIdx] ?? 0) + 1
+    }
+  }
+
+  // Find peak volume slot
+  let peakVolDay = 0, peakVolHour = 0, peakVolVal = 0
+  for (let d = 0; d < 7; d++) {
+    for (let h = 0; h < 24; h++) {
+      const v = volumeGrid[d]?.[h] ?? 0
+      if (v > peakVolVal) { peakVolVal = v; peakVolDay = d; peakVolHour = h }
+    }
+  }
+
+  // Find peak hits slot
+  let peakHitsDay = 0, peakHitsHour = 0, peakHitsVal = 0
+  for (let d = 0; d < 7; d++) {
+    for (let h = 0; h < 24; h++) {
+      const v = hitsGrid[d]?.[h] ?? 0
+      if (v > peakHitsVal) { peakHitsVal = v; peakHitsDay = d; peakHitsHour = h }
+    }
+  }
+
+  if (peakVolVal === 0 && peakHitsVal === 0) return null
+
+  const volSlot = `${CADENCE_DAY_NAMES[peakVolDay]} ${peakVolHour}h–${peakVolHour + 2}h`
+  const hitsSlot = peakHitsVal > 0
+    ? `${CADENCE_DAY_NAMES[peakHitsDay]}${peakHitsDay + 1 < 7 ? '–' + CADENCE_DAY_NAMES[peakHitsDay + 1] : ''} ${peakHitsHour}h–${peakHitsHour + 2}h`
+    : null
+
+  if (hitsSlot && (peakHitsDay !== peakVolDay || Math.abs(peakHitsHour - peakVolHour) > 2)) {
+    return `Pico de volume: ${volSlot} (lotado). Mas os maiores hits recentes saíram em ${hitsSlot} — janela quase vazia. Bolinha maior = mais views.`
+  }
+
+  return `Pico de volume: ${volSlot}. Bolinha maior = mais views.`
+}
+
 function CadenceCard({ cadence }: { cadence: CompetitorInsights['cadence'] }) {
   const DAYS_RANGE = 21
   const now = Date.now()
@@ -100,6 +160,8 @@ function CadenceCard({ cadence }: { cadence: CompetitorInsights['cadence'] }) {
   const allViews = cadence.flatMap(c => c.videos.map(v => v.viewCount)).filter(v => v > 0)
   const logMax = allViews.length > 0 ? Math.log10(Math.max(...allViews)) : 1
   const logMin = allViews.length > 0 ? Math.log10(Math.min(...allViews) || 1) : 0
+
+  const cadenceInsight = computeCadenceInsight(cadence)
 
   return (
     <div className="card cad-card ins-full">
@@ -181,8 +243,7 @@ function CadenceCard({ cadence }: { cadence: CompetitorInsights['cadence'] }) {
         <div className="insight-note">
           <Zap style={{ width: 13, height: 13, stroke: 'var(--accent)', flexShrink: 0, marginTop: 1 }} aria-hidden="true" />
           <span style={{ flex: 1 }}>
-            Pico de <b>volume</b>: Sex 18h–20h (lotado). Mas os <b>maiores hits recentes</b> saíram em{' '}
-            <b>Ter–Qua 9h–11h</b> — janela quase vazia. Bolinha maior = mais views.
+            {cadenceInsight ?? 'Dados insuficientes para calcular janelas de publicação. Adicione mais concorrentes ou aguarde sync.'}
           </span>
         </div>
       </div>
@@ -419,11 +480,36 @@ function GapsCard({ gaps, ownTagsByChannel, competitorTagsByChannel }: {
   ownTagsByChannel: CompetitorInsights['ownTagsByChannel']
   competitorTagsByChannel: CompetitorInsights['competitorTagsByChannel']
 }) {
+  const router = useRouter()
   const theirTopics = gaps.filter(g => !g.weCover)
   const gapCount = theirTopics.length
+  const [addedTopics, setAddedTopics] = useState<Set<string>>(new Set())
+  const [isPending, startTransition] = useTransition()
 
   const handleGapClick = (topic: string) => {
-    toast.success(`Ideia "${topic}" adicionada ao pipeline.`, { duration: 2800 })
+    if (addedTopics.has(topic)) return
+    startTransition(async () => {
+      const result = await createPipelineItem({
+        format: 'video',
+        title_pt: topic,
+        synopsis: 'Lacuna identificada via analise de concorrentes — tema com tracao comprovada e zero cobertura propria.',
+        tags: ['search-term'],
+      })
+      if (result.ok) {
+        setAddedTopics(prev => new Set(prev).add(topic))
+        toast.success(`Ideia "${topic}" adicionada ao pipeline.`, { duration: 2800 })
+      } else {
+        toast.error(result.error ?? 'Erro ao adicionar ao pipeline.')
+      }
+    })
+  }
+
+  const handleTestHighestTraction = () => {
+    const topGap = theirTopics.sort((a, b) => b.avgViews - a.avgViews)[0]
+    if (topGap) {
+      toast(`Criando teste A/B para "${topGap.topic}"...`, { duration: 2000 })
+    }
+    router.push('/cms/youtube/ab-lab/new')
   }
 
   return (
@@ -445,14 +531,20 @@ function GapsCard({ gaps, ownTagsByChannel, competitorTagsByChannel }: {
               <div className="gap-chips" style={{ marginTop: 6 }}>
                 {ch.tags.map(t => {
                   const isGap = theirTopics.some(g => g.topic.toLowerCase() === t.toLowerCase())
+                  const isAdded = addedTopics.has(t)
                   return isGap ? (
                     <button
                       key={t}
                       className="gap-chip gap clickable"
-                      title="Criar roteiro deste tema"
+                      title={isAdded ? 'Já adicionado ao pipeline' : 'Criar roteiro deste tema'}
                       onClick={() => handleGapClick(t)}
+                      disabled={isAdded || isPending}
+                      style={isAdded ? { opacity: 0.6, cursor: 'default' } : undefined}
                     >
-                      <Plus style={{ width: 11, height: 11 }} aria-hidden="true" />
+                      {isAdded
+                        ? <Check style={{ width: 11, height: 11 }} aria-hidden="true" />
+                        : <Plus style={{ width: 11, height: 11 }} aria-hidden="true" />
+                      }
                       {t}
                     </button>
                   ) : (
@@ -503,11 +595,11 @@ function GapsCard({ gaps, ownTagsByChannel, competitorTagsByChannel }: {
       {/* CTAs */}
       {gapCount > 0 && (
         <div style={{ display: 'flex', gap: 8, margin: '0 18px 16px', flexWrap: 'wrap' }}>
-          <button className="btn cowork sm" onClick={() => toast('Cowork integration em breve.')}>
+          <button className="btn cowork sm" disabled title="Integração com Cowork em desenvolvimento" style={{ opacity: 0.5, cursor: 'not-allowed' }}>
             <Sparkles style={{ width: 13, height: 13 }} aria-hidden="true" />
             Roteirizar as {gapCount} lacunas no Cowork
           </button>
-          <button className="btn sm" onClick={() => toast('Em breve.')}>
+          <button className="btn sm" onClick={handleTestHighestTraction}>
             <FlaskConical style={{ width: 13, height: 13 }} aria-hidden="true" />
             Testar o tema de maior tração
           </button>

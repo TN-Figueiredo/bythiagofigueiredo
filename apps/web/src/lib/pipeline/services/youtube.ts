@@ -1,6 +1,7 @@
 import * as Sentry from '@sentry/nextjs'
 import { z } from 'zod'
 import { getIsoWeek } from '@/lib/youtube/analytics-sync'
+import { fanOutToSiteAdmins } from '@/lib/notifications/fan-out-to-admins'
 import { PatchPayloadSchema } from '@/lib/youtube/intelligence-schemas'
 import { BatchVariantUpsertSchema, TestTypeSchema } from '@/lib/youtube/ab-schemas'
 import type { TestType, VariantMetadata } from '@/lib/youtube/ab-types'
@@ -411,14 +412,17 @@ export async function submitIntelRecommendations(
     const weekIso = getIsoWeek(new Date())
     for (const n of notifications) {
       const dedupKey = `cowork:${n.type}:${n.video_id ?? 'channel'}:${weekIso}`
-      await supabase.rpc('create_yt_notification', {
-        p_site_id: siteId,
-        p_type: n.type,
-        p_priority: n.priority,
-        p_title: n.title,
-        p_message: n.message,
-        p_dedup_key: dedupKey,
-        p_video_id: n.video_id ?? null,
+      await fanOutToSiteAdmins({
+        siteId,
+        domain: 'youtube',
+        type: `youtube.${n.type}`,
+        priority: n.priority,
+        title: n.title,
+        message: n.message,
+        dedupKey,
+        payload: {
+          ...(n.video_id ? { videoId: n.video_id } : {}),
+        },
       })
     }
   }

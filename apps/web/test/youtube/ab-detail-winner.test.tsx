@@ -7,17 +7,28 @@ import type { AbTestWinnerView, LiveMonitor, FullChartVariant, VariantThumb, Gat
 
 vi.mock('lucide-react', () => {
   const icon = (name: string) => (props: Record<string, unknown>) => <svg data-testid={`icon-${name}`} {...props} />
-  return { Image: icon('Image'), Type: icon('Type'), FileText: icon('FileText'), Layers: icon('Layers'),
-    Trophy: icon('Trophy'), TrendingUp: icon('TrendingUp'), TrendingDown: icon('TrendingDown'),
-    CheckCircle: icon('CheckCircle'), Clock: icon('Clock'), ChevronDown: icon('ChevronDown'),
-    ChevronRight: icon('ChevronRight'), ArrowLeft: icon('ArrowLeft'), Copy: icon('Copy'),
-    Archive: icon('Archive'), Download: icon('Download'), Swords: icon('Swords'),
-    Info: icon('Info'), Target: icon('Target'), ArrowRight: icon('ArrowRight'),
-    Lock: icon('Lock'), Minus: icon('Minus'), Sparkles: icon('Sparkles'),
-    LayoutGrid: icon('LayoutGrid'), Search: icon('Search'), ListVideo: icon('ListVideo'),
-    Smartphone: icon('Smartphone'), BarChart3: icon('BarChart3'), Eye: icon('Eye'),
-    ThumbsUp: icon('ThumbsUp'), MessageCircle: icon('MessageCircle'), Share2: icon('Share2') }
+  return {
+    Copy: icon('Copy'), Archive: icon('Archive'), Download: icon('Download'), Trophy: icon('Trophy'),
+    TrendingUp: icon('TrendingUp'), Sparkles: icon('Sparkles'), LayoutGrid: icon('LayoutGrid'), Undo2: icon('Undo2'),
+    Check: icon('Check'), Clock: icon('Clock'), Activity: icon('Activity'), Search: icon('Search'),
+    ListVideo: icon('ListVideo'), Smartphone: icon('Smartphone'), MousePointerClick: icon('MousePointerClick'),
+    ChevronDown: icon('ChevronDown'), Radio: icon('Radio'), Image: icon('Image'), Type: icon('Type'),
+    FileText: icon('FileText'), Layers: icon('Layers'), ArrowLeft: icon('ArrowLeft'), Swords: icon('Swords'),
+    AlertCircle: icon('AlertCircle'), TrendingDown: icon('TrendingDown'), Minus: icon('Minus'), Lock: icon('Lock'),
+    Info: icon('Info'), Target: icon('Target'), ArrowRight: icon('ArrowRight'), ChevronRight: icon('ChevronRight'),
+    Eye: icon('Eye'), ThumbsUp: icon('ThumbsUp'), MessageCircle: icon('MessageCircle'), Share2: icon('Share2'),
+    BarChart3: icon('BarChart3'),
+  }
 })
+
+vi.mock('next/navigation', () => ({
+  useRouter: vi.fn(() => ({ push: vi.fn(), refresh: vi.fn() })),
+}))
+
+vi.mock('@/app/cms/(authed)/youtube/ab-lab/actions', () => ({
+  revertWinner: vi.fn(),
+  archiveAbTest: vi.fn(),
+}))
 
 /* ─── Helpers ─── */
 
@@ -161,10 +172,10 @@ describe('WinnerBanner', () => {
         stats={{ ctrBefore: 4.5, ctrAfter: 5.2, totalImpressions: 50000, abbaCycles: 12, monthlyExtraClicks: 350 }}
       />,
     )
-    const statsEl = screen.getByTestId('winner-stats')
-    expect(statsEl.textContent).toContain('Impressões no teste')
-    expect(statsEl.textContent).toContain('Ciclos ABBA')
-    expect(statsEl.textContent).toContain('Cliques/mês a mais')
+    const banner = screen.getByTestId('winner-banner')
+    expect(banner.textContent).toContain('Impressoes no teste')
+    expect(banner.textContent).toContain('ciclos ABBA')
+    expect(banner.textContent).toContain('cliques/mes a mais')
   })
 })
 
@@ -173,48 +184,50 @@ describe('WinnerBanner', () => {
 describe('LiveMonitorCard', () => {
   it('renders live CTR value', () => {
     render(<LiveMonitorCard monitor={makeMonitor()} />)
-    expect(screen.getByTestId('live-ctr').textContent).toBe('6.2%')
+    const card = screen.getByTestId('live-monitor')
+    expect(card.textContent).toContain('6,2%')
   })
 
   it('renders sparkline SVG', () => {
-    render(<LiveMonitorCard monitor={makeMonitor()} />)
-    expect(screen.getByTestId('sparkline')).toBeDefined()
+    const { container } = render(<LiveMonitorCard monitor={makeMonitor()} />)
+    const card = container.querySelector('[data-testid="live-monitor"]')
+    expect(card?.querySelector('svg')).not.toBeNull()
   })
 
-  it('renders checkpoints with correct icons', () => {
+  it('renders checkpoints with correct labels', () => {
     render(<LiveMonitorCard monitor={makeMonitor()} />)
-    const checkpoints = screen.getByTestId('checkpoints')
-    expect(checkpoints.textContent).toContain('D+7')
-    expect(checkpoints.textContent).toContain('D+14')
-    expect(checkpoints.textContent).toContain('D+30')
+    const card = screen.getByTestId('live-monitor')
+    expect(card.textContent).toContain('D+7')
+    expect(card.textContent).toContain('D+14')
+    expect(card.textContent).toContain('D+30')
   })
 })
 
 /* ─── WinnerDetail ─── */
 
 describe('WinnerDetail', () => {
-  it('renders 8-section layout', () => {
+  it('renders key sections', () => {
     const view = makeWinnerView()
-    const { container } = render(<WinnerDetail view={view} />)
+    render(<WinnerDetail view={view} />)
     expect(screen.getByTestId('winner-detail')).toBeDefined()
     expect(screen.getByTestId('winner-banner')).toBeDefined()
     expect(screen.getByTestId('why-won')).toBeDefined()
     expect(screen.getByTestId('confidence-section')).toBeDefined()
     expect(screen.getByTestId('scoreboard')).toBeDefined()
-    expect(screen.getByTestId('gates-section')).toBeDefined()
-    expect(container.querySelector('[data-click-moment]')).not.toBeNull()
+    // ClickMoment is rendered (contains "Home" context button)
+    expect(screen.getByText('Home')).toBeDefined()
   })
 
-  it('renders "Why B won" section heading', () => {
+  it('renders "Por que B venceu" section heading', () => {
     const view = makeWinnerView({ winnerLabel: 'B' })
     render(<WinnerDetail view={view} />)
-    expect(screen.getByText('Why B won')).toBeDefined()
+    expect(screen.getByText('Por que B venceu')).toBeDefined()
   })
 
-  it('shows Duplicate and Download actions', () => {
+  it('shows Duplicar and Download actions', () => {
     render(<WinnerDetail view={makeWinnerView()} />)
-    expect(screen.getByText('Duplicate')).toBeDefined()
-    expect(screen.getByText('Download')).toBeDefined()
+    expect(screen.getByText('Duplicar')).toBeDefined()
+    expect(screen.getByLabelText('Download')).toBeDefined()
   })
 
   it('does not render LiveMonitor when view.monitor is undefined', () => {

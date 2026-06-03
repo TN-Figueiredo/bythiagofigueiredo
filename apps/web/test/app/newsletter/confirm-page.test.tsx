@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import React from 'react'
 
 // ─── Hoisted spies (available inside vi.mock factories) ──────────────────────
 
-const { revalidateTagSpy, captureServerActionErrorSpy, fromMock, rpcMock } =
+const { captureServerActionErrorSpy, fromMock, rpcMock } =
   vi.hoisted(() => ({
-    revalidateTagSpy: vi.fn(),
     captureServerActionErrorSpy: vi.fn(),
     fromMock: vi.fn(),
     rpcMock: vi.fn(),
@@ -21,7 +21,7 @@ vi.mock('../../../lib/supabase/service', () => ({
 }))
 
 vi.mock('next/cache', () => ({
-  revalidateTag: revalidateTagSpy,
+  revalidateTag: vi.fn(),
 }))
 
 vi.mock('next/server', () => ({
@@ -32,11 +32,30 @@ vi.mock('../../../src/lib/sentry-wrap', () => ({
   captureServerActionError: captureServerActionErrorSpy,
 }))
 
+// Mock the ConfirmFlow client component to avoid 'use client' issues in tests
+vi.mock('../../../src/app/newsletter/confirm/[token]/confirm-flow', () => ({
+  ConfirmFlow: ({ token, copy }: { token: string; copy: { confirm_button: string; confirm_body: string }; locale: string }) =>
+    React.createElement('div', { 'data-testid': 'confirm-flow' },
+      React.createElement('p', null, copy.confirm_body),
+      React.createElement('button', { type: 'button' }, copy.confirm_button),
+    ),
+}))
+
 // ─── Import (after mocks) ────────────────────────────────────────────────────
 
 import ConfirmPage from '../../../src/app/newsletter/confirm/[token]/page'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/** Valid 64-char hex tokens for tests (format: crypto.randomBytes(32).toString('hex')) */
+const TOKENS = {
+  nonexistent: 'aa' + '0'.repeat(62),
+  expired:     'bb' + '0'.repeat(62),
+  already:     'cc' + '0'.repeat(62),
+  valid:       'dd' + '0'.repeat(62),
+  en:          'ee' + '0'.repeat(62),
+  error:       'ff' + '0'.repeat(62),
+} as const
 
 function ctx(token: string) {
   return { params: Promise.resolve({ token }) }
@@ -47,15 +66,23 @@ function makeSelectChain(result: { data: unknown; error: unknown }) {
   return {
     select: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
+    limit: vi.fn().mockReturnThis(),
     maybeSingle: vi.fn().mockResolvedValue(result),
   }
 }
 
 beforeEach(() => {
   vi.clearAllMocks()
-  // Default locale lookup: returns pt-BR
+  // Default locale lookup: returns pending subscription with pt-BR
   fromMock.mockReturnValue(
-    makeSelectChain({ data: { locale: 'pt-BR' }, error: null }),
+    makeSelectChain({
+      data: {
+        locale: 'pt-BR',
+        status: 'pending_confirmation',
+        confirmation_expires_at: new Date(Date.now() + 86400000).toISOString(),
+      },
+      error: null,
+    }),
   )
 })
 
@@ -65,114 +92,111 @@ afterEach(() => {
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
-describe('/newsletter/confirm/[token] page', () => {
+describe('/newsletter/confirm/[token] page (two-step flow)', () => {
   it('renders invalid state when token is empty', async () => {
     const jsx = await ConfirmPage(ctx(''))
     render(jsx as React.ReactElement)
     expect(screen.getByText('Link inválido')).toBeTruthy()
   })
 
-  it('renders not_found state when RPC returns ok=false, error=not_found', async () => {
-    rpcMock.mockResolvedValueOnce({
-      data: { ok: false, error: 'not_found' },
-      error: null,
-    })
+  it('renders invalid state when token has wrong format (not 64 hex chars)', async () => {
+    const jsx = await ConfirmPage(ctx('not-a-valid-hex-token'))
+    render(jsx as React.ReactElement)
+    expect(screen.getByText('Link inválido')).toBeTruthy()
+  })
 
-    const jsx = await ConfirmPage(ctx('some-valid-token'))
+  it('renders not_found state when token does not exist in DB', async () => {
+    fromMock.mockReturnValue(
+      makeSelectChain({ data: null, error: null }),
+    )
+
+    const jsx = await ConfirmPage(ctx(TOKENS.nonexistent))
     render(jsx as React.ReactElement)
     expect(screen.getByText('Link não encontrado')).toBeTruthy()
   })
 
-  it('renders expired state when RPC returns ok=false, error=expired', async () => {
-    rpcMock.mockResolvedValueOnce({
-      data: { ok: false, error: 'expired' },
-      error: null,
-    })
+  it('renders expired state when token is expired', async () => {
+    fromMock.mockReturnValue(
+      makeSelectChain({
+        data: {
+          locale: 'pt-BR',
+          status: 'pending_confirmation',
+          confirmation_expires_at: new Date(Date.now() - 86400000).toISOString(),
+        },
+        error: null,
+      }),
+    )
 
-    const jsx = await ConfirmPage(ctx('expired-token'))
+    const jsx = await ConfirmPage(ctx(TOKENS.expired))
     render(jsx as React.ReactElement)
     expect(screen.getByText('Link expirado')).toBeTruthy()
   })
 
-  it('renders already-confirmed state when RPC returns ok=true, already=true', async () => {
-    rpcMock.mockResolvedValueOnce({
-      data: { ok: true, already: true, site_id: 'site-1', email: 'a@b.com' },
-      error: null,
-    })
+  it('renders already-confirmed state when subscription is confirmed', async () => {
+    fromMock.mockReturnValue(
+      makeSelectChain({
+        data: {
+          locale: 'pt-BR',
+          status: 'confirmed',
+          confirmation_expires_at: new Date(Date.now() + 86400000).toISOString(),
+        },
+        error: null,
+      }),
+    )
 
-    const jsx = await ConfirmPage(ctx('already-token'))
+    const jsx = await ConfirmPage(ctx(TOKENS.already))
     render(jsx as React.ReactElement)
     expect(screen.getByText('Já confirmado')).toBeTruthy()
   })
 
-  it('renders success state and calls revalidateTag on fresh confirmation', async () => {
-    rpcMock.mockResolvedValueOnce({
-      data: { ok: true, site_id: 'site-1', email: 'a@b.com' },
-      error: null,
-    })
-
-    const jsx = await ConfirmPage(ctx('fresh-token'))
+  it('renders confirm prompt with button for valid pending token', async () => {
+    const jsx = await ConfirmPage(ctx(TOKENS.valid))
     render(jsx as React.ReactElement)
-    expect(screen.getByText('Inscrição confirmada!')).toBeTruthy()
-    expect(revalidateTagSpy).toHaveBeenCalledWith('newsletter-suggestions')
+    expect(screen.getByRole('heading', { name: 'Confirmar inscrição' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Confirmar inscrição' })).toBeTruthy()
   })
 
-  it('renders error state and calls captureServerActionError on RPC error', async () => {
-    const rpcError = { message: 'db timeout', code: '57014' }
-    rpcMock.mockResolvedValueOnce({
-      data: null,
-      error: rpcError,
-    })
-
-    const jsx = await ConfirmPage(ctx('error-token'))
-    render(jsx as React.ReactElement)
-    expect(screen.getByText('Erro ao confirmar')).toBeTruthy()
-    expect(captureServerActionErrorSpy).toHaveBeenCalledWith(
-      rpcError,
-      expect.objectContaining({ action: 'confirm_newsletter' }),
-    )
-  })
-
-  it('renders English text when locale is "en"', async () => {
+  it('renders confirm prompt with English text when locale is "en"', async () => {
     fromMock.mockReturnValue(
-      makeSelectChain({ data: { locale: 'en' }, error: null }),
+      makeSelectChain({
+        data: {
+          locale: 'en',
+          status: 'pending_confirmation',
+          confirmation_expires_at: new Date(Date.now() + 86400000).toISOString(),
+        },
+        error: null,
+      }),
     )
-    rpcMock.mockResolvedValueOnce({
-      data: { ok: true, site_id: 'site-1', email: 'a@b.com' },
-      error: null,
-    })
 
-    const jsx = await ConfirmPage(ctx('en-token'))
+    const jsx = await ConfirmPage(ctx(TOKENS.en))
     render(jsx as React.ReactElement)
-    expect(screen.getByText('Subscription confirmed!')).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Confirm subscription' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Confirm subscription' })).toBeTruthy()
   })
 
-  it('renders error state when RPC returns ok=false, error=invalid_state', async () => {
-    rpcMock.mockResolvedValueOnce({
-      data: { ok: false, error: 'invalid_state' },
-      error: null,
+  it('shows confirm prompt when DB query throws (best-effort fallback)', async () => {
+    fromMock.mockReturnValue({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockRejectedValue(new Error('network')),
     })
 
-    const jsx = await ConfirmPage(ctx('invalid-state-token'))
+    const jsx = await ConfirmPage(ctx(TOKENS.error))
     render(jsx as React.ReactElement)
-    expect(screen.getByText('Não foi possível confirmar')).toBeTruthy()
+    // Should still show the prompt — server action will handle the error
+    expect(screen.getByRole('heading', { name: 'Confirmar inscrição' })).toBeTruthy()
+  })
+
+  it('does not call RPC on GET (scanner protection)', async () => {
+    const jsx = await ConfirmPage(ctx(TOKENS.valid))
+    render(jsx as React.ReactElement)
+    expect(rpcMock).not.toHaveBeenCalled()
   })
 
   it('exports metadata with robots noindex and dynamic=force-dynamic', async () => {
     const mod = await import('../../../src/app/newsletter/confirm/[token]/page')
     expect(mod.metadata.robots).toEqual({ index: false, follow: false })
     expect(mod.dynamic).toBe('force-dynamic')
-  })
-
-  it('renders error state and calls captureServerActionError when RPC throws (outer catch)', async () => {
-    rpcMock.mockRejectedValueOnce(new Error('network'))
-
-    const jsx = await ConfirmPage(ctx('throw-token'))
-    render(jsx as React.ReactElement)
-    expect(screen.getByText('Erro ao confirmar')).toBeTruthy()
-    expect(captureServerActionErrorSpy).toHaveBeenCalledWith(
-      expect.any(Error),
-      expect.objectContaining({ action: 'confirm_newsletter', branch: 'outer_catch' }),
-    )
   })
 })

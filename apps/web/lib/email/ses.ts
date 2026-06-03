@@ -61,12 +61,28 @@ export function createSesEmailService(defaultConfigSet?: string): IEmailService 
         ...(msg.replyTo ? { ReplyToAddresses: [msg.replyTo] } : {}),
       })
 
-      const res = await client.send(cmd)
-      if (!res.MessageId) throw new Error('SES returned no MessageId')
-      return {
-        messageId: res.MessageId,
-        provider: 'ses' as EmailResult['provider'],
+      const MAX_RETRIES = 3
+      let lastError: unknown
+      for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+        try {
+          const res = await client.send(cmd)
+          if (!res.MessageId) throw new Error('SES returned no MessageId')
+          return {
+            messageId: res.MessageId,
+            provider: 'ses' as EmailResult['provider'],
+          }
+        } catch (err: unknown) {
+          lastError = err
+          const name = (err as { name?: string })?.name ?? ''
+          const retryable =
+            name === 'TooManyRequestsException' ||
+            name === 'ServiceUnavailableException' ||
+            name === 'ThrottlingException'
+          if (!retryable || attempt === MAX_RETRIES - 1) throw err
+          await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt))
+        }
       }
+      throw lastError
     },
 
     async sendTemplate<V extends Record<string, unknown>>(

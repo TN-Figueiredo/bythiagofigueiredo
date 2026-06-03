@@ -1,11 +1,12 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 
-const originalCronSecret = process.env.CRON_SECRET
-beforeEach(() => { process.env.CRON_SECRET = 'test-secret' })
-afterEach(() => {
-  if (originalCronSecret !== undefined) process.env.CRON_SECRET = originalCronSecret
-  else delete process.env.CRON_SECRET
-})
+// Mock getServerEnv to return test values without requiring all env vars
+vi.mock('../../../src/lib/env', () => ({
+  getServerEnv: () => ({
+    CRON_SECRET: 'test-secret',
+    SUPABASE_SERVICE_ROLE_KEY: 'test-key',
+  }),
+}))
 
 import { generateUnsubscribeToken } from '../../../lib/newsletter/confirm-email'
 

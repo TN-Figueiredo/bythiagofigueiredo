@@ -218,14 +218,16 @@ describe('listQrCards', () => {
     )
   })
 
-  it('throws forbidden when read scope is denied', async () => {
+  it('returns error when read scope is denied', async () => {
     const { requireSiteScope } = await import('@tn-figueiredo/auth-nextjs/server')
     vi.mocked(requireSiteScope).mockResolvedValueOnce({
       ok: false,
       reason: 'insufficient_access',
     })
     const { listQrCards } = await importActions()
-    await expect(listQrCards('link-1')).rejects.toThrow('forbidden')
+    const result = await listQrCards('link-1')
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error).toBe('forbidden')
   })
 })
 
@@ -348,28 +350,28 @@ describe('createQrCard', () => {
     }
   })
 
-  it('throws forbidden when edit scope denied', async () => {
+  it('returns error when edit scope denied', async () => {
     const { requireSiteScope } = await import('@tn-figueiredo/auth-nextjs/server')
     vi.mocked(requireSiteScope).mockResolvedValueOnce({
       ok: false,
       reason: 'insufficient_access',
     })
     const { createQrCard } = await importActions()
-    await expect(
-      createQrCard('link-1', 'Denied', validComposition()),
-    ).rejects.toThrow('forbidden')
+    const result = await createQrCard('link-1', 'Denied', validComposition())
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error).toBe('forbidden')
   })
 
-  it('throws unauthenticated when user not logged in', async () => {
+  it('returns error when user not logged in', async () => {
     const { requireSiteScope } = await import('@tn-figueiredo/auth-nextjs/server')
     vi.mocked(requireSiteScope).mockResolvedValueOnce({
       ok: false,
       reason: 'unauthenticated',
     })
     const { createQrCard } = await importActions()
-    await expect(
-      createQrCard('link-1', 'Denied', validComposition()),
-    ).rejects.toThrow('unauthenticated')
+    const result = await createQrCard('link-1', 'Denied', validComposition())
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error).toBe('unauthenticated')
   })
 })
 
@@ -454,16 +456,16 @@ describe('updateQrCard', () => {
     }
   })
 
-  it('throws forbidden when edit scope denied', async () => {
+  it('returns error when edit scope denied', async () => {
     const { requireSiteScope } = await import('@tn-figueiredo/auth-nextjs/server')
     vi.mocked(requireSiteScope).mockResolvedValueOnce({
       ok: false,
       reason: 'insufficient_access',
     })
     const { updateQrCard } = await importActions()
-    await expect(
-      updateQrCard('card-1', 'link-1', { name: 'Nope' }),
-    ).rejects.toThrow('forbidden')
+    const result = await updateQrCard('card-1', 'link-1', { name: 'Nope' })
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error).toBe('forbidden')
   })
 })
 
@@ -496,16 +498,16 @@ describe('deleteQrCard', () => {
     }
   })
 
-  it('throws forbidden when edit scope denied', async () => {
+  it('returns error when edit scope denied', async () => {
     const { requireSiteScope } = await import('@tn-figueiredo/auth-nextjs/server')
     vi.mocked(requireSiteScope).mockResolvedValueOnce({
       ok: false,
       reason: 'insufficient_access',
     })
     const { deleteQrCard } = await importActions()
-    await expect(
-      deleteQrCard('card-1', 'link-1'),
-    ).rejects.toThrow('forbidden')
+    const result = await deleteQrCard('card-1', 'link-1')
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error).toBe('forbidden')
   })
 })
 
@@ -600,16 +602,16 @@ describe('loadQrCardById', () => {
     )
   })
 
-  it('throws forbidden when read scope denied', async () => {
+  it('returns error when read scope denied', async () => {
     const { requireSiteScope } = await import('@tn-figueiredo/auth-nextjs/server')
     vi.mocked(requireSiteScope).mockResolvedValueOnce({
       ok: false,
       reason: 'insufficient_access',
     })
     const { loadQrCardById } = await importActions()
-    await expect(
-      loadQrCardById('card-1', 'link-1'),
-    ).rejects.toThrow('forbidden')
+    const result = await loadQrCardById('card-1', 'link-1')
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error).toBe('forbidden')
   })
 
   it('sanitizes blob URLs in returned composition', async () => {
@@ -681,13 +683,15 @@ describe('RBAC enforcement (card-actions)', () => {
     )
   })
 
-  it('listQrCards throws forbidden when scope denied', async () => {
+  it('listQrCards returns error when scope denied', async () => {
     const { requireSiteScope } = await import('@tn-figueiredo/auth-nextjs/server')
     vi.mocked(requireSiteScope).mockResolvedValueOnce({
       ok: false,
       reason: 'insufficient_access',
     })
     const { listQrCards } = await importActions()
-    await expect(listQrCards('link-1')).rejects.toThrow('forbidden')
+    const result = await listQrCards('link-1')
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error).toBe('forbidden')
   })
 })

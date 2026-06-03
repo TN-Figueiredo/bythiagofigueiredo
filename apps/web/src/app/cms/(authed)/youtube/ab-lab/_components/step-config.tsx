@@ -155,12 +155,6 @@ export function StepConfig({ config, onChange }: StepConfigProps) {
               </dd>
             </div>
 
-            <div className="flex items-center justify-between gap-2">
-              <dt className="text-xs text-cms-text-muted">Quota</dt>
-              <dd className="text-xs font-mono font-semibold text-cms-green">
-                1,5%
-              </dd>
-            </div>
           </dl>
 
           <p className="text-2xs text-cms-text-dim border-t border-cms-border pt-3 mt-4" style={{ lineHeight: 1.5 }}>

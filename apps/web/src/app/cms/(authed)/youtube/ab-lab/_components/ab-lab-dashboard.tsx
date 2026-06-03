@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { brDec } from '@/lib/youtube/format'
-import { Plus, Filter, Settings, Zap, FlaskConical, Crosshair, Trophy, TrendingUp, Sparkles, Pause, AlertTriangle, ImageIcon } from 'lucide-react'
+import { Plus, Filter, Settings, FlaskConical, Crosshair, Trophy, TrendingUp, Sparkles, Pause, AlertTriangle, ImageIcon } from 'lucide-react'
 import type {
   AbTestCardView,
   AbTestDraft,
@@ -64,6 +64,27 @@ export function AbLabDashboard({
   const [wizardVideo, setWizardVideo] = useState<WizardVideo | null>(null)
   const [continueDraft, setContinueDraft] = useState<AbTestDraft | null>(null)
   const [selectedForBatch, setSelectedForBatch] = useState<Set<string>>(new Set())
+  const [typeFilter, setTypeFilter] = useState<'all' | 'thumbnail' | 'title' | 'description' | 'combo'>('all')
+  const [filterOpen, setFilterOpen] = useState(false)
+  const [showAllCompleted, setShowAllCompleted] = useState(false)
+
+  const TYPE_FILTER_LABELS: Record<typeof typeFilter, string> = {
+    all: 'Todos os tipos',
+    thumbnail: 'Thumbnail',
+    title: 'Título',
+    description: 'Descrição',
+    combo: 'Combo',
+  }
+
+  const filterByType = <T extends { type?: string }>(items: T[]) =>
+    typeFilter === 'all' ? items : items.filter(i => i.type === typeFilter)
+
+  const filteredCards = filterByType(cards)
+  const filteredCompleted = filterByType(completed)
+  const filteredPaused = filterByType(paused)
+  const filteredDrafts = filterByType(drafts)
+
+  const visibleCompleted = showAllCompleted ? filteredCompleted : filteredCompleted.slice(0, 3)
 
   const toggleBatchSelect = (videoId: string) => {
     setSelectedForBatch(prev => {
@@ -146,10 +167,6 @@ export function AbLabDashboard({
                 ? `${cards.length} teste${cards.length > 1 ? 's' : ''} ativo${cards.length > 1 ? 's' : ''}`
                 : 'Nenhum teste ativo'}
             </span>
-            <span className="inline-flex items-center gap-[5px] px-[9px] py-[3px] rounded-full text-[10.5px] font-semibold tracking-[0.06em] uppercase text-cms-text-dim self-center font-mono" style={{ background: 'var(--cms-surface-3, var(--cms-surface-hover))' }}>
-              <Zap size={11} aria-hidden="true" />
-              quota 1,5% hoje
-            </span>
           </div>
           <div className="flex items-center gap-[10px]">
             <Link
@@ -159,14 +176,41 @@ export function AbLabDashboard({
               <ImageIcon className="h-4 w-4" />
               Library
             </Link>
-            <button
-              type="button"
-              className="inline-flex items-center gap-[7px] justify-center py-[6px] px-[11px] text-[12.5px] font-semibold rounded-[9px] border border-cms-border whitespace-nowrap transition-[0.15s] tracking-[-0.01em] text-cms-text cursor-pointer"
-              style={{ background: 'var(--cms-surface-hover)' }}
-            >
-              <Filter size={14} aria-hidden="true" />
-              Todos os tipos
-            </button>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setFilterOpen(prev => !prev)}
+                className="inline-flex items-center gap-[7px] justify-center py-[6px] px-[11px] text-[12.5px] font-semibold rounded-[9px] border border-cms-border whitespace-nowrap transition-[0.15s] tracking-[-0.01em] text-cms-text cursor-pointer"
+                style={{ background: 'var(--cms-surface-hover)' }}
+              >
+                <Filter size={14} aria-hidden="true" />
+                {TYPE_FILTER_LABELS[typeFilter]}
+              </button>
+              {filterOpen && (
+                <div
+                  className="absolute right-0 top-full mt-1 z-50 min-w-[160px] rounded-[10px] border border-cms-border overflow-hidden shadow-lg"
+                  style={{ background: 'var(--cms-surface-2, #272219)' }}
+                >
+                  {(Object.keys(TYPE_FILTER_LABELS) as Array<typeof typeFilter>).map(key => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => { setTypeFilter(key); setFilterOpen(false) }}
+                      className="w-full text-left px-[12px] py-[8px] text-[12.5px] transition-colors cursor-pointer hover:bg-cms-surface-hover"
+                      style={{
+                        color: key === typeFilter ? 'var(--cms-accent)' : 'var(--cms-text)',
+                        fontWeight: key === typeFilter ? 600 : 400,
+                        background: 'transparent',
+                        border: 'none',
+                        fontFamily: 'inherit',
+                      }}
+                    >
+                      {TYPE_FILTER_LABELS[key]}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <button
               type="button"
               onClick={() => setShowSettings(true)}
@@ -222,14 +266,14 @@ export function AbLabDashboard({
       )}
 
       {/* 3. DraftsBlock */}
-      {drafts.length > 0 && (
+      {filteredDrafts.length > 0 && (
         <div className="animate-ab-fade-up">
-          <DraftsBlock drafts={drafts} onContinue={handleContinueDraft} />
+          <DraftsBlock drafts={filteredDrafts} onContinue={handleContinueDraft} />
         </div>
       )}
 
       {/* 4. Active Grid */}
-      {cards.length > 0 && (
+      {filteredCards.length > 0 && (
         <div className="animate-ab-fade-up" style={{ margin: '26px 0 14px' }}>
           <div className="flex items-center justify-between mb-[14px]">
             <div className="flex items-center gap-[8px]">
@@ -241,7 +285,7 @@ export function AbLabDashboard({
             </div>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-[16px]" data-active-grid>
-            {cards.map(card => (
+            {filteredCards.map(card => (
               <ActiveTestCard
                 key={card.id}
                 test={card}
@@ -253,7 +297,7 @@ export function AbLabDashboard({
       )}
 
       {/* 4b. Paused tests */}
-      {paused.length > 0 && (
+      {filteredPaused.length > 0 && (
         <div className="animate-ab-fade-up" style={{ margin: '26px 0 14px' }}>
           <div className="flex items-center justify-between mb-[14px]">
             <div className="flex items-center gap-[8px]">
@@ -265,7 +309,7 @@ export function AbLabDashboard({
             </div>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-[16px]" data-paused-grid>
-            {paused.map(card => (
+            {filteredPaused.map(card => (
               <div
                 key={card.id}
                 className="rounded-[14px] border border-cms-border bg-cms-surface p-[16px] cursor-pointer hover:border-cms-accent/40 transition-colors"
@@ -387,14 +431,22 @@ export function AbLabDashboard({
       )}
 
       {/* 6. Completed + Learnings */}
-      {completed.length > 0 && (
+      {filteredCompleted.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-[16px] mt-[26px] items-start animate-ab-fade-up">
           <div className="rounded-[14px] border border-cms-border bg-cms-surface p-[16px]">
             <div className="flex items-center justify-between mb-[14px]">
               <span className="text-[9px] font-semibold text-cms-text-dim uppercase tracking-[0.08em]">Concluídos</span>
-              <button type="button" className="text-[12px] text-cms-text-dim hover:text-cms-accent transition-colors cursor-pointer">ver todos</button>
+              {filteredCompleted.length > 3 && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllCompleted(prev => !prev)}
+                  className="text-[12px] text-cms-text-dim hover:text-cms-accent transition-colors cursor-pointer"
+                >
+                  {showAllCompleted ? 'ver menos' : `ver todos (${filteredCompleted.length})`}
+                </button>
+              )}
             </div>
-            {completed.map(test => (
+            {visibleCompleted.map(test => (
               <CompletedRow key={test.id} test={test} onOpen={handleOpenTest} />
             ))}
           </div>

@@ -1106,11 +1106,10 @@ describe('StepConfig component', () => {
       expect(screen.getByText(/Estimativa baseada na configuração/)).toBeDefined()
     })
 
-    it('shows stat labels: Tempo estimado, Ciclos ABBA, Quota', () => {
+    it('shows stat labels: Tempo estimado, Ciclos ABBA', () => {
       renderConfig()
       expect(screen.getByText('Tempo estimado')).toBeDefined()
       expect(screen.getByText('Ciclos ABBA')).toBeDefined()
-      expect(screen.getByText('Quota')).toBeDefined()
     })
 
     it('correct calculation for duration=14 confidence=95 (factor 1.0)', () => {
@@ -1119,8 +1118,6 @@ describe('StepConfig component', () => {
       expect(screen.getByText('~14 dias')).toBeDefined()
       // abbaCycles = ceil(14/2)*2 = 14
       expect(screen.getByText('14')).toBeDefined()
-      // quota is fixed
-      expect(screen.getByText('1,5%')).toBeDefined()
     })
 
     it('correct calculation for duration=14 confidence=90 (factor 0.8)', () => {

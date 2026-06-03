@@ -1,12 +1,10 @@
+import React from 'react'
 import type { Metadata } from 'next'
 import { createHash } from 'node:crypto'
-import { revalidateTag } from 'next/cache'
-import { after } from 'next/server'
 import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
-import { deriveCadenceLabel } from '../../../../../lib/newsletter/format'
-import { captureServerActionError } from '../../../../lib/sentry-wrap'
-import { ConfirmLayout, localePath } from './_layouts/confirm-layout'
-import type { NlType } from './_layouts/confirm-layout'
+import { ConfirmLayout } from './_layouts/confirm-layout'
+import { ConfirmFlow } from './confirm-flow'
+import type { ConfirmCopy } from './confirm-flow'
 
 export const dynamic = 'force-dynamic'
 export const fetchCache = 'force-no-store'
@@ -19,17 +17,13 @@ interface Props {
   params: Promise<{ token: string }>
 }
 
-interface ConfirmRpcResult {
-  ok: boolean
-  already?: boolean
-  error?: 'not_found' | 'expired' | 'invalid_state'
-  site_id?: string
-  email?: string
-}
-
 // M3: minimal two-locale copy. Falls back to pt-BR for any other locale.
 const COPY = {
   'pt-BR': {
+    confirm_title: 'Confirmar inscrição',
+    confirm_body: 'Clique no botão abaixo para confirmar sua inscrição na newsletter.',
+    confirm_button: 'Confirmar inscrição',
+    confirm_pending: 'Confirmando...',
     invalid_title: 'Link inválido',
     invalid_body: 'Este link de confirmação é inválido.',
     rpc_error_title: 'Erro ao confirmar',
@@ -46,8 +40,8 @@ const COPY = {
     already_body:
       'Seu email já estava confirmado. Você continuará recebendo as edições das suas newsletters.',
     ok_title: 'Inscrição confirmada!',
-    ok_body: 'Você agora faz parte de:',
-    ok_body_continuation: 'A próxima edição de cada uma vai direto para o seu email.',
+    ok_body: 'Sua inscrição está confirmada.',
+    ok_body_continuation: 'A próxima edição vai direto para o seu email.',
     ok_signoff: 'Obrigado por estar aqui.',
     already_signoff: 'Obrigado por estar aqui.',
     go_to_site: 'Ir para o site',
@@ -56,6 +50,10 @@ const COPY = {
     subscribed_to: 'Suas newsletters:',
   },
   en: {
+    confirm_title: 'Confirm subscription',
+    confirm_body: 'Click the button below to confirm your newsletter subscription.',
+    confirm_button: 'Confirm subscription',
+    confirm_pending: 'Confirming...',
     invalid_title: 'Invalid link',
     invalid_body: 'This confirmation link is invalid.',
     rpc_error_title: 'Error confirming',
@@ -72,8 +70,8 @@ const COPY = {
     already_body:
       'Your email was already confirmed. You will continue receiving editions of your newsletters.',
     ok_title: 'Subscription confirmed!',
-    ok_body: 'You are now part of:',
-    ok_body_continuation: 'The next edition of each will go straight to your inbox.',
+    ok_body: 'Your subscription is confirmed.',
+    ok_body_continuation: 'The next edition will go straight to your inbox.',
     ok_signoff: 'Thank you for being here.',
     already_signoff: 'Thank you for being here.',
     go_to_site: 'Go to site',
@@ -88,52 +86,19 @@ function pickCopy(locale: string | null | undefined) {
   return COPY[(locale && locale in COPY ? locale : 'pt-BR') as Locale]
 }
 
-/* ── Newsletter list query ───────────────────────────────────────────────── */
-
-async function getSubscribedTypes(siteId: string, email: string): Promise<NlType[]> {
-  try {
-    const supabase = getSupabaseServiceClient()
-    const { data: subs } = await supabase
-      .from('newsletter_subscriptions')
-      .select('newsletter_id')
-      .eq('site_id', siteId)
-      .eq('email', email)
-      .eq('status', 'confirmed')
-
-    if (!subs?.length) return []
-
-    const typeIds = subs.map((s) => s.newsletter_id)
-    const { data: types } = await supabase
-      .from('newsletter_types')
-      .select('name, tagline, color, color_dark, cadence_label, cadence_days, cadence_start_date, locale')
-      .in('id', typeIds)
-      .eq('active', true)
-      .order('sort_order')
-
-    return (types ?? []).map((t) => {
-      const typeLocale = (t.locale as string) === 'pt-BR' ? 'pt-BR' : 'en'
-      return {
-        name: t.name as string,
-        tagline: t.tagline as string | null,
-        color: (t.color as string | null) ?? '#FF8240',
-        colorDark: t.color_dark as string | null,
-        cadenceLabel: deriveCadenceLabel(
-          t.cadence_label as string | null,
-          t.cadence_days as number,
-          typeLocale,
-          t.cadence_start_date as string | null,
-        ),
-      }
-    })
-  } catch {
-    return []
-  }
-}
-
+/**
+ * Two-step confirmation page.
+ *
+ * GET does NOT call the confirm RPC — it only validates the token exists and
+ * renders a "Confirm" button. This prevents email scanners (Safe Links,
+ * Proofpoint) from auto-confirming subscriptions by following the link.
+ *
+ * The actual confirmation happens via a server action triggered by the button.
+ */
 export default async function NewsletterConfirmPage({ params }: Props) {
   const { token } = await params
 
-  if (!token || typeof token !== 'string') {
+  if (!token || typeof token !== 'string' || !/^[a-f0-9]{64}$/.test(token)) {
     const c = pickCopy(null)
     return (
       <ConfirmLayout
@@ -146,76 +111,49 @@ export default async function NewsletterConfirmPage({ params }: Props) {
     )
   }
 
+  // Validate the token exists without calling the confirm RPC.
+  // This lets us show the right locale and detect invalid/expired tokens early.
+  let locale: string | null = null
+  let tokenExists = false
+
   try {
     const supabase = getSupabaseServiceClient()
     const tokenHash = createHash('sha256').update(token).digest('hex')
 
-    let locale: string | null = null
-    try {
-      const { data: row } = await supabase
-        .from('newsletter_subscriptions')
-        .select('locale')
-        .eq('confirmation_token_hash', tokenHash)
-        .maybeSingle()
-      locale = (row?.locale as string | null) ?? null
-    } catch {
-      /* best-effort */
-    }
+    const { data: row } = await supabase
+      .from('newsletter_subscriptions')
+      .select('locale, status, confirmation_expires_at')
+      .eq('confirmation_token_hash', tokenHash)
+      .maybeSingle()
 
-    const { data, error: rpcError } = await supabase.rpc('confirm_newsletter_subscription', {
-      p_token_hash: tokenHash,
-    })
+    if (row) {
+      tokenExists = true
+      locale = (row.locale as string | null) ?? null
 
-    const result = (data ?? null) as ConfirmRpcResult | null
-
-    if (!locale && result?.email && result.site_id) {
-      try {
-        const { data: row2 } = await supabase
-          .from('newsletter_subscriptions')
-          .select('locale')
-          .eq('site_id', result.site_id)
-          .eq('email', result.email)
-          .limit(1)
-          .maybeSingle()
-        locale = (row2?.locale as string | null) ?? null
-      } catch {
-        /* best-effort */
-      }
-    }
-
-    const c = pickCopy(locale)
-    const lang = locale === 'en' ? 'en' : 'pt-BR'
-
-    if (rpcError || !result) {
-      if (rpcError) {
-        captureServerActionError(rpcError, { action: 'confirm_newsletter' })
-      }
-      return (
-        <ConfirmLayout
-          state="error"
-          title={c.rpc_error_title}
-          body={c.rpc_error_body}
-          backLabel={c.back_home}
-          lang={lang}
-          locale={lang}
-        />
-      )
-    }
-
-    if (!result.ok) {
-      if (result.error === 'not_found') {
+      // Already confirmed — show immediately (no button needed)
+      if (row.status === 'confirmed') {
+        const c = pickCopy(locale)
+        const lang = locale === 'en' ? 'en' : 'pt-BR'
         return (
           <ConfirmLayout
-            state="not_found"
-            title={c.not_found_title}
-            body={c.not_found_body}
+            state="already"
+            title={c.already_title}
+            body={c.already_body}
             backLabel={c.back_home}
             lang={lang}
             locale={lang}
+            signoff={c.already_signoff}
           />
         )
       }
-      if (result.error === 'expired') {
+
+      // Token expired — show immediately
+      const expiresAt = row.confirmation_expires_at
+        ? new Date(row.confirmation_expires_at as string)
+        : null
+      if (expiresAt && expiresAt < new Date()) {
+        const c = pickCopy(locale)
+        const lang = locale === 'en' ? 'en' : 'pt-BR'
         return (
           <ConfirmLayout
             state="expired"
@@ -227,74 +165,68 @@ export default async function NewsletterConfirmPage({ params }: Props) {
           />
         )
       }
-      return (
-        <ConfirmLayout
-          state="error"
-          title={c.invalid_state_title}
-          body={c.invalid_state_body}
-          backLabel={c.back_home}
-          lang={lang}
-          locale={lang}
-        />
-      )
     }
+  } catch {
+    // Best-effort token validation — if it fails, show the button anyway.
+    // The server action will return the proper error.
+    tokenExists = true
+  }
 
-    if (result.already) {
-      const newsletters =
-        result.site_id && result.email
-          ? await getSubscribedTypes(result.site_id, result.email)
-          : []
+  const c = pickCopy(locale)
+  const lang = locale === 'en' ? 'en' : 'pt-BR'
 
-      return (
-        <ConfirmLayout
-          state="already"
-          title={c.already_title}
-          body={c.already_body}
-          backLabel={c.back_home}
-          lang={lang}
-          locale={lang}
-          newsletters={newsletters}
-          subscribedToLabel={c.subscribed_to}
-          signoff={c.already_signoff}
-        />
-      )
-    }
-
-    after(() => revalidateTag('newsletter-suggestions'))
-
-    const newsletters =
-      result.site_id && result.email
-        ? await getSubscribedTypes(result.site_id, result.email)
-        : []
-
+  // Token not found — show error immediately
+  if (!tokenExists) {
     return (
       <ConfirmLayout
-        state="success"
-        title={c.ok_title}
-        body={c.ok_body}
-        bodyContinuation={c.ok_body_continuation}
+        state="not_found"
+        title={c.not_found_title}
+        body={c.not_found_body}
         backLabel={c.back_home}
         lang={lang}
         locale={lang}
-        newsletters={newsletters}
-        subscribedToLabel={c.subscribed_to}
-        signoff={c.ok_signoff}
-        showCta
-        ctaLabel={c.go_to_site}
-        readLatestLabel={c.read_latest}
-      />
-    )
-  } catch (err) {
-    captureServerActionError(err, { action: 'confirm_newsletter', branch: 'outer_catch' })
-    const c = pickCopy(null)
-    return (
-      <ConfirmLayout
-        state="error"
-        title={c.rpc_error_title}
-        body={c.rpc_error_body}
-        backLabel={c.back_home}
-        locale="pt-BR"
       />
     )
   }
+
+  // ── Two-step: render confirm prompt ────────────────────────────────────
+  // The ConfirmFlow client component handles the button click and
+  // renders the result inline after the server action completes.
+  const flowCopy: ConfirmCopy = {
+    confirm_button: c.confirm_button,
+    confirm_pending: c.confirm_pending,
+    confirm_body: c.confirm_body,
+    rpc_error_title: c.rpc_error_title,
+    rpc_error_body: c.rpc_error_body,
+    not_found_title: c.not_found_title,
+    not_found_body: c.not_found_body,
+    expired_title: c.expired_title,
+    expired_body: c.expired_body,
+    invalid_state_title: c.invalid_state_title,
+    invalid_state_body: c.invalid_state_body,
+    already_title: c.already_title,
+    already_body: c.already_body,
+    already_signoff: c.already_signoff,
+    ok_title: c.ok_title,
+    ok_body: c.ok_body,
+    ok_body_continuation: c.ok_body_continuation,
+    ok_signoff: c.ok_signoff,
+    go_to_site: c.go_to_site,
+    read_latest: c.read_latest,
+    back_home: c.back_home,
+    subscribed_to: c.subscribed_to,
+  }
+
+  return (
+    <ConfirmLayout
+      state="prompt"
+      title={c.confirm_title}
+      body=""
+      backLabel={c.back_home}
+      lang={lang}
+      locale={lang}
+    >
+      <ConfirmFlow token={token} copy={flowCopy} locale={lang} />
+    </ConfirmLayout>
+  )
 }

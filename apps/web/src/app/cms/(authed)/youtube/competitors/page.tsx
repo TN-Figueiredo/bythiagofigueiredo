@@ -1,7 +1,6 @@
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { CompetitorDashboardV2 } from './_components/competitor-dashboard-v2'
-import { useRedesignScreen } from '../_hooks/use-redesign-screen'
 import type {
   CompetitorChannelView,
   CompetitorChangeView,
@@ -309,8 +308,9 @@ export default async function CompetitorsPage({
     }
   })
 
-  // ── Build changes views ──
-  const changes: CompetitorChangeView[] = (rawChanges ?? []).map(c => {
+  // ── Build changes views (grouped by video) ──
+  type RawChange = NonNullable<typeof rawChanges>[number]
+  const mapChange = (c: RawChange): CompetitorChangeView => {
     const vidInfo = (c.competitor_videos as Array<{ title: string | null; video_id: string; competitor_channels: Array<{ channel_name: string; thumbnail_url: string | null }> }>)?.[0]
     const chInfo = vidInfo?.competitor_channels?.[0]
     return {
@@ -327,9 +327,29 @@ export default async function CompetitorsPage({
       viewCountAtChange: c.view_count_at_change,
       detectedAt: c.detected_at,
       bookmarked: c.bookmarked,
-      history: [], // TODO: fetch full history per video if needed
+      history: [],
     }
-  })
+  }
+
+  // Group raw changes by video_id (query already sorted by detected_at DESC)
+  const changeGroupsByVideo = new Map<string, RawChange[]>()
+  for (const c of rawChanges ?? []) {
+    const vidId = (c.competitor_videos as Array<{ video_id: string }>)?.[0]?.video_id ?? ''
+    if (!vidId) continue
+    const group = changeGroupsByVideo.get(vidId) ?? []
+    group.push(c)
+    changeGroupsByVideo.set(vidId, group)
+  }
+
+  // First item in each group = parent, rest = history
+  const changes: CompetitorChangeView[] = []
+  for (const group of changeGroupsByVideo.values()) {
+    const parent = mapChange(group[0]!)
+    parent.history = group.slice(1).map(mapChange)
+    changes.push(parent)
+  }
+  // Sort parents by detectedAt DESC
+  changes.sort((a, b) => b.detectedAt.localeCompare(a.detectedAt))
 
   // ── Build outlier views ──
   const outlierStaleCutoff = new Date(Date.now() - 7 * 86_400_000).toISOString()
@@ -623,16 +643,6 @@ export default async function CompetitorsPage({
     play,
     ownTagsByChannel,
     competitorTagsByChannel,
-  }
-
-  const useV2 = useRedesignScreen('competitors')
-
-  if (!useV2) {
-    return (
-      <div className="p-8 text-center text-cms-text-muted text-sm">
-        <p>Redesign desabilitado para esta tela via <code className="mono">YT_REDESIGN_SCREENS</code>.</p>
-      </div>
-    )
   }
 
   return (

@@ -63,5 +63,6 @@ apps/*/.env.local-db
 
 # Design mockups (use Figma/CDN, not git — 44MB caused Vercel build timeouts)
 design/
+design_handoff_youtube_cms/
 supabase/backup_*_pre_squash.sql
 apps/web/.env.local.prod-backup

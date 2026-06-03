@@ -4,7 +4,7 @@ import { NextRequest } from 'next/server'
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn() }))
 vi.mock('@/lib/social/token-refresh', () => ({ ensureFreshToken: vi.fn() }))
 vi.mock('@/lib/youtube/ab-statistics', () => ({ calculateBayesianConfidence: vi.fn() }))
-vi.mock('@/lib/youtube/ab-youtube', () => ({ setThumbnail: vi.fn(), fetchVariantImageBuffer: vi.fn() }))
+vi.mock('@/lib/youtube/ab-youtube', () => ({ setThumbnail: vi.fn().mockResolvedValue({ highUrl: 'https://i.ytimg.com/vi/test/hqdefault.jpg' }), fetchVariantImageBuffer: vi.fn() }))
 vi.mock('@/lib/youtube/ab-metadata', () => ({ updateVideoMetadata: vi.fn() }))
 vi.mock('@/lib/youtube/ab-templates', () => ({ resolveTemplates: vi.fn() }))
 vi.mock('@/lib/youtube/ab-preflight', () => ({ preflightTokenCheck: vi.fn(() => ({ ok: true, accessToken: 'token-retry' })) }))
@@ -15,9 +15,11 @@ vi.mock('@/lib/youtube/ab-start', () => ({ startAbTestInternal: vi.fn(() => ({ o
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn() }))
 vi.mock('@/lib/cron-health', () => ({ recordCronSuccess: vi.fn(), recordCronFailure: vi.fn() }))
 vi.mock('@/lib/youtube/ab-escalation', () => ({ checkAndEscalate: vi.fn() }))
+vi.mock('@/lib/notifications/fan-out-to-admins', () => ({ fanOutToSiteAdmins: vi.fn().mockResolvedValue(1) }))
 
 import { GET } from '@/app/api/cron/ab-evaluate/route'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { fanOutToSiteAdmins } from '@/lib/notifications/fan-out-to-admins'
 import { ensureFreshToken } from '@/lib/social/token-refresh'
 import { calculateBayesianConfidence } from '@/lib/youtube/ab-statistics'
 import { setThumbnail, fetchVariantImageBuffer } from '@/lib/youtube/ab-youtube'
@@ -297,10 +299,10 @@ describe('GET /api/cron/ab-evaluate', () => {
       })
     )
 
-    // Should send winner_pending notification
-    expect(client.rpc).toHaveBeenCalledWith('create_yt_notification', expect.objectContaining({
-      p_type: 'ab_test_winner_pending',
-    }))
+    // Should send winner_pending notification via fanOutToSiteAdmins
+    expect(fanOutToSiteAdmins).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'youtube.ab_test_winner_pending' }),
+    )
   })
 
   it('auto-resolves when grace period has expired (thumbnail test)', async () => {

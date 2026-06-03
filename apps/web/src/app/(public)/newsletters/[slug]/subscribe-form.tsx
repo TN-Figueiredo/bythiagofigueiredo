@@ -1,10 +1,21 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import Link from 'next/link'
 import { localePath } from '@/lib/i18n/locale-path'
 import type { ScoredSuggestion } from '@/lib/newsletter/suggestions'
 import type { SuggestionStrings } from './newsletter-suggestions'
+
+// ─── Turnstile global ─────────────────────────────────────────────────────────
+
+declare global {
+  interface Window {
+    turnstile?: {
+      render(el: HTMLElement, opts: { sitekey: string; callback: (tok: string) => void }): string
+      reset(id?: string): void
+    }
+  }
+}
 
 export interface SubscribeFormStrings {
   stepLabel: string
@@ -83,6 +94,7 @@ export function SubscribeForm({
   newsletterName,
   strings,
   privacyHref,
+  turnstileSiteKey,
   onSubscribe,
   suggestions,
   suggestionStrings,
@@ -97,9 +109,41 @@ export function SubscribeForm({
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set())
   const [addingId, setAddingId] = useState<string | null>(null)
   const [filteredSuggestions, setFilteredSuggestions] = useState<ScoredSuggestion[] | null>(null)
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
+  const turnstileRef = useRef<HTMLDivElement>(null)
+  const widgetIdRef = useRef<string | null>(null)
 
   const pendingHeadingRef = useRef<HTMLHeadingElement>(null)
   const errorRef = useRef<HTMLDivElement>(null)
+
+  // ── Turnstile setup ────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!turnstileSiteKey || !turnstileRef.current) return
+    const script = document.createElement('script')
+    script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js'
+    script.async = true
+    script.defer = true
+    script.onload = () => {
+      if (window.turnstile && turnstileRef.current) {
+        const id = window.turnstile.render(turnstileRef.current, {
+          sitekey: turnstileSiteKey,
+          callback: (tok) => setTurnstileToken(tok),
+        })
+        widgetIdRef.current = id
+      }
+    }
+    document.head.appendChild(script)
+    return () => {
+      script.remove()
+    }
+  }, [turnstileSiteKey])
+
+  function resetTurnstile() {
+    if (window.turnstile && widgetIdRef.current) {
+      window.turnstile.reset(widgetIdRef.current)
+    }
+    setTurnstileToken(null)
+  }
 
   const canSubmit = email.includes('@') && consent && phase !== 'loading'
 
@@ -122,11 +166,21 @@ export function SubscribeForm({
     e.preventDefault()
     if (!canSubmit) return
 
+    // Client-side guard: Turnstile required only when key is configured
+    if (turnstileSiteKey && !turnstileToken) {
+      setErrorMsg(strings.errorServer)
+      setPhase('error')
+      requestAnimationFrame(() => {
+        errorRef.current?.focus()
+      })
+      return
+    }
+
     setPhase('loading')
     setErrorMsg('')
 
     try {
-      const result = await onSubscribe(email, [newsletterId], locale)
+      const result = await onSubscribe(email, [newsletterId], locale, turnstileToken ?? undefined)
 
       if (result.success) {
         const nextPhase = result.needsConfirmation === false ? 'confirmed' : 'pending'
@@ -148,6 +202,7 @@ export function SubscribeForm({
         const errorKey = result.error ? ERROR_MAP[result.error] ?? 'errorServer' : 'errorServer'
         setErrorMsg(strings[errorKey] as string)
         setPhase('error')
+        resetTurnstile()
         requestAnimationFrame(() => {
           errorRef.current?.focus()
         })
@@ -155,6 +210,7 @@ export function SubscribeForm({
     } catch {
       setErrorMsg(strings.errorServer)
       setPhase('error')
+      resetTurnstile()
       requestAnimationFrame(() => {
         errorRef.current?.focus()
       })
@@ -163,10 +219,17 @@ export function SubscribeForm({
 
   async function handleResend() {
     try {
-      await onSubscribe(email, [newsletterId], locale)
-      setResent(true)
+      const result = await onSubscribe(email, [newsletterId], locale, turnstileToken ?? undefined)
+      if (result.success) {
+        setResent(true)
+      } else if (result.error) {
+        const errorKey = ERROR_MAP[result.error] ?? 'errorServer'
+        setErrorMsg(strings[errorKey] as string)
+        setPhase('error')
+        resetTurnstile()
+      }
     } catch {
-      // silently ignore resend errors
+      // silently ignore network errors on resend
     }
   }
 
@@ -176,6 +239,7 @@ export function SubscribeForm({
     setPhase('idle')
     setResent(false)
     setErrorMsg('')
+    resetTurnstile()
   }
 
   // CSS variable overrides for accent color
@@ -516,6 +580,9 @@ export function SubscribeForm({
               .
             </span>
           </label>
+
+          {/* Turnstile widget */}
+          {turnstileSiteKey ? <div ref={turnstileRef} /> : null}
 
           {/* Submit button */}
           <button

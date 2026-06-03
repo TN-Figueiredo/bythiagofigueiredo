@@ -24,7 +24,7 @@ import {
   type BadgeTone,
 } from '@/app/cms/(authed)/youtube/ab-lab/_components/ab-primitives'
 
-import { MOCK_DASHBOARD } from '@/app/cms/(authed)/youtube/ab-lab/_components/mock-dashboard'
+import { MOCK_DASHBOARD } from '../helpers/mock-dashboard'
 import {
   MOCK_WINNER,
   MOCK_PLAYOFF,

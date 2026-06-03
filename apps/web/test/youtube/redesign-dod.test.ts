@@ -8,7 +8,6 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fmtBR, fmtC, brDec } from '@/lib/youtube/format'
-import { useRedesignScreen } from '@/app/cms/(authed)/youtube/_hooks/use-redesign-screen'
 import * as abLabChartUtils from '@/app/cms/(authed)/youtube/ab-lab/_components/chart-utils'
 import * as sharedChartUtils from '@/app/cms/(authed)/_shared/charts/chart-utils'
 
@@ -124,41 +123,8 @@ describe('useClickKeyHandler — keyboard a11y', () => {
 })
 
 /* ------------------------------------------------------------------ */
-/*  4. Feature flag helper                                             */
+/*  4. Feature flag helper — removed (redesign complete)               */
 /* ------------------------------------------------------------------ */
-
-describe('useRedesignScreen — feature flag', () => {
-  const originalEnv = process.env.YT_REDESIGN_SCREENS
-
-  afterEach(() => {
-    if (originalEnv === undefined) {
-      delete process.env.YT_REDESIGN_SCREENS
-    } else {
-      process.env.YT_REDESIGN_SCREENS = originalEnv
-    }
-  })
-
-  it('returns true when env var is undefined (default all on)', () => {
-    delete process.env.YT_REDESIGN_SCREENS
-    expect(useRedesignScreen('competitors')).toBe(true)
-  })
-
-  it('returns false when env var is empty string (kill switch)', () => {
-    process.env.YT_REDESIGN_SCREENS = ''
-    expect(useRedesignScreen('competitors')).toBe(false)
-  })
-
-  it('returns true when screen is in the comma-separated list', () => {
-    process.env.YT_REDESIGN_SCREENS = 'competitors, ab-lab'
-    expect(useRedesignScreen('competitors')).toBe(true)
-    expect(useRedesignScreen('ab-lab')).toBe(true)
-  })
-
-  it('returns false when screen is NOT in the list', () => {
-    process.env.YT_REDESIGN_SCREENS = 'competitors'
-    expect(useRedesignScreen('ab-lab')).toBe(false)
-  })
-})
 
 /* ------------------------------------------------------------------ */
 /*  5. Chart utils deduplication                                       */

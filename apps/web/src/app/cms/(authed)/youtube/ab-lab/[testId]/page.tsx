@@ -3,24 +3,24 @@ import { ActiveDetail } from '../_components/active-detail'
 import { WinnerDetail } from '../_components/winner-detail'
 import { PlayoffDetail } from '../_components/playoff-detail'
 import { EarlyDetail } from '../_components/early-detail'
-import { MOCK_ACTIVE, MOCK_WINNER, MOCK_PLAYOFF, MOCK_EARLY } from '../_components/mock-views'
 import { notFound } from 'next/navigation'
 import type { AbTestDetailView, AbTestActiveView } from '@/lib/youtube/ab-types'
 
 export const dynamic = 'force-dynamic'
 
-const MOCK_MAP: Record<string, AbTestDetailView> =
-  process.env.NODE_ENV === 'development'
-    ? {
-        'mock-active-1': MOCK_ACTIVE,
-        'mock-active-2': MOCK_ACTIVE,
-        'mock-completed-1': MOCK_WINNER,
-        'mock-completed-2': MOCK_WINNER,
-        'mock-completed-3': MOCK_PLAYOFF,
-        'mock-draft-1': MOCK_ACTIVE,
-        'mock-early-1': MOCK_EARLY,
-      }
-    : {}
+async function getMockMap(): Promise<Record<string, AbTestDetailView>> {
+  if (process.env.NODE_ENV !== 'development') return {}
+  const { MOCK_ACTIVE, MOCK_WINNER, MOCK_PLAYOFF, MOCK_EARLY } = await import('../_components/mock-views')
+  return {
+    'mock-active-1': MOCK_ACTIVE,
+    'mock-active-2': MOCK_ACTIVE,
+    'mock-completed-1': MOCK_WINNER,
+    'mock-completed-2': MOCK_WINNER,
+    'mock-completed-3': MOCK_PLAYOFF,
+    'mock-draft-1': MOCK_ACTIVE,
+    'mock-early-1': MOCK_EARLY,
+  }
+}
 
 /** Test is in early state when no cycles completed and confidence < 5%. */
 function isEarly(view: AbTestDetailView): view is AbTestActiveView {
@@ -43,7 +43,8 @@ export default async function AbTestDetailPage({
 }) {
   const { testId } = await params
 
-  const mockView = MOCK_MAP[testId]
+  const mockMap = await getMockMap()
+  const mockView = mockMap[testId]
   if (mockView) return renderView(mockView)
 
   const results = await getTestResults(testId)

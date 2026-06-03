@@ -1,5 +1,6 @@
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { createNotification } from '@/lib/notifications/create'
+import { normalizeYouTubeThumbnailUrl } from '@/lib/youtube/ab-drift'
 import crypto from 'crypto'
 
 const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3'
@@ -7,16 +8,6 @@ const MAX_FULL_SYNC_VIDEOS = 2000
 const MAX_INCREMENTAL_PAGES = 5
 const CHANGE_DETECTION_WINDOW_DAYS = 90
 const PAGE_DELAY_MS = 300
-
-function normalizeUrl(url: string): string {
-  try {
-    const u = new URL(url)
-    u.search = ''
-    return u.toString().replace(/\/$/, '')
-  } catch {
-    return url
-  }
-}
 
 interface SyncResult {
   videosChecked: number
@@ -227,7 +218,7 @@ export async function syncCompetitorChannel(
             changesDetected++
           }
 
-          if (existing.thumbnail_url && thumbnailUrl && normalizeUrl(existing.thumbnail_url) !== normalizeUrl(thumbnailUrl)) {
+          if (existing.thumbnail_url && thumbnailUrl && normalizeYouTubeThumbnailUrl(existing.thumbnail_url) !== normalizeYouTubeThumbnailUrl(thumbnailUrl)) {
             await supabase.from('competitor_changes').insert({
               video_id: existing.id,
               site_id: channelRow.site_id,

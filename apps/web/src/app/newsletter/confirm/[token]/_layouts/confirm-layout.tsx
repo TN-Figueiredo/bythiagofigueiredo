@@ -1,10 +1,11 @@
 /* ── State visual config ─────────────────────────────────────────────────── */
 
-export type StateKind = 'success' | 'already' | 'expired' | 'not_found' | 'error' | 'invalid'
+export type StateKind = 'success' | 'already' | 'expired' | 'not_found' | 'error' | 'invalid' | 'prompt'
 
 export const STATE_CONFIG: Record<StateKind, { accent: string; icon: string; shimmer: boolean }> = {
   success:   { accent: '#FF8240', icon: '❦', shimmer: true },
   already:   { accent: '#FF8240', icon: '❦', shimmer: false },
+  prompt:    { accent: '#FF8240', icon: '❦', shimmer: false },
   expired:   { accent: '#E5A100', icon: '⏳', shimmer: false },
   not_found: { accent: '#958A75', icon: '⁇', shimmer: false },
   error:     { accent: '#C14513', icon: '⚠', shimmer: false },
@@ -41,6 +42,7 @@ export function ConfirmLayout({
   showCta,
   ctaLabel,
   readLatestLabel,
+  children,
 }: {
   state: StateKind
   title: string
@@ -55,6 +57,7 @@ export function ConfirmLayout({
   showCta?: boolean
   ctaLabel?: string
   readLatestLabel?: string
+  children?: React.ReactNode
 }) {
   const { accent, icon, shimmer } = STATE_CONFIG[state]
   const showNewsletter = (state === 'success' || state === 'already') && newsletters && newsletters.length > 0
@@ -142,7 +145,7 @@ export function ConfirmLayout({
           {/* Card body */}
           <div className="confirm-card-body text-center" style={{ padding: '48px 48px 44px' }}>
             {/* State icon */}
-            {(state === 'success' || state === 'already') ? (
+            {(state === 'success' || state === 'already' || state === 'prompt') ? (
               <div
                 className="confirm-fleuron font-source-serif mb-7"
                 style={{
@@ -188,132 +191,139 @@ export function ConfirmLayout({
               {title}
             </h1>
 
-            {/* Body */}
-            <p
-              className="font-source-serif leading-[1.65] mx-auto"
-              style={{
-                fontSize: 17,
-                maxWidth: 420,
-                color: 'var(--pb-muted)',
-                marginBottom: 0,
-              }}
-            >
-              {body}
-            </p>
-
-            {/* Newsletter list */}
-            {showNewsletter && (
-              <div className="text-left" style={{ margin: '20px 0 4px' }}>
-                <ul className="list-none p-0 m-0" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {newsletters!.map((nl) => (
-                    <li
-                      key={nl.name}
-                      style={{
-                        borderLeft: `3px solid ${nl.color}`,
-                        padding: '10px 0 10px 16px',
-                      }}
-                    >
-                      <span
-                        className="font-fraunces font-medium block"
-                        style={{ fontSize: 16, color: 'var(--pb-ink)', lineHeight: 1.3, letterSpacing: '-0.01em', marginBottom: 2 }}
-                      >
-                        {nl.name}
-                      </span>
-                      {nl.tagline && (
-                        <span
-                          className="font-inter block mt-0.5"
-                          style={{ fontSize: 12, color: 'var(--pb-faint)', letterSpacing: '0.02em' }}
-                        >
-                          {nl.tagline}
-                          {nl.cadenceLabel && (
-                            <span style={{ opacity: 0.6 }}> · {nl.cadenceLabel}</span>
-                          )}
-                        </span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* Body continuation */}
-            {bodyContinuation && (
-              <p
-                className="font-source-serif leading-[1.65] mx-auto"
-                style={{
-                  fontSize: 17,
-                  maxWidth: 420,
-                  color: 'var(--pb-muted)',
-                  marginTop: 20,
-                  marginBottom: 0,
-                }}
-              >
-                {bodyContinuation}
-              </p>
-            )}
-
-            {/* Sign-off */}
-            {signoff && (
+            {/* Children override: when provided, replaces body/newsletter/CTA */}
+            {children ? (
+              <>{children}</>
+            ) : (
               <>
+                {/* Body */}
                 <p
-                  className="font-source-serif leading-[1.6]"
-                  style={{ fontSize: 16, color: 'var(--pb-muted)', marginTop: 20, marginBottom: 0 }}
-                >
-                  {signoff}
-                  <br />
-                  — Thiago
-                </p>
-              </>
-            )}
-
-            {/* Divider */}
-            <hr
-              className="border-none"
-              style={{
-                width: '100%',
-                height: 1,
-                background: 'var(--pb-line)',
-                margin: '32px 0',
-              }}
-            />
-
-            {/* CTA — success state */}
-            {showCta ? (
-              <>
-                <a
-                  href={localePath(locale)}
-                  className="confirm-cta inline-block font-inter font-semibold no-underline transition-all duration-150"
+                  className="font-source-serif leading-[1.65] mx-auto"
                   style={{
-                    background: 'var(--pb-accent)',
-                    color: '#1F1B17',
-                    letterSpacing: '0.01em',
-                    padding: '15px 40px',
-                    borderRadius: 4,
-                    fontSize: 15,
+                    fontSize: 17,
+                    maxWidth: 420,
+                    color: 'var(--pb-muted)',
+                    marginBottom: 0,
                   }}
                 >
-                  {ctaLabel}
-                </a>
-                <a
-                  href={`${localePath(locale)}blog`}
-                  className="block font-inter font-medium no-underline"
-                  style={{ color: 'var(--pb-accent)', fontSize: 13, marginTop: 20, letterSpacing: '0.01em' }}
-                >
-                  {readLatestLabel}
-                </a>
+                  {body}
+                </p>
+
+                {/* Newsletter list */}
+                {showNewsletter && (
+                  <div className="text-left" style={{ margin: '20px 0 4px' }}>
+                    <ul className="list-none p-0 m-0" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {newsletters!.map((nl) => (
+                        <li
+                          key={nl.name}
+                          style={{
+                            borderLeft: `3px solid ${nl.color}`,
+                            padding: '10px 0 10px 16px',
+                          }}
+                        >
+                          <span
+                            className="font-fraunces font-medium block"
+                            style={{ fontSize: 16, color: 'var(--pb-ink)', lineHeight: 1.3, letterSpacing: '-0.01em', marginBottom: 2 }}
+                          >
+                            {nl.name}
+                          </span>
+                          {nl.tagline && (
+                            <span
+                              className="font-inter block mt-0.5"
+                              style={{ fontSize: 12, color: 'var(--pb-faint)', letterSpacing: '0.02em' }}
+                            >
+                              {nl.tagline}
+                              {nl.cadenceLabel && (
+                                <span style={{ opacity: 0.6 }}> · {nl.cadenceLabel}</span>
+                              )}
+                            </span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Body continuation */}
+                {bodyContinuation && (
+                  <p
+                    className="font-source-serif leading-[1.65] mx-auto"
+                    style={{
+                      fontSize: 17,
+                      maxWidth: 420,
+                      color: 'var(--pb-muted)',
+                      marginTop: 20,
+                      marginBottom: 0,
+                    }}
+                  >
+                    {bodyContinuation}
+                  </p>
+                )}
+
+                {/* Sign-off */}
+                {signoff && (
+                  <>
+                    <p
+                      className="font-source-serif leading-[1.6]"
+                      style={{ fontSize: 16, color: 'var(--pb-muted)', marginTop: 20, marginBottom: 0 }}
+                    >
+                      {signoff}
+                      <br />
+                      — Thiago
+                    </p>
+                  </>
+                )}
+
+                {/* Divider */}
+                <hr
+                  className="border-none"
+                  style={{
+                    width: '100%',
+                    height: 1,
+                    background: 'var(--pb-line)',
+                    margin: '32px 0',
+                  }}
+                />
+
+                {/* CTA — success state */}
+                {showCta ? (
+                  <>
+                    <a
+                      href={localePath(locale)}
+                      className="confirm-cta inline-block font-inter font-semibold no-underline transition-all duration-150"
+                      style={{
+                        background: 'var(--pb-accent)',
+                        color: '#1F1B17',
+                        letterSpacing: '0.01em',
+                        padding: '15px 40px',
+                        borderRadius: 4,
+                        fontSize: 15,
+                      }}
+                    >
+                      {ctaLabel}
+                    </a>
+                    <a
+                      href={`${localePath(locale)}blog`}
+                      className="block font-inter font-medium no-underline"
+                      style={{ color: 'var(--pb-accent)', fontSize: 13, marginTop: 20, letterSpacing: '0.01em' }}
+                    >
+                      {readLatestLabel}
+                    </a>
+                  </>
+                ) : (
+                  <a
+                    href={localePath(locale)}
+                    className="font-inter no-underline"
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 500,
+                      color: 'var(--pb-faint)',
+                    }}
+                  >
+                    {backLabel}
+                  </a>
+                )}
               </>
-            ) : (
-              <a
-                href={localePath(locale)}
-                className="font-inter no-underline"
-                style={{
-                  fontSize: 13,
-                  fontWeight: 500,
-                  color: 'var(--pb-faint)',
-                }}
-              >
-                {backLabel}
-              </a>
             )}
 
             {/* End mark — inside card */}

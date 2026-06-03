@@ -50,7 +50,6 @@ describe('StepConfig', () => {
     expect(screen.getByText(/Estimativa baseada na configuração/)).toBeDefined()
     expect(screen.getByText('Tempo estimado')).toBeDefined()
     expect(screen.getByText('Ciclos ABBA')).toBeDefined()
-    expect(screen.getByText('Quota')).toBeDefined()
   })
 
   it('estimate card shows correct values for duration=14 confidence=95', () => {
@@ -59,8 +58,6 @@ describe('StepConfig', () => {
     expect(screen.getByText('~14 dias')).toBeDefined()
     // abbaCycles = ceil(14/2)*2 = 14
     expect(screen.getByText('14')).toBeDefined()
-    // quota is fixed at 1,5%
-    expect(screen.getByText('1,5%')).toBeDefined()
   })
 
   it('estimate adjusts for lower confidence (factor 0.8)', () => {

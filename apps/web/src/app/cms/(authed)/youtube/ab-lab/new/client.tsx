@@ -6,7 +6,7 @@ import { brDec } from '@/lib/youtube/format'
 import { AbCreateWizard } from '../_components/ab-create-wizard'
 import type { WizardVideo } from '../_components/ab-create-wizard'
 import type { AbTestSiteSettings } from '@/lib/youtube/ab-types'
-import { Search } from 'lucide-react'
+import { Search, FlaskConical } from 'lucide-react'
 
 interface EligibleVideo {
   id: string
@@ -28,14 +28,21 @@ interface DraftPrefill {
   sourcePipelineId: string | null
 }
 
+export interface CompetitorContext {
+  changeType?: 'thumbnail' | 'title'
+  competitorThumb?: string
+  competitorTitle?: string
+}
+
 interface NewTestClientProps {
   siteId: string
   settings: AbTestSiteSettings
   eligibleVideos: EligibleVideo[]
   draftPrefill?: DraftPrefill
+  competitorContext?: CompetitorContext
 }
 
-export function NewTestClient({ siteId, settings, eligibleVideos, draftPrefill }: NewTestClientProps) {
+export function NewTestClient({ siteId, settings, eligibleVideos, draftPrefill, competitorContext }: NewTestClientProps) {
   const router = useRouter()
   const [selectedVideo, setSelectedVideo] = useState<WizardVideo | null>(
     draftPrefill
@@ -69,8 +76,31 @@ export function NewTestClient({ siteId, settings, eligibleVideos, draftPrefill }
       v.channelHandle.toLowerCase().includes(search.toLowerCase()),
   )
 
+  const competitorLabel = competitorContext?.changeType === 'thumbnail'
+    ? 'thumbnail'
+    : competitorContext?.changeType === 'title'
+      ? 'titulo'
+      : null
+
   return (
     <div className="max-w-2xl mx-auto py-8 px-4">
+      {competitorContext && (
+        <div
+          className="mb-4 flex items-center gap-2 rounded-lg px-4 py-3 text-sm"
+          style={{
+            background: 'var(--accent-soft, rgba(232,130,60,0.1))',
+            border: '1px solid var(--accent-line, rgba(232,130,60,0.25))',
+            color: 'var(--text, #e5e0d8)',
+          }}
+        >
+          <FlaskConical size={15} style={{ flexShrink: 0, color: 'var(--accent, #e8823c)' }} aria-hidden="true" />
+          <span>
+            Inspirado por mudanca de{' '}
+            <b>{competitorLabel ?? 'concorrente'}</b>
+            {' '}de concorrente
+          </span>
+        </div>
+      )}
       <div className="mb-6">
         <h2 className="text-lg font-semibold text-cms-text">Select a Video</h2>
         <p className="text-sm text-cms-text-muted mt-1">
