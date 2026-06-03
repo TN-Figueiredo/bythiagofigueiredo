@@ -19,6 +19,7 @@ export {
   updateSocialPost,
   cancelSocialPost,
   deleteSocialPost,
+  publishDraftPost,
   retrySocialDelivery,
   getSocialPost,
   listSocialPosts,

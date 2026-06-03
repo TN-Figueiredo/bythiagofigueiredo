@@ -22,6 +22,7 @@ interface PostDetailProps {
   onDelete: (id: string) => Promise<{ ok: boolean; error?: string }>
   onUpdate: (id: string, data: { content?: Record<string, unknown> }) => Promise<{ ok: boolean; error?: string }>
   onRetryDelivery: (deliveryId: string) => Promise<{ ok: boolean; error?: string }>
+  onPublishDraft: (postId: string) => Promise<{ ok: boolean; error?: string }>
 }
 
 const ORIGIN_LABELS: Record<string, string> = {
@@ -49,7 +50,7 @@ function getContentLink(type: string, id: string): string {
 
 type EditField = 'description' | 'hashtags'
 
-export function PostDetail({ post, strings: t, onCancel, onDelete, onUpdate, onRetryDelivery }: PostDetailProps) {
+export function PostDetail({ post, strings: t, onCancel, onDelete, onUpdate, onRetryDelivery, onPublishDraft }: PostDetailProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const liveDeliveries = useSocialDeliveries(post.id)
@@ -69,6 +70,7 @@ export function PostDetail({ post, strings: t, onCancel, onDelete, onUpdate, onR
   const canEditPublished = status === 'completed' || status === 'partial_failure'
   const canCancel = status === 'draft' || status === 'scheduled'
   const canDelete = status === 'draft' || status === 'cancelled' || status === 'failed'
+  const canPublish = status === 'draft' && deliveries.length > 0
 
   function handleCancel() {
     setActionError(null)
@@ -85,6 +87,15 @@ export function PostDetail({ post, strings: t, onCancel, onDelete, onUpdate, onR
       const result = await onDelete(post.id)
       if (!result.ok) setActionError(result.error ?? t.common.error)
       else router.push('/cms/social')
+    })
+  }
+
+  function handlePublish() {
+    setActionError(null)
+    startTransition(async () => {
+      const result = await onPublishDraft(post.id)
+      if (!result.ok) setActionError(result.error ?? t.common.error)
+      else router.refresh()
     })
   }
 
@@ -115,6 +126,16 @@ export function PostDetail({ post, strings: t, onCancel, onDelete, onUpdate, onR
       <div className="flex items-center justify-between">
         <Link href="/cms/social" className="text-sm text-cms-accent hover:underline">{t.detail.back}</Link>
         <div className="flex items-center gap-3">
+          {canPublish && (
+            <button
+              type="button"
+              onClick={handlePublish}
+              disabled={isPending}
+              className="rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+            >
+              Publicar agora
+            </button>
+          )}
           {canEdit && (
             <button
               type="button"

@@ -910,7 +910,7 @@ describe('executeWithRetry: retry logic', () => {
 // ===========================================================================
 
 describe('publishSocialPost: edge cases', () => {
-  it('completes immediately when no pending deliveries (non-story)', async () => {
+  it('fails when no pending deliveries exist', async () => {
     tableOverrides = {
       social_posts: { update: { data: null, error: null } },
       social_deliveries: { select: { data: [], error: null } },
@@ -918,10 +918,10 @@ describe('publishSocialPost: edge cases', () => {
 
     await publishSocialPost(makeSocialPost())
 
-    const completed = updateLog.find(
-      (u) => u.table === 'social_posts' && (u.payload as Record<string, unknown>).status === 'completed',
+    const failed = updateLog.find(
+      (u) => u.table === 'social_posts' && (u.payload as Record<string, unknown>).status === 'failed',
     )
-    expect(completed).toBeDefined()
+    expect(failed).toBeDefined()
   })
 
   it('handles revoked connection by skipping delivery', async () => {

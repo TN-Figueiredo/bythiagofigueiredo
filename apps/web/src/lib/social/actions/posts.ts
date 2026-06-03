@@ -427,6 +427,70 @@ export async function deleteSocialPost(postId: string): Promise<ActionResult> {
   }
 }
 
+export async function publishDraftPost(postId: string): Promise<ActionResult> {
+  const parsed = z.string().uuid().safeParse(postId)
+  if (!parsed.success) return { ok: false, error: 'Invalid post ID' }
+
+  try {
+    const { siteId, userId } = await requireEditAccess()
+    const supabase = getSupabaseServiceClient()
+
+    const { data: row } = await supabase
+      .from('social_posts')
+      .select('*')
+      .eq('id', parsed.data)
+      .eq('site_id', siteId)
+      .single()
+
+    if (!row) return { ok: false, error: 'Post not found' }
+    if ((row.status as string) !== 'draft') return { ok: false, error: 'Post não está em rascunho' }
+
+    const { count: deliveryCount } = await supabase
+      .from('social_deliveries')
+      .select('id', { count: 'exact', head: true })
+      .eq('post_id', parsed.data)
+
+    if (!deliveryCount || deliveryCount === 0) return { ok: false, error: 'Post sem entregas configuradas' }
+
+    const post = row as Record<string, unknown>
+    const now = new Date().toISOString()
+    const socialPost: SocialPostWithSlides = {
+      id: parsed.data,
+      site_id: siteId,
+      created_by: userId,
+      type: (post.type as PostType) ?? 'text',
+      status: 'publishing',
+      content: post.content as SocialPost['content'],
+      scheduled_at: null,
+      user_timezone: (post.user_timezone as string) ?? 'America/Sao_Paulo',
+      published_at: null,
+      template_id: (post.template_id as string) ?? null,
+      idempotency_key: (post.idempotency_key as string) ?? null,
+      created_at: (post.created_at as string) ?? now,
+      updated_at: now,
+    }
+
+    await supabase
+      .from('social_posts')
+      .update({ status: 'publishing' as PostStatus, updated_at: now })
+      .eq('id', parsed.data)
+
+    after(
+      publishSocialPost(socialPost).catch((err: unknown) => {
+        Sentry.captureException(err, {
+          tags: { ...SENTRY_TAG, action: 'publishDraftPost:workflow', postId: parsed.data },
+        })
+      }),
+    )
+
+    revalidateSocialPaths()
+    return { ok: true, data: undefined }
+  } catch (err) {
+    Sentry.captureException(err, { tags: { ...SENTRY_TAG, action: 'publishDraftPost' } })
+    throw err
+  }
+}
+
 export async function retrySocialDelivery(
   deliveryId: string,
 ): Promise<ActionResult> {

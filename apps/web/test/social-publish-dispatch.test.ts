@@ -497,7 +497,7 @@ describe('publishSocialPost', () => {
     expect(payload.status).toBe('failed')
   })
 
-  it('handles empty deliveries — no pending → post status = completed', async () => {
+  it('handles empty deliveries — no pending → post status = failed', async () => {
     tableOverrides = {
       social_posts: { update: { data: null, error: null }, select: { data: [], error: null } },
       social_deliveries: { select: { data: [], error: null }, update: { data: null, error: null } },
@@ -506,11 +506,9 @@ describe('publishSocialPost', () => {
     await publishSocialPost(makePost())
 
     const postUpdates = getCallsFor('social_posts', 'update')
-    // Last update should be 'completed'
     const finalUpdate = postUpdates[postUpdates.length - 1]!
     const payload = finalUpdate.args[0] as Record<string, unknown>
-    expect(payload.status).toBe('completed')
-    expect(payload).toHaveProperty('published_at')
+    expect(payload.status).toBe('failed')
   })
 })
 

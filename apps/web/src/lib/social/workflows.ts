@@ -433,17 +433,14 @@ export async function publishSocialPost(
       }
 
       if (!deliveries || deliveries.length === 0) {
-        const isStory = Array.isArray(post.story_slides) && post.story_slides.length > 0
-        const status: PostStatus = isStory ? 'failed' : 'completed'
-        const patch: Record<string, unknown> = { status, updated_at: new Date().toISOString() }
-        if (!isStory) patch.published_at = new Date().toISOString()
-        await supabase.from('social_posts').update(patch).eq('id', post.id)
-        if (isStory) {
-          Sentry.captureMessage('Story publish found zero deliveries after auto-create attempt', {
-            level: 'error',
-            tags: { ...SENTRY_TAG, action: 'publishSocialPost:noDeliveries', postId: post.id },
-          })
-        }
+        await supabase.from('social_posts').update({
+          status: 'failed' as PostStatus,
+          updated_at: new Date().toISOString(),
+        }).eq('id', post.id)
+        Sentry.captureMessage('Publish workflow found zero deliveries', {
+          level: 'error',
+          tags: { ...SENTRY_TAG, action: 'publishSocialPost:noDeliveries', postId: post.id },
+        })
         return
       }
     }

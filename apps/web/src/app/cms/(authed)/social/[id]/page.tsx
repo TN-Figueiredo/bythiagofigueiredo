@@ -3,7 +3,7 @@ import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { CmsTopbar } from '@tn-figueiredo/cms-ui/client'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { buildShortUrl } from '@/lib/links/short-url'
-import { getSocialPost, cancelSocialPost, deleteSocialPost, updateSocialPost, retrySocialDelivery } from '@/lib/social/actions'
+import { getSocialPost, cancelSocialPost, deleteSocialPost, updateSocialPost, retrySocialDelivery, publishDraftPost } from '@/lib/social/actions'
 import { getSocialStrings } from '../_i18n'
 import { PostDetail } from '../_components/post-detail'
 import { SourceCard } from './_components/source-card'
@@ -188,6 +188,7 @@ export default async function SocialPostDetailPage({ params }: Props) {
           onDelete={deleteSocialPost}
           onUpdate={updateSocialPost}
           onRetryDelivery={retrySocialDelivery}
+          onPublishDraft={publishDraftPost}
         />
 
         {/* Pipeline context panel — shows pipeline snapshot when post originated from pipeline */}

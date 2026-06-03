@@ -683,7 +683,7 @@ describe('publishSocialPost', () => {
     expect(mockFbPublish).not.toHaveBeenCalled()
   })
 
-  it('no pending deliveries → post status set to completed immediately', async () => {
+  it('no pending deliveries → post status set to failed', async () => {
     let capturedStatus: string | undefined
     mountSupabaseMock({
       deliveries: [],
@@ -694,7 +694,7 @@ describe('publishSocialPost', () => {
 
     await publishSocialPost(makePost())
 
-    expect(capturedStatus).toBe('completed')
+    expect(capturedStatus).toBe('failed')
     expect(mockFbPublish).not.toHaveBeenCalled()
   })
 })

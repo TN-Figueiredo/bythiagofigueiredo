@@ -41,6 +41,20 @@ export function DeliveryCard({ delivery, strings: t, onRetry }: DeliveryCardProp
         <SocialStatusBadge status={delivery.status} label={statusLabel} />
       </div>
 
+      {delivery.status === 'pending' && (
+        <p className="text-sm text-cyan-400">Aguardando publicação…</p>
+      )}
+
+      {delivery.status === 'publishing' && (
+        <p className="text-sm text-blue-400">Publicando…</p>
+      )}
+
+      {delivery.status === 'retrying' && (
+        <p className="text-sm text-amber-400">
+          Tentando novamente ({delivery.attempt}/{delivery.max_attempts})…
+        </p>
+      )}
+
       {delivery.status === 'published' && delivery.platform_url && (
         <a href={delivery.platform_url} target="_blank" rel="noopener noreferrer" className="text-sm text-cms-accent hover:underline">
           {t.detail.viewOn.replace('{platform}', platformLabel(delivery.provider))} →
