@@ -1,7 +1,6 @@
 'use client'
 
 import Image from 'next/image'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type { SocialDelivery } from '@tn-figueiredo/social'
 import type { SocialPostWithPipeline } from '@/lib/social/actions'
@@ -137,28 +136,28 @@ export function DrawerContent({ post }: DrawerContentProps) {
             >
               Duplicar
             </button>
-            <Link
+            <a
               href={`/cms/social/${post.id}`}
               className="flex-1 rounded-lg bg-amber-500/20 px-3 py-2 text-center text-sm font-medium text-amber-400 hover:bg-amber-500/30 transition-colors"
             >
               Editar
-            </Link>
+            </a>
           </>
         )}
         {post.status === 'failed' && (
-          <Link
+          <a
             href={`/cms/social/${post.id}`}
             className="flex-1 rounded-lg bg-red-500/20 px-3 py-2 text-center text-sm font-medium text-red-400 hover:bg-red-500/30 transition-colors"
           >
             Ver erro
-          </Link>
+          </a>
         )}
-        <Link
+        <a
           href={`/cms/social/${post.id}`}
           className="flex-1 rounded-lg bg-cms-accent px-3 py-2 text-center text-sm font-medium text-white hover:bg-cms-accent-hover transition-colors"
         >
           Detalhes
-        </Link>
+        </a>
       </div>
     </div>
   )
