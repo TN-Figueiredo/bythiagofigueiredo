@@ -452,7 +452,7 @@ describe('2. PublishNow happy path: immediate publish to completion', () => {
 describe('3. PublishNow error path: all deliveries fail', () => {
   it('sets post to failed when all deliveries return permanent error', async () => {
     tableOverrides = {
-      social_posts: { update: { data: null, error: null } },
+      social_posts: { update: { data: { id: POST_ID }, error: null } },
       social_deliveries: {
         select: { data: [makeDelivery('facebook', DEL_FB, CONN_FB)], error: null },
         update: { data: null, error: null },
@@ -480,7 +480,7 @@ describe('3. PublishNow error path: all deliveries fail', () => {
 describe('4. Partial failure: mixed delivery results', () => {
   it('sets post to partial_failure when some succeed and some fail', async () => {
     tableOverrides = {
-      social_posts: { update: { data: null, error: null } },
+      social_posts: { update: { data: { id: POST_ID }, error: null } },
       social_deliveries: {
         select: {
           data: [
@@ -770,7 +770,7 @@ describe('9. Post status transitions: no illegal transitions', () => {
 describe('10. Concurrent publish protection', () => {
   it('publishSocialPost sets status=publishing as first step', async () => {
     tableOverrides = {
-      social_posts: { update: { data: null, error: null } },
+      social_posts: { update: { data: { id: POST_ID }, error: null } },
       social_deliveries: {
         select: { data: [makeDelivery('facebook', DEL_FB, CONN_FB)], error: null },
         update: { data: null, error: null },
@@ -921,7 +921,7 @@ describe('executeWithRetry: retry logic', () => {
 describe('publishSocialPost: edge cases', () => {
   it('fails when no pending deliveries exist', async () => {
     tableOverrides = {
-      social_posts: { update: { data: null, error: null } },
+      social_posts: { update: { data: { id: POST_ID }, error: null } },
       social_deliveries: { select: { data: [], error: null } },
     }
 
@@ -935,7 +935,7 @@ describe('publishSocialPost: edge cases', () => {
 
   it('handles revoked connection by skipping delivery', async () => {
     tableOverrides = {
-      social_posts: { update: { data: null, error: null } },
+      social_posts: { update: { data: { id: POST_ID }, error: null } },
       social_deliveries: {
         select: { data: [makeDelivery('facebook', DEL_FB, CONN_FB)], error: null },
         update: { data: null, error: null },

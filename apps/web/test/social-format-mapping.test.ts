@@ -187,9 +187,10 @@ describe('Bluesky destination -> link_card', () => {
     expect(contentPathFormat('video', 'bluesky')).toBe('link_card')
   })
 
-  it('bluesky has no destination entry (API-only, no visual canvas)', () => {
+  it('bluesky has a destination entry (bsky_feed)', () => {
     const bsDests = Object.values(DESTINATIONS).filter(d => d.provider === 'bluesky')
-    expect(bsDests).toHaveLength(0)
+    expect(bsDests).toHaveLength(1)
+    expect(bsDests[0]!.id).toBe('bsky_feed')
   })
 })
 

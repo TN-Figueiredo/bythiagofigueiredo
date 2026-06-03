@@ -75,6 +75,40 @@ vi.mock('@tn-figueiredo/social/vault', () => ({
   encrypt: vi.fn((v: string) => v),
 }))
 
+vi.mock('@/lib/links/auto-link', () => ({
+  ensureTrackedLink: vi.fn().mockResolvedValue(null),
+}))
+
+vi.mock('@/lib/links/short-url', () => ({
+  buildShortUrl: (code: string) => `https://bythiagofigueiredo.com/go/${code}`,
+}))
+
+vi.mock('next/server', () => ({
+  after: vi.fn((p: Promise<unknown>) => p),
+}))
+
+vi.mock('@/lib/social/config', () => ({
+  getSocialConfig: () => ({
+    google: { clientId: '', clientSecret: '' },
+    meta: { appId: '', appSecret: '' },
+    masterKey: 'test-key',
+    callbackBaseUrl: 'http://localhost:3000',
+  }),
+}))
+
+vi.mock('@/lib/social/notifications/notify-story-ready', () => ({
+  notifyStoryReady: vi.fn().mockResolvedValue(undefined),
+}))
+
+vi.mock('@/lib/social/slide-metadata', () => ({
+  extractSlideMetadata: vi.fn(() => ({ title: '', coverImageUrl: undefined })),
+}))
+
+vi.mock('@/lib/social/duplicate-detection', () => ({
+  checkDuplicates: vi.fn().mockResolvedValue([]),
+  getDuplicateWarnings: vi.fn(() => ({ hasDuplicates: false, warnings: [] })),
+}))
+
 // Import after mocks are set up
 // NOTE: @/lib/social/actions is ambiguous (file .ts vs directory /) — use relative paths
 import { getEditRules } from '../src/lib/social/types'
