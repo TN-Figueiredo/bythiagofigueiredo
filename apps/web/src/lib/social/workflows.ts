@@ -171,6 +171,24 @@ export async function executeWithRetry(
 
       // Transient: retry with backoff if not last attempt
       if (attempt < maxAttempts - 1) {
+        // After catching a 429 error, set circuit breaker
+        if (errorMessage.includes('429')) {
+          const cooldowns: Record<string, number> = {
+            instagram: 120_000,
+            facebook: 60_000,
+            bluesky: 30_000,
+            youtube: 60_000,
+          }
+          const cooldownMs = cooldowns[delivery.provider as string] ?? 60_000
+          try {
+            await supabase
+              .from('social_connections')
+              .update({ circuit_open_until: new Date(Date.now() + cooldownMs).toISOString() })
+              .eq('id', delivery.connection_id)
+          } catch {
+            // Non-fatal: circuit breaker update failure shouldn't block retry
+          }
+        }
         const delay = RETRY_DELAYS[attempt] ?? RETRY_DELAYS[RETRY_DELAYS.length - 1]!
         await sleep(delay)
         continue
@@ -481,6 +499,17 @@ export async function publishSocialPost(
             status: 'skipped' as DeliveryStatus,
             error: 'Connection has been revoked',
             errorType: 'permanent' as ErrorType,
+          }
+        }
+
+        // Circuit breaker: skip if rate-limited
+        const circuitUntil = (connectionData as Record<string, unknown>).circuit_open_until as string | null
+        if (circuitUntil && new Date(circuitUntil) > new Date()) {
+          return {
+            deliveryId: delivery.id,
+            status: 'failed' as DeliveryStatus,
+            error: `Rate limited until ${circuitUntil}`,
+            errorType: 'transient' as ErrorType,
           }
         }
 
