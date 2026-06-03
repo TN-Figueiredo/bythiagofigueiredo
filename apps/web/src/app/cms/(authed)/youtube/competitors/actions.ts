@@ -166,7 +166,7 @@ export async function syncFullHistory(channelRowId: string): Promise<{ ok: boole
 }
 
 export async function updateVideoLimit(channelRowId: string, limit: number): Promise<{ ok: boolean }> {
-  const clamped = Math.max(50, Math.min(200, limit))
+  const clamped = limit >= 200 ? 200 : 50
   let siteId: string
   try { siteId = await requireEditAccess() } catch { return { ok: false } }
 

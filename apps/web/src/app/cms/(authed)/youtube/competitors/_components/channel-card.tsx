@@ -176,8 +176,9 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
                   {' · '}
                   {(() => {
                     if (ch.syncStatus === 'syncing') return 'sincronizando...'
-                    if (isComplete) return `${ch.videoCount} vídeos (completo)`
-                    return `${ch.videoCount} vídeos (recentes)`
+                    if (ch.youtubeVideoCount && ch.videoCount >= ch.youtubeVideoCount) return `${fmtC(ch.videoCount)} vídeos (completo)`
+                    if (ch.youtubeVideoCount) return `${fmtC(ch.videoCount)} de ~${fmtC(ch.youtubeVideoCount)} vídeos`
+                    return `${fmtC(ch.videoCount)} vídeos`
                   })()}
                 </p>
 
@@ -360,9 +361,11 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span className="mono" style={{ fontSize: 10.5, color: 'var(--text-dim)' }}>
                 {ch.lastSyncedAt ? `sincronizado ${fmtRelative(ch.lastSyncedAt)}` : 'nunca sincronizado'}
-                {isComplete
-                  ? ` · ${ch.videoCount} vídeos (completo)`
-                  : ` · ${ch.videoCount} recentes`}
+                {ch.youtubeVideoCount && ch.videoCount >= ch.youtubeVideoCount
+                  ? ` · ${fmtC(ch.videoCount)} vídeos (completo)`
+                  : ch.youtubeVideoCount
+                    ? ` · ${fmtC(ch.videoCount)} de ~${fmtC(ch.youtubeVideoCount)}`
+                    : ` · ${fmtC(ch.videoCount)} vídeos`}
               </span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <button
@@ -370,8 +373,7 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
                   title="Limite de vídeos monitorados — clique pra alternar"
                   onClick={e => {
                     e.stopPropagation()
-                    const steps = [50, 100, 200] as const
-                    const next = steps[(steps.indexOf(ch.videoLimit as 50 | 100 | 200) + 1) % steps.length] ?? 50
+                    const next = ch.videoLimit >= 200 ? 50 : 200
                     updateVideoLimit(ch.id, next)
                   }}
                 >
@@ -419,7 +421,9 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
             <span className="section-label">
               Vídeos{' '}
               <span className="mono" style={{ fontSize: 10, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>
-                ({ch.fullSyncCompletedAt ? 'histórico' : `${ch.recentVideos.length} ${isComplete ? 'completo' : 'recentes'}`})
+({ch.youtubeVideoCount
+                  ? `${ch.recentVideos.length} de ~${fmtC(ch.youtubeVideoCount)}`
+                  : `${ch.recentVideos.length} recentes`})
               </span>
             </span>
             {outlierStats.count > 0 && outlierStats.bestMult != null && (

@@ -47,6 +47,12 @@ export async function syncCompetitorChannel(
   const videoLimit = (locked[0] as { video_limit: number | null }).video_limit ?? 50
   const maxIncrementalPages = Math.max(1, Math.ceil(videoLimit / 50))
 
+  const { count: syncedCount } = await supabase
+    .from('competitor_videos')
+    .select('id', { count: 'exact', head: true })
+    .eq('competitor_channel_id', channelRow.id)
+  const needsBackfill = (syncedCount ?? 0) < videoLimit
+
   let videosChecked = 0
   let changesDetected = 0
 
@@ -267,7 +273,7 @@ export async function syncCompetitorChannel(
         if (nextPageToken) await sleep(PAGE_DELAY_MS)
       } else {
         // Smart incremental: stop when we hit a known video or reach per-channel page cap
-        if (hitKnownVideo || pageCount >= maxIncrementalPages) break
+        if ((!needsBackfill && hitKnownVideo) || pageCount >= maxIncrementalPages) break
       }
     } while (nextPageToken)
 

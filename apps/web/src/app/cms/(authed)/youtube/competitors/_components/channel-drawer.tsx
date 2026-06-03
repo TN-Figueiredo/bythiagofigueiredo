@@ -162,7 +162,9 @@ export function ChannelDrawer({ channel, open, onClose, onVideoClick }: ChannelD
               {/* Meta: 11.5px mono dim — "N inscritos · N vídeos · sync há Xh" */}
               <span className="mono" style={{ fontSize: 11.5, color: 'var(--text-dim)', marginTop: 2, display: 'block' }}>
                 {ch.subscriberCount != null ? fmtC(ch.subscriberCount) : '—'} inscritos
-                {' · '}{ch.videoCount} vídeos
+                {' · '}{ch.youtubeVideoCount && ch.videoCount < ch.youtubeVideoCount
+                  ? `${fmtC(ch.videoCount)} de ~${fmtC(ch.youtubeVideoCount)} vídeos`
+                  : `${fmtC(ch.videoCount)} vídeos`}
                 {' · sync '}{ch.lastSyncedAt ? fmtRelative(ch.lastSyncedAt) : '—'}
               </span>
             </div>
