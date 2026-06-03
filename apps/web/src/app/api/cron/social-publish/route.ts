@@ -171,23 +171,55 @@ export async function POST(req: NextRequest) {
         throw new Error(`Failed to fetch scheduled posts: ${fallbackError.message}`)
       }
 
-      if (!fallbackPosts || fallbackPosts.length === 0) {
-        return { status: 'ok' as const, processed: 0 }
+      let result: BatchResult = { status: 'ok', processed: 0 }
+      if (fallbackPosts && fallbackPosts.length > 0) {
+        // Supabase client untyped (no generated DB types)
+        result = await processBatch(supabase, fallbackPosts as unknown as Record<string, unknown>[])
       }
 
-      // Supabase client untyped (no generated DB types)
-      return processBatch(supabase, fallbackPosts as unknown as Record<string, unknown>[])
+      // Recover posts stuck in 'publishing' for more than 10 minutes
+      const tenMinAgo = new Date(Date.now() - 10 * 60_000).toISOString()
+      const { data: stuckPosts } = await supabase
+        .from('social_posts')
+        .select('*')
+        .eq('status', 'publishing')
+        .lt('updated_at', tenMinAgo)
+        .order('updated_at', { ascending: true })
+        .limit(5)
+
+      if (stuckPosts && stuckPosts.length > 0) {
+        console.log(JSON.stringify({ job: JOB, event: 'stuck-recovery', count: stuckPosts.length }))
+        await processBatch(supabase, stuckPosts as unknown as Record<string, unknown>[])
+      }
+
+      return result
     }
 
     if (fetchError) {
       throw new Error(`Failed to fetch scheduled posts: ${fetchError.message}`)
     }
 
-    if (!posts || posts.length === 0) {
-      return { status: 'ok' as const, processed: 0 }
+    let result: BatchResult = { status: 'ok', processed: 0 }
+    if (posts && posts.length > 0) {
+      // Supabase client untyped (no generated DB types)
+      result = await processBatch(supabase, posts as unknown as Record<string, unknown>[])
     }
 
-    // Supabase client untyped (no generated DB types)
-    return processBatch(supabase, posts as unknown as Record<string, unknown>[])
+    // Recover posts stuck in 'publishing' for more than 10 minutes
+    const tenMinAgo = new Date(Date.now() - 10 * 60_000).toISOString()
+    const { data: stuckPosts } = await supabase
+      .from('social_posts')
+      .select('*')
+      .eq('status', 'publishing')
+      .lt('updated_at', tenMinAgo)
+      .order('updated_at', { ascending: true })
+      .limit(5)
+
+    if (stuckPosts && stuckPosts.length > 0) {
+      console.log(JSON.stringify({ job: JOB, event: 'stuck-recovery', count: stuckPosts.length }))
+      await processBatch(supabase, stuckPosts as unknown as Record<string, unknown>[])
+    }
+
+    return result
   })
 }
