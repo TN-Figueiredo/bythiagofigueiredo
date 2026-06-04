@@ -171,7 +171,7 @@ describe('SourceCard', () => {
       <SourceCard contentType="blog" contentId="blog-123" title="Test" />,
     )
     const link = screen.getByText('Abrir no CMS')
-    expect(link.closest('a')!.getAttribute('href')).toBe('/cms/blog/blog-123/edit')
+    expect(link.closest('a')!.getAttribute('href')).toBe('/cms/blog/blog-123/editor')
   })
 
   it('links to correct CMS editor path for newsletter', () => {

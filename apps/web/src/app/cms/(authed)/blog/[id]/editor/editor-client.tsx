@@ -1,8 +1,22 @@
 'use client'
 
-import { useEffect } from 'react'
-import { EditorProvider, useEditorState, useEditorDispatch } from './context'
+import { useEffect, useCallback } from 'react'
+import { Toaster } from 'sonner'
+import { EditorProvider, useEditorState, useEditorDispatch, useAutosaveState } from './context'
 import type { EditorState } from './types'
+import { ActionBar } from './action-bar'
+import { LangToggle } from './lang-toggle'
+import { StageBar } from './stage-bar'
+import { Inspector } from './inspector/inspector'
+import { StageIdeia } from './stages/stage-ideia'
+import { StageRascunho } from './stages/stage-rascunho'
+import { StageImagens } from './stages/stage-imagens'
+import { StageSeo } from './stages/stage-seo'
+import { StagePublicacao } from './stages/stage-publicacao'
+import { NavigationGuard } from '@/app/cms/(authed)/_shared/editor/navigation-guard'
+import { savePost, type SavePostActionInput } from '../edit/actions'
+import { createPost } from '../../actions'
+import './editor-theme.css'
 
 /* ------------------------------------------------------------------ */
 /*  Focus Mode Pill                                                   */
@@ -26,15 +40,24 @@ function FocusModePill() {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Document Canvas — renders active stage placeholder                */
+/*  Document Canvas — renders active stage                            */
 /* ------------------------------------------------------------------ */
 
 function DocumentCanvas() {
   const state = useEditorState()
 
-  return (
-    <div data-testid={`stage-${state.activeStage}`} className="min-h-0" />
-  )
+  switch (state.activeStage) {
+    case 'ideia':
+      return <StageIdeia />
+    case 'rascunho':
+      return <StageRascunho />
+    case 'imagens':
+      return <StageImagens />
+    case 'seo':
+      return <StageSeo />
+    case 'publicacao':
+      return <StagePublicacao />
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -44,6 +67,7 @@ function DocumentCanvas() {
 function EditorLayout() {
   const state = useEditorState()
   const dispatch = useEditorDispatch()
+  const autosaveState = useAutosaveState()
 
   /* Esc key exits focus mode */
   useEffect(() => {
@@ -57,12 +81,14 @@ function EditorLayout() {
   }, [state.focus, dispatch])
 
   return (
-    <div className="flex h-full flex-col">
-      {/* Action bar */}
-      <div data-testid="action-bar" />
+    <div className="blog-editor flex h-full flex-col">
+      {/* Action bar with lang toggle */}
+      <ActionBar>
+        <LangToggle />
+      </ActionBar>
 
       {/* Stage bar — hidden in focus mode */}
-      {!state.focus && <div data-testid="stage-bar" />}
+      {!state.focus && <StageBar />}
 
       {/* Two-column grid */}
       <div
@@ -78,11 +104,27 @@ function EditorLayout() {
         <DocumentCanvas />
 
         {/* Right: inspector — hidden in focus mode */}
-        {!state.focus && <div data-testid="inspector" />}
+        {!state.focus && <Inspector />}
       </div>
 
       {/* Focus mode pill */}
       <FocusModePill />
+
+      {/* Navigation guard */}
+      <NavigationGuard hasUnsavedChanges={autosaveState.hasUnsavedChanges} />
+
+      {/* Toast provider */}
+      <Toaster
+        theme="dark"
+        position="bottom-center"
+        duration={2800}
+        toastOptions={{
+          style: {
+            borderRadius: '999px',
+            boxShadow: 'var(--shadow-pop)',
+          },
+        }}
+      />
     </div>
   )
 }
@@ -96,8 +138,31 @@ interface EditorClientProps {
 }
 
 export function EditorClient({ initialState }: EditorClientProps) {
+  const handleSave = useCallback(
+    async (id: string, locale: string, data: Record<string, unknown>) => {
+      const result = await savePost(id, locale, data as unknown as SavePostActionInput)
+      return { ok: result.ok, error: result.ok ? undefined : ('error' in result ? result.error : 'save_failed') }
+    },
+    [],
+  )
+
+  const handleCreatePost = useCallback(
+    async (input: { title: string; locale: string; status: string }) => {
+      return createPost({
+        title: input.title,
+        locale: input.locale,
+        status: input.status as 'idea' | 'draft',
+      })
+    },
+    [],
+  )
+
   return (
-    <EditorProvider initialState={initialState}>
+    <EditorProvider
+      initialState={initialState}
+      saveAction={handleSave}
+      createPostAction={handleCreatePost}
+    >
       <EditorLayout />
     </EditorProvider>
   )

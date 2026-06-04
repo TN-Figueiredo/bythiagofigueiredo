@@ -1,11 +1,14 @@
 'use client'
 
+import { useState } from 'react'
+import { toast } from 'sonner'
 import {
   useEditorState,
   useEditorDispatch,
   useEditorVersion,
 } from '../context'
 import { publishGate } from '../helpers'
+import { ScheduleModal } from '@/app/cms/(authed)/blog/_tabs/editorial/schedule-modal'
 
 /* ------------------------------------------------------------------ */
 /*  Constants                                                         */
@@ -30,6 +33,7 @@ export function StagePublicacao() {
   const state = useEditorState()
   const dispatch = useEditorDispatch()
   const version = useEditorVersion()
+  const [showSchedule, setShowSchedule] = useState(false)
 
   if (!version) return null
 
@@ -214,6 +218,7 @@ export function StagePublicacao() {
             <button
               type="button"
               disabled={!gate.passed}
+              onClick={() => setShowSchedule(true)}
               className="rounded-md border border-zinc-600 px-4 py-2 text-sm font-medium text-zinc-300 transition-colors hover:border-zinc-400 disabled:cursor-not-allowed disabled:opacity-40"
             >
               Agendar
@@ -221,7 +226,10 @@ export function StagePublicacao() {
             <button
               type="button"
               disabled={!gate.passed}
-              onClick={() => dispatch({ type: 'PUBLISH' })}
+              onClick={() => {
+                dispatch({ type: 'PUBLISH' })
+                toast.success('Post publicado')
+              }}
               className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-40"
             >
               Publicar
@@ -253,12 +261,13 @@ export function StagePublicacao() {
             </p>
             <button
               type="button"
-              onClick={() =>
+              onClick={() => {
                 dispatch({
                   type: 'UPDATE_PUBLISHED',
                   publishedAt: new Date().toISOString(),
                 })
-              }
+                toast.success('Post atualizado no site')
+              }}
               className="rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-amber-500"
             >
               Atualizar no site
@@ -266,6 +275,19 @@ export function StagePublicacao() {
           </div>
         )}
       </section>
+
+      {/* ---- Schedule Modal ---- */}
+      <ScheduleModal
+        isOpen={showSchedule}
+        postTitle={version.title || 'Sem titulo'}
+        siteTimezone={state.siteTimezone}
+        onConfirm={(scheduledFor) => {
+          dispatch({ type: 'SET_SHARED', field: 'status', value: 'scheduled' })
+          dispatch({ type: 'SET_FIELD', field: 'publishedAt', value: scheduledFor })
+          setShowSchedule(false)
+        }}
+        onCancel={() => setShowSchedule(false)}
+      />
     </div>
   )
 }
