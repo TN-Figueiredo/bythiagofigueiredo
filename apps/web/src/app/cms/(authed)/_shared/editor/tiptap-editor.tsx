@@ -3,6 +3,7 @@
 import './editor-styles.css'
 import { useRef, useState, useMemo, useEffect, type MutableRefObject } from 'react'
 import { useEditor, EditorContent, type Editor } from '@tiptap/react'
+import type { Extension, Mark, Node as TiptapNode } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
 import Link from '@tiptap/extension-link'
@@ -41,6 +42,8 @@ interface TipTapEditorProps {
   onOpenGallery?: () => void
   /** Exposes the TipTap editor instance to the parent (e.g. for gallery image insertion). */
   editorInstanceRef?: MutableRefObject<Editor | null>
+  /** Additional TipTap extensions to register (e.g. BlogImageExtension for blog editor). */
+  extraExtensions?: Array<Extension | Mark | TiptapNode>
 }
 
 export function TipTapEditor({
@@ -52,6 +55,7 @@ export function TipTapEditor({
   placeholder = 'Start writing your newsletter... Type / for commands',
   onOpenGallery,
   editorInstanceRef,
+  extraExtensions,
 }: TipTapEditorProps) {
   const [isFullscreen, setIsFullscreen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -180,6 +184,7 @@ export function TipTapEditor({
       TableHeader,
       TableCell,
       slashCommandExtension,
+      ...(extraExtensions ?? []),
     ],
     content: content ?? undefined,
     editable,
