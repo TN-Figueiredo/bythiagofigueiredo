@@ -267,33 +267,6 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
           </div>
         </div>
 
-        {ch.growthScore && (
-          <span
-            style={{
-              position: 'absolute',
-              top: 14,
-              right: 14,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              minWidth: 44,
-            }}
-          >
-            <span
-              style={{
-                fontSize: 20,
-                fontWeight: 700,
-                lineHeight: 1,
-                color: ch.growthScore.labelColor,
-              }}
-              className="mono"
-            >
-              {ch.growthScore.score}
-            </span>
-            <span style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 2 }}>/100</span>
-          </span>
-        )}
-
         {/* ── Metrics row ── */}
         <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: 14 }}>
 

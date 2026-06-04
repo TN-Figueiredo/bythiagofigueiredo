@@ -325,7 +325,7 @@ export function computeGrowthScore(
     0.20 * audienceGrowth
 
   // Apply confidence and clamp to [0, 100]
-  const score = Math.max(0, Math.min(100, confidence * rawScore))
+  const score = Math.round(Math.max(0, Math.min(100, confidence * rawScore)))
 
   const { label, labelColor } = getLabel(score, confidence)
 
