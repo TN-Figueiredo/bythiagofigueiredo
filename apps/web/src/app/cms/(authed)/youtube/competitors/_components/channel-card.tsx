@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { fmtC, brDec, fmtRelative } from '@/lib/youtube/format'
 import { formatSubscriberCount, detectGrowthAmbiguity } from '@/lib/youtube/subscriber-resolution'
+import { getChannelMaturity, getMaturityCapabilities } from '@/lib/youtube/channel-maturity'
 import { SparklineChart } from './sparkline-chart'
 import { ConfirmFullSyncDialog } from './confirm-full-sync-dialog'
 import { useFullSyncProgress } from './useFullSyncProgress'
@@ -123,6 +124,8 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
   const isComplete = hasAllYouTube || !!ch.fullSyncCompletedAt || isLimitReached
   const sparkColor = ch.growthDelta == null ? 'var(--text-dim)' : ch.growthDelta >= 0 ? 'var(--green)' : 'var(--amber)'
   const outlierStats = getOutlierStats(ch.recentVideos)
+  const maturity = getChannelMaturity({ snapshotCount: ch.snapshotCount, videoCount: ch.videoCount, addedAt: ch.addedAt, lastSyncedAt: ch.lastSyncedAt })
+  const caps = getMaturityCapabilities(maturity)
 
   return (
     <div
@@ -349,7 +352,7 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
 
           {/* Right col: sparkline + caption */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
-            {ch.growthSparkline.length > 1 && (
+            {caps.showSparkline && ch.growthSparkline.length > 1 ? (
               <SparklineChart
                 data={ch.growthSparkline}
                 width={76}
@@ -357,9 +360,23 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
                 color={sparkColor}
                 fill
               />
-            )}
+            ) : !caps.showSparkline && ch.snapshotCount > 0 ? (
+              <div style={{
+                width: 76,
+                height: 28,
+                borderRadius: 6,
+                background: 'var(--surface-2)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                <span className="mono" style={{ fontSize: 9, color: 'var(--text-dim)' }}>
+                  D+{ch.snapshotCount}
+                </span>
+              </div>
+            ) : null}
             <span className="mono" style={{ fontSize: 9, color: 'var(--text-dim)' }}>
-              views/dia · 30d
+              {caps.showSparkline ? 'views/dia · 30d' : caps.statusMessage || 'coletando...'}
             </span>
           </div>
         </div>
