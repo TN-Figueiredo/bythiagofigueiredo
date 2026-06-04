@@ -68,6 +68,7 @@ interface VersionContent {
   publishedAt: string | null
   updatedAt: string | null
   dirty: boolean                   // edited since last publish
+  fresh: boolean                   // true for newly created version (shows briefing prompts)
   coverImageUrl: string | null
   coverReady: boolean
   metaTitle: string
@@ -86,7 +87,7 @@ interface SharedFields {
   hashtags: string[]
   hook: string
   synopsis: string
-  priority: string
+  plevel: string                   // priority: "P1" | "P2" | "P3"
   previousPostId: string | null
   continuesInNext: boolean
   keyPoints: string[]
@@ -101,10 +102,63 @@ type SaveStatus = "idle" | "saving" | "saved" | "error" | "offline"
 ```
 
 **Derived (computed, not stored):**
-- `deriveSlug(title)` — slug from title
-- `publishGate(state, lang)` — { passed: boolean, checks: Check[] }
-- `isEmptyVersion(version)` — no title + no body + no excerpt + not published
-- `imageStats(body, coverReady)` — { done: number, total: number }
+- `deriveSlug(title)` — lowercase → NFD decompose → strip diacritics → remove smart quotes → keep alphanumeric + hyphens → trim leading/trailing hyphens → max 60 chars
+- `publishGate(state, lang)` — `{ passed: boolean, checks: Array<{ key: 'title'|'content'|'images', ok: boolean, stage: Stage }> }`. Title non-empty + body has text content + cover ready + all inline blogImage nodes status "done"
+- `isEmptyVersion(version)` — no title + no body text + no excerpt + not published
+- `imageStats(body, coverReady)` — `{ done: number, total: number }` scanning all blogImage nodes in body JSON
+
+### Autosave ↔ useReducer Bridge
+
+The existing `useAutosave` hook uses `fieldsRef` (mutable ref) to snapshot field values for the debounced save callback. With useReducer, the bridge works as:
+
+```typescript
+const [state, dispatch] = useReducer(editorReducer, initialState)
+const version = state.content[state.activeLang]
+
+// Sync reducer state → fieldsRef on every render
+const fieldsRef = useRef<FieldSnapshot>(buildSnapshot(state))
+fieldsRef.current = buildSnapshot(state)
+
+// Payload builder reads from ref (always fresh, no closure stale)
+const getPayload = useCallback(() => buildSavePayload(fieldsRef.current), [])
+
+// Autosave hook
+const autosave = useAutosave({
+  editionId: state.postId,
+  saveFn: savePost.bind(null, state.postId, state.activeLang),
+  enabled: state.postId !== null,
+  mode: AUTO_SAVE_STATUSES.has(state.shared.status) ? 'auto'
+    : state.shared.status === 'published' ? 'guarded' : 'manual',
+  getPayload,
+  debounceMs: 3000,
+})
+
+// Dispatch wrapper that also schedules save
+function dispatchAndSave(action: EditorAction) {
+  dispatch(action)
+  autosave.scheduleSave(getPayload())
+}
+```
+
+**Content compilation** happens server-side only — `compileJsonContent()` is called inside `savePost()` server action, not on keystroke. Client-side word count and reading time are computed from TipTap's `editor.storage.characterCount` (instant, no compilation needed).
+
+### Ephemeral Post Flow
+
+1. User opens `/cms/blog/new` → `postId = null`, autosave disabled
+2. All fields editable, changes are local-only (no saves)
+3. On title blur (if non-empty): `ensurePostCreated()` → `createPost()` server action
+4. Server returns `{ ok: true, postId }` → `dispatch({ type: 'SET_POST_ID', id })` → router replaces URL to `/cms/blog/{id}/editor`
+5. Autosave becomes active (mode: 'auto' for draft status)
+6. `creationPromiseRef` prevents duplicate creates if image upload triggers during creation
+
+### Performance — Memo Strategy
+
+Single context re-renders all consumers on any dispatch. Mitigation:
+
+1. **Split into two contexts:** `EditorStateContext` (read) + `EditorDispatchContext` (write). Dispatch context never changes (stable ref), so components that only dispatch don't re-render.
+2. **`React.memo` on each stage component** — stages only re-render when their relevant state slice changes (via `areEqual` comparison on the props they actually use).
+3. **Inspector cards memo'd individually** — `InspDetalhes` depends on slug/excerpt/category/tags, `InspDistribuicao` depends on published/dirty/dates.
+4. **TipTap editor is inherently isolated** — internal state managed by ProseMirror, only re-renders on explicit `setContent()` calls.
 
 ### Reducer Actions
 
@@ -183,8 +237,9 @@ Sticky `position: sticky; top: 0`, blurred background `backdrop-filter: blur(14p
 - Hook label + hook text (19px)
 - Synopsis label + synopsis
 - Editable title (`.doc-title`, 38px / 600 weight)
-- Meta line (language flag, category, read time, word count)
+- Meta line (language flag, category, read time — shows "rascunho novo" if no read time, else "X de leitura", word count formatted with `toLocaleString("pt-BR")`)
 - Data sourced from pipeline item fields (`hook`, `synopsis`)
+- **Fresh version variant:** When a language version has `fresh: true` (just created via `+ EN`), Ideia stage shows placeholder prompts for Hook and Synopsis fields with dimmed text inviting the user to define independent content for that language
 
 ### Rascunho (Primary Writing Surface)
 
@@ -208,23 +263,24 @@ Sticky `position: sticky; top: 0`, blurred background `backdrop-filter: blur(14p
 
 ### SEO
 
-- **Meta título** input with char counter (ideal 40–60)
-- **Meta descrição** textarea with char counter (ideal 120–160)
-- **Google SERP preview** (`.serp`): URL `/blog/<lang>/<slug>`, rendered title, rendered description
 - Compact header: mono kicker `SEO · PT-BR`, small subtitle with current title (20px)
+- **Meta título** input with char counter. States: "vazio" (0) → "curto" (<40, amber) → "ideal" (40–60, green) → "pode truncar" (>60, amber)
+- **Meta descrição** textarea with char counter. States: "vazio" (0) → "curto" (<120, amber) → "ideal" (120–160, green) → "pode truncar" (>160, amber)
+- **Google SERP preview** (`.serp`): live-rendered with URL `/blog/<lang>/<slug>`, meta title (falls back to post title), meta description (falls back to excerpt). Empty fields show fallback placeholder text
 - Reuses existing SEO metadata fields from `blog_translations`
 
 ### Publicação
 
+- Compact header: mono kicker `PUBLICAÇÃO · PT-BR`, small subtitle with current title (20px)
 - **Título** (read-only mirror of draft title)
-- **Title alternatives** (`.title-alt` chips — testable variants)
-- **Descrição** textarea (excerpt)
-- **Tags** display (chip list)
+- **Title alternatives**: `titleAlts` array rendered as numbered chips (1, 2, 3...). Click to swap title with alternative. Only shown when `activeLang === post creation language`. Used for A/B testing different headlines before publishing.
+- **Descrição** textarea (excerpt) with char hint "ideal 120–160"
+- **Tags** display (chip list, read-only here — editable in Inspector Detalhes)
 - **Publish gate** (see Publish Gate section)
 - **Publish actions**:
-  - Not published: `Agendar` | `Publicar` — disabled if gate fails
-  - Published + clean: "Ver post no site" + "Compartilhar nas redes"
-  - Published + dirty: Update box "Alterações não publicadas" + "Atualizar no site" + dates
+  - Not published: `Agendar` (opens schedule modal with date/time picker, sets `scheduled_for`) | `Publicar` (immediate) — both disabled if gate fails
+  - Published + clean: "Ver post no site" (external link) + "Compartilhar nas redes" (triggers social auto-share via existing `movePost` side effects)
+  - Published + dirty: Update box "Alterações não publicadas" + "Atualizar no site" button + dates ("Publicado em" + "Atualizado em"). Republish stamps `updatedAt`, clears `dirty`, front-end shows "Atualizado em" indicator. Toast: "Post atualizado no site"
 
 ## Image Blocks System
 
@@ -293,14 +349,68 @@ When resizing, if width comes within ±20px of another `blogImage` in the same p
 ### Language Versions (PT-BR / EN)
 
 - Post starts with one language (creation language)
-- Single version: label (e.g., `🇧🇷 PT-BR`) + discreet `+ EN` affordance
-- Two versions: real toggle with two segments
-- **Adding EN:** Click `+ EN` → creates fresh, empty EN version, context swaps entirely
+- **Single version UI**: label (e.g., `🇧🇷 PT-BR`) + discreet `+ EN` button (not a toggle)
+- **Two versions UI**: real segmented toggle with two segments, each with hover-revealed `×` button
+- **Adding EN:** Click `+ EN` → server action `addLocale()` → creates fresh, empty EN version with `fresh: true` flag → context swaps entirely. Toast: "Versão EN criada"
 - **Removing a version:**
-  - Hover reveals `×` button
-  - If empty (`isEmptyVersion()`): removes instantly
-  - If has content or is published: confirmation popover warns
-  - Last remaining version can never be removed
+  - Hover reveals `×` button on segment
+  - If empty (`isEmptyVersion()` — no title + no body text + no excerpt + not published): removes instantly. Toast: "Versão removida"
+  - If has content: confirmation popover with scrim, "Esta ação não pode ser desfeita"
+  - If published: different warning: "Esta versão está publicada. Remover aqui não despublica — apenas remove o rascunho"
+  - Clicking scrim dismisses confirmation without action
+  - Last remaining version: `×` button hidden (can never be removed)
+
+### Image Block ID Assignment
+
+- IDs are sequential: `img-1`, `img-2`, `img-3` etc., assigned in document order
+- **On insertion**: next available ID (max existing + 1)
+- **On deletion**: IDs of remaining blocks are NOT reassigned (img-1, img-3 is valid)
+- **On reorder**: IDs stay with their blocks (stable identity)
+- The Images tab always lists in ID order, with paragraph position shown separately
+
+### Toast Notifications
+
+All major interactions emit contextual toasts via `pushToast()`:
+
+| Action | Toast | Kind |
+|--------|-------|------|
+| Save | "Rascunho salvo" | info |
+| Publish | "Post publicado" | success |
+| Republish | "Post atualizado no site" | success |
+| Add version | "Versão EN criada" | info |
+| Remove version | "Versão removida" | info |
+| Archive | "Post arquivado" | info |
+| Image upload complete | "Imagem adicionada" | success |
+| Image error | error message | warning |
+| Title alt swap | "Título trocado" | info |
+| Slug regenerated | "Slug regenerado do título" | info |
+
+### Preview Mode
+
+- Toggle via toolbar button or `⌘+Shift+P`
+- Opens full-screen preview rendering the compiled HTML
+- Shows NavigationGuard if unsaved changes exist
+- Uses `compileJsonContent()` called on-demand (not cached)
+- Close via Esc or close button
+
+### Error Handling
+
+| Error | Behavior |
+|-------|----------|
+| Save fails (network) | `state: 'error'`, exponential backoff retry (2s, 4s, 8s), saves to localStorage as draft recovery |
+| Save fails (max retries) | Persists to localStorage, shows error toast "Erro ao salvar — rascunho preservado localmente" |
+| Offline | Saves to `localStorage:editor-draft-{postId}`, `state: 'offline'`. On reconnect (online event): auto-retries if mode is 'auto' |
+| Publish fails | Toast with server error message, buttons re-enabled |
+| addLocale fails | Toast "Erro ao criar versão", no state change |
+| removeTranslationLocale fails | Toast "Erro ao remover versão", no state change |
+| Image upload fails | Block shows error state (red border, retry button) — see Image Blocks section |
+
+### Back Navigation
+
+- `NavigationGuard` intercepts `history.pushState` and `popstate` when `hasUnsavedChanges === true`
+- Shows dialog: "Alterações não salvas" with three options: "Salvar e sair" (force save then navigate), "Descartar" (navigate without saving), "Cancelar" (stay)
+- `beforeunload` event also guarded for browser close/refresh
+- Special case: URL changes within the editor (e.g., ephemeral → created, `/new` → `/[id]/editor`) bypass the guard
 
 ### Publish Gate
 
@@ -328,7 +438,16 @@ Single lock, evaluated on Publicação stage. `publishGate(state, lang)` returns
 - Toggle hides stage bar + inspector
 - Canvas widens to 760px
 - Floating `.focus-exit` pill at bottom + **Esc** key to exit
-- Focus toggle button highlighted in action bar when active
+- Focus toggle button highlighted in action bar when active (accent background)
+- **Esc key priority chain:** If any modal/popover is open → close it. Else if inspector drawer is open (mobile) → close it. Else if focus mode is active → exit focus mode. Else → deselect current block
+
+### Scheduling
+
+- `Agendar` button on Publicação stage opens `ScheduleModal` (existing component from `blog/_tabs/editorial/schedule-modal.tsx`)
+- Date picker + time picker in site timezone (from `x-default-locale` middleware)
+- Sets `scheduled_for` on `blog_posts` via `movePost(postId, 'scheduled', scheduledFor)`
+- Status badge changes to "Agendado · {date}" (blue)
+- Scheduled posts publish automatically via existing cron job
 
 ### Free Stage Navigation
 
@@ -340,19 +459,35 @@ Single lock, evaluated on Publicação stage. `publishGate(state, lang)` returns
 
 ### Detalhes
 
-- **Slug**: prefix `/blog/<lang>/` + editable value + "↻ regenerar do título"
+- **Slug**: prefix `/blog/<lang>/` + editable value. Auto-derives from title while `slugTouched === false`. Manual edit sets `slugTouched = true` and shows "↻ regenerar do título" link to re-sync
 - **Descrição**: textarea (auto-growing, seeds from excerpt)
-- **Categoria**: selector with color dot
+- **Prioridade**: badge showing `plevel` (P1, P2, P3) — sourced from pipeline item
+- **Categoria**: selector with color dot (uses `category.dark` color in dark theme, `.color` in light)
 - **Tags**: chip list with `+ tag` affordance
+- **Structured fields** (collapsible section):
+  - Key Points (ordered list, drag-reorderable)
+  - Pull Quote (single text field)
+  - Notes (ordered list)
+  - Colophon (text field)
+- **Series** (collapsible section):
+  - Previous Post (searchable link selector)
+  - Continues in Next (checkbox)
+- **Hashtags** (collapsible section):
+  - Multi-select with search and inline creation
 
 ### Distribuição
 
-- **Status indicator**: dot + label (Não publicado / Publicado / Alterações pendentes)
-- **URL**: full path when published
-- **Dates**: Publicado em / Atualizado em
-- **Images**: done/total count
-- **SEO**: status
+- **Status indicator**: dot + label. Three states: "Rascunho · não publicado" (gray) | "Publicado · no ar" (green) | "Publicado · alterações pendentes" (amber)
+- **URL**: full path when published (`/blog/<lang>/<slug>`)
+- **Dates**: Publicado em / Atualizado em (shown only when published)
+- **Images**: done/total count with amber indicator when pending
+- **SEO**: status indicator
 - **Update button**: visible when dirty + published
+- **Redes sociais** (collapsible sub-section):
+  - Platform toggles: Instagram, Bluesky, Facebook, YouTube
+  - Hashtags preview (up to 5 tags)
+  - Master toggle for all platforms
+  - Controls social auto-share triggered on publish via `movePost()` side effects
 
 ### Histórico
 
@@ -388,6 +523,18 @@ Single lock, evaluated on Publicação stage. `publishGate(state, lang)` returns
 | `blog_translations.pull_quote` | `shared.pullQuote` |
 | `blog_translations.notes` | `shared.notes` |
 | `blog_translations.colophon` | `shared.colophon` |
+
+### Content Storage (Three Fields)
+
+The editor saves content in three parallel fields:
+
+| Field | Format | Purpose |
+|-------|--------|---------|
+| `content_json` | TipTap JSONContent | Source of truth for editing (new path) |
+| `content_html` | Rendered HTML | Display/preview, compiled server-side by `compileJsonContent()` |
+| `content_mdx` | HTML string (legacy name) | Fallback for MDX rendering pipeline, receives same HTML as content_html |
+
+On save, the server action calls `compileJsonContent(content_json)` which also computes `content_toc` (h2/h3 table of contents) and `reading_time_min` (words / 200). The client sends `content_json` raw; compilation is server-only.
 
 ### No DB Schema Changes Required
 
@@ -454,30 +601,31 @@ All tokens from `design_handoff_blog_editor/reference/styles.css`:
 apps/web/src/app/cms/(authed)/blog/
 ├── [id]/
 │   └── editor/                          # NEW route
-│       ├── page.tsx                      # Server: loads post data
-│       ├── editor-client.tsx             # Client: EditorProvider + Shell
-│       ├── context.tsx                   # EditorContext + useReducer
-│       ├── reducer.ts                    # EditorState + actions
-│       ├── types.ts                      # Stage, VersionContent, etc.
-│       ├── helpers.ts                    # deriveSlug, publishGate, isEmptyVersion
-│       ├── action-bar.tsx               # Top bar
-│       ├── stage-bar.tsx                # Stage tabs
+│       ├── page.tsx                      # Server: loads post data (parallel fetches)
+│       ├── editor-client.tsx             # Client: EditorProvider + Shell + NavigationGuard
+│       ├── context.tsx                   # EditorStateContext + EditorDispatchContext (split for perf)
+│       ├── reducer.ts                    # EditorState + all actions + buildSnapshot()
+│       ├── types.ts                      # Stage, VersionContent, SharedFields, etc.
+│       ├── helpers.ts                    # deriveSlug, publishGate, isEmptyVersion, imageStats, buildSavePayload
+│       ├── action-bar.tsx               # Breadcrumb + lang toggle + status + focus + save
+│       ├── lang-toggle.tsx              # Single/dual version toggle with add/remove/confirm
+│       ├── stage-bar.tsx                # 5 stage tabs with icons + pending dot
 │       ├── stages/
-│       │   ├── stage-ideia.tsx
-│       │   ├── stage-rascunho.tsx
-│       │   ├── stage-imagens.tsx
-│       │   ├── stage-seo.tsx
-│       │   └── stage-publicacao.tsx
+│       │   ├── stage-ideia.tsx          # Read-only briefing (+ fresh version variant)
+│       │   ├── stage-rascunho.tsx       # TipTap + writing toolbar + inline image blocks
+│       │   ├── stage-imagens.tsx        # Cover + inline image dashboard + navigation links
+│       │   ├── stage-seo.tsx            # Meta fields + char counters + SERP preview
+│       │   └── stage-publicacao.tsx     # Gate + title alts + schedule + publish/update
 │       ├── inspector/
-│       │   ├── inspector.tsx            # Shell with cards
-│       │   ├── insp-detalhes.tsx
-│       │   ├── insp-distribuicao.tsx
-│       │   ├── insp-historico.tsx
-│       │   └── insp-arquivar.tsx
+│       │   ├── inspector.tsx            # Shell with collapsible cards + mobile drawer
+│       │   ├── insp-detalhes.tsx        # Slug, excerpt, plevel, category, tags, structured fields, series, hashtags
+│       │   ├── insp-distribuicao.tsx    # Status, URL, dates, images, SEO, social toggles
+│       │   ├── insp-historico.tsx       # Stage transitions timeline
+│       │   └── insp-arquivar.tsx        # Archive button with confirmation
 │       └── image-block/
-│           ├── blog-image-extension.ts  # TipTap node definition
-│           ├── blog-image-view.tsx      # React node view (all states)
-│           └── blog-image-toolbar.tsx   # Hover toolbar
+│           ├── blog-image-extension.ts  # TipTap node definition (attributes, parsing, serialization)
+│           ├── blog-image-view.tsx      # React node view (6 states + transitions)
+│           └── blog-image-toolbar.tsx   # Hover toolbar (width modes, replace, delete, more menu)
 ```
 
 ## Accessibility
