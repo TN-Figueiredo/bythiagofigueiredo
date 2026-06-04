@@ -444,3 +444,57 @@ export async function searchPipelineItems(
   const { searchPipelineItems: search } = await import('@/app/cms/(authed)/blog/actions')
   return search(siteId, query)
 }
+
+// ─── Granular Field Save (Inspector) ────────────────────────────────────────
+
+const POST_LEVEL_FIELDS = new Set(['tag_id', 'category', 'previous_post_id', 'continues_in_next'])
+const TRANSLATION_LEVEL_FIELDS = new Set(['slug', 'excerpt', 'meta_title', 'meta_description', 'og_image_url'])
+const SEO_FIELDS = new Set(['slug', 'meta_title', 'meta_description', 'og_image_url'])
+
+export async function savePostField(
+  postId: string,
+  locale: string,
+  field: string,
+  value: unknown,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  let siteId: string
+  try {
+    const res = await requireSiteAdminForRow('blog_posts', postId)
+    siteId = res.siteId
+  } catch {
+    return { ok: false, error: 'unauthorized' }
+  }
+
+  if (!POST_LEVEL_FIELDS.has(field) && !TRANSLATION_LEVEL_FIELDS.has(field)) {
+    return { ok: false, error: 'invalid_field' }
+  }
+
+  const supabase = getSupabaseServiceClient()
+
+  if (POST_LEVEL_FIELDS.has(field)) {
+    const { error } = await supabase
+      .from('blog_posts')
+      .update({ [field]: value })
+      .eq('id', postId)
+    if (error) return { ok: false, error: 'db_error' }
+  } else {
+    const { error } = await supabase
+      .from('blog_translations')
+      .update({ [field]: value })
+      .eq('post_id', postId)
+      .eq('locale', locale)
+    if (error) return { ok: false, error: 'db_error' }
+  }
+
+  if (SEO_FIELDS.has(field)) {
+    // When slug changes we pass the new value for path revalidation.
+    // For other SEO fields (meta_title, meta_description, og_image_url) the
+    // slug hasn't changed — tag-based invalidation covers the cache entries,
+    // and the path param is unused for tag-only revalidation.
+    const slug = field === 'slug' ? (value as string) : ''
+    revalidateBlogPostSeo(siteId, postId, locale, slug)
+    revalidateTag('blog-hub')
+  }
+
+  return { ok: true }
+}
