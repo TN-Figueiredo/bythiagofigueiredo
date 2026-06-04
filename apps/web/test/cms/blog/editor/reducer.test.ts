@@ -12,6 +12,8 @@ function makeState(overrides: Partial<EditorState> = {}): EditorState {
   return {
     postId: 'p1',
     code: 'tg-01',
+    siteId: 'site-1',
+    siteTimezone: 'America/Sao_Paulo',
     activeStage: 'rascunho',
     activeLang: 'pt',
     focus: false,
@@ -34,6 +36,7 @@ function makeState(overrides: Partial<EditorState> = {}): EditorState {
       history: [],
     },
     saveStatus: 'idle',
+    scrollToImageId: null,
     ...overrides,
   }
 }
@@ -73,6 +76,18 @@ describe('Navigation actions', () => {
 
     const next2 = editorReducer(next, { type: 'TOGGLE_FOCUS' })
     expect(next2.focus).toBe(false)
+  })
+
+  it('SCROLL_TO_IMAGE sets scrollToImageId', () => {
+    const state = makeState()
+    const next = editorReducer(state, { type: 'SCROLL_TO_IMAGE', imageId: 'img-42' })
+    expect(next.scrollToImageId).toBe('img-42')
+  })
+
+  it('CLEAR_SCROLL_TARGET resets scrollToImageId to null', () => {
+    const state = makeState({ scrollToImageId: 'img-42' })
+    const next = editorReducer(state, { type: 'CLEAR_SCROLL_TARGET' })
+    expect(next.scrollToImageId).toBeNull()
   })
 })
 
@@ -290,6 +305,8 @@ describe('buildInitialState', () => {
     const data: ServerData = {
       postId: 'post-abc',
       code: 'tg-42',
+      siteId: 'site-1',
+      siteTimezone: 'America/Sao_Paulo',
       locale: 'pt',
       title: 'Test Title',
       slug: 'test-title',

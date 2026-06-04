@@ -208,6 +208,7 @@ describe('type shape checks', () => {
         history: [],
       },
       saveStatus: 'idle',
+      scrollToImageId: null,
     }
     expect(state.postId).toBeNull()
     expect(state.activeStage).toBe('ideia')

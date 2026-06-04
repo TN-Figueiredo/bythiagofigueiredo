@@ -21,6 +21,10 @@ vi.mock('@/app/cms/(authed)/blog/[id]/editor/context', () => ({
   useEditorVersion: () => mockVersion,
 }))
 
+vi.mock('@/app/cms/(authed)/blog/_tabs/editorial/schedule-modal', () => ({
+  ScheduleModal: () => null,
+}))
+
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                           */
 /* ------------------------------------------------------------------ */
@@ -54,12 +58,15 @@ function makeState(overrides: Partial<EditorState> = {}): EditorState {
   return {
     postId: 'p1',
     code: 'tg-01',
+    siteId: 'site-1',
+    siteTimezone: 'America/Sao_Paulo',
     activeStage: 'publicacao',
     activeLang: 'pt',
     focus: false,
     content: { pt: makeVersion() },
     shared: makeShared(),
     saveStatus: 'idle',
+    scrollToImageId: null,
     ...overrides,
   }
 }

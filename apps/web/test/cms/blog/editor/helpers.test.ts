@@ -50,6 +50,7 @@ function makeState(
       history: [],
     },
     saveStatus: 'idle',
+    scrollToImageId: null,
     ...stateOverrides,
   }
 }

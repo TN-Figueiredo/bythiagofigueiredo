@@ -17,6 +17,19 @@ vi.mock('@/app/cms/(authed)/blog/[id]/editor/context', () => ({
   useEditorVersion: () => mockVersion,
 }))
 
+vi.mock('@/app/cms/(authed)/_shared/media/media-gallery-modal', () => ({
+  MediaGalleryModal: () => null,
+}))
+
+vi.mock('@/app/cms/(authed)/_shared/media/use-media-gallery', () => ({
+  useMediaGallery: () => ({
+    open: false,
+    openGallery: vi.fn(),
+    closeGallery: vi.fn(),
+    galleryProps: { open: false, onClose: vi.fn() },
+  }),
+}))
+
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                           */
 /* ------------------------------------------------------------------ */
@@ -49,12 +62,15 @@ function makeState(overrides: Partial<EditorState> = {}): EditorState {
   return {
     postId: 'p1',
     code: 'tg-01',
+    siteId: 'site-1',
+    siteTimezone: 'America/Sao_Paulo',
     activeStage: 'imagens',
     activeLang: 'pt',
     focus: false,
     content: { pt: makeVersion() },
     shared: makeShared(),
     saveStatus: 'idle',
+    scrollToImageId: null,
     ...overrides,
   }
 }
@@ -189,13 +205,17 @@ describe('StageImagens', () => {
     expect(content.textContent).toContain('aguardando')
   })
 
-  it('navigation button dispatches SET_STAGE to rascunho', async () => {
+  it('navigation button dispatches SCROLL_TO_IMAGE and SET_STAGE to rascunho', async () => {
     const StageImagens = await loadStageImagens()
     render(<StageImagens />)
 
     const navBtn = screen.getByTestId('img-nav-img-1')
     fireEvent.click(navBtn)
 
+    expect(mockDispatch).toHaveBeenCalledWith({
+      type: 'SCROLL_TO_IMAGE',
+      imageId: 'img-1',
+    })
     expect(mockDispatch).toHaveBeenCalledWith({
       type: 'SET_STAGE',
       stage: 'rascunho',

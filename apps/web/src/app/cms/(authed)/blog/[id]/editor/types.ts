@@ -71,12 +71,15 @@ export interface SharedFields {
 export interface EditorState {
   postId: string | null
   code: string
+  siteId: string
+  siteTimezone: string
   activeStage: Stage
   activeLang: 'pt' | 'en'
   focus: boolean
   content: Partial<Record<'pt' | 'en', VersionContent>>
   shared: SharedFields
   saveStatus: SaveStatus
+  scrollToImageId: string | null
 }
 
 /** Discriminated union of all editor actions. */
@@ -87,7 +90,7 @@ export type EditorAction =
   | { type: 'SET_POST_ID'; postId: string }
   | { type: 'SET_TITLE'; title: string }
   | { type: 'SET_BODY'; body: JSONContent; html: string; words: number; readTime: number }
-  | { type: 'SET_SLUG'; slug: string }
+  | { type: 'SET_SLUG'; slug: string; touched?: boolean }
   | { type: 'SET_EXCERPT'; excerpt: string }
   | { type: 'SET_COVER'; url: string | null; ready: boolean }
   | { type: 'SET_FIELD'; field: keyof VersionContent; value: unknown }
@@ -100,6 +103,8 @@ export type EditorAction =
   | { type: 'MARK_DIRTY' }
   | { type: 'CLEAR_DIRTY' }
   | { type: 'SET_SAVE_STATUS'; status: SaveStatus }
+  | { type: 'SCROLL_TO_IMAGE'; imageId: string }
+  | { type: 'CLEAR_SCROLL_TARGET' }
   | { type: 'INIT'; state: Partial<EditorState> }
 
 /** Single gate check result. */

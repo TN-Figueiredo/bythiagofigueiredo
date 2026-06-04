@@ -16,6 +16,8 @@ import { deriveSlug } from './helpers'
 export interface ServerData {
   postId: string
   code: string
+  siteId: string
+  siteTimezone: string
   locale: string
   title: string
   slug: string
@@ -82,6 +84,12 @@ export function editorReducer(
     case 'SET_STAGE':
       return { ...state, activeStage: action.stage }
 
+    case 'SCROLL_TO_IMAGE':
+      return { ...state, scrollToImageId: action.imageId }
+
+    case 'CLEAR_SCROLL_TARGET':
+      return { ...state, scrollToImageId: null }
+
     case 'SET_LANG': {
       if (!state.content[action.lang]) return state
       return { ...state, activeLang: action.lang }
@@ -117,7 +125,7 @@ export function editorReducer(
     case 'SET_SLUG':
       return updateActiveVersion(state, {
         slug: action.slug,
-        slugTouched: true,
+        slugTouched: action.touched ?? true,
       })
 
     case 'SET_EXCERPT':
@@ -293,11 +301,14 @@ export function buildInitialState(data: ServerData): EditorState {
   return {
     postId: data.postId,
     code: data.code,
+    siteId: data.siteId,
+    siteTimezone: data.siteTimezone,
     activeStage: 'rascunho',
     activeLang: lang,
     focus: false,
     content: { [lang]: version },
     saveStatus: 'idle',
+    scrollToImageId: null,
     shared,
   }
 }

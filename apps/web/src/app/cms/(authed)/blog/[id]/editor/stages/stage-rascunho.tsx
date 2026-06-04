@@ -82,6 +82,24 @@ export function StageRascunho() {
     [],
   )
 
+  /* ---- Cross-stage scroll: Imagens → Rascunho ---- */
+
+  useEffect(() => {
+    if (!state.scrollToImageId) return
+
+    // Wait for next frame (TipTap needs to render)
+    requestAnimationFrame(() => {
+      const el = document.querySelector(`[data-image-id="${state.scrollToImageId}"]`)
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        // Flash highlight
+        el.classList.add('scroll-highlight')
+        setTimeout(() => el.classList.remove('scroll-highlight'), 600)
+      }
+      dispatch({ type: 'CLEAR_SCROLL_TARGET' })
+    })
+  }, [state.scrollToImageId, dispatch])
+
   /* ---- Auto-grow title textarea ---- */
 
   useEffect(() => {

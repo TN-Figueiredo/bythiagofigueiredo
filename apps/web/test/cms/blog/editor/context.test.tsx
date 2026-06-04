@@ -1,5 +1,22 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
+
+vi.mock('@/app/cms/(authed)/_shared/editor/use-autosave', () => ({
+  useAutosave: () => ({
+    state: 'idle',
+    lastSavedAt: null,
+    hasUnsavedChanges: false,
+    scheduleSave: vi.fn(),
+    saveNow: vi.fn(),
+    forceSave: vi.fn().mockResolvedValue({ ok: true }),
+    setHasUnsavedChanges: vi.fn(),
+    needsConfirmation: false,
+    confirmSave: vi.fn(),
+    cancelSave: vi.fn(),
+    mode: 'auto',
+  }),
+}))
+
 import {
   EditorProvider,
   useEditorState,
@@ -17,6 +34,8 @@ function makeState(overrides: Partial<EditorState> = {}): EditorState {
   return {
     postId: 'p1',
     code: 'tg-01',
+    siteId: 'site-1',
+    siteTimezone: 'America/Sao_Paulo',
     activeStage: 'rascunho',
     activeLang: 'pt',
     focus: false,
@@ -39,6 +58,7 @@ function makeState(overrides: Partial<EditorState> = {}): EditorState {
       history: [],
     },
     saveStatus: 'idle',
+    scrollToImageId: null,
     ...overrides,
   }
 }

@@ -44,12 +44,15 @@ function makeState(overrides: Partial<EditorState> = {}): EditorState {
   return {
     postId: 'p1',
     code: 'tg-01',
+    siteId: 'site-1',
+    siteTimezone: 'America/Sao_Paulo',
     activeStage: 'rascunho',
     activeLang: 'pt',
     focus: false,
     content: { pt: { ...EMPTY_VERSION, fresh: false } },
     shared: makeShared(),
     saveStatus: 'idle',
+    scrollToImageId: null,
     ...overrides,
   }
 }

@@ -64,12 +64,15 @@ function makeState(overrides: Partial<EditorState> = {}): EditorState {
   const base: EditorState = {
     postId: 'p1',
     code: 'tg-07',
+    siteId: 'site-1',
+    siteTimezone: 'America/Sao_Paulo',
     activeStage: 'rascunho',
     activeLang: 'pt',
     focus: false,
     content: { pt: { ...EMPTY_VERSION, fresh: false } },
     shared: makeShared(),
     saveStatus: 'idle',
+    scrollToImageId: null,
   }
   const merged = { ...base, ...overrides }
   if (overrides.shared) {

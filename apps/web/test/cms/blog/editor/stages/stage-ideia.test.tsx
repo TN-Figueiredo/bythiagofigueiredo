@@ -31,6 +31,8 @@ function makeState(overrides: Partial<EditorState> = {}): EditorState {
   return {
     postId: 'p1',
     code: 'tg-01',
+    siteId: 'site-1',
+    siteTimezone: 'America/Sao_Paulo',
     activeStage: 'ideia',
     activeLang: 'pt',
     focus: false,
@@ -53,6 +55,7 @@ function makeState(overrides: Partial<EditorState> = {}): EditorState {
       history: [],
     },
     saveStatus: 'idle',
+    scrollToImageId: null,
     ...overrides,
   }
 }

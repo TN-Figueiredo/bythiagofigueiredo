@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useCallback, useState } from 'react'
 import type { JSONContent } from '@tiptap/core'
 import { imageStats } from '../helpers'
 import {
@@ -8,6 +8,10 @@ import {
   useEditorDispatch,
   useEditorVersion,
 } from '../context'
+import { useMediaGallery } from '@/app/cms/(authed)/_shared/media/use-media-gallery'
+import { MediaGalleryModal } from '@/app/cms/(authed)/_shared/media/media-gallery-modal'
+import { CROP_PRESETS } from '@/app/cms/(authed)/_shared/media/types'
+import type { MediaAssetResult } from '@/app/cms/(authed)/_shared/media/types'
 
 /* ------------------------------------------------------------------ */
 /*  Internal: extract blogImage nodes from body tree                   */
@@ -80,6 +84,30 @@ export function StageImagens() {
   const state = useEditorState()
   const dispatch = useEditorDispatch()
   const version = useEditorVersion()
+
+  const coverGallery = useMediaGallery()
+  const inlineGallery = useMediaGallery()
+
+  const handleCoverSelect = useCallback(
+    (asset: MediaAssetResult) => {
+      dispatch({ type: 'SET_COVER', url: asset.url, ready: true })
+      coverGallery.closeGallery()
+    },
+    [dispatch, coverGallery],
+  )
+
+  const [inlineTargetIndex, setInlineTargetIndex] = useState<number | null>(null)
+
+  const handleInlineSelect = useCallback(
+    (asset: MediaAssetResult) => {
+      if (inlineTargetIndex !== null) {
+        dispatch({ type: 'SET_IMAGE_STATUS', index: inlineTargetIndex, status: 'done' })
+      }
+      inlineGallery.closeGallery()
+      setInlineTargetIndex(null)
+    },
+    [dispatch, inlineGallery, inlineTargetIndex],
+  )
 
   const lang = state.activeLang
 
@@ -192,6 +220,7 @@ export function StageImagens() {
             {coverImageUrl ? (
               <button
                 type="button"
+                onClick={() => coverGallery.openGallery({ folder: 'blog', cropPreset: CROP_PRESETS['blog-cover'] })}
                 className="rounded-md border border-zinc-600 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-zinc-800"
               >
                 Trocar
@@ -200,12 +229,14 @@ export function StageImagens() {
               <>
                 <button
                   type="button"
+                  onClick={() => coverGallery.openGallery({ folder: 'blog', cropPreset: CROP_PRESETS['blog-cover'] })}
                   className="rounded-md border border-zinc-600 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-zinc-800"
                 >
                   Galeria
                 </button>
                 <button
                   type="button"
+                  onClick={() => coverGallery.openGallery({ folder: 'blog', cropPreset: CROP_PRESETS['blog-cover'] })}
                   className="rounded-md border border-zinc-600 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-zinc-800"
                 >
                   Upload
@@ -255,13 +286,29 @@ export function StageImagens() {
                     parágrafo {idx + 1}
                   </span>
 
+                  {/* Gallery for inline image */}
+                  {img.status !== 'done' && (
+                    <button
+                      type="button"
+                      data-testid={`img-gallery-${img.id || `img-${idx + 1}`}`}
+                      onClick={() => {
+                        setInlineTargetIndex(idx)
+                        inlineGallery.openGallery({ folder: 'blog', cropPreset: CROP_PRESETS.free })
+                      }}
+                      className="rounded-md px-2 py-1 text-xs text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+                    >
+                      Galeria
+                    </button>
+                  )}
+
                   {/* Navigate to rascunho */}
                   <button
                     type="button"
                     data-testid={`img-nav-${img.id || `img-${idx + 1}`}`}
-                    onClick={() =>
+                    onClick={() => {
+                      dispatch({ type: 'SCROLL_TO_IMAGE', imageId: img.id || `img-${idx + 1}` })
                       dispatch({ type: 'SET_STAGE', stage: 'rascunho' })
-                    }
+                    }}
                     className="rounded-md px-2 py-1 text-sm text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
                   >
                     →
@@ -280,6 +327,20 @@ export function StageImagens() {
           editor de Rascunho.
         </p>
       </div>
+
+      {/* ---- Media Gallery Modals ---- */}
+      <MediaGalleryModal
+        {...coverGallery.galleryProps}
+        onSelect={handleCoverSelect}
+        locale={state.activeLang === 'pt' ? 'pt-BR' : 'en'}
+        siteId={state.siteId}
+      />
+      <MediaGalleryModal
+        {...inlineGallery.galleryProps}
+        onSelect={handleInlineSelect}
+        locale={state.activeLang === 'pt' ? 'pt-BR' : 'en'}
+        siteId={state.siteId}
+      />
     </div>
   )
 }
