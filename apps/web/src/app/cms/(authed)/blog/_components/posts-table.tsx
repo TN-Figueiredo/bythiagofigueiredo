@@ -62,7 +62,7 @@ export function PostsTable({ posts, total, page, pageSize, currentParams }: Post
             {posts.map((post) => (
               <tr key={post.id} className="border-b border-cms-border-subtle hover:bg-cms-surface-hover transition-colors group">
                 <td className="py-3 px-4">
-                  <Link href={`/cms/blog/${post.id}/editor`} className="block">
+                  <Link href={`/cms/blog/${post.id}/edit`} className="block">
                     <div className="text-[13px] font-medium text-cms-text truncate max-w-xs">{post.title}</div>
                     <div className="text-[11px] text-cms-text-dim">/{post.slug} · {post.readingTime} min read</div>
                   </Link>
@@ -83,7 +83,7 @@ export function PostsTable({ posts, total, page, pageSize, currentParams }: Post
                 </td>
                 <td className="py-3 px-4 text-xs text-cms-text-dim">{post.updatedAt}</td>
                 <td className="py-3 px-4">
-                  <Link href={`/cms/blog/${post.id}/editor`} className="text-xs text-cms-accent opacity-0 group-hover:opacity-100 transition-opacity">Edit</Link>
+                  <Link href={`/cms/blog/${post.id}/edit`} className="text-xs text-cms-accent opacity-0 group-hover:opacity-100 transition-opacity">Edit</Link>
                 </td>
               </tr>
             ))}
@@ -93,7 +93,7 @@ export function PostsTable({ posts, total, page, pageSize, currentParams }: Post
 
       <div className="md:hidden space-y-2">
         {posts.map((post) => (
-          <Link key={post.id} href={`/cms/blog/${post.id}/editor`}
+          <Link key={post.id} href={`/cms/blog/${post.id}/edit`}
             className="block p-3 bg-cms-surface border border-cms-border rounded-[var(--cms-radius)]">
             <div className="flex items-start justify-between gap-2">
               <div className="text-[13px] font-medium text-cms-text line-clamp-2">{post.title}</div>

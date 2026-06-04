@@ -22,9 +22,9 @@ import {
   useEditorState,
   useEditorDispatch,
   useEditorVersion,
-} from '@/app/cms/(authed)/blog/[id]/editor/context'
-import { EMPTY_VERSION } from '@/app/cms/(authed)/blog/[id]/editor/types'
-import type { EditorState } from '@/app/cms/(authed)/blog/[id]/editor/types'
+} from '@/app/cms/(authed)/blog/[id]/edit/context'
+import { EMPTY_VERSION } from '@/app/cms/(authed)/blog/[id]/edit/types'
+import type { EditorState } from '@/app/cms/(authed)/blog/[id]/edit/types'
 
 /* ------------------------------------------------------------------ */
 /*  Helper                                                            */

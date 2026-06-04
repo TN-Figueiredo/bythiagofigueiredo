@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import { BlogImageView } from '@/app/cms/(authed)/blog/[id]/editor/image-block/blog-image-view'
+import { BlogImageView } from '@/app/cms/(authed)/blog/[id]/edit/image-block/blog-image-view'
 
 /* ------------------------------------------------------------------ */
 /*  Mock @tiptap/react                                                */

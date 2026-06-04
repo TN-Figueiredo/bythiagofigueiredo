@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import type { EditorState, VersionContent } from '@/app/cms/(authed)/blog/[id]/editor/types'
-import { EMPTY_VERSION } from '@/app/cms/(authed)/blog/[id]/editor/types'
+import type { EditorState, VersionContent } from '@/app/cms/(authed)/blog/[id]/edit/types'
+import { EMPTY_VERSION } from '@/app/cms/(authed)/blog/[id]/edit/types'
 
 /* ------------------------------------------------------------------ */
 /*  Mock context                                                      */
@@ -10,7 +10,7 @@ import { EMPTY_VERSION } from '@/app/cms/(authed)/blog/[id]/editor/types'
 const mockDispatch = vi.fn()
 let mockState: EditorState
 
-vi.mock('@/app/cms/(authed)/blog/[id]/editor/context', () => ({
+vi.mock('@/app/cms/(authed)/blog/[id]/edit/context', () => ({
   useEditorState: () => mockState,
   useEditorDispatch: () => mockDispatch,
   useEditorVersion: () => mockState.content[mockState.activeLang] ?? null,
@@ -66,7 +66,7 @@ function makeVersion(overrides: Partial<VersionContent> = {}): VersionContent {
 /* ------------------------------------------------------------------ */
 
 async function loadStageBar() {
-  const mod = await import('@/app/cms/(authed)/blog/[id]/editor/stage-bar')
+  const mod = await import('@/app/cms/(authed)/blog/[id]/edit/stage-bar')
   return mod.StageBar
 }
 

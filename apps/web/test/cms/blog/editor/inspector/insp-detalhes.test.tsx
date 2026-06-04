@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import type { EditorState, SharedFields } from '@/app/cms/(authed)/blog/[id]/editor/types'
-import { EMPTY_VERSION } from '@/app/cms/(authed)/blog/[id]/editor/types'
+import type { EditorState, SharedFields } from '@/app/cms/(authed)/blog/[id]/edit/types'
+import { EMPTY_VERSION } from '@/app/cms/(authed)/blog/[id]/edit/types'
 
 /* ------------------------------------------------------------------ */
 /*  Mock context                                                      */
@@ -10,7 +10,7 @@ import { EMPTY_VERSION } from '@/app/cms/(authed)/blog/[id]/editor/types'
 const mockDispatch = vi.fn()
 let mockState: EditorState
 
-vi.mock('@/app/cms/(authed)/blog/[id]/editor/context', () => ({
+vi.mock('@/app/cms/(authed)/blog/[id]/edit/context', () => ({
   useEditorState: () => mockState,
   useEditorDispatch: () => mockDispatch,
   useEditorVersion: () => mockState.content[mockState.activeLang] ?? null,
@@ -73,7 +73,7 @@ function makeState(overrides: Partial<EditorState> = {}): EditorState {
 
 async function loadComponent() {
   const mod = await import(
-    '@/app/cms/(authed)/blog/[id]/editor/inspector/insp-detalhes'
+    '@/app/cms/(authed)/blog/[id]/edit/inspector/insp-detalhes'
   )
   return mod.InspDetalhes
 }

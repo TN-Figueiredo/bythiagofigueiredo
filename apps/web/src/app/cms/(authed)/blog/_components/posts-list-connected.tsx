@@ -302,7 +302,7 @@ export function PostsListConnected({
                       )}
                     </td>
                     <td className="py-3 px-4">
-                      <Link href={`/cms/blog/${post.id}/editor`} className="block">
+                      <Link href={`/cms/blog/${post.id}/edit`} className="block">
                         <div className={`text-[13px] font-medium truncate max-w-xs ${post.status === 'draft' ? 'text-cms-text-muted' : 'text-cms-text'} ${!post.title ? 'italic' : ''}`}>
                           {post.title || 'Sem titulo'}
                         </div>
@@ -334,7 +334,7 @@ export function PostsListConnected({
                     <td className="py-3 px-4 text-xs text-cms-text-dim">{post.updatedAt}</td>
                     <td className="py-3 px-4">
                       <Link
-                        href={`/cms/blog/${post.id}/editor`}
+                        href={`/cms/blog/${post.id}/edit`}
                         className="text-xs text-cms-accent opacity-0 group-hover:opacity-100 transition-opacity"
                         data-testid={`edit-post-${post.id}`}
                       >
@@ -353,7 +353,7 @@ export function PostsListConnected({
           {posts.map((post) => (
             <Link
               key={post.id}
-              href={`/cms/blog/${post.id}/editor`}
+              href={`/cms/blog/${post.id}/edit`}
               className="block p-3 bg-cms-surface border border-cms-border rounded-[var(--cms-radius)]"
             >
               <div className="flex items-start justify-between gap-2">

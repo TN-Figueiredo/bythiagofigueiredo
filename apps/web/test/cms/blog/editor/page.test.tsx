@@ -45,7 +45,7 @@ vi.mock('@/lib/pipeline/blog-link', () => ({
 }))
 
 // Mock the client component to a simple div
-vi.mock('@/app/cms/(authed)/blog/[id]/editor/editor-client', () => ({
+vi.mock('@/app/cms/(authed)/blog/[id]/edit/editor-client', () => ({
   EditorClient: (props: { initialState: { postId: string } }) => (
     <div data-testid="editor-client" data-post-id={props.initialState?.postId} />
   ),
@@ -104,7 +104,7 @@ function setupMocks(overrides?: {
 /*  Import page (after mocks)                                         */
 /* ------------------------------------------------------------------ */
 
-import BlogEditorPage from '../../../../src/app/cms/(authed)/blog/[id]/editor/page'
+import BlogEditorPage from '../../../../src/app/cms/(authed)/blog/[id]/edit/page'
 
 /* ------------------------------------------------------------------ */
 /*  Tests                                                             */

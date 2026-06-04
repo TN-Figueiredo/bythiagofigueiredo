@@ -94,7 +94,7 @@ export function NewPostEditor({ locale, tagId }: NewPostEditorProps) {
       })
 
       if (saveResult.ok) {
-        router.replace(`/cms/blog/${currentPostId}/editor`)
+        router.replace(`/cms/blog/${currentPostId}/edit`)
       } else {
         setSaveError('error' in saveResult ? saveResult.error : 'Save failed')
       }

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render } from '@testing-library/react'
-import type { EditorState, Stage } from '@/app/cms/(authed)/blog/[id]/editor/types'
+import type { EditorState, Stage } from '@/app/cms/(authed)/blog/[id]/edit/types'
 
 /* ------------------------------------------------------------------ */
 /*  Mock context                                                      */
@@ -63,7 +63,7 @@ const baseState: EditorState = {
 
 let mockState: EditorState = { ...baseState }
 
-vi.mock('@/app/cms/(authed)/blog/[id]/editor/context', () => ({
+vi.mock('@/app/cms/(authed)/blog/[id]/edit/context', () => ({
   EditorProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   useEditorState: () => mockState,
   useEditorDispatch: () => mockDispatch,
@@ -75,41 +75,41 @@ vi.mock('@/app/cms/(authed)/blog/[id]/editor/context', () => ({
 /*  Mock sub-components — shallow rendering                           */
 /* ------------------------------------------------------------------ */
 
-vi.mock('@/app/cms/(authed)/blog/[id]/editor/action-bar', () => ({
+vi.mock('@/app/cms/(authed)/blog/[id]/edit/action-bar', () => ({
   ActionBar: ({ children }: { children?: React.ReactNode }) => (
     <div data-testid="action-bar">ActionBar{children}</div>
   ),
 }))
 
-vi.mock('@/app/cms/(authed)/blog/[id]/editor/lang-toggle', () => ({
+vi.mock('@/app/cms/(authed)/blog/[id]/edit/lang-toggle', () => ({
   LangToggle: () => <div data-testid="lang-toggle">LangToggle</div>,
 }))
 
-vi.mock('@/app/cms/(authed)/blog/[id]/editor/stage-bar', () => ({
+vi.mock('@/app/cms/(authed)/blog/[id]/edit/stage-bar', () => ({
   StageBar: () => <div data-testid="stage-bar">StageBar</div>,
 }))
 
-vi.mock('@/app/cms/(authed)/blog/[id]/editor/inspector/inspector', () => ({
+vi.mock('@/app/cms/(authed)/blog/[id]/edit/inspector/inspector', () => ({
   Inspector: () => <div data-testid="inspector">Inspector</div>,
 }))
 
-vi.mock('@/app/cms/(authed)/blog/[id]/editor/stages/stage-ideia', () => ({
+vi.mock('@/app/cms/(authed)/blog/[id]/edit/stages/stage-ideia', () => ({
   StageIdeia: () => <div data-testid="stage-ideia">StageIdeia</div>,
 }))
 
-vi.mock('@/app/cms/(authed)/blog/[id]/editor/stages/stage-rascunho', () => ({
+vi.mock('@/app/cms/(authed)/blog/[id]/edit/stages/stage-rascunho', () => ({
   StageRascunho: () => <div data-testid="stage-rascunho">StageRascunho</div>,
 }))
 
-vi.mock('@/app/cms/(authed)/blog/[id]/editor/stages/stage-imagens', () => ({
+vi.mock('@/app/cms/(authed)/blog/[id]/edit/stages/stage-imagens', () => ({
   StageImagens: () => <div data-testid="stage-imagens">StageImagens</div>,
 }))
 
-vi.mock('@/app/cms/(authed)/blog/[id]/editor/stages/stage-seo', () => ({
+vi.mock('@/app/cms/(authed)/blog/[id]/edit/stages/stage-seo', () => ({
   StageSeo: () => <div data-testid="stage-seo">StageSeo</div>,
 }))
 
-vi.mock('@/app/cms/(authed)/blog/[id]/editor/stages/stage-publicacao', () => ({
+vi.mock('@/app/cms/(authed)/blog/[id]/edit/stages/stage-publicacao', () => ({
   StagePublicacao: () => <div data-testid="stage-publicacao">StagePublicacao</div>,
 }))
 
@@ -123,7 +123,7 @@ vi.mock('@/app/cms/(authed)/_shared/editor/navigation-guard', () => ({
 /*  Import after mocks                                                */
 /* ------------------------------------------------------------------ */
 
-import { EditorClient } from '@/app/cms/(authed)/blog/[id]/editor/editor-client'
+import { EditorClient } from '@/app/cms/(authed)/blog/[id]/edit/editor-client'
 
 /* ------------------------------------------------------------------ */
 /*  Tests                                                             */

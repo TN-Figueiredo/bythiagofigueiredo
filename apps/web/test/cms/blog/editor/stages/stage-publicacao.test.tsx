@@ -4,8 +4,8 @@ import type {
   EditorState,
   VersionContent,
   SharedFields,
-} from '@/app/cms/(authed)/blog/[id]/editor/types'
-import { EMPTY_VERSION } from '@/app/cms/(authed)/blog/[id]/editor/types'
+} from '@/app/cms/(authed)/blog/[id]/edit/types'
+import { EMPTY_VERSION } from '@/app/cms/(authed)/blog/[id]/edit/types'
 
 /* ------------------------------------------------------------------ */
 /*  Mock context                                                      */
@@ -15,7 +15,7 @@ const mockDispatch = vi.fn()
 let mockVersion: VersionContent
 let mockState: EditorState
 
-vi.mock('@/app/cms/(authed)/blog/[id]/editor/context', () => ({
+vi.mock('@/app/cms/(authed)/blog/[id]/edit/context', () => ({
   useEditorState: () => mockState,
   useEditorDispatch: () => mockDispatch,
   useEditorVersion: () => mockVersion,
@@ -140,7 +140,7 @@ function publishedDirty(): EditorState {
 
 async function loadStagePublicacao() {
   const mod = await import(
-    '@/app/cms/(authed)/blog/[id]/editor/stages/stage-publicacao'
+    '@/app/cms/(authed)/blog/[id]/edit/stages/stage-publicacao'
   )
   return mod.StagePublicacao
 }

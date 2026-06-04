@@ -3,7 +3,7 @@ import type { JSONContent } from '@tiptap/core'
 import {
   BlogImageExtension,
   getNextImageId,
-} from '@/app/cms/(authed)/blog/[id]/editor/image-block/blog-image-extension'
+} from '@/app/cms/(authed)/blog/[id]/edit/image-block/blog-image-extension'
 
 /* ------------------------------------------------------------------ */
 /*  Extension definition                                              */

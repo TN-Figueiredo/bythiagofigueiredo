@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { editorReducer, buildInitialState } from '@/app/cms/(authed)/blog/[id]/editor/reducer'
-import type { EditorState, EditorAction } from '@/app/cms/(authed)/blog/[id]/editor/types'
-import { EMPTY_VERSION } from '@/app/cms/(authed)/blog/[id]/editor/types'
-import type { ServerData } from '@/app/cms/(authed)/blog/[id]/editor/reducer'
+import { editorReducer, buildInitialState } from '@/app/cms/(authed)/blog/[id]/edit/reducer'
+import type { EditorState, EditorAction } from '@/app/cms/(authed)/blog/[id]/edit/types'
+import { EMPTY_VERSION } from '@/app/cms/(authed)/blog/[id]/edit/types'
+import type { ServerData } from '@/app/cms/(authed)/blog/[id]/edit/reducer'
 
 /* ------------------------------------------------------------------ */
 /*  Helper                                                            */

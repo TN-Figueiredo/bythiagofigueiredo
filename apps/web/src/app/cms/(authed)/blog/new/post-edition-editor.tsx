@@ -647,7 +647,7 @@ export function PostEditionEditor({
     if (!isEphemeral) return
     const created = await ensurePostCreated()
     if (created) {
-      router.replace(`/cms/blog/${created}/editor`)
+      router.replace(`/cms/blog/${created}/edit`)
     }
   }, [isEphemeral])
 
@@ -858,7 +858,7 @@ export function PostEditionEditor({
     const result = await duplicatePost(postId)
     if (result.ok) {
       toast.success('Duplicated')
-      router.push(`/cms/blog/${result.newPostId}/editor`)
+      router.push(`/cms/blog/${result.newPostId}/edit`)
     } else {
       toast.error('Duplicate failed')
     }
@@ -880,7 +880,7 @@ export function PostEditionEditor({
     const result = await removeTranslationLocale(postId, locale)
     if (result.ok) {
       toast.success('Locale removed')
-      router.push(`/cms/blog/${postId}/editor`)
+      router.push(`/cms/blog/${postId}/edit`)
     } else {
       toast.error(result.error === 'last_locale' ? 'Cannot remove the only locale' : 'Failed to remove locale')
     }
@@ -1057,14 +1057,14 @@ export function PostEditionEditor({
             isPostPersisted={!!postId}
             isSaving={saveState === 'saving'}
             onSwitchLocale={(toLocale) => {
-              router.push(`/cms/blog/${postId}/editor?locale=${toLocale}`)
+              router.push(`/cms/blog/${postId}/edit?locale=${toLocale}`)
             }}
             onAddLocale={async (newLocale) => {
               if (!postId) return
               const result = await addLocale(postId, newLocale)
               if (result.ok) {
                 toast.success('Locale added')
-                router.push(`/cms/blog/${postId}/editor?locale=${newLocale}`)
+                router.push(`/cms/blog/${postId}/edit?locale=${newLocale}`)
               } else {
                 toast.error(result.error === 'locale_exists' ? 'Locale already exists' : 'Failed to add locale')
               }

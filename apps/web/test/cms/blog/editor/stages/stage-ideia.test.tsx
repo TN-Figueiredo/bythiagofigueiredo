@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, fireEvent } from '@testing-library/react'
-import type { EditorState, VersionContent } from '@/app/cms/(authed)/blog/[id]/editor/types'
-import { EMPTY_VERSION } from '@/app/cms/(authed)/blog/[id]/editor/types'
+import type { EditorState, VersionContent } from '@/app/cms/(authed)/blog/[id]/edit/types'
+import { EMPTY_VERSION } from '@/app/cms/(authed)/blog/[id]/edit/types'
 
 /* ------------------------------------------------------------------ */
 /*  Mock context                                                      */
@@ -11,7 +11,7 @@ const mockDispatch = vi.fn()
 let mockState: EditorState
 let mockVersion: VersionContent
 
-vi.mock('@/app/cms/(authed)/blog/[id]/editor/context', () => ({
+vi.mock('@/app/cms/(authed)/blog/[id]/edit/context', () => ({
   useEditorState: () => mockState,
   useEditorDispatch: () => mockDispatch,
   useEditorVersion: () => mockVersion,
@@ -21,7 +21,7 @@ vi.mock('@/app/cms/(authed)/blog/[id]/editor/context', () => ({
 /*  Import after mock                                                 */
 /* ------------------------------------------------------------------ */
 
-import { StageIdeia } from '@/app/cms/(authed)/blog/[id]/editor/stages/stage-ideia'
+import { StageIdeia } from '@/app/cms/(authed)/blog/[id]/edit/stages/stage-ideia'
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                           */

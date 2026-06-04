@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import type { EditorState, VersionContent } from '@/app/cms/(authed)/blog/[id]/editor/types'
-import { EMPTY_VERSION } from '@/app/cms/(authed)/blog/[id]/editor/types'
+import type { EditorState, VersionContent } from '@/app/cms/(authed)/blog/[id]/edit/types'
+import { EMPTY_VERSION } from '@/app/cms/(authed)/blog/[id]/edit/types'
 
 /* ------------------------------------------------------------------ */
 /*  Mock context                                                      */
@@ -11,7 +11,7 @@ const mockDispatch = vi.fn()
 let mockVersion: VersionContent
 let mockState: EditorState
 
-vi.mock('@/app/cms/(authed)/blog/[id]/editor/context', () => ({
+vi.mock('@/app/cms/(authed)/blog/[id]/edit/context', () => ({
   useEditorState: () => mockState,
   useEditorDispatch: () => mockDispatch,
   useEditorVersion: () => mockVersion,
@@ -132,7 +132,7 @@ const bodyEmpty = { type: 'doc', content: [] }
 
 async function loadStageImagens() {
   const mod = await import(
-    '@/app/cms/(authed)/blog/[id]/editor/stages/stage-imagens'
+    '@/app/cms/(authed)/blog/[id]/edit/stages/stage-imagens'
   )
   return mod.StageImagens
 }

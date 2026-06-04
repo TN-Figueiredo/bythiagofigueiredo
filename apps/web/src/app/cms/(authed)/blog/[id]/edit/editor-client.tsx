@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useCallback } from 'react'
+import { Component, useEffect, useCallback, type ReactNode, type ErrorInfo } from 'react'
 import { Toaster } from 'sonner'
 import { EditorProvider, useEditorState, useEditorDispatch, useAutosaveState } from './context'
 import type { EditorState } from './types'
@@ -14,9 +14,59 @@ import { StageImagens } from './stages/stage-imagens'
 import { StageSeo } from './stages/stage-seo'
 import { StagePublicacao } from './stages/stage-publicacao'
 import { NavigationGuard } from '@/app/cms/(authed)/_shared/editor/navigation-guard'
-import { savePost, type SavePostActionInput } from '../edit/actions'
+import { savePost, type SavePostActionInput } from './actions'
 import { createPost } from '../../actions'
 import './editor-theme.css'
+
+/* ------------------------------------------------------------------ */
+/*  Error Boundary — catches render crashes and shows them             */
+/* ------------------------------------------------------------------ */
+
+interface EditorErrorBoundaryState {
+  error: Error | null
+}
+
+class EditorErrorBoundary extends Component<
+  { children: ReactNode },
+  EditorErrorBoundaryState
+> {
+  constructor(props: { children: ReactNode }) {
+    super(props)
+    this.state = { error: null }
+  }
+
+  static getDerivedStateFromError(error: Error): EditorErrorBoundaryState {
+    return { error }
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo): void {
+    console.error('[BlogEditor] Render crash:', error, info.componentStack)
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="flex flex-col items-center justify-center p-8">
+          <h2 className="text-lg font-semibold text-red-400 mb-2">
+            Editor failed to render
+          </h2>
+          <pre className="mb-4 max-w-xl overflow-auto rounded-lg bg-red-950/40 p-4 text-xs text-red-300 whitespace-pre-wrap">
+            {this.state.error.message}
+            {'\n'}
+            {this.state.error.stack}
+          </pre>
+          <button
+            onClick={() => this.setState({ error: null })}
+            className="px-4 py-2 bg-zinc-700 text-white rounded-lg text-sm font-medium hover:bg-zinc-600"
+          >
+            Retry
+          </button>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
 
 /* ------------------------------------------------------------------ */
 /*  Focus Mode Pill                                                   */
@@ -158,12 +208,14 @@ export function EditorClient({ initialState }: EditorClientProps) {
   )
 
   return (
-    <EditorProvider
-      initialState={initialState}
-      saveAction={handleSave}
-      createPostAction={handleCreatePost}
-    >
-      <EditorLayout />
-    </EditorProvider>
+    <EditorErrorBoundary>
+      <EditorProvider
+        initialState={initialState}
+        saveAction={handleSave}
+        createPostAction={handleCreatePost}
+      >
+        <EditorLayout />
+      </EditorProvider>
+    </EditorErrorBoundary>
   )
 }

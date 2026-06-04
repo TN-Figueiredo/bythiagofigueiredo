@@ -25,10 +25,10 @@ import {
   EditorProvider,
   useEditorState,
   useEphemeral,
-} from '@/app/cms/(authed)/blog/[id]/editor/context'
+} from '@/app/cms/(authed)/blog/[id]/edit/context'
 import { useAutosave } from '@/app/cms/(authed)/_shared/editor/use-autosave'
-import { EMPTY_VERSION } from '@/app/cms/(authed)/blog/[id]/editor/types'
-import type { EditorState } from '@/app/cms/(authed)/blog/[id]/editor/types'
+import { EMPTY_VERSION } from '@/app/cms/(authed)/blog/[id]/edit/types'
+import type { EditorState } from '@/app/cms/(authed)/blog/[id]/edit/types'
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                           */

@@ -13,20 +13,29 @@ import fs from 'fs'
  */
 function bracketDirAliasPlugin(): Plugin {
   const srcRoot = path.resolve(__dirname, 'src')
+  // Also probe the non-src root for lib/ paths resolved by tsconfig
+  const appRoot = path.resolve(__dirname)
   return {
     name: 'bracket-dir-alias',
     enforce: 'pre',
-    resolveId(source, importer) {
+    resolveId(source, _importer) {
+      if (source.includes('[id]')) {
+        console.error(`[bracket-alias] CALLED for: ${source}`)
+      }
       if (!source.startsWith('@/')) return null
-      const needsHelp = source.includes('(') || source.includes('[') || (importer && (importer.includes('[') || importer.includes('(authed)')))
+      const needsHelp = source.includes('(') || source.includes('[')
       if (!needsHelp) return null
       const relative = source.slice(2) // strip `@/`
-      for (const ext of ['', '.ts', '.tsx', '/index.ts', '/index.tsx']) {
-        const candidate = path.join(srcRoot, relative + ext)
-        if (fs.existsSync(candidate)) {
-          return candidate
+      for (const root of [srcRoot, appRoot]) {
+        for (const ext of ['', '.ts', '.tsx', '.js', '.jsx', '/index.ts', '/index.tsx']) {
+          const candidate = path.join(root, relative + ext)
+          if (fs.existsSync(candidate)) {
+            console.log(`[bracket-alias] ${source} -> ${candidate}`)
+            return candidate
+          }
         }
       }
+      console.log(`[bracket-alias] NOT FOUND: ${source}`)
       return null
     },
   }
@@ -223,6 +232,12 @@ export default defineConfig({
       {
         find: '@/app/cms/(authed)/links/[id]/_components/qr-cards-strip',
         replacement: path.resolve(__dirname, './src/app/cms/(authed)/links/[id]/_components/qr-cards-strip.tsx'),
+      },
+      // Blog editor — bracket directory `[id]` breaks regex-based alias.
+      // String-based find uses startsWith matching which handles brackets reliably.
+      {
+        find: '@/app/cms/(authed)/blog/[id]/edit/',
+        replacement: path.resolve(__dirname, './src/app/cms/(authed)/blog/[id]/edit/'),
       },
       {
         find: /^@\/app\/cms\/\(authed\)(.*)$/,

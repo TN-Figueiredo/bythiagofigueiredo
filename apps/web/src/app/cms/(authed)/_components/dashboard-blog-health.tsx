@@ -95,7 +95,7 @@ export function BlogHealthSection({ data }: { data: BlogHealthData }) {
               <ul className="space-y-1">
                 {data.recentPublications.slice(0, 5).map((pub) => (
                   <li key={pub.id}>
-                    <Link href={`/cms/blog/${pub.id}/editor`} className="flex items-center gap-2 text-xs text-[var(--t3)] hover:text-[var(--t1)] transition-colors">
+                    <Link href={`/cms/blog/${pub.id}/edit`} className="flex items-center gap-2 text-xs text-[var(--t3)] hover:text-[var(--t1)] transition-colors">
                       {pub.tagColor && <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: pub.tagColor }} />}
                       <span className="truncate">{pub.title}</span>
                     </Link>

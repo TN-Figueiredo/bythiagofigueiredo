@@ -4,7 +4,7 @@ import {
   AUTO_SAVE_STATUSES,
   STAGE_ICONS,
   EMPTY_VERSION,
-} from '@/app/cms/(authed)/blog/[id]/editor/types'
+} from '@/app/cms/(authed)/blog/[id]/edit/types'
 import type {
   Stage,
   SaveStatus,
@@ -18,7 +18,7 @@ import type {
   GateCheck,
   GateResult,
   ImageStatsResult,
-} from '@/app/cms/(authed)/blog/[id]/editor/types'
+} from '@/app/cms/(authed)/blog/[id]/edit/types'
 
 /* ------------------------------------------------------------------ */
 /*  Constants                                                         */

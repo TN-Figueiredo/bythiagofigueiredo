@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
-import type { EditorState } from '@/app/cms/(authed)/blog/[id]/editor/types'
-import { EMPTY_VERSION } from '@/app/cms/(authed)/blog/[id]/editor/types'
+import type { EditorState } from '@/app/cms/(authed)/blog/[id]/edit/types'
+import { EMPTY_VERSION } from '@/app/cms/(authed)/blog/[id]/edit/types'
 
 /* ------------------------------------------------------------------ */
 /*  Mocks                                                             */
@@ -34,7 +34,7 @@ import {
   useAutosaveState,
   buildSnapshot,
   buildSavePayload,
-} from '@/app/cms/(authed)/blog/[id]/editor/context'
+} from '@/app/cms/(authed)/blog/[id]/edit/context'
 import { useAutosave } from '@/app/cms/(authed)/_shared/editor/use-autosave'
 
 /* ------------------------------------------------------------------ */

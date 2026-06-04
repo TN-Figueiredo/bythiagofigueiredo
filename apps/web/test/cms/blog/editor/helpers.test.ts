@@ -5,12 +5,12 @@ import {
   isEmptyVersion,
   publishGate,
   imageStats,
-} from '@/app/cms/(authed)/blog/[id]/editor/helpers'
+} from '@/app/cms/(authed)/blog/[id]/edit/helpers'
 import {
   EMPTY_VERSION,
   type VersionContent,
   type EditorState,
-} from '@/app/cms/(authed)/blog/[id]/editor/types'
+} from '@/app/cms/(authed)/blog/[id]/edit/types'
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                           */

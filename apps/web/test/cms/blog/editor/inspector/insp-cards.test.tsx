@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import type { EditorState, SharedFields, VersionContent } from '@/app/cms/(authed)/blog/[id]/editor/types'
-import { EMPTY_VERSION } from '@/app/cms/(authed)/blog/[id]/editor/types'
+import type { EditorState, SharedFields, VersionContent } from '@/app/cms/(authed)/blog/[id]/edit/types'
+import { EMPTY_VERSION } from '@/app/cms/(authed)/blog/[id]/edit/types'
 
 /* ------------------------------------------------------------------ */
 /*  Mock context                                                      */
@@ -10,7 +10,7 @@ import { EMPTY_VERSION } from '@/app/cms/(authed)/blog/[id]/editor/types'
 const mockDispatch = vi.fn()
 let mockState: EditorState
 
-vi.mock('@/app/cms/(authed)/blog/[id]/editor/context', () => ({
+vi.mock('@/app/cms/(authed)/blog/[id]/edit/context', () => ({
   useEditorState: () => mockState,
   useEditorDispatch: () => mockDispatch,
   useEditorVersion: () => mockState.content[mockState.activeLang] ?? null,
@@ -76,21 +76,21 @@ function makeState(overrides: Partial<EditorState> = {}): EditorState {
 
 async function loadDistribuicao() {
   const mod = await import(
-    '@/app/cms/(authed)/blog/[id]/editor/inspector/insp-distribuicao'
+    '@/app/cms/(authed)/blog/[id]/edit/inspector/insp-distribuicao'
   )
   return mod.InspDistribuicao
 }
 
 async function loadHistorico() {
   const mod = await import(
-    '@/app/cms/(authed)/blog/[id]/editor/inspector/insp-historico'
+    '@/app/cms/(authed)/blog/[id]/edit/inspector/insp-historico'
   )
   return mod.InspHistorico
 }
 
 async function loadArquivar() {
   const mod = await import(
-    '@/app/cms/(authed)/blog/[id]/editor/inspector/insp-arquivar'
+    '@/app/cms/(authed)/blog/[id]/edit/inspector/insp-arquivar'
   )
   return mod.InspArquivar
 }
