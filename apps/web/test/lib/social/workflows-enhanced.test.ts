@@ -4,7 +4,23 @@ const mockUpdate = vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ err
 const mockFrom = vi.fn((table: string) => {
   if (table === 'social_posts') {
     return {
-      update: (patch: Record<string, unknown>) => ({ eq: vi.fn().mockResolvedValue({ error: null }) }),
+      update: (patch: Record<string, unknown>) => {
+        const isCasLock = patch.status === 'publishing'
+        return {
+          eq: () => {
+            if (isCasLock) {
+              return {
+                or: () => ({
+                  select: () => ({
+                    maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'p1' }, error: null }),
+                  }),
+                }),
+              }
+            }
+            return Promise.resolve({ error: null })
+          },
+        }
+      },
       select: () => ({ eq: () => ({ single: vi.fn().mockResolvedValue({ data: { status: 'publishing' }, error: null }) }) }),
     }
   }
@@ -221,7 +237,21 @@ describe('publishSocialPost — enhanced', () => {
             if (patch.status && patch.status !== 'publishing') {
               capturedPostStatus = patch.status as string
             }
-            return { eq: vi.fn().mockResolvedValue({ error: null }) }
+            const isCasLock = patch.status === 'publishing'
+            return {
+              eq: () => {
+                if (isCasLock) {
+                  return {
+                    or: () => ({
+                      select: () => ({
+                        maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'p1' }, error: null }),
+                      }),
+                    }),
+                  }
+                }
+                return Promise.resolve({ error: null })
+              },
+            }
           },
           select: () => ({
             eq: () => ({ single: vi.fn().mockResolvedValue({ data: { status: 'publishing' }, error: null }) }),

@@ -31,6 +31,16 @@ export async function FeedViewLoader({ siteId, status }: { siteId: string; statu
       source: (rawContent.source_title as string) ?? undefined,
       sourceType: (rawContent.source_content_type as string) ?? undefined,
       lang: 'PT' as const,
+      metrics: item.metrics
+        ? {
+            views: item.metrics.views,
+            likes: item.metrics.likes,
+            comments: item.metrics.comments,
+            shares: item.metrics.shares,
+            engagement: item.metrics.engagement,
+          }
+        : undefined,
+      metricsUpdatedAt: item.metrics?.updatedAt ?? undefined,
     }
   })
 

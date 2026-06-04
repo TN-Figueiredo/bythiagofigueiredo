@@ -1,109 +1,109 @@
-# Prompt: Social Metrics Polling Pipeline
+# Social Metrics Polling — Implementation Status
 
-## Contexto
+## Status
 
-O Social Studio exibe FeedCards com métricas (views, likes, comments, engagement) no footer. Os componentes estão prontos (`FeedCard` renderiza `item.metrics` quando presente), mas o **pipeline de coleta de métricas das APIs das plataformas não existe**.
+**Prioridade:** Pos-MVP (Sprint 5h Phase 2). Nao bloqueia lancamento.
+**Estado:** Implementacao aplicada, aguardando validacao visual + testes.
 
-Posts criados via "Do CMS" já salvam título, source e idioma. O que falta é popular as métricas APÓS publicação.
+## O que foi implementado nesta sessao
 
-## O que implementar
+### Gap 1: Feed loader faz JOIN com post_metrics — FEITO
 
-### 1. Tabela de métricas (migration)
+**Arquivos modificados:**
+- `lib/social/actions/posts.ts` — `MetricsAggregate` interface + campo `metrics?` em `FeedPostWithDeliveries` + query best-effort com try/catch
+- `feed-view-loader.tsx` — mapeamento `item.metrics` → `FeedItem.metrics` + `metricsUpdatedAt`
+- `feed-grid.tsx` — `FeedItem.metrics` expandido com `shares?`, `engagement?` + `metricsUpdatedAt?`
+- `lib/social/actions/index.ts` — re-export de `MetricsAggregate`
 
-```sql
--- npm run db:new social_delivery_metrics
-CREATE TABLE IF NOT EXISTS social_delivery_metrics (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  delivery_id UUID NOT NULL REFERENCES social_deliveries(id) ON DELETE CASCADE,
-  polled_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  views INTEGER,
-  likes INTEGER,
-  comments INTEGER,
-  shares INTEGER,
-  reach INTEGER,
-  engagement_rate NUMERIC(5,2),
-  raw_data JSONB,
-  UNIQUE(delivery_id, polled_at)
-);
+**Logica:** Query `post_metrics` por `post_id` (com `slide_index IS NULL` para pegar agregado), dedup em JS (PostgREST nao suporta DISTINCT ON), `views = impressions` (sem somar reach para evitar double-counting), `engagement = round((likes+comments+shares / views) * 100, 2)`. Catch com Sentry warning (nao silencioso).
 
-CREATE INDEX idx_delivery_metrics_delivery ON social_delivery_metrics(delivery_id);
-```
+### Gap 2: Bluesky le coluna correta — FEITO
 
-### 2. Cron de polling (`/api/cron/social-metrics-poll`)
+**Arquivo:** `metrics-poller.ts`, case `'bluesky'`
+**Fix:** Prefere `bluesky_access_jwt_enc` (JWT refreshed); fallback `access_token_enc` (app password legado).
 
-- Roda a cada 1h (ou 30min)
-- Busca `social_deliveries` com `status = 'published'` e `published_at` nos últimos 7 dias
-- Para cada delivery, chama a API da plataforma:
-  - **Instagram**: Graph API `/media/{platform_post_id}/insights` → impressions, reach, likes, comments
-  - **YouTube**: Data API `/videos?id={platform_post_id}&part=statistics` → viewCount, likeCount, commentCount
-  - **Facebook**: Graph API `/{platform_post_id}?fields=insights` → impressions, reactions, comments, shares
-- Salva em `social_delivery_metrics`
-- Usa token da `social_connections` (descriptografa via `decrypt()` + `getMasterKey()`)
-- Respeita rate limits de cada API
-- CRON_SECRET validation
-- Sentry error tracking
+### Gap 3: Facebook comments e shares reais — FEITO
 
-### 3. Agregação no feed-view-loader
+**Arquivo:** `metrics-poller.ts`, `fetchFacebookMetrics()`
+**Fix:** Segunda chamada `/{postId}?fields=comments.summary(true),shares` com try/catch. Se falhar, mantem zeros.
 
-`feed-view-loader.tsx` deve fazer um JOIN ou query separada para buscar as métricas mais recentes de cada delivery:
+### Gap 4: Instagram likes reais — FEITO
 
-```typescript
-// Após buscar posts com deliveries, buscar métricas
-const deliveryIds = result.data.flatMap(item => item.deliveries.map(d => d.id))
-const { data: metrics } = await supabase
-  .from('social_delivery_metrics')
-  .select('delivery_id, views, likes, comments, shares')
-  .in('delivery_id', deliveryIds)
-  .order('polled_at', { ascending: false })
-  // Pegar só o mais recente por delivery (distinct on)
+**Arquivo:** `metrics-poller.ts`, `fetchInstagramMetrics()`
+**Fix:** Segunda chamada `/{mediaId}?fields=like_count,comments_count` com try/catch.
 
-// Mapear métricas para cada FeedItem
-```
+### Gap 5+7: Token refresh + circuit breaker no cron — FEITO
 
-### 4. Atualizar FeedItem mapping
+**Arquivo:** `app/api/cron/social-metrics/route.ts`
+**Fixes:**
+- `import * as Sentry from '@sentry/nextjs'`
+- `import { ensureFreshToken, TokenRevokedError }`
+- `CONNECTION_SELECT` com todos campos (incluindo `circuit_open_until`, `bluesky_access_jwt_enc`)
+- Check circuit breaker ANTES de refresh
+- Check `!siteId || !accountId` antes de `ensureFreshToken`
+- `ensureFreshToken(siteId, provider, accountId)` com `accountId` TEXT (nao UUID)
+- Re-fetch connection apos refresh
+- TokenRevokedError → Sentry + continue
 
-No `feed-view-loader.tsx`, popular o campo `metrics` do FeedItem com os dados reais:
+### Gap 6: Rate limit 429 handling — FEITO
 
-```typescript
-metrics: latestMetrics ? {
-  views: latestMetrics.views ?? undefined,
-  likes: latestMetrics.likes ?? undefined,
-  comments: latestMetrics.comments ?? undefined,
-  engagement: latestMetrics.shares ?? undefined,
-} : undefined,
-```
+**Arquivo:** `metrics-poller.ts`
+**Fix:** Check `res.status === 429` antes de `!res.ok` nas 3 funcoes fetch. `Sentry.captureMessage` com level warning + throw.
 
-### 5. API keys necessárias
+### Gap 8: Ordering ASC para nao starvar posts antigos — FEITO
 
-- `YOUTUBE_API_KEY` — já existe em `.env.local`
-- Instagram Graph API — usa token do `social_connections` (já armazenado)
-- Facebook Graph API — usa `page_token_enc` do `social_connections`
+**Arquivo:** `app/api/cron/social-metrics/route.ts`
+**Fix:** `.order('published_at', { ascending: true })` — posts mais antigos primeiro.
 
-### 6. Referências no codebase
+### Gap 9 (NOVO): API endpoints deprecated — FEITO
 
-- `apps/web/src/lib/social/metrics-poller.ts` — arquivo existente (verificar se tem lógica reutilizável)
-- `apps/web/src/lib/social/token-refresh.ts` — refresh de tokens OAuth
-- `apps/web/src/lib/social/actions/connections.ts` — `checkConnectionHealth` como referência de query
-- `apps/web/src/app/api/cron/social-auto-draft/route.ts` — padrão de cron existente
-- `packages/social/src/core/types.ts` — tipos de Provider
+**Achado critico** do agente de verificacao de APIs:
 
-### 7. Testes
+| Endpoint | Issue | Fix aplicado |
+|---|---|---|
+| Facebook `post_impressions` | Deprecated 15 jun 2026 | → `post_media_views` |
+| Instagram `impressions` (insights) | Deprecated abr 2025 | → `views` |
+| Instagram `replies` (insights) | So funciona para Stories, nao para feed posts | Removido — comments vem da chamada suplementar `?fields=comments_count` |
 
-- `apps/web/test/social-metrics-poll.test.ts` — mock das APIs, verificar que métricas são salvas
-- `apps/web/test/social-feed-with-metrics.test.ts` — verificar que FeedItem inclui métricas
+**Nota:** API version v21.0 esta 4 versoes atras (v25.0 e a atual). Funcional por enquanto (Meta mantem ~2 anos), mas upgrade para v24/v25 recomendado em proxima sessao.
 
-### 8. Vercel cron config
+## Pendencias
 
-```json
-{ "path": "/api/cron/social-metrics-poll", "schedule": "0 * * * *" }
-```
+### 1. Testes — RESOLVIDO
 
-## Resultado esperado
+Testes devem rodar de `apps/web/` (nao da raiz do monorepo), onde o `vitest.config.ts` resolve aliases corretamente. **41 testes passam** (24 em `social-metrics.test.ts` + 17 em `social-metrics-integration.test.ts`), incluindo:
+- Supplementary call failure (FB e IG) — verifica fallback para zeros
+- API deprecated metrics atualizados (`post_media_views`, `views`)
+- `views = impressions` (sem double-counting com reach)
 
-Após implementar, os FeedCards no `/cms/social` vão mostrar automaticamente:
-- 👁 1.204 (views)
-- 💬 18 (comments)  
-- ❤️ 142 (likes)
-- 📊 312 (engagement)
+### 2. Validacao visual
 
-Para todos os posts publicados nos últimos 7 dias, com dados atualizados a cada hora.
+Verificar no browser que o FeedCard em `/cms/social` mostra metricas (views, likes, comments, engagement) para posts publicados com dados reais do cron. Requer pelo menos 1 post publicado + 1 ciclo de cron executado.
+
+### 3. API version upgrade (futuro)
+
+Migrar de Graph API v21.0 para v24/v25. Nao urgente (v21.0 suportado ate ~2027), mas good practice.
+
+## Limitacoes conhecidas (v1)
+
+1. **Multi-platform posts:** Metricas somadas, FeedCard mostra icone da primeira plataforma apenas.
+2. **YouTube:** Retorna null (Data API v3 nao suporta metricas de community posts).
+3. **Dedup em JS:** Volume baixo (~200 rows max). Se escalar, criar RPC ou view Postgres.
+4. **Stories Instagram:** Insights disponiveis por apenas 48h apos publicacao.
+5. **maxDuration do cron:** 60s. Com muitas connections distintas + 15s timeout cada refresh, pode exceder. Monitorar cron_runs.
+6. **Token em URL:** Facebook/Instagram Graph API usa `access_token` como query parameter (padrao da API). Tokens podem aparecer em Sentry breadcrumbs se o fetch falhar. Mitigacao: o try/catch no `pollMetricsForDelivery` captura exceptions com contexto limitado (sem URL). Para v2, considerar sanitizar URLs antes de Sentry capture.
+7. **`metricsUpdatedAt` e `shares`** estao wired ate o FeedItem mas o FeedCard existente nao os renderiza ainda. Adicionar em v2.
+8. **`engagement` e um percentual** (ex: 3.45) mas o FeedCard exibe como numero absoluto sem sufixo `%`. Corrigir no FeedCard em v2.
+
+## Mapeamento de campos
+
+| post_metrics (DB) | FeedItem.metrics (UI) | Nota |
+|---|---|---|
+| `impressions` | `views` | Direto (sem somar reach — evita double-counting) |
+| `reach` | — | Disponivel no DB mas nao exibido (subconjunto de impressions) |
+| `likes` | `likes` | Direto |
+| `comments` | `comments` | Direto |
+| `shares` | `shares` | Direto |
+| `likes + comments + shares` | `engagement` | Computado como % de views |
+| `polled_at` | `metricsUpdatedAt` | Para tooltip "atualizado ha Xh" |
+| `link_clicks` | — | Disponivel mas nao exibido no FeedCard v1 |

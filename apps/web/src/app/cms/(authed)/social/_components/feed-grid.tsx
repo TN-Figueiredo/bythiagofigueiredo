@@ -22,8 +22,10 @@ export interface FeedItem {
     views?: number
     comments?: number
     likes?: number
+    shares?: number
     engagement?: number
   }
+  metricsUpdatedAt?: string
 }
 
 interface FeedGridProps {

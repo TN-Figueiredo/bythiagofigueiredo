@@ -84,14 +84,21 @@ describe('fetchFacebookMetrics', () => {
     vi.restoreAllMocks()
   })
 
-  it('happy path: parses reactions, impressions, and link clicks', async () => {
+  it('happy path: parses reactions, views, clicks, comments, and shares', async () => {
     const mockData = [
       { name: 'post_reactions_by_type_total', values: [{ value: { like: 10, wow: 3 } }] },
-      { name: 'post_impressions', values: [{ value: 500 }] },
+      { name: 'post_media_views', values: [{ value: 500 }] },
       { name: 'post_clicks', values: [{ value: 42 }] },
     ]
-    vi.spyOn(global, 'fetch').mockResolvedValueOnce(
+    const fetchSpy = vi.spyOn(global, 'fetch')
+    fetchSpy.mockResolvedValueOnce(
       new Response(JSON.stringify({ data: mockData }), { status: 200 }),
+    )
+    fetchSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify({
+        comments: { summary: { total_count: 7 } },
+        shares: { count: 3 },
+      }), { status: 200 }),
     )
 
     const result = await fetchFacebookMetrics('post-123', 'page-token-abc')
@@ -99,9 +106,28 @@ describe('fetchFacebookMetrics', () => {
     expect(result.likes).toBe(13) // 10 + 3
     expect(result.impressions).toBe(500)
     expect(result.linkClicks).toBe(42)
+    expect(result.comments).toBe(7)
+    expect(result.shares).toBe(3)
+    expect(result.raw).toEqual({ data: mockData })
+  })
+
+  it('falls back to zeros when supplementary call fails', async () => {
+    const mockData = [
+      { name: 'post_reactions_by_type_total', values: [{ value: 5 }] },
+      { name: 'post_media_views', values: [{ value: 200 }] },
+    ]
+    const fetchSpy = vi.spyOn(global, 'fetch')
+    fetchSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify({ data: mockData }), { status: 200 }),
+    )
+    fetchSpy.mockRejectedValueOnce(new Error('Network error'))
+
+    const result = await fetchFacebookMetrics('post-123', 'page-token-abc')
+
+    expect(result.likes).toBe(5)
+    expect(result.impressions).toBe(200)
     expect(result.comments).toBe(0)
     expect(result.shares).toBe(0)
-    expect(result.raw).toEqual({ data: mockData })
   })
 
   it('throws on non-ok API response', async () => {
@@ -115,8 +141,12 @@ describe('fetchFacebookMetrics', () => {
   })
 
   it('handles empty data array gracefully', async () => {
-    vi.spyOn(global, 'fetch').mockResolvedValueOnce(
+    const fetchSpy = vi.spyOn(global, 'fetch')
+    fetchSpy.mockResolvedValueOnce(
       new Response(JSON.stringify({ data: [] }), { status: 200 }),
+    )
+    fetchSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify({}), { status: 200 }),
     )
 
     const result = await fetchFacebookMetrics('post-123', 'page-token-abc')
@@ -180,14 +210,17 @@ describe('fetchInstagramMetrics', () => {
     vi.restoreAllMocks()
   })
 
-  it('happy path: parses impressions, reach, and replies', async () => {
+  it('happy path: parses views, reach, likes, and comments', async () => {
     const mockData = [
-      { name: 'impressions', values: [{ value: 1200 }] },
+      { name: 'views', values: [{ value: 1200 }] },
       { name: 'reach', values: [{ value: 800 }] },
-      { name: 'replies', values: [{ value: 15 }] },
     ]
-    vi.spyOn(global, 'fetch').mockResolvedValueOnce(
+    const fetchSpy = vi.spyOn(global, 'fetch')
+    fetchSpy.mockResolvedValueOnce(
       new Response(JSON.stringify({ data: mockData }), { status: 200 }),
+    )
+    fetchSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify({ like_count: 45, comments_count: 15 }), { status: 200 }),
     )
 
     const result = await fetchInstagramMetrics('media-id-abc', 'access-token')
@@ -195,9 +228,28 @@ describe('fetchInstagramMetrics', () => {
     expect(result.impressions).toBe(1200)
     expect(result.reach).toBe(800)
     expect(result.comments).toBe(15)
-    expect(result.likes).toBe(0)
+    expect(result.likes).toBe(45)
     expect(result.shares).toBe(0)
     expect(result.raw).toEqual({ data: mockData })
+  })
+
+  it('falls back to zeros when supplementary call fails', async () => {
+    const mockData = [
+      { name: 'views', values: [{ value: 800 }] },
+      { name: 'reach', values: [{ value: 400 }] },
+    ]
+    const fetchSpy = vi.spyOn(global, 'fetch')
+    fetchSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify({ data: mockData }), { status: 200 }),
+    )
+    fetchSpy.mockRejectedValueOnce(new Error('Network error'))
+
+    const result = await fetchInstagramMetrics('media-id', 'token')
+
+    expect(result.impressions).toBe(800)
+    expect(result.reach).toBe(400)
+    expect(result.likes).toBe(0)
+    expect(result.comments).toBe(0)
   })
 
   it('throws on non-ok API response', async () => {
@@ -211,8 +263,12 @@ describe('fetchInstagramMetrics', () => {
   })
 
   it('handles empty data array gracefully', async () => {
-    vi.spyOn(global, 'fetch').mockResolvedValueOnce(
+    const fetchSpy = vi.spyOn(global, 'fetch')
+    fetchSpy.mockResolvedValueOnce(
       new Response(JSON.stringify({ data: [] }), { status: 200 }),
+    )
+    fetchSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify({}), { status: 200 }),
     )
 
     const result = await fetchInstagramMetrics('media-id', 'token')
@@ -261,11 +317,15 @@ describe('pollMetricsForDelivery', () => {
   it('facebook: orchestrates fetch and returns PostMetricRow', async () => {
     const mockData = [
       { name: 'post_reactions_by_type_total', values: [{ value: 7 }] },
-      { name: 'post_impressions', values: [{ value: 300 }] },
+      { name: 'post_media_views', values: [{ value: 300 }] },
       { name: 'post_clicks', values: [{ value: 10 }] },
     ]
-    vi.spyOn(global, 'fetch').mockResolvedValueOnce(
+    const fetchSpy = vi.spyOn(global, 'fetch')
+    fetchSpy.mockResolvedValueOnce(
       new Response(JSON.stringify({ data: mockData }), { status: 200 }),
+    )
+    fetchSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify({ comments: { summary: { total_count: 2 } }, shares: { count: 1 } }), { status: 200 }),
     )
 
     const row = await pollMetricsForDelivery(
@@ -281,6 +341,8 @@ describe('pollMetricsForDelivery', () => {
     expect(row!.likes).toBe(7)
     expect(row!.impressions).toBe(300)
     expect(row!.link_clicks).toBe(10)
+    expect(row!.comments).toBe(2)
+    expect(row!.shares).toBe(1)
     expect(row!.polled_at).toBeDefined()
   })
 
@@ -318,12 +380,15 @@ describe('pollMetricsForDelivery', () => {
 
   it('instagram: orchestrates fetch and returns PostMetricRow', async () => {
     const mockData = [
-      { name: 'impressions', values: [{ value: 900 }] },
+      { name: 'views', values: [{ value: 900 }] },
       { name: 'reach', values: [{ value: 600 }] },
-      { name: 'replies', values: [{ value: 4 }] },
     ]
-    vi.spyOn(global, 'fetch').mockResolvedValueOnce(
+    const fetchSpy = vi.spyOn(global, 'fetch')
+    fetchSpy.mockResolvedValueOnce(
       new Response(JSON.stringify({ data: mockData }), { status: 200 }),
+    )
+    fetchSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify({ like_count: 30, comments_count: 4 }), { status: 200 }),
     )
 
     const row = await pollMetricsForDelivery(
@@ -339,6 +404,7 @@ describe('pollMetricsForDelivery', () => {
     expect(row!.impressions).toBe(900)
     expect(row!.reach).toBe(600)
     expect(row!.comments).toBe(4)
+    expect(row!.likes).toBe(30)
   })
 
   it('returns null and captures exception when fetch throws', async () => {

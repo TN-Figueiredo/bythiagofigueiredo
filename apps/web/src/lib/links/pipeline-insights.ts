@@ -1,3 +1,14 @@
+/**
+ * AI-powered insights payload builder for the Cowork pipeline.
+ *
+ * Status: Optional enhancement — the dashboard uses rule-based insights
+ * from compute-dashboard-insights.ts by default. This module can be wired
+ * in when PIPELINE_COWORK_KEY is configured to generate richer AI narratives.
+ *
+ * To activate: call buildInsightsPayload() from page.tsx, send to the pipeline,
+ * parse the response into RawInsight[], then pass through formatInsight().
+ */
+
 interface InsightsInput {
   totalClicks: number
   totalLinks: number

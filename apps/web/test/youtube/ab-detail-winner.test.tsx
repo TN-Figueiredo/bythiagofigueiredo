@@ -12,7 +12,7 @@ vi.mock('lucide-react', () => {
     TrendingUp: icon('TrendingUp'), Sparkles: icon('Sparkles'), LayoutGrid: icon('LayoutGrid'), Undo2: icon('Undo2'),
     Check: icon('Check'), Clock: icon('Clock'), Activity: icon('Activity'), Search: icon('Search'),
     ListVideo: icon('ListVideo'), Smartphone: icon('Smartphone'), MousePointerClick: icon('MousePointerClick'),
-    ChevronDown: icon('ChevronDown'), Radio: icon('Radio'), Image: icon('Image'), Type: icon('Type'),
+    ChevronDown: icon('ChevronDown'), ChevronLeft: icon('ChevronLeft'), Radio: icon('Radio'), Image: icon('Image'), Type: icon('Type'),
     FileText: icon('FileText'), Layers: icon('Layers'), ArrowLeft: icon('ArrowLeft'), Swords: icon('Swords'),
     AlertCircle: icon('AlertCircle'), TrendingDown: icon('TrendingDown'), Minus: icon('Minus'), Lock: icon('Lock'),
     Info: icon('Info'), Target: icon('Target'), ArrowRight: icon('ArrowRight'), ChevronRight: icon('ChevronRight'),

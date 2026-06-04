@@ -243,6 +243,11 @@ describe('ruleGrowthTrend', () => {
     const m = makeMetrics({ recentTotal: 60, prevTotal: 50 })
     expect(ruleGrowthTrend(m)).toBeNull()
   })
+
+  it('does not fire growth when prevTotal < 10 (insufficient sample)', () => {
+    const m = makeMetrics({ recentTotal: 6, prevTotal: 3 })
+    expect(ruleGrowthTrend(m)).toBeNull()
+  })
 })
 
 // ─── ruleLowEngagement ───────────────────────────────────────────────────────

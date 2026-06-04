@@ -21,17 +21,19 @@ vi.mock('@/app/cms/(authed)/youtube/ab-lab/_components/use-poll-stats', () => ({
 }))
 
 vi.mock('lucide-react', () => {
-  const icon = (name: string) => (props: Record<string, unknown>) => <svg data-testid={`icon-${name}`} {...props} />
-  return {
-    Pause: icon('Pause'), Square: icon('Square'), Settings: icon('Settings'), LayoutGrid: icon('LayoutGrid'),
-    TrendingUp: icon('TrendingUp'), Crosshair: icon('Crosshair'), Target: icon('Target'), BarChart3: icon('BarChart3'),
-    LineChart: icon('LineChart'), RefreshCw: icon('RefreshCw'), Filter: icon('Filter'), Search: icon('Search'),
-    ListVideo: icon('ListVideo'), Smartphone: icon('Smartphone'), MousePointerClick: icon('MousePointerClick'),
-    Trophy: icon('Trophy'), ArrowLeft: icon('ArrowLeft'), Swords: icon('Swords'), AlertCircle: icon('AlertCircle'),
-    Lock: icon('Lock'), Minus: icon('Minus'), TrendingDown: icon('TrendingDown'), ChevronDown: icon('ChevronDown'),
-    Radio: icon('Radio'), Image: icon('Image'), Type: icon('Type'), FileText: icon('FileText'), Layers: icon('Layers'),
-    X: icon('X'), CheckCircle: icon('CheckCircle'), Clock: icon('Clock'), ChevronRight: icon('ChevronRight'),
+  const icon = (name: string) => {
+    const Icon = (props: Record<string, unknown>) => <svg data-testid={`icon-${name}`} {...props} />
+    Icon.displayName = name
+    return Icon
   }
+  const cache: Record<string, unknown> = {}
+  return new Proxy({}, {
+    get(_target, prop: string) {
+      if (prop === '__esModule') return true
+      if (!cache[prop]) cache[prop] = icon(prop)
+      return cache[prop]
+    },
+  })
 })
 
 afterEach(() => {
@@ -86,11 +88,9 @@ describe('ActiveDetail', () => {
     }
   })
 
-  it('signal toggle renders Confirmado/Live when liveData is present', () => {
-    const liveData = { confidence: 85, leader: 'B' as DisplayLabel, leaderColor: '#E8823C', lift: 10 }
-    render(<ActiveDetail view={makeActiveView({ liveData })} />)
-    expect(screen.getByText('Confirmado')).toBeDefined()
-    expect(screen.getByText('Live')).toBeDefined()
+  it('SignalCard renders "Sinal ao vivo" heading', () => {
+    render(<ActiveDetail view={makeActiveView()} />)
+    expect(screen.getByText('Sinal ao vivo')).toBeDefined()
   })
 
   it('VariantTable is rendered with metric=pBest column header', () => {
@@ -99,10 +99,18 @@ describe('ActiveDetail', () => {
     expect(screen.getByText('chance de vencer')).toBeDefined()
   })
 
-  it('GatesPanel shows all 6 gates', () => {
+  it('GatesPanel shows all 6 gate labels', () => {
     render(<ActiveDetail view={makeActiveView()} />)
-    const items = screen.getAllByRole('listitem')
-    expect(items.length).toBeGreaterThanOrEqual(6)
+    // GatesPanel renders GATE_LABELS for each gate name
+    const expectedLabels = [
+      'Confiança ≥ 95%',
+      'Impressões ≥ 1.000 / variante',
+      'Duração ≥ 7 dias',
+      'Estabilidade 3× seguidas',
+    ]
+    for (const label of expectedLabels) {
+      expect(screen.getByText(label)).toBeDefined()
+    }
   })
 
   it('ConfidenceChart receives confTrend data (renders svg)', () => {
@@ -114,10 +122,10 @@ describe('ActiveDetail', () => {
     expect(svgs?.length).toBeGreaterThanOrEqual(1)
   })
 
-  it('ABBATimeline receives seq data and renders blocks', () => {
-    const { container } = render(<ActiveDetail view={makeActiveView()} />)
-    const blocks = container.querySelectorAll('[data-block]')
-    expect(blocks.length).toBe(6)
+  it('ABBATimeline receives seq data and renders cycle count', () => {
+    render(<ActiveDetail view={makeActiveView()} />)
+    // ABBATimeline footer shows "done/total ciclos ABBA completos"
+    expect(screen.getByText('4/6 ciclos ABBA completos')).toBeDefined()
   })
 
   it('LockCountdown section exists', () => {

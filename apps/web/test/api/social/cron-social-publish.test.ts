@@ -11,14 +11,16 @@ vi.mock('@/lib/supabase/service', () => ({
     rpc: vi.fn().mockResolvedValue({ data: null, error: { code: '42883', message: 'function not found' } }),
     from: (table: string) => {
       if (table === 'social_posts') {
+        const chainTerminal = {
+          order: () => ({
+            limit: mockSelect,
+          }),
+        }
         return {
           select: () => ({
             eq: () => ({
-              lte: () => ({
-                order: () => ({
-                  limit: mockSelect,
-                }),
-              }),
+              lte: () => chainTerminal,
+              lt: () => chainTerminal,
             }),
           }),
           update: mockUpdate,

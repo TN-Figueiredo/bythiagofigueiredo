@@ -474,7 +474,17 @@ function mountWorkflowMock({
         update: (patch: Record<string, unknown>) => ({
           eq: (_col: string, id: string) => {
             _updatedPostPatches.push({ patch, id })
-            return Promise.resolve({ error: null })
+            // Must be thenable for simple `await .update().eq()` AND
+            // support CAS chain `.update().eq().or().select().maybeSingle()`
+            const result = Promise.resolve({ error: null }) as Promise<{ error: null }> & {
+              or: ReturnType<typeof vi.fn>
+            }
+            result.or = vi.fn().mockReturnValue({
+              select: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({ data: { id }, error: null }),
+              }),
+            })
+            return result
           },
         }),
         select: vi.fn().mockReturnThis(),

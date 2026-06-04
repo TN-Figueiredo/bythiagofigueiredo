@@ -5,6 +5,7 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import type { AnalyticsDisplay } from '@tn-figueiredo/links-admin'
 import { toDateStringInTz } from '@/lib/cms/format-site-datetime'
 import { AnalyticsView } from '../../_components/analytics-view'
+import { getAiInsightsForLink } from '@/lib/links/insights'
 
 export const dynamic = 'force-dynamic'
 
@@ -133,6 +134,14 @@ export default async function LinkAnalyticsPage({ params }: Props) {
       return { code, name: COUNTRY_NAMES[code] ?? code, v: Math.round((v / countryTotal) * 100), cities: topCities }
     })
 
+  // Per-link AI insights — cached 1h by the engine
+  const rawInsights = await getAiInsightsForLink(id)
+  const formattedInsights = rawInsights.map((text) => ({
+    tone: 'accent' as const,
+    icon: 'sparkle',
+    text,
+  }))
+
   const linkSource = (link.source_type as string) ?? 'manual'
   const SOURCE_DISPLAY: Record<string, string> = { newsletter: 'Newsletter', social: 'Social', blog: 'Blog', qr: 'QR / impresso', campaign: 'Campanha', manual: 'Manual', print: 'Print' }
 
@@ -154,7 +163,7 @@ export default async function LinkAnalyticsPage({ params }: Props) {
     countries,
     heatmap,
     topLinks: [],
-    insights: [],
+    insights: formattedInsights,
   }
 
   const linkTitle = (link.title as string) ?? null

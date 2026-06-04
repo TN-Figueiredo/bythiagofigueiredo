@@ -7,7 +7,6 @@ import {
 } from '@tn-figueiredo/links-admin/client'
 import { SourceBars } from './source-bars'
 import { TopLinksTable } from './top-links-table'
-import { InsightsPanel } from './insights-panel'
 import { PotentialPanel } from './potential-panel'
 import { RangeTabs } from './range-tabs'
 import { useCallback, useState } from 'react'
@@ -161,7 +160,21 @@ export function AnalyticsView({ data }: AnalyticsViewProps) {
                       color: toneColor,
                     }}>
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-                        {ins.tone === 'red' ? <><path d="M12 4l9 16H3z" /><path d="M12 10v4" /><path d="M12 17h.01" /></> : <><path d="M3 17l5-6 4 4 8-9" /><path d="M21 6h-4" /><path d="M21 6v4" /></>}
+                        {ins.icon === 'trendingDown'
+                          ? <><path d="M3 7l5 6 4-4 8 9" /><path d="M21 18h-4" /><path d="M21 18v-4" /></>
+                          : ins.icon === 'alertTriangle'
+                          ? <><path d="M12 4l9 16H3z" /><path d="M12 10v4" /><path d="M12 17h.01" /></>
+                          : ins.icon === 'trophy'
+                          ? <><path d="M6 9H4a2 2 0 01-2-2V4h4" /><path d="M18 9h2a2 2 0 002-2V4h-4" /><path d="M4 4h16v5a6 6 0 01-6 6h-4a6 6 0 01-6-6V4z" /><path d="M12 15v4" /><path d="M8 21h8" /></>
+                          : ins.icon === 'award'
+                          ? <><circle cx="12" cy="8" r="6" /><path d="M15.5 14l1 7-4.5-2.5L7.5 21l1-7" /></>
+                          : ins.icon === 'globe'
+                          ? <><circle cx="12" cy="12" r="10" /><path d="M2 12h20" /><path d="M12 2a15 15 0 014 10 15 15 0 01-4 10 15 15 0 01-4-10 15 15 0 014-10z" /></>
+                          : ins.icon === 'smartphone'
+                          ? <><rect x="5" y="2" width="14" height="20" rx="2" ry="2" /><path d="M12 18h.01" /></>
+                          : ins.icon === 'qrCode'
+                          ? <><rect x="2" y="2" width="8" height="8" rx="1" /><rect x="14" y="2" width="8" height="8" rx="1" /><rect x="2" y="14" width="8" height="8" rx="1" /><path d="M14 14h3v3" /><path d="M19 17h3v3" /><path d="M14 19h3v3" /></>
+                          : <><path d="M3 17l5-6 4 4 8-9" /><path d="M21 6h-4" /><path d="M21 6v4" /></>}
                       </svg>
                     </span>
                     <span style={{ fontSize: '12.5px', color: 'var(--ink-dim)', lineHeight: 1.5 }}>{ins.text}</span>
@@ -285,13 +298,6 @@ export function AnalyticsView({ data }: AnalyticsViewProps) {
             }))} />
           </div>
         </div>
-      )}
-
-      {/* Insights */}
-      {data.insights.length > 0 && (
-        <Panel title="Insights" icon="li">
-          <InsightsPanel insights={data.insights} />
-        </Panel>
       )}
 
       {/* Potential features */}

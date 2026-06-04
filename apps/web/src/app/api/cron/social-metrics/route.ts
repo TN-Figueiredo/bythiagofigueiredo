@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { withCronLock, newRunId } from '@/lib/logger'
 import {
@@ -6,6 +7,10 @@ import {
   pollMetricsForDelivery,
   type PollCandidate,
 } from '@/lib/social/metrics-poller'
+import {
+  ensureFreshToken,
+  TokenRevokedError,
+} from '@/lib/social/token-refresh'
 import type { Provider } from '@tn-figueiredo/social'
 
 // Vercel Cron: { "path": "/api/cron/social-metrics", "schedule": "0 */4 * * *" }
@@ -16,6 +21,8 @@ export const maxDuration = 60
 const LOCK_KEY = 'cron:social-metrics'
 const JOB = 'social-metrics'
 const BATCH_LIMIT = 20
+const CONNECTION_SELECT =
+  'id, site_id, account_id, page_token_enc, access_token_enc, bluesky_access_jwt_enc, circuit_open_until, metadata' as const
 
 export async function POST(req: NextRequest) {
   const auth = req.headers.get('authorization')
@@ -41,7 +48,7 @@ export async function POST(req: NextRequest) {
       .eq('status', 'published')
       .not('platform_post_id', 'is', null)
       .gte('published_at', sevenDaysAgo)
-      .order('published_at', { ascending: false })
+      .order('published_at', { ascending: true })
       .limit(BATCH_LIMIT)
 
     if (fetchError) {
@@ -86,17 +93,72 @@ export async function POST(req: NextRequest) {
       try {
         const { data: connection } = await supabase
           .from('social_connections')
-          .select('id, page_token_enc, access_token_enc, metadata')
+          .select(CONNECTION_SELECT)
           .eq('id', delivery.connection_id)
           .single()
 
         if (!connection) continue
 
+        // Gap 7: circuit breaker — skip connections in cooldown
+        const circuitUntil = (connection as Record<string, unknown>)
+          .circuit_open_until as string | null
+        if (circuitUntil && new Date(circuitUntil) > new Date()) {
+          errors.push(
+            `delivery ${delivery.id}: circuit open until ${circuitUntil}`,
+          )
+          continue
+        }
+
+        // Gap 5: token refresh before poll
+        const siteId = (connection as Record<string, unknown>).site_id as
+          | string
+          | null
+        const accountId = (connection as Record<string, unknown>)
+          .account_id as string | null
+
+        if (!siteId || !accountId) {
+          errors.push(
+            `delivery ${delivery.id}: connection missing site_id or account_id`,
+          )
+          continue
+        }
+
+        try {
+          await ensureFreshToken(
+            siteId,
+            delivery.provider as Provider,
+            accountId,
+          )
+        } catch (refreshErr) {
+          if (refreshErr instanceof TokenRevokedError) {
+            Sentry.captureException(refreshErr, {
+              tags: {
+                provider: delivery.provider as string,
+                connectionId: connection.id as string,
+              },
+            })
+            errors.push(
+              `delivery ${delivery.id}: token revoked for ${delivery.provider}`,
+            )
+            continue
+          }
+          throw refreshErr
+        }
+
+        // Re-fetch connection after token refresh to get updated tokens
+        const { data: freshConn } = await supabase
+          .from('social_connections')
+          .select(CONNECTION_SELECT)
+          .eq('id', delivery.connection_id)
+          .single()
+
+        if (!freshConn) continue
+
         const metricRow = await pollMetricsForDelivery(
           delivery.id as string,
           delivery.provider as Provider,
           delivery.platform_post_id as string,
-          connection as Record<string, unknown>,
+          freshConn as Record<string, unknown>,
         )
 
         if (metricRow) {

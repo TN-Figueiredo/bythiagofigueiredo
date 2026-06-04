@@ -13,6 +13,14 @@ vi.mock('@/lib/supabase/service', () => ({
   }),
 }))
 
+// ── Token refresh mock ───────────────────────────────────────────────────────
+const mockEnsureFreshToken = vi.fn().mockResolvedValue({ accessToken: 'tok-fresh' })
+
+vi.mock('@/lib/social/token-refresh', () => ({
+  ensureFreshToken: (...args: unknown[]) => mockEnsureFreshToken(...args),
+  TokenRevokedError: class TokenRevokedError extends Error { constructor(m: string) { super(m); this.name = 'TokenRevokedError' } },
+}))
+
 // ── Metrics poller mock ──────────────────────────────────────────────────────
 const mockShouldPollPost = vi.fn()
 const mockPollMetricsForDelivery = vi.fn()
@@ -153,7 +161,7 @@ describe('POST /api/cron/social-metrics', () => {
       format: 'post',
       published_at: now,
     }
-    const fakeConnection = { id: 'conn-1', page_token_enc: 'enc-tok' }
+    const fakeConnection = { id: 'conn-1', site_id: 'site-1', account_id: 'acct-1', page_token_enc: 'enc-tok' }
     const fakeMetricRow = {
       post_id: '',
       delivery_id: 'delivery-1',

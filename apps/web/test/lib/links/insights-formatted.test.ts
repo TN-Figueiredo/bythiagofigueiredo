@@ -81,4 +81,44 @@ describe('formatInsight', () => {
     expect(result.tone).toBe('accent')
     expect(result.text).toBeTruthy()
   })
+
+  it('formats geo_concentration with amber tone', () => {
+    const raw: RawInsight = {
+      type: 'geo_concentration',
+      metric: 'clicks',
+      value: 85,
+      linkTitle: 'Brasil',
+    }
+    const result = formatInsight(raw)
+    expect(result.tone).toBe('amber')
+    expect(result.icon).toBe('globe')
+    expect(result.text).toContain('85%')
+    expect(result.text).toContain('Brasil')
+  })
+
+  it('formats device_skew mobile with accent tone', () => {
+    const raw: RawInsight = {
+      type: 'device_skew',
+      metric: 'clicks',
+      value: 90,
+      linkTitle: 'mobile',
+    }
+    const result = formatInsight(raw)
+    expect(result.tone).toBe('accent')
+    expect(result.icon).toBe('smartphone')
+    expect(result.text).toContain('90%')
+    expect(result.text).toContain('mobile')
+  })
+
+  it('formats device_skew desktop with accent tone', () => {
+    const raw: RawInsight = {
+      type: 'device_skew',
+      metric: 'clicks',
+      value: 85,
+      linkTitle: 'desktop',
+    }
+    const result = formatInsight(raw)
+    expect(result.tone).toBe('accent')
+    expect(result.text).toContain('desktop')
+  })
 })

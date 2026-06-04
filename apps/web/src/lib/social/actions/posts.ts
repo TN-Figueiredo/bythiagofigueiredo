@@ -947,6 +947,15 @@ export async function editPublishedPost(
 /*  Task 1.6 — listFeedPostsWithDeliveries                           */
 /* ------------------------------------------------------------------ */
 
+export interface MetricsAggregate {
+  views: number
+  likes: number
+  comments: number
+  shares: number
+  engagement: number
+  updatedAt: string | null
+}
+
 export interface FeedPostWithDeliveries {
   post: SocialPostWithPipeline
   deliveries: Array<{
@@ -956,6 +965,7 @@ export interface FeedPostWithDeliveries {
     platform_post_id: string | null
     format: string | null
   }>
+  metrics?: MetricsAggregate
 }
 
 const feedFiltersSchema = z.object({
@@ -1005,6 +1015,52 @@ export async function listFeedPostsWithDeliveries(
         format: (d.format as string) ?? null,
       })),
     }))
+
+    // ── Hydrate metrics (best-effort — feed still works without them) ──
+    try {
+      const postIds = results.map(r => r.post.id)
+      if (postIds.length > 0) {
+        const { data: metricRows } = await supabase
+          .from('post_metrics')
+          .select('post_id, impressions, reach, likes, comments, shares, polled_at')
+          .in('post_id', postIds)
+          .is('slide_index', null)
+          .order('polled_at', { ascending: false })
+
+        if (metricRows && metricRows.length > 0) {
+          // Group by post_id, keep only the latest snapshot per post
+          const latestByPost = new Map<string, (typeof metricRows)[number]>()
+          for (const row of metricRows) {
+            if (!latestByPost.has(row.post_id)) {
+              latestByPost.set(row.post_id, row)
+            }
+          }
+
+          for (const item of results) {
+            const m = latestByPost.get(item.post.id)
+            if (!m) continue
+            const views = m.impressions ?? 0
+            const likes = m.likes ?? 0
+            const comments = m.comments ?? 0
+            const shares = m.shares ?? 0
+            const total = likes + comments + shares
+            item.metrics = {
+              views,
+              likes,
+              comments,
+              shares,
+              engagement: views > 0 ? Math.round((total / views) * 10000) / 100 : 0,
+              updatedAt: m.polled_at ? String(m.polled_at) : null,
+            }
+          }
+        }
+      }
+    } catch (metricsErr) {
+      Sentry.captureException(metricsErr, {
+        level: 'warning',
+        tags: { ...SENTRY_TAG, action: 'hydrateMetrics' },
+      })
+    }
 
     return { ok: true, data: results }
   } catch (err) {

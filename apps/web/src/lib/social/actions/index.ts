@@ -31,7 +31,7 @@ export {
   duplicatePost,
   createAutoDraft,
 } from './posts'
-export type { FeedPostWithDeliveries, CalendarEvent } from './posts'
+export type { FeedPostWithDeliveries, MetricsAggregate, CalendarEvent } from './posts'
 export type { SocialPostWithPipeline } from '../row-parsers'
 
 // Content helpers (get content metadata, create from CMS content, OG scraping, duplicate detection, AI captions)

@@ -21,7 +21,7 @@ describe('rate limit circuit breaker', () => {
 
   it('workflows.ts contains circuit breaker check code', async () => {
     const fs = await import('fs')
-    const src = fs.readFileSync('apps/web/src/lib/social/workflows.ts', 'utf-8')
+    const src = fs.readFileSync('src/lib/social/workflows.ts', 'utf-8')
     expect(src).toContain('circuit_open_until')
     expect(src).toContain('Rate limited until')
   })

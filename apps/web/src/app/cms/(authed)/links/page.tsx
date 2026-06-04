@@ -5,9 +5,10 @@ import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import type { LinkDisplay, LinktreeDisplay, AnalyticsDisplay, SourceId } from '@tn-figueiredo/links-admin'
 import { SOURCE_LABELS } from '@tn-figueiredo/links-admin'
-import { toDateStringInTz } from '@/lib/cms/format-site-datetime'
 import { z } from 'zod'
 import { getLatestPost, getLatestVideo } from '@/app/go/linktree/_lib/queries'
+import { computeDashboardInsights } from '@/lib/links/compute-dashboard-insights'
+import { formatInsight } from '@/lib/links/insights-formatter'
 import { LinksHub } from './_hub'
 import type { TabId } from './_components/tab-bar'
 
@@ -56,10 +57,8 @@ const fetchLinksDashboardCached = unstable_cache(
   async (siteId: string, timezone: string) => {
     const supabase = getSupabaseServiceClient()
 
-    const sevenDaysAgo = new Date()
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
-    const sevenDaysAgoStr = toDateStringInTz(sevenDaysAgo, timezone)
     const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10)
+    const sixtyDaysAgo = new Date(Date.now() - 60 * 86_400_000).toISOString().slice(0, 10)
 
     const [linksRes, dailyRes, linktreeStatsRes, siteDataRes, sparkRes, latestPost, latestVideo, ltDevicesRes, ltBrowsersRes, ltReferrersRes, ltOsRes, ltDailyEventsRes] = await Promise.all([
       supabase
@@ -72,13 +71,13 @@ const fetchLinksDashboardCached = unstable_cache(
         .from('link_daily_metrics')
         .select('date, weekday, clicks, unique_visitors, hourly_clicks')
         .eq('site_id', siteId)
-        .gte('date', sevenDaysAgoStr)
+        .gte('date', sixtyDaysAgo)
         .order('date', { ascending: true }),
       supabase
         .from('linktree_daily_metrics')
         .select('date, pageviews, unique_visitors, countries')
         .eq('site_id', siteId)
-        .gte('date', thirtyDaysAgo),
+        .gte('date', sixtyDaysAgo),
       supabase
         .from('sites')
         .select('short_domain, primary_domain, linktree_config')
@@ -121,7 +120,7 @@ const fetchLinksDashboardCached = unstable_cache(
         .select('created_at, country, city, device_type')
         .eq('site_id', siteId)
         .eq('event_type', 'pageview')
-        .gte('created_at', new Date(Date.now() - 30 * 86_400_000).toISOString()),
+        .gte('created_at', new Date(Date.now() - 60 * 86_400_000).toISOString()),
     ])
 
     const rawLinks = linksRes.data ?? []
@@ -171,13 +170,15 @@ const fetchLinksDashboardCached = unstable_cache(
       spark: sparkMap.get(l.id) ?? Array.from({ length: 14 }, () => 0),
     }))
 
-    // Build LinktreeDisplay
-    const ltStats = linktreeStatsRes?.data ?? []
-    const ltTotalViews = ltStats.reduce((s, d) => s + ((d.pageviews as number) ?? 0), 0)
-    const ltUniqueVisitors = ltStats.reduce((s, d) => s + ((d.unique_visitors as number) ?? 0), 0)
-    const lt30dViews = ltStats
-      .filter((d) => (d.date as string) >= thirtyDaysAgo)
-      .reduce((s, d) => s + ((d.pageviews as number) ?? 0), 0)
+    // Build LinktreeDisplay — split into current (last 30d) and previous (30-59d) periods
+    const ltStatsAll = linktreeStatsRes?.data ?? []
+    const ltStatsCurrent = ltStatsAll.filter((d) => (d.date as string) >= thirtyDaysAgo)
+    const ltStatsPrev = ltStatsAll.filter((d) => (d.date as string) < thirtyDaysAgo)
+    const ltTotalViews = ltStatsCurrent.reduce((s, d) => s + ((d.pageviews as number) ?? 0), 0)
+    const ltUniqueVisitors = ltStatsCurrent.reduce((s, d) => s + ((d.unique_visitors as number) ?? 0), 0)
+    const prevLtViews = ltStatsPrev.reduce((s, d) => s + ((d.pageviews as number) ?? 0), 0)
+    const prevLtUniqueVisitors = ltStatsPrev.reduce((s, d) => s + ((d.unique_visitors as number) ?? 0), 0)
+    const lt30dViews = ltTotalViews
 
     const ltConfig = siteDataRes?.data?.linktree_config as Record<string, unknown> | null
     const rawSharedLinks = (ltConfig?.shared_links ?? ltConfig?.sharedLinks ?? []) as Array<Record<string, string>>
@@ -218,16 +219,20 @@ const fetchLinksDashboardCached = unstable_cache(
     const totalUnique = validLinks.reduce((s, l) => s + l.unique_visitors, 0)
 
     const byDay = Array.from({ length: 30 }, () => 0)
+    const byDayPrev = Array.from({ length: 30 }, () => 0)
+    const uniqueByDayPrev = Array.from({ length: 30 }, () => 0)
     for (const row of dailyData) {
       const d = new Date(row.date as string)
       const daysAgo = Math.floor((Date.now() - d.getTime()) / 86_400_000)
       if (daysAgo >= 0 && daysAgo < 30) {
         byDay[29 - daysAgo]! += (row.clicks as number) ?? 0
+      } else if (daysAgo >= 30 && daysAgo < 60) {
+        byDayPrev[29 - (daysAgo - 30)]! += (row.clicks as number) ?? 0
+        uniqueByDayPrev[29 - (daysAgo - 30)]! += (row.unique_visitors as number) ?? 0
       }
     }
 
     // Count linktree link_click events by key for "Por origem"
-    const _ltClickEvents = (ltDailyEventsRes.data ?? []).length
     const sourceMap = new Map<string, number>()
     sourceMap.set('linktree', ltTotalViews)
     for (const row of validLinks) {
@@ -308,12 +313,14 @@ const fetchLinksDashboardCached = unstable_cache(
       .slice(0, 5)
       .map(([k, v]) => ({ k, v: Math.round((v / osTotal) * 100) }))
 
-    // Add linktree events to byDay (cliques por dia)
+    // Add linktree events to byDay + byDayPrev
     for (const row of ltDailyEventsRes.data ?? []) {
       const d = new Date(row.created_at as string)
       const daysAgo = Math.floor((Date.now() - d.getTime()) / 86_400_000)
       if (daysAgo >= 0 && daysAgo < 30) {
         byDay[29 - daysAgo]! += 1
+      } else if (daysAgo >= 30 && daysAgo < 60) {
+        byDayPrev[29 - (daysAgo - 30)]! += 1
       }
     }
 
@@ -378,16 +385,31 @@ const fetchLinksDashboardCached = unstable_cache(
     }
     const allTopLinks = [linktreeAsLink, ...links].sort((a, b) => b.clicks - a.clicks).slice(0, 10)
 
+    const prevPeriodClicks = byDayPrev.reduce((s, v) => s + v, 0)
+    const prevUnique = uniqueByDayPrev.reduce((s, v) => s + v, 0) + prevLtUniqueVisitors
+    const prevCtr = prevLtViews > 0
+      ? Math.round((prevLtUniqueVisitors / prevLtViews) * 1000) / 10
+      : 0
+
+    const rawInsights = computeDashboardInsights({
+      byDay,
+      links: links.map(l => ({ title: l.title, clicks: l.clicks, health: l.health })),
+      devices,
+      countries,
+      totalClicks: allClicks,
+      qrShare: 0,
+    })
+
     const analytics: AnalyticsDisplay = {
       totalClicks: allClicks,
-      prevClicks: 0,
+      prevClicks: prevPeriodClicks,
       unique: allUnique,
-      prevUnique: 0,
+      prevUnique,
       ctr: engagementCtr,
-      prevCtr: 0,
+      prevCtr,
       qrShare: 0,
       byDay,
-      byDayPrev: Array.from({ length: 30 }, () => 0),
+      byDayPrev,
       bySource,
       devices,
       browsers,
@@ -396,7 +418,7 @@ const fetchLinksDashboardCached = unstable_cache(
       countries,
       heatmap,
       topLinks: allTopLinks,
-      insights: [],
+      insights: rawInsights.map(formatInsight),
     }
 
     const latestContentPost = latestPost ? {

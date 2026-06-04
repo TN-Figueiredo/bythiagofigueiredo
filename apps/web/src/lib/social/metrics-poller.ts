@@ -65,8 +65,16 @@ export async function fetchFacebookMetrics(
   postId: string,
   pageToken: string,
 ): Promise<MetricsResult> {
-  const url = `https://graph.facebook.com/v21.0/${postId}/insights?metric=post_reactions_by_type_total,post_impressions,post_engaged_users,post_clicks&access_token=${pageToken}`
+  const url = `https://graph.facebook.com/v21.0/${postId}/insights?metric=post_reactions_by_type_total,post_media_views,post_clicks&access_token=${pageToken}`
   const res = await fetch(url, { signal: AbortSignal.timeout(10_000) })
+  if (res.status === 429) {
+    Sentry.captureMessage('Facebook API rate-limited (429)', {
+      level: 'warning',
+      tags: { ...SENTRY_TAG, action: 'fetchFacebookMetrics' },
+      extra: { postId, retryAfter: res.headers.get('retry-after') },
+    })
+    throw new Error('Facebook API rate-limited (429)')
+  }
   if (!res.ok) throw new Error(`Facebook insights (${res.status})`)
   const json = (await res.json()) as {
     data?: Array<{ name: string; values: Array<{ value: unknown }> }>
@@ -86,11 +94,28 @@ export async function fetchFacebookMetrics(
     return 0
   }
 
+  let comments = 0
+  let shares = 0
+  try {
+    const suppUrl = `https://graph.facebook.com/v21.0/${postId}?fields=comments.summary(true),shares&access_token=${pageToken}`
+    const suppRes = await fetch(suppUrl, { signal: AbortSignal.timeout(10_000) })
+    if (suppRes.ok) {
+      const suppJson = (await suppRes.json()) as {
+        comments?: { summary?: { total_count?: number } }
+        shares?: { count?: number }
+      }
+      comments = suppJson.comments?.summary?.total_count ?? 0
+      shares = suppJson.shares?.count ?? 0
+    }
+  } catch {
+    // Supplementary call failed — keep zeros, don't fail the function
+  }
+
   return {
     likes: getValue('post_reactions_by_type_total'),
-    comments: 0, // Not in insights — fetched via /{post-id}?fields=comments.summary(true)
-    shares: 0,
-    impressions: getValue('post_impressions'),
+    comments,
+    shares,
+    impressions: getValue('post_media_views'),
     linkClicks: getValue('post_clicks'),
     raw: { data },
   }
@@ -106,6 +131,14 @@ export async function fetchBlueskyMetrics(
     headers: { Authorization: `Bearer ${accessJwt}` },
     signal: AbortSignal.timeout(10_000),
   })
+  if (res.status === 429) {
+    Sentry.captureMessage('Bluesky API rate-limited (429)', {
+      level: 'warning',
+      tags: { ...SENTRY_TAG, action: 'fetchBlueskyMetrics' },
+      extra: { uri, retryAfter: res.headers.get('retry-after') },
+    })
+    throw new Error('Bluesky API rate-limited (429)')
+  }
   if (!res.ok) throw new Error(`Bluesky getPostThread (${res.status})`)
   const json = (await res.json()) as {
     thread?: {
@@ -130,8 +163,16 @@ export async function fetchInstagramMetrics(
   mediaId: string,
   accessToken: string,
 ): Promise<MetricsResult> {
-  const url = `https://graph.facebook.com/v21.0/${mediaId}/insights?metric=impressions,reach,replies&access_token=${accessToken}`
+  const url = `https://graph.facebook.com/v21.0/${mediaId}/insights?metric=views,reach&access_token=${accessToken}`
   const res = await fetch(url, { signal: AbortSignal.timeout(10_000) })
+  if (res.status === 429) {
+    Sentry.captureMessage('Instagram API rate-limited (429)', {
+      level: 'warning',
+      tags: { ...SENTRY_TAG, action: 'fetchInstagramMetrics' },
+      extra: { mediaId, retryAfter: res.headers.get('retry-after') },
+    })
+    throw new Error('Instagram API rate-limited (429)')
+  }
   if (!res.ok) throw new Error(`Instagram insights (${res.status})`)
   const json = (await res.json()) as {
     data?: Array<{ name: string; values: Array<{ value: number }> }>
@@ -143,11 +184,28 @@ export async function fetchInstagramMetrics(
     return metric?.values?.[0]?.value ?? 0
   }
 
+  let likes = 0
+  let commentsFromApi = 0
+  try {
+    const suppUrl = `https://graph.facebook.com/v21.0/${mediaId}?fields=like_count,comments_count&access_token=${accessToken}`
+    const suppRes = await fetch(suppUrl, { signal: AbortSignal.timeout(10_000) })
+    if (suppRes.ok) {
+      const suppJson = (await suppRes.json()) as {
+        like_count?: number
+        comments_count?: number
+      }
+      likes = suppJson.like_count ?? 0
+      commentsFromApi = suppJson.comments_count ?? 0
+    }
+  } catch {
+    // Supplementary call failed — keep zeros, don't fail the function
+  }
+
   return {
-    likes: 0, // Fetched via /{media-id}?fields=like_count
-    comments: getValue('replies'),
+    likes,
+    comments: commentsFromApi,
     shares: 0,
-    impressions: getValue('impressions'),
+    impressions: getValue('views'),
     reach: getValue('reach'),
     raw: { data },
   }
@@ -172,10 +230,10 @@ export async function pollMetricsForDelivery(
         break
       }
       case 'bluesky': {
-        const accessToken = decrypt(
-          connectionRow.access_token_enc as string,
-          key,
-        )
+        const encCol =
+          (connectionRow.bluesky_access_jwt_enc as string | undefined) ??
+          (connectionRow.access_token_enc as string)
+        const accessToken = decrypt(encCol, key)
         const metadata = connectionRow.metadata as Record<
           string,
           unknown

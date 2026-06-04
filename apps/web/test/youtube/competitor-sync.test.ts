@@ -12,7 +12,7 @@ import { syncCompetitorChannel } from '@/lib/youtube/competitor-sync'
 
 /** Helper: creates a competitor_channels mock that supports the CAS lock chain (.update().eq().or().select()) */
 function competitorChannelsMock() {
-  const lockData = { data: [{ id: 'cc-1', sync_mode: 'incremental', full_sync_completed_at: null }] }
+  const lockData = { data: [{ id: 'cc-1', sync_mode: 'incremental', full_sync_completed_at: null, video_limit: 50 }] }
   return {
     update: () => ({
       eq: () => {
@@ -24,11 +24,21 @@ function competitorChannelsMock() {
   }
 }
 
+/** Helper: creates a competitor_videos count-only query mock (needsBackfill check) */
+function competitorVideosCountMock(count = 0) {
+  return {
+    select: () => ({
+      eq: () => Promise.resolve({ count, error: null }),
+    }),
+  }
+}
+
 describe('syncCompetitorChannel', () => {
   it('throws when channel API fails', async () => {
     const mockSupabase = {
       from: vi.fn((table: string) => {
         if (table === 'competitor_channels') return competitorChannelsMock()
+        if (table === 'competitor_videos') return competitorVideosCountMock(0)
         return { update: () => ({ eq: () => Promise.resolve({}) }) }
       }),
     }
@@ -449,6 +459,7 @@ describe('syncCompetitorChannel', () => {
     const mockSupabase = {
       from: vi.fn((table: string) => {
         if (table === 'competitor_channels') return competitorChannelsMock()
+        if (table === 'competitor_videos') return competitorVideosCountMock(0)
         return { update: () => ({ eq: () => Promise.resolve({}) }) }
       }),
     }
@@ -466,6 +477,7 @@ describe('syncCompetitorChannel', () => {
     const mockSupabase = {
       from: vi.fn((table: string) => {
         if (table === 'competitor_channels') return competitorChannelsMock()
+        if (table === 'competitor_videos') return competitorVideosCountMock(0)
         if (table === 'competitor_channel_snapshots') {
           return { upsert: upsertSpy }
         }
@@ -511,6 +523,7 @@ describe('syncCompetitorChannel', () => {
     const mockSupabase = {
       from: vi.fn((table: string) => {
         if (table === 'competitor_channels') return competitorChannelsMock()
+        if (table === 'competitor_videos') return competitorVideosCountMock(0)
         if (table === 'competitor_channel_snapshots') {
           return { upsert: () => { throw new Error('unique violation') } }
         }
@@ -550,6 +563,7 @@ describe('syncCompetitorChannel', () => {
     const mockSupabase = {
       from: vi.fn((table: string) => {
         if (table === 'competitor_channels') return competitorChannelsMock()
+        if (table === 'competitor_videos') return competitorVideosCountMock(0)
         if (table === 'competitor_channel_snapshots') {
           return { upsert: () => Promise.resolve({}) }
         }

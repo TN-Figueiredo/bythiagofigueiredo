@@ -22,7 +22,7 @@ vi.mock('@/lib/youtube/ab-rotation', () => ({
   getNextVariantIndex: vi.fn().mockReturnValue(1),
 }))
 
-const mockSetThumbnail = vi.fn().mockResolvedValue(undefined)
+const mockSetThumbnail = vi.fn().mockResolvedValue({ highUrl: 'https://i.ytimg.com/vi/x/hqdefault.jpg' })
 const mockFetchVariantImageBuffer = vi.fn().mockResolvedValue({
   buffer: Buffer.from('img'),
   contentType: 'image/png',

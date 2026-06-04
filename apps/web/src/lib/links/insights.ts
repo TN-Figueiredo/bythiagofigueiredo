@@ -211,7 +211,7 @@ function ruleGrowthTrend(metrics: AggregatedMetrics): string | null {
 
   const growth = ((metrics.recentTotal - metrics.prevTotal) / metrics.prevTotal) * 100
 
-  if (growth >= 50) {
+  if (growth >= 50 && metrics.prevTotal >= 10) {
     return `Accelerated growth: +${growth.toFixed(0)}% clicks in the last 7 days compared to the prior week. Keep the distribution momentum.`
   }
 

@@ -556,7 +556,23 @@ describe('publishSocialPost', () => {
         return {
           update: (patch: Record<string, unknown>) => {
             onPostUpdate(patch)
-            return { eq: vi.fn().mockResolvedValue({ error: null }) }
+            const isCasLock = patch.status === 'publishing'
+            return {
+              eq: () => {
+                if (isCasLock) {
+                  // CAS chain: .update().eq().or().select().maybeSingle()
+                  return {
+                    or: () => ({
+                      select: () => ({
+                        maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'post-1' }, error: null }),
+                      }),
+                    }),
+                  }
+                }
+                // Final status update: .update().eq() resolves directly
+                return Promise.resolve({ error: null })
+              },
+            }
           },
         }
       }
@@ -743,7 +759,25 @@ describe('prepareStoryDelivery (via publishSocialPost)', () => {
   function mountMocks() {
     mockFrom.mockImplementation((table: string) => {
       if (table === 'social_posts') {
-        return { update: () => ({ eq: vi.fn().mockResolvedValue({ error: null }) }) }
+        return {
+          update: (patch: Record<string, unknown>) => {
+            const isCasLock = patch.status === 'publishing'
+            return {
+              eq: () => {
+                if (isCasLock) {
+                  return {
+                    or: () => ({
+                      select: () => ({
+                        maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'post-1' }, error: null }),
+                      }),
+                    }),
+                  }
+                }
+                return Promise.resolve({ error: null })
+              },
+            }
+          },
+        }
       }
       if (table === 'social_deliveries') {
         return {
