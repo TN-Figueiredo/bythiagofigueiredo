@@ -8,6 +8,7 @@ import type { SyncScheduleEntry, SyncStatus } from '@/lib/youtube/types'
 import { DashboardConnected, type ChannelDashboard, type PinnedVideo, type LastSyncInfo } from './dashboard-connected'
 
 export const dynamic = 'force-dynamic'
+/* title uses layout.tsx default: "YouTube — CMS" */
 
 const fetchYouTubeDashboardCached = unstable_cache(
   async (siteId: string) => {

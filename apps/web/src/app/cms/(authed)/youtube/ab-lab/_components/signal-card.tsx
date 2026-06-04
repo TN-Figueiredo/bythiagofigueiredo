@@ -1,108 +1,63 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { TrendingUp, TrendingDown, Minus } from 'lucide-react'
-import { FreshnessDot, FreshnessBar } from './freshness-dot'
+import { Activity } from 'lucide-react'
 
 interface SignalCardProps {
   live?: {
     viewsDelta: number
     likesDelta: number
+    commentsDelta?: number
     polledAt: string
   }
-  confirmed?: {
-    views: number
-    avdSeconds: number
-    lastSyncAt: string | null
-  }
 }
 
-export function SignalCard({ live, confirmed }: SignalCardProps) {
-  const [showConfirmedPill, setShowConfirmedPill] = useState(false)
-  const prevConfirmedRef = useRef(confirmed?.views)
+function elapsedText(polledAt: string): string {
+  const elapsed = Date.now() - new Date(polledAt).getTime()
+  const minutes = Math.floor(elapsed / 60_000)
+  if (minutes < 1) return 'agora'
+  if (minutes < 60) return `há ${minutes} min`
+  const hours = Math.floor(minutes / 60)
+  return `há ${hours}h`
+}
 
-  useEffect(() => {
-    if (confirmed?.views && confirmed.views !== prevConfirmedRef.current) {
-      prevConfirmedRef.current = confirmed.views
-      setShowConfirmedPill(true)
-      const timer = setTimeout(() => setShowConfirmedPill(false), 5000)
-      return () => clearTimeout(timer)
-    }
-  }, [confirmed?.views])
-
+export function SignalCard({ live }: SignalCardProps) {
   return (
-    <div className="rounded-xl border border-cms-border/50 bg-cms-bg/50 p-4 space-y-3">
-      {/* TOP: Live proxy */}
-      {live && (
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+    <div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden">
+      {/* card-head */}
+      <div className="flex items-center gap-[8px] px-[16px] py-[12px] border-b border-cms-border">
+        <Activity size={15} className="text-cms-text-dim" aria-hidden="true" />
+        <span className="text-[13px] font-semibold text-cms-text">Sinal ao vivo</span>
+        {live && (
+          <span className="inline-flex items-center gap-[5px] rounded-full bg-cms-green-subtle px-[9px] py-[3px] text-[10px] font-bold uppercase tracking-wider text-cms-green ml-auto">
+            <span className="relative flex h-[5px] w-[5px]">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ background: 'var(--cms-green)' }} />
+              <span className="relative inline-flex rounded-full h-[5px] w-[5px]" style={{ background: 'var(--cms-green)' }} />
             </span>
-            <span className="text-xs font-medium text-green-400 uppercase tracking-wide">Sinal ao vivo</span>
-          </div>
-          <div className="flex items-baseline gap-4">
-            <Metric label="Views" value={formatDelta(live.viewsDelta)} delta={live.viewsDelta} />
-            <Metric label="Likes" value={formatDelta(live.likesDelta)} delta={live.likesDelta} />
-          </div>
-          <FreshnessDot lastUpdated={live.polledAt} label="Views" />
-        </div>
-      )}
+            ao vivo · {elapsedText(live.polledAt)}
+          </span>
+        )}
+      </div>
 
-      {live && confirmed && <div className="border-t border-cms-border/30" />}
-
-      {/* BOTTOM: Confirmed */}
-      {confirmed && (
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-cms-text-dim" />
-            <span className="text-xs font-medium text-cms-text-muted uppercase tracking-wide">Confirmado</span>
-            {showConfirmedPill && (
-              <span
-                className="rounded-full bg-green-600 px-2 py-0.5 text-[10px] font-medium text-white"
-                style={{ animation: 'fadeIn 0.3s ease-in' }}
-              >
-                Dados confirmados
-              </span>
-            )}
-          </div>
-          <div className="flex items-baseline gap-4">
-            <span className="text-sm text-cms-text">{confirmed.views.toLocaleString('pt-BR')} views</span>
-            <span className="text-sm text-cms-text">{formatAvd(confirmed.avdSeconds)} AVD</span>
-          </div>
-          <FreshnessBar metrics={[
-            { label: 'Views', lastUpdated: confirmed.lastSyncAt, confirmed: true },
-            { label: 'AVD', lastUpdated: confirmed.lastSyncAt, confirmed: true },
-          ]} />
-        </div>
-      )}
-
-      {/* Keyframe for crossfade animation */}
-      <style>{`@keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }`}</style>
+      {/* card-pad */}
+      <div className="flex gap-[24px] px-[16px] py-[14px]">
+        <DeltaCol label="Δ Views" value={live?.viewsDelta ?? 0} />
+        <DeltaCol label="Δ Curtidas" value={live?.likesDelta ?? 0} />
+        {live?.commentsDelta != null && (
+          <DeltaCol label="Δ Comentários" value={live.commentsDelta} />
+        )}
+      </div>
     </div>
   )
 }
 
-function Metric({ label, value, delta }: { label: string; value: string; delta: number }) {
-  const Icon = delta > 0 ? TrendingUp : delta < 0 ? TrendingDown : Minus
-  const color = delta > 0 ? 'text-green-400' : delta < 0 ? 'text-red-400' : 'text-cms-text-muted'
+function DeltaCol({ label, value }: { label: string; value: number }) {
+  const cls = value > 0 ? 'text-cms-green' : value < 0 ? 'text-cms-red' : 'text-cms-text-muted'
   return (
-    <div className="flex items-center gap-1">
-      <Icon className={`h-3 w-3 ${color}`} />
-      <span className={`text-lg font-mono font-bold ${color}`}>{value}</span>
-      <span className="text-xs text-cms-text-dim">{label}</span>
+    <div>
+      <span className="eyebrow">{label}</span>
+      <span className={`block font-mono text-[22px] font-bold leading-none tracking-tight mt-[4px] ${cls}`}>
+        {value > 0 ? '+' : ''}{value === 0 ? '0' : value.toLocaleString('pt-BR')}
+      </span>
     </div>
   )
-}
-
-function formatDelta(n: number): string {
-  if (n === 0) return '0'
-  return (n > 0 ? '+' : '') + n.toLocaleString('pt-BR')
-}
-
-function formatAvd(seconds: number): string {
-  const m = Math.floor(seconds / 60)
-  const s = Math.round(seconds % 60)
-  return `${m}:${s.toString().padStart(2, '0')}`
 }

@@ -4,6 +4,7 @@ import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { CommentsConnected, type CommentRow, type VideoOption } from './comments-connected'
 
+export const metadata = { title: 'Comentários' }
 export const dynamic = 'force-dynamic'
 
 export default async function YouTubeCuratedCommentsPage() {

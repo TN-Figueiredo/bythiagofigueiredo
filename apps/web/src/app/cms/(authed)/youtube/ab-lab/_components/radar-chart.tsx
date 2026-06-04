@@ -24,9 +24,10 @@ export interface RadarChartAxis {
 const DEFAULT_AXES: RadarChartAxis[] = [
   { key: 'ctr', label: 'CTR' },
   { key: 'retention', label: 'Retenção' },
-  { key: 'linkCtr', label: 'Link CTR' },
-  { key: 'pBest', label: 'Vencer' },
-  { key: 'impressions', label: 'Alcance' },
+  { key: 'watchTime', label: 'Watch time' },
+  { key: 'linkClicks', label: 'Cliques no link' },
+  { key: 'comments', label: 'Comentários' },
+  { key: 'shares', label: 'Compartilh.' },
 ]
 
 export interface RadarChartProps {
@@ -63,7 +64,7 @@ function pointsString(points: Array<{ x: number; y: number }>): string {
   return points.map(p => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ')
 }
 
-export function RadarChart({ variants, axes = DEFAULT_AXES, size = DEFAULT_SIZE, max = 100 }: RadarChartProps) {
+export function RadarChart({ variants, axes = DEFAULT_AXES, size = DEFAULT_SIZE, max = 0 }: RadarChartProps) {
   if (axes.length < 2) return null
 
   const scale = size / DEFAULT_SIZE
@@ -73,11 +74,12 @@ export function RadarChart({ variants, axes = DEFAULT_AXES, size = DEFAULT_SIZE,
 
   const n = axes.length
 
-  // Compute axis max values
+  // Compute axis max values — per-axis auto-scale when max=0
   const axisMaxValues = axes.map(axis => {
     if (axis.max !== undefined) return axis.max
     const vals = variants.map(v => (v as unknown as Record<string, number>)[axis.key] ?? 0)
-    return Math.max(...vals, max)
+    const dataMax = Math.max(...vals)
+    return max > 0 ? Math.max(dataMax, max) : (dataMax > 0 ? dataMax : 1)
   })
 
   // Grid ring polygons

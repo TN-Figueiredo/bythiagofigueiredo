@@ -3,6 +3,7 @@ import { getAbSiteSettings, getEligibleVideosForPicker, getAbDraftById } from '.
 import { NewTestClient } from './client'
 import type { CompetitorContext } from './client'
 
+export const metadata = { title: 'Novo Teste: A/B Lab' }
 export const dynamic = 'force-dynamic'
 
 interface Props {

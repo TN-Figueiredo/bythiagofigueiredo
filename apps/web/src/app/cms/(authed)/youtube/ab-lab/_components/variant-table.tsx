@@ -5,7 +5,7 @@ import type { FullChartVariant, VariantThumb, DisplayLabel } from '@/lib/youtube
 import { brDec } from '@/lib/youtube/format'
 import { formatPercent, formatCompact } from './ab-constants'
 import { VChip } from './ab-primitives'
-import { ChevronDown, Trophy, TrendingUp, Radio } from 'lucide-react'
+import { ChevronDown, ChevronRight, BarChart3 } from 'lucide-react'
 
 export interface VariantTableProps {
   variants: FullChartVariant[]
@@ -18,31 +18,18 @@ export interface VariantTableProps {
   videoTitle?: string
 }
 
-const GRID = 'grid grid-cols-[52px_minmax(0,1fr)_70px_56px_130px_24px] gap-[10px] items-center'
-
 export function VariantTable({ variants, metric, winnerId, leaderId, activeNow, finalists, thumbs, videoTitle }: VariantTableProps) {
   const [expandedLabel, setExpandedLabel] = useState<string | null>(null)
   const sorted = [...variants].sort((a, b) => b[metric] - a[metric])
+  const thumbMap = new Map(thumbs.map(t => [t.label, t]))
 
-  const toggleExpand = useCallback((label: string) => {
+  const toggle = useCallback((label: string) => {
     setExpandedLabel(prev => (prev === label ? null : label))
   }, [])
 
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent, label: string) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault()
-        toggleExpand(label)
-      }
-    },
-    [toggleExpand],
-  )
-
-  const thumbMap = new Map(thumbs.map(t => [t.label, t]))
-
   if (sorted.length === 0) {
     return (
-      <div role="table" aria-label="Variant comparison" className="rounded-lg border border-cms-border bg-cms-surface overflow-hidden">
+      <div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden">
         <div className="flex items-center justify-center py-8 text-xs text-cms-text-muted">
           Nenhuma variante cadastrada.
         </div>
@@ -51,184 +38,167 @@ export function VariantTable({ variants, metric, winnerId, leaderId, activeNow, 
   }
 
   return (
-    <div role="table" aria-label="Variant comparison" className="rounded-lg border border-cms-border bg-cms-surface overflow-hidden">
-      {/* Header */}
-      <div role="row" className={`${GRID} py-[10px] px-[16px] border-b border-cms-border bg-cms-bg-side`}>
-        <span role="columnheader" className="text-[9px] font-semibold text-cms-text-dim uppercase tracking-[0.08em]">thumb</span>
-        <span role="columnheader" className="text-[9px] font-semibold text-cms-text-dim uppercase tracking-[0.08em]">variante</span>
-        <span role="columnheader" className="text-[9px] font-semibold text-cms-text-dim uppercase tracking-[0.08em] text-right">CTR</span>
-        <span role="columnheader" className="text-[9px] font-semibold text-cms-text-dim uppercase tracking-[0.08em] text-right">vs A</span>
-        <span role="columnheader" className="text-[9px] font-semibold text-cms-text-dim uppercase tracking-[0.08em]">
-          {metric === 'pBest' ? 'chance de vencer' : 'top 2'}
-        </span>
-        <span role="columnheader" />
+    <div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden" style={{ boxShadow: 'var(--shadow)' }}>
+      {/* card-head */}
+      <div className="flex items-center gap-[8px] px-[16px] py-[12px] border-b border-cms-border">
+        <BarChart3 size={15} className="text-cms-text-dim" aria-hidden="true" />
+        <span className="text-[13px] font-semibold text-cms-text">Placar das variantes</span>
+        <span className="text-[11.5px] text-cms-text-dim ml-auto">ordenado por chance de vencer</span>
       </div>
 
-      {/* Rows */}
-      {sorted.map((variant, idx) => {
-        const thumb = thumbMap.get(variant.label)
-        const isWinner = winnerId != null && winnerId === variant.label
-        const isLeader = leaderId != null && leaderId === variant.label
-        const isActiveNow = activeNow != null && activeNow === variant.label
-        const isHighlighted = isWinner || isLeader
-        const isOriginal = thumb?.isOriginal ?? variant.label === 'A'
-        const isExpanded = expandedLabel === variant.label
-        const chance = variant[metric]
+      {/* vtable */}
+      <div role="table" aria-label="Variant comparison">
+        {/* Header row */}
+        <div
+          role="row"
+          className="flex items-center gap-[8px] py-[9px] px-[16px] border-b border-cms-border"
+        >
+          <span role="columnheader" style={{ width: 22, flexShrink: 0 }} />
+          <span role="columnheader" className="flex-1 min-w-0 text-[10px] font-semibold text-cms-text-dim uppercase tracking-[0.08em]">
+            Thumb + título
+          </span>
+          <span role="columnheader" className="text-[10px] font-semibold text-cms-text-dim uppercase tracking-[0.08em] text-right" style={{ width: 56, flexShrink: 0 }}>CTR</span>
+          <span role="columnheader" className="text-[10px] font-semibold text-cms-text-dim uppercase tracking-[0.08em] text-right" style={{ width: 44, flexShrink: 0 }}>vs A</span>
+          <span role="columnheader" className="text-[10px] font-semibold text-cms-text-dim uppercase tracking-[0.08em] text-right" style={{ width: 90, flexShrink: 0 }}>Chance de vencer</span>
+          <span role="columnheader" style={{ width: 20, flexShrink: 0 }} />
+        </div>
 
-        const variantA = variants.find(v => v.label === 'A')
-        const canComputeLift = variantA != null && variantA.ctr > 0 && variant.label !== 'A'
-        const liftVsA = canComputeLift
-          ? ((variant.ctr - variantA.ctr) / variantA.ctr) * 100
-          : null
+        {/* Rows */}
+        {sorted.map((variant) => {
+          const thumb = thumbMap.get(variant.label)
+          const isLeader = leaderId != null && leaderId === variant.label
+          const isWinner = winnerId != null && winnerId === variant.label
+          const isHighlighted = isWinner || isLeader
+          const isOriginal = thumb?.isOriginal ?? variant.label === 'A'
+          const isExpanded = expandedLabel === variant.label
+          const chance = variant[metric]
 
-        return (
-          <React.Fragment key={variant.label}>
-            <div className="border-t border-cms-border">
+          const variantA = variants.find(v => v.label === 'A')
+          const canLift = variantA != null && variantA.ctr > 0 && variant.label !== 'A'
+          const liftVsA = canLift ? ((variant.ctr - variantA.ctr) / variantA.ctr) * 100 : null
+
+          return (
+            <React.Fragment key={variant.label}>
               <div
-                role="row"
-                className={`${GRID} py-[11px] px-[16px] cursor-pointer transition-[background] duration-150 ${
-                  isHighlighted ? '' : 'hover:bg-cms-surface-hover'
-                }`}
-                style={isHighlighted ? {
-                  background: `${variant.color}10`,
-                  boxShadow: `inset 3px 0 0 ${variant.color}`,
-                } : undefined}
-                onClick={() => toggleExpand(variant.label)}
-                onKeyDown={(e) => handleKeyDown(e, variant.label)}
-                tabIndex={0}
-                aria-expanded={isExpanded}
+                className="border-t border-cms-border"
+                style={isHighlighted ? { '--vc': variant.color } as React.CSSProperties : undefined}
               >
-                {/* Thumbnail */}
+                {/* Main row */}
                 <div
-                  className="rounded-[6px] overflow-hidden"
-                  style={{ outline: isHighlighted ? `1.5px solid ${variant.color}` : '1px solid var(--cms-border)' }}
+                  role="row"
+                  className={`flex items-center gap-[8px] py-[12px] px-[16px] cursor-pointer transition-[background] duration-150 ${
+                    isHighlighted ? '' : 'hover:bg-cms-surface-hover'
+                  }`}
+                  style={isHighlighted ? {
+                    background: `${variant.color}10`,
+                    boxShadow: `inset 4px 0 0 ${variant.color}`,
+                  } : undefined}
+                  onClick={() => toggle(variant.label)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(variant.label) } }}
+                  tabIndex={0}
+                  aria-expanded={isExpanded}
+                  aria-label={`Variante ${variant.label}, detalhes`}
                 >
-                  {thumb?.thumbUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={thumb.thumbUrl}
-                      alt={`Thumbnail variante ${variant.label}`}
-                      referrerPolicy="no-referrer"
-                      className="w-full aspect-video rounded-[6px] object-cover"
-                    />
-                  ) : (
-                    <div
-                      className="w-full aspect-video rounded-[6px] overflow-hidden"
-                      style={{
-                        background: isHighlighted
-                          ? 'linear-gradient(135deg, rgb(90,47,23), rgb(36,16,8))'
-                          : 'linear-gradient(135deg, rgb(58,47,40), rgb(31,26,22))',
-                        boxShadow: 'rgba(0,0,0,0.4) 0px 0px 60px inset',
-                      }}
-                    />
-                  )}
-                </div>
+                  {/* VChip */}
+                  <span style={{ width: 22, flexShrink: 0 }}>
+                    <VChip label={variant.label} size={22} ring={isHighlighted} />
+                  </span>
 
-                {/* Variant info */}
-                <div className="min-w-0 flex items-center gap-[9px]">
-                  <VChip label={variant.label} size={22} ring={isHighlighted} />
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-[6px]">
-                      <span className="text-[12.5px] font-semibold text-cms-text">
-                        {isWinner ? 'Winner' : isLeader ? 'Hero' : isOriginal ? 'Original' : finalists?.includes(variant.label) ? 'Finalista' : leaderId != null ? 'Challenger' : 'Variante'}
-                      </span>
-                      {isWinner && (
-                        <span className="inline-flex items-center gap-[5px] px-[6px] py-px rounded-full text-[8.5px] font-semibold tracking-[0.06em] uppercase bg-cms-green-subtle text-cms-green">
-                          <Trophy size={11} aria-hidden="true" />
-                          venceu
+                  {/* Title cell: thumb + title */}
+                  <span className="flex-1 min-w-0 flex items-center gap-[8px]">
+                    {/* Thumbnail */}
+                    <span
+                      className="shrink-0 rounded-[5px] overflow-hidden"
+                      style={{ width: 48, outline: isHighlighted ? `1.5px solid ${variant.color}` : '1px solid var(--cms-border)' }}
+                    >
+                      {thumb?.thumbUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={thumb.thumbUrl}
+                          alt={`Thumbnail ${variant.label}`}
+                          referrerPolicy="no-referrer"
+                          className="w-full aspect-video rounded-[5px] object-cover block"
+                        />
+                      ) : (
+                        <span
+                          className="w-full aspect-video rounded-[5px] flex items-center justify-center text-[10px] font-mono font-bold text-cms-text-dim block"
+                          style={{
+                            background: isHighlighted
+                              ? 'linear-gradient(135deg, rgb(90,47,23), rgb(36,16,8))'
+                              : 'linear-gradient(135deg, rgb(58,47,40), rgb(31,26,22))',
+                          }}
+                        >
+                          {variant.label}
                         </span>
                       )}
-                      {isLeader && (
-                        <span className="inline-flex items-center gap-[5px] px-[6px] py-px rounded-full text-[8.5px] font-semibold tracking-[0.06em] uppercase bg-cms-green-subtle text-cms-green">
-                          <TrendingUp size={11} aria-hidden="true" />
-                          líder
-                        </span>
-                      )}
-                      {isActiveNow && (
-                        <span className="inline-flex items-center gap-[5px] px-[6px] py-px rounded-full text-[8.5px] font-semibold tracking-[0.06em] uppercase bg-cms-red-subtle text-cms-red">
-                          <Radio size={11} aria-hidden="true" />
-                          no ar
-                        </span>
-                      )}
-                    </div>
-                    {videoTitle && (
-                      <div className="text-[11.5px] text-cms-text-dim whitespace-nowrap overflow-hidden text-ellipsis">
-                        {videoTitle}
-                      </div>
-                    )}
-                  </div>
-                </div>
+                    </span>
 
-                {/* CTR */}
-                <span className="font-mono tnum text-[18px] font-bold text-right" style={{ color: variant.color }}>
-                  {brDec(variant.ctr * 100, 1)}%
-                </span>
+                    {/* Title */}
+                    <span className="truncate text-[12.5px] text-cms-text">
+                      {videoTitle ?? `Variante ${variant.label}`}
+                      {isOriginal && <span className="text-[11px] text-cms-text-dim"> · original</span>}
+                    </span>
+                  </span>
 
-                {/* vs A */}
-                <span className={`font-mono tnum text-[12.5px] font-bold text-right ${
-                  variant.label === 'A' || liftVsA == null ? 'text-cms-text-muted' : liftVsA > 0 ? 'text-cms-green' : 'text-cms-text-muted'
-                }`}>
-                  {variant.label === 'A' || liftVsA == null ? '—' : `${liftVsA > 0 ? '+' : ''}${brDec(liftVsA, 0)}%`}
-                </span>
+                  {/* CTR */}
+                  <span className="font-mono text-[14px] font-bold text-right tabular-nums" style={{ width: 56, flexShrink: 0, color: variant.color }}>
+                    {brDec(variant.ctr * 100, 1)}%
+                  </span>
 
-                {/* Chance bar */}
-                <div className="flex items-center gap-[9px]">
-                  <div className="flex-1 h-[7px] bg-cms-surface-hover rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full"
-                      style={{
-                        width: `${Math.max(2, Math.min(100, chance * 100))}%`,
-                        backgroundColor: variant.color,
-                        transition: 'width 0.6s',
-                      }}
-                    />
-                  </div>
-                  <span className="font-mono tnum text-[13px] font-bold w-[34px] text-right text-cms-text">
+                  {/* vs A */}
+                  <span
+                    className="font-mono text-[12.5px] font-bold text-right tabular-nums"
+                    style={{
+                      width: 44, flexShrink: 0,
+                      color: variant.label === 'A' || liftVsA == null
+                        ? 'var(--cms-text-muted)'
+                        : liftVsA > 0 ? 'var(--cms-green)' : 'var(--cms-text-muted)',
+                    }}
+                  >
+                    {variant.label === 'A' || liftVsA == null ? '—' : `${liftVsA > 0 ? '+' : ''}${brDec(liftVsA, 1)}`}
+                  </span>
+
+                  {/* Chance */}
+                  <span className="font-mono text-[14px] font-bold text-right tabular-nums text-cms-text" style={{ width: 90, flexShrink: 0 }}>
                     {brDec(chance * 100, 0)}%
+                  </span>
+
+                  {/* Chevron */}
+                  <span style={{ width: 20, flexShrink: 0, display: 'flex', justifyContent: 'center' }}>
+                    {isExpanded
+                      ? <ChevronDown size={15} className="text-cms-text-dim" aria-hidden="true" />
+                      : <ChevronRight size={15} className="text-cms-text-dim" aria-hidden="true" />
+                    }
                   </span>
                 </div>
 
-                {/* Chevron */}
-                <ChevronDown
-                  size={15}
-                  className="text-cms-text-muted"
-                  style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}
-                  aria-hidden="true"
-                />
+                {/* Expanded detail */}
+                {isExpanded && (
+                  <div className="fade-in px-[16px] py-[12px] bg-cms-surface-hover/50 border-t border-cms-border">
+                    <div className="flex gap-[24px]">
+                      <div>
+                        <span className="eyebrow">Impressões</span>
+                        <span className="block font-mono text-[13px] text-cms-text mt-[2px]">{formatCompact(variant.impressions)}</span>
+                      </div>
+                      <div>
+                        <span className="eyebrow">Cliques</span>
+                        <span className="block font-mono text-[13px] text-cms-text mt-[2px]">{formatCompact(variant.clicks)}</span>
+                      </div>
+                      <div>
+                        <span className="eyebrow">Cliques no link</span>
+                        <span className="block font-mono text-[13px] text-cms-text mt-[2px]">{variant.linkClicks != null ? formatCompact(variant.linkClicks) : '—'}</span>
+                      </div>
+                      <div>
+                        <span className="eyebrow">CTR no link</span>
+                        <span className="block font-mono text-[13px] text-cms-text mt-[2px]">{variant.linkCtr != null ? formatPercent(variant.linkCtr) : '—'}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-
-            {/* Expanded detail */}
-            {isExpanded && (
-              <div role="row" className="fade-in px-[16px] py-[11px] bg-cms-surface-hover/50 border-t border-cms-border" data-testid="expanded-row">
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-[14px] text-2xs">
-                  <div>
-                    <p className="text-cms-text-dim">Impressões</p>
-                    <p className="font-mono text-cms-text font-medium">{formatCompact(variant.impressions)}</p>
-                  </div>
-                  <div>
-                    <p className="text-cms-text-dim">Cliques</p>
-                    <p className="font-mono text-cms-text font-medium">{formatCompact(variant.clicks)}</p>
-                  </div>
-                  <div>
-                    <p className="text-cms-text-dim">Link CTR</p>
-                    <p className="font-mono text-cms-text font-medium">{variant.linkCtr != null ? formatPercent(variant.linkCtr) : '—'}</p>
-                  </div>
-                  <div>
-                    <p className="text-cms-text-dim">Retenção</p>
-                    <p className="font-mono text-cms-text font-medium">{variant.retention != null ? formatPercent(variant.retention) : '—'}</p>
-                  </div>
-                </div>
-              </div>
-            )}
-          </React.Fragment>
-        )
-      })}
-
-      {/* Footer hint */}
-      <div className="py-[9px] px-[16px] border-t border-cms-border text-[10.5px] text-cms-text-muted flex items-center gap-[6px]">
-        <ChevronDown size={11} aria-hidden="true" />
-        Clique numa linha pra ver impressões, cliques e o briefing criativo.
+            </React.Fragment>
+          )
+        })}
       </div>
     </div>
   )

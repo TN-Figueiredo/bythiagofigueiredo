@@ -12,6 +12,8 @@ import {
 } from './queries'
 import { AbLabDashboard } from './_components/ab-lab-dashboard'
 
+export const metadata = { title: 'A/B Lab' }
+
 export const dynamic = 'force-dynamic'
 
 export default async function AbLabPage() {

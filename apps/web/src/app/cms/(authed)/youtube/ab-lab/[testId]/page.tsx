@@ -4,9 +4,40 @@ import { WinnerDetail } from '../_components/winner-detail'
 import { PlayoffDetail } from '../_components/playoff-detail'
 import { EarlyDetail } from '../_components/early-detail'
 import { notFound } from 'next/navigation'
+import type { Metadata } from 'next'
 import type { AbTestDetailView, AbTestActiveView } from '@/lib/youtube/ab-types'
 
 export const dynamic = 'force-dynamic'
+
+// ---------------------------------------------------------------------------
+// generateMetadata — show video title in the browser tab
+// ---------------------------------------------------------------------------
+
+const FALLBACK_TITLE: Metadata = { title: 'Teste A/B — YouTube' }
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ testId: string }>
+}): Promise<Metadata> {
+  const { testId } = await params
+
+  // Mock IDs (dev only) — skip DB query
+  if (testId.startsWith('mock-')) return FALLBACK_TITLE
+
+  try {
+    const results = await getTestResults(testId)
+    if (!results) return FALLBACK_TITLE
+
+    const videoTitle = (results.test.original_title ?? results.test.name).replace(
+      /^Test:\s*/i,
+      '',
+    )
+    return { title: `${videoTitle} — A/B Lab` }
+  } catch {
+    return FALLBACK_TITLE
+  }
+}
 
 async function getMockMap(): Promise<Record<string, AbTestDetailView>> {
   if (process.env.NODE_ENV !== 'development') return {}

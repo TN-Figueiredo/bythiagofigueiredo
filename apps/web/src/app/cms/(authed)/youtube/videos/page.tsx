@@ -5,6 +5,7 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { VideosConnected, type VideoRow, type ChannelOption, type CategoryOption } from './videos-connected'
 
 export const dynamic = 'force-dynamic'
+export const metadata = { title: 'Vídeos' }
 
 export default async function YouTubeVideosPage() {
   const { siteId } = await getSiteContext()

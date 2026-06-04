@@ -1,7 +1,12 @@
+import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { YouTubeShell } from './_components/youtube-shell'
 import './youtube-motion.css'
+
+export const metadata: Metadata = {
+  title: { template: '%s — YouTube | CMS', default: 'YouTube — CMS' },
+}
 
 export default async function YouTubeLayout({ children }: { children: ReactNode }) {
   const supabase = getSupabaseServiceClient()

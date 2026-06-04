@@ -3,64 +3,73 @@
 import type { DisplayLabel } from '@/lib/youtube/ab-types'
 
 export interface ABBATimelineProps {
-  /** The rotation sequence of variant labels */
   seq: DisplayLabel[]
-  /** Total number of cycles */
   total: number
-  /** Number of completed cycles */
   done: number
-  /** Color map from variant label to hex color */
   colors: Record<string, string>
-  /** Variant label for the next cycle */
-  nextVariant?: string
 }
 
-export function ABBATimeline({ seq, total, done, colors, nextVariant }: ABBATimelineProps) {
-  // Find the index of the first pending block that matches nextVariant
-  const nextIndex = nextVariant !== undefined
-    ? seq.findIndex((label, i) => i >= done && label === nextVariant)
-    : -1
-
-  const blocks = seq.map((label, i) => {
-    const isDone = i < done
-    const isNext = i === nextIndex
-    const color = colors[label] ?? '#8A8F98'
-
-    const style: React.CSSProperties = isDone
-      ? { backgroundColor: color }
-      : { backgroundColor: color, opacity: 0.4 }
-
-    if (isNext) {
-      style.border = `2px dashed ${color}`
-    }
-
-    return (
-      <div
-        key={i}
-        data-block
-        {...(isNext ? { 'data-next': '' } : {})}
-        style={style}
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded text-xs font-bold text-white"
-      >
-        {label}
-      </div>
-    )
-  })
-
-  const useScroll = total >= 50
+export function ABBATimeline({ seq, total, done, colors }: ABBATimelineProps) {
+  const activeIdx = done
+  const nextLabel = seq[activeIdx]
+  const nextColor = nextLabel ? (colors[nextLabel] ?? 'var(--cms-text-dim)') : undefined
 
   return (
-    <div className="flex flex-col gap-2">
-      {useScroll ? (
-        <div data-scroll className="overflow-x-auto">
-          <div className="flex flex-row gap-1">{blocks}</div>
-        </div>
-      ) : (
-        <div className="flex flex-row flex-wrap gap-1">{blocks}</div>
-      )}
-      <p className="text-xs text-muted-foreground">
-        {done}/{total} cycles
-      </p>
+    <div>
+      {/* Blocks row */}
+      <div className="flex gap-[4px] mb-[10px]">
+        {seq.map((label, i) => {
+          const color = colors[label] ?? '#8A8F98'
+          const isDone = i < done
+          const isActive = i === activeIdx
+          const isFuture = i > activeIdx
+
+          return (
+            <div key={i} className="flex-1 relative">
+              <div
+                className="flex items-center justify-center font-mono font-bold text-[11px]"
+                style={{
+                  height: 34,
+                  borderRadius: 5,
+                  ...(isDone ? {
+                    background: color,
+                    opacity: 0.95,
+                    border: '1px solid transparent',
+                    color: 'rgb(21, 18, 13)',
+                  } : isActive ? {
+                    background: 'var(--cms-surface-hover)',
+                    opacity: 0.4,
+                    border: '1.5px dashed var(--cms-accent)',
+                    color: 'var(--cms-text-dim)',
+                  } : {
+                    background: 'var(--cms-surface-hover)',
+                    opacity: 0.4,
+                    border: '1px solid transparent',
+                    color: 'var(--cms-text-dim)',
+                  }),
+                }}
+              >
+                {isActive ? '•' : label}
+              </div>
+              <div className="font-mono text-[8px] text-cms-text-dim text-center mt-[3px]" style={{ color: 'var(--cms-text-faint)' }}>
+                {i + 1}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Footer */}
+      <div className="flex justify-between text-[11px] text-cms-text-dim">
+        <span>{done}/{total} ciclos ABBA completos</span>
+        {nextLabel && (
+          <span className="font-mono">
+            próx. rotação →{' '}
+            <b style={{ color: nextColor }}>{nextLabel}</b>
+            {' em 6h'}
+          </span>
+        )}
+      </div>
     </div>
   )
 }

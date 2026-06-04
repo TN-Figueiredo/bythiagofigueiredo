@@ -433,6 +433,7 @@ export interface AbTestBaseView {
   hasPlayoff: boolean
   gates: GateResult[]
   activeNow: DisplayLabel | null
+  createdAt: string
 }
 
 export interface AbTestActiveView extends AbTestBaseView {

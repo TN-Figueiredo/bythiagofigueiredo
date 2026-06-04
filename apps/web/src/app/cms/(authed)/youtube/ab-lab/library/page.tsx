@@ -3,6 +3,7 @@ import { getSiteContext } from '@/lib/cms/site-context'
 import { LibraryDashboard } from './_components/library-dashboard'
 import { getAbSiteSettings, getEligibleVideosForPicker } from '../queries'
 
+export const metadata = { title: 'Library: A/B Lab' }
 export const dynamic = 'force-dynamic'
 
 export default async function LibraryPage() {

@@ -1150,6 +1150,7 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
     hasPlayoff: !!test.playoff_test_id,
     gates,
     activeNow,
+    createdAt: test.created_at,
   }
 
   // Discriminate by status/outcome

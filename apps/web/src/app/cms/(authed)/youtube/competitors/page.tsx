@@ -16,6 +16,7 @@ import type {
   PlayOfTheWeek,
 } from '@/lib/youtube/observatory-types'
 
+export const metadata = { title: 'Competidores' }
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 

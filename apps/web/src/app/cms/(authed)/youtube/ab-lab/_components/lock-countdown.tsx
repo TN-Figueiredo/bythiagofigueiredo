@@ -8,6 +8,8 @@ export interface LockCountdownProps {
   confidence: number
   confidenceTarget: number
   cyclesCompleted: number
+  createdAt?: string
+  hasPlayoff?: boolean
 }
 
 export function LockCountdown({
@@ -16,56 +18,49 @@ export function LockCountdown({
   confidence,
   confidenceTarget,
   cyclesCompleted,
+  createdAt,
+  hasPlayoff,
 }: LockCountdownProps) {
   const progress = Math.min(100, durationDays > 0 ? (dayOf / durationDays) * 100 : 0)
-  const daysRemaining = Math.max(0, durationDays - dayOf)
-  const estimatedDays = confidence > 0 ? Math.ceil(((confidenceTarget - confidence) / 2.5)) : daysRemaining
+  const estimatedDays = confidence > 0 ? Math.ceil(((confidenceTarget - confidence) / 2.5)) : Math.max(0, durationDays - dayOf)
   const totalCycles = durationDays > 0 ? Math.ceil(durationDays / 2) * 2 : 0
   const cyclesRemaining = Math.max(0, totalCycles - cyclesCompleted)
 
-  const estimatedDate = new Date()
-  estimatedDate.setDate(estimatedDate.getDate() + Math.max(0, estimatedDays))
-  const dateStr = estimatedDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
+  const startDate = createdAt
+    ? new Date(createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
+    : null
 
   return (
-    <div
-      className="flex items-center justify-between gap-[20px] flex-wrap rounded-[12px] bg-cms-surface border border-cms-border"
-      style={{ padding: '13px 18px' }}
-    >
-      {/* Left: Lock icon + text */}
-      <div className="flex items-center gap-[11px]">
-        <span className="size-[30px] rounded-[8px] bg-cms-surface-hover flex items-center justify-center text-cms-text-dim">
-          <Lock size={15} aria-hidden="true" />
-        </span>
-        <div>
-          <div className="text-[13px] font-semibold text-cms-text">Teste travado</div>
-          <div className="text-[11.5px] text-cms-text-dim">Variantes fixas até concluir — sem edição no meio do caminho.</div>
-        </div>
-      </div>
-
-      {/* Right: progress + countdown */}
-      <div className="flex items-center gap-[18px]">
-        {/* Progress bar */}
-        <div className="min-w-[190px]">
-          <div className="flex items-center justify-between mb-[5px]">
-            <span className="text-[10px] font-semibold text-cms-text-dim uppercase tracking-[0.08em]">Conclusão estimada</span>
-            <span className="text-[10px] text-cms-text-muted">sem playoff</span>
-          </div>
-          <div className="h-[6px] bg-cms-surface-hover rounded-full overflow-hidden">
-            <div className="h-full bg-cms-accent rounded-full" style={{ width: `${progress}%` }} />
-          </div>
-        </div>
-
-        {/* Countdown */}
-        <div className="text-right border-l border-cms-border pl-[18px]">
-          <div className="flex items-baseline gap-[6px] justify-end">
-            <span className="font-mono text-[22px] font-bold text-cms-accent leading-none">
-              ~{Math.max(1, estimatedDays)}
+    <div className="rounded-[12px] bg-cms-surface border border-cms-border px-[18px] py-[14px]">
+      <div className="flex gap-[12px]">
+        <Lock size={16} className="text-cms-text-dim shrink-0 mt-[1px]" aria-hidden="true" />
+        <div className="flex-1 min-w-0">
+          {/* Row 1: title + countdown */}
+          <div className="flex items-center justify-between gap-[12px] mb-[8px]">
+            <span className="text-[13px] font-semibold text-cms-text">
+              Teste travado até atingir os critérios de resolução
             </span>
-            <span className="text-[12px] text-cms-text-dim">dias</span>
+            <span className="font-mono text-[12px] text-cms-text-dim shrink-0">
+              ~{Math.max(1, estimatedDays)} dias · {cyclesRemaining} ciclos restantes
+            </span>
           </div>
-          <div className="font-mono text-[10.5px] text-cms-text-muted mt-[5px]">
-            {dateStr} · {cyclesRemaining} ciclos restantes
+
+          {/* Progress bar */}
+          <div className="h-[5px] bg-cms-surface-hover rounded-full overflow-hidden">
+            <div
+              className="h-full bg-cms-accent rounded-full transition-[width] duration-500"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+
+          {/* Row 2: start date + playoff status */}
+          <div className="flex items-center justify-between gap-[12px] mt-[7px]">
+            {startDate && (
+              <span className="text-[11px] text-cms-text-dim">Começou {startDate}</span>
+            )}
+            <span className="text-[11px] text-cms-text-dim">
+              {hasPlayoff ? 'Playoff agendado' : 'Sem playoff agendado'}
+            </span>
           </div>
         </div>
       </div>

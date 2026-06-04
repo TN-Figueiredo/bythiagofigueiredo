@@ -3,9 +3,8 @@
 import React from 'react'
 import Link from 'next/link'
 import type { TestType, AbTestStatus } from '@/lib/youtube/ab-types'
-import { TypeBadge, Badge, InfoTip } from './ab-primitives'
-import { ArrowLeft, Trophy, Swords, AlertCircle } from 'lucide-react'
-import type { BadgeTone } from './ab-primitives'
+import { TypeBadge, Badge } from './ab-primitives'
+import { ChevronLeft, Swords } from 'lucide-react'
 
 export type DetailOutcome = 'winner' | 'playoff' | undefined
 
@@ -18,60 +17,7 @@ export interface DetailHeaderProps {
   hasPlayoff: boolean
   outcome?: DetailOutcome
   dayInfo?: { dayOf: number; total: number }
-  signalToggle?: { mode: 'confirmed' | 'live'; onToggle: () => void }
   actions?: React.ReactNode
-}
-
-const STATUS_TONE: Record<AbTestStatus, BadgeTone> = {
-  active: 'green',
-  paused: 'amber',
-  completed: 'neutral',
-  draft: 'neutral',
-  archived: 'neutral',
-  queued: 'amber',
-}
-
-const STATUS_LABEL: Record<AbTestStatus, string> = {
-  active: 'Ativo',
-  paused: 'Pausado',
-  completed: 'Concluído',
-  draft: 'Rascunho',
-  archived: 'Arquivado',
-  queued: 'Na fila',
-}
-
-function StatusBadge({ status, outcome, dayInfo }: { status: AbTestStatus; outcome?: DetailOutcome; dayInfo?: { dayOf: number; total: number } }) {
-  if (status === 'completed' && outcome === 'winner') {
-    return (
-      <Badge tone="green">
-        <Trophy size={11} aria-hidden="true" className="-translate-y-px" />
-        Concluído · Vencedor
-      </Badge>
-    )
-  }
-
-  if (status === 'completed' && outcome === 'playoff') {
-    return (
-      <Badge tone="amber">
-        <AlertCircle size={11} aria-hidden="true" className="-translate-y-px" />
-        Inconclusivo
-      </Badge>
-    )
-  }
-
-  if (status === 'active' && dayInfo) {
-    return (
-      <Badge tone={STATUS_TONE[status]} dot>
-        Ativo · dia {dayInfo.dayOf}/{dayInfo.total}
-      </Badge>
-    )
-  }
-
-  return (
-    <Badge tone={STATUS_TONE[status]} dot={status === 'active'}>
-      {STATUS_LABEL[status]}
-    </Badge>
-  )
 }
 
 export function DetailHeader({
@@ -83,69 +29,43 @@ export function DetailHeader({
   hasPlayoff,
   outcome,
   dayInfo,
-  signalToggle,
   actions,
 }: DetailHeaderProps) {
   return (
     <header>
-      {/* Breadcrumb */}
-      <nav aria-label="Breadcrumb" className="mb-3">
+      {/* Row 1: breadcrumb + badges */}
+      <div className="flex items-center gap-[10px] flex-wrap mb-[14px]">
         <Link
           href="/cms/youtube/ab-lab"
-          className="inline-flex items-center gap-1 text-xs text-cms-text-muted hover:text-cms-accent transition-colors"
+          className="inline-flex items-center gap-[5px] text-[12.5px] text-cms-text-dim hover:text-cms-text transition-colors font-medium"
         >
-          <ArrowLeft size={14} aria-hidden="true" />
+          <ChevronLeft size={15} aria-hidden="true" />
           A/B Lab
         </Link>
-      </nav>
+        <span className="text-cms-text-dim text-[12px]">/</span>
+        <TypeBadge type={flag} />
+        {totalRounds > 1 && (
+          <Badge tone="neutral">
+            <Swords size={11} aria-hidden="true" className="-translate-y-px" />
+            Round {roundNumber}/{totalRounds}
+          </Badge>
+        )}
+        {dayInfo && (
+          <Badge tone="green" dot={status === 'active'}>
+            Dia {dayInfo.dayOf}/{dayInfo.total}
+          </Badge>
+        )}
+      </div>
 
-      {/* Main row: badges+title (left) | actions (right) */}
-      <div className="flex items-start justify-between gap-[18px] flex-wrap">
-        {/* Left: badges + title */}
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 mb-[10px] flex-wrap">
-            <TypeBadge type={flag} />
-            {totalRounds > 1 && (
-              <Badge tone="cowork">
-                <Swords size={11} aria-hidden="true" className="-translate-y-px" />
-                Round {roundNumber}/{totalRounds}
-              </Badge>
-            )}
-            <StatusBadge status={status} outcome={outcome} dayInfo={dayInfo} />
-          </div>
-          <h2 className="text-[24px] font-semibold text-cms-text leading-[1.2] max-w-[720px]">{title}</h2>
-        </div>
+      {/* Row 2: Title */}
+      <h2 className="text-[28px] font-bold text-cms-text leading-[1.15] max-w-[720px] tracking-[-0.01em]">{title}</h2>
 
-        {/* Right: signal toggle + actions */}
-        <div className="flex items-center gap-[9px] shrink-0">
-          {signalToggle && (
-            <div className="flex items-center gap-[4px]">
-              <div className="inline-flex bg-cms-surface-hover rounded-[9px] p-[3px] gap-[2px]">
-                {(['confirmed', 'live'] as const).map(m => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => { if (m !== signalToggle.mode) signalToggle.onToggle() }}
-                    className="border-none cursor-pointer transition-[0.15s]"
-                    style={{
-                      padding: '6px 13px',
-                      borderRadius: 7,
-                      fontSize: '12.5px',
-                      fontWeight: 600,
-                      background: m === signalToggle.mode ? 'var(--cms-accent)' : 'transparent',
-                      color: m === signalToggle.mode ? 'rgb(20, 15, 8)' : 'var(--cms-text-dim)',
-                    }}
-                  >
-                    {m === 'confirmed' ? 'Confirmado' : 'Live'}
-                  </button>
-                ))}
-              </div>
-              <InfoTip text="Confirmado usa dados verificados. Live mostra estimativas em tempo real." />
-            </div>
-          )}
+      {/* Row 3: Toolbar */}
+      {actions && (
+        <div className="flex items-center justify-end gap-[8px] mt-[14px] flex-nowrap">
           {actions}
         </div>
-      </div>
+      )}
     </header>
   )
 }

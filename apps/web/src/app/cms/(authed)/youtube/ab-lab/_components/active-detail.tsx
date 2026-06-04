@@ -16,9 +16,7 @@ import { RankBars } from './rank-bars'
 import { MultiLine } from './multi-line'
 import { ABBATimeline } from './abba-timeline'
 import { FunnelRow } from './funnel-row'
-import { ClickMoment } from './click-moment'
-import { FeedView } from './feed-view'
-import { BayesCurves } from './bayes-curves'
+import { ClickMomentUnified } from './click-moment-unified'
 import { GatesPanel } from './gates-panel'
 import { forceRotate, applyWinnerNow, cancelGracePeriod, acknowledgeAbTestDrift, resumeAbTest } from '../actions'
 import { DRIFT_STATUS_NOTE } from '@/lib/youtube/ab-types'
@@ -28,7 +26,7 @@ import { AbPauseDialog } from './ab-pause-dialog'
 import { AbEndTestDialog } from './ab-end-test-dialog'
 import {
   Pause, Square, Settings,
-  LayoutGrid, TrendingUp, Crosshair, Target, BarChart3, LineChart, RefreshCw, Filter,
+  TrendingUp, Crosshair, BarChart3, RefreshCw, Filter, Zap,
 } from 'lucide-react'
 
 export interface ActiveDetailProps {
@@ -39,15 +37,13 @@ const BTN = 'inline-flex items-center gap-[7px] justify-center py-[6px] px-[11px
 
 export function ActiveDetail({ view }: ActiveDetailProps) {
   const router = useRouter()
-  const [signal, setSignal] = useState<'confirmed' | 'live'>('confirmed')
   const [showPause, setShowPause] = useState(false)
   const [showEnd, setShowEnd] = useState(false)
   const [driftBusy, setDriftBusy] = useState(false)
   const { data: livePoll } = usePollStats(view.id, view.status === 'active')
 
-  const data = signal === 'confirmed' ? view.confirmedData : (view.liveData ?? view.confirmedData)
+  const data = view.confirmedData
 
-  // Compute trend from last 2 confTrend values
   const trend: 'up' | 'flat' | 'down' = (() => {
     const len = view.confTrend.length
     if (len < 2) return 'flat'
@@ -58,23 +54,61 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
     return 'flat'
   })()
 
-  // Build ABBA color map from variants
   const abbaColors: Record<string, string> = {}
   for (const v of view.variants) {
     abbaColors[v.label] = v.color
   }
 
-  // Build funnel rows from variants
   const funnelVariants = view.variants.map(v => ({
     impressions: v.impressions,
     clicks: v.clicks,
-    linkClicks: v.linkClicks,
+    linkClicks: v.linkClicks ?? 0,
     color: v.color,
   }))
 
+  const leaderVariant = view.variants.find(v => v.label === data.leader)
+  const originalVariant = view.variants.find(v => v.label === 'A')
+
+  const radarVariants = view.variants.map(v => ({
+    ...v,
+    watchTime: (v.retention ?? 0.4) * 600,
+    comments: Math.round(v.clicks * 0.02),
+    shares: Math.round(v.clicks * 0.008),
+  }))
+
+
+  const actionButtons = (
+    <>
+      <button type="button" onClick={() => setShowPause(true)} className={BTN}>
+        <Pause size={14} aria-hidden="true" />
+        Pausar
+      </button>
+      <button type="button" onClick={() => setShowEnd(true)} className={BTN}>
+        <Square size={14} aria-hidden="true" />
+        Encerrar
+      </button>
+      <button
+        type="button"
+        className={BTN}
+        onClick={async () => {
+          if (!confirm('Forçar rotação agora? A variante atual será trocada imediatamente.')) return
+          const result = await forceRotate(view.id)
+          if (!result.ok) alert(result.error)
+          else router.refresh()
+        }}
+      >
+        <RefreshCw size={14} aria-hidden="true" />
+        Forçar rotação
+      </button>
+      <button type="button" aria-label="Configurações" className={BTN}>
+        <Settings size={14} aria-hidden="true" />
+      </button>
+    </>
+  )
+
   return (
     <div data-testid="active-detail">
-      {/* Section 1: Header */}
+      {/* ── Section 1: Header with inline actions ── */}
       <div data-section="header" className="mb-[16px]">
         <DetailHeader
           title={view.videoTitle}
@@ -84,10 +118,11 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
           totalRounds={view.totalRounds}
           hasPlayoff={view.hasPlayoff}
           dayInfo={{ dayOf: view.cycles.done, total: view.durationDays }}
+          actions={actionButtons}
         />
       </div>
 
-      {/* Grace Period Banner */}
+      {/* ── Conditional Banners ── */}
       {view.graceExpiresAt && !view.winnerAppliedAt && (
         <div className="mx-0 mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3">
           <div className="flex items-center justify-between">
@@ -126,7 +161,6 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
         </div>
       )}
 
-      {/* Drift Recovery Banner */}
       {view.status === 'paused' && view.statusNote === DRIFT_STATUS_NOTE && (
         <div
           className="drift-banner mx-0 mb-4 flex gap-[14px] py-[18px] px-[20px]"
@@ -156,7 +190,6 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
         </div>
       )}
 
-      {/* Resume Banner (post-acknowledge or manual pause) */}
       {view.status === 'paused' && view.statusNote !== DRIFT_STATUS_NOTE && (
         <div className="mx-0 mb-4 rounded-lg border border-blue-500/30 bg-blue-500/10 px-4 py-3">
           <div className="flex items-center justify-between gap-3">
@@ -173,61 +206,34 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
         </div>
       )}
 
-      {/* Toolbar: signal toggle + Pausar + Settings — below title */}
-      <div className="flex items-center gap-[8px] mb-[22px]">
-        {view.liveData && (
-          <>
-            <div className="inline-flex bg-cms-surface-hover rounded-[9px] p-[3px] gap-[2px]">
-              {(['confirmed', 'live'] as const).map(m => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setSignal(m)}
-                  className="border-none cursor-pointer transition-[0.15s]"
-                  style={{
-                    padding: '6px 13px',
-                    borderRadius: 7,
-                    fontSize: '12.5px',
-                    fontWeight: 600,
-                    background: m === signal ? 'var(--cms-accent)' : 'transparent',
-                    color: m === signal ? 'rgb(20, 15, 8)' : 'var(--cms-text-dim)',
-                  }}
-                >
-                  {m === 'confirmed' ? 'Confirmado' : 'Live'}
-                </button>
-              ))}
-            </div>
-            <InfoTip text="Confirmado = dados finais da API do YouTube (atraso de 2–3 dias). Live = estimativa do ciclo atual, instantânea mas imprecisa." />
-          </>
-        )}
-        <button type="button" onClick={() => setShowPause(true)} className={BTN}>
-          <Pause size={14} aria-hidden="true" />
-          Pausar
-        </button>
-        <button type="button" aria-label="Configurações" className={BTN}>
-          <Settings size={14} aria-hidden="true" />
-        </button>
-        <button type="button" onClick={() => setShowEnd(true)} className={BTN}>
-          <Square size={14} aria-hidden="true" />
-          Encerrar
-        </button>
-        <button
-          type="button"
-          className={BTN}
-          onClick={async () => {
-            if (!confirm('Forçar rotação agora? A variante atual será trocada imediatamente.')) return
-            const result = await forceRotate(view.id)
-            if (!result.ok) alert(result.error)
-            else router.refresh()
-          }}
-        >
-          <RefreshCw size={14} aria-hidden="true" />
-          Forçar Rotação
-        </button>
+      {/* ── Section 2: Lock Countdown ── */}
+      <div data-section="lock-countdown" className="mb-[16px]">
+        <LockCountdown
+          dayOf={view.cycles.done}
+          durationDays={view.durationDays}
+          confidence={data.confidence}
+          confidenceTarget={view.confidenceTarget * 100}
+          cyclesCompleted={view.cycles.done}
+          createdAt={view.createdAt}
+          hasPlayoff={view.hasPlayoff}
+        />
       </div>
 
-      {/* Signal Card: live poll data */}
-      <div className="mb-[16px]">
+      {/* ── Section 3: Hero Band ── */}
+      <div data-section="hero-band" className="mb-[16px]">
+        <HeroBand
+          confidence={data.confidence}
+          confidenceTarget={view.confidenceTarget * 100}
+          leader={{ label: data.leader, color: data.leaderColor }}
+          lift={data.lift}
+          trend={trend}
+          leaderCtr={leaderVariant?.ctr}
+          originalCtr={originalVariant?.ctr}
+        />
+      </div>
+
+      {/* ── Section 4: Signal ao vivo + Métricas computadas (side by side) ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-[16px] mb-[16px]">
         <SignalCard
           live={livePoll?.delta ? {
             viewsDelta: livePoll.delta.views,
@@ -239,81 +245,50 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
             polledAt: view.pollData.polledAt,
           } : undefined}
         />
-      </div>
-
-      {/* Computed Metrics */}
-      {(view.outlier || view.revenue || view.daysRemaining) && (
-        <div className="grid grid-cols-3 gap-3 mb-[16px]">
-          {view.outlier && (
-            <div className={`rounded-lg border px-3 py-2 ${
-              view.outlier.badge === 'red' ? 'border-red-500/30 bg-red-500/10' :
-              view.outlier.badge === 'purple' ? 'border-purple-500/30 bg-purple-500/10' :
-              'border-blue-500/30 bg-blue-500/10'
-            }`}>
-              <span className="text-xs text-cms-text-muted">Outlier</span>
-              <p className={`text-lg font-mono font-bold ${
-                view.outlier.badge === 'red' ? 'text-red-400' :
-                view.outlier.badge === 'purple' ? 'text-purple-400' :
-                'text-blue-400'
-              }`}>{view.outlier.multiplier}x</p>
-            </div>
-          )}
-          {view.revenue && (
-            <div className="rounded-lg border border-cms-border/30 bg-cms-surface/30 px-3 py-2">
-              <span className="text-xs text-cms-text-muted">Receita estimada</span>
-              <p className="text-lg font-mono font-bold text-cms-text">
-                R${view.revenue.low}-{view.revenue.high}<span className="text-sm font-normal text-cms-text-muted">/ano</span>
-              </p>
-              {view.revenue.isDefault && <span className="text-[10px] text-cms-text-dim">faixa padrao</span>}
-            </div>
-          )}
-          {view.daysRemaining && (
-            <div className="rounded-lg border border-cms-border/30 bg-cms-surface/30 px-3 py-2">
-              <span className="text-xs text-cms-text-muted">Dias restantes</span>
-              <p className="text-lg font-mono font-bold text-cms-text">
-                {view.daysRemaining.days > 900 ? '∞' : `~${view.daysRemaining.days}d`}
-              </p>
-              <span className="text-[10px] text-cms-text-dim">{view.daysRemaining.model}</span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Section 2: Lock Countdown */}
-      <div data-section="lock-countdown" className="mb-[16px]">
-        <LockCountdown
-          dayOf={view.cycles.done}
-          durationDays={view.durationDays}
-          confidence={data.confidence}
-          confidenceTarget={view.confidenceTarget * 100}
-          cyclesCompleted={view.cycles.done}
-        />
-      </div>
-
-      {/* Section 3: Hero Band */}
-      <div data-section="hero-band" className="mb-[28px]">
-        <HeroBand
-          confidence={data.confidence}
-          confidenceTarget={view.confidenceTarget * 100}
-          leader={{ label: data.leader, color: data.leaderColor }}
-          lift={data.lift}
-          trend={trend}
-        />
-      </div>
-
-      {/* Section 4: Placar das variantes */}
-      <section data-section="variant-performance" className="mb-[36px]">
-        <div className="flex items-end justify-between gap-[14px] mb-[16px]">
-          <div>
-            <div className="flex items-center gap-[9px]">
-              <LayoutGrid size={17} className="text-cms-accent" aria-hidden="true" />
-              <h3 className="text-[19px] font-semibold text-cms-text m-0">Placar das variantes</h3>
-            </div>
-            <p className="text-[12.5px] text-cms-text-dim mt-[5px] max-w-[540px] m-0">
-              O número que decide: CTR e chance de vencer de cada variante. Clique numa linha pra abrir os detalhes.
-            </p>
+        {/* Métricas computadas card */}
+        <div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden">
+          {/* card-head */}
+          <div className="flex items-center gap-[8px] px-[16px] py-[12px] border-b border-cms-border">
+            <Zap size={15} className="text-cms-text-dim" aria-hidden="true" />
+            <span className="text-[13px] font-semibold text-cms-text">Métricas computadas</span>
+          </div>
+          {/* card-pad */}
+          <div className="flex gap-[24px] px-[16px] py-[14px]">
+            {view.outlier && (
+              <div>
+                <span className="eyebrow">Outlier</span>
+                <span className="block font-mono text-[22px] font-bold leading-none tracking-tight text-cms-text mt-[4px]">
+                  {view.outlier.multiplier.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}x
+                </span>
+              </div>
+            )}
+            {view.revenue && (
+              <div>
+                <span className="eyebrow">Receita estimada</span>
+                <span className="block font-mono text-[22px] font-bold leading-none tracking-tight text-cms-green mt-[4px]">
+                  +R$ {Math.round((view.revenue.low + view.revenue.high) / 2 / 12).toLocaleString('pt-BR')}
+                  <span className="text-[11px] font-normal text-cms-text-dim">/mês</span>
+                </span>
+              </div>
+            )}
+            {view.daysRemaining && (
+              <div>
+                <span className="eyebrow">Conclusão em</span>
+                <span className="block font-mono text-[22px] font-bold leading-none tracking-tight text-cms-text mt-[4px]">
+                  ~{view.daysRemaining.days > 900 ? '∞' : view.daysRemaining.days}
+                  <span className="text-[11px] font-normal text-cms-text-dim"> dias</span>
+                </span>
+              </div>
+            )}
+            {!view.outlier && !view.revenue && !view.daysRemaining && (
+              <span className="text-[12px] text-cms-text-dim py-2">Coletando dados...</span>
+            )}
           </div>
         </div>
+      </div>
+
+      {/* ── Section 5: Placar das variantes ── */}
+      <section data-section="variant-performance" className="mb-[24px]">
         <VariantTable
           variants={view.variants}
           metric="pBest"
@@ -324,211 +299,137 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
         />
       </section>
 
-      {/* Section 5: Confiança ao longo do tempo + Raio-X das variantes */}
+      {/* ── Section 6: Confiança ao longo do tempo + Raio-X ── */}
       <section data-section="charts-confidence-radar" className="mb-[16px]">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-[16px]">
-          {/* Left: Confiança ao longo do tempo */}
-          <div className="rounded-lg border border-cms-border bg-cms-surface p-[20px]">
-            <div className="flex items-end justify-between gap-[14px] mb-[16px]">
-              <div>
-                <div className="flex items-center gap-[9px]">
-                  <TrendingUp size={17} className="text-cms-accent" aria-hidden="true" />
-                  <h3 className="text-[19px] font-semibold text-cms-text m-0">Confiança ao longo do tempo</h3>
-                </div>
-                <p className="text-[12.5px] text-cms-text-dim mt-[5px] max-w-[540px] m-0">
-                  Sobe conforme os ciclos ABBA acumulam dados. Bata a meta = vencedor declarado.
-                </p>
-              </div>
+          {/* Confiança ao longo do tempo */}
+          <div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden" style={{ boxShadow: 'var(--shadow)' }}>
+            <div className="flex items-center gap-[8px] px-[16px] py-[12px] border-b border-cms-border">
+              <TrendingUp size={15} className="text-cms-text-dim" aria-hidden="true" />
+              <span className="text-[13px] font-semibold text-cms-text">Confiança ao longo do tempo</span>
+              <span className="text-[11.5px] text-cms-text-dim ml-auto">meta {Math.round(view.confidenceTarget * 100)}%</span>
             </div>
-            <ConfidenceChart
-              data={view.confTrend}
-              target={view.confidenceTarget * 100}
-            />
+            <div className="px-[16px] py-[14px]">
+              <ConfidenceChart
+                data={view.confTrend}
+                target={view.confidenceTarget * 100}
+              />
+            </div>
           </div>
 
-          {/* Right: Raio-X das variantes */}
-          <div className="rounded-lg border border-cms-border bg-cms-surface p-[20px]">
-            <div className="flex items-end justify-between gap-[14px] mb-[16px]">
-              <div>
-                <div className="flex items-center gap-[9px]">
-                  <Crosshair size={17} className="text-cms-accent" aria-hidden="true" />
-                  <h3 className="text-[19px] font-semibold text-cms-text m-0">Raio-X das variantes</h3>
-                </div>
-                <p className="text-[12.5px] text-cms-text-dim mt-[5px] max-w-[540px] m-0">
-                  Cada eixo é um fator. Quanto mais a forma se estica pra fora, mais forte a variante.
-                </p>
-              </div>
-              <div className="flex gap-[12px] shrink-0">
-                {view.variants.map(v => (
-                  <span key={v.label} className="inline-flex items-center gap-[5px] text-[11.5px] text-cms-text-dim">
-                    <span className="rounded-[2px]" style={{ width: 10, height: 3, background: v.color }} aria-hidden="true" />
-                    {v.label}
-                  </span>
-                ))}
-              </div>
+          {/* Raio-X das variantes */}
+          <div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden" style={{ boxShadow: 'var(--shadow)' }}>
+            <div className="flex items-center gap-[8px] px-[16px] py-[12px] border-b border-cms-border">
+              <Crosshair size={15} className="text-cms-text-dim" aria-hidden="true" />
+              <span className="text-[13px] font-semibold text-cms-text">Raio-X das variantes</span>
+              <span className="text-[11.5px] text-cms-text-dim ml-auto">6 eixos</span>
             </div>
-            <RadarChart variants={view.variants} />
+            <div className="px-[16px] py-[14px]">
+              <RadarChart variants={radarVariants} />
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Section 6: Faixa provável de CTR & chance de vencer */}
-      <div className="rounded-lg border border-cms-border bg-cms-surface p-[20px] mb-[36px]">
-        <div className="flex items-end justify-between gap-[14px] mb-[16px]">
-          <div>
-            <div className="flex items-center gap-[9px]">
-              <TrendingUp size={17} className="text-cms-accent" aria-hidden="true" />
-              <h3 className="text-[19px] font-semibold text-cms-text m-0">
-                Faixa provável de CTR &amp; chance de vencer
-                <InfoTip text="A faixa é o intervalo credível Bayesiano — 95% de chance do CTR real estar ali. A chance de vencer vem de 10.000 simulações Monte Carlo." />
-              </h3>
-            </div>
-            <p className="text-[12.5px] text-cms-text-dim mt-[5px] max-w-[540px] m-0">
-              A barra é a faixa onde o CTR real de cada variante deve cair. Faixas que se sobrepõem = empate; bem separadas = vencedor claro.
-            </p>
+      {/* ── Section 7: Faixa provável de CTR + Chance de vencer (2 cards) ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-[16px] mb-[24px]">
+        {/* Faixa provável de CTR */}
+        <div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden" style={{ boxShadow: 'var(--shadow)' }}>
+          <div className="flex items-center gap-[8px] px-[16px] py-[12px] border-b border-cms-border">
+            <TrendingUp size={15} className="text-cms-text-dim" aria-hidden="true" />
+            <span className="text-[13px] font-semibold text-cms-text">Faixa provável de CTR</span>
+            <span className="text-[11.5px] text-cms-text-dim ml-auto">intervalo de credibilidade 95%</span>
           </div>
-        </div>
-        <div className="grid grid-cols-[1.2fr_1fr] gap-[28px] items-center">
-          {/* Left: Faixa provável de CTR */}
-          <div>
-            <div className="text-[9px] font-semibold text-cms-text-dim uppercase tracking-[0.08em] mb-[12px]">
-              Faixa provável de CTR (taxa de clique)
-            </div>
+          <div className="px-[16px] py-[14px]">
             <CredibleInterval variants={view.variants} leader={data.leader} />
           </div>
-          {/* Right: Chance de ser o melhor */}
-          <div>
-            <div className="text-[9px] font-semibold text-cms-text-dim uppercase tracking-[0.08em] mb-[12px]">
-              Chance de ser o melhor
-            </div>
+        </div>
+
+        {/* Chance de vencer */}
+        <div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden" style={{ boxShadow: 'var(--shadow)' }}>
+          <div className="flex items-center gap-[8px] px-[16px] py-[12px] border-b border-cms-border">
+            <BarChart3 size={15} className="text-cms-text-dim" aria-hidden="true" />
+            <span className="text-[13px] font-semibold text-cms-text">Chance de vencer</span>
+            <span className="text-[11.5px] text-cms-text-dim ml-auto">P(melhor) · 10 mil simulações</span>
+          </div>
+          <div className="px-[16px] py-[14px]">
             <RankBars variants={view.variants} metric="pBest" />
-            <p className="text-[11.5px] text-cms-text-dim mt-[12px] leading-[1.45] m-0">
-              Calculado por 10.000 simulações do motor Bayesiano — não é só o CTR cru, leva em conta o tamanho da amostra.
-            </p>
           </div>
         </div>
       </div>
 
-      {/* Section 7: CTR diário por variante */}
-      <div className="rounded-lg border border-cms-border bg-cms-surface p-[20px] mb-[36px]">
-        <div className="flex items-end justify-between gap-[14px] mb-[16px]">
-          <div>
-            <div className="flex items-center gap-[9px]">
-              <TrendingUp size={17} className="text-cms-accent" aria-hidden="true" />
-              <h3 className="text-[19px] font-semibold text-cms-text m-0">CTR diário por variante</h3>
-            </div>
-            <p className="text-[12.5px] text-cms-text-dim mt-[5px] max-w-[540px] m-0">
-              Dia a dia, com a rotação ABBA já contrabalançando o viés de fim de semana.
-            </p>
-          </div>
-          <div className="flex gap-[12px] shrink-0">
+      {/* ── Section 8: CTR diário por variante ── */}
+      <div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden mb-[24px]" style={{ boxShadow: 'var(--shadow)' }}>
+        <div className="flex items-center gap-[8px] px-[16px] py-[12px] border-b border-cms-border">
+          <TrendingUp size={15} className="text-cms-text-dim" aria-hidden="true" />
+          <span className="text-[13px] font-semibold text-cms-text">CTR diário por variante</span>
+          <span className="text-[11.5px] text-cms-text-dim ml-auto">últimos {Object.values(view.daily)[0]?.length ?? 0} dias</span>
+          <div className="flex gap-[10px] ml-[16px]">
             {view.variants.map(v => (
-              <span key={v.label} className="inline-flex items-center gap-[5px] text-[11.5px] text-cms-text-dim">
+              <span key={v.label} className="inline-flex items-center gap-[5px] text-[11px] text-cms-text-dim">
                 <span className="rounded-[2px]" style={{ width: 10, height: 3, background: v.color }} aria-hidden="true" />
                 {v.label}
               </span>
             ))}
           </div>
         </div>
-        <MultiLine series={view.daily} colors={VARIANT_COLORS} />
+        <div className="px-[16px] py-[14px]">
+          <MultiLine series={view.daily} colors={VARIANT_COLORS} />
+        </div>
       </div>
 
-      {/* Section 8: Rotação ABBA + Funil por variante */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-[16px] mb-[36px]">
-        {/* Left: Rotação ABBA */}
-        <div className="rounded-lg border border-cms-border bg-cms-surface p-[20px]">
-          <div className="flex items-end justify-between gap-[14px] mb-[16px]">
-            <div>
-              <div className="flex items-center gap-[9px]">
-                <RefreshCw size={17} className="text-cms-accent" aria-hidden="true" />
-                <h3 className="text-[19px] font-semibold text-cms-text m-0">
-                  Rotação ABBA
-                  <InfoTip text="A rotação ABBA alterna variantes em pares espelhados (A→B→B→A) para cancelar o viés de horário e dia da semana." />
-                </h3>
-              </div>
-            </div>
+      {/* ── Section 9: Rotação ABBA + Funil por variante ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-[16px] mb-[24px]">
+        {/* Rotação ABBA */}
+        <div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden" style={{ boxShadow: 'var(--shadow)' }}>
+          <div className="flex items-center gap-[8px] px-[16px] py-[12px] border-b border-cms-border">
+            <RefreshCw size={15} className="text-cms-text-dim" aria-hidden="true" />
+            <span className="text-[13px] font-semibold text-cms-text">Rotação ABBA</span>
+            <span className="text-[11.5px] text-cms-text-dim ml-auto">{view.cycles.done}/{view.cycles.total} ciclos</span>
           </div>
-          <ABBATimeline
-            seq={view.abbaSeq}
-            total={view.cycles.total}
-            done={view.cycles.done}
-            colors={abbaColors}
-          />
+          <div className="px-[16px] py-[14px]">
+            <ABBATimeline
+              seq={view.abbaSeq}
+              total={view.cycles.total}
+              done={view.cycles.done}
+              colors={abbaColors}
+            />
+          </div>
         </div>
 
-        {/* Right: Funil por variante */}
-        <div className="rounded-lg border border-cms-border bg-cms-surface p-[20px]">
-          <div className="flex items-end justify-between gap-[14px] mb-[16px]">
-            <div>
-              <div className="flex items-center gap-[9px]">
-                <Filter size={17} className="text-cms-accent" aria-hidden="true" />
-                <h3 className="text-[19px] font-semibold text-cms-text m-0">
-                  Funil por variante
-                  <InfoTip text="Impressão → view (CTR) → clique no link rastreado. Mostra onde cada variante perde audiência." />
-                </h3>
-              </div>
-              <p className="text-[12.5px] text-cms-text-dim mt-[5px] max-w-[540px] m-0">
-                Impressão → view → clique no link rastreado.
-              </p>
-            </div>
+        {/* Funil por variante (líder) */}
+        <div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden" style={{ boxShadow: 'var(--shadow)' }}>
+          <div className="flex items-center gap-[8px] px-[16px] py-[12px] border-b border-cms-border">
+            <Filter size={15} className="text-cms-text-dim" aria-hidden="true" />
+            <span className="text-[13px] font-semibold text-cms-text">Funil por variante</span>
+            <span className="text-[11.5px] text-cms-text-dim ml-auto">líder</span>
           </div>
-          <div className="flex flex-col gap-[14px]">
-            {view.variants.map((v, i) => {
-              const isOriginal = v.label === 'A'
-              const isLeader = v.label === data.leader
-              const roleLabel = isOriginal ? 'Original' : isLeader ? 'Hero' : 'Challenger'
-              return (
-                <div key={v.label}>
-                  <div className="flex items-center gap-[8px] mb-[7px]">
-                    <VChip label={v.label} size={16} />
-                    <span className="text-[11.5px] text-cms-text-dim">{roleLabel}</span>
-                  </div>
-                  <FunnelRow variant={funnelVariants[i]!} />
-                </div>
-              )
-            })}
+          <div className="px-[16px] py-[14px]">
+            {(() => {
+              const leaderIdx = view.variants.findIndex(v => v.label === data.leader)
+              const funnel = funnelVariants[leaderIdx >= 0 ? leaderIdx : 0]
+              return funnel ? <FunnelRow variant={funnel} /> : null
+            })()}
           </div>
         </div>
       </div>
 
-      {/* Section 9: Critérios de resolução automática */}
-      <GatesPanel gates={view.gates} />
+      {/* ── Section 10: Critérios de resolução automática ── */}
+      <div className="mb-[24px]">
+        <GatesPanel gates={view.gates} />
+      </div>
 
-      {/* Section 10: O momento de clique */}
-      <div className="mt-[36px]" />
-      <ClickMoment
-        videoTitle={view.videoTitle}
-        winnerLabel={data.leader as any}
-        winnerColor={data.leaderColor}
-        variants={view.variants.map(v => ({
-          label: v.label,
-          color: v.color,
-          ctr: v.ctr * 100,
-          thumbUrl: view.variantThumbs.find(t => t.label === v.label)?.thumbUrl ?? null,
-        }))}
-      />
-
-      {/* Bayesian Curves */}
-      {view.variants.length >= 2 && (
-        <div className="rounded-lg border border-cms-border bg-cms-surface p-[20px] mb-[36px]">
-          <div className="flex items-center gap-[9px] mb-[16px]">
-            <BarChart3 size={17} className="text-cms-accent" aria-hidden="true" />
-            <h3 className="text-[19px] font-semibold text-cms-text m-0">Curvas Bayesianas</h3>
-          </div>
-          <BayesCurves variants={view.variants} />
-        </div>
-      )}
-
-      {/* YouTube Feed Preview */}
-      <div className="mt-[36px]">
-        <FeedView
+      {/* ── Section 11: O momento de clique ── */}
+      <div className="mb-[24px]">
+        <ClickMomentUnified
+          videoTitle={view.videoTitle}
           variants={view.variants.map(v => ({
             label: v.label,
             color: v.color,
             ctr: v.ctr * 100,
             thumbUrl: view.variantThumbs.find(t => t.label === v.label)?.thumbUrl ?? null,
-            title: view.videoTitle,
           }))}
+          leaderLabel={data.leader}
         />
       </div>
 
