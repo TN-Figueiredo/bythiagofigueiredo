@@ -18,6 +18,7 @@ export function Inspector() {
   return (
     <aside
       data-inspector=""
+      data-testid="inspector"
       className="w-[340px] shrink-0 overflow-y-auto border-l border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-950"
     >
       <InspDetalhes />

@@ -21,19 +21,16 @@ vi.mock('@/app/cms/(authed)/youtube/ab-lab/_components/use-poll-stats', () => ({
 }))
 
 vi.mock('lucide-react', () => {
-  const icon = (name: string) => {
-    const Icon = (props: Record<string, unknown>) => <svg data-testid={`icon-${name}`} {...props} />
-    Icon.displayName = name
-    return Icon
+  const icon = (name: string) => (props: Record<string, unknown>) => <svg data-testid={`icon-${name}`} {...props} />
+  return {
+    Activity: icon('Activity'), BarChart3: icon('BarChart3'), ChevronDown: icon('ChevronDown'),
+    ChevronLeft: icon('ChevronLeft'), ChevronRight: icon('ChevronRight'), Crosshair: icon('Crosshair'),
+    Eye: icon('Eye'), FileText: icon('FileText'), Filter: icon('Filter'), Image: icon('Image'),
+    Layers: icon('Layers'), Lock: icon('Lock'), Minus: icon('Minus'), Pause: icon('Pause'),
+    RefreshCw: icon('RefreshCw'), Settings: icon('Settings'), Square: icon('Square'),
+    Swords: icon('Swords'), TrendingDown: icon('TrendingDown'), TrendingUp: icon('TrendingUp'),
+    Type: icon('Type'), X: icon('X'), Zap: icon('Zap'),
   }
-  const cache: Record<string, unknown> = {}
-  return new Proxy({}, {
-    get(_target, prop: string) {
-      if (prop === '__esModule') return true
-      if (!cache[prop]) cache[prop] = icon(prop)
-      return cache[prop]
-    },
-  })
 })
 
 afterEach(() => {
@@ -99,18 +96,15 @@ describe('ActiveDetail', () => {
     expect(screen.getByText('chance de vencer')).toBeDefined()
   })
 
-  it('GatesPanel shows all 6 gate labels', () => {
-    render(<ActiveDetail view={makeActiveView()} />)
-    // GatesPanel renders GATE_LABELS for each gate name
-    const expectedLabels = [
-      'Confiança ≥ 95%',
-      'Impressões ≥ 1.000 / variante',
-      'Duração ≥ 7 dias',
-      'Estabilidade 3× seguidas',
-    ]
-    for (const label of expectedLabels) {
-      expect(screen.getByText(label)).toBeDefined()
+  it('GatesPanel shows all 6 gate values', () => {
+    const { container } = render(<ActiveDetail view={makeActiveView()} />)
+    // GatesPanel renders each gate.value as a font-mono span
+    const gateValues = ['10,000 min', '10 / 7 days', '16 / 14 cycles', '14 eligible', '2 / 3 consecutive']
+    for (const v of gateValues) {
+      expect(screen.getByText(v)).toBeDefined()
     }
+    // Also verify the panel header badge shows correct count
+    expect(container.textContent).toContain('5/6 ok')
   })
 
   it('ConfidenceChart receives confTrend data (renders svg)', () => {

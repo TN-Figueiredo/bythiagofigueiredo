@@ -1,3 +1,5 @@
+export const metadata = { title: 'QR Code' }
+
 import { notFound, redirect } from 'next/navigation'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'

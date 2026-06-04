@@ -447,7 +447,7 @@ export function PlaylistCanvas({
   const handleOpenContent = useCallback((itemId: string) => {
     const item = state.items.find(i => i.id === itemId)
     if (!item) return
-    if (item.blog_post_id) router.push(`/cms/blog/${item.blog_post_id}/edit`)
+    if (item.blog_post_id) router.push(`/cms/blog/${item.blog_post_id}/editor`)
     else if (item.pipeline_id) router.push(`/cms/pipeline/items/${item.pipeline_id}`)
     else if (item.newsletter_edition_id) router.push(`/cms/newsletters/${item.newsletter_edition_id}/edit`)
   }, [state.items, router])

@@ -37,6 +37,7 @@ export function StageBar() {
     <nav
       className="flex items-center gap-1 rounded-lg bg-muted p-1"
       aria-label="Editor stages"
+      data-testid="stage-bar"
     >
       {STAGES.map((stage) => {
         const isActive = state.activeStage === stage

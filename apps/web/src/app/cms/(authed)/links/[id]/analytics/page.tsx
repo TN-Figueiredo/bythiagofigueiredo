@@ -8,6 +8,7 @@ import { AnalyticsView } from '../../_components/analytics-view'
 import { getAiInsightsForLink } from '@/lib/links/insights'
 
 export const dynamic = 'force-dynamic'
+export const metadata = { title: 'Analytics' }
 
 interface Props {
   params: Promise<{ id: string }>

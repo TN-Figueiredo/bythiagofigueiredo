@@ -299,7 +299,7 @@ export function fetchNeedsAttention(siteId: string): Promise<AttentionItem[]> {
           title,
           priority: 'P1',
           reason: 'Post atrasado',
-          href: `/cms/blog/${row.id}/edit`,
+          href: `/cms/blog/${row.id}/editor`,
           type: 'post',
         })
       }
@@ -315,7 +315,7 @@ export function fetchNeedsAttention(siteId: string): Promise<AttentionItem[]> {
           title,
           priority: 'P1',
           reason: 'Rascunho parado 14+ dias',
-          href: `/cms/blog/${row.id}/edit`,
+          href: `/cms/blog/${row.id}/editor`,
           type: 'post',
         })
       }
@@ -330,7 +330,7 @@ export function fetchNeedsAttention(siteId: string): Promise<AttentionItem[]> {
           title,
           priority: 'P2',
           reason: 'Agendado para esta semana',
-          href: `/cms/blog/${row.id}/edit`,
+          href: `/cms/blog/${row.id}/editor`,
           type: 'post',
         })
       }
@@ -437,7 +437,7 @@ export function fetchThisWeekStrip(
           dotsByDay.get(day)!.push({
             type: 'post',
             title,
-            href: `/cms/blog/${row.id}/edit`,
+            href: `/cms/blog/${row.id}/editor`,
           })
         }
       }

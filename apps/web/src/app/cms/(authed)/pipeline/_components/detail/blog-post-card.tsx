@@ -41,7 +41,7 @@ export function BlogPostCard({ itemId, linkedPost, onGraduate, onShowSearch }: P
       const result = await onGraduate()
       const entityId = result && 'entity_id' in result ? result.entity_id : undefined
       toast.success('Blog post criado', {
-        action: entityId ? { label: 'Abrir editor →', onClick: () => window.open(`/cms/blog/${entityId}/edit`, '_blank') } : undefined,
+        action: entityId ? { label: 'Abrir editor →', onClick: () => window.open(`/cms/blog/${entityId}/editor`, '_blank') } : undefined,
       })
       router.refresh()
     } catch {
@@ -99,7 +99,7 @@ export function BlogPostCard({ itemId, linkedPost, onGraduate, onShowSearch }: P
           </div>
           <div className="flex items-center gap-2 mt-3">
             <a
-              href={`/cms/blog/${linkedPost.id}/edit`}
+              href={`/cms/blog/${linkedPost.id}/editor`}
               target="_blank"
               rel="noopener"
               className="text-xs px-2 py-1 rounded transition-colors hover:bg-white/5"

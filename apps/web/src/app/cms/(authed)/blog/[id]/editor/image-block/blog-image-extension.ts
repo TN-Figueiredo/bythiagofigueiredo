@@ -100,7 +100,7 @@ export function getNextImageId(doc: JSONContent): string {
   function walk(node: JSONContent) {
     if (node.type === 'blogImage' && node.attrs?.id) {
       const match = (node.attrs.id as string).match(/^img-(\d+)$/)
-      if (match) maxNum = Math.max(maxNum, parseInt(match[1], 10))
+      if (match?.[1]) maxNum = Math.max(maxNum, parseInt(match[1], 10))
     }
     if (node.content) node.content.forEach(walk)
   }

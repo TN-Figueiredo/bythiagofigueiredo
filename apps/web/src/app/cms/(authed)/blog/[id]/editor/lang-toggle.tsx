@@ -93,7 +93,7 @@ export function LangToggle() {
 
   /* ---- Single version ---- */
   if (isSingle) {
-    const currentLang = langs[0]
+    const currentLang = langs[0]!
     const addLang = otherLang(currentLang)
     const meta = LANG_META[currentLang]
     const addMeta = LANG_META[addLang]

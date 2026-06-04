@@ -160,7 +160,9 @@ export function AnalyticsView({ data }: AnalyticsViewProps) {
                       color: toneColor,
                     }}>
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-                        {ins.icon === 'trendingDown'
+                        {ins.icon === 'sparkle'
+                          ? <><path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6z" /><path d="M18 14l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z" /></>
+                          : ins.icon === 'trendingDown'
                           ? <><path d="M3 7l5 6 4-4 8 9" /><path d="M21 18h-4" /><path d="M21 18v-4" /></>
                           : ins.icon === 'alertTriangle'
                           ? <><path d="M12 4l9 16H3z" /><path d="M12 10v4" /><path d="M12 17h.01" /></>

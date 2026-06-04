@@ -36,7 +36,11 @@ const VARIANT_CLASSES: Record<StatusVariant, string> = {
 /*  Component                                                         */
 /* ------------------------------------------------------------------ */
 
-export function ActionBar() {
+interface ActionBarProps {
+  children?: React.ReactNode
+}
+
+export function ActionBar({ children }: ActionBarProps) {
   const state = useEditorState()
   const dispatch = useEditorDispatch()
   const version = useEditorVersion()
@@ -66,6 +70,9 @@ export function ActionBar() {
       <span className="inline-flex items-center rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
         {state.code}
       </span>
+
+      {/* Optional children (e.g. LangToggle) */}
+      {children}
 
       {/* Center spacer */}
       <div className="flex-1" />

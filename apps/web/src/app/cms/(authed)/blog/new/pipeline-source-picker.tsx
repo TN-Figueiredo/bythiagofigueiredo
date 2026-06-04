@@ -79,7 +79,7 @@ export function PipelineSourcePicker({
         toast.error(result.error)
         return
       }
-      router.push(`/cms/blog/${result.postId}/edit`)
+      router.push(`/cms/blog/${result.postId}/editor`)
     } catch {
       toast.error('Erro ao criar post a partir do pipeline')
     } finally {

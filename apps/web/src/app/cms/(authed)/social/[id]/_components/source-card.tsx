@@ -14,7 +14,7 @@ const TYPE_BADGES: Record<string, { label: string; color: string }> = {
 }
 
 const CMS_PATHS: Record<string, (id: string) => string> = {
-  blog: (id) => `/cms/blog/${id}/edit`,
+  blog: (id) => `/cms/blog/${id}/editor`,
   newsletter: (id) => `/cms/newsletters/${id}`,
   campaign: (id) => `/cms/campaigns/${id}/edit`,
   video: (id) => `/cms/youtube?video=${id}`,
