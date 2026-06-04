@@ -1,6 +1,9 @@
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { CompetitorDashboardV2 } from './_components/competitor-dashboard-v2'
+import { computeViewGrowthSparkline } from '@/lib/youtube/sparkline-math'
+import { computeGrowthScore } from '@/lib/youtube/growth-score'
+import { getSubscriberBounds } from '@/lib/youtube/subscriber-resolution'
 import type {
   CompetitorChannelView,
   CompetitorChangeView,
@@ -92,11 +95,11 @@ export default async function CompetitorsPage({
   const { data: snapshots } = channelIds.length > 0
     ? await supabase
         .from('competitor_channel_snapshots')
-        .select('competitor_channel_id, subscriber_count, snapshot_date')
+        .select('competitor_channel_id, subscriber_count, view_count, video_count, snapshot_date')
         .in('competitor_channel_id', channelIds)
         .order('snapshot_date', { ascending: true })
         .limit(500)
-    : { data: [] as Array<{ competitor_channel_id: string; subscriber_count: number | null; snapshot_date: string }> }
+    : { data: [] as Array<{ competitor_channel_id: string; subscriber_count: number | null; view_count: number | null; video_count: number | null; snapshot_date: string }> }
 
   // ── 5. Fetch own channel stats (ALL channels) ──
   const { data: ownChannels } = await supabase
@@ -177,7 +180,7 @@ export default async function CompetitorsPage({
   }
 
   // ── Group snapshots by channel ──
-  const snapshotsByChannel = new Map<string, Array<{ subscriber_count: number | null; snapshot_date: string }>>()
+  const snapshotsByChannel = new Map<string, Array<{ subscriber_count: number | null; view_count: number | null; video_count: number | null; snapshot_date: string }>>()
   for (const s of snapshots ?? []) {
     const list = snapshotsByChannel.get(s.competitor_channel_id) ?? []
     list.push(s)
@@ -204,25 +207,57 @@ export default async function CompetitorsPage({
     const totalViews = videos.reduce((s, v) => s + (v.view_count ?? 0), 0)
     const avgEngagement = totalViews > 0 ? totalEngagement / totalViews : null
 
-    // Growth sparkline from snapshots (last 30 days)
-    const growthSparkline = snaps
-      .slice(-30)
-      .map(s => s.subscriber_count ?? 0)
+    // Growth sparkline from snapshots (view-based, last 30 data points)
+    const growthSparkline = computeViewGrowthSparkline(snaps)
 
-    // Growth delta — 7-day subscriber change (matches /sem label)
-    let growthDelta: number | null = null
+    // Subscriber growth delta (may be 0 due to YouTube rounding)
+    let subscriberGrowthDelta: number | null = null
     if (snaps.length >= 2) {
       const latest = snaps[snaps.length - 1]!
       const sevenDaysAgoStr = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10)
-      // Find the snapshot closest to 7 days ago (or oldest if < 7 days of data)
       const weekAgoSnap = snaps.reduce<(typeof snaps)[number] | null>((best, s) => {
-        if (s.snapshot_date <= sevenDaysAgoStr) return s // last one <= 7d ago (ascending order)
+        if (s.snapshot_date <= sevenDaysAgoStr) return s
         return best
       }, null) ?? snaps[0]!
       if (weekAgoSnap.snapshot_date !== latest.snapshot_date) {
-        growthDelta = (latest.subscriber_count ?? 0) - (weekAgoSnap.subscriber_count ?? 0)
+        subscriberGrowthDelta = (latest.subscriber_count ?? 0) - (weekAgoSnap.subscriber_count ?? 0)
       }
     }
+
+    // View growth delta (exact, not rounded by YouTube)
+    let viewGrowthDelta: number | null = null
+    if (snaps.length >= 2) {
+      const latest = snaps[snaps.length - 1]!
+      const sevenDaysAgoStr = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10)
+      const weekAgoSnap = snaps.reduce<(typeof snaps)[number] | null>((best, s) => {
+        if (s.snapshot_date <= sevenDaysAgoStr) return s
+        return best
+      }, null) ?? snaps[0]!
+      if (weekAgoSnap.snapshot_date !== latest.snapshot_date) {
+        viewGrowthDelta = (latest.view_count ?? 0) - (weekAgoSnap.view_count ?? 0)
+      }
+    }
+
+    // Growth score (composite signal)
+    const growthScore = computeGrowthScore({
+      snapshots: snaps,
+      videos: videos.map(v => ({
+        view_count: v.view_count,
+        like_count: v.like_count,
+        comment_count: v.comment_count,
+        published_at: v.published_at,
+      })),
+    })
+
+    // View count momentum flag
+    const viewCountGrowing = (() => {
+      if (snaps.length < 2) return false
+      const recent = snaps.slice(-7)
+      if (recent.length < 2) return false
+      return (recent[recent.length - 1]!.view_count ?? 0) > (recent[0]!.view_count ?? 0)
+    })()
+
+    const snapshotCount = snaps.length
 
     // vs-you comparison (one entry per own channel)
     const chAvgViews = videos.length > 0 ? Math.round(totalViews / videos.length) : 0
@@ -297,7 +332,7 @@ export default async function CompetitorsPage({
       addedAt: ch.added_at ?? new Date().toISOString(),
       lastSyncedAt: ch.last_synced_at,
       avgEngagement,
-      growthDelta,
+      growthDelta: viewGrowthDelta,
       growthSparkline,
       recentVideos,
       vsYou: vsYouResult,
@@ -309,6 +344,11 @@ export default async function CompetitorsPage({
       youtubeVideoCount: ch.youtube_video_count ?? null,
       fullSyncCompletedAt: ch.full_sync_completed_at ?? null,
       videoLimit: ch.video_limit ?? 50,
+      growthScore,
+      snapshotCount,
+      viewCountGrowing,
+      viewGrowthDelta,
+      subscriberGrowthDelta,
     }
   })
 

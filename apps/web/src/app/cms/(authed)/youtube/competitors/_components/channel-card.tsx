@@ -12,6 +12,7 @@ import {
   RotateCcw,
 } from 'lucide-react'
 import { fmtC, brDec, fmtRelative } from '@/lib/youtube/format'
+import { formatSubscriberCount, detectGrowthAmbiguity } from '@/lib/youtube/subscriber-resolution'
 import { SparklineChart } from './sparkline-chart'
 import { ConfirmFullSyncDialog } from './confirm-full-sync-dialog'
 import { useFullSyncProgress } from './useFullSyncProgress'
@@ -140,7 +141,7 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
       onKeyDown={e => handleKeyAction(e, () => onOpen(ch.id))}
     >
       {/* ── card-pad ── */}
-      <div style={{ padding: '14px 18px' }}>
+      <div style={{ padding: '14px 18px', position: 'relative' }}>
 
         {/* row: avatar + info + actions */}
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
@@ -172,7 +173,36 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
                   className="mono"
                   style={{ fontSize: 11.5, color: 'var(--text-dim)', marginTop: 2 }}
                 >
-                  {ch.subscriberCount != null ? `${fmtC(ch.subscriberCount)} inscritos` : '—'}
+                  {ch.subscriberCount != null ? (() => {
+                    const fmt = formatSubscriberCount(ch.subscriberCount, fmtC)
+                    return (
+                      <>
+                        {fmt.text} inscritos
+                        {fmt.isApproximate && (
+                          <span
+                            title={fmt.boundsLabel}
+                            style={{
+                              display: 'inline-block',
+                              width: 13,
+                              height: 13,
+                              lineHeight: '13px',
+                              textAlign: 'center',
+                              fontSize: 9,
+                              fontWeight: 700,
+                              borderRadius: '50%',
+                              background: 'var(--surface-3)',
+                              color: 'var(--text-muted)',
+                              marginLeft: 4,
+                              verticalAlign: 'middle',
+                              cursor: 'help',
+                            }}
+                          >
+                            ?
+                          </span>
+                        )}
+                      </>
+                    )
+                  })() : '—'}
                   {' · '}
                   {(() => {
                     if (ch.syncStatus === 'syncing') return 'sincronizando...'
@@ -237,6 +267,33 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
           </div>
         </div>
 
+        {ch.growthScore && (
+          <span
+            style={{
+              position: 'absolute',
+              top: 14,
+              right: 14,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              minWidth: 44,
+            }}
+          >
+            <span
+              style={{
+                fontSize: 20,
+                fontWeight: 700,
+                lineHeight: 1,
+                color: ch.growthScore.labelColor,
+              }}
+              className="mono"
+            >
+              {ch.growthScore.score}
+            </span>
+            <span style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 2 }}>/100</span>
+          </span>
+        )}
+
         {/* ── Metrics row ── */}
         <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: 14 }}>
 
@@ -256,30 +313,63 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
               {/* Growth */}
               <div>
                 <p className="metric-label">Crescimento</p>
-                <div
-                  className="mono"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 4,
-                    fontSize: 16,
-                    fontWeight: 600,
-                    color: sparkColor,
-                    marginTop: 2,
-                  }}
-                >
-                  {ch.growthDelta != null && ch.growthDelta >= 0 && (
-                    <TrendingUp style={{ width: 13, height: 13 }} />
-                  )}
-                  {ch.growthDelta != null && ch.growthDelta < 0 && (
-                    <TrendingDown style={{ width: 13, height: 13 }} />
-                  )}
-                  {ch.growthDelta != null
-                    ? `${ch.growthDelta >= 0 ? '+' : ''}${fmtC(ch.growthDelta)}`
-                    : '—'
-                  }
-                  <span style={{ fontWeight: 400, fontSize: 11, color: 'var(--text-dim)' }}>/sem</span>
-                </div>
+                {(() => {
+                  const delta = ch.growthDelta ?? ch.subscriberGrowthDelta
+                  const isViewBased = ch.growthDelta != null
+                  const ambiguity = detectGrowthAmbiguity(
+                    ch.subscriberCount,
+                    ch.subscriberGrowthDelta ?? null,
+                    ch.viewCountGrowing,
+                  )
+                  const showAmbiguityPill = ambiguity.isAmbiguous && (ch.growthDelta == null || ch.growthDelta === 0)
+                  return (
+                    <div
+                      className="mono"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        fontSize: 16,
+                        fontWeight: 600,
+                        color: sparkColor,
+                        marginTop: 2,
+                      }}
+                    >
+                      {delta != null && delta >= 0 && (
+                        <TrendingUp style={{ width: 13, height: 13 }} />
+                      )}
+                      {delta != null && delta < 0 && (
+                        <TrendingDown style={{ width: 13, height: 13 }} />
+                      )}
+                      {delta != null
+                        ? `${delta >= 0 ? '+' : ''}${fmtC(delta)}`
+                        : '—'
+                      }
+                      <span style={{ fontWeight: 400, fontSize: 11, color: 'var(--text-dim)' }}>
+                        {isViewBased ? 'views/sem' : '/sem'}
+                      </span>
+                      {showAmbiguityPill && (
+                        <span
+                          title={ambiguity.label}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            fontSize: 10,
+                            fontWeight: 600,
+                            background: 'var(--amber-soft, rgba(251,191,36,0.15))',
+                            color: 'var(--amber)',
+                            borderRadius: 999,
+                            padding: '1px 6px',
+                            cursor: 'help',
+                            marginLeft: 2,
+                          }}
+                        >
+                          views +
+                        </span>
+                      )}
+                    </div>
+                  )
+                })()}
               </div>
             </div>
           </div>
@@ -296,7 +386,7 @@ export function ChannelCard({ channel, onOpen, onSync, onRemove, onVideoClick }:
               />
             )}
             <span className="mono" style={{ fontSize: 9, color: 'var(--text-dim)' }}>
-              inscritos · 30 dias
+              views/dia · 30d
             </span>
           </div>
         </div>

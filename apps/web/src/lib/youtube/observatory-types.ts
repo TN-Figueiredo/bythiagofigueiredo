@@ -35,6 +35,27 @@ export interface CompetitorChannelView {
   youtubeVideoCount: number | null
   fullSyncCompletedAt: string | null
   videoLimit: number
+  /** Composite growth score 0-100 with label and sub-scores. */
+  growthScore: {
+    score: number
+    confidence: number
+    label: string
+    labelColor: string
+    breakdown: {
+      viewMomentum: number
+      engagement: number
+      uploadConsistency: number
+      audienceGrowth: number
+    }
+  } | null
+  /** Number of daily snapshots collected for this channel. */
+  snapshotCount: number
+  /** Whether view_count is growing across recent snapshots. */
+  viewCountGrowing: boolean
+  /** View-based growth delta (7-day view count change). */
+  viewGrowthDelta: number | null
+  /** Subscriber growth delta for display (may be 0 due to YouTube rounding). */
+  subscriberGrowthDelta: number | null
 }
 
 /** Competitor video as rendered in shelf, drawer, and modal. */
