@@ -13,6 +13,7 @@ let mockState: EditorState
 vi.mock('@/app/cms/(authed)/blog/[id]/editor/context', () => ({
   useEditorState: () => mockState,
   useEditorDispatch: () => mockDispatch,
+  useEditorVersion: () => mockState.content[mockState.activeLang] ?? null,
 }))
 
 /* ------------------------------------------------------------------ */
