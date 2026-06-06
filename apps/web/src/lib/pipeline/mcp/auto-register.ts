@@ -1,7 +1,7 @@
 /**
  * Maps API_REGISTRY endpoints to MCP tool names for coverage tracking.
  *
- * Each of the real endpoints (course domain has 0) maps to one of 20 MCP tools.
+ * Each of the real endpoints (course domain has 0) maps to one of 22 MCP tools.
  * Tests use this to verify MCP covers all API endpoints.
  */
 
@@ -100,6 +100,16 @@ const TOOL_RULES: Array<{ tool: string; match: ToolMatcher }> = [
     match: (ep) => ep.path.startsWith('/api/pipeline/audio-library'),
   },
 
+  // ── Research strategy layer (must precede the generic research rule) ─
+  {
+    tool: 'manage_focos',
+    match: (ep) => ep.path.startsWith('/api/pipeline/research/focos'),
+  },
+  {
+    tool: 'manage_decisions',
+    match: (ep) => ep.path.startsWith('/api/pipeline/research/decisoes'),
+  },
+
   // ── Research ──────────────────────────────────────────────────────
   {
     tool: 'manage_research',
@@ -180,7 +190,7 @@ export function getRegistryCoverage(): {
   return { mapped, unmapped }
 }
 
-/** All 20 MCP tool names in the pipeline server */
+/** All 22 MCP tool names in the pipeline server */
 export const MCP_TOOL_NAMES = [
   'create_item',
   'update_item',
@@ -196,6 +206,8 @@ export const MCP_TOOL_NAMES = [
   'match_audio',
   'manage_broll',
   'manage_research',
+  'manage_decisions',
+  'manage_focos',
   'manage_ab_test',
   'search_content',
   'manage_upnext',

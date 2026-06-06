@@ -989,4 +989,168 @@ export function registerResources(server: McpServer): void {
       return result
     },
   )
+
+  // -------------------------------------------------------------------------
+  // 29. pipeline://research/foco/active — current active quarterly focus
+  // -------------------------------------------------------------------------
+  server.resource(
+    'research-foco-active',
+    'pipeline://research/foco/active',
+    {
+      description: 'O foco estratégico do trimestre vigente (state:ativo). INVARIANTE single-active: só pode existir 1 foco ativo por site. Governança propose-vs-activate: o Cowork PROPÕE (cria com state:proposto), o dono ATIVA (activate exige confirmação). Retorna null quando não há foco ativo.',
+      mimeType: 'application/json',
+      size: 3_000,
+      annotations: { audience: ['assistant'] },
+    },
+    async (uri) => {
+      const { getActiveFoco } = await import('@/lib/pipeline/services/research-focos')
+      const { ctx } = await buildResourceCtx()
+
+      const result = await getActiveFoco(ctx)
+
+      const out = jsonResource({
+        active: result.data,
+        generatedAt: new Date().toISOString(),
+      })
+      out.contents[0]!.uri = uri.href
+      return out
+    },
+  )
+
+  // -------------------------------------------------------------------------
+  // 30. pipeline://research/decisoes — decision log grouped by horizon
+  // -------------------------------------------------------------------------
+  server.resource(
+    'research-decisoes',
+    'pipeline://research/decisoes',
+    {
+      description: 'Log de decisões estratégicas que enquadram o conteúdo (status decidido/testando/revisar, arquivadas excluídas), agrupadas por horizonte (agora > proximo > explorar, RS4). Cada decisão carrega metric + revisit + source_research_ids. Decisão com revisit vencido é dívida (RS5) e deve subir pro topo.',
+      mimeType: 'application/json',
+      size: 4_000,
+      annotations: { audience: ['assistant'] },
+    },
+    async (uri) => {
+      const { listResearchDecisions } = await import('@/lib/pipeline/services/research-decisions')
+      const { ctx } = await buildResourceCtx()
+
+      // Resource description scopes this to decidido/testando/revisar —
+      // exclude archived decisions.
+      const result = await listResearchDecisions(ctx, {
+        limit: 200,
+        status: ['decidido', 'testando', 'revisar'],
+      })
+      const decisions = result.data.data
+
+      const byHorizon: Record<string, typeof decisions> = {}
+      for (const d of decisions) {
+        ;(byHorizon[d.horizon] ??= []).push(d)
+      }
+
+      const out = jsonResource({
+        byHorizon,
+        totalDecisions: decisions.length,
+        generatedAt: new Date().toISOString(),
+      })
+      out.contents[0]!.uri = uri.href
+      return out
+    },
+  )
+
+  // -------------------------------------------------------------------------
+  // 31. pipeline://research/focos — full foco list (all states)
+  // -------------------------------------------------------------------------
+  server.resource(
+    'research-focos',
+    'pipeline://research/focos',
+    {
+      description: 'Lista completa de focos estratégicos em todos os estados (ativo, proposto, rascunho, arquivado). Diferente de foco/active (só o vigente): inclui os propostos que aguardam ativação do dono e os rascunhos em construção. Use pra ver o que o Cowork já propôs vs. o que está de fato ativo.',
+      mimeType: 'application/json',
+      size: 5_000,
+      annotations: { audience: ['assistant'] },
+    },
+    async (uri) => {
+      const { listResearchFocos } = await import('@/lib/pipeline/services/research-focos')
+      const { ctx } = await buildResourceCtx()
+
+      const result = await listResearchFocos(ctx, { limit: 200 })
+      const focos = result.data.data
+
+      const byState: Record<string, typeof focos> = {}
+      for (const f of focos) {
+        ;(byState[f.state] ??= []).push(f)
+      }
+
+      const out = jsonResource({
+        focos,
+        byState,
+        totalFocos: focos.length,
+        generatedAt: new Date().toISOString(),
+      })
+      out.contents[0]!.uri = uri.href
+      return out
+    },
+  )
+
+  // -------------------------------------------------------------------------
+  // 32. pipeline://research/items-fresca — triage backlog (status=fresca)
+  // -------------------------------------------------------------------------
+  server.resource(
+    'research-items-fresca',
+    'pipeline://research/items-fresca',
+    {
+      description: 'Backlog de triagem: research com status "fresca" (recém-entrado, ainda sem takeaway). É o que o modo TRIAGE varre primeiro. Ordenado por idade (mais antigo primeiro) — fresca > 14d é stale e precisa de takeaway ou arquivamento (RS1).',
+      mimeType: 'application/json',
+      size: 5_000,
+      annotations: { audience: ['assistant'] },
+    },
+    async (uri) => {
+      const { listResearchItems } = await import('@/lib/pipeline/services/research')
+      const { ctx } = await buildResourceCtx()
+
+      const result = await listResearchItems(ctx, { status: ['fresca'], limit: 200 })
+      const items = result.data.data
+
+      // Oldest first — that's the triage order (RS: idade prioriza).
+      const sorted = [...items].sort((a, b) => a.created_at.localeCompare(b.created_at))
+
+      const now = Date.now()
+      const STALE_MS = 14 * 86400000
+      const staleCount = sorted.filter((i) => now - Date.parse(i.created_at) > STALE_MS).length
+
+      const out = jsonResource({
+        items: sorted,
+        totalFresca: sorted.length,
+        staleCount,
+        staleThresholdDays: 14,
+        generatedAt: new Date().toISOString(),
+      })
+      out.contents[0]!.uri = uri.href
+      return out
+    },
+  )
+
+  // -------------------------------------------------------------------------
+  // 33. pipeline://research/digest — pre-computed strategy signals
+  // -------------------------------------------------------------------------
+  server.resource(
+    'research-digest',
+    'pipeline://research/digest',
+    {
+      description: 'Sinais pré-computados da estratégia para o DIGEST/Preflight: contagens por status, decisões com revisit vencido (RS5), research stale (fresca>14d / analise>30d), temas amadurecendo (≥3 itens sem foco). Leitura única que alimenta o resumo pro dono sem múltiplas chamadas.',
+      mimeType: 'application/json',
+      size: 4_000,
+      annotations: { audience: ['assistant'] },
+    },
+    async (uri) => {
+      const { computeResearchDigest } = await import('@/lib/pipeline/research-digest')
+      const supabase = getSupabaseServiceClient()
+      const { siteId } = await buildResourceCtx()
+
+      const signals = await computeResearchDigest(supabase, siteId)
+
+      const out = jsonResource(signals)
+      out.contents[0]!.uri = uri.href
+      return out
+    },
+  )
 }

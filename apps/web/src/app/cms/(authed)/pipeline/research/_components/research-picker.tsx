@@ -1,3 +1,5 @@
+/** @deprecated Not imported anywhere. Will be replaced by theme-based picker if needed. */
+
 'use client'
 
 import { useState, useCallback, useEffect, useRef } from 'react'
@@ -69,6 +71,7 @@ export function ResearchPicker({
 
   return (
     <div
+      className="animate-in fade-in duration-150"
       style={{
         position: 'fixed',
         inset: 0,
@@ -79,8 +82,13 @@ export function ResearchPicker({
         zIndex: 50,
       }}
       onClick={onClose}
+      onKeyDown={(e) => { if (e.key === 'Escape') onClose() }}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Vincular pesquisa"
     >
       <div
+        className="animate-in fade-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
         style={{
           width: 480,
@@ -102,6 +110,7 @@ export function ResearchPicker({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Buscar pesquisa..."
+            aria-label="Buscar pesquisas"
             autoFocus
             style={{
               width: '100%',
@@ -118,19 +127,26 @@ export function ResearchPicker({
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '4px 0' }}>
           {loading && (
-            <div style={{ padding: 16, textAlign: 'center', color: 'var(--gem-muted)', fontSize: 12 }}>
-              Buscando...
+            <div className="flex flex-col items-center gap-2 py-6" style={{ color: 'var(--gem-muted)' }}>
+              <span className="animate-spin text-sm" style={{ display: 'inline-block' }}>{'⟳'}</span>
+              <span className="text-xs">Buscando pesquisas...</span>
             </div>
           )}
           {!loading && results.length === 0 && (
-            <div style={{ padding: 16, textAlign: 'center', color: 'var(--gem-muted)', fontSize: 12 }}>
-              Nenhum resultado.
+            <div className="flex flex-col items-center gap-2 py-6 text-center px-4">
+              <span style={{ fontSize: 18, opacity: 0.2 }}>{'🔍'}</span>
+              <span className="text-xs" style={{ color: 'var(--gem-muted)' }}>
+                {query.trim()
+                  ? 'Nenhuma pesquisa encontrada para esta busca.'
+                  : 'Nenhuma pesquisa disponível para vincular.'}
+              </span>
             </div>
           )}
           {results.map((r) => (
             <button
               key={r.id}
               onClick={() => { onSelect(r.id); onClose() }}
+              className="transition-colors duration-100"
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -141,6 +157,13 @@ export function ResearchPicker({
                 border: 'none',
                 cursor: 'pointer',
                 backgroundColor: 'transparent',
+                borderRadius: 4,
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.04)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent'
               }}
             >
               <span
@@ -157,7 +180,7 @@ export function ResearchPicker({
                   {r.title}
                 </div>
                 <div style={{ fontSize: 10, color: 'var(--gem-muted)' }}>
-                  {r.topic_icon} {r.topic_path} · {r.word_count.toLocaleString()} palavras
+                  {r.topic_icon} {r.topic_path} · {(r.word_count ?? 0).toLocaleString()} palavras
                 </div>
               </div>
             </button>

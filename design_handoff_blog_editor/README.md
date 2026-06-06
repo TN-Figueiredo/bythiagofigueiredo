@@ -3,7 +3,9 @@
 ## Overview
 This is the **Blog module's post editor** for the ByThiagoFigueiredo CMS — the screen an author opens when they click a post card in the Blog board. It replaces a confusing earlier version where a pipeline item and its "blog post" were two separate, separately-titled entities (which produced the "Título do post → Sem título" / "/blog/pt/---" problem).
 
-The redesign unifies them: **the pipeline item *is* the post.** There is one title (the document H1), the slug derives from it, and the whole post lifecycle (Ideia → Rascunho → Imagens → SEO → Publicação) flows through one clean, document-first canvas. A post can have independent **PT-BR and/or EN versions** (separate content, not auto-translations), and published posts can be **edited and re-published with an "updated" indicator** that the public site would surface.
+The redesign unifies them: **the pipeline item *is* the post.** There is one title (the document H1), the slug derives from it, and the whole post lifecycle (**Ideia → Conteúdo → Imagens → SEO → Publicação**) flows through one clean, document-first canvas. A post can have independent **PT-BR and/or EN versions** (separate content, not auto-translations), published posts can be **edited and re-published with an "updated" indicator** the public site surfaces, and **social distribution is planned inside the Publicação step** (the platform supports scheduling the link to social networks directly).
+
+> Note on stage naming: the writing stage is labeled **"Conteúdo"** (not "Rascunho") so it never collides with the lifecycle word *Rascunho* (which is a status). "Ideia" is a distinct concept-brief stage (hook + synopsis), not a copy of the writing stage.
 
 > Scope of this handoff: **the Blog post editor only.** The Blog listing (Editorial kanban + Agenda) and other CMS modules are out of scope here.
 
@@ -56,16 +58,29 @@ For SEO/Imagens/Publicação, the canvas shows a compact header instead of the b
 - Any stage tab is clickable at any time. There is **no readiness meter and no checklist** (those were removed as noise — the stages are inherently sequential).
 - The **publish gate** (`publishGate()`) is the single real lock, evaluated on the Publicação stage. It requires: **Título**, **Conteúdo** (body has text), and **Imagens** (cover + every inline content image marked done). When unmet, a `.gate-box` lists the missing items as chips (`.gate-chip`) that jump to the relevant stage, and the **Agendar / Publicar** buttons are disabled.
 
-### 4. Images are defined by the draft
-- The body can contain **inline image blocks** (`{ t: "img", id, alt, status }`, e.g. `img-1`, `img-2`, `img-3`). In Rascunho they render as `.doc-img` placeholders (id badge, "sem imagem" state, alt/prompt, and an arrow that jumps to Imagens).
-- The **Imagens** stage aggregates **cover/thumbnail (1200×675) + every inline content image** sourced from the draft. A summary shows `done/total`. Each image row (`.img-row`) supports an interactive produce flow: **Gerar → "gerando…" (spinner) → choose among 3 variant thumbnails → "no ar"**, with **Trocar** to revert, and **Gerar todas** to fill everything. Content-image **alt text is editable inline**. Image state feeds the publish gate.
+### 4. Images are defined by the draft (cover above the title + inline)
+- The **cover/thumbnail sits above the title** in the Conteúdo canvas as a hero band (`.draft-cover-hero` / cover image) — when ready it shows the real image with a "Trocar capa" hover affordance; when pending, a placeholder that routes to Imagens.
+- The body can contain **inline image blocks** (`{ t: "img", id, alt, status, src }`, e.g. `img-1`, `img-2`, `img-3`). In Conteúdo they render as `.doc-img` placeholders (id badge, "sem imagem" state, alt/prompt, and an arrow that jumps to Imagens).
+- The **Imagens** stage (`ImagensStage`) is a **visual manager where images are the star**, aggregating the cover + every inline content image sourced from the draft:
+  - A progress header (`.imgmgr-head`): `done/total` count + a progress bar + a **Gerar todas** button.
+  - A large **cover hero** (`.cover-hero`, ~16:9) with states: empty (Gerar com IA / Enviar imagem), generating (shimmer), choosing (variant picker), done (image + Trocar/Ver overlay).
+  - Content images as a **card grid** (`.img-grid` / `.img-tile`), each 16:9 with editable alt, status, and per-tile Gerar/Enviar.
+  - The **variant picker** (`.imgvar`) shows **three real framed image thumbnails** (different crop/filter), not color blocks — hover reveals "Usar esta".
+- Each slot flow: **Gerar (AI) or Enviar (upload) → choose a variant → done**, with **Trocar** to revert. Image state feeds the publish gate (`Imagens` requires cover + all inline done).
 
-### 5. Updating a published post
+### 5. Distribution is part of publishing (NEW)
+- The **Publicação** stage embeds a **distribution planner** (`DistributionPlanner` / `.dist-plan`) — social distribution is planned at publish time, not as an afterthought, because the platform schedules the post's link to social networks directly.
+- Platforms (`DIST_PLATFORMS`): **Instagram** (card template), **Bluesky** (link share), **Facebook** (link + capa), **Comunidade YouTube** (post + thumb). Each row toggles on/off (colored checkbox) and, when on, exposes a **timing** chip — `Com o post` / `+1 h` / `+1 dia` (`DIST_WHEN`).
+- **Soft-mandatory nudge:** with **zero** channels selected, a `.dist-remind` banner warns that a post without distribution dies in the feed and prompts picking at least one (it is a reminder, not a hard block). With ≥1, a `.dist-summary` confirms how many posts will be scheduled.
+- The primary action label **adapts**: `Publicar` → `Publicar + N redes`; scheduling carries the channel count too.
+- After publish, a **live distribution status** block (`.dist-live`) lists the channels the link went/will go out on, and an **Abrir Painel Social** button hands off to the social module for caption/timing fine-tuning.
+
+### 6. Updating a published post
 - Editing any field of a **published** version sets `dirty = true`; the status badge flips from **Publicado** (green, `.ed-status.live`) to **Alterações pendentes** (amber, `.ed-status.pending`).
 - On Publicação, a published+dirty version shows an **update box** ("Alterações não publicadas") with an **Atualizar no site** button, plus dates ("Publicado em <date>"). Re-publishing clears `dirty` and stamps **Atualizado em <date>** — the indicator the public front-end would render to signal the post changed.
 - The inspector's **No site / Distribuição** card mirrors this: live/pending status, the URL, published + updated dates, and an "Atualizar no site" button while dirty.
 
-### 6. Focus mode
+### 7. Focus mode
 - The Focus toggle (`.ed-iconbtn`, eye icon) hides the stage bar and the inspector, widening the document to ~760px for distraction-free writing. A floating `.focus-exit` pill and the **Esc** key exit it.
 
 ---
@@ -89,8 +104,11 @@ Each post (pipeline item) carries shared metadata plus one entry per language. A
   publishedAt: string|null,
   updatedAt: string|null,
   dirty: boolean,          // edited since last publish
+  coverImg: string|null,   // chosen cover image src
 }
 ```
+
+**Distribution plan** (Publicação stage state): a map `platformId → timing` where `platformId ∈ {instagram, bluesky, facebook, youtube}` and `timing ∈ {with, plus1, plus1d}`. Empty map = the soft-mandatory reminder state.
 
 `Block` (body) is one of:
 - `{ t: "p", html }` — paragraph (inline `<b>`, `<span class="lk">` links allowed)
@@ -152,8 +170,8 @@ No raster/image assets are required. Cover and inline images are placeholders (C
 ---
 
 ## Files in this bundle (`reference/`)
-- `views-draft.jsx` — the editor shell: action bar, language toggle (+ add/remove + confirm), stage control, document canvas (Ideia/Rascunho incl. inline images), Focus mode, and the per-version content model + slug/dirty/publish logic.
-- `views-draft-stages.jsx` — shared helpers (`EDITOR_STAGES`, `STAGE_MAP`, `deriveSlug`, `publishGate`) and the SEO, Imagens (interactive generate→choose flow), and Publicação (incl. update flow) stage panels.
+- `views-draft.jsx` — the editor shell: action bar, language toggle (+ add/remove + confirm), stage control, document canvas (Ideia concept-brief / Conteúdo writing incl. inline images + cover-above-title), Focus mode, and the per-version content model + slug/dirty/publish logic.
+- `views-draft-stages.jsx` — shared helpers (`EDITOR_STAGES`, `STAGE_MAP`, `deriveSlug`, `publishGate`) and the SEO, Imagens (visual manager: cover hero + content grid + real-thumbnail variant picker + upload), and Publicação (title alts, publish gate, the `DistributionPlanner`, and the published-update flow) stage panels.
 - `views-draft-inspector.jsx` — the inspector cards: Detalhes (slug, excerpt, category & tags), Distribuição (site status + dates + social), Histórico, Arquivar.
 - `blog.css` — all editor-specific styles (search `DRAFT EDITOR v3/v4`, `IMAGES`, `lang-`, `ed-`, `doc-`, `img-`, `gate-`, `update-`, `insp`).
 - `styles.css` — global design tokens (dark + light), base elements, sidebar/topbar primitives, buttons (`.btn`, `.btn.sm`, `.btn.primary`).
@@ -162,3 +180,8 @@ No raster/image assets are required. Cover and inline images are placeholders (C
 
 ## How to read the prototype locally
 Open `cms/index.html` in the running project, go to **Blog**, and click a post card (e.g. "AI Empire" = draft with pending images; "Aprendi Inglês" = published with an EN sibling). The editor opens with everything wired.
+
+---
+
+## Known future enhancements (not yet in the prototype)
+- **Template selection for social/cover (Canva or similar).** The Imagens stage currently offers *Gerar com IA* / *Enviar imagem* per slot. A future iteration should let the author **pick a branded template** (e.g. a Canva template or an internal preset) for the cover and the Instagram card, so distribution assets stay on-brand without starting from scratch. Natural insertion points: a third action alongside *Gerar/Enviar* on `.cover-hero` and `.img-tile` ("Escolher template"), and a template picker in the `DistributionPlanner` per platform (especially Instagram's "card template"). Treat the chosen template id as part of the image/distribution state.

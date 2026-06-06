@@ -1,0 +1,105 @@
+/* ============================================================
+   CMS Topbar — design handoff: styles.css .topbar
+   Scoped under [data-area="cms"] to avoid polluting public site.
+   ============================================================ */
+
+.cms-topbar {
+  height: 52px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--cms-border);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 24px;
+  /* Solid sticky bar: content scrolls cleanly under it. The previous
+     gradient faded to transparent in the bottom 30%, so scrolled content
+     bled through behind the bell and the bar read as "half-fixed". */
+  background: var(--cms-bg);
+  position: sticky;
+  top: 0;
+  z-index: 40;
+}
+
+.cms-topbar .tb-title {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  color: var(--cms-text);
+}
+
+.cms-topbar .tb-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ---- icon button (bell, settings, etc.) ---- */
+/* `.cms-bell` lets the standalone NotificationBell carry the same styling when
+   it's dropped into the package <CmsTopbar actions> slot (outside .cms-topbar). */
+.cms-topbar .icon-btn,
+.cms-bell .icon-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  color: var(--cms-text-muted);
+  background: var(--cms-surface);
+  border: 1px solid var(--cms-border);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease, transform 0.12s ease;
+}
+.cms-topbar .icon-btn:hover,
+.cms-bell .icon-btn:hover {
+  color: var(--cms-text);
+  background: var(--cms-surface-hover);
+  border-color: var(--cms-border-strong, var(--cms-border));
+  transform: translateY(-1px);
+}
+.cms-topbar .icon-btn:active,
+.cms-bell .icon-btn:active {
+  transform: scale(0.9);
+  transition-duration: 0.05s;
+}
+.cms-topbar .icon-btn.active,
+.cms-bell .icon-btn.active {
+  background: var(--cms-accent-subtle);
+  color: var(--cms-accent);
+  border-color: transparent;
+}
+
+/* ---- notification badge dot ---- */
+.cms-topbar .notif-dot,
+.cms-bell .notif-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 10px;
+  background: var(--cms-accent);
+  color: var(--pb-ink-on-accent, #1a120a);
+  font-size: 9.5px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--cms-bg);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  pointer-events: none;
+}
+.cms-topbar .notif-dot.crit,
+.cms-bell .notif-dot.crit {
+  background: var(--cms-red);
+  color: #fff;
+}
+
+@media (max-width: 768px) {
+  .cms-topbar {
+    padding: 0 16px;
+    height: 48px;
+  }
+}

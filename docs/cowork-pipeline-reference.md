@@ -1389,6 +1389,26 @@ Resumo dos endpoints disponíveis:
 
 ## Research Library
 
+A Research Library deixou de ser uma lista de tópicos e virou um **sistema estratégico de 3 camadas** que segue o fluxo `research → takeaway → decisão → foco`. O papel do Cowork aqui é de **estrategista**: transformar research bruto em apostas, não acumular fatos soltos. Contexto sobre contagem — sempre diga *por quê*, não só *quantos*.
+
+As três camadas:
+
+| Camada | O que é | Quem cria | Quem decide |
+|--------|---------|-----------|-------------|
+| **Research items** | Material bruto + `takeaways[]` extraídos | Cowork ou Thiago | — |
+| **Decisões** | Aposta mensurável que nasce de takeaways | Cowork rascunha, Thiago confirma | Thiago |
+| **Focos** | O foco estratégico do trimestre (1 ativo) | Cowork **propõe**, Thiago **ativa** | **Só o dono ativa** |
+
+**Modelo vivo** (verificado contra `research-types.ts` + `research-schemas.ts`):
+
+- **Research item** — `status`: `fresca` \| `analise` \| `aplicada` \| `arquivada`. Campos: `theme_id` (`asia` \| `ia` \| `dev` \| `games` \| `grana` \| `canal`), `takeaways[]` (até 10), `pinned`, `summary`, `content_html`/`content_md`, `source` (`cowork` \| `thiago` \| `dupla`).
+- **Decisão** — `status`: `decidido` \| `testando` \| `revisar` \| `arquivado`. `horizon`: `agora` \| `proximo` \| `explorar`. 5 campos de detalhe (`context`, `consequences[]`, `metric`, `revisit`, `history[]`) + `drives[]` (o que a decisão alimenta) + `source_research_ids` (liga às pesquisas que a embasaram).
+- **Foco** — `state`: `ativo` \| `proposto` \| `rascunho` \| `arquivado`. `horizon`: `agora` \| `proximo` \| `explorar`. Campos: `title`, `description`, `rationale`, `metric`, `window_label`, `theme_ids[]`, `pinned_research[]`. **Invariante single-active: só 1 foco `ativo` por vez.**
+
+> **Importante:** Por enquanto só os **research items** têm API REST (endpoints abaixo). **Focos e Decisões são gerenciados exclusivamente via tools MCP** (`manage_focos`, `manage_decisions`) — ainda não há endpoints REST para eles. Veja as subseções Focos e Decisões mais abaixo.
+
+### REST endpoints — research items
+
 Auth: `X-Pipeline-Key` header (write permission para mutações). **NÃO use `Authorization: Bearer`.**
 
 ### POST /api/pipeline/research — Create/upsert research item
@@ -1425,7 +1445,7 @@ Default: lightweight (no body content). Use `?include=content` for full content_
 ```
 GET /api/pipeline/research?topic_slug=gaming-history&include=content
 GET /api/pipeline/research?pipeline_item_id=<uuid>&include=content
-GET /api/pipeline/research?status=new,reviewed&search=wyd
+GET /api/pipeline/research?status=fresca,analise&search=wyd
 ```
 
 ### GET /api/pipeline/research/:id — Full item detail
@@ -1441,11 +1461,13 @@ curl -X PATCH https://bythiagofigueiredo.com/api/pipeline/research/<uuid> \
   -H "X-Pipeline-Key: $KEY" \
   -H "Content-Type: application/json" \
   -H "X-Expected-Version: 1" \
-  -d '{ "status": "archived" }'
+  -d '{ "status": "arquivada", "theme_id": "games", "takeaways": ["WYD provou que MMORPG BR sobrevive com comunidade pequena e leal"] }'
 ```
 
-Updatable fields: `title`, `content_md`, `summary`, `sources`, `status` (`new`, `reviewed`, `starred`, `archived`).
+Updatable fields: `title`, `content_md`, `summary`, `sources`, `status` (`fresca`, `analise`, `aplicada`, `arquivada`), `theme_id`, `source`, `pinned`, `takeaways`.
 Returns 409 on version conflict.
+
+> **Regra do estrategista:** todo item que vira `analise` deve gerar **≥1 takeaway** — research sem takeaway é ruído. Sem takeaway, arquive.
 
 ### DELETE /api/pipeline/research/:id — Delete research item
 
@@ -1466,6 +1488,60 @@ curl -X DELETE https://bythiagofigueiredo.com/api/pipeline/research/<uuid> \
 ```
 
 Max 50 items. Each processed independently; partial failures don't block others.
+
+### Decisões (via tool MCP `manage_decisions`)
+
+Uma **decisão** é uma aposta que o dono tomou, registrada e ligada às pesquisas que a embasaram. **O Cowork nunca decide sozinho** — ele rascunha a decisão a partir dos takeaways de um tema e conecta as fontes; o Thiago confirma.
+
+Estados (`status`): `decidido` → `testando` → `revisar` → `arquivado`. Horizonte (`horizon`): `agora` (próximos 3 meses) > `proximo` (3 a 6 meses) > `explorar` (apostas / backlog) — use isso pra priorizar o que surfacar.
+
+Os **5 campos de detalhe** que tornam a decisão completa:
+
+| Campo | O que captura |
+|-------|---------------|
+| `context` | O quadro no qual a decisão foi tomada — o "estávamos vendo isto". |
+| `consequences[]` | O que muda na prática por causa dela. |
+| `metric` | Como você sabe se deu certo. **Decisão sem `metric` está incompleta.** |
+| `revisit` | Quando reavaliar (ex.: "Q3 2026"). `revisit` vencido é dívida — sobe pro topo. |
+| `history[]` | Trilha de mudanças: `{ label, date, note }`. |
+
+Além desses: `drives[]` (o que a decisão alimenta — focos, formatos, séries) e `source_research_ids` (UUIDs dos research items que a embasaram). **Decisão sem `metric` + `source_research_ids` está incompleta** — não a deixe nesse estado.
+
+Ações da tool: `list` · `get` · `create` · `update` · `archive` · `link_research` · `unlink_research`.
+
+### Focos (via tool MCP `manage_focos`)
+
+O **foco** é a aposta estratégica do trimestre. **Invariante dura: só pode existir 1 foco `ativo` por vez** (single-active). O Cowork **propõe** (`state: proposto`) quando um tema amadurece — **mas só o dono ativa**. Nunca chame `activate` por conta própria.
+
+Estados (`state`):
+
+| Estado | Significado |
+|--------|-------------|
+| `rascunho` | Esboço, ainda não oferecido ao dono. |
+| `proposto` | Cowork propôs; aguardando o dono ativar. |
+| `ativo` | No ar — o foco do trimestre (no máximo 1). |
+| `arquivado` | Encerrado. |
+
+Horizonte (`horizon`): `agora` \| `proximo` \| `explorar`. Campos: `title`, `description`, `rationale`, `metric`, `window_label`, `theme_ids[]` (até 6), `pinned_research[]` (research fixada como evidência). Research pinada no foco ativo tem **prioridade máxima** na hora de surfacar — tema pinado é tema quente.
+
+Ações da tool: `list` · `get` · `get_active` · `create` · `update` · `save_full` · `propose` · `activate` · `archive` · `link_research` · `unlink_research`.
+
+> **`activate` exige confirmação** e só deve ser disparada por ordem explícita do dono. O Cowork propõe; o dono ativa.
+
+### Fluxo do estrategista
+
+```
+research (fresca)
+   └─ TRIAGE → extrai takeaways, atribui theme_id, marca analise
+        └─ DISTILL → takeaways de um tema viram uma decisão
+              (context + consequences + metric + revisit + source_research_ids)
+              └─ PROPOR-FOCO → tema maduro vira foco state:proposto
+                    └─ [dono ativa] → foco ativo do trimestre
+```
+
+Ranqueamento na triagem: **Surface-now** (pinada, OU `fresca` < 7d, OU alimenta o foco `agora` → ler e extrair takeaway) → **Madura** (≥3 itens no tema sem foco → PROPOR-FOCO) → **Stale** (`fresca` > 14d OU `analise` > 30d → flag/arquivar) → **Backlog** (resto, fica quieto).
+
+> **Detalhes operacionais e estratégia:** ver a skill-reference **"Research Strategist"** e `GET /api/pipeline/docs/research`.
 
 ---
 

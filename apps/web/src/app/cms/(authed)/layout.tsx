@@ -18,7 +18,7 @@ import { fetchLayoutCounts } from '@/lib/cms/layout-counts'
 import { SidebarBadges } from '@/components/cms/sidebar-badges'
 import { SiteTimezoneProvider } from '@/lib/cms/site-timezone-context'
 import { NotificationProvider } from '@/lib/notifications/notification-context'
-import { NotificationBell } from './_shared/notification-bell'
+import { CmsTopbar } from './_shared/cms-topbar'
 import { buildCmsSections, CMS_SETTINGS_ITEM } from './_shared/cms-sections'
 import Link from 'next/link'
 
@@ -95,9 +95,7 @@ export default async function Layout({ children }: { children: ReactNode }) {
               settingsItem={CMS_SETTINGS_ITEM}
               badges={badges}
             >
-              <div className="fixed top-3 right-4 z-[60]">
-                <NotificationBell />
-              </div>
+              <CmsTopbar />
               <SidebarBadges data={badgeData} />
               {children}
             </CmsShell>

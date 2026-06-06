@@ -8,6 +8,8 @@ import * as edgesService from './services/edges'
 import * as audioService from './services/audio'
 import * as brollService from './services/broll'
 import * as researchService from './services/research'
+import * as decisionsService from './services/research-decisions'
+import * as focosService from './services/research-focos'
 import * as abTestService from './services/ab-tests'
 import * as observatoryService from './services/youtube-observatory'
 import * as analyticsService from './services/youtube-analytics'
@@ -396,8 +398,14 @@ const ManageResearchShape = {
     title: z.string().max(200),
     accessed_at: z.string().datetime().optional(),
   })).max(50).optional(),
-  status: z.enum(['new', 'reviewed', 'starred', 'archived']).optional()
-    .describe('new: just added. reviewed: checked. starred: important. archived: hidden.'),
+  status: z.enum(['fresca', 'analise', 'aplicada', 'arquivada']).optional()
+    .describe('fresca: just added. analise: under review. aplicada: applied to content. arquivada: hidden.'),
+  theme_id: z.enum(['asia', 'ia', 'dev', 'games', 'grana', 'canal']).optional()
+    .describe('Tema estratégico do item (asia, ia, dev, games, grana, canal)'),
+  pinned: z.boolean().optional()
+    .describe('Fixa o item no topo da pesquisa'),
+  takeaways: z.array(z.string().max(500)).max(10).optional()
+    .describe('Conclusões/aprendizados curtos extraídos do item (até 10)'),
   pipeline_item_id: z.string().uuid().optional()
     .describe('Pipeline item UUID (for link/unlink)'),
   link_id: z.string().uuid().optional()
@@ -436,6 +444,119 @@ const ManageResearchShape = {
     .describe('Token from dry_run for delete actions'),
   dry_run: z.boolean().default(false)
     .describe('Preview changes without executing'),
+}
+
+// ---- 21. manage_decisions ----
+//
+// Decisões estratégicas: "você decide, o Cowork registra/atualiza". O Cowork
+// nunca decide sozinho — ele documenta a decisão do dono e a conecta às
+// pesquisas (research items) que a embasaram.
+const ManageDecisionsShape = {
+  action: z.enum(['list', 'get', 'create', 'update', 'archive', 'link_research', 'unlink_research'])
+    .describe('list: decisões com filtros (horizon/status/theme). get: uma decisão com suas fontes. create: registra uma decisão tomada pelo dono. update: ajusta campos de uma decisão. archive: marca como arquivada (status:arquivado). link_research: conecta uma pesquisa como fonte. unlink_research: remove a fonte.'),
+  id: z.string().uuid().optional()
+    .describe('UUID da decisão (obrigatório para get/update/archive/link_research/unlink_research)'),
+  // ── filters (list) ──
+  horizon: z.enum(['agora', 'proximo', 'explorar']).optional()
+    .describe('Horizonte estratégico — agora: foco imediato (próximos meses). proximo: a seguir. explorar: apostas e backlog. No create/update define o horizonte da decisão; no list filtra por ele.'),
+  // 'arquivado' is intentionally NOT a value here: archiving goes through the
+  // dedicated `archive` action (dry_run + confirmation_token gate). Allowing
+  // status:'arquivado' via plain create/update would bypass that gate.
+  status: z.enum(['decidido', 'testando', 'revisar']).optional()
+    .describe('Status — decidido: decisão firmada. testando: em teste. revisar: precisa revisar. No create/update define o status; no list filtra por ele. Para arquivar use a ação archive.'),
+  theme_id: z.enum(['asia', 'ia', 'dev', 'games', 'grana', 'canal']).optional()
+    .describe('Tema estratégico (asia, ia, dev, games, grana, canal). No create/update marca o tema da decisão; no list filtra por ele.'),
+  limit: z.number().int().min(1).max(100).default(50)
+    .describe('Máximo de resultados (list)'),
+  offset: z.number().int().min(0).optional()
+    .describe('Deslocamento para paginação (list)'),
+  // ── create / update fields (mirror ResearchDecisionCreate/UpdateSchema) ──
+  title: z.string().min(1).max(500).optional()
+    .describe('Título curto da decisão (obrigatório no create)'),
+  rationale: z.string().max(5000).nullable().optional()
+    .describe('Racional: por que essa decisão foi tomada'),
+  date_label: z.string().max(50).nullable().optional()
+    .describe('Rótulo de data legível (ex.: "Q2 2026", "jun/26")'),
+  drives: z.array(z.string().max(100)).max(10).optional()
+    .describe('O que essa decisão impulsiona/habilita (lista curta de drivers)'),
+  // ── decision fullscreen detail fields (mirror ResearchDecisionCreate/UpdateSchema) ──
+  context: z.string().max(5000).nullable().optional()
+    .describe('Contexto: o cenário/pano de fundo que levou à decisão'),
+  consequences: z.array(z.string().max(500)).max(20).optional()
+    .describe('Consequências/trade-offs assumidos com a decisão (até 20)'),
+  metric: z.string().max(500).nullable().optional()
+    .describe('Métrica de sucesso — como saberemos que a decisão deu certo'),
+  revisit: z.string().max(100).nullable().optional()
+    .describe('Quando revisitar a decisão (ex.: "Q3 2026")'),
+  history: z.array(z.object({
+    label: z.string().max(100),
+    date: z.string().max(50),
+    note: z.string().max(1000).nullable().optional(),
+  })).max(50).optional()
+    .describe('Histórico de mudanças de status da decisão (até 50 entradas)'),
+  source_research_ids: z.array(z.string().uuid()).max(20).optional()
+    .describe('UUIDs de research items que embasaram a decisão (sincronizados na junção)'),
+  source_notes: z.record(z.string().uuid(), z.string().max(500)).optional()
+    .describe('Notas opcionais por research_id explicando como cada fonte pesou'),
+  // ── link / unlink research ──
+  research_id: z.string().uuid().optional()
+    .describe('UUID do research item (para link_research/unlink_research)'),
+  note: z.string().max(500).optional()
+    .describe('Nota opcional sobre a conexão decisão↔pesquisa (para link_research)'),
+  // ── safety ──
+  dry_run: z.boolean().default(false)
+    .describe('Pré-visualiza a mudança sem executar'),
+  confirmation_token: z.string().optional()
+    .describe('Token retornado por um dry_run anterior (para confirmar archive)'),
+}
+
+// ---- 22. manage_focos ----
+//
+// Foco estratégico do momento: "você decide, o Cowork propõe". O Cowork pode
+// PROPOR um foco (state:proposto), mas só o dono ATIVA. Há no máximo um foco
+// ativo por site — a ativação é atômica via RPC activate_research_foco, que
+// rebaixa o foco ativo anterior. O Cowork nunca ativa sem confirmação.
+const ManageFocosShape = {
+  action: z.enum(['list', 'get', 'get_active', 'create', 'update', 'save_full', 'propose', 'activate', 'archive', 'link_research', 'unlink_research'])
+    .describe('list: focos com filtro de estado. get: um foco com temas/pesquisas. get_active: o foco ativo atual (único). create: cria foco (inativo). update: ajusta campos. save_full: upsert atômico + diff-sync de temas e pesquisas. propose: o Cowork propõe um foco (state:proposto) para o dono avaliar. activate: promove a único foco ativo, rebaixando o anterior (alto impacto — exige confirmação). archive: arquiva e desativa. link_research/unlink_research: fixa/remove uma pesquisa.'),
+  id: z.string().uuid().optional()
+    .describe('UUID do foco (obrigatório para get/update/activate/archive/link_research/unlink_research)'),
+  // ── filter (list) ──
+  state: z.enum(['ativo', 'proposto', 'rascunho', 'arquivado']).optional()
+    .describe('Estado — ativo: foco vigente. proposto: sugerido pelo Cowork, aguardando o dono. rascunho: em elaboração. arquivado: encerrado. No create/update define o estado; no list filtra por ele.'),
+  limit: z.number().int().min(1).max(100).default(50)
+    .describe('Máximo de resultados (list)'),
+  offset: z.number().int().min(0).optional()
+    .describe('Deslocamento para paginação (list)'),
+  // ── create / update fields (mirror ResearchFocoCreate/UpdateSchema) ──
+  title: z.string().min(1).max(300).optional()
+    .describe('Título do foco (obrigatório no create/save_full/propose)'),
+  description: z.string().max(3000).nullable().optional()
+    .describe('Descrição do foco (markdown)'),
+  rationale: z.string().max(3000).nullable().optional()
+    .describe('Racional: por que esse é o foco do momento'),
+  metric: z.string().max(500).nullable().optional()
+    .describe('Métrica de sucesso — como saberemos que o foco avançou'),
+  window_label: z.string().max(100).nullable().optional()
+    .describe('Janela temporal legível (ex.: "junho/2026")'),
+  horizon: z.enum(['agora', 'proximo', 'explorar']).optional()
+    .describe('Horizonte — agora: imediato. proximo: a seguir. explorar: apostas/exploração.'),
+  theme_ids: z.array(z.enum(['asia', 'ia', 'dev', 'games', 'grana', 'canal'])).max(6).optional()
+    .describe('Temas estratégicos do foco (até 6: asia, ia, dev, games, grana, canal)'),
+  pinned_research_ids: z.array(z.string().uuid()).max(30).optional()
+    .describe('UUIDs de research items fixados neste foco (sincronizados na junção)'),
+  pinned_notes: z.record(z.string().uuid(), z.string().max(500)).optional()
+    .describe('Notas opcionais por research_id explicando por que cada pesquisa foi fixada'),
+  // ── link / unlink research ──
+  research_id: z.string().uuid().optional()
+    .describe('UUID do research item (para link_research/unlink_research)'),
+  note: z.string().max(500).optional()
+    .describe('Nota opcional sobre a conexão foco↔pesquisa (para link_research)'),
+  // ── safety ──
+  dry_run: z.boolean().default(false)
+    .describe('Pré-visualiza a mudança sem executar'),
+  confirmation_token: z.string().optional()
+    .describe('Token retornado por um dry_run anterior (obrigatório para confirmar activate)'),
 }
 
 // ---- 15. manage_ab_test ----
@@ -679,6 +800,24 @@ export function registerTools(server: McpServer): void {
     ManageResearchShape,
     WRITE,
     async (params) => researchService.manageResearch(params),
+  )
+
+  // 21. manage_decisions
+  server.tool(
+    'manage_decisions',
+    'Registra e mantém as decisões estratégicas do dono (você decide, o Cowork documenta): list/get/create/update/archive e conecta cada decisão às pesquisas que a embasaram (link_research/unlink_research).',
+    ManageDecisionsShape,
+    DESTRUCTIVE,
+    async (params) => decisionsService.manageDecisions(params),
+  )
+
+  // 22. manage_focos
+  server.tool(
+    'manage_focos',
+    'Gerencia o foco estratégico do momento (você decide, o Cowork propõe): list/get/get_active/create/update/save_full e propose (Cowork sugere). activate promove a único foco ativo, rebaixando o anterior via RPC activate_research_foco e exigindo confirmação. archive encerra. link_research/unlink_research fixam pesquisas.',
+    ManageFocosShape,
+    DESTRUCTIVE,
+    async (params) => focosService.manageFocos(params),
   )
 
   // 15. manage_ab_test

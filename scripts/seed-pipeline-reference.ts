@@ -62,6 +62,7 @@ const ENTRIES: ReferenceEntry[] = [
       perf_review: ['personal-profile', 'perf-review-benchmarks', 'perf-review-feedback-templates', 'perf-review-analytics-guide', 'perf-review-memory'],
       curator: ['content-curator-skill', 'curator-rules', 'curator-memory'],
       architect: ['playlist-architect-skill', 'architect-templates', 'architect-memory'],
+      research_strategist: ['research-strategist-skill', 'research-rules', 'research-memory'],
     },
   },
   {
@@ -165,6 +166,27 @@ const ENTRIES: ReferenceEntry[] = [
     sort_order: 62,
     filePath: '../docs/cowork-architect-memory.md',
   },
+  {
+    key: 'research-strategist-skill',
+    title: 'Research Strategist — Skill Reference',
+    ref_group: 'craft',
+    sort_order: 70,
+    filePath: '../docs/cowork-research-strategist-skill.md',
+  },
+  {
+    key: 'research-rules',
+    title: 'Research Strategist — Rules',
+    ref_group: 'estrategia',
+    sort_order: 71,
+    filePath: '../docs/cowork-research-rules.md',
+  },
+  {
+    key: 'research-memory',
+    title: 'Research Strategist — Memory',
+    ref_group: 'memoria',
+    sort_order: 72,
+    filePath: '../docs/cowork-research-memory.md',
+  },
 ]
 
 async function seed(): Promise<void> {
@@ -198,7 +220,9 @@ async function seed(): Promise<void> {
           ref_group: entry.ref_group,
           sort_order: entry.sort_order,
           content_md: contentMd || null,
-          content_compact: entry.inlineCompact ?? null,
+          // File-based entries (skill docs) carry no inline compact — the
+          // column is NOT NULL, so default to an empty object rather than null.
+          content_compact: entry.inlineCompact ?? {},
           updated_at: new Date().toISOString(),
         },
         { onConflict: 'site_id,key' },

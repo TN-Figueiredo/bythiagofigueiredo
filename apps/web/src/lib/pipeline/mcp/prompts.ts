@@ -112,6 +112,89 @@ async function fetchSnapshotAge(): Promise<number> {
   return Math.floor((Date.now() - new Date(data.generated_at as string).getTime()) / 3600000)
 }
 
+/**
+ * Fetch a Research Strategist snapshot as a compact string.
+ *
+ * Mirrors `fetchStatsSummary` but reads from the research domain: item counts
+ * by status (fresca/analise/aplicada/arquivada) and by theme_id, pinned count,
+ * a one-line summary of the active foco, and decisions whose `revisit` is
+ * past-due. Keeps everything cheap (a few selects) so prompts can inject it
+ * inline without forcing the client to fetch resources first.
+ */
+async function fetchResearchSnapshot(): Promise<string> {
+  const supabase = getSupabaseServiceClient()
+
+  // Active site (first) — research is site-scoped.
+  const { data: site } = await supabase.from('sites').select('id').limit(1).single()
+  const siteId = site?.id as string | undefined
+  if (!siteId) return 'Research: no site found'
+
+  const [itemsRes, focoRes, decisionsRes] = await Promise.all([
+    supabase
+      .from('research_items')
+      .select('status, theme_id, pinned')
+      .eq('site_id', siteId),
+    supabase
+      .from('research_focos')
+      .select('title, window_label, horizon')
+      .eq('site_id', siteId)
+      .eq('active', true)
+      .eq('state', 'ativo')
+      .maybeSingle(),
+    supabase
+      .from('research_decisions')
+      .select('title, horizon, status, revisit')
+      .eq('site_id', siteId)
+      .neq('status', 'arquivado'),
+  ])
+
+  const items = (itemsRes.data ?? []) as Array<{ status: string; theme_id: string | null; pinned: boolean }>
+  const byStatus: Record<string, number> = {}
+  const byTheme: Record<string, number> = {}
+  let pinnedCount = 0
+  for (const it of items) {
+    byStatus[it.status] = (byStatus[it.status] ?? 0) + 1
+    const theme = it.theme_id ?? '(sem tema)'
+    byTheme[theme] = (byTheme[theme] ?? 0) + 1
+    if (it.pinned) pinnedCount += 1
+  }
+
+  // Revisit past-due: `revisit` is a free-text label, but ISO/parseable dates
+  // in the past count as overdue (RS5). Non-parseable labels are listed as
+  // "needs review" without a hard date assertion.
+  const now = Date.now()
+  const decisions = (decisionsRes.data ?? []) as Array<{
+    title: string
+    horizon: string
+    status: string
+    revisit: string | null
+  }>
+  const revisitDue = decisions.filter((d) => {
+    if (!d.revisit) return false
+    const ts = Date.parse(d.revisit)
+    return Number.isFinite(ts) && ts < now
+  })
+
+  const foco = focoRes.data as { title: string; window_label: string | null; horizon: string } | null
+
+  const statusLine = Object.entries(byStatus).map(([k, v]) => `${k}: ${v}`).join(', ') || '(nenhuma)'
+  const themeLine = Object.entries(byTheme).map(([k, v]) => `${k}: ${v}`).join(', ') || '(nenhum)'
+  const focoLine = foco
+    ? `${foco.title} (${foco.window_label ?? 'sem janela'}, horizonte ${foco.horizon})`
+    : 'nenhum foco ativo'
+  const revisitLine = revisitDue.length > 0
+    ? revisitDue.map((d) => `"${d.title}" (revisit ${d.revisit}, ${d.horizon})`).join('; ')
+    : 'nenhum revisit vencido'
+
+  const lines: string[] = []
+  lines.push(`Research: ${items.length} itens · ${pinnedCount} pinned`)
+  lines.push(`Por status: ${statusLine}`)
+  lines.push(`Por tema: ${themeLine}`)
+  lines.push(`Foco ativo: ${focoLine}`)
+  lines.push(`Decisões abertas: ${decisions.length} · revisit vencido: ${revisitDue.length} (${revisitLine})`)
+  return lines.join('\n')
+}
+
 /** Read a pipeline docs markdown file. */
 async function fetchDomainDocs(domain: string): Promise<string> {
   const fs = await import('node:fs/promises')
@@ -1073,6 +1156,237 @@ export function registerPrompts(server: McpServer): void {
           : youtubeDocs
         lines.push('\n\n---\n\n## YouTube Observatory Reference\n\n' + truncated)
       }
+
+      return userMessage(lines.join('\n'))
+    },
+  )
+
+  // -------------------------------------------------------------------------
+  // 11. triage_fresh_research — TRIAGE mode (Research Strategist)
+  // -------------------------------------------------------------------------
+  server.prompt(
+    'triage_fresh_research',
+    'Varre e qualifica o research que entrou (TRIAGE): ranqueia por idade/pin, extrai takeaways, atribui tema e sinaliza temas maduros',
+    {
+      theme: z.string().optional().describe('Filtrar por tema (asia, ia, dev, games, grana, canal)'),
+      limit: z.string().optional().describe('Máximo de itens a triar (default: 20)'),
+    },
+    async (args) => {
+      const theme = args.theme ?? ''
+      const limit = args.limit ? parseInt(args.limit, 10) : 20
+
+      const [snapshot, skill, docs] = await Promise.all([
+        fetchResearchSnapshot(),
+        fetchSkillContext('research_strategist'),
+        fetchDomainDocs('research'),
+      ])
+
+      const lines: string[] = []
+      lines.push('# Modo TRIAGE — Varrer e qualificar research')
+      lines.push('')
+      lines.push(`Escopo: ${theme ? `tema "${theme}"` : 'todos os temas'} · até ${limit} itens.`)
+      lines.push('')
+      lines.push('## Snapshot atual')
+      lines.push(snapshot)
+      lines.push('')
+      lines.push('## Instruções')
+      lines.push('Aja como o **Research Strategist** no modo TRIAGE (ver skill-doc abaixo). Siga o fluxo:')
+      lines.push(`1. \`manage_research { action: "list"${theme ? `, theme_id: "${theme}"` : ''} }\` — pegue \`fresca\` + \`analise\`, ordenadas por idade (mais velhas primeiro).`)
+      lines.push('2. Ranqueie cada item pela **Triage Table** do skill-doc (Surface-now / Madura / Stale / Backlog).')
+      lines.push('3. Para item que vira `analise`: extraia ≥1 takeaway (RS1) e atribua `theme_id` via `manage_research { action: "update", id, status: "analise", theme_id, takeaways: [...] }`.')
+      lines.push('4. Item sem takeaway possível: **sugira** arquivar (`status: "arquivada"`) — nunca arquive em massa sem OK do dono.')
+      lines.push('5. Se um tema acumular ≥3 itens sem foco ativo cobrindo-o, sinalize candidato a **PROPOR-FOCO**.')
+      lines.push('')
+      lines.push('Respeite RS4 (horizonte = prioridade), RS6 (pinado = quente) e RS7 (contexto sobre contagem).')
+      lines.push('Saída: o contrato JSON do skill-doc, **sempre** com `summary_for_owner` em PT-BR.')
+
+      if (skill) lines.push('\n---\n\n## Research Strategist — Skill Reference\n\n' + skill)
+      if (docs) {
+        const truncated = docs.length > 6000
+          ? docs.slice(0, 6000) + '\n\n...(truncado — use pipeline://docs/research para o doc completo)'
+          : docs
+        lines.push('\n---\n\n## Research Domain Reference\n\n' + truncated)
+      }
+
+      return userMessage(lines.join('\n'))
+    },
+  )
+
+  // -------------------------------------------------------------------------
+  // 12. review_research_for_decisions — DISTILL mode (Research Strategist)
+  // -------------------------------------------------------------------------
+  server.prompt(
+    'review_research_for_decisions',
+    'Destila takeaways em decisões candidatas (DISTILL): agrupa por aposta e rascunha decisões com metric + fontes obrigatórios',
+    {
+      theme: z.string().optional().describe('Tema a destilar (asia, ia, dev, games, grana, canal)'),
+      horizon: z.string().optional().describe('Horizonte alvo das decisões (agora, proximo, explorar)'),
+    },
+    async (args) => {
+      const theme = args.theme ?? ''
+      const horizon = args.horizon ?? ''
+
+      const [snapshot, skill, docs] = await Promise.all([
+        fetchResearchSnapshot(),
+        fetchSkillContext('research_strategist'),
+        fetchDomainDocs('research'),
+      ])
+
+      const lines: string[] = []
+      lines.push('# Modo DISTILL — Takeaways → decisão candidata')
+      lines.push('')
+      lines.push(`Escopo: ${theme ? `tema "${theme}"` : 'tema a definir'}${horizon ? ` · horizonte "${horizon}"` : ''}.`)
+      lines.push('')
+      lines.push('## Snapshot atual')
+      lines.push(snapshot)
+      lines.push('')
+      lines.push('## Instruções')
+      lines.push('Aja como o **Research Strategist** no modo DISTILL (ver skill-doc abaixo). Siga o fluxo:')
+      lines.push(`1. \`manage_research { action: "list"${theme ? `, theme_id: "${theme}"` : ''} }\` — pegue os itens \`analise\`/\`aplicada\` do tema e leia seus \`takeaways[]\`.`)
+      lines.push('2. Agrupe os takeaways por **aposta** (não por fato solto — RS7).')
+      lines.push('3. Rascunhe a decisão preenchendo os 5 campos de detalhe — **nunca** sem `metric` + `source_research_ids` (RS3): `context`, `consequences[]`, `metric`, `revisit`, `history[]`.')
+      lines.push(`4. \`manage_decisions { action: "create", title, horizon${horizon ? `: "${horizon}"` : ''}, theme_id, context, consequences, metric, revisit, drives: [...], source_research_ids: [<uuids>] }\`.`)
+      lines.push('5. Marque as research que embasaram como `aplicada` via `manage_research { action: "update", id, status: "aplicada" }`.')
+      lines.push('')
+      lines.push('**Soberania (RS2/RS3):** o Cowork *registra a decisão do dono*, não decide sozinho. Se não há decisão clara do Thiago, **rascunhe e apresente** — não crie.')
+      lines.push('Saída: contrato JSON do skill-doc com `summary_for_owner` em PT-BR.')
+
+      if (skill) lines.push('\n---\n\n## Research Strategist — Skill Reference\n\n' + skill)
+      if (docs) {
+        const truncated = docs.length > 6000
+          ? docs.slice(0, 6000) + '\n\n...(truncado — use pipeline://docs/research para o doc completo)'
+          : docs
+        lines.push('\n---\n\n## Research Domain Reference\n\n' + truncated)
+      }
+
+      return userMessage(lines.join('\n'))
+    },
+  )
+
+  // -------------------------------------------------------------------------
+  // 13. propose_quarterly_foco — PROPOR-FOCO mode (propose only, never activate)
+  // -------------------------------------------------------------------------
+  server.prompt(
+    'propose_quarterly_foco',
+    'Propõe o foco estratégico do trimestre a partir de um tema maduro (PROPOR-FOCO). Sempre state:proposto — só o dono ativa',
+    {
+      window_label: z.string().optional().describe('Rótulo da janela do foco (ex.: "Q3 2026")'),
+    },
+    async (args) => {
+      const windowLabel = args.window_label ?? ''
+
+      const [snapshot, skill, docs] = await Promise.all([
+        fetchResearchSnapshot(),
+        fetchSkillContext('research_strategist'),
+        fetchDomainDocs('research'),
+      ])
+
+      const lines: string[] = []
+      lines.push('# Modo PROPOR-FOCO — Tema maduro → foco do trimestre')
+      lines.push('')
+      lines.push('> **INVARIANTE DE SOBERANIA (RS2):** o Cowork **PROPÕE**, o dono **ATIVA**.')
+      lines.push('> Crie o foco com `state: "proposto"` — **NUNCA** `state: "ativo"` e **NUNCA** chame `manage_focos { action: "activate" }`.')
+      lines.push('> Só pode existir 1 foco ativo, e essa ativação exige confirmação explícita do Thiago.')
+      lines.push('')
+      lines.push(`Janela sugerida: ${windowLabel || '(defina a partir do trimestre vigente, ex.: "Q3 2026")'}`)
+      lines.push('')
+      lines.push('## Snapshot atual')
+      lines.push(snapshot)
+      lines.push('')
+      lines.push('## Instruções')
+      lines.push('Aja como o **Research Strategist** no modo PROPOR-FOCO (ver skill-doc abaixo). Siga o fluxo:')
+      lines.push('1. `manage_focos { action: "get_active" }` — confira o foco ativo atual (RS2: só 1).')
+      lines.push('2. `manage_research { action: "list", theme_id: "<tema maduro>" }` — reúna os itens do tema (≥3 sem foco = maduro).')
+      lines.push(`3. \`manage_focos { action: "create", title, description, rationale, metric, window_label${windowLabel ? `: "${windowLabel}"` : ''}, horizon: "agora", state: "proposto", theme_ids: [...], pinned_research_ids: [<uuids quentes>] }\`.`)
+      lines.push('4. Apresente a proposta ao Thiago com o **porquê** (RS7) e encerre: "Propus o foco *[título]* (state: proposto). Só você ativa."')
+      lines.push('')
+      lines.push('Saída: contrato JSON do skill-doc com `summary_for_owner` em PT-BR (`recomendo_agora` = no máximo 1 ação).')
+
+      if (skill) lines.push('\n---\n\n## Research Strategist — Skill Reference\n\n' + skill)
+      if (docs) {
+        const truncated = docs.length > 6000
+          ? docs.slice(0, 6000) + '\n\n...(truncado — use pipeline://docs/research para o doc completo)'
+          : docs
+        lines.push('\n---\n\n## Research Domain Reference\n\n' + truncated)
+      }
+
+      return userMessage(lines.join('\n'))
+    },
+  )
+
+  // -------------------------------------------------------------------------
+  // 14. weekly_research_digest — DIGEST mode (summary_for_owner em PT-BR)
+  // -------------------------------------------------------------------------
+  server.prompt(
+    'weekly_research_digest',
+    'Resumo semanal da estratégia para o dono (DIGEST): foco vigente, o que está quente, revisits vencidos — em PT-BR sem jargão',
+    {},
+    async () => {
+      const [snapshot, skill] = await Promise.all([
+        fetchResearchSnapshot(),
+        fetchSkillContext('research_strategist'),
+      ])
+
+      const lines: string[] = []
+      lines.push('# Modo DIGEST — Resumo da estratégia pro dono')
+      lines.push('')
+      lines.push('## Snapshot atual')
+      lines.push(snapshot)
+      lines.push('')
+      lines.push('## Instruções')
+      lines.push('Aja como o **Research Strategist** no modo DIGEST (ver skill-doc abaixo). Siga o fluxo:')
+      lines.push('1. `manage_focos { action: "get_active" }` — foco vigente (e se a `window_label` já expirou).')
+      lines.push('2. `manage_research { action: "list" }` — distribuição por status/tema, o que está maduro/quente (RS6).')
+      lines.push('3. `manage_decisions { action: "list" }` — decisões abertas + revisits vencidos (RS5).')
+      lines.push('4. Sintetize o contrato `summary_for_owner`.')
+      lines.push('')
+      lines.push('## Contrato de saída — `summary_for_owner` (obrigatório)')
+      lines.push('Produza JSON com `summary_for_owner.para_o_thiago` contendo exatamente:')
+      lines.push('- `estado` — 1-2 frases sobre o momento da estratégia.')
+      lines.push('- `o_que_esta_quente` — o tema/research mais maduro.')
+      lines.push('- `recomendo_agora` — **UMA** ação principal (nunca mais de uma).')
+      lines.push('- `precisa_da_sua_atencao` — revisit vencido / foco sem decisão / "nada".')
+      lines.push('')
+      lines.push('Regras do contrato: **PT-BR sem jargão**, nunca UUID nem status técnico cru. Glossário humanizado: `analise`→"em análise", `aplicada`→"já aplicada", `fresca`→"nova", `proposto`→"proposto (esperando você ativar)".')
+
+      if (skill) lines.push('\n---\n\n## Research Strategist — Skill Reference\n\n' + skill)
+
+      return userMessage(lines.join('\n'))
+    },
+  )
+
+  // -------------------------------------------------------------------------
+  // 15. recommend_next_step_for_owner — proactivity capstone (Preflight → 1 rec)
+  // -------------------------------------------------------------------------
+  server.prompt(
+    'recommend_next_step_for_owner',
+    'Capstone de proatividade: roda o Preflight barato e devolve UMA recomendação priorizada (suggest-don\'t-nag)',
+    {},
+    async () => {
+      const [snapshot, skill] = await Promise.all([
+        fetchResearchSnapshot(),
+        fetchSkillContext('research_strategist'),
+      ])
+
+      const lines: string[] = []
+      lines.push('# Capstone de Proatividade — Preflight → 1 recomendação')
+      lines.push('')
+      lines.push('## Snapshot atual')
+      lines.push(snapshot)
+      lines.push('')
+      lines.push('## Instruções')
+      lines.push('Aja como o **Research Strategist** e rode o **Preflight** do skill-doc (barato, antes de qualquer modo principal). Surface só o que importa (RS7).')
+      lines.push('')
+      lines.push('1. `research = manage_research { action: "list" }`, `decisoes = manage_decisions { action: "list" }`, `foco = manage_focos { action: "get_active" }`.')
+      lines.push('2. Calcule: `fresca_stale` (fresca > 14d), `analise_stale` (analise > 30d), `revisit_due` (revisit vencido), `temas_maduros` (≥3 itens sem foco), `foco_orfao` (foco ativo sem decisão recente).')
+      lines.push('3. Aplique a **prioridade de alerta** (RS4/RS5): `revisit vencido` > `foco órfão` > `tema maduro` > `research stale`.')
+      lines.push('4. Devolva **UMA** única recomendação — a de maior prioridade — apontando o modo de follow-up (REVIEW / PROPOR-FOCO / TRIAGE).')
+      lines.push('')
+      lines.push('**suggest-don\'t-nag:** se o dono não aceitar a sugestão, siga o que ele pedir e **não repita** o alerta até a próxima sessão. Uma sugestão por sessão, nunca insistir.')
+      lines.push('')
+      lines.push('Saída: `summary_for_owner` em PT-BR, com `recomendo_agora` contendo a única ação.')
+
+      if (skill) lines.push('\n---\n\n## Research Strategist — Skill Reference\n\n' + skill)
 
       return userMessage(lines.join('\n'))
     },

@@ -119,10 +119,10 @@ const LIBRARIES: CapabilityDomain = {
 const RESEARCH: CapabilityDomain = {
   domain: 'research',
   name: 'Research Library',
-  description: 'Manage research items with hierarchical topics and many-to-many pipeline links.',
-  suggest_when: 'Research management, topic organization, linking research to pipeline items, knowledge base',
+  description: 'Manage research items with hierarchical topics and many-to-many pipeline links, plus the strategy layer on top: decisões (editorial decisions grounded in research) and focos (the single active strategic focus, with prioritization and theme grouping).',
+  suggest_when: 'Research management, topic organization, linking research to pipeline items, knowledge base, plus the strategy layer: registering editorial decisões, proposing/activating the active foco, prioritization across themes',
   docs: '/api/pipeline/docs/research',
-  endpoint_count: 12,
+  endpoint_count: 26,
   endpoints: [
     { method: 'GET', path: '/api/pipeline/research', summary: 'List research items with cursor pagination', auth: 'read' },
     { method: 'POST', path: '/api/pipeline/research', summary: 'Create research item (upsert by topic+title)', auth: 'write' },
@@ -136,6 +136,22 @@ const RESEARCH: CapabilityDomain = {
     { method: 'POST', path: '/api/pipeline/research/topics', summary: 'Create research topic (max depth 3)', auth: 'write' },
     { method: 'PATCH', path: '/api/pipeline/research/topics/:id', summary: 'Update topic metadata', auth: 'write' },
     { method: 'DELETE', path: '/api/pipeline/research/topics/:id', summary: 'Delete research topic', auth: 'write' },
+    // ── Strategy layer: focos (single active strategic focus) ──────────
+    { method: 'GET', path: '/api/pipeline/research/focos', summary: 'List strategic focos with optional state filter', auth: 'read' },
+    { method: 'POST', path: '/api/pipeline/research/focos', summary: 'Create a foco (always inactive) with themes + pinned research', auth: 'write' },
+    { method: 'GET', path: '/api/pipeline/research/focos/active', summary: 'Get the single active foco (or null)', auth: 'read' },
+    { method: 'GET', path: '/api/pipeline/research/focos/:id', summary: 'Get a foco with themes, pinned research, linked decisões', auth: 'read' },
+    { method: 'PATCH', path: '/api/pipeline/research/focos/:id', summary: 'Update foco fields and diff-sync themes + pinned research', auth: 'write' },
+    { method: 'DELETE', path: '/api/pipeline/research/focos/:id', summary: 'Archive a foco (state arquivado, active false)', auth: 'write' },
+    { method: 'POST', path: '/api/pipeline/research/focos/:id/activate', summary: 'Activate a foco — demotes the prior active (requires { confirm: true })', auth: 'write' },
+    // ── Strategy layer: decisões (editorial decisions) ─────────────────
+    { method: 'GET', path: '/api/pipeline/research/decisoes', summary: 'List editorial decisões with horizon/status/theme filters', auth: 'read' },
+    { method: 'POST', path: '/api/pipeline/research/decisoes', summary: 'Create a decisão grounded in research sources', auth: 'write' },
+    { method: 'GET', path: '/api/pipeline/research/decisoes/:id', summary: 'Get a decisão with its linked research sources', auth: 'read' },
+    { method: 'PATCH', path: '/api/pipeline/research/decisoes/:id', summary: 'Update a decisão and diff-sync research sources', auth: 'write' },
+    { method: 'DELETE', path: '/api/pipeline/research/decisoes/:id', summary: 'Archive a decisão (status arquivado)', auth: 'write' },
+    { method: 'POST', path: '/api/pipeline/research/decisoes/:id/link', summary: 'Link a research item to a decisão', auth: 'write' },
+    { method: 'DELETE', path: '/api/pipeline/research/decisoes/:id/link', summary: 'Unlink a research item from a decisão (?research_id=)', auth: 'write' },
   ],
 }
 
@@ -252,6 +268,17 @@ const CROSS_DOMAIN_WORKFLOWS: CrossDomainWorkflow[] = [
       'PATCH /api/pipeline/items/:id/sections/launch — plan Product Launch Formula sequence',
       'PATCH /api/pipeline/items/:id/sections/publish — write sales copy (headline, bullets, FAQ, testimonials)',
       'POST /api/pipeline/items/:id/graduate — graduate course to playlist with module→edge sequence',
+    ],
+  },
+  {
+    name: 'Research → strategy loop',
+    description: 'Turn accumulated research into editorial direction: capture takeaways, register a decisão, and promote the active strategic foco',
+    domains: ['research'],
+    steps: [
+      'POST /api/pipeline/research — capture a research item / takeaway',
+      'POST /api/pipeline/research/decisoes — register a decisão grounded in those research sources',
+      'POST /api/pipeline/research/focos — propose a foco pinning the relevant research + themes',
+      'POST /api/pipeline/research/focos/:id/activate — activate it (confirm:true) as the single active foco',
     ],
   },
 ]

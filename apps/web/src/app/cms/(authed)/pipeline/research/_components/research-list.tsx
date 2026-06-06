@@ -1,3 +1,5 @@
+/** @deprecated Replaced by tab-pesquisas.tsx in the 3-tab redesign. */
+
 'use client'
 
 import { useMemo, useState } from 'react'
@@ -50,7 +52,7 @@ export function ResearchList({
         list.sort((a, b) => a.title.localeCompare(b.title, 'pt-BR'))
         break
       case 'size':
-        list.sort((a, b) => b.word_count - a.word_count)
+        list.sort((a, b) => (b.word_count ?? 0) - (a.word_count ?? 0))
         break
     }
     return list
@@ -62,7 +64,8 @@ export function ResearchList({
     : '📚 Todas'
 
   return (
-    <div
+    <section
+      aria-label="Lista de pesquisas"
       style={{
         width: 280,
         minWidth: 280,
@@ -83,6 +86,7 @@ export function ResearchList({
         <select
           value={sortKey}
           onChange={(e) => setSortKey(e.target.value as SortKey)}
+          aria-label="Ordenar pesquisas"
           style={{
             width: '100%',
             padding: '4px 6px',
@@ -103,21 +107,30 @@ export function ResearchList({
       {/* Item list */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '2px 0' }}>
         {sorted.length === 0 && (
-          <div style={{ padding: 20, textAlign: 'center', color: 'var(--gem-muted)', fontSize: 12 }}>
-            Nenhuma pesquisa neste tema.
+          <div className="flex flex-col items-center gap-2 py-8 px-4 text-center">
+            <span style={{ fontSize: 20, opacity: 0.2 }}>{'🔍'}</span>
+            <span className="text-xs" style={{ color: 'var(--gem-muted)' }}>
+              {selectedTopicId
+                ? 'Nenhuma pesquisa neste tema.'
+                : 'Nenhuma pesquisa na biblioteca.'}
+            </span>
+            <span className="text-[10px]" style={{ color: 'var(--gem-dim)' }}>
+              Importe pesquisas via API ou pipeline.
+            </span>
           </div>
         )}
         {sorted.map((item) => {
           const isSelected = selectedItemId === item.id
-          const isArchived = item.status === 'archived'
-          const topic = topicMap.get(item.topic_id)
-          const snippet = item.summary?.slice(0, 100) || ''
+          const isArchived = item.status === 'arquivada'
+          const topic = item.topic_id ? topicMap.get(item.topic_id) : undefined
+          const snippet = item.summary?.slice(0, 160) || ''
 
           return (
             <button
               key={item.id}
               onClick={() => onSelectItem(item.id)}
-              className="transition-colors duration-100"
+              aria-current={isSelected ? 'true' : undefined}
+              className="transition-colors duration-100 focus-visible:ring-2 focus-visible:ring-[rgba(255,130,64,0.3)] focus-visible:outline-none"
               style={{
                 display: 'flex',
                 flexDirection: 'column',
@@ -128,8 +141,8 @@ export function ResearchList({
                 borderRadius: 0,
                 border: 'none',
                 cursor: 'pointer',
-                backgroundColor: isSelected ? 'rgba(99,102,241,0.08)' : 'transparent',
-                borderLeft: isSelected ? '3px solid rgb(99,102,241)' : '3px solid transparent',
+                backgroundColor: isSelected ? 'rgba(255,130,64,0.08)' : 'transparent',
+                borderLeft: isSelected ? '3px solid var(--gem-accent)' : '3px solid transparent',
                 opacity: isArchived ? 0.5 : 1,
               }}
               onMouseEnter={(e) => {
@@ -142,6 +155,8 @@ export function ResearchList({
               {/* Row 1: status dot + title */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span
+                  role="img"
+                  aria-label={item.status}
                   style={{
                     width: 7,
                     height: 7,
@@ -187,7 +202,7 @@ export function ResearchList({
                   </span>
                 )}
                 <span style={{ fontSize: 10, color: 'var(--gem-muted)' }}>
-                  {item.word_count.toLocaleString()} palavras
+                  {(item.word_count ?? 0).toLocaleString()} palavras
                 </span>
                 <span style={{ fontSize: 10, color: 'var(--gem-muted)' }}>
                   {timeAgo(item.updated_at)}
@@ -197,6 +212,6 @@ export function ResearchList({
           )
         })}
       </div>
-    </div>
+    </section>
   )
 }

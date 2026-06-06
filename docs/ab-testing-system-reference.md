@@ -575,3 +575,53 @@ O MCP server expõe a tool `manage_ab_test` para o Cowork, permitindo:
 - Acessar cross-test performance data
 
 Isso permite que o Cowork opere o sistema A/B inteiramente via API, sem interação manual no CMS (exceto upload de thumbnails que é deliberadamente manual).
+
+---
+
+## 11. Phase 5: Competitors + Niche — PROVISIONAL
+
+> **Status:** PROVISIONAL. This spec will be re-evaluated after Phases 1-4 are delivered and proven in real use. Do NOT begin implementation without passing the Decision Gate below.
+
+### 11.1 Provisional Scope (subject to change)
+
+- Track up to 20 competitor channels in the same niche
+- 4h polling interval for new uploads and metadata changes
+- pHash-based thumbnail change detection (detect when competitors swap thumbs)
+- Niche benchmarking (compare own CTR/retention against tracked channels)
+- Competitor thumbnail gallery as reference during AB test creation
+
+### 11.2 Decision Gate — Re-evaluation Criteria
+
+After Phases 1-4 are live for at least 30 days, evaluate:
+
+**BUILD signal (all must be true):**
+
+1. User has completed 5+ AB tests end-to-end (not just created — resolved with winner)
+2. User visits AB Lab dashboard at least 3x/week on average
+3. User has manually mentioned competitor thumbnails or asked "what are others doing?" in Cowork conversations
+4. Auto-suggest from Intelligence Engine is generating suggestions the user actually acts on (>30% acceptance rate)
+
+**DEFER signal (any one is sufficient):**
+
+1. User has < 3 completed tests after 30 days (still learning the tool)
+2. AB Lab dashboard visits < 1x/week average (not a daily driver yet)
+3. Intelligence Engine auto-suggest acceptance rate < 15% (suggestions not useful — fix that first)
+4. Outstanding P1-4 polish gaps identified during real use (fix those before adding scope)
+5. User never organically asks about competitor behavior
+
+### 11.3 Assumptions That May Be Wrong
+
+| Assumption | Why it might be wrong | How P1-4 proves/disproves it |
+|---|---|---|
+| 20 channels is the right number | Too many = noise, too few = blind spots | If user struggles to name 5 competitors, 20 is overkill |
+| 4h polling is the right frequency | Too frequent = quota waste, too slow = stale | Measure how often competitor data would actually change test decisions |
+| pHash detects meaningful changes | Subtle edits (text overlay swap) may not register; platform compression adds noise | If user's own thumb swaps via AB rotate trigger false positives, pHash needs tuning first |
+| User wants external reference points | Might prefer trusting own data exclusively | If user never references competitors in 30 days of active testing, this is unwanted complexity |
+
+### 11.4 Minimum Viable Alternative
+
+If the Decision Gate says DEFER but the user still wants lightweight competitor awareness:
+- **Option A:** Manual screenshot upload to Cowork for one-off comparison (zero infra cost)
+- **Option B:** Single "inspiration board" — user manually saves competitor thumbnails as reference images (Vercel Blob, no API polling)
+
+These satisfy the need without the 20-channel polling + pHash infrastructure.

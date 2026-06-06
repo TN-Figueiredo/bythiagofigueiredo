@@ -519,6 +519,17 @@ textarea:focus-visible {
   outline-offset: 3px;
 }
 
+/* Blog editor: content areas use left-border accent, not outline rings */
+.blog-editor :focus,
+.blog-editor :focus-visible,
+.blog-editor textarea:focus,
+.blog-editor textarea:focus-visible,
+.blog-editor [contenteditable]:focus,
+.blog-editor [contenteditable]:focus-visible {
+  outline: none !important;
+  outline-offset: 0 !important;
+}
+
 /* ─── Scroll-driven fade-in ─── */
 @supports (animation-timeline: view()) {
   .animate-on-scroll {

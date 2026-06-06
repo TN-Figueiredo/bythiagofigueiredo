@@ -19,9 +19,6 @@ function bracketDirAliasPlugin(): Plugin {
     name: 'bracket-dir-alias',
     enforce: 'pre',
     resolveId(source, _importer) {
-      if (source.includes('[id]')) {
-        console.error(`[bracket-alias] CALLED for: ${source}`)
-      }
       if (!source.startsWith('@/')) return null
       const needsHelp = source.includes('(') || source.includes('[')
       if (!needsHelp) return null
@@ -30,12 +27,10 @@ function bracketDirAliasPlugin(): Plugin {
         for (const ext of ['', '.ts', '.tsx', '.js', '.jsx', '/index.ts', '/index.tsx']) {
           const candidate = path.join(root, relative + ext)
           if (fs.existsSync(candidate)) {
-            console.log(`[bracket-alias] ${source} -> ${candidate}`)
             return candidate
           }
         }
       }
-      console.log(`[bracket-alias] NOT FOUND: ${source}`)
       return null
     },
   }
@@ -104,6 +99,10 @@ export default defineConfig({
       // @tn-figueiredo/email requires `resend` as a peer dep. It's not installed
       // directly — stub it so inlined email package resolves without errors.
       { find: /^resend$/, replacement: path.resolve(__dirname, './test/__stubs__/resend.ts') },
+      // `nodemailer` is the OTHER optional peer dep of @tn-figueiredo/email (SMTP
+      // transport). Not installed (project sends via Resend/SES), but the inlined
+      // email package's SMTP chunk references it — stub so it resolves in tests.
+      { find: /^nodemailer$/, replacement: path.resolve(__dirname, './test/__stubs__/nodemailer.ts') },
       // Sprint 5b — `apps/web/lib/seo/` lives outside `src/`. Map specifically
       // so plan-prescribed `@/lib/seo/...` imports resolve correctly without
       // shadowing other `@/lib/*` paths under `src/lib/` (e.g. lgpd).

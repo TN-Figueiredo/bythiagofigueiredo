@@ -275,7 +275,7 @@ export async function createResearchItem(
     return err('VALIDATION_ERROR', parsed.error.issues.map((i) => i.message).join(', '), 400)
   }
 
-  const { title, topic_slug, content_md, summary, sources } = parsed.data
+  const { title, topic_slug, content_md, summary, sources, theme_id, pinned, takeaways } = parsed.data
 
   if (!validateTopicSlugDepth(topic_slug)) {
     return err('VALIDATION_ERROR', 'Max 3 levels (e.g., "a/b/c"). Got too many segments.', 400)
@@ -303,6 +303,11 @@ export async function createResearchItem(
         summary: summary ?? null,
         sources,
         status: 'new',
+        // Cowork can set these on create (only when provided, to avoid
+        // clobbering on an upsert-conflict of the same site/topic/title).
+        ...(theme_id !== undefined ? { theme_id } : {}),
+        ...(pinned !== undefined ? { pinned } : {}),
+        ...(takeaways !== undefined ? { takeaways } : {}),
       },
       { onConflict: 'site_id,topic_id,title' },
     )

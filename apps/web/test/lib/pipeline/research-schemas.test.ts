@@ -12,7 +12,7 @@ import {
 describe('research-schemas', () => {
   describe('RESEARCH_STATUS', () => {
     it('has exactly 4 statuses', () => {
-      expect(RESEARCH_STATUS).toEqual(['new', 'reviewed', 'starred', 'archived'])
+      expect(RESEARCH_STATUS).toEqual(['fresca', 'analise', 'aplicada', 'arquivada'])
     })
   })
 
@@ -88,7 +88,7 @@ describe('research-schemas', () => {
     it('accepts partial update', () => {
       const result = ResearchItemUpdateSchema.safeParse({
         title: 'Updated title',
-        status: 'reviewed',
+        status: 'aplicada',
       })
       expect(result.success).toBe(true)
     })

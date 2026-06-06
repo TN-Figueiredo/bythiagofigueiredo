@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ByThiagoFigueiredo CMS — Redesign</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="views.css" />
+  <link rel="stylesheet" href="blog.css" />
+  <link rel="stylesheet" href="research.css" />
+  <script type="module">
+    /* Real TipTap, loaded once and exposed to the Babel app via window.TipTap */
+    const V = '2.11.5';
+    const u = (n) => `https://esm.sh/@tiptap/${n}@${V}`;
+    try {
+      const core = await import(u('core'));
+      const [SK, Underline, Highlight, Link, TaskList, TaskItem, Placeholder] = await Promise.all([
+        import(u('starter-kit')), import(u('extension-underline')), import(u('extension-highlight')),
+        import(u('extension-link')), import(u('extension-task-list')), import(u('extension-task-item')),
+        import(u('extension-placeholder')),
+      ]);
+      window.TipTap = {
+        Editor: core.Editor, StarterKit: SK.default, Underline: Underline.default, Highlight: Highlight.default,
+        Link: Link.default, TaskList: TaskList.default, TaskItem: TaskItem.default, Placeholder: Placeholder.default,
+      };
+      window.dispatchEvent(new Event('tiptap-ready'));
+    } catch (e) { window.__tiptapError = String(e && e.message); console.error('TipTap load failed', e); }
+  </script>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+  <div id="root"></div>
+  <script src="data.js"></script>
+  <script src="research-data.js"></script>
+  <script type="text/babel" src="components.jsx"></script>
+  <script type="text/babel" src="states.jsx"></script>
+  <script type="text/babel" src="notifications.jsx"></script>
+  <script type="text/babel" src="views-dashboard.jsx"></script>
+  <script type="text/babel" src="views-analytics.jsx"></script>
+  <script type="text/babel" src="views-draft-stages.jsx"></script>
+  <script type="text/babel" src="views-draft-inspector.jsx"></script>
+  <script type="text/babel" src="views-draft.jsx"></script>
+  <script type="text/babel" src="views-blog.jsx"></script>
+  <script type="text/babel" src="research-editor.jsx"></script>
+  <script type="text/babel" src="views-research.jsx"></script>
+  <script type="text/babel" src="shell.jsx"></script>
+</body>
+</html>

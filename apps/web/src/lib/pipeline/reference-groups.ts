@@ -11,6 +11,7 @@ export const COWORK_SKILLS = [
   { id: 'perf_review', label: 'Perf Review' },
   { id: 'curator', label: 'Curator' },
   { id: 'architect', label: 'Architect' },
+  { id: 'research_strategist', label: 'Research Strategist' },
 ] as const
 
 export type CoworkSkillId = (typeof COWORK_SKILLS)[number]['id']
@@ -73,4 +74,7 @@ export const REFERENCE_USAGE: Record<string, string[]> = {
   'playlist-architect-skill': ['Architect'],
   'architect-memory': ['Architect'],
   'architect-templates': ['Architect'],
+  'research-strategist-skill': ['Research Strategist'],
+  'research-rules': ['Research Strategist'],
+  'research-memory': ['Research Strategist'],
 }

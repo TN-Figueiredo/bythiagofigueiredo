@@ -1,0 +1,2971 @@
+/* ============================================================
+   RESEARCH MODULE — CMS Redesign
+   Scoped under [data-cms-section="research"] to avoid conflicts.
+   Uses --gem-* token system with local overrides for
+   variables not covered by the base palette.
+   ============================================================ */
+
+/* ---- Scoped tokens (bridge bare names to gem system) ---- */
+[data-cms-section="research"] {
+  /* surfaces */
+  --bg: var(--gem-bg, #0b0c10);
+  --surface: var(--gem-surface);
+  --surface-2: var(--gem-surface-hi);
+  --surface-hover: var(--gem-faint);
+  --elev: var(--gem-well);
+
+  /* text — exact handoff values (gem-dim is too bright) */
+  --text: var(--gem-text);
+  --text-muted: var(--gem-muted);
+  --text-dim: #686a76;
+  --text-faint: #4a4c57;
+
+  /* borders — handoff #24262f hairline (gem-border #606370 is ~3x too loud) */
+  --border: #24262f;
+  --border-soft: #1c1e26;
+  --border-strong: #333645;
+
+  /* accent — handoff warm coral #fb7a52 (the module's brand anchor).
+     NOT --gem-accent (#FF8240); that yellow-orange fights the gradient washes. */
+  --accent: #fb7a52;
+  --accent-hover: #ff8e6a;
+  --accent-press: #e9663d;
+  --accent-soft: rgba(251, 122, 82, 0.14);
+  --accent-soft-2: rgba(251, 122, 82, 0.22);
+  --accent-text: #fb7a52;
+  --on-accent: #1a0d07;
+
+  /* warm-card gradient wash (same coral as --accent now). */
+  --grad-warm: #fb7a52;
+  --grad-ink: #15161d;
+
+  /* semantic */
+  --ok: var(--gem-done);
+  --warn: var(--gem-warn);
+  --danger: var(--gem-danger);
+  --info: #22b8d6;
+  --ok-s: rgba(34, 197, 94, 0.13);
+  --warn-s: rgba(245, 158, 11, 0.13);
+  --danger-s: rgba(244, 63, 94, 0.13);
+
+  /* domain colors (handoff palette) */
+  --c-courses: #8b8cf6;
+  --c-pipeline: #22b8d6;
+  --c-newsletter: #a855f7;
+  --c-links: #22c55e;
+  --c-social: #f59e0b;
+  --c-youtube: #ef4444;
+
+  /* chrome */
+  --radius: 14px;
+  --radius-sm: 9px;
+  --radius-lg: 20px;
+  --shadow: 0 1px 0 rgba(255, 255, 255, 0.02) inset,
+    0 8px 24px -12px rgba(0, 0, 0, 0.6);
+  --shadow-pop: 0 24px 60px -20px rgba(0, 0, 0, 0.7),
+    0 2px 8px rgba(0, 0, 0, 0.4);
+
+  /* typography */
+  --font-mono: 'Geist Mono', ui-monospace, monospace;
+
+  /* motion */
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-back: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --t-fast: 0.13s;
+  --t: 0.2s;
+}
+
+/* ============================================================
+   SHARED UTILITIES
+   ============================================================ */
+
+[data-cms-section="research"] .row {
+  display: flex;
+  align-items: center;
+}
+
+[data-cms-section="research"] .row.between {
+  justify-content: space-between;
+}
+
+[data-cms-section="research"] .col {
+  display: flex;
+  flex-direction: column;
+}
+
+[data-cms-section="research"] .gap-6 {
+  gap: 6px;
+}
+
+[data-cms-section="research"] .gap-8 {
+  gap: 8px;
+}
+
+[data-cms-section="research"] .gap-10 {
+  gap: 10px;
+}
+
+[data-cms-section="research"] .grow {
+  flex: 1;
+}
+
+[data-cms-section="research"] .auth {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+[data-cms-section="research"] .auth.cowork {
+  color: var(--c-courses, #8b8cf6);
+}
+
+[data-cms-section="research"] .auth.you {
+  color: var(--accent-text, #fb7a52);
+}
+
+[data-cms-section="research"] .tema-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+[data-cms-section="research"] .tdot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+[data-cms-section="research"] .sec-head {
+  margin: 26px 0 13px;
+}
+
+[data-cms-section="research"] .truncate2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-align: left;
+}
+
+/* Utility helpers */
+[data-cms-section="research"] .dim { opacity: 0.55; }
+[data-cms-section="research"] .fs12 { font-size: 12px; }
+
+[data-cms-section="research"] .cat-rail {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+[data-cms-section="research"] .cat-rail.scrollable {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding-bottom: 16px;
+  width: 100%;
+}
+
+[data-cms-section="research"] .search-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+[data-cms-section="research"] .search-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  max-width: 320px;
+  flex: 1;
+  min-width: 180px;
+}
+
+[data-cms-section="research"] .search-input input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+/* Badge atom */
+[data-cms-section="research"] .badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+}
+
+/* Badge kind variants — set by StatusBadge atom (dark-token subtle fills) */
+[data-cms-section="research"] .badge.info { color: var(--info); background: color-mix(in srgb, var(--info) 13%, transparent); border-color: transparent; }
+[data-cms-section="research"] .badge.warn { color: var(--warn); background: color-mix(in srgb, var(--warn) 13%, transparent); border-color: transparent; }
+[data-cms-section="research"] .badge.ok   { color: var(--ok);   background: color-mix(in srgb, var(--ok) 13%, transparent); border-color: transparent; }
+
+/* Ghost button variant */
+[data-cms-section="research"] .btn.ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-dim);
+}
+[data-cms-section="research"] .btn.ghost:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+[data-cms-section="research"] .rcard-time {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+}
+
+[data-cms-section="research"] .cat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  color: var(--text-muted);
+  transition: 0.12s;
+}
+
+[data-cms-section="research"] .cat-chip:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+[data-cms-section="research"] .cat-chip.on {
+  color: var(--bg);
+  background: var(--text);
+  border-color: transparent;
+}
+
+/* count badge inside category chips / "Todas" pill */
+[data-cms-section="research"] .ccount {
+  display: inline-grid;
+  place-items: center;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 5px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  background: var(--surface-2);
+  color: var(--text-dim);
+}
+
+/* inverted-on selected category chip */
+[data-cms-section="research"] .cat-chip.on .ccount {
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* form inputs */
+[data-cms-section="research"] textarea.finput {
+  height: auto;
+  min-height: 40px;
+  padding: 10px 12px;
+  line-height: 1.55;
+  resize: vertical;
+  font-family: inherit;
+}
+
+[data-cms-section="research"] .finput.sm {
+  height: 34px;
+  font-size: 12.5px;
+}
+
+[data-cms-section="research"] select.finput {
+  appearance: none;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 11px center;
+  padding-right: 32px;
+}
+
+[data-cms-section="research"] .insp-select {
+  width: 100%;
+  height: 34px;
+  font-size: 12.5px;
+  padding: 6px 32px 6px 12px;
+  border-radius: 9px;
+  background: var(--surface-2);
+  color: var(--text);
+  transition: border-color 0.2s;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 11px center;
+}
+
+/* source tags */
+[data-cms-section="research"] .src-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--st);
+}
+
+[data-cms-section="research"] .src-tag .lucide {
+  opacity: 0.9;
+}
+
+/* horizon chip (inline colored pill — color set via --hc) */
+[data-cms-section="research"] .hz-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--hc);
+  background: color-mix(in srgb, var(--hc) 14%, transparent);
+}
+
+/* ============================================================
+   FOCUS HERO
+   ============================================================ */
+
+[data-cms-section="research"] .focus-hero {
+  position: relative;
+  display: flex;
+  gap: 0;
+  overflow: hidden;
+  background: linear-gradient(
+    120deg,
+    color-mix(in srgb, var(--accent) 9%, var(--surface)) 0%,
+    var(--surface) 46%
+  );
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  margin-bottom: 8px;
+}
+
+[data-cms-section="research"] .fh-bar {
+  width: 5px;
+  flex-shrink: 0;
+  background: linear-gradient(var(--accent), var(--accent-press));
+}
+
+[data-cms-section="research"] .fh-body {
+  padding: 24px 26px;
+  flex: 1;
+  min-width: 0;
+}
+
+[data-cms-section="research"] .fh-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--accent-text);
+}
+
+[data-cms-section="research"] .fh-eyebrow > span:first-of-type {
+  white-space: nowrap;
+}
+
+[data-cms-section="research"] .fh-eyebrow .fh-window {
+  margin-left: 6px;
+  padding: 2px 9px;
+  border-radius: 7px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  color: var(--text-muted);
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: none;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+[data-cms-section="research"] .fh-title {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.8px;
+  line-height: 1.08;
+  margin: 14px 0 12px;
+  max-width: 22ch;
+}
+
+[data-cms-section="research"] .fh-thesis {
+  font-size: 14.5px;
+  line-height: 1.62;
+  color: var(--text-muted);
+  max-width: 70ch;
+}
+
+[data-cms-section="research"] .fh-bottom {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+}
+
+[data-cms-section="research"] .fh-temas {
+  display: flex;
+  gap: 14px;
+}
+
+[data-cms-section="research"] .fh-metric {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-muted);
+  padding: 6px 13px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  white-space: nowrap;
+}
+
+[data-cms-section="research"] .fh-metric .lucide {
+  color: var(--accent-text);
+  flex-shrink: 0;
+}
+
+[data-cms-section="research"] .fh-stamp {
+  position: relative;
+  width: 132px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+}
+
+[data-cms-section="research"] .fh-stamp span {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 5px;
+  color: var(--accent-text);
+  transform: rotate(-90deg);
+  white-space: nowrap;
+}
+
+[data-cms-section="research"] .fh-stamp i {
+  position: absolute;
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  border: 1.5px dashed color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+[data-cms-section="research"] .fh-stamp::after {
+  content: '';
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+/* provenance + based-on */
+[data-cms-section="research"] .fh-prov {
+  margin-left: auto;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+[data-cms-section="research"] .fh-based {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
+[data-cms-section="research"] .fh-based-lbl {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+[data-cms-section="research"] .based-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 280px;
+  padding: 5px 11px;
+  border-radius: 8px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  transition: 0.12s;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-cms-section="research"] .based-chip:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+[data-cms-section="research"] .based-chip .lucide {
+  color: var(--c-courses);
+  flex-shrink: 0;
+}
+
+/* focus empty / zero state */
+[data-cms-section="research"] .fz {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  overflow: hidden;
+  background: linear-gradient(
+    120deg,
+    color-mix(in srgb, var(--grad-warm) 5%, var(--surface)),
+    var(--grad-ink) 60%
+  );
+  border: 1.5px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  margin-bottom: 8px;
+}
+
+/* Orange spine — pulled flush to the card edge under the dashed border
+   (clipped to the rounded corners via the parent's overflow:hidden) */
+[data-cms-section="research"] .fz-bar {
+  width: 5px;
+  flex-shrink: 0;
+  margin: -1.5px 0 -1.5px -1.5px;
+  background: linear-gradient(var(--accent), var(--accent-press));
+}
+
+[data-cms-section="research"] .fz-main {
+  position: relative;
+  z-index: 1;
+  flex: 6 1 0;
+  min-width: 0;
+  padding: 28px 24px 22px;
+}
+
+/* Decorative radar — concentric dashed rings + glowing center dot,
+   centered in the right ~40% of the card */
+[data-cms-section="research"] .fz-aura {
+  position: relative;
+  flex: 4 0 0;
+  align-self: stretch;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* soft warm glow behind the rings */
+[data-cms-section="research"] .fz-aura::before {
+  content: '';
+  grid-area: 1 / 1;
+  width: 280px;
+  height: 280px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--accent) 13%, transparent) 0%,
+    transparent 66%
+  );
+}
+
+[data-cms-section="research"] .fz-aura i,
+[data-cms-section="research"] .fz-aura b {
+  grid-area: 1 / 1;
+}
+
+/* concentric dashed rings */
+[data-cms-section="research"] .fz-aura i {
+  border-radius: 50%;
+  border: 1px dashed color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+[data-cms-section="research"] .fz-aura i:nth-of-type(1) {
+  width: 108px;
+  height: 108px;
+  border-color: color-mix(in srgb, var(--accent) 34%, transparent);
+}
+
+[data-cms-section="research"] .fz-aura i:nth-of-type(2) {
+  width: 208px;
+  height: 208px;
+  border-color: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+[data-cms-section="research"] .fz-aura i:nth-of-type(3) {
+  width: 320px;
+  height: 320px;
+  border-color: color-mix(in srgb, var(--accent) 8%, transparent);
+  -webkit-mask: radial-gradient(circle, #000 58%, transparent 92%);
+  mask: radial-gradient(circle, #000 58%, transparent 92%);
+}
+
+/* glowing center dot */
+[data-cms-section="research"] .fz-aura b {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 18px 3px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+[data-cms-section="research"] .fz-eyebrow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent-text);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+[data-cms-section="research"] .fz-tag {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-dim);
+  background: var(--surface-hover);
+  padding: 2px 8px;
+  border-radius: 6px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+[data-cms-section="research"] .fz-title {
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+  margin-bottom: 6px;
+}
+
+[data-cms-section="research"] .fz-sub {
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  max-width: 60ch;
+  margin-bottom: 18px;
+}
+
+[data-cms-section="research"] .fz-sub b {
+  color: var(--text);
+  font-weight: 600;
+}
+
+[data-cms-section="research"] .fz-flow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+[data-cms-section="research"] .fz-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: min(160px, 100%);
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--sc, transparent) 8%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--sc, transparent) 15%, var(--border-soft));
+  border-radius: var(--radius-sm);
+}
+
+[data-cms-section="research"] .fz-step.dest {
+  border-style: dashed;
+}
+
+[data-cms-section="research"] .fz-step-ic {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  color: var(--sc, var(--text-muted));
+  background: color-mix(in srgb, var(--sc, var(--text-muted)) 18%, transparent);
+}
+
+[data-cms-section="research"] .fz-step-tx {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+[data-cms-section="research"] .fz-step-t {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+}
+
+[data-cms-section="research"] .fz-step-s {
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+
+[data-cms-section="research"] .fz-arrow {
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
+
+[data-cms-section="research"] .fz-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+[data-cms-section="research"] .fz-foot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-dim);
+  padding-top: 14px;
+  border-top: 1px solid var(--border-soft);
+}
+
+[data-cms-section="research"] .fz-foot .lucide {
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
+
+[data-cms-section="research"] .fz-link {
+  background: none;
+  border: none;
+  color: var(--accent-text);
+  font-weight: 600;
+  font-size: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+[data-cms-section="research"] .fz-link:hover {
+  color: var(--accent);
+}
+
+/* ============================================================
+   HORIZON BOARD
+   ============================================================ */
+
+[data-cms-section="research"] .hz-board {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+[data-cms-section="research"] .hz-col {
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  padding: 6px;
+}
+
+[data-cms-section="research"] .hz-col-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px 12px;
+}
+
+[data-cms-section="research"] .hz-dot {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: var(--hc);
+  background: color-mix(in srgb, var(--hc) 15%, transparent);
+}
+
+[data-cms-section="research"] .hz-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+}
+
+[data-cms-section="research"] .hz-sub {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+[data-cms-section="research"] .hz-col-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 2px;
+}
+
+[data-cms-section="research"] .hz-card {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 13px 14px;
+  transition: border-color var(--t-fast) var(--ease),
+    transform var(--t-fast) var(--ease);
+}
+
+[data-cms-section="research"] .hz-card:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-1px);
+}
+
+[data-cms-section="research"] .hz-card.active,
+[data-cms-section="research"] .hz-card.st-ativo {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: linear-gradient(
+    150deg,
+    var(--accent-soft) 0%,
+    var(--surface) 60%
+  );
+}
+
+[data-cms-section="research"] .hz-card.st-proposto {
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--c-courses) 50%, transparent);
+  background: linear-gradient(
+    150deg,
+    color-mix(in srgb, var(--c-courses) 8%, var(--surface)) 0%,
+    var(--surface) 60%
+  );
+}
+
+/* Archived foco card state */
+[data-cms-section="research"] .hz-card.st-arquivado {
+  opacity: 0.55;
+  border-style: dashed;
+}
+[data-cms-section="research"] .hz-card.st-arquivado:hover {
+  opacity: 0.75;
+}
+
+[data-cms-section="research"] .hz-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 7px;
+}
+
+[data-cms-section="research"] .hz-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--fc);
+  white-space: nowrap;
+}
+
+[data-cms-section="research"] .hz-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  animation: hzpulse 2s infinite;
+}
+
+[data-cms-section="research"] .hz-card-win {
+  font-size: 10.5px;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  letter-spacing: 0.3px;
+}
+
+[data-cms-section="research"] .hz-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  margin: 5px 0 6px;
+  line-height: 1.25;
+}
+
+[data-cms-section="research"] .hz-card-thesis {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+[data-cms-section="research"] .hz-card-temas {
+  display: flex;
+  gap: 5px;
+  margin-top: 10px;
+}
+
+[data-cms-section="research"] .hz-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+[data-cms-section="research"] .hz-edit {
+  opacity: 0;
+  width: 24px;
+  height: 24px;
+  transition: opacity 0.12s;
+}
+
+[data-cms-section="research"] .hz-card:hover .hz-edit {
+  opacity: 1;
+}
+
+[data-cms-section="research"] .hz-add {
+  margin-left: auto;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  color: var(--text-dim);
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
+  transition: 0.12s;
+}
+
+[data-cms-section="research"] .hz-add:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+[data-cms-section="research"] .hz-confirm {
+  padding: 4px 10px;
+  font-size: 11.5px;
+}
+
+[data-cms-section="research"] .hz-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 14px 8px;
+  border: 1.5px dashed var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 500;
+  transition: 0.12s;
+}
+
+[data-cms-section="research"] .hz-empty:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+  background: var(--surface);
+}
+
+/* ============================================================
+   FOCO SPLIT (decisions + pinned research)
+   ============================================================ */
+
+/* ============================================================
+   FZ-NOACTIVE — compact "no active focus" banner
+   ============================================================ */
+
+[data-cms-section="research"] .fz-noactive {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 13px 16px;
+  background: linear-gradient(
+    120deg,
+    color-mix(in srgb, var(--grad-warm) 5%, var(--surface)),
+    var(--grad-ink) 60%
+  );
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  margin-bottom: 8px;
+}
+
+[data-cms-section="research"] .fz-noactive .btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+[data-cms-section="research"] .fzn-ic {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  color: var(--accent-text);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+[data-cms-section="research"] .fzn-tx {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+[data-cms-section="research"] .fzn-tx b {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* ============================================================
+   SECTION LABEL / CARD LINK / RESET — shared chrome
+   ============================================================ */
+
+[data-cms-section="research"] .section-label {
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+[data-cms-section="research"] .section-label .lucide {
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+[data-cms-section="research"] .card-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-text);
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: color var(--t-fast) var(--ease);
+}
+
+[data-cms-section="research"] .card-link:hover {
+  color: var(--accent);
+}
+
+[data-cms-section="research"] .card-link .lucide {
+  flex-shrink: 0;
+}
+
+[data-cms-section="research"] .reset-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-dim);
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: color var(--t-fast) var(--ease);
+}
+
+[data-cms-section="research"] .reset-btn:hover {
+  color: var(--text);
+}
+
+/* ============================================================
+   CARD + EMPTY STATE — generic surfaces
+   ============================================================ */
+
+[data-cms-section="research"] .card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+[data-cms-section="research"] .card-pad {
+  padding: 18px;
+}
+
+[data-cms-section="research"] .empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 4px;
+  padding: 34px 24px;
+}
+
+[data-cms-section="research"] .empty-ico {
+  width: 54px;
+  height: 54px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  color: var(--text-dim);
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  margin-bottom: 12px;
+}
+
+[data-cms-section="research"] .empty-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+[data-cms-section="research"] .empty-sub {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  max-width: 34ch;
+}
+
+[data-cms-section="research"] .foco-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 26px;
+}
+
+[data-cms-section="research"] .foco-split > div {
+  min-width: 0;
+}
+
+/* ============================================================
+   RESEARCH CARD
+   ============================================================ */
+
+[data-cms-section="research"] .rgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(304px, 1fr));
+  gap: 14px;
+}
+
+[data-cms-section="research"] .rcard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  text-align: left;
+  padding: 16px 17px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: border-color var(--t-fast) var(--ease),
+    transform var(--t-fast) var(--ease), box-shadow var(--t) var(--ease);
+}
+
+[data-cms-section="research"] .rcard:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow);
+}
+
+[data-cms-section="research"] .rcard.pinned {
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--border));
+}
+
+[data-cms-section="research"] .rcard-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+[data-cms-section="research"] .rcard-title {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  line-height: 1.3;
+}
+
+[data-cms-section="research"] .rcard-sum {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  flex: 1;
+}
+
+[data-cms-section="research"] .rcard-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-top: 4px;
+}
+
+[data-cms-section="research"] .rmeta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+[data-cms-section="research"] .rmeta .lucide {
+  color: var(--text-dim);
+}
+
+[data-cms-section="research"] .rcard-pin {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  color: var(--accent-text);
+  opacity: 0.85;
+}
+
+[data-cms-section="research"] .rcard.pinned .rcard-top {
+  padding-right: 22px;
+}
+
+/* ============================================================
+   DECISION CARD
+   ============================================================ */
+
+[data-cms-section="research"] .dcard {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 15px 17px;
+  transition: border-color var(--t-fast);
+}
+
+[data-cms-section="research"] .dcard:hover {
+  border-color: var(--border-strong);
+}
+
+[data-cms-section="research"] .dcard:hover .dcard-edit {
+  opacity: 1;
+}
+
+[data-cms-section="research"] .dcard.arch {
+  opacity: 0.6;
+}
+
+[data-cms-section="research"] .dcard-top {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 9px;
+}
+
+[data-cms-section="research"] .dstat {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ds);
+  background: color-mix(in srgb, var(--ds) 13%, transparent);
+}
+
+[data-cms-section="research"] .dcard-edit {
+  opacity: 0;
+  transition: opacity var(--t-fast);
+  width: 28px;
+  height: 28px;
+}
+
+[data-cms-section="research"] .dcard-stmt {
+  font-size: 14.5px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  line-height: 1.4;
+}
+
+[data-cms-section="research"] .dcard-why {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-muted);
+  margin-top: 6px;
+}
+
+[data-cms-section="research"] .dcard-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+[data-cms-section="research"] .link-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 230px;
+  padding: 4px 10px;
+  border-radius: 7px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  transition: 0.12s;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-cms-section="research"] .link-chip:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+[data-cms-section="research"] .link-chip .lucide {
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+[data-cms-section="research"] .drive-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px 4px 7px;
+  border-radius: 7px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--accent-text);
+  background: var(--accent-soft);
+}
+
+/* "Abrir →" affordance — trailing the decision card's links row */
+[data-cms-section="research"] .dcard-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--accent-text);
+  background: none;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color var(--t-fast) var(--ease);
+}
+
+[data-cms-section="research"] .dcard-open:hover {
+  color: var(--accent);
+}
+
+/* decision groups */
+[data-cms-section="research"] .dec-group {
+  margin-bottom: 26px;
+}
+
+[data-cms-section="research"] .dec-group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  margin-bottom: 13px;
+}
+
+[data-cms-section="research"] .dec-count {
+  margin-left: 2px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-dim);
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  border-radius: 7px;
+  min-width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+}
+
+[data-cms-section="research"] .dec-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+/* ============================================================
+   DOCUMENT VIEW
+   ============================================================ */
+
+[data-cms-section="research"] .doc-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 22px;
+}
+
+[data-cms-section="research"] .doc-bar-crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+[data-cms-section="research"] .doc-bar .seg {
+  flex-shrink: 0;
+}
+
+[data-cms-section="research"] .doc-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 34px;
+  align-items: start;
+}
+
+[data-cms-section="research"] .doc-main {
+  min-width: 0;
+}
+
+[data-cms-section="research"] .doc-head {
+  margin-bottom: 18px;
+}
+
+[data-cms-section="research"] .doc-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+[data-cms-section="research"] .doc-title-h1 {
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.9px;
+  line-height: 1.1;
+}
+
+[data-cms-section="research"] .doc-title-edit {
+  outline: none;
+  border-radius: 8px;
+  transition: background 0.12s, box-shadow 0.12s;
+  cursor: text;
+}
+
+[data-cms-section="research"] .doc-title-edit:hover {
+  background: var(--surface-2);
+}
+
+[data-cms-section="research"] .doc-title-edit:focus {
+  background: var(--surface);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+[data-cms-section="research"] .doc-summary {
+  font-size: 15.5px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  margin-top: 12px;
+  max-width: 64ch;
+}
+
+/* document theme kicker — uppercase eyebrow above the title */
+[data-cms-section="research"] .doc-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 12px;
+}
+
+[data-cms-section="research"] .doc-kicker .tdot,
+[data-cms-section="research"] .doc-kicker .dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+/* Read / Edit segmented control in the doc bar */
+[data-cms-section="research"] .doc-mode button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+[data-cms-section="research"] .doc-endmark {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  justify-content: center;
+  margin: 36px 0 8px;
+  color: var(--accent-text);
+}
+
+[data-cms-section="research"] .doc-endmark span {
+  height: 1px;
+  width: 60px;
+  background: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+/* ============================================================
+   DOCUMENT INSPECTOR (sidebar)
+   ============================================================ */
+
+[data-cms-section="research"] .doc-insp {
+  position: sticky;
+  top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 4px 0;
+}
+
+[data-cms-section="research"] .insp-block {
+  padding: 15px 17px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+[data-cms-section="research"] .insp-block:last-of-type {
+  border-bottom: none;
+}
+
+[data-cms-section="research"] .insp-h {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 12px;
+}
+
+[data-cms-section="research"] .insp-h .lucide {
+  color: var(--accent-text);
+}
+
+[data-cms-section="research"] .takeaway {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+}
+
+[data-cms-section="research"] .tk-mark {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-top: 7px;
+  flex-shrink: 0;
+}
+
+[data-cms-section="research"] .tk-txt {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text);
+  flex: 1;
+}
+
+[data-cms-section="research"] .tk-act {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  color: var(--text-dim);
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  opacity: 0;
+  transition: 0.12s;
+}
+
+[data-cms-section="research"] .takeaway:hover .tk-act {
+  opacity: 1;
+}
+
+[data-cms-section="research"] .tk-act:hover {
+  color: var(--accent-text);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+[data-cms-section="research"] .insp-empty {
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+[data-cms-section="research"] .insp-dec {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  width: 100%;
+  text-align: left;
+  padding: 9px 10px;
+  border-radius: 9px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-muted);
+  transition: 0.12s;
+}
+
+[data-cms-section="research"] .insp-dec:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+/* "Usar em…" inspector action rows (route a takeaway into a destination) */
+[data-cms-section="research"] .use-btn {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 9px 11px;
+  border-radius: 9px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: 0.12s;
+}
+
+[data-cms-section="research"] .use-btn:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+  background: var(--surface-hover);
+}
+
+[data-cms-section="research"] .use-btn .use-arrow {
+  margin-left: auto;
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
+
+[data-cms-section="research"] .use-btn:hover .use-arrow {
+  color: var(--accent-text);
+}
+
+[data-cms-section="research"] .insp-foot {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 13px 17px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+[data-cms-section="research"] .insp-foot .lucide {
+  color: var(--text-faint);
+}
+
+/* ============================================================
+   TIPTAP EDITOR CHROME
+   ============================================================ */
+
+[data-cms-section="research"] .tt-loading {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 40px 4px;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+[data-cms-section="research"] .tt-spin {
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--accent);
+  animation: ttspin 0.7s linear infinite;
+}
+
+@keyframes ttspin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+[data-cms-section="research"] .tt-fallback {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 16px;
+  padding: 9px 13px;
+  border-radius: 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+  background: var(--warn-s);
+  border: 1px solid color-mix(in srgb, var(--warn) 24%, transparent);
+}
+
+[data-cms-section="research"] .tt-fallback .lucide {
+  color: var(--warn);
+  flex-shrink: 0;
+}
+
+/* editing wrapper — positioning context for the sticky toolbar */
+[data-cms-section="research"] .tt-wrap.editing {
+  position: relative;
+}
+
+/* sticky formatting toolbar */
+[data-cms-section="research"] .tt-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-wrap: wrap;
+  padding: 7px 8px;
+  margin-bottom: 14px;
+  background: color-mix(in srgb, var(--elev) 92%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  box-shadow: var(--shadow);
+}
+
+[data-cms-section="research"] .tt-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: background var(--t-fast), color var(--t-fast);
+}
+
+[data-cms-section="research"] .tt-btn:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+[data-cms-section="research"] .tt-btn.on {
+  background: var(--accent-soft-2);
+  color: var(--accent-text);
+}
+
+[data-cms-section="research"] .tt-btn.hl.on {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+[data-cms-section="research"] .tt-sep {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+  margin: 0 5px;
+}
+
+/* text glyph fallbacks (B / I / U) when an icon isn't used */
+[data-cms-section="research"] .tt-gl {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+[data-cms-section="research"] .tt-gl.b {
+  font-weight: 800;
+}
+
+[data-cms-section="research"] .tt-gl.i {
+  font-style: italic;
+  font-family: Georgia, serif;
+}
+
+[data-cms-section="research"] .tt-gl.u {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* editing affordance — bordered box around the editable prose */
+[data-cms-section="research"] .tt-wrap.editing .tt-prose {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  padding: 4px 18px 18px;
+  background: color-mix(in srgb, var(--surface) 40%, transparent);
+}
+
+[data-cms-section="research"] .tt-wrap.editing .tt-prose .ProseMirror {
+  min-height: 280px;
+}
+
+/* ============================================================
+   TIPTAP PROSE
+   ============================================================ */
+
+/* prose — read & edit */
+[data-cms-section="research"] .tt-prose .ProseMirror {
+  outline: none;
+  font-size: 16px;
+  line-height: 1.72;
+  color: var(--text);
+  max-width: 70ch;
+}
+
+[data-cms-section="research"] .tt-prose .ProseMirror > * + * {
+  margin-top: 1.05em;
+}
+
+[data-cms-section="research"] .tt-prose .ProseMirror p {
+  color: var(--text);
+}
+
+[data-cms-section="research"] .tt-prose .ProseMirror h2 {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  line-height: 1.25;
+  margin-top: 1.7em;
+}
+
+[data-cms-section="research"] .tt-prose .ProseMirror h3 {
+  font-size: 17.5px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  margin-top: 1.4em;
+}
+
+[data-cms-section="research"] .tt-prose .ProseMirror a {
+  color: var(--accent-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  cursor: pointer;
+}
+
+[data-cms-section="research"] .tt-prose .ProseMirror strong {
+  font-weight: 700;
+  color: var(--text);
+}
+
+[data-cms-section="research"] .tt-prose .ProseMirror mark {
+  background: color-mix(in srgb, var(--accent) 26%, transparent);
+  color: var(--text);
+  padding: 1px 3px;
+  border-radius: 4px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+[data-cms-section="research"] .tt-prose .ProseMirror ul,
+[data-cms-section="research"] .tt-prose .ProseMirror ol {
+  padding-left: 1.4em;
+}
+
+[data-cms-section="research"] .tt-prose .ProseMirror li {
+  margin: 0.35em 0;
+}
+
+[data-cms-section="research"] .tt-prose .ProseMirror li p {
+  margin: 0;
+}
+
+[data-cms-section="research"] .tt-prose .ProseMirror li::marker {
+  color: var(--text-dim);
+}
+
+[data-cms-section="research"] .tt-prose .ProseMirror blockquote {
+  border-left: 3px solid var(--accent);
+  padding: 2px 0 2px 16px;
+  margin-left: 0;
+  color: var(--text-muted);
+  font-style: normal;
+}
+
+[data-cms-section="research"] .tt-prose .ProseMirror blockquote p {
+  font-size: 14.5px;
+}
+
+[data-cms-section="research"] .tt-prose .ProseMirror code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  border-radius: 5px;
+  padding: 1px 5px;
+}
+
+[data-cms-section="research"] .tt-prose .ProseMirror pre {
+  background: var(--elev);
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  padding: 14px 16px;
+  overflow-x: auto;
+}
+
+[data-cms-section="research"] .tt-prose .ProseMirror pre code {
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+[data-cms-section="research"] .tt-prose .ProseMirror hr {
+  border: none;
+  height: 1px;
+  background: var(--border);
+  margin: 2em 0;
+}
+
+[data-cms-section="research"]
+  .tt-prose
+  .ProseMirror
+  p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: var(--text-faint);
+  pointer-events: none;
+  height: 0;
+}
+
+/* task list */
+[data-cms-section="research"]
+  .tt-prose
+  .ProseMirror
+  ul[data-type='taskList'] {
+  list-style: none;
+  padding-left: 2px;
+}
+
+[data-cms-section="research"]
+  .tt-prose
+  .ProseMirror
+  ul[data-type='taskList']
+  li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+[data-cms-section="research"]
+  .tt-prose
+  .ProseMirror
+  ul[data-type='taskList']
+  li
+  > label {
+  flex-shrink: 0;
+  margin-top: 4px;
+  user-select: none;
+}
+
+[data-cms-section="research"]
+  .tt-prose
+  .ProseMirror
+  ul[data-type='taskList']
+  li
+  > div {
+  flex: 1;
+  min-width: 0;
+}
+
+[data-cms-section="research"]
+  .tt-prose
+  .ProseMirror
+  ul[data-type='taskList']
+  input[type='checkbox'] {
+  appearance: none;
+  width: 17px;
+  height: 17px;
+  border-radius: 5px;
+  border: 1.5px solid var(--border-strong);
+  background: var(--surface);
+  cursor: pointer;
+  position: relative;
+  transition: 0.12s;
+}
+
+[data-cms-section="research"]
+  .tt-prose
+  .ProseMirror
+  ul[data-type='taskList']
+  input[type='checkbox']:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+[data-cms-section="research"]
+  .tt-prose
+  .ProseMirror
+  ul[data-type='taskList']
+  input[type='checkbox']:checked::after {
+  content: '\2713';
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--on-accent);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+[data-cms-section="research"]
+  .tt-prose
+  .ProseMirror
+  li[data-checked='true']
+  > div {
+  color: var(--text-dim);
+  text-decoration: line-through;
+  text-decoration-color: var(--text-faint);
+}
+
+[data-cms-section="research"] .tt-prose .ProseMirror ::selection {
+  background: var(--accent-soft-2);
+}
+
+/* ============================================================
+   EXPLAINER STRIP
+   ============================================================ */
+
+[data-cms-section="research"] .explainer {
+  position: relative;
+  background: linear-gradient(
+    120deg,
+    color-mix(in srgb, var(--grad-warm) 5%, var(--surface)),
+    var(--grad-ink) 60%
+  );
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  margin-bottom: 18px;
+}
+
+[data-cms-section="research"] .explainer-x {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  color: var(--text-dim);
+  transition: 0.12s;
+}
+
+[data-cms-section="research"] .explainer-x:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+[data-cms-section="research"] .explainer-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 14px;
+}
+
+[data-cms-section="research"] .explainer-head b {
+  color: var(--text);
+  font-weight: 600;
+}
+
+[data-cms-section="research"] .explainer-flow {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  flex-wrap: wrap;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+[data-cms-section="research"] .ex-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  flex: 1;
+  min-width: min(200px, 100%);
+  padding: 11px 13px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+}
+
+[data-cms-section="research"] .ex-ico {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  color: var(--xc);
+  background: color-mix(in srgb, var(--xc) 14%, transparent);
+}
+
+[data-cms-section="research"] .ex-t {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+}
+
+[data-cms-section="research"] .ex-s {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+[data-cms-section="research"] .ex-arrow {
+  color: var(--text-faint);
+  align-self: center;
+  flex-shrink: 0;
+}
+
+[data-cms-section="research"] .explainer-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  padding-top: 13px;
+  border-top: 1px solid var(--border-soft);
+}
+
+/* ============================================================
+   DRAWER — side panel (scrim + panel + form)
+   ============================================================ */
+
+[data-cms-section="research"] .drawer-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 49;
+  background: rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  animation: drawer-scrim-in 0.18s var(--ease) both;
+}
+
+@keyframes drawer-scrim-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+[data-cms-section="research"] .drawer-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 480px;
+  max-width: 100vw;
+  z-index: 50;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  animation: drawer-slide-in 0.22s var(--ease) both;
+}
+
+@keyframes drawer-slide-in {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+[data-cms-section="research"] .drawer-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+[data-cms-section="research"] .drawer-head .dt {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text);
+}
+
+[data-cms-section="research"] .drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+[data-cms-section="research"] .drawer-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+/* form primitives */
+[data-cms-section="research"] .fgroup {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+[data-cms-section="research"] .flabel {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+[data-cms-section="research"] .finput {
+  width: 100%;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-family: inherit;
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  color: var(--text);
+  transition: 0.12s;
+}
+
+[data-cms-section="research"] .finput:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  outline: none;
+}
+
+[data-cms-section="research"] .finput::placeholder {
+  color: var(--text-faint);
+}
+
+[data-cms-section="research"] .fhint {
+  font-size: 11.5px;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+
+[data-cms-section="research"] .fsection {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  padding-top: 6px;
+}
+
+[data-cms-section="research"] .fsection.danger {
+  color: var(--danger);
+}
+
+/* segmented control */
+[data-cms-section="research"] .seg {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+}
+
+[data-cms-section="research"] .seg button {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+[data-cms-section="research"] .seg button:hover {
+  color: var(--text);
+  background: var(--surface-hover);
+}
+
+[data-cms-section="research"] .seg button.on {
+  color: var(--accent-text);
+  background: var(--accent-soft-2);
+}
+
+/* colored dot for theme checkboxes */
+[data-cms-section="research"] .cdot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* half-width row helper */
+[data-cms-section="research"] .drawer-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+[data-cms-section="research"] .drawer-row > * {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ============================================================
+   DRAWER — research picker
+   ============================================================ */
+
+[data-cms-section="research"] .pick-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  text-align: left;
+  padding: 8px 11px;
+  border-radius: 9px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
+  transition: 0.12s;
+}
+
+[data-cms-section="research"] .pick-row:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+[data-cms-section="research"] .pick-row.on {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+[data-cms-section="research"] .pick-check {
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+  border-radius: 5px;
+  border: 1.5px solid var(--border-strong);
+  display: grid;
+  place-items: center;
+  color: var(--on-accent);
+}
+
+[data-cms-section="research"] .pick-row.on .pick-check {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+/* ============================================================
+   TABS (research section nav)
+   ============================================================ */
+
+[data-cms-section="research"] .tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 20px;
+}
+
+[data-cms-section="research"] .tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text-dim);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  cursor: pointer;
+  transition: color var(--t-fast), border-color var(--t-fast);
+  white-space: nowrap;
+}
+
+[data-cms-section="research"] .tab:hover {
+  color: var(--text);
+}
+
+[data-cms-section="research"] .tab.on {
+  color: var(--accent-text);
+  border-bottom-color: var(--accent);
+}
+
+[data-cms-section="research"] .tab .lucide {
+  color: currentColor;
+  opacity: 0.85;
+}
+
+/* ---- Module header ---- */
+
+[data-cms-section="research"] .mod-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 0 12px;
+}
+
+[data-cms-section="research"] .mod-title {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.5px;
+}
+
+[data-cms-section="research"] .mod-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+[data-cms-section="research"] .mod-live i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ok);
+  box-shadow: 0 0 0 3px var(--ok-s);
+}
+
+
+/* ============================================================
+   ANIMATIONS
+   ============================================================ */
+
+@keyframes hzpulse {
+  50% {
+    box-shadow: 0 0 0 5px transparent;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+[data-cms-section="research"] .fade-in {
+  animation: fade-in 0.25s var(--ease) both;
+}
+
+/* ============================================================
+   BUTTONS, ICON BUTTONS, CHIPS (shared)
+   ============================================================ */
+
+[data-cms-section="research"] .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 16px;
+  border-radius: var(--radius-sm, 9px);
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+[data-cms-section="research"] .btn:hover { background: var(--surface-2); border-color: var(--border-strong); }
+[data-cms-section="research"] .btn.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+[data-cms-section="research"] .btn.primary:hover { filter: brightness(1.1); }
+[data-cms-section="research"] .btn.sm { padding: 5px 10px; font-size: 12px; }
+[data-cms-section="research"] .btn:disabled,
+[data-cms-section="research"] .btn[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+[data-cms-section="research"] .icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: var(--radius-sm, 9px);
+  border: none; background: transparent; color: var(--text-muted);
+  cursor: pointer; transition: background 0.12s, color 0.12s;
+}
+[data-cms-section="research"] .icon-btn:hover { background: var(--surface-2); color: var(--text); }
+[data-cms-section="research"] .icon-btn.bare { width: auto; height: auto; padding: 4px; }
+
+[data-cms-section="research"] .chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); cursor: pointer; transition: background 0.12s, color 0.12s, border-color 0.12s; }
+[data-cms-section="research"] .chip:hover { border-color: var(--border-strong); color: var(--text); }
+[data-cms-section="research"] .chip.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-text, var(--accent)); }
+[data-cms-section="research"] .chip.sm { padding: 3px 8px; font-size: 11px; }
+
+/* ============================================================
+   RESPONSIVE — 1100px
+   ============================================================ */
+
+/* Mid widths: 3-col board → 2-col before fully stacking */
+@media (max-width: 1100px) and (min-width: 781px) {
+  [data-cms-section="research"] .hz-board {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 1100px) {
+  [data-cms-section="research"] .foco-split {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 780px) {
+  [data-cms-section="research"] .hz-board {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ============================================================
+   RESPONSIVE — 1080px
+   ============================================================ */
+
+@media (max-width: 1080px) {
+  [data-cms-section="research"] .doc-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ============================================================
+   RESPONSIVE — 980px
+   ============================================================ */
+
+@media (max-width: 980px) {
+  [data-cms-section="research"] .fh-stamp {
+    display: none;
+  }
+
+  [data-cms-section="research"] .fh-title {
+    font-size: 25px;
+  }
+
+  [data-cms-section="research"] .dec-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ============================================================
+   RESPONSIVE — 880px
+   ============================================================ */
+
+/* Mid widths: shrink the radar so the step chips/buttons keep room */
+@media (max-width: 1000px) and (min-width: 881px) {
+  [data-cms-section="research"] .fz-aura {
+    flex-grow: 2.4;
+  }
+}
+
+@media (max-width: 880px) {
+  [data-cms-section="research"] .ex-arrow,
+  [data-cms-section="research"] .fz-arrow {
+    display: none;
+  }
+
+  /* Radar is a wide-screen flourish — drop it and let content go full width */
+  [data-cms-section="research"] .fz-aura {
+    display: none;
+  }
+
+  [data-cms-section="research"] .fz-main {
+    flex: 1 1 100%;
+  }
+}
+
+@media (pointer: coarse) {
+  [data-cms-section="research"] .explainer-x {
+    width: 36px;
+    height: 36px;
+  }
+}
+
+/* ---- Focus-visible ---- */
+[data-cms-section="research"] .tab:focus-visible,
+[data-cms-section="research"] .btn:focus-visible,
+[data-cms-section="research"] .icon-btn:focus-visible,
+[data-cms-section="research"] .chip:focus-visible,
+[data-cms-section="research"] .cat-chip:focus-visible,
+[data-cms-section="research"] .hz-card:focus-visible,
+[data-cms-section="research"] .rcard:focus-visible,
+[data-cms-section="research"] .dcard:focus-visible,
+[data-cms-section="research"] .dcard-open:focus-visible,
+[data-cms-section="research"] .insp-dec:focus-visible,
+[data-cms-section="research"] .pick-row:focus-visible,
+[data-cms-section="research"] .based-chip:focus-visible,
+[data-cms-section="research"] .link-chip:focus-visible,
+[data-cms-section="research"] .hz-empty:focus-visible,
+[data-cms-section="research"] .hz-add:focus-visible,
+[data-cms-section="research"] .fz-link:focus-visible,
+[data-cms-section="research"] .card-link:focus-visible,
+[data-cms-section="research"] .reset-btn:focus-visible,
+[data-cms-section="research"] .dsp-opt:focus-visible,
+[data-cms-section="research"] .use-btn:focus-visible,
+[data-cms-section="research"] .explainer-x:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+[data-cms-section="research"] .hz-edit:focus-visible,
+[data-cms-section="research"] .dcard-edit:focus-visible {
+  opacity: 1;
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ============================================================
+   REDUCED MOTION
+   ============================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  [data-cms-section="research"] *,
+  [data-cms-section="research"] *::before,
+  [data-cms-section="research"] *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* Touch: always show edit/action buttons that are hover-only */
+@media (hover: none) {
+  [data-cms-section="research"] .hz-edit,
+  [data-cms-section="research"] .dcard-edit,
+  [data-cms-section="research"] .tk-act {
+    opacity: 0.7;
+  }
+}
+
+/* ============================================================
+   DECISION DOC — fullscreen read view
+   (.doc-bar / .doc-grid / .doc-main / .doc-insp / .insp-block /
+    .insp-h shell rules already defined above — not duplicated)
+   ============================================================ */
+
+/* larger status badge in the decision hero */
+[data-cms-section="research"] .dstat.lg {
+  padding: 5px 11px;
+  font-size: 12px;
+}
+
+/* decision card becomes a clickable surface that opens the doc */
+[data-cms-section="research"] .dcard {
+  cursor: pointer;
+}
+
+[data-cms-section="research"] .dcard:hover .dcard-open {
+  opacity: 1;
+  transform: none;
+}
+
+/* narrower reading column for the decision document */
+[data-cms-section="research"] .dec-view .doc-main {
+  max-width: 760px;
+}
+
+/* hero */
+[data-cms-section="research"] .dec-hero {
+  padding-bottom: 22px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+[data-cms-section="research"] .dec-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--accent-text);
+  margin-bottom: 14px;
+}
+
+[data-cms-section="research"] .dec-eyebrow-date {
+  color: var(--text-dim);
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+[data-cms-section="research"] .dec-statement {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.8px;
+  line-height: 1.18;
+  text-wrap: balance;
+}
+
+[data-cms-section="research"] .dec-rationale {
+  font-size: 16.5px;
+  line-height: 1.62;
+  color: var(--text-muted);
+  margin-top: 16px;
+  padding-left: 16px;
+  border-left: 3px solid color-mix(in srgb, var(--accent) 38%, transparent);
+}
+
+/* sections */
+[data-cms-section="research"] .dec-section {
+  margin-bottom: 26px;
+}
+
+[data-cms-section="research"] .dec-sec-h {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 12px;
+}
+
+[data-cms-section="research"] .dec-sec-h .lucide {
+  color: var(--accent-text);
+}
+
+[data-cms-section="research"] .dec-prose {
+  font-size: 15.5px;
+  line-height: 1.68;
+  color: var(--text);
+  max-width: 68ch;
+}
+
+/* consequences list — accent rotated-square markers */
+[data-cms-section="research"] .dec-conseq {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0;
+  margin: 0;
+}
+
+[data-cms-section="research"] .dec-conseq li {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: var(--text);
+}
+
+[data-cms-section="research"] .dc-mark {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  background: var(--accent);
+  margin-top: 7px;
+  flex-shrink: 0;
+  transform: rotate(45deg);
+}
+
+/* decision inspector — status picker */
+[data-cms-section="research"] .dec-status-pick {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+[data-cms-section="research"] .dsp-opt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 8px 11px;
+  border-radius: 9px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  transition: 0.12s;
+}
+
+[data-cms-section="research"] .dsp-opt:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+[data-cms-section="research"] .dsp-opt .lucide {
+  color: var(--ds);
+}
+
+[data-cms-section="research"] .dsp-opt.on {
+  color: var(--ds);
+  background: color-mix(in srgb, var(--ds) 13%, transparent);
+  border-color: color-mix(in srgb, var(--ds) 40%, transparent);
+  font-weight: 600;
+}
+
+/* decision inspector — metric / revisit / drives */
+[data-cms-section="research"] .dec-metric {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text);
+  font-weight: 500;
+}
+
+[data-cms-section="research"] .dec-revisit {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  padding: 6px 11px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+}
+
+[data-cms-section="research"] .dec-revisit .lucide {
+  color: var(--accent-text);
+}
+
+[data-cms-section="research"] .dec-drives {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+/* decision timeline / history */
+[data-cms-section="research"] .dec-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+[data-cms-section="research"] .dtl-row {
+  display: flex;
+  gap: 11px;
+  padding-bottom: 15px;
+  position: relative;
+}
+
+[data-cms-section="research"] .dtl-row:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 12px;
+  bottom: 0;
+  width: 1.5px;
+  background: var(--border);
+}
+
+[data-cms-section="research"] .dtl-row:last-child {
+  padding-bottom: 0;
+}
+
+[data-cms-section="research"] .dtl-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+  margin-top: 3px;
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  z-index: 1;
+}
+
+[data-cms-section="research"] .dtl-body {
+  flex: 1;
+  min-width: 0;
+}
+
+[data-cms-section="research"] .dtl-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+[data-cms-section="research"] .dtl-head b {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+[data-cms-section="research"] .dtl-head .mono {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+}
+
+[data-cms-section="research"] .dtl-note {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  margin-top: 3px;
+}

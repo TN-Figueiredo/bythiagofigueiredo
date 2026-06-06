@@ -1,3 +1,9 @@
+/**
+ * @deprecated Replaced by research-doc.tsx in the 3-tab redesign.
+ * SECURITY NOTE: This client component has static server action imports —
+ * use callback props instead (as research-doc.tsx does).
+ */
+
 'use client'
 
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
@@ -16,20 +22,22 @@ import { getFormatIcon } from '@/lib/pipeline/gem-design'
 interface ResearchDetailProps {
   item: ResearchItemFull | null
   loading?: boolean
+  error?: boolean
   isEditing: boolean
   onToggleEdit: (editing: boolean) => void
   onItemUpdated: (item: Partial<ResearchItemFull> & { id: string }) => void
   onItemDeleted: (id: string) => void
   onSelectTopic?: (topicId: string) => void
+  onRetry?: () => void
 }
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error'
 
 const STATUS_OPTIONS: Array<{ value: ResearchStatus; label: string }> = [
-  { value: 'new', label: 'Novo' },
-  { value: 'reviewed', label: 'Revisado' },
-  { value: 'starred', label: 'Destaque' },
-  { value: 'archived', label: 'Arquivado' },
+  { value: 'fresca', label: 'Fresca' },
+  { value: 'analise', label: 'Em análise' },
+  { value: 'aplicada', label: 'Aplicada' },
+  { value: 'arquivada', label: 'Arquivada' },
 ]
 
 function safeHostname(url: string): string {
@@ -77,23 +85,48 @@ function DetailSkeleton() {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div className="animate-pulse" style={{ padding: '16px 24px' }}>
-        <div className="flex items-center gap-2 mb-3">
-          <div className="h-3 w-24 rounded" style={{ background: 'var(--gem-well)' }} />
+        {/* Topic breadcrumb */}
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-1.5">
+            <div className="h-3 w-4 rounded" style={{ background: 'var(--gem-well)' }} />
+            <div className="h-3 w-20 rounded" style={{ background: 'var(--gem-well)' }} />
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="h-5 w-16 rounded" style={{ background: 'var(--gem-well)' }} />
+            <div className="h-5 w-14 rounded" style={{ background: 'var(--gem-well)' }} />
+          </div>
         </div>
-        <div className="h-6 w-3/4 rounded mb-2" style={{ background: 'var(--gem-well)' }} />
-        <div className="h-3.5 w-full rounded mb-3" style={{ background: 'var(--gem-well)' }} />
+        {/* Title */}
+        <div className="h-6 w-3/4 rounded mb-1.5" style={{ background: 'var(--gem-well)' }} />
+        {/* Summary */}
+        <div className="h-3.5 w-full rounded mb-2" style={{ background: 'var(--gem-well)' }} />
+        <div className="h-3.5 w-2/3 rounded mb-3" style={{ background: 'var(--gem-well)' }} />
+        {/* Status + meta row */}
         <div className="flex items-center gap-3 pb-3 mb-4" style={{ borderBottom: '1px solid var(--gem-border)' }}>
-          <div className="h-5 w-20 rounded" style={{ background: 'var(--gem-well)' }} />
+          <div className="h-5 w-20 rounded-sm" style={{ background: 'var(--gem-well)' }} />
           <div className="h-3 w-16 rounded" style={{ background: 'var(--gem-well)' }} />
-          <div className="h-3 w-24 rounded" style={{ background: 'var(--gem-well)' }} />
+          <div className="h-3 w-20 rounded" style={{ background: 'var(--gem-well)' }} />
+          <div className="h-3 w-8 rounded" style={{ background: 'var(--gem-well)' }} />
         </div>
-        <div className="flex flex-col gap-3 mt-2">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div
-              key={i}
-              className="h-3 rounded"
-              style={{ background: 'var(--gem-well)', width: `${90 - i * 5}%` }}
-            />
+        {/* Section outline */}
+        <div
+          className="flex items-center gap-2 rounded-md px-3 py-2.5 mb-5"
+          style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}
+        >
+          <div className="h-2 w-10 rounded" style={{ background: 'var(--gem-surface)' }} />
+          <div className="h-2 w-16 rounded" style={{ background: 'var(--gem-surface)' }} />
+          <div className="h-2 w-12 rounded" style={{ background: 'var(--gem-surface)' }} />
+          <div className="h-2 w-20 rounded" style={{ background: 'var(--gem-surface)' }} />
+        </div>
+        {/* Content paragraphs */}
+        <div className="flex flex-col gap-4">
+          {[85, 100, 72, 90, 60, 95, 78, 45].map((w, i) => (
+            <div key={i} className="flex flex-col gap-1.5">
+              <div className="h-3 rounded" style={{ background: 'var(--gem-well)', width: `${w}%` }} />
+              {i % 3 !== 2 && (
+                <div className="h-3 rounded" style={{ background: 'var(--gem-well)', width: `${Math.max(30, w - 20)}%` }} />
+              )}
+            </div>
           ))}
         </div>
       </div>
@@ -104,11 +137,13 @@ function DetailSkeleton() {
 export function ResearchDetail({
   item,
   loading,
+  error,
   isEditing,
   onToggleEdit,
   onItemUpdated,
   onItemDeleted,
   onSelectTopic,
+  onRetry,
 }: ResearchDetailProps) {
   const [saveState, setSaveState] = useState<SaveState>('idle')
   const [pendingContent, setPendingContent] = useState<JSONContent | null>(null)
@@ -189,6 +224,8 @@ export function ResearchDetail({
       saveTimerRef.current = setTimeout(() => setSaveState('idle'), 2000)
     } else {
       setSaveState('error')
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+      saveTimerRef.current = setTimeout(() => setSaveState('idle'), 4000)
     }
   }, [item, pendingContent, onItemUpdated])
 
@@ -211,25 +248,85 @@ export function ResearchDetail({
     if (!item) return
     setStatusOpen(false)
     const result = await updateResearchStatus(item.id, status, item.version)
-    if (result.ok && result.data) onItemUpdated(result.data as Partial<ResearchItemFull> & { id: string })
+    if (result.ok && result.data) {
+      onItemUpdated(result.data as Partial<ResearchItemFull> & { id: string })
+    }
   }, [item, onItemUpdated])
+
+  const handleStatusKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (!statusOpen) return
+    const currentIdx = STATUS_OPTIONS.findIndex((s) => s.value === item?.status)
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      const next = STATUS_OPTIONS[(currentIdx + 1) % STATUS_OPTIONS.length]!
+      handleStatusChange(next.value)
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      const prev = STATUS_OPTIONS[(currentIdx - 1 + STATUS_OPTIONS.length) % STATUS_OPTIONS.length]!
+      handleStatusChange(prev.value)
+    } else if (e.key === 'Escape') {
+      setStatusOpen(false)
+    }
+  }, [statusOpen, item?.status, handleStatusChange])
+
+  const [deleteError, setDeleteError] = useState(false)
 
   const handleDelete = useCallback(async () => {
     if (!item) return
     if (!confirm('Deletar esta pesquisa permanentemente?')) return
+    setDeleteError(false)
     const result = await deleteResearchItem(item.id)
-    if (result.ok) onItemDeleted(item.id)
+    if (result.ok) {
+      onItemDeleted(item.id)
+    } else {
+      setDeleteError(true)
+      setTimeout(() => setDeleteError(false), 3000)
+    }
   }, [item, onItemDeleted])
 
   if (!item) {
     if (loading) return <DetailSkeleton />
+    if (error) {
+      return (
+        <div
+          className="flex flex-col items-center justify-center gap-3"
+          style={{ flex: 1, color: 'var(--gem-dim)' }}
+        >
+          <span style={{ fontSize: 28, opacity: 0.4 }}>{'⚠️'}</span>
+          <span className="text-xs" style={{ color: 'var(--gem-muted)' }}>
+            Falha ao carregar pesquisa.
+          </span>
+          {onRetry && (
+            <button
+              type="button"
+              onClick={onRetry}
+              className="text-[11px] font-medium rounded-md px-3 py-1.5 cursor-pointer transition-all duration-150"
+              style={{
+                color: 'var(--gem-accent)',
+                border: '1px solid var(--gem-border)',
+                backgroundColor: 'transparent',
+              }}
+            >
+              Tentar novamente
+            </button>
+          )}
+        </div>
+      )
+    }
     return (
       <div
-        className="flex flex-col items-center justify-center gap-2"
+        className="flex flex-col items-center justify-center gap-3"
         style={{ flex: 1, color: 'var(--gem-dim)' }}
       >
-        <span style={{ fontSize: 28, opacity: 0.3 }}>{'📖'}</span>
-        <span className="text-xs">Selecione um item para ler.</span>
+        <span style={{ fontSize: 32, opacity: 0.2 }}>{'📖'}</span>
+        <div className="flex flex-col items-center gap-1">
+          <span className="text-xs font-medium" style={{ color: 'var(--gem-muted)' }}>
+            Nenhuma pesquisa selecionada
+          </span>
+          <span className="text-[10px]" style={{ color: 'var(--gem-dim)' }}>
+            Selecione um item da lista ou pressione E para editar
+          </span>
+        </div>
       </div>
     )
   }
@@ -239,7 +336,7 @@ export function ResearchDetail({
   const hasContent = editorContent && (typeof editorContent !== 'string' || editorContent.trim())
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div role="article" aria-label={item.title} style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* Header */}
       <div style={{ padding: '16px 24px 0', flexShrink: 0 }}>
         {/* Row 1: Topic breadcrumb + Actions */}
@@ -268,11 +365,13 @@ export function ResearchDetail({
             <button
               type="button"
               onClick={() => onToggleEdit(!isEditing)}
+              aria-label={isEditing ? 'Sair do modo edição' : 'Editar pesquisa'}
+              aria-pressed={isEditing}
               className="text-[11px] font-medium rounded-[5px] px-2.5 py-[3px] cursor-pointer transition-all duration-150"
               style={{
-                color: isEditing ? '#818cf8' : 'var(--gem-muted)',
-                backgroundColor: isEditing ? 'rgba(99,102,241,0.1)' : 'transparent',
-                border: `1px solid ${isEditing ? 'rgba(99,102,241,0.3)' : 'var(--gem-border)'}`,
+                color: isEditing ? 'var(--gem-accent)' : 'var(--gem-muted)',
+                backgroundColor: isEditing ? 'rgba(255,130,64,0.08)' : 'transparent',
+                border: `1px solid ${isEditing ? 'rgba(255,130,64,0.2)' : 'var(--gem-border)'}`,
               }}
               onMouseEnter={(e) => {
                 if (!isEditing) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.04)'
@@ -286,23 +385,28 @@ export function ResearchDetail({
             <button
               type="button"
               onClick={handleDelete}
+              aria-label="Deletar pesquisa"
               className="text-[11px] rounded-[5px] px-2.5 py-[3px] cursor-pointer transition-all duration-150"
               style={{
-                color: '#ef4444',
-                backgroundColor: 'transparent',
-                border: '1px solid var(--gem-border)',
-                opacity: 0.6,
+                color: deleteError ? '#fff' : '#ef4444',
+                backgroundColor: deleteError ? '#ef4444' : 'transparent',
+                border: `1px solid ${deleteError ? '#ef4444' : 'var(--gem-border)'}`,
+                opacity: deleteError ? 1 : 0.6,
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(239,68,68,0.08)'
-                e.currentTarget.style.opacity = '1'
+                if (!deleteError) {
+                  e.currentTarget.style.backgroundColor = 'rgba(239,68,68,0.08)'
+                  e.currentTarget.style.opacity = '1'
+                }
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'transparent'
-                e.currentTarget.style.opacity = '0.6'
+                if (!deleteError) {
+                  e.currentTarget.style.backgroundColor = 'transparent'
+                  e.currentTarget.style.opacity = '0.6'
+                }
               }}
             >
-              Deletar
+              {deleteError ? 'Erro ao deletar' : 'Deletar'}
             </button>
           </div>
         </div>
@@ -338,6 +442,7 @@ export function ResearchDetail({
               }}
               aria-haspopup="listbox"
               aria-expanded={statusOpen}
+              onKeyDown={handleStatusKeyDown}
             >
               {currentStatus?.label ?? item.status}
               <span className="text-[8px] opacity-60">{'▼'}</span>
@@ -358,9 +463,9 @@ export function ResearchDetail({
                     key={opt.value}
                     type="button"
                     onClick={() => handleStatusChange(opt.value)}
-                    className="flex items-center gap-2 w-full text-left px-2.5 py-1.5 border-none rounded cursor-pointer text-[11px] transition-colors"
+                    className="flex items-center gap-2 w-full text-left px-2.5 py-1.5 border-none rounded cursor-pointer text-[11px] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[rgba(255,130,64,0.3)]"
                     style={{
-                      backgroundColor: item.status === opt.value ? 'rgba(99,102,241,0.08)' : 'transparent',
+                      backgroundColor: item.status === opt.value ? 'rgba(255,130,64,0.08)' : 'transparent',
                       color: item.status === opt.value ? 'var(--gem-text)' : 'var(--gem-muted)',
                     }}
                     role="option"
@@ -387,7 +492,7 @@ export function ResearchDetail({
             {formatDate(item.updated_at)}
           </span>
           <span className="text-[11px]" style={{ color: 'var(--gem-dim)' }}>
-            {item.word_count.toLocaleString()} palavras
+            {(item.word_count ?? 0).toLocaleString()} palavras
           </span>
           <span className="text-[11px] font-mono" style={{ color: 'var(--gem-dim)' }}>
             v{item.version}
@@ -397,7 +502,7 @@ export function ResearchDetail({
 
       {/* Content */}
       <div style={{ flex: 1, overflow: 'auto' }}>
-        <div className="p-5">
+        <div className="p-5 animate-in fade-in duration-200">
           {!isEditing && <SectionOutline headings={headings} />}
           {hasContent ? (
             <PipelineEditor
@@ -410,10 +515,15 @@ export function ResearchDetail({
             />
           ) : (
             <div
-              className="py-8 text-center text-[11px]"
+              className="flex flex-col items-center justify-center gap-2 py-12"
               style={{ color: 'var(--gem-dim)' }}
             >
-              Nenhum conteúdo importado.
+              <span style={{ fontSize: 24, opacity: 0.2 }}>{'📝'}</span>
+              <span className="text-xs" style={{ color: 'var(--gem-muted)' }}>
+                {isEditing
+                  ? 'Comece a escrever sua pesquisa...'
+                  : 'Nenhum conteúdo ainda. Pressione E para editar.'}
+              </span>
             </div>
           )}
         </div>
@@ -468,7 +578,7 @@ export function ResearchDetail({
         )}
 
         {/* Sources */}
-        {!isEditing && item.sources.length > 0 && (
+        {!isEditing && Array.isArray(item.sources) && item.sources.length > 0 && (
           <div style={{ padding: '0 24px 20px', borderTop: '1px solid var(--gem-border)' }}>
             <div
               className="text-[10px] font-semibold uppercase tracking-[0.05em] py-3 pb-2"
@@ -490,7 +600,7 @@ export function ResearchDetail({
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.backgroundColor = 'var(--gem-well)'
-                    e.currentTarget.style.borderColor = 'rgba(99,102,241,0.3)'
+                    e.currentTarget.style.borderColor = 'rgba(255,130,64,0.3)'
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.backgroundColor = 'transparent'
@@ -512,7 +622,7 @@ export function ResearchDetail({
       {isEditing && (
         <div
           className="flex items-center justify-between shrink-0"
-          style={{ padding: '10px 24px', borderTop: '1px solid var(--gem-border)' }}
+          style={{ padding: '10px 24px', borderTop: '1px solid var(--gem-border)', background: 'var(--gem-surface)', boxShadow: '0 -1px 3px rgba(0,0,0,0.08)' }}
         >
           <span className="text-[11px]" style={{ color: isDirty ? '#fbbf24' : 'var(--gem-dim)' }}>
             {isDirty ? 'Alterações não salvas' : 'Salvo'}
@@ -528,20 +638,20 @@ export function ResearchDetail({
               type="button"
               onClick={handleSave}
               disabled={!isDirty || saveState === 'saving'}
-              className="px-4 py-1.5 text-xs font-semibold text-white border-none rounded-md transition-all duration-150"
+              className="px-4 py-1.5 text-xs font-semibold text-white border-none rounded-md transition-all duration-200"
               style={{
                 cursor: !isDirty || saveState === 'saving' ? 'default' : 'pointer',
                 backgroundColor:
                   saveState === 'saved' ? '#34d399'
                   : saveState === 'error' ? '#ef4444'
-                  : saveState === 'saving' ? 'rgba(99,102,241,0.5)'
-                  : !isDirty ? 'rgba(99,102,241,0.3)'
-                  : 'rgb(99,102,241)',
+                  : saveState === 'saving' ? 'rgba(255,130,64,0.5)'
+                  : !isDirty ? 'rgba(255,130,64,0.3)'
+                  : 'var(--gem-accent)',
               }}
             >
               {saveState === 'saved' ? '✓ Salvo'
                 : saveState === 'saving' ? 'Salvando...'
-                : saveState === 'error' ? 'Erro — tentar novamente'
+                : saveState === 'error' ? 'Erro ao salvar — ⌘S'
                 : 'Salvar'}
             </button>
           </div>

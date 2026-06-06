@@ -1,3 +1,5 @@
+/** @deprecated Replaced by research-module.tsx in the 3-tab redesign (Foco / Pesquisas / Decisoes). */
+
 'use client'
 
 import { useState, useCallback, useEffect, useMemo } from 'react'
@@ -10,6 +12,9 @@ import type {
   ResearchItemFull,
   ResearchStats,
   TopicItemCounts,
+  ResearchFoco,
+  ResearchDecision,
+  ResearchTheme,
 } from '@/lib/pipeline/research-types'
 
 interface ResearchLibraryProps {
@@ -17,6 +22,9 @@ interface ResearchLibraryProps {
   items: ResearchItemSummary[]
   stats: ResearchStats
   topicItemCounts: TopicItemCounts
+  focos: ResearchFoco[]
+  decisions: ResearchDecision[]
+  themes: ResearchTheme[]
 }
 
 export function ResearchLibrary({
@@ -24,6 +32,9 @@ export function ResearchLibrary({
   items: initialItems,
   stats,
   topicItemCounts,
+  focos: _focos,
+  decisions: _decisions,
+  themes: _themes,
 }: ResearchLibraryProps) {
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null)
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
@@ -31,6 +42,7 @@ export function ResearchLibrary({
   const [items, setItems] = useState(initialItems)
   const [detailItem, setDetailItem] = useState<ResearchItemFull | null>(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
+  const [detailError, setDetailError] = useState(false)
 
   const topicChildIds = useMemo(() => {
     if (!selectedTopicId) return null
@@ -48,20 +60,25 @@ export function ResearchLibrary({
 
   const filteredItems = useMemo(() => {
     if (!topicChildIds) return items
-    return items.filter((item) => topicChildIds.has(item.topic_id))
+    return items.filter((item) => item.topic_id && topicChildIds.has(item.topic_id))
   }, [items, topicChildIds])
 
   const handleSelectItem = useCallback(async (id: string) => {
     setSelectedItemId(id)
     setIsEditing(false)
     setLoadingDetail(true)
+    setDetailError(false)
 
     try {
       const res = await fetch(`/api/pipeline/research/${id}`)
       if (res.ok) {
         const { data } = await res.json()
         setDetailItem(data)
+      } else {
+        setDetailError(true)
       }
+    } catch {
+      setDetailError(true)
     } finally {
       setLoadingDetail(false)
     }
@@ -121,7 +138,7 @@ export function ResearchLibrary({
   }, [isEditing, selectedItemId])
 
   return (
-    <div className="flex" style={{ height: '100%', gap: 0 }}>
+    <div className="flex" style={{ height: '100%', gap: 0, position: 'relative' }}>
       <TopicTree
         topics={topics}
         topicItemCounts={topicItemCounts}
@@ -129,7 +146,7 @@ export function ResearchLibrary({
         onSelectTopic={setSelectedTopicId}
         onCreateTopic={handleCreateTopic}
         totalItemCount={stats.total}
-        totalUnreadCount={stats.unread}
+        totalUnreadCount={stats.fresca}
       />
       <ResearchList
         items={filteredItems}
@@ -141,11 +158,13 @@ export function ResearchLibrary({
       <ResearchDetail
         item={detailItem}
         loading={loadingDetail}
+        error={detailError}
         isEditing={isEditing}
         onToggleEdit={setIsEditing}
         onItemUpdated={handleItemUpdated}
         onItemDeleted={handleItemDeleted}
         onSelectTopic={setSelectedTopicId}
+        onRetry={() => selectedItemId && handleSelectItem(selectedItemId)}
       />
     </div>
   )

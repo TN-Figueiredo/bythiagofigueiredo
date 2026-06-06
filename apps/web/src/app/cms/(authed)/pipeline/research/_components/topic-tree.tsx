@@ -1,3 +1,5 @@
+/** @deprecated Topic tree hierarchy replaced by theme-based filtering in the 3-tab redesign. */
+
 'use client'
 
 import { useState, useMemo, useCallback, useRef } from 'react'
@@ -98,7 +100,7 @@ export function TopicTree({
       <div key={node.id}>
         <button
           onClick={() => onSelectTopic(node.id)}
-          className="transition-colors duration-100"
+          className="transition-colors duration-100 focus-visible:ring-2 focus-visible:ring-[rgba(255,130,64,0.3)] focus-visible:outline-none"
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -110,8 +112,8 @@ export function TopicTree({
             borderRadius: 5,
             border: 'none',
             cursor: 'pointer',
-            backgroundColor: isSelected ? 'rgba(99,102,241,0.12)' : 'transparent',
-            borderLeft: isSelected ? '2px solid rgb(99,102,241)' : '2px solid transparent',
+            backgroundColor: isSelected ? 'rgba(255,130,64,0.08)' : 'transparent',
+            borderLeft: isSelected ? '2px solid var(--gem-accent)' : '2px solid transparent',
           }}
           onMouseEnter={(e) => {
             if (!isSelected) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.03)'
@@ -121,7 +123,10 @@ export function TopicTree({
           }}
         >
           {hasChildren && (
-            <span
+            <button
+              type="button"
+              aria-label={isExpanded ? 'Recolher' : 'Expandir'}
+              aria-expanded={isExpanded}
               onClick={(e) => { e.stopPropagation(); toggle(node.id) }}
               style={{
                 fontSize: 9,
@@ -131,10 +136,13 @@ export function TopicTree({
                 textAlign: 'center',
                 transition: 'transform 0.15s',
                 transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+                background: 'none',
+                border: 'none',
+                padding: 0,
               }}
             >
               {'▶'}
-            </span>
+            </button>
           )}
           {!hasChildren && <span style={{ width: 12 }} />}
           <span style={{ fontSize: 14 }}>{node.icon}</span>
@@ -180,8 +188,13 @@ export function TopicTree({
             </span>
           )}
         </button>
-        {isExpanded && hasChildren && (
-          <div>
+        {hasChildren && (
+          <div style={{
+            overflow: 'hidden',
+            maxHeight: isExpanded ? 500 : 0,
+            transition: 'max-height 0.2s ease-in-out, opacity 0.15s ease-in-out',
+            opacity: isExpanded ? 1 : 0,
+          }}>
             {node.children.map((child) => renderNode(child, level + 1))}
           </div>
         )}
@@ -190,7 +203,8 @@ export function TopicTree({
   }
 
   return (
-    <div
+    <nav
+      aria-label="Temas de pesquisa"
       style={{
         width: 220,
         minWidth: 220,
@@ -205,7 +219,8 @@ export function TopicTree({
           <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--gem-text)' }}>Topics</span>
           <button
             onClick={onCreateTopic}
-            title="New topic"
+            title="Criar novo tema"
+            aria-label="Criar novo tema"
             style={{
               background: 'none',
               border: 'none',
@@ -225,6 +240,7 @@ export function TopicTree({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Filtrar temas..."
+            aria-label="Filtrar temas"
             style={{
               width: '100%',
               padding: '5px 8px',
@@ -266,7 +282,7 @@ export function TopicTree({
         {/* "Todas" entry */}
         <button
           onClick={() => onSelectTopic(null)}
-          className="transition-colors duration-100"
+          className="transition-colors duration-100 focus-visible:ring-2 focus-visible:ring-[rgba(255,130,64,0.3)] focus-visible:outline-none"
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -277,8 +293,8 @@ export function TopicTree({
             borderRadius: 5,
             border: 'none',
             cursor: 'pointer',
-            backgroundColor: selectedTopicId === null ? 'rgba(99,102,241,0.12)' : 'transparent',
-            borderLeft: selectedTopicId === null ? '2px solid rgb(99,102,241)' : '2px solid transparent',
+            backgroundColor: selectedTopicId === null ? 'rgba(255,130,64,0.08)' : 'transparent',
+            borderLeft: selectedTopicId === null ? '2px solid var(--gem-accent)' : '2px solid transparent',
           }}
           onMouseEnter={(e) => {
             if (selectedTopicId !== null) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.03)'
@@ -329,6 +345,26 @@ export function TopicTree({
         </button>
 
         {/* Topic tree or filtered list */}
+        {tree.length === 0 && !filteredTopics && (
+          <div className="flex flex-col items-center gap-2 px-4 py-6 text-center">
+            <span style={{ fontSize: 20, opacity: 0.2 }}>{'🗂️'}</span>
+            <span className="text-[11px]" style={{ color: 'var(--gem-muted)' }}>
+              Nenhum tema criado.
+            </span>
+            <button
+              type="button"
+              onClick={onCreateTopic}
+              className="text-[11px] font-medium rounded-md px-3 py-1 cursor-pointer transition-all duration-150"
+              style={{
+                color: 'var(--gem-accent)',
+                border: '1px solid var(--gem-border)',
+                backgroundColor: 'transparent',
+              }}
+            >
+              + Criar primeiro tema
+            </button>
+          </div>
+        )}
         {filteredTopics
           ? filteredTopics.map((t) => (
               <button
@@ -344,7 +380,7 @@ export function TopicTree({
                   borderRadius: 5,
                   border: 'none',
                   cursor: 'pointer',
-                  backgroundColor: selectedTopicId === t.id ? 'rgba(99,102,241,0.12)' : 'transparent',
+                  backgroundColor: selectedTopicId === t.id ? 'rgba(255,130,64,0.08)' : 'transparent',
                 }}
               >
                 <span style={{ fontSize: 14 }}>{t.icon}</span>
@@ -354,6 +390,6 @@ export function TopicTree({
             ))
           : tree.map((node) => renderNode(node, 0))}
       </div>
-    </div>
+    </nav>
   )
 }
