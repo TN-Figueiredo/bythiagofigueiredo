@@ -1,4 +1,4 @@
-export type DomainId = 'items-and-sections' | 'playlists' | 'libraries' | 'research' | 'youtube' | 'utilities' | 'course'
+export type DomainId = 'items-and-sections' | 'playlists' | 'libraries' | 'research' | 'youtube' | 'utilities' | 'course' | 'links'
 
 export interface ApiEndpointMeta {
   method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'
@@ -229,6 +229,22 @@ const COURSE: CapabilityDomain = {
   endpoints: [],
 }
 
+const LINKS: CapabilityDomain = {
+  domain: 'links',
+  name: 'Links Engine (tracked short links)',
+  description: 'Create and manage tracked short links (go-links) with UTM parameters. Each link resolves at /go/{code} (or the configured short domain) and tracks clicks. Codes are auto-generated when omitted and are unique per site.',
+  suggest_when: 'Creating campaign short links, building tracked URLs with UTMs, shortening destination URLs, managing/archiving go-links',
+  docs: '/api/pipeline/docs/links',
+  endpoint_count: 5,
+  endpoints: [
+    { method: 'GET', path: '/api/pipeline/links', summary: 'List tracked links with utm_campaign/active/search filters', auth: 'read' },
+    { method: 'POST', path: '/api/pipeline/links', summary: 'Create a tracked short link (code auto-generated, UTMs optional)', auth: 'write' },
+    { method: 'GET', path: '/api/pipeline/links/:id', summary: 'Get a tracked link with its short_url', auth: 'read' },
+    { method: 'PATCH', path: '/api/pipeline/links/:id', summary: 'Update tracked link fields (destination, UTMs, redirect_type, active)', auth: 'write' },
+    { method: 'DELETE', path: '/api/pipeline/links/:id', summary: 'Archive a tracked link (active false, soft)', auth: 'write' },
+  ],
+}
+
 const CROSS_DOMAIN_WORKFLOWS: CrossDomainWorkflow[] = [
   {
     name: 'Video production pipeline',
@@ -281,6 +297,16 @@ const CROSS_DOMAIN_WORKFLOWS: CrossDomainWorkflow[] = [
       'POST /api/pipeline/research/focos/:id/activate — activate it (confirm:true) as the single active foco',
     ],
   },
+  {
+    name: 'Publish with tracked distribution',
+    description: 'Publish a content item and create a tracked short link to distribute it with UTM attribution',
+    domains: ['items-and-sections', 'links'],
+    steps: [
+      'POST /api/pipeline/items/:id/publish — publish the graduated blog post',
+      'POST /api/pipeline/links — create a tracked short link to the published URL with utm_campaign + utm_source',
+      'GET /api/pipeline/links?utm_campaign=... — review the link and its short_url (/go/{code})',
+    ],
+  },
 ]
 
 export const DOMAIN_LABELS: Record<DomainId, string> = {
@@ -291,6 +317,7 @@ export const DOMAIN_LABELS: Record<DomainId, string> = {
   youtube: 'YouTube',
   utilities: 'Utilities',
   course: 'Courses',
+  links: 'Links',
 }
 
 export const API_REGISTRY: ApiCatalog = {
@@ -302,6 +329,6 @@ export const API_REGISTRY: ApiCatalog = {
     rate_limit: '100/min (api_key only)',
     version_header: 'X-Expected-Version',
   },
-  capabilities: [ITEMS_AND_SECTIONS, PLAYLISTS, LIBRARIES, RESEARCH, YOUTUBE, UTILITIES, COURSE],
+  capabilities: [ITEMS_AND_SECTIONS, PLAYLISTS, LIBRARIES, RESEARCH, YOUTUBE, UTILITIES, COURSE, LINKS],
   cross_domain_workflows: CROSS_DOMAIN_WORKFLOWS,
 }

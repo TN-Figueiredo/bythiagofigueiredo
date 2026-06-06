@@ -1,7 +1,7 @@
 /**
  * Maps API_REGISTRY endpoints to MCP tool names for coverage tracking.
  *
- * Each of the real endpoints (course domain has 0) maps to one of 22 MCP tools.
+ * Each of the real endpoints (course domain has 0) maps to one of 23 MCP tools.
  * Tests use this to verify MCP covers all API endpoints.
  */
 
@@ -116,6 +116,12 @@ const TOOL_RULES: Array<{ tool: string; match: ToolMatcher }> = [
     match: (ep) => ep.path.startsWith('/api/pipeline/research'),
   },
 
+  // ── Links engine ──────────────────────────────────────────────────
+  {
+    tool: 'manage_links',
+    match: (ep) => ep.path.startsWith('/api/pipeline/links'),
+  },
+
   // ── YouTube ───────────────────────────────────────────────────────
   {
     tool: 'youtube_observatory',
@@ -190,7 +196,7 @@ export function getRegistryCoverage(): {
   return { mapped, unmapped }
 }
 
-/** All 22 MCP tool names in the pipeline server */
+/** All 23 MCP tool names in the pipeline server */
 export const MCP_TOOL_NAMES = [
   'create_item',
   'update_item',
@@ -208,6 +214,7 @@ export const MCP_TOOL_NAMES = [
   'manage_research',
   'manage_decisions',
   'manage_focos',
+  'manage_links',
   'manage_ab_test',
   'search_content',
   'manage_upnext',

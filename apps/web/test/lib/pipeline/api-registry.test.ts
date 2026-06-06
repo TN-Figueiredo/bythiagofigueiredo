@@ -8,8 +8,8 @@ describe('API_REGISTRY', () => {
     expect(API_REGISTRY.version).toBe('2.0.0')
   })
 
-  it('has exactly 7 capability domains', () => {
-    expect(API_REGISTRY.capabilities).toHaveLength(7)
+  it('has exactly 8 capability domains', () => {
+    expect(API_REGISTRY.capabilities).toHaveLength(8)
     const domains = API_REGISTRY.capabilities.map((c) => c.domain)
     expect(domains).toEqual([
       'items-and-sections',
@@ -19,6 +19,7 @@ describe('API_REGISTRY', () => {
       'youtube',
       'utilities',
       'course',
+      'links',
     ])
   })
 

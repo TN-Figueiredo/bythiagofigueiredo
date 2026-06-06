@@ -10,6 +10,7 @@ import * as brollService from './services/broll'
 import * as researchService from './services/research'
 import * as decisionsService from './services/research-decisions'
 import * as focosService from './services/research-focos'
+import * as linksService from './services/links'
 import * as abTestService from './services/ab-tests'
 import * as observatoryService from './services/youtube-observatory'
 import * as analyticsService from './services/youtube-analytics'
@@ -559,6 +560,61 @@ const ManageFocosShape = {
     .describe('Token retornado por um dry_run anterior (obrigatório para confirmar activate)'),
 }
 
+// ---- 23. manage_links ----
+//
+// Links engine: cria e gerencia short links rastreáveis (go-links). Cada link
+// resolve em /go/{code} (ou no domínio curto configurado). O Cowork pode criar
+// links autonomamente para campanhas, com UTMs, e arquivá-los (soft, active=false).
+const ManageLinksShape = {
+  action: z.enum(['list', 'get', 'create', 'update', 'archive'])
+    .describe('list: links com filtros (utm_campaign/active/search). get: um link por UUID. create: cria short link rastreável (code auto-gerado se omitido). update: ajusta campos. archive: desativa (active=false, soft — o link para de resolver mas é retido).'),
+  id: z.string().uuid().optional()
+    .describe('UUID do link (obrigatório para get/update/archive)'),
+  // ── filter (list) ──
+  search: z.string().max(255).optional()
+    .describe('Busca por título ou code (list)'),
+  active: z.boolean().optional()
+    .describe('Filtra por status ativo (list); no update define o status'),
+  limit: z.number().int().min(1).max(200).default(50)
+    .describe('Máximo de resultados (list)'),
+  offset: z.number().int().min(0).optional()
+    .describe('Deslocamento para paginação (list)'),
+  // ── create / update fields (mirror tracked_links / CreateLinkSchema) ──
+  destination_url: z.string().url().optional()
+    .describe('URL de destino para onde o link redireciona (obrigatório no create)'),
+  title: z.string().max(500).nullable().optional()
+    .describe('Título legível do link'),
+  code: z.string().max(64).optional()
+    .describe('Code curto desejado (único por site; auto-gerado se omitido). O link resolve em /go/{code}'),
+  slug: z.string().max(255).nullable().optional()
+    .describe('Slug opcional alternativo ao code'),
+  redirect_type: z.enum(['301', '302', '307', '308']).optional()
+    .describe('Tipo de redirect HTTP (default 307)'),
+  utm_source: z.string().max(255).optional()
+    .describe('UTM source (normalizado)'),
+  utm_medium: z.string().max(255).optional()
+    .describe('UTM medium (normalizado)'),
+  utm_campaign: z.string().max(255).optional()
+    .describe('UTM campaign (normalizado); também usado como filtro no list'),
+  utm_term: z.string().max(255).optional()
+    .describe('UTM term (normalizado)'),
+  utm_content: z.string().max(255).optional()
+    .describe('UTM content (normalizado)'),
+  utm_id: z.string().max(255).optional()
+    .describe('UTM id (normalizado)'),
+  tags: z.array(z.string()).optional()
+    .describe('Tags livres para organização'),
+  expires_at: z.string().datetime().nullable().optional()
+    .describe('ISO datetime de expiração (opcional)'),
+  activates_at: z.string().datetime().nullable().optional()
+    .describe('ISO datetime de ativação agendada (opcional)'),
+  pass_click_ids: z.boolean().optional()
+    .describe('Repassar click IDs (gclid/fbclid) ao destino (default true)'),
+  // ── safety ──
+  dry_run: z.boolean().default(false)
+    .describe('Pré-visualiza a mudança sem executar'),
+}
+
 // ---- 15. manage_ab_test ----
 const ManageAbTestShape = {
   action: z.enum(['list_tests', 'get_test', 'get_funnel', 'get_performance', 'get_intelligence', 'list_variants', 'upsert_variants', 'delete_variant', 'submit_intelligence', 'claim_task', 'get_learnings', 'get_suggestions', 'get_fatigue_alerts', 'get_dashboard', 'get_history'])
@@ -818,6 +874,15 @@ export function registerTools(server: McpServer): void {
     ManageFocosShape,
     DESTRUCTIVE,
     async (params) => focosService.manageFocos(params),
+  )
+
+  // 23. manage_links
+  server.tool(
+    'manage_links',
+    'Gerencia o Links engine (short links rastreáveis / go-links): list/get/create/update/archive. create gera um link que resolve em /go/{code} (code auto-gerado se omitido), com UTMs opcionais. archive desativa (soft, active=false). O Cowork pode criar links autonomamente para campanhas.',
+    ManageLinksShape,
+    WRITE_IDEMPOTENT,
+    async (params) => linksService.manageLinks(params),
   )
 
   // 15. manage_ab_test
