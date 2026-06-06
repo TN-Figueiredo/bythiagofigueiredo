@@ -28,7 +28,8 @@ vi.mock('lucide-react', () => {
   }
   return {
     ImageIcon: icon('ImageIcon'),
-    Upload: icon('Upload'),
+    Plus: icon('Plus'),
+    ArrowRight: icon('ArrowRight'),
     Loader2: icon('Loader2'),
     AlertTriangle: icon('AlertTriangle'),
     Columns3: icon('Columns3'),
@@ -79,40 +80,46 @@ function makeProps(
 /* ------------------------------------------------------------------ */
 
 describe('BlogImageView', () => {
-  /* 1 — Empty state */
+  /* 1 — Empty state renders .doc-img.pending */
   it('renders empty state when status is "empty"', () => {
-    render(<BlogImageView {...makeProps()} />)
+    const { container } = render(<BlogImageView {...makeProps()} />)
 
-    expect(screen.getByTestId('img-empty-state')).toBeTruthy()
-    expect(screen.getByText('Clique para adicionar imagem')).toBeTruthy()
-    expect(screen.getByTestId('img-gallery-btn')).toBeTruthy()
-    expect(screen.getByTestId('img-upload-btn')).toBeTruthy()
+    const block = container.querySelector('.doc-img.pending')
+    expect(block).toBeTruthy()
+    expect(block?.querySelector('.di-thumb')).toBeTruthy()
+    expect(block?.querySelector('.di-info')).toBeTruthy()
+    expect(block?.querySelector('.di-id')).toBeTruthy()
+    expect(screen.getByText('sem imagem')).toBeTruthy()
   })
 
   /* 2 — Uploading state */
   it('renders uploading state when status is "uploading"', () => {
-    render(
+    const { container } = render(
       <BlogImageView
         {...makeProps({ status: 'uploading', filename: 'hero.jpg' })}
       />,
     )
 
-    expect(screen.getByTestId('img-uploading-state')).toBeTruthy()
-    expect(screen.getByText('Enviando...')).toBeTruthy()
+    const block = container.querySelector('.doc-img')
+    expect(block).toBeTruthy()
+    expect(screen.getByText('enviando…')).toBeTruthy()
     expect(screen.getByText('hero.jpg')).toBeTruthy()
   })
 
   /* 3 — Processing state */
   it('renders processing state when status is "processing"', () => {
-    render(<BlogImageView {...makeProps({ status: 'processing' })} />)
+    const { container } = render(
+      <BlogImageView {...makeProps({ status: 'processing' })} />,
+    )
 
-    expect(screen.getByTestId('img-processing-state')).toBeTruthy()
-    expect(screen.getByText('Processando...')).toBeTruthy()
+    const block = container.querySelector('.doc-img')
+    expect(block).toBeTruthy()
+    expect(screen.getByText('processando…')).toBeTruthy()
   })
 
   /* 4 — Done state */
   it('renders done state when status is "done" with src', () => {
-    render(
+    const { container } = render(
       <BlogImageView
         {...makeProps({
           status: 'done',
@@ -122,25 +129,22 @@ describe('BlogImageView', () => {
       />,
     )
 
-    expect(screen.getByTestId('img-done-state')).toBeTruthy()
-    expect(screen.getByTestId('img-badge')).toBeTruthy()
-    expect(screen.getByTestId('img-badge').textContent).toBe('img-3')
+    const block = container.querySelector('.doc-img.done')
+    expect(block).toBeTruthy()
 
-    // alt="" gives role="presentation", so query by tag
-    const img = document.querySelector('img[src="https://example.com/image.jpg"]')
+    const img = container.querySelector('img[src="https://example.com/image.jpg"]')
     expect(img).toBeTruthy()
   })
 
-  /* 5 — Gallery button exists */
-  it('gallery button is present in empty state', () => {
-    const updateAttributes = vi.fn()
-    render(
-      <BlogImageView {...makeProps({}, { updateAttributes })} />,
+  /* 5 — di-go button in empty state */
+  it('di-go button is present in empty state', () => {
+    const { container } = render(
+      <BlogImageView {...makeProps()} />,
     )
 
-    const btn = screen.getByTestId('img-gallery-btn')
-    expect(btn).toBeTruthy()
-    expect(btn.textContent).toContain('Galeria')
+    const goBtn = container.querySelector('.di-go')
+    expect(goBtn).toBeTruthy()
+    expect(goBtn?.getAttribute('title')).toBe('Abrir em Imagens')
   })
 
   /* 6 — Caption/Alt toggle */
@@ -156,16 +160,13 @@ describe('BlogImageView', () => {
       />,
     )
 
-    // Default: caption mode
     const captionInput = screen.getByTestId('img-caption-input')
     expect((captionInput as HTMLTextAreaElement).value).toBe('My caption')
 
-    // Toggle to alt
     fireEvent.click(screen.getByTestId('img-alt-tab'))
     const altInput = screen.getByTestId('img-alt-input')
     expect((altInput as HTMLTextAreaElement).value).toBe('My alt text')
 
-    // Toggle back to caption
     fireEvent.click(screen.getByTestId('img-caption-tab'))
     const captionAgain = screen.getByTestId('img-caption-input')
     expect((captionAgain as HTMLTextAreaElement).value).toBe('My caption')
@@ -227,7 +228,6 @@ describe('BlogImageView', () => {
       />,
     )
 
-    // Before onLoad fires, naturalWidth is null — buttons should not be disabled
     const wideBtn = screen.getByTestId('img-width-wide')
     expect(wideBtn.hasAttribute('disabled')).toBe(false)
   })
@@ -248,34 +248,40 @@ describe('BlogImageView', () => {
     expect(deleteNode).toHaveBeenCalledTimes(1)
   })
 
-  /* Bonus — Empty state shows badge with id */
-  it('shows badge with image id in empty state', () => {
+  /* 11 — Empty state shows id text */
+  it('shows image id in empty state', () => {
     render(<BlogImageView {...makeProps({ id: 'img-5' })} />)
 
     expect(screen.getByText('img-5')).toBeTruthy()
   })
 
-  /* Bonus — Alt text warning in empty state */
-  it('shows alt text warning when alt is empty in empty state', () => {
-    render(<BlogImageView {...makeProps({ alt: '' })} />)
+  /* 12 — Empty state shows alt/caption text */
+  it('shows caption text in di-alt when present', () => {
+    const { container } = render(
+      <BlogImageView {...makeProps({ caption: 'Timeline visual' })} />,
+    )
 
-    expect(screen.getByTestId('img-alt-warning')).toBeTruthy()
+    const altSpan = container.querySelector('.di-alt')
+    expect(altSpan?.textContent).toBe('Timeline visual')
   })
 
-  it('hides alt text warning when alt is present in empty state', () => {
-    render(<BlogImageView {...makeProps({ alt: 'Good alt text' })} />)
+  it('shows alt text in di-alt when no caption', () => {
+    const { container } = render(
+      <BlogImageView {...makeProps({ alt: 'Good alt text' })} />,
+    )
 
-    expect(screen.queryByTestId('img-alt-warning')).toBeNull()
+    const altSpan = container.querySelector('.di-alt')
+    expect(altSpan?.textContent).toBe('Good alt text')
   })
 
-  /* Bonus — NodeViewWrapper rendered */
+  /* 13 — NodeViewWrapper rendered */
   it('wraps in NodeViewWrapper', () => {
     render(<BlogImageView {...makeProps()} />)
 
     expect(screen.getByTestId('node-view-wrapper')).toBeTruthy()
   })
 
-  /* Bonus — Replace button calls updateAttributes */
+  /* 14 — Replace button calls updateAttributes */
   it('replace button resets to empty state', () => {
     const updateAttributes = vi.fn()
     render(
@@ -294,7 +300,7 @@ describe('BlogImageView', () => {
     })
   })
 
-  /* Bonus — Caption input updates attributes */
+  /* 15 — Caption input updates attributes */
   it('caption input calls updateAttributes on change', () => {
     const updateAttributes = vi.fn()
     render(
@@ -309,5 +315,15 @@ describe('BlogImageView', () => {
     const input = screen.getByTestId('img-caption-input')
     fireEvent.change(input, { target: { value: 'New caption' } })
     expect(updateAttributes).toHaveBeenCalledWith({ caption: 'New caption' })
+  })
+
+  /* 16 — Done without src falls back to empty */
+  it('falls back to empty state when done but no src', () => {
+    const { container } = render(
+      <BlogImageView {...makeProps({ status: 'done', src: null })} />,
+    )
+
+    const block = container.querySelector('.doc-img.pending')
+    expect(block).toBeTruthy()
   })
 })

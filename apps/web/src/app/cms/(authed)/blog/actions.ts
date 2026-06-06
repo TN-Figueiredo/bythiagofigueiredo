@@ -1,12 +1,12 @@
 'use server'
 
-import { revalidatePath, revalidateTag } from 'next/cache'
+import { revalidatePath } from 'next/cache'
 import { cookies } from 'next/headers'
 import { createServerClient } from '@tn-figueiredo/auth-nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
-import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { revalidateBlogPostSeo } from '@/lib/seo/cache-invalidation'
+import { requireEditScope, revalidateBlogHub, generateTagSlug } from './_shared/server-utils'
 import { isValidTransition } from './_hub/hub-utils'
 import { syncPipelineOnPostStatusChange } from '@/lib/pipeline/blog-sync'
 import { prepareBlogTranslationPatch, type BlogContentPatch } from '@/lib/pipeline/draft-to-blog'
@@ -18,13 +18,6 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://bythiagofigueiredo.c
 import { socialConfigSchema } from '@/lib/social/schemas'
 
 import type { SocialConfig } from '@/lib/social/types'
-
-async function requireEditScope(siteId: string): Promise<void> {
-  const res = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
-  if (!res.ok) {
-    throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
-  }
-}
 
 export async function bulkPublish(
   postIds: string[],
@@ -207,13 +200,6 @@ export async function bulkChangeAuthor(
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function revalidateBlogHub(siteId?: string): void {
-  revalidateTag('blog-hub')
-  revalidateTag('pipeline-blog')
-  revalidateTag('sidebar-badges')
-  revalidatePath('/cms/blog')
-  if (siteId) revalidateTag(`sitemap:${siteId}`)
-}
 
 async function getUserClient() {
   const cookieStore = await cookies()
@@ -232,15 +218,6 @@ async function getUserClient() {
   })
 }
 
-function generateTagSlug(name: string): string {
-  return name
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 80)
-}
 
 // ─── Hub Mutations ────────────────────────────────────────────────────────────
 

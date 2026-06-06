@@ -39,6 +39,8 @@ function makeState(overrides: Partial<EditorState> = {}): EditorState {
     activeStage: 'rascunho',
     activeLang: 'pt',
     focus: false,
+    inspectorOpen: false,
+    categories: [],
     content: { pt: { ...EMPTY_VERSION, fresh: false } },
     shared: {
       status: 'draft',
@@ -55,6 +57,7 @@ function makeState(overrides: Partial<EditorState> = {}): EditorState {
       pullQuote: '',
       notes: [],
       colophon: '',
+      coverPrompt: '',
       history: [],
     },
     saveStatus: 'idle',

@@ -2,9 +2,12 @@
 
 import { useCallback, useRef, useEffect, useMemo, type ChangeEvent } from 'react'
 import dynamic from 'next/dynamic'
+import { ImageIcon, Plus, RefreshCw } from 'lucide-react'
+import { toast } from 'sonner'
 import type { Editor } from '@tiptap/react'
 import type { JSONContent } from '@tiptap/core'
 import { useEditorState, useEditorDispatch, useEditorVersion } from '../context'
+import { resolveCategory } from '../helpers'
 import { BlogImageExtension } from '../image-block/blog-image-extension'
 
 const TipTapEditor = dynamic(
@@ -15,43 +18,14 @@ const TipTapEditor = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div data-testid="tiptap-slot" className="min-h-[200px]" />
+      <div data-testid="tiptap-slot" className="stage-skel" style={{ minHeight: 200 }} aria-hidden="true">
+        <div className="skel-line" />
+        <div className="skel-line" />
+        <div className="skel-line short" />
+      </div>
     ),
   },
 )
-
-/* ------------------------------------------------------------------ */
-/*  Toolbar button config                                             */
-/* ------------------------------------------------------------------ */
-
-const TOOLBAR_BUTTONS = [
-  { label: 'Bold', icon: 'B', className: 'font-bold' },
-  { label: 'Italic', icon: 'I', className: 'italic' },
-  { label: 'H2', icon: 'H2', className: 'font-semibold text-xs' },
-  { label: 'Quote', icon: '“', className: 'text-lg leading-none' },
-  { label: 'List', icon: '•', className: 'text-lg leading-none' },
-  { label: 'Link', icon: '🔗', className: '' },
-  { label: 'Image', icon: '🖼', className: '' },
-] as const
-
-/* ------------------------------------------------------------------ */
-/*  Category color dot                                                */
-/* ------------------------------------------------------------------ */
-
-const CATEGORY_COLORS: Record<string, string> = {
-  Tecnologia: 'bg-blue-500',
-  Carreira: 'bg-emerald-500',
-  Opiniao: 'bg-amber-500',
-  Tutorial: 'bg-violet-500',
-}
-
-function categoryDotColor(category: string): string {
-  return CATEGORY_COLORS[category] ?? 'bg-zinc-500'
-}
-
-/* ------------------------------------------------------------------ */
-/*  StageRascunho                                                     */
-/* ------------------------------------------------------------------ */
 
 export function StageRascunho() {
   const state = useEditorState()
@@ -76,29 +50,47 @@ export function StageRascunho() {
 
   const handleImageUpload = useCallback(
     async (_file: File): Promise<string | null> => {
-      // Real upload wiring happens with MediaGallery integration
+      toast.info('Upload de imagem em breve — use a aba Imagens')
       return null
     },
     [],
   )
 
-  /* ---- Cross-stage scroll: Imagens → Rascunho ---- */
+  /* ---- Cross-stage scroll: Imagens -> Rascunho ---- */
 
   useEffect(() => {
     if (!state.scrollToImageId) return
 
-    // Wait for next frame (TipTap needs to render)
     requestAnimationFrame(() => {
       const el = document.querySelector(`[data-image-id="${state.scrollToImageId}"]`)
       if (el) {
         el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-        // Flash highlight
         el.classList.add('scroll-highlight')
         setTimeout(() => el.classList.remove('scroll-highlight'), 600)
       }
       dispatch({ type: 'CLEAR_SCROLL_TARGET' })
     })
   }, [state.scrollToImageId, dispatch])
+
+  /* ---- Initial word count from pre-loaded content ---- */
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const ed = editorRef.current
+      if (!ed || ed.isDestroyed) return
+      const wc = ed.storage?.characterCount?.words?.() ?? 0
+      if (wc > 0 && (version?.words ?? 0) === 0) {
+        dispatch({
+          type: 'SET_BODY',
+          body: ed.getJSON(),
+          html: ed.getHTML(),
+          words: wc,
+          readTime: Math.ceil(wc / 200),
+        })
+      }
+    }, 600)
+    return () => clearTimeout(timer)
+  }, [dispatch, version?.words])
 
   /* ---- Auto-grow title textarea ---- */
 
@@ -118,79 +110,143 @@ export function StageRascunho() {
     [dispatch],
   )
 
+  /* ---- Excerpt (dek) handler ---- */
+
+  const excerptRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const el = excerptRef.current
+    if (!el || document.activeElement === el) return
+    const next = version?.excerpt ?? ''
+    if (el.textContent !== next) {
+      el.textContent = next
+      el.setAttribute('data-empty', next ? 'false' : 'true')
+    }
+  }, [version?.excerpt])
+
+  const handleExcerptInput = useCallback(() => {
+    const el = excerptRef.current
+    const text = el?.textContent ?? ''
+    el?.setAttribute('data-empty', text ? 'false' : 'true')
+    dispatch({ type: 'SET_EXCERPT', excerpt: text })
+  }, [dispatch])
+
+  const excerptLen = (version?.excerpt ?? '').length
+
   /* ---- Derived values ---- */
 
-  const langFlag = activeLang === 'pt' ? '\u{1F1E7}\u{1F1F7}' : '\u{1F1EC}\u{1F1E7}'
-  const category = shared.category || '—'
-  const readTime =
-    version && version.readTime > 0
-      ? `${version.readTime} min`
-      : '—'
+  const langLabel = activeLang === 'pt' ? '\u{1F1E7}\u{1F1F7} PT-BR' : '\u{1F1FA}\u{1F1F8} EN'
+  const cat = resolveCategory(shared.category, activeLang, state.categories)
+  const readTime = version && version.readTime > 0 ? `${version.readTime} min de leitura` : 'rascunho novo'
   const wordCount = (version?.words ?? 0).toLocaleString('pt-BR')
 
   /* ---- Render ---- */
 
+  const coverUrl = version?.coverImageUrl ?? null
+
   return (
-    <div className="mx-auto max-w-2xl space-y-6 py-8">
+    <div>
+      {/* Cover image */}
+      {coverUrl ? (
+        <div className="doc-cover has-img">
+          <img src={coverUrl} alt="Imagem de capa do post" className="dc-img" />
+          <span className="dc-label">capa · 1200×675</span>
+          <button
+            type="button"
+            className="dc-swap"
+            onClick={() => dispatch({ type: 'SET_STAGE', stage: 'imagens' })}
+          >
+            <RefreshCw size={13} />
+            Trocar capa
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="doc-cover pending"
+          title="Adicionar capa em Imagens"
+          onClick={() => dispatch({ type: 'SET_STAGE', stage: 'imagens' })}
+        >
+          <div className="di-thumb"><ImageIcon size={20} /></div>
+          <div className="di-info">
+            <span className="di-id">
+              cover · 1200×675
+              <span className="di-wait">sem capa</span>
+            </span>
+            {shared.coverPrompt && (
+              <span className="di-alt">{shared.coverPrompt}</span>
+            )}
+          </div>
+          <span className="dc-add">
+            <Plus size={13} />
+            <span> Adicionar capa</span>
+          </span>
+        </button>
+      )}
+
       {/* Editable title */}
       <textarea
         ref={titleRef}
         data-testid="doc-title"
         value={version?.title ?? ''}
         onChange={handleTitleChange}
-        placeholder="Titulo do post"
+        placeholder="Sem título"
         rows={1}
-        className="w-full resize-none border-0 bg-transparent text-[38px] leading-tight text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:ring-0"
-        style={{ fontWeight: 600 }}
+        className="doc-title"
       />
 
+      {/* Excerpt / dek */}
+      <div className="doc-dek-wrap">
+        <div
+          ref={excerptRef}
+          className="doc-dek"
+          role="textbox"
+          aria-label="Resumo do post"
+          aria-multiline="false"
+          contentEditable
+          spellCheck={false}
+          data-empty={!version?.excerpt ? 'true' : 'false'}
+          data-testid="doc-dek"
+          onInput={handleExcerptInput}
+          suppressContentEditableWarning
+        >
+          {version?.excerpt ?? ''}
+        </div>
+        <div className="doc-dek-hint">
+          {excerptLen} caracteres · resumo da listagem & card social · ideal 120–160
+        </div>
+      </div>
+
       {/* Meta line */}
-      <div
-        data-testid="doc-meta"
-        className="flex flex-wrap items-center gap-3 text-sm text-zinc-400"
-      >
-        <span>{langFlag}</span>
-        <span className="text-zinc-600">&middot;</span>
-        <span className="flex items-center gap-1.5">
-          <span
-            className={`inline-block h-2 w-2 rounded-full ${categoryDotColor(category)}`}
-            aria-hidden="true"
-          />
-          {category}
-        </span>
-        <span className="text-zinc-600">&middot;</span>
+      <div className="doc-meta" data-testid="doc-meta">
+        <span className="dm-tag">{langLabel}</span>
+        {cat && (
+          <>
+            <span className="msep">·</span>
+            <span className="dm-tag">
+              <span className="cdot" style={{ background: cat.color }} />
+              {cat.label}
+            </span>
+          </>
+        )}
+        <span className="msep">·</span>
         <span>{readTime}</span>
-        <span className="text-zinc-600">&middot;</span>
+        <span className="msep">·</span>
         <span>{wordCount} palavras</span>
       </div>
 
-      {/* Writing toolbar */}
-      <div
-        data-testid="doc-toolbar"
-        className="flex items-center gap-1 rounded-lg border border-zinc-700 bg-zinc-900/60 px-2 py-1.5"
-      >
-        {TOOLBAR_BUTTONS.map((btn) => (
-          <button
-            key={btn.label}
-            type="button"
-            aria-label={btn.label}
-            className={`rounded px-2 py-1 text-sm text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200 ${btn.className}`}
-          >
-            {btn.icon}
-          </button>
-        ))}
-      </div>
-
       {/* TipTap editor */}
-      <TipTapEditor
-        content={version?.body ?? null}
-        onChange={handleEditorChange}
-        onImageUpload={handleImageUpload}
-        editable={true}
-        placeholder="Comece a escrever..."
-        editorInstanceRef={editorRef}
-        extraExtensions={blogExtensions}
-      />
+      <div className="doc-prose">
+        <TipTapEditor
+          content={version?.body ?? (version?.bodyHtml || null)}
+          onChange={handleEditorChange}
+          onImageUpload={handleImageUpload}
+          editable={true}
+          placeholder="Comece a escrever..."
+          editorInstanceRef={editorRef}
+          extraExtensions={blogExtensions}
+        />
+      </div>
     </div>
   )
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, fireEvent } from '@testing-library/react'
+import { render, fireEvent, waitFor } from '@testing-library/react'
 import type { EditorState } from '@/app/cms/(authed)/blog/[id]/edit/types'
 
 /* ------------------------------------------------------------------ */
@@ -16,6 +16,8 @@ const baseState: EditorState = {
   activeStage: 'rascunho',
   activeLang: 'pt',
   focus: false,
+  inspectorOpen: false,
+  categories: [],
   content: {
     pt: {
       title: '',
@@ -54,6 +56,7 @@ const baseState: EditorState = {
     pullQuote: '',
     notes: [],
     colophon: '',
+    coverPrompt: '',
     history: [],
   },
   saveStatus: 'idle',
@@ -68,6 +71,7 @@ vi.mock('@/app/cms/(authed)/blog/[id]/edit/context', () => ({
   useEditorDispatch: () => mockDispatch,
   useEditorVersion: () => null,
   useAutosaveState: () => ({ state: 'idle', hasUnsavedChanges: false }),
+  useSaveActions: () => ({ saveNow: vi.fn() }),
 }))
 
 /* ------------------------------------------------------------------ */
@@ -130,11 +134,23 @@ describe('EditorClient (shell)', () => {
     mockDispatch.mockClear()
   })
 
-  it('renders action-bar, stage-bar, and inspector components', () => {
+  it('renders action-bar and stage-bar', () => {
     const { getByTestId } = render(<EditorClient initialState={mockState} />)
     expect(getByTestId('action-bar')).toBeDefined()
     expect(getByTestId('stage-bar')).toBeDefined()
+  })
+
+  it('renders inspector drawer when inspectorOpen is true', () => {
+    mockState = { ...baseState, inspectorOpen: true }
+    const { getByTestId } = render(<EditorClient initialState={mockState} />)
+    expect(getByTestId('inspector-drawer')).toBeDefined()
     expect(getByTestId('inspector')).toBeDefined()
+  })
+
+  it('hides inspector drawer when inspectorOpen is false', () => {
+    mockState = { ...baseState, inspectorOpen: false }
+    const { queryByTestId } = render(<EditorClient initialState={mockState} />)
+    expect(queryByTestId('inspector-drawer')).toBeNull()
   })
 
   it('renders the active stage component', () => {
@@ -149,12 +165,6 @@ describe('EditorClient (shell)', () => {
     expect(queryByTestId('stage-bar')).toBeNull()
   })
 
-  it('hides inspector when focus is true', () => {
-    mockState = { ...baseState, focus: true }
-    const { queryByTestId } = render(<EditorClient initialState={mockState} />)
-    expect(queryByTestId('inspector')).toBeNull()
-  })
-
   it('shows focus pill when focus is true', () => {
     mockState = { ...baseState, focus: true }
     const { getByTestId } = render(<EditorClient initialState={mockState} />)
@@ -167,15 +177,23 @@ describe('EditorClient (shell)', () => {
     expect(queryByTestId('focus-pill')).toBeNull()
   })
 
-  it('dispatches TOGGLE_FOCUS when Esc is pressed in focus mode', () => {
-    mockState = { ...baseState, focus: true }
+  it('Esc closes inspector first when both inspector and focus are active', () => {
+    mockState = { ...baseState, focus: true, inspectorOpen: true }
+    render(<EditorClient initialState={mockState} />)
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(mockDispatch).toHaveBeenCalledWith({ type: 'TOGGLE_INSPECTOR' })
+    expect(mockDispatch).not.toHaveBeenCalledWith({ type: 'TOGGLE_FOCUS' })
+  })
+
+  it('Esc exits focus when inspector is closed', () => {
+    mockState = { ...baseState, focus: true, inspectorOpen: false }
     render(<EditorClient initialState={mockState} />)
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(mockDispatch).toHaveBeenCalledWith({ type: 'TOGGLE_FOCUS' })
   })
 
-  it('does NOT dispatch TOGGLE_FOCUS when Esc is pressed outside focus mode', () => {
-    mockState = { ...baseState, focus: false }
+  it('Esc does nothing when both inspector and focus are inactive', () => {
+    mockState = { ...baseState, focus: false, inspectorOpen: false }
     render(<EditorClient initialState={mockState} />)
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(mockDispatch).not.toHaveBeenCalled()
@@ -188,9 +206,9 @@ describe('EditorClient (shell)', () => {
     expect(mockDispatch).toHaveBeenCalledWith({ type: 'TOGGLE_FOCUS' })
   })
 
-  it('renders different stage component when activeStage changes', () => {
+  it('renders different stage component when activeStage changes', async () => {
     mockState = { ...baseState, activeStage: 'seo' }
     const { getByTestId } = render(<EditorClient initialState={mockState} />)
-    expect(getByTestId('stage-seo')).toBeDefined()
+    await waitFor(() => expect(getByTestId('stage-seo')).toBeDefined())
   })
 })

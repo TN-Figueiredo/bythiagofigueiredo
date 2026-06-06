@@ -21,6 +21,15 @@ export type ImageBlockStatus = 'empty' | 'uploading' | 'processing' | 'done'
 
 export type ImageAlignment = 'column' | 'wide' | 'full'
 
+/** Social distribution platforms planned at publish time. */
+export type DistPlatformId = 'instagram' | 'bluesky' | 'facebook' | 'youtube'
+
+/** When a channel's post goes out relative to the blog publish. */
+export type DistTiming = 'with' | 'plus1' | 'plus1d'
+
+/** Distribution plan: selected platform → timing. Empty = nothing scheduled. */
+export type DistributionPlan = Partial<Record<DistPlatformId, DistTiming>>
+
 /* ------------------------------------------------------------------ */
 /*  Interfaces                                                        */
 /* ------------------------------------------------------------------ */
@@ -46,6 +55,7 @@ export interface VersionContent {
   words: number
   readTime: number
   titleAlts: string[]
+  distribution: DistributionPlan
 }
 
 /** Cross-language shared fields. */
@@ -64,7 +74,17 @@ export interface SharedFields {
   pullQuote: string
   notes: string[]
   colophon: string
+  coverPrompt: string
   history: Array<{ to: string; date: string }>
+}
+
+/** Blog category definition from content_collections. */
+export interface CategoryInfo {
+  id: string
+  labelPt: string
+  labelEn: string
+  color: string
+  colorDark: string
 }
 
 /** Full editor state tree. */
@@ -76,8 +96,10 @@ export interface EditorState {
   activeStage: Stage
   activeLang: 'pt' | 'en'
   focus: boolean
+  inspectorOpen: boolean
   content: Partial<Record<'pt' | 'en', VersionContent>>
   shared: SharedFields
+  categories: CategoryInfo[]
   saveStatus: SaveStatus
   scrollToImageId: string | null
 }
@@ -87,6 +109,7 @@ export type EditorAction =
   | { type: 'SET_STAGE'; stage: Stage }
   | { type: 'SET_LANG'; lang: 'pt' | 'en' }
   | { type: 'TOGGLE_FOCUS' }
+  | { type: 'TOGGLE_INSPECTOR' }
   | { type: 'SET_POST_ID'; postId: string }
   | { type: 'SET_TITLE'; title: string }
   | { type: 'SET_BODY'; body: JSONContent; html: string; words: number; readTime: number }
@@ -95,7 +118,8 @@ export type EditorAction =
   | { type: 'SET_COVER'; url: string | null; ready: boolean }
   | { type: 'SET_FIELD'; field: keyof VersionContent; value: unknown }
   | { type: 'SET_SHARED'; field: keyof SharedFields; value: unknown }
-  | { type: 'SET_IMAGE_STATUS'; index: number; status: ImageBlockStatus }
+  | { type: 'SET_IMAGE_STATUS'; index: number; status: ImageBlockStatus; url?: string }
+  | { type: 'SET_DIST'; platform: DistPlatformId; timing: DistTiming | null }
   | { type: 'ADD_VERSION'; lang: 'pt' | 'en' }
   | { type: 'REMOVE_VERSION'; lang: 'pt' | 'en' }
   | { type: 'PUBLISH' }
@@ -142,15 +166,6 @@ export const STAGES: Stage[] = [
 /** Post statuses that allow auto-save. */
 export const AUTO_SAVE_STATUSES = new Set<PostStatus>(['idea', 'draft'])
 
-/** Lucide icon name per stage. */
-export const STAGE_ICONS: Record<Stage, string> = {
-  ideia: 'Lightbulb',
-  rascunho: 'Edit',
-  imagens: 'Image',
-  seo: 'Search',
-  publicacao: 'Upload',
-}
-
 /** Default empty version content (fresh, all fields zeroed). */
 export const EMPTY_VERSION: VersionContent = {
   title: '',
@@ -172,4 +187,5 @@ export const EMPTY_VERSION: VersionContent = {
   words: 0,
   readTime: 0,
   titleAlts: [],
+  distribution: {},
 }

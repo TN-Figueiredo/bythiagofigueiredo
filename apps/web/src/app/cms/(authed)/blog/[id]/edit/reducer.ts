@@ -5,9 +5,10 @@ import type {
   VersionContent,
   PostStatus,
   SharedFields,
+  CategoryInfo,
 } from './types'
 import { EMPTY_VERSION } from './types'
-import { deriveSlug } from './helpers'
+import { deriveSlug, STAGE_MAP } from './helpers'
 
 /* ------------------------------------------------------------------ */
 /*  ServerData — shape provided by the server page                    */
@@ -33,6 +34,7 @@ export interface ServerData {
   pullQuote: string
   notes: string[]
   colophon: string
+  coverPrompt: string
   previousPostId: string | null
   continuesInNext: boolean
   hashtags: Array<{ id: string; name: string; slug: string }>
@@ -43,6 +45,36 @@ export interface ServerData {
   history: Array<{ to: string; date: string }>
   category: string | null
   tagId: string | null
+  categories: CategoryInfo[]
+  /** Reading time (minutes) + word count seeded from the post. */
+  readingTimeMin?: number
+  words?: number
+  /** Publish timestamps (ISO) when the post is already live. */
+  publishedAt?: string | null
+  updatedAt?: string | null
+  /** Testable title alternatives (A/B headlines). */
+  titleAlts?: string[]
+  /** Other-language versions already stored — used to hydrate the toggle. */
+  siblings?: ServerSibling[]
+}
+
+/** A non-primary language version loaded alongside the primary. */
+export interface ServerSibling {
+  locale: string
+  title: string
+  slug: string
+  excerpt: string
+  contentJson: Record<string, unknown> | null
+  contentHtml: string | null
+  coverImageUrl: string | null
+  coverReady: boolean
+  metaTitle: string
+  metaDesc: string
+  ogImageUrl: string | null
+  published: boolean
+  publishedAt: string | null
+  updatedAt: string | null
+  readingTimeMin?: number
 }
 
 /* ------------------------------------------------------------------ */
@@ -97,6 +129,9 @@ export function editorReducer(
 
     case 'TOGGLE_FOCUS':
       return { ...state, focus: !state.focus }
+
+    case 'TOGGLE_INSPECTOR':
+      return { ...state, inspectorOpen: !state.inspectorOpen }
 
     /* ---- Content ---- */
 
@@ -159,15 +194,15 @@ export function editorReducer(
 
       const targetIndex = action.index
       const targetStatus = action.status
+      const targetUrl = action.url
       let counter = 0
       function updateImageNode(node: JSONContent): JSONContent {
         if (node.type === 'blogImage') {
           if (counter === targetIndex) {
             counter++
-            return {
-              ...node,
-              attrs: { ...node.attrs, status: targetStatus },
-            }
+            const attrs: Record<string, unknown> = { ...node.attrs, status: targetStatus }
+            if (targetUrl) attrs.src = targetUrl
+            return { ...node, attrs }
           }
           counter++
         }
@@ -179,6 +214,21 @@ export function editorReducer(
 
       const updatedBody = updateImageNode(imgVersion.body)
       return updateActiveVersion(state, { body: updatedBody })
+    }
+
+    case 'SET_DIST': {
+      const lang = state.activeLang
+      const version = state.content[lang]
+      if (!version) return state
+      const next = { ...version.distribution }
+      if (action.timing === null) {
+        delete next[action.platform]
+      } else {
+        next[action.platform] = action.timing
+      }
+      // NOTE: distribution is editor-only state (not yet persisted), so we do
+      // NOT mark the version dirty here — that would promise a save we can't keep.
+      return updateActiveVersion(state, { distribution: next })
     }
 
     /* ---- Shared ---- */
@@ -266,8 +316,8 @@ export function buildInitialState(data: ServerData): EditorState {
     body: (data.contentJson as JSONContent) ?? null,
     bodyHtml: data.contentHtml ?? '',
     published: data.status === 'published',
-    publishedAt: null,
-    updatedAt: null,
+    publishedAt: data.publishedAt ?? null,
+    updatedAt: data.updatedAt ?? null,
     dirty: false,
     fresh: false,
     coverImageUrl: data.coverImageUrl,
@@ -275,9 +325,40 @@ export function buildInitialState(data: ServerData): EditorState {
     metaTitle: data.metaTitle,
     metaDesc: data.metaDesc,
     ogImageUrl: data.ogImageUrl,
-    words: 0,
-    readTime: 0,
-    titleAlts: [],
+    words: data.words ?? 0,
+    readTime: data.readingTimeMin ?? 0,
+    titleAlts: data.titleAlts ?? [],
+    distribution: {},
+  }
+
+  /* Hydrate any other-language version already stored so the lang toggle
+     swaps real content instead of clobbering a published sibling. */
+  const content: Partial<Record<'pt' | 'en', VersionContent>> = { [lang]: version }
+  for (const sib of data.siblings ?? []) {
+    const sibLang: 'pt' | 'en' = sib.locale.startsWith('en') ? 'en' : 'pt'
+    if (sibLang === lang) continue
+    content[sibLang] = {
+      title: sib.title,
+      slug: sib.slug,
+      slugTouched: sib.slug.length > 0,
+      excerpt: sib.excerpt,
+      body: (sib.contentJson as JSONContent) ?? null,
+      bodyHtml: sib.contentHtml ?? '',
+      published: sib.published,
+      publishedAt: sib.publishedAt,
+      updatedAt: sib.updatedAt,
+      dirty: false,
+      fresh: false,
+      coverImageUrl: sib.coverImageUrl,
+      coverReady: sib.coverReady,
+      metaTitle: sib.metaTitle,
+      metaDesc: sib.metaDesc,
+      ogImageUrl: sib.ogImageUrl,
+      words: 0,
+      readTime: sib.readingTimeMin ?? 0,
+      titleAlts: [],
+      distribution: {},
+    }
   }
 
   const shared: SharedFields = {
@@ -295,6 +376,7 @@ export function buildInitialState(data: ServerData): EditorState {
     pullQuote: data.pullQuote,
     notes: data.notes,
     colophon: data.colophon,
+    coverPrompt: data.coverPrompt,
     history: data.history,
   }
 
@@ -303,10 +385,12 @@ export function buildInitialState(data: ServerData): EditorState {
     code: data.code,
     siteId: data.siteId,
     siteTimezone: data.siteTimezone,
-    activeStage: 'rascunho',
+    activeStage: STAGE_MAP[data.status] ?? 'rascunho',
     activeLang: lang,
     focus: false,
-    content: { [lang]: version },
+    inspectorOpen: false,
+    content,
+    categories: data.categories,
     saveStatus: 'idle',
     scrollToImageId: null,
     shared,

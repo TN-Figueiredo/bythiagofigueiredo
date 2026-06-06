@@ -36,6 +36,7 @@ function makeShared() {
     pullQuote: '',
     notes: [],
     colophon: '',
+    coverPrompt: '',
     history: [],
   }
 }
@@ -49,6 +50,8 @@ function makeState(overrides: Partial<EditorState> = {}): EditorState {
     activeStage: 'rascunho',
     activeLang: 'pt',
     focus: false,
+    inspectorOpen: false,
+    categories: [],
     content: { pt: { ...EMPTY_VERSION, fresh: false } },
     shared: makeShared(),
     saveStatus: 'idle',
@@ -88,16 +91,8 @@ describe('Inspector', () => {
     expect(screen.getByTestId('insp-arquivar')).toBeDefined()
   })
 
-  it('hidden when focus is true', async () => {
+  it('always renders regardless of focus state', async () => {
     mockState = makeState({ focus: true })
-    const Inspector = await loadInspector()
-    const { container } = render(<Inspector />)
-
-    expect(container.innerHTML).toBe('')
-  })
-
-  it('visible when focus is false', async () => {
-    mockState = makeState({ focus: false })
     const Inspector = await loadInspector()
     const { container } = render(<Inspector />)
 
@@ -112,7 +107,6 @@ describe('Inspector', () => {
     const sidebar = container.firstElementChild as HTMLElement
     expect(sidebar).not.toBeNull()
     expect(sidebar.getAttribute('data-inspector')).toBe('')
-    // overflow-y: auto is applied via className
-    expect(sidebar.className).toContain('overflow-y-auto')
+    expect(sidebar.className).toContain('insp')
   })
 })

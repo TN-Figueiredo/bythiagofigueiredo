@@ -5,7 +5,33 @@ import type {
   GateResult,
   GateCheck,
   ImageStatsResult,
+  CategoryInfo,
+  PostStatus,
+  Stage,
 } from './types'
+
+/* ------------------------------------------------------------------ */
+/*  Shared constants                                                  */
+/* ------------------------------------------------------------------ */
+
+export const LANG_LABEL: Record<string, string> = {
+  pt: 'PT-BR',
+  en: 'EN',
+}
+
+/**
+ * Maps a post's kanban status to the editor stage it should open on.
+ * A ready post lands on Imagens; scheduled/published land on Publicação.
+ */
+export const STAGE_MAP: Record<PostStatus, Stage> = {
+  idea: 'ideia',
+  draft: 'rascunho',
+  ready: 'imagens',
+  pending_review: 'imagens',
+  scheduled: 'publicacao',
+  published: 'publicacao',
+  archived: 'rascunho',
+}
 
 /* ------------------------------------------------------------------ */
 /*  Internal: recursive JSONContent walkers                           */
@@ -24,7 +50,7 @@ function hasTextContent(node: JSONContent | null): boolean {
 }
 
 /** Collects all blogImage nodes from a JSONContent tree. */
-function collectBlogImages(node: JSONContent | null): JSONContent[] {
+export function collectBlogImages(node: JSONContent | null): JSONContent[] {
   if (!node) return []
   const results: JSONContent[] = []
   if (node.type === 'blogImage') {
@@ -78,6 +104,9 @@ export function isEmptyVersion(version: VersionContent): boolean {
   if (version.excerpt.trim().length > 0) return false
   if (version.published) return false
   if (hasTextContent(version.body)) return false
+  // A completed inline image counts as real content worth confirming.
+  const images = collectBlogImages(version.body)
+  if (images.some((img) => img.attrs?.status === 'done')) return false
   return true
 }
 
@@ -118,8 +147,26 @@ export function publishGate(state: EditorState, lang: 'pt' | 'en'): GateResult {
  * Scans body for all blogImage nodes and counts how many have status 'done'.
  * Cover image is NOT included in this count.
  */
-export function imageStats(body: JSONContent, _coverReady: boolean): ImageStatsResult {
+export function imageStats(body: JSONContent): ImageStatsResult {
   const images = collectBlogImages(body)
   const done = images.filter((img) => img.attrs?.status === 'done').length
   return { done, total: images.length }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Category resolution                                               */
+/* ------------------------------------------------------------------ */
+
+export function resolveCategory(
+  categoryId: string,
+  lang: 'pt' | 'en',
+  categories: CategoryInfo[],
+): { label: string; color: string } | null {
+  if (!categoryId) return null
+  const cat = categories.find((c) => c.id === categoryId)
+  if (!cat) return { label: categoryId, color: 'var(--accent)' }
+  return {
+    label: lang === 'pt' ? cat.labelPt : cat.labelEn,
+    color: cat.colorDark,
+  }
 }

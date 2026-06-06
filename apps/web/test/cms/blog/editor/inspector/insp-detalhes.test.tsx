@@ -36,6 +36,7 @@ function makeShared(overrides: Partial<SharedFields> = {}): SharedFields {
     pullQuote: '',
     notes: [],
     colophon: '',
+    coverPrompt: '',
     history: [],
     ...overrides,
   }
@@ -50,6 +51,8 @@ function makeState(overrides: Partial<EditorState> = {}): EditorState {
     activeStage: 'rascunho',
     activeLang: 'pt',
     focus: false,
+    inspectorOpen: false,
+    categories: [],
     content: {
       pt: {
         ...EMPTY_VERSION,
@@ -126,7 +129,7 @@ describe('InspDetalhes', () => {
     const InspDetalhes = await loadComponent()
     render(<InspDetalhes />)
 
-    expect(screen.getByText('↻ regenerar do titulo')).toBeDefined()
+    expect(screen.getByText('↻ regenerar do título')).toBeDefined()
   })
 
   it('regenerate link hidden when slugTouched is false', async () => {
@@ -145,7 +148,7 @@ describe('InspDetalhes', () => {
     const InspDetalhes = await loadComponent()
     render(<InspDetalhes />)
 
-    expect(screen.queryByText('↻ regenerar do titulo')).toBeNull()
+    expect(screen.queryByText('↻ regenerar do título')).toBeNull()
   })
 
   it('clicking regenerate dispatches SET_SLUG from title with touched: false', async () => {
@@ -164,7 +167,7 @@ describe('InspDetalhes', () => {
     const InspDetalhes = await loadComponent()
     render(<InspDetalhes />)
 
-    fireEvent.click(screen.getByText('↻ regenerar do titulo'))
+    fireEvent.click(screen.getByText('↻ regenerar do título'))
 
     expect(mockDispatch).toHaveBeenCalledWith({
       type: 'SET_SLUG',
@@ -177,7 +180,7 @@ describe('InspDetalhes', () => {
     const InspDetalhes = await loadComponent()
     render(<InspDetalhes />)
 
-    const textarea = screen.getByLabelText('Excerpt')
+    const textarea = screen.getByLabelText('Descrição')
     fireEvent.change(textarea, { target: { value: 'Novo resumo' } })
 
     expect(mockDispatch).toHaveBeenCalledWith({

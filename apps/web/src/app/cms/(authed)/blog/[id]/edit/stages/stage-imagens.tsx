@@ -2,7 +2,10 @@
 
 import { useMemo, useCallback, useState } from 'react'
 import type { JSONContent } from '@tiptap/core'
-import { imageStats } from '../helpers'
+import { toast } from 'sonner'
+import { Image, Check, CheckCircle, Info, Sparkles, Layers, ListChecks, RefreshCw, Eye } from 'lucide-react'
+import { imageStats, collectBlogImages } from '../helpers'
+import type { ImageBlockStatus } from '../types'
 import {
   useEditorState,
   useEditorDispatch,
@@ -14,66 +17,70 @@ import { CROP_PRESETS } from '@/app/cms/(authed)/_shared/media/types'
 import type { MediaAssetResult } from '@/app/cms/(authed)/_shared/media/types'
 
 /* ------------------------------------------------------------------ */
-/*  Internal: extract blogImage nodes from body tree                   */
+/*  Internal: map raw JSONContent nodes to typed ImageNode             */
 /* ------------------------------------------------------------------ */
 
 interface ImageNode {
   id: string
-  status: string
+  status: ImageBlockStatus
   alt: string
+  src: string | null
 }
 
-function collectImageNodes(node: JSONContent): ImageNode[] {
-  const results: ImageNode[] = []
-  if (node.type === 'blogImage' && node.attrs) {
-    results.push({
-      id: (node.attrs.id as string) ?? '',
-      status: (node.attrs.status as string) ?? 'empty',
-      alt: (node.attrs.alt as string) ?? '',
-    })
+const VALID_IMG_STATUSES = new Set<ImageBlockStatus>(['empty', 'uploading', 'processing', 'done'])
+
+function toImageNode(node: JSONContent): ImageNode {
+  const raw = (node.attrs?.status as string) ?? 'empty'
+  return {
+    id: (node.attrs?.id as string) ?? '',
+    status: VALID_IMG_STATUSES.has(raw as ImageBlockStatus) ? raw as ImageBlockStatus : 'empty',
+    alt: (node.attrs?.alt as string) ?? '',
+    src: (node.attrs?.src as string) ?? null,
   }
-  if (node.content) {
-    for (const child of node.content) results.push(...collectImageNodes(child))
-  }
-  return results
 }
 
 /* ------------------------------------------------------------------ */
-/*  Constants                                                          */
+/*  Variant picker — AI generation is a front-end mock (no backend);  */
+/*  variants are distinct swatches standing in for generated crops.   */
 /* ------------------------------------------------------------------ */
 
-const LANG_LABEL: Record<string, string> = {
-  pt: 'PT-BR',
-  en: 'EN',
-}
+type GenState = 'generating' | 'choosing'
 
-const BADGE_EMPTY = {
-  label: 'aguardando',
-  className:
-    'inline-flex items-center rounded-full bg-amber-900/40 px-2 py-0.5 text-xs font-medium text-amber-400',
-} as const
+const IMG_VARIANTS = [
+  'linear-gradient(135deg, #4a3a2c, #6b4f37)',
+  'linear-gradient(135deg, #2c3f44, #3f5d54)',
+  'linear-gradient(135deg, #3c2c44, #56415e)',
+]
 
-const STATUS_BADGE: Record<string, { label: string; className: string }> = {
-  done: {
-    label: 'no ar',
-    className:
-      'inline-flex items-center rounded-full bg-emerald-900/40 px-2 py-0.5 text-xs font-medium text-emerald-400',
-  },
-  empty: BADGE_EMPTY,
-  uploading: {
-    label: 'enviando',
-    className:
-      'inline-flex items-center rounded-full bg-amber-900/40 px-2 py-0.5 text-xs font-medium text-amber-400',
-  },
-  processing: {
-    label: 'processando',
-    className:
-      'inline-flex items-center rounded-full bg-amber-900/40 px-2 py-0.5 text-xs font-medium text-amber-400',
-  },
-}
+/* AI generation has no backend yet — the mock resolves to a clearly-labelled
+   placeholder image so a "done" slot always carries a real src (no publish-gate
+   footgun) and the placeholder reads as provisional, not a finished asset. */
+const MOCK_COVER = 'https://placehold.co/1200x675/221e1a/9a9ca8?text=Gerado+por+IA+%28preview%29'
+const MOCK_INLINE = 'https://placehold.co/800x450/221e1a/9a9ca8?text=Gerado+por+IA'
 
-function statusBadge(status: string): { label: string; className: string } {
-  return STATUS_BADGE[status] ?? BADGE_EMPTY
+function VariantPicker({ onPick, onCancel }: { onPick: (n: number) => void; onCancel: () => void }) {
+  return (
+    <div className="imgvar">
+      <div className="imgvar-head">
+        <span><Sparkles size={13} /> Escolha uma variação</span>
+        <button type="button" className="imgvar-cancel" onClick={onCancel}>Cancelar</button>
+      </div>
+      <div className="imgvar-grid">
+        {IMG_VARIANTS.map((grad, i) => (
+          <button
+            key={i}
+            type="button"
+            className="imgvar-opt"
+            style={{ background: grad }}
+            onClick={() => onPick(i + 1)}
+          >
+            <span className="imgvar-n">{i + 1}</span>
+            <span className="imgvar-pick"><Check size={14} /> Usar esta</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 /* ------------------------------------------------------------------ */
@@ -87,6 +94,10 @@ export function StageImagens() {
 
   const coverGallery = useMediaGallery()
   const inlineGallery = useMediaGallery()
+  const [inlineTargetIndex, setInlineTargetIndex] = useState<number | null>(null)
+
+  /* AI-generation mock state, keyed by 'cover' or image id. */
+  const [gen, setGen] = useState<Record<string, GenState>>({})
 
   const handleCoverSelect = useCallback(
     (asset: MediaAssetResult) => {
@@ -96,12 +107,10 @@ export function StageImagens() {
     [dispatch, coverGallery],
   )
 
-  const [inlineTargetIndex, setInlineTargetIndex] = useState<number | null>(null)
-
   const handleInlineSelect = useCallback(
     (asset: MediaAssetResult) => {
       if (inlineTargetIndex !== null) {
-        dispatch({ type: 'SET_IMAGE_STATUS', index: inlineTargetIndex, status: 'done' })
+        dispatch({ type: 'SET_IMAGE_STATUS', index: inlineTargetIndex, status: 'done', url: asset.url })
       }
       inlineGallery.closeGallery()
       setInlineTargetIndex(null)
@@ -109,236 +118,266 @@ export function StageImagens() {
     [dispatch, inlineGallery, inlineTargetIndex],
   )
 
+  /* ---- AI generation mock: generating → choosing → done ---- */
+  const startGen = useCallback((key: string) => {
+    setGen((g) => ({ ...g, [key]: 'generating' }))
+    setTimeout(() => {
+      setGen((g) => (g[key] === 'generating' ? { ...g, [key]: 'choosing' } : g))
+    }, 900)
+  }, [])
+
+  const cancelGen = useCallback((key: string) => {
+    setGen((g) => {
+      const next = { ...g }
+      delete next[key]
+      return next
+    })
+  }, [])
+
+  const pickCover = useCallback(() => {
+    cancelGen('cover')
+    dispatch({ type: 'SET_COVER', url: MOCK_COVER, ready: true })
+    toast.success('Capa gerada (preview)')
+  }, [cancelGen, dispatch])
+
+  const pickInline = useCallback((index: number, id: string) => {
+    cancelGen(id)
+    dispatch({ type: 'SET_IMAGE_STATUS', index, status: 'done', url: MOCK_INLINE })
+    toast.success('Imagem gerada (preview)')
+  }, [cancelGen, dispatch])
+
   const lang = state.activeLang
 
   const images = useMemo(
-    () => collectImageNodes(version?.body ?? { type: 'doc' }),
+    () => collectBlogImages(version?.body ?? null).map(toImageNode),
     [version?.body],
   )
 
   const stats = useMemo(
-    () => imageStats(version?.body ?? { type: 'doc' }, version?.coverReady ?? false),
-    [version?.body, version?.coverReady],
+    () => imageStats(version?.body ?? { type: 'doc' }),
+    [version?.body],
   )
 
   const coverReady = version?.coverReady ?? false
   const coverImageUrl = version?.coverImageUrl ?? null
 
-  /* Total = content images + cover (1) */
   const totalWithCover = stats.total + 1
   const doneWithCover = stats.done + (coverReady ? 1 : 0)
   const allDone = doneWithCover === totalWithCover
 
-  /* Cover counts as 1, content images counted separately */
-  const coverCount = 1
-  const contentCount = stats.total
+  const pendingCount = totalWithCover - doneWithCover
+  const progressPct = totalWithCover > 0 ? Math.round((doneWithCover / totalWithCover) * 100) : 0
+
+  const genAll = useCallback(() => {
+    setGen({})
+    if (!coverReady) dispatch({ type: 'SET_COVER', url: MOCK_COVER, ready: true })
+    images.forEach((img, idx) => {
+      if (img.status !== 'done') dispatch({ type: 'SET_IMAGE_STATUS', index: idx, status: 'done', url: MOCK_INLINE })
+    })
+    toast.success(`${pendingCount} ${pendingCount === 1 ? 'imagem gerada' : 'imagens geradas'}`)
+  }, [coverReady, images, pendingCount, dispatch])
 
   if (!version) return null
 
-  return (
-    <div className="mx-auto max-w-2xl space-y-8 py-8">
-      {/* ---- Compact header ---- */}
-      <header>
-        <p className="font-mono text-xs uppercase tracking-widest text-zinc-500">
-          IMAGENS · {LANG_LABEL[lang] ?? lang.toUpperCase()}
-        </p>
-        {version.title && (
-          <p className="mt-1 truncate text-[20px] text-zinc-400">
-            {version.title}
-          </p>
-        )}
-      </header>
+  const coverGen = gen.cover
 
-      {/* ---- Summary bar ---- */}
-      <div
-        data-testid="img-summary"
-        className="flex items-center justify-between rounded-lg border border-zinc-700 bg-zinc-900/60 px-4 py-3"
-      >
-        <div className="space-y-0.5">
-          <p className="text-sm font-medium text-zinc-200">
-            {doneWithCover}/{totalWithCover} imagens prontas
-          </p>
-          <p className="text-xs text-zinc-400">
-            {coverCount} capa · {contentCount} no conteúdo
-          </p>
+  return (
+    <div className="imgmgr">
+      {/* ---- Image manager header ---- */}
+      <div className="imgmgr-head" data-testid="img-summary">
+        <div className="imgmgr-prog">
+          <div className="imgmgr-count">
+            <b>{doneWithCover}</b><span>/{totalWithCover}</span>
+          </div>
+          <div className="imgmgr-bar" role="progressbar" aria-valuenow={doneWithCover} aria-valuemin={0} aria-valuemax={totalWithCover} aria-label="Progresso das imagens">
+            <span style={{ width: `${progressPct}%` }} className={allDone ? 'full' : ''} />
+          </div>
+          <div className="imgmgr-sub">
+            imagens prontas · {coverReady ? 1 : 0} capa · {stats.total} no conteúdo
+          </div>
         </div>
-        {allDone ? (
-          <span className="text-sm font-medium text-emerald-400">
-            Tudo pronto
-          </span>
-        ) : (
-          <button
-            type="button"
-            onClick={() => dispatch({ type: 'SET_STAGE', stage: 'imagens' })}
-            className="rounded-md bg-amber-600/20 px-3 py-1.5 text-xs font-medium text-amber-400 hover:bg-amber-600/30"
-          >
-            Verificar pendente
+        {pendingCount > 0 && (
+          <button type="button" className="btn sm primary" onClick={genAll}>
+            <Sparkles size={14} />
+            Gerar todas ({pendingCount})
           </button>
+        )}
+        {allDone && (
+          <span className="img-alldone"><CheckCircle size={15} /> Tudo pronto</span>
         )}
       </div>
 
       {/* ---- Cover section ---- */}
-      <section data-testid="img-cover" className="space-y-3">
-        <p className="text-sm font-medium text-zinc-300">
-          Capa &amp; thumbnail · 1200×675
-        </p>
-        <div className="flex items-center gap-4 rounded-lg border border-zinc-700 bg-zinc-900/60 p-4">
-          {/* Thumbnail or placeholder */}
-          {coverImageUrl ? (
-            <img
-              src={coverImageUrl}
-              alt="Capa"
-              className="h-16 w-28 rounded-md object-cover"
-            />
-          ) : (
-            <div className="flex h-16 w-28 items-center justify-center rounded-md border border-dashed border-zinc-600 bg-zinc-800/50">
-              <svg
-                className="h-6 w-6 text-zinc-500"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={1.5}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0022.5 18.75V5.25A2.25 2.25 0 0020.25 3H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z"
-                />
-              </svg>
-            </div>
-          )}
-
-          {/* Status badge */}
-          <div className="flex-1">
-            <span className={statusBadge(coverReady ? 'done' : 'empty').className}>
-              {statusBadge(coverReady ? 'done' : 'empty').label}
-            </span>
+      <section className="imgmgr-section" data-testid="img-cover">
+        <div className="imgmgr-label">
+          <Image size={13} />
+          Capa &amp; thumbnail
+        </div>
+        {coverGen === 'choosing' ? (
+          <div className="cover-hero choosing">
+            <VariantPicker onPick={pickCover} onCancel={() => cancelGen('cover')} />
           </div>
-
-          {/* Action buttons */}
-          <div className="flex gap-2">
-            {coverImageUrl ? (
+        ) : coverGen === 'generating' ? (
+          <div className="cover-hero loading">
+            <span className="hero-shimmer" />
+            <span className="hero-loadlabel"><span className="img-spin sm" /> Gerando variações…</span>
+          </div>
+        ) : coverReady ? (
+          <div className="cover-hero done">
+            {coverImageUrl ? <img src={coverImageUrl} alt="" /> : <span className="hero-fill" />}
+            <span className="hero-tag">
+              <Image size={13} />
+              capa · 1200×675
+            </span>
+            <div className="hero-overlay">
               <button
                 type="button"
+                className="hero-btn"
                 onClick={() => coverGallery.openGallery({ folder: 'blog', cropPreset: CROP_PRESETS['blog-cover'] })}
-                className="rounded-md border border-zinc-600 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-zinc-800"
               >
+                <RefreshCw size={14} />
                 Trocar
               </button>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={() => coverGallery.openGallery({ folder: 'blog', cropPreset: CROP_PRESETS['blog-cover'] })}
-                  className="rounded-md border border-zinc-600 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-zinc-800"
-                >
-                  Galeria
-                </button>
-                <button
-                  type="button"
-                  onClick={() => coverGallery.openGallery({ folder: 'blog', cropPreset: CROP_PRESETS['blog-cover'] })}
-                  className="rounded-md border border-zinc-600 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-zinc-800"
-                >
-                  Upload
-                </button>
-              </>
-            )}
+              <button type="button" className="hero-btn" onClick={() => toast.info('Pré-visualizar capa')}>
+                <Eye size={14} />
+                Ver
+              </button>
+            </div>
           </div>
-        </div>
-      </section>
-
-      {/* ---- Content images section ---- */}
-      <section data-testid="img-content" className="space-y-3">
-        <p className="text-sm font-medium text-zinc-300">
-          No conteúdo · {images.length}
-        </p>
-
-        {images.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-zinc-700 px-4 py-6 text-center text-sm text-zinc-500">
-            Nenhuma imagem no conteúdo
-          </p>
         ) : (
-          <div className="space-y-2">
-            {images.map((img, idx) => {
-              const badge = statusBadge(img.status)
-              return (
-                <div
-                  key={img.id || idx}
-                  className="flex items-center gap-3 rounded-lg border border-zinc-700 bg-zinc-900/60 px-4 py-3"
+          <div className="cover-hero empty">
+            <div className="hero-empty-in">
+              <span className="hero-empty-ic">
+                <Image size={30} />
+              </span>
+              <div className="hero-empty-tx">Sem capa <span>· 1200×675 · social card &amp; topo do artigo</span></div>
+              <div className="hero-empty-actions">
+                <button type="button" className="btn primary" onClick={() => startGen('cover')}>
+                  <Sparkles size={15} /> Gerar com IA
+                </button>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => coverGallery.openGallery({ folder: 'blog', cropPreset: CROP_PRESETS['blog-cover'] })}
                 >
-                  {/* ID badge */}
-                  <span className="rounded bg-zinc-800 px-2 py-0.5 font-mono text-xs text-zinc-400">
-                    {img.id || `img-${idx + 1}`}
-                  </span>
-
-                  {/* Status badge */}
-                  <span className={badge.className}>{badge.label}</span>
-
-                  {/* Alt text */}
-                  <span className="flex-1 truncate text-sm text-zinc-300">
-                    {img.alt || (
-                      <span className="italic text-zinc-500">sem alt</span>
-                    )}
-                  </span>
-
-                  {/* Position hint */}
-                  <span className="text-xs text-zinc-500">
-                    parágrafo {idx + 1}
-                  </span>
-
-                  {/* Gallery for inline image */}
-                  {img.status !== 'done' && (
-                    <button
-                      type="button"
-                      data-testid={`img-gallery-${img.id || `img-${idx + 1}`}`}
-                      onClick={() => {
-                        setInlineTargetIndex(idx)
-                        inlineGallery.openGallery({ folder: 'blog', cropPreset: CROP_PRESETS.free })
-                      }}
-                      className="rounded-md px-2 py-1 text-xs text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
-                    >
-                      Galeria
-                    </button>
-                  )}
-
-                  {/* Navigate to rascunho */}
-                  <button
-                    type="button"
-                    data-testid={`img-nav-${img.id || `img-${idx + 1}`}`}
-                    onClick={() => {
-                      dispatch({ type: 'SCROLL_TO_IMAGE', imageId: img.id || `img-${idx + 1}` })
-                      dispatch({ type: 'SET_STAGE', stage: 'rascunho' })
-                    }}
-                    className="rounded-md px-2 py-1 text-sm text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
-                  >
-                    →
-                  </button>
-                </div>
-              )
-            })}
+                  <ListChecks size={15} /> Enviar imagem
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </section>
 
-      {/* ---- Hint text ---- */}
-      <div className="rounded-lg border border-zinc-700/50 bg-zinc-900/30 px-4 py-3">
-        <p className="text-xs text-zinc-500">
-          Essas imagens vêm dos blocos do rascunho. Adicione ou remova no
-          editor de Rascunho.
-        </p>
-      </div>
+      {/* ---- Content images section ---- */}
+      <section className="imgmgr-section" data-testid="img-content">
+        <div className="imgmgr-label">
+          <Layers size={13} />
+          No conteúdo · {images.length}
+        </div>
+
+        {images.length === 0 ? (
+          <div style={{
+            padding: '26px 14px', textAlign: 'center', color: 'var(--text-faint)',
+            fontSize: 12, border: '1.5px dashed var(--border-soft)', borderRadius: 11,
+          }}>
+            Nenhuma imagem no conteúdo
+          </div>
+        ) : (
+          <div className="img-grid">
+            {images.map((img, idx) => {
+              const isDone = img.status === 'done'
+              const imgId = img.id || `img-${idx + 1}`
+              const tileGen = gen[imgId]
+              return (
+                <article key={imgId} className={`img-tile${isDone ? ' done' : tileGen ? ` ${tileGen}` : ' empty'}`}>
+                  <div className="tile-frame">
+                    {tileGen === 'choosing' ? (
+                      <VariantPicker onPick={() => pickInline(idx, imgId)} onCancel={() => cancelGen(imgId)} />
+                    ) : tileGen === 'generating' ? (
+                      <>
+                        <span className="hero-shimmer" />
+                        <span className="tile-loadlabel"><span className="img-spin sm" /> gerando…</span>
+                      </>
+                    ) : isDone ? (
+                      <>
+                        {img.src ? <img src={img.src} alt="" /> : <span className="hero-fill" />}
+                        <div className="tile-overlay">
+                          <button
+                            type="button"
+                            className="hero-btn sm"
+                            onClick={() => dispatch({ type: 'SET_IMAGE_STATUS', index: idx, status: 'empty' })}
+                          >
+                            <RefreshCw size={13} /> Trocar
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="tile-empty">
+                        <span className="tile-empty-ic">
+                          <Image size={22} />
+                        </span>
+                        <div className="tile-empty-actions">
+                          <button type="button" className="btn sm primary" onClick={() => startGen(imgId)}>
+                            <Sparkles size={13} /> Gerar
+                          </button>
+                          <button
+                            type="button"
+                            className="btn sm"
+                            data-testid={`img-gallery-${imgId}`}
+                            onClick={() => {
+                              setInlineTargetIndex(idx)
+                              inlineGallery.openGallery({ folder: 'blog', cropPreset: CROP_PRESETS.free })
+                            }}
+                          >
+                            <ListChecks size={13} /> Enviar
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="tile-meta">
+                    <div className="tile-head">
+                      <span className="tile-id">{imgId}</span>
+                      <span className={`tile-state ${isDone ? 'ok' : 'wait'}`}>
+                        {isDone ? 'no ar' : 'sem imagem'}
+                      </span>
+                    </div>
+                    <div
+                      className="tile-alt"
+                      role="textbox"
+                      aria-label={`Texto alternativo de ${imgId}`}
+                      contentEditable
+                      spellCheck={false}
+                      data-empty={!img.alt ? 'true' : 'false'}
+                      data-ph="Descreva (alt / prompt)…"
+                      suppressContentEditableWarning
+                    >
+                      {img.alt}
+                    </div>
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+        )}
+
+        <div className="img-hint">
+          <Info size={13} />
+          Vêm dos blocos <span className="mono">{images.map((i, idx) => i.id || `img-${idx + 1}`).join(', ')}</span> do rascunho — adicione ou remova no Conteúdo.
+        </div>
+      </section>
 
       {/* ---- Media Gallery Modals ---- */}
       <MediaGalleryModal
         {...coverGallery.galleryProps}
         onSelect={handleCoverSelect}
-        locale={state.activeLang === 'pt' ? 'pt-BR' : 'en'}
+        locale={lang === 'pt' ? 'pt-BR' : 'en'}
         siteId={state.siteId}
       />
       <MediaGalleryModal
         {...inlineGallery.galleryProps}
         onSelect={handleInlineSelect}
-        locale={state.activeLang === 'pt' ? 'pt-BR' : 'en'}
+        locale={lang === 'pt' ? 'pt-BR' : 'en'}
         siteId={state.siteId}
       />
     </div>

@@ -101,7 +101,7 @@ export function PipelinePill({ postId, siteId, initialItem }: Props) {
   }, [postId])
 
   const stageColor = item ? (STAGE_COLORS[item.stage] ?? GEM_CSS_VARS['--gem-dim']) : undefined
-  const title = item ? (item.title_pt || item.title_en || 'Untitled') : null
+  const title = item ? (item.title_pt || item.title_en || 'Sem título') : null
 
   return (
     <div ref={pillRef} className="relative inline-block mb-2" style={GEM_CSS_VARS as React.CSSProperties}>

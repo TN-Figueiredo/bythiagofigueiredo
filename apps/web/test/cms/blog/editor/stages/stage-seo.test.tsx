@@ -37,6 +37,7 @@ function makeShared() {
     pullQuote: '',
     notes: [],
     colophon: '',
+    coverPrompt: '',
     history: [],
   }
 }
@@ -54,6 +55,8 @@ function makeState(overrides: Partial<EditorState> = {}): EditorState {
     activeStage: 'seo',
     activeLang: 'pt',
     focus: false,
+    inspectorOpen: false,
+    categories: [],
     content: { pt: makeVersion() },
     shared: makeShared(),
     saveStatus: 'idle',

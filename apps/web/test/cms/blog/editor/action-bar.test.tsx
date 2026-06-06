@@ -11,10 +11,14 @@ const mockDispatch = vi.fn()
 let mockState: EditorState
 let mockVersion: VersionContent | null
 
+const mockSaveNow = vi.fn()
+
 vi.mock('@/app/cms/(authed)/blog/[id]/edit/context', () => ({
   useEditorState: () => mockState,
   useEditorDispatch: () => mockDispatch,
   useEditorVersion: () => mockVersion,
+  useSaveActions: () => ({ saveNow: mockSaveNow }),
+  useAutosaveState: () => ({ state: 'saved', hasUnsavedChanges: false }),
 }))
 
 vi.mock('next/link', () => ({
@@ -55,6 +59,7 @@ function makeShared(
     pullQuote: '',
     notes: [],
     colophon: '',
+    coverPrompt: '',
     history: [],
     ...overrides,
   }
@@ -69,6 +74,8 @@ function makeState(overrides: Partial<EditorState> = {}): EditorState {
     activeStage: 'rascunho',
     activeLang: 'pt',
     focus: false,
+    inspectorOpen: false,
+    categories: [],
     content: { pt: { ...EMPTY_VERSION, fresh: false } },
     shared: makeShared(),
     saveStatus: 'idle',
@@ -99,6 +106,7 @@ async function loadActionBar() {
 describe('ActionBar', () => {
   beforeEach(() => {
     mockDispatch.mockClear()
+    mockSaveNow.mockClear()
     mockState = makeState()
     mockVersion = mockState.content[mockState.activeLang] ?? null
   })
@@ -205,7 +213,9 @@ describe('ActionBar', () => {
     const ActionBar = await loadActionBar()
     render(<ActionBar />)
 
-    const link = screen.getByRole('link')
-    expect(link.getAttribute('href')).toBe('/cms/blog')
+    // ActionBar renders two links both pointing to /cms/blog (back arrow + breadcrumb label)
+    const links = screen.getAllByRole('link')
+    expect(links.length).toBeGreaterThanOrEqual(1)
+    expect(links.every(l => l.getAttribute('href') === '/cms/blog')).toBe(true)
   })
 })

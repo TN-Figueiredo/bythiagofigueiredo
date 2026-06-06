@@ -8,13 +8,15 @@ export interface LinkedPipelineItem {
   stage: string
   format: string
   priority: number
+  hook: string | null
+  synopsis: string | null
 }
 
 export async function getPipelineItemForPost(postId: string): Promise<LinkedPipelineItem | null> {
   const svc = getSupabaseServiceClient()
   const { data } = await svc
     .from('content_pipeline')
-    .select('id, code, title_pt, title_en, stage, format, priority')
+    .select('id, code, title_pt, title_en, stage, format, priority, hook, synopsis')
     .eq('blog_post_id', postId)
     .maybeSingle()
   return data as LinkedPipelineItem | null

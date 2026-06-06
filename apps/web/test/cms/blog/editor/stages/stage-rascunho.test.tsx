@@ -37,6 +37,7 @@ function makeShared() {
     pullQuote: '',
     notes: [],
     colophon: '',
+    coverPrompt: '',
     history: [],
   }
 }
@@ -61,6 +62,8 @@ function makeState(overrides: Partial<EditorState> = {}): EditorState {
     activeStage: 'rascunho',
     activeLang: 'pt',
     focus: false,
+    inspectorOpen: false,
+    categories: [],
     content: { pt: makeVersion() },
     shared: makeShared(),
     saveStatus: 'idle',
@@ -135,27 +138,6 @@ describe('StageRascunho', () => {
 
     const meta = screen.getByTestId('doc-meta')
     expect(meta.textContent).toContain('1.500 palavras')
-  })
-
-  it('writing toolbar has 7 tool buttons', async () => {
-    const StageRascunho = await loadStageRascunho()
-    render(<StageRascunho />)
-
-    const toolbar = screen.getByTestId('doc-toolbar')
-    const buttons = toolbar.querySelectorAll('button')
-    expect(buttons.length).toBe(7)
-
-    // Each button has an aria-label
-    const labels = Array.from(buttons).map((b) => b.getAttribute('aria-label'))
-    expect(labels).toEqual([
-      'Bold',
-      'Italic',
-      'H2',
-      'Quote',
-      'List',
-      'Link',
-      'Image',
-    ])
   })
 
   it('TipTap slot placeholder is rendered', async () => {

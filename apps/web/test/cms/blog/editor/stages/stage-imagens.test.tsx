@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import type { EditorState, VersionContent } from '@/app/cms/(authed)/blog/[id]/edit/types'
 import { EMPTY_VERSION } from '@/app/cms/(authed)/blog/[id]/edit/types'
 
@@ -50,6 +50,7 @@ function makeShared() {
     pullQuote: '',
     notes: [],
     colophon: '',
+    coverPrompt: '',
     history: [],
   }
 }
@@ -67,6 +68,8 @@ function makeState(overrides: Partial<EditorState> = {}): EditorState {
     activeStage: 'imagens',
     activeLang: 'pt',
     focus: false,
+    inspectorOpen: false,
+    categories: [],
     content: { pt: makeVersion() },
     shared: makeShared(),
     saveStatus: 'idle',
@@ -153,28 +156,37 @@ describe('StageImagens', () => {
     mockState = makeState({ content: { pt: mockVersion } })
   })
 
-  it('renders summary with correct count "1/3 imagens prontas"', async () => {
+  it('renders summary with correct progress count', async () => {
     const StageImagens = await loadStageImagens()
     render(<StageImagens />)
 
     const summary = screen.getByTestId('img-summary')
     // 2 content images (1 done) + 1 cover (not ready) = 1/3
-    expect(summary.textContent).toContain('1/3 imagens prontas')
+    expect(summary.textContent).toContain('1')
+    expect(summary.textContent).toContain('/3')
+    expect(summary.textContent).toContain('imagens prontas')
   })
 
-  it('cover section renders with status badge', async () => {
+  it('cover section renders with label', async () => {
     const StageImagens = await loadStageImagens()
     render(<StageImagens />)
 
     const cover = screen.getByTestId('img-cover')
     expect(cover).toBeDefined()
     expect(cover.textContent).toContain('Capa')
-    expect(cover.textContent).toContain('1200×675')
-    // Cover not ready → aguardando
-    expect(cover.textContent).toContain('aguardando')
+    expect(cover.textContent).toContain('thumbnail')
   })
 
-  it('cover section shows "no ar" when coverReady is true', async () => {
+  it('empty cover shows Gerar and Enviar buttons', async () => {
+    const StageImagens = await loadStageImagens()
+    render(<StageImagens />)
+
+    const cover = screen.getByTestId('img-cover')
+    expect(cover.textContent).toContain('Gerar')
+    expect(cover.textContent).toContain('Enviar')
+  })
+
+  it('cover with image shows Trocar and Ver buttons', async () => {
     mockVersion = makeVersion({
       title: 'Post',
       body: bodyWithImages,
@@ -187,39 +199,22 @@ describe('StageImagens', () => {
     render(<StageImagens />)
 
     const cover = screen.getByTestId('img-cover')
-    expect(cover.textContent).toContain('no ar')
+    expect(cover.textContent).toContain('Trocar')
+    expect(cover.textContent).toContain('Ver')
+    expect(cover.textContent).toContain('1200')
   })
 
-  it('content image rows render for each blogImage node', async () => {
+  it('content image tiles render for each blogImage node', async () => {
     const StageImagens = await loadStageImagens()
     render(<StageImagens />)
 
     const content = screen.getByTestId('img-content')
-    // img-1 row
     expect(content.textContent).toContain('img-1')
     expect(content.textContent).toContain('Screenshot')
     expect(content.textContent).toContain('no ar')
 
-    // img-2 row
     expect(content.textContent).toContain('img-2')
-    expect(content.textContent).toContain('aguardando')
-  })
-
-  it('navigation button dispatches SCROLL_TO_IMAGE and SET_STAGE to rascunho', async () => {
-    const StageImagens = await loadStageImagens()
-    render(<StageImagens />)
-
-    const navBtn = screen.getByTestId('img-nav-img-1')
-    fireEvent.click(navBtn)
-
-    expect(mockDispatch).toHaveBeenCalledWith({
-      type: 'SCROLL_TO_IMAGE',
-      imageId: 'img-1',
-    })
-    expect(mockDispatch).toHaveBeenCalledWith({
-      type: 'SET_STAGE',
-      stage: 'rascunho',
-    })
+    expect(content.textContent).toContain('sem imagem')
   })
 
   it('empty body shows "Nenhuma imagem no conteúdo"', async () => {
@@ -250,58 +245,34 @@ describe('StageImagens', () => {
 
     const summary = screen.getByTestId('img-summary')
     expect(summary.textContent).toContain('Tudo pronto')
-    // 2 done content + 1 cover ready = 3/3
-    expect(summary.textContent).toContain('3/3 imagens prontas')
+    expect(summary.textContent).toContain('3')
+    expect(summary.textContent).toContain('/3')
   })
 
-  it('hint text is rendered', async () => {
+  it('hint text references image block IDs', async () => {
     const StageImagens = await loadStageImagens()
     render(<StageImagens />)
 
     expect(
       screen.getByText(
-        /Essas imagens vêm dos blocos do rascunho/,
+        /do rascunho/,
       ),
     ).toBeDefined()
   })
 
-  it('renders kicker with language (IMAGENS · PT-BR)', async () => {
-    const StageImagens = await loadStageImagens()
-    render(<StageImagens />)
-
-    expect(screen.getByText(/IMAGENS · PT-BR/)).toBeDefined()
-  })
-
-  it('shows "Trocar" button when cover image exists', async () => {
-    mockVersion = makeVersion({
-      title: 'Post',
-      body: bodyEmpty,
-      coverReady: true,
-      coverImageUrl: 'https://example.com/cover.jpg',
-    })
-    mockState = makeState({ content: { pt: mockVersion } })
-
-    const StageImagens = await loadStageImagens()
-    render(<StageImagens />)
-
-    const cover = screen.getByTestId('img-cover')
-    expect(cover.textContent).toContain('Trocar')
-  })
-
-  it('shows "Galeria" and "Upload" buttons when no cover', async () => {
-    const StageImagens = await loadStageImagens()
-    render(<StageImagens />)
-
-    const cover = screen.getByTestId('img-cover')
-    expect(cover.textContent).toContain('Galeria')
-    expect(cover.textContent).toContain('Upload')
-  })
-
-  it('shows "Verificar pendente" button when not all done', async () => {
+  it('shows "Gerar todas" button when images are pending', async () => {
     const StageImagens = await loadStageImagens()
     render(<StageImagens />)
 
     const summary = screen.getByTestId('img-summary')
-    expect(summary.textContent).toContain('Verificar pendente')
+    expect(summary.textContent).toContain('Gerar todas')
+  })
+
+  it('content section shows image count in label', async () => {
+    const StageImagens = await loadStageImagens()
+    render(<StageImagens />)
+
+    const content = screen.getByTestId('img-content')
+    expect(content.textContent).toContain('No conteúdo · 2')
   })
 })

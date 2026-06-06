@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render } from '@testing-library/react'
+import { render, waitFor } from '@testing-library/react'
 import type { EditorState, Stage } from '@/app/cms/(authed)/blog/[id]/edit/types'
 
 /* ------------------------------------------------------------------ */
@@ -17,6 +17,8 @@ const baseState: EditorState = {
   activeStage: 'rascunho',
   activeLang: 'pt',
   focus: false,
+  inspectorOpen: false,
+  categories: [],
   content: {
     pt: {
       title: 'Test Post',
@@ -55,6 +57,7 @@ const baseState: EditorState = {
     pullQuote: '',
     notes: [],
     colophon: '',
+    coverPrompt: '',
     history: [],
   },
   saveStatus: 'idle',
@@ -69,6 +72,7 @@ vi.mock('@/app/cms/(authed)/blog/[id]/edit/context', () => ({
   useEditorDispatch: () => mockDispatch,
   useEditorVersion: () => null,
   useAutosaveState: () => mockAutosaveState,
+  useSaveActions: () => ({ saveNow: vi.fn() }),
 }))
 
 /* ------------------------------------------------------------------ */
@@ -153,8 +157,10 @@ describe('EditorClient integration wiring', () => {
     expect(getByTestId('stage-bar').textContent).toContain('StageBar')
   })
 
-  it('renders Inspector component', () => {
+  it('renders Inspector drawer when inspectorOpen is true', () => {
+    mockState = { ...baseState, inspectorOpen: true }
     const { getByTestId } = render(<EditorClient initialState={mockState} />)
+    expect(getByTestId('inspector-drawer')).toBeDefined()
     expect(getByTestId('inspector').textContent).toContain('Inspector')
   })
 
@@ -179,17 +185,17 @@ describe('EditorClient integration wiring', () => {
     const stages: Stage[] = ['ideia', 'rascunho', 'imagens', 'seo', 'publicacao']
 
     for (const stage of stages) {
-      it(`renders Stage "${stage}" when activeStage="${stage}"`, () => {
+      it(`renders Stage "${stage}" when activeStage="${stage}"`, async () => {
         mockState = { ...baseState, activeStage: stage }
         const { getByTestId } = render(<EditorClient initialState={mockState} />)
-        expect(getByTestId(`stage-${stage}`)).toBeDefined()
+        await waitFor(() => expect(getByTestId(`stage-${stage}`)).toBeDefined())
       })
     }
 
-    it('only renders the active stage, not others', () => {
+    it('only renders the active stage, not others', async () => {
       mockState = { ...baseState, activeStage: 'ideia' }
       const { queryByTestId } = render(<EditorClient initialState={mockState} />)
-      expect(queryByTestId('stage-ideia')).not.toBeNull()
+      await waitFor(() => expect(queryByTestId('stage-ideia')).not.toBeNull())
       expect(queryByTestId('stage-rascunho')).toBeNull()
       expect(queryByTestId('stage-imagens')).toBeNull()
       expect(queryByTestId('stage-seo')).toBeNull()
@@ -203,9 +209,9 @@ describe('EditorClient integration wiring', () => {
     expect(true).toBe(true)
   })
 
-  it('applies blog-editor class to root layout div', () => {
+  it('applies blog-editor class to layout div', () => {
     const { container } = render(<EditorClient initialState={mockState} />)
-    const root = container.firstElementChild as HTMLElement
-    expect(root.classList.contains('blog-editor')).toBe(true)
+    const blogEditor = container.querySelector('.blog-editor')
+    expect(blogEditor).not.toBeNull()
   })
 })

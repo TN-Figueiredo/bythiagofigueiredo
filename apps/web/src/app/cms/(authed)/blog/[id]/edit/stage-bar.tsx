@@ -1,9 +1,30 @@
 'use client'
 
-import { useEditorState, useEditorDispatch, useEditorVersion } from './context'
-import { STAGES, STAGE_ICONS } from './types'
+import { PenLine, Image as ImageIcon, Search, Rss } from 'lucide-react'
+import { useEditorState, useEditorDispatch } from './context'
+import { STAGES } from './types'
 import type { Stage } from './types'
-import { imageStats } from './helpers'
+
+/* ------------------------------------------------------------------ */
+/*  Lucide icon per stage                                             */
+/* ------------------------------------------------------------------ */
+
+function IdeiaIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z" />
+      <path d="M5 19l.6 1.7L7.5 21l-1.9.6L5 23l-.6-1.4L2.5 21l1.9-.7z" />
+    </svg>
+  )
+}
+
+const STAGE_ICON: Record<Stage, React.ComponentType<{ className?: string; size?: number }>> = {
+  ideia: IdeiaIcon,
+  rascunho: PenLine,
+  imagens: ImageIcon,
+  seo: Search,
+  publicacao: Rss,
+}
 
 /* ------------------------------------------------------------------ */
 /*  Labels (PT-BR)                                                    */
@@ -11,10 +32,10 @@ import { imageStats } from './helpers'
 
 const STAGE_LABELS: Record<Stage, string> = {
   ideia: 'Ideia',
-  rascunho: 'Rascunho',
+  rascunho: 'Conteúdo',
   imagens: 'Imagens',
   seo: 'SEO',
-  publicacao: 'Publicacao',
+  publicacao: 'Publicação',
 }
 
 /* ------------------------------------------------------------------ */
@@ -24,50 +45,36 @@ const STAGE_LABELS: Record<Stage, string> = {
 export function StageBar() {
   const state = useEditorState()
   const dispatch = useEditorDispatch()
-  const version = useEditorVersion()
 
   if (state.focus) return null
 
-  const stats = version?.body
-    ? imageStats(version.body, version.coverReady)
-    : null
-  const hasPending = stats !== null && stats.total > 0 && stats.done < stats.total
-
   return (
-    <nav
-      className="flex items-center gap-1 rounded-lg bg-muted p-1"
-      aria-label="Editor stages"
+    <div
+      className="ed-stages"
+      role="tablist"
+      aria-label="Etapas do editor"
       data-testid="stage-bar"
     >
       {STAGES.map((stage) => {
         const isActive = state.activeStage === stage
-        const showDot = stage === 'imagens' && hasPending
+        const Icon = STAGE_ICON[stage]
 
         return (
           <button
             key={stage}
             type="button"
-            role="button"
-            data-active={isActive ? 'true' : 'false'}
-            className={[
-              'relative flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
-              isActive
-                ? 'active bg-background text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground',
-            ].join(' ')}
+            role="tab"
+            aria-selected={isActive}
+            tabIndex={isActive ? 0 : -1}
+            className={['ed-stage', isActive && 'on'].filter(Boolean).join(' ')}
+            data-testid={`stage-${stage}`}
             onClick={() => dispatch({ type: 'SET_STAGE', stage })}
           >
-            {STAGE_LABELS[stage]}
-            {showDot && (
-              <span
-                data-pending-dot
-                className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-amber-500"
-                aria-label="Pending images"
-              />
-            )}
+            <Icon size={14} />
+            <span className="esl">{STAGE_LABELS[stage]}</span>
           </button>
         )
       })}
-    </nav>
+    </div>
   )
 }

@@ -110,13 +110,19 @@ export const PipelineCard = memo(function PipelineCard({
         </div>
 
         {/* Title */}
-        <Link
-          href={item.blog_post_id ? `/cms/blog/${item.blog_post_id}/edit` : `/cms/blog/pipeline/${item.id}`}
-          onClick={(e) => e.stopPropagation()}
-          className="mt-1.5 block text-[13px] font-medium leading-snug text-gray-200 line-clamp-2 hover:text-white"
-        >
-          {title}
-        </Link>
+        {item.blog_post_id ? (
+          <Link
+            href={`/cms/blog/${item.blog_post_id}/edit`}
+            onClick={(e) => e.stopPropagation()}
+            className="mt-1.5 block text-[13px] font-medium leading-snug text-gray-200 line-clamp-2 hover:text-white"
+          >
+            {title}
+          </Link>
+        ) : (
+          <span className="mt-1.5 block text-[13px] font-medium leading-snug text-gray-200 line-clamp-2">
+            {title}
+          </span>
+        )}
 
         {/* Hook */}
         {item.hook && (

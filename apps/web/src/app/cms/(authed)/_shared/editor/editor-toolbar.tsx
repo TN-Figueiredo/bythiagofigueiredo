@@ -227,7 +227,7 @@ export function EditorToolbar({
   if (!editor) return null
 
   return (
-    <div className="flex flex-wrap items-center gap-0.5 border border-[#1f2937] rounded-lg bg-[#0a0f1a] px-3 py-2 mx-16 mt-3">
+    <div className="flex flex-wrap items-center gap-0.5 border border-[#1f2937] rounded-lg bg-[#0a0f1a] px-3 py-2 mx-2 mt-3">
       <input
         ref={fileInputRef}
         type="file"

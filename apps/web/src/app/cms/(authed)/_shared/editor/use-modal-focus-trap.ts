@@ -15,6 +15,9 @@ export function useModalFocusTrap(
     const dialog = dialogRef.current
     if (!dialog) return
 
+    // Remember what had focus so we can restore it when the modal closes.
+    const previouslyFocused = document.activeElement as HTMLElement | null
+
     const focusable = dialog.querySelector<HTMLElement>(FOCUSABLE_SELECTOR)
     focusable?.focus()
 
@@ -29,6 +32,12 @@ export function useModalFocusTrap(
     }
 
     document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      // Restore focus to the trigger so keyboard users aren't dropped to <body>.
+      if (previouslyFocused && document.body.contains(previouslyFocused)) {
+        previouslyFocused.focus()
+      }
+    }
   }, [open, onClose, dialogRef])
 }

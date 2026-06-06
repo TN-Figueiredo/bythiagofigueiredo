@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Inter, Fraunces, JetBrains_Mono, Caveat, Source_Serif_4 } from 'next/font/google'
+import { Inter, Fraunces, JetBrains_Mono, Caveat, Source_Serif_4, Geist, Geist_Mono } from 'next/font/google'
 import { cookies, headers } from 'next/headers'
 import './globals.css'
 import { ThemeScript } from '@/components/ui/theme-toggle'
@@ -33,6 +33,18 @@ const sourceSerif = Source_Serif_4({
   style: ['normal', 'italic'],
   weight: ['300', '400', '500', '600'],
 })
+const geist = Geist({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-geist',
+  weight: ['400', '500', '600', '700'],
+})
+const geistMono = Geist_Mono({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-geist-mono',
+  weight: ['400', '500'],
+})
 
 // metadataBase drives resolution of relative URLs in alternates / openGraph /
 // twitter images. Without it, Next emits a console warning and relative hrefs
@@ -64,7 +76,7 @@ export default async function RootLayout({
   return (
     <html
       lang={lang}
-      className={`${theme === 'dark' ? 'dark' : ''} ${inter.variable} ${fraunces.variable} ${jetbrains.variable} ${caveat.variable} ${sourceSerif.variable}`}
+      className={`${theme === 'dark' ? 'dark' : ''} ${inter.variable} ${fraunces.variable} ${jetbrains.variable} ${caveat.variable} ${sourceSerif.variable} ${geist.variable} ${geistMono.variable}`}
       data-theme={theme}
       suppressHydrationWarning
     >

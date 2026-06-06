@@ -1,34 +1,8 @@
 'use server'
 
-import { revalidatePath, revalidateTag } from 'next/cache'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
-import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
-
-async function requireEditScope(siteId: string): Promise<void> {
-  const res = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
-  if (!res.ok) {
-    throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
-  }
-}
-
-function revalidateBlogHub(siteId?: string): void {
-  revalidateTag('blog-hub')
-  revalidateTag('pipeline-blog')
-  revalidateTag('sidebar-badges')
-  revalidatePath('/cms/blog')
-  if (siteId) revalidateTag(`sitemap:${siteId}`)
-}
-
-function generateTagSlug(name: string): string {
-  return name
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 80)
-}
+import { requireEditScope, revalidateBlogHub, generateTagSlug } from './_shared/server-utils'
 
 export async function createTag(input: {
   name: string

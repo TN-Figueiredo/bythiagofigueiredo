@@ -1,132 +1,102 @@
 'use client'
 
+import { useState } from 'react'
+import { toast } from 'sonner'
+import type { JSONContent } from '@tiptap/core'
+import { Globe, RefreshCw } from 'lucide-react'
 import { useEditorState, useEditorDispatch, useEditorVersion } from '../context'
+import { publishPost } from '../actions'
 import { imageStats } from '../helpers'
 
-/* ------------------------------------------------------------------ */
-/*  Status dot color + label                                          */
-/* ------------------------------------------------------------------ */
-
-function statusIndicator(published: boolean, dirty: boolean) {
-  if (!published) {
-    return {
-      dot: 'bg-neutral-400',
-      label: 'Rascunho · não publicado',
-    }
-  }
-  if (dirty) {
-    return {
-      dot: 'bg-amber-500',
-      label: 'Publicado · alterações pendentes',
-    }
-  }
-  return {
-    dot: 'bg-green-500',
-    label: 'Publicado · no ar',
-  }
-}
-
-/* ------------------------------------------------------------------ */
-/*  InspDistribuicao                                                   */
-/* ------------------------------------------------------------------ */
+const EMPTY_DOC: JSONContent = { type: 'doc', content: [] }
 
 export function InspDistribuicao() {
   const state = useEditorState()
   const dispatch = useEditorDispatch()
   const version = useEditorVersion()
+  const [pending, setPending] = useState(false)
 
   if (!version) return null
 
   const lang = state.activeLang
   const { published, dirty, publishedAt, updatedAt, slug, body } = version
+  const stats = imageStats(body ?? EMPTY_DOC)
+  // Count the cover alongside inline images so this mirrors the Imagens stage
+  // (a cover-only post reads "1/1", not the misleading inline-only "0/0").
+  const imgDone = stats.done + (version.coverReady ? 1 : 0)
+  const imgTotal = stats.total + 1
 
-  const { dot, label } = statusIndicator(published, dirty)
-  const stats = imageStats(body ?? { type: 'doc', content: [] }, version.coverReady)
+  const statusClass = !published ? 'draft' : dirty ? 'pending' : 'live'
+  const statusLabel = !published
+    ? 'Rascunho · não publicado'
+    : dirty
+      ? 'Publicado · alterações pendentes'
+      : 'Publicado · no ar'
 
   return (
-    <section
-      data-testid="insp-distribuicao"
-      className="border-b border-neutral-100 p-4 dark:border-neutral-800"
-    >
-      {/* Header */}
-      <h3 className="flex items-center gap-1.5 text-sm font-semibold text-neutral-700 dark:text-neutral-300">
-        <svg
-          className="h-4 w-4"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={2}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
-          <polyline points="16 6 12 2 8 6" />
-          <line x1="12" y1="2" x2="12" y2="15" />
-        </svg>
-        Distribuição
-      </h3>
-
-      <div className="mt-3 space-y-3">
-        {/* ---- Status indicator ---- */}
-        <div className="flex items-center gap-2" data-testid="dist-status">
-          <span className={`inline-block h-2.5 w-2.5 rounded-full ${dot}`} />
-          <span className="text-sm text-neutral-700 dark:text-neutral-300">
-            {label}
+    <section className="insp-card" data-testid="insp-distribuicao">
+      <div className="insp-head">
+        <Globe size={15} className="lucide" />
+        <span className="ih">No site</span>
+      </div>
+      <div className="insp-body">
+        {/* ---- Site status ---- */}
+        <div className="pubsite">
+          <span className={`ps-status ${statusClass}`} data-testid="dist-status">
+            <span className="ps-dot" />
+            {statusLabel}
           </span>
-        </div>
-
-        {/* ---- URL ---- */}
-        {published && (
-          <div data-testid="dist-url">
-            <label className="mb-1 block text-xs font-medium text-neutral-500 dark:text-neutral-400">
-              URL
-            </label>
-            <span className="break-all text-xs text-neutral-600 dark:text-neutral-400">
+          {published && (
+            <a className="ps-url" data-testid="dist-url" href={`/blog/${lang}/${slug}`} target="_blank" rel="noopener">
               /blog/{lang}/{slug}
-            </span>
-          </div>
-        )}
-
-        {/* ---- Dates ---- */}
-        {published && (
-          <div data-testid="dist-dates" className="space-y-1 text-xs text-neutral-500 dark:text-neutral-400">
-            {publishedAt && <div>Publicado em {publishedAt}</div>}
-            {updatedAt && <div>Atualizado em {updatedAt}</div>}
-          </div>
-        )}
-
-        {/* ---- Images count ---- */}
-        <div data-testid="dist-images">
-          <label className="mb-1 block text-xs font-medium text-neutral-500 dark:text-neutral-400">
-            Imagens
-          </label>
-          <span
-            className={`text-xs font-medium ${
-              stats.done < stats.total
-                ? 'text-amber-600 dark:text-amber-400'
-                : 'text-neutral-600 dark:text-neutral-400'
-            }`}
-          >
-            {stats.done}/{stats.total}
-          </span>
+            </a>
+          )}
+          {published && (publishedAt || updatedAt) && (
+            <div className="ps-dates" data-testid="dist-dates">
+              {publishedAt && <span>Publicado {publishedAt}</span>}
+              {updatedAt && <span className="pd-upd">· atualizado {updatedAt}</span>}
+            </div>
+          )}
+          {published && dirty && (
+            <button
+              type="button"
+              data-testid="dist-update"
+              disabled={pending}
+              className="btn sm primary"
+              style={{ width: '100%', marginTop: 8 }}
+              onClick={async () => {
+                const postId = state.postId
+                if (!postId) return
+                setPending(true)
+                try {
+                  await publishPost(postId)
+                  dispatch({
+                    type: 'UPDATE_PUBLISHED',
+                    publishedAt: new Date().toISOString(),
+                  })
+                  toast.success('Publicação atualizada')
+                } catch {
+                  toast.error('Erro ao atualizar publicação')
+                } finally {
+                  setPending(false)
+                }
+              }}
+            >
+              <RefreshCw size={13} className="lucide" />
+              {pending ? 'Atualizando...' : 'Atualizar no site'}
+            </button>
+          )}
         </div>
 
-        {/* ---- Update button ---- */}
-        {published && dirty && (
-          <button
-            type="button"
-            data-testid="dist-update"
-            className="w-full rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600"
-            onClick={() =>
-              dispatch({
-                type: 'UPDATE_PUBLISHED',
-                publishedAt: new Date().toISOString(),
-              })
-            }
-          >
-            Atualizar publicação
-          </button>
-        )}
+        {/* ---- Images count (cover + inline, matching the Imagens stage) ---- */}
+        <div data-testid="dist-images" style={{ fontSize: '12.5px', color: 'var(--text-muted)' }}>
+          Imagens: <span style={{
+            fontWeight: 600,
+            color: imgDone < imgTotal ? 'var(--warn)' : 'var(--c-links)',
+          }}>
+            {imgDone}/{imgTotal}
+          </span>
+        </div>
       </div>
     </section>
   )

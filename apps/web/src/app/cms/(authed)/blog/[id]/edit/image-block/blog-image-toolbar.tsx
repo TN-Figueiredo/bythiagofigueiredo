@@ -1,15 +1,16 @@
 'use client'
 
 import { Columns3, ArrowLeftRight, Maximize, Replace, Trash2, MoreHorizontal } from 'lucide-react'
+import type { ImageAlignment } from '../types'
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                             */
 /* ------------------------------------------------------------------ */
 
 export interface BlogImageToolbarProps {
-  alignment: string
+  alignment: ImageAlignment
   naturalWidth: number | null
-  onAlignmentChange: (alignment: string) => void
+  onAlignmentChange: (alignment: ImageAlignment) => void
   onReplace: () => void
   onDelete: () => void
 }

@@ -25,6 +25,7 @@ export interface SavePostActionInput {
   og_image_url?: string | null
   cover_image_url?: string | null
   tag_id?: string | null
+  category?: string | null
   // Blog overhaul: structured content + series
   content_json?: Record<string, unknown> | null
   content_html?: string | null
@@ -65,8 +66,10 @@ export async function savePost(
   const { siteId } = await requireSiteAdminForRow('blog_posts', id)
 
   // TipTap JSON path — compile JSON to HTML, skip MDX pipeline entirely
+  // Deep-clone to strip Next.js client reference proxies that block property access in server actions
   if (input.content_json && Object.keys(input.content_json).length > 0) {
-    const compiled = await compileJsonContent(input.content_json as JSONContent)
+    const plainJson = JSON.parse(JSON.stringify(input.content_json)) as JSONContent
+    const compiled = await compileJsonContent(plainJson)
 
     try {
       await postRepo().update(id, {
@@ -92,7 +95,7 @@ export async function savePost(
     try {
       const supabase = getSupabaseServiceClient()
       const txPatch: Record<string, unknown> = {
-        content_json: input.content_json,
+        content_json: plainJson,
         content_html: compiled.html,
       }
       if (input.colophon !== undefined) txPatch.colophon = input.colophon || null
@@ -112,6 +115,7 @@ export async function savePost(
       const supabase = getSupabaseServiceClient()
       const postPatch: Record<string, unknown> = { locale }
       if (input.tag_id !== undefined) postPatch.tag_id = input.tag_id
+      if (input.category !== undefined) postPatch.category = input.category
       if (input.previous_post_id !== undefined) postPatch.previous_post_id = input.previous_post_id || null
       if (input.continues_in_next !== undefined) postPatch.continues_in_next = input.continues_in_next
       await supabase.from('blog_posts').update(postPatch).eq('id', id)
@@ -186,6 +190,7 @@ export async function savePost(
     const supabase = getSupabaseServiceClient()
     const postPatch: Record<string, unknown> = { locale }
     if (input.tag_id !== undefined) postPatch.tag_id = input.tag_id
+    if (input.category !== undefined) postPatch.category = input.category
     if (input.previous_post_id !== undefined) postPatch.previous_post_id = input.previous_post_id || null
     if (input.continues_in_next !== undefined) postPatch.continues_in_next = input.continues_in_next
     await supabase.from('blog_posts').update(postPatch).eq('id', id)
@@ -266,6 +271,9 @@ export async function publishPost(id: string): Promise<void> {
   for (const tx of post.translations) {
     revalidateBlogPostSeo(siteId, id, tx.locale, tx.slug)
   }
+  import('@/lib/pipeline/blog-sync').then(({ syncPipelineOnPostStatusChange }) =>
+    syncPipelineOnPostStatusChange(id, 'published', 'draft').catch(() => {}),
+  )
   // Social auto-share: fire-and-forget
   const postWithSocial = post as typeof post & { social_config?: { enabled: boolean } }
   if (postWithSocial.social_config?.enabled) {
@@ -278,7 +286,7 @@ export async function publishPost(id: string): Promise<void> {
         config: postWithSocial.social_config as unknown as import('@/lib/social/types').SocialConfig,
         origin: 'auto',
         userId: 'system',
-      }).catch((err) =>
+      }).catch((err: unknown) =>
         Sentry.captureException(err, {
           tags: { context: 'social-auto-share', contentType: 'blog' },
           extra: { postId: id },
@@ -338,11 +346,6 @@ export async function deletePost(id: string): Promise<DeletePostResult> {
   return { ok: true }
 }
 
-// readonly, no authz needed
-export async function compilePreview(source: string): Promise<CompiledMdx> {
-  return compileMdx(source, blogRegistry)
-}
-
 export async function saveCoverImage(
   postId: string,
   url: string | null,
@@ -385,6 +388,8 @@ export async function searchPosts(
   query: string,
   excludeId: string | null,
 ): Promise<Array<{ id: string; title: string; slug: string }>> {
+  const ctx = await getSiteContext()
+  if (ctx.siteId !== siteId) return []
   const db = getSupabaseServiceClient()
   let q = db
     .from('blog_translations')
@@ -441,6 +446,8 @@ export async function searchPipelineItems(
   siteId: string,
   query: string,
 ): Promise<import('@/app/cms/(authed)/blog/actions').PipelineSearchResult[]> {
+  const ctx = await getSiteContext()
+  if (ctx.siteId !== siteId) return []
   const { searchPipelineItems: search } = await import('@/app/cms/(authed)/blog/actions')
   return search(siteId, query)
 }

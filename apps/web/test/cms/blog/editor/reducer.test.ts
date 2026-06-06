@@ -17,6 +17,8 @@ function makeState(overrides: Partial<EditorState> = {}): EditorState {
     activeStage: 'rascunho',
     activeLang: 'pt',
     focus: false,
+    inspectorOpen: false,
+    categories: [],
     content: { pt: { ...EMPTY_VERSION, fresh: false } },
     shared: {
       status: 'draft',
@@ -33,6 +35,7 @@ function makeState(overrides: Partial<EditorState> = {}): EditorState {
       pullQuote: '',
       notes: [],
       colophon: '',
+      coverPrompt: '',
       history: [],
     },
     saveStatus: 'idle',
@@ -322,6 +325,7 @@ describe('buildInitialState', () => {
       pullQuote: 'Quote here',
       notes: ['note 1'],
       colophon: 'Colophon text',
+      coverPrompt: 'epic landscape --ar 16:9 --v 6',
       previousPostId: null,
       continuesInNext: false,
       hashtags: [{ id: 'h1', name: 'test', slug: 'test' }],
@@ -332,6 +336,7 @@ describe('buildInitialState', () => {
       history: [{ to: 'draft', date: '2026-01-01' }],
       category: 'tech',
       tagId: 'tag-1',
+      categories: [],
     }
 
     const state = buildInitialState(data)
@@ -364,5 +369,75 @@ describe('buildInitialState', () => {
     expect(state.shared.category).toBe('tech')
     expect(state.shared.tagId).toBe('tag-1')
     expect(state.shared.history).toEqual([{ to: 'draft', date: '2026-01-01' }])
+  })
+
+  function makeServerData(overrides: Partial<ServerData> = {}): ServerData {
+    return {
+      postId: 'p', code: 'c', siteId: 's', siteTimezone: 'America/Sao_Paulo', locale: 'pt',
+      title: 'T', slug: 't', excerpt: '', status: 'draft', contentJson: null, contentHtml: null,
+      coverImageUrl: null, metaTitle: '', metaDesc: '', ogImageUrl: null, keyPoints: [], pullQuote: '',
+      notes: [], colophon: '', coverPrompt: '', previousPostId: null, continuesInNext: false,
+      hashtags: [], tags: [], hook: '', synopsis: '', plevel: 'P3', history: [], category: null,
+      tagId: null, categories: [], ...overrides,
+    }
+  }
+
+  it('STAGE_MAP opens published posts on Publicação and ready posts on Imagens', () => {
+    expect(buildInitialState(makeServerData({ status: 'published' })).activeStage).toBe('publicacao')
+    expect(buildInitialState(makeServerData({ status: 'scheduled' })).activeStage).toBe('publicacao')
+    expect(buildInitialState(makeServerData({ status: 'ready' })).activeStage).toBe('imagens')
+    expect(buildInitialState(makeServerData({ status: 'idea' })).activeStage).toBe('ideia')
+    expect(buildInitialState(makeServerData({ status: 'draft' })).activeStage).toBe('rascunho')
+  })
+
+  it('seeds reading time, publish dates and title alts', () => {
+    const state = buildInitialState(makeServerData({
+      status: 'published', readingTimeMin: 6, publishedAt: '2026-06-01', updatedAt: '2026-06-03',
+      titleAlts: ['Alt A', 'Alt B'],
+    }))
+    const pt = state.content.pt!
+    expect(pt.readTime).toBe(6)
+    expect(pt.publishedAt).toBe('2026-06-01')
+    expect(pt.updatedAt).toBe('2026-06-03')
+    expect(pt.titleAlts).toEqual(['Alt A', 'Alt B'])
+  })
+
+  it('hydrates an EN sibling version from server data', () => {
+    const state = buildInitialState(makeServerData({
+      locale: 'pt',
+      siblings: [{
+        locale: 'en', title: 'English', slug: 'english', excerpt: '', contentJson: null,
+        contentHtml: null, coverImageUrl: null, coverReady: false, metaTitle: '', metaDesc: '',
+        ogImageUrl: null, published: false, publishedAt: null, updatedAt: null,
+      }],
+    }))
+    expect(Object.keys(state.content).sort()).toEqual(['en', 'pt'])
+    expect(state.content.en!.title).toBe('English')
+  })
+})
+
+describe('SET_DIST action', () => {
+  it('adds a platform with default "with" timing', () => {
+    const next = editorReducer(makeState(), { type: 'SET_DIST', platform: 'instagram', timing: 'with' })
+    expect(next.content.pt!.distribution).toEqual({ instagram: 'with' })
+  })
+
+  it('updates an existing platform timing', () => {
+    const start = makeState({ content: { pt: { ...EMPTY_VERSION, fresh: false, distribution: { instagram: 'with' } } } })
+    const next = editorReducer(start, { type: 'SET_DIST', platform: 'instagram', timing: 'plus1d' })
+    expect(next.content.pt!.distribution).toEqual({ instagram: 'plus1d' })
+  })
+
+  it('removes a platform when timing is null', () => {
+    const start = makeState({ content: { pt: { ...EMPTY_VERSION, fresh: false, distribution: { instagram: 'with', bluesky: 'with' } } } })
+    const next = editorReducer(start, { type: 'SET_DIST', platform: 'instagram', timing: null })
+    expect(next.content.pt!.distribution).toEqual({ bluesky: 'with' })
+  })
+
+  it('does not mark a published version dirty (distribution is not persisted yet)', () => {
+    const start = makeState({ content: { pt: { ...EMPTY_VERSION, fresh: false, published: true, dirty: false } } })
+    const next = editorReducer(start, { type: 'SET_DIST', platform: 'facebook', timing: 'with' })
+    expect(next.content.pt!.dirty).toBe(false)
+    expect(next.content.pt!.distribution).toEqual({ facebook: 'with' })
   })
 })

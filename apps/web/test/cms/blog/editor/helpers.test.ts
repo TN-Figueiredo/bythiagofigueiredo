@@ -28,9 +28,13 @@ function makeState(
   return {
     postId: 'test-id',
     code: 'test',
+    siteId: 'site-1',
+    siteTimezone: 'America/Sao_Paulo',
     activeStage: 'rascunho',
     activeLang: lang,
     focus: false,
+    inspectorOpen: false,
+    categories: [],
     content: { [lang]: makeVersion(version) },
     shared: {
       status: 'draft',
@@ -47,6 +51,7 @@ function makeState(
       pullQuote: '',
       notes: [],
       colophon: '',
+      coverPrompt: '',
       history: [],
     },
     saveStatus: 'idle',
@@ -183,6 +188,22 @@ describe('isEmptyVersion', () => {
     }
     expect(isEmptyVersion(makeVersion({ body: nestedBody }))).toBe(false)
   })
+
+  it('returns false when body has only a completed inline image', () => {
+    const imageBody: JSONContent = {
+      type: 'doc',
+      content: [{ type: 'blogImage', attrs: { id: 'img-1', status: 'done' } }],
+    }
+    expect(isEmptyVersion(makeVersion({ body: imageBody }))).toBe(false)
+  })
+
+  it('returns true when body has only an empty inline image', () => {
+    const imageBody: JSONContent = {
+      type: 'doc',
+      content: [{ type: 'blogImage', attrs: { id: 'img-1', status: 'empty' } }],
+    }
+    expect(isEmptyVersion(makeVersion({ body: imageBody }))).toBe(true)
+  })
 })
 
 /* ------------------------------------------------------------------ */
@@ -305,7 +326,7 @@ describe('publishGate', () => {
 
 describe('imageStats', () => {
   it('returns zeros when body has no blogImage nodes', () => {
-    const result = imageStats(textBody('Just text'), true)
+    const result = imageStats(textBody('Just text'))
     expect(result).toEqual({ done: 0, total: 0 })
   })
 
@@ -319,7 +340,7 @@ describe('imageStats', () => {
         { type: 'blogImage', attrs: { status: 'done' } },
       ],
     }
-    const result = imageStats(body, false)
+    const result = imageStats(body)
     expect(result).toEqual({ done: 2, total: 4 })
   })
 
@@ -331,17 +352,16 @@ describe('imageStats', () => {
         { type: 'blogImage', attrs: { status: 'done' } },
       ],
     }
-    const result = imageStats(body, true)
+    const result = imageStats(body)
     expect(result).toEqual({ done: 2, total: 2 })
   })
 
   it('does not count cover image in stats', () => {
-    // coverReady is passed but should NOT affect done/total counts
     const body: JSONContent = {
       type: 'doc',
       content: [{ type: 'paragraph', content: [{ type: 'text', text: 'No images' }] }],
     }
-    const result = imageStats(body, true)
+    const result = imageStats(body)
     expect(result).toEqual({ done: 0, total: 0 })
   })
 
@@ -362,7 +382,7 @@ describe('imageStats', () => {
         },
       ],
     }
-    const result = imageStats(body, false)
+    const result = imageStats(body)
     expect(result).toEqual({ done: 1, total: 1 })
   })
 })

@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest'
 import {
   STAGES,
   AUTO_SAVE_STATUSES,
-  STAGE_ICONS,
   EMPTY_VERSION,
 } from '@/app/cms/(authed)/blog/[id]/edit/types'
 import type {
@@ -54,23 +53,6 @@ describe('AUTO_SAVE_STATUSES', () => {
 
   it('has exactly 2 entries', () => {
     expect(AUTO_SAVE_STATUSES.size).toBe(2)
-  })
-})
-
-describe('STAGE_ICONS', () => {
-  it('maps each stage to a string', () => {
-    for (const stage of STAGES) {
-      expect(typeof STAGE_ICONS[stage]).toBe('string')
-      expect(STAGE_ICONS[stage].length).toBeGreaterThan(0)
-    }
-  })
-
-  it('maps to expected Lucide icon names', () => {
-    expect(STAGE_ICONS.ideia).toBe('Lightbulb')
-    expect(STAGE_ICONS.rascunho).toBe('Edit')
-    expect(STAGE_ICONS.imagens).toBe('Image')
-    expect(STAGE_ICONS.seo).toBe('Search')
-    expect(STAGE_ICONS.publicacao).toBe('Upload')
   })
 })
 
@@ -186,6 +168,8 @@ describe('type shape checks', () => {
     const state: EditorState = {
       postId: null,
       code: '',
+      siteId: 'site-1',
+      siteTimezone: 'America/Sao_Paulo',
       activeStage: 'ideia',
       activeLang: 'pt',
       focus: false,
@@ -205,6 +189,7 @@ describe('type shape checks', () => {
         pullQuote: '',
         notes: [],
         colophon: '',
+        coverPrompt: '',
         history: [],
       },
       saveStatus: 'idle',

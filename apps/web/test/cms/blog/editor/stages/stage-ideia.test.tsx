@@ -36,6 +36,8 @@ function makeState(overrides: Partial<EditorState> = {}): EditorState {
     activeStage: 'ideia',
     activeLang: 'pt',
     focus: false,
+    inspectorOpen: false,
+    categories: [],
     content: { pt: { ...EMPTY_VERSION, fresh: false } },
     shared: {
       status: 'draft',
@@ -52,6 +54,7 @@ function makeState(overrides: Partial<EditorState> = {}): EditorState {
       pullQuote: '',
       notes: [],
       colophon: '',
+      coverPrompt: '',
       history: [],
     },
     saveStatus: 'idle',
@@ -92,56 +95,52 @@ describe('StageIdeia', () => {
     expect(getByText('Uma sinopse detalhada do post')).toBeTruthy()
   })
 
-  it('title input dispatches SET_TITLE on change', () => {
-    const { getByDisplayValue } = render(<StageIdeia />)
-    const input = getByDisplayValue('Meu Post de Teste')
-    fireEvent.change(input, { target: { value: 'Novo Titulo' } })
-    expect(mockDispatch).toHaveBeenCalledWith({
-      type: 'SET_TITLE',
-      title: 'Novo Titulo',
-    })
-  })
-
-  it('meta line shows read time when available', () => {
+  it('renders title from version', () => {
     const { getByText } = render(<StageIdeia />)
-    expect(getByText(/7 min de leitura/)).toBeTruthy()
+    expect(getByText('Meu Post de Teste')).toBeTruthy()
   })
 
-  it('meta line shows "rascunho novo" when readTime is empty', () => {
-    mockVersion = makeVersion({ readTime: 0 })
-    const { getByText } = render(<StageIdeia />)
-    expect(getByText(/rascunho novo/)).toBeTruthy()
-  })
-
-  it('fresh version shows placeholder text instead of hook/synopsis values', () => {
-    mockVersion = makeVersion({ fresh: true })
-    const { getByText, queryByText } = render(<StageIdeia />)
-    expect(getByText('Defina o hook para esta versão')).toBeTruthy()
-    expect(getByText('Defina a sinopse para esta versão')).toBeTruthy()
-    expect(queryByText('Um gancho poderoso')).toBeNull()
-    expect(queryByText('Uma sinopse detalhada do post')).toBeNull()
-  })
-
-  it('word count is formatted with locale', () => {
-    mockVersion = makeVersion({ words: 12345 })
-    const { container } = render(<StageIdeia />)
-    // pt-BR locale formats 12345 as "12.345"
-    expect(container.textContent).toContain('12.345')
-  })
-
-  it('shows PT-BR flag when activeLang is pt', () => {
+  it('shows PT-BR label when activeLang is pt', () => {
     const { container } = render(<StageIdeia />)
     expect(container.textContent).toContain('PT-BR')
   })
 
-  it('shows EN flag when activeLang is en', () => {
+  it('shows EN label when activeLang is en', () => {
     mockState = makeState({ activeLang: 'en' })
     const { container } = render(<StageIdeia />)
     expect(container.textContent).toContain('EN')
   })
 
-  it('renders category name in meta line', () => {
+  it('renders "Conceito" kicker label', () => {
+    const { container } = render(<StageIdeia />)
+    expect(container.textContent).toContain('Conceito')
+  })
+
+  it('renders hook and synopsis brief cards', () => {
+    const { container } = render(<StageIdeia />)
+    expect(container.querySelectorAll('.brief-card')).toHaveLength(2)
+    expect(container.querySelector('.brief-card.hook')).toBeTruthy()
+  })
+
+  it('next button dispatches SET_STAGE to rascunho', () => {
     const { getByText } = render(<StageIdeia />)
-    expect(getByText(/Tecnologia/)).toBeTruthy()
+    const btn = getByText(/escrever o conteúdo/)
+    fireEvent.click(btn)
+    expect(mockDispatch).toHaveBeenCalledWith({
+      type: 'SET_STAGE',
+      stage: 'rascunho',
+    })
+  })
+
+  it('empty hook shows placeholder via data-empty', () => {
+    mockState = makeState({
+      shared: {
+        ...makeState().shared,
+        hook: '',
+      },
+    })
+    const { container } = render(<StageIdeia />)
+    const hookText = container.querySelector('.brief-card.hook .bc-text')
+    expect(hookText?.getAttribute('data-empty')).toBe('true')
   })
 })

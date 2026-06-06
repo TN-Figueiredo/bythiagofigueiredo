@@ -86,37 +86,25 @@ export function NavigationGuard({ hasUnsavedChanges, onSave }: NavigationGuardPr
   if (!showDialog) return null
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60">
-      <div ref={dialogRef} role="dialog" aria-modal="true" className="w-full max-w-sm rounded-xl bg-[#111827] border border-[#374151] p-6 shadow-2xl">
-        <div className="flex items-center gap-2 mb-3">
-          <div className="h-8 w-8 rounded-full bg-amber-500/15 flex items-center justify-center">
-            <AlertTriangle size={16} className="text-[#f59e0b]" />
+    <div className="navguard-scrim">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="navguard-title" className="navguard-dialog">
+        <div className="navguard-header">
+          <div className="navguard-ico">
+            <AlertTriangle size={16} />
           </div>
-          <h3 className="text-base font-semibold text-[#f3f4f6]">Unsaved changes</h3>
+          <h3 id="navguard-title" className="navguard-title">Alterações não salvas</h3>
         </div>
-        <p className="text-sm text-[#9ca3af] mb-6">You have edits that haven&apos;t been saved yet.</p>
-        <div className="flex justify-end gap-3">
-          <button
-            type="button"
-            onClick={handleDiscard}
-            className="rounded-md px-4 py-2 text-sm font-medium text-[#ef4444] border border-[#ef4444]/30 hover:bg-red-500/10"
-          >
-            Discard
+        <p className="navguard-text">Você tem edições que ainda não foram salvas.</p>
+        <div className="navguard-actions">
+          <button type="button" onClick={handleDiscard} className="btn sm danger">
+            Descartar
           </button>
-          <button
-            type="button"
-            onClick={handleCancel}
-            className="rounded-md px-4 py-2 text-sm font-medium text-[#9ca3af] hover:bg-white/5"
-          >
-            Cancel
+          <button type="button" onClick={handleCancel} className="btn sm">
+            Cancelar
           </button>
           {onSave && (
-            <button
-              type="button"
-              onClick={handleSaveAndLeave}
-              className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-            >
-              Save &amp; Leave
+            <button type="button" onClick={handleSaveAndLeave} className="btn sm primary">
+              Salvar e sair
             </button>
           )}
         </div>

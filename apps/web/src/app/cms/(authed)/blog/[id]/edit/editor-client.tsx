@@ -1,18 +1,22 @@
 'use client'
 
-import { Component, useEffect, useCallback, type ReactNode, type ErrorInfo } from 'react'
+import { Component, lazy, Suspense, useEffect, useCallback, useRef, type ReactNode, type ErrorInfo } from 'react'
+import { Eye, SlidersHorizontal, X } from 'lucide-react'
 import { Toaster } from 'sonner'
-import { EditorProvider, useEditorState, useEditorDispatch, useAutosaveState } from './context'
-import type { EditorState } from './types'
+import { useModalFocusTrap } from '@/app/cms/(authed)/_shared/editor/use-modal-focus-trap'
+import { EditorProvider, useEditorState, useEditorDispatch, useAutosaveState, useSaveActions } from './context'
+import type { EditorState, Stage } from './types'
+import { STAGES } from './types'
 import { ActionBar } from './action-bar'
 import { LangToggle } from './lang-toggle'
 import { StageBar } from './stage-bar'
 import { Inspector } from './inspector/inspector'
-import { StageIdeia } from './stages/stage-ideia'
 import { StageRascunho } from './stages/stage-rascunho'
-import { StageImagens } from './stages/stage-imagens'
-import { StageSeo } from './stages/stage-seo'
-import { StagePublicacao } from './stages/stage-publicacao'
+
+const StageIdeia = lazy(() => import('./stages/stage-ideia').then(m => ({ default: m.StageIdeia })))
+const StageImagens = lazy(() => import('./stages/stage-imagens').then(m => ({ default: m.StageImagens })))
+const StageSeo = lazy(() => import('./stages/stage-seo').then(m => ({ default: m.StageSeo })))
+const StagePublicacao = lazy(() => import('./stages/stage-publicacao').then(m => ({ default: m.StagePublicacao })))
 import { NavigationGuard } from '@/app/cms/(authed)/_shared/editor/navigation-guard'
 import { savePost, type SavePostActionInput } from './actions'
 import { createPost } from '../../actions'
@@ -46,20 +50,25 @@ class EditorErrorBoundary extends Component<
   render() {
     if (this.state.error) {
       return (
-        <div className="flex flex-col items-center justify-center p-8">
-          <h2 className="text-lg font-semibold text-red-400 mb-2">
-            Editor failed to render
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+          <h2 style={{ fontSize: 18, fontWeight: 600, color: 'var(--danger)', marginBottom: 8 }}>
+            Erro no editor
           </h2>
-          <pre className="mb-4 max-w-xl overflow-auto rounded-lg bg-red-950/40 p-4 text-xs text-red-300 whitespace-pre-wrap">
+          <pre style={{
+            marginBottom: 16, maxWidth: 560, overflow: 'auto', borderRadius: 12,
+            background: 'var(--danger-s)', padding: 16, fontSize: 12, color: 'var(--text-muted)',
+            whiteSpace: 'pre-wrap',
+          }}>
             {this.state.error.message}
-            {'\n'}
-            {this.state.error.stack}
+            {process.env.NODE_ENV !== 'production' && (
+              <>{'\n'}{this.state.error.stack}</>
+            )}
           </pre>
           <button
             onClick={() => this.setState({ error: null })}
-            className="px-4 py-2 bg-zinc-700 text-white rounded-lg text-sm font-medium hover:bg-zinc-600"
+            className="btn sm"
           >
-            Retry
+            Tentar novamente
           </button>
         </div>
       )
@@ -81,11 +90,27 @@ function FocusModePill() {
   return (
     <button
       data-testid="focus-pill"
+      className="focus-exit"
       onClick={() => dispatch({ type: 'TOGGLE_FOCUS' })}
-      className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full bg-zinc-800 px-4 py-2 text-sm text-white shadow-lg transition hover:bg-zinc-700"
     >
-      Sair do modo foco
+      <Eye size={14} /> <b>Modo foco</b> — clique para sair · <span className="mono">esc</span>
     </button>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/*  Stage loading skeleton (Suspense fallback)                        */
+/* ------------------------------------------------------------------ */
+
+function StageSkeleton() {
+  return (
+    <div className="stage-skel" data-testid="stage-skeleton" aria-hidden="true">
+      <div className="skel-line kicker" />
+      <div className="skel-line title" />
+      <div className="skel-line" />
+      <div className="skel-line" />
+      <div className="skel-line short" />
+    </div>
   )
 }
 
@@ -96,42 +121,127 @@ function FocusModePill() {
 function DocumentCanvas() {
   const state = useEditorState()
 
-  switch (state.activeStage) {
-    case 'ideia':
-      return <StageIdeia />
-    case 'rascunho':
-      return <StageRascunho />
-    case 'imagens':
-      return <StageImagens />
-    case 'seo':
-      return <StageSeo />
-    case 'publicacao':
-      return <StagePublicacao />
-  }
+  return (
+    <Suspense fallback={<StageSkeleton />}>
+      <div key={state.activeStage} className="stage-fade">
+        {state.activeStage === 'ideia' && <StageIdeia />}
+        {state.activeStage === 'rascunho' && <StageRascunho />}
+        {state.activeStage === 'imagens' && <StageImagens />}
+        {state.activeStage === 'seo' && <StageSeo />}
+        {state.activeStage === 'publicacao' && <StagePublicacao />}
+      </div>
+    </Suspense>
+  )
 }
 
 /* ------------------------------------------------------------------ */
 /*  Editor Layout (inner — consumes context)                          */
 /* ------------------------------------------------------------------ */
 
+function InspectorDrawer() {
+  const state = useEditorState()
+  const dispatch = useEditorDispatch()
+  const langLabel = state.activeLang === 'pt' ? 'PT-BR' : 'EN'
+  const drawerRef = useRef<HTMLDivElement>(null)
+  const closeInspector = useCallback(() => dispatch({ type: 'TOGGLE_INSPECTOR' }), [dispatch])
+  useModalFocusTrap(drawerRef, state.inspectorOpen, closeInspector)
+
+  if (!state.inspectorOpen) return null
+
+  return (
+    <>
+      <div
+        className="drawer-scrim"
+        data-testid="inspector-scrim"
+        onClick={() => dispatch({ type: 'TOGGLE_INSPECTOR' })}
+        aria-hidden="true"
+      />
+      <div ref={drawerRef} className="drawer" data-testid="inspector-drawer" role="dialog" aria-modal="true" aria-label="Detalhes do post">
+        <div className="drawer-head">
+          <SlidersHorizontal size={17} style={{ color: 'var(--accent-text)' }} />
+          <span className="dt">Detalhes do post</span>
+          <span style={{ fontSize: 11, color: 'var(--text-dim)', marginLeft: 4 }}>
+            {state.activeLang === 'pt' ? '\u{1F1E7}\u{1F1F7}' : '\u{1F1EC}\u{1F1E7}'} {langLabel}
+          </span>
+          <span className="grow" />
+          <button
+            type="button"
+            className="ed-iconbtn"
+            onClick={() => dispatch({ type: 'TOGGLE_INSPECTOR' })}
+            aria-label="Fechar detalhes"
+          >
+            <X size={16} />
+          </button>
+        </div>
+        <div className="drawer-body">
+          <Inspector />
+        </div>
+      </div>
+    </>
+  )
+}
+
+const stageSet = new Set<string>(STAGES)
+
 function EditorLayout() {
   const state = useEditorState()
   const dispatch = useEditorDispatch()
   const autosaveState = useAutosaveState()
+  const { saveNow } = useSaveActions()
 
-  /* Esc key exits focus mode */
+  /* Esc exits focus mode. (The drawer owns its own Esc via the focus trap,
+     so we skip it here when the inspector is open to avoid a double toggle.) */
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape' && state.focus) {
+      if (e.key === 'Escape' && !state.inspectorOpen && state.focus) {
         dispatch({ type: 'TOGGLE_FOCUS' })
       }
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [state.focus, dispatch])
+  }, [state.focus, state.inspectorOpen, dispatch])
+
+  /* Ctrl+S / Cmd+S saves immediately */
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault()
+        saveNow()
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [saveNow])
+
+  /* Hash ↔ activeStage sync: persist stage in URL so reload stays put */
+  useEffect(() => {
+    const hash = window.location.hash.slice(1)
+    if (hash && stageSet.has(hash) && hash !== state.activeStage) {
+      dispatch({ type: 'SET_STAGE', stage: hash as Stage })
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const current = window.location.hash.slice(1)
+    if (current !== state.activeStage) {
+      const url = `${window.location.pathname}${window.location.search}#${state.activeStage}`
+      window.history.replaceState(null, '', url)
+    }
+  }, [state.activeStage])
+
+  useEffect(() => {
+    function onHashChange() {
+      const hash = window.location.hash.slice(1)
+      if (stageSet.has(hash) && hash !== state.activeStage) {
+        dispatch({ type: 'SET_STAGE', stage: hash as Stage })
+      }
+    }
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
+  }, [state.activeStage, dispatch]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="blog-editor flex h-full flex-col">
+    <div className="blog-editor" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Action bar with lang toggle */}
       <ActionBar>
         <LangToggle />
@@ -140,28 +250,38 @@ function EditorLayout() {
       {/* Stage bar — hidden in focus mode */}
       {!state.focus && <StageBar />}
 
-      {/* Two-column grid */}
+      {/* Document canvas — inert while the inspector drawer is open */}
       <div
-        className="flex-1"
-        style={{
-          display: 'grid',
-          gridTemplateColumns: state.focus
-            ? 'minmax(0,1fr)'
-            : 'minmax(0,1fr) 340px',
-        }}
+        role="main"
+        className={`ed-canvas${state.focus ? ' focus' : ''}`}
+        inert={state.inspectorOpen || undefined}
       >
-        {/* Left: document canvas */}
-        <DocumentCanvas />
-
-        {/* Right: inspector — hidden in focus mode */}
-        {!state.focus && <Inspector />}
+        <div className="ed-doc">
+          <DocumentCanvas />
+        </div>
       </div>
+
+      {/* Inspector drawer — slide-in overlay */}
+      <InspectorDrawer />
 
       {/* Focus mode pill */}
       <FocusModePill />
 
+      {/* Screen-reader announcements for autosave status */}
+      <div
+        role="status"
+        aria-live="polite"
+        style={{ position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap', border: 0 }}
+      >
+        {autosaveState.state === 'saving' ? 'Salvando…'
+          : autosaveState.state === 'saved' ? 'Rascunho salvo'
+          : autosaveState.state === 'error' ? 'Erro ao salvar'
+          : autosaveState.state === 'offline' ? 'Sem conexão — salvo localmente'
+          : ''}
+      </div>
+
       {/* Navigation guard */}
-      <NavigationGuard hasUnsavedChanges={autosaveState.hasUnsavedChanges} />
+      <NavigationGuard hasUnsavedChanges={autosaveState.hasUnsavedChanges} onSave={async () => { await saveNow() }} />
 
       {/* Toast provider */}
       <Toaster

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import type { EditorState, SharedFields, VersionContent } from '@/app/cms/(authed)/blog/[id]/edit/types'
 import { EMPTY_VERSION } from '@/app/cms/(authed)/blog/[id]/edit/types'
 
@@ -14,6 +14,18 @@ vi.mock('@/app/cms/(authed)/blog/[id]/edit/context', () => ({
   useEditorState: () => mockState,
   useEditorDispatch: () => mockDispatch,
   useEditorVersion: () => mockState.content[mockState.activeLang] ?? null,
+}))
+
+/* ------------------------------------------------------------------ */
+/*  Mock server actions                                               */
+/* ------------------------------------------------------------------ */
+
+const mockArchivePost = vi.fn().mockResolvedValue(undefined)
+const mockPublishPost = vi.fn().mockResolvedValue(undefined)
+
+vi.mock('@/app/cms/(authed)/blog/[id]/edit/actions', () => ({
+  archivePost: (...args: unknown[]) => mockArchivePost(...args),
+  publishPost: (...args: unknown[]) => mockPublishPost(...args),
 }))
 
 /* ------------------------------------------------------------------ */
@@ -36,6 +48,7 @@ function makeShared(overrides: Partial<SharedFields> = {}): SharedFields {
     pullQuote: '',
     notes: [],
     colophon: '',
+    coverPrompt: '',
     history: [],
     ...overrides,
   }
@@ -62,6 +75,8 @@ function makeState(overrides: Partial<EditorState> = {}): EditorState {
     activeStage: 'rascunho',
     activeLang: 'pt',
     focus: false,
+    inspectorOpen: false,
+    categories: [],
     content: { pt: makeVersion() },
     shared: makeShared(),
     saveStatus: 'idle',
@@ -102,6 +117,7 @@ async function loadArquivar() {
 describe('InspDistribuicao', () => {
   beforeEach(() => {
     mockDispatch.mockClear()
+    mockPublishPost.mockClear()
     mockState = makeState()
   })
 
@@ -195,9 +211,12 @@ describe('InspDistribuicao', () => {
 
     fireEvent.click(screen.getByTestId('dist-update'))
 
-    expect(mockDispatch).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'UPDATE_PUBLISHED' }),
-    )
+    await waitFor(() => {
+      expect(mockDispatch).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'UPDATE_PUBLISHED' }),
+      )
+    })
+    expect(mockPublishPost).toHaveBeenCalledWith('p1')
     // Also check that publishedAt is a string (ISO date)
     const call = mockDispatch.mock.calls[0][0]
     expect(typeof call.publishedAt).toBe('string')
@@ -220,8 +239,9 @@ describe('InspDistribuicao', () => {
     const Comp = await loadDistribuicao()
     render(<Comp />)
 
+    // cover-inclusive count: 1 done inline + 0 cover / 2 inline + 1 cover slot
     const images = screen.getByTestId('dist-images')
-    expect(images.textContent).toContain('1/2')
+    expect(images.textContent).toContain('1/3')
   })
 })
 
@@ -247,6 +267,9 @@ describe('InspHistorico', () => {
     const Comp = await loadHistorico()
     render(<Comp />)
 
+    // Accordion is closed by default — click header to open it
+    fireEvent.click(screen.getByRole('button', { name: /histórico/i }))
+
     const timeline = screen.getByTestId('hist-timeline')
     expect(timeline.textContent).toContain('Etapa → rascunho')
     expect(timeline.textContent).toContain('Etapa → imagens')
@@ -261,7 +284,10 @@ describe('InspHistorico', () => {
     const Comp = await loadHistorico()
     render(<Comp />)
 
-    expect(screen.getByTestId('hist-empty').textContent).toBe('Sem histórico')
+    // Accordion is closed by default — click header to open it
+    fireEvent.click(screen.getByRole('button', { name: /histórico/i }))
+
+    expect(screen.getByTestId('hist-empty').textContent).toContain('Nenhuma mudança de etapa')
   })
 
   it('shows count badge', async () => {
@@ -289,6 +315,7 @@ describe('InspHistorico', () => {
 describe('InspArquivar', () => {
   beforeEach(() => {
     mockDispatch.mockClear()
+    mockArchivePost.mockClear()
     mockState = makeState()
   })
 
@@ -306,10 +333,9 @@ describe('InspArquivar', () => {
 
     fireEvent.click(screen.getByTestId('archive-btn'))
 
+    // archive-confirm wraps the action buttons; title text is in a sibling element
     expect(screen.getByTestId('archive-confirm')).toBeDefined()
-    expect(screen.getByTestId('archive-confirm').textContent).toContain(
-      'Arquivar este post?',
-    )
+    expect(screen.getByText('Arquivar este post?')).toBeDefined()
   })
 
   it('confirm dispatches status change', async () => {
@@ -319,11 +345,14 @@ describe('InspArquivar', () => {
     fireEvent.click(screen.getByTestId('archive-btn'))
     fireEvent.click(screen.getByTestId('archive-confirm-yes'))
 
-    expect(mockDispatch).toHaveBeenCalledWith({
-      type: 'SET_SHARED',
-      field: 'status',
-      value: 'archived',
+    await waitFor(() => {
+      expect(mockDispatch).toHaveBeenCalledWith({
+        type: 'SET_SHARED',
+        field: 'status',
+        value: 'archived',
+      })
     })
+    expect(mockArchivePost).toHaveBeenCalledWith('p1')
   })
 
   it('cancel closes confirmation', async () => {

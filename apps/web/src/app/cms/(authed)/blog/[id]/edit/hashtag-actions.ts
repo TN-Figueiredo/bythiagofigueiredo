@@ -2,14 +2,7 @@
 
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
-import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
-
-async function requireEditScope(siteId: string): Promise<void> {
-  const res = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
-  if (!res.ok) {
-    throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
-  }
-}
+import { requireEditScope } from '@/app/cms/(authed)/blog/_shared/server-utils'
 
 interface Hashtag {
   id: string

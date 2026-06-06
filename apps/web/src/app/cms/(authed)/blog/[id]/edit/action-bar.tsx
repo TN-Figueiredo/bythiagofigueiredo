@@ -1,8 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { ChevronLeft, Eye } from 'lucide-react'
-import { useEditorState, useEditorDispatch, useEditorVersion } from './context'
+import { Check, ChevronLeft, Eye, SlidersHorizontal } from 'lucide-react'
+import { useEditorState, useEditorDispatch, useEditorVersion, useSaveActions, useAutosaveState } from './context'
 
 /* ------------------------------------------------------------------ */
 /*  Status display logic                                              */
@@ -22,16 +22,6 @@ function getStatusDisplay(
   return { label: 'Rascunho', variant: 'draft' }
 }
 
-const VARIANT_CLASSES: Record<StatusVariant, string> = {
-  draft: 'bg-muted text-muted-foreground',
-  live: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300',
-  pending:
-    'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
-  scheduled:
-    'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',
-  archived: 'bg-muted text-muted-foreground opacity-60',
-}
-
 /* ------------------------------------------------------------------ */
 /*  Component                                                         */
 /* ------------------------------------------------------------------ */
@@ -44,76 +34,90 @@ export function ActionBar({ children }: ActionBarProps) {
   const state = useEditorState()
   const dispatch = useEditorDispatch()
   const version = useEditorVersion()
+  const { saveNow } = useSaveActions()
+  const autosave = useAutosaveState()
 
   const dirty = version?.dirty ?? false
   const { label, variant } = getStatusDisplay(state.shared.status, dirty)
 
   return (
     <header
-      className="sticky top-0 z-10 flex items-center gap-3 border-b border-border bg-background/80 px-4 py-2 backdrop-blur-[14px]"
+      className="ed-bar"
       data-testid="action-bar"
     >
-      {/* Left region — back + breadcrumb */}
-      <Link
-        href="/cms/blog"
-        className="flex items-center gap-1 text-muted-foreground transition-colors hover:text-foreground"
-        aria-label="Voltar para Blog"
-      >
-        <ChevronLeft className="h-4 w-4" />
-        <span className="text-sm font-medium">Blog</span>
-      </Link>
+      {/* Left region — breadcrumb nav */}
+      <nav className="ed-bc" aria-label="Breadcrumb">
+        <Link
+          href="/cms/blog"
+          className="eb-back"
+          aria-label="Voltar para Blog"
+        >
+          <ChevronLeft size={15} />
+          Voltar
+        </Link>
+        <span className="msep" aria-hidden="true">/</span>
+        <Link href="/cms/blog" className="eb-back" style={{ gap: 0 }}>
+          Blog
+        </Link>
+        <span className="msep" aria-hidden="true">/</span>
+        <span className="eb-code">{state.code}</span>
+      </nav>
 
-      <span className="text-muted-foreground/50" aria-hidden="true">
-        &middot;
-      </span>
-
-      <span className="inline-flex items-center rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
-        {state.code}
-      </span>
+      {/* Center spacer */}
+      <div className="grow" />
 
       {/* Optional children (e.g. LangToggle) */}
       {children}
 
-      {/* Center spacer */}
-      <div className="flex-1" />
+      {/* Status badge */}
+      <span
+        className={`ed-status ${variant}`}
+        data-testid="status-badge"
+      >
+        <span className="es-dot" />
+        {label}
+      </span>
 
-      {/* Right region — status + focus + save */}
-      <div className="flex items-center gap-2">
-        {/* Status badge */}
-        <span
-          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${VARIANT_CLASSES[variant]}`}
-          data-testid="status-badge"
-        >
-          {label}
-        </span>
+      {/* Inspector toggle — opens/closes details drawer */}
+      <button
+        type="button"
+        data-testid="inspector-toggle"
+        className={`ed-iconbtn${state.inspectorOpen ? ' on' : ''}`}
+        title="Detalhes do post"
+        aria-label="Detalhes do post"
+        onClick={() => dispatch({ type: 'TOGGLE_INSPECTOR' })}
+      >
+        <SlidersHorizontal size={16} />
+      </button>
 
-        {/* Focus toggle */}
-        <button
-          type="button"
-          data-testid="focus-toggle"
-          data-active={state.focus ? 'true' : 'false'}
-          className={[
-            'inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors',
-            state.focus
-              ? 'bg-primary text-primary-foreground'
-              : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-          ].join(' ')}
-          onClick={() => dispatch({ type: 'TOGGLE_FOCUS' })}
-          aria-label="Modo foco"
-        >
-          <Eye className="h-4 w-4" />
-        </button>
+      {/* Focus toggle — distraction-free writing */}
+      <button
+        type="button"
+        data-testid="focus-toggle"
+        data-active={state.focus ? 'true' : 'false'}
+        className={`ed-iconbtn${state.focus ? ' on' : ''}`}
+        title="Modo foco (Esc)"
+        onClick={() => dispatch({ type: 'TOGGLE_FOCUS' })}
+        aria-label="Modo foco"
+      >
+        <Eye size={16} />
+      </button>
 
-        {/* Save button */}
-        <button
-          type="button"
-          data-testid="save-btn"
-          className="inline-flex items-center rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-          onClick={() => dispatch({ type: 'SET_SAVE_STATUS', status: 'saving' })}
-        >
-          Salvar
-        </button>
-      </div>
+      {/* Save button — reflects autosave state */}
+      <button
+        type="button"
+        data-testid="save-btn"
+        disabled={autosave.state === 'saving'}
+        className="btn sm primary"
+        onClick={() => saveNow()}
+        aria-label="Salvar (Ctrl+S)"
+      >
+        <Check size={14} />
+        {autosave.state === 'saving' ? 'Salvando...'
+          : autosave.state === 'error' ? 'Erro'
+          : autosave.state === 'offline' ? 'Offline'
+          : 'Salvar'}
+      </button>
     </header>
   )
 }

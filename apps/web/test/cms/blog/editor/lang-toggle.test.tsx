@@ -36,6 +36,7 @@ function makeShared(): EditorState['shared'] {
     pullQuote: '',
     notes: [],
     colophon: '',
+    coverPrompt: '',
     history: [],
   }
 }
@@ -53,6 +54,8 @@ function makeState(overrides: Partial<EditorState> = {}): EditorState {
     activeStage: 'rascunho',
     activeLang: 'pt',
     focus: false,
+    inspectorOpen: false,
+    categories: [],
     content: { pt: makeVersion() },
     shared: makeShared(),
     saveStatus: 'idle',
@@ -241,7 +244,7 @@ describe('LangToggle', () => {
 
     const popover = screen.getByTestId('lang-confirm')
     expect(popover.textContent).toContain('publicada')
-    expect(popover.textContent).toContain('não despublica')
+    expect(popover.textContent).toContain('só apaga o rascunho')
   })
 
   it('confirm button dispatches REMOVE_VERSION', async () => {

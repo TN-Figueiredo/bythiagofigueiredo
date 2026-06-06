@@ -7,6 +7,7 @@ import {
   useRef,
   useCallback,
   useEffect,
+  useMemo,
   type ReactNode,
 } from 'react'
 import { toast } from 'sonner'
@@ -33,6 +34,7 @@ export function buildSnapshot(state: EditorState) {
     metaDescription: version?.metaDesc ?? '',
     ogImageUrl: version?.ogImageUrl ?? null,
     selectedTagId: state.shared.tagId,
+    category: state.shared.category || null,
     keyPoints: state.shared.keyPoints,
     pullQuote: state.shared.pullQuote,
     notes: state.shared.notes,
@@ -55,7 +57,8 @@ export function buildSavePayload(snap: ReturnType<typeof buildSnapshot>): Record
     meta_description: snap.metaDescription || undefined,
     og_image_url: snap.ogImageUrl || undefined,
     cover_image_url: snap.coverImageUrl || undefined,
-    tag_id: snap.selectedTagId || undefined,
+    tag_id: snap.selectedTagId ?? undefined,
+    category: snap.category,
     key_points: snap.keyPoints.filter(Boolean),
     pull_quote: snap.pullQuote || null,
     notes: snap.notes.filter(Boolean),
@@ -81,6 +84,12 @@ interface AutosaveContextValue {
 }
 
 const AutosaveContext = createContext<AutosaveContextValue | null>(null)
+
+interface SaveActionsContextValue {
+  saveNow: () => Promise<{ ok: boolean }> | void
+}
+
+const SaveActionsContext = createContext<SaveActionsContextValue | null>(null)
 
 interface EphemeralContextValue {
   isEphemeral: boolean
@@ -124,8 +133,9 @@ export function EditorProvider({ initialState, saveFn, saveAction, createPostAct
   dispatchRef.current = dispatch
 
   // fieldsRef always holds the latest snapshot
-  const fieldsRef = useRef(buildSnapshot(state))
-  fieldsRef.current = buildSnapshot(state)
+  const currentSnapshot = useMemo(() => buildSnapshot(state), [state])
+  const fieldsRef = useRef(currentSnapshot)
+  fieldsRef.current = currentSnapshot
 
   const getPayload = useCallback(() => buildSavePayload(fieldsRef.current), [])
 
@@ -165,7 +175,16 @@ export function EditorProvider({ initialState, saveFn, saveAction, createPostAct
     debounceMs: 3000,
   })
 
-  // Toast on save success (autosave state transitions to 'saved')
+  const saveActions = useMemo(() => ({
+    saveNow: () => {
+      const payload = buildSavePayload(fieldsRef.current)
+      // An explicit Save (button / Ctrl+S) IS the confirmation — bypass the
+      // guarded-mode prompt so published-post saves never silently dead-end.
+      // Returns the promise so callers (e.g. "Salvar e sair") can await it.
+      return autosave.forceSave(payload)
+    },
+  }), [autosave.forceSave])
+
   const prevSaveStateRef = useRef(autosave.state)
   useEffect(() => {
     const prev = prevSaveStateRef.current
@@ -173,16 +192,23 @@ export function EditorProvider({ initialState, saveFn, saveAction, createPostAct
     if (prev !== 'saved' && autosave.state === 'saved') {
       toast.info('Rascunho salvo')
     }
+    if (prev !== 'error' && autosave.state === 'error') {
+      toast.error('Erro ao salvar — tente novamente')
+    }
   }, [autosave.state])
 
   // Keep refs for values used by dispatchAndSave so its identity stays stable
   const scheduleSaveRef = useRef(autosave.scheduleSave)
   scheduleSaveRef.current = autosave.scheduleSave
 
+  const stateRef = useRef(state)
+  stateRef.current = state
+
   const dispatchAndSave = useCallback((action: EditorAction) => {
     dispatchRef.current(action)
     if (postIdRef.current) {
-      scheduleSaveRef.current(buildSavePayload(fieldsRef.current))
+      const nextState = editorReducer(stateRef.current, action)
+      scheduleSaveRef.current(buildSavePayload(buildSnapshot(nextState)))
     }
   }, [])
 
@@ -191,9 +217,6 @@ export function EditorProvider({ initialState, saveFn, saveAction, createPostAct
   const creationPromiseRef = useRef<Promise<string | null> | null>(null)
   const createPostActionRef = useRef(createPostAction)
   createPostActionRef.current = createPostAction
-
-  const stateRef = useRef(state)
-  stateRef.current = state
 
   const ensurePostCreated = useCallback(async (): Promise<string | null> => {
     const current = stateRef.current
@@ -228,9 +251,11 @@ export function EditorProvider({ initialState, saveFn, saveAction, createPostAct
     <EditorStateContext.Provider value={state}>
       <EditorDispatchContext.Provider value={dispatchAndSave}>
         <AutosaveContext.Provider value={{ state: autosave.state, hasUnsavedChanges: autosave.hasUnsavedChanges }}>
-          <EphemeralContext.Provider value={{ isEphemeral, ensurePostCreated }}>
-            {children}
-          </EphemeralContext.Provider>
+          <SaveActionsContext.Provider value={saveActions}>
+            <EphemeralContext.Provider value={{ isEphemeral, ensurePostCreated }}>
+              {children}
+            </EphemeralContext.Provider>
+          </SaveActionsContext.Provider>
         </AutosaveContext.Provider>
       </EditorDispatchContext.Provider>
     </EditorStateContext.Provider>
@@ -266,6 +291,14 @@ export function useAutosaveState(): AutosaveContextValue {
   const ctx = useContext(AutosaveContext)
   if (!ctx) {
     throw new Error('useAutosaveState must be used within an EditorProvider')
+  }
+  return ctx
+}
+
+export function useSaveActions(): SaveActionsContextValue {
+  const ctx = useContext(SaveActionsContext)
+  if (!ctx) {
+    throw new Error('useSaveActions must be used within an EditorProvider')
   }
   return ctx
 }

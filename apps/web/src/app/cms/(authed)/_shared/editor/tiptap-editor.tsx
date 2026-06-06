@@ -273,6 +273,71 @@ export function TipTapEditor({
   editorRef.current = editor
   if (editorInstanceRef) editorInstanceRef.current = editor
 
+  // Sync initial content into editor when it becomes available.
+  // With `immediatelyRender: false`, the editor is created in a useEffect after
+  // mount. If the `content` prop was available during creation, the editor should
+  // already have it. However, TipTap silently drops content if nodeFromJSON fails
+  // (e.g., due to extension registration timing with `next/dynamic`), falling back
+  // to an empty doc. This effect retries up to MAX_SYNC_ATTEMPTS with a delay to
+  // account for extension registration timing.
+  const contentSyncAttemptRef = useRef(0)
+  const MAX_SYNC_ATTEMPTS = 3
+
+  useEffect(() => {
+    if (!editor || editor.isDestroyed) return
+    if (!content || typeof content === 'string') return
+
+    const jsonContent = content as JSONContent
+
+    // Check if `content` prop actually has meaningful content
+    const nodes = jsonContent.content ?? []
+    const isContentEmpty =
+      nodes.length === 0 ||
+      (nodes.length === 1 &&
+        nodes[0]?.type === 'paragraph' &&
+        (!nodes[0]?.content || nodes[0]?.content?.length === 0))
+
+    if (isContentEmpty) return
+
+    // Reset attempt counter when content identity changes
+    contentSyncAttemptRef.current = 0
+    let retryTimer: ReturnType<typeof setTimeout> | null = null
+
+    function trySync() {
+      if (!editor || editor.isDestroyed) return
+      if (contentSyncAttemptRef.current >= MAX_SYNC_ATTEMPTS) return
+
+      const doc = editor.getJSON()
+      const isEditorEmpty =
+        doc.content?.length === 1 &&
+        doc.content[0]?.type === 'paragraph' &&
+        (!doc.content[0]?.content || doc.content[0]?.content?.length === 0)
+
+      if (isEditorEmpty) {
+        contentSyncAttemptRef.current++
+        editor.commands.setContent(jsonContent, { emitUpdate: false })
+
+        // Verify it took — if still empty, retry after a delay
+        const afterDoc = editor.getJSON()
+        const stillEmpty =
+          afterDoc.content?.length === 1 &&
+          afterDoc.content[0]?.type === 'paragraph' &&
+          (!afterDoc.content[0]?.content || afterDoc.content[0]?.content?.length === 0)
+
+        if (stillEmpty && contentSyncAttemptRef.current < MAX_SYNC_ATTEMPTS) {
+          retryTimer = setTimeout(trySync, 150)
+        }
+      }
+    }
+
+    // First attempt immediately, then retry with delay if needed
+    trySync()
+
+    return () => {
+      if (retryTimer) clearTimeout(retryTimer)
+    }
+  }, [editor, content])
+
   useEffect(() => {
     if (!isFullscreen) return
     function handleEsc(e: KeyboardEvent) {
