@@ -294,9 +294,12 @@ function FocusEmpty({
         </div>
 
         <div className="fz-actions">
-          <button className="btn primary" onClick={onCreate} type="button">
-            <Sparkles size={15} /> Pedir proposta ao Cowork
-          </button>
+          <CoworkDeepLink
+            instruction={buildCoworkInstruction('foco-review', {})}
+            label="Pedir proposta ao Cowork"
+            variant="button"
+            className="btn primary"
+          />
           <button className="btn" onClick={onCreate} type="button">
             <Plus size={15} /> Definir manualmente
           </button>
@@ -524,10 +527,8 @@ const EXPLAINER_STEPS = [
 
 function ExplainerStrip({
   onClose,
-  onPropose,
 }: {
   onClose: () => void
-  onPropose: () => void
 }) {
   return (
     <div className="explainer" role="region" aria-label="Como o Foco funciona">
@@ -568,9 +569,12 @@ function ExplainerStrip({
         <span className="dim fs12">
           Nada vira foco automaticamente — o Cowork só sugere; a confirmação é sempre sua.
         </span>
-        <button className="btn sm" onClick={onPropose} type="button">
-          <Sparkles size={14} /> Pedir proposta ao Cowork
-        </button>
+        <CoworkDeepLink
+          instruction={buildCoworkInstruction('foco-review', {})}
+          label="Pedir proposta ao Cowork"
+          variant="button"
+          className="btn sm"
+        />
       </div>
     </div>
   )
@@ -729,22 +733,17 @@ export function TabFoco({
 
   return (
     <div className="fade-in">
-      {/* Header: Cowork foco review deep-link */}
+      {/* Header */}
       <div className="row between sec-head" style={{ marginTop: 0 }}>
         <span className="section-label row gap-8">
           <Target size={13} aria-hidden="true" /> Foco do trimestre
         </span>
-        <CoworkDeepLink
-          instruction={buildCoworkInstruction('foco-review', {})}
-          label="Abrir no Cowork"
-          variant="button"
-        />
       </div>
 
       {/* Onboarding explainer — only in the populated state. In the pure
           zero state the FocusEmpty card IS the invite, so nothing sits above it. */}
       {showExplainerProp && boardFocos.length > 0 && (
-        <ExplainerStrip onClose={handleDismissExplainer} onPropose={onCreateFoco} />
+        <ExplainerStrip onClose={handleDismissExplainer} />
       )}
 
       {/* Hero (active), compact banner (board has bets, none active),

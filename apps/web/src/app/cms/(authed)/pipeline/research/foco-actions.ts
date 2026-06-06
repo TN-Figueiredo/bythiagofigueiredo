@@ -210,7 +210,11 @@ export async function activateResearchFoco(id: string): Promise<ActionResult> {
 
   if (!foco) return { ok: false, error: 'Foco not found' }
 
-  const { error } = await supabase.rpc('activate_research_foco', {
+  // Use the service-role-safe RPC: permission is already validated above by
+  // requireEditAccess() + the ownership check. The can_edit_site-gated
+  // `activate_research_foco` relies on auth.uid(), which is NULL under the
+  // service-role client used here → it would always raise "permission denied".
+  const { error } = await supabase.rpc('activate_research_foco_service', {
     p_foco_id: id,
     p_site_id: siteId,
   })

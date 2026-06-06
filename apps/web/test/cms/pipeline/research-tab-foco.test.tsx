@@ -291,11 +291,14 @@ describe('FocusEmpty (via TabFoco)', () => {
     expect(screen.getByText('Foco')).toBeDefined()
   })
 
-  it('"Pedir proposta ao Cowork" calls onCreateFoco', () => {
+  it('"Pedir proposta ao Cowork" renders a Cowork deep-link (not the manual drawer)', () => {
     const onCreateFoco = vi.fn()
     render(<TabFoco focos={[]} {...baseCallbacks} onCreateFoco={onCreateFoco} />)
-    fireEvent.click(screen.getByText(/Pedir proposta ao Cowork/))
-    expect(onCreateFoco).toHaveBeenCalledOnce()
+    // Now a CoworkDeepLink button — asks the Cowork directly, does not open the drawer
+    const btn = screen.getByRole('button', { name: 'Pedir proposta ao Cowork' })
+    expect(btn).toBeDefined()
+    fireEvent.click(btn)
+    expect(onCreateFoco).not.toHaveBeenCalled()
   })
 
   it('"Definir manualmente" calls onCreateFoco', () => {
@@ -621,11 +624,14 @@ describe('ExplainerStrip (via TabFoco)', () => {
     expect(screen.getByText(/Nada vira foco automaticamente/)).toBeDefined()
   })
 
-  it('"Pedir proposta ao Cowork" button calls onCreateFoco', () => {
+  it('"Pedir proposta ao Cowork" button renders a Cowork deep-link (not the manual drawer)', () => {
     const onCreateFoco = vi.fn()
     render(<TabFoco focos={[makeFoco()]} {...baseCallbacks} showExplainer={true} onCreateFoco={onCreateFoco} />)
-    fireEvent.click(screen.getByText(/Pedir proposta ao Cowork/))
-    expect(onCreateFoco).toHaveBeenCalledOnce()
+    // Now a CoworkDeepLink button — asks the Cowork directly, does not open the drawer
+    const btn = screen.getByRole('button', { name: 'Pedir proposta ao Cowork' })
+    expect(btn).toBeDefined()
+    fireEvent.click(btn)
+    expect(onCreateFoco).not.toHaveBeenCalled()
   })
 
   it('dismiss button calls onDismissExplainer and sets localStorage', () => {

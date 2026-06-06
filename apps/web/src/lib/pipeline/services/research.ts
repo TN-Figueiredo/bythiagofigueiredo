@@ -20,6 +20,11 @@ interface ResearchRow {
   id: string
   title: string
   topic_id: string
+  theme_id: string | null
+  takeaways: string[] | null
+  pinned: boolean | null
+  read_min: number | null
+  source: string | null
   summary: string | null
   status: string
   word_count: number | null
@@ -35,7 +40,13 @@ interface ResearchItemWithTopic {
   id: string
   title: string
   topic_id: string
+  theme_id: string | null
+  takeaways: string[] | null
+  pinned: boolean | null
+  read_min: number | null
+  source: string | null
   content_json: unknown
+  content_html: string | null
   content_md: string | null
   summary: string | null
   sources: unknown
@@ -56,6 +67,11 @@ interface ResearchListItem {
   id: string
   title: string
   topic_id: string
+  theme_id: string | null
+  takeaways: string[]
+  pinned: boolean
+  read_min: number | null
+  source: string
   topic_path: string | undefined
   topic_name: string | undefined
   topic_icon: string | null | undefined
@@ -90,7 +106,13 @@ interface ResearchDetailResult {
   topic_path: string | undefined
   topic_name: string | undefined
   topic_icon: string | null | undefined
+  theme_id: string | null
+  takeaways: string[]
+  pinned: boolean
+  read_min: number | null
+  source: string
   content_json: unknown
+  content_html: string | null
   content_md: string | null
   summary: string | null
   sources: unknown
@@ -174,8 +196,8 @@ export async function listResearchItems(
   const { supabase, siteId } = ctx
 
   const selectFields = opts.includeContent
-    ? 'id, title, topic_id, summary, status, word_count, sources, version, created_at, updated_at, content_md, research_topics(path, name, icon)'
-    : 'id, title, topic_id, summary, status, word_count, sources, version, created_at, updated_at, research_topics(path, name, icon)'
+    ? 'id, title, topic_id, theme_id, takeaways, pinned, read_min, source, summary, status, word_count, sources, version, created_at, updated_at, content_md, research_topics(path, name, icon)'
+    : 'id, title, topic_id, theme_id, takeaways, pinned, read_min, source, summary, status, word_count, sources, version, created_at, updated_at, research_topics(path, name, icon)'
 
   let query = supabase
     .from('research_items')
@@ -240,6 +262,11 @@ export async function listResearchItems(
     id: item.id,
     title: item.title,
     topic_id: item.topic_id,
+    theme_id: item.theme_id ?? null,
+    takeaways: (item.takeaways as string[] | null) ?? [],
+    pinned: item.pinned ?? false,
+    read_min: item.read_min ?? null,
+    source: item.source ?? 'thiago',
     topic_path: item.research_topics?.path,
     topic_name: item.research_topics?.name,
     topic_icon: item.research_topics?.icon,
@@ -374,7 +401,13 @@ export async function getResearchItem(
     topic_path: typedItem.research_topics?.path,
     topic_name: typedItem.research_topics?.name,
     topic_icon: typedItem.research_topics?.icon,
+    theme_id: typedItem.theme_id ?? null,
+    takeaways: (typedItem.takeaways as string[] | null) ?? [],
+    pinned: typedItem.pinned ?? false,
+    read_min: typedItem.read_min ?? null,
+    source: typedItem.source ?? 'thiago',
     content_json: typedItem.content_json,
+    content_html: typedItem.content_html ?? null,
     content_md: typedItem.content_md,
     summary: typedItem.summary,
     sources: typedItem.sources,
