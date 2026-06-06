@@ -4,6 +4,7 @@ import { NewsletterCta } from '../../../src/components/blog/newsletter-cta'
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
 }))
 
 vi.mock('../../../../src/app/(public)/actions/newsletter-inline', () => ({

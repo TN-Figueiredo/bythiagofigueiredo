@@ -1,9 +1,11 @@
 'use client'
 
-import { useRef, useState, useEffect } from 'react'
+import { Suspense, useRef, useState, useEffect } from 'react'
 import Link from 'next/link'
 import { localePath } from '@/lib/i18n/locale-path'
+import { UtmAttributionCapture } from '@/components/newsletter/utm-hidden-fields'
 import type { ScoredSuggestion } from '@/lib/newsletter/suggestions'
+import type { UtmAttributionInput } from '@/lib/newsletter/attribution'
 import type { SuggestionStrings } from './newsletter-suggestions'
 
 // ─── Turnstile global ─────────────────────────────────────────────────────────
@@ -76,6 +78,7 @@ export interface SubscribeFormProps {
     ids: string[],
     locale: 'en' | 'pt-BR',
     token?: string,
+    attribution?: UtmAttributionInput,
   ) => Promise<{ success?: boolean; error?: string; subscribedIds?: string[]; needsConfirmation?: boolean }>
   suggestions?: ScoredSuggestion[]
   suggestionStrings?: SuggestionStrings
@@ -110,6 +113,9 @@ export function SubscribeForm({
   const [addingId, setAddingId] = useState<string | null>(null)
   const [filteredSuggestions, setFilteredSuggestions] = useState<ScoredSuggestion[] | null>(null)
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
+  // UTM attribution read from the landing URL (via <UtmAttributionCapture/>),
+  // forwarded as the `attribution` arg to the programmatic subscribe calls.
+  const [attribution, setAttribution] = useState<UtmAttributionInput>({})
   const turnstileRef = useRef<HTMLDivElement>(null)
   const widgetIdRef = useRef<string | null>(null)
 
@@ -151,7 +157,7 @@ export function SubscribeForm({
     if (!email || addedIds.has(typeId) || addingId) return
     setAddingId(typeId)
     try {
-      const result = await onSubscribe(email, [typeId], locale)
+      const result = await onSubscribe(email, [typeId], locale, undefined, attribution)
       if (result.success || result.subscribedIds?.includes(typeId)) {
         setAddedIds((prev) => new Set([...prev, typeId]))
       }
@@ -180,7 +186,7 @@ export function SubscribeForm({
     setErrorMsg('')
 
     try {
-      const result = await onSubscribe(email, [newsletterId], locale, turnstileToken ?? undefined)
+      const result = await onSubscribe(email, [newsletterId], locale, turnstileToken ?? undefined, attribution)
 
       if (result.success) {
         const nextPhase = result.needsConfirmation === false ? 'confirmed' : 'pending'
@@ -219,7 +225,7 @@ export function SubscribeForm({
 
   async function handleResend() {
     try {
-      const result = await onSubscribe(email, [newsletterId], locale, turnstileToken ?? undefined)
+      const result = await onSubscribe(email, [newsletterId], locale, turnstileToken ?? undefined, attribution)
       if (result.success) {
         setResent(true)
       } else if (result.error) {
@@ -467,6 +473,13 @@ export function SubscribeForm({
 
   return (
     <div id="form-hero" data-phase={phase} className="nl-form-phase" style={accentStyle} aria-live="polite">
+      {/* UTM attribution capture from the landing URL — lifts the five UTM
+          params into state for the programmatic onSubscribe call. Renders
+          nothing. Suspense-wrapped because useSearchParams() requires a boundary
+          in this statically rendered (revalidate) route. */}
+      <Suspense fallback={null}>
+        <UtmAttributionCapture onCapture={setAttribution} />
+      </Suspense>
       <form onSubmit={handleSubmit} noValidate>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           {/* Form header */}

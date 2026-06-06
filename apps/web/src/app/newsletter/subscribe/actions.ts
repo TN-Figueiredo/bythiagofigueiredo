@@ -10,6 +10,7 @@ import { getClientIp, isValidInet } from '../../../../lib/request-ip'
 import { NEWSLETTER_CONSENT_VERSION } from '../consent'
 import { captureServerActionError } from '../../../lib/sentry-wrap'
 import { generateConfirmToken, hashConfirmToken, sendNewsletterConfirmEmail } from '../../../../lib/newsletter/confirm-email'
+import { readNewsletterAttribution } from '../../../../lib/newsletter/attribution'
 
 const LocaleSchema = z.enum(['pt-BR', 'en'])
 type NewsletterLocale = z.infer<typeof LocaleSchema>
@@ -64,6 +65,7 @@ export async function subscribeToNewsletter(formData: FormData): Promise<Subscri
     const h = await headers()
     const ip = getClientIp(h)
     const userAgent = h.get('user-agent') || null
+    const attribution = readNewsletterAttribution(formData, h as Headers)
 
     const { data: rateOk, error: rateErr } = await supabase.rpc('newsletter_rate_check', {
       p_site_id: siteId,
@@ -117,6 +119,7 @@ export async function subscribeToNewsletter(formData: FormData): Promise<Subscri
           ip: isValidInet(ip) ? ip : null,
           user_agent: userAgent,
           unsubscribed_at: null,
+          ...attribution,
         })
         .eq('id', existing.id)
 
@@ -145,6 +148,7 @@ export async function subscribeToNewsletter(formData: FormData): Promise<Subscri
       newsletter_id,
       ip: isValidInet(ip) ? ip : null,
       user_agent: userAgent,
+      ...attribution,
     })
 
     if (error) {

@@ -2,6 +2,12 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, fireEvent, waitFor, screen } from '@testing-library/react'
 import { SubscribeForm } from '@/app/(public)/newsletters/[slug]/subscribe-form'
 
+// SubscribeForm now renders <UtmHiddenFields/>, which calls useSearchParams();
+// jsdom has no Next router context, so mock it.
+vi.mock('next/navigation', () => ({
+  useSearchParams: () => new URLSearchParams(),
+}))
+
 const defaultStrings = {
   stepLabel: 'STEP {current}/{total}',
   formTitle: 'Subscribe',

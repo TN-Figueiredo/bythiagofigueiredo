@@ -12,6 +12,11 @@ vi.mock('next/link', () => ({
   ),
 }))
 
+// UtmHiddenFields uses useSearchParams(); jsdom has no router context.
+vi.mock('next/navigation', () => ({
+  useSearchParams: () => new URLSearchParams(),
+}))
+
 import { NewslettersHub } from '../../../src/app/(public)/newsletters/components/NewslettersHub'
 
 const MOCK_TYPES_EN: HubNewsletterType[] = [

@@ -125,6 +125,50 @@ describe('subscribeNewsletterInline', () => {
     expect(payload).toHaveProperty('user_agent')
   })
 
+  it('insert payload includes sanitized utm attribution + referrer', async () => {
+    mockRateCheck.mockResolvedValueOnce({ data: true, error: null })
+    mockSend.mockResolvedValueOnce({ messageId: 'x', provider: 'ses' })
+
+    const fd = new FormData()
+    fd.set('email', 'user@example.com')
+    fd.set('newsletter_id', 'main-en')
+    fd.set('locale', 'en')
+    fd.set('turnstile_token', 'ok-token')
+    fd.set('utm_source', 'newsletter')
+    fd.set('utm_campaign', 'ai-empire')
+    fd.set('utm_medium', 'email')
+
+    await subscribeNewsletterInline(undefined, fd)
+
+    expect(mockInsert).toHaveBeenCalledOnce()
+    const payload = mockInsert.mock.calls[0][0]
+    expect(payload.utm_campaign).toBe('ai-empire')
+    expect(payload.utm_source).toBe('newsletter')
+    expect(payload.utm_medium).toBe('email')
+    // unset UTM params are stored as null
+    expect(payload.utm_term).toBeNull()
+    expect(payload).toHaveProperty('referrer')
+  })
+
+  it('caps overly long utm values at 200 chars and drops control chars', async () => {
+    mockRateCheck.mockResolvedValueOnce({ data: true, error: null })
+    mockSend.mockResolvedValueOnce({ messageId: 'x', provider: 'ses' })
+
+    const fd = new FormData()
+    fd.set('email', 'user@example.com')
+    fd.set('newsletter_id', 'main-en')
+    fd.set('locale', 'en')
+    fd.set('turnstile_token', 'ok-token')
+    fd.set('utm_campaign', 'a'.repeat(500) + '\n\tinjected')
+
+    await subscribeNewsletterInline(undefined, fd)
+
+    const payload = mockInsert.mock.calls[0][0]
+    expect((payload.utm_campaign as string).length).toBe(200)
+    expect(payload.utm_campaign).not.toContain('\n')
+    expect(payload.utm_campaign).not.toContain('\t')
+  })
+
   it('rate check receives p_ip', async () => {
     mockRateCheck.mockResolvedValueOnce({ data: true, error: null })
     mockSend.mockResolvedValueOnce({ messageId: 'x', provider: 'ses' })

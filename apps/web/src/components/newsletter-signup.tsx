@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useTransition } from 'react'
 import { useFormStatus } from 'react-dom'
 import { subscribeToNewsletter } from '../app/newsletter/subscribe/actions'
+import { UtmHiddenFields } from './newsletter/utm-hidden-fields'
 
 // ─── Submit button (reads pending from parent form) ──────────────────────────
 
@@ -169,6 +170,8 @@ export function NewsletterSignup({ locale = 'pt-BR', className }: NewsletterSign
     <form action={handleAction} className={className} noValidate>
       {/* M3: propagate locale to server action so confirm/welcome emails match. */}
       <input type="hidden" name="locale" value={locale} />
+      {/* Attribution: forward UTM params from the landing URL. */}
+      <UtmHiddenFields />
       <label>
         <span className="sr-only">{strings.emailLabel}</span>
         <input

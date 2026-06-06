@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useTransition } from 'react'
 import { subscribeNewsletterInline, type InlineState } from '@/app/(public)/actions/newsletter-inline'
 import { Tape } from '@/app/(public)/components/Tape'
+import { UtmHiddenFields } from '@/components/newsletter/utm-hidden-fields'
 
 // ─── Turnstile global ─────────────────────────────────────────────────────────
 
@@ -134,6 +135,7 @@ export function NewsletterCta({ category, locale, newsletterId }: Props) {
         <form action={handleAction} className="flex gap-2 flex-wrap">
           {newsletterId && <input type="hidden" name="newsletter_id" value={newsletterId} />}
           <input type="hidden" name="locale" value={locale} />
+          <UtmHiddenFields />
           <input
             name="email"
             type="email"

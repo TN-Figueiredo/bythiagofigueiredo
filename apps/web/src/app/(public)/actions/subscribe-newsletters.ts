@@ -9,6 +9,8 @@ import { getClientIp, isValidInet } from '../../../../lib/request-ip'
 import { captureServerActionError } from '../../../lib/sentry-wrap'
 import { NEWSLETTER_CONSENT_VERSION as CONSENT_VERSION } from '../../newsletter/consent'
 import { generateConfirmToken, hashConfirmToken, sendNewsletterConfirmEmail } from '../../../../lib/newsletter/confirm-email'
+import { sanitizeAttributionInput } from '../../../../lib/newsletter/attribution'
+import type { UtmAttributionInput } from '../../../../lib/newsletter/attribution'
 import { getFilteredSuggestionsForSubscriber } from '@/lib/newsletter/suggestions'
 import type { ScoredSuggestion } from '@/lib/newsletter/suggestions'
 
@@ -26,6 +28,7 @@ export async function subscribeToNewsletters(
   newsletterIds: string[],
   locale: 'en' | 'pt-BR',
   turnstileToken?: string,
+  attribution?: UtmAttributionInput,
 ): Promise<MultiSubState> {
   try {
     const parsed = MultiSchema.safeParse({
@@ -52,6 +55,10 @@ export async function subscribeToNewsletters(
     const rawIp = getClientIp(h)
     const ip = isValidInet(rawIp) ? rawIp : null
     const userAgent = h.get('user-agent') || null
+
+    // UTM attribution forwarded by the client (sanitized) + referrer captured
+    // server-side from the `referer` header. All six fields null when absent.
+    const attr = sanitizeAttributionInput(attribution, h)
 
     const { data: rateAllowed, error: rateErr } = await db.rpc('newsletter_rate_check', {
       p_site_id: siteId,
@@ -100,6 +107,7 @@ export async function subscribeToNewsletters(
             ip,
             user_agent: userAgent,
             unsubscribed_at: null,
+            ...attr,
           })
           .eq('id', existing.id)
         if (!updateErr) {
@@ -118,6 +126,7 @@ export async function subscribeToNewsletters(
           confirmation_expires_at: expiresAt,
           ip,
           user_agent: userAgent,
+          ...attr,
         })
         if (!error) {
           subscribedIds.push(newsletterId)
@@ -131,6 +140,7 @@ export async function subscribeToNewsletters(
               confirmation_expires_at: expiresAt,
               consent_text_version: CONSENT_VERSION,
               locale,
+              ...attr,
             })
             .eq('site_id', siteId)
             .eq('email', normalizedEmail)

@@ -9,12 +9,20 @@ import { getClientIp, isValidInet } from '../../../../lib/request-ip'
 import { captureServerActionError } from '../../../lib/sentry-wrap'
 import { NEWSLETTER_CONSENT_VERSION as CONSENT_VERSION } from '../../newsletter/consent'
 import { generateConfirmToken, hashConfirmToken, sendNewsletterConfirmEmail } from '../../../../lib/newsletter/confirm-email'
+import { readNewsletterAttribution } from '../../../../lib/newsletter/attribution'
 
 const InlineSchema = z.object({
   email: z.string().email(),
   newsletter_id: z.string().min(1),
   locale: z.enum(['en', 'pt-BR']),
   turnstile_token: z.string().optional(),
+  // UTM params are read/sanitized separately via readNewsletterAttribution;
+  // declared optional here so strict parsing never rejects them.
+  utm_source: z.string().optional(),
+  utm_medium: z.string().optional(),
+  utm_campaign: z.string().optional(),
+  utm_content: z.string().optional(),
+  utm_term: z.string().optional(),
 })
 
 export type InlineState = { success?: boolean; error?: string }
@@ -56,6 +64,7 @@ export async function subscribeNewsletterInline(
     const rawIp = getClientIp(h)
     const ip = isValidInet(rawIp) ? rawIp : null
     const userAgent = h.get('user-agent') || null
+    const attribution = readNewsletterAttribution(formData, h as Headers)
 
     const { data: rateAllowed, error: rateErr } = await db.rpc('newsletter_rate_check', {
       p_site_id: siteId,
@@ -99,6 +108,7 @@ export async function subscribeNewsletterInline(
           ip,
           user_agent: userAgent,
           unsubscribed_at: null,
+          ...attribution,
         })
         .eq('id', existing.id)
       if (updateErr) {
@@ -116,6 +126,7 @@ export async function subscribeNewsletterInline(
         consent_text_version: CONSENT_VERSION,
         confirmation_token_hash: tokenHash,
         confirmation_expires_at: expiresAt,
+        ...attribution,
       })
       if (insertError && insertError.code !== '23505') {
         return { error: msg(locale, 'Erro interno. Tente novamente.', 'Internal error. Try again.') }

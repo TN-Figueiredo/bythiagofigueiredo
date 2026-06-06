@@ -139,6 +139,59 @@ describe('subscribeToNewsletter', () => {
     expect(callArgs.html).toContain('/newsletter/confirm/')
   })
 
+  it('persists utm attribution + referrer in the insert payload', async () => {
+    const notFoundChain = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+    }
+    const insertMock = vi.fn().mockResolvedValue({ data: null, error: null })
+    fromMock
+      .mockReturnValueOnce(notFoundChain)
+      .mockReturnValueOnce(notFoundChain)
+      .mockReturnValueOnce({ insert: insertMock })
+
+    const fd = makeFormData({
+      ...VALID_FIELDS,
+      utm_source: 'newsletter',
+      utm_medium: 'email',
+      utm_campaign: 'ai-empire',
+      utm_content: 'cta-bottom',
+      utm_term: 'launch',
+    })
+    const result = await subscribeToNewsletter(fd)
+
+    expect(result).toEqual({ status: 'ok' })
+    expect(insertMock).toHaveBeenCalledOnce()
+    const payload = insertMock.mock.calls[0]![0] as Record<string, unknown>
+    expect(payload.utm_campaign).toBe('ai-empire')
+    expect(payload.utm_source).toBe('newsletter')
+    expect(payload.utm_medium).toBe('email')
+    expect(payload.utm_content).toBe('cta-bottom')
+    expect(payload.utm_term).toBe('launch')
+    // referrer comes from request headers (header mock returns null here)
+    expect(payload).toHaveProperty('referrer')
+  })
+
+  it('inserts null utm fields when no attribution provided', async () => {
+    const notFoundChain = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+    }
+    const insertMock = vi.fn().mockResolvedValue({ data: null, error: null })
+    fromMock
+      .mockReturnValueOnce(notFoundChain)
+      .mockReturnValueOnce(notFoundChain)
+      .mockReturnValueOnce({ insert: insertMock })
+
+    await subscribeToNewsletter(makeFormData(VALID_FIELDS))
+
+    const payload = insertMock.mock.calls[0]![0] as Record<string, unknown>
+    expect(payload.utm_campaign).toBeNull()
+    expect(payload.utm_source).toBeNull()
+  })
+
   it('falls back to localhost:3000 when NEXT_PUBLIC_APP_URL is unset', async () => {
     delete process.env.NEXT_PUBLIC_APP_URL
 

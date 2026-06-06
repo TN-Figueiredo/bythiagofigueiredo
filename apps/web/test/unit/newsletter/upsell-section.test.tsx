@@ -3,6 +3,12 @@ import { render, fireEvent, screen, waitFor } from '@testing-library/react'
 import { SubscribeForm } from '@/app/(public)/newsletters/[slug]/subscribe-form'
 import type { ScoredSuggestion } from '@/lib/newsletter/suggestions'
 
+// SubscribeForm now renders <UtmHiddenFields/>, which calls useSearchParams();
+// jsdom has no Next router context, so mock it.
+vi.mock('next/navigation', () => ({
+  useSearchParams: () => new URLSearchParams(),
+}))
+
 // ── Shared fixtures ──────────────────────────────────────────────────────────
 
 const defaultStrings = {

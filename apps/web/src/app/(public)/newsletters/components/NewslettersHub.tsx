@@ -1,10 +1,12 @@
 'use client'
 
-import { useState, useTransition, useCallback, useMemo, useEffect, memo } from 'react'
+import { Suspense, useState, useTransition, useCallback, useMemo, useEffect, memo } from 'react'
 import Link from 'next/link'
 import { localePath } from '@/lib/i18n/locale-path'
+import { UtmAttributionCapture } from '@/components/newsletter/utm-hidden-fields'
 import { subscribeToNewsletters } from '../../actions/subscribe-newsletters'
 import type { HubNewsletterType } from '@/lib/newsletter/queries'
+import type { UtmAttributionInput } from '@/lib/newsletter/attribution'
 
 interface ThemeTokens {
   dark: boolean
@@ -453,6 +455,10 @@ export function NewslettersHub({ locale, currentTheme, types }: Props) {
   const [submitting, startTransition] = useTransition()
   const [announcement, setAnnouncement] = useState('')
 
+  // UTM attribution read from the landing URL (via <UtmAttributionCapture/>),
+  // forwarded as the `attribution` arg to the programmatic subscribe call.
+  const [attribution, setAttribution] = useState<UtmAttributionInput>({})
+
   const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 
   const toggle = useCallback((id: string) => {
@@ -490,14 +496,14 @@ export function NewslettersHub({ locale, currentTheme, types }: Props) {
     if (!isValidEmail || ids.length === 0) return
     setServerError(null)
     startTransition(async () => {
-      const result = await subscribeToNewsletters(email, ids, locale)
+      const result = await subscribeToNewsletters(email, ids, locale, undefined, attribution)
       if (result.error) { setServerError(result.error); return }
       setSentTo(prev => [...new Set([...prev, ...ids])])
       setConfirmationSent(result.needsConfirmation ?? false)
       const hasMore = ids.length < types.length
       setPhase(hasMore ? 'suggest' : 'sent')
     })
-  }, [email, isValidEmail, locale, types.length])
+  }, [email, isValidEmail, locale, types.length, attribution])
 
   const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault()
@@ -648,6 +654,14 @@ export function NewslettersHub({ locale, currentTheme, types }: Props) {
   // ── Pick phase (default) ──────────────────────────────────────────────────
   return (
     <div style={{ background: bg, color: ink, minHeight: '100vh', fontFamily: '"Inter", sans-serif' }}>
+
+      {/* UTM attribution capture from the landing URL — lifts the five UTM
+          params into state for the programmatic subscribe call. Renders nothing.
+          Suspense-wrapped because useSearchParams() requires a boundary in
+          statically rendered routes. */}
+      <Suspense fallback={null}>
+        <UtmAttributionCapture onCapture={setAttribution} />
+      </Suspense>
 
       {/* aria-live region for announcements */}
       <div
