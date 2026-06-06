@@ -1,57 +1,28 @@
 #!/usr/bin/env sh
 
-# Build Confidence Pipeline — pre-commit gate.
-# Order: packages → web tests → web build → api tests → api typecheck → seed
+# Pre-commit gate — FAST (typecheck only).
+#
+# The heavy gates moved OUT of pre-commit (they made every commit a 20-30min
+# wait, worse under CPU thrashing):
+#   - `next build`  → runs on Vercel for every deploy (the real build parity).
+#   - web/api test suites → run in CI (.github/workflows/ci.yml) on push.
+#   - the pre-push hook still does the full ecosystem validation + typecheck
+#     (~60s) before any push, so we never waste Vercel builds on broken types.
+#
+# So: commit fast, let Vercel/CI catch build/test regressions. Only rebuild
+# locally (`npm run build:web`) if Vercel actually fails.
 
 echo "📦 Building workspace packages..."
-npm run build:packages 2>&1
-PKG_EXIT=$?
-if [ $PKG_EXIT -ne 0 ]; then
+if ! npm run build:packages 2>&1; then
   echo ""
   echo "❌ Workspace package build failed. Commit blocked."
   exit 1
 fi
 
-echo "🧪 Rodando testes do web..."
-( cd apps/web && npx vitest run --bail 1 2>&1 ) &
-WEB_TEST_PID=$!
-( sleep 300 && kill $WEB_TEST_PID 2>/dev/null ) &
-WEB_KILL_PID=$!
-wait $WEB_TEST_PID
-WEB_TEST_EXIT=$?
-kill $WEB_KILL_PID 2>/dev/null
-wait $WEB_KILL_PID 2>/dev/null
-if [ $WEB_TEST_EXIT -ne 0 ] && [ $WEB_TEST_EXIT -ne 143 ]; then
+echo "🔍 Typechecking web..."
+if ! ( cd apps/web && npx tsc --noEmit 2>&1 ); then
   echo ""
-  echo "❌ Testes do web falharam. Commit bloqueado."
-  exit 1
-fi
-
-echo "🏗️  Buildando web (next build — paridade com Vercel)..."
-npm run build:web > /tmp/precommit-web-build.log 2>&1
-WEB_BUILD_EXIT=$?
-
-if [ $WEB_BUILD_EXIT -ne 0 ]; then
-  echo ""
-  echo "❌ Build do web falhou. Commit bloqueado."
-  echo "   Log completo: /tmp/precommit-web-build.log"
-  echo ""
-  tail -40 /tmp/precommit-web-build.log
-  exit 1
-fi
-
-echo "🧪 Rodando testes da API..."
-( cd apps/api && npx vitest run --bail 1 2>&1 ) &
-API_TEST_PID=$!
-( sleep 120 && kill $API_TEST_PID 2>/dev/null ) &
-API_KILL_PID=$!
-wait $API_TEST_PID
-API_TEST_EXIT=$?
-kill $API_KILL_PID 2>/dev/null
-wait $API_KILL_PID 2>/dev/null
-if [ $API_TEST_EXIT -ne 0 ] && [ $API_TEST_EXIT -ne 143 ]; then
-  echo ""
-  echo "❌ Testes da API falharam. Commit bloqueado."
+  echo "❌ Typecheck do web falhou. Commit bloqueado."
   exit 1
 fi
 
@@ -62,7 +33,7 @@ if ! ( cd apps/api && npx tsc --noEmit 2>&1 ); then
   exit 1
 fi
 
-echo "✅ Tudo verde — packages, testes, build do web e typecheck da API."
+echo "✅ Typecheck verde (packages + web + api). Build/testes rodam no Vercel + CI."
 
 # ── Auto-seed if pipeline reference files changed ──
 if git diff --cached --name-only | grep -qE '(docs/cowork-|data/pipeline-docs/|api-registry\.ts|seed-pipeline-reference\.ts)'; then

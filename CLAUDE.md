@@ -2,29 +2,30 @@
 
 Hub pessoal + CMS Engine do ecossistema `@tnf/*`.
 
-## REGRA OBRIGATÓRIA: Build & Test antes de commitar
+## REGRA: gates rápidos no commit, build/teste pesado no Vercel + CI
 
-O pre-commit hook roda `next build` — **idêntico ao que Vercel executa**. Se passar local, passa no Vercel. Mas rodar o hook inteiro a cada tentativa desperdiça tempo. A regra é fazer tudo certo ANTES de commitar:
+Decisão (2026-06-06): o pre-commit hook **NÃO** roda mais `next build` nem os suites de teste — isso travava cada commit por 20-30min (pior com thrashing de CPU). A divisão de gates agora é:
 
-### Se mexeu em `packages/*/src/` (workspace packages):
-1. Rodar `npm run build:packages` IMEDIATAMENTE após salvar as mudanças
-2. Isso recompila `dist/` que `apps/web` e `apps/api` consomem
-3. Sem isso, imports vão quebrar typecheck e next build
+| Gate | Quando | O que roda | Custo |
+|------|--------|-----------|-------|
+| **pre-commit** | todo commit | `build:packages` + typecheck web + typecheck api (+ auto-seed) | ~40-60s |
+| **pre-push** | todo push | ecosystem validation + pinning + typecheck web/api | ~60s |
+| **Vercel** | todo deploy | `next build` (paridade real de build) | nuvem |
+| **CI** (`ci.yml`) | push staging | typecheck + testes + audit | nuvem |
 
-### Antes de commitar (SEMPRE):
-1. `npm run build:packages` (se tocou em packages/ — na dúvida, rode)
-2. `npm run test:web` ou `npm run test:api` (conforme o que mudou)
-3. Se qualquer teste falhar → corrigir ANTES de tentar commit
-4. O pre-commit hook é a rede de segurança final, não o fluxo principal
+### Se mexeu em `packages/*/src/`:
+`npm run build:packages` IMEDIATAMENTE — recompila `dist/` que `apps/web`/`apps/api` consomem (senão imports quebram no typecheck).
 
-### Garantia Vercel:
-O pre-commit roda `next build` (mesmo comando que Vercel usa). Se o commit passou, o deploy vai passar. **Nunca faça push esperando que "vai funcionar" — o hook local já provou que funciona.**
+### Fluxo:
+1. Faça a mudança; rode `npm run build:packages` se tocou em packages/.
+2. Para mudanças arriscadas, rode `next build` e/ou os testes manualmente ANTES (mas não é mais obrigatório — o pre-commit não força).
+3. Commit (rápido) → push (staging→main). O Vercel builda; a CI testa.
+4. **Só rebuilde local (`npm run build:web`) se o Vercel realmente falhar.**
 
 ### O que NÃO fazer:
-- NÃO commitar sem ter rodado `build:packages` se mexeu em packages/
-- NÃO ignorar falha de hook e tentar de novo sem corrigir a causa
-- NÃO usar `--no-verify` em commits de código (apenas docs/plans permitido)
-- NÃO fazer push se o pre-commit falhou — cada push gasta 4 builds Vercel
+- NÃO re-adicionar `next build`/suites ao pre-commit "por segurança" — Vercel+CI cobrem.
+- NÃO commitar sem `build:packages` se mexeu em packages/.
+- `--no-verify` em código: evitar; mas como o hook agora é leve (typecheck), use o hook normal.
 
 ## Tech Stack
 
