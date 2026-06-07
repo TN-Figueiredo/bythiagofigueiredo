@@ -85,6 +85,11 @@ export async function POST(req: Request): Promise<Response> {
   })
 }
 
+// Vercel Cron invokes endpoints via GET. Alias so the Vercel scheduler can
+// trigger this job (it previously only ran via pg_cron POST, which was never
+// registered for this route — so it never fired).
+export const GET = POST
+
 async function sendEdition(
   supabase: ReturnType<typeof getSupabaseServiceClient>,
   edition: {
