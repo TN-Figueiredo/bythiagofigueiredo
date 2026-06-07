@@ -115,9 +115,10 @@ export const PipelineCard = memo(function PipelineCard({
           )}
         </div>
 
-        {/* Title — links to the blog editor once graduated, else to the pipeline item */}
+        {/* Title — always opens the staged blog editor; the bridge creates the
+            post on the fly for items not yet linked to one. */}
         <Link
-          href={item.blog_post_id ? `/cms/blog/${item.blog_post_id}/edit` : `/cms/pipeline/items/${item.id}`}
+          href={item.blog_post_id ? `/cms/blog/${item.blog_post_id}/edit` : `/cms/blog/from-pipeline/${item.id}`}
           onClick={(e) => e.stopPropagation()}
           className="mt-1.5 block cursor-pointer text-[13px] font-medium leading-snug text-gray-200 line-clamp-2 hover:text-white"
         >

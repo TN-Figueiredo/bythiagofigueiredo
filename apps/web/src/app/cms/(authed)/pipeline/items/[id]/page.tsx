@@ -1,8 +1,10 @@
+import { redirect } from 'next/navigation'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { CmsTopbar } from '@tn-figueiredo/cms-ui/client'
 import { PipelineItemDetail } from '../../_components/pipeline-item-detail'
 import { loadPipelineItemDetail } from '@/lib/pipeline/load-pipeline-detail'
+import { resolvePipelineEditorTarget } from '@/lib/pipeline/editor-routing'
 import { GEM_CSS_VARS } from '@/lib/pipeline/gem-design'
 
 export const dynamic = 'force-dynamic'
@@ -17,6 +19,11 @@ export default async function PipelineItemPage({
   await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
 
   const { item, history, dependencies } = await loadPipelineItemDetail(id, siteId)
+
+  // Blog items live in the staged editor now; only non-blog formats keep this view.
+  if (resolvePipelineEditorTarget({ blog_post_id: item.blog_post_id ?? null, format: item.format }).kind !== 'detail') {
+    redirect(`/cms/blog/from-pipeline/${id}`)
+  }
 
   return (
     <>
