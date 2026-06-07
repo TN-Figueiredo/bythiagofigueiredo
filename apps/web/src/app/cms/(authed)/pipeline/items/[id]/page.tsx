@@ -21,9 +21,11 @@ export default async function PipelineItemPage({
   const { item, history, dependencies } = await loadPipelineItemDetail(id, siteId)
 
   // Blog items live in the staged editor now; only non-blog formats keep this view.
-  if (resolvePipelineEditorTarget({ blog_post_id: item.blog_post_id ?? null, format: item.format }).kind !== 'detail') {
-    redirect(`/cms/blog/from-pipeline/${id}`)
-  }
+  // Linked items go straight to /edit (a page); unlinked blog items go through the
+  // bridge route handler, which creates the post before redirecting.
+  const editorTarget = resolvePipelineEditorTarget({ blog_post_id: item.blog_post_id ?? null, format: item.format })
+  if (editorTarget.kind === 'edit') redirect(`/cms/blog/${editorTarget.postId}/edit`)
+  if (editorTarget.kind === 'create') redirect(`/cms/blog/from-pipeline/${id}`)
 
   return (
     <>

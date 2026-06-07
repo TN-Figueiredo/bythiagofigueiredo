@@ -115,15 +115,26 @@ export const PipelineCard = memo(function PipelineCard({
           )}
         </div>
 
-        {/* Title — always opens the staged blog editor; the bridge creates the
-            post on the fly for items not yet linked to one. */}
-        <Link
-          href={item.blog_post_id ? `/cms/blog/${item.blog_post_id}/edit` : `/cms/blog/from-pipeline/${item.id}`}
-          onClick={(e) => e.stopPropagation()}
-          className="mt-1.5 block cursor-pointer text-[13px] font-medium leading-snug text-gray-200 line-clamp-2 hover:text-white"
-        >
-          {title}
-        </Link>
+        {/* Title — always opens the staged blog editor. Linked posts use next/link;
+            unlinked items use a plain <a> to the bridge route handler so that
+            prefetch can't fire the GET and create a post without a click. */}
+        {item.blog_post_id ? (
+          <Link
+            href={`/cms/blog/${item.blog_post_id}/edit`}
+            onClick={(e) => e.stopPropagation()}
+            className="mt-1.5 block cursor-pointer text-[13px] font-medium leading-snug text-gray-200 line-clamp-2 hover:text-white"
+          >
+            {title}
+          </Link>
+        ) : (
+          <a
+            href={`/cms/blog/from-pipeline/${item.id}`}
+            onClick={(e) => e.stopPropagation()}
+            className="mt-1.5 block cursor-pointer text-[13px] font-medium leading-snug text-gray-200 line-clamp-2 hover:text-white"
+          >
+            {title}
+          </a>
+        )}
 
         {/* Hook */}
         {item.hook && (
