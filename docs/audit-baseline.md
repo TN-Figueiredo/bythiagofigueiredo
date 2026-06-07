@@ -4,25 +4,30 @@
 > Formato machine-parseable — NAO alterar headers ou formato das tabelas.
 
 ## Ultimo Audit
-- **Data:** 2026-05-24
+- **Data:** 2026-06-07
 - **Escopo:** all
 - **Foco:** all
-- **Score Total:** 9.5/10
-- **Ultimo Finding ID:** BTF-074
+- **Score Total:** 9/10 (remediacao Ondas 1-3 + CI parcial Onda 4 aplicada no mesmo dia)
+- **Ultimo Finding ID:** BTF-087
 
 | Categoria | Criticos | Altos | Medios | Baixos | Score |
 |-----------|----------|-------|--------|--------|-------|
-| Cobertura Testes | 0 | 0 | 0 | 0 | 9.5/10 |
-| TypeScript Safety | 0 | 0 | 1 | 0 | 8/10 |
-| Seguranca | 0 | 0 | 0 | 0 | 10/10 |
-| LGPD | 0 | 0 | 0 | 0 | 10/10 |
-| Data Leaks | 0 | 0 | 0 | 0 | 10/10 |
+| Cobertura Testes | 0 | 0 | 1 | 0 | 9/10 |
+| TypeScript Safety | 0 | 0 | 2 | 1 | 8/10 |
+| Seguranca | 0 | 0 | 1 | 0 | 9/10 |
+| LGPD | 0 | 0 | 1 | 0 | 9.5/10 |
+| Data Leaks | 0 | 0 | 0 | 0 | 9.5/10 |
 
 ## Findings Abertos
 | ID | Severidade | Categoria | Descricao | Arquivo |
 |----|-----------|-----------|-----------|---------|
-| BTF-041 | MEDIO | Deps | 13 npm vulnerabilities (breaking: next, @vercel/blob, vitest, @lhci/cli) | package-lock.json |
-| BTF-059 | MEDIO | TypeScript | 89 `as unknown as` double casts (86 justified: 60 Supabase untyped, 6 SDK, 3 email contravariance, 1 LGPD null-obj) | apps/web/src/ |
+| BTF-080 | MEDIO | Deps | 2 HIGH + 2 moderate undici vulns via @vercel/blob 1.1.1 (fix = @vercel/blob@2.4.0, breaking — exige Node 20+). Substitui BTF-041. | apps/web/package.json |
+| BTF-059 | MEDIO | TypeScript | `as unknown as` agora 127-133 (era 89). Maioria Supabase untyped. Fix = `supabase gen types` (DEFERIDO — risco de quebrar typecheck em ~70 sites, exige Docker/login). | apps/web/src/ |
+| BTF-083 | BAIXO | TypeScript | Crescimento de `as unknown as` sem ratchet. Type-debt baseline + CI ratchet DEFERIDO. | apps/web/src/ |
+| BTF-086 | MEDIO | CI | PARCIAL: test-packages gate adicionado (resolve 5 testes vermelhos invisiveis). DEFERIDO: audit blocking gate (precisa BTF-080 antes), type-debt ratchet, teste-guardiao de inventario PII. | .github/workflows/ci.yml |
+| BTF-087 | MEDIO | LGPD | privacy.en.mdx defasada em v1.0 — perdeu toda a v1.1 (lista Brevo, sem redes sociais/AdSense) + v1.2. Requer passada de traducao dedicada (pt-BR prevalece). | apps/web/src/content/legal/privacy.en.mdx |
+| — | — | Cobertura | DEFERIDO: testes de providers social (youtube/meta) — exigem mocking de SDK (~4h). Threshold de coverage no social bloqueado por version mismatch vitest 2.1.9 vs coverage-v8 3.2.4. | packages/social/ |
+| — | — | TypeScript | DEFERIDO: migracao de ~38 rotas mutativas para helper Zod unico (parseBodyWith). | apps/web/src/app/api/ |
 
 ## Findings Resolvidos
 | ID | Resolvido em | Descricao | Como |
@@ -97,6 +102,15 @@
 | BTF-072 | 2026-05-24 | Error message leaks in playlist/social routes | 6 routes: generic messages, no Supabase internals exposed |
 | BTF-073 | 2026-05-24 | Sentry PII scrubber missing IPv4/IPv6 | IPV4_RE + IPV6_RE added to scrubPiiString(), 4 new tests |
 | BTF-074 | 2026-05-24 | social/pipeline/run leaks err.message in response | Generic 'Internal error' message, Sentry captures full error |
+| BTF-075 | 2026-06-07 | 5 testes Donut/Delta falhando (background ring + delta 0/0) | Seletor `circle[stroke-dasharray]` para segmentos; delta 0/0 assert renderiza nada |
+| BTF-076 | 2026-06-07 | Zod ausente em social/youtube/upload-session POST | UploadSessionSchema + safeParse → 400 (outras 3 rotas ja validavam na camada service) |
+| BTF-077 | 2026-06-07 | Export LGPD nao cobre playlists/youtube_notes/content_pipeline (Art. 18) | collectUserData expandido (+5 slices, youtube_notes.text redacted); phase1 scrub author_name; +2 testes |
+| BTF-078 | 2026-06-07 | Policy nao documenta YouTube Intelligence + Research (Art. 5) | privacy.pt-BR.mdx v1.2: §2/§3/§4/§5/§6/§13 atualizados |
+| BTF-079 | 2026-06-07 | social ~6% coverage, token-vault sem teste | 43 testes core/ (token-vault/content-adapter/media-validator/quota-manager); GCM authTagLength=16; passWithNoTests removido |
+| BTF-081 | 2026-06-07 | dangerouslySetInnerHTML sem DOMPurify em tiptap-editor | sanitizeContentHtml() aplicado |
+| BTF-082 | 2026-06-07 | linktree tracking sem gate de consentimento | Anonimiza ip/ua/referrer server-side sem consent (padrao content_events); visitor_id/geo preservados |
+| BTF-084 | 2026-06-07 | 3 SECURITY DEFINER sem search_path (cron_try_lock, cron_unlock, unsubscribe_via_token) | Migration 20260607000001: ALTER FUNCTION SET search_path='' (pending push prod) |
+| BTF-085 | 2026-06-07 | AWS SES em uso, nao documentado na policy | privacy.pt-BR.mdx v1.2 §4: AWS SES sa-east-1 (nacional, sem transferencia intl) |
 
 ## Falsos Positivos Detectados
 | ID | Descricao | Por que falso positivo |
@@ -154,13 +168,13 @@
 ## Contagem de Testes
 | Workspace | Testes | Verificado em |
 |-----------|--------|---------------|
-| Web | 7645 (7436 passed, 209 skipped) | 2026-05-24 |
-| API | 152 (13 passed, 139 skipped) | 2026-05-24 |
-| Links | 292 (292 passed) | 2026-05-24 |
-| LinksAdmin | 178 (178 passed) | 2026-05-24 |
-| Shared | 11 (11 passed) | 2026-05-24 |
-| Social | 15 (15 passed) | 2026-05-24 |
-| **Total** | **8293** | 2026-05-24 |
+| Web | ~7645+ (suite cresceu; contagem limpa indisponivel — IPC error no teardown) | 2026-06-07 |
+| API | 152 (13 passed, 139 skipped HAS_LOCAL_DB) | 2026-06-07 |
+| Links | 442 (442 passed) | 2026-06-07 |
+| LinksAdmin | 439 (439 passed — 5 falhas Donut corrigidas) | 2026-06-07 |
+| Shared | 11 (11 passed) | 2026-06-07 |
+| Social | 58 (58 passed — era 15; core/ 100% coberto) | 2026-06-07 |
+| **Packages total** | **950** (todos verdes, gate test-packages no CI) | 2026-06-07 |
 
 ## Historico de Scores
 | Data | Testes | Types | Seguranca | LGPD | Leaks | Total | Findings C/A/M/B | Net |
@@ -171,8 +185,14 @@
 | 2026-05-24 | 9 | 8 | 9 | 10 | 10 | 9.5 | 0/0/2/0 | 2 open |
 | 2026-05-24 | 9 | 8 | 10 | 10 | 10 | 9.5 | 0/0/2/0 | 2 open (9 resolved) |
 | 2026-05-24 | 9.5 | 8 | 10 | 10 | 10 | 9.5 | 0/0/2/0 | +211 tests (24 new files) |
+| 2026-06-07 | 8 | 8 | 9 | 9 | 9.5 | 8.7 | 0/1/7/4 | codebase cresceu (youtube/playlists/notifications) — gaps reabertos |
+| 2026-06-07 | 9 | 8 | 9 | 9.5 | 9.5 | 9 | 0/0/5/1 | Ondas 1-3 + CI parcial: 7 commits, BTF-075/076/077/078/079/081/082/084/085 resolvidos |
 
 ## Proximos Passos Recomendados
-1. BACKLOG: npm audit fix breaking changes — BTF-041 (next@16, @vercel/blob@3, vitest@4 — coordenar upgrade cycle)
-2. BACKLOG: Gerar Supabase types (`supabase gen types`) para eliminar ~60 `as unknown as` — BTF-059
-3. BACKLOG: Pipeline route test coverage 50% (27/54 routes), cron coverage 79% (27/34), overall API 78% (97/124)
+1. PENDING: `npm run db:push:prod` da migration 20260607000001 (search_path fix — BTF-084)
+2. ONDA 4 (deferida — sessao dedicada): `supabase gen types` → tipar clients → eliminar ~70 `as unknown as` (BTF-059/083). Risco alto: pode quebrar typecheck em massa; exige Docker/login.
+3. ONDA 4 (deferida): @vercel/blob 1.1.1 → 2.4.0 (BTF-080, Node 20+) — DEPOIS tornar `npm audit --audit-level=high` bloqueante no CI.
+4. ONDA 4 (deferida): helper Zod unico (parseBodyWith) nas ~38 rotas mutativas.
+5. ONDA 4 (deferida): type-debt ratchet (.type-debt-baseline.json) + teste-guardiao de inventario PII no CI (BTF-086).
+6. BTF-087: passada de traducao da privacy.en.mdx para paridade v1.2.
+7. Testes de providers social (youtube/meta) com mocks + alinhar vitest/coverage-v8 no social.
