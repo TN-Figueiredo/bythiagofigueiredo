@@ -5,6 +5,7 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['src/**/*.test.ts', 'test/**/*.test.ts'],
-    passWithNoTests: true,
+    // No passWithNoTests: the suite now has real coverage (core + providers),
+    // so an empty run must fail loudly rather than pass silently.
   },
 })

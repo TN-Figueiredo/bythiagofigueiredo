@@ -35,7 +35,9 @@ export function decrypt(encoded: string, key: Buffer): string {
   const tag = buf.subarray(IV_LENGTH, IV_LENGTH + TAG_LENGTH)
   const ciphertext = buf.subarray(IV_LENGTH + TAG_LENGTH)
 
-  const decipher = createDecipheriv(ALGORITHM, key, iv)
+  // authTagLength enforces a full 128-bit tag — without it Node accepts
+  // truncated tags, weakening GCM integrity guarantees.
+  const decipher = createDecipheriv(ALGORITHM, key, iv, { authTagLength: TAG_LENGTH })
   decipher.setAuthTag(tag)
 
   return decipher.update(ciphertext, undefined, 'utf8') + decipher.final('utf8')
