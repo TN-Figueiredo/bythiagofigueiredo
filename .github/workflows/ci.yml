@@ -83,6 +83,26 @@ jobs:
         run: npm run build:packages
       - run: npm run test:web
 
+  test-packages:
+    name: Test — Packages
+    runs-on: ubuntu-latest
+    needs: ecosystem-pinning
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Build workspace packages
+        run: npm run build:packages
+      # Hard gate: links, links-admin, social, shared. Closes the gap where
+      # failing package tests (e.g. donut chart) shipped unnoticed because no
+      # job ran them. Keep this green — do not add continue-on-error.
+      - run: npm run test:packages
+
   test-db-integration:
     name: Integration (DB-gated)
     runs-on: ubuntu-latest

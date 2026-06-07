@@ -18,6 +18,7 @@
     "test": "npm run test:api && npm run test:web",
     "test:api": "npm run test -w apps/api",
     "test:web": "npm run test -w apps/web",
+    "test:packages": "npm run test -w packages/links -w packages/links-admin -w packages/social -w packages/shared",
     "pipeline:audit": "cd apps/web && npx vitest run test/lib/pipeline/api-registry.test.ts",
     "postinstall": "npm run build:packages || echo '⚠️  Workspace package build failed — run npm run build:packages to diagnose'",
     "db:new": "bash scripts/new-migration.sh",
