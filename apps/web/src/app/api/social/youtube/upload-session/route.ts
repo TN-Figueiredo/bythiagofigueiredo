@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
@@ -6,13 +7,13 @@ import { decrypt, getMasterKey } from '@tn-figueiredo/social/vault'
 
 export const runtime = 'nodejs'
 
-interface UploadSessionBody {
-  title: string
-  description?: string
-  tags?: string[]
-  categoryId?: string
-  privacyStatus: 'private' | 'unlisted' | 'public'
-}
+const UploadSessionSchema = z.object({
+  title: z.string().min(1).max(100),
+  description: z.string().max(5000).optional(),
+  tags: z.array(z.string().max(100)).max(50).optional(),
+  categoryId: z.string().regex(/^\d+$/).optional(),
+  privacyStatus: z.enum(['private', 'unlisted', 'public']),
+})
 
 export async function POST(req: NextRequest) {
   const { siteId } = await getSiteContext()
@@ -21,7 +22,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const body = (await req.json()) as UploadSessionBody
+  const parsed = UploadSessionSchema.safeParse(await req.json().catch(() => null))
+  if (!parsed.success) {
+    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
+  }
+  const body = parsed.data
   const supabase = getSupabaseServiceClient()
 
   const { data: connection } = await supabase

@@ -25,6 +25,7 @@ import {
   Undo2,
   Redo2,
 } from 'lucide-react'
+import { sanitizeContentHtml } from '@/lib/pipeline/sanitize-html'
 
 // ---------------------------------------------------------------------------
 // Props
@@ -269,7 +270,7 @@ export function TipTapEditor({
       <div className="tt-wrap reading">
         <div
           className="tt-prose ProseMirror"
-          dangerouslySetInnerHTML={{ __html: html || '<p></p>' }}
+          dangerouslySetInnerHTML={{ __html: sanitizeContentHtml(html) || '<p></p>' }}
         />
       </div>
     )
