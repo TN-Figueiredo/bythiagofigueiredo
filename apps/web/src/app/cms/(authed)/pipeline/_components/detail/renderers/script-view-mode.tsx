@@ -28,8 +28,8 @@ function Overview({ beats }: { beats: RoteiroBeat[] }) {
           </tr>
         </thead>
         <tbody>
-          {beats.map((b) => (
-            <tr key={b.idx}>
+          {beats.map((b, i) => (
+            <tr key={i}>
               <td className="sv-ov-num">#{b.idx + 1}</td>
               <td className="sv-ov-name">{b.name}</td>
               <td className="sv-ov-dur" style={{ textAlign: 'center' }}>{b.status === 'DONE' ? '✓' : '—'}</td>
@@ -145,8 +145,8 @@ export function ScriptViewMode({ content, title }: ScriptViewModeProps) {
       {beats.length > 0 && <Overview beats={beats} />}
 
       {/* Beats */}
-      {beats.map((beat) => (
-        <BeatSection key={beat.idx} beat={beat} />
+      {beats.map((beat, i) => (
+        <BeatSection key={i} beat={beat} />
       ))}
 
       {/* Footer */}

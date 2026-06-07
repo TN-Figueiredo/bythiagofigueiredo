@@ -139,9 +139,9 @@ export function PostProductionView({
         collapseAll={() => { setAllState(1); setResetKey(k => k + 1) }}
       />
 
-      {beats.map(beat => (
+      {beats.map((beat, i) => (
         <BeatAccordion
-          key={`${beat.idx}-${resetKey}`}
+          key={`${i}-${resetKey}`}
           beat={beat}
           assets={data.assets?.[beat.idx]}
           trackHeights={trackHeights}
