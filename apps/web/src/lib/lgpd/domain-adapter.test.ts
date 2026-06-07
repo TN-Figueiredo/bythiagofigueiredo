@@ -139,6 +139,44 @@ describe('BythiagoLgpdDomainAdapter', () => {
       expect(submissions[0]?.redaction_applied).toBe(true);
     });
 
+    it('includes newer-module data (playlists, youtube_notes, pipeline) in the export — BTF-077', async () => {
+      const { supabase, getUserById } = makeSupabase({
+        playlists: [{ id: 'pl1', created_by: 'u1' }],
+        playlist_snapshots: [{ id: 'ps1', created_by: 'u1' }],
+        youtube_notes: [{ id: 'yn1', author_id: 'u1', author_name: 'Me', text: 'ping fulano@x.com' }],
+        content_pipeline: [{ id: 'cp1', created_by: 'u1' }],
+        content_pipeline_history: [{ id: 'h1', changed_by: 'u1' }],
+      });
+      getUserById.mockResolvedValue({
+        data: { user: { id: 'u1', email: 'a@x.com' } },
+        error: null,
+      });
+
+      const adapter = new BythiagoLgpdDomainAdapter(supabase);
+      const bundle = await adapter.collectUserData('u1');
+
+      expect(bundle.playlists).toHaveLength(1);
+      expect(bundle.playlist_snapshots).toHaveLength(1);
+      expect(bundle.content_pipeline_created).toHaveLength(1);
+      expect(bundle.content_pipeline_assigned).toBeDefined();
+      expect(bundle.content_pipeline_history).toHaveLength(1);
+      // youtube_notes free-text is redacted for 3rd-party PII.
+      const notes = bundle.youtube_notes as Array<{ text_redacted: string; redaction_applied: boolean }>;
+      expect(notes[0]?.text_redacted).toContain('[REDACTED_EMAIL]');
+      expect(notes[0]?.redaction_applied).toBe(true);
+    });
+
+    it('scrubs youtube_notes.author_name during phase1 — BTF-077', async () => {
+      const { supabase, from, rpc, getUserById } = makeSupabase();
+      getUserById.mockResolvedValue({ data: { user: { id: 'u1', email: 'a@x.com' } }, error: null });
+      rpc.mockResolvedValue({ data: null, error: null });
+
+      const adapter = new BythiagoLgpdDomainAdapter(supabase);
+      await adapter.phase1Cleanup('u1');
+
+      expect(from.mock.calls.map((c) => c[0])).toContain('youtube_notes');
+    });
+
     it('returns empty arrays when user has no content', async () => {
       const { supabase, getUserById } = makeSupabase({});
       getUserById.mockResolvedValue({

@@ -148,6 +148,13 @@ export class BythiagoLgpdDomainAdapter implements ILgpdDomainAdapter {
       .update({ uploaded_by: null })
       .eq('uploaded_by', userId);
 
+    // BTF-077: youtube_notes.author_id auto-nulls via FK on phase3, but the
+    // denormalized author_name (NOT NULL) string persists — scrub it now.
+    await this.supabase
+      .from('youtube_notes')
+      .update({ author_name: '[deleted]' })
+      .eq('author_id', userId);
+
     // Notification cleanup (7th adapter)
     await this.supabase.from('notifications').delete().eq('user_id', userId);
     // CASCADE handles notification_deliveries
@@ -227,6 +234,12 @@ export class BythiagoLgpdDomainAdapter implements ILgpdDomainAdapter {
       notifications,
       notificationPreferences,
       pushSubscriptions,
+      playlists,
+      playlistSnapshots,
+      youtubeNotes,
+      pipelineCreated,
+      pipelineAssigned,
+      pipelineHistory,
     ] = await Promise.all([
       this.supabase.auth.admin.getUserById(userId),
       this.queryRows('blog_posts', 'owner_user_id', userId),
@@ -245,6 +258,13 @@ export class BythiagoLgpdDomainAdapter implements ILgpdDomainAdapter {
       this.queryRows('notifications', 'user_id', userId),
       this.queryRows('notification_preferences', 'user_id', userId),
       this.queryRows('push_subscriptions', 'user_id', userId),
+      // BTF-077: newer modules linked to the user (all FK ON DELETE SET NULL).
+      this.queryRows('playlists', 'created_by', userId),
+      this.queryRows('playlist_snapshots', 'created_by', userId),
+      this.queryRows('youtube_notes', 'author_id', userId),
+      this.queryRows('content_pipeline', 'created_by', userId),
+      this.queryRows('content_pipeline', 'assigned_to', userId),
+      this.queryRows('content_pipeline_history', 'changed_by', userId),
     ]);
 
     // BTF-022: ad_inquiries, newsletter_subscriptions, sent_emails, and
@@ -339,6 +359,17 @@ export class BythiagoLgpdDomainAdapter implements ILgpdDomainAdapter {
       notifications,
       notification_preferences: notificationPreferences,
       push_subscriptions: pushSubscriptions,
+      playlists,
+      playlist_snapshots: playlistSnapshots,
+      youtube_notes: youtubeNotes.map((row) => {
+        const r = (row ?? {}) as Record<string, unknown>;
+        const text = typeof r.text === 'string' ? r.text : null;
+        const red = redactThirdPartyPii(text);
+        return { ...r, text_redacted: red.text, redaction_applied: red.redacted };
+      }),
+      content_pipeline_created: pipelineCreated,
+      content_pipeline_assigned: pipelineAssigned,
+      content_pipeline_history: pipelineHistory,
     };
   }
 
