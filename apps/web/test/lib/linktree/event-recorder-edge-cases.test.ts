@@ -9,8 +9,32 @@ describe('buildLinktreeEvent edge cases', () => {
     ip: '189.1.2.3',
     userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)',
     referrer: null,
+    hasConsent: true,
     headers: new Headers(),
   }
+
+  it('persists raw ip / user-agent / referrer only with consent', () => {
+    const withConsent = buildLinktreeEvent({
+      ...base,
+      hasConsent: true,
+      referrer: 'https://google.com/search',
+    })
+    expect(withConsent.ip).toBe('189.1.2.3')
+    expect(withConsent.user_agent).toContain('iPhone')
+    expect(withConsent.referrer_url).toBe('https://google.com/search')
+
+    const noConsent = buildLinktreeEvent({
+      ...base,
+      hasConsent: false,
+      referrer: 'https://google.com/search',
+    })
+    // PII nulled, but aggregate fields (visitor_id, geo, referrer source) survive.
+    expect(noConsent.ip).toBeNull()
+    expect(noConsent.user_agent).toBeNull()
+    expect(noConsent.referrer_url).toBeNull()
+    expect(noConsent.visitor_id).toMatch(/^[a-f0-9]{64}$/)
+    expect(noConsent.referrer_source).toBe('search')
+  })
 
   it('handles empty user agent string', () => {
     const event = buildLinktreeEvent({ ...base, userAgent: '' })

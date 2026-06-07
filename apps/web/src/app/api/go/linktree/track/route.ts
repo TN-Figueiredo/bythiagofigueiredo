@@ -32,6 +32,7 @@ const TrackSchema = z.object({
   type: z.enum(['pageview', 'link_click']),
   key: z.string().max(200).optional(),
   siteId: z.string().uuid(),
+  hasConsent: z.boolean().optional().default(false),
 })
 
 export async function POST(request: Request): Promise<Response> {
@@ -61,6 +62,7 @@ export async function POST(request: Request): Promise<Response> {
     ip,
     userAgent,
     referrer,
+    hasConsent: parsed.hasConsent,
     headers: request.headers,
   }).catch((err) => {
     Sentry.captureException(err, { tags: { component: 'linktree-track' } })

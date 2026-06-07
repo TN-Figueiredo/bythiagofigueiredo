@@ -61,6 +61,8 @@ export interface LinktreeEventInput {
   ip: string
   userAgent: string
   referrer: string | null
+  /** LGPD: when false, raw ip/user-agent/referrer are not persisted. */
+  hasConsent: boolean
   headers: Headers
 }
 
@@ -80,8 +82,8 @@ interface LinktreeEventRow {
   referrer_url: string | null
   referrer_domain: string | null
   referrer_source: string
-  ip: string
-  user_agent: string
+  ip: string | null
+  user_agent: string | null
   language: string | null
 }
 
@@ -135,7 +137,10 @@ function classifyReferrerSource(referrer: string | null): string {
 }
 
 export function buildLinktreeEvent(input: LinktreeEventInput): LinktreeEventRow {
-  const { siteId, eventType, linkKey, ip, userAgent, referrer, headers } = input
+  const { siteId, eventType, linkKey, ip, userAgent, referrer, hasConsent, headers } = input
+  // visitor_id is a daily-rotating salted hash (pseudonym) needed for unique
+  // counting; computed from ip|ua regardless of consent. Raw ip/ua/referrer are
+  // only persisted with consent (LGPD Art. 7) — geo/device stay (coarse, aggregate).
   const visitorId = generateVisitorId(ip, userAgent)
   const bot = isBot(userAgent)
   const geo = resolveGeo(headers)
@@ -156,11 +161,11 @@ export function buildLinktreeEvent(input: LinktreeEventInput): LinktreeEventRow 
     country: geo.country,
     region: geo.region,
     city: geo.city,
-    referrer_url: referrer,
+    referrer_url: hasConsent ? referrer : null,
     referrer_domain: extractReferrerDomain(referrer),
     referrer_source: classifyReferrerSource(referrer),
-    ip,
-    user_agent: userAgent.length > 512 ? userAgent.slice(0, 512) : userAgent,
+    ip: hasConsent ? ip : null,
+    user_agent: hasConsent ? (userAgent.length > 512 ? userAgent.slice(0, 512) : userAgent) : null,
     language: headers.get('accept-language')?.split(',')[0] ?? null,
   }
 }

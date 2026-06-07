@@ -85,6 +85,16 @@ function readConsent(): CookieConsent | null {
   }
 }
 
+/**
+ * Lightweight, provider-free check for analytics consent. Safe to call from
+ * any client component (e.g. tracking hooks on pages outside the
+ * CookieBannerProvider). Returns false when consent was never granted or was
+ * revoked — callers must NOT fire analytics beacons when this is false.
+ */
+export function hasAnalyticsConsent(): boolean {
+  return readConsent()?.analytics === true
+}
+
 function writeConsent(next: CookieConsent) {
   if (!isBrowser()) return
   localStorage.setItem(CONSENT_STORAGE_KEY, JSON.stringify(next))
