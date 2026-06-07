@@ -1034,6 +1034,7 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
     color: variantColor(v.label, v.is_original),
     thumbUrl: v.blob_url ?? (v.is_original ? test.original_thumbnail_url : null),
     isOriginal: v.is_original,
+    titleText: v.title_text,
   }))
 
   // Build confTrend from progressive cycle confidence

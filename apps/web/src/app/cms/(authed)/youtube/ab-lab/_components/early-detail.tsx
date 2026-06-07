@@ -53,7 +53,7 @@ export function EarlyDetail({ view }: EarlyDetailProps) {
       label: v.label,
       color: v.color,
       thumbUrl: thumb?.thumbUrl ?? null,
-      titleText: view.videoTitle,
+      titleText: thumb?.titleText ?? view.videoTitle,
       ctr: null as null,
       isOriginal: thumb?.isOriginal ?? v.label === 'A',
     }

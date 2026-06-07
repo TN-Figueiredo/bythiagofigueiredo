@@ -405,6 +405,8 @@ export interface VariantThumb {
   color: string
   thumbUrl: string | null
   isOriginal: boolean
+  /** Per-variant title. null = use the parent video's original title. */
+  titleText: string | null
 }
 
 export interface VariantDbEntry {

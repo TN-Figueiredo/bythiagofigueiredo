@@ -17,10 +17,10 @@ const VARIANTS: FullChartVariant[] = [
 ]
 
 const THUMBS: VariantThumb[] = [
-  { label: 'A', color: VARIANT_COLORS.A, thumbUrl: null, isOriginal: true },
-  { label: 'B', color: VARIANT_COLORS.B, thumbUrl: null, isOriginal: false },
-  { label: 'C', color: VARIANT_COLORS.C, thumbUrl: null, isOriginal: false },
-  { label: 'D', color: VARIANT_COLORS.D, thumbUrl: null, isOriginal: false },
+  { label: 'A', color: VARIANT_COLORS.A, thumbUrl: null, isOriginal: true, titleText: null },
+  { label: 'B', color: VARIANT_COLORS.B, thumbUrl: null, isOriginal: false, titleText: null },
+  { label: 'C', color: VARIANT_COLORS.C, thumbUrl: null, isOriginal: false, titleText: null },
+  { label: 'D', color: VARIANT_COLORS.D, thumbUrl: null, isOriginal: false, titleText: null },
 ]
 
 const VARIANT_DB: VariantDbEntry[] = [
@@ -138,8 +138,8 @@ export const MOCK_WINNER_MINIMAL: AbTestWinnerView = {
     { label: 'B', color: VARIANT_COLORS.B, ctr: 0.052, impressions: 1200, clicks: 63, pBest: 0.93, pTop2: 0.93, linkCtr: 0.010, retention: 0.41 },
   ],
   variantThumbs: [
-    { label: 'A', color: VARIANT_COLORS.A, thumbUrl: null, isOriginal: true },
-    { label: 'B', color: VARIANT_COLORS.B, thumbUrl: null, isOriginal: false },
+    { label: 'A', color: VARIANT_COLORS.A, thumbUrl: null, isOriginal: true, titleText: null },
+    { label: 'B', color: VARIANT_COLORS.B, thumbUrl: null, isOriginal: false, titleText: null },
   ],
   variantDb: [
     { id: 'mock-min-var-a', label: 'A', is_original: true, blob_url: null },
@@ -192,8 +192,8 @@ export const MOCK_PLAYOFF_MINIMAL: AbTestPlayoffView = {
     { label: 'B', color: VARIANT_COLORS.B, ctr: 0.052, impressions: 1500, clicks: 78, pBest: 0.70, pTop2: 0.55, linkCtr: undefined, retention: undefined },
   ],
   variantThumbs: [
-    { label: 'A', color: VARIANT_COLORS.A, thumbUrl: null, isOriginal: true },
-    { label: 'B', color: VARIANT_COLORS.B, thumbUrl: null, isOriginal: false },
+    { label: 'A', color: VARIANT_COLORS.A, thumbUrl: null, isOriginal: true, titleText: null },
+    { label: 'B', color: VARIANT_COLORS.B, thumbUrl: null, isOriginal: false, titleText: null },
   ],
   variantDb: [
     { id: 'mock-pmin-var-a', label: 'A', is_original: true, blob_url: null },
@@ -230,8 +230,8 @@ export const MOCK_EARLY: AbTestActiveView = {
     { label: 'B', color: VARIANT_COLORS.B, ctr: 0, impressions: 0, clicks: 0, pBest: 0, pTop2: 0, linkCtr: undefined, retention: undefined },
   ],
   variantThumbs: [
-    { label: 'A', color: VARIANT_COLORS.A, thumbUrl: null, isOriginal: true },
-    { label: 'B', color: VARIANT_COLORS.B, thumbUrl: null, isOriginal: false },
+    { label: 'A', color: VARIANT_COLORS.A, thumbUrl: null, isOriginal: true, titleText: null },
+    { label: 'B', color: VARIANT_COLORS.B, thumbUrl: null, isOriginal: false, titleText: null },
   ],
   variantDb: [
     { id: 'mock-early-var-a', label: 'A', is_original: true, blob_url: null },
@@ -276,8 +276,8 @@ export const MOCK_ACTIVE_MINIMAL: AbTestActiveView = {
     { label: 'B', color: VARIANT_COLORS.B, ctr: 0.054, impressions: 800, clicks: 43, pBest: 0.65, pTop2: 0.65, linkCtr: undefined, retention: undefined },
   ],
   variantThumbs: [
-    { label: 'A', color: VARIANT_COLORS.A, thumbUrl: null, isOriginal: true },
-    { label: 'B', color: VARIANT_COLORS.B, thumbUrl: null, isOriginal: false },
+    { label: 'A', color: VARIANT_COLORS.A, thumbUrl: null, isOriginal: true, titleText: null },
+    { label: 'B', color: VARIANT_COLORS.B, thumbUrl: null, isOriginal: false, titleText: null },
   ],
   variantDb: [
     { id: 'mock-amin-var-a', label: 'A', is_original: true, blob_url: null },

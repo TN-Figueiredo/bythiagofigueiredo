@@ -133,9 +133,9 @@ export function VariantTable({ variants, metric, winnerId, leaderId, activeNow, 
                       )}
                     </span>
 
-                    {/* Title */}
+                    {/* Title — each variant shows its own title_text; original (null) falls back to the video title */}
                     <span className="truncate text-[12.5px] text-cms-text">
-                      {videoTitle ?? `Variante ${variant.label}`}
+                      {thumb?.titleText || videoTitle || `Variante ${variant.label}`}
                       {isOriginal && <span className="text-[11px] text-cms-text-dim"> · original</span>}
                     </span>
                   </span>

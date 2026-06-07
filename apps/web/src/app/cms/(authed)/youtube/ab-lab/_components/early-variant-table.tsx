@@ -86,9 +86,9 @@ export function EarlyVariantTable({ variants, videoTitle }: EarlyVariantTablePro
                     {variant.isOriginal ? 'Original' : `Variante ${variant.label}`}
                   </span>
                 </div>
-                {videoTitle && (
+                {(variant.titleText || videoTitle) && (
                   <div className="text-[11.5px] text-cms-text-dim whitespace-nowrap overflow-hidden text-ellipsis">
-                    {videoTitle}
+                    {variant.titleText || videoTitle}
                   </div>
                 )}
               </div>
