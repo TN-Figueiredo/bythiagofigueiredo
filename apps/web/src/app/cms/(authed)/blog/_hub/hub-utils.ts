@@ -113,6 +113,59 @@ export function isReadOnlyLane(lane: LaneId): lane is 'scheduled' | 'published' 
   return lane === 'scheduled' || lane === 'published'
 }
 
+/** Pure arrayMove (no @dnd-kit dependency in this util module). */
+function moveItem<T>(array: readonly T[], from: number, to: number): T[] {
+  const copy = [...array]
+  const [moved] = copy.splice(from, 1)
+  if (moved !== undefined) copy.splice(to, 0, moved)
+  return copy
+}
+
+/**
+ * Resolve which lane a drag `over` target belongs to.
+ * `overId` may be a lane id (dropped on the column) or a card id (dropped on a sibling).
+ */
+export function resolveLaneFromOver(overId: string, lanes: UnifiedLanes): LaneId | null {
+  if (LANE_DEFS.some((l) => l.id === overId)) return overId as LaneId
+  for (const lane of LANE_DEFS) {
+    if (lanes[lane.id].some((i) => i.id === overId)) return lane.id
+  }
+  return null
+}
+
+/**
+ * Compute the gap-based `sort_order` for a card dropped at `overId` within an
+ * already display-ordered target lane. Mirrors the proven pipeline-board strategy:
+ * only the moved row changes — siblings are never reindexed.
+ */
+export function computeNewSortOrder(
+  orderedTargetItems: ReadonlyArray<{ id: string; sort_order: number }>,
+  activeId: string,
+  overId: string,
+): number {
+  const oldIndex = orderedTargetItems.findIndex((i) => i.id === activeId)
+  const newIndex = orderedTargetItems.findIndex((i) => i.id === overId)
+
+  const reordered =
+    oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex
+      ? moveItem(orderedTargetItems, oldIndex, newIndex)
+      : [...orderedTargetItems]
+
+  const movedIdx = newIndex !== -1 ? newIndex : reordered.findIndex((i) => i.id === activeId)
+
+  if (reordered.length <= 1 || movedIdx === -1) {
+    const existing = orderedTargetItems.filter((i) => i.id !== activeId)
+    const last = existing[existing.length - 1]
+    return last ? last.sort_order + 1000 : 1000
+  }
+
+  const prev = movedIdx > 0 ? reordered[movedIdx - 1] : null
+  const next = movedIdx < reordered.length - 1 ? reordered[movedIdx + 1] : null
+  if (!prev) return next!.sort_order - 1000
+  if (!next) return prev.sort_order + 1000
+  return Math.floor((prev.sort_order + next.sort_order) / 2)
+}
+
 export const LOCALE_FLAGS: Record<string, string> = {
   'pt-BR': '\u{1F1E7}\u{1F1F7}',
   pt: '\u{1F1E7}\u{1F1F7}',

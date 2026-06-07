@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useDeferredValue, useState, useTransition } from 'react'
+import { useCallback, useDeferredValue, useMemo, useState, useTransition } from 'react'
 import { Kanban, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -12,7 +12,7 @@ import { EmptyState } from '../../_shared/empty-state'
 import { SectionErrorBoundary } from '../../_shared/section-error-boundary'
 import { AutoShareDialog } from '../../../_shared/social/auto-share-dialog'
 import { createPostFromPipeline, bulkPublish, bulkArchive, bulkDelete } from '../../actions'
-import { movePipelineItemToStage } from '../../../pipeline/actions'
+import { reorderPipelineItem } from '../../../pipeline/actions'
 import type { Provider } from '@tn-figueiredo/social'
 
 interface AutoShareState {
@@ -51,38 +51,35 @@ export function EditorialTab({
   const [, startTransition] = useTransition()
   const [autoShareState, setAutoShareState] = useState<AutoShareState | null>(null)
 
-  const localeFiltered = locale
-    ? pipelineData.filter((p) => {
-        if (locale === 'pt-BR' || locale === 'pt') return !!p.title_pt
-        if (locale === 'en') return !!p.title_en
-        return p.language === locale
-      })
-    : pipelineData
+  // Memoized so the reference stays stable across unrelated re-renders — the board
+  // keeps a local drag copy that resyncs whenever this prop changes by reference.
+  const filteredPipeline = useMemo(() => {
+    const localeFiltered = locale
+      ? pipelineData.filter((p) => {
+          if (locale === 'pt-BR' || locale === 'pt') return !!p.title_pt
+          if (locale === 'en') return !!p.title_en
+          return p.language === locale
+        })
+      : pipelineData
 
-  const filteredPipeline = deferredQuery
-    ? localeFiltered.filter((p) => {
-        const q = deferredQuery.toLowerCase()
-        return (
-          (p.title_pt?.toLowerCase().includes(q) ?? false) ||
-          (p.title_en?.toLowerCase().includes(q) ?? false) ||
-          p.code.toLowerCase().includes(q) ||
-          (p.hook?.toLowerCase().includes(q) ?? false)
-        )
-      })
-    : localeFiltered
+    if (!deferredQuery) return localeFiltered
+    const q = deferredQuery.toLowerCase()
+    return localeFiltered.filter(
+      (p) =>
+        (p.title_pt?.toLowerCase().includes(q) ?? false) ||
+        (p.title_en?.toLowerCase().includes(q) ?? false) ||
+        p.code.toLowerCase().includes(q) ||
+        (p.hook?.toLowerCase().includes(q) ?? false),
+    )
+  }, [pipelineData, locale, deferredQuery])
 
-  const handleMovePipelineItem = useCallback(
-    async (id: string, version: number, stage: string): Promise<boolean> => {
-      const result = await movePipelineItemToStage(id, version, stage)
-      startTransition(() => {
-        router.refresh()
-      })
-      if (!result.ok) {
-        return false
-      }
-      return true
-    },
-    [router, startTransition],
+  // Single entry point for DnD persistence: both cross-lane stage moves and
+  // within-lane reordering go through reorderPipelineItem (stage + sort_order).
+  // The board reconciles version/order from the result — no router.refresh needed.
+  const handleReorderPipelineItem = useCallback(
+    (id: string, version: number, input: { stage?: string; sort_order: number }) =>
+      reorderPipelineItem(id, version, input),
+    [],
   )
 
   const handlePromote = useCallback(
@@ -229,7 +226,7 @@ export function EditorialTab({
           defaultLocale={defaultLocale}
           siteTimezone={siteTimezone}
           siteId={siteId}
-          onMovePipelineItem={handleMovePipelineItem}
+          onReorderPipelineItem={handleReorderPipelineItem}
           onPromote={handlePromote}
           onBulkPublish={handleBulkPublish}
           onBulkArchive={handleBulkArchive}

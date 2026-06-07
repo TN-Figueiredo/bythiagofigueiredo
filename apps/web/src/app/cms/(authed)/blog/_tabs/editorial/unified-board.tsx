@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useId, useMemo, useOptimistic, useRef, useState, useTransition, KeyboardEvent } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState, KeyboardEvent } from 'react'
 import {
   DndContext,
   DragOverlay,
@@ -24,6 +24,9 @@ import {
   LANE_DEFS,
   buildUnifiedLanes,
   sortPipelineLane,
+  resolveLaneFromOver,
+  computeNewSortOrder,
+  isEditableLane,
 } from '../../_hub/hub-utils'
 import { KanbanLane } from './kanban-lane'
 import { PipelineCard, PipelineCardOverlay } from './pipeline-card'
@@ -32,8 +35,12 @@ import { BulkActionBar } from './bulk-action-bar'
 
 const DRAG_OVERLAY_ANIMATION: DropAnimation = { duration: 200, easing: 'ease' }
 const PUBLISHED_PAGE_SIZE = 30
-/** Lanes that accept cards dropped via DnD. `scheduled` and `published` are publish-flow only. */
-const DND_VALID_TARGETS = new Set(['idea', 'draft', 'ready'])
+
+export interface ReorderResult {
+  ok: boolean
+  error?: string
+  data?: { version: number; sort_order: number; stage: PipelineCardItem['stage'] }
+}
 
 interface UnifiedBoardProps {
   pipelineItems: PipelineCardItem[]
@@ -42,7 +49,11 @@ interface UnifiedBoardProps {
   defaultLocale: string
   siteTimezone: string
   siteId: string
-  onMovePipelineItem: (id: string, version: number, stage: string) => Promise<boolean>
+  onReorderPipelineItem: (
+    id: string,
+    version: number,
+    input: { stage?: string; sort_order: number },
+  ) => Promise<ReorderResult>
   onPromote: (
     siteId: string,
     pipelineItemId: string,
@@ -54,10 +65,6 @@ interface UnifiedBoardProps {
   onBulkDelete: (postIds: string[]) => Promise<void>
 }
 
-type PipelineAction =
-  | { type: 'move'; id: string; stage: 'idea' | 'draft' | 'ready' | 'scheduled' | 'published' | 'archived' }
-  | { type: 'remove'; id: string }
-
 export function UnifiedBoard({
   pipelineItems,
   strings,
@@ -65,7 +72,7 @@ export function UnifiedBoard({
   defaultLocale,
   siteTimezone,
   siteId,
-  onMovePipelineItem,
+  onReorderPipelineItem,
   onPromote,
   onBulkPublish,
   onBulkArchive,
@@ -78,22 +85,17 @@ export function UnifiedBoard({
     useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
   )
 
-  const [optPipeline, dispatchPipeline] = useOptimistic(
-    pipelineItems,
-    (state: PipelineCardItem[], action: PipelineAction) => {
-      if (action.type === 'move') {
-        return state.map((i) => i.id === action.id ? { ...i, stage: action.stage } : i)
-      }
-      if (action.type === 'remove') {
-        return state.filter((i) => i.id !== action.id)
-      }
-      return state
-    },
-  )
-
-  const [isPending, startTransition] = useTransition()
+  // Local drag model (mirrors pipeline-board): optimistic during drag, resynced from
+  // the server prop whenever it changes. Plain useState beats useOptimistic here because
+  // onDragOver fires many times per drag and needs synchronous, mid-drag updates.
+  const [localItems, setLocalItems] = useState<PipelineCardItem[]>(pipelineItems)
+  useEffect(() => {
+    setLocalItems(pipelineItems)
+  }, [pipelineItems])
 
   const [activeId, setActiveId] = useState<string | null>(null)
+  const snapshotRef = useRef<PipelineCardItem[]>([])
+  const originLaneRef = useRef<LaneId | null>(null)
 
   const [promotionTarget, setPromotionTarget] = useState<PipelineCardItem | null>(null)
   const [promotionLoading, setPromotionLoading] = useState(false)
@@ -103,7 +105,7 @@ export function UnifiedBoard({
   const [publishedPage, setPublishedPage] = useState(1)
 
   const { lanes, totalPublished } = useMemo(() => {
-    const raw = buildUnifiedLanes(optPipeline)
+    const raw = buildUnifiedLanes(localItems)
     return {
       lanes: {
         idea: sortPipelineLane(raw.idea, 'idea'),
@@ -114,39 +116,38 @@ export function UnifiedBoard({
       },
       totalPublished: raw.published.length,
     }
-  }, [optPipeline, publishedPage])
-
-  const itemLaneMap = useMemo(() => {
-    const map = new Map<string, LaneId>()
-    for (const [laneId, items] of Object.entries(lanes)) {
-      for (const item of items) {
-        map.set(item.id, laneId as LaneId)
-      }
-    }
-    return map
-  }, [lanes])
-
-  const findItemLane = useCallback(
-    (itemId: string): LaneId | null => {
-      return itemLaneMap.get(itemId) ?? null
-    },
-    [itemLaneMap],
-  )
-
-  const resolveTargetLane = useCallback(
-    (overId: string): LaneId | null => {
-      const laneDef = LANE_DEFS.find((l) => l.id === overId)
-      if (laneDef) return laneDef.id
-      return findItemLane(overId)
-    },
-    [findItemLane],
-  )
+  }, [localItems, publishedPage])
 
   const handleDragStart = useCallback(
     (event: DragStartEvent) => {
-      setActiveId(String(event.active.id))
+      const id = String(event.active.id)
+      setActiveId(id)
+      snapshotRef.current = localItems
+      originLaneRef.current = resolveLaneFromOver(id, lanes)
     },
-    [],
+    [localItems, lanes],
+  )
+
+  // Reparent the dragged card into the lane it's hovering, so it visually moves between
+  // columns during the drag. Only editable lanes (idea/draft/ready) participate.
+  const handleDragOver = useCallback(
+    (event: DragOverEvent) => {
+      const { active, over } = event
+      if (!over) return
+      const activeIdStr = String(active.id)
+      const overId = String(over.id)
+      if (activeIdStr === overId) return
+
+      const fromLane = resolveLaneFromOver(activeIdStr, lanes)
+      const toLane = resolveLaneFromOver(overId, lanes)
+      if (!fromLane || !toLane || fromLane === toLane) return
+      if (!isEditableLane(fromLane) || !isEditableLane(toLane)) return
+
+      setLocalItems((prev) =>
+        prev.map((i) => (i.id === activeIdStr ? { ...i, stage: toLane } : i)),
+      )
+    },
+    [lanes],
   )
 
   const handleDragEnd = useCallback(
@@ -154,16 +155,33 @@ export function UnifiedBoard({
       const { active, over } = event
       setActiveId(null)
 
-      if (!over) return
+      const activeIdStr = String(active.id)
+      const snapshot = snapshotRef.current
+      const originLane = originLaneRef.current
 
-      const itemId = String(active.id)
-      const fromLane = findItemLane(itemId)
-      const toLane = resolveTargetLane(String(over.id))
+      if (!over || !originLane) {
+        setLocalItems(snapshot)
+        return
+      }
 
-      if (!fromLane || !toLane || fromLane === toLane) return
+      const item = localItems.find((i) => i.id === activeIdStr)
+      if (!item) {
+        setLocalItems(snapshot)
+        return
+      }
 
-      // Bug 1: guard against invalid DnD targets (scheduled/published are publish-flow only)
-      if (!DND_VALID_TARGETS.has(toLane)) {
+      // Target lane: prefer the optimistic lane set by onDragOver, fall back to over.id.
+      let toLane = resolveLaneFromOver(activeIdStr, lanes) ?? originLane
+      if (toLane === originLane) {
+        const overLane = resolveLaneFromOver(String(over.id), lanes)
+        if (overLane) toLane = overLane
+      }
+
+      const laneChanged = toLane !== originLane
+
+      // Read-only targets (scheduled/published) go through the publish flow, not DnD.
+      if (!isEditableLane(toLane)) {
+        setLocalItems(snapshot)
         if (toLane === 'published') {
           toast.error('Use o fluxo de publicação para mover para Publicado')
         } else if (toLane === 'scheduled') {
@@ -173,34 +191,64 @@ export function UnifiedBoard({
         }
         return
       }
+      // Cards from read-only lanes are not draggable, but fail closed just in case.
+      if (!isEditableLane(originLane)) {
+        setLocalItems(snapshot)
+        return
+      }
 
-      const item = optPipeline.find((i) => i.id === itemId)
-      if (!item) return
+      const targetItems = lanes[toLane]
+      const overId = String(over.id)
+      const oldIndex = targetItems.findIndex((i) => i.id === activeIdStr)
+      const newIndex = targetItems.findIndex((i) => i.id === overId)
 
-      startTransition(() => {
-        dispatchPipeline({ type: 'move', id: itemId, stage: toLane })
+      // No-op same-lane drop (released on itself / no real move).
+      if (!laneChanged && (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex)) {
+        return
+      }
+
+      const newSortOrder = computeNewSortOrder(targetItems, activeIdStr, overId)
+      const snapshotItem = snapshot.find((i) => i.id === activeIdStr)
+      if (!laneChanged && newSortOrder === (snapshotItem?.sort_order ?? item.sort_order)) {
+        return
+      }
+
+      setLocalItems((prev) =>
+        prev.map((i) =>
+          i.id === activeIdStr ? { ...i, stage: toLane, sort_order: newSortOrder } : i,
+        ),
+      )
+
+      onReorderPipelineItem(activeIdStr, snapshotItem?.version ?? item.version, {
+        stage: laneChanged ? toLane : undefined,
+        sort_order: newSortOrder,
       })
-      onMovePipelineItem(itemId, item.version, toLane).then((ok) => {
-        if (!ok) {
+        .then((result) => {
+          if (!result.ok) {
+            setLocalItems(snapshotRef.current)
+            toast.error(result.error ?? strings?.common?.couldntMove ?? "Couldn't move")
+          } else if (result.data) {
+            const data = result.data
+            setLocalItems((prev) =>
+              prev.map((i) =>
+                i.id === activeIdStr
+                  ? { ...i, version: data.version, sort_order: data.sort_order, stage: data.stage }
+                  : i,
+              ),
+            )
+          }
+        })
+        .catch(() => {
+          setLocalItems(snapshotRef.current)
           toast.error(strings?.common?.couldntMove ?? "Couldn't move")
-          // router.refresh() is already called by the parent on failure, which resets optimistic state
-        }
-      }).catch(() => {
-        toast.error(strings?.common?.couldntMove ?? "Couldn't move")
-      })
+        })
     },
-    [
-      findItemLane,
-      resolveTargetLane,
-      optPipeline,
-      onMovePipelineItem,
-      strings,
-      dispatchPipeline,
-    ],
+    [localItems, lanes, onReorderPipelineItem, strings],
   )
 
   const handleDragCancel = useCallback(() => {
     setActiveId(null)
+    setLocalItems(snapshotRef.current)
   }, [])
 
   const boardRef = useRef<HTMLDivElement>(null)
@@ -219,10 +267,10 @@ export function UnifiedBoard({
 
   const handlePromoteClick = useCallback(
     (itemId: string) => {
-      const item = optPipeline.find((i) => i.id === itemId)
+      const item = localItems.find((i) => i.id === itemId)
       if (item) setPromotionTarget(item)
     },
-    [optPipeline],
+    [localItems],
   )
 
   const handlePromoteConfirm = useCallback(
@@ -232,9 +280,7 @@ export function UnifiedBoard({
       try {
         const result = await onPromote(siteId, promotionTarget.id, locale, scheduledFor)
         if (result.ok) {
-          startTransition(() => {
-            dispatchPipeline({ type: 'remove', id: promotionTarget.id })
-          })
+          setLocalItems((prev) => prev.filter((i) => i.id !== promotionTarget.id))
           toast.success(strings?.promotion?.promote ?? 'Promoted')
           setPromotionTarget(null)
         } else {
@@ -246,21 +292,21 @@ export function UnifiedBoard({
         setPromotionLoading(false)
       }
     },
-    [promotionTarget, siteId, onPromote, strings, startTransition, dispatchPipeline],
+    [promotionTarget, siteId, onPromote, strings],
   )
 
   const activeItem = useMemo(
-    () => activeId ? optPipeline.find((i) => i.id === activeId) ?? null : null,
-    [activeId, optPipeline],
+    () => (activeId ? localItems.find((i) => i.id === activeId) ?? null : null),
+    [activeId, localItems],
   )
 
   const getItemTitle = useCallback(
     (id: string | number): string => {
       const sid = String(id)
-      const item = optPipeline.find((i) => i.id === sid)
+      const item = localItems.find((i) => i.id === sid)
       return item?.title_pt ?? item?.title_en ?? (strings?.editorial?.untitled ?? 'Untitled')
     },
-    [optPipeline, strings],
+    [localItems, strings],
   )
 
   const getLaneTitle = useCallback(
@@ -268,14 +314,14 @@ export function UnifiedBoard({
       const sid = String(id)
       const laneDef = LANE_DEFS.find((l) => l.id === sid)
       if (laneDef) return strings?.lanes?.[laneDef.id] ?? laneDef.label
-      const itemLane = findItemLane(sid)
+      const itemLane = resolveLaneFromOver(sid, lanes)
       if (itemLane) {
         const def = LANE_DEFS.find((l) => l.id === itemLane)
         return def ? (strings?.lanes?.[def.id] ?? def.label) : itemLane
       }
       return sid
     },
-    [findItemLane, strings],
+    [lanes, strings],
   )
 
   const announcements = useMemo(() => ({
@@ -346,10 +392,11 @@ export function UnifiedBoard({
         collisionDetection={closestCorners}
         accessibility={{ announcements }}
         onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
       >
-        <div ref={boardRef} role="region" aria-label={strings?.tabs?.editorial ?? 'Blog editorial kanban'} aria-description={strings?.editorial?.laneShortcutHint ?? 'Alt+1 through Alt+5 to jump to lanes'} aria-busy={isPending} tabIndex={0} onKeyDown={handleBoardKeyDown} className="flex gap-3 overflow-x-auto pb-4">
+        <div ref={boardRef} role="region" aria-label={strings?.tabs?.editorial ?? 'Blog editorial kanban'} aria-description={strings?.editorial?.laneShortcutHint ?? 'Alt+1 through Alt+5 to jump to lanes'} aria-busy={activeId !== null} tabIndex={0} onKeyDown={handleBoardKeyDown} className="flex gap-3 overflow-x-auto pb-4">
           <div className="flex gap-3">
             {LANE_DEFS.map((lane, idx) => {
               const items = lanes[lane.id]

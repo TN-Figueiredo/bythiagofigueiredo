@@ -7,7 +7,7 @@ import Link from 'next/link'
 import { ArrowRightCircle, Link2, Music2 } from 'lucide-react'
 import type { PipelineCardItem } from '../../_hub/hub-types'
 import type { BlogHubStrings } from '../../_i18n/types'
-import { LOCALE_FLAGS, formatRelativeDate } from '../../_hub/hub-utils'
+import { LOCALE_FLAGS, formatRelativeDate, isReadOnlyLane } from '../../_hub/hub-utils'
 
 const PRIORITY_COLORS: Record<number, string> = {
   5: 'bg-red-500',
@@ -56,6 +56,10 @@ export const PipelineCard = memo(function PipelineCard({
   strings,
   onPromote,
 }: PipelineCardProps) {
+  // Cards in read-only lanes (scheduled/published) are not draggable — they go
+  // through the publish flow and act as links to their post editor instead.
+  const readOnly = isReadOnlyLane(laneId)
+
   const {
     attributes,
     listeners,
@@ -63,7 +67,7 @@ export const PipelineCard = memo(function PipelineCard({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: item.id })
+  } = useSortable({ id: item.id, disabled: readOnly })
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -83,7 +87,9 @@ export const PipelineCard = memo(function PipelineCard({
       style={style}
       {...attributes}
       {...listeners}
-      className="group relative rounded-lg border border-gray-800 bg-gray-900 px-2.5 py-2.5 transition-all hover:border-gray-600 hover:bg-gray-800/40 focus-visible:ring-1 focus-visible:ring-indigo-500/50 focus-visible:outline-none"
+      className={`group relative rounded-lg border border-gray-800 bg-gray-900 px-2.5 py-2.5 transition-all hover:border-gray-600 hover:bg-gray-800/40 focus-visible:ring-1 focus-visible:ring-indigo-500/50 focus-visible:outline-none ${
+        readOnly ? '' : 'cursor-grab select-none active:cursor-grabbing'
+      }`}
     >
       {/* Priority bar */}
       <div
@@ -109,20 +115,14 @@ export const PipelineCard = memo(function PipelineCard({
           )}
         </div>
 
-        {/* Title */}
-        {item.blog_post_id ? (
-          <Link
-            href={`/cms/blog/${item.blog_post_id}/edit`}
-            onClick={(e) => e.stopPropagation()}
-            className="mt-1.5 block text-[13px] font-medium leading-snug text-gray-200 line-clamp-2 hover:text-white"
-          >
-            {title}
-          </Link>
-        ) : (
-          <span className="mt-1.5 block text-[13px] font-medium leading-snug text-gray-200 line-clamp-2">
-            {title}
-          </span>
-        )}
+        {/* Title — links to the blog editor once graduated, else to the pipeline item */}
+        <Link
+          href={item.blog_post_id ? `/cms/blog/${item.blog_post_id}/edit` : `/cms/pipeline/items/${item.id}`}
+          onClick={(e) => e.stopPropagation()}
+          className="mt-1.5 block cursor-pointer text-[13px] font-medium leading-snug text-gray-200 line-clamp-2 hover:text-white"
+        >
+          {title}
+        </Link>
 
         {/* Hook */}
         {item.hook && (
