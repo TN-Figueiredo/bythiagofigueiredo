@@ -72,7 +72,8 @@ describe('Chart edge cases', () => {
         { k: 'B', v: 0, color: '#0f0' },
       ]
       const { container } = render(<Donut segments={segs} />)
-      expect(container.querySelectorAll('circle').length).toBe(2)
+      // Segment arcs carry stroke-dasharray; the background ring does not.
+      expect(container.querySelectorAll('circle[stroke-dasharray]').length).toBe(2)
     })
 
     it('handles all-zero segments without division by zero', () => {
@@ -135,10 +136,11 @@ describe('Chart edge cases', () => {
       expect(container.textContent).toContain('+0%')
     })
 
-    it('handles cur=0 prev=0 as 100%', () => {
-      // prev === 0 triggers special case: pct = 100
+    it('renders nothing when cur=0 and prev=0', () => {
+      // Delta short-circuits to null for 0/0 (no meaningful change to show).
       const { container } = render(<Delta cur={0} prev={0} />)
-      expect(container.textContent).toContain('+100%')
+      expect(container.textContent).toBe('')
+      expect(container.querySelector('span')).toBeFalsy()
     })
 
     it('handles fractional results rounding', () => {

@@ -18,7 +18,8 @@ describe('Donut', () => {
 
   it('renders one circle per segment', () => {
     const { container } = render(<Donut segments={segments} />)
-    const circles = container.querySelectorAll('circle')
+    // Segment arcs carry stroke-dasharray; the always-present background ring does not.
+    const circles = container.querySelectorAll('circle[stroke-dasharray]')
     expect(circles.length).toBe(3)
   })
 
@@ -43,13 +44,13 @@ describe('Donut', () => {
 
   it('handles empty segments', () => {
     const { container } = render(<Donut segments={[]} />)
-    const circles = container.querySelectorAll('circle')
+    const circles = container.querySelectorAll('circle[stroke-dasharray]')
     expect(circles.length).toBe(0)
   })
 
   it('handles single segment', () => {
     const { container } = render(<Donut segments={[{ k: 'All', v: 100, color: '#fff' }]} />)
-    const circles = container.querySelectorAll('circle')
+    const circles = container.querySelectorAll('circle[stroke-dasharray]')
     expect(circles.length).toBe(1)
   })
 
