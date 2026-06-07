@@ -1,13 +1,13 @@
 ---
 title: "Política de Privacidade"
-version: "1.1"
-effectiveDate: "2026-05-14"
+version: "1.2"
+effectiveDate: "2026-06-07"
 locale: "pt-BR"
 ---
 
 # Política de Privacidade
 
-**Versão 1.1 — em vigor desde 14 de maio de 2026.**
+**Versão 1.2 — em vigor desde 7 de junho de 2026.**
 
 Esta Política de Privacidade descreve como coletamos, usamos, armazenamos e protegemos seus dados pessoais quando você usa o site **bythiagofigueiredo.com** e serviços relacionados. Foi escrita em linguagem simples para ser compreensível por qualquer pessoa — sem jargão jurídico desnecessário — e atende aos requisitos da Lei Geral de Proteção de Dados (LGPD, Lei 13.709/2018) e do Regulamento Geral sobre a Proteção de Dados (GDPR, Regulamento UE 2016/679) para visitantes na União Europeia.
 
@@ -27,6 +27,8 @@ Coletamos apenas os dados estritamente necessários para cada finalidade. Detalh
 - **Conta de usuário (quando você se cadastra):** e-mail, senha (armazenada em hash bcrypt pelo Supabase Auth), data de criação, data do último login, locale preferido.
 - **Newsletter:** e-mail, data de inscrição, versão do texto de consentimento aceito, IP + user-agent no momento da inscrição (accountability LGPD Art. 9º). Após o envio, coletamos eventos de abertura (open tracking pixel), eventos de clique em links, IP e user-agent associados a cada interação — utilizados exclusivamente para métricas agregadas de desempenho da newsletter.
 - **Gestão de redes sociais (se você conectar contas):** tokens de autenticação OAuth (Meta/Facebook, Meta/Instagram, Google/YouTube) ou credenciais de sessão (Bluesky/AT Protocol), dados de perfil público da conta conectada, metadados de publicações criadas ou agendadas através da plataforma.
+- **Inteligência de canal YouTube (se você conectar um canal):** para canais conectados, coletamos métricas de desempenho de vídeos e **dados demográficos agregados da audiência** (faixa etária, gênero, geografia, termos de busca) obtidos da **YouTube Analytics API**, sem identificação individual de espectadores, usados para análise editorial e estratégia de conteúdo.
+- **Research / Pipeline (uso interno por editores):** itens de pesquisa de pauta, decisões editoriais e anotações de conteúdo, associados ao `user_id` do editor que os criou.
 - **Formulário de contato:** nome, e-mail, mensagem, IP + user-agent, timestamp.
 - **Conteúdo autoral (se você for editor/repórter):** posts de blog, campanhas, biografia, avatar, metadados de edição.
 - **Logs de auditoria:** ações administrativas (criar/editar/publicar conteúdo, convites) associadas ao seu `user_id`, com IP e user-agent.
@@ -49,6 +51,9 @@ Para cada categoria de dado, listamos a finalidade e a base legal da LGPD (Art. 
 | Telemetria de **performance** (Sentry Browser Tracing) e **Session Replay** | Métricas detalhadas de navegação e reprodução de sessão para debugging | Art. 7º I (consentimento — analytics) |
 | Rastreamento de newsletter (abertura, clique, IP) | Métricas agregadas de desempenho de campanhas | Art. 7º IX (legítimo interesse — analytics operacional) |
 | Gestão de redes sociais (Meta, YouTube, Bluesky) | Publicação e agendamento de conteúdo em plataformas de terceiros | Art. 7º I (consentimento — conexão OAuth explícita) |
+| Inteligência de canal YouTube (métricas + demografia agregada da audiência) | Análise de desempenho e estratégia de conteúdo | Art. 7º I (consentimento — conexão OAuth do canal) |
+| Research / Pipeline (organização editorial interna) | Planejamento e curadoria de pauta pelos editores | Art. 7º V (execução de contrato) |
+| E-mails transacionais (AWS SES) | Entrega de e-mails (confirmações, notificações de bounce/reclamação) | Art. 7º V (execução de contrato) |
 | Publicidade (Google AdSense) | Exibição de anúncios contextuais e personalizados | Art. 7º I (consentimento — opt-in via banner de cookies) |
 | Cookies funcionais | Sessão, preferências, CSRF | Art. 7º V (execução de contrato) |
 | Cookies de analytics/marketing | Métricas agregadas, personalização | Art. 7º I (consentimento) |
@@ -81,12 +86,13 @@ Compartilhamos dados estritamente necessários com os seguintes operadores, todo
 | Operador | Finalidade | Localização | Base de transferência |
 |----------|-----------|-------------|----------------------|
 | Supabase Inc. | Banco de dados + autenticação + storage | AWS sa-east-1 (São Paulo/BR) | Sem transferência internacional (BR→BR) |
+| Amazon Web Services, Inc. (SES) | Envio de e-mails transacionais; processamento de eventos de entrega (bounce/reclamação) | AWS sa-east-1 (São Paulo/BR) | Sem transferência internacional (BR→BR) |
 | Resend, Inc. | Envio de e-mails transacionais e de newsletter | EUA | Cláusulas Contratuais Padrão (SCCs, GDPR Art. 46(2)(c)) + DPA assinado |
 | Vercel Inc. | Hospedagem da aplicação Next.js (web hosting) | EUA | Cláusulas Contratuais Padrão (SCCs, GDPR Art. 46(2)(c)) + DPA assinado |
 | Sentry (Functional Software Inc.) | Telemetria de erros | EUA | Cláusulas Contratuais Padrão (SCCs, GDPR Art. 46(2)(c)) + DPA assinado |
 | Cloudflare Inc. | CAPTCHA (Turnstile) | EUA | Cláusulas Contratuais Padrão (SCCs, GDPR Art. 46(2)(c)) |
 | Google LLC (AdSense) | Exibição de anúncios; cookies de personalização de anúncios, comportamento de navegação, interesses inferidos | EUA | Cláusulas Contratuais Padrão (SCCs, GDPR Art. 46(2)(c)) + DPA assinado |
-| Google LLC (YouTube/OAuth) | Autenticação OAuth, dados de canal, metadados de vídeos para gestão de publicações sociais | EUA | Cláusulas Contratuais Padrão (SCCs, GDPR Art. 46(2)(c)) + DPA assinado |
+| Google LLC (YouTube/OAuth + Analytics) | Autenticação OAuth, dados de canal, metadados de vídeos e dados demográficos agregados da audiência (YouTube Analytics API) para gestão e inteligência de publicações sociais | EUA | Cláusulas Contratuais Padrão (SCCs, GDPR Art. 46(2)(c)) + DPA assinado |
 | Meta Platforms, Inc. (Facebook/Instagram) | Autenticação OAuth, dados de perfil, publicação e agendamento de conteúdo em Facebook e Instagram | EUA | Cláusulas Contratuais Padrão (SCCs, GDPR Art. 46(2)(c)) + DPA assinado |
 | Bluesky PBC (AT Protocol) | Autenticação de sessão, publicação de conteúdo na rede Bluesky | EUA | Cláusulas Contratuais Padrão (SCCs, GDPR Art. 46(2)(c)) |
 
@@ -103,7 +109,7 @@ Os dados tratados ficam armazenados em **São Paulo (Brasil)** no Supabase (AWS 
 | Cloudflare Inc. | EUA | Dados de CAPTCHA (token, IP) | SCCs |
 | Resend, Inc. | EUA | E-mail do destinatário, conteúdo de e-mails transacionais e newsletters | SCCs + DPA |
 | Google LLC (AdSense) | EUA | Cookies de anúncio, comportamento de navegação (somente com consentimento) | SCCs + DPA |
-| Google LLC (YouTube/OAuth) | EUA | Tokens OAuth, dados de canal, metadados de vídeos (somente com consentimento) | SCCs + DPA |
+| Google LLC (YouTube/OAuth + Analytics) | EUA | Tokens OAuth, dados de canal, metadados de vídeos e dados demográficos agregados da audiência (somente com consentimento) | SCCs + DPA |
 | Meta Platforms, Inc. | EUA | Tokens OAuth, dados de perfil, conteúdo de publicações (somente com consentimento) | SCCs + DPA |
 | Bluesky PBC | EUA | Credenciais de sessão, conteúdo de publicações (somente com consentimento) | SCCs |
 
@@ -123,6 +129,8 @@ Retemos cada categoria pelo prazo mínimo necessário à finalidade ou exigido p
 | Rastreamento de newsletter (aberturas, cliques, IP) | Anonimizados após **90 dias** via cron automatizado (IP → null, user-agent → null; eventos agregados preservados para analytics) |
 | Submissões do formulário de contato | Até 2 anos (anonimização automática semanal por cron); anonimização sob solicitação a qualquer momento |
 | E-mails enviados (`sent_emails`) | Purga automática após **90 dias** |
+| Inteligência de canal YouTube (métricas + demografia agregada) | Enquanto o canal permanecer conectado; excluída ao desconectar o canal ou encerrar a conta |
+| Research / Pipeline (pautas, decisões, anotações) | Enquanto a conta existir; `author_id`/`created_by` anonimizados na exclusão da conta |
 | Logs de auditoria | 5 anos (exigência regulatória para accountability) |
 | Consentimentos (`consents`) | Mantidos enquanto válidos + 5 anos após revogação (accountability) |
 | Telemetria Sentry | 30 dias |
@@ -251,6 +259,7 @@ Esta política pode ser atualizada para refletir mudanças legais, de serviço o
 - **Alterações materiais** (novas finalidades, novos suboperadores, novas bases legais) dispararão **re-prompt de consentimento** via banner de cookies e um e-mail de aviso para usuários autenticados.
 - **Versões anteriores** ficam arquivadas em `consent_texts` no banco, identificadas por `(category, locale, version)`. Você pode solicitar a versão vigente no momento do seu cadastro.
 - **Histórico de versões:**
+  - v1.2 — 2026-06-07 — adição do suboperador **Amazon Web Services, Inc. (SES)** para e-mails transacionais (sa-east-1/BR, sem transferência internacional); documentação da **Inteligência de canal YouTube** (métricas e dados demográficos agregados da audiência via YouTube Analytics API) e do módulo **Research / Pipeline**; atualização das finalidades, suboperadores e retenção correspondentes.
   - v1.1 — 2026-05-14 — adição de processadores: Google AdSense, Google/YouTube OAuth, Meta Platforms (Facebook/Instagram), Bluesky/AT Protocol; substituição de Brevo SAS por Resend, Inc.; documentação de rastreamento de newsletter (aberturas, cliques, IP com retenção de 90 dias); atualização da tabela de transferências internacionais (LGPD Art. 33); correção do prazo de anonimização de newsletter (de "imediata" para 90 dias).
   - v1.0 — 2026-04-16 — versão inicial.
 
@@ -275,6 +284,6 @@ Recomendamos que, antes de recorrer à autoridade, tente resolver a questão dir
 
 ---
 
-**Versão 1.1 — em vigor desde 14 de maio de 2026.**
+**Versão 1.2 — em vigor desde 7 de junho de 2026.**
 
 Em caso de conflito entre traduções, **prevalece a versão em português (pt-BR)**.

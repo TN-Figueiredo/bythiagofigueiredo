@@ -20,7 +20,10 @@ import {
 export const CONSENT_STORAGE_KEY = 'lgpd_consent_v1'
 export const ANALYTICS_CONSENT_MIRROR_KEY = 'cookie_analytics_consent'
 export const ANON_ID_STORAGE_KEY = 'lgpd_anon_id'
-export const CONSENT_VERSION = 1
+// Bump on material policy changes (new processors / purposes / legal bases) to
+// re-prompt consent. v2: privacy policy v1.2 — AWS SES, YouTube Intelligence,
+// Research disclosures (BTF-078/085).
+export const CONSENT_VERSION = 2
 
 export interface CookieConsent {
   functional: true
@@ -127,7 +130,9 @@ export function CookieBannerProvider({ children, initialOpen }: CookieBannerProv
     const stored = readConsent()
     setConsentState(stored)
     setHydrated(true)
-    if (initialOpen === undefined && !stored) {
+    // Re-prompt when there is no consent yet OR the stored consent predates the
+    // current version (material policy change requires fresh opt-in).
+    if (initialOpen === undefined && (!stored || stored.version < CONSENT_VERSION)) {
       setIsOpen(true)
     }
   }, [initialOpen])
