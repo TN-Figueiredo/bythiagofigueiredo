@@ -5,8 +5,18 @@ import { PILLARS } from '@/lib/pipeline/pillars'
 import { CHANNELS } from '@/lib/pipeline/channels'
 import { useVideoEditorState, useVideoEditorDispatch } from '../context'
 import { useVideoData } from '../data-context'
+import type { Version } from '../editor-model'
+import type { VideoLang } from '../types'
 
-export function IdeiaStage() {
+export interface IdeiaStageProps {
+  /** Design-handoff Version for the active lang (cur = versions[lang]). */
+  cur?: Version
+  lang?: VideoLang
+}
+
+// Props are the forward-compatible handoff contract; this body still reads context.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function IdeiaStage(_props: IdeiaStageProps = {}) {
   const state = useVideoEditorState()
   const dispatch = useVideoEditorDispatch()
   const data = useVideoData()

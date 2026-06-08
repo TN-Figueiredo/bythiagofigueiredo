@@ -8,14 +8,16 @@ import type { VideoEditorState } from '@/app/cms/(authed)/video/[id]/edit/types'
 
 const seed: VideoEditorState = {
   itemId: 'vid-1', code: 'V-A07', siteId: 'site-1', stage: 'idea', version: 1,
-  activeLang: 'pt', activeStage: 'ideia', focus: false, notes: false,
+  primaryLang: 'pt', activeLang: 'pt', activeStage: 'ideia', focus: false, notes: false,
   recordingOpen: false, handoffOpen: false, coworkOpen: false,
 }
+
+const emptyVer = { title: '', direction: '', siblings: [], logline: '', pillar: undefined, angles: '', framework: '', duration: '', location: '', recorded: '—', beats: [] }
 
 function shell(saveAll = vi.fn().mockResolvedValue(undefined), hasUnsaved = false) {
   const data = {
     ideia: { pt: { title: '', direction: '', siblings: [], logline: '', angles: '', framework: '' }, en: { title: '', direction: '', siblings: [], logline: '', angles: '', framework: '' } },
-    roteiro: { pt: null, en: null }, pillar: undefined, durationRange: undefined,
+    roteiro: { pt: null, en: null }, versions: { pt: emptyVer, en: emptyVer }, pillar: undefined, durationRange: undefined,
     saveIdeia: vi.fn(), saveTitle: vi.fn(), appendSiblings: vi.fn(), saveRoteiro: vi.fn(),
     hasUnsavedChanges: hasUnsaved, saveAll, autosaveState: 'saved' as const,
   }

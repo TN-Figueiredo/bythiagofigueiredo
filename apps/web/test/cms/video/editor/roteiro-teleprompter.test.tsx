@@ -9,7 +9,7 @@ import type { RoteiroContentV3 } from '@/lib/pipeline/roteiro-schemas'
 
 const seed: VideoEditorState = {
   itemId: 'vid-1', code: 'V-A07', siteId: 'site-1', stage: 'roteiro', version: 1,
-  activeLang: 'pt', activeStage: 'roteiro', focus: false, notes: false,
+  primaryLang: 'pt', activeLang: 'pt', activeStage: 'roteiro', focus: false, notes: false,
   recordingOpen: false, handoffOpen: false, coworkOpen: false,
 }
 

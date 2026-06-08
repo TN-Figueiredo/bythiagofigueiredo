@@ -2,18 +2,29 @@
 import { describe, it, expect } from 'vitest'
 import { render, fireEvent } from '@testing-library/react'
 import { VideoEditorProvider } from '@/app/cms/(authed)/video/[id]/edit/context'
+import { VideoDataProvider } from '@/app/cms/(authed)/video/[id]/edit/data-context'
 import { VideoEdBar } from '@/app/cms/(authed)/video/[id]/edit/ed-bar'
 import { VidStages } from '@/app/cms/(authed)/video/[id]/edit/vid-stages'
 import type { VideoEditorState } from '@/app/cms/(authed)/video/[id]/edit/types'
 
 const seed: VideoEditorState = {
   itemId: 'vid-1', code: 'V-A07', siteId: 'site-1', stage: 'gravacao', version: 1,
-  activeLang: 'pt', activeStage: 'roteiro', focus: false, notes: false,
+  primaryLang: 'pt', activeLang: 'pt', activeStage: 'roteiro', focus: false, notes: false,
   recordingOpen: false, handoffOpen: false, coworkOpen: false,
 }
 
+const emptyVer = { title: '', direction: '', siblings: [], logline: '', pillar: undefined, angles: '', framework: '', duration: '', location: '', recorded: '—', beats: [] }
+const stubData = {
+  ideia: { pt: { title: '', direction: '', siblings: [], logline: '', angles: '', framework: '' }, en: { title: '', direction: '', siblings: [], logline: '', angles: '', framework: '' } },
+  roteiro: { pt: null, en: null }, versions: { pt: emptyVer, en: emptyVer }, pillar: undefined, durationRange: undefined,
+}
+
 function wrap(state: VideoEditorState, node: React.ReactNode) {
-  return render(<VideoEditorProvider initialState={state}>{node}</VideoEditorProvider>)
+  return render(
+    <VideoEditorProvider initialState={state}>
+      <VideoDataProvider value={stubData as never}>{node}</VideoDataProvider>
+    </VideoEditorProvider>,
+  )
 }
 
 describe('VideoEdBar', () => {

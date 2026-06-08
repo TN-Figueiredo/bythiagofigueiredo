@@ -9,6 +9,7 @@ import type { PosBrief, ABDraft } from '@/lib/pipeline/video-schemas'
 import type { AbJoinFacts } from '@/lib/pipeline/video-ab-precondition'
 import { VideoEditorProvider } from './context'
 import { VideoDataProvider, type IdeiaPayload, type VideoData } from './data-context'
+import { toEditorModel } from './editor-model'
 import { EditorShell } from './editor-shell'
 import { useVideoSection } from './use-video-section'
 import { saveVideoTitle, advanceToRecorded as advanceToRecordedAction, publishVideo as publishVideoAction } from './actions'
@@ -188,9 +189,17 @@ export function VideoEditorClient({
     publish_en: publishEn.content ?? null,
   }), [postprodPt.content, postprodEn.content, publishPt.content, publishEn.content])
 
+  // Design-handoff editor model — derived from the live ideia/roteiro/metadata so
+  // stage components read `cur = versions[lang]` (editor-model.ts).
+  const versions = useMemo(
+    () => toEditorModel({ ideia, roteiro, pillar: initial.pillar, durationRange: initial.durationRange }),
+    [ideia, roteiro, initial.pillar, initial.durationRange],
+  )
+
   const data: VideoData = useMemo(() => ({
     ideia,
     roteiro,
+    versions,
     pillar: initial.pillar,
     durationRange: initial.durationRange,
     saveIdeia,
@@ -209,7 +218,7 @@ export function VideoEditorClient({
     publishVideo,
     coworkSubmit,
   }), [
-    ideia, roteiro, initial.pillar, initial.durationRange, saveIdeia, saveTitle, saveRoteiro, appendSiblings,
+    ideia, roteiro, versions, initial.pillar, initial.durationRange, saveIdeia, saveTitle, saveRoteiro, appendSiblings,
     anyDirty, anySaving, saveAll, sectionsContent, initial.abJoinFacts, initial.winnerVariantId,
     savePostprod, savePublish, advanceToRecorded, publishVideo, coworkSubmit,
   ])

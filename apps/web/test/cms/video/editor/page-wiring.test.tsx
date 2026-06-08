@@ -14,7 +14,7 @@ vi.mock('@/app/cms/(authed)/video/[id]/edit/use-video-section', () => ({
 
 const initialState: VideoEditorState = {
   itemId: 'vid-1', code: 'V-A07', siteId: 'site-1', stage: 'idea', version: 1,
-  activeLang: 'pt', activeStage: 'ideia', focus: false, notes: false,
+  primaryLang: 'pt', activeLang: 'pt', activeStage: 'ideia', focus: false, notes: false,
   recordingOpen: false, handoffOpen: false, coworkOpen: false,
 }
 

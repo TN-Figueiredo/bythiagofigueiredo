@@ -2,18 +2,36 @@
 
 import Link from 'next/link'
 import { ChevronLeft, Eye, Play } from 'lucide-react'
+import { toast } from 'sonner'
 import { WORKFLOWS } from '@/lib/pipeline/workflows'
+import { videoColumn, type VideoColumn } from '@/lib/pipeline/video-lifecycle'
 import { useVideoEditorState, useVideoEditorDispatch } from './context'
+import { useVideoData } from './data-context'
+import { presentLangs } from './editor-model'
+import { VidLang } from './_components/vid-lang'
+import { CoworkButton } from './_components/cowork-button'
+import type { VideoLang } from './types'
 
 function getVideoStageLabel(stage: string): string {
   const found = WORKFLOWS.video.find((s) => s.stage === stage)
   return found?.label_pt ?? stage
 }
 
+// Stage chip dot color, by kanban column — parity with the hub (video-hub.tsx COLUMNS).
+const COLUMN_COLOR: Record<VideoColumn, string> = {
+  idea: 'var(--text-muted)',
+  roteiro: 'var(--c-pipeline)',
+  gravacao: 'var(--warn)',
+  published: 'var(--c-links)',
+}
+
 export function VideoEdBar() {
   const state = useVideoEditorState()
   const dispatch = useVideoEditorDispatch()
+  const data = useVideoData()
   const stageLabel = getVideoStageLabel(state.stage)
+  const dotColor = COLUMN_COLOR[videoColumn(state.stage)]
+  const present = presentLangs(data.versions, state.primaryLang)
 
   return (
     <div className="ed-bar">
@@ -25,8 +43,19 @@ export function VideoEdBar() {
         <span className="eb-code">{state.code}</span>
       </div>
       <span className="grow" />
+      <VidLang
+        versions={data.versions}
+        present={present}
+        active={state.activeLang}
+        onSwitch={(l: VideoLang) => dispatch({ type: 'SET_LANG', lang: l })}
+        onAdd={(l: VideoLang) =>
+          toast.info('Versão ' + (l === 'pt' ? 'PT-BR' : 'EN'), {
+            description: 'Em breve — cada idioma tem roteiro próprio, não é tradução.',
+          })
+        }
+      />
       <span className="ed-status draft">
-        <span className="es-dot" />
+        <span className="es-dot" style={{ background: dotColor }} />
         {stageLabel}
       </span>
       <button
@@ -38,15 +67,7 @@ export function VideoEdBar() {
       >
         <Eye size={16} />
       </button>
-      <button
-        type="button"
-        className="ed-iconbtn"
-        title="Cowork"
-        aria-label="Cowork"
-        onClick={() => dispatch({ type: 'OPEN_OVERLAY', overlay: 'cowork' })}
-      >
-        ✦
-      </button>
+      <CoworkButton stage={state.activeStage} />
       <button type="button" className="ed-recbtn" onClick={() => dispatch({ type: 'OPEN_OVERLAY', overlay: 'recording' })}>
         <Play size={14} /> Modo Gravação
       </button>

@@ -2,12 +2,15 @@
 
 import type { ABDraft } from '@/lib/pipeline/video-schemas'
 import type { AbCtaState } from '@/lib/pipeline/video-ab-precondition'
+import type { Version } from '../editor-model'
 
 const AB_COLORS: Record<'A' | 'B' | 'C' | 'D', string> = {
   A: 'var(--c-pipeline)', B: 'var(--c-links)', C: 'var(--warn)', D: 'var(--accent)',
 }
 
 export interface PublicacaoStageProps {
+  /** Design-handoff Version for the active lang (cur = versions[lang]). */
+  cur?: Version
   draft: ABDraft
   cta: AbCtaState
   published: boolean

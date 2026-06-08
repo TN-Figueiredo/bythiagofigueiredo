@@ -75,14 +75,21 @@ function StageBody() {
     state.itemId,
   )
 
+  // `cur` is the design-handoff Version for the active lang (editor-model.ts). Stage
+  // bodies are verbatim ports that read `cur` + the existing save/nav callbacks; the
+  // current IdeiaStage/RoteiroStage read these off context, so `cur`/`lang` are passed
+  // as the forward-compatible contract the stage-rebuild agent migrates to.
+  const cur = data.versions[lang]
+
   return (
     <Suspense fallback={<div className="stage-skel" aria-hidden="true" />}>
       <div key={`${state.activeStage}-${state.activeLang}`} className="stage-fade">
-        {state.activeStage === 'ideia' && <IdeiaStage />}
-        {state.activeStage === 'roteiro' && <RoteiroStage />}
+        {state.activeStage === 'ideia' && <IdeiaStage cur={cur} lang={lang} />}
+        {state.activeStage === 'roteiro' && <RoteiroStage cur={cur} lang={lang} />}
         {state.activeStage === 'pos' && (
           recorded ? (
             <PosStage
+              cur={cur}
               beats={beats}
               brief={posBrief.success ? posBrief.data : null}
               activeLang={lang}
@@ -97,6 +104,7 @@ function StageBody() {
         {state.activeStage === 'publicacao' && (
           recorded ? (
             <PublicacaoStage
+              cur={cur}
               draft={abParsed.success ? abParsed.data : EMPTY_AB_DRAFT}
               cta={cta}
               published={published}
@@ -210,7 +218,7 @@ export function EditorShell() {
 
   return (
     <div
-      className={`video-editor staged-editor vid-ed${published ? ' vid-ro' : ''}`}
+      className={`fade-in vid-ed${published ? ' vid-ro' : ''}`}
       style={{ display: 'flex', flexDirection: 'column', height: '100%', ['--ed-bar-h' as string]: edBarH }}
     >
       <div ref={topRef}>
@@ -222,10 +230,8 @@ export function EditorShell() {
           </div>
         )}
       </div>
-      <div className={`ed-canvas content${state.focus ? ' focus' : ''}`} role="main">
-        <div className="ed-doc">
-          <StageBody />
-        </div>
+      <div role="main" style={{ flex: 1, minHeight: 0 }}>
+        <StageBody />
       </div>
       <FocusExit />
       <VideoOverlays />

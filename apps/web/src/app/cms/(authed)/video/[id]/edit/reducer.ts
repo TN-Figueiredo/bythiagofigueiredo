@@ -44,6 +44,7 @@ export function initialFromDetail(seed: DetailSeed): VideoEditorState {
     siteId: seed.siteId,
     stage: seed.stage,
     version: seed.version,
+    primaryLang: seed.primaryLang,
     activeLang: seed.primaryLang,
     activeStage: OPEN_AT(seed.stage) as VideoStage,
     focus: false,

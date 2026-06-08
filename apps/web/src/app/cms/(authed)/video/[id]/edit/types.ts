@@ -9,6 +9,7 @@ export interface VideoEditorState {
   siteId: string
   stage: string            // DB workflow token (idea/roteiro/gravacao/edicao/pos_producao/scheduled/published)
   version: number          // content_pipeline.version (optimistic lock)
+  primaryLang: VideoLang   // the video's primary language (always a present version)
   activeLang: VideoLang
   activeStage: VideoStage
   focus: boolean

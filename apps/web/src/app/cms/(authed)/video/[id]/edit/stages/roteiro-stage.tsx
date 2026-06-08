@@ -8,8 +8,18 @@ import type { RoteiroContentV3 } from '@/lib/pipeline/roteiro-schemas'
 import { useVideoEditorState, useVideoEditorDispatch } from '../context'
 import { useVideoData } from '../data-context'
 import { RoteiroBeat } from './roteiro-beat'
+import type { Version } from '../editor-model'
+import type { VideoLang } from '../types'
 
-export function RoteiroStage() {
+export interface RoteiroStageProps {
+  /** Design-handoff Version for the active lang (cur = versions[lang]). */
+  cur?: Version
+  lang?: VideoLang
+}
+
+// Props are the forward-compatible handoff contract; this body still reads context.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function RoteiroStage(_props: RoteiroStageProps = {}) {
   const state = useVideoEditorState()
   const dispatch = useVideoEditorDispatch()
   const data = useVideoData()

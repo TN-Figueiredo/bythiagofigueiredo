@@ -8,13 +8,14 @@ import type { VideoEditorState } from '@/app/cms/(authed)/video/[id]/edit/types'
 
 const make = (over: Partial<VideoEditorState> = {}): VideoEditorState => ({
   itemId: 'vid-1', code: 'V-A07', siteId: 'site-1', stage: 'gravacao', version: 1,
-  activeLang: 'pt', activeStage: 'roteiro', focus: false, notes: false,
+  primaryLang: 'pt', activeLang: 'pt', activeStage: 'roteiro', focus: false, notes: false,
   recordingOpen: false, handoffOpen: false, coworkOpen: false, ...over,
 })
 
+const emptyVer = { title: '', direction: '', siblings: [], logline: '', pillar: undefined, angles: '', framework: '', duration: '', location: '', recorded: '—', beats: [] }
 const stubData = {
   ideia: { pt: { title: '', direction: '', siblings: [], logline: '', angles: '', framework: '' }, en: { title: '', direction: '', siblings: [], logline: '', angles: '', framework: '' } },
-  roteiro: { pt: null, en: null }, pillar: undefined, durationRange: undefined,
+  roteiro: { pt: null, en: null }, versions: { pt: emptyVer, en: emptyVer }, pillar: undefined, durationRange: undefined,
   saveIdeia: vi.fn(), saveTitle: vi.fn(), appendSiblings: vi.fn(), saveRoteiro: vi.fn(),
   hasUnsavedChanges: false, saveAll: vi.fn().mockResolvedValue(undefined), autosaveState: 'saved' as const,
 }

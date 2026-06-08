@@ -1,6 +1,6 @@
 export default function Loading() {
   return (
-    <div className="video-editor staged-editor" aria-busy="true">
+    <div className="vid-ed" aria-busy="true">
       <div className="ed-bar" style={{ opacity: 0.4 }} />
       <div className="stage-skel" aria-hidden="true">
         <div className="skel-line kicker" />

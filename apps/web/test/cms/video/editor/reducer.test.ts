@@ -8,6 +8,7 @@ const base: VideoEditorState = {
   siteId: 'site-1',
   stage: 'idea',
   version: 3,
+  primaryLang: 'pt',
   activeLang: 'pt',
   activeStage: 'ideia',
   focus: false,

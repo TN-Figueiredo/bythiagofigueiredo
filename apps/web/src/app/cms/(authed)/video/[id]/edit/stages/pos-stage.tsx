@@ -3,8 +3,11 @@
 import { useMemo } from 'react'
 import type { RoteiroBeatV3, PosBrief } from '@/lib/pipeline/video-schemas'
 import { deriveMomentos, deriveBroll } from '@/lib/pipeline/video-pos-derive'
+import type { Version } from '../editor-model'
 
 export interface PosStageProps {
+  /** Design-handoff Version for the active lang (cur = versions[lang]). */
+  cur?: Version
   beats: RoteiroBeatV3[]
   brief: PosBrief | null
   activeLang: 'pt' | 'en'

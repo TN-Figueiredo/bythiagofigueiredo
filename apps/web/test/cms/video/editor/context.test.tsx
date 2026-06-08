@@ -10,7 +10,7 @@ import type { VideoEditorState } from '@/app/cms/(authed)/video/[id]/edit/types'
 
 const seed: VideoEditorState = {
   itemId: 'vid-1', code: 'V-A07', siteId: 'site-1', stage: 'idea', version: 1,
-  activeLang: 'pt', activeStage: 'ideia', focus: false, notes: false,
+  primaryLang: 'pt', activeLang: 'pt', activeStage: 'ideia', focus: false, notes: false,
   recordingOpen: false, handoffOpen: false, coworkOpen: false,
 }
 

@@ -5,6 +5,7 @@ import type { PillarId } from '@/lib/pipeline/pillars'
 import type { RoteiroContentV3 } from '@/lib/pipeline/roteiro-schemas'
 import type { PosBrief, ABDraft } from '@/lib/pipeline/video-schemas'
 import type { AbJoinFacts } from '@/lib/pipeline/video-ab-precondition'
+import type { EditorModel } from './editor-model'
 
 export interface IdeiaPayload {
   title: string
@@ -18,6 +19,12 @@ export interface IdeiaPayload {
 export interface VideoData {
   ideia: { pt: IdeiaPayload; en: IdeiaPayload }
   roteiro: { pt: RoteiroContentV3 | null; en: RoteiroContentV3 | null }
+  /**
+   * Design-handoff editor model: `{ pt, en }` Versions derived from the live
+   * ideia/roteiro/metadata above (see editor-model.ts). `cur = versions[activeLang]`.
+   * Stage components consume `cur` so they stay verbatim ports of the handoff.
+   */
+  versions: EditorModel
   pillar: PillarId | undefined
   durationRange: string | undefined
   saveIdeia: (lang: 'pt' | 'en', patch: Partial<IdeiaPayload>) => Promise<void>
