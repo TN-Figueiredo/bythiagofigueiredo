@@ -34,6 +34,16 @@ Each section update sends:
 Shared sections (`ideia`, `brolls`, `images`) use key suffix `_shared`.
 Language-specific sections use `_pt` or `_en`.
 
+### Concurrency & validation (IMPORTANT)
+
+| Operation | Endpoint | Version control | Body requirements |
+|-----------|----------|-----------------|-------------------|
+| Item PATCH | `PATCH /items/:id` | `X-Expected-Version: <item.version>` header (409 on mismatch) | full-object replace for `format_metadata` |
+| Single-section PATCH | `PATCH /items/:id/sections/:section` | `X-Expected-Version: <item.version>` header **AND** section `rev` in the body | `{ content, rev, source?, modified_by? }` — 409 on mismatch of either |
+| Batch sections | `POST /items/batch-sections` | **no version header** | `{ updates: [{ item_id, section, lang, content, source }] }` (1–50 updates) |
+
+**Section content is NOT validated by the API.** The API stores whatever JSON you send. The shapes documented in this file (e.g. `IdeiaSectionSchema`, `RoteiroContentV3`, `PosBriefSchema`, `ABDraftSchema`) are the **contract** — emit them exactly. A malformed shape will not 4xx; it will simply render wrong (or be silently migrated/ignored) in the CMS.
+
 ---
 
 ## Formatação Rich Text (Tiptap)
@@ -95,7 +105,64 @@ Sem H2, sem underline, sem task lists, sem callout/toggle, sem text align, sem h
 
 ---
 
-## Section: `ideia` (shared)
+## Section: `ideia` (sharedness depends on format)
+
+> **Per-format sharedness (IMPORTANT — drives the section key):**
+> - **video** → ideia is **PER-LANGUAGE**. `FORMAT_SHARED_SECTIONS.video` is empty, so the key is `ideia_pt` / `ideia_en` (one per language). The video shape is `IdeiaSectionSchema` (`.strict()`) documented immediately below — it is NOT the `{premise, body, …}` shape.
+> - **blog_post / newsletter / course / campaign** → ideia is **SHARED** → key is `ideia_shared`. These use the `{premise, body, angle, vvs, cross_refs}` shape documented further below.
+>
+> Pick the shape by the item's `format`. Sending the blog `{premise,…}` shape to a video ideia will be **rejected by `.strict()`** (unknown keys), and vice-versa.
+
+### VIDEO ideia (`ideia_pt` / `ideia_en`) — `IdeiaSectionSchema` (`.strict()`)
+
+```json
+{
+  "title": "Por que saí do Canadá depois de 4 anos",
+  "direction": "Ensaio confessional em primeira pessoa. Abrir com a virada emocional (nunca me senti em casa), depois reconstruir a linha do tempo até a decisão de voltar. Tom íntimo, sem dramatização.",
+  "siblings": [
+    "Investigação fria: dados de custo de vida + impostos que tornaram a permanência insustentável.",
+    "Carta para quem está saindo do Brasil: o que eu queria ter sabido antes de emigrar."
+  ],
+  "logline": "Um relato honesto sobre por que 4 anos no exterior terminaram numa passagem de volta — e o que isso ensina sobre pertencimento.",
+  "angles": "Frontal + B-Roll",
+  "framework": "Hook → Conflito → Reviravolta → CTA"
+}
+```
+
+| Campo | Tipo | Notas |
+|-------|------|-------|
+| `title` | string ≤500 | Título de trabalho da ideia |
+| `direction` | string ≤4000 | **A direção criativa ATIVA** — a abordagem atualmente escolhida para o vídeo |
+| `siblings` | string[] ≤20 (cada ≤500) | **As direções ALTERNATIVAS** — o editor pode trocar uma delas para o campo `direction` |
+| `logline` | string ≤1000 | Frase-resumo do vídeo |
+| `angles` | string ≤200 | Enquadramentos/ângulos planejados |
+| `framework` | string ≤200 | Estrutura narrativa (Hook → … → CTA) |
+
+> Produção (pilar, faixa de duração, data de gravação) **NÃO** vive aqui — vive em `format_metadata` (ver "Video — format_metadata").
+
+#### Direction-swap (como dar "3 novas direções" ou trocar a ativa)
+
+- **"Me dá 3 novas direções"** → escreva 3 strings em `siblings` (pode manter `direction` como está, ou esvaziá-la se ainda não há uma ativa).
+- **"Use a direção 2"** / definir a direção ativa → mova o texto escolhido para `direction` **e** mova a `direction` anterior de volta para `siblings` (nada se perde). `siblings` = pool de alternativas; `direction` = a escolhida.
+
+Exemplo de swap (promover sibling[0] e arquivar a antiga):
+```json
+{
+  "title": "Por que saí do Canadá depois de 4 anos",
+  "direction": "Investigação fria: dados de custo de vida + impostos que tornaram a permanência insustentável.",
+  "siblings": [
+    "Ensaio confessional em primeira pessoa. Abrir com a virada emocional, depois reconstruir a linha do tempo.",
+    "Carta para quem está saindo do Brasil: o que eu queria ter sabido antes de emigrar."
+  ],
+  "logline": "Um relato honesto sobre por que 4 anos no exterior terminaram numa passagem de volta.",
+  "angles": "Frontal + B-Roll",
+  "framework": "Hook → Conflito → Reviravolta → CTA"
+}
+```
+
+---
+
+### BLOG / NEWSLETTER / COURSE / CAMPAIGN ideia (`ideia_shared`)
 
 ```json
 {
@@ -175,10 +242,13 @@ Ao gerar o draft, insira placeholders de imagem usando markdown padrão com o `r
 
 ---
 
-## Section: `roteiro` (per-lang)
+## Section: `roteiro` (per-lang) — `RoteiroContentV3`
+
+**Modelo CANÔNICO = v3.** Roteiros v1/v2 antigos são auto-migrados na leitura (`readRoteiro`), mas **Cowork DEVE emitir v3 nativamente** — nunca o `{number,label,text+tags,status}` v2 nem a "Tag Syntax" antiga. Não existem mais os statuses `DRAFT`/`REVIEW`/`APPROVED`; status de beat é apenas `PENDING` | `DONE`.
 
 ```json
 {
+  "version": 3,
   "meta": {
     "canal": "YouTube",
     "formato": "Vlog / Ensaio",
@@ -189,40 +259,86 @@ Ao gerar o draft, insira placeholders de imagem usando markdown padrão com o `r
   },
   "beats": [
     {
-      "number": 1,
-      "label": "Hook — Abrir com vulnerabilidade",
-      "text": "[DIRECTION: calmo, próximo da câmera, sem drama]\n> \"Eu morei quatro anos no Canadá e nunca me senti em casa.\"\n[PAUSE 0.8s]\n- Olhar direto para câmera\n- Não gesticular\n[VISUAL: Close-up, profundidade rasa, luz natural suave]",
-      "status": "DRAFT"
+      "idx": 0,
+      "name": "Hook — Abrir com vulnerabilidade",
+      "status": "PENDING",
+      "duration": 24,
+      "tone": "Calmo, próximo da câmera, sem drama",
+      "script": [
+        { "type": "line", "text": "Eu morei quatro anos no Canadá e nunca me senti em casa.", "key": true },
+        { "type": "pause", "duration": 0.8 },
+        { "type": "line", "text": "E demorei pra admitir o porquê." },
+        { "type": "vis", "text": "Close-up, profundidade rasa, luz natural suave; montagem de fotos do apartamento vazio" },
+        { "type": "ed", "text": "Mic lav/fone + anti-vento · power bank · 30GB+ livres no cartão" }
+      ]
     }
   ]
 }
 ```
 
-**Nota:** O campo `text` dos beats usa um parser próprio (`parseScriptTags`) — NÃO usa Tiptap. Não enviar markdown rich text nos beats; usar a tag syntax abaixo.
+### Estrutura
 
-### Tag Syntax (inline no campo `text` dos beats)
+| Campo | Tipo | Notas |
+|-------|------|-------|
+| `version` | literal `3` | **Obrigatório** — marca v3 |
+| `meta.canal` | string? | Canal (ex. "YouTube") |
+| `meta.formato` | string? | Formato editorial |
+| `meta.angulos` | string? | Ângulos/enquadramentos |
+| `meta.duracao` | string? | Duração-alvo textual (ex. "12-15 min") |
+| `meta.framework` | string? | Estrutura narrativa |
+| `meta.fonte_vvs` | string? | Origem da ideia |
+| `beats[].idx` | int ≥0 | Índice 0-based, sequencial |
+| `beats[].name` | string (min 1) | Nome do beat |
+| `beats[].status` | `PENDING` \| `DONE` | Default `PENDING` |
+| `beats[].duration` | int ≥0 (s)? | Duração-alvo do beat em segundos |
+| `beats[].tone` | string? | Direção de performance/tom do beat inteiro |
+| `beats[].script` | ScriptLine[] | Linhas do beat (união discriminada por `type`) |
 
-| Tag | Uso |
-|-----|-----|
-| `[DIRECTION: desc]` | Direção de performance (postura, energia, olhar, pacing) |
-| `[VISUAL: desc]` | Instrução de câmera/enquadramento |
-| `[B-ROLL: desc]` | Referência a footage de B-Roll |
-| `[CORTE: desc]` | Instrução de corte/edit point |
-| `[OVERLAY: desc]` | Text overlay ou lower third |
-| `[TRANS: desc]` | Transição entre cenas/beats |
-| `[SFX: desc]` | Efeito sonoro |
-| `[PAUSE Xs]` ou `[PAUSA Xs]` | Pausa cronometrada |
+### `script[]` — união discriminada por `type`
 
-### Formatação dentro de beats
+| `type` | Forma | Significado |
+|--------|-------|-------------|
+| `line` | `{ "type":"line", "text": string, "key"?: boolean }` | **FALADO para a câmera** — o teleprompter; exatamente o que o host lê em voz alta. `key:true` marca um momento-âncora/chave. |
+| `pause` | `{ "type":"pause", "duration": number }` | Pausa/respiro cronometrado, em segundos (0–30). |
+| `vis` | `{ "type":"vis", "text": string }` | **Cue de B-roll / visual** — mostrado ao editor, **NÃO é falado**. |
+| `ed` | `{ "type":"ed", "text": string }` | **Nota só do editor** — escondida atrás do toggle "Notas do editor". **NÃO é falada, NÃO aparece no teleprompter.** |
+| `dir` | `{ "type":"dir", "text": string }` | Direção de performance (forward-compat; também pode usar `beat.tone`). |
 
-- **Narração falada**: Use blockquote `> "Texto que será falado"`
-- **Itens de ação**: Use bullets `- Ação específica`
-- **NÃO** usar markdown bold `**texto**` ao redor de tags
-- **NÃO** inventar tags fora da lista acima
-- Tags são sempre MAIÚSCULAS e em inglês (exceto PAUSA como alias de PAUSE)
+> **Cadência de leitura ≈ 2.1 palavras/seg.** Estimativa de duração de um beat ≈ `ceil(palavras_em_lines / 2.1 + soma(pause.duration))`. Só linhas `line` contam palavras.
 
-### Beat statuses válidos
-`DRAFT`, `REVIEW`, `APPROVED`, `DONE`
+### REGRA: "Falado vs Notas do editor" (crítica)
+
+O teleprompter mostra **apenas** as linhas `line`. Tudo que não é a fala literal do host tem um tipo próprio:
+
+- **`line`** — SOMENTE as palavras exatas que o host diz para a câmera.
+- **`ed`** — equipamento / kit / logística / timeline de captação / planejamento de shots. Nunca é falado.
+- **`vis`** — cue de b-roll / visual (o que o editor deve mostrar).
+- **`dir`** (ou `beat.tone`) — performance / tom / energia / postura.
+- **`pause`** — silêncios cronometrados.
+
+**Exemplos de reclassificação (texto realista):**
+
+```json
+{ "type": "ed",   "text": "Mic lav/fone + anti-vento · power bank · 30GB+ livres no cartão" }
+```
+→ é kit/equipamento, logística → `ed` (nunca `line`).
+
+```json
+{ "type": "ed",   "text": "6:15 chega → grava HOOK | 6:30–7:50 entrevistas | 8:00 b-roll da praça" }
+```
+→ é uma timeline de captação/planejamento → `ed`.
+
+```json
+{ "type": "line", "text": "Eu morei quatro anos no Canadá e nunca me senti em casa.", "key": true }
+```
+→ é uma frase de hook realmente falada para a câmera → `line` com `key:true`.
+
+```json
+{ "type": "vis",  "text": "Montagem de fotos do apartamento vazio, Ken Burns lento" }
+```
+→ é o que o editor deve mostrar, não algo dito → `vis`.
+
+**Reclassificação obrigatória:** um beat que é "quase só notas e quase nenhuma fala" está modelado errado — separe: o equipamento/logística/timeline vira `ed`, os cues visuais viram `vis`, o tom vira `dir`/`tone`, e **as frases ditas para a câmera viram `line`s**. Se nada é falado, o beat não tem teleprompter (e tudo bem) — mas não enfie fala dentro de `ed`/`vis`.
 
 ---
 
@@ -286,11 +402,58 @@ para controle individual de `captured`.
 
 ---
 
-## Section: `postprod` (per-lang) — DaVinci Timeline View
+## Section: `postprod` (per-lang) — `PosBriefSchema` (CANONICAL: `kind:'brief'`)
 
-This is the **timeline-native** format that powers the DaVinci Resolve-like timeline UI. It describes clips on named tracks (V1-V7 video, A1-A6 audio) with start/end times in seconds, organized per beat.
+The canonical `postprod` shape is a **lightweight brief for the editor** — `PosBriefSchema` (`.strict()`). It is NOT a multi-track timeline. Cowork writes a `kind:'brief'` object:
 
-**IMPORTANT:** This section MUST be written alongside or after `postprod_scenes`. While `postprod_scenes` captures editorial intent (music choice, SFX placement, narrative), `postprod` maps that intent onto a concrete multi-track timeline. Both sections should be consistent.
+```json
+{
+  "kind": "brief",
+  "deliverables": {
+    "editor": "Equipe externa / você mesmo",
+    "deadline": "2026-07-10",
+    "turnaround": "5 dias úteis",
+    "drive": "/Projeto-Canada/EDIT",
+    "energy": "Íntima na abertura, sobe no meio, calma no CTA",
+    "references": [
+      "https://youtu.be/exemplo-ritmo",
+      "Color grade quente, levemente dessaturado"
+    ]
+  },
+  "style": [
+    { "k": "Color grade", "v": "Warm, levemente dessaturado" },
+    { "k": "Transições", "v": "Dissolve + jump cut mix" },
+    { "k": "Legendas", "v": "Estilo Fusion, fundo translúcido" }
+  ],
+  "ctas": {
+    "note": "Inscreva-se + sino; pin comment com pergunta engajadora",
+    "rows": [
+      { "k": "Card aos 02:30", "pt": "Por que você decidiu voltar?", "en": "Why did you decide to come back?" },
+      { "k": "End screen", "pt": "Assista: Custo de vida no Canadá", "en": "Watch: Cost of living in Canada" }
+    ],
+    "display": "Inscreva-se · Comente sua experiência morando fora"
+  }
+}
+```
+
+### Estrutura — `PosBriefSchema` (`.strict()`)
+
+| Campo | Tipo | Notas |
+|-------|------|-------|
+| `kind` | literal `"brief"` | **Obrigatório** |
+| `deliverables` | object? (todos os campos opcionais) | `editor`, `deadline`, `turnaround`, `drive`, `energy` (strings) + `references` (string[]) |
+| `style` | `{ k, v }[]` | Lista chave-valor de diretrizes de estilo (color grade, transições, legendas…) |
+| `ctas.note` | string | Nota geral de CTA |
+| `ctas.rows` | `{ k, pt, en }[]` | Linhas de CTA bilíngues (card/end screen/lower third) |
+| `ctas.display` | string | Texto de CTA exibido |
+
+> **IMPORTANTE — "Momentos-chave & b-roll" são DERIVADOS do roteiro, não armazenados aqui.** Os cards de momentos-chave (linhas `line` com `key:true`) e os cues de b-roll (`vis`) são lidos diretamente dos **beats do roteiro**. Para mudá-los, Cowork edita a seção `roteiro` (marca `key:true` numa `line`, ou ajusta as linhas `vis`) — **NÃO** o `postprod`. O `postprod` carrega só o brief (deliverables/style/ctas).
+
+---
+
+### Legacy — `postprod` timeline (V1–A6) + `postprod_scenes`/`postprod_crossref`/`postprod_speedramps`
+
+> **SUPERSEDED por `kind:'brief'`.** O modelo de timeline multi-track (clips V1–V7/A1–A6, `assets`, `score_breakdown`, `crossRef`, `speedRamps`) e as seções `postprod_scenes` / `postprod_crossref` / `postprod_speedramps` abaixo são legados. Itens antigos ainda podem conter esses dados, mas **Cowork deve escrever a forma canônica `kind:'brief'`** acima e NÃO gerar novos dados de timeline. A documentação a seguir é mantida apenas para leitura/compat.
 
 ### Track IDs and their roles
 
@@ -1168,53 +1331,58 @@ SFX references using `Artlist "Track Name"` in edit_notes or sfx.description are
 
 ---
 
-## Section: `publish` (per-lang)
+## Section: `publish` (per-lang, VIDEO) — `ABDraftSchema` (A/B title + thumbnail brief)
+
+Para **vídeo**, a seção `publish` é um **rascunho de teste A/B** — `ABDraftSchema` (`.strict()` + `.refine`). São **exatamente 4 variantes** A/B/C/D, cada uma com um título e um **briefing de thumbnail** (texto descrevendo o que a thumb comunica). **Exatamente UMA** variante tem `tag:"original"`.
 
 ```json
 {
-  "title": {
-    "chosen": "Por que saí do Canadá depois de 4 anos",
-    "alternatives": [
-      "4 anos no Canadá: não era pra mim",
-      "A verdade sobre morar fora"
-    ]
-  },
-  "description": "Neste vídeo conto por que voltei ao Brasil...\n\n#expatriado #canada #voltarbrasil\n\n00:00 Intro\n02:30 A decisão\n05:00 O retorno\n\nMe siga: @thiago.fig",
-  "tags": ["expatriado", "canada", "voltarbrasil", "morarnofora"],
-  "cards": [
-    { "timestamp": "02:30", "text": "Por que você decidiu voltar?", "type": "question" },
-    { "timestamp": "08:15", "text": "Assista: Custo de vida no Canadá", "type": "video" }
-  ],
-  "end_screen": {
-    "type": "Video + Subscribe",
-    "video_suggestion": "Quanto custa morar no Canadá em 2026"
-  },
-  "strategy": [
-    "D+0: Publicar às 18h BRT (pico de audiência)",
-    "D+0: Compartilhar stories + comunidade",
-    "D+1: Pin comment com pergunta engajadora",
-    "Semana 1: Cross-post no LinkedIn com adaptação"
+  "leader": "A",
+  "variants": [
+    {
+      "id": "A",
+      "tag": "original",
+      "title": "Por que saí do Canadá depois de 4 anos",
+      "brief": "Rosto pensativo em primeiro plano, mala ao fundo desfocada. Texto curto 'POR QUÊ?' em amarelo. Comunica decisão pessoal difícil."
+    },
+    {
+      "id": "B",
+      "tag": "emocional",
+      "title": "4 anos no Canadá: nunca foi pra mim",
+      "brief": "Close no olhar, luz fria de janela. Sem texto grande — deixa o rosto carregar a emoção. Comunica vulnerabilidade."
+    },
+    {
+      "id": "C",
+      "tag": "dados",
+      "title": "O custo real de morar fora (e por que voltei)",
+      "brief": "Split: passaporte/boletos de um lado, paisagem brasileira do outro. Número em destaque. Comunica análise racional."
+    },
+    {
+      "id": "D",
+      "tag": "curiosidade",
+      "title": "A verdade que ninguém conta sobre emigrar",
+      "brief": "Expressão de surpresa, seta apontando pra fora do frame. Comunica revelação/gancho de curiosidade."
+    }
   ]
 }
 ```
 
-### Title
-- `chosen`: Título principal (YouTube recomenda ≤70 chars para busca)
-- `alternatives`: 2-3 opções alternativas
+### Estrutura — `ABDraftSchema`
 
-### Description
-- Incluir hashtags com `#`
-- Incluir timestamps no formato `00:00 Label`
-- Incluir handles com `@`
-- Primeiros 200 chars são visíveis sem expandir no YouTube
+| Campo | Tipo | Notas |
+|-------|------|-------|
+| `leader` | `"A"` \| `"B"` \| `"C"` \| `"D"` | Variante favorita/líder |
+| `variants` | array de **exatamente 4** | Uma por id A/B/C/D |
+| `variants[].id` | `"A"`\|`"B"`\|`"C"`\|`"D"` | Identificador da variante |
+| `variants[].tag` | string ≤40, opcional | Rótulo curto. **Exatamente uma** variante DEVE ter `tag:"original"` (invariante do `.refine`) |
+| `variants[].title` | string ≤500 | Variação de **TÍTULO** A/B |
+| `variants[].brief` | string ≤1000 | **Briefing da thumbnail** — texto descrevendo o que a thumb deve comunicar |
 
-### Cards
-- `type`: `question`, `poll`, `video`, `clip`
-- `timestamp`: quando o card aparece no formato `MM:SS`
+### Fronteiras CRÍTICAS
 
-### Strategy
-- Prefixar steps com fase temporal: `D+0:`, `D+1:`, `Semana 1:`, `Fase 1:`
-- O renderer destaca automaticamente esses prefixos como chips visuais
+- **Thumbnails NÃO são geradas aqui.** Cowork escreve apenas `title` + `brief` (texto). As imagens de thumbnail são sugestões produzidas depois pela ferramenta de design da Claude AI. Cowork **nunca** escreve dados de imagem / URLs de thumb nesta seção.
+- **Cowork apenas RASCUNHA.** O teste A/B é materializado pela ação de **publicação** (RBAC modo-publish). Cowork **não** inicia o teste no ab-lab — só deixa o rascunho pronto.
+- A invariante de "exatamente um `original`" é validada pelo schema (`.refine`); se faltar ou houver mais de um, o objeto é inválido.
 
 ---
 
@@ -1342,6 +1510,78 @@ Seções sem renderer dedicado usam `GenericRenderer`:
 | `briefing` (campaign) | object | JSON pretty-print |
 | `assets` (campaign) | object | JSON pretty-print |
 | `metrics` (campaign) | object | JSON pretty-print |
+
+---
+
+## Video — lifecycle & kanban control
+
+O formato **video** tem **7 stages** (DB) que se dobram em **4 colunas** no hub:
+
+| Stage (DB) | Posição | Coluna do hub |
+|------------|---------|---------------|
+| `idea` | 1 | **Ideia** |
+| `roteiro` | 2 | **Roteiro** |
+| `gravacao` | 3 | **Gravação** |
+| `edicao` | 4 | **Gravação** |
+| `pos_producao` | 5 | **Gravação** |
+| `scheduled` | 6 | **Publicado** |
+| `published` | 7 | **Publicado** |
+
+A coluna **Gravação** agrupa `gravacao` + `edicao` + `pos_producao`; a coluna **Publicado** agrupa `scheduled` + `published`. As abas de seção abrem assim: coluna `idea`→aba Ideia, `roteiro`→Roteiro, `gravacao`(=gravacao/edicao/pos_producao)→Pós, `published`(=scheduled/published)→Publicação. Pós/Publicação destravam quando o stage atinge posição ≥ `gravacao` (≥3).
+
+**Como Cowork move um card:**
+
+- `POST /items/:id/advance` — avança **um** stage (idea→roteiro→gravacao→…).
+- `POST /items/:id/retreat` — recua **um** stage.
+- `PATCH /items/:id` com `{ "stage": "<stage>" }` + header `X-Expected-Version: <item.version>` — **salto** direto para qualquer stage válido.
+- `POST /items/bulk` — operações em lote (advance/retreat/update/…) em vários itens (1–50).
+
+**Não há gate de VVS para vídeo** — o card pode avançar livremente pelos stages (diferente de fluxos que exigem score de viabilidade).
+
+---
+
+## Video — `format_metadata`
+
+`format_metadata` é **nível-de-item** (não é uma seção): atualizado via `PATCH /items/:id` (com `X-Expected-Version`), e é **substituição de objeto inteiro** — envie sempre o objeto completo, não um patch parcial. Schema = `VideoMetadataSchema` (`.strict()`).
+
+Campos que Cowork usa:
+
+| Campo | Tipo | Notas |
+|-------|------|-------|
+| `pillar` | enum `viagem` \| `ia` \| `codigo` \| `games` \| `nas` | Pilar do conteúdo — alimenta o **trilho de pilar** do hub |
+| `duration_range` | string ≤40 (ex. `"10-12 min"`) | **Faixa de duração planejada** mostrada no card do hub — distinta da duração real do YouTube |
+| `recorded_at` | string ≤40 (ex. `"23 abr 2026"` \| `"—"`) | Data de gravação (texto livre) |
+
+Outros campos opcionais do schema: `playlist_letter`, `episode_number`, `duration_estimate_min`, `thumbnail_concept`, `recording_location`, `equipment_notes`.
+
+Exemplo (PATCH `/items/:id`, objeto completo):
+```json
+{
+  "format_metadata": {
+    "pillar": "viagem",
+    "duration_range": "10-12 min",
+    "recorded_at": "23 abr 2026"
+  }
+}
+```
+
+### Criar um vídeo (`POST /items`)
+
+`POST /items` usa o **wrapper `items[]`** (mesmo para criar um só):
+```json
+{
+  "items": [
+    {
+      "format": "video",
+      "title_pt": "Por que saí do Canadá depois de 4 anos",
+      "title_en": "Why I left Canada after 4 years",
+      "format_metadata": { "pillar": "viagem", "duration_range": "10-12 min" }
+    }
+  ]
+}
+```
+
+Pelo menos um título (`title_pt` ou `title_en`) é obrigatório. O item nasce no stage inicial `idea`.
 
 ---
 
