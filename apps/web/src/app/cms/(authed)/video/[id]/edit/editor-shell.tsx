@@ -81,6 +81,16 @@ function StageBody() {
   // as the forward-compatible contract the stage-rebuild agent migrates to.
   const cur = data.versions[lang]
 
+  // Present language labels for the Pós "Versões" field — only langs that carry content
+  // (the model always holds both pt/en objects, so test for actual content).
+  const posLangLabels =
+    CHANNELS.filter((c) => {
+      const v = data.versions[c.lang]
+      return !!v && (!!v.title?.trim() || !!v.direction?.trim() || (v.beats?.length ?? 0) > 0)
+    })
+      .map((c) => c.label)
+      .join(' + ') || (channelByLang(lang)?.label ?? '')
+
   return (
     <Suspense fallback={<div className="stage-skel" aria-hidden="true" />}>
       <div key={`${state.activeStage}-${state.activeLang}`} className="stage-fade">
@@ -96,6 +106,7 @@ function StageBody() {
               onPatch={(p) => { void data.savePostprod(lang, p) }}
               onOpenHandoff={() => dispatch({ type: 'OPEN_OVERLAY', overlay: 'handoff' })}
               legacy={posLegacy}
+              langLabels={posLangLabels}
             />
           ) : (
             <LockedStage stageLabel="Pós" itemId={state.itemId} version={state.version} onUnlock={data.advanceToRecorded} />

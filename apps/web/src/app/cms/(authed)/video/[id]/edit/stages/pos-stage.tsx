@@ -7,7 +7,6 @@ import type { RoteiroBeatV3, PosBrief } from '@/lib/pipeline/video-schemas'
 import { keyLineText, visNotes } from '@/lib/pipeline/video-pos-derive'
 import { CHANNELS } from '@/lib/pipeline/channels'
 import { useVideoEditorDispatch } from '../context'
-import { useVideoData } from '../data-context'
 import type { Version } from '../editor-model'
 
 export interface PosStageProps {
@@ -20,6 +19,8 @@ export interface PosStageProps {
   onOpenHandoff: () => void
   /** Legacy rich postprod payload (schema_version present / no kind) → read-only fallback (§3.10). */
   legacy: Record<string, unknown> | null
+  /** Present language labels (e.g. "PT-BR + EN"), computed by the shell from versions. */
+  langLabels?: string
 }
 
 /* contentEditable field that commits on blur */
@@ -84,9 +85,8 @@ function LegacyPostprodFallback() {
   )
 }
 
-export function PosStage({ beats, brief, activeLang, onPatch, onOpenHandoff, legacy }: PosStageProps) {
+export function PosStage({ beats, brief, activeLang, onPatch, onOpenHandoff, legacy, langLabels }: PosStageProps) {
   const dispatch = useVideoEditorDispatch()
-  const data = useVideoData()
 
   const del = brief?.deliverables ?? {}
   const style = brief?.style ?? []
@@ -106,15 +106,9 @@ export function PosStage({ beats, brief, activeLang, onPatch, onOpenHandoff, leg
     return <LegacyPostprodFallback />
   }
 
-  // Present language labels only (mirrors handoff: versions[l] with content → channel.label
-  // joined " + "). Our model always carries both pt/en objects, so test for actual content.
-  const langs =
-    CHANNELS.filter((c) => {
-      const v = data.versions?.[c.lang]
-      return !!v && (!!v.title?.trim() || !!v.direction?.trim() || (v.beats?.length ?? 0) > 0)
-    })
-      .map((c) => c.label)
-      .join(' + ') || (CHANNELS.find((c) => c.lang === activeLang)?.label ?? '')
+  // Present language labels (computed by the shell from versions); fall back to all
+  // channels when rendered bare (tests / no shell).
+  const langs = langLabels ?? CHANNELS.map((c) => c.label).join(' + ')
 
   const goRoteiro = () => dispatch({ type: 'SET_STAGE', stage: 'roteiro' })
 

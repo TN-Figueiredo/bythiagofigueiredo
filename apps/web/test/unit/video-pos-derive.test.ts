@@ -21,7 +21,7 @@ const beatEmpty: RoteiroBeatV3 = { idx: 2, name: 'Vazio', status: 'PENDING', scr
 
 describe('keyLineText', () => {
   it('returns the first key line text', () => {
-    expect(keyLineText(beatA)).toBe('Linha **chave**')
+    expect(keyLineText(beatA)).toBe('Linha chave') // ** emphasis markers stripped
   })
   it('falls back to the first line when no key line', () => {
     expect(keyLineText(beatB)).toBe('Primeira fala')
@@ -43,7 +43,7 @@ describe('visNotes', () => {
 describe('deriveMomentos (#1-indexed)', () => {
   it('maps beats to {n, beatName, text}, 1-indexed, skipping empty key text', () => {
     expect(deriveMomentos([beatA, beatB])).toEqual([
-      { n: 1, beatName: 'Abertura', text: 'Linha **chave**' },
+      { n: 1, beatName: 'Abertura', text: 'Linha chave' },
       { n: 2, beatName: 'Sem key', text: 'Primeira fala' },
     ])
   })
