@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest'
-import { beatKind, splitBeats, markableIdxs } from '@/lib/pipeline/video-perform'
+import { beatKind, splitBeats, markableIdxs, beatSections } from '@/lib/pipeline/video-perform'
 import { videoLineKeys } from '@/lib/pipeline/video-read-math'
 import type { RoteiroBeatV3, RoteiroContentV3 } from '@/lib/pipeline/roteiro-schemas'
 
@@ -105,5 +105,54 @@ describe('markableIdxs — what each beat tracks', () => {
   it('acao beat tracks action AND legacy line items', () => {
     const b = beat('ENTRADAS', [{ type: 'action', text: 'a' }, { type: 'line', text: 'legacy prompt' }, { type: 'dir', text: 'tom' }])
     expect(markableIdxs(b, 'acao')).toEqual([0, 1])
+  })
+})
+
+describe('beatSections — derived print sub-sections', () => {
+  it('groups consecutive line items into one section', () => {
+    const b = beat('HOOK', [
+      { type: 'line', text: 'A' },
+      { type: 'line', text: 'B' },
+      { type: 'line', text: 'C' },
+    ])
+    const secs = beatSections(b, 0)
+    expect(secs).toEqual([{ id: '0-s0', beatIdx: 0, lineIdxs: [0, 1, 2] }])
+  })
+  it('a pause does NOT flush the section (stays inside)', () => {
+    const b = beat('HOOK', [
+      { type: 'line', text: 'A' },
+      { type: 'pause', duration: 1 },
+      { type: 'line', text: 'B' },
+    ])
+    const secs = beatSections(b, 0)
+    expect(secs).toEqual([{ id: '0-s0', beatIdx: 0, lineIdxs: [0, 2] }])
+  })
+  it('flushes a section at action/dir/vis/ed items', () => {
+    const b = beat('HOOK', [
+      { type: 'line', text: 'A' },
+      { type: 'line', text: 'B' },
+      { type: 'dir', text: 'tom' },
+      { type: 'line', text: 'C' },
+      { type: 'vis', text: 'b-roll' },
+      { type: 'line', text: 'D' },
+    ])
+    const secs = beatSections(b, 2)
+    expect(secs).toEqual([
+      { id: '2-s0', beatIdx: 2, lineIdxs: [0, 1] },
+      { id: '2-s3', beatIdx: 2, lineIdxs: [3] },
+      { id: '2-s5', beatIdx: 2, lineIdxs: [5] },
+    ])
+  })
+  it('produces no section for empty runs / no line items', () => {
+    expect(beatSections(beat('EMPTY'), 0)).toEqual([])
+    expect(beatSections(beat('A', [{ type: 'action', text: 'x' }, { type: 'dir', text: 't' }]), 0)).toEqual([])
+  })
+  it('ids anchor on the first line script index of each section', () => {
+    const b = beat('HOOK', [
+      { type: 'action', text: 'x' },
+      { type: 'line', text: 'A' },
+      { type: 'line', text: 'B' },
+    ])
+    expect(beatSections(b, 1)).toEqual([{ id: '1-s1', beatIdx: 1, lineIdxs: [1, 2] }])
   })
 })

@@ -86,6 +86,47 @@ export function markableIdxs(beat: RoteiroBeatV3, kind: BeatKind): number[] {
   return beat.script.map((it, i) => (it.type === 'line' ? i : -1)).filter((i) => i >= 0)
 }
 
+/**
+ * A derived print sub-section of a beat: a run of consecutive spoken `line` items.
+ * No digital durable identity — purely a paper artifact (one pen tick-box per section).
+ */
+export interface ScriptSection {
+  /** `${beatIdx}-s${firstLineScriptIdx}` — stable within a single render of the content. */
+  id: string
+  beatIdx: number
+  /** Script indices of the `line` items in this section, in order. */
+  lineIdxs: number[]
+}
+
+/**
+ * Group a beat's consecutive spoken `line` items into print sub-sections. A section is
+ * FLUSHED at any `action`/`dir`/`vis`/`ed` item; a `pause` does NOT flush (it stays inside
+ * the surrounding section). Empty runs produce no section. Only meaningful for `fala` beats
+ * — callers gate on `beatKind`, but the function stays general.
+ */
+export function beatSections(beat: RoteiroBeatV3, beatIdx: number): ScriptSection[] {
+  const sections: ScriptSection[] = []
+  let current: number[] = []
+  const flush = (): void => {
+    if (current.length > 0) {
+      sections.push({ id: `${beatIdx}-s${current[0]}`, beatIdx, lineIdxs: current })
+      current = []
+    }
+  }
+  beat.script.forEach((it, i) => {
+    if (it.type === 'line') {
+      current.push(i)
+    } else if (it.type === 'pause') {
+      // pause stays inside the section — do not flush
+    } else {
+      // action / dir / vis / ed — boundary
+      flush()
+    }
+  })
+  flush()
+  return sections
+}
+
 /** Does an item read as a teleprompter line in this beat (i.e. part of the read clock)? */
 export function isSpokenLine(it: ScriptLineV3, kind: BeatKind): boolean {
   return kind === 'fala' && it.type === 'line'

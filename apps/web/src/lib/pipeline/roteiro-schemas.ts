@@ -259,6 +259,10 @@ export type BeatKind = z.infer<typeof BeatKindSchema>
 
 export const RoteiroBeatSchemaV3 = z.object({
   idx: z.number().int().min(0),
+  // Stable durable identity for recording status (keyed on (pipeline_id, lang, beat_id)).
+  // Optional + back-compat: legacy v3 content carries no id; lazily stamped via
+  // ensureBeatIds() on save. Does NOT bump the content version.
+  id: z.string().min(1).optional(),
   name: z.string().min(1),
   status: z.enum(['PENDING', 'DONE']).default('PENDING'),
   kind: BeatKindSchema.optional(),
