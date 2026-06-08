@@ -1,6 +1,7 @@
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { videoColumn, type VideoColumn } from './video-lifecycle'
 import { PILLARS, type PillarId } from './pillars'
+import { readRoteiro } from './roteiro-schemas'
 
 export interface VideoHubCard {
   id: string
@@ -31,6 +32,10 @@ export interface VideoHubData {
   pillarCounts: Partial<Record<PillarId, number>>
 }
 
+interface SectionEnvelope {
+  content?: unknown
+}
+
 interface HubRow {
   id: string
   code: string
@@ -41,30 +46,16 @@ interface HubRow {
   format_metadata: Record<string, unknown> | null
   version: number
   updated_at: string
-  beats_count: number
-  has_direction: boolean
-  has_pt: boolean
-  has_en: boolean
+  sections: Record<string, SectionEnvelope> | null
 }
 
-// Bounded projection (§3.7): the full `sections` JSONB body is NEVER returned to the
-// client. Only scalar derivatives are projected, computed server-side directly on the
-// `sections` column via JSONB operators (which return just the count/bool, not the blob):
-//   • beats_count: jsonb_array_length on the per-language beats array
-//   • has_direction/has_pt/has_en: cheap key-existence probes via the `?` operator
-// `sections` is NOT a selected column — it only appears inside these operator expressions.
-//
-// Inline language mapping: (CASE language WHEN 'en' THEN 'en' ELSE 'pt' END)
-// — there is no primary_lang() SQL function; the mapping is always inline.
-const HUB_SELECT = `
-  id, code, title_pt, title_en, language, stage, format_metadata, version, updated_at,
-  coalesce(jsonb_array_length(
-    sections #> ARRAY['roteiro_' || (CASE language WHEN 'en' THEN 'en' ELSE 'pt' END), 'beats']
-  ), 0) AS beats_count,
-  (sections ? ('ideia_' || (CASE language WHEN 'en' THEN 'en' ELSE 'pt' END))) AS has_direction,
-  ((sections ? 'ideia_pt') OR (sections ? 'roteiro_pt')) AS has_pt,
-  ((sections ? 'ideia_en') OR (sections ? 'roteiro_en')) AS has_en
-`.trim()
+// PostgREST `.select()` accepts column names + embeds only — it cannot evaluate SQL
+// expressions (jsonb_array_length / CASE / the `?` operator). So we select the `sections`
+// column and derive the per-card scalars in JS, matching the established loaders
+// (load-pipeline-detail / load-video-detail). Video lists are small; if they grow, a
+// bounded RPC or a computed view is the future optimization.
+const HUB_SELECT =
+  'id, code, title_pt, title_en, language, stage, format_metadata, version, updated_at, sections'
 
 function primaryLang(language: string): 'pt' | 'en' {
   return language === 'en' ? 'en' : 'pt'
@@ -73,6 +64,18 @@ function primaryLang(language: string): 'pt' | 'en' {
 function cardTitle(row: HubRow): string {
   const t = primaryLang(row.language) === 'en' ? row.title_en : row.title_pt
   return t && t.trim().length > 0 ? t : 'Sem título'
+}
+
+// Count beats from the primary-language roteiro section, via the canonical v1→v3 adapter.
+// Never throws on a malformed body — a bad row degrades to 0 beats, not a hub-wide crash.
+function beatsCountFor(sections: Record<string, SectionEnvelope>, lang: 'pt' | 'en'): number {
+  const raw = sections[`roteiro_${lang}`]?.content
+  if (raw == null) return 0
+  try {
+    return readRoteiro(raw).beats.length
+  } catch {
+    return 0
+  }
 }
 
 function beatsLabel(beatsCount: number, hasDirection: boolean): string {
@@ -97,6 +100,10 @@ export async function loadVideoHub(siteId: string): Promise<VideoHubData> {
     const meta = row.format_metadata ?? {}
     const pillar = meta.pillar as PillarId | undefined
     const durationRange = meta.duration_range as string | undefined
+    const sections = row.sections ?? {}
+    const lang = primaryLang(row.language)
+    const beatsCount = beatsCountFor(sections, lang)
+    const hasDirection = sections[`ideia_${lang}`] != null
     return {
       id: row.id,
       code: row.code,
@@ -106,10 +113,10 @@ export async function loadVideoHub(siteId: string): Promise<VideoHubData> {
       language: row.language,
       pillar: pillar && PILLARS.some((p) => p.id === pillar) ? pillar : undefined,
       duration: durationRange ?? '—',
-      beatsLabel: beatsLabel(row.beats_count, row.has_direction),
-      beatsCount: row.beats_count,
-      hasPt: row.has_pt,
-      hasEn: row.has_en,
+      beatsLabel: beatsLabel(beatsCount, hasDirection),
+      beatsCount,
+      hasPt: sections.ideia_pt != null || sections.roteiro_pt != null,
+      hasEn: sections.ideia_en != null || sections.roteiro_en != null,
       version: row.version,
     }
   })
