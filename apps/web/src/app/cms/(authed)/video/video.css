@@ -101,12 +101,21 @@
 .vid-ed .rot-empty .btn.primary { padding: 10px 18px; font-size: 13.5px; }
 
 /* Roteiro "gerar roteiro" empty state (new flow: a direction is selected, generate the script). */
-.vid-ed .rot-gen { max-width: 720px; padding-top: 4px; }
+.vid-ed .rot-gen { max-width: 720px; margin: 0 auto; padding-top: 4px; }
 .vid-ed .rot-gen .vi-seed { margin-top: 14px; }
+/* Read-only direction display here (no contentEditable) — kill the text I-beam so it
+   doesn't imply inline editing (the "editar" button is the real edit path). */
+.vid-ed .rot-gen .vi-seed-text { cursor: default; }
 .vid-ed .vi-seed-edit { margin-left: auto; background: none; border: 0; padding: 0; cursor: pointer;
   font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--text-dim); }
 .vid-ed .vi-seed-edit:hover { color: var(--accent); }
 .vid-ed .rot-gen-actions { display: flex; align-items: center; gap: 10px; margin-top: 16px; }
+/* "Gerar roteiro com Cowork" is the primary action — make it the dominant CTA (filled
+   cowork tint, taller) next to the lighter neutral "Começar do zero"; match heights. */
+.vid-ed .rot-gen-actions .cw-btn { height: 38px; padding: 0 16px; font-size: 13px; font-weight: 650;
+  background: color-mix(in srgb, var(--c-courses) 20%, transparent); border-color: transparent; }
+.vid-ed .rot-gen-actions .cw-btn:hover { background: color-mix(in srgb, var(--c-courses) 28%, transparent); }
+.vid-ed .rot-gen-actions .btn { height: 38px; padding: 0 16px; }
 .vid-ed .rot-gen-sub { font-size: 12.5px; line-height: 1.5; color: var(--text-dim); margin-top: 12px; }
 
 /* `.ab-deeplink` — Publicação "Abrir no A/B Lab" link (additive vs handoff; was unstyled). */

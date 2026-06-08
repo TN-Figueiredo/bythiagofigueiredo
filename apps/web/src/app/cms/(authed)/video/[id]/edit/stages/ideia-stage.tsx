@@ -54,12 +54,18 @@ export function IdeiaStage({ cur: curProp, lang: langProp }: IdeiaStageProps = {
     void data.saveIdeia(lang, { direction: (e.currentTarget.textContent ?? '').trim() })
   }
 
-  const onAltClick = (index: number) => {
-    const chosen = cur.siblings[index]
-    if (chosen == null) return
-    // Swap: clicked alternative becomes the active direction; the previously-active
-    // direction takes the clicked slot. Persist both fields together.
-    const swapped = cur.siblings.map((s, j) => (j === index ? cur.direction : s))
+  // Alternatives shown to the user — never surface blank rows (legacy/edge data).
+  const visibleSiblings = cur.siblings.filter((s) => s.trim())
+
+  const onAltSwap = (chosen: string) => {
+    const index = cur.siblings.indexOf(chosen)
+    if (index < 0) return
+    // Promote the clicked alternative to the active direction. If a direction is already
+    // set, swap it into the clicked slot; if not, just drop the slot (don't inject a
+    // blank sibling row). Persist both fields together.
+    const swapped = cur.direction.trim()
+      ? cur.siblings.map((s, j) => (j === index ? cur.direction : s))
+      : cur.siblings.filter((_, j) => j !== index)
     void data.saveIdeia(lang, { direction: chosen, siblings: swapped })
     toast.success('Direção trocada', { description: chosen })
   }
@@ -105,14 +111,14 @@ export function IdeiaStage({ cur: curProp, lang: langProp }: IdeiaStageProps = {
           <span className="row gap-6"><SparklesGlyph size={12} /> Outras direções do Cowork</span>
           <CoworkButton stage="ideia" label="Gerar mais" compact />
         </div>
-        {cur.siblings.map((s, i) => (
-          <button key={i} type="button" className="vi-alt" onClick={() => onAltClick(i)}>
+        {visibleSiblings.map((s, i) => (
+          <button key={i} type="button" className="vi-alt" onClick={() => onAltSwap(s)}>
             <span className="va-n">{i + 1}</span>
             <span className="va-t">{s}</span>
             <span className="va-go"><ArrowRight size={14} /></span>
           </button>
         ))}
-        {cur.siblings.length === 0 && (
+        {visibleSiblings.length === 0 && (
           <div className="vi-alts-empty">Sem alternativas ainda — peça ao Cowork pra gerar algumas.</div>
         )}
       </div>

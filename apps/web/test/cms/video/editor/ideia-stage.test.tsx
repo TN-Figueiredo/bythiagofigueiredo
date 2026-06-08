@@ -161,6 +161,28 @@ describe('IdeiaStage — handoff markup', () => {
     })
   })
 
+  it('clicking a .vi-alt with NO active direction drops the slot (no blank sibling injected)', () => {
+    const { container, data } = wrap(<IdeiaStage />, {
+      ideia: {
+        pt: { ...blankIdeia, direction: '', siblings: ['Alt A', 'Alt B'] },
+        en: { ...blankIdeia },
+      },
+    } as never)
+    fireEvent.click(container.querySelectorAll('.vi-alt')[0] as HTMLElement)
+    // No direction to preserve → promote 'Alt A', drop its slot; never store a '' sibling.
+    expect(data.saveIdeia).toHaveBeenCalledWith('pt', { direction: 'Alt A', siblings: ['Alt B'] })
+  })
+
+  it('blank siblings never render as clickable rows', () => {
+    const { container } = wrap(<IdeiaStage />, {
+      ideia: {
+        pt: { ...blankIdeia, direction: 'Ativa', siblings: ['Real', '', '  '] },
+        en: { ...blankIdeia },
+      },
+    } as never)
+    expect(container.querySelectorAll('.vi-alt')).toHaveLength(1)
+  })
+
   // ─── Persistence ──────────────────────────────────────────────────────────
   it('blurring .vi-title calls saveTitle(lang, text) AND saveIdeia(lang, {title})', () => {
     const { container, data } = wrap(<IdeiaStage />)
