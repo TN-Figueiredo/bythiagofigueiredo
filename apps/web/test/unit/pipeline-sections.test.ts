@@ -1,32 +1,54 @@
 import { describe, it, expect } from 'vitest'
-import { getSectionKey, getSectionsForFormat, flattenSections, SectionDataSchema, SectionPatchSchema } from '@/lib/pipeline/sections'
+import {
+  getSectionKey,
+  getSectionsForFormat,
+  flattenSections,
+  SectionDataSchema,
+  SectionPatchSchema,
+  FORMAT_SHARED_SECTIONS,
+} from '@/lib/pipeline/sections'
+import type { Format } from '@/lib/pipeline/schemas'
 
-describe('getSectionKey', () => {
-  it('returns shared key for shared sections', () => {
-    expect(getSectionKey('ideia', 'en')).toBe('ideia_shared')
-    expect(getSectionKey('images', 'pt')).toBe('images_shared')
+describe('getSectionKey (format-aware)', () => {
+  it('video ideia is PER-LANGUAGE (not shared)', () => {
+    expect(getSectionKey('ideia', 'pt', 'video')).toBe('ideia_pt')
+    expect(getSectionKey('ideia', 'en', 'video')).toBe('ideia_en')
+    expect(getSectionKey('ideia', 'pt-br', 'video')).toBe('ideia_pt')
   })
 
-  it('returns lang-specific key for bilateral sections', () => {
-    expect(getSectionKey('roteiro', 'en')).toBe('roteiro_en')
-    expect(getSectionKey('roteiro', 'pt')).toBe('roteiro_pt')
-    expect(getSectionKey('publish', 'en')).toBe('publish_en')
+  it('blog_post + newsletter ideia stay SHARED', () => {
+    expect(getSectionKey('ideia', 'pt', 'blog_post')).toBe('ideia_shared')
+    expect(getSectionKey('ideia', 'pt', 'newsletter')).toBe('ideia_shared')
   })
 
-  it('returns lang-specific key for postprod (no longer shared)', () => {
-    expect(getSectionKey('postprod', 'en')).toBe('postprod_en')
-    expect(getSectionKey('postprod', 'pt')).toBe('postprod_pt')
+  it('video roteiro/postprod/publish are per-language', () => {
+    expect(getSectionKey('roteiro', 'pt', 'video')).toBe('roteiro_pt')
+    expect(getSectionKey('roteiro', 'en', 'video')).toBe('roteiro_en')
+    expect(getSectionKey('postprod', 'en', 'video')).toBe('postprod_en')
+    expect(getSectionKey('publish', 'en', 'video')).toBe('publish_en')
   })
 
-  it('brolls is no longer shared — returns lang-specific key', () => {
-    expect(getSectionKey('brolls', 'en')).toBe('brolls_en')
-    expect(getSectionKey('brolls', 'pt')).toBe('brolls_pt')
+  it('blog images/course curriculum+launch stay shared', () => {
+    expect(getSectionKey('images', 'pt', 'blog_post')).toBe('images_shared')
+    expect(getSectionKey('curriculum', 'en', 'course')).toBe('curriculum_shared')
+    expect(getSectionKey('launch', 'pt', 'course')).toBe('launch_shared')
   })
 
-  it('returns lang-specific key for legacy postprod sub-section keys', () => {
-    expect(getSectionKey('postprod_scenes', 'en')).toBe('postprod_scenes_en')
-    expect(getSectionKey('postprod_crossref', 'pt')).toBe('postprod_crossref_pt')
-    expect(getSectionKey('postprod_speedramps', 'en')).toBe('postprod_speedramps_en')
+  it('legacy postprod sub-section keys stay per-language for video', () => {
+    expect(getSectionKey('postprod_scenes', 'en', 'video')).toBe('postprod_scenes_en')
+    expect(getSectionKey('postprod_crossref', 'pt', 'video')).toBe('postprod_crossref_pt')
+  })
+})
+
+describe('FORMAT_SHARED_SECTIONS', () => {
+  it('is exhaustive over the 5 Format members (no social, has newsletter)', () => {
+    const keys = Object.keys(FORMAT_SHARED_SECTIONS).sort()
+    expect(keys).toEqual(['blog_post', 'campaign', 'course', 'newsletter', 'video'].sort())
+    // compile-time exhaustiveness guard: every Format member resolves a set
+    const all: Record<Format, ReadonlySet<string>> = FORMAT_SHARED_SECTIONS
+    expect(all.video.has('ideia')).toBe(false)
+    expect(all.blog_post.has('ideia')).toBe(true)
+    expect(all.newsletter.has('ideia')).toBe(true)
   })
 })
 
@@ -38,9 +60,9 @@ describe('getSectionsForFormat', () => {
     ])
   })
 
-  it('marks only ideia as shared for video', () => {
+  it('marks ideia as per-language (shared:false) for video', () => {
     const sections = getSectionsForFormat('video')
-    expect(sections.find(s => s.key === 'ideia')!.shared).toBe(true)
+    expect(sections.find(s => s.key === 'ideia')!.shared).toBe(false)
     expect(sections.find(s => s.key === 'roteiro')!.shared).toBe(false)
     expect(sections.find(s => s.key === 'postprod')!.shared).toBe(false)
   })

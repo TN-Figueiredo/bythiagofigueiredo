@@ -125,8 +125,8 @@ interface SectionPanelProps {
   socialPostId: string | null
 }
 
-function extractMisplacedSeo(sections: Record<string, SectionData>, lang: string): SectionData | null {
-  const draftKey = getSectionKey('draft', lang)
+function extractMisplacedSeo(sections: Record<string, SectionData>, lang: string, format: string): SectionData | null {
+  const draftKey = getSectionKey('draft', lang, format as Format)
   const draftData = sections[draftKey]
   if (!draftData?.content || typeof draftData.content !== 'object' || Array.isArray(draftData.content)) return null
   const obj = draftData.content as Record<string, unknown>
@@ -147,10 +147,10 @@ function SectionPanel({ sectionDef, activeSub, lang, itemId, itemVersion, itemCo
     ? (activeSub ?? sectionDef.subSections[0]?.key ?? sectionDef.key)
     : sectionDef.key
 
-  const sectionKey = getSectionKey(sectionType, lang)
+  const sectionKey = getSectionKey(sectionType, lang, format as Format)
   const sectionData = (sections[sectionKey] ?? null) as SectionData | null
 
-  const extractedSeo = sectionType === 'seo' && sectionData === null ? extractMisplacedSeo(sections, lang) : null
+  const extractedSeo = sectionType === 'seo' && sectionData === null ? extractMisplacedSeo(sections, lang, format) : null
   const effectiveData = sectionData ?? extractedSeo
 
   const section = useSection({ itemId, sectionKey, initialData: effectiveData, itemVersion })

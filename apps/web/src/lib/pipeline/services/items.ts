@@ -1583,7 +1583,6 @@ export async function getSection(
   assertValidId(id)
 
   const lang = params.lang || 'en'
-  const sectionKey = getSectionKey(params.section, lang)
 
   const supabase = getSupabaseServiceClient()
   const { data: item, error } = await supabase
@@ -1596,6 +1595,8 @@ export async function getSection(
   if (error || !item) {
     throw new PipelineServiceError('NOT_FOUND', 'Item not found', 404)
   }
+
+  const sectionKey = getSectionKey(params.section, lang, item.format as Format)
 
   const sections = (item.sections ?? {}) as Record<string, SectionData>
   const sectionData = sections[sectionKey] ?? null
@@ -1640,13 +1641,12 @@ export async function patchSection(
   }
 
   const lang = params.lang || 'en'
-  const sectionKey = getSectionKey(params.section, lang)
 
   const supabase = getSupabaseServiceClient()
 
   const { data: item, error: fetchError } = await supabase
     .from('content_pipeline')
-    .select('id, version, sections')
+    .select('id, version, format, sections')
     .eq('id', id)
     .eq('site_id', ctx.siteId)
     .single()
@@ -1654,6 +1654,9 @@ export async function patchSection(
   if (fetchError || !item) {
     throw new PipelineServiceError('NOT_FOUND', 'Item not found', 404)
   }
+
+  const sectionKey = getSectionKey(params.section, lang, item.format as Format)
+
   if (item.version !== params.expectedVersion) {
     throw new PipelineServiceError(
       'PRECONDITION_FAILED',
@@ -1983,7 +1986,7 @@ export async function batchUpdateSections(
   for (const [itemId, updates] of itemGroups) {
     const { data: item, error: fetchError } = await supabase
       .from('content_pipeline')
-      .select('id, version, sections')
+      .select('id, version, format, sections')
       .eq('id', itemId)
       .eq('site_id', ctx.siteId)
       .single()
@@ -1992,7 +1995,7 @@ export async function batchUpdateSections(
       for (const u of updates) {
         results.push({
           item_id: itemId,
-          section_key: getSectionKey(u.section, u.lang),
+          section_key: getSectionKey(u.section, u.lang, (u.format ?? 'video') as Format),
           ok: false,
           error: { code: 'NOT_FOUND', message: 'Item not found' },
         })
@@ -2007,7 +2010,7 @@ export async function batchUpdateSections(
     >
 
     for (const update of updates) {
-      const sectionKey = getSectionKey(update.section, update.lang)
+      const sectionKey = getSectionKey(update.section, update.lang, item.format as Format)
       const existing = currentSections[sectionKey]
       const newRev = (existing?.rev ?? 0) + 1
 

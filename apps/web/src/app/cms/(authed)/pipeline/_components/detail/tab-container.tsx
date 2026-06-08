@@ -34,16 +34,16 @@ interface TabContainerProps {
   }) => React.ReactNode
 }
 
-function hasAnyContent(def: SectionDefinition, sections: Record<string, SectionData>): boolean {
+function hasAnyContent(def: SectionDefinition, sections: Record<string, SectionData>, format: Format): boolean {
   const leafKeys = def.subSections
     ? def.subSections.map(s => s.key)
     : [def.key]
 
   return leafKeys.some(key => {
     if (def.shared || (def.subSections?.some(s => s.key === key && s.shared))) {
-      return !!sections[getSectionKey(key, 'en')]
+      return !!sections[getSectionKey(key, 'en', format)]
     }
-    return !!sections[getSectionKey(key, 'pt')] || !!sections[getSectionKey(key, 'en')]
+    return !!sections[getSectionKey(key, 'pt', format)] || !!sections[getSectionKey(key, 'en', format)]
   })
 }
 
@@ -68,7 +68,7 @@ export function TabContainer({ format, stage, itemId, itemVersion, sections, ite
     for (let i = sectionDefs.length - 1; i >= 0; i--) {
       const def = sectionDefs[i]!
       if (skip.has(def.key)) continue
-      if (hasAnyContent(def, sections)) return def.key
+      if (hasAnyContent(def, sections, format)) return def.key
     }
     return sectionDefs[0]?.key ?? ''
   })
@@ -103,7 +103,7 @@ export function TabContainer({ format, stage, itemId, itemVersion, sections, ite
       const relevantDeps = deps.filter(depKey => defsByKey.has(depKey))
       const allDepsMet = relevantDeps.length === 0 || relevantDeps.every(depKey => {
         const depDef = defsByKey.get(depKey)!
-        return hasAnyContent(depDef, sections)
+        return hasAnyContent(depDef, sections, format)
       })
       if (allDepsMet) enabled.add(def.key)
     }
@@ -277,7 +277,7 @@ export function TabContainer({ format, stage, itemId, itemVersion, sections, ite
           <div ref={tabsRef} className="flex overflow-x-auto" role="tablist" aria-label="Seções do pipeline item" style={{ scrollbarWidth: 'none' }}>
             {sectionDefs.map((def, i) => {
               const isActive = activeTab === def.key
-              const hasContent = hasAnyContent(def, sections)
+              const hasContent = hasAnyContent(def, sections, format)
               const isEnabled = enabledTabs.has(def.key)
               const isStageLocked = !isEnabled && format === 'blog_post' && stage
                 ? !(BLOG_TAB_ACCESS[stage] ?? []).includes(def.key)
@@ -326,7 +326,7 @@ export function TabContainer({ format, stage, itemId, itemVersion, sections, ite
           <div className="flex mb-2 rounded overflow-hidden" style={{ border: '1px solid var(--gem-border)' }}>
             {(['pt', 'en'] as const).map(l => {
               const isShared = activeDef?.shared ?? false
-              const sectionKey = getSectionKey(activeTab, isShared ? 'en' : l)
+              const sectionKey = getSectionKey(activeTab, isShared ? 'en' : l, format)
               const hasContent = !!sections[sectionKey]
               return (
                 <button

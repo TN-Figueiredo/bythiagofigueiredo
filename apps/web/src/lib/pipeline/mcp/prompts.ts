@@ -312,7 +312,7 @@ export function registerPrompts(server: McpServer): void {
       const sectionDef = sectionDefs.find(s => s.key === sectionKey || s.type === sectionKey)
       const sectionLabel = sectionDef?.label_pt ?? sectionKey
       const sectionBase = sectionDef?.type ?? sectionKey
-      const fullSectionKey = getSectionKey(sectionBase, lang === 'pt' ? 'pt-br' : lang)
+      const fullSectionKey = getSectionKey(sectionBase, lang === 'pt' ? 'pt-br' : lang, format)
 
       // Get current section content summary
       const sections = item.sections as Record<string, unknown> | null
@@ -403,7 +403,7 @@ export function registerPrompts(server: McpServer): void {
       const sections = item.sections as Record<string, unknown> | null
       const sectionDefs = SECTION_DEFINITIONS[format] ?? []
       const sectionStatus = sectionDefs.map(def => {
-        const key = getSectionKey(def.type, 'pt-br')
+        const key = getSectionKey(def.type, 'pt-br', format)
         const content = sections?.[key]
         const hasCont = content !== null && content !== undefined
         const summary = hasCont ? summarizeContent(content) : 'Empty'
