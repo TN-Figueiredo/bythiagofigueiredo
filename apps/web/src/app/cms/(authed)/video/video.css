@@ -72,6 +72,12 @@
 /* Section rhythm: pillar rail needs space above the kanban (research.css gives it none). */
 .video-hub-page .cat-rail { margin-bottom: 18px; }
 
+/* Page container inset — the CMS shell renders page content flush against the sidebar/
+   topbar; the module supplies its own padding (matches the app's px-7 rhythm). Without
+   this the hub header/stats/kanban (and the Novo Vídeo button) glued to every edge. */
+.video-hub-page { padding: 22px 28px 40px; }
+.vid-ed { padding: 16px 28px 48px; }
+
 /* ---------- HUB ---------- */
 .vhub-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 22px; }
 @media (max-width: 1080px) { .vhub-grid { grid-template-columns: repeat(2,1fr); } }
