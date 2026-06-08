@@ -22,7 +22,7 @@ function getVideoStageLabel(stage: string): string {
 
 // Stage chip dot color, by kanban column — parity with the hub (video-hub.tsx COLUMNS).
 const COLUMN_COLOR: Record<VideoColumn, string> = {
-  idea: 'var(--text-muted)',
+  idea: 'var(--cms-purple)',
   roteiro: 'var(--c-pipeline)',
   gravacao: 'var(--warn)',
   published: 'var(--c-links)',
