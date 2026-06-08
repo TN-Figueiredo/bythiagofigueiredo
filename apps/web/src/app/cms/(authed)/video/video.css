@@ -16,7 +16,10 @@
   --surface: var(--cms-surface);
   --surface-2: var(--cms-surface-hover);
   --surface-hover: var(--cms-surface-hover);
-  --elev: var(--cms-surface-hover);
+  /* `--cms-surface-hover` isn't defined by cms-ui → the popover bg fell back to
+     transparent. Base elevation on the (defined) surface + a hair of white so it's a
+     solid, slightly-elevated panel (Cowork popover / menus). */
+  --elev: color-mix(in srgb, var(--cms-surface, #1a1d27) 94%, #ffffff 6%);
   --text: var(--cms-text);
   --text-muted: var(--cms-text-muted);
   --text-dim: var(--cms-text-dim);
