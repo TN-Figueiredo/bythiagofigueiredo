@@ -46,12 +46,19 @@ export function useSection({ itemId, sectionKey, initialData, itemVersion, onSav
 
   const contentRef = useRef(content)
   contentRef.current = content
+  // Tracks dirtiness synchronously so an explicit `save()` called in the SAME tick as
+  // `setContent()` (e.g. the video editor's saveRoteiro/saveIdeia) PATCHes the fresh
+  // content instead of being gated out by a stale `isDirty` state value. The `isDirty`
+  // state is kept for UI (nav guard / autosave indicator).
+  const dirtyRef = useRef(false)
   const revRef = useRef(rev)
   revRef.current = rev
   const versionRef = useRef(version)
   versionRef.current = version
 
   const setContent = useCallback((newContent: SectionData['content']) => {
+    contentRef.current = newContent // sync: an immediate save() must see the fresh content
+    dirtyRef.current = true // sync: an immediate save() must not be gated by stale isDirty
     setContentState(newContent)
     setIsDirty(true)
     setEdited(true)
@@ -69,7 +76,7 @@ export function useSection({ itemId, sectionKey, initialData, itemVersion, onSav
   }, [])
 
   const save = useCallback(async () => {
-    if (!isDirty || isSaving || !contentRef.current) return
+    if (!dirtyRef.current || isSaving || !contentRef.current) return
     setIsSaving(true)
 
     const lang = extractLangFromKey(sectionKey)
@@ -123,23 +130,26 @@ export function useSection({ itemId, sectionKey, initialData, itemVersion, onSav
       setEdited(data.edited as boolean)
       setCoworkRev((data.cowork_rev as number | null) ?? null)
       setUpdatedAt(data.updated_at as string)
+      dirtyRef.current = false
       setIsDirty(false)
       toast.success('Seção salva')
       onSaveSuccess?.(newRev, newVersion)
     } finally {
       setIsSaving(false)
     }
-  }, [isDirty, isSaving, itemId, sectionKey, onSaveSuccess, extractLangFromKey, extractSectionBase])
+  }, [isSaving, itemId, sectionKey, onSaveSuccess, extractLangFromKey, extractSectionBase])
 
   const acceptRemote = useCallback(() => {
     if (!conflict) return
     setContentState(conflict.remoteData.content)
+    contentRef.current = conflict.remoteData.content
     setRev(conflict.remoteData.rev)
     revRef.current = conflict.remoteData.rev
     setSource(conflict.remoteData.source)
     setEdited(conflict.remoteData.edited)
     setCoworkRev(conflict.remoteData.cowork_rev ?? null)
     setUpdatedAt(conflict.remoteData.updated_at)
+    dirtyRef.current = false
     setIsDirty(false)
     setConflict(null)
   }, [conflict])
