@@ -104,6 +104,8 @@ export default defineConfig({
       // transport). Not installed (project sends via Resend/SES), but the inlined
       // email package's SMTP chunk references it — stub so it resolves in tests.
       { find: /^nodemailer$/, replacement: path.resolve(__dirname, './test/__stubs__/nodemailer.ts') },
+      // `vitest-axe` is not installed — stub so accessibility tests resolve.
+      { find: /^vitest-axe$/, replacement: path.resolve(__dirname, './test/__stubs__/vitest-axe.ts') },
       // Sprint 5b — `apps/web/lib/seo/` lives outside `src/`. Map specifically
       // so plan-prescribed `@/lib/seo/...` imports resolve correctly without
       // shadowing other `@/lib/*` paths under `src/lib/` (e.g. lgpd).
