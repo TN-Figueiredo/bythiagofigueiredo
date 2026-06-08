@@ -4,8 +4,14 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ArrowRight } from 'lucide-react'
 import { SparklesGlyph } from './sparkles-glyph'
-import { toast } from 'sonner'
+import { useVideoEditorState } from '../context'
+import { openCowork } from '@/lib/pipeline/cowork-deeplink'
 import type { VideoStage } from '../types'
+
+/** Stage label for the instruction context handed to Cowork. */
+const STAGE_LABEL: Record<VideoStage, string> = {
+  ideia: 'Ideia', roteiro: 'Roteiro', pos: 'Pós', publicacao: 'Publicação',
+}
 
 /** Context prompts per stage (CW_PROMPTS in views-video.jsx ~39-44). */
 const CW_PROMPTS: Record<VideoStage, string[]> = {
@@ -32,6 +38,7 @@ export interface CoworkButtonProps {
  * in design_handoff_video_module/views-video.jsx (~45-80).
  */
 export function CoworkButton({ stage, label = 'Cowork', compact, onSubmit }: CoworkButtonProps) {
+  const editor = useVideoEditorState()
   const [open, setOpen] = useState(false)
   const [txt, setTxt] = useState('')
   const [pos, setPos] = useState<{ top: number; right: number } | null>(null)
@@ -69,8 +76,14 @@ export function CoworkButton({ stage, label = 'Cowork', compact, onSubmit }: Cow
   const send = (t?: string) => {
     const m = (t ?? txt).trim()
     if (!m) return
-    if (onSubmit) onSubmit(m)
-    else toast.info('Pedido enviado ao Cowork', { description: m.slice(0, 64) })
+    if (onSubmit) {
+      onSubmit(m)
+    } else {
+      // Open Claude (Cowork) with the message + the video/section context so it knows
+      // exactly which item/section to act on via the pipeline API.
+      const ctx = `[Vídeo ${editor.code} · ${STAGE_LABEL[stage]} · ${editor.activeLang.toUpperCase()} · item ${editor.itemId}]`
+      openCowork(`${ctx}\n\n${m}`)
+    }
     setTxt('')
     setOpen(false)
   }
