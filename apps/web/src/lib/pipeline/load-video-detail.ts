@@ -41,12 +41,25 @@ interface SectionEnvelope {
   content?: unknown
 }
 
-function readIdeia(sections: Record<string, SectionEnvelope>, lang: 'pt' | 'en'): IdeiaSection {
+function readIdeia(
+  sections: Record<string, SectionEnvelope>,
+  lang: 'pt' | 'en',
+  fallback: { title?: string | null; direction?: string | null } = {},
+): IdeiaSection {
   const raw = sections[`ideia_${lang}`]?.content
   // IdeiaSectionSchema is `.strict()` with defaults; parse tolerates `{}`/missing,
   // but rejects unknown keys. Fall back to a clean empty payload on any mismatch.
   const parsed = IdeiaSectionSchema.safeParse(raw ?? {})
-  return parsed.success ? parsed.data : IdeiaSectionSchema.parse({})
+  const base = parsed.success ? parsed.data : IdeiaSectionSchema.parse({})
+  // Surface EXISTING legacy data: pre-video-module items hold the title in the
+  // `title_<lang>` column and the angle in `synopsis`/`hook` (old shape) — not in the
+  // new per-lang ideia section. Use those when the section field is empty so opening a
+  // legacy video shows its real title/direction instead of placeholders.
+  return {
+    ...base,
+    title: base.title?.trim() ? base.title : (fallback.title ?? '').trim(),
+    direction: base.direction?.trim() ? base.direction : (fallback.direction ?? '').trim(),
+  }
 }
 
 function readRoteiroLang(sections: Record<string, SectionEnvelope>, lang: 'pt' | 'en'): RoteiroContentV3 | null {
@@ -70,7 +83,7 @@ export async function loadVideoDetail(id: string, siteId: string): Promise<Video
   const { data: item, error } = await supabase
     .from('content_pipeline')
     .select(
-      'id, code, stage, format, language, version, sections, format_metadata, blog_post_id, social_post_id, youtube_video_id, youtube_videos(thumbnail_hq_url, duration_seconds)',
+      'id, code, stage, format, language, version, title_pt, title_en, hook, synopsis, sections, format_metadata, blog_post_id, social_post_id, youtube_video_id, youtube_videos(thumbnail_hq_url, duration_seconds)',
     )
     .eq('id', id)
     .eq('site_id', siteId)
@@ -104,7 +117,16 @@ export async function loadVideoDetail(id: string, siteId: string): Promise<Video
     durationRange,
     blogPostId: (item.blog_post_id as string | null) ?? null,
     youtubeVideoId,
-    ideia: { pt: readIdeia(sections, 'pt'), en: readIdeia(sections, 'en') },
+    ideia: {
+      pt: readIdeia(sections, 'pt', {
+        title: item.title_pt as string | null,
+        direction: (item.synopsis as string | null) ?? (item.hook as string | null),
+      }),
+      en: readIdeia(sections, 'en', {
+        title: item.title_en as string | null,
+        direction: (item.synopsis as string | null) ?? (item.hook as string | null),
+      }),
+    },
     roteiro: { pt: readRoteiroLang(sections, 'pt'), en: readRoteiroLang(sections, 'en') },
     sections: sections as Record<string, unknown>,
     abJoinFacts: {
