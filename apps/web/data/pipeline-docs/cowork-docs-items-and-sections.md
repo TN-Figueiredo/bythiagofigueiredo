@@ -44,6 +44,31 @@ Language-specific sections use `_pt` or `_en`.
 
 **Section content is NOT validated by the API.** The API stores whatever JSON you send. The shapes documented in this file (e.g. `IdeiaSectionSchema`, `RoteiroContentV3`, `PosBriefSchema`, `ABDraftSchema`) are the **contract** — emit them exactly. A malformed shape will not 4xx; it will simply render wrong (or be silently migrated/ignored) in the CMS.
 
+### Leia ANTES de escrever (obrigatório)
+
+**Todo PATCH precisa da versão atual do item.** Todo PATCH de **seção única** precisa, além disso, do `rev` da seção. Esses números mudam a cada escrita — **Cowork DEVE fazer um GET imediatamente antes de cada PATCH** e copiar os valores de lá. Sem isso, a primeira escrita leva 409/412.
+
+**De onde vem cada valor:**
+
+| GET | Retorna | Usar como |
+|-----|---------|-----------|
+| `GET /items/:id/sections/:section?lang=pt` | `meta.item_version` | header `X-Expected-Version` |
+| `GET /items/:id/sections/:section?lang=pt` | `data.rev` | body `rev` |
+| `GET /items/:id` | `meta.version` | header `X-Expected-Version` (para PATCH de item / `format_metadata` / `stage`) |
+
+> **Atenção à chave:** o GET de **item** expõe a versão como `meta.version`; o GET de **seção** expõe a mesma versão como `meta.item_version` (mesmo valor, chave diferente). Use `meta.item_version` ao escrever uma seção e `meta.version` ao escrever o item.
+
+**Exemplo completo (PATCH de uma seção):**
+
+1. `GET /items/<id>/sections/roteiro?lang=pt` → resposta `{ "data": { "rev": 4, ... }, "meta": { "item_version": 12, ... } }`
+2. Extraia `item_version = 12` e `rev = 4`.
+3. `PATCH /items/<id>/sections/roteiro?lang=pt` com header `X-Expected-Version: 12` e body:
+   ```json
+   { "content": { ... }, "rev": 4, "source": "cowork", "modified_by": "cowork-claude" }
+   ```
+
+> **Seção nova que nunca existiu:** o GET retorna `data: null` (ou `meta.exists: false`). Nesse caso o `rev` do body é **`0`** (`rev: 0`). A primeira escrita cria a seção com `rev: 1`.
+
 ---
 
 ## Formatação Rich Text (Tiptap)
@@ -302,7 +327,7 @@ Ao gerar o draft, insira placeholders de imagem usando markdown padrão com o `r
 | `pause` | `{ "type":"pause", "duration": number }` | Pausa/respiro cronometrado, em segundos (0–30). |
 | `vis` | `{ "type":"vis", "text": string }` | **Cue de B-roll / visual** — mostrado ao editor, **NÃO é falado**. |
 | `ed` | `{ "type":"ed", "text": string }` | **Nota só do editor** — escondida atrás do toggle "Notas do editor". **NÃO é falada, NÃO aparece no teleprompter.** |
-| `dir` | `{ "type":"dir", "text": string }` | Direção de performance (forward-compat; também pode usar `beat.tone`). |
+| `dir` | `{ "type":"dir", "text": string }` | Direção de performance (forward-compat — **não renderiza nada no editor hoje**; escreva o tom em `beat.tone`). |
 
 > **Cadência de leitura ≈ 2.1 palavras/seg.** Estimativa de duração de um beat ≈ `ceil(palavras_em_lines / 2.1 + soma(pause.duration))`. Só linhas `line` contam palavras.
 
@@ -313,8 +338,14 @@ O teleprompter mostra **apenas** as linhas `line`. Tudo que não é a fala liter
 - **`line`** — SOMENTE as palavras exatas que o host diz para a câmera.
 - **`ed`** — equipamento / kit / logística / timeline de captação / planejamento de shots. Nunca é falado.
 - **`vis`** — cue de b-roll / visual (o que o editor deve mostrar).
-- **`dir`** (ou `beat.tone`) — performance / tom / energia / postura.
+- **`beat.tone`** — performance / tom / energia / postura (**canal primário** — escreva o tom aqui, no campo `tone` do beat, para ele aparecer no editor). `dir` dentro de `script[]` existe por forward-compat e **não renderiza nada no editor hoje** — prefira `beat.tone`.
 - **`pause`** — silêncios cronometrados.
+
+#### Teste rápido (SMELL TEST) — por item de `script[]`:
+
+> **"O host abriria a boca e diria isto, palavra por palavra, pra câmera?"**
+> - **Sim** → `line`.
+> - **Não** (equipamento, horário, GB, arquivo, cartão, bateria, timecode, ou qualquer "mostrar/montagem/close/tela") → **NUNCA** `line` — vai pra `ed` (logística/kit) ou `vis` (visual).
 
 **Exemplos de reclassificação (texto realista):**
 
@@ -338,7 +369,50 @@ O teleprompter mostra **apenas** as linhas `line`. Tudo que não é a fala liter
 ```
 → é o que o editor deve mostrar, não algo dito → `vis`.
 
-**Reclassificação obrigatória:** um beat que é "quase só notas e quase nenhuma fala" está modelado errado — separe: o equipamento/logística/timeline vira `ed`, os cues visuais viram `vis`, o tom vira `dir`/`tone`, e **as frases ditas para a câmera viram `line`s**. Se nada é falado, o beat não tem teleprompter (e tudo bem) — mas não enfie fala dentro de `ed`/`vis`.
+#### Beat sem `line` depois de separar as notas → ESCREVA a fala que faltava
+
+**Se o beat ficou sem nenhuma `line` depois de separar as notas, ESCREVA a fala que faltava.** Um beat existe pra ser falado; as notas (`ed`/`vis`/`dir`) são suporte, não substituem a fala. Só deixe um beat sem `line` se ele for genuinamente 100% B-roll sem narração (raro). Na dúvida, escreva a fala — **"conserte este roteiro" = transformar notas em fala, não só re-etiquetar.**
+
+#### Exemplo completo BEFORE → AFTER (note-blob → falas + notas tipadas)
+
+**ANTES (errado — bloco de notas todo enfiado como `line`):** o beat virou uma pilha de logística e lembretes marcados como fala, e a única intenção de fala ("abrir falando da mudança") ficou perdida como mais uma nota.
+
+```json
+{
+  "idx": 0,
+  "name": "Hook",
+  "status": "PENDING",
+  "script": [
+    { "type": "line", "text": "Mic lav/fone + anti-vento · power bank · 30GB+ livres no cartão" },
+    { "type": "line", "text": "6:15 chega → grava HOOK | 6:30 entrevistas | 8:00 b-roll" },
+    { "type": "line", "text": "abrir falando da mudança" },
+    { "type": "line", "text": "montagem de fotos do apartamento vazio" }
+  ]
+}
+```
+
+**DEPOIS (certo — logística vira `ed`, visual vira `vis`, tom vai pra `beat.tone`, e a intenção "abrir falando da mudança" vira uma `line` ESCRITA, com `key:true`):**
+
+```json
+{
+  "idx": 0,
+  "name": "Hook",
+  "status": "PENDING",
+  "tone": "Calmo, próximo da câmera, sem drama",
+  "script": [
+    { "type": "ed",   "text": "Mic lav/fone + anti-vento · power bank · 30GB+ livres no cartão" },
+    { "type": "ed",   "text": "6:15 chega → grava HOOK | 6:30 entrevistas | 8:00 b-roll" },
+    { "type": "line", "text": "Há quatro anos eu fiz uma mudança que mudou tudo — e quase não contei pra ninguém.", "key": true },
+    { "type": "vis",  "text": "Montagem de fotos do apartamento vazio, Ken Burns lento" }
+  ]
+}
+```
+
+Repare que `"abrir falando da mudança"` **não** virou um `ed` — era uma instrução para ESCREVER a fala, então virou uma `line` autoral de verdade. A logística (`Mic…`, `6:15…`) virou `ed`; a `montagem de fotos` virou `vis`; o tom virou `beat.tone`.
+
+**Reclassificação obrigatória:** um beat que é "quase só notas e quase nenhuma fala" está modelado errado — separe: o equipamento/logística/timeline vira `ed`, os cues visuais viram `vis`, o tom vira `beat.tone`, e **as frases ditas para a câmera viram `line`s** (escrevendo a fala se ela não existia). Não enfie fala dentro de `ed`/`vis`, nem deixe um beat falável sem `line`.
+
+> **Por que isso importa:** o teleprompter mostra só `line`. Além disso, **só `line` conta no contador "X/Y faladas" e na estimativa de tempo de fala** — uma nota tipada como `line` infla esses números e quebra o progresso de leitura. E o tom escrito em `dir` dentro de `script[]` não renderiza no editor hoje (use `beat.tone`), senão a direção de tom simplesmente some.
 
 ---
 
@@ -1383,6 +1457,7 @@ Para **vídeo**, a seção `publish` é um **rascunho de teste A/B** — `ABDraf
 - **Thumbnails NÃO são geradas aqui.** Cowork escreve apenas `title` + `brief` (texto). As imagens de thumbnail são sugestões produzidas depois pela ferramenta de design da Claude AI. Cowork **nunca** escreve dados de imagem / URLs de thumb nesta seção.
 - **Cowork apenas RASCUNHA.** O teste A/B é materializado pela ação de **publicação** (RBAC modo-publish). Cowork **não** inicia o teste no ab-lab — só deixa o rascunho pronto.
 - A invariante de "exatamente um `original`" é validada pelo schema (`.refine`); se faltar ou houver mais de um, o objeto é inválido.
+- **Published-freeze:** uma vez que o item está em `published`/`scheduled` (stage ≥ published), `publish` (junto com `ideia`/`roteiro`/`postprod`) fica READ-ONLY e o PATCH retorna HTTP 403 (`"Section is read-only while published"`) — deixe o rascunho A/B pronto **antes** de publicar, ou dê `retreat` primeiro.
 
 ---
 
@@ -1534,9 +1609,20 @@ A coluna **Gravação** agrupa `gravacao` + `edicao` + `pos_producao`; a coluna 
 - `POST /items/:id/advance` — avança **um** stage (idea→roteiro→gravacao→…).
 - `POST /items/:id/retreat` — recua **um** stage.
 - `PATCH /items/:id` com `{ "stage": "<stage>" }` + header `X-Expected-Version: <item.version>` — **salto** direto para qualquer stage válido.
-- `POST /items/bulk` — operações em lote (advance/retreat/update/…) em vários itens (1–50).
+- `POST /items/bulk` — operações em lote em vários itens. Body usa o wrapper `operations[]`:
+  ```json
+  {
+    "operations": [
+      { "op": "advance", "id": "<uuid>" },
+      { "op": "retreat", "id": "<uuid>" }
+    ]
+  }
+  ```
+  `op` ∈ `advance` \| `retreat` \| `archive` \| `restore` \| `tag` \| `update`; máximo **50** operações. `update` também exige `version` (e `data`); `tag` usa `data: { add: [], remove: [] }`.
 
 **Não há gate de VVS para vídeo** — o card pode avançar livremente pelos stages (diferente de fluxos que exigem score de viabilidade).
+
+> **Published-freeze:** quando o stage do item atinge posição ≥ `published`/`scheduled`, as seções `ideia`/`roteiro`/`postprod`/`publish` ficam **READ-ONLY** e qualquer PATCH retorna HTTP 403 (`"Section is read-only while published"`) — edite-as antes de publicar, ou dê `retreat` no card primeiro.
 
 ---
 
@@ -1591,7 +1677,7 @@ Além das seções, o pipeline item tem campos no nível do item que podem ser a
 
 | Campo | Tipo | Notas |
 |-------|------|-------|
-| `category` | `"stories"` \| `"building"` \| `"control"` \| `"bts"` \| `null` | Só relevante para format `blog_post`. Transferido na graduação (default: `building`). Nota: `"money"` renomeado para `"control"` em 2026-05-12 — cobre finanças, fitness, livros, relacionamentos, rotina. |
+| `category` | `"stories"` \| `"building"` \| `"money"` \| `"bts"` \| `null` | Só relevante para format `blog_post`. Transferido na graduação (default: `building`). A categoria `money` cobre finanças, fitness, livros, relacionamentos, rotina. |
 | `cover_image_url` | URL string \| `null` | Imagem de capa. Crop 16:9, max 1200×675. Transferida na graduação para `blog_posts.cover_image_url`. |
 
 Estes campos são gerenciados pela UI (dropdown de categoria, galeria de mídia). Cowork não precisa atualizá-los diretamente — mas pode referenciar `category` ao gerar conteúdo que mencione a categoria do post.
