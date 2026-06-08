@@ -1,7 +1,8 @@
 // apps/web/test/cms/video/editor/focus-mode.test.tsx
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render, fireEvent } from '@testing-library/react'
 import { VideoEditorProvider } from '@/app/cms/(authed)/video/[id]/edit/context'
+import { VideoDataProvider } from '@/app/cms/(authed)/video/[id]/edit/data-context'
 import { EditorShell } from '@/app/cms/(authed)/video/[id]/edit/editor-shell'
 import type { VideoEditorState } from '@/app/cms/(authed)/video/[id]/edit/types'
 
@@ -11,8 +12,15 @@ const make = (over: Partial<VideoEditorState> = {}): VideoEditorState => ({
   recordingOpen: false, handoffOpen: false, coworkOpen: false, ...over,
 })
 
+const stubData = {
+  ideia: { pt: { title: '', direction: '', siblings: [], logline: '', angles: '', framework: '' }, en: { title: '', direction: '', siblings: [], logline: '', angles: '', framework: '' } },
+  roteiro: { pt: null, en: null }, pillar: undefined, durationRange: undefined,
+  saveIdeia: vi.fn(), saveTitle: vi.fn(), appendSiblings: vi.fn(), saveRoteiro: vi.fn(),
+  hasUnsavedChanges: false, saveAll: vi.fn().mockResolvedValue(undefined), autosaveState: 'saved' as const,
+}
+
 function shell(state: VideoEditorState) {
-  return render(<VideoEditorProvider initialState={state}><EditorShell /></VideoEditorProvider>)
+  return render(<VideoEditorProvider initialState={state}><VideoDataProvider value={stubData as never}><EditorShell /></VideoDataProvider></VideoEditorProvider>)
 }
 
 describe('Focus mode', () => {

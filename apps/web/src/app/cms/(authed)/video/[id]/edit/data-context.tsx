@@ -22,6 +22,9 @@ export interface VideoData {
   saveTitle: (lang: 'pt' | 'en', title: string) => Promise<void>
   appendSiblings: (lang: 'pt' | 'en') => void
   saveRoteiro: (lang: 'pt' | 'en', content: RoteiroContentV3) => Promise<void>
+  hasUnsavedChanges: boolean
+  saveAll: () => Promise<void>
+  autosaveState: 'saving' | 'saved' | 'unsaved' | 'error' | 'offline'
 }
 
 const Ctx = createContext<VideoData | null>(null)

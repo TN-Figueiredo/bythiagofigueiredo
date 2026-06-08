@@ -8,6 +8,8 @@ import { VideoEdBar } from './ed-bar'
 import { VidStages } from './vid-stages'
 import { FocusExit } from './focus-exit'
 import { useEdBarHeight } from './use-ed-bar-height'
+import { NavigationGuard } from '@/app/cms/(authed)/_shared/editor/navigation-guard'
+import { useVideoData } from './data-context'
 
 const IdeiaStage = lazy(() => import('./stages/ideia-stage').then((m) => ({ default: m.IdeiaStage })))
 const RoteiroStage = lazy(() => import('./stages/roteiro-stage').then((m) => ({ default: m.RoteiroStage })))
@@ -46,6 +48,20 @@ export function EditorShell() {
   const topRef = useRef<HTMLDivElement>(null)
   const edBarH = useEdBarHeight(topRef)
 
+  const data = useVideoData()
+
+  // ⌘S / Ctrl+S force-flush autosave (no-op if clean — useAutosave handles that).
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault()
+        void data.saveAll()
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [data])
+
   return (
     <div
       className={`video-editor staged-editor vid-ed${published ? ' vid-ro' : ''}`}
@@ -66,6 +82,18 @@ export function EditorShell() {
         </div>
       </div>
       <FocusExit />
+      <div
+        role="status"
+        aria-live="polite"
+        style={{ position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap', border: 0 }}
+      >
+        {data.autosaveState === 'saving' ? 'Salvando…'
+          : data.autosaveState === 'saved' ? 'Rascunho salvo'
+          : data.autosaveState === 'error' ? 'Erro ao salvar'
+          : data.autosaveState === 'offline' ? 'Sem conexão — salvo localmente'
+          : ''}
+      </div>
+      <NavigationGuard hasUnsavedChanges={data.hasUnsavedChanges} onSave={async () => { await data.saveAll() }} />
     </div>
   )
 }
