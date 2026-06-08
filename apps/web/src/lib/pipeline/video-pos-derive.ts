@@ -4,7 +4,9 @@ import type { RoteiroBeatV3 } from '@/lib/pipeline/video-schemas'
 export function keyLineText(beat: RoteiroBeatV3): string {
   const lines = beat.script.filter((s): s is Extract<typeof s, { type: 'line' }> => s.type === 'line')
   const keyLine = lines.find(l => l.key === true)
-  return (keyLine ?? lines[0])?.text ?? ''
+  // Strip `**` emphasis markers (mirrors handoff: k.text.replace(/\*\*/g,'')) so the
+  // momento line doesn't surface literal markdown asterisks.
+  return ((keyLine ?? lines[0])?.text ?? '').replace(/\*\*/g, '')
 }
 
 /** All `vis` (b-roll) item texts, in script order. */

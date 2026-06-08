@@ -7,6 +7,7 @@ import type { RoteiroBeatV3, PosBrief } from '@/lib/pipeline/video-schemas'
 import { keyLineText, visNotes } from '@/lib/pipeline/video-pos-derive'
 import { CHANNELS } from '@/lib/pipeline/channels'
 import { useVideoEditorDispatch } from '../context'
+import { useVideoData } from '../data-context'
 import type { Version } from '../editor-model'
 
 export interface PosStageProps {
@@ -85,6 +86,7 @@ function LegacyPostprodFallback() {
 
 export function PosStage({ beats, brief, activeLang, onPatch, onOpenHandoff, legacy }: PosStageProps) {
   const dispatch = useVideoEditorDispatch()
+  const data = useVideoData()
 
   const del = brief?.deliverables ?? {}
   const style = brief?.style ?? []
@@ -104,8 +106,15 @@ export function PosStage({ beats, brief, activeLang, onPatch, onOpenHandoff, leg
     return <LegacyPostprodFallback />
   }
 
-  // Derive present language labels (mirrors handoff: versions[l] → channel.label joined " + ")
-  const langs = CHANNELS.map((c) => c.label).join(' + ')
+  // Present language labels only (mirrors handoff: versions[l] with content → channel.label
+  // joined " + "). Our model always carries both pt/en objects, so test for actual content.
+  const langs =
+    CHANNELS.filter((c) => {
+      const v = data.versions?.[c.lang]
+      return !!v && (!!v.title?.trim() || !!v.direction?.trim() || (v.beats?.length ?? 0) > 0)
+    })
+      .map((c) => c.label)
+      .join(' + ') || (CHANNELS.find((c) => c.lang === activeLang)?.label ?? '')
 
   const goRoteiro = () => dispatch({ type: 'SET_STAGE', stage: 'roteiro' })
 
