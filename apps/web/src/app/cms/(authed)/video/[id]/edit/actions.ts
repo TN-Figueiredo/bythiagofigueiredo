@@ -48,6 +48,9 @@ export async function saveVideoTitle(
 ): Promise<{ ok: true; version: number } | { ok: false; error: string }> {
   const parsed = TitleSchema.safeParse(title)
   if (!parsed.success) return { ok: false, error: 'invalid_title' }
+  // Never CLEAR a title: a blank save (e.g. a contentEditable firing with transient
+  // empty content during a re-render) must NOT wipe the title_<lang> column. No-op.
+  if (!parsed.data.trim()) return { ok: true, version: expectedVersion }
 
   const { siteId } = await getSiteContext()
   const scope = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })

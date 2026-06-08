@@ -46,6 +46,7 @@ export function IdeiaStage({ cur: curProp, lang: langProp }: IdeiaStageProps = {
 
   const onTitle = (e: React.FormEvent<HTMLElement> | React.FocusEvent<HTMLElement>) => {
     const text = (e.currentTarget.textContent ?? '').trim()
+    if (!text) return // never clear the title via a blank contentEditable (server also guards)
     void data.saveTitle(lang, text)
     void data.saveIdeia(lang, { title: text })
   }
@@ -76,7 +77,6 @@ export function IdeiaStage({ cur: curProp, lang: langProp }: IdeiaStageProps = {
         spellCheck={false}
         data-empty={!(cur.title ?? '').trim()}
         data-ph="Título de trabalho do vídeo…"
-        onInput={onTitle}
         onBlur={onTitle}
       >
         {cur.title}
@@ -95,7 +95,6 @@ export function IdeiaStage({ cur: curProp, lang: langProp }: IdeiaStageProps = {
           spellCheck={false}
           data-empty={!(cur.direction ?? '').trim()}
           data-ph="Qual é a opinião ou a coisa que você quer discutir? Em 2–3 frases."
-          onInput={onDirection}
           onBlur={onDirection}
         >
           {cur.direction}
