@@ -156,7 +156,7 @@ export function migrateV1toV2(content: unknown): RoteiroContent {
   if (
     typeof content === 'object' && content !== null &&
     !Array.isArray(content) &&
-    (content as Record<string, unknown>).version === 2
+    (content as Record<string, unknown>).version as number >= 2
   ) {
     return RoteiroContentSchema.parse(content)
   }
@@ -213,4 +213,120 @@ export function beatReadTime(beat: RoteiroBeat): number {
     .filter((l): l is ScriptLine & { type: 'pause' } => l.type === 'pause')
     .reduce((n, l) => n + l.duration, 0)
   return Math.ceil(words / 2.5 + pauses)
+}
+
+// ── v3 script lines ──────────────────────────────────
+export const ScriptLineLineSchemaV3 = z.object({
+  type: z.literal('line'),
+  text: z.string().min(1),
+  key: z.boolean().optional(),     // anchor line (Pós "Momentos-chave", orange accent)
+  accent: z.string().optional(),    // kept for back-compat; deprecated
+})
+export const ScriptLineDirSchema = z.object({ type: z.literal('dir'), text: z.string().min(1) }) // fwd-compat; renders nowhere
+export const ScriptLineVisSchema = z.object({ type: z.literal('vis'), text: z.string().min(1) }) // editor → b-roll
+export const ScriptLineEdSchema = z.object({ type: z.literal('ed'), text: z.string().min(1) })   // editor-only
+
+export const ScriptLineSchemaV3 = z.discriminatedUnion('type', [
+  ScriptLineLineSchemaV3,
+  ScriptLinePauseSchema,
+  ScriptLineDirSchema,
+  ScriptLineVisSchema,
+  ScriptLineEdSchema,
+])
+export type ScriptLineV3 = z.infer<typeof ScriptLineSchemaV3>
+
+export const RoteiroBeatSchemaV3 = z.object({
+  idx: z.number().int().min(0),
+  name: z.string().min(1),
+  status: z.enum(['PENDING', 'DONE']).default('PENDING'),
+  duration: z.number().int().min(0).optional(),
+  tone: z.string().optional(),
+  script: z.array(ScriptLineSchemaV3).default([]),
+})
+export type RoteiroBeatV3 = z.infer<typeof RoteiroBeatSchemaV3>
+
+export const RoteiroContentSchemaV3 = z.object({
+  version: z.literal(3),
+  meta: RoteiroMetaSchema.default({}),
+  beats: z.array(RoteiroBeatSchemaV3).default([]),
+})
+export type RoteiroContentV3 = z.infer<typeof RoteiroContentSchemaV3>
+
+/**
+ * Migrates a v2 RoteiroContent to v3. Idempotent; only meant to run for version < 3
+ * (via readRoteiro). note(VISUAL)→vis, note(NARRACAO)→ed, note(DIRECTION)+ref → beat.tone,
+ * line{accent:'key'|truthy}→line{key:true}, pause unchanged.
+ */
+export function migrateV2toV3(content: unknown): RoteiroContentV3 {
+  if (
+    typeof content === 'object' && content !== null &&
+    !Array.isArray(content) &&
+    (content as Record<string, unknown>).version === 3
+  ) {
+    return RoteiroContentSchemaV3.parse(content)
+  }
+
+  // Capture raw beats before Zod parse strips unknown fields (e.g. tone on v2 beats)
+  const rawBeats: Array<{ tone?: string }> =
+    typeof content === 'object' && content !== null && !Array.isArray(content) &&
+    Array.isArray((content as Record<string, unknown>).beats)
+      ? ((content as Record<string, unknown>).beats as Array<{ tone?: string }>)
+      : []
+
+  const v2 = RoteiroContentSchema.parse(content)
+
+  const beats: RoteiroBeatV3[] = v2.beats.map((beat, i) => {
+    const rawTone = rawBeats[i]?.tone
+    const script: ScriptLineV3[] = []
+    const toneParts: string[] = []
+    if (beat.duration === undefined) { /* duration stays optional */ }
+
+    for (const line of beat.script) {
+      switch (line.type) {
+        case 'line': {
+          const isKey = line.accent === 'key'
+          script.push(isKey ? { type: 'line', text: line.text, key: true } : { type: 'line', text: line.text })
+          break
+        }
+        case 'pause':
+          script.push({ type: 'pause', duration: line.duration })
+          break
+        case 'note':
+          if (line.tag === 'VISUAL') script.push({ type: 'vis', text: line.text })
+          else if (line.tag === 'NARRACAO') script.push({ type: 'ed', text: line.text })
+          else toneParts.push(line.text) // DIRECTION → tone
+          break
+        case 'ref':
+          toneParts.push(line.text) // ref → tone
+          break
+      }
+    }
+
+    const migratedTone = toneParts.join(' · ').trim()
+    const tone = [/* preserve existing v2 tone if any */ rawTone, migratedTone || undefined]
+      .filter((t): t is string => !!t && t.trim().length > 0)
+      .join(' · ') || undefined
+    return {
+      idx: beat.idx,
+      name: beat.name,
+      status: beat.status,
+      ...(beat.duration !== undefined ? { duration: beat.duration } : {}),
+      ...(tone ? { tone } : {}),
+      script,
+    }
+  })
+
+  return { version: 3, meta: v2.meta, beats }
+}
+
+/**
+ * Canonical read adapter: dispatch on version FIRST. v3 passes through untouched;
+ * v1/v2/legacy/string run the full chain. No caller may invoke migrateV1toV2 directly
+ * on a possibly-v3 row.
+ */
+export function readRoteiro(raw: unknown): RoteiroContentV3 {
+  const v = (raw as { version?: number })?.version
+  if (v === 3) return RoteiroContentSchemaV3.parse(raw)
+  const v2 = migrateV1toV2(raw)
+  return migrateV2toV3(v2)
 }
