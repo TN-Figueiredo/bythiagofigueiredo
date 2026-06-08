@@ -35,6 +35,9 @@ export async function sendWelcomeEmail(opts: WelcomeEmailOpts): Promise<boolean>
       html,
       text,
       metadata: {
+        // Explicitly tag as transactional so welcome mail never rides the
+        // marketing config-set's reputation/suppression list.
+        configurationSet: process.env.SES_TRANSACTIONAL_CONFIG_SET ?? process.env.SES_DEFAULT_CONFIG_SET,
         headers: {
           'List-Unsubscribe': `<mailto:unsubscribe@${domain}?subject=unsubscribe>, <${unsubscribeUrl}>`,
           'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',

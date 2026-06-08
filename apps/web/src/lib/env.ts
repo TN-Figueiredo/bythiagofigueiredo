@@ -17,6 +17,8 @@ const serverSchema = z.object({
   SENTRY_PROJECT: z.string().min(1).optional(),
   SENTRY_AUTH_TOKEN: z.string().min(1).optional(),
   LGPD_VERIFY_SECRET: z.string().min(1).optional(),
+  // Dedicated HMAC key for unsubscribe links; falls back to CRON_SECRET when unset.
+  UNSUBSCRIBE_TOKEN_SECRET: z.string().optional(),
   LGPD_CRON_SWEEP_ENABLED: z.string().optional(),
   SEO_AI_CRAWLERS_BLOCKED: z.string().optional(),
   LINKS_SHORT_DOMAIN: z.string().optional(),
@@ -29,7 +31,20 @@ const serverSchema = z.object({
   AWS_SES_SECRET_ACCESS_KEY: z.string().min(1),
   SES_DEFAULT_CONFIG_SET: z.string().optional(),
   SES_MARKETING_CONFIG_SET: z.string().optional(),
+  // Transactional config-set for welcome/confirm mail — kept separate from the
+  // marketing set so a bulk complaint spike can't degrade opt-in deliverability.
+  SES_TRANSACTIONAL_CONFIG_SET: z.string().optional(),
   SNS_EXPECTED_TOPIC_ARN: z.string().optional(),
+  // Real registered mailing address rendered in the email footer (CAN-SPAM).
+  // When unset the footer omits the address line rather than showing a fake one.
+  NEWSLETTER_POSTAL_ADDRESS: z.string().optional(),
+  // Safety override: the newsletter send/welcome crons only send from the
+  // production Vercel deployment. Set to '1' to permit a deliberate local send
+  // (e.g. testing against a throwaway list). Leave unset everywhere else.
+  ALLOW_LOCAL_NEWSLETTER_SEND: z.string().optional(),
+  // Opt-in: enable the post-send delivery reconciliation alert. Only turn on
+  // once the SES 'Delivery' event is wired to the SNS topic, else it false-alarms.
+  NEWSLETTER_DELIVERY_RECONCILE: z.string().optional(),
 })
 
 // ---------------------------------------------------------------------------

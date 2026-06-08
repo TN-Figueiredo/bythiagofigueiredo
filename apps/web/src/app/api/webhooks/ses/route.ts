@@ -14,6 +14,10 @@ const certCache = new Map<string, { pem: string; expiresAt: number }>()
 // announced; a 15min window is well within acceptable risk for webhook
 // signature verification.
 const CERT_TTL_MS = 15 * 60 * 1000
+// Hard cap on distinct cert URLs cached. There are only ever a handful of real
+// AWS SNS signing cert URLs; this bounds the Map so a flood of (signature-
+// rejected) requests with novel SigningCertURLs can't grow it without limit.
+const CERT_CACHE_MAX = 16
 
 async function getCachedCert(url: string): Promise<string> {
   const cached = certCache.get(url)
@@ -22,6 +26,11 @@ async function getCachedCert(url: string): Promise<string> {
     (r) => r.text(),
   )
   certCache.set(url, { pem, expiresAt: Date.now() + CERT_TTL_MS })
+  // Evict the oldest entry (Map preserves insertion order) once over the cap.
+  if (certCache.size > CERT_CACHE_MAX) {
+    const oldest = certCache.keys().next().value
+    if (oldest !== undefined) certCache.delete(oldest)
+  }
   return pem
 }
 
@@ -67,16 +76,42 @@ export async function POST(req: Request): Promise<Response> {
     return NextResponse.json({ error: 'invalid_json' }, { status: 400 })
   }
 
+  // Reject an INVALID signature for ALL message types, including
+  // SubscriptionConfirmation — verifySnsSignature builds the correct
+  // string-to-sign for the non-Notification branch, so legitimately-signed
+  // SubscriptionConfirmation messages from AWS still pass. Letting unsigned
+  // SubscriptionConfirmation through enabled blind SSRF via SubscribeURL.
   const valid = await verifySnsSignature(body).catch(() => false)
-  if (!valid && body.Type !== 'SubscriptionConfirmation') {
+  if (!valid) {
     return NextResponse.json({ error: 'invalid_signature' }, { status: 401 })
   }
 
-  // Validate SNS TopicArn for Notification messages when allowlist is configured
-  if (body.Type === 'Notification') {
+  // Validate SNS TopicArn for BOTH Notification and SubscriptionConfirmation.
+  if (body.Type === 'Notification' || body.Type === 'SubscriptionConfirmation') {
     const expectedArn = getServerEnv().SNS_EXPECTED_TOPIC_ARN
-    if (expectedArn && body.TopicArn !== expectedArn) {
-      return NextResponse.json({ error: 'topic_arn_mismatch' }, { status: 403 })
+    if (expectedArn) {
+      // Opt-in hardening: when the ARN is configured we bind the webhook to YOUR
+      // topic and reject anything else (a validly-signed message from another
+      // AWS account would otherwise be trusted).
+      if (body.TopicArn !== expectedArn) {
+        return NextResponse.json(
+          { error: 'topic_arn_mismatch' },
+          { status: 403 },
+        )
+      }
+    } else if (
+      process.env.VERCEL_ENV === 'production' ||
+      process.env.NODE_ENV === 'production'
+    ) {
+      // Non-breaking by default: if the ARN is unset we still accept the
+      // (already signature-verified) message so the webhook keeps working, but
+      // surface a warning so the operator can opt into topic binding. We do NOT
+      // 500 here — that would silently break bounce/complaint/delivery handling
+      // for anyone who hasn't set the var yet.
+      Sentry.captureMessage(
+        'SNS_EXPECTED_TOPIC_ARN unset — set it to bind the SES webhook to your topic (accepting any signed topic for now)',
+        { level: 'warning', tags: { component: 'webhook', provider: 'ses' } },
+      )
     }
   }
 
@@ -177,7 +212,6 @@ async function processEvent(
         newsletter_type_id: string
       } | null)
   const siteId = editionData?.site_id
-  const newsletterId = editionData?.newsletter_type_id
 
   const { data: sub } = await supabase
     .from('newsletter_subscriptions')
@@ -186,7 +220,9 @@ async function processEvent(
     .eq('site_id', siteId ?? '')
     .maybeSingle()
 
-  const trackPii = sub?.tracking_consent !== false
+  // fail closed: only record PII when consent is explicitly granted; a
+  // missing/erased subscription row must not default to tracking.
+  const trackPii = sub?.tracking_consent === true
 
   switch (event.type) {
     case 'delivered':
@@ -226,6 +262,39 @@ async function processEvent(
 
       const clickedUrl = event.metadata?.url ?? ''
 
+      // Shared helper: record a click into link_clicks for a resolved
+      // tracked_link id. newsletter_click_events is a NON-UPDATABLE JOIN VIEW
+      // — never insert into it (writes silently fail).
+      //
+      // link_clicks columns are link_id + site_id (both NOT NULL) + clicked_at +
+      // optional PII. The click's source (newsletter/edition) is NOT stored here:
+      // source_type/source_id live on tracked_links and are resolved at read-time
+      // via the link_id → tracked_links join (see links_redesign_views). Writing
+      // source_type/source_id here previously failed silently (PGRST204) AND the
+      // missing NOT NULL site_id would have rejected the row regardless — so every
+      // newsletter click was lost. We now insert the real columns and surface any
+      // error instead of discarding it.
+      const recordLinkClick = async (linkId: string) => {
+        const { error } = await supabase.from('link_clicks' as never).insert({
+          link_id: linkId,
+          site_id: siteId ?? '',
+          ...(trackPii
+            ? {
+                ip: event.metadata?.ip ?? null,
+                user_agent: event.metadata?.userAgent ?? null,
+              }
+            : {}),
+          clicked_at: event.timestamp,
+        } as never)
+        if (error) {
+          Sentry.captureMessage('failed to record newsletter click into link_clicks', {
+            level: 'warning',
+            tags: { component: 'webhook', provider: 'ses' },
+            extra: { linkId, code: (error as { code?: string }).code, message: error.message },
+          })
+        }
+      }
+
       if ((send as Record<string, unknown>).link_rewrite_enabled) {
         // Unified path: find the tracked_link by its destination URL
         // (SES follows redirects before firing the event, so the URL is
@@ -238,43 +307,37 @@ async function processEvent(
           .maybeSingle()
 
         if (trackedLink) {
-          await supabase.from('link_clicks' as never).insert({
-            link_id: (trackedLink as { id: string }).id,
-            source_type: 'newsletter',
-            source_id: send.edition_id,
-            ...(trackPii
-              ? {
-                  ip: event.metadata?.ip ?? null,
-                  user_agent: event.metadata?.userAgent ?? null,
-                }
-              : {}),
-            clicked_at: event.timestamp,
-          })
+          await recordLinkClick((trackedLink as { id: string }).id)
         } else {
-          // Fallback: tracked_link row missing — write to legacy table.
-          await supabase.from('newsletter_click_events').insert({
-            send_id: send.id,
-            url: clickedUrl,
-            ...(trackPii
-              ? {
-                  ip: event.metadata?.ip ?? null,
-                  user_agent: event.metadata?.userAgent ?? null,
-                }
-              : {}),
-          })
+          // Fallback: a unified send normally creates the tracked_link at send
+          // time (rewriteLinksUnified, with a generated `code`), so a miss here
+          // is an edge case (e.g. destination changed). We do NOT synthesize a
+          // tracked_link: link_clicks.link_id is a required FK, and tracked_links
+          // requires a NOT NULL `code` from generate_link_code() plus a unique
+          // (site_id, code) — an upsert on (site_id, destination_url) would fail.
+          // The click's clicked_at/status is already recorded on newsletter_sends;
+          // surface the per-link attribution loss so it's visible.
+          Sentry.captureMessage(
+            'newsletter click: no tracked_link for destination; per-link attribution skipped (clicked_at recorded on the send)',
+            {
+              level: 'warning',
+              tags: { component: 'webhook', provider: 'ses' },
+              extra: { siteId: siteId ?? null, clickedUrl },
+            },
+          )
         }
       } else {
-        // Legacy path: pre-unification send — write to newsletter_click_events.
-        await supabase.from('newsletter_click_events').insert({
-          send_id: send.id,
-          url: clickedUrl,
-          ...(trackPii
-            ? {
-                ip: event.metadata?.ip ?? null,
-                user_agent: event.metadata?.userAgent ?? null,
-              }
-            : {}),
-        })
+        // Genuinely legacy send (pre-unification): no tracked_link exists and
+        // there is no clean way to synthesize one. Do NOT insert into the
+        // broken newsletter_click_events view — emit a warning so the loss is
+        // visible and rely on the already-recorded clicked_at / status above.
+        Sentry.captureMessage(
+          'legacy newsletter click could not be persisted (no tracked_link); recorded clicked_at only',
+          {
+            level: 'warning',
+            tags: { component: 'webhook', provider: 'ses' },
+          },
+        )
       }
       break
     }
@@ -287,13 +350,15 @@ async function processEvent(
           bounce_type: event.metadata?.bounceType === 'hard' ? 'Permanent' : 'Transient',
         })
         .eq('id', send.id)
-      if (event.metadata?.bounceType === 'hard' && siteId && newsletterId) {
+      if (event.metadata?.bounceType === 'hard' && siteId) {
+        // complaint/hard-bounce = global opt-out across all of this
+        // subscriber's lists on the site (CAN-SPAM/LGPD consent withdrawal).
         await supabase
           .from('newsletter_subscriptions')
           .update({ status: 'bounced' })
           .eq('email', send.subscriber_email)
           .eq('site_id', siteId)
-          .eq('newsletter_id', newsletterId)
+          .neq('status', 'unsubscribed')
       }
       break
 
@@ -302,13 +367,15 @@ async function processEvent(
         .from('newsletter_sends')
         .update({ status: 'complained' })
         .eq('id', send.id)
-      if (siteId && newsletterId) {
+      if (siteId) {
+        // complaint/hard-bounce = global opt-out across all of this
+        // subscriber's lists on the site (CAN-SPAM/LGPD consent withdrawal).
         await supabase
           .from('newsletter_subscriptions')
           .update({ status: 'complained' })
           .eq('email', send.subscriber_email)
           .eq('site_id', siteId)
-          .eq('newsletter_id', newsletterId)
+          .neq('status', 'unsubscribed')
       }
       break
   }

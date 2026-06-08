@@ -14,7 +14,11 @@ export function hashConfirmToken(raw: string): string {
 }
 
 function getUnsubscribeKey(): Buffer {
-  const secret = getServerEnv().CRON_SECRET
+  // Dedicated secret decouples unsubscribe links from CRON_SECRET rotation;
+  // falls back to CRON_SECRET so existing links keep working until set.
+  // Rotating UNSUBSCRIBE_TOKEN_SECRET invalidates outstanding links
+  // (regenerated on next send).
+  const secret = process.env.UNSUBSCRIBE_TOKEN_SECRET ?? process.env.CRON_SECRET ?? getServerEnv().CRON_SECRET
   return crypto.createHash('sha256').update(`unsubscribe-token:${secret}`).digest()
 }
 
@@ -53,6 +57,18 @@ export async function sendNewsletterConfirmEmail(opts: SendConfirmEmailOpts): Pr
       subject: isPt ? 'Confirme sua inscrição' : 'Confirm your subscription',
       html,
       text,
+      metadata: {
+        // Double-opt-in confirmation GATES every new signup — it must ride the
+        // transactional config-set so a marketing complaint spike can never
+        // suppress it.
+        configurationSet: process.env.SES_TRANSACTIONAL_CONFIG_SET ?? process.env.SES_DEFAULT_CONFIG_SET,
+        // mailto List-Unsubscribe (no one-click): a pending subscriber has no
+        // unsubscribe token yet, but offering an opt-out path improves inbox
+        // placement and lets the recipient bail out of the confirmation flow.
+        headers: {
+          'List-Unsubscribe': `<mailto:unsubscribe@${domain}?subject=unsubscribe>`,
+        },
+      },
     })
     return true
   } catch (err) {

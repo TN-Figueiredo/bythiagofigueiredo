@@ -17,6 +17,11 @@ interface EmailFooterProps {
 
 export function EmailFooter({ unsubscribeUrl, archiveUrl, locale = 'pt-BR', showPrefs = true }: EmailFooterProps) {
   const copy = COPY[(locale as Locale) in COPY ? (locale as Locale) : 'pt-BR']
+  // set NEWSLETTER_POSTAL_ADDRESS in env to the real registered mailing address (CAN-SPAM).
+  // Server-rendered React Email component, so process.env is fine. If unset, the
+  // address line is omitted entirely — never render a fake placeholder (CAN-SPAM
+  // valid-postal-address requirement + spam-filter heuristic).
+  const postalAddress = process.env.NEWSLETTER_POSTAL_ADDRESS
   return (
     <Section style={{ padding: '20px 48px 40px', textAlign: 'center' }}>
       <Text className="email-muted" style={{
@@ -41,16 +46,18 @@ export function EmailFooter({ unsubscribeUrl, archiveUrl, locale = 'pt-BR', show
       }}>
         bythiagofigueiredo.com
       </Text>
-      <Text className="email-faint" style={{
-        fontFamily: EMAIL_FONTS.sans,
-        fontSize: 10,
-        color: EMAIL_COLORS.faint,
-        margin: '0 0 20px',
-        opacity: 0.7,
-        lineHeight: '1.4',
-      }}>
-        Rua Example, 123 — São Paulo, SP — Brasil
-      </Text>
+      {postalAddress && (
+        <Text className="email-faint" style={{
+          fontFamily: EMAIL_FONTS.sans,
+          fontSize: 10,
+          color: EMAIL_COLORS.faint,
+          margin: '0 0 20px',
+          opacity: 0.7,
+          lineHeight: '1.4',
+        }}>
+          {postalAddress}
+        </Text>
+      )}
       {unsubscribeUrl && (
         <Text className="email-faint" style={{
           fontFamily: EMAIL_FONTS.sans,

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 const CRON_SECRET = 'test-secret'
 process.env.CRON_SECRET = CRON_SECRET
@@ -20,6 +20,7 @@ vi.mock('../../../src/lib/env', () => ({
 
 vi.mock('@sentry/nextjs', () => ({
   captureException: vi.fn(),
+  captureMessage: vi.fn(),
 }))
 
 import { POST } from '../../../src/app/api/cron/send-welcome-emails/route'
@@ -37,6 +38,25 @@ function req(secret?: string) {
 describe('POST /api/cron/send-welcome-emails', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // Permit sends in the test env (route otherwise only sends from prod Vercel).
+    process.env.ALLOW_LOCAL_NEWSLETTER_SEND = '1'
+  })
+  afterEach(() => {
+    delete process.env.ALLOW_LOCAL_NEWSLETTER_SEND
+  })
+
+  it('skips when invoked outside production without override', async () => {
+    delete process.env.ALLOW_LOCAL_NEWSLETTER_SEND
+    const prevVercelEnv = process.env.VERCEL_ENV
+    delete process.env.VERCEL_ENV
+    try {
+      const res = await POST(req(CRON_SECRET))
+      expect(res.status).toBe(200)
+      expect(await res.json()).toMatchObject({ status: 'skipped', sent: 0 })
+      expect(sendWelcomeEmailMock).not.toHaveBeenCalled()
+    } finally {
+      if (prevVercelEnv !== undefined) process.env.VERCEL_ENV = prevVercelEnv
+    }
   })
 
   it('returns 401 without auth', async () => {
@@ -88,8 +108,14 @@ describe('POST /api/cron/send-welcome-emails', () => {
               }),
             }),
           }),
+          // Claim-before-send: update({welcome_sent:true}).eq().in().select()
+          // returns the rows THIS run actually claimed (with full fields).
           update: vi.fn().mockReturnValue({
-            in: vi.fn().mockResolvedValue({ data: null, error: null }),
+            eq: vi.fn().mockReturnValue({
+              in: vi.fn().mockReturnValue({
+                select: vi.fn().mockResolvedValue({ data: [subscriber], error: null }),
+              }),
+            }),
           }),
         }
       }
@@ -139,5 +165,36 @@ describe('POST /api/cron/send-welcome-emails', () => {
     expect(callArgs.newsletterNames).toHaveLength(1)
     expect(callArgs.newsletterNames[0].name).toBe('Weekly')
     expect(callArgs.unsubscribeUrl).toMatch(/^https:\/\/bythiagofigueiredo\.com\/api\/newsletters\/unsubscribe\?token=/)
+  })
+
+  it('does not send when another run already claimed the rows (no double-send)', async () => {
+    // Candidates exist, but the atomic claim UPDATE returns no rows because an
+    // overlapping run flipped welcome_sent=true first. We must NOT send.
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'newsletter_subscriptions') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                limit: vi.fn().mockResolvedValue({ data: [{ id: 'sub-1' }], error: null }),
+              }),
+            }),
+          }),
+          update: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              in: vi.fn().mockReturnValue({
+                select: vi.fn().mockResolvedValue({ data: [], error: null }),
+              }),
+            }),
+          }),
+        }
+      }
+      return {}
+    })
+
+    const res = await POST(req(CRON_SECRET))
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ status: 'ok', sent: 0 })
+    expect(sendWelcomeEmailMock).not.toHaveBeenCalled()
   })
 })

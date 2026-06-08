@@ -32,6 +32,35 @@ export async function POST(req: Request): Promise<Response> {
   const runId = newRunId()
 
   return withCronLock(supabase, LOCK_KEY, runId, JOB, async () => {
+    // ── Environment safety ───────────────────────────────────────────────
+    // .env.local points at PRODUCTION Supabase + SES. A local `npm run dev`
+    // plus a manual hit on this endpoint (or a local scheduler) would claim
+    // scheduled editions and send REAL email to REAL subscribers from a dev
+    // machine — which is how a test edition once went out 16h off-schedule.
+    // Only the production Vercel deployment may send. For a deliberate local
+    // test against a throwaway list, set ALLOW_LOCAL_NEWSLETTER_SEND=1.
+    const liveSendAllowed =
+      process.env.VERCEL_ENV === 'production' ||
+      process.env.ALLOW_LOCAL_NEWSLETTER_SEND === '1'
+    if (!liveSendAllowed) {
+      Sentry.captureMessage(
+        'send-scheduled-newsletters invoked outside production — skipped (set ALLOW_LOCAL_NEWSLETTER_SEND=1 to override)',
+        { level: 'warning', tags: { component: 'cron', job: JOB } },
+      )
+      // withCronLock requires status 'ok'|'error' and strips it from the body;
+      // expose the skip via a flag so the response is { skipped: true, ... }.
+      return { status: 'ok' as const, skipped: true, reason: 'non_production_environment', sent: 0 }
+    }
+
+    // ── Delivery reconciliation ──────────────────────────────────────────
+    // Opt-in (NEWSLETTER_DELIVERY_RECONCILE=1): only meaningful once the SES
+    // 'Delivery' event is published to the SNS topic the webhook consumes.
+    // Off by default so it can't false-positive ("0 deliveries") when delivery
+    // tracking simply isn't wired yet.
+    if (process.env.NEWSLETTER_DELIVERY_RECONCILE === '1') {
+      await reconcileDeliveries(supabase)
+    }
+
     // ── Stuck-edition recovery ───────────────────────────────────────────
     // Editions stuck in 'sending' for >2h are likely from a crashed run.
     // Reset them to 'scheduled' so they get retried on the next cycle.
@@ -90,6 +119,94 @@ export async function POST(req: Request): Promise<Response> {
 // registered for this route — so it never fired).
 export const GET = POST
 
+// ── Delivery reconciliation ────────────────────────────────────────────────
+// Finding: delivered_at is NULL across all sends + zero delivery-rate alerting.
+// For editions marked 'sent' between 2h and 26h ago, compare how many sends
+// were accepted by SES (provider_message_id NOT NULL) against how many have a
+// recorded delivery (delivered_at NOT NULL, written by the SNS webhook). If
+// nothing — or very little — was delivered, the SES Delivery event / SNS topic
+// is almost certainly misconfigured, so alert once (delivery_alerted guard).
+// Fully wrapped in try/catch so reconciliation can never break the send path.
+async function reconcileDeliveries(
+  supabase: ReturnType<typeof getSupabaseServiceClient>,
+): Promise<void> {
+  try {
+    const now = Date.now()
+    const lowerBound = new Date(now - 26 * 60 * 60 * 1000).toISOString() // sent_at >= now-26h
+    const upperBound = new Date(now - 2 * 60 * 60 * 1000).toISOString() // sent_at <= now-2h (grace for async delivery events)
+
+    const { data: candidates } = await supabase
+      .from('newsletter_editions')
+      .select('id, subject')
+      .eq('status', 'sent')
+      .gte('sent_at', lowerBound)
+      .lte('sent_at', upperBound)
+      .eq('delivery_alerted', false)
+      .limit(20)
+
+    if (!candidates?.length) return
+
+    for (const edition of candidates) {
+      const { count: sentTotal } = await supabase
+        .from('newsletter_sends')
+        .select('id', { count: 'exact', head: true })
+        .eq('edition_id', edition.id)
+        .not('provider_message_id', 'is', null)
+
+      // No accepted sends to reconcile — leave untouched (don't burn the alert).
+      if (!sentTotal || sentTotal <= 0) continue
+
+      const { count: deliveredCount } = await supabase
+        .from('newsletter_sends')
+        .select('id', { count: 'exact', head: true })
+        .eq('edition_id', edition.id)
+        .not('delivered_at', 'is', null)
+
+      const delivered = deliveredCount ?? 0
+      const deliveryRate = (delivered / sentTotal) * 100
+
+      if (delivered === 0) {
+        Sentry.captureMessage(
+          `Newsletter edition ${edition.id} '${edition.subject}' sent ${sentTotal} but 0 deliveries recorded after 2h — SES Delivery event/SNS likely misconfigured.`,
+          {
+            level: 'error',
+            tags: { component: 'cron', job: JOB, phase: 'reconcile' },
+            extra: { editionId: edition.id, sentTotal, deliveredCount: delivered },
+          },
+        )
+        await supabase
+          .from('newsletter_editions')
+          .update({ delivery_alerted: true })
+          .eq('id', edition.id)
+      } else if (deliveryRate < 50) {
+        Sentry.captureMessage(
+          `Newsletter edition ${edition.id} '${edition.subject}' low delivery rate: ${delivered}/${sentTotal} (${deliveryRate.toFixed(1)}%) recorded after 2h.`,
+          {
+            level: 'warning',
+            tags: { component: 'cron', job: JOB, phase: 'reconcile' },
+            extra: { editionId: edition.id, sentTotal, deliveredCount: delivered, deliveryRate },
+          },
+        )
+        await supabase
+          .from('newsletter_editions')
+          .update({ delivery_alerted: true })
+          .eq('id', edition.id)
+      }
+    }
+  } catch (err) {
+    Sentry.captureException(err, {
+      tags: { component: 'cron', job: JOB, phase: 'reconcile' },
+    })
+  }
+}
+
+// NOTE: This deliberately reimplements the send pipeline in-app rather than
+// using @tn-figueiredo/newsletter's SendEditionUseCase. The published
+// newsletter@0.1.0 SendEditionUseCase still targets the Resend era: it writes
+// the `resend_message_id` column and inserts into the `newsletter_click_events`
+// view, neither of which exist on the current SES schema (provider_message_id +
+// SNS-driven delivered_at). Until that package ships an SES-compatible release,
+// it is not drop-in usable here, so this route owns the implementation.
 async function sendEdition(
   supabase: ReturnType<typeof getSupabaseServiceClient>,
   edition: {
@@ -154,6 +271,15 @@ async function sendEdition(
   }
 
   // Paginated fetch of unsent rows — Supabase silently truncates at max_rows (1000).
+  //
+  // Duplicate-send mitigation (at-least-once delivery): a row where SES accepted
+  // the message but the subsequent DB update failed/crashed keeps
+  // provider_message_id NULL and would be re-sent after stuck-recovery. We stamp
+  // last_attempt_at immediately BEFORE each send (below), so here we exclude rows
+  // touched in the last 90 minutes. Semantics: last_attempt_at suppresses
+  // immediate re-send of accepted-but-unrecorded rows; combined with the 2h
+  // stuck-recovery this keeps the re-send window tightly bounded.
+  const reattemptCutoff = new Date(Date.now() - 90 * 60 * 1000).toISOString()
   const unsent: Array<{ id: string; subscriber_email: string }> = []
   let unsentOffset = 0
   // eslint-disable-next-line no-constant-condition
@@ -163,6 +289,7 @@ async function sendEdition(
       .select('id, subscriber_email')
       .eq('edition_id', edition.id)
       .is('provider_message_id', null)
+      .or(`last_attempt_at.is.null,last_attempt_at.lt.${reattemptCutoff}`)
       .range(unsentOffset, unsentOffset + SUBSCRIBER_PAGE_SIZE - 1)
     if (!unsentPage?.length) break
     unsent.push(...unsentPage)
@@ -188,7 +315,11 @@ async function sendEdition(
   const senderName = type?.sender_name ?? 'Thiago Figueiredo'
   const senderEmail = type?.sender_email ?? 'newsletter@bythiagofigueiredo.com'
   const replyTo = type?.reply_to ?? undefined
-  const maxBounceRate = type?.max_bounce_rate_pct ?? 5
+  // NOTE: despite the DB column name `max_bounce_rate_pct` (kept for schema
+  // compatibility), this threshold governs the SES *send-API* error rate — it is
+  // a send-error circuit breaker, not a bounce/reputation guard. Real bounces
+  // and complaints arrive asynchronously via the SNS webhook, not from this loop.
+  const maxSendErrorRatePct = type?.max_bounce_rate_pct ?? 5
   const typeName = type?.name ?? 'Newsletter'
   const typeColor = type?.color ?? '#FF8240'
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://bythiagofigueiredo.com'
@@ -213,8 +344,29 @@ async function sendEdition(
   }
 
   if (tokenRows.length > 0) {
-    await supabase.from('unsubscribe_tokens')
-      .upsert(tokenRows, { onConflict: 'site_id,email', ignoreDuplicates: false })
+    // Unsubscribe tokens back the List-Unsubscribe header and per-subscriber
+    // unsub URL. If this upsert fails we MUST NOT send: the emails would ship
+    // with broken/missing unsubscribe links. So we abort the edition (it gets
+    // retried), but first surface the failure to Sentry so a silent token-table
+    // problem is observable instead of a bare unhandled throw.
+    try {
+      const { error: tokenError } = await supabase
+        .from('unsubscribe_tokens')
+        .upsert(tokenRows, { onConflict: 'site_id,email', ignoreDuplicates: false })
+      if (tokenError) throw tokenError
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      const code = (err as { code?: string } | null)?.code
+      Sentry.captureMessage(
+        `Newsletter edition ${edition.id} unsubscribe_tokens upsert failed${code ? ` (${code})` : ''}: ${message} — aborting send to avoid broken unsubscribe links.`,
+        {
+          level: 'error',
+          tags: { component: 'cron', job: JOB, phase: 'unsubscribe_tokens' },
+          extra: { editionId: edition.id, error: message, code },
+        },
+      )
+      throw err
+    }
   }
 
   // ── Pre-render template ONCE with placeholder tokens ──────────────────
@@ -282,6 +434,15 @@ async function sendEdition(
           html = rewriteLinksForTracking(html, send.id, appUrl)
         }
 
+        // Claim the row before handing off to SES (at-least-once delivery):
+        // if SES accepts but the post-send DB update is lost, this timestamp
+        // keeps the row out of the unsent selector for 90 min, preventing an
+        // immediate duplicate re-send of an accepted-but-unrecorded message.
+        await supabase
+          .from('newsletter_sends')
+          .update({ last_attempt_at: new Date().toISOString() } as Record<string, unknown>)
+          .eq('id', send.id)
+
         const result = await emailService.send({
           from: { name: senderName, email: senderEmail },
           to: send.subscriber_email,
@@ -309,15 +470,39 @@ async function sendEdition(
         await sleep(THROTTLE_MS)
       } catch (err) {
         errorCount++
+        // The send threw → SES did NOT accept it, so it's safe (and desirable)
+        // to retry on the next tick. Clear the last_attempt_at claim we stamped
+        // pre-send so the 90-min suppression window (meant only for accepted-but-
+        // unrecorded rows) doesn't delay this failed row's retry. Best-effort.
+        await supabase
+          .from('newsletter_sends')
+          .update({ last_attempt_at: null } as Record<string, unknown>)
+          .eq('id', send.id)
+          .then(() => {}, () => {})
         Sentry.captureException(err, {
           tags: { component: 'cron', job: JOB, editionId: edition.id, sendId: send.id },
         })
       }
     }
 
+    // Send-error circuit breaker (NOT a bounce/reputation guard): errorCount
+    // counts SES *send-API* failures (throttling, 5xx, synchronous rejects),
+    // never asynchronous bounces/complaints — those arrive via the SNS webhook.
+    // If too high a fraction of attempts are erroring, abort the edition rather
+    // than keep hammering SES. status='failed' is otherwise invisible, so we
+    // emit a Sentry error to surface the silently-abandoned edition.
     const totalAttempted = sentCount + errorCount
-    if (totalAttempted >= 10 && (errorCount / totalAttempted) * 100 > maxBounceRate) {
+    if (totalAttempted >= 10 && (errorCount / totalAttempted) * 100 > maxSendErrorRatePct) {
+      const errorRatePct = (errorCount / totalAttempted) * 100
       await supabase.from('newsletter_editions').update({ status: 'failed' }).eq('id', edition.id)
+      Sentry.captureMessage(
+        `Newsletter edition ${edition.id} aborted: SES send-error rate ${errorRatePct.toFixed(1)}% exceeded threshold ${maxSendErrorRatePct}% (sent ${sentCount}, errors ${errorCount}).`,
+        {
+          level: 'error',
+          tags: { component: 'cron', job: JOB, phase: 'send_error_circuit_breaker', editionId: edition.id },
+          extra: { editionId: edition.id, sentCount, errorCount, errorRatePct },
+        },
+      )
       return sentCount
     }
   }
