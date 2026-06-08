@@ -34,6 +34,10 @@ export default async function VideoEditorPage({ params }: { params: Promise<{ id
         roteiro: detail.roteiro,
         pillar: detail.pillar,
         durationRange: detail.durationRange,
+        sections: detail.sections,
+        abJoinFacts: detail.abJoinFacts,
+        // ab-lab winner is materialized post-publish; surfaced as null until joined (§3.8).
+        winnerVariantId: null,
       }}
     />
   )

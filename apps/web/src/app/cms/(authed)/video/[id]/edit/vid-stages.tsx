@@ -22,7 +22,7 @@ export function VidStages() {
   }
 
   return (
-    <div className="ed-stages vid-stages">
+    <div className="ed-stages vid-stages" role="tablist">
       {VIDEO_STAGES.map((id) => {
         const { label, Icon, gated } = META[id]
         const locked = gated && !recorded
@@ -31,8 +31,13 @@ export function VidStages() {
           <button
             key={id}
             type="button"
+            role="tab"
             className={`ed-stage${on ? ' on' : ''}${locked ? ' locked' : ''}`}
             aria-current={on ? 'page' : undefined}
+            aria-selected={on}
+            // Locked tabs stay clickable (render LockedStage on select, §5.5) but are
+            // flagged aria-disabled so AT announces the gate without a native disabled.
+            aria-disabled={locked || undefined}
             onClick={() => dispatch({ type: 'SET_STAGE', stage: id })}
           >
             {locked ? <Lock size={14} /> : <Icon size={14} />}
