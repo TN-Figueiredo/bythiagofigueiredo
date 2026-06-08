@@ -25,6 +25,7 @@ import {
   getNextStage,
   getPreviousStage,
   isFinalStage,
+  getStagePosition,
 } from '@/lib/pipeline/workflows'
 import {
   decodeCursor,
@@ -64,6 +65,24 @@ function assertKnownFormat(format: string): asserts format is Format {
   if (!FORMATS.includes(format as Format)) {
     throw new PipelineServiceError('VALIDATION_ERROR', `Unknown format: ${format}`, 422)
   }
+}
+
+// ---------------------------------------------------------------------------
+// Published read-only section guard (§3.9)
+// ---------------------------------------------------------------------------
+
+const PUBLISHED_READONLY_BASES = new Set(['ideia', 'roteiro', 'postprod', 'publish'])
+
+/** True when a section base is frozen once the item is published (authoring payloads). */
+export function isPublishedReadonlySection(sectionBase: string): boolean {
+  return PUBLISHED_READONLY_BASES.has(sectionBase)
+}
+
+/** True when the format's stage is at/after the published position. */
+export function isPublishedStage(format: string, stage: string): boolean {
+  if (!stage) return false // missing/unknown stage = not published = editable (defensive)
+  const pos = getStagePosition(format as never, stage)
+  return pos >= 0 && pos >= getStagePosition(format as never, 'published')
 }
 
 // ---------------------------------------------------------------------------
@@ -1646,13 +1665,24 @@ export async function patchSection(
 
   const { data: item, error: fetchError } = await supabase
     .from('content_pipeline')
-    .select('id, version, format, sections')
+    .select('id, version, format, stage, sections')
     .eq('id', id)
     .eq('site_id', ctx.siteId)
     .single()
 
   if (fetchError || !item) {
     throw new PipelineServiceError('NOT_FOUND', 'Item not found', 404)
+  }
+
+  // Data-layer published freeze (§3.9): teleprompter spoken/cursor are session-only and never PATCH,
+  // so they are unaffected; ideia/roteiro/postprod/publish writes are rejected when published.
+  if (isPublishedStage(item.format, item.stage) && isPublishedReadonlySection(params.section)) {
+    throw new PipelineServiceError(
+      'FORBIDDEN',
+      'Section is read-only while published',
+      403,
+      { stage: item.stage },
+    )
   }
 
   const sectionKey = getSectionKey(params.section, lang, item.format as Format)
