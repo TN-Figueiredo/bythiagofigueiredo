@@ -31,7 +31,7 @@ export function buildCmsSections(): SidebarSection[] {
       label: 'Content',
       items: [
         { icon: icon(FileText), label: 'Blog', href: '/cms/blog' },
-        { icon: icon(Kanban), label: 'Pipeline', href: '/cms/video', minRole: 'editor' },
+        { icon: icon(Kanban), label: 'Vídeos', href: '/cms/video', minRole: 'editor' },
         { icon: icon(GraduationCap), label: 'Courses', href: '/cms/courses', minRole: 'editor' },
         { icon: icon(Mail), label: 'Newsletters', href: '/cms/newsletters', minRole: 'editor' },
         { icon: icon(Megaphone), label: 'Campaigns', href: '/cms/campaigns', minRole: 'editor' },
