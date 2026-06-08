@@ -79,6 +79,11 @@
 .video-hub-page { padding: 22px 28px 40px; }
 .vid-ed { padding: 16px 28px 48px; }
 
+/* Handoff `.row gap-6` util — the app has no `.row` (and Tailwind's `gap-6` is 24px,
+   not the handoff's 6px), so inline icon+label rows (e.g. "Outras direções do Cowork")
+   stacked with no gap. Make them inline-flex with the intended 6px gap, module-scoped. */
+.video-hub-page .row, .vid-ed .row { display: inline-flex; align-items: center; gap: 6px; }
+
 /* ---------- HUB ---------- */
 .vhub-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 22px; }
 @media (max-width: 1080px) { .vhub-grid { grid-template-columns: repeat(2,1fr); } }

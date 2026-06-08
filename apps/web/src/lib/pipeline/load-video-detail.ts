@@ -68,9 +68,13 @@ function readIdeia(
   const base = parsed.success ? parsed.data : IdeiaSectionSchema.parse({})
   const legacyTitle = pickStr(raw, ['title', 'premise', 'headline'])
   const legacyDirection = pickStr(raw, ['direction', 'body', 'synopsis'])
+  // Title precedence: the `title_<lang>` COLUMN is canonical (it's what the hub card
+  // shows and what saveVideoTitle keeps in sync) — it wins over any section-level
+  // value, which on legacy items is often a stale "TBD" placeholder. New-shape
+  // section title is the next fallback, then the old-shape salvage.
   return {
     ...base,
-    title: (base.title?.trim() ? base.title.trim() : '') || legacyTitle || (fallback.title ?? '').trim(),
+    title: (fallback.title ?? '').trim() || (base.title?.trim() ? base.title.trim() : '') || legacyTitle,
     direction:
       (base.direction?.trim() ? base.direction.trim() : '') || legacyDirection || (fallback.direction ?? '').trim(),
   }
