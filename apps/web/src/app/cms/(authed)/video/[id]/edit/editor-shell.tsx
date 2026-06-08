@@ -1,12 +1,13 @@
 'use client'
 
-import { lazy, Suspense, useEffect } from 'react'
+import { lazy, Suspense, useEffect, useRef } from 'react'
 import { CheckCircle } from 'lucide-react'
 import { getStagePosition } from '@/lib/pipeline/workflows'
 import { useVideoEditorState, useVideoEditorDispatch } from './context'
 import { VideoEdBar } from './ed-bar'
 import { VidStages } from './vid-stages'
 import { FocusExit } from './focus-exit'
+import { useEdBarHeight } from './use-ed-bar-height'
 
 const IdeiaStage = lazy(() => import('./stages/ideia-stage').then((m) => ({ default: m.IdeiaStage })))
 const RoteiroStage = lazy(() => import('./stages/roteiro-stage').then((m) => ({ default: m.RoteiroStage })))
@@ -42,15 +43,23 @@ export function EditorShell() {
     return () => document.removeEventListener('keydown', onKey)
   }, [state.focus, overlayOpen, dispatch])
 
+  const topRef = useRef<HTMLDivElement>(null)
+  const edBarH = useEdBarHeight(topRef)
+
   return (
-    <div className={`video-editor staged-editor vid-ed${published ? ' vid-ro' : ''}`} style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <VideoEdBar />
-      {!state.focus && <VidStages />}
-      {published && !state.focus && (
-        <div className="vid-robanner">
-          <CheckCircle size={15} /> <span><b>Publicado · no ar.</b> Edições limitadas — para mudar algo, peça ao <b>Cowork</b> ou despublique.</span>
-        </div>
-      )}
+    <div
+      className={`video-editor staged-editor vid-ed${published ? ' vid-ro' : ''}`}
+      style={{ display: 'flex', flexDirection: 'column', height: '100%', ['--ed-bar-h' as string]: edBarH }}
+    >
+      <div ref={topRef}>
+        <VideoEdBar />
+        {!state.focus && <VidStages />}
+        {published && !state.focus && (
+          <div className="vid-robanner">
+            <CheckCircle size={15} /> <span><b>Publicado · no ar.</b> Edições limitadas — para mudar algo, peça ao <b>Cowork</b> ou despublique.</span>
+          </div>
+        )}
+      </div>
       <div className={`ed-canvas content${state.focus ? ' focus' : ''}`} role="main">
         <div className="ed-doc">
           <StageBody />
