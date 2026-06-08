@@ -8355,61 +8355,137 @@ The deletion is the **final, separate commit** after the prod soak elapses (§8.
 >
 > **Hard constraints:** Cowork reads the reference FROM THE DB (seeded via `scripts/seed-pipeline-reference.ts`) — editing the local file does nothing until re-seeded. **NEVER create/revoke pipeline keys** (use the permanent `PIPELINE_COWORK_KEY` in `.env.local`). Docs are living/re-seedable — never hardcode strategy/thresholds. Per CLAUDE.md "Pipeline Integrity": when a section's JSON schema changes, update `docs/cowork-pipeline-reference.md` + the relevant `apps/web/data/pipeline-docs/cowork-docs-*.md`; structural tests validate registry↔routes + doc presence, NOT prose. Prompts in the docs must be copy-pasteable.
 
+> **Deepened 2026-06-08 by an 8-subagent audit** (each slice grounded in the real schemas/seed/tests). Net changes vs the first draft: a BLOCKER (Task 0 — the reference isn't in the seed `ENTRIES`), the real title-bug root cause + fix (Task 8, already shipped), a legacy-backfill task (Task 9), and hardened tests/guards throughout. See the "P6 completeness gaps" checklist at the end.
+
+### Task 0 (BLOCKER): Establish how Cowork loads `cowork-pipeline-reference.md` + wire it into the seed
+
+**Why first:** `docs/cowork-pipeline-reference.md` is NOT one of the `ENTRIES` in `scripts/seed-pipeline-reference.ts` (verified — the script only uploads the curator/architect/research skill docs). If that's the real delivery path, every reference edit in Tasks 2-5 is **dead on arrival** (seeded nowhere). This gates the entire phase.
+
+**Files:** read `scripts/seed-pipeline-reference.ts` (the `ENTRIES` array, the `onConflict: 'site_id,key'` upsert, `content_md` vs `content_compact`), `apps/web/src/app/api/pipeline/` (find what `GET /api/pipeline/context`/docs actually serves Cowork — does it read `reference_content` rows? a file? the `pipeline-docs/`?).
+
+**Steps:**
+- [ ] Trace the real read path: how does Cowork obtain `cowork-pipeline-reference.md` today (DB row? `GET /api/pipeline/context`? a separate sync)? Confirm whether it is served from `reference_content` (`content_md`) or elsewhere.
+- [ ] If it is NOT seeded: add an `ENTRIES` row pointing `filePath: '../docs/cowork-pipeline-reference.md'` (group `sistema`, key e.g. `_system/pipeline-reference`, next free `sort_order`) so the seed uploads it as `content_md`; confirm `GET /api/pipeline/context` returns `content_md` for prose references.
+- [ ] Acceptance: after re-seed, the reference content is fetchable via the same path Cowork uses (prove with a curl/GET, not assumption).
+
 ### Task 1: Gap audit — pin the reference deltas (discovery)
 
-**Files:** (none — produces a delta list consumed by Tasks 2-4)
+**Files:** (none — produces a delta list consumed by Tasks 2-5)
 
 **Steps:**
-- [ ] Read the source-of-truth schemas: `apps/web/src/lib/pipeline/video-schemas.ts` (`IdeiaSectionSchema`, `PosBriefSchema`, `ABDraftSchema`, `VideoMetadataSchema` += `duration_range`/`recorded_at`/`pillar`), `apps/web/src/lib/pipeline/roteiro-schemas.ts` (`RoteiroContentSchemaV3`: `beats[].script` discriminated union `line`/`pause`/`dir`/`vis`/`ed`), `apps/web/src/lib/pipeline/sections.ts` (`FORMAT_SHARED_SECTIONS` — video has NO shared sections → ideia per-lang).
-- [ ] Read the stale doc `docs/cowork-pipeline-reference.md` (its `ideia (shared)` + `roteiro (per-lang)` v2 sections).
-- [ ] Write the delta list (the 5 gaps), confirmed against the CODE (not memory): (1) video `ideia` per-lang not `_shared`; (2) roteiro v3 structured `script` vs v2 `text`+tags; (3) `postprod_<lang>` PosBrief absent; (4) `publish_<lang>` ABDraft absent; (5) `format_metadata.duration_range` + `pillar` absent.
+- [ ] Read the source-of-truth schemas: `video-schemas.ts` (`IdeiaSectionSchema`, `PosBriefSchema`, `ABDraftSchema`), `schemas.ts` (`VideoMetadataSchema` — `duration_range: z.string().max(40)`, `pillar: z.enum(['viagem','ia','codigo','games','nas'])`, `recorded_at`), `roteiro-schemas.ts` (`RoteiroContentSchemaV3` — beats[].script union discriminant **`type`**: line/pause/dir/vis/ed), `sections.ts` (`FORMAT_SHARED_SECTIONS.video = new Set([])` → ideia per-lang).
+- [ ] Read the stale `docs/cowork-pipeline-reference.md` (`ideia (shared)` ~L98, v2 `roteiro` ~L178 with `number/label/text`+tags, the `_shared` claim L34, `ideia.body` mentions L68/89/91).
+- [ ] **P5 cross-check:** confirm P5 dissolution does NOT move/rename `sections.ts`/`video-schemas.ts`/`roteiro-schemas.ts` (P6 quotes their paths). If P5 relocates them, fix these task paths.
+- [ ] Write the delta list (5 gaps): (1) video ideia per-lang not `_shared`; (2) roteiro v3 structured `script` vs v2 text+tags; (3) `postprod` PosBrief absent; (4) `publish` ABDraft absent; (5) `format_metadata.duration_range`(string)+`pillar` absent.
 
-### Task 2: Reference — video section schemas (per-lang ideia + roteiro v3 + Pós + Publicação)
+### Task 2: Reference — `ideia` per-lang schema + legacy old→new mapping
 
-**Files:** modify `docs/cowork-pipeline-reference.md`
+**Files:** modify `docs/cowork-pipeline-reference.md`; add `apps/web/test/mcp/cowork-reference-ideia.test.ts`.
+
+**Steps (TDD — write the structural test RED first):**
+- [ ] Test (RED): assert the doc contains `ideia_pt` + `ideia_en`, the per-format note (video per-lang; blog/newsletter `ideia_shared`), all 6 fields in a table (`title, direction, siblings, logline, angles, framework`), a `batch-sections` example with `"section": "ideia_pt"` + `X-Pipeline-Key`, a legacy-mapping subsection (`title_pt`/`synopsis`/`hook`/`premise`/`body`), and code-fence parity. Old keys (`premise`/`body`/`vvs`) MUST be absent from the ideia example block.
+- [ ] Rewrite the `## Section: ideia` block: header "per-lang em video; shared em blog/newsletter/course/campaign"; the **exact** `IdeiaSectionSchema` (`.strict()`, all 6 fields + types + defaults + max lengths); explicit "`.strict()` rejects unknown keys → old `premise`/`body` invalidate the parse and the content is lost". Production scalars (pillar/duration) live in `format_metadata`, not here.
+- [ ] Add the copy-pasteable `POST /api/pipeline/items/batch-sections` example writing `ideia_pt` (real `BatchSectionUpdateSchema` fields: `item_id, section, lang, format, content, source, modified_by?`).
+- [ ] Add the **OLD→NEW legacy table**: `title_<lang>` column → `ideia_<lang>.title`; `synopsis`(→`hook`) → `direction`; old `ideia_shared` `{premise→logline|title, body→direction, angle→angles}`, discard `vvs`/`cross_refs`. State READ-before-write (don't clobber authored values; never write `ideia_shared` for video again).
+- [ ] Fix the stale L34/L26/L68/L89/L91 mentions (ideia per-lang for video; `ideia.direction` is the markdown field, not `ideia.body`). Test GREEN.
+
+### Task 3: Reference — `roteiro` v3 (RoteiroContentV3) + old-tag→v3 mapping
+
+**Files:** modify `docs/cowork-pipeline-reference.md`; add `apps/web/test/api/pipeline/reference-doc-roteiro.test.ts`.
+
+**Steps (TDD RED first):**
+- [ ] Test (RED): the roteiro section documents `"version": 3`; all 5 script-item `type`s (`line`/`pause`/`dir`/`vis`/`ed`); beat fields `idx`/`name`/`status`/`script` (NOT v2 `number`/`label`/`text`-blob); `line.key:true` + `pause.duration` (seconds; NOT `secs`/`s`); statuses only `PENDING`/`DONE` (NOT `DRAFT`/`APPROVED`); mentions `readRoteiro` migration but instructs v3-native.
+- [ ] Replace the v2 `## Section: roteiro` block with v3: `{version:3, meta, beats:[{idx,name,status,tone?,duration?,script:[…]}]}`; the script union (discriminant `type`, exact fields per variant — confirm `pause` uses `duration`); an **old-tag→v3 table** (`[DIRECTION:x]`→`{type:'dir',text:'x'}` or beat `tone`, `[VISUAL:]`/`[B-ROLL:]`→`vis`, `[CORTE/OVERLAY/TRANS/SFX]`→`ed`, `[PAUSE 0.5s]`→`{type:'pause',duration:0.5}`, `> "fala"`→`{type:'line',text}`, anchor→`key:true`; NO markdown in `text`). Note: auto-migration is read-only fallback; emit v3 natively (teleprompter/Pós/sheets read v3 directly). Copy-pasteable `batch-sections` writing `roteiro_pt` (2 beats). Test GREEN.
+
+### Task 4: Reference — `postprod` (PosBrief) + `publish` (ABDraft)
+
+**Files:** modify `docs/cowork-pipeline-reference.md`; add a structural test.
+
+**Steps (TDD RED first):**
+- [ ] Test (RED): doc contains `postprod_pt`/`postprod_en` + PosBrief (`kind:"brief"`, `deliverables.{editor,deadline,turnaround,drive,energy,references}`, `style[{k,v}]`, `ctas.{note,rows[{k,pt,en}],display}`) and `publish_pt`/`publish_en` + ABDraft (`leader`, `variants[{id,tag,title,brief}]`, "exactly 4 variants", "exactly one `original`"), plus the boundary "Cowork does NOT materialize; publishVideo materializes".
+- [ ] Write both subsections with exact shapes + copy-pasteable `batch-sections` payloads (PosBrief → `postprod_pt`; ABDraft 4-variant one-original → `publish_pt`). State the `.refine` constraints (length 4, one original) and that Cowork only DRAFTS — the ab-lab test is created at publish by `publishVideo`→`materializeAbDraft` (publish-mode RBAC), so Cowork must NOT call ab-lab nor set `stage`. Test GREEN.
+
+### Task 5: Reference + items doc — `format_metadata` (duration_range string + pillar) + write path
+
+**Files:** modify `docs/cowork-pipeline-reference.md` + `apps/web/data/pipeline-docs/cowork-docs-items-and-sections.md`; add a schema-contract test.
+
+**Steps (TDD RED first):**
+- [ ] Test (RED): the items doc documents `duration_range` (string, e.g. `"10-12 min"`), `pillar` (lists all 5 enum values), `recorded_at`, and the **replace-not-merge** warning. Schema-contract test: `VideoMetadataSchema.safeParse({duration_range:'14–17 min', pillar:'ia'})` ok; `{pillar:'tech'}` / `{duration_range:{min,max}}` / `{foo:'bar'}` all rejected (proves video string ≠ audio `{min,max}` + `.strict()`).
+- [ ] Document the 3 video planning fields (string `duration_range`, enum `pillar`, `recorded_at`), the create (`POST /items`) + update (`PATCH /items/[id]` with `X-Expected-Version`) path, and the **REPLACE-not-merge gotcha** (both REST + MCP `update_item` write `format_metadata` wholesale via `services/items.ts` — read current via GET, spread, then PATCH; the MCP "merge" describe is misleading). Copy-pasteable create + patch + MCP payloads. State "hub card shows `—` until `duration_range` is set". Test GREEN. **Do NOT conflate** with the audio/broll `duration_range:{min,max}` (seconds).
+
+### Task 6: Domain doc — video subsection in the items corpus (NOT a new domain)
+
+**Files:** modify `apps/web/data/pipeline-docs/cowork-docs-items-and-sections.md`; modify the "Video production pipeline" `cross_domain_workflow` in `apps/web/src/lib/pipeline/api-registry.ts`.
 
 **Steps:**
-- [ ] Add a **per-format shared-sections note** by the section-key explainer: "For `format='video'`, NO sections are shared — `ideia` is per-language (`ideia_pt`/`ideia_en`). For `blog_post`/`newsletter`, `ideia` stays `_shared`." (Source: `FORMAT_SHARED_SECTIONS`.)
-- [ ] Add **`ideia` (video, per-lang)**: document the `IdeiaSectionSchema` fields (`title`, `direction`, `siblings[]`, `logline`, `angles`, `framework`) + a copy-pasteable batch-update JSON writing `ideia_pt`.
-- [ ] Add **`roteiro` v3**: the shape `{ version: 3, meta, beats: [{ idx, name, status, tone?, script: ScriptItem[] }] }` where `ScriptItem = {type:'line', text, key?} | {type:'pause', secs} | {type:'dir', text} | {type:'vis', text} | {type:'ed', text}`. Include an old-tag→v3 mapping table (`[DIRECTION:]`→`dir`, `[VISUAL:]`→`vis`, `[B-ROLL:]`→`vis`, `[PAUSE Xs]`→`pause`, spoken line→`line`, `**word**`=emphasis, `key:true`=anchor). Note v1/v2 auto-migrate via `readRoteiro` but Cowork SHOULD emit v3 natively. Copy-pasteable example.
-- [ ] Add **`postprod` (Pós, per-lang) = PosBrief**: the deliverables/style/ctas shape + example writing `postprod_pt`.
-- [ ] Add **`publish` (Publicação, per-lang) = ABDraft**: `{ leader, variants: [{id:'A', tag:'original', title, brief}, {id:'B',…}, {id:'C',…}, {id:'D',…}] }` (exactly 4, exactly one `original`) + example writing `publish_pt`. Note: A/B materialization runs at publish (server action); Cowork only drafts titles/briefs.
+- [ ] **DECISION (locked):** add a "Video production (`format='video'`)" subsection to `cowork-docs-items-and-sections.md` — do NOT create `cowork-docs-video.md` and do NOT add a `video` capability domain (it has zero unique routes; a new domain would break the hardcoded 8-domain assertion in `api-registry.test.ts` + force `DomainId`/`DOMAIN_LABELS`/`endpoint_count` churn for `endpoint_count:0`). Net: no `api-registry` domain/endpoint_count change.
+- [ ] Content: per-lang vs shared table (ideia **per-lang** `ideia_pt`/`ideia_en` for video — NOT `ideia_shared`), lifecycle `idea→roteiro→gravacao→edicao→publicacao→published` (advance via `/advance`, never PATCH `stage`), `format_metadata` (pillar enum + duration_range string), and a FULL copy-pasteable worked example: create item `format:video` + `format_metadata{pillar,duration_range}` → `batch-sections` `ideia_pt` + `roteiro_pt` (v3) → `/advance`. Link to the schema blocks in the reference rather than duplicating.
+- [ ] Extend the existing "Video production pipeline" workflow `steps` to mention `format:"video"` + setting `format_metadata.pillar`/`duration_range` (prose only — keeps `cross_domain_workflows reference valid domains` green; no count change).
+- [ ] Acceptance: `api-registry.test.ts` + `registry-completeness.test.ts` stay green (8 domains, doc ≥100 lines, H1, route↔registry parity).
 
-### Task 3: Reference — `format_metadata` for video (`duration_range`, `pillar`)
+### Task 7: MCP schema affordance — self-document video `format_metadata`
 
-**Files:** modify `docs/cowork-pipeline-reference.md`
+**Files:** modify `apps/web/src/lib/pipeline/mcp/tools.ts` (the `create_item` ~L51 + `update_item` ~L73 `format_metadata.describe`); add `apps/web/test/mcp/mcp-video-affordance.test.ts`.
 
-**Steps:**
-- [ ] Add **`format_metadata` (video)**: `duration_range` (string planning target, e.g. `"10-12 min"` — drives the hub card duration, NOT the YouTube length), `pillar` (`viagem|ia|codigo|games|nas`), `recorded_at` (optional). These go in `format_metadata` on the item create/update, NOT in `sections`. Copy-pasteable example.
-- [ ] Note explicitly: the hub card "—" duration is filled once `duration_range` is set (the exact symptom this closes).
+**Steps (TDD RED first):**
+- [ ] Test (RED): list the real tools (`registerTools` + in-memory pair, like `youtube-mcp-tools.test.ts`); assert `create_item`/`update_item` `format_metadata.description` mentions `duration_range`, the literal `"10-12 min"`, the substring `not seconds`, `pillar`, and all 5 enum values; and that `format_metadata` stays `type:"object"` with no required keys (backward-compat).
+- [ ] Enrich both `.describe()` strings (video: `duration_range` human string "10-12 min" NOT seconds — distinct from audio `{min,max}`; `pillar` one of viagem|ia|codigo|games|nas; plus playlist_letter/episode_number/etc.). Keep `z.record(z.unknown())` (no typed sub-schema → avoids drift vs `mcp-schema-parity.test.ts`). Test GREEN + run `test/mcp/`.
+- [ ] **GUARD:** do NOT touch the audio `duration_range:{min,max}` at `tools.ts:~302/333`. **SKIP** a dedicated `create-video` MCP prompt (the `writer` prompt already injects the reference via `fetchDomainDocs`; inlining would duplicate/drift). This task needs NO re-seed (it changes the MCP tool schema, not the seeded reference).
 
-### Task 4: Domain doc — video guidance in the items corpus
+### Task 8: Editor surfacing of legacy title/direction (Task A — partly DONE)
 
-**Files:** modify `apps/web/data/pipeline-docs/cowork-docs-items-and-sections.md` (video is the generic items domain) — OR create `apps/web/data/pipeline-docs/cowork-docs-video.md` (if dedicated, register per Pipeline Integrity: `api-registry.ts` domain entry + the doc-file test).
+**Files:** `apps/web/src/lib/pipeline/load-video-detail.ts` (DONE), add `apps/web/test/pipeline/load-video-detail-legacy-ideia.test.ts` + `apps/web/test/pipeline/ideia-stage-render.test.tsx`.
 
-**Steps:**
-- [ ] Add a "Video (`format='video'`)" subsection: lifecycle (idea→roteiro→gravacao→…→published), per-lang ideia, v3 roteiro, when to set `duration_range`/`pillar`, and a full create→ideia→roteiro worked example (copy-pasteable Cowork prompt + resulting payloads).
-- [ ] If a NEW doc file is created, update `apps/web/src/lib/pipeline/api-registry.ts` + the doc-file test per the Pipeline Integrity checklist.
-
-### Task 5: (Optional) MCP schema affordance — typed video metadata
-
-**Files:** modify `apps/web/src/lib/pipeline/mcp/tools.ts`
+**Root cause (pinned):** migration `20260608000001` copied the OLD-shape `ideia_shared` envelope verbatim into `ideia_<lang>`; `IdeiaSectionSchema.strict()` rejects it → title/direction collapse; the legacy title lived INSIDE that content (premise/title), not in the `title_<lang>` column, so the column fallback missed it.
 
 **Steps:**
-- [ ] On the create/update tools' `format_metadata: z.record(z.unknown())`, add a `.describe(...)` (or an optional typed video-metadata shape) documenting `duration_range` (string) + `pillar` (enum) so the MCP tool schema itself nudges the agent. Keep backward-compat for other formats.
-- [ ] TDD: extend `test/mcp/*` to assert the describe mentions `duration_range` + `pillar`. **Do NOT touch** the existing `duration_range: {min,max}` at `tools.ts:~302/333` — that is the AUDIO/broll library resolve (seconds), unrelated to video.
+- [x] **DONE (commit `e4f4ae55`):** `readIdeia` salvages `title` (raw `title`→`premise`→`headline`) + `direction` (raw `direction`→`body`→`synopsis`) BEFORE the column fallback, via a total `pickStr` helper. New-shape items unaffected; never writes.
+- [ ] Add the loader unit tests: old-shape `{premise,body}`+null columns → salvaged title/direction; old-shape title precedence over column; new-shape wins; empty everything → `''` (placeholder path); column-only fallback; `synopsis` preferred over `hook`.
+- [ ] Add the component guard: render `<IdeiaStage cur={{title:'Legacy T',…}} lang="pt"/>` under the providers → assert `.vi-title` `textContent==='Legacy T'` + `data-empty==='false'` (locks the cur→`.vi-title` contract).
 
-### Task 6: Re-seed + verify
+### Task 9: Backfill the 124 legacy videos (canonicalize the data)
 
-**Files:** (run) `scripts/seed-pipeline-reference.ts`
+**Files:** new migration via `npm run db:new video_ideia_remap_old_shape`; a DB-gated integration test; (optional) a Cowork backfill script.
 
 **Steps:**
-- [ ] Re-seed so the DB copy matches the committed docs — `npx tsx --env-file apps/web/.env.local scripts/seed-pipeline-reference.ts` — expect idempotent upsert success. (NEVER create/revoke keys.)
-- [ ] Structural test: extend the reference/registry test to assert the reference now contains the video shapes (mentions `ideia_pt`, roteiro `version: 3` / `script`, `postprod`, `publish`, `duration_range`, `pillar`). Run the pipeline structural suite — expect PASS.
-- [ ] Cowork smoke (manual, copy-pasteable): with the permanent `PIPELINE_COWORK_KEY`, run a "create a video idea + break into a roteiro + set duration/pillar" prompt; verify it writes `ideia_pt` (not `ideia_shared`), a v3 roteiro, and `format_metadata.duration_range`/`pillar` → the new video shows on the hub WITH a duration (no "—"). Save the prompt in the doc.
+- [ ] **B.1 — one-time SQL remap (the mechanical 90%, recommended first):** field-empty-gated, idempotent `UPDATE`s on `format='video'` mapping old→new per lang: `ideia_<l>.content.title` ← (`title`→`premise`→`title_<l>` column) when blank; `direction` ← (`direction`→`body`→`synopsis`→`hook`) when blank; `format_metadata.duration_range`/`pillar` only when absent AND derivable (never guess pillar). `WHERE … = ''` guards = re-runnable + no clobber. Leave old keys in place (Task 8 salvages them; cleanup later). **Dry-run `SELECT count(*)` per statement against prod read-only first**; push via `npm run db:push:prod` (YES gate).
+- [ ] DB-gated integration test (`HAS_LOCAL_DB`): seed old-shape row → reset (runs migrations) → assert title/direction filled from premise/body AND a 2nd run changes 0 rows (idempotent) AND an authored row is untouched.
+- [ ] **B.2 — Cowork residual pass (only truly-empty items):** permanent key only (NEVER create/revoke), via the existing batch-section REST path (`source:'cowork'`), read-before-write per `(lang,field)`, optimistic version (409→skip), batches of ~10-20, `--dry-run` plan first, post-run verification (every item has non-empty primary-lang `ideia.title`; 0 residual placeholders). Idempotent (field-empty-gated).
 
-### Task 7: P6 exit gate
+### Task 10: Re-seed + verify
 
-- [ ] Reference re-seeded; structural tests green; a Cowork-created video renders on the hub with per-lang ideia, v3 roteiro, populated duration + pillar. Commit docs/data (`--no-verify` ok for doc-only per the multi-terminal workflow).
+**Files:** (run) `scripts/seed-pipeline-reference.ts`; modify the structural test.
+
+**Steps:**
+- [ ] Pre-flight: confirm `.env.local` has `NEXT_PUBLIC_SUPABASE_URL`+`SUPABASE_SERVICE_ROLE_KEY`; confirm Tasks 2-5 doc edits committed AND Task 0's `ENTRIES` wiring is in place (else re-seed is a no-op).
+- [ ] Re-seed: `npx tsx --env-file apps/web/.env.local scripts/seed-pipeline-reference.ts` — run **twice**; both succeed identically (only `version`/`updated_at` change) = idempotency proof. NEVER create/revoke keys.
+- [ ] Structural test (RED-first, then GREEN): assert the reference has `ideia_pt` + the per-format note; roteiro `version:3` + all 5 script `type`s; `postprod_pt`/`publish_pt` + `PosBrief`/`ABDraft` + `original`; **video `duration_range` as STRING + `pillar` enum** — the regex MUST distinguish the video string from the pre-existing audio `duration_range:{min,max}` (lines ~916/1580/1638) to avoid a false-positive. Run `test/lib/pipeline` + `registry-completeness`.
+- [ ] Cowork smoke (copy-pasteable, save in the doc): permanent key → create `SMOKE — …` video with `format_metadata{duration_range:"10-12 min", pillar:"viagem"}` → write `ideia_pt` (NOT shared) + v3 `roteiro_pt` → GET-verify → hub shows the duration (no "—") + pillar; editor shows per-lang ideia + native v3. **Delete the SMOKE item** after (real prod data).
+
+### Task 11: Rollout & safety
+
+**Steps:**
+- [ ] Idempotent re-seed IS the deploy (upsert on `site_id,key`). Rollback = `git revert` the doc + re-run the same seed (restores prior prose). NEVER create/revoke keys.
+- [ ] No-prod-write proof: the only prod writes are the `reference_content` upsert (reversible) + Task 9's migration + the smoke item (deleted). Confirm `supabase/migrations/` is untouched EXCEPT Task 9.
+- [ ] Regression guard: blog/newsletter `ideia_shared` still works after the per-format note — structural assertion + a `getSectionKey('ideia','pt','blog_post')==='ideia_shared'` test (doc must match `FORMAT_SHARED_SECTIONS`, not drift).
+- [ ] Commit split: docs/data with `--no-verify`; the NEW test files (code) go through the normal hook (typecheck).
+
+### Task 12: P6 exit gate
+
+- [ ] ALL of: Task 0 reference-delivery proven; re-seed ran twice idempotently; the video-shapes structural test green AND verified red-first; roteiro-v3 + Pós/Publicação + format_metadata tests green; `ideia_shared` regression green; hub "—"→duration card test green; `supabase/migrations/` untouched except Task 9; smoke item created AND deleted; the smoke prompt committed into the doc; `api-registry`/`registry-completeness` green; MCP affordance test green.
+
+---
+
+### P6 completeness gaps (fold in before executing)
+
+- [ ] **(BLOCKER, Task 0)** `cowork-pipeline-reference.md` not in seed `ENTRIES` — resolve the real delivery path or every reference edit is dead on arrival.
+- [ ] **`duration_range` false-positive** — the doc already uses `duration_range:{min,max}` (audio); structural tests must assert the VIDEO string shape specifically.
+- [ ] **Hub "—" automated guard** — add a hub-card test (video with `duration_range` renders it; without → "—") so the symptom can't silently regress.
+- [ ] **v2→v3 roteiro migration coverage** — a `readRoteiro` test for v2→v3 back-compat AND native v3 round-trip (confirm exists in P0/P2 or add).
+- [ ] **Domain-doc decision locked** — extend `items-and-sections` (no new `video` domain) to avoid `api-registry.test.ts` 8-domain churn.
+- [ ] **P5 ordering cross-check** — verify P5 doesn't relocate `sections.ts`/schema files P6 quotes.
+- [ ] **MCP affordance independence** — Task 7 changes the tool schema (needs the MCP test) but NOT the seeded reference (no re-seed); don't conflate with Task 10.
+- [ ] **`--no-verify` scope** — doc/data commits only; test-file (code) commits use the hook.
+- [ ] **`content_md` delivery** — if the reference is added to `ENTRIES`, confirm `GET /api/pipeline/context` serves `content_md` (else seeded-but-not-served).
 
 ---
