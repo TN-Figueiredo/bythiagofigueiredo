@@ -314,6 +314,7 @@ Ao gerar o draft, insira placeholders de imagem usando markdown padrão com o `r
 | `meta.fonte_vvs` | string? | Origem da ideia |
 | `beats[].idx` | int ≥0 | Índice 0-based, sequencial |
 | `beats[].name` | string (min 1) | Nome do beat |
+| `beats[].kind` | `fala` \| `acao` \| `prep` \| `editor` (opcional, ASCII `acao` — **nunca** `ação`) | **Define o que o talento FAZ com o beat na gravação** e em qual "pista" ele renderiza: `fala`=falas no teleprompter (fluxo de leitura do ator); `acao`=ações on-camera em **checklist** (entrevistas, captações — o ator vê e marca); `prep`=logística pré-gravação (kit, timeline de captação, must-gets) → colapsa na faixa **"Antes de gravar"**, **ESCONDIDA do fluxo de leitura do performer** e **fora do contador de fala**; `editor`=cobertura dirigida ao editor (shot-list de b-roll, planos visuais) → roteado para o **editor (Pós)** e **escondido do performer**. **Ausente → inferido pelo NOME do beat** (heurística de fallback). **Explícito SEMPRE vence** → ao escrever via API, **defina `kind` explicitamente** e não dependa do nome. |
 | `beats[].status` | `PENDING` \| `DONE` | Default `PENDING` |
 | `beats[].duration` | int ≥0 (s)? | Duração-alvo do beat em segundos |
 | `beats[].tone` | string? | Direção de performance/tom do beat inteiro |
@@ -323,15 +324,31 @@ Ao gerar o draft, insira placeholders de imagem usando markdown padrão com o `r
 
 | `type` | Forma | Significado |
 |--------|-------|-------------|
-| `line` | `{ "type":"line", "text": string, "key"?: boolean }` | **FALADO para a câmera** — o teleprompter; exatamente o que o host lê em voz alta. `key:true` marca um momento-âncora/chave. |
+| `line` | `{ "type":"line", "text": string, "key"?: boolean }` | **FALADO para a câmera** — o teleprompter; exatamente o que o host lê em voz alta. `key:true` marca um momento-âncora/chave. Só conta no relógio de fala dentro de um beat `kind:'fala'`. |
+| `action` | `{ "type":"action", "text": string, "key"?: boolean }` | **AÇÃO on-camera que o talento EXECUTA** (não lê) — prompt de entrevista, algo a captar, "abordar o atendente", "filmar o painel de preços". Renderizado como item de **checklist** dentro de um beat `kind:'acao'` (o performer vê e marca). **NÃO conta como tempo de fala.** `key:true` marca uma ação-âncora. |
 | `pause` | `{ "type":"pause", "duration": number }` | Pausa/respiro cronometrado, em segundos (0–30). |
 | `vis` | `{ "type":"vis", "text": string }` | **Cue de B-roll / visual** — mostrado ao editor, **NÃO é falado**. |
 | `ed` | `{ "type":"ed", "text": string }` | **Nota só do editor** — escondida atrás do toggle "Notas do editor". **NÃO é falada, NÃO aparece no teleprompter.** |
 | `dir` | `{ "type":"dir", "text": string }` | Direção de performance (forward-compat — **não renderiza nada no editor hoje**; escreva o tom em `beat.tone`). |
 
-> **Cadência de leitura ≈ 2.1 palavras/seg.** Estimativa de duração de um beat ≈ `ceil(palavras_em_lines / 2.1 + soma(pause.duration))`. Só linhas `line` contam palavras.
+> **Cadência de leitura ≈ 2.1 palavras/seg.** Estimativa de duração de um beat ≈ `ceil(palavras_em_lines / 2.1 + soma(pause.duration))`. Só linhas `line` (dentro de um beat `kind:'fala'`) contam palavras.
 
-### REGRA: "Falado vs Notas do editor" (crítica)
+> **Freeze:** `PATCH /sections/roteiro` retorna **HTTP 403** quando o stage do vídeo está em ≥ `scheduled`/`published` (`ideia`/`roteiro`/`postprod`/`publish` ficam read-only). Para consertar um roteiro já publicado, dê **`POST /items/:id/retreat`** primeiro — ou edite antes de publicar. (Detalhe em **Published-freeze**, abaixo.)
+
+### REGRA: Como consertar um roteiro poluído (via API) — **é BEAT-LEVEL**
+
+**O mecanismo-chave.** O roteiro é o palco do ATOR: o que Thiago **fala** e **faz** diante da câmera. Logística e cobertura de editor não devem competir com as falas. Quem decide em que pista um beat renderiza é **`beat.kind`** — não os tipos dos itens dentro dele. Para consertar um roteiro onde a logística aparece como fala, **mude o `kind` do BEAT**:
+
+| Conteúdo do beat | `kind` a definir | O que mais fazer nos itens |
+|------------------|------------------|----------------------------|
+| KIT / equipamento / timeline / cronograma / must-gets | `'prep'` | passe a logística para `{type:'ed'}` |
+| b-roll / shot-list / cobertura / planos visuais | `'editor'` | cues visuais como `{type:'vis'}` / `{type:'ed'}` |
+| entrevista / captação / abordagem / prompts on-camera | `'acao'` | **converta os prompts de `{type:'line'}` para `{type:'action'}`** |
+| beat genuinamente falado | `'fala'` (ou deixe ausente) | as falas ficam em `{type:'line'}` |
+
+> ⚠️ **Só re-tipar os itens `line→ed` dentro de um beat NÃO basta** — se o beat continuar sem `kind`, ele permanece no fluxo do ator e ainda polui o contador de fala. **Mude o `kind` do BEAT.** O `kind` explícito sempre vence a inferência pelo nome; ao escrever via API, nunca confie na heurística do nome — declare `kind`.
+
+### REGRA: "Falado vs Notas do editor" (ainda válida DENTRO de um beat `fala`)
 
 O teleprompter mostra **apenas** as linhas `line`. Tudo que não é a fala literal do host tem um tipo próprio:
 
@@ -411,6 +428,59 @@ O teleprompter mostra **apenas** as linhas `line`. Tudo que não é a fala liter
 Repare que `"abrir falando da mudança"` **não** virou um `ed` — era uma instrução para ESCREVER a fala, então virou uma `line` autoral de verdade. A logística (`Mic…`, `6:15…`) virou `ed`; a `montagem de fotos` virou `vis`; o tom virou `beat.tone`.
 
 **Reclassificação obrigatória:** um beat que é "quase só notas e quase nenhuma fala" está modelado errado — separe: o equipamento/logística/timeline vira `ed`, os cues visuais viram `vis`, o tom vira `beat.tone`, e **as frases ditas para a câmera viram `line`s** (escrevendo a fala se ela não existia). Não enfie fala dentro de `ed`/`vis`, nem deixe um beat falável sem `line`.
+
+#### Exemplo via API — beat KIT: BEFORE → AFTER (mude o `kind` do BEAT)
+
+Um beat de KIT/equipamento renderizado como fala. O conserto **não** é só re-tipar os itens — é declarar **`"kind":"prep"`** no beat (ele sai do fluxo do ator, colapsa em "Antes de gravar" e some do contador de fala) e passar a logística para `ed`.
+
+**ANTES (errado — sem `kind`, logística como `line` → polui o teleprompter e o contador):**
+
+```json
+{
+  "idx": 2,
+  "name": "KIT de gravação",
+  "status": "PENDING",
+  "script": [
+    { "type": "line", "text": "Mic lav/fone + anti-vento · power bank · 30GB+ livres no cartão" },
+    { "type": "line", "text": "6:15 chega → grava HOOK | 6:30 entrevistas | 8:00 b-roll" },
+    { "type": "line", "text": "Must-gets: fachada, fila, painel de preços" }
+  ]
+}
+```
+
+**DEPOIS (certo — `"kind":"prep"` no BEAT + logística como `ed`):**
+
+```json
+{
+  "idx": 2,
+  "name": "KIT de gravação",
+  "status": "PENDING",
+  "kind": "prep",
+  "script": [
+    { "type": "ed", "text": "Mic lav/fone + anti-vento · power bank · 30GB+ livres no cartão" },
+    { "type": "ed", "text": "6:15 chega → grava HOOK | 6:30 entrevistas | 8:00 b-roll" },
+    { "type": "ed", "text": "Must-gets: fachada, fila, painel de preços" }
+  ]
+}
+```
+
+#### Mini-exemplo via API — beat de ENTREVISTA → `"kind":"acao"` com `{type:"action"}`
+
+Beat de captação/entrevista: os prompts não são lidos, são **executados** → `"kind":"acao"` no beat e prompts como `{type:"action"}` (viram checklist; não contam tempo de fala).
+
+```json
+{
+  "idx": 4,
+  "name": "Entrevistas na feira",
+  "status": "PENDING",
+  "kind": "acao",
+  "script": [
+    { "type": "action", "text": "Abordar 3 feirantes — perguntar há quanto tempo trabalham ali", "key": true },
+    { "type": "action", "text": "Captar a reação de um cliente ao preço" },
+    { "type": "vis", "text": "Inserts da movimentação da feira ao fundo" }
+  ]
+}
+```
 
 > **Por que isso importa:** o teleprompter mostra só `line`. Além disso, **só `line` conta no contador "X/Y faladas" e na estimativa de tempo de fala** — uma nota tipada como `line` infla esses números e quebra o progresso de leitura. E o tom escrito em `dir` dentro de `script[]` não renderiza no editor hoje (use `beat.tone`), senão a direção de tom simplesmente some.
 
