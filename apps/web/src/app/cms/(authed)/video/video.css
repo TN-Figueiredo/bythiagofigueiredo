@@ -24,12 +24,14 @@
   --border: var(--cms-border);
   --border-soft: var(--cms-border-subtle);
   --border-strong: var(--cms-border);
-  --accent: var(--cms-accent);
-  --accent-hover: var(--cms-accent-hover);
-  --accent-soft: var(--cms-accent-subtle);
-  --accent-soft-2: var(--cms-accent-subtle);
-  --accent-text: var(--cms-accent);
-  --on-accent: #fff;
+  /* Brand orange (handoff #FF8240 family) — the video module is orange-branded,
+     NOT the app's indigo --cms-accent. */
+  --accent: #ff8240;
+  --accent-hover: #f06a25;
+  --accent-soft: rgba(255, 130, 64, .15);
+  --accent-soft-2: rgba(255, 130, 64, .08);
+  --accent-text: #ff9a5e;
+  --on-accent: #1b1206;
   --c-pipeline: var(--cms-cyan);
   --c-pipeline-s: var(--cms-cyan-subtle);
   --c-links: var(--cms-purple);
@@ -50,6 +52,25 @@
   --ease: cubic-bezier(.4, 0, .2, 1);
   --ease-back: cubic-bezier(.34, 1.56, .64, 1);
 }
+
+/* Buttons — the handoff `.btn`/`.btn.primary` vocabulary is NOT provided by cms-ui.
+   Defined here, scoped to the module (orange primary = the brand accent). */
+.video-hub-page .btn, .vid-ed .btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 8px 14px; border-radius: 9px; font-size: 13px; font-weight: 600;
+  background: var(--surface-2); color: var(--text); border: 1px solid var(--border);
+  cursor: pointer; white-space: nowrap;
+  transition: background var(--t-fast), border-color var(--t-fast), transform var(--t-fast) var(--ease);
+}
+.video-hub-page .btn:hover, .vid-ed .btn:hover { background: var(--surface-hover); border-color: var(--border-strong); }
+.video-hub-page .btn:active, .vid-ed .btn:active { transform: scale(.97); }
+.video-hub-page .btn.primary, .vid-ed .btn.primary {
+  background: var(--accent); color: var(--on-accent); border-color: transparent;
+}
+.video-hub-page .btn.primary:hover, .vid-ed .btn.primary:hover { background: var(--accent-hover); }
+
+/* Section rhythm: pillar rail needs space above the kanban (research.css gives it none). */
+.video-hub-page .cat-rail { margin-bottom: 18px; }
 
 /* ---------- HUB ---------- */
 .vhub-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 22px; }
