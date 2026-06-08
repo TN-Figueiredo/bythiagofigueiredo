@@ -75,12 +75,14 @@ describe('IdeiaStage — handoff markup', () => {
     expect(seedText.getAttribute('data-ph')).toContain('opinião')
   })
 
-  it('renders .vi-alts with .vi-alts-label containing "Gerar mais"', () => {
+  it('renders .vi-alts with the "Gerar mais" Cowork button in .vi-alts-label', () => {
     const { container } = wrap(<IdeiaStage />)
     const alts = container.querySelector('.vi-alts')!
     expect(alts).not.toBeNull()
-    expect(alts.querySelector('.vi-alts-label')).not.toBeNull()
-    const genBtn = alts.querySelector('.vi-alts-gen')!
+    const label = alts.querySelector('.vi-alts-label')!
+    expect(label).not.toBeNull()
+    // "Gerar mais" is a Cowork trigger (.cw-btn), consistent with the other Cowork buttons.
+    const genBtn = label.querySelector('.cw-btn')!
     expect(genBtn).not.toBeNull()
     expect(genBtn.textContent).toContain('Gerar mais')
   })
@@ -160,11 +162,14 @@ describe('IdeiaStage — handoff markup', () => {
     expect(data.saveIdeia).toHaveBeenCalledWith('pt', { direction: 'A perspectiva de quem saiu do Brasil sem dinheiro' })
   })
 
-  it('"Gerar mais" calls appendSiblings(lang)', () => {
-    const { container, data } = wrap(<IdeiaStage />)
-    const genBtn = container.querySelector('.vi-alts-gen') as HTMLElement
+  it('"Gerar mais" opens the Cowork popover (like the other Cowork triggers)', () => {
+    const { container } = wrap(<IdeiaStage />)
+    const genBtn = container.querySelector('.vi-alts-label .cw-btn') as HTMLElement
+    expect(genBtn).not.toBeNull()
     fireEvent.click(genBtn)
-    expect(data.appendSiblings).toHaveBeenCalledWith('pt')
+    const pop = document.querySelector('.cw-pop')
+    expect(pop).not.toBeNull()
+    expect(pop?.textContent).toContain('Pedir ao Cowork')
   })
 
   // ─── CTA dispatch ─────────────────────────────────────────────────────────

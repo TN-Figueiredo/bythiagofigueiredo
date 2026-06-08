@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
 import { ArrowRight } from 'lucide-react'
 import { SparklesGlyph } from '../_components/sparkles-glyph'
+import { CoworkButton } from '../_components/cowork-button'
 import { pillarById } from '@/lib/pipeline/pillars'
 import { CHANNELS } from '@/lib/pipeline/channels'
 import { useVideoEditorState, useVideoEditorDispatch } from '../context'
@@ -20,7 +20,6 @@ export function IdeiaStage({ cur: curProp, lang: langProp }: IdeiaStageProps = {
   const state = useVideoEditorState()
   const dispatch = useVideoEditorDispatch()
   const data = useVideoData()
-  const [isGenerating, setIsGenerating] = useState(false)
 
   // Use props when provided by the shell; fall back to context derivation for
   // backwards-compatible usage (e.g. tests that mount bare <IdeiaStage />).
@@ -56,13 +55,6 @@ export function IdeiaStage({ cur: curProp, lang: langProp }: IdeiaStageProps = {
 
   const onAltClick = (siblingText: string) => {
     void data.saveIdeia(lang, { direction: siblingText })
-  }
-
-  const onGenMore = () => {
-    setIsGenerating(true)
-    void Promise.resolve(data.appendSiblings(lang)).finally(() => {
-      setIsGenerating(false)
-    })
   }
 
   return (
@@ -104,18 +96,7 @@ export function IdeiaStage({ cur: curProp, lang: langProp }: IdeiaStageProps = {
       <div className="vi-alts">
         <div className="vi-alts-label">
           <span className="row gap-6"><SparklesGlyph size={12} /> Outras direções do Cowork</span>
-          <button
-            type="button"
-            className="vi-alts-gen"
-            onClick={onGenMore}
-            disabled={isGenerating}
-          >
-            {isGenerating ? (
-              <><span className="cw-spin" /> gerando…</>
-            ) : (
-              <><SparklesGlyph size={12} /> Gerar mais</>
-            )}
-          </button>
+          <CoworkButton stage="ideia" label="Gerar mais" compact />
         </div>
         {cur.siblings.map((s, i) => (
           <button key={i} type="button" className="vi-alt" onClick={() => onAltClick(s)}>
@@ -124,7 +105,7 @@ export function IdeiaStage({ cur: curProp, lang: langProp }: IdeiaStageProps = {
             <span className="va-go"><ArrowRight size={14} /></span>
           </button>
         ))}
-        {cur.siblings.length === 0 && !isGenerating && (
+        {cur.siblings.length === 0 && (
           <div className="vi-alts-empty">Sem alternativas ainda — peça ao Cowork pra gerar algumas.</div>
         )}
       </div>
