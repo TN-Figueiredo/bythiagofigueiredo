@@ -1,8 +1,6 @@
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { loadVideoHub } from '@/lib/pipeline/load-video-hub'
-import { HubHeader } from './_components/hub-header'
-import { StatRow } from './_components/stat-row'
 import { VideoHub } from './_components/video-hub'
 import './video.css'
 
@@ -16,8 +14,6 @@ export default async function VideoHubPage() {
 
   return (
     <div className="video-hub-page">
-      <HubHeader />
-      <StatRow stats={data.stats} />
       <VideoHub data={data} />
     </div>
   )

@@ -4,6 +4,8 @@ import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { loadVideoDetail } from '@/lib/pipeline/load-video-detail'
 import { initialFromDetail } from './reducer'
 import { VideoEditorClient } from './editor-client'
+import '../../video.css' // recording/handoff sheet + print styles live in the hub CSS
+import './video-theme.css' // editor screen theme (ed-bar, stages, roteiro, focus, readbar)
 
 export const dynamic = 'force-dynamic'
 
