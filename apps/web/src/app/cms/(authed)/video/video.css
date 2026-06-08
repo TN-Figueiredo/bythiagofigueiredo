@@ -56,3 +56,82 @@
 @media print {
   .vcard { animation: none !important; }
 }
+
+/* ============================================================
+   PRINT PATH A — Modo Gravação / Handoff (body.recording)
+   The portaled paper sheet prints; the whole app is hidden.
+   ============================================================ */
+@media print {
+  body.recording > .app { display: none !important; }
+  body.recording { background: #fff !important; }
+  .rec-overlay { position: static !important; overflow: visible !important; background: #fff !important; }
+  .rec-bar { display: none !important; }
+  .rec-sheet { box-shadow: none !important; margin: 0 auto !important; max-width: none !important; padding: 0 !important; border-radius: 0 !important; }
+
+  /* paper economy — recording sheet */
+  .rs-beat { break-inside: auto; }
+  .rs-beat-head { break-inside: avoid; break-after: avoid; }
+  .rs-tone { break-inside: avoid; break-after: avoid; }
+  .rs-line, .rs-pause { break-inside: avoid; }
+  .rs-line-tx, .rs-line .emph, .rs-beat-num, .rs-note, .rsh-meta, .rs-tick { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  /* paper economy — handoff */
+  .hs-beat { break-inside: auto; }
+  .hs-beat-h { break-inside: avoid; break-after: avoid; }
+  .hs-table tr { break-inside: avoid; }
+  .hs-bn, .hs-table thead th, .hs-warn { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+
+/* ============================================================
+   PRINT PATH B — in-app ⌘P on Roteiro (body:not(.recording))
+   Reflow the teleprompter doc to serif ink-on-white; hide all
+   app chrome incl. .focus-exit; hand-tick circles + orange accents.
+   ============================================================ */
+@media print {
+  body:not(.recording) { background: #fff !important; }
+  body:not(.recording) .sidebar,
+  body:not(.recording) .topbar,
+  body:not(.recording) .ed-bar,
+  body:not(.recording) .ed-stages,
+  body:not(.recording) .vid-robanner,
+  body:not(.recording) .rot-sum,
+  body:not(.recording) .rot-hint,
+  body:not(.recording) .rot-readbar,
+  body:not(.recording) .rb-prog,
+  body:not(.recording) .rb-progbar,
+  body:not(.recording) .focus-exit { display: none !important; }
+  body:not(.recording) .app,
+  body:not(.recording) .main,
+  body:not(.recording) .content { display: block !important; height: auto !important; overflow: visible !important; background: #fff !important; padding: 0 !important; }
+  body:not(.recording) .content-inner { max-width: none !important; }
+  body:not(.recording) .rot-doc { max-width: none !important; padding: 0 !important; font-family: 'Source Serif 4', Georgia, serif; }
+  body:not(.recording) .rot-title { color: #1b1510 !important; font-size: 21pt; font-weight: 600; margin: 0 0 20px; }
+  body:not(.recording) .rot-beat { break-inside: auto; margin-top: 20px; }
+  body:not(.recording) .rb-line, body:not(.recording) .rb-pause { break-inside: avoid; }
+  body:not(.recording) .rb-head { position: static !important; background: none !important; backdrop-filter: none !important; border-top: 1.5px solid #1b1510; padding: 7px 0 5px; break-inside: avoid; break-after: avoid; }
+  body:not(.recording) .rb-num { color: #fff !important; background: #1b1510 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body:not(.recording) .rb-name { color: #1b1510 !important; }
+  body:not(.recording) .rb-info { color: #80755f !important; }
+  body:not(.recording) .rb-tone { color: #857a6c !important; margin: 7px 0 5px 44px; }
+  body:not(.recording) .rb-tone .lucide { display: none !important; }
+  body:not(.recording) .rb-line { margin: 7px 0; }
+  body:not(.recording) .rb-mark { width: 17px; margin-top: 7px; }
+  body:not(.recording) .rb-mark-dot { width: 14px; height: 14px; border-color: #b0a99a !important; background: none !important; }
+  body:not(.recording) .rb-mark-dot .lucide { display: none !important; }
+  body:not(.recording) .rb-line-tx { color: #1b1510 !important; font-size: 13.5pt; line-height: 1.92; box-shadow: none !important; background: none !important; padding-left: 14px; }
+  body:not(.recording) .rb-line.key .rb-line-tx { box-shadow: inset 3px 0 0 #b8541a !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body:not(.recording) .rb-line-tx .emph,
+  body:not(.recording) .rb-line.spoken .rb-line-tx .emph { color: #b8541a !important; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body:not(.recording) .rb-breath { color: #a89e92 !important; margin-left: 44px; }
+  body:not(.recording) .rb-note { background: #f3f1ea !important; border-color: #e6e0d3 !important; color: #857a6c !important; margin-left: 44px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body:not(.recording) .rb-note .rn-tag { color: #80755f !important; background: #e6e0d3 !important; }
+}
+
+/* ============================================================
+   MOTION SUPPRESSION — print + reduced-motion (spec §11)
+   ============================================================ */
+@media print { .vcard, .rot-beat, .ab-card { animation: none !important; } }
+@media (prefers-reduced-motion: reduce) {
+  .vcard, .rot-beat, .ab-card, .mod-live i, .markPop { animation: none !important; transition: none !important; }
+  .vcard:hover, .vcard:active { transform: none !important; }
+}
