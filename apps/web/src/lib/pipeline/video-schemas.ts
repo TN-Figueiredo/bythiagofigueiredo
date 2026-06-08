@@ -1,6 +1,8 @@
 import { z } from 'zod'
 import type { RoteiroBeatV3, ScriptLineV3 } from './roteiro-schemas'
 
+export type { RoteiroBeatV3 } from './roteiro-schemas'
+
 /** Video reading cadence — 2.6 wps, matching the hifi reference exactly (distinct from blog's 2.5). */
 export const VIDEO_READ_WPS = 2.6
 
@@ -56,3 +58,34 @@ export const IdeiaSectionSchema = z.object({
   framework: z.string().max(200).default(''),
 }).strict()
 export type IdeiaSection = z.infer<typeof IdeiaSectionSchema>
+
+// --- Pós lightweight brief (§5.3) ---
+export const PosBriefSchema = z.object({
+  kind: z.literal('brief'),
+  deliverables: z.object({
+    editor: z.string(), deadline: z.string(), turnaround: z.string(),
+    drive: z.string(), energy: z.string(), references: z.array(z.string()).default([]),
+  }).partial().optional(),
+  style: z.array(z.object({ k: z.string(), v: z.string() })).default([]),
+  ctas: z.object({
+    note: z.string().default(''),
+    rows: z.array(z.object({ k: z.string(), pt: z.string(), en: z.string() })).default([]),
+    display: z.string().default(''),
+  }),
+}).strict()
+export type PosBrief = z.infer<typeof PosBriefSchema>
+
+// --- Publicação A/B draft (§3.8) — one-original invariant ---
+export const ABDraftSchema = z.object({
+  leader: z.enum(['A', 'B', 'C', 'D']),
+  variants: z.array(z.object({
+    id: z.enum(['A', 'B', 'C', 'D']),
+    tag: z.string().max(40).optional(),
+    title: z.string().max(500).default(''),
+    brief: z.string().max(1000).default(''),
+  })).length(4),
+}).strict().refine(
+  (d) => d.variants.filter(v => v.tag === 'original').length === 1,
+  { message: 'Exactly one variant must be tagged "original"' },
+)
+export type ABDraft = z.infer<typeof ABDraftSchema>
