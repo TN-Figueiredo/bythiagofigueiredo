@@ -105,9 +105,9 @@ describe('IdeiaStage — handoff markup', () => {
   })
 
   // ─── CTA text variants ────────────────────────────────────────────────────
-  it('CTA reads "Destrinchar em roteiro" when no beats', () => {
+  it('CTA reads "Gerar o roteiro" when no beats', () => {
     const { container } = wrap(<IdeiaStage />)
-    expect(container.querySelector('.vi-next')!.textContent).toContain('Destrinchar em roteiro')
+    expect(container.querySelector('.vi-next')!.textContent).toContain('Gerar o roteiro')
   })
 
   it('CTA reads "Abrir o roteiro" when version has beats', () => {
@@ -144,6 +144,23 @@ describe('IdeiaStage — handoff markup', () => {
     expect(container.querySelector('.vi-alts-empty')).toBeNull()
   })
 
+  it('clicking a .vi-alt swaps it into the active direction (saveIdeia with direction + swapped siblings)', () => {
+    const { container, data } = wrap(<IdeiaStage />, {
+      ideia: {
+        pt: { ...blankIdeia, direction: 'Direção ativa', siblings: ['Primeira direção', 'Segunda direção'] },
+        en: { ...blankIdeia },
+      },
+    } as never)
+    const firstAlt = container.querySelectorAll('.vi-alt')[0] as HTMLElement
+    fireEvent.click(firstAlt)
+    // Swap: clicked alt (index 0) becomes the direction; the previously-active
+    // direction takes slot 0. Other siblings untouched.
+    expect(data.saveIdeia).toHaveBeenCalledWith('pt', {
+      direction: 'Primeira direção',
+      siblings: ['Direção ativa', 'Segunda direção'],
+    })
+  })
+
   // ─── Persistence ──────────────────────────────────────────────────────────
   it('blurring .vi-title calls saveTitle(lang, text) AND saveIdeia(lang, {title})', () => {
     const { container, data } = wrap(<IdeiaStage />)
@@ -175,9 +192,9 @@ describe('IdeiaStage — handoff markup', () => {
   // ─── CTA dispatch ─────────────────────────────────────────────────────────
   it('CTA click dispatches SET_STAGE → roteiro', () => {
     const { container, getByText } = wrap(<IdeiaStage />)
-    fireEvent.click(getByText(/Destrinchar em roteiro/i))
+    fireEvent.click(getByText(/Gerar o roteiro/i))
     // Assert CTA is a real button (dispatch is internal; stage change reflected in context)
-    expect(getByText(/Destrinchar em roteiro/i).closest('button')!.tagName).toBe('BUTTON')
+    expect(getByText(/Gerar o roteiro/i).closest('button')!.tagName).toBe('BUTTON')
   })
 
   // ─── Props contract (shell usage) ────────────────────────────────────────

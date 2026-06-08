@@ -1,8 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Layers, Clock, Play, RefreshCw, CheckCheck, Eye, BellOff, Edit } from 'lucide-react'
+import { Layers, Clock, Play, RefreshCw, CheckCheck, Eye, BellOff, Edit, Plus } from 'lucide-react'
 import { SparklesGlyph } from '../_components/sparkles-glyph'
+import { CoworkButton } from '../_components/cowork-button'
+import { CHANNELS } from '@/lib/pipeline/channels'
 import { vidTotals, fmtClock } from '@/lib/pipeline/video-schemas'
 import { videoLineKeys, videoLineSecsFlat, readPctOf } from '@/lib/pipeline/video-read-math'
 import type { RoteiroContentV3 } from '@/lib/pipeline/roteiro-schemas'
@@ -95,7 +97,34 @@ export function RoteiroStage(_props: RoteiroStageProps = {}) {
     void data.saveRoteiro(lang, updated)
   }, [content, data, lang])
 
+  const ideia = data.ideia[lang]
+  const channel = CHANNELS.find((c) => c.lang === lang)
+  const onStartBlank = () => {
+    void data.saveRoteiro(lang, { version: 3, meta: {}, beats: [{ idx: 0, name: 'Beat 1', status: 'PENDING', script: [] }] })
+  }
+
   if (!content || beats.length === 0) {
+    if ((ideia.direction ?? '').trim()) {
+      return (
+        <div className="rot-gen fade-in">
+          <div className="vi-kicker"><SparklesGlyph size={13} /> Roteiro · {channel?.name ?? lang.toUpperCase()}</div>
+          <h1 className="vi-title">{ideia.title || 'Sem título'}</h1>
+          <div className="vi-seed">
+            <div className="vi-seed-head">
+              <span className="vi-seed-ico"><SparklesGlyph size={14} /></span>
+              <span className="vi-seed-name">A direção</span>
+              <button type="button" className="vi-seed-edit" onClick={() => dispatch({ type: 'SET_STAGE', stage: 'ideia' })}>editar</button>
+            </div>
+            <div className="vi-seed-text">{ideia.direction}</div>
+          </div>
+          <div className="rot-gen-actions">
+            <CoworkButton stage="roteiro" label="Gerar roteiro com Cowork" />
+            <button type="button" className="btn" onClick={onStartBlank}><Plus size={15} /> Começar do zero</button>
+          </div>
+          <div className="rot-gen-sub">O Cowork rascunha 4 beats a partir da direção — você destrincha até virar a sua fala.</div>
+        </div>
+      )
+    }
     return (
       <div className="rot-empty fade-in">
         <div className="card card-pad" style={{ textAlign: 'center', padding: '30px 26px' }}>

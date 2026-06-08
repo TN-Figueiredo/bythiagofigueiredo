@@ -1,6 +1,7 @@
 'use client'
 
 import { ArrowRight } from 'lucide-react'
+import { toast } from 'sonner'
 import { SparklesGlyph } from '../_components/sparkles-glyph'
 import { CoworkButton } from '../_components/cowork-button'
 import { pillarById } from '@/lib/pipeline/pillars'
@@ -53,8 +54,14 @@ export function IdeiaStage({ cur: curProp, lang: langProp }: IdeiaStageProps = {
     void data.saveIdeia(lang, { direction: (e.currentTarget.textContent ?? '').trim() })
   }
 
-  const onAltClick = (siblingText: string) => {
-    void data.saveIdeia(lang, { direction: siblingText })
+  const onAltClick = (index: number) => {
+    const chosen = cur.siblings[index]
+    if (chosen == null) return
+    // Swap: clicked alternative becomes the active direction; the previously-active
+    // direction takes the clicked slot. Persist both fields together.
+    const swapped = cur.siblings.map((s, j) => (j === index ? cur.direction : s))
+    void data.saveIdeia(lang, { direction: chosen, siblings: swapped })
+    toast.success('Direção trocada', { description: chosen })
   }
 
   return (
@@ -99,7 +106,7 @@ export function IdeiaStage({ cur: curProp, lang: langProp }: IdeiaStageProps = {
           <CoworkButton stage="ideia" label="Gerar mais" compact />
         </div>
         {cur.siblings.map((s, i) => (
-          <button key={i} type="button" className="vi-alt" onClick={() => onAltClick(s)}>
+          <button key={i} type="button" className="vi-alt" onClick={() => onAltClick(i)}>
             <span className="va-n">{i + 1}</span>
             <span className="va-t">{s}</span>
             <span className="va-go"><ArrowRight size={14} /></span>
@@ -126,7 +133,7 @@ export function IdeiaStage({ cur: curProp, lang: langProp }: IdeiaStageProps = {
         className="vi-next"
         onClick={() => dispatch({ type: 'SET_STAGE', stage: 'roteiro' })}
       >
-        {hasBeats ? 'Abrir o roteiro' : 'Destrinchar em roteiro'} <ArrowRight size={15} />
+        {hasBeats ? 'Abrir o roteiro' : 'Gerar o roteiro'} <ArrowRight size={15} />
       </button>
     </div>
   )
