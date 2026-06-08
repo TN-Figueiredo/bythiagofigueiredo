@@ -365,6 +365,101 @@
 .rb-note.ed  .rn-tag { color: var(--text-dim); background: var(--surface-hover); border: 1px solid var(--border-soft); }
 .rb-note .rn-tx { padding-top: 1px; }
 
+/* talent performance note (dir) — always visible, it's for the actor */
+.rb-dir { display: flex; gap: 8px; align-items: flex-start; margin: 9px 0 9px 46px; padding: 8px 12px;
+  border-radius: 9px; background: var(--accent-soft); border: 1px solid var(--accent-soft-2);
+  font-size: 12.5px; line-height: 1.5; color: var(--text-muted); }
+.rb-dir .lucide { color: var(--accent-text); flex-shrink: 0; margin-top: 2px; }
+
+/* empty performer beat — quiet placeholder instead of a dead 0/0 row */
+.rb-empty { display: flex; gap: 8px; align-items: center; margin: 10px 0 4px 46px;
+  font-size: 12.5px; color: var(--text-faint); font-style: italic; }
+.rb-empty .lucide { color: var(--c-courses); flex-shrink: 0; }
+
+/* ── ON-CAMERA ACTIONS (acao beats + inline action items) ────
+   The talent DOES these — a checklist, visually distinct from the serif teleprompter. */
+.rb-num.act { display: inline-grid; place-items: center; background: var(--c-newsletter); }
+.rb-kindtag { display: inline-flex; align-items: center; gap: 5px; font-family: var(--font-mono);
+  font-size: 9.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+  color: var(--c-newsletter); background: var(--c-newsletter-s); padding: 2px 8px; border-radius: 5px; }
+.rb-kindtag .lucide { color: var(--c-newsletter); }
+.rb-act { display: flex; gap: 13px; align-items: flex-start; margin: 9px 0; }
+.rb-actbox { flex-shrink: 0; width: 22px; height: 22px; margin-top: 3px; display: grid; place-items: center;
+  background: none; border: none; cursor: pointer; }
+.rb-actbox-in { width: 19px; height: 19px; border-radius: 6px; border: 1.5px solid var(--border-strong);
+  display: grid; place-items: center; color: var(--on-accent); transition: border-color var(--t-fast), background var(--t-fast); }
+.rb-actbox:hover .rb-actbox-in { border-color: var(--c-newsletter); }
+.rb-act.done .rb-actbox-in { background: var(--c-newsletter); border-color: var(--c-newsletter); }
+.rb-act-tx { flex: 1; min-width: 0; font-size: 15.5px; line-height: 1.55; color: var(--text); padding-top: 1px; }
+.rb-act-tx .emph { color: var(--accent-text); font-weight: 600; }
+.rb-act.key .rb-act-tx { box-shadow: inset 2px 0 0 var(--c-newsletter); padding-left: 11px; }
+.rb-act.done .rb-act-tx, .rb-act.done .rb-act-tx .emph { color: var(--text-faint); }
+.rot-rail .rrl-chip.act .rrl-n { color: var(--on-accent); background: var(--c-newsletter); }
+
+/* ── PREP STRIP — "Antes de gravar" (collapsed logistics, out of the reading flow) ── */
+.rot-prep { border: 1px solid var(--border-soft); border-radius: 11px; background: var(--surface-2); margin: 0 0 18px; overflow: hidden; }
+.rot-prep-head { display: flex; align-items: center; gap: 9px; width: 100%; padding: 10px 14px;
+  background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 13px; text-align: left; transition: background var(--t-fast); }
+.rot-prep-head:hover { background: var(--surface-hover); }
+.rot-prep-head .lucide { color: var(--text-dim); flex-shrink: 0; }
+.rot-prep-caret { transition: transform var(--t); }
+.rot-prep.open .rot-prep-caret { transform: rotate(90deg); }
+.rot-prep-title { font-weight: 600; color: var(--text); }
+.rot-prep-count { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px;
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 700; color: var(--text-dim); background: var(--surface-hover); }
+.rot-prep-hint { font-family: var(--font-mono); font-size: 10px; letter-spacing: .04em; text-transform: uppercase; color: var(--text-faint); }
+.rot-prep-body { padding: 4px 16px 14px; display: flex; flex-direction: column; gap: 13px; border-top: 1px solid var(--border-soft); }
+.rot-prep-grp { padding-top: 11px; }
+.rot-prep-nm { font-family: var(--font-mono); font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 6px; }
+.rot-prep-body ul { margin: 0; padding-left: 17px; display: flex; flex-direction: column; gap: 5px; }
+.rot-prep-body li { font-size: 13px; line-height: 1.5; color: var(--text-muted); }
+
+/* ── EDITOR HANDOFF — b-roll / coverage routes to Pós ── */
+.rot-edh { margin: 30px 0 0; padding: 14px 16px; border: 1px dashed var(--border); border-radius: 12px; background: var(--surface); }
+.rot-edh-head { display: flex; align-items: center; gap: 9px; }
+.rot-edh-head .lucide { color: var(--c-pipeline); flex-shrink: 0; }
+.rot-edh-title { font-size: 13.5px; font-weight: 600; color: var(--text); }
+.rot-edh-count { font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); }
+.rot-edh-go { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 500; color: var(--c-pipeline);
+  background: none; border: none; cursor: pointer; transition: opacity var(--t-fast); }
+.rot-edh-go:hover { opacity: .8; }
+.rot-edh-sub { font-size: 12px; line-height: 1.55; color: var(--text-dim); margin-top: 6px; }
+.rot-edh-k { display: inline-flex; align-items: center; height: 18px; padding: 0 6px; margin: 0 1px; border-radius: 5px;
+  background: var(--c-pipeline-s); color: var(--c-pipeline); font-size: 11px; font-weight: 600; }
+.rot-edh-body { margin-top: 11px; padding-top: 11px; border-top: 1px solid var(--border-soft); display: flex; flex-direction: column; gap: 12px; }
+.rot-edh-nm { font-family: var(--font-mono); font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 5px; }
+.rot-edh-body ul { margin: 0; padding-left: 17px; display: flex; flex-direction: column; gap: 5px; }
+.rot-edh-body li { font-size: 12.5px; line-height: 1.5; color: var(--text-muted); }
+
+/* "+ nota pro editor" — add a b-roll cue to a fala beat (only when Notas is on) */
+.rb-addcue { display: inline-flex; align-items: center; gap: 6px; margin: 8px 0 0 46px; padding: 5px 11px;
+  border-radius: 8px; border: 1px dashed var(--border); background: none; color: var(--text-dim);
+  font-size: 12px; cursor: pointer; transition: border-color var(--t-fast), color var(--t-fast), background var(--t-fast); }
+.rb-addcue:hover { color: var(--c-pipeline); border-color: var(--c-pipeline); background: var(--c-pipeline-s); }
+.rb-addcue .lucide { color: var(--c-pipeline); }
+.rb-note .rn-tx[contenteditable] { outline: none; border-radius: 4px; }
+.rb-note .rn-tx[contenteditable]:focus { background: var(--surface); box-shadow: inset 0 0 0 1px var(--border-strong); }
+
+/* "é fala?" recovery for an auto-classified beat (only shown when kind was inferred) */
+.rb-recover, .rot-recover { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; padding: 1px 7px;
+  border-radius: 999px; border: 1px solid var(--border); background: none; color: var(--text-dim);
+  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .02em; cursor: pointer;
+  transition: color var(--t-fast), border-color var(--t-fast); vertical-align: middle; }
+.rb-recover:hover, .rot-recover:hover { color: var(--accent-text); border-color: var(--accent); }
+
+/* acao rail chip: keep newsletter (NOT the green fala "done") so the two read distinctly */
+.rot-rail .rrl-chip.act.done .rrl-n { color: var(--on-accent); background: var(--c-newsletter); }
+.rot-rail .rrl-chip.act.done { color: var(--text-muted); }
+
+/* focus-visible rings hug the visible control, not just the hit-area button */
+.rb-mark:focus-visible { outline: none; }
+.rb-mark:focus-visible .rb-mark-dot { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent); }
+.rb-actbox:focus-visible { outline: none; }
+.rb-actbox:focus-visible .rb-actbox-in { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--c-newsletter); }
+.rrl-chip:focus-visible, .rot-prep-head:focus-visible, .rot-edh-go:focus-visible,
+.rb-addcue:focus-visible, .rb-recover:focus-visible, .rot-recover:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px; }
+
 /* empty roteiro (idea-only video) */
 .rot-empty { max-width: 560px; margin: 30px auto; }
 
@@ -462,6 +557,17 @@
 .rs-line.key .rs-line-tx { box-shadow: inset 3px 0 0 var(--rp-accent); }
 .rs-line .emph { color: var(--rp-accent); font-weight: 600; text-decoration: underline; text-decoration-thickness: 1.5px;
   text-underline-offset: 3px; text-decoration-color: color-mix(in srgb, var(--rp-accent) 45%, transparent); }
+/* on-camera actions on the paper sheet: square tick + lighter weight (do, don't read) */
+.rs-line-act .rs-tick { border-radius: 4px; }
+.rs-line-act .rs-line-tx { font-family: var(--font-sans); font-size: calc(12.5pt * var(--rs-scale)); font-weight: 500; }
+.rs-beat-act .rs-beat-info { font-style: italic; }
+
+/* "Antes de gravar" — compact prep checklist at the top of the paper sheet */
+.rs-prep { margin-top: 18px; padding: 11px 14px; background: var(--rp-card); border: 1px solid var(--rp-ink-20); border-radius: 6px; break-inside: avoid; }
+.rs-prep-h { font-family: var(--font-mono); font-size: 9px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--rp-ink-45); margin-bottom: 7px; }
+.rs-prep-grp { display: flex; gap: 10px; font-family: var(--font-sans); font-size: 11px; line-height: 1.5; color: var(--rp-ink-70); margin-top: 4px; }
+.rs-prep-nm { flex-shrink: 0; min-width: 120px; font-weight: 700; color: var(--rp-ink); }
+.rs-prep-tx { color: var(--rp-ink-45); }
 
 /* breath — compact arc, indented to the text column */
 .rs-pause { margin: calc(var(--rs-vgap) - 4px) 0 calc(var(--rs-vgap) - 4px) 43px; }
@@ -745,6 +851,26 @@
   body:not(.recording) .rb-breath { color: #a89e92 !important; margin-left: 44px; }
   body:not(.recording) .rb-note { background: #f3f1ea !important; border-color: #e6e0d3 !important; color: #857a6c !important; margin-left: 44px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   body:not(.recording) .rb-note .rn-tag { color: #80755f !important; background: #e6e0d3 !important; }
+  /* prep + editor handoff aren't the actor's reading sheet — they go to Pós */
+  body:not(.recording) .rot-prep,
+  body:not(.recording) .rot-edh { display: none !important; }
+  /* interactive/empty affordances don't belong on the printed actor sheet (Cmd+P fallback) */
+  body:not(.recording) .rb-addcue,
+  body:not(.recording) .rb-recover,
+  body:not(.recording) .rot-recover,
+  body:not(.recording) .rb-empty { display: none !important; }
+  /* on-camera actions print as an ink checklist */
+  body:not(.recording) .rb-kindtag { color: #80755f !important; background: #f3f1ea !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body:not(.recording) .rb-kindtag .lucide { display: none !important; }
+  body:not(.recording) .rb-num.act { background: #1b1510 !important; }
+  body:not(.recording) .rb-act { margin: 7px 0; break-inside: avoid; }
+  body:not(.recording) .rb-actbox { width: 17px; margin-top: 4px; }
+  body:not(.recording) .rb-actbox-in { width: 14px; height: 14px; border-radius: 4px; border-color: #b0a99a !important; background: none !important; }
+  body:not(.recording) .rb-actbox-in .lucide { display: none !important; }
+  body:not(.recording) .rb-act-tx { color: #1b1510 !important; font-size: 12.5pt; line-height: 1.7; box-shadow: none !important; padding-left: 12px; }
+  body:not(.recording) .rb-act.key .rb-act-tx { box-shadow: inset 3px 0 0 #b8541a !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body:not(.recording) .rb-dir { background: #f3f1ea !important; border-color: #e6e0d3 !important; color: #857a6c !important; margin-left: 44px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body:not(.recording) .rb-dir .lucide { display: none !important; }
   @page { size: A4; margin: 16mm 17mm; }
 }
 
@@ -757,7 +883,9 @@
 /* cursor affordance: breadcrumb <a> and any role-less clickables */
 .vid-ed .ed-bc .eb-back { cursor: pointer; }
 .vi-alt, .vcard, .pub-chan, .cw-btn, .cw-chip, .cw-send, .vi-next, .vi-alts-gen,
-.rot-notetgl, .rot-clear, .ab-lead-btn, .ab-thumb-set, .rb-mark, .ed-recbtn { cursor: pointer; }
+.rot-notetgl, .rot-clear, .ab-lead-btn, .ab-thumb-set, .rb-mark, .ed-recbtn,
+.rb-actbox, .rot-prep-head, .rot-edh-go { cursor: pointer; }
+.rb-actbox:active, .rot-edh-go:active { transform: scale(.94); transition: transform .05s; }
 
 /* unify transitions so transform/press animates smoothly */
 .vcard { transition: border-color var(--t-fast), transform var(--t-fast) var(--ease-back), box-shadow var(--t) var(--ease); }
@@ -798,11 +926,10 @@
   .vcol-body .vcard:nth-child(n+5) { animation-delay: .16s; }
   @keyframes cardRise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
+  /* entrance + per-beat stagger delay are applied inline (style.animationDelay) from
+     the performer index — robust against the variable prep-strip/rail node count that
+     made the old positional :nth-child stagger land on the wrong beats. */
   .rot-doc .rot-beat { animation: beatRise .4s var(--ease) both; }
-  .rot-doc .rot-beat:nth-child(6) { animation-delay: .05s; }
-  .rot-doc .rot-beat:nth-child(7) { animation-delay: .1s; }
-  .rot-doc .rot-beat:nth-child(8) { animation-delay: .15s; }
-  .rot-doc .rot-beat:nth-child(n+9) { animation-delay: .2s; }
   @keyframes beatRise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 
   .ab-grid .ab-card { animation: cardRise .34s var(--ease) both; }

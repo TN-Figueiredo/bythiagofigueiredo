@@ -24,25 +24,32 @@ const beat = (over: Partial<RoteiroBeatV3> = {}): RoteiroBeatV3 => ({
 })
 
 describe('recLineKind', () => {
-  it('classifies line/pause/vis/ed and drops dir (renders nowhere on sheet)', () => {
+  it('classifies line/pause/vis/ed and prints dir as a talent direction note', () => {
     expect(recLineKind({ type: 'line', text: 'x' })).toBe('line')
     expect(recLineKind({ type: 'pause', duration: 1 })).toBe('pause')
     expect(recLineKind({ type: 'vis', text: 'x' })).toBe('vis')
     expect(recLineKind({ type: 'ed', text: 'x' })).toBe('ed')
-    expect(recLineKind({ type: 'dir', text: 'x' })).toBe('skip')
+    expect(recLineKind({ type: 'dir', text: 'x' })).toBe('dir')
   })
 })
 
 describe('recBeatLines', () => {
-  it('with showEd=false keeps line+pause, hides vis/ed, never emits dir', () => {
+  it('with showEd=false keeps line+pause+dir, hides vis/ed', () => {
+    // dir is talent-facing direction → prints always (like beat.tone), even when showEd is off.
     const lines = recBeatLines(beat(), false)
-    expect(lines.map((l) => l.kind)).toEqual(['line', 'pause'])
+    expect(lines.map((l) => l.kind)).toEqual(['line', 'pause', 'dir'])
   })
 
-  it('with showEd=true reveals vis/ed, still never emits dir', () => {
+  it('with showEd=true reveals vis/ed, keeps the dir direction note', () => {
     const lines = recBeatLines(beat(), true)
-    expect(lines.map((l) => l.kind)).toEqual(['line', 'pause', 'vis', 'ed'])
+    expect(lines.map((l) => l.kind)).toEqual(['line', 'pause', 'vis', 'ed', 'dir'])
     expect(lines.some((l) => l.kind === 'skip')).toBe(false)
+  })
+
+  it('carries the dir text onto the printable direction note', () => {
+    const lines = recBeatLines(beat(), false)
+    const dir = lines.find((l) => l.kind === 'dir')
+    expect(dir).toMatchObject({ kind: 'dir', text: 'NÃO deve aparecer' })
   })
 
   it('carries key flag onto the line item', () => {

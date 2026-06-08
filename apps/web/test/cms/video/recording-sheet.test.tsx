@@ -24,7 +24,7 @@ const baseProps = (): RecordingSheetProps => ({
         { type: 'pause', duration: 0.5 },
         { type: 'vis', text: 'B-roll da cidade' },
         { type: 'ed', text: 'Corte seco' },
-        { type: 'dir', text: 'NÃO renderiza' },
+        { type: 'dir', text: 'Olhe direto pra câmera' },
       ],
     },
   ],
@@ -50,26 +50,27 @@ describe('RecordingSheet', () => {
   it('renders beat-level .rs-tone "Direção" from beat.tone, always visible', () => {
     render(<RecordingSheet {...baseProps()} />)
     expect(document.querySelector('.rs-tone')).not.toBeNull()
-    expect(screen.getByText('Direção')).toBeDefined()
+    // beat.tone + inline dir both render a "Direção"-labelled .rs-tone note
+    expect(screen.getAllByText('Direção').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText('Calmo, próximo')).toBeDefined()
   })
 
-  it('shows line+pause always; hides vis/ed and never renders dir until showEd', () => {
+  it('shows line+pause always; prints dir as talent direction; hides vis/ed until showEd', () => {
     render(<RecordingSheet {...baseProps()} />)
     expect(document.querySelectorAll('.rs-line').length).toBe(1)
     expect(document.querySelector('.rs-pause')).not.toBeNull()
     expect(screen.queryByText('B-roll da cidade')).toBeNull()
     expect(screen.queryByText('Corte seco')).toBeNull()
-    // dir never appears regardless of toggle
-    expect(screen.queryByText('NÃO renderiza')).toBeNull()
+    // dir is talent-facing → prints even with showEd off (inline "Direção" note)
+    expect(screen.getByText('Olhe direto pra câmera')).toBeDefined()
   })
 
-  it('reveals vis/ed when "Notas do editor" is on, still never dir', () => {
+  it('reveals vis/ed when "Notas do editor" is on, dir direction note stays', () => {
     render(<RecordingSheet {...baseProps()} />)
     fireEvent.click(screen.getByText('Notas do editor'))
     expect(screen.getByText('B-roll da cidade')).toBeDefined()
     expect(screen.getByText('Corte seco')).toBeDefined()
-    expect(screen.queryByText('NÃO renderiza')).toBeNull()
+    expect(screen.getByText('Olhe direto pra câmera')).toBeDefined()
   })
 
   it('A+ / A− step --rs-scale within clamp [0.85,1.4]', () => {

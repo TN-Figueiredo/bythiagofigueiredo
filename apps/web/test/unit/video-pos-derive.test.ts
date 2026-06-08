@@ -19,6 +19,23 @@ const beatB: RoteiroBeatV3 = {
 }
 const beatEmpty: RoteiroBeatV3 = { idx: 2, name: 'Vazio', status: 'PENDING', script: [] }
 
+// Legacy "B-ROLL SHOT LIST" beat: editor-kind (by name) whose shots were authored as
+// plain `line`/`action` items before the `vis`/`editor` types existed. Those items ARE
+// the shot list and must reach the Pós editor brief.
+const beatEditorLegacy: RoteiroBeatV3 = {
+  idx: 3, name: 'B-ROLL SHOT LIST', status: 'PENDING',
+  script: [
+    { type: 'line', text: 'Plano aéreo da fachada' },
+    { type: 'action', text: 'Close nas mãos digitando' },
+    { type: 'vis', text: 'Inserto do logo' },
+  ],
+}
+// Explicit editor kind with a single line shot — kind wins, line surfaces as b-roll.
+const beatEditorExplicit: RoteiroBeatV3 = {
+  idx: 4, name: 'Cobertura', status: 'PENDING', kind: 'editor',
+  script: [{ type: 'line', text: 'Detalhe do produto na bancada' }],
+}
+
 describe('keyLineText', () => {
   it('returns the first key line text', () => {
     expect(keyLineText(beatA)).toBe('Linha chave') // ** emphasis markers stripped
@@ -32,11 +49,18 @@ describe('keyLineText', () => {
 })
 
 describe('visNotes', () => {
-  it('collects all vis item texts in order, never ed/line', () => {
+  it('collects all vis item texts in order, never ed/line (for non-editor beats)', () => {
     expect(visNotes(beatA)).toEqual(['B-roll: drone sobre a praia', 'B-roll: close no mapa'])
   })
-  it('returns empty array when no vis items', () => {
+  it('returns empty array when no vis items (and beat is not editor-kind)', () => {
     expect(visNotes(beatB)).toEqual([])
+  })
+  it('on an editor-kind beat, treats line + action shots AND vis items as b-roll notes', () => {
+    expect(visNotes(beatEditorLegacy)).toEqual([
+      'Plano aéreo da fachada',
+      'Close nas mãos digitando',
+      'Inserto do logo',
+    ])
   })
 })
 
@@ -50,9 +74,19 @@ describe('deriveMomentos (#1-indexed)', () => {
 })
 
 describe('deriveBroll (#1-indexed)', () => {
-  it('maps beats to {n, beatName, notes}, 1-indexed, only beats with vis', () => {
+  it('maps beats to {n, beatName, notes}, 1-indexed, only beats with b-roll notes', () => {
     expect(deriveBroll([beatA, beatB])).toEqual([
       { n: 1, beatName: 'Abertura', notes: ['B-roll: drone sobre a praia', 'B-roll: close no mapa'] },
+    ])
+  })
+  it('surfaces an editor-kind beat whose shots are stored as line/action items', () => {
+    expect(deriveBroll([beatB, beatEditorLegacy])).toEqual([
+      { n: 1, beatName: 'B-ROLL SHOT LIST', notes: ['Plano aéreo da fachada', 'Close nas mãos digitando', 'Inserto do logo'] },
+    ])
+  })
+  it('respects an explicit editor kind, surfacing its line shot as b-roll', () => {
+    expect(deriveBroll([beatEditorExplicit])).toEqual([
+      { n: 1, beatName: 'Cobertura', notes: ['Detalhe do produto na bancada'] },
     ])
   })
 })

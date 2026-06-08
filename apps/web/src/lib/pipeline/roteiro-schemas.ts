@@ -222,12 +222,21 @@ export const ScriptLineLineSchemaV3 = z.object({
   key: z.boolean().optional(),     // anchor line (Pós "Momentos-chave", orange accent)
   accent: z.string().optional(),    // kept for back-compat; deprecated
 })
-export const ScriptLineDirSchema = z.object({ type: z.literal('dir'), text: z.string().min(1) }) // fwd-compat; renders nowhere
+// On-camera ACTION (talent does it, not reads it): interview prompt, "approach the
+// finisher", "capture the price board". Performer-flow, but rendered as a checklist
+// item rather than a teleprompter line. `key` marks an anchor action.
+export const ScriptLineActionSchema = z.object({
+  type: z.literal('action'),
+  text: z.string().min(1),
+  key: z.boolean().optional(),
+})
+export const ScriptLineDirSchema = z.object({ type: z.literal('dir'), text: z.string().min(1) }) // talent tone note
 export const ScriptLineVisSchema = z.object({ type: z.literal('vis'), text: z.string().min(1) }) // editor → b-roll
 export const ScriptLineEdSchema = z.object({ type: z.literal('ed'), text: z.string().min(1) })   // editor-only
 
 export const ScriptLineSchemaV3 = z.discriminatedUnion('type', [
   ScriptLineLineSchemaV3,
+  ScriptLineActionSchema,
   ScriptLinePauseSchema,
   ScriptLineDirSchema,
   ScriptLineVisSchema,
@@ -235,10 +244,24 @@ export const ScriptLineSchemaV3 = z.discriminatedUnion('type', [
 ])
 export type ScriptLineV3 = z.infer<typeof ScriptLineSchemaV3>
 
+// Beat KIND — what the talent does with this beat when the camera rolls.
+//   fala   → spoken lines (teleprompter reading flow). DEFAULT when absent.
+//   acao   → on-camera actions/prompts (checklist; e.g. interviews, captures).
+//   prep   → pre-shoot logistics (kit, capture timeline, must-gets). Out of the
+//            reading flow → collapsed "Antes de gravar" strip.
+//   editor → editor-directed (b-roll shot lists, visual coverage). Routed to Pós;
+//            never shown in the performer flow (only behind "Notas do editor").
+// Optional + back-compat: legacy beats carry no kind and are classified at read
+// time by `beatKind()` (video-perform.ts), so existing roteiros render correctly
+// without a rewrite.
+export const BeatKindSchema = z.enum(['fala', 'acao', 'prep', 'editor'])
+export type BeatKind = z.infer<typeof BeatKindSchema>
+
 export const RoteiroBeatSchemaV3 = z.object({
   idx: z.number().int().min(0),
   name: z.string().min(1),
   status: z.enum(['PENDING', 'DONE']).default('PENDING'),
+  kind: BeatKindSchema.optional(),
   duration: z.number().int().min(0).optional(),
   tone: z.string().optional(),
   script: z.array(ScriptLineSchemaV3).default([]),

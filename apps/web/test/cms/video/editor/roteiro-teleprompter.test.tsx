@@ -147,7 +147,7 @@ describe('RoteiroStage — beat markup', () => {
     expect(off.container.textContent).not.toContain('B-roll dos servidores')
     const on = wrap({ notes: true })
     const note = on.container.querySelector('.rb-note.vis')!
-    expect(note.querySelector('.rn-tag')!.textContent).toBe('Visual')
+    expect(note.querySelector('.rn-tag')!.textContent).toBe('Editor · b-roll')
     expect(note.querySelector('.rn-tx')!.textContent).toContain('B-roll dos servidores')
   })
 })

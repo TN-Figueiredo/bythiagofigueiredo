@@ -9,9 +9,12 @@ import { CHANNELS } from '@/lib/pipeline/channels'
 import { vidTotals, fmtClock } from '@/lib/pipeline/video-schemas'
 import { videoLineKeys, videoLineSecsFlat, readPctOf } from '@/lib/pipeline/video-read-math'
 import type { RoteiroContentV3 } from '@/lib/pipeline/roteiro-schemas'
+import { splitBeats, markableIdxs } from '@/lib/pipeline/video-perform'
 import { useVideoEditorState, useVideoEditorDispatch } from '../context'
 import { useVideoData } from '../data-context'
 import { RoteiroBeat } from './roteiro-beat'
+import { RoteiroActionBeat } from './roteiro-action-beat'
+import { PrepStrip, EditorHandoff } from './roteiro-aside'
 import type { Version } from '../editor-model'
 import type { VideoLang } from '../types'
 
@@ -116,6 +119,44 @@ export function RoteiroStage(_props: RoteiroStageProps = {}) {
     void data.saveRoteiro(lang, updated)
   }, [content, data, lang])
 
+  // Edit an editor cue (vis/ed) in place. Empty text removes the item.
+  const onCommitNote = useCallback((beatIdx: number, itemIdx: number, next: string) => {
+    if (!content) return
+    const updated: RoteiroContentV3 = {
+      ...content,
+      beats: content.beats.map((b, bi) => {
+        if (bi !== beatIdx) return b
+        const script = next.trim()
+          ? b.script.map((it, i) => (i === itemIdx && (it.type === 'vis' || it.type === 'ed') ? { ...it, text: next } : it))
+          : b.script.filter((_, i) => i !== itemIdx)
+        return { ...b, script }
+      }),
+    }
+    void data.saveRoteiro(lang, updated)
+  }, [content, data, lang])
+
+  // Append a b-roll cue for the editor to a beat (the real "how to add" path).
+  const onAddCue = useCallback((beatIdx: number) => {
+    if (!content) return
+    const updated: RoteiroContentV3 = {
+      ...content,
+      beats: content.beats.map((b, bi) =>
+        bi !== beatIdx ? b : { ...b, script: [...b.script, { type: 'vis', text: 'nova cue pro editor' }] },
+      ),
+    }
+    void data.saveRoteiro(lang, updated)
+  }, [content, data, lang])
+
+  // Recover a mis-classified beat: stamp an explicit kind (overrides the heuristic).
+  const onSetKind = useCallback((beatIdx: number, kind: 'fala' | 'acao' | 'prep' | 'editor') => {
+    if (!content) return
+    const updated: RoteiroContentV3 = {
+      ...content,
+      beats: content.beats.map((b, bi) => (bi !== beatIdx ? b : { ...b, kind })),
+    }
+    void data.saveRoteiro(lang, updated)
+  }, [content, data, lang])
+
   const ideia = data.ideia[lang]
   const channel = CHANNELS.find((c) => c.lang === lang)
   const onStartBlank = () => {
@@ -195,10 +236,25 @@ export function RoteiroStage(_props: RoteiroStageProps = {}) {
   const elapsedSecs = lineSecs.slice(0, cursor).reduce((a, b) => a + b, 0)
   const readPct = readPctOf(elapsedSecs, totalSecs)
 
+  // Three lanes: what the talent performs (fala + acao), shoot-day prep (collapsed),
+  // and editor-directed coverage (routed to Pós). Only the performer lane reads.
+  const { performer, prep, editor } = splitBeats(content)
+  // Spoken-line progress must count ONLY fala lines — actions live in the same
+  // `spoken` Set but are a do-list, not "faladas".
+  const spokenFalas = lineKeys.reduce((n, k) => n + (spoken.has(k) ? 1 : 0), 0)
+  // B-roll cues authored inline as `vis` items inside fala beats also belong to the
+  // editor — count them so the handoff footer reflects all coverage, not just whole
+  // editor beats.
+  const visInFala = performer.reduce(
+    (n, kb) => n + (kb.kind === 'fala' ? kb.beat.script.filter((it) => it.type === 'vis').length : 0),
+    0,
+  )
+  const goPos = () => dispatch({ type: 'SET_STAGE', stage: 'pos' })
+
   return (
     <div className="rot-doc fade-in">
       <div className="rot-sum">
-        <span className="rs-k"><Layers size={13} /> <b>{beats.length}</b> beats</span>
+        <span className="rs-k"><Layers size={13} /> <b>{performer.length}</b> beats</span>
         <span className="msep">·</span>
         <span className="rs-k"><Clock size={13} /> alvo <b>{data.durationRange ?? fmtClock(totals.dur)}</b></span>
         <span className="msep">·</span>
@@ -221,7 +277,7 @@ export function RoteiroStage(_props: RoteiroStageProps = {}) {
           </button>
         )}
         <span className="rot-spoken" title="Falas marcadas durante a leitura">
-          <CheckCheck size={13} /> {spoken.size}/{totalLines}
+          <CheckCheck size={13} /> {spokenFalas}/{totalLines}
         </span>
         <button type="button" className={'rot-notetgl' + (notes ? ' on' : '')} onClick={() => dispatch({ type: 'TOGGLE_NOTES' })}>
           {notes ? <Eye size={13} /> : <BellOff size={13} />} Notas do editor
@@ -233,32 +289,62 @@ export function RoteiroStage(_props: RoteiroStageProps = {}) {
         <span className="rk">espaço</span> próxima fala <span className="rsep">·</span> <span className="rk">↑</span> voltar{' '}
         <span className="rsep">·</span> clique numa linha pra editar
       </div>
-      {beats.length > 1 && (
+      <PrepStrip prep={prep} onSetKind={onSetKind} />
+      {performer.length > 1 && (
         <div className="rot-rail">
-          {beats.map((b, i) => {
-            const lineIdxs = b.script.map((it, j) => (it.type === 'line' ? j : -1)).filter((j) => j >= 0)
-            const doneCount = lineIdxs.filter((j) => spoken.has(`${i}-${j}`)).length
-            const done = lineIdxs.length > 0 && doneCount === lineIdxs.length
+          {performer.map((kb, s) => {
+            const marks = markableIdxs(kb.beat, kb.kind)
+            const doneCount = marks.filter((j) => spoken.has(`${kb.idx}-${j}`)).length
+            const done = marks.length > 0 && doneCount === marks.length
             return (
-              <button key={i} type="button" className={'rrl-chip' + (done ? ' done' : '')} onClick={() => jumpTo(i)} title={b.name}>
-                <span className="rrl-n">{i + 1}</span><span className="rrl-nm">{b.name}</span>
+              <button
+                key={kb.idx}
+                type="button"
+                className={'rrl-chip' + (kb.kind === 'acao' ? ' act' : '') + (done ? ' done' : '')}
+                onClick={() => jumpTo(kb.idx)}
+                title={kb.beat.name}
+              >
+                <span className="rrl-n">{s + 1}</span><span className="rrl-nm">{kb.beat.name}</span>
               </button>
             )
           })}
         </div>
       )}
-      {beats.map((b, i) => (
-        <RoteiroBeat
-          key={i}
-          beat={b}
-          idx={i}
-          notes={notes}
-          spoken={spoken}
-          cursorKey={cursorKey}
-          onToggle={toggle}
-          onCommitLine={onCommitLine}
-        />
-      ))}
+      {performer.map((kb, s) => {
+        // Stagger entrance by performer position (robust against the variable number
+        // of preceding nodes — prep strip, rail — that broke the old nth-child rule).
+        const delay = { animationDelay: `${Math.min(s, 5) * 0.05}s` }
+        return kb.kind === 'acao' ? (
+          <RoteiroActionBeat
+            key={kb.idx}
+            beat={kb.beat}
+            idx={kb.idx}
+            seq={s + 1}
+            style={delay}
+            inferred={!kb.beat.kind}
+            notes={notes}
+            spoken={spoken}
+            onToggle={toggle}
+            onSetKind={onSetKind}
+          />
+        ) : (
+          <RoteiroBeat
+            key={kb.idx}
+            beat={kb.beat}
+            idx={kb.idx}
+            seq={s + 1}
+            style={delay}
+            notes={notes}
+            spoken={spoken}
+            cursorKey={cursorKey}
+            onToggle={toggle}
+            onCommitLine={onCommitLine}
+            onCommitNote={onCommitNote}
+            onAddCue={onAddCue}
+          />
+        )
+      })}
+      <EditorHandoff editor={editor} visInFala={visInFala} notes={notes} goPos={goPos} onSetKind={onSetKind} />
     </div>
   )
 }

@@ -3,7 +3,8 @@
 import { createPortal } from 'react-dom'
 import { useEffect, useState } from 'react'
 import { ChevronLeft, Rss, Pencil } from 'lucide-react'
-import { recBeatLines, recSheetMeta, clampRsScale } from '@/lib/pipeline/recording-sheet-data'
+import { recBeatLines, clampRsScale } from '@/lib/pipeline/recording-sheet-data'
+import { splitBeats, itemText } from '@/lib/pipeline/video-perform'
 import { videoBeatRead, fmtClock } from '@/lib/pipeline/video-schemas'
 import type { RoteiroBeatV3 } from '@/lib/pipeline/roteiro-schemas'
 
@@ -62,8 +63,16 @@ export function RecordingSheet(props: RecordingSheetProps) {
   if (!mounted) return null
 
   const bump = (d: number) => setScale((s) => clampRsScale(s, d))
-  const meta = recSheetMeta(beats)
-  const hasBeats = beats.length > 0
+  // Actor's sheet: only what's performed on camera. Prep stays as a compact top
+  // checklist; editor-directed coverage (b-roll) goes to the editor handoff sheet.
+  const { performer, prep } = splitBeats({ version: 3, meta: {}, beats })
+  // Beats count = all performer beats; read time = ONLY fala beats (acao beats hold
+  // prompts, not spoken lines, so they must not inflate the "Fala ~X" headline).
+  const beatsCount = performer.length
+  const readSeconds = performer
+    .filter((b) => b.kind === 'fala')
+    .reduce((acc, b) => acc + videoBeatRead(b.beat), 0)
+  const hasBeats = performer.length > 0 || prep.length > 0
 
   const overlay = (
     <div className={'rec-overlay dens-' + density} style={{ ['--rs-scale' as string]: String(scale) }}>
@@ -112,46 +121,70 @@ export function RecordingSheet(props: RecordingSheetProps) {
             <span><b>Canal</b>{channelName}</span>
             <span><b>Pilar</b>{pillarLabel}</span>
             <span><b>Duração</b>{durationRange || '—'}</span>
-            <span><b>Fala</b>~{fmtClock(meta.readSeconds)}</span>
-            <span><b>Beats</b>{meta.beatsCount}</span>
+            <span><b>Fala</b>~{fmtClock(readSeconds)}</span>
+            <span><b>Beats</b>{beatsCount}</span>
             {recordingLocation ? <span><b>Local</b>{recordingLocation}</span> : null}
           </div>
 
-          {beats.map((beat, i) => (
-            <div className="rs-beat" key={i}>
-              <div className="rs-beat-head">
-                <span className="rs-beat-num">#{i + 1}</span>
-                <span className="rs-beat-name">{beat.name}</span>
-                <span className="rs-beat-info">~{videoBeatRead(beat)}s de fala</span>
-              </div>
-              {beat.tone ? (
-                <div className="rs-tone"><span className="rst-k">Direção</span><span>{beat.tone}</span></div>
-              ) : null}
-              {recBeatLines(beat, showEd).map((line, j) => {
-                if (line.kind === 'line') {
-                  return (
-                    <div className={'rs-line' + (line.key ? ' key' : '')} key={j}>
-                      <span className="rs-tick" aria-hidden="true" />
-                      <span className="rs-line-tx" dangerouslySetInnerHTML={{ __html: emphHtml(line.text ?? '') }} />
-                    </div>
-                  )
-                }
-                if (line.kind === 'pause') {
-                  return (
-                    <div className="rs-pause" key={j}>
-                      <span className="rs-breath">respira <span className="rs-dur">{String(line.duration ?? 0).replace('.', ',')}s</span></span>
-                    </div>
-                  )
-                }
-                return (
-                  <div className="rs-note" key={j}>
-                    <span className="rsn-tag">{line.kind === 'vis' ? 'Visual' : 'Editor'}</span>
-                    <span>{line.text}</span>
-                  </div>
-                )
-              })}
+          {prep.length > 0 && (
+            <div className="rs-prep">
+              <div className="rs-prep-h">Antes de gravar</div>
+              {prep.map((kb) => (
+                <div className="rs-prep-grp" key={kb.idx}>
+                  <span className="rs-prep-nm">{kb.beat.name}</span>
+                  <span className="rs-prep-tx">
+                    {kb.beat.script.filter((it) => it.type === 'line' || it.type === 'action' || it.type === 'pause').map(itemText).join(' · ')}
+                  </span>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
+
+          {performer.map((kb, s) => {
+            const beat = kb.beat
+            return (
+              <div className={'rs-beat' + (kb.kind === 'acao' ? ' rs-beat-act' : '')} key={kb.idx}>
+                <div className="rs-beat-head">
+                  <span className="rs-beat-num">#{s + 1}</span>
+                  <span className="rs-beat-name">{beat.name}</span>
+                  {kb.kind === 'acao'
+                    ? <span className="rs-beat-info">ação na câmera</span>
+                    : <span className="rs-beat-info">~{videoBeatRead(beat)}s de fala</span>}
+                </div>
+                {beat.tone ? (
+                  <div className="rs-tone"><span className="rst-k">Direção</span><span>{beat.tone}</span></div>
+                ) : null}
+                {recBeatLines(beat, showEd, kb.kind === 'acao').map((line, j) => {
+                  if (line.kind === 'line' || line.kind === 'action') {
+                    return (
+                      <div className={'rs-line' + (line.kind === 'action' ? ' rs-line-act' : '') + (line.key ? ' key' : '')} key={j}>
+                        <span className="rs-tick" aria-hidden="true" />
+                        <span className="rs-line-tx" dangerouslySetInnerHTML={{ __html: emphHtml(line.text ?? '') }} />
+                      </div>
+                    )
+                  }
+                  if (line.kind === 'pause') {
+                    return (
+                      <div className="rs-pause" key={j}>
+                        <span className="rs-breath">respira <span className="rs-dur">{String(line.duration ?? 0).replace('.', ',')}s</span></span>
+                      </div>
+                    )
+                  }
+                  if (line.kind === 'dir') {
+                    return (
+                      <div className="rs-tone" key={j}><span className="rst-k">Direção</span><span>{line.text}</span></div>
+                    )
+                  }
+                  return (
+                    <div className="rs-note" key={j}>
+                      <span className="rsn-tag">{line.kind === 'vis' ? 'Visual' : 'Editor'}</span>
+                      <span>{line.text}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })}
 
           <div className="rsh-foot">
             <span>tf — Thiago Figueiredo · {channelName}</span>

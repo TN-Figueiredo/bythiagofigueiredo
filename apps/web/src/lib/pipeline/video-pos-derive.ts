@@ -1,4 +1,5 @@
 import type { RoteiroBeatV3 } from '@/lib/pipeline/video-schemas'
+import { beatKind } from '@/lib/pipeline/video-perform'
 
 /** First `key` line's text; fallback to first `line` text; '' if none. */
 export function keyLineText(beat: RoteiroBeatV3): string {
@@ -9,9 +10,22 @@ export function keyLineText(beat: RoteiroBeatV3): string {
   return ((keyLine ?? lines[0])?.text ?? '').replace(/\*\*/g, '')
 }
 
-/** All `vis` (b-roll) item texts, in script order. */
+/**
+ * B-roll notes for a beat, in script order.
+ *
+ * `vis` items are always b-roll (editor → b-roll), for every beat. Additionally, when
+ * the beat is editor-kind (e.g. a legacy "B-ROLL SHOT LIST" beat whose shots were
+ * authored as plain `line`/`action` items before the `editor`/`vis` types existed),
+ * those `line`/`action` texts ARE the shot list — so they must reach the Pós editor
+ * brief too. Without this, an editor-kind beat's shots are routed out of the actor's
+ * flow (by `splitBeats`) yet never surface in "B-roll por beat" — they vanish.
+ */
 export function visNotes(beat: RoteiroBeatV3): string[] {
-  return beat.script.filter((s): s is Extract<typeof s, { type: 'vis' }> => s.type === 'vis').map(s => s.text)
+  const isEditor = beatKind(beat) === 'editor'
+  return beat.script
+    .filter((s): s is Extract<typeof s, { type: 'vis' | 'line' | 'action' }> =>
+      s.type === 'vis' || (isEditor && (s.type === 'line' || s.type === 'action')))
+    .map(s => s.text)
 }
 
 export interface Momento { n: number; beatName: string; text: string }
