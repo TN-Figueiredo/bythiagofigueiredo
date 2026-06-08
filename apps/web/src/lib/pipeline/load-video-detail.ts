@@ -19,6 +19,11 @@ export interface VideoDetail {
   ideia: { pt: IdeiaSection; en: IdeiaSection }
   roteiro: { pt: RoteiroContentV3 | null; en: RoteiroContentV3 | null }
   /**
+   * Raw per-(section,lang) payload map from `content_pipeline.sections`. Consumed by
+   * publish-time A/B materialization (`publishVideo`) to read the `publish_<lang>` draft.
+   */
+  sections: Record<string, unknown>
+  /**
    * Facts for the A/B publish CTA, derived from the `content_pipeline ⋈ youtube_videos`
    * join (§3.8). `youtubeVideoId` here is the linked `youtube_videos.id` uuid (FK),
    * distinct from the external-id `youtubeVideoId` above. `abPublishCtaState` consumes this.
@@ -101,6 +106,7 @@ export async function loadVideoDetail(id: string, siteId: string): Promise<Video
     youtubeVideoId,
     ideia: { pt: readIdeia(sections, 'pt'), en: readIdeia(sections, 'en') },
     roteiro: { pt: readRoteiroLang(sections, 'pt'), en: readRoteiroLang(sections, 'en') },
+    sections: sections as Record<string, unknown>,
     abJoinFacts: {
       youtubeVideoId: linkedYoutubeVideoId,
       thumbnailHqUrl: yt?.thumbnail_hq_url ?? null,
