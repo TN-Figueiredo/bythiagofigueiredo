@@ -11,6 +11,18 @@ export function keyLineText(beat: RoteiroBeatV3): string {
 }
 
 /**
+ * The SPOKEN anchor of a beat for the Momentos-chave / handoff surfaces.
+ *
+ * A "key moment" is a spoken moment, so non-`fala` beats (prep logistics, editor
+ * coverage) yield '' here even if they carry a `line` item — that line is hidden from
+ * the performer and must not surface as a key moment. This is the single gate shared by
+ * `deriveMomentos`, the Pós "Momentos-chave" card, and the handoff sheet anchor.
+ */
+export function spokenAnchorText(beat: RoteiroBeatV3): string {
+  return beatKind(beat) === 'fala' ? keyLineText(beat) : ''
+}
+
+/**
  * B-roll notes for a beat, in script order.
  *
  * `vis` items are always b-roll (editor → b-roll), for every beat. Additionally, when
@@ -29,11 +41,20 @@ export function visNotes(beat: RoteiroBeatV3): string[] {
 }
 
 export interface Momento { n: number; beatName: string; text: string }
-/** Momentos-chave derived from beats, #1-indexed; beats with no key/line text are skipped. */
+/**
+ * Momentos-chave derived from beats, #1-indexed; beats with no key/line text are skipped.
+ *
+ * A "Momento-chave" is a SPOKEN moment, so only performer-spoken (`fala`) beats are
+ * considered. A `prep` (logistics) or `editor` (b-roll/coverage) beat can carry a `line`
+ * item — but those lines are hidden from the performer's reading flow, so surfacing them
+ * here (and in the handoff sheet) as key moments is a coherence leak. B-roll from editor
+ * beats still reaches the Pós via `deriveBroll`/`visNotes`; only the spoken-anchor list
+ * is gated.
+ */
 export function deriveMomentos(beats: RoteiroBeatV3[]): Momento[] {
   const out: Momento[] = []
   beats.forEach(b => {
-    const text = keyLineText(b)
+    const text = spokenAnchorText(b)
     if (text) out.push({ n: out.length + 1, beatName: b.name, text })
   })
   return out

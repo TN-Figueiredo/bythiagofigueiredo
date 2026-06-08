@@ -18,15 +18,19 @@ const strip = (s: string): string =>
   s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 
 // Logistics the talent handles before/around the shoot — never lines to read.
-// Kept deliberately narrow (no bare "setup"/"materiais"/"preparo") so a spoken beat
-// like "O Setup Mental" isn't silently filed away. A mis-file is recoverable in-UI.
-const PREP_RE = /\b(kit|timeline|cronograma|must[\s-]?get|checklist|equipamento|antes de gravar|logistica)\b/
+// Kept deliberately narrow (no bare "setup"/"materiais"/"preparo"/"list" — they'd
+// false-positive a spoken beat like "O Setup Mental"; a mis-file is recoverable in-UI).
+// PT + common EN tokens (multi-lang system): kit/checklist/gear/timeline/schedule/
+// must-get/prep/setup list/packing.
+const PREP_RE = /\b(kit|timeline|cronograma|schedule|must[\s-]?get|checklist|gear|equipamento|antes de gravar|logistica|packing|prep\b|setup list)\b/
 // Editor-directed coverage — goes to the editor (Pós), suggested by the talent.
-const EDITOR_RE = /\b(b[\s-]?roll|shot ?list|cutaways?|planos de corte|imagens de apoio|inserts?|recursos visuais)\b/
+// PT + EN: b-roll/broll/shot list/shotlist/coverage/cutaway/overlay/inserts.
+const EDITOR_RE = /\b(b[\s-]?roll|shot[\s-]?list|cutaways?|coverage|overlays?|planos de corte|imagens de apoio|inserts?|recursos visuais)\b/
 // On-camera actions/prompts — the talent DOES these (no fixed script).
 // "abordagem"/"prompt" dropped (too generic for hook names); inference is a fallback —
 // explicit `beat.kind` always wins and the UI offers a "é fala?" recovery.
-const ACTION_RE = /\b(entradas?\b.*\bperguntas?|perguntas? de entrevista|entrevistas?|captacao|verticais|shorts?)\b/
+// PT + EN: interview/questions/capture/b-roll capture/ask/approach/shorts/verticals.
+const ACTION_RE = /\b(entradas?\b.*\bperguntas?|perguntas? de entrevista|entrevistas?|interviews?|questions?|captacao|capture|ask\b|approach|verticais|verticals?|shorts?)\b/
 
 /** Classify a beat. Explicit `beat.kind` wins; otherwise heuristic on the name. */
 export function beatKind(beat: RoteiroBeatV3): BeatKind {

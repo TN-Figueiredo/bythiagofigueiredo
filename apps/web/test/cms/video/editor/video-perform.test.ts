@@ -36,6 +36,27 @@ describe('beatKind — heuristic classifier (legacy, no explicit kind)', () => {
     expect(beatKind(beat('B-ROLL SHOT LIST', [], 'fala'))).toBe('fala')
     expect(beatKind(beat('HOOK', [], 'prep'))).toBe('prep')
   })
+  it('classifies common ENGLISH beat names (multi-lang system)', () => {
+    // prep — logistics
+    expect(beatKind(beat('Gear checklist'))).toBe('prep')
+    expect(beatKind(beat('Shoot timeline'))).toBe('prep')
+    expect(beatKind(beat('Packing list'))).toBe('prep')
+    expect(beatKind(beat('Must-get shots'))).toBe('prep')
+    // editor — coverage
+    expect(beatKind(beat('B-roll shot list'))).toBe('editor')
+    expect(beatKind(beat('Broll coverage'))).toBe('editor')
+    expect(beatKind(beat('Cutaway overlay'))).toBe('editor')
+    // acao — on-camera actions
+    expect(beatKind(beat('Interview questions'))).toBe('acao')
+    expect(beatKind(beat('B-roll capture'))).toBe('editor') // 'b-roll' is editor-first
+    expect(beatKind(beat('Street approach'))).toBe('acao')
+    expect(beatKind(beat('Verticals (Shorts)'))).toBe('acao')
+  })
+  it('does NOT mis-file ENGLISH spoken beats as prep/editor/acao', () => {
+    expect(beatKind(beat('Why I moved'))).toBe('fala')
+    expect(beatKind(beat('The mindset shift'))).toBe('fala')
+    expect(beatKind(beat('What nobody tells you'))).toBe('fala')
+  })
 })
 
 describe('splitBeats — three lanes', () => {

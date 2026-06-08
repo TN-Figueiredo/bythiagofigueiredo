@@ -1,4 +1,4 @@
-import { keyLineText, visNotes } from '@/lib/pipeline/video-pos-derive'
+import { spokenAnchorText, visNotes } from '@/lib/pipeline/video-pos-derive'
 import type { RoteiroBeatV3 } from '@/lib/pipeline/roteiro-schemas'
 
 export interface HandoffBeatRow {
@@ -16,7 +16,7 @@ export function handoffBeatRows(beats: RoteiroBeatV3[]): HandoffBeatRow[] {
     displayNum: i + 1,
     name: beat.name,
     duration: beat.duration,
-    anchor: keyLineText(beat),
+    anchor: spokenAnchorText(beat),
     cues: visNotes(beat),
   }))
 }

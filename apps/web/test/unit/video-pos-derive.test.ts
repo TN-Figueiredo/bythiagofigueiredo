@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { keyLineText, visNotes, deriveMomentos, deriveBroll } from '@/lib/pipeline/video-pos-derive'
+import { keyLineText, spokenAnchorText, visNotes, deriveMomentos, deriveBroll } from '@/lib/pipeline/video-pos-derive'
 import type { RoteiroBeatV3 } from '@/lib/pipeline/video-schemas'
 
 const beatA: RoteiroBeatV3 = {
@@ -35,6 +35,18 @@ const beatEditorExplicit: RoteiroBeatV3 = {
   idx: 4, name: 'Cobertura', status: 'PENDING', kind: 'editor',
   script: [{ type: 'line', text: 'Detalhe do produto na bancada' }],
 }
+// A prep (logistics) beat that happens to carry a `line` item. The line is a note to
+// self, NOT a spoken moment — it must NOT surface as a Momento-chave.
+const beatPrep: RoteiroBeatV3 = {
+  idx: 5, name: 'KIT', status: 'PENDING', kind: 'prep',
+  script: [{ type: 'line', text: 'Lembrar do power bank', key: true }],
+}
+// An editor (b-roll) beat with a `line` item — its shot reaches the b-roll brief, but
+// it is not a key SPOKEN moment, so it must NOT surface as a Momento-chave.
+const beatEditorWithLine: RoteiroBeatV3 = {
+  idx: 6, name: 'B-ROLL SHOT LIST', status: 'PENDING',
+  script: [{ type: 'line', text: 'Plano aéreo da fachada' }],
+}
 
 describe('keyLineText', () => {
   it('returns the first key line text', () => {
@@ -64,12 +76,36 @@ describe('visNotes', () => {
   })
 })
 
+describe('spokenAnchorText', () => {
+  it('returns the key line text for a fala beat', () => {
+    expect(spokenAnchorText(beatA)).toBe('Linha chave')
+  })
+  it('returns "" for a prep beat even when it carries a key line', () => {
+    expect(spokenAnchorText(beatPrep)).toBe('')
+  })
+  it('returns "" for an editor beat even when it carries a line', () => {
+    expect(spokenAnchorText(beatEditorWithLine)).toBe('') // 'B-ROLL SHOT LIST' → editor by name
+    expect(spokenAnchorText(beatEditorExplicit)).toBe('') // explicit kind: 'editor'
+  })
+})
+
 describe('deriveMomentos (#1-indexed)', () => {
   it('maps beats to {n, beatName, text}, 1-indexed, skipping empty key text', () => {
     expect(deriveMomentos([beatA, beatB])).toEqual([
       { n: 1, beatName: 'Abertura', text: 'Linha chave' },
       { n: 2, beatName: 'Sem key', text: 'Primeira fala' },
     ])
+  })
+  it('does NOT surface a prep beat as a key moment (coherence leak fix)', () => {
+    // beatPrep sits between two fala beats; only the fala beats become momentos, and
+    // numbering stays contiguous (the prep beat is skipped, not numbered as a gap).
+    expect(deriveMomentos([beatA, beatPrep, beatB])).toEqual([
+      { n: 1, beatName: 'Abertura', text: 'Linha chave' },
+      { n: 2, beatName: 'Sem key', text: 'Primeira fala' },
+    ])
+  })
+  it('does NOT surface an editor beat as a key moment (b-roll line is not spoken)', () => {
+    expect(deriveMomentos([beatEditorWithLine, beatEditorExplicit])).toEqual([])
   })
 })
 

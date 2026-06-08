@@ -4,7 +4,7 @@ import { useMemo } from 'react'
 import { Edit, CheckCheck, Target, Film, SlidersHorizontal, Link, Eye, Info, AlertTriangle, Rss } from 'lucide-react'
 import { SparklesGlyph } from '../_components/sparkles-glyph'
 import type { RoteiroBeatV3, PosBrief } from '@/lib/pipeline/video-schemas'
-import { keyLineText, visNotes } from '@/lib/pipeline/video-pos-derive'
+import { spokenAnchorText, visNotes } from '@/lib/pipeline/video-pos-derive'
 import { CHANNELS } from '@/lib/pipeline/channels'
 import { useVideoEditorDispatch } from '../context'
 import type { Version } from '../editor-model'
@@ -172,7 +172,7 @@ export function PosStage({ beats, brief, activeLang, onPatch, onOpenHandoff, leg
             <PPCard icon={<Target size={14} />} title="Momentos-chave" sub="frase-âncora + cue visual, por beat">
               <div className="pp-moments">
                 {beats.map((b, i) => {
-                  const line = keyLineText(b)
+                  const line = spokenAnchorText(b)
                   const cue = visNotes(b)[0]
                   return (
                     <div key={i} className="pp-moment">
