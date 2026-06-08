@@ -9,7 +9,7 @@ export function emphHtml(text: string): string {
 }
 
 interface ScriptLineProps {
-  text: string
+  html: string
   isKey: boolean
   spoken: boolean
   current: boolean
@@ -18,26 +18,32 @@ interface ScriptLineProps {
   onCommit: (next: string) => void
 }
 
-export function ScriptLine({ text, isKey, spoken, current, dataK, onToggle, onCommit }: ScriptLineProps) {
+/**
+ * One spoken line of the teleprompter. Markup mirrors the design handoff exactly:
+ * `.rb-line(.key/.spoken/.current)[data-k]` wrapping a mark button + contentEditable text.
+ */
+export function ScriptLine({ html, isKey, spoken, current, dataK, onToggle, onCommit }: ScriptLineProps) {
   return (
-    <div className={`rb-row${current ? ' current-row' : ''}`}>
+    <div
+      className={'rb-line' + (isKey ? ' key' : '') + (spoken ? ' spoken' : '') + (current ? ' current' : '')}
+      data-k={dataK}
+    >
       <button
         type="button"
         className="rb-mark"
+        onClick={onToggle}
         title={spoken ? 'Desmarcar' : 'Marcar como falada'}
         aria-pressed={spoken}
-        onClick={onToggle}
       >
         <span className="rb-mark-dot">{spoken && <Check size={11} />}</span>
       </button>
       <div
-        className={`rb-line${isKey ? ' key' : ''}${spoken ? ' spoken' : ''}${current ? ' current' : ''}`}
-        data-k={dataK}
+        className="rb-line-tx"
         contentEditable
         suppressContentEditableWarning
         spellCheck={false}
         onBlur={(e) => onCommit(e.currentTarget.textContent ?? '')}
-        dangerouslySetInnerHTML={{ __html: emphHtml(text) }}
+        dangerouslySetInnerHTML={{ __html: html }}
       />
     </div>
   )

@@ -3,7 +3,7 @@
 import { Eye } from 'lucide-react'
 import { videoBeatRead } from '@/lib/pipeline/video-schemas'
 import type { RoteiroBeatV3 } from '@/lib/pipeline/roteiro-schemas'
-import { ScriptLine } from './script-line'
+import { ScriptLine, emphHtml } from './script-line'
 
 interface RoteiroBeatProps {
   beat: RoteiroBeatV3
@@ -15,19 +15,28 @@ interface RoteiroBeatProps {
   onCommitLine: (beatIdx: number, lineIdx: number, next: string) => void
 }
 
+/**
+ * A single roteiro beat: sticky head with progress, optional tone, and the
+ * sequence of lines / pauses / editor notes. Markup mirrors the design handoff.
+ */
 export function RoteiroBeat({ beat, idx, notes, spoken, cursorKey, onToggle, onCommitLine }: RoteiroBeatProps) {
-  const lineIdxs = beat.script.map((it, i) => (it.type === 'line' ? i : -1)).filter((i) => i >= 0)
-  const done = lineIdxs.filter((i) => spoken.has(`${idx}-${i}`)).length
-  const pct = lineIdxs.length ? Math.round((done / lineIdxs.length) * 100) : 0
+  const lineIdx = beat.script.map((it, i) => (it.type === 'line' ? i : -1)).filter((i) => i >= 0)
+  const total = lineIdx.length
+  const done = lineIdx.filter((i) => spoken.has(`${idx}-${i}`)).length
+  const full = total > 0 && done === total
 
   return (
-    <div className="rb">
-      <div className="rb-head" style={{ position: 'sticky', top: 'var(--ed-bar-h, 56px)' }}>
-        <span className="rb-n">#{idx + 1}</span>
+    <div className="rot-beat">
+      <div className="rb-head">
+        <span className="rb-num">#{idx + 1}</span>
         <span className="rb-name">{beat.name}</span>
+        <span className="grow" />
+        <span className={'rb-prog' + (full ? ' full' : '')}>{done}/{total} faladas</span>
         <span className="rb-info">~{videoBeatRead(beat)}s de fala</span>
       </div>
-      <div className="rb-prog"><span style={{ width: `${pct}%`, background: pct === 100 ? 'var(--ok)' : undefined }} /></div>
+      <div className="rb-progbar">
+        <span className={full ? 'full' : ''} style={{ width: `${total ? (done / total) * 100 : 0}%` }} />
+      </div>
       {beat.tone && <div className="rb-tone"><Eye size={14} /> {beat.tone}</div>}
       {beat.script.map((it, i) => {
         if (it.type === 'line') {
@@ -35,7 +44,7 @@ export function RoteiroBeat({ beat, idx, notes, spoken, cursorKey, onToggle, onC
           return (
             <ScriptLine
               key={i}
-              text={it.text}
+              html={emphHtml(it.text)}
               isKey={!!it.key}
               spoken={spoken.has(k)}
               current={cursorKey === k}
@@ -52,8 +61,12 @@ export function RoteiroBeat({ beat, idx, notes, spoken, cursorKey, onToggle, onC
             </div>
           )
         }
-        if ((it.type === 'vis' || it.type === 'ed') && notes) {
-          return <div key={i} className={`rb-note rb-${it.type}`}>{it.text}</div>
+        if (!notes) return null
+        if (it.type === 'vis') {
+          return <div key={i} className="rb-note vis"><span className="rn-tag">Visual</span><span className="rn-tx">{it.text}</span></div>
+        }
+        if (it.type === 'ed') {
+          return <div key={i} className="rb-note ed"><span className="rn-tag">Editor</span><span className="rn-tx">{it.text}</span></div>
         }
         return null
       })}

@@ -1,8 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Layers, Clock, Play, RefreshCw, CheckCheck, Eye, BellOff, Edit, ArrowRight } from 'lucide-react'
-import { videoBeatRead, vidTotals, fmtClock } from '@/lib/pipeline/video-schemas'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Layers, Clock, Play, RefreshCw, CheckCheck, Eye, BellOff, Edit, Sparkles } from 'lucide-react'
+import { vidTotals, fmtClock } from '@/lib/pipeline/video-schemas'
 import { videoLineKeys, videoLineSecsFlat, readPctOf } from '@/lib/pipeline/video-read-math'
 import type { RoteiroContentV3 } from '@/lib/pipeline/roteiro-schemas'
 import { useVideoEditorState, useVideoEditorDispatch } from '../context'
@@ -25,8 +25,8 @@ export function RoteiroStage(_props: RoteiroStageProps = {}) {
   const data = useVideoData()
   const lang = state.activeLang
   const content = data.roteiro[lang]
+  const notes = state.notes
   const overlayOpen = state.recordingOpen || state.handoffOpen || state.coworkOpen
-  const scrollRef = useRef<HTMLDivElement>(null)
 
   const [spoken, setSpoken] = useState<Set<string>>(() => new Set())
   const [cursor, setCursor] = useState(0)
@@ -34,23 +34,17 @@ export function RoteiroStage(_props: RoteiroStageProps = {}) {
   const beats = content?.beats ?? []
   const lineKeys = useMemo(() => (content ? videoLineKeys(content) : []), [content])
   const lineSecs = useMemo(() => (content ? videoLineSecsFlat(content) : []), [content])
-  const totalSecs = useMemo(() => lineSecs.reduce((a, b) => a + b, 0), [lineSecs])
-  const elapsedSecs = useMemo(() => lineSecs.slice(0, cursor).reduce((a, b) => a + b, 0), [lineSecs, cursor])
-  const readPct = readPctOf(elapsedSecs, totalSecs)
-  const cursorKey = lineKeys[cursor]
-  const totals = useMemo(() => vidTotals(beats), [beats])
-  const readEstimate = beats.reduce((a, b) => a + videoBeatRead(b), 0)
 
   const toggle = useCallback((k: string) => {
     setSpoken((s) => { const n = new Set(s); n.has(k) ? n.delete(k) : n.add(k); return n })
   }, [])
 
-  // Teleprompter keyboard (single listener). Inert when focus is editable or any overlay/cowork owns the key.
+  // Teleprompter keyboard (single listener). Inert when focus is editable or an overlay owns the key.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (overlayOpen || state.focus) return // overlay/focus precedence owns Esc/keys
+      if (overlayOpen || state.focus) return
       const el = document.activeElement as HTMLElement | null
-      if (el && (el.isContentEditable || el.hasAttribute?.('contenteditable') || el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'BUTTON')) return
+      if (el && (el.isContentEditable || el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'BUTTON')) return
       if (e.key === ' ' || e.key === 'ArrowDown' || e.key === 'Enter') {
         e.preventDefault()
         setCursor((c) => {
@@ -72,16 +66,21 @@ export function RoteiroStage(_props: RoteiroStageProps = {}) {
     return () => window.removeEventListener('keydown', onKey)
   }, [lineKeys, overlayOpen, state.focus])
 
-  // Ref'd auto-scroll on cursor change (no document.querySelector('.content')).
+  // Smooth-scroll the current line to ~35% of the scroll container on cursor change.
   useEffect(() => {
-    const container = scrollRef.current
     const k = lineKeys[cursor]
-    if (!container || !k) return
-    const el = container.querySelector(`[data-k="${k}"]`)
+    if (!k) return
+    const el = document.querySelector(`.rb-line[data-k="${k}"]`) as HTMLElement | null
     if (!el) return
+    const sc =
+      (el.closest('.content') as HTMLElement | null) ||
+      (document.querySelector('.content') as HTMLElement | null) ||
+      (document.querySelector('.ed-scroll') as HTMLElement | null) ||
+      (el.closest('main') as HTMLElement | null)
+    if (!sc) return
     const reduce = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-    const top = el.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop - container.clientHeight * 0.35
-    container.scrollTo?.({ top, behavior: reduce ? 'auto' : 'smooth' })
+    const top = el.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop - sc.clientHeight * 0.35
+    sc.scrollTo?.({ top, behavior: reduce ? 'auto' : 'smooth' })
   }, [cursor, lineKeys])
 
   const onCommitLine = useCallback((beatIdx: number, lineIdx: number, next: string) => {
@@ -98,12 +97,15 @@ export function RoteiroStage(_props: RoteiroStageProps = {}) {
   if (!content || beats.length === 0) {
     return (
       <div className="rot-empty fade-in">
-        <div className="card-pad" style={{ textAlign: 'center', padding: '30px 26px' }}>
-          <Edit size={20} />
+        <div className="card card-pad" style={{ textAlign: 'center', padding: '30px 26px' }}>
+          <Edit size={22} />
           <h2>Ainda é só uma ideia</h2>
-          <p>Esse vídeo tem uma direção, mas o roteiro não foi destrinchado. Abra a direção e quebre em beats.</p>
-          <button type="button" className="btn primary" onClick={() => dispatch({ type: 'SET_STAGE', stage: 'ideia' })}>
-            Ver a direção <ArrowRight size={15} />
+          <p>
+            Esse vídeo tem uma direção, mas o roteiro não foi destrinchado. Quando chegar a hora de gravar, abra a
+            direção e quebre em beats.
+          </p>
+          <button type="button" className="btn primary" style={{ marginTop: 6 }} onClick={() => dispatch({ type: 'SET_STAGE', stage: 'ideia' })}>
+            <Sparkles size={15} /> Ver a direção
           </button>
         </div>
       </div>
@@ -111,15 +113,19 @@ export function RoteiroStage(_props: RoteiroStageProps = {}) {
   }
 
   const title = data.ideia[lang].title.trim() || 'Sem título'
+  const totals = vidTotals(beats)
+  const totalLines = lineKeys.length
+  const cursorKey = lineKeys[cursor]
+  const totalSecs = lineSecs.reduce((a, b) => a + b, 0)
+  const elapsedSecs = lineSecs.slice(0, cursor).reduce((a, b) => a + b, 0)
+  const readPct = readPctOf(elapsedSecs, totalSecs)
 
   return (
-    <div ref={scrollRef} className="rot-doc content fade-in">
+    <div className="rot-doc fade-in">
       <div className="rot-sum">
         <span className="rs-k"><Layers size={13} /> <b>{beats.length}</b> beats</span>
         <span className="msep">·</span>
         <span className="rs-k"><Clock size={13} /> alvo <b>{data.durationRange ?? fmtClock(totals.dur)}</b></span>
-        <span className="msep">·</span>
-        <span className="rs-k">~<b>{fmtClock(readEstimate)}</b> de fala</span>
         <span className="msep">·</span>
         <span className="rs-k rot-clock"><Play size={12} /> <b>{fmtClock(elapsedSecs)}</b> / {fmtClock(totalSecs)}</span>
         <span className="grow" />
@@ -129,16 +135,16 @@ export function RoteiroStage(_props: RoteiroStageProps = {}) {
           </button>
         )}
         <span className="rot-spoken" title="Falas marcadas durante a leitura">
-          <CheckCheck size={13} /> {spoken.size}/{lineKeys.length}
+          <CheckCheck size={13} /> {spoken.size}/{totalLines}
         </span>
-        <button type="button" className={`rot-notetgl${state.notes ? ' on' : ''}`} onClick={() => dispatch({ type: 'TOGGLE_NOTES' })}>
-          {state.notes ? <Eye size={13} /> : <BellOff size={13} />} Notas do editor
+        <button type="button" className={'rot-notetgl' + (notes ? ' on' : '')} onClick={() => dispatch({ type: 'TOGGLE_NOTES' })}>
+          {notes ? <Eye size={13} /> : <BellOff size={13} />} Notas do editor
         </button>
       </div>
       <div className="rot-readbar"><span style={{ width: `${readPct}%` }} /></div>
       <h1 className="rot-title">{title}</h1>
       <div className="rot-hint">
-        <span className="rk">espaço</span> próxima fala <span className="rsep">·</span> <span className="rk">↑</span> voltar
+        <span className="rk">espaço</span> próxima fala <span className="rsep">·</span> <span className="rk">↑</span> voltar{' '}
         <span className="rsep">·</span> clique numa linha pra editar
       </div>
       {beats.map((b, i) => (
@@ -146,7 +152,7 @@ export function RoteiroStage(_props: RoteiroStageProps = {}) {
           key={i}
           beat={b}
           idx={i}
-          notes={state.notes}
+          notes={notes}
           spoken={spoken}
           cursorKey={cursorKey}
           onToggle={toggle}

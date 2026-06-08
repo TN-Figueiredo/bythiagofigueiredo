@@ -2,6 +2,7 @@
 
 import { createPortal } from 'react-dom'
 import { useEffect, useState } from 'react'
+import { ChevronLeft, Rss } from 'lucide-react'
 import { handoffBeatRows } from '@/lib/pipeline/handoff-sheet-data'
 import { fmtClock } from '@/lib/pipeline/video-schemas'
 import type { RoteiroBeatV3 } from '@/lib/pipeline/roteiro-schemas'
@@ -68,7 +69,7 @@ export function HandoffSheet(props: HandoffSheetProps) {
   const overlay = (
     <div className="rec-overlay">
       <div className="rec-bar">
-        <button className="rb-back" onClick={props.onClose}>‹ Fechar</button>
+        <button className="rb-back" onClick={props.onClose}><ChevronLeft size={15} /> Fechar</button>
         <span className="rb-title">Brief pro editor · {title || 'Sem título'}</span>
         <span className="rb-spacer" />
         {props.langOptions.length > 1 && (
@@ -80,7 +81,7 @@ export function HandoffSheet(props: HandoffSheetProps) {
             ))}
           </div>
         )}
-        <button className="rb-print" onClick={() => window.print()}>Imprimir</button>
+        <button className="rb-print" onClick={() => window.print()}><Rss size={14} /> Imprimir</button>
       </div>
 
       <div className="rec-sheet hs">
@@ -108,7 +109,7 @@ export function HandoffSheet(props: HandoffSheetProps) {
                   <span className="hs-bn">#{r.displayNum}</span> {r.name}
                   <span className="hs-bdur">{fmtClock(r.duration ?? 0)}</span>
                 </div>
-                <div className="hs-anchor">"{r.anchor}"</div>
+                <div className="hs-anchor">“{r.anchor}”</div>
                 {r.cues.map((v, j) => (
                   <div key={j} className="hs-cue"><span className="hs-cue-k">B-roll</span> {v}</div>
                 ))}
@@ -126,6 +127,7 @@ export function HandoffSheet(props: HandoffSheetProps) {
 
         <div className="hs-sec">
           <h2 className="hs-h">CTAs & QR <span className="hs-warn">⚠ muda por idioma</span></h2>
+          <p className="hs-p"><b>{ctas.note}</b></p>
           <table className="hs-table">
             <thead><tr><th></th><th>🇧🇷 PT</th><th>🇺🇸 EN</th></tr></thead>
             <tbody>

@@ -43,7 +43,7 @@ function wrap(over: { notes?: boolean; roteiro?: RoteiroContentV3 | null } = {})
 }
 
 describe('RoteiroStage — summary row', () => {
-  it('shows "N beats", "alvo <dur>", "~M de fala", clock, spoken counter, and Notas toggle (default OFF)', () => {
+  it('shows "N beats", "alvo <dur>", reading clock, spoken counter, and Notas toggle (default OFF)', () => {
     const { container } = wrap()
     const sum = container.querySelector('.rot-sum')!
     expect(sum.textContent).toContain('beats')
@@ -53,7 +53,7 @@ describe('RoteiroStage — summary row', () => {
     const tgl = sum.querySelector('.rot-notetgl')!
     expect(tgl.className).not.toContain('on')
   })
-  it('.rot-readbar is a 3px gradient bar whose inner width tracks readPct (0% at start)', () => {
+  it('.rot-readbar inner width tracks readPct (0% at start)', () => {
     const { container } = wrap()
     const bar = container.querySelector('.rot-readbar > span') as HTMLElement
     expect(bar.style.width).toBe('0%')
@@ -73,6 +73,13 @@ describe('RoteiroStage — teleprompter keyboard', () => {
     const bar = container.querySelector('.rot-readbar > span') as HTMLElement
     expect(parseInt(bar.style.width)).toBeGreaterThan(0)
   })
+  it('ArrowDown and Enter also advance + mark', () => {
+    const { container } = wrap()
+    fireEvent.keyDown(document, { key: 'ArrowDown' })
+    expect(container.querySelector('.rot-spoken')!.textContent).toContain('1/3')
+    fireEvent.keyDown(document, { key: 'Enter' })
+    expect(container.querySelector('.rot-spoken')!.textContent).toContain('2/3')
+  })
   it('ArrowUp steps back and unmarks', () => {
     const { container } = wrap()
     fireEvent.keyDown(document, { key: ' ' })
@@ -83,10 +90,11 @@ describe('RoteiroStage — teleprompter keyboard', () => {
   })
   it('ignores keys while focus is in a contentEditable line', () => {
     const { container } = wrap()
-    const line = container.querySelector('.rb-line[contenteditable]') as HTMLElement
-    line.focus()
-    fireEvent.keyDown(document, { key: ' ', target: line })
-    // activeElement is contentEditable → no mark
+    const tx = container.querySelector('.rb-line .rb-line-tx') as HTMLElement
+    // jsdom does not set isContentEditable from the attribute; emulate focus state.
+    Object.defineProperty(tx, 'isContentEditable', { configurable: true, value: true })
+    tx.focus()
+    fireEvent.keyDown(document, { key: ' ', target: tx })
     expect(container.querySelector('.rot-spoken')!.textContent).toContain('0/3')
   })
   it('"limpar" clears all marks and resets clock/scrubber', () => {
@@ -99,30 +107,61 @@ describe('RoteiroStage — teleprompter keyboard', () => {
   })
 })
 
-describe('RoteiroStage — rendering', () => {
-  it('renders **word** as <b class="emph">, key line gets .key, pause shows "respira 0,5s"', () => {
+describe('RoteiroStage — beat markup', () => {
+  it('renders .rot-beat with .rb-head (#1, name), .rb-prog "x/y faladas", .rb-info', () => {
     const { container } = wrap()
-    expect(container.querySelector('.rb-line.key .emph')!.textContent).toBe('fala')
+    const beat = container.querySelector('.rot-beat')!
+    expect(beat.querySelector('.rb-num')!.textContent).toBe('#1')
+    expect(beat.querySelector('.rb-name')!.textContent).toBe('Abertura')
+    expect(beat.querySelector('.rb-prog')!.textContent).toContain('0/3 faladas')
+    expect(beat.querySelector('.rb-info')!.textContent).toContain('s de fala')
+    expect(beat.querySelector('.rb-progbar > span')).toBeTruthy()
+  })
+  it('renders **word** as <b class="emph"> inside .rb-line-tx, key line gets .rb-line.key', () => {
+    const { container } = wrap()
+    expect(container.querySelector('.rb-line.key .rb-line-tx .emph')!.textContent).toBe('fala')
+  })
+  it('pause shows .rb-breath "respira 0,5s"', () => {
+    const { container } = wrap()
     expect(container.querySelector('.rb-breath')!.textContent).toContain('respira')
     expect(container.querySelector('.rb-dur')!.textContent).toBe('0,5s')
+  })
+  it('mark button is .rb-mark with aria-pressed, dot toggles spoken', () => {
+    const { container } = wrap()
+    const mark = container.querySelector('.rb-line .rb-mark') as HTMLButtonElement
+    expect(mark.getAttribute('aria-pressed')).toBe('false')
+    fireEvent.click(mark)
+    expect((container.querySelector('.rb-line .rb-mark') as HTMLButtonElement).getAttribute('aria-pressed')).toBe('true')
+    expect(container.querySelector('.rb-line.spoken')).toBeTruthy()
   })
   it('beat.tone renders .rb-tone (eye icon) regardless of Notas toggle', () => {
     const { container } = wrap({ notes: false })
     expect(container.querySelector('.rb-tone')!.textContent).toContain('Calmo, confiante')
   })
-  it('vis/ed lines hidden when Notas OFF, shown when ON', () => {
+  it('vis note hidden when Notas OFF, shown as .rb-note.vis when ON', () => {
     const off = wrap({ notes: false })
+    expect(off.container.querySelector('.rb-note.vis')).toBeNull()
     expect(off.container.textContent).not.toContain('B-roll dos servidores')
     const on = wrap({ notes: true })
-    expect(on.container.textContent).toContain('B-roll dos servidores')
+    const note = on.container.querySelector('.rb-note.vis')!
+    expect(note.querySelector('.rn-tag')!.textContent).toBe('Visual')
+    expect(note.querySelector('.rn-tx')!.textContent).toContain('B-roll dos servidores')
   })
-  it('empty Roteiro title falls back to "Sem título"', () => {
+})
+
+describe('RoteiroStage — document chrome', () => {
+  it('renders .rot-doc.fade-in, .rot-title, and .rot-hint with .rk keys', () => {
     const { container } = wrap()
-    // ideia.title 'Meu vídeo' is present; with empty content the title shows fallback
-    expect(container.querySelector('.rot-title')!.textContent!.length).toBeGreaterThan(0)
+    expect(container.querySelector('.rot-doc.fade-in')).toBeTruthy()
+    expect(container.querySelector('.rot-title')!.textContent).toBe('Meu vídeo')
+    const hint = container.querySelector('.rot-hint')!
+    expect(hint.querySelectorAll('.rk').length).toBeGreaterThanOrEqual(2)
+    expect(hint.querySelector('.rsep')).toBeTruthy()
   })
-  it('idea-only (no beats) shows the "Ainda é só uma ideia" empty state', () => {
+  it('idea-only (no beats) shows the .rot-empty "Ainda é só uma ideia" state', () => {
     const { container } = wrap({ roteiro: { version: 3, meta: {}, beats: [] } as RoteiroContentV3 })
+    expect(container.querySelector('.rot-empty')).toBeTruthy()
     expect(container.textContent).toContain('Ainda é só uma ideia')
+    expect(container.textContent).toContain('Ver a direção')
   })
 })

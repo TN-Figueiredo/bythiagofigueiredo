@@ -62,7 +62,12 @@ describe('HandoffSheet', () => {
 
   it('shows the per-language CTA/QR warning', () => {
     render(<HandoffSheet {...baseProps()} />)
-    expect(screen.getByText(/muda por idioma/)).toBeDefined()
+    expect(document.querySelector('.hs-warn')?.textContent).toMatch(/muda por idioma/)
+  })
+
+  it('renders the editor CTA note above the table', () => {
+    render(<HandoffSheet {...baseProps()} />)
+    expect(screen.getByText('QR muda por idioma')).toBeDefined()
   })
 
   it('highlights the active-language CTA column', () => {

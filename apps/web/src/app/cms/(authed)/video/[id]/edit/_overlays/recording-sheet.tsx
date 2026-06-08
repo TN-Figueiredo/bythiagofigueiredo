@@ -2,6 +2,7 @@
 
 import { createPortal } from 'react-dom'
 import { useEffect, useState } from 'react'
+import { ChevronLeft, Rss, Pencil } from 'lucide-react'
 import { recBeatLines, recSheetMeta, clampRsScale } from '@/lib/pipeline/recording-sheet-data'
 import { videoBeatRead, fmtClock } from '@/lib/pipeline/video-schemas'
 import type { RoteiroBeatV3 } from '@/lib/pipeline/roteiro-schemas'
@@ -64,7 +65,7 @@ export function RecordingSheet(props: RecordingSheetProps) {
   const overlay = (
     <div className="rec-overlay" style={{ ['--rs-scale' as string]: String(scale) }}>
       <div className="rec-bar">
-        <button className="rb-back" onClick={props.onClose}>‹ Fechar</button>
+        <button className="rb-back" onClick={props.onClose}><ChevronLeft size={15} /> Fechar</button>
         <span className="rb-title">{title || 'Sem título'}</span>
         <span className="rb-spacer" />
 
@@ -82,14 +83,9 @@ export function RecordingSheet(props: RecordingSheetProps) {
           </div>
         )}
 
-        <button
-          type="button"
-          className="rb-toggle"
-          aria-pressed={showEd}
-          onClick={() => setShowEd((s) => !s)}
-        >
+        <label className="rb-toggle" onClick={() => setShowEd((s) => !s)}>
           <span className={'tg' + (showEd ? ' on' : '')} /> Notas do editor
-        </button>
+        </label>
 
         <div className="rec-ctl">
           <span className="rec-ctl-lbl">Texto</span>
@@ -97,7 +93,7 @@ export function RecordingSheet(props: RecordingSheetProps) {
           <button onClick={() => bump(0.05)} title="Maior" style={{ fontSize: 16 }}>A+</button>
         </div>
 
-        <button className="rb-print" onClick={() => window.print()}>Imprimir</button>
+        <button className="rb-print" onClick={() => window.print()}><Rss size={14} /> Imprimir</button>
       </div>
 
       {hasBeats ? (
@@ -156,6 +152,7 @@ export function RecordingSheet(props: RecordingSheetProps) {
         </div>
       ) : (
         <div className="rec-empty">
+          <Pencil size={34} />
           <h3>Esse vídeo ainda não tem roteiro</h3>
           <p>É só uma direção por enquanto. Volte pra etapa <b>Ideia</b>, destrinche em beats, e o modo de gravação fica pronto pra imprimir.</p>
         </div>

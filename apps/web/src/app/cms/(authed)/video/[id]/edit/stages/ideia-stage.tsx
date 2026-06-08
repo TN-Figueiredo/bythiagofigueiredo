@@ -1,7 +1,7 @@
 'use client'
 
 import { Sparkles, ArrowRight } from 'lucide-react'
-import { PILLARS } from '@/lib/pipeline/pillars'
+import { pillarById } from '@/lib/pipeline/pillars'
 import { CHANNELS } from '@/lib/pipeline/channels'
 import { useVideoEditorState, useVideoEditorDispatch } from '../context'
 import { useVideoData } from '../data-context'
@@ -14,19 +14,34 @@ export interface IdeiaStageProps {
   lang?: VideoLang
 }
 
-// Props are the forward-compatible handoff contract; this body still reads context.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function IdeiaStage(_props: IdeiaStageProps = {}) {
+export function IdeiaStage({ cur: curProp, lang: langProp }: IdeiaStageProps = {}) {
   const state = useVideoEditorState()
   const dispatch = useVideoEditorDispatch()
   const data = useVideoData()
-  const lang = state.activeLang
-  const cur = data.ideia[lang]
-  const channel = CHANNELS.find((c) => c.lang === lang)
-  const pillar = PILLARS.find((p) => p.id === data.pillar)
-  const hasBeats = (data.roteiro[lang]?.beats.length ?? 0) > 0
 
-  const onTitle = (e: React.FocusEvent<HTMLElement> | React.FormEvent<HTMLElement>) => {
+  // Use props when provided by the shell; fall back to context derivation for
+  // backwards-compatible usage (e.g. tests that mount bare <IdeiaStage />).
+  const lang: VideoLang = langProp ?? state.activeLang
+  const rawIdeia = data.ideia[lang]
+  const cur: Version = curProp ?? {
+    title: rawIdeia.title ?? '',
+    direction: rawIdeia.direction ?? '',
+    siblings: rawIdeia.siblings ?? [],
+    logline: rawIdeia.logline ?? '',
+    pillar: data.pillar,
+    angles: rawIdeia.angles ?? '',
+    framework: rawIdeia.framework ?? '',
+    duration: data.durationRange ?? '',
+    location: '',
+    recorded: '—',
+    beats: data.roteiro[lang]?.beats ?? [],
+  }
+
+  const channel = CHANNELS.find((c) => c.lang === lang)
+  const pillar = pillarById(cur.pillar)
+  const hasBeats = cur.beats.length > 0
+
+  const onTitle = (e: React.FocusEvent<HTMLElement>) => {
     const text = (e.currentTarget.textContent ?? '').trim()
     void data.saveTitle(lang, text)
     void data.saveIdeia(lang, { title: text })
@@ -37,7 +52,9 @@ export function IdeiaStage(_props: IdeiaStageProps = {}) {
 
   return (
     <div className="vi-canvas fade-in">
-      <div className="vi-kicker"><Sparkles size={13} /> Direção · {channel?.name ?? lang.toUpperCase()}</div>
+      <div className="vi-kicker">
+        <Sparkles size={13} /> Direção · {channel?.name ?? lang.toUpperCase()}
+      </div>
       <h1
         className="vi-title"
         contentEditable
@@ -89,13 +106,21 @@ export function IdeiaStage(_props: IdeiaStageProps = {}) {
       </div>
 
       <div className="vi-meta">
-        {pillar && <span className="vi-chip"><span className="cdot" style={{ background: pillar.color }} /> {pillar.label}</span>}
+        {pillar && (
+          <span className="vi-chip">
+            <span className="cdot" style={{ background: pillar.color }} /> {pillar.label}
+          </span>
+        )}
         {cur.angles && <span className="vi-chip"><span className="vc-k">Ângulos</span> {cur.angles}</span>}
         {cur.framework && <span className="vi-chip"><span className="vc-k">Framework</span> {cur.framework}</span>}
-        {data.durationRange && <span className="vi-chip"><span className="vc-k">Duração</span> {data.durationRange}</span>}
+        {cur.duration && <span className="vi-chip"><span className="vc-k">Duração</span> {cur.duration}</span>}
       </div>
 
-      <button type="button" className="vi-next" onClick={() => dispatch({ type: 'SET_STAGE', stage: 'roteiro' })}>
+      <button
+        type="button"
+        className="vi-next"
+        onClick={() => dispatch({ type: 'SET_STAGE', stage: 'roteiro' })}
+      >
         {hasBeats ? 'Abrir o roteiro' : 'Destrinchar em roteiro'} <ArrowRight size={15} />
       </button>
     </div>

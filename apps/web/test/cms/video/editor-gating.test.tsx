@@ -21,6 +21,10 @@ function makeData(over: Record<string, unknown> = {}) {
   return {
     ideia: { pt: EMPTY_IDEIA, en: EMPTY_IDEIA },
     roteiro: { pt: null, en: null },
+    versions: {
+      pt: { title: '', direction: '', siblings: [], logline: '', pillar: undefined, angles: '', framework: '', duration: '', location: '', recorded: '—', beats: [] },
+      en: { title: '', direction: '', siblings: [], logline: '', pillar: undefined, angles: '', framework: '', duration: '', location: '', recorded: '—', beats: [] },
+    },
     pillar: undefined,
     durationRange: undefined,
     saveIdeia: vi.fn(),

@@ -50,6 +50,10 @@ const make = (over: Partial<VideoEditorState> = {}): VideoEditorState => ({
 const stubData = {
   ideia: { pt: { title: 't', direction: '', siblings: [], logline: '', angles: '', framework: '' }, en: { title: '', direction: '', siblings: [], logline: '', angles: '', framework: '' } },
   roteiro: { pt: { beats: [] }, en: null }, pillar: undefined, durationRange: '14–17 min',
+  versions: {
+    pt: { title: 't', direction: '', siblings: [], logline: '', pillar: undefined, angles: '', framework: '', duration: '14–17 min', location: '', recorded: '—', beats: [] },
+    en: { title: '', direction: '', siblings: [], logline: '', pillar: undefined, angles: '', framework: '', duration: '', location: '', recorded: '—', beats: [] },
+  },
   saveIdeia: vi.fn(), saveTitle: vi.fn(), appendSiblings: vi.fn(), saveRoteiro: vi.fn(),
   hasUnsavedChanges: false, saveAll: vi.fn().mockResolvedValue(undefined), autosaveState: 'saved' as const,
   sections: {}, abJoinFacts: { youtubeVideoId: null, thumbnailHqUrl: null, durationSeconds: null }, winnerVariantId: null,

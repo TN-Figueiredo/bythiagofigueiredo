@@ -1,8 +1,10 @@
 'use client'
 
 import { useMemo } from 'react'
+import { Sparkles, Edit, CheckCheck, Target, Film, SlidersHorizontal, Link, Eye, Info, AlertTriangle } from 'lucide-react'
 import type { RoteiroBeatV3, PosBrief } from '@/lib/pipeline/video-schemas'
-import { deriveMomentos, deriveBroll } from '@/lib/pipeline/video-pos-derive'
+import { keyLineText, visNotes } from '@/lib/pipeline/video-pos-derive'
+import { useVideoEditorDispatch } from '../context'
 import type { Version } from '../editor-model'
 
 export interface PosStageProps {
@@ -17,6 +19,60 @@ export interface PosStageProps {
   legacy: Record<string, unknown> | null
 }
 
+/* contentEditable field that commits on blur */
+function EF({
+  value,
+  onChange,
+  tag = 'b',
+  className = '',
+  ph,
+}: {
+  value: string
+  onChange: (v: string) => void
+  tag?: 'b' | 'span'
+  className?: string
+  ph?: string
+}) {
+  const Tag = tag
+  return (
+    <Tag
+      className={('efx ' + className).trim()}
+      contentEditable
+      suppressContentEditableWarning
+      spellCheck={false}
+      data-empty={!String(value || '').trim() || undefined}
+      data-ph={ph}
+      onBlur={e => onChange((e.currentTarget as HTMLElement).textContent ?? '')}
+    >
+      {value}
+    </Tag>
+  )
+}
+
+/* Card shell matching .pp-card > .pp-head + .pp-body */
+function PPCard({
+  icon,
+  title,
+  sub,
+  children,
+}: {
+  icon: React.ReactNode
+  title: string
+  sub?: string
+  children: React.ReactNode
+}) {
+  return (
+    <section className="pp-card">
+      <div className="pp-head">
+        <span className="pp-ico">{icon}</span>
+        <span className="pp-title">{title}</span>
+        {sub && <span className="pp-sub">{sub}</span>}
+      </div>
+      <div className="pp-body">{children}</div>
+    </section>
+  )
+}
+
 function LegacyPostprodFallback() {
   return (
     <div className="pp-legacy" role="note">
@@ -26,65 +82,182 @@ function LegacyPostprodFallback() {
 }
 
 export function PosStage({ beats, brief, activeLang, onPatch, onOpenHandoff, legacy }: PosStageProps) {
-  const momentos = useMemo(() => deriveMomentos(beats), [beats])
-  const broll = useMemo(() => deriveBroll(beats), [beats])
+  const dispatch = useVideoEditorDispatch()
 
-  if (legacy && (legacy.schema_version || !('kind' in legacy))) {
+  const del = brief?.deliverables ?? {}
+  const style = brief?.style ?? []
+  const ctas = brief?.ctas ?? { note: '', rows: [], display: '' }
+
+  const patchDel = (k: keyof NonNullable<PosBrief['deliverables']>, v: string) =>
+    onPatch({ deliverables: { ...del, [k]: v } })
+
+  const patchStyleRow = (i: number, v: string) => {
+    const next = style.map((s, j) => (j === i ? { ...s, v } : s))
+    onPatch({ style: next })
+  }
+
+  const hasBriefKind = brief && 'kind' in brief
+
+  if (legacy && (legacy.schema_version || !hasBriefKind)) {
     return <LegacyPostprodFallback />
   }
-  if (beats.length === 0) {
-    return (
-      <div className="pp-empty">
-        <p>Destrinche o roteiro pra gerar os momentos e o b-roll.</p>
-      </div>
-    )
-  }
+
+  const goRoteiro = () => dispatch({ type: 'SET_STAGE', stage: 'roteiro' })
 
   return (
-    <div className="pos-stage" data-lang={activeLang}>
-      <section className="pp-momentos">
-        <h3>Momentos-chave</h3>
-        <ul>
-          {momentos.map(m => (
-            <li key={m.n}><span className="pp-n">#{m.n}</span> <strong>{m.beatName}</strong> — <span className="pp-momento-text">{m.text}</span></li>
-          ))}
-        </ul>
-      </section>
+    <div className="pp-doc fade-in">
+      {/* ── top bar ── */}
+      <div className="pp-bar">
+        <div>
+          <div className="pp-kick">
+            <Sparkles size={12} /> Pós-produção · brief pro editor
+          </div>
+          <div className="pp-editor">
+            <Edit size={11} /> tudo editável · ajuste por vídeo
+          </div>
+        </div>
+        <div className="grow" />
+        <button type="button" className="btn" onClick={onOpenHandoff}>
+          Exportar pro editor
+        </button>
+      </div>
 
-      <section className="pp-broll">
-        <h3>B-roll por beat</h3>
-        <ul>
-          {broll.map(g => (
-            <li key={g.n}>
-              <strong>{g.beatName}</strong>
-              <ul>{g.notes.map((n, i) => <li key={i}>{n}</li>)}</ul>
-            </li>
-          ))}
-        </ul>
-      </section>
+      {/* ── cards grid ── */}
+      <div className="pp-grid">
 
-      <section className="pp-entrega">
-        <h3>Entrega</h3>
-        <div
-          className="pp-field" contentEditable suppressContentEditableWarning
-          onBlur={e => onPatch({ deliverables: { ...(brief?.deliverables ?? {}), editor: e.currentTarget.textContent ?? '' } })}
-        >{brief?.deliverables?.editor ?? ''}</div>
-      </section>
+        {/* ── Entrega ── */}
+        <PPCard icon={<CheckCheck size={14} />} title="Entrega" sub="o combinado · clique para editar">
+          <div className="pp-fields">
+            <div className="pp-f">
+              <span>Editor</span>
+              <EF value={del.editor ?? ''} onChange={v => patchDel('editor', v)} ph="Nome do editor" />
+            </div>
+            <div className="pp-f">
+              <span>Prazo</span>
+              <EF value={del.deadline ?? ''} onChange={v => patchDel('deadline', v)} ph="Prazo" />
+            </div>
+            <div className="pp-f">
+              <span>Revisão</span>
+              <EF value={del.turnaround ?? ''} onChange={v => patchDel('turnaround', v)} ph="Turnaround" />
+            </div>
+            <div className="pp-f wide">
+              <span>Drive</span>
+              <EF value={del.drive ?? ''} onChange={v => patchDel('drive', v)} ph="Pasta no Drive" />
+            </div>
+          </div>
+          <div className="pp-energy">
+            <Eye size={13} />
+            <span>
+              <b>Energia:</b>{' '}
+              <EF tag="span" className="ef-inline" value={del.energy ?? ''} onChange={v => patchDel('energy', v)} ph="Energia/tom" />
+              {(del.references ?? []).length > 0 && (
+                <i> Ref: {(del.references ?? []).join(' · ')}</i>
+              )}
+            </span>
+          </div>
+        </PPCard>
 
-      <section className="pp-ctas">
-        <h3>CTAs</h3>
-        <table className="pp-cta-table">
-          <thead><tr><th>Chave</th><th data-active={activeLang === 'pt'}>PT</th><th data-active={activeLang === 'en'}>EN</th></tr></thead>
-          <tbody>
-            {(brief?.ctas.rows ?? []).map((r, i) => (
-              <tr key={i}><td>{r.k}</td><td data-active={activeLang === 'pt'}>{r.pt}</td><td data-active={activeLang === 'en'}>{r.en}</td></tr>
+        {/* ── Momentos-chave + B-roll (from beats) ── */}
+        {beats.length > 0 ? (
+          <>
+            <PPCard icon={<Target size={14} />} title="Momentos-chave" sub="frase-âncora + cue visual, por beat">
+              <div className="pp-moments">
+                {beats.map((b, i) => {
+                  const line = keyLineText(b)
+                  const cue = visNotes(b)[0]
+                  return (
+                    <div key={i} className="pp-moment">
+                      <span className="pp-mnum">#{i + 1}</span>
+                      <div className="pp-mbody">
+                        <div className="pp-mline">&ldquo;{line}&rdquo;</div>
+                        {cue && (
+                          <div className="pp-mcue">
+                            <Film size={12} /> {cue}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </PPCard>
+
+            <PPCard icon={<Film size={14} />} title="B-roll por beat" sub="o que cobrir em cada trecho">
+              <div className="pp-broll">
+                {beats.map((b, i) => {
+                  const vs = visNotes(b)
+                  if (!vs.length) return null
+                  return (
+                    <div key={i} className="pp-broll-row">
+                      <span className="pp-bname">#{i + 1} · {b.name}</span>
+                      <ul>
+                        {vs.map((v, j) => <li key={j}>{v}</li>)}
+                      </ul>
+                    </div>
+                  )
+                })}
+              </div>
+            </PPCard>
+          </>
+        ) : (
+          <PPCard icon={<Target size={14} />} title="Momentos-chave &amp; b-roll">
+            <div className="pp-empty">
+              Saem do roteiro.{' '}
+              <a
+                className="pp-link"
+                role="button"
+                tabIndex={0}
+                onClick={goRoteiro}
+                onKeyDown={e => e.key === 'Enter' && goRoteiro()}
+              >
+                Destrinche o roteiro
+              </a>
+              {' '}e eles aparecem aqui automaticamente.
+            </div>
+          </PPCard>
+        )}
+
+        {/* ── Estilo & ritmo ── */}
+        <PPCard icon={<SlidersHorizontal size={14} />} title="Estilo &amp; ritmo" sub="o jeito do canal — editável">
+          <div className="pp-style">
+            {style.map((s, i) => (
+              <div key={i} className="pp-srow">
+                <span className="pp-sk">{s.k}</span>
+                <EF tag="span" className="pp-sv" value={s.v} onChange={v => patchStyleRow(i, v)} />
+              </div>
             ))}
-          </tbody>
-        </table>
-        <p className="pp-cta-warn">A QR/CTA difere por idioma — confira a coluna ativa.</p>
-      </section>
+          </div>
+        </PPCard>
 
-      <button type="button" className="pp-handoff-btn" onClick={onOpenHandoff}>Exportar pro editor</button>
+        {/* ── CTAs & QR ── */}
+        <PPCard icon={<Link size={14} />} title="CTAs &amp; QR" sub="atenção: muda por idioma">
+          {ctas.note && (
+            <div className="pp-cta-note">
+              <AlertTriangle size={13} /> {ctas.note}
+            </div>
+          )}
+          <div className="pp-cta-table">
+            <div className="pp-cta-h">
+              <span />
+              <span className={activeLang === 'pt' ? 'on' : ''}>🇧🇷 PT</span>
+              <span className={activeLang === 'en' ? 'on' : ''}>🇺🇸 EN</span>
+            </div>
+            {ctas.rows.map((r, i) => (
+              <div key={i} className="pp-cta-row">
+                <span className="pp-ck">{r.k}</span>
+                <span className={activeLang === 'pt' ? 'on' : ''}>{r.pt}</span>
+                <span className={activeLang === 'en' ? 'on' : ''}>{r.en}</span>
+              </div>
+            ))}
+          </div>
+          {ctas.display && (
+            <div className="pp-cta-disp">
+              <Info size={12} /> {ctas.display}
+            </div>
+          )}
+        </PPCard>
+
+      </div>
     </div>
   )
 }
