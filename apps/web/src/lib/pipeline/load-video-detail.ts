@@ -2,6 +2,7 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { readRoteiro, type RoteiroContentV3 } from './roteiro-schemas'
 import { IdeiaSectionSchema, type IdeiaSection } from './video-schemas'
 import { PILLARS, type PillarId } from './pillars'
+import type { AbJoinFacts } from './video-ab-precondition'
 
 export interface VideoDetail {
   id: string
@@ -13,9 +14,22 @@ export interface VideoDetail {
   pillar: PillarId | undefined
   durationRange: string | undefined
   blogPostId: string | null
+  /** External YouTube video id (string) from `format_metadata.youtube_video_id`. */
   youtubeVideoId: string | null
   ideia: { pt: IdeiaSection; en: IdeiaSection }
   roteiro: { pt: RoteiroContentV3 | null; en: RoteiroContentV3 | null }
+  /**
+   * Facts for the A/B publish CTA, derived from the `content_pipeline ⋈ youtube_videos`
+   * join (§3.8). `youtubeVideoId` here is the linked `youtube_videos.id` uuid (FK),
+   * distinct from the external-id `youtubeVideoId` above. `abPublishCtaState` consumes this.
+   */
+  abJoinFacts: AbJoinFacts
+}
+
+/** Shape of the embedded `youtube_videos` join row (left join → possibly null). */
+interface YoutubeJoinRow {
+  thumbnail_hq_url: string | null
+  duration_seconds: number | null
 }
 
 interface SectionEnvelope {
@@ -50,7 +64,9 @@ export async function loadVideoDetail(id: string, siteId: string): Promise<Video
 
   const { data: item, error } = await supabase
     .from('content_pipeline')
-    .select('id, code, stage, format, language, version, sections, format_metadata, blog_post_id, social_post_id')
+    .select(
+      'id, code, stage, format, language, version, sections, format_metadata, blog_post_id, social_post_id, youtube_video_id, youtube_videos(thumbnail_hq_url, duration_seconds)',
+    )
     .eq('id', id)
     .eq('site_id', siteId)
     .single()
@@ -66,6 +82,12 @@ export async function loadVideoDetail(id: string, siteId: string): Promise<Video
   const durationRange = typeof meta.duration_range === 'string' ? meta.duration_range : undefined
   const youtubeVideoId = typeof meta.youtube_video_id === 'string' ? meta.youtube_video_id : null
 
+  // A/B publish CTA facts from the youtube_videos join (§3.8). PostgREST embeds a
+  // to-one relation as an object (or array, depending on inference); normalize both.
+  const ytEmbed = (item as { youtube_videos?: YoutubeJoinRow | YoutubeJoinRow[] | null }).youtube_videos
+  const yt = Array.isArray(ytEmbed) ? (ytEmbed[0] ?? null) : (ytEmbed ?? null)
+  const linkedYoutubeVideoId = (item.youtube_video_id as string | null) ?? null
+
   return {
     id: item.id as string,
     code: item.code as string,
@@ -79,5 +101,10 @@ export async function loadVideoDetail(id: string, siteId: string): Promise<Video
     youtubeVideoId,
     ideia: { pt: readIdeia(sections, 'pt'), en: readIdeia(sections, 'en') },
     roteiro: { pt: readRoteiroLang(sections, 'pt'), en: readRoteiroLang(sections, 'en') },
+    abJoinFacts: {
+      youtubeVideoId: linkedYoutubeVideoId,
+      thumbnailHqUrl: yt?.thumbnail_hq_url ?? null,
+      durationSeconds: yt?.duration_seconds ?? null,
+    },
   }
 }
