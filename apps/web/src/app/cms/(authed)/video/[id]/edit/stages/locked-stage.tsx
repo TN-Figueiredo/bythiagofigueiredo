@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Lock, Sliders, Rss } from 'lucide-react'
+import { Lock, Sliders, Rss, CheckCheck } from 'lucide-react'
 
 export interface LockedStageProps {
   stageLabel: 'Pós' | 'Publicação' | string
@@ -56,7 +56,7 @@ export function LockedStage({ stageLabel, itemId, version, onUnlock }: LockedSta
       <h3 className="ls-title">{title}</h3>
       <p className="ls-sub">{sub}</p>
       <button className="btn primary" type="button" onClick={handleUnlock} disabled={pending}>
-        {pending ? 'Marcando…' : 'Marcar como gravado'}
+        {pending ? 'Marcando…' : <><CheckCheck size={15} /> Marcar como gravado</>}
       </button>
       <div className="ls-hint">Libera Pós e Publicação.</div>
       {error && <p className="ls-error" role="alert">{error}</p>}

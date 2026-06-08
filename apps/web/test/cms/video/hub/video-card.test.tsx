@@ -36,10 +36,12 @@ describe('VideoCard', () => {
     expect(langs).toContain('🇺🇸')
   })
 
-  it('falls back to "Sem título" and shows no pill for legacy (no pillar)', () => {
-    const { container } = render(<VideoCard card={{ ...base, title: 'Sem título', pillar: undefined }} />)
+  it('falls back to "Sem título" and shows a fallback pill (PILLARS[0]) for legacy (no pillar)', () => {
+    const { container } = render(<VideoCard card={{ ...base, title: '', pillar: undefined }} />)
     expect(screen.getByText('Sem título')).toBeInTheDocument()
-    expect(container.querySelector('.vpill')).toBeNull()
+    const pill = container.querySelector('.vpill') as HTMLElement
+    expect(pill).toBeTruthy()
+    expect(pill.textContent).toContain('Viagem')
   })
 
   it('shows the dim beatsLabel in .vf-beats when there is no roteiro', () => {

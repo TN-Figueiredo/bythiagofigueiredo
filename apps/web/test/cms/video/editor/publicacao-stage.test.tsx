@@ -364,11 +364,13 @@ describe('PublicacaoStage — published freeze', () => {
     expect(container.querySelector('.pub-locknote')?.textContent).toMatch(/no ar — títulos travados/i)
   })
 
-  it('winnerVariantId=null means no .ab-winner at all', () => {
+  it('winnerVariantId=null falls back to leader — .ab-winner shows on leader card', () => {
     const { container } = render(
       <PublicacaoStage draft={draft} cta={enabledCta} published winnerVariantId={null}
         onPatch={vi.fn()} onPublish={vi.fn()} onSuggest={vi.fn()} />,
     )
-    expect(container.querySelectorAll('.ab-winner')).toHaveLength(0)
+    // When no real A/B-lab winner yet, the leader card shows the trophy (§3.8 fallback).
+    expect(container.querySelectorAll('.ab-winner')).toHaveLength(1)
+    expect(container.querySelector('.ab-winner')?.textContent).toMatch(/liderando/i)
   })
 })

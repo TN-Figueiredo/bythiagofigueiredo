@@ -1,9 +1,10 @@
 'use client'
 
 import { useMemo } from 'react'
-import { Sparkles, Edit, CheckCheck, Target, Film, SlidersHorizontal, Link, Eye, Info, AlertTriangle } from 'lucide-react'
+import { Sparkles, Edit, CheckCheck, Target, Film, SlidersHorizontal, Link, Eye, Info, AlertTriangle, Rss } from 'lucide-react'
 import type { RoteiroBeatV3, PosBrief } from '@/lib/pipeline/video-schemas'
 import { keyLineText, visNotes } from '@/lib/pipeline/video-pos-derive'
+import { CHANNELS } from '@/lib/pipeline/channels'
 import { useVideoEditorDispatch } from '../context'
 import type { Version } from '../editor-model'
 
@@ -102,6 +103,9 @@ export function PosStage({ beats, brief, activeLang, onPatch, onOpenHandoff, leg
     return <LegacyPostprodFallback />
   }
 
+  // Derive present language labels (mirrors handoff: versions[l] → channel.label joined " + ")
+  const langs = CHANNELS.map((c) => c.label).join(' + ')
+
   const goRoteiro = () => dispatch({ type: 'SET_STAGE', stage: 'roteiro' })
 
   return (
@@ -118,7 +122,7 @@ export function PosStage({ beats, brief, activeLang, onPatch, onOpenHandoff, leg
         </div>
         <div className="grow" />
         <button type="button" className="btn" onClick={onOpenHandoff}>
-          Exportar pro editor
+          <Rss size={14} /> Exportar pro editor
         </button>
       </div>
 
@@ -140,6 +144,9 @@ export function PosStage({ beats, brief, activeLang, onPatch, onOpenHandoff, leg
               <span>Revisão</span>
               <EF value={del.turnaround ?? ''} onChange={v => patchDel('turnaround', v)} ph="Turnaround" />
             </div>
+            <div className="pp-f">
+              <span>Versões</span><b>{langs}</b>
+            </div>
             <div className="pp-f wide">
               <span>Drive</span>
               <EF value={del.drive ?? ''} onChange={v => patchDel('drive', v)} ph="Pasta no Drive" />
@@ -150,9 +157,7 @@ export function PosStage({ beats, brief, activeLang, onPatch, onOpenHandoff, leg
             <span>
               <b>Energia:</b>{' '}
               <EF tag="span" className="ef-inline" value={del.energy ?? ''} onChange={v => patchDel('energy', v)} ph="Energia/tom" />
-              {(del.references ?? []).length > 0 && (
-                <i> Ref: {(del.references ?? []).join(' · ')}</i>
-              )}
+              <i> Ref: {(del.references ?? []).join(' · ')}</i>
             </span>
           </div>
         </PPCard>
@@ -231,11 +236,9 @@ export function PosStage({ beats, brief, activeLang, onPatch, onOpenHandoff, leg
 
         {/* ── CTAs & QR ── */}
         <PPCard icon={<Link size={14} />} title="CTAs &amp; QR" sub="atenção: muda por idioma">
-          {ctas.note && (
-            <div className="pp-cta-note">
-              <AlertTriangle size={13} /> {ctas.note}
-            </div>
-          )}
+          <div className="pp-cta-note">
+            <AlertTriangle size={13} /> {ctas.note}
+          </div>
           <div className="pp-cta-table">
             <div className="pp-cta-h">
               <span />
@@ -250,11 +253,9 @@ export function PosStage({ beats, brief, activeLang, onPatch, onOpenHandoff, leg
               </div>
             ))}
           </div>
-          {ctas.display && (
-            <div className="pp-cta-disp">
-              <Info size={12} /> {ctas.display}
-            </div>
-          )}
+          <div className="pp-cta-disp">
+            <Info size={12} /> {ctas.display}
+          </div>
         </PPCard>
 
       </div>

@@ -75,7 +75,7 @@ export function HandoffSheet(props: HandoffSheetProps) {
         {props.langOptions.length > 1 && (
           <div className="rec-seg">
             {props.langOptions.map((o) => (
-              <button key={o.lang} className={o.label === channelLabel ? 'on' : ''} onClick={() => props.onSwitchLang(o.lang)}>
+              <button key={o.lang} className={o.lang === activeLang ? 'on' : ''} onClick={() => props.onSwitchLang(o.lang)}>
                 {o.flag} {o.label}
               </button>
             ))}

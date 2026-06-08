@@ -2,11 +2,13 @@
 
 import { toast } from 'sonner'
 import {
-  TrendingUp, Info, Layers, Lock, Rss, Sparkles, Trophy, Image, Send,
+  TrendingUp, Info, Layers, Lock, Rss, Sparkles, Trophy, Image, FileText,
 } from 'lucide-react'
+import { channelByLang } from '@/lib/pipeline/channels'
 import type { ABDraft } from '@/lib/pipeline/video-schemas'
 import type { AbCtaState } from '@/lib/pipeline/video-ab-precondition'
 import type { Version } from '../editor-model'
+import type { VideoLang } from '../types'
 
 /* Ground truth: design_handoff_video_module/views-video.jsx line 516 */
 const AB_COLORS: Record<'A' | 'B' | 'C' | 'D', string> = {
@@ -26,10 +28,13 @@ const DIST_CHANNELS: [string, string][] = [
 export interface PublicacaoStageProps {
   /** Design-handoff Version for the active lang (cur = versions[lang]). */
   cur?: Version
+  /** Active language — used to resolve the channel name in .pub-bar. */
+  lang?: VideoLang
   draft: ABDraft
   cta: AbCtaState
   published: boolean
-  /** ab-lab winner_variant_id; trophy shows on the winner ONLY (§3.8). */
+  /** ab-lab winner_variant_id; trophy shows on the winner ONLY (§3.8).
+   *  When null + published, falls back to the leader card (test-running phase). */
   winnerVariantId: string | null
   onPatch: (patch: Partial<ABDraft>) => void
   onPublish: () => void
@@ -37,6 +42,7 @@ export interface PublicacaoStageProps {
 }
 
 export function PublicacaoStage({
+  lang,
   draft,
   cta,
   published,
@@ -45,6 +51,7 @@ export function PublicacaoStage({
   onPublish,
   onSuggest,
 }: PublicacaoStageProps) {
+  const channelName = channelByLang(lang ?? 'pt')?.name ?? 'tnFigueiredo'
   function patchTitle(idx: number, title: string) {
     const variants = draft.variants.map((v, i) =>
       i === idx ? { ...v, title } : v,
@@ -67,7 +74,7 @@ export function PublicacaoStage({
           <div className="pp-kick">
             <TrendingUp size={12} /> Publicação · teste A/B na estreia
           </div>
-          <div className="pp-editor">4 variações no YouTube Test &amp; Compare</div>
+          <div className="pp-editor">{channelName} · 4 variações no YouTube Test &amp; Compare</div>
         </div>
         <div className="grow" />
         {published ? (
@@ -87,13 +94,6 @@ export function PublicacaoStage({
         )}
       </div>
 
-      {/* deep-link when CTA blocked */}
-      {!published && !cta.enabled && cta.deepLink && (
-        <a className="ab-deeplink" href={cta.deepLink}>
-          Abrir no A/B Lab
-        </a>
-      )}
-
       {/* ── pub-note ── */}
       <div className="pub-note">
         <Info size={14} />{' '}
@@ -101,6 +101,9 @@ export function PublicacaoStage({
           As <b>thumbnails você desenvolve no Claude Design</b> — aqui ficam o{' '}
           <b>brief</b> e o <b>título</b> de cada variação. O canal sempre estreia
           com 4 (mesma DNA, ganchos diferentes); o público escolhe pela retenção.
+          {!published && !cta.enabled && cta.deepLink && (
+            <>{' '}<a className="ab-deeplink" href={cta.deepLink}>Abrir no A/B Lab</a></>
+          )}
         </span>
       </div>
 
@@ -125,7 +128,9 @@ export function PublicacaoStage({
       <div className={`ab-grid${published ? ' locked' : ''}`}>
         {draft.variants.map((v, idx) => {
           const isLeader = draft.leader === v.id
-          const isWinner = published && winnerVariantId === v.id
+          const isWinner = published && (
+            winnerVariantId ? winnerVariantId === v.id : v.id === draft.leader
+          )
 
           return (
             <div
@@ -183,6 +188,8 @@ export function PublicacaoStage({
                 <div
                   className="ab-title efx"
                   data-testid="ab-title"
+                  data-empty={!(v.title ?? '').trim()}
+                  data-ph={`Título da variação ${v.id}…`}
                   contentEditable={!published}
                   suppressContentEditableWarning
                   spellCheck={false}
@@ -197,6 +204,8 @@ export function PublicacaoStage({
                 </label>
                 <div
                   className="ab-brief efx"
+                  data-empty={!(v.brief ?? '').trim()}
+                  data-ph="Ex.: rosto + bandeiras, rim-light laranja, olhar pro preço…"
                   contentEditable={!published}
                   suppressContentEditableWarning
                   spellCheck={false}
@@ -213,7 +222,7 @@ export function PublicacaoStage({
       {/* ── pub-foot ── */}
       <div className="pub-foot">
         <span className="pp-kick">
-          <Send size={12} /> Distribuição no dia
+          <FileText size={12} /> Distribuição no dia
         </span>
         <div className="pub-dist">
           {DIST_CHANNELS.map(([name, color]) => (

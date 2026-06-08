@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { Sparkles, ArrowRight } from 'lucide-react'
 import { pillarById } from '@/lib/pipeline/pillars'
 import { CHANNELS } from '@/lib/pipeline/channels'
@@ -18,6 +19,7 @@ export function IdeiaStage({ cur: curProp, lang: langProp }: IdeiaStageProps = {
   const state = useVideoEditorState()
   const dispatch = useVideoEditorDispatch()
   const data = useVideoData()
+  const [isGenerating, setIsGenerating] = useState(false)
 
   // Use props when provided by the shell; fall back to context derivation for
   // backwards-compatible usage (e.g. tests that mount bare <IdeiaStage />).
@@ -41,13 +43,24 @@ export function IdeiaStage({ cur: curProp, lang: langProp }: IdeiaStageProps = {
   const pillar = pillarById(cur.pillar)
   const hasBeats = cur.beats.length > 0
 
-  const onTitle = (e: React.FocusEvent<HTMLElement>) => {
+  const onTitle = (e: React.FormEvent<HTMLElement> | React.FocusEvent<HTMLElement>) => {
     const text = (e.currentTarget.textContent ?? '').trim()
     void data.saveTitle(lang, text)
     void data.saveIdeia(lang, { title: text })
   }
-  const onDirection = (e: React.FocusEvent<HTMLElement>) => {
+  const onDirection = (e: React.FormEvent<HTMLElement> | React.FocusEvent<HTMLElement>) => {
     void data.saveIdeia(lang, { direction: (e.currentTarget.textContent ?? '').trim() })
+  }
+
+  const onAltClick = (siblingText: string) => {
+    void data.saveIdeia(lang, { direction: siblingText })
+  }
+
+  const onGenMore = () => {
+    setIsGenerating(true)
+    void Promise.resolve(data.appendSiblings(lang)).finally(() => {
+      setIsGenerating(false)
+    })
   }
 
   return (
@@ -60,8 +73,9 @@ export function IdeiaStage({ cur: curProp, lang: langProp }: IdeiaStageProps = {
         contentEditable
         suppressContentEditableWarning
         spellCheck={false}
-        data-empty={!cur.title.trim()}
+        data-empty={!(cur.title ?? '').trim()}
         data-ph="Título de trabalho do vídeo…"
+        onInput={onTitle}
         onBlur={onTitle}
       >
         {cur.title}
@@ -78,8 +92,9 @@ export function IdeiaStage({ cur: curProp, lang: langProp }: IdeiaStageProps = {
           contentEditable
           suppressContentEditableWarning
           spellCheck={false}
-          data-empty={!cur.direction.trim()}
+          data-empty={!(cur.direction ?? '').trim()}
           data-ph="Qual é a opinião ou a coisa que você quer discutir? Em 2–3 frases."
+          onInput={onDirection}
           onBlur={onDirection}
         >
           {cur.direction}
@@ -89,18 +104,27 @@ export function IdeiaStage({ cur: curProp, lang: langProp }: IdeiaStageProps = {
       <div className="vi-alts">
         <div className="vi-alts-label">
           <span className="row gap-6"><Sparkles size={12} /> Outras direções do Cowork</span>
-          <button type="button" className="vi-alts-gen" onClick={() => data.appendSiblings(lang)}>
-            <Sparkles size={12} /> Gerar mais
+          <button
+            type="button"
+            className="vi-alts-gen"
+            onClick={onGenMore}
+            disabled={isGenerating}
+          >
+            {isGenerating ? (
+              <><span className="cw-spin" /> gerando…</>
+            ) : (
+              <><Sparkles size={12} /> Gerar mais</>
+            )}
           </button>
         </div>
         {cur.siblings.map((s, i) => (
-          <button key={i} type="button" className="vi-alt">
+          <button key={i} type="button" className="vi-alt" onClick={() => onAltClick(s)}>
             <span className="va-n">{i + 1}</span>
             <span className="va-t">{s}</span>
             <span className="va-go"><ArrowRight size={14} /></span>
           </button>
         ))}
-        {cur.siblings.length === 0 && (
+        {cur.siblings.length === 0 && !isGenerating && (
           <div className="vi-alts-empty">Sem alternativas ainda — peça ao Cowork pra gerar algumas.</div>
         )}
       </div>

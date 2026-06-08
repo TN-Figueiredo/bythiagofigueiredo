@@ -13,10 +13,10 @@ const ptName = CHANNELS.find((c) => c.lang === 'pt')?.name ?? 'PT'
 const enName = CHANNELS.find((c) => c.lang === 'en')?.name ?? 'EN'
 
 const COLUMNS: { key: VideoColumn; label: string; color: string }[] = [
-  { key: 'idea', label: 'Ideia', color: 'var(--text-muted)' },
-  { key: 'roteiro', label: 'Roteiro', color: 'var(--c-pipeline)' },
-  { key: 'gravacao', label: 'Gravação', color: 'var(--warn)' },
-  { key: 'published', label: 'Publicado', color: 'var(--c-links)' },
+  { key: 'idea', label: 'Ideia', color: '#8b8cf6' },
+  { key: 'roteiro', label: 'Roteiro', color: '#22b8d6' },
+  { key: 'gravacao', label: 'Gravação', color: '#f59e0b' },
+  { key: 'published', label: 'Publicado', color: '#22c55e' },
 ]
 
 export function VideoHub({ data }: { data: VideoHubData }) {
@@ -27,9 +27,9 @@ export function VideoHub({ data }: { data: VideoHubData }) {
 
   const stats = [
     { v: String(data.stats.total), l: 'Total', c: 'var(--text)' },
-    { v: String(data.stats.roteiro), l: 'Em roteiro', c: 'var(--c-pipeline)' },
-    { v: String(data.stats.gravacao), l: 'Prontos p/ gravar', c: 'var(--warn)' },
-    { v: String(data.stats.published), l: 'Publicados', c: 'var(--c-links)' },
+    { v: String(data.stats.roteiro), l: 'Em roteiro', c: '#22b8d6' },
+    { v: String(data.stats.gravacao), l: 'Prontos p/ gravar', c: '#f59e0b' },
+    { v: String(data.stats.published), l: 'Publicados', c: '#22c55e' },
   ]
 
   return (

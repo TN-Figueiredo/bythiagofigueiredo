@@ -40,6 +40,8 @@ export function RecordingSheet(props: RecordingSheetProps) {
   const [showEd, setShowEd] = useState(false)
   const [scale, setScale] = useState(1)
   const [mounted, setMounted] = useState(false)
+  const initLang = props.langOptions.find((o) => o.label === channelLabel)?.lang ?? props.langOptions[0]?.lang ?? ''
+  const [curLang, setCurLang] = useState(initLang)
 
   useEffect(() => setMounted(true), [])
 
@@ -74,8 +76,8 @@ export function RecordingSheet(props: RecordingSheetProps) {
             {props.langOptions.map((o) => (
               <button
                 key={o.lang}
-                className={o.label === channelLabel ? 'on' : ''}
-                onClick={() => props.onSwitchLang(o.lang)}
+                className={o.lang === curLang ? 'on' : ''}
+                onClick={() => { setCurLang(o.lang); props.onSwitchLang(o.lang) }}
               >
                 {o.flag} {o.label}
               </button>

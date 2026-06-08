@@ -12,6 +12,9 @@ import { VidLang } from './_components/vid-lang'
 import { CoworkButton } from './_components/cowork-button'
 import type { VideoLang } from './types'
 
+const STAGE_STATUS_CLASS = (stage: string): string =>
+  videoColumn(stage) === 'published' ? 'ed-status live' : 'ed-status draft'
+
 function getVideoStageLabel(stage: string): string {
   const found = WORKFLOWS.video.find((s) => s.stage === stage)
   return found?.label_pt ?? stage
@@ -42,7 +45,7 @@ export function VideoEdBar() {
         <span className="msep">/</span>
         <span className="eb-code">{state.code}</span>
       </div>
-      <span className="grow" />
+      <div className="grow" />
       <VidLang
         versions={data.versions}
         present={present}
@@ -54,7 +57,7 @@ export function VideoEdBar() {
           })
         }
       />
-      <span className="ed-status draft">
+      <span className={STAGE_STATUS_CLASS(state.stage)}>
         <span className="es-dot" style={{ background: dotColor }} />
         {stageLabel}
       </span>

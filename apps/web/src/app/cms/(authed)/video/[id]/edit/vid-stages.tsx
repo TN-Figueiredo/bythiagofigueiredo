@@ -1,9 +1,11 @@
 'use client'
 
 import { Lightbulb, FileText, Scissors, Rocket, Lock } from 'lucide-react'
-import { isRecorded } from '@/lib/pipeline/video-lifecycle'
+import { isRecorded, REACHED_BY } from '@/lib/pipeline/video-lifecycle'
 import { useVideoEditorState, useVideoEditorDispatch } from './context'
 import { VIDEO_STAGES, type VideoStage } from './types'
+
+const STAGE_IDX: Record<VideoStage, number> = { ideia: 0, roteiro: 1, pos: 2, publicacao: 3 }
 
 const META: Record<VideoStage, { label: string; Icon: typeof Lightbulb; gated: boolean }> = {
   ideia: { label: 'Ideia', Icon: Lightbulb, gated: false },
@@ -16,6 +18,7 @@ export function VidStages() {
   const state = useVideoEditorState()
   const dispatch = useVideoEditorDispatch()
   const recorded = isRecorded(state.stage)
+  const progress = REACHED_BY(state.stage)
 
   if (state.focus) {
     return null
@@ -27,12 +30,13 @@ export function VidStages() {
         const { label, Icon, gated } = META[id]
         const locked = gated && !recorded
         const on = state.activeStage === id
+        const done = !locked && STAGE_IDX[id] < progress && !on
         return (
           <button
             key={id}
             type="button"
             role="tab"
-            className={`ed-stage${on ? ' on' : ''}${locked ? ' locked' : ''}`}
+            className={`ed-stage${on ? ' on' : ''}${locked ? ' locked' : ''}${done ? ' done' : ''}`}
             aria-current={on ? 'page' : undefined}
             aria-selected={on}
             // Locked tabs stay clickable (render LockedStage on select, §5.5) but are
