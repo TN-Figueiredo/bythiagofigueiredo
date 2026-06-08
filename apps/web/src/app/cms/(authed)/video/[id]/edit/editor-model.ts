@@ -43,13 +43,43 @@ export interface ToEditorModelInput {
   durationRange: string | undefined
 }
 
+// TEMP — visual-approval mock. Fills EMPTY Ideia fields with the handoff VID-022
+// sample so the full design (alternatives + meta chips) renders for review while real
+// data is still being populated (legacy videos have no siblings/angles/framework/
+// duration/pillar). Real authored data ALWAYS wins — only blank fields are filled.
+// Editor-only: does NOT touch the hub card or the DB. Flip MOCK_PREVIEW = false (or
+// delete `withMock`) to turn it off before launch / once Cowork (P6) populates data.
+const MOCK_PREVIEW = true
+const MOCK_IDEIA: Pick<Version, 'siblings' | 'angles' | 'framework' | 'duration' | 'pillar'> = {
+  siblings: [
+    'O que o Dota me ensinou que a faculdade não ensinou',
+    'Larguei o competitivo no auge — e por quê',
+  ],
+  angles: 'A1 · A2',
+  framework: 'McKee',
+  duration: '10–12 min',
+  pillar: 'games',
+}
+
+function withMock(v: Version): Version {
+  if (!MOCK_PREVIEW) return v
+  return {
+    ...v,
+    siblings: v.siblings.length > 0 ? v.siblings : MOCK_IDEIA.siblings,
+    angles: v.angles.trim() ? v.angles : MOCK_IDEIA.angles,
+    framework: v.framework.trim() ? v.framework : MOCK_IDEIA.framework,
+    duration: v.duration.trim() ? v.duration : MOCK_IDEIA.duration,
+    pillar: v.pillar ?? MOCK_IDEIA.pillar,
+  }
+}
+
 function versionFor(
   ideia: IdeiaPayload,
   roteiro: RoteiroContentV3 | null,
   pillar: PillarId | undefined,
   durationRange: string | undefined,
 ): Version {
-  return {
+  return withMock({
     title: ideia.title ?? '',
     direction: ideia.direction ?? '',
     siblings: ideia.siblings ?? [],
@@ -61,7 +91,7 @@ function versionFor(
     location: '',
     recorded: '—',
     beats: roteiro?.beats ?? [],
-  }
+  })
 }
 
 /** Build the `{ pt, en }` editor model from the live VideoData scalars + sections. */
