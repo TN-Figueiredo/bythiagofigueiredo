@@ -4,6 +4,53 @@
    tokens + the blog editor's ed-bar / ed-stages vocabulary.
    ============================================================ */
 
+/* ===== Token bridge =====================================================
+   The handoff CSS was authored against a token system using UNPREFIXED names
+   (--text / --surface / --accent / --c-pipeline …). This app's CMS token system
+   is --cms-* (from @tn-figueiredo/cms-ui). Map the handoff names onto the real
+   --cms-* tokens, SCOPED to the video module containers (incl. the portaled Cowork
+   popover + paper sheets) so the unprefixed names never leak to other modules.
+   Without this every color/surface/border resolved to nothing → flat unstyled UI. */
+.video-hub-page, .vid-ed, .cw-pop, .rec-overlay {
+  --bg: var(--cms-bg);
+  --surface: var(--cms-surface);
+  --surface-2: var(--cms-surface-hover);
+  --surface-hover: var(--cms-surface-hover);
+  --elev: var(--cms-surface-hover);
+  --text: var(--cms-text);
+  --text-muted: var(--cms-text-muted);
+  --text-dim: var(--cms-text-dim);
+  --text-faint: var(--cms-text-dim);
+  --border: var(--cms-border);
+  --border-soft: var(--cms-border-subtle);
+  --border-strong: var(--cms-border);
+  --accent: var(--cms-accent);
+  --accent-hover: var(--cms-accent-hover);
+  --accent-soft: var(--cms-accent-subtle);
+  --accent-soft-2: var(--cms-accent-subtle);
+  --accent-text: var(--cms-accent);
+  --on-accent: #fff;
+  --c-pipeline: var(--cms-cyan);
+  --c-pipeline-s: var(--cms-cyan-subtle);
+  --c-links: var(--cms-purple);
+  --c-links-s: var(--cms-purple-subtle);
+  --c-courses: var(--cms-purple);
+  --c-newsletter: var(--cms-rose);
+  --c-newsletter-s: var(--cms-rose-subtle);
+  --warn: var(--cms-amber);
+  --warn-s: var(--cms-amber-subtle);
+  --ok: var(--cms-green);
+  --ok-s: var(--cms-green-subtle);
+  --radius: var(--cms-radius, 12px);
+  --shadow: var(--cms-shadow-dropdown, 0 4px 16px rgba(0, 0, 0, .18));
+  --shadow-pop: var(--cms-shadow-dropdown, 0 12px 32px rgba(0, 0, 0, .28));
+  --font-mono: ui-monospace, 'JetBrains Mono', SFMono-Regular, Menlo, monospace;
+  --t-fast: .13s;
+  --t: .2s;
+  --ease: cubic-bezier(.4, 0, .2, 1);
+  --ease-back: cubic-bezier(.34, 1.56, .64, 1);
+}
+
 /* ---------- HUB ---------- */
 .vhub-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 22px; }
 @media (max-width: 1080px) { .vhub-grid { grid-template-columns: repeat(2,1fr); } }
