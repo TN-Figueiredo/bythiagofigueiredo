@@ -1,7 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Layers, Clock, Play, RefreshCw, CheckCheck, Eye, BellOff, Edit, Plus } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Layers, Clock, Play, RefreshCw, RotateCcw, CheckCheck, Eye, BellOff, Edit, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { SparklesGlyph } from '../_components/sparkles-glyph'
 import { CoworkButton } from '../_components/cowork-button'
@@ -35,6 +35,7 @@ export function RoteiroStage(_props: RoteiroStageProps = {}) {
   const [spoken, setSpoken] = useState<Set<string>>(() => new Set())
   const [cursor, setCursor] = useState(0)
   const [confirmReset, setConfirmReset] = useState(false)
+  const resetBtnRef = useRef<HTMLButtonElement>(null)
 
   const beats = content?.beats ?? []
   const lineKeys = useMemo(() => (content ? videoLineKeys(content) : []), [content])
@@ -113,6 +114,21 @@ export function RoteiroStage(_props: RoteiroStageProps = {}) {
     setCursor(0)
     toast.info('Roteiro limpo', { description: 'Volte a gerar com o Cowork ou comece do zero.' })
   }
+  const onCancelReset = useCallback(() => {
+    setConfirmReset(false)
+    requestAnimationFrame(() => resetBtnRef.current?.focus())
+  }, [])
+
+  // Escape cancels the inline confirm (and restores focus to the Recomeçar button).
+  useEffect(() => {
+    if (!confirmReset) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancelReset() }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [confirmReset, onCancelReset])
+
+  // If the beats empty out underneath an open confirm, drop the now-stale confirm.
+  useEffect(() => { if (beats.length === 0) setConfirmReset(false) }, [beats.length])
 
   if (!content || beats.length === 0) {
     if ((ideia.direction ?? '').trim()) {
@@ -174,13 +190,13 @@ export function RoteiroStage(_props: RoteiroStageProps = {}) {
         <span className="grow" />
         {confirmReset ? (
           <span className="rot-reset-confirm">
-            Apagar o roteiro?{' '}
-            <button type="button" className="rot-reset-yes" onClick={onReset}>apagar</button>{' '}
-            <button type="button" className="rot-reset-no" onClick={() => setConfirmReset(false)}>cancelar</button>
+            Apagar o roteiro?
+            <button type="button" className="rot-reset-yes" onClick={onReset}>apagar</button>
+            <button type="button" className="rot-reset-no" onClick={onCancelReset}>cancelar</button>
           </span>
         ) : (
-          <button type="button" className="rot-reset" onClick={() => setConfirmReset(true)}>
-            <RefreshCw size={12} /> Recomeçar
+          <button type="button" className="rot-reset" ref={resetBtnRef} onClick={() => setConfirmReset(true)}>
+            <RotateCcw size={12} /> Recomeçar
           </button>
         )}
         {spoken.size > 0 && (

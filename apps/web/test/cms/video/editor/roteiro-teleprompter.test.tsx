@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest'
 import { render, fireEvent } from '@testing-library/react'
+import { toast } from 'sonner'
+
+vi.mock('sonner', () => ({ toast: { info: vi.fn(), success: vi.fn() } }))
 import { VideoEditorProvider } from '@/app/cms/(authed)/video/[id]/edit/context'
 import { VideoDataProvider } from '@/app/cms/(authed)/video/[id]/edit/data-context'
 import { RoteiroStage } from '@/app/cms/(authed)/video/[id]/edit/stages/roteiro-stage'
@@ -196,10 +199,31 @@ describe('RoteiroStage — Recomeçar (reset to chooser)', () => {
   })
 
   it('"apagar" clears the roteiro (saveRoteiro with empty beats → back to chooser)', () => {
+    vi.mocked(toast.info).mockClear()
     const { container, saveRoteiro } = wrapReset()
     fireEvent.click(container.querySelector('.rot-reset') as HTMLElement)
     fireEvent.click(container.querySelector('.rot-reset-yes') as HTMLElement)
     expect(saveRoteiro).toHaveBeenCalledWith('pt', { version: 3, meta: {}, beats: [] })
+    expect(toast.info).toHaveBeenCalledWith('Roteiro limpo', expect.anything())
+  })
+
+  it('marking a line then "apagar" resets state (empty-beats save, no lingering confirm)', () => {
+    const { container, saveRoteiro } = wrapReset()
+    fireEvent.keyDown(document, { key: ' ' }) // mark first line → spoken counter advances
+    expect(container.querySelector('.rot-spoken')!.textContent).toContain('1/3')
+    fireEvent.click(container.querySelector('.rot-reset') as HTMLElement)
+    fireEvent.click(container.querySelector('.rot-reset-yes') as HTMLElement)
+    expect(saveRoteiro).toHaveBeenCalledWith('pt', { version: 3, meta: {}, beats: [] })
+    expect(container.querySelector('.rot-reset-confirm')).toBeNull()
+  })
+
+  it('Escape dismisses the open confirm and restores the Recomeçar button', () => {
+    const { container } = wrapReset()
+    fireEvent.click(container.querySelector('.rot-reset') as HTMLElement)
+    expect(container.querySelector('.rot-reset-confirm')).not.toBeNull()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(container.querySelector('.rot-reset-confirm')).toBeNull()
+    expect(container.querySelector('.rot-reset')).not.toBeNull()
   })
 
   it('"cancelar" dismisses the confirm without clearing (two-step guard)', () => {
