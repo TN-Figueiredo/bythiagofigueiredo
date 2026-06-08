@@ -1,7 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Layers, Clock, Play, RefreshCw, CheckCheck, Eye, BellOff, Edit, Sparkles } from 'lucide-react'
+import { Layers, Clock, Play, RefreshCw, CheckCheck, Eye, BellOff, Edit } from 'lucide-react'
+import { SparklesGlyph } from '../_components/sparkles-glyph'
 import { vidTotals, fmtClock } from '@/lib/pipeline/video-schemas'
 import { videoLineKeys, videoLineSecsFlat, readPctOf } from '@/lib/pipeline/video-read-math'
 import type { RoteiroContentV3 } from '@/lib/pipeline/roteiro-schemas'
@@ -105,7 +106,7 @@ export function RoteiroStage(_props: RoteiroStageProps = {}) {
             direção e quebre em beats.
           </p>
           <button type="button" className="btn primary" style={{ marginTop: 6 }} onClick={() => dispatch({ type: 'SET_STAGE', stage: 'ideia' })}>
-            <Sparkles size={15} /> Ver a direção
+            <SparklesGlyph size={15} /> Ver a direção
           </button>
         </div>
       </div>

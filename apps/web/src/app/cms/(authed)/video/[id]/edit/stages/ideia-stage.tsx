@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Sparkles, ArrowRight } from 'lucide-react'
+import { ArrowRight } from 'lucide-react'
+import { SparklesGlyph } from '../_components/sparkles-glyph'
 import { pillarById } from '@/lib/pipeline/pillars'
 import { CHANNELS } from '@/lib/pipeline/channels'
 import { useVideoEditorState, useVideoEditorDispatch } from '../context'
@@ -66,7 +67,7 @@ export function IdeiaStage({ cur: curProp, lang: langProp }: IdeiaStageProps = {
   return (
     <div className="vi-canvas fade-in">
       <div className="vi-kicker">
-        <Sparkles size={13} /> Direção · {channel?.name ?? lang.toUpperCase()}
+        <SparklesGlyph size={13} /> Direção · {channel?.name ?? lang.toUpperCase()}
       </div>
       <h1
         className="vi-title"
@@ -83,7 +84,7 @@ export function IdeiaStage({ cur: curProp, lang: langProp }: IdeiaStageProps = {
 
       <div className="vi-seed">
         <div className="vi-seed-head">
-          <span className="vi-seed-ico"><Sparkles size={14} /></span>
+          <span className="vi-seed-ico"><SparklesGlyph size={14} /></span>
           <span className="vi-seed-name">A direção</span>{' '}
           <span className="vi-seed-sub">o ângulo que o roteiro vai desenvolver — ainda solto, de propósito</span>
         </div>
@@ -103,7 +104,7 @@ export function IdeiaStage({ cur: curProp, lang: langProp }: IdeiaStageProps = {
 
       <div className="vi-alts">
         <div className="vi-alts-label">
-          <span className="row gap-6"><Sparkles size={12} /> Outras direções do Cowork</span>
+          <span className="row gap-6"><SparklesGlyph size={12} /> Outras direções do Cowork</span>
           <button
             type="button"
             className="vi-alts-gen"
@@ -113,7 +114,7 @@ export function IdeiaStage({ cur: curProp, lang: langProp }: IdeiaStageProps = {
             {isGenerating ? (
               <><span className="cw-spin" /> gerando…</>
             ) : (
-              <><Sparkles size={12} /> Gerar mais</>
+              <><SparklesGlyph size={12} /> Gerar mais</>
             )}
           </button>
         </div>

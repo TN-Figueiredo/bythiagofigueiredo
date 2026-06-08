@@ -2,8 +2,9 @@
 
 import { toast } from 'sonner'
 import {
-  TrendingUp, Info, Layers, Lock, Rss, Sparkles, Trophy, Image, FileText,
+  TrendingUp, Info, Layers, Lock, Rss, Trophy, Image, FileText,
 } from 'lucide-react'
+import { SparklesGlyph } from '../_components/sparkles-glyph'
 import { channelByLang } from '@/lib/pipeline/channels'
 import type { ABDraft } from '@/lib/pipeline/video-schemas'
 import type { AbCtaState } from '@/lib/pipeline/video-ab-precondition'
@@ -119,7 +120,7 @@ export function PublicacaoStage({
           </span>
         ) : (
           <button type="button" className="cw-btn compact" onClick={onSuggest}>
-            <Sparkles size={13} /> Sugerir títulos com Cowork
+            <SparklesGlyph size={13} /> Sugerir títulos com Cowork
           </button>
         )}
       </div>
@@ -158,7 +159,7 @@ export function PublicacaoStage({
                       })
                     }
                   >
-                    <Sparkles size={12} /> Claude Design
+                    <SparklesGlyph size={12} /> Claude Design
                   </button>
                 )}
 

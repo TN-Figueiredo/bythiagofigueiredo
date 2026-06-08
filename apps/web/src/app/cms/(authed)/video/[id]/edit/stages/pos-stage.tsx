@@ -1,7 +1,8 @@
 'use client'
 
 import { useMemo } from 'react'
-import { Sparkles, Edit, CheckCheck, Target, Film, SlidersHorizontal, Link, Eye, Info, AlertTriangle, Rss } from 'lucide-react'
+import { Edit, CheckCheck, Target, Film, SlidersHorizontal, Link, Eye, Info, AlertTriangle, Rss } from 'lucide-react'
+import { SparklesGlyph } from '../_components/sparkles-glyph'
 import type { RoteiroBeatV3, PosBrief } from '@/lib/pipeline/video-schemas'
 import { keyLineText, visNotes } from '@/lib/pipeline/video-pos-derive'
 import { CHANNELS } from '@/lib/pipeline/channels'
@@ -114,7 +115,7 @@ export function PosStage({ beats, brief, activeLang, onPatch, onOpenHandoff, leg
       <div className="pp-bar">
         <div>
           <div className="pp-kick">
-            <Sparkles size={12} /> Pós-produção · brief pro editor
+            <SparklesGlyph size={12} /> Pós-produção · brief pro editor
           </div>
           <div className="pp-editor">
             <Edit size={11} /> tudo editável · ajuste por vídeo

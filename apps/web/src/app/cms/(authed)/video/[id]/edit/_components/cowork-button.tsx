@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Sparkles, ArrowRight } from 'lucide-react'
+import { ArrowRight } from 'lucide-react'
+import { SparklesGlyph } from './sparkles-glyph'
 import { toast } from 'sonner'
 import type { VideoStage } from '../types'
 
@@ -81,7 +82,7 @@ export function CoworkButton({ stage, label = 'Cowork', compact, onSubmit }: Cow
     open && pos && typeof document !== 'undefined'
       ? createPortal(
           <div className="cw-pop" ref={popRef} style={{ position: 'fixed', top: pos.top, right: pos.right }} role="dialog" aria-label="Cowork">
-            <div className="cw-head"><span className="cw-ico"><Sparkles size={13} /></span> Pedir ao Cowork</div>
+            <div className="cw-head"><span className="cw-ico"><SparklesGlyph size={13} /></span> Pedir ao Cowork</div>
             <div className="cw-sub">Ele edita ideia, roteiro, pós e publicação — peça uma alteração ou variação.</div>
             {prompts.length > 0 && (
               <div className="cw-quick">
@@ -120,7 +121,7 @@ export function CoworkButton({ stage, label = 'Cowork', compact, onSubmit }: Cow
         title="Pedir ao Cowork"
         aria-expanded={open}
       >
-        <Sparkles size={14} /> {label}
+        <SparklesGlyph size={14} /> {label}
       </button>
       {pop}
     </div>
