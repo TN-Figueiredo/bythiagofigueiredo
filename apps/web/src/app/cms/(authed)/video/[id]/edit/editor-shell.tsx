@@ -1,12 +1,15 @@
 'use client'
 
 import { lazy, Suspense, useEffect, useRef } from 'react'
+import dynamic from 'next/dynamic'
 import { CheckCircle } from 'lucide-react'
 import { getStagePosition } from '@/lib/pipeline/workflows'
 import { isRecorded } from '@/lib/pipeline/video-lifecycle'
 import { getSectionKey } from '@/lib/pipeline/sections'
 import { PosBriefSchema, ABDraftSchema } from '@/lib/pipeline/video-schemas'
 import { abPublishCtaState } from '@/lib/pipeline/video-ab-precondition'
+import { CHANNELS, channelByLang } from '@/lib/pipeline/channels'
+import { pillarById } from '@/lib/pipeline/pillars'
 import { useVideoEditorState, useVideoEditorDispatch } from './context'
 import { VideoEdBar } from './ed-bar'
 import { VidStages } from './vid-stages'
@@ -18,9 +21,23 @@ import { LockedStage } from './stages/locked-stage'
 import { PosStage } from './stages/pos-stage'
 import { PublicacaoStage } from './stages/publicacao-stage'
 import type { ABDraft } from '@/lib/pipeline/video-schemas'
+import type { VideoLang } from './types'
 
 const IdeiaStage = lazy(() => import('./stages/ideia-stage').then((m) => ({ default: m.IdeiaStage })))
 const RoteiroStage = lazy(() => import('./stages/roteiro-stage').then((m) => ({ default: m.RoteiroStage })))
+
+// §13: code-split the print overlays (createPortal + window deps → client-only).
+const RecordingSheet = dynamic(
+  () => import('./_overlays/recording-sheet').then((m) => m.RecordingSheet),
+  { ssr: false },
+)
+const HandoffSheet = dynamic(
+  () => import('./_overlays/handoff-sheet').then((m) => m.HandoffSheet),
+  { ssr: false },
+)
+
+/** PT/EN segmented options for the overlays (control hidden when ≤1). */
+const OVERLAY_LANG_OPTIONS = CHANNELS.map((c) => ({ lang: c.lang, label: c.label, flag: c.flag }))
 
 /** Unstarted Publicação: one original (A) + three blank challengers → valid 4-up (§3.8). */
 const EMPTY_AB_DRAFT: ABDraft = {
@@ -97,6 +114,66 @@ function StageBody() {
   )
 }
 
+/**
+ * Mounts the two print overlays (Modo Gravação / Brief pro editor) when their
+ * reducer flag is open, fed from the live editor detail. Both are code-split via
+ * `dynamic(ssr:false)` and dispatch `CLOSE_OVERLAY` on exit.
+ */
+function VideoOverlays() {
+  const state = useVideoEditorState()
+  const dispatch = useVideoEditorDispatch()
+  const data = useVideoData()
+  const lang = state.activeLang
+  const channel = channelByLang(lang) ?? CHANNELS[0]! // CHANNELS always has pt+en
+  const pillarLabel = pillarById(data.pillar)?.label ?? '—'
+  const title = data.ideia[lang]?.title ?? ''
+  const beats = data.roteiro[lang]?.beats ?? []
+  const switchLang = (l: string) => dispatch({ type: 'SET_LANG', lang: l as VideoLang })
+
+  // Handoff brief is the postprod_<lang> payload (schema-parsed); unstarted → blanks.
+  const sections = data.sections ?? {}
+  const briefParsed = PosBriefSchema.safeParse(sections[getSectionKey('postprod', lang, 'video')])
+  const brief = briefParsed.success ? briefParsed.data : null
+  const versionsLabel = OVERLAY_LANG_OPTIONS.map((o) => o.label).join(' + ')
+
+  return (
+    <>
+      {state.recordingOpen && (
+        <RecordingSheet
+          code={state.code}
+          channelName={channel.name}
+          channelLabel={channel.label}
+          channelFlag={channel.flag}
+          pillarLabel={pillarLabel}
+          durationRange={data.durationRange ?? ''}
+          title={title}
+          beats={beats}
+          langOptions={OVERLAY_LANG_OPTIONS}
+          onSwitchLang={switchLang}
+          onClose={() => dispatch({ type: 'CLOSE_OVERLAY', overlay: 'recording' })}
+        />
+      )}
+      {state.handoffOpen && (
+        <HandoffSheet
+          code={state.code}
+          channelLabel={channel.label}
+          channelName={channel.name}
+          activeLang={lang}
+          versionsLabel={versionsLabel}
+          title={title}
+          deliverables={brief?.deliverables ?? {}}
+          style={brief?.style ?? []}
+          ctas={brief?.ctas ?? { note: '', rows: [], display: '' }}
+          beats={beats}
+          langOptions={OVERLAY_LANG_OPTIONS}
+          onSwitchLang={switchLang}
+          onClose={() => dispatch({ type: 'CLOSE_OVERLAY', overlay: 'handoff' })}
+        />
+      )}
+    </>
+  )
+}
+
 export function EditorShell() {
   const state = useVideoEditorState()
   const dispatch = useVideoEditorDispatch()
@@ -151,6 +228,7 @@ export function EditorShell() {
         </div>
       </div>
       <FocusExit />
+      <VideoOverlays />
       <div
         role="status"
         aria-live="polite"
