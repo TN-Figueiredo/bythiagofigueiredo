@@ -13,6 +13,7 @@ import type { RoteiroContentV3 } from '@/lib/pipeline/roteiro-schemas'
 const seed: VideoEditorState = {
   itemId: 'vid-1', code: 'V-A07', siteId: 'site-1', stage: 'roteiro', version: 1,
   primaryLang: 'pt', activeLang: 'pt', activeStage: 'roteiro', focus: false, notes: false,
+  showRecStatus: false, recStatus: {}, retakeNotes: {},
   recordingOpen: false, handoffOpen: false, coworkOpen: false,
 }
 
@@ -64,6 +65,52 @@ describe('RoteiroStage — summary row', () => {
   it('"limpar" is absent until a line is marked', () => {
     const { container } = wrap()
     expect(container.querySelector('.rot-clear')).toBeNull()
+  })
+})
+
+describe('RoteiroStage — recording status (per-beat)', () => {
+  it('clean by default: "Status de gravação" toggle is OFF, no .rb-bst control', () => {
+    const { container } = wrap()
+    const tgls = container.querySelectorAll('.rot-notetgl')
+    // two pills now: Status de gravação + Notas do editor
+    const recTgl = Array.from(tgls).find((t) => t.textContent?.includes('Status de gravação'))!
+    expect(recTgl).toBeTruthy()
+    expect(recTgl.className).not.toContain('on')
+    expect(container.querySelector('.rb-bst')).toBeNull()
+    // the read-clock counter is the one shown by default
+    expect(container.querySelector('.rot-spoken')).toBeTruthy()
+    expect(container.querySelector('.rot-secsum')).toBeNull()
+  })
+
+  it('toggling "Status de gravação" reveals the per-beat .rb-bst control + .rot-secsum counter', () => {
+    const { container } = wrap()
+    const recTgl = Array.from(container.querySelectorAll('.rot-notetgl')).find((t) =>
+      t.textContent?.includes('Status de gravação'),
+    ) as HTMLButtonElement
+    fireEvent.click(recTgl)
+    expect(recTgl.className).toContain('on')
+    const bst = container.querySelector('.rb-bst')!
+    expect(bst).toBeTruthy()
+    expect(bst.className).toContain('pendente')
+    const sum = container.querySelector('.rot-secsum')!
+    expect(sum.textContent).toContain('0/1 beats gravados') // ROTEIRO has 1 fala beat
+    expect(container.querySelector('.rot-spoken')).toBeNull() // demoted while status on
+  })
+
+  it('clicking .rb-bst cycles pendente → gravada → refazer; counter + retake note follow', () => {
+    const { container } = wrap()
+    fireEvent.click(
+      Array.from(container.querySelectorAll('.rot-notetgl')).find((t) => t.textContent?.includes('Status de gravação'))!,
+    )
+    const bst = () => container.querySelector('.rb-bst') as HTMLButtonElement
+    fireEvent.click(bst())
+    expect(bst().className).toContain('gravada')
+    expect(container.querySelector('.rot-secsum')!.textContent).toContain('1/1 beats gravados')
+    expect(container.querySelector('.rb-bnote')).toBeNull() // no note while gravada
+    fireEvent.click(bst())
+    expect(bst().className).toContain('refazer')
+    expect(container.querySelector('.rot-secsum')!.textContent).toContain('1 refazer')
+    expect(container.querySelector('.rb-bnote')).toBeTruthy() // retake-reason input appears
   })
 })
 

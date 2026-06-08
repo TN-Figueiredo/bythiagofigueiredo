@@ -1,9 +1,10 @@
 'use client'
 
 import type { CSSProperties } from 'react'
-import { Eye, Sparkles, Plus } from 'lucide-react'
+import { Eye, Sparkles, Plus, Check, RotateCcw } from 'lucide-react'
 import { videoBeatRead } from '@/lib/pipeline/video-schemas'
 import type { RoteiroBeatV3 } from '@/lib/pipeline/roteiro-schemas'
+import type { RecStatus } from '@/lib/pipeline/video-recording'
 import { ScriptLine, ActionRow, EditorNote, emphHtml } from './script-line'
 
 interface RoteiroBeatProps {
@@ -20,6 +21,18 @@ interface RoteiroBeatProps {
   onCommitLine: (beatIdx: number, lineIdx: number, next: string) => void
   onCommitNote: (beatIdx: number, itemIdx: number, next: string) => void
   onAddCue: (beatIdx: number) => void
+  /** "Status de gravação" toggle on → show the per-beat 3-state recording control. */
+  showRecStatus: boolean
+  recStatus: RecStatus
+  retakeNote: string
+  onCycleStatus: () => void
+  onCommitRetake: (text: string) => void
+}
+
+const REC_LABEL: Record<RecStatus, string> = {
+  pendente: 'Pendente',
+  gravada: 'Gravada',
+  refazer: 'Refazer',
 }
 
 /**
@@ -27,7 +40,7 @@ interface RoteiroBeatProps {
  * lines / actions / breaths / talent notes. Editor cues (vis/ed) only show when
  * "Notas do editor" is on — they belong to the editor (Pós), not the performer.
  */
-export function RoteiroBeat({ beat, idx, seq, style, notes, spoken, cursorKey, onToggle, onCommitLine, onCommitNote, onAddCue }: RoteiroBeatProps) {
+export function RoteiroBeat({ beat, idx, seq, style, notes, spoken, cursorKey, onToggle, onCommitLine, onCommitNote, onAddCue, showRecStatus, recStatus, retakeNote, onCycleStatus, onCommitRetake }: RoteiroBeatProps) {
   const lineIdx = beat.script.map((it, i) => (it.type === 'line' ? i : -1)).filter((i) => i >= 0)
   const total = lineIdx.length
   const done = lineIdx.filter((i) => spoken.has(`${idx}-${i}`)).length
@@ -44,7 +57,32 @@ export function RoteiroBeat({ beat, idx, seq, style, notes, spoken, cursorKey, o
         <span className="grow" />
         {total > 0 && <span className={'rb-prog' + (full ? ' full' : '')}>{done}/{total} faladas</span>}
         {total > 0 && <span className="rb-info">~{videoBeatRead(beat)}s de fala</span>}
+        {showRecStatus && (
+          <button
+            type="button"
+            className={'rb-bst ' + recStatus}
+            onClick={onCycleStatus}
+            title="Pendente → Gravada → Refazer"
+            aria-label={`Status de gravação: ${REC_LABEL[recStatus]}. Clique para avançar.`}
+          >
+            <span className="rb-bst-gl">
+              {recStatus === 'gravada' ? <Check size={13} /> : recStatus === 'refazer' ? <RotateCcw size={13} /> : null}
+            </span>
+            <span className="rb-bst-tx">{REC_LABEL[recStatus]}</span>
+          </button>
+        )}
       </div>
+      {showRecStatus && recStatus === 'refazer' && (
+        <input
+          type="text"
+          className="rb-bnote"
+          defaultValue={retakeNote}
+          maxLength={500}
+          placeholder="por que refazer?"
+          aria-label="Nota de refação"
+          onBlur={(e) => onCommitRetake(e.currentTarget.value)}
+        />
+      )}
       {total > 0 && (
         <div className="rb-progbar">
           <span className={full ? 'full' : ''} style={{ width: `${total ? (done / total) * 100 : 0}%` }} />

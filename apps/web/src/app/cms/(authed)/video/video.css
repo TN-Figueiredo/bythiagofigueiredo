@@ -271,6 +271,44 @@
 .rot-notetgl:hover { color: var(--text); border-color: var(--border-strong); }
 .rot-notetgl.on { color: var(--c-pipeline); background: var(--c-pipeline-s); border-color: transparent; }
 
+/* Recording-status summary — `x/N beats gravados · y refazer`. Replaces the read-clock
+   .rot-spoken counter while "Status de gravação" is on (keeps the bar uncluttered). */
+.rot-secsum { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono);
+  font-size: 11.5px; color: var(--text-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* Clean-reading default (the fix): no per-line "mark as spoken" circles on every line —
+   the roteiro reads like a script, not a quiz. The teleprompter keyboard/cursor/clock
+   keep working (only visibility changes). Scoped to screen so the print tick-boxes stay. */
+@media screen {
+  .rot-doc:not(.show-recst) .rb-mark { display: none; }
+  .rot-doc:not(.show-recst) .rb-bst,
+  .rot-doc:not(.show-recst) .rb-bnote { display: none; }
+  /* with the mark gutter gone, let the spoken line text reclaim the indent */
+  .rot-doc:not(.show-recst) .rb-line { gap: 0; }
+}
+
+/* Per-beat 3-state recording control (fala beats only) — lives in .rb-head. ≥44px target. */
+.rb-bst { position: relative; display: inline-flex; align-items: center; gap: 6px; min-height: 28px; height: 28px; min-width: 44px;
+  padding: 0 11px; border-radius: 999px; font-size: 11px; font-weight: 600; letter-spacing: .01em;
+  color: var(--text-dim); background: var(--surface); border: 1px solid var(--border); cursor: pointer;
+  flex-shrink: 0; align-self: center; transition: color var(--t-fast), background var(--t-fast), border-color var(--t-fast), transform var(--t-fast) var(--ease-back); }
+/* expand the touch target to ≥44px without growing the visual pill (28px + 2×8px = 44px) */
+.rb-bst::after { content: ""; position: absolute; inset: -8px; }
+.rb-bst:hover { color: var(--text); border-color: var(--border-strong); }
+.rb-bst:active { transform: scale(.95); transition-duration: .05s; }
+.rb-bst:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent); }
+.rb-bst-gl { display: inline-grid; place-items: center; width: 15px; height: 15px; }
+.rb-bst.pendente .rb-bst-gl { border: 1.5px solid currentColor; border-radius: 50%; }
+.rb-bst.gravada { color: var(--ok); background: var(--ok-s); border-color: transparent; }
+.rb-bst.refazer { color: var(--warn); background: var(--warn-s); border-color: transparent; }
+
+/* Retake reason — one-line input shown under the head when status is "refazer". */
+.rb-bnote { display: block; width: 100%; margin: 7px 0 2px 46px; max-width: calc(100% - 46px);
+  height: 30px; padding: 0 11px; border-radius: 7px; font-size: 12.5px; color: var(--text);
+  background: var(--surface); border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent); outline: none; }
+.rb-bnote::placeholder { color: var(--text-faint); }
+.rb-bnote:focus { border-color: var(--warn); }
+
 .rot-title { font-size: 27px; font-weight: 600; letter-spacing: -0.5px; line-height: 1.18; color: var(--text);
   margin: 6px 0 26px; outline: none; cursor: text; }
 
@@ -825,6 +863,8 @@
   body:not(.recording) .rot-readbar,
   body:not(.recording) .rb-prog,
   body:not(.recording) .rb-progbar,
+  body:not(.recording) .rb-bst,
+  body:not(.recording) .rb-bnote,
   body:not(.recording) .focus-exit { display: none !important; }
   body:not(.recording) .app,
   body:not(.recording) .main,

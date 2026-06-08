@@ -13,6 +13,9 @@ const base: VideoEditorState = {
   activeStage: 'ideia',
   focus: false,
   notes: false,
+  showRecStatus: false,
+  recStatus: {},
+  retakeNotes: {},
   recordingOpen: false,
   handoffOpen: false,
   coworkOpen: false,
@@ -44,6 +47,50 @@ describe('videoReducer', () => {
   it('OPEN_OVERLAY/CLOSE_OVERLAY toggle recording/handoff/cowork flags', () => {
     expect(videoReducer(base, { type: 'OPEN_OVERLAY', overlay: 'recording' }).recordingOpen).toBe(true)
     expect(videoReducer({ ...base, handoffOpen: true }, { type: 'CLOSE_OVERLAY', overlay: 'handoff' }).handoffOpen).toBe(false)
+  })
+})
+
+describe('videoReducer — recording status (per-beat)', () => {
+  it('TOGGLE_REC_STATUS flips showRecStatus (default OFF)', () => {
+    expect(base.showRecStatus).toBe(false)
+    const on = videoReducer(base, { type: 'TOGGLE_REC_STATUS' })
+    expect(on.showRecStatus).toBe(true)
+    expect(videoReducer(on, { type: 'TOGGLE_REC_STATUS' }).showRecStatus).toBe(false)
+  })
+
+  it('CYCLE_BEAT_STATUS advances pendente → gravada → refazer → pendente', () => {
+    const k = 'pt:beat-1'
+    const a = videoReducer(base, { type: 'CYCLE_BEAT_STATUS', key: k })
+    expect(a.recStatus[k]).toBe('gravada')
+    const b = videoReducer(a, { type: 'CYCLE_BEAT_STATUS', key: k })
+    expect(b.recStatus[k]).toBe('refazer')
+    const c = videoReducer(b, { type: 'CYCLE_BEAT_STATUS', key: k })
+    expect(c.recStatus[k]).toBe('pendente')
+  })
+
+  it('CYCLE_BEAT_STATUS treats a missing key as pendente (→ gravada)', () => {
+    const next = videoReducer(base, { type: 'CYCLE_BEAT_STATUS', key: 'en:beat-9' })
+    expect(next.recStatus['en:beat-9']).toBe('gravada')
+  })
+
+  it('CYCLE_BEAT_STATUS does not mutate sibling keys', () => {
+    const seeded: VideoEditorState = { ...base, recStatus: { 'pt:beat-1': 'gravada' } }
+    const next = videoReducer(seeded, { type: 'CYCLE_BEAT_STATUS', key: 'pt:beat-2' })
+    expect(next.recStatus['pt:beat-1']).toBe('gravada')
+    expect(next.recStatus['pt:beat-2']).toBe('gravada')
+  })
+
+  it('SET_BEAT_STATUS sets an explicit status', () => {
+    const next = videoReducer(base, { type: 'SET_BEAT_STATUS', key: 'pt:beat-1', status: 'refazer' })
+    expect(next.recStatus['pt:beat-1']).toBe('refazer')
+  })
+
+  it('SET_RETAKE_NOTE stores trimmed text; empty text deletes the key', () => {
+    const withNote = videoReducer(base, { type: 'SET_RETAKE_NOTE', key: 'pt:beat-1', text: 'luz estourou' })
+    expect(withNote.retakeNotes['pt:beat-1']).toBe('luz estourou')
+    const cleared = videoReducer(withNote, { type: 'SET_RETAKE_NOTE', key: 'pt:beat-1', text: '   ' })
+    expect(cleared.retakeNotes['pt:beat-1']).toBeUndefined()
+    expect('pt:beat-1' in cleared.retakeNotes).toBe(false)
   })
 })
 

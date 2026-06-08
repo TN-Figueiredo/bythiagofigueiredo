@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Layers, Clock, Play, RefreshCw, RotateCcw, CheckCheck, Eye, BellOff, Edit, Plus } from 'lucide-react'
+import { Layers, Clock, Play, RefreshCw, RotateCcw, CheckCheck, Eye, BellOff, Edit, Plus, CircleDot, CircleOff } from 'lucide-react'
 import { toast } from 'sonner'
 import { SparklesGlyph } from '../_components/sparkles-glyph'
 import { CoworkButton } from '../_components/cowork-button'
@@ -10,6 +10,7 @@ import { vidTotals, fmtClock } from '@/lib/pipeline/video-schemas'
 import { videoLineKeys, videoLineSecsFlat, readPctOf } from '@/lib/pipeline/video-read-math'
 import type { RoteiroContentV3 } from '@/lib/pipeline/roteiro-schemas'
 import { splitBeats, markableIdxs } from '@/lib/pipeline/video-perform'
+import { ensureBeatIds } from '@/lib/pipeline/video-recording'
 import { useVideoEditorState, useVideoEditorDispatch } from '../context'
 import { useVideoData } from '../data-context'
 import { RoteiroBeat } from './roteiro-beat'
@@ -31,9 +32,19 @@ export function RoteiroStage(_props: RoteiroStageProps = {}) {
   const dispatch = useVideoEditorDispatch()
   const data = useVideoData()
   const lang = state.activeLang
-  const content = data.roteiro[lang]
+  const rawContent = data.roteiro[lang]
   const notes = state.notes
+  const showRecStatus = state.showRecStatus
+  const recStatus = state.recStatus
+  const retakeNotes = state.retakeNotes
   const overlayOpen = state.recordingOpen || state.handoffOpen || state.coworkOpen
+
+  // Stamp stable beat ids in memory so per-beat recording status has a durable key.
+  // Persistence of these ids is Slice 4 — never triggers a save here. `content` is the
+  // id-stamped view; every downstream read (lanes, lineKeys, save callbacks) uses it.
+  const content = useMemo(() => (rawContent ? ensureBeatIds(rawContent).content : rawContent), [rawContent])
+  // Lang-qualified durable key for a beat: `${lang}:${beat.id}` (PT/EN never collide).
+  const beatKey = useCallback((id: string | undefined) => (id ? `${lang}:${id}` : ''), [lang])
 
   const [spoken, setSpoken] = useState<Set<string>>(() => new Set())
   const [cursor, setCursor] = useState(0)
@@ -251,8 +262,13 @@ export function RoteiroStage(_props: RoteiroStageProps = {}) {
   )
   const goPos = () => dispatch({ type: 'SET_STAGE', stage: 'pos' })
 
+  // Recording-status summary over the fala beats only (one fala beat ≈ one take).
+  const falaBeats = performer.filter((kb) => kb.kind === 'fala')
+  const recDone = falaBeats.filter((kb) => recStatus[beatKey(kb.beat.id)] === 'gravada').length
+  const recRetake = falaBeats.filter((kb) => recStatus[beatKey(kb.beat.id)] === 'refazer').length
+
   return (
-    <div className="rot-doc fade-in">
+    <div className={'rot-doc fade-in' + (showRecStatus ? ' show-recst' : '')}>
       <div className="rot-sum">
         <span className="rs-k"><Layers size={13} /> <b>{performer.length}</b> beats</span>
         <span className="msep">·</span>
@@ -276,9 +292,18 @@ export function RoteiroStage(_props: RoteiroStageProps = {}) {
             <RefreshCw size={12} /> limpar
           </button>
         )}
-        <span className="rot-spoken" title="Falas marcadas durante a leitura">
-          <CheckCheck size={13} /> {spokenFalas}/{totalLines}
-        </span>
+        {showRecStatus ? (
+          <span className="rot-secsum" title="Beats de fala já gravados">
+            {recDone}/{falaBeats.length} beats gravados{recRetake > 0 ? ` · ${recRetake} refazer` : ''}
+          </span>
+        ) : (
+          <span className="rot-spoken" title="Falas marcadas durante a leitura">
+            <CheckCheck size={13} /> {spokenFalas}/{totalLines}
+          </span>
+        )}
+        <button type="button" className={'rot-notetgl' + (showRecStatus ? ' on' : '')} onClick={() => dispatch({ type: 'TOGGLE_REC_STATUS' })}>
+          {showRecStatus ? <CircleDot size={13} /> : <CircleOff size={13} />} Status de gravação
+        </button>
         <button type="button" className={'rot-notetgl' + (notes ? ' on' : '')} onClick={() => dispatch({ type: 'TOGGLE_NOTES' })}>
           {notes ? <Eye size={13} /> : <BellOff size={13} />} Notas do editor
         </button>
@@ -341,6 +366,11 @@ export function RoteiroStage(_props: RoteiroStageProps = {}) {
             onCommitLine={onCommitLine}
             onCommitNote={onCommitNote}
             onAddCue={onAddCue}
+            showRecStatus={showRecStatus}
+            recStatus={recStatus[beatKey(kb.beat.id)] ?? 'pendente'}
+            retakeNote={retakeNotes[beatKey(kb.beat.id)] ?? ''}
+            onCycleStatus={() => dispatch({ type: 'CYCLE_BEAT_STATUS', key: beatKey(kb.beat.id) })}
+            onCommitRetake={(text) => dispatch({ type: 'SET_RETAKE_NOTE', key: beatKey(kb.beat.id), text })}
           />
         )
       })}

@@ -1,4 +1,5 @@
 import { OPEN_AT } from '@/lib/pipeline/video-lifecycle'
+import { nextStatus, type RecStatus } from '@/lib/pipeline/video-recording'
 import type { VideoEditorState, VideoEditorAction, VideoStage } from './types'
 
 function overlayKey(o: 'recording' | 'handoff' | 'cowork'): keyof VideoEditorState {
@@ -23,6 +24,21 @@ export function videoReducer(state: VideoEditorState, action: VideoEditorAction)
       return { ...state, [overlayKey(action.overlay)]: true }
     case 'CLOSE_OVERLAY':
       return { ...state, [overlayKey(action.overlay)]: false }
+    case 'TOGGLE_REC_STATUS':
+      return { ...state, showRecStatus: !state.showRecStatus }
+    case 'CYCLE_BEAT_STATUS': {
+      const cur: RecStatus = state.recStatus[action.key] ?? 'pendente'
+      return { ...state, recStatus: { ...state.recStatus, [action.key]: nextStatus(cur) } }
+    }
+    case 'SET_BEAT_STATUS':
+      return { ...state, recStatus: { ...state.recStatus, [action.key]: action.status } }
+    case 'SET_RETAKE_NOTE': {
+      const text = action.text.trim()
+      const retakeNotes = { ...state.retakeNotes }
+      if (text) retakeNotes[action.key] = text
+      else delete retakeNotes[action.key]
+      return { ...state, retakeNotes }
+    }
     default:
       return state
   }
@@ -49,6 +65,9 @@ export function initialFromDetail(seed: DetailSeed): VideoEditorState {
     activeStage: OPEN_AT(seed.stage) as VideoStage,
     focus: false,
     notes: false,
+    showRecStatus: false,
+    recStatus: {},
+    retakeNotes: {},
     recordingOpen: false,
     handoffOpen: false,
     coworkOpen: false,
