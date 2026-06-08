@@ -273,6 +273,7 @@ describe('PATCH /api/pipeline/items/[id]/sections/[section]', () => {
   it('uses shared key for shared section types', async () => {
     const itemWithIdeia = {
       ...mockItem,
+      format: 'newsletter', // ideia is shared for newsletter (video's ideia is per-language as of the video module)
       sections: {
         ideia_shared: { rev: 1, source: 'user', edited: true, content: 'shared idea', updated_at: '2026-05-10T00:00:00Z' },
       },

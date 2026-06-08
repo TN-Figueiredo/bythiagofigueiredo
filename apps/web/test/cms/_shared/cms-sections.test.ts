@@ -61,9 +61,9 @@ describe('buildCmsSections — v3 nav redesign', () => {
   describe('Content (6 items)', () => {
     const content = sections.find(s => s.label === 'Content')!
 
-    it('items in order: Blog, Pipeline, Courses, Newsletters, Campaigns, Playlists', () => {
+    it('items in order: Blog, Vídeos, Courses, Newsletters, Campaigns, Playlists', () => {
       expect(content.items.map(i => i.label)).toEqual([
-        'Blog', 'Pipeline', 'Courses', 'Newsletters', 'Campaigns', 'Playlists',
+        'Blog', 'Vídeos', 'Courses', 'Newsletters', 'Campaigns', 'Playlists',
       ])
     })
 
