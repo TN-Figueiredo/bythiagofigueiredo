@@ -12,9 +12,12 @@ export const VideoMetadataSchema = z.object({
   playlist_letter: z.string().max(2).optional(),
   episode_number: z.number().int().positive().optional(),
   duration_estimate_min: z.number().positive().optional(),
+  duration_range: z.string().max(40).optional(),          // NEW — "14–17 min"
   thumbnail_concept: z.string().optional(),
   recording_location: z.string().optional(),
+  recorded_at: z.string().max(40).optional(),             // NEW — "23 abr 2026" | "—"
   equipment_notes: z.string().optional(),
+  pillar: z.enum(['viagem', 'ia', 'codigo', 'games', 'nas']).optional(), // NEW
 }).strict()
 
 export const BlogPostMetadataSchema = z.object({
