@@ -41,24 +41,38 @@ interface SectionEnvelope {
   content?: unknown
 }
 
+/** Read the first non-empty string among `keys` off an unknown object (never throws). */
+function pickStr(obj: unknown, keys: string[]): string {
+  if (!obj || typeof obj !== 'object') return ''
+  const rec = obj as Record<string, unknown>
+  for (const k of keys) {
+    const v = rec[k]
+    if (typeof v === 'string' && v.trim()) return v.trim()
+  }
+  return ''
+}
+
 function readIdeia(
   sections: Record<string, SectionEnvelope>,
   lang: 'pt' | 'en',
   fallback: { title?: string | null; direction?: string | null } = {},
 ): IdeiaSection {
   const raw = sections[`ideia_${lang}`]?.content
-  // IdeiaSectionSchema is `.strict()` with defaults; parse tolerates `{}`/missing,
-  // but rejects unknown keys. Fall back to a clean empty payload on any mismatch.
+  // IdeiaSectionSchema is `.strict()` with defaults; parse tolerates `{}`/missing but
+  // rejects unknown keys → a legacy old-shape envelope (`{premise, body, …}` that
+  // migration 20260608000001 copied verbatim into ideia_<lang>) fails the parse and
+  // would collapse to empty. Salvage title/direction from the RAW payload first, then
+  // fall back to the title_<lang> column / synopsis|hook, so opening a legacy video
+  // shows its real title + direction instead of placeholders.
   const parsed = IdeiaSectionSchema.safeParse(raw ?? {})
   const base = parsed.success ? parsed.data : IdeiaSectionSchema.parse({})
-  // Surface EXISTING legacy data: pre-video-module items hold the title in the
-  // `title_<lang>` column and the angle in `synopsis`/`hook` (old shape) — not in the
-  // new per-lang ideia section. Use those when the section field is empty so opening a
-  // legacy video shows its real title/direction instead of placeholders.
+  const legacyTitle = pickStr(raw, ['title', 'premise', 'headline'])
+  const legacyDirection = pickStr(raw, ['direction', 'body', 'synopsis'])
   return {
     ...base,
-    title: base.title?.trim() ? base.title : (fallback.title ?? '').trim(),
-    direction: base.direction?.trim() ? base.direction : (fallback.direction ?? '').trim(),
+    title: (base.title?.trim() ? base.title.trim() : '') || legacyTitle || (fallback.title ?? '').trim(),
+    direction:
+      (base.direction?.trim() ? base.direction.trim() : '') || legacyDirection || (fallback.direction ?? '').trim(),
   }
 }
 
