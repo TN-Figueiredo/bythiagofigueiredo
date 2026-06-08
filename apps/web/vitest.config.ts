@@ -41,6 +41,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'happy-dom',
+    setupFiles: ['./test/setup.ts'],
     exclude: ['e2e/**', 'node_modules/**', '../../.claude/**', '**/.claude/**', '.claude/**'],
     environmentMatchGlobs: [
       ['src/app/api/**', 'node'],

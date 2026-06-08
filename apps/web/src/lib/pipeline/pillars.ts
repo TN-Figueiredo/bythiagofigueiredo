@@ -7,3 +7,8 @@ export const PILLARS = [
 ] as const
 
 export type PillarId = (typeof PILLARS)[number]['id']
+
+export function pillarById(id: PillarId | undefined) {
+  if (!id) return undefined
+  return PILLARS.find((p) => p.id === id)
+}
