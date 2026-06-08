@@ -308,6 +308,19 @@
 .rot-hint .rk { display: inline-grid; place-items: center; min-width: 18px; height: 19px; padding: 0 6px; border-radius: 5px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text-dim); font-size: 10px; }
 .rot-hint .rsep { color: var(--text-faint); }
 
+/* beat jump rail — fast navigation across a long script */
+.rot-rail { display: flex; gap: 7px; flex-wrap: wrap; margin: 0 0 26px; padding-bottom: 2px; }
+.rot-rail .rrl-chip { display: inline-flex; align-items: center; gap: 7px; height: 28px; padding: 0 11px 0 8px; border-radius: 999px;
+  font-size: 12px; font-weight: 500; color: var(--text-dim); background: var(--surface); border: 1px solid var(--border);
+  cursor: pointer; max-width: 220px; transition: color var(--t-fast), border-color var(--t-fast), background var(--t-fast), transform var(--t-fast) var(--ease-back); }
+.rot-rail .rrl-chip:hover { color: var(--text); border-color: var(--border-strong); background: var(--surface-hover); }
+.rot-rail .rrl-chip:active { transform: scale(.96); }
+.rot-rail .rrl-n { display: inline-grid; place-items: center; min-width: 17px; height: 17px; border-radius: 5px; font-family: var(--font-mono);
+  font-size: 10px; font-weight: 700; color: var(--text-dim); background: var(--surface-2); flex-shrink: 0; }
+.rot-rail .rrl-nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rot-rail .rrl-chip.done .rrl-n { color: var(--on-accent); background: var(--ok); }
+.rot-rail .rrl-chip.done { color: var(--text-muted); }
+
 /* breath — compact, indented, with a small arc glyph */
 .rb-pause { margin: 5px 0 5px 46px; }
 .rb-breath { display: inline-flex; align-items: center; gap: 9px; font-family: var(--font-mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-faint); }
@@ -367,6 +380,9 @@
   --rp-card:   #f3f1ea;
   --rp-accent: #b8541a;
   --rs-scale: 1;
+  --rs-lh: 1.95;
+  --rs-vgap: 9px;
+  --rs-tgap: 0.62em;
   background: #2b2824;
   color: var(--rp-ink);
   -webkit-font-smoothing: antialiased;
@@ -430,16 +446,22 @@
 .rs-tone .rst-k { font-style: normal; font-family: var(--font-mono); font-size: 9px; font-weight: 700; letter-spacing: .08em;
   text-transform: uppercase; color: var(--rp-accent); flex-shrink: 0; padding-top: 1px; }
 
+/* density: Compacto cuts pages without losing legibility; Confortável is the base */
+.rec-overlay.dens-comp { --rs-lh: 1.5; --rs-vgap: 5px; --rs-tgap: 0.42em; }
+.rec-overlay.dens-comp .rs-beat { margin-top: 18px; }
+.rec-overlay.dens-comp .rs-tone { margin: 5px 0 5px 43px; }
+.rec-overlay.dens-comp .rs-note { margin-top: 5px; margin-bottom: 5px; }
+
 /* spoken lines — BIG, generous leading; left tick gutter to mark by hand */
-.rs-line { display: flex; gap: 14px; align-items: flex-start; margin: 9px 0; }
-.rs-tick { flex-shrink: 0; width: 15px; height: 15px; margin-top: calc(0.62em * var(--rs-scale)); border: 1.5px solid var(--rp-ink-20); border-radius: 50%; }
-.rs-line-tx { flex: 1; font-size: calc(15.5pt * var(--rs-scale)); line-height: 1.95; color: var(--rp-ink); padding-left: 14px; box-shadow: inset 3px 0 0 transparent; }
+.rs-line { display: flex; gap: 14px; align-items: flex-start; margin: var(--rs-vgap) 0; }
+.rs-tick { flex-shrink: 0; width: 15px; height: 15px; margin-top: calc(var(--rs-tgap) * var(--rs-scale)); border: 1.5px solid var(--rp-ink-20); border-radius: 50%; }
+.rs-line-tx { flex: 1; font-size: calc(15.5pt * var(--rs-scale)); line-height: var(--rs-lh); color: var(--rp-ink); padding-left: 14px; box-shadow: inset 3px 0 0 transparent; }
 .rs-line.key .rs-line-tx { box-shadow: inset 3px 0 0 var(--rp-accent); }
 .rs-line .emph { color: var(--rp-accent); font-weight: 600; text-decoration: underline; text-decoration-thickness: 1.5px;
   text-underline-offset: 3px; text-decoration-color: color-mix(in srgb, var(--rp-accent) 45%, transparent); }
 
 /* breath — compact arc, indented to the text column */
-.rs-pause { margin: 5px 0 5px 43px; }
+.rs-pause { margin: calc(var(--rs-vgap) - 4px) 0 calc(var(--rs-vgap) - 4px) 43px; }
 .rs-breath { display: inline-flex; align-items: center; gap: 9px; font-family: var(--font-mono); font-size: 9px; letter-spacing: .08em;
   text-transform: uppercase; color: var(--rp-ink-45); }
 .rs-breath .rs-dur { text-transform: none; letter-spacing: 0; }
@@ -468,7 +490,8 @@
   .rec-overlay { position: static !important; overflow: visible !important; background: #fff !important; }
   .rec-bar { display: none !important; }
   .rec-sheet { box-shadow: none !important; margin: 0 auto !important; max-width: none !important; padding: 0 !important; border-radius: 0 !important; }
-  @page { size: A4; margin: 16mm 17mm; }
+  @page { size: A4; margin: 16mm 17mm 18mm; }
+  @page { @bottom-right { content: counter(page); font-family: 'JetBrains Mono', monospace; font-size: 9px; color: #80755f; } }
   /* paper economy: let beats flow across pages; keep lines whole + headers attached */
   .rs-beat { break-inside: auto; }
   .rs-beat-head { break-inside: avoid; break-after: avoid; }

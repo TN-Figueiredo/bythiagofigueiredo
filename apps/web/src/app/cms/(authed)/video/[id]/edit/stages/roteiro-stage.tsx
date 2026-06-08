@@ -89,6 +89,22 @@ export function RoteiroStage(_props: RoteiroStageProps = {}) {
     sc.scrollTo?.({ top, behavior: reduce ? 'auto' : 'smooth' })
   }, [cursor, lineKeys])
 
+  // Jump to a beat from the navigation rail. Reuses the cursor-scroll container
+  // resolution (.content → .ed-scroll → closest main) and reduced-motion awareness.
+  const jumpTo = useCallback((i: number) => {
+    const el = document.getElementById(`rb-${i}`)
+    if (!el) return
+    const sc =
+      (el.closest('.content') as HTMLElement | null) ||
+      (document.querySelector('.content') as HTMLElement | null) ||
+      (document.querySelector('.ed-scroll') as HTMLElement | null) ||
+      (el.closest('main') as HTMLElement | null)
+    if (!sc) return
+    const reduce = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    const top = el.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop - 64
+    sc.scrollTo?.({ top, behavior: reduce ? 'auto' : 'smooth' })
+  }, [])
+
   const onCommitLine = useCallback((beatIdx: number, lineIdx: number, next: string) => {
     if (!content) return
     const updated: RoteiroContentV3 = {
@@ -217,6 +233,20 @@ export function RoteiroStage(_props: RoteiroStageProps = {}) {
         <span className="rk">espaço</span> próxima fala <span className="rsep">·</span> <span className="rk">↑</span> voltar{' '}
         <span className="rsep">·</span> clique numa linha pra editar
       </div>
+      {beats.length > 1 && (
+        <div className="rot-rail">
+          {beats.map((b, i) => {
+            const lineIdxs = b.script.map((it, j) => (it.type === 'line' ? j : -1)).filter((j) => j >= 0)
+            const doneCount = lineIdxs.filter((j) => spoken.has(`${i}-${j}`)).length
+            const done = lineIdxs.length > 0 && doneCount === lineIdxs.length
+            return (
+              <button key={i} type="button" className={'rrl-chip' + (done ? ' done' : '')} onClick={() => jumpTo(i)} title={b.name}>
+                <span className="rrl-n">{i + 1}</span><span className="rrl-nm">{b.name}</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
       {beats.map((b, i) => (
         <RoteiroBeat
           key={i}

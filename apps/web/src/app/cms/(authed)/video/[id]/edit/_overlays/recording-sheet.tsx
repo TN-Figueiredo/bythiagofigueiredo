@@ -39,6 +39,7 @@ export function RecordingSheet(props: RecordingSheetProps) {
   const { code, channelName, channelLabel, pillarLabel, durationRange, recordingLocation, title, beats } = props
   const [showEd, setShowEd] = useState(false)
   const [scale, setScale] = useState(1)
+  const [density, setDensity] = useState<'comp' | 'conf'>('conf')
   const [mounted, setMounted] = useState(false)
   const initLang = props.langOptions.find((o) => o.label === channelLabel)?.lang ?? props.langOptions[0]?.lang ?? ''
   const [curLang, setCurLang] = useState(initLang)
@@ -65,7 +66,7 @@ export function RecordingSheet(props: RecordingSheetProps) {
   const hasBeats = beats.length > 0
 
   const overlay = (
-    <div className="rec-overlay" style={{ ['--rs-scale' as string]: String(scale) }}>
+    <div className={'rec-overlay dens-' + density} style={{ ['--rs-scale' as string]: String(scale) }}>
       <div className="rec-bar">
         <button className="rb-back" onClick={props.onClose}><ChevronLeft size={15} /> Fechar</button>
         <span className="rb-title">{title || 'Sem título'}</span>
@@ -88,6 +89,11 @@ export function RecordingSheet(props: RecordingSheetProps) {
         <label className="rb-toggle" onClick={() => setShowEd((s) => !s)}>
           <span className={'tg' + (showEd ? ' on' : '')} /> Notas do editor
         </label>
+
+        <div className="rec-seg" title="Densidade da folha">
+          <button type="button" className={density === 'comp' ? 'on' : ''} onClick={() => setDensity('comp')}>Compacto</button>
+          <button type="button" className={density === 'conf' ? 'on' : ''} onClick={() => setDensity('conf')}>Confortável</button>
+        </div>
 
         <div className="rec-ctl">
           <span className="rec-ctl-lbl">Texto</span>

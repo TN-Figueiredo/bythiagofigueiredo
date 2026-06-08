@@ -52,7 +52,7 @@ export interface RecSheetMeta {
   readSeconds: number
 }
 
-/** Meta row aggregates: beat count + total read estimate (sum of videoBeatRead, /2.6). */
+/** Meta row aggregates: beat count + total read estimate (sum of videoBeatRead, /2.1). */
 export function recSheetMeta(beats: RoteiroBeatV3[]): RecSheetMeta {
   return {
     beatsCount: beats.length,

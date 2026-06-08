@@ -3,8 +3,8 @@ import type { RoteiroBeatV3, ScriptLineV3 } from './roteiro-schemas'
 
 export type { RoteiroBeatV3 } from './roteiro-schemas'
 
-/** Video reading cadence — 2.6 wps, matching the hifi reference exactly (distinct from blog's 2.5). */
-export const VIDEO_READ_WPS = 2.6
+/** Video reading cadence — 2.1 wps (~125 wpm; words ÷ 2.1 + pause seconds, per the v3 handoff). */
+export const VIDEO_READ_WPS = 2.1
 
 const MAX_WORD_COUNT_LENGTH = 100_000
 
@@ -14,7 +14,7 @@ function countWords(text: string): number {
   return safe.split(/\s+/).filter(Boolean).length
 }
 
-/** Per-line reading seconds = max(1, round(words / 2.6)). */
+/** Per-line reading seconds = max(1, round(words / 2.1)). */
 export function videoLineSecs(text: string): number {
   return Math.max(1, Math.round(countWords(text) / VIDEO_READ_WPS))
 }
@@ -25,7 +25,7 @@ function beatWordCountV3(beat: RoteiroBeatV3): number {
     .reduce((n, l) => n + countWords(l.text), 0)
 }
 
-/** Beat read estimate = ceil(beatWordCount / 2.6 + sum(pause.duration)). */
+/** Beat read estimate = ceil(beatWordCount / 2.1 + sum(pause.duration)). */
 export function videoBeatRead(beat: RoteiroBeatV3): number {
   const pauses = beat.script
     .filter((l): l is ScriptLineV3 & { type: 'pause' } => l.type === 'pause')

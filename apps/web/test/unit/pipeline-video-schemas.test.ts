@@ -11,23 +11,23 @@ import { VideoMetadataSchema } from '@/lib/pipeline/schemas'
 import type { RoteiroBeatV3 } from '@/lib/pipeline/roteiro-schemas'
 
 describe('VIDEO_READ_WPS', () => {
-  it('is 2.6 (distinct from blog beatReadTime 2.5)', () => {
-    expect(VIDEO_READ_WPS).toBe(2.6)
+  it('is 2.1 (~125 wpm per v3 handoff; distinct from blog beatReadTime 2.5)', () => {
+    expect(VIDEO_READ_WPS).toBe(2.1)
   })
 })
 
 describe('videoLineSecs', () => {
-  it('= max(1, round(words/2.6)), strips ** emphasis', () => {
-    // 13 words / 2.6 = 5.0 → round 5
-    expect(videoLineSecs('um dois tres quatro cinco seis sete oito nove dez onze doze treze')).toBe(5)
+  it('= max(1, round(words/2.1)), strips ** emphasis', () => {
+    // 13 words / 2.1 = 6.19 → round 6
+    expect(videoLineSecs('um dois tres quatro cinco seis sete oito nove dez onze doze treze')).toBe(6)
     // emphasis markers stripped, not counted as separators
-    expect(videoLineSecs('**zero** receita')).toBe(1) // 2 words / 2.6 = 0.77 → round 1 (floored at 1)
+    expect(videoLineSecs('**zero** receita')).toBe(1) // 2 words / 2.1 = 0.95 → round 1 (floored at 1)
     expect(videoLineSecs('')).toBe(1) // floor at 1
   })
 })
 
 describe('videoBeatRead', () => {
-  it('= ceil(beatWordCount/2.6 + sum(pause.duration)) over v3 lines', () => {
+  it('= ceil(beatWordCount/2.1 + sum(pause.duration)) over v3 lines', () => {
     const beat: RoteiroBeatV3 = {
       idx: 0, name: 'B', status: 'PENDING',
       script: [
@@ -36,8 +36,8 @@ describe('videoBeatRead', () => {
         { type: 'vis', text: 'ignored b-roll note' },
       ],
     }
-    // 10/2.6 = 3.846 + 0.5 = 4.346 → ceil 5
-    expect(videoBeatRead(beat)).toBe(5)
+    // 10/2.1 = 4.762 + 0.5 = 5.262 → ceil 6
+    expect(videoBeatRead(beat)).toBe(6)
   })
 })
 

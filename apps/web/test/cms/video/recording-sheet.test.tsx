@@ -100,4 +100,33 @@ describe('RecordingSheet', () => {
     expect(document.querySelector('.rec-empty')).not.toBeNull()
     expect(document.querySelector('.rec-sheet')).toBeNull()
   })
+
+  it('density defaults to "conf": root carries dens-conf and "Confortável" is .on', () => {
+    render(<RecordingSheet {...baseProps()} />)
+    const overlay = document.querySelector('.rec-overlay') as HTMLElement
+    expect(overlay.classList.contains('dens-conf')).toBe(true)
+    expect(overlay.classList.contains('dens-comp')).toBe(false)
+
+    const seg = document.querySelector('.rec-seg[title="Densidade da folha"]') as HTMLElement
+    expect(seg).not.toBeNull()
+    const buttons = seg.querySelectorAll('button')
+    expect(buttons.length).toBe(2)
+    expect(buttons[0].textContent).toBe('Compacto')
+    expect(buttons[1].textContent).toBe('Confortável')
+    expect(buttons[1].classList.contains('on')).toBe(true)
+    expect(buttons[0].classList.contains('on')).toBe(false)
+  })
+
+  it('clicking "Compacto" applies dens-comp on the root and marks the button .on', () => {
+    render(<RecordingSheet {...baseProps()} />)
+    fireEvent.click(screen.getByText('Compacto'))
+    const overlay = document.querySelector('.rec-overlay') as HTMLElement
+    expect(overlay.classList.contains('dens-comp')).toBe(true)
+    expect(overlay.classList.contains('dens-conf')).toBe(false)
+
+    const seg = document.querySelector('.rec-seg[title="Densidade da folha"]') as HTMLElement
+    const buttons = seg.querySelectorAll('button')
+    expect(buttons[0].classList.contains('on')).toBe(true)
+    expect(buttons[1].classList.contains('on')).toBe(false)
+  })
 })

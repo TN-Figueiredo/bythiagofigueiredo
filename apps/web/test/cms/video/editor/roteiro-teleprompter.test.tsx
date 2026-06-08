@@ -152,6 +152,69 @@ describe('RoteiroStage — beat markup', () => {
   })
 })
 
+describe('RoteiroStage — beat-navigation rail', () => {
+  const TWO_BEATS: RoteiroContentV3 = {
+    version: 3, meta: {},
+    beats: [
+      {
+        idx: 0, name: 'Abertura', status: 'PENDING', duration: 40,
+        script: [
+          { type: 'line', text: 'Primeira fala.' },
+          { type: 'line', text: 'Segunda fala.' },
+        ],
+      },
+      {
+        idx: 1, name: 'Desenvolvimento', status: 'PENDING', duration: 60,
+        script: [
+          { type: 'line', text: 'Terceira fala.' },
+        ],
+      },
+    ],
+  }
+
+  it('does NOT render .rot-rail with a single beat', () => {
+    const { container } = wrap() // ROTEIRO has 1 beat
+    expect(container.querySelector('.rot-rail')).toBeNull()
+  })
+
+  it('renders .rot-rail with one .rrl-chip per beat when >1 beat', () => {
+    const { container } = wrap({ roteiro: TWO_BEATS })
+    const rail = container.querySelector('.rot-rail')!
+    expect(rail).toBeTruthy()
+    const chips = rail.querySelectorAll('.rrl-chip')
+    expect(chips.length).toBe(2)
+    // each chip has number badge + name
+    expect(chips[0].querySelector('.rrl-n')!.textContent).toBe('1')
+    expect(chips[0].querySelector('.rrl-nm')!.textContent).toBe('Abertura')
+    expect(chips[1].querySelector('.rrl-n')!.textContent).toBe('2')
+    expect(chips[1].querySelector('.rrl-nm')!.textContent).toBe('Desenvolvimento')
+  })
+
+  it('the first beat carries the rb-0 anchor id for the rail jump', () => {
+    const { container } = wrap({ roteiro: TWO_BEATS })
+    const beat = container.querySelector('.rot-beat')!
+    expect(beat.getAttribute('id')).toBe('rb-0')
+  })
+
+  it('a chip turns .done once all spoken lines of its beat are marked', () => {
+    const { container } = wrap({ roteiro: TWO_BEATS })
+    let chips = container.querySelectorAll('.rot-rail .rrl-chip')
+    expect(chips[0].className).not.toContain('done')
+    // beat 0 has 2 lines → mark both via teleprompter Space
+    fireEvent.keyDown(document, { key: ' ' })
+    fireEvent.keyDown(document, { key: ' ' })
+    chips = container.querySelectorAll('.rot-rail .rrl-chip')
+    expect(chips[0].className).toContain('done')
+    expect(chips[1].className).not.toContain('done') // beat 1 still pending
+  })
+
+  it('clicking a chip does not throw (jsdom getElementById guard)', () => {
+    const { container } = wrap({ roteiro: TWO_BEATS })
+    const chip = container.querySelector('.rot-rail .rrl-chip') as HTMLButtonElement
+    expect(() => fireEvent.click(chip)).not.toThrow()
+  })
+})
+
 describe('RoteiroStage — document chrome', () => {
   it('renders .rot-doc.fade-in, .rot-title, and .rot-hint with .rk keys', () => {
     const { container } = wrap()

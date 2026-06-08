@@ -52,10 +52,10 @@ describe('recBeatLines', () => {
 })
 
 describe('recSheetMeta', () => {
-  it('builds the meta row including tone presence and ~de fala via /2.6', () => {
+  it('builds the meta row including tone presence and ~de fala via /2.1', () => {
     const meta = recSheetMeta([beat({ duration: 90 })])
     expect(meta.beatsCount).toBe(1)
-    // "Olá pessoal" = 2 words → max(1, round(2/2.6)) = 1s; videoBeatRead ceil(2/2.6 + 0.5) = 2
+    // "Olá pessoal" = 2 words → max(1, round(2/2.1)) = 1s; videoBeatRead ceil(2/2.1 + 0.5) = ceil(1.452) = 2
     expect(meta.readSeconds).toBe(2)
   })
 })

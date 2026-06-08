@@ -17,7 +17,7 @@ export function videoLineKeys(content: RoteiroContentV3): string[] {
 
 /**
  * Returns the estimated reading duration (in seconds) for each `type === 'line'` item,
- * in the same order as `videoLineKeys`. Uses `videoLineSecs` (÷ 2.6 wps).
+ * in the same order as `videoLineKeys`. Uses `videoLineSecs` (÷ 2.1 wps).
  */
 export function videoLineSecsFlat(content: RoteiroContentV3): number[] {
   const secs: number[] = []

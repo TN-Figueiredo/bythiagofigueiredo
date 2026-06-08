@@ -26,7 +26,7 @@ export function RoteiroBeat({ beat, idx, notes, spoken, cursorKey, onToggle, onC
   const full = total > 0 && done === total
 
   return (
-    <div className="rot-beat">
+    <div className="rot-beat" id={`rb-${idx}`}>
       <div className="rb-head">
         <span className="rb-num">#{idx + 1}</span>
         <span className="rb-name">{beat.name}</span>
