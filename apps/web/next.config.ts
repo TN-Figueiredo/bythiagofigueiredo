@@ -92,7 +92,6 @@ const nextConfig: NextConfig = {
     return {
       beforeFiles: [
         { source: '/cms/up-next', destination: '/cms/pipeline' },
-        { source: '/cms/video', destination: '/cms/pipeline/video' },
         { source: '/cms/courses', destination: '/cms/pipeline/course' },
         { source: '/cms/library/research', destination: '/cms/pipeline/research' },
         { source: '/cms/library/reference', destination: '/cms/pipeline/reference' },
