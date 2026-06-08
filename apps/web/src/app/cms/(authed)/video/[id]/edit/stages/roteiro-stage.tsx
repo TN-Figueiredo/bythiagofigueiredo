@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Layers, Clock, Play, RefreshCw, CheckCheck, Eye, BellOff, Edit, Plus } from 'lucide-react'
+import { toast } from 'sonner'
 import { SparklesGlyph } from '../_components/sparkles-glyph'
 import { CoworkButton } from '../_components/cowork-button'
 import { CHANNELS } from '@/lib/pipeline/channels'
@@ -33,6 +34,7 @@ export function RoteiroStage(_props: RoteiroStageProps = {}) {
 
   const [spoken, setSpoken] = useState<Set<string>>(() => new Set())
   const [cursor, setCursor] = useState(0)
+  const [confirmReset, setConfirmReset] = useState(false)
 
   const beats = content?.beats ?? []
   const lineKeys = useMemo(() => (content ? videoLineKeys(content) : []), [content])
@@ -102,6 +104,15 @@ export function RoteiroStage(_props: RoteiroStageProps = {}) {
   const onStartBlank = () => {
     void data.saveRoteiro(lang, { version: 3, meta: {}, beats: [{ idx: 0, name: 'Beat 1', status: 'PENDING', script: [] }] })
   }
+  // "Recomeçar": clear all beats → back to the generation chooser (the empty-with-
+  // direction state). Two-step inline confirm guards against deleting written work.
+  const onReset = () => {
+    void data.saveRoteiro(lang, { version: 3, meta: {}, beats: [] })
+    setConfirmReset(false)
+    setSpoken(new Set())
+    setCursor(0)
+    toast.info('Roteiro limpo', { description: 'Volte a gerar com o Cowork ou comece do zero.' })
+  }
 
   if (!content || beats.length === 0) {
     if ((ideia.direction ?? '').trim()) {
@@ -161,6 +172,17 @@ export function RoteiroStage(_props: RoteiroStageProps = {}) {
         <span className="msep">·</span>
         <span className="rs-k rot-clock"><Play size={12} /> <b>{fmtClock(elapsedSecs)}</b> / {fmtClock(totalSecs)}</span>
         <span className="grow" />
+        {confirmReset ? (
+          <span className="rot-reset-confirm">
+            Apagar o roteiro?{' '}
+            <button type="button" className="rot-reset-yes" onClick={onReset}>apagar</button>{' '}
+            <button type="button" className="rot-reset-no" onClick={() => setConfirmReset(false)}>cancelar</button>
+          </span>
+        ) : (
+          <button type="button" className="rot-reset" onClick={() => setConfirmReset(true)}>
+            <RefreshCw size={12} /> Recomeçar
+          </button>
+        )}
         {spoken.size > 0 && (
           <button type="button" className="rot-clear" onClick={() => { setSpoken(new Set()); setCursor(0) }}>
             <RefreshCw size={12} /> limpar

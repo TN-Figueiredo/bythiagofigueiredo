@@ -165,3 +165,49 @@ describe('RoteiroStage — document chrome', () => {
     expect(container.textContent).toContain('Ver a direção')
   })
 })
+
+describe('RoteiroStage — Recomeçar (reset to chooser)', () => {
+  function wrapReset() {
+    const saveRoteiro = vi.fn().mockResolvedValue(undefined)
+    const data = {
+      ideia: { pt: { title: 'Meu vídeo', direction: 'Uma direção', siblings: [], logline: '', angles: '', framework: '' }, en: { title: '', direction: '', siblings: [], logline: '', angles: '', framework: '' } },
+      roteiro: { pt: ROTEIRO, en: null },
+      pillar: 'codigo' as const, durationRange: '14–17 min',
+      saveIdeia: vi.fn(), saveTitle: vi.fn(), appendSiblings: vi.fn(), saveRoteiro,
+    }
+    const r = render(
+      <VideoEditorProvider initialState={seed}>
+        <VideoDataProvider value={data as never}><RoteiroStage /></VideoDataProvider>
+      </VideoEditorProvider>,
+    )
+    return { ...r, saveRoteiro }
+  }
+
+  it('shows "Recomeçar" in the filled bar; clicking reveals an INLINE confirm (no popup)', () => {
+    const { container } = wrapReset()
+    const reset = container.querySelector('.rot-reset') as HTMLElement
+    expect(reset.textContent).toContain('Recomeçar')
+    fireEvent.click(reset)
+    const confirm = container.querySelector('.rot-reset-confirm')!
+    expect(confirm.textContent).toContain('Apagar o roteiro?')
+    expect(confirm.querySelector('.rot-reset-yes')!.textContent).toContain('apagar')
+    expect(confirm.querySelector('.rot-reset-no')!.textContent).toContain('cancelar')
+    expect(container.querySelector('.rot-reset')).toBeNull() // plain button hidden while confirming
+  })
+
+  it('"apagar" clears the roteiro (saveRoteiro with empty beats → back to chooser)', () => {
+    const { container, saveRoteiro } = wrapReset()
+    fireEvent.click(container.querySelector('.rot-reset') as HTMLElement)
+    fireEvent.click(container.querySelector('.rot-reset-yes') as HTMLElement)
+    expect(saveRoteiro).toHaveBeenCalledWith('pt', { version: 3, meta: {}, beats: [] })
+  })
+
+  it('"cancelar" dismisses the confirm without clearing (two-step guard)', () => {
+    const { container, saveRoteiro } = wrapReset()
+    fireEvent.click(container.querySelector('.rot-reset') as HTMLElement)
+    fireEvent.click(container.querySelector('.rot-reset-no') as HTMLElement)
+    expect(saveRoteiro).not.toHaveBeenCalled()
+    expect(container.querySelector('.rot-reset')).not.toBeNull()
+    expect(container.querySelector('.rot-reset-confirm')).toBeNull()
+  })
+})

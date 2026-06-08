@@ -329,6 +329,17 @@
 .rot-clear { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--text-dim); background: none; border: none; cursor: pointer; transition: color var(--t-fast); }
 .rot-clear:hover { color: var(--accent-text); }
 
+/* "Recomeçar" — delete the roteiro back to the generation chooser, with a two-step
+   INLINE confirm (no popup). */
+.rot-reset { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--text-dim); background: none; border: none; cursor: pointer; transition: color var(--t-fast); }
+.rot-reset:hover { color: var(--text); }
+.rot-reset-confirm { display: inline-flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--text-dim); }
+.rot-reset-confirm button { background: none; border: none; padding: 0; cursor: pointer; font-size: 11.5px; font-weight: 600; transition: color var(--t-fast); }
+.rot-reset-yes { color: var(--danger); }
+.rot-reset-yes:hover { filter: brightness(1.18); }
+.rot-reset-no { color: var(--text-dim); }
+.rot-reset-no:hover { color: var(--text); }
+
 /* editor-layer notes (visual / editor) — distinct from lines, toggleable */
 .rb-note { display: flex; gap: 10px; margin: 9px 0 9px 46px; padding: 9px 12px; border-radius: 9px;
   background: var(--surface-2); border: 1px solid var(--border-soft); font-size: 12.5px; line-height: 1.5; color: var(--text-muted); }
