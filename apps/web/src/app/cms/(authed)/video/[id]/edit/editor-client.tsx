@@ -55,20 +55,6 @@ interface InitialData {
   winnerVariantId: string | null
 }
 
-// `useVideoSection` reads scalar fields off `initialData` without re-validating the
-// embedded `content`; the `.content` shape is the section payload (IdeiaPayload /
-// RoteiroContentV3). We build a permissive envelope here.
-function seed(content: unknown): SectionData {
-  return {
-    content: content as SectionData['content'],
-    rev: 0,
-    source: 'user',
-    edited: false,
-    cowork_rev: null,
-    updated_at: null as unknown as string,
-  }
-}
-
 /**
  * Hydrate a section hook from the stored `content_pipeline.sections[<key>]` envelope.
  * Stored values are full `{ rev, source, edited, content, ... }` envelopes (services/items.ts);
@@ -80,6 +66,24 @@ function seedEnvelope(raw: unknown): SectionData | null {
   const env = raw as Partial<SectionData>
   return {
     content: (env.content ?? null) as SectionData['content'],
+    rev: typeof env.rev === 'number' ? env.rev : 0,
+    source: env.source ?? 'user',
+    edited: env.edited ?? false,
+    cowork_rev: env.cowork_rev ?? null,
+    updated_at: (env.updated_at ?? null) as unknown as string,
+  }
+}
+
+/**
+ * Like `seedEnvelope` but keeps the already-parsed/enriched `content` (ideia title
+ * fallback, roteiro v3) while carrying the REAL section `rev` from the stored envelope.
+ * Without the real rev the hook starts at `rev: 0`, so the first save after a reload
+ * 409-conflicts against an already-persisted section (e.g. Recomeçar → clear was lost).
+ */
+function seedWithRev(content: unknown, raw: unknown): SectionData {
+  const env = raw && typeof raw === 'object' ? (raw as Partial<SectionData>) : {}
+  return {
+    content: content as SectionData['content'],
     rev: typeof env.rev === 'number' ? env.rev : 0,
     source: env.source ?? 'user',
     edited: env.edited ?? false,
@@ -106,10 +110,10 @@ export function VideoEditorClient({
 
   const onSaveSuccess = useCallback((_rev: number, v: number) => setVersion(v), [])
 
-  const ideiaPt = useVideoSection({ itemId: initialState.itemId, sectionBase: 'ideia', lang: 'pt', format: 'video', itemVersion: version, initialData: seed(initial.ideia.pt), onSaveSuccess })
-  const ideiaEn = useVideoSection({ itemId: initialState.itemId, sectionBase: 'ideia', lang: 'en', format: 'video', itemVersion: version, initialData: seed(initial.ideia.en), onSaveSuccess })
-  const roteiroPt = useVideoSection({ itemId: initialState.itemId, sectionBase: 'roteiro', lang: 'pt', format: 'video', itemVersion: version, initialData: initial.roteiro.pt ? seed(initial.roteiro.pt) : null, onSaveSuccess })
-  const roteiroEn = useVideoSection({ itemId: initialState.itemId, sectionBase: 'roteiro', lang: 'en', format: 'video', itemVersion: version, initialData: initial.roteiro.en ? seed(initial.roteiro.en) : null, onSaveSuccess })
+  const ideiaPt = useVideoSection({ itemId: initialState.itemId, sectionBase: 'ideia', lang: 'pt', format: 'video', itemVersion: version, initialData: seedWithRev(initial.ideia.pt, initialSections.ideia_pt), onSaveSuccess })
+  const ideiaEn = useVideoSection({ itemId: initialState.itemId, sectionBase: 'ideia', lang: 'en', format: 'video', itemVersion: version, initialData: seedWithRev(initial.ideia.en, initialSections.ideia_en), onSaveSuccess })
+  const roteiroPt = useVideoSection({ itemId: initialState.itemId, sectionBase: 'roteiro', lang: 'pt', format: 'video', itemVersion: version, initialData: initial.roteiro.pt ? seedWithRev(initial.roteiro.pt, initialSections.roteiro_pt) : null, onSaveSuccess })
+  const roteiroEn = useVideoSection({ itemId: initialState.itemId, sectionBase: 'roteiro', lang: 'en', format: 'video', itemVersion: version, initialData: initial.roteiro.en ? seedWithRev(initial.roteiro.en, initialSections.roteiro_en) : null, onSaveSuccess })
   const postprodPt = useVideoSection({ itemId: initialState.itemId, sectionBase: 'postprod', lang: 'pt', format: 'video', itemVersion: version, initialData: seedEnvelope(initialSections.postprod_pt), onSaveSuccess })
   const postprodEn = useVideoSection({ itemId: initialState.itemId, sectionBase: 'postprod', lang: 'en', format: 'video', itemVersion: version, initialData: seedEnvelope(initialSections.postprod_en), onSaveSuccess })
   const publishPt = useVideoSection({ itemId: initialState.itemId, sectionBase: 'publish', lang: 'pt', format: 'video', itemVersion: version, initialData: seedEnvelope(initialSections.publish_pt), onSaveSuccess })
