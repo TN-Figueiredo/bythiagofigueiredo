@@ -99,12 +99,14 @@ export function RoteiroStage(_props: RoteiroStageProps = {}) {
     return (
       <div className="rot-empty fade-in">
         <div className="card card-pad" style={{ textAlign: 'center', padding: '30px 26px' }}>
-          <Edit size={22} />
-          <h2>Ainda é só uma ideia</h2>
-          <p>
-            Esse vídeo tem uma direção, mas o roteiro não foi destrinchado. Quando chegar a hora de gravar, abra a
-            direção e quebre em beats.
-          </p>
+          <div className="empty">
+            <div className="empty-ico"><Edit size={22} /></div>
+            <div className="empty-title">Ainda é só uma ideia</div>
+            <div className="empty-sub">
+              Esse vídeo tem uma direção, mas o roteiro não foi destrinchado. Quando chegar a hora de gravar, abra a
+              direção e quebre em beats.
+            </div>
+          </div>
           <button type="button" className="btn primary" style={{ marginTop: 6 }} onClick={() => dispatch({ type: 'SET_STAGE', stage: 'ideia' })}>
             <SparklesGlyph size={15} /> Ver a direção
           </button>

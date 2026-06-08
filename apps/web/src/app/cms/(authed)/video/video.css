@@ -84,6 +84,17 @@
    stacked with no gap. Make them inline-flex with the intended 6px gap, module-scoped. */
 .video-hub-page .row, .vid-ed .row { display: inline-flex; align-items: center; gap: 6px; }
 
+/* Generic `.card` + `.empty` state (handoff components.css — not in the ported
+   video.css). Used by the Roteiro "ainda é só uma ideia" empty card. */
+.vid-ed .card { background: var(--surface); border: 1px solid var(--border-soft); border-radius: var(--radius); }
+.vid-ed .card-pad { padding: 18px; }
+.vid-ed .rot-empty { max-width: 540px; margin: 36px auto 0; }
+.vid-ed .empty { display: flex; flex-direction: column; align-items: center; gap: 7px; }
+.vid-ed .empty-ico { width: 46px; height: 46px; display: grid; place-items: center; border-radius: 50%;
+  color: var(--text-faint); background: color-mix(in srgb, var(--text) 6%, transparent); margin-bottom: 5px; }
+.vid-ed .empty-title { font-size: 16px; font-weight: 650; color: var(--text); }
+.vid-ed .empty-sub { font-size: 13px; line-height: 1.55; color: var(--text-dim); max-width: 400px; margin: 0 auto; }
+
 /* ---------- HUB ---------- */
 .vhub-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 22px; }
 @media (max-width: 1080px) { .vhub-grid { grid-template-columns: repeat(2,1fr); } }
