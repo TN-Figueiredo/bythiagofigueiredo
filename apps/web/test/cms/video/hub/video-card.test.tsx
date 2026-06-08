@@ -10,37 +10,49 @@ const base: VideoHubCard = {
 }
 
 describe('VideoCard', () => {
-  it('is a full-width link button to the editor with code, title, duration, beats', () => {
-    render(<VideoCard card={base} />)
+  it('is a .vcard link to the editor with code, title, duration', () => {
+    const { container } = render(<VideoCard card={base} />)
     const link = screen.getByRole('link')
     expect(link).toHaveAttribute('href', '/cms/video/v1/edit')
-    expect(screen.getByText('V-A07')).toBeInTheDocument()
-    expect(screen.getByText('Como montei meu NAS')).toBeInTheDocument()
-    expect(screen.getByText('14–17 min')).toBeInTheDocument()
-    expect(screen.getByText('4 beats')).toBeInTheDocument()
+    expect(link).toHaveClass('vcard')
+    expect(container.querySelector('.vcard-code')!.textContent).toBe('V-A07')
+    expect(container.querySelector('.vcard-title')!.textContent).toBe('Como montei meu NAS')
+    expect(container.querySelector('.vf-dur')!.textContent).toBe('14–17 min')
   })
 
-  it('renders a colored uppercase pillar pill bound to the pillar color', () => {
-    render(<VideoCard card={base} />)
-    const pill = screen.getByText('NAS')
-    expect(pill.className).toContain('vcard-pillar')
+  it('renders a .vpill pillar pill bound to the pillar color via --pc', () => {
+    const { container } = render(<VideoCard card={base} />)
+    const pill = container.querySelector('.vpill') as HTMLElement
+    expect(pill).toBeTruthy()
+    expect(pill.textContent).toContain('NAS')
     expect(pill.getAttribute('style') ?? '').toContain('#22c55e')
+    expect(pill.querySelector('.vp-dot')).toBeTruthy()
   })
 
-  it('renders only the languages that are present', () => {
-    render(<VideoCard card={{ ...base, hasPt: true, hasEn: true }} />)
-    expect(screen.getByText('🇧🇷')).toBeInTheDocument()
-    expect(screen.getByText('🇬🇧')).toBeInTheDocument()
+  it('renders only the flags for the languages present', () => {
+    const { container } = render(<VideoCard card={{ ...base, hasPt: true, hasEn: true }} />)
+    const langs = container.querySelector('.vcard-langs')!.textContent ?? ''
+    expect(langs).toContain('🇧🇷')
+    expect(langs).toContain('🇺🇸')
   })
 
-  it('falls back to "Sem título" on a blank title and shows no pill for legacy (no pillar)', () => {
-    render(<VideoCard card={{ ...base, title: 'Sem título', pillar: undefined }} />)
+  it('falls back to "Sem título" and shows no pill for legacy (no pillar)', () => {
+    const { container } = render(<VideoCard card={{ ...base, title: 'Sem título', pillar: undefined }} />)
     expect(screen.getByText('Sem título')).toBeInTheDocument()
-    expect(screen.queryByText('NAS')).not.toBeInTheDocument()
+    expect(container.querySelector('.vpill')).toBeNull()
   })
 
-  it('shows the dim "sem roteiro" foot label when there is no roteiro', () => {
-    render(<VideoCard card={{ ...base, beatsLabel: 'sem roteiro', beatsCount: 0 }} />)
-    expect(screen.getByText('sem roteiro')).toBeInTheDocument()
+  it('shows the dim beatsLabel in .vf-beats when there is no roteiro', () => {
+    const { container } = render(<VideoCard card={{ ...base, beatsLabel: 'sem roteiro', beatsCount: 0 }} />)
+    const beats = container.querySelector('.vf-beats') as HTMLElement
+    expect(beats.className).toContain('dim')
+    expect(beats.textContent).toContain('sem roteiro')
+  })
+
+  it('shows "{n} beats" in .vf-beats when beatsCount > 0', () => {
+    const { container } = render(<VideoCard card={base} />)
+    const beats = container.querySelector('.vf-beats') as HTMLElement
+    expect(beats.className).not.toContain('dim')
+    expect(beats.textContent).toContain('4 beats')
   })
 })
