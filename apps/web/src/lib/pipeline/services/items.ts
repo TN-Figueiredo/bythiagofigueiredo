@@ -1714,6 +1714,20 @@ export async function patchSection(
   if (item.format === 'video') {
     const typedSchema = TYPED_VIDEO_SECTION_SCHEMAS[params.section]
     if (typedSchema) {
+      // A string here means a JSON payload that failed to parse upstream — almost always
+      // the MCP transport (mcp-remote/desktop client) truncating a large tool-call argument.
+      // Surface the real diagnosis instead of a cryptic "Expected object, received string".
+      if (typeof parsed.data.content === 'string') {
+        const len = parsed.data.content.length
+        throw new PipelineServiceError(
+          'VALIDATION_ERROR',
+          `'${params.section}' content arrived as a string (${len} chars), not a JSON object. ` +
+            `This is usually the MCP transport truncating a large payload (~1.5KB+). Send a leaner object, ` +
+            `or split the detail into the roteiro/notes.`,
+          400,
+          { section: params.section, received: 'string', length: len },
+        )
+      }
       const contentCheck = typedSchema.safeParse(parsed.data.content)
       if (!contentCheck.success) {
         const fields = contentCheck.error.issues
