@@ -25,6 +25,12 @@ export interface VideoEditorState {
   recStatus: Record<string, RecStatus>
   // Free-text retake notes, same lang-qualified beat keys. Absent key = no note.
   retakeNotes: Record<string, string>
+  // The content_hash the beat was RECORDED against, carried verbatim from the durable
+  // ledger on hydrate (same `${lang}:${beat.id}` keys). The UI computes
+  // `stale = recRecordedHash[key] !== currentBeatHash` — so an edit AFTER a recording is
+  // surfaced ("roteiro mudou desde a gravação") without the write path overwriting it.
+  // Absent key = never recorded (no stale baseline).
+  recRecordedHash: Record<string, string>
   recordingOpen: boolean
   handoffOpen: boolean
   coworkOpen: boolean
@@ -47,4 +53,4 @@ export type VideoEditorAction =
   // Reconcile the editor's per-beat status/notes with the durable ledger (local-first +
   // server). Replaces the keys for the hydrated lang while preserving other-lang keys —
   // the maps are lang-qualified (`${lang}:${beat.id}`), so a PT hydrate must not wipe EN.
-  | { type: 'HYDRATE_RECORDING'; lang: VideoLang; recStatus: Record<string, RecStatus>; retakeNotes: Record<string, string> }
+  | { type: 'HYDRATE_RECORDING'; lang: VideoLang; recStatus: Record<string, RecStatus>; retakeNotes: Record<string, string>; recordedHash: Record<string, string> }

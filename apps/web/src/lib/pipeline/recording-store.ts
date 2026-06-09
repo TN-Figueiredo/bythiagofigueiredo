@@ -29,12 +29,19 @@ export interface LocalRecRow {
   contentHash?: string
   /** Epoch ms, set by the caller (NEVER `Date.now()` inside a pure fn). */
   updatedAt: number
+  /**
+   * The server timestamp (epoch ms) this row was last synced against. Used to decide,
+   * for a CLEAN local row, whether an incoming remote is genuinely newer on the server
+   * (cross-device update) rather than comparing wall-clock `updatedAt`. Undefined = never
+   * synced (treated as -Infinity, so any remote with a timestamp is newer).
+   */
+  serverUpdatedAt?: number
   /** true = local change not yet synced to the server. */
   dirty: boolean
 }
 
-/** A remote row: a {@link LocalRecRow} without the local-only `dirty` flag. */
-export type RemoteRecRow = Omit<LocalRecRow, 'dirty'>
+/** A remote row: a {@link LocalRecRow} without the local-only `dirty`/`serverUpdatedAt` fields. */
+export type RemoteRecRow = Omit<LocalRecRow, 'dirty' | 'serverUpdatedAt'>
 
 /** Composite store key for a row: `${pipelineId}:${lang}:${beatId}`. */
 export function rowKey(row: Pick<LocalRecRow, 'pipelineId' | 'lang' | 'beatId'>): string {
@@ -48,12 +55,16 @@ export function rowKey(row: Pick<LocalRecRow, 'pipelineId' | 'lang' | 'beatId'>)
 /**
  * Merge local rows with rows fetched from the server, per composite key.
  *
- * Rules (deterministic):
+ * Rules (deterministic, server-authoritative):
  *   • Local row is `dirty` → KEEP local (it's an unsynced edit; local wins,
  *     regardless of timestamps — the server hasn't seen this change yet).
- *   • Otherwise (local clean, both present) → take whichever has the newer
- *     `updatedAt`. On a tie, prefer remote (the server is the source of truth
- *     for a clean local row), and the result is `dirty:false`.
+ *   • Otherwise (local clean, both present) → accept the remote when the remote's
+ *     SERVER timestamp (`updatedAt`) is strictly newer than the timestamp this clean
+ *     local row was last synced against (`serverUpdatedAt`, defaulting to -Infinity).
+ *     This is what makes a cross-device update arrive: comparing against the last-
+ *     synced server timestamp instead of the local wall-clock `updatedAt` (which a
+ *     clean row may carry from a prior, equal-or-newer-looking sync). Otherwise keep
+ *     local. Adopted remotes are `dirty:false` with `serverUpdatedAt` set.
  *   • Remote-only key → adopt remote as `dirty:false`.
  *   • Local-only key → keep local as-is (dirty stays whatever it was; a dirty
  *     local-only row is an edit the server hasn't received yet).
@@ -86,8 +97,10 @@ export function mergeRemoteRows(local: LocalRecRow[], remote: RemoteRecRow[]): L
       continue
     }
 
-    // Clean local + remote present: newer-wins, tie → remote.
-    if (remoteRow.updatedAt >= localRow.updatedAt) {
+    // Clean local + remote present: accept remote only if the server has a NEWER
+    // version than the one this clean row was last synced against (cross-device).
+    const lastSynced = localRow.serverUpdatedAt ?? Number.NEGATIVE_INFINITY
+    if (remoteRow.updatedAt > lastSynced) {
       merged.push(adoptRemote(remoteRow))
     } else {
       merged.push(localRow)
@@ -104,9 +117,13 @@ export function mergeRemoteRows(local: LocalRecRow[], remote: RemoteRecRow[]): L
   return merged
 }
 
-/** Convert a remote row into a clean (`dirty:false`) local row. Pure. */
+/**
+ * Convert a remote row into a clean (`dirty:false`) local row, recording the remote's
+ * server timestamp as `serverUpdatedAt` so a later merge can detect a newer server
+ * version. Pure.
+ */
 function adoptRemote(remote: RemoteRecRow): LocalRecRow {
-  return { ...remote, dirty: false }
+  return { ...remote, serverUpdatedAt: remote.updatedAt, dirty: false }
 }
 
 // ---------------------------------------------------------------------------

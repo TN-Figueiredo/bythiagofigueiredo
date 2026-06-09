@@ -229,7 +229,7 @@ export function VideoEditorClient({
 
   return (
     <VideoEditorErrorBoundary>
-      <VideoEditorProvider initialState={initialState}>
+      <VideoEditorProvider initialState={initialState} liveVersion={version} setLiveVersion={setVersion}>
         <VideoDataProvider value={data}>
           <EditorShell />
           <Toaster

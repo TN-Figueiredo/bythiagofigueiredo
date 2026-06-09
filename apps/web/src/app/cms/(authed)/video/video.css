@@ -663,11 +663,13 @@
   padding: 40px 5vw 150px; }
 .recr-none { color: var(--rp-ink-45); font-family: var(--font-sans); font-size: 16px; text-align: center; }
 
-/* the reading card — border tint = peripheral status (green gravada / amber refazer) */
-.recr-card { width: 100%; max-width: 1100px; border: 3px solid transparent; border-radius: 16px;
+/* the reading card — thick border tint = peripheral status (green gravada / orange
+   refazer). The status border is intentionally distinct from the in-text emphasis
+   yellow (--rp-accent) so a glance at the frame ≠ a glance at an emphasized word. */
+.recr-card { width: 100%; max-width: 1100px; border: 7px solid transparent; border-radius: 16px;
   padding: clamp(20px, 4vw, 48px); transition: border-color .2s var(--ease); }
 .recr-card.st-gravada { border-color: #2fbf6b; }
-.recr-card.st-refazer { border-color: var(--rp-accent); }
+.recr-card.st-refazer { border-color: #f0792b; }
 
 .recr-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 16px; margin-bottom: clamp(14px, 2.5vw, 28px);
   font-family: var(--font-mono); font-size: 14px; color: var(--rp-ink-45); }
@@ -676,7 +678,7 @@
 .recr-dur { color: var(--rp-ink-45); }
 .recr-badge { font-family: var(--font-sans); font-weight: 700; padding: 2px 10px; border-radius: 999px; font-size: 12.5px; }
 .recr-badge.gravada { color: #04140a; background: #2fbf6b; }
-.recr-badge.refazer { color: #1b1510; background: var(--rp-accent); }
+.recr-badge.refazer { color: #1b1008; background: #f0792b; }
 
 /* visually-hidden heading — the focus target / live announce; the big lines carry the read */
 .recr-head { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
@@ -697,7 +699,7 @@
 .recr-set:active { transform: scale(.96); }
 .recr-set.rec { color: #04140a; background: #2fbf6b; }
 .recr-set.rec:hover { filter: brightness(1.08); }
-.recr-set.ret { color: #1b1510; background: var(--rp-accent); }
+.recr-set.ret { color: #1b1008; background: #f0792b; }
 .recr-set.ret:hover { filter: brightness(1.08); }
 
 /* undo toast — ephemeral mistap insurance */
@@ -723,13 +725,11 @@
 .recr-navbtn:focus-visible, .recr-set:focus-visible, .recr-undo:focus-visible {
   outline: none; box-shadow: 0 0 0 2px #000, 0 0 0 4px var(--rp-accent); }
 
-/* idle-dim the chrome after ~4s of no activity (reader only) — keeps the lines clean */
-.rec-overlay.view-reader.chrome-idle .rec-bar,
-.rec-overlay.view-reader.chrome-idle .recr-setrow,
-.rec-overlay.view-reader.chrome-idle .recr-nav { opacity: .25; transition: opacity .5s var(--ease); }
-.rec-overlay.view-reader .rec-bar,
-.rec-overlay.view-reader .recr-setrow,
-.rec-overlay.view-reader .recr-nav { transition: opacity .2s var(--ease); }
+/* idle-dim the chrome after ~4s of no activity (reader only) — fades ONLY the top
+   toolbar so it gets out of the way of the read. The set-status row (Gravada/Refazer)
+   and the bottom nav stay at full opacity always — they're the live recording controls. */
+.rec-overlay.view-reader.chrome-idle .rec-bar { opacity: .25; transition: opacity .5s var(--ease); }
+.rec-overlay.view-reader .rec-bar { transition: opacity .2s var(--ease); }
 
 @media (prefers-reduced-motion: reduce) {
   .recr-card, .recr-toast, .rec-overlay.view-reader .rec-bar,

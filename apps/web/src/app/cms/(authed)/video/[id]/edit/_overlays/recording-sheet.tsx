@@ -93,10 +93,40 @@ export function RecordingSheet(props: RecordingSheetProps) {
   const [undo, setUndo] = useState<{ key: string; prev: RecStatus; fromIdx: number } | null>(null)
   const [chromeIdle, setChromeIdle] = useState(false)
   const headingRef = useRef<HTMLHeadingElement | null>(null)
+  const overlayRef = useRef<HTMLDivElement | null>(null)
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => setMounted(true), [])
+
+  // Focus trap: the overlay is a `createPortal` over the whole app. Without this, the
+  // underlying editor's contentEditable lines / buttons stay Tab- and screen-reader-
+  // reachable behind the dimmed overlay. Mark every sibling of the portal node `inert`
+  // (+ aria-hidden) while mounted; restore on unmount.
+  useEffect(() => {
+    if (!mounted) return
+    const overlay = overlayRef.current
+    const portalRoot = overlay?.parentElement ?? null
+    const siblings = Array.from(document.body.children).filter(
+      (el): el is HTMLElement => el instanceof HTMLElement && el !== portalRoot && el !== overlay,
+    )
+    const restore = siblings.map((el) => ({
+      el,
+      inert: el.hasAttribute('inert'),
+      ariaHidden: el.getAttribute('aria-hidden'),
+    }))
+    for (const el of siblings) {
+      el.setAttribute('inert', '')
+      el.setAttribute('aria-hidden', 'true')
+    }
+    return () => {
+      for (const { el, inert, ariaHidden } of restore) {
+        if (!inert) el.removeAttribute('inert')
+        if (ariaHidden === null) el.removeAttribute('aria-hidden')
+        else el.setAttribute('aria-hidden', ariaHidden)
+      }
+    }
+  }, [mounted])
 
   useEffect(() => {
     document.body.classList.add('recording')
@@ -145,20 +175,25 @@ export function RecordingSheet(props: RecordingSheetProps) {
   }, [secCount])
 
   const setStatus = useCallback((status: RecStatus) => {
-    const card = readerSections[secIdx] ?? readerSections[clampedSec]
+    // Derive BOTH the target card and the advance from `clampedSec` only — never from a
+    // stale `secIdx` (the race: `secIdx` could point past a shrunk list while `clampedSec`
+    // is the real on-screen index).
+    const at = clampedSec
+    const card = readerSections[at]
     if (!card) return
     const prev = statusOverride[card.beatKey] ?? 'pendente'
+    // No-op: re-pressing the status already on this card creates no new undo / revert.
+    if (status === prev) return
     setStatusOverride((m) => ({ ...m, [card.beatKey]: status }))
     onSetBeatStatus?.(card.beatKey, status)
     if (status === 'gravada') {
-      const fromIdx = clampedSec
-      setUndo({ key: card.beatKey, prev, fromIdx })
+      setUndo({ key: card.beatKey, prev, fromIdx: at })
       // Auto-advance to the next section (stay put on the last one).
-      setSecIdx((i) => Math.min(secCount - 1, i + 1))
+      setSecIdx(Math.min(secCount - 1, at + 1))
     } else {
       setUndo(null)
     }
-  }, [readerSections, secIdx, clampedSec, statusOverride, onSetBeatStatus, secCount])
+  }, [readerSections, clampedSec, statusOverride, onSetBeatStatus, secCount])
 
   const doUndo = useCallback(() => {
     setUndo((u) => {
@@ -181,6 +216,13 @@ export function RecordingSheet(props: RecordingSheetProps) {
   useEffect(() => {
     if (view === 'reader') headingRef.current?.focus()
   }, [clampedSec, view])
+
+  // Re-clamp the shared `scale` into the active view's range on view switch: the reader
+  // allows up to 2.0, the sheet caps at 1.4 (print parity). Carrying a 2.0 reader scale
+  // into Folha would break the printed layout.
+  useEffect(() => {
+    setScale((s) => (view === 'reader' ? clampReaderScale(s, 0) : clampRsScale(s, 0)))
+  }, [view])
 
   // Idle-dim the chrome after READER_IDLE_MS of no pointer/key activity — reader only.
   useEffect(() => {
@@ -229,10 +271,13 @@ export function RecordingSheet(props: RecordingSheetProps) {
     .reduce((acc, b) => acc + videoBeatRead(b.beat), 0)
   const hasBeats = performer.length > 0 || prep.length > 0
 
-  const printSheet = () => { setView('sheet'); window.print() }
+  // Flip to the sheet view, then print on the NEXT frame so the DOM has actually swapped
+  // (printing same-tick would capture the reader's still-mounted layout).
+  const printSheet = () => { setView('sheet'); requestAnimationFrame(() => window.print()) }
 
   const overlay = (
     <div
+      ref={overlayRef}
       className={
         'rec-overlay dens-' + density + ' ' + markGranClass(markGran) +
         (view === 'reader' ? ' view-reader' : '') +
@@ -450,10 +495,14 @@ function ReaderView(props: ReaderViewProps) {
     )
   }
   const secs = sectionReadSecs(cur.beat, cur.section, readLang)
-  const lineTexts = cur.section.lineIdxs.map((i) => {
-    const it = cur.beat.script[i]
-    return it && it.type === 'line' ? it.text : ''
-  })
+  // Only `line` items carry spoken text; non-line idxs (or empty strings) would render as
+  // blank <p>s. Filter to non-empty spoken lines.
+  const lineTexts = cur.section.lineIdxs
+    .map((i) => {
+      const it = cur.beat.script[i]
+      return it && it.type === 'line' ? it.text : ''
+    })
+    .filter((tx) => tx.trim().length > 0)
 
   return (
     <div className="recr">
@@ -471,9 +520,13 @@ function ReaderView(props: ReaderViewProps) {
             {sections.length > 0 ? `${cur.beat.name} — seção ${idx + 1} de ${sections.length}` : cur.beat.name}
           </h2>
           <div className="recr-body">
-            {lineTexts.map((tx, j) => (
-              <p className="recr-tx" key={j} dangerouslySetInnerHTML={{ __html: emphHtml(tx) }} />
-            ))}
+            {lineTexts.length > 0 ? (
+              lineTexts.map((tx, j) => (
+                <p className="recr-tx" key={j} dangerouslySetInnerHTML={{ __html: emphHtml(tx) }} />
+              ))
+            ) : (
+              <p className="recr-none">Nada pra ler nesta seção — use a Folha pra ver ações e prep.</p>
+            )}
           </div>
         </div>
       </div>
@@ -498,7 +551,7 @@ function ReaderView(props: ReaderViewProps) {
           disabled={idx <= 0}
           aria-label="Seção anterior"
         >◀ Seção</button>
-        <span className="recr-ind" aria-live="polite">Seção {idx + 1}/{sections.length}</span>
+        <span className="recr-ind">Seção {idx + 1}/{sections.length}</span>
         <button
           type="button"
           className="recr-navbtn next"

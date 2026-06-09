@@ -1863,6 +1863,20 @@ stored rows by `beat_id`:
 A changed beat is **never** shown as a silent `✓ gravada` — `stale: true` is loud and
 visible so a remote shoot does not skip a beat whose text was rewritten.
 
+> ⚠️ **CONTRACT RULE #1 — `content_hash` is REQUIRED for stale detection.**
+> Reconcile flags `stale: true` **only when the stored row's `content_hash` is non-null**
+> *and* differs from the live beat hash. If a writer (PUT / PATCH batch / MCP `set`) marks a
+> beat `gravada` or `refazer` **without** sending `content_hash`, the row is stored with
+> `content_hash = null`, and that beat can then **NEVER** be flagged "roteiro mudou desde a
+> gravação." It will show a permanent, silent `✓ gravada` even after the script text is
+> fully rewritten — exactly the take-skipped-on-set failure this ledger exists to prevent.
+>
+> **Therefore: any writer marking a beat `gravada`/`refazer` MUST echo back the
+> `content_hash` it received from the GET reconcile for that same beat_id.** Omitting it
+> silently forfeits stale detection for that beat forever (until it is re-recorded with a
+> hash). This is the single most important rule of this surface — never write a recorded
+> status without its `content_hash`.
+
 ### Endpoints
 
 ```
@@ -1877,6 +1891,14 @@ derived; otherwise the response carries `roteiro_present: false` and empty `beat
 
 #### GET — derive + reconcile
 
+> **GET returns ONLY performer (`fala`) beats.** The reconcile derives status exclusively
+> for `fala` beats (one `fala` beat ≈ one take). `acao` / `prep` / `editor` beats are *not*
+> recording units and are skipped entirely. **Consequence:** if a writer sends a status for
+> a beat_id that is not a `fala` beat, that row will never match the live roteiro and will
+> reconcile as a permanent **orphan**. So always **read GET first and only set statuses for
+> the `beat_id`s it returns in `beats[]`** — never invent ids or reuse ids from a roteiro
+> dump that include non-`fala` beats.
+
 Response:
 ```json
 {
@@ -1888,6 +1910,7 @@ Response:
         "status": "pendente | gravada | refazer",
         "retake_note": "string | null",
         "content_hash": "string (current beat text hash — pass this back on write)",
+        "updated_at": "ISO datetime | null (the stored row's updated_at — pass as if_unmodified_since on write; null when no row yet)",
         "stale": false
       }
     ],
@@ -1900,6 +1923,10 @@ Response:
 }
 ```
 
+The `beats[]` array is exactly the set of `fala` beats in roteiro order. A `beat_id` you do
+not see here is either non-`fala` (won't be tracked) or absent from the roteiro (would be an
+orphan) — do not write to it.
+
 #### PUT — upsert one beat
 
 Body:
@@ -1909,20 +1936,41 @@ Body:
   "status": "gravada",
   "retake_note": "string (≤500, only kept when status=refazer)",
   "beat_name": "string (optional, display + reconciliation)",
-  "content_hash": "string (optional — pass the value from GET to record what was filmed)",
+  "content_hash": "string (STRONGLY RECOMMENDED — pass the value from GET; omitting it forfeits stale detection forever, see Contract Rule #1)",
   "source": "cowork | user (optional; defaults cowork for API-key callers)",
-  "if_unmodified_since": "ISO datetime (optional — per-row concurrency)"
+  "if_unmodified_since": "ISO datetime (optional — per-row concurrency; the updated_at you read from GET for this beat)"
 }
 ```
 
+**`content_hash`:** schema-optional, contract-required for any `gravada`/`refazer` write.
+Send the exact `content_hash` GET returned for this `beat_id`. Omitting it stores a null
+hash and permanently disables "roteiro mudou desde a gravação" for the beat (Contract
+Rule #1 above).
+
+**`if_unmodified_since` source:** it is the **`updated_at` of the beat's stored row**. You
+get it two ways:
+- from the **GET reconcile payload** — each `beats[]` entry now carries `updated_at` (null
+  when no row exists yet, in which case omit `if_unmodified_since`);
+- echoed back in a **412** rejection at `error.details.current.updated_at`.
+
 If `if_unmodified_since` is supplied and the existing row's `updated_at` is **newer**, the
 write is rejected with **412 PRECONDITION_FAILED** and the current row in
-`error.details.current`. Response on success: `{ "data": { "row": { ... } } }`.
+`error.details.current` (which includes the live `updated_at`, `status`, `content_hash`,
+etc.). **412 means: the row changed since you read it.** Recovery: **re-GET** the recording
+view, take the fresh `status` / `content_hash` / `updated_at` for that beat, decide whether
+your write still applies, and **retry** with the new `if_unmodified_since`. Response on
+success: `{ "data": { "row": { ... } } }`.
 
 #### PATCH /batch — multi-row upsert
 
 Body `{ "updates": [ { beat_id, status, retake_note?, beat_name?, content_hash? }, ... ] (max 100), "source": "cowork" }`.
 Response: `{ "data": { "rows": [...], "updated": <n> } }`.
+
+Same Contract Rule #1 applies per update: every `gravada`/`refazer` entry **must** carry the
+`content_hash` from GET, or that beat loses stale detection. The batch endpoint has **no**
+`if_unmodified_since` (no per-row precondition) — use single PUT when you need optimistic
+concurrency. Only set `beat_id`s that GET returned in `beats[]` (the `fala` set); any other
+id becomes a permanent orphan.
 
 #### DELETE /orphans — purge
 
@@ -1944,3 +1992,14 @@ revokes keys). Actions:
 
 Write actions (`set`, `batch`, `purge-orphans`) preview with `dry_run: true` (default) and
 execute with `dry_run: false`.
+
+**Driving `manage_recording` without silent failures — the loop:**
+1. `read` first. Keep each beat's `beat_id`, `content_hash`, and `updated_at`.
+2. To mark a take, `set` (or `batch`) with **the same `content_hash`** you read — never omit
+   it on a `gravada`/`refazer` write (Contract Rule #1), or stale detection is lost forever.
+3. For `set`, pass `if_unmodified_since` = the beat's `updated_at` from step 1. On **412**,
+   `read` again and retry with the fresh values.
+4. Only target `beat_id`s that `read` returned; non-`fala` / unknown ids become orphans.
+
+Recording status is **NOT** published-frozen: `set`/`batch` succeed on a published item by
+design (record before publish, `refazer` after).

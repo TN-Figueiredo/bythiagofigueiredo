@@ -137,6 +137,8 @@ export async function saveRecordingBeat(
     beat_name: beat.beatName ?? null,
     content_hash: beat.contentHash ?? null,
     source: 'user' as const,
+    // Attribute the edit to the authenticated session user (audit + cross-device "who").
+    modified_by: scope.user.id,
     updated_at: updatedAt,
   }
 

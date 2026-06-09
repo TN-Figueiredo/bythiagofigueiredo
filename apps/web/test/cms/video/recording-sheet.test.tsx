@@ -323,10 +323,16 @@ describe('RecordingSheet — full-screen READER (view: reader)', () => {
     expect(onStatus).toHaveBeenCalledWith('pt:beat-abc', 'gravada')
   })
 
-  it('Imprimir flips back to the sheet view (print always uses the sheet)', () => {
+  it('Imprimir flips back to the sheet view then prints on the next frame (print always uses the sheet)', () => {
     const printSpy = vi.fn()
     const orig = window.print
     window.print = printSpy
+    // printSheet defers the actual print to requestAnimationFrame so the view has swapped;
+    // run rAF synchronously so we can assert in one tick.
+    const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      cb(0)
+      return 0
+    })
     try {
       render(<RecordingSheet {...readerProps()} />)
       enterReader()
@@ -336,6 +342,7 @@ describe('RecordingSheet — full-screen READER (view: reader)', () => {
       expect(document.querySelector('.recr')).toBeNull()
       expect(document.querySelector('.rec-sheet')).not.toBeNull()
     } finally {
+      rafSpy.mockRestore()
       window.print = orig
     }
   })
@@ -347,5 +354,84 @@ describe('RecordingSheet — full-screen READER (view: reader)', () => {
     enterReader()
     fireEvent.click(screen.getByLabelText('Marcar seção como gravada e avançar'))
     expect(screen.getByText('Seção 2/2')).toBeDefined()
+  })
+
+  it('setStatus targets the CLAMPED on-screen section (Refazer on section 2 keys the right card)', () => {
+    const onStatus = vi.fn()
+    render(<RecordingSheet {...readerProps(onStatus)} />)
+    enterReader()
+    // advance to section 2, then mark it for retake — must key the same beat + tint THIS card
+    fireEvent.click(screen.getByLabelText('Próxima seção'))
+    expect(screen.getByText('Seção 2/2')).toBeDefined()
+    fireEvent.click(screen.getByLabelText('Marcar seção para refazer'))
+    expect(onStatus).toHaveBeenCalledWith('pt:beat-abc', 'refazer')
+    // still on section 2 (refazer does not advance) and the card is tinted
+    expect(screen.getByText('Seção 2/2')).toBeDefined()
+    expect(document.querySelector('.recr-card')!.classList.contains('st-refazer')).toBe(true)
+  })
+
+  it('last-section "Gravada" then re-press is a no-op — no new undo, status stays', () => {
+    const onStatus = vi.fn()
+    render(<RecordingSheet {...readerProps(onStatus)} />)
+    enterReader()
+    // go to the last section
+    fireEvent.click(screen.getByLabelText('Próxima seção'))
+    expect(screen.getByText('Seção 2/2')).toBeDefined()
+    // first Gravada: commits + opens undo (stays on last section)
+    fireEvent.click(screen.getByLabelText('Marcar seção como gravada e avançar'))
+    expect(onStatus).toHaveBeenCalledTimes(1)
+    expect(document.querySelector('.recr-toast')).not.toBeNull()
+    // dismiss undo, then re-press Gravada on the same (already-gravada) section → no-op
+    fireEvent.click(screen.getByText('Desfazer'))
+    onStatus.mockClear()
+    // re-mark gravada (now pendente again after undo) then re-press → second press is the no-op
+    fireEvent.click(screen.getByLabelText('Marcar seção como gravada e avançar'))
+    onStatus.mockClear()
+    fireEvent.click(screen.getByLabelText('Marcar seção como gravada e avançar'))
+    expect(onStatus).not.toHaveBeenCalled()
+  })
+
+  it('reader card whose lines are all whitespace renders the "nothing to read" fallback, not blank <p>s', () => {
+    // A fala beat with a real first section, then a section whose only `line` is whitespace.
+    const props: RecordingSheetProps = {
+      code: 'VID-004', channelName: 'TF', channelLabel: 'PT', channelFlag: '🇧🇷',
+      pillarLabel: 'Código', durationRange: '10 min', title: 'T',
+      beats: [
+        {
+          id: 'beat-empty', idx: 0, name: 'BRANCO', status: 'PENDING',
+          script: [
+            { type: 'line', text: 'fala real' },
+            { type: 'dir', text: 'flush' },
+            { type: 'line', text: '   ' }, // whitespace-only → no spoken text
+          ],
+        },
+      ],
+      langOptions: [{ lang: 'pt', label: 'PT', flag: '🇧🇷' }],
+      onSwitchLang: vi.fn(), onClose: vi.fn(),
+    }
+    render(<RecordingSheet {...props} />)
+    fireEvent.click(screen.getByText('Leitura'))
+    // first section reads "fala real"
+    expect(Array.from(document.querySelectorAll('.recr-tx')).map((l) => l.textContent)).toEqual(['fala real'])
+    // advance to the whitespace section → no .recr-tx, the fallback shows instead
+    fireEvent.click(screen.getByLabelText('Próxima seção'))
+    expect(document.querySelectorAll('.recr-tx').length).toBe(0)
+    expect(document.querySelector('.recr-body .recr-none')).not.toBeNull()
+  })
+
+  it('idle-dim only targets the top toolbar (.rec-bar), never the set-status row or nav', () => {
+    // Assert the CSS contract structurally: chrome-idle is applied to the overlay and the
+    // live controls (set-status + nav) are NOT in the idle-dim selector set.
+    render(<RecordingSheet {...readerProps()} />)
+    enterReader()
+    // controls render full-strength (no per-element idle class on them)
+    expect(document.querySelector('.recr-setrow')).not.toBeNull()
+    expect(document.querySelector('.recr-nav')).not.toBeNull()
+    // the idle-dim rule keys off .rec-overlay.view-reader.chrome-idle .rec-bar — verify the
+    // dimmable container exists and is the bar, distinct from the live-control containers.
+    const bar = document.querySelector('.rec-overlay.view-reader .rec-bar')
+    expect(bar).not.toBeNull()
+    expect(bar!.classList.contains('recr-setrow')).toBe(false)
+    expect(bar!.classList.contains('recr-nav')).toBe(false)
   })
 })

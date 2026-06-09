@@ -26,6 +26,7 @@ import type { Format } from '@/lib/pipeline/schemas'
 import { readRoteiro, type RoteiroBeatV3 } from '@/lib/pipeline/roteiro-schemas'
 import { beatKind } from '@/lib/pipeline/video-perform'
 import {
+  beatContentHash,
   ensureBeatIds,
   reconcileRecording,
   type RecStatus,
@@ -67,13 +68,15 @@ export interface RecordingViewResult {
 
 const RecStatusSchema = z.enum(['pendente', 'gravada', 'refazer'])
 
+// NOTE: `source` is intentionally NOT accepted from the request body — it is forgeable
+// (a caller could mislabel a 'cowork' write as 'user' or vice-versa). The service derives
+// it from the authenticated channel (ctx.source) instead. See deriveSource().
 export const RecordingPutSchema = z.object({
   beat_id: z.string().min(1),
   status: RecStatusSchema,
   retake_note: z.string().max(500).optional(),
   beat_name: z.string().max(500).optional(),
   content_hash: z.string().max(64).optional(),
-  source: z.enum(['user', 'cowork']).optional(),
   if_unmodified_since: z.string().datetime().optional(),
 })
 export type RecordingPut = z.infer<typeof RecordingPutSchema>
@@ -86,7 +89,6 @@ export const RecordingBatchSchema = z.object({
     beat_name: z.string().max(500).optional(),
     content_hash: z.string().max(64).optional(),
   })).min(1).max(100),
-  source: z.enum(['user', 'cowork']).optional(),
 })
 export type RecordingBatch = z.infer<typeof RecordingBatchSchema>
 
@@ -155,6 +157,44 @@ async function fetchRows(ctx: ServiceContext, pipelineId: string, lang: RecLang)
   return (data ?? []) as RecordingRow[]
 }
 
+/**
+ * The persisted `source` attribution for a write. Derived from the AUTHENTICATED channel —
+ * never from the request body (which is forgeable). API-key writes are Cowork; session
+ * writes are the human creator. ('cron' is reserved for internal jobs and is never set here.)
+ */
+function deriveSource(ctx: ServiceContext): 'cowork' | 'user' {
+  return ctx.source === 'api_key' ? 'cowork' : 'user'
+}
+
+/** Map current fala beat_id → its server-computed content hash (for stale detection). */
+function buildHashByBeatId(item: ItemRow, lang: RecLang): Map<string, string> {
+  const { beats } = deriveFalaBeats(item, lang)
+  const map = new Map<string, string>()
+  for (const beat of beats) {
+    if (beat.id) map.set(beat.id, beatContentHash(beat))
+  }
+  return map
+}
+
+/**
+ * Resolve the content_hash to persist for a beat write. A recorded beat (gravada/refazer)
+ * MUST carry a non-null hash, otherwise stale detection is permanently disabled (reconcile
+ * only flags stale when the stored hash is non-null → a null hash is a silent ✓ forever).
+ * Precedence: client-supplied hash → server-derived hash from the live roteiro beat →
+ * null only for `pendente` or for an orphan write (beat_id absent from the current roteiro,
+ * where there's nothing to derive — existing behavior preserved).
+ */
+function resolveContentHash(
+  status: RecStatus,
+  clientHash: string | undefined,
+  beatId: string,
+  hashByBeatId: Map<string, string>,
+): string | null {
+  if (clientHash) return clientHash
+  if (status === 'pendente') return null
+  return hashByBeatId.get(beatId) ?? null
+}
+
 // ---------------------------------------------------------------------------
 // GET — derive + reconcile
 // ---------------------------------------------------------------------------
@@ -207,26 +247,12 @@ export async function putRecording(
   const input = parsed.data
 
   // Item must exist + be in this site (FK + scope guard).
-  await loadItem(ctx, id)
+  const item = await loadItem(ctx, id)
 
-  // Per-row optimistic concurrency: reject if the existing row is newer than the
-  // caller's snapshot, returning the current row so the caller can re-reconcile.
-  if (input.if_unmodified_since) {
-    const { data: existing } = await ctx.supabase
-      .from('video_recording_status')
-      .select(ROW_COLS)
-      .eq('site_id', ctx.siteId)
-      .eq('pipeline_id', id)
-      .eq('lang', lang)
-      .eq('beat_id', input.beat_id)
-      .maybeSingle()
-    if (existing) {
-      const row = existing as RecordingRow
-      if (new Date(row.updated_at) > new Date(input.if_unmodified_since)) {
-        throw new RecordingPreconditionError(row)
-      }
-    }
-  }
+  // Server-derived hash for the live roteiro beat — never persist a null hash for a
+  // recorded beat (that would permanently disable stale detection).
+  const hashByBeatId = buildHashByBeatId(item, lang)
+  const contentHash = resolveContentHash(input.status, input.content_hash, input.beat_id, hashByBeatId)
 
   const payload = {
     site_id: ctx.siteId,
@@ -236,9 +262,40 @@ export async function putRecording(
     status: input.status,
     retake_note: input.status === 'refazer' ? (input.retake_note ?? null) : null,
     beat_name: input.beat_name ?? null,
-    content_hash: input.content_hash ?? null,
-    source: input.source ?? (ctx.source === 'api_key' ? 'cowork' : 'user'),
+    content_hash: contentHash,
+    source: deriveSource(ctx),
     updated_at: new Date().toISOString(),
+  }
+
+  // Per-row optimistic concurrency. When `if_unmodified_since` is given we do an ATOMIC
+  // conditional update gated on `updated_at == expected` (closes the read-then-write TOCTOU):
+  //   0 rows + an existing row that moved on → 412 PRECONDITION_FAILED carrying the current row;
+  //   0 rows + no existing row               → first write, fall through to upsert (insert).
+  if (input.if_unmodified_since) {
+    const { data: updated, error: updErr } = await ctx.supabase
+      .from('video_recording_status')
+      .update(payload)
+      .eq('site_id', ctx.siteId)
+      .eq('pipeline_id', id)
+      .eq('lang', lang)
+      .eq('beat_id', input.beat_id)
+      .eq('updated_at', input.if_unmodified_since)
+      .select(ROW_COLS)
+      .maybeSingle()
+    if (updErr) err('INTERNAL_ERROR', `Failed to update recording row: ${updErr.message}`, 500)
+    if (updated) return ok({ row: updated as RecordingRow })
+
+    // No row matched the precondition. If a row exists at all, it moved on → 412.
+    const { data: existing } = await ctx.supabase
+      .from('video_recording_status')
+      .select(ROW_COLS)
+      .eq('site_id', ctx.siteId)
+      .eq('pipeline_id', id)
+      .eq('lang', lang)
+      .eq('beat_id', input.beat_id)
+      .maybeSingle()
+    if (existing) throw new RecordingPreconditionError(existing as RecordingRow)
+    // else: no row yet → fall through to the upsert (first write for this beat).
   }
 
   const { data, error } = await ctx.supabase
@@ -271,10 +328,11 @@ export async function batchRecording(
   }
   const input = parsed.data
 
-  await loadItem(ctx, id)
+  const item = await loadItem(ctx, id)
 
   const now = new Date().toISOString()
-  const source = input.source ?? (ctx.source === 'api_key' ? 'cowork' : 'user')
+  const source = deriveSource(ctx)
+  const hashByBeatId = buildHashByBeatId(item, lang)
   const payload = input.updates.map((u) => ({
     site_id: ctx.siteId,
     pipeline_id: id,
@@ -283,7 +341,7 @@ export async function batchRecording(
     status: u.status,
     retake_note: u.status === 'refazer' ? (u.retake_note ?? null) : null,
     beat_name: u.beat_name ?? null,
-    content_hash: u.content_hash ?? null,
+    content_hash: resolveContentHash(u.status, u.content_hash, u.beat_id, hashByBeatId),
     source,
     updated_at: now,
   }))

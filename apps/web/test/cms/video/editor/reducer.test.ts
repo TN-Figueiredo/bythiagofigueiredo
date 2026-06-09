@@ -17,6 +17,7 @@ const base: VideoEditorState = {
   markGran: 'off',
   recStatus: {},
   retakeNotes: {},
+  recRecordedHash: {},
   recordingOpen: false,
   handoffOpen: false,
   coworkOpen: false,
@@ -110,10 +111,38 @@ describe('videoReducer — HYDRATE_RECORDING', () => {
       lang: 'pt',
       recStatus: { 'pt:b1': 'gravada', 'pt:b2': 'refazer' },
       retakeNotes: { 'pt:b2': 'estourou' },
+      recordedHash: {},
     })
     expect(s.recStatus['pt:b1']).toBe('gravada')
     expect(s.recStatus['pt:b2']).toBe('refazer')
     expect(s.retakeNotes['pt:b2']).toBe('estourou')
+  })
+
+  it('carries the RECORDED content_hash (recRecordedHash) so the UI can flag staleness', () => {
+    const s = videoReducer(base, {
+      type: 'HYDRATE_RECORDING',
+      lang: 'pt',
+      recStatus: { 'pt:b1': 'gravada' },
+      retakeNotes: {},
+      recordedHash: { 'pt:b1': 'abc123' },
+    })
+    expect(s.recRecordedHash['pt:b1']).toBe('abc123')
+  })
+
+  it('recRecordedHash is lang-scoped: a PT hydrate keeps EN recorded hashes', () => {
+    const seeded: VideoEditorState = {
+      ...base,
+      recRecordedHash: { 'en:e1': 'enhash' },
+    }
+    const s = videoReducer(seeded, {
+      type: 'HYDRATE_RECORDING',
+      lang: 'pt',
+      recStatus: { 'pt:p1': 'gravada' },
+      retakeNotes: {},
+      recordedHash: { 'pt:p1': 'pthash' },
+    })
+    expect(s.recRecordedHash['en:e1']).toBe('enhash')
+    expect(s.recRecordedHash['pt:p1']).toBe('pthash')
   })
 
   it('drops stale keys for the hydrated lang not present in the snapshot', () => {
@@ -127,6 +156,7 @@ describe('videoReducer — HYDRATE_RECORDING', () => {
       lang: 'pt',
       recStatus: { 'pt:b1': 'gravada' },
       retakeNotes: {},
+      recordedHash: {},
     })
     expect(s.recStatus['pt:old']).toBeUndefined()
     expect(s.retakeNotes['pt:old']).toBeUndefined()
@@ -144,6 +174,7 @@ describe('videoReducer — HYDRATE_RECORDING', () => {
       lang: 'pt',
       recStatus: { 'pt:p1': 'refazer' },
       retakeNotes: { 'pt:p1': 'refaz' },
+      recordedHash: {},
     })
     expect(s.recStatus['en:e1']).toBe('gravada')
     expect(s.retakeNotes['en:e1']).toBe('note-en')
@@ -156,6 +187,7 @@ describe('videoReducer — HYDRATE_RECORDING', () => {
       lang: 'pt',
       recStatus: { 'pt:b1': 'gravada' },
       retakeNotes: { 'pt:b1': '   ' },
+      recordedHash: {},
     })
     expect(s.retakeNotes['pt:b1']).toBeUndefined()
   })

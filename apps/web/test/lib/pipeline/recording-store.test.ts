@@ -62,29 +62,42 @@ describe('mergeRemoteRows (pure core)', () => {
     expect(merged[0].updatedAt).toBe(1000)
   })
 
-  it('clean local: newer remote wins (becomes clean)', () => {
-    const l = [local({ status: 'pendente', dirty: false, updatedAt: 1000 })]
+  it('clean local: remote newer than last-synced server timestamp wins (cross-device update arrives)', () => {
+    // Local was last synced against server@1000; the server now has 2000 → adopt remote.
+    const l = [local({ status: 'pendente', dirty: false, updatedAt: 1000, serverUpdatedAt: 1000 })]
     const r = [remote({ status: 'gravada', updatedAt: 2000 })]
     const merged = mergeRemoteRows(l, r)
     expect(merged[0].status).toBe('gravada')
     expect(merged[0].updatedAt).toBe(2000)
+    expect(merged[0].serverUpdatedAt).toBe(2000)
     expect(merged[0].dirty).toBe(false)
   })
 
-  it('clean local: newer local wins and stays local', () => {
-    const l = [local({ status: 'refazer', dirty: false, updatedAt: 5000 })]
-    const r = [remote({ status: 'gravada', updatedAt: 2000 })]
+  it('clean local with no recorded sync point adopts any timestamped remote', () => {
+    // serverUpdatedAt undefined → -Infinity → any remote is newer (server-authoritative).
+    const l = [local({ status: 'pendente', dirty: false, updatedAt: 9999 })]
+    const r = [remote({ status: 'gravada', updatedAt: 1 })]
+    const merged = mergeRemoteRows(l, r)
+    expect(merged[0].status).toBe('gravada')
+    expect(merged[0].serverUpdatedAt).toBe(1)
+    expect(merged[0].dirty).toBe(false)
+  })
+
+  it('clean local: remote NOT newer than last-synced server timestamp keeps local', () => {
+    // Local already synced against server@5000; remote is the SAME version → keep local.
+    const l = [local({ status: 'refazer', dirty: false, updatedAt: 5000, serverUpdatedAt: 5000 })]
+    const r = [remote({ status: 'gravada', updatedAt: 5000 })]
     const merged = mergeRemoteRows(l, r)
     expect(merged[0].status).toBe('refazer')
     expect(merged[0].updatedAt).toBe(5000)
     expect(merged[0].dirty).toBe(false)
   })
 
-  it('tie on updatedAt: remote wins (server is source of truth for clean rows)', () => {
-    const l = [local({ status: 'pendente', dirty: false, updatedAt: 3000 })]
-    const r = [remote({ status: 'gravada', updatedAt: 3000 })]
+  it('clean local: stale remote (older than last-synced) keeps local', () => {
+    const l = [local({ status: 'refazer', dirty: false, updatedAt: 5000, serverUpdatedAt: 5000 })]
+    const r = [remote({ status: 'gravada', updatedAt: 2000 })]
     const merged = mergeRemoteRows(l, r)
-    expect(merged[0].status).toBe('gravada')
+    expect(merged[0].status).toBe('refazer')
     expect(merged[0].dirty).toBe(false)
   })
 
@@ -161,6 +174,23 @@ describe('mergeRemoteRows (pure core)', () => {
     expect(merged[0].beatName).toBe('Intro')
     expect(merged[0].retakeNote).toBe('too fast')
     expect(merged[0].contentHash).toBe('abc')
+  })
+
+  it('adopted remote records the server timestamp as serverUpdatedAt', () => {
+    const r = [remote({ beatId: 'b8', status: 'gravada', updatedAt: 4242 })]
+    const merged = mergeRemoteRows([], r)
+    expect(merged[0].serverUpdatedAt).toBe(4242)
+    expect(merged[0].dirty).toBe(false)
+  })
+
+  it('dirty local wins and keeps no serverUpdatedAt drift (cross-device): unsynced edit preserved', () => {
+    // Even though the server has a newer version, a dirty local edit is preserved verbatim.
+    const l = [local({ status: 'gravada', dirty: true, updatedAt: 1000, serverUpdatedAt: 500 })]
+    const r = [remote({ status: 'pendente', updatedAt: 9999 })]
+    const merged = mergeRemoteRows(l, r)
+    expect(merged[0].status).toBe('gravada')
+    expect(merged[0].dirty).toBe(true)
+    expect(merged[0].serverUpdatedAt).toBe(500)
   })
 })
 

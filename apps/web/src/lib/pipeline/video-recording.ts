@@ -56,9 +56,17 @@ export function asMarkGran(v: unknown): MarkGran {
 }
 
 /**
- * Returns content where every beat carries a stable `id`, assigning `crypto.randomUUID()`
- * to beats that lack one. `changed` is true iff at least one id was assigned. Pure aside
- * from id generation — the input is never mutated (a new object is returned).
+ * Returns content where every beat carries a stable `id`.
+ *
+ * Beats lacking an `id` get `crypto.randomUUID()`. Existing ids are preserved
+ * (back-compat — never overwritten). The beat `kind` is intentionally left
+ * UNSTAMPED: classification stays heuristic until the user (or an explicit
+ * record action) confirms it, so the "é fala?" recovery affordance can still
+ * detect heuristic-classified beats and an unconfirmed guess is never frozen
+ * without consent.
+ *
+ * `changed` is true iff at least one id was assigned. Pure aside from id
+ * generation — the input is never mutated (a new object is returned).
  */
 export function ensureBeatIds(content: RoteiroContentV3): { content: RoteiroContentV3; changed: boolean } {
   let changed = false
@@ -74,7 +82,9 @@ export function ensureBeatIds(content: RoteiroContentV3): { content: RoteiroCont
 /**
  * The performer-facing text of a beat: its spoken `line` and on-camera `action` item
  * texts, concatenated in order, with `**` emphasis markers stripped, whitespace
- * collapsed, and trimmed. Used to detect "roteiro mudou desde a gravação". Deterministic.
+ * collapsed, trimmed, and Unicode-normalized to NFC. The NFC pass ensures that
+ * composed vs decomposed accents (e.g. `á` U+00E1 vs `a`+U+0301) hash identically,
+ * killing spurious "roteiro mudou desde a gravação" staleness. Deterministic.
  */
 export function normalizeBeatText(beat: RoteiroBeatV3): string {
   return beat.script
@@ -86,6 +96,7 @@ export function normalizeBeatText(beat: RoteiroBeatV3): string {
     .replace(/\*\*/g, '')
     .replace(/\s+/g, ' ')
     .trim()
+    .normalize('NFC')
 }
 
 /**
@@ -126,6 +137,8 @@ export interface StoredRecRow {
   retake_note: string | null
   beat_name: string | null
   content_hash: string | null
+  /** Server timestamp of the row (ISO 8601). Surfaced for if_unmodified_since + cross-device. */
+  updated_at?: string
 }
 
 /** A current `fala` beat reconciled against the durable ledger. */
@@ -139,6 +152,8 @@ export interface ReconciledBeat {
   content_hash: string
   /** True when a stored row exists but the roteiro changed since it was recorded. */
   stale: boolean
+  /** Server timestamp of the matched row (ISO 8601), if any. Undefined for fresh pendente beats. */
+  updated_at?: string
 }
 
 /**
@@ -200,6 +215,7 @@ export function reconcileRecording(
       content_hash: hash,
       // A row recorded against a now-changed roteiro is stale (loud, never a silent ✓).
       stale: row.content_hash !== null && row.content_hash !== hash,
+      updated_at: row.updated_at,
     })
   }
 

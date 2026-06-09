@@ -57,7 +57,17 @@ export function videoReducer(state: VideoEditorState, action: VideoEditorAction)
       for (const [k, v] of Object.entries(action.retakeNotes)) {
         if (v.trim()) retakeNotes[k] = v
       }
-      return { ...state, recStatus, retakeNotes }
+
+      // Carry the RECORDED content_hash (lang-scoped, same replace-this-lang semantics) so
+      // the UI can flag staleness without the write path overwriting it on later edits.
+      const recRecordedHash: Record<string, string> = {}
+      for (const [k, v] of Object.entries(state.recRecordedHash ?? {})) {
+        if (!k.startsWith(prefix)) recRecordedHash[k] = v
+      }
+      for (const [k, v] of Object.entries(action.recordedHash)) {
+        if (v) recRecordedHash[k] = v
+      }
+      return { ...state, recStatus, retakeNotes, recRecordedHash }
     }
     default:
       return state
@@ -89,6 +99,7 @@ export function initialFromDetail(seed: DetailSeed): VideoEditorState {
     markGran: DEFAULT_MARK_GRAN,
     recStatus: {},
     retakeNotes: {},
+    recRecordedHash: {},
     recordingOpen: false,
     handoffOpen: false,
     coworkOpen: false,

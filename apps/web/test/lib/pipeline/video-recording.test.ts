@@ -56,7 +56,10 @@ describe('ensureBeatIds — stable id stamping', () => {
     expect(input.beats[0]!.id).toBeUndefined()
   })
   it('preserves existing ids and reports changed=false when all present', () => {
-    const input = content([beat('HOOK', [], { id: 'fixed-1' }), beat('FECHO', [], { id: 'fixed-2' })])
+    const input = content([
+      beat('HOOK', [], { id: 'fixed-1' }),
+      beat('FECHO', [], { id: 'fixed-2' }),
+    ])
     const { content: out, changed } = ensureBeatIds(input)
     expect(changed).toBe(false)
     expect(out.beats.map((b) => b.id)).toEqual(['fixed-1', 'fixed-2'])
@@ -67,6 +70,16 @@ describe('ensureBeatIds — stable id stamping', () => {
     expect(changed).toBe(true)
     expect(out.beats[0]!.id).toBe('fixed-1')
     expect(out.beats[1]!.id).toBeTruthy()
+  })
+
+  it('leaves the kind UNSTAMPED so the heuristic stays recoverable', () => {
+    // A beat with an id but no kind is NOT changed and keeps kind undefined —
+    // classification stays heuristic until the user confirms it.
+    const input = content([beat('HOOK', [], { id: 'h1' })])
+    const { content: out, changed } = ensureBeatIds(input)
+    expect(changed).toBe(false)
+    expect(out.beats[0]!.id).toBe('h1')
+    expect(out.beats[0]!.kind).toBeUndefined()
   })
 })
 
@@ -111,6 +124,18 @@ describe('beatContentHash — stable sync hash', () => {
     const a = beat('HOOK', [{ type: 'line', text: '**Olha**  isso' }])
     const c = beat('HOOK', [{ type: 'line', text: 'Olha isso' }])
     expect(beatContentHash(a)).toBe(beatContentHash(c))
+  })
+
+  it('NFC-normalizes: composed vs decomposed accents hash identically', () => {
+    // Composed: "\u00e1" (U+00E1). Decomposed: "a" + U+0301 (combining acute accent).
+    const composedText = 'gua\u00e1' // composed
+    const decomposedText = 'guaa\u0301' // decomposed (a + combining acute)
+    // Sanity: the raw strings really differ at the byte/code-point level.
+    expect(composedText).not.toBe(decomposedText)
+    const composed = beat('HOOK', [{ type: 'line', text: composedText }])
+    const decomposed = beat('HOOK', [{ type: 'line', text: decomposedText }])
+    expect(normalizeBeatText(composed)).toBe(normalizeBeatText(decomposed))
+    expect(beatContentHash(composed)).toBe(beatContentHash(decomposed))
   })
 })
 
@@ -192,6 +217,29 @@ describe('reconcileRecording — durable rows ↔ live beats', () => {
     expect(beats[0]).toMatchObject({ status: 'pendente', stale: false })
     // the unrelated row becomes an orphan
     expect(orphans.map((o) => o.beat_id)).toEqual(['x'])
+  })
+
+  it('carries updated_at from a matched row onto the reconciled beat', () => {
+    const b = falaBeat('b1', 'HOOK', 'Olha isso')
+    const hash = beatContentHash(b)
+    const { beats } = reconcileRecording(
+      [b],
+      [row({ beat_id: 'b1', status: 'gravada', content_hash: hash, updated_at: '2026-06-08T12:00:00Z' })],
+    )
+    expect(beats[0]!.updated_at).toBe('2026-06-08T12:00:00Z')
+  })
+
+  it('leaves updated_at undefined for a fresh pendente beat (no row)', () => {
+    const b = falaBeat('b1', 'HOOK', 'Olha isso')
+    const { beats } = reconcileRecording([b], [])
+    expect(beats[0]!.updated_at).toBeUndefined()
+  })
+
+  it('surfaces updated_at on orphan rows (carried by StoredRecRow)', () => {
+    const b = falaBeat('b1', 'HOOK', 'Olha isso')
+    const orphanRow = row({ beat_id: 'ghost', status: 'gravada', updated_at: '2026-06-07T09:00:00Z' })
+    const { orphans } = reconcileRecording([b], [orphanRow])
+    expect(orphans[0]!.updated_at).toBe('2026-06-07T09:00:00Z')
   })
 })
 

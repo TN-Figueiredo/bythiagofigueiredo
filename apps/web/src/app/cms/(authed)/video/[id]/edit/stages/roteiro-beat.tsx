@@ -80,7 +80,9 @@ export function RoteiroBeat({ beat, idx, seq, style, notes, spoken, cursorKey, o
           maxLength={500}
           placeholder="por que refazer?"
           aria-label="Nota de refação"
-          onBlur={(e) => onCommitRetake(e.currentTarget.value)}
+          // Commit on every change (not just blur): cycling status away from `refazer`
+          // unmounts this input before a blur fires, which would drop the typed reason.
+          onChange={(e) => onCommitRetake(e.currentTarget.value)}
         />
       )}
       {total > 0 && (
