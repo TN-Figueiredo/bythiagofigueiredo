@@ -978,13 +978,13 @@
   background:
     radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, var(--c-courses) 18%, transparent) 0%, transparent 58%),
     linear-gradient(180deg, color-mix(in srgb, var(--c-courses) 8%, transparent) 0%, transparent 46%),
-    color-mix(in srgb, var(--cms-surface, #1a1d27) 82%, #ffffff 18%);
-  border: 1px solid color-mix(in srgb, var(--c-courses) 26%, var(--border-strong));
+    color-mix(in srgb, var(--cms-surface, #1a1d27) 80%, #ffffff 20%);
+  border: 1px solid color-mix(in srgb, #ffffff 15%, transparent);
   border-radius: 16px;
   box-shadow:
-    var(--shadow-pop),
-    0 0 0 1px color-mix(in srgb, var(--c-courses) 10%, transparent) inset,
-    0 18px 50px -22px color-mix(in srgb, var(--c-courses) 55%, transparent);
+    0 24px 56px -16px rgba(0, 0, 0, .6),
+    0 0 0 1px color-mix(in srgb, var(--c-courses) 32%, transparent),
+    0 0 26px -8px color-mix(in srgb, var(--c-courses) 45%, transparent);
   animation: cwPop .2s var(--ease-back) both; }
 .cw-pop::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
   border-radius: 16px 16px 0 0;
