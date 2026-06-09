@@ -251,26 +251,58 @@ describe('PosStage — handoff markup', () => {
       expect(table!.querySelector('.pp-cta-h')).toBeTruthy()
     })
 
-    it('active lang column has .on class in header', () => {
+    it('active lang column has .on class + aria-current in header', () => {
       const { container } = wrap(
         <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
       )
       const header = container.querySelector('.pp-cta-h')!
-      const spans = header.querySelectorAll('span')
-      // spans[0] is empty, spans[1] is PT, spans[2] is EN
-      expect(spans[1].classList.contains('on')).toBe(true)
-      expect(spans[2].classList.contains('on')).toBe(false)
+      const cols = header.querySelectorAll('[role="columnheader"]')
+      // cols[0] is the "Destino" corner, cols[1] is PT, cols[2] is EN
+      expect(cols[1].classList.contains('on')).toBe(true)
+      expect(cols[1].getAttribute('aria-current')).toBe('true')
+      expect(cols[2].classList.contains('on')).toBe(false)
+      expect(cols[2].getAttribute('aria-current')).toBeNull()
     })
 
-    it('active lang column has .on in rows', () => {
+    it('active lang column has .on + aria-current in rows', () => {
       const { container } = wrap(
         <PosStage beats={beats} brief={brief} activeLang="en" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
       )
       const row = container.querySelector('.pp-cta-row')!
-      const spans = row.querySelectorAll('span')
-      // spans[0] = .pp-ck, spans[1] = pt, spans[2] = en
-      expect(spans[1].classList.contains('on')).toBe(false)
-      expect(spans[2].classList.contains('on')).toBe(true)
+      const cells = row.querySelectorAll('[role="cell"]')
+      // cells[0] = pt, cells[1] = en
+      expect(cells[0].classList.contains('on')).toBe(false)
+      expect(cells[1].classList.contains('on')).toBe(true)
+      expect(cells[1].getAttribute('aria-current')).toBe('true')
+    })
+
+    it('CTA grid has table semantics (role=table/row/rowheader/cell)', () => {
+      const { container } = wrap(
+        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
+      )
+      expect(container.querySelector('.pp-cta-table[role="table"]')).toBeTruthy()
+      const row = container.querySelector('.pp-cta-row')!
+      expect(row.getAttribute('role')).toBe('row')
+      expect(row.querySelector('[role="rowheader"]')!.textContent).toBe('Link')
+      expect(row.querySelectorAll('[role="cell"]').length).toBe(2)
+    })
+
+    it('CTA cells (pt/en), note and display are editable EF fields', () => {
+      const onPatch = vi.fn()
+      const { container } = wrap(
+        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={onPatch} onOpenHandoff={vi.fn()} legacy={null} />
+      )
+      const ptCell = container.querySelector('.pp-cta-row [role="cell"] .efx') as HTMLElement
+      expect(ptCell).toBeTruthy()
+      expect(ptCell.getAttribute('contenteditable')).toBe('true')
+      ptCell.textContent = 'novo.pt'
+      fireEvent.blur(ptCell)
+      expect(onPatch).toHaveBeenCalledWith(
+        expect.objectContaining({ ctas: expect.objectContaining({ rows: [expect.objectContaining({ pt: 'novo.pt' })] }) }),
+      )
+      // note + display are EFs too
+      expect(container.querySelector('.pp-cta-note .efx')).toBeTruthy()
+      expect(container.querySelector('.pp-cta-disp .efx')).toBeTruthy()
     })
 
     it('renders .pp-cta-row for each cta row', () => {
@@ -311,12 +343,113 @@ describe('PosStage — handoff markup', () => {
     })
   })
 
+  describe('headings', () => {
+    it('each PPCard title renders as an <h2> heading', () => {
+      wrap(
+        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
+      )
+      const headings = screen.getAllByRole('heading', { level: 2 })
+      expect(headings.length).toBeGreaterThanOrEqual(4)
+      expect(headings.map(h => h.className)).toContain('pp-title')
+    })
+  })
+
+  describe('Recomeçar reset', () => {
+    it('two-step confirm: Recomeçar → limpar wipes the brief via onPatch', () => {
+      const onPatch = vi.fn()
+      wrap(
+        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={onPatch} onOpenHandoff={vi.fn()} legacy={null} />
+      )
+      fireEvent.click(screen.getByRole('button', { name: /Recomeçar/i }))
+      fireEvent.click(screen.getByRole('button', { name: /^limpar$/i }))
+      expect(onPatch).toHaveBeenCalledWith({ kind: 'brief', deliverables: {}, style: [], ctas: { note: '', rows: [], display: '' } })
+    })
+
+    it('the wiped brief flips briefHasContent → chooser returns', () => {
+      const emptyBrief: PosBrief = { kind: 'brief', deliverables: {}, style: [], ctas: { note: '', rows: [], display: '' } }
+      wrap(
+        <PosStage beats={beats} brief={emptyBrief} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
+      )
+      expect(screen.getByText('Sugestões pro editor')).toBeTruthy()
+      expect(screen.getByRole('button', { name: /Começar do zero/i })).toBeTruthy()
+    })
+
+    it('cancel keeps the brief rendered', () => {
+      wrap(
+        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
+      )
+      fireEvent.click(screen.getByRole('button', { name: /Recomeçar/i }))
+      fireEvent.click(screen.getByRole('button', { name: /cancelar/i }))
+      expect(screen.getByRole('button', { name: /Recomeçar/i })).toBeTruthy()
+    })
+  })
+
+  describe('briefHasContent counts note/display', () => {
+    it('a brief with only ctas.note shows the full doc (not the chooser)', () => {
+      const noteOnly: PosBrief = { kind: 'brief', deliverables: {}, style: [], ctas: { note: 'Confira o QR', rows: [], display: '' } }
+      const { container } = wrap(
+        <PosStage beats={beats} brief={noteOnly} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
+      )
+      expect(container.querySelector('.pp-grid')).toBeTruthy()
+      expect(screen.queryByText('Sugestões pro editor')).toBeNull()
+    })
+
+    it('a brief with only ctas.display shows the full doc', () => {
+      const dispOnly: PosBrief = { kind: 'brief', deliverables: {}, style: [], ctas: { note: '', rows: [], display: 'QR no canto' } }
+      const { container } = wrap(
+        <PosStage beats={beats} brief={dispOnly} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
+      )
+      expect(container.querySelector('.pp-grid')).toBeTruthy()
+    })
+
+    it('a brief with only a non-empty reference shows the full doc', () => {
+      const refOnly: PosBrief = { kind: 'brief', deliverables: { references: ['ref'] }, style: [], ctas: { note: '', rows: [], display: '' } }
+      const { container } = wrap(
+        <PosStage beats={beats} brief={refOnly} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
+      )
+      expect(container.querySelector('.pp-grid')).toBeTruthy()
+    })
+  })
+
+  describe('empty-state fallbacks', () => {
+    it('Momentos-chave renders .pp-empty fallback when no beat yields a spoken anchor', () => {
+      const silentBeats: RoteiroBeatV3[] = [
+        { idx: 0, name: 'Só visual', status: 'PENDING', script: [{ type: 'vis', text: 'B-roll: paisagem' }] },
+      ]
+      const { container } = wrap(
+        <PosStage beats={silentBeats} brief={brief} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
+      )
+      expect(container.querySelector('.pp-moments')).toBeNull()
+      expect(screen.getByText(/Nenhum beat falado ainda/i)).toBeTruthy()
+    })
+
+    it('B-roll renders .pp-empty fallback when no beat has vis notes', () => {
+      const noVisBeats: RoteiroBeatV3[] = [
+        { idx: 0, name: 'Só fala', status: 'PENDING', script: [{ type: 'line', text: 'Apenas falando', key: true }] },
+      ]
+      const { container } = wrap(
+        <PosStage beats={noVisBeats} brief={brief} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
+      )
+      expect(container.querySelector('.pp-broll')).toBeNull()
+      expect(screen.getByText(/Nenhum beat tem cue visual ainda/i)).toBeTruthy()
+    })
+  })
+
   describe('legacy fallback', () => {
     it('renders LegacyPostprodFallback (read-only banner) when legacy payload with schema_version is present', () => {
       wrap(
         <PosStage beats={beats} brief={null} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={{ schema_version: '2.0' }} />
       )
       expect(screen.getByText(/Pós legado \(somente leitura\)/i)).toBeTruthy()
+    })
+
+    it('shows a "Recriar brief" button that seeds POS_TEMPLATE via onPatch (edit mode)', () => {
+      const onPatch = vi.fn()
+      wrap(
+        <PosStage beats={beats} brief={null} activeLang="pt" onPatch={onPatch} onOpenHandoff={vi.fn()} legacy={{ schema_version: '2.0' }} />
+      )
+      fireEvent.click(screen.getByRole('button', { name: /Recriar brief/i }))
+      expect(onPatch).toHaveBeenCalledWith(expect.objectContaining({ kind: 'brief' }))
     })
 
     it('renders LegacyPostprodFallback when legacy has no "kind" field', () => {

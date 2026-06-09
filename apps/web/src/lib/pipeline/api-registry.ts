@@ -261,7 +261,7 @@ const CROSS_DOMAIN_WORKFLOWS: CrossDomainWorkflow[] = [
       'PATCH /api/pipeline/items/:id/sections/draft — write draft',
       'PATCH /api/pipeline/items/:id/sections/roteiro — write script with beats',
       'POST /api/pipeline/audio-library/resolve — find music and SFX',
-      'PATCH /api/pipeline/items/:id/sections/postprod_scenes — fill timeline',
+      "PATCH /api/pipeline/items/:id/sections/postprod — write editor brief (kind:'brief', derived from roteiro)",
       'POST /api/pipeline/items/:id/advance — move through stages',
       'POST /api/pipeline/playlists/:id/items — add to playlist',
     ],

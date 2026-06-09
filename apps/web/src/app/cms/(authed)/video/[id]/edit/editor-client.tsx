@@ -6,7 +6,7 @@ import { Toaster } from 'sonner'
 import type { RoteiroContentV3 } from '@/lib/pipeline/roteiro-schemas'
 import type { SectionData } from '@/lib/pipeline/sections'
 import type { PillarId } from '@/lib/pipeline/pillars'
-import type { PosBrief, ABDraft } from '@/lib/pipeline/video-schemas'
+import { PosBriefSchema, type PosBrief, type ABDraft } from '@/lib/pipeline/video-schemas'
 import type { AbJoinFacts } from '@/lib/pipeline/video-ab-precondition'
 import { VideoEditorProvider } from './context'
 import { VideoDataProvider, type IdeiaPayload, type VideoData } from './data-context'
@@ -156,8 +156,16 @@ export function VideoEditorClient({
   const savePostprod = useCallback(async (lang: 'pt' | 'en', patch: Partial<PosBrief>) => {
     if (!canEditRef.current) return // view mode / published lock — never persist content
     const hook = lang === 'pt' ? postprodPt : postprodEn
-    const prev = (hook.content ?? { kind: 'brief' }) as unknown as PosBrief
-    hook.setContent({ ...prev, ...patch } as unknown as SectionData['content'])
+    // Replace-not-merge guard: only shallow-merge onto an existing *valid current* brief.
+    // If the stored content is legacy (has `schema_version`, lacks `kind`) or otherwise
+    // fails the strict schema, spreading the patch over it would carry forbidden legacy
+    // keys → strict parse fails on read-back → the legacy fallback sticks forever. So we
+    // reset the base to a fresh `{ kind: 'brief' }` before applying the patch.
+    const raw: unknown = hook.content ?? null
+    const base: PosBrief | { kind: 'brief' } = PosBriefSchema.safeParse(raw).success
+      ? (raw as PosBrief)
+      : { kind: 'brief' }
+    hook.setContent({ ...base, ...patch } as unknown as SectionData['content'])
     await hook.save()
   }, [postprodPt, postprodEn, canEditRef])
 

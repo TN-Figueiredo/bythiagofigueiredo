@@ -580,6 +580,24 @@ The canonical `postprod` shape is a **lightweight brief for the editor** — `Po
 }
 ```
 
+### Como o Cowork gera o brief de Pós
+
+O brief de Pós é **derivado do roteiro** e é um conjunto de **SUGESTÕES** que o editor ajusta — não é verdade fixa.
+
+1. **Leia o roteiro primeiro:** `GET /api/pipeline/items/:id/sections/roteiro?lang=` no idioma alvo.
+2. **Derive `style` & ritmo (`deliverables.energy`)** do **tom dos beats**: leia o arco do roteiro (abertura íntima → meio que sobe → CTA calmo, etc.) e traduza em color grade, transições, legendas e na nota de energia.
+3. **Derive `ctas`** dos **beats de hook/CTA**: a `ctas.note`, as linhas `ctas.rows` (cards/end screen) e o `ctas.display` saem dos ganchos e chamadas-à-ação já escritos no roteiro.
+
+> O editor revisa e ajusta tudo. Cowork **propõe**, não decide.
+
+#### Regra do QR de Newsletter — POR IDIOMA ⚠️
+
+> **O QR do newsletter é DIFERENTE por idioma.** `ctas.rows` **DEVE** incluir uma linha **"Newsletter QR"** cujos campos `pt` e `en` **diferem** entre si — cada idioma aponta para o QR de newsletter daquele idioma. Nunca repita o mesmo valor em `pt` e `en` para a linha de QR.
+
+```json
+{ "k": "Newsletter QR", "pt": "QR newsletter PT (assine em português)", "en": "Newsletter QR EN (subscribe in English)" }
+```
+
 ### Estrutura — `PosBriefSchema` (`.strict()`)
 
 | Campo | Tipo | Notas |

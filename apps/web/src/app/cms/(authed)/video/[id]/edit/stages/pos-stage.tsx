@@ -1,7 +1,8 @@
 'use client'
 
-import { useMemo } from 'react'
-import { Edit, CheckCheck, Target, Film, SlidersHorizontal, Link, Eye, Info, AlertTriangle, Rss, Plus } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Edit, CheckCheck, Target, Film, SlidersHorizontal, Link, Eye, Info, AlertTriangle, Rss, Plus, RotateCcw } from 'lucide-react'
+import { toast } from 'sonner'
 import { SparklesGlyph } from '../_components/sparkles-glyph'
 import { CoworkButton } from '../_components/cowork-button'
 import type { RoteiroBeatV3, PosBrief } from '@/lib/pipeline/video-schemas'
@@ -30,17 +31,25 @@ const POS_TEMPLATE: PosBrief = {
       { k: 'Cross-promo', pt: '', en: '' },
       { k: 'Instagram', pt: '', en: '' },
     ],
-    display: '',
+    display: 'QR aparece nos últimos 8–10s, canto inferior direito. Confirme que o código casa com o idioma da versão.',
   },
 }
 
-/** A brief is "started" once it carries any style/CTA rows or a filled deliverable field.
- * Until then the Pós shows the generate/start chooser instead of empty template cards. */
+/** Empty CTA shape — kept as a const so `ctas ?? EMPTY_CTAS` is referentially stable. */
+const EMPTY_CTAS: NonNullable<PosBrief['ctas']> = { note: '', rows: [], display: '' }
+
+/** A brief is "started" once it carries any style/CTA rows, a filled deliverable field, a
+ * non-empty CTA note/display, or at least one reference. Until then the Pós shows the
+ * generate/start chooser instead of empty template cards. */
 function briefHasContent(b: PosBrief | null): boolean {
   if (!b) return false
   if (b.style?.length) return true
   if (b.ctas?.rows?.length) return true
-  return Object.values(b.deliverables ?? {}).some((v) => typeof v === 'string' && v.trim() !== '')
+  if (b.ctas?.note?.trim()) return true
+  if (b.ctas?.display?.trim()) return true
+  const del = b.deliverables ?? {}
+  if ((del.references ?? []).some((r) => r.trim() !== '')) return true
+  return Object.values(del).some((v) => typeof v === 'string' && v.trim() !== '')
 }
 
 export interface PosStageProps {
@@ -79,6 +88,8 @@ function EF({
     <Tag
       className={('efx ' + className).trim()}
       contentEditable={canEdit}
+      role="textbox"
+      aria-label={ph}
       aria-readonly={!canEdit}
       suppressContentEditableWarning
       spellCheck={false}
@@ -110,7 +121,7 @@ function PPCard({
     <section className="pp-card">
       <div className="pp-head">
         <span className="pp-ico">{icon}</span>
-        <span className="pp-title">{title}</span>
+        <h2 className="pp-title">{title}</h2>
         {sub && <span className="pp-sub">{sub}</span>}
       </div>
       <div className="pp-body">{children}</div>
@@ -118,10 +129,15 @@ function PPCard({
   )
 }
 
-function LegacyPostprodFallback() {
+function LegacyPostprodFallback({ canEdit, onPatch }: { canEdit: boolean; onPatch: (patch: Partial<PosBrief>) => void }) {
   return (
     <div className="pp-legacy" role="note">
       <p className="pp-legacy-banner">Pós legado (somente leitura) — recrie o brief para editar.</p>
+      {canEdit && (
+        <button type="button" className="btn" onClick={() => onPatch(POS_TEMPLATE)}>
+          <Plus size={15} /> Recriar brief
+        </button>
+      )}
     </div>
   )
 }
@@ -129,13 +145,29 @@ function LegacyPostprodFallback() {
 export function PosStage({ beats, brief, activeLang, onPatch, onOpenHandoff, legacy, langLabels }: PosStageProps) {
   const dispatch = useVideoEditorDispatch()
   // THE content-editing gate: edit mode AND stage not scheduled/published. View mode makes the
-  // editable brief fields (deliverables / energy / style) read-only. Derived Momentos-chave /
-  // B-roll / CTA table stay as-is (already read-only).
+  // editable brief fields (deliverables / energy / style / CTAs) read-only. Derived Momentos-chave /
+  // B-roll stay as-is (already read-only).
   const canEdit = useCanEditContent()
+
+  const [confirmReset, setConfirmReset] = useState(false)
+  const resetBtnRef = useRef<HTMLButtonElement>(null)
+
+  const onCancelReset = useCallback(() => {
+    setConfirmReset(false)
+    requestAnimationFrame(() => resetBtnRef.current?.focus())
+  }, [])
+
+  // Escape cancels the inline confirm (and restores focus to the Recomeçar button).
+  useEffect(() => {
+    if (!confirmReset) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancelReset() }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [confirmReset, onCancelReset])
 
   const del = brief?.deliverables ?? {}
   const style = brief?.style ?? []
-  const ctas = brief?.ctas ?? { note: '', rows: [], display: '' }
+  const ctas = brief?.ctas ?? EMPTY_CTAS
 
   const patchDel = (k: keyof NonNullable<PosBrief['deliverables']>, v: string) =>
     onPatch({ deliverables: { ...del, [k]: v } })
@@ -145,10 +177,27 @@ export function PosStage({ beats, brief, activeLang, onPatch, onOpenHandoff, leg
     onPatch({ style: next })
   }
 
+  const patchCta = (rowIdx: number, lang: 'pt' | 'en', v: string) => {
+    const rows = ctas.rows.map((r, j) => (j === rowIdx ? { ...r, [lang]: v } : r))
+    onPatch({ ctas: { ...ctas, rows } })
+  }
+
+  const patchCtaField = (field: 'note' | 'display', v: string) =>
+    onPatch({ ctas: { ...ctas, [field]: v } })
+
+  // "Recomeçar": wipe the brief back to an empty shell → briefHasContent() flips false →
+  // the generate/start chooser returns. Two-step inline confirm guards written work.
+  const onReset = () => {
+    if (!canEdit) return // defense-in-depth: never write content in view mode
+    onPatch({ kind: 'brief', deliverables: {}, style: [], ctas: { note: '', rows: [], display: '' } })
+    setConfirmReset(false)
+    toast.info('Brief de pós limpo', { description: 'Volte a gerar com o Cowork ou comece do zero.' })
+  }
+
   const hasBriefKind = brief && 'kind' in brief
 
   if (legacy && (legacy.schema_version || !hasBriefKind)) {
-    return <LegacyPostprodFallback />
+    return <LegacyPostprodFallback canEdit={canEdit} onPatch={onPatch} />
   }
 
   // Not auto-derived: the Pós is a SUGGESTIONS brief for the editor. Until it's generated
@@ -170,7 +219,7 @@ export function PosStage({ beats, brief, activeLang, onPatch, onOpenHandoff, leg
           <div className="rot-gen-sub">
             {canEdit
               ? 'O Cowork sugere estilo & ritmo, CTAs e QR a partir do roteiro — você ajusta por vídeo. Os momentos-chave saem do roteiro e são referenciados nas sugestões.'
-              : 'O brief de pós ainda não foi criado. Entre no modo de edição para gerar com o Cowork ou começar do zero.'}
+              : 'O brief de pós ainda não foi criado. Entre no modo de edição para gerar com o Cowork.'}
           </div>
         </div>
       </div>
@@ -182,6 +231,14 @@ export function PosStage({ beats, brief, activeLang, onPatch, onOpenHandoff, leg
   const langs = langLabels ?? CHANNELS.map((c) => c.label).join(' + ')
 
   const goRoteiro = () => dispatch({ type: 'SET_STAGE', stage: 'roteiro' })
+
+  // Derived lists computed once so we can branch on emptiness (empty → fallback, not blank card).
+  const moments = beats
+    .map((b, i) => ({ i, line: spokenAnchorText(b), cue: visNotes(b)[0] }))
+    .filter((m) => m.line)
+  const brollRows = beats
+    .map((b, i) => ({ i, name: b.name, vs: visNotes(b) }))
+    .filter((r) => r.vs.length > 0)
 
   return (
     <div className="pp-doc fade-in">
@@ -196,6 +253,17 @@ export function PosStage({ beats, brief, activeLang, onPatch, onOpenHandoff, leg
           </div>
         </div>
         <div className="grow" />
+        {canEdit && (confirmReset ? (
+          <span className="rot-reset-confirm">
+            Limpar o brief?
+            <button type="button" className="rot-reset-yes" onClick={onReset}>limpar</button>
+            <button type="button" className="rot-reset-no" onClick={onCancelReset}>cancelar</button>
+          </span>
+        ) : (
+          <button type="button" className="rot-reset" ref={resetBtnRef} onClick={() => setConfirmReset(true)}>
+            <RotateCcw size={12} /> Recomeçar
+          </button>
+        ))}
         <button type="button" className="btn" onClick={onOpenHandoff}>
           <Rss size={14} /> Exportar pro editor
         </button>
@@ -241,11 +309,9 @@ export function PosStage({ beats, brief, activeLang, onPatch, onOpenHandoff, leg
         {beats.length > 0 ? (
           <>
             <PPCard icon={<Target size={14} />} title="Momentos-chave" sub="frase-âncora + cue visual, por beat">
-              <div className="pp-moments">
-                {beats
-                  .map((b, i) => ({ i, line: spokenAnchorText(b), cue: visNotes(b)[0] }))
-                  .filter((m) => m.line)
-                  .map((m) => (
+              {moments.length > 0 ? (
+                <div className="pp-moments">
+                  {moments.map((m) => (
                     <div key={m.i} className="pp-moment">
                       <span className="pp-mnum">#{m.i + 1}</span>
                       <div className="pp-mbody">
@@ -258,39 +324,36 @@ export function PosStage({ beats, brief, activeLang, onPatch, onOpenHandoff, leg
                       </div>
                     </div>
                   ))}
-              </div>
+                </div>
+              ) : (
+                <div className="pp-empty">Nenhum beat falado ainda — os momentos saem das falas do roteiro.</div>
+              )}
             </PPCard>
 
             <PPCard icon={<Film size={14} />} title="B-roll por beat" sub="o que cobrir em cada trecho">
-              <div className="pp-broll">
-                {beats.map((b, i) => {
-                  const vs = visNotes(b)
-                  if (!vs.length) return null
-                  return (
-                    <div key={i} className="pp-broll-row">
-                      <span className="pp-bname">#{i + 1} · {b.name}</span>
+              {brollRows.length > 0 ? (
+                <div className="pp-broll">
+                  {brollRows.map((r) => (
+                    <div key={r.i} className="pp-broll-row">
+                      <span className="pp-bname">#{r.i + 1} · {r.name}</span>
                       <ul>
-                        {vs.map((v, j) => <li key={j}>{v}</li>)}
+                        {r.vs.map((v, j) => <li key={j}>{v}</li>)}
                       </ul>
                     </div>
-                  )
-                })}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="pp-empty">Nenhum beat tem cue visual ainda — o B-roll sai das notas do roteiro.</div>
+              )}
             </PPCard>
           </>
         ) : (
           <PPCard icon={<Target size={14} />} title="Momentos-chave &amp; b-roll">
             <div className="pp-empty">
               Saem do roteiro.{' '}
-              <a
-                className="pp-link"
-                role="button"
-                tabIndex={0}
-                onClick={goRoteiro}
-                onKeyDown={e => e.key === 'Enter' && goRoteiro()}
-              >
+              <button type="button" className="pp-link" onClick={goRoteiro}>
                 Destrinche o roteiro
-              </a>
+              </button>
               {' '}e eles aparecem aqui automaticamente.
             </div>
           </PPCard>
@@ -302,7 +365,7 @@ export function PosStage({ beats, brief, activeLang, onPatch, onOpenHandoff, leg
             {style.map((s, i) => (
               <div key={i} className="pp-srow">
                 <span className="pp-sk">{s.k}</span>
-                <EF tag="span" className="pp-sv" value={s.v} canEdit={canEdit} onChange={v => patchStyleRow(i, v)} />
+                <EF tag="span" className="pp-sv" value={s.v} canEdit={canEdit} onChange={v => patchStyleRow(i, v)} ph={s.k} />
               </div>
             ))}
           </div>
@@ -311,24 +374,30 @@ export function PosStage({ beats, brief, activeLang, onPatch, onOpenHandoff, leg
         {/* ── CTAs & QR ── */}
         <PPCard icon={<Link size={14} />} title="CTAs &amp; QR" sub="atenção: muda por idioma">
           <div className="pp-cta-note">
-            <AlertTriangle size={13} /> {ctas.note}
+            <AlertTriangle size={13} />{' '}
+            <EF tag="span" className="ef-inline" value={ctas.note ?? ''} canEdit={canEdit} onChange={v => patchCtaField('note', v)} ph="Aviso pro editor" />
           </div>
-          <div className="pp-cta-table">
-            <div className="pp-cta-h">
-              <span />
-              <span className={activeLang === 'pt' ? 'on' : ''}>🇧🇷 PT</span>
-              <span className={activeLang === 'en' ? 'on' : ''}>🇺🇸 EN</span>
+          <div className="pp-cta-table" role="table">
+            <div className="pp-cta-h" role="row">
+              <span role="columnheader" aria-label="Destino" />
+              <span role="columnheader" className={activeLang === 'pt' ? 'on' : ''} aria-current={activeLang === 'pt' ? 'true' : undefined}>🇧🇷 PT</span>
+              <span role="columnheader" className={activeLang === 'en' ? 'on' : ''} aria-current={activeLang === 'en' ? 'true' : undefined}>🇺🇸 EN</span>
             </div>
             {ctas.rows.map((r, i) => (
-              <div key={i} className="pp-cta-row">
-                <span className="pp-ck">{r.k}</span>
-                <span className={activeLang === 'pt' ? 'on' : ''}>{r.pt}</span>
-                <span className={activeLang === 'en' ? 'on' : ''}>{r.en}</span>
+              <div key={i} className="pp-cta-row" role="row">
+                <span className="pp-ck" role="rowheader">{r.k}</span>
+                <span role="cell" className={activeLang === 'pt' ? 'on' : ''} aria-current={activeLang === 'pt' ? 'true' : undefined}>
+                  <EF tag="span" className="ef-inline" value={r.pt} canEdit={canEdit} onChange={v => patchCta(i, 'pt', v)} ph={`${r.k} · PT`} />
+                </span>
+                <span role="cell" className={activeLang === 'en' ? 'on' : ''} aria-current={activeLang === 'en' ? 'true' : undefined}>
+                  <EF tag="span" className="ef-inline" value={r.en} canEdit={canEdit} onChange={v => patchCta(i, 'en', v)} ph={`${r.k} · EN`} />
+                </span>
               </div>
             ))}
           </div>
           <div className="pp-cta-disp">
-            <Info size={12} /> {ctas.display}
+            <Info size={12} />{' '}
+            <EF tag="span" className="ef-inline" value={ctas.display ?? ''} canEdit={canEdit} onChange={v => patchCtaField('display', v)} ph="Onde/quando o QR aparece" />
           </div>
         </PPCard>
 

@@ -71,7 +71,7 @@ export const PosBriefSchema = z.object({
     note: z.string().default(''),
     rows: z.array(z.object({ k: z.string(), pt: z.string(), en: z.string() })).default([]),
     display: z.string().default(''),
-  }),
+  }).default({ note: '', rows: [], display: '' }),
 }).strict()
 export type PosBrief = z.infer<typeof PosBriefSchema>
 

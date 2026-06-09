@@ -885,8 +885,11 @@
 .pp-cta-disp { display: flex; align-items: flex-start; gap: 7px; margin-top: 11px; font-size: 11.5px; line-height: 1.5; color: var(--text-dim); }
 .pp-cta-disp .lucide { flex-shrink: 0; margin-top: 2px; }
 .pp-empty { font-size: 13px; color: var(--text-dim); line-height: 1.6; }
-.pp-link { color: var(--accent-text); cursor: pointer; font-weight: 500; }
+.pp-link { display: inline; padding: 0; background: none; border: none; font: inherit; color: var(--accent-text); cursor: pointer; font-weight: 500; }
 .pp-link:hover { text-decoration: underline; }
+.pp-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+.pp-legacy { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+.pp-legacy .btn { margin-top: 2px; }
 
 /* ============================================================
    PUBLICAÇÃO — 4-up A/B (thumb + title)

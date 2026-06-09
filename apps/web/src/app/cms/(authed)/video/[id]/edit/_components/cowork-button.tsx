@@ -13,6 +13,17 @@ const STAGE_LABEL: Record<VideoStage, string> = {
   ideia: 'Ideia', roteiro: 'Roteiro', pos: 'Pós', publicacao: 'Publicação',
 }
 
+/**
+ * Per-stage target hint appended to the deep-link context so Cowork knows the exact
+ * section + schema to write (and how to derive it). Optional per stage — a stage with
+ * no hint keeps its prior freeform behavior.
+ */
+const STAGE_TARGET_HINT: Partial<Record<VideoStage, (itemId: string, lang: string) => string>> = {
+  pos: (itemId, lang) =>
+    `→ escreva a seção \`postprod\` (PosBriefSchema, kind:'brief') via PATCH /items/${itemId}/sections/postprod?lang=${lang}; ` +
+    `derive estilo & ritmo, CTAs e QR a partir do roteiro (leia GET /items/${itemId}/sections/roteiro?lang=${lang} primeiro).`,
+}
+
 /** Context prompts per stage (CW_PROMPTS in views-video.jsx ~39-44). */
 const CW_PROMPTS: Record<VideoStage, string[]> = {
   ideia: ['Gerar 3 novas direções', 'Qual é o gancho mais forte?', 'Sugerir ângulos (A1–A5)'],
@@ -81,7 +92,10 @@ export function CoworkButton({ stage, label = 'Cowork', compact, onSubmit }: Cow
     } else {
       // Open Claude (Cowork) with the message + the video/section context so it knows
       // exactly which item/section to act on via the pipeline API.
-      const ctx = `[Vídeo ${editor.code} · ${STAGE_LABEL[stage]} · ${editor.activeLang.toUpperCase()} · item ${editor.itemId}]`
+      const lang = editor.activeLang
+      const head = `[Vídeo ${editor.code} · ${STAGE_LABEL[stage]} · ${lang.toUpperCase()} · item ${editor.itemId}]`
+      const hint = STAGE_TARGET_HINT[stage]?.(editor.itemId, lang)
+      const ctx = hint ? `${head}\n${hint}` : head
       openCowork(`${ctx}\n\n${m}`)
     }
     setTxt('')
