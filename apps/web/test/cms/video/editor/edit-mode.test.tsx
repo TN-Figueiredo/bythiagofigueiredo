@@ -136,10 +136,10 @@ describe('EditModeToggle (header)', () => {
     expect(btn2.getAttribute('aria-pressed')).toBe('true')
     expect(getByRole).toBeTruthy()
   })
-  it('shows the somente-leitura hint in view mode and the editing ring class in edit mode', () => {
+  it('marks view mode with the viewing class + Visualizando toggle, and the editing ring in edit mode', () => {
     const { container } = shell(seedOf())
     expect(container.querySelector('.vid-viewing')).toBeTruthy()
-    expect(container.textContent).toContain('Somente leitura')
+    expect((container.querySelector('.ed-editmode') as HTMLElement).textContent).toContain('Visualizando')
     fireEvent.click(container.querySelector('.ed-editmode') as HTMLButtonElement)
     expect(container.querySelector('.vid-editing')).toBeTruthy()
   })
@@ -174,8 +174,8 @@ describe('Published lock + retreat (despublicar)', () => {
     expect(container.querySelector('.ed-editmode')).toBeNull()
     const lock = container.querySelector('.ed-editlock') as HTMLButtonElement
     expect(lock).toBeTruthy()
-    expect(lock.textContent).toContain('despublicar')
-    expect(container.textContent).toContain('Conteúdo travado')
+    expect(lock.textContent).toContain('Travado')
+    expect(lock.getAttribute('aria-label')).toContain('travado')
   })
 
   it('retreats the stage via retreatPipelineItem, updates stage/version, and enters edit mode', async () => {

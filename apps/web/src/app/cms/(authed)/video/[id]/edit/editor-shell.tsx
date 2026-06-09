@@ -279,7 +279,7 @@ function EditModeToggle() {
         onClick={onUnpublish}
         disabled={busy}
       >
-        <Lock size={14} /> {busy ? 'Despublicando…' : '🔒 Publicado — despublicar pra editar'}
+        <Lock size={14} /> {busy ? 'Despublicando…' : 'Travado'}
       </button>
     )
   }
@@ -301,7 +301,7 @@ function EditModeToggle() {
 export function EditorShell() {
   const state = useVideoEditorState()
   const dispatch = useVideoEditorDispatch()
-  const { canEdit, locked } = useEditMode()
+  const { canEdit } = useEditMode()
   const published = getStagePosition('video', state.stage) >= getStagePosition('video', 'published')
   const overlayOpen = state.recordingOpen || state.handoffOpen || state.coworkOpen
 
@@ -361,19 +361,11 @@ export function EditorShell() {
     >
       <div ref={topRef}>
         <VideoEdBar />
-        {!state.focus && <VidStages />}
         {!state.focus && (
-          <div className="vid-modebar">
-            <EditModeToggle />
-            {canEdit && (
-              <span className="vid-editbadge" aria-hidden="true"><Pencil size={12} /> Editando</span>
-            )}
-          </div>
-        )}
-        {!canEdit && !locked && !state.focus && (
-          <div className="vid-viewbanner" role="note">
-            <Eye size={14} />
-            <span>Modo visualização — toque em <b>Editar</b> pra alterar. Marcação de gravação continua disponível.</span>
+          <div className="vid-tabsrow">
+            <span className="vid-tabsrow-pad" aria-hidden="true" />
+            <VidStages />
+            <div className="vid-tabsrow-end"><EditModeToggle /></div>
           </div>
         )}
         {published && !state.focus && (
