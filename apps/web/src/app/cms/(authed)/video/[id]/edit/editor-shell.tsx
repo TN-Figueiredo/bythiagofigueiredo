@@ -361,22 +361,15 @@ export function EditorShell() {
     >
       <div ref={topRef}>
         <VideoEdBar />
+        {!state.focus && <VidStages />}
         {!state.focus && (
           <div className="vid-modebar">
             <EditModeToggle />
             {canEdit && (
               <span className="vid-editbadge" aria-hidden="true"><Pencil size={12} /> Editando</span>
             )}
-            {!canEdit && (
-              <span className="vid-mode-hint">
-                {locked
-                  ? 'Conteúdo travado (publicado) — marcação de gravação continua disponível.'
-                  : 'Somente leitura — clique em Editar para alterar o conteúdo — marcação de gravação continua disponível.'}
-              </span>
-            )}
           </div>
         )}
-        {!state.focus && <VidStages />}
         {!canEdit && !locked && !state.focus && (
           <div className="vid-viewbanner" role="note">
             <Eye size={14} />
