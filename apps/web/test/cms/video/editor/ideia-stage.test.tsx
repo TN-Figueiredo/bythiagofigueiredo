@@ -213,7 +213,8 @@ describe('IdeiaStage — handoff markup', () => {
     fireEvent.click(genBtn)
     const pop = document.querySelector('.cw-pop')
     expect(pop).not.toBeNull()
-    expect(pop?.textContent).toContain('Pedir ao Cowork')
+    expect(pop?.textContent).toContain('manda pro')
+    expect(pop?.querySelector('.cw-name')?.textContent).toBe('Cowork')
   })
 
   // ─── CTA dispatch ─────────────────────────────────────────────────────────

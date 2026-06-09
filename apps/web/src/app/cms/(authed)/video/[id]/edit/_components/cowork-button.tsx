@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ArrowRight } from 'lucide-react'
+import { toast } from 'sonner'
 import { SparklesGlyph } from './sparkles-glyph'
 import { useVideoEditorState } from '../context'
 import { openCowork } from '@/lib/pipeline/cowork-deeplink'
@@ -27,48 +28,60 @@ const STAGE_TARGET_HINT: Partial<Record<VideoStage, (itemId: string, lang: strin
 /** Context prompts per stage (CW_PROMPTS in views-video.jsx ~39-44). */
 const CW_PROMPTS: Record<VideoStage, string[]> = {
   ideia: ['Gerar 3 novas direções', 'Qual é o gancho mais forte?', 'Sugerir ângulos (A1–A5)'],
-  roteiro: ['Encurtar mantendo os beats', 'Reforçar o hook', 'Sugerir b-roll por beat', 'Marcar palavras de ênfase'],
-  pos: ['Gerar instruções de edição', 'B-roll que ainda falta', 'Revisar CTAs/QR por idioma'],
+  roteiro: ['Encurtar mantendo os beats', 'Reforçar o hook', 'Sugerir b-roll por beat', 'Marcar ênfases'],
+  pos: ['Gerar instruções de edição', 'Que b-roll ainda falta?', 'Revisar CTAs/QR por idioma'],
   publicacao: ['Gerar 4 títulos testáveis', 'Brief das 4 thumbnails', 'Sugerir distribuição'],
+}
+
+/** Per-stage textarea placeholder — phrased as if you're talking to a sharp collaborator. */
+const CW_PLACEHOLDER: Record<VideoStage, string> = {
+  ideia: 'ex.: e se o gancho fosse mais incômodo? me dá 3 caminhos…',
+  roteiro: 'ex.: corta 15s no meio sem perder o beat do CTA…',
+  pos: 'ex.: o ritmo tá arrastado depois do hook — sugere cortes…',
+  publicacao: 'ex.: títulos menos óbvios, mais curiosidade que promessa…',
 }
 
 export interface CoworkButtonProps {
   stage: VideoStage
   label?: string
   compact?: boolean
-  /**
-   * Submit hook — defaults to a sonner toast (wire to the real Cowork batch path
-   * later). Returns nothing; the popover closes + clears regardless.
-   */
-  onSubmit?: (prompt: string) => void
 }
 
 /**
  * Inline Cowork trigger with a portaled, fixed-position popover anchored under the
- * button. Closes on Esc + outside-click; ⌘/Ctrl+Enter submits. Mirrors `CoworkButton`
- * in design_handoff_video_module/views-video.jsx (~45-80).
+ * button. Closes on Esc + outside-click; ⌘/Ctrl+Enter sends. On send it opens Claude
+ * (Cowork) with the video/section context as a deep-link, toasts confirmation, then
+ * clears + closes + returns focus to the trigger.
  */
-export function CoworkButton({ stage, label = 'Cowork', compact, onSubmit }: CoworkButtonProps) {
+export function CoworkButton({ stage, label = 'Cowork', compact }: CoworkButtonProps) {
   const editor = useVideoEditorState()
   const [open, setOpen] = useState(false)
   const [txt, setTxt] = useState('')
-  const [pos, setPos] = useState<{ top: number; right: number } | null>(null)
+  const [sending, setSending] = useState(false)
+  const [anchor, setAnchor] = useState<{ top: number; right: number } | null>(null)
   const btnRef = useRef<HTMLButtonElement>(null)
   const popRef = useRef<HTMLDivElement>(null)
+  const popId = useId()
+
+  // Every close path returns focus to the trigger so keyboard/SR users aren't dropped.
+  const close = () => {
+    setOpen(false)
+    btnRef.current?.focus()
+  }
 
   useEffect(() => {
     if (!open) return
     const onDown = (e: MouseEvent) => {
       const t = e.target as Node
       if (popRef.current && !popRef.current.contains(t) && btnRef.current && !btnRef.current.contains(t)) {
-        setOpen(false)
+        close()
       }
     }
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close() }
     const reposition = () => {
       if (!btnRef.current) return
       const r = btnRef.current.getBoundingClientRect()
-      setPos({ top: r.bottom + 9, right: Math.max(12, window.innerWidth - r.right) })
+      setAnchor({ top: r.bottom + 9, right: Math.max(12, window.innerWidth - r.right) })
     }
     reposition()
     document.addEventListener('mousedown', onDown)
@@ -81,40 +94,55 @@ export function CoworkButton({ stage, label = 'Cowork', compact, onSubmit }: Cow
       window.removeEventListener('resize', reposition)
       window.removeEventListener('scroll', reposition, true)
     }
+    // `close` is stable enough for our purposes; re-running only on `open` keeps listeners fresh.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
   const prompts = CW_PROMPTS[stage] ?? []
+
   const send = (t?: string) => {
     const m = (t ?? txt).trim()
-    if (!m) return
-    if (onSubmit) {
-      onSubmit(m)
-    } else {
-      // Open Claude (Cowork) with the message + the video/section context so it knows
-      // exactly which item/section to act on via the pipeline API.
-      const lang = editor.activeLang
-      const head = `[Vídeo ${editor.code} · ${STAGE_LABEL[stage]} · ${lang.toUpperCase()} · item ${editor.itemId}]`
-      const hint = STAGE_TARGET_HINT[stage]?.(editor.itemId, lang)
-      const ctx = hint ? `${head}\n${hint}` : head
-      openCowork(`${ctx}\n\n${m}`)
-    }
-    setTxt('')
-    setOpen(false)
+    if (!m || sending) return
+    setSending(true)
+    // Open Claude (Cowork) with the message + the video/section context so it knows
+    // exactly which item/section to act on via the pipeline API.
+    const lang = editor.activeLang
+    const head = `[Vídeo ${editor.code} · ${STAGE_LABEL[stage]} · ${lang.toUpperCase()} · item ${editor.itemId}]`
+    const hint = STAGE_TARGET_HINT[stage]?.(editor.itemId, lang)
+    const ctx = hint ? `${head}\n${hint}` : head
+    openCowork(`${ctx}\n\n${m}`)
+    toast.success('Aberto no Claude', { description: 'Cowork recebeu o contexto do vídeo.' })
+    window.setTimeout(() => {
+      setSending(false)
+      setTxt('')
+      close()
+    }, 420)
   }
+
   const onKeyDown = (e: React.KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') send()
   }
 
   const pop =
-    open && pos && typeof document !== 'undefined'
+    open && anchor && typeof document !== 'undefined'
       ? createPortal(
-          <div className="cw-pop" ref={popRef} style={{ position: 'fixed', top: pos.top, right: pos.right }} role="dialog" aria-label="Cowork">
-            <div className="cw-head"><span className="cw-ico"><SparklesGlyph size={13} /></span> Pedir ao Cowork</div>
-            <div className="cw-sub">Ele edita ideia, roteiro, pós e publicação — peça uma alteração ou variação.</div>
+          <div className="cw-pop" id={popId} ref={popRef} style={{ position: 'fixed', top: anchor.top, right: anchor.right }} role="dialog" aria-label="Cowork">
+            <div className="cw-head">
+              <span className="cw-ico"><SparklesGlyph size={14} /></span> manda pro <span className="cw-name">Cowork</span>
+            </div>
+            <div className="cw-sub">ele mexe na ideia, no roteiro, no pós e na publicação — pede um ajuste e ele escreve direto na pipeline.</div>
             {prompts.length > 0 && (
               <div className="cw-quick">
                 {prompts.map((p, i) => (
-                  <button key={i} type="button" className="cw-chip" onClick={() => send(p)}>{p}</button>
+                  <button
+                    key={i}
+                    type="button"
+                    className="cw-chip"
+                    style={{ '--i': i } as React.CSSProperties}
+                    onClick={() => send(p)}
+                  >
+                    {p}
+                  </button>
                 ))}
               </div>
             )}
@@ -123,14 +151,19 @@ export function CoworkButton({ stage, label = 'Cowork', compact, onSubmit }: Cow
               value={txt}
               onChange={(e) => setTxt(e.target.value)}
               onKeyDown={onKeyDown}
-              placeholder="Ex.: deixe o hook mais curto e provocativo…"
+              placeholder={CW_PLACEHOLDER[stage]}
+              aria-label="Mensagem para o Cowork"
               rows={3}
               autoFocus
             />
             <div className="cw-foot">
-              <span className="cw-kbd">⌘ + ↵</span>
-              <button type="button" className="cw-send" onClick={() => send()} disabled={!txt.trim()}>
-                <ArrowRight size={13} /> Enviar pro Cowork
+              <span className="cw-kbd" aria-hidden="true">⌘ + ↵</span>
+              <button type="button" className="cw-send" onClick={() => send()} disabled={!txt.trim() || sending}>
+                {sending ? (
+                  <><SparklesGlyph size={13} /> mandando…</>
+                ) : (
+                  <><ArrowRight size={13} /> mandar</>
+                )}
               </button>
             </div>
           </div>,
@@ -146,6 +179,8 @@ export function CoworkButton({ stage, label = 'Cowork', compact, onSubmit }: Cow
         className={'cw-btn' + (compact ? ' compact' : '') + (open ? ' on' : '')}
         onClick={() => setOpen((o) => !o)}
         title="Pedir ao Cowork"
+        aria-haspopup="dialog"
+        aria-controls={popId}
         aria-expanded={open}
       >
         <SparklesGlyph size={14} /> {label}

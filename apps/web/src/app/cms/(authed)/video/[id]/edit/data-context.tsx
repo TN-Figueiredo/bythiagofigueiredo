@@ -56,12 +56,6 @@ export interface VideoData {
   advanceToRecorded: (id: string, version: number) => Promise<{ ok: boolean; error?: string }>
   /** Publish-gated A/B materialize + stage→published. */
   publishVideo: (id: string, version: number) => Promise<{ ok: boolean; error?: string }>
-  /**
-   * Cowork submit — routes a free-text prompt through the batch section update / Cowork
-   * API path (source:'cowork', format-aware getSectionKey → video writes land on
-   * ideia_<lang>/publish_<lang>, §7). Consumed by the CoworkPopover's `onSubmit`.
-   */
-  coworkSubmit: (prompt: string) => Promise<void>
 }
 
 const Ctx = createContext<VideoData | null>(null)

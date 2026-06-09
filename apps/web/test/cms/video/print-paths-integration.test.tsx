@@ -59,7 +59,6 @@ const stubData = {
   sections: {}, abJoinFacts: { youtubeVideoId: null, thumbnailHqUrl: null, durationSeconds: null }, winnerVariantId: null,
   savePostprod: vi.fn().mockResolvedValue(undefined), savePublish: vi.fn().mockResolvedValue(undefined),
   advanceToRecorded: vi.fn().mockResolvedValue({ ok: true }), publishVideo: vi.fn().mockResolvedValue({ ok: true }),
-  coworkSubmit: vi.fn().mockResolvedValue(undefined),
 }
 
 function shell(state: VideoEditorState) {

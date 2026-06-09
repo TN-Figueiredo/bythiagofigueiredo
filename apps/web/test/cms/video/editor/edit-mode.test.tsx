@@ -41,7 +41,7 @@ function stubData(over: Record<string, unknown> = {}) {
     hasUnsavedChanges: false, saveAll: vi.fn().mockResolvedValue(undefined), autosaveState: 'saved' as const,
     sections: {}, abJoinFacts: { youtubeVideoId: null, thumbnailHqUrl: null, durationSeconds: null }, winnerVariantId: null,
     savePostprod: vi.fn(), savePublish: vi.fn(),
-    advanceToRecorded: vi.fn(), publishVideo: vi.fn(), coworkSubmit: vi.fn(),
+    advanceToRecorded: vi.fn(), publishVideo: vi.fn(),
     ...over,
   }
 }

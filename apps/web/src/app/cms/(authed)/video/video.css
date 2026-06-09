@@ -970,27 +970,64 @@
 .cw-btn.compact { height: 30px; padding: 0 11px; font-size: 12px; }
 .cw-btn .lucide { color: var(--c-courses); }
 
-.cw-pop { position: fixed; z-index: 400; width: 330px; padding: 14px;
-  background: var(--elev); border: 1px solid var(--border-strong); border-radius: 14px; box-shadow: var(--shadow-pop);
-  animation: cwPop .16s var(--ease) both; }
-@keyframes cwPop { from { transform: translateY(-6px); } to { transform: none; } }
+/* The "lit panel": Cowork-purple glows from the top-left through everything —
+   a radial wash + a faint top gradient over the solid elevation, an accent-tinted
+   border, and a triple shadow (drop + inset hairline + colored bloom). */
+.cw-pop { position: fixed; z-index: 400; width: min(344px, calc(100vw - 24px)); padding: 16px;
+  max-height: min(70vh, 520px); overflow: auto;
+  background:
+    radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, var(--c-courses) 16%, transparent) 0%, transparent 58%),
+    linear-gradient(180deg, color-mix(in srgb, var(--c-courses) 7%, transparent) 0%, transparent 46%),
+    var(--elev);
+  border: 1px solid color-mix(in srgb, var(--c-courses) 26%, var(--border-strong));
+  border-radius: 16px;
+  box-shadow:
+    var(--shadow-pop),
+    0 0 0 1px color-mix(in srgb, var(--c-courses) 10%, transparent) inset,
+    0 18px 50px -22px color-mix(in srgb, var(--c-courses) 55%, transparent);
+  animation: cwPop .2s var(--ease-back) both; }
+.cw-pop::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  border-radius: 16px 16px 0 0;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--c-courses) 80%, transparent), transparent); }
+@keyframes cwPop {
+  from { opacity: 0; transform: translateY(-8px) scale(.94); }
+  60% { opacity: 1; }
+  to { opacity: 1; transform: none; } }
 .cw-head { display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 600; color: var(--text); }
-.cw-ico { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 7px; background: color-mix(in srgb, var(--c-courses) 16%, transparent); color: var(--c-courses); }
+.cw-ico { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; color: var(--c-courses);
+  background: linear-gradient(150deg, color-mix(in srgb, var(--c-courses) 30%, transparent), color-mix(in srgb, var(--c-courses) 12%, transparent));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c-courses) 35%, transparent), 0 0 14px -2px color-mix(in srgb, var(--c-courses) 60%, transparent); }
+.cw-name { font-weight: 700;
+  background: linear-gradient(92deg, var(--text), color-mix(in srgb, var(--c-courses) 65%, var(--text)));
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
 .cw-sub { font-size: 11.5px; line-height: 1.5; color: var(--text-dim); margin: 7px 0 11px; }
 .cw-quick { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 11px; }
-.cw-chip { font-size: 11.5px; font-weight: 500; color: var(--c-courses); background: color-mix(in srgb, var(--c-courses) 12%, transparent);
-  border: 1px solid transparent; border-radius: 999px; padding: 5px 11px; transition: background var(--t-fast); }
-.cw-chip:hover { background: color-mix(in srgb, var(--c-courses) 22%, transparent); }
-.cw-input { width: 100%; resize: vertical; min-height: 64px; padding: 10px 12px; border-radius: 10px; background: var(--surface);
+.cw-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 500; color: var(--c-courses);
+  background: color-mix(in srgb, var(--c-courses) 12%, transparent);
+  border: 1px solid transparent; border-radius: 999px; padding: 5px 11px; }
+.cw-chip::before { content: ''; width: 4px; height: 4px; border-radius: 50%; background: currentColor; opacity: .55;
+  transition: transform var(--t-fast) var(--ease-back), opacity var(--t-fast); }
+.cw-chip:hover { background: color-mix(in srgb, var(--c-courses) 22%, transparent); transform: translateY(-1px);
+  box-shadow: 0 6px 16px -10px color-mix(in srgb, var(--c-courses) 70%, transparent); }
+.cw-chip:hover::before { transform: scale(1.6); opacity: 1; }
+.cw-input { width: 100%; resize: vertical; min-height: 64px; padding: 10px 12px; border-radius: 10px;
+  background: color-mix(in srgb, var(--surface) 88%, var(--c-courses) 12%);
   border: 1px solid var(--border); color: var(--text); font-family: inherit; font-size: 13px; line-height: 1.5; outline: none; transition: border-color var(--t-fast), box-shadow var(--t-fast); }
-.cw-input:focus { border-color: var(--c-courses); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-courses) 18%, transparent); }
-.cw-input::placeholder { color: var(--text-faint); }
+.cw-input:focus { border-color: var(--c-courses);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-courses) 18%, transparent), 0 0 22px -10px color-mix(in srgb, var(--c-courses) 70%, transparent); }
+.cw-input::placeholder { color: var(--text-faint); font-style: italic; }
 .cw-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 11px; }
 .cw-kbd { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-faint); }
 .cw-send { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 13px; border-radius: 9px; font-size: 12.5px; font-weight: 600; white-space: nowrap;
-  color: #fff; background: var(--c-courses); border: 1px solid transparent; transition: background var(--t-fast), opacity var(--t-fast); }
-.cw-send:hover { background: color-mix(in srgb, var(--c-courses) 86%, #fff); }
-.cw-send:disabled { opacity: .45; cursor: not-allowed; }
+  color: var(--on-accent); border: 1px solid transparent;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--c-courses) 100%, #fff 10%), var(--c-courses));
+  box-shadow: 0 8px 20px -10px color-mix(in srgb, var(--c-courses) 80%, transparent);
+  transition: background var(--t-fast), opacity var(--t-fast), box-shadow var(--t-fast); }
+.cw-send svg { transition: transform var(--t-fast) var(--ease-back); }
+.cw-send:hover { box-shadow: 0 10px 24px -8px color-mix(in srgb, var(--c-courses) 90%, transparent); }
+.cw-send:hover svg { transform: translateX(3px); }
+.cw-send:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
+.cw-send:disabled:hover svg { transform: none; }
 
 /* ---------- editable field (efx) ---------- */
 .efx { outline: none; cursor: text; border-radius: 5px; padding: 1px 5px; margin: 0 -5px; transition: background var(--t-fast), box-shadow var(--t-fast); }
@@ -1116,7 +1153,7 @@
 .vi-alt { transition: border-color var(--t-fast), background var(--t-fast), transform var(--t-fast) var(--ease-back); }
 .cw-btn, .cw-send, .vi-alts-gen, .rot-notetgl, .pub-chan, .ab-thumb-set, .ed-recbtn {
   transition: background var(--t-fast) var(--ease), color var(--t-fast), border-color var(--t-fast), transform var(--t-fast) var(--ease-back), box-shadow var(--t) var(--ease); }
-.cw-chip { transition: background var(--t-fast), transform var(--t-fast) var(--ease-back); }
+.cw-chip { transition: background var(--t-fast), transform var(--t-fast) var(--ease-back), box-shadow var(--t-fast) var(--ease); }
 
 /* press feedback — everything that clicks should settle on press */
 .vcard:active { transform: translateY(-1px) scale(.992); transition-duration: .05s; }
@@ -1138,8 +1175,35 @@
 .vi-alt .va-go { transition: opacity var(--t-fast), transform var(--t-fast) var(--ease-back); transform: translateX(-3px); }
 .vi-alt:hover .va-go { transform: translateX(0); }
 
-/* Cowork popover: slight scale-in origin from the button */
+/* Cowork popover: scale-in origin anchored to the trigger (top-right) */
 .cw-pop { transform-origin: top right; }
+
+/* The living glyph + chip choreography — the box should feel like it just woke up.
+   All of it is gated behind reduced-motion so it never moves for users who opt out. */
+@media (prefers-reduced-motion: no-preference) {
+  /* idle breathing glow on the icon tile */
+  .cw-ico { animation: cwIcoGlow 3.2s var(--ease) infinite; }
+  @keyframes cwIcoGlow {
+    0%, 100% { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c-courses) 35%, transparent), 0 0 14px -2px color-mix(in srgb, var(--c-courses) 60%, transparent); }
+    50% { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c-courses) 50%, transparent), 0 0 20px -1px color-mix(in srgb, var(--c-courses) 80%, transparent); }
+  }
+  /* the spark (second path) twinkles */
+  .cw-ico svg path:last-child { transform-origin: center; animation: cwSpark 2.6s var(--ease) infinite; }
+  @keyframes cwSpark {
+    0%, 70%, 100% { opacity: .55; transform: scale(.9); }
+    82% { opacity: 1; transform: scale(1.25); }
+  }
+  /* chips stagger in on open (index set inline via --i) */
+  .cw-chip { animation: cwChipIn .26s var(--ease-back) both; animation-delay: calc(60ms + var(--i, 0) * 45ms); }
+  @keyframes cwChipIn { from { opacity: 0; transform: translateY(4px) scale(.96); } to { opacity: 1; transform: none; } }
+}
+
+/* Reduced-motion: no entrance, no idle glow, no chip stagger — everything is instant + still. */
+@media (prefers-reduced-motion: reduce) {
+  .cw-pop { animation: none; }
+  .cw-ico, .cw-ico svg path:last-child { animation: none; }
+  .cw-chip { animation: none; }
+}
 
 /* tasteful staggered entrances */
 @media (prefers-reduced-motion: no-preference) {

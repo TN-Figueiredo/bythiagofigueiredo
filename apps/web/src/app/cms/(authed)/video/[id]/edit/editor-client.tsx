@@ -195,10 +195,6 @@ export function VideoEditorClient({
     return { ok: res.ok, error: res.ok ? undefined : res.error }
   }, [])
 
-  const coworkSubmit = useCallback(async (_prompt: string) => {
-    /* batch-section Cowork write path wired in Task 14 (CoworkPopover.onSubmit) */
-  }, [])
-
   const anyDirty = ideiaPt.isDirty || ideiaEn.isDirty || roteiroPt.isDirty || roteiroEn.isDirty || postprodPt.isDirty || postprodEn.isDirty || publishPt.isDirty || publishEn.isDirty
   const anySaving = ideiaPt.isSaving || ideiaEn.isSaving || roteiroPt.isSaving || roteiroEn.isSaving || postprodPt.isSaving || postprodEn.isSaving || publishPt.isSaving || publishEn.isSaving
   const saveAll = useCallback(async () => {
@@ -245,11 +241,10 @@ export function VideoEditorClient({
     savePublish,
     advanceToRecorded,
     publishVideo,
-    coworkSubmit,
   }), [
     ideia, roteiro, versions, initial.pillar, initial.durationRange, saveIdeia, saveTitle, saveRoteiro, appendSiblings,
     anyDirty, anySaving, saveAll, sectionsContent, initial.abJoinFacts, initial.winnerVariantId,
-    savePostprod, savePublish, advanceToRecorded, publishVideo, coworkSubmit,
+    savePostprod, savePublish, advanceToRecorded, publishVideo,
   ])
 
   return (

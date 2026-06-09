@@ -70,7 +70,7 @@ function buildData(roteiro?: { pt: RoteiroContentV3 | null; en: RoteiroContentV3
     hasUnsavedChanges: false, saveAll: vi.fn(), autosaveState: 'saved',
     sections: {}, abJoinFacts: { youtubeVideoId: null, thumbnailHqUrl: null, durationSeconds: null },
     winnerVariantId: null, savePostprod: vi.fn(), savePublish: vi.fn(),
-    advanceToRecorded: vi.fn(), publishVideo: vi.fn(), coworkSubmit: vi.fn(),
+    advanceToRecorded: vi.fn(), publishVideo: vi.fn(),
   }
 }
 

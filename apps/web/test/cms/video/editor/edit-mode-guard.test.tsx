@@ -90,7 +90,7 @@ function stubData(over: Partial<VideoData> = {}): VideoData {
     hasUnsavedChanges: false, saveAll, autosaveState: 'saved',
     sections: {}, abJoinFacts: { youtubeVideoId: null, thumbnailHqUrl: null, durationSeconds: null },
     winnerVariantId: null, savePostprod, savePublish,
-    advanceToRecorded: vi.fn(), publishVideo: vi.fn(), coworkSubmit: vi.fn(),
+    advanceToRecorded: vi.fn(), publishVideo: vi.fn(),
     ...over,
   }
 }

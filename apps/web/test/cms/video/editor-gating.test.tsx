@@ -42,7 +42,6 @@ function makeData(over: Record<string, unknown> = {}) {
     savePublish: vi.fn().mockResolvedValue(undefined),
     advanceToRecorded: vi.fn().mockResolvedValue({ ok: true }),
     publishVideo: vi.fn().mockResolvedValue({ ok: true }),
-    coworkSubmit: vi.fn(),
     openHandoff: vi.fn(),
     openCowork: vi.fn(),
     ...over,
