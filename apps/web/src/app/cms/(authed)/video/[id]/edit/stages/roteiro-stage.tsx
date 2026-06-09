@@ -68,6 +68,10 @@ export function RoteiroStage(_props: RoteiroStageProps = {}) {
   const [cursor, setCursor] = useState(0)
   const [confirmReset, setConfirmReset] = useState(false)
   const resetBtnRef = useRef<HTMLButtonElement>(null)
+  // Tracks the last cursor we auto-scrolled to, so the scroll effect fires ONLY on a
+  // real cursor move (teleprompter / rail) — never on mount or when the roteiro content
+  // loads async (which would yank the page down to beat #1 and leave a gap at the top).
+  const prevCursorRef = useRef(0)
 
   const beats = content?.beats ?? []
   const lineKeys = useMemo(() => (content ? videoLineKeys(content) : []), [content])
@@ -106,6 +110,11 @@ export function RoteiroStage(_props: RoteiroStageProps = {}) {
 
   // Smooth-scroll the current line to ~35% of the scroll container on cursor change.
   useEffect(() => {
+    // Only on a genuine cursor MOVE — skip mount + async content-load (cursor unchanged),
+    // so opening the video never auto-scrolls to beat #1.
+    const moved = cursor !== prevCursorRef.current
+    prevCursorRef.current = cursor
+    if (!moved) return
     const k = lineKeys[cursor]
     if (!k) return
     const el = document.querySelector(`.rb-line[data-k="${k}"]`) as HTMLElement | null
