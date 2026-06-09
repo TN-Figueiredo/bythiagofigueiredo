@@ -975,10 +975,13 @@
    border, and a triple shadow (drop + inset hairline + colored bloom). */
 .cw-pop { position: fixed; z-index: 400; width: min(344px, calc(100vw - 24px)); padding: 16px;
   max-height: min(70vh, 520px); overflow: auto;
-  background:
-    radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, var(--c-courses) 18%, transparent) 0%, transparent 58%),
-    linear-gradient(180deg, color-mix(in srgb, var(--c-courses) 8%, transparent) 0%, transparent 46%),
-    color-mix(in srgb, var(--cms-surface, #1a1d27) 80%, #ffffff 20%);
+  /* Fill is a STANDALONE background-color (not a `background:` shorthand) so a single
+     invalid color-mix layer can't drop the whole fill to transparent. Plain-hex line
+     first = guaranteed paint; the token line overrides only if it resolves valid. */
+  background-color: #262a38;
+  background-color: color-mix(in srgb, var(--cms-surface, #1a1d27) 80%, #ffffff 20%);
+  background-image:
+    radial-gradient(130% 90% at 0% 0%, color-mix(in srgb, var(--c-courses) 22%, transparent) 0%, transparent 56%);
   border: 1px solid color-mix(in srgb, #ffffff 15%, transparent);
   border-radius: 16px;
   box-shadow:
