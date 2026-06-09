@@ -1142,7 +1142,7 @@ export function registerPrompts(server: McpServer): void {
       lines.push('1. Each action must reference specific data from the report')
       lines.push('2. Include expected impact (based on multiplier, views, or gap size)')
       lines.push('3. Include timeline (this week / this month / next quarter)')
-      lines.push('4. When appropriate, suggest creating a pipeline item via `create_item` tool')
+      lines.push('4. When appropriate, capture the next step via `create_item` (get-or-create — it resolves to the existing item if the title already exists, so prefer `search_content` + edit over duplicating).')
       lines.push('')
 
       lines.push('## Output Format')

@@ -48,10 +48,21 @@ export function CreateItemModal({ format, open, onClose }: CreateItemModalProps)
         return
       }
 
-      toast.success('Item criado')
+      // get-or-create: result.data may be a freshly created item OR a resolved
+      // pre-existing one. Never assert creation — just open the item; landing on
+      // its editor is the cue. Route by format: video → editor, others → pipeline item.
+      const item = result.data as { id: string; format?: string } | undefined
       setTitle('')
       onClose()
-      router.refresh()
+      if (item?.id) {
+        const href = item.format === 'video'
+          ? `/cms/video/${item.id}/edit`
+          : `/cms/pipeline/items/${item.id}`
+        toast.success('Aberto')
+        router.push(href)
+      } else {
+        router.refresh()
+      }
     })
   }
 

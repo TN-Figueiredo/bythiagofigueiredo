@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 
+const pushMock = vi.fn()
+const refreshMock = vi.fn()
 vi.mock('next/navigation', () => ({
-  useRouter: vi.fn(() => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() })),
+  useRouter: vi.fn(() => ({ push: pushMock, replace: vi.fn(), refresh: refreshMock })),
 }))
 
 vi.mock('sonner', () => ({
@@ -10,7 +12,7 @@ vi.mock('sonner', () => ({
 }))
 
 vi.mock('@/app/cms/(authed)/pipeline/actions', () => ({
-  createPipelineItem: vi.fn().mockResolvedValue({ ok: true, data: { id: '1' } }),
+  createPipelineItem: vi.fn().mockResolvedValue({ ok: true, data: { id: '1', format: 'course' } }),
 }))
 
 describe('CreateItemModal', () => {
@@ -94,6 +96,36 @@ describe('CreateItemModal', () => {
         stage: 'idea',
         format_metadata: { difficulty: 'beginner', tier: 'free', platform: 'hotmart' },
       })
+    })
+  })
+
+  it('navigates to the returned item (pipeline route) on success — get-or-create may resolve an existing item', async () => {
+    const { createPipelineItem } = await import('@/app/cms/(authed)/pipeline/actions')
+    vi.mocked(createPipelineItem).mockResolvedValueOnce({ ok: true, data: { id: 'abc', format: 'course' } })
+    const onClose = vi.fn()
+    const { CreateItemModal } = await import('@/app/cms/(authed)/pipeline/_components/create-item-modal')
+
+    render(<CreateItemModal format="course" open={true} onClose={onClose} />)
+    fireEvent.change(screen.getByLabelText(/título/i), { target: { value: 'Resolved Item' } })
+    fireEvent.submit(document.querySelector('form')!)
+
+    await vi.waitFor(() => {
+      expect(pushMock).toHaveBeenCalledWith('/cms/pipeline/items/abc')
+    })
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it('navigates to the video editor route when the returned item is a video', async () => {
+    const { createPipelineItem } = await import('@/app/cms/(authed)/pipeline/actions')
+    vi.mocked(createPipelineItem).mockResolvedValueOnce({ ok: true, data: { id: 'vid1', format: 'video' } })
+    const { CreateItemModal } = await import('@/app/cms/(authed)/pipeline/_components/create-item-modal')
+
+    render(<CreateItemModal format="video" open={true} onClose={vi.fn()} />)
+    fireEvent.change(screen.getByLabelText(/título/i), { target: { value: 'My Video' } })
+    fireEvent.submit(document.querySelector('form')!)
+
+    await vi.waitFor(() => {
+      expect(pushMock).toHaveBeenCalledWith('/cms/video/vid1/edit')
     })
   })
 })

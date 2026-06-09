@@ -1769,6 +1769,8 @@ Exemplo (PATCH `/items/:id`, objeto completo):
 
 Pelo menos um título (`title_pt` ou `title_en`) é obrigatório. O item nasce no stage inicial `idea`.
 
+**GET-OR-CREATE (uma história = um id).** `POST /items` (e o `create_item` do MCP) é idempotente por título: se já existe um item NÃO-arquivado com esse `title_pt`/`title_en` (case-insensitive, no mesmo site + `format`), a chamada retorna o item existente em vez de criar outro — sem erro, sem duplicata. Vídeo e blog_post podem ter o mesmo título (escopo por `format`). Para mexer numa história existente, edite o id dela (`update_item`/`manage_sections`); não chame `create_item` de novo esperando id novo ou uma 'versão'. Na dúvida, busque antes com `search_content`.
+
 ---
 
 ## Campos do item (PATCH)

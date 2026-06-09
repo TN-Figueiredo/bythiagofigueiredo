@@ -195,10 +195,24 @@ export interface CreateItemsParams {
 
 /** Create one or more pipeline items (max 50 per call). */
 /**
- * First NON-archived item id in `siteId`+`format` whose normalized title matches one of
- * `titles` — the duplicate-story signal shared by EVERY create path (the REST/MCP service
- * `createItems` and the CMS `createPipelineItem` server action), so one story can't fragment
- * across two ids. Scoped by format: a video and a blog post may legitimately share a title.
+ * Normalized title key — the EXACT value the partial unique index keys on:
+ * `lower(btrim(coalesce(nullif(title_pt,''), title_en, '')))`. PT is preferred; EN is the
+ * fallback only when PT is empty. Comparing key-to-key (not title_pt/title_en independently)
+ * is what keeps this helper in lockstep with `content_pipeline_active_title_uniq`: an
+ * independent 4-way OR check would both false-merge (one row's PT matching another's EN) AND
+ * let real dups slip (PT differs, EN matches but PT is the live key).
+ */
+export const titleIndexKey = (pt?: string | null, en?: string | null): string => {
+  const p = (pt ?? '').trim()
+  return (p.length > 0 ? p : (en ?? '')).trim().toLowerCase()
+}
+
+/**
+ * First NON-archived item id in `siteId`+`format` whose index key equals the candidate's key
+ * — the duplicate-story signal shared by EVERY create path (the REST/MCP service `createItems`
+ * and the CMS `createPipelineItem` server action), so one story can't fragment across two ids.
+ * Scoped by format: a video and a blog post may legitimately share a title. `titles` is
+ * `[title_pt, title_en]`; the single comparison key is computed via `titleIndexKey`.
  */
 export async function findActiveDuplicateTitleId(
   supabase: ReturnType<typeof getSupabaseServiceClient>,
@@ -206,9 +220,8 @@ export async function findActiveDuplicateTitleId(
   format: string,
   titles: Array<string | null | undefined>,
 ): Promise<string | null> {
-  const n = (s: string | null | undefined): string => (s ?? '').trim().toLowerCase()
-  const wanted = new Set(titles.map(n).filter((t) => t.length > 0))
-  if (wanted.size === 0) return null
+  const wantedKey = titleIndexKey(titles[0], titles[1])
+  if (wantedKey.length === 0) return null
   const { data } = await supabase
     .from('content_pipeline')
     .select('id, title_pt, title_en')
@@ -217,8 +230,7 @@ export async function findActiveDuplicateTitleId(
     .eq('is_archived', false)
   const dup = (data ?? []).find(
     (e: { id: string; title_pt: string | null; title_en: string | null }) =>
-      (n(e.title_pt).length > 0 && wanted.has(n(e.title_pt))) ||
-      (n(e.title_en).length > 0 && wanted.has(n(e.title_en))),
+      titleIndexKey(e.title_pt, e.title_en) === wantedKey,
   )
   return dup ? dup.id : null
 }
@@ -276,71 +288,117 @@ export async function createItems(
   // (same site + format), RESOLVE to it — return the existing item instead of creating a
   // duplicate. No error, nothing to show: the caller lands on the one canonical item. Also
   // de-dups within the batch so two same-title items collapse to one.
-  const norm = (s: string | null | undefined): string => (s ?? '').trim().toLowerCase()
   type Plan = { existingId: string } | { insertIndex: number }
   const plans: Plan[] = []
-  const toInsert: Array<Record<string, unknown>> = []
+  // Each to-insert row carries its format + index key so the 23505 recovery can re-resolve
+  // and re-insert per row (the batch insert is one statement — a single conflict aborts ALL).
+  type ToInsert = { format: Format; key: string; row: Record<string, unknown> }
+  const toInsert: ToInsert[] = []
   const batchTitleToIdx = new Map<string, number>()
   for (const p of parsed) {
     if (!p.success) continue
     const data = p.data
     const format = data.format as Format
-    const keys = [norm(data.title_pt), norm(data.title_en)].filter((x): x is string => x.length > 0)
+    const key = titleIndexKey(data.title_pt, data.title_en)
     const dupId = await findActiveDuplicateTitleId(supabase, ctx.siteId, format, [data.title_pt, data.title_en])
     if (dupId) { plans.push({ existingId: dupId }); continue }
-    const batchHit = keys.map((k) => batchTitleToIdx.get(`${format}::${k}`)).find((v) => v !== undefined)
-    if (batchHit !== undefined) { plans.push({ insertIndex: batchHit }); continue }
+    if (key.length > 0) {
+      const batchHit = batchTitleToIdx.get(`${format}::${key}`)
+      if (batchHit !== undefined) { plans.push({ insertIndex: batchHit }); continue }
+    }
     const title = data.title_pt || data.title_en || 'untitled'
     const code = data.code || generateCode(format, title, data.format_metadata)
     const checklist = data.production_checklist || DEFAULT_CHECKLISTS[format]
     const idx = toInsert.length
     toInsert.push({
-      site_id: ctx.siteId,
-      code,
-      title_pt: data.title_pt || null,
-      title_en: data.title_en || null,
       format,
-      stage: data.stage || 'idea',
-      language: data.language,
-      priority: data.priority,
-      parent_id: data.parent_id || null,
-      hook: data.hook || null,
-      synopsis: data.synopsis || null,
-      body_content: data.body_content || null,
-      format_metadata: data.format_metadata,
-      production_checklist: checklist,
-      tags: data.tags,
-      assigned_to: data.assigned_to || null,
+      key,
+      row: {
+        site_id: ctx.siteId,
+        code,
+        title_pt: data.title_pt || null,
+        title_en: data.title_en || null,
+        format,
+        stage: data.stage || 'idea',
+        language: data.language,
+        priority: data.priority,
+        parent_id: data.parent_id || null,
+        hook: data.hook || null,
+        synopsis: data.synopsis || null,
+        body_content: data.body_content || null,
+        format_metadata: data.format_metadata,
+        production_checklist: checklist,
+        tags: data.tags,
+        assigned_to: data.assigned_to || null,
+      },
     })
-    keys.forEach((k) => batchTitleToIdx.set(`${format}::${k}`, idx))
+    if (key.length > 0) batchTitleToIdx.set(`${format}::${key}`, idx)
     plans.push({ insertIndex: idx })
   }
 
-  let insertedRows: Record<string, unknown>[] = []
+  // insertedRows[i] holds the row for toInsert[i] — either freshly inserted or, when a title
+  // 23505 means a concurrent create won, the now-existing item it resolved to (never dropped).
+  const insertedRows: Array<Record<string, unknown> | null> = new Array(toInsert.length).fill(null)
+  // resolved = returned an EXISTING item (race-resolved here OR planned existingId); created =
+  // freshly inserted. The agent uses this to avoid overwriting content it didn't author.
+  const resolvedInsertIdx = new Set<number>()
   if (toInsert.length > 0) {
     const { data: inserted, error } = await supabase
       .from('content_pipeline')
-      .insert(toInsert)
+      .insert(toInsert.map((t) => t.row))
       .select()
     if (error) {
-      // 23505 = a concurrent create won the race (the one-story-one-id index). Re-resolve to
-      // the now-existing item rather than erroring, so a duplicate still never surfaces.
       if (error.code === '23505' && error.message?.includes('content_pipeline_active_title_uniq')) {
-        const first = parsed.find((p) => p.success)
-        const exId = first?.success
-          ? await findActiveDuplicateTitleId(supabase, ctx.siteId, first.data.format as Format, [first.data.title_pt, first.data.title_en])
-          : null
-        if (exId) {
-          const { data: row } = await supabase.from('content_pipeline').select().eq('id', exId).single()
-          return { data: items.length > 1 ? [row as Record<string, unknown>] : (row as Record<string, unknown>) }
+        // A title 23505 aborts the WHOLE batch insert. Recover row-by-row so no item is lost:
+        // re-resolve each (a concurrent create may have landed), and insert the still-missing
+        // ones individually — swallowing a per-row title 23505 and re-resolving that one row.
+        for (let i = 0; i < toInsert.length; i++) {
+          const t = toInsert[i]!
+          const exId = await findActiveDuplicateTitleId(supabase, ctx.siteId, t.format, [
+            t.row.title_pt as string | null,
+            t.row.title_en as string | null,
+          ])
+          if (exId) {
+            const { data: row } = await supabase.from('content_pipeline').select().eq('id', exId).single()
+            insertedRows[i] = (row as Record<string, unknown>) ?? null
+            resolvedInsertIdx.add(i)
+            continue
+          }
+          const { data: oneRow, error: oneErr } = await supabase
+            .from('content_pipeline')
+            .insert(t.row)
+            .select()
+            .single()
+          if (oneErr) {
+            if (oneErr.code === '23505' && oneErr.message?.includes('content_pipeline_active_title_uniq')) {
+              // Lost the race between the re-resolve and this insert — the item now exists.
+              const raceId = await findActiveDuplicateTitleId(supabase, ctx.siteId, t.format, [
+                t.row.title_pt as string | null,
+                t.row.title_en as string | null,
+              ])
+              if (raceId) {
+                const { data: row } = await supabase.from('content_pipeline').select().eq('id', raceId).single()
+                insertedRows[i] = (row as Record<string, unknown>) ?? null
+                resolvedInsertIdx.add(i)
+                continue
+              }
+            }
+            if (oneErr.code === '23505') {
+              throw new PipelineServiceError('VALIDATION_ERROR', 'Duplicate code. Please use a unique code.', 409)
+            }
+            throw new PipelineServiceError('VALIDATION_ERROR', 'Failed to create item', 400)
+          }
+          insertedRows[i] = (oneRow as Record<string, unknown>) ?? null
         }
-      }
-      if (error.code === '23505') {
+      } else if (error.code === '23505') {
         throw new PipelineServiceError('VALIDATION_ERROR', 'Duplicate code. Please use a unique code.', 409)
+      } else {
+        throw new PipelineServiceError('VALIDATION_ERROR', 'Failed to create item', 400)
       }
-      throw new PipelineServiceError('VALIDATION_ERROR', 'Failed to create item', 400)
+    } else {
+      const rows = inserted ?? []
+      for (let i = 0; i < rows.length; i++) insertedRows[i] = rows[i] as Record<string, unknown>
     }
-    insertedRows = inserted ?? []
   }
 
   const existingIds = [...new Set(plans.filter((p): p is { existingId: string } => 'existingId' in p).map((p) => p.existingId))]
@@ -353,12 +411,36 @@ export async function createItems(
       .in('id', existingIds)
     for (const r of exRows ?? []) exById.set((r as { id: string }).id, r as Record<string, unknown>)
   }
-  const inserted = plans.map((p) =>
-    'existingId' in p ? exById.get(p.existingId) ?? null : insertedRows[p.insertIndex] ?? null,
-  ).filter((r): r is Record<string, unknown> => r != null)
+
+  // Rebuild the full plans → result map in order (happy path AND recovery use this single path).
+  const resolvedIds: string[] = []
+  const createdIds: string[] = []
+  const result = plans
+    .map((p): Record<string, unknown> | null => {
+      if ('existingId' in p) {
+        const row = exById.get(p.existingId) ?? null
+        if (row) resolvedIds.push(p.existingId)
+        return row
+      }
+      const row = insertedRows[p.insertIndex] ?? null
+      if (row) {
+        const rid = (row as { id?: string }).id
+        if (rid) (resolvedInsertIdx.has(p.insertIndex) ? resolvedIds : createdIds).push(rid)
+      }
+      return row
+    })
+    .filter((r): r is Record<string, unknown> => r != null)
 
   const isBatch = items.length > 1 || Array.isArray(items)
-  return { data: isBatch ? (inserted as Record<string, unknown>[]) : (inserted?.[0] as Record<string, unknown>) }
+  // `resolved_ids`/`created_ids` ride alongside the standard meta keys so MCP/REST callers can
+  // tell which results were RESOLVED to an existing item (don't overwrite — content already
+  // exists) vs freshly CREATED. The base `ServiceResult.meta` type is intentionally open-ended
+  // for transport passthrough; we attach these without changing its declaration.
+  const meta = { resolved_ids: resolvedIds, created_ids: createdIds } as ServiceResult<unknown>['meta']
+  return {
+    data: isBatch ? (result as Record<string, unknown>[]) : (result[0] as Record<string, unknown>),
+    meta,
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -498,6 +580,16 @@ export async function updateItem(
     .eq('version', expectedVersion)
     .select()
     .single()
+
+  // A title edit can now collide with an active item on the partial unique index — surface a
+  // clear CONFLICT (not the misleading "concurrent modification" version conflict below).
+  if (error?.code === '23505' && error.message?.includes('content_pipeline_active_title_uniq')) {
+    throw new PipelineServiceError(
+      'CONFLICT',
+      'Another active item already uses this title — rename or archive it first.',
+      409,
+    )
+  }
 
   if (error || !updated) {
     throw new PipelineServiceError(
@@ -1339,6 +1431,16 @@ export async function restoreItem(
     .eq('site_id', ctx.siteId)
     .select()
     .single()
+
+  // Un-archiving re-enters the partial unique index — its title may now be taken by an active
+  // item. Surface a clear CONFLICT instead of the misleading "not found" below.
+  if (error?.code === '23505' && error.message?.includes('content_pipeline_active_title_uniq')) {
+    throw new PipelineServiceError(
+      'CONFLICT',
+      'Another active item already uses this title — rename or archive it first.',
+      409,
+    )
+  }
 
   if (error || !updated) {
     throw new PipelineServiceError('NOT_FOUND', 'Item not found', 404)

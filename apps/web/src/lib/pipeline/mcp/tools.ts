@@ -776,7 +776,7 @@ export function registerTools(server: McpServer): void {
   // 1. create_item
   server.tool(
     'create_item',
-    'Create a new pipeline item (video, blog_post, newsletter, course, or campaign) with optional metadata and tags.',
+    'Get-or-create a pipeline item (video, blog_post, newsletter, course, campaign). IDEMPOTENT by story identity: if a NON-archived item with the same title (case-insensitive, scoped to the same site + format) already exists, this RETURNS THAT EXISTING item instead of creating a duplicate — one story = one id. To change an existing story use update_item / manage_sections on its id; do NOT call create_item again expecting a fresh id or a "variant"/"version". Search first with search_content if unsure whether the story exists. The result meta marks resolved vs created.',
     CreateItemShape,
     WRITE,
     async (params) => itemsService.createItem(params),

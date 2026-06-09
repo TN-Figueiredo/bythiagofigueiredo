@@ -114,10 +114,19 @@ export async function createPipelineItem(input: Record<string, unknown>): Promis
     .single()
 
   if (error) {
-    // 23505 = the DB-level one-story-one-id index (race backstop): a non-archived item
-    // with this title already exists.
+    // 23505 on the title index = a concurrent create won the get-or-create race. Mirror the
+    // service: RESOLVE to the now-existing item (return it) instead of erroring, so the modal
+    // still lands on the one canonical item. A code-collision 23505 stays a hard error.
     if ((error as { code?: string }).code === '23505') {
-      return { ok: false, error: 'Já existe um item com esse título. Edite o existente em vez de criar uma duplicata.' }
+      if (error.message?.includes('content_pipeline_active_title_uniq')) {
+        const raceId = await findActiveDuplicateTitleId(supabase, siteId, format, [data.title_pt, data.title_en])
+        if (raceId) {
+          const { data: existing } = await supabase.from('content_pipeline').select().eq('id', raceId).single()
+          if (existing) return { ok: true, data: existing }
+        }
+        return { ok: false, error: 'Já existe um item com esse título. Edite o existente em vez de criar uma duplicata.' }
+      }
+      return { ok: false, error: 'Código duplicado. Use um código único.' }
     }
     return { ok: false, error: error.message }
   }
