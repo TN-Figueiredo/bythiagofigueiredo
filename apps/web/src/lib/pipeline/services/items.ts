@@ -239,6 +239,38 @@ export async function createItems(
   }
 
   const supabase = getSupabaseServiceClient()
+
+  // Duplicate-story guard: one title = one item. Block creating a second NON-archived item
+  // with the same normalized title in this site — otherwise a story fragments across ids
+  // (you write to X, the link opens Y empty). Archived items don't count; pass a distinct
+  // title or edit the existing item. (Pairs with the Cowork "work on the open item" lock.)
+  const norm = (s: string | null | undefined): string => (s ?? '').trim().toLowerCase()
+  const newTitles = new Set(
+    parsed
+      .flatMap((p) => (p.success ? [norm(p.data.title_pt), norm(p.data.title_en)] : []))
+      .filter((t): t is string => t.length > 0),
+  )
+  if (newTitles.size > 0) {
+    const { data: existingRows } = await supabase
+      .from('content_pipeline')
+      .select('id, title_pt, title_en')
+      .eq('site_id', ctx.siteId)
+      .eq('is_archived', false)
+    const dup = (existingRows ?? []).find(
+      (e: { id: string; title_pt: string | null; title_en: string | null }) =>
+        (norm(e.title_pt).length > 0 && newTitles.has(norm(e.title_pt))) ||
+        (norm(e.title_en).length > 0 && newTitles.has(norm(e.title_en))),
+    )
+    if (dup) {
+      throw new PipelineServiceError(
+        'CONFLICT',
+        `An item with this title already exists (id ${dup.id}). Edit that item instead of creating a duplicate — one story = one id.`,
+        409,
+        { existing_id: dup.id },
+      )
+    }
+  }
+
   const toInsert = parsed.map((p) => {
     if (!p.success) throw new Error('unreachable')
     const data = p.data
