@@ -205,3 +205,147 @@ describe('RecordingSheet — marking granularity (default OFF, the core ask)', (
     expect(document.querySelectorAll('.rs-beattick').length).toBe(0)
   })
 })
+
+describe('RecordingSheet — full-screen READER (view: reader)', () => {
+  afterEach(() => { cleanup(); document.body.classList.remove('recording') })
+
+  // One fala beat with TWO derived sections: [um, dois] (pause stays in) | [três] (dir flushes).
+  const readerProps = (onStatus = vi.fn()): RecordingSheetProps => ({
+    code: 'VID-003', channelName: 'TF', channelLabel: 'PT', channelFlag: '🇧🇷',
+    pillarLabel: 'Código', durationRange: '10 min', title: 'T',
+    beats: [
+      {
+        id: 'beat-abc', idx: 0, name: 'HOOK', status: 'PENDING',
+        script: [
+          { type: 'line', text: 'um' },
+          { type: 'pause', duration: 0.5 },
+          { type: 'line', text: 'dois' },
+          { type: 'dir', text: 'olhe pra câmera' },
+          { type: 'line', text: 'três' },
+        ],
+      },
+    ],
+    langOptions: [{ lang: 'pt', label: 'PT', flag: '🇧🇷' }, { lang: 'en', label: 'EN', flag: '🇺🇸' }],
+    onSwitchLang: vi.fn(), onSetBeatStatus: onStatus, onClose: vi.fn(),
+  })
+
+  const enterReader = () => fireEvent.click(screen.getByText('Leitura'))
+
+  it('renders the Folha | Leitura view toggle, defaulting to Folha (print parity)', () => {
+    render(<RecordingSheet {...readerProps()} />)
+    const seg = document.querySelector('.rec-seg[title="Modo de visualização"]') as HTMLElement
+    expect(seg).not.toBeNull()
+    const btns = Array.from(seg.querySelectorAll('button')).map((b) => b.textContent)
+    expect(btns).toEqual(['Folha', 'Leitura'])
+    expect(seg.querySelector('button.on')!.textContent).toBe('Folha')
+    // default view is the sheet, NOT the reader
+    expect(document.querySelector('.recr')).toBeNull()
+    expect(document.querySelector('.rec-sheet')).not.toBeNull()
+  })
+
+  it('switching to Leitura mounts the reader, sets view-reader, hides the sheet', () => {
+    render(<RecordingSheet {...readerProps()} />)
+    enterReader()
+    expect(document.querySelector('.rec-overlay')!.classList.contains('view-reader')).toBe(true)
+    expect(document.querySelector('.recr')).not.toBeNull()
+    expect(document.querySelector('.rec-sheet')).toBeNull()
+  })
+
+  it('reader shows ONE section at a time — first card is section [um, dois]', () => {
+    render(<RecordingSheet {...readerProps()} />)
+    enterReader()
+    const cards = document.querySelectorAll('.recr-card')
+    expect(cards.length).toBe(1)
+    const lines = document.querySelectorAll('.recr-tx')
+    expect(Array.from(lines).map((l) => l.textContent)).toEqual(['um', 'dois'])
+    expect(screen.getByText('Seção 1/2')).toBeDefined()
+  })
+
+  it('Next advances to the second section; prev is disabled at the start, next at the end', () => {
+    render(<RecordingSheet {...readerProps()} />)
+    enterReader()
+    const prev = screen.getByLabelText('Seção anterior') as HTMLButtonElement
+    const next = screen.getByLabelText('Próxima seção') as HTMLButtonElement
+    expect(prev.disabled).toBe(true)
+    expect(next.disabled).toBe(false)
+    fireEvent.click(next)
+    expect(Array.from(document.querySelectorAll('.recr-tx')).map((l) => l.textContent)).toEqual(['três'])
+    expect(screen.getByText('Seção 2/2')).toBeDefined()
+    expect((screen.getByLabelText('Próxima seção') as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByLabelText('Seção anterior') as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('"✓ Gravada" calls onSetBeatStatus with the beat key + auto-advances + opens undo', () => {
+    const onStatus = vi.fn()
+    render(<RecordingSheet {...readerProps(onStatus)} />)
+    enterReader()
+    fireEvent.click(screen.getByLabelText('Marcar seção como gravada e avançar'))
+    expect(onStatus).toHaveBeenCalledWith('pt:beat-abc', 'gravada')
+    // auto-advanced to section 2
+    expect(screen.getByText('Seção 2/2')).toBeDefined()
+    // undo toast appears
+    expect(document.querySelector('.recr-toast')).not.toBeNull()
+  })
+
+  it('"⟲ Refazer" calls onSetBeatStatus with refazer and tints the card, no advance', () => {
+    const onStatus = vi.fn()
+    render(<RecordingSheet {...readerProps(onStatus)} />)
+    enterReader()
+    fireEvent.click(screen.getByLabelText('Marcar seção para refazer'))
+    expect(onStatus).toHaveBeenCalledWith('pt:beat-abc', 'refazer')
+    expect(document.querySelector('.recr-card')!.classList.contains('st-refazer')).toBe(true)
+    expect(screen.getByText('Seção 1/2')).toBeDefined()
+  })
+
+  it('Desfazer reverts the status and the section index', () => {
+    const onStatus = vi.fn()
+    render(<RecordingSheet {...readerProps(onStatus)} />)
+    enterReader()
+    fireEvent.click(screen.getByLabelText('Marcar seção como gravada e avançar'))
+    expect(screen.getByText('Seção 2/2')).toBeDefined()
+    fireEvent.click(screen.getByText('Desfazer'))
+    expect(onStatus).toHaveBeenLastCalledWith('pt:beat-abc', 'pendente')
+    expect(screen.getByText('Seção 1/2')).toBeDefined()
+    expect(document.querySelector('.recr-toast')).toBeNull()
+  })
+
+  it('keyboard: → advances, ← goes back, g marks gravada, r marks refazer', () => {
+    const onStatus = vi.fn()
+    render(<RecordingSheet {...readerProps(onStatus)} />)
+    enterReader()
+    fireEvent.keyDown(window, { key: 'ArrowRight' })
+    expect(screen.getByText('Seção 2/2')).toBeDefined()
+    fireEvent.keyDown(window, { key: 'ArrowLeft' })
+    expect(screen.getByText('Seção 1/2')).toBeDefined()
+    fireEvent.keyDown(window, { key: 'r' })
+    expect(onStatus).toHaveBeenCalledWith('pt:beat-abc', 'refazer')
+    fireEvent.keyDown(window, { key: 'g' })
+    expect(onStatus).toHaveBeenCalledWith('pt:beat-abc', 'gravada')
+  })
+
+  it('Imprimir flips back to the sheet view (print always uses the sheet)', () => {
+    const printSpy = vi.fn()
+    const orig = window.print
+    window.print = printSpy
+    try {
+      render(<RecordingSheet {...readerProps()} />)
+      enterReader()
+      expect(document.querySelector('.recr')).not.toBeNull()
+      fireEvent.click(screen.getByText('Imprimir'))
+      expect(printSpy).toHaveBeenCalledTimes(1)
+      expect(document.querySelector('.recr')).toBeNull()
+      expect(document.querySelector('.rec-sheet')).not.toBeNull()
+    } finally {
+      window.print = orig
+    }
+  })
+
+  it('works without onSetBeatStatus (optional prop) — set-status is a safe no-op + still advances', () => {
+    const props = readerProps()
+    delete props.onSetBeatStatus
+    render(<RecordingSheet {...props} />)
+    enterReader()
+    fireEvent.click(screen.getByLabelText('Marcar seção como gravada e avançar'))
+    expect(screen.getByText('Seção 2/2')).toBeDefined()
+  })
+})
