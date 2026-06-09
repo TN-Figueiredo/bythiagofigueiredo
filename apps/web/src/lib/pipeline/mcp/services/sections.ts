@@ -20,6 +20,24 @@ function buildCtx(): ServiceContext {
   }
 }
 
+/**
+ * The MCP transport serializes structured `content` to a JSON string before it reaches
+ * the server. Typed sections (postprod, publish, …) need a real object/array to validate
+ * and store. So when content is a string that clearly encodes a JSON object/array, parse
+ * it; otherwise keep it as-is (markdown sections like draft/seo stay strings untouched).
+ */
+function coerceJsonContent(content: unknown): unknown {
+  if (typeof content !== 'string') return content
+  const trimmed = content.trim()
+  if (!(trimmed.startsWith('{') || trimmed.startsWith('['))) return content
+  try {
+    const parsed: unknown = JSON.parse(trimmed)
+    return parsed && typeof parsed === 'object' ? parsed : content
+  } catch {
+    return content
+  }
+}
+
 /** Count words in content (handles string, object, or array). */
 function countWords(content: unknown): number {
   if (typeof content === 'string') return content.split(/\s+/).filter(Boolean).length
@@ -69,8 +87,8 @@ export async function manageSections(params: Params): Promise<CallToolResult> {
                   preview: contentPreview(currentContent),
                 },
                 proposed: {
-                  word_count: countWords(b.content),
-                  preview: contentPreview(b.content),
+                  word_count: countWords(coerceJsonContent(b.content)),
+                  preview: contentPreview(coerceJsonContent(b.content)),
                 },
               }
             } catch {
@@ -109,7 +127,7 @@ export async function manageSections(params: Params): Promise<CallToolResult> {
         item_id: b.item_id as string,
         section: b.section as string,
         lang: (b.lang as string) ?? 'en',
-        content: b.content as string | Record<string, unknown> | unknown[],
+        content: coerceJsonContent(b.content) as string | Record<string, unknown> | unknown[],
         source: (b.source as string) ?? 'cowork',
         modified_by: b.modified_by as string | undefined,
       }))
@@ -156,8 +174,8 @@ export async function manageSections(params: Params): Promise<CallToolResult> {
             preview: currentContent ? contentPreview(currentContent) : '(empty)',
           },
           proposed: {
-            word_count: countWords(params.content),
-            preview: contentPreview(params.content),
+            word_count: countWords(coerceJsonContent(params.content)),
+            preview: contentPreview(coerceJsonContent(params.content)),
           },
           message: 'This will replace the entire section content. Call with dry_run: false to execute.',
         })
@@ -187,7 +205,7 @@ export async function manageSections(params: Params): Promise<CallToolResult> {
       }
 
       const body = {
-        content: params.content,
+        content: coerceJsonContent(params.content),
         rev: currentRev,
         source: params.source,
         modified_by: params.modified_by,
