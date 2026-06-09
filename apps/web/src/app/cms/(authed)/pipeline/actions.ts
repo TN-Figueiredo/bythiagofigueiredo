@@ -8,6 +8,7 @@ import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { PipelineItemCreateSchema, PipelineItemUpdateSchema } from '@/lib/pipeline/schemas'
 import { generateCode, DEFAULT_CHECKLISTS, getNextStage, getPreviousStage, getStagePosition, WORKFLOWS } from '@/lib/pipeline/workflows'
+import { findActiveDuplicateTitleId } from '@/lib/pipeline/services/items'
 import type { Format } from '@/lib/pipeline/schemas'
 import type { PipelineItem } from '@/lib/pipeline/graduation'
 
@@ -66,6 +67,13 @@ export async function createPipelineItem(input: Record<string, unknown>): Promis
   const title = data.title_pt || data.title_en || 'untitled'
   const code = data.code || generateCode(format, title, data.format_metadata)
   const stage = data.stage || 'idea'
+
+  // One story = one item: the CMS create path now runs the SAME duplicate guard as the
+  // REST/MCP service, so "Novo Vídeo" can't spawn a second row for an existing story.
+  const dupId = await findActiveDuplicateTitleId(supabase, siteId, format, [data.title_pt, data.title_en])
+  if (dupId) {
+    return { ok: false, error: `Já existe um item com esse título (id ${dupId}). Edite o existente em vez de criar uma duplicata.` }
+  }
 
   const { data: maxOrder } = await supabase
     .from('content_pipeline')

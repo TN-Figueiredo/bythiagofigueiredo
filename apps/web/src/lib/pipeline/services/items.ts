@@ -194,6 +194,35 @@ export interface CreateItemsParams {
 }
 
 /** Create one or more pipeline items (max 50 per call). */
+/**
+ * First NON-archived item id in `siteId`+`format` whose normalized title matches one of
+ * `titles` — the duplicate-story signal shared by EVERY create path (the REST/MCP service
+ * `createItems` and the CMS `createPipelineItem` server action), so one story can't fragment
+ * across two ids. Scoped by format: a video and a blog post may legitimately share a title.
+ */
+export async function findActiveDuplicateTitleId(
+  supabase: ReturnType<typeof getSupabaseServiceClient>,
+  siteId: string,
+  format: string,
+  titles: Array<string | null | undefined>,
+): Promise<string | null> {
+  const n = (s: string | null | undefined): string => (s ?? '').trim().toLowerCase()
+  const wanted = new Set(titles.map(n).filter((t) => t.length > 0))
+  if (wanted.size === 0) return null
+  const { data } = await supabase
+    .from('content_pipeline')
+    .select('id, title_pt, title_en')
+    .eq('site_id', siteId)
+    .eq('format', format)
+    .eq('is_archived', false)
+  const dup = (data ?? []).find(
+    (e: { id: string; title_pt: string | null; title_en: string | null }) =>
+      (n(e.title_pt).length > 0 && wanted.has(n(e.title_pt))) ||
+      (n(e.title_en).length > 0 && wanted.has(n(e.title_en))),
+  )
+  return dup ? dup.id : null
+}
+
 export async function createItems(
   ctx: ServiceContext,
   params: CreateItemsParams,
@@ -240,35 +269,32 @@ export async function createItems(
 
   const supabase = getSupabaseServiceClient()
 
-  // Duplicate-story guard: one title = one item. Block creating a second NON-archived item
-  // with the same normalized title in this site — otherwise a story fragments across ids
-  // (you write to X, the link opens Y empty). Archived items don't count; pass a distinct
-  // title or edit the existing item. (Pairs with the Cowork "work on the open item" lock.)
+  // Duplicate-story guard: one title = one item (format-scoped + intra-batch). Otherwise a
+  // story fragments across ids (you write to X, the link opens Y empty). Uses the SAME
+  // helper as the CMS server action so both create paths are guarded.
   const norm = (s: string | null | undefined): string => (s ?? '').trim().toLowerCase()
-  const newTitles = new Set(
-    parsed
-      .flatMap((p) => (p.success ? [norm(p.data.title_pt), norm(p.data.title_en)] : []))
-      .filter((t): t is string => t.length > 0),
-  )
-  if (newTitles.size > 0) {
-    const { data: existingRows } = await supabase
-      .from('content_pipeline')
-      .select('id, title_pt, title_en')
-      .eq('site_id', ctx.siteId)
-      .eq('is_archived', false)
-    const dup = (existingRows ?? []).find(
-      (e: { id: string; title_pt: string | null; title_en: string | null }) =>
-        (norm(e.title_pt).length > 0 && newTitles.has(norm(e.title_pt))) ||
-        (norm(e.title_en).length > 0 && newTitles.has(norm(e.title_en))),
-    )
-    if (dup) {
+  const seenInBatch = new Map<string, Set<string>>()
+  for (const p of parsed) {
+    if (!p.success) continue
+    const fmt = p.data.format
+    const titles = [p.data.title_pt, p.data.title_en]
+    const dupId = await findActiveDuplicateTitleId(supabase, ctx.siteId, fmt, titles)
+    if (dupId) {
       throw new PipelineServiceError(
         'CONFLICT',
-        `An item with this title already exists (id ${dup.id}). Edit that item instead of creating a duplicate — one story = one id.`,
+        `An item with this title already exists (id ${dupId}). Edit that item instead of creating a duplicate — one story = one id.`,
         409,
-        { existing_id: dup.id },
+        { existing_id: dupId },
       )
     }
+    const batchTitles = seenInBatch.get(fmt) ?? new Set<string>()
+    for (const t of titles.map(norm).filter((x): x is string => x.length > 0)) {
+      if (batchTitles.has(t)) {
+        throw new PipelineServiceError('CONFLICT', `Two items in this batch share the title "${t}" — each story is one item.`, 409)
+      }
+      batchTitles.add(t)
+    }
+    seenInBatch.set(fmt, batchTitles)
   }
 
   const toInsert = parsed.map((p) => {
