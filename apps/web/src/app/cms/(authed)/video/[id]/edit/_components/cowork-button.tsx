@@ -26,8 +26,9 @@ const STAGE_TARGET_HINT: Partial<Record<VideoStage, (itemId: string, lang: strin
   publicacao: (itemId, lang) =>
     `→ escreva a seção \`publish\` (ABDraftSchema) via PATCH /items/${itemId}/sections/publish?lang=${lang}; ` +
     `leia GET /items/${itemId}/sections/roteiro?lang=${lang} e a ideia primeiro, então gere EXATAMENTE 4 variantes testáveis A–D ({id, title, brief}), ` +
-    `cada uma um ângulo distinto (emocional/dados/curiosidade/promessa) derivado do roteiro + ideia; ` +
-    `só TEXTO de título + brief (o que a thumb comunica), nunca URLs de imagem; ` +
+    `cada variante = um TÍTULO testável + um BRIEF DE THUMBNAIL (o conceito visual da capa: o que ela mostra/comunica), ` +
+    `cada uma num ângulo distinto (emocional/dados/curiosidade/promessa) derivado do roteiro + ideia; ` +
+    `só TEXTO (título + brief da capa), nunca URLs/imagens — a arte é feita no Claude Design; ` +
     `todas role:'challenger' (sem 'winner', sem 'original'); firstOnAir = a capa que entra primeiro no ar.`,
 }
 
@@ -36,7 +37,7 @@ const CW_PROMPTS: Record<VideoStage, string[]> = {
   ideia: ['Gerar 3 novas direções', 'Qual é o gancho mais forte?', 'Sugerir ângulos (A1–A5)'],
   roteiro: ['Encurtar mantendo os beats', 'Reforçar o hook', 'Sugerir b-roll por beat', 'Marcar ênfases'],
   pos: ['Gerar instruções de edição', 'Que b-roll ainda falta?', 'Revisar CTAs/QR por idioma'],
-  publicacao: ['Gerar 4 títulos testáveis', 'Brief das 4 thumbnails', 'Sugerir distribuição'],
+  publicacao: ['Gerar 4 variações: título + thumbnail', 'Variar os ângulos de gancho', 'Sugerir distribuição'],
 }
 
 /** Per-stage textarea placeholder — phrased as if you're talking to a sharp collaborator. */

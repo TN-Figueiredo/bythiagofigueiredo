@@ -91,6 +91,6 @@ describe('Editor lifecycle gating (§5.5)', () => {
     shell('published')
     // frozen: the "Publicar + iniciar teste" CTA is gone when already published
     expect(screen.queryByRole('button', { name: /Publicar \+ iniciar teste/i })).toBeNull()
-    expect(screen.getByText(/no ar — títulos travados/i)).toBeInTheDocument()
+    expect(screen.getByText(/no ar — capas travadas/i)).toBeInTheDocument()
   })
 })

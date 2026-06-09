@@ -133,7 +133,7 @@ export function PublicacaoStage({
               nothing to lose: Cowork writes via the pipeline API; "Começar do zero" enters edit
               mode + force-seeds. Only EDITING an existing draft stays gated by canEdit. */}
           <div className="rot-gen-actions">
-            <CoworkButton stage="publicacao" label="Gerar títulos com Cowork" />
+            <CoworkButton stage="publicacao" label="Gerar títulos + thumbnails com Cowork" />
             <button type="button" className="btn" onClick={seedFromEmpty}>
               <Plus size={15} /> Começar do zero
             </button>
@@ -207,10 +207,10 @@ export function PublicacaoStage({
         <span className="grow" />
         {published ? (
           <span className="pub-locknote">
-            <Lock size={12} /> no ar — títulos travados
+            <Lock size={12} /> no ar — capas travadas
           </span>
         ) : (
-          <CoworkButton stage="publicacao" label="Sugerir títulos com Cowork" compact />
+          <CoworkButton stage="publicacao" label="Sugerir títulos + thumbnails" compact />
         )}
       </div>
 

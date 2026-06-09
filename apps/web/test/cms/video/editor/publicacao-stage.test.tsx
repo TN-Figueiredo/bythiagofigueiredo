@@ -274,7 +274,7 @@ const { container } = renderView(
     )
     const btn = container.querySelector('button.cw-btn.compact')
     expect(btn).toBeTruthy()
-    expect(btn?.textContent).toMatch(/sugerir títulos com cowork/i)
+    expect(btn?.textContent).toMatch(/sugerir títulos \+ thumbnails/i)
   })
 
   it('Sugerir títulos button opens the Cowork popover (dialog) on click', () => {
@@ -313,7 +313,7 @@ const { container } = renderView(
       <PublicacaoStage draft={empty} cta={enabledCta} published={false} winnerVariantId={null} {...noop} />,
     )
     expect(container.querySelector('.rot-gen')).toBeTruthy()
-    expect(container.querySelector('.cw-btn')?.textContent).toMatch(/gerar títulos com cowork/i)
+    expect(container.querySelector('.cw-btn')?.textContent).toMatch(/gerar títulos \+ thumbnails com cowork/i)
     expect(container.querySelectorAll('.ab-card')).toHaveLength(0)
   })
 
@@ -434,7 +434,7 @@ const { container } = renderView(
     )
     expect(container.querySelector('.pub-locknote')).toBeTruthy()
     expect(container.querySelector('button.cw-btn.compact')).toBeFalsy()
-    expect(container.querySelector('.pub-locknote')?.textContent).toMatch(/no ar — títulos travados/i)
+    expect(container.querySelector('.pub-locknote')?.textContent).toMatch(/no ar — capas travadas/i)
   })
 
   it('test running (winnerVariantId=null): NO winner badge on any card, only the 1ª-no-ar marker', () => {
