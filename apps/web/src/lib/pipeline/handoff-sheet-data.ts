@@ -10,13 +10,19 @@ export interface HandoffBeatRow {
   cues: string[]
 }
 
-/** Project roteiro beats into handoff rows: 1-indexed, anchor + b-roll derived from the script. */
+/**
+ * Project roteiro beats into handoff rows: anchor + b-roll derived from the script.
+ * Non-spoken, cue-less beats (KIT, MUST-GET, TIMELINE, PLAYBOOK) are dropped so the
+ * brief reads as a Pós reference and not a verbatim ROTEIRO dump. Display numbering is
+ * 1-indexed and contiguous over the FILTERED list.
+ */
 export function handoffBeatRows(beats: RoteiroBeatV3[]): HandoffBeatRow[] {
-  return beats.map((beat, i) => ({
-    displayNum: i + 1,
-    name: beat.name,
-    duration: beat.duration,
-    anchor: spokenAnchorText(beat),
-    cues: visNotes(beat),
-  }))
+  const out: HandoffBeatRow[] = []
+  beats.forEach((beat) => {
+    const anchor = spokenAnchorText(beat)
+    const cues = visNotes(beat)
+    if (!anchor && cues.length === 0) return // drop non-spoken, cue-less beats
+    out.push({ displayNum: out.length + 1, name: beat.name, duration: beat.duration, anchor, cues })
+  })
+  return out
 }

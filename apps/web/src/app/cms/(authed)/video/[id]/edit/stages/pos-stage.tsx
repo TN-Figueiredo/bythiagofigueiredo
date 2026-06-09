@@ -15,7 +15,7 @@ import type { Version } from '../editor-model'
  * values) so the editor has the structure to fill — the Cowork fills the values instead. */
 const POS_TEMPLATE: PosBrief = {
   kind: 'brief',
-  deliverables: { editor: '', deadline: '', turnaround: '', drive: '', energy: '', references: [] },
+  deliverables: { editor: '', deadline: '', turnaround: '', drive: '', energy: '', notes: '', references: [] },
   style: [
     { k: 'Zoom & reframe', v: '' },
     { k: 'Ritmo de corte', v: '' },
@@ -37,6 +37,18 @@ const POS_TEMPLATE: PosBrief = {
 
 /** Empty CTA shape — kept as a const so `ctas ?? EMPTY_CTAS` is referentially stable. */
 const EMPTY_CTAS: NonNullable<PosBrief['ctas']> = { note: '', rows: [], display: '' }
+
+/** Logistics fields of the delivery brief. Cowork usually can't fill editor/prazo (those are
+ * decided by a human), so the card splits: filled fields → editable grid; empty ones → a single
+ * muted "a combinar" pill row (click focuses the field) instead of 4 dead input rows. */
+const DELIVERABLES = [
+  { k: 'editor', label: 'Editor', ph: 'Nome do editor' },
+  { k: 'deadline', label: 'Prazo', ph: 'Prazo' },
+  { k: 'turnaround', label: 'Revisão', ph: 'Turnaround' },
+  { k: 'drive', label: 'Drive', ph: 'Pasta no Drive', wide: true },
+] as const
+
+type DeliverableKey = (typeof DELIVERABLES)[number]['k']
 
 /** A brief is "started" once it carries any style/CTA rows, a filled deliverable field, a
  * non-empty CTA note/display, or at least one reference. Until then the Pós shows the
@@ -80,6 +92,7 @@ function EF({
   tag = 'b',
   className = '',
   ph,
+  id,
 }: {
   value: string
   onChange: (v: string) => void
@@ -88,10 +101,13 @@ function EF({
   tag?: 'b' | 'span'
   className?: string
   ph?: string
+  /** Optional DOM id so a sibling affordance (e.g. "a combinar" pill) can focus the field. */
+  id?: string
 }) {
   const Tag = tag
   return (
     <Tag
+      id={id}
       className={('efx ' + className).trim()}
       contentEditable={canEdit}
       role="textbox"
@@ -157,6 +173,8 @@ export function PosStage({ beats, brief, activeLang, onPatch, onSeed, onOpenHand
 
   const [confirmReset, setConfirmReset] = useState(false)
   const resetBtnRef = useRef<HTMLButtonElement>(null)
+  // Empty deliverable fields the user opened from their "a combinar" pill (render as editable rows).
+  const [revealed, setRevealed] = useState<Set<DeliverableKey>>(() => new Set())
 
   const onCancelReset = useCallback(() => {
     setConfirmReset(false)
@@ -177,6 +195,20 @@ export function PosStage({ beats, brief, activeLang, onPatch, onSeed, onOpenHand
 
   const patchDel = (k: keyof NonNullable<PosBrief['deliverables']>, v: string) =>
     onPatch({ deliverables: { ...del, [k]: v } })
+
+  // Adaptive Entrega: split the logistics fields by whether they're filled. A field a user clicked
+  // open via its "a combinar" pill (revealed) also renders as an editable row even while empty.
+  const delVal = (k: DeliverableKey) => (del[k] ?? '').trim()
+  const fieldId = (k: DeliverableKey) => `pp-del-${k}`
+  const shownDel = DELIVERABLES.filter((f) => delVal(f.k) !== '' || revealed.has(f.k))
+  const todoDel = DELIVERABLES.filter((f) => delVal(f.k) === '' && !revealed.has(f.k))
+  // Pills reveal + focus the field (edit mode only). In view mode the EFs aren't focusable, so the
+  // pills stay a non-interactive "falta preencher" affordance.
+  const revealDelField = (k: DeliverableKey) => {
+    if (!canEdit) return
+    setRevealed((prev) => new Set(prev).add(k))
+    requestAnimationFrame(() => document.getElementById(fieldId(k))?.focus())
+  }
 
   const patchStyleRow = (i: number, v: string) => {
     const next = style.map((s, j) => (j === i ? { ...s, v } : s))
@@ -257,13 +289,10 @@ export function PosStage({ beats, brief, activeLang, onPatch, onSeed, onOpenHand
     <div className="pp-doc fade-in">
       {/* ── top bar ── */}
       <div className="pp-bar">
-        <div>
-          <div className="pp-kick">
-            <SparklesGlyph size={12} /> Pós-produção · brief pro editor
-          </div>
-          <div className="pp-editor">
-            <Edit size={11} /> tudo editável · ajuste por vídeo
-          </div>
+        <div className="pp-bar-head">
+          <div className="vi-kicker"><SparklesGlyph size={12} /> Pós-produção · brief pro editor</div>
+          <h1 className="vi-title pp-bar-title">Sugestões pro editor</h1>
+          <div className="pp-editor"><Edit size={11} /> Tudo editável · ajuste por vídeo</div>
         </div>
         <div className="grow" />
         {canEdit && (confirmReset ? (
@@ -288,32 +317,49 @@ export function PosStage({ beats, brief, activeLang, onPatch, onSeed, onOpenHand
         {/* ── Entrega ── */}
         <PPCard icon={<CheckCheck size={14} />} title="Entrega" sub="o combinado · clique para editar">
           <div className="pp-fields">
-            <div className="pp-f">
-              <span>Editor</span>
-              <EF value={del.editor ?? ''} canEdit={canEdit} onChange={v => patchDel('editor', v)} ph="Nome do editor" />
-            </div>
-            <div className="pp-f">
-              <span>Prazo</span>
-              <EF value={del.deadline ?? ''} canEdit={canEdit} onChange={v => patchDel('deadline', v)} ph="Prazo" />
-            </div>
-            <div className="pp-f">
-              <span>Revisão</span>
-              <EF value={del.turnaround ?? ''} canEdit={canEdit} onChange={v => patchDel('turnaround', v)} ph="Turnaround" />
-            </div>
+            {shownDel.map((f) => (
+              <div key={f.k} className={'wide' in f && f.wide ? 'pp-f wide' : 'pp-f'}>
+                <span>{f.label}</span>
+                <EF id={fieldId(f.k)} value={del[f.k] ?? ''} canEdit={canEdit} onChange={v => patchDel(f.k, v)} ph={f.ph} />
+              </div>
+            ))}
+            {/* Versões is derived from the present languages — always shown, never empty. */}
             <div className="pp-f">
               <span>Versões</span><b>{langs}</b>
             </div>
+            {/* Escopo: free-form "what to actually cut/deliver". Wide + always editable. */}
             <div className="pp-f wide">
-              <span>Drive</span>
-              <EF value={del.drive ?? ''} canEdit={canEdit} onChange={v => patchDel('drive', v)} ph="Pasta no Drive" />
+              <span>Escopo</span>
+              <EF
+                value={del.notes ?? ''}
+                canEdit={canEdit}
+                onChange={v => patchDel('notes', v)}
+                ph="Ex: corte principal 8–12min, 3 Shorts, overlays a inserir"
+              />
             </div>
           </div>
+          {todoDel.length > 0 && (
+            <div className="pp-todo">
+              <span className="pp-todo-lbl">A combinar</span>
+              {todoDel.map((f) => (
+                <button
+                  key={f.k}
+                  type="button"
+                  className="pp-todo-pill"
+                  disabled={!canEdit}
+                  onClick={() => revealDelField(f.k)}
+                >
+                  <Plus size={11} /> {f.label}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="pp-energy">
             <Eye size={13} />
             <span>
               <b>Energia:</b>{' '}
               <EF tag="span" className="ef-inline" value={del.energy ?? ''} canEdit={canEdit} onChange={v => patchDel('energy', v)} ph="Energia/tom" />
-              <i> Ref: {(del.references ?? []).join(' · ')}</i>
+              {(del.references ?? []).length > 0 && <i> Ref: {(del.references ?? []).join(' · ')}</i>}
             </span>
           </div>
         </PPCard>
@@ -324,9 +370,9 @@ export function PosStage({ beats, brief, activeLang, onPatch, onSeed, onOpenHand
             <PPCard icon={<Target size={14} />} title="Momentos-chave" sub="frase-âncora + cue visual, por beat">
               {moments.length > 0 ? (
                 <div className="pp-moments">
-                  {moments.map((m) => (
+                  {moments.map((m, n) => (
                     <div key={m.i} className="pp-moment">
-                      <span className="pp-mnum">#{m.i + 1}</span>
+                      <span className="pp-mnum">#{n + 1}</span>
                       <div className="pp-mbody">
                         <div className="pp-mline">&ldquo;{m.line}&rdquo;</div>
                         {m.cue && (

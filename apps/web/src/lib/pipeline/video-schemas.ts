@@ -64,7 +64,11 @@ export const PosBriefSchema = z.object({
   kind: z.literal('brief'),
   deliverables: z.object({
     editor: z.string(), deadline: z.string(), turnaround: z.string(),
-    drive: z.string(), energy: z.string(), references: z.array(z.string()).default([]),
+    drive: z.string(), energy: z.string(),
+    // Free-form delivery scope ("corte principal 8–12min, 3 Shorts, overlays a inserir").
+    // The fixed fields above are logistics; this carries what to actually cut/deliver.
+    notes: z.string().max(2000),
+    references: z.array(z.string()).default([]),
   }).partial().optional(),
   style: z.array(z.object({ k: z.string(), v: z.string() })).default([]),
   ctas: z.object({

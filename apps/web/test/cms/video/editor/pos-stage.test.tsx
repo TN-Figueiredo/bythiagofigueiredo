@@ -52,12 +52,13 @@ describe('PosStage — handoff markup', () => {
     expect(container.querySelector('.pp-doc.fade-in')).toBeTruthy()
   })
 
-  it('renders .pp-bar with kicker text and "Exportar pro editor" button', () => {
+  it('renders .pp-bar with title, kicker text and "Exportar pro editor" button', () => {
     const { container } = wrap(
       <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
     )
     expect(container.querySelector('.pp-bar')).toBeTruthy()
-    expect(container.querySelector('.pp-kick')!.textContent).toContain('Pós-produção')
+    expect(container.querySelector('.pp-bar .vi-kicker')!.textContent).toContain('Pós-produção')
+    expect(container.querySelector('.pp-bar-title')!.textContent).toBe('Sugestões pro editor')
     expect(screen.getByRole('button', { name: /Exportar pro editor/i })).toBeTruthy()
   })
 
@@ -391,7 +392,8 @@ describe('PosStage — handoff markup', () => {
         <PosStage beats={beats} brief={noteOnly} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
       )
       expect(container.querySelector('.pp-grid')).toBeTruthy()
-      expect(screen.queryByText('Sugestões pro editor')).toBeNull()
+      // chooser-specific affordance absent (the bar title shares the "Sugestões pro editor" text)
+      expect(container.querySelector('.rot-gen')).toBeNull()
     })
 
     it('a brief with only ctas.display shows the full doc', () => {

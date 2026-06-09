@@ -22,7 +22,8 @@ const STAGE_LABEL: Record<VideoStage, string> = {
 const STAGE_TARGET_HINT: Partial<Record<VideoStage, (itemId: string, lang: string) => string>> = {
   pos: (itemId, lang) =>
     `→ escreva a seção \`postprod\` (PosBriefSchema, kind:'brief') via MCP manage_sections (action:update, item_id:${itemId}, section:postprod, lang:${lang}); ` +
-    `derive estilo & ritmo, CTAs e QR do roteiro — leia primeiro com manage_sections action:get (section:roteiro, lang:${lang}).`,
+    `derive estilo & ritmo, CTAs e QR do roteiro — leia primeiro com manage_sections action:get (section:roteiro, lang:${lang}); ` +
+    `o escopo de entrega (o que cortar/entregar) vai em deliverables.notes (texto livre), NÃO invente outros campos em deliverables.`,
   publicacao: (itemId, lang) =>
     `→ escreva a seção \`publish\` (ABDraftSchema) via MCP manage_sections (action:update, item_id:${itemId}, section:publish, lang:${lang}); ` +
     `leia primeiro o roteiro e a ideia com manage_sections action:get, então gere EXATAMENTE 4 variantes testáveis A–D ({id, title, brief}), ` +
