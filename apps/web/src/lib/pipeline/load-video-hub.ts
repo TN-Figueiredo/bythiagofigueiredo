@@ -91,6 +91,7 @@ export async function loadVideoHub(siteId: string): Promise<VideoHubData> {
     .select(HUB_SELECT)
     .eq('format', 'video')
     .eq('site_id', siteId)
+    .eq('is_archived', false)
     .order('updated_at', { ascending: false })
 
   if (error) throw error
