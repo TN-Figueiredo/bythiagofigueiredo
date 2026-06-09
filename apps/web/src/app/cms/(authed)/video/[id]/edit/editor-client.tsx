@@ -1,6 +1,7 @@
 'use client'
 
 import { Component, type ReactNode, type ErrorInfo, useCallback, useMemo, useState } from 'react'
+import { AutosaveGate, useAutosaveGateRef } from './use-autosave'
 import { Toaster } from 'sonner'
 import type { RoteiroContentV3 } from '@/lib/pipeline/roteiro-schemas'
 import type { SectionData } from '@/lib/pipeline/sections'
@@ -103,6 +104,12 @@ export function VideoEditorClient({
   const [roteiro, setRoteiro] = useState(initial.roteiro)
   const [version, setVersion] = useState(initialState.version)
 
+  // Autosave pause: mirrors `useCanEditContent()` (view-mode / published-lock) into a ref the
+  // save callbacks below read at call time. <AutosaveGate> (inside the provider) keeps it live.
+  // VIEW mode and the published lock therefore NEVER persist content. Recording-status sync is
+  // separate (use-recording-sync) and stays unaffected.
+  const canEditRef = useAutosaveGateRef()
+
   // Tolerate a partial `initial` (older callers / tests pre-P3 omit the section map).
   const initialSections = initial.sections ?? {}
   const abJoinFacts = initial.abJoinFacts ?? { youtubeVideoId: null, thumbnailHqUrl: null, durationSeconds: null }
@@ -120,42 +127,47 @@ export function VideoEditorClient({
   const publishEn = useVideoSection({ itemId: initialState.itemId, sectionBase: 'publish', lang: 'en', format: 'video', itemVersion: version, initialData: seedEnvelope(initialSections.publish_en), onSaveSuccess })
 
   const saveIdeia = useCallback(async (lang: 'pt' | 'en', patch: Partial<IdeiaPayload>) => {
+    if (!canEditRef.current) return // view mode / published lock — never persist content
     setIdeia((prev) => ({ ...prev, [lang]: { ...prev[lang], ...patch } }))
     const hook = lang === 'pt' ? ideiaPt : ideiaEn
     hook.setContent({ ...(hook.content as unknown as IdeiaPayload), ...patch })
     await hook.save()
-  }, [ideiaPt, ideiaEn])
+  }, [ideiaPt, ideiaEn, canEditRef])
 
   const saveTitle = useCallback(async (lang: 'pt' | 'en', title: string) => {
+    if (!canEditRef.current) return // view mode / published lock — never persist content
     const res = await saveVideoTitle(initialState.itemId, lang, title, version)
     if (res.ok) setVersion(res.version)
     setIdeia((prev) => ({ ...prev, [lang]: { ...prev[lang], title } }))
-  }, [initialState.itemId, version])
+  }, [initialState.itemId, version, canEditRef])
 
   const saveRoteiro = useCallback(async (lang: 'pt' | 'en', content: RoteiroContentV3) => {
+    if (!canEditRef.current) return // view mode / published lock — never persist content
     setRoteiro((prev) => ({ ...prev, [lang]: content }))
     const hook = lang === 'pt' ? roteiroPt : roteiroEn
     hook.setContent(content as unknown as SectionData['content'])
     await hook.save()
-  }, [roteiroPt, roteiroEn])
+  }, [roteiroPt, roteiroEn, canEditRef])
 
   const appendSiblings = useCallback(() => {
     /* wired to Cowork generation in P3 */
   }, [])
 
   const savePostprod = useCallback(async (lang: 'pt' | 'en', patch: Partial<PosBrief>) => {
+    if (!canEditRef.current) return // view mode / published lock — never persist content
     const hook = lang === 'pt' ? postprodPt : postprodEn
     const prev = (hook.content ?? { kind: 'brief' }) as unknown as PosBrief
     hook.setContent({ ...prev, ...patch } as unknown as SectionData['content'])
     await hook.save()
-  }, [postprodPt, postprodEn])
+  }, [postprodPt, postprodEn, canEditRef])
 
   const savePublish = useCallback(async (lang: 'pt' | 'en', patch: Partial<ABDraft>) => {
+    if (!canEditRef.current) return // view mode / published lock — never persist content
     const hook = lang === 'pt' ? publishPt : publishEn
     const prev = (hook.content ?? {}) as unknown as ABDraft
     hook.setContent({ ...prev, ...patch } as unknown as SectionData['content'])
     await hook.save()
-  }, [publishPt, publishEn])
+  }, [publishPt, publishEn, canEditRef])
 
   const advanceToRecorded = useCallback(async (id: string, v: number) => {
     const res = await advanceToRecordedAction(id, v)
@@ -178,11 +190,12 @@ export function VideoEditorClient({
   const anyDirty = ideiaPt.isDirty || ideiaEn.isDirty || roteiroPt.isDirty || roteiroEn.isDirty || postprodPt.isDirty || postprodEn.isDirty || publishPt.isDirty || publishEn.isDirty
   const anySaving = ideiaPt.isSaving || ideiaEn.isSaving || roteiroPt.isSaving || roteiroEn.isSaving || postprodPt.isSaving || postprodEn.isSaving || publishPt.isSaving || publishEn.isSaving
   const saveAll = useCallback(async () => {
+    if (!canEditRef.current) return // ⌘S / nav-guard flush — view mode / published lock never persists
     await Promise.all([
       ideiaPt.save(), ideiaEn.save(), roteiroPt.save(), roteiroEn.save(),
       postprodPt.save(), postprodEn.save(), publishPt.save(), publishEn.save(),
     ])
-  }, [ideiaPt, ideiaEn, roteiroPt, roteiroEn, postprodPt, postprodEn, publishPt, publishEn])
+  }, [ideiaPt, ideiaEn, roteiroPt, roteiroEn, postprodPt, postprodEn, publishPt, publishEn, canEditRef])
 
   // Live section-content map (unwrapped) keyed by getSectionKey output — StageBody reads
   // postprod_<lang>/publish_<lang> off this and parses the content with the section schemas.
@@ -230,6 +243,7 @@ export function VideoEditorClient({
   return (
     <VideoEditorErrorBoundary>
       <VideoEditorProvider initialState={initialState} liveVersion={version} setLiveVersion={setVersion}>
+        <AutosaveGate canEditRef={canEditRef} />
         <VideoDataProvider value={data}>
           <EditorShell />
           <Toaster

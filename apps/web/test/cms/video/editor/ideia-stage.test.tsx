@@ -8,7 +8,10 @@ import type { Version } from '@/app/cms/(authed)/video/[id]/edit/editor-model'
 
 const seed: VideoEditorState = {
   itemId: 'vid-1', code: 'V-A07', siteId: 'site-1', stage: 'idea', version: 1,
-  primaryLang: 'pt', activeLang: 'pt', activeStage: 'ideia', focus: false, notes: false,
+  primaryLang: 'pt', activeLang: 'pt', activeStage: 'ideia',
+  // edit mode so useCanEditContent() is true — these tests assert the editable affordances
+  // (contentEditable title/direction + alt-swap commit). The View/Edit gate is covered separately.
+  editMode: 'edit', focus: false, notes: false,
   recordingOpen: false, handoffOpen: false, coworkOpen: false,
 }
 
@@ -55,6 +58,7 @@ describe('IdeiaStage — handoff markup', () => {
     expect(title.getAttribute('data-ph')).toBe('Título de trabalho do vídeo…')
     expect(title.getAttribute('data-empty')).toBe('true')
     expect(title.getAttribute('contenteditable')).toBe('true')
+    expect(title.getAttribute('aria-readonly')).toBe('false') // a11y mirrors the editable state
   })
 
   it('renders .vi-seed > .vi-seed-head > .vi-seed-ico + .vi-seed-name + .vi-seed-sub', () => {
@@ -72,6 +76,7 @@ describe('IdeiaStage — handoff markup', () => {
     const seedText = container.querySelector('.vi-seed-text')!
     expect(seedText).not.toBeNull()
     expect(seedText.getAttribute('contenteditable')).toBe('true')
+    expect(seedText.getAttribute('aria-readonly')).toBe('false') // a11y mirrors the editable state
     expect(seedText.getAttribute('data-ph')).toContain('opinião')
   })
 

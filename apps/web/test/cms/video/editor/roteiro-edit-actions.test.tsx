@@ -14,7 +14,7 @@ const seed: VideoEditorState = {
   itemId: 'vid-1', code: 'V-A07', siteId: 'site-1', stage: 'roteiro', version: 1,
   primaryLang: 'pt', activeLang: 'pt', activeStage: 'roteiro', focus: false, notes: false,
   showRecStatus: false, recStatus: {}, retakeNotes: {},
-  recordingOpen: false, handoffOpen: false, coworkOpen: false,
+  recordingOpen: false, handoffOpen: false, coworkOpen: false, editMode: 'edit',
 }
 
 const ROTEIRO: RoteiroContentV3 = {
@@ -25,7 +25,7 @@ const ROTEIRO: RoteiroContentV3 = {
   ],
 }
 
-function wrap(over: { notes?: boolean } = {}) {
+function wrap(over: { notes?: boolean; editMode?: 'view' | 'edit' } = {}) {
   const saveRoteiro = vi.fn().mockResolvedValue(undefined)
   const data = {
     ideia: { pt: { title: 'Acordei às 6h', direction: '', siblings: [], logline: '', angles: '', framework: '' }, en: { title: '', direction: '', siblings: [], logline: '', angles: '', framework: '' } },
@@ -33,7 +33,7 @@ function wrap(over: { notes?: boolean } = {}) {
     saveIdeia: vi.fn(), saveTitle: vi.fn(), appendSiblings: vi.fn(), saveRoteiro,
   }
   const r = render(
-    <VideoEditorProvider initialState={{ ...seed, notes: over.notes ?? false }}>
+    <VideoEditorProvider initialState={{ ...seed, notes: over.notes ?? false, editMode: over.editMode ?? seed.editMode }}>
       <VideoDataProvider value={data as never}><RoteiroStage /></VideoDataProvider>
     </VideoEditorProvider>,
   )
@@ -81,12 +81,22 @@ describe('RoteiroStage — spoken counter integrity (the metric the user cared a
 describe('RoteiroStage — classification recovery', () => {
   it('an auto-classified acao beat offers "é fala?" and stamps an explicit kind on click', () => {
     const { container, saveRoteiro } = wrap()
-    const recover = container.querySelector('.rb-recover')!
+    const recover = container.querySelector('.rb-recover') as HTMLButtonElement
     expect(recover).toBeTruthy()
+    expect(recover.disabled).toBe(false) // active in edit mode
     fireEvent.click(recover)
     expect(saveRoteiro).toHaveBeenCalledTimes(1)
     const [, content] = saveRoteiro.mock.calls[0]!
     expect(content.beats[1].kind).toBe('fala')
+  })
+
+  it('view mode: the "é fala?" recover button is disabled (visibly inert) and a click no-ops', () => {
+    const { container, saveRoteiro } = wrap({ editMode: 'view' })
+    const recover = container.querySelector('.rb-recover') as HTMLButtonElement
+    expect(recover).toBeTruthy()
+    expect(recover.disabled).toBe(true) // gated in view mode, consistent with other affordances
+    fireEvent.click(recover)
+    expect(saveRoteiro).not.toHaveBeenCalled() // handler is also guarded (defense-in-depth)
   })
 })
 

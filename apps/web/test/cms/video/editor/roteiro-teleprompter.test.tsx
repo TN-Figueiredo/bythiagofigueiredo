@@ -13,7 +13,12 @@ import { beatContentHash } from '@/lib/pipeline/video-recording'
 
 const seed: VideoEditorState = {
   itemId: 'vid-1', code: 'V-A07', siteId: 'site-1', stage: 'roteiro', version: 1,
-  primaryLang: 'pt', activeLang: 'pt', activeStage: 'roteiro', focus: false, notes: false,
+  primaryLang: 'pt', activeLang: 'pt', activeStage: 'roteiro',
+  // Default the harness to EDIT mode: this suite predates View/Edit and asserts content
+  // editing (contentEditable lines, Recomeçar, etc.). Reading + recording-status tests pass
+  // in either mode. View-mode gating gets its own dedicated coverage below.
+  editMode: 'edit', markGran: 'off', recRecordedHash: {},
+  focus: false, notes: false,
   showRecStatus: false, recStatus: {}, retakeNotes: {},
   recordingOpen: false, handoffOpen: false, coworkOpen: false,
 }
@@ -39,6 +44,7 @@ function wrap(
     showRecStatus?: boolean
     recStatus?: Record<string, string>
     recRecordedHash?: Record<string, string>
+    editMode?: 'view' | 'edit'
   } = {},
 ) {
   const data = {
@@ -52,6 +58,7 @@ function wrap(
     <VideoEditorProvider
       initialState={{
         ...seed,
+        editMode: over.editMode ?? seed.editMode,
         notes: over.notes ?? false,
         showRecStatus: over.showRecStatus ?? false,
         recStatus: (over.recStatus ?? {}) as never,
@@ -417,5 +424,80 @@ describe('RoteiroStage — Recomeçar (reset to chooser)', () => {
     expect(saveRoteiro).not.toHaveBeenCalled()
     expect(container.querySelector('.rot-reset')).not.toBeNull()
     expect(container.querySelector('.rot-reset-confirm')).toBeNull()
+  })
+})
+
+describe('RoteiroStage — View/Edit gate (content read-only in view mode)', () => {
+  it('view mode: spoken-line text is contentEditable={false} (no editing affordance)', () => {
+    const { container } = wrap({ editMode: 'view' })
+    const tx = container.querySelector('.rb-line .rb-line-tx') as HTMLElement
+    // contentEditable={false} renders the attribute literally as "false" (not removed)
+    expect(tx.getAttribute('contenteditable')).toBe('false')
+    expect(tx.getAttribute('aria-readonly')).toBe('true') // a11y: screen readers announce read-only
+    expect(tx.className).toContain('ro') // cursor:default / no caret affordance
+  })
+
+  it('edit mode: spoken-line text is contentEditable={true}', () => {
+    const { container } = wrap({ editMode: 'edit' })
+    const tx = container.querySelector('.rb-line .rb-line-tx') as HTMLElement
+    expect(tx.getAttribute('contenteditable')).toBe('true')
+    expect(tx.getAttribute('aria-readonly')).toBe('false')
+    expect(tx.className).not.toContain(' ro')
+  })
+
+  it('view mode: editor cue (.rn-tx) is read-only too', () => {
+    const { container } = wrap({ editMode: 'view', notes: true })
+    const note = container.querySelector('.rb-note.vis .rn-tx') as HTMLElement
+    expect(note.getAttribute('contenteditable')).toBe('false')
+    expect(note.getAttribute('aria-readonly')).toBe('true')
+  })
+
+  it('view mode hides content-mutating affordances: Recomeçar + "nota pro editor"', () => {
+    const { container } = wrap({ editMode: 'view', notes: true })
+    expect(container.querySelector('.rot-reset')).toBeNull()
+    expect(container.querySelector('.rot-reset-confirm')).toBeNull()
+    expect(container.querySelector('.rb-addcue')).toBeNull()
+  })
+
+  it('edit mode shows those same affordances', () => {
+    const { container } = wrap({ editMode: 'edit', notes: true })
+    expect(container.querySelector('.rot-reset')).not.toBeNull()
+    expect(container.querySelector('.rb-addcue')).not.toBeNull()
+  })
+
+  it('view mode keeps READING live: teleprompter Space still marks + advances', () => {
+    const { container } = wrap({ editMode: 'view' })
+    fireEvent.keyDown(document, { key: ' ' })
+    expect(container.querySelector('.rot-spoken')!.textContent).toContain('1/3')
+  })
+
+  it('view mode keeps RECORDING-STATUS live: .rb-bst toggle + cycle still work', () => {
+    const { container } = wrap({ editMode: 'view' })
+    fireEvent.click(
+      Array.from(container.querySelectorAll('.rot-notetgl')).find((t) => t.textContent?.includes('Status de gravação'))!,
+    )
+    const bst = container.querySelector('.rb-bst') as HTMLButtonElement
+    expect(bst).toBeTruthy()
+    fireEvent.click(bst)
+    expect((container.querySelector('.rb-bst') as HTMLElement).className).toContain('gravada')
+  })
+
+  it('content-locked stage (published) forces read-only even when editMode would be edit', () => {
+    // useCanEditContent() = editMode === 'edit' && !isContentLockedStage(stage). A published
+    // stage hard-blocks content editing regardless of the toggle.
+    const data = {
+      ideia: { pt: { title: 'Meu vídeo', direction: '', siblings: [], logline: '', angles: '', framework: '' }, en: { title: '', direction: '', siblings: [], logline: '', angles: '', framework: '' } },
+      roteiro: { pt: ROTEIRO, en: null },
+      pillar: 'codigo' as const, durationRange: '14–17 min',
+      saveIdeia: vi.fn(), saveTitle: vi.fn(), appendSiblings: vi.fn(), saveRoteiro: vi.fn().mockResolvedValue(undefined),
+    }
+    const { container } = render(
+      <VideoEditorProvider initialState={{ ...seed, editMode: 'edit', stage: 'published' }}>
+        <VideoDataProvider value={data as never}><RoteiroStage /></VideoDataProvider>
+      </VideoEditorProvider>,
+    )
+    const tx = container.querySelector('.rb-line .rb-line-tx') as HTMLElement
+    expect(tx.getAttribute('contenteditable')).toBe('false')
+    expect(container.querySelector('.rot-reset')).toBeNull()
   })
 })

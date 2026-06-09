@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { SparklesGlyph } from '../_components/sparkles-glyph'
 import { channelByLang } from '@/lib/pipeline/channels'
+import { useCanEditContent } from '../context'
 import type { ABDraft } from '@/lib/pipeline/video-schemas'
 import type { AbCtaState } from '@/lib/pipeline/video-ab-precondition'
 import type { Version } from '../editor-model'
@@ -52,6 +53,11 @@ export function PublicacaoStage({
   onPublish,
   onSuggest,
 }: PublicacaoStageProps) {
+  // THE content-editing gate: edit mode AND stage not scheduled/published. Combined with the
+  // existing publish freeze (`published`) → titles/briefs editable, leader toggle live, ONLY when
+  // in edit mode and not published. View mode makes the A/B fields read-only (no accidental edits).
+  const canEdit = useCanEditContent()
+  const canEditFields = canEdit && !published
   const channelName = channelByLang(lang ?? 'pt')?.name ?? 'tnFigueiredo'
   function patchTitle(idx: number, title: string) {
     const variants = draft.variants.map((v, i) =>
@@ -171,7 +177,7 @@ export function PublicacaoStage({
                       <Trophy size={11} /> liderando
                     </span>
                   ) : null
-                ) : (
+                ) : canEditFields ? (
                   <button
                     type="button"
                     className={`ab-lead-btn${isLeader ? ' on' : ''}`}
@@ -180,7 +186,7 @@ export function PublicacaoStage({
                   >
                     <Trophy size={11} /> {isLeader ? 'líder' : 'líder?'}
                   </button>
-                )}
+                ) : null}
               </div>
 
               {/* ── ab-fields ── */}
@@ -191,10 +197,11 @@ export function PublicacaoStage({
                   data-testid="ab-title"
                   data-empty={!(v.title ?? '').trim()}
                   data-ph={`Título da variação ${v.id}…`}
-                  contentEditable={!published}
+                  contentEditable={canEditFields}
+                  aria-readonly={!canEditFields}
                   suppressContentEditableWarning
                   spellCheck={false}
-                  onBlur={e => patchTitle(idx, e.currentTarget.textContent ?? '')}
+                  onBlur={e => { if (canEditFields) patchTitle(idx, e.currentTarget.textContent ?? '') }}
                 >
                   {v.title}
                 </div>
@@ -207,10 +214,11 @@ export function PublicacaoStage({
                   className="ab-brief efx"
                   data-empty={!(v.brief ?? '').trim()}
                   data-ph="Ex.: rosto + bandeiras, rim-light laranja, olhar pro preço…"
-                  contentEditable={!published}
+                  contentEditable={canEditFields}
+                  aria-readonly={!canEditFields}
                   suppressContentEditableWarning
                   spellCheck={false}
-                  onBlur={e => patchBrief(idx, e.currentTarget.textContent ?? '')}
+                  onBlur={e => { if (canEditFields) patchBrief(idx, e.currentTarget.textContent ?? '') }}
                 >
                   {v.brief}
                 </div>

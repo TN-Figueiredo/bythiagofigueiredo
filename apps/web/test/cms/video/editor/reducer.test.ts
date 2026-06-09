@@ -11,6 +11,7 @@ const base: VideoEditorState = {
   primaryLang: 'pt',
   activeLang: 'pt',
   activeStage: 'ideia',
+  editMode: 'view',
   focus: false,
   notes: false,
   showRecStatus: false,
@@ -38,8 +39,22 @@ describe('videoReducer', () => {
   it('SET_LANG switches active language', () => {
     expect(videoReducer(base, { type: 'SET_LANG', lang: 'en' }).activeLang).toBe('en')
   })
+  it('SET_EDIT_MODE switches editMode (default view)', () => {
+    expect(base.editMode).toBe('view')
+    expect(videoReducer(base, { type: 'SET_EDIT_MODE', mode: 'edit' }).editMode).toBe('edit')
+    expect(videoReducer({ ...base, editMode: 'edit' }, { type: 'SET_EDIT_MODE', mode: 'view' }).editMode).toBe('view')
+  })
+  it('SET_EDIT_MODE does not touch the DB stage (toggle is independent of publish lock)', () => {
+    const next = videoReducer({ ...base, stage: 'published' }, { type: 'SET_EDIT_MODE', mode: 'edit' })
+    expect(next.editMode).toBe('edit')
+    expect(next.stage).toBe('published') // lock derivation happens at read-time, not in the reducer
+  })
   it('SET_VERSION bumps the optimistic-lock version after a transition', () => {
     expect(videoReducer(base, { type: 'SET_VERSION', version: 4 }).version).toBe(4)
+  })
+  it('SET_DB_STAGE updates the DB workflow stage (e.g. after a publish retreat)', () => {
+    const next = videoReducer({ ...base, stage: 'published' }, { type: 'SET_DB_STAGE', stage: 'scheduled' })
+    expect(next.stage).toBe('scheduled')
   })
   it('ADVANCE_RECORDED moves stage to gravacao and bumps version', () => {
     const next = videoReducer(base, { type: 'ADVANCE_RECORDED', version: 4 })
@@ -206,5 +221,9 @@ describe('initialFromDetail (OPEN_AT projection)', () => {
     })
     expect(s.activeStage).toBe('ideia')
     expect(s.activeLang).toBe('en')
+  })
+  it('defaults editMode to view (content read-only on open) regardless of stage', () => {
+    expect(initialFromDetail({ itemId: 'x', code: 'V', siteId: 's', stage: 'idea', version: 1, primaryLang: 'pt' }).editMode).toBe('view')
+    expect(initialFromDetail({ itemId: 'x', code: 'V', siteId: 's', stage: 'published', version: 1, primaryLang: 'pt' }).editMode).toBe('view')
   })
 })

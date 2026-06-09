@@ -1,7 +1,23 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { PublicacaoStage } from '@/app/cms/(authed)/video/[id]/edit/stages/publicacao-stage'
+import { VideoEditorProvider } from '@/app/cms/(authed)/video/[id]/edit/context'
 import type { ABDraft } from '@/lib/pipeline/video-schemas'
+import type { VideoEditorState } from '@/app/cms/(authed)/video/[id]/edit/types'
+
+/* Edit-mode provider seed — leader toggle + title/brief editing require useCanEditContent() === true.
+ * (Published tests still freeze via the `published` prop, which forces canEditFields false regardless.) */
+const editSeed: VideoEditorState = {
+  itemId: 'vid-1', code: 'V-A07', siteId: 'site-1', stage: 'publicacao', version: 1,
+  primaryLang: 'pt', activeLang: 'pt', activeStage: 'publicacao',
+  editMode: 'edit', focus: false, notes: false,
+  recordingOpen: false, handoffOpen: false, coworkOpen: false,
+}
+
+/** Mount a PublicacaoStage under an edit-mode provider so content-editing affordances are live. */
+function renderEdit(node: React.ReactNode) {
+  return render(<VideoEditorProvider initialState={editSeed}>{node}</VideoEditorProvider>)
+}
 
 const draft: ABDraft = {
   leader: 'A',
@@ -164,7 +180,7 @@ describe('PublicacaoStage — handoff markup', () => {
 
   /* ── leader toggle (.ab-lead-btn) ── */
   it('.ab-lead-btn.on on current leader, .ab-lead-btn without .on on others', () => {
-    const { container } = render(
+    const { container } = renderEdit(
       <PublicacaoStage draft={draft} cta={enabledCta} published={false} winnerVariantId={null}
         onPatch={vi.fn()} onPublish={vi.fn()} onSuggest={vi.fn()} />,
     )
@@ -177,7 +193,7 @@ describe('PublicacaoStage — handoff markup', () => {
   })
 
   it('leader button shows "líder" for leader and "líder?" for others', () => {
-    const { container } = render(
+    const { container } = renderEdit(
       <PublicacaoStage draft={draft} cta={enabledCta} published={false} winnerVariantId={null}
         onPatch={vi.fn()} onPublish={vi.fn()} onSuggest={vi.fn()} />,
     )
@@ -188,7 +204,7 @@ describe('PublicacaoStage — handoff markup', () => {
 
   it('clicking a non-leader .ab-lead-btn calls onPatch({leader: id})', () => {
     const onPatch = vi.fn()
-    const { container } = render(
+    const { container } = renderEdit(
       <PublicacaoStage draft={draft} cta={enabledCta} published={false} winnerVariantId={null}
         onPatch={onPatch} onPublish={vi.fn()} onSuggest={vi.fn()} />,
     )
@@ -289,9 +305,10 @@ describe('PublicacaoStage — published freeze', () => {
       <PublicacaoStage draft={draft} cta={enabledCta} published winnerVariantId="A"
         onPatch={vi.fn()} onPublish={vi.fn()} onSuggest={vi.fn()} />,
     )
-    screen.getAllByTestId('ab-title').forEach(el =>
-      expect(el).toHaveAttribute('contenteditable', 'false'),
-    )
+    screen.getAllByTestId('ab-title').forEach(el => {
+      expect(el).toHaveAttribute('contenteditable', 'false')
+      expect(el).toHaveAttribute('aria-readonly', 'true') // a11y mirrors the frozen state
+    })
   })
 
   it('all .ab-brief.efx are contentEditable=false when published', () => {
@@ -299,9 +316,10 @@ describe('PublicacaoStage — published freeze', () => {
       <PublicacaoStage draft={draft} cta={enabledCta} published winnerVariantId="A"
         onPatch={vi.fn()} onPublish={vi.fn()} onSuggest={vi.fn()} />,
     )
-    container.querySelectorAll('.ab-brief.efx').forEach(el =>
-      expect(el).toHaveAttribute('contenteditable', 'false'),
-    )
+    container.querySelectorAll('.ab-brief.efx').forEach(el => {
+      expect(el).toHaveAttribute('contenteditable', 'false')
+      expect(el).toHaveAttribute('aria-readonly', 'true') // a11y mirrors the frozen state
+    })
   })
 
   it('no .ab-lead-btn when published (replaced by .ab-winner on leader)', () => {

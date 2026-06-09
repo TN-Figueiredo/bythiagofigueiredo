@@ -45,13 +45,19 @@ interface ScriptLineProps {
   dataK: string
   onToggle: () => void
   onCommit: (next: string) => void
+  /**
+   * Content-edit gate. When false, the spoken text is read-only (`contentEditable={false}`,
+   * no caret) and the onBlur commit is a no-op so a stray programmatic blur can't write.
+   * The spoken-mark toggle (reading, not content) stays live regardless.
+   */
+  canEdit: boolean
 }
 
 /**
  * One spoken line of the teleprompter. Markup mirrors the design handoff exactly:
  * `.rb-line(.key/.spoken/.current)[data-k]` wrapping a mark button + contentEditable text.
  */
-export function ScriptLine({ html, isKey, spoken, current, dataK, onToggle, onCommit }: ScriptLineProps) {
+export function ScriptLine({ html, isKey, spoken, current, dataK, onToggle, onCommit, canEdit }: ScriptLineProps) {
   return (
     <div
       className={'rb-line' + (isKey ? ' key' : '') + (spoken ? ' spoken' : '') + (current ? ' current' : '')}
@@ -67,11 +73,12 @@ export function ScriptLine({ html, isKey, spoken, current, dataK, onToggle, onCo
         <span className="rb-mark-dot">{spoken && <Check size={11} />}</span>
       </button>
       <div
-        className="rb-line-tx"
-        contentEditable
+        className={'rb-line-tx' + (canEdit ? '' : ' ro')}
+        contentEditable={canEdit}
+        aria-readonly={!canEdit}
         suppressContentEditableWarning
         spellCheck={false}
-        onBlur={(e) => onCommit(htmlToMarkup(e.currentTarget))}
+        onBlur={canEdit ? (e) => onCommit(htmlToMarkup(e.currentTarget)) : undefined}
         dangerouslySetInnerHTML={{ __html: html }}
       />
     </div>
@@ -98,16 +105,17 @@ export function ActionRow({ text, isKey, done, onToggle }: { text: string; isKey
  * An editor cue (vis/ed) shown in the Roteiro only when "Notas do editor" is on. Editable
  * in place; clearing the text removes the cue. These feed the Pós b-roll brief.
  */
-export function EditorNote({ tag, variant, text, onCommit }: { tag: string; variant: 'vis' | 'ed'; text: string; onCommit: (next: string) => void }) {
+export function EditorNote({ tag, variant, text, onCommit, canEdit }: { tag: string; variant: 'vis' | 'ed'; text: string; onCommit: (next: string) => void; canEdit: boolean }) {
   return (
     <div className={'rb-note ' + variant}>
       <span className="rn-tag">{tag}</span>
       <span
-        className="rn-tx"
-        contentEditable
+        className={'rn-tx' + (canEdit ? '' : ' ro')}
+        contentEditable={canEdit}
+        aria-readonly={!canEdit}
         suppressContentEditableWarning
         spellCheck={false}
-        onBlur={(e) => onCommit(e.currentTarget.textContent ?? '')}
+        onBlur={canEdit ? (e) => onCommit(e.currentTarget.textContent ?? '') : undefined}
       >
         {text}
       </span>

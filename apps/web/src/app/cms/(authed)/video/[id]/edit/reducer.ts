@@ -10,6 +10,8 @@ export function videoReducer(state: VideoEditorState, action: VideoEditorAction)
   switch (action.type) {
     case 'SET_STAGE':
       return { ...state, activeStage: action.stage }
+    case 'SET_EDIT_MODE':
+      return { ...state, editMode: action.mode }
     case 'TOGGLE_FOCUS':
       return { ...state, focus: !state.focus }
     case 'TOGGLE_NOTES':
@@ -18,6 +20,8 @@ export function videoReducer(state: VideoEditorState, action: VideoEditorAction)
       return { ...state, activeLang: action.lang }
     case 'SET_VERSION':
       return { ...state, version: action.version }
+    case 'SET_DB_STAGE':
+      return { ...state, stage: action.stage }
     case 'ADVANCE_RECORDED':
       return { ...state, stage: 'gravacao', version: action.version }
     case 'OPEN_OVERLAY':
@@ -93,6 +97,7 @@ export function initialFromDetail(seed: DetailSeed): VideoEditorState {
     primaryLang: seed.primaryLang,
     activeLang: seed.primaryLang,
     activeStage: OPEN_AT(seed.stage) as VideoStage,
+    editMode: 'view', // safety default — content read-only until the user explicitly hits Editar
     focus: false,
     notes: false,
     showRecStatus: false,

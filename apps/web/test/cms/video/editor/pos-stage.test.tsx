@@ -8,7 +8,9 @@ import type { VideoEditorState } from '@/app/cms/(authed)/video/[id]/edit/types'
 /* ── fixtures ── */
 const seed: VideoEditorState = {
   itemId: 'vid-1', code: 'V-A07', siteId: 'site-1', stage: 'pos', version: 1,
-  primaryLang: 'pt', activeLang: 'pt', activeStage: 'pos', focus: false, notes: false,
+  primaryLang: 'pt', activeLang: 'pt', activeStage: 'pos',
+  // edit mode so useCanEditContent() is true — the EF onBlur-commit test needs an editable field.
+  editMode: 'edit', focus: false, notes: false,
   recordingOpen: false, handoffOpen: false, coworkOpen: false,
 }
 
@@ -124,6 +126,8 @@ describe('PosStage — handoff markup', () => {
       // at least one has a data-ph
       const withPh = Array.from(efFields).filter(el => el.getAttribute('data-ph'))
       expect(withPh.length).toBeGreaterThan(0)
+      // a11y: in edit mode every EF announces editable (aria-readonly mirrors contentEditable)
+      efFields.forEach(el => expect(el.getAttribute('aria-readonly')).toBe('false'))
     })
 
     it('EF onBlur calls onPatch', () => {

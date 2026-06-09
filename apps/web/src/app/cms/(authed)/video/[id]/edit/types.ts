@@ -5,6 +5,26 @@ export const VIDEO_STAGES: VideoStage[] = ['ideia', 'roteiro', 'pos', 'publicaca
 export type VideoLang = 'pt' | 'en'
 export type VideoOverlay = 'recording' | 'handoff' | 'cowork'
 
+/**
+ * Editor edit-mode. Default is `'view'` (content read-only — a safety gate so published
+ * or just-opened content isn't edited by accident). `'edit'` is an explicit, deliberate
+ * toggle. This is content-editing only — recording-status marking (gravada/refazer +
+ * retake notes), reading, navigation, print and Modo Gravação stay available in either mode.
+ */
+export type EditMode = 'view' | 'edit'
+
+/**
+ * DB workflow tokens at/after which content editing is HARD-blocked regardless of the
+ * `editMode` toggle. `scheduled`/`published` content is the published artifact — editing
+ * it requires first retreating the stage (despublicar).
+ */
+export const CONTENT_LOCKED_STAGES: readonly string[] = ['scheduled', 'published']
+
+/** Stage ∈ {scheduled, published} → content editing is hard-locked (publish guard). */
+export function isContentLockedStage(stage: string): boolean {
+  return CONTENT_LOCKED_STAGES.includes(stage)
+}
+
 export interface VideoEditorState {
   itemId: string
   code: string
@@ -14,6 +34,9 @@ export interface VideoEditorState {
   primaryLang: VideoLang   // the video's primary language (always a present version)
   activeLang: VideoLang
   activeStage: VideoStage
+  // Edit-mode safety gate. Default 'view' (content read-only); 'edit' is an explicit toggle.
+  // Stage agents gate contentEditable/inputs off `useCanEditContent()` (edit && !locked).
+  editMode: EditMode
   focus: boolean
   notes: boolean           // "Notas do editor" toggle — default OFF
   showRecStatus: boolean   // "Status de gravação" toggle — default OFF (clean reading)
@@ -38,10 +61,14 @@ export interface VideoEditorState {
 
 export type VideoEditorAction =
   | { type: 'SET_STAGE'; stage: VideoStage }
+  | { type: 'SET_EDIT_MODE'; mode: EditMode }
   | { type: 'TOGGLE_FOCUS' }
   | { type: 'TOGGLE_NOTES' }
   | { type: 'SET_LANG'; lang: VideoLang }
   | { type: 'SET_VERSION'; version: number }
+  // Set the DB workflow stage in-place (e.g. after a publish retreat / despublicar) so the
+  // content-lock derivation (`isContentLockedStage(state.stage)`) updates without a reload.
+  | { type: 'SET_DB_STAGE'; stage: string }
   | { type: 'ADVANCE_RECORDED'; version: number }
   | { type: 'OPEN_OVERLAY'; overlay: VideoOverlay }
   | { type: 'CLOSE_OVERLAY'; overlay: VideoOverlay }

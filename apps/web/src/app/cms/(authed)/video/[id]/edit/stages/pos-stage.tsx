@@ -6,7 +6,7 @@ import { SparklesGlyph } from '../_components/sparkles-glyph'
 import type { RoteiroBeatV3, PosBrief } from '@/lib/pipeline/video-schemas'
 import { spokenAnchorText, visNotes } from '@/lib/pipeline/video-pos-derive'
 import { CHANNELS } from '@/lib/pipeline/channels'
-import { useVideoEditorDispatch } from '../context'
+import { useVideoEditorDispatch, useCanEditContent } from '../context'
 import type { Version } from '../editor-model'
 
 export interface PosStageProps {
@@ -23,16 +23,19 @@ export interface PosStageProps {
   langLabels?: string
 }
 
-/* contentEditable field that commits on blur */
+/* contentEditable field that commits on blur — gated by `canEdit` (view mode → read-only) */
 function EF({
   value,
   onChange,
+  canEdit,
   tag = 'b',
   className = '',
   ph,
 }: {
   value: string
   onChange: (v: string) => void
+  /** content-editing gate: false → non-editable (no caret/focus) and the blur commit is skipped */
+  canEdit: boolean
   tag?: 'b' | 'span'
   className?: string
   ph?: string
@@ -41,12 +44,16 @@ function EF({
   return (
     <Tag
       className={('efx ' + className).trim()}
-      contentEditable
+      contentEditable={canEdit}
+      aria-readonly={!canEdit}
       suppressContentEditableWarning
       spellCheck={false}
       data-empty={!String(value || '').trim() || undefined}
       data-ph={ph}
-      onBlur={e => onChange((e.currentTarget as HTMLElement).textContent ?? '')}
+      onBlur={e => {
+        if (!canEdit) return // view mode: never commit
+        onChange((e.currentTarget as HTMLElement).textContent ?? '')
+      }}
     >
       {value}
     </Tag>
@@ -87,6 +94,10 @@ function LegacyPostprodFallback() {
 
 export function PosStage({ beats, brief, activeLang, onPatch, onOpenHandoff, legacy, langLabels }: PosStageProps) {
   const dispatch = useVideoEditorDispatch()
+  // THE content-editing gate: edit mode AND stage not scheduled/published. View mode makes the
+  // editable brief fields (deliverables / energy / style) read-only. Derived Momentos-chave /
+  // B-roll / CTA table stay as-is (already read-only).
+  const canEdit = useCanEditContent()
 
   const del = brief?.deliverables ?? {}
   const style = brief?.style ?? []
@@ -138,29 +149,29 @@ export function PosStage({ beats, brief, activeLang, onPatch, onOpenHandoff, leg
           <div className="pp-fields">
             <div className="pp-f">
               <span>Editor</span>
-              <EF value={del.editor ?? ''} onChange={v => patchDel('editor', v)} ph="Nome do editor" />
+              <EF value={del.editor ?? ''} canEdit={canEdit} onChange={v => patchDel('editor', v)} ph="Nome do editor" />
             </div>
             <div className="pp-f">
               <span>Prazo</span>
-              <EF value={del.deadline ?? ''} onChange={v => patchDel('deadline', v)} ph="Prazo" />
+              <EF value={del.deadline ?? ''} canEdit={canEdit} onChange={v => patchDel('deadline', v)} ph="Prazo" />
             </div>
             <div className="pp-f">
               <span>Revisão</span>
-              <EF value={del.turnaround ?? ''} onChange={v => patchDel('turnaround', v)} ph="Turnaround" />
+              <EF value={del.turnaround ?? ''} canEdit={canEdit} onChange={v => patchDel('turnaround', v)} ph="Turnaround" />
             </div>
             <div className="pp-f">
               <span>Versões</span><b>{langs}</b>
             </div>
             <div className="pp-f wide">
               <span>Drive</span>
-              <EF value={del.drive ?? ''} onChange={v => patchDel('drive', v)} ph="Pasta no Drive" />
+              <EF value={del.drive ?? ''} canEdit={canEdit} onChange={v => patchDel('drive', v)} ph="Pasta no Drive" />
             </div>
           </div>
           <div className="pp-energy">
             <Eye size={13} />
             <span>
               <b>Energia:</b>{' '}
-              <EF tag="span" className="ef-inline" value={del.energy ?? ''} onChange={v => patchDel('energy', v)} ph="Energia/tom" />
+              <EF tag="span" className="ef-inline" value={del.energy ?? ''} canEdit={canEdit} onChange={v => patchDel('energy', v)} ph="Energia/tom" />
               <i> Ref: {(del.references ?? []).join(' · ')}</i>
             </span>
           </div>
@@ -232,7 +243,7 @@ export function PosStage({ beats, brief, activeLang, onPatch, onOpenHandoff, leg
             {style.map((s, i) => (
               <div key={i} className="pp-srow">
                 <span className="pp-sk">{s.k}</span>
-                <EF tag="span" className="pp-sv" value={s.v} onChange={v => patchStyleRow(i, v)} />
+                <EF tag="span" className="pp-sv" value={s.v} canEdit={canEdit} onChange={v => patchStyleRow(i, v)} />
               </div>
             ))}
           </div>

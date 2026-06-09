@@ -11,7 +11,7 @@ import { videoLineKeys, videoLineSecsFlat, readPctOf } from '@/lib/pipeline/vide
 import type { RoteiroContentV3, RoteiroBeatV3 } from '@/lib/pipeline/roteiro-schemas'
 import { splitBeats, markableIdxs } from '@/lib/pipeline/video-perform'
 import { ensureBeatIds, markGranClass, beatContentHash } from '@/lib/pipeline/video-recording'
-import { useVideoEditorState, useVideoEditorDispatch } from '../context'
+import { useVideoEditorState, useVideoEditorDispatch, useCanEditContent } from '../context'
 import { useVideoData } from '../data-context'
 import { RoteiroBeat } from './roteiro-beat'
 import { RoteiroActionBeat } from './roteiro-action-beat'
@@ -30,6 +30,9 @@ export interface RoteiroStageProps {
 export function RoteiroStage(_props: RoteiroStageProps = {}) {
   const state = useVideoEditorState()
   const dispatch = useVideoEditorDispatch()
+  // THE content-edit gate (View/Edit mode + not scheduled/published). Drives every
+  // content-mutating affordance below; reading + recording-status stay live regardless.
+  const canEdit = useCanEditContent()
   const data = useVideoData()
   const lang = state.activeLang
   const rawContent = data.roteiro[lang]
@@ -135,7 +138,7 @@ export function RoteiroStage(_props: RoteiroStageProps = {}) {
   }, [])
 
   const onCommitLine = useCallback((beatIdx: number, lineIdx: number, next: string) => {
-    if (!content) return
+    if (!content || !canEdit) return // defense-in-depth: never write content in view mode
     const updated: RoteiroContentV3 = {
       ...content,
       beats: content.beats.map((b, bi) =>
@@ -143,11 +146,11 @@ export function RoteiroStage(_props: RoteiroStageProps = {}) {
       ),
     }
     void data.saveRoteiro(lang, updated)
-  }, [content, data, lang])
+  }, [content, data, lang, canEdit])
 
   // Edit an editor cue (vis/ed) in place. Empty text removes the item.
   const onCommitNote = useCallback((beatIdx: number, itemIdx: number, next: string) => {
-    if (!content) return
+    if (!content || !canEdit) return // defense-in-depth: never write content in view mode
     const updated: RoteiroContentV3 = {
       ...content,
       beats: content.beats.map((b, bi) => {
@@ -159,11 +162,11 @@ export function RoteiroStage(_props: RoteiroStageProps = {}) {
       }),
     }
     void data.saveRoteiro(lang, updated)
-  }, [content, data, lang])
+  }, [content, data, lang, canEdit])
 
   // Append a b-roll cue for the editor to a beat (the real "how to add" path).
   const onAddCue = useCallback((beatIdx: number) => {
-    if (!content) return
+    if (!content || !canEdit) return // defense-in-depth: never write content in view mode
     const updated: RoteiroContentV3 = {
       ...content,
       beats: content.beats.map((b, bi) =>
@@ -171,26 +174,30 @@ export function RoteiroStage(_props: RoteiroStageProps = {}) {
       ),
     }
     void data.saveRoteiro(lang, updated)
-  }, [content, data, lang])
+  }, [content, data, lang, canEdit])
 
   // Recover a mis-classified beat: stamp an explicit kind (overrides the heuristic).
+  // Content mutation → gated. No-op in view mode so the recover ("é fala?") + direction-
+  // swap controls (rendered by out-of-scope aside/action-beat) can't rewrite the roteiro.
   const onSetKind = useCallback((beatIdx: number, kind: 'fala' | 'acao' | 'prep' | 'editor') => {
-    if (!content) return
+    if (!content || !canEdit) return
     const updated: RoteiroContentV3 = {
       ...content,
       beats: content.beats.map((b, bi) => (bi !== beatIdx ? b : { ...b, kind })),
     }
     void data.saveRoteiro(lang, updated)
-  }, [content, data, lang])
+  }, [content, data, lang, canEdit])
 
   const ideia = data.ideia[lang]
   const channel = CHANNELS.find((c) => c.lang === lang)
   const onStartBlank = () => {
+    if (!canEdit) return // defense-in-depth: never write content in view mode
     void data.saveRoteiro(lang, { version: 3, meta: {}, beats: [{ idx: 0, name: 'Beat 1', status: 'PENDING', script: [] }] })
   }
   // "Recomeçar": clear all beats → back to the generation chooser (the empty-with-
   // direction state). Two-step inline confirm guards against deleting written work.
   const onReset = () => {
+    if (!canEdit) return // defense-in-depth: never write content in view mode
     void data.saveRoteiro(lang, { version: 3, meta: {}, beats: [] })
     setConfirmReset(false)
     setSpoken(new Set())
@@ -227,11 +234,17 @@ export function RoteiroStage(_props: RoteiroStageProps = {}) {
             </div>
             <div className="vi-seed-text">{ideia.direction}</div>
           </div>
-          <div className="rot-gen-actions">
-            <CoworkButton stage="roteiro" label="Gerar roteiro com Cowork" />
-            <button type="button" className="btn" onClick={onStartBlank}><Plus size={15} /> Começar do zero</button>
+          {canEdit && (
+            <div className="rot-gen-actions">
+              <CoworkButton stage="roteiro" label="Gerar roteiro com Cowork" />
+              <button type="button" className="btn" onClick={onStartBlank}><Plus size={15} /> Começar do zero</button>
+            </div>
+          )}
+          <div className="rot-gen-sub">
+            {canEdit
+              ? 'O Cowork rascunha 4 beats a partir da direção — você destrincha até virar a sua fala.'
+              : 'Esse vídeo ainda é só uma direção. Entre no modo de edição para gerar o roteiro.'}
           </div>
-          <div className="rot-gen-sub">O Cowork rascunha 4 beats a partir da direção — você destrincha até virar a sua fala.</div>
         </div>
       )
     }
@@ -291,7 +304,7 @@ export function RoteiroStage(_props: RoteiroStageProps = {}) {
         <span className="msep">·</span>
         <span className="rs-k rot-clock"><Play size={12} /> <b>{fmtClock(elapsedSecs)}</b> / {fmtClock(totalSecs)}</span>
         <span className="grow" />
-        {confirmReset ? (
+        {canEdit && (confirmReset ? (
           <span className="rot-reset-confirm">
             Apagar o roteiro?
             <button type="button" className="rot-reset-yes" onClick={onReset}>apagar</button>
@@ -301,7 +314,7 @@ export function RoteiroStage(_props: RoteiroStageProps = {}) {
           <button type="button" className="rot-reset" ref={resetBtnRef} onClick={() => setConfirmReset(true)}>
             <RotateCcw size={12} /> Recomeçar
           </button>
-        )}
+        ))}
         {spoken.size > 0 && (
           <button type="button" className="rot-clear" onClick={() => { setSpoken(new Set()); setCursor(0) }}>
             <RefreshCw size={12} /> limpar
@@ -326,10 +339,10 @@ export function RoteiroStage(_props: RoteiroStageProps = {}) {
       <div className="rot-readbar"><span style={{ width: `${readPct}%` }} /></div>
       <h1 className="rot-title">{title}</h1>
       <div className="rot-hint">
-        <span className="rk">espaço</span> próxima fala <span className="rsep">·</span> <span className="rk">↑</span> voltar{' '}
-        <span className="rsep">·</span> clique numa linha pra editar
+        <span className="rk">espaço</span> próxima fala <span className="rsep">·</span> <span className="rk">↑</span> voltar
+        {canEdit && <>{' '}<span className="rsep">·</span> clique numa linha pra editar</>}
       </div>
-      <PrepStrip prep={prep} onSetKind={onSetKind} />
+      <PrepStrip prep={prep} onSetKind={onSetKind} canEdit={canEdit} />
       {performer.length > 1 && (
         <div className="rot-rail">
           {performer.map((kb, s) => {
@@ -366,6 +379,7 @@ export function RoteiroStage(_props: RoteiroStageProps = {}) {
             spoken={spoken}
             onToggle={toggle}
             onSetKind={onSetKind}
+            canEdit={canEdit}
           />
         ) : (
           <RoteiroBeat
@@ -381,6 +395,7 @@ export function RoteiroStage(_props: RoteiroStageProps = {}) {
             onCommitLine={onCommitLine}
             onCommitNote={onCommitNote}
             onAddCue={onAddCue}
+            canEdit={canEdit}
             showRecStatus={showRecStatus}
             recStatus={recStatus[beatKey(kb.beat.id)] ?? 'pendente'}
             stale={isStale(kb.beat)}
@@ -390,7 +405,7 @@ export function RoteiroStage(_props: RoteiroStageProps = {}) {
           />
         )
       })}
-      <EditorHandoff editor={editor} visInFala={visInFala} notes={notes} goPos={goPos} onSetKind={onSetKind} />
+      <EditorHandoff editor={editor} visInFala={visInFala} notes={notes} goPos={goPos} onSetKind={onSetKind} canEdit={canEdit} />
     </div>
   )
 }

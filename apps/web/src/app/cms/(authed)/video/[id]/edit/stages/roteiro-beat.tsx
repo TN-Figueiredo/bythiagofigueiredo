@@ -21,6 +21,12 @@ interface RoteiroBeatProps {
   onCommitLine: (beatIdx: number, lineIdx: number, next: string) => void
   onCommitNote: (beatIdx: number, itemIdx: number, next: string) => void
   onAddCue: (beatIdx: number) => void
+  /**
+   * Content-edit gate (View/Edit mode). When false, the spoken lines + editor cues are
+   * read-only and the "nota pro editor" add-cue button is hidden. The recording-status
+   * control (`.rb-bst`) + retake note (`.rb-bnote`) are shoot-tracking — NEVER gated.
+   */
+  canEdit: boolean
   /** "Status de gravação" toggle on → show the per-beat 3-state recording control. */
   showRecStatus: boolean
   recStatus: RecStatus
@@ -46,7 +52,7 @@ const REC_LABEL: Record<RecStatus, string> = {
  * lines / actions / breaths / talent notes. Editor cues (vis/ed) only show when
  * "Notas do editor" is on — they belong to the editor (Pós), not the performer.
  */
-export function RoteiroBeat({ beat, idx, seq, style, notes, spoken, cursorKey, onToggle, onCommitLine, onCommitNote, onAddCue, showRecStatus, recStatus, stale, retakeNote, onCycleStatus, onCommitRetake }: RoteiroBeatProps) {
+export function RoteiroBeat({ beat, idx, seq, style, notes, spoken, cursorKey, onToggle, onCommitLine, onCommitNote, onAddCue, canEdit, showRecStatus, recStatus, stale, retakeNote, onCycleStatus, onCommitRetake }: RoteiroBeatProps) {
   const lineIdx = beat.script.map((it, i) => (it.type === 'line' ? i : -1)).filter((i) => i >= 0)
   const total = lineIdx.length
   const done = lineIdx.filter((i) => spoken.has(`${idx}-${i}`)).length
@@ -123,6 +129,7 @@ export function RoteiroBeat({ beat, idx, seq, style, notes, spoken, cursorKey, o
               dataK={k}
               onToggle={() => onToggle(k)}
               onCommit={(next) => onCommitLine(idx, i, next)}
+              canEdit={canEdit}
             />
           )
         }
@@ -150,13 +157,14 @@ export function RoteiroBeat({ beat, idx, seq, style, notes, spoken, cursorKey, o
               variant={it.type}
               text={it.text}
               onCommit={(next) => onCommitNote(idx, i, next)}
+              canEdit={canEdit}
             />
           )
         }
         return null
       })}
 
-      {notes && (
+      {notes && canEdit && (
         <button type="button" className="rb-addcue" onClick={() => onAddCue(idx)}>
           <Plus size={13} /> nota pro editor
         </button>

@@ -17,6 +17,8 @@ interface RoteiroActionBeatProps {
   spoken: Set<string>
   onToggle: (k: string) => void
   onSetKind: (beatIdx: number, kind: BeatKind) => void
+  /** Content-edit gate. False (view mode) → the "é fala?" recover control is disabled (visibly inert). */
+  canEdit: boolean
 }
 
 /**
@@ -24,7 +26,7 @@ interface RoteiroActionBeatProps {
  * fixed script. Rendered as a checklist, visually distinct from the spoken teleprompter.
  * Legacy `line` items inside an action beat are treated as action prompts.
  */
-export function RoteiroActionBeat({ beat, idx, seq, style, inferred, notes, spoken, onToggle, onSetKind }: RoteiroActionBeatProps) {
+export function RoteiroActionBeat({ beat, idx, seq, style, inferred, notes, spoken, onToggle, onSetKind, canEdit }: RoteiroActionBeatProps) {
   const marks = markableIdxs(beat, 'acao')
   const total = marks.length
   const done = marks.filter((i) => spoken.has(`${idx}-${i}`)).length
@@ -37,7 +39,7 @@ export function RoteiroActionBeat({ beat, idx, seq, style, inferred, notes, spok
         <span className="rb-name">{beat.name}</span>
         <span className="rb-kindtag"><Mic size={11} /> ação na câmera</span>
         {inferred && (
-          <button type="button" className="rb-recover" title="Classificado automaticamente — mover pra fala" onClick={() => onSetKind(idx, 'fala')}>
+          <button type="button" className="rb-recover" title="Classificado automaticamente — mover pra fala" disabled={!canEdit} onClick={() => onSetKind(idx, 'fala')}>
             <CornerUpLeft size={11} /> é fala?
           </button>
         )}

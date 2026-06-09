@@ -6,7 +6,7 @@ import { SparklesGlyph } from '../_components/sparkles-glyph'
 import { CoworkButton } from '../_components/cowork-button'
 import { pillarById } from '@/lib/pipeline/pillars'
 import { CHANNELS } from '@/lib/pipeline/channels'
-import { useVideoEditorState, useVideoEditorDispatch } from '../context'
+import { useVideoEditorState, useVideoEditorDispatch, useCanEditContent } from '../context'
 import { useVideoData } from '../data-context'
 import type { Version } from '../editor-model'
 import type { VideoLang } from '../types'
@@ -21,6 +21,9 @@ export function IdeiaStage({ cur: curProp, lang: langProp }: IdeiaStageProps = {
   const state = useVideoEditorState()
   const dispatch = useVideoEditorDispatch()
   const data = useVideoData()
+  // THE content-editing gate: edit mode AND stage not scheduled/published. View mode →
+  // the title / direction / alt-swap affordances become read-only so nothing changes by accident.
+  const canEdit = useCanEditContent()
 
   // Use props when provided by the shell; fall back to context derivation for
   // backwards-compatible usage (e.g. tests that mount bare <IdeiaStage />).
@@ -45,12 +48,14 @@ export function IdeiaStage({ cur: curProp, lang: langProp }: IdeiaStageProps = {
   const hasBeats = cur.beats.length > 0
 
   const onTitle = (e: React.FormEvent<HTMLElement> | React.FocusEvent<HTMLElement>) => {
+    if (!canEdit) return // view mode: never commit
     const text = (e.currentTarget.textContent ?? '').trim()
     if (!text) return // never clear the title via a blank contentEditable (server also guards)
     void data.saveTitle(lang, text)
     void data.saveIdeia(lang, { title: text })
   }
   const onDirection = (e: React.FormEvent<HTMLElement> | React.FocusEvent<HTMLElement>) => {
+    if (!canEdit) return // view mode: never commit
     void data.saveIdeia(lang, { direction: (e.currentTarget.textContent ?? '').trim() })
   }
 
@@ -58,6 +63,7 @@ export function IdeiaStage({ cur: curProp, lang: langProp }: IdeiaStageProps = {
   const visibleSiblings = cur.siblings.filter((s) => s.trim())
 
   const onAltSwap = (chosen: string) => {
+    if (!canEdit) return // view mode: alternatives are read-only (swap mutates the direction)
     const index = cur.siblings.indexOf(chosen)
     if (index < 0) return
     // Promote the clicked alternative to the active direction. If a direction is already
@@ -77,7 +83,8 @@ export function IdeiaStage({ cur: curProp, lang: langProp }: IdeiaStageProps = {
       </div>
       <h1
         className="vi-title"
-        contentEditable
+        contentEditable={canEdit}
+        aria-readonly={!canEdit}
         suppressContentEditableWarning
         spellCheck={false}
         data-empty={!(cur.title ?? '').trim()}
@@ -95,7 +102,8 @@ export function IdeiaStage({ cur: curProp, lang: langProp }: IdeiaStageProps = {
         </div>
         <div
           className="vi-seed-text"
-          contentEditable
+          contentEditable={canEdit}
+          aria-readonly={!canEdit}
           suppressContentEditableWarning
           spellCheck={false}
           data-empty={!(cur.direction ?? '').trim()}
@@ -112,7 +120,7 @@ export function IdeiaStage({ cur: curProp, lang: langProp }: IdeiaStageProps = {
           <CoworkButton stage="ideia" label="Gerar mais" compact />
         </div>
         {visibleSiblings.map((s, i) => (
-          <button key={i} type="button" className="vi-alt" onClick={() => onAltSwap(s)}>
+          <button key={i} type="button" className="vi-alt" disabled={!canEdit} onClick={() => onAltSwap(s)}>
             <span className="va-n">{i + 1}</span>
             <span className="va-t">{s}</span>
             <span className="va-go"><ArrowRight size={14} /></span>

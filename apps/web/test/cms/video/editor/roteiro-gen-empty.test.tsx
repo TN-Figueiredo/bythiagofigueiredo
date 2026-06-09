@@ -10,7 +10,7 @@ import type { Version } from '@/app/cms/(authed)/video/[id]/edit/editor-model'
 const seed: VideoEditorState = {
   itemId: 'vid-1', code: 'V-A07', siteId: 'site-1', stage: 'roteiro', version: 1,
   primaryLang: 'pt', activeLang: 'pt', activeStage: 'roteiro', focus: false, notes: false,
-  recordingOpen: false, handoffOpen: false, coworkOpen: false,
+  recordingOpen: false, handoffOpen: false, coworkOpen: false, editMode: 'edit',
 }
 
 function makeVersion(over: Partial<Version> = {}): Version {

@@ -14,10 +14,10 @@ function bullets(b: KindedBeat): string[] {
 }
 
 /** A "this was auto-filed — move it to fala" recovery control (only for inferred kinds). */
-function Recover({ kb, onSetKind }: { kb: KindedBeat; onSetKind: (beatIdx: number, kind: BeatKind) => void }) {
+function Recover({ kb, onSetKind, canEdit }: { kb: KindedBeat; onSetKind: (beatIdx: number, kind: BeatKind) => void; canEdit: boolean }) {
   if (kb.beat.kind) return null // explicit kind → not a guess, no recovery needed
   return (
-    <button type="button" className="rot-recover" title="Classificado automaticamente — mover pra fala" onClick={() => onSetKind(kb.idx, 'fala')}>
+    <button type="button" className="rot-recover" title="Classificado automaticamente — mover pra fala" disabled={!canEdit} onClick={() => onSetKind(kb.idx, 'fala')}>
       <CornerUpLeft size={11} /> é fala?
     </button>
   )
@@ -28,7 +28,7 @@ function Recover({ kb, onSetKind }: { kb: KindedBeat; onSetKind: (beatIdx: numbe
  * of the reading flow. Collapsed by default so it never competes with the lines; one
  * click reveals the checklist when the talent is prepping the bag.
  */
-export function PrepStrip({ prep, onSetKind }: { prep: KindedBeat[]; onSetKind: (beatIdx: number, kind: BeatKind) => void }) {
+export function PrepStrip({ prep, onSetKind, canEdit }: { prep: KindedBeat[]; onSetKind: (beatIdx: number, kind: BeatKind) => void; canEdit: boolean }) {
   const [open, setOpen] = useState(false)
   if (prep.length === 0) return null
   return (
@@ -45,7 +45,7 @@ export function PrepStrip({ prep, onSetKind }: { prep: KindedBeat[]; onSetKind: 
         <div className="rot-prep-body">
           {prep.map((b) => (
             <div key={b.idx} className="rot-prep-grp">
-              <div className="rot-prep-nm">{b.beat.name}<Recover kb={b} onSetKind={onSetKind} /></div>
+              <div className="rot-prep-nm">{b.beat.name}<Recover kb={b} onSetKind={onSetKind} canEdit={canEdit} /></div>
               <ul>{bullets(b).map((t, j) => <li key={j}>{t}</li>)}</ul>
             </div>
           ))}
@@ -67,12 +67,14 @@ export function EditorHandoff({
   notes,
   goPos,
   onSetKind,
+  canEdit,
 }: {
   editor: KindedBeat[]
   visInFala: number
   notes: boolean
   goPos: () => void
   onSetKind: (beatIdx: number, kind: BeatKind) => void
+  canEdit: boolean
 }) {
   if (editor.length === 0 && visInFala === 0) return null
   const count = editor.length + visInFala
@@ -95,7 +97,7 @@ export function EditorHandoff({
         <div className="rot-edh-body">
           {editor.map((b) => (
             <div key={b.idx} className="rot-edh-grp">
-              <div className="rot-edh-nm">{b.beat.name}<Recover kb={b} onSetKind={onSetKind} /></div>
+              <div className="rot-edh-nm">{b.beat.name}<Recover kb={b} onSetKind={onSetKind} canEdit={canEdit} /></div>
               <ul>{bullets(b).map((t, j) => <li key={j}>{t}</li>)}</ul>
             </div>
           ))}
