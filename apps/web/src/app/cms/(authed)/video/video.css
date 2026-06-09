@@ -980,22 +980,22 @@
      first = guaranteed paint; the token line overrides only if it resolves valid.
      Tint toward PURPLE (mixing with white desaturated to a muddy bright gray that hid
      the brand). 82% dark surface + 18% --c-courses keeps it deep + visibly violet. */
-  background-color: #1f1c2e;
-  background-color: color-mix(in srgb, var(--cms-surface, #1a1d27) 82%, var(--c-courses) 18%);
-  /* Defined light source from top-left: a 2-stop falloff reads as a wash on the dark base,
-     not an even tint — purple bloom strongest at the corner, gone by ~68%. */
+  /* CRITICAL CHROME — explicit OPAQUE literals FIRST so the panel is ALWAYS a visible,
+     edged, elevated violet card even if the browser doesn't resolve color-mix()/var()
+     (the prior color-mix-only border resolved near-transparent → invisible edge → the
+     'infinity pool'). The token/color-mix lines below ONLY enhance when they're valid. */
+  background-color: #262134;
+  background-color: color-mix(in srgb, var(--cms-surface, #1a1d27) 78%, var(--c-courses) 22%);
   background-image:
-    radial-gradient(135% 95% at 0% 0%, color-mix(in srgb, var(--c-courses) 28%, transparent) 0%, color-mix(in srgb, var(--c-courses) 9%, transparent) 38%, transparent 68%);
-  border: 1px solid color-mix(in srgb, var(--c-courses) 22%, color-mix(in srgb, #ffffff 9%, transparent));
+    radial-gradient(135% 95% at 0% 0%, color-mix(in srgb, var(--c-courses) 28%, transparent) 0%, color-mix(in srgb, var(--c-courses) 10%, transparent) 40%, transparent 70%);
+  border: 1px solid #4a4068;
+  border: 1px solid color-mix(in srgb, var(--c-courses) 38%, #4a4068);
   border-radius: 16px;
-  /* Split shadow for robustness: the black drop is its OWN declaration first, so if any
-     color-mix layer in the full multi-layer line below is invalid, CSS keeps this one
-     (the whole shadow — incl. the drop — would otherwise vanish together). */
-  box-shadow: 0 24px 56px -16px rgba(0, 0, 0, .6);
+  box-shadow: 0 24px 56px -16px rgba(0, 0, 0, .6), 0 0 0 1px rgba(139, 92, 246, .4);
   box-shadow:
     0 24px 56px -16px rgba(0, 0, 0, .6),
-    inset 0 1px 0 color-mix(in srgb, #fff 7%, transparent),
-    0 0 0 1px color-mix(in srgb, var(--c-courses) 26%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, .06),
+    0 0 0 1px color-mix(in srgb, var(--c-courses) 38%, transparent),
     0 0 30px -12px color-mix(in srgb, var(--c-courses) 34%, transparent);
   animation: cwPop .2s var(--ease-back) both; }
 .cw-pop.is-closing { animation: cwPopOut .16s var(--ease) both; }
