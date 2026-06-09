@@ -1,13 +1,47 @@
 'use client'
 
 import { useMemo } from 'react'
-import { Edit, CheckCheck, Target, Film, SlidersHorizontal, Link, Eye, Info, AlertTriangle, Rss } from 'lucide-react'
+import { Edit, CheckCheck, Target, Film, SlidersHorizontal, Link, Eye, Info, AlertTriangle, Rss, Plus } from 'lucide-react'
 import { SparklesGlyph } from '../_components/sparkles-glyph'
+import { CoworkButton } from '../_components/cowork-button'
 import type { RoteiroBeatV3, PosBrief } from '@/lib/pipeline/video-schemas'
 import { spokenAnchorText, visNotes } from '@/lib/pipeline/video-pos-derive'
 import { CHANNELS } from '@/lib/pipeline/channels'
 import { useVideoEditorDispatch, useCanEditContent } from '../context'
 import type { Version } from '../editor-model'
+
+/** "Começar do zero" seed: the editor-brief skeleton (channel-standard categories, empty
+ * values) so the editor has the structure to fill — the Cowork fills the values instead. */
+const POS_TEMPLATE: PosBrief = {
+  kind: 'brief',
+  deliverables: { editor: '', deadline: '', turnaround: '', drive: '', energy: '', references: [] },
+  style: [
+    { k: 'Zoom & reframe', v: '' },
+    { k: 'Ritmo de corte', v: '' },
+    { k: 'Speed ramp', v: '' },
+    { k: 'Sound design', v: '' },
+    { k: 'Música', v: '' },
+    { k: 'Texto na tela', v: '' },
+  ],
+  ctas: {
+    note: 'O QR do newsletter é DIFERENTE por idioma — confira antes de finalizar.',
+    rows: [
+      { k: 'Newsletter QR', pt: '', en: '' },
+      { k: 'Cross-promo', pt: '', en: '' },
+      { k: 'Instagram', pt: '', en: '' },
+    ],
+    display: '',
+  },
+}
+
+/** A brief is "started" once it carries any style/CTA rows or a filled deliverable field.
+ * Until then the Pós shows the generate/start chooser instead of empty template cards. */
+function briefHasContent(b: PosBrief | null): boolean {
+  if (!b) return false
+  if (b.style?.length) return true
+  if (b.ctas?.rows?.length) return true
+  return Object.values(b.deliverables ?? {}).some((v) => typeof v === 'string' && v.trim() !== '')
+}
 
 export interface PosStageProps {
   /** Design-handoff Version for the active lang (cur = versions[lang]). */
@@ -115,6 +149,32 @@ export function PosStage({ beats, brief, activeLang, onPatch, onOpenHandoff, leg
 
   if (legacy && (legacy.schema_version || !hasBriefKind)) {
     return <LegacyPostprodFallback />
+  }
+
+  // Not auto-derived: the Pós is a SUGGESTIONS brief for the editor. Until it's generated
+  // (Cowork) or started from scratch, show the chooser — never empty template cards.
+  if (!briefHasContent(brief)) {
+    return (
+      <div className="pp-doc fade-in">
+        <div className="rot-gen">
+          <div className="vi-kicker"><SparklesGlyph size={13} /> Pós · brief pro editor</div>
+          <h1 className="vi-title">Sugestões pro editor</h1>
+          {canEdit ? (
+            <div className="rot-gen-actions">
+              <CoworkButton stage="pos" label="Gerar pós com Cowork" />
+              <button type="button" className="btn" onClick={() => onPatch(POS_TEMPLATE)}>
+                <Plus size={15} /> Começar do zero
+              </button>
+            </div>
+          ) : null}
+          <div className="rot-gen-sub">
+            {canEdit
+              ? 'O Cowork sugere estilo & ritmo, CTAs e QR a partir do roteiro — você ajusta por vídeo. Os momentos-chave saem do roteiro e são referenciados nas sugestões.'
+              : 'O brief de pós ainda não foi criado. Entre no modo de edição para gerar com o Cowork ou começar do zero.'}
+          </div>
+        </div>
+      </div>
+    )
   }
 
   // Present language labels (computed by the shell from versions); fall back to all

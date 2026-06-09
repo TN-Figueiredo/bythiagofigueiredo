@@ -17,7 +17,9 @@ const beats: RoteiroBeatV3[] = [
     { type: 'vis', text: 'B-roll: drone' },
   ] },
 ]
-const brief = { kind: 'brief' as const, ctas: { note: '', rows: [], display: '' }, style: [], deliverables: {} }
+// A "started" brief (has style rows) → renders the full Pós doc (not the generate chooser).
+const brief = { kind: 'brief' as const, ctas: { note: '', rows: [], display: '' }, style: [{ k: 'Ritmo', v: 'rápido' }], deliverables: {} }
+const editSeed = { ...seed, editMode: 'edit' } as VideoEditorState
 
 function wrap(node: React.ReactNode) {
   return render(<VideoEditorProvider initialState={seed}>{node}</VideoEditorProvider>)
@@ -46,5 +48,27 @@ describe('PosStage', () => {
     wrap(<PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={onOpenHandoff} legacy={null} />)
     screen.getByRole('button', { name: /Exportar pro editor/i }).click()
     expect(onOpenHandoff).toHaveBeenCalled()
+  })
+
+  it('shows the generate/start chooser (not empty cards) when the brief is empty', () => {
+    render(
+      <VideoEditorProvider initialState={editSeed}>
+        <PosStage beats={beats} brief={null} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
+      </VideoEditorProvider>,
+    )
+    expect(screen.getByText('Sugestões pro editor')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Gerar pós com Cowork/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Começar do zero/i })).toBeInTheDocument()
+  })
+
+  it('"Começar do zero" seeds a template brief (kind: brief) via onPatch', () => {
+    const onPatch = vi.fn()
+    render(
+      <VideoEditorProvider initialState={editSeed}>
+        <PosStage beats={beats} brief={null} activeLang="pt" onPatch={onPatch} onOpenHandoff={vi.fn()} legacy={null} />
+      </VideoEditorProvider>,
+    )
+    screen.getByRole('button', { name: /Começar do zero/i }).click()
+    expect(onPatch).toHaveBeenCalledWith(expect.objectContaining({ kind: 'brief' }))
   })
 })
