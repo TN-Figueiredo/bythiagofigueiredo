@@ -174,8 +174,21 @@ export async function manageSections(params: Params): Promise<CallToolResult> {
       const currentItem = await svc.getItem(ctx, id)
       const expectedVersion = (currentItem.data as Record<string, unknown>).version as number
 
+      // The MCP layer owns optimistic concurrency: SectionPatchSchema requires `rev`,
+      // so we read the section's current rev and supply it automatically. The agent
+      // never sends `rev` — omitting it used to fail every write with a bare "Required".
+      // New section → rev 0; existing → its current rev (matches patchSection's guard).
+      let currentRev = 0
+      try {
+        const current = await svc.getSection(ctx, id, { section, lang })
+        currentRev = (current.data as { rev?: number } | null)?.rev ?? 0
+      } catch {
+        currentRev = 0
+      }
+
       const body = {
         content: params.content,
+        rev: currentRev,
         source: params.source,
         modified_by: params.modified_by,
       }

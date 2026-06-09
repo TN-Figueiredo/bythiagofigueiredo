@@ -803,7 +803,13 @@ export function registerTools(server: McpServer): void {
   // 4. manage_sections
   server.tool(
     'manage_sections',
-    'Read or write content sections (ideia, roteiro, postprod, draft, seo, etc.) on pipeline items. Accepts markdown, JSON, or arrays.',
+    'Read/write content sections on pipeline items. action:get reads; action:update writes ' +
+      '(optimistic concurrency is handled automatically — NEVER send a `rev`). Most sections accept ' +
+      'free markdown/JSON. Typed VIDEO sections require an EXACT strict JSON shape (no extra keys); ' +
+      'derive them from the `roteiro` section (read it with action:get first):\n' +
+      '• postprod (Pós brief): {"kind":"brief","deliverables":{"editor","deadline","turnaround","drive","energy","references":[]},"style":[{"k","v"}],"ctas":{"note","rows":[{"k","pt","en"}],"display"}}\n' +
+      '• publish (A/B, from-scratch): {"firstOnAir":"A","variants":[{"id":"A","role":"challenger","title","brief"}, …exactly 4: A,B,C,D]} — each variant = a testable title + a thumbnail brief (text only)\n' +
+      '• ideia (shared): {"title","direction","logline","angles","framework","siblings":[]}',
     ManageSectionsShape,
     WRITE,
     async (params) => sectionsService.manageSections(params),
