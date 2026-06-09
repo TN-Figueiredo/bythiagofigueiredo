@@ -19,12 +19,12 @@ import { loadVideoDetail } from '@/lib/pipeline/load-video-detail'
 import { createAbTest, updateTextVariant, createTextVariant, uploadVariant } from '@/app/cms/(authed)/youtube/ab-lab/actions'
 
 const VALID_DRAFT = {
-  leader: 'A',
+  firstOnAir: 'A',
   variants: [
-    { id: 'A', tag: 'original', title: 'Orig', brief: 'b orig' },
-    { id: 'B', title: 'B', brief: 'b B' },
-    { id: 'C', title: 'C', brief: 'b C' },
-    { id: 'D', title: 'D', brief: 'b D' },
+    { id: 'A', role: 'challenger', title: 'Orig', brief: 'b orig' },
+    { id: 'B', role: 'challenger', title: 'B', brief: 'b B' },
+    { id: 'C', role: 'challenger', title: 'C', brief: 'b C' },
+    { id: 'D', role: 'challenger', title: 'D', brief: 'b D' },
   ],
 }
 

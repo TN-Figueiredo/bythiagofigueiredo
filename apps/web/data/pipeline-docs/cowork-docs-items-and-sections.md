@@ -1495,56 +1495,68 @@ SFX references using `Artlist "Track Name"` in edit_notes or sfx.description are
 
 ## Section: `publish` (per-lang, VIDEO) — `ABDraftSchema` (A/B title + thumbnail brief)
 
-Para **vídeo**, a seção `publish` é um **rascunho de teste A/B** — `ABDraftSchema` (`.strict()` + `.refine`). São **exatamente 4 variantes** A/B/C/D, cada uma com um título e um **briefing de thumbnail** (texto descrevendo o que a thumb comunica). **Exatamente UMA** variante tem `tag:"original"`.
+Para **vídeo**, a seção `publish` é um **rascunho de teste A/B** — `ABDraftSchema` (`.strict()` + `.refine`). São **exatamente 4 variantes** A/B/C/D, cada uma com um título e um **briefing de thumbnail** (texto descrevendo o que a thumb comunica). **Não existe "original":** na estreia as 4 são **challengers do zero** — não há incumbente. O único distintivo de partida é `firstOnAir` (qual capa entra **primeiro** no ar). Uma `winner` só existe **depois** que o teste resolve.
 
 ```json
 {
-  "leader": "A",
+  "firstOnAir": "A",
   "variants": [
     {
       "id": "A",
-      "tag": "original",
+      "role": "challenger",
       "title": "Por que saí do Canadá depois de 4 anos",
       "brief": "Rosto pensativo em primeiro plano, mala ao fundo desfocada. Texto curto 'POR QUÊ?' em amarelo. Comunica decisão pessoal difícil."
     },
     {
       "id": "B",
-      "tag": "emocional",
+      "role": "challenger",
       "title": "4 anos no Canadá: nunca foi pra mim",
-      "brief": "Close no olhar, luz fria de janela. Sem texto grande — deixa o rosto carregar a emoção. Comunica vulnerabilidade."
+      "brief": "Close no olhar, luz fria de janela. Sem texto grande — deixa o rosto carregar a emoção. Comunica vulnerabilidade (ângulo emocional)."
     },
     {
       "id": "C",
-      "tag": "dados",
+      "role": "challenger",
       "title": "O custo real de morar fora (e por que voltei)",
-      "brief": "Split: passaporte/boletos de um lado, paisagem brasileira do outro. Número em destaque. Comunica análise racional."
+      "brief": "Split: passaporte/boletos de um lado, paisagem brasileira do outro. Número em destaque. Comunica análise racional (ângulo de dados)."
     },
     {
       "id": "D",
-      "tag": "curiosidade",
+      "role": "challenger",
       "title": "A verdade que ninguém conta sobre emigrar",
-      "brief": "Expressão de surpresa, seta apontando pra fora do frame. Comunica revelação/gancho de curiosidade."
+      "brief": "Expressão de surpresa, seta apontando pra fora do frame. Comunica revelação (ângulo de curiosidade/promessa)."
     }
   ]
 }
 ```
 
+### Como o Cowork gera o rascunho A/B
+
+O rascunho A/B é **derivado do roteiro + ideia** e é um conjunto de **4 propostas testáveis** que o editor ajusta — não é verdade fixa.
+
+1. **Leia o roteiro primeiro** (`GET /api/pipeline/items/:id/sections/roteiro?lang=`) e a `ideia` no idioma alvo — o título/gancho central e os beats dão a matéria-prima.
+2. **Gere EXATAMENTE 4 variantes A–D**, cada uma um **ângulo distinto e testável**: emocional, dados, curiosidade, promessa (não 4 variações do mesmo título).
+3. **`brief` = o que a thumbnail comunica** — só texto descritivo (composição, expressão, texto-na-tela, o que o olhar capta). **Nunca** dados de imagem nem URLs.
+4. **`firstOnAir`** = qual capa você sugere que entre **primeiro** no ar (a aposta de abertura). Não é um "vencedor" — só a primeira a rodar.
+5. **Todas as 4 entram como `role:"challenger"`.** Não escreva `role:"winner"` — o vencedor só é definido **depois** que o teste roda (no máximo um).
+
+> O editor revisa e ajusta tudo. Cowork **propõe** 4 ângulos, não decide o vencedor.
+
 ### Estrutura — `ABDraftSchema`
 
 | Campo | Tipo | Notas |
 |-------|------|-------|
-| `leader` | `"A"` \| `"B"` \| `"C"` \| `"D"` | Variante favorita/líder |
+| `firstOnAir` | `"A"` \| `"B"` \| `"C"` \| `"D"` | Qual capa entra **primeiro** no ar (aposta de abertura — não é vencedor) |
 | `variants` | array de **exatamente 4** | Uma por id A/B/C/D |
 | `variants[].id` | `"A"`\|`"B"`\|`"C"`\|`"D"` | Identificador da variante |
-| `variants[].tag` | string ≤40, opcional | Rótulo curto. **Exatamente uma** variante DEVE ter `tag:"original"` (invariante do `.refine`) |
+| `variants[].role` | `"challenger"` \| `"winner"` | Na estreia **todas** são `"challenger"`. No máximo **uma** pode ser `"winner"` — e só depois do teste (invariante do `.refine`) |
 | `variants[].title` | string ≤500 | Variação de **TÍTULO** A/B |
 | `variants[].brief` | string ≤1000 | **Briefing da thumbnail** — texto descrevendo o que a thumb deve comunicar |
 
 ### Fronteiras CRÍTICAS
 
 - **Thumbnails NÃO são geradas aqui.** Cowork escreve apenas `title` + `brief` (texto). As imagens de thumbnail são sugestões produzidas depois pela ferramenta de design da Claude AI. Cowork **nunca** escreve dados de imagem / URLs de thumb nesta seção.
+- **Sem "original" / incumbente.** As 4 capas nascem do zero como challengers. Cowork **não** escreve `role:"winner"` — só `"challenger"`. O `firstOnAir` é apenas a primeira capa a ir ao ar; o vencedor é definido depois pelo teste.
 - **Cowork apenas RASCUNHA.** O teste A/B é materializado pela ação de **publicação** (RBAC modo-publish). Cowork **não** inicia o teste no ab-lab — só deixa o rascunho pronto.
-- A invariante de "exatamente um `original`" é validada pelo schema (`.refine`); se faltar ou houver mais de um, o objeto é inválido.
 - **Published-freeze:** uma vez que o item está em `published`/`scheduled` (stage ≥ published), `publish` (junto com `ideia`/`roteiro`/`postprod`) fica READ-ONLY e o PATCH retorna HTTP 403 (`"Section is read-only while published"`) — deixe o rascunho A/B pronto **antes** de publicar, ou dê `retreat` primeiro.
 
 ---

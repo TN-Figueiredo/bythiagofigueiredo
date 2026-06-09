@@ -277,7 +277,7 @@ export function PosStage({ beats, brief, activeLang, onPatch, onSeed, onOpenHand
             <RotateCcw size={12} /> Recomeçar
           </button>
         ))}
-        <button type="button" className="btn" onClick={onOpenHandoff}>
+        <button type="button" className="btn primary" onClick={onOpenHandoff}>
           <Rss size={14} /> Exportar pro editor
         </button>
       </div>

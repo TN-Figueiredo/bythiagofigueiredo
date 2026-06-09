@@ -19,14 +19,19 @@
   /* `--cms-surface-hover` isn't defined by cms-ui → the popover bg fell back to
      transparent. Base elevation on the (defined) surface + a hair of white so it's a
      solid, slightly-elevated panel (Cowork popover / menus). */
-  --elev: color-mix(in srgb, var(--cms-surface, #1a1d27) 94%, #ffffff 6%);
+  /* LITERAL (was color-mix surface 94% + #fff 6%) — Opera paints color-mix transparent. */
+  --elev: #1c1f29;
   --text: var(--cms-text);
   --text-muted: var(--cms-text-muted);
   --text-dim: var(--cms-text-dim);
-  --text-faint: color-mix(in srgb, var(--cms-text-dim) 62%, transparent);
+  /* LITERAL (was color-mix --cms-text-dim 62% + transparent → invisible in Opera). Powers
+     placeholders + field labels — must stay legible, so ~.45 alpha of --text (#e4e4e7), not
+     the dim token, to clear WCAG AA (≥4.5:1 on the dark surfaces). */
+  --text-faint: rgba(228, 228, 231, .45);
   --border: var(--cms-border);
   --border-soft: var(--cms-border-subtle);
-  --border-strong: color-mix(in srgb, var(--cms-border) 55%, #ffffff 24%);
+  /* LITERAL (was color-mix --cms-border 55% + #fff 24%). */
+  --border-strong: rgba(255, 255, 255, .20);
   /* Brand orange (handoff #FF8240 family) — the video module is orange-branded,
      NOT the app's indigo --cms-accent. */
   --accent: #ff8240;
@@ -35,18 +40,24 @@
   --accent-soft-2: rgba(255, 130, 64, .08);
   --accent-text: #ff9a5e;
   --on-accent: #fff;
+  /* The base color tokens (--cms-*) are solid hex and paint fine. Their `*-subtle` siblings,
+     however, are authored as `rgba(from … r g b / .12)` RELATIVE-COLOR — the same class of
+     function Opera parses-valid-but-paints-transparent as color-mix. Every `-s` token here
+     fills a visible chrome surface (icon tiles, status pills, tags, toggles), so redefine the
+     subtle tokens as LITERAL rgba (matching the cms-ui base hex + .12 alpha). This immunizes
+     all `-s` consumers at the source. */
   --c-pipeline: var(--cms-cyan);
-  --c-pipeline-s: var(--cms-cyan-subtle);
+  --c-pipeline-s: rgba(6, 182, 212, .12);   /* cyan #06b6d4 */
   --c-links: var(--cms-green);
-  --c-links-s: var(--cms-green-subtle);
+  --c-links-s: rgba(34, 197, 94, .12);       /* green #22c55e */
   --c-courses: var(--cms-purple);
   --c-newsletter: var(--cms-rose);
-  --c-newsletter-s: var(--cms-rose-subtle);
+  --c-newsletter-s: rgba(244, 63, 94, .12);  /* rose #f43f5e */
   --danger: var(--cms-rose);
   --warn: var(--cms-amber);
-  --warn-s: var(--cms-amber-subtle);
+  --warn-s: rgba(245, 158, 11, .12);         /* amber #f59e0b */
   --ok: var(--cms-green);
-  --ok-s: var(--cms-green-subtle);
+  --ok-s: rgba(34, 197, 94, .12);            /* green #22c55e */
   --radius: 12px;
   --shadow: var(--cms-shadow-dropdown, 0 4px 16px rgba(0, 0, 0, .18));
   --shadow-pop: var(--cms-shadow-dropdown, 0 12px 32px rgba(0, 0, 0, .28));
@@ -145,9 +156,13 @@
 .vcard-top { display: flex; align-items: center; gap: 7px; margin-bottom: 9px; }
 .vcard-code { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-dim); }
 .vcard-langs { margin-left: auto; display: inline-flex; gap: 2px; font-size: 12px; }
+/* --pc is a per-language SOLID hex set inline; the old fill was a translucent color-mix of it
+   (invisible in Opera). A literal can't carry the dynamic hue in the fill, so carry the language
+   identity via the solid --pc text + dot + a 1px --pc border over a neutral literal surface —
+   guarantees a visible, color-coded pill in every browser. */
 .vpill { display: inline-flex; align-items: center; gap: 5px; height: 19px; padding: 0 8px; border-radius: 20px;
   font-size: 10px; font-weight: 700; letter-spacing: .3px; text-transform: uppercase; color: var(--pc, var(--accent));
-  background: color-mix(in srgb, var(--pc, var(--accent)) 15%, transparent); }
+  background: rgba(255, 255, 255, .05); border: 1px solid var(--pc, var(--accent)); }
 .vpill .vp-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--pc, var(--accent)); }
 .vcard-title { font-size: 13.5px; font-weight: 600; line-height: 1.32; letter-spacing: -0.15px; color: var(--text);
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -178,8 +193,9 @@
   color: var(--text); outline: none; cursor: text; }
 .vi-title[data-empty="true"]::before { content: attr(data-ph); color: var(--text-faint); }
 
-.vi-seed { margin-top: 24px; border: 1px solid color-mix(in srgb, var(--c-newsletter) 24%, var(--border));
-  border-radius: 16px; background: linear-gradient(180deg, color-mix(in srgb,var(--c-newsletter) 9%,transparent) 0%, transparent 72%), var(--surface);
+/* border + tint LITERAL — the rose-tinted seed card chrome must paint (Opera drops color-mix). */
+.vi-seed { margin-top: 24px; border: 1px solid rgba(244, 63, 94, .32);
+  border-radius: 16px; background: linear-gradient(180deg, rgba(244, 63, 94, .09) 0%, transparent 72%), var(--surface);
   padding: 17px 19px; transition: border-color .14s, box-shadow .2s var(--ease); }
 .vi-seed:focus-within { box-shadow: var(--shadow); }
 .vi-seed-head { display: flex; align-items: center; gap: 9px; font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 10px; flex-wrap: wrap; }
@@ -195,8 +211,8 @@
 .vi-alts-label { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 11px; font-weight: 600; letter-spacing: .08em;
   text-transform: uppercase; color: var(--text-dim); margin-bottom: 9px; }
 .vi-alts-gen { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 11px; border-radius: 999px; letter-spacing: 0; text-transform: none;
-  font-size: 11.5px; font-weight: 600; color: var(--c-courses); background: color-mix(in srgb, var(--c-courses) 12%, transparent); border: 1px solid transparent; transition: background var(--t-fast); }
-.vi-alts-gen:hover { background: color-mix(in srgb, var(--c-courses) 22%, transparent); }
+  font-size: 11.5px; font-weight: 600; color: var(--c-courses); background: rgba(139, 92, 246, .14); border: 1px solid transparent; transition: background var(--t-fast); }
+.vi-alts-gen:hover { background: rgba(139, 92, 246, .24); }
 .vi-alts-gen:disabled { opacity: .6; cursor: default; }
 .vi-alts-gen .lucide { color: var(--c-courses); }
 .vi-alts-empty { font-size: 12.5px; color: var(--text-dim); padding: 4px 2px; }
@@ -212,7 +228,7 @@
 .ed-stage.on { opacity: 1; }
 
 .vid-robanner { display: flex; align-items: center; gap: 9px; max-width: 760px; margin: 0 auto 22px; padding: 11px 15px; border-radius: 11px;
-  font-size: 13px; line-height: 1.5; color: var(--text-muted); background: var(--c-links-s); border: 1px solid color-mix(in srgb, var(--c-links) 26%, transparent); }
+  font-size: 13px; line-height: 1.5; color: var(--text-muted); background: rgba(34, 197, 94, .10); border: 1px solid rgba(34, 197, 94, .28); }
 .vid-robanner .lucide { color: var(--c-links); flex-shrink: 0; }
 .vid-robanner b { color: var(--text); font-weight: 600; }
 
@@ -233,7 +249,7 @@
    to the focus eye. Pencil = editing (lit accent when on); Lock = published/scheduled stage. */
 .vid-ed .ed-iconbtn.ed-editmode.on { background: var(--accent); color: var(--on-accent); }
 .vid-ed .ed-iconbtn.ed-editmode.on:hover { background: var(--accent-hover); }
-.vid-ed .ed-iconbtn.ed-editlock { color: var(--c-links); border-color: color-mix(in srgb, var(--c-links) 30%, transparent); }
+.vid-ed .ed-iconbtn.ed-editlock { color: var(--c-links); border-color: rgba(34, 197, 94, .32); }
 .vid-ed .ed-iconbtn.ed-editlock:hover:not(:disabled) { border-color: var(--c-links); }
 .vid-ed .ed-iconbtn.ed-editlock:disabled { opacity: .6; cursor: progress; }
 
@@ -339,8 +355,9 @@
 .rb-bst:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent); }
 .rb-bst-gl { display: inline-grid; place-items: center; width: 15px; height: 15px; }
 .rb-bst.pendente .rb-bst-gl { border: 1.5px solid currentColor; border-radius: 50%; }
-.rb-bst.gravada { color: var(--ok); background: var(--ok-s); border-color: transparent; }
-.rb-bst.refazer { color: var(--warn); background: var(--warn-s); border-color: transparent; }
+/* status fills LITERAL — --ok-s/--warn-s are rgba(from…) relative-color tokens (Opera risk). */
+.rb-bst.gravada { color: var(--ok); background: rgba(34, 197, 94, .14); border-color: transparent; }
+.rb-bst.refazer { color: var(--warn); background: rgba(245, 158, 11, .14); border-color: transparent; }
 /* Stale: the beat text changed after it was marked. Ring the pill amber so the ✓/⟲
    itself reads as "no longer trustworthy", on top of the loud .rb-stale badge. */
 .rb-bst.stale { box-shadow: inset 0 0 0 1.5px var(--warn); }
@@ -350,7 +367,7 @@
    unmissable: a ✓ gravada can never silently cover rewritten fala. */
 .rb-stale { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; align-self: center;
   min-height: 28px; padding: 0 11px; border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: .01em;
-  color: var(--warn); background: var(--warn-s); border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent); }
+  color: var(--warn); background: rgba(245, 158, 11, .14); border: 1px solid rgba(245, 158, 11, .42); }
 .rb-stale .lucide { flex-shrink: 0; }
 .rb-stale-tx { white-space: nowrap; }
 /* the stale badge only makes sense alongside the status pill — hide it with .rb-bst when
@@ -360,7 +377,7 @@
 /* Retake reason — one-line input shown under the head when status is "refazer". */
 .rb-bnote { display: block; width: 100%; margin: 7px 0 2px 46px; max-width: calc(100% - 46px);
   height: 30px; padding: 0 11px; border-radius: 7px; font-size: 12.5px; color: var(--text);
-  background: var(--surface); border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent); outline: none; }
+  background: var(--surface); border: 1px solid rgba(245, 158, 11, .32); outline: none; }
 .rb-bnote::placeholder { color: var(--text-faint); }
 .rb-bnote:focus { border-color: var(--warn); }
 
@@ -853,34 +870,49 @@
 .pp-energy .lucide { color: var(--accent); flex-shrink: 0; margin-top: 2px; }
 .pp-energy i { color: var(--text-dim); font-style: italic; }
 
-.pp-moments { display: flex; flex-direction: column; gap: 13px; }
-.pp-moment { display: flex; gap: 12px; }
+.pp-moments { display: flex; flex-direction: column; gap: 0; }
+/* hairline rhythm — separates the (up to 7) momentos so the long list is scannable */
+.pp-moment { display: flex; gap: 12px; padding: 11px 0; border-top: 1px solid var(--border-soft); }
+.pp-moment:first-child { border-top: none; padding-top: 2px; }
+.pp-moment:last-child { padding-bottom: 2px; }
 .pp-mnum { font-family: var(--font-mono); font-size: 11px; font-weight: 700; color: var(--accent-text); background: var(--accent-soft); border-radius: 6px; padding: 3px 7px; height: fit-content; flex-shrink: 0; }
 .pp-mline { font-size: 15px; line-height: 1.5; color: var(--text); font-weight: 500; }
 .pp-mcue { display: flex; align-items: center; gap: 6px; margin-top: 5px; font-size: 12.5px; color: var(--c-pipeline); }
 .pp-mcue .lucide { flex-shrink: 0; }
 
-.pp-broll { display: flex; flex-direction: column; gap: 13px; }
-.pp-broll-row { display: grid; grid-template-columns: 130px 1fr; gap: 14px; }
+.pp-broll { display: flex; flex-direction: column; gap: 0; }
+/* hairline rhythm + content-sized first column (was fixed 130px) so the b-roll list scans */
+.pp-broll-row { display: grid; grid-template-columns: minmax(110px, max-content) 1fr; gap: 14px;
+  align-items: baseline; padding: 11px 0; border-top: 1px solid var(--border-soft); }
+.pp-broll-row:first-child { border-top: none; padding-top: 2px; }
+.pp-broll-row:last-child { padding-bottom: 2px; }
 .pp-bname { font-family: var(--font-mono); font-size: 11.5px; color: var(--text-dim); padding-top: 2px; }
 .pp-broll-row ul { margin: 0; padding-left: 17px; display: flex; flex-direction: column; gap: 5px; }
 .pp-broll-row li { font-size: 13px; line-height: 1.5; color: var(--text-muted); }
 
-.pp-style { display: flex; flex-direction: column; gap: 12px; }
-.pp-srow { display: grid; grid-template-columns: 130px 1fr; gap: 14px; align-items: baseline; }
+.pp-style { display: flex; flex-direction: column; gap: 0; }
+/* content-sized first column + hairline rhythm to match the b-roll list */
+.pp-srow { display: grid; grid-template-columns: minmax(110px, max-content) 1fr; gap: 14px; align-items: baseline;
+  padding: 11px 0; border-top: 1px solid var(--border-soft); }
+.pp-srow:first-child { border-top: none; padding-top: 2px; }
+.pp-srow:last-child { padding-bottom: 2px; }
 .pp-sk { font-size: 12px; font-weight: 600; color: var(--text); }
 .pp-sv { font-size: 13px; line-height: 1.55; color: var(--text-muted); }
 
-.pp-cta-note { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 9px; background: var(--warn-s); border: 1px solid color-mix(in srgb, var(--warn) 26%, transparent); font-size: 12.5px; color: var(--text); margin-bottom: 13px; }
+/* fill + border LITERAL — --warn-s is an rgba(from…) relative-color token (at risk) and the
+   border was color-mix; both painted transparent in Opera. */
+.pp-cta-note { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 9px; background: rgba(245, 158, 11, .12); border: 1px solid rgba(245, 158, 11, .30); font-size: 12.5px; color: var(--text); margin-bottom: 13px; }
 .pp-cta-note .lucide { color: var(--warn); flex-shrink: 0; }
 .pp-cta-table { font-size: 12.5px; }
-.pp-cta-h, .pp-cta-row { display: grid; grid-template-columns: 1.1fr 1fr 1fr; gap: 10px; padding: 7px 0; }
+.pp-cta-h, .pp-cta-row { display: grid; grid-template-columns: 1.1fr 1fr 1fr; gap: 10px; padding: 7px 0; align-items: baseline; }
 .pp-cta-h { border-bottom: 1px solid var(--border-soft); }
 .pp-cta-h span { font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--text-faint); }
-.pp-cta-h span.on { color: var(--accent-text); }
+/* active-language column reads visually ("muda por idioma") — faint literal tint on the .on
+   cells, header + rows, so the changing column is scannable at a glance. */
+.pp-cta-h span.on { color: var(--accent-text); background: rgba(139, 92, 246, .06); border-radius: 5px 5px 0 0; padding: 2px 6px; margin: -2px -6px; }
 .pp-cta-row { border-bottom: 1px solid var(--border-soft); }
 .pp-cta-row span { color: var(--text-dim); }
-.pp-cta-row span.on { color: var(--text); }
+.pp-cta-row span.on { color: var(--text); background: rgba(139, 92, 246, .06); border-radius: 4px; padding: 2px 6px; margin: -2px -6px; }
 .pp-cta-row .pp-ck { font-weight: 600; color: var(--text-muted); }
 .pp-cta-disp { display: flex; align-items: flex-start; gap: 7px; margin-top: 11px; font-size: 11.5px; line-height: 1.5; color: var(--text-dim); }
 .pp-cta-disp .lucide { flex-shrink: 0; margin-top: 2px; }
@@ -902,10 +934,20 @@
 
 .ab-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
 @media (max-width: 1080px) { .ab-grid { grid-template-columns: repeat(2, 1fr); } }
-.ab-card { border: 1px solid var(--border); border-radius: 13px; background: var(--surface); overflow: hidden; transition: border-color var(--t-fast), box-shadow var(--t) var(--ease); }
-.ab-card.leader { border-color: color-mix(in srgb, var(--vc) 60%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--vc) 40%, transparent), var(--shadow); }
-.ab-thumb { position: relative; aspect-ratio: 16 / 9; background:
-  repeating-linear-gradient(135deg, var(--surface-2) 0 10px, var(--surface-hover) 10px 20px); display: grid; place-items: center; }
+/* card surface dropped to #171a22 so cards lift off the muddy 5-unit page band (#0f1117 bg /
+   #1a1d27 surface). A 2px --vc top edge color-codes A/B/C/D — variant identity felt, not just badged. */
+.ab-card { border: 1px solid var(--border); border-top: 2px solid var(--vc); border-radius: 13px; background: #171a22; overflow: hidden; transition: border-color var(--t-fast), box-shadow var(--t) var(--ease); }
+/* leader highlight — only signal a card is featured. --vc is a solid hex (per-variant,
+   set inline), so the border can use it directly; the ring uses a literal white so it
+   never resolves through color-mix (Opera paints color-mix transparent). */
+.ab-card.leader { border-color: var(--vc); box-shadow: 0 0 0 1px rgba(255, 255, 255, .16), var(--shadow); }
+/* visible "design slot" — the old hatch used two identical #1f2330 stops (invisible). Literal
+   two-tone diagonal weave + a top sheen + inset hairline so the empty thumb reads as a slot. */
+.ab-thumb { position: relative; aspect-ratio: 16 / 9; display: grid; place-items: center;
+  background:
+    radial-gradient(120% 120% at 50% 0%, rgba(255, 255, 255, .04), transparent 60%),
+    repeating-linear-gradient(135deg, #1c1f29 0 8px, #181b24 8px 16px);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .03); }
 .ab-badge { position: absolute; top: 8px; left: 8px; width: 24px; height: 24px; border-radius: 7px; display: grid; place-items: center;
   font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: #fff; background: var(--vc); }
 .ab-thumb-ph { display: flex; flex-direction: column; align-items: center; gap: 6px; color: var(--text-faint); padding: 0 14px; text-align: center; }
@@ -919,13 +961,19 @@
   color: #fff; background: rgba(12,14,18,.66); border: 1px solid rgba(255,255,255,.14); padding: 2px 7px; border-radius: 5px; }
 .ab-title { padding: 11px 13px 14px; font-size: 13px; line-height: 1.4; font-weight: 500; color: var(--text); outline: none; cursor: text; min-height: 2.6em; }
 .ab-title[data-empty="true"]::before { content: attr(data-ph); color: var(--text-faint); }
-.ab-title:focus { background: var(--surface-2); }
+.ab-title:focus { background: var(--surface-2); box-shadow: inset 2px 0 0 var(--vc); border-radius: 0 6px 6px 0; }
 
 .pub-foot { margin-top: 26px; padding-top: 18px; border-top: 1px solid var(--border-soft); }
+/* the "Publicar + iniciar teste" primary is the screen's climax — give it weight + a persistent
+   soft shadow (mirrors .rot-empty .btn.primary) so it doesn't read as a small neutral button. */
+.vid-ed .pub-doc .btn.primary { padding: 10px 20px; font-size: 13.5px; font-weight: 650;
+  box-shadow: 0 8px 20px -10px rgba(255, 130, 64, .65); }
+.vid-ed .pub-doc .btn.primary:hover { box-shadow: 0 10px 24px -8px rgba(255, 130, 64, .75); }
 .pub-dist { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 12px; }
 .pub-chan { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 14px; border-radius: 999px; font-size: 12.5px; font-weight: 500;
-  color: var(--text-muted); background: var(--surface); border: 1px solid var(--border); transition: .12s; }
-.pub-chan:hover { color: var(--text); border-color: var(--border-strong); transform: translateY(-1px); }
+  color: var(--text); background: var(--surface-2); border: 1px solid var(--border); transition: background var(--t-fast), color var(--t-fast), border-color var(--t-fast), transform var(--t-fast) var(--ease); }
+/* brand-tinted hover so the channels read as live destinations, not inert labels */
+.pub-chan:hover { color: var(--accent-text); background: rgba(255, 130, 64, .10); border-color: rgba(255, 130, 64, .40); transform: translateY(-1px); }
 .pub-chan .pc-dot { width: 8px; height: 8px; border-radius: 50%; }
 
 /* ============================================================
@@ -955,7 +1003,9 @@
 .hs-table th { text-align: left; font-family: var(--font-mono); font-size: 9.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--rp-ink-45); padding: 0 10px 5px; border-bottom: 1px solid var(--rp-ink-20); }
 .hs-table td { padding: 6px 10px; color: var(--rp-ink-70); border-bottom: 1px solid var(--rp-line); vertical-align: top; line-height: 1.45; }
 .hs-table .hs-ck { font-weight: 600; color: var(--rp-ink); }
-.hs-table tr.hl-pt td:nth-child(2), .hs-table tr.hl-en td:nth-child(3) { background: color-mix(in srgb, var(--rp-accent) 9%, transparent); color: var(--rp-ink); }
+/* active-language column tint — precomputed opaque (≈9% #b8541a accent over the #fbfaf6
+   paper); color-mix painted transparent in Opera so the highlight vanished. */
+.hs-table tr.hl-pt td:nth-child(2), .hs-table tr.hl-en td:nth-child(3) { background: #f0e3d6; color: var(--rp-ink); }
 
 /* ============================================================
    COWORK — call the AI from any stage
@@ -1065,9 +1115,12 @@
 .cw-send:disabled:hover svg { transform: none; }
 
 /* ---------- editable field (efx) ---------- */
-.efx { outline: none; cursor: text; border-radius: 5px; padding: 1px 5px; margin: 0 -5px; transition: background var(--t-fast), box-shadow var(--t-fast); }
-.efx:hover { background: var(--surface-2); }
-.efx:focus { background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--border-strong); }
+/* resting affordance: a faint dashed underline so filled values read as editable fields
+   (not static text). Hover/focus still escalate to the surface fill + ring below. */
+.efx { outline: none; cursor: text; border-radius: 5px; padding: 1px 5px; margin: 0 -5px;
+  border-bottom: 1px dashed rgba(255, 255, 255, .10); transition: background var(--t-fast), box-shadow var(--t-fast), border-color var(--t-fast); }
+.efx:hover { background: var(--surface-2); border-bottom-color: transparent; }
+.efx:focus { background: var(--surface-2); border-bottom-color: transparent; box-shadow: inset 0 0 0 1px var(--border-strong); }
 .efx[data-empty="true"]::before { content: attr(data-ph); color: var(--text-faint); font-weight: 400; }
 .pp-energy .ef-inline { color: var(--text-muted); }
 
@@ -1079,7 +1132,7 @@
 .ab-lead-btn:not(.on) { opacity: 0; }
 .ab-card:hover .ab-lead-btn:not(.on) { opacity: 1; }
 .ab-fields { padding: 11px 13px 13px; display: flex; flex-direction: column; gap: 3px; }
-.ab-lbl { font-size: 9.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-faint); margin-top: 9px; }
+.ab-lbl { font-size: 9.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: #6a6f7c; margin-top: 9px; }
 .ab-fields .ab-lbl:first-child { margin-top: 0; }
 .ab-lbl-sub { font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--text-faint); margin-left: 6px; }
 .ab-fields .ab-title { padding: 4px 6px; margin: 2px -6px 0; min-height: 1.5em; font-size: 13px; font-weight: 600; line-height: 1.35; color: var(--text); }
@@ -1089,12 +1142,15 @@
 /* published lock affordances */
 .pub-locknote { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 500; color: var(--text-dim); }
 .pub-locknote .lucide { color: var(--text-faint); }
-.ab-grid.locked .efx { cursor: default; }
+.ab-grid.locked .efx { cursor: default; border-bottom-color: transparent; }
 .ab-grid.locked .efx:hover { background: none; }
 .ab-grid.locked .ab-card:not(.leader) { opacity: .82; }
 .ab-winner { position: absolute; bottom: 8px; left: 8px; display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 10px; border-radius: 999px;
   font-size: 10.5px; font-weight: 700; color: #1b1510; background: var(--vc); }
 .ab-winner .lucide { color: #1b1510; }
+.ab-onair { position: absolute; bottom: 8px; left: 8px; display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 10px; border-radius: 999px;
+  font-size: 10.5px; font-weight: 600; color: #d8d4cf; background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .16); }
+.ab-onair .lucide { color: var(--vc); }
 
 /* ============================================================
    IN-APP PRINT — ⌘P from the Roteiro (not Modo Gravação) still
@@ -1322,7 +1378,8 @@
 .ccount { display: inline-grid; place-items: center; min-width: 17px; height: 17px; padding: 0 6px;
   border-radius: 20px; font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums;
   background: var(--surface-2); color: var(--text-dim); }
-.cat-chip.on .ccount { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent-text); }
+/* literal accent tint (--accent is #ff8240) — count badge on the active pillar chip must paint. */
+.cat-chip.on .ccount { background: rgba(255, 130, 64, .20); color: var(--accent-text); }
 
 /* ============================================================
    EDITOR CHROME — scoped under `.vid-ed` (the editor root is

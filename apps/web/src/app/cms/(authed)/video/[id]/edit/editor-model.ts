@@ -36,6 +36,20 @@ export interface Version {
 /** Both language versions keyed by lang — `versions` in the handoff. */
 export type EditorModel = Record<VideoLang, Version>
 
+/**
+ * Unstarted Publicação: a fresh 4-way contest — all four variants are challengers (no incumbent).
+ * `firstOnAir:'A'` is only the start-time pick of which thumbnail goes live first on YouTube.
+ */
+export const EMPTY_AB_DRAFT: ABDraft = {
+  firstOnAir: 'A',
+  variants: [
+    { id: 'A', role: 'challenger', title: '', brief: '' },
+    { id: 'B', role: 'challenger', title: '', brief: '' },
+    { id: 'C', role: 'challenger', title: '', brief: '' },
+    { id: 'D', role: 'challenger', title: '', brief: '' },
+  ],
+}
+
 export interface ToEditorModelInput {
   ideia: { pt: IdeiaPayload; en: IdeiaPayload }
   roteiro: { pt: RoteiroContentV3 | null; en: RoteiroContentV3 | null }

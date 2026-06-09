@@ -6,11 +6,11 @@ import { Toaster } from 'sonner'
 import type { RoteiroContentV3 } from '@/lib/pipeline/roteiro-schemas'
 import type { SectionData } from '@/lib/pipeline/sections'
 import type { PillarId } from '@/lib/pipeline/pillars'
-import { PosBriefSchema, type PosBrief, type ABDraft } from '@/lib/pipeline/video-schemas'
+import { PosBriefSchema, ABDraftSchema, type PosBrief, type ABDraft } from '@/lib/pipeline/video-schemas'
 import type { AbJoinFacts } from '@/lib/pipeline/video-ab-precondition'
 import { VideoEditorProvider } from './context'
 import { VideoDataProvider, type IdeiaPayload, type VideoData } from './data-context'
-import { toEditorModel } from './editor-model'
+import { toEditorModel, EMPTY_AB_DRAFT } from './editor-model'
 import { EditorShell } from './editor-shell'
 import { useVideoSection } from './use-video-section'
 import { saveVideoTitle, advanceToRecorded as advanceToRecordedAction, publishVideo as publishVideoAction } from './actions'
@@ -173,11 +173,17 @@ export function VideoEditorClient({
     await hook.save()
   }, [postprodPt, postprodEn, canEditRef])
 
-  const savePublish = useCallback(async (lang: 'pt' | 'en', patch: Partial<ABDraft>) => {
-    if (!canEditRef.current) return // view mode / published lock — never persist content
+  const savePublish = useCallback(async (lang: 'pt' | 'en', patch: Partial<ABDraft>, opts?: { force?: boolean }) => {
+    // CREATE-from-empty path passes { force: true } (see saveRoteiro). Normal patches stay gated.
+    if (!canEditRef.current && !opts?.force) return
     const hook = lang === 'pt' ? publishPt : publishEn
-    const prev = (hook.content ?? {}) as unknown as ABDraft
-    hook.setContent({ ...prev, ...patch } as unknown as SectionData['content'])
+    // Replace-not-merge guard (mirrors savePostprod): only shallow-merge onto a *valid current*
+    // A/B draft. A malformed/partial stored payload (e.g. legacy one-original shape) would
+    // otherwise be spread under the patch → strict parse fails on read-back → edits silently
+    // lost. So we re-base the patch onto a fresh empty 4-up draft before applying it.
+    const raw: unknown = hook.content ?? null
+    const base: ABDraft = ABDraftSchema.safeParse(raw).success ? (raw as ABDraft) : EMPTY_AB_DRAFT
+    hook.setContent({ ...base, ...patch } as unknown as SectionData['content'])
     await hook.save()
   }, [publishPt, publishEn, canEditRef])
 
@@ -192,7 +198,12 @@ export function VideoEditorClient({
 
   const publishVideo = useCallback(async (id: string, v: number) => {
     const res = await publishVideoAction(id, v)
-    return { ok: res.ok, error: res.ok ? undefined : res.error }
+    if (res.ok) {
+      const next = res.data?.version
+      if (typeof next === 'number') setVersion(next)
+      return { ok: true as const, stage: res.data?.stage ?? 'published', version: next ?? v }
+    }
+    return { ok: false as const, error: res.error }
   }, [])
 
   const anyDirty = ideiaPt.isDirty || ideiaEn.isDirty || roteiroPt.isDirty || roteiroEn.isDirty || postprodPt.isDirty || postprodEn.isDirty || publishPt.isDirty || publishEn.isDirty

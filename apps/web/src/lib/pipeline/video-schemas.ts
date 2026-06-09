@@ -75,17 +75,21 @@ export const PosBriefSchema = z.object({
 }).strict()
 export type PosBrief = z.infer<typeof PosBriefSchema>
 
-// --- Publicação A/B draft (§3.8) — one-original invariant ---
+// --- Publicação A/B draft (§3.8) — from-scratch 4-way contest ---
+// There is NO incumbent: at debut all four variants are fresh challengers. The only
+// start-time distinction is `firstOnAir` — which thumbnail goes live FIRST on YouTube.
+// A `winner` exists only AFTER the test resolves (at most one). The Lab's internal
+// `is_original` seed row is chosen by `firstOnAir`, an implementation detail.
 export const ABDraftSchema = z.object({
-  leader: z.enum(['A', 'B', 'C', 'D']),
+  firstOnAir: z.enum(['A', 'B', 'C', 'D']),
   variants: z.array(z.object({
     id: z.enum(['A', 'B', 'C', 'D']),
-    tag: z.string().max(40).optional(),
+    role: z.enum(['challenger', 'winner']).default('challenger'),
     title: z.string().max(500).default(''),
     brief: z.string().max(1000).default(''),
   })).length(4),
 }).strict().refine(
-  (d) => d.variants.filter(v => v.tag === 'original').length === 1,
-  { message: 'Exactly one variant must be tagged "original"' },
+  (d) => d.variants.filter(v => v.role === 'winner').length <= 1,
+  { message: 'At most one variant may be the winner' },
 )
 export type ABDraft = z.infer<typeof ABDraftSchema>

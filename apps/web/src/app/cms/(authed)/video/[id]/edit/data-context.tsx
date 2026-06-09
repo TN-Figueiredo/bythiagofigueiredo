@@ -50,12 +50,15 @@ export interface VideoData {
   /** Persist a partial Pós brief patch (postprod_<lang>). Pass `{ force: true }` for the
    *  CREATE-from-empty seed dispatched alongside SET_EDIT_MODE('edit') — see saveRoteiro. */
   savePostprod: (lang: 'pt' | 'en', patch: Partial<PosBrief>, opts?: { force?: boolean }) => Promise<void>
-  /** Persist a partial Publicação A/B draft patch (publish_<lang>). */
-  savePublish: (lang: 'pt' | 'en', patch: Partial<ABDraft>) => Promise<void>
+  /** Persist a partial Publicação A/B draft patch (publish_<lang>). Pass `{ force: true }` for the
+   *  CREATE-from-empty seed dispatched alongside SET_EDIT_MODE('edit') — see saveRoteiro. */
+  savePublish: (lang: 'pt' | 'en', patch: Partial<ABDraft>, opts?: { force?: boolean }) => Promise<void>
   /** "Marcar como gravado" — advances the DB stage to gravacao, unlocking Pós+Publicação. */
   advanceToRecorded: (id: string, version: number) => Promise<{ ok: boolean; error?: string }>
-  /** Publish-gated A/B materialize + stage→published. */
-  publishVideo: (id: string, version: number) => Promise<{ ok: boolean; error?: string }>
+  /** Publish-gated A/B materialize + stage→published. Returns the new stage+version on success
+   *  so the shell can advance locally (no stale UI until reload). */
+  publishVideo: (id: string, version: number) =>
+    Promise<{ ok: true; stage: string; version: number } | { ok: false; error?: string }>
 }
 
 const Ctx = createContext<VideoData | null>(null)

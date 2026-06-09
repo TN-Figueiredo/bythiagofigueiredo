@@ -23,7 +23,6 @@ import { useVideoData } from './data-context'
 import { LockedStage } from './stages/locked-stage'
 import { PosStage } from './stages/pos-stage'
 import { PublicacaoStage } from './stages/publicacao-stage'
-import type { ABDraft } from '@/lib/pipeline/video-schemas'
 import type { VideoLang } from './types'
 
 /** Single global localStorage key for the print/recording marking granularity. */
@@ -49,6 +48,8 @@ function writeLocal(key: string, value: string): void {
   }
 }
 
+import { EMPTY_AB_DRAFT } from './editor-model'
+
 const IdeiaStage = lazy(() => import('./stages/ideia-stage').then((m) => ({ default: m.IdeiaStage })))
 const RoteiroStage = lazy(() => import('./stages/roteiro-stage').then((m) => ({ default: m.RoteiroStage })))
 
@@ -64,17 +65,6 @@ const HandoffSheet = dynamic(
 
 /** PT/EN segmented options for the overlays (control hidden when ≤1). */
 const OVERLAY_LANG_OPTIONS = CHANNELS.map((c) => ({ lang: c.lang, label: c.label, flag: c.flag }))
-
-/** Unstarted Publicação: one original (A) + three blank challengers → valid 4-up (§3.8). */
-const EMPTY_AB_DRAFT: ABDraft = {
-  leader: 'A',
-  variants: [
-    { id: 'A', tag: 'original', title: '', brief: '' },
-    { id: 'B', title: '', brief: '' },
-    { id: 'C', title: '', brief: '' },
-    { id: 'D', title: '', brief: '' },
-  ],
-}
 
 function StageBody() {
   const state = useVideoEditorState()
@@ -148,8 +138,16 @@ function StageBody() {
               published={published}
               winnerVariantId={data.winnerVariantId ?? null}
               onPatch={(p) => { void data.savePublish(lang, p) }}
-              onPublish={() => { void data.publishVideo(state.itemId, state.version) }}
-              onSuggest={() => dispatch({ type: 'OPEN_OVERLAY', overlay: 'cowork' })}
+              onSeed={(p) => { void data.savePublish(lang, p, { force: true }) }}
+              onPublish={async () => {
+                const res = await data.publishVideo(state.itemId, state.version)
+                if (res.ok) {
+                  dispatch({ type: 'SET_DB_STAGE', stage: res.stage })
+                  dispatch({ type: 'SET_VERSION', version: res.version })
+                } else {
+                  toast.error('Falha ao publicar', { description: res.error })
+                }
+              }}
             />
           ) : (
             <LockedStage stageLabel="Publicação" itemId={state.itemId} version={state.version} onUnlock={data.advanceToRecorded} />

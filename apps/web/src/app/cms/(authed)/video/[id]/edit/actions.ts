@@ -197,8 +197,9 @@ export async function advanceVideoStage(id: string, version: number): Promise<Vi
 /**
  * §3.8 materialization, executed in order while `ab_tests.status:'draft'`:
  *   1. createAbTest (direct FK to youtube_videos, seeds is_original row, test_type:'title')
- *   2. resolve the is_original variant id → updateTextVariant (createAbTest does NOT set title_text)
- *   3. createTextVariant ×3 (non-original challengers)
+ *   2. resolve the is_original variant id → updateTextVariant (createAbTest does NOT set title_text);
+ *      this row carries the `firstOnAir` variant (which thumbnail goes live first — not a user tag).
+ *   3. createTextVariant ×3 (the other three variants)
  * `uploadVariant` is NEVER used — the title-only flow has no thumbnail file.
  */
 async function materializeAbDraft(
@@ -242,7 +243,7 @@ async function materializeAbDraft(
  * A reporter (publish denied) is 403'd by the action itself — the service-role client is never
  * obtained and `createAbTest`/`createTextVariant` are never reached.
  */
-export async function publishVideo(id: string, version: number): Promise<VideoActionResult<{ testId: string }>> {
+export async function publishVideo(id: string, version: number): Promise<VideoActionResult<{ testId: string; stage: string; version: number }>> {
   const { siteId } = await getSiteContext()
   const scope = await requireSiteScope({ area: 'cms', siteId, mode: 'publish' })
   if (!scope.ok) return { ok: false, error: scopeError(scope.reason) }
@@ -280,5 +281,9 @@ export async function publishVideo(id: string, version: number): Promise<VideoAc
   revalidatePath('/cms/video')
   revalidatePath(`/cms/video/${id}/edit`)
   revalidateTag('ab-tests')
-  return { ok: true, data: { testId: mat.testId } }
+  const row = updated as { stage?: string; version?: number }
+  return {
+    ok: true,
+    data: { testId: mat.testId, stage: row.stage ?? 'published', version: row.version ?? version },
+  }
 }

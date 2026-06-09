@@ -60,6 +60,16 @@ export function useVideoEditorDispatch(): Dispatch<VideoEditorAction> {
 }
 
 /**
+ * Provider-robust dispatch: returns the real dispatch when a provider is mounted, else a no-op.
+ * Use in stage components that dispatch only on user actions (seed/edit-mode flips) but may be
+ * rendered bare in tests / read-only contexts — mirrors `useSetLiveVersion`'s safe fallback.
+ */
+export function useOptionalDispatch(): Dispatch<VideoEditorAction> {
+  const v = useContext(DispatchCtx)
+  return v ?? (() => {})
+}
+
+/**
  * Push a freshly-bumped optimistic-lock version up to the editor client's live `useState`
  * (the single source of truth). Returns a no-op when no setter is wired (test harnesses),
  * so callers can fire it unconditionally.

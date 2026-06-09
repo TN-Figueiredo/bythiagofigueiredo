@@ -23,6 +23,12 @@ const STAGE_TARGET_HINT: Partial<Record<VideoStage, (itemId: string, lang: strin
   pos: (itemId, lang) =>
     `→ escreva a seção \`postprod\` (PosBriefSchema, kind:'brief') via PATCH /items/${itemId}/sections/postprod?lang=${lang}; ` +
     `derive estilo & ritmo, CTAs e QR a partir do roteiro (leia GET /items/${itemId}/sections/roteiro?lang=${lang} primeiro).`,
+  publicacao: (itemId, lang) =>
+    `→ escreva a seção \`publish\` (ABDraftSchema) via PATCH /items/${itemId}/sections/publish?lang=${lang}; ` +
+    `leia GET /items/${itemId}/sections/roteiro?lang=${lang} e a ideia primeiro, então gere EXATAMENTE 4 variantes testáveis A–D ({id, title, brief}), ` +
+    `cada uma um ângulo distinto (emocional/dados/curiosidade/promessa) derivado do roteiro + ideia; ` +
+    `só TEXTO de título + brief (o que a thumb comunica), nunca URLs de imagem; ` +
+    `todas role:'challenger' (sem 'winner', sem 'original'); firstOnAir = a capa que entra primeiro no ar.`,
 }
 
 /** Context prompts per stage (CW_PROMPTS in views-video.jsx ~39-44). */

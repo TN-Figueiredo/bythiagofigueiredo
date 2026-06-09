@@ -2,26 +2,32 @@ import { describe, it, expect } from 'vitest'
 import { PosBriefSchema, ABDraftSchema } from '@/lib/pipeline/video-schemas'
 
 const validDraft = {
-  leader: 'A' as const,
+  firstOnAir: 'A' as const,
   variants: [
-    { id: 'A' as const, tag: 'original', title: 'Original', brief: 'thumb A' },
-    { id: 'B' as const, title: 'Chall B', brief: 'thumb B' },
-    { id: 'C' as const, title: 'Chall C', brief: 'thumb C' },
-    { id: 'D' as const, title: 'Chall D', brief: 'thumb D' },
+    { id: 'A' as const, role: 'challenger' as const, title: 'Ângulo A', brief: 'thumb A' },
+    { id: 'B' as const, role: 'challenger' as const, title: 'Ângulo B', brief: 'thumb B' },
+    { id: 'C' as const, role: 'challenger' as const, title: 'Ângulo C', brief: 'thumb C' },
+    { id: 'D' as const, role: 'challenger' as const, title: 'Ângulo D', brief: 'thumb D' },
   ],
 }
 
 describe('ABDraftSchema', () => {
-  it('accepts exactly 4 variants with exactly one original tag', () => {
+  it('accepts 4 fresh challengers at debut (no incumbent)', () => {
     const r = ABDraftSchema.safeParse(validDraft)
     expect(r.success).toBe(true)
   })
-  it('rejects zero original tags', () => {
-    const d = { ...validDraft, variants: validDraft.variants.map(v => ({ ...v, tag: undefined })) }
-    expect(ABDraftSchema.safeParse(d).success).toBe(false)
+  it('defaults role to "challenger" when omitted', () => {
+    const d = { ...validDraft, variants: validDraft.variants.map(({ role: _role, ...rest }) => rest) }
+    const r = ABDraftSchema.safeParse(d)
+    expect(r.success).toBe(true)
+    if (r.success) expect(r.data.variants.every(v => v.role === 'challenger')).toBe(true)
   })
-  it('rejects two original tags', () => {
-    const d = { ...validDraft, variants: validDraft.variants.map((v, i) => i < 2 ? { ...v, tag: 'original' } : v) }
+  it('accepts at most one winner (after the test resolves)', () => {
+    const d = { ...validDraft, variants: validDraft.variants.map((v, i) => i === 0 ? { ...v, role: 'winner' as const } : v) }
+    expect(ABDraftSchema.safeParse(d).success).toBe(true)
+  })
+  it('rejects two winners', () => {
+    const d = { ...validDraft, variants: validDraft.variants.map((v, i) => i < 2 ? { ...v, role: 'winner' as const } : v) }
     expect(ABDraftSchema.safeParse(d).success).toBe(false)
   })
   it('rejects fewer than 4 variants', () => {
