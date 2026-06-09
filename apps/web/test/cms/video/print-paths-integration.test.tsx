@@ -109,6 +109,17 @@ describe('print paths — .focus-exit exclusion contract', () => {
     // Print path A (overlay paper) hides the whole app shell — .focus-exit lives inside it.
     expect(css).toMatch(/body\.recording\s*>\s*\.app\s*\{\s*display:\s*none/)
   })
+
+  it('print is CLEAN by default: per-line .rb-mark hidden unless markGran=linha; mark-off hides every overlay tick', () => {
+    const css = fs.readFileSync(
+      path.resolve(__dirname, '../../../src/app/cms/(authed)/video/video.css'),
+      'utf8',
+    )
+    // Editor-stage ⌘P: the per-line read-clock box only prints when the user picked Linha.
+    expect(css).toMatch(/body:not\(\.recording\)\s+\.rot-doc:not\(\.mark-linha\)\s+\.rb-mark\s*\{\s*display:\s*none/)
+    // Overlay paper: mark-off collapses every pen-box (line + section + beat) to zero.
+    expect(css).toMatch(/\.rec-overlay\.mark-off[^{]*\.rs-tick[^{]*\{\s*display:\s*none/)
+  })
 })
 
 describe('overlay wiring — render only when the reducer flag is open', () => {

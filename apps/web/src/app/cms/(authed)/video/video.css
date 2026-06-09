@@ -591,6 +591,16 @@
 /* spoken lines — BIG, generous leading; left tick gutter to mark by hand */
 .rs-line { display: flex; gap: 14px; align-items: flex-start; margin: var(--rs-vgap) 0; }
 .rs-tick { flex-shrink: 0; width: 15px; height: 15px; margin-top: calc(var(--rs-tgap) * var(--rs-scale)); border: 1.5px solid var(--rp-ink-20); border-radius: 50%; }
+/* sparse pen-boxes: one per section (rs-sectick) / one per beat header (rs-beattick).
+   Slightly heavier than the per-line dot — they're meant to catch the eye a few times a page. */
+.rs-sectick { width: 17px; height: 17px; border-color: var(--rp-ink-45); border-radius: 5px; }
+.rs-beattick { flex-shrink: 0; width: 16px; height: 16px; align-self: center; margin-right: 2px;
+  border: 1.5px solid var(--rp-ink-45); border-radius: 5px; }
+/* Belt-and-suspenders: the JSX already gates which tick renders per granularity, but force
+   the floor here too — mark-off shows ZERO boxes anywhere (screen or paper). */
+.rec-overlay.mark-off .rs-tick,
+.rec-overlay.mark-off .rs-sectick,
+.rec-overlay.mark-off .rs-beattick { display: none !important; }
 .rs-line-tx { flex: 1; font-size: calc(15.5pt * var(--rs-scale)); line-height: var(--rs-lh); color: var(--rp-ink); padding-left: 14px; box-shadow: inset 3px 0 0 transparent; }
 .rs-line.key .rs-line-tx { box-shadow: inset 3px 0 0 var(--rp-accent); }
 .rs-line .emph { color: var(--rp-accent); font-weight: 600; text-decoration: underline; text-decoration-thickness: 1.5px;
@@ -644,7 +654,9 @@
   .rs-beat-head { break-inside: avoid; break-after: avoid; }
   .rs-tone { break-inside: avoid; break-after: avoid; }
   .rs-line, .rs-pause { break-inside: avoid; }
-  .rs-line-tx, .rs-line .emph, .rs-beat-num, .rs-note, .rsh-meta, .rs-tick { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .rs-line-tx, .rs-line .emph, .rs-beat-num, .rs-note, .rsh-meta, .rs-tick, .rs-sectick, .rs-beattick { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  /* mark-off (default): no pen-boxes on paper — the clean script the creator asked for. */
+  .rec-overlay.mark-off .rs-tick, .rec-overlay.mark-off .rs-sectick, .rec-overlay.mark-off .rs-beattick { display: none !important; }
   .hs-beat { break-inside: auto; }
   .hs-beat-h { break-inside: avoid; break-after: avoid; }
   .hs-table tr { break-inside: avoid; }
@@ -884,6 +896,11 @@
   body:not(.recording) .rb-mark { width: 17px; margin-top: 7px; }
   body:not(.recording) .rb-mark-dot { width: 14px; height: 14px; border-color: #b0a99a !important; background: none !important; }
   body:not(.recording) .rb-mark-dot .lucide { display: none !important; }
+  /* Print marking is OFF by default (the core ask): the editor-stage ⌘P shows the per-line
+     pen-box ONLY when the user explicitly picked Marcação = Linha. mark-off/beat/secao →
+     no per-line boxes on paper (beat/section boxes are a recording-overlay artifact). */
+  body:not(.recording) .rot-doc:not(.mark-linha) .rb-mark { display: none !important; }
+  body:not(.recording) .rot-doc:not(.mark-linha) .rb-line { gap: 0; }
   body:not(.recording) .rb-line-tx { color: #1b1510 !important; font-size: 13.5pt; line-height: 1.92; box-shadow: none !important; background: none !important; padding-left: 14px; }
   body:not(.recording) .rb-line.key .rb-line-tx { box-shadow: inset 3px 0 0 #b8541a !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   body:not(.recording) .rb-line-tx .emph,

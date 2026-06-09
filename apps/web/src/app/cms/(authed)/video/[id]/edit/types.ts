@@ -1,4 +1,4 @@
-import type { RecStatus } from '@/lib/pipeline/video-recording'
+import type { RecStatus, MarkGran } from '@/lib/pipeline/video-recording'
 
 export type VideoStage = 'ideia' | 'roteiro' | 'pos' | 'publicacao'
 export const VIDEO_STAGES: VideoStage[] = ['ideia', 'roteiro', 'pos', 'publicacao']
@@ -17,6 +17,10 @@ export interface VideoEditorState {
   focus: boolean
   notes: boolean           // "Notas do editor" toggle — default OFF
   showRecStatus: boolean   // "Status de gravação" toggle — default OFF (clean reading)
+  // Per-line/beat/section pen-marking granularity for the print + recording overlay.
+  // Default 'off' → a clean script, no checkboxes (especially on paper). Persisted to
+  // localStorage under a single global key (`video-mark-gran`), hydrated in the shell.
+  markGran: MarkGran
   // Per-beat recording status, keyed by `${activeLang}:${beat.id}` so PT/EN never collide.
   recStatus: Record<string, RecStatus>
   // Free-text retake notes, same lang-qualified beat keys. Absent key = no note.
@@ -36,6 +40,7 @@ export type VideoEditorAction =
   | { type: 'OPEN_OVERLAY'; overlay: VideoOverlay }
   | { type: 'CLOSE_OVERLAY'; overlay: VideoOverlay }
   | { type: 'TOGGLE_REC_STATUS' }
+  | { type: 'SET_MARK_GRAN'; gran: MarkGran }
   | { type: 'CYCLE_BEAT_STATUS'; key: string }
   | { type: 'SET_BEAT_STATUS'; key: string; status: RecStatus }
   | { type: 'SET_RETAKE_NOTE'; key: string; text: string }

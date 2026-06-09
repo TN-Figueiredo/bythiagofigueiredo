@@ -10,7 +10,7 @@ import { vidTotals, fmtClock } from '@/lib/pipeline/video-schemas'
 import { videoLineKeys, videoLineSecsFlat, readPctOf } from '@/lib/pipeline/video-read-math'
 import type { RoteiroContentV3 } from '@/lib/pipeline/roteiro-schemas'
 import { splitBeats, markableIdxs } from '@/lib/pipeline/video-perform'
-import { ensureBeatIds } from '@/lib/pipeline/video-recording'
+import { ensureBeatIds, markGranClass } from '@/lib/pipeline/video-recording'
 import { useVideoEditorState, useVideoEditorDispatch } from '../context'
 import { useVideoData } from '../data-context'
 import { RoteiroBeat } from './roteiro-beat'
@@ -35,6 +35,7 @@ export function RoteiroStage(_props: RoteiroStageProps = {}) {
   const rawContent = data.roteiro[lang]
   const notes = state.notes
   const showRecStatus = state.showRecStatus
+  const markGran = state.markGran
   const recStatus = state.recStatus
   const retakeNotes = state.retakeNotes
   const overlayOpen = state.recordingOpen || state.handoffOpen || state.coworkOpen
@@ -268,7 +269,7 @@ export function RoteiroStage(_props: RoteiroStageProps = {}) {
   const recRetake = falaBeats.filter((kb) => recStatus[beatKey(kb.beat.id)] === 'refazer').length
 
   return (
-    <div className={'rot-doc fade-in' + (showRecStatus ? ' show-recst' : '')}>
+    <div className={'rot-doc fade-in ' + markGranClass(markGran) + (showRecStatus ? ' show-recst' : '')}>
       <div className="rot-sum">
         <span className="rs-k"><Layers size={13} /> <b>{performer.length}</b> beats</span>
         <span className="msep">·</span>

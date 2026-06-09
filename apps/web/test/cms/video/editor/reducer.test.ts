@@ -14,6 +14,7 @@ const base: VideoEditorState = {
   focus: false,
   notes: false,
   showRecStatus: false,
+  markGran: 'off',
   recStatus: {},
   retakeNotes: {},
   recordingOpen: false,
@@ -56,6 +57,14 @@ describe('videoReducer — recording status (per-beat)', () => {
     const on = videoReducer(base, { type: 'TOGGLE_REC_STATUS' })
     expect(on.showRecStatus).toBe(true)
     expect(videoReducer(on, { type: 'TOGGLE_REC_STATUS' }).showRecStatus).toBe(false)
+  })
+
+  it('markGran defaults to off and SET_MARK_GRAN sets it', () => {
+    expect(base.markGran).toBe('off')
+    expect(videoReducer(base, { type: 'SET_MARK_GRAN', gran: 'beat' }).markGran).toBe('beat')
+    expect(videoReducer(base, { type: 'SET_MARK_GRAN', gran: 'secao' }).markGran).toBe('secao')
+    expect(videoReducer(base, { type: 'SET_MARK_GRAN', gran: 'linha' }).markGran).toBe('linha')
+    expect(videoReducer({ ...base, markGran: 'linha' }, { type: 'SET_MARK_GRAN', gran: 'off' }).markGran).toBe('off')
   })
 
   it('CYCLE_BEAT_STATUS advances pendente → gravada → refazer → pendente', () => {

@@ -10,6 +10,7 @@ import { PosBriefSchema, ABDraftSchema } from '@/lib/pipeline/video-schemas'
 import { abPublishCtaState } from '@/lib/pipeline/video-ab-precondition'
 import { CHANNELS, channelByLang } from '@/lib/pipeline/channels'
 import { pillarById } from '@/lib/pipeline/pillars'
+import { asMarkGran } from '@/lib/pipeline/video-recording'
 import { useVideoEditorState, useVideoEditorDispatch } from './context'
 import { VideoEdBar } from './ed-bar'
 import { VidStages } from './vid-stages'
@@ -22,6 +23,29 @@ import { PosStage } from './stages/pos-stage'
 import { PublicacaoStage } from './stages/publicacao-stage'
 import type { ABDraft } from '@/lib/pipeline/video-schemas'
 import type { VideoLang } from './types'
+
+/** Single global localStorage key for the print/recording marking granularity. */
+const MARK_GRAN_LS_KEY = 'video-mark-gran'
+
+/** SSR-safe + jsdom/happy-dom-safe localStorage read (returns null on any failure). */
+function readLocal(key: string): string | null {
+  try {
+    if (typeof window === 'undefined' || typeof window.localStorage?.getItem !== 'function') return null
+    return window.localStorage.getItem(key)
+  } catch {
+    return null
+  }
+}
+
+/** SSR-safe + jsdom/happy-dom-safe localStorage write (no-op on any failure). */
+function writeLocal(key: string, value: string): void {
+  try {
+    if (typeof window === 'undefined' || typeof window.localStorage?.setItem !== 'function') return
+    window.localStorage.setItem(key, value)
+  } catch {
+    /* private mode / quota / stub — preference just doesn't persist */
+  }
+}
 
 const IdeiaStage = lazy(() => import('./stages/ideia-stage').then((m) => ({ default: m.IdeiaStage })))
 const RoteiroStage = lazy(() => import('./stages/roteiro-stage').then((m) => ({ default: m.RoteiroStage })))
@@ -169,6 +193,8 @@ function VideoOverlays() {
           beats={beats}
           langOptions={OVERLAY_LANG_OPTIONS}
           onSwitchLang={switchLang}
+          markGran={state.markGran}
+          onSetMarkGran={(gran) => dispatch({ type: 'SET_MARK_GRAN', gran })}
           onClose={() => dispatch({ type: 'CLOSE_OVERLAY', overlay: 'recording' })}
         />
       )}
@@ -209,6 +235,23 @@ export function EditorShell() {
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [state.focus, overlayOpen, dispatch])
+
+  // Marking-granularity preference: hydrate once from localStorage (SSR-safe — read in
+  // an effect, never in the reducer initializer), then persist on every change. The
+  // `hydrated` guard stops the first persist effect from clobbering storage with the
+  // default 'off' before hydration runs. Mirrors use-autosave's `typeof window` guard.
+  const markGranHydrated = useRef(false)
+  useEffect(() => {
+    const stored = asMarkGran(readLocal(MARK_GRAN_LS_KEY))
+    if (stored !== state.markGran) dispatch({ type: 'SET_MARK_GRAN', gran: stored })
+    markGranHydrated.current = true
+    // hydrate once on mount — intentionally not reactive to state.markGran
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dispatch])
+  useEffect(() => {
+    if (!markGranHydrated.current) return
+    writeLocal(MARK_GRAN_LS_KEY, state.markGran)
+  }, [state.markGran])
 
   const topRef = useRef<HTMLDivElement>(null)
   const edBarH = useEdBarHeight(topRef)

@@ -21,6 +21,40 @@ export function nextStatus(s: RecStatus): RecStatus {
 }
 
 /**
+ * Per-line marking granularity for the recording overlay AND the printed script.
+ *   off   → no pen tick-boxes at all (default — a clean script to read, not a quiz)
+ *   beat  → one box on each beat header (a few per page)
+ *   secao → one box at the start of each derived section (run of `line` items)
+ *   linha → the legacy per-line box (opt-in; the thing the creator hates by default)
+ * Defaults to `off` everywhere — ESPECIALLY on paper.
+ */
+export type MarkGran = 'off' | 'beat' | 'secao' | 'linha'
+
+/** All granularities in display order — drives the segmented control + class gating. */
+export const MARK_GRANS: MarkGran[] = ['off', 'beat', 'secao', 'linha']
+
+/** The default granularity: zero checkboxes anywhere (clean script). */
+export const DEFAULT_MARK_GRAN: MarkGran = 'off'
+
+/** Short PT labels for the segmented control. */
+export const MARK_GRAN_LABEL: Record<MarkGran, string> = {
+  off: 'Off',
+  beat: 'Beat',
+  secao: 'Seção',
+  linha: 'Linha',
+}
+
+/** The CSS class that gates tick visibility on `.rot-doc`/`.rec-overlay` per granularity. */
+export function markGranClass(gran: MarkGran): string {
+  return `mark-${gran}`
+}
+
+/** Type guard / coercion for an untrusted persisted value → a valid MarkGran (fallback off). */
+export function asMarkGran(v: unknown): MarkGran {
+  return v === 'off' || v === 'beat' || v === 'secao' || v === 'linha' ? v : DEFAULT_MARK_GRAN
+}
+
+/**
  * Returns content where every beat carries a stable `id`, assigning `crypto.randomUUID()`
  * to beats that lack one. `changed` is true iff at least one id was assigned. Pure aside
  * from id generation — the input is never mutated (a new object is returned).

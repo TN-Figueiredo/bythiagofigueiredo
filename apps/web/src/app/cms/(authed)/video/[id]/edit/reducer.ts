@@ -1,5 +1,5 @@
 import { OPEN_AT } from '@/lib/pipeline/video-lifecycle'
-import { nextStatus, type RecStatus } from '@/lib/pipeline/video-recording'
+import { nextStatus, DEFAULT_MARK_GRAN, type RecStatus } from '@/lib/pipeline/video-recording'
 import type { VideoEditorState, VideoEditorAction, VideoStage } from './types'
 
 function overlayKey(o: 'recording' | 'handoff' | 'cowork'): keyof VideoEditorState {
@@ -26,6 +26,8 @@ export function videoReducer(state: VideoEditorState, action: VideoEditorAction)
       return { ...state, [overlayKey(action.overlay)]: false }
     case 'TOGGLE_REC_STATUS':
       return { ...state, showRecStatus: !state.showRecStatus }
+    case 'SET_MARK_GRAN':
+      return { ...state, markGran: action.gran }
     case 'CYCLE_BEAT_STATUS': {
       const cur: RecStatus = state.recStatus[action.key] ?? 'pendente'
       return { ...state, recStatus: { ...state.recStatus, [action.key]: nextStatus(cur) } }
@@ -66,6 +68,7 @@ export function initialFromDetail(seed: DetailSeed): VideoEditorState {
     focus: false,
     notes: false,
     showRecStatus: false,
+    markGran: DEFAULT_MARK_GRAN,
     recStatus: {},
     retakeNotes: {},
     recordingOpen: false,

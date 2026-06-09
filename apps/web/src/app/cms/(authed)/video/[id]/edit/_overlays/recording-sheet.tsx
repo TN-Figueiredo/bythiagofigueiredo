@@ -6,6 +6,7 @@ import { ChevronLeft, Rss, Pencil } from 'lucide-react'
 import { recBeatLines, clampRsScale } from '@/lib/pipeline/recording-sheet-data'
 import { splitBeats, itemText } from '@/lib/pipeline/video-perform'
 import { videoBeatRead, fmtClock } from '@/lib/pipeline/video-schemas'
+import { MARK_GRANS, MARK_GRAN_LABEL, markGranClass, DEFAULT_MARK_GRAN, type MarkGran } from '@/lib/pipeline/video-recording'
 import type { RoteiroBeatV3 } from '@/lib/pipeline/roteiro-schemas'
 
 /** **word** → <b class="emph">word</b>, HTML-escaped first. */
@@ -33,11 +34,20 @@ export interface RecordingSheetProps {
   /** Overlay-local PT/EN segmented control options (empty/1 → control hidden). */
   langOptions: RecordingSheetLangOption[]
   onSwitchLang: (lang: string) => void
+  /**
+   * Pen-marking granularity (shared with the editor-stage print). Default 'off' → a clean
+   * script with NO checkboxes anywhere, especially on paper. The shell wires this from the
+   * editor context so the overlay control and the persisted preference stay in sync.
+   */
+  markGran?: MarkGran
+  /** Set the marking granularity (dispatches SET_MARK_GRAN in the shell). Optional for standalone use. */
+  onSetMarkGran?: (gran: MarkGran) => void
   onClose: () => void
 }
 
 export function RecordingSheet(props: RecordingSheetProps) {
   const { code, channelName, channelLabel, pillarLabel, durationRange, recordingLocation, title, beats } = props
+  const markGran: MarkGran = props.markGran ?? DEFAULT_MARK_GRAN
   const [showEd, setShowEd] = useState(false)
   const [scale, setScale] = useState(1)
   const [density, setDensity] = useState<'comp' | 'conf'>('conf')
@@ -75,7 +85,7 @@ export function RecordingSheet(props: RecordingSheetProps) {
   const hasBeats = performer.length > 0 || prep.length > 0
 
   const overlay = (
-    <div className={'rec-overlay dens-' + density} style={{ ['--rs-scale' as string]: String(scale) }}>
+    <div className={'rec-overlay dens-' + density + ' ' + markGranClass(markGran)} style={{ ['--rs-scale' as string]: String(scale) }}>
       <div className="rec-bar">
         <button className="rb-back" onClick={props.onClose}><ChevronLeft size={15} /> Fechar</button>
         <span className="rb-title">{title || 'Sem título'}</span>
@@ -102,6 +112,19 @@ export function RecordingSheet(props: RecordingSheetProps) {
         <div className="rec-seg" title="Densidade da folha">
           <button type="button" className={density === 'comp' ? 'on' : ''} onClick={() => setDensity('comp')}>Compacto</button>
           <button type="button" className={density === 'conf' ? 'on' : ''} onClick={() => setDensity('conf')}>Confortável</button>
+        </div>
+
+        <div className="rec-seg" title="Marcação à mão — caixas pra marcar o que já gravou (padrão: sem caixas)">
+          {MARK_GRANS.map((g) => (
+            <button
+              type="button"
+              key={g}
+              className={markGran === g ? 'on' : ''}
+              onClick={() => props.onSetMarkGran?.(g)}
+            >
+              {MARK_GRAN_LABEL[g]}
+            </button>
+          ))}
         </div>
 
         <div className="rec-ctl">
@@ -145,6 +168,7 @@ export function RecordingSheet(props: RecordingSheetProps) {
             return (
               <div className={'rs-beat' + (kb.kind === 'acao' ? ' rs-beat-act' : '')} key={kb.idx}>
                 <div className="rs-beat-head">
+                  {markGran === 'beat' ? <span className="rs-beattick" aria-hidden="true" /> : null}
                   <span className="rs-beat-num">#{s + 1}</span>
                   <span className="rs-beat-name">{beat.name}</span>
                   {kb.kind === 'acao'
@@ -154,11 +178,25 @@ export function RecordingSheet(props: RecordingSheetProps) {
                 {beat.tone ? (
                   <div className="rs-tone"><span className="rst-k">Direção</span><span>{beat.tone}</span></div>
                 ) : null}
-                {recBeatLines(beat, showEd, kb.kind === 'acao').map((line, j) => {
+                {(() => {
+                  // Section starts (for the 'secao' pen-box): a run of consecutive line/action
+                  // items, broken at dir/vis/ed — pause does NOT break (mirrors beatSections).
+                  // Mark a line as a section-start when no markable line is currently "open".
+                  const lines = recBeatLines(beat, showEd, kb.kind === 'acao')
+                  let sectionOpen = false
+                  return lines.map((line, j) => {
+                  const isMarkable = line.kind === 'line' || line.kind === 'action'
+                  const startsSection = isMarkable && !sectionOpen
+                  if (isMarkable) sectionOpen = true
+                  else if (line.kind !== 'pause') sectionOpen = false
                   if (line.kind === 'line' || line.kind === 'action') {
                     return (
                       <div className={'rs-line' + (line.kind === 'action' ? ' rs-line-act' : '') + (line.key ? ' key' : '')} key={j}>
-                        <span className="rs-tick" aria-hidden="true" />
+                        {markGran === 'linha'
+                          ? <span className="rs-tick" aria-hidden="true" />
+                          : markGran === 'secao' && startsSection
+                            ? <span className="rs-tick rs-sectick" aria-hidden="true" />
+                            : null}
                         <span className="rs-line-tx" dangerouslySetInnerHTML={{ __html: emphHtml(line.text ?? '') }} />
                       </div>
                     )
@@ -181,14 +219,15 @@ export function RecordingSheet(props: RecordingSheetProps) {
                       <span>{line.text}</span>
                     </div>
                   )
-                })}
+                  })
+                })()}
               </div>
             )
           })}
 
           <div className="rsh-foot">
             <span>tf — Thiago Figueiredo · {channelName}</span>
-            <span>{showEd ? 'com notas do editor' : 'só a fala'} · marque à mão antes de gravar</span>
+            <span>{showEd ? 'com notas do editor' : 'só a fala'}{markGran === 'off' ? '' : ' · marque à mão enquanto grava'}</span>
           </div>
         </div>
       ) : (

@@ -131,3 +131,77 @@ describe('RecordingSheet', () => {
     expect(buttons[1].classList.contains('on')).toBe(false)
   })
 })
+
+describe('RecordingSheet — marking granularity (default OFF, the core ask)', () => {
+  afterEach(() => { cleanup(); document.body.classList.remove('recording') })
+
+  // A beat with two sections (line/pause/line  →  action boundary  →  line) so we can
+  // count beat / section / line boxes precisely.
+  const markProps = (markGran?: 'off' | 'beat' | 'secao' | 'linha', onSet = vi.fn()): RecordingSheetProps => ({
+    code: 'VID-002', channelName: 'TF', channelLabel: 'PT', channelFlag: '🇧🇷',
+    pillarLabel: 'Código', durationRange: '10 min', title: 'T',
+    beats: [
+      {
+        idx: 0, name: 'HOOK', status: 'PENDING',
+        script: [
+          { type: 'line', text: 'um' },
+          { type: 'pause', duration: 0.5 },   // stays inside section 1
+          { type: 'line', text: 'dois' },
+          { type: 'dir', text: 'olhe pra câmera' }, // flushes section 1
+          { type: 'line', text: 'três' },     // section 2
+        ],
+      },
+    ],
+    langOptions: [], onSwitchLang: vi.fn(), onSetMarkGran: onSet, markGran, onClose: vi.fn(),
+  })
+
+  it('DEFAULTS to off: overlay carries mark-off and renders ZERO tick boxes (clean script)', () => {
+    render(<RecordingSheet {...markProps(undefined)} />)
+    const overlay = document.querySelector('.rec-overlay') as HTMLElement
+    expect(overlay.classList.contains('mark-off')).toBe(true)
+    expect(document.querySelectorAll('.rs-tick').length).toBe(0)
+    expect(document.querySelectorAll('.rs-sectick').length).toBe(0)
+    expect(document.querySelectorAll('.rs-beattick').length).toBe(0)
+  })
+
+  it('renders the "Marcação" segmented control with Off · Beat · Seção · Linha', () => {
+    render(<RecordingSheet {...markProps('off')} />)
+    const seg = document.querySelector('.rec-seg[title^="Marcação"]') as HTMLElement
+    expect(seg).not.toBeNull()
+    expect(Array.from(seg.querySelectorAll('button')).map((b) => b.textContent)).toEqual(['Off', 'Beat', 'Seção', 'Linha'])
+    expect(seg.querySelector('button.on')!.textContent).toBe('Off')
+  })
+
+  it('clicking a Marcação option calls onSetMarkGran with that granularity', () => {
+    const onSet = vi.fn()
+    render(<RecordingSheet {...markProps('off', onSet)} />)
+    const seg = document.querySelector('.rec-seg[title^="Marcação"]') as HTMLElement
+    fireEvent.click(Array.from(seg.querySelectorAll('button')).find((b) => b.textContent === 'Beat')!)
+    expect(onSet).toHaveBeenCalledWith('beat')
+  })
+
+  it('Beat → exactly ONE beat-box on the header, no per-line/section boxes', () => {
+    render(<RecordingSheet {...markProps('beat')} />)
+    expect(document.querySelector('.rec-overlay')!.classList.contains('mark-beat')).toBe(true)
+    expect(document.querySelectorAll('.rs-beattick').length).toBe(1)
+    expect(document.querySelectorAll('.rs-sectick').length).toBe(0)
+    expect(document.querySelectorAll('.rs-line .rs-tick:not(.rs-sectick)').length).toBe(0)
+  })
+
+  it('Seção → one section-box per derived section (pause does not split; dir does)', () => {
+    render(<RecordingSheet {...markProps('secao')} />)
+    expect(document.querySelector('.rec-overlay')!.classList.contains('mark-secao')).toBe(true)
+    // sections: [um, dois] (pause kept inside) | [três] (dir flushed) → 2 boxes
+    expect(document.querySelectorAll('.rs-sectick').length).toBe(2)
+    expect(document.querySelectorAll('.rs-beattick').length).toBe(0)
+  })
+
+  it('Linha → the legacy per-line box on every spoken line (opt-in)', () => {
+    render(<RecordingSheet {...markProps('linha')} />)
+    expect(document.querySelector('.rec-overlay')!.classList.contains('mark-linha')).toBe(true)
+    // 3 line items → 3 per-line ticks; no sparse beat/section boxes
+    expect(document.querySelectorAll('.rs-tick:not(.rs-sectick)').length).toBe(3)
+    expect(document.querySelectorAll('.rs-sectick').length).toBe(0)
+    expect(document.querySelectorAll('.rs-beattick').length).toBe(0)
+  })
+})

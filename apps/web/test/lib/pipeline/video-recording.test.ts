@@ -5,7 +5,13 @@ import {
   ensureBeatIds,
   normalizeBeatText,
   beatContentHash,
+  asMarkGran,
+  markGranClass,
+  MARK_GRANS,
+  MARK_GRAN_LABEL,
+  DEFAULT_MARK_GRAN,
   type RecStatus,
+  type MarkGran,
 } from '@/lib/pipeline/video-recording'
 import type { RoteiroBeatV3, RoteiroContentV3 } from '@/lib/pipeline/roteiro-schemas'
 
@@ -103,5 +109,33 @@ describe('beatContentHash — stable sync hash', () => {
     const a = beat('HOOK', [{ type: 'line', text: '**Olha**  isso' }])
     const c = beat('HOOK', [{ type: 'line', text: 'Olha isso' }])
     expect(beatContentHash(a)).toBe(beatContentHash(c))
+  })
+})
+
+describe('MarkGran — marking granularity (default off)', () => {
+  it('defaults to off — zero checkboxes anywhere', () => {
+    expect(DEFAULT_MARK_GRAN).toBe('off')
+  })
+  it('MARK_GRANS lists the four granularities in display order', () => {
+    expect(MARK_GRANS).toEqual<MarkGran[]>(['off', 'beat', 'secao', 'linha'])
+  })
+  it('labels every granularity', () => {
+    expect(MARK_GRAN_LABEL).toEqual({ off: 'Off', beat: 'Beat', secao: 'Seção', linha: 'Linha' })
+  })
+  it('markGranClass maps to mark-<gran>', () => {
+    expect(markGranClass('off')).toBe('mark-off')
+    expect(markGranClass('beat')).toBe('mark-beat')
+    expect(markGranClass('secao')).toBe('mark-secao')
+    expect(markGranClass('linha')).toBe('mark-linha')
+  })
+  it('asMarkGran passes through valid values', () => {
+    for (const g of MARK_GRANS) expect(asMarkGran(g)).toBe(g)
+  })
+  it('asMarkGran falls back to off for junk / null / legacy values', () => {
+    expect(asMarkGran('bogus')).toBe('off')
+    expect(asMarkGran(null)).toBe('off')
+    expect(asMarkGran(undefined)).toBe('off')
+    expect(asMarkGran(42)).toBe('off')
+    expect(asMarkGran('')).toBe('off')
   })
 })
