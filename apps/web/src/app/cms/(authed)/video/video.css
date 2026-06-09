@@ -976,9 +976,9 @@
 .cw-pop { position: fixed; z-index: 400; width: min(344px, calc(100vw - 24px)); padding: 16px;
   max-height: min(70vh, 520px); overflow: auto;
   background:
-    radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, var(--c-courses) 16%, transparent) 0%, transparent 58%),
-    linear-gradient(180deg, color-mix(in srgb, var(--c-courses) 7%, transparent) 0%, transparent 46%),
-    var(--elev);
+    radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, var(--c-courses) 18%, transparent) 0%, transparent 58%),
+    linear-gradient(180deg, color-mix(in srgb, var(--c-courses) 8%, transparent) 0%, transparent 46%),
+    color-mix(in srgb, var(--cms-surface, #1a1d27) 82%, #ffffff 18%);
   border: 1px solid color-mix(in srgb, var(--c-courses) 26%, var(--border-strong));
   border-radius: 16px;
   box-shadow:
