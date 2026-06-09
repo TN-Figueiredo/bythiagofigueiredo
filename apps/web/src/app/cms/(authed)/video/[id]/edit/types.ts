@@ -44,3 +44,7 @@ export type VideoEditorAction =
   | { type: 'CYCLE_BEAT_STATUS'; key: string }
   | { type: 'SET_BEAT_STATUS'; key: string; status: RecStatus }
   | { type: 'SET_RETAKE_NOTE'; key: string; text: string }
+  // Reconcile the editor's per-beat status/notes with the durable ledger (local-first +
+  // server). Replaces the keys for the hydrated lang while preserving other-lang keys —
+  // the maps are lang-qualified (`${lang}:${beat.id}`), so a PT hydrate must not wipe EN.
+  | { type: 'HYDRATE_RECORDING'; lang: VideoLang; recStatus: Record<string, RecStatus>; retakeNotes: Record<string, string> }

@@ -41,6 +41,24 @@ export function videoReducer(state: VideoEditorState, action: VideoEditorAction)
       else delete retakeNotes[action.key]
       return { ...state, retakeNotes }
     }
+    case 'HYDRATE_RECORDING': {
+      // Replace only this lang's keys (prefix `${lang}:`); keep the other lang intact.
+      const prefix = `${action.lang}:`
+      const recStatus: Record<string, RecStatus> = {}
+      for (const [k, v] of Object.entries(state.recStatus)) {
+        if (!k.startsWith(prefix)) recStatus[k] = v
+      }
+      for (const [k, v] of Object.entries(action.recStatus)) recStatus[k] = v
+
+      const retakeNotes: Record<string, string> = {}
+      for (const [k, v] of Object.entries(state.retakeNotes)) {
+        if (!k.startsWith(prefix)) retakeNotes[k] = v
+      }
+      for (const [k, v] of Object.entries(action.retakeNotes)) {
+        if (v.trim()) retakeNotes[k] = v
+      }
+      return { ...state, recStatus, retakeNotes }
+    }
     default:
       return state
   }

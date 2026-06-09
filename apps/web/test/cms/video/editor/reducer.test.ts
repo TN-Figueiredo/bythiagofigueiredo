@@ -103,6 +103,64 @@ describe('videoReducer — recording status (per-beat)', () => {
   })
 })
 
+describe('videoReducer — HYDRATE_RECORDING', () => {
+  it('replaces the hydrated lang keys with the server/local truth', () => {
+    const s = videoReducer(base, {
+      type: 'HYDRATE_RECORDING',
+      lang: 'pt',
+      recStatus: { 'pt:b1': 'gravada', 'pt:b2': 'refazer' },
+      retakeNotes: { 'pt:b2': 'estourou' },
+    })
+    expect(s.recStatus['pt:b1']).toBe('gravada')
+    expect(s.recStatus['pt:b2']).toBe('refazer')
+    expect(s.retakeNotes['pt:b2']).toBe('estourou')
+  })
+
+  it('drops stale keys for the hydrated lang not present in the snapshot', () => {
+    const seeded: VideoEditorState = {
+      ...base,
+      recStatus: { 'pt:old': 'gravada', 'pt:b1': 'pendente' },
+      retakeNotes: { 'pt:old': 'antigo' },
+    }
+    const s = videoReducer(seeded, {
+      type: 'HYDRATE_RECORDING',
+      lang: 'pt',
+      recStatus: { 'pt:b1': 'gravada' },
+      retakeNotes: {},
+    })
+    expect(s.recStatus['pt:old']).toBeUndefined()
+    expect(s.retakeNotes['pt:old']).toBeUndefined()
+    expect(s.recStatus['pt:b1']).toBe('gravada')
+  })
+
+  it('preserves the OTHER lang keys when hydrating one lang (lang-qualified maps)', () => {
+    const seeded: VideoEditorState = {
+      ...base,
+      recStatus: { 'en:e1': 'gravada' },
+      retakeNotes: { 'en:e1': 'note-en' },
+    }
+    const s = videoReducer(seeded, {
+      type: 'HYDRATE_RECORDING',
+      lang: 'pt',
+      recStatus: { 'pt:p1': 'refazer' },
+      retakeNotes: { 'pt:p1': 'refaz' },
+    })
+    expect(s.recStatus['en:e1']).toBe('gravada')
+    expect(s.retakeNotes['en:e1']).toBe('note-en')
+    expect(s.recStatus['pt:p1']).toBe('refazer')
+  })
+
+  it('ignores blank retake notes in the hydrate payload', () => {
+    const s = videoReducer(base, {
+      type: 'HYDRATE_RECORDING',
+      lang: 'pt',
+      recStatus: { 'pt:b1': 'gravada' },
+      retakeNotes: { 'pt:b1': '   ' },
+    })
+    expect(s.retakeNotes['pt:b1']).toBeUndefined()
+  })
+})
+
 describe('initialFromDetail (OPEN_AT projection)', () => {
   it('opens a gravacao-stage item on the Pós tab', () => {
     const s = initialFromDetail({

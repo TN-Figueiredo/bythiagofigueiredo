@@ -12,6 +12,7 @@ import { CHANNELS, channelByLang } from '@/lib/pipeline/channels'
 import { pillarById } from '@/lib/pipeline/pillars'
 import { asMarkGran } from '@/lib/pipeline/video-recording'
 import { useVideoEditorState, useVideoEditorDispatch } from './context'
+import { useRecordingSync } from './use-recording-sync'
 import { VideoEdBar } from './ed-bar'
 import { VidStages } from './vid-stages'
 import { FocusExit } from './focus-exit'
@@ -195,6 +196,7 @@ function VideoOverlays() {
           onSwitchLang={switchLang}
           markGran={state.markGran}
           onSetMarkGran={(gran) => dispatch({ type: 'SET_MARK_GRAN', gran })}
+          onSetBeatStatus={(key, status) => dispatch({ type: 'SET_BEAT_STATUS', key, status })}
           onClose={() => dispatch({ type: 'CLOSE_OVERLAY', overlay: 'recording' })}
         />
       )}
@@ -224,6 +226,10 @@ export function EditorShell() {
   const dispatch = useVideoEditorDispatch()
   const published = getStagePosition('video', state.stage) >= getStagePosition('video', 'published')
   const overlayOpen = state.recordingOpen || state.handoffOpen || state.coworkOpen
+
+  // Durable recording-status: beat-id persistence + local-first write + hydrate + sync,
+  // all session-authed (the user's RLS), driving the per-beat ledger end-to-end.
+  useRecordingSync()
 
   // Precedence level 3: Esc exits focus only when no overlay/cowork popover owns the key.
   useEffect(() => {
