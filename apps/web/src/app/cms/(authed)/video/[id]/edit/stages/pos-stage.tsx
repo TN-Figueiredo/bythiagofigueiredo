@@ -182,23 +182,22 @@ export function PosStage({ beats, brief, activeLang, onPatch, onOpenHandoff, leg
           <>
             <PPCard icon={<Target size={14} />} title="Momentos-chave" sub="frase-âncora + cue visual, por beat">
               <div className="pp-moments">
-                {beats.map((b, i) => {
-                  const line = spokenAnchorText(b)
-                  const cue = visNotes(b)[0]
-                  return (
-                    <div key={i} className="pp-moment">
-                      <span className="pp-mnum">#{i + 1}</span>
+                {beats
+                  .map((b, i) => ({ i, line: spokenAnchorText(b), cue: visNotes(b)[0] }))
+                  .filter((m) => m.line)
+                  .map((m) => (
+                    <div key={m.i} className="pp-moment">
+                      <span className="pp-mnum">#{m.i + 1}</span>
                       <div className="pp-mbody">
-                        <div className="pp-mline">&ldquo;{line}&rdquo;</div>
-                        {cue && (
+                        <div className="pp-mline">&ldquo;{m.line}&rdquo;</div>
+                        {m.cue && (
                           <div className="pp-mcue">
-                            <Film size={12} /> {cue}
+                            <Film size={12} /> {m.cue}
                           </div>
                         )}
                       </div>
                     </div>
-                  )
-                })}
+                  ))}
               </div>
             </PPCard>
 

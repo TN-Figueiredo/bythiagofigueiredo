@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { Lock, Sliders, Rss, CheckCheck } from 'lucide-react'
+import { useVideoEditorDispatch } from '../context'
 
 export interface LockedStageProps {
   stageLabel: 'Pós' | 'Publicação' | string
@@ -29,6 +30,7 @@ const STAGE_META: Record<string, { Icon: React.ElementType; title: string; sub: 
  * and a "Marcar como gravado" CTA that calls advanceToRecorded, unlocking both stages.
  */
 export function LockedStage({ stageLabel, itemId, version, onUnlock }: LockedStageProps) {
+  const dispatch = useVideoEditorDispatch()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
@@ -36,7 +38,13 @@ export function LockedStage({ stageLabel, itemId, version, onUnlock }: LockedSta
     setError(null)
     startTransition(async () => {
       const res = await onUnlock(itemId, version)
-      if (!res.ok) setError(res.error ?? 'Falha ao marcar como gravado')
+      if (res.ok) {
+        // Reflect the advance locally so Pós/Publicação unlock in place (no reload). The new
+        // version is synced separately via the live-version effect (advanceToRecorded → setVersion).
+        dispatch({ type: 'SET_DB_STAGE', stage: 'gravacao' })
+      } else {
+        setError(res.error ?? 'Falha ao marcar como gravado')
+      }
     })
   }
 
