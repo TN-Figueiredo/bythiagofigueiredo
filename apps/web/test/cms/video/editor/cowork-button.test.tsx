@@ -21,6 +21,9 @@ const seed: VideoEditorState = {
   recordingOpen: false, handoffOpen: false, coworkOpen: false,
 }
 
+// rAF runs the post-send phase work synchronously under fake timers.
+let rafSpy: ReturnType<typeof vi.spyOn>
+
 function renderBtn() {
   return render(
     <VideoEditorProvider initialState={seed}>
@@ -35,13 +38,26 @@ function openPopover() {
   return trigger
 }
 
+/** Drive the send through its phases: rAF (sending→sent+toast) then the 900ms close
+ * timer (sent→closing) then the exit fallback (closing→unmount). */
+function flushSend() {
+  act(() => { vi.advanceTimersByTime(0) }) // rAF callback
+  act(() => { vi.advanceTimersByTime(900) }) // sent → closing
+  act(() => { vi.advanceTimersByTime(220) }) // closing → unmount (reduced-motion fallback)
+}
+
 describe('CoworkButton', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     openCowork.mockClear()
     toastSuccess.mockClear()
+    // requestAnimationFrame → setTimeout(0) so fake timers can drive it deterministically.
+    rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      return window.setTimeout(() => cb(performance.now()), 0) as unknown as number
+    })
   })
   afterEach(() => {
+    rafSpy.mockRestore()
     vi.runOnlyPendingTimers()
     vi.useRealTimers()
   })
@@ -53,9 +69,26 @@ describe('CoworkButton', () => {
     expect(trigger.getAttribute('aria-expanded')).toBe('true')
     const pop = document.querySelector('.cw-pop')!
     expect(pop.getAttribute('role')).toBe('dialog')
+    expect(pop.getAttribute('aria-modal')).toBe('true')
     expect(trigger.getAttribute('aria-controls')).toBe(pop.id)
+    // labelledby/describedby point at the header + sub (no generic aria-label)
+    expect(pop.getAttribute('aria-label')).toBeNull()
+    const head = document.querySelector('.cw-head')!
+    const sub = document.querySelector('.cw-sub')!
+    expect(head.tagName).toBe('H2')
+    expect(pop.getAttribute('aria-labelledby')).toBe(head.id)
+    expect(pop.getAttribute('aria-describedby')).toBe(sub.id)
     expect(document.querySelector('.cw-input')!.getAttribute('aria-label')).toBe('Mensagem para o Cowork')
     expect(document.querySelector('.cw-kbd')!.getAttribute('aria-hidden')).toBe('true')
+    expect(document.querySelector('.cw-kbd')!.textContent).toBe('⌘↵')
+  })
+
+  it('aria-controls does not dangle when closed', () => {
+    renderBtn()
+    const trigger = document.querySelector('.cw-btn') as HTMLButtonElement
+    expect(trigger.getAttribute('aria-controls')).toBeNull()
+    fireEvent.click(trigger)
+    expect(trigger.getAttribute('aria-controls')).not.toBeNull()
   })
 
   it('uses the per-stage placeholder', () => {
@@ -65,7 +98,7 @@ describe('CoworkButton', () => {
       .toContain('e se o gancho fosse mais incômodo')
   })
 
-  it('send → opens Cowork, shows sending state + toast, then clears/closes and returns focus', () => {
+  it('send → opens Cowork, shows phase labels + toast, then closes and returns focus', () => {
     renderBtn()
     const trigger = openPopover()
     const ta = document.querySelector('.cw-input') as HTMLTextAreaElement
@@ -74,20 +107,25 @@ describe('CoworkButton', () => {
     const sendBtn = document.querySelector('.cw-send') as HTMLButtonElement
     fireEvent.click(sendBtn)
 
-    // deep-link opened with video context + the message
+    // deep-link opened with video context + the message (synchronous)
     expect(openCowork).toHaveBeenCalledTimes(1)
     const instruction = openCowork.mock.calls[0][0] as string
     expect(instruction).toContain('V-A07')
     expect(instruction).toContain('encurta o hook')
 
-    // toast confirms
-    expect(toastSuccess).toHaveBeenCalledWith('Aberto no Claude', { description: 'Cowork recebeu o contexto do vídeo.' })
-
-    // button reflects the sending state
+    // immediately reflects the 'sending' phase
     expect(document.querySelector('.cw-send')!.textContent).toContain('mandando')
 
-    // after the delay: popover closes + focus returns to trigger
-    act(() => { vi.advanceTimersByTime(420) })
+    // next frame: 'sent' label + durable toast receipt
+    act(() => { vi.advanceTimersByTime(0) })
+    expect(document.querySelector('.cw-send')!.textContent).toContain('enviado')
+    expect(toastSuccess).toHaveBeenCalledWith('Mandado pro Cowork', {
+      description: 'ele recebeu o contexto do vídeo — é só continuar no Claude.',
+    })
+
+    // after the receipt window + exit: popover unmounts + focus returns to trigger
+    act(() => { vi.advanceTimersByTime(900) })
+    act(() => { vi.advanceTimersByTime(220) })
     expect(document.querySelector('.cw-pop')).toBeNull()
     expect(document.activeElement).toBe(trigger)
   })
@@ -101,6 +139,7 @@ describe('CoworkButton', () => {
     fireEvent.click(sendBtn)
     fireEvent.click(sendBtn)
     expect(openCowork).toHaveBeenCalledTimes(1)
+    flushSend()
   })
 
   it('Escape closes the popover and returns focus to the trigger', () => {
@@ -112,6 +151,24 @@ describe('CoworkButton', () => {
     expect(document.activeElement).toBe(trigger)
   })
 
+  it('traps Tab focus within the popover, wrapping last→first', () => {
+    renderBtn()
+    openPopover()
+    const sendBtn = document.querySelector('.cw-send') as HTMLButtonElement
+    // Give the (empty-disabled) send a value so it's a valid focus target, then focus it.
+    const ta = document.querySelector('.cw-input') as HTMLTextAreaElement
+    fireEvent.change(ta, { target: { value: 'x' } })
+    sendBtn.focus()
+    expect(document.activeElement).toBe(sendBtn)
+    // Tab from the last focusable wraps back to the first (a chip).
+    fireEvent.keyDown(document, { key: 'Tab' })
+    const firstChip = document.querySelector('.cw-chip') as HTMLButtonElement
+    expect(document.activeElement).toBe(firstChip)
+    // Shift+Tab from the first wraps to the last (send).
+    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true })
+    expect(document.activeElement).toBe(sendBtn)
+  })
+
   it('a clicked quick-chip sends its prompt straight to Cowork', () => {
     renderBtn()
     openPopover()
@@ -120,5 +177,6 @@ describe('CoworkButton', () => {
     fireEvent.click(chip)
     expect(openCowork).toHaveBeenCalledTimes(1)
     expect(openCowork.mock.calls[0][0] as string).toContain(chipText!)
+    flushSend()
   })
 })

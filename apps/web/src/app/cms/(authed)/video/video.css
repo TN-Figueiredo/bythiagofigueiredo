@@ -973,22 +973,30 @@
 /* The "lit panel": Cowork-purple glows from the top-left through everything —
    a radial wash + a faint top gradient over the solid elevation, an accent-tinted
    border, and a triple shadow (drop + inset hairline + colored bloom). */
-.cw-pop { position: fixed; z-index: 400; width: min(344px, calc(100vw - 24px)); padding: 16px;
+.cw-pop { position: fixed; z-index: 400; width: min(344px, calc(100vw - 24px)); padding: 18px;
   max-height: min(70vh, 520px); overflow: auto;
   /* Fill is a STANDALONE background-color (not a `background:` shorthand) so a single
      invalid color-mix layer can't drop the whole fill to transparent. Plain-hex line
      first = guaranteed paint; the token line overrides only if it resolves valid. */
   background-color: #262a38;
   background-color: color-mix(in srgb, var(--cms-surface, #1a1d27) 80%, #ffffff 20%);
+  /* Defined light source from top-left: tighter falloff (transparent ~50%) reads as a
+     wash, not an even tint. */
   background-image:
-    radial-gradient(130% 90% at 0% 0%, color-mix(in srgb, var(--c-courses) 22%, transparent) 0%, transparent 56%);
+    radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, var(--c-courses) 20%, transparent) 0%, transparent 50%);
   border: 1px solid color-mix(in srgb, #ffffff 15%, transparent);
   border-radius: 16px;
+  /* Split shadow for robustness: the black drop is its OWN declaration first, so if any
+     color-mix layer in the full multi-layer line below is invalid, CSS keeps this one
+     (the whole shadow — incl. the drop — would otherwise vanish together). The colored
+     bloom is reduced (40%/-10px) so the send button stays the loudest purple. */
+  box-shadow: 0 24px 56px -16px rgba(0, 0, 0, .6);
   box-shadow:
     0 24px 56px -16px rgba(0, 0, 0, .6),
     0 0 0 1px color-mix(in srgb, var(--c-courses) 32%, transparent),
-    0 0 26px -8px color-mix(in srgb, var(--c-courses) 45%, transparent);
+    0 0 22px -10px color-mix(in srgb, var(--c-courses) 40%, transparent);
   animation: cwPop .2s var(--ease-back) both; }
+.cw-pop.is-closing { animation: cwPopOut .16s var(--ease) both; }
 .cw-pop::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
   border-radius: 16px 16px 0 0;
   background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--c-courses) 80%, transparent), transparent); }
@@ -996,39 +1004,58 @@
   from { opacity: 0; transform: translateY(-8px) scale(.94); }
   60% { opacity: 1; }
   to { opacity: 1; transform: none; } }
-.cw-head { display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 600; color: var(--text); }
+@keyframes cwPopOut {
+  to { opacity: 0; transform: translateY(-6px) scale(.96); } }
+/* Header hierarchy: the wordmark is the heaviest; "manda pro" is a quiet connective. */
+.cw-head { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 14.5px; font-weight: 700; color: var(--text); }
+.cw-kick { font-weight: 500; font-size: 12px; color: var(--text-dim); }
 .cw-ico { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; color: var(--c-courses);
   background: linear-gradient(150deg, color-mix(in srgb, var(--c-courses) 30%, transparent), color-mix(in srgb, var(--c-courses) 12%, transparent));
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c-courses) 35%, transparent), 0 0 14px -2px color-mix(in srgb, var(--c-courses) 60%, transparent); }
-.cw-name { font-weight: 700;
+  /* Bloom removed — the send button owns the loud purple; only an inset hairline here. */
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c-courses) 35%, transparent); }
+.cw-name { font-weight: 700; font-size: 14.5px;
   background: linear-gradient(92deg, var(--text), color-mix(in srgb, var(--c-courses) 65%, var(--text)));
-  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
-.cw-sub { font-size: 11.5px; line-height: 1.5; color: var(--text-dim); margin: 7px 0 11px; }
-.cw-quick { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 11px; }
-.cw-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 500; color: var(--c-courses);
-  background: color-mix(in srgb, var(--c-courses) 12%, transparent);
-  border: 1px solid transparent; border-radius: 999px; padding: 5px 11px; }
-.cw-chip::before { content: ''; width: 4px; height: 4px; border-radius: 50%; background: currentColor; opacity: .55;
-  transition: transform var(--t-fast) var(--ease-back), opacity var(--t-fast); }
-.cw-chip:hover { background: color-mix(in srgb, var(--c-courses) 22%, transparent); transform: translateY(-1px);
+  /* Keep `color: var(--text)` as the visible fallback under the gradient — clip+fill
+     wins when the gradient is valid; if it's invalid the text is still readable (no
+     `color: transparent`, which would make the wordmark invisible). */
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: var(--text); }
+/* Contrast (WCAG AA): the sub + kbd + placeholder were ~2.4–4:1 on the dark panel —
+   FAIL. Drive them off --text at reduced opacity so all clear ≥4.5:1. */
+.cw-sub { font-size: 12px; line-height: 1.5; color: var(--text); opacity: .78; margin: 8px 0 14px; }
+.cw-quick { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.cw-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; color: var(--c-courses);
+  background-color: var(--surface);
+  background: color-mix(in srgb, var(--c-courses) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--c-courses) 18%, transparent); border-radius: 999px; padding: 5px 11px; }
+.cw-chip::before { content: ''; width: 0; height: 4px; border-radius: 50%; background: currentColor; opacity: 0;
+  transition: width var(--t-fast) var(--ease-back), opacity var(--t-fast); }
+.cw-chip:hover { background: color-mix(in srgb, var(--c-courses) 16%, transparent); transform: translateY(-1px);
   box-shadow: 0 6px 16px -10px color-mix(in srgb, var(--c-courses) 70%, transparent); }
-.cw-chip:hover::before { transform: scale(1.6); opacity: 1; }
-.cw-input { width: 100%; resize: vertical; min-height: 64px; padding: 10px 12px; border-radius: 10px;
-  background: color-mix(in srgb, var(--surface) 88%, var(--c-courses) 12%);
-  border: 1px solid var(--border); color: var(--text); font-family: inherit; font-size: 13px; line-height: 1.5; outline: none; transition: border-color var(--t-fast), box-shadow var(--t-fast); }
+.cw-chip:hover::before { width: 4px; opacity: 1; }
+/* Recessed well: the textarea sits below the panel surface (darkened with #000) so the
+   send button reads as the one lit affordance. */
+.cw-input { width: 100%; resize: vertical; min-height: 72px; padding: 10px 12px; border-radius: 12px;
+  background-color: var(--surface);
+  background: color-mix(in srgb, #000 14%, var(--surface));
+  border: 1px solid var(--border); color: var(--text); font-family: inherit; font-size: 13.5px; line-height: 1.5; outline: none; transition: border-color var(--t-fast), box-shadow var(--t-fast); }
 .cw-input:focus { border-color: var(--c-courses);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-courses) 18%, transparent), 0 0 22px -10px color-mix(in srgb, var(--c-courses) 70%, transparent); }
-.cw-input::placeholder { color: var(--text-faint); font-style: italic; }
-.cw-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 11px; }
-.cw-kbd { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-faint); }
-.cw-send { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 13px; border-radius: 9px; font-size: 12.5px; font-weight: 600; white-space: nowrap;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--c-courses) 22%, transparent), 0 0 22px -10px color-mix(in srgb, var(--c-courses) 70%, transparent); }
+.cw-input::placeholder { color: var(--text); opacity: .6; font-style: italic; }
+.cw-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; }
+.cw-kbd { font-family: var(--font-mono); font-size: 11px; color: var(--text); opacity: .62; }
+/* The focal climax: dimensional, bigger, the loudest purple in the panel. A plain
+   background-color body guarantees a filled button even if the gradient drops. */
+.cw-send { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 16px; border-radius: 9px; font-size: 12.5px; font-weight: 600; white-space: nowrap;
   color: var(--on-accent); border: 1px solid transparent;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--c-courses) 100%, #fff 10%), var(--c-courses));
-  box-shadow: 0 8px 20px -10px color-mix(in srgb, var(--c-courses) 80%, transparent);
+  background-color: var(--c-courses, #8b5cf6);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--c-courses) 78%, #fff 22%), color-mix(in srgb, var(--c-courses) 72%, transparent));
+  box-shadow: 0 8px 20px -10px color-mix(in srgb, var(--c-courses) 80%, transparent), inset 0 1px 0 color-mix(in srgb, #fff 22%, transparent);
   transition: background var(--t-fast), opacity var(--t-fast), box-shadow var(--t-fast); }
 .cw-send svg { transition: transform var(--t-fast) var(--ease-back); }
-.cw-send:hover { box-shadow: 0 10px 24px -8px color-mix(in srgb, var(--c-courses) 90%, transparent); }
+.cw-send:hover { box-shadow: 0 10px 24px -8px color-mix(in srgb, var(--c-courses) 90%, transparent), inset 0 1px 0 color-mix(in srgb, #fff 22%, transparent); }
 .cw-send:hover svg { transform: translateX(3px); }
+.cw-send.is-sent { background-color: var(--ok); background: var(--ok);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--ok) 22%, transparent); }
 .cw-send:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
 .cw-send:disabled:hover svg { transform: none; }
 
@@ -1199,11 +1226,14 @@
   /* chips stagger in on open (index set inline via --i) */
   .cw-chip { animation: cwChipIn .26s var(--ease-back) both; animation-delay: calc(60ms + var(--i, 0) * 45ms); }
   @keyframes cwChipIn { from { opacity: 0; transform: translateY(4px) scale(.96); } to { opacity: 1; transform: none; } }
+  /* quiet the idle glyph while the user is composing — the box stops fidgeting once focused */
+  .cw-pop:focus-within .cw-ico,
+  .cw-pop:focus-within .cw-ico svg path:last-child { animation-play-state: paused; }
 }
 
-/* Reduced-motion: no entrance, no idle glow, no chip stagger — everything is instant + still. */
+/* Reduced-motion: no entrance/exit, no idle glow, no chip stagger — everything is instant + still. */
 @media (prefers-reduced-motion: reduce) {
-  .cw-pop { animation: none; }
+  .cw-pop, .cw-pop.is-closing { animation: none; }
   .cw-ico, .cw-ico svg path:last-child { animation: none; }
   .cw-chip { animation: none; }
 }
