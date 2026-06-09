@@ -11,6 +11,7 @@ import * as researchService from './services/research'
 import * as decisionsService from './services/research-decisions'
 import * as focosService from './services/research-focos'
 import * as linksService from './services/links'
+import * as recordingService from './services/recording'
 import * as abTestService from './services/ab-tests'
 import * as observatoryService from './services/youtube-observatory'
 import * as analyticsService from './services/youtube-analytics'
@@ -615,6 +616,46 @@ const ManageLinksShape = {
     .describe('Pré-visualiza a mudança sem executar'),
 }
 
+// ---- 24. manage_recording ----
+//
+// Recording status (gravação por beat): rastreia o que já está "na lata" por beat
+// (unidade durável) e por idioma. 3 estados: pendente | gravada | refazer (+ nota
+// de retake). Cada GET reconcilia os beats `fala` atuais do roteiro contra o
+// ledger durável (pipeline_id, lang, beat_id) e sinaliza `stale` quando o roteiro
+// mudou desde a gravação ("roteiro mudou desde a gravação"). NÃO altera a versão
+// do item (não passa pelo published-freeze do roteiro). O Cowork pode marcar/reler
+// status e purgar órfãos, mas a decisão editorial é do dono.
+const ManageRecordingShape = {
+  action: z.enum(['read', 'set', 'batch', 'purge-orphans']).default('read')
+    .describe('read: beats reconciliados + órfãos para (item, lang). set: define o status de um beat. batch: upsert de vários beats. purge-orphans: remove linhas cujo beat_id sumiu do roteiro atual (recomputado no servidor).'),
+  item_id: z.string().uuid()
+    .describe('UUID do pipeline item (vídeo). Obrigatório.'),
+  lang: z.enum(['pt', 'en']).default('pt')
+    .describe('Idioma do roteiro a reconciliar (pt | en).'),
+  beat_id: z.string().min(1).optional()
+    .describe('ID estável do beat (para set). Obtido no read.'),
+  status: z.enum(['pendente', 'gravada', 'refazer']).optional()
+    .describe('pendente: ainda não gravado. gravada: na lata. refazer: gravado mas precisa de retake. (para set)'),
+  retake_note: z.string().max(500).optional()
+    .describe('Nota livre de retake (apenas quando status=refazer; ≤500 chars).'),
+  beat_name: z.string().max(500).optional()
+    .describe('Nome de exibição do beat (ajuda na reconciliação/leitura).'),
+  content_hash: z.string().max(64).optional()
+    .describe('Hash do texto performático do beat no momento da gravação (detecta "mudou desde a gravação"). Pegue o content_hash do read.'),
+  if_unmodified_since: z.string().datetime().optional()
+    .describe('ISO datetime — concorrência por linha: se a linha existente for mais nova, retorna 412 com a linha atual (para set).'),
+  updates: z.array(z.object({
+    beat_id: z.string().min(1),
+    status: z.enum(['pendente', 'gravada', 'refazer']),
+    retake_note: z.string().max(500).optional(),
+    beat_name: z.string().max(500).optional(),
+    content_hash: z.string().max(64).optional(),
+  })).max(100).optional()
+    .describe('Lista de updates para batch (máx 100).'),
+  dry_run: z.boolean().default(false)
+    .describe('Pré-visualiza a mudança sem executar (para set/batch/purge-orphans).'),
+}
+
 // ---- 15. manage_ab_test ----
 const ManageAbTestShape = {
   action: z.enum(['list_tests', 'get_test', 'get_funnel', 'get_performance', 'get_intelligence', 'list_variants', 'upsert_variants', 'delete_variant', 'submit_intelligence', 'claim_task', 'get_learnings', 'get_suggestions', 'get_fatigue_alerts', 'get_dashboard', 'get_history'])
@@ -883,6 +924,15 @@ export function registerTools(server: McpServer): void {
     ManageLinksShape,
     WRITE_IDEMPOTENT,
     async (params) => linksService.manageLinks(params),
+  )
+
+  // 24. manage_recording
+  server.tool(
+    'manage_recording',
+    'Rastreia o status de gravação por beat (gravação por beat): read reconcilia os beats fala atuais do roteiro contra o ledger durável e sinaliza beats com "roteiro mudou desde a gravação"; set/batch marcam pendente|gravada|refazer (+ nota de retake); purge-orphans remove linhas órfãs. Nunca altera a versão do item.',
+    ManageRecordingShape,
+    WRITE_IDEMPOTENT,
+    async (params) => recordingService.manageRecording(params),
   )
 
   // 15. manage_ab_test

@@ -1823,3 +1823,124 @@ The `seo_{locale}` section content:
   "og_image_url": "string (1200x630)"
 }
 ```
+
+---
+
+## Recording Status (per-beat, per-lang) — "Gravação por beat"
+
+Video items track **what is already in the can** per recording unit, per language. The
+unit of durable status is the **beat** (a `fala` beat ≈ one take). Status keys on
+`(pipeline_id, lang, beat_id)` and lives in a dedicated `video_recording_status` table —
+**NOT** inside the roteiro JSONB. Therefore:
+
+- It **never** bumps `content_pipeline.version` (no `X-Expected-Version` here).
+- It is **NOT frozen by publish.** The creator records before publishing and may flag
+  `refazer` after. Roteiro content has a published-readonly guard; recording status does not.
+
+### 3-state status
+
+| status     | meaning                                          |
+|------------|--------------------------------------------------|
+| `pendente` | not yet recorded (default)                       |
+| `gravada`  | recorded — in the can                            |
+| `refazer`  | recorded but needs a retake (optional note ≤500) |
+
+`retake_note` is only meaningful when `status = refazer`; it is cleared on any other status.
+
+### Reconciliation contract (read time)
+
+Every GET re-derives the current `fala` beats from the live roteiro of the requested lang,
+stamps stable beat ids in-memory, computes each beat's `content_hash`, and matches the
+stored rows by `beat_id`:
+
+| situation                                  | result                                                 |
+|--------------------------------------------|--------------------------------------------------------|
+| same `beat_id` + same `content_hash`       | carry `status` / `retake_note` verbatim, `stale: false`|
+| same `beat_id`, **different** `content_hash` | carry `status` / `retake_note`, **`stale: true`** ("roteiro mudou desde a gravação") |
+| beat with no stored row                    | `status: pendente`, `stale: false`                     |
+| stored row whose `beat_id` is gone         | **orphan** (surfaced, never auto-deleted)              |
+
+A changed beat is **never** shown as a silent `✓ gravada` — `stale: true` is loud and
+visible so a remote shoot does not skip a beat whose text was rewritten.
+
+### Endpoints
+
+```
+GET    /api/pipeline/items/:id/recording?lang=pt          (auth: read)
+PUT    /api/pipeline/items/:id/recording?lang=pt          (auth: write)
+PATCH  /api/pipeline/items/:id/recording/batch?lang=pt    (auth: write)
+DELETE /api/pipeline/items/:id/recording/orphans?lang=pt  (auth: write)
+```
+
+`lang` is `pt` (default) or `en`. The roteiro for that lang must exist for beats to be
+derived; otherwise the response carries `roteiro_present: false` and empty `beats`.
+
+#### GET — derive + reconcile
+
+Response:
+```json
+{
+  "data": {
+    "beats": [
+      {
+        "beat_id": "string (stable beat id)",
+        "beat_name": "HOOK",
+        "status": "pendente | gravada | refazer",
+        "retake_note": "string | null",
+        "content_hash": "string (current beat text hash — pass this back on write)",
+        "stale": false
+      }
+    ],
+    "orphans": [
+      { "beat_id": "...", "status": "gravada", "retake_note": null, "beat_name": "...", "content_hash": "..." }
+    ],
+    "roteiro_present": true
+  },
+  "meta": { "item_version": 7 }
+}
+```
+
+#### PUT — upsert one beat
+
+Body:
+```json
+{
+  "beat_id": "string (required — from GET)",
+  "status": "gravada",
+  "retake_note": "string (≤500, only kept when status=refazer)",
+  "beat_name": "string (optional, display + reconciliation)",
+  "content_hash": "string (optional — pass the value from GET to record what was filmed)",
+  "source": "cowork | user (optional; defaults cowork for API-key callers)",
+  "if_unmodified_since": "ISO datetime (optional — per-row concurrency)"
+}
+```
+
+If `if_unmodified_since` is supplied and the existing row's `updated_at` is **newer**, the
+write is rejected with **412 PRECONDITION_FAILED** and the current row in
+`error.details.current`. Response on success: `{ "data": { "row": { ... } } }`.
+
+#### PATCH /batch — multi-row upsert
+
+Body `{ "updates": [ { beat_id, status, retake_note?, beat_name?, content_hash? }, ... ] (max 100), "source": "cowork" }`.
+Response: `{ "data": { "rows": [...], "updated": <n> } }`.
+
+#### DELETE /orphans — purge
+
+Recomputes orphans **server-side** (rows whose `beat_id` is absent from the current
+roteiro content) and deletes them. Response: `{ "data": { "purged": <n>, "orphan_beat_ids": [...] } }`.
+Never deletes a beat that still exists.
+
+### MCP — `manage_recording`
+
+The same surface via MCP (uses the permanent `PIPELINE_COWORK_KEY` path; never creates or
+revokes keys). Actions:
+
+| action          | maps to             | notes                                       |
+|-----------------|---------------------|---------------------------------------------|
+| `read`          | GET                 | reconciled beats + orphans                  |
+| `set`           | PUT                 | one beat; honors `if_unmodified_since`      |
+| `batch`         | PATCH /batch        | up to 100 updates                           |
+| `purge-orphans` | DELETE /orphans     | recomputed server-side                      |
+
+Write actions (`set`, `batch`, `purge-orphans`) preview with `dry_run: true` (default) and
+execute with `dry_run: false`.

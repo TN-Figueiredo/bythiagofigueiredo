@@ -1,4 +1,5 @@
 import type { RoteiroBeatV3, RoteiroContentV3 } from './roteiro-schemas'
+import { beatKind } from './video-perform'
 
 /**
  * Recording status — durable, per (pipeline_id, lang, beat_id). 3-state, click cycles.
@@ -102,4 +103,106 @@ export function beatContentHash(beat: RoteiroBeatV3): string {
     h = Math.imul(h, 0x01000193)
   }
   return (h >>> 0).toString(36)
+}
+
+// ---------------------------------------------------------------------------
+// Reconciliation — match durable rows to the current roteiro beats.
+//
+// The durable ledger keys status on (pipeline_id, lang, beat_id). A roteiro write
+// overwrites the whole content, so on every load we re-derive the current `fala`
+// beats and match the stored rows to them by `beat_id`:
+//   • same beat_id + same content_hash → carry status/note verbatim (stale: false)
+//   • same beat_id, different hash      → carry status/note but stale: true
+//                                         ("roteiro mudou desde a gravação")
+//   • beat with no row                  → status 'pendente', stale: false
+//   • row whose beat_id is gone         → orphan (surfaced for explicit purge)
+// Pure & deterministic — no IO, no clock, no id generation.
+// ---------------------------------------------------------------------------
+
+/** A persisted recording-status row, as stored in `video_recording_status`. */
+export interface StoredRecRow {
+  beat_id: string
+  status: RecStatus
+  retake_note: string | null
+  beat_name: string | null
+  content_hash: string | null
+}
+
+/** A current `fala` beat reconciled against the durable ledger. */
+export interface ReconciledBeat {
+  beat_id: string
+  /** Display name of the beat at reconciliation time (from the live roteiro). */
+  beat_name: string
+  status: RecStatus
+  retake_note: string | null
+  /** Hash of the beat's current performer text — what a write should persist. */
+  content_hash: string
+  /** True when a stored row exists but the roteiro changed since it was recorded. */
+  stale: boolean
+}
+
+/**
+ * Reconcile the durable recording rows against the live roteiro beats.
+ *
+ * Only `fala` beats carry recording status (one `fala` beat ≈ one take); `acao`/`prep`/
+ * `editor` beats are skipped here. Beats without a stable `id` cannot be matched and are
+ * treated as fresh `pendente` (no row, no orphan) — callers should `ensureBeatIds` first.
+ *
+ * Returns the reconciled current beats (in roteiro order) plus the orphan rows whose
+ * `beat_id` is absent from the current beats (never auto-deleted — surfaced for purge).
+ */
+export function reconcileRecording(
+  beats: RoteiroBeatV3[],
+  rows: StoredRecRow[],
+): { beats: ReconciledBeat[]; orphans: StoredRecRow[] } {
+  const rowByBeat = new Map<string, StoredRecRow>()
+  for (const row of rows) rowByBeat.set(row.beat_id, row)
+
+  const reconciled: ReconciledBeat[] = []
+  const matched = new Set<string>()
+
+  for (const beat of beats) {
+    if (beatKind(beat) !== 'fala') continue
+    if (!beat.id) {
+      // No stable identity → cannot match a durable row. Fresh pendente.
+      reconciled.push({
+        beat_id: '',
+        beat_name: beat.name,
+        status: 'pendente',
+        retake_note: null,
+        content_hash: beatContentHash(beat),
+        stale: false,
+      })
+      continue
+    }
+
+    const hash = beatContentHash(beat)
+    const row = rowByBeat.get(beat.id)
+
+    if (!row) {
+      reconciled.push({
+        beat_id: beat.id,
+        beat_name: beat.name,
+        status: 'pendente',
+        retake_note: null,
+        content_hash: hash,
+        stale: false,
+      })
+      continue
+    }
+
+    matched.add(beat.id)
+    reconciled.push({
+      beat_id: beat.id,
+      beat_name: beat.name,
+      status: row.status,
+      retake_note: row.retake_note,
+      content_hash: hash,
+      // A row recorded against a now-changed roteiro is stale (loud, never a silent ✓).
+      stale: row.content_hash !== null && row.content_hash !== hash,
+    })
+  }
+
+  const orphans = rows.filter((row) => !matched.has(row.beat_id))
+  return { beats: reconciled, orphans }
 }

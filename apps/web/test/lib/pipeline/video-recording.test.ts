@@ -5,6 +5,7 @@ import {
   ensureBeatIds,
   normalizeBeatText,
   beatContentHash,
+  reconcileRecording,
   asMarkGran,
   markGranClass,
   MARK_GRANS,
@@ -12,6 +13,7 @@ import {
   DEFAULT_MARK_GRAN,
   type RecStatus,
   type MarkGran,
+  type StoredRecRow,
 } from '@/lib/pipeline/video-recording'
 import type { RoteiroBeatV3, RoteiroContentV3 } from '@/lib/pipeline/roteiro-schemas'
 
@@ -109,6 +111,87 @@ describe('beatContentHash — stable sync hash', () => {
     const a = beat('HOOK', [{ type: 'line', text: '**Olha**  isso' }])
     const c = beat('HOOK', [{ type: 'line', text: 'Olha isso' }])
     expect(beatContentHash(a)).toBe(beatContentHash(c))
+  })
+})
+
+describe('reconcileRecording — durable rows ↔ live beats', () => {
+  const falaBeat = (id: string, name: string, lineText: string): RoteiroBeatV3 =>
+    beat(name, [{ type: 'line', text: lineText }], { id })
+
+  const row = (over: Partial<StoredRecRow> & { beat_id: string }): StoredRecRow => ({
+    status: 'gravada',
+    retake_note: null,
+    beat_name: null,
+    content_hash: null,
+    ...over,
+  })
+
+  it('carries status/note verbatim when beat_id + content_hash match (stale:false)', () => {
+    const b = falaBeat('b1', 'HOOK', 'Olha isso')
+    const hash = beatContentHash(b)
+    const { beats, orphans } = reconcileRecording(
+      [b],
+      [row({ beat_id: 'b1', status: 'refazer', retake_note: 'luz ruim', content_hash: hash })],
+    )
+    expect(orphans).toEqual([])
+    expect(beats).toHaveLength(1)
+    expect(beats[0]).toMatchObject({
+      beat_id: 'b1',
+      beat_name: 'HOOK',
+      status: 'refazer',
+      retake_note: 'luz ruim',
+      content_hash: hash,
+      stale: false,
+    })
+  })
+
+  it('flags stale:true when beat_id matches but content_hash differs (roteiro mudou)', () => {
+    const b = falaBeat('b1', 'HOOK', 'Texto novo')
+    const { beats } = reconcileRecording(
+      [b],
+      [row({ beat_id: 'b1', status: 'gravada', content_hash: 'hash-antigo' })],
+    )
+    expect(beats[0]!.status).toBe('gravada') // status still carried, never silently dropped
+    expect(beats[0]!.stale).toBe(true)
+    expect(beats[0]!.content_hash).toBe(beatContentHash(b)) // current hash surfaced
+  })
+
+  it('returns pendente for a beat with no stored row (stale:false)', () => {
+    const b = falaBeat('b1', 'HOOK', 'Olha isso')
+    const { beats, orphans } = reconcileRecording([b], [])
+    expect(orphans).toEqual([])
+    expect(beats[0]).toMatchObject({ beat_id: 'b1', status: 'pendente', retake_note: null, stale: false })
+  })
+
+  it('treats rows whose beat_id is gone as orphans (never auto-deleted)', () => {
+    const b = falaBeat('b1', 'HOOK', 'Olha isso')
+    const orphanRow = row({ beat_id: 'ghost', status: 'gravada' })
+    const { beats, orphans } = reconcileRecording([b], [orphanRow])
+    expect(beats.map((x) => x.beat_id)).toEqual(['b1'])
+    expect(orphans).toEqual([orphanRow])
+  })
+
+  it('only reconciles fala beats — acao/prep/editor are skipped', () => {
+    const fala = falaBeat('b1', 'HOOK', 'Olha isso')
+    const acao = beat('Entrevista perguntas', [{ type: 'action', text: 'pergunta' }], { id: 'b2', kind: 'acao' })
+    const prep = beat('Kit', [], { id: 'b3', kind: 'prep' })
+    const { beats } = reconcileRecording([fala, acao, prep], [])
+    expect(beats.map((x) => x.beat_id)).toEqual(['b1'])
+  })
+
+  it('keeps roteiro order and never marks stale when stored hash is null (legacy row)', () => {
+    const b = falaBeat('b1', 'HOOK', 'Olha isso')
+    const { beats } = reconcileRecording([b], [row({ beat_id: 'b1', status: 'gravada', content_hash: null })])
+    expect(beats[0]!.stale).toBe(false)
+  })
+
+  it('a beat missing an id is fresh pendente (no match, no orphan)', () => {
+    const noId = beat('HOOK', [{ type: 'line', text: 'fala' }]) // no id
+    const { beats, orphans } = reconcileRecording([noId], [row({ beat_id: 'x', status: 'gravada' })])
+    expect(beats).toHaveLength(1)
+    expect(beats[0]).toMatchObject({ status: 'pendente', stale: false })
+    // the unrelated row becomes an orphan
+    expect(orphans.map((o) => o.beat_id)).toEqual(['x'])
   })
 })
 

@@ -28,6 +28,12 @@ type ToolMatcher = (ep: ApiEndpointMeta) => boolean
  */
 const TOOL_RULES: Array<{ tool: string; match: ToolMatcher }> = [
   // ── Items & Sections ──────────────────────────────────────────────
+  // Recording status must precede the generic update_item rule (its paths
+  // also start with /api/pipeline/items/:id).
+  {
+    tool: 'manage_recording',
+    match: (ep) => ep.path.includes('/recording'),
+  },
   {
     tool: 'publish_item',
     match: (ep) => ep.path.endsWith('/publish'),
@@ -196,7 +202,7 @@ export function getRegistryCoverage(): {
   return { mapped, unmapped }
 }
 
-/** All 23 MCP tool names in the pipeline server */
+/** All 24 MCP tool names in the pipeline server */
 export const MCP_TOOL_NAMES = [
   'create_item',
   'update_item',
@@ -215,6 +221,7 @@ export const MCP_TOOL_NAMES = [
   'manage_decisions',
   'manage_focos',
   'manage_links',
+  'manage_recording',
   'manage_ab_test',
   'search_content',
   'manage_upnext',

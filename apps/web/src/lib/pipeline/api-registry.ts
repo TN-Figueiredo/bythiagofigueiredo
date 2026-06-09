@@ -43,7 +43,7 @@ const ITEMS_AND_SECTIONS: CapabilityDomain = {
   description: 'Create, manage, advance content through workflow stages. Update content sections (ideia, roteiro, postprod, etc.).',
   suggest_when: 'Creating, editing, advancing pipeline content, writing sections, managing item lifecycle',
   docs: '/api/pipeline/docs/items-and-sections',
-  endpoint_count: 18,
+  endpoint_count: 22,
   endpoints: [
     { method: 'GET', path: '/api/pipeline/items', summary: 'List items with cursor pagination and filtering', auth: 'read' },
     { method: 'POST', path: '/api/pipeline/items', summary: 'Create single or batch items (max 50)', auth: 'write' },
@@ -63,6 +63,11 @@ const ITEMS_AND_SECTIONS: CapabilityDomain = {
     { method: 'POST', path: '/api/pipeline/items/bulk', summary: 'Batch operations (advance, archive, tag, update)', auth: 'write' },
     { method: 'POST', path: '/api/pipeline/items/batch-sections', summary: 'Batch update sections across multiple items', auth: 'write' },
     { method: 'POST', path: '/api/pipeline/items/:id/publish', summary: 'Publish or schedule a graduated blog post (VVS gate)', auth: 'write' },
+    // ── Recording status (per-beat, per-lang durable ledger) ───────────
+    { method: 'GET', path: '/api/pipeline/items/:id/recording', summary: 'Per-beat recording status for a lang (derive + reconcile against roteiro)', auth: 'read' },
+    { method: 'PUT', path: '/api/pipeline/items/:id/recording', summary: 'Upsert one beat status (optional if_unmodified_since → 412); never bumps item version', auth: 'write' },
+    { method: 'PATCH', path: '/api/pipeline/items/:id/recording/batch', summary: 'Batch upsert beat statuses (max 100)', auth: 'write' },
+    { method: 'DELETE', path: '/api/pipeline/items/:id/recording/orphans', summary: 'Purge orphan rows whose beat_id is gone from the current roteiro', auth: 'write' },
   ],
 }
 
