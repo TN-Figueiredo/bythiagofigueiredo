@@ -68,11 +68,13 @@ export async function createPipelineItem(input: Record<string, unknown>): Promis
   const code = data.code || generateCode(format, title, data.format_metadata)
   const stage = data.stage || 'idea'
 
-  // One story = one item: the CMS create path now runs the SAME duplicate guard as the
-  // REST/MCP service, so "Novo Vídeo" can't spawn a second row for an existing story.
+  // One story = one item — GET-OR-CREATE: if a non-archived item with this title already
+  // exists, resolve to it (return the existing item, no error, nothing to show). The modal
+  // then opens the canonical item instead of creating a duplicate.
   const dupId = await findActiveDuplicateTitleId(supabase, siteId, format, [data.title_pt, data.title_en])
   if (dupId) {
-    return { ok: false, error: `Já existe um item com esse título (id ${dupId}). Edite o existente em vez de criar uma duplicata.` }
+    const { data: existing } = await supabase.from('content_pipeline').select().eq('id', dupId).single()
+    if (existing) return { ok: true, data: existing }
   }
 
   const { data: maxOrder } = await supabase

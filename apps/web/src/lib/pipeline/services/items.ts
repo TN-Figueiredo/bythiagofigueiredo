@@ -272,40 +272,29 @@ export async function createItems(
   // Duplicate-story guard: one title = one item (format-scoped + intra-batch). Otherwise a
   // story fragments across ids (you write to X, the link opens Y empty). Uses the SAME
   // helper as the CMS server action so both create paths are guarded.
+  // GET-OR-CREATE by story identity: if a non-archived item with this title already exists
+  // (same site + format), RESOLVE to it — return the existing item instead of creating a
+  // duplicate. No error, nothing to show: the caller lands on the one canonical item. Also
+  // de-dups within the batch so two same-title items collapse to one.
   const norm = (s: string | null | undefined): string => (s ?? '').trim().toLowerCase()
-  const seenInBatch = new Map<string, Set<string>>()
+  type Plan = { existingId: string } | { insertIndex: number }
+  const plans: Plan[] = []
+  const toInsert: Array<Record<string, unknown>> = []
+  const batchTitleToIdx = new Map<string, number>()
   for (const p of parsed) {
     if (!p.success) continue
-    const fmt = p.data.format
-    const titles = [p.data.title_pt, p.data.title_en]
-    const dupId = await findActiveDuplicateTitleId(supabase, ctx.siteId, fmt, titles)
-    if (dupId) {
-      throw new PipelineServiceError(
-        'CONFLICT',
-        `An item with this title already exists (id ${dupId}). Edit that item instead of creating a duplicate — one story = one id.`,
-        409,
-        { existing_id: dupId },
-      )
-    }
-    const batchTitles = seenInBatch.get(fmt) ?? new Set<string>()
-    for (const t of titles.map(norm).filter((x): x is string => x.length > 0)) {
-      if (batchTitles.has(t)) {
-        throw new PipelineServiceError('CONFLICT', `Two items in this batch share the title "${t}" — each story is one item.`, 409)
-      }
-      batchTitles.add(t)
-    }
-    seenInBatch.set(fmt, batchTitles)
-  }
-
-  const toInsert = parsed.map((p) => {
-    if (!p.success) throw new Error('unreachable')
     const data = p.data
     const format = data.format as Format
+    const keys = [norm(data.title_pt), norm(data.title_en)].filter((x): x is string => x.length > 0)
+    const dupId = await findActiveDuplicateTitleId(supabase, ctx.siteId, format, [data.title_pt, data.title_en])
+    if (dupId) { plans.push({ existingId: dupId }); continue }
+    const batchHit = keys.map((k) => batchTitleToIdx.get(`${format}::${k}`)).find((v) => v !== undefined)
+    if (batchHit !== undefined) { plans.push({ insertIndex: batchHit }); continue }
     const title = data.title_pt || data.title_en || 'untitled'
     const code = data.code || generateCode(format, title, data.format_metadata)
     const checklist = data.production_checklist || DEFAULT_CHECKLISTS[format]
-
-    return {
+    const idx = toInsert.length
+    toInsert.push({
       site_id: ctx.siteId,
       code,
       title_pt: data.title_pt || null,
@@ -322,27 +311,51 @@ export async function createItems(
       production_checklist: checklist,
       tags: data.tags,
       assigned_to: data.assigned_to || null,
-    }
-  })
-
-  const { data: inserted, error } = await supabase
-    .from('content_pipeline')
-    .insert(toInsert)
-    .select()
-
-  if (error) {
-    if (error.code === '23505') {
-      const isTitle = typeof error.message === 'string' && error.message.includes('content_pipeline_active_title_uniq')
-      throw new PipelineServiceError(
-        'CONFLICT',
-        isTitle
-          ? 'An item with this title already exists — edit it instead of creating a duplicate (one story = one id).'
-          : 'Duplicate code. Please use a unique code.',
-        409,
-      )
-    }
-    throw new PipelineServiceError('VALIDATION_ERROR', 'Failed to create item', 400)
+    })
+    keys.forEach((k) => batchTitleToIdx.set(`${format}::${k}`, idx))
+    plans.push({ insertIndex: idx })
   }
+
+  let insertedRows: Record<string, unknown>[] = []
+  if (toInsert.length > 0) {
+    const { data: inserted, error } = await supabase
+      .from('content_pipeline')
+      .insert(toInsert)
+      .select()
+    if (error) {
+      // 23505 = a concurrent create won the race (the one-story-one-id index). Re-resolve to
+      // the now-existing item rather than erroring, so a duplicate still never surfaces.
+      if (error.code === '23505' && error.message?.includes('content_pipeline_active_title_uniq')) {
+        const first = parsed.find((p) => p.success)
+        const exId = first?.success
+          ? await findActiveDuplicateTitleId(supabase, ctx.siteId, first.data.format as Format, [first.data.title_pt, first.data.title_en])
+          : null
+        if (exId) {
+          const { data: row } = await supabase.from('content_pipeline').select().eq('id', exId).single()
+          return { data: items.length > 1 ? [row as Record<string, unknown>] : (row as Record<string, unknown>) }
+        }
+      }
+      if (error.code === '23505') {
+        throw new PipelineServiceError('VALIDATION_ERROR', 'Duplicate code. Please use a unique code.', 409)
+      }
+      throw new PipelineServiceError('VALIDATION_ERROR', 'Failed to create item', 400)
+    }
+    insertedRows = inserted ?? []
+  }
+
+  const existingIds = [...new Set(plans.filter((p): p is { existingId: string } => 'existingId' in p).map((p) => p.existingId))]
+  const exById = new Map<string, Record<string, unknown>>()
+  if (existingIds.length > 0) {
+    const { data: exRows } = await supabase
+      .from('content_pipeline')
+      .select()
+      .eq('site_id', ctx.siteId)
+      .in('id', existingIds)
+    for (const r of exRows ?? []) exById.set((r as { id: string }).id, r as Record<string, unknown>)
+  }
+  const inserted = plans.map((p) =>
+    'existingId' in p ? exById.get(p.existingId) ?? null : insertedRows[p.insertIndex] ?? null,
+  ).filter((r): r is Record<string, unknown> => r != null)
 
   const isBatch = items.length > 1 || Array.isArray(items)
   return { data: isBatch ? (inserted as Record<string, unknown>[]) : (inserted?.[0] as Record<string, unknown>) }
