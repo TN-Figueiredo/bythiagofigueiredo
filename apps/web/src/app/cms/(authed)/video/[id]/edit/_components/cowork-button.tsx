@@ -166,7 +166,10 @@ export function CoworkButton({ stage, label = 'Cowork', compact }: CoworkButtonP
     // openCowork is synchronous — open Claude (Cowork) with the message + the
     // video/section context so it knows exactly which item/section to act on.
     const lang = editor.activeLang
-    const head = `[Vídeo ${editor.code} · ${STAGE_LABEL[stage]} · ${lang.toUpperCase()} · item ${editor.itemId}]`
+    const head =
+      `[Vídeo ${editor.code} · ${STAGE_LABEL[stage]} · ${lang.toUpperCase()} · item_id ${editor.itemId}]\n` +
+      `Trabalhe EXCLUSIVAMENTE neste item_id (${editor.itemId}). NÃO crie um novo item nem use outra "versão"/duplicata — ` +
+      `se você tiver uma task antiga apontando pra outro id, ignore: a fonte da verdade é o item aberto agora no CMS.`
     const hint = STAGE_TARGET_HINT[stage]?.(editor.itemId, lang)
     const ctx = hint ? `${head}\n${hint}` : head
     // Copies the instruction to the clipboard + opens a fresh Cowork task (the
