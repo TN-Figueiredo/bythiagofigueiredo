@@ -128,18 +128,18 @@ describe('EditModeToggle (header)', () => {
     const { getByRole, container } = shell(seedOf())
     const btn = container.querySelector('.ed-editmode') as HTMLButtonElement
     expect(btn).toBeTruthy()
-    expect(btn.textContent).toContain('Visualizando')
+    expect(btn.getAttribute('title')).toContain('Visualizando')
     expect(btn.getAttribute('aria-pressed')).toBe('false')
     fireEvent.click(btn)
     const btn2 = container.querySelector('.ed-editmode') as HTMLButtonElement
-    expect(btn2.textContent).toContain('Editar')
+    expect(btn2.getAttribute('title')).toContain('Editando')
     expect(btn2.getAttribute('aria-pressed')).toBe('true')
     expect(getByRole).toBeTruthy()
   })
   it('marks view mode with the viewing class + Visualizando toggle, and the editing ring in edit mode', () => {
     const { container } = shell(seedOf())
     expect(container.querySelector('.vid-viewing')).toBeTruthy()
-    expect((container.querySelector('.ed-editmode') as HTMLElement).textContent).toContain('Visualizando')
+    expect(container.querySelector('.ed-editmode')?.getAttribute('aria-pressed')).toBe('false')
     fireEvent.click(container.querySelector('.ed-editmode') as HTMLButtonElement)
     expect(container.querySelector('.vid-editing')).toBeTruthy()
   })
@@ -174,7 +174,6 @@ describe('Published lock + retreat (despublicar)', () => {
     expect(container.querySelector('.ed-editmode')).toBeNull()
     const lock = container.querySelector('.ed-editlock') as HTMLButtonElement
     expect(lock).toBeTruthy()
-    expect(lock.textContent).toContain('Travado')
     expect(lock.getAttribute('aria-label')).toContain('travado')
   })
 
@@ -201,7 +200,7 @@ describe('Published lock + retreat (despublicar)', () => {
     await waitFor(() => {
       const toggle = container.querySelector('.ed-editmode') as HTMLButtonElement
       expect(toggle).toBeTruthy()
-      expect(toggle.textContent).toContain('Editar') // auto-entered edit mode after despublicar
+      expect(toggle.getAttribute('aria-pressed')).toBe('true') // auto-entered edit mode after despublicar
     })
   })
 

@@ -10,6 +10,7 @@ import { useVideoData } from './data-context'
 import { presentLangs } from './editor-model'
 import { VidLang } from './_components/vid-lang'
 import { CoworkButton } from './_components/cowork-button'
+import { EditModeToggle } from './_components/edit-mode-toggle'
 import type { VideoLang } from './types'
 
 const STAGE_STATUS_CLASS = (stage: string): string =>
@@ -61,6 +62,7 @@ export function VideoEdBar() {
         <span className="es-dot" style={{ background: dotColor }} />
         {stageLabel}
       </span>
+      <EditModeToggle />
       <button
         type="button"
         className={`ed-iconbtn${state.focus ? ' on' : ''}`}

@@ -3,7 +3,7 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { toast } from 'sonner'
-import { CheckCircle, Eye, Pencil, Lock } from 'lucide-react'
+import { CheckCircle } from 'lucide-react'
 import { getStagePosition } from '@/lib/pipeline/workflows'
 import { isRecorded } from '@/lib/pipeline/video-lifecycle'
 import { getSectionKey } from '@/lib/pipeline/sections'
@@ -12,8 +12,7 @@ import { abPublishCtaState } from '@/lib/pipeline/video-ab-precondition'
 import { CHANNELS, channelByLang } from '@/lib/pipeline/channels'
 import { pillarById } from '@/lib/pipeline/pillars'
 import { asMarkGran } from '@/lib/pipeline/video-recording'
-import { useVideoEditorState, useVideoEditorDispatch, useEditMode, useSetLiveVersion } from './context'
-import { retreatPipelineItem } from '@/app/cms/(authed)/pipeline/actions'
+import { useVideoEditorState, useVideoEditorDispatch, useEditMode } from './context'
 import { useRecordingSync } from './use-recording-sync'
 import { VideoEdBar } from './ed-bar'
 import { VidStages } from './vid-stages'
@@ -24,7 +23,6 @@ import { useVideoData } from './data-context'
 import { LockedStage } from './stages/locked-stage'
 import { PosStage } from './stages/pos-stage'
 import { PublicacaoStage } from './stages/publicacao-stage'
-import { isContentLockedStage } from './types'
 import type { ABDraft } from '@/lib/pipeline/video-schemas'
 import type { VideoLang } from './types'
 
@@ -225,79 +223,6 @@ function VideoOverlays() {
   )
 }
 
-/**
- * View/Edit safety toggle. Default = 👁 Visualizando (content read-only); ✏️ Editar enters
- * edit mode. When the DB stage is content-locked (scheduled/published) the toggle is replaced
- * by a 🔒 affordance that, on confirm, RETREATS the stage (despublica) via the generic
- * `retreatPipelineItem` action — the only existing stage-retreat mechanism — then auto-enters
- * edit mode. Recording-status marking is never gated, so it stays usable in either mode.
- */
-function EditModeToggle() {
-  const { mode, locked, setMode } = useEditMode()
-  const state = useVideoEditorState()
-  const dispatch = useVideoEditorDispatch()
-  const setLiveVersion = useSetLiveVersion()
-  const [busy, setBusy] = useState(false)
-
-  if (locked) {
-    const onUnpublish = async () => {
-      if (busy) return
-      if (typeof window !== 'undefined' && !window.confirm('Despublicar pra editar? O vídeo sai do ar até você publicar de novo.')) return
-      setBusy(true)
-      try {
-        const res = await retreatPipelineItem(state.itemId, state.version)
-        if (!res.ok) {
-          toast.error(res.error === 'Version conflict' ? 'Versão desatualizada — recarregue a página.' : 'Não foi possível despublicar.')
-          return
-        }
-        const updated = res.data as { stage?: string; version?: number } | undefined
-        if (updated?.stage) dispatch({ type: 'SET_DB_STAGE', stage: updated.stage })
-        if (typeof updated?.version === 'number') {
-          dispatch({ type: 'SET_VERSION', version: updated.version })
-          setLiveVersion(updated.version)
-        }
-        // published→scheduled retreats ONE step but scheduled is still content-locked: don't flip
-        // the UI to "editing" while editing is still hard-blocked. Only enter edit mode when the
-        // new stage actually unlocks content; otherwise keep view mode and tell the user.
-        if (updated?.stage && isContentLockedStage(updated.stage)) {
-          toast('Ainda travado — despublique mais uma etapa pra editar.')
-        } else {
-          setMode('edit') // despublicar é uma ação deliberada de edição → já entra em modo edição
-          toast.success('Despublicado — agora você pode editar.')
-        }
-      } finally {
-        setBusy(false)
-      }
-    }
-    return (
-      <button
-        type="button"
-        className="ed-editlock"
-        title="Publicado — conteúdo travado. Despublique para editar."
-        aria-label={busy ? 'Despublicando para poder editar' : 'Conteúdo publicado e travado — despublicar para editar'}
-        aria-busy={busy}
-        onClick={onUnpublish}
-        disabled={busy}
-      >
-        <Lock size={14} /> {busy ? 'Despublicando…' : 'Travado'}
-      </button>
-    )
-  }
-
-  const editing = mode === 'edit'
-  return (
-    <button
-      type="button"
-      className={`ed-editmode${editing ? ' on' : ''}`}
-      aria-pressed={editing}
-      title={editing ? 'Editando — clique para voltar a visualizar' : 'Visualizando (somente leitura) — clique para editar'}
-      onClick={() => setMode(editing ? 'view' : 'edit')}
-    >
-      {editing ? <><Pencil size={14} /> Editar</> : <><Eye size={14} /> Visualizando</>}
-    </button>
-  )
-}
-
 export function EditorShell() {
   const state = useVideoEditorState()
   const dispatch = useVideoEditorDispatch()
@@ -361,13 +286,7 @@ export function EditorShell() {
     >
       <div ref={topRef}>
         <VideoEdBar />
-        {!state.focus && (
-          <div className="vid-tabsrow">
-            <span className="vid-tabsrow-pad" aria-hidden="true" />
-            <VidStages />
-            <div className="vid-tabsrow-end"><EditModeToggle /></div>
-          </div>
-        )}
+        {!state.focus && <VidStages />}
         {published && !state.focus && (
           <div className="vid-robanner">
             <CheckCircle size={15} /> <span><b>Publicado · no ar.</b> Edições limitadas — para mudar algo, peça ao <b>Cowork</b> ou despublique.</span>
