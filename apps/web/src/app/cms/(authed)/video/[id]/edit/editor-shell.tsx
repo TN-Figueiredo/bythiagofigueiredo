@@ -195,6 +195,7 @@ function VideoOverlays() {
           langOptions={OVERLAY_LANG_OPTIONS}
           onSwitchLang={switchLang}
           markGran={state.markGran}
+          recordedHash={state.recRecordedHash ?? {}}
           onSetMarkGran={(gran) => dispatch({ type: 'SET_MARK_GRAN', gran })}
           onSetBeatStatus={(key, status) => dispatch({ type: 'SET_BEAT_STATUS', key, status })}
           onClose={() => dispatch({ type: 'CLOSE_OVERLAY', overlay: 'recording' })}

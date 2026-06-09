@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { RecordingSheet } from '@/app/cms/(authed)/video/[id]/edit/_overlays/recording-sheet'
 import type { RecordingSheetProps } from '@/app/cms/(authed)/video/[id]/edit/_overlays/recording-sheet'
+import { beatContentHash } from '@/lib/pipeline/video-recording'
 
 const baseProps = (): RecordingSheetProps => ({
   code: 'VID-001',
@@ -433,5 +434,66 @@ describe('RecordingSheet — full-screen READER (view: reader)', () => {
     expect(bar).not.toBeNull()
     expect(bar!.classList.contains('recr-setrow')).toBe(false)
     expect(bar!.classList.contains('recr-nav')).toBe(false)
+  })
+})
+
+describe('RecordingSheet — reader STALE treatment (roteiro mudou desde a gravação)', () => {
+  afterEach(() => { cleanup(); document.body.classList.remove('recording') })
+
+  // A single fala beat (one section) with a stable id → its reader key is `pt:beat-stale`.
+  const STALE_BEAT = {
+    id: 'beat-stale', idx: 0, name: 'HOOK', status: 'PENDING' as const,
+    script: [{ type: 'line' as const, text: 'Fala original que foi gravada.' }],
+  }
+  const KEY = 'pt:beat-stale'
+  const liveHash = beatContentHash(STALE_BEAT)
+
+  const staleProps = (recordedHash?: Record<string, string>): RecordingSheetProps => ({
+    code: 'VID-099', channelName: 'TF', channelLabel: 'PT', channelFlag: '🇧🇷',
+    pillarLabel: 'Código', durationRange: '10 min', title: 'T',
+    beats: [STALE_BEAT],
+    langOptions: [{ lang: 'pt', label: 'PT', flag: '🇧🇷' }],
+    onSwitchLang: vi.fn(), onSetBeatStatus: vi.fn(), onClose: vi.fn(),
+    recordedHash,
+  })
+  const enterReader = () => fireEvent.click(screen.getByText('Leitura'))
+
+  it('shows the loud "⚠ roteiro mudou" badge instead of a clean ✓ when a gravada beat changed', () => {
+    render(<RecordingSheet {...staleProps({ [KEY]: 'OLD_RECORDED_HASH' })} />)
+    enterReader()
+    // mark this card gravada → without staleness this would be a clean "✓ gravada"
+    fireEvent.click(screen.getByLabelText('Marcar seção como gravada e avançar'))
+    const badge = document.querySelector('.recr-badge.stale')
+    expect(badge).not.toBeNull()
+    expect(badge!.textContent).toContain('roteiro mudou desde a gravação')
+    // the clean ✓ gravada badge must NOT be shown over rewritten text
+    expect(document.querySelector('.recr-badge.gravada')).toBeNull()
+    // and the card border is tinted to the stale (warn) state
+    expect(document.querySelector('.recr-card')!.classList.contains('st-stale')).toBe(true)
+  })
+
+  it('shows a CLEAN ✓ gravada (no stale) when the recordedHash matches the live beat hash', () => {
+    render(<RecordingSheet {...staleProps({ [KEY]: liveHash })} />)
+    enterReader()
+    fireEvent.click(screen.getByLabelText('Marcar seção como gravada e avançar'))
+    expect(document.querySelector('.recr-badge.stale')).toBeNull()
+    expect(document.querySelector('.recr-badge.gravada')).not.toBeNull()
+    expect(document.querySelector('.recr-card')!.classList.contains('st-stale')).toBe(false)
+  })
+
+  it('does NOT flag stale while the beat is still pendente (nothing recorded to be stale)', () => {
+    render(<RecordingSheet {...staleProps({ [KEY]: 'OLD_RECORDED_HASH' })} />)
+    enterReader()
+    // no status set yet → pendente → no badge at all, no st-stale tint
+    expect(document.querySelector('.recr-badge')).toBeNull()
+    expect(document.querySelector('.recr-card')!.classList.contains('st-stale')).toBe(false)
+  })
+
+  it('no recordedHash prop (standalone) → never flags stale', () => {
+    render(<RecordingSheet {...staleProps(undefined)} />)
+    enterReader()
+    fireEvent.click(screen.getByLabelText('Marcar seção como gravada e avançar'))
+    expect(document.querySelector('.recr-badge.stale')).toBeNull()
+    expect(document.querySelector('.recr-badge.gravada')).not.toBeNull()
   })
 })

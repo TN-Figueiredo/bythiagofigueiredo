@@ -9,6 +9,7 @@ import { VideoDataProvider } from '@/app/cms/(authed)/video/[id]/edit/data-conte
 import { RoteiroStage } from '@/app/cms/(authed)/video/[id]/edit/stages/roteiro-stage'
 import type { VideoEditorState } from '@/app/cms/(authed)/video/[id]/edit/types'
 import type { RoteiroContentV3 } from '@/lib/pipeline/roteiro-schemas'
+import { beatContentHash } from '@/lib/pipeline/video-recording'
 
 const seed: VideoEditorState = {
   itemId: 'vid-1', code: 'V-A07', siteId: 'site-1', stage: 'roteiro', version: 1,
@@ -31,7 +32,15 @@ const ROTEIRO: RoteiroContentV3 = {
   }],
 }
 
-function wrap(over: { notes?: boolean; roteiro?: RoteiroContentV3 | null } = {}) {
+function wrap(
+  over: {
+    notes?: boolean
+    roteiro?: RoteiroContentV3 | null
+    showRecStatus?: boolean
+    recStatus?: Record<string, string>
+    recRecordedHash?: Record<string, string>
+  } = {},
+) {
   const data = {
     ideia: { pt: { title: 'Meu vídeo', direction: '', siblings: [], logline: '', angles: '', framework: '' }, en: { title: '', direction: '', siblings: [], logline: '', angles: '', framework: '' } },
     roteiro: { pt: over.roteiro === undefined ? ROTEIRO : over.roteiro, en: null },
@@ -40,7 +49,15 @@ function wrap(over: { notes?: boolean; roteiro?: RoteiroContentV3 | null } = {})
     saveRoteiro: vi.fn().mockResolvedValue(undefined),
   }
   return render(
-    <VideoEditorProvider initialState={{ ...seed, notes: over.notes ?? false }}>
+    <VideoEditorProvider
+      initialState={{
+        ...seed,
+        notes: over.notes ?? false,
+        showRecStatus: over.showRecStatus ?? false,
+        recStatus: (over.recStatus ?? {}) as never,
+        recRecordedHash: over.recRecordedHash ?? {},
+      }}
+    >
       <VideoDataProvider value={data as never}><RoteiroStage /></VideoDataProvider>
     </VideoEditorProvider>,
   )
@@ -111,6 +128,63 @@ describe('RoteiroStage — recording status (per-beat)', () => {
     expect(bst().className).toContain('refazer')
     expect(container.querySelector('.rot-secsum')!.textContent).toContain('1 refazer')
     expect(container.querySelector('.rb-bnote')).toBeTruthy() // retake-reason input appears
+  })
+})
+
+describe('RoteiroStage — stale "roteiro mudou desde a gravação" badge', () => {
+  // A fala beat with a STABLE id so its recRecordedHash key (`pt:<id>`) is deterministic.
+  const IDED: RoteiroContentV3 = {
+    version: 3, meta: {},
+    beats: [{
+      id: 'beat-stale-1', idx: 0, name: 'Abertura', status: 'PENDING',
+      script: [{ type: 'line', text: 'Fala original gravada.' }],
+    }],
+  }
+  const liveHash = beatContentHash(IDED.beats[0]!)
+  const key = `pt:${IDED.beats[0]!.id}`
+
+  it('shows .rb-stale (icon + text) when recordedHash mismatches the live beat hash', () => {
+    const { container } = wrap({
+      roteiro: IDED,
+      showRecStatus: true,
+      recStatus: { [key]: 'gravada' },
+      recRecordedHash: { [key]: 'STALE_OLD_HASH' }, // != liveHash → stale
+    })
+    const badge = container.querySelector('.rb-stale')!
+    expect(badge).toBeTruthy()
+    expect(badge.textContent).toContain('roteiro mudou desde a gravação')
+    // the status pill is also flagged stale (amber ring)
+    expect(container.querySelector('.rb-bst.stale')).toBeTruthy()
+  })
+
+  it('hides .rb-stale when recordedHash MATCHES the live beat hash (not stale)', () => {
+    const { container } = wrap({
+      roteiro: IDED,
+      showRecStatus: true,
+      recStatus: { [key]: 'gravada' },
+      recRecordedHash: { [key]: liveHash }, // == liveHash → fresh
+    })
+    expect(container.querySelector('.rb-stale')).toBeNull()
+    expect(container.querySelector('.rb-bst.stale')).toBeNull()
+    // a clean ✓ gravada pill is fine when the text matches
+    expect(container.querySelector('.rb-bst.gravada')).toBeTruthy()
+  })
+
+  it('no .rb-stale when there is no recorded baseline (never recorded)', () => {
+    const { container } = wrap({ roteiro: IDED, showRecStatus: true, recRecordedHash: {} })
+    expect(container.querySelector('.rb-stale')).toBeNull()
+  })
+
+  it('stale badge is gated behind "Status de gravação" (hidden when the toggle is off)', () => {
+    const { container } = wrap({
+      roteiro: IDED,
+      showRecStatus: false,
+      recStatus: { [key]: 'gravada' },
+      recRecordedHash: { [key]: 'STALE_OLD_HASH' },
+    })
+    // status pill itself is not rendered when the toggle is off → neither is the badge
+    expect(container.querySelector('.rb-bst')).toBeNull()
+    expect(container.querySelector('.rb-stale')).toBeNull()
   })
 })
 

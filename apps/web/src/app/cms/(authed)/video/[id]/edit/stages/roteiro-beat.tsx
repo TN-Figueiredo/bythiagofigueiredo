@@ -1,7 +1,7 @@
 'use client'
 
 import type { CSSProperties } from 'react'
-import { Eye, Sparkles, Plus, Check, RotateCcw } from 'lucide-react'
+import { Eye, Sparkles, Plus, Check, RotateCcw, AlertTriangle } from 'lucide-react'
 import { videoBeatRead } from '@/lib/pipeline/video-schemas'
 import type { RoteiroBeatV3 } from '@/lib/pipeline/roteiro-schemas'
 import type { RecStatus } from '@/lib/pipeline/video-recording'
@@ -24,6 +24,12 @@ interface RoteiroBeatProps {
   /** "Status de gravação" toggle on → show the per-beat 3-state recording control. */
   showRecStatus: boolean
   recStatus: RecStatus
+  /**
+   * The roteiro changed since this beat was recorded — the recorded content_hash no longer
+   * matches the live beat text. Surfaced as a LOUD "roteiro mudou desde a gravação" badge so a
+   * ✓ gravada can never silently sit over rewritten fala. Lives with the status control.
+   */
+  stale: boolean
   retakeNote: string
   onCycleStatus: () => void
   onCommitRetake: (text: string) => void
@@ -40,7 +46,7 @@ const REC_LABEL: Record<RecStatus, string> = {
  * lines / actions / breaths / talent notes. Editor cues (vis/ed) only show when
  * "Notas do editor" is on — they belong to the editor (Pós), not the performer.
  */
-export function RoteiroBeat({ beat, idx, seq, style, notes, spoken, cursorKey, onToggle, onCommitLine, onCommitNote, onAddCue, showRecStatus, recStatus, retakeNote, onCycleStatus, onCommitRetake }: RoteiroBeatProps) {
+export function RoteiroBeat({ beat, idx, seq, style, notes, spoken, cursorKey, onToggle, onCommitLine, onCommitNote, onAddCue, showRecStatus, recStatus, stale, retakeNote, onCycleStatus, onCommitRetake }: RoteiroBeatProps) {
   const lineIdx = beat.script.map((it, i) => (it.type === 'line' ? i : -1)).filter((i) => i >= 0)
   const total = lineIdx.length
   const done = lineIdx.filter((i) => spoken.has(`${idx}-${i}`)).length
@@ -57,13 +63,19 @@ export function RoteiroBeat({ beat, idx, seq, style, notes, spoken, cursorKey, o
         <span className="grow" />
         {total > 0 && <span className={'rb-prog' + (full ? ' full' : '')}>{done}/{total} faladas</span>}
         {total > 0 && <span className="rb-info">~{videoBeatRead(beat)}s de fala</span>}
+        {showRecStatus && stale && (
+          <span className="rb-stale" role="status" title="O texto deste beat mudou depois de marcado — regrave ou reconfirme.">
+            <AlertTriangle size={13} />
+            <span className="rb-stale-tx">roteiro mudou desde a gravação</span>
+          </span>
+        )}
         {showRecStatus && (
           <button
             type="button"
-            className={'rb-bst ' + recStatus}
+            className={'rb-bst ' + recStatus + (stale ? ' stale' : '')}
             onClick={onCycleStatus}
             title="Pendente → Gravada → Refazer"
-            aria-label={`Status de gravação: ${REC_LABEL[recStatus]}. Clique para avançar.`}
+            aria-label={`Status de gravação: ${REC_LABEL[recStatus]}.${stale ? ' Roteiro mudou desde a gravação.' : ''} Clique para avançar.`}
           >
             <span className="rb-bst-gl">
               {recStatus === 'gravada' ? <Check size={13} /> : recStatus === 'refazer' ? <RotateCcw size={13} /> : null}

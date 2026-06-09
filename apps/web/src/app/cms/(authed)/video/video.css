@@ -301,6 +301,21 @@
 .rb-bst.pendente .rb-bst-gl { border: 1.5px solid currentColor; border-radius: 50%; }
 .rb-bst.gravada { color: var(--ok); background: var(--ok-s); border-color: transparent; }
 .rb-bst.refazer { color: var(--warn); background: var(--warn-s); border-color: transparent; }
+/* Stale: the beat text changed after it was marked. Ring the pill amber so the ✓/⟲
+   itself reads as "no longer trustworthy", on top of the loud .rb-stale badge. */
+.rb-bst.stale { box-shadow: inset 0 0 0 1.5px var(--warn); }
+
+/* LOUD "roteiro mudou desde a gravação" badge — sits next to the .rb-bst control in the
+   beat head (screen only — see the mark-gating @media screen block). Amber, icon + text,
+   unmissable: a ✓ gravada can never silently cover rewritten fala. */
+.rb-stale { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; align-self: center;
+  min-height: 28px; padding: 0 11px; border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: .01em;
+  color: var(--warn); background: var(--warn-s); border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent); }
+.rb-stale .lucide { flex-shrink: 0; }
+.rb-stale-tx { white-space: nowrap; }
+/* the stale badge only makes sense alongside the status pill — hide it with .rb-bst when
+   "Status de gravação" is off (mirrors the .rb-bst gating above). */
+@media screen { .rot-doc:not(.show-recst) .rb-stale { display: none; } }
 
 /* Retake reason — one-line input shown under the head when status is "refazer". */
 .rb-bnote { display: block; width: 100%; margin: 7px 0 2px 46px; max-width: calc(100% - 46px);
@@ -670,6 +685,10 @@
   padding: clamp(20px, 4vw, 48px); transition: border-color .2s var(--ease); }
 .recr-card.st-gravada { border-color: #2fbf6b; }
 .recr-card.st-refazer { border-color: #f0792b; }
+/* Stale wins over gravada/refazer: the roteiro changed since this beat was recorded. A loud
+   amber frame so the performer never trusts a ✓ over rewritten text. Override comes last so it
+   beats st-gravada/st-refazer regardless of class order. */
+.recr-card.st-stale { border-color: #f5b301; }
 
 .recr-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 16px; margin-bottom: clamp(14px, 2.5vw, 28px);
   font-family: var(--font-mono); font-size: 14px; color: var(--rp-ink-45); }
@@ -679,6 +698,10 @@
 .recr-badge { font-family: var(--font-sans); font-weight: 700; padding: 2px 10px; border-radius: 999px; font-size: 12.5px; }
 .recr-badge.gravada { color: #04140a; background: #2fbf6b; }
 .recr-badge.refazer { color: #1b1008; background: #f0792b; }
+/* Stale badge — loud amber pill that REPLACES the clean ✓/⟲ when the beat changed since it was
+   recorded. Higher weight + a soft ring so it grabs the eye in the reader's calm palette. */
+.recr-badge.stale { color: #1b1303; background: #f5b301; font-weight: 800;
+  box-shadow: 0 0 0 3px rgba(245,179,1,.28); }
 
 /* visually-hidden heading — the focus target / live announce; the big lines carry the read */
 .recr-head { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
@@ -976,6 +999,7 @@
   body:not(.recording) .rb-prog,
   body:not(.recording) .rb-progbar,
   body:not(.recording) .rb-bst,
+  body:not(.recording) .rb-stale,
   body:not(.recording) .rb-bnote,
   body:not(.recording) .focus-exit { display: none !important; }
   body:not(.recording) .app,

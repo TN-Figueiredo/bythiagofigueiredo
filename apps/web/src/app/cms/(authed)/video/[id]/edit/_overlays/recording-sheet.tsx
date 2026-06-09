@@ -7,7 +7,7 @@ import { recBeatLines, clampRsScale } from '@/lib/pipeline/recording-sheet-data'
 import { splitBeats, itemText, beatSections, type ScriptSection } from '@/lib/pipeline/video-perform'
 import { sectionReadSecs } from '@/lib/pipeline/video-read-math'
 import { videoBeatRead, fmtClock } from '@/lib/pipeline/video-schemas'
-import { MARK_GRANS, MARK_GRAN_LABEL, markGranClass, DEFAULT_MARK_GRAN, type MarkGran, type RecStatus } from '@/lib/pipeline/video-recording'
+import { MARK_GRANS, MARK_GRAN_LABEL, markGranClass, DEFAULT_MARK_GRAN, beatContentHash, type MarkGran, type RecStatus } from '@/lib/pipeline/video-recording'
 import type { RoteiroBeatV3 } from '@/lib/pipeline/roteiro-schemas'
 
 /** **word** → <b class="emph">word</b>, HTML-escaped first. */
@@ -71,6 +71,13 @@ export interface RecordingSheetProps {
    * calls this defensively (no-op when absent) and keeps its own optimistic UI either way.
    */
   onSetBeatStatus?: (key: string, status: RecStatus) => void
+  /**
+   * The content_hash each beat was RECORDED against, keyed `${lang}:${beat.id}` (the editor's
+   * `recRecordedHash` ledger). The reader compares it against the beat's LIVE text hash to flag
+   * a beat as stale ("⚠ roteiro mudou desde a gravação") — so a clean ✓ gravada never sits over
+   * rewritten fala. Optional/`{}` for standalone use → nothing is ever flagged stale.
+   */
+  recordedHash?: Record<string, string>
   onClose: () => void
 }
 
@@ -166,6 +173,14 @@ export function RecordingSheet(props: RecordingSheetProps) {
   const clampedSec = secCount === 0 ? 0 : Math.min(secIdx, secCount - 1)
   const cur = readerSections[clampedSec]
   const curStatus: RecStatus = cur ? (statusOverride[cur.beatKey] ?? 'pendente') : 'pendente'
+  // The current card is STALE when a recorded baseline hash exists for its beat key and no
+  // longer matches the beat's live text hash — the fala was rewritten after it was marked.
+  // `recordedHash` is keyed `${lang}:${beat.id}`, the same shape as `cur.beatKey`.
+  const recordedHash = props.recordedHash
+  const curStale: boolean = !!cur && (() => {
+    const baseline = recordedHash?.[cur.beatKey]
+    return baseline != null && baseline !== beatContentHash(cur.beat)
+  })()
 
   const goSec = useCallback((next: number) => {
     setSecIdx((prev) => {
@@ -345,6 +360,7 @@ export function RecordingSheet(props: RecordingSheetProps) {
           sections={readerSections}
           idx={clampedSec}
           status={curStatus}
+          stale={curStale}
           readLang={readLang}
           headingRef={headingRef}
           onPrev={() => goSec(clampedSec - 1)}
@@ -465,6 +481,8 @@ interface ReaderViewProps {
   sections: ReaderSection[]
   idx: number
   status: RecStatus
+  /** The current card's beat was rewritten since it was recorded — surface a loud warning. */
+  stale: boolean
   readLang: 'pt' | 'en'
   headingRef: RefObject<HTMLHeadingElement | null>
   onPrev: () => void
@@ -482,7 +500,10 @@ interface ReaderViewProps {
  * which `@media print` never renders (print always uses the sheet view).
  */
 function ReaderView(props: ReaderViewProps) {
-  const { sections, idx, status, readLang, headingRef } = props
+  const { sections, idx, status, stale, readLang, headingRef } = props
+  // Stale only "wins" the badge when the beat actually carries a recorded status — a clean
+  // pendente card was never recorded, so there's nothing to be stale against.
+  const staleHot = stale && (status === 'gravada' || status === 'refazer')
   const cur = sections[idx]
   if (!cur) {
     // `fala` beats exist but none produced a spoken section (e.g. only actions). Nothing to read.
@@ -507,12 +528,16 @@ function ReaderView(props: ReaderViewProps) {
   return (
     <div className="recr">
       <div className="recr-stage">
-        <div className={'recr-card st-' + status}>
+        <div className={'recr-card st-' + status + (staleHot ? ' st-stale' : '')}>
           <div className="recr-meta">
             <span className="recr-seq">#{cur.beatSeq}</span>
             <span className="recr-bname">{cur.beat.name}</span>
             <span className="recr-dur">~{secs}s de fala</span>
-            {status !== 'pendente' ? (
+            {staleHot ? (
+              // Loud override: the roteiro changed after this beat was recorded — never show a
+              // clean ✓ over rewritten fala. The performer must catch it at a glance.
+              <span className="recr-badge stale" role="status">⚠ roteiro mudou desde a gravação</span>
+            ) : status !== 'pendente' ? (
               <span className={'recr-badge ' + status}>{status === 'gravada' ? '✓ gravada' : '⟲ refazer'}</span>
             ) : null}
           </div>

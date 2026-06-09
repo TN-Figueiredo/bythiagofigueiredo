@@ -8,9 +8,9 @@ import { CoworkButton } from '../_components/cowork-button'
 import { CHANNELS } from '@/lib/pipeline/channels'
 import { vidTotals, fmtClock } from '@/lib/pipeline/video-schemas'
 import { videoLineKeys, videoLineSecsFlat, readPctOf } from '@/lib/pipeline/video-read-math'
-import type { RoteiroContentV3 } from '@/lib/pipeline/roteiro-schemas'
+import type { RoteiroContentV3, RoteiroBeatV3 } from '@/lib/pipeline/roteiro-schemas'
 import { splitBeats, markableIdxs } from '@/lib/pipeline/video-perform'
-import { ensureBeatIds, markGranClass } from '@/lib/pipeline/video-recording'
+import { ensureBeatIds, markGranClass, beatContentHash } from '@/lib/pipeline/video-recording'
 import { useVideoEditorState, useVideoEditorDispatch } from '../context'
 import { useVideoData } from '../data-context'
 import { RoteiroBeat } from './roteiro-beat'
@@ -38,6 +38,10 @@ export function RoteiroStage(_props: RoteiroStageProps = {}) {
   const markGran = state.markGran
   const recStatus = state.recStatus
   const retakeNotes = state.retakeNotes
+  // The content_hash each beat was RECORDED against (lang-qualified `${lang}:${beat.id}`).
+  // A beat is STALE when this baseline exists AND differs from the beat's current text hash —
+  // i.e. the fala was rewritten after being marked gravada/refazer. Empty {} when never hydrated.
+  const recRecordedHash = state.recRecordedHash ?? {}
   const overlayOpen = state.recordingOpen || state.handoffOpen || state.coworkOpen
 
   // Stamp stable beat ids in memory so per-beat recording status has a durable key.
@@ -46,6 +50,16 @@ export function RoteiroStage(_props: RoteiroStageProps = {}) {
   const content = useMemo(() => (rawContent ? ensureBeatIds(rawContent).content : rawContent), [rawContent])
   // Lang-qualified durable key for a beat: `${lang}:${beat.id}` (PT/EN never collide).
   const beatKey = useCallback((id: string | undefined) => (id ? `${lang}:${id}` : ''), [lang])
+  // STALE = a recorded baseline hash exists for this beat's key AND it no longer matches the
+  // beat's live text hash. `beatContentHash` is cheap (FNV-1a over the normalized fala text),
+  // so it's computed inline per render. Empty/absent baseline → never stale.
+  const isStale = useCallback(
+    (beat: RoteiroBeatV3): boolean => {
+      const recorded = recRecordedHash[beatKey(beat.id)]
+      return recorded != null && recorded !== beatContentHash(beat)
+    },
+    [beatKey, recRecordedHash],
+  )
 
   const [spoken, setSpoken] = useState<Set<string>>(() => new Set())
   const [cursor, setCursor] = useState(0)
@@ -369,6 +383,7 @@ export function RoteiroStage(_props: RoteiroStageProps = {}) {
             onAddCue={onAddCue}
             showRecStatus={showRecStatus}
             recStatus={recStatus[beatKey(kb.beat.id)] ?? 'pendente'}
+            stale={isStale(kb.beat)}
             retakeNote={retakeNotes[beatKey(kb.beat.id)] ?? ''}
             onCycleStatus={() => dispatch({ type: 'CYCLE_BEAT_STATUS', key: beatKey(kb.beat.id) })}
             onCommitRetake={(text) => dispatch({ type: 'SET_RETAKE_NOTE', key: beatKey(kb.beat.id), text })}
