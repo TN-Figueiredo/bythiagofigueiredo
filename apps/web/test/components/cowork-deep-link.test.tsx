@@ -77,36 +77,31 @@ describe('CoworkDeepLink', () => {
     expect(badge.className).toContain('font-mono')
   })
 
-  it('copies to clipboard when protocol handler does not open (no blur within 500ms)', async () => {
+  it('always copies the instruction to the clipboard on click (claude:// does not prefill)', async () => {
     const { toast } = await import('sonner')
     const instruction = 'Copy this instruction'
     render(<CoworkDeepLink instruction={instruction} />)
 
     fireEvent.click(screen.getByRole('button'))
 
-    await act(async () => {
-      vi.advanceTimersByTime(500)
-      await Promise.resolve()
-    })
+    await act(async () => { await Promise.resolve() })
 
     expect(clipboardSpy).toHaveBeenCalledWith(instruction)
-    expect(toast.success).toHaveBeenCalledWith('Instrução copiada — cole no Cowork')
+    expect(toast.success).toHaveBeenCalledWith('Claude aberto — instrução copiada', {
+      description: 'cole no Cowork com ⌘V pra começar.',
+    })
   })
 
-  it('does not copy to clipboard when protocol handler opens successfully (blur fires)', async () => {
+  it('still copies even when the app takes focus (blur fires) — clipboard is the source of truth', async () => {
     render(<CoworkDeepLink instruction="test instruction" />)
 
     fireEvent.click(screen.getByRole('button'))
-
-    // Simulate successful protocol handler: blur fires immediately
+    // The app opening (blur) must NOT cancel the copy anymore.
     fireEvent(window, new Event('blur'))
 
-    await act(async () => {
-      vi.advanceTimersByTime(500)
-      await Promise.resolve()
-    })
+    await act(async () => { await Promise.resolve() })
 
-    expect(clipboardSpy).not.toHaveBeenCalled()
+    expect(clipboardSpy).toHaveBeenCalledWith('test instruction')
   })
 
   it('custom label renders correctly', () => {

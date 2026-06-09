@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { toast } from 'sonner'
 
 interface CoworkDeepLinkProps {
@@ -20,54 +20,29 @@ export function CoworkDeepLink({
   className,
   disabled,
 }: CoworkDeepLinkProps) {
-  const [pending, setPending] = useState(false)
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const blurFiredRef = useRef(false)
+  const [, setPending] = useState(false)
   const clickGuardRef = useRef(false)
 
-  const cleanup = useCallback(() => {
-    if (timerRef.current) {
-      clearTimeout(timerRef.current)
-      timerRef.current = null
-    }
-  }, [])
-
-  useEffect(() => cleanup, [cleanup])
-
   const handleClick = useCallback(() => {
-    if (disabled) return
-    if (clickGuardRef.current) return
+    if (disabled || clickGuardRef.current) return
     clickGuardRef.current = true
     setPending(true)
-    blurFiredRef.current = false
-
-    const onBlur = () => {
-      blurFiredRef.current = true
-      window.removeEventListener('blur', onBlur)
-      cleanup()
-      setPending(false)
-      clickGuardRef.current = false
+    // Copy the instruction in the click gesture: the claude:// handler opens a fresh
+    // Cowork task but does NOT reliably prefill the prompt, so the user pastes it (⌘V).
+    let copied = false
+    try {
+      void navigator.clipboard?.writeText(instruction).catch(() => {})
+      copied = !!navigator.clipboard
+    } catch {
+      copied = false
     }
-
-    window.addEventListener('blur', onBlur)
-
-    window.open(
-      `claude://cowork/new?q=${encodeURIComponent(instruction)}`,
-      '_self',
-    )
-
-    timerRef.current = setTimeout(() => {
-      window.removeEventListener('blur', onBlur)
-      if (!blurFiredRef.current) {
-        navigator.clipboard
-          .writeText(instruction)
-          .then(() => toast.success('Instrução copiada — cole no Cowork'))
-          .catch(() => toast.error('Falha ao copiar instrução'))
-      }
-      setPending(false)
-      setTimeout(() => { clickGuardRef.current = false }, 1000)
-    }, 500)
-  }, [instruction, disabled, cleanup])
+    window.open(`claude://cowork/new?q=${encodeURIComponent(instruction)}`, '_self')
+    toast.success('Claude aberto — instrução copiada', {
+      description: copied ? 'cole no Cowork com ⌘V pra começar.' : 'cole a instrução no Cowork.',
+    })
+    setPending(false)
+    setTimeout(() => { clickGuardRef.current = false }, 1000)
+  }, [instruction, disabled])
 
   const tooltip = instruction.length > 120 ? instruction.slice(0, 120) + '...' : instruction
 
