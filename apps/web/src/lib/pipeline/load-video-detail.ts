@@ -7,6 +7,9 @@ import type { AbJoinFacts } from './video-ab-precondition'
 export interface VideoDetail {
   id: string
   code: string
+  /** Soft-deleted: the editor redirects archived items to the hub so a stale/duplicate
+   *  link never opens a dead item. */
+  isArchived: boolean
   stage: string
   version: number
   language: string
@@ -101,7 +104,7 @@ export async function loadVideoDetail(id: string, siteId: string): Promise<Video
   const { data: item, error } = await supabase
     .from('content_pipeline')
     .select(
-      'id, code, stage, format, language, version, title_pt, title_en, hook, synopsis, sections, format_metadata, blog_post_id, social_post_id, youtube_video_id, youtube_videos(thumbnail_hq_url, duration_seconds)',
+      'id, code, is_archived, stage, format, language, version, title_pt, title_en, hook, synopsis, sections, format_metadata, blog_post_id, social_post_id, youtube_video_id, youtube_videos(thumbnail_hq_url, duration_seconds)',
     )
     .eq('id', id)
     .eq('site_id', siteId)
@@ -127,6 +130,7 @@ export async function loadVideoDetail(id: string, siteId: string): Promise<Video
   return {
     id: item.id as string,
     code: item.code as string,
+    isArchived: (item.is_archived as boolean | null) ?? false,
     stage: item.stage as string,
     version: item.version as number,
     language: (item.language as string) ?? 'pt-br',

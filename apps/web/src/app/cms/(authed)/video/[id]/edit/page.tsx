@@ -1,4 +1,4 @@
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { loadVideoDetail } from '@/lib/pipeline/load-video-detail'
@@ -16,6 +16,9 @@ export default async function VideoEditorPage({ params }: { params: Promise<{ id
 
   const detail = await loadVideoDetail(id, siteId)
   if (!detail) notFound()
+  // Archived (e.g. a duplicate) — never open the dead editor; bounce to the hub so a stale
+  // URL/history link can't drop the user onto a ghost item.
+  if (detail.isArchived) redirect('/cms/video')
 
   const primaryLang = detail.language === 'en' ? 'en' : 'pt'
   const initialState = initialFromDetail({
