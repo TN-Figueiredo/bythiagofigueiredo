@@ -141,8 +141,11 @@ export function VideoEditorClient({
     setIdeia((prev) => ({ ...prev, [lang]: { ...prev[lang], title } }))
   }, [initialState.itemId, version, canEditRef])
 
-  const saveRoteiro = useCallback(async (lang: 'pt' | 'en', content: RoteiroContentV3) => {
-    if (!canEditRef.current) return // view mode / published lock — never persist content
+  const saveRoteiro = useCallback(async (lang: 'pt' | 'en', content: RoteiroContentV3, opts?: { force?: boolean }) => {
+    // CREATE-from-empty path passes { force: true }: the seed is dispatched in the SAME tick as
+    // SET_EDIT_MODE('edit'), but canEditRef only flips on the next render — without `force` the
+    // explicit create would be dropped. Normal edits stay gated (view mode / published lock).
+    if (!canEditRef.current && !opts?.force) return
     setRoteiro((prev) => ({ ...prev, [lang]: content }))
     const hook = lang === 'pt' ? roteiroPt : roteiroEn
     hook.setContent(content as unknown as SectionData['content'])
@@ -153,8 +156,9 @@ export function VideoEditorClient({
     /* wired to Cowork generation in P3 */
   }, [])
 
-  const savePostprod = useCallback(async (lang: 'pt' | 'en', patch: Partial<PosBrief>) => {
-    if (!canEditRef.current) return // view mode / published lock — never persist content
+  const savePostprod = useCallback(async (lang: 'pt' | 'en', patch: Partial<PosBrief>, opts?: { force?: boolean }) => {
+    // CREATE-from-empty path passes { force: true } (see saveRoteiro). Normal patches stay gated.
+    if (!canEditRef.current && !opts?.force) return
     const hook = lang === 'pt' ? postprodPt : postprodEn
     // Replace-not-merge guard: only shallow-merge onto an existing *valid current* brief.
     // If the stored content is legacy (has `schema_version`, lacks `kind`) or otherwise

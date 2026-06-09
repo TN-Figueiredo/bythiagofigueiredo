@@ -27,25 +27,25 @@ function wrap(node: React.ReactNode) {
 
 describe('PosStage', () => {
   it('derives Momentos-chave (#1) and B-roll por beat (#1) from the roteiro (not stored)', () => {
-    wrap(<PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />)
+    wrap(<PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />)
     expect(screen.getByText(/Gancho forte/)).toBeInTheDocument()
     expect(screen.getAllByText('B-roll: drone').length).toBeGreaterThan(0)
     expect(screen.getAllByText('#1', { exact: false }).length).toBeGreaterThan(0)
   })
 
   it('shows the no-beats empty state when roteiro has no beats', () => {
-    wrap(<PosStage beats={[]} brief={brief} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />)
+    wrap(<PosStage beats={[]} brief={brief} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />)
     expect(screen.getByText(/Destrinche o roteiro/i)).toBeInTheDocument()
   })
 
   it('renders LegacyPostprodFallback (read-only banner) when legacy payload present', () => {
-    wrap(<PosStage beats={beats} brief={null} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={{ schema_version: '2.0' }} />)
+    wrap(<PosStage beats={beats} brief={null} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={{ schema_version: '2.0' }} />)
     expect(screen.getByText(/Pós legado \(somente leitura\)/i)).toBeInTheDocument()
   })
 
   it('"Exportar pro editor" opens the HandoffSheet', () => {
     const onOpenHandoff = vi.fn()
-    wrap(<PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={onOpenHandoff} legacy={null} />)
+    wrap(<PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={onOpenHandoff} legacy={null} />)
     screen.getByRole('button', { name: /Exportar pro editor/i }).click()
     expect(onOpenHandoff).toHaveBeenCalled()
   })
@@ -53,7 +53,7 @@ describe('PosStage', () => {
   it('shows the generate/start chooser (not empty cards) when the brief is empty', () => {
     render(
       <VideoEditorProvider initialState={editSeed}>
-        <PosStage beats={beats} brief={null} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
+        <PosStage beats={beats} brief={null} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
       </VideoEditorProvider>,
     )
     expect(screen.getByText('Sugestões pro editor')).toBeInTheDocument()
@@ -61,14 +61,29 @@ describe('PosStage', () => {
     expect(screen.getByRole('button', { name: /Começar do zero/i })).toBeInTheDocument()
   })
 
-  it('"Começar do zero" seeds a template brief (kind: brief) via onPatch', () => {
-    const onPatch = vi.fn()
+  it('"Começar do zero" force-seeds a template brief (kind: brief) via onSeed', () => {
+    const onSeed = vi.fn()
     render(
       <VideoEditorProvider initialState={editSeed}>
-        <PosStage beats={beats} brief={null} activeLang="pt" onPatch={onPatch} onOpenHandoff={vi.fn()} legacy={null} />
+        <PosStage beats={beats} brief={null} activeLang="pt" onPatch={vi.fn()} onSeed={onSeed} onOpenHandoff={vi.fn()} legacy={null} />
       </VideoEditorProvider>,
     )
     screen.getByRole('button', { name: /Começar do zero/i }).click()
-    expect(onPatch).toHaveBeenCalledWith(expect.objectContaining({ kind: 'brief' }))
+    expect(onSeed).toHaveBeenCalledWith(expect.objectContaining({ kind: 'brief' }))
+  })
+
+  it('VIEW mode: chooser actions are visible and "Começar do zero" enters edit mode + force-seeds', () => {
+    const onSeed = vi.fn()
+    // seed defaults to no editMode → 'view'
+    render(
+      <VideoEditorProvider initialState={seed}>
+        <PosStage beats={beats} brief={null} activeLang="pt" onPatch={vi.fn()} onSeed={onSeed} onOpenHandoff={vi.fn()} legacy={null} />
+      </VideoEditorProvider>,
+    )
+    expect(screen.getByRole('button', { name: /Gerar pós com Cowork/i })).toBeInTheDocument()
+    const startBtn = screen.getByRole('button', { name: /Começar do zero/i })
+    expect(startBtn).toBeInTheDocument()
+    startBtn.click()
+    expect(onSeed).toHaveBeenCalledWith(expect.objectContaining({ kind: 'brief' }))
   })
 })

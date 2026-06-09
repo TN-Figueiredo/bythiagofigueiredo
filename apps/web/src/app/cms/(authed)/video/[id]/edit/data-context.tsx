@@ -30,7 +30,12 @@ export interface VideoData {
   saveIdeia: (lang: 'pt' | 'en', patch: Partial<IdeiaPayload>) => Promise<void>
   saveTitle: (lang: 'pt' | 'en', title: string) => Promise<void>
   appendSiblings: (lang: 'pt' | 'en') => void
-  saveRoteiro: (lang: 'pt' | 'en', content: RoteiroContentV3) => Promise<void>
+  /**
+   * Persist the roteiro for a lang. Pass `{ force: true }` for CREATE-from-empty seeds dispatched
+   * in the same tick as SET_EDIT_MODE('edit') — the gate reads canEditRef which only updates next
+   * render, so the explicit create would otherwise be dropped. Normal edits omit opts → gated.
+   */
+  saveRoteiro: (lang: 'pt' | 'en', content: RoteiroContentV3, opts?: { force?: boolean }) => Promise<void>
   hasUnsavedChanges: boolean
   saveAll: () => Promise<void>
   autosaveState: 'saving' | 'saved' | 'unsaved' | 'error' | 'offline'
@@ -42,8 +47,9 @@ export interface VideoData {
   abJoinFacts: AbJoinFacts
   /** ab-lab winner_variant_id — trophy shows on the winner ONLY when published (§3.8). */
   winnerVariantId: string | null
-  /** Persist a partial Pós brief patch (postprod_<lang>). */
-  savePostprod: (lang: 'pt' | 'en', patch: Partial<PosBrief>) => Promise<void>
+  /** Persist a partial Pós brief patch (postprod_<lang>). Pass `{ force: true }` for the
+   *  CREATE-from-empty seed dispatched alongside SET_EDIT_MODE('edit') — see saveRoteiro. */
+  savePostprod: (lang: 'pt' | 'en', patch: Partial<PosBrief>, opts?: { force?: boolean }) => Promise<void>
   /** Persist a partial Publicação A/B draft patch (publish_<lang>). */
   savePublish: (lang: 'pt' | 'en', patch: Partial<ABDraft>) => Promise<void>
   /** "Marcar como gravado" — advances the DB stage to gravacao, unlocking Pós+Publicação. */

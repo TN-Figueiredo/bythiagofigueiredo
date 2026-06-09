@@ -130,6 +130,7 @@ function StageBody() {
               brief={posBrief.success ? posBrief.data : null}
               activeLang={lang}
               onPatch={(p) => { void data.savePostprod(lang, p) }}
+              onSeed={(p) => { void data.savePostprod(lang, p, { force: true }) }}
               onOpenHandoff={() => dispatch({ type: 'OPEN_OVERLAY', overlay: 'handoff' })}
               legacy={posLegacy}
               langLabels={posLangLabels}

@@ -58,7 +58,13 @@ export interface PosStageProps {
   beats: RoteiroBeatV3[]
   brief: PosBrief | null
   activeLang: 'pt' | 'en'
+  /** GATED patch for EDITING existing brief content (field blur, CTA edits, Recomeçar reset). */
   onPatch: (patch: Partial<PosBrief>) => void
+  /**
+   * CREATE-from-empty seed (forced persist). Used by "Começar do zero" / legacy "Recriar brief" —
+   * dispatched together with SET_EDIT_MODE('edit'), so it must bypass the next-render canEdit gate.
+   */
+  onSeed: (patch: Partial<PosBrief>) => void
   onOpenHandoff: () => void
   /** Legacy rich postprod payload (schema_version present / no kind) → read-only fallback (§3.10). */
   legacy: Record<string, unknown> | null
@@ -129,20 +135,20 @@ function PPCard({
   )
 }
 
-function LegacyPostprodFallback({ canEdit, onPatch }: { canEdit: boolean; onPatch: (patch: Partial<PosBrief>) => void }) {
+function LegacyPostprodFallback({ onRecreate }: { onRecreate: () => void }) {
+  // "Recriar brief" is a CREATE-from-empty affordance (replaces legacy content with a fresh brief
+  // skeleton): available regardless of edit mode — it enters edit mode + force-seeds on click.
   return (
     <div className="pp-legacy" role="note">
       <p className="pp-legacy-banner">Pós legado (somente leitura) — recrie o brief para editar.</p>
-      {canEdit && (
-        <button type="button" className="btn" onClick={() => onPatch(POS_TEMPLATE)}>
-          <Plus size={15} /> Recriar brief
-        </button>
-      )}
+      <button type="button" className="btn" onClick={onRecreate}>
+        <Plus size={15} /> Recriar brief
+      </button>
     </div>
   )
 }
 
-export function PosStage({ beats, brief, activeLang, onPatch, onOpenHandoff, legacy, langLabels }: PosStageProps) {
+export function PosStage({ beats, brief, activeLang, onPatch, onSeed, onOpenHandoff, legacy, langLabels }: PosStageProps) {
   const dispatch = useVideoEditorDispatch()
   // THE content-editing gate: edit mode AND stage not scheduled/published. View mode makes the
   // editable brief fields (deliverables / energy / style / CTAs) read-only. Derived Momentos-chave /
@@ -194,10 +200,17 @@ export function PosStage({ beats, brief, activeLang, onPatch, onOpenHandoff, leg
     toast.info('Brief de pós limpo', { description: 'Volte a gerar com o Cowork ou comece do zero.' })
   }
 
+  // CREATE-from-empty: entering edit mode + force-seeding the template in one click. This is a
+  // deliberate create with nothing to lose, so it's available even in view mode (unlike edits).
+  const seedFromEmpty = () => {
+    dispatch({ type: 'SET_EDIT_MODE', mode: 'edit' })
+    onSeed(POS_TEMPLATE)
+  }
+
   const hasBriefKind = brief && 'kind' in brief
 
   if (legacy && (legacy.schema_version || !hasBriefKind)) {
-    return <LegacyPostprodFallback canEdit={canEdit} onPatch={onPatch} />
+    return <LegacyPostprodFallback onRecreate={seedFromEmpty} />
   }
 
   // Not auto-derived: the Pós is a SUGGESTIONS brief for the editor. Until it's generated
@@ -208,18 +221,18 @@ export function PosStage({ beats, brief, activeLang, onPatch, onOpenHandoff, leg
         <div className="rot-gen">
           <div className="vi-kicker"><SparklesGlyph size={13} /> Pós · brief pro editor</div>
           <h1 className="vi-title">Sugestões pro editor</h1>
-          {canEdit ? (
-            <div className="rot-gen-actions">
-              <CoworkButton stage="pos" label="Gerar pós com Cowork" />
-              <button type="button" className="btn" onClick={() => onPatch(POS_TEMPLATE)}>
-                <Plus size={15} /> Começar do zero
-              </button>
-            </div>
-          ) : null}
+          {/* CREATE-from-empty affordances — available regardless of edit mode. Generating has
+              nothing to lose: Cowork writes via the pipeline API; "Começar do zero" enters edit
+              mode + force-seeds. Only EDITING an existing brief stays gated by canEdit. */}
+          <div className="rot-gen-actions">
+            <CoworkButton stage="pos" label="Gerar pós com Cowork" />
+            <button type="button" className="btn" onClick={seedFromEmpty}>
+              <Plus size={15} /> Começar do zero
+            </button>
+          </div>
           <div className="rot-gen-sub">
-            {canEdit
-              ? 'O Cowork sugere estilo & ritmo, CTAs e QR a partir do roteiro — você ajusta por vídeo. Os momentos-chave saem do roteiro e são referenciados nas sugestões.'
-              : 'O brief de pós ainda não foi criado. Entre no modo de edição para gerar com o Cowork.'}
+            O Cowork sugere a partir do roteiro, ou comece do zero. Os momentos-chave saem do
+            roteiro e são referenciados nas sugestões.
           </div>
         </div>
       </div>

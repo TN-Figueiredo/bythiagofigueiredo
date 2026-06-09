@@ -21,7 +21,7 @@ function makeVersion(over: Partial<Version> = {}): Version {
   }
 }
 
-function wrap(over: { direction?: string } = {}) {
+function wrap(over: { direction?: string; editMode?: 'view' | 'edit' } = {}) {
   const direction = over.direction ?? ''
   const versions = {
     pt: makeVersion({ direction }),
@@ -41,7 +41,7 @@ function wrap(over: { direction?: string } = {}) {
   return {
     data,
     ...render(
-      <VideoEditorProvider initialState={seed}>
+      <VideoEditorProvider initialState={{ ...seed, editMode: over.editMode ?? seed.editMode }}>
         <VideoDataProvider value={data as never}><RoteiroStage /></VideoDataProvider>
       </VideoEditorProvider>,
     ),
@@ -59,14 +59,37 @@ describe('RoteiroStage — "gerar roteiro" empty state (direction selected)', ()
     expect(container.querySelector('.vi-seed-text')!.textContent).toContain('Alguma direção ativa')
   })
 
-  it('"Começar do zero" calls saveRoteiro with a v3 single-beat blank roteiro', () => {
+  it('"Começar do zero" calls saveRoteiro with a v3 single-beat blank roteiro (forced)', () => {
     const { container, data } = wrap({ direction: 'Alguma direção ativa' })
     const btn = Array.from(container.querySelectorAll('.rot-gen-actions .btn'))
       .find((b) => b.textContent?.includes('Começar do zero')) as HTMLElement
     fireEvent.click(btn)
-    expect(data.saveRoteiro).toHaveBeenCalledWith('pt', {
-      version: 3, meta: {}, beats: [{ idx: 0, name: 'Beat 1', status: 'PENDING', script: [] }],
-    })
+    expect(data.saveRoteiro).toHaveBeenCalledWith(
+      'pt',
+      { version: 3, meta: {}, beats: [{ idx: 0, name: 'Beat 1', status: 'PENDING', script: [] }] },
+      { force: true },
+    )
+  })
+})
+
+describe('RoteiroStage — chooser is available in VIEW mode (create-from-empty is ungated)', () => {
+  it('shows both chooser actions in view mode', () => {
+    const { container } = wrap({ direction: 'Alguma direção ativa', editMode: 'view' })
+    expect(container.querySelector('.rot-gen-actions')).toBeTruthy()
+    expect(container.textContent).toContain('Gerar roteiro com Cowork')
+    expect(container.textContent).toContain('Começar do zero')
+  })
+
+  it('"Começar do zero" in view mode force-seeds the blank roteiro (enters edit mode + bypasses gate)', () => {
+    const { container, data } = wrap({ direction: 'Alguma direção ativa', editMode: 'view' })
+    const btn = Array.from(container.querySelectorAll('.rot-gen-actions .btn'))
+      .find((b) => b.textContent?.includes('Começar do zero')) as HTMLElement
+    fireEvent.click(btn)
+    expect(data.saveRoteiro).toHaveBeenCalledWith(
+      'pt',
+      { version: 3, meta: {}, beats: [{ idx: 0, name: 'Beat 1', status: 'PENDING', script: [] }] },
+      { force: true },
+    )
   })
 })
 

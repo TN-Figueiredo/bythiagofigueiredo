@@ -47,14 +47,14 @@ describe('PosStage — handoff markup', () => {
 
   it('root has .pp-doc.fade-in', () => {
     const { container } = wrap(
-      <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
+      <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
     )
     expect(container.querySelector('.pp-doc.fade-in')).toBeTruthy()
   })
 
   it('renders .pp-bar with kicker text and "Exportar pro editor" button', () => {
     const { container } = wrap(
-      <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
+      <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
     )
     expect(container.querySelector('.pp-bar')).toBeTruthy()
     expect(container.querySelector('.pp-kick')!.textContent).toContain('Pós-produção')
@@ -64,7 +64,7 @@ describe('PosStage — handoff markup', () => {
   it('"Exportar pro editor" button calls onOpenHandoff', () => {
     const onOpenHandoff = vi.fn()
     wrap(
-      <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={onOpenHandoff} legacy={null} />
+      <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={onOpenHandoff} legacy={null} />
     )
     screen.getByRole('button', { name: /Exportar pro editor/i }).click()
     expect(onOpenHandoff).toHaveBeenCalledOnce()
@@ -72,14 +72,14 @@ describe('PosStage — handoff markup', () => {
 
   it('renders .pp-grid', () => {
     const { container } = wrap(
-      <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
+      <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
     )
     expect(container.querySelector('.pp-grid')).toBeTruthy()
   })
 
   it('each card has .pp-card > .pp-head + .pp-body', () => {
     const { container } = wrap(
-      <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
+      <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
     )
     const cards = container.querySelectorAll('.pp-card')
     expect(cards.length).toBeGreaterThanOrEqual(4) // Entrega, Momentos, B-roll, Estilo, CTAs
@@ -91,7 +91,7 @@ describe('PosStage — handoff markup', () => {
 
   it('each .pp-head has .pp-ico + .pp-title (+ optional .pp-sub)', () => {
     const { container } = wrap(
-      <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
+      <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
     )
     container.querySelectorAll('.pp-card').forEach(card => {
       expect(card.querySelector('.pp-head .pp-ico')).toBeTruthy()
@@ -102,7 +102,7 @@ describe('PosStage — handoff markup', () => {
   describe('Entrega card', () => {
     it('renders .pp-fields with .pp-f rows for Editor, Prazo, Revisão, Drive', () => {
       const { container } = wrap(
-        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
+        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
       )
       const fields = container.querySelector('.pp-fields')
       expect(fields).toBeTruthy()
@@ -112,14 +112,14 @@ describe('PosStage — handoff markup', () => {
 
     it('renders .pp-energy row', () => {
       const { container } = wrap(
-        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
+        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
       )
       expect(container.querySelector('.pp-energy')).toBeTruthy()
     })
 
     it('EF fields have .efx class and data-ph', () => {
       const { container } = wrap(
-        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
+        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
       )
       const efFields = container.querySelectorAll('.efx')
       expect(efFields.length).toBeGreaterThan(0)
@@ -133,7 +133,7 @@ describe('PosStage — handoff markup', () => {
     it('EF onBlur calls onPatch', () => {
       const onPatch = vi.fn()
       const { container } = wrap(
-        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={onPatch} onOpenHandoff={vi.fn()} legacy={null} />
+        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={onPatch} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
       )
       const editorField = container.querySelector('.pp-fields .pp-f .efx') as HTMLElement
       editorField.textContent = 'Novo editor'
@@ -145,7 +145,7 @@ describe('PosStage — handoff markup', () => {
   describe('Momentos-chave card', () => {
     it('renders .pp-moments with .pp-moment for each beat', () => {
       const { container } = wrap(
-        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
+        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
       )
       const moments = container.querySelector('.pp-moments')
       expect(moments).toBeTruthy()
@@ -155,7 +155,7 @@ describe('PosStage — handoff markup', () => {
 
     it('each .pp-moment has .pp-mnum showing #1-indexed number', () => {
       const { container } = wrap(
-        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
+        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
       )
       const mnums = container.querySelectorAll('.pp-mnum')
       expect(mnums[0].textContent).toContain('#1')
@@ -164,7 +164,7 @@ describe('PosStage — handoff markup', () => {
 
     it('each .pp-moment has .pp-mbody > .pp-mline with key line text', () => {
       const { container } = wrap(
-        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
+        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
       )
       const mlines = container.querySelectorAll('.pp-mline')
       expect(mlines[0].textContent).toContain('Gancho forte')
@@ -172,7 +172,7 @@ describe('PosStage — handoff markup', () => {
 
     it('renders .pp-mcue when beat has a vis note', () => {
       const { container } = wrap(
-        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
+        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
       )
       const mcues = container.querySelectorAll('.pp-mcue')
       expect(mcues.length).toBeGreaterThan(0)
@@ -183,7 +183,7 @@ describe('PosStage — handoff markup', () => {
   describe('B-roll por beat card', () => {
     it('renders .pp-broll with .pp-broll-row for beats that have vis notes', () => {
       const { container } = wrap(
-        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
+        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
       )
       const broll = container.querySelector('.pp-broll')
       expect(broll).toBeTruthy()
@@ -193,7 +193,7 @@ describe('PosStage — handoff markup', () => {
 
     it('each .pp-broll-row has .pp-bname showing "#N · name"', () => {
       const { container } = wrap(
-        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
+        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
       )
       const bnames = container.querySelectorAll('.pp-bname')
       expect(bnames[0].textContent).toContain('#1 · Abertura')
@@ -201,7 +201,7 @@ describe('PosStage — handoff markup', () => {
 
     it('each .pp-broll-row has <ul><li> with vis notes', () => {
       const { container } = wrap(
-        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
+        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
       )
       const rows = container.querySelectorAll('.pp-broll-row')
       rows.forEach(row => {
@@ -214,7 +214,7 @@ describe('PosStage — handoff markup', () => {
   describe('Estilo & ritmo card', () => {
     it('renders .pp-style with .pp-srow rows', () => {
       const { container } = wrap(
-        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
+        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
       )
       const style = container.querySelector('.pp-style')
       expect(style).toBeTruthy()
@@ -224,7 +224,7 @@ describe('PosStage — handoff markup', () => {
 
     it('each .pp-srow has .pp-sk and .pp-sv (EF)', () => {
       const { container } = wrap(
-        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
+        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
       )
       const rows = container.querySelectorAll('.pp-srow')
       expect(rows[0].querySelector('.pp-sk')!.textContent).toBe('Corte')
@@ -235,7 +235,7 @@ describe('PosStage — handoff markup', () => {
   describe('CTAs & QR card', () => {
     it('renders .pp-cta-note', () => {
       const { container } = wrap(
-        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
+        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
       )
       const note = container.querySelector('.pp-cta-note')
       expect(note).toBeTruthy()
@@ -244,7 +244,7 @@ describe('PosStage — handoff markup', () => {
 
     it('renders .pp-cta-table with .pp-cta-h header', () => {
       const { container } = wrap(
-        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
+        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
       )
       const table = container.querySelector('.pp-cta-table')
       expect(table).toBeTruthy()
@@ -253,7 +253,7 @@ describe('PosStage — handoff markup', () => {
 
     it('active lang column has .on class + aria-current in header', () => {
       const { container } = wrap(
-        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
+        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
       )
       const header = container.querySelector('.pp-cta-h')!
       const cols = header.querySelectorAll('[role="columnheader"]')
@@ -266,7 +266,7 @@ describe('PosStage — handoff markup', () => {
 
     it('active lang column has .on + aria-current in rows', () => {
       const { container } = wrap(
-        <PosStage beats={beats} brief={brief} activeLang="en" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
+        <PosStage beats={beats} brief={brief} activeLang="en" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
       )
       const row = container.querySelector('.pp-cta-row')!
       const cells = row.querySelectorAll('[role="cell"]')
@@ -278,7 +278,7 @@ describe('PosStage — handoff markup', () => {
 
     it('CTA grid has table semantics (role=table/row/rowheader/cell)', () => {
       const { container } = wrap(
-        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
+        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
       )
       expect(container.querySelector('.pp-cta-table[role="table"]')).toBeTruthy()
       const row = container.querySelector('.pp-cta-row')!
@@ -290,7 +290,7 @@ describe('PosStage — handoff markup', () => {
     it('CTA cells (pt/en), note and display are editable EF fields', () => {
       const onPatch = vi.fn()
       const { container } = wrap(
-        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={onPatch} onOpenHandoff={vi.fn()} legacy={null} />
+        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={onPatch} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
       )
       const ptCell = container.querySelector('.pp-cta-row [role="cell"] .efx') as HTMLElement
       expect(ptCell).toBeTruthy()
@@ -307,7 +307,7 @@ describe('PosStage — handoff markup', () => {
 
     it('renders .pp-cta-row for each cta row', () => {
       const { container } = wrap(
-        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
+        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
       )
       const rows = container.querySelectorAll('.pp-cta-row')
       expect(rows.length).toBe(brief.ctas.rows.length)
@@ -315,7 +315,7 @@ describe('PosStage — handoff markup', () => {
 
     it('renders .pp-cta-disp', () => {
       const { container } = wrap(
-        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
+        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
       )
       expect(container.querySelector('.pp-cta-disp')!.textContent).toContain('Ver QR')
     })
@@ -324,7 +324,7 @@ describe('PosStage — handoff markup', () => {
   describe('empty-beats state', () => {
     it('shows .pp-empty with "Destrinche o roteiro" link when beats is empty', () => {
       const { container } = wrap(
-        <PosStage beats={[]} brief={brief} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
+        <PosStage beats={[]} brief={brief} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
       )
       const empty = container.querySelector('.pp-empty')
       expect(empty).toBeTruthy()
@@ -333,7 +333,7 @@ describe('PosStage — handoff markup', () => {
 
     it('clicking "Destrinche o roteiro" dispatches SET_STAGE roteiro', () => {
       const { container } = wrap(
-        <PosStage beats={[]} brief={brief} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
+        <PosStage beats={[]} brief={brief} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
       )
       const link = container.querySelector('.pp-link') as HTMLElement
       fireEvent.click(link)
@@ -346,7 +346,7 @@ describe('PosStage — handoff markup', () => {
   describe('headings', () => {
     it('each PPCard title renders as an <h2> heading', () => {
       wrap(
-        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
+        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
       )
       const headings = screen.getAllByRole('heading', { level: 2 })
       expect(headings.length).toBeGreaterThanOrEqual(4)
@@ -358,7 +358,7 @@ describe('PosStage — handoff markup', () => {
     it('two-step confirm: Recomeçar → limpar wipes the brief via onPatch', () => {
       const onPatch = vi.fn()
       wrap(
-        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={onPatch} onOpenHandoff={vi.fn()} legacy={null} />
+        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={onPatch} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
       )
       fireEvent.click(screen.getByRole('button', { name: /Recomeçar/i }))
       fireEvent.click(screen.getByRole('button', { name: /^limpar$/i }))
@@ -368,7 +368,7 @@ describe('PosStage — handoff markup', () => {
     it('the wiped brief flips briefHasContent → chooser returns', () => {
       const emptyBrief: PosBrief = { kind: 'brief', deliverables: {}, style: [], ctas: { note: '', rows: [], display: '' } }
       wrap(
-        <PosStage beats={beats} brief={emptyBrief} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
+        <PosStage beats={beats} brief={emptyBrief} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
       )
       expect(screen.getByText('Sugestões pro editor')).toBeTruthy()
       expect(screen.getByRole('button', { name: /Começar do zero/i })).toBeTruthy()
@@ -376,7 +376,7 @@ describe('PosStage — handoff markup', () => {
 
     it('cancel keeps the brief rendered', () => {
       wrap(
-        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
+        <PosStage beats={beats} brief={brief} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
       )
       fireEvent.click(screen.getByRole('button', { name: /Recomeçar/i }))
       fireEvent.click(screen.getByRole('button', { name: /cancelar/i }))
@@ -388,7 +388,7 @@ describe('PosStage — handoff markup', () => {
     it('a brief with only ctas.note shows the full doc (not the chooser)', () => {
       const noteOnly: PosBrief = { kind: 'brief', deliverables: {}, style: [], ctas: { note: 'Confira o QR', rows: [], display: '' } }
       const { container } = wrap(
-        <PosStage beats={beats} brief={noteOnly} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
+        <PosStage beats={beats} brief={noteOnly} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
       )
       expect(container.querySelector('.pp-grid')).toBeTruthy()
       expect(screen.queryByText('Sugestões pro editor')).toBeNull()
@@ -397,7 +397,7 @@ describe('PosStage — handoff markup', () => {
     it('a brief with only ctas.display shows the full doc', () => {
       const dispOnly: PosBrief = { kind: 'brief', deliverables: {}, style: [], ctas: { note: '', rows: [], display: 'QR no canto' } }
       const { container } = wrap(
-        <PosStage beats={beats} brief={dispOnly} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
+        <PosStage beats={beats} brief={dispOnly} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
       )
       expect(container.querySelector('.pp-grid')).toBeTruthy()
     })
@@ -405,7 +405,7 @@ describe('PosStage — handoff markup', () => {
     it('a brief with only a non-empty reference shows the full doc', () => {
       const refOnly: PosBrief = { kind: 'brief', deliverables: { references: ['ref'] }, style: [], ctas: { note: '', rows: [], display: '' } }
       const { container } = wrap(
-        <PosStage beats={beats} brief={refOnly} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
+        <PosStage beats={beats} brief={refOnly} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
       )
       expect(container.querySelector('.pp-grid')).toBeTruthy()
     })
@@ -417,7 +417,7 @@ describe('PosStage — handoff markup', () => {
         { idx: 0, name: 'Só visual', status: 'PENDING', script: [{ type: 'vis', text: 'B-roll: paisagem' }] },
       ]
       const { container } = wrap(
-        <PosStage beats={silentBeats} brief={brief} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
+        <PosStage beats={silentBeats} brief={brief} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
       )
       expect(container.querySelector('.pp-moments')).toBeNull()
       expect(screen.getByText(/Nenhum beat falado ainda/i)).toBeTruthy()
@@ -428,7 +428,7 @@ describe('PosStage — handoff markup', () => {
         { idx: 0, name: 'Só fala', status: 'PENDING', script: [{ type: 'line', text: 'Apenas falando', key: true }] },
       ]
       const { container } = wrap(
-        <PosStage beats={noVisBeats} brief={brief} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
+        <PosStage beats={noVisBeats} brief={brief} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
       )
       expect(container.querySelector('.pp-broll')).toBeNull()
       expect(screen.getByText(/Nenhum beat tem cue visual ainda/i)).toBeTruthy()
@@ -438,23 +438,25 @@ describe('PosStage — handoff markup', () => {
   describe('legacy fallback', () => {
     it('renders LegacyPostprodFallback (read-only banner) when legacy payload with schema_version is present', () => {
       wrap(
-        <PosStage beats={beats} brief={null} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={{ schema_version: '2.0' }} />
+        <PosStage beats={beats} brief={null} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={{ schema_version: '2.0' }} />
       )
       expect(screen.getByText(/Pós legado \(somente leitura\)/i)).toBeTruthy()
     })
 
-    it('shows a "Recriar brief" button that seeds POS_TEMPLATE via onPatch (edit mode)', () => {
+    it('"Recriar brief" force-seeds POS_TEMPLATE via onSeed (not the gated onPatch)', () => {
       const onPatch = vi.fn()
+      const onSeed = vi.fn()
       wrap(
-        <PosStage beats={beats} brief={null} activeLang="pt" onPatch={onPatch} onOpenHandoff={vi.fn()} legacy={{ schema_version: '2.0' }} />
+        <PosStage beats={beats} brief={null} activeLang="pt" onPatch={onPatch} onSeed={onSeed} onOpenHandoff={vi.fn()} legacy={{ schema_version: '2.0' }} />
       )
       fireEvent.click(screen.getByRole('button', { name: /Recriar brief/i }))
-      expect(onPatch).toHaveBeenCalledWith(expect.objectContaining({ kind: 'brief' }))
+      expect(onSeed).toHaveBeenCalledWith(expect.objectContaining({ kind: 'brief' }))
+      expect(onPatch).not.toHaveBeenCalled()
     })
 
     it('renders LegacyPostprodFallback when legacy has no "kind" field', () => {
       wrap(
-        <PosStage beats={beats} brief={null} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={{ someOldField: true }} />
+        <PosStage beats={beats} brief={null} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={{ someOldField: true }} />
       )
       expect(screen.getByText(/Pós legado \(somente leitura\)/i)).toBeTruthy()
     })
@@ -463,7 +465,7 @@ describe('PosStage — handoff markup', () => {
   describe('null brief defaults', () => {
     it('renders without crashing when brief is null', () => {
       const { container } = wrap(
-        <PosStage beats={beats} brief={null} activeLang="pt" onPatch={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
+        <PosStage beats={beats} brief={null} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
       )
       expect(container.querySelector('.pp-doc.fade-in')).toBeTruthy()
     })

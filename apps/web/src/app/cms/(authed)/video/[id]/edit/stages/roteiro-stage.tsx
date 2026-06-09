@@ -190,9 +190,12 @@ export function RoteiroStage(_props: RoteiroStageProps = {}) {
 
   const ideia = data.ideia[lang]
   const channel = CHANNELS.find((c) => c.lang === lang)
+  // CREATE-from-empty: enter edit mode + force-seed a single-beat blank roteiro in one click.
+  // A deliberate create with nothing to lose → available regardless of edit mode. `force: true`
+  // bypasses the autosave gate, which only flips on the next render after SET_EDIT_MODE.
   const onStartBlank = () => {
-    if (!canEdit) return // defense-in-depth: never write content in view mode
-    void data.saveRoteiro(lang, { version: 3, meta: {}, beats: [{ idx: 0, name: 'Beat 1', status: 'PENDING', script: [] }] })
+    dispatch({ type: 'SET_EDIT_MODE', mode: 'edit' })
+    void data.saveRoteiro(lang, { version: 3, meta: {}, beats: [{ idx: 0, name: 'Beat 1', status: 'PENDING', script: [] }] }, { force: true })
   }
   // "Recomeçar": clear all beats → back to the generation chooser (the empty-with-
   // direction state). Two-step inline confirm guards against deleting written work.
@@ -234,16 +237,15 @@ export function RoteiroStage(_props: RoteiroStageProps = {}) {
             </div>
             <div className="vi-seed-text">{ideia.direction}</div>
           </div>
-          {canEdit && (
-            <div className="rot-gen-actions">
-              <CoworkButton stage="roteiro" label="Gerar roteiro com Cowork" />
-              <button type="button" className="btn" onClick={onStartBlank}><Plus size={15} /> Começar do zero</button>
-            </div>
-          )}
+          {/* CREATE-from-empty affordances — available regardless of edit mode. Cowork writes via
+              the pipeline API; "Começar do zero" enters edit mode + force-seeds. Only EDITING an
+              existing roteiro (beat edits, cues, Recomeçar) stays gated by canEdit. */}
+          <div className="rot-gen-actions">
+            <CoworkButton stage="roteiro" label="Gerar roteiro com Cowork" />
+            <button type="button" className="btn" onClick={onStartBlank}><Plus size={15} /> Começar do zero</button>
+          </div>
           <div className="rot-gen-sub">
-            {canEdit
-              ? 'O Cowork rascunha 4 beats a partir da direção — você destrincha até virar a sua fala.'
-              : 'Esse vídeo ainda é só uma direção. Entre no modo de edição para gerar o roteiro.'}
+            O Cowork rascunha a partir da direção, ou comece do zero.
           </div>
         </div>
       )
