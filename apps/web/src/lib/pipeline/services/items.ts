@@ -38,6 +38,16 @@ import { UUID_REGEX } from '@/lib/pipeline/auth'
 import { computeValidationScore, VVS_PUBLISH_THRESHOLD } from '@/lib/pipeline/validation'
 import { getSectionKey, SectionPatchSchema, BatchSectionUpdateSchema } from '@/lib/pipeline/sections'
 import type { SectionData } from '@/lib/pipeline/sections'
+import { PosBriefSchema, ABDraftSchema } from '@/lib/pipeline/video-schemas'
+
+// Typed VIDEO sections are validated on write with the SAME schema the editor uses on
+// read — so "what writes, renders" (no more silently-stored content that fails the
+// strict parse and shows as 'legado'). A bad shape is rejected here with the exact
+// offending field paths, which doubles as live documentation for MCP/Cowork writers.
+const TYPED_VIDEO_SECTION_SCHEMAS: Record<string, z.ZodTypeAny> = {
+  postprod: PosBriefSchema,
+  publish: ABDraftSchema,
+}
 import { linkPostToItem, unlinkPostFromItem } from '@/lib/pipeline/blog-link'
 import { prepareBlogTranslationPatch } from '@/lib/pipeline/draft-to-blog'
 import { CurriculumContentSchema } from '@/lib/pipeline/course-schemas'
@@ -1697,6 +1707,27 @@ export async function patchSection(
         current: item.version,
       },
     )
+  }
+
+  // Typed video sections: reject a wrong shape NOW (with field paths) instead of storing
+  // it raw and letting the editor's strict read fall back to "Pós legado / somente leitura".
+  if (item.format === 'video') {
+    const typedSchema = TYPED_VIDEO_SECTION_SCHEMAS[params.section]
+    if (typedSchema) {
+      const contentCheck = typedSchema.safeParse(parsed.data.content)
+      if (!contentCheck.success) {
+        const fields = contentCheck.error.issues
+          .slice(0, 10)
+          .map((iss) => `${iss.path.join('.') || '(root)'}: ${iss.message}`)
+          .join('; ')
+        throw new PipelineServiceError(
+          'VALIDATION_ERROR',
+          `Invalid '${params.section}' content for a video item — fix these fields: ${fields}`,
+          400,
+          { section: params.section, issues: contentCheck.error.issues },
+        )
+      }
+    }
   }
 
   const sections = (item.sections ?? {}) as Record<string, SectionData>
