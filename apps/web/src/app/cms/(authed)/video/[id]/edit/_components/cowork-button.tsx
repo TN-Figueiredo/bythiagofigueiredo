@@ -169,12 +169,16 @@ export function CoworkButton({ stage, label = 'Cowork', compact }: CoworkButtonP
     const head = `[Vídeo ${editor.code} · ${STAGE_LABEL[stage]} · ${lang.toUpperCase()} · item ${editor.itemId}]`
     const hint = STAGE_TARGET_HINT[stage]?.(editor.itemId, lang)
     const ctx = hint ? `${head}\n${hint}` : head
-    openCowork(`${ctx}\n\n${m}`)
+    // Copies the instruction to the clipboard + opens a fresh Cowork task (the
+    // claude:// handler doesn't reliably prefill the prompt, so the user pastes it).
+    const copied = openCowork(`${ctx}\n\n${m}`)
     // Reflect the receipt next frame (so the 'sending' label paints first).
     window.requestAnimationFrame(() => {
       setPhase('sent')
-      toast.success('Mandado pro Cowork', {
-        description: 'ele recebeu o contexto do vídeo — é só continuar no Claude.',
+      toast.success('Claude aberto — instrução copiada', {
+        description: copied
+          ? 'cole no Cowork com ⌘V pra ele começar (já vem com o contexto do vídeo).'
+          : 'cole a instrução no Cowork pra ele começar.',
       })
       window.setTimeout(() => setPhase('closing'), 900)
     })

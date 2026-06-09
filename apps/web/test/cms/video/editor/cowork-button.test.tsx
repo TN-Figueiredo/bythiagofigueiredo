@@ -4,7 +4,7 @@ import { VideoEditorProvider } from '@/app/cms/(authed)/video/[id]/edit/context'
 import { CoworkButton } from '@/app/cms/(authed)/video/[id]/edit/_components/cowork-button'
 import type { VideoEditorState } from '@/app/cms/(authed)/video/[id]/edit/types'
 
-const openCowork = vi.fn()
+const openCowork = vi.fn(() => true)
 const toastSuccess = vi.fn()
 
 vi.mock('@/lib/pipeline/cowork-deeplink', () => ({
@@ -119,8 +119,8 @@ describe('CoworkButton', () => {
     // next frame: 'sent' label + durable toast receipt
     act(() => { vi.advanceTimersByTime(0) })
     expect(document.querySelector('.cw-send')!.textContent).toContain('enviado')
-    expect(toastSuccess).toHaveBeenCalledWith('Mandado pro Cowork', {
-      description: 'ele recebeu o contexto do vídeo — é só continuar no Claude.',
+    expect(toastSuccess).toHaveBeenCalledWith('Claude aberto — instrução copiada', {
+      description: 'cole no Cowork com ⌘V pra ele começar (já vem com o contexto do vídeo).',
     })
 
     // after the receipt window + exit: popover unmounts + focus returns to trigger

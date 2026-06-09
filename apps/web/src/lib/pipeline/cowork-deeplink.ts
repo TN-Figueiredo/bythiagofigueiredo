@@ -1,27 +1,24 @@
-import { toast } from 'sonner'
-
 /**
- * Open Claude (Cowork) with a pre-written instruction via the `claude://` protocol
- * handler. Mirrors `components/cms/cowork-deep-link.tsx`: if the protocol handler
- * doesn't take focus within 500ms (not installed), fall back to copying the
- * instruction to the clipboard so the user can paste it into Cowork.
+ * Open Claude (Cowork) with a pre-written instruction.
+ *
+ * The `claude://cowork/new` protocol handler opens a FRESH Cowork task but does NOT
+ * reliably prefill the prompt from a query param — so we ALWAYS copy the instruction
+ * to the clipboard (we're inside the click gesture, so this is allowed) and the
+ * caller tells the user to paste it (⌘V). The clipboard is the source of truth; the
+ * deep link just brings the app to the front on a new task. Returns whether the copy
+ * was initiated so the caller can tailor its toast.
  */
-export function openCowork(instruction: string): void {
-  if (typeof window === 'undefined') return
-  let blurred = false
-  const onBlur = () => {
-    blurred = true
-    window.removeEventListener('blur', onBlur)
+export function openCowork(instruction: string): boolean {
+  if (typeof window === 'undefined') return false
+  let copied = false
+  try {
+    void navigator.clipboard?.writeText(instruction).catch(() => {})
+    copied = !!navigator.clipboard
+  } catch {
+    copied = false
   }
-  window.addEventListener('blur', onBlur)
+  // `?q=` is kept as a best-effort prefill for any Claude version that honors it
+  // (harmless when ignored); the new-task route is what actually opens.
   window.open(`claude://cowork/new?q=${encodeURIComponent(instruction)}`, '_self')
-  window.setTimeout(() => {
-    window.removeEventListener('blur', onBlur)
-    if (!blurred) {
-      navigator.clipboard
-        ?.writeText(instruction)
-        .then(() => toast.success('Instrução copiada — cole no Cowork'))
-        .catch(() => toast.error('Falha ao copiar instrução'))
-    }
-  }, 500)
+  return copied
 }
