@@ -438,29 +438,30 @@ describe('PosStage — handoff markup', () => {
   })
 
   describe('legacy fallback', () => {
-    it('renders LegacyPostprodFallback (read-only banner) when legacy payload with schema_version is present', () => {
+    it('renders the generate chooser (legacy note) when legacy payload with schema_version is present', () => {
       wrap(
         <PosStage beats={beats} brief={null} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={{ schema_version: '2.0' }} />
       )
-      expect(screen.getByText(/Pós legado \(somente leitura\)/i)).toBeTruthy()
+      expect(screen.getByRole('button', { name: /Gerar pós com Cowork/i })).toBeTruthy()
+      expect(screen.getByText(/formato antigo/i)).toBeTruthy()
     })
 
-    it('"Recriar brief" force-seeds POS_TEMPLATE via onSeed (not the gated onPatch)', () => {
+    it('"Começar do zero" force-seeds POS_TEMPLATE via onSeed (not the gated onPatch) on the legacy chooser', () => {
       const onPatch = vi.fn()
       const onSeed = vi.fn()
       wrap(
         <PosStage beats={beats} brief={null} activeLang="pt" onPatch={onPatch} onSeed={onSeed} onOpenHandoff={vi.fn()} legacy={{ schema_version: '2.0' }} />
       )
-      fireEvent.click(screen.getByRole('button', { name: /Recriar brief/i }))
+      fireEvent.click(screen.getByRole('button', { name: /Começar do zero/i }))
       expect(onSeed).toHaveBeenCalledWith(expect.objectContaining({ kind: 'brief' }))
       expect(onPatch).not.toHaveBeenCalled()
     })
 
-    it('renders LegacyPostprodFallback when legacy has no "kind" field', () => {
+    it('renders the generate chooser when legacy has no "kind" field', () => {
       wrap(
         <PosStage beats={beats} brief={null} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={{ someOldField: true }} />
       )
-      expect(screen.getByText(/Pós legado \(somente leitura\)/i)).toBeTruthy()
+      expect(screen.getByRole('button', { name: /Começar do zero/i })).toBeTruthy()
     })
   })
 

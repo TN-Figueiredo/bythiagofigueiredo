@@ -151,15 +151,30 @@ function PPCard({
   )
 }
 
-function LegacyPostprodFallback({ onRecreate }: { onRecreate: () => void }) {
-  // "Recriar brief" is a CREATE-from-empty affordance (replaces legacy content with a fresh brief
-  // skeleton): available regardless of edit mode — it enters edit mode + force-seeds on click.
+/**
+ * The Pós generate/start chooser — the SAME experience for an empty Pós and a legacy one
+ * (so a legacy brief reads as "let's make a new one", not a dead read-only banner). Both
+ * affordances are CREATE-from-empty: "Gerar pós com Cowork" writes via the pipeline API;
+ * "Começar do zero" enters edit mode + force-seeds. Available regardless of edit mode.
+ */
+function PosGenerateChooser({ onStart, legacy = false }: { onStart: () => void; legacy?: boolean }) {
   return (
-    <div className="pp-legacy" role="note">
-      <p className="pp-legacy-banner">Pós legado (somente leitura) — recrie o brief para editar.</p>
-      <button type="button" className="btn" onClick={onRecreate}>
-        <Plus size={15} /> Recriar brief
-      </button>
+    <div className="pp-doc fade-in">
+      <div className="rot-gen">
+        <div className="vi-kicker"><SparklesGlyph size={13} /> Pós · brief pro editor</div>
+        <h1 className="vi-title">Sugestões pro editor</h1>
+        <div className="rot-gen-actions">
+          <CoworkButton stage="pos" label="Gerar pós com Cowork" />
+          <button type="button" className="btn" onClick={onStart}>
+            <Plus size={15} /> Começar do zero
+          </button>
+        </div>
+        <div className="rot-gen-sub">
+          {legacy
+            ? 'Há um pós em formato antigo guardado neste vídeo. Gere com o Cowork ou comece do zero pra ter o brief novo, editável — o conteúdo legado é substituído.'
+            : 'O Cowork sugere a partir do roteiro, ou comece do zero. Os momentos-chave saem do roteiro e são referenciados nas sugestões.'}
+        </div>
+      </div>
     </div>
   )
 }
@@ -241,34 +256,16 @@ export function PosStage({ beats, brief, activeLang, onPatch, onSeed, onOpenHand
 
   const hasBriefKind = brief && 'kind' in brief
 
+  // Legacy postprod (old schema / no `kind`) is now the SAME generate/start chooser as an
+  // empty Pós (with a note that legacy content exists) — not a dead read-only banner.
   if (legacy && (legacy.schema_version || !hasBriefKind)) {
-    return <LegacyPostprodFallback onRecreate={seedFromEmpty} />
+    return <PosGenerateChooser onStart={seedFromEmpty} legacy />
   }
 
   // Not auto-derived: the Pós is a SUGGESTIONS brief for the editor. Until it's generated
   // (Cowork) or started from scratch, show the chooser — never empty template cards.
   if (!briefHasContent(brief)) {
-    return (
-      <div className="pp-doc fade-in">
-        <div className="rot-gen">
-          <div className="vi-kicker"><SparklesGlyph size={13} /> Pós · brief pro editor</div>
-          <h1 className="vi-title">Sugestões pro editor</h1>
-          {/* CREATE-from-empty affordances — available regardless of edit mode. Generating has
-              nothing to lose: Cowork writes via the pipeline API; "Começar do zero" enters edit
-              mode + force-seeds. Only EDITING an existing brief stays gated by canEdit. */}
-          <div className="rot-gen-actions">
-            <CoworkButton stage="pos" label="Gerar pós com Cowork" />
-            <button type="button" className="btn" onClick={seedFromEmpty}>
-              <Plus size={15} /> Começar do zero
-            </button>
-          </div>
-          <div className="rot-gen-sub">
-            O Cowork sugere a partir do roteiro, ou comece do zero. Os momentos-chave saem do
-            roteiro e são referenciados nas sugestões.
-          </div>
-        </div>
-      </div>
-    )
+    return <PosGenerateChooser onStart={seedFromEmpty} />
   }
 
   // Present language labels (computed by the shell from versions); fall back to all

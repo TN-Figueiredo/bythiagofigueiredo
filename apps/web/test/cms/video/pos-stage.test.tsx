@@ -38,9 +38,11 @@ describe('PosStage', () => {
     expect(screen.getByText(/Destrinche o roteiro/i)).toBeInTheDocument()
   })
 
-  it('renders LegacyPostprodFallback (read-only banner) when legacy payload present', () => {
+  it('renders the generate chooser (with a legacy note) when a legacy payload is present', () => {
     wrap(<PosStage beats={beats} brief={null} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={{ schema_version: '2.0' }} />)
-    expect(screen.getByText(/Pós legado \(somente leitura\)/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Gerar pós com Cowork/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Começar do zero/i })).toBeInTheDocument()
+    expect(screen.getByText(/formato antigo/i)).toBeInTheDocument()
   })
 
   it('"Exportar pro editor" opens the HandoffSheet', () => {
