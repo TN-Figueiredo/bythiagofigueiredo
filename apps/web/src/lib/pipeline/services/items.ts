@@ -332,9 +332,12 @@ export async function createItems(
 
   if (error) {
     if (error.code === '23505') {
+      const isTitle = typeof error.message === 'string' && error.message.includes('content_pipeline_active_title_uniq')
       throw new PipelineServiceError(
-        'VALIDATION_ERROR',
-        'Duplicate code. Please use a unique code.',
+        'CONFLICT',
+        isTitle
+          ? 'An item with this title already exists — edit it instead of creating a duplicate (one story = one id).'
+          : 'Duplicate code. Please use a unique code.',
         409,
       )
     }

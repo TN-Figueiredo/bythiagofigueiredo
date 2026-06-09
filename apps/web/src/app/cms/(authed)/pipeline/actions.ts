@@ -111,7 +111,14 @@ export async function createPipelineItem(input: Record<string, unknown>): Promis
     .select()
     .single()
 
-  if (error) return { ok: false, error: error.message }
+  if (error) {
+    // 23505 = the DB-level one-story-one-id index (race backstop): a non-archived item
+    // with this title already exists.
+    if ((error as { code?: string }).code === '23505') {
+      return { ok: false, error: 'Já existe um item com esse título. Edite o existente em vez de criar uma duplicata.' }
+    }
+    return { ok: false, error: error.message }
+  }
   revalidatePath('/cms/up-next')
   revalidateTag('pipeline-blog')
   return { ok: true, data: item }
