@@ -21,11 +21,11 @@ const STAGE_LABEL: Record<VideoStage, string> = {
  */
 const STAGE_TARGET_HINT: Partial<Record<VideoStage, (itemId: string, lang: string) => string>> = {
   pos: (itemId, lang) =>
-    `→ escreva a seção \`postprod\` (PosBriefSchema, kind:'brief') via PATCH /items/${itemId}/sections/postprod?lang=${lang}; ` +
-    `derive estilo & ritmo, CTAs e QR a partir do roteiro (leia GET /items/${itemId}/sections/roteiro?lang=${lang} primeiro).`,
+    `→ escreva a seção \`postprod\` (PosBriefSchema, kind:'brief') via MCP manage_sections (action:update, item_id:${itemId}, section:postprod, lang:${lang}); ` +
+    `derive estilo & ritmo, CTAs e QR do roteiro — leia primeiro com manage_sections action:get (section:roteiro, lang:${lang}).`,
   publicacao: (itemId, lang) =>
-    `→ escreva a seção \`publish\` (ABDraftSchema) via PATCH /items/${itemId}/sections/publish?lang=${lang}; ` +
-    `leia GET /items/${itemId}/sections/roteiro?lang=${lang} e a ideia primeiro, então gere EXATAMENTE 4 variantes testáveis A–D ({id, title, brief}), ` +
+    `→ escreva a seção \`publish\` (ABDraftSchema) via MCP manage_sections (action:update, item_id:${itemId}, section:publish, lang:${lang}); ` +
+    `leia primeiro o roteiro e a ideia com manage_sections action:get, então gere EXATAMENTE 4 variantes testáveis A–D ({id, title, brief}), ` +
     `cada variante = um TÍTULO testável + um BRIEF DE THUMBNAIL (o conceito visual da capa: o que ela mostra/comunica), ` +
     `cada uma num ângulo distinto (emocional/dados/curiosidade/promessa) derivado do roteiro + ideia; ` +
     `só TEXTO (título + brief da capa), nunca URLs/imagens — a arte é feita no Claude Design; ` +

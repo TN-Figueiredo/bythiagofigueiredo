@@ -27,7 +27,7 @@ describe('buildCoworkInstruction', () => {
     {
       template: 'youtube-intelligence',
       params: {},
-      mustInclude: ['YouTube'],
+      mustInclude: ['youtube_observatory'],
     },
     {
       template: 'youtube-video-optimize',
@@ -76,7 +76,7 @@ describe('buildCoworkInstruction', () => {
 
   it('no-param templates work with empty object', () => {
     const intel = buildCoworkInstruction('youtube-intelligence', {} as Record<string, never>)
-    expect(intel).toContain('YouTube')
+    expect(intel).toContain('youtube_observatory')
 
     const overview = buildCoworkInstruction('reference-overview', {} as Record<string, never>)
     expect(overview).toContain('pipeline')
