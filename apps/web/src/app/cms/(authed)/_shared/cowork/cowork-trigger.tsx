@@ -1,0 +1,254 @@
+'use client'
+
+import './cowork.css'
+
+import { useEffect, useId, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { ArrowRight } from 'lucide-react'
+import { toast } from 'sonner'
+import { SparklesGlyph } from './sparkles-glyph'
+import { openCowork } from '@/lib/pipeline/cowork-deeplink'
+
+/** Send lifecycle — modelled explicitly so the receipt + exit are honest (no fake load). */
+type Phase = 'idle' | 'sending' | 'sent' | 'closing'
+
+/** Estimated popover height used to decide whether to flip above the trigger. */
+const EST_POP_HEIGHT = 340
+
+export interface CoworkTriggerProps {
+  /** Linha(s) de contexto que abrem a instrução, ex.: "[Blog tc-05 · Ideia · PT · item_id …]\nTrabalhe EXCLUSIVAMENTE…" */
+  header: string
+  /** Hint de alvo (seção/schema) anexado após o header. Opcional. */
+  hint?: string
+  /** Quick-prompts exibidos como chips. */
+  prompts: string[]
+  /** Placeholder do textarea. */
+  placeholder: string
+  /** Texto descritivo sob o título do popover. */
+  subline?: string
+  label?: string
+  compact?: boolean
+}
+
+/**
+ * Inline Cowork trigger with a portaled, fixed-position popover anchored to the
+ * button (flips above when it would overflow the viewport bottom). Closes on Esc +
+ * outside-click; ⌘/Ctrl+Enter sends; Tab/Shift+Tab is trapped inside the dialog. On
+ * send it opens Claude (Cowork) with the item/section context as a deep-link, toasts
+ * a durable receipt, then plays an exit animation, clears + closes + returns focus.
+ */
+export function CoworkTrigger({
+  header,
+  hint,
+  prompts,
+  placeholder,
+  subline = 'ele escreve direto na pipeline — pede o ajuste e ele aplica.',
+  label = 'Cowork',
+  compact,
+}: CoworkTriggerProps) {
+  const [open, setOpen] = useState(false)
+  const [txt, setTxt] = useState('')
+  const [phase, setPhase] = useState<Phase>('idle')
+  const [anchor, setAnchor] = useState<{ top?: number; bottom?: number; right: number } | null>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const popRef = useRef<HTMLDivElement>(null)
+  const popId = useId()
+  const headId = useId()
+  const subId = useId()
+
+  // Every close path returns focus to the trigger so keyboard/SR users aren't dropped.
+  const close = () => {
+    setOpen(false)
+    setPhase('idle')
+    setTxt('')
+    btnRef.current?.focus()
+  }
+
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node
+      if (popRef.current && !popRef.current.contains(t) && btnRef.current && !btnRef.current.contains(t)) {
+        close()
+      }
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { close(); return }
+      // Focus trap: cycle Tab/Shift+Tab within the popover, wrapping first↔last.
+      if (e.key === 'Tab' && popRef.current) {
+        const nodes = popRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]):not([aria-disabled="true"]), textarea, [href], [tabindex]:not([tabindex="-1"])',
+        )
+        const focusables = Array.from(nodes)
+        const first = focusables[0]
+        const last = focusables[focusables.length - 1]
+        if (!first || !last) return
+        const activeInPop = popRef.current.contains(document.activeElement)
+        if (e.shiftKey) {
+          if (!activeInPop || document.activeElement === first) { e.preventDefault(); last.focus() }
+        } else if (!activeInPop || document.activeElement === last) {
+          e.preventDefault(); first.focus()
+        }
+      }
+    }
+    // Measure synchronously (so the popover mounts on open); flip above when it would
+    // overflow the viewport bottom.
+    const measure = () => {
+      if (!btnRef.current) return
+      const r = btnRef.current.getBoundingClientRect()
+      const right = Math.max(12, window.innerWidth - r.right)
+      if (r.bottom + EST_POP_HEIGHT > window.innerHeight && r.top - EST_POP_HEIGHT > 0) {
+        setAnchor({ bottom: Math.max(12, window.innerHeight - r.top + 9), right })
+      } else {
+        setAnchor({ top: r.bottom + 9, right })
+      }
+    }
+    // Throttle scroll/resize repositioning to ≤1 setState/frame.
+    let raf = 0
+    const reposition = () => {
+      if (raf) return
+      raf = window.requestAnimationFrame(() => { raf = 0; measure() })
+    }
+    measure()
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    window.addEventListener('resize', reposition)
+    window.addEventListener('scroll', reposition, { capture: true, passive: true })
+    return () => {
+      if (raf) window.cancelAnimationFrame(raf)
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+      window.removeEventListener('resize', reposition)
+      window.removeEventListener('scroll', reposition, { capture: true } as EventListenerOptions)
+    }
+    // `close` is stable enough for our purposes; re-running only on `open` keeps listeners fresh.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+
+  // Safety net for the exit: if the exit animation is suppressed (reduced-motion) or
+  // never fires, still unmount after a short fallback so 'closing' can't get stuck.
+  useEffect(() => {
+    if (phase !== 'closing') return
+    const id = window.setTimeout(() => close(), 220)
+    return () => window.clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase])
+
+  const send = (t?: string) => {
+    const m = (t ?? txt).trim()
+    if (!m || phase !== 'idle') return
+    setPhase('sending')
+    // openCowork is synchronous — open Claude (Cowork) with the message + the
+    // item/section context so it knows exactly which item/section to act on.
+    const ctx = hint ? `${header}\n${hint}` : header
+    // Copies the instruction to the clipboard + opens a fresh Cowork task (the
+    // claude:// handler doesn't reliably prefill the prompt, so the user pastes it).
+    const copied = openCowork(`${ctx}\n\n${m}`)
+    // Reflect the receipt next frame (so the 'sending' label paints first).
+    window.requestAnimationFrame(() => {
+      setPhase('sent')
+      toast.success('Claude aberto — instrução copiada', {
+        description: copied
+          ? 'cole no Cowork com ⌘V pra ele começar (já vem com o contexto do vídeo).'
+          : 'cole a instrução no Cowork pra ele começar.',
+      })
+      window.setTimeout(() => setPhase('closing'), 900)
+    })
+  }
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') send()
+  }
+
+  // When the exit animation finishes (or immediately under reduced-motion, where the
+  // animation is suppressed and onAnimationEnd never fires), unmount + return focus.
+  const onPopAnimEnd = () => {
+    if (phase === 'closing') close()
+  }
+
+  const pop =
+    open && anchor && typeof document !== 'undefined'
+      ? createPortal(
+          <div
+            className={'cw-pop' + (phase === 'closing' ? ' is-closing' : '')}
+            id={popId}
+            ref={popRef}
+            style={{ position: 'fixed', top: anchor.top, bottom: anchor.bottom, right: anchor.right }}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={headId}
+            aria-describedby={subId}
+            onAnimationEnd={onPopAnimEnd}
+          >
+            <h2 className="cw-head" id={headId}>
+              <span className="cw-ico"><SparklesGlyph size={14} /></span>
+              <span className="cw-kick">manda pro</span> <span className="cw-name">Cowork</span>
+            </h2>
+            <div className="cw-sub" id={subId}>
+              {subline}
+            </div>
+            {prompts.length > 0 && (
+              <div className="cw-quick">
+                {prompts.map((p, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    className="cw-chip"
+                    style={{ '--i': i } as React.CSSProperties}
+                    onClick={() => send(p)}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+            )}
+            <textarea
+              className="cw-input"
+              value={txt}
+              onChange={(e) => setTxt(e.target.value)}
+              onKeyDown={onKeyDown}
+              placeholder={placeholder}
+              aria-label="Mensagem para o Cowork"
+              rows={3}
+              autoFocus
+            />
+            <div className="cw-foot">
+              <span className="cw-kbd" aria-hidden="true">⌘↵</span>
+              <button
+                type="button"
+                className={'cw-send' + (phase === 'sent' || phase === 'closing' ? ' is-sent' : '')}
+                onClick={() => send()}
+                disabled={!txt.trim() || phase !== 'idle'}
+              >
+                {phase === 'sending' ? (
+                  <><SparklesGlyph size={13} /> mandando…</>
+                ) : phase === 'sent' || phase === 'closing' ? (
+                  <><SparklesGlyph size={13} /> enviado</>
+                ) : (
+                  <><ArrowRight size={13} /> mandar</>
+                )}
+              </button>
+            </div>
+          </div>,
+          document.body,
+        )
+      : null
+
+  return (
+    <div className="cw-wrap">
+      <button
+        ref={btnRef}
+        type="button"
+        className={'cw-btn' + (compact ? ' compact' : '') + (open ? ' on' : '')}
+        onClick={() => setOpen((o) => !o)}
+        title="Pedir ao Cowork"
+        aria-haspopup="dialog"
+        aria-controls={open ? popId : undefined}
+        aria-expanded={open}
+      >
+        <SparklesGlyph size={14} /> {label}
+      </button>
+      {pop}
+    </div>
+  )
+}

@@ -8,10 +8,11 @@
    The handoff CSS was authored against a token system using UNPREFIXED names
    (--text / --surface / --accent / --c-pipeline …). This app's CMS token system
    is --cms-* (from @tn-figueiredo/cms-ui). Map the handoff names onto the real
-   --cms-* tokens, SCOPED to the video module containers (incl. the portaled Cowork
-   popover + paper sheets) so the unprefixed names never leak to other modules.
+   --cms-* tokens, SCOPED to the video module containers (incl. the portaled paper
+   sheets) so the unprefixed names never leak to other modules. (The Cowork popover
+   tokens moved with the .cw-* rules to _shared/cowork/cowork.css.)
    Without this every color/surface/border resolved to nothing → flat unstyled UI. */
-.video-hub-page, .vid-ed, .cw-pop, .rec-overlay {
+.video-hub-page, .vid-ed, .rec-overlay {
   --bg: var(--cms-bg);
   --surface: var(--cms-surface);
   --surface-2: var(--cms-surface-hover);
@@ -1053,112 +1054,9 @@
   color: #f0b08a; background: rgba(184, 84, 26, .20); border: 1px solid rgba(184, 84, 26, .50); }
 .hs-fb-note { font-family: var(--font-mono); font-size: 10.5px; line-height: 1.5; color: #b8541a; margin: 9px 0 0; }
 
-/* ============================================================
-   COWORK — call the AI from any stage
-   ============================================================ */
-.cw-wrap { position: relative; flex-shrink: 0; }
-.cw-btn { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 13px; border-radius: 10px; white-space: nowrap;
-  font-size: 13px; font-weight: 600; color: var(--c-courses); background: rgba(139, 92, 246, .13);
-  border: 1px solid rgba(139, 92, 246, .3);
-  transition: background var(--t-fast), border-color var(--t-fast), transform var(--t-fast) var(--ease); }
-.cw-btn:hover { background: rgba(139, 92, 246, .2); transform: translateY(-1px); }
-.cw-btn.on { background: rgba(139, 92, 246, .24); border-color: rgba(139, 92, 246, .55); }
-.cw-btn.compact { height: 30px; padding: 0 11px; font-size: 12px; }
-.cw-btn .lucide { color: var(--c-courses); }
-
-/* The "lit panel": Cowork-purple glows from the top-left through everything —
-   a radial wash + a faint top gradient over the solid elevation, an accent-tinted
-   border, and a triple shadow (drop + inset hairline + colored bloom). */
-.cw-pop { position: fixed; z-index: 400; width: min(380px, calc(100vw - 24px)); padding: 20px 20px 18px;
-  max-height: min(70vh, 520px); overflow: auto;
-  /* All chrome is precomputed OPAQUE/rgba literals (NO mix functions) — some browsers
-     parse mix functions as valid but paint them transparent, which dropped the whole
-     fill/border to invisible (the 'infinity pool'). Deep dark-violet fill clearly above
-     the page bg, accent border, drop + inset hairline + colored bloom shadow. */
-  background-color: #2a243d;
-  background-image:
-    radial-gradient(135% 95% at 0% 0%, rgba(139, 92, 246, .22) 0%, rgba(139, 92, 246, .07) 40%, transparent 70%);
-  border: 1px solid #4a4068;
-  border-radius: 16px;
-  box-shadow:
-    0 24px 56px -16px rgba(0, 0, 0, .6),
-    0 0 0 1px rgba(139, 92, 246, .4),
-    inset 0 1px 0 rgba(255, 255, 255, .06),
-    0 0 30px -12px rgba(139, 92, 246, .32);
-  animation: cwPop .2s var(--ease-back) both; }
-.cw-pop.is-closing { animation: cwPopOut .16s var(--ease) both; }
-.cw-pop::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
-  border-radius: 16px 16px 0 0;
-  background: linear-gradient(90deg, transparent, rgba(139, 92, 246, .8), transparent); }
-@keyframes cwPop {
-  from { opacity: 0; transform: translateY(-8px) scale(.94); }
-  60% { opacity: 1; }
-  to { opacity: 1; transform: none; } }
-@keyframes cwPopOut {
-  to { opacity: 0; transform: translateY(-6px) scale(.96); } }
-/* Header hierarchy: the wordmark is the heaviest; "manda pro" is a quiet connective. */
-.cw-head { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 13px; font-weight: 700; color: var(--text); }
-/* AA: --text-dim (#52525b) failed at ~2.1:1 — drive the kicker off --text at 60% so it clears AA. */
-.cw-kick { font-weight: 500; font-size: 11.5px; color: #9b94a8; }
-.cw-ico { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; color: #8b5cf6;
-  background: linear-gradient(150deg, rgba(139, 92, 246, .34), rgba(139, 92, 246, .14));
-  /* Bloom removed — the send button owns the loud purple; only an inset hairline here. */
-  box-shadow: inset 0 0 0 1px rgba(139, 92, 246, .45), inset 0 1px 0 rgba(255, 255, 255, .12); }
-.cw-name { font-size: 16px; font-weight: 750; letter-spacing: -.01em;
-  background: linear-gradient(92deg, #ffffff, #c4b5fd);
-  /* Keep `color: var(--text)` as the visible fallback under the gradient — clip+fill
-     wins when the gradient is valid; if it's invalid the text is still readable (no
-     `color: transparent`, which would make the wordmark invisible). */
-  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: var(--text); }
-/* Contrast (WCAG AA): the sub + kbd + placeholder were ~2.4–4:1 on the dark panel —
-   FAIL. Drive them off --text at reduced opacity so all clear ≥4.5:1. */
-.cw-sub { font-size: 12px; line-height: 1.5; color: var(--text); opacity: .78; margin: 8px 0 14px; }
-.cw-quick { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
-/* Section eyebrow so the chips read as actions, not decoration. */
-.cw-quick::before { content: 'Pedidos rápidos'; flex-basis: 100%; font-size: 10px; font-weight: 600;
-  letter-spacing: .12em; text-transform: uppercase; color: #8f8a9c; margin-bottom: 2px; }
-/* Opaque pills: solid dark-violet fill so the chips read as visible pills at rest on the dark panel. */
-.cw-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 550; color: #a78bfa;
-  background-color: #322c4a;
-  border: 1px solid rgba(139, 92, 246, .4); border-radius: 999px; padding: 6px 12px; }
-.cw-chip::before { content: ''; width: 0; height: 4px; border-radius: 50%; background: currentColor; opacity: 0;
-  transition: width var(--t-fast) var(--ease-back), opacity var(--t-fast); }
-.cw-chip:hover { background-color: #3d3559;
-  border-color: rgba(139, 92, 246, .6); transform: translateY(-1px);
-  box-shadow: 0 6px 16px -10px rgba(139, 92, 246, .7); }
-.cw-chip:hover::before { width: 4px; opacity: 1; }
-/* Recessed well: the textarea sits below the panel surface (darkened with #000) so the
-   send button reads as the one lit affordance. */
-.cw-input { width: 100%; resize: vertical; min-height: 80px; padding: 10px 12px; border-radius: 12px;
-  background-color: #15161d;
-  border: 1px solid rgba(139, 92, 246, .16);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, .25);
-  color: var(--text); font-family: inherit; font-size: 13.5px; line-height: 1.5; outline: none; transition: border-color var(--t-fast), box-shadow var(--t-fast); }
-.cw-input:focus { border-color: #8b5cf6;
-  box-shadow: 0 0 0 4px rgba(139, 92, 246, .2), 0 0 22px -10px rgba(139, 92, 246, .7); }
-.cw-input::placeholder { color: #8f8a9c; font-style: italic; }
-.cw-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; }
-/* Keycap treatment — a raised, bordered chip. Color stays --text-based (AA), never purple. */
-.cw-kbd { display: inline-flex; align-items: center; padding: 3px 7px; border-radius: 6px;
-  background: rgba(255, 255, 255, .07); border: 1px solid rgba(255, 255, 255, .12);
-  font-family: var(--font-mono); font-size: 11px; color: #9b94a8; }
-/* The focal climax: dimensional, bigger, the loudest purple in the panel. A plain
-   background-color body guarantees a filled button even if the gradient drops. */
-.cw-send { display: inline-flex; align-items: center; gap: 6px; height: 38px; padding: 0 18px; border-radius: 9px; font-size: 13px; font-weight: 600; white-space: nowrap;
-  color: var(--on-accent); border: 1px solid transparent;
-  /* Solid fill FIRST (guaranteed paint + AA white-on-#8b5cf6). The gradient darkens toward
-     the bottom — do NOT lighten the top stop with white (that drops white to ~2.98:1). */
-  background-color: #8b5cf6;
-  background-image: linear-gradient(135deg, #8b5cf6, #6f4ac5);
-  box-shadow: 0 10px 24px -10px rgba(139, 92, 246, .85), inset 0 1px 0 rgba(255, 255, 255, .26);
-  transition: background var(--t-fast), opacity var(--t-fast), box-shadow var(--t-fast); }
-.cw-send svg { transition: transform var(--t-fast) var(--ease-back); }
-.cw-send:hover { background-image: linear-gradient(135deg, #9a6ff8, #7a55d0); }
-.cw-send:hover svg { transform: translateX(3px); }
-.cw-send.is-sent { background-color: #22c55e; background-color: var(--ok); background-image: none;
-  box-shadow: 0 0 0 4px rgba(34, 197, 94, .22); }
-.cw-send:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
-.cw-send:disabled:hover svg { transform: none; }
+/* Cowork (.cw-*) trigger + popover styles moved to ../_shared/cowork/cowork.css
+   (imported by the shared CoworkTrigger component). Only video-scoped overrides
+   (.vid-ed .rot-gen-actions .cw-btn, .cw-spin) remain in this file. */
 
 /* ---------- editable field (efx) ---------- */
 /* resting affordance: a faint dashed underline so filled values read as editable fields
@@ -1286,7 +1184,7 @@
 
 /* cursor affordance: breadcrumb <a> and any role-less clickables */
 .vid-ed .ed-bc .eb-back { cursor: pointer; }
-.vi-alt, .vcard, .pub-chan, .cw-btn, .cw-chip, .cw-send, .vi-next, .vi-alts-gen,
+.vi-alt, .vcard, .pub-chan, .vi-next, .vi-alts-gen,
 .rot-notetgl, .rot-clear, .ab-lead-btn, .ab-thumb-set, .rb-mark, .ed-recbtn,
 .rb-actbox, .rot-prep-head, .rot-edh-go { cursor: pointer; }
 .rb-actbox:active, .rot-edh-go:active { transform: scale(.94); transition: transform .05s; }
@@ -1294,19 +1192,18 @@
 /* unify transitions so transform/press animates smoothly */
 .vcard { transition: border-color var(--t-fast), transform var(--t-fast) var(--ease-back), box-shadow var(--t) var(--ease); }
 .vi-alt { transition: border-color var(--t-fast), background var(--t-fast), transform var(--t-fast) var(--ease-back); }
-.cw-btn, .cw-send, .vi-alts-gen, .rot-notetgl, .pub-chan, .ab-thumb-set, .ed-recbtn {
+.vi-alts-gen, .rot-notetgl, .pub-chan, .ab-thumb-set, .ed-recbtn {
   transition: background var(--t-fast) var(--ease), color var(--t-fast), border-color var(--t-fast), transform var(--t-fast) var(--ease-back), box-shadow var(--t) var(--ease); }
-.cw-chip { transition: background var(--t-fast), transform var(--t-fast) var(--ease-back), box-shadow var(--t-fast) var(--ease); }
 
 /* press feedback — everything that clicks should settle on press */
 .vcard:active { transform: translateY(-1px) scale(.992); transition-duration: .05s; }
 .vi-alt:active { transform: translateX(2px) scale(.99); transition-duration: .05s; }
-.cw-btn:active, .ed-recbtn:active, .vi-next:active, .vi-alts-gen:active,
+.ed-recbtn:active, .vi-next:active, .vi-alts-gen:active,
 .pub-chan:active, .ab-thumb-set:active { transform: scale(.96); transition-duration: .05s; }
-.cw-chip:active, .cw-send:active, .rot-notetgl:active, .rot-clear:active { transform: scale(.95); transition-duration: .05s; }
+.rot-notetgl:active, .rot-clear:active { transform: scale(.95); transition-duration: .05s; }
 .vid-stages .ed-stage:active { transform: scale(.97); transition-duration: .05s; }
 .lang-opt:active { transform: scale(.95); transition-duration: .05s; }
-.cw-btn:disabled:active, .vi-alts-gen:disabled:active { transform: none; }
+.vi-alts-gen:disabled:active { transform: none; }
 
 /* the mark dot: orange fill + a springy check pop when toggled spoken */
 .rb-mark:active .rb-mark-dot { transform: scale(.84); }
@@ -1317,39 +1214,6 @@
 /* the va-go arrow glides in on hover of an alt direction */
 .vi-alt .va-go { transition: opacity var(--t-fast), transform var(--t-fast) var(--ease-back); transform: translateX(-3px); }
 .vi-alt:hover .va-go { transform: translateX(0); }
-
-/* Cowork popover: scale-in origin anchored to the trigger (top-right) */
-.cw-pop { transform-origin: top right; }
-
-/* The living glyph + chip choreography — the box should feel like it just woke up.
-   All of it is gated behind reduced-motion so it never moves for users who opt out. */
-@media (prefers-reduced-motion: no-preference) {
-  /* idle breathing glow on the icon tile */
-  .cw-ico { animation: cwIcoGlow 3.2s var(--ease) infinite; }
-  @keyframes cwIcoGlow {
-    0%, 100% { box-shadow: inset 0 0 0 1px rgba(139, 92, 246, .35), 0 0 14px -2px rgba(139, 92, 246, .6); }
-    50% { box-shadow: inset 0 0 0 1px rgba(139, 92, 246, .5), 0 0 20px -1px rgba(139, 92, 246, .8); }
-  }
-  /* the spark (second path) twinkles */
-  .cw-ico svg path:last-child { transform-origin: center; animation: cwSpark 2.6s var(--ease) infinite; }
-  @keyframes cwSpark {
-    0%, 70%, 100% { opacity: .55; transform: scale(.9); }
-    82% { opacity: 1; transform: scale(1.25); }
-  }
-  /* chips stagger in on open (index set inline via --i) */
-  .cw-chip { animation: cwChipIn .26s var(--ease-back) both; animation-delay: calc(60ms + var(--i, 0) * 45ms); }
-  @keyframes cwChipIn { from { opacity: 0; transform: translateY(4px) scale(.96); } to { opacity: 1; transform: none; } }
-  /* quiet the idle glyph while the user is composing — the box stops fidgeting once focused */
-  .cw-pop:focus-within .cw-ico,
-  .cw-pop:focus-within .cw-ico svg path:last-child { animation-play-state: paused; }
-}
-
-/* Reduced-motion: no entrance/exit, no idle glow, no chip stagger — everything is instant + still. */
-@media (prefers-reduced-motion: reduce) {
-  .cw-pop, .cw-pop.is-closing { animation: none; }
-  .cw-ico, .cw-ico svg path:last-child { animation: none; }
-  .cw-chip { animation: none; }
-}
 
 /* tasteful staggered entrances */
 @media (prefers-reduced-motion: no-preference) {
