@@ -113,6 +113,30 @@ const TYPE_FIXTURE = {
   max_bounce_rate_pct: 5,
 }
 
+// Standard newsletter_editions call sequence shared by the fan-out tests:
+// 1: reconcile candidates (empty) · 2: stuck recovery · 3: scheduled editions
+// (one EDITION_FIXTURE) · 4: CAS claim (success) · 5+: status updates (recorded
+// into editionUpdates).
+function editionsMock(state: { n: number }, editionUpdates: Array<Record<string, unknown>>) {
+  state.n++
+  if (state.n === 1) return chainMock({ data: [], error: null })
+  if (state.n === 2) {
+    return { update: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ lt: vi.fn().mockReturnValue({ select: vi.fn().mockResolvedValue({ data: [], error: null }) }) }) }) }
+  }
+  if (state.n === 3) {
+    return { select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ lte: vi.fn().mockResolvedValue({ data: [EDITION_FIXTURE], error: null }) }) }) }
+  }
+  if (state.n === 4) {
+    return { update: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ select: vi.fn().mockResolvedValue({ data: [{ id: 'ed-1' }], error: null }) }) }) }) }
+  }
+  return {
+    update: vi.fn().mockImplementation((payload: Record<string, unknown>) => {
+      editionUpdates.push(payload)
+      return { eq: vi.fn().mockResolvedValue({ data: null, error: null }) }
+    }),
+  }
+}
+
 describe('POST /api/cron/send-scheduled-newsletters', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -579,8 +603,18 @@ describe('POST /api/cron/send-scheduled-newsletters', () => {
 
     const res = await POST(req(CRON_SECRET))
     expect(res.status).toBe(200)
-    expect(mockSend).toHaveBeenCalledTimes(2)
+    // a@ fails in the main loop, b@ still gets its email, then the in-run
+    // retry pass re-attempts a@ and succeeds → 3 send calls total.
+    expect(mockSend).toHaveBeenCalledTimes(3)
+    expect(mockSend.mock.calls[0][0].to).toBe('a@test.com')
+    expect(mockSend.mock.calls[1][0].to).toBe('b@test.com')
+    expect(mockSend.mock.calls[2][0].to).toBe('a@test.com')
     expect(mockCaptureException).toHaveBeenCalled()
+    // Retry recovered the transient failure — no "still failing" alert.
+    expect(mockCaptureMessage).not.toHaveBeenCalledWith(
+      expect.stringContaining('still failing'),
+      expect.anything(),
+    )
     // Edition still progressed to 'sent' despite the one rejected send.
     expect(editionUpdates.some((u) => u.status === 'sent')).toBe(true)
   })
@@ -804,5 +838,315 @@ describe('POST /api/cron/send-scheduled-newsletters', () => {
     expect(sendUpdatePayloads[0]).toHaveProperty('last_attempt_at')
     expect(sendUpdatePayloads[0].last_attempt_at).toBeTruthy()
     expect(sendUpdatePayloads[1]).toHaveProperty('provider_message_id')
+  })
+
+  // ── Audit: completeness ───────────────────────────────────────────────────
+
+  it('fans out to EVERY confirmed subscriber — paginates past the 500-row page with exact status/newsletter/site filters', async () => {
+    const state = { n: 0 }
+    const editionUpdates: Array<Record<string, unknown>> = []
+    const rangeArgs: Array<[number, number]> = []
+    const eqArgs: Array<[string, unknown]> = []
+    const upsertedChunks: Array<Array<Record<string, unknown>>> = []
+
+    // 620 confirmed subscribers: a full first page (500) + a partial second (120).
+    const page1 = Array.from({ length: 500 }, (_, i) => ({ email: `u${i}@test.com`, locale: null }))
+    const page2 = Array.from({ length: 120 }, (_, i) => ({ email: `v${i}@test.com`, locale: null }))
+    const pages = [page1, page2]
+
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'newsletter_editions') return editionsMock(state, editionUpdates)
+
+      if (table === 'newsletter_subscriptions') {
+        const builder: Record<string, ReturnType<typeof vi.fn>> = {}
+        builder.select = vi.fn().mockReturnValue(builder)
+        builder.eq = vi.fn().mockImplementation((col: string, val: unknown) => {
+          eqArgs.push([col, val])
+          return builder
+        })
+        builder.range = vi.fn().mockImplementation((from: number, to: number) => {
+          rangeArgs.push([from, to])
+          return Promise.resolve({ data: pages.shift() ?? [], error: null })
+        })
+        return builder
+      }
+
+      if (table === 'newsletter_sends') {
+        return {
+          upsert: vi.fn().mockImplementation((rows: Array<Record<string, unknown>>) => {
+            upsertedChunks.push(rows)
+            return Promise.resolve({ data: null, error: null })
+          }),
+          // Unsent resume query → empty: this test audits only the fan-out
+          // (rows created for everyone), not the dispatch loop.
+          select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ is: vi.fn().mockReturnValue({ or: vi.fn().mockReturnValue({ range: vi.fn().mockResolvedValue({ data: [], error: null }) }) }) }) }),
+        }
+      }
+
+      return chainMock({ data: null, error: null })
+    })
+
+    const res = await POST(req(CRON_SECRET))
+    expect(res.status).toBe(200)
+
+    // Pagination: two pages requested with correct windows — no 500/1000-row truncation.
+    expect(rangeArgs).toEqual([[0, 499], [500, 999]])
+
+    // Exact filters on every page: right newsletter, right site, confirmed only
+    // (pending_confirmation / unsubscribed / bounced / complained excluded).
+    expect(eqArgs).toEqual(expect.arrayContaining([
+      ['newsletter_id', 'main-pt'],
+      ['site_id', 'site-1'],
+      ['status', 'confirmed'],
+    ]))
+
+    // One queued send row per subscriber — all 620, chunked under the body limit.
+    const allRows = upsertedChunks.flat()
+    expect(allRows).toHaveLength(620)
+    expect(allRows.every((r) => r.status === 'queued' && r.edition_id === 'ed-1')).toBe(true)
+    expect(new Set(allRows.map((r) => r.subscriber_email)).size).toBe(620)
+
+    // Edition completed with the full subscriber count.
+    const lastUpdate = editionUpdates[editionUpdates.length - 1]
+    expect(lastUpdate.status).toBe('sent')
+    expect(lastUpdate.send_count).toBe(620)
+  })
+
+  it('aborts (edition NOT marked sent) when the subscriber fetch errors mid-pagination', async () => {
+    const state = { n: 0 }
+    const editionUpdates: Array<Record<string, unknown>> = []
+
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'newsletter_editions') return editionsMock(state, editionUpdates)
+      if (table === 'newsletter_subscriptions') {
+        // PostgREST error: data null + error set. Treating this as "end of
+        // list" would silently truncate the fan-out — the route must throw.
+        return chainMock({ data: null, error: { message: 'statement timeout' } })
+      }
+      return chainMock({ data: null, error: null })
+    })
+
+    const res = await POST(req(CRON_SECRET))
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({ sent: 0 })
+
+    expect(mockSend).not.toHaveBeenCalled()
+    expect(mockCaptureException).toHaveBeenCalled()
+    // Edition was never finalized: it stays 'sending' so stuck-recovery
+    // re-schedules it — nobody is silently skipped.
+    expect(editionUpdates.some((u) => u.status === 'sent')).toBe(false)
+  })
+
+  it('aborts (edition NOT marked sent) when the newsletter_sends fan-out upsert errors', async () => {
+    const state = { n: 0 }
+    const editionUpdates: Array<Record<string, unknown>> = []
+
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'newsletter_editions') return editionsMock(state, editionUpdates)
+      if (table === 'newsletter_subscriptions') {
+        return chainMock({ data: [{ email: 'user@test.com', locale: null }], error: null })
+      }
+      if (table === 'newsletter_sends') {
+        // Failed upsert = subscribers without send rows = they would be
+        // invisible to the unsent selector. Must abort, not continue.
+        return { upsert: vi.fn().mockResolvedValue({ data: null, error: { message: 'permission denied' } }) }
+      }
+      return chainMock({ data: null, error: null })
+    })
+
+    const res = await POST(req(CRON_SECRET))
+    expect(res.status).toBe(200)
+    expect(mockSend).not.toHaveBeenCalled()
+    expect(mockCaptureException).toHaveBeenCalled()
+    expect(editionUpdates.some((u) => u.status === 'sent')).toBe(false)
+  })
+
+  // ── Audit: suppression ────────────────────────────────────────────────────
+
+  it('does not mail a queued row whose subscriber unsubscribed after fan-out (resume suppression)', async () => {
+    const state = { n: 0 }
+    const sendsState = { n: 0 }
+    const editionUpdates: Array<Record<string, unknown>> = []
+
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'newsletter_editions') return editionsMock(state, editionUpdates)
+
+      if (table === 'newsletter_subscriptions') {
+        // Fresh confirmed set contains ONLY a@ — b@ unsubscribed (or bounced/
+        // complained via webhook) after the queued rows were created.
+        return chainMock({ data: [{ email: 'a@test.com', locale: null }], error: null })
+      }
+
+      if (table === 'newsletter_sends') {
+        sendsState.n++
+        if (sendsState.n === 1) return { upsert: vi.fn().mockResolvedValue({ data: null, error: null }) }
+        if (sendsState.n === 2) {
+          // Queued rows from the original fan-out still include b@.
+          return chainMock({ data: [
+            { id: 'send-a', subscriber_email: 'a@test.com' },
+            { id: 'send-b', subscriber_email: 'b@test.com' },
+          ], error: null })
+        }
+        return {
+          update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: null, error: null }) }),
+          select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ not: vi.fn().mockResolvedValue({ count: 1, data: null, error: null }) }) }),
+        }
+      }
+
+      if (table === 'newsletter_types') {
+        return {
+          select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: TYPE_FIXTURE, error: null }) }) }),
+          update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: null, error: null }) }),
+        }
+      }
+      if (table === 'unsubscribe_tokens') {
+        return { upsert: vi.fn().mockResolvedValue({ data: null, error: null }) }
+      }
+      return chainMock({ data: null, error: null })
+    })
+
+    const res = await POST(req(CRON_SECRET))
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({ sent: 1 })
+
+    // Only the still-confirmed subscriber is mailed; b@'s row stays queued.
+    expect(mockSend).toHaveBeenCalledTimes(1)
+    expect(mockSend.mock.calls[0][0].to).toBe('a@test.com')
+    expect(editionUpdates.some((u) => u.status === 'sent')).toBe(true)
+  })
+
+  // ── Audit: crash recovery ─────────────────────────────────────────────────
+
+  it('resumes after a crash: ON CONFLICT skips existing rows, only not-yet-sent rows are dispatched, true total from DB', async () => {
+    const state = { n: 0 }
+    const sendsState = { n: 0 }
+    const editionUpdates: Array<Record<string, unknown>> = []
+    const upsertOptions: Array<Record<string, unknown>> = []
+    const isArgs: Array<[string, unknown]> = []
+
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'newsletter_editions') return editionsMock(state, editionUpdates)
+
+      if (table === 'newsletter_subscriptions') {
+        return chainMock({ data: [
+          { email: 'a@test.com', locale: null },
+          { email: 'b@test.com', locale: null },
+        ], error: null })
+      }
+
+      if (table === 'newsletter_sends') {
+        sendsState.n++
+        if (sendsState.n === 1) {
+          return {
+            upsert: vi.fn().mockImplementation((_rows: unknown, opts: Record<string, unknown>) => {
+              upsertOptions.push(opts)
+              return Promise.resolve({ data: null, error: null })
+            }),
+          }
+        }
+        if (sendsState.n === 2) {
+          // Resume query: a@ was already sent before the crash
+          // (provider_message_id recorded) → only b@ comes back.
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                is: vi.fn().mockImplementation((col: string, val: unknown) => {
+                  isArgs.push([col, val])
+                  return { or: vi.fn().mockReturnValue({ range: vi.fn().mockResolvedValue({ data: [{ id: 'send-b', subscriber_email: 'b@test.com' }], error: null }) }) }
+                }),
+              }),
+            }),
+          }
+        }
+        return {
+          update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: null, error: null }) }),
+          // True total comes from the DB (a@ from the pre-crash run + b@ now).
+          select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ not: vi.fn().mockResolvedValue({ count: 2, data: null, error: null }) }) }),
+        }
+      }
+
+      if (table === 'newsletter_types') {
+        return {
+          select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: TYPE_FIXTURE, error: null }) }) }),
+          update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: null, error: null }) }),
+        }
+      }
+      if (table === 'unsubscribe_tokens') {
+        return { upsert: vi.fn().mockResolvedValue({ data: null, error: null }) }
+      }
+      return chainMock({ data: null, error: null })
+    })
+
+    const res = await POST(req(CRON_SECRET))
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({ sent: 1 })
+
+    // Crash-safe fan-out: duplicate rows ignored on conflict of the
+    // (edition_id, subscriber_email) unique key.
+    expect(upsertOptions[0]).toMatchObject({ onConflict: 'edition_id,subscriber_email', ignoreDuplicates: true })
+    // Resume selector targets rows never handed to the provider.
+    expect(isArgs).toEqual([['provider_message_id', null]])
+    // a@ already got the edition pre-crash — only b@ is mailed now (no dupes).
+    expect(mockSend).toHaveBeenCalledTimes(1)
+    expect(mockSend.mock.calls[0][0].to).toBe('b@test.com')
+    // send_count reflects the DB truth across both runs, not just this run.
+    const lastUpdate = editionUpdates.filter((u) => u.status === 'sent').pop()
+    expect(lastUpdate?.send_count).toBe(2)
+  })
+
+  // ── Audit: partial failure / retry exhaustion ─────────────────────────────
+
+  it('surfaces (Sentry error) sends that are still failing after the in-run retries — never silently lost', async () => {
+    const state = { n: 0 }
+    const sendsState = { n: 0 }
+    const editionUpdates: Array<Record<string, unknown>> = []
+
+    // One subscriber whose send fails deterministically.
+    mockSend.mockReset()
+    mockSend.mockRejectedValue(new Error('address rejected'))
+
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'newsletter_editions') return editionsMock(state, editionUpdates)
+      if (table === 'newsletter_subscriptions') {
+        return chainMock({ data: [{ email: 'a@test.com', locale: null }], error: null })
+      }
+      if (table === 'newsletter_sends') {
+        sendsState.n++
+        if (sendsState.n === 1) return { upsert: vi.fn().mockResolvedValue({ data: null, error: null }) }
+        if (sendsState.n === 2) {
+          return chainMock({ data: [{ id: 'send-a', subscriber_email: 'a@test.com' }], error: null })
+        }
+        return {
+          update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: null, error: null }) }),
+          select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ not: vi.fn().mockResolvedValue({ count: 0, data: null, error: null }) }) }),
+        }
+      }
+      if (table === 'newsletter_types') {
+        return {
+          select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: TYPE_FIXTURE, error: null }) }) }),
+          update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: null, error: null }) }),
+        }
+      }
+      if (table === 'unsubscribe_tokens') {
+        return { upsert: vi.fn().mockResolvedValue({ data: null, error: null }) }
+      }
+      return chainMock({ data: null, error: null })
+    })
+
+    const res = await POST(req(CRON_SECRET))
+    expect(res.status).toBe(200)
+
+    // 1 main attempt + 2 retry passes = 3 attempts before giving up.
+    expect(mockSend).toHaveBeenCalledTimes(3)
+    // The loss is loudly recorded (level error + the failed send ids).
+    expect(mockCaptureMessage).toHaveBeenCalledWith(
+      expect.stringContaining('still failing'),
+      expect.objectContaining({
+        level: 'error',
+        extra: expect.objectContaining({ failedSendIds: ['send-a'] }),
+      }),
+    )
+    // Edition completes for everyone else (single bad address can't wedge it).
+    expect(editionUpdates.some((u) => u.status === 'sent')).toBe(true)
   })
 })

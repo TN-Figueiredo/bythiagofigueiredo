@@ -104,6 +104,11 @@ export default defineConfig({
       // transport). Not installed (project sends via Resend/SES), but the inlined
       // email package's SMTP chunk references it — stub so it resolves in tests.
       { find: /^nodemailer$/, replacement: path.resolve(__dirname, './test/__stubs__/nodemailer.ts') },
+      // `svix` is the THIRD optional peer dep of @tn-figueiredo/email — used only
+      // by the (removed-provider) ResendWebhookProcessor, but the inlined
+      // `webhooks` entry imports it at top level. Stub so the real
+      // SesWebhookProcessor can be exercised in tests.
+      { find: /^svix$/, replacement: path.resolve(__dirname, './test/__stubs__/svix.ts') },
       // `vitest-axe` is not installed — stub so accessibility tests resolve.
       { find: /^vitest-axe$/, replacement: path.resolve(__dirname, './test/__stubs__/vitest-axe.ts') },
       // Sprint 5b — `apps/web/lib/seo/` lives outside `src/`. Map specifically

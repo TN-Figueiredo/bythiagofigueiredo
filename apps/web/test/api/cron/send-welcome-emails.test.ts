@@ -25,8 +25,11 @@ vi.mock('@sentry/nextjs', () => ({
 
 import { POST } from '../../../src/app/api/cron/send-welcome-emails/route'
 import { sendWelcomeEmail } from '../../../lib/newsletter/welcome-email'
+import * as Sentry from '@sentry/nextjs'
 
 const sendWelcomeEmailMock = vi.mocked(sendWelcomeEmail)
+const captureExceptionMock = vi.mocked(Sentry.captureException)
+const captureMessageMock = vi.mocked(Sentry.captureMessage)
 
 function req(secret?: string) {
   return new Request('http://localhost/api/cron/send-welcome-emails', {
@@ -196,5 +199,122 @@ describe('POST /api/cron/send-welcome-emails', () => {
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ status: 'ok', sent: 0 })
     expect(sendWelcomeEmailMock).not.toHaveBeenCalled()
+  })
+
+  // Builds the newsletter_subscriptions mock for the claim/release flow:
+  // select→candidates, update(welcome_sent:true)→claim, update(welcome_sent:false)→release.
+  function subscriptionsMockWithRelease(
+    subscriber: Record<string, unknown>,
+    releases: Array<{ payload: Record<string, unknown>; ids: unknown }>,
+  ) {
+    return {
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue({ data: [{ id: subscriber.id }], error: null }),
+          }),
+        }),
+      }),
+      update: vi.fn().mockImplementation((payload: Record<string, unknown>) => {
+        if (payload.welcome_sent === true) {
+          // Atomic claim path: .update().eq('welcome_sent', false).in(ids).select()
+          return {
+            eq: vi.fn().mockReturnValue({
+              in: vi.fn().mockReturnValue({
+                select: vi.fn().mockResolvedValue({ data: [subscriber], error: null }),
+              }),
+            }),
+          }
+        }
+        // Release path: .update({welcome_sent:false}).in('id', ids)
+        return {
+          in: vi.fn().mockImplementation((_col: string, ids: unknown) => {
+            releases.push({ payload, ids })
+            return Promise.resolve({ data: null, error: null })
+          }),
+        }
+      }),
+    }
+  }
+
+  function auxTablesMock(table: string) {
+    if (table === 'newsletter_types') {
+      return {
+        select: vi.fn().mockReturnValue({
+          in: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({
+              data: [{ name: 'Weekly', tagline: null, color: '#FF8240', cadence_label: null, cadence_days: 7, cadence_start_date: null, locale: 'en' }],
+              error: null,
+            }),
+          }),
+        }),
+      }
+    }
+    if (table === 'posts') {
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              order: vi.fn().mockReturnValue({
+                limit: vi.fn().mockReturnValue({
+                  maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+                }),
+              }),
+            }),
+          }),
+        }),
+      }
+    }
+    if (table === 'unsubscribe_tokens') {
+      return { upsert: vi.fn().mockResolvedValue({ data: null, error: null }) }
+    }
+    return {}
+  }
+
+  it('releases the claim when the send throws — welcome is retried next tick, not permanently lost', async () => {
+    const subscriber = { id: 'sub-1', email: 'user@example.com', locale: 'pt-BR', site_id: 'site-1', newsletter_id: 'nl-1' }
+    const releases: Array<{ payload: Record<string, unknown>; ids: unknown }> = []
+
+    sendWelcomeEmailMock.mockRejectedValue(new Error('ses unavailable'))
+
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'newsletter_subscriptions') return subscriptionsMockWithRelease(subscriber, releases)
+      return auxTablesMock(table)
+    })
+
+    const res = await POST(req(CRON_SECRET))
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ status: 'ok', sent: 0 })
+
+    // The claimed row was reset to welcome_sent=false so the next cron tick
+    // re-attempts the welcome (a transient SES error must not skip it forever).
+    expect(releases).toHaveLength(1)
+    expect(releases[0]!.payload).toEqual({ welcome_sent: false })
+    expect(releases[0]!.ids).toEqual(['sub-1'])
+    expect(captureExceptionMock).toHaveBeenCalled()
+  })
+
+  it('releases the claim when the send reports failure (returns false)', async () => {
+    const subscriber = { id: 'sub-1', email: 'user@example.com', locale: 'pt-BR', site_id: 'site-1', newsletter_id: 'nl-1' }
+    const releases: Array<{ payload: Record<string, unknown>; ids: unknown }> = []
+
+    sendWelcomeEmailMock.mockResolvedValue(false)
+
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'newsletter_subscriptions') return subscriptionsMockWithRelease(subscriber, releases)
+      return auxTablesMock(table)
+    })
+
+    const res = await POST(req(CRON_SECRET))
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ status: 'ok', sent: 0 })
+
+    expect(releases).toHaveLength(1)
+    expect(releases[0]!.payload).toEqual({ welcome_sent: false })
+    expect(releases[0]!.ids).toEqual(['sub-1'])
+    expect(captureMessageMock).toHaveBeenCalledWith(
+      expect.stringContaining('claim released for retry'),
+      expect.objectContaining({ level: 'warning' }),
+    )
   })
 })

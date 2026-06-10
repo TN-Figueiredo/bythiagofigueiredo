@@ -115,7 +115,7 @@ Workspace em `packages/cms/`, consumido via `"@tn-figueiredo/cms": "*"` + `trans
 |--------|--------|-----------|
 | 5a | LGPD compliance | `lib/lgpd/`, `app/api/cron/lgpd-*`, `app/account/`, `content/legal/` |
 | 5b | SEO hardening | `lib/seo/`, `app/sitemap.ts`, `app/robots.ts`, `app/og/` |
-| 5e | Newsletter CMS | `lib/newsletter/`, `app/cms/newsletters/`, `app/api/webhooks/resend` |
+| 5e | Newsletter CMS | `lib/newsletter/`, `app/cms/newsletters/`, `app/api/webhooks/ses` |
 | 5f | Links Engine | `lib/links/`, `app/cms/links/`, `app/go/`, `packages/links*/` |
 | 5g | Media System | `lib/media/`, `app/cms/media/` |
 
@@ -123,7 +123,7 @@ Workspace em `packages/cms/`, consumido via `"@tn-figueiredo/cms": "*"` + `trans
 
 - **LGPD:** 3-phase deletion (phase1 instant+ban → phase2 no-op → phase3 D+15 hard delete). Cookie banner only in `app/(public)/layout.tsx`, never in `/admin`, `/cms`, `/account`. 6 adapters wired in `lib/lgpd/container.ts`. Sentry error tracking = legítimo interesse LGPD Art. 7 VIII; Replay/Tracing need analytics consent.
 - **SEO:** `app/sitemap.ts` + `app/robots.ts` do direct host lookup (NOT middleware-dependent — Next.js #58436). JSON-LD `@graph` composition via `schema-dts`. Identity profiles committed as JSON (not DB) — security-grade. OG image 5-step precedence: seo_extras → cover_image → dynamic OG → site default → `/og-default.png`.
-- **Newsletter:** Resend-only (Brevo fully removed). CAS for edition status transitions. Crash recovery via `ON CONFLICT DO NOTHING`. RFC 8058 one-click unsubscribe. Svix webhook verification. React Email templates in `src/emails/`.
+- **Newsletter:** AWS SES-only since 2026-04-30 (Resend + Svix removed; Brevo before that). CAS for edition status transitions. Crash recovery via `ON CONFLICT DO NOTHING`. RFC 8058 one-click unsubscribe. Delivery/open/click/bounce tracking via SES config set (`bythiago-marketing`) → SNS → `app/api/webhooks/ses` (cert-based SNS signature verification, no shared secret). React Email templates in `src/emails/`.
 - **Links:** `go.{domain}` subdomain routing via middleware rewrite to `/go/${code}`. Daily-rotating visitor ID `SHA-256(ip|ua|date)`. Partitioned `link_clicks` table. Watermark-based hourly aggregation.
 - **Media:** Vercel Blob storage (`@vercel/blob`). SHA-256 dedup. EXIF strip (LGPD). 7-day orphan grace → 30-day hard delete. SVG sanitization via DOMPurify. `<MediaGalleryDialog>` reusable picker wired into blog/author/newsletter/campaign editors.
 

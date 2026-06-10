@@ -16,6 +16,10 @@ const LOCK_KEY = 'cron:send-newsletters'
 const BATCH_SIZE = 100
 const THROTTLE_MS = 50
 const SUBSCRIBER_PAGE_SIZE = 500
+// In-run retry passes over sends that threw (transient SES errors). Once the
+// edition is marked 'sent' a queued row is never picked up again, so retrying
+// before completion is the last chance for that subscriber to get the edition.
+const MAX_RETRY_PASSES = 2
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms))
@@ -224,17 +228,26 @@ async function sendEdition(
   if (!claimed?.length) return 0
 
   // Paginated fetch — Supabase silently truncates at max_rows (1000).
+  //
+  // COMPLETENESS GUARD: a query error mid-pagination MUST abort the edition.
+  // Treating an error page as "end of list" would truncate the subscriber set,
+  // mark the edition 'sent' with a partial fan-out, and the missing subscribers
+  // would never be retried. Throwing leaves the edition in 'sending'; the
+  // stuck-edition recovery resets it to 'scheduled' and the next run resumes.
   const subscribers: Array<{ email: string; locale: string | null }> = []
   let offset = 0
   // eslint-disable-next-line no-constant-condition
   while (true) {
-    const { data: page } = await supabase
+    const { data: page, error: pageError } = await supabase
       .from('newsletter_subscriptions')
       .select('email, locale')
       .eq('newsletter_id', edition.newsletter_type_id)
       .eq('site_id', edition.site_id)
       .eq('status', 'confirmed')
       .range(offset, offset + SUBSCRIBER_PAGE_SIZE - 1)
+    if (pageError) {
+      throw new Error(`subscriber fetch failed at offset ${offset}: ${pageError.message}`)
+    }
     if (!page?.length) break
     subscribers.push(...page)
     if (page.length < SUBSCRIBER_PAGE_SIZE) break
@@ -262,12 +275,18 @@ async function sendEdition(
   }))
 
   // Chunk upsert into pages of 500 to avoid PostgREST body-size limits.
+  // COMPLETENESS GUARD: an upsert error means some subscribers never got a
+  // newsletter_sends row — the unsent selector would skip them and the edition
+  // would be marked 'sent' without them. Abort instead (edition gets retried).
   const UPSERT_PAGE = 500
   for (let u = 0; u < sendRows.length; u += UPSERT_PAGE) {
-    await supabase.from('newsletter_sends').upsert(
+    const { error: upsertError } = await supabase.from('newsletter_sends').upsert(
       sendRows.slice(u, u + UPSERT_PAGE),
       { onConflict: 'edition_id,subscriber_email', ignoreDuplicates: true },
     )
+    if (upsertError) {
+      throw new Error(`newsletter_sends upsert failed at chunk ${u}: ${upsertError.message}`)
+    }
   }
 
   // Paginated fetch of unsent rows — Supabase silently truncates at max_rows (1000).
@@ -284,20 +303,32 @@ async function sendEdition(
   let unsentOffset = 0
   // eslint-disable-next-line no-constant-condition
   while (true) {
-    const { data: unsentPage } = await supabase
+    const { data: unsentPage, error: unsentError } = await supabase
       .from('newsletter_sends')
       .select('id, subscriber_email')
       .eq('edition_id', edition.id)
       .is('provider_message_id', null)
       .or(`last_attempt_at.is.null,last_attempt_at.lt.${reattemptCutoff}`)
       .range(unsentOffset, unsentOffset + SUBSCRIBER_PAGE_SIZE - 1)
+    if (unsentError) {
+      throw new Error(`unsent-rows fetch failed at offset ${unsentOffset}: ${unsentError.message}`)
+    }
     if (!unsentPage?.length) break
     unsent.push(...unsentPage)
     if (unsentPage.length < SUBSCRIBER_PAGE_SIZE) break
     unsentOffset += SUBSCRIBER_PAGE_SIZE
   }
 
-  if (!unsent?.length) {
+  // MID-SEND SUPPRESSION: queued rows are a snapshot from fan-out time. On a
+  // crash-resume (or any later re-run) a subscriber may have unsubscribed,
+  // bounced or complained since the row was created — their subscription is no
+  // longer 'confirmed' and they MUST NOT be mailed. Filter the queued rows
+  // against the freshly fetched confirmed set; stale rows stay 'queued' with
+  // provider_message_id NULL as an audit trail (never dispatched).
+  const confirmedEmails = new Set(subscribers.map((s) => s.email.toLowerCase()))
+  const eligible = unsent.filter((s) => confirmedEmails.has(s.subscriber_email.toLowerCase()))
+
+  if (!eligible.length) {
     await supabase.from('newsletter_editions').update({
       status: 'sent',
       sent_at: new Date().toISOString(),
@@ -337,7 +368,7 @@ async function sendEdition(
   const tokenRows: { site_id: string; email: string; token_hash: string }[] = []
   const tokenMap = new Map<string, string>()
 
-  for (const send of unsent) {
+  for (const send of eligible) {
     const { raw, hash } = generateUnsubscribeToken(edition.site_id, send.subscriber_email)
     tokenMap.set(send.subscriber_email, raw)
     tokenRows.push({ site_id: edition.site_id, email: send.subscriber_email, token_hash: hash })
@@ -410,79 +441,92 @@ async function sendEdition(
   let sentCount = 0
   let errorCount = 0
 
-  for (let i = 0; i < unsent.length; i += BATCH_SIZE) {
-    const batch = unsent.slice(i, i + BATCH_SIZE)
+  // Single send attempt for one queued row. Returns true when SES accepted the
+  // message (row stamped with provider_message_id), false when the send threw
+  // (row left retryable: status 'queued', provider_message_id NULL,
+  // last_attempt_at cleared). Used by the main loop AND the in-run retry passes.
+  const attemptSend = async (send: { id: string; subscriber_email: string }): Promise<boolean> => {
+    try {
+      const unsubToken = tokenMap.get(send.subscriber_email) ?? ''
+      const unsubscribeUrl = `${appUrl}/api/newsletters/unsubscribe?token=${unsubToken}`
+      const subscriberLocale = subscriberLocaleMap.get(send.subscriber_email) ?? null
+      const localePrefix = subscriberLocale === 'pt-BR' ? '/pt' : ''
+      const archiveUrl = `${appUrl}${localePrefix}/newsletter/archive/${edition.id}`
+
+      // Fast per-subscriber string replacement instead of full render.
+      let html = preRenderedHtml
+        .replace(/__UNSUB_URL__/g, unsubscribeUrl)
+        .replace(/__ARCHIVE_URL__/g, archiveUrl)
+      const text = preRenderedText
+        .replace(/__UNSUB_URL__/g, unsubscribeUrl)
+        .replace(/__ARCHIVE_URL__/g, archiveUrl)
+
+      // Legacy path: per-subscriber click-tracking rewrite (only when no shortDomain).
+      if (!shortDomain) {
+        html = rewriteLinksForTracking(html, send.id, appUrl)
+      }
+
+      // Claim the row before handing off to SES (at-least-once delivery):
+      // if SES accepts but the post-send DB update is lost, this timestamp
+      // keeps the row out of the unsent selector for 90 min, preventing an
+      // immediate duplicate re-send of an accepted-but-unrecorded message.
+      await supabase
+        .from('newsletter_sends')
+        .update({ last_attempt_at: new Date().toISOString() } as Record<string, unknown>)
+        .eq('id', send.id)
+
+      const result = await emailService.send({
+        from: { name: senderName, email: senderEmail },
+        to: send.subscriber_email,
+        subject: edition.subject,
+        html,
+        text,
+        metadata: {
+          configurationSet: process.env.SES_MARKETING_CONFIG_SET ?? 'bythiago-marketing',
+          headers: {
+            'List-Unsubscribe': `<mailto:unsubscribe@${fromDomain}?subject=unsubscribe>, <${unsubscribeUrl}>`,
+            'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+          },
+        },
+        ...(replyTo ? { replyTo } : {}),
+      })
+
+      await supabase.from('newsletter_sends').update({
+        provider_message_id: result.messageId,
+        status: 'sent',
+        // Record which pipeline was used — the webhook handler reads this.
+        link_rewrite_enabled: shortDomain !== null,
+      } as Record<string, unknown>).eq('id', send.id)
+
+      sentCount++
+      await sleep(THROTTLE_MS)
+      return true
+    } catch (err) {
+      errorCount++
+      // The send threw → SES did NOT accept it, so it's safe (and desirable)
+      // to retry. Clear the last_attempt_at claim we stamped pre-send so the
+      // 90-min suppression window (meant only for accepted-but-unrecorded rows)
+      // doesn't delay this failed row's retry. Best-effort.
+      await supabase
+        .from('newsletter_sends')
+        .update({ last_attempt_at: null } as Record<string, unknown>)
+        .eq('id', send.id)
+        .then(() => {}, () => {})
+      Sentry.captureException(err, {
+        tags: { component: 'cron', job: JOB, editionId: edition.id, sendId: send.id },
+      })
+      return false
+    }
+  }
+
+  const failedSends: Array<{ id: string; subscriber_email: string }> = []
+
+  for (let i = 0; i < eligible.length; i += BATCH_SIZE) {
+    const batch = eligible.slice(i, i + BATCH_SIZE)
 
     for (const send of batch) {
-      try {
-        const unsubToken = tokenMap.get(send.subscriber_email) ?? ''
-        const unsubscribeUrl = `${appUrl}/api/newsletters/unsubscribe?token=${unsubToken}`
-        const subscriberLocale = subscriberLocaleMap.get(send.subscriber_email) ?? null
-        const localePrefix = subscriberLocale === 'pt-BR' ? '/pt' : ''
-        const archiveUrl = `${appUrl}${localePrefix}/newsletter/archive/${edition.id}`
-
-        // Fast per-subscriber string replacement instead of full render.
-        let html = preRenderedHtml
-          .replace(/__UNSUB_URL__/g, unsubscribeUrl)
-          .replace(/__ARCHIVE_URL__/g, archiveUrl)
-        const text = preRenderedText
-          .replace(/__UNSUB_URL__/g, unsubscribeUrl)
-          .replace(/__ARCHIVE_URL__/g, archiveUrl)
-
-        // Legacy path: per-subscriber click-tracking rewrite (only when no shortDomain).
-        if (!shortDomain) {
-          html = rewriteLinksForTracking(html, send.id, appUrl)
-        }
-
-        // Claim the row before handing off to SES (at-least-once delivery):
-        // if SES accepts but the post-send DB update is lost, this timestamp
-        // keeps the row out of the unsent selector for 90 min, preventing an
-        // immediate duplicate re-send of an accepted-but-unrecorded message.
-        await supabase
-          .from('newsletter_sends')
-          .update({ last_attempt_at: new Date().toISOString() } as Record<string, unknown>)
-          .eq('id', send.id)
-
-        const result = await emailService.send({
-          from: { name: senderName, email: senderEmail },
-          to: send.subscriber_email,
-          subject: edition.subject,
-          html,
-          text,
-          metadata: {
-            configurationSet: process.env.SES_MARKETING_CONFIG_SET ?? 'bythiago-marketing',
-            headers: {
-              'List-Unsubscribe': `<mailto:unsubscribe@${fromDomain}?subject=unsubscribe>, <${unsubscribeUrl}>`,
-              'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
-            },
-          },
-          ...(replyTo ? { replyTo } : {}),
-        })
-
-        await supabase.from('newsletter_sends').update({
-          provider_message_id: result.messageId,
-          status: 'sent',
-          // Record which pipeline was used — the webhook handler reads this.
-          link_rewrite_enabled: shortDomain !== null,
-        } as Record<string, unknown>).eq('id', send.id)
-
-        sentCount++
-        await sleep(THROTTLE_MS)
-      } catch (err) {
-        errorCount++
-        // The send threw → SES did NOT accept it, so it's safe (and desirable)
-        // to retry on the next tick. Clear the last_attempt_at claim we stamped
-        // pre-send so the 90-min suppression window (meant only for accepted-but-
-        // unrecorded rows) doesn't delay this failed row's retry. Best-effort.
-        await supabase
-          .from('newsletter_sends')
-          .update({ last_attempt_at: null } as Record<string, unknown>)
-          .eq('id', send.id)
-          .then(() => {}, () => {})
-        Sentry.captureException(err, {
-          tags: { component: 'cron', job: JOB, editionId: edition.id, sendId: send.id },
-        })
-      }
+      const ok = await attemptSend(send)
+      if (!ok) failedSends.push(send)
     }
 
     // Send-error circuit breaker (NOT a bounce/reputation guard): errorCount
@@ -505,6 +549,40 @@ async function sendEdition(
       )
       return sentCount
     }
+  }
+
+  // ── In-run retry of transient send failures ────────────────────────────
+  // A send that threw stays 'queued' (provider_message_id NULL), but once the
+  // edition is marked 'sent' below it is unreachable forever — the editions
+  // selector only picks 'scheduled'. So a single transient SES throttle below
+  // the circuit-breaker threshold would silently drop that subscriber. Retry
+  // the failed subset up to MAX_RETRY_PASSES times before completing; anything
+  // still failing is surfaced to Sentry as an error (row stays queued as the
+  // durable record of who was missed).
+  let remainingFailed = failedSends
+  for (let pass = 1; pass <= MAX_RETRY_PASSES && remainingFailed.length > 0; pass++) {
+    const stillFailed: typeof remainingFailed = []
+    for (const send of remainingFailed) {
+      const ok = await attemptSend(send)
+      if (!ok) stillFailed.push(send)
+    }
+    remainingFailed = stillFailed
+  }
+
+  if (remainingFailed.length > 0) {
+    Sentry.captureMessage(
+      `Newsletter edition ${edition.id}: ${remainingFailed.length} send(s) still failing after ${MAX_RETRY_PASSES} retry pass(es) — rows remain queued (provider_message_id NULL) and will NOT be retried automatically once the edition is marked sent.`,
+      {
+        level: 'error',
+        tags: { component: 'cron', job: JOB, phase: 'retry_exhausted', editionId: edition.id },
+        extra: {
+          editionId: edition.id,
+          failedSendIds: remainingFailed.map((s) => s.id),
+          sentCount,
+          errorCount,
+        },
+      },
+    )
   }
 
   // Query actual sent count from DB — after crash-resume sentCount only
