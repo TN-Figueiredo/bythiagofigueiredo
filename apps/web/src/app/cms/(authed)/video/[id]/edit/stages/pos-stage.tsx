@@ -361,7 +361,50 @@ export function PosStage({ beats, brief, activeLang, onPatch, onSeed, onOpenHand
           </div>
         </PPCard>
 
-        {/* ── Momentos-chave + B-roll (from beats) ── */}
+        {/* ── Estilo & ritmo ── */}
+        <PPCard icon={<SlidersHorizontal size={14} />} title="Estilo &amp; ritmo" sub="o jeito do canal — editável">
+          <div className="pp-style">
+            {style.map((s, i) => (
+              <div key={i} className="pp-srow">
+                <span className="pp-sk">{s.k}</span>
+                <EF tag="span" className="pp-sv" value={s.v} canEdit={canEdit} onChange={v => patchStyleRow(i, v)} ph={s.k} />
+              </div>
+            ))}
+          </div>
+        </PPCard>
+
+        {/* ── CTAs & QR ── */}
+        <PPCard icon={<Link size={14} />} title="CTAs &amp; QR" sub="atenção: muda por idioma">
+          <div className="pp-cta-note">
+            <AlertTriangle size={13} />{' '}
+            <EF tag="span" className="ef-inline" value={ctas.note ?? ''} canEdit={canEdit} onChange={v => patchCtaField('note', v)} ph="Aviso pro editor" />
+          </div>
+          <div className="pp-cta-table" role="table">
+            <div className="pp-cta-h" role="row">
+              <span role="columnheader" aria-label="Destino" />
+              <span role="columnheader" className={activeLang === 'pt' ? 'on' : ''} aria-current={activeLang === 'pt' ? 'true' : undefined}>🇧🇷 PT</span>
+              <span role="columnheader" className={activeLang === 'en' ? 'on' : ''} aria-current={activeLang === 'en' ? 'true' : undefined}>🇺🇸 EN</span>
+            </div>
+            {ctas.rows.map((r, i) => (
+              <div key={i} className="pp-cta-row" role="row">
+                <span className="pp-ck" role="rowheader">{r.k}</span>
+                <span role="cell" className={activeLang === 'pt' ? 'on' : ''} aria-current={activeLang === 'pt' ? 'true' : undefined}>
+                  <EF tag="span" className="ef-inline" value={r.pt} canEdit={canEdit} onChange={v => patchCta(i, 'pt', v)} ph={`${r.k} · PT`} />
+                </span>
+                <span role="cell" className={activeLang === 'en' ? 'on' : ''} aria-current={activeLang === 'en' ? 'true' : undefined}>
+                  <EF tag="span" className="ef-inline" value={r.en} canEdit={canEdit} onChange={v => patchCta(i, 'en', v)} ph={`${r.k} · EN`} />
+                </span>
+              </div>
+            ))}
+          </div>
+          <div className="pp-cta-disp">
+            <Info size={12} />{' '}
+            <EF tag="span" className="ef-inline" value={ctas.display ?? ''} canEdit={canEdit} onChange={v => patchCtaField('display', v)} ph="Onde/quando o QR aparece" />
+          </div>
+        </PPCard>
+
+        {/* ── Momentos-chave + B-roll (from beats) — derived REFERENCE, last (same order as the
+            printed handoff: editable instructions first, the long script appendix after) ── */}
         {beats.length > 0 ? (
           <>
             <PPCard icon={<Target size={14} />} title="Momentos-chave" sub="frase-âncora + cue visual, por beat">
@@ -414,48 +457,6 @@ export function PosStage({ beats, brief, activeLang, onPatch, onSeed, onOpenHand
             </div>
           </PPCard>
         )}
-
-        {/* ── Estilo & ritmo ── */}
-        <PPCard icon={<SlidersHorizontal size={14} />} title="Estilo &amp; ritmo" sub="o jeito do canal — editável">
-          <div className="pp-style">
-            {style.map((s, i) => (
-              <div key={i} className="pp-srow">
-                <span className="pp-sk">{s.k}</span>
-                <EF tag="span" className="pp-sv" value={s.v} canEdit={canEdit} onChange={v => patchStyleRow(i, v)} ph={s.k} />
-              </div>
-            ))}
-          </div>
-        </PPCard>
-
-        {/* ── CTAs & QR ── */}
-        <PPCard icon={<Link size={14} />} title="CTAs &amp; QR" sub="atenção: muda por idioma">
-          <div className="pp-cta-note">
-            <AlertTriangle size={13} />{' '}
-            <EF tag="span" className="ef-inline" value={ctas.note ?? ''} canEdit={canEdit} onChange={v => patchCtaField('note', v)} ph="Aviso pro editor" />
-          </div>
-          <div className="pp-cta-table" role="table">
-            <div className="pp-cta-h" role="row">
-              <span role="columnheader" aria-label="Destino" />
-              <span role="columnheader" className={activeLang === 'pt' ? 'on' : ''} aria-current={activeLang === 'pt' ? 'true' : undefined}>🇧🇷 PT</span>
-              <span role="columnheader" className={activeLang === 'en' ? 'on' : ''} aria-current={activeLang === 'en' ? 'true' : undefined}>🇺🇸 EN</span>
-            </div>
-            {ctas.rows.map((r, i) => (
-              <div key={i} className="pp-cta-row" role="row">
-                <span className="pp-ck" role="rowheader">{r.k}</span>
-                <span role="cell" className={activeLang === 'pt' ? 'on' : ''} aria-current={activeLang === 'pt' ? 'true' : undefined}>
-                  <EF tag="span" className="ef-inline" value={r.pt} canEdit={canEdit} onChange={v => patchCta(i, 'pt', v)} ph={`${r.k} · PT`} />
-                </span>
-                <span role="cell" className={activeLang === 'en' ? 'on' : ''} aria-current={activeLang === 'en' ? 'true' : undefined}>
-                  <EF tag="span" className="ef-inline" value={r.en} canEdit={canEdit} onChange={v => patchCta(i, 'en', v)} ph={`${r.k} · EN`} />
-                </span>
-              </div>
-            ))}
-          </div>
-          <div className="pp-cta-disp">
-            <Info size={12} />{' '}
-            <EF tag="span" className="ef-inline" value={ctas.display ?? ''} canEdit={canEdit} onChange={v => patchCtaField('display', v)} ph="Onde/quando o QR aparece" />
-          </div>
-        </PPCard>
 
       </div>
     </div>
