@@ -58,7 +58,7 @@ describe('PosStage', () => {
         <PosStage beats={beats} brief={null} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
       </VideoEditorProvider>,
     )
-    expect(screen.getByText('Sugestões pro editor')).toBeInTheDocument()
+    expect(screen.getByText('Instruções pro editor')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Gerar pós com Cowork/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Começar do zero/i })).toBeInTheDocument()
   })

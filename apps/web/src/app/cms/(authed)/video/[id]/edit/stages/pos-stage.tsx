@@ -162,7 +162,7 @@ function PosGenerateChooser({ onStart, legacy = false }: { onStart: () => void; 
     <div className="pp-doc fade-in">
       <div className="rot-gen">
         <div className="vi-kicker"><SparklesGlyph size={13} /> Pós · brief pro editor</div>
-        <h1 className="vi-title">Sugestões pro editor</h1>
+        <h1 className="vi-title">Instruções pro editor</h1>
         <div className="rot-gen-actions">
           <CoworkButton stage="pos" label="Gerar pós com Cowork" />
           <button type="button" className="btn" onClick={onStart}>
@@ -288,7 +288,7 @@ export function PosStage({ beats, brief, activeLang, onPatch, onSeed, onOpenHand
       <div className="pp-bar">
         <div className="pp-bar-head">
           <div className="vi-kicker"><SparklesGlyph size={12} /> Pós-produção · brief pro editor</div>
-          <h1 className="vi-title pp-bar-title">Sugestões pro editor</h1>
+          <h1 className="vi-title pp-bar-title">Instruções pro editor</h1>
           <div className="pp-editor"><Edit size={11} /> Tudo editável · ajuste por vídeo</div>
         </div>
         <div className="grow" />

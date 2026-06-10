@@ -904,12 +904,14 @@
 .pp-broll-row li { font-size: 13px; line-height: 1.5; color: var(--text-muted); }
 
 .pp-style { display: flex; flex-direction: column; gap: 0; }
-/* content-sized first column + hairline rhythm to match the b-roll list */
-.pp-srow { display: grid; grid-template-columns: minmax(110px, max-content) 1fr; gap: 14px; align-items: baseline;
+/* FIXED key column (each row is its own grid — max-content would let one long key widen
+   only its row and break the vertical alignment of the value column). Long keys wrap
+   INSIDE the column; values all start at the same x. */
+.pp-srow { display: grid; grid-template-columns: 150px 1fr; gap: 14px; align-items: baseline;
   padding: 11px 0; border-top: 1px solid var(--border-soft); }
 .pp-srow:first-child { border-top: none; padding-top: 2px; }
 .pp-srow:last-child { padding-bottom: 2px; }
-.pp-sk { font-size: 12px; font-weight: 600; color: var(--text); }
+.pp-sk { font-size: 12px; font-weight: 600; color: var(--text); line-height: 1.35; overflow-wrap: break-word; }
 .pp-sv { font-size: 13px; line-height: 1.55; color: var(--text-muted); }
 
 /* fill + border LITERAL — --warn-s is an rgba(from…) relative-color token (at risk) and the

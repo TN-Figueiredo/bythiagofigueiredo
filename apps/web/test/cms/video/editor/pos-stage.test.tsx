@@ -58,7 +58,7 @@ describe('PosStage — handoff markup', () => {
     )
     expect(container.querySelector('.pp-bar')).toBeTruthy()
     expect(container.querySelector('.pp-bar .vi-kicker')!.textContent).toContain('Pós-produção')
-    expect(container.querySelector('.pp-bar-title')!.textContent).toBe('Sugestões pro editor')
+    expect(container.querySelector('.pp-bar-title')!.textContent).toBe('Instruções pro editor')
     expect(screen.getByRole('button', { name: /Exportar pro editor/i })).toBeTruthy()
   })
 
@@ -371,7 +371,7 @@ describe('PosStage — handoff markup', () => {
       wrap(
         <PosStage beats={beats} brief={emptyBrief} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
       )
-      expect(screen.getByText('Sugestões pro editor')).toBeTruthy()
+      expect(screen.getByText('Instruções pro editor')).toBeTruthy()
       expect(screen.getByRole('button', { name: /Começar do zero/i })).toBeTruthy()
     })
 
@@ -392,7 +392,7 @@ describe('PosStage — handoff markup', () => {
         <PosStage beats={beats} brief={noteOnly} activeLang="pt" onPatch={vi.fn()} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />
       )
       expect(container.querySelector('.pp-grid')).toBeTruthy()
-      // chooser-specific affordance absent (the bar title shares the "Sugestões pro editor" text)
+      // chooser-specific affordance absent (the bar title shares the "Instruções pro editor" text)
       expect(container.querySelector('.rot-gen')).toBeNull()
     })
 

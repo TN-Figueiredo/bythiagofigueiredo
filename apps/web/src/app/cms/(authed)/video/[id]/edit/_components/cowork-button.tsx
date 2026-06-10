@@ -29,7 +29,8 @@ const STAGE_TARGET_HINT: Partial<Record<VideoStage, (itemId: string, lang: strin
   pos: (itemId, lang) =>
     `→ escreva a seção \`postprod\` (PosBriefSchema, kind:'brief') via MCP manage_sections (action:update, item_id:${itemId}, section:postprod, lang:${lang}); ` +
     `derive estilo & ritmo, CTAs e QR do roteiro — leia primeiro com manage_sections action:get (section:roteiro, lang:${lang}); ` +
-    `o escopo de entrega (o que cortar/entregar) vai em deliverables.notes (texto livre), NÃO invente outros campos em deliverables. ` +
+    `o escopo de entrega (o que cortar/entregar) vai em deliverables.notes (texto livre), NÃO invente outros campos em deliverables; ` +
+    `style[].k é um RÓTULO curto (1–3 palavras, ex. "Pacing", "Music") — qualquer detalhe/parêntese vai no style[].v, nunca na chave. ` +
     `IMPORTANTE — o editor de vídeo é estrangeiro (NÃO fala português): escreva TODAS as instruções pro editor EM INGLÊS, mesmo num vídeo PT-BR — ` +
     `style & ritmo (style[].v), energy, deliverables.notes/escopo e B-roll cues, tudo em inglês. ` +
     `A ÚNICA exceção é o texto literal de CTA que aparece NA TELA: ctas.rows[].pt = o que vai escrito na tela em português, .en = em inglês.`,
