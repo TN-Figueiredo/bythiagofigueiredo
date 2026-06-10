@@ -61,10 +61,10 @@ const stubData = {
   advanceToRecorded: vi.fn().mockResolvedValue({ ok: true }), publishVideo: vi.fn().mockResolvedValue({ ok: true }),
 }
 
-function shell(state: VideoEditorState) {
+function shell(state: VideoEditorState, data: typeof stubData = stubData) {
   return render(
     <VideoEditorProvider initialState={state}>
-      <VideoDataProvider value={stubData as never}>
+      <VideoDataProvider value={data as never}>
         <EditorShell />
       </VideoDataProvider>
     </VideoEditorProvider>,
@@ -150,5 +150,58 @@ describe('overlay wiring — render only when the reducer flag is open', () => {
       expect(overlay?.textContent).not.toContain('Brief pro editor')
     })
     expect(document.body.classList.contains('recording')).toBe(true)
+  })
+})
+
+// The printed "Versions" meta line must be TRUE — it promises the editor which language
+// cuts exist. stubData carries content ONLY in PT, so the sheet must never advertise
+// 'PT-BR + EN' (the old hardcoded label) when the EN cut hasn't been written.
+describe('handoff Versions label — reflects actual content, never a hardcoded pair', () => {
+  it('promises only PT-BR when the EN version carries no content', async () => {
+    shell(make({ handoffOpen: true }))
+    await waitFor(() => expect(document.querySelector('.rec-overlay')).not.toBeNull())
+    const txt = document.querySelector('.rec-overlay')?.textContent ?? ''
+    expect(txt).toContain('Versions')
+    expect(txt).toContain('PT-BR')
+    expect(txt).not.toContain('PT-BR + EN')
+  })
+
+  it('promises PT-BR + EN once both versions carry content', async () => {
+    const data = {
+      ...stubData,
+      versions: { ...stubData.versions, en: { ...stubData.versions.en, title: 'the EN cut' } },
+    }
+    shell(make({ handoffOpen: true }), data)
+    await waitFor(() =>
+      expect(document.querySelector('.rec-overlay')?.textContent).toContain('PT-BR + EN'),
+    )
+  })
+})
+
+// Language-integrity cue end-to-end: the EN handoff falling back to the PT brief (legacy
+// items wrote postprod_pt only) must surface the fallback — never EN chrome silently
+// carrying PT instructions.
+describe('handoff brief lang-fallback cue — wired from the shell', () => {
+  const ptOnlyBrief = {
+    kind: 'brief',
+    deliverables: { editor: 'João' },
+    style: [{ k: 'Cor', v: 'Quente' }],
+    ctas: { note: '', rows: [], display: '' },
+  }
+
+  it('EN sheet with only a PT brief renders the chip + printed footnote', async () => {
+    const data = { ...stubData, sections: { postprod_pt: ptOnlyBrief } }
+    shell(make({ handoffOpen: true }), data)
+    await waitFor(() => expect(document.querySelector('.rec-overlay')).not.toBeNull())
+    expect(document.querySelector('.hs-fb-chip')?.textContent).toContain('Brief in PT')
+    expect(document.querySelector('.hs-fb-note')?.textContent).toMatch(/brief content is in Portuguese/)
+  })
+
+  it('renders NO cue when the EN brief exists', async () => {
+    const data = { ...stubData, sections: { postprod_pt: ptOnlyBrief, postprod_en: { ...ptOnlyBrief, style: [{ k: 'Color', v: 'Warm' }] } } }
+    shell(make({ handoffOpen: true }), data)
+    await waitFor(() => expect(document.querySelector('.rec-overlay')).not.toBeNull())
+    expect(document.querySelector('.hs-fb-chip')).toBeNull()
+    expect(document.querySelector('.hs-fb-note')).toBeNull()
   })
 })

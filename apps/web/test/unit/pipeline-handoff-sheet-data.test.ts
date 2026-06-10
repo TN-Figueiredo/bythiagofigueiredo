@@ -75,4 +75,69 @@ describe('handoffBeatRows', () => {
     expect(rows[0]).toMatchObject({ displayNum: 1, name: 'Montagem', anchor: '' })
     expect(rows[0].cues).toEqual(['B-roll drone'])
   })
+
+  describe('source identity for the Pós cards (one numbering everywhere)', () => {
+    it('carries the RAW beat index + override key alongside the contiguous displayNum', () => {
+      const withNonSpoken: RoteiroBeatV3[] = [
+        { idx: 0, name: 'KIT', status: 'PENDING', script: [] }, // dropped
+        ...beats,
+      ]
+      const rows = handoffBeatRows(withNonSpoken)
+      // displayNum is contiguous over the projection; beatIndex/overrideKey keep the RAW source
+      expect(rows[0]).toMatchObject({ displayNum: 1, beatIndex: 1, overrideKey: 'i1', name: 'Abertura' })
+      expect(rows[1]).toMatchObject({ displayNum: 2, beatIndex: 2, overrideKey: 'i2', name: 'Desenvolvimento' })
+    })
+
+    it('uses the durable beat id as the overrideKey when present', () => {
+      const withIds: RoteiroBeatV3[] = beats.map((b, i) => ({ ...b, id: `beat-${i}` }))
+      const rows = handoffBeatRows(withIds)
+      expect(rows.map((r) => r.overrideKey)).toEqual(['beat-0', 'beat-1'])
+    })
+
+    it('exposes the momento cue (override.cue ?? first vis) and the ov shadow flags', () => {
+      const derived = handoffBeatRows(beats)
+      expect(derived[0].cue).toBe('B-roll cidade')
+      expect(derived[0].ov).toEqual({ line: false, cue: false, broll: false })
+      const rows = handoffBeatRows(beats, { i0: { cue: 'Cue editado' } })
+      expect(rows[0].cue).toBe('Cue editado')
+      expect(rows[0].cues).toEqual(['B-roll cidade', 'B-roll closeup']) // broll stays derived
+      expect(rows[0].ov).toEqual({ line: false, cue: true, broll: false })
+    })
+  })
+
+  describe('PosBrief per-beat overrides (printed sheet = Pós screen)', () => {
+    it('an override shadows the derived anchor and b-roll for its beat only', () => {
+      const rows = handoffBeatRows(beats, {
+        i0: { line: 'Âncora editada na Pós', broll: ['B-roll novo'] },
+      })
+      expect(rows[0]).toMatchObject({ name: 'Abertura', anchor: 'Âncora editada na Pós' })
+      expect(rows[0].cues).toEqual(['B-roll novo'])
+      // the other beat stays fully derived
+      expect(rows[1]).toMatchObject({ name: 'Desenvolvimento', anchor: 'Só uma linha' })
+      expect(rows[1].cues).toEqual([])
+    })
+
+    it('a partial override leaves the other field derived', () => {
+      const rows = handoffBeatRows(beats, { i0: { line: 'Só a frase mudou' } })
+      expect(rows[0].anchor).toBe('Só a frase mudou')
+      expect(rows[0].cues).toEqual(['B-roll cidade', 'B-roll closeup']) // derived intact
+    })
+
+    it('absent override key (cleared) falls back to the derivation', () => {
+      const withOv = handoffBeatRows(beats, { i0: { line: 'edit' } })
+      const cleared = handoffBeatRows(beats, {})
+      expect(withOv[0].anchor).toBe('edit')
+      expect(cleared[0].anchor).toBe('Linha âncora')
+      expect(handoffBeatRows(beats)).toEqual(cleared) // no-arg ≡ empty overrides
+    })
+
+    it('matches overrides by the beat durable id when present', () => {
+      const withIds: RoteiroBeatV3[] = beats.map((b, i) => ({ ...b, id: `beat-${i}` }))
+      const rows = handoffBeatRows(withIds, { 'beat-1': { line: 'Por id, não por índice' } })
+      expect(rows[1].anchor).toBe('Por id, não por índice')
+      // a positional key does NOT match an id-stamped beat
+      const miss = handoffBeatRows(withIds, { i1: { line: 'não casa' } })
+      expect(miss[1].anchor).toBe('Só uma linha')
+    })
+  })
 })

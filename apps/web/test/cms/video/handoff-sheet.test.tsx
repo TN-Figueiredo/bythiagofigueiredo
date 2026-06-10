@@ -60,6 +60,14 @@ describe('HandoffSheet', () => {
     expect(screen.getByText('B-roll cidade')).toBeDefined()
   })
 
+  it('PosBrief overrides shadow the printed anchor and b-roll (paper matches the Pós screen)', () => {
+    render(<HandoffSheet {...baseProps()} overrides={{ i0: { line: 'Âncora editada na Pós', broll: ['B-roll substituto'] } }} />)
+    expect(screen.getByText(/Âncora editada na Pós/)).toBeDefined()
+    expect(screen.queryByText(/Linha âncora/)).toBeNull()
+    expect(screen.getByText('B-roll substituto')).toBeDefined()
+    expect(screen.queryByText('B-roll cidade')).toBeNull()
+  })
+
   it('shows the per-language CTA/QR warning', () => {
     render(<HandoffSheet {...baseProps()} />)
     expect(document.querySelector('.hs-warn')?.textContent).toMatch(/muda por idioma/)
@@ -73,6 +81,52 @@ describe('HandoffSheet', () => {
   it('highlights the active-language CTA column', () => {
     render(<HandoffSheet {...baseProps()} />)
     expect(document.querySelector('tr.hl-pt')).not.toBeNull()
+  })
+
+  it('CTA row target cell is a <th scope="row"> (scope is invalid on <td>)', () => {
+    render(<HandoffSheet {...baseProps()} />)
+    const rowHead = document.querySelector('.hs-table tbody th.hs-ck')
+    expect(rowHead).not.toBeNull()
+    expect(rowHead?.getAttribute('scope')).toBe('row')
+    expect(document.querySelector('.hs-table tbody td[scope]')).toBeNull()
+  })
+
+  it('filters CTA rows where BOTH languages are empty (seeded-but-blank rows must not print)', () => {
+    const props = baseProps()
+    props.ctas.rows.push({ k: 'Linha vazia', pt: '', en: '   ' })
+    render(<HandoffSheet {...props} />)
+    expect(screen.queryByText('Linha vazia')).toBeNull()
+    expect(screen.getByText('Inscreva-se')).toBeDefined()
+  })
+
+  it('hides the whole CTA section when EVERY row is empty (no blank table on paper)', () => {
+    const props = baseProps()
+    props.ctas = { note: 'QR muda por idioma', rows: [{ k: 'X', pt: '', en: '' }], display: 'Exibir QR' }
+    render(<HandoffSheet {...props} />)
+    expect(document.querySelector('.hs-table')).toBeNull()
+    expect(screen.queryByText('QR muda por idioma')).toBeNull()
+  })
+
+  // Language-integrity cue: when the brief CONTENT fell back to the other language, the
+  // sheet must say so — a chip in the bar (screen) + a footnote under the meta (print).
+  describe('brief language fallback cue', () => {
+    it('EN chrome + briefLangFallback="pt" renders the chip and the printed footnote', () => {
+      render(<HandoffSheet {...baseProps()} activeLang="en" briefLangFallback="pt" />)
+      expect(document.querySelector('.rec-bar .hs-fb-chip')?.textContent).toContain('Brief in PT')
+      expect(document.querySelector('.hs-fb-note')?.textContent).toMatch(/brief content is in Portuguese/)
+    })
+
+    it('PT chrome + briefLangFallback="en" renders the PT-worded cue', () => {
+      render(<HandoffSheet {...baseProps()} activeLang="pt" briefLangFallback="en" />)
+      expect(document.querySelector('.rec-bar .hs-fb-chip')?.textContent).toContain('Brief em EN')
+      expect(document.querySelector('.hs-fb-note')?.textContent).toMatch(/está em inglês/)
+    })
+
+    it('renders NO cue when there is no fallback', () => {
+      render(<HandoffSheet {...baseProps()} />)
+      expect(document.querySelector('.hs-fb-chip')).toBeNull()
+      expect(document.querySelector('.hs-fb-note')).toBeNull()
+    })
   })
 
   it('Escape closes via onClose', () => {

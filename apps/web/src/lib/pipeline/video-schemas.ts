@@ -60,6 +60,30 @@ export const IdeiaSectionSchema = z.object({
 export type IdeiaSection = z.infer<typeof IdeiaSectionSchema>
 
 // --- Pós lightweight brief (§5.3) ---
+/**
+ * Per-beat Pós override: shadows the values DERIVED from the roteiro (Momentos-chave line,
+ * visual cue, B-roll items) for the Pós brief + printed handoff only. The roteiro stays the
+ * source of truth — clearing an override (empty after trim) deletes the key and the row
+ * falls back to the derived value.
+ */
+export const PosBeatOverrideSchema = z.object({
+  line: z.string().max(280).optional(),
+  cue: z.string().max(200).optional(),
+  broll: z.array(z.string().max(200)).max(8).optional(),
+}).strict()
+export type PosBeatOverride = z.infer<typeof PosBeatOverrideSchema>
+/** Override map keyed by `posOverrideKey(beat, index)` (beat.id when present, else `i<index>`). */
+export type PosOverrides = Record<string, PosBeatOverride>
+
+/**
+ * Stable key for a beat's Pós override entry: the beat's durable `id` (stamped by the
+ * recording-status flow) when present, else a positional `i<index>` fallback for legacy
+ * v3 content that was never stamped.
+ */
+export function posOverrideKey(beat: RoteiroBeatV3, index: number): string {
+  return beat.id ?? `i${index}`
+}
+
 export const PosBriefSchema = z.object({
   kind: z.literal('brief'),
   deliverables: z.object({
@@ -76,6 +100,8 @@ export const PosBriefSchema = z.object({
     rows: z.array(z.object({ k: z.string(), pt: z.string(), en: z.string() })).default([]),
     display: z.string().default(''),
   }).default({ note: '', rows: [], display: '' }),
+  // Per-beat overrides for the derived Momentos-chave / B-roll (see PosBeatOverrideSchema).
+  overrides: z.record(z.string(), PosBeatOverrideSchema).optional(),
 }).strict()
 export type PosBrief = z.infer<typeof PosBriefSchema>
 

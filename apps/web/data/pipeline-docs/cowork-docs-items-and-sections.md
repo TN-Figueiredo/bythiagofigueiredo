@@ -614,8 +614,20 @@ O brief de Pós é **derivado do roteiro** e é um conjunto de **SUGESTÕES** qu
 | `ctas.note` | string | Nota geral de CTA |
 | `ctas.rows` | `{ k, pt, en }[]` | Linhas de CTA bilíngues (card/end screen/lower third) |
 | `ctas.display` | string | Texto de CTA exibido |
+| `overrides` | record? `{ [beatId]: { line?, cue?, broll? } }` | **Curadoria por beat, SÓ no Pós** — chave = id do beat (fallback `i<index>` pela posição); `line` (string ≤280), `cue` (string ≤200), `broll` (string[] ≤8 × ≤200) **sombreiam** os valores derivados do roteiro no card de Pós e no handoff impresso do editor. Omitido/limpo → volta ao derivado. |
 
-> **IMPORTANTE — "Momentos-chave & b-roll" são DERIVADOS do roteiro, não armazenados aqui.** Os cards de momentos-chave (linhas `line` com `key:true`) e os cues de b-roll (`vis`) são lidos diretamente dos **beats do roteiro**. Para mudá-los, Cowork edita a seção `roteiro` (marca `key:true` numa `line`, ou ajusta as linhas `vis`) — **NÃO** o `postprod`. O `postprod` carrega só o brief (deliverables/style/ctas).
+> **IMPORTANTE — "Momentos-chave & b-roll" são DERIVADOS do roteiro, não armazenados aqui.** Os cards de momentos-chave (linhas `line` com `key:true`) e os cues de b-roll (`vis`) são lidos diretamente dos **beats do roteiro**. Para mudá-los **no roteiro em si** (marcar `key:true` numa `line`, ajustar as linhas `vis`), Cowork edita a seção `roteiro` — **NÃO** o `postprod`. O `postprod` carrega só o brief (deliverables/style/ctas) + as `overrides` por beat (abaixo).
+
+#### `overrides` — curadoria por beat SEM mexer no roteiro
+
+Quando o ajuste é **só pro editor** — apertar a frase-âncora de um momento, corrigir um cue de b-roll — **não reescreva o roteiro**: escreva em `overrides`, um record keyed pelo **id do beat** (fallback `i<index>` pela posição), valor `{ "line"?: string (≤280), "cue"?: string (≤200), "broll"?: string[] (≤8 × ≤200) }`. O override **sombreia** o valor derivado do roteiro no card de Pós e no handoff impresso do editor — **o roteiro continua sendo a fonte da verdade**; campo omitido/limpo cai de volta no derivado. Como todo conteúdo do brief de Pós, escreva os overrides **em inglês** (vão pro editor).
+
+```json
+"overrides": {
+  "b3": { "line": "Tighter anchor quote for the editor card" },
+  "i5": { "cue": "Drone over the price board, slow push-in", "broll": ["Street-level price board close-up", "Reaction shot"] }
+}
+```
 
 ---
 

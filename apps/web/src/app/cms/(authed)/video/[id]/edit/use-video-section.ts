@@ -13,13 +13,15 @@ interface UseVideoSectionOptions {
   itemVersion: number
   initialData: SectionData | null
   onSaveSuccess?: (newRev: number, newVersion: number) => void
+  /** Toast policy passthrough — `'errors'` mutes the per-save success toast (blur-save stages). */
+  notify?: 'all' | 'errors'
 }
 
 export function useVideoSection({
-  itemId, sectionBase, lang, format, itemVersion, initialData, onSaveSuccess,
+  itemId, sectionBase, lang, format, itemVersion, initialData, onSaveSuccess, notify,
 }: UseVideoSectionOptions) {
   // Format-aware key: video ideia → ideia_pt/ideia_en (never ideia_shared). The pipeline
   // useSection derives the base+lang back from this key for the PATCH URL.
   const sectionKey = getSectionKey(sectionBase, lang, format)
-  return useSection({ itemId, sectionKey, initialData, itemVersion, onSaveSuccess })
+  return useSection({ itemId, sectionKey, initialData, itemVersion, onSaveSuccess, notify })
 }

@@ -5,15 +5,17 @@ import { Edit, CheckCheck, Target, Film, SlidersHorizontal, Link, Eye, Info, Ale
 import { toast } from 'sonner'
 import { SparklesGlyph } from '../_components/sparkles-glyph'
 import { CoworkButton } from '../_components/cowork-button'
-import type { RoteiroBeatV3, PosBrief } from '@/lib/pipeline/video-schemas'
-import { spokenAnchorText, visNotes } from '@/lib/pipeline/video-pos-derive'
+import type { RoteiroBeatV3, PosBrief, PosOverrides } from '@/lib/pipeline/video-schemas'
+import { handoffBeatRows } from '@/lib/pipeline/handoff-sheet-data'
 import { CHANNELS } from '@/lib/pipeline/channels'
 import { useVideoEditorDispatch, useCanEditContent } from '../context'
 import type { Version } from '../editor-model'
 
 /** "Começar do zero" seed: the editor-brief skeleton (channel-standard categories, empty
- * values) so the editor has the structure to fill — the Cowork fills the values instead. */
-const POS_TEMPLATE: PosBrief = {
+ * values) so the editor has the structure to fill — the Cowork fills the values instead.
+ * Per-language: the PT skeleton on the PT version, the EN one on the EN version (the EN
+ * editor brief must not be seeded with PT style keys / CTA copy). */
+const POS_TEMPLATE_PT: PosBrief = {
   kind: 'brief',
   deliverables: { editor: '', deadline: '', turnaround: '', drive: '', energy: '', notes: '', references: [] },
   style: [
@@ -35,6 +37,30 @@ const POS_TEMPLATE: PosBrief = {
   },
 }
 
+const POS_TEMPLATE_EN: PosBrief = {
+  kind: 'brief',
+  deliverables: { editor: '', deadline: '', turnaround: '', drive: '', energy: '', notes: '', references: [] },
+  style: [
+    { k: 'Zoom & reframe', v: '' },
+    { k: 'Cut pacing', v: '' },
+    { k: 'Speed ramp', v: '' },
+    { k: 'Sound design', v: '' },
+    { k: 'Music', v: '' },
+    { k: 'On-screen text', v: '' },
+  ],
+  ctas: {
+    note: 'The newsletter QR is DIFFERENT per language — double-check it before the final render.',
+    rows: [
+      { k: 'Newsletter QR', pt: '', en: '' },
+      { k: 'Cross-promo', pt: '', en: '' },
+      { k: 'Instagram', pt: '', en: '' },
+    ],
+    display: 'QR shows in the last 8–10s, bottom-right corner. Confirm the code matches this version\'s language.',
+  },
+}
+
+const POS_TEMPLATES: Record<'pt' | 'en', PosBrief> = { pt: POS_TEMPLATE_PT, en: POS_TEMPLATE_EN }
+
 /** Empty CTA shape — kept as a const so `ctas ?? EMPTY_CTAS` is referentially stable. */
 const EMPTY_CTAS: NonNullable<PosBrief['ctas']> = { note: '', rows: [], display: '' }
 
@@ -51,14 +77,15 @@ const DELIVERABLES = [
 type DeliverableKey = (typeof DELIVERABLES)[number]['k']
 
 /** A brief is "started" once it carries any style/CTA rows, a filled deliverable field, a
- * non-empty CTA note/display, or at least one reference. Until then the Pós shows the
- * generate/start chooser instead of empty template cards. */
+ * non-empty CTA note/display, a per-beat override, or at least one reference. Until then
+ * the Pós shows the generate/start chooser instead of empty template cards. */
 function briefHasContent(b: PosBrief | null): boolean {
   if (!b) return false
   if (b.style?.length) return true
   if (b.ctas?.rows?.length) return true
   if (b.ctas?.note?.trim()) return true
   if (b.ctas?.display?.trim()) return true
+  if (Object.keys(b.overrides ?? {}).length > 0) return true
   const del = b.deliverables ?? {}
   if ((del.references ?? []).some((r) => r.trim() !== '')) return true
   return Object.values(del).some((v) => typeof v === 'string' && v.trim() !== '')
@@ -84,7 +111,19 @@ export interface PosStageProps {
   langLabels?: string
 }
 
-/* contentEditable field that commits on blur — gated by `canEdit` (view mode → read-only) */
+/** `contentEditable="plaintext-only"` support (Chrome/Safari/Opera; Firefox throws or keeps
+ * "true") — detected once. Unsupported → fallback `true` + the onPaste rich-paste strip below. */
+const PLAINTEXT_ONLY_SUPPORTED = (() => {
+  if (typeof document === 'undefined') return false
+  const el = document.createElement('div')
+  try { el.contentEditable = 'plaintext-only' } catch { return false }
+  return el.contentEditable === 'plaintext-only'
+})()
+
+/* contentEditable field that commits on blur — gated by `canEdit` (view mode → read-only).
+ * Keyboard semantics: Enter = commit (blur, never a newline); Esc = revert to the pre-focus
+ * value and blur without committing. In view mode the placeholder ghost is dropped (an empty
+ * field renders a plain "—", not an editable-looking hint). */
 function EF({
   value,
   onChange,
@@ -105,24 +144,49 @@ function EF({
   id?: string
 }) {
   const Tag = tag
+  // Esc support: the value at focus time (to revert to) + whether the pending blur is an
+  // Esc-revert (→ skip the commit; without the flag the revert itself would be committed,
+  // e.g. minting a per-beat override equal to the derived value).
+  const esc = useRef({ prev: '', reverting: false })
+  const empty = !String(value || '').trim()
   return (
     <Tag
       id={id}
       className={('efx ' + className).trim()}
-      contentEditable={canEdit}
+      contentEditable={canEdit ? (PLAINTEXT_ONLY_SUPPORTED ? 'plaintext-only' : true) : false}
       role="textbox"
       aria-label={ph}
       aria-readonly={!canEdit}
       suppressContentEditableWarning
       spellCheck={false}
-      data-empty={!String(value || '').trim() || undefined}
-      data-ph={ph}
+      data-empty={empty || undefined}
+      data-ph={canEdit ? ph : undefined}
+      onFocus={e => {
+        esc.current = { prev: (e.currentTarget as HTMLElement).textContent ?? '', reverting: false }
+      }}
+      onKeyDown={e => {
+        if (!canEdit) return
+        if (e.key === 'Enter') {
+          e.preventDefault() // single-line field: Enter commits (blur), never inserts a newline
+          ;(e.currentTarget as HTMLElement).blur()
+        } else if (e.key === 'Escape') {
+          esc.current.reverting = true
+          ;(e.currentTarget as HTMLElement).textContent = esc.current.prev
+          ;(e.currentTarget as HTMLElement).blur()
+        }
+      }}
+      onPaste={e => {
+        if (!canEdit || PLAINTEXT_ONLY_SUPPORTED) return
+        e.preventDefault() // plaintext-only unsupported → strip rich paste manually
+        document.execCommand('insertText', false, e.clipboardData.getData('text/plain'))
+      }}
       onBlur={e => {
         if (!canEdit) return // view mode: never commit
+        if (esc.current.reverting) { esc.current.reverting = false; return } // Esc: revert, no commit
         onChange((e.currentTarget as HTMLElement).textContent ?? '')
       }}
     >
-      {value}
+      {empty && !canEdit ? '—' : value}
     </Tag>
   )
 }
@@ -182,8 +246,8 @@ function PosGenerateChooser({ onStart, legacy = false }: { onStart: () => void; 
 export function PosStage({ beats, brief, activeLang, onPatch, onSeed, onOpenHandoff, legacy, langLabels }: PosStageProps) {
   const dispatch = useVideoEditorDispatch()
   // THE content-editing gate: edit mode AND stage not scheduled/published. View mode makes the
-  // editable brief fields (deliverables / energy / style / CTAs) read-only. Derived Momentos-chave /
-  // B-roll stay as-is (already read-only).
+  // editable brief fields (deliverables / energy / style / CTAs / Momentos-chave / B-roll
+  // overrides) read-only.
   const canEdit = useCanEditContent()
 
   const [confirmReset, setConfirmReset] = useState(false)
@@ -238,20 +302,72 @@ export function PosStage({ beats, brief, activeLang, onPatch, onSeed, onOpenHand
   const patchCtaField = (field: 'note' | 'display', v: string) =>
     onPatch({ ctas: { ...ctas, [field]: v } })
 
+  // --- Per-beat overrides (Momentos-chave / B-roll): the roteiro stays the source; an
+  // override only shadows the DERIVED value for the Pós + handoff. Clearing a value
+  // (empty after trim) deletes the field — and the key when the entry goes empty — so
+  // the row falls back to the derivation.
+  const overrides: PosOverrides = brief?.overrides ?? {}
+
+  const writeOverrideEntry = (key: string, entry: NonNullable<PosOverrides[string]>) => {
+    const next: PosOverrides = { ...overrides }
+    if (Object.keys(entry).length === 0) delete next[key]
+    else next[key] = entry
+    onPatch({ overrides: next })
+  }
+
+  /** Override the momento line ('line', max 280) or visual cue ('cue', max 200) of a beat. */
+  const patchMomentField = (key: string, field: 'line' | 'cue', raw: string) => {
+    const v = raw.trim().slice(0, field === 'line' ? 280 : 200)
+    const entry = { ...(overrides[key] ?? {}) }
+    if (v === '') delete entry[field]
+    else entry[field] = v
+    writeOverrideEntry(key, entry)
+  }
+
+  /** Edit b-roll item `j`: stores the full effective list (max 8 × 200ch) as the override;
+   * clearing an item drops it; an empty resulting list deletes the field (→ derived). */
+  const patchBrollItem = (key: string, effList: string[], j: number, raw: string) => {
+    const v = raw.trim().slice(0, 200)
+    const list = effList
+      .map((item, idx) => (idx === j ? v : item))
+      .filter((item) => item.trim() !== '')
+      .slice(0, 8)
+    const entry = { ...(overrides[key] ?? {}) }
+    if (list.length === 0) delete entry.broll
+    else entry.broll = list
+    writeOverrideEntry(key, entry)
+  }
+
   // "Recomeçar": wipe the brief back to an empty shell → briefHasContent() flips false →
-  // the generate/start chooser returns. Two-step inline confirm guards written work.
+  // the generate/start chooser returns. Two-step inline confirm guards written work, and the
+  // toast offers "Desfazer" (~8s) — the wipe persists immediately and may be destroying a
+  // Cowork-written brief, so the pre-reset brief is stashed and restorable via onSeed
+  // (force persist: after the wipe the chooser is up and gated onPatch edits don't apply).
+  const preResetRef = useRef<PosBrief | null>(null)
   const onReset = () => {
     if (!canEdit) return // defense-in-depth: never write content in view mode
-    onPatch({ kind: 'brief', deliverables: {}, style: [], ctas: { note: '', rows: [], display: '' } })
+    preResetRef.current = brief
+    onPatch({ kind: 'brief', deliverables: {}, style: [], ctas: { note: '', rows: [], display: '' }, overrides: {} })
     setConfirmReset(false)
-    toast.info('Brief de pós limpo', { description: 'Volte a gerar com o Cowork ou comece do zero.' })
+    toast.info('Brief de pós limpo', {
+      description: 'Volte a gerar com o Cowork ou comece do zero.',
+      duration: 8000,
+      action: {
+        label: 'Desfazer',
+        onClick: () => {
+          const prev = preResetRef.current
+          if (prev) onSeed(prev) // restores overrides too — they live on the stashed brief
+        },
+      },
+    })
   }
 
   // CREATE-from-empty: entering edit mode + force-seeding the template in one click. This is a
   // deliberate create with nothing to lose, so it's available even in view mode (unlike edits).
+  // The skeleton follows the version's language (PT keys/copy on PT, EN on EN).
   const seedFromEmpty = () => {
     dispatch({ type: 'SET_EDIT_MODE', mode: 'edit' })
-    onSeed(POS_TEMPLATE)
+    onSeed(POS_TEMPLATES[activeLang])
   }
 
   const hasBriefKind = brief && 'kind' in brief
@@ -274,13 +390,13 @@ export function PosStage({ beats, brief, activeLang, onPatch, onSeed, onOpenHand
 
   const goRoteiro = () => dispatch({ type: 'SET_STAGE', stage: 'roteiro' })
 
-  // Derived lists computed once so we can branch on emptiness (empty → fallback, not blank card).
-  const moments = beats
-    .map((b, i) => ({ i, line: spokenAnchorText(b), cue: visNotes(b)[0] }))
-    .filter((m) => m.line)
-  const brollRows = beats
-    .map((b, i) => ({ i, name: b.name, vs: visNotes(b) }))
-    .filter((r) => r.vs.length > 0)
+  // ONE beat projection for screen AND paper: `handoffBeatRows` is the same
+  // (derived ⤳ override-shadowed, non-spoken/cue-less dropped, contiguously numbered)
+  // projection the printed handoff renders. Both cards are subsets of these rows and
+  // show `displayNum` — so "#3" names the same beat in Momentos, B-roll and the print.
+  const rows = handoffBeatRows(beats, overrides)
+  const moments = rows.filter((r) => r.anchor)
+  const brollRows = rows.filter((r) => r.cues.length > 0)
 
   return (
     <div className="pp-doc fade-in">
@@ -289,7 +405,12 @@ export function PosStage({ beats, brief, activeLang, onPatch, onSeed, onOpenHand
         <div className="pp-bar-head">
           <div className="vi-kicker"><SparklesGlyph size={12} /> Pós-produção · brief pro editor</div>
           <h1 className="vi-title pp-bar-title">Instruções pro editor</h1>
-          <div className="pp-editor"><Edit size={11} /> Tudo editável · ajuste por vídeo</div>
+          {/* honest mode line: only claim editability when content edits actually apply */}
+          <div className="pp-editor">
+            {canEdit
+              ? <><Edit size={11} /> Tudo editável · ajuste por vídeo</>
+              : <><Eye size={11} /> Somente leitura — ative o lápis pra editar</>}
+          </div>
         </div>
         <div className="grow" />
         {canEdit && (confirmReset ? (
@@ -312,7 +433,7 @@ export function PosStage({ beats, brief, activeLang, onPatch, onSeed, onOpenHand
       <div className="pp-grid">
 
         {/* ── Entrega ── */}
-        <PPCard icon={<CheckCheck size={14} />} title="Entrega" sub="o combinado · clique para editar">
+        <PPCard icon={<CheckCheck size={14} />} title="Entrega" sub={canEdit ? 'o combinado · clique para editar' : 'o combinado'}>
           <div className="pp-fields">
             {shownDel.map((f) => (
               <div key={f.k} className={'wide' in f && f.wide ? 'pp-f wide' : 'pp-f'}>
@@ -362,7 +483,7 @@ export function PosStage({ beats, brief, activeLang, onPatch, onSeed, onOpenHand
         </PPCard>
 
         {/* ── Estilo & ritmo ── */}
-        <PPCard icon={<SlidersHorizontal size={14} />} title="Estilo &amp; ritmo" sub="o jeito do canal — editável">
+        <PPCard icon={<SlidersHorizontal size={14} />} title="Estilo &amp; ritmo" sub={canEdit ? 'o jeito do canal — editável' : 'o jeito do canal'}>
           <div className="pp-style">
             {style.map((s, i) => (
               <div key={i} className="pp-srow">
@@ -403,21 +524,42 @@ export function PosStage({ beats, brief, activeLang, onPatch, onSeed, onOpenHand
           </div>
         </PPCard>
 
-        {/* ── Momentos-chave + B-roll (from beats) — derived REFERENCE, last (same order as the
-            printed handoff: editable instructions first, the long script appendix after) ── */}
+        {/* ── Momentos-chave + B-roll (from beats) — derived from the roteiro, editable via
+            per-beat OVERRIDES (the roteiro stays the source; clearing falls back). Last in the
+            grid (same order as the printed handoff: editable instructions first, the long
+            script appendix after) ── */}
         {beats.length > 0 ? (
           <>
-            <PPCard icon={<Target size={14} />} title="Momentos-chave" sub="frase-âncora + cue visual, por beat">
+            <PPCard icon={<Target size={14} />} title="Momentos-chave" sub={canEdit ? 'frase-âncora + cue visual, por beat — editável' : 'frase-âncora + cue visual, por beat'}>
               {moments.length > 0 ? (
                 <div className="pp-moments">
-                  {moments.map((m, n) => (
-                    <div key={m.i} className="pp-moment">
-                      <span className="pp-mnum">#{n + 1}</span>
+                  {moments.map((m) => (
+                    <div key={m.overrideKey} className="pp-moment">
+                      {/* the row's projection number — the SAME #N the B-roll card and the printed handoff show */}
+                      <span className="pp-mnum">#{m.displayNum}</span>
                       <div className="pp-mbody">
-                        <div className="pp-mline">&ldquo;{m.line}&rdquo;</div>
-                        {m.cue && (
+                        <div className="pp-mline">
+                          &ldquo;<EF
+                            tag="span"
+                            className={m.ov.line ? 'ef-inline pp-ov' : 'ef-inline'}
+                            value={m.anchor}
+                            canEdit={canEdit}
+                            onChange={(v) => patchMomentField(m.overrideKey, 'line', v)}
+                            ph="Frase-âncora"
+                          />&rdquo;
+                        </div>
+                        {/* edit mode keeps the cue row even when empty (so a cue can be added) */}
+                        {(m.cue || canEdit) && (
                           <div className="pp-mcue">
-                            <Film size={12} /> {m.cue}
+                            <Film size={12} />{' '}
+                            <EF
+                              tag="span"
+                              className={m.ov.cue ? 'ef-inline pp-ov' : 'ef-inline'}
+                              value={m.cue}
+                              canEdit={canEdit}
+                              onChange={(v) => patchMomentField(m.overrideKey, 'cue', v)}
+                              ph="Cue visual"
+                            />
                           </div>
                         )}
                       </div>
@@ -429,14 +571,25 @@ export function PosStage({ beats, brief, activeLang, onPatch, onSeed, onOpenHand
               )}
             </PPCard>
 
-            <PPCard icon={<Film size={14} />} title="B-roll por beat" sub="o que cobrir em cada trecho">
+            <PPCard icon={<Film size={14} />} title="B-roll por beat" sub={canEdit ? 'o que cobrir em cada trecho — editável' : 'o que cobrir em cada trecho'}>
               {brollRows.length > 0 ? (
                 <div className="pp-broll">
                   {brollRows.map((r) => (
-                    <div key={r.i} className="pp-broll-row">
-                      <span className="pp-bname">#{r.i + 1} · {r.name}</span>
+                    <div key={r.overrideKey} className="pp-broll-row">
+                      <span className="pp-bname">#{r.displayNum} · {r.name}</span>
                       <ul>
-                        {r.vs.map((v, j) => <li key={j}>{v}</li>)}
+                        {r.cues.map((v, j) => (
+                          <li key={j}>
+                            <EF
+                              tag="span"
+                              className={r.ov.broll ? 'ef-inline pp-ov' : 'ef-inline'}
+                              value={v}
+                              canEdit={canEdit}
+                              onChange={(nv) => patchBrollItem(r.overrideKey, r.cues, j, nv)}
+                              ph="Item de b-roll"
+                            />
+                          </li>
+                        ))}
                       </ul>
                     </div>
                   ))}

@@ -253,10 +253,15 @@
 .vid-ed .ed-iconbtn.ed-editlock:hover:not(:disabled) { border-color: var(--c-links); }
 .vid-ed .ed-iconbtn.ed-editlock:disabled { opacity: .6; cursor: progress; }
 
-/* "Editing live" treatment: an accent ring on the editor surface so edits are never silent. */
-.vid-ed.vid-editing { box-shadow: inset 0 0 0 2px var(--accent); }
-.vid-ed.vid-editing::after { content: ""; position: fixed; inset: 0 0 auto 0; height: 2px; background: var(--accent);
-  z-index: 50; pointer-events: none; }
+/* "Editing live" treatment: a FULL-VIEWPORT fixed accent ring so edits are never silent.
+   Was an inset box-shadow on .vid-ed (the inner scroll surface) + a fixed 2px top strip —
+   that ring scrolled with content, sat under the sticky CMS topbar (z-index 40) and never
+   reached the viewport bottom/edges. Now: one fixed ::after ring, inset 0, above the topbar
+   (z 50 — below .focus-exit 60, recording 200, .cw-pop 400). pointer-events: none keeps all
+   chrome clickable. --accent is literal #ff8240 (no color-mix — Opera paints it transparent). */
+.vid-ed.vid-editing { box-shadow: none; }
+.vid-ed.vid-editing::after { content: ""; position: fixed; inset: 0; pointer-events: none;
+  border: 2px solid var(--accent); z-index: 50; }
 /* View mode reads calm — the toggle carries the state; no ring. */
 .vid-ed.vid-viewing { box-shadow: none; }
 
@@ -843,7 +848,15 @@
   .hs-beat { break-inside: auto; }
   .hs-beat-h { break-inside: avoid; break-after: avoid; }
   .hs-table tr { break-inside: avoid; }
-  .hs-bn, .hs-table thead th, .hs-warn { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  /* section headers never strand at a page bottom; style rows never split mid-pair */
+  .hs-h { break-after: avoid; }
+  .hs-style { break-inside: avoid; }
+  .hs-bn, .hs-table thead th, .hs-warn, .hs-fb-note { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  /* the active-CTA-column tint must survive print… */
+  .hs-table tr.hl-pt td:nth-child(2), .hs-table tr.hl-en td:nth-child(3) { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  /* …plus a non-color marker — grayscale printers wash the tint out entirely */
+  .hs-table tr.hl-pt td:nth-child(2)::after, .hs-table tr.hl-en td:nth-child(3)::after {
+    content: ' ◀'; color: #1b1510; font-weight: 700; }
 }
 
 /* ============================================================
@@ -941,6 +954,12 @@
 .pp-legacy { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
 .pp-legacy .btn { margin-top: 2px; }
 
+/* per-beat override affordance — reuses the efx dashed-underline affordance, tinted accent,
+   so a Momento/B-roll value that SHADOWS the roteiro derivation reads as "edited here".
+   Literal rgba (color-mix renders transparent on the target browser). */
+.efx.pp-ov { border-bottom-color: rgba(255, 130, 64, .42); }
+.efx.pp-ov:hover, .efx.pp-ov:focus { border-bottom-color: transparent; }
+
 /* ============================================================
    PUBLICAÇÃO — 4-up A/B (thumb + title)
    ============================================================ */
@@ -1018,12 +1037,21 @@
 .hs-style .hs-sv { font-family: var(--font-sans); font-size: 12px; line-height: 1.55; color: var(--rp-ink-70); }
 
 .hs-table { width: 100%; border-collapse: collapse; font-family: var(--font-sans); font-size: 12px; margin: 6px 0 4px; }
-.hs-table th { text-align: left; font-family: var(--font-mono); font-size: 9.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--rp-ink-45); padding: 0 10px 5px; border-bottom: 1px solid var(--rp-ink-20); }
-.hs-table td { padding: 6px 10px; color: var(--rp-ink-70); border-bottom: 1px solid var(--rp-line); vertical-align: top; line-height: 1.45; }
+.hs-table thead th { text-align: left; font-family: var(--font-mono); font-size: 9.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--rp-ink-45); padding: 0 10px 5px; border-bottom: 1px solid var(--rp-ink-20); }
+/* body row-header (<th scope="row">) shares the td body styling — only thead gets the mono caps */
+.hs-table td, .hs-table tbody th { text-align: left; padding: 6px 10px; color: var(--rp-ink-70); border-bottom: 1px solid var(--rp-line); vertical-align: top; line-height: 1.45; font-weight: 400; }
 .hs-table .hs-ck { font-weight: 600; color: var(--rp-ink); }
 /* active-language column tint — precomputed opaque (≈9% #b8541a accent over the #fbfaf6
    paper); color-mix painted transparent in Opera so the highlight vanished. */
 .hs-table tr.hl-pt td:nth-child(2), .hs-table tr.hl-en td:nth-child(3) { background: #f0e3d6; color: var(--rp-ink); }
+
+/* brief-language fallback cue — the brief CONTENT is in the other language. Chip sits in the
+   dark .rec-bar (screen-only: the bar never prints); the note prints under the sheet meta.
+   Literal rgba/hex only — color-mix paints transparent in Opera. */
+.hs-fb-chip { display: inline-flex; align-items: center; flex-shrink: 0; height: 22px; padding: 0 9px; border-radius: 999px;
+  font-family: var(--font-mono); font-size: 10px; font-weight: 700; letter-spacing: .04em; white-space: nowrap;
+  color: #f0b08a; background: rgba(184, 84, 26, .20); border: 1px solid rgba(184, 84, 26, .50); }
+.hs-fb-note { font-family: var(--font-mono); font-size: 10.5px; line-height: 1.5; color: #b8541a; margin: 9px 0 0; }
 
 /* ============================================================
    COWORK — call the AI from any stage
@@ -1140,6 +1168,12 @@
 .efx:hover { background: var(--surface-2); border-bottom-color: transparent; }
 .efx:focus { background: var(--surface-2); border-bottom-color: transparent; box-shadow: inset 0 0 0 1px var(--border-strong); }
 .efx[data-empty="true"]::before { content: attr(data-ph); color: var(--text-faint); font-weight: 400; }
+/* view-mode honesty: outside edit mode (.vid-ed without .vid-editing — see editor-shell) the
+   editable costume comes off: no dashed underline (incl. the pp-ov tint), no hover fill, no
+   text caret. Empty-field placeholder ghosts are dropped in the component (data-ph is only
+   set while editable; view renders a plain "—"). */
+.vid-ed:not(.vid-editing) .efx { border-bottom-color: transparent; cursor: default; }
+.vid-ed:not(.vid-editing) .efx:hover { background: none; }
 .pp-energy .ef-inline { color: var(--text-muted); }
 
 /* ---------- A/B card: thumb brief + title (developed in Claude Design) ---------- */

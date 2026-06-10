@@ -10,6 +10,12 @@ interface UseSectionOptions {
   initialData: SectionData | null
   itemVersion: number
   onSaveSuccess?: (newRev: number, newVersion: number) => void
+  /**
+   * Toast policy. `'all'` (default) keeps today's behavior: success + error toasts.
+   * `'errors'` suppresses the per-save success toast (for editors that save on every
+   * inline-field blur — e.g. the video Pós/Publicação stages); errors ALWAYS toast.
+   */
+  notify?: 'all' | 'errors'
 }
 
 interface UseSectionReturn {
@@ -31,7 +37,7 @@ interface UseSectionReturn {
   updatedAt: string | null
 }
 
-export function useSection({ itemId, sectionKey, initialData, itemVersion, onSaveSuccess }: UseSectionOptions): UseSectionReturn {
+export function useSection({ itemId, sectionKey, initialData, itemVersion, onSaveSuccess, notify = 'all' }: UseSectionOptions): UseSectionReturn {
   const [content, setContentState] = useState<SectionData['content'] | null>(initialData?.content ?? null)
   const [rev, setRev] = useState(initialData?.rev ?? 0)
   const [version, setVersion] = useState(itemVersion)
@@ -51,6 +57,10 @@ export function useSection({ itemId, sectionKey, initialData, itemVersion, onSav
   // content instead of being gated out by a stale `isDirty` state value. The `isDirty`
   // state is kept for UI (nav guard / autosave indicator).
   const dirtyRef = useRef(false)
+  // Sync in-flight gate. The `isSaving` STATE the old gate used is captured per render, so a
+  // `setContent() + save()` pair landing before React re-renders could slip past it and fire
+  // a concurrent PATCH. The ref closes that window; `isSaving` state stays for UI.
+  const savingRef = useRef(false)
   const revRef = useRef(rev)
   revRef.current = rev
   const versionRef = useRef(version)
@@ -76,68 +86,84 @@ export function useSection({ itemId, sectionKey, initialData, itemVersion, onSav
   }, [])
 
   const save = useCallback(async () => {
-    if (!dirtyRef.current || isSaving || !contentRef.current) return
+    if (!dirtyRef.current || savingRef.current || !contentRef.current) return
+    savingRef.current = true
     setIsSaving(true)
 
     const lang = extractLangFromKey(sectionKey)
     const sectionBase = extractSectionBase(sectionKey)
 
     try {
-      const res = await fetch(`/api/pipeline/items/${itemId}/sections/${sectionBase}?lang=${lang}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'X-Expected-Version': String(versionRef.current) },
-        body: JSON.stringify({ content: contentRef.current, rev: revRef.current, source: 'user' }),
-      })
+      // Trailing-save loop. Each PATCH persists a SNAPSHOT of the content taken when it
+      // fires. If `setContent()` lands while that PATCH is in flight (e.g. the user tabs
+      // through inline fields in the video Pós editor — blur A saves, blur B edits), the
+      // resolved save must NOT mark the section clean: the newer edit would be flagged
+      // saved (invisible to the nav guard / ⌘S flush) and silently lost. Instead we keep
+      // it dirty and immediately re-run with the fresh content. The loop only repeats
+      // when content actually changed since the snapshot, so it cannot spin.
+      for (;;) {
+        const snapshot: SectionData['content'] | null = contentRef.current
+        const res = await fetch(`/api/pipeline/items/${itemId}/sections/${sectionBase}?lang=${lang}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'X-Expected-Version': String(versionRef.current) },
+          body: JSON.stringify({ content: snapshot, rev: revRef.current, source: 'user' }),
+        })
 
-      if (res.status === 412) {
-        const err = await res.json()
-        const currentVersion = err.error?.current as number | undefined
-        if (currentVersion != null) {
-          setVersion(currentVersion)
-          versionRef.current = currentVersion
-        }
-        toast.error('Versão desatualizada. Tentando novamente...')
-        return
-      }
-
-      if (res.status === 409) {
-        const remoteRes = await fetch(`/api/pipeline/items/${itemId}/sections/${sectionBase}?lang=${lang}`)
-        if (remoteRes.ok) {
-          const remote = await remoteRes.json()
-          if (remote.data) {
-            setConflict({ remoteData: remote.data as SectionData, localContent: contentRef.current })
+        if (res.status === 412) {
+          const err = await res.json()
+          const currentVersion = err.error?.current as number | undefined
+          if (currentVersion != null) {
+            setVersion(currentVersion)
+            versionRef.current = currentVersion
           }
-          setVersion(remote.meta.item_version as number)
-          versionRef.current = remote.meta.item_version as number
+          toast.error('Versão desatualizada. Tentando novamente...')
+          return
         }
-        toast.error('Conflito detectado. Revise as diferenças.')
+
+        if (res.status === 409) {
+          const remoteRes = await fetch(`/api/pipeline/items/${itemId}/sections/${sectionBase}?lang=${lang}`)
+          if (remoteRes.ok) {
+            const remote = await remoteRes.json()
+            if (remote.data) {
+              setConflict({ remoteData: remote.data as SectionData, localContent: contentRef.current })
+            }
+            setVersion(remote.meta.item_version as number)
+            versionRef.current = remote.meta.item_version as number
+          }
+          toast.error('Conflito detectado. Revise as diferenças.')
+          return
+        }
+
+        if (!res.ok) {
+          toast.error('Erro ao salvar seção. Tente novamente.')
+          return
+        }
+
+        const { data, meta } = await res.json()
+        const newRev = data.rev as number
+        const newVersion = meta.item_version as number
+        setRev(newRev)
+        revRef.current = newRev
+        setVersion(newVersion)
+        versionRef.current = newVersion
+        setSource(data.source as string)
+        setEdited(data.edited as boolean)
+        setCoworkRev((data.cowork_rev as number | null) ?? null)
+        setUpdatedAt(data.updated_at as string)
+        onSaveSuccess?.(newRev, newVersion)
+
+        if (contentRef.current !== snapshot) continue // edited mid-flight → trailing save with fresh content
+
+        dirtyRef.current = false
+        setIsDirty(false)
+        if (notify === 'all') toast.success('Seção salva')
         return
       }
-
-      if (!res.ok) {
-        toast.error('Erro ao salvar seção. Tente novamente.')
-        return
-      }
-
-      const { data, meta } = await res.json()
-      const newRev = data.rev as number
-      const newVersion = meta.item_version as number
-      setRev(newRev)
-      revRef.current = newRev
-      setVersion(newVersion)
-      versionRef.current = newVersion
-      setSource(data.source as string)
-      setEdited(data.edited as boolean)
-      setCoworkRev((data.cowork_rev as number | null) ?? null)
-      setUpdatedAt(data.updated_at as string)
-      dirtyRef.current = false
-      setIsDirty(false)
-      toast.success('Seção salva')
-      onSaveSuccess?.(newRev, newVersion)
     } finally {
+      savingRef.current = false
       setIsSaving(false)
     }
-  }, [isSaving, itemId, sectionKey, onSaveSuccess, extractLangFromKey, extractSectionBase])
+  }, [itemId, sectionKey, onSaveSuccess, notify, extractLangFromKey, extractSectionBase])
 
   const acceptRemote = useCallback(() => {
     if (!conflict) return

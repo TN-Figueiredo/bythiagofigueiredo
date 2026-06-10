@@ -121,10 +121,13 @@ export function VideoEditorClient({
   const ideiaEn = useVideoSection({ itemId: initialState.itemId, sectionBase: 'ideia', lang: 'en', format: 'video', itemVersion: version, initialData: seedWithRev(initial.ideia.en, initialSections.ideia_en), onSaveSuccess })
   const roteiroPt = useVideoSection({ itemId: initialState.itemId, sectionBase: 'roteiro', lang: 'pt', format: 'video', itemVersion: version, initialData: initial.roteiro.pt ? seedWithRev(initial.roteiro.pt, initialSections.roteiro_pt) : null, onSaveSuccess })
   const roteiroEn = useVideoSection({ itemId: initialState.itemId, sectionBase: 'roteiro', lang: 'en', format: 'video', itemVersion: version, initialData: initial.roteiro.en ? seedWithRev(initial.roteiro.en, initialSections.roteiro_en) : null, onSaveSuccess })
-  const postprodPt = useVideoSection({ itemId: initialState.itemId, sectionBase: 'postprod', lang: 'pt', format: 'video', itemVersion: version, initialData: seedEnvelope(initialSections.postprod_pt), onSaveSuccess })
-  const postprodEn = useVideoSection({ itemId: initialState.itemId, sectionBase: 'postprod', lang: 'en', format: 'video', itemVersion: version, initialData: seedEnvelope(initialSections.postprod_en), onSaveSuccess })
-  const publishPt = useVideoSection({ itemId: initialState.itemId, sectionBase: 'publish', lang: 'pt', format: 'video', itemVersion: version, initialData: seedEnvelope(initialSections.publish_pt), onSaveSuccess })
-  const publishEn = useVideoSection({ itemId: initialState.itemId, sectionBase: 'publish', lang: 'en', format: 'video', itemVersion: version, initialData: seedEnvelope(initialSections.publish_en), onSaveSuccess })
+  // Pós/Publicação commit on EVERY inline-field blur — a success toast per blur is noise
+  // (the ed-bar autosave state + aria-live region already announce saves), so these four
+  // run with notify:'errors' (errors still toast). Ideia/roteiro keep the default toasts.
+  const postprodPt = useVideoSection({ itemId: initialState.itemId, sectionBase: 'postprod', lang: 'pt', format: 'video', itemVersion: version, initialData: seedEnvelope(initialSections.postprod_pt), onSaveSuccess, notify: 'errors' })
+  const postprodEn = useVideoSection({ itemId: initialState.itemId, sectionBase: 'postprod', lang: 'en', format: 'video', itemVersion: version, initialData: seedEnvelope(initialSections.postprod_en), onSaveSuccess, notify: 'errors' })
+  const publishPt = useVideoSection({ itemId: initialState.itemId, sectionBase: 'publish', lang: 'pt', format: 'video', itemVersion: version, initialData: seedEnvelope(initialSections.publish_pt), onSaveSuccess, notify: 'errors' })
+  const publishEn = useVideoSection({ itemId: initialState.itemId, sectionBase: 'publish', lang: 'en', format: 'video', itemVersion: version, initialData: seedEnvelope(initialSections.publish_en), onSaveSuccess, notify: 'errors' })
 
   const saveIdeia = useCallback(async (lang: 'pt' | 'en', patch: Partial<IdeiaPayload>) => {
     if (!canEditRef.current) return // view mode / published lock — never persist content

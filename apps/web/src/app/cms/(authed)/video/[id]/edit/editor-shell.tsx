@@ -74,9 +74,10 @@ function StageBody() {
   const recorded = isRecorded(state.stage)
   const published = getStagePosition('video', state.stage) >= getStagePosition('video', 'published')
 
-  // Pós reads its momentos/b-roll off the live roteiro beats (not stored); the brief
-  // is the lightweight postprod_<lang> payload. A legacy rich payload (schema_version
-  // present / no `kind`) falls through to PosStage's read-only fallback.
+  // Pós reads its momentos/b-roll off the live roteiro beats, shadowed by the brief's
+  // per-beat `overrides`; the brief is the lightweight postprod_<lang> payload. A legacy
+  // rich payload (schema_version present / no `kind`) falls through to PosStage's
+  // read-only fallback.
   const sections = data.sections ?? {}
   const beats = data.roteiro[lang]?.beats ?? []
   const posRaw = sections[getSectionKey('postprod', lang, 'video')]
@@ -194,8 +195,25 @@ function VideoOverlays() {
     !!b && ((b.style?.length ?? 0) > 0 || (b.ctas?.rows?.length ?? 0) > 0 ||
       Object.values(b.deliverables ?? {}).some((v) => (Array.isArray(v) ? v.length > 0 : !!v?.toString().trim())))
   const hBriefOwn = parseBrief(handoffLang)
-  const hBrief = briefHasContent(hBriefOwn) ? hBriefOwn : (parseBrief(handoffLang === 'en' ? 'pt' : 'en') ?? hBriefOwn)
-  const versionsLabel = OVERLAY_LANG_OPTIONS.map((o) => o.label).join(' + ')
+  const hOtherLang: VideoLang = handoffLang === 'en' ? 'pt' : 'en'
+  const hBriefOther = parseBrief(hOtherLang)
+  const hOwnHasContent = briefHasContent(hBriefOwn)
+  const hBrief = hOwnHasContent ? hBriefOwn : (hBriefOther ?? hBriefOwn)
+  // The fallback must never be silent: a foreign editor reading EN chrome with PT instructions
+  // needs a visible cue (chip + printed footnote). Set only when content ACTUALLY fell back.
+  const briefLangFallback: VideoLang | null =
+    !hOwnHasContent && briefHasContent(hBriefOther) ? hOtherLang : null
+
+  // "Versions" on the printed brief must be TRUE: only promise the language cuts that
+  // actually carry content (same presence test StageBody uses for the Pós "Versões" field) —
+  // never a hardcoded 'PT-BR + EN' when the EN cut doesn't exist.
+  const versionsLabel =
+    CHANNELS.filter((c) => {
+      const v = data.versions[c.lang]
+      return !!v && (!!v.title?.trim() || !!v.direction?.trim() || (v.beats?.length ?? 0) > 0)
+    })
+      .map((c) => c.label)
+      .join(' + ') || hChannel.label
 
   return (
     <>
@@ -230,6 +248,8 @@ function VideoOverlays() {
           style={hBrief?.style ?? []}
           ctas={hBrief?.ctas ?? { note: '', rows: [], display: '' }}
           beats={hBeats}
+          overrides={hBrief?.overrides}
+          briefLangFallback={briefLangFallback}
           langOptions={OVERLAY_LANG_OPTIONS}
           onSwitchLang={(l) => setHandoffLang(l as VideoLang)}
           onClose={() => dispatch({ type: 'CLOSE_OVERLAY', overlay: 'handoff' })}

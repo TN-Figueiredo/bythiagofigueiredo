@@ -807,7 +807,7 @@ export function registerTools(server: McpServer): void {
       '(optimistic concurrency is handled automatically — NEVER send a `rev`). Most sections accept ' +
       'free markdown/JSON. Typed VIDEO sections require an EXACT strict JSON shape (no extra keys); ' +
       'derive them from the `roteiro` section (read it with action:get first):\n' +
-      '• postprod (Pós brief): {"kind":"brief","deliverables":{"editor","deadline","turnaround","drive","energy","notes"(free-text delivery scope),"references":[]},"style":[{"k","v"}],"ctas":{"note","rows":[{"k","pt","en"}],"display"}}\n' +
+      '• postprod (Pós brief): {"kind":"brief","deliverables":{"editor","deadline","turnaround","drive","energy","notes"(free-text delivery scope),"references":[]},"style":[{"k","v"}],"ctas":{"note","rows":[{"k","pt","en"}],"display"},"overrides"(optional, keyed by beat id — fallback "i<index>"):{"<beatId>":{"line"(≤280),"cue"(≤200),"broll"(string[] ≤8×≤200)}}} — overrides are per-beat Pós-only curation that SHADOW the roteiro-derived moments/B-roll in the Pós card and printed editor handoff; the roteiro stays the source of truth, omitted/cleared fields fall back to derived (never rewrite the roteiro just to tweak the editor brief)\n' +
       '• publish (A/B, from-scratch): {"firstOnAir":"A","variants":[{"id":"A","role":"challenger","title","brief"}, …exactly 4: A,B,C,D]} — each variant = a testable title + a thumbnail brief (text only)\n' +
       '• ideia (shared): {"title","direction","logline","angles","framework","siblings":[]}',
     ManageSectionsShape,

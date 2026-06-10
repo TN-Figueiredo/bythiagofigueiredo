@@ -1,4 +1,5 @@
-import type { RoteiroBeatV3 } from '@/lib/pipeline/video-schemas'
+import type { RoteiroBeatV3, PosOverrides } from '@/lib/pipeline/video-schemas'
+import { posOverrideKey } from '@/lib/pipeline/video-schemas'
 import { beatKind } from '@/lib/pipeline/video-perform'
 
 /** First `key` line's text; fallback to first `line` text; '' if none. */
@@ -58,6 +59,38 @@ export function deriveMomentos(beats: RoteiroBeatV3[]): Momento[] {
     if (text) out.push({ n: out.length + 1, beatName: b.name, text })
   })
   return out
+}
+
+/** Effective Pós values for a beat: derived from the roteiro, shadowed by any PosBrief override. */
+export interface PosEffectiveBeat {
+  /** Momento-chave anchor line (override.line ?? spoken anchor). */
+  line: string
+  /** Visual cue shown under the momento (override.cue ?? first vis note). */
+  cue: string
+  /** B-roll items (override.broll ?? all vis notes). */
+  broll: string[]
+  /** Which fields are shadowed by an override (drives the subtle edited affordance). */
+  ov: { line: boolean; cue: boolean; broll: boolean }
+}
+
+/**
+ * THE single merge of derived roteiro values with the PosBrief per-beat overrides — used by
+ * BOTH the Pós stage cards and the printed handoff (handoffBeatRows) so screen and paper
+ * can never diverge. An absent override key (or field) falls back to the derived value.
+ */
+export function applyPosOverride(
+  beat: RoteiroBeatV3,
+  index: number,
+  overrides?: PosOverrides,
+): PosEffectiveBeat {
+  const o = overrides?.[posOverrideKey(beat, index)]
+  const vis = visNotes(beat)
+  return {
+    line: o?.line ?? spokenAnchorText(beat),
+    cue: o?.cue ?? vis[0] ?? '',
+    broll: o?.broll ?? vis,
+    ov: { line: o?.line !== undefined, cue: o?.cue !== undefined, broll: o?.broll !== undefined },
+  }
 }
 
 export interface BrollGroup { n: number; beatName: string; notes: string[] }

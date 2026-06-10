@@ -2,9 +2,10 @@
 
 import { createPortal } from 'react-dom'
 import { useEffect, useId, useRef, useState } from 'react'
-import { ChevronLeft, Rss } from 'lucide-react'
+import { ChevronLeft, Printer } from 'lucide-react'
 import { handoffBeatRows } from '@/lib/pipeline/handoff-sheet-data'
 import { fmtClock } from '@/lib/pipeline/video-schemas'
+import type { PosOverrides } from '@/lib/pipeline/video-schemas'
 import type { RoteiroBeatV3 } from '@/lib/pipeline/roteiro-schemas'
 
 // The handoff is the editor's document and the editor works in English — so all CHROME is
@@ -17,6 +18,8 @@ const HS_COPY = {
     overview: 'Overview', scope: 'Delivery scope:', energyRef: 'Energy reference:', drive: 'Drive:',
     style: 'Style & rhythm', ctas: 'CTAs & QR', ctasWarn: '⚠ changes per language', target: 'Target',
     moments: 'Key moments & b-roll', scriptRef: '· script reference', broll: 'B-roll', foot: 'editor brief',
+    fallbackChip: '⚠ Brief in PT',
+    fallbackNote: "Note: brief content is in Portuguese — the EN brief hasn't been written yet.",
   },
   pt: {
     close: 'Fechar', briefFor: 'Brief pro editor', untitled: 'Sem título', print: 'Imprimir',
@@ -24,6 +27,8 @@ const HS_COPY = {
     overview: 'Visão geral', scope: 'Escopo de entrega:', energyRef: 'Referência de energia:', drive: 'Drive:',
     style: 'Estilo & ritmo', ctas: 'CTAs & QR', ctasWarn: '⚠ muda por idioma', target: 'Destino',
     moments: 'Momentos-chave & b-roll', scriptRef: '· referência do roteiro', broll: 'B-roll', foot: 'brief pro editor',
+    fallbackChip: '⚠ Brief em EN',
+    fallbackNote: 'Atenção: o conteúdo do brief está em inglês — o brief em PT ainda não foi escrito.',
   },
 } as const
 
@@ -61,6 +66,14 @@ export interface HandoffSheetProps {
   style: { k: string; v: string }[]
   ctas: HandoffCtas
   beats: RoteiroBeatV3[]
+  /** PosBrief per-beat overrides — the printed rows show override ?? derived (same merge as the Pós cards). */
+  overrides?: PosOverrides
+  /**
+   * Set when the brief CONTENT fell back to the other language (the handoff lang's brief
+   * hasn't been written) — renders a chip in the bar (screen) + a footnote under the meta
+   * (print) so the document never silently mixes EN chrome with PT instructions.
+   */
+  briefLangFallback?: 'pt' | 'en' | null
   langOptions: HandoffSheetLangOption[]
   onSwitchLang: (lang: string) => void
   onClose: () => void
@@ -121,7 +134,9 @@ export function HandoffSheet(props: HandoffSheetProps) {
   if (!mounted) return null
 
   const t = HS_COPY[activeLang === 'en' ? 'en' : 'pt']
-  const rows = handoffBeatRows(beats)
+  const rows = handoffBeatRows(beats, props.overrides)
+  // Seeded-but-empty CTA rows (both languages blank) would print as a blank table line.
+  const ctaRows = ctas.rows.filter((r) => !!r.pt?.trim() || !!r.en?.trim())
 
   const meta = (
     [
@@ -143,6 +158,7 @@ export function HandoffSheet(props: HandoffSheetProps) {
       <div className="rec-bar">
         <button ref={closeBtnRef} className="rb-back" onClick={props.onClose}><ChevronLeft size={15} /> {t.close}</button>
         <span className="rb-title">{t.briefFor} · {title || t.untitled}</span>
+        {props.briefLangFallback && <span className="hs-fb-chip">{t.fallbackChip}</span>}
         <span className="rb-spacer" />
         {props.langOptions.length > 1 && (
           <div className="rec-seg">
@@ -153,7 +169,7 @@ export function HandoffSheet(props: HandoffSheetProps) {
             ))}
           </div>
         )}
-        <button className="rb-print" onClick={() => window.print()}><Rss size={14} /> {t.print}</button>
+        <button className="rb-print" onClick={() => window.print()}><Printer size={14} /> {t.print}</button>
       </div>
 
       <div className="rec-sheet hs">
@@ -166,6 +182,7 @@ export function HandoffSheet(props: HandoffSheetProps) {
             ))}
           </div>
         )}
+        {props.briefLangFallback && <p className="hs-fb-note">{t.fallbackNote}</p>}
 
         {hasOverview && (
           <div className="hs-sec">
@@ -185,16 +202,16 @@ export function HandoffSheet(props: HandoffSheetProps) {
           </div>
         )}
 
-        {ctas.rows.length > 0 && (
+        {ctaRows.length > 0 && (
           <div className="hs-sec">
             <h2 className="hs-h">{t.ctas} <span className="hs-warn">{t.ctasWarn}</span></h2>
             {ctas.note?.trim() && <p className="hs-p"><b>{ctas.note}</b></p>}
             <table className="hs-table">
               <thead><tr><th><span className="sr-only">{t.target}</span></th><th scope="col">🇧🇷 PT</th><th scope="col">🇺🇸 EN</th></tr></thead>
               <tbody>
-                {ctas.rows.map((r, i) => (
+                {ctaRows.map((r, i) => (
                   <tr key={i} className={activeLang === 'pt' ? 'hl-pt' : 'hl-en'}>
-                    <td className="hs-ck" scope="row">{r.k}</td><td>{r.pt}</td><td>{r.en}</td>
+                    <th className="hs-ck" scope="row">{r.k}</th><td>{r.pt}</td><td>{r.en}</td>
                   </tr>
                 ))}
               </tbody>

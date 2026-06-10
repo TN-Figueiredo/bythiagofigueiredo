@@ -6,6 +6,8 @@ import {
   vidTotals,
   fmtClock,
   IdeiaSectionSchema,
+  PosBriefSchema,
+  posOverrideKey,
 } from '@/lib/pipeline/video-schemas'
 import { VideoMetadataSchema } from '@/lib/pipeline/schemas'
 import type { RoteiroBeatV3 } from '@/lib/pipeline/roteiro-schemas'
@@ -68,6 +70,55 @@ describe('IdeiaSectionSchema', () => {
   })
   it('rejects unknown keys', () => {
     expect(IdeiaSectionSchema.safeParse({ title: 'x', bogus: 1 }).success).toBe(false)
+  })
+})
+
+describe('PosBriefSchema — per-beat overrides', () => {
+  it('accepts an overrides map keyed by beat id with partial fields', () => {
+    const r = PosBriefSchema.safeParse({
+      kind: 'brief',
+      overrides: {
+        'beat-abc': { line: 'Frase nova', cue: 'Drone na cidade' },
+        i2: { broll: ['Close no teclado', 'Tela do editor'] },
+      },
+    })
+    expect(r.success).toBe(true)
+    if (r.success) {
+      expect(r.data.overrides?.['beat-abc']).toEqual({ line: 'Frase nova', cue: 'Drone na cidade' })
+      expect(r.data.overrides?.i2?.broll).toEqual(['Close no teclado', 'Tela do editor'])
+    }
+  })
+
+  it('overrides is optional — a brief without it still parses (no default injected)', () => {
+    const r = PosBriefSchema.safeParse({ kind: 'brief' })
+    expect(r.success).toBe(true)
+    if (r.success) expect(r.data.overrides).toBeUndefined()
+  })
+
+  it('rejects unknown keys inside an override entry (strict)', () => {
+    const r = PosBriefSchema.safeParse({
+      kind: 'brief',
+      overrides: { i0: { line: 'ok', bogus: 'nope' } },
+    })
+    expect(r.success).toBe(false)
+  })
+
+  it('enforces limits: line ≤280, cue ≤200, broll ≤8 items of ≤200', () => {
+    expect(PosBriefSchema.safeParse({ kind: 'brief', overrides: { i0: { line: 'x'.repeat(281) } } }).success).toBe(false)
+    expect(PosBriefSchema.safeParse({ kind: 'brief', overrides: { i0: { cue: 'x'.repeat(201) } } }).success).toBe(false)
+    expect(PosBriefSchema.safeParse({ kind: 'brief', overrides: { i0: { broll: Array.from({ length: 9 }, () => 'v') } } }).success).toBe(false)
+    expect(PosBriefSchema.safeParse({ kind: 'brief', overrides: { i0: { line: 'x'.repeat(280), cue: 'y'.repeat(200), broll: Array.from({ length: 8 }, () => 'v') } } }).success).toBe(true)
+  })
+})
+
+describe('posOverrideKey', () => {
+  it('uses the beat durable id when present', () => {
+    const beat: RoteiroBeatV3 = { idx: 0, id: 'b-77', name: 'B', status: 'PENDING', script: [] }
+    expect(posOverrideKey(beat, 3)).toBe('b-77')
+  })
+  it('falls back to the positional i<index> for legacy beats with no id', () => {
+    const beat: RoteiroBeatV3 = { idx: 0, name: 'B', status: 'PENDING', script: [] }
+    expect(posOverrideKey(beat, 3)).toBe('i3')
   })
 })
 

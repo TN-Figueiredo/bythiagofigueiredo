@@ -295,7 +295,8 @@ describe('PosStage — handoff markup', () => {
       )
       const ptCell = container.querySelector('.pp-cta-row [role="cell"] .efx') as HTMLElement
       expect(ptCell).toBeTruthy()
-      expect(ptCell.getAttribute('contenteditable')).toBe('true')
+      // 'plaintext-only' where supported (jsdom/Chrome/Safari), boolean 'true' as the fallback
+      expect(ptCell.getAttribute('contenteditable')).toMatch(/^(true|plaintext-only)$/)
       ptCell.textContent = 'novo.pt'
       fireEvent.blur(ptCell)
       expect(onPatch).toHaveBeenCalledWith(
@@ -363,7 +364,8 @@ describe('PosStage — handoff markup', () => {
       )
       fireEvent.click(screen.getByRole('button', { name: /Recomeçar/i }))
       fireEvent.click(screen.getByRole('button', { name: /^limpar$/i }))
-      expect(onPatch).toHaveBeenCalledWith({ kind: 'brief', deliverables: {}, style: [], ctas: { note: '', rows: [], display: '' } })
+      // overrides: {} — wiping the brief also clears the per-beat Momentos/B-roll overrides
+      expect(onPatch).toHaveBeenCalledWith({ kind: 'brief', deliverables: {}, style: [], ctas: { note: '', rows: [], display: '' }, overrides: {} })
     })
 
     it('the wiped brief flips briefHasContent → chooser returns', () => {
