@@ -102,6 +102,10 @@ Sem H2, sem underline, sem task lists, sem callout/toggle, sem text align, sem h
   "premise": "Uma frase que resume a ideia do conteúdo",
   "body": "Descrição expandida com contexto, motivação e proposta de valor.\n\n### Contexto\n\nTexto com **destaques** e [links](https://example.com).\n\n- Ponto A\n- Ponto B",
   "angle": "Ângulo editorial ou gancho estratégico",
+  "siblings": [
+    "Direção alternativa 1 — o ângulo contrário, em 1–2 frases.",
+    "Direção alternativa 2 — a abordagem por dados, em 1–2 frases."
+  ],
   "vvs": 85,
   "cross_refs": [
     { "code": "VID-042", "title": "Vídeo relacionado", "note": "Conexão temática" }
@@ -113,10 +117,17 @@ Sem H2, sem underline, sem task lists, sem callout/toggle, sem text align, sem h
 |-------|------|-------------|-------|
 | `premise` | string | sim | Frase-chave da ideia (contentEditable, sem markdown) |
 | `body` | string (markdown) | sim | Renderizado via Tiptap preset `compact` — use markdown |
-| `angle` | string | não | Ângulo editorial |
+| `angle` | string | não | **A direção ATIVA** — o ângulo que o artigo vai desenvolver (1–2 frases) |
+| `siblings` | string[] | não | Direções ALTERNATIVAS (1–2 frases cada, ângulos genuinamente distintos — contrário/dados/história pessoal/contraintuitivo). **Máx. 8** |
 | `vvs` | number 0-100 | não | Score de viabilidade |
 | `validated_at` | ISO datetime | não | Preenchido quando validada |
 | `cross_refs` | CrossRef[] | não | Referências cruzadas |
+
+### Direções no editor de blog (`angle` + `siblings`)
+
+- O editor do CMS exibe `angle` como **"A direção"** e `siblings` como **"Outras direções"**; trocar a direção pela UI faz o swap `angle`↔`sibling` (nada se perde) — não refaça o swap via API por conta própria.
+- **"Gerar mais direções"** → leia primeiro (action:get), preserve `premise`/`body`/`vvs`/`cross_refs` e **ACRESCENTE** em `siblings` (máx. 8 — remova as mais fracas se passar).
+- **Read-only após publish:** quando o item está `published`, a seção `ideia` fica congelada (`PUBLISHED_READONLY_BASES`) — a API rejeita updates; não tente regravar direções de um post publicado.
 
 ---
 
@@ -147,6 +158,8 @@ Formato alternativo — wrapper object (quando há SEO legado):
 - Object com `{ body, seo }` → `body` renderizado, `seo` gera warning
 
 **Dica:** Use a formatação completa do preset `full` (H2-H4, listas, blockquotes, code blocks, checklist, imagens, tabelas). O DraftRenderer exibe um outline de seções quando há 2+ headings no conteúdo. Para embeds e colunas, oriente o criador a usar os botões dedicados na toolbar.
+
+**Blog (`blog_post`) — convenção do draft:** escreva `draft_{pt,en}` com shape `{ body: "<markdown>" }`. H2/H3 a cada 300–400 palavras (800+ palavras no total), listas onde couber, primeira pessoa. Imagens: NÃO gere imagens — marque pontos de imagem como `![img-<ref_id>: descrição](https://placehold.co/800x450)` **E** registre cada uma em `images_shared.body_images[]` (`{ref_id, description, placement: "after_h2:<n>" | "after_paragraph:<n>"}`). O editor do CMS renderiza esse markdown na primeira abertura do post.
 
 ### Placeholders de imagem no draft
 
@@ -1259,14 +1272,16 @@ SFX references using `Artlist "Track Name"` in edit_notes or sfx.description are
 }
 ```
 
+**Shape mínimo aceito pelo editor do CMS:** `prompts: [{prompt, alt_text_pt, alt_text_en}]` — `rank`, `rationale`, `chosen`, `fallback_search` e `status` são opcionais. O editor exibe `prompts[0].prompt` (capa e, por `ref_id`, cada imagem inline) com botão de copiar. Ao atualizar, leia primeiro (action:get) e **PRESERVE `image_url` existentes**.
+
 ### Cover
 
 | Campo | Tipo | Obrigatório | Notas |
 |-------|------|-------------|-------|
-| `cover.prompts` | Prompt[] | sim | 3 prompts rankeados (1=recomendada, 2=variação, 3=approach diferente) |
-| `cover.prompts[].rank` | number 1-3 | sim | Ordem de recomendação |
+| `cover.prompts` | Prompt[] | sim | 1–3 prompts; quando rankeados: 1=recomendada, 2=variação, 3=approach diferente |
+| `cover.prompts[].rank` | number 1-3 | não | Ordem de recomendação |
 | `cover.prompts[].prompt` | string | sim | Prompt Midjourney completo (com --ar e --v) |
-| `cover.prompts[].rationale` | string | sim | Por que esta opção |
+| `cover.prompts[].rationale` | string | não | Por que esta opção |
 | `cover.prompts[].alt_text_pt` | string | sim | Texto alternativo PT para SEO/accessibility |
 | `cover.prompts[].alt_text_en` | string | sim | Texto alternativo EN |
 | `cover.chosen` | number 1-3 \| null | não | Preenchido quando criador escolhe |
@@ -1282,7 +1297,7 @@ SFX references using `Artlist "Track Name"` in edit_notes or sfx.description are
 | `body_images[].placement` | string | sim | Posição no draft: `after_h2:N`, `after_paragraph:N`, `before_cta` |
 | `body_images[].intent` | string | sim | `concept_illustration`, `data_visualization`, `emotional_break`, `process_diagram`, `screenshot` |
 | `body_images[].description` | string | sim | O que a imagem mostra |
-| `body_images[].prompts` | Prompt[] | sim | Mesma estrutura do cover (3 rankeados) |
+| `body_images[].prompts` | Prompt[] | sim | Mesma estrutura do cover (shape mínimo `{prompt, alt_text_pt, alt_text_en}`) |
 | `body_images[].chosen` | number \| null | não | Índice escolhido |
 | `body_images[].image_url` | URL \| null | não | URL final após upload |
 | `body_images[].fallback_search` | string | não | Termos Unsplash |
@@ -1290,11 +1305,14 @@ SFX references using `Artlist "Track Name"` in edit_notes or sfx.description are
 
 ### Prompts Midjourney — regras
 
+- **`prompt` = prompt PRONTO PRA MIDJOURNEY** — em INGLÊS, descritivo, fotográfico/editorial coerente com o post
+- **NUNCA gerar a imagem** — o usuário roda o prompt no Midjourney e sobe o resultado no CMS
+- **Sem texto na imagem** (nem logos)
 - **Cover:** sempre `--ar 16:9` (hero 1200×675)
-- **Body images:** `--ar 16:9` ou `--ar 3:2`
+- **Body images:** `--ar 16:9` (salvo pedido em contrário)
 - **Versão:** `--v 6.1` (ou mais recente)
 - **Estilo:** cinematic, warm tones, natural light, sem stock-photo-feel
-- **Evitar:** pessoas com rosto visível (Midjourney distorce), texto na imagem, logos
+- **Evitar:** pessoas com rosto visível (Midjourney distorce)
 - **Structure:** [subject] + [setting] + [lighting] + [camera/lens] + [mood] + [parameters]
 
 ### Placeholders no draft
@@ -1384,6 +1402,74 @@ Resumo dos endpoints disponíveis:
 - `POST /playlists/:id/edges`, `/edges/bulk`, `DELETE /edges/:edgeId` — gerenciar edges
 - `POST /playlists/:id/reorder` — reordenar items
 - `POST /playlists/:id/auto-layout` — auto-posicionar nós
+
+---
+
+## Blog Post SEO Section Schema
+
+The `seo_{locale}` section content:
+
+```json
+{
+  "meta_title": "string (ideal: 60 chars, max: 70)",
+  "meta_description": "string (ideal: 155 chars, max: 170)",
+  "slug": "string (mirrors draft slug)",
+  "keyword": "string (keyword-alvo principal)",
+  "keywords": ["string"],
+  "focus_keywords": ["string"],
+  "og_image_url": "string (1200x630)",
+  "audit": { "...": "ver abaixo" }
+}
+```
+
+### `audit` — auditoria SEO (escrita pelo Cowork)
+
+Escrito pelo Cowork após rodar o auditor local `~/Workspace/youtube/seo_auditor.py` — grave um RESUMO, nunca o JSON inteiro do auditor:
+
+```json
+{
+  "score": 82,
+  "grade": "B",
+  "ran_at": "2026-06-10T14:30:00Z",
+  "phase": "pre_publish",
+  "keyword": "aprender inglês",
+  "issues": [
+    { "severity": "high", "check": "title_length", "msg": "Título com 78 chars (máx 70)", "fix": "Encurtar para ≤60 chars mantendo a keyword no início" }
+  ],
+  "title_suggestions": [
+    { "title": "Como aprendi inglês sem sair do Brasil", "rationale": "Keyword no início, ângulo contraintuitivo" }
+  ],
+  "meta_suggestion": { "title": "...", "description": "..." }
+}
+```
+
+| Campo | Tipo | Notas |
+|-------|------|-------|
+| `score` | number 0–100 | Score do auditor |
+| `grade` | string | `"A"`..`"F"` |
+| `ran_at` | ISO datetime | Quando a auditoria rodou |
+| `phase` | `"pre_publish"` \| `"post_publish"` | Fase da auditoria |
+| `keyword` | string | Keyword-alvo usada na auditoria |
+| `issues` | `[{severity, check, msg, fix}]` | **Só os 5–8 mais importantes** — NÃO o JSON inteiro |
+| `title_suggestions` | `[{title, rationale}]` | **3–5** títulos igualmente bons ou melhores, ângulos distintos |
+| `meta_suggestion` | `{title, description}` | 40–60 / 120–160 chars |
+
+**Fluxo:** post publicado → `python3 ~/Workspace/youtube/seo_auditor.py <url-pública> --json-only`; rascunho → `--phase pre_publish` (ou `audit_html()` sobre o HTML do draft); defina `--keyword` se houver keyword-alvo. **Sempre MERGE** — leia a seção antes (action:get) e preserve campos existentes (não apague `keyword`/`meta_*`).
+
+---
+
+## Blog workflow no editor do CMS
+
+Como o editor de blog (`/cms/blog/[id]/edit`) conversa com o pipeline:
+
+- **Item linkado:** cada post de blog tem um item `blog_post` linkado no pipeline. No load, o editor LÊ `ideia_shared` (angle/siblings), `draft_{pt,en}`, `images_shared` (prompts por imagem) e `seo_{pt,en}` (audit) — o que você escreve nessas seções aparece direto no CMS.
+- **Header das instruções:** instruções vindas do editor chegam com header `[Blog <code> · <Stage> · <LANG> · item_id <id>]` + `post_id <id>`. Trabalhe EXCLUSIVAMENTE no item_id indicado — nunca crie item novo nem "versão"/duplicata.
+- **Os 4 fluxos:**
+  1. **Direções (Ideia):** `angle` = a direção ativa ("A direção" na UI); `siblings` = alternativas ("Outras direções"). Gerar mais = ACRESCENTAR em `siblings` (máx. 8). A troca de direção é feita pela UI (swap `angle`↔`sibling`).
+  2. **Draft:** escreva `draft_{lang}` como `{ body: "<markdown>" }` (H2/H3 a cada 300–400 palavras), com placeholders `![img-<ref_id>: descrição](https://placehold.co/800x450)` registrados também em `images_shared.body_images[]`. O editor renderiza esse markdown na primeira abertura do post.
+  3. **Prompts de imagem:** escreva `prompts: [{prompt, alt_text_pt, alt_text_en}]` na capa (`cover`) e em cada `body_images[]` — prompt PRONTO PRA MIDJOURNEY (inglês, sem texto na imagem; capa `--ar 16:9`). NUNCA gere a imagem — o usuário roda no Midjourney e sobe no CMS.
+  4. **Auditoria SEO:** rode o `seo_auditor.py` local e grave o resumo em `seo_{lang}.audit` (shape acima), sempre com MERGE.
+- **Read-only após publish:** com o item `published`, a seção `ideia` fica congelada (`PUBLISHED_READONLY_BASES`) — o editor esconde geração/troca de direção e a API rejeita updates nessa seção.
 
 ---
 
