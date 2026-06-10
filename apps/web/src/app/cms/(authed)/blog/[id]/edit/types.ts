@@ -56,6 +56,19 @@ export interface VersionContent {
   readTime: number
   titleAlts: string[]
   distribution: DistributionPlan
+  seoAudit: SeoAudit | null
+}
+
+/** Resumo da auditoria SEO gravado pelo Cowork em seo_{lang}.content.audit. */
+export interface SeoAudit {
+  score: number
+  grade: string
+  ranAt: string
+  phase: 'pre_publish' | 'post_publish'
+  keyword: string
+  issues: Array<{ severity: 'critical' | 'high' | 'medium' | 'low'; check: string; msg: string; fix: string }>
+  titleSuggestions: Array<{ title: string; rationale: string }>
+  metaSuggestion: { title: string; description: string } | null
 }
 
 /** Cross-language shared fields. */
@@ -75,6 +88,10 @@ export interface SharedFields {
   notes: string[]
   colophon: string
   coverPrompt: string
+  direction: string
+  directionAlts: string[]
+  /** Prompt Midjourney por ref_id de imagem inline (de images_shared.body_images[].prompts). */
+  imagePrompts: Record<string, string>
   history: Array<{ to: string; date: string }>
 }
 
@@ -90,6 +107,7 @@ export interface CategoryInfo {
 /** Full editor state tree. */
 export interface EditorState {
   postId: string | null
+  pipelineItemId: string | null
   code: string
   siteId: string
   siteTimezone: string
@@ -188,4 +206,5 @@ export const EMPTY_VERSION: VersionContent = {
   readTime: 0,
   titleAlts: [],
   distribution: {},
+  seoAudit: null,
 }

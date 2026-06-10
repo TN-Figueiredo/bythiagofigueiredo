@@ -5,7 +5,7 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getPipelineItemForPost } from '@/lib/pipeline/blog-link'
 import { buildInitialState } from './reducer'
 import type { ServerSibling } from './reducer'
-import type { PostStatus, CategoryInfo } from './types'
+import type { PostStatus, CategoryInfo, SeoAudit } from './types'
 import { EditorClient } from './editor-client'
 
 export const dynamic = 'force-dynamic'
@@ -30,21 +30,15 @@ interface PipelineBodyResult {
   coverImageUrl: string | null
 }
 
-async function getPipelineBody(pipelineItemId: string, locale: string): Promise<PipelineBodyResult | null> {
-  const svc = getSupabaseServiceClient()
-  const { data } = await svc
-    .from('content_pipeline')
-    .select('body_content, sections')
-    .eq('id', pipelineItemId)
-    .single()
-
-  if (!data) return null
-
-  const sections = data.sections as Record<string, unknown> | null
+async function getPipelineBody(
+  sections: Record<string, unknown> | null,
+  locale: string,
+  bodyContent: string | null = null,
+): Promise<PipelineBodyResult | null> {
+  if (!sections && !bodyContent) return null
   const draftKey = locale === 'en' ? 'draft_en' : 'draft_pt'
   const draft = sections?.[draftKey] as { content?: { body?: unknown } } | undefined
   const draftBody = typeof draft?.content?.body === 'string' ? draft.content.body : null
-  const bodyContent = data.body_content as string | null
 
   const markdown = draftBody || bodyContent
   if (!markdown || markdown.trim().length === 0) return null
@@ -150,30 +144,81 @@ export default async function BlogEditorPage({ params }: Props) {
     getPipelineItemForPost(id).catch(() => null),
   ])
 
-  // 4. Resolve content — content_json is authoritative; fallback to pipeline Markdown→HTML
+  // 4. Sections do pipeline (fetch único) — draft fallback, cover, direção, prompts, seo audit
+  let sectionsMap: Record<string, unknown> | null = null
+  let pipelineBodyContent: string | null = null
+  if (pipelineItem) {
+    const { data: itemRow } = await supabase
+      .from('content_pipeline')
+      .select('sections, body_content')
+      .eq('id', pipelineItem.id)
+      .single()
+    sectionsMap = (itemRow?.sections as Record<string, unknown> | null) ?? null
+    pipelineBodyContent = (itemRow?.body_content as string | null) ?? null
+  }
+
   let contentJson = tx.content_json as Record<string, unknown> | null
   let contentHtml = tx.content_html as string | null
   let coverPrompt = ''
   let pipelineCoverUrl: string | null = null
 
   if (isContentJsonEmpty(contentJson) && pipelineItem) {
-    const pipelineBody = await getPipelineBody(pipelineItem.id, tx.locale)
+    const pipelineBody = await getPipelineBody(sectionsMap, tx.locale, pipelineBodyContent)
     if (pipelineBody) {
       contentJson = null
       contentHtml = pipelineBody.html
       coverPrompt = pipelineBody.coverPrompt
       pipelineCoverUrl = pipelineBody.coverImageUrl
     }
-  } else if (pipelineItem) {
-    const { data: pipelineSections } = await supabase
-      .from('content_pipeline')
-      .select('sections')
-      .eq('id', pipelineItem.id)
-      .single()
-    const sections = pipelineSections?.sections as Record<string, { content?: { cover?: { prompts?: Array<{ prompt?: string }>; image_url?: string | null } } }> | null
-    const pipelineCover = sections?.['images_shared']?.content?.cover
-    coverPrompt = pipelineCover?.prompts?.[0]?.prompt ?? ''
-    pipelineCoverUrl = pipelineCover?.image_url ?? null
+  } else if (sectionsMap) {
+    const cover = (sectionsMap['images_shared'] as {
+      content?: { cover?: { prompts?: Array<{ prompt?: string }>; image_url?: string | null } }
+    } | undefined)?.content?.cover
+    coverPrompt = cover?.prompts?.[0]?.prompt ?? ''
+    pipelineCoverUrl = cover?.image_url ?? null
+  }
+
+  // Pipeline extras: direção + alternativas (ideia_shared), prompts por imagem
+  // (images_shared) e auditoria SEO (seo_{lang}.audit)
+  let direction = ''
+  let directionAlts: string[] = []
+  const imagePrompts: Record<string, string> = {}
+  let seoAudit: SeoAudit | null = null
+
+  if (sectionsMap) {
+    const ideia = sectionsMap['ideia_shared'] as
+      | { content?: { angle?: string; siblings?: string[] } } | undefined
+    direction = typeof ideia?.content?.angle === 'string' ? ideia.content.angle : ''
+    directionAlts = Array.isArray(ideia?.content?.siblings)
+      ? ideia.content.siblings.filter((s): s is string => typeof s === 'string')
+      : []
+
+    const imgs = sectionsMap['images_shared'] as
+      | { content?: { body_images?: Array<{ ref_id?: string; prompts?: Array<{ prompt?: string }> }> } } | undefined
+    for (const bi of imgs?.content?.body_images ?? []) {
+      const p = bi.prompts?.[0]?.prompt
+      if (bi.ref_id && typeof p === 'string' && p) {
+        imagePrompts[bi.ref_id.startsWith('img-') ? bi.ref_id : `img-${bi.ref_id}`] = p
+      }
+    }
+
+    const seoKey = tx.locale === 'en' ? 'seo_en' : 'seo_pt'
+    const seoSection = sectionsMap[seoKey] as
+      | { content?: { audit?: Record<string, unknown> } } | undefined
+    const a = seoSection?.content?.audit
+    if (a && typeof a.score === 'number') {
+      seoAudit = {
+        score: a.score,
+        grade: typeof a.grade === 'string' ? a.grade : '',
+        ranAt: typeof a.ran_at === 'string' ? a.ran_at : '',
+        phase: a.phase === 'post_publish' ? 'post_publish' : 'pre_publish',
+        keyword: typeof a.keyword === 'string' ? a.keyword : '',
+        issues: Array.isArray(a.issues) ? (a.issues as SeoAudit['issues']) : [],
+        titleSuggestions: Array.isArray(a.title_suggestions)
+          ? (a.title_suggestions as SeoAudit['titleSuggestions']) : [],
+        metaSuggestion: (a.meta_suggestion ?? null) as SeoAudit['metaSuggestion'],
+      }
+    }
   }
 
   // 5. Blog categories (content_collections was dropped — hardcoded from design handoff)
@@ -253,6 +298,11 @@ export default async function BlogEditorPage({ params }: Props) {
     updatedAt: post.updated_at ?? null,
     readingTimeMin: (tx.reading_time_min as number) ?? 0,
     siblings,
+    pipelineItemId: pipelineItem?.id ?? null,
+    direction,
+    directionAlts,
+    imagePrompts,
+    seoAudit,
   })
 
   return <EditorClient initialState={initialState} />

@@ -56,6 +56,11 @@ export interface ServerData {
   titleAlts?: string[]
   /** Other-language versions already stored — used to hydrate the toggle. */
   siblings?: ServerSibling[]
+  pipelineItemId?: string | null
+  direction?: string
+  directionAlts?: string[]
+  imagePrompts?: Record<string, string>
+  seoAudit?: import('./types').SeoAudit | null
 }
 
 /** A non-primary language version loaded alongside the primary. */
@@ -329,6 +334,7 @@ export function buildInitialState(data: ServerData): EditorState {
     readTime: data.readingTimeMin ?? 0,
     titleAlts: data.titleAlts ?? [],
     distribution: {},
+    seoAudit: data.seoAudit ?? null,
   }
 
   /* Hydrate any other-language version already stored so the lang toggle
@@ -358,6 +364,7 @@ export function buildInitialState(data: ServerData): EditorState {
       readTime: sib.readingTimeMin ?? 0,
       titleAlts: [],
       distribution: {},
+      seoAudit: null,
     }
   }
 
@@ -377,11 +384,15 @@ export function buildInitialState(data: ServerData): EditorState {
     notes: data.notes,
     colophon: data.colophon,
     coverPrompt: data.coverPrompt,
+    direction: data.direction ?? '',
+    directionAlts: data.directionAlts ?? [],
+    imagePrompts: data.imagePrompts ?? {},
     history: data.history,
   }
 
   return {
     postId: data.postId,
+    pipelineItemId: data.pipelineItemId ?? null,
     code: data.code,
     siteId: data.siteId,
     siteTimezone: data.siteTimezone,
