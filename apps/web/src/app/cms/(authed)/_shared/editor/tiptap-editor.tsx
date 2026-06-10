@@ -273,6 +273,12 @@ export function TipTapEditor({
   editorRef.current = editor
   if (editorInstanceRef) editorInstanceRef.current = editor
 
+  // `editable` só é aplicado na criação pelo useEditor — sincroniza toggles em
+  // runtime (ex.: lápis View/Edit do editor de blog) no editor vivo.
+  useEffect(() => {
+    if (editor && editor.isEditable !== editable) editor.setEditable(editable)
+  }, [editor, editable])
+
   // Sync initial content into editor when it becomes available.
   // With `immediatelyRender: false`, the editor is created in a useEffect after
   // mount. If the `content` prop was available during creation, the editor should

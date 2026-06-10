@@ -382,6 +382,21 @@ describe('buildInitialState', () => {
     }
   }
 
+  it('published/scheduled open in view mode; drafts open editable', () => {
+    expect(buildInitialState(makeServerData({ status: 'published' })).editMode).toBe('view')
+    expect(buildInitialState(makeServerData({ status: 'scheduled' })).editMode).toBe('view')
+    expect(buildInitialState(makeServerData({ status: 'draft' })).editMode).toBe('edit')
+    expect(buildInitialState(makeServerData({ status: 'idea' })).editMode).toBe('edit')
+    expect(buildInitialState(makeServerData({ status: 'ready' })).editMode).toBe('edit')
+  })
+
+  it('SET_EDIT_MODE toggles the pencil', () => {
+    const base = buildInitialState(makeServerData({ status: 'published' }))
+    const editing = editorReducer(base, { type: 'SET_EDIT_MODE', mode: 'edit' })
+    expect(editing.editMode).toBe('edit')
+    expect(editorReducer(editing, { type: 'SET_EDIT_MODE', mode: 'view' }).editMode).toBe('view')
+  })
+
   it('STAGE_MAP opens published posts on Publicação and ready posts on Imagens', () => {
     expect(buildInitialState(makeServerData({ status: 'published' })).activeStage).toBe('publicacao')
     expect(buildInitialState(makeServerData({ status: 'scheduled' })).activeStage).toBe('publicacao')

@@ -95,6 +95,7 @@ export function StageImagens() {
 
   const coverReady = version?.coverReady ?? false
   const coverImageUrl = version?.coverImageUrl ?? null
+  const canEdit = state.editMode !== 'view'
 
   const totalWithCover = stats.total + 1
   const doneWithCover = stats.done + (coverReady ? 1 : 0)
@@ -120,7 +121,7 @@ export function StageImagens() {
             imagens prontas · {coverReady ? 1 : 0} capa · {stats.total} no conteúdo
           </div>
         </div>
-        {pendingCount > 0 && state.pipelineItemId && (
+        {pendingCount > 0 && state.pipelineItemId && canEdit && (
           <BlogCoworkButton stage="imagens" label={`Gerar prompts (${pendingCount})`} />
         )}
         {allDone && (
@@ -142,14 +143,16 @@ export function StageImagens() {
               capa · 1200×675
             </span>
             <div className="hero-overlay">
-              <button
-                type="button"
-                className="hero-btn"
-                onClick={() => coverGallery.openGallery({ folder: 'blog', cropPreset: CROP_PRESETS['blog-cover'] })}
-              >
-                <RefreshCw size={14} />
-                Trocar
-              </button>
+              {canEdit && (
+                <button
+                  type="button"
+                  className="hero-btn"
+                  onClick={() => coverGallery.openGallery({ folder: 'blog', cropPreset: CROP_PRESETS['blog-cover'] })}
+                >
+                  <RefreshCw size={14} />
+                  Trocar
+                </button>
+              )}
               <button type="button" className="hero-btn" onClick={() => toast.info('Pré-visualizar capa')}>
                 <Eye size={14} />
                 Ver
@@ -163,16 +166,18 @@ export function StageImagens() {
                 <Image size={30} />
               </span>
               <div className="hero-empty-tx">Sem capa <span>· 1200×675 · social card &amp; topo do artigo</span></div>
-              <div className="hero-empty-actions">
-                {state.pipelineItemId && <BlogCoworkButton stage="imagens" label="Gerar prompt" compact />}
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() => coverGallery.openGallery({ folder: 'blog', cropPreset: CROP_PRESETS['blog-cover'] })}
-                >
-                  <ListChecks size={15} /> Enviar imagem
-                </button>
-              </div>
+              {canEdit && (
+                <div className="hero-empty-actions">
+                  {state.pipelineItemId && <BlogCoworkButton stage="imagens" label="Gerar prompt" compact />}
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => coverGallery.openGallery({ folder: 'blog', cropPreset: CROP_PRESETS['blog-cover'] })}
+                  >
+                    <ListChecks size={15} /> Enviar imagem
+                  </button>
+                </div>
+              )}
               {state.shared.coverPrompt && (
                 <div className="prompt-card" data-testid="cover-prompt">
                   <div className="pc-head">
@@ -215,32 +220,36 @@ export function StageImagens() {
                     {isDone ? (
                       <>
                         {img.src ? <img src={img.src} alt="" /> : <span className="hero-fill" />}
-                        <div className="tile-overlay">
-                          <button
-                            type="button"
-                            className="hero-btn sm"
-                            onClick={() => dispatch({ type: 'SET_IMAGE_STATUS', index: idx, status: 'empty' })}
-                          >
-                            <RefreshCw size={13} /> Trocar
-                          </button>
-                        </div>
+                        {canEdit && (
+                          <div className="tile-overlay">
+                            <button
+                              type="button"
+                              className="hero-btn sm"
+                              onClick={() => dispatch({ type: 'SET_IMAGE_STATUS', index: idx, status: 'empty' })}
+                            >
+                              <RefreshCw size={13} /> Trocar
+                            </button>
+                          </div>
+                        )}
                       </>
                     ) : (
                       <div className="tile-empty">
                         <span className="tile-empty-ic"><Image size={22} /></span>
-                        <div className="tile-empty-actions">
-                          <button
-                            type="button"
-                            className="btn sm"
-                            data-testid={`img-gallery-${imgId}`}
-                            onClick={() => {
-                              setInlineTargetIndex(idx)
-                              inlineGallery.openGallery({ folder: 'blog', cropPreset: CROP_PRESETS.free })
-                            }}
-                          >
-                            <ListChecks size={13} /> Enviar
-                          </button>
-                        </div>
+                        {canEdit && (
+                          <div className="tile-empty-actions">
+                            <button
+                              type="button"
+                              className="btn sm"
+                              data-testid={`img-gallery-${imgId}`}
+                              onClick={() => {
+                                setInlineTargetIndex(idx)
+                                inlineGallery.openGallery({ folder: 'blog', cropPreset: CROP_PRESETS.free })
+                              }}
+                            >
+                              <ListChecks size={13} /> Enviar
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -263,7 +272,8 @@ export function StageImagens() {
                       className="tile-alt"
                       role="textbox"
                       aria-label={`Texto alternativo de ${imgId}`}
-                      contentEditable
+                      contentEditable={canEdit}
+                      aria-readonly={!canEdit}
                       spellCheck={false}
                       data-empty={!img.alt ? 'true' : 'false'}
                       data-ph="Descreva (alt / prompt)…"

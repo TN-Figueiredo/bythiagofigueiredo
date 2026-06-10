@@ -32,6 +32,7 @@ export function StageSeo() {
 
   const lang = state.activeLang
   const audit = version.seoAudit
+  const canEdit = state.editMode !== 'view'
   const titleStatus = charStatus(version.metaTitle.length, [40, 60])
   const descStatus = charStatus(version.metaDesc.length, [120, 160])
 
@@ -111,10 +112,10 @@ export function StageSeo() {
                 <div className="ss-title">{s.title}</div>
                 {s.rationale && <div className="ss-why">{s.rationale}</div>}
                 <div className="ss-actions">
-                  <button type="button" className="ss-use" onClick={() => useTitle(s.title)}>
+                  <button type="button" className="ss-use" disabled={!canEdit} onClick={() => useTitle(s.title)}>
                     <Check size={12} /> Usar como título
                   </button>
-                  <button type="button" className="ss-use alt" onClick={() => useAsMeta(s.title)}>
+                  <button type="button" className="ss-use alt" disabled={!canEdit} onClick={() => useAsMeta(s.title)}>
                     Usar como meta título
                   </button>
                 </div>
@@ -124,7 +125,7 @@ export function StageSeo() {
         </section>
       )}
       {audit?.metaSuggestion && (
-        <button type="button" className="ss-use" style={{ marginTop: 10 }} onClick={applyMetaSuggestion}>
+        <button type="button" className="ss-use" style={{ marginTop: 10 }} disabled={!canEdit} onClick={applyMetaSuggestion}>
           <Check size={12} /> Aplicar meta título + descrição sugeridos
         </button>
       )}
@@ -146,6 +147,7 @@ export function StageSeo() {
           }
           placeholder="Título para buscadores"
           className="finput"
+          readOnly={!canEdit}
         />
       </div>
 
@@ -166,6 +168,7 @@ export function StageSeo() {
           }
           placeholder="Descrição para buscadores"
           className="finput"
+          readOnly={!canEdit}
         />
       </div>
 

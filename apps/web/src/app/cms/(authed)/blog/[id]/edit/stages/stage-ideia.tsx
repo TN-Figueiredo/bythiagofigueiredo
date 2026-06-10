@@ -41,6 +41,7 @@ export function StageIdeia() {
   const hasPipeline = !!state.pipelineItemId
   const isPublished = shared.status === 'published'
   const hasBody = bodyHasContent(version)
+  const canEdit = state.editMode !== 'view'
 
   const onSwap = async (alt: string) => {
     if (!state.postId || swapping) return
@@ -79,7 +80,8 @@ export function StageIdeia() {
         className="idea-title"
         role="textbox"
         aria-label="Título de trabalho"
-        contentEditable
+        contentEditable={canEdit}
+        aria-readonly={!canEdit}
         spellCheck={false}
         suppressContentEditableWarning
         data-empty={!(version?.title) ? 'true' : 'false'}
@@ -107,7 +109,8 @@ export function StageIdeia() {
             role="textbox"
             aria-label="Hook do post"
             aria-multiline="true"
-            contentEditable
+            contentEditable={canEdit}
+            aria-readonly={!canEdit}
             spellCheck={false}
             suppressContentEditableWarning
             data-empty={hookEmpty ? 'true' : 'false'}
@@ -138,7 +141,8 @@ export function StageIdeia() {
             role="textbox"
             aria-label="Sinopse do post"
             aria-multiline="true"
-            contentEditable
+            contentEditable={canEdit}
+            aria-readonly={!canEdit}
             spellCheck={false}
             suppressContentEditableWarning
             data-empty={synopsisEmpty ? 'true' : 'false'}
@@ -165,7 +169,7 @@ export function StageIdeia() {
 
           {/* ideia é read-only após publicar (PUBLISHED_READONLY_BASES no service
               layer recusa o próprio Cowork) — esconder geração/swap, manter o display */}
-          {!isPublished && (
+          {!isPublished && canEdit && (
             <div className="idea-alts" data-testid="idea-alts">
               <div className="ia-head">
                 <span className="ia-kick">✦ Outras direções do Cowork</span>

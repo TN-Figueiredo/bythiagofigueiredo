@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Check, ChevronLeft, Eye, SlidersHorizontal } from 'lucide-react'
+import { Check, ChevronLeft, Eye, Pencil, SlidersHorizontal } from 'lucide-react'
 import { useEditorState, useEditorDispatch, useEditorVersion, useSaveActions, useAutosaveState } from './context'
 
 /* ------------------------------------------------------------------ */
@@ -77,6 +77,22 @@ export function ActionBar({ children }: ActionBarProps) {
         <span className="es-dot" />
         {label}
       </span>
+
+      {/* Edit-mode toggle — pencil (paridade com o editor de vídeo). Publicado/
+          agendado abre em view; o lápis liga a edição explicitamente. */}
+      <button
+        type="button"
+        data-testid="editmode-toggle"
+        className={`ed-iconbtn${state.editMode === 'edit' ? ' on' : ''}`}
+        aria-pressed={state.editMode === 'edit'}
+        title={state.editMode === 'edit'
+          ? 'Editando — clique para voltar a visualizar (somente leitura)'
+          : 'Visualizando (somente leitura) — clique para editar'}
+        aria-label={state.editMode === 'edit' ? 'Desligar edição' : 'Editar post'}
+        onClick={() => dispatch({ type: 'SET_EDIT_MODE', mode: state.editMode === 'edit' ? 'view' : 'edit' })}
+      >
+        <Pencil size={16} />
+      </button>
 
       {/* Inspector toggle — opens/closes details drawer */}
       <button

@@ -6,6 +6,9 @@ import type { JSONContent } from '@tiptap/core'
 
 export type Stage = 'ideia' | 'rascunho' | 'imagens' | 'seo' | 'publicacao'
 
+/** View = somente leitura (default em publicado/agendado); Edit = lápis ligado. */
+export type EditMode = 'view' | 'edit'
+
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error' | 'offline'
 
 export type PostStatus =
@@ -113,6 +116,7 @@ export interface EditorState {
   siteTimezone: string
   activeStage: Stage
   activeLang: 'pt' | 'en'
+  editMode: EditMode
   focus: boolean
   inspectorOpen: boolean
   content: Partial<Record<'pt' | 'en', VersionContent>>
@@ -137,6 +141,7 @@ export type EditorAction =
   | { type: 'SET_FIELD'; field: keyof VersionContent; value: unknown }
   | { type: 'SET_SHARED'; field: keyof SharedFields; value: unknown }
   | { type: 'SET_DIRECTION'; direction: string; alts: string[] }
+  | { type: 'SET_EDIT_MODE'; mode: EditMode }
   | { type: 'SET_IMAGE_STATUS'; index: number; status: ImageBlockStatus; url?: string }
   | { type: 'SET_DIST'; platform: DistPlatformId; timing: DistTiming | null }
   | { type: 'ADD_VERSION'; lang: 'pt' | 'en' }

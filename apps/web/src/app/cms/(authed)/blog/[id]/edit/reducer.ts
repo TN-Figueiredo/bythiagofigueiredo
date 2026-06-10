@@ -259,6 +259,9 @@ export function editorReducer(
         shared: { ...state.shared, direction: action.direction, directionAlts: action.alts },
       }
 
+    case 'SET_EDIT_MODE':
+      return { ...state, editMode: action.mode }
+
     /* ---- Versions ---- */
 
     case 'ADD_VERSION':
@@ -412,6 +415,9 @@ export function buildInitialState(data: ServerData): EditorState {
     siteId: data.siteId,
     siteTimezone: data.siteTimezone,
     activeStage: STAGE_MAP[data.status] ?? 'rascunho',
+    // Publicado/agendado abre em leitura — editar é opt-in pelo lápis (paridade
+    // com o editor de vídeo); rascunhos abrem direto em edição.
+    editMode: data.status === 'published' || data.status === 'scheduled' ? 'view' : 'edit',
     activeLang: lang,
     focus: false,
     inspectorOpen: false,

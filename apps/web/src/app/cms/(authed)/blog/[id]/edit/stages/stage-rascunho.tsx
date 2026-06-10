@@ -145,8 +145,9 @@ export function StageRascunho() {
   /* ---- Cowork chooser + draft poll ---- */
 
   const [startedBlank, setStartedBlank] = useState(false)
+  const canEdit = state.editMode !== 'view'
   const bodyEmpty = !bodyHasContent(version)
-  const showChooser = bodyEmpty && !startedBlank && !!state.pipelineItemId
+  const showChooser = bodyEmpty && !startedBlank && !!state.pipelineItemId && canEdit
 
   usePipelineDraftPoll({
     enabled: showChooser,
@@ -207,6 +208,7 @@ export function StageRascunho() {
         placeholder="Sem título"
         rows={1}
         className="doc-title"
+        readOnly={!canEdit}
       />
 
       {/* Excerpt / dek */}
@@ -217,7 +219,8 @@ export function StageRascunho() {
           role="textbox"
           aria-label="Resumo do post"
           aria-multiline="false"
-          contentEditable
+          contentEditable={canEdit}
+          aria-readonly={!canEdit}
           spellCheck={false}
           data-empty={!version?.excerpt ? 'true' : 'false'}
           data-testid="doc-dek"
@@ -247,7 +250,7 @@ export function StageRascunho() {
         <span>{readTime}</span>
         <span className="msep">·</span>
         <span>{wordCount} palavras</span>
-        {!bodyEmpty && state.pipelineItemId && (
+        {!bodyEmpty && state.pipelineItemId && canEdit && (
           <>
             <span className="msep">·</span>
             <BlogCoworkButton stage="conteudo" label="Refinar com Cowork" compact />
@@ -271,7 +274,7 @@ export function StageRascunho() {
           content={version?.body ?? (version?.bodyHtml || null)}
           onChange={handleEditorChange}
           onImageUpload={handleImageUpload}
-          editable={true}
+          editable={canEdit}
           placeholder="Comece a escrever..."
           editorInstanceRef={editorRef}
           extraExtensions={blogExtensions}
