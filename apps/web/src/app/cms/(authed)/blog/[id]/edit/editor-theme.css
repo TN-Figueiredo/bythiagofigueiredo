@@ -376,6 +376,7 @@ body:has(.blog-editor) .cms-topbar { display: none; }
 
 .blog-editor .idea-next {
   display: inline-flex; align-items: center; gap: 8px;
+  margin-top: 28px;
   height: 40px; padding: 0 18px; border-radius: 10px;
   border: 1px solid var(--ed-border); background: var(--ed-surface);
   font-family: var(--ed-font-sans); font-size: 13px; font-weight: 500; color: var(--text-dim);
