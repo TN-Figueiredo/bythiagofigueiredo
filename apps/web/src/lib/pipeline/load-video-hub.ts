@@ -1,7 +1,8 @@
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { videoColumn, type VideoColumn } from './video-lifecycle'
 import { PILLARS, type PillarId } from './pillars'
-import { readRoteiro } from './roteiro-schemas'
+import { readRoteiro, type RoteiroBeatV3 } from './roteiro-schemas'
+import { fmtClock } from './video-schemas'
 
 export interface VideoHubCard {
   id: string
@@ -66,16 +67,24 @@ function cardTitle(row: HubRow): string {
   return t && t.trim().length > 0 ? t : 'Sem título'
 }
 
-// Count beats from the primary-language roteiro section, via the canonical v1→v3 adapter.
-// Never throws on a malformed body — a bad row degrades to 0 beats, not a hub-wide crash.
-function beatsCountFor(sections: Record<string, SectionEnvelope>, lang: 'pt' | 'en'): number {
+// Read beats from the primary-language roteiro section, via the canonical v1→v3 adapter.
+// Never throws on a malformed body — a bad row degrades to no beats, not a hub-wide crash.
+function roteiroBeatsFor(sections: Record<string, SectionEnvelope>, lang: 'pt' | 'en'): RoteiroBeatV3[] {
   const raw = sections[`roteiro_${lang}`]?.content
-  if (raw == null) return 0
+  if (raw == null) return []
   try {
-    return readRoteiro(raw).beats.length
+    return readRoteiro(raw).beats
   } catch {
-    return 0
+    return []
   }
+}
+
+// Card duration: the authored duration_range wins (it's intent); otherwise derive an
+// estimate from the summed beat durations (`~m:ss`); '—' only when neither exists.
+function cardDuration(durationRange: string | undefined, beats: RoteiroBeatV3[]): string {
+  if (durationRange && durationRange.trim().length > 0) return durationRange
+  const total = beats.reduce((sum, b) => sum + (b.duration ?? 0), 0)
+  return total > 0 ? `~${fmtClock(total)}` : '—'
 }
 
 function beatsLabel(beatsCount: number, hasDirection: boolean): string {
@@ -103,7 +112,8 @@ export async function loadVideoHub(siteId: string): Promise<VideoHubData> {
     const durationRange = meta.duration_range as string | undefined
     const sections = row.sections ?? {}
     const lang = primaryLang(row.language)
-    const beatsCount = beatsCountFor(sections, lang)
+    const beats = roteiroBeatsFor(sections, lang)
+    const beatsCount = beats.length
     const hasDirection = sections[`ideia_${lang}`] != null
     return {
       id: row.id,
@@ -113,7 +123,7 @@ export async function loadVideoHub(siteId: string): Promise<VideoHubData> {
       stage: row.stage,
       language: row.language,
       pillar: pillar && PILLARS.some((p) => p.id === pillar) ? pillar : undefined,
-      duration: durationRange ?? '—',
+      duration: cardDuration(durationRange, beats),
       beatsLabel: beatsLabel(beatsCount, hasDirection),
       beatsCount,
       hasPt: sections.ideia_pt != null || sections.roteiro_pt != null,

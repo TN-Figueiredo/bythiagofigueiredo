@@ -333,6 +333,8 @@ Ao gerar o draft, insira placeholders de imagem usando markdown padrão com o `r
 
 > **Cadência de leitura ≈ 2.1 palavras/seg.** Estimativa de duração de um beat ≈ `ceil(palavras_em_lines / 2.1 + soma(pause.duration))`. Só linhas `line` (dentro de um beat `kind:'fala'`) contam palavras.
 
+> **REGRA — timers do roteiro:** ao escrever um roteiro, **TODO beat DEVE incluir `duration`** (int, segundos — estimativa de fala num ritmo natural pela cadência acima; some realista, não chute zero). E **ao concluir o roteiro, atualize `format_metadata.duration_range` via `update_item`** (ex.: `"8–12min"`), coerente com a soma dos `duration` dos beats. O hub e o print usam esses timers — roteiro sem `duration` aparece no card como "X beats" sem cronômetro e duração "—".
+
 > **Freeze:** `PATCH /sections/roteiro` retorna **HTTP 403** quando o stage do vídeo está em ≥ `scheduled`/`published` (`ideia`/`roteiro`/`postprod`/`publish` ficam read-only). Para consertar um roteiro já publicado, dê **`POST /items/:id/retreat`** primeiro — ou edite antes de publicar. (Detalhe em **Published-freeze**, abaixo.)
 
 ### REGRA: Como consertar um roteiro poluído (via API) — **é BEAT-LEVEL**

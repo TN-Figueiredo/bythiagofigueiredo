@@ -31,18 +31,21 @@ const ROW_V2 = {
   sections: { roteiro_en: { content: { version: 3, beats: [] } } },
 }
 
+// Mutable row set so duration-specific cases can inject their own fixtures;
+// beforeEach resets to the canonical pair above.
+let mockRows: unknown[] = [ROW_V1, ROW_V2]
+
 vi.mock('@/lib/supabase/service', () => ({
   getSupabaseServiceClient: () => ({
     from: () => ({
       select: (cols: string) => {
         selectSpy(cols)
-        return {
-          eq: () => ({
-            eq: () => ({
-              order: () => Promise.resolve({ data: [ROW_V1, ROW_V2], error: null }),
-            }),
-          }),
+        // Self-referencing builder: tolerates any number of chained .eq() filters.
+        const builder = {
+          eq: () => builder,
+          order: () => Promise.resolve({ data: mockRows, error: null }),
         }
+        return builder
       },
     }),
   }),
@@ -51,7 +54,10 @@ vi.mock('@/lib/supabase/service', () => ({
 import { loadVideoHub } from '@/lib/pipeline/load-video-hub'
 
 describe('loadVideoHub', () => {
-  beforeEach(() => selectSpy.mockClear())
+  beforeEach(() => {
+    selectSpy.mockClear()
+    mockRows = [ROW_V1, ROW_V2]
+  })
 
   it('selects the sections column + plain columns — no raw SQL (PostgREST cannot evaluate it)', async () => {
     await loadVideoHub('site-1')
@@ -83,6 +89,76 @@ describe('loadVideoHub', () => {
     expect(c2.beatsLabel).toBe('sem roteiro')
     expect(c2.hasEn).toBe(true)
     expect(c2.title).toBe('Sem título')
+  })
+
+  it('prefers the authored duration_range over summed beat durations', async () => {
+    mockRows = [{
+      ...ROW_V1,
+      format_metadata: { duration_range: '8–12min' },
+      sections: {
+        roteiro_pt: {
+          content: {
+            version: 3,
+            beats: [{ idx: 0, name: 'Abertura', duration: 300 }],
+          },
+        },
+      },
+    }]
+    const hub = await loadVideoHub('site-1')
+    expect(hub.cards[0]!.duration).toBe('8–12min')
+  })
+
+  it('derives ~m:ss from summed beat durations when duration_range is unset', async () => {
+    mockRows = [{
+      ...ROW_V1,
+      format_metadata: {},
+      sections: {
+        roteiro_pt: {
+          content: {
+            version: 3,
+            beats: [
+              { idx: 0, name: 'Abertura', duration: 300 },
+              { idx: 1, name: 'Fechamento', duration: 270 },
+              { idx: 2, name: 'Sem duração' }, // optional duration → counts as 0
+            ],
+          },
+        },
+      },
+    }]
+    const hub = await loadVideoHub('site-1')
+    expect(hub.cards[0]!.duration).toBe('~9:30')
+  })
+
+  it('falls back to — when neither duration_range nor beat durations exist', async () => {
+    mockRows = [{
+      ...ROW_V1,
+      format_metadata: {},
+      sections: {
+        roteiro_pt: {
+          content: {
+            version: 3,
+            beats: [
+              { idx: 0, name: 'Abertura' },
+              { idx: 1, name: 'Fechamento', duration: 0 },
+            ],
+          },
+        },
+      },
+    }]
+    const hub = await loadVideoHub('site-1')
+    expect(hub.cards[0]!.duration).toBe('—')
+  })
+
+  it('degrades a malformed roteiro to — without crashing the hub', async () => {
+    mockRows = [{
+      ...ROW_V1,
+      format_metadata: {},
+      // beats is not an array — readRoteiro throws; the card degrades, the hub survives.
+      sections: { roteiro_pt: { content: { version: 3, beats: 'corrupted' } } },
+    }]
+    const hub = await loadVideoHub('site-1')
+    expect(hub.cards[0]!.duration).toBe('—')
+    expect(hub.cards[0]!.beatsCount).toBe(0)
   })
 
   it('computes stat-card counts by projected column and pillar chip counts', async () => {

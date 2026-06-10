@@ -20,6 +20,12 @@ const STAGE_LABEL: Record<VideoStage, string> = {
  * no hint keeps its prior freeform behavior.
  */
 const STAGE_TARGET_HINT: Partial<Record<VideoStage, (itemId: string, lang: string) => string>> = {
+  roteiro: (itemId, lang) =>
+    `→ escreva a seção \`roteiro\` (RoteiroContentV3) via MCP manage_sections (action:update, item_id:${itemId}, section:roteiro, lang:${lang}); ` +
+    `leia a ideia primeiro com manage_sections action:get (section:ideia, lang:${lang}); ` +
+    `CADA beat DEVE incluir \`duration\` (int, segundos estimados de fala num ritmo natural ≈ 2.1 palavras/seg + pausas — some realista, NÃO chute zero); ` +
+    `ao terminar, atualize \`format_metadata.duration_range\` via update_item (ex.: "8–12min") coerente com a soma dos durations dos beats — ` +
+    `o hub e o print usam esses timers, roteiro sem duration aparece sem cronômetro.`,
   pos: (itemId, lang) =>
     `→ escreva a seção \`postprod\` (PosBriefSchema, kind:'brief') via MCP manage_sections (action:update, item_id:${itemId}, section:postprod, lang:${lang}); ` +
     `derive estilo & ritmo, CTAs e QR do roteiro — leia primeiro com manage_sections action:get (section:roteiro, lang:${lang}); ` +
