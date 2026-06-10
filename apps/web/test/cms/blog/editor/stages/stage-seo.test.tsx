@@ -49,6 +49,7 @@ function makeVersion(overrides: Partial<VersionContent> = {}): VersionContent {
 function makeState(overrides: Partial<EditorState> = {}): EditorState {
   return {
     postId: 'p1',
+    pipelineItemId: null,
     code: 'tg-01',
     siteId: 'site-1',
     siteTimezone: 'America/Sao_Paulo',

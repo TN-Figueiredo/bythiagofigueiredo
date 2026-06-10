@@ -92,6 +92,15 @@ export function deriveSlug(title: string): string {
     .slice(0, 60)
 }
 
+/** True quando a versão tem corpo de verdade (texto no JSON OU html não-vazio). */
+export function bodyHasContent(
+  version: Pick<VersionContent, 'body' | 'bodyHtml'> | null | undefined,
+): boolean {
+  if (!version) return false
+  if (hasTextContent(version.body)) return true
+  return version.bodyHtml.trim().length > 0
+}
+
 /**
  * Returns true when a version is effectively empty:
  * - title is empty/whitespace

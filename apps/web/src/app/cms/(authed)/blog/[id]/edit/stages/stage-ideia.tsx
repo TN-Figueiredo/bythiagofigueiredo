@@ -1,8 +1,12 @@
 'use client'
 
-import { useCallback, useRef } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { ArrowRight } from 'lucide-react'
+import { toast } from 'sonner'
 import { useEditorState, useEditorDispatch, useEditorVersion } from '../context'
+import { BlogCoworkButton } from '../blog-cowork-button'
+import { swapBlogDirection } from '../pipeline-actions'
+import { bodyHasContent } from '../helpers'
 
 export function StageIdeia() {
   const state = useEditorState()
@@ -32,6 +36,28 @@ export function StageIdeia() {
   const goToRascunho = useCallback(() => {
     dispatch({ type: 'SET_STAGE', stage: 'rascunho' })
   }, [dispatch])
+
+  const [swapping, setSwapping] = useState<string | null>(null)
+  const hasPipeline = !!state.pipelineItemId
+  const isPublished = shared.status === 'published'
+  const hasBody = bodyHasContent(version)
+
+  const onSwap = async (alt: string) => {
+    if (!state.postId || swapping) return
+    setSwapping(alt)
+    const res = await swapBlogDirection(state.postId, alt)
+    setSwapping(null)
+    if (res.ok && res.direction) {
+      dispatch({ type: 'SET_DIRECTION', direction: res.direction, alts: res.directionAlts ?? [] })
+      toast.success('Direção trocada')
+    } else if (res.error === 'version_conflict' || res.error === 'stale_alternative') {
+      toast.error('O Cowork mexeu nessa ideia agora — recarregue a página')
+    } else if (res.error === 'published_readonly') {
+      toast.error('Post publicado — a ideia fica congelada')
+    } else {
+      toast.error('Não consegui trocar a direção')
+    }
+  }
 
   const langLabel = activeLang === 'pt' ? 'PT-BR' : 'EN'
   const hookEmpty = !shared.hook
@@ -125,8 +151,53 @@ export function StageIdeia() {
         </div>
       </div>
 
+      {hasPipeline && (
+        <>
+          <div className="idea-direction" data-testid="idea-direction">
+            <div className="id-head">
+              <span className="id-kick">✦ A direção</span>
+              <span className="id-sub">o ângulo que o artigo vai desenvolver — ainda solto, de propósito</span>
+            </div>
+            <div className="id-body" data-empty={!shared.direction ? 'true' : 'false'}>
+              {shared.direction || 'Sem direção ainda — peça ao Cowork pra propor uma.'}
+            </div>
+          </div>
+
+          {/* ideia é read-only após publicar (PUBLISHED_READONLY_BASES no service
+              layer recusa o próprio Cowork) — esconder geração/swap, manter o display */}
+          {!isPublished && (
+            <div className="idea-alts" data-testid="idea-alts">
+              <div className="ia-head">
+                <span className="ia-kick">✦ Outras direções do Cowork</span>
+                <BlogCoworkButton stage="ideia" label="Gerar mais" compact />
+              </div>
+              {shared.directionAlts.length === 0 ? (
+                <div className="ia-empty">Sem alternativas ainda — peça ao Cowork pra gerar algumas.</div>
+              ) : (
+                <div className="ia-list">
+                  {shared.directionAlts.map((alt) => (
+                    <button
+                      key={alt}
+                      type="button"
+                      className="ia-alt"
+                      disabled={swapping !== null}
+                      onClick={() => onSwap(alt)}
+                      title="Usar esta direção"
+                    >
+                      {swapping === alt ? 'trocando…' : alt}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+
       <button type="button" className="idea-next" onClick={goToRascunho}>
-        Conceito definido — escrever o conteúdo <ArrowRight size={15} />
+        {hasBody
+          ? <>Abrir o conteúdo <ArrowRight size={15} /></>
+          : <>Conceito definido — gerar o conteúdo <ArrowRight size={15} /></>}
       </button>
     </div>
   )

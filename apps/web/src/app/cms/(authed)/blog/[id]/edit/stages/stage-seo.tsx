@@ -1,20 +1,26 @@
 'use client'
 
-import {
-  useEditorState,
-  useEditorDispatch,
-  useEditorVersion,
-} from '../context'
+import { toast } from 'sonner'
+import { Check } from 'lucide-react'
+import { useEditorState, useEditorDispatch, useEditorVersion } from '../context'
 import { LANG_LABEL } from '../helpers'
+import { BlogCoworkButton } from '../blog-cowork-button'
 
-function charStatus(
-  count: number,
-  ideal: [number, number],
-): { label: string; cls: string } {
+function charStatus(count: number, ideal: [number, number]): { label: string; cls: string } {
   if (count === 0) return { label: 'vazio', cls: '' }
   if (count < ideal[0]) return { label: 'curto', cls: '' }
   if (count <= ideal[1]) return { label: 'ideal', cls: 'ok' }
   return { label: 'pode truncar', cls: 'warn' }
+}
+
+const SEVERITY_LABEL: Record<string, string> = {
+  critical: 'crítico', high: 'alto', medium: 'médio', low: 'baixo',
+}
+
+function scoreTone(score: number): string {
+  if (score >= 90) return 'ok'
+  if (score >= 70) return 'warn'
+  return 'bad'
 }
 
 export function StageSeo() {
@@ -25,6 +31,7 @@ export function StageSeo() {
   if (!version) return null
 
   const lang = state.activeLang
+  const audit = version.seoAudit
   const titleStatus = charStatus(version.metaTitle.length, [40, 60])
   const descStatus = charStatus(version.metaDesc.length, [120, 160])
 
@@ -32,11 +39,95 @@ export function StageSeo() {
   const serpDesc = version.metaDesc || version.excerpt || 'Sem descrição'
   const serpUrl = `bythiagofigueiredo.com/blog/${lang}/${version.slug || '...'}`
 
+  const useTitle = (t: string) => {
+    dispatch({ type: 'SET_TITLE', title: t })
+    toast.success('Título aplicado')
+  }
+  const useAsMeta = (t: string) => {
+    dispatch({ type: 'SET_FIELD', field: 'metaTitle', value: t })
+    toast.success('Meta título aplicado')
+  }
+  const applyMetaSuggestion = () => {
+    if (!audit?.metaSuggestion) return
+    dispatch({ type: 'SET_FIELD', field: 'metaTitle', value: audit.metaSuggestion.title })
+    dispatch({ type: 'SET_FIELD', field: 'metaDesc', value: audit.metaSuggestion.description })
+    toast.success('Meta título + descrição aplicados')
+  }
+
   return (
     <div>
-      {/* ---- Compact header ---- */}
       <div className="doc-kicker">SEO · {LANG_LABEL[lang] ?? lang.toUpperCase()}</div>
       {version.title && <h2 className="doc-title-sm">{version.title}</h2>}
+
+      {/* ---- Auditoria ---- */}
+      <section className="seo-audit" data-testid="seo-audit">
+        {audit ? (
+          <>
+            <div className="sa-head">
+              <div className={`sa-score ${scoreTone(audit.score)}`}>
+                <b>{Math.round(audit.score)}</b>
+                <span className="sa-grade">{audit.grade}</span>
+              </div>
+              <div className="sa-meta">
+                <div className="sa-kick">Auditoria SEO · {audit.phase === 'pre_publish' ? 'pré-publicação' : 'pós-publicação'}</div>
+                <div className="sa-sub">
+                  {audit.keyword ? <>keyword: <b>{audit.keyword}</b> · </> : null}
+                  {audit.ranAt ? new Date(audit.ranAt).toLocaleString('pt-BR') : ''}
+                </div>
+              </div>
+              {state.pipelineItemId && <BlogCoworkButton stage="seo" label="Rodar de novo" compact />}
+            </div>
+            {audit.issues.length > 0 && (
+              <ul className="sa-issues">
+                {audit.issues.map((iss, i) => (
+                  <li key={i} className={`sa-issue sev-${iss.severity}`}>
+                    <span className="sa-sev">{SEVERITY_LABEL[iss.severity] ?? iss.severity}</span>
+                    <span className="sa-check">{iss.check}</span>
+                    <span className="sa-msg">{iss.msg}</span>
+                    {iss.fix && <span className="sa-fix">→ {iss.fix}</span>}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        ) : (
+          <div className="sa-empty">
+            <div className="sa-kick">Auditoria SEO</div>
+            <p>Sem auditoria ainda. O Cowork roda o <span className="mono">seo_auditor.py</span> (15 checks: headings, meta, schema, keywords, legibilidade…) e traz a pontuação pra cá.</p>
+            {state.pipelineItemId
+              ? <BlogCoworkButton stage="seo" label="Rodar auditoria SEO" />
+              : <p className="sa-sub">Este post não tem item de pipeline linkado — link no Inspector pra habilitar.</p>}
+          </div>
+        )}
+      </section>
+
+      {/* ---- Sugestões de título ---- */}
+      {audit && audit.titleSuggestions.length > 0 && (
+        <section className="seo-suggestions" data-testid="seo-suggestions">
+          <div className="doc-kicker">Títulos sugeridos</div>
+          <ul className="ss-list">
+            {audit.titleSuggestions.map((s, i) => (
+              <li key={i} className="ss-item">
+                <div className="ss-title">{s.title}</div>
+                {s.rationale && <div className="ss-why">{s.rationale}</div>}
+                <div className="ss-actions">
+                  <button type="button" className="ss-use" onClick={() => useTitle(s.title)}>
+                    <Check size={12} /> Usar como título
+                  </button>
+                  <button type="button" className="ss-use alt" onClick={() => useAsMeta(s.title)}>
+                    Usar como meta título
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {audit?.metaSuggestion && (
+        <button type="button" className="ss-use" style={{ marginTop: 10 }} onClick={applyMetaSuggestion}>
+          <Check size={12} /> Aplicar meta título + descrição sugeridos
+        </button>
+      )}
 
       {/* ---- Meta title ---- */}
       <div className="fgroup" style={{ marginTop: 28 }}>

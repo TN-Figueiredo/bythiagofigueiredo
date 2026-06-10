@@ -1,14 +1,16 @@
 'use client'
 
-import { useCallback, useRef, useEffect, useMemo, type ChangeEvent } from 'react'
+import { useCallback, useRef, useEffect, useMemo, useState, type ChangeEvent } from 'react'
 import dynamic from 'next/dynamic'
 import { ImageIcon, Plus, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Editor } from '@tiptap/react'
 import type { JSONContent } from '@tiptap/core'
 import { useEditorState, useEditorDispatch, useEditorVersion } from '../context'
-import { resolveCategory } from '../helpers'
+import { resolveCategory, bodyHasContent } from '../helpers'
 import { BlogImageExtension } from '../image-block/blog-image-extension'
+import { BlogCoworkButton } from '../blog-cowork-button'
+import { usePipelineDraftPoll } from '../use-pipeline-draft-poll'
 
 const TipTapEditor = dynamic(
   () =>
@@ -140,6 +142,18 @@ export function StageRascunho() {
   const readTime = version && version.readTime > 0 ? `${version.readTime} min de leitura` : 'rascunho novo'
   const wordCount = (version?.words ?? 0).toLocaleString('pt-BR')
 
+  /* ---- Cowork chooser + draft poll ---- */
+
+  const [startedBlank, setStartedBlank] = useState(false)
+  const bodyEmpty = !bodyHasContent(version)
+  const showChooser = bodyEmpty && !startedBlank && !!state.pipelineItemId
+
+  usePipelineDraftPoll({
+    enabled: showChooser,
+    postId: state.postId,
+    lang: state.activeLang,
+  })
+
   /* ---- Render ---- */
 
   const coverUrl = version?.coverImageUrl ?? null
@@ -233,7 +247,23 @@ export function StageRascunho() {
         <span>{readTime}</span>
         <span className="msep">·</span>
         <span>{wordCount} palavras</span>
+        {!bodyEmpty && state.pipelineItemId && (
+          <>
+            <span className="msep">·</span>
+            <BlogCoworkButton stage="conteudo" label="Refinar com Cowork" compact />
+          </>
+        )}
       </div>
+
+      {showChooser && (
+        <div className="draft-chooser" data-testid="draft-chooser">
+          <BlogCoworkButton stage="conteudo" label="Gerar conteúdo com Cowork" />
+          <button type="button" className="dch-blank" onClick={() => setStartedBlank(true)}>
+            + Começar do zero
+          </button>
+          <div className="dch-sub">O Cowork rascunha a partir da direção, ou comece do zero.</div>
+        </div>
+      )}
 
       {/* TipTap editor */}
       <div className="doc-prose">

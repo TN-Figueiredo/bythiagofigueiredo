@@ -136,6 +136,7 @@ export type EditorAction =
   | { type: 'SET_COVER'; url: string | null; ready: boolean }
   | { type: 'SET_FIELD'; field: keyof VersionContent; value: unknown }
   | { type: 'SET_SHARED'; field: keyof SharedFields; value: unknown }
+  | { type: 'SET_DIRECTION'; direction: string; alts: string[] }
   | { type: 'SET_IMAGE_STATUS'; index: number; status: ImageBlockStatus; url?: string }
   | { type: 'SET_DIST'; platform: DistPlatformId; timing: DistTiming | null }
   | { type: 'ADD_VERSION'; lang: 'pt' | 'en' }

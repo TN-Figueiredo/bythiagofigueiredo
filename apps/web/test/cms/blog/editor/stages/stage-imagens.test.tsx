@@ -51,6 +51,9 @@ function makeShared() {
     notes: [],
     colophon: '',
     coverPrompt: '',
+    direction: '',
+    directionAlts: [],
+    imagePrompts: {} as Record<string, string>,
     history: [],
   }
 }
@@ -62,6 +65,7 @@ function makeVersion(overrides: Partial<VersionContent> = {}): VersionContent {
 function makeState(overrides: Partial<EditorState> = {}): EditorState {
   return {
     postId: 'p1',
+    pipelineItemId: null,
     code: 'tg-01',
     siteId: 'site-1',
     siteTimezone: 'America/Sao_Paulo',
@@ -177,13 +181,61 @@ describe('StageImagens', () => {
     expect(cover.textContent).toContain('thumbnail')
   })
 
-  it('empty cover shows Gerar and Enviar buttons', async () => {
+  it('empty cover shows Enviar imagem (no mock AI generation)', async () => {
     const StageImagens = await loadStageImagens()
     render(<StageImagens />)
 
     const cover = screen.getByTestId('img-cover')
-    expect(cover.textContent).toContain('Gerar')
-    expect(cover.textContent).toContain('Enviar')
+    expect(cover.textContent).toContain('Enviar imagem')
+    expect(cover.textContent).not.toContain('Gerar com IA')
+  })
+
+  it('empty cover with pipeline item shows Cowork "Gerar prompt" button', async () => {
+    mockState = makeState({
+      content: { pt: mockVersion },
+      pipelineItemId: 'item-1',
+    })
+
+    const StageImagens = await loadStageImagens()
+    render(<StageImagens />)
+
+    const cover = screen.getByTestId('img-cover')
+    expect(cover.textContent).toContain('Gerar prompt')
+    expect(cover.textContent).toContain('Enviar imagem')
+  })
+
+  it('empty cover renders coverPrompt card with copy + Midjourney hint', async () => {
+    mockState = makeState({
+      content: { pt: mockVersion },
+      shared: { ...makeShared(), coverPrompt: 'cinematic studio desk, warm light --ar 16:9' },
+    })
+
+    const StageImagens = await loadStageImagens()
+    render(<StageImagens />)
+
+    const card = screen.getByTestId('cover-prompt')
+    expect(card.textContent).toContain('prompt · Midjourney')
+    expect(card.textContent).toContain('cinematic studio desk, warm light --ar 16:9')
+    expect(card.textContent).toContain('Copiar')
+    expect(card.textContent).toContain('rode no Midjourney')
+  })
+
+  it('cover prompt card is hidden when cover is ready', async () => {
+    mockVersion = makeVersion({
+      title: 'Post',
+      body: bodyWithImages,
+      coverReady: true,
+      coverImageUrl: 'https://example.com/cover.jpg',
+    })
+    mockState = makeState({
+      content: { pt: mockVersion },
+      shared: { ...makeShared(), coverPrompt: 'some prompt' },
+    })
+
+    const StageImagens = await loadStageImagens()
+    render(<StageImagens />)
+
+    expect(screen.queryByTestId('cover-prompt')).toBeNull()
   })
 
   it('cover with image shows Trocar and Ver buttons', async () => {
@@ -260,12 +312,42 @@ describe('StageImagens', () => {
     ).toBeDefined()
   })
 
-  it('shows "Gerar todas" button when images are pending', async () => {
+  it('shows "Gerar prompts (n)" Cowork button when images pending and pipeline linked', async () => {
+    mockState = makeState({
+      content: { pt: mockVersion },
+      pipelineItemId: 'item-1',
+    })
+
     const StageImagens = await loadStageImagens()
     render(<StageImagens />)
 
     const summary = screen.getByTestId('img-summary')
-    expect(summary.textContent).toContain('Gerar todas')
+    // 1 cover + 1 inline pending = 2
+    expect(summary.textContent).toContain('Gerar prompts (2)')
+  })
+
+  it('hides "Gerar prompts" button without a linked pipeline item', async () => {
+    const StageImagens = await loadStageImagens()
+    render(<StageImagens />)
+
+    const summary = screen.getByTestId('img-summary')
+    expect(summary.textContent).not.toContain('Gerar prompts')
+    expect(summary.textContent).not.toContain('Gerar todas')
+  })
+
+  it('empty tile shows only Enviar (no mock Gerar) and inline prompt mini-card', async () => {
+    mockState = makeState({
+      content: { pt: mockVersion },
+      shared: { ...makeShared(), imagePrompts: { 'img-2': 'macro shot of keyboard --ar 3:2' } },
+    })
+
+    const StageImagens = await loadStageImagens()
+    render(<StageImagens />)
+
+    expect(screen.getByTestId('img-gallery-img-2')).toBeDefined()
+    const content = screen.getByTestId('img-content')
+    expect(content.textContent).toContain('macro shot of keyboard --ar 3:2')
+    expect(content.textContent).toContain('prompt')
   })
 
   it('content section shows image count in label', async () => {

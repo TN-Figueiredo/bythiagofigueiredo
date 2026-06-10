@@ -61,6 +61,8 @@ export interface ServerData {
   directionAlts?: string[]
   imagePrompts?: Record<string, string>
   seoAudit?: import('./types').SeoAudit | null
+  /** Plano de distribuição social (per-post, shared entre idiomas). */
+  distributionPlan?: Record<string, 'with' | 'plus1' | 'plus1d'>
 }
 
 /** A non-primary language version loaded alongside the primary. */
@@ -231,9 +233,16 @@ export function editorReducer(
       } else {
         next[action.platform] = action.timing
       }
-      // NOTE: distribution is editor-only state (not yet persisted), so we do
-      // NOT mark the version dirty here — that would promise a save we can't keep.
-      return updateActiveVersion(state, { distribution: next })
+      // O plano é per-post (coluna distribution_plan) — espelha em todas as
+      // línguas pra view PT/EN nunca divergir. Persistido via
+      // saveDistributionPlan() no próprio toggle (o autosave não roda em posts
+      // ready/published — ver AUTO_SAVE_STATUSES). Não marca dirty.
+      const content = { ...state.content }
+      for (const key of Object.keys(content) as Array<'pt' | 'en'>) {
+        const v = content[key]
+        if (v) content[key] = { ...v, distribution: next }
+      }
+      return { ...state, content }
     }
 
     /* ---- Shared ---- */
@@ -242,6 +251,12 @@ export function editorReducer(
       return {
         ...state,
         shared: { ...state.shared, [action.field]: action.value } as SharedFields,
+      }
+
+    case 'SET_DIRECTION':
+      return {
+        ...state,
+        shared: { ...state.shared, direction: action.direction, directionAlts: action.alts },
       }
 
     /* ---- Versions ---- */
@@ -333,7 +348,7 @@ export function buildInitialState(data: ServerData): EditorState {
     words: data.words ?? 0,
     readTime: data.readingTimeMin ?? 0,
     titleAlts: data.titleAlts ?? [],
-    distribution: {},
+    distribution: (data.distributionPlan ?? {}) as VersionContent['distribution'],
     seoAudit: data.seoAudit ?? null,
   }
 
@@ -363,7 +378,7 @@ export function buildInitialState(data: ServerData): EditorState {
       words: 0,
       readTime: sib.readingTimeMin ?? 0,
       titleAlts: [],
-      distribution: {},
+      distribution: (data.distributionPlan ?? {}) as VersionContent['distribution'],
       seoAudit: null,
     }
   }

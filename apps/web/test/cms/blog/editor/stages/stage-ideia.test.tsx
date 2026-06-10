@@ -30,6 +30,7 @@ import { StageIdeia } from '@/app/cms/(authed)/blog/[id]/edit/stages/stage-ideia
 function makeState(overrides: Partial<EditorState> = {}): EditorState {
   return {
     postId: 'p1',
+    pipelineItemId: null,
     code: 'tg-01',
     siteId: 'site-1',
     siteTimezone: 'America/Sao_Paulo',
@@ -55,6 +56,9 @@ function makeState(overrides: Partial<EditorState> = {}): EditorState {
       notes: [],
       colophon: '',
       coverPrompt: '',
+      direction: '',
+      directionAlts: [],
+      imagePrompts: {},
       history: [],
     },
     saveStatus: 'idle',
@@ -124,7 +128,7 @@ describe('StageIdeia', () => {
 
   it('next button dispatches SET_STAGE to rascunho', () => {
     const { getByText } = render(<StageIdeia />)
-    const btn = getByText(/escrever o conteúdo/)
+    const btn = getByText(/gerar o conteúdo/i)
     fireEvent.click(btn)
     expect(mockDispatch).toHaveBeenCalledWith({
       type: 'SET_STAGE',

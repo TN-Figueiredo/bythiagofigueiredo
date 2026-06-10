@@ -3,8 +3,9 @@
 import { useMemo, useCallback, useState } from 'react'
 import type { JSONContent } from '@tiptap/core'
 import { toast } from 'sonner'
-import { Image, Check, CheckCircle, Info, Sparkles, Layers, ListChecks, RefreshCw, Eye } from 'lucide-react'
+import { Image, CheckCircle, Info, Layers, ListChecks, RefreshCw, Eye, Copy } from 'lucide-react'
 import { imageStats, collectBlogImages } from '../helpers'
+import { BlogCoworkButton } from '../blog-cowork-button'
 import type { ImageBlockStatus } from '../types'
 import {
   useEditorState,
@@ -40,50 +41,6 @@ function toImageNode(node: JSONContent): ImageNode {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Variant picker — AI generation is a front-end mock (no backend);  */
-/*  variants are distinct swatches standing in for generated crops.   */
-/* ------------------------------------------------------------------ */
-
-type GenState = 'generating' | 'choosing'
-
-const IMG_VARIANTS = [
-  'linear-gradient(135deg, #4a3a2c, #6b4f37)',
-  'linear-gradient(135deg, #2c3f44, #3f5d54)',
-  'linear-gradient(135deg, #3c2c44, #56415e)',
-]
-
-/* AI generation has no backend yet — the mock resolves to a clearly-labelled
-   placeholder image so a "done" slot always carries a real src (no publish-gate
-   footgun) and the placeholder reads as provisional, not a finished asset. */
-const MOCK_COVER = 'https://placehold.co/1200x675/221e1a/9a9ca8?text=Gerado+por+IA+%28preview%29'
-const MOCK_INLINE = 'https://placehold.co/800x450/221e1a/9a9ca8?text=Gerado+por+IA'
-
-function VariantPicker({ onPick, onCancel }: { onPick: (n: number) => void; onCancel: () => void }) {
-  return (
-    <div className="imgvar">
-      <div className="imgvar-head">
-        <span><Sparkles size={13} /> Escolha uma variação</span>
-        <button type="button" className="imgvar-cancel" onClick={onCancel}>Cancelar</button>
-      </div>
-      <div className="imgvar-grid">
-        {IMG_VARIANTS.map((grad, i) => (
-          <button
-            key={i}
-            type="button"
-            className="imgvar-opt"
-            style={{ background: grad }}
-            onClick={() => onPick(i + 1)}
-          >
-            <span className="imgvar-n">{i + 1}</span>
-            <span className="imgvar-pick"><Check size={14} /> Usar esta</span>
-          </button>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-/* ------------------------------------------------------------------ */
 /*  StageImagens                                                       */
 /* ------------------------------------------------------------------ */
 
@@ -96,8 +53,14 @@ export function StageImagens() {
   const inlineGallery = useMediaGallery()
   const [inlineTargetIndex, setInlineTargetIndex] = useState<number | null>(null)
 
-  /* AI-generation mock state, keyed by 'cover' or image id. */
-  const [gen, setGen] = useState<Record<string, GenState>>({})
+  const copyPrompt = useCallback(async (prompt: string) => {
+    try {
+      await navigator.clipboard.writeText(prompt)
+      toast.success('Prompt copiado — cole no Midjourney')
+    } catch {
+      toast.error('Não consegui copiar — selecione o texto manualmente')
+    }
+  }, [])
 
   const handleCoverSelect = useCallback(
     (asset: MediaAssetResult) => {
@@ -117,34 +80,6 @@ export function StageImagens() {
     },
     [dispatch, inlineGallery, inlineTargetIndex],
   )
-
-  /* ---- AI generation mock: generating → choosing → done ---- */
-  const startGen = useCallback((key: string) => {
-    setGen((g) => ({ ...g, [key]: 'generating' }))
-    setTimeout(() => {
-      setGen((g) => (g[key] === 'generating' ? { ...g, [key]: 'choosing' } : g))
-    }, 900)
-  }, [])
-
-  const cancelGen = useCallback((key: string) => {
-    setGen((g) => {
-      const next = { ...g }
-      delete next[key]
-      return next
-    })
-  }, [])
-
-  const pickCover = useCallback(() => {
-    cancelGen('cover')
-    dispatch({ type: 'SET_COVER', url: MOCK_COVER, ready: true })
-    toast.success('Capa gerada (preview)')
-  }, [cancelGen, dispatch])
-
-  const pickInline = useCallback((index: number, id: string) => {
-    cancelGen(id)
-    dispatch({ type: 'SET_IMAGE_STATUS', index, status: 'done', url: MOCK_INLINE })
-    toast.success('Imagem gerada (preview)')
-  }, [cancelGen, dispatch])
 
   const lang = state.activeLang
 
@@ -168,18 +103,7 @@ export function StageImagens() {
   const pendingCount = totalWithCover - doneWithCover
   const progressPct = totalWithCover > 0 ? Math.round((doneWithCover / totalWithCover) * 100) : 0
 
-  const genAll = useCallback(() => {
-    setGen({})
-    if (!coverReady) dispatch({ type: 'SET_COVER', url: MOCK_COVER, ready: true })
-    images.forEach((img, idx) => {
-      if (img.status !== 'done') dispatch({ type: 'SET_IMAGE_STATUS', index: idx, status: 'done', url: MOCK_INLINE })
-    })
-    toast.success(`${pendingCount} ${pendingCount === 1 ? 'imagem gerada' : 'imagens geradas'}`)
-  }, [coverReady, images, pendingCount, dispatch])
-
   if (!version) return null
-
-  const coverGen = gen.cover
 
   return (
     <div className="imgmgr">
@@ -196,11 +120,8 @@ export function StageImagens() {
             imagens prontas · {coverReady ? 1 : 0} capa · {stats.total} no conteúdo
           </div>
         </div>
-        {pendingCount > 0 && (
-          <button type="button" className="btn sm primary" onClick={genAll}>
-            <Sparkles size={14} />
-            Gerar todas ({pendingCount})
-          </button>
+        {pendingCount > 0 && state.pipelineItemId && (
+          <BlogCoworkButton stage="imagens" label={`Gerar prompts (${pendingCount})`} />
         )}
         {allDone && (
           <span className="img-alldone"><CheckCircle size={15} /> Tudo pronto</span>
@@ -213,16 +134,7 @@ export function StageImagens() {
           <Image size={13} />
           Capa &amp; thumbnail
         </div>
-        {coverGen === 'choosing' ? (
-          <div className="cover-hero choosing">
-            <VariantPicker onPick={pickCover} onCancel={() => cancelGen('cover')} />
-          </div>
-        ) : coverGen === 'generating' ? (
-          <div className="cover-hero loading">
-            <span className="hero-shimmer" />
-            <span className="hero-loadlabel"><span className="img-spin sm" /> Gerando variações…</span>
-          </div>
-        ) : coverReady ? (
+        {coverReady ? (
           <div className="cover-hero done">
             {coverImageUrl ? <img src={coverImageUrl} alt="" /> : <span className="hero-fill" />}
             <span className="hero-tag">
@@ -252,9 +164,7 @@ export function StageImagens() {
               </span>
               <div className="hero-empty-tx">Sem capa <span>· 1200×675 · social card &amp; topo do artigo</span></div>
               <div className="hero-empty-actions">
-                <button type="button" className="btn primary" onClick={() => startGen('cover')}>
-                  <Sparkles size={15} /> Gerar com IA
-                </button>
+                {state.pipelineItemId && <BlogCoworkButton stage="imagens" label="Gerar prompt" compact />}
                 <button
                   type="button"
                   className="btn"
@@ -263,6 +173,18 @@ export function StageImagens() {
                   <ListChecks size={15} /> Enviar imagem
                 </button>
               </div>
+              {state.shared.coverPrompt && (
+                <div className="prompt-card" data-testid="cover-prompt">
+                  <div className="pc-head">
+                    <span>prompt · Midjourney</span>
+                    <button type="button" className="pc-copy" onClick={() => copyPrompt(state.shared.coverPrompt)}>
+                      <Copy size={12} /> Copiar
+                    </button>
+                  </div>
+                  <div className="pc-text">{state.shared.coverPrompt}</div>
+                  <div className="pc-hint">rode no Midjourney · 1200×675 · depois envie o resultado aqui</div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -287,18 +209,10 @@ export function StageImagens() {
             {images.map((img, idx) => {
               const isDone = img.status === 'done'
               const imgId = img.id || `img-${idx + 1}`
-              const tileGen = gen[imgId]
               return (
-                <article key={imgId} className={`img-tile${isDone ? ' done' : tileGen ? ` ${tileGen}` : ' empty'}`}>
+                <article key={imgId} className={`img-tile${isDone ? ' done' : ' empty'}`}>
                   <div className="tile-frame">
-                    {tileGen === 'choosing' ? (
-                      <VariantPicker onPick={() => pickInline(idx, imgId)} onCancel={() => cancelGen(imgId)} />
-                    ) : tileGen === 'generating' ? (
-                      <>
-                        <span className="hero-shimmer" />
-                        <span className="tile-loadlabel"><span className="img-spin sm" /> gerando…</span>
-                      </>
-                    ) : isDone ? (
+                    {isDone ? (
                       <>
                         {img.src ? <img src={img.src} alt="" /> : <span className="hero-fill" />}
                         <div className="tile-overlay">
@@ -313,13 +227,8 @@ export function StageImagens() {
                       </>
                     ) : (
                       <div className="tile-empty">
-                        <span className="tile-empty-ic">
-                          <Image size={22} />
-                        </span>
+                        <span className="tile-empty-ic"><Image size={22} /></span>
                         <div className="tile-empty-actions">
-                          <button type="button" className="btn sm primary" onClick={() => startGen(imgId)}>
-                            <Sparkles size={13} /> Gerar
-                          </button>
                           <button
                             type="button"
                             className="btn sm"
@@ -342,6 +251,14 @@ export function StageImagens() {
                         {isDone ? 'no ar' : 'sem imagem'}
                       </span>
                     </div>
+                    {state.shared.imagePrompts[imgId] && (
+                      <div className="pc-mini">
+                        <button type="button" className="pc-copy" onClick={() => copyPrompt(state.shared.imagePrompts[imgId]!)}>
+                          <Copy size={11} /> prompt
+                        </button>
+                        <span className="pc-mini-text">{state.shared.imagePrompts[imgId]}</span>
+                      </div>
+                    )}
                     <div
                       className="tile-alt"
                       role="textbox"
