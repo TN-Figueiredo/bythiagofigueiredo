@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import type { UtmAttributionInput } from '../../../lib/newsletter/attribution'
 
@@ -54,14 +54,25 @@ export function UtmAttributionCapture({
   onCapture: (attribution: UtmAttributionInput) => void
 }) {
   const searchParams = useSearchParams()
+  // Effect deps must be stable primitives: `searchParams` and `onCapture` can
+  // change identity every render (e.g. mocked useSearchParams in tests, inline
+  // callbacks), and the effect calls a setState — depending on those object
+  // identities caused an infinite render/effect loop. Key the effect on the
+  // serialized query string and read the latest callback from a ref instead.
+  const queryString = searchParams.toString()
+  const onCaptureRef = useRef(onCapture)
+  useEffect(() => {
+    onCaptureRef.current = onCapture
+  })
 
   useEffect(() => {
+    const params = new URLSearchParams(queryString)
     const attribution: UtmAttributionInput = {}
     for (const name of UTM_PARAMS) {
-      attribution[name] = searchParams.get(name)
+      attribution[name] = params.get(name)
     }
-    onCapture(attribution)
-  }, [searchParams, onCapture])
+    onCaptureRef.current(attribution)
+  }, [queryString])
 
   return null
 }
