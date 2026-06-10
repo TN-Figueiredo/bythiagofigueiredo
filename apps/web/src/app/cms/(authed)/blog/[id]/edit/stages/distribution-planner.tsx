@@ -1,7 +1,10 @@
 'use client'
 
 import { Check, Info, Calendar, Rss, Instagram, Facebook, Youtube, Cloud, type LucideIcon } from 'lucide-react'
-import { useEditorVersion, useEditorDispatch } from '../context'
+import { toast } from 'sonner'
+import { useEditorState, useEditorVersion, useEditorDispatch } from '../context'
+import { saveDistributionPlan } from '../actions'
+import { BlogCoworkButton } from '../blog-cowork-button'
 import type { DistPlatformId, DistTiming } from '../types'
 
 /* ------------------------------------------------------------------ */
@@ -34,17 +37,32 @@ const DIST_WHEN: Array<{ id: DistTiming; label: string }> = [
 /* ------------------------------------------------------------------ */
 
 export function DistributionPlanner({ scheduledMode = false }: { scheduledMode?: boolean }) {
+  const state = useEditorState()
   const version = useEditorVersion()
   const dispatch = useEditorDispatch()
 
   const plan = version?.distribution ?? {}
   const count = Object.keys(plan).length
 
+  /** Espelha a lógica do reducer (timing null remove) e persiste fire-and-forget. */
+  const persistPlan = (platform: DistPlatformId, timing: DistTiming | null) => {
+    const nextPlan = { ...(version?.distribution ?? {}) }
+    if (timing === null) delete nextPlan[platform]
+    else nextPlan[platform] = timing
+    if (state.postId) {
+      void saveDistributionPlan(state.postId, nextPlan as Record<string, string>).then((res) => {
+        if (!res.ok) toast.error('Não consegui salvar a distribuição')
+      })
+    }
+  }
+
   const toggle = (id: DistPlatformId) => {
     dispatch({ type: 'SET_DIST', platform: id, timing: plan[id] ? null : 'with' })
+    persistPlan(id, plan[id] ? null : 'with')
   }
   const setWhen = (id: DistPlatformId, w: DistTiming) => {
     dispatch({ type: 'SET_DIST', platform: id, timing: w })
+    persistPlan(id, w)
   }
 
   return (
@@ -53,6 +71,7 @@ export function DistributionPlanner({ scheduledMode = false }: { scheduledMode?:
         <span className="flabel" style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
           <Rss size={13} className="lucide" /> Distribuição nas redes
         </span>
+        <BlogCoworkButton stage="publicacao" label="Captions com Cowork" compact />
         <span className={`dist-count${count ? ' on' : ''}`} data-testid="dist-count">
           {count ? `${count} selecionada${count > 1 ? 's' : ''}` : 'nenhuma'}
         </span>
@@ -117,7 +136,7 @@ export function DistributionPlanner({ scheduledMode = false }: { scheduledMode?:
       ) : (
         <div className="dist-summary" data-testid="dist-summary">
           <Calendar size={13} className="lucide" />
-          {count} {count > 1 ? 'posts serão agendados' : 'post será agendado'}{' '}
+          {count} {count === 1 ? 'rede recebe o post' : 'redes recebem o post'}{' '}
           {scheduledMode ? 'junto com o agendamento' : 'ao publicar'} · ajuste fino no Painel Social
         </div>
       )}

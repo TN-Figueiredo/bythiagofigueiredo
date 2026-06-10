@@ -30,6 +30,7 @@ const mockMovePost = vi.fn().mockResolvedValue({ ok: true })
 
 vi.mock('@/app/cms/(authed)/blog/[id]/edit/actions', () => ({
   publishPost: (...args: unknown[]) => mockPublishPost(...args),
+  saveDistributionPlan: vi.fn().mockResolvedValue({ ok: true }),
 }))
 
 vi.mock('@/app/cms/(authed)/blog/actions', () => ({

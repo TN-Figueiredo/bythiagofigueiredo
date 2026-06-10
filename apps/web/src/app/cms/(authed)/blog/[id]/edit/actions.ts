@@ -14,6 +14,7 @@ import { trackMediaUsage } from '@/lib/media/track-usage'
 import { compileJsonContent } from '@/lib/cms/compile-json'
 import type { JSONContent } from '@tiptap/core'
 import type { ZodIssue } from 'zod'
+import type { DistPlatformId, DistTiming } from './types'
 
 export interface SavePostActionInput {
   content_mdx: string
@@ -294,6 +295,38 @@ export async function publishPost(id: string): Promise<void> {
       ),
     )
   }
+
+  // Distribuição planejada no editor (stage Publicação) — materializa social post
+  const { data: postRow } = await getSupabaseServiceClient()
+    .from('blog_posts')
+    .select('distribution_plan')
+    .eq('id', id)
+    .single()
+  const plan = (postRow?.distribution_plan ?? {}) as import('@/lib/social/distribution-to-config').BlogDistributionPlan
+  if (Object.keys(plan).length > 0 && !postWithSocial.social_config?.enabled) {
+    const [{ distributionToSocialConfig }, { createSocialPostFromContent }] = await Promise.all([
+      import('@/lib/social/distribution-to-config'),
+      import('@/lib/social/create-from-content'),
+    ])
+    const { data: tagRows } = await getSupabaseServiceClient()
+      .from('post_hashtags').select('hashtags(name)').eq('post_id', id)
+    const hashtags = ((tagRows ?? []) as unknown as Array<{ hashtags: { name: string } | null }>)
+      .map(r => r.hashtags?.name).filter((n): n is string => !!n)
+    createSocialPostFromContent({
+      supabase: getSupabaseServiceClient(),
+      siteId,
+      contentType: 'blog',
+      contentId: id,
+      config: distributionToSocialConfig(plan, hashtags),
+      origin: 'publish_modal',
+      userId: 'system',
+    }).catch((err: unknown) =>
+      Sentry.captureException(err, {
+        tags: { context: 'blog-distribution-publish', contentType: 'blog' },
+        extra: { postId: id },
+      }),
+    )
+  }
 }
 
 export async function unpublishPost(id: string): Promise<void> {
@@ -450,6 +483,38 @@ export async function searchPipelineItems(
   if (ctx.siteId !== siteId) return []
   const { searchPipelineItems: search } = await import('@/app/cms/(authed)/blog/actions')
   return search(siteId, query)
+}
+
+// ─── Distribution Plan (stage Publicação) ───────────────────────────────────
+
+const VALID_PLATFORMS = new Set<string>(
+  ['instagram', 'bluesky', 'facebook', 'youtube'] satisfies DistPlatformId[],
+)
+const VALID_TIMINGS = new Set<string>(
+  ['with', 'plus1', 'plus1d'] satisfies DistTiming[],
+)
+
+export async function saveDistributionPlan(
+  postId: string,
+  plan: Record<string, string>,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    await requireSiteAdminForRow('blog_posts', postId)
+  } catch {
+    return { ok: false, error: 'unauthorized' }
+  }
+  for (const [platform, timing] of Object.entries(plan)) {
+    if (!VALID_PLATFORMS.has(platform) || !VALID_TIMINGS.has(timing)) {
+      return { ok: false, error: 'invalid_plan' }
+    }
+  }
+  const supabase = getSupabaseServiceClient()
+  const { error } = await supabase
+    .from('blog_posts')
+    .update({ distribution_plan: plan })
+    .eq('id', postId)
+  if (error) return { ok: false, error: 'db_error' }
+  return { ok: true }
 }
 
 // ─── Granular Field Save (Inspector) ────────────────────────────────────────

@@ -79,7 +79,16 @@ const { seoExtrasUpdateEqMock, seoExtrasUpdateBuilder, seoExtrasUpdateMock, from
     eq: vi.fn(() => ({ eq: seoExtrasUpdateEqMock })),
   }
   const seoExtrasUpdateMock = vi.fn(() => seoExtrasUpdateBuilder)
-  const fromMock = vi.fn(() => ({ update: seoExtrasUpdateMock }))
+  // The fromMock returns the same object for any table — the read chain
+  // (publishPost's distribution_plan fetch) lives alongside the update mock.
+  const fromMock = vi.fn(() => ({
+    update: seoExtrasUpdateMock,
+    select: vi.fn(() => ({
+      eq: vi.fn(() => ({
+        single: vi.fn(() => Promise.resolve({ data: { distribution_plan: {} }, error: null })),
+      })),
+    })),
+  }))
   return { seoExtrasUpdateEqMock, seoExtrasUpdateBuilder, seoExtrasUpdateMock, fromMock }
 })
 vi.mock('../../lib/supabase/service', () => ({

@@ -117,7 +117,7 @@ export default async function BlogEditorPage({ params }: Props) {
   // 1. Load post
   const { data: post, error: postError } = await supabase
     .from('blog_posts')
-    .select('id, site_id, status, cover_image_url, category, tag_id, previous_post_id, continues_in_next, published_at, updated_at')
+    .select('id, site_id, status, cover_image_url, category, tag_id, previous_post_id, continues_in_next, published_at, updated_at, distribution_plan')
     .eq('id', id)
     .single()
 
@@ -303,6 +303,7 @@ export default async function BlogEditorPage({ params }: Props) {
     directionAlts,
     imagePrompts,
     seoAudit,
+    distributionPlan: (post.distribution_plan ?? {}) as Record<string, 'with' | 'plus1' | 'plus1d'>,
   })
 
   return <EditorClient initialState={initialState} />
