@@ -584,6 +584,10 @@ The canonical `postprod` shape is a **lightweight brief for the editor** — `Po
 
 O brief de Pós é **derivado do roteiro** e é um conjunto de **SUGESTÕES** que o editor ajusta — não é verdade fixa.
 
+#### REGRA: o brief de Pós é escrito EM INGLÊS ⚠️
+
+> **O editor de vídeo é estrangeiro e NÃO fala português.** Por isso, escreva TODO o conteúdo do brief de Pós **em inglês**, mesmo quando o vídeo é PT-BR: `style` & ritmo, `deliverables.energy`, `deliverables.notes`/escopo de entrega e os cues de B-roll. A **ÚNICA** exceção é o **texto literal de CTA na tela** — `ctas.rows[].pt` fica em português (texto na tela em PT) e `ctas.rows[].en` em inglês (texto na tela em EN). Tudo o mais que o editor precisa ler para editar (logística, estilo, energia, escopo) vai em inglês.
+
 1. **Leia o roteiro primeiro:** `GET /api/pipeline/items/:id/sections/roteiro?lang=` no idioma alvo.
 2. **Derive `style` & ritmo (`deliverables.energy`)** do **tom dos beats**: leia o arco do roteiro (abertura íntima → meio que sobe → CTA calmo, etc.) e traduza em color grade, transições, legendas e na nota de energia.
 3. **Derive `ctas`** dos **beats de hook/CTA**: a `ctas.note`, as linhas `ctas.rows` (cards/end screen) e o `ctas.display` saem dos ganchos e chamadas-à-ação já escritos no roteiro.

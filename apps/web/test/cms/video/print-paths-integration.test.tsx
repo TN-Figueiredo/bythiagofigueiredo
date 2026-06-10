@@ -136,12 +136,16 @@ describe('overlay wiring — render only when the reducer flag is open', () => {
     expect(document.body.classList.contains('recording')).toBe(true)
   })
 
-  it('renders the HandoffSheet ("Brief pro editor") when handoffOpen is true', async () => {
-    shell(make({ handoffOpen: true }))
+  // The handoff is the editor's document and the editor is a foreigner, so the sheet
+  // opens in ENGLISH by default (its own `handoffLang`, independent of the PT editor
+  // toggle in `state.activeLang`). Chrome shows "Editor brief", never the PT "Brief pro editor".
+  it('renders the HandoffSheet in ENGLISH ("Editor brief") by default when handoffOpen is true', async () => {
+    shell(make({ handoffOpen: true, activeLang: 'pt' }))
     await waitFor(() => {
       const overlay = document.querySelector('.rec-overlay')
       expect(overlay).not.toBeNull()
-      expect(overlay?.textContent).toContain('Brief pro editor')
+      expect(overlay?.textContent).toContain('Editor brief')
+      expect(overlay?.textContent).not.toContain('Brief pro editor')
     })
     expect(document.body.classList.contains('recording')).toBe(true)
   })

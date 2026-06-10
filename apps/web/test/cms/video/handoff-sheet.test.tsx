@@ -81,4 +81,51 @@ describe('HandoffSheet', () => {
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(props.onClose).toHaveBeenCalledTimes(1)
   })
+
+  // The editor is a foreigner: the handoff CHROME localizes by the handoff's OWN language
+  // (activeLang here), independent of the global editor toggle. EN is the production default.
+  describe('chrome localization by the handoff own language', () => {
+    it('activeLang="en" renders English chrome', () => {
+      render(<HandoffSheet {...baseProps()} activeLang="en" />)
+      expect(screen.getByText(/Editing instructions/)).toBeDefined()
+      expect(screen.getByText('Style & rhythm')).toBeDefined()
+      expect(screen.getByText(/Key moments & b-roll/)).toBeDefined()
+      expect(document.querySelector('.rb-title')?.textContent).toContain('Editor brief')
+      // and NONE of the PT chrome leaks through
+      expect(screen.queryByText(/Instruções de edição/)).toBeNull()
+      expect(screen.queryByText('Estilo & ritmo')).toBeNull()
+    })
+
+    it('activeLang="pt" renders Portuguese chrome', () => {
+      render(<HandoffSheet {...baseProps()} activeLang="pt" />)
+      expect(screen.getByText(/Instruções de edição/)).toBeDefined()
+      expect(screen.getByText('Estilo & ritmo')).toBeDefined()
+      expect(screen.getByText(/Momentos-chave & b-roll/)).toBeDefined()
+      expect(document.querySelector('.rb-title')?.textContent).toContain('Brief pro editor')
+      expect(screen.queryByText(/Editing instructions/)).toBeNull()
+    })
+
+    it('any non-"en" lang falls back to Portuguese chrome', () => {
+      render(<HandoffSheet {...baseProps()} activeLang="es" />)
+      expect(screen.getByText(/Instruções de edição/)).toBeDefined()
+      expect(screen.queryByText(/Editing instructions/)).toBeNull()
+    })
+  })
+
+  it('CTA table keeps BOTH 🇧🇷 PT and 🇺🇸 EN columns regardless of chrome lang (content is bilingual on purpose)', () => {
+    // EN chrome still shows both language columns…
+    const { unmount } = render(<HandoffSheet {...baseProps()} activeLang="en" />)
+    const headsEn = Array.from(document.querySelectorAll('.hs-table thead th')).map((th) => th.textContent)
+    expect(headsEn).toContain('🇧🇷 PT')
+    expect(headsEn).toContain('🇺🇸 EN')
+    expect(screen.getByText('youtube.com/pt')).toBeDefined()
+    expect(screen.getByText('youtube.com/en')).toBeDefined()
+    unmount()
+
+    // …and so does PT chrome.
+    render(<HandoffSheet {...baseProps()} activeLang="pt" />)
+    const headsPt = Array.from(document.querySelectorAll('.hs-table thead th')).map((th) => th.textContent)
+    expect(headsPt).toContain('🇧🇷 PT')
+    expect(headsPt).toContain('🇺🇸 EN')
+  })
 })

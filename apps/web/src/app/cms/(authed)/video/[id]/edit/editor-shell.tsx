@@ -174,10 +174,18 @@ function VideoOverlays() {
   const beats = data.roteiro[lang]?.beats ?? []
   const switchLang = (l: string) => dispatch({ type: 'SET_LANG', lang: l as VideoLang })
 
+  // The editor handoff is the editor's document — the editor works in English (the channel's
+  // editor is non-Portuguese), so the handoff has its OWN language, defaulting to EN, independent
+  // of the global editor toggle. A PT toggle stays available for the author to review.
+  const [handoffLang, setHandoffLang] = useState<VideoLang>('en')
+  const hChannel = channelByLang(handoffLang) ?? CHANNELS[0]!
+  const hTitle = data.ideia[handoffLang]?.title ?? ''
+  const hBeats = data.roteiro[handoffLang]?.beats ?? []
+
   // Handoff brief is the postprod_<lang> payload (schema-parsed); unstarted → blanks.
   const sections = data.sections ?? {}
-  const briefParsed = PosBriefSchema.safeParse(sections[getSectionKey('postprod', lang, 'video')])
-  const brief = briefParsed.success ? briefParsed.data : null
+  const hBriefParsed = PosBriefSchema.safeParse(sections[getSectionKey('postprod', handoffLang, 'video')])
+  const hBrief = hBriefParsed.success ? hBriefParsed.data : null
   const versionsLabel = OVERLAY_LANG_OPTIONS.map((o) => o.label).join(' + ')
 
   return (
@@ -204,17 +212,17 @@ function VideoOverlays() {
       {state.handoffOpen && (
         <HandoffSheet
           code={state.code}
-          channelLabel={channel.label}
-          channelName={channel.name}
-          activeLang={lang}
+          channelLabel={hChannel.label}
+          channelName={hChannel.name}
+          activeLang={handoffLang}
           versionsLabel={versionsLabel}
-          title={title}
-          deliverables={brief?.deliverables ?? {}}
-          style={brief?.style ?? []}
-          ctas={brief?.ctas ?? { note: '', rows: [], display: '' }}
-          beats={beats}
+          title={hTitle}
+          deliverables={hBrief?.deliverables ?? {}}
+          style={hBrief?.style ?? []}
+          ctas={hBrief?.ctas ?? { note: '', rows: [], display: '' }}
+          beats={hBeats}
           langOptions={OVERLAY_LANG_OPTIONS}
-          onSwitchLang={switchLang}
+          onSwitchLang={(l) => setHandoffLang(l as VideoLang)}
           onClose={() => dispatch({ type: 'CLOSE_OVERLAY', overlay: 'handoff' })}
         />
       )}

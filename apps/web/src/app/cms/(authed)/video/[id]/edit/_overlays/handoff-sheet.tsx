@@ -7,6 +7,26 @@ import { handoffBeatRows } from '@/lib/pipeline/handoff-sheet-data'
 import { fmtClock } from '@/lib/pipeline/video-schemas'
 import type { RoteiroBeatV3 } from '@/lib/pipeline/roteiro-schemas'
 
+// The handoff is the editor's document and the editor works in English — so all CHROME is
+// localized to the handoff's own language (defaults to EN). The brief CONTENT comes from the
+// matching postprod_<lang> variant (the author/Cowork writes the EN brief in English).
+const HS_COPY = {
+  en: {
+    close: 'Close', briefFor: 'Editor brief', untitled: 'Untitled', print: 'Print',
+    kicker: 'Editing instructions', editor: 'Editor', deadline: 'Deadline', review: 'Review', versions: 'Versions',
+    overview: 'Overview', scope: 'Delivery scope:', energyRef: 'Energy reference:', drive: 'Drive:',
+    style: 'Style & rhythm', ctas: 'CTAs & QR', ctasWarn: '⚠ changes per language', target: 'Target',
+    moments: 'Key moments & b-roll', scriptRef: '· script reference', broll: 'B-roll', foot: 'editor brief',
+  },
+  pt: {
+    close: 'Fechar', briefFor: 'Brief pro editor', untitled: 'Sem título', print: 'Imprimir',
+    kicker: 'Instruções de edição', editor: 'Editor', deadline: 'Prazo', review: 'Revisão', versions: 'Versões',
+    overview: 'Visão geral', scope: 'Escopo de entrega:', energyRef: 'Referência de energia:', drive: 'Drive:',
+    style: 'Estilo & ritmo', ctas: 'CTAs & QR', ctasWarn: '⚠ muda por idioma', target: 'Destino',
+    moments: 'Momentos-chave & b-roll', scriptRef: '· referência do roteiro', broll: 'B-roll', foot: 'brief pro editor',
+  },
+} as const
+
 export interface HandoffDeliverables {
   editor?: string
   deadline?: string
@@ -100,28 +120,29 @@ export function HandoffSheet(props: HandoffSheetProps) {
 
   if (!mounted) return null
 
+  const t = HS_COPY[activeLang === 'en' ? 'en' : 'pt']
   const rows = handoffBeatRows(beats)
 
   const meta = (
     [
-      ['Editor', d.editor],
-      ['Prazo', d.deadline],
-      ['Revisão', d.turnaround],
-      ['Versões', versionsLabel],
+      [t.editor, d.editor],
+      [t.deadline, d.deadline],
+      [t.review, d.turnaround],
+      [t.versions, versionsLabel],
     ] as const
   ).filter(([, v]) => v?.trim())
 
   const refsLabel = (d.references ?? []).filter((r) => r?.trim()).join(' · ')
   const overviewParts: string[] = []
-  if (refsLabel) overviewParts.push(`Referência de energia: ${refsLabel}`)
-  if (d.drive?.trim()) overviewParts.push(`Drive: ${d.drive}`)
+  if (refsLabel) overviewParts.push(`${t.energyRef} ${refsLabel}`)
+  if (d.drive?.trim()) overviewParts.push(`${t.drive} ${d.drive}`)
   const hasOverview = Boolean(d.energy?.trim() || overviewParts.length > 0 || d.notes?.trim())
 
   const overlay = (
     <div className="rec-overlay" ref={overlayRef} role="dialog" aria-modal="true" aria-labelledby={titleId}>
       <div className="rec-bar">
-        <button ref={closeBtnRef} className="rb-back" onClick={props.onClose}><ChevronLeft size={15} /> Fechar</button>
-        <span className="rb-title">Brief pro editor · {title || 'Sem título'}</span>
+        <button ref={closeBtnRef} className="rb-back" onClick={props.onClose}><ChevronLeft size={15} /> {t.close}</button>
+        <span className="rb-title">{t.briefFor} · {title || t.untitled}</span>
         <span className="rb-spacer" />
         {props.langOptions.length > 1 && (
           <div className="rec-seg">
@@ -132,11 +153,11 @@ export function HandoffSheet(props: HandoffSheetProps) {
             ))}
           </div>
         )}
-        <button className="rb-print" onClick={() => window.print()}><Rss size={14} /> Imprimir</button>
+        <button className="rb-print" onClick={() => window.print()}><Rss size={14} /> {t.print}</button>
       </div>
 
       <div className="rec-sheet hs">
-        <div className="rsh-kick">Instruções de edição · {channelLabel} · {code}</div>
+        <div className="rsh-kick">{t.kicker} · {channelLabel} · {code}</div>
         <h1 id={titleId} className="rsh-title">{title}</h1>
         {meta.length > 0 && (
           <div className="rsh-meta">
@@ -148,16 +169,16 @@ export function HandoffSheet(props: HandoffSheetProps) {
 
         {hasOverview && (
           <div className="hs-sec">
-            <h2 className="hs-h">Visão geral</h2>
+            <h2 className="hs-h">{t.overview}</h2>
             {d.energy?.trim() && <p className="hs-p">{d.energy}</p>}
-            {d.notes?.trim() && <p className="hs-p"><b>Escopo de entrega:</b> {d.notes}</p>}
+            {d.notes?.trim() && <p className="hs-p"><b>{t.scope}</b> {d.notes}</p>}
             {overviewParts.length > 0 && <p className="hs-p">{overviewParts.join('. ')}.</p>}
           </div>
         )}
 
         {style.length > 0 && (
           <div className="hs-sec">
-            <h2 className="hs-h">Estilo & ritmo</h2>
+            <h2 className="hs-h">{t.style}</h2>
             {style.map((s, i) => (
               <div key={i} className="hs-style"><span className="hs-sk">{s.k}</span><span className="hs-sv">{s.v}</span></div>
             ))}
@@ -166,10 +187,10 @@ export function HandoffSheet(props: HandoffSheetProps) {
 
         {ctas.rows.length > 0 && (
           <div className="hs-sec">
-            <h2 className="hs-h">CTAs & QR <span className="hs-warn">⚠ muda por idioma</span></h2>
+            <h2 className="hs-h">{t.ctas} <span className="hs-warn">{t.ctasWarn}</span></h2>
             {ctas.note?.trim() && <p className="hs-p"><b>{ctas.note}</b></p>}
             <table className="hs-table">
-              <thead><tr><th><span className="sr-only">Destino</span></th><th scope="col">🇧🇷 PT</th><th scope="col">🇺🇸 EN</th></tr></thead>
+              <thead><tr><th><span className="sr-only">{t.target}</span></th><th scope="col">🇧🇷 PT</th><th scope="col">🇺🇸 EN</th></tr></thead>
               <tbody>
                 {ctas.rows.map((r, i) => (
                   <tr key={i} className={activeLang === 'pt' ? 'hl-pt' : 'hl-en'}>
@@ -184,7 +205,7 @@ export function HandoffSheet(props: HandoffSheetProps) {
 
         {rows.length > 0 && (
           <div className="hs-sec">
-            <h2 className="hs-h">Momentos-chave & b-roll <span className="hs-dim">· referência do roteiro</span></h2>
+            <h2 className="hs-h">{t.moments} <span className="hs-dim">{t.scriptRef}</span></h2>
             {rows.map((r, i) => (
               <div key={i} className="hs-beat">
                 <div className="hs-beat-h">
@@ -193,7 +214,7 @@ export function HandoffSheet(props: HandoffSheetProps) {
                 </div>
                 {r.anchor && <div className="hs-anchor">“{r.anchor}”</div>}
                 {r.cues.map((v, j) => (
-                  <div key={j} className="hs-cue"><span className="hs-cue-k">B-roll</span> {v}</div>
+                  <div key={j} className="hs-cue"><span className="hs-cue-k">{t.broll}</span> {v}</div>
                 ))}
               </div>
             ))}
@@ -201,7 +222,7 @@ export function HandoffSheet(props: HandoffSheetProps) {
         )}
 
         <div className="rsh-foot">
-          <span>tf — Thiago Figueiredo · brief pro editor</span>
+          <span>tf — Thiago Figueiredo · {t.foot}</span>
           <span>{channelName}</span>
         </div>
       </div>
