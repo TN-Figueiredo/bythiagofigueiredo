@@ -235,8 +235,8 @@ describe('POST /api/webhooks/ses', () => {
       expect(res.status).toBe(401)
     })
 
-    it('rejects SignatureVersion !== 1', async () => {
-      const res = await POST(snsNotification({}, { SignatureVersion: '2' }))
+    it('rejects an unsupported SignatureVersion (1=SHA1 and 2=SHA256 are accepted)', async () => {
+      const res = await POST(snsNotification({}, { SignatureVersion: '3' }))
       expect(res.status).toBe(401)
     })
   })

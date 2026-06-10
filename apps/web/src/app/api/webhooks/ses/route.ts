@@ -39,7 +39,15 @@ async function verifySnsSignature(
 ): Promise<boolean> {
   const certUrl = message.SigningCertURL
   if (!certUrl || !SNS_CERT_URL_RE.test(certUrl)) return false
-  if (message.SignatureVersion !== '1') return false
+  // SignatureVersion 1 = SHA1, 2 = SHA256. Node algorithm names are 'RSA-SHA1'/'RSA-SHA256'
+  // — the Java-style 'SHA1withRSA' is NOT a valid Node digest and made createVerify THROW,
+  // which the caller's .catch(() => false) silently turned into a 401 for EVERY SNS message
+  // (no event was ever recorded; new subscriptions could never confirm).
+  const algo =
+    message.SignatureVersion === '1' ? 'RSA-SHA1'
+    : message.SignatureVersion === '2' ? 'RSA-SHA256'
+    : null
+  if (!algo) return false
 
   const cert = await getCachedCert(certUrl)
 
@@ -61,7 +69,7 @@ async function verifySnsSignature(
     .map((f) => `${f}\n${message[f]}\n`)
     .join('')
 
-  const verifier = createVerify('SHA1withRSA')
+  const verifier = createVerify(algo)
   verifier.update(stringToSign)
   return verifier.verify(cert, message.Signature ?? '', 'base64')
 }
