@@ -82,7 +82,7 @@ export const BulkActionBar = memo(function BulkActionBar({
             <button
               onClick={onPromoteAll}
               disabled={onPromoteAll === undefined}
-              className="rounded-lg bg-indigo-500/20 px-2.5 py-1 text-[11px] font-medium text-indigo-400 hover:bg-indigo-500/30 disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded-lg bg-[rgba(255,130,64,0.15)] px-2.5 py-1 text-[11px] font-medium text-[#ff9a5e] hover:bg-[rgba(255,130,64,0.25)] disabled:cursor-not-allowed disabled:opacity-40"
             >
               {s?.promoteAll ?? 'Promote all'}
             </button>

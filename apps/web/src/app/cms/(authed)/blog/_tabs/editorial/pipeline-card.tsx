@@ -87,7 +87,7 @@ export const PipelineCard = memo(function PipelineCard({
       style={style}
       {...attributes}
       {...listeners}
-      className={`group relative rounded-lg border border-gray-800 bg-gray-900 px-2.5 py-2.5 transition-all hover:border-gray-600 hover:bg-gray-800/40 focus-visible:ring-1 focus-visible:ring-indigo-500/50 focus-visible:outline-none ${
+      className={`group relative rounded-lg border border-gray-800 bg-gray-900 px-2.5 py-2.5 transition-all hover:border-gray-600 hover:bg-gray-800/40 focus-visible:ring-1 focus-visible:ring-[rgba(255,130,64,0.5)] focus-visible:outline-none ${
         readOnly ? '' : 'cursor-grab select-none active:cursor-grabbing'
       }`}
     >
@@ -164,7 +164,7 @@ export const PipelineCard = memo(function PipelineCard({
                 key={pl.id}
                 href={`/cms/playlists/${pl.id}`}
                 onClick={(e) => e.stopPropagation()}
-                className="inline-flex items-center gap-1 rounded bg-indigo-500/10 px-1.5 py-0.5 text-[9px] font-medium text-indigo-400 hover:bg-indigo-500/20 transition-colors"
+                className="inline-flex items-center gap-1 rounded bg-[rgba(255,130,64,0.1)] px-1.5 py-0.5 text-[9px] font-medium text-[#ff9a5e] hover:bg-[rgba(255,130,64,0.2)] transition-colors"
               >
                 <Music2 className="h-2.5 w-2.5" />
                 {pl.name}
@@ -200,7 +200,7 @@ export const PipelineCard = memo(function PipelineCard({
                   onPromote?.(item.id)
                 }}
                 aria-label={`${strings?.promotion?.promote ?? 'Promote'} — ${title}`}
-                className="ml-auto flex items-center gap-1 rounded-md bg-indigo-500/20 px-2.5 py-1 text-[10px] font-semibold text-indigo-400 hover:bg-indigo-500/30 transition-colors"
+                className="ml-auto flex items-center gap-1 rounded-md bg-[rgba(255,130,64,0.15)] px-2.5 py-1 text-[10px] font-semibold text-[#ff9a5e] hover:bg-[rgba(255,130,64,0.25)] transition-colors"
               >
                 <ArrowRightCircle className="h-3 w-3" />
                 {strings?.promotion?.promote ?? 'Promote'}
@@ -216,7 +216,7 @@ export const PipelineCard = memo(function PipelineCard({
 export function PipelineCardOverlay({ item, strings }: { item: PipelineCardItem; strings?: BlogHubStrings }) {
   const title = item.title_pt || item.title_en || (strings?.editorial?.untitled ?? 'Untitled')
   return (
-    <div className="relative w-[280px] rounded-lg border border-indigo-500/40 bg-gray-900 p-3 shadow-xl">
+    <div className="relative w-[280px] rounded-lg border border-[rgba(255,130,64,0.4)] bg-gray-900 p-3 shadow-xl">
       <div
         className={`absolute left-0 top-0 h-full w-1 rounded-l-lg ${PRIORITY_COLORS[item.priority] ?? 'bg-gray-600'}`}
       />

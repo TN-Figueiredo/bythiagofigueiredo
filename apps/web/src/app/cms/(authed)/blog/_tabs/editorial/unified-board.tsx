@@ -432,7 +432,7 @@ export function UnifiedBoard({
                         <button
                           onClick={() => setPublishedPage((p) => p + 1)}
                           aria-label={`${strings?.common?.showMore ?? 'Show more'} (${lanes.published.length} of ${totalPublished})`}
-                          className="text-[10px] text-indigo-400 hover:text-indigo-300"
+                          className="text-[10px] text-[#ff9a5e] hover:text-[#ffb285]"
                         >
                           {strings?.common?.showMore ?? 'Show more'} →
                         </button>

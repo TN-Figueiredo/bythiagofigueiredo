@@ -143,14 +143,14 @@ export function ScheduleModal({ isOpen, postTitle, defaultDate, siteTimezone, on
                 setError(null)
               }}
               style={{ colorScheme: 'dark' }}
-              className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-[13px] text-gray-200 focus:border-indigo-500 focus:outline-none"
+              className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-[13px] text-gray-200 focus:border-[#ff8240] focus:outline-none"
             />
           </div>
 
           <div>
             <label htmlFor="schedule-time" className="mb-1 flex items-center gap-1.5 text-[11px] font-medium text-gray-400">
               {s?.timeLabel ?? 'Time'}
-              <span className="rounded bg-indigo-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-400">{siteAbbr}</span>
+              <span className="rounded bg-[rgba(255,130,64,0.15)] px-1.5 py-0.5 text-[10px] font-semibold text-[#ff9a5e]">{siteAbbr}</span>
             </label>
             <input
               id="schedule-time"
@@ -158,7 +158,7 @@ export function ScheduleModal({ isOpen, postTitle, defaultDate, siteTimezone, on
               value={time}
               onChange={(e) => setTime(e.target.value)}
               style={{ colorScheme: 'dark' }}
-              className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-[13px] text-gray-200 focus:border-indigo-500 focus:outline-none"
+              className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-[13px] text-gray-200 focus:border-[#ff8240] focus:outline-none"
             />
           </div>
 
@@ -167,7 +167,7 @@ export function ScheduleModal({ isOpen, postTitle, defaultDate, siteTimezone, on
               <div className="flex items-center gap-2 text-[11px]">
                 <span className="text-gray-500">{s?.siteLabel ?? 'Site:'}</span>
                 <span className="font-medium text-gray-200">{dualTime.site.dateStr} at {dualTime.site.timeStr}</span>
-                <span className="rounded bg-indigo-500/15 px-1 py-0.5 text-[9px] font-semibold text-indigo-400">{dualTime.site.tzAbbr}</span>
+                <span className="rounded bg-[rgba(255,130,64,0.15)] px-1 py-0.5 text-[9px] font-semibold text-[#ff9a5e]">{dualTime.site.tzAbbr}</span>
               </div>
               <div className="mt-1 flex items-center gap-2 text-[11px]">
                 <span className="text-gray-500">{s?.yoursLabel ?? 'Yours:'}</span>
@@ -200,7 +200,7 @@ export function ScheduleModal({ isOpen, postTitle, defaultDate, siteTimezone, on
           <button
             type="button"
             onClick={handleConfirm}
-            className="rounded-lg bg-indigo-500 px-4 py-1.5 text-[13px] font-medium text-white hover:bg-indigo-400"
+            className="rounded-lg bg-[#ff8240] px-4 py-1.5 text-[13px] font-medium text-white hover:bg-[#ff9550]"
           >
             {s?.confirm ?? 'Schedule'}
           </button>

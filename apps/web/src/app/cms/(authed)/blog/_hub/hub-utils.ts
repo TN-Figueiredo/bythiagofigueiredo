@@ -64,10 +64,10 @@ export function formatRelativeDate(dateStr: string, labels: RelativeLabels = DEF
 }
 
 export const LANE_DEFS: LaneDef[] = [
-  { id: 'idea', label: 'Ideia', color: '#f59e0b', dataSource: 'pipeline' },
-  { id: 'draft', label: 'Rascunho', color: '#f97316', dataSource: 'pipeline' },
+  { id: 'idea', label: 'Ideia', color: '#8b5cf6', dataSource: 'pipeline' },
+  { id: 'draft', label: 'Rascunho', color: '#f59e0b', dataSource: 'pipeline' },
   { id: 'ready', label: 'Entrega', color: '#06b6d4', dataSource: 'pipeline' },
-  { id: 'scheduled', label: 'Agendado', color: '#a78bfa', dataSource: 'pipeline' },
+  { id: 'scheduled', label: 'Agendado', color: '#f43f5e', dataSource: 'pipeline' },
   { id: 'published', label: 'Publicado', color: '#22c55e', dataSource: 'pipeline' },
 ]
 

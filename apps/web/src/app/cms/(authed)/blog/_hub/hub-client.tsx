@@ -147,7 +147,7 @@ export function HubClient({
                 router.push(newPostHref)
               }}
               disabled={creatingPost}
-              className="flex items-center gap-1.5 rounded-lg bg-indigo-500 px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-indigo-500/20 hover:bg-indigo-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400 disabled:opacity-70 transition-colors"
+              className="flex items-center gap-1.5 rounded-lg bg-[#ff8240] px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-[rgba(255,130,64,0.2)] hover:bg-[#ff9550] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#ff8240] disabled:opacity-70 transition-colors"
             >
               {creatingPost ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -190,14 +190,14 @@ export function HubClient({
                 onClick={() => switchTab(tab.id)}
                 className={`flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap border-b-2 px-4 py-2.5 text-xs font-medium transition-colors ${
                   isActive
-                    ? 'border-indigo-500 text-indigo-400'
+                    ? 'border-[#ff8240] text-[#ff9a5e]'
                     : 'border-transparent text-gray-500 hover:text-gray-300'
                 }`}
               >
                 <Icon className="h-3.5 w-3.5" />
                 {tabLabels[tab.id]}
                 {badge > 0 && (
-                  <span className="ml-1 rounded-full bg-indigo-500/20 px-1.5 py-0.5 text-[9px] font-semibold text-indigo-400">
+                  <span className="ml-1 rounded-full bg-[rgba(255,130,64,0.15)] px-1.5 py-0.5 text-[9px] font-semibold text-[#ff9a5e]">
                     {badge}
                   </span>
                 )}

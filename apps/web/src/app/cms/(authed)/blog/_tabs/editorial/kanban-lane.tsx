@@ -62,19 +62,19 @@ export const KanbanLane = memo(function KanbanLane({
         isInvalidDrop && isOver
           ? 'border-red-500/30 bg-red-950/10 opacity-60'
           : showDropZone
-            ? 'border-indigo-500/60 bg-indigo-950/20 ring-1 ring-indigo-500/20'
+            ? 'border-[rgba(255,130,64,0.6)] bg-[rgba(255,130,64,0.06)] ring-1 ring-[rgba(255,130,64,0.2)]'
             : 'border-gray-800'
       }`}
     >
       <div
         className={`flex items-center gap-2 border-b px-3 py-2 transition-colors ${
-          showDropZone ? 'border-indigo-500/30' : 'border-gray-800'
+          showDropZone ? 'border-[rgba(255,130,64,0.3)]' : 'border-gray-800'
         }`}
       >
         <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />
         <span
           className={`text-[11px] font-semibold uppercase tracking-wider transition-colors ${
-            showDropZone ? 'text-indigo-400' : 'text-gray-300'
+            showDropZone ? 'text-[#ff9a5e]' : 'text-gray-300'
           }`}
         >
           {title}
@@ -82,7 +82,7 @@ export const KanbanLane = memo(function KanbanLane({
         <span
           className={`ml-auto rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums transition-colors ${
             showDropZone && count > 0
-              ? 'bg-indigo-500/20 text-indigo-400'
+              ? 'bg-[rgba(255,130,64,0.15)] text-[#ff9a5e]'
               : 'bg-gray-800 text-gray-400'
           }`}
         >
@@ -103,7 +103,7 @@ export const KanbanLane = memo(function KanbanLane({
           )}
           {children}
           {showDropZone && count === 0 && (
-            <div className="flex h-16 items-center justify-center rounded-lg border border-dashed border-indigo-500/30 text-[10px] text-indigo-400/60">
+            <div className="flex h-16 items-center justify-center rounded-lg border border-dashed border-[rgba(255,130,64,0.3)] text-[10px] text-[rgba(255,154,94,0.6)]">
               {dropHereLabel ?? 'Drop here'}
             </div>
           )}

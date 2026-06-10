@@ -121,7 +121,7 @@ export function PromotionModal({
                   key={loc}
                   className={`flex cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[11px] transition-colors ${
                     selectedLocale === loc
-                      ? 'border-indigo-500 bg-indigo-500/10 text-indigo-400'
+                      ? 'border-[#ff8240] bg-[rgba(255,130,64,0.1)] text-[#ff9a5e]'
                       : 'border-gray-700 text-gray-400 hover:border-gray-600'
                   }`}
                 >
@@ -150,7 +150,7 @@ export function PromotionModal({
                 type="checkbox"
                 checked={scheduleEnabled}
                 onChange={(e) => setScheduleEnabled(e.target.checked)}
-                className="h-3.5 w-3.5 rounded border-gray-600 bg-gray-800 text-indigo-500 focus:ring-indigo-500"
+                className="h-3.5 w-3.5 rounded border-gray-600 bg-gray-800 text-[#ff8240] focus:ring-[#ff8240]"
               />
               <span className="text-[11px] text-gray-400">
                 {s?.scheduleToggle ?? 'Schedule publication'}
@@ -166,14 +166,14 @@ export function PromotionModal({
                 min={todayInSiteTz(siteTimezone)}
                 onChange={(e) => setDate(e.target.value)}
                 style={{ colorScheme: 'dark' }}
-                className="flex-1 rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-[13px] text-gray-200 focus:border-indigo-500 focus:outline-none"
+                className="flex-1 rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-[13px] text-gray-200 focus:border-[#ff8240] focus:outline-none"
               />
               <input
                 type="time"
                 value={time}
                 onChange={(e) => setTime(e.target.value)}
                 style={{ colorScheme: 'dark' }}
-                className="w-28 rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-[13px] text-gray-200 focus:border-indigo-500 focus:outline-none"
+                className="w-28 rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-[13px] text-gray-200 focus:border-[#ff8240] focus:outline-none"
               />
             </div>
           )}
@@ -192,7 +192,7 @@ export function PromotionModal({
             type="button"
             onClick={handleConfirm}
             disabled={loading}
-            className="flex items-center gap-1.5 rounded-lg bg-indigo-500 px-4 py-1.5 text-[13px] font-medium text-white hover:bg-indigo-400 disabled:opacity-70"
+            className="flex items-center gap-1.5 rounded-lg bg-[#ff8240] px-4 py-1.5 text-[13px] font-medium text-white hover:bg-[#ff9550] disabled:opacity-70"
           >
             {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             {scheduleEnabled
