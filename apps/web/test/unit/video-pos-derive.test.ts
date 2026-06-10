@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { keyLineText, spokenAnchorText, visNotes, deriveMomentos, deriveBroll } from '@/lib/pipeline/video-pos-derive'
-import type { RoteiroBeatV3 } from '@/lib/pipeline/video-schemas'
+import { keyLineText, spokenAnchorText, visNotes, deriveMomentos, deriveBroll, posBriefHasContent } from '@/lib/pipeline/video-pos-derive'
+import type { RoteiroBeatV3, PosBrief } from '@/lib/pipeline/video-schemas'
 
 const beatA: RoteiroBeatV3 = {
   idx: 0, name: 'Abertura', status: 'PENDING',
@@ -124,5 +124,38 @@ describe('deriveBroll (#1-indexed)', () => {
     expect(deriveBroll([beatEditorExplicit])).toEqual([
       { n: 1, beatName: 'Cobertura', notes: ['Detalhe do produto na bancada'] },
     ])
+  })
+})
+
+// THE shared "has the brief been started?" test — used by BOTH the Pós stage chooser and
+// the editor-shell handoff fallback. The override case is load-bearing: a brief carrying
+// only beat edits must count as content, or the handoff falls back to the other language
+// and silently drops those edits from the printed sheet.
+describe('posBriefHasContent (single content test for Pós screen + handoff fallback)', () => {
+  const empty: PosBrief = { kind: 'brief', deliverables: {}, style: [], ctas: { note: '', rows: [], display: '' } }
+
+  it('null / empty shell (incl. whitespace-only values) → false', () => {
+    expect(posBriefHasContent(null)).toBe(false)
+    expect(posBriefHasContent(empty)).toBe(false)
+    expect(posBriefHasContent({ ...empty, deliverables: { editor: '  ', references: ['', '  '] }, overrides: {} })).toBe(false)
+  })
+
+  it('style rows / CTA rows count as content', () => {
+    expect(posBriefHasContent({ ...empty, style: [{ k: 'Ritmo', v: '' }] })).toBe(true)
+    expect(posBriefHasContent({ ...empty, ctas: { note: '', rows: [{ k: 'QR', pt: '', en: '' }], display: '' } })).toBe(true)
+  })
+
+  it('CTA note/display text counts as content', () => {
+    expect(posBriefHasContent({ ...empty, ctas: { note: 'confira o QR', rows: [], display: '' } })).toBe(true)
+    expect(posBriefHasContent({ ...empty, ctas: { note: '', rows: [], display: 'últimos 8s' } })).toBe(true)
+  })
+
+  it('a filled deliverable field — incl. a non-empty reference — counts as content', () => {
+    expect(posBriefHasContent({ ...empty, deliverables: { editor: 'João' } })).toBe(true)
+    expect(posBriefHasContent({ ...empty, deliverables: { references: ['vídeo X'] } })).toBe(true)
+  })
+
+  it('a per-beat override ALONE counts as content (own-lang edits must block the handoff fallback)', () => {
+    expect(posBriefHasContent({ ...empty, overrides: { i0: { line: 'editado' } } })).toBe(true)
   })
 })

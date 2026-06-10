@@ -7,6 +7,7 @@ import { SparklesGlyph } from '../_components/sparkles-glyph'
 import { CoworkButton } from '../_components/cowork-button'
 import type { RoteiroBeatV3, PosBrief, PosOverrides } from '@/lib/pipeline/video-schemas'
 import { handoffBeatRows } from '@/lib/pipeline/handoff-sheet-data'
+import { posBriefHasContent } from '@/lib/pipeline/video-pos-derive'
 import { CHANNELS } from '@/lib/pipeline/channels'
 import { useVideoEditorDispatch, useCanEditContent } from '../context'
 import type { Version } from '../editor-model'
@@ -75,21 +76,6 @@ const DELIVERABLES = [
 ] as const
 
 type DeliverableKey = (typeof DELIVERABLES)[number]['k']
-
-/** A brief is "started" once it carries any style/CTA rows, a filled deliverable field, a
- * non-empty CTA note/display, a per-beat override, or at least one reference. Until then
- * the Pós shows the generate/start chooser instead of empty template cards. */
-function briefHasContent(b: PosBrief | null): boolean {
-  if (!b) return false
-  if (b.style?.length) return true
-  if (b.ctas?.rows?.length) return true
-  if (b.ctas?.note?.trim()) return true
-  if (b.ctas?.display?.trim()) return true
-  if (Object.keys(b.overrides ?? {}).length > 0) return true
-  const del = b.deliverables ?? {}
-  if ((del.references ?? []).some((r) => r.trim() !== '')) return true
-  return Object.values(del).some((v) => typeof v === 'string' && v.trim() !== '')
-}
 
 export interface PosStageProps {
   /** Design-handoff Version for the active lang (cur = versions[lang]). */
@@ -183,6 +169,10 @@ function EF({
       onBlur={e => {
         if (!canEdit) return // view mode: never commit
         if (esc.current.reverting) { esc.current.reverting = false; return } // Esc: revert, no commit
+        // No-change click-through: committing the unchanged text would MINT a per-beat
+        // override equal to the derived value (decoupling the field from the roteiro,
+        // tinting it pp-ov "edited") and fire a wasted PATCH — skip it.
+        if (((e.currentTarget as HTMLElement).textContent ?? '') === esc.current.prev) return
         onChange((e.currentTarget as HTMLElement).textContent ?? '')
       }}
     >
@@ -338,7 +328,7 @@ export function PosStage({ beats, brief, activeLang, onPatch, onSeed, onOpenHand
     writeOverrideEntry(key, entry)
   }
 
-  // "Recomeçar": wipe the brief back to an empty shell → briefHasContent() flips false →
+  // "Recomeçar": wipe the brief back to an empty shell → posBriefHasContent() flips false →
   // the generate/start chooser returns. Two-step inline confirm guards written work, and the
   // toast offers "Desfazer" (~8s) — the wipe persists immediately and may be destroying a
   // Cowork-written brief, so the pre-reset brief is stashed and restorable via onSeed
@@ -380,7 +370,7 @@ export function PosStage({ beats, brief, activeLang, onPatch, onSeed, onOpenHand
 
   // Not auto-derived: the Pós is a SUGGESTIONS brief for the editor. Until it's generated
   // (Cowork) or started from scratch, show the chooser — never empty template cards.
-  if (!briefHasContent(brief)) {
+  if (!posBriefHasContent(brief)) {
     return <PosGenerateChooser onStart={seedFromEmpty} />
   }
 

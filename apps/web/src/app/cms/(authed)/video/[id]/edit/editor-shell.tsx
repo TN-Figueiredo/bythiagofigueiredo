@@ -8,6 +8,7 @@ import { getStagePosition } from '@/lib/pipeline/workflows'
 import { isRecorded } from '@/lib/pipeline/video-lifecycle'
 import { getSectionKey } from '@/lib/pipeline/sections'
 import { PosBriefSchema, ABDraftSchema } from '@/lib/pipeline/video-schemas'
+import { posBriefHasContent } from '@/lib/pipeline/video-pos-derive'
 import { abPublishCtaState } from '@/lib/pipeline/video-ab-precondition'
 import { CHANNELS, channelByLang } from '@/lib/pipeline/channels'
 import { pillarById } from '@/lib/pipeline/pillars'
@@ -191,18 +192,18 @@ function VideoOverlays() {
     const p = PosBriefSchema.safeParse(sections[getSectionKey('postprod', l, 'video')])
     return p.success ? p.data : null
   }
-  const briefHasContent = (b: ReturnType<typeof parseBrief>): boolean =>
-    !!b && ((b.style?.length ?? 0) > 0 || (b.ctas?.rows?.length ?? 0) > 0 ||
-      Object.values(b.deliverables ?? {}).some((v) => (Array.isArray(v) ? v.length > 0 : !!v?.toString().trim())))
+  // ONE content test shared with the Pós stage (posBriefHasContent) — it counts per-beat
+  // overrides too, so a brief carrying only beat edits never reads as "empty" here while
+  // the Pós screen shows it as started (the fallback would drop those edits from paper).
   const hBriefOwn = parseBrief(handoffLang)
   const hOtherLang: VideoLang = handoffLang === 'en' ? 'pt' : 'en'
   const hBriefOther = parseBrief(hOtherLang)
-  const hOwnHasContent = briefHasContent(hBriefOwn)
+  const hOwnHasContent = posBriefHasContent(hBriefOwn)
   const hBrief = hOwnHasContent ? hBriefOwn : (hBriefOther ?? hBriefOwn)
   // The fallback must never be silent: a foreign editor reading EN chrome with PT instructions
   // needs a visible cue (chip + printed footnote). Set only when content ACTUALLY fell back.
   const briefLangFallback: VideoLang | null =
-    !hOwnHasContent && briefHasContent(hBriefOther) ? hOtherLang : null
+    !hOwnHasContent && posBriefHasContent(hBriefOther) ? hOtherLang : null
 
   // "Versions" on the printed brief must be TRUE: only promise the language cuts that
   // actually carry content (same presence test StageBody uses for the Pós "Versões" field) —
@@ -248,7 +249,9 @@ function VideoOverlays() {
           style={hBrief?.style ?? []}
           ctas={hBrief?.ctas ?? { note: '', rows: [], display: '' }}
           beats={hBeats}
-          overrides={hBrief?.overrides}
+          // own-lang beat edits ALWAYS survive a content fallback — the overrides key by
+          // the own-lang roteiro's beats, so the other lang's map never applies to hBeats
+          overrides={hBriefOwn?.overrides ?? hBrief?.overrides}
           briefLangFallback={briefLangFallback}
           langOptions={OVERLAY_LANG_OPTIONS}
           onSwitchLang={(l) => setHandoffLang(l as VideoLang)}

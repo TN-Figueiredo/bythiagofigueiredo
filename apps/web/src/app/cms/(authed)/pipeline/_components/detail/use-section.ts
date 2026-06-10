@@ -116,7 +116,9 @@ export function useSection({ itemId, sectionKey, initialData, itemVersion, onSav
             setVersion(currentVersion)
             versionRef.current = currentVersion
           }
-          toast.error('Versão desatualizada. Tentando novamente...')
+          // No auto-retry here — the refreshed version is stored above, so the NEXT
+          // save (blur/⌘S) goes through. The copy must not promise a retry.
+          toast.error('Versão desatualizada. Salve novamente para aplicar.')
           return
         }
 

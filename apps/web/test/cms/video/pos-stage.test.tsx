@@ -150,6 +150,7 @@ describe('PosStage', () => {
       const brollOnly = { ...brief, overrides: { i0: { broll: ['B-roll: estúdio'] } } }
       wrapEdit(<PosStage beats={beats} brief={brollOnly} activeLang="pt" onPatch={onPatch} onSeed={vi.fn()} onOpenHandoff={vi.fn()} legacy={null} />)
       const item = screen.getByRole('textbox', { name: 'Item de b-roll' })
+      fireEvent.focus(item) // stashes 'B-roll: estúdio' — clearing IS a change, so the blur commits
       item.textContent = ''
       fireEvent.blur(item)
       expect(onPatch).toHaveBeenCalledWith({ overrides: {} })
@@ -303,6 +304,13 @@ describe('PosStage', () => {
       expect(blurSpy).toHaveBeenCalled()
       fireEvent.blur(ef) // jsdom .blur() doesn't dispatch the event — simulate the browser's
       expect(onPatch).toHaveBeenCalledWith({ overrides: { i0: { line: 'Gancho novo' } } })
+    })
+
+    it('focus + blur with NO edit does NOT commit (a click-through must not mint an override)', () => {
+      const { onPatch, ef } = editField()
+      fireEvent.focus(ef) // stashes 'Gancho forte'
+      fireEvent.blur(ef) // nothing typed — committing would mint i0.line === derived value
+      expect(onPatch).not.toHaveBeenCalled()
     })
 
     it('Esc reverts to the pre-focus value and the blur does NOT commit', () => {

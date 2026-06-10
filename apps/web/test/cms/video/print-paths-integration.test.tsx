@@ -35,6 +35,7 @@ import { VideoEditorProvider } from '@/app/cms/(authed)/video/[id]/edit/context'
 import { VideoDataProvider } from '@/app/cms/(authed)/video/[id]/edit/data-context'
 import { EditorShell } from '@/app/cms/(authed)/video/[id]/edit/editor-shell'
 import type { VideoEditorState } from '@/app/cms/(authed)/video/[id]/edit/types'
+import type { RoteiroBeatV3 } from '@/lib/pipeline/video-schemas'
 
 afterEach(() => {
   cleanup()
@@ -203,5 +204,57 @@ describe('handoff brief lang-fallback cue — wired from the shell', () => {
     await waitFor(() => expect(document.querySelector('.rec-overlay')).not.toBeNull())
     expect(document.querySelector('.hs-fb-chip')).toBeNull()
     expect(document.querySelector('.hs-fb-note')).toBeNull()
+  })
+
+  // posBriefHasContent counts per-beat overrides: an EN brief carrying ONLY beat edits is
+  // CONTENT. The old shell-local test ignored overrides → fell back to the PT brief and
+  // silently dropped the EN edits from paper while the Pós screen showed them.
+  describe('a brief carrying ONLY overrides is content — own-lang beat edits reach the sheet', () => {
+    const enBeats: RoteiroBeatV3[] = [
+      { idx: 0, name: 'Opening', status: 'PENDING', script: [
+        { type: 'line', text: 'Derived hook line', key: true },
+        { type: 'vis', text: 'B-roll: derived drone' },
+      ] },
+    ]
+    const enOverridesOnly = {
+      kind: 'brief',
+      deliverables: {},
+      style: [],
+      ctas: { note: '', rows: [], display: '' },
+      overrides: { i0: { line: 'EN edited anchor' } },
+    }
+
+    it('EN sheet: no lang fallback (chip absent) and the override shadows the derived anchor', async () => {
+      const data = {
+        ...stubData,
+        roteiro: { ...stubData.roteiro, en: { beats: enBeats } },
+        sections: { postprod_pt: ptOnlyBrief, postprod_en: enOverridesOnly },
+      } as unknown as typeof stubData
+      shell(make({ handoffOpen: true }), data)
+      await waitFor(() => expect(document.querySelector('.rec-overlay')).not.toBeNull())
+      // overrides ARE content → briefLangFallback stays null → no chip/footnote
+      expect(document.querySelector('.hs-fb-chip')).toBeNull()
+      expect(document.querySelector('.hs-fb-note')).toBeNull()
+      const txt = document.querySelector('.rec-overlay')?.textContent ?? ''
+      // the own-lang beat edit prints (shadowing the derived line) — never dropped
+      expect(txt).toContain('EN edited anchor')
+      expect(txt).not.toContain('Derived hook line')
+      // and the PT brief's content did NOT leak in via fallback
+      expect(txt).not.toContain('João')
+    })
+
+    it('own brief truly ABSENT → content falls back (chip shows) and the fallback brief feeds the sheet', async () => {
+      // No postprod_en at all: hBriefOwn is null, so the `hBriefOwn?.overrides ?? hBrief?.overrides`
+      // wiring takes the fallback brief's map — the legacy PT-only path keeps working.
+      const data = {
+        ...stubData,
+        roteiro: { ...stubData.roteiro, en: { beats: enBeats } },
+        sections: { postprod_pt: { ...ptOnlyBrief, overrides: { i0: { line: 'PT fallback anchor' } } } },
+      } as unknown as typeof stubData
+      shell(make({ handoffOpen: true }), data)
+      await waitFor(() => expect(document.querySelector('.rec-overlay')).not.toBeNull())
+      expect(document.querySelector('.hs-fb-chip')?.textContent).toContain('Brief in PT')
+      expect(document.querySelector('.rec-overlay')?.textContent).toContain('PT fallback anchor')
+    })
   })
 })

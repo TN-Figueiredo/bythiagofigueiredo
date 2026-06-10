@@ -1,6 +1,28 @@
-import type { RoteiroBeatV3, PosOverrides } from '@/lib/pipeline/video-schemas'
+import type { RoteiroBeatV3, PosBrief, PosOverrides } from '@/lib/pipeline/video-schemas'
 import { posOverrideKey } from '@/lib/pipeline/video-schemas'
 import { beatKind } from '@/lib/pipeline/video-perform'
+
+/**
+ * THE single "has the Pós brief been started?" test — shared by the Pós stage (chooser vs
+ * cards) and the editor-shell handoff (own-lang brief vs other-lang fallback) so screen and
+ * paper can never disagree on what counts as content.
+ *
+ * A brief is "started" once it carries any style/CTA rows, a non-empty CTA note/display,
+ * a filled deliverable field (incl. references), or a per-beat override. Overrides COUNT:
+ * a brief carrying only beat edits must not read as empty — a handoff fallback to the
+ * other language would silently drop those own-lang edits from the printed sheet.
+ */
+export function posBriefHasContent(b: PosBrief | null): boolean {
+  if (!b) return false
+  if (b.style?.length) return true
+  if (b.ctas?.rows?.length) return true
+  if (b.ctas?.note?.trim()) return true
+  if (b.ctas?.display?.trim()) return true
+  if (Object.keys(b.overrides ?? {}).length > 0) return true
+  const del = b.deliverables ?? {}
+  if ((del.references ?? []).some((r) => r.trim() !== '')) return true
+  return Object.values(del).some((v) => typeof v === 'string' && v.trim() !== '')
+}
 
 /** First `key` line's text; fallback to first `line` text; '' if none. */
 export function keyLineText(beat: RoteiroBeatV3): string {
