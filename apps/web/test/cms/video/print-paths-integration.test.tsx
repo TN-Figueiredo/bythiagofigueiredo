@@ -6,7 +6,7 @@
 //   • the `.focus-exit` chrome carries the class the in-app print rule targets
 //     (`@media print { body:not(.recording) .focus-exit { display:none } }`),
 //     so it NEVER prints — neither on the in-app ⌘P path (rule above) nor on the
-//     overlay paper path (`body.recording > .app { display:none }`).
+//     overlay paper path (`body.recording > *:not(.rec-overlay) { display:none }`).
 //   • the overlays render ONLY when their reducer flag is open, and mounting one
 //     engages `body.recording` (print path A).
 //
@@ -105,8 +105,10 @@ describe('print paths — .focus-exit exclusion contract', () => {
     )
     // Print path B (in-app ⌘P) collapses the focus-exit chrome.
     expect(css).toMatch(/body:not\(\.recording\)\s+\.focus-exit\s*\{\s*display:\s*none/)
-    // Print path A (overlay paper) hides the whole app shell — .focus-exit lives inside it.
-    expect(css).toMatch(/body\.recording\s*>\s*\.app\s*\{\s*display:\s*none/)
+    // Print path A (overlay paper) hides EVERY body child except the portaled overlay —
+    // .focus-exit lives inside the app shell. (The shell has no `.app` class; the old
+    // `body.recording > .app` selector matched nothing and leaked the dark app into print.)
+    expect(css).toMatch(/body\.recording\s*>\s*\*:not\(\.rec-overlay\)\s*\{\s*display:\s*none/)
   })
 
   it('print is CLEAN by default: per-line .rb-mark hidden unless markGran=linha; mark-off hides every overlay tick', () => {

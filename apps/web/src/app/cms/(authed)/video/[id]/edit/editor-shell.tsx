@@ -182,10 +182,19 @@ function VideoOverlays() {
   const hTitle = data.ideia[handoffLang]?.title ?? ''
   const hBeats = data.roteiro[handoffLang]?.beats ?? []
 
-  // Handoff brief is the postprod_<lang> payload (schema-parsed); unstarted → blanks.
+  // Handoff brief is the postprod_<lang> payload (schema-parsed). When the handoff lang has no
+  // brief (legacy items wrote postprod_pt only), FALL BACK to the other lang — exporting the
+  // brief that exists beats silently printing a beats-only sheet that looks like a lost page.
   const sections = data.sections ?? {}
-  const hBriefParsed = PosBriefSchema.safeParse(sections[getSectionKey('postprod', handoffLang, 'video')])
-  const hBrief = hBriefParsed.success ? hBriefParsed.data : null
+  const parseBrief = (l: VideoLang) => {
+    const p = PosBriefSchema.safeParse(sections[getSectionKey('postprod', l, 'video')])
+    return p.success ? p.data : null
+  }
+  const briefHasContent = (b: ReturnType<typeof parseBrief>): boolean =>
+    !!b && ((b.style?.length ?? 0) > 0 || (b.ctas?.rows?.length ?? 0) > 0 ||
+      Object.values(b.deliverables ?? {}).some((v) => (Array.isArray(v) ? v.length > 0 : !!v?.toString().trim())))
+  const hBriefOwn = parseBrief(handoffLang)
+  const hBrief = briefHasContent(hBriefOwn) ? hBriefOwn : (parseBrief(handoffLang === 'en' ? 'pt' : 'en') ?? hBriefOwn)
   const versionsLabel = OVERLAY_LANG_OPTIONS.map((o) => o.label).join(' + ')
 
   return (

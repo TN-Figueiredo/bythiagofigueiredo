@@ -819,7 +819,10 @@
 
 /* ---------- PRINT ---------- */
 @media print {
-  body.recording > .app { display: none !important; }
+  /* Print ONLY the overlay sheet: hide every other body child (the CMS shell has no `.app`
+     class — the old `body.recording > .app` selector matched nothing, so the dark app shell
+     leaked into the print). The overlay is portaled directly to <body>. */
+  body.recording > *:not(.rec-overlay) { display: none !important; }
   body.recording { background: #fff !important; }
   .rec-overlay { position: static !important; overflow: visible !important; background: #fff !important; }
   .rec-bar { display: none !important; }
