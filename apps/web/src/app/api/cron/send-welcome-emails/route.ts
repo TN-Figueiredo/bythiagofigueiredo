@@ -103,9 +103,16 @@ export async function POST(req: Request): Promise<Response> {
 
     const { data: types } = await supabase
       .from('newsletter_types')
-      .select('name, tagline, color, cadence_label, cadence_days, cadence_start_date, locale')
+      .select('name, tagline, color, cadence_label, cadence_days, cadence_start_date, locale, reply_to')
       .in('id', typeIds)
       .eq('active', true)
+
+    // Same reply_to editions use (newsletter_types.reply_to) so replies to the
+    // welcome land in a real mailbox. Multi-newsletter welcome: first type with
+    // a reply_to wins; none set → omitted (from-address behaviour unchanged).
+    const replyTo = (types ?? []).find((t) => typeof t.reply_to === 'string' && t.reply_to.length > 0)?.reply_to as
+      | string
+      | undefined
 
     const newsletterNames: NewsletterListItem[] = (types ?? []).map((t) => {
       const typeLocale = (t.locale === 'pt-BR' ? 'pt-BR' : 'en') as 'en' | 'pt-BR'
@@ -167,6 +174,7 @@ export async function POST(req: Request): Promise<Response> {
         newsletterNames,
         latestArticle,
         unsubscribeUrl,
+        ...(replyTo ? { replyTo } : {}),
       })
 
       if (sent) {

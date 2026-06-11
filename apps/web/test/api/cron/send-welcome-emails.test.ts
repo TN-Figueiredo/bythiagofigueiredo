@@ -90,18 +90,9 @@ describe('POST /api/cron/send-welcome-emails', () => {
     expect(await res.json()).toEqual({ status: 'ok', sent: 0 })
   })
 
-  it('sends welcome email and marks subscription as sent', async () => {
-    const subscriber = {
-      id: 'sub-1',
-      email: 'user@example.com',
-      locale: 'pt-BR',
-      site_id: 'site-1',
-      newsletter_id: 'nl-1',
-    }
-
-    sendWelcomeEmailMock.mockResolvedValue(true)
-
-    fromMock.mockImplementation((table: string) => {
+  // Builds the happy-path fromMock: candidates → claim → types/posts/tokens.
+  function successFromMock(subscriber: Record<string, unknown>, typesRows: Array<Record<string, unknown>>) {
+    return (table: string) => {
       if (table === 'newsletter_subscriptions') {
         return {
           select: vi.fn().mockReturnValue({
@@ -126,10 +117,7 @@ describe('POST /api/cron/send-welcome-emails', () => {
         return {
           select: vi.fn().mockReturnValue({
             in: vi.fn().mockReturnValue({
-              eq: vi.fn().mockResolvedValue({
-                data: [{ name: 'Weekly', tagline: 'Weekly picks', color: '#FF8240', cadence_label: null, cadence_days: 7, cadence_start_date: '2026-05-16', locale: 'en' }],
-                error: null,
-              }),
+              eq: vi.fn().mockResolvedValue({ data: typesRows, error: null }),
             }),
           }),
         }
@@ -155,7 +143,22 @@ describe('POST /api/cron/send-welcome-emails', () => {
         }
       }
       return {}
-    })
+    }
+  }
+
+  const SUBSCRIBER = {
+    id: 'sub-1',
+    email: 'user@example.com',
+    locale: 'pt-BR',
+    site_id: 'site-1',
+    newsletter_id: 'nl-1',
+  }
+
+  it('sends welcome email and marks subscription as sent', async () => {
+    sendWelcomeEmailMock.mockResolvedValue(true)
+    fromMock.mockImplementation(successFromMock(SUBSCRIBER, [
+      { name: 'Weekly', tagline: 'Weekly picks', color: '#FF8240', cadence_label: null, cadence_days: 7, cadence_start_date: '2026-05-16', locale: 'en', reply_to: null },
+    ]))
 
     const res = await POST(req(CRON_SECRET))
     expect(res.status).toBe(200)
@@ -168,6 +171,22 @@ describe('POST /api/cron/send-welcome-emails', () => {
     expect(callArgs.newsletterNames).toHaveLength(1)
     expect(callArgs.newsletterNames[0].name).toBe('Weekly')
     expect(callArgs.unsubscribeUrl).toMatch(/^https:\/\/bythiagofigueiredo\.com\/api\/newsletters\/unsubscribe\?token=/)
+    // reply_to null on the type → replyTo omitted entirely.
+    expect('replyTo' in callArgs).toBe(false)
+  })
+
+  it('passes the type reply_to through to the welcome send when set', async () => {
+    sendWelcomeEmailMock.mockResolvedValue(true)
+    fromMock.mockImplementation(successFromMock(SUBSCRIBER, [
+      { name: 'Weekly', tagline: 'Weekly picks', color: '#FF8240', cadence_label: null, cadence_days: 7, cadence_start_date: '2026-05-16', locale: 'en', reply_to: 'thiago@example.com' },
+    ]))
+
+    const res = await POST(req(CRON_SECRET))
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ status: 'ok', sent: 1 })
+
+    const callArgs = sendWelcomeEmailMock.mock.calls[0]![0]
+    expect(callArgs.replyTo).toBe('thiago@example.com')
   })
 
   it('does not send when another run already claimed the rows (no double-send)', async () => {

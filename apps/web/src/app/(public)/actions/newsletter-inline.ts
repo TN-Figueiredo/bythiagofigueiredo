@@ -128,21 +128,63 @@ export async function subscribeNewsletterInline(
         confirmation_expires_at: expiresAt,
         ...attribution,
       })
-      if (insertError && insertError.code !== '23505') {
-        return { error: msg(locale, 'Erro interno. Tente novamente.', 'Internal error. Try again.') }
+      if (insertError) {
+        if (insertError.code !== '23505') {
+          return { error: msg(locale, 'Erro interno. Tente novamente.', 'Internal error. Try again.') }
+        }
+        // Duplicate race — the row exists but the select above missed it
+        // (concurrent insert, or a status='unsubscribed' row excluded by the
+        // .neq filter). Reactivate it in place with the SAME shape as the
+        // existing-row path above (status + unsubscribed_at + fresh token), so
+        // the confirm link we email actually matches a DB row — otherwise the
+        // subscriber gets 'Link não encontrado'. Mirrors subscribe-newsletters.
+        // Guards: never resurrect suppressed (bounced/complained) rows and
+        // never regress a concurrently-confirmed row — those match 0 rows and
+        // get the same silent-success/no-email treatment as above.
+        const { data: fixed, error: fixErr } = await db
+          .from('newsletter_subscriptions')
+          .update({
+            status: 'pending_confirmation',
+            confirmation_token_hash: tokenHash,
+            confirmation_expires_at: expiresAt,
+            consent_text_version: CONSENT_VERSION,
+            locale,
+            ip,
+            user_agent: userAgent,
+            unsubscribed_at: null,
+            ...attribution,
+          })
+          .eq('site_id', siteId)
+          .eq('email', email)
+          .eq('newsletter_id', newsletter_id)
+          .neq('status', 'bounced')
+          .neq('status', 'complained')
+          .neq('status', 'confirmed')
+          .select('id')
+        if (fixErr) {
+          return { error: msg(locale, 'Erro interno. Tente novamente.', 'Internal error. Try again.') }
+        }
+        // 0 rows updated = suppressed/confirmed row → silent ok, NO email
+        // (the token was never persisted, so a confirm link would be dead).
+        if (!fixed || fixed.length === 0) {
+          return { success: true }
+        }
       }
     }
 
     let newsletterNames: string[] = []
+    let replyTo: string | undefined
     try {
       const { data: nlType } = await db
         .from('newsletter_types')
-        .select('name')
+        .select('name, reply_to')
         .eq('id', newsletter_id)
         .maybeSingle()
       if (nlType?.name) newsletterNames = [nlType.name as string]
+      // Same reply_to editions use — set on the type → confirm carries it.
+      if (nlType?.reply_to) replyTo = nlType.reply_to as string
     } catch { /* best-effort */ }
-    const sent = await sendNewsletterConfirmEmail({ to: email, rawToken, locale, action: 'newsletter_inline', newsletterNames })
+    const sent = await sendNewsletterConfirmEmail({ to: email, rawToken, locale, action: 'newsletter_inline', newsletterNames, ...(replyTo ? { replyTo } : {}) })
     if (!sent) {
       return { success: false, error: 'email_failed' }
     }

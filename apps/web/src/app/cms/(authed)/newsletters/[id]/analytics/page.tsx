@@ -2,11 +2,25 @@ import { notFound } from 'next/navigation'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { parseUserAgent } from '@/lib/newsletter/stats'
+import {
+  getEditionDeliverySummary,
+  getEditionSendRows,
+} from '@/lib/newsletter/delivery'
 import { EditionAnalytics } from '@tn-figueiredo/newsletter-admin/client'
 import type { AnalyticsData } from '@tn-figueiredo/newsletter-admin'
 import { getNewsletterClickRows } from '@/lib/links/newsletter-compat'
+import { DeliverySummaryPanel } from './delivery-summary'
+import { DeliverySendsTable } from './delivery-sends-table'
 
 export const dynamic = 'force-dynamic'
+
+/** Edition statuses that can have `newsletter_sends` rows. */
+const DISPATCHED_STATUSES = new Set(['sending', 'sent', 'failed'])
+
+const STATUS_NOTES: Record<string, string> = {
+  sending: 'Envio em andamento — os números abaixo atualizam conforme os eventos chegam.',
+  failed: 'O envio falhou — os números abaixo refletem o que foi disparado antes da falha.',
+}
 
 export default async function EditionAnalyticsPage({
   params,
@@ -24,9 +38,25 @@ export default async function EditionAnalyticsPage({
     .maybeSingle()
 
   if (!edition || edition.site_id !== ctx.siteId) return notFound()
-  if (edition.status !== 'sent') return notFound()
 
-  if (edition.stats_stale) {
+  const status = edition.status as string
+
+  // Edge state: edition not dispatched yet — no sends to report on.
+  if (!DISPATCHED_STATUSES.has(status)) {
+    return (
+      <div className="space-y-4">
+        <h1 className="text-2xl font-bold">{edition.subject as string}</h1>
+        <div className="rounded-[10px] border border-gray-800 bg-gray-900 px-4 py-6 text-center">
+          <p className="text-sm text-gray-300">Edição ainda não enviada.</p>
+          <p className="mt-1 text-[11px] text-gray-500">
+            Os dados de entrega aparecem aqui depois do disparo.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  if (status === 'sent' && edition.stats_stale) {
     await supabase.rpc('refresh_newsletter_stats', { p_edition_id: id })
     const { data: refreshed } = await supabase
       .from('newsletter_editions')
@@ -34,6 +64,41 @@ export default async function EditionAnalyticsPage({
       .eq('id', id)
       .single()
     if (refreshed) Object.assign(edition, refreshed)
+  }
+
+  // Per-edition delivery picture, straight from newsletter_sends.
+  const [deliverySummary, deliveryRows] = await Promise.all([
+    getEditionDeliverySummary(supabase, id),
+    getEditionSendRows(supabase, id),
+  ])
+
+  const statusNote = STATUS_NOTES[status]
+
+  const deliverySection = (
+    <div className="space-y-4">
+      {statusNote && (
+        <p className="rounded-[10px] border border-amber-500 bg-[rgba(245,158,11,0.08)] px-4 py-2 text-[11px] text-amber-400">
+          {statusNote}
+        </p>
+      )}
+      <DeliverySummaryPanel summary={deliverySummary} />
+      <DeliverySendsTable
+        rows={deliveryRows}
+        total={deliverySummary.total}
+        timezone={ctx.timezone}
+      />
+    </div>
+  )
+
+  // Mid-send / failed editions: delivery picture only (engagement analytics
+  // requires a completed send).
+  if (status !== 'sent') {
+    return (
+      <div className="space-y-8">
+        <h1 className="text-2xl font-bold">{edition.subject as string}</h1>
+        {deliverySection}
+      </div>
+    )
   }
 
   // Fetch send IDs for this edition.
@@ -83,5 +148,10 @@ export default async function EditionAnalyticsPage({
       .map(([name, count]) => ({ name, count })),
   }
 
-  return <EditionAnalytics data={analyticsData} />
+  return (
+    <div className="space-y-8">
+      {deliverySection}
+      <EditionAnalytics data={analyticsData} />
+    </div>
+  )
 }

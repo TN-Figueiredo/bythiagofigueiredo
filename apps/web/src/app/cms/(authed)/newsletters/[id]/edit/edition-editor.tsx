@@ -589,13 +589,13 @@ export function EditionEditor({
               Preview
             </button>
           )}
-          {status === 'sent' && editionId && (
+          {(status === 'sent' || status === 'sending' || status === 'failed') && editionId && (
             <Link
               href={`/cms/newsletters/${editionId}/analytics`}
               className="flex items-center gap-1.5 rounded-md border border-[#374151] px-3 py-1.5 text-xs font-medium text-[#d1d5db] hover:bg-[#111827] transition-colors"
             >
               <BarChart3 size={13} />
-              Analytics
+              {status === 'sent' ? 'Analytics' : 'Entrega'}
             </Link>
           )}
           {status === 'failed' && (

@@ -354,7 +354,6 @@ async function sendEdition(
   const typeName = type?.name ?? 'Newsletter'
   const typeColor = type?.color ?? '#FF8240'
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://bythiagofigueiredo.com'
-  const fromDomain = process.env.NEWSLETTER_FROM_DOMAIN ?? 'bythiagofigueiredo.com'
 
   const shortDomain: string | null = process.env.LINKS_SHORT_DOMAIN ?? null
 
@@ -484,25 +483,52 @@ async function sendEdition(
         metadata: {
           configurationSet: process.env.SES_MARKETING_CONFIG_SET ?? 'bythiago-marketing',
           headers: {
-            'List-Unsubscribe': `<mailto:unsubscribe@${fromDomain}?subject=unsubscribe>, <${unsubscribeUrl}>`,
+            // HTTPS one-click ONLY (RFC 8058). No inbound processing exists
+            // for an unsubscribe@ mailbox — advertising a dead mailto would
+            // silently swallow unsubscribe attempts and convert them into
+            // complaints.
+            'List-Unsubscribe': `<${unsubscribeUrl}>`,
             'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
           },
         },
         ...(replyTo ? { replyTo } : {}),
       })
 
-      await supabase.from('newsletter_sends').update({
-        provider_message_id: result.messageId,
-        status: 'sent',
-        // Record which pipeline was used — the webhook handler reads this.
-        link_rewrite_enabled: shortDomain !== null,
-      } as Record<string, unknown>).eq('id', send.id)
+      // ── SES accepted from here on: the message is out the door. ──────────
+      // A post-send recording failure is accepted-but-unrecorded, NOT
+      // retry-eligible: keep the pre-send last_attempt_at claim (90-min
+      // suppression window) so neither the in-run retry below nor the next
+      // cron run re-sends an accepted message. Surface to Sentry instead —
+      // the row stays 'queued' with the claim as the durable record. This
+      // inner try/catch keeps post-send failures OUT of the outer retry catch.
+      try {
+        const { error: postSendErr } = await supabase.from('newsletter_sends').update({
+          provider_message_id: result.messageId,
+          status: 'sent',
+          // Record which pipeline was used — the webhook handler reads this.
+          link_rewrite_enabled: shortDomain !== null,
+        } as Record<string, unknown>).eq('id', send.id)
+        if (postSendErr) {
+          Sentry.captureException(
+            new Error(
+              `Post-send update failed for send ${send.id} (message accepted as ${result.messageId}): ${postSendErr.message}`,
+            ),
+            { tags: { component: 'cron', job: JOB, phase: 'post_send_update', editionId: edition.id, sendId: send.id } },
+          )
+        }
+      } catch (postSendErr) {
+        Sentry.captureException(postSendErr, {
+          tags: { component: 'cron', job: JOB, phase: 'post_send_update', editionId: edition.id, sendId: send.id },
+        })
+      }
 
       sentCount++
       await sleep(THROTTLE_MS)
       return true
     } catch (err) {
       errorCount++
+      // Only prep/claim/emailService.send can land here — post-send DB
+      // failures are contained above and never reach this retry path.
       // The send threw → SES did NOT accept it, so it's safe (and desirable)
       // to retry. Clear the last_attempt_at claim we stamped pre-send so the
       // 90-min suppression window (meant only for accepted-but-unrecorded rows)

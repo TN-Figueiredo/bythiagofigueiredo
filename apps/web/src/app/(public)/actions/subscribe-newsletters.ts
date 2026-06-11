@@ -132,22 +132,39 @@ export async function subscribeToNewsletters(
           subscribedIds.push(newsletterId)
           needsConfirmation = true
         } else if (error.code === '23505') {
-          // Duplicate race — update the existing row's token so our email link works
-          const { error: fixErr } = await db
+          // Duplicate race — the row exists but the select above missed it
+          // (concurrent insert, or a status='unsubscribed' row excluded by the
+          // .neq filter). Reactivate it in place with the SAME shape as the
+          // existing-row path above (status + unsubscribed_at included), so the
+          // confirm RPC — which only flips status='pending_confirmation' rows —
+          // can actually complete the re-subscribe.
+          // Guards: never resurrect suppressed (bounced/complained) rows and
+          // never regress a concurrently-confirmed row — those match 0 rows and
+          // get the same silent-success/no-email treatment as above.
+          const { data: fixed, error: fixErr } = await db
             .from('newsletter_subscriptions')
             .update({
+              status: 'pending_confirmation',
               confirmation_token_hash: tokenHash,
               confirmation_expires_at: expiresAt,
               consent_text_version: CONSENT_VERSION,
               locale,
+              ip,
+              user_agent: userAgent,
+              unsubscribed_at: null,
               ...attr,
             })
             .eq('site_id', siteId)
             .eq('email', normalizedEmail)
             .eq('newsletter_id', newsletterId)
+            .neq('status', 'bounced')
+            .neq('status', 'complained')
+            .neq('status', 'confirmed')
+            .select('id')
           if (!fixErr) {
             subscribedIds.push(newsletterId)
-            needsConfirmation = true
+            // 0 rows updated = suppressed/confirmed row → silent ok, no email.
+            if (fixed && fixed.length > 0) needsConfirmation = true
           }
         }
       }
@@ -160,10 +177,12 @@ export async function subscribeToNewsletters(
     if (needsConfirmation) {
       const { data: types } = await db
         .from('newsletter_types')
-        .select('id, name')
+        .select('id, name, reply_to')
         .in('id', subscribedIds)
       const newsletterNames = types?.map((t: { id: string; name: string }) => t.name) ?? []
-      const sent = await sendNewsletterConfirmEmail({ to: normalizedEmail, rawToken, locale, newsletterNames })
+      // Same reply_to editions use — first type with one set wins; none → omitted.
+      const replyTo = types?.find((t: { reply_to: string | null }) => t.reply_to)?.reply_to ?? undefined
+      const sent = await sendNewsletterConfirmEmail({ to: normalizedEmail, rawToken, locale, newsletterNames, ...(replyTo ? { replyTo } : {}) })
       if (!sent) {
         return { error: locale === 'pt-BR' ? 'Erro ao enviar email. Tente novamente.' : 'Failed to send email. Try again.' }
       }

@@ -40,10 +40,13 @@ export interface SendConfirmEmailOpts {
   locale: string
   action?: string
   newsletterNames?: string[]
+  /** newsletter_types.reply_to when set — same source editions use. Replies to
+   *  the confirm land in a real mailbox instead of bouncing off no-reply@. */
+  replyTo?: string
 }
 
 export async function sendNewsletterConfirmEmail(opts: SendConfirmEmailOpts): Promise<boolean> {
-  const { to, rawToken, locale, action = 'newsletter_subscribe', newsletterNames } = opts
+  const { to, rawToken, locale, action = 'newsletter_subscribe', newsletterNames, replyTo } = opts
   const confirmUrl = buildConfirmUrl(rawToken, locale)
   const isPt = locale === 'pt-BR'
   const domain = process.env.NEWSLETTER_FROM_DOMAIN ?? 'bythiagofigueiredo.com'
@@ -62,13 +65,13 @@ export async function sendNewsletterConfirmEmail(opts: SendConfirmEmailOpts): Pr
         // transactional config-set so a marketing complaint spike can never
         // suppress it.
         configurationSet: process.env.SES_TRANSACTIONAL_CONFIG_SET ?? process.env.SES_DEFAULT_CONFIG_SET,
-        // mailto List-Unsubscribe (no one-click): a pending subscriber has no
-        // unsubscribe token yet, but offering an opt-out path improves inbox
-        // placement and lets the recipient bail out of the confirmation flow.
-        headers: {
-          'List-Unsubscribe': `<mailto:unsubscribe@${domain}?subject=unsubscribe>`,
-        },
+        // No List-Unsubscribe here: a pending subscriber has no unsubscribe
+        // token yet (no HTTPS one-click target), and NOTHING processes an
+        // unsubscribe@ mailbox — advertising a dead mailto would silently
+        // swallow opt-out attempts and convert them into complaints. Ignoring
+        // the confirm email already opts the recipient out.
       },
+      ...(replyTo ? { replyTo } : {}),
     })
     return true
   } catch (err) {

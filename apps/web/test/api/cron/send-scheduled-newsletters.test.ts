@@ -347,8 +347,15 @@ describe('POST /api/cron/send-scheduled-newsletters', () => {
     expect(sendCall.subject).toBe('Test Newsletter')
     expect(sendCall.from.name).toBe('Thiago')
     expect(sendCall.from.email).toBe('news@example.com')
-    expect(sendCall.metadata.headers['List-Unsubscribe']).toBeDefined()
+    // HTTPS one-click ONLY — nothing processes an unsubscribe@ mailbox, so a
+    // mailto entry would silently swallow unsubscribes → complaints.
+    expect(sendCall.metadata.headers['List-Unsubscribe']).toBe(
+      '<https://example.com/api/newsletters/unsubscribe?token=unsub-raw>',
+    )
+    expect(sendCall.metadata.headers['List-Unsubscribe']).not.toContain('mailto:')
     expect(sendCall.metadata.headers['List-Unsubscribe-Post']).toBe('List-Unsubscribe=One-Click')
+    // TYPE_FIXTURE has reply_to: null → replyTo must be omitted entirely.
+    expect('replyTo' in sendCall).toBe(false)
   })
 
   it('recovers stuck editions sending for >2 hours', async () => {
@@ -838,6 +845,91 @@ describe('POST /api/cron/send-scheduled-newsletters', () => {
     expect(sendUpdatePayloads[0]).toHaveProperty('last_attempt_at')
     expect(sendUpdatePayloads[0].last_attempt_at).toBeTruthy()
     expect(sendUpdatePayloads[1]).toHaveProperty('provider_message_id')
+  })
+
+  it('FIX: post-send update failure after SES accepted → NO in-run re-send, claim kept, Sentry alerted', async () => {
+    // SES accepts the message, then the post-send DB update (provider_message_id)
+    // throws. That message is accepted-but-unrecorded — re-sending it would be a
+    // duplicate delivery. The retry-eligible catch must be scoped to the send
+    // itself: the row keeps its last_attempt_at claim (90-min suppression),
+    // Sentry is alerted, and the in-run retry never re-attempts the row.
+    const state = { n: 0 }
+    const editionUpdates: Array<Record<string, unknown>> = []
+    const callIndex = { newsletter_sends: 0 }
+    const sendUpdatePayloads: Array<Record<string, unknown>> = []
+
+    mockSend.mockReset()
+    mockSend.mockResolvedValue({ messageId: 'msg_accepted', provider: 'ses' })
+
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'newsletter_editions') return editionsMock(state, editionUpdates)
+
+      if (table === 'newsletter_subscriptions') {
+        return chainMock({ data: [{ email: 'user@test.com', locale: null }], error: null })
+      }
+
+      if (table === 'newsletter_sends') {
+        callIndex.newsletter_sends++
+        if (callIndex.newsletter_sends === 1) return { upsert: vi.fn().mockResolvedValue({ data: null, error: null }) }
+        if (callIndex.newsletter_sends === 2) {
+          return chainMock({ data: [{ id: 'send-1', subscriber_email: 'user@test.com' }], error: null })
+        }
+        if (callIndex.newsletter_sends === 3) {
+          // pre-send last_attempt_at claim — succeeds
+          return {
+            update: vi.fn().mockImplementation((payload: Record<string, unknown>) => {
+              sendUpdatePayloads.push(payload)
+              return { eq: vi.fn().mockResolvedValue({ data: null, error: null }) }
+            }),
+          }
+        }
+        if (callIndex.newsletter_sends === 4) {
+          // post-send provider_message_id update — THROWS after SES accepted
+          return {
+            update: vi.fn().mockImplementation((payload: Record<string, unknown>) => {
+              sendUpdatePayloads.push(payload)
+              return { eq: vi.fn().mockRejectedValue(new Error('db connection lost')) }
+            }),
+          }
+        }
+        // Anything later: record updates (a last_attempt_at clear or retry
+        // claim would land here) + serve the totalSentCount query.
+        return {
+          update: vi.fn().mockImplementation((payload: Record<string, unknown>) => {
+            sendUpdatePayloads.push(payload)
+            return { eq: vi.fn().mockResolvedValue({ data: null, error: null }) }
+          }),
+          select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ not: vi.fn().mockResolvedValue({ count: 1, data: null, error: null }) }) }),
+        }
+      }
+
+      if (table === 'newsletter_types') {
+        return { select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: TYPE_FIXTURE, error: null }) }) }) }
+      }
+      if (table === 'unsubscribe_tokens') {
+        return { upsert: vi.fn().mockResolvedValue({ data: null, error: null }) }
+      }
+      return chainMock({ data: null, error: null })
+    })
+
+    const res = await POST(req(CRON_SECRET))
+    expect(res.status).toBe(200)
+
+    // SES accepted exactly once — the post-send DB failure must NOT re-send.
+    expect(mockSend).toHaveBeenCalledTimes(1)
+    // Accepted-but-unrecorded is surfaced to Sentry…
+    expect(mockCaptureException).toHaveBeenCalled()
+    // …and the pre-send claim is KEPT: no { last_attempt_at: null } clear, so
+    // the 90-min suppression window protects against a next-run duplicate too.
+    expect(sendUpdatePayloads[0]).toHaveProperty('last_attempt_at')
+    expect(sendUpdatePayloads.some((p) => p.last_attempt_at === null)).toBe(false)
+    // The row was not treated as a failed send: no retry-exhausted alert and
+    // the edition still completes to 'sent'.
+    expect(mockCaptureMessage).not.toHaveBeenCalledWith(
+      expect.stringContaining('still failing'),
+      expect.anything(),
+    )
+    expect(editionUpdates.some((u) => u.status === 'sent')).toBe(true)
   })
 
   // ── Audit: completeness ───────────────────────────────────────────────────

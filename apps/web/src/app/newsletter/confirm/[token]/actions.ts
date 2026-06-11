@@ -11,6 +11,10 @@ interface ConfirmRpcResult {
   error?: 'not_found' | 'expired' | 'invalid_state'
   site_id?: string
   email?: string
+  /** Rows actually flipped pending_confirmation → confirmed. The RPC returns
+   *  ok with confirmed_count=0 when the token matched a row that is no longer
+   *  pending (e.g. unsubscribed meanwhile) — confirming nothing. */
+  confirmed_count?: number
 }
 
 export interface ConfirmActionResult {
@@ -45,6 +49,14 @@ export async function confirmSubscription(token: string): Promise<ConfirmActionR
 
     if (result.already) {
       return { state: 'already', siteId: result.site_id, email: result.email }
+    }
+
+    // ok but 0 rows confirmed: the token matched a row that is no longer
+    // pending (unsubscribed/changed state meanwhile). Nothing was confirmed —
+    // saying 'Inscrição confirmada!' here would be a false success. Map to the
+    // friendly not_found state (same UX as a reused/invalid link).
+    if (result.confirmed_count === 0) {
+      return { state: 'not_found' }
     }
 
     revalidateTag('newsletter-suggestions')

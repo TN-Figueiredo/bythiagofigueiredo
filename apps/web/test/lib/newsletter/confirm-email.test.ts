@@ -116,6 +116,30 @@ describe('confirm-email shared module', () => {
       expect(msg.text).toBe('<html>rendered</html>')
     })
 
+    it('does not advertise any List-Unsubscribe header (no one-click target exists pre-confirm, and no mailbox processes mailto)', async () => {
+      await sendNewsletterConfirmEmail({ to: 'user@example.com', rawToken: 'abc', locale: 'en' })
+      const msg = mockSend.mock.calls[0][0]
+      expect(msg.metadata?.headers?.['List-Unsubscribe']).toBeUndefined()
+      expect(JSON.stringify(msg)).not.toContain('mailto:')
+    })
+
+    it('sets replyTo when provided (newsletter_types.reply_to)', async () => {
+      await sendNewsletterConfirmEmail({
+        to: 'user@example.com',
+        rawToken: 'abc',
+        locale: 'en',
+        replyTo: 'thiago@example.com',
+      })
+      const msg = mockSend.mock.calls[0][0]
+      expect(msg.replyTo).toBe('thiago@example.com')
+    })
+
+    it('omits replyTo entirely when the type has none', async () => {
+      await sendNewsletterConfirmEmail({ to: 'user@example.com', rawToken: 'abc', locale: 'en' })
+      const msg = mockSend.mock.calls[0][0]
+      expect('replyTo' in msg).toBe(false)
+    })
+
     it('returns false when email send fails', async () => {
       mockSend.mockRejectedValueOnce(new Error('SMTP down'))
       await expect(

@@ -253,14 +253,19 @@ describe('subscribeToNewsletters', () => {
       data: null,
       error: { message: 'duplicate key value violates unique constraint', code: '23505' },
     })
-    const mockDupUpdate = vi.fn().mockResolvedValue({ data: null, error: null })
+    // Fallback chain: update(...).eq×3.neq×3.select('id') → 1 row reactivated
+    const mockDupUpdate = vi.fn().mockResolvedValue({ data: [{ id: 'existing-1' }], error: null })
     const mockIn = vi.fn().mockResolvedValue({ data: [{ id: 'nl-1', name: 'Test Newsletter' }], error: null })
     const origFrom = mockFrom.getMockImplementation()
     let insertCallDone = false
     mockFrom.mockImplementation((...args) => {
       if (insertCallDone) {
         return {
-          update: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ eq: mockDupUpdate }) }) }),
+          update: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnThis(),
+            neq: vi.fn().mockReturnThis(),
+            select: mockDupUpdate,
+          }),
           select: vi.fn().mockReturnValue({ in: mockIn }),
         }
       }

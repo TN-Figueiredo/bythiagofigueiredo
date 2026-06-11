@@ -55,4 +55,32 @@ describe('EmailFooter', () => {
     )
     expect(html).toContain('bythiagofigueiredo.com')
   })
+
+  it('renders the postal address when NEWSLETTER_POSTAL_ADDRESS is set', async () => {
+    process.env.NEWSLETTER_POSTAL_ADDRESS = 'Av. Teste 123, São Paulo - SP, Brasil'
+    try {
+      const html = await render(
+        React.createElement(EmailFooter, {
+          unsubscribeUrl: '#',
+          archiveUrl: '#',
+        })
+      )
+      expect(html).toContain('Av. Teste 123, São Paulo - SP, Brasil')
+    } finally {
+      delete process.env.NEWSLETTER_POSTAL_ADDRESS
+    }
+  })
+
+  it('omits the postal address line entirely when NEWSLETTER_POSTAL_ADDRESS is unset (no placeholder)', async () => {
+    delete process.env.NEWSLETTER_POSTAL_ADDRESS
+    const html = await render(
+      React.createElement(EmailFooter, {
+        unsubscribeUrl: '#',
+        archiveUrl: '#',
+      })
+    )
+    // No fake/placeholder address may ever render (CAN-SPAM + spam heuristics).
+    expect(html).not.toContain('undefined')
+    expect(html).not.toMatch(/postal|address/i)
+  })
 })

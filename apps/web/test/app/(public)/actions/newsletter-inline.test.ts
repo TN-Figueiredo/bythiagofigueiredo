@@ -212,4 +212,73 @@ describe('subscribeNewsletterInline', () => {
     expect(result.success).toBe(true)
     expect(mockSend).not.toHaveBeenCalled()
   })
+
+  /**
+   * 23505-race fallback (mirrors subscribe-newsletters.ts):
+   * select misses the row (e.g. status='unsubscribed' excluded by .neq),
+   * insert hits the unique constraint, and the action must reactivate the row
+   * IN PLACE — writing the new token hash — before emailing a confirm link.
+   * Without that write the emailed token isn't in the DB → 'Link não encontrado'.
+   */
+  function mockRaceFallbackFlow(updatedRows: Array<{ id: string }>) {
+    const fallbackChain = {
+      eq: vi.fn().mockReturnThis(),
+      neq: vi.fn().mockReturnThis(),
+      select: vi.fn().mockResolvedValue({ data: updatedRows, error: null }),
+    }
+    const fallbackUpdateMock = vi.fn().mockReturnValue(fallbackChain)
+    mockInsert.mockResolvedValueOnce({ data: null, error: { code: '23505', message: 'duplicate key' } })
+    // from() call order: 1 existing select · 2 insert (23505) · 3 fallback
+    // update · 4 newsletter_types lookup (base impl). mockImplementationOnce
+    // survives the base-implementation reset done by the service mock factory.
+    mockFrom
+      .mockImplementationOnce(() => buildFromReturn())
+      .mockImplementationOnce(() => buildFromReturn())
+      .mockImplementationOnce(() => ({ update: fallbackUpdateMock }))
+    return { fallbackUpdateMock, fallbackChain }
+  }
+
+  function raceForm(): FormData {
+    const fd = new FormData()
+    fd.set('email', 'ghost@example.com')
+    fd.set('newsletter_id', 'main-en')
+    fd.set('locale', 'en')
+    fd.set('turnstile_token', 'ok-token')
+    return fd
+  }
+
+  it('FIX: 23505-race fallback reactivates the row with the NEW token before emailing the confirm link', async () => {
+    const { fallbackUpdateMock, fallbackChain } = mockRaceFallbackFlow([{ id: 'sub-ghost' }])
+
+    const result = await subscribeNewsletterInline(undefined, raceForm())
+
+    expect(result.success).toBe(true)
+    expect(fallbackUpdateMock).toHaveBeenCalledOnce()
+    const payload = fallbackUpdateMock.mock.calls[0]![0] as Record<string, unknown>
+    // Row fully reactivated: pending + un-unsubscribed + fresh hashed token
+    // (the SAME token the confirm email carries — sha256 hex at rest).
+    expect(payload.status).toBe('pending_confirmation')
+    expect(payload.unsubscribed_at).toBeNull()
+    expect(payload.confirmation_token_hash).toMatch(/^[a-f0-9]{64}$/)
+    expect(payload).toHaveProperty('ip')
+    expect(payload).toHaveProperty('user_agent')
+    // Guard pinned at the query level: suppressed/confirmed rows excluded.
+    expect(fallbackChain.neq).toHaveBeenCalledWith('status', 'bounced')
+    expect(fallbackChain.neq).toHaveBeenCalledWith('status', 'complained')
+    expect(fallbackChain.neq).toHaveBeenCalledWith('status', 'confirmed')
+    // ≥1 row updated → fresh double opt-in: confirm email goes out.
+    expect(mockSend).toHaveBeenCalledOnce()
+  })
+
+  it('23505-race fallback never resurrects suppressed rows: 0 rows updated → silent ok, NO confirm email', async () => {
+    const { fallbackUpdateMock } = mockRaceFallbackFlow([])
+
+    const result = await subscribeNewsletterInline(undefined, raceForm())
+
+    // No-oracle response: looks like success, but nothing was emailed —
+    // the token was never persisted, so a confirm link would be dead.
+    expect(result.success).toBe(true)
+    expect(fallbackUpdateMock).toHaveBeenCalledOnce()
+    expect(mockSend).not.toHaveBeenCalled()
+  })
 })

@@ -19,16 +19,23 @@ const CONFIRMATION_TTL_MS = 24 * 60 * 60 * 1000
 
 type SupabaseClient = ReturnType<typeof getSupabaseServiceClient>
 
-async function fetchNewsletterName(db: SupabaseClient, newsletterId: string): Promise<string[]> {
+async function fetchNewsletterMeta(
+  db: SupabaseClient,
+  newsletterId: string,
+): Promise<{ names: string[]; replyTo?: string }> {
   try {
     const { data } = await db
       .from('newsletter_types')
-      .select('name')
+      .select('name, reply_to')
       .eq('id', newsletterId)
       .maybeSingle()
-    return data?.name ? [data.name as string] : []
+    return {
+      names: data?.name ? [data.name as string] : [],
+      // Same reply_to editions use — set on the type → confirm carries it.
+      ...(data?.reply_to ? { replyTo: data.reply_to as string } : {}),
+    }
   } catch {
-    return []
+    return { names: [] }
   }
 }
 
@@ -128,8 +135,8 @@ export async function subscribeToNewsletter(formData: FormData): Promise<Subscri
         return { status: 'error', code: 'db_error' }
       }
 
-      const names = await fetchNewsletterName(supabase, newsletter_id)
-      const sent = await sendNewsletterConfirmEmail({ to: email, rawToken, locale, newsletterNames: names })
+      const { names, replyTo } = await fetchNewsletterMeta(supabase, newsletter_id)
+      const sent = await sendNewsletterConfirmEmail({ to: email, rawToken, locale, newsletterNames: names, ...(replyTo ? { replyTo } : {}) })
       if (!sent) return { status: 'error', code: 'email_failed' }
       return { status: 'ok' }
     }
@@ -157,8 +164,8 @@ export async function subscribeToNewsletter(formData: FormData): Promise<Subscri
       return { status: 'error', code: 'db_error' }
     }
 
-    const names = await fetchNewsletterName(supabase, newsletter_id)
-    const sent = await sendNewsletterConfirmEmail({ to: email, rawToken, locale, newsletterNames: names })
+    const { names, replyTo } = await fetchNewsletterMeta(supabase, newsletter_id)
+    const sent = await sendNewsletterConfirmEmail({ to: email, rawToken, locale, newsletterNames: names, ...(replyTo ? { replyTo } : {}) })
     if (!sent) return { status: 'error', code: 'email_failed' }
     return { status: 'ok' }
   } catch (err) {
