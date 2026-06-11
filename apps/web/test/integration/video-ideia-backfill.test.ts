@@ -36,7 +36,11 @@ describe.skipIf(skipIfNoLocalDb())('video ideia per-language backfill', () => {
 
   beforeAll(async () => {
     const supabase = getSupabaseServiceClient()
-    const { data: site } = await supabase.from('sites').select('id').limit(1).single()
+    // Oldest site = the structural seed's master site. A bare limit(1) could grab an
+    // EPHEMERAL site created by a concurrently-running integration file (e.g.
+    // load-video-detail), whose afterAll deletes it — cascading away our seeds mid-run.
+    const { data: site } = await supabase
+      .from('sites').select('id').order('created_at', { ascending: true }).limit(1).single()
     siteId = site!.id
     ids.pt = await seed('pt-br')
     ids.en = await seed('en')
