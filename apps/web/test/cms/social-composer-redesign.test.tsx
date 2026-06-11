@@ -1,140 +1,73 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+// @vitest-environment happy-dom
+/**
+ * NOTE: this file originally tested <ComposerShell> (the redesigned shell),
+ * deleted in 9bd1ad7c (2026-05-30 dead compositor shells cleanup) — the file
+ * was orphaned and failed module resolution ever since. The redesign's
+ * session-restore behavior now lives in useComposerPersistence, pinned here.
+ */
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { renderHook, cleanup } from '@testing-library/react'
 
-// --- Navigation ---
-vi.mock('next/navigation', () => ({
-  useRouter: vi.fn(() => ({ push: vi.fn() })),
-  useSearchParams: vi.fn(() => new URLSearchParams()),
-}))
-vi.mock('next/link', () => ({
-  default: ({ children, ...props }: { children: React.ReactNode }) => (
-    <a {...props}>{children}</a>
-  ),
-}))
+import { useComposerPersistence } from '@/app/cms/(authed)/social/new/_components/use-composer-persistence'
+import type { ComposerState } from '@/app/cms/(authed)/social/new/_components/use-composer'
 
-// --- Social actions (server actions) ---
-const mockCreateSocialPost = vi.fn()
-const mockGetContentForSocialPost = vi.fn()
-const mockCreateFromContentAction = vi.fn()
+afterEach(() => cleanup())
 
-vi.mock('@/lib/social/actions', () => ({
-  createSocialPost: (...args: unknown[]) => mockCreateSocialPost(...args),
-  getContentForSocialPost: (...args: unknown[]) => mockGetContentForSocialPost(...args),
-  createFromContentAction: (...args: unknown[]) => mockCreateFromContentAction(...args),
-}))
-
-// --- Search content (used by ContentPicker) ---
-vi.mock(
-  '@/app/cms/(authed)/social/new/_actions/search-content',
-  () => ({
-    searchContent: vi.fn().mockResolvedValue({
-      items: [
-        {
-          id: 'blog-1',
-          type: 'blog',
-          title: 'My Blog Post',
-          thumbnail: null,
-          status: 'published',
-          updatedAt: new Date().toISOString(),
-        },
-        {
-          id: 'newsletter-1',
-          type: 'newsletter',
-          title: 'My Newsletter',
-          thumbnail: null,
-          status: 'sent',
-          updatedAt: new Date().toISOString(),
-        },
-      ],
-      counts: { all: 2, blog: 1, newsletter: 1, campaign: 0, video: 0 },
-    }),
-  }),
-)
-
-// --- Queue (used by ScheduleBar) ---
-vi.mock('@/lib/social/queue', () => ({
-  getNextQueueSlot: vi.fn().mockResolvedValue(null),
-}))
-
-import { ComposerShell } from '@/app/cms/(authed)/social/new/_components/composer-shell'
-import { en } from '@/app/cms/(authed)/social/_i18n/en'
-
-const mockConnections = [
-  { provider: 'facebook' as const, account_name: 'My Page' },
-  { provider: 'instagram' as const, account_name: '@me' },
-  { provider: 'bluesky' as const, account_name: '@me.bsky' },
-]
-
-function renderComposer(overrides: Record<string, unknown> = {}) {
-  return render(
-    <ComposerShell
-      connections={mockConnections}
-      strings={en}
-      {...overrides}
-    />,
-  )
+function makeState(overrides?: Partial<ComposerState>): ComposerState {
+  return {
+    mode: 'cms', lang: 'pt',
+    destsOn: { ig_story: true, yt_community: true, fb_page: true, ig_feed: false, bsky_feed: false },
+    focused: 'ig_story', captions: {}, poll: null,
+    sched: 'now', schedDate: '', schedTime: '',
+    publishing: false, cmsPicked: null, aiData: null, aiLoading: false, design: null,
+    ...overrides,
+  }
 }
 
-describe('ComposerShell redesign', () => {
+describe('useComposerPersistence', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mockCreateSocialPost.mockResolvedValue({ ok: true, data: { id: 'new-1' } })
-    mockGetContentForSocialPost.mockResolvedValue({ ok: false, error: 'not_found' })
-    mockCreateFromContentAction.mockResolvedValue({ ok: true, data: { postId: 'p-1', shortLinkId: null } })
+    sessionStorage.clear()
   })
 
-  it('renders "Do CMS" and "Compor do zero" mode toggle buttons', () => {
-    renderComposer()
-    expect(screen.getByText('Do CMS')).toBeDefined()
-    expect(screen.getByText('Compor do zero')).toBeDefined()
+  it('does not restore when nothing is saved', () => {
+    const onRestore = vi.fn()
+    renderHook(() => useComposerPersistence({ state: makeState(), onRestore }))
+    expect(onRestore).not.toHaveBeenCalled()
   })
 
-  it('defaults to CMS mode — "Do CMS" button has accent class', () => {
-    renderComposer()
-    const cmsModeButton = screen.getByText('Do CMS').closest('button')
-    expect(cmsModeButton?.className).toContain('cms-accent')
+  it('restores a saved draft state on mount', () => {
+    sessionStorage.setItem('social-composer-new', JSON.stringify({ lang: 'en', sched: 'queue' }))
+    const onRestore = vi.fn()
+    renderHook(() => useComposerPersistence({ state: makeState(), onRestore }))
+    expect(onRestore).toHaveBeenCalledWith({ lang: 'en', sched: 'queue' })
   })
 
-  it('renders ContentPicker in CMS mode with Blog and Newsletter tabs', () => {
-    renderComposer()
-    expect(screen.getByText('Blog')).toBeDefined()
-    expect(screen.getByText('Newsletter')).toBeDefined()
+  it('scopes the storage key per draftId', () => {
+    sessionStorage.setItem('social-composer-draft-42', JSON.stringify({ lang: 'en' }))
+    const onRestore = vi.fn()
+    renderHook(() => useComposerPersistence({ state: makeState(), draftId: 'draft-42', onRestore }))
+    expect(onRestore).toHaveBeenCalledWith({ lang: 'en' })
   })
 
-  it('renders schedule bar with Agora, Agendar, Fila buttons', () => {
-    renderComposer()
-    expect(screen.getByText('Agora')).toBeDefined()
-    expect(screen.getByText('Agendar')).toBeDefined()
-    expect(screen.getByText('Fila')).toBeDefined()
+  it('does not restore another draft\'s state', () => {
+    sessionStorage.setItem('social-composer-other', JSON.stringify({ lang: 'en' }))
+    const onRestore = vi.fn()
+    renderHook(() => useComposerPersistence({ state: makeState(), draftId: 'draft-42', onRestore }))
+    expect(onRestore).not.toHaveBeenCalled()
   })
 
-  it('renders Salvar Rascunho button', () => {
-    renderComposer()
-    expect(screen.getByText('Salvar Rascunho')).toBeDefined()
+  it('survives corrupted saved state without calling onRestore with garbage', () => {
+    sessionStorage.setItem('social-composer-new', '{not json')
+    const onRestore = vi.fn()
+    expect(() => renderHook(() => useComposerPersistence({ state: makeState(), onRestore }))).not.toThrow()
+    expect(onRestore).not.toHaveBeenCalled()
   })
 
-  it('switches to freeform mode — hides ContentPicker (no Blog tab)', () => {
-    renderComposer()
-    fireEvent.click(screen.getByText('Compor do zero'))
-    // In freeform mode ContentPicker hides the content list tabs
-    // The mode toggle buttons remain, but Blog/Newsletter content tabs disappear
-    const allBlogElements = screen.queryAllByText('Blog')
-    // All "Blog" text elements should be gone (the tabs inside the CMS picker are hidden)
-    expect(allBlogElements.length).toBe(0)
-  })
-
-  it('in freeform mode renders the text composer editor', () => {
-    renderComposer()
-    fireEvent.click(screen.getByText('Compor do zero'))
-    expect(
-      screen.getByPlaceholderText(en.composer.editor.contentPlaceholder),
-    ).toBeDefined()
-  })
-
-  it('renders platform selector', () => {
-    renderComposer()
-    expect(screen.getByText('Facebook')).toBeDefined()
-    expect(screen.getByText('Instagram')).toBeDefined()
-    expect(screen.getByText('Bluesky')).toBeDefined()
+  it('clearPersistence removes the saved state', () => {
+    sessionStorage.setItem('social-composer-new', JSON.stringify({ lang: 'en' }))
+    const onRestore = vi.fn()
+    const { result } = renderHook(() => useComposerPersistence({ state: makeState(), onRestore }))
+    result.current.clearPersistence()
+    expect(sessionStorage.getItem('social-composer-new')).toBeNull()
   })
 })

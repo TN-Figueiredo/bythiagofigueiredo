@@ -15,7 +15,18 @@ Object.defineProperty(globalThis, 'localStorage', { value: localStorageMock })
 
 vi.mock('lucide-react', () => {
   const icon = (name: string) => (props: Record<string, unknown>) => <svg data-testid={`icon-${name}`} {...props} />
-  return new Proxy({}, { get: (_, key) => icon(key as string) })
+  // `then` MUST resolve to undefined: vitest `await`s the factory result, and a
+  // Proxy that returns a function for EVERY key (including `then`) is a thenable
+  // whose `then` never settles — the lucide-react import deadlocks the fork at
+  // 0% CPU and the whole suite hangs forever (this is what hung CI for 6h).
+  // (`has` trap: vitest checks `export in mock` before reading it.)
+  return new Proxy(
+    {},
+    {
+      get: (_, key) => (typeof key !== 'string' || key === 'then' ? undefined : icon(key)),
+      has: (_, key) => typeof key === 'string' && key !== 'then',
+    },
+  )
 })
 
 vi.mock('next/navigation', () => ({
@@ -83,8 +94,8 @@ const mockAnalytics = {
 
 describe('LinksHub', () => {
   it('renders page title "Links"', () => {
-    const { getByText } = render(<LinksHub tree={mockTree} links={mockLinks} analytics={mockAnalytics} activeTab="tree" />)
-    expect(getByText('Links')).toBeTruthy()
+    const { getByRole } = render(<LinksHub tree={mockTree} links={mockLinks} analytics={mockAnalytics} activeTab="tree" />)
+    expect(getByRole('heading', { name: 'Links' })).toBeTruthy()
   })
 
   it('renders tab bar with 3 tabs', () => {

@@ -4,18 +4,15 @@ import { render, cleanup } from '@testing-library/react'
 
 vi.mock('lucide-react', () => {
   const icon = (name: string) => (props: Record<string, unknown>) => <svg data-testid={`icon-${name}`} {...props} />
-  return {
-    // AnalyticsView + PotentialPanel
-    BarChart3: icon('BarChart3'), Globe: icon('Globe'), Monitor: icon('Monitor'),
-    Smartphone: icon('Smartphone'), TrendingUp: icon('TrendingUp'),
-    Lightbulb: icon('Lightbulb'), Sparkles: icon('Sparkles'),
-    // TreeTab
-    Info: icon('Info'), Eye: icon('Eye'), Users: icon('Users'),
-    Target: icon('Target'), Trophy: icon('Trophy'),
-    // ShortLinksTab
-    Search: icon('Search'), Plus: icon('Plus'), ChevronRight: icon('ChevronRight'),
-    AlertTriangle: icon('AlertTriangle'), QrCode: icon('QrCode'),
-  }
+  // Guarded Proxy: serves ANY icon the component tree asks for, so the mock
+  // doesn't rot when components add icons (the previous explicit list broke on
+  // every new icon). `then` must resolve to undefined — a thenable mock
+  // namespace deadlocks vitest's `await factory()` forever.
+  // (`has` trap: vitest checks `export in mock` before reading it.)
+  return new Proxy({} as Record<string, unknown>, {
+    get: (_target, prop) => (typeof prop !== 'string' || prop === 'then' ? undefined : icon(prop)),
+    has: (_target, prop) => typeof prop === 'string' && prop !== 'then',
+  })
 })
 
 // Mock localStorage
@@ -134,9 +131,10 @@ const makeAnalytics = (): AnalyticsDisplay => ({
 
 describe('Links Integration: Hub -> Tab -> Charts', () => {
   it('TreeTab renders blocks from tree data', () => {
-    const { getByText } = render(<LinksHub tree={makeTree()} links={makeLinks()} analytics={makeAnalytics()} activeTab="tree" />)
-    expect(getByText('Blog')).toBeTruthy()
-    expect(getByText('Newsletter')).toBeTruthy()
+    // 'Blog' also appears as a source label elsewhere in the tab — use *AllBy*
+    const { getAllByText } = render(<LinksHub tree={makeTree()} links={makeLinks()} analytics={makeAnalytics()} activeTab="tree" />)
+    expect(getAllByText('Blog').length).toBeGreaterThanOrEqual(1)
+    expect(getAllByText('Newsletter').length).toBeGreaterThanOrEqual(1)
   })
 
   it('TreeTab renders engagement stat from tree data', () => {
@@ -152,7 +150,7 @@ describe('Links Integration: Hub -> Tab -> Charts', () => {
 
   it('ShortLinksTab shows health panel for unhealthy links', () => {
     const { getByText } = render(<LinksHub tree={makeTree()} links={makeLinks()} analytics={makeAnalytics()} activeTab="links" />)
-    expect(getByText(/Saude dos links/)).toBeTruthy()
+    expect(getByText(/Saúde dos links/)).toBeTruthy()
   })
 
   it('AnalyticsView renders bar chart with 30 days of data', () => {
@@ -170,7 +168,7 @@ describe('Links Integration: Hub -> Tab -> Charts', () => {
 
   it('AnalyticsView renders source breakdown', () => {
     const { getByText } = render(<LinksHub tree={makeTree()} links={makeLinks()} analytics={makeAnalytics()} activeTab="analytics" />)
-    expect(getByText('Origem do trafego')).toBeTruthy()
+    expect(getByText('Por origem')).toBeTruthy()
   })
 
   it('AnalyticsView renders insights text', () => {

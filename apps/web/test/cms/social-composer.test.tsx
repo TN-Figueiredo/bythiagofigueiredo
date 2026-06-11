@@ -1,162 +1,92 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+// @vitest-environment happy-dom
+/**
+ * NOTE: this file originally tested <ComposerShell>, deleted in 9bd1ad7c
+ * (2026-05-30 dead compositor shells cleanup) — the file was orphaned and
+ * failed module resolution ever since. The composer's state engine now lives
+ * in the useComposer hook (consumed by <CompositorNew>, which has its own
+ * flow test in social-compositor-flow.test.tsx). This suite pins the hook.
+ */
+import { describe, it, expect, afterEach } from 'vitest'
+import { renderHook, act, cleanup } from '@testing-library/react'
 
-vi.mock('next/navigation', () => ({
-  useRouter: vi.fn(() => ({ push: vi.fn() })),
-  useSearchParams: vi.fn(() => new URLSearchParams()),
-}))
-vi.mock('next/link', () => ({
-  default: ({ children, ...props }: { children: React.ReactNode }) => (
-    <a {...props}>{children}</a>
-  ),
-}))
+import { useComposer } from '@/app/cms/(authed)/social/new/_components/use-composer'
 
-const mockCreate = vi.fn()
-const mockGetContent = vi.fn().mockResolvedValue({ ok: false, error: 'not_found' })
-const mockCreateFromContent = vi.fn().mockResolvedValue({ ok: true, data: { postId: 'p-1', shortLinkId: null } })
-const mockEditPublished = vi.fn().mockResolvedValue({ ok: true })
-const mockCheckDuplicates = vi.fn().mockResolvedValue({ ok: true, data: { severity: 'none', samePlatformPosts: [], totalExisting: 0 } })
-vi.mock('@/lib/social/actions', () => ({
-  createSocialPost: (...args: unknown[]) => mockCreate(...args),
-  getContentForSocialPost: (...args: unknown[]) => mockGetContent(...args),
-  createFromContentAction: (...args: unknown[]) => mockCreateFromContent(...args),
-  editPublishedPost: (...args: unknown[]) => mockEditPublished(...args),
-  checkDuplicatesAction: (...args: unknown[]) => mockCheckDuplicates(...args),
-}))
+afterEach(() => cleanup())
 
-vi.mock('@/lib/social/queue', () => ({
-  getNextQueueSlot: vi.fn().mockResolvedValue(null),
-}))
-
-vi.mock(
-  '@/app/cms/(authed)/social/new/_actions/search-content',
-  () => ({
-    searchContent: vi.fn().mockResolvedValue({
-      items: [],
-      counts: { all: 0, blog: 0, newsletter: 0, campaign: 0, video: 0 },
-    }),
-  }),
-)
-
-import { ComposerShell } from '@/app/cms/(authed)/social/new/_components/composer-shell'
-import { en } from '@/app/cms/(authed)/social/_i18n/en'
-
-const mockConnections = [
-  { provider: 'facebook' as const, account_name: 'My Page' },
-  { provider: 'instagram' as const, account_name: '@me' },
-  { provider: 'bluesky' as const, account_name: '@me.bsky' },
-]
-
-function renderComposer(overrides: Record<string, unknown> = {}) {
-  return render(
-    <ComposerShell
-      connections={mockConnections}
-      strings={en}
-      initialMode="text"
-      initialSourceMode="freeform"
-      onCreateSocialPost={mockCreate}
-      onCreateFromContent={mockCreateFromContent}
-      onGetContentForSocialPost={mockGetContent}
-      onEditPublishedPost={mockEditPublished}
-      onCheckDuplicates={mockCheckDuplicates}
-      {...overrides}
-    />,
-  )
-}
-
-describe('ComposerShell', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mockCreate.mockResolvedValue({ ok: true, data: { id: 'new-1' } })
-    mockGetContent.mockResolvedValue({ ok: false, error: 'not_found' })
-    mockCreateFromContent.mockResolvedValue({ ok: true, data: { postId: 'p-1', shortLinkId: null } })
-    mockEditPublished.mockResolvedValue({ ok: true })
-    mockCheckDuplicates.mockResolvedValue({ ok: true, data: { severity: 'none', samePlatformPosts: [], totalExisting: 0 } })
+describe('useComposer', () => {
+  it('starts in cms mode with pt language by default', () => {
+    const { result } = renderHook(() => useComposer())
+    expect(result.current.mode).toBe('cms')
+    expect(result.current.lang).toBe('pt')
   })
 
-  it('renders mode tabs', () => {
-    renderComposer()
-    expect(screen.getByText(en.composer.modes.text)).toBeDefined()
-    expect(screen.getByText(en.composer.modes.image)).toBeDefined()
-    expect(screen.getByText(en.composer.modes.video)).toBeDefined()
+  it('honors the initialMode argument', () => {
+    const { result } = renderHook(() => useComposer('blank'))
+    expect(result.current.mode).toBe('blank')
   })
 
-  it('renders content textarea in text mode', () => {
-    renderComposer()
-    expect(
-      screen.getByPlaceholderText(en.composer.editor.contentPlaceholder),
-    ).toBeDefined()
+  it('defaults destinations to story + community + page', () => {
+    const { result } = renderHook(() => useComposer())
+    expect(result.current.destsOn.ig_story).toBe(true)
+    expect(result.current.destsOn.yt_community).toBe(true)
+    expect(result.current.destsOn.fb_page).toBe(true)
+    expect(result.current.destsOn.ig_feed).toBe(false)
+    expect(result.current.destsOn.bsky_feed).toBe(false)
+    expect(result.current.activeDests).toEqual(['ig_story', 'yt_community', 'fb_page'])
   })
 
-  it('renders URL input', () => {
-    renderComposer()
-    expect(
-      screen.getByPlaceholderText(en.composer.editor.urlPlaceholder),
-    ).toBeDefined()
+  it('toggleDest flips a destination and updates activeDests', () => {
+    const { result } = renderHook(() => useComposer())
+    act(() => result.current.toggleDest('ig_feed'))
+    expect(result.current.destsOn.ig_feed).toBe(true)
+    expect(result.current.activeDests).toContain('ig_feed')
+    act(() => result.current.toggleDest('ig_feed'))
+    expect(result.current.destsOn.ig_feed).toBe(false)
   })
 
-  it('renders platform selector with connected platforms', () => {
-    renderComposer()
-    expect(screen.getByText('Facebook')).toBeDefined()
-    expect(screen.getByText('Instagram')).toBeDefined()
-    expect(screen.getByText('Bluesky')).toBeDefined()
+  it('focusDest changes the focused destination', () => {
+    const { result } = renderHook(() => useComposer())
+    expect(result.current.focused).toBe('ig_story')
+    act(() => result.current.focusDest('fb_page'))
+    expect(result.current.focused).toBe('fb_page')
   })
 
-  it('renders schedule bar', () => {
-    renderComposer()
-    // ScheduleBar uses hard-coded Portuguese labels
-    expect(screen.getByText('Agora')).toBeDefined()
-    expect(screen.getByText('Agendar')).toBeDefined()
-    expect(screen.getByText('Fila')).toBeDefined()
-  })
-
-  it('submits post on publish', async () => {
-    renderComposer()
-    const textarea = screen.getByPlaceholderText(
-      en.composer.editor.contentPlaceholder,
-    )
-    fireEvent.change(textarea, { target: { value: 'Hello world!' } })
-    fireEvent.click(screen.getByText('Facebook'))
-    // ScheduleBar renders "Publicar" in "Agora" mode
-    fireEvent.click(screen.getByText('Publicar'))
-    await waitFor(() => {
-      expect(mockCreate).toHaveBeenCalledOnce()
+  it('setCaption/getCaption are scoped per destination and language', () => {
+    const { result } = renderHook(() => useComposer())
+    act(() => {
+      result.current.setCaption('ig_story', 'pt', 'Olá story')
+      result.current.setCaption('ig_story', 'en', 'Hello story')
+      result.current.setCaption('fb_page', 'pt', 'Olá página')
     })
+    expect(result.current.getCaption('ig_story', 'pt')).toBe('Olá story')
+    expect(result.current.getCaption('ig_story', 'en')).toBe('Hello story')
+    expect(result.current.getCaption('fb_page', 'pt')).toBe('Olá página')
+    expect(result.current.getCaption('fb_page', 'en')).toBe('')
   })
 
-  it('switches to image mode on tab click', () => {
-    renderComposer()
-    fireEvent.click(screen.getByText(en.composer.modes.image))
-    // Image composer renders its "Add images" label instead of the text textarea
-    expect(screen.getByText(en.composer.image.addImages)).toBeDefined()
-    // Text textarea should be gone
-    expect(screen.queryByPlaceholderText(en.composer.editor.contentPlaceholder)).toBeNull()
+  it('applyAISuggestion stores the suggestion', () => {
+    const { result } = renderHook(() => useComposer())
+    const suggestion = { variations: ['gerado'], hashtags: ['#ai'], tone: 'casual', bestTime: null }
+    act(() => result.current.applyAISuggestion(suggestion))
+    expect(result.current.aiData).toEqual(suggestion)
   })
 
-  it('toggles a platform off after selecting it', () => {
-    renderComposer()
-    const fbButton = screen.getByText('Facebook')
-    // Select Facebook
-    fireEvent.click(fbButton)
-    // aria-pressed should now be 'true'
-    expect(fbButton.closest('button')!.getAttribute('aria-pressed')).toBe('true')
-    // Toggle it off
-    fireEvent.click(fbButton)
-    expect(fbButton.closest('button')!.getAttribute('aria-pressed')).toBe('false')
+  it('updateDesign stores the canvas composition', () => {
+    const { result } = renderHook(() => useComposer())
+    act(() => result.current.updateDesign({ layers: [1, 2] }))
+    expect(result.current.design).toEqual({ layers: [1, 2] })
   })
 
-  it('shows character count when platform is selected', () => {
-    renderComposer()
-    // Select Bluesky to trigger character limit display
-    fireEvent.click(screen.getByText('Bluesky'))
-    const textarea = screen.getByPlaceholderText(en.composer.editor.contentPlaceholder)
-    fireEvent.change(textarea, { target: { value: 'Hello' } })
-    // Character count should show "5 / <limit>"
-    expect(screen.getByText(/5\s*\/\s*\d+/)).toBeDefined()
-  })
-
-  it('renders Salvar Rascunho button', () => {
-    renderComposer()
-    expect(screen.getByText('Salvar Rascunho')).toBeDefined()
+  it('schedule state transitions now → schedule with date/time', () => {
+    const { result } = renderHook(() => useComposer())
+    expect(result.current.sched).toBe('now')
+    act(() => {
+      result.current.setSched('schedule')
+      result.current.setSchedDate('2026-06-20')
+      result.current.setSchedTime('14:30')
+    })
+    expect(result.current.sched).toBe('schedule')
+    expect(result.current.schedDate).toBe('2026-06-20')
+    expect(result.current.schedTime).toBe('14:30')
   })
 })

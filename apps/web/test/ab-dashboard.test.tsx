@@ -5,8 +5,14 @@ import { render, screen, cleanup, fireEvent } from '@testing-library/react'
 
 vi.mock('lucide-react', () => {
   const icon = (name: string) => (props: Record<string, unknown>) => <svg data-testid={`icon-${name}`} {...props} />
+  // `then` MUST resolve to undefined: vitest `await`s the factory result, and a
+  // Proxy that returns a function for EVERY key (including `then`) is a thenable
+  // whose `then` never settles — the lucide-react import deadlocks the fork at
+  // 0% CPU and the whole suite hangs forever (this is what hung CI for 6h).
+  // (`has` trap: vitest checks `export in mock` before reading it.)
   return new Proxy({} as Record<string, unknown>, {
-    get: (_target, prop: string) => icon(prop),
+    get: (_target, prop) => (typeof prop !== 'string' || prop === 'then' ? undefined : icon(prop)),
+    has: (_target, prop) => typeof prop === 'string' && prop !== 'then',
   })
 })
 
@@ -23,6 +29,8 @@ vi.mock('next/navigation', () => ({
 
 vi.mock('@/app/cms/(authed)/youtube/ab-lab/actions', () => ({
   updateAbSiteSettings: vi.fn().mockResolvedValue({ ok: true }),
+  dismissFatigueAlert: vi.fn().mockResolvedValue({ ok: true }),
+  batchStartTests: vi.fn().mockResolvedValue({ ok: true }),
 }))
 
 import { KPI } from '@/app/cms/(authed)/youtube/ab-lab/_components/kpi'
@@ -90,7 +98,8 @@ describe('ActiveTestCard', () => {
     const test = makeCardView({ dayOf: 7 })
     render(<ActiveTestCard test={test} onOpen={vi.fn()} />)
     expect(screen.getByText(test.name)).toBeTruthy()
-    expect(screen.getByText('Dia 7')).toBeTruthy()
+    // Badge renders "Dia {dayOf}/{total}" where total = dayOf + max(0, 14 - dayOf)
+    expect(screen.getByText('Dia 7/14')).toBeTruthy()
   })
 
   it('calls onOpen when clicked', () => {
@@ -112,15 +121,19 @@ describe('ActiveTestCard', () => {
   it('renders variant thumbnails with leader ring', () => {
     const test = makeCardView({ leader: 'B' })
     const { container } = render(<ActiveTestCard test={test} onOpen={vi.fn()} />)
-    const thumbs = container.querySelectorAll('[data-variant-thumb]')
+    // Both fixture variants carry thumbUrl, so each renders an <img alt="Variant X">
+    const thumbs = container.querySelectorAll('img[alt^="Variant"]')
     expect(thumbs.length).toBe(2)
-    // Leader thumb should have boxShadow ring
-    const leaderThumb = Array.from(thumbs).find(t => t.getAttribute('style')?.includes('box-shadow'))
-    expect(leaderThumb).toBeTruthy()
+    // Leader thumb wrapper gets a 2px outline ring in the variant color.
+    // (happy-dom expands the shorthand to outline-width/style/color, and drops
+    // the non-leader outline entirely because its color is a var() expression.)
+    const ringed = Array.from(container.querySelectorAll('div')).filter(d => d.getAttribute('style')?.includes('outline-width: 2px'))
+    expect(ringed.length).toBe(1)
   })
 
   it('shows Playoff badge when hasPlayoff is true', () => {
-    const test = makeCardView({ hasPlayoff: true })
+    // Badge requires roundNumber > 1 (round 1 IS the playoff parent)
+    const test = makeCardView({ hasPlayoff: true, roundNumber: 2 })
     render(<ActiveTestCard test={test} onOpen={vi.fn()} />)
     expect(screen.getByText(/^Round/)).toBeTruthy()
   })
@@ -136,32 +149,35 @@ describe('ActiveTestCard', () => {
  * CompletedRow
  * ============================================================ */
 describe('CompletedRow', () => {
-  it('renders as a link to test detail', () => {
+  it('renders as a clickable row with the test name', () => {
     const test = makeCompleted()
-    const { container } = render(<CompletedRow test={test} onOpen={vi.fn()} />)
-    const link = container.querySelector('a')
-    expect(link?.getAttribute('href')).toBe(`/cms/youtube/ab-lab/${test.id}`)
+    render(<CompletedRow test={test} onOpen={vi.fn()} />)
+    const row = screen.getByRole('button')
+    expect(row).toBeTruthy()
+    expect(screen.getByText(test.name)).toBeTruthy()
   })
 
   it('shows winner VChip and positive lift', () => {
     const test = makeCompleted({ lift: 15 })
     render(<CompletedRow test={test} onOpen={vi.fn()} />)
     expect(screen.getByText('B')).toBeTruthy()
-    expect(screen.getByText(/\+15\.0%/)).toBeTruthy()
+    // brDec renders pt-BR decimals (comma)
+    expect(screen.getByText(/\+15,0%/)).toBeTruthy()
   })
 
-  it('shows Inconclusive badge for zero lift and low confidence', () => {
+  it('shows playoff-agendado badge for zero lift and low confidence', () => {
     const test = makeCompleted({ lift: 0 })
     test.confidence = 50
     render(<CompletedRow test={test} onOpen={vi.fn()} />)
-    expect(screen.getByText('Inconclusive')).toBeTruthy()
+    expect(screen.getByText('playoff agendado')).toBeTruthy()
+    expect(screen.getByText(/sem vencedor claro/)).toBeTruthy()
   })
 
   it('calls onOpen on click', () => {
     const test = makeCompleted()
     const onOpen = vi.fn()
-    const { container } = render(<CompletedRow test={test} onOpen={onOpen} />)
-    fireEvent.click(container.querySelector('a')!)
+    render(<CompletedRow test={test} onOpen={onOpen} />)
+    fireEvent.click(screen.getByRole('button'))
     expect(onOpen).toHaveBeenCalledWith(test.id)
   })
 })
@@ -170,35 +186,35 @@ describe('CompletedRow', () => {
  * DraftsBlock
  * ============================================================ */
 describe('DraftsBlock', () => {
-  it('renders nothing when draft is null', () => {
-    const { container } = render(<DraftsBlock draft={null} onContinue={vi.fn()} />)
+  it('renders nothing when drafts is empty', () => {
+    const { container } = render(<DraftsBlock drafts={[]} onContinue={vi.fn()} />)
     expect(container.innerHTML).toBe('')
   })
 
   it('renders draft info when provided', () => {
     const draft = makeDraft({ step: 3 })
-    render(<DraftsBlock draft={draft} onContinue={vi.fn()} />)
+    render(<DraftsBlock drafts={[draft]} onContinue={vi.fn()} />)
     expect(screen.getByText(draft.name)).toBeTruthy()
     expect(screen.getByText(/Parou no passo 3 de 5/)).toBeTruthy()
   })
 
   it('collapses and expands on trigger button click', () => {
     const draft = makeDraft()
-    render(<DraftsBlock draft={draft} onContinue={vi.fn()} />)
+    render(<DraftsBlock drafts={[draft]} onContinue={vi.fn()} />)
     const trigger = screen.getByRole('button', { name: /Rascunhos/i })
     expect(trigger.getAttribute('aria-expanded')).toBe('true')
     fireEvent.click(trigger)
     expect(trigger.getAttribute('aria-expanded')).toBe('false')
-    expect(screen.queryByText('Continuar configuração')).toBeNull()
+    expect(screen.queryByText('Continuar setup')).toBeNull()
     fireEvent.click(trigger)
-    expect(screen.getByText('Continuar configuração')).toBeTruthy()
+    expect(screen.getByText('Continuar setup')).toBeTruthy()
   })
 
   it('calls onContinue when CTA clicked', () => {
     const draft = makeDraft()
     const onContinue = vi.fn()
-    render(<DraftsBlock draft={draft} onContinue={onContinue} />)
-    fireEvent.click(screen.getByText('Continuar configuração'))
+    render(<DraftsBlock drafts={[draft]} onContinue={onContinue} />)
+    fireEvent.click(screen.getByText('Continuar setup'))
     expect(onContinue).toHaveBeenCalledWith(draft.id)
   })
 })
@@ -207,16 +223,17 @@ describe('DraftsBlock', () => {
  * LearningsPanel
  * ============================================================ */
 describe('LearningsPanel', () => {
-  it('shows empty message when learnings is null', () => {
+  it('shows collecting-data message when learnings is null', () => {
     render(<LearningsPanel learnings={null} />)
-    expect(screen.getByText(/Complete 3\+ testes para desbloquear insights/)).toBeTruthy()
+    expect(screen.getByText(/Coletando dados/)).toBeTruthy()
+    expect(screen.getByText(/0\/3 testes completados/)).toBeTruthy()
   })
 
-  it('renders tag rows with win bars', () => {
+  it('renders one win-bar meter per tag', () => {
     const data = makeLearnings({ tags: 5 })
     const { container } = render(<LearningsPanel learnings={data} />)
-    const rows = container.querySelectorAll('[data-tag-row]')
-    expect(rows.length).toBe(5)
+    const meters = container.querySelectorAll('[role="meter"]')
+    expect(meters.length).toBe(5)
   })
 
   it('renders win bar with role="meter"', () => {
@@ -228,34 +245,22 @@ describe('LearningsPanel', () => {
 
   it('applies line-through to negative tags', () => {
     const data = makeLearnings({ tags: 3, negativeTag: true })
-    const { container } = render(<LearningsPanel learnings={data} />)
-    const rows = container.querySelectorAll('[data-tag-row]')
-    const firstRow = rows[0]
-    const tagLabel = firstRow?.querySelector('span')
-    expect(tagLabel?.className).toContain('line-through')
+    render(<LearningsPanel learnings={data} />)
+    const tagLabel = screen.getByText('no-text')
+    expect(tagLabel.getAttribute('style')).toContain('line-through')
   })
 
   it('shows insight text', () => {
     const data = makeLearnings()
-    const { container } = render(<LearningsPanel learnings={data} />)
-    const insight = container.querySelector('[data-insight]')
-    expect(insight?.textContent).toBe('Close-up faces perform 23% better on average.')
+    render(<LearningsPanel learnings={data} />)
+    expect(screen.getByText(/Close-up faces perform 23% better on average\./)).toBeTruthy()
   })
 
-  it('shows first 20 tags and "Show N more" when > 20', () => {
+  it('renders all tags even when more than 20', () => {
     const data = makeLearnings({ tags: 25 })
     const { container } = render(<LearningsPanel learnings={data} />)
-    const rows = container.querySelectorAll('[data-tag-row]')
-    expect(rows.length).toBe(20)
-    expect(screen.getByText('Mostrar mais 5')).toBeTruthy()
-  })
-
-  it('expands to show all tags on "Show N more" click', () => {
-    const data = makeLearnings({ tags: 25 })
-    const { container } = render(<LearningsPanel learnings={data} />)
-    fireEvent.click(screen.getByText('Mostrar mais 5'))
-    const rows = container.querySelectorAll('[data-tag-row]')
-    expect(rows.length).toBe(25)
+    const meters = container.querySelectorAll('[role="meter"]')
+    expect(meters.length).toBe(25)
   })
 })
 
@@ -265,31 +270,31 @@ describe('LearningsPanel', () => {
 describe('SuggestedCard', () => {
   it('renders video title and grade pill', () => {
     const video = makeSuggestion({ grade: 'D' })
-    const { container } = render(<SuggestedCard video={video} onCreate={vi.fn()} />)
+    render(<SuggestedCard video={video} onCreate={vi.fn()} />)
     expect(screen.getByText(video.title)).toBeTruthy()
-    const grade = container.querySelector('[data-grade]')
-    expect(grade?.textContent).toBe('D')
+    expect(screen.getByText('NOTA D')).toBeTruthy()
   })
 
-  it('shows red background for D/F grades', () => {
+  it('renders the grade pill for failing grades', () => {
+    // The D/F red is applied via `color: var(--cms-red, #ef4444)` — happy-dom
+    // drops var()-valued properties from serialized styles, so the color
+    // itself is not observable here; assert the pill renders for F grades.
     const video = makeSuggestion({ grade: 'F' })
-    const { container } = render(<SuggestedCard video={video} onCreate={vi.fn()} />)
-    const grade = container.querySelector('[data-grade]')
-    expect(grade?.className).toContain('red')
+    render(<SuggestedCard video={video} onCreate={vi.fn()} />)
+    expect(screen.getByText('NOTA F')).toBeTruthy()
   })
 
   it('renders reason text', () => {
     const video = makeSuggestion({ reason: 'CTR very low' })
-    const { container } = render(<SuggestedCard video={video} onCreate={vi.fn()} />)
-    const reason = container.querySelector('[data-reason]')
-    expect(reason?.textContent).toBe('CTR very low')
+    render(<SuggestedCard video={video} onCreate={vi.fn()} />)
+    expect(screen.getByText('CTR very low')).toBeTruthy()
   })
 
   it('calls onCreate with video id and suggest type on CTA click', () => {
     const video = makeSuggestion({ suggest: 'title' })
     const onCreate = vi.fn()
     render(<SuggestedCard video={video} onCreate={onCreate} />)
-    fireEvent.click(screen.getByText('Testar Título'))
+    fireEvent.click(screen.getByText('Testar título'))
     expect(onCreate).toHaveBeenCalledWith(video.id, 'title')
   })
 })
@@ -299,33 +304,27 @@ describe('SuggestedCard', () => {
  * ============================================================ */
 describe('EmptyState', () => {
   it('renders single CTA when no suggestions', () => {
-    const { container } = render(<EmptyState suggested={[]} onCreate={vi.fn()} />)
+    render(<EmptyState suggested={[]} onCreate={vi.fn()} />)
+    expect(screen.getByText('Comece a testar')).toBeTruthy()
     expect(screen.getByText('+ Novo teste')).toBeTruthy()
-    expect(container.querySelector('[data-hero]')).toBeTruthy()
   })
 
-  it('renders hero + cards when suggestions >= 3', () => {
+  it('renders suggestion cards when suggestions >= 3', () => {
     const suggested = makeSuggestions(3)
-    const { container } = render(<EmptyState suggested={suggested} onCreate={vi.fn()} />)
-    expect(container.querySelector('[data-hero]')).toBeTruthy()
-    // 3 suggestion cards
-    const articles = container.querySelectorAll('article')
-    expect(articles.length).toBe(3)
+    render(<EmptyState suggested={suggested} onCreate={vi.fn()} />)
+    expect(screen.getAllByText('NOTA D').length).toBe(3)
   })
 
-  it('renders hero + available cards when 1-2 suggestions', () => {
+  it('renders available cards when 1-2 suggestions', () => {
     const suggested = makeSuggestions(2)
-    const { container } = render(<EmptyState suggested={suggested} onCreate={vi.fn()} />)
-    expect(container.querySelector('[data-hero]')).toBeTruthy()
-    const articles = container.querySelectorAll('article')
-    expect(articles.length).toBe(2)
+    render(<EmptyState suggested={suggested} onCreate={vi.fn()} />)
+    expect(screen.getAllByText('NOTA D').length).toBe(2)
   })
 
   it('limits to 3 suggestion cards even if more provided', () => {
     const suggested = makeSuggestions(5)
-    const { container } = render(<EmptyState suggested={suggested} onCreate={vi.fn()} />)
-    const articles = container.querySelectorAll('article')
-    expect(articles.length).toBe(3)
+    render(<EmptyState suggested={suggested} onCreate={vi.fn()} />)
+    expect(screen.getAllByText('NOTA D').length).toBe(3)
   })
 
   it('calls onCreate from hero CTA', () => {
@@ -340,90 +339,65 @@ describe('EmptyState', () => {
  * AbLabDashboard (shell)
  * ============================================================ */
 describe('AbLabDashboard', () => {
-  const baseStats: DashboardStats = { activeTests: 2, avgConfidence: 92, winRate: 75, avgLift: 8.5 }
+  const baseStats: DashboardStats = {
+    activeTests: 2, avgConfidence: 92, winRate: 75, avgLift: 8.5,
+    completedTests: 4, testsWon: 3,
+  }
   const baseSettings: AbTestSiteSettings = { ...AB_SITE_SETTINGS_DEFAULTS }
+  const baseProps = {
+    stats: baseStats,
+    cards: [] as ReturnType<typeof makeCardView>[],
+    drafts: [] as ReturnType<typeof makeDraft>[],
+    completed: [] as ReturnType<typeof makeCompleted>[],
+    paused: [] as ReturnType<typeof makeCardView>[],
+    learnings: null,
+    channelLearnings: null,
+    suggested: [] as ReturnType<typeof makeSuggestion>[],
+    settings: baseSettings,
+    siteId: 'site-1',
+    eligibleVideos: [],
+    fatigueAlerts: [],
+  }
 
   beforeEach(() => {
     mockRouterPush.mockClear()
   })
 
   it('renders KPI strip when completed tests exist', () => {
-    const completed = [makeCompleted()]
     const { container } = render(
-      <AbLabDashboard
-        stats={baseStats}
-        cards={[makeCardView()]}
-        draft={null}
-        completed={completed}
-        paused={[]}
-        learnings={null}
-        suggested={[]}
-        settings={baseSettings}
-        siteId="site-1"
-      />,
+      <AbLabDashboard {...baseProps} cards={[makeCardView()]} completed={[makeCompleted()]} />,
     )
     const kpiStrip = container.querySelector('[data-kpi-strip]')
     expect(kpiStrip).toBeTruthy()
     expect(screen.getAllByText('Testes ativos').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText('Confiança média')).toBeTruthy()
-    expect(screen.getByText('Taxa de vitória')).toBeTruthy()
-    expect(screen.getByText('Lift médio')).toBeTruthy()
+    expect(screen.getByText('Win rate')).toBeTruthy()
+    expect(screen.getByText('CTR lift médio')).toBeTruthy()
   })
 
-  it('renders EmptyState when no active tests and no draft', () => {
+  it('shows "Nenhum teste ativo" when no active tests and no draft', () => {
     render(
       <AbLabDashboard
-        stats={{ activeTests: 0, avgConfidence: 0, winRate: 0, avgLift: 0 }}
-        cards={[]}
-        draft={null}
-        completed={[]}
-        paused={[]}
-        learnings={null}
-        suggested={[]}
-        settings={baseSettings}
-        siteId="site-1"
+        {...baseProps}
+        stats={{ activeTests: 0, avgConfidence: 0, winRate: 0, avgLift: 0, completedTests: 0, testsWon: 0 }}
       />,
     )
-    expect(screen.getByText('+ Novo teste')).toBeTruthy()
+    expect(screen.getByText('Nenhum teste ativo')).toBeTruthy()
   })
 
   it('opens Settings drawer when Settings button is clicked', () => {
-    render(
-      <AbLabDashboard
-        stats={baseStats}
-        cards={[makeCardView()]}
-        draft={null}
-        completed={[]}
-        paused={[]}
-        learnings={null}
-        suggested={[]}
-        settings={baseSettings}
-        siteId="site-1"
-      />,
-    )
+    render(<AbLabDashboard {...baseProps} cards={[makeCardView()]} />)
     // Initially no dialog
     expect(screen.queryByRole('dialog')).toBeNull()
     // Click settings
-    fireEvent.click(screen.getByLabelText('Settings'))
+    fireEvent.click(screen.getByLabelText('Configurações'))
     // Dialog should appear
     expect(screen.getByRole('dialog')).toBeTruthy()
   })
 
   it('renders active cards in a 2-col grid', () => {
     const cards = [makeCardView(), makeCardView()]
-    const { container } = render(
-      <AbLabDashboard
-        stats={baseStats}
-        cards={cards}
-        draft={null}
-        completed={[]}
-        paused={[]}
-        learnings={null}
-        suggested={[]}
-        settings={baseSettings}
-        siteId="site-1"
-      />,
-    )
+    const { container } = render(<AbLabDashboard {...baseProps} cards={cards} />)
     const grid = container.querySelector('[data-active-grid]')
     expect(grid).toBeTruthy()
     expect(grid?.className).toContain('lg:grid-cols-2')
@@ -433,19 +407,7 @@ describe('AbLabDashboard', () => {
   })
 
   it('has animate-ab-fade-up on root element', () => {
-    const { container } = render(
-      <AbLabDashboard
-        stats={baseStats}
-        cards={[]}
-        draft={null}
-        completed={[]}
-        paused={[]}
-        learnings={null}
-        suggested={[]}
-        settings={baseSettings}
-        siteId="site-1"
-      />,
-    )
+    const { container } = render(<AbLabDashboard {...baseProps} />)
     const root = container.querySelector('[data-dashboard-root]')
     expect(root).toBeTruthy()
     expect(root?.className).toContain('animate-ab-fade-up')

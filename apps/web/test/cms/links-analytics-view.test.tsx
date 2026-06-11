@@ -6,10 +6,24 @@ vi.mock('../../src/app/cms/(authed)/links/actions', () => ({
   exportAnalyticsCsv: vi.fn().mockResolvedValue({ ok: true, csv: 'header\r\ndata\r\n' }),
 }))
 
+// TopLinksTable (rendered inside AnalyticsView) calls useRouter — without this
+// mock every test dies with "invariant expected app router to be mounted".
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn(), back: vi.fn(), refresh: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(''),
+  usePathname: () => '/cms/links',
+}))
+
 vi.mock('lucide-react', () => {
   const icon = (name: string) => (props: Record<string, unknown>) => <svg data-testid={`icon-${name}`} {...props} />
+  // `then` MUST resolve to undefined: vitest `await`s the factory result, and a
+  // Proxy that returns a function for EVERY key (including `then`) is a thenable
+  // whose `then` never settles — the lucide-react import deadlocks the fork at
+  // 0% CPU and the whole suite hangs forever (this is what hung CI for 6h).
+  // (`has` trap: vitest checks `export in mock` before reading it.)
   return new Proxy({} as Record<string, unknown>, {
-    get: (_target, prop: string) => icon(prop),
+    get: (_target, prop) => (typeof prop !== 'string' || prop === 'then' ? undefined : icon(prop)),
+    has: (_target, prop) => typeof prop === 'string' && prop !== 'then',
   })
 })
 
@@ -113,27 +127,27 @@ describe('AnalyticsView', () => {
 
   it('renders source breakdown panel', () => {
     const { getByText } = render(<AnalyticsView data={analytics} />)
-    expect(getByText('Origem do trafego')).toBeTruthy()
+    expect(getByText('Por origem')).toBeTruthy()
   })
 
   it('renders device donut', () => {
     const { getByText } = render(<AnalyticsView data={analytics} />)
-    expect(getByText('Dispositivos')).toBeTruthy()
+    expect(getByText('Dispositivo')).toBeTruthy()
   })
 
   it('renders browser bars', () => {
     const { getByText } = render(<AnalyticsView data={analytics} />)
-    expect(getByText('Navegadores')).toBeTruthy()
+    expect(getByText('Navegador')).toBeTruthy()
   })
 
   it('renders heatmap panel', () => {
     const { getByText } = render(<AnalyticsView data={analytics} />)
-    expect(getByText(/Horarios de pico/)).toBeTruthy()
+    expect(getByText(/Horários de pico/)).toBeTruthy()
   })
 
   it('renders country panel', () => {
     const { getByText } = render(<AnalyticsView data={analytics} />)
-    expect(getByText(/paises/i)).toBeTruthy()
+    expect(getByText(/países/i)).toBeTruthy()
   })
 
   it('renders insights panel', () => {
@@ -150,23 +164,22 @@ describe('AnalyticsView', () => {
       referrers: [],
       countries: [],
     }
-    const { getByText } = render(<AnalyticsView data={emptyAnalytics} />)
-    expect(getByText('Dados de dispositivos ainda nao disponiveis.')).toBeTruthy()
-    expect(getByText('Dados de navegadores ainda nao disponiveis.')).toBeTruthy()
-    expect(getByText('Dados de sistemas ainda nao disponiveis.')).toBeTruthy()
-    expect(getByText('Dados de referrers ainda nao disponiveis.')).toBeTruthy()
-    expect(getByText('Dados geograficos ainda nao disponiveis.')).toBeTruthy()
+    const { getAllByText, getByText } = render(<AnalyticsView data={emptyAnalytics} />)
+    // Navegador / Sistema / Referrer share the same empty copy; the device
+    // donut always renders (zeroed segments) so it has no empty state.
+    expect(getAllByText('Sem dados ainda.').length).toBe(3)
+    expect(getByText('Sem dados geográficos ainda.')).toBeTruthy()
   })
 
   it('renders potential features panel', () => {
     const { getByText } = render(<AnalyticsView data={analytics} />)
-    expect(getByText('Potencial')).toBeTruthy()
-    expect(getByText('UTM Attribution')).toBeTruthy()
+    expect(getByText('Potencial — a implementar')).toBeTruthy()
+    expect(getByText('Atribuição UTM')).toBeTruthy()
   })
 
   it('renders period comparison note', () => {
     const { getByText } = render(<AnalyticsView data={analytics} />)
-    expect(getByText(/Comparando com periodo anterior/)).toBeTruthy()
+    expect(getByText(/Comparando com período anterior/)).toBeTruthy()
   })
 
   it('renders top links table when topLinks has data', () => {
@@ -177,17 +190,17 @@ describe('AnalyticsView', () => {
       ],
     }
     const { getByText } = render(<AnalyticsView data={withTopLinks} />)
-    expect(getByText('Top links')).toBeTruthy()
+    expect(getByText(/Top links/)).toBeTruthy()
     expect(getByText('My Link')).toBeTruthy()
   })
 
   it('hides top links table when topLinks is empty', () => {
     const { queryByText } = render(<AnalyticsView data={analytics} />)
-    expect(queryByText('Top links')).toBeNull()
+    expect(queryByText(/Top links/)).toBeNull()
   })
 
   it('renders CSV export button', () => {
     const { getByText } = render(<AnalyticsView data={analytics} />)
-    expect(getByText('Exportar CSV')).toBeTruthy()
+    expect(getByText('CSV')).toBeTruthy()
   })
 })

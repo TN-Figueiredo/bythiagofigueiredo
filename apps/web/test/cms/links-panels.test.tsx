@@ -4,16 +4,24 @@ import { render, cleanup } from '@testing-library/react'
 
 vi.mock('lucide-react', () => {
   const icon = (name: string) => (props: Record<string, unknown>) => <svg data-testid={`icon-${name}`} {...props} />
-  return {
-    Link2: icon('Link2'),
-    TrendingUp: icon('TrendingUp'),
-    Lightbulb: icon('Lightbulb'),
-    Sparkles: icon('Sparkles'),
-    ChevronRight: icon('ChevronRight'),
-    ExternalLink: icon('ExternalLink'),
-    Zap: icon('Zap'),
-  }
+  // Guarded Proxy: serves ANY icon the component tree asks for, so the mock
+  // doesn't rot when components add icons (the previous explicit list broke on
+  // every new icon). `then` must resolve to undefined — a thenable mock
+  // namespace deadlocks vitest's `await factory()` forever.
+  // (`has` trap: vitest checks `export in mock` before reading it.)
+  return new Proxy({} as Record<string, unknown>, {
+    get: (_target, prop) => (typeof prop !== 'string' || prop === 'then' ? undefined : icon(prop)),
+    has: (_target, prop) => typeof prop === 'string' && prop !== 'then',
+  })
 })
+
+// TopLinksTable rows navigate via useRouter — without this mock its tests die
+// with "invariant expected app router to be mounted".
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn(), back: vi.fn(), refresh: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(''),
+  usePathname: () => '/cms/links',
+}))
 
 import { SourceBars } from '@/app/cms/(authed)/links/_components/source-bars'
 import { TopLinksTable } from '@/app/cms/(authed)/links/_components/top-links-table'
@@ -44,7 +52,8 @@ describe('SourceBars', () => {
 
   it('renders colored dots for sources', () => {
     const { container } = render(<SourceBars sources={sources} />)
-    const dots = container.querySelectorAll('[data-source-dot]')
+    // Dots are the aria-hidden color chips inside each source row
+    const dots = container.querySelectorAll('[data-source-row] span[aria-hidden="true"]')
     expect(dots.length).toBe(3)
   })
 })
@@ -97,24 +106,21 @@ describe('InsightsPanel', () => {
 })
 
 describe('PotentialPanel', () => {
-  const features = [
-    { id: 'utm', label: 'UTM Attribution', desc: 'Veja de onde vem seu trafego' },
-    { id: 'geo', label: 'Geo Map', desc: 'Mapa mundial de visitantes' },
-  ]
+  // PotentialPanel now owns a fixed FEATURES roadmap list (no props)
 
   it('renders features list', () => {
-    const { getByText } = render(<PotentialPanel features={features} />)
-    expect(getByText('UTM Attribution')).toBeTruthy()
-    expect(getByText('Geo Map')).toBeTruthy()
+    const { getByText } = render(<PotentialPanel />)
+    expect(getByText('Atribuição UTM')).toBeTruthy()
+    expect(getByText('Mapa geográfico')).toBeTruthy()
   })
 
   it('renders descriptions', () => {
-    const { getByText } = render(<PotentialPanel features={features} />)
-    expect(getByText('Veja de onde vem seu trafego')).toBeTruthy()
+    const { getByText } = render(<PotentialPanel />)
+    expect(getByText('Quebrar por source / medium / campaign automaticamente.')).toBeTruthy()
   })
 
   it('renders panel title', () => {
-    const { getByText } = render(<PotentialPanel features={features} />)
-    expect(getByText('Potencial')).toBeTruthy()
+    const { getByText } = render(<PotentialPanel />)
+    expect(getByText('Potencial — a implementar')).toBeTruthy()
   })
 })

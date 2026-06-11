@@ -15,16 +15,15 @@ Object.defineProperty(globalThis, 'localStorage', { value: localStorageMock })
 
 vi.mock('lucide-react', () => {
   const icon = (name: string) => (props: Record<string, unknown>) => <svg data-testid={`icon-${name}`} {...props} />
-  return {
-    Link2: icon('Link2'),
-    ExternalLink: icon('ExternalLink'),
-    Info: icon('Info'),
-    Edit: icon('Edit'),
-    Trophy: icon('Trophy'),
-    Eye: icon('Eye'),
-    Users: icon('Users'),
-    Target: icon('Target'),
-  }
+  // Guarded Proxy: serves ANY icon the component tree asks for, so the mock
+  // doesn't rot when components add icons (the previous explicit list broke on
+  // every new icon). `then` must resolve to undefined — a thenable mock
+  // namespace deadlocks vitest's `await factory()` forever.
+  // (`has` trap: vitest checks `export in mock` before reading it.)
+  return new Proxy({} as Record<string, unknown>, {
+    get: (_target, prop) => (typeof prop !== 'string' || prop === 'then' ? undefined : icon(prop)),
+    has: (_target, prop) => typeof prop === 'string' && prop !== 'then',
+  })
 })
 
 vi.mock('next/navigation', () => ({
@@ -80,9 +79,10 @@ describe('TreeTab', () => {
   })
 
   it('renders block names', () => {
-    const { getByText } = render(<TreeTab tree={treeMock} />)
-    expect(getByText('Blog')).toBeTruthy()
-    expect(getByText('Newsletter')).toBeTruthy()
+    // 'Blog' also appears as a source label elsewhere in the tab — use *AllBy*
+    const { getAllByText } = render(<TreeTab tree={treeMock} />)
+    expect(getAllByText('Blog').length).toBeGreaterThanOrEqual(1)
+    expect(getAllByText('Newsletter').length).toBeGreaterThanOrEqual(1)
   })
 
   it('renders edit and open buttons', () => {
@@ -115,7 +115,7 @@ describe('TreeTab', () => {
   it('renders analytics link in block performance panel', () => {
     localStorageMock.getItem.mockReturnValue(null)
     const { getByText } = render(<TreeTab tree={treeMock} />)
-    const link = getByText('Analytics →')
+    const link = getByText('Analytics')
     expect(link).toBeTruthy()
     expect(link.getAttribute('href')).toBe('/cms/links?tab=analytics')
   })

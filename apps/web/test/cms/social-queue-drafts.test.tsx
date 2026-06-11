@@ -1,152 +1,107 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+// @vitest-environment happy-dom
+/**
+ * NOTE: this file originally tested <PostsQueue> and <PostsDrafts>, deleted in
+ * 35b6a0f7 (2026-05-30 dead-file cleanup) — the file was orphaned and failed
+ * module resolution ever since. <QueueList> and <DraftsList> are the live
+ * queue/drafts views; same intent: queued posts render in order with schedule
+ * info, drafts render with their trigger metadata.
+ */
+import { describe, it, expect, vi, afterEach } from 'vitest'
+import { render, screen, cleanup } from '@testing-library/react'
+import React from 'react'
 
 vi.mock('next/navigation', () => ({
-  useRouter: vi.fn(() => ({ push: vi.fn(), refresh: vi.fn() })),
-  usePathname: vi.fn(() => '/cms/social'),
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+  usePathname: () => '/cms/social/queue',
 }))
+
 vi.mock('next/link', () => ({
-  default: ({ children, href, ...props }: { children: React.ReactNode; href: string }) => (
-    <a href={href} {...props}>{children}</a>
+  default: ({ children, href, ...rest }: { children: React.ReactNode; href: string }) => (
+    <a href={href} {...rest}>{children}</a>
   ),
 }))
 
-import { PostsQueue } from '@/app/cms/(authed)/social/_components/posts-queue'
-import { PostsDrafts } from '@/app/cms/(authed)/social/_components/posts-drafts'
-import { en } from '@/app/cms/(authed)/social/_i18n/en'
-import type { SocialPost } from '@tn-figueiredo/social'
+vi.mock('@/lib/social/actions', () => ({
+  reorderQueue: vi.fn().mockResolvedValue({ ok: true }),
+  deleteSocialPost: vi.fn().mockResolvedValue({ ok: true }),
+}))
 
-function makePost(overrides: Partial<SocialPost> = {}): SocialPost {
-  return {
-    id: `p-${Math.random()}`,
-    site_id: 's1',
-    created_by: 'u1',
-    type: 'text',
-    status: 'scheduled',
-    scheduled_at: '2026-05-20T10:00:00Z',
-    user_timezone: 'UTC',
-    published_at: null,
-    content: { description: 'Scheduled post' },
-    template_id: null,
-    idempotency_key: `k-${Math.random()}`,
-    created_at: '2026-05-10T09:00:00Z',
-    updated_at: '2026-05-10T09:00:00Z',
-    ...overrides,
-  }
-}
+import { QueueList } from '@/app/cms/(authed)/social/_components/queue-list'
+import { DraftsList } from '@/app/cms/(authed)/social/_components/drafts-list'
 
-// ── PostsQueue ────────────────────────────────────────────────────────────────
+afterEach(() => cleanup())
 
-describe('PostsQueue', () => {
-  beforeEach(() => vi.clearAllMocks())
+const queueItems = [
+  {
+    id: 'q1', title: 'First in line', queuePosition: 0,
+    scheduledAt: '2026-06-15T12:00:00Z', status: 'queued',
+    provider: 'instagram', surface: 'feed', destLabel: 'Instagram',
+  },
+  {
+    id: 'q2', title: 'Second in line', queuePosition: 1,
+    scheduledAt: null, status: 'queued',
+    provider: 'facebook', surface: 'page', destLabel: 'Facebook',
+  },
+]
 
-  it('renders empty state when no scheduled posts', () => {
-    render(<PostsQueue posts={[]} strings={en} />)
-    expect(screen.getByText(en.posts.emptyQueue)).toBeDefined()
+describe('QueueList', () => {
+  it('renders one row per queued item', () => {
+    render(<QueueList initialItems={queueItems} />)
+    expect(screen.getAllByRole('listitem').length).toBe(2)
   })
 
-  it('renders scheduled posts in the queue', () => {
-    const posts = [makePost({ id: 'q1', content: { description: 'Queue post 1' } })]
-    render(<PostsQueue posts={posts} strings={en} />)
-    expect(screen.getByText('Queue post 1')).toBeDefined()
+  it('renders titles linking to the post detail', () => {
+    render(<QueueList initialItems={queueItems} />)
+    expect(screen.getByText('First in line').closest('a')?.getAttribute('href')).toBe('/cms/social/q1')
+    expect(screen.getByText('Second in line').closest('a')?.getAttribute('href')).toBe('/cms/social/q2')
   })
 
-  it('shows scheduled time for each post', () => {
-    render(<PostsQueue posts={[makePost()]} strings={en} />)
-    // The component formats the date — just ensure some time text is present
-    const dateText = new Date('2026-05-20T10:00:00Z').toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-    expect(screen.getByText(dateText)).toBeDefined()
-  })
-
-  it('shows status badge for queued posts', () => {
-    render(<PostsQueue posts={[makePost()]} strings={en} />)
-    expect(screen.getByText(en.status.scheduled)).toBeDefined()
-  })
-
-  it('only shows posts with status=scheduled', () => {
-    const posts = [
-      makePost({ id: 'q1', status: 'scheduled', content: { description: 'Scheduled one' } }),
-      makePost({ id: 'q2', status: 'completed', content: { description: 'Published one' } }),
-      makePost({ id: 'q3', status: 'draft', content: { description: 'Draft one' } }),
-    ]
-    render(<PostsQueue posts={posts} strings={en} />)
-    expect(screen.getByText('Scheduled one')).toBeDefined()
-    expect(screen.queryByText('Published one')).toBeNull()
-    expect(screen.queryByText('Draft one')).toBeNull()
-  })
-
-  it('shows position number for each queued post', () => {
-    const posts = [
-      makePost({ id: 'q1', scheduled_at: '2026-05-20T08:00:00Z', content: { description: 'First' } }),
-      makePost({ id: 'q2', scheduled_at: '2026-05-20T10:00:00Z', content: { description: 'Second' } }),
-    ]
-    render(<PostsQueue posts={posts} strings={en} />)
+  it('renders position numbers in queue order', () => {
+    render(<QueueList initialItems={queueItems} />)
     expect(screen.getByText('1')).toBeDefined()
     expect(screen.getByText('2')).toBeDefined()
   })
 
-  it('sorts posts by scheduled_at ascending', () => {
-    const posts = [
-      makePost({ id: 'q2', scheduled_at: '2026-05-22T10:00:00Z', content: { description: 'Later post' } }),
-      makePost({ id: 'q1', scheduled_at: '2026-05-20T08:00:00Z', content: { description: 'Earlier post' } }),
-    ]
-    render(<PostsQueue posts={posts} strings={en} />)
-    const items = screen.getAllByRole('generic').filter(el => el.textContent?.includes('post'))
-    // "Earlier post" should appear before "Later post" in the DOM
-    const text = screen.getByText('Earlier post')
-    const later = screen.getByText('Later post')
-    expect(text.compareDocumentPosition(later) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  it('renders a drag handle per item', () => {
+    render(<QueueList initialItems={queueItems} />)
+    expect(screen.getByLabelText('Arrastar First in line')).toBeDefined()
+    expect(screen.getByLabelText('Arrastar Second in line')).toBeDefined()
+  })
+
+  it('renders the queue explainer copy', () => {
+    render(<QueueList initialItems={queueItems} />)
+    expect(screen.getByText(/A fila publica nos seus melhores horarios/)).toBeDefined()
   })
 })
 
-// ── PostsDrafts ────────────────────────────────────────────────────────────────
+describe('DraftsList', () => {
+  const drafts = [
+    {
+      id: 'd1', title: 'Cowork draft', description: 'Auto-generated from blog',
+      confidence: 0.87, trigger: 'blog_published',
+      createdAt: '2026-06-01T10:00:00Z', provider: 'instagram', surface: 'feed', lang: 'pt',
+    },
+    {
+      id: 'd2', title: 'Video teaser', description: 'From the new video',
+      confidence: null, trigger: 'video_published',
+      createdAt: '2026-06-02T10:00:00Z',
+    },
+  ]
 
-describe('PostsDrafts', () => {
-  beforeEach(() => vi.clearAllMocks())
-
-  it('renders empty state when no draft posts', () => {
-    render(<PostsDrafts posts={[]} strings={en} />)
-    expect(screen.getByText(en.posts.emptyDrafts)).toBeDefined()
+  it('renders one entry per draft with its title', () => {
+    render(<DraftsList items={drafts} />)
+    expect(screen.getByText('Cowork draft')).toBeDefined()
+    expect(screen.getByText('Video teaser')).toBeDefined()
   })
 
-  it('shows CTA link in empty state', () => {
-    render(<PostsDrafts posts={[]} strings={en} />)
-    const link = screen.getByRole('link', { name: en.posts.emptyDraftsCta })
-    expect(link.getAttribute('href')).toBe('/cms/social/new')
+  it('renders the confidence badge when confidence is present', () => {
+    render(<DraftsList items={drafts} />)
+    expect(screen.getByText(/87%/)).toBeDefined()
   })
 
-  it('renders draft posts', () => {
-    const posts = [makePost({ id: 'd1', status: 'draft', content: { description: 'Draft post' } })]
-    render(<PostsDrafts posts={posts} strings={en} />)
-    expect(screen.getByText('Draft post')).toBeDefined()
-  })
-
-  it('shows review button for each draft', () => {
-    const posts = [makePost({ id: 'd1', status: 'draft' })]
-    render(<PostsDrafts posts={posts} strings={en} />)
-    expect(screen.getByText(en.posts.review)).toBeDefined()
-  })
-
-  it('review link points to composer with draft id', () => {
-    const posts = [makePost({ id: 'draft-42', status: 'draft' })]
-    render(<PostsDrafts posts={posts} strings={en} />)
-    const link = screen.getByRole('link', { name: en.posts.review })
-    expect(link.getAttribute('href')).toBe('/cms/social/new?draft=draft-42')
-  })
-
-  it('only shows posts with status=draft', () => {
-    const posts = [
-      makePost({ id: 'd1', status: 'draft', content: { description: 'Draft one' } }),
-      makePost({ id: 's1', status: 'scheduled', content: { description: 'Scheduled one' } }),
-    ]
-    render(<PostsDrafts posts={posts} strings={en} />)
-    expect(screen.getByText('Draft one')).toBeDefined()
-    expect(screen.queryByText('Scheduled one')).toBeNull()
-  })
-
-  it('shows "(no content)" fallback when draft has no title or description', () => {
-    const posts = [makePost({ id: 'd1', status: 'draft', content: {} })]
-    render(<PostsDrafts posts={posts} strings={en} />)
-    expect(screen.getByText(en.posts.noContent)).toBeDefined()
+  it('renders trigger labels', () => {
+    render(<DraftsList items={drafts} />)
+    expect(screen.getByText(/Blog publicado/)).toBeDefined()
+    expect(screen.getByText(/Vídeo publicado/)).toBeDefined()
   })
 })
