@@ -1,13 +1,18 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { globSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
 import { Client } from 'pg'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 
-const MIGRATION = globSync('supabase/migrations/*_video_ideia_per_language.sql', {
-  cwd: process.cwd().replace(/apps\/web$/, ''),
-})[0]
+// readdirSync + filter instead of fs.globSync — globSync only exists on Node ≥22
+// and the CI Integration job runs Node 20.
+const REPO_ROOT = process.cwd().replace(/apps\/web$/, '')
+const MIGRATIONS_DIR = join(REPO_ROOT, 'supabase/migrations')
+const MIGRATION = join(
+  'supabase/migrations',
+  readdirSync(MIGRATIONS_DIR).find((f) => f.endsWith('_video_ideia_per_language.sql')) ?? '',
+)
 
 // Direct postgres URL — matches supabase start local defaults (same as db-seed).
 const PG_URL =
