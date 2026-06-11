@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeAll } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { randomUUID } from 'node:crypto'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
+import { seedSite } from '../helpers/db-seed'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { loadVideoDetail } from '@/lib/pipeline/load-video-detail'
 
@@ -22,21 +23,29 @@ describe.skipIf(skipIfNoLocalDb())('loadVideoDetail join', () => {
   beforeAll(async () => {
     const admin = getSupabaseServiceClient()
 
-    // Reuse an existing site to satisfy any site-scoped FKs/RLS deterministically.
-    const { data: site } = await admin.from('sites').select('id').limit(1).single()
-    siteId = site!.id
+    // Seed an isolated site: youtube_channels enforces UNIQUE (site_id, locale)
+    // and content_pipeline has a partial-unique title index — sharing the
+    // master site collides with parallel test files and previous runs.
+    const seededSite = await seedSite(admin)
+    siteId = seededSite.siteId
 
     // youtube_videos requires a channel_id FK — create a channel for this site.
+    // Schema columns (20260507000001): external id is `channel_id`; `locale`,
+    // `handle`, `name`, `uploads_playlist_id` are NOT NULL.
     channelId = randomUUID()
-    await admin.from('youtube_channels').insert({
+    const { error: chErr } = await admin.from('youtube_channels').insert({
       id: channelId,
       site_id: siteId,
-      youtube_channel_id: `ext-chan-${channelId.slice(0, 8)}`,
-      title: 'T channel',
+      channel_id: `ext-chan-${channelId.slice(0, 8)}`,
+      locale: 'pt',
+      handle: `@t-${channelId.slice(0, 8)}`,
+      name: 'T channel',
+      uploads_playlist_id: `UU-${channelId.slice(0, 8)}`,
     })
+    if (chErr) throw new Error(`channel seed failed: ${chErr.message}`)
 
     ytId = randomUUID()
-    await admin.from('youtube_videos').insert({
+    const { error: vidErr } = await admin.from('youtube_videos').insert({
       id: ytId,
       site_id: siteId,
       channel_id: channelId,
@@ -46,6 +55,7 @@ describe.skipIf(skipIfNoLocalDb())('loadVideoDetail join', () => {
       thumbnail_hq_url: 'https://x/t.jpg',
       published_at: new Date().toISOString(),
     })
+    if (vidErr) throw new Error(`video seed failed: ${vidErr.message}`)
 
     pipeId = randomUUID()
     await admin.from('content_pipeline').insert({
@@ -60,6 +70,14 @@ describe.skipIf(skipIfNoLocalDb())('loadVideoDetail join', () => {
       version: 1,
       sections: {},
     })
+  })
+
+  afterAll(async () => {
+    const admin = getSupabaseServiceClient()
+    await admin.from('content_pipeline').delete().eq('site_id', siteId)
+    if (ytId) await admin.from('youtube_videos').delete().eq('id', ytId)
+    if (channelId) await admin.from('youtube_channels').delete().eq('id', channelId)
+    if (siteId) await admin.from('sites').delete().eq('id', siteId)
   })
 
   it('returns the referenced youtube_videos thumbnail/duration via the join', async () => {

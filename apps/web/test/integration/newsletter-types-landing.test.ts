@@ -75,7 +75,7 @@ describe.skipIf(skipIfNoLocalDb())('newsletter_types landing columns', () => {
     const { error } = await db
       .from('newsletter_types')
       .update({ color_dark: 'not-a-color' })
-      .eq('id', 'main-en')
+      .eq('id', 'main-pt')
 
     expect(error).toBeTruthy()
     expect(error?.message).toContain('newsletter_types_color_dark_hex')
@@ -85,7 +85,7 @@ describe.skipIf(skipIfNoLocalDb())('newsletter_types landing columns', () => {
     const { error } = await db
       .from('newsletter_types')
       .update({ og_image_url: 'http://insecure.com/image.png' })
-      .eq('id', 'main-en')
+      .eq('id', 'main-pt')
 
     expect(error).toBeTruthy()
     expect(error?.message).toContain('newsletter_types_og_image_url_https')
@@ -95,12 +95,16 @@ describe.skipIf(skipIfNoLocalDb())('newsletter_types landing columns', () => {
     const { error } = await db
       .from('newsletter_types')
       .update({ landing_content: '"not-an-object"' })
-      .eq('id', 'main-en')
+      .eq('id', 'main-pt')
 
     expect(error).toBeTruthy()
   })
 
-  it('backfilled slugs exist for all 8 types', async () => {
+  it('backfilled slug exists for the seeded default type', async () => {
+    // The 2026-05-07 data-cleanup migration (20260507000004) deleted every
+    // newsletter type except the `main-pt` default — prod and fresh local DBs
+    // only carry `diario-do-bythiago` now (the original 8-type backfill list
+    // no longer reflects reality).
     const { data } = await db
       .from('newsletter_types')
       .select('id, slug')
@@ -108,20 +112,13 @@ describe.skipIf(skipIfNoLocalDb())('newsletter_types landing columns', () => {
 
     const slugs = (data ?? []).map((t) => t.slug)
     expect(slugs).toContain('diario-do-bythiago')
-    expect(slugs).toContain('the-bythiago-diary')
-    expect(slugs).toContain('curvas-e-estradas')
-    expect(slugs).toContain('curves-and-roads')
-    expect(slugs).toContain('crescer-de-dentro')
-    expect(slugs).toContain('grow-inward')
-    expect(slugs).toContain('codigo-em-portugues')
-    expect(slugs).toContain('code-in-portuguese')
   })
 
   it('updated_at trigger fires on UPDATE', async () => {
     const { data: before } = await db
       .from('newsletter_types')
       .select('updated_at')
-      .eq('id', 'main-en')
+      .eq('id', 'main-pt')
       .single()
 
     await new Promise((r) => setTimeout(r, 50))
@@ -129,12 +126,12 @@ describe.skipIf(skipIfNoLocalDb())('newsletter_types landing columns', () => {
     await db
       .from('newsletter_types')
       .update({ description: 'updated for test ' + Date.now() })
-      .eq('id', 'main-en')
+      .eq('id', 'main-pt')
 
     const { data: after } = await db
       .from('newsletter_types')
       .select('updated_at')
-      .eq('id', 'main-en')
+      .eq('id', 'main-pt')
       .single()
 
     expect(new Date(after!.updated_at).getTime()).toBeGreaterThan(

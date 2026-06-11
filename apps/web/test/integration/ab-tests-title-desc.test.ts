@@ -1,41 +1,28 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
-import { SUPABASE_URL, SERVICE_KEY } from '../helpers/db-seed'
+import { SUPABASE_URL, SERVICE_KEY, seedSite, seedYoutubeChannelAndVideo } from '../helpers/db-seed'
 import { createClient } from '@supabase/supabase-js'
 
 describe.skipIf(skipIfNoLocalDb())('ab-tests title/desc integration', () => {
   const supabase = createClient(SUPABASE_URL, SERVICE_KEY)
   let siteId: string
   let videoId: string
+  let channelId: string
 
   // Track created IDs for cleanup
   const createdTestIds: string[] = []
   const createdLinkIds: string[] = []
 
   beforeAll(async () => {
-    // Get existing site
-    const { data: site } = await supabase
-      .from('sites')
-      .select('id')
-      .limit(1)
-      .single()
-    siteId = site!.id
+    // Fresh local DBs have no YouTube data — and youtube_channels enforces
+    // UNIQUE (site_id, locale), so seed an isolated site + non-Short video
+    // (sharing the master site collides with parallel test files).
+    const seededSite = await seedSite(supabase)
+    siteId = seededSite.siteId
 
-    // Get a non-Short video
-    const { data: video } = await supabase
-      .from('youtube_videos')
-      .select('id')
-      .eq('site_id', siteId)
-      .gt('duration_seconds', 60)
-      .limit(1)
-      .single()
-
-    if (!video) {
-      throw new Error(
-        'Need at least one non-Short youtube_videos row for AB test title/desc integration tests',
-      )
-    }
-    videoId = video.id
+    const seeded = await seedYoutubeChannelAndVideo(supabase, siteId)
+    videoId = seeded.videoId
+    channelId = seeded.channelId
   })
 
   afterAll(async () => {
@@ -49,6 +36,9 @@ describe.skipIf(skipIfNoLocalDb())('ab-tests title/desc integration', () => {
     for (const linkId of createdLinkIds) {
       await supabase.from('tracked_links').delete().eq('id', linkId)
     }
+    if (videoId) await supabase.from('youtube_videos').delete().eq('id', videoId)
+    if (channelId) await supabase.from('youtube_channels').delete().eq('id', channelId)
+    if (siteId) await supabase.from('sites').delete().eq('id', siteId)
   })
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -225,7 +215,7 @@ describe.skipIf(skipIfNoLocalDb())('ab-tests title/desc integration', () => {
           destination_url: 'https://example.com/dest',
           source_type: 'ab_test',
           source_id: descTestId,
-          label: 'Test Link',
+          title: 'Test Link', // tracked_links has 'title', not 'label'
         })
         .select('id, code')
         .single()
@@ -253,20 +243,23 @@ describe.skipIf(skipIfNoLocalDb())('ab-tests title/desc integration', () => {
     })
 
     it('enforces unique constraint on (ab_test_id, variant_id, template_name)', async () => {
-      // Create another tracked link for the duplicate attempt
-      const { data: link2 } = await supabase
+      // Create another tracked link for the duplicate attempt.
+      // source_id must differ from the previous link: idx_tracked_links_source
+      // is UNIQUE (site_id, source_type, source_id) — reuse the variant id.
+      const { data: link2, error: link2Err } = await supabase
         .from('tracked_links')
         .insert({
           site_id: siteId,
           code: 'test-ab-dup-' + Date.now(),
           destination_url: 'https://example.com/dest2',
           source_type: 'ab_test',
-          source_id: descTestId,
-          label: 'Test Link 2',
+          source_id: descVariantId,
+          title: 'Test Link 2',
         })
         .select('id, code')
         .single()
 
+      expect(link2Err).toBeNull()
       createdLinkIds.push(link2!.id)
 
       // Insert with same (ab_test_id, variant_id, template_name) — should fail

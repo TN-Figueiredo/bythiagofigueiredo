@@ -31,12 +31,14 @@ describe.skipIf(skipIfNoLocalDb())('newsletter_author_fk migration', () => {
       .eq('is_default', true)
       .single()
 
+    // Matches the structural seed author (20260507000003_seed.sql):
+    // slug 'thiago-figueiredo', avatar hosted on Supabase storage.
     expect(error).toBeNull()
     expect(author).toBeTruthy()
     expect(author!.name).toBe('Thiago Figueiredo')
-    expect(author!.slug).toBe('thiago')
+    expect(author!.slug).toBe('thiago-figueiredo')
     expect(author!.bio).toContain('built software')
-    expect(author!.avatar_url).toBe('/identity/thiago.jpg')
+    expect(author!.avatar_url).toBeTruthy()
     expect(author!.is_default).toBe(true)
   })
 

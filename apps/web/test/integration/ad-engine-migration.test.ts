@@ -315,12 +315,15 @@ describe.skipIf(skipIfNoLocalDb())('ad-engine 1.0 migrations', () => {
     })
 
     it('canonical slot switches are present', async () => {
+      // Canonical post-page slot ids as seeded by the squashed structural seed
+      // (20260507000003_seed.sql) — the legacy banner_top/rail_left/... names
+      // were renamed to <page>:<zone>:<variant>-style ids before the squash.
       const canonicalIds = [
-        'ads_slot_banner_top',
-        'ads_slot_rail_left',
-        'ads_slot_rail_right',
-        'ads_slot_inline_mid',
-        'ads_slot_block_bottom',
+        'ads_slot_post_top_banner',
+        'ads_slot_post_rail_anchor_left',
+        'ads_slot_post_rail_anchor',
+        'ads_slot_post_body_bookmark',
+        'ads_slot_post_footer_coda',
       ]
 
       const { data, error } = await db

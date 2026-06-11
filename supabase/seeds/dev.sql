@@ -1,15 +1,15 @@
 -- DEV SEED ONLY — do not run against production
--- Creates a local super_admin user with a known password and fixed UUIDs.
+-- Creates a local super_admin user with a known password and demo content.
 -- Running this against prod would reset/overwrite real auth data.
-
--- Idempotence: truncate core tables with CASCADE so the seed can be re-run
--- cleanly regardless of how many child tables exist (Sprint 5e/5f added many).
--- auth.users is NOT truncated — handled via `on conflict (id) do update` below.
-truncate table
-  public.organizations,
-  public.sites,
-  public.authors
-cascade;
+--
+-- IMPORTANT (2026-06-11): this seed must NOT truncate organizations/sites/
+-- authors. The structural seed migration (20260507000003_seed.sql) creates the
+-- master org/site (with short_domain), the default author, the `main-pt`
+-- newsletter type, kill_switches, consent_texts, etc. A previous version of
+-- this file truncated those tables CASCADE, silently wiping all of that and
+-- breaking ~20 DB-gated integration tests. This seed now REUSES the structural
+-- rows and only adds dev-only extras (auth user, membership, demo posts and
+-- campaigns) idempotently.
 
 do $$
 declare
@@ -46,38 +46,64 @@ begin
   on conflict (id) do update set
     raw_app_meta_data = excluded.raw_app_meta_data;
 
-  -- ============ Sprint 2: master ring + site ============
-  insert into public.organizations (name, slug)
-  values ('Figueiredo Technology', 'figueiredo-tech')
-  returning id into v_org_id;
+  -- ============ master ring + site: REUSE the structural seed rows ============
+  -- (created by migration 20260507000003_seed.sql; fallback inserts only run
+  --  if the structural seed is somehow absent)
+  select id into v_org_id from public.organizations where slug = 'figueiredo-tech';
+  if v_org_id is null then
+    insert into public.organizations (name, slug)
+    values ('Figueiredo Technology', 'figueiredo-tech')
+    returning id into v_org_id;
+  end if;
 
-  insert into public.sites (org_id, name, slug, domains, primary_domain, default_locale, supported_locales)
-  values (
-    v_org_id,
-    'ByThiagoFigueiredo',
-    'bythiagofigueiredo',
-    array['bythiagofigueiredo.com', 'www.bythiagofigueiredo.com', 'localhost', '127.0.0.1'],
-    'bythiagofigueiredo.com',
-    'pt-BR',
-    array['pt-BR','en']
-  )
-  returning id into v_site_id;
+  select id into v_site_id from public.sites where slug = 'bythiagofigueiredo';
+  if v_site_id is null then
+    insert into public.sites (org_id, name, slug, domains, primary_domain, default_locale, supported_locales)
+    values (
+      v_org_id,
+      'ByThiagoFigueiredo',
+      'bythiagofigueiredo',
+      array['bythiagofigueiredo.com', 'www.bythiagofigueiredo.com'],
+      'bythiagofigueiredo.com',
+      'pt-BR',
+      array['pt-BR','en']
+    )
+    returning id into v_site_id;
+  end if;
+
+  -- Local dev needs localhost in the site's domain list for middleware
+  -- host→site resolution. Append once (idempotent).
+  update public.sites
+     set domains = domains || array['localhost', '127.0.0.1']
+   where id = v_site_id
+     and not (domains @> array['localhost']);
 
   update public.sites
-  set contact_notification_email = 'thiago@bythiagofigueiredo.com'
-  where id = v_site_id;
+     set contact_notification_email = coalesce(contact_notification_email, 'thiago@bythiagofigueiredo.com')
+   where id = v_site_id;
 
-  -- Sprint 4.75 RBAC v3: role check constraint only accepts 'org_admin'
-  -- (legacy 'owner'/'admin' were migrated by 20260420000001_rbac_v3_schema).
+  -- Sprint 4.75 RBAC v3: role check constraint only accepts 'org_admin'.
   insert into public.organization_members (org_id, user_id, role)
-  values (v_org_id, v_user_id, 'org_admin');
+  values (v_org_id, v_user_id, 'org_admin')
+  on conflict (org_id, user_id) do nothing;
 
-  -- After truncate this insert always succeeds; `on conflict` kept as a cheap
-  -- defensive guard in case another author insert is added above this one later.
+  -- Dev author linked to the super_admin user. The structural seed already
+  -- provides the site's default author (is_default=true, slug
+  -- 'thiago-figueiredo') — this one is a separate non-default author.
   insert into public.authors (user_id, name, slug, bio_md, site_id)
   values (v_user_id, 'Thiago Figueiredo', 'thiago', 'Builder. Writer.', v_site_id)
   on conflict (site_id, slug) do update set user_id = excluded.user_id
   returning id into v_author_id;
+
+  -- ============ demo blog posts (idempotent: delete-then-insert) ============
+  -- Replica mode disables FK cascade triggers, so delete child rows first.
+  delete from public.blog_posts
+   where id in (
+     select post_id from public.blog_translations
+      where slug in ('primeiro-post', 'first-post', 'rascunho', 'agendado')
+   );
+  delete from public.blog_translations
+   where slug in ('primeiro-post', 'first-post', 'rascunho', 'agendado');
 
   insert into public.blog_posts (author_id, status, published_at, site_id)
   values (v_author_id, 'published', now() - interval '1 day', v_site_id)
@@ -177,7 +203,12 @@ begin
     'Fique de olho.', 'Baixar'
   ) on conflict (campaign_id, locale) do nothing;
 
-  -- Submissions
+  -- Submissions (idempotent: delete-then-insert — id is generated, so
+  -- on-conflict would not dedupe re-runs)
+  delete from public.campaign_submissions
+   where campaign_id = '11111111-1111-1111-1111-111111111111'
+     and email in ('alice@example.com', 'bob@example.com', 'carol@example.com');
+
   insert into campaign_submissions
     (campaign_id, email, name, locale, consent_marketing, consent_text_version)
   values
@@ -186,6 +217,5 @@ begin
     ('11111111-1111-1111-1111-111111111111', 'bob@example.com', 'Bob',
      'pt-BR', true, 'v1-2026-04'),
     ('11111111-1111-1111-1111-111111111111', 'carol@example.com', 'Carol',
-     'en', true, 'v1-2026-04')
-  on conflict (id) do nothing;
+     'en', true, 'v1-2026-04');
 end $$;

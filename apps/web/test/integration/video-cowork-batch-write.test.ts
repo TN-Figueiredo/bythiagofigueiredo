@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { randomUUID } from 'node:crypto'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
@@ -23,17 +23,26 @@ describe.skipIf(skipIfNoLocalDb())('Cowork batch write is format-aware for video
     siteId = site!.id
 
     pipeId = randomUUID()
-    await admin.from('content_pipeline').insert({
+    // title must be unique per run: content_pipeline_active_title_uniq is a
+    // partial UNIQUE index on (site_id, format, lower(title)) — a fixed title
+    // collides with leftovers from previous runs (409) and the insert was
+    // silently swallowed before.
+    const { error: insErr } = await admin.from('content_pipeline').insert({
       id: pipeId,
       site_id: siteId,
       format: 'video',
       stage: 'idea',
       language: 'pt-br',
       code: `VID-CW-${pipeId.slice(0, 8)}`,
-      title_pt: 'X',
+      title_pt: `Cowork batch ${pipeId.slice(0, 8)}`,
       version: 1,
       sections: {},
     })
+    if (insErr) throw new Error(`content_pipeline seed failed: ${insErr.message}`)
+  })
+
+  afterAll(async () => {
+    if (pipeId) await admin.from('content_pipeline').delete().eq('id', pipeId)
   })
 
   it('a cowork ideia/pt update on a video item writes key ideia_pt (NOT ideia_shared)', async () => {

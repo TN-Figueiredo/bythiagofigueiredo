@@ -171,7 +171,9 @@ describe.skipIf(skipIfNoLocalDb())('Link Tracker schema — integration', () => 
       expect(data?.active).toBe(true)
       expect(data?.source_type).toBe('manual')
       expect(data?.total_clicks).toBe(0)
-      expect(data?.redirect_type).toBe(302)
+      // 307 since 20260518000003 (Links Engine A+): preserves method + avoids
+      // permanent caching while tests/edits are live.
+      expect(data?.redirect_type).toBe(307)
     })
 
     it('enforces unique (site_id, code)', async () => {
@@ -520,7 +522,9 @@ describe.skipIf(skipIfNoLocalDb())('Link Tracker schema — integration', () => 
       expect(rpcErr).toBeNull()
       expect((result as { anonymized: number }).anonymized).toBeGreaterThan(0)
 
-      // Verify PII is gone.
+      // Verify PII is gone. `visitor_id` is intentionally KEPT (commit
+      // b7af842c, migration 000012): it's a daily-rotating SHA-256(ip|ua|date)
+      // hash — non-reversible, non-PII — preserved for unique-visitor stats.
       const { data: row } = await db
         .from('link_clicks')
         .select('ip, user_agent, visitor_id, city, region')
@@ -528,7 +532,7 @@ describe.skipIf(skipIfNoLocalDb())('Link Tracker schema — integration', () => 
         .single()
       expect(row?.ip).toBeNull()
       expect(row?.user_agent).toBeNull()
-      expect(row?.visitor_id).toBeNull()
+      expect(row?.visitor_id).toBe('visitor-abc')
       expect(row?.city).toBeNull()
       expect(row?.region).toBeNull()
 

@@ -1,38 +1,25 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
-import { SUPABASE_URL, SERVICE_KEY } from '../helpers/db-seed'
+import { SUPABASE_URL, SERVICE_KEY, seedSite, seedYoutubeChannelAndVideo } from '../helpers/db-seed'
 import { createClient } from '@supabase/supabase-js'
 
 describe.skipIf(skipIfNoLocalDb())('ab-tests integration', () => {
   const supabase = createClient(SUPABASE_URL, SERVICE_KEY)
   let siteId: string
   let videoId: string
+  let channelId: string
   let testId: string
 
   beforeAll(async () => {
-    // Get existing site
-    const { data: site } = await supabase
-      .from('sites')
-      .select('id')
-      .limit(1)
-      .single()
-    siteId = site!.id
+    // Fresh local DBs have no YouTube data — and youtube_channels enforces
+    // UNIQUE (site_id, locale), so seed an isolated site + non-Short video
+    // (sharing the master site collides with parallel test files).
+    const seededSite = await seedSite(supabase)
+    siteId = seededSite.siteId
 
-    // Get a non-Short video
-    const { data: video } = await supabase
-      .from('youtube_videos')
-      .select('id')
-      .eq('site_id', siteId)
-      .gt('duration_seconds', 60)
-      .limit(1)
-      .single()
-
-    if (!video) {
-      throw new Error(
-        'Need at least one non-Short youtube_videos row for AB test integration tests',
-      )
-    }
-    videoId = video.id
+    const seeded = await seedYoutubeChannelAndVideo(supabase, siteId)
+    videoId = seeded.videoId
+    channelId = seeded.channelId
   })
 
   afterAll(async () => {
@@ -41,6 +28,9 @@ describe.skipIf(skipIfNoLocalDb())('ab-tests integration', () => {
       await supabase.from('ab_test_variants').delete().eq('test_id', testId)
       await supabase.from('ab_tests').delete().eq('id', testId)
     }
+    if (videoId) await supabase.from('youtube_videos').delete().eq('id', videoId)
+    if (channelId) await supabase.from('youtube_channels').delete().eq('id', channelId)
+    if (siteId) await supabase.from('sites').delete().eq('id', siteId)
   })
 
   it('creates a draft test', async () => {

@@ -417,7 +417,7 @@ describe('hydrateWeekSlots', () => {
     }]
     const items = [makePipelineItem({
       id: 'v1', title: 'My Video', stage: 'edicao', format: 'video',
-      youtube_channel_id: 'ch-pt', scheduled_at: '2026-05-26T10:00:00',
+      youtube_channel_id: 'ch-pt', scheduled_at: '2026-05-26T10:00:00-03:00',
     })]
 
     const result = hydrateWeekSlots(slots, items, SITE_TZ)
@@ -432,7 +432,7 @@ describe('hydrateWeekSlots', () => {
       assignedItem: null, effortMinutes: 0,
     }]
     const items = [makePipelineItem({
-      id: 'v1', youtube_channel_id: 'ch-pt', scheduled_at: '2026-05-27T10:00:00',
+      id: 'v1', youtube_channel_id: 'ch-pt', scheduled_at: '2026-05-27T10:00:00-03:00',
     })]
 
     const result = hydrateWeekSlots(slots, items, SITE_TZ)
@@ -447,7 +447,7 @@ describe('hydrateWeekSlots', () => {
     }]
     const items = [makePipelineItem({
       id: 'b1', format: 'blog_post', youtube_channel_id: null,
-      scheduled_at: '2026-05-26T10:00:00',
+      scheduled_at: '2026-05-26T10:00:00-03:00',
     })]
 
     const result = hydrateWeekSlots(slots, items, SITE_TZ)
@@ -461,7 +461,7 @@ describe('hydrateWeekSlots', () => {
       assignedItem: null, effortMinutes: 0,
     }]
     const items = [makePipelineItem({
-      id: 'v1', youtube_channel_id: 'ch-pt', scheduled_at: '2026-05-26T14:00:00',
+      id: 'v1', youtube_channel_id: 'ch-pt', scheduled_at: '2026-05-26T14:00:00-03:00',
     })]
 
     const result = hydrateWeekSlots(slots, items, SITE_TZ)
@@ -483,7 +483,7 @@ describe('hydrateWeekSlots', () => {
     ]
     const items = [makePipelineItem({
       id: 'v1', title: 'PT Video', youtube_channel_id: 'ch-pt',
-      scheduled_at: '2026-05-26T10:00:00',
+      scheduled_at: '2026-05-26T10:00:00-03:00',
     })]
 
     const result = hydrateWeekSlots(slots, items, SITE_TZ)
@@ -499,7 +499,7 @@ describe('hydrateWeekSlots', () => {
     }]
     const items = [makePipelineItem({
       id: 'b1', title: 'Blog Post', stage: 'draft', format: 'blog_post',
-      youtube_channel_id: null, scheduled_at: '2026-05-25T00:00:00',
+      youtube_channel_id: null, scheduled_at: '2026-05-25T00:00:00-03:00',
     })]
 
     const result = hydrateWeekSlots(slots, items, SITE_TZ)
@@ -514,7 +514,7 @@ describe('hydrateWeekSlots', () => {
     }]
     const items = [makePipelineItem({
       id: 'nl1', title: 'Newsletter', stage: 'draft', format: 'newsletter',
-      youtube_channel_id: null, scheduled_at: '2026-05-27T14:00:00',
+      youtube_channel_id: null, scheduled_at: '2026-05-27T14:00:00-03:00',
     })]
 
     const result = hydrateWeekSlots(slots, items, SITE_TZ)
@@ -535,7 +535,7 @@ describe('hydrateWeekSlots', () => {
       },
     ]
     const items = [makePipelineItem({
-      id: 'v1', youtube_channel_id: 'ch-pt', scheduled_at: '2026-05-26T10:00:00',
+      id: 'v1', youtube_channel_id: 'ch-pt', scheduled_at: '2026-05-26T10:00:00-03:00',
     })]
 
     const result = hydrateWeekSlots(slots, items, SITE_TZ)
@@ -551,8 +551,8 @@ describe('hydrateWeekSlots', () => {
       assignedItem: null, effortMinutes: 0,
     }]
     const items = [
-      makePipelineItem({ id: 'v1', title: 'First', stage: 'edicao', youtube_channel_id: 'ch-pt', scheduled_at: '2026-05-26T10:00:00' }),
-      makePipelineItem({ id: 'v2', title: 'Second', stage: 'gravacao', youtube_channel_id: 'ch-pt', scheduled_at: '2026-05-26T10:00:00' }),
+      makePipelineItem({ id: 'v1', title: 'First', stage: 'edicao', youtube_channel_id: 'ch-pt', scheduled_at: '2026-05-26T10:00:00-03:00' }),
+      makePipelineItem({ id: 'v2', title: 'Second', stage: 'gravacao', youtube_channel_id: 'ch-pt', scheduled_at: '2026-05-26T10:00:00-03:00' }),
     ]
 
     const result = hydrateWeekSlots(slots, items, SITE_TZ)
@@ -589,7 +589,7 @@ describe('hydrateWeekSlots', () => {
       channelLocale: null, channelId: null, isRestDay: true,
       assignedItem: null, effortMinutes: 0,
     }]
-    const items = [makePipelineItem({ id: 'v1', scheduled_at: '2026-05-30T00:00:00' })]
+    const items = [makePipelineItem({ id: 'v1', scheduled_at: '2026-05-30T00:00:00-03:00' })]
 
     const result = hydrateWeekSlots(slots, items, SITE_TZ)
     expect(result[0].assignedItem).toBeNull()
@@ -604,7 +604,7 @@ describe('hydrateWeekSlots', () => {
     }]
     const items = [makePipelineItem({
       id: 'different', title: 'New Item', stage: 'edicao',
-      youtube_channel_id: 'ch-pt', scheduled_at: '2026-05-26T10:00:00',
+      youtube_channel_id: 'ch-pt', scheduled_at: '2026-05-26T10:00:00-03:00',
     })]
 
     const result = hydrateWeekSlots(slots, items, SITE_TZ)
@@ -619,7 +619,7 @@ describe('hydrateWeekSlots', () => {
       assignedItem: null, effortMinutes: 0,
     }]
     const items = [makePipelineItem({
-      id: 'v1', youtube_channel_id: null, scheduled_at: '2026-05-26T10:00:00',
+      id: 'v1', youtube_channel_id: null, scheduled_at: '2026-05-26T10:00:00-03:00',
     })]
 
     const result = hydrateWeekSlots(slots, items, SITE_TZ)
@@ -634,7 +634,7 @@ describe('hydrateWeekSlots', () => {
     }]
     const items = [makePipelineItem({
       id: 'v1', stage: 'published', youtube_channel_id: 'ch-pt',
-      scheduled_at: '2026-05-26T10:00:00',
+      scheduled_at: '2026-05-26T10:00:00-03:00',
     })]
 
     const result = hydrateWeekSlots(slots, items, SITE_TZ)
@@ -650,7 +650,7 @@ describe('hydrateWeekSlots', () => {
     }]
     const items = [makePipelineItem({
       id: 'v1', stage: 'scheduled', youtube_channel_id: 'ch-pt',
-      scheduled_at: '2026-05-26T10:00:00',
+      scheduled_at: '2026-05-26T10:00:00-03:00',
     })]
 
     const result = hydrateWeekSlots(slots, items, SITE_TZ)
@@ -697,7 +697,7 @@ describe('hydrateWeekSlots', () => {
     }]
     const original = JSON.parse(JSON.stringify(slots))
     const items = [makePipelineItem({
-      id: 'v1', youtube_channel_id: 'ch-pt', scheduled_at: '2026-05-26T10:00:00',
+      id: 'v1', youtube_channel_id: 'ch-pt', scheduled_at: '2026-05-26T10:00:00-03:00',
     })]
 
     hydrateWeekSlots(slots, items, SITE_TZ)

@@ -1,12 +1,17 @@
-import { describe, it, expect, beforeAll } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { globSync } from 'node:fs'
+import { Client } from 'pg'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 
 const MIGRATION = globSync('supabase/migrations/*_video_ideia_per_language.sql', {
   cwd: process.cwd().replace(/apps\/web$/, ''),
 })[0]
+
+// Direct postgres URL — matches supabase start local defaults (same as db-seed).
+const PG_URL =
+  process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 
 describe.skipIf(skipIfNoLocalDb())('video ideia per-language backfill', () => {
   let siteId: string
@@ -31,12 +36,28 @@ describe.skipIf(skipIfNoLocalDb())('video ideia per-language backfill', () => {
     ids.pt = await seed('pt-br')
     ids.en = await seed('en')
     ids.both = await seed('both')
+    // The migration is a one-time data backfill that already ran during
+    // `db reset` — BEFORE these rows existed. Re-execute its (idempotent) SQL
+    // so the backfill applies to the freshly seeded rows.
+    await runMigration()
+  })
+
+  afterAll(async () => {
+    const supabase = getSupabaseServiceClient()
+    const seeded = Object.values(ids).filter(Boolean)
+    if (seeded.length) await supabase.from('content_pipeline').delete().in('id', seeded)
   })
 
   async function runMigration() {
-    // Apply via db:reset which replays migrations, OR exec the SQL through an RPC.
-    // Simplest deterministic path in test: execute the migration body via supabase.rpc('exec_sql')
-    // if available; otherwise this suite relies on `npm run db:reset` having applied it.
+    const root = process.cwd().replace(/apps\/web$/, '')
+    const sql = readFileSync(`${root}${MIGRATION}`, 'utf8')
+    const pg = new Client({ connectionString: PG_URL })
+    await pg.connect()
+    try {
+      await pg.query(sql)
+    } finally {
+      await pg.end()
+    }
   }
 
   async function keysOf(id: string): Promise<string[]> {

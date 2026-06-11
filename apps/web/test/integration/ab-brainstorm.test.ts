@@ -12,7 +12,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
-import { SUPABASE_URL, SERVICE_KEY } from '../helpers/db-seed'
+import { SUPABASE_URL, SERVICE_KEY, seedSite } from '../helpers/db-seed'
 import { createClient } from '@supabase/supabase-js'
 import { randomUUID } from 'node:crypto'
 
@@ -65,19 +65,24 @@ function randomYtId(): string {
  * Seeds a minimal youtube_channels row.
  * Returns the channel's internal UUID.
  *
- * TODO: add channel_type or any other NOT-NULL columns if the schema requires
- * them — check supabase/migrations for the youtube_channels table definition.
+ * Column names match the squashed schema (20260507000001): the external id
+ * column is `channel_id`; `locale`, `handle`, `name`, `uploads_playlist_id`
+ * are NOT NULL.
  */
 async function seedChannel(
   siteId: string,
   opts: { name?: string; subscriberCount?: number } = {},
 ): Promise<string> {
+  const suffix = randomUUID().replace(/-/g, '').slice(0, 22)
   const { data, error } = await supabase
     .from('youtube_channels')
     .insert({
       site_id: siteId,
-      youtube_channel_id: `UC${randomUUID().replace(/-/g, '').slice(0, 22)}`,
+      channel_id: `UC${suffix}`,
+      locale: 'pt',
+      handle: `@test-${suffix.slice(0, 8)}`,
       name: opts.name ?? 'Test Channel',
+      uploads_playlist_id: `UU${suffix}`,
       subscriber_count: opts.subscriberCount ?? 10_000,
     })
     .select('id')
@@ -112,9 +117,12 @@ async function seedVideo(
       channel_id: channelId,
       youtube_video_id: youtubeVideoId,
       title: opts.title ?? 'Test Video',
+      published_at: new Date().toISOString(), // NOT NULL, no default
       ctr: opts.ctr ?? null,
       avg_view_percentage: opts.avgViewPercentage ?? null,
-      last_synced_at: opts.lastSyncedAt ?? new Date().toISOString(),
+      // analytics snapshot timestamp — column is last_analytics_sync_at
+      // (20260517000003_analytics_intelligence.sql), not last_synced_at.
+      last_analytics_sync_at: opts.lastSyncedAt ?? new Date().toISOString(),
       duration_seconds: 300, // non-Short so AB test eligible
     })
     .select('id')
@@ -124,11 +132,11 @@ async function seedVideo(
 }
 
 /**
- * Seeds a completed ab_test row for a given youtube_video_id.
+ * Seeds a completed ab_test row for a given video.
  * Returns the test UUID.
  *
- * TODO: ab_tests.youtube_video_id is the YT string id (not the internal UUID).
- * Verify this against the ab_tests table schema — adjust if needed.
+ * NOTE: ab_tests.youtube_video_id is a UUID — the INTERNAL youtube_videos.id,
+ * not the 11-char YouTube Data API id.
  */
 async function seedCompletedAbTest(
   siteId: string,
@@ -151,7 +159,9 @@ async function seedCompletedAbTest(
       status: 'completed',
       started_at: new Date(Date.now() - 7 * 86400_000).toISOString(),
       completed_at: new Date().toISOString(),
-      completed_reason: 'winner_declared',
+      // must satisfy ab_tests_completed_reason_check (auto_resolve,
+      // manual_winner, manual_archive, max_duration, inconclusive, ...)
+      completed_reason: 'auto_resolve',
       confidence_at_completion: opts.confidenceAtCompletion ?? 0.97,
       result_metadata: opts.ctrLiftPercent != null
         ? { ctr_lift_percent: opts.ctrLiftPercent }
@@ -202,6 +212,7 @@ describe.skipIf(skipIfNoLocalDb())('fetchAbBriefingData integration', () => {
   const createdTestIds: string[] = []
   const createdVideoIds: string[] = []
   const createdChannelIds: string[] = []
+  const createdSiteIds: string[] = []
 
   let siteId: string
 
@@ -218,6 +229,20 @@ describe.skipIf(skipIfNoLocalDb())('fetchAbBriefingData integration', () => {
     _mockSiteId = siteId
   })
 
+  /**
+   * youtube_channels has UNIQUE (site_id, locale) — one channel per site per
+   * locale. Each test that seeds its own channel must therefore run on a fresh
+   * site (also isolates from other test files running in parallel against the
+   * shared master site).
+   */
+  async function freshSiteScope(): Promise<string> {
+    const { siteId: freshId } = await seedSite(supabase)
+    createdSiteIds.push(freshId)
+    siteId = freshId
+    _mockSiteId = freshId
+    return freshId
+  }
+
   afterAll(async () => {
     // Clean up in reverse FK order: tests → variants (cascade) → videos → channels
     for (const testId of createdTestIds) {
@@ -230,6 +255,9 @@ describe.skipIf(skipIfNoLocalDb())('fetchAbBriefingData integration', () => {
     }
     if (createdChannelIds.length) {
       await supabase.from('youtube_channels').delete().in('id', createdChannelIds)
+    }
+    if (createdSiteIds.length) {
+      await supabase.from('sites').delete().in('id', createdSiteIds)
     }
   })
 
@@ -266,6 +294,7 @@ describe.skipIf(skipIfNoLocalDb())('fetchAbBriefingData integration', () => {
      *   data.testHistory = [] (no tests seeded yet)
      *   data.snapshotAgeHours >= 0
      */
+    await freshSiteScope()
     const channelId = await seedChannel(siteId, { name: 'Integration Channel', subscriberCount: 50_000 })
     createdChannelIds.push(channelId)
 
@@ -308,17 +337,14 @@ describe.skipIf(skipIfNoLocalDb())('fetchAbBriefingData integration', () => {
 
   it('handles channel not found gracefully — returns fallback channel name "Canal"', async () => {
     /*
-     * TODO: this test seeds a youtube_videos row with a channel_id pointing to
-     * a non-existent channel (a random UUID that was never inserted). The
-     * youtube_channels lookup should return null and fetchAbBriefingData must
-     * fall back to channel.name = "Canal".
-     *
-     * If the DB has a FK constraint on youtube_videos.channel_id → youtube_channels.id
-     * this test will fail at seed time. In that case, either:
-     *   a) seed a real channel first, then delete it before calling the function, or
-     *   b) update this test to confirm the FK prevents orphan rows (schema test).
-     * Check supabase/migrations for the actual FK definition.
+     * youtube_videos.channel_id has a NOT NULL FK to youtube_channels(id) —
+     * the channel cannot be deleted (RESTRICT) nor nulled while the video
+     * exists, so true orphan rows are impossible. The fallback branch in
+     * fetchAbBriefingData triggers when the channel lookup — which is
+     * site-scoped (.eq('site_id', siteId)) — finds nothing. Simulate that by
+     * moving the channel to a different site after seeding the video.
      */
+    await freshSiteScope()
     const channelId = await seedChannel(siteId, { name: 'Orphan Channel', subscriberCount: 0 })
     createdChannelIds.push(channelId)
 
@@ -329,28 +355,25 @@ describe.skipIf(skipIfNoLocalDb())('fetchAbBriefingData integration', () => {
     })
     createdVideoIds.push(videoId)
 
-    // Delete the channel so fetchAbBriefingData cannot find it
-    // (tests the graceful-fallback branch in the function)
-    await supabase.from('youtube_channels').delete().eq('id', channelId)
-    // Remove from cleanup list since already deleted
-    const idx = createdChannelIds.indexOf(channelId)
-    if (idx !== -1) createdChannelIds.splice(idx, 1)
+    // FK sanity: deleting the channel while the video references it must fail.
+    const { error: delErr } = await supabase.from('youtube_channels').delete().eq('id', channelId)
+    expect(delErr).not.toBeNull()
+
+    // Move the channel out of the briefing's site scope (fresh site avoids the
+    // UNIQUE (site_id, locale) constraint).
+    const { siteId: otherSiteId } = await seedSite(supabase)
+    createdSiteIds.push(otherSiteId)
+    const { error: moveErr } = await supabase
+      .from('youtube_channels')
+      .update({ site_id: otherSiteId })
+      .eq('id', channelId)
+    expect(moveErr).toBeNull()
 
     const result = await fetchAbBriefingData(videoId)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
 
-    if (!result.ok) {
-      // If the DB has a cascade-delete that also removed the video, this is expected.
-      // Log the error to make the skip-reason visible and pass the test gracefully.
-      console.warn(
-        'fetchAbBriefingData returned ok:false after channel deletion —',
-        'likely FK cascade deleted the video too. result.error:', result.error,
-      )
-      // The test is still meaningful: the function returned ok:false safely.
-      expect(result.ok).toBe(false)
-      return
-    }
-
-    // If the video survived the channel deletion, we expect the fallback name.
+    // Channel invisible in scope → fallback name + zero subscribers.
     expect(result.data.channel.name).toBe('Canal')
     expect(result.data.channel.subscribers).toBe(0)
     // No metrics → score and grade should be null
@@ -370,10 +393,11 @@ describe.skipIf(skipIfNoLocalDb())('fetchAbBriefingData integration', () => {
      * If seedCompletedAbTest fails due to missing required columns, inspect the
      * migration for ab_tests and fill in the required fields in the helper above.
      */
+    await freshSiteScope()
     const channelId = await seedChannel(siteId, { name: 'History Channel', subscriberCount: 100_000 })
     createdChannelIds.push(channelId)
 
-    const { videoId, youtubeVideoId } = await seedVideo(siteId, channelId, {
+    const { videoId } = await seedVideo(siteId, channelId, {
       title: 'History Video',
       ctr: 3.2,
       avgViewPercentage: 35,
@@ -381,7 +405,7 @@ describe.skipIf(skipIfNoLocalDb())('fetchAbBriefingData integration', () => {
     createdVideoIds.push(videoId)
 
     // Completed test 1 — thumbnail type with winner + CTR lift
-    const test1Id = await seedCompletedAbTest(siteId, youtubeVideoId, {
+    const test1Id = await seedCompletedAbTest(siteId, videoId, {
       testType: 'thumbnail',
       winnerLabel: 'variant_b',
       ctrLiftPercent: 12.5,
@@ -390,7 +414,7 @@ describe.skipIf(skipIfNoLocalDb())('fetchAbBriefingData integration', () => {
     createdTestIds.push(test1Id)
 
     // Completed test 2 — title type, no winner (expired)
-    const test2Id = await seedCompletedAbTest(siteId, youtubeVideoId, {
+    const test2Id = await seedCompletedAbTest(siteId, videoId, {
       testType: 'title',
       winnerLabel: null,
       ctrLiftPercent: null,
@@ -403,7 +427,7 @@ describe.skipIf(skipIfNoLocalDb())('fetchAbBriefingData integration', () => {
       .from('ab_tests')
       .insert({
         site_id: siteId,
-        youtube_video_id: youtubeVideoId,
+        youtube_video_id: videoId, // internal uuid — see seedCompletedAbTest note
         name: 'Active test — should be excluded',
         test_type: 'thumbnail',
         status: 'active',

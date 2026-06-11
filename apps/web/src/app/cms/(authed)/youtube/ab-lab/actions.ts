@@ -1554,7 +1554,11 @@ export async function fetchAbBriefingData(
     grade = result.grade
   }
 
-  const testHistory = await _getVideoTestHistory(video.youtube_video_id as string)
+  // ab_tests.youtube_video_id is the INTERNAL youtube_videos.id uuid — not the
+  // 11-char YouTube Data API id. Passing video.youtube_video_id here made
+  // PostgREST reject the eq filter (400, invalid uuid) and the briefing's
+  // test history was silently always empty.
+  const testHistory = await _getVideoTestHistory(video.id as string)
   const historyForBriefing = testHistory
     .filter(t => t.status === 'completed')
     .map(t => ({

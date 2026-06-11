@@ -168,10 +168,14 @@ describe.skipIf(skipIfNoLocalDb())('content_pipeline integration', () => {
     await pg.connect()
     try {
       const staleDate = new Date(Date.now() - 30 * 86400000).toISOString()
+      // trg_pipeline_updated_at overwrites updated_at = now() on every UPDATE.
+      // Backdating requires bypassing user triggers (replica mode, superuser).
+      await pg.query("SET session_replication_role = 'replica'")
       await pg.query(
         'UPDATE content_pipeline SET updated_at = $1 WHERE id = $2',
         [staleDate, pi!.id],
       )
+      await pg.query("SET session_replication_role = 'origin'")
     } finally {
       await pg.end()
     }
@@ -201,7 +205,9 @@ describe.skipIf(skipIfNoLocalDb())('content_pipeline integration', () => {
       .from('content_pipeline')
       .select('id, title_pt')
       .eq('site_id', siteId)
-      .textSearch('search_vector', 'fotografia', { type: 'plain' })
+      // search_vector is built with to_tsvector('portuguese', title_pt) — the
+      // query must stem with the same config ('fotografia' → 'fotograf').
+      .textSearch('search_vector', 'fotografia', { type: 'plain', config: 'portuguese' })
 
     expect(searchErr).toBeNull()
     const found = results?.some((r) => r.id === pi!.id)

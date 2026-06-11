@@ -241,7 +241,16 @@ export interface SeedPendingSubOpts {
   consentTextVersion?: string
   expiresInMinutes?: number
   locale?: string | null
+  newsletterId?: string
 }
+
+/**
+ * `newsletter_subscriptions.newsletter_id` is NOT NULL with an FK to
+ * `newsletter_types(id)`. The structural seed migration (20260507000003)
+ * guarantees the `main-pt` type exists on every fresh DB, so it's the safe
+ * default for subscription seeds.
+ */
+export const DEFAULT_NEWSLETTER_ID = 'main-pt'
 
 /**
  * Seeds a `pending_confirmation` newsletter subscription. The caller passes a
@@ -268,6 +277,7 @@ export async function seedPendingNewsletterSub(
       confirmation_expires_at: expiresAt,
       consent_text_version: opts.consentTextVersion ?? 'v1',
       locale: opts.locale ?? null,
+      newsletter_id: opts.newsletterId ?? DEFAULT_NEWSLETTER_ID,
     })
     .select('id')
     .single()
@@ -307,6 +317,7 @@ export async function seedUnsubscribeToken(
         status: 'confirmed',
         confirmed_at: new Date().toISOString(),
         consent_text_version: 'v1',
+        newsletter_id: DEFAULT_NEWSLETTER_ID,
       })
       .select('id')
       .single()
@@ -726,4 +737,52 @@ export async function seedFutureScheduledPost(
     content_toc: [],
   })
   return { postId: data.id }
+}
+
+/**
+ * Seeds a minimal youtube_channels + non-Short youtube_videos pair for a site.
+ * Fresh local DBs carry no YouTube data, so AB-test integration suites must
+ * seed their own video instead of assuming one exists.
+ *
+ * Column names match the squashed schema (20260507000001): the external id
+ * columns are `channel_id` (text) on youtube_channels and `youtube_video_id`
+ * on youtube_videos; `locale`, `handle`, `name` and `uploads_playlist_id` are
+ * NOT NULL on channels.
+ */
+export async function seedYoutubeChannelAndVideo(
+  db: SupabaseClient,
+  siteId: string,
+  opts: { durationSeconds?: number; title?: string } = {},
+): Promise<{ channelId: string; videoId: string; youtubeVideoId: string }> {
+  const suffix = `${Date.now()}${Math.random().toString(36).slice(2, 6)}`
+  const { data: channel, error: chErr } = await db
+    .from('youtube_channels')
+    .insert({
+      site_id: siteId,
+      channel_id: `UCseed${suffix}`.slice(0, 24),
+      locale: 'pt',
+      handle: `@seed-${suffix}`,
+      name: 'Seed Channel',
+      uploads_playlist_id: `UUseed${suffix}`.slice(0, 24),
+    })
+    .select('id')
+    .single()
+  if (chErr || !channel) throw new Error(`seedYoutubeChannelAndVideo (channel): ${chErr?.message}`)
+
+  const youtubeVideoId = randomUUID().replace(/-/g, '').slice(0, 11)
+  const { data: video, error: vidErr } = await db
+    .from('youtube_videos')
+    .insert({
+      site_id: siteId,
+      channel_id: channel.id,
+      youtube_video_id: youtubeVideoId,
+      title: opts.title ?? 'Seed Video',
+      published_at: new Date().toISOString(),
+      duration_seconds: opts.durationSeconds ?? 300, // non-Short by default
+    })
+    .select('id')
+    .single()
+  if (vidErr || !video) throw new Error(`seedYoutubeChannelAndVideo (video): ${vidErr?.message}`)
+
+  return { channelId: channel.id, videoId: video.id, youtubeVideoId }
 }

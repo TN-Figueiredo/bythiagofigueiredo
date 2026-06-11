@@ -67,6 +67,7 @@ describe.skipIf(skipIfNoLocalDb())('LGPD delete flow', () => {
         status: 'confirmed',
         consent_text_version: 'v1',
         confirmed_at: new Date().toISOString(),
+        newsletter_id: 'main-pt', // NOT NULL FK → structural seed type
       })
       .select('id')
       .single()
