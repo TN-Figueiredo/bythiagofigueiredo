@@ -20,7 +20,7 @@
     "test:web": "npm run test -w apps/web",
     "test:packages": "npm run test -w packages/links -w packages/links-admin -w packages/social -w packages/shared",
     "pipeline:audit": "cd apps/web && npx vitest run test/lib/pipeline/api-registry.test.ts",
-    "postinstall": "npm run build:packages || echo '⚠️  Workspace package build failed — run npm run build:packages to diagnose'",
+    "postinstall": "npm run build:packages || echo '\u26a0\ufe0f  Workspace package build failed \u2014 run npm run build:packages to diagnose'",
     "db:new": "bash scripts/new-migration.sh",
     "db:link:prod": "echo '[PROD] novkqtvcnsiwhkxihurk' && supabase link --project-ref novkqtvcnsiwhkxihurk",
     "db:push:prod": "npm run db:link:prod && bash scripts/db-push-prod.sh",
@@ -36,6 +36,16 @@
   },
   "engines": {
     "node": ">= 18.0.0"
+  },
+  "overrides": {
+    "@supabase/supabase-js": "2.103.2",
+    "vitest": "3.2.6",
+    "tmp": "^0.2.6",
+    "@vercel/blob": {
+      "undici": "^6.24.0"
+    },
+    "dompurify": "3.4.2",
+    "@tiptap/core": "3.22.4"
   },
   "optionalDependencies": {
     "@rollup/rollup-linux-x64-gnu": "4.60.1",
