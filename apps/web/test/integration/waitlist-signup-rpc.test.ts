@@ -101,6 +101,22 @@ describe.skipIf(skipIfNoLocalDb())('waitlist_signup RPC', () => {
     expect(data).toBe(false)
   })
 
+  it('waitlist_rate_check returns true with only 4 signups in the window (allowed side of the boundary)', async () => {
+    const r = await seedSite(db)
+    seededSiteIds.push(r.siteId)
+    const { data: wl } = await db.from('waitlists')
+      .insert({ site_id: r.siteId, slug: 'rate-wl-4', name: 'Rate4', status: 'open' })
+      .select('id, site_id').single()
+    for (let i = 0; i < 4; i++) {
+      await db.from('waitlist_signups').insert({
+        waitlist_id: wl!.id, site_id: wl!.site_id, email: `four${i}@x.com`,
+        consent_launch_notification: true, consent_text_version: 'v1', ip: '203.0.113.51',
+      })
+    }
+    const { data } = await db.rpc('waitlist_rate_check', { p_site_id: wl!.site_id, p_ip: '203.0.113.51', p_email: 'fifth@x.com' })
+    expect(data).toBe(true) // 4 existing < 5 → the 5th is still allowed
+  })
+
   it('anon client is DENIED direct rpc to waitlist_signup AND waitlist_rate_check', async () => {
     const anon = createClient(SUPABASE_URL, ANON_KEY, { auth: { persistSession: false } })
     const s1 = await anon.rpc('waitlist_signup', {
