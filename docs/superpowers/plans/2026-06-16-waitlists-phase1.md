@@ -86,7 +86,8 @@ and **replace** `waitlist_signups_by_waitlist_status (waitlist_id, status)` with
 - `supabase/migrations/<ts>_waitlist_signup_rpc.sql` — `waitlist_signup(...)` DEFINER RPC (FOR UPDATE branching + audit insert).
 - `supabase/migrations/<ts>_waitlist_rate_check_rpc.sql` — `waitlist_rate_check(...)`.
 - `supabase/migrations/<ts>_waitlist_lgpd.sql` — `lgpd_phase1_cleanup` waitlist branch + `waitlist_retention_sweep(p_site_id)` helper RPC.
-- `supabase/seed.sql` (append) — `consent_texts` rows for `launch_notification`.
+- `supabase/migrations/<ts>_waitlist_consent_seed.sql` (via `npm run db:new`) — `consent_texts` rows for `launch_notification` (idempotent `on conflict (id) do nothing`). **NOT `seed.sql`** — that file is dev-only/gitignored from prod; `db:push:prod` applies migrations only (C1).
+- `supabase/migrations/<ts>_waitlist_signup_counts_rpc.sql` (via `npm run db:new`) — `waitlist_signup_counts(p_site_id uuid)` DEFINER RPC returning `(waitlist_id, pending int, suppressed int)` for the CMS list KPIs (C3). (May be folded into the Task 5 migration.)
 
 **Public API (App Router route handlers):**
 - `apps/web/src/app/api/waitlists/[slug]/route.ts` — `GET` status.
@@ -301,8 +302,12 @@ create table if not exists public.waitlist_signups (
 
 create unique index if not exists waitlist_signups_email_unique
   on public.waitlist_signups (waitlist_id, email) where anonymized_at is null;
+-- C2: keyset index for the signups list (unfiltered Next/Prev on (created_at desc, id))
+create index if not exists waitlist_signups_list
+  on public.waitlist_signups (waitlist_id, created_at desc, id) where anonymized_at is null;
+-- C2: status-filtered keyset is ALSO index-ordered (created_at/id trail the status key)
 create index if not exists waitlist_signups_by_waitlist_status
-  on public.waitlist_signups (waitlist_id, status);
+  on public.waitlist_signups (waitlist_id, status, created_at desc, id) where anonymized_at is null;
 create index if not exists waitlist_signups_sweep
   on public.waitlist_signups (site_id, status, created_at) where anonymized_at is null;
 create index if not exists waitlists_site_status on public.waitlists (site_id, status);
@@ -1068,7 +1073,7 @@ describe.skipIf(skipIfNoLocalDb())('waitlist retention + lgpd phase1 branch', ()
 
 **Files:**
 - Create: `apps/web/src/app/api/waitlists/consent.ts`
-- Modify: `supabase/seed.sql`
+- Create (via `npm run db:new waitlist_consent_seed`): `supabase/migrations/<ts>_waitlist_consent_seed.sql`
 - Test: `apps/web/test/unit/waitlist-consent.test.ts`
 
 - [ ] **Step 1: Write the constant**
@@ -1078,7 +1083,7 @@ describe.skipIf(skipIfNoLocalDb())('waitlist retention + lgpd phase1 branch', ()
 export const WAITLIST_CONSENT_VERSION = 'launch-notification-v1-2026-06'
 ```
 
-- [ ] **Step 2: Append `consent_texts` rows to `supabase/seed.sql`** (id convention `launch_notification:{locale}:{version}`):
+- [ ] **Step 2: Seed `consent_texts` via a MIGRATION (C1 — NOT `seed.sql`)** — run `npm run db:new waitlist_consent_seed`, then put the idempotent insert below in that migration (mirrors the structural-seed precedent `20260507000003_seed.sql`, which IS applied to prod; `seed.sql` is dev-only and never reaches prod). Add `effective_at`/`superseded_at` columns to the INSERT if `20260507000003_seed.sql` includes them (grep to confirm — they exist in the `consent_texts` table at `20260507000001_schema.sql`, so include `effective_at = now(), superseded_at = null`). The Step 3b DB-gated test then guards PROD parity, not just local. (id convention `launch_notification:{locale}:{version}`):
 
 ```sql
 insert into public.consent_texts (id, category, locale, version, text_md) values
@@ -1271,9 +1276,19 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
     if (!ok) return Response.json({ error: 'turnstile_failed' }, { status: 400 })
   }
 
-  // Audit basis is the consent_text_version pointer (see Task 3 "Consent-evidence basis").
-  // p_consent_text_snapshot is a human-readable label, NOT the evidentiary record.
-  const snapshot = `[${body.locale}] ${WAITLIST_CONSENT_VERSION}`
+  // M5: snapshot the EXACT displayed consent text into the (append-only) audit row —
+  // consent_texts.text_md is editable in place by service_role, so the version pointer
+  // alone is NOT tamper-evident (spec §2.1). Fetch the ledger text + the waitlist name and
+  // interpolate {name} so the stored snapshot equals what the user actually saw.
+  const [{ data: wlRow }, { data: ct }] = await Promise.all([
+    supabase.from('waitlists').select('name').eq('site_id', siteId).eq('slug', slug).maybeSingle(),
+    supabase.from('consent_texts').select('text_md')
+      .eq('category', 'launch_notification').eq('locale', body.locale)
+      .eq('version', WAITLIST_CONSENT_VERSION).maybeSingle(),
+  ])
+  if (!wlRow) return Response.json({ error: 'not_found' }, { status: 404 })
+  if (!ct) return Response.json({ error: 'unavailable' }, { status: 503 }) // consent text not seeded
+  const snapshot = ct.text_md.replaceAll('{name}', wlRow.name)
   const res = await supabase.rpc('waitlist_signup', {
     p_site_id: siteId, // trusted x-site-id — site is an explicit RPC param (no GUC)
     p_slug: slug, p_email: body.email, p_locale: body.locale,
@@ -1498,7 +1513,10 @@ Use `15 4` (not `0 4`) to avoid colliding with the existing `0 4` crons (anonymi
 // apps/web/src/components/waitlists/form-strings.ts
 export type WaitlistLocale = 'pt-BR' | 'en'
 export interface WaitlistStrings {
-  emailPlaceholder: string; consentLabel: string; button: string; buttonLoading: string
+  // M12: consentLabel is a FUNCTION taking the waitlist name so the rendered text matches
+  // the consent_texts ledger string verbatim after {name} substitution (LGPD proof-of-consent).
+  // Render the name as a bolded <strong> span between the two halves (waitlist-public.jsx:257).
+  emailPlaceholder: string; consentLabel: (name: string) => string; button: string; buttonLoading: string
   successHeadline: string; successBody: string; duplicateHeadline: string; duplicateBody: string
   closed: string; launched: string; raceClosed: string; error: string; rateLimited: string; unavailable: string
   reassurance: string
@@ -1506,7 +1524,7 @@ export interface WaitlistStrings {
 export const FORM_STRINGS: Record<WaitlistLocale, WaitlistStrings> = {
   'pt-BR': {
     emailPlaceholder: 'seu@email.com',
-    consentLabel: 'Quero ser avisado(a) por email quando for lançado. Posso cancelar quando quiser.',
+    consentLabel: (name: string) => `Quero ser avisado(a) por email quando ${name} for lançado. Posso cancelar quando quiser.`,
     button: 'Quero ser avisado', buttonLoading: 'Enviando…',
     successHeadline: 'Pronto!', successBody: 'Te avisamos quando lançar.',
     duplicateHeadline: 'Você já está na lista', duplicateBody: 'Avisaremos quando lançar.',
@@ -1518,10 +1536,10 @@ export const FORM_STRINGS: Record<WaitlistLocale, WaitlistStrings> = {
   },
   en: {
     emailPlaceholder: 'you@email.com',
-    consentLabel: 'Notify me by email when this launches. I can unsubscribe anytime.',
     button: 'Notify me', buttonLoading: 'Sending…',
     successHeadline: 'Done!', successBody: "We'll email you when it launches.",
     duplicateHeadline: "You're already on the list", duplicateBody: "We'll email you when it launches.",
+    consentLabel: (name: string) => `Notify me by email when ${name} launches. I can unsubscribe anytime.`,
     closed: 'Signups are closed.', launched: 'It launched!',
     raceClosed: 'This waitlist just closed.',
     error: 'Something went wrong. Please try again.', rateLimited: 'Too many attempts. Please wait a moment.',
@@ -1613,7 +1631,7 @@ expect(taken).toHaveLength(1) // the loser's INSERT hits 23505 → slug_taken (c
 - Test: extend `waitlist-cms-actions.test.ts`
 
 - [ ] **Step 1: Write the failing transition test** — extend `waitlist-cms-actions.test.ts`: illegal transition (e.g. `draft→launched`) rejected with `{ok:false}`; CAS 0-row (stale `from`) returns `status_changed`; a legal transition (`draft→open`) succeeds. **RUN before writing the action → must FAIL (transition action undefined / not exported), NOT a helper error.**
-- [ ] **Step 2: Implement `transitionWaitlistStatus(id, to)`** enforcing the Fase-1 legal graph (`draft→open`; `open↔closed`; `failed→closed`) via CAS: `update waitlists set status=$to where id=$id and site_id=$siteId and status=$from` → 0 rows ⇒ `{ ok:false, error:'status_changed' }`. `launched` terminal (no transitions out). **The `(open|closed)→launching` transition is intentionally ABSENT from this action's legal graph in Fase 1** — it is owned exclusively by the real `launchWaitlist` broadcast action in Fase 2 (Task 19 ships only the dialog UI + a stub). Do not add `launching` as a target here. **RUN: same test → must PASS.** Commit `feat(waitlists): guarded status transitions (CAS)`.
+- [ ] **Step 2: Implement `transitionWaitlistStatus(id, to)`** enforcing the Fase-1 legal graph (`draft→open`; `open↔closed`; `failed→closed`) via CAS: `update waitlists set status=$to where id=$id and site_id=$siteId and status=$from` → 0 rows ⇒ `{ ok:false, error:'status_changed' }`. `launched` terminal (no transitions out). **The `(open|closed)→launching` transition is intentionally ABSENT from this action's legal graph in Fase 1** — it is owned exclusively by the real `launchWaitlist` broadcast action in Fase 2 (Task 19 ships only the dialog UI + a stub). Do not add `launching` as a target here. **M6 LGPD Fase-1 gate (code, not just a note):** at the top of the action, BEFORE the CAS, reject any transition to `open` while the rights paths (DSAR + unsubscribe) are Fase-2: `if (to === 'open' && process.env.WAITLIST_ACCEPT_PUBLIC_SIGNUPS !== 'true') return { ok: false, error: 'fase1_only_draft' }` (env unset by default → no public `open` in prod until Fase 2 flips it). Add a test asserting `draft→open` returns `fase1_only_draft` when the env is unset, and succeeds when it is `'true'`. **RUN: same test → must PASS.** Commit `feat(waitlists): guarded status transitions (CAS) + Fase-1 open gate`.
 - [ ] **Step 3: Status strip component** — renders only the legal buttons for the current status with one-line hints (per handoff §3); Launch is the accent CTA (wired to the broadcast dialog, Task 19); Resume/Retry uses the recover style. Commit `feat(waitlists): status strip`.
 
 ### Task 17: Detail page (Overview + Signups tabs)
