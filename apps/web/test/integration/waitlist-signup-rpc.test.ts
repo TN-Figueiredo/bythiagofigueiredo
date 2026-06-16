@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { createClient } from '@supabase/supabase-js'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
-import { SUPABASE_URL, SERVICE_KEY, seedSite } from '../helpers/db-seed'
+import { SUPABASE_URL, ANON_KEY, SERVICE_KEY, seedSite } from '../helpers/db-seed'
 
 const db = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } })
 
@@ -83,5 +83,33 @@ describe.skipIf(skipIfNoLocalDb())('waitlist_signup RPC', () => {
     const { count: onA } = await db.from('waitlist_signups')
       .select('*', { count: 'exact', head: true }).eq('site_id', siteId).eq('email', 'iso@x.com')
     expect(onA).toBe(1)
+  })
+
+  it('waitlist_rate_check returns false after 5 signups in the window', async () => {
+    const r = await seedSite(db)
+    seededSiteIds.push(r.siteId)
+    const { data: wl } = await db.from('waitlists')
+      .insert({ site_id: r.siteId, slug: 'rate-wl', name: 'Rate', status: 'open' })
+      .select('id, site_id').single()
+    for (let i = 0; i < 5; i++) {
+      await db.from('waitlist_signups').insert({
+        waitlist_id: wl!.id, site_id: wl!.site_id, email: `flood${i}@x.com`,
+        consent_launch_notification: true, consent_text_version: 'v1', ip: '203.0.113.50',
+      })
+    }
+    const { data } = await db.rpc('waitlist_rate_check', { p_site_id: wl!.site_id, p_ip: '203.0.113.50', p_email: 'new@x.com' })
+    expect(data).toBe(false)
+  })
+
+  it('anon client is DENIED direct rpc to waitlist_signup AND waitlist_rate_check', async () => {
+    const anon = createClient(SUPABASE_URL, ANON_KEY, { auth: { persistSession: false } })
+    const s1 = await anon.rpc('waitlist_signup', {
+      p_site_id: siteId, p_slug: slug, p_email: 'anon@x.com', p_locale: 'en',
+      p_consent_version: 'v1', p_consent_text_snapshot: 'x', p_source_surface: 'landing',
+      p_ip: null, p_user_agent: 'vitest',
+    })
+    expect(s1.error).not.toBeNull()
+    const s2 = await anon.rpc('waitlist_rate_check', { p_site_id: siteId, p_ip: null, p_email: 'anon@x.com' })
+    expect(s2.error).not.toBeNull()
   })
 })
