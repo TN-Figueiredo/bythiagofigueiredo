@@ -40,6 +40,7 @@
     { "path": "/api/cron/ab-draft-cleanup", "schedule": "0 4 * * *" },
     { "path": "/api/cron/social-auto-draft", "schedule": "*/30 * * * *" },
     { "path": "/api/cron/sync-youtube?mode=competitors", "schedule": "0 9 * * *" },
-    { "path": "/api/cron/research-digest", "schedule": "30 6 * * 1" }
+    { "path": "/api/cron/research-digest", "schedule": "30 6 * * 1" },
+    { "path": "/api/cron/waitlist-retention-sweep", "schedule": "15 4 * * *" }
   ]
 }
