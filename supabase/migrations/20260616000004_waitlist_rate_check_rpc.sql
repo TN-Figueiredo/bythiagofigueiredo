@@ -11,8 +11,9 @@ begin
   select count(*) into v_count
     from public.waitlist_signups
    where site_id = p_site_id
+     and anonymized_at is null  -- consistency with waitlist_signup; anonymized rows have null ip + hashed email so this is a no-op today but defensive if anonymization ever stops nulling ip
      and created_at > now() - interval '10 minutes'
-     and ((p_email is not null and email = p_email::public.citext)
+     and ((p_email is not null and email operator(public.=) p_email::public.citext)
           or (v_ip_inet is not null and ip = v_ip_inet));
   return v_count < 5;
 end; $$;

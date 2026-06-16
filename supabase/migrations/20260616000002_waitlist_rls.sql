@@ -10,6 +10,23 @@ drop policy if exists waitlists_public_read on public.waitlists;
 create policy waitlists_public_read on public.waitlists for select to anon, authenticated
   using (status in ('open','closed','launched') and public.site_visible(site_id));
 
+-- RLS is row-level, not column-level: the public-read policy above would otherwise
+-- expose send-pipeline config (sender_email/reply_to/sender_name) to anon on every
+-- visible waitlist. The public landing only needs id/site_id/slug/name/status/
+-- description/intro_mdx/launched_at/timestamps.
+--
+-- A bare `revoke select (cols)` is a NO-OP while a table-wide SELECT grant exists
+-- (Supabase's `alter default privileges ... grant all on tables to anon` covers
+-- every column at CREATE TABLE time). To actually restrict columns we must drop the
+-- table-level SELECT grant first, then re-grant SELECT only on the public columns.
+-- This is column-level GRANT, additive to RLS: the policy still picks rows; anon can
+-- now read only the listed columns. Staff are the `authenticated` role (staff-read
+-- policy) and are unaffected.
+revoke select on public.waitlists from anon;
+grant select (id, site_id, slug, name, status, description, intro_mdx, launched_at,
+              created_at, updated_at)
+  on public.waitlists to anon;
+
 drop policy if exists waitlists_staff_read on public.waitlists;
 create policy waitlists_staff_read on public.waitlists for select to authenticated
   using (public.can_view_site(site_id));

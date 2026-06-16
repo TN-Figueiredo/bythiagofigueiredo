@@ -18,6 +18,8 @@ create table if not exists public.waitlists (
   updated_at   timestamptz not null default now(),
   constraint waitlists_status_check check (status in ('draft','open','closed','launching','launched','failed')),
   constraint waitlists_slug_site_key unique (site_id, slug),
+  -- required as composite FK target (same-site enforcement on waitlist_signups);
+  -- redundant with the PK on id alone, do NOT remove as an accidental duplicate.
   constraint waitlists_id_site_key   unique (id, site_id)
 );
 

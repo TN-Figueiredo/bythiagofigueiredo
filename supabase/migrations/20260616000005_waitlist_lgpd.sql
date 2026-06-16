@@ -16,6 +16,12 @@
 -- ─────────────────────────────────────────────────────────────────────────────
 -- (1) lgpd_phase1_cleanup — verbatim copy + waitlist_emails branch
 -- ─────────────────────────────────────────────────────────────────────────────
+-- NOTE: search_path divergence is INTENTIONAL — this fn keeps `TO 'public'`
+-- (verbatim copy of 20260602000003; fully schema-qualified internally so safe),
+-- while the two net-new fns below use `= ''`. Do NOT "normalize" this into a
+-- behavior change. The one operator(public.=) on line 130 is required because
+-- bare `=` on citext does NOT resolve case-insensitively even under search_path=public
+-- once the array elements are explicitly cast to public.citext at the call site.
 CREATE OR REPLACE FUNCTION "public"."lgpd_phase1_cleanup"("p_user_id" "uuid", "p_pre_capture" "jsonb") RETURNS "void"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -127,7 +133,7 @@ BEGIN
     UPDATE public.waitlist_signups
        SET email = encode(sha256(email::text::bytea),'hex'),
            ip = NULL, user_agent = NULL, locale = NULL, anonymized_at = now()
-     WHERE email = ANY (
+     WHERE email operator(public.=) ANY (
              SELECT (jsonb_array_elements_text(p_pre_capture->'waitlist_emails'))::public.citext)
        AND anonymized_at IS NULL;
   END IF;
@@ -139,6 +145,10 @@ END $$;
 drop function if exists public.waitlist_retention_sweep(uuid);
 create or replace function public.waitlist_retention_sweep(p_site_id uuid)
 returns integer language plpgsql security definer set search_path = '' as $$
+-- RETURN CONTRACT: the returned integer is the PASS-2 ip/ua-scrub row count
+-- (rows whose ip/user_agent were nulled by the second UPDATE), NOT the count of
+-- rows fully anonymized by PASS-1. It exists solely for the idempotency check
+-- (first sweep > 0, repeat sweep = 0). Do NOT consume it as "rows anonymized".
 declare v_pass2 integer;
 begin
   update public.waitlist_signups s set

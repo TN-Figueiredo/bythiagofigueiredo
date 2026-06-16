@@ -45,7 +45,7 @@ begin
 
   select * into v_existing
     from public.waitlist_signups s
-   where s.waitlist_id = v_waitlist_id and s.email = v_email and s.anonymized_at is null
+   where s.waitlist_id = v_waitlist_id and s.email operator(public.=) v_email and s.anonymized_at is null
    for update;
 
   if not found then

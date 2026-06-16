@@ -79,6 +79,39 @@ describe.skipIf(skipIfNoLocalDb())('waitlist schema', () => {
     expect((await db.from('waitlist_signups').insert(base)).error).toBeNull()
   })
 
+  it('rejects an invalid waitlists.status (status enum CHECK)', async () => {
+    const { siteId } = await seedSite(db)
+    const r = await db.from('waitlists').insert({ site_id: siteId, slug: 'bad-status', name: 'X', status: 'bogus' })
+    expect(r.error?.code).toBe('23514')
+  })
+
+  it('enforces unique (waitlist_id, locale) on waitlist_translations', async () => {
+    const { siteId } = await seedSite(db)
+    const { data: wl } = await db.from('waitlists')
+      .insert({ site_id: siteId, slug: 'tx-uniq', name: 'TX', status: 'open' })
+      .select('id').single()
+    createdWaitlists.push(wl!.id)
+    const first = await db.from('waitlist_translations').insert({ waitlist_id: wl!.id, locale: 'pt-BR', consent_label: 'a' })
+    expect(first.error).toBeNull()
+    const second = await db.from('waitlist_translations').insert({ waitlist_id: wl!.id, locale: 'pt-BR', consent_label: 'b' })
+    expect(second.error?.code).toBe('23505')
+  })
+
+  it('bumps updated_at on UPDATE via trg_waitlists_set_updated_at', async () => {
+    // Locks the updated_at trigger wired in migration 000001. A future edit that
+    // drops/renames the trigger, or a tg_set_updated_at that stops touching this
+    // table, would otherwise ship green (zero prior coverage of this surface item).
+    const { siteId } = await seedSite(db)
+    const { data: wl } = await db.from('waitlists')
+      .insert({ site_id: siteId, slug: 'upd-trg', name: 'U', status: 'draft' })
+      .select('id, updated_at').single()
+    createdWaitlists.push(wl!.id)
+    await new Promise((r) => setTimeout(r, 10))
+    await db.from('waitlists').update({ name: 'U2' }).eq('id', wl!.id)
+    const { data: after } = await db.from('waitlists').select('updated_at').eq('id', wl!.id).single()
+    expect(new Date(after!.updated_at).getTime()).toBeGreaterThan(new Date(wl!.updated_at).getTime())
+  })
+
   it('enforces the signup data-integrity CHECKs', async () => {
     const { siteId } = await seedSite(db)
     const { data: wl } = await db.from('waitlists')

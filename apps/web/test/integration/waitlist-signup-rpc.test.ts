@@ -117,6 +117,99 @@ describe.skipIf(skipIfNoLocalDb())('waitlist_signup RPC', () => {
     expect(data).toBe(true) // 4 existing < 5 → the 5th is still allowed
   })
 
+  it('waitlist_rate_check is per-site: site A flooding does NOT throttle site B on a shared IP', async () => {
+    // Locks the `site_id = p_site_id` predicate (migration 000004). A regression
+    // dropping it would let one ring's signups throttle another sharing an IP and
+    // still pass every other rate-check test (each uses an isolated freshly-seeded site).
+    const sharedIp = '198.51.100.42'
+    const a = await seedSite(db)
+    seededSiteIds.push(a.siteId)
+    const { data: wlA } = await db.from('waitlists')
+      .insert({ site_id: a.siteId, slug: 'rate-site-a', name: 'RateA', status: 'open' })
+      .select('id, site_id').single()
+    for (let i = 0; i < 5; i++) {
+      await db.from('waitlist_signups').insert({
+        waitlist_id: wlA!.id, site_id: wlA!.site_id, email: `a-flood${i}@x.com`,
+        consent_launch_notification: true, consent_text_version: 'v1', ip: sharedIp,
+      })
+    }
+    // Site A itself is now throttled on that IP …
+    const aCheck = await db.rpc('waitlist_rate_check', { p_site_id: a.siteId, p_ip: sharedIp, p_email: 'a-new@x.com' })
+    expect(aCheck.data).toBe(false)
+    // … but a DIFFERENT site with an empty bucket on the SAME IP must still allow.
+    const b = await seedSite(db)
+    seededSiteIds.push(b.siteId)
+    const bCheck = await db.rpc('waitlist_rate_check', { p_site_id: b.siteId, p_ip: sharedIp, p_email: 'b-new@x.com' })
+    expect(bCheck.data).toBe(true)
+  })
+
+  it('resurrects a previously unsubscribed signup (consent_regranted, case-insensitive)', async () => {
+    // Seed an unsubscribed signup stored as lowercase, then re-sign-up with an
+    // UPPERCASE variant. Under search_path='' the citext compare must still match
+    // (operator(public.=)), otherwise the FOR UPDATE existence check misses the row,
+    // the partial unique index throws, and the user wrongly stays suppressed.
+    const wlId = (await db.from('waitlists').select('id').eq('slug', slug).eq('site_id', siteId).single()).data!.id
+    await db.from('waitlist_signups').insert({
+      waitlist_id: wlId, site_id: siteId, email: 'regrant@x.com',
+      consent_launch_notification: true, consent_text_version: 'old-v',
+      status: 'suppressed', suppressed_at: new Date().toISOString(), suppression_reason: 'unsubscribe',
+    })
+    const { data, error } = await call('REGRANT@X.COM')
+    expect(error).toBeNull()
+    expect((data as { duplicate: boolean }).duplicate).toBe(false)
+    const { data: row } = await db.from('waitlist_signups')
+      .select('status, suppressed_at, suppression_reason, consent_text_version')
+      .eq('waitlist_id', wlId).eq('email', 'regrant@x.com').single()
+    expect(row!.status).toBe('pending')
+    expect(row!.suppressed_at).toBeNull()
+    expect(row!.suppression_reason).toBeNull()
+    expect(row!.consent_text_version).toBe('launch-notification-v1-2026-06')
+    const { data: aud } = await db.from('audit_log').select('action')
+      .eq('resource_type', 'waitlist_signup').eq('action', 'consent_regranted').eq('site_id', siteId).limit(1)
+    expect((aud ?? []).length).toBe(1)
+  })
+
+  it('waitlist_signup treats email case-insensitively (case-variant of a pending row is duplicate)', async () => {
+    await call('CaseTest@x.com')
+    const { data } = await call('casetest@X.COM')
+    expect((data as { duplicate: boolean }).duplicate).toBe(true)
+  })
+
+  it('waitlist_rate_check matches an email case-insensitively (case-variant counts toward the bucket)', async () => {
+    // The partial-unique index allows only one non-anonymized row per (waitlist,email),
+    // so we use 5 DISTINCT emails that all share a common case-variant target only via
+    // the per-email branch is not testable in bulk; instead assert the email branch alone
+    // counts the single stored lowercase row when queried with the UPPERCASE variant
+    // (p_ip=null isolates the email branch). With threshold 5, one row keeps it < 5,
+    // so the discriminating assertion is: an UPPERCASE query returns the SAME boolean
+    // as the lowercase query for an identical seed — proving the case-fold match.
+    const r = await seedSite(db)
+    seededSiteIds.push(r.siteId)
+    const { data: wl } = await db.from('waitlists')
+      .insert({ site_id: r.siteId, slug: 'rate-ci', name: 'RateCI', status: 'open' })
+      .select('id, site_id').single()
+    await db.from('waitlist_signups').insert({
+      waitlist_id: wl!.id, site_id: wl!.site_id, email: 'dupcase@x.com',
+      consent_launch_notification: true, consent_text_version: 'v1',
+    })
+    // Build a query helper that drains the bucket so adding our 1 row is decisive:
+    // 4 more rows on the SAME ip make the threshold sit exactly at 5 only if the
+    // email row is also counted. Seed 4 IP-only rows (distinct emails, same ip).
+    for (let i = 0; i < 4; i++) {
+      await db.from('waitlist_signups').insert({
+        waitlist_id: wl!.id, site_id: wl!.site_id, email: `ipfill${i}@x.com`,
+        consent_launch_notification: true, consent_text_version: 'v1', ip: '198.51.100.7',
+      })
+    }
+    // 4 ip rows + the lowercase email row. Querying the UPPERCASE variant with that ip:
+    // ip-branch sees 4, email-branch must also match the lowercase row (case-fold) -> total 5 -> throttled.
+    const upper = await db.rpc('waitlist_rate_check', { p_site_id: wl!.site_id, p_ip: '198.51.100.7', p_email: 'DUPCASE@X.COM' })
+    expect(upper.data).toBe(false)
+    // Control: a DIFFERENT email that does not exist -> only the 4 ip rows count -> allowed.
+    const other = await db.rpc('waitlist_rate_check', { p_site_id: wl!.site_id, p_ip: '198.51.100.7', p_email: 'nobody@x.com' })
+    expect(other.data).toBe(true)
+  })
+
   it('anon client is DENIED direct rpc to waitlist_signup AND waitlist_rate_check', async () => {
     const anon = createClient(SUPABASE_URL, ANON_KEY, { auth: { persistSession: false } })
     const s1 = await anon.rpc('waitlist_signup', {
