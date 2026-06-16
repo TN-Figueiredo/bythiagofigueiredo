@@ -9,7 +9,7 @@ export function escapeCsv(v: unknown): string {
   let s = String(v ?? '')
   const injects = s.length > 0 && FORMULA_PREFIXES.includes(s[0]!)
   if (injects) s = `'${s}`
-  if (injects || s.includes(',') || s.includes('"') || s.includes('\n')) {
+  if (injects || s.includes(',') || s.includes('"') || s.includes('\n') || s.includes('\r')) {
     return `"${s.replace(/"/g, '""')}"`
   }
   return s
