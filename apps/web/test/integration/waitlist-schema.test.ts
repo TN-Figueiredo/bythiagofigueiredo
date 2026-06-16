@@ -7,7 +7,7 @@ const db = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: fal
 
 describe.skipIf(skipIfNoLocalDb())('waitlist schema', () => {
   it('rejects a signup row with consent_launch_notification=false (only that field invalid)', async () => {
-    const { siteId } = await seedSite(db, { siteSlug: 'wl-schema' })
+    const { siteId } = await seedSite(db)
     const { data: wl } = await db.from('waitlists')
       .insert({ site_id: siteId, slug: 'schema-test', name: 'Schema Test', status: 'open' })
       .select('id, site_id').single()
@@ -21,7 +21,7 @@ describe.skipIf(skipIfNoLocalDb())('waitlist schema', () => {
   })
 
   it('enforces the partial unique index on (waitlist_id, email) where not anonymized', async () => {
-    const { siteId } = await seedSite(db, { siteSlug: 'wl-dup' })
+    const { siteId } = await seedSite(db)
     const { data: wl } = await db.from('waitlists')
       .insert({ site_id: siteId, slug: 'dup-test', name: 'Dup', status: 'open' })
       .select('id, site_id').single()
