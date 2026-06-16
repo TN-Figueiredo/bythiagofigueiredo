@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { createClient } from '@supabase/supabase-js'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
-import { SUPABASE_URL, SERVICE_KEY, seedSite } from '../helpers/db-seed'
+import { SUPABASE_URL, ANON_KEY, SERVICE_KEY, seedSite, signUserJwt } from '../helpers/db-seed'
 
 const db = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } })
 
@@ -76,5 +76,15 @@ describe.skipIf(skipIfNoLocalDb())('waitlist retention + lgpd phase1 branch', ()
     const row = (data as Array<{ waitlist_id: string; pending: number; suppressed: number }>).find((r) => r.waitlist_id === wl!.id)
     expect(row).toBeTruthy(); expect(row!.pending).toBe(2); expect(row!.suppressed).toBe(1)
     await db.from('waitlists').delete().eq('id', wl!.id)
+  })
+
+  it('waitlist_signup_counts denies a non-staff authenticated caller for a foreign site (no IDOR)', async () => {
+    const { siteId } = await seedSite(db)
+    // a random authenticated user with NO membership on this site
+    const { jwt } = signUserJwt(undefined, 'editor')
+    const authed = createClient(SUPABASE_URL, ANON_KEY, { auth: { persistSession: false }, global: { headers: { Authorization: `Bearer ${jwt}` } } })
+    const { data, error } = await authed.rpc('waitlist_signup_counts', { p_site_id: siteId })
+    // forbidden → error (42501) OR no rows; must NOT return foreign-site data
+    expect(error !== null || (data ?? []).length === 0).toBe(true)
   })
 })

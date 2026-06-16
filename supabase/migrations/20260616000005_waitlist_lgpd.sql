@@ -167,17 +167,25 @@ grant execute on function public.waitlist_retention_sweep(uuid) to service_role;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- (3) waitlist_signup_counts — net-new aggregate for CMS list KPIs (C3)
+--     Security: service_role bypasses (app server actions enforce requireSiteAdmin
+--     before calling); any other authenticated caller must pass can_view_site().
 -- ─────────────────────────────────────────────────────────────────────────────
 drop function if exists public.waitlist_signup_counts(uuid);
 create or replace function public.waitlist_signup_counts(p_site_id uuid)
 returns table (waitlist_id uuid, pending integer, suppressed integer)
-language sql security definer set search_path = '' as $$
-  select s.waitlist_id,
-         count(*) filter (where s.status='pending')::int as pending,
-         count(*) filter (where s.status='suppressed')::int as suppressed
-  from public.waitlist_signups s
-  where s.site_id = p_site_id and s.anonymized_at is null
-  group by s.waitlist_id;
-$$;
+language plpgsql security definer set search_path = '' as $$
+begin
+  -- service_role (CMS server client) bypasses; any other caller must be able to view the site.
+  if coalesce(auth.role(), '') <> 'service_role' and not public.can_view_site(p_site_id) then
+    raise exception 'forbidden' using errcode = '42501';
+  end if;
+  return query
+    select s.waitlist_id,
+           count(*) filter (where s.status='pending')::int,
+           count(*) filter (where s.status='suppressed')::int
+    from public.waitlist_signups s
+    where s.site_id = p_site_id and s.anonymized_at is null
+    group by s.waitlist_id;
+end; $$;
 revoke all on function public.waitlist_signup_counts(uuid) from public, anon;
 grant execute on function public.waitlist_signup_counts(uuid) to authenticated, service_role;
