@@ -60,6 +60,7 @@ begin
   elsif v_existing.status = 'suppressed' and v_existing.suppression_reason = 'unsubscribe' then
     update public.waitlist_signups
        set status='pending', suppressed_at=null, suppression_reason=null,
+           consent_launch_notification=true,
            consent_text_version=p_consent_version, consent_grant_at=now(),
            locale=p_locale, source_surface=p_source_surface, ip=p_ip, user_agent=p_user_agent
      where id = v_existing.id returning id into v_signup_id;
@@ -68,6 +69,7 @@ begin
     return jsonb_build_object('duplicate', true);
   end if;
 
+  -- sha256()/encode() are pg_catalog built-ins (NOT pgcrypto); safe under search_path='' with no schema prefix
   insert into public.audit_log (actor_user_id, action, resource_type, resource_id, org_id, site_id, after_data, ip, user_agent)
   values (null, v_event, 'waitlist_signup', v_signup_id, v_org_id, v_site_id,
           jsonb_build_object(
@@ -78,6 +80,9 @@ begin
           p_ip, p_user_agent);
 
   return jsonb_build_object('duplicate', false);
+exception
+  when unique_violation then
+    return jsonb_build_object('duplicate', true);
 end
 $fn$;
 

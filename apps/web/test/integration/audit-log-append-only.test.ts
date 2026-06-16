@@ -41,6 +41,9 @@ describe.skipIf(skipIfNoLocalDb())('audit_log append-only RLS', () => {
     // RLS blocks the update — expect 0 rows back and no error (PostgREST silently filters)
     expect(error).toBeNull()
     expect((data ?? []).length).toBe(0)
+    // Verify the row truly wasn't mutated (not just filtered from the update response)
+    const { data: row } = await svc.from('audit_log').select('action').eq('id', rowId).single()
+    expect(row?.action).toBe('test_seed')
   })
 
   it('authenticated editor cannot DELETE an audit_log row (no DELETE policy)', async () => {
@@ -57,5 +60,8 @@ describe.skipIf(skipIfNoLocalDb())('audit_log append-only RLS', () => {
     // RLS blocks the delete — expect 0 rows back and no error
     expect(error).toBeNull()
     expect((data ?? []).length).toBe(0)
+    // Verify the row truly still exists (not just filtered from the delete response)
+    const { data: row } = await svc.from('audit_log').select('action').eq('id', rowId).single()
+    expect(row?.action).toBe('test_seed')
   })
 })
