@@ -17,6 +17,15 @@
 - **Migrations:** NEVER create migration files by hand. Run `npm run db:new <descriptive_name>` to generate the timestamped file, then edit it. All net-new DB functions are `SECURITY DEFINER SET search_path = ''` with schema-qualified identifiers and `revoke all ... from public, anon` + explicit `grant execute`. Idempotent: `drop ... if exists` before `create`.
 - **Apply locally:** `npm run db:start` (Docker) then `npm run db:reset` to apply all migrations to the local DB before running DB-gated tests.
 - **Tests:** Unit tests run with plain `npm test`. DB integration tests are gated: `describe.skipIf(skipIfNoLocalDb())('...', () => { ... })` and run with `npm run db:start && HAS_LOCAL_DB=1 npm test`. Helper: `apps/web/test/helpers/db-skip.ts`. Seed helpers: `apps/web/test/helpers/db-seed.ts`.
+- **DB-gated test client setup (VERIFIED — use this exact pattern everywhere):** `apps/web/test/helpers/db-seed.ts` exports **constants** `SUPABASE_URL`, `SERVICE_KEY`, `ANON_KEY` (NOT functions). There is NO `getServiceClient`/`getAnonClient`/`createServiceClient`. Every existing integration test (e.g. `ab-tests.test.ts`, `lgpd-consents-merge.test.ts`) builds clients inline:
+  ```ts
+  import { createClient } from '@supabase/supabase-js'
+  import { SUPABASE_URL, SERVICE_KEY, ANON_KEY, seedSite } from '../helpers/db-seed'
+  const db   = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } })
+  const anon = createClient(SUPABASE_URL, ANON_KEY,    { auth: { persistSession: false } })
+  ```
+  For a site, prefer `await seedSite(db, ...)` over `db.from('sites').select().limit(1).single()` (fresh-DB CI has no pre-seeded sites). **VERIFIED — `seedSite(db, opts?)` returns `{ siteId, orgId }` and its `SeedSiteOpts` (db-seed.ts:71) accepts `siteSlug`/`siteName`/`orgSlug`/`orgName`/`domains`/`defaultLocale`/`parentOrgId` — there is NO `slug` key (passing `{ slug: ... }` is an excess-property type error under strict TS; the tasks below use `{ siteSlug: ... }`). **`seedSite` uses `opts.siteSlug` VERBATIM (db-seed.ts:147 — NO auto-uniqueness suffix is appended when you pass it; only the OMITTED case gets `seed-site-${suffix}`). Because the helper reuses the single shared master org and sites are unique on `(org_id, slug)`, every test MUST use a DISTINCT literal `siteSlug`, and suites MUST run after `db:reset` — reusing a literal slug raises `sites_org_id_slug_key` (23505) inside the seed helper as a confusing failure. All Fase-1 tests below already use distinct literals.** For an **authenticated** (JWT) client, use the exported `signUserJwt(userId, role)` (returns `{ userId, jwt }`) / `seedStaffUser(...)` / `seedRbacScenario(admin)` helpers and attach the JWT: `createClient(SUPABASE_URL, ANON_KEY, { global: { headers: { Authorization: \`Bearer ${jwt}\` } } })`.
+- **Setting the `app.site_id` GUC inside a test (only where a test must exercise GUC-dependent SQL):** the PostgREST `db.rpc('set_config', …)` approach does NOT work — `set_config` is not exposed via PostgREST and PostgREST pools connections so a non-local GUC does not persist to the next `rpc()` call. Use a direct `pg` Client. **`PG_URL` is NOT exported from `db-seed.ts` (it is a non-exported `const` at line 19) — define it inline in the test file mirroring `cron-locks.test.ts:19`:** `const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'`. Then: `import { Client } from 'pg'; const c = new Client({ connectionString: PG_URL }); await c.connect(); await c.query("select set_config('app.site_id',$1,false)",[siteId]); await c.query('select public.<fn>($1,…)',[…]); await c.end()`. (The waitlist signup RPC does NOT use this GUC — site is an explicit parameter — so most tests never need it.)
 - **Commits:** `tipo: descrição curta` (`feat`/`fix`/`chore`/`refactor`/`docs`). Work directly on `staging` (per project convention). Use `--no-verify` only for plan/spec commits or when the pre-commit hook fails on another terminal's in-progress files; otherwise let the hook run.
 - **After touching `packages/*/src/`:** run `npm run build:packages` immediately. (Fase 1 does not touch packages; if a step does, this applies.)
 - **Strict TS:** no `any`, Zod for all external input, interfaces prefixed `I` only where the codebase already does so (follow local file conventions — these feature files use plain `type`/`interface` without the `I` prefix, matching `campaigns`/`contacts`).
@@ -49,17 +58,18 @@
 - `page.tsx` — list + KPIs.
 - `actions.ts` — create/update/status-transition/export/delete server actions.
 - `[id]/page.tsx` — detail (Overview + Signups tabs).
-- `_components/` — `waitlists-table.tsx`, `wl-badge.tsx`, `edit-drawer.tsx`, `status-strip.tsx`, `signups-tab.tsx`, `export-dialog.tsx`, `broadcast-dialog.tsx` *(broadcast dialog UI ships in Fase 1 but its server action is stubbed to `not_implemented` until Fase 2)*.
+- `_components/` — `waitlists-table.tsx`, `wl-badge.tsx`, `edit-drawer.tsx`, `status-strip.tsx`, `launch-cta.tsx`, `signups-tab.tsx`, `export-dialog.tsx`, `broadcast-dialog.tsx` *(broadcast dialog UI ships in Fase 1 but its `launchWaitlist` action is stubbed to `not_implemented` until Fase 2; the detail page renders the **Edit** button only — Embed is Fase 3)*.
 - `waitlists.css` (or Tailwind) — six status-badge styles.
 
 **Shared/lib:**
 - `apps/web/lib/cms/csv.ts` — extracted `escapeCsv` (Prep).
+- `apps/web/lib/waitlists/scrub.ts` — PII scrub + message redactor (Task 0b — Prep, lands BEFORE Task 8 so the signup route imports `redactMessage` from creation).
 - `apps/web/src/lib/lgpd/domain-adapter.ts` (modify) — `collectUserData` + pre-capture.
-- `apps/web/lib/cms/layout-counts.ts` (modify) — nav badge counts.
+- `apps/web/lib/cms/layout-counts.ts` (modify) — nav badge counts (`fetchLayoutCountsInner` at line 4).
 
 **Operational (out-of-repo, tracked as checklist):**
 - Vercel WAF rule for `POST /api/waitlists/:slug/signup`.
-- `vercel.json` cron entry for the retention sweep.
+- `apps/web/vercel.json` cron entry for the retention sweep (there is NO root `vercel.json`).
 
 ---
 
@@ -97,11 +107,14 @@ describe('escapeCsv', () => {
     expect(escapeCsv('-1')).toBe(`"'-1"`)
     expect(escapeCsv('@cmd')).toBe(`"'@cmd"`)
     expect(escapeCsv('\tTAB')).toBe(`"'\tTAB"`)
+    expect(escapeCsv('\rX')).toBe(`"'\rX"`)   // CR branch (FORMULA_PREFIXES includes '\r')
+    expect(escapeCsv('=')).toBe(`"'="`)         // value that is ONLY a prefix char
+    expect(escapeCsv('')).toBe('')              // empty string boundary (s.length>0 guard)
   })
 })
 ```
 
-Note `@/` resolves to `apps/web/src` per the project tsconfig path alias; `@/lib/cms/csv` → `apps/web/src/lib/cms/csv`. **Place the file at `apps/web/src/lib/cms/csv.ts`** (the `@/lib` alias points at `src/lib`). Update the File Structure path accordingly.
+**File placement (VERIFIED):** `apps/web/tsconfig.json` maps `@/lib/cms/*` → `./lib/cms/*`, i.e. `apps/web/lib/cms` (NOT `apps/web/src/lib`). The catch-all `@/*` → `./src/*` does not apply because the explicit `@/lib/cms/*` prefix mapping wins. **Place the file at `apps/web/lib/cms/csv.ts`** so `@/lib/cms/csv` resolves correctly and it sits next to the other cms libs (`site-context.ts`, `auth-guards.ts`, `layout-counts.ts`). The File Structure entry already says `apps/web/lib/cms/csv.ts` — keep it.
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -110,8 +123,10 @@ Expected: FAIL — `Cannot find module '@/lib/cms/csv'`.
 
 - [ ] **Step 3: Write the implementation**
 
+> **Do NOT add a `'use server'` directive to `apps/web/lib/cms/csv.ts`** — it is a plain sync helper imported by `'use server'` action files. Marking it `'use server'` would force every export to be an async server action and break the sync `escapeCsv` signature.
+
 ```ts
-// apps/web/src/lib/cms/csv.ts
+// apps/web/lib/cms/csv.ts  (plain module — NO 'use server')
 const FORMULA_PREFIXES = ['=', '+', '-', '@', '\t', '\r']
 
 /**
@@ -137,19 +152,35 @@ Expected: PASS (all cases).
 
 - [ ] **Step 5: Refactor `contacts/actions.ts` to import the shared helper**
 
-In `apps/web/src/app/cms/(authed)/contacts/actions.ts`: add `import { escapeCsv } from '@/lib/cms/csv'` at the top and DELETE the local `const escapeCsv = (v: unknown) => { ... }` closure inside `exportContacts`. Leave all call sites unchanged.
+In `apps/web/src/app/cms/(authed)/contacts/actions.ts`: add `import { escapeCsv } from '@/lib/cms/csv'` at the top and DELETE the local `const escapeCsv = (v: unknown) => { ... }` closure. **VERIFIED:** that closure is at `contacts/actions.ts:275-280`, defined INSIDE the `rows.map((r) => { ... })` callback (so it is re-created per-row). After deleting it and adding the top-level import, the map body's `escapeCsv(...)` call sites resolve to the imported function unchanged.
+
+> **Behavior change (intentional):** the shared helper ALSO neutralizes formula-injection, so contacts CSV cells starting with `=`,`+`,`-`,`@`,TAB,CR will now be quote-prefixed. This is a deliberate security hardening, NOT a no-op. Adjust any existing contacts CSV test that asserted the old plain-`escapeCsv` output for such cells.
 
 - [ ] **Step 6: Verify contacts typecheck + existing tests still pass**
 
 Run: `npm run typecheck -w apps/web && npm test -w apps/web -- contacts`
-Expected: PASS (no behavior change for contacts).
+Expected: PASS. If a pre-existing contacts test asserts non-hardened CSV output for a `=`/`+`/`-`/`@` cell, update that assertion (the only intended behavior change).
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add apps/web/src/lib/cms/csv.ts apps/web/test/lib/cms/csv.test.ts apps/web/src/app/cms/\(authed\)/contacts/actions.ts
+git add apps/web/lib/cms/csv.ts apps/web/test/lib/cms/csv.test.ts apps/web/src/app/cms/\(authed\)/contacts/actions.ts
 git commit -m "refactor: extract shared escapeCsv with formula-injection hardening"
 ```
+
+---
+
+### Task 0b: PII scrub + message redactor (PREP — must land BEFORE Task 8)
+
+> **Why a Prep task (not Task 21):** the signup route (Task 8) is the primary PII surface. Landing `scrub.ts` first lets Task 8 import `redactMessage` from day one (route born scrubbed, not retrofitted) — same prep-before-consumer discipline as Task 0 before Task 19a. Only the cross-file Sentry-tag WIRING stays at Task 21 (Step 3); the helper + its test move here.
+
+**Files:**
+- Create: `apps/web/lib/waitlists/scrub.ts`
+- Create: `apps/web/test/lib/waitlists/scrub.test.ts`
+
+- [ ] **Step 1: Write the failing scrub test** — `apps/web/test/lib/waitlists/scrub.test.ts`: assert `scrub({ email, ip, user_agent, foo })` deep-equals `{ foo }` (drops `email`/`ip`/`user_agent`); AND assert the message-redactor replaces an email and an inet inside a free-text string (e.g. `redactMessage('dup key (a@b.com) 203.0.113.5')` contains neither `a@b.com` nor `203.0.113.5`). **RUN: `npm test -w apps/web -- scrub` → must FAIL (`Cannot find module '.../scrub'`).**
+- [ ] **Step 2: Implement `scrub.ts`** — `scrub(ctx)` strips the `email`/`ip`/`user_agent` keys; `redactMessage(s)` regex-redacts anything matching an email or IPv4/IPv6 literal. Plain sync module (NO `'use server'`), placed at `apps/web/lib/waitlists/scrub.ts` (reached from the signup route via deep-relative `../../../../../../lib/waitlists/scrub`, same depth as `lib/turnstile`). **RUN: same test → must PASS.**
+- [ ] **Step 3: Commit** `feat(waitlists): PII scrub + message redactor`.
 
 ---
 
@@ -267,29 +298,32 @@ Expected: reset completes with no error; the migration applies.
 ```ts
 // apps/web/test/integration/waitlist-schema.test.ts
 import { describe, it, expect } from 'vitest'
+import { createClient } from '@supabase/supabase-js'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
-import { getServiceClient } from '../helpers/db-seed' // existing helper returning a service-role client
+import { SUPABASE_URL, SERVICE_KEY, seedSite } from '../helpers/db-seed'
+
+const db = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } })
 
 describe.skipIf(skipIfNoLocalDb())('waitlist schema', () => {
-  it('rejects a signup row with consent_launch_notification=false', async () => {
-    const db = getServiceClient()
-    const { data: site } = await db.from('sites').select('id').limit(1).single()
+  it('rejects a signup row with consent_launch_notification=false (only that field invalid)', async () => {
+    const { siteId } = await seedSite(db, { siteSlug: 'wl-schema' })
     const { data: wl } = await db.from('waitlists')
-      .insert({ site_id: site!.id, slug: 'schema-test', name: 'Schema Test', status: 'open' })
+      .insert({ site_id: siteId, slug: 'schema-test', name: 'Schema Test', status: 'open' })
       .select('id, site_id').single()
+    // Row valid in EVERY other respect — flip ONLY consent to false.
     const bad = await db.from('waitlist_signups').insert({
-      waitlist_id: wl!.id, site_id: wl!.site_id, email: 'a@b.com',
+      waitlist_id: wl!.id, site_id: wl!.site_id, email: 'valid@b.com',
       consent_launch_notification: false, consent_text_version: 'v1',
     })
     expect(bad.error?.code).toBe('23514') // check_violation
+    expect(bad.error?.message ?? '').toContain('consent_required') // the NAMED constraint, not a different violation
     await db.from('waitlists').delete().eq('id', wl!.id)
   })
 
   it('enforces the partial unique index on (waitlist_id, email) where not anonymized', async () => {
-    const db = getServiceClient()
-    const { data: site } = await db.from('sites').select('id').limit(1).single()
+    const { siteId } = await seedSite(db, { siteSlug: 'wl-dup' })
     const { data: wl } = await db.from('waitlists')
-      .insert({ site_id: site!.id, slug: 'dup-test', name: 'Dup', status: 'open' })
+      .insert({ site_id: siteId, slug: 'dup-test', name: 'Dup', status: 'open' })
       .select('id, site_id').single()
     const base = { waitlist_id: wl!.id, site_id: wl!.site_id, consent_launch_notification: true, consent_text_version: 'v1' }
     const first = await db.from('waitlist_signups').insert({ ...base, email: 'dup@x.com' })
@@ -301,12 +335,13 @@ describe.skipIf(skipIfNoLocalDb())('waitlist schema', () => {
 })
 ```
 
-> Confirm the exact name of the seed helper that returns a service client (grep `apps/web/test/helpers/db-seed.ts` for the exported function; adjust the import if it is e.g. `createServiceClient`).
+> `seedSite(db, opts)` is the verified helper (`db-seed.ts:85`); confirm its return shape (it returns the created site id) and adjust the destructure name if needed.
 
-- [ ] **Step 5: Run the test**
+- [ ] **Step 5: Run the test to verify it FAILS for the right reason, then passes**
 
+First, with the migration NOT yet applied (or before adding the constraints), run and confirm the failure is the intended assertion failure (e.g. `relation "waitlist_signups" does not exist` if run before Step 3, or a missing-constraint assertion mismatch) — NOT a module/import error.
 Run: `npm run db:start && HAS_LOCAL_DB=1 npm test -w apps/web -- waitlist-schema`
-Expected: PASS (both cases).
+Expected after Step 3 applied: PASS (both cases).
 
 - [ ] **Step 6: Commit**
 
@@ -346,10 +381,17 @@ drop policy if exists waitlists_staff_read on public.waitlists;
 create policy waitlists_staff_read on public.waitlists for select to authenticated
   using (public.can_view_site(site_id));
 
--- waitlists: edit (insert/update) for editors+; delete for site-user admins
-drop policy if exists waitlists_edit on public.waitlists;
-create policy waitlists_edit on public.waitlists for all to authenticated
+-- waitlists: insert/update for editors+ (NOT 'for all' — delete is gated separately per spec §1)
+drop policy if exists waitlists_insert on public.waitlists;
+create policy waitlists_insert on public.waitlists for insert to authenticated
+  with check (public.can_edit_site(site_id));
+drop policy if exists waitlists_update on public.waitlists;
+create policy waitlists_update on public.waitlists for update to authenticated
   using (public.can_edit_site(site_id)) with check (public.can_edit_site(site_id));
+-- waitlists: DELETE only for site-user admins (spec §1 mandates can_admin_site_users for hard-delete)
+drop policy if exists waitlists_delete on public.waitlists;
+create policy waitlists_delete on public.waitlists for delete to authenticated
+  using (public.can_admin_site_users(site_id));
 
 -- waitlist_translations: public read via parent visibility; staff/edit via parent
 drop policy if exists waitlist_tx_public_read on public.waitlist_translations;
@@ -367,42 +409,81 @@ create policy waitlist_signups_staff_read on public.waitlist_signups for select 
   using (public.can_view_site(site_id));
 ```
 
-> Verify `site_visible`, `can_view_site`, `can_edit_site` signatures by grepping `supabase/migrations` (CLAUDE.md lists them). They take a `uuid` site id.
+> Verify `site_visible`, `can_view_site`, `can_edit_site`, `can_admin_site_users` signatures by grepping `supabase/migrations` (CLAUDE.md lists them). All take a single `uuid` site id (VERIFIED: schema.sql:3751/3760/3778/4803).
 
 - [ ] **Step 2: Apply + write the RLS test**
 
 ```ts
 // apps/web/test/integration/waitlist-rls.test.ts
 import { describe, it, expect } from 'vitest'
+import { createClient } from '@supabase/supabase-js'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
-import { getServiceClient, getAnonClient } from '../helpers/db-seed'
+import { SUPABASE_URL, SERVICE_KEY, ANON_KEY, seedRbacScenario, signUserJwt } from '../helpers/db-seed'
+
+const svc  = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } })
+const anon = createClient(SUPABASE_URL, ANON_KEY,    { auth: { persistSession: false } })
 
 describe.skipIf(skipIfNoLocalDb())('waitlist RLS', () => {
-  it('anon cannot SELECT waitlist_signups', async () => {
-    const anon = getAnonClient()
-    const { data, error } = await anon.from('waitlist_signups').select('id').limit(1)
-    // RLS denies → empty set (no error) OR permission error; assert no rows leak
-    expect(error ? true : (data ?? []).length === 0).toBe(true)
-  })
-  it('anon cannot INSERT waitlist_signups directly (no policy → denied)', async () => {
-    const anon = getAnonClient()
-    const svc = getServiceClient()
-    const { data: site } = await svc.from('sites').select('id').limit(1).single()
+  it('anon cannot SELECT a REAL waitlist_signups row (RLS denial, not empty table)', async () => {
+    // Seed a row via the service client first, so a pass PROVES RLS denial — not that
+    // the table happens to be empty (which would pass even if the staff-read policy were
+    // wrongly granted to anon).
+    const scenario = await seedRbacScenario(svc)
     const { data: wl } = await svc.from('waitlists')
-      .insert({ site_id: site!.id, slug: 'rls-test', name: 'RLS', status: 'open' })
+      .insert({ site_id: scenario.siteAId, slug: 'rls-leak', name: 'Leak', status: 'open' })
+      .select('id, site_id').single()
+    await svc.from('waitlist_signups').insert({
+      waitlist_id: wl!.id, site_id: wl!.site_id, email: 'seeded@x.com',
+      consent_launch_notification: true, consent_text_version: 'v1',
+    })
+    const { data } = await anon.from('waitlist_signups').select('id').eq('waitlist_id', wl!.id)
+    expect((data ?? []).length).toBe(0) // row exists but is invisible to anon
+    await svc.from('waitlists').delete().eq('id', wl!.id)
+  })
+
+  it('anon cannot INSERT waitlist_signups directly AND no row is created', async () => {
+    const scenario = await seedRbacScenario(svc) // creates site A + site B + staff
+    const siteId = scenario.siteAId
+    const { data: wl } = await svc.from('waitlists')
+      .insert({ site_id: siteId, slug: 'rls-test', name: 'RLS', status: 'open' })
       .select('id, site_id').single()
     const res = await anon.from('waitlist_signups').insert({
       waitlist_id: wl!.id, site_id: wl!.site_id, email: 'x@y.com',
       consent_launch_notification: true, consent_text_version: 'v1',
     })
     expect(res.error).not.toBeNull() // RLS denied
+    // Prove the row was NOT silently created.
+    const { count } = await svc.from('waitlist_signups')
+      .select('*', { count: 'exact', head: true }).eq('waitlist_id', wl!.id)
+    expect(count).toBe(0)
     await svc.from('waitlists').delete().eq('id', wl!.id)
   })
+
+  it('cross-site: editor of site A cannot SELECT site B signups (multi-ring isolation)', async () => {
+    const scenario = await seedRbacScenario(svc)
+    // RbacScenario fields are FLAT strings: `editorAId` IS the user id (not `editorA.userId`).
+    const { jwt } = signUserJwt(scenario.editorAId, 'editor')
+    const editorA = createClient(SUPABASE_URL, ANON_KEY, {
+      auth: { persistSession: false },
+      global: { headers: { Authorization: `Bearer ${jwt}` } },
+    })
+    // Seed a signup on site B (the OTHER ring).
+    const { data: wlB } = await svc.from('waitlists')
+      .insert({ site_id: scenario.siteBId, slug: 'wl-b', name: 'B', status: 'open' })
+      .select('id, site_id').single()
+    await svc.from('waitlist_signups').insert({
+      waitlist_id: wlB!.id, site_id: wlB!.site_id, email: 'b@x.com',
+      consent_launch_notification: true, consent_text_version: 'v1',
+    })
+    const { data } = await editorA.from('waitlist_signups').select('id').eq('waitlist_id', wlB!.id)
+    expect((data ?? []).length).toBe(0)
+    await svc.from('waitlists').delete().eq('id', wlB!.id)
+  })
+
   it('anon cannot read draft waitlists', async () => {
-    const anon = getAnonClient(); const svc = getServiceClient()
-    const { data: site } = await svc.from('sites').select('id').limit(1).single()
+    const scenario = await seedRbacScenario(svc)
     const { data: wl } = await svc.from('waitlists')
-      .insert({ site_id: site!.id, slug: 'draft-test', name: 'Draft', status: 'draft' })
+      .insert({ site_id: scenario.siteAId, slug: 'draft-test', name: 'Draft', status: 'draft' })
       .select('id').single()
     const { data } = await anon.from('waitlists').select('id').eq('id', wl!.id)
     expect((data ?? []).length).toBe(0)
@@ -411,10 +492,11 @@ describe.skipIf(skipIfNoLocalDb())('waitlist RLS', () => {
 })
 ```
 
-> Confirm `getAnonClient` exists in `db-seed.ts`; if not, construct an anon client from `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` inline.
+> `seedRbacScenario(svc)` (db-seed.ts:400) returns two sites + staff users. **VERIFIED — the `RbacScenario` interface (db-seed.ts:379) uses FLAT string fields, NOT nested objects:** `siteAId`, `siteBId`, `editorAId`, `orgAdminId`, `superAdminId`, `reporterAId`, `randomId` (each is the id string directly). There is NO `scenario.siteA.id` / `scenario.editorA.userId` — use `scenario.siteAId` and pass `scenario.editorAId` straight into `signUserJwt`. `signUserJwt(userId, role)` (db-seed.ts:231) returns `{ userId, jwt }`.
 
-- [ ] **Step 3: Run**
+- [ ] **Step 3: Run + fail-first check**
 
+Run before the RLS migration is applied → expect the cross-site test to FAIL because the `waitlist_signups_staff_read` policy (or RLS-enable) is missing, NOT an import error. Then apply and run:
 Run: `npm run db:reset && HAS_LOCAL_DB=1 npm test -w apps/web -- waitlist-rls`
 Expected: PASS.
 
@@ -437,18 +519,40 @@ git commit -m "feat(waitlists): RLS policies — public read, staff read, no ano
 
 Run `npm run db:new waitlist_signup_rpc`, then write:
 
+**Step 1a (REQUIRED first — verify schema):** before writing the INSERT, confirm the real `audit_log` columns. VERIFIED at `supabase/migrations/20260507000001_schema.sql:721-734`: `id, actor_user_id, action (text NOT NULL), resource_type (text NOT NULL), resource_id (uuid, nullable), org_id, site_id, before_data, after_data, ip, user_agent, created_at`. There is **NO `event_type` column**, and `action` is **NOT NULL**. The canonical audit INSERT is at schema.sql:5068. The event string maps to the **`action`** column.
+
 ```sql
 -- =============================================================================
 -- MIGRATION: waitlist_signup_rpc
 -- Single entry point for public signups. SECURITY DEFINER, search_path=''.
--- Re-derives site_id from the waitlist row; re-validates list is 'open';
--- FOR UPDATE branching for idempotent resurrect/duplicate; direct audit insert.
+-- site_id is an EXPLICIT parameter (the route passes the trusted x-site-id);
+-- re-validates list is 'open'; FOR UPDATE branching for idempotent
+-- resurrect/duplicate; direct append-only audit insert.
+-- NOTE: we do NOT read current_setting('app.site_id') — that GUC is never set
+-- on the service client (verified: service.ts sets no GUC, middleware only sets
+-- the x-site-id HTTP header). Relying on it would resolve the slug across ALL
+-- sites (cross-tenant write). Site is passed explicitly, exactly like
+-- contact_rate_check in app/(public)/contact/actions.ts:74-75 (which passes
+-- p_site_id: ctx.siteId from getSiteContext()).
+-- NOTE (do NOT copy the campaign route): the campaign submit route resolves the
+-- campaign by SLUG ALONE (campaigns/[slug]/submit/route.ts:50-53, no x-site-id) —
+-- that is single-site legacy and is intentionally NOT the precedent here.
+-- Waitlists are stricter: always resolve by (slug, explicit site_id).
+--
+-- PARAMETER TYPE NOTE (load-bearing): p_email is `text`, NOT `public.citext`.
+-- PostgREST resolves an RPC by argument types from the JSON it sends as text;
+-- text->citext is only an assignment cast and PostgREST will fail to locate a
+-- citext-param overload (PGRST202 "Could not find the function ..."), 500-ing
+-- the whole public signup path in prod. Every existing RPC (contact_rate_check
+-- schema.sql:3950) takes p_email TEXT and casts internally — mirror that: declare
+-- a local public.citext and cast once, use it everywhere email is compared/inserted.
 -- =============================================================================
-drop function if exists public.waitlist_signup(text, public.citext, text, text, text, text, inet, text);
+drop function if exists public.waitlist_signup(uuid, text, text, text, text, text, text, inet, text);
 
 create or replace function public.waitlist_signup(
+  p_site_id              uuid,
   p_slug                 text,
-  p_email                public.citext,
+  p_email                text,
   p_locale               text,
   p_consent_version      text,
   p_consent_text_snapshot text,
@@ -458,21 +562,23 @@ create or replace function public.waitlist_signup(
 ) returns jsonb
 language plpgsql security definer set search_path = '' as $fn$
 declare
+  v_email       public.citext := p_email::public.citext; -- cast ONCE; use everywhere
   v_site_id     uuid;
+  v_org_id      uuid;
   v_waitlist_id uuid;
   v_status      text;
   v_existing    public.waitlist_signups;
   v_signup_id   uuid;
   v_event       text;
-  v_duplicate   boolean := false;
 begin
-  -- Resolve waitlist by (slug, current site GUC). app.site_id is set by the route.
+  if p_site_id is null then
+    return jsonb_build_object('error', 'not_found');
+  end if;
+  -- Resolve waitlist by (slug, explicit site_id). Never by slug alone.
   select w.id, w.site_id, w.status
     into v_waitlist_id, v_site_id, v_status
     from public.waitlists w
-   where w.slug = p_slug
-     and (coalesce(current_setting('app.site_id', true), '') = ''
-          or w.site_id = (current_setting('app.site_id', true))::uuid)
+   where w.slug = p_slug and w.site_id = p_site_id
    limit 1;
 
   if v_waitlist_id is null then
@@ -482,10 +588,12 @@ begin
     return jsonb_build_object('error', 'waitlist_not_open', 'status', v_status);
   end if;
 
+  select org_id into v_org_id from public.sites where id = v_site_id;
+
   -- Lock the live (non-anonymized) row for this (waitlist, email), if any.
   select * into v_existing
     from public.waitlist_signups s
-   where s.waitlist_id = v_waitlist_id and s.email = p_email and s.anonymized_at is null
+   where s.waitlist_id = v_waitlist_id and s.email = v_email and s.anonymized_at is null
    for update;
 
   if not found then
@@ -493,7 +601,7 @@ begin
       waitlist_id, site_id, email, locale, consent_launch_notification,
       consent_text_version, consent_grant_at, status, source_surface, ip, user_agent
     ) values (
-      v_waitlist_id, v_site_id, p_email, p_locale, true,
+      v_waitlist_id, v_site_id, v_email, p_locale, true,
       p_consent_version, now(), 'pending', p_source_surface, p_ip, p_user_agent
     ) returning id into v_signup_id;
     v_event := 'consent_granted';
@@ -509,53 +617,87 @@ begin
     return jsonb_build_object('duplicate', true);
   end if;
 
-  -- Append-only audit row (direct INSERT; ip/ua as explicit columns).
-  insert into public.audit_log (resource_type, resource_id, site_id, event_type, after_data, ip, user_agent)
-  values ('waitlist_signup', v_signup_id, v_site_id, v_event,
+  -- Append-only audit row (REAL columns: action is NOT NULL; no event_type).
+  -- Hash via core sha256(...::bytea) — pgcrypto's digest() is NOT installed in
+  -- this project (verified: no `create extension pgcrypto`; existing fns use sha256).
+  insert into public.audit_log (actor_user_id, action, resource_type, resource_id, org_id, site_id, after_data, ip, user_agent)
+  values (null, v_event, 'waitlist_signup', v_signup_id, v_org_id, v_site_id,
           jsonb_build_object(
-            'email_hash', encode(public.digest(p_email::text, 'sha256'), 'hex'),
+            'email_hash', encode(sha256(v_email::text::bytea), 'hex'),
             'source_surface', p_source_surface,
             'consent_text_version', p_consent_version,
             'consent_text_snapshot', p_consent_text_snapshot),
           p_ip, p_user_agent);
 
-  return jsonb_build_object('duplicate', v_duplicate);
+  return jsonb_build_object('duplicate', false);
 end
 $fn$;
 
-revoke all on function public.waitlist_signup(text, public.citext, text, text, text, text, inet, text) from public;
-grant execute on function public.waitlist_signup(text, public.citext, text, text, text, text, inet, text) to anon;
+-- SECURITY (load-bearing): the route calls this RPC via getSupabaseServiceClient()
+-- (service_role), which ALREADY has execute (ALTER DEFAULT PRIVILEGES ... GRANT ALL ON
+-- FUNCTIONS TO service_role, schema.sql:7450). Do NOT grant to anon — a direct anon
+-- PostgREST call to /rest/v1/rpc/waitlist_signup with the public NEXT_PUBLIC_SUPABASE_ANON_KEY
+-- would BYPASS Turnstile + the app-layer rate-limit + the UUID-shape guard entirely
+-- (waitlist_signup does NOT call waitlist_rate_check internally), contradicting the
+-- "signups funnel exclusively through the RPC/route" goal.
+-- Because schema.sql:7446/7448/7450 default-privilege-grant EVERY new public function to
+-- anon AND authenticated AND service_role, `revoke ... from public` alone is INSUFFICIENT
+-- (PUBLIC and role-specific grants are distinct) — revoke from public, anon, AND
+-- authenticated explicitly, then grant to service_role only.
+-- CITATION NOTE (do NOT copy verbatim): update_campaign_atomic (20260611000001:197-200) is
+-- the nearest revoke/grant precedent, but it is a DIFFERENT posture — it revokes from
+-- public+anon ONLY (NOT authenticated) and grants to BOTH authenticated AND service_role,
+-- because that RPC is an authenticated-staff write. waitlist_signup is the OPPOSITE: it must
+-- be reachable by NOBODY except the service-role route, so it ALSO revokes from authenticated
+-- and grants to service_role alone. Use the exact two lines below, not the campaign pattern.
+revoke all on function public.waitlist_signup(uuid, text, text, text, text, text, text, inet, text) from public, anon, authenticated;
+grant execute on function public.waitlist_signup(uuid, text, text, text, text, text, text, inet, text) to service_role;
 ```
 
-> **Verify before applying:** (a) `public.audit_log` columns — the spec pins `resource_id uuid`, `event_type`, `after_data jsonb`, `ip inet`, `user_agent text`. Grep `supabase/migrations/20260507000001_schema.sql` for `create table "public"."audit_log"` and match the exact column names (e.g. it may be `resource_type`/`action`/`actor_user_id`). Adjust the INSERT column list to the real schema. (b) `public.digest` requires `pgcrypto`; if unavailable, use `encode(sha256(p_email::text::bytea),'hex')` as in the LGPD branch (Task 5). Prefer the `sha256(...::bytea)` form for consistency with the spec.
+> **Consent-event scope (spec §8 reconciliation):** Fase 1 writes only `consent_granted` (fresh) and `consent_regranted` (resurrect). Spec §8 also lists `consent_withdrawn` as a Fase-1 audit event, but withdrawal is driven by `unsubscribe_via_token`, which is **Fase 2** (see Out of scope). This is a known internal-spec inconsistency, resolved in favor of the §8 phase boundary: `consent_withdrawn` is deferred to Fase 2 with the unsubscribe wiring.
+
+> **Consent-evidence basis (LGPD proof-of-consent — LOCKED):** the audit row stores `consent_text_version` (= `WAITLIST_CONSENT_VERSION`) as an **immutable pointer into the append-only `consent_texts` ledger** (`consent_texts` is supersession-tracked via `effective_at`/`superseded_at` — schema.sql:957). The verbatim text the data subject agreed to is therefore always recoverable by joining `(category='launch_notification', locale, version)` → `consent_texts.text_md`. We deliberately do NOT denormalize the full `text_md` into every audit row. The route's `p_consent_text_snapshot` (Task 8) is a human-readable label (`[locale] version`), NOT the evidentiary basis — the version pointer is. **This is the locked consent-ledger design; Task 6 Step 3 adds the DB-gated test that `WAITLIST_CONSENT_VERSION` resolves a `consent_texts` row for BOTH `en` and `pt-BR` so a version bump that forgets the seed fails CI (linking the runtime constant to the ledger).**
 
 - [ ] **Step 2: Apply + write the test**
 
 ```ts
 // apps/web/test/integration/waitlist-signup-rpc.test.ts
 import { describe, it, expect, beforeAll } from 'vitest'
+import { createClient } from '@supabase/supabase-js'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
-import { getServiceClient } from '../helpers/db-seed'
+import { SUPABASE_URL, SERVICE_KEY, seedSite } from '../helpers/db-seed'
+
+const db = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } })
 
 describe.skipIf(skipIfNoLocalDb())('waitlist_signup RPC', () => {
-  let db: ReturnType<typeof getServiceClient>
   let siteId: string, slug: string
   beforeAll(async () => {
-    db = getServiceClient()
-    const { data: site } = await db.from('sites').select('id').limit(1).single()
-    siteId = site!.id; slug = 'rpc-test-' + Math.floor(Date.now() % 100000)
+    const s = await seedSite(db, { siteSlug: 'wl-rpc' })
+    siteId = s.siteId
+    slug = 'rpc-test-' + Math.floor(Date.now() % 100000)
     await db.from('waitlists').insert({ site_id: siteId, slug, name: 'RPC', status: 'open' })
-    await db.rpc('set_config' as never, { setting_name: 'app.site_id', new_value: siteId, is_local: false } as never).then(() => {})
   })
+  // site_id is an EXPLICIT param — the route passes the trusted x-site-id value.
   const call = (email: string) => db.rpc('waitlist_signup', {
-    p_slug: slug, p_email: email, p_locale: 'pt-BR', p_consent_version: 'launch-notification-v1-2026-06',
-    p_consent_text_snapshot: 'Quero ser avisado…', p_source_surface: 'landing', p_ip: '203.0.113.5', p_user_agent: 'vitest',
+    p_site_id: siteId, p_slug: slug, p_email: email, p_locale: 'pt-BR',
+    p_consent_version: 'launch-notification-v1-2026-06',
+    p_consent_text_snapshot: 'Quero ser avisado…', p_source_surface: 'landing',
+    p_ip: '203.0.113.5', p_user_agent: 'vitest',
   })
 
-  it('fresh signup returns duplicate:false and writes a consent_granted audit row', async () => {
+  it('fresh signup returns duplicate:false and writes a consent_granted audit row WITHOUT raw email', async () => {
     const { data, error } = await call('fresh@x.com')
     expect(error).toBeNull()
     expect((data as { duplicate: boolean }).duplicate).toBe(false)
+    const { data: sup } = await db.from('waitlist_signups').select('id')
+      .eq('waitlist_id', (await db.from('waitlists').select('id').eq('slug', slug).eq('site_id', siteId).single()).data!.id)
+      .eq('email', 'fresh@x.com').single()
+    const { data: aud } = await db.from('audit_log').select('action, after_data')
+      .eq('resource_type', 'waitlist_signup').eq('resource_id', sup!.id).single()
+    expect(aud!.action).toBe('consent_granted')
+    // PII-free: the raw email must NOT appear; the sha256 hash MUST.
+    expect(JSON.stringify(aud!.after_data)).not.toContain('fresh@x.com')
+    expect((aud!.after_data as { email_hash?: string }).email_hash).toMatch(/^[a-f0-9]{64}$/)
   })
   it('repeat pending signup returns duplicate:true', async () => {
     await call('again@x.com')
@@ -568,19 +710,46 @@ describe.skipIf(skipIfNoLocalDb())('waitlist_signup RPC', () => {
     expect((data as { error?: string }).error).toBe('waitlist_not_open')
     await db.from('waitlists').update({ status: 'open' }).eq('slug', slug).eq('site_id', siteId)
   })
+  it('resolves the waitlist ONLY within the passed site_id (cross-site isolation)', async () => {
+    // Seed the SAME slug on a second site; calling with site A must not touch site B.
+    const b = await seedSite(db, { siteSlug: 'wl-rpc-b' })
+    await db.from('waitlists').insert({ site_id: b.siteId, slug, name: 'RPC-B', status: 'open' })
+    const { data } = await db.rpc('waitlist_signup', {
+      p_site_id: siteId, p_slug: slug, p_email: 'iso@x.com', p_locale: 'en',
+      p_consent_version: 'launch-notification-v1-2026-06', p_consent_text_snapshot: 'x',
+      p_source_surface: 'landing', p_ip: null, p_user_agent: 'vitest',
+    })
+    expect((data as { duplicate: boolean }).duplicate).toBe(false)
+    // The signup landed on site A's list, NOT site B's.
+    const { count: onB } = await db.from('waitlist_signups')
+      .select('*', { count: 'exact', head: true }).eq('site_id', b.siteId).eq('email', 'iso@x.com')
+    expect(onB).toBe(0)
+    const { count: onA } = await db.from('waitlist_signups')
+      .select('*', { count: 'exact', head: true }).eq('site_id', siteId).eq('email', 'iso@x.com')
+    expect(onA).toBe(1)
+  })
 })
 ```
 
-> The `set_config` invocation above is illustrative — set `app.site_id` for the connection using whatever helper `db-seed.ts` provides (or call `db.rpc('set_config', ...)` if exposed). If GUC setting from the test client is impractical, the RPC's `coalesce(... = '' OR ...)` branch already allows an empty GUC (admin context), so the test passes without setting it; document that.
+- [ ] **Step 3: Run + fail-first check**
 
-- [ ] **Step 3: Run**
-
+Run against the DB BEFORE applying the RPC migration → expect failure `Could not find the function public.waitlist_signup` (intended), NOT an import/module error. Then apply and run:
 Run: `npm run db:reset && HAS_LOCAL_DB=1 npm test -w apps/web -- waitlist-signup-rpc`
-Expected: PASS.
+Expected: PASS (all cases, including the audit-row PII assertion and cross-site isolation).
 
-- [ ] **Step 4: Add the audit-immutability test (append-only proof)**
+- [ ] **Step 4: Add the audit-immutability REGRESSION-GUARD test (separate file + commit — independently bisectable)**
 
-Append to the same file: a test that a normal `authenticated` client cannot UPDATE or DELETE an `audit_log` row (RLS denies). Use an authenticated client from `db-seed`; assert the update returns an error or affects 0 rows.
+> **This is a regression-guard, NOT a fail-first TDD cycle:** `audit_log` already has no UPDATE/DELETE policy (schema.sql:6228/6233/6238), so there is no meaningful red phase — the test passes on the current tree and exists to catch a future stray policy. Do NOT waste time hunting for a red that cannot occur; commit it separately for bisectability.
+
+Create `apps/web/test/integration/audit-log-append-only.test.ts`. (1) Assert an **authenticated** client cannot UPDATE or DELETE an `audit_log` row (RLS exposes only SELECT policies — schema.sql:6228/6233/6238). Build the authenticated client via `signUserJwt(userId,'editor')` + `Authorization` header (per the conventions block); seed any audit row via the service client; attempt `update`/`delete` and assert the operation errors OR affects 0 rows. (`signUserJwt()` may be called with no args — it generates a userId and returns `{ userId, jwt }`; the JWT does not need a real DB user for this RLS-denial assertion.):
+```ts
+const { jwt } = signUserJwt(undefined, 'editor') // returns { userId, jwt }; no DB user needed for the denial check
+const authed = createClient(SUPABASE_URL, ANON_KEY, { auth: { persistSession: false }, global: { headers: { Authorization: `Bearer ${jwt}` } } })
+// Seed an audit row first via the service client (svc), capturing its id as someAuditId.
+const upd = await authed.from('audit_log').update({ action: 'tampered' }).eq('id', someAuditId).select('id')
+expect((upd.data ?? []).length).toBe(0) // RLS: no UPDATE policy → 0 rows
+```
+(2) Run it → PASS (it would only fail if a stray UPDATE/DELETE policy were ever added). (3) Commit separately: `test(waitlists): audit_log append-only RLS regression guard`.
 
 - [ ] **Step 5: Commit**
 
@@ -618,15 +787,55 @@ begin
           or (v_ip_inet is not null and ip = v_ip_inet));
   return v_count < 5;
 end; $$;
-revoke all on function public.waitlist_rate_check(uuid, text, text) from public;
-grant execute on function public.waitlist_rate_check(uuid, text, text) to anon;
+-- SECURITY: same as waitlist_signup — the route calls this via the service client only.
+-- Granting anon would let an attacker probe the per-IP/per-email count oracle directly.
+-- `revoke ... from public` does NOT undo the default-privilege grants to anon/authenticated
+-- (schema.sql:7446/7448), so revoke all three roles, then grant service_role only.
+revoke all on function public.waitlist_rate_check(uuid, text, text) from public, anon, authenticated;
+grant execute on function public.waitlist_rate_check(uuid, text, text) to service_role;
 ```
 
-- [ ] **Step 2: Apply + add a test** that 5 inserts within the window flips the RPC to `false`. (Insert 5 rows directly via service client, then call the RPC with the same email and assert `false`.)
+- [ ] **Step 2: Write the failing test** — append to `apps/web/test/integration/waitlist-signup-rpc.test.ts`:
 
-- [ ] **Step 3: Run** `npm run db:reset && HAS_LOCAL_DB=1 npm test -w apps/web -- waitlist-signup-rpc`. Expected: PASS.
+```ts
+it('waitlist_rate_check returns false after 5 signups in the window', async () => {
+  const r = await seedSite(db, { siteSlug: 'wl-rate' })
+  const { data: wl } = await db.from('waitlists')
+    .insert({ site_id: r.siteId, slug: 'rate-wl', name: 'Rate', status: 'open' })
+    .select('id, site_id').single()
+  for (let i = 0; i < 5; i++) {
+    await db.from('waitlist_signups').insert({
+      waitlist_id: wl!.id, site_id: wl!.site_id, email: `flood${i}@x.com`,
+      consent_launch_notification: true, consent_text_version: 'v1', ip: '203.0.113.50',
+    })
+  }
+  // Same IP, 6th attempt → over the limit (5 in 10 min).
+  const { data } = await db.rpc('waitlist_rate_check', { p_site_id: wl!.site_id, p_ip: '203.0.113.50', p_email: 'new@x.com' })
+  expect(data).toBe(false)
+})
+```
 
-- [ ] **Step 4: Commit** `feat(waitlists): waitlist_rate_check RPC`.
+- [ ] **Step 2b: Add the anon-denial test (locks the no-direct-anon posture against a future stray grant)** — append to `apps/web/test/integration/waitlist-signup-rpc.test.ts`. An ANON-key client calling EITHER RPC must be DENIED (permission error / PGRST), because both are `service_role`-only:
+
+```ts
+it('anon client is DENIED direct rpc to waitlist_signup AND waitlist_rate_check', async () => {
+  const anon = createClient(SUPABASE_URL, ANON_KEY, { auth: { persistSession: false } })
+  const s1 = await anon.rpc('waitlist_signup', {
+    p_site_id: siteId, p_slug: slug, p_email: 'anon@x.com', p_locale: 'en',
+    p_consent_version: 'v1', p_consent_text_snapshot: 'x', p_source_surface: 'landing',
+    p_ip: null, p_user_agent: 'vitest',
+  })
+  expect(s1.error).not.toBeNull() // permission denied / PGRST function-not-found
+  const s2 = await anon.rpc('waitlist_rate_check', { p_site_id: siteId, p_ip: null, p_email: 'anon@x.com' })
+  expect(s2.error).not.toBeNull()
+})
+```
+
+> Import `ANON_KEY` from `../helpers/db-seed` at the top of the file. This test would PASS today (the grants exclude anon) and exists to fail CI if a future migration re-adds `grant ... to anon`.
+
+- [ ] **Step 3: Run fail-first then pass** — before applying this migration: `HAS_LOCAL_DB=1 npm test -w apps/web -- waitlist-signup-rpc` → expect `Could not find the function public.waitlist_rate_check` (intended), NOT an import error. Then `npm run db:reset && HAS_LOCAL_DB=1 npm test -w apps/web -- waitlist-signup-rpc`. Expected: PASS (including the anon-denial test).
+
+- [ ] **Step 4: Commit** `feat(waitlists): waitlist_rate_check RPC + anon-denial guard`.
 
 ---
 
@@ -645,20 +854,53 @@ grant execute on function public.waitlist_rate_check(uuid, text, text) to anon;
 -- (2) Net-new per-site retention sweep helper (search_path='', service_role only).
 
 -- (1) Re-create lgpd_phase1_cleanup with the waitlist anonymization branch added.
---     Copy the CURRENT function body from the latest migration that defines it
---     (grep: "create or replace function public.lgpd_phase1_cleanup") and ADD,
---     alongside the newsletter_subscriptions anonymization, this block:
---       update public.waitlist_signups
---          set email = encode(sha256(email::text::bytea),'hex'),
---              ip = null, user_agent = null, locale = null, anonymized_at = now()
---        where email = any(p_pre_capture)  -- server-derived emails for this user
---          and anonymized_at is null;
---     Preserve the existing SET search_path TO 'public' and the existing caller guard.
+--     COPY THE ENTIRE CURRENT BODY UNCHANGED from the latest defining migration
+--     (VERIFIED latest: supabase/migrations/20260602000003_lgpd_phase1_unique_collision_fix.sql),
+--     preserving `SECURITY DEFINER SET search_path TO 'public'` and the EXACT caller
+--     guard verbatim (do NOT rewrite it — `IS DISTINCT FROM` vs `=` differ on NULL):
+--       IF auth.role() NOT IN ('service_role','supabase_admin')
+--          AND auth.uid() IS DISTINCT FROM p_user_id THEN
+--         RAISE EXCEPTION 'forbidden: can only clean up own account' USING ERRCODE = 'P0001';
+--       END IF;
+--
+--     p_pre_capture is a JSONB OBJECT keyed by category (verified: the existing
+--     branches read `p_pre_capture ? 'newsletter_emails'` +
+--     `jsonb_array_elements_text(p_pre_capture->'newsletter_emails')`). It is NOT a
+--     flat array — `email = any(p_pre_capture)` would be a type error.
+--
+--     ADD this block (Task 11 populates the new 'waitlist_emails' key in phase1Cleanup):
+--       IF p_pre_capture ? 'waitlist_emails' THEN
+--         UPDATE public.waitlist_signups
+--            SET email = encode(sha256(email::text::bytea),'hex'),
+--                ip = NULL, user_agent = NULL, locale = NULL, anonymized_at = now()
+--          WHERE email = ANY (
+--                  SELECT (jsonb_array_elements_text(p_pre_capture->'waitlist_emails'))::public.citext)
+--            AND anonymized_at IS NULL;
+--       END IF;
+--     CONSENT-PROVENANCE RETENTION (DECIDED — option (a), document verbatim in the migration):
+--       The SET clause deliberately does NOT touch `consent_grant_at` or `consent_text_version`.
+--       Both are RETAINED on the anonymized row as LGPD Art. 15 proof-of-consent (the immutable
+--       pointer into the append-only consent_texts ledger + the timestamp the subject consented).
+--       The email is hashed and ip/ua/locale are nulled, so the row is no longer linkable to a
+--       natural person; the retained consent timestamp is accepted residual, not an omission.
+--       (Same posture applied in the retention sweep's PASS-1 SET clause below.)
+--     (CITEXT-NATIVE comparison is load-bearing: waitlist_signups.email is public.citext.
+--      Casting the column to ::text and the array to text[] (`email::text = ANY(text[])`,
+--      as the contact_submissions branch at 20260602000003:57-67 does) is CASE-SENSITIVE —
+--      a pre-captured email whose case differs from the stored signup would NOT be
+--      anonymized, an LGPD erasure gap. Cast the array elements to public.citext so the
+--      comparison is case-insensitive, matching the newsletter_subscriptions branch which
+--      compares in citext space (20260602000003:53 `email = v_email`).
+--      The dedicated 'waitlist_emails' key — populated by Task 11 — covers the user's
+--      auth/newsletter/contact emails; truly anonymous waitlist-only emails are NOT
+--      linkable to a user_id and are covered by the retention sweep + DSAR, not here.)
 
--- (2) Net-new sweep helper.
+-- (2) Net-new sweep helper. Returns the PASS-2 affected-row count so tests can
+--     assert idempotency (second run touches 0 ip/ua rows) without a tautology.
 drop function if exists public.waitlist_retention_sweep(uuid);
 create or replace function public.waitlist_retention_sweep(p_site_id uuid)
-returns void language plpgsql security definer set search_path = '' as $$
+returns integer language plpgsql security definer set search_path = '' as $$
+declare v_pass2 integer;
 begin
   -- PASS 1: full anonymization per windows.
   update public.waitlist_signups s set
@@ -676,43 +918,101 @@ begin
     )
     and not (s.status='suppressed' and s.suppression_reason in ('bounce','complaint'));
 
-  -- PASS 2: network-PII minimization; idempotency guard prevents no-op churn.
+  -- PASS 2: network-PII minimization; the `ip is not null or user_agent is not null`
+  -- guard makes it idempotent — a second run matches 0 rows (returned count = 0).
   update public.waitlist_signups s set ip=null, user_agent=null
   where s.site_id = p_site_id
     and (s.ip is not null or s.user_agent is not null)
     and s.created_at < now() - interval '30 days';
+  get diagnostics v_pass2 = row_count;
+  return v_pass2;
 end; $$;
 revoke all on function public.waitlist_retention_sweep(uuid) from public, anon, authenticated;
 grant execute on function public.waitlist_retention_sweep(uuid) to service_role;
 ```
 
-> The retention-window numbers (30/7/90/30) match spec §2.4 constants. Keep them inline here; the cron route (Task 10) just iterates sites and calls this RPC per site.
+> The retention-window numbers (30/7/90/30) match spec §2.4 constants. Keep them inline here; the cron route (Task 10) wraps the per-site iteration in `withCronLock` and calls this RPC per site.
 
-- [ ] **Step 2: Apply + test PASS-2 idempotency**
+> **Window provenance decision (LOCKED — `created_at`, EXCEPT the withdrawal branch):** the closed/launched (7d) and orphan-pending (90d) windows key on `s.created_at` (storage-age), NOT `consent_grant_at` (consent-recency). A signup that was suppressed-then-resurrected keeps its ORIGINAL `created_at`, so a re-consented row is swept on storage-age. This is intentional and accepted: the closed/launched (7d) window is purpose-consummation (status-driven, not consent-driven), and the orphan-pending (90d) window is long enough that resurrect does not need to extend it. **Resurrect does NOT extend the orphan/spent windows.** **EXCEPTION — the unsubscribe-withdrawal branch (PASS-1) deliberately keys on `s.suppressed_at`, NOT `created_at`** (it is a post-withdrawal dispute/audit grace measured from the moment of withdrawal). Do NOT "fix" the withdrawal branch to `created_at` — that would anonymize a just-withdrawn old signup immediately and destroy the grace semantics. Document this exception verbatim in the migration comment, and do NOT generalize either to `greatest(created_at, consent_grant_at)`.
+
+- [ ] **Step 2: Write the failing tests** — `apps/web/test/integration/waitlist-retention.test.ts`:
 
 ```ts
-// apps/web/test/integration/waitlist-retention.test.ts (excerpt)
-it('PASS 2 is idempotent — second sweep affects 0 ip/ua rows', async () => {
-  const db = getServiceClient()
-  const { data: site } = await db.from('sites').select('id').limit(1).single()
-  const { data: wl } = await db.from('waitlists')
-    .insert({ site_id: site!.id, slug: 'ret-test', name: 'Ret', status: 'open' }).select('id, site_id').single()
-  // aged pending row with ip/ua
-  await db.from('waitlist_signups').insert({
-    waitlist_id: wl!.id, site_id: wl!.site_id, email: 'aged@x.com', consent_launch_notification: true,
-    consent_text_version: 'v1', ip: '203.0.113.9', user_agent: 'old', created_at: '2020-01-01T00:00:00Z',
+import { describe, it, expect } from 'vitest'
+import { createClient } from '@supabase/supabase-js'
+import { skipIfNoLocalDb } from '../helpers/db-skip'
+import { SUPABASE_URL, SERVICE_KEY, seedSite } from '../helpers/db-seed'
+
+const db = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } })
+
+describe.skipIf(skipIfNoLocalDb())('waitlist retention + lgpd phase1 branch', () => {
+  it('PASS 2 is idempotent — first sweep returns the PASS-2 row count, second returns 0', async () => {
+    // The returned count is PASS-2-ONLY (network-PII minimization). Use a row that is
+    // eligible for PASS 2 (>30d old, has ip/ua) but NOT PASS 1 (status='pending' on an
+    // 'open' list needs >90d for PASS 1; 31d is too recent), so PASS 1 affects 0 and
+    // PASS 2 is the only thing nulling ip/ua. This makes c1>=1 deterministic.
+    const { siteId } = await seedSite(db, { siteSlug: 'wl-ret' })
+    const { data: wl } = await db.from('waitlists')
+      .insert({ site_id: siteId, slug: 'ret-test', name: 'Ret', status: 'open' }).select('id, site_id').single()
+    const aged = new Date(Date.now() - 31 * 86_400_000).toISOString() // 31d: > PASS-2 30d, < PASS-1 90d pending
+    await db.from('waitlist_signups').insert({
+      waitlist_id: wl!.id, site_id: wl!.site_id, email: 'aged@x.com', consent_launch_notification: true,
+      consent_text_version: 'v1', status: 'pending', ip: '203.0.113.9', user_agent: 'old', created_at: aged,
+    })
+    const { data: c1 } = await db.rpc('waitlist_retention_sweep', { p_site_id: wl!.site_id })
+    expect(c1).toBeGreaterThanOrEqual(1) // PASS 2 nulled the aged row's ip/ua
+    const { data: after1 } = await db.from('waitlist_signups').select('ip, user_agent, anonymized_at').eq('email', 'aged@x.com').single()
+    expect(after1!.ip).toBeNull(); expect(after1!.user_agent).toBeNull()
+    expect(after1!.anonymized_at).toBeNull() // PASS 1 did NOT fire (too recent) — row not fully anonymized
+    // Non-tautological idempotency: the SECOND run must affect exactly 0 rows.
+    const { data: c2 } = await db.rpc('waitlist_retention_sweep', { p_site_id: wl!.site_id })
+    expect(c2).toBe(0)
+    await db.from('waitlists').delete().eq('id', wl!.id)
   })
-  await db.rpc('waitlist_retention_sweep', { p_site_id: wl!.site_id })
-  const { data: after1 } = await db.from('waitlist_signups').select('ip, user_agent').eq('email', 'aged@x.com').single()
-  expect(after1!.ip).toBeNull(); expect(after1!.user_agent).toBeNull()
-  // second run must not error and the row stays nulled (no churn) — assert via updated_at unchanged proxy or simply no error
-  const { error } = await db.rpc('waitlist_retention_sweep', { p_site_id: wl!.site_id })
-  expect(error).toBeNull()
-  await db.from('waitlists').delete().eq('id', wl!.id)
+
+  it('two anonymized rows on the same waitlist (distinct emails) do not violate the partial unique index', async () => {
+    const { siteId } = await seedSite(db, { siteSlug: 'wl-ret2' })
+    const { data: wl } = await db.from('waitlists')
+      .insert({ site_id: siteId, slug: 'ret-test2', name: 'Ret2', status: 'closed' }).select('id, site_id').single()
+    // Two sweep-eligible rows (closed list, >7d old), DIFFERENT emails → distinct hashes.
+    for (const e of ['one@x.com', 'two@x.com']) {
+      await db.from('waitlist_signups').insert({
+        waitlist_id: wl!.id, site_id: wl!.site_id, email: e, consent_launch_notification: true,
+        consent_text_version: 'v1', created_at: '2020-01-01T00:00:00Z',
+      })
+    }
+    const { error } = await db.rpc('waitlist_retention_sweep', { p_site_id: wl!.site_id })
+    expect(error).toBeNull() // no 23505 — partial index excludes anonymized rows
+    const { count } = await db.from('waitlist_signups')
+      .select('*', { count: 'exact', head: true }).eq('waitlist_id', wl!.id).not('anonymized_at', 'is', null)
+    expect(count).toBe(2)
+    await db.from('waitlists').delete().eq('id', wl!.id)
+  })
+
+  it('lgpd_phase1_cleanup anonymizes waitlist rows via the waitlist_emails pre-capture key', async () => {
+    const { siteId } = await seedSite(db, { siteSlug: 'wl-phase1' })
+    const { data: wl } = await db.from('waitlists')
+      .insert({ site_id: siteId, slug: 'p1', name: 'P1', status: 'open' }).select('id, site_id').single()
+    await db.from('waitlist_signups').insert({
+      waitlist_id: wl!.id, site_id: wl!.site_id, email: 'erase@x.com', consent_launch_notification: true,
+      consent_text_version: 'v1', ip: '203.0.113.7', user_agent: 'ua',
+    })
+    // Call with a synthetic user id + the new waitlist_emails key (service_role bypasses the guard).
+    const { error } = await db.rpc('lgpd_phase1_cleanup', {
+      p_user_id: '00000000-0000-0000-0000-000000000001',
+      p_pre_capture: { waitlist_emails: ['erase@x.com'] },
+    })
+    expect(error).toBeNull()
+    const { data: row } = await db.from('waitlist_signups').select('email, ip, anonymized_at')
+      .eq('waitlist_id', wl!.id).not('anonymized_at', 'is', null).single()
+    expect(row!.ip).toBeNull()
+    expect(row!.email).toMatch(/^[a-f0-9]{64}$/) // hashed, raw email gone
+    await db.from('waitlists').delete().eq('id', wl!.id)
+  })
 })
 ```
 
-- [ ] **Step 3: Run** `npm run db:reset && HAS_LOCAL_DB=1 npm test -w apps/web -- waitlist-retention`. Expected: PASS.
+- [ ] **Step 3: Run fail-first then pass** — before applying: expect `Could not find the function public.waitlist_retention_sweep` (intended). Then `npm run db:reset && HAS_LOCAL_DB=1 npm test -w apps/web -- waitlist-retention`. Expected: PASS.
 
 - [ ] **Step 4: Commit** `feat(waitlists): LGPD phase1 branch + per-site retention sweep RPC`.
 
@@ -743,7 +1043,7 @@ insert into public.consent_texts (id, category, locale, version, text_md) values
 on conflict (id) do nothing;
 ```
 
-> Verify `consent_texts` columns (`id text`, `category`, `locale`, `version`, `text_md`) by grepping the schema migration; adjust columns if they differ.
+> **VERIFIED:** `consent_texts` columns are `id text NOT NULL` (PK — `consent_texts_pkey` at schema.sql:2130), `category`, `locale` (default `pt-BR`), `version`, `text_md`, `effective_at`, `superseded_at` (schema.sql:957). The seed columns match. Because `id` IS the primary key, `on conflict (id)` is a valid conflict target. (There is also a UNIQUE on `(category, locale, version)` at schema.sql:2124 — either target works; `id` is used here for the deterministic `launch_notification:{locale}:{version}` convention.) `consent_texts.category` has **NO** check constraint, so `category='launch_notification'` is allowed without a migration. **NOTE (do not conflate tables):** the separate `public.consents` LEDGER table DOES have `consents_category_check` (schema.sql:260) which excludes `launch_notification` — this is intentionally avoided because the design writes NO `consents` ledger rows (inline-consent + audit-snapshot model only). If a future phase needs a `consents` ledger row, that check must be extended via migration first.
 
 - [ ] **Step 3: Write the CI invariant test** (asserts the version resolves per supported locale):
 
@@ -758,11 +1058,30 @@ describe('waitlist consent version', () => {
 })
 ```
 
-> A DB-gated companion check (resolves in `consent_texts` for `en` and `pt-BR`) belongs in an integration test once seeded; add it under `skipIfNoLocalDb` if a local DB seed is present.
+- [ ] **Step 3b: Write the DB-gated consent-ledger resolution test** (links the runtime constant to the seeded rows so a version bump that forgets the seed fails CI). `db:reset` runs `seed.sql`, so after reset both rows exist. Add to `apps/web/test/integration/waitlist-consent-seed.test.ts`:
 
-- [ ] **Step 4: Run** `npm test -w apps/web -- waitlist-consent`. Expected: PASS.
+```ts
+import { describe, it, expect } from 'vitest'
+import { createClient } from '@supabase/supabase-js'
+import { skipIfNoLocalDb } from '../helpers/db-skip'
+import { SUPABASE_URL, SERVICE_KEY } from '../helpers/db-seed'
+import { WAITLIST_CONSENT_VERSION as V } from '@/app/api/waitlists/consent'
 
-- [ ] **Step 5: Commit** `feat(waitlists): consent version constant + consent_texts seed`.
+const db = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } })
+
+describe.skipIf(skipIfNoLocalDb())('consent_texts seed resolves for both locales', () => {
+  it('has a row for en AND pt-BR at WAITLIST_CONSENT_VERSION', async () => {
+    const { data } = await db.from('consent_texts').select('id').in('id', [
+      `launch_notification:en:${V}`, `launch_notification:pt-BR:${V}`,
+    ])
+    expect((data ?? []).length).toBe(2) // both locales seeded for the current version
+  })
+})
+```
+
+- [ ] **Step 4: Run** `npm test -w apps/web -- waitlist-consent` (unit) and `npm run db:reset && HAS_LOCAL_DB=1 npm test -w apps/web -- waitlist-consent-seed` (DB-gated). Expected: PASS.
+
+- [ ] **Step 5: Commit** `feat(waitlists): consent version constant + consent_texts seed + ledger resolution test`.
 
 ---
 
@@ -788,7 +1107,11 @@ export async function GET(_req: Request, ctx: Ctx): Promise<Response> {
   const { slug } = await ctx.params
   const h = await headers()
   const siteId = h.get('x-site-id')
-  const locale = h.get('x-locale') ?? h.get('x-default-locale') ?? 'en'
+  // Prefer x-default-locale: it is the REQUEST-side locale header middleware always
+  // sets (middleware.ts:388,428). x-locale is set on requests only via the merge path
+  // (middleware.ts:429) and is primarily a RESPONSE header — it can be null on the
+  // request inside this route. So x-default-locale is the primary branch, not a fallback.
+  const locale = h.get('x-default-locale') ?? h.get('x-locale') ?? 'en'
   if (!siteId) return Response.json({ error: 'no_site' }, { status: 404 })
 
   const supabase = getSupabaseServiceClient()
@@ -806,11 +1129,13 @@ export async function GET(_req: Request, ctx: Ctx): Promise<Response> {
 }
 ```
 
-> Confirm middleware sets `x-locale` (grep middleware); if not, fall back to `x-default-locale`. The select embeds translations via the FK relationship name — verify Supabase exposes it as `waitlist_translations` (it derives from the FK). Adjust if the relationship alias differs.
+> **VERIFIED (locale headers):** middleware sets `x-default-locale` on the REQUEST headers it forwards (apps/web/src/middleware.ts:388 in the site block, and :428 in the merge path) — this is the canonical request-side locale header (`getSiteContext` reads it at site-context.ts:31). `x-locale` is set on the *response* (middleware.ts:201/307/319) and only conditionally re-applied to the request in the merge path (:429), so inside this route handler `h.get('x-locale')` may be null. Therefore the chain `x-default-locale ?? x-locale ?? 'en'` deliberately puts `x-default-locale` FIRST (the value actually set). The select embeds translations via the FK relationship name `waitlist_translations` (derived from the FK); confirm the alias against the generated types and adjust if PostgREST disambiguates it.
 
-- [ ] **Step 2: Write the test** — same slug on two different sites returns each site's own list (404 cross-site). Seed two sites + a waitlist on each with the same slug; call with each `x-site-id` and assert isolation. Draft/launching/failed → 404.
+> **Service-client import (consistency with Task 8):** use the alias `@/lib/supabase/service` here (it IS mapped at tsconfig:35 → `apps/web/lib/supabase`). Task 8 below uses the same alias for the service client. Only `@/lib/turnstile` and `@/lib/logger` are NOT mapped and MUST be deep-relative (six `../`). Rule: **service = alias OK; turnstile + logger = deep-relative required.**
 
-- [ ] **Step 3: Run + Commit** `feat(waitlists): public GET status endpoint (site-scoped)`.
+- [ ] **Step 2: Write the failing test** — `apps/web/test/integration/waitlist-status-endpoint.test.ts`. Mock `next/headers` to inject `x-site-id`/`x-locale`. Use the verified client pattern (`createClient(SUPABASE_URL, SERVICE_KEY)` + `seedSite`). Seed two sites + a waitlist on each with the SAME slug; call `GET` with each `x-site-id` and assert each returns ITS OWN list (cross-site isolation, 404 when the slug is not on that site). Assert draft/launching/failed → 404. Run fail-first: expect the route module not to resolve (file not yet created) before Step 1, NOT an import-helper error.
+
+- [ ] **Step 3: Run** `HAS_LOCAL_DB=1 npm test -w apps/web -- waitlist-status-endpoint` → PASS. **Commit** `feat(waitlists): public GET status endpoint (site-scoped)`.
 
 ---
 
@@ -820,16 +1145,24 @@ export async function GET(_req: Request, ctx: Ctx): Promise<Response> {
 - Create: `apps/web/src/app/api/waitlists/[slug]/signup/route.ts`
 - Test: `apps/web/test/integration/waitlist-signup-endpoint.test.ts`
 
-- [ ] **Step 1: Write the route** (mirrors campaign submit + spec §3 flow):
+- [ ] **Step 1: Write the route** (Turnstile/rate-limit shape borrowed from the campaign submit route, but site-scoped like the CONTACT flow — see the site-scoping note below; spec §3 flow):
 
 ```ts
 // apps/web/src/app/api/waitlists/[slug]/signup/route.ts
+// Import depth VERIFIED against the sibling route campaigns/[slug]/submit/route.ts:3-5
+// (six `../` up to apps/web/lib). `@/lib/turnstile` and `@/lib/logger` are NOT in
+// tsconfig paths (`@/*`→src, and src/lib/logger lacks getLogger) — use deep-relative.
+// From apps/web/src/app/api/waitlists/[slug]/signup/route.ts the depth to apps/web/lib is six `../`.
 import { headers } from 'next/headers'
 import { z } from 'zod'
-import { verifyTurnstileToken } from '@/../lib/turnstile' // adjust to the repo's import style (see note)
-import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import * as Sentry from '@sentry/nextjs'
+import { verifyTurnstileToken } from '../../../../../../lib/turnstile'
+import { getLogger } from '../../../../../../lib/logger'
+import { redactMessage } from '../../../../../../lib/waitlists/scrub' // Task 0b — already landed
+import { getSupabaseServiceClient } from '@/lib/supabase/service' // alias mapped at tsconfig:35 (Task 7 uses the same)
 import { WAITLIST_CONSENT_VERSION } from '../../consent'
-import { getLogger } from '@/../lib/logger'
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 const Body = z.object({
   locale: z.string().min(2).max(10),
@@ -842,8 +1175,14 @@ interface Ctx { params: Promise<{ slug: string }> }
 export async function POST(req: Request, ctx: Ctx): Promise<Response> {
   const { slug } = await ctx.params
   // Fail-closed Turnstile config assertion in non-dev.
+  // VERIFIED (turnstile.ts:27-31): verifyTurnstileToken returns FALSE when the secret
+  // is unset — it does NOT dev-bypass. So in local `next dev` (NODE_ENV='development',
+  // VERCEL_ENV unset → isDev=true) we skip the 503 BUT must ALSO skip the verify call,
+  // otherwise every dev signup 400s on turnstile_failed. The verify below is guarded by
+  // `!isDev || hasSecret`.
   const isDev = process.env.VERCEL_ENV !== 'production' && process.env.VERCEL_ENV !== 'preview' && process.env.NODE_ENV === 'development'
-  if (!process.env.TURNSTILE_SECRET_KEY && !isDev) {
+  const hasTurnstileSecret = Boolean(process.env.TURNSTILE_SECRET_KEY)
+  if (!hasTurnstileSecret && !isDev) {
     return Response.json({ error: 'unavailable' }, { status: 503 })
   }
 
@@ -852,28 +1191,57 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
 
   const h = await headers()
   const siteId = h.get('x-site-id')
-  if (!siteId) return Response.json({ error: 'no_site' }, { status: 404 })
+  // x-site-id is set by trusted middleware from a DB lookup, so it is always a real
+  // uuid in practice; this shape guard is defense-in-depth (rejects a garbage header
+  // before burning a DB round-trip) and keeps the RPC's p_site_id uuid coercion safe.
+  if (!siteId || !UUID_RE.test(siteId)) return Response.json({ error: 'no_site' }, { status: 404 })
+  // Trusted IP = the Vercel edge-set header ONLY. x-forwarded-for is client-spoofable
+  // off-proxy (an attacker rotates fake values to defeat the per-IP rate-limit arm), so
+  // it is used as a fallback in dev only. In prod the Vercel WAF edge rule (Operational
+  // deliverables: 20/IP/60s) is the authoritative IP throttle; the per-IP DB arm is
+  // best-effort and the per-email arm is the spoofing-resistant one.
   const ip = req.headers.get('x-vercel-forwarded-for')?.split(',')[0]?.trim()
-    ?? req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null
+    ?? (isDev ? (req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null) : null)
   const ua = req.headers.get('user-agent') ?? null
 
-  const ok = await verifyTurnstileToken(body.turnstile_token, ip ?? undefined)
-  if (!ok) return Response.json({ error: 'turnstile_failed' }, { status: 400 })
-
   const supabase = getSupabaseServiceClient()
-  // Rate-limit — fail CLOSED on RPC error.
+  // Rate-limit FIRST (cheap DB check) — fail CLOSED on RPC error — so abusive IPs
+  // are rejected with 429 WITHOUT a Cloudflare siteverify round-trip. The WAF edge
+  // rule is the primary attempt-flood throttle; this app-layer check is
+  // signup-COUNT-based (it reads waitlist_signups), not attempt-based. siteId
+  // (header string) is passed as p_site_id uuid; PostgREST coerces; invalid uuid →
+  // RPC errors → fail closed (503).
   const rate = await supabase.rpc('waitlist_rate_check', { p_site_id: siteId, p_ip: ip, p_email: body.email })
-  if (rate.error) { getLogger().error('[waitlist_rate_check]', { msg: rate.error.message }); return Response.json({ error: 'unavailable' }, { status: 503 }) }
+  // Log ONLY error.code — never error.message/details (Postgres messages can echo back
+  // the email/ip param, leaking PII into logs/Sentry despite the Task 21 scrub helper).
+  if (rate.error) { getLogger().error('[waitlist_rate_check]', { code: rate.error.code }); return Response.json({ error: 'unavailable' }, { status: 503 }) }
   if (rate.data === false) return Response.json({ error: 'rate_limited' }, { status: 429 })
 
-  // Snapshot the displayed consent text for the audit trail.
+  // Then verify Turnstile — but only when a secret is configured. In local dev with no
+  // secret (isDev=true, hasTurnstileSecret=false) we skip the verify so dev signups work;
+  // verifyTurnstileToken would otherwise return false → 400 (turnstile.ts:27-31).
+  if (hasTurnstileSecret) {
+    const ok = await verifyTurnstileToken(body.turnstile_token, ip ?? undefined)
+    if (!ok) return Response.json({ error: 'turnstile_failed' }, { status: 400 })
+  }
+
+  // Audit basis is the consent_text_version pointer (see Task 3 "Consent-evidence basis").
+  // p_consent_text_snapshot is a human-readable label, NOT the evidentiary record.
   const snapshot = `[${body.locale}] ${WAITLIST_CONSENT_VERSION}`
   const res = await supabase.rpc('waitlist_signup', {
+    p_site_id: siteId, // trusted x-site-id — site is an explicit RPC param (no GUC)
     p_slug: slug, p_email: body.email, p_locale: body.locale,
     p_consent_version: WAITLIST_CONSENT_VERSION, p_consent_text_snapshot: snapshot,
     p_source_surface: 'landing', p_ip: ip, p_user_agent: ua,
   })
-  if (res.error) { getLogger().error('[waitlist_signup]', { msg: res.error.message }); return Response.json({ error: 'insert_failed' }, { status: 500 }) }
+  if (res.error) {
+    // Primary PII surface: log ONLY error.code; route any free-text through redactMessage
+    // (Task 0b) before Sentry; tag component so incident response works from Task 8 onward
+    // (do NOT wait for the Task 21 wiring on this one endpoint).
+    getLogger().error('[waitlist_signup]', { code: res.error.code })
+    Sentry.captureException(new Error(`waitlist_signup ${res.error.code}: ${redactMessage(res.error.message ?? '')}`), { tags: { component: 'waitlist' } })
+    return Response.json({ error: 'insert_failed' }, { status: 500 })
+  }
   const out = res.data as { error?: string; status?: string; duplicate?: boolean }
   if (out.error === 'not_found') return Response.json({ error: 'not_found' }, { status: 404 })
   if (out.error === 'waitlist_not_open') return Response.json({ error: 'waitlist_not_open', status: out.status }, { status: 409 })
@@ -881,11 +1249,19 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
 }
 ```
 
-> **Import paths:** the campaign route imports `verifyTurnstileToken` from a deep relative path into `apps/web/lib/turnstile` (note: `apps/web/lib`, NOT `apps/web/src/lib`). Use the same relative style the sibling routes use; grep an existing `app/api/**/route.ts` for the exact `../lib/turnstile` depth and copy it. Same for `lib/logger` and `lib/supabase/service`. (The `@/` alias maps to `src` only — `lib/` is reached relatively.) **Also:** the `p_source_surface` is `'landing'` here; the embed/TipTap surfaces (Fase 3) will POST the same endpoint with a `source_surface` body field — leave a TODO but do NOT add the field now (YAGNI for Fase 1).
+> **Import paths (VERIFIED):** `verifyTurnstileToken` and `getLogger` are NOT in tsconfig paths (`@/*`→`src`, and `src/lib/logger.ts` exports only `newRunId`/`withCronLock`, NOT `getLogger`) — import them via six `../` into `apps/web/lib` (same depth as the sibling `campaigns/[slug]/submit/route.ts:3-5`). `getSupabaseServiceClient` uses the alias `@/lib/supabase/service` (mapped at tsconfig:35 → `apps/web/lib/supabase`), matching Task 7. **Rule: service = alias; turnstile + logger = deep-relative.**
+>
+> **Site scoping (do NOT copy the campaign route):** the campaign submit route (`campaigns/[slug]/submit/route.ts:50-53`) resolves the campaign by SLUG ALONE, reads no `x-site-id`, and passes no site_id — that is single-site legacy and is intentionally NOT the precedent. Waitlists DELIBERATELY pass the middleware-trusted `x-site-id` as the explicit `p_site_id` RPC param AND always combine `.eq('site_id', siteId)` with `.eq('slug', slug)`. The cross-tenant guard depends entirely on this — do not reintroduce slug-only resolution. The matching precedent is the CONTACT flow (`app/(public)/contact/actions.ts:74-75`, which passes `p_site_id: ctx.siteId`), not the campaign flow.
+>
+> **YAGNI:** `p_source_surface` is `'landing'`; embed/TipTap surfaces (Fase 3) add a `source_surface` body field — leave a TODO comment, do NOT add it now.
 
-- [ ] **Step 2: Write the endpoint test** (DB-gated): success returns `{success:true,duplicate:false}`; second identical call → `duplicate:true`; closed list → 409; missing turnstile secret in simulated non-dev → 503. Mock `verifyTurnstileToken` to return true via `vi.mock`.
+- [ ] **Step 2: Write the failing endpoint test** (DB-gated) — `apps/web/test/integration/waitlist-signup-endpoint.test.ts`. Mock `next/headers` to inject `x-site-id`, and mock the turnstile module. **`vi.mock` SPECIFIER (gotcha):** vitest resolves a `vi.mock` path RELATIVE TO THE TEST FILE, but the route imports turnstile via `'../../../../../../lib/turnstile'` (relative to the ROUTE). Those two relative strings do NOT point at the same module. Vitest dedupes by the RESOLVED absolute module, so the mock only takes effect if both resolve to `apps/web/lib/turnstile.ts`. The route here uses a deep-relative import, so mock it by an absolute-from-root path that vitest will resolve to the same file — use `vi.mock(new URL('../../lib/turnstile', import.meta.url).pathname, ...)` from the test file (which sits at `apps/web/test/integration/`, i.e. two `../` to `apps/web/lib`), OR import `verifyTurnstileToken` into the test via the SAME `'../../lib/turnstile'` specifier and assert vitest resolves it to the route's module. Simplest robust option: `vi.mock('../../lib/turnstile', () => ({ verifyTurnstileToken: vi.fn().mockResolvedValue(true) }))` (two `../` from `apps/web/test/integration/` → `apps/web/lib`). Confirm the mock fires by asserting `verifyTurnstileToken` was called. **Env interplay (important):** vitest runs with `NODE_ENV='test'`, so `isDev` is false → the 503-no-secret branch fires by default. Therefore:
+>   - success/duplicate/closed cases: `vi.stubEnv('TURNSTILE_SECRET_KEY', 'test-secret')`.
+>   - 503 case: `vi.stubEnv('TURNSTILE_SECRET_KEY', '')` (and leave `NODE_ENV='test'`); assert 503.
+>
+> Assertions: success → 200 `{success:true,duplicate:false}`; second identical call → `{duplicate:true}`; closed list → 409; missing secret in non-dev → 503; over-rate → 429. Run fail-first (route not yet created) → module-not-found for the route, NOT for a test helper.
 
-- [ ] **Step 3: Run + Commit** `feat(waitlists): public POST signup endpoint (Turnstile, fail-closed rate-limit)`.
+- [ ] **Step 3: Run** `HAS_LOCAL_DB=1 npm test -w apps/web -- waitlist-signup-endpoint` → PASS. **Commit** `feat(waitlists): public POST signup endpoint (Turnstile, fail-closed rate-limit)`.
 
 ---
 
@@ -899,8 +1275,12 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
 
 ```ts
 // apps/web/src/app/api/waitlists/dsar/[token]/route.ts
-import crypto from 'node:crypto'
-import { getSupabaseServiceClient } from '@/lib/supabase/service'
+// FASE 1: inert no-oracle stub. NO imports of crypto / the service client yet —
+// the Fase-1 body never uses them, so importing now leaves dead imports (and the
+// previous "keep crypto warm" `void _phase2_token_hash` hack). Cleaner to add them
+// back in Fase 2 with the live wiring. (Note: `tsc --noEmit` does NOT set
+// `noUnusedLocals`, so an unused import would not hard-fail typecheck — this is a
+// cleanliness choice, not a gate workaround.)
 
 interface Ctx { params: Promise<{ token: string }> }
 const NEUTRAL = () => Response.json({ data: [] }, { status: 200 }) // no oracle
@@ -908,27 +1288,42 @@ const NEUTRAL = () => Response.json({ data: [] }, { status: 200 }) // no oracle
 export async function GET(_req: Request, ctx: Ctx): Promise<Response> {
   const { token } = await ctx.params
   if (!token || token.length < 16) return NEUTRAL()
-  const hash = crypto.createHash('sha256').update(token).digest('hex')
-  const supabase = getSupabaseServiceClient()
-  const { data: tok } = await supabase
-    .from('unsubscribe_tokens')
-    .select('site_id, email, source')
-    .eq('token_hash', hash).eq('source', 'waitlist').maybeSingle()
-  if (!tok) return NEUTRAL()
-  const { data } = await supabase
-    .from('waitlist_signups')
-    .select('email, consent_launch_notification, consent_text_version, status, source_surface, created_at')
-    .eq('site_id', tok.site_id).eq('email', tok.email).is('anonymized_at', null)
-  return new Response(JSON.stringify({ data: data ?? [] }, null, 2), {
-    status: 200,
-    headers: { 'content-type': 'application/json', 'content-disposition': 'attachment; filename="waitlist-data.json"' },
-  })
+  // FASE 2: source-namespaced waitlist tokens (unsubscribe_tokens.source) do NOT
+  // exist yet — that column lands in the Fase-2 token migration, and no waitlist
+  // tokens are issued in Fase 1 (no broadcast). Resolving a token here could only
+  // match a NEWSLETTER token, which is out of scope, so we short-circuit. This is
+  // an intentional inert no-oracle response, not an accidental error path.
+  return NEUTRAL()
 }
+
+// ── Fase 2 wiring (paste into GET above when the source column + token issuance ship). ──
+// Fase 2: add `export const dynamic = 'force-dynamic'` — once this route reads a
+// per-request token and returns per-email data it must NEVER be cached (a stale cache
+// would become a token/data oracle).
+// Re-add the imports at the top of the file at that time:
+//   import crypto from 'node:crypto'
+//   import { getSupabaseServiceClient } from '../../../../../../lib/supabase/service'
+// then:
+//   const hash = crypto.createHash('sha256').update(token).digest('hex')
+//   const supabase = getSupabaseServiceClient()
+//   const { data: tok, error: tokErr } = await supabase
+//     .from('unsubscribe_tokens')
+//     .select('site_id, email, source')          // 'source' added in Fase 2
+//     .eq('token_hash', hash).eq('source', 'waitlist').maybeSingle()
+//   if (tokErr || !tok) return NEUTRAL()
+//   const { data } = await supabase
+//     .from('waitlist_signups')
+//     .select('email, consent_launch_notification, consent_text_version, status, source_surface, created_at')
+//     .eq('site_id', tok.site_id).eq('email', tok.email).is('anonymized_at', null)
+//   return new Response(JSON.stringify({ data: data ?? [] }, null, 2), {
+//     status: 200,
+//     headers: { 'content-type': 'application/json', 'content-disposition': 'attachment; filename="waitlist-data.json"' },
+//   })
 ```
 
-> **Dependency:** `unsubscribe_tokens.source` column does NOT exist until Fase 2 (the source-namespaced token migration). In Fase 1 there are no waitlist tokens issued yet (no broadcast), so this endpoint correctly returns the neutral empty response for every token. Ship it now (it is inert until Fase 2 issues waitlist tokens) OR gate the route behind a `// Fase 2` note. **Decision: ship the route; the `.eq('source','waitlist')` filter simply matches nothing until Fase 2.** Add a code comment saying so. The DB-gated test asserts: unknown token → neutral empty; (the populated-token case is tested in Fase 2).
+> **Dependency (VERIFIED):** `unsubscribe_tokens` columns are `site_id, email, created_at, used_at, token_hash` only (schema.sql:1785-1792) — there is **NO `source` column** until Fase 2. A `.select('…, source')` / `.eq('source','waitlist')` against the real schema is a PostgREST **error**, NOT an empty match — so the original "matches nothing" reasoning was wrong. **Decision (Fase 1): short-circuit to `NEUTRAL()` immediately** with a `// FASE 2` comment; do not query a non-existent column. The full token lookup is committed as dead commented code (BELOW the function, not inside it) and enabled in Fase 2 alongside the migration. **Do NOT import `crypto` or `getSupabaseServiceClient` in Fase 1** — the Fase-1 body never uses them, so they would be dead imports; re-add them (six-`../` deep-relative, like the sibling routes) only when the Fase-2 body is pasted in. (`tsc --noEmit` here does not set `noUnusedLocals`, so this is cleanliness, not a hard gate — but avoid the unused import regardless.)
 
-- [ ] **Step 2: Test** unknown/short token → `{data:[]}` 200; never 404/500 (no oracle).
+- [ ] **Step 2: Test** — unknown/short/any token → `{data:[]}` 200; **explicitly assert status is 200 (never 404/500)** so the no-oracle + no-error guarantee is locked, not incidental. (Populated-token case is a Fase-2 test.)
 
 - [ ] **Step 3: Commit** `feat(waitlists): token-gated DSAR export endpoint (inert until Fase 2)`.
 
@@ -938,47 +1333,78 @@ export async function GET(_req: Request, ctx: Ctx): Promise<Response> {
 
 **Files:**
 - Create: `apps/web/src/app/api/cron/waitlist-retention-sweep/route.ts`
-- Modify: `vercel.json` (cron entry — operational)
+- Modify: `apps/web/vercel.json` (cron entry — operational; NO root `vercel.json` exists)
 - Test: `apps/web/test/integration/waitlist-sweep-route.test.ts`
 
 - [ ] **Step 1: Write the route** (GET=POST alias, CRON_SECRET-gated, per-site iteration, `WAITLIST_RETENTION_SWEEP_ENABLED` flag):
 
 ```ts
 // apps/web/src/app/api/cron/waitlist-retention-sweep/route.ts
-import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { getLogger } from '@/../lib/logger'
+// Import depths VERIFIED against sibling crons (e.g. anonymize-newsletter-tracking:4,
+// lgpd-cleanup-sweep). From this route to apps/web/lib is five `../`
+// (api/cron/<x>/route.ts → apps/web/lib).
+import * as Sentry from '@sentry/nextjs'
+import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
+import { logCron, newRunId, withCronLock } from '../../../../../lib/logger'
+
+const JOB = 'waitlist-retention-sweep'
+const LOCK_KEY = 'cron:waitlist-retention-sweep'
 
 async function handle(req: Request): Promise<Response> {
+  // Auth guard mirrors lgpd-cleanup-sweep/route.ts (verified: `const auth = headers...; const
+  // secret = process.env.CRON_SECRET; if (!secret || auth !== ...) 401`) — INCLUDES the
+  // !secret null-check so an unset CRON_SECRET cannot be matched by `Bearer undefined`.
+  const secret = process.env.CRON_SECRET
   const auth = req.headers.get('authorization')
-  if (auth !== `Bearer ${process.env.CRON_SECRET}`) return Response.json({ error: 'unauthorized' }, { status: 401 })
-  if (process.env.WAITLIST_RETENTION_SWEEP_ENABLED !== 'true') return Response.json({ skipped: 'disabled' }, { status: 200 })
+  if (!secret || auth !== `Bearer ${secret}`) return Response.json({ error: 'unauthorized' }, { status: 401 })
+  if (process.env.WAITLIST_RETENTION_SWEEP_ENABLED !== 'true') {
+    // Observe the disabled run too via the CronLogEvent 'skipped' status (logger.ts:43 —
+    // CronLogEvent.status includes 'skipped'). NOTE: this is a deliberate enhancement over
+    // lgpd-cleanup-sweep, which returns a bare 204 with NO logCron on its disabled branch —
+    // we emit the skipped event so the activation checklist (Operational deliverables) can
+    // VERIFY in prod logs that the path is registered + inert before flipping the flag.
+    logCron({ job: JOB, status: 'skipped' })
+    return Response.json({ skipped: 'disabled' }, { status: 200 })
+  }
 
   const supabase = getSupabaseServiceClient()
-  const { data: sites, error } = await supabase.from('sites').select('id')
-  if (error) return Response.json({ error: error.message }, { status: 500 })
-  let swept = 0
-  for (const s of sites ?? []) {
-    const r = await supabase.rpc('waitlist_retention_sweep', { p_site_id: s.id })
-    if (r.error) getLogger().error('[waitlist-sweep]', { site: s.id, msg: r.error.message })
-    else swept++
-  }
-  getLogger().info('[waitlist-sweep] done', { swept })
-  return Response.json({ ok: true, sites: swept })
+  // withCronLock (logger.ts:103) acquires an advisory lock, emits a logCron event for
+  // EVERY outcome (ok/error/locked) — THIS is the project's last-run observability
+  // mechanism — and prevents overlapping Vercel+pg_cron double-runs. Returns a Response.
+  return withCronLock(supabase, LOCK_KEY, newRunId(), JOB, async () => {
+    const { data: sites, error } = await supabase.from('sites').select('id')
+    if (error) throw error // withCronLock logs status:'error'
+    let swept = 0
+    for (const s of sites ?? []) {
+      const r = await supabase.rpc('waitlist_retention_sweep', { p_site_id: s.id })
+      if (r.error) logCron({ job: JOB, status: 'error', site_id: s.id, err_code: r.error.code })
+      else swept++
+    }
+    // Persist last-run observability for the irreversible-deletion sweep: a Sentry
+    // breadcrumb (operators can see it actually ran) in addition to the logCron line.
+    Sentry.addBreadcrumb({ category: 'cron', message: JOB, level: 'info', data: { sites: swept } })
+    // STUCK-LAUNCHING WATCHDOG — deferred to Fase 2 (see reconciliation note below).
+    return { status: 'ok' as const, sites: swept }
+  })
 }
 export const GET = handle
 export const POST = handle
 ```
 
-> Site enumeration mirrors how other crons resolve sites (a flat `select id from sites`). The split-brain GET=POST alias is mandated by the project's cron architecture (Vercel cron = GET; pg_cron = POST).
+> **VERIFIED:** the `Logger` interface (`apps/web/lib/logger.ts:7-10`) exposes ONLY `warn`/`error` — there is **NO `.info()`** (`getLogger().info(...)` is a strict-TS typecheck failure). The cron-event API is `logCron(event: CronLogEvent)` (logger.ts:53; shape `{ job, status: 'ok'|'error'|'locked'|'skipped', err_code?, site_id?, … }` with a `[key:string]:unknown` index signature so an extra `sites` key typechecks). `withCronLock(supabase, lockKey, runId, job, fn)` (logger.ts:103) is the canonical wrapper used by `anonymize-newsletter-tracking/route.ts:24` — it logs every outcome (the last-run observability) and serializes against overlapping invocations. `newRunId` is also exported from `apps/web/lib/logger`. The split-brain GET=POST alias is mandated by the project's cron architecture (Vercel cron = GET; pg_cron = POST).
 
-- [ ] **Step 2: Test** — unauthorized without `CRON_SECRET`; `skipped` when flag off; with flag on + secret, returns `{ok:true}` (DB-gated).
+> **Stuck-launching watchdog — §8 reconciliation (mirrors the Task 3 `consent_withdrawn` pattern):** spec §8 lists a "stuck-launching watchdog" as a Fase-1 sweep deliverable, but the watchdog acts only on waitlists with an associated `newsletter_editions` row, and editions are a Fase-2 migration (**Fase-1 invariant: no `newsletter_editions` waitlist row can exist** — there is no broadcast/launch in Fase 1, and `(open|closed)→launching` is intentionally absent from Task 16's transition graph). The watchdog UPDATE is therefore a STRUCTURAL no-op in Fase 1 and ships with the lifecycle trigger in Fase 2 (Out of scope). The nav-badge stuck-launching count (Task 20) is likewise dormant-but-harmless until then. This converts the §8 divergence into a flagged, defensible deferral — it is NOT a silent drop.
 
-- [ ] **Step 3: Add the `vercel.json` cron entry** (operational):
+- [ ] **Step 2: Write the failing test** — `apps/web/test/integration/waitlist-sweep-route.test.ts` (explicit fail-first: run BEFORE the route file exists → expect module-not-found for the ROUTE, NOT a helper import error). Cases: (a) no/empty `CRON_SECRET` header → 401; (b) `vi.stubEnv('CRON_SECRET','s')` + correct Bearer but flag off → 200 `{skipped:'disabled'}` AND assert a `logCron({status:'skipped'})` fires (spy/mock `logCron` or assert the JSON line); (c) flag on + correct Bearer → 200 `{ok:true,...}` (DB-gated; seed a site) AND assert `Sentry.addBreadcrumb` was called with `category:'cron'` and `data.sites` set (mock `@sentry/nextjs`'s `addBreadcrumb`); (d) the `!secret` guard: with `CRON_SECRET` unset and header `Bearer undefined`, expect 401. Run → PASS after Step 1.
+
+- [ ] **Step 3: Pre-check the Vercel cron quota, THEN add the cron entry to `apps/web/vercel.json`** (VERIFIED: there is NO root `vercel.json`; the crons array — 38 existing entries — is at `apps/web/vercel.json`). Adding this makes 39 total.
+  - **Cron-quota pre-check (do FIRST):** confirm the Vercel project plan permits ≥39 cron jobs (check the dashboard Crons tab / `vercel project ls`). Vercel cron counts are plan-tier-gated; if the tier caps crons, a silently-dropped entry means the irreversible-deletion sweep NEVER fires in prod — an undetected LGPD retention gap that still passes CI/build. **If the tier caps crons, do NOT add a 39th entry — instead fold `waitlist_retention_sweep` into the existing `lgpd-cleanup-sweep` cron's site loop** (call the RPC there), and skip the vercel.json append. Document the chosen path in the DPO note.
+  - If quota allows, append to the EXISTING `crons` array (do not overwrite):
 
 ```json
-{ "crons": [ { "path": "/api/cron/waitlist-retention-sweep", "schedule": "0 4 * * *" } ] }
+{ "path": "/api/cron/waitlist-retention-sweep", "schedule": "15 4 * * *" }
 ```
-Merge into the existing `crons` array (do not overwrite). Set `WAITLIST_RETENTION_SWEEP_ENABLED=true` in Vercel env when ready to activate (leave unset/false until DPO sign-off).
+Use `15 4` (not `0 4`) to avoid colliding with the existing `0 4` crons (anonymize-newsletter-tracking, ab-draft-cleanup). Leave `WAITLIST_RETENTION_SWEEP_ENABLED` unset/false until DPO sign-off (see the ordered activation checklist in Operational deliverables).
 
 - [ ] **Step 4: Commit** `feat(waitlists): retention-sweep cron route + vercel.json entry`.
 
@@ -992,11 +1418,18 @@ Merge into the existing `crons` array (do not overwrite). Set `WAITLIST_RETENTIO
 - Modify: `apps/web/src/lib/lgpd/domain-adapter.ts`
 - Test: `apps/web/test/unit/lgpd-domain-adapter.test.ts` (extend existing)
 
-- [ ] **Step 1: Read the current adapter** to learn the `collectUserData` shape and the `p_pre_capture` enumeration pattern (grep `collectUserData` and `pre_capture` / `lgpd_phase1_cleanup` in `domain-adapter.ts`).
+> **VERIFIED method shapes (domain-adapter.ts):** `collectUserData(userId: string)` takes a UUID (line 212) and derives the user's email INTERNALLY via `getUserById(userId)` (it does NOT take an email). `phase1Cleanup(userId: string)` (line 45) is the SEPARATE method that calls `rpc('lgpd_phase1_cleanup', { p_pre_capture })` — it builds `emails` from auth + `newsletter_subscriptions` + `contact_submissions` (lines 97-101) and sets `preCapture = { newsletter_emails: emails }` (line 103). `collectUserData` does NOT call the cleanup RPC. So the export query goes in `collectUserData`; the pre-capture change goes in `phase1Cleanup`.
 
-- [ ] **Step 2: Write the failing test** — `collectUserData(userEmail)` includes a `waitlists` section with the narrowed projection (`email, consent_launch_notification, consent_text_version, status, source_surface, created_at`) and EXCLUDES `ip`/`user_agent`. Seed a signup for the user's email; assert the export contains it without network PII.
+- [ ] **Step 1: Read the current adapter** — confirm the two method signatures above and the `newsletter_sends` export projection (line 298: `id, edition_id, subscriber_email, status, delivered_at, opened_at, clicked_at, created_at` — note it EXCLUDES `open_ip`/`open_user_agent`; the waitlist projection's exclusion of `ip`/`user_agent` is parity with this).
 
-- [ ] **Step 3: Implement** — add a query in `collectUserData` selecting the narrowed projection from `waitlist_signups` by the user's email; add the user's waitlist emails to the `p_pre_capture` array passed to `lgpd_phase1_cleanup`. Mirror the existing `newsletter_subscriptions` branch exactly.
+- [ ] **Step 2: Write the failing test** (extend `apps/web/test/unit/lgpd-domain-adapter.test.ts`) — two assertions:
+>   - `collectUserData(userId)` returns a `waitlists` section with the narrowed projection `email, consent_launch_notification, consent_text_version, status, source_surface, created_at` and EXCLUDES `ip`/`user_agent`. (Seed a signup keyed off the user's email; assert it appears WITHOUT network PII.)
+>   - `phase1Cleanup(userId)` anonymizes the user's `waitlist_signups` rows. (Seed a signup for the user's email + a matching auth user; run `phase1Cleanup`; assert the row's `anonymized_at` is set and `email` is the sha256 hash.) **Seed the auth user via the exported `insertAuthUser(email, userId)` helper (`db-seed.ts:26`, signature `(email: string, id?: string)`) so `collectUserData`/`phase1Cleanup`'s internal `getUserById(userId)` resolves the email — do NOT pass an unseeded synthetic uuid (the adapter derives the email internally and would find nothing).**
+
+- [ ] **Step 3: Implement** —
+>   - In `collectUserData`: after the user's email(s) are resolved (same way the existing `newsletter_subscriptions`/`newsletter_sends` branches resolve them — by `userEmail`), add a `waitlist_signups` query with the narrowed projection `.eq('email', userEmail)` and add a `waitlists` key to the returned bundle. Mirror the existing `newsletter_sends` branch exactly (which deliberately omits network PII).
+>   - In `phase1Cleanup`: after `emails` is built (line ~97-101), set `preCapture.waitlist_emails = emails` — **reuse the SAME auth-derived `emails` array; do NOT query `waitlist_signups.select('email').in('email', emails)`.** That query is logically impossible: `.in('email', emails)` can only return rows whose email is ALREADY in `emails`, so it can never discover a NEW waitlist-only email. `waitlist_signups` has **no `user_id` column** (Task 1) — the only email tying a signup to the authenticated user IS the auth/newsletter/contact email, which `emails` already contains. The Task 5 SQL branch reads exactly `p_pre_capture->'waitlist_emails'` and anonymizes the matching signups.
+>   - **Honest erasure-coverage rationale (do NOT claim it closes the gap for anonymous emails):** `phase1Cleanup` anonymizes only waitlist signups whose email equals the deleting user's auth/newsletter/contact email. A truly anonymous waitlist-only email (one never used for newsletter/contact) is NOT linkable to a `user_id` and is therefore NOT erased by phase1 — it is covered solely by the retention sweep (`ORPHAN_PENDING_DAYS`) + the per-email DSAR/unsubscribe self-service path (spec §2.3 states this; Task 11 must not contradict it).
 
 - [ ] **Step 4: Run + Commit** `feat(waitlists): LGPD export + pre-capture for waitlist memberships`.
 
@@ -1013,7 +1446,7 @@ Merge into the existing `crons` array (do not overwrite). Set `WAITLIST_RETENTIO
 
 **Port source:** `design_handoff_waitlists/design_files/waitlist-public.jsx` (`WaitlistForm`) — recreate as a production React 19 client component using the live Pinboard kit. Do NOT copy the Babel/localStorage prototype scaffolding.
 
-- [ ] **Step 1: Write `FORM_STRINGS`** (pt-BR + en) covering every state in spec §7 (idle/submitting/success/duplicate/closed/launched/error/rateLimited/unavailable). Use the copy table from the spec and the handoff. Shape:
+- [ ] **Step 1: Write `FORM_STRINGS`** (pt-BR + en) covering every state in spec §7 (idle/submitting/success/duplicate/closed/launched/error/rateLimited/raceClosed/unavailable). The `409-race` state (spec §7 line 516) is DISTINCT from `closed`: `closed`/`launched` come from the mount-GET (the form never opened), while `raceClosed` is the live POST returning 409 `waitlist_not_open` (the list closed mid-flight, after the user submitted). Use the copy table from the spec and the handoff. Shape:
 
 ```ts
 // apps/web/src/components/waitlists/form-strings.ts
@@ -1021,7 +1454,7 @@ export type WaitlistLocale = 'pt-BR' | 'en'
 export interface WaitlistStrings {
   emailPlaceholder: string; consentLabel: string; button: string; buttonLoading: string
   successHeadline: string; successBody: string; duplicateHeadline: string; duplicateBody: string
-  closed: string; launched: string; error: string; rateLimited: string; unavailable: string
+  closed: string; launched: string; raceClosed: string; error: string; rateLimited: string; unavailable: string
   reassurance: string
 }
 export const FORM_STRINGS: Record<WaitlistLocale, WaitlistStrings> = {
@@ -1032,6 +1465,7 @@ export const FORM_STRINGS: Record<WaitlistLocale, WaitlistStrings> = {
     successHeadline: 'Pronto!', successBody: 'Te avisamos quando lançar.',
     duplicateHeadline: 'Você já está na lista', duplicateBody: 'Avisaremos quando lançar.',
     closed: 'As inscrições estão encerradas.', launched: 'Já lançou!',
+    raceClosed: 'Esta lista acabou de fechar.',
     error: 'Algo deu errado. Tente novamente.', rateLimited: 'Muitas tentativas. Aguarde um instante.',
     unavailable: 'Temporariamente indisponível, tente em instantes.',
     reassurance: 'Enviaremos um único email — cancele quando quiser.',
@@ -1043,6 +1477,7 @@ export const FORM_STRINGS: Record<WaitlistLocale, WaitlistStrings> = {
     successHeadline: 'Done!', successBody: "We'll email you when it launches.",
     duplicateHeadline: "You're already on the list", duplicateBody: "We'll email you when it launches.",
     closed: 'Signups are closed.', launched: 'It launched!',
+    raceClosed: 'This waitlist just closed.',
     error: 'Something went wrong. Please try again.', rateLimited: 'Too many attempts. Please wait a moment.',
     unavailable: 'Temporarily unavailable, please try again shortly.',
     reassurance: "We'll send one email only — unsubscribe anytime.",
@@ -1052,7 +1487,7 @@ export const FORM_STRINGS: Record<WaitlistLocale, WaitlistStrings> = {
 
 - [ ] **Step 2: Write a failing component test** (Vitest + Testing Library) — renders the form in `idle`, asserts the email input + consent checkbox + disabled submit until both consent checked and (in non-dev) a turnstile token present; on a mocked successful POST it renders the success block in place (no email field) with `role="status"`.
 
-- [ ] **Step 3: Implement the component** — a `'use client'` component with props `{ slug: string; locale: WaitlistLocale; variant?: 'landing' | 'embed' | 'inline'; initialStatus?: 'open'|'closed'|'launched' }`. State machine per spec §7. POSTs to `/api/waitlists/${slug}/signup`. Maps response → state. Accessibility per §7 (focus to result `role=status` after submit; error `role=alert`; email input attributes; Turnstile disabled-until-token; reduced motion). Recreate the Pinboard visual treatment via the live kit (`makePinboardKit`/`Paper`/`Tape`) used elsewhere in the public site — grep `apps/web/src` for the real import path of the Pinboard components (the prototype's `shared.jsx` maps to the real site kit).
+- [ ] **Step 3: Implement the component** — a `'use client'` component with props `{ slug: string; locale: WaitlistLocale; variant?: 'landing' | 'embed' | 'inline'; initialStatus?: 'open'|'closed'|'launched' }`. State machine per spec §7. POSTs to `/api/waitlists/${slug}/signup`. **Response→state mapping (spec §7):** 200 `{success:true,duplicate:false}` → `success`; 200 `{duplicate:true}` → `duplicate`; **409 `waitlist_not_open` → `raceClosed`** (render `strings.raceClosed`, DISTINCT from the mount-GET `closed`/`launched` blocks); 429 → `rateLimited`; 503 → `unavailable`; other non-2xx → `error`. **Both the `success` AND `duplicate` result blocks append the `reassurance` line (spec §7 line 510) — render `{strings.reassurance}` under both `successBody` and `duplicateBody`.** Accessibility per §7 (focus to result `role=status` after submit; error `role=alert`; email input attributes; Turnstile disabled-until-token; reduced motion). Recreate the Pinboard visual treatment via the live kit (`makePinboardKit`/`Paper`/`Tape`) used elsewhere in the public site — grep `apps/web/src` for the real import path of the Pinboard components (the prototype's `shared.jsx` maps to the real site kit).
 
 - [ ] **Step 4: Run + Commit** `feat(waitlists): shared WaitlistSignupForm + FORM_STRINGS`.
 
@@ -1066,9 +1501,9 @@ export const FORM_STRINGS: Record<WaitlistLocale, WaitlistStrings> = {
 
 **Port source:** `design_handoff_waitlists/design_files/waitlist-surfaces.jsx` (hosted landing composition).
 
-- [ ] **Step 1: Implement the server component** — direct host→site lookup (the spec notes sitemap/robots do direct lookup, NOT middleware-dependent; follow `app/sitemap.ts` for the host-lookup helper). Resolve `(slug, site_id, locale)`; if status ∉ public set → `notFound()`. Render the two-column landing (pitch + sticky form card) with `<WaitlistSignupForm slug locale variant="landing" initialStatus={status} />`. Respect status server-side (closed/launched render the message block; open renders the form). Pull headline/description from the resolved translation, falling back to `FORM_STRINGS` + the waitlist `name`/`description`.
+- [ ] **Step 1: Implement the server component** — add `export const dynamic = 'force-dynamic'` (the page reads request headers; static prerender is impossible for slugs unknown at build time and would break multi-site routing). **Site resolution — use the SAME mechanism as Task 7 (`x-site-id` from `headers()`), NOT `resolveSiteByHost`.** The `resolveSiteByHost` host-lookup pattern (`apps/web/lib/seo/host.ts:20`, used by `app/sitemap.ts`/`app/robots.ts`) exists ONLY because `x-site-id` is STRIPPED from `MetadataRoute` invocations (Next.js #58436) — that stripping does NOT apply to an ordinary `(public)` server component, which DOES receive the middleware-set `x-site-id`. Using two different resolution strategies for the same feature is a latent host-normalization drift risk; read `x-site-id` (and `x-default-locale`) via `headers()` exactly like the Task 7 route and the contact-flow precedent. Resolve `(slug, site_id, locale)` with `.eq('site_id', siteId).eq('slug', slug)`; if status ∉ public set → `notFound()`. Render the two-column landing (pitch + sticky form card) with `<WaitlistSignupForm slug locale variant="landing" initialStatus={status} />`. Respect status server-side (closed/launched render the message block; open renders the form). Pull headline/description from the resolved translation, falling back to `FORM_STRINGS` + the waitlist `name`/`description`. (No `loading.tsx` needed for the public route.)
 
-- [ ] **Step 2: Test** — open status renders the form; closed renders the closed message and no email input; a non-existent slug renders 404. (Use a render test against the server component or a Playwright smoke if configured.)
+- [ ] **Step 2: Write the failing test** — `apps/web/test/integration/waitlist-landing.test.tsx`. Mock `next/headers` to inject `x-site-id`/`x-default-locale` (same as Task 7). Render the server component for: status=`open` (assert the email input is present); status=`closed` (assert the closed-message block AND NO email input); a non-existent slug (assert `notFound()` is thrown — wrap in `expect(...).rejects` or assert the `next/navigation` `notFound` mock was called). Run fail-first BEFORE Step 1 (route module not found), then PASS after.
 
 - [ ] **Step 3: Commit** `feat(waitlists): hosted landing page /waitlists/[slug]`.
 
@@ -1076,7 +1511,7 @@ export const FORM_STRINGS: Record<WaitlistLocale, WaitlistStrings> = {
 
 ## FASE 1E — CMS module
 
-> All CMS server actions follow the verified guard chain: `const { siteId } = await requireEditAccess()` (which calls `getSiteContext()` + `requireSiteScope({ area:'cms', siteId, mode })`), then `getSupabaseServiceClient()`, then every query `.eq('site_id', siteId)`, then `captureServerActionError` on failure + `revalidatePath`/`revalidateTag('layout-counts')`. Mirror `contacts/actions.ts` and `campaigns/[id]/edit/actions.ts`.
+> All CMS server actions follow the verified guard chain. **`requireEditAccess` is NOT a shared exported helper** — it is a LOCAL function defined per feature's `actions.ts`, and the shape differs between features (`contacts/actions.ts:22-31` returns `{ siteId, timezone }` (object); `settings/actions.ts` returns a plain string). **Define your own local `requireEditAccess()` in `waitlists/actions.ts` mirroring `contacts/actions.ts:22-31`** — it calls `getSiteContext()` (from `@/lib/cms/site-context`, which maps to `apps/web/lib/cms`) + `requireSiteScope({ area:'cms', siteId, mode:'edit' })` (from `@tn-figueiredo/auth-nextjs/server`) and returns `{ siteId }` so `const { siteId } = await requireEditAccess()` holds. Then `getSupabaseServiceClient()`, every query `.eq('site_id', siteId)`, `captureServerActionError` (from `@/lib/sentry-wrap`) on failure + `revalidatePath`/`revalidateTag('layout-counts')`. **The same-shape precedents to mirror are `contacts/actions.ts:22-31` and `campaigns/bulk-actions.ts:13-24` (local-`requireEditAccess`+`requireSiteScope`). Do NOT mirror `campaigns/[id]/edit/actions.ts` for this — it uses `requireSiteAdminForRow` (a row-level guard from `@/lib/cms/auth-guards`), NOT a local `requireEditAccess`.** (`requireSiteAdminForRow` is NOT usable for waitlists anyway — its `AuthorizableTable` union is `'blog_posts'|'campaigns'|'newsletter_editions'`, not `'waitlists'`.)
 
 ### Task 14: CMS list page + KPIs + `WlBadge`
 
@@ -1089,9 +1524,11 @@ export const FORM_STRINGS: Record<WaitlistLocale, WaitlistStrings> = {
 
 **Port source:** `design_files/views-waitlists-main.jsx` (list + KPI strip) and `views-waitlists.jsx` (`WlBadge`). `waitlists.css` maps to existing CMS tokens per the handoff (draft→muted, open→`--ok`, closed→`--warn`, launching→`--c-pipeline` pulsing, launched→`--c-newsletter`, failed→`--danger`).
 
-- [ ] **Step 1: `WlBadge` test + impl** — renders the correct label + token class for each of the six statuses; `launching` gets the pulsing dot.
-- [ ] **Step 2: List page** — `force-dynamic` + `loading.tsx` skeleton; server component reads via `getSiteContext()` + service client `.eq('site_id', siteId)`; KPI strip (Waitlists + open count, Total signups, Linked campaigns, Needs attention = failed + stuck-launching); table columns (Name + `/waitlists/{slug}`, Status `WlBadge`, Signups count with `−N` suppressed sub, Linked campaign, Updated relative); empty state (`EmptyState` icon `gift`) + "New waitlist" CTA. Signup counts via a single grouped count query.
-- [ ] **Step 3: Run + Commit** `feat(waitlists): CMS list page + KPIs + status badge`.
+- [ ] **Step 1: Write the failing `WlBadge` test** — `apps/web/test/components/wl-badge.test.tsx` asserting the correct label + token class for ALL SIX statuses (draft/open/closed/launching/launched/failed), and that `launching` renders the pulsing dot. **RUN: `npm test -w apps/web -- wl-badge` → must FAIL with `Cannot find module '.../wl-badge'` (NOT a helper import error).**
+- [ ] **Step 2: Implement `wl-badge.tsx`** — the six-status badge with token classes (draft→muted, open→`--ok`, closed→`--warn`, launching→`--c-pipeline` pulsing dot, launched→`--c-newsletter`, failed→`--danger`). **RUN: `npm test -w apps/web -- wl-badge` → must PASS.** Commit `feat(waitlists): WlBadge status badge`.
+- [ ] **Step 2a: Write the failing list-query test (DB-gated)** — `apps/web/test/integration/waitlist-list-page.test.ts`. Extract the list query into a testable function (e.g. `listWaitlistsForSite(siteId)` in `waitlists/actions.ts` or the page module) so it is callable directly. Seed site A with an `open` waitlist (2 signups, 1 of them `suppressed`) + a `closed` waitlist on a SECOND site B. Call the query scoped to site A and assert: it returns ONLY site A rows (cross-site scoping via `.eq('site_id', siteId)`), the open-waitlist KPI = 1, total-signups KPI = 2, and the suppressed sub-count = 1. **RUN before Step 3 → must FAIL (the list query/function does not exist), NOT a helper import error.**
+- [ ] **Step 3: List page** — `force-dynamic` + `loading.tsx` skeleton; server component reads via `getSiteContext()` + service client `.eq('site_id', siteId)`; KPI strip (Waitlists + open count, Total signups, Linked campaigns, Needs attention = failed + stuck-launching); table columns (Name + `/waitlists/{slug}`, Status `WlBadge`, Signups count with `−N` suppressed sub, Linked campaign, Updated relative); empty state (`EmptyState` icon `gift`) + "New waitlist" CTA. Signup counts via a single grouped count query. **RUN: same test → must PASS.**
+- [ ] **Step 4: Run + Commit** (test + page together) `feat(waitlists): CMS list page + KPIs`.
 
 ### Task 15: Create/edit drawer + create/update actions
 
@@ -1102,10 +1539,25 @@ export const FORM_STRINGS: Record<WaitlistLocale, WaitlistStrings> = {
 
 **Port source:** `views-waitlists.jsx` (`EditDrawer`, portalled to `document.body`; intro is an UNCONTROLLED `contentEditable` read on save — keep this to avoid the React `removeChild` crash documented in the handoff).
 
-- [ ] **Step 1: Write the `createWaitlist`/`updateWaitlist` actions** with: slug auto-slugify (client), `23505` → `{ ok:false, error:'slug_taken' }` (catch wraps the INSERT/UPDATE, not a pre-SELECT), sender-email validated against `ringContext().getSite(siteId).domains` at save (field error), status mutation rejected here (use discrete transition actions, Task 16). Return typed results mirroring `SaveCampaignResult`.
-- [ ] **Step 2: Test (DB-gated)** — concurrent create of the same slug → exactly one success + one `slug_taken`; sender-email on a non-owned domain → field error; create persists translations row.
-- [ ] **Step 3: Drawer component** — right-side drawer portalled to body; fields per handoff §2 (Name, Slug, Description, Intro rich-text, Linked campaign searchable picker, Sender name/email/reply-to, consent preview line); Esc closes; Cancel/Save.
-- [ ] **Step 4: Run + Commit** `feat(waitlists): create/edit drawer + actions (slug-collision, sender validation)`.
+- [ ] **Step 1: Write the failing actions test (DB-gated)** — `apps/web/test/integration/waitlist-cms-actions.test.ts`. Cases: (a) **concurrent create of the same slug → exactly one success + one `slug_taken`** (real race via two parallel calls); (b) sender-email on a non-owned domain → field error; (c) create persists the translations row. Concurrency test code (PostgREST pools a single connection, so fire two TRULY parallel calls and rely on the DB unique constraint surfacing as `23505` in exactly one):
+
+```ts
+const fd = (slug: string) => { const f = new FormData(); f.set('slug', slug); f.set('name', 'Race'); return f }
+const slug = 'race-' + Math.floor(Date.now() % 100000)
+const [a, b] = await Promise.allSettled([createWaitlist(fd(slug)), createWaitlist(fd(slug))])
+const val = (r: PromiseSettledResult<{ ok: boolean; error?: string }>) => r.status === 'fulfilled' ? r.value : null
+const oks   = [a, b].filter((r) => val(r)?.ok === true)
+const taken = [a, b].filter((r) => val(r)?.error === 'slug_taken')
+expect(oks).toHaveLength(1)
+expect(taken).toHaveLength(1) // the loser's INSERT hits 23505 → slug_taken (catch wraps INSERT, not a pre-SELECT)
+```
+
+> If the harness cannot produce a true overlap through the action's pooled service client, assert the equivalent invariant directly: a second `createWaitlist` with the same slug after the first committed returns `{ ok:false, error:'slug_taken' }` AND the DB still has exactly one row for that `(site_id, slug)`. The load-bearing guarantee is "the unique constraint, not a pre-SELECT, decides the winner."
+
+**RUN: `npm run db:reset && HAS_LOCAL_DB=1 npm test -w apps/web -- waitlist-cms-actions` BEFORE writing the actions → must FAIL with the action module not found (NOT a helper error).**
+- [ ] **Step 2: Implement `createWaitlist`/`updateWaitlist` actions** — slug auto-slugify (client), `23505` → `{ ok:false, error:'slug_taken' }` (catch wraps the INSERT/UPDATE, NOT a pre-SELECT), sender-email validated against `ringContext().getSite(siteId).domains` at save (field error), status mutation rejected here (discrete transition actions, Task 16). Return typed results mirroring `SaveCampaignResult`. **RUN: same test → must PASS.** Commit `feat(waitlists): create/update actions (slug-collision, sender validation)`.
+- [ ] **Step 2a: Write the failing drawer component test** — `apps/web/test/components/waitlist-edit-drawer.test.tsx` (Vitest + Testing Library). The intro is an UNCONTROLLED `contentEditable` read-on-save (flagged crash-prone in the handoff), so its save behavior is load-bearing and MUST be covered. Pass a `createWaitlist` callback as a prop (do NOT import the server action into the client component — props-only per project convention). Assert: (a) Esc closes the drawer; (b) Save reads the uncontrolled `contentEditable` intro into the submitted payload (set the node's text, click Save, assert the payload carries it); (c) submit calls the `createWaitlist` callback prop with `slug`/`name`/`intro`. **RUN → must FAIL (`Cannot find module '.../edit-drawer'`).**
+- [ ] **Step 3: Drawer component** — right-side drawer portalled to body; fields per handoff §2 (Name, Slug, Description, Intro rich-text UNCONTROLLED `contentEditable` read-on-save, Linked campaign searchable picker, Sender name/email/reply-to, consent preview line); Esc closes; Cancel/Save; takes create/update as callback props. **RUN: same test → must PASS.** Commit `feat(waitlists): create/edit drawer UI`.
 
 ### Task 16: Status-transition actions (CAS) + status strip
 
@@ -1114,22 +1566,28 @@ export const FORM_STRINGS: Record<WaitlistLocale, WaitlistStrings> = {
 - Create: `apps/web/src/app/cms/(authed)/waitlists/_components/status-strip.tsx`
 - Test: extend `waitlist-cms-actions.test.ts`
 
-- [ ] **Step 1: Write `transitionWaitlistStatus(id, to)`** enforcing the legal graph (`draft→open`; `open↔closed`; `(open|closed)→launching` is broadcast-only, Task 19/Fase 2; `failed→closed`) via CAS: `update waitlists set status=$to where id=$id and site_id=$siteId and status=$from` → 0 rows ⇒ `{ ok:false, error:'status_changed' }`. `launched` terminal (no transitions out).
-- [ ] **Step 2: Test** — illegal transition rejected; CAS 0-row returns `status_changed`; legal transition succeeds + revalidates.
-- [ ] **Step 3: Status strip component** — renders only the legal buttons for the current status with one-line hints (per handoff §3); Launch is the accent CTA (wired to the broadcast dialog, Task 19); Resume/Retry uses the recover style.
-- [ ] **Step 4: Commit** `feat(waitlists): guarded status transitions + status strip`.
+- [ ] **Step 1: Write the failing transition test** — extend `waitlist-cms-actions.test.ts`: illegal transition (e.g. `draft→launched`) rejected with `{ok:false}`; CAS 0-row (stale `from`) returns `status_changed`; a legal transition (`draft→open`) succeeds. **RUN before writing the action → must FAIL (transition action undefined / not exported), NOT a helper error.**
+- [ ] **Step 2: Implement `transitionWaitlistStatus(id, to)`** enforcing the Fase-1 legal graph (`draft→open`; `open↔closed`; `failed→closed`) via CAS: `update waitlists set status=$to where id=$id and site_id=$siteId and status=$from` → 0 rows ⇒ `{ ok:false, error:'status_changed' }`. `launched` terminal (no transitions out). **The `(open|closed)→launching` transition is intentionally ABSENT from this action's legal graph in Fase 1** — it is owned exclusively by the real `launchWaitlist` broadcast action in Fase 2 (Task 19 ships only the dialog UI + a stub). Do not add `launching` as a target here. **RUN: same test → must PASS.** Commit `feat(waitlists): guarded status transitions (CAS)`.
+- [ ] **Step 3: Status strip component** — renders only the legal buttons for the current status with one-line hints (per handoff §3); Launch is the accent CTA (wired to the broadcast dialog, Task 19); Resume/Retry uses the recover style. Commit `feat(waitlists): status strip`.
 
 ### Task 17: Detail page (Overview + Signups tabs)
 
 **Files:**
 - Create: `apps/web/src/app/cms/(authed)/waitlists/[id]/page.tsx`
 - Create: `apps/web/src/app/cms/(authed)/waitlists/_components/signups-tab.tsx`
-- Test: covered by Task 18 query test + a render smoke
+- Create: `apps/web/src/app/cms/(authed)/waitlists/_components/launch-cta.tsx` (extract the CTA card so its gating predicate is unit-testable)
+- Test: `apps/web/test/components/waitlist-detail-cta.test.tsx`
 
-**Port source:** `views-waitlists-main.jsx` (`WaitlistDetail`): back link, title + `WlBadge`, public URL, Embed/Edit buttons, status-specific banner, status strip, Overview tab (What's coming, Signups by source, Launch CTA card disabled when `pending===0` or status not open/closed, Details card), Signups tab.
+**Port source:** `views-waitlists-main.jsx` (`WaitlistDetail`): back link, title + `WlBadge`, public URL, **Edit button only** (see note), status-specific banner, status strip, Overview tab (What's coming, Signups by source, Launch CTA card disabled when `pending===0` or status not open/closed, Details card), Signups tab.
 
-- [ ] **Step 1: Implement the detail server component** reading the waitlist `.eq('id',id).eq('site_id',siteId)` (404 if not owned), grouped signup counts by source/status, and mounting the two tabs. The Launch CTA card shows eligible (`pending`) count; in Fase 1 the broadcast action is stubbed (Task 19) — the button opens the dialog but the action returns `not_implemented` until Fase 2. State that clearly in the card hint.
-- [ ] **Step 2: Commit** `feat(waitlists): waitlist detail page (overview + signups tabs)`.
+> **OMIT the Embed button in Fase 1.** The handoff puts an "Embed" button on the detail page wired to a CMS `EmbedDialog`, but that dialog + the `/embed/waitlists/[slug]` route are **Fase 3** (spec §8). Rendering a button whose target does not exist is a UX dead-end. Render only the **Edit** button; the Embed button + EmbedDialog are added in the Fase-3 plan. Drop "Embed" from the port list above.
+
+> **`source_surface` labels (Signups-by-source):** DB values are `landing|embed|tiptap` (Task 1, matching the spec). The handoff prototype label `"post"` maps to `"tiptap"` — the bars/pills MUST use the three DB values, not `"post"`. In Fase 1 only `"landing"` is ever written, so the `embed`/`tiptap` buckets render zero.
+
+- [ ] **Step 0: Write the failing Launch-CTA gating test** — `apps/web/test/components/waitlist-detail-cta.test.tsx`. Render the `<LaunchCta>` card and assert the Launch button is **disabled when `pending===0`**, **disabled when `status` not in (`open`,`closed`)**, and **enabled** when `pending>0 AND status in (open,closed)`. **RUN: `npm test -w apps/web -- waitlist-detail-cta` → must FAIL (`Cannot find module '.../launch-cta'`).**
+- [ ] **Step 1: Implement `launch-cta.tsx`** with the gating predicate above; the button opens the broadcast dialog (Task 19) but the action returns `not_implemented` until Fase 2 — state this clearly in the card hint. **RUN: same test → must PASS.** Commit `feat(waitlists): Launch CTA card with gating predicate`.
+- [ ] **Step 1a: Write the failing detail-page test (DB-gated)** — `apps/web/test/integration/waitlist-detail-page.test.tsx`. Mock `next/headers` to inject `x-site-id` (same as Task 7/13) and `next/navigation`'s `notFound`. Extract the detail query/data-load into a testable unit if the server component is awkward to render directly. Seed a waitlist on site B; render/load the detail scoped to site A for that id and assert `notFound()` is thrown (cross-site IDOR closed via `.eq('id',id).eq('site_id',siteId)`). For an OWNED id (site A) with ≥1 `landing` signup, assert the source-count buckets: `landing > 0`, `embed === 0`, `tiptap === 0`. **RUN before Step 2 → must FAIL (detail module/data-load not found), NOT a helper import error.**
+- [ ] **Step 2: Implement the detail server component** reading the waitlist `.eq('id',id).eq('site_id',siteId)` (404 if not owned), grouped signup counts by source/status (using the `landing|embed|tiptap` values), mounting `<LaunchCta>` + the two tabs. **RUN: same test → must PASS.** Commit (test + page together) `feat(waitlists): waitlist detail page (overview + signups tabs)`.
 
 ### Task 18: Signups list — server-side keyset query + filters
 
@@ -1138,57 +1596,85 @@ export const FORM_STRINGS: Record<WaitlistLocale, WaitlistStrings> = {
 - Modify: `apps/web/src/app/cms/(authed)/waitlists/actions.ts` (a `listSignups` action or server-component query)
 - Test: `apps/web/test/integration/waitlist-signups-query.test.ts`
 
-- [ ] **Step 1: Write the failing test** — seed 30 signups; assert a search by email-prefix on page 2 still finds a matching row from page 1 (i.e. filter is applied in the query, NOT client-side); assert keyset pagination on `(created_at desc, id)` returns stable Next/Prev pages with no overlap/gap.
-- [ ] **Step 2: Implement** the server-side query: `.eq('waitlist_id',id).eq('site_id',siteId)` + optional `.eq('status',filter)` + optional `.ilike('email', q + '%')` + keyset cursor on `(created_at, id)` with Next/Prev + approximate `count()`. Columns: email, status, suppression_reason, source_surface, created_at.
-- [ ] **Step 3: Run + Commit** `feat(waitlists): server-side keyset signups list with filters`.
+- [ ] **Step 1: Write the failing test** — `apps/web/test/integration/waitlist-signups-query.test.ts`. Keyset on `(created_at desc, id)` is easy to get subtly wrong (rows sharing the same `created_at`; or a naive `created_at.lt` cursor that skips/dupes). Seed **≥2 signups with an IDENTICAL `created_at`** (force a collision) plus ~28 others, page through ALL rows with the real cursor collecting ids into a `Set`, and assert: `Set.size === totalCount` (NO gap) and `collected.length === Set.size` (NO overlap). **This behavioral Set-invariant ALREADY distinguishes a correct row-value keyset from a bare `created_at.lt` cursor** — a bare cursor will either skip or duplicate the two identical-`created_at` rows, breaking exactly these invariants. Do NOT also try to assert the literal PostgREST `or(...)` cursor STRING the implementation uses (source-coupling with no feasible mechanism from a DB-integration test). Finally assert that an email-prefix filter applied WHILE ON PAGE 2 returns a row whose `created_at` sorts onto page 1 — proving `.ilike` is in the SQL (server-side), not client-side.
 
-### Task 19: CSV export dialog + action (IDOR-guarded) + broadcast dialog (UI only)
+```ts
+// collision fixture sketch
+const ts = '2026-06-10T12:00:00Z'
+await db.from('waitlist_signups').insert([
+  { waitlist_id, site_id, email: 'collide-a@x.com', consent_launch_notification: true, consent_text_version: 'v1', created_at: ts },
+  { waitlist_id, site_id, email: 'collide-b@x.com', consent_launch_notification: true, consent_text_version: 'v1', created_at: ts },
+])
+// ...seed ~28 more with distinct timestamps, then page through and assert the Set invariants.
+```
+
+**RUN before Step 2 → must FAIL (the `listSignups` query/action does not exist), NOT a helper error.**
+- [ ] **Step 2: Implement** the server-side query: `.eq('waitlist_id',id).eq('site_id',siteId)` + optional `.eq('status',filter)` + optional `.ilike('email', q + '%')` + a row-value keyset cursor on `(created_at, id)` (`or(created_at.lt.${c},and(created_at.eq.${c},id.lt.${id}))`) with Next/Prev + approximate `count()`. Columns: email, status, suppression_reason, source_surface (display `landing|embed|tiptap`), created_at. **RUN: same test → must PASS.**
+- [ ] **Step 3: Commit** `feat(waitlists): server-side keyset signups list with filters`.
+
+### Task 19a: CSV export action (IDOR-guarded + formula-injection)
+
+**Files:**
+- Modify: `apps/web/src/app/cms/(authed)/waitlists/actions.ts`
+- Test: `apps/web/test/integration/waitlist-export.test.ts`
+
+- [ ] **Step 1: Write the failing test (DB-gated)** — `apps/web/test/integration/waitlist-export.test.ts`. Cases: (a) cross-site export request → 404 (IDOR closed: the waitlist belongs to site B, the caller is scoped to site A); (b) export OMITS anonymized rows; (c) a formula-injection cell is neutralized (`=HYPERLINK(...)` → cell begins `'=HYPERLINK`, via the shared `escapeCsv` from Task 0). **RUN before Step 2 → must FAIL (the `exportWaitlistSignups` action does not exist), NOT a helper error.**
+- [ ] **Step 2: Implement `exportWaitlistSignups(waitlistId, opts)`** — `requireSiteScope({mode:'view'})`; IDOR guard: resolve `.eq('id',waitlistId).eq('site_id',siteId).maybeSingle()` → 404 if not owned, THEN query signups with BOTH `.eq('site_id',siteId)` AND `.eq('waitlist_id',waitlistId)`. Build CSV with the shared `escapeCsv` (Task 0). Columns: `email, status, suppression_reason, source_surface, locale, created_at`. Anonymized rows omitted. Filename `waitlist-{slug}-{YYYY-MM-DD}.csv`. Honor the export dialog options (status filter, date range, exclude-suppressed default on). **RUN: same test → must PASS.**
+- [ ] **Step 3: Commit** `feat(waitlists): CSV export action (IDOR-guarded, formula-injection-safe)`.
+
+### Task 19b: Export dialog + broadcast dialog (UI) + `launchWaitlist` stub
 
 **Files:**
 - Create: `apps/web/src/app/cms/(authed)/waitlists/_components/export-dialog.tsx`
 - Create: `apps/web/src/app/cms/(authed)/waitlists/_components/broadcast-dialog.tsx`
-- Modify: `apps/web/src/app/cms/(authed)/waitlists/actions.ts`
-- Test: `apps/web/test/integration/waitlist-export.test.ts`
+- Modify: `apps/web/src/app/cms/(authed)/waitlists/actions.ts` (add the `launchWaitlist` stub)
+- Test: `apps/web/test/components/waitlist-broadcast-stub.test.ts` (+ a dialog render test)
 
 **Port source:** `views-waitlists.jsx` (`ExportDialog`, `BroadcastDialog` — both portalled).
 
-- [ ] **Step 1: Write `exportWaitlistSignups(waitlistId, opts)` action** — `requireSiteScope({mode:'view'})`; IDOR guard: resolve `.eq('id',waitlistId).eq('site_id',siteId).maybeSingle()` → 404 if not owned, THEN query signups with BOTH `.eq('site_id',siteId)` AND `.eq('waitlist_id',waitlistId)`. Build CSV with the shared `escapeCsv` (Task 0). Columns: `email, status, suppression_reason, source_surface, locale, created_at`. Anonymized rows omitted. Filename `waitlist-{slug}-{YYYY-MM-DD}.csv`. Honor the export dialog options (status filter, date range, exclude-suppressed default on).
-- [ ] **Step 2: Test (DB-gated)** — cross-site export request → 404 (IDOR closed); export omits anonymized rows; formula-injection cell is neutralized (`=HYPERLINK` → `'=HYPERLINK`).
-- [ ] **Step 3: Export dialog + broadcast dialog components** — export dialog per handoff §5. Broadcast dialog per handoff §4 (type-the-**slug** to confirm, live recipient count, 0-recipient disables, Esc closes) — but its confirm button calls a `launchWaitlist` action that, in Fase 1, returns `{ ok:false, error:'not_implemented' }` with a visible "Broadcast ships in the next phase" notice. The dialog UI is complete; the send is Fase 2.
-- [ ] **Step 4: Run + Commit** `feat(waitlists): CSV export (IDOR-guarded) + broadcast dialog UI (send stubbed)`.
+- [ ] **Step 1: Write the failing `launchWaitlist` stub test** — assert the stub returns exactly `{ ok: false, error: 'not_implemented' }`. **RUN → must FAIL (`launchWaitlist` not exported).**
+- [ ] **Step 2: Implement the `launchWaitlist` stub** returning `{ ok: false, error: 'not_implemented' }` (the real publish-guarded action is Fase 2). **RUN → must PASS.** Commit `feat(waitlists): launchWaitlist stub (not_implemented until Fase 2)`.
+- [ ] **Step 3: Export dialog (own fail-first cycle)** — write a failing render test `apps/web/test/components/waitlist-export-dialog.test.tsx` asserting the status filter + the exclude-suppressed toggle (default on) are present and Esc closes. **RUN → must FAIL (`Cannot find module '.../export-dialog'`).** Then implement `export-dialog.tsx` per handoff §5. **RUN → must PASS.** Commit `feat(waitlists): export dialog UI`.
+- [ ] **Step 4: Broadcast dialog (own fail-first cycle)** — write a failing render test `apps/web/test/components/waitlist-broadcast-dialog.test.tsx` asserting: the confirm is disabled at 0 recipients; the type-the-**slug** gate is present; and a "Broadcast ships in the next phase" `not_implemented` notice appears after a stubbed confirm (the confirm calls the `launchWaitlist` stub from Step 2). **RUN → must FAIL (`Cannot find module '.../broadcast-dialog'`).** Then implement `broadcast-dialog.tsx` per handoff §4 (type-the-slug to confirm, live recipient count, 0-recipient disables confirm, Esc closes). **RUN → must PASS.** Commit `feat(waitlists): broadcast dialog UI (send stubbed)`.
 
 ### Task 20: Nav item + nav badge counts
 
 **Files:**
-- Modify: the CMS nav config (grep for where `campaigns`/`newsletters` nav items are registered — likely in the `CmsShell` props or a nav constants file)
-- Modify: `apps/web/lib/cms/layout-counts.ts` (the `fetchLayoutCounts`/`fetchLayoutCountsInner` function)
-- Test: extend the layout-counts test if one exists
+- Modify: `apps/web/src/app/cms/(authed)/_shared/cms-sections.ts` (VERIFIED nav registration: the "Content" group lists Newsletters at line 36 and Campaigns at line 37 — `{ icon: icon(<Lucide>), label, href, minRole }`)
+- Modify: `apps/web/lib/cms/layout-counts.ts` (`fetchLayoutCountsInner` at line 4 — runs N count queries via `Promise.all`, returns a flat object; `fetchLayoutCounts = unstable_cache(..., { tags:['layout-counts'], revalidate:60 })` at line 23)
+- Test: `apps/web/test/integration/waitlist-layout-counts.test.ts` (NEW — no layout-counts test exists today)
 
-- [ ] **Step 1: Add the `waitlists` nav item** (icon `gift`, after Newsletters) wherever the existing CMS nav items are defined.
-- [ ] **Step 2: Extend `fetchLayoutCountsInner`** with two actionable counts: `failed`-state waitlists + `launching` waitlists past the watchdog threshold (6h). `unstable_cache` `revalidate:60`. Write actions `revalidateTag('layout-counts')`.
-- [ ] **Step 3: Commit** `feat(waitlists): CMS nav item + actionable nav badge counts`.
+- [ ] **Step 1: Add the `waitlists` nav item** to `cms-sections.ts` in the "Content" group immediately AFTER the Campaigns entry (re-grep the exact line — the group contains Blog/Vídeos/Courses/Newsletters/Campaigns/Playlists and line numbers drift): `{ icon: icon(Gift), label: 'Waitlists', href: '/cms/waitlists', minRole: 'editor' }` (import `Gift` from the same lucide source the file already uses). Label is EN per spec §6 CMS-EN-first; the surrounding PT labels (`Vídeos`) are migrated separately. Commit `feat(waitlists): CMS nav item`.
+- [ ] **Step 2: Write the failing, UNCONDITIONAL layout-counts test** — `apps/web/test/integration/waitlist-layout-counts.test.ts` (DB-gated). Seed on ONE site: a `failed` waitlist + a `launching` waitlist whose `updated_at` is 7h ago + a `launching` waitlist whose `updated_at` is 1h ago. Call `fetchLayoutCountsInner(siteId)` and assert the actionable waitlist count is **2** (the failed one + the 7h-stuck one), **NOT 3** — the fresh 1h `launching` is inside the 6h watchdog window and must be excluded. **RUN before Step 3 → must FAIL** (`fetchLayoutCountsInner` does not yet return the waitlist count). Time-predicate note: compute the threshold as `new Date(Date.now() - 6*3600*1000).toISOString()` and key the query on `updated_at < threshold` to avoid off-by-one/timezone drift.
+- [ ] **Step 3: Extend `fetchLayoutCountsInner` (and EXPORT it)** — **VERIFIED: `fetchLayoutCountsInner` at `apps/web/lib/cms/layout-counts.ts:4` is currently NOT exported (only the `unstable_cache` wrapper `fetchLayoutCounts` is, line 23). Add the `export` keyword to `async function fetchLayoutCountsInner(siteId: string)` so the Step 2 DB-gated test can import it directly** — without this, the test fails on module resolution, not on the intended missing-count assertion (the cache wrapper makes per-test assertions flaky, so exporting Inner is the correct fix). Then add to the `Promise.all` a count of `failed` waitlists + `launching` waitlists with `updated_at < now()-6h`, returned as a new key (e.g. `waitlistsNeedAttention`). Write actions call `revalidateTag('layout-counts')`. **RUN: same test → must PASS.** Commit `feat(waitlists): actionable nav badge counts (failed + stuck-launching)`.
+
+> **Watchdog dormancy note:** in Fase 1 nothing can produce a `launching` waitlist (no broadcast; `(open|closed)→launching` is absent from Task 16) — so the stuck-launching count is structurally always 0 until Fase 2 wires the lifecycle. The query is harmless and correct; it simply has no inputs yet. (Same reconciliation as Task 10.)
 
 ---
 
 ## FASE 1F — Observability
 
-### Task 21: Sentry tags + funnel + no-PII scrub
+### Task 21: Sentry tags + funnel (cross-file wiring — `scrub.ts` already landed in Task 0b)
 
 **Files:**
-- Modify: the signup route + server actions (add `Sentry` tag `component:'waitlist'`)
-- Test: a unit test asserting the scrub helper drops email/ip before capture
+- Modify: the signup route + server actions (add `Sentry` tag `component:'waitlist'` + the count-only funnel breadcrumb)
 
-- [ ] **Step 1: Ensure no PII reaches Sentry** — the signup route must scrub `email`/`ip`/`user_agent` from any context before `captureException`. Add a tiny scrub helper + test it.
-- [ ] **Step 2: Add `source_surface` count-only funnel metric** (a single info log / Sentry breadcrumb, no PII) and the Sentry tag `component:'waitlist'` on all waitlist server actions + routes.
-- [ ] **Step 3: Commit** `feat(waitlists): observability — Sentry tags, count-only funnel, PII scrub`.
+> **Ordering:** the scrub helper (`apps/web/lib/waitlists/scrub.ts` + its test) lands in **Task 0b** (Prep, before Task 8), so the signup route imports `redactMessage` from creation — already wired into Task 8's 500 branch. This task is ONLY the remaining cross-file wiring (Sentry component tag on every other waitlist route/action + the funnel breadcrumb), kept separate so the broad tag edit does not re-open already-green files in one untested commit.
+
+- [ ] **Step 1: Wire the cross-file Sentry tags + funnel (single commit)** — on all REMAINING waitlist server actions + routes (i.e. everything except Task 8's signup route, which already calls `captureServerActionError({ component:'waitlist', code })` + `redactMessage` from Task 8): add `Sentry.setTag('component','waitlist')` (or the tag arg of `captureServerActionError` from `@/lib/sentry-wrap`), pass any free-text through `redactMessage` (Task 0b) before `captureException`, and add the `source_surface` count-only funnel breadcrumb (no PII). Commit `feat(waitlists): observability — Sentry component tag + count-only funnel`.
 
 ---
 
 ## Operational deliverables (checklist — not code, must be done before public launch)
 
 - [ ] **Vercel WAF rule:** rate-limit `POST /api/waitlists/:slug/signup` at the edge — **20 req/IP/60s** + **100 req/IP/1h**, action = rate-limit (429), not block. Configure via Vercel WAF / `vercel firewall`. (Spec §3.1.)
-- [ ] **`vercel.json` cron** entry for `/api/cron/waitlist-retention-sweep` (Task 10) merged into the existing `crons` array.
-- [ ] **Env:** `WAITLIST_RETENTION_SWEEP_ENABLED` left unset/false until DPO sign-off; set `true` to activate the sweep. `TURNSTILE_SECRET_KEY` present in preview/prod (route returns 503 otherwise — by design).
+- [ ] **`vercel.json` cron** entry for `/api/cron/waitlist-retention-sweep` (Task 10) merged into the existing `crons` array — **only after the cron-quota pre-check passes** (≥39 crons allowed on the project tier; otherwise fold the sweep into the `lgpd-cleanup-sweep` loop instead of adding an entry — see Task 10 Step 3). A silently-capped cron = an undetected LGPD retention gap.
+- [ ] **Ordered, fail-safe retention-sweep activation** (mirrors the `LGPD_CRON_SWEEP_ENABLED` irreversible-data safety-valve precedent — `WAITLIST_RETENTION_SWEEP_ENABLED` default = disabled = safety valve):
+  1. Deploy with `WAITLIST_RETENTION_SWEEP_ENABLED` unset (the route fail-safes to `{skipped:'disabled'}` 200 and logs `logCron({status:'skipped'})`) and the cron entry present.
+  2. Verify in prod logs the cron fires and logs `skipped:'disabled'` (proves the path is registered and inert).
+  3. Obtain DPO sign-off.
+  4. ONLY THEN set `WAITLIST_RETENTION_SWEEP_ENABLED=true`.
+- [ ] **Env:** `TURNSTILE_SECRET_KEY` present in preview/prod (route returns 503 otherwise — by design).
 - [ ] **DPO/legal sign-off note** committed under `content/legal/` or `docs/ops/`: documents the single-opt-in posture, the retention schedule (30/7/90/30 days), and the anonymous-member DSAR endpoint as the Art. 18 path.
 
 ---
@@ -1202,7 +1688,9 @@ export const FORM_STRINGS: Record<WaitlistLocale, WaitlistStrings> = {
 
 ## Self-review notes (run before execution)
 
-- **Spec coverage (Fase 1 scope):** tables/RLS/RPCs (Tasks 1–5) ✓; consent (6) ✓; public GET/POST/DSAR/sweep (7–10) ✓; LGPD adapter (11) ✓; public form+landing (12–13) ✓; CMS list/drawer/status/detail/signups/export/nav (14–20) ✓; observability (21) ✓; operational deliverables tracked ✓. Broadcast SEND is correctly deferred to Fase 2 (dialog UI ships, action stubbed).
+- **Spec coverage (Fase 1 scope):** tables/RLS/RPCs (Tasks 1–5) ✓; consent (6) ✓ (incl. DB-gated ledger-resolution test); public GET/POST/DSAR (7–9) ✓; sweep (10) ✓ — ships per-site iteration under `withCronLock` + PASS-2 idempotency guard + last-run observability (logCron-per-outcome + Sentry breadcrumb); the §8 stuck-launching watchdog is **structurally deferred to Fase 2** (no `newsletter_editions` waitlist row can exist in Fase 1), explicitly flagged in Task 10. LGPD adapter (11) ✓; public form+landing (12–13) ✓; CMS list/drawer/status/detail/signups/export/nav (14–20, incl. split 19a/19b) ✓; observability (21) ✓; operational deliverables tracked ✓. Broadcast SEND is correctly deferred to Fase 2 (dialog UI ships, `launchWaitlist` stubbed). Embed dialog/button is Fase 3 (omitted from the detail page, not dead-ended).
 - **Path alias caveat:** `@/` → `apps/web/src`; `lib/` (e.g. `lib/turnstile`, `lib/supabase/service`, `lib/logger`, `lib/cms/layout-counts`) lives at `apps/web/lib` and is reached via the relative depth the sibling routes use. Every route/action step flags this — confirm the exact relative path by grepping a sibling file before writing imports.
-- **Verify-before-write items** (flagged inline): exact `audit_log` columns; `consent_texts` columns; `site_visible`/`can_view_site`/`can_edit_site` signatures; the seed-helper export names in `db-seed.ts`; the Pinboard kit import path; the CMS nav registration location; `tg_set_updated_at` name. These are reads, not guesses — do them as the first step of each affected task.
+- **Verify-before-write items** (flagged inline): exact `audit_log` columns; `consent_texts` columns; `site_visible`/`can_view_site`/`can_edit_site` signatures; the seed-helper export names in `db-seed.ts`; the Pinboard kit import path; `tg_set_updated_at` name. **CMS nav registration is now PRE-VERIFIED:** `apps/web/src/app/cms/(authed)/_shared/cms-sections.ts` "Content" group (Newsletters line 36, Campaigns line 37) — add the `waitlists` item there. These are reads, not guesses.
+- **PostgREST RPC param types:** `waitlist_signup.p_email` is `text` (cast to `public.citext` internally), NOT `public.citext` — a citext param breaks PostgREST function resolution (PGRST202). `waitlist_rate_check` already uses `p_email text`. The audit hash uses the internal `v_email` cast, not `p_email`.
+- **Locale header:** routes/pages prefer `x-default-locale` (the request-side header middleware always sets at middleware.ts:388/428); `x-locale` is response-side and may be null on the request.
 - **Type consistency:** signup RPC returns `jsonb` decoded as `{ error?, status?, duplicate? }` consistently across Tasks 3/8; `escapeCsv` signature identical in Tasks 0/19; status enum values identical across SQL (Task 1) and TS (Tasks 14/16).
