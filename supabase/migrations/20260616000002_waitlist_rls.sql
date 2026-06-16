@@ -28,6 +28,11 @@ drop policy if exists waitlist_tx_public_read on public.waitlist_translations;
 create policy waitlist_tx_public_read on public.waitlist_translations for select to anon, authenticated
   using (exists (select 1 from public.waitlists w
     where w.id = waitlist_id and w.status in ('open','closed','launched') and public.site_visible(w.site_id)));
+
+drop policy if exists waitlist_tx_staff_read on public.waitlist_translations;
+create policy waitlist_tx_staff_read on public.waitlist_translations for select to authenticated
+  using (exists (select 1 from public.waitlists w where w.id = waitlist_id and public.can_view_site(w.site_id)));
+
 drop policy if exists waitlist_tx_edit on public.waitlist_translations;
 create policy waitlist_tx_edit on public.waitlist_translations for all to authenticated
   using (exists (select 1 from public.waitlists w where w.id = waitlist_id and public.can_edit_site(w.site_id)))
