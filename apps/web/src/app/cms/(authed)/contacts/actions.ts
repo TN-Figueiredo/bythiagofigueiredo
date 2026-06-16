@@ -9,6 +9,7 @@ import { getEmailService } from '@/lib/email/service'
 import { getEmailSender } from '@/lib/email/sender'
 import { captureServerActionError } from '@/lib/sentry-wrap'
 import { todayInSiteTz } from '@/lib/cms/format-site-datetime'
+import { escapeCsv } from '@/lib/cms/csv'
 
 type ActionResult = { ok: true } | { ok: false; error: string }
 type ExportResult =
@@ -272,12 +273,6 @@ export async function exportContacts(
       : r.replied_at
         ? 'replied'
         : 'pending'
-    const escapeCsv = (v: unknown) => {
-      const s = String(v ?? '')
-      return s.includes(',') || s.includes('"') || s.includes('\n')
-        ? `"${s.replace(/"/g, '""')}"`
-        : s
-    }
     return [
       escapeCsv(r.name),
       escapeCsv(r.email),
