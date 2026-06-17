@@ -19,6 +19,11 @@ const WL_STATUS: Record<WaitlistStatus, { label: string; cls: string }> = {
   failed: { label: 'Failed', cls: 'text-[var(--cms-rose,#f43f5e)] bg-[rgba(244,63,94,0.14)]' },
 }
 
+/** Runtime guard for the status union — lets DB/PostgREST reads narrow without an `as` cast. */
+export function isWaitlistStatus(s: unknown): s is WaitlistStatus {
+  return typeof s === 'string' && Object.prototype.hasOwnProperty.call(WL_STATUS, s)
+}
+
 const BASE = 'inline-flex items-center gap-1.5 rounded-full font-semibold leading-none whitespace-nowrap'
 
 interface Props {

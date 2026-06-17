@@ -2,7 +2,7 @@ import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getLogger } from '../../../../../lib/logger'
 import { redactMessage } from '../../../../../lib/waitlists/scrub'
-import type { WaitlistStatus } from './_components/wl-badge'
+import { isWaitlistStatus, type WaitlistStatus } from './_components/wl-badge'
 
 export interface WaitlistListRow {
   id: string
@@ -93,17 +93,22 @@ export async function listWaitlistsForSite(siteId: string): Promise<WaitlistList
   const rows: WaitlistListRow[] = (wls ?? []).map((w) => {
     const c = countMap.get(w.id) ?? { pending: 0, suppressed: 0 }
     // PostgREST returns an embedded to-one relation as an object, but the typed
-    // client widens it to an array — normalize either shape.
-    const campaign = Array.isArray(w.campaigns) ? w.campaigns[0] : w.campaigns
+    // client widens it to an array — normalize either shape to a minimally-typed value.
+    const campaignRel = (Array.isArray(w.campaigns) ? w.campaigns[0] : w.campaigns) as
+      | { interest: string | null }
+      | null
+      | undefined
     return {
       id: w.id,
       slug: w.slug,
       name: w.name,
-      status: w.status as WaitlistStatus,
+      // DB CHECK constrains status to the 6 literals, but narrow at runtime rather than
+      // `as`-cast (matches the requireRowId/requireStatus discipline in actions.ts).
+      status: isWaitlistStatus(w.status) ? w.status : 'draft',
       campaignId: w.campaign_id,
       // `interest` is the campaign's always-present label (same fallback the
       // campaigns module uses: meta_title ?? interest ?? 'Untitled').
-      campaignTitle: (campaign as { interest: string } | null | undefined)?.interest ?? null,
+      campaignTitle: campaignRel?.interest ?? null,
       updatedAt: w.updated_at,
       signups: c.pending + c.suppressed,
       suppressed: c.suppressed,

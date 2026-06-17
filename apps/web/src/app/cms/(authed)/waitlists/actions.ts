@@ -9,7 +9,8 @@ import { slugify } from '@/lib/blog/slugify'
 // No `@/lib/waitlists/*` alias (scrub lives under apps/web/lib, not src/) — deep
 // relative, same as the signup route.
 import { redactMessage } from '../../../../../lib/waitlists/scrub'
-import type { WaitlistStatus } from './_components/wl-badge'
+import { getLogger } from '../../../../../lib/logger'
+import { isWaitlistStatus, type WaitlistStatus } from './_components/wl-badge'
 
 /**
  * Result shape for the waitlist create/update actions. Mirrors
@@ -36,6 +37,19 @@ function requireRowId(data: unknown): string {
     return (data as { id: string }).id
   }
   throw new Error('expected a row with a string id')
+}
+
+/** Narrowing guard for the `.select('status')` projection — strict TS, no `as` cast. */
+function requireStatus(data: unknown): WaitlistStatus {
+  if (
+    typeof data === 'object' &&
+    data !== null &&
+    'status' in data &&
+    isWaitlistStatus((data as { status: unknown }).status)
+  ) {
+    return (data as { status: WaitlistStatus }).status
+  }
+  throw new Error('expected a row with a valid waitlist status')
 }
 
 /** Postgres SQLSTATE off an unknown caught error, without an `any` cast. */
@@ -178,9 +192,10 @@ export async function createWaitlist(form: FormData): Promise<WaitlistActionResu
 
     return { ok: true, waitlistId }
   } catch (e) {
-    // Never hand the RAW caught error to Sentry — a Postgres message can echo the
-    // submitted email/IP (M8). Wrap a redacted, code-tagged Error, matching the
-    // established pattern in queries.ts + signup/route.ts.
+    // Log-then-capture (M8), matching queries.ts + signup/route.ts. Never hand the RAW
+    // caught error to Sentry — a Postgres message can echo the submitted email/IP — so
+    // wrap a redacted, code-tagged Error.
+    getLogger().error('[createWaitlist]', { code: errCode(e) })
     Sentry.captureException(
       new Error(`createWaitlist ${errCode(e)}: ${redactMessage(e instanceof Error ? e.message : String(e))}`),
       { tags: { component: 'waitlist', action: 'createWaitlist' } },
@@ -221,6 +236,7 @@ export async function updateWaitlist(id: string, form: FormData): Promise<Waitli
     if (!data) return { ok: false, error: 'forbidden', message: 'not_found_or_cross_site' }
     return { ok: true, waitlistId: requireRowId(data) }
   } catch (e) {
+    getLogger().error('[updateWaitlist]', { code: errCode(e) })
     Sentry.captureException(
       new Error(`updateWaitlist ${errCode(e)}: ${redactMessage(e instanceof Error ? e.message : String(e))}`),
       { tags: { component: 'waitlist', action: 'updateWaitlist' } },
@@ -289,8 +305,9 @@ export async function transitionWaitlistStatus(
       .maybeSingle()
     if (error) throw error
     if (!data) return { ok: false, error: 'status_changed' }
-    return { ok: true, status: (data as { status: WaitlistStatus }).status }
+    return { ok: true, status: requireStatus(data) }
   } catch (e) {
+    getLogger().error('[transitionWaitlistStatus]', { code: errCode(e) })
     Sentry.captureException(
       new Error(`transitionWaitlistStatus ${errCode(e)}: ${redactMessage(e instanceof Error ? e.message : String(e))}`),
       { tags: { component: 'waitlist', action: 'transitionWaitlistStatus' } },
