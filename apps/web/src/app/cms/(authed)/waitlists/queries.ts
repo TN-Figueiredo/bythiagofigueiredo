@@ -1,0 +1,95 @@
+import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import type { WaitlistStatus } from './_components/wl-badge'
+
+export interface WaitlistListRow {
+  id: string
+  slug: string
+  name: string
+  status: WaitlistStatus
+  campaignId: string | null
+  campaignTitle: string | null
+  updatedAt: string
+  /** pending + suppressed (non-anonymized) */
+  signups: number
+  suppressed: number
+}
+
+export interface WaitlistListKpis {
+  total: number
+  open: number
+  totalSignups: number
+  suppressed: number
+  linkedCampaigns: number
+  /** failed + launching — operator attention (a launch that errored or is in flight) */
+  needsAttention: number
+}
+
+export interface WaitlistListResult {
+  rows: WaitlistListRow[]
+  kpis: WaitlistListKpis
+}
+
+interface CountRow {
+  waitlist_id: string
+  pending: number
+  suppressed: number
+}
+
+/**
+ * Site-scoped waitlist list + KPI strip for the CMS. Callers MUST already have
+ * established edit access to `siteId` (the CMS layout / server actions do this);
+ * the service client bypasses RLS, so the `.eq('site_id', siteId)` here is the
+ * cross-ring boundary. Per-waitlist counts come from the `waitlist_signup_counts`
+ * SECURITY DEFINER aggregate (one round-trip — PostgREST can't GROUP BY).
+ */
+export async function listWaitlistsForSite(siteId: string): Promise<WaitlistListResult> {
+  const supabase = getSupabaseServiceClient()
+
+  const { data: wls, error } = await supabase
+    .from('waitlists')
+    .select('id, slug, name, status, campaign_id, updated_at, campaigns(interest)')
+    .eq('site_id', siteId)
+    .order('updated_at', { ascending: false })
+  if (error) throw error
+
+  const { data: counts, error: cErr } = await supabase.rpc('waitlist_signup_counts', {
+    p_site_id: siteId,
+  })
+  if (cErr) throw cErr
+
+  const countMap = new Map<string, { pending: number; suppressed: number }>()
+  for (const c of (counts ?? []) as CountRow[]) {
+    countMap.set(c.waitlist_id, { pending: c.pending, suppressed: c.suppressed })
+  }
+
+  const rows: WaitlistListRow[] = (wls ?? []).map((w) => {
+    const c = countMap.get(w.id) ?? { pending: 0, suppressed: 0 }
+    // PostgREST returns an embedded to-one relation as an object, but the typed
+    // client widens it to an array — normalize either shape.
+    const campaign = Array.isArray(w.campaigns) ? w.campaigns[0] : w.campaigns
+    return {
+      id: w.id,
+      slug: w.slug,
+      name: w.name,
+      status: w.status as WaitlistStatus,
+      campaignId: w.campaign_id,
+      // `interest` is the campaign's always-present label (same fallback the
+      // campaigns module uses: meta_title ?? interest ?? 'Untitled').
+      campaignTitle: (campaign as { interest: string } | null | undefined)?.interest ?? null,
+      updatedAt: w.updated_at,
+      signups: c.pending + c.suppressed,
+      suppressed: c.suppressed,
+    }
+  })
+
+  const kpis: WaitlistListKpis = {
+    total: rows.length,
+    open: rows.filter((r) => r.status === 'open').length,
+    totalSignups: rows.reduce((sum, r) => sum + r.signups, 0),
+    suppressed: rows.reduce((sum, r) => sum + r.suppressed, 0),
+    linkedCampaigns: rows.filter((r) => r.campaignId !== null).length,
+    needsAttention: rows.filter((r) => r.status === 'failed' || r.status === 'launching').length,
+  }
+
+  return { rows, kpis }
+}
