@@ -4,7 +4,8 @@ import { createPortal } from 'react-dom'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import DOMPurify from 'isomorphic-dompurify'
 import { slugify } from '@/lib/blog/slugify'
-import { FORM_STRINGS, type WaitlistLocale, type WaitlistStrings } from '@/components/waitlists/form-strings'
+import { FORM_STRINGS, type WaitlistLocale } from '@/components/waitlists/form-strings'
+import { RenderConsentText } from '@/components/waitlists/consent-text'
 
 /**
  * Payload the drawer hands back on save. The connected island (which owns the
@@ -51,27 +52,6 @@ export interface WaitlistEditDrawerProps {
 
 const FIELD =
   'mt-1 w-full rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface px-3 py-2 text-sm text-cms-text outline-none focus:border-cms-accent'
-
-/**
- * Renders the consent preview byte-identical to the public form's <ConsentText>
- * (waitlist-signup-form.tsx) — same split-on-name + <strong> structure, sourced
- * from the same FORM_STRINGS.consentLabel — so the drawer preview matches the exact
- * text the visitor consents to and the LGPD audit snapshots (WL-02, M12).
- */
-function ConsentPreview({ name, strings }: { name: string; strings: WaitlistStrings }) {
-  const full = strings.consentLabel(name)
-  const parts = full.split(name)
-  return (
-    <span>
-      {parts.map((part, i) => (
-        <span key={i}>
-          {part}
-          {i < parts.length - 1 && <strong>{name}</strong>}
-        </span>
-      ))}
-    </span>
-  )
-}
 
 export function WaitlistEditDrawer({
   mode,
@@ -135,11 +115,16 @@ export function WaitlistEditDrawer({
       }
     }
     document.addEventListener('keydown', onKey)
-    // Move focus into the dialog on open (the labelled container; Tab then reaches the fields).
-    dialog?.focus()
+    // Move focus to the first real field on open (WCAG 2.4.3) — not the tabIndex=-1
+    // container. rAF lets the portalled dialog mount before we focus.
+    const raf = requestAnimationFrame(() => {
+      const firstField = dialog?.querySelector<HTMLElement>('[data-testid="wl-name"]')
+      ;(firstField ?? dialog)?.focus()
+    })
     const trigger = triggerRef.current
     return () => {
       document.removeEventListener('keydown', onKey)
+      cancelAnimationFrame(raf)
       // Restore focus to the trigger after the drawer unmounts (a11y, WL-08).
       trigger?.focus?.()
     }
@@ -228,9 +213,14 @@ export function WaitlistEditDrawer({
               className={FIELD}
               value={name}
               onChange={(e) => onName(e.target.value)}
+              aria-invalid={nameErr || undefined}
               placeholder="e.g. Nômade Dev · Turma 1"
             />
-            {nameErr && <span className="mt-1 block text-xs text-[var(--danger)]">Name is required.</span>}
+            {nameErr && (
+              <span role="alert" className="mt-1 block text-xs text-[var(--danger)]">
+                Name is required.
+              </span>
+            )}
           </label>
 
           <label className="mt-3 block">
@@ -244,10 +234,11 @@ export function WaitlistEditDrawer({
                 setSlug(slugify(e.target.value))
                 setSlugTouched(true)
               }}
+              aria-invalid={slugErr ? true : undefined}
               placeholder="nomade-dev-turma-1"
             />
             {slugErr ? (
-              <span className="mt-1 block text-xs text-[var(--danger)]">{slugErr}</span>
+              <span role="alert" className="mt-1 block text-xs text-[var(--danger)]">{slugErr}</span>
             ) : (
               <span className="mt-1 block text-xs text-cms-text-muted">
                 Public URL: <span className="font-mono">/waitlists/{slug || 'slug'}</span> · auto-filled from name.
@@ -322,9 +313,10 @@ export function WaitlistEditDrawer({
               className={`${FIELD} font-mono${senderErr ? ' border-[var(--danger)]' : ''}`}
               value={senderEmail}
               onChange={(e) => setSenderEmail(e.target.value)}
+              aria-invalid={senderErr ? true : undefined}
             />
             {senderErr ? (
-              <span className="mt-1 block text-xs text-[var(--danger)]">{senderErr}</span>
+              <span role="alert" className="mt-1 block text-xs text-[var(--danger)]">{senderErr}</span>
             ) : (
               <span className="mt-1 block text-xs text-cms-text-muted">Validated against your verified domains at save.</span>
             )}
@@ -343,7 +335,7 @@ export function WaitlistEditDrawer({
           <div className="mb-2 mt-5 text-xs font-medium uppercase tracking-wide text-cms-text-muted">Consent the visitor sees</div>
           <div className="flex items-start gap-2 rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface px-3 py-2 text-sm text-cms-text">
             <span className="mt-0.5 h-4 w-4 shrink-0 rounded-sm border border-cms-border" />
-            <ConsentPreview name={name || '{Product}'} strings={consentStrings} />
+            <RenderConsentText name={name || '{Product}'} strings={consentStrings} />
           </div>
           <span className="mt-2 block text-xs text-cms-text-muted">
             Email + this single consent checkbox are the only fields collected. No name, no phone, no price.

@@ -27,8 +27,21 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
   const hasTurnstileSecret = Boolean(process.env.TURNSTILE_SECRET_KEY)
   if (!hasTurnstileSecret && !isDev) return Response.json({ error: 'unavailable' }, { status: 503 })
 
-  let body: z.infer<typeof Body>
-  try { body = Body.parse(await req.json()) } catch { return Response.json({ error: 'invalid_body' }, { status: 400 }) }
+  // safeParse + a warning breadcrumb so malformed JSON / unknown-locale (WL-R8) / false
+  // consent rejections are visible (client bugs or probing) instead of a silent 400.
+  // No raw body is logged (PII) — just the slug + the zod issue codes.
+  let parsedBody: ReturnType<typeof Body.safeParse>
+  try {
+    parsedBody = Body.safeParse(await req.json())
+  } catch {
+    getLogger().warn('[waitlist_signup_body] non-JSON body', { slug })
+    return Response.json({ error: 'invalid_body' }, { status: 400 })
+  }
+  if (!parsedBody.success) {
+    getLogger().warn('[waitlist_signup_body] schema rejected', { slug, issues: parsedBody.error.issues.map((i) => i.code) })
+    return Response.json({ error: 'invalid_body' }, { status: 400 })
+  }
+  const body = parsedBody.data
 
   const h = await headers()
   const siteId = h.get('x-site-id')

@@ -1,6 +1,9 @@
 import { notFound } from 'next/navigation'
+import * as Sentry from '@sentry/nextjs'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { getLogger } from '../../../../../lib/logger'
+import { redactMessage } from '../../../../../lib/waitlists/scrub'
 import { Paper, Tape } from '@/components/pinboard'
 import { WaitlistSignupForm } from '@/components/waitlists/waitlist-signup-form'
 import type { WaitlistLocale } from '@/components/waitlists/form-strings'
@@ -47,7 +50,17 @@ export default async function WaitlistLandingPage({ params }: Props) {
     .eq('slug', slug)
     .maybeSingle()
 
-  if (error || !data || !PUBLIC_STATUSES.includes(data.status as PublicStatus)) {
+  // Observe real DB/network errors (M8) before the no-oracle 404 — mirror the sibling
+  // status route. A genuine fault must be distinguishable from a true not-found in Sentry.
+  if (error) {
+    getLogger().error('[waitlist_landing_page]', { code: error.code })
+    Sentry.captureException(
+      new Error(`waitlist_landing_page ${error.code}: ${redactMessage(error.message ?? '')}`),
+      { tags: { component: 'waitlist' } },
+    )
+    notFound()
+  }
+  if (!data || !PUBLIC_STATUSES.includes(data.status as PublicStatus)) {
     notFound()
   }
 

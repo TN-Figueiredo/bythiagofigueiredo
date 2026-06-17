@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { z } from 'zod'
 import { FORM_STRINGS, type WaitlistLocale } from './form-strings'
+import { RenderConsentText } from './consent-text'
 
 // WL-R6: cross-boundary JSON (network → client) is untrusted; Zod-parse rather than
 // `as`-cast so a malformed payload degrades gracefully instead of poisoning state.
@@ -216,23 +217,6 @@ export function WaitlistSignupForm({ slug, locale, name, variant = 'landing', in
     setReloadKey((k) => k + 1)
   }
 
-  // The bolded name keeps the displayed consent text byte-identical to the audited
-  // snapshot (textContent of the split parts === consentLabel(name)).
-  function ConsentText() {
-    const full = strings.consentLabel(resolvedName)
-    const parts = full.split(resolvedName)
-    return (
-      <span>
-        {parts.map((part, i) => (
-          <span key={i}>
-            {part}
-            {i < parts.length - 1 && <strong className="text-pb-ink">{resolvedName}</strong>}
-          </span>
-        ))}
-      </span>
-    )
-  }
-
   const Spinner = (
     <span
       aria-hidden="true"
@@ -367,7 +351,7 @@ export function WaitlistSignupForm({ slug, locale, name, variant = 'landing', in
           disabled={loading}
           className="mt-0.5 shrink-0 accent-pb-accent"
         />
-        <ConsentText />
+        <RenderConsentText name={resolvedName} strings={strings} strongClassName="text-pb-ink" />
       </label>
 
       {needsToken && <div ref={turnstileRef} />}
