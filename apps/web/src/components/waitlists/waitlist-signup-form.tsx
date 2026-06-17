@@ -333,7 +333,7 @@ export function WaitlistSignupForm({ slug, locale, name, variant = 'landing', in
         />
       </div>
 
-      <label className="flex items-start gap-2 text-sm text-pb-muted">
+      <label htmlFor="waitlist-consent" className="flex items-start gap-2 text-sm text-pb-muted">
         <input
           id="waitlist-consent"
           type="checkbox"

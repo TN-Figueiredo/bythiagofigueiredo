@@ -186,7 +186,24 @@ export async function createWaitlist(form: FormData): Promise<WaitlistActionResu
       headline: input.name,
     })
     if (tErr) {
-      await supabase.from('waitlists').delete().eq('id', waitlistId).eq('site_id', ctx.siteId)
+      const { error: rollbackErr } = await supabase
+        .from('waitlists')
+        .delete()
+        .eq('id', waitlistId)
+        .eq('site_id', ctx.siteId)
+      if (rollbackErr) {
+        // The compensating delete itself failed — surface the orphaned-row window so it
+        // is observable until the WL-09 atomic RPC lands (the parent-row delete reaps the
+        // translation via ON DELETE CASCADE once cleaned up).
+        getLogger().error('[createWaitlist] rollback failed — orphaned waitlist row', {
+          code: rollbackErr.code,
+          waitlistId,
+        })
+        Sentry.captureException(
+          new Error(`createWaitlist rollback ${rollbackErr.code}: ${redactMessage(rollbackErr.message ?? '')}`),
+          { tags: { component: 'waitlist', action: 'createWaitlist' } },
+        )
+      }
       throw tErr
     }
 
