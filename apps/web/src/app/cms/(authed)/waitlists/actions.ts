@@ -6,6 +6,7 @@ import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { ringContext } from '@/lib/cms/repositories'
 import { slugify } from '@/lib/blog/slugify'
+import { escapeCsv } from '@/lib/cms/csv'
 // No `@/lib/waitlists/*` alias (scrub lives under apps/web/lib, not src/) — deep
 // relative, same as the signup route.
 import { redactMessage } from '../../../../../lib/waitlists/scrub'
@@ -331,4 +332,92 @@ export async function transitionWaitlistStatus(
     )
     return { ok: false, error: 'db_error', message: redactMessage(e instanceof Error ? e.message : String(e)) }
   }
+}
+
+export interface ExportSignupsOpts {
+  status?: 'pending' | 'suppressed'
+  /** Default true — exclude suppressed rows unless a status filter explicitly selects them. */
+  excludeSuppressed?: boolean
+  /** ISO date-range bounds on created_at (inclusive). */
+  from?: string
+  to?: string
+}
+
+export type ExportSignupsResult =
+  | { ok: true; filename: string; csv: string }
+  | { ok: false; error: 'forbidden'; message?: string }
+  | { ok: false; error: 'not_found' }
+  | { ok: false; error: 'db_error'; message: string }
+
+const CSV_COLUMNS = ['email', 'status', 'suppression_reason', 'source_surface', 'locale', 'created_at'] as const
+
+/**
+ * Export a waitlist's signups as CSV. IDOR-guarded: the waitlist is resolved with
+ * `.eq('id').eq('site_id')` (404 if not owned) and the signups query is scoped by BOTH
+ * `site_id` AND `waitlist_id`. Anonymized rows are omitted. Every cell runs through the
+ * shared `escapeCsv` (formula-injection-safe). Honors the export-dialog options.
+ */
+export async function exportWaitlistSignups(
+  waitlistId: string,
+  opts: ExportSignupsOpts = {},
+): Promise<ExportSignupsResult> {
+  const ctx = await getSiteContext()
+  const scope = await requireSiteScope({ area: 'cms', siteId: ctx.siteId, mode: 'view' })
+  if (!scope.ok) return { ok: false, error: 'forbidden', message: scope.reason }
+
+  const supabase = getSupabaseServiceClient()
+  try {
+    const { data: wl, error: wlErr } = await supabase
+      .from('waitlists')
+      .select('slug')
+      .eq('id', waitlistId)
+      .eq('site_id', ctx.siteId)
+      .maybeSingle()
+    if (wlErr) throw wlErr
+    if (!wl) return { ok: false, error: 'not_found' }
+    const slug = (wl as { slug: string }).slug
+
+    let q = supabase
+      .from('waitlist_signups')
+      .select(CSV_COLUMNS.join(', '))
+      .eq('site_id', ctx.siteId)
+      .eq('waitlist_id', waitlistId)
+      .is('anonymized_at', null)
+    if (opts.status) q = q.eq('status', opts.status)
+    else if (opts.excludeSuppressed !== false) q = q.neq('status', 'suppressed')
+    if (opts.from) q = q.gte('created_at', opts.from)
+    if (opts.to) q = q.lte('created_at', opts.to)
+
+    const { data, error } = await q.order('created_at', { ascending: false })
+    if (error) throw error
+
+    // The dynamic .select(string) makes the typed client infer GenericStringError[]; the
+    // shape is known (our column list), so narrow through unknown.
+    const rows = (data ?? []) as unknown as Array<Record<(typeof CSV_COLUMNS)[number], unknown>>
+    const lines = [CSV_COLUMNS.join(',')]
+    for (const r of rows) {
+      lines.push(CSV_COLUMNS.map((col) => escapeCsv(r[col])).join(','))
+    }
+    const csv = lines.join('\r\n')
+    const date = new Date().toISOString().slice(0, 10)
+    return { ok: true, filename: `waitlist-${slug}-${date}.csv`, csv }
+  } catch (e) {
+    getLogger().error('[exportWaitlistSignups]', { code: errCode(e) })
+    Sentry.captureException(
+      new Error(`exportWaitlistSignups ${errCode(e)}: ${redactMessage(e instanceof Error ? e.message : String(e))}`),
+      { tags: { component: 'waitlist', action: 'exportWaitlistSignups' } },
+    )
+    return { ok: false, error: 'db_error', message: redactMessage(e instanceof Error ? e.message : String(e)) }
+  }
+}
+
+export type LaunchWaitlistResult = { ok: false; error: 'not_implemented' }
+
+/**
+ * Launch broadcast — STUB until Fase 2. The real publish-guarded broadcast (SES send +
+ * `(open|closed)→launching→launched` lifecycle) ships in Fase 2; for now this always
+ * returns `not_implemented` so the broadcast dialog can wire its confirm without sending.
+ */
+export async function launchWaitlist(_waitlistId: string): Promise<LaunchWaitlistResult> {
+  return { ok: false, error: 'not_implemented' }
 }
