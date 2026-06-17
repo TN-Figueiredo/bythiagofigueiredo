@@ -9,4 +9,20 @@ describe('redactMessage', () => {
     expect(result).toContain('[email]')
     expect(result).toContain('[ip]')
   })
+
+  it('redacts a full IPv6 address', () => {
+    const result = redactMessage('client 2001:db8::1 here')
+    expect(result).toContain('[ip]')
+    expect(result).not.toContain('2001:db8::1')
+  })
+
+  it('redacts an IPv4-mapped IPv6 address to a single [ip] token', () => {
+    const result = redactMessage('addr ::ffff:203.0.113.5')
+    // The IPv6 pass collapses ::ffff:203.0.113.5 → [ip]; no leftover digits
+    expect(result).toContain('[ip]')
+    expect(result).not.toContain('::ffff:')
+    expect(result).not.toContain('203.0.113.5')
+    // Must be exactly one [ip] token — no leftover digits that become a second one
+    expect(result.match(/\[ip\]/g)?.length).toBe(1)
+  })
 })

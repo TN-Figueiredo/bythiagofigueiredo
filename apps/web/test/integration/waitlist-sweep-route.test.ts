@@ -167,3 +167,69 @@ describe('logCron is called for the skipped path', () => {
     )
   })
 })
+
+describe('per-site error is soft — loop continues to next site', () => {
+  it('excludes the failing site from the count but continues sweeping remaining sites', async () => {
+    vi.stubEnv('CRON_SECRET', 'test-secret')
+    vi.stubEnv('WAITLIST_RETENTION_SWEEP_ENABLED', 'true')
+
+    const siteIds = ['site-aaa-0000-0000-0000-000000000001', 'site-bbb-0000-0000-0000-000000000002']
+    let rpcCallCount = 0
+
+    const stubSupabase = {
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === 'sites') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            // Return two site IDs
+            then: undefined,
+            // Simulate the awaited result of supabase.from('sites').select('id')
+            [Symbol.iterator]: undefined,
+          }
+        }
+        return {}
+      }),
+      rpc: vi.fn().mockImplementation((name: string, args: { p_site_id: string }) => {
+        if (name === 'waitlist_retention_sweep') {
+          rpcCallCount++
+          if (args.p_site_id === siteIds[0]) {
+            // First site: return an error
+            return Promise.resolve({ data: null, error: { code: 'XX500' } })
+          }
+          // Second site: success
+          return Promise.resolve({ data: null, error: null })
+        }
+        return Promise.resolve({ data: null, error: null })
+      }),
+    }
+
+    // The route does: supabase.from('sites').select('id') — need to mock this chain
+    // to return { data: [{id: ...}, {id: ...}], error: null }
+    stubSupabase.from.mockImplementation((table: string) => {
+      if (table === 'sites') {
+        return {
+          select: vi.fn().mockResolvedValue({
+            data: siteIds.map((id) => ({ id })),
+            error: null,
+          }),
+        }
+      }
+      return {}
+    })
+
+    ;(getSupabaseServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(stubSupabase)
+
+    const req = makeRequest({ authorization: 'Bearer test-secret' })
+    const res = await GET(req)
+    expect(res.status).toBe(200)
+
+    const body = await res.json() as { sites: number }
+    // First site failed → excluded from count; second site succeeded → sites = 1
+    expect(body.sites).toBe(1)
+
+    // logCron must have been called with error status for the failing site
+    expect(logCron).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'error', err_code: 'XX500' }),
+    )
+  })
+})
