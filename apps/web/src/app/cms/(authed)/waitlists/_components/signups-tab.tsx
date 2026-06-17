@@ -1,10 +1,10 @@
 import Link from 'next/link'
-import type { WaitlistDetailData, SignupsPage } from '../queries'
+import { WAITLIST_SOURCE_LABELS, type WaitlistDetailData, type SignupsPage } from '../queries'
 
-const SOURCE_LABELS: Record<string, string> = {
-  landing: 'Landing',
-  embed: 'Embed',
-  tiptap: 'In-article',
+function sourceLabel(src: string | null): string {
+  return src && src in WAITLIST_SOURCE_LABELS
+    ? WAITLIST_SOURCE_LABELS[src as keyof typeof WAITLIST_SOURCE_LABELS]
+    : '—'
 }
 
 function fmtDate(iso: string): string {
@@ -31,11 +31,21 @@ export function SignupsTab({ detail, page, filters }: SignupsTabProps) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <Link href={hrefFor(detail.id, { q })} className={filterCls(!status)}>All</Link>
-        <Link href={hrefFor(detail.id, { status: 'pending', q })} className={filterCls(status === 'pending')}>
+        <Link href={hrefFor(detail.id, { q })} aria-current={!status ? 'true' : undefined} className={filterCls(!status)}>
+          All
+        </Link>
+        <Link
+          href={hrefFor(detail.id, { status: 'pending', q })}
+          aria-current={status === 'pending' ? 'true' : undefined}
+          className={filterCls(status === 'pending')}
+        >
           Pending
         </Link>
-        <Link href={hrefFor(detail.id, { status: 'suppressed', q })} className={filterCls(status === 'suppressed')}>
+        <Link
+          href={hrefFor(detail.id, { status: 'suppressed', q })}
+          aria-current={status === 'suppressed' ? 'true' : undefined}
+          className={filterCls(status === 'suppressed')}
+        >
           Suppressed
         </Link>
         <form method="get" className="ml-auto flex items-center gap-2">
@@ -78,7 +88,7 @@ export function SignupsTab({ detail, page, filters }: SignupsTabProps) {
                       <span className="ml-1 text-xs text-cms-text-muted">· {r.suppressionReason}</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-cms-text-muted">{SOURCE_LABELS[r.sourceSurface ?? ''] ?? '—'}</td>
+                  <td className="px-4 py-3 text-cms-text-muted">{sourceLabel(r.sourceSurface)}</td>
                   <td className="px-4 py-3 text-cms-text-muted">{fmtDate(r.createdAt)}</td>
                 </tr>
               ))

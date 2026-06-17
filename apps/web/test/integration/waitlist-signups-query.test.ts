@@ -72,4 +72,27 @@ describe.skipIf(skipIfNoLocalDb())('listSignups (keyset cursor + server-side fil
     expect(filtered.rows).toHaveLength(1)
     expect(filtered.rows[0]!.email).toBe('zzfilter-target@x.com')
   })
+
+  it('treats % and _ in the email filter as LITERALS, not LIKE wildcards (M13)', async () => {
+    const { siteId } = await seedSite(db)
+    const { data: wl } = await db
+      .from('waitlists')
+      .insert({ site_id: siteId, slug: `esc-${Math.random().toString(36).slice(2, 6)}`, name: 'ESC', status: 'open' })
+      .select('id, site_id')
+      .single()
+    created.push(wl!.id)
+    const base = { waitlist_id: wl!.id, site_id: wl!.site_id, consent_launch_notification: true, consent_text_version: 'v1' }
+    await db.from('waitlist_signups').insert([
+      { ...base, email: '%test@x.com' }, // literal-% match target
+      { ...base, email: 'atest@x.com' }, // would match if % were a wildcard
+      { ...base, email: 'a_b@x.com' }, // literal-_ match target
+      { ...base, email: 'axb@x.com' }, // would match if _ were a wildcard
+    ])
+
+    const pct = await listSignups(siteId, wl!.id, { q: '%test' })
+    expect(pct.rows.map((r) => r.email)).toEqual(['%test@x.com'])
+
+    const underscore = await listSignups(siteId, wl!.id, { q: 'a_b' })
+    expect(underscore.rows.map((r) => r.email)).toEqual(['a_b@x.com'])
+  })
 })

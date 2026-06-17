@@ -2,18 +2,12 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { ChevronLeft } from 'lucide-react'
 import { getSiteContext } from '@/lib/cms/site-context'
-import { loadWaitlistDetail, listSignups, type SignupsCursor } from '../queries'
+import { loadWaitlistDetail, listSignups, parseSignupsCursor, WAITLIST_SOURCE_LABELS } from '../queries'
 import { WlBadge } from '../_components/wl-badge'
 import { LaunchCta } from '../_components/launch-cta'
 import { SignupsTab } from '../_components/signups-tab'
 
 export const dynamic = 'force-dynamic'
-
-const SOURCE_LABELS: Record<'landing' | 'embed' | 'tiptap', string> = {
-  landing: 'Landing page',
-  embed: 'Embed',
-  tiptap: 'In-article',
-}
 
 interface Props {
   params: Promise<{ id: string }>
@@ -32,11 +26,7 @@ export default async function WaitlistDetailPage({ params, searchParams }: Props
 
   // Signups tab data (only fetched when that tab is active).
   const statusFilter = statusParam === 'pending' || statusParam === 'suppressed' ? statusParam : undefined
-  let cursor: SignupsCursor | undefined
-  if (c) {
-    const sep = c.indexOf('|')
-    if (sep > 0) cursor = { createdAt: c.slice(0, sep), id: c.slice(sep + 1) }
-  }
+  const cursor = parseSignupsCursor(c) // validates ISO|UUID — a tampered ?c degrades to page 1
   const signupsPage =
     activeTab === 'signups'
       ? await listSignups(siteId, detail.id, { status: statusFilter, q: q || undefined, cursor })
@@ -46,6 +36,7 @@ export default async function WaitlistDetailPage({ params, searchParams }: Props
   const TabLink = ({ id: tabId, label }: { id: 'overview' | 'signups'; label: string }) => (
     <Link
       href={`/cms/waitlists/${detail.id}${tabId === 'signups' ? '?tab=signups' : ''}`}
+      aria-current={activeTab === tabId ? 'page' : undefined}
       className={`border-b-2 px-1 pb-2 text-sm ${
         activeTab === tabId
           ? 'border-cms-accent font-medium text-cms-text'
@@ -71,10 +62,11 @@ export default async function WaitlistDetailPage({ params, searchParams }: Props
           <a
             href={`/waitlists/${detail.slug}`}
             target="_blank"
-            rel="noreferrer"
+            rel="noopener noreferrer"
+            aria-label={`/waitlists/${detail.slug} (opens in a new tab)`}
             className="mt-1 inline-block font-mono text-xs text-cms-text-muted hover:text-cms-text hover:underline"
           >
-            /waitlists/{detail.slug}
+            /waitlists/{detail.slug} ↗
           </a>
         </div>
         {/* Edit happens via the list drawer (M2). The dedicated detail-hosted edit + the
@@ -103,7 +95,7 @@ export default async function WaitlistDetailPage({ params, searchParams }: Props
                   const pct = totalBySource > 0 ? Math.round((n / totalBySource) * 100) : 0
                   return (
                     <div key={src} className="flex items-center gap-3 text-sm">
-                      <span className="w-24 shrink-0 text-cms-text-muted">{SOURCE_LABELS[src]}</span>
+                      <span className="w-24 shrink-0 text-cms-text-muted">{WAITLIST_SOURCE_LABELS[src]}</span>
                       <div className="h-2 flex-1 overflow-hidden rounded-full bg-cms-border">
                         <div className="h-full bg-cms-accent" style={{ width: `${pct}%` }} />
                       </div>
@@ -111,6 +103,10 @@ export default async function WaitlistDetailPage({ params, searchParams }: Props
                     </div>
                   )
                 })}
+              </div>
+              <div className="mt-3 flex gap-4 border-t border-cms-border pt-3 text-xs">
+                <span className="text-[#22c55e]">{detail.pending} pending</span>
+                <span className="text-cms-text-muted">{detail.suppressed} suppressed</span>
               </div>
             </div>
 

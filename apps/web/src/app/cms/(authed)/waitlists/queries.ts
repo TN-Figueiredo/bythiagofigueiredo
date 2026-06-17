@@ -154,9 +154,44 @@ export interface SignupRow {
   createdAt: string
 }
 
+/** Display labels for source_surface — single source of truth (used by the detail page + signups tab). */
+export const WAITLIST_SOURCE_LABELS = {
+  landing: 'Landing page',
+  embed: 'Embed',
+  tiptap: 'In-article',
+} as const satisfies Record<'landing' | 'embed' | 'tiptap', string>
+
+function isSignupStatus(s: unknown): s is 'pending' | 'suppressed' {
+  return s === 'pending' || s === 'suppressed'
+}
+
 export interface SignupsCursor {
   createdAt: string
   id: string
+}
+
+// The keyset cursor is interpolated into a PostgREST .or() filter string, so its parts MUST
+// be validated (they originate from a user-controlled URL param) — otherwise a crafted cursor
+// injects arbitrary filter syntax. Same guard the playlists module uses.
+// End-anchored: a valid ISO timestamp ONLY (optional fractional seconds + Z/offset) — an
+// unanchored prefix match would let `2026-..T..:..:..<INJECTION>` through into the filter.
+const CURSOR_ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:?\d{2})?$/
+const CURSOR_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function isValidCursor(c: SignupsCursor): boolean {
+  return CURSOR_ISO_RE.test(c.createdAt) && CURSOR_UUID_RE.test(c.id)
+}
+
+/**
+ * Parse the `?c=<createdAt>|<id>` URL param into a validated cursor, or undefined when
+ * absent/malformed (so a tampered param degrades to page 1, never an injected filter).
+ */
+export function parseSignupsCursor(c: string | undefined): SignupsCursor | undefined {
+  if (!c) return undefined
+  const sep = c.indexOf('|')
+  if (sep <= 0) return undefined
+  const cursor = { createdAt: c.slice(0, sep), id: c.slice(sep + 1) }
+  return isValidCursor(cursor) ? cursor : undefined
 }
 
 export interface ListSignupsOpts {
@@ -206,7 +241,10 @@ export async function listSignups(
     const safe = opts.q.replace(/[\\%_]/g, (m) => `\\${m}`)
     query = query.ilike('email', `${safe}%`)
   }
-  if (opts.cursor) {
+  // Defense-in-depth: only interpolate the cursor into the .or() filter if it passes the
+  // ISO/UUID guard (the page also validates via parseSignupsCursor). An invalid cursor is
+  // dropped → first page, never an injected filter string.
+  if (opts.cursor && isValidCursor(opts.cursor)) {
     const { createdAt, id } = opts.cursor
     query = query.or(`created_at.lt.${createdAt},and(created_at.eq.${createdAt},id.lt.${id})`)
   }
@@ -240,7 +278,7 @@ export async function listSignups(
     rows: pageRaw.map((r) => ({
       id: r.id,
       email: r.email,
-      status: r.status === 'suppressed' ? 'suppressed' : 'pending',
+      status: isSignupStatus(r.status) ? r.status : 'pending',
       suppressionReason: r.suppression_reason,
       sourceSurface: r.source_surface,
       createdAt: r.created_at,
