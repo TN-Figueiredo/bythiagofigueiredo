@@ -16,9 +16,7 @@ export function redactMessage(s: string): string {
  * those keys removed so the caller can spread non-PII context without leaking the rest.
  */
 export function scrub<T extends Record<string, unknown>>(ctx: T): Omit<T, 'email' | 'ip' | 'user_agent'> {
+  // Rest-spread excludes the three PII keys; the destructured bindings are intentionally unused.
   const { email: _email, ip: _ip, user_agent: _ua, ...rest } = ctx
-  void _email
-  void _ip
-  void _ua
   return rest
 }

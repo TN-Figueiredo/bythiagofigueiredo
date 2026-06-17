@@ -31,7 +31,7 @@ export function WaitlistsTable({
                     type="button"
                     onClick={() => onRowClick(r)}
                     aria-label={`Edit ${r.name}`}
-                    className="block text-left"
+                    className="block rounded-[var(--cms-radius)] text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-cms-accent"
                   >
                     <div className="font-medium text-cms-text hover:underline">{r.name}</div>
                     <div className="font-mono text-xs text-cms-text-muted">/waitlists/{r.slug}</div>

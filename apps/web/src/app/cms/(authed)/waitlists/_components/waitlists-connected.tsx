@@ -22,6 +22,8 @@ import type { WaitlistActionResult, WaitlistTransitionResult } from '../actions'
  */
 export interface WaitlistsConnectedProps {
   rows: WaitlistListRow[]
+  /** Site default locale (from getSiteContext) — drives the drawer's consent preview. */
+  defaultLocale?: string
   createAction: (form: FormData) => Promise<WaitlistActionResult>
   updateAction: (id: string, form: FormData) => Promise<WaitlistActionResult>
   transitionAction: (id: string, from: WaitlistStatus, to: WaitlistStatus) => Promise<WaitlistTransitionResult>
@@ -47,11 +49,13 @@ function toFormData(payload: WaitlistDraftPayload): FormData {
 
 export function WaitlistsConnected({
   rows,
+  defaultLocale,
   createAction,
   updateAction,
   transitionAction,
   campaigns = [],
 }: WaitlistsConnectedProps) {
+  const drawerLocale = defaultLocale === 'pt-BR' ? 'pt-BR' : 'en'
   const router = useRouter()
   const [drawer, setDrawer] = useState<DrawerState>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string> | undefined>(undefined)
@@ -124,6 +128,7 @@ export function WaitlistsConnected({
       {drawer && (
         <WaitlistEditDrawer
           mode={drawer.mode}
+          locale={drawerLocale}
           campaigns={campaigns}
           fieldErrors={fieldErrors}
           submitting={submitting}

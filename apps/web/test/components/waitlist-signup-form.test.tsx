@@ -70,10 +70,9 @@ describe('WaitlistSignupForm', () => {
     renderIdle()
     const input = screen.getByPlaceholderText(en.emailPlaceholder)
     expect(input).toHaveAttribute('type', 'email')
-    // The field carries a stable accessible name via aria-label="Email" (EMAIL_LABEL).
-    // "Email" reads correctly in both pt-BR and en, so it stays a constant rather than a
-    // localized string; the visible placeholder remains the example address.
-    expect(input).toHaveAttribute('aria-label', 'Email')
+    // Accessible name comes from the bound sr-only <label htmlFor> (localized
+    // strings.emailLabel), not a duplicate aria-label — getByLabelText resolves it.
+    expect(screen.getByLabelText(en.emailLabel)).toBe(input)
     // no error yet → aria-invalid must be the literal "false", never absent/true
     expect(input).toHaveAttribute('aria-invalid', 'false')
   })

@@ -29,6 +29,22 @@ describe('WaitlistsTable', () => {
     expect(screen.getByText('/waitlists/alpha')).toBeTruthy()
   })
 
+  it('renders the signups count + suppressed sub-count', () => {
+    const { container } = render(<WaitlistsTable rows={[row]} />)
+    expect(screen.getByText('5')).toBeTruthy() // signups
+    // suppressed sub-count is a separate `ml-1` span ("−2"); assert via the DOM to stay
+    // agnostic to the exact minus glyph (and avoid the badge's own text-xs span).
+    const sub = container.querySelector('span.ml-1')
+    expect(sub?.textContent).toMatch(/2$/)
+  })
+
+  it('renders a linked campaign title when present, em-dash fallback when null', () => {
+    render(<WaitlistsTable rows={[{ ...row, id: 'wl-2', campaignTitle: 'Spring Promo' }, row]} />)
+    expect(screen.getByText('Spring Promo')).toBeTruthy()
+    // the null-campaign row shows the muted em-dash fallback
+    expect(screen.getByText('—')).toBeTruthy()
+  })
+
   it('makes the name an accessible button that fires onRowClick', () => {
     const onRowClick = vi.fn()
     render(<WaitlistsTable rows={[row]} onRowClick={onRowClick} />)

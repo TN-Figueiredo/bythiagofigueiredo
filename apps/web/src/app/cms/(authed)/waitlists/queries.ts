@@ -1,4 +1,5 @@
 import * as Sentry from '@sentry/nextjs'
+import { z } from 'zod'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getLogger } from '../../../../../lib/logger'
 import { redactMessage } from '../../../../../lib/waitlists/scrub'
@@ -41,11 +42,15 @@ export interface WaitlistListResult {
   kpis: WaitlistListKpis
 }
 
-interface CountRow {
-  waitlist_id: string
-  pending: number
-  suppressed: number
-}
+// Validate the waitlist_signup_counts RPC result rather than `as`-casting it — silent
+// schema drift would coerce missing counts to 0 and mask data loss in the KPI strip.
+const CountRowsSchema = z.array(
+  z.object({
+    waitlist_id: z.string(),
+    pending: z.number().int().nonnegative(),
+    suppressed: z.number().int().nonnegative(),
+  }),
+)
 
 /**
  * Site-scoped waitlist list + KPI strip for the CMS. Callers MUST already have
@@ -85,8 +90,16 @@ export async function listWaitlistsForSite(siteId: string): Promise<WaitlistList
     throw cErr
   }
 
+  const parsedCounts = CountRowsSchema.safeParse(counts ?? [])
+  if (!parsedCounts.success) {
+    getLogger().error('[listWaitlistsForSite:counts] unexpected RPC shape', {})
+    Sentry.captureException(new Error('waitlist_signup_counts: unexpected RPC result shape'), {
+      tags: { component: 'waitlist' },
+    })
+    throw new Error('waitlist_signup_counts: unexpected RPC result shape')
+  }
   const countMap = new Map<string, { pending: number; suppressed: number }>()
-  for (const c of (counts ?? []) as CountRow[]) {
+  for (const c of parsedCounts.data) {
     countMap.set(c.waitlist_id, { pending: c.pending, suppressed: c.suppressed })
   }
 

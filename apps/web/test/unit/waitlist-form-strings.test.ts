@@ -4,7 +4,7 @@ import { FORM_STRINGS, type WaitlistLocale } from '@/components/waitlists/form-s
 const LOCALES: WaitlistLocale[] = ['pt-BR', 'en']
 // Every state the public form state machine renders (spec §7) must have copy.
 const STRING_KEYS = [
-  'emailPlaceholder', 'button', 'buttonLoading', 'successHeadline', 'successBody',
+  'emailPlaceholder', 'emailLabel', 'button', 'buttonLoading', 'successHeadline', 'successBody',
   'duplicateHeadline', 'duplicateBody', 'closed', 'launched', 'raceClosed',
   'error', 'rateLimited', 'unavailable', 'reassurance',
 ] as const

@@ -4,6 +4,8 @@ import { WaitlistEditDrawer } from '../../src/app/cms/(authed)/waitlists/_compon
 
 afterEach(cleanup)
 
+const flushRaf = () => new Promise<void>((r) => requestAnimationFrame(() => r()))
+
 describe('<WaitlistEditDrawer>', () => {
   it('(a) Esc closes the drawer', () => {
     const onClose = vi.fn()
@@ -51,5 +53,38 @@ describe('<WaitlistEditDrawer>', () => {
     render(<WaitlistEditDrawer mode="create" onSubmit={onSubmit} onClose={vi.fn()} />)
     fireEvent.click(screen.getByRole('button', { name: /create waitlist/i }))
     expect(onSubmit).not.toHaveBeenCalled()
+  })
+
+  it('sanitizes a malicious stored intro before it hydrates the contentEditable (XSS)', () => {
+    render(
+      <WaitlistEditDrawer
+        mode="edit"
+        initial={{ id: 'wl-1', name: 'X', slug: 'x', intro: '<img src=x onerror="alert(1)">' }}
+        onSubmit={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    )
+    const editor = screen.getByTestId('wl-intro-editor')
+    expect(editor.innerHTML).not.toContain('onerror')
+  })
+
+  it('focuses the slug field when a server slug error arrives (M3)', async () => {
+    const onClose = vi.fn() // stable across rerenders so the open-focus effect does not re-run
+    const { rerender } = render(<WaitlistEditDrawer mode="create" onClose={onClose} onSubmit={vi.fn()} />)
+    await flushRaf() // let the open-focus rAF settle on the name field first
+    rerender(
+      <WaitlistEditDrawer mode="create" fieldErrors={{ slug: 'taken' }} onClose={onClose} onSubmit={vi.fn()} />,
+    )
+    expect(document.activeElement).toBe(screen.getByTestId('wl-slug'))
+  })
+
+  it('restores focus to the trigger element when it closes (a11y)', () => {
+    const trigger = document.createElement('button')
+    document.body.appendChild(trigger)
+    trigger.focus()
+    const { unmount } = render(<WaitlistEditDrawer mode="create" onClose={vi.fn()} onSubmit={vi.fn()} />)
+    unmount()
+    expect(document.activeElement).toBe(trigger)
+    trigger.remove()
   })
 })

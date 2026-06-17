@@ -14,12 +14,6 @@ const SignupResponse = z
   .object({ success: z.boolean().optional(), duplicate: z.boolean().optional() })
   .passthrough()
 
-// EN-first accessible name for the email field (CMS/public chrome is EN-first). The
-// finding (WL-R6) asks for a real `emailLabel` distinct from the placeholder so the
-// accessible name reads "Email" rather than "you@email.com".
-// NOTE (cross-file follow-up): promote this into WaitlistStrings.emailLabel in
-// form-strings.ts (pt-BR + en) so the label localizes with the rest of the form.
-const EMAIL_LABEL = 'Email'
 
 type Variant = 'landing' | 'embed' | 'inline'
 type PublicStatus = 'open' | 'closed' | 'launched'
@@ -317,7 +311,7 @@ export function WaitlistSignupForm({ slug, locale, name, variant = 'landing', in
             placeholder-only chrome from the design handoff. The accessible name is a
             dedicated label ("Email"), not the placeholder text (WL-R6). */}
         <label htmlFor="waitlist-email" className="sr-only">
-          {EMAIL_LABEL}
+          {strings.emailLabel}
         </label>
         <input
           id="waitlist-email"
@@ -328,7 +322,6 @@ export function WaitlistSignupForm({ slug, locale, name, variant = 'landing', in
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder={strings.emailPlaceholder}
-          aria-label={EMAIL_LABEL}
           aria-invalid={errMsg ? 'true' : 'false'}
           inputMode="email"
           autoComplete="email"
@@ -357,7 +350,7 @@ export function WaitlistSignupForm({ slug, locale, name, variant = 'landing', in
       {needsToken && <div ref={turnstileRef} />}
 
       {errMsg && (
-        <p role="alert" className="text-sm text-red-400">
+        <p role="alert" className="text-sm text-[#c0392b]">
           {errMsg}
         </p>
       )}

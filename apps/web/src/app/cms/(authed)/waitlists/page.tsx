@@ -19,7 +19,7 @@ function Kpi({ label, value, sub }: { label: string; value: number | string; sub
 }
 
 export default async function CmsWaitlistsListPage() {
-  const { siteId } = await getSiteContext()
+  const { siteId, defaultLocale } = await getSiteContext()
 
   // WL-R4 / WL-03: `listWaitlistsForSite` rethrows on a DB/RPC failure (it already
   // logs + reports to Sentry). Without this guard the raw error escapes to the
@@ -75,6 +75,7 @@ export default async function CmsWaitlistsListPage() {
 
       <WaitlistsConnected
         rows={rows}
+        defaultLocale={defaultLocale}
         createAction={createWaitlist}
         updateAction={updateWaitlist}
         transitionAction={transitionWaitlistStatus}

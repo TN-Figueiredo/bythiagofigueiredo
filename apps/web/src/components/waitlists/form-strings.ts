@@ -11,6 +11,8 @@ export interface WaitlistStrings {
   // signup audit snapshots that exact rendered text — LGPD proof-of-consent). The
   // component renders {name} as a bolded span (handoff waitlist-public.jsx:257).
   emailPlaceholder: string
+  /** Accessible name (and visible label) for the email field — localized per the public surface. */
+  emailLabel: string
   consentLabel: (name: string) => string
   button: string
   buttonLoading: string
@@ -30,6 +32,7 @@ export interface WaitlistStrings {
 export const FORM_STRINGS: Record<WaitlistLocale, WaitlistStrings> = {
   'pt-BR': {
     emailPlaceholder: 'seu@email.com',
+    emailLabel: 'Seu email',
     consentLabel: (name: string) =>
       `Quero ser avisado(a) por email quando ${name} for lançado. Posso cancelar quando quiser.`,
     button: 'Quero ser avisado',
@@ -48,6 +51,7 @@ export const FORM_STRINGS: Record<WaitlistLocale, WaitlistStrings> = {
   },
   en: {
     emailPlaceholder: 'you@email.com',
+    emailLabel: 'Email',
     consentLabel: (name: string) =>
       `Notify me by email when ${name} launches. I can unsubscribe anytime.`,
     button: 'Notify me',
