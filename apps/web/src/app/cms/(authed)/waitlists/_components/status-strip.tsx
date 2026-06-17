@@ -51,9 +51,7 @@ export function WaitlistStatusStrip({ status, onTransition, pending = false }: W
   return (
     <div className="flex items-center gap-3 rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface px-4 py-3">
       <span className="text-xs font-medium uppercase tracking-wide text-cms-text-muted">Status</span>
-      <span id="wl-strip-hint" className="flex-1 text-sm text-cms-text-muted">
-        {hint}
-      </span>
+      <span className="flex-1 text-sm text-cms-text-muted">{hint}</span>
       {actions.length > 0 && (
         <div className="flex shrink-0 gap-2">
           {actions.map((a) => (
@@ -62,7 +60,9 @@ export function WaitlistStatusStrip({ status, onTransition, pending = false }: W
               type="button"
               disabled={pending}
               onClick={() => onTransition(a.to)}
-              aria-describedby="wl-strip-hint"
+              // Self-describing label (action + consequence) instead of a shared-id
+              // aria-describedby — avoids a duplicate id if two strips ever co-render.
+              aria-label={`${a.label}: ${a.hint}`}
               className={`rounded-[var(--cms-radius)] px-3 py-1.5 text-sm font-medium disabled:opacity-60 ${TONE[a.tone]}`}
             >
               {a.label}

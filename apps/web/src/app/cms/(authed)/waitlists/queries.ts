@@ -73,7 +73,7 @@ export async function listWaitlistsForSite(siteId: string): Promise<WaitlistList
     getLogger().error('[listWaitlistsForSite]', { code: error.code })
     Sentry.captureException(
       new Error(`listWaitlistsForSite ${error.code}: ${redactMessage(error.message ?? '')}`),
-      { tags: { component: 'waitlist' } },
+      { tags: { component: 'waitlist', action: 'listWaitlistsForSite' } },
     )
     throw error
   }
@@ -85,7 +85,7 @@ export async function listWaitlistsForSite(siteId: string): Promise<WaitlistList
     getLogger().error('[listWaitlistsForSite:counts]', { code: cErr.code })
     Sentry.captureException(
       new Error(`listWaitlistsForSite ${cErr.code}: ${redactMessage(cErr.message ?? '')}`),
-      { tags: { component: 'waitlist' } },
+      { tags: { component: 'waitlist', action: 'listWaitlistsForSite' } },
     )
     throw cErr
   }
@@ -94,7 +94,7 @@ export async function listWaitlistsForSite(siteId: string): Promise<WaitlistList
   if (!parsedCounts.success) {
     getLogger().error('[listWaitlistsForSite:counts] unexpected RPC shape', {})
     Sentry.captureException(new Error('waitlist_signup_counts: unexpected RPC result shape'), {
-      tags: { component: 'waitlist' },
+      tags: { component: 'waitlist', action: 'listWaitlistsForSite' },
     })
     throw new Error('waitlist_signup_counts: unexpected RPC result shape')
   }
@@ -107,7 +107,7 @@ export async function listWaitlistsForSite(siteId: string): Promise<WaitlistList
     const c = countMap.get(w.id) ?? { pending: 0, suppressed: 0 }
     // PostgREST returns an embedded to-one relation as an object, but the typed
     // client widens it to an array — normalize either shape to a minimally-typed value.
-    const campaignRel = (Array.isArray(w.campaigns) ? w.campaigns[0] : w.campaigns) as
+    const campaignRel = (Array.isArray(w.campaigns) ? w.campaigns.at(0) : w.campaigns) as
       | { interest: string | null }
       | null
       | undefined

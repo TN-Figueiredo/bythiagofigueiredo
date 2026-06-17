@@ -125,8 +125,11 @@ export function WaitlistEditDrawer({
     return () => {
       document.removeEventListener('keydown', onKey)
       cancelAnimationFrame(raf)
-      // Restore focus to the trigger after the drawer unmounts (a11y, WL-08).
-      trigger?.focus?.()
+      // Restore focus to the trigger after the drawer unmounts (a11y, WL-08). Guard
+      // against a trigger that was removed while the drawer was open (e.g. its row
+      // re-rendered) — focusing a detached node silently drops focus into the void.
+      if (trigger && trigger.isConnected) trigger.focus()
+      else document.body.focus()
     }
   }, [onClose])
 

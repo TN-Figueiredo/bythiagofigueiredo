@@ -349,6 +349,8 @@ export function WaitlistSignupForm({ slug, locale, name, variant = 'landing', in
 
       {needsToken && <div ref={turnstileRef} />}
 
+      {/* Error text uses a literal hex (not a color-mix/relative-color token): load-bearing
+          chrome, and color-mix renders transparent in Opera. */}
       {errMsg && (
         <p role="alert" className="text-sm text-[#c0392b]">
           {errMsg}

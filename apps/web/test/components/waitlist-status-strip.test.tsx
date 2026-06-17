@@ -31,14 +31,16 @@ describe('<WaitlistStatusStrip>', () => {
     expect(onTransition).toHaveBeenCalledWith('closed')
   })
 
-  it('launched is terminal → no transition buttons', () => {
+  it('launched is terminal → no transition buttons, shows the terminal note', () => {
     render(<WaitlistStatusStrip status="launched" onTransition={vi.fn()} />)
     expect(screen.queryByRole('button')).toBeNull()
+    expect(screen.getByText(/launched/i)).toBeTruthy()
   })
 
-  it('launching → no transition buttons (owned by the launch broadcast)', () => {
+  it('launching → no transition buttons (owned by the launch broadcast), shows the note', () => {
     render(<WaitlistStatusStrip status="launching" onTransition={vi.fn()} />)
     expect(screen.queryByRole('button')).toBeNull()
+    expect(screen.getByText(/launch in progress/i)).toBeTruthy()
   })
 
   it('disables the buttons while a transition is pending', () => {

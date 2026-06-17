@@ -57,7 +57,17 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
     Sentry.captureException(new Error(`waitlist_rate_check ${rate.error.code}: ${redactMessage(rate.error.message ?? '')}`), { tags: { component: 'waitlist', rpc: 'rate_check' }, level: 'warning' })
     return Response.json({ error: 'unavailable' }, { status: 503 })
   }
-  if (rate.data === false) return Response.json({ error: 'rate_limited' }, { status: 429 })
+  // Validate the rate-check result shape: a non-boolean (schema drift) must FAIL CLOSED
+  // to 503, never skip the `=== false` gate and let the signup through (fail-open).
+  const rateOk = z.boolean().safeParse(rate.data)
+  if (!rateOk.success) {
+    getLogger().error('[waitlist_rate_check] non-boolean result', {})
+    Sentry.captureException(new Error('waitlist_rate_check: unexpected result shape'), {
+      tags: { component: 'waitlist', rpc: 'rate_check' },
+    })
+    return Response.json({ error: 'unavailable' }, { status: 503 })
+  }
+  if (rateOk.data === false) return Response.json({ error: 'rate_limited' }, { status: 429 })
 
   if (hasTurnstileSecret) {
     const ok = await verifyTurnstileToken(body.turnstile_token, ip ?? undefined)
