@@ -1670,7 +1670,7 @@ expect(taken).toHaveLength(1) // the loser's INSERT hits 23505 → slug_taken (c
 - Modify: `apps/web/src/app/cms/(authed)/waitlists/actions.ts` (a `listSignups` action or server-component query)
 - Test: `apps/web/test/integration/waitlist-signups-query.test.ts`
 
-- [ ] **Step 1: Write the failing test** — `apps/web/test/integration/waitlist-signups-query.test.ts`. Keyset on `(created_at desc, id)` is easy to get subtly wrong (rows sharing the same `created_at`; or a naive `created_at.lt` cursor that skips/dupes). Seed **≥2 signups with an IDENTICAL `created_at`** (force a collision) plus ~28 others, page through ALL rows with the real cursor collecting ids into a `Set`, and assert: `Set.size === totalCount` (NO gap) and `collected.length === Set.size` (NO overlap). **This behavioral Set-invariant ALREADY distinguishes a correct row-value keyset from a bare `created_at.lt` cursor** — a bare cursor will either skip or duplicate the two identical-`created_at` rows, breaking exactly these invariants. Do NOT also try to assert the literal PostgREST `or(...)` cursor STRING the implementation uses (source-coupling with no feasible mechanism from a DB-integration test). Finally assert that an email-prefix filter applied WHILE ON PAGE 2 returns a row whose `created_at` sorts onto page 1 — proving `.ilike` is in the SQL (server-side), not client-side.
+- [x] **Step 1: Write the failing test** — `apps/web/test/integration/waitlist-signups-query.test.ts`. Keyset on `(created_at desc, id)` is easy to get subtly wrong (rows sharing the same `created_at`; or a naive `created_at.lt` cursor that skips/dupes). Seed **≥2 signups with an IDENTICAL `created_at`** (force a collision) plus ~28 others, page through ALL rows with the real cursor collecting ids into a `Set`, and assert: `Set.size === totalCount` (NO gap) and `collected.length === Set.size` (NO overlap). **This behavioral Set-invariant ALREADY distinguishes a correct row-value keyset from a bare `created_at.lt` cursor** — a bare cursor will either skip or duplicate the two identical-`created_at` rows, breaking exactly these invariants. Do NOT also try to assert the literal PostgREST `or(...)` cursor STRING the implementation uses (source-coupling with no feasible mechanism from a DB-integration test). Finally assert that an email-prefix filter applied WHILE ON PAGE 2 returns a row whose `created_at` sorts onto page 1 — proving `.ilike` is in the SQL (server-side), not client-side.
 
 ```ts
 // collision fixture sketch
@@ -1683,8 +1683,8 @@ await db.from('waitlist_signups').insert([
 ```
 
 **RUN before Step 2 → must FAIL (the `listSignups` query/action does not exist), NOT a helper error.**
-- [ ] **Step 2: Implement** the server-side query: `.eq('waitlist_id',id).eq('site_id',siteId)` + optional `.eq('status',filter)` + optional `.ilike('email', q + '%')` + a row-value keyset cursor on `(created_at, id)` (`or(created_at.lt.${c},and(created_at.eq.${c},id.lt.${id}))`) with Next/Prev + approximate `count()`. Columns: email, status, suppression_reason, source_surface (display `landing|embed|tiptap`), created_at. **RUN: same test → must PASS.**
-- [ ] **Step 3: Commit** `feat(waitlists): server-side keyset signups list with filters`.
+- [x] **Step 2: Implement** the server-side query: `.eq('waitlist_id',id).eq('site_id',siteId)` + optional `.eq('status',filter)` + optional `.ilike('email', q + '%')` + a row-value keyset cursor on `(created_at, id)` (`or(created_at.lt.${c},and(created_at.eq.${c},id.lt.${id}))`) with Next/Prev + approximate `count()`. Columns: email, status, suppression_reason, source_surface (display `landing|embed|tiptap`), created_at. **RUN: same test → must PASS.**
+- [x] **Step 3: Commit** `feat(waitlists): server-side keyset signups list with filters`.
 
 ### Task 19a: CSV export action (IDOR-guarded + formula-injection)
 
