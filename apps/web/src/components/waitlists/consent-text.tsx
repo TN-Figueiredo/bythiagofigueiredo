@@ -22,7 +22,7 @@ export function RenderConsentText({
   return (
     <span>
       {parts.map((part, i) => (
-        <span key={i}>
+        <span key={`${i}:${part.slice(0, 8)}`}>
           {part}
           {i < parts.length - 1 && <strong className={strongClassName}>{name}</strong>}
         </span>

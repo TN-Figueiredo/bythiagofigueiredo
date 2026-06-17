@@ -1,7 +1,8 @@
 'use client'
 
 import { createPortal } from 'react-dom'
-import { useEffect, useState } from 'react'
+import { useRef, useState } from 'react'
+import { useDialogFocus } from './use-dialog-focus'
 import type { ExportSignupsOpts } from '../actions'
 
 export interface ExportDialogProps {
@@ -15,18 +16,13 @@ export interface ExportDialogProps {
 }
 
 export function ExportDialog({ slug, onExport, onClose, exporting = false, error = null }: ExportDialogProps) {
+  const dialogRef = useRef<HTMLDivElement>(null)
   const [status, setStatus] = useState<'' | 'pending' | 'suppressed'>('')
   const [excludeSuppressed, setExcludeSuppressed] = useState(true)
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [onClose])
+  useDialogFocus(dialogRef, onClose)
 
   const submit = () => {
     onExport({
@@ -45,10 +41,12 @@ export function ExportDialog({ slug, onExport, onClose, exporting = false, error
     <>
       <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} aria-hidden="true" />
       <div
+        ref={dialogRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-label="Export signups"
-        className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-[var(--cms-radius)] bg-cms-bg p-5 shadow-xl"
+        className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-[var(--cms-radius)] bg-cms-bg p-5 shadow-xl outline-none"
       >
         <h2 className="text-sm font-semibold text-cms-text">Export signups · {slug}</h2>
 
@@ -90,7 +88,7 @@ export function ExportDialog({ slug, onExport, onClose, exporting = false, error
         </label>
 
         {error && (
-          <p role="alert" className="mt-3 text-sm text-[var(--danger,#f43f5e)]">
+          <p role="alert" className="mt-3 text-sm text-[var(--cms-rose,#f43f5e)]">
             {error}
           </p>
         )}

@@ -1,7 +1,8 @@
 'use client'
 
 import { createPortal } from 'react-dom'
-import { useEffect, useState } from 'react'
+import { useRef, useState } from 'react'
+import { useDialogFocus } from './use-dialog-focus'
 
 export interface BroadcastDialogProps {
   slug: string
@@ -13,17 +14,12 @@ export interface BroadcastDialogProps {
 }
 
 export function BroadcastDialog({ slug, recipientCount, onConfirm, onClose }: BroadcastDialogProps) {
+  const dialogRef = useRef<HTMLDivElement>(null)
   const [typed, setTyped] = useState('')
   const [pending, setPending] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [onClose])
+  useDialogFocus(dialogRef, onClose)
 
   const canConfirm = recipientCount > 0 && typed.trim() === slug && !pending
 
@@ -45,10 +41,12 @@ export function BroadcastDialog({ slug, recipientCount, onConfirm, onClose }: Br
     <>
       <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} aria-hidden="true" />
       <div
+        ref={dialogRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-label="Launch broadcast"
-        className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-[var(--cms-radius)] bg-cms-bg p-5 shadow-xl"
+        className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-[var(--cms-radius)] bg-cms-bg p-5 shadow-xl outline-none"
       >
         <h2 className="text-sm font-semibold text-cms-text">Launch broadcast</h2>
         <p className="mt-1 text-sm text-cms-text-muted">

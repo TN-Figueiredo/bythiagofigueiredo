@@ -85,7 +85,7 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
   ])
   if (!wlRow) return Response.json({ error: 'not_found' }, { status: 404 })
   if (!ct) {
-    getLogger().error('[waitlist_consent_lookup]', { locale: body.locale, version: WAITLIST_CONSENT_VERSION })
+    getLogger().error('[waitlist_consent_lookup]', { slug, locale: body.locale, version: WAITLIST_CONSENT_VERSION })
     Sentry.captureException(new Error(`waitlist_consent_lookup missing consent_texts: ${redactMessage(`locale=${body.locale} version=${WAITLIST_CONSENT_VERSION}`)}`), { tags: { component: 'waitlist', action: 'consent_lookup' }, level: 'warning' })
     return Response.json({ error: 'unavailable' }, { status: 503 })
   }

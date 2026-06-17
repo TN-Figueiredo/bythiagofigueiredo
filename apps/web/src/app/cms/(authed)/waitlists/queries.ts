@@ -349,6 +349,19 @@ export async function loadWaitlistDetail(siteId: string, id: string): Promise<Wa
     countFor('status', 'suppressed'),
   ])
 
+  // A silent count error would coerce to 0 and mask signup-count loss on the detail page
+  // (same drift class listWaitlistsForSite guards). Throw on the first error.
+  for (const r of [landing, embed, tiptap, pending, suppressed]) {
+    if (r.error) {
+      getLogger().error('[loadWaitlistDetail:counts]', { code: r.error.code })
+      Sentry.captureException(
+        new Error(`loadWaitlistDetail:counts ${r.error.code}: ${redactMessage(r.error.message ?? '')}`),
+        { tags: { component: 'waitlist', action: 'loadWaitlistDetail' } },
+      )
+      throw r.error
+    }
+  }
+
   return {
     id: wl.id,
     slug: wl.slug,

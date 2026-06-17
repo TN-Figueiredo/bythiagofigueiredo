@@ -216,14 +216,14 @@ export function WaitlistEditDrawer({
             <input
               ref={nameRef}
               data-testid="wl-name"
-              className={`${FIELD}${nameErr || fieldErrors?.name ? ' border-[var(--danger,#f43f5e)]' : ''}`}
+              className={`${FIELD}${nameErr || fieldErrors?.name ? ' border-[var(--cms-rose,#f43f5e)]' : ''}`}
               value={name}
               onChange={(e) => onName(e.target.value)}
               aria-invalid={nameErr || fieldErrors?.name ? true : undefined}
               placeholder="e.g. Nômade Dev · Turma 1"
             />
             {(nameErr || fieldErrors?.name) && (
-              <span role="alert" className="mt-1 block text-xs text-[var(--danger,#f43f5e)]">
+              <span role="alert" className="mt-1 block text-xs text-[var(--cms-rose,#f43f5e)]">
                 {fieldErrors?.name ?? 'Name is required.'}
               </span>
             )}
@@ -234,7 +234,7 @@ export function WaitlistEditDrawer({
             <input
               ref={slugRef}
               data-testid="wl-slug"
-              className={`${FIELD} font-mono${slugErr ? ' border-[var(--danger,#f43f5e)]' : ''}`}
+              className={`${FIELD} font-mono${slugErr ? ' border-[var(--cms-rose,#f43f5e)]' : ''}`}
               value={slug}
               onChange={(e) => {
                 setSlug(slugify(e.target.value))
@@ -244,7 +244,7 @@ export function WaitlistEditDrawer({
               placeholder="nomade-dev-turma-1"
             />
             {slugErr ? (
-              <span role="alert" className="mt-1 block text-xs text-[var(--danger,#f43f5e)]">{slugErr}</span>
+              <span role="alert" className="mt-1 block text-xs text-[var(--cms-rose,#f43f5e)]">{slugErr}</span>
             ) : (
               <span className="mt-1 block text-xs text-cms-text-muted">
                 Public URL: <span className="font-mono">/waitlists/{slug || 'slug'}</span> · auto-filled from name.
@@ -316,13 +316,13 @@ export function WaitlistEditDrawer({
             <input
               ref={senderEmailRef}
               data-testid="wl-sender-email"
-              className={`${FIELD} font-mono${senderErr ? ' border-[var(--danger,#f43f5e)]' : ''}`}
+              className={`${FIELD} font-mono${senderErr ? ' border-[var(--cms-rose,#f43f5e)]' : ''}`}
               value={senderEmail}
               onChange={(e) => setSenderEmail(e.target.value)}
               aria-invalid={senderErr ? true : undefined}
             />
             {senderErr ? (
-              <span role="alert" className="mt-1 block text-xs text-[var(--danger,#f43f5e)]">{senderErr}</span>
+              <span role="alert" className="mt-1 block text-xs text-[var(--cms-rose,#f43f5e)]">{senderErr}</span>
             ) : (
               <span className="mt-1 block text-xs text-cms-text-muted">Validated against your verified domains at save.</span>
             )}
