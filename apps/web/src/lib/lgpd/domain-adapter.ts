@@ -60,8 +60,11 @@ export class BythiagoLgpdDomainAdapter implements ILgpdDomainAdapter {
     }
     const userEmail = userRes?.user?.email ?? null;
 
-    // newsletter_subscriptions has no user_id column — look up by email.
-    // contact_submissions does have user_id, so we query by that.
+    // Both newsletter_subscriptions and contact_submissions are keyed by email
+    // (neither has a user_id column) — the only link to the deleting user is the
+    // auth email. (A prior revision queried contact_submissions by a non-existent
+    // `user_id` column, which threw and aborted the whole cleanup.)
+    const emptyEmailRows = Promise.resolve({ data: [] as Array<{ email: string }>, error: null });
     const [subsRes, contactsRes] = await Promise.all([
       userEmail
         ? this.supabase
@@ -69,12 +72,14 @@ export class BythiagoLgpdDomainAdapter implements ILgpdDomainAdapter {
             .select('email')
             .eq('email', userEmail)
             .limit(1000)
-        : Promise.resolve({ data: [] as Array<{ email: string }>, error: null }),
-      this.supabase
-        .from('contact_submissions')
-        .select('email')
-        .eq('user_id', userId)
-        .limit(1000),
+        : emptyEmailRows,
+      userEmail
+        ? this.supabase
+            .from('contact_submissions')
+            .select('email')
+            .eq('email', userEmail)
+            .limit(1000)
+        : emptyEmailRows,
     ]);
     // Query errors on the lookup tables are non-fatal — the RPC still
     // anonymizes the auth email set below; we log by throwing only on
@@ -102,6 +107,12 @@ export class BythiagoLgpdDomainAdapter implements ILgpdDomainAdapter {
 
     const preCapture: Record<string, unknown> = {
       newsletter_emails: emails,
+      // Task 11: the phase1 RPC (migration …000005) anonymizes waitlist_signups
+      // whose email is in this set. Reuse the SAME auth-derived email array — a
+      // waitlist signup is only linkable to the deleting user via that email
+      // (waitlist_signups has no user_id). Truly anonymous waitlist-only emails
+      // are covered by the retention sweep + per-email DSAR path, not phase1.
+      waitlist_emails: emails,
     };
 
     const { error } = await this.supabase.rpc('lgpd_phase1_cleanup', {
@@ -221,7 +232,6 @@ export class BythiagoLgpdDomainAdapter implements ILgpdDomainAdapter {
       blogPosts,
       campaigns,
       authors,
-      contactSubs,
       orgMembers,
       siteMembers,
       invitations,
@@ -230,7 +240,6 @@ export class BythiagoLgpdDomainAdapter implements ILgpdDomainAdapter {
       consents,
       mediaAssets,
       socialPosts,
-      passwordResetAttempts,
       notifications,
       notificationPreferences,
       pushSubscriptions,
@@ -245,16 +254,16 @@ export class BythiagoLgpdDomainAdapter implements ILgpdDomainAdapter {
       this.queryRows('blog_posts', 'owner_user_id', userId),
       this.queryRows('campaigns', 'owner_user_id', userId),
       this.queryRows('authors', 'user_id', userId),
-      this.queryRows('contact_submissions', 'user_id', userId),
       this.queryRows('organization_members', 'user_id', userId),
       this.queryRows('site_memberships', 'user_id', userId),
-      this.queryRows('invitations', 'invited_by_user_id', userId),
+      // invitations the user SENT — keyed by `invited_by` (there is no
+      // `invited_by_user_id` column; the prior name silently failed export).
+      this.queryRows('invitations', 'invited_by', userId),
       this.queryRows('audit_log', 'actor_user_id', userId),
       this.queryRows('lgpd_requests', 'user_id', userId),
       this.queryRows('consents', 'user_id', userId),
       this.queryRows('media_assets', 'uploaded_by', userId),
       this.queryRows('social_posts', 'created_by', userId),
-      this.queryRows('password_reset_attempts', 'user_id', userId),
       this.queryRows('notifications', 'user_id', userId),
       this.queryRows('notification_preferences', 'user_id', userId),
       this.queryRows('push_subscriptions', 'user_id', userId),
@@ -266,6 +275,8 @@ export class BythiagoLgpdDomainAdapter implements ILgpdDomainAdapter {
       this.queryRows('content_pipeline', 'assigned_to', userId),
       this.queryRows('content_pipeline_history', 'changed_by', userId),
     ]);
+    // contact_submissions and password_reset_attempts have NO user_id column —
+    // both are keyed by `email`, so they are resolved in the email batch below.
 
     // BTF-022: ad_inquiries, newsletter_subscriptions, sent_emails, and
     // newsletter_sends are keyed by email, not user_id. Fetch after
@@ -280,8 +291,11 @@ export class BythiagoLgpdDomainAdapter implements ILgpdDomainAdapter {
     let adInquiries: unknown[] = [];
     let sentEmails: unknown[] = [];
     let newsletterSends: unknown[] = [];
+    let contactSubs: unknown[] = [];
+    let passwordResetAttempts: unknown[] = [];
+    let waitlists: unknown[] = [];
     if (userEmail) {
-      const [nlSubsRes, adRes, sentRes, nlSendsRes] = await Promise.all([
+      const [nlSubsRes, adRes, sentRes, nlSendsRes, contactRes, pwResetRes, waitlistRes] = await Promise.all([
         this.supabase
           .from('newsletter_subscriptions')
           .select('*')
@@ -298,6 +312,23 @@ export class BythiagoLgpdDomainAdapter implements ILgpdDomainAdapter {
           .from('newsletter_sends')
           .select('id, edition_id, subscriber_email, status, delivered_at, opened_at, clicked_at, created_at')
           .eq('subscriber_email', userEmail),
+        // contact_submissions is keyed by email (no user_id) — the message is
+        // redacted for 3rd-party PII below.
+        this.supabase
+          .from('contact_submissions')
+          .select('*')
+          .eq('email', userEmail),
+        // password_reset_attempts is keyed by email (no user_id).
+        this.supabase
+          .from('password_reset_attempts')
+          .select('id, email, ip, attempted_at')
+          .eq('email', userEmail),
+        // Task 11: waitlist memberships — narrowed projection that EXCLUDES
+        // network PII (ip/user_agent), parity with the newsletter_sends export.
+        this.supabase
+          .from('waitlist_signups')
+          .select('email, consent_launch_notification, consent_text_version, status, source_surface, created_at')
+          .eq('email', userEmail),
       ]);
       if (nlSubsRes.error) {
         throw new Error(`collectUserData: query newsletter_subscriptions failed: ${nlSubsRes.error.message}`);
@@ -315,6 +346,18 @@ export class BythiagoLgpdDomainAdapter implements ILgpdDomainAdapter {
         throw new Error(`collectUserData: query newsletter_sends failed: ${nlSendsRes.error.message}`);
       }
       newsletterSends = nlSendsRes.data ?? [];
+      if (contactRes.error) {
+        throw new Error(`collectUserData: query contact_submissions failed: ${contactRes.error.message}`);
+      }
+      contactSubs = contactRes.data ?? [];
+      if (pwResetRes.error) {
+        throw new Error(`collectUserData: query password_reset_attempts failed: ${pwResetRes.error.message}`);
+      }
+      passwordResetAttempts = pwResetRes.data ?? [];
+      if (waitlistRes.error) {
+        throw new Error(`collectUserData: query waitlist_signups failed: ${waitlistRes.error.message}`);
+      }
+      waitlists = waitlistRes.data ?? [];
     }
 
     return {
@@ -354,6 +397,7 @@ export class BythiagoLgpdDomainAdapter implements ILgpdDomainAdapter {
       ad_inquiries: adInquiries,
       sent_emails: sentEmails,
       newsletter_sends: newsletterSends,
+      waitlists,
       social_posts: socialPosts,
       password_reset_attempts: passwordResetAttempts,
       notifications,
