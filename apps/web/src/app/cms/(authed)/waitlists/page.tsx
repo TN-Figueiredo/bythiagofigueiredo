@@ -1,8 +1,8 @@
-import { AlertTriangle, Gift, Plus } from 'lucide-react'
+import { AlertTriangle } from 'lucide-react'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { listWaitlistsForSite } from './queries'
-import { WaitlistsTable } from './_components/waitlists-table'
-import './waitlists.css'
+import { createWaitlist, updateWaitlist, transitionWaitlistStatus } from './actions'
+import { WaitlistsConnected } from './_components/waitlists-connected'
 
 export const dynamic = 'force-dynamic'
 
@@ -61,27 +61,9 @@ export default async function CmsWaitlistsListPage() {
 
   return (
     <div className="flex flex-col gap-6 p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold text-cms-text">Waitlists</h1>
-          <p className="mt-0.5 text-sm text-cms-text-muted">Launch-notification signup lists</p>
-        </div>
-        {/* WL-07 / M2 cross-file follow-up: this CTA + the table rows are non-functional
-            until `_components/waitlists-connected.tsx` ('use client', Task 15/M2) lands —
-            it owns drawer open-state, restores focus to this trigger on close, traps focus
-            in <WaitlistEditDrawer>, makes the Name cell a focusable Enter/Space link, and
-            receives createWaitlist/updateWaitlist as PROPS (props-only, no server-action
-            import in the client). When it lands, render <WaitlistsConnected> below in place
-            of <WaitlistsTable> and move this button into it; this server page only passes
-            the actions down. Keeping the button inert here (not my file to create). */}
-        <button
-          type="button"
-          data-testid="new-waitlist-btn"
-          className="inline-flex items-center gap-2 rounded-[var(--cms-radius)] bg-cms-accent px-4 py-2 text-sm font-medium text-white hover:bg-cms-accent-hover"
-        >
-          <Plus size={14} aria-hidden="true" />
-          New waitlist
-        </button>
+      <div>
+        <h1 className="text-lg font-semibold text-cms-text">Waitlists</h1>
+        <p className="mt-0.5 text-sm text-cms-text-muted">Launch-notification signup lists</p>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -91,23 +73,12 @@ export default async function CmsWaitlistsListPage() {
         <Kpi label="Needs attention" value={kpis.needsAttention} />
       </div>
 
-      {rows.length === 0 ? (
-        // WL-14 / M1: cms-token empty state (the blog EmptyState hard-codes the blog
-        // dark palette `gray-*` instead of `cms-*` tokens, so it is not reused here).
-        // Design handoff: EmptyState with the `gift` icon → lucide `Gift`.
-        <div
-          role="status"
-          className="flex flex-col items-center justify-center rounded-[var(--cms-radius)] border border-dashed border-cms-border bg-cms-surface px-6 py-10 text-center"
-        >
-          <Gift size={28} className="mb-3 text-cms-text-muted" aria-hidden="true" />
-          <h3 className="text-sm font-semibold text-cms-text">No waitlists yet</h3>
-          <p className="mt-1 text-xs text-cms-text-muted">
-            Create a launch-notification list to start collecting signups.
-          </p>
-        </div>
-      ) : (
-        <WaitlistsTable rows={rows} />
-      )}
+      <WaitlistsConnected
+        rows={rows}
+        createAction={createWaitlist}
+        updateAction={updateWaitlist}
+        transitionAction={transitionWaitlistStatus}
+      />
     </div>
   )
 }

@@ -34,7 +34,7 @@ vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({
 vi.mock('@vercel/blob', () => ({ put: vi.fn() }))
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), setTag: vi.fn(), addBreadcrumb: vi.fn() }))
 
-import { createWaitlist, updateWaitlist } from '../../src/app/cms/(authed)/waitlists/actions'
+import { createWaitlist, updateWaitlist, transitionWaitlistStatus } from '../../src/app/cms/(authed)/waitlists/actions'
 
 type CreateResult = Awaited<ReturnType<typeof createWaitlist>>
 
@@ -142,5 +142,53 @@ describe.skipIf(skipIfNoLocalDb())('waitlist CMS actions (create/update)', () =>
     // Row B is untouched.
     const { data: after } = await db.from('waitlists').select('name').eq('id', wlB!.id).single()
     expect(after?.name).toBe('B')
+  })
+})
+
+describe.skipIf(skipIfNoLocalDb())('transitionWaitlistStatus (CAS, DB-gated)', () => {
+  const created: string[] = []
+  afterEach(async () => {
+    if (created.length) {
+      await db.from('waitlists').delete().in('id', created)
+      created.length = 0
+    }
+    vi.unstubAllEnvs()
+  })
+
+  it('CAS with a stale `from` matches 0 rows → status_changed (no write)', async () => {
+    const { siteId } = await seedSite(db, { domains: ['x.test'] })
+    _mockSiteId = siteId
+    const { data: wl } = await db
+      .from('waitlists')
+      .insert({ site_id: siteId, slug: 'cas-' + Math.random().toString(36).slice(2, 6), name: 'CAS', status: 'draft' })
+      .select('id')
+      .single()
+    created.push(wl!.id)
+
+    // Row is 'draft'; claim it is 'open' (open→closed is legal) → CAS matches nothing.
+    const res = await transitionWaitlistStatus(wl!.id, 'open', 'closed')
+    expect(res).toEqual({ ok: false, error: 'status_changed' })
+    const { data: after } = await db.from('waitlists').select('status').eq('id', wl!.id).single()
+    expect(after?.status).toBe('draft')
+  })
+
+  it('draft→open is gated unless WAITLIST_ACCEPT_PUBLIC_SIGNUPS==="true" (LGPD M6)', async () => {
+    const { siteId } = await seedSite(db, { domains: ['x.test'] })
+    _mockSiteId = siteId
+    const { data: wl } = await db
+      .from('waitlists')
+      .insert({ site_id: siteId, slug: 'open-' + Math.random().toString(36).slice(2, 6), name: 'Open', status: 'draft' })
+      .select('id')
+      .single()
+    created.push(wl!.id)
+
+    const gated = await transitionWaitlistStatus(wl!.id, 'draft', 'open')
+    expect(gated).toEqual({ ok: false, error: 'fase1_only_draft' })
+
+    vi.stubEnv('WAITLIST_ACCEPT_PUBLIC_SIGNUPS', 'true')
+    const ok = await transitionWaitlistStatus(wl!.id, 'draft', 'open')
+    expect(ok).toEqual({ ok: true, status: 'open' })
+    const { data: after } = await db.from('waitlists').select('status').eq('id', wl!.id).single()
+    expect(after?.status).toBe('open')
   })
 })

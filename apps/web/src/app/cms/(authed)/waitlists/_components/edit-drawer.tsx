@@ -1,7 +1,7 @@
 'use client'
 
 import { createPortal } from 'react-dom'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import DOMPurify from 'isomorphic-dompurify'
 import { slugify } from '@/lib/blog/slugify'
 import { FORM_STRINGS, type WaitlistLocale, type WaitlistStrings } from '@/components/waitlists/form-strings'
@@ -43,6 +43,8 @@ export interface WaitlistEditDrawerProps {
   /** Server-side field errors to surface inline (e.g. { slug, sender_email }). */
   fieldErrors?: Record<string, string>
   submitting?: boolean
+  /** Rendered at the top of the drawer body — used for the status strip in edit mode. */
+  topSlot?: ReactNode
   onClose: () => void
   onSubmit: (draft: WaitlistDraftPayload) => void
 }
@@ -78,10 +80,12 @@ export function WaitlistEditDrawer({
   campaigns = [],
   fieldErrors,
   submitting = false,
+  topSlot,
   onClose,
   onSubmit,
 }: WaitlistEditDrawerProps) {
   const isNew = mode === 'create'
+  const dialogRef = useRef<HTMLDivElement>(null)
   const introRef = useRef<HTMLDivElement>(null)
   // Sanitize the DB-sourced intro before it touches dangerouslySetInnerHTML so the
   // contentEditable never hydrates with un-sanitized stored HTML (WL-01). Read-back
@@ -105,10 +109,32 @@ export function WaitlistEditDrawer({
   const [nameErr, setNameErr] = useState(false)
 
   useEffect(() => {
+    const dialog = dialogRef.current
+    const FOCUSABLE =
+      'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[contenteditable="true"],[tabindex]:not([tabindex="-1"])'
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') {
+        onClose()
+        return
+      }
+      // Focus trap: keep Tab / Shift+Tab cycling inside the dialog (WCAG dialog, WL-07).
+      if (e.key === 'Tab' && dialog) {
+        const nodes = Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE))
+        const first = nodes[0]
+        const last = nodes[nodes.length - 1]
+        if (!first || !last) return
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault()
+          last.focus()
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault()
+          first.focus()
+        }
+      }
     }
     document.addEventListener('keydown', onKey)
+    // Move focus into the dialog on open (the labelled container; Tab then reaches the fields).
+    dialog?.focus()
     const trigger = triggerRef.current
     return () => {
       document.removeEventListener('keydown', onKey)
@@ -160,10 +186,12 @@ export function WaitlistEditDrawer({
         data-testid="wl-drawer-scrim"
       />
       <div
+        ref={dialogRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-label={isNew ? 'New waitlist' : 'Edit waitlist'}
-        className="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col bg-cms-bg shadow-xl"
+        className="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col bg-cms-bg shadow-xl outline-none"
       >
         <div className="flex items-center gap-2 border-b border-cms-border px-5 py-4">
           <span className="text-sm font-semibold text-cms-text">{isNew ? 'New waitlist' : 'Edit waitlist'}</span>
@@ -181,6 +209,7 @@ export function WaitlistEditDrawer({
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-4">
+          {topSlot && <div className="mb-5 border-b border-cms-border pb-5">{topSlot}</div>}
           <div className="mb-2 text-xs font-medium uppercase tracking-wide text-cms-text-muted">Essentials</div>
 
           <label className="block">

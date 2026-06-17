@@ -8,7 +8,14 @@ function relTime(iso: string): string {
   return `${Math.floor(diffH / 24)}d`
 }
 
-export function WaitlistsTable({ rows }: { rows: WaitlistListRow[] }) {
+export function WaitlistsTable({
+  rows,
+  onRowClick,
+}: {
+  rows: WaitlistListRow[]
+  /** When provided, the Name cell becomes a focusable button (Enter/Space) that opens the row. */
+  onRowClick?: (row: WaitlistListRow) => void
+}) {
   return (
     <div className="overflow-hidden rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface">
       <table className="w-full text-sm">
@@ -25,8 +32,17 @@ export function WaitlistsTable({ rows }: { rows: WaitlistListRow[] }) {
           {rows.map((r) => (
             <tr key={r.id} className="border-b border-cms-border last:border-0">
               <td className="px-4 py-3">
-                <div className="font-medium text-cms-text">{r.name}</div>
-                <div className="font-mono text-xs text-cms-text-muted">/waitlists/{r.slug}</div>
+                {onRowClick ? (
+                  <button type="button" onClick={() => onRowClick(r)} className="block text-left">
+                    <div className="font-medium text-cms-text hover:underline">{r.name}</div>
+                    <div className="font-mono text-xs text-cms-text-muted">/waitlists/{r.slug}</div>
+                  </button>
+                ) : (
+                  <>
+                    <div className="font-medium text-cms-text">{r.name}</div>
+                    <div className="font-mono text-xs text-cms-text-muted">/waitlists/{r.slug}</div>
+                  </>
+                )}
               </td>
               <td className="px-4 py-3">
                 <WlBadge status={r.status} />

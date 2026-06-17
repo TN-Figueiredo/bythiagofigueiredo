@@ -9,6 +9,7 @@ import { slugify } from '@/lib/blog/slugify'
 // No `@/lib/waitlists/*` alias (scrub lives under apps/web/lib, not src/) — deep
 // relative, same as the signup route.
 import { redactMessage } from '../../../../../lib/waitlists/scrub'
+import type { WaitlistStatus } from './_components/wl-badge'
 
 /**
  * Result shape for the waitlist create/update actions. Mirrors
@@ -223,6 +224,76 @@ export async function updateWaitlist(id: string, form: FormData): Promise<Waitli
     Sentry.captureException(
       new Error(`updateWaitlist ${errCode(e)}: ${redactMessage(e instanceof Error ? e.message : String(e))}`),
       { tags: { component: 'waitlist', action: 'updateWaitlist' } },
+    )
+    return { ok: false, error: 'db_error', message: redactMessage(e instanceof Error ? e.message : String(e)) }
+  }
+}
+
+export type WaitlistTransitionResult =
+  | { ok: true; status: WaitlistStatus }
+  | { ok: false; error: 'forbidden'; message?: string }
+  | { ok: false; error: 'illegal_transition' }
+  | { ok: false; error: 'fase1_only_draft' }
+  | { ok: false; error: 'status_changed' }
+  | { ok: false; error: 'db_error'; message: string }
+
+/**
+ * Fase-1 legal status graph. `launching`/`launched` are intentionally absent as
+ * targets — the launch broadcast is owned exclusively by `launchWaitlist` (Fase 2),
+ * and `launched` is terminal. Keep in sync with the status-strip's button map.
+ */
+const LEGAL_TRANSITIONS: Record<WaitlistStatus, readonly WaitlistStatus[]> = {
+  draft: ['open'],
+  open: ['closed'],
+  closed: ['open'],
+  failed: ['closed'],
+  launching: [],
+  launched: [],
+}
+
+/**
+ * Move a waitlist between statuses via compare-and-set. `from` is the status the
+ * caller believes is current (the status-strip renders buttons off it); the CAS
+ * `.eq('status', from)` returns 0 rows if someone changed it underneath us
+ * (`status_changed`) and also closes cross-site IDOR via `.eq('site_id')`.
+ *
+ * M6 LGPD Fase-1 gate: no list may go `open` until the DSAR + unsubscribe rights
+ * paths ship (Fase 2). `WAITLIST_ACCEPT_PUBLIC_SIGNUPS` is unset by default, so prod
+ * stays draft-only and fail-closed. Both the illegal-transition and the Fase-1 gate
+ * return BEFORE any DB round-trip.
+ */
+export async function transitionWaitlistStatus(
+  id: string,
+  from: WaitlistStatus,
+  to: WaitlistStatus,
+): Promise<WaitlistTransitionResult> {
+  const ctx = await getSiteContext()
+  const scope = await requireSiteScope({ area: 'cms', siteId: ctx.siteId, mode: 'edit' })
+  if (!scope.ok) return { ok: false, error: 'forbidden', message: scope.reason }
+
+  if (!LEGAL_TRANSITIONS[from]?.includes(to)) return { ok: false, error: 'illegal_transition' }
+
+  if (to === 'open' && process.env.WAITLIST_ACCEPT_PUBLIC_SIGNUPS !== 'true') {
+    return { ok: false, error: 'fase1_only_draft' }
+  }
+
+  const supabase = getSupabaseServiceClient()
+  try {
+    const { data, error } = await supabase
+      .from('waitlists')
+      .update({ status: to })
+      .eq('id', id)
+      .eq('site_id', ctx.siteId)
+      .eq('status', from)
+      .select('status')
+      .maybeSingle()
+    if (error) throw error
+    if (!data) return { ok: false, error: 'status_changed' }
+    return { ok: true, status: (data as { status: WaitlistStatus }).status }
+  } catch (e) {
+    Sentry.captureException(
+      new Error(`transitionWaitlistStatus ${errCode(e)}: ${redactMessage(e instanceof Error ? e.message : String(e))}`),
+      { tags: { component: 'waitlist', action: 'transitionWaitlistStatus' } },
     )
     return { ok: false, error: 'db_error', message: redactMessage(e instanceof Error ? e.message : String(e)) }
   }
