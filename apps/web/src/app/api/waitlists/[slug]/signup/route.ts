@@ -114,5 +114,13 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
   const out = parsed.data
   if (out.error === 'not_found') return Response.json({ error: 'not_found' }, { status: 404 })
   if (out.error === 'waitlist_not_open') return Response.json({ error: 'waitlist_not_open', status: out.status }, { status: 409 })
+  // Count-only conversion funnel breadcrumb (Task 21) — source_surface + duplicate flag
+  // only, NEVER email/ip (those are scrubbed everywhere else too).
+  Sentry.addBreadcrumb({
+    category: 'waitlist',
+    message: 'signup',
+    level: 'info',
+    data: { source_surface: 'landing', duplicate: out.duplicate === true },
+  })
   return Response.json({ success: true, duplicate: out.duplicate === true })
 }
