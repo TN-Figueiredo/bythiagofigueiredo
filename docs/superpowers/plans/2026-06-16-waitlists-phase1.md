@@ -129,7 +129,7 @@ and **replace** `waitlist_signups_by_waitlist_status (waitlist_id, status)` with
 - Create: `apps/web/test/lib/cms/csv.test.ts`
 - Modify: `apps/web/src/app/cms/(authed)/contacts/actions.ts` (replace the local `escapeCsv` closure ~line 275 with the import)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 // apps/web/test/lib/cms/csv.test.ts
@@ -163,12 +163,12 @@ describe('escapeCsv', () => {
 
 **File placement (VERIFIED):** `apps/web/tsconfig.json` maps `@/lib/cms/*` → `./lib/cms/*`, i.e. `apps/web/lib/cms` (NOT `apps/web/src/lib`). The catch-all `@/*` → `./src/*` does not apply because the explicit `@/lib/cms/*` prefix mapping wins. **Place the file at `apps/web/lib/cms/csv.ts`** so `@/lib/cms/csv` resolves correctly and it sits next to the other cms libs (`site-context.ts`, `auth-guards.ts`, `layout-counts.ts`). The File Structure entry already says `apps/web/lib/cms/csv.ts` — keep it.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npm test -w apps/web -- csv.test.ts`
 Expected: FAIL — `Cannot find module '@/lib/cms/csv'`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 > **Do NOT add a `'use server'` directive to `apps/web/lib/cms/csv.ts`** — it is a plain sync helper imported by `'use server'` action files. Marking it `'use server'` would force every export to be an async server action and break the sync `escapeCsv` signature.
 
@@ -192,23 +192,23 @@ export function escapeCsv(v: unknown): string {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `npm test -w apps/web -- csv.test.ts`
 Expected: PASS (all cases).
 
-- [ ] **Step 5: Refactor `contacts/actions.ts` to import the shared helper**
+- [x] **Step 5: Refactor `contacts/actions.ts` to import the shared helper**
 
 In `apps/web/src/app/cms/(authed)/contacts/actions.ts`: add `import { escapeCsv } from '@/lib/cms/csv'` at the top and DELETE the local `const escapeCsv = (v: unknown) => { ... }` closure. **VERIFIED:** that closure is at `contacts/actions.ts:275-280`, defined INSIDE the `rows.map((r) => { ... })` callback (so it is re-created per-row). After deleting it and adding the top-level import, the map body's `escapeCsv(...)` call sites resolve to the imported function unchanged.
 
 > **Behavior change (intentional):** the shared helper ALSO neutralizes formula-injection, so contacts CSV cells starting with `=`,`+`,`-`,`@`,TAB,CR will now be quote-prefixed. This is a deliberate security hardening, NOT a no-op. Adjust any existing contacts CSV test that asserted the old plain-`escapeCsv` output for such cells.
 
-- [ ] **Step 6: Verify contacts typecheck + existing tests still pass**
+- [x] **Step 6: Verify contacts typecheck + existing tests still pass**
 
 Run: `npm run typecheck -w apps/web && npm test -w apps/web -- contacts`
 Expected: PASS. If a pre-existing contacts test asserts non-hardened CSV output for a `=`/`+`/`-`/`@` cell, update that assertion (the only intended behavior change).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/web/lib/cms/csv.ts apps/web/test/lib/cms/csv.test.ts apps/web/src/app/cms/\(authed\)/contacts/actions.ts
@@ -225,9 +225,9 @@ git commit -m "refactor: extract shared escapeCsv with formula-injection hardeni
 - Create: `apps/web/lib/waitlists/scrub.ts`
 - Create: `apps/web/test/lib/waitlists/scrub.test.ts`
 
-- [ ] **Step 1: Write the failing scrub test** — `apps/web/test/lib/waitlists/scrub.test.ts`: assert `scrub({ email, ip, user_agent, foo })` deep-equals `{ foo }` (drops `email`/`ip`/`user_agent`); AND assert the message-redactor replaces an email and an inet inside a free-text string (e.g. `redactMessage('dup key (a@b.com) 203.0.113.5')` contains neither `a@b.com` nor `203.0.113.5`). **RUN: `npm test -w apps/web -- scrub` → must FAIL (`Cannot find module '.../scrub'`).**
-- [ ] **Step 2: Implement `scrub.ts`** — `scrub(ctx)` strips the `email`/`ip`/`user_agent` keys; `redactMessage(s)` regex-redacts anything matching an email or IPv4/IPv6 literal. Plain sync module (NO `'use server'`), placed at `apps/web/lib/waitlists/scrub.ts` (reached from the signup route via deep-relative `../../../../../../lib/waitlists/scrub`, same depth as `lib/turnstile`). **RUN: same test → must PASS.**
-- [ ] **Step 3: Commit** `feat(waitlists): PII scrub + message redactor`.
+- [x] **Step 1: Write the failing scrub test** — `apps/web/test/lib/waitlists/scrub.test.ts`: assert `scrub({ email, ip, user_agent, foo })` deep-equals `{ foo }` (drops `email`/`ip`/`user_agent`); AND assert the message-redactor replaces an email and an inet inside a free-text string (e.g. `redactMessage('dup key (a@b.com) 203.0.113.5')` contains neither `a@b.com` nor `203.0.113.5`). **RUN: `npm test -w apps/web -- scrub` → must FAIL (`Cannot find module '.../scrub'`).**
+- [x] **Step 2: Implement `scrub.ts`** — `scrub(ctx)` strips the `email`/`ip`/`user_agent` keys; `redactMessage(s)` regex-redacts anything matching an email or IPv4/IPv6 literal. Plain sync module (NO `'use server'`), placed at `apps/web/lib/waitlists/scrub.ts` (reached from the signup route via deep-relative `../../../../../../lib/waitlists/scrub`, same depth as `lib/turnstile`). **RUN: same test → must PASS.**
+- [x] **Step 3: Commit** `feat(waitlists): PII scrub + message redactor`.
 
 ---
 
@@ -239,12 +239,12 @@ git commit -m "refactor: extract shared escapeCsv with formula-injection hardeni
 - Create (via `npm run db:new waitlist_tables`): `supabase/migrations/<ts>_waitlist_tables.sql`
 - Test: `apps/web/test/integration/waitlist-schema.test.ts`
 
-- [ ] **Step 1: Generate the migration file**
+- [x] **Step 1: Generate the migration file**
 
 Run: `npm run db:new waitlist_tables`
 This creates `supabase/migrations/<timestamp>_waitlist_tables.sql`. Edit THAT file in the next step.
 
-- [ ] **Step 2: Write the migration SQL**
+- [x] **Step 2: Write the migration SQL**
 
 ```sql
 -- =============================================================================
@@ -339,12 +339,12 @@ create trigger trg_waitlists_set_updated_at
 
 > If `public.tg_set_updated_at()` is not found at apply time, grep `supabase/migrations` for the canonical updated-at trigger function name and substitute it. (Spec preamble pins it to `tg_set_updated_at`.)
 
-- [ ] **Step 3: Apply locally and verify it applies cleanly**
+- [x] **Step 3: Apply locally and verify it applies cleanly**
 
 Run: `npm run db:start && npm run db:reset`
 Expected: reset completes with no error; the migration applies.
 
-- [ ] **Step 4: Write the schema integration test**
+- [x] **Step 4: Write the schema integration test**
 
 ```ts
 // apps/web/test/integration/waitlist-schema.test.ts
@@ -388,13 +388,13 @@ describe.skipIf(skipIfNoLocalDb())('waitlist schema', () => {
 
 > `seedSite(db, opts)` is the verified helper (`db-seed.ts:85`); confirm its return shape (it returns the created site id) and adjust the destructure name if needed.
 
-- [ ] **Step 5: Run the test to verify it FAILS for the right reason, then passes**
+- [x] **Step 5: Run the test to verify it FAILS for the right reason, then passes**
 
 First, with the migration NOT yet applied (or before adding the constraints), run and confirm the failure is the intended assertion failure (e.g. `relation "waitlist_signups" does not exist` if run before Step 3, or a missing-constraint assertion mismatch) — NOT a module/import error.
 Run: `npm run db:start && HAS_LOCAL_DB=1 npm test -w apps/web -- waitlist-schema`
 Expected after Step 3 applied: PASS (both cases).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add supabase/migrations apps/web/test/integration/waitlist-schema.test.ts
@@ -409,7 +409,7 @@ git commit -m "feat(waitlists): core tables, constraints, indexes (Fase 1)"
 - Create (via `npm run db:new waitlist_rls`): `supabase/migrations/<ts>_waitlist_rls.sql`
 - Test: `apps/web/test/integration/waitlist-rls.test.ts`
 
-- [ ] **Step 1: Generate + write the migration**
+- [x] **Step 1: Generate + write the migration**
 
 Run `npm run db:new waitlist_rls`, then write:
 
@@ -462,7 +462,7 @@ create policy waitlist_signups_staff_read on public.waitlist_signups for select 
 
 > Verify `site_visible`, `can_view_site`, `can_edit_site`, `can_admin_site_users` signatures by grepping `supabase/migrations` (CLAUDE.md lists them). All take a single `uuid` site id (VERIFIED: schema.sql:3751/3760/3778/4803).
 
-- [ ] **Step 2: Apply + write the RLS test**
+- [x] **Step 2: Apply + write the RLS test**
 
 ```ts
 // apps/web/test/integration/waitlist-rls.test.ts
@@ -545,13 +545,13 @@ describe.skipIf(skipIfNoLocalDb())('waitlist RLS', () => {
 
 > `seedRbacScenario(svc)` (db-seed.ts:400) returns two sites + staff users. **VERIFIED — the `RbacScenario` interface (db-seed.ts:379) uses FLAT string fields, NOT nested objects:** `siteAId`, `siteBId`, `editorAId`, `orgAdminId`, `superAdminId`, `reporterAId`, `randomId` (each is the id string directly). There is NO `scenario.siteA.id` / `scenario.editorA.userId` — use `scenario.siteAId` and pass `scenario.editorAId` straight into `signUserJwt`. `signUserJwt(userId, role)` (db-seed.ts:231) returns `{ userId, jwt }`.
 
-- [ ] **Step 3: Run + fail-first check**
+- [x] **Step 3: Run + fail-first check**
 
 Run before the RLS migration is applied → expect the cross-site test to FAIL because the `waitlist_signups_staff_read` policy (or RLS-enable) is missing, NOT an import error. Then apply and run:
 Run: `npm run db:reset && HAS_LOCAL_DB=1 npm test -w apps/web -- waitlist-rls`
 Expected: PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add supabase/migrations apps/web/test/integration/waitlist-rls.test.ts
@@ -566,7 +566,7 @@ git commit -m "feat(waitlists): RLS policies — public read, staff read, no ano
 - Create (via `npm run db:new waitlist_signup_rpc`): `supabase/migrations/<ts>_waitlist_signup_rpc.sql`
 - Test: `apps/web/test/integration/waitlist-signup-rpc.test.ts`
 
-- [ ] **Step 1: Generate + write the RPC**
+- [x] **Step 1: Generate + write the RPC**
 
 Run `npm run db:new waitlist_signup_rpc`, then write:
 
@@ -709,7 +709,7 @@ grant execute on function public.waitlist_signup(uuid, text, text, text, text, t
 
 > **Consent-evidence basis (LGPD proof-of-consent — LOCKED):** the audit row stores `consent_text_version` (= `WAITLIST_CONSENT_VERSION`) as an **immutable pointer into the append-only `consent_texts` ledger** (`consent_texts` is supersession-tracked via `effective_at`/`superseded_at` — schema.sql:957). The verbatim text the data subject agreed to is therefore always recoverable by joining `(category='launch_notification', locale, version)` → `consent_texts.text_md`. We deliberately do NOT denormalize the full `text_md` into every audit row. The route's `p_consent_text_snapshot` (Task 8) is a human-readable label (`[locale] version`), NOT the evidentiary basis — the version pointer is. **This is the locked consent-ledger design; Task 6 Step 3 adds the DB-gated test that `WAITLIST_CONSENT_VERSION` resolves a `consent_texts` row for BOTH `en` and `pt-BR` so a version bump that forgets the seed fails CI (linking the runtime constant to the ledger).**
 
-- [ ] **Step 2: Apply + write the test**
+- [x] **Step 2: Apply + write the test**
 
 ```ts
 // apps/web/test/integration/waitlist-signup-rpc.test.ts
@@ -782,13 +782,13 @@ describe.skipIf(skipIfNoLocalDb())('waitlist_signup RPC', () => {
 })
 ```
 
-- [ ] **Step 3: Run + fail-first check**
+- [x] **Step 3: Run + fail-first check**
 
 Run against the DB BEFORE applying the RPC migration → expect failure `Could not find the function public.waitlist_signup` (intended), NOT an import/module error. Then apply and run:
 Run: `npm run db:reset && HAS_LOCAL_DB=1 npm test -w apps/web -- waitlist-signup-rpc`
 Expected: PASS (all cases, including the audit-row PII assertion and cross-site isolation).
 
-- [ ] **Step 4: Add the audit-immutability REGRESSION-GUARD test (separate file + commit — independently bisectable)**
+- [x] **Step 4: Add the audit-immutability REGRESSION-GUARD test (separate file + commit — independently bisectable)**
 
 > **This is a regression-guard, NOT a fail-first TDD cycle:** `audit_log` already has no UPDATE/DELETE policy (schema.sql:6228/6233/6238), so there is no meaningful red phase — the test passes on the current tree and exists to catch a future stray policy. Do NOT waste time hunting for a red that cannot occur; commit it separately for bisectability.
 
@@ -802,7 +802,7 @@ expect((upd.data ?? []).length).toBe(0) // RLS: no UPDATE policy → 0 rows
 ```
 (2) Run it → PASS (it would only fail if a stray UPDATE/DELETE policy were ever added). (3) Commit separately: `test(waitlists): audit_log append-only RLS regression guard`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add supabase/migrations apps/web/test/integration/waitlist-signup-rpc.test.ts
@@ -817,7 +817,7 @@ git commit -m "feat(waitlists): waitlist_signup DEFINER RPC with idempotent bran
 - Create (via `npm run db:new waitlist_rate_check_rpc`): `supabase/migrations/<ts>_waitlist_rate_check_rpc.sql`
 - Test: extend `apps/web/test/integration/waitlist-signup-rpc.test.ts`
 
-- [ ] **Step 1: Generate + write (mirror `contact_rate_check`, search_path='')**
+- [x] **Step 1: Generate + write (mirror `contact_rate_check`, search_path='')**
 
 ```sql
 -- MIGRATION: waitlist_rate_check — 10-min window, 5 per IP OR email. Fail-closed caller.
@@ -846,7 +846,7 @@ revoke all on function public.waitlist_rate_check(uuid, text, text) from public,
 grant execute on function public.waitlist_rate_check(uuid, text, text) to service_role;
 ```
 
-- [ ] **Step 2: Write the failing test** — append to `apps/web/test/integration/waitlist-signup-rpc.test.ts`:
+- [x] **Step 2: Write the failing test** — append to `apps/web/test/integration/waitlist-signup-rpc.test.ts`:
 
 ```ts
 it('waitlist_rate_check returns false after 5 signups in the window', async () => {
@@ -866,7 +866,7 @@ it('waitlist_rate_check returns false after 5 signups in the window', async () =
 })
 ```
 
-- [ ] **Step 2b: Add the anon-denial test (locks the no-direct-anon posture against a future stray grant)** — append to `apps/web/test/integration/waitlist-signup-rpc.test.ts`. An ANON-key client calling EITHER RPC must be DENIED (permission error / PGRST), because both are `service_role`-only:
+- [x] **Step 2b: Add the anon-denial test (locks the no-direct-anon posture against a future stray grant)** — append to `apps/web/test/integration/waitlist-signup-rpc.test.ts`. An ANON-key client calling EITHER RPC must be DENIED (permission error / PGRST), because both are `service_role`-only:
 
 ```ts
 it('anon client is DENIED direct rpc to waitlist_signup AND waitlist_rate_check', async () => {
@@ -884,9 +884,9 @@ it('anon client is DENIED direct rpc to waitlist_signup AND waitlist_rate_check'
 
 > Import `ANON_KEY` from `../helpers/db-seed` at the top of the file. This test would PASS today (the grants exclude anon) and exists to fail CI if a future migration re-adds `grant ... to anon`.
 
-- [ ] **Step 3: Run fail-first then pass** — before applying this migration: `HAS_LOCAL_DB=1 npm test -w apps/web -- waitlist-signup-rpc` → expect `Could not find the function public.waitlist_rate_check` (intended), NOT an import error. Then `npm run db:reset && HAS_LOCAL_DB=1 npm test -w apps/web -- waitlist-signup-rpc`. Expected: PASS (including the anon-denial test).
+- [x] **Step 3: Run fail-first then pass** — before applying this migration: `HAS_LOCAL_DB=1 npm test -w apps/web -- waitlist-signup-rpc` → expect `Could not find the function public.waitlist_rate_check` (intended), NOT an import error. Then `npm run db:reset && HAS_LOCAL_DB=1 npm test -w apps/web -- waitlist-signup-rpc`. Expected: PASS (including the anon-denial test).
 
-- [ ] **Step 4: Commit** `feat(waitlists): waitlist_rate_check RPC + anon-denial guard`.
+- [x] **Step 4: Commit** `feat(waitlists): waitlist_rate_check RPC + anon-denial guard`.
 
 ---
 
@@ -896,7 +896,7 @@ it('anon client is DENIED direct rpc to waitlist_signup AND waitlist_rate_check'
 - Create (via `npm run db:new waitlist_lgpd`): `supabase/migrations/<ts>_waitlist_lgpd.sql`
 - Test: `apps/web/test/integration/waitlist-retention.test.ts`
 
-- [ ] **Step 1: Generate + write**
+- [x] **Step 1: Generate + write**
 
 ```sql
 -- MIGRATION: waitlist_lgpd
@@ -986,7 +986,7 @@ grant execute on function public.waitlist_retention_sweep(uuid) to service_role;
 
 > **Window provenance decision (LOCKED — `created_at`, EXCEPT the withdrawal branch):** the closed/launched (7d) and orphan-pending (90d) windows key on `s.created_at` (storage-age), NOT `consent_grant_at` (consent-recency). A signup that was suppressed-then-resurrected keeps its ORIGINAL `created_at`, so a re-consented row is swept on storage-age. This is intentional and accepted: the closed/launched (7d) window is purpose-consummation (status-driven, not consent-driven), and the orphan-pending (90d) window is long enough that resurrect does not need to extend it. **Resurrect does NOT extend the orphan/spent windows.** **EXCEPTION — the unsubscribe-withdrawal branch (PASS-1) deliberately keys on `s.suppressed_at`, NOT `created_at`** (it is a post-withdrawal dispute/audit grace measured from the moment of withdrawal). Do NOT "fix" the withdrawal branch to `created_at` — that would anonymize a just-withdrawn old signup immediately and destroy the grace semantics. Document this exception verbatim in the migration comment, and do NOT generalize either to `greatest(created_at, consent_grant_at)`.
 
-- [ ] **Step 2: Write the failing tests** — `apps/web/test/integration/waitlist-retention.test.ts`:
+- [x] **Step 2: Write the failing tests** — `apps/web/test/integration/waitlist-retention.test.ts`:
 
 ```ts
 import { describe, it, expect } from 'vitest'
@@ -1063,9 +1063,9 @@ describe.skipIf(skipIfNoLocalDb())('waitlist retention + lgpd phase1 branch', ()
 })
 ```
 
-- [ ] **Step 3: Run fail-first then pass** — before applying: expect `Could not find the function public.waitlist_retention_sweep` (intended). Then `npm run db:reset && HAS_LOCAL_DB=1 npm test -w apps/web -- waitlist-retention`. Expected: PASS.
+- [x] **Step 3: Run fail-first then pass** — before applying: expect `Could not find the function public.waitlist_retention_sweep` (intended). Then `npm run db:reset && HAS_LOCAL_DB=1 npm test -w apps/web -- waitlist-retention`. Expected: PASS.
 
-- [ ] **Step 4: Commit** `feat(waitlists): LGPD phase1 branch + per-site retention sweep RPC`.
+- [x] **Step 4: Commit** `feat(waitlists): LGPD phase1 branch + per-site retention sweep RPC`.
 
 ---
 
@@ -1076,14 +1076,14 @@ describe.skipIf(skipIfNoLocalDb())('waitlist retention + lgpd phase1 branch', ()
 - Create (via `npm run db:new waitlist_consent_seed`): `supabase/migrations/<ts>_waitlist_consent_seed.sql`
 - Test: `apps/web/test/unit/waitlist-consent.test.ts`
 
-- [ ] **Step 1: Write the constant**
+- [x] **Step 1: Write the constant**
 
 ```ts
 // apps/web/src/app/api/waitlists/consent.ts  (server-only)
 export const WAITLIST_CONSENT_VERSION = 'launch-notification-v1-2026-06'
 ```
 
-- [ ] **Step 2: Seed `consent_texts` via a MIGRATION (C1 — NOT `seed.sql`)** — run `npm run db:new waitlist_consent_seed`, then put the idempotent insert below in that migration (mirrors the structural-seed precedent `20260507000003_seed.sql`, which IS applied to prod; `seed.sql` is dev-only and never reaches prod). Add `effective_at`/`superseded_at` columns to the INSERT if `20260507000003_seed.sql` includes them (grep to confirm — they exist in the `consent_texts` table at `20260507000001_schema.sql`, so include `effective_at = now(), superseded_at = null`). The Step 3b DB-gated test then guards PROD parity, not just local. (id convention `launch_notification:{locale}:{version}`):
+- [x] **Step 2: Seed `consent_texts` via a MIGRATION (C1 — NOT `seed.sql`)** — run `npm run db:new waitlist_consent_seed`, then put the idempotent insert below in that migration (mirrors the structural-seed precedent `20260507000003_seed.sql`, which IS applied to prod; `seed.sql` is dev-only and never reaches prod). Add `effective_at`/`superseded_at` columns to the INSERT if `20260507000003_seed.sql` includes them (grep to confirm — they exist in the `consent_texts` table at `20260507000001_schema.sql`, so include `effective_at = now(), superseded_at = null`). The Step 3b DB-gated test then guards PROD parity, not just local. (id convention `launch_notification:{locale}:{version}`):
 
 ```sql
 insert into public.consent_texts (id, category, locale, version, text_md) values
@@ -1096,7 +1096,7 @@ on conflict (id) do nothing;
 
 > **VERIFIED:** `consent_texts` columns are `id text NOT NULL` (PK — `consent_texts_pkey` at schema.sql:2130), `category`, `locale` (default `pt-BR`), `version`, `text_md`, `effective_at`, `superseded_at` (schema.sql:957). The seed columns match. Because `id` IS the primary key, `on conflict (id)` is a valid conflict target. (There is also a UNIQUE on `(category, locale, version)` at schema.sql:2124 — either target works; `id` is used here for the deterministic `launch_notification:{locale}:{version}` convention.) `consent_texts.category` has **NO** check constraint, so `category='launch_notification'` is allowed without a migration. **NOTE (do not conflate tables):** the separate `public.consents` LEDGER table DOES have `consents_category_check` (schema.sql:260) which excludes `launch_notification` — this is intentionally avoided because the design writes NO `consents` ledger rows (inline-consent + audit-snapshot model only). If a future phase needs a `consents` ledger row, that check must be extended via migration first.
 
-- [ ] **Step 3: Write the CI invariant test** (asserts the version resolves per supported locale):
+- [x] **Step 3: Write the CI invariant test** (asserts the version resolves per supported locale):
 
 ```ts
 // apps/web/test/unit/waitlist-consent.test.ts
@@ -1109,7 +1109,7 @@ describe('waitlist consent version', () => {
 })
 ```
 
-- [ ] **Step 3b: Write the DB-gated consent-ledger resolution test** (links the runtime constant to the seeded rows so a version bump that forgets the seed fails CI). `db:reset` runs `seed.sql`, so after reset both rows exist. Add to `apps/web/test/integration/waitlist-consent-seed.test.ts`:
+- [x] **Step 3b: Write the DB-gated consent-ledger resolution test** (links the runtime constant to the seeded rows so a version bump that forgets the seed fails CI). `db:reset` runs `seed.sql`, so after reset both rows exist. Add to `apps/web/test/integration/waitlist-consent-seed.test.ts`:
 
 ```ts
 import { describe, it, expect } from 'vitest'
@@ -1130,9 +1130,9 @@ describe.skipIf(skipIfNoLocalDb())('consent_texts seed resolves for both locales
 })
 ```
 
-- [ ] **Step 4: Run** `npm test -w apps/web -- waitlist-consent` (unit) and `npm run db:reset && HAS_LOCAL_DB=1 npm test -w apps/web -- waitlist-consent-seed` (DB-gated). Expected: PASS.
+- [x] **Step 4: Run** `npm test -w apps/web -- waitlist-consent` (unit) and `npm run db:reset && HAS_LOCAL_DB=1 npm test -w apps/web -- waitlist-consent-seed` (DB-gated). Expected: PASS.
 
-- [ ] **Step 5: Commit** `feat(waitlists): consent version constant + consent_texts seed + ledger resolution test`.
+- [x] **Step 5: Commit** `feat(waitlists): consent version constant + consent_texts seed + ledger resolution test`.
 
 ---
 
@@ -1144,7 +1144,7 @@ describe.skipIf(skipIfNoLocalDb())('consent_texts seed resolves for both locales
 - Create: `apps/web/src/app/api/waitlists/[slug]/route.ts`
 - Test: `apps/web/test/integration/waitlist-status-endpoint.test.ts`
 
-- [ ] **Step 1: Write the route** (site resolved from `x-site-id`, never slug alone):
+- [x] **Step 1: Write the route** (site resolved from `x-site-id`, never slug alone):
 
 ```ts
 // apps/web/src/app/api/waitlists/[slug]/route.ts
@@ -1184,9 +1184,9 @@ export async function GET(_req: Request, ctx: Ctx): Promise<Response> {
 
 > **Service-client import (consistency with Task 8):** use the alias `@/lib/supabase/service` here (it IS mapped at tsconfig:35 → `apps/web/lib/supabase`). Task 8 below uses the same alias for the service client. Only `@/lib/turnstile` and `@/lib/logger` are NOT mapped and MUST be deep-relative (six `../`). Rule: **service = alias OK; turnstile + logger = deep-relative required.**
 
-- [ ] **Step 2: Write the failing test** — `apps/web/test/integration/waitlist-status-endpoint.test.ts`. Mock `next/headers` to inject `x-site-id`/`x-locale`. Use the verified client pattern (`createClient(SUPABASE_URL, SERVICE_KEY)` + `seedSite`). Seed two sites + a waitlist on each with the SAME slug; call `GET` with each `x-site-id` and assert each returns ITS OWN list (cross-site isolation, 404 when the slug is not on that site). Assert draft/launching/failed → 404. Run fail-first: expect the route module not to resolve (file not yet created) before Step 1, NOT an import-helper error.
+- [x] **Step 2: Write the failing test** — `apps/web/test/integration/waitlist-status-endpoint.test.ts`. Mock `next/headers` to inject `x-site-id`/`x-locale`. Use the verified client pattern (`createClient(SUPABASE_URL, SERVICE_KEY)` + `seedSite`). Seed two sites + a waitlist on each with the SAME slug; call `GET` with each `x-site-id` and assert each returns ITS OWN list (cross-site isolation, 404 when the slug is not on that site). Assert draft/launching/failed → 404. Run fail-first: expect the route module not to resolve (file not yet created) before Step 1, NOT an import-helper error.
 
-- [ ] **Step 3: Run** `HAS_LOCAL_DB=1 npm test -w apps/web -- waitlist-status-endpoint` → PASS. **Commit** `feat(waitlists): public GET status endpoint (site-scoped)`.
+- [x] **Step 3: Run** `HAS_LOCAL_DB=1 npm test -w apps/web -- waitlist-status-endpoint` → PASS. **Commit** `feat(waitlists): public GET status endpoint (site-scoped)`.
 
 ---
 
@@ -1196,7 +1196,7 @@ export async function GET(_req: Request, ctx: Ctx): Promise<Response> {
 - Create: `apps/web/src/app/api/waitlists/[slug]/signup/route.ts`
 - Test: `apps/web/test/integration/waitlist-signup-endpoint.test.ts`
 
-- [ ] **Step 1: Write the route** (Turnstile/rate-limit shape borrowed from the campaign submit route, but site-scoped like the CONTACT flow — see the site-scoping note below; spec §3 flow):
+- [x] **Step 1: Write the route** (Turnstile/rate-limit shape borrowed from the campaign submit route, but site-scoped like the CONTACT flow — see the site-scoping note below; spec §3 flow):
 
 ```ts
 // apps/web/src/app/api/waitlists/[slug]/signup/route.ts
@@ -1316,13 +1316,13 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
 >
 > **YAGNI:** `p_source_surface` is `'landing'`; embed/TipTap surfaces (Fase 3) add a `source_surface` body field — leave a TODO comment, do NOT add it now.
 
-- [ ] **Step 2: Write the failing endpoint test** (DB-gated) — `apps/web/test/integration/waitlist-signup-endpoint.test.ts`. Mock `next/headers` to inject `x-site-id`, and mock the turnstile module. **`vi.mock` SPECIFIER (gotcha):** vitest resolves a `vi.mock` path RELATIVE TO THE TEST FILE, but the route imports turnstile via `'../../../../../../lib/turnstile'` (relative to the ROUTE). Those two relative strings do NOT point at the same module. Vitest dedupes by the RESOLVED absolute module, so the mock only takes effect if both resolve to `apps/web/lib/turnstile.ts`. The route here uses a deep-relative import, so mock it by an absolute-from-root path that vitest will resolve to the same file — use `vi.mock(new URL('../../lib/turnstile', import.meta.url).pathname, ...)` from the test file (which sits at `apps/web/test/integration/`, i.e. two `../` to `apps/web/lib`), OR import `verifyTurnstileToken` into the test via the SAME `'../../lib/turnstile'` specifier and assert vitest resolves it to the route's module. Simplest robust option: `vi.mock('../../lib/turnstile', () => ({ verifyTurnstileToken: vi.fn().mockResolvedValue(true) }))` (two `../` from `apps/web/test/integration/` → `apps/web/lib`). Confirm the mock fires by asserting `verifyTurnstileToken` was called. **Env interplay (important):** vitest runs with `NODE_ENV='test'`, so `isDev` is false → the 503-no-secret branch fires by default. Therefore:
+- [x] **Step 2: Write the failing endpoint test** (DB-gated) — `apps/web/test/integration/waitlist-signup-endpoint.test.ts`. Mock `next/headers` to inject `x-site-id`, and mock the turnstile module. **`vi.mock` SPECIFIER (gotcha):** vitest resolves a `vi.mock` path RELATIVE TO THE TEST FILE, but the route imports turnstile via `'../../../../../../lib/turnstile'` (relative to the ROUTE). Those two relative strings do NOT point at the same module. Vitest dedupes by the RESOLVED absolute module, so the mock only takes effect if both resolve to `apps/web/lib/turnstile.ts`. The route here uses a deep-relative import, so mock it by an absolute-from-root path that vitest will resolve to the same file — use `vi.mock(new URL('../../lib/turnstile', import.meta.url).pathname, ...)` from the test file (which sits at `apps/web/test/integration/`, i.e. two `../` to `apps/web/lib`), OR import `verifyTurnstileToken` into the test via the SAME `'../../lib/turnstile'` specifier and assert vitest resolves it to the route's module. Simplest robust option: `vi.mock('../../lib/turnstile', () => ({ verifyTurnstileToken: vi.fn().mockResolvedValue(true) }))` (two `../` from `apps/web/test/integration/` → `apps/web/lib`). Confirm the mock fires by asserting `verifyTurnstileToken` was called. **Env interplay (important):** vitest runs with `NODE_ENV='test'`, so `isDev` is false → the 503-no-secret branch fires by default. Therefore:
 >   - success/duplicate/closed cases: `vi.stubEnv('TURNSTILE_SECRET_KEY', 'test-secret')`.
 >   - 503 case: `vi.stubEnv('TURNSTILE_SECRET_KEY', '')` (and leave `NODE_ENV='test'`); assert 503.
 >
 > Assertions: success → 200 `{success:true,duplicate:false}`; second identical call → `{duplicate:true}`; closed list → 409; missing secret in non-dev → 503; over-rate → 429. Run fail-first (route not yet created) → module-not-found for the route, NOT for a test helper.
 
-- [ ] **Step 3: Run** `HAS_LOCAL_DB=1 npm test -w apps/web -- waitlist-signup-endpoint` → PASS. **Commit** `feat(waitlists): public POST signup endpoint (Turnstile, fail-closed rate-limit)`.
+- [x] **Step 3: Run** `HAS_LOCAL_DB=1 npm test -w apps/web -- waitlist-signup-endpoint` → PASS. **Commit** `feat(waitlists): public POST signup endpoint (Turnstile, fail-closed rate-limit)`.
 
 ---
 
@@ -1332,7 +1332,7 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
 - Create: `apps/web/src/app/api/waitlists/dsar/[token]/route.ts`
 - Test: `apps/web/test/integration/waitlist-dsar.test.ts`
 
-- [ ] **Step 1: Write the route** (reuses the unsubscribe-token hash lookup; no-oracle response):
+- [x] **Step 1: Write the route** (reuses the unsubscribe-token hash lookup; no-oracle response):
 
 ```ts
 // apps/web/src/app/api/waitlists/dsar/[token]/route.ts
@@ -1384,9 +1384,9 @@ export async function GET(_req: Request, ctx: Ctx): Promise<Response> {
 
 > **Dependency (VERIFIED):** `unsubscribe_tokens` columns are `site_id, email, created_at, used_at, token_hash` only (schema.sql:1785-1792) — there is **NO `source` column** until Fase 2. A `.select('…, source')` / `.eq('source','waitlist')` against the real schema is a PostgREST **error**, NOT an empty match — so the original "matches nothing" reasoning was wrong. **Decision (Fase 1): short-circuit to `NEUTRAL()` immediately** with a `// FASE 2` comment; do not query a non-existent column. The full token lookup is committed as dead commented code (BELOW the function, not inside it) and enabled in Fase 2 alongside the migration. **Do NOT import `crypto` or `getSupabaseServiceClient` in Fase 1** — the Fase-1 body never uses them, so they would be dead imports; re-add them (six-`../` deep-relative, like the sibling routes) only when the Fase-2 body is pasted in. (`tsc --noEmit` here does not set `noUnusedLocals`, so this is cleanliness, not a hard gate — but avoid the unused import regardless.)
 
-- [ ] **Step 2: Test** — unknown/short/any token → `{data:[]}` 200; **explicitly assert status is 200 (never 404/500)** so the no-oracle + no-error guarantee is locked, not incidental. (Populated-token case is a Fase-2 test.)
+- [x] **Step 2: Test** — unknown/short/any token → `{data:[]}` 200; **explicitly assert status is 200 (never 404/500)** so the no-oracle + no-error guarantee is locked, not incidental. (Populated-token case is a Fase-2 test.)
 
-- [ ] **Step 3: Commit** `feat(waitlists): token-gated DSAR export endpoint (inert until Fase 2)`.
+- [x] **Step 3: Commit** `feat(waitlists): token-gated DSAR export endpoint (inert until Fase 2)`.
 
 ---
 
@@ -1397,7 +1397,7 @@ export async function GET(_req: Request, ctx: Ctx): Promise<Response> {
 - Modify: `apps/web/vercel.json` (cron entry — operational; NO root `vercel.json` exists)
 - Test: `apps/web/test/integration/waitlist-sweep-route.test.ts`
 
-- [ ] **Step 1: Write the route** (GET=POST alias, CRON_SECRET-gated, per-site iteration, `WAITLIST_RETENTION_SWEEP_ENABLED` flag):
+- [x] **Step 1: Write the route** (GET=POST alias, CRON_SECRET-gated, per-site iteration, `WAITLIST_RETENTION_SWEEP_ENABLED` flag):
 
 ```ts
 // apps/web/src/app/api/cron/waitlist-retention-sweep/route.ts
@@ -1456,9 +1456,9 @@ export const POST = handle
 
 > **Stuck-launching watchdog — §8 reconciliation (mirrors the Task 3 `consent_withdrawn` pattern):** spec §8 lists a "stuck-launching watchdog" as a Fase-1 sweep deliverable, but the watchdog acts only on waitlists with an associated `newsletter_editions` row, and editions are a Fase-2 migration (**Fase-1 invariant: no `newsletter_editions` waitlist row can exist** — there is no broadcast/launch in Fase 1, and `(open|closed)→launching` is intentionally absent from Task 16's transition graph). The watchdog UPDATE is therefore a STRUCTURAL no-op in Fase 1 and ships with the lifecycle trigger in Fase 2 (Out of scope). The nav-badge stuck-launching count (Task 20) is likewise dormant-but-harmless until then. This converts the §8 divergence into a flagged, defensible deferral — it is NOT a silent drop.
 
-- [ ] **Step 2: Write the failing test** — `apps/web/test/integration/waitlist-sweep-route.test.ts` (explicit fail-first: run BEFORE the route file exists → expect module-not-found for the ROUTE, NOT a helper import error). Cases: (a) no/empty `CRON_SECRET` header → 401; (b) `vi.stubEnv('CRON_SECRET','s')` + correct Bearer but flag off → 200 `{skipped:'disabled'}` AND assert a `logCron({status:'skipped'})` fires (spy/mock `logCron` or assert the JSON line); (c) flag on + correct Bearer → 200 `{ok:true,...}` (DB-gated; seed a site) AND assert `Sentry.addBreadcrumb` was called with `category:'cron'` and `data.sites` set (mock `@sentry/nextjs`'s `addBreadcrumb`); (d) the `!secret` guard: with `CRON_SECRET` unset and header `Bearer undefined`, expect 401. Run → PASS after Step 1.
+- [x] **Step 2: Write the failing test** — `apps/web/test/integration/waitlist-sweep-route.test.ts` (explicit fail-first: run BEFORE the route file exists → expect module-not-found for the ROUTE, NOT a helper import error). Cases: (a) no/empty `CRON_SECRET` header → 401; (b) `vi.stubEnv('CRON_SECRET','s')` + correct Bearer but flag off → 200 `{skipped:'disabled'}` AND assert a `logCron({status:'skipped'})` fires (spy/mock `logCron` or assert the JSON line); (c) flag on + correct Bearer → 200 `{ok:true,...}` (DB-gated; seed a site) AND assert `Sentry.addBreadcrumb` was called with `category:'cron'` and `data.sites` set (mock `@sentry/nextjs`'s `addBreadcrumb`); (d) the `!secret` guard: with `CRON_SECRET` unset and header `Bearer undefined`, expect 401. Run → PASS after Step 1.
 
-- [ ] **Step 3: Pre-check the Vercel cron quota, THEN add the cron entry to `apps/web/vercel.json`** (VERIFIED: there is NO root `vercel.json`; the crons array — 38 existing entries — is at `apps/web/vercel.json`). Adding this makes 39 total.
+- [x] **Step 3: Pre-check the Vercel cron quota, THEN add the cron entry to `apps/web/vercel.json`** (VERIFIED: there is NO root `vercel.json`; the crons array — 38 existing entries — is at `apps/web/vercel.json`). Adding this makes 39 total.
   - **Cron-quota pre-check (do FIRST):** confirm the Vercel project plan permits ≥39 cron jobs (check the dashboard Crons tab / `vercel project ls`). Vercel cron counts are plan-tier-gated; if the tier caps crons, a silently-dropped entry means the irreversible-deletion sweep NEVER fires in prod — an undetected LGPD retention gap that still passes CI/build. **If the tier caps crons, do NOT add a 39th entry — instead fold `waitlist_retention_sweep` into the existing `lgpd-cleanup-sweep` cron's site loop** (call the RPC there), and skip the vercel.json append. Document the chosen path in the DPO note.
   - If quota allows, append to the EXISTING `crons` array (do not overwrite):
 
@@ -1467,7 +1467,7 @@ export const POST = handle
 ```
 Use `15 4` (not `0 4`) to avoid colliding with the existing `0 4` crons (anonymize-newsletter-tracking, ab-draft-cleanup). Leave `WAITLIST_RETENTION_SWEEP_ENABLED` unset/false until DPO sign-off (see the ordered activation checklist in Operational deliverables).
 
-- [ ] **Step 4: Commit** `feat(waitlists): retention-sweep cron route + vercel.json entry`.
+- [x] **Step 4: Commit** `feat(waitlists): retention-sweep cron route + vercel.json entry`.
 
 ---
 
@@ -1481,18 +1481,18 @@ Use `15 4` (not `0 4`) to avoid colliding with the existing `0 4` crons (anonymi
 
 > **VERIFIED method shapes (domain-adapter.ts):** `collectUserData(userId: string)` takes a UUID (line 212) and derives the user's email INTERNALLY via `getUserById(userId)` (it does NOT take an email). `phase1Cleanup(userId: string)` (line 45) is the SEPARATE method that calls `rpc('lgpd_phase1_cleanup', { p_pre_capture })` — it builds `emails` from auth + `newsletter_subscriptions` + `contact_submissions` (lines 97-101) and sets `preCapture = { newsletter_emails: emails }` (line 103). `collectUserData` does NOT call the cleanup RPC. So the export query goes in `collectUserData`; the pre-capture change goes in `phase1Cleanup`.
 
-- [ ] **Step 1: Read the current adapter** — confirm the two method signatures above and the `newsletter_sends` export projection (line 298: `id, edition_id, subscriber_email, status, delivered_at, opened_at, clicked_at, created_at` — note it EXCLUDES `open_ip`/`open_user_agent`; the waitlist projection's exclusion of `ip`/`user_agent` is parity with this).
+- [x] **Step 1: Read the current adapter** — confirm the two method signatures above and the `newsletter_sends` export projection (line 298: `id, edition_id, subscriber_email, status, delivered_at, opened_at, clicked_at, created_at` — note it EXCLUDES `open_ip`/`open_user_agent`; the waitlist projection's exclusion of `ip`/`user_agent` is parity with this).
 
-- [ ] **Step 2: Write the failing test** (extend `apps/web/test/unit/lgpd-domain-adapter.test.ts`) — two assertions:
+- [x] **Step 2: Write the failing test** (extend `apps/web/test/unit/lgpd-domain-adapter.test.ts`) — two assertions:
 >   - `collectUserData(userId)` returns a `waitlists` section with the narrowed projection `email, consent_launch_notification, consent_text_version, status, source_surface, created_at` and EXCLUDES `ip`/`user_agent`. (Seed a signup keyed off the user's email; assert it appears WITHOUT network PII.)
 >   - `phase1Cleanup(userId)` anonymizes the user's `waitlist_signups` rows. (Seed a signup for the user's email + a matching auth user; run `phase1Cleanup`; assert the row's `anonymized_at` is set and `email` is the sha256 hash.) **Seed the auth user via the exported `insertAuthUser(email, userId)` helper (`db-seed.ts:26`, signature `(email: string, id?: string)`) so `collectUserData`/`phase1Cleanup`'s internal `getUserById(userId)` resolves the email — do NOT pass an unseeded synthetic uuid (the adapter derives the email internally and would find nothing).**
 
-- [ ] **Step 3: Implement** —
+- [x] **Step 3: Implement** —
 >   - In `collectUserData`: after the user's email(s) are resolved (same way the existing `newsletter_subscriptions`/`newsletter_sends` branches resolve them — by `userEmail`), add a `waitlist_signups` query with the narrowed projection `.eq('email', userEmail)` and add a `waitlists` key to the returned bundle. Mirror the existing `newsletter_sends` branch exactly (which deliberately omits network PII).
 >   - In `phase1Cleanup`: after `emails` is built (line ~97-101), set `preCapture.waitlist_emails = emails` — **reuse the SAME auth-derived `emails` array; do NOT query `waitlist_signups.select('email').in('email', emails)`.** That query is logically impossible: `.in('email', emails)` can only return rows whose email is ALREADY in `emails`, so it can never discover a NEW waitlist-only email. `waitlist_signups` has **no `user_id` column** (Task 1) — the only email tying a signup to the authenticated user IS the auth/newsletter/contact email, which `emails` already contains. The Task 5 SQL branch reads exactly `p_pre_capture->'waitlist_emails'` and anonymizes the matching signups.
 >   - **Honest erasure-coverage rationale (do NOT claim it closes the gap for anonymous emails):** `phase1Cleanup` anonymizes only waitlist signups whose email equals the deleting user's auth/newsletter/contact email. A truly anonymous waitlist-only email (one never used for newsletter/contact) is NOT linkable to a `user_id` and is therefore NOT erased by phase1 — it is covered solely by the retention sweep (`ORPHAN_PENDING_DAYS`) + the per-email DSAR/unsubscribe self-service path (spec §2.3 states this; Task 11 must not contradict it).
 
-- [ ] **Step 4: Run + Commit** `feat(waitlists): LGPD export + pre-capture for waitlist memberships`.
+- [x] **Step 4: Run + Commit** `feat(waitlists): LGPD export + pre-capture for waitlist memberships`.
 
 ---
 
@@ -1640,9 +1640,9 @@ expect(taken).toHaveLength(1) // the loser's INSERT hits 23505 → slug_taken (c
 - Create: `apps/web/src/app/cms/(authed)/waitlists/_components/status-strip.tsx`
 - Test: extend `waitlist-cms-actions.test.ts`
 
-- [ ] **Step 1: Write the failing transition test** — extend `waitlist-cms-actions.test.ts`: illegal transition (e.g. `draft→launched`) rejected with `{ok:false}`; CAS 0-row (stale `from`) returns `status_changed`; a legal transition (`draft→open`) succeeds. **RUN before writing the action → must FAIL (transition action undefined / not exported), NOT a helper error.**
-- [ ] **Step 2: Implement `transitionWaitlistStatus(id, to)`** enforcing the Fase-1 legal graph (`draft→open`; `open↔closed`; `failed→closed`) via CAS: `update waitlists set status=$to where id=$id and site_id=$siteId and status=$from` → 0 rows ⇒ `{ ok:false, error:'status_changed' }`. `launched` terminal (no transitions out). **The `(open|closed)→launching` transition is intentionally ABSENT from this action's legal graph in Fase 1** — it is owned exclusively by the real `launchWaitlist` broadcast action in Fase 2 (Task 19 ships only the dialog UI + a stub). Do not add `launching` as a target here. **M6 LGPD Fase-1 gate (code, not just a note):** at the top of the action, BEFORE the CAS, reject any transition to `open` while the rights paths (DSAR + unsubscribe) are Fase-2: `if (to === 'open' && process.env.WAITLIST_ACCEPT_PUBLIC_SIGNUPS !== 'true') return { ok: false, error: 'fase1_only_draft' }` (env unset by default → no public `open` in prod until Fase 2 flips it). Add a test asserting `draft→open` returns `fase1_only_draft` when the env is unset, and succeeds when it is `'true'`. **RUN: same test → must PASS.** Commit `feat(waitlists): guarded status transitions (CAS) + Fase-1 open gate`.
-- [ ] **Step 3: Status strip component** — renders only the legal buttons for the current status with one-line hints (per handoff §3); Launch is the accent CTA (wired to the broadcast dialog, Task 19); Resume/Retry uses the recover style. Commit `feat(waitlists): status strip`.
+- [x] **Step 1: Write the failing transition test** — extend `waitlist-cms-actions.test.ts`: illegal transition (e.g. `draft→launched`) rejected with `{ok:false}`; CAS 0-row (stale `from`) returns `status_changed`; a legal transition (`draft→open`) succeeds. **RUN before writing the action → must FAIL (transition action undefined / not exported), NOT a helper error.**
+- [x] **Step 2: Implement `transitionWaitlistStatus(id, to)`** enforcing the Fase-1 legal graph (`draft→open`; `open↔closed`; `failed→closed`) via CAS: `update waitlists set status=$to where id=$id and site_id=$siteId and status=$from` → 0 rows ⇒ `{ ok:false, error:'status_changed' }`. `launched` terminal (no transitions out). **The `(open|closed)→launching` transition is intentionally ABSENT from this action's legal graph in Fase 1** — it is owned exclusively by the real `launchWaitlist` broadcast action in Fase 2 (Task 19 ships only the dialog UI + a stub). Do not add `launching` as a target here. **M6 LGPD Fase-1 gate (code, not just a note):** at the top of the action, BEFORE the CAS, reject any transition to `open` while the rights paths (DSAR + unsubscribe) are Fase-2: `if (to === 'open' && process.env.WAITLIST_ACCEPT_PUBLIC_SIGNUPS !== 'true') return { ok: false, error: 'fase1_only_draft' }` (env unset by default → no public `open` in prod until Fase 2 flips it). Add a test asserting `draft→open` returns `fase1_only_draft` when the env is unset, and succeeds when it is `'true'`. **RUN: same test → must PASS.** Commit `feat(waitlists): guarded status transitions (CAS) + Fase-1 open gate`.
+- [x] **Step 3: Status strip component** — renders only the legal buttons for the current status with one-line hints (per handoff §3); Launch is the accent CTA (wired to the broadcast dialog, Task 19); Resume/Retry uses the recover style. Commit `feat(waitlists): status strip`.
 
 ### Task 17: Detail page (Overview + Signups tabs)
 
@@ -1692,9 +1692,9 @@ await db.from('waitlist_signups').insert([
 - Modify: `apps/web/src/app/cms/(authed)/waitlists/actions.ts`
 - Test: `apps/web/test/integration/waitlist-export.test.ts`
 
-- [ ] **Step 1: Write the failing test (DB-gated)** — `apps/web/test/integration/waitlist-export.test.ts`. Cases: (a) cross-site export request → 404 (IDOR closed: the waitlist belongs to site B, the caller is scoped to site A); (b) export OMITS anonymized rows; (c) a formula-injection cell is neutralized (`=HYPERLINK(...)` → cell begins `'=HYPERLINK`, via the shared `escapeCsv` from Task 0). **RUN before Step 2 → must FAIL (the `exportWaitlistSignups` action does not exist), NOT a helper error.**
-- [ ] **Step 2: Implement `exportWaitlistSignups(waitlistId, opts)`** — `requireSiteScope({mode:'view'})`; IDOR guard: resolve `.eq('id',waitlistId).eq('site_id',siteId).maybeSingle()` → 404 if not owned, THEN query signups with BOTH `.eq('site_id',siteId)` AND `.eq('waitlist_id',waitlistId)`. Build CSV with the shared `escapeCsv` (Task 0). Columns: `email, status, suppression_reason, source_surface, locale, created_at`. Anonymized rows omitted. Filename `waitlist-{slug}-{YYYY-MM-DD}.csv`. Honor the export dialog options (status filter, date range, exclude-suppressed default on). **RUN: same test → must PASS.**
-- [ ] **Step 3: Commit** `feat(waitlists): CSV export action (IDOR-guarded, formula-injection-safe)`.
+- [x] **Step 1: Write the failing test (DB-gated)** — `apps/web/test/integration/waitlist-export.test.ts`. Cases: (a) cross-site export request → 404 (IDOR closed: the waitlist belongs to site B, the caller is scoped to site A); (b) export OMITS anonymized rows; (c) a formula-injection cell is neutralized (`=HYPERLINK(...)` → cell begins `'=HYPERLINK`, via the shared `escapeCsv` from Task 0). **RUN before Step 2 → must FAIL (the `exportWaitlistSignups` action does not exist), NOT a helper error.**
+- [x] **Step 2: Implement `exportWaitlistSignups(waitlistId, opts)`** — `requireSiteScope({mode:'view'})`; IDOR guard: resolve `.eq('id',waitlistId).eq('site_id',siteId).maybeSingle()` → 404 if not owned, THEN query signups with BOTH `.eq('site_id',siteId)` AND `.eq('waitlist_id',waitlistId)`. Build CSV with the shared `escapeCsv` (Task 0). Columns: `email, status, suppression_reason, source_surface, locale, created_at`. Anonymized rows omitted. Filename `waitlist-{slug}-{YYYY-MM-DD}.csv`. Honor the export dialog options (status filter, date range, exclude-suppressed default on). **RUN: same test → must PASS.**
+- [x] **Step 3: Commit** `feat(waitlists): CSV export action (IDOR-guarded, formula-injection-safe)`.
 
 ### Task 19b: Export dialog + broadcast dialog (UI) + `launchWaitlist` stub
 
@@ -1706,10 +1706,10 @@ await db.from('waitlist_signups').insert([
 
 **Port source:** `views-waitlists.jsx` (`ExportDialog`, `BroadcastDialog` — both portalled).
 
-- [ ] **Step 1: Write the failing `launchWaitlist` stub test** — assert the stub returns exactly `{ ok: false, error: 'not_implemented' }`. **RUN → must FAIL (`launchWaitlist` not exported).**
-- [ ] **Step 2: Implement the `launchWaitlist` stub** returning `{ ok: false, error: 'not_implemented' }` (the real publish-guarded action is Fase 2). **RUN → must PASS.** Commit `feat(waitlists): launchWaitlist stub (not_implemented until Fase 2)`.
-- [ ] **Step 3: Export dialog (own fail-first cycle)** — write a failing render test `apps/web/test/components/waitlist-export-dialog.test.tsx` asserting the status filter + the exclude-suppressed toggle (default on) are present and Esc closes. **RUN → must FAIL (`Cannot find module '.../export-dialog'`).** Then implement `export-dialog.tsx` per handoff §5. **RUN → must PASS.** Commit `feat(waitlists): export dialog UI`.
-- [ ] **Step 4: Broadcast dialog (own fail-first cycle)** — write a failing render test `apps/web/test/components/waitlist-broadcast-dialog.test.tsx` asserting: the confirm is disabled at 0 recipients; the type-the-**slug** gate is present; and a "Broadcast ships in the next phase" `not_implemented` notice appears after a stubbed confirm (the confirm calls the `launchWaitlist` stub from Step 2). **RUN → must FAIL (`Cannot find module '.../broadcast-dialog'`).** Then implement `broadcast-dialog.tsx` per handoff §4 (type-the-slug to confirm, live recipient count, 0-recipient disables confirm, Esc closes). **RUN → must PASS.** Commit `feat(waitlists): broadcast dialog UI (send stubbed)`.
+- [x] **Step 1: Write the failing `launchWaitlist` stub test** — assert the stub returns exactly `{ ok: false, error: 'not_implemented' }`. **RUN → must FAIL (`launchWaitlist` not exported).**
+- [x] **Step 2: Implement the `launchWaitlist` stub** returning `{ ok: false, error: 'not_implemented' }` (the real publish-guarded action is Fase 2). **RUN → must PASS.** Commit `feat(waitlists): launchWaitlist stub (not_implemented until Fase 2)`.
+- [x] **Step 3: Export dialog (own fail-first cycle)** — write a failing render test `apps/web/test/components/waitlist-export-dialog.test.tsx` asserting the status filter + the exclude-suppressed toggle (default on) are present and Esc closes. **RUN → must FAIL (`Cannot find module '.../export-dialog'`).** Then implement `export-dialog.tsx` per handoff §5. **RUN → must PASS.** Commit `feat(waitlists): export dialog UI`.
+- [x] **Step 4: Broadcast dialog (own fail-first cycle)** — write a failing render test `apps/web/test/components/waitlist-broadcast-dialog.test.tsx` asserting: the confirm is disabled at 0 recipients; the type-the-**slug** gate is present; and a "Broadcast ships in the next phase" `not_implemented` notice appears after a stubbed confirm (the confirm calls the `launchWaitlist` stub from Step 2). **RUN → must FAIL (`Cannot find module '.../broadcast-dialog'`).** Then implement `broadcast-dialog.tsx` per handoff §4 (type-the-slug to confirm, live recipient count, 0-recipient disables confirm, Esc closes). **RUN → must PASS.** Commit `feat(waitlists): broadcast dialog UI (send stubbed)`.
 
 ### Task 20: Nav item + nav badge counts
 
@@ -1718,9 +1718,9 @@ await db.from('waitlist_signups').insert([
 - Modify: `apps/web/lib/cms/layout-counts.ts` (`fetchLayoutCountsInner` at line 4 — runs N count queries via `Promise.all`, returns a flat object; `fetchLayoutCounts = unstable_cache(..., { tags:['layout-counts'], revalidate:60 })` at line 23)
 - Test: `apps/web/test/integration/waitlist-layout-counts.test.ts` (NEW — no layout-counts test exists today)
 
-- [ ] **Step 1: Add the `waitlists` nav item** to `cms-sections.ts` in the "Content" group immediately AFTER the Campaigns entry (re-grep the exact line — the group contains Blog/Vídeos/Courses/Newsletters/Campaigns/Playlists and line numbers drift): `{ icon: icon(Gift), label: 'Waitlists', href: '/cms/waitlists', minRole: 'editor' }` (import `Gift` from the same lucide source the file already uses). Label is EN per spec §6 CMS-EN-first; the surrounding PT labels (`Vídeos`) are migrated separately. Commit `feat(waitlists): CMS nav item`.
-- [ ] **Step 2: Write the failing, UNCONDITIONAL layout-counts test** — `apps/web/test/integration/waitlist-layout-counts.test.ts` (DB-gated). Seed on ONE site: a `failed` waitlist + a `launching` waitlist whose `updated_at` is 7h ago + a `launching` waitlist whose `updated_at` is 1h ago. Call `fetchLayoutCountsInner(siteId)` and assert the actionable waitlist count is **2** (the failed one + the 7h-stuck one), **NOT 3** — the fresh 1h `launching` is inside the 6h watchdog window and must be excluded. **RUN before Step 3 → must FAIL** (`fetchLayoutCountsInner` does not yet return the waitlist count). Time-predicate note: compute the threshold as `new Date(Date.now() - 6*3600*1000).toISOString()` and key the query on `updated_at < threshold` to avoid off-by-one/timezone drift.
-- [ ] **Step 3: Extend `fetchLayoutCountsInner` (and EXPORT it)** — **VERIFIED: `fetchLayoutCountsInner` at `apps/web/lib/cms/layout-counts.ts:4` is currently NOT exported (only the `unstable_cache` wrapper `fetchLayoutCounts` is, line 23). Add the `export` keyword to `async function fetchLayoutCountsInner(siteId: string)` so the Step 2 DB-gated test can import it directly** — without this, the test fails on module resolution, not on the intended missing-count assertion (the cache wrapper makes per-test assertions flaky, so exporting Inner is the correct fix). Then add to the `Promise.all` a count of `failed` waitlists + `launching` waitlists with `updated_at < now()-6h`, returned as a new key (e.g. `waitlistsNeedAttention`). Write actions call `revalidateTag('layout-counts')`. **RUN: same test → must PASS.** Commit `feat(waitlists): actionable nav badge counts (failed + stuck-launching)`.
+- [x] **Step 1: Add the `waitlists` nav item** to `cms-sections.ts` in the "Content" group immediately AFTER the Campaigns entry (re-grep the exact line — the group contains Blog/Vídeos/Courses/Newsletters/Campaigns/Playlists and line numbers drift): `{ icon: icon(Gift), label: 'Waitlists', href: '/cms/waitlists', minRole: 'editor' }` (import `Gift` from the same lucide source the file already uses). Label is EN per spec §6 CMS-EN-first; the surrounding PT labels (`Vídeos`) are migrated separately. Commit `feat(waitlists): CMS nav item`.
+- [x] **Step 2: Write the failing, UNCONDITIONAL layout-counts test** — `apps/web/test/integration/waitlist-layout-counts.test.ts` (DB-gated). Seed on ONE site: a `failed` waitlist + a `launching` waitlist whose `updated_at` is 7h ago + a `launching` waitlist whose `updated_at` is 1h ago. Call `fetchLayoutCountsInner(siteId)` and assert the actionable waitlist count is **2** (the failed one + the 7h-stuck one), **NOT 3** — the fresh 1h `launching` is inside the 6h watchdog window and must be excluded. **RUN before Step 3 → must FAIL** (`fetchLayoutCountsInner` does not yet return the waitlist count). Time-predicate note: compute the threshold as `new Date(Date.now() - 6*3600*1000).toISOString()` and key the query on `updated_at < threshold` to avoid off-by-one/timezone drift.
+- [x] **Step 3: Extend `fetchLayoutCountsInner` (and EXPORT it)** — **VERIFIED: `fetchLayoutCountsInner` at `apps/web/lib/cms/layout-counts.ts:4` is currently NOT exported (only the `unstable_cache` wrapper `fetchLayoutCounts` is, line 23). Add the `export` keyword to `async function fetchLayoutCountsInner(siteId: string)` so the Step 2 DB-gated test can import it directly** — without this, the test fails on module resolution, not on the intended missing-count assertion (the cache wrapper makes per-test assertions flaky, so exporting Inner is the correct fix). Then add to the `Promise.all` a count of `failed` waitlists + `launching` waitlists with `updated_at < now()-6h`, returned as a new key (e.g. `waitlistsNeedAttention`). Write actions call `revalidateTag('layout-counts')`. **RUN: same test → must PASS.** Commit `feat(waitlists): actionable nav badge counts (failed + stuck-launching)`.
 
 > **Watchdog dormancy note:** in Fase 1 nothing can produce a `launching` waitlist (no broadcast; `(open|closed)→launching` is absent from Task 16) — so the stuck-launching count is structurally always 0 until Fase 2 wires the lifecycle. The query is harmless and correct; it simply has no inputs yet. (Same reconciliation as Task 10.)
 
@@ -1735,7 +1735,7 @@ await db.from('waitlist_signups').insert([
 
 > **Ordering:** the scrub helper (`apps/web/lib/waitlists/scrub.ts` + its test) lands in **Task 0b** (Prep, before Task 8), so the signup route imports `redactMessage` from creation — already wired into Task 8's 500 branch. This task is ONLY the remaining cross-file wiring (Sentry component tag on every other waitlist route/action + the funnel breadcrumb), kept separate so the broad tag edit does not re-open already-green files in one untested commit.
 
-- [ ] **Step 1: Wire the cross-file Sentry tags + funnel (single commit)** — on all REMAINING waitlist server actions + routes (i.e. everything except Task 8's signup route, which already calls `captureServerActionError({ component:'waitlist', code })` + `redactMessage` from Task 8): add `Sentry.setTag('component','waitlist')` (or the tag arg of `captureServerActionError` from `@/lib/sentry-wrap`), pass any free-text through `redactMessage` (Task 0b) before `captureException`, and add the `source_surface` count-only funnel breadcrumb (no PII). Commit `feat(waitlists): observability — Sentry component tag + count-only funnel`.
+- [x] **Step 1: Wire the cross-file Sentry tags + funnel (single commit)** — on all REMAINING waitlist server actions + routes (i.e. everything except Task 8's signup route, which already calls `captureServerActionError({ component:'waitlist', code })` + `redactMessage` from Task 8): add `Sentry.setTag('component','waitlist')` (or the tag arg of `captureServerActionError` from `@/lib/sentry-wrap`), pass any free-text through `redactMessage` (Task 0b) before `captureException`, and add the `source_surface` count-only funnel breadcrumb (no PII). Commit `feat(waitlists): observability — Sentry component tag + count-only funnel`.
 
 ---
 
