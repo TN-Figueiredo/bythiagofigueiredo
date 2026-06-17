@@ -1603,6 +1603,14 @@ export const FORM_STRINGS: Record<WaitlistLocale, WaitlistStrings> = {
 
 **Port source:** `views-waitlists.jsx` (`EditDrawer`, portalled to `document.body`; intro is an UNCONTROLLED `contentEditable` read on save — keep this to avoid the React `removeChild` crash documented in the handoff).
 
+> **Verified precedents (handoff note, 2026-06-17 — research done, no code written yet):**
+> - **Action skeleton:** mirror `apps/web/src/app/cms/(authed)/campaigns/new/actions.ts` — `'use server'`, read site via `getSiteContext()` (`@/lib/cms/site-context`), guard with `requireSiteScope({ area: 'cms', siteId: ctx.siteId, mode: 'edit' })` (`@tn-figueiredo/auth-nextjs/server`), then service-client insert; result union `{ ok:true, ... } | { ok:false, error, message? }`; `catch` wraps the INSERT.
+> - **`waitlists` columns (live DB):** `id, site_id, slug, name, description, status(default), campaign_id, sender_name, sender_email, reply_to, intro_mdx, launched_at, created_at, updated_at`.
+> - **`waitlist_translations` columns:** `waitlist_id, locale, headline, subheadline, consent_label(NOT NULL default), button_label, button_loading_label, success_headline, success_body, duplicate_headline, duplicate_body, closed_message, launched_message` — Step 1(c) persists this row.
+> - **Sender-email validation:** `ringContext()` (`@/lib/cms/repositories`) → `.getSite(siteId): Promise<Site | null>`; `Site.domains: string[]`. Extract the domain from `sender_email`, reject (field error) if not ∈ `site.domains`.
+> - **slugify:** `@/lib/blog/slugify` (`slugify(text)`); slug auto-slugify is client-side per Step 2, server normalizes/trusts.
+> - **DB-gated action test mocks:** copy the hoisted-mock pattern from `apps/web/test/integration/ab-brainstorm.test.ts` — `vi.mock('@/lib/cms/site-context')` with a mutable `_mockSiteId`; `vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: vi.fn(async () => ({ ok: true, user: {...} })) }))`; also stub `@vercel/blob` + `@sentry/nextjs` if transitively imported. Seed with `seedSite(db, { domains: ['x.test'] })` to exercise sender validation; local DB confirmed up.
+
 - [ ] **Step 1: Write the failing actions test (DB-gated)** — `apps/web/test/integration/waitlist-cms-actions.test.ts`. Cases: (a) **concurrent create of the same slug → exactly one success + one `slug_taken`** (real race via two parallel calls); (b) sender-email on a non-owned domain → field error; (c) create persists the translations row. Concurrency test code (PostgREST pools a single connection, so fire two TRULY parallel calls and rely on the DB unique constraint surfacing as `23505` in exactly one):
 
 ```ts
