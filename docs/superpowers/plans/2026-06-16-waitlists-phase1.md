@@ -1507,7 +1507,7 @@ Use `15 4` (not `0 4`) to avoid colliding with the existing `0 4` crons (anonymi
 
 **Port source:** `design_handoff_waitlists/design_files/waitlist-public.jsx` (`WaitlistForm`) — recreate as a production React 19 client component using the live Pinboard kit. Do NOT copy the Babel/localStorage prototype scaffolding.
 
-- [ ] **Step 1: Write `FORM_STRINGS`** (pt-BR + en) covering every state in spec §7 (idle/submitting/success/duplicate/closed/launched/error/rateLimited/raceClosed/unavailable). The `409-race` state (spec §7 line 516) is DISTINCT from `closed`: `closed`/`launched` come from the mount-GET (the form never opened), while `raceClosed` is the live POST returning 409 `waitlist_not_open` (the list closed mid-flight, after the user submitted). Use the copy table from the spec and the handoff. Shape:
+- [x] **Step 1: Write `FORM_STRINGS`** (pt-BR + en) covering every state in spec §7 (idle/submitting/success/duplicate/closed/launched/error/rateLimited/raceClosed/unavailable). The `409-race` state (spec §7 line 516) is DISTINCT from `closed`: `closed`/`launched` come from the mount-GET (the form never opened), while `raceClosed` is the live POST returning 409 `waitlist_not_open` (the list closed mid-flight, after the user submitted). Use the copy table from the spec and the handoff. Shape:
 
 ```ts
 // apps/web/src/components/waitlists/form-strings.ts
@@ -1549,11 +1549,11 @@ export const FORM_STRINGS: Record<WaitlistLocale, WaitlistStrings> = {
 }
 ```
 
-- [ ] **Step 2: Write a failing component test** (Vitest + Testing Library) — renders the form in `idle`, asserts the email input + consent checkbox + disabled submit until both consent checked and (in non-dev) a turnstile token present; on a mocked successful POST it renders the success block in place (no email field) with `role="status"`.
+- [x] **Step 2: Write a failing component test** (Vitest + Testing Library) — renders the form in `idle`, asserts the email input + consent checkbox + disabled submit until both consent checked and (in non-dev) a turnstile token present; on a mocked successful POST it renders the success block in place (no email field) with `role="status"`.
 
-- [ ] **Step 3: Implement the component** — a `'use client'` component with props `{ slug: string; locale: WaitlistLocale; variant?: 'landing' | 'embed' | 'inline'; initialStatus?: 'open'|'closed'|'launched' }`. State machine per spec §7. POSTs to `/api/waitlists/${slug}/signup`. **Response→state mapping (spec §7):** 200 `{success:true,duplicate:false}` → `success`; 200 `{duplicate:true}` → `duplicate`; **409 `waitlist_not_open` → `raceClosed`** (render `strings.raceClosed`, DISTINCT from the mount-GET `closed`/`launched` blocks); 429 → `rateLimited`; 503 → `unavailable`; other non-2xx → `error`. **Both the `success` AND `duplicate` result blocks append the `reassurance` line (spec §7 line 510) — render `{strings.reassurance}` under both `successBody` and `duplicateBody`.** Accessibility per §7 (focus to result `role=status` after submit; error `role=alert`; email input attributes; Turnstile disabled-until-token; reduced motion). Recreate the Pinboard visual treatment via the live kit (`makePinboardKit`/`Paper`/`Tape`) used elsewhere in the public site — grep `apps/web/src` for the real import path of the Pinboard components (the prototype's `shared.jsx` maps to the real site kit).
+- [x] **Step 3: Implement the component** — a `'use client'` component with props `{ slug: string; locale: WaitlistLocale; variant?: 'landing' | 'embed' | 'inline'; initialStatus?: 'open'|'closed'|'launched' }`. State machine per spec §7. POSTs to `/api/waitlists/${slug}/signup`. **Response→state mapping (spec §7):** 200 `{success:true,duplicate:false}` → `success`; 200 `{duplicate:true}` → `duplicate`; **409 `waitlist_not_open` → `raceClosed`** (render `strings.raceClosed`, DISTINCT from the mount-GET `closed`/`launched` blocks); 429 → `rateLimited`; 503 → `unavailable`; other non-2xx → `error`. **Both the `success` AND `duplicate` result blocks append the `reassurance` line (spec §7 line 510) — render `{strings.reassurance}` under both `successBody` and `duplicateBody`.** Accessibility per §7 (focus to result `role=status` after submit; error `role=alert`; email input attributes; Turnstile disabled-until-token; reduced motion). Recreate the Pinboard visual treatment via the live kit (`makePinboardKit`/`Paper`/`Tape`) used elsewhere in the public site — grep `apps/web/src` for the real import path of the Pinboard components (the prototype's `shared.jsx` maps to the real site kit).
 
-- [ ] **Step 4: Run + Commit** `feat(waitlists): shared WaitlistSignupForm + FORM_STRINGS`.
+- [x] **Step 4: Run + Commit** `feat(waitlists): shared WaitlistSignupForm + FORM_STRINGS`.
 
 ---
 
