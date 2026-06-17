@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { ChevronLeft } from 'lucide-react'
 import { getSiteContext } from '@/lib/cms/site-context'
-import { loadWaitlistDetail } from '../queries'
+import { loadWaitlistDetail, listSignups, type SignupsCursor } from '../queries'
 import { WlBadge } from '../_components/wl-badge'
 import { LaunchCta } from '../_components/launch-cta'
 import { SignupsTab } from '../_components/signups-tab'
@@ -17,18 +17,30 @@ const SOURCE_LABELS: Record<'landing' | 'embed' | 'tiptap', string> = {
 
 interface Props {
   params: Promise<{ id: string }>
-  searchParams: Promise<{ tab?: string }>
+  searchParams: Promise<{ tab?: string; status?: string; q?: string; c?: string }>
 }
 
 export default async function WaitlistDetailPage({ params, searchParams }: Props) {
   const { id } = await params
-  const { tab } = await searchParams
+  const { tab, status: statusParam, q, c } = await searchParams
   const { siteId } = await getSiteContext()
 
   const detail = await loadWaitlistDetail(siteId, id)
   if (!detail) notFound()
 
   const activeTab = tab === 'signups' ? 'signups' : 'overview'
+
+  // Signups tab data (only fetched when that tab is active).
+  const statusFilter = statusParam === 'pending' || statusParam === 'suppressed' ? statusParam : undefined
+  let cursor: SignupsCursor | undefined
+  if (c) {
+    const sep = c.indexOf('|')
+    if (sep > 0) cursor = { createdAt: c.slice(0, sep), id: c.slice(sep + 1) }
+  }
+  const signupsPage =
+    activeTab === 'signups'
+      ? await listSignups(siteId, detail.id, { status: statusFilter, q: q || undefined, cursor })
+      : null
   const totalBySource = detail.sourceCounts.landing + detail.sourceCounts.embed + detail.sourceCounts.tiptap
 
   const TabLink = ({ id: tabId, label }: { id: 'overview' | 'signups'; label: string }) => (
@@ -118,7 +130,7 @@ export default async function WaitlistDetailPage({ params, searchParams }: Props
           <LaunchCta status={detail.status} pending={detail.pending} />
         </div>
       ) : (
-        <SignupsTab detail={detail} />
+        signupsPage && <SignupsTab detail={detail} page={signupsPage} filters={{ status: statusFilter, q: q || undefined }} />
       )}
     </div>
   )

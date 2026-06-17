@@ -145,6 +145,111 @@ export async function listWaitlistsForSite(siteId: string): Promise<WaitlistList
   return { rows, kpis }
 }
 
+export interface SignupRow {
+  id: string
+  email: string
+  status: 'pending' | 'suppressed'
+  suppressionReason: string | null
+  sourceSurface: string | null
+  createdAt: string
+}
+
+export interface SignupsCursor {
+  createdAt: string
+  id: string
+}
+
+export interface ListSignupsOpts {
+  status?: 'pending' | 'suppressed'
+  /** Email prefix filter (case-insensitive; wildcards escaped). */
+  q?: string
+  /** Keyset cursor from a previous page's `nextCursor`. */
+  cursor?: SignupsCursor
+  pageSize?: number
+}
+
+export interface SignupsPage {
+  rows: SignupRow[]
+  /** Pass to the next call's `cursor`; null when there are no more rows. */
+  nextCursor: SignupsCursor | null
+  /** Index-stats estimate (O(1)); exact COUNT on 100k rows is too costly per page. */
+  estimatedTotal: number | null
+}
+
+const SIGNUPS_PAGE_SIZE = 25
+
+/**
+ * Server-side, site-scoped signups list with a ROW-VALUE keyset cursor on
+ * `(created_at desc, id desc)` — correct even when many rows share a `created_at`
+ * (a bare `created_at.lt` cursor would skip or duplicate those). Optional status +
+ * email-prefix filters run in SQL (the prefix's `%`/`_`/`\` are escaped so a user
+ * can't inject wildcards — M13). Returns one extra row to derive `nextCursor` without
+ * a second round-trip; the total is `estimated` (index stats), never an exact COUNT.
+ */
+export async function listSignups(
+  siteId: string,
+  waitlistId: string,
+  opts: ListSignupsOpts = {},
+): Promise<SignupsPage> {
+  const supabase = getSupabaseServiceClient()
+  const pageSize = opts.pageSize ?? SIGNUPS_PAGE_SIZE
+
+  let query = supabase
+    .from('waitlist_signups')
+    .select('id, email, status, suppression_reason, source_surface, created_at', { count: 'estimated' })
+    .eq('waitlist_id', waitlistId)
+    .eq('site_id', siteId)
+    .is('anonymized_at', null)
+
+  if (opts.status) query = query.eq('status', opts.status)
+  if (opts.q) {
+    const safe = opts.q.replace(/[\\%_]/g, (m) => `\\${m}`)
+    query = query.ilike('email', `${safe}%`)
+  }
+  if (opts.cursor) {
+    const { createdAt, id } = opts.cursor
+    query = query.or(`created_at.lt.${createdAt},and(created_at.eq.${createdAt},id.lt.${id})`)
+  }
+
+  const { data, error, count } = await query
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(pageSize + 1)
+  if (error) {
+    getLogger().error('[listSignups]', { code: error.code })
+    Sentry.captureException(
+      new Error(`listSignups ${error.code}: ${redactMessage(error.message ?? '')}`),
+      { tags: { component: 'waitlist', action: 'listSignups' } },
+    )
+    throw error
+  }
+
+  const raw = (data ?? []) as Array<{
+    id: string
+    email: string
+    status: string
+    suppression_reason: string | null
+    source_surface: string | null
+    created_at: string
+  }>
+  const hasNext = raw.length > pageSize
+  const pageRaw = hasNext ? raw.slice(0, pageSize) : raw
+  const last = pageRaw[pageRaw.length - 1]
+
+  return {
+    rows: pageRaw.map((r) => ({
+      id: r.id,
+      email: r.email,
+      status: r.status === 'suppressed' ? 'suppressed' : 'pending',
+      suppressionReason: r.suppression_reason,
+      sourceSurface: r.source_surface,
+      createdAt: r.created_at,
+    })),
+    nextCursor: hasNext && last ? { createdAt: last.created_at, id: last.id } : null,
+    estimatedTotal: count ?? null,
+  }
+}
+
 export interface WaitlistDetailData {
   id: string
   slug: string

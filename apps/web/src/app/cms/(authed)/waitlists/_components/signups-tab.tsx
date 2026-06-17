@@ -1,27 +1,100 @@
-import type { WaitlistDetailData } from '../queries'
+import Link from 'next/link'
+import type { WaitlistDetailData, SignupsPage } from '../queries'
 
-/**
- * Signups tab. Task 17 ships the status summary; the full searchable, server-side
- * keyset-paginated list is added in Task 18 (which modifies this component).
- */
-export function SignupsTab({ detail }: { detail: WaitlistDetailData }) {
-  const total = detail.pending + detail.suppressed
+const SOURCE_LABELS: Record<string, string> = {
+  landing: 'Landing',
+  embed: 'Embed',
+  tiptap: 'In-article',
+}
+
+function fmtDate(iso: string): string {
+  return new Date(iso).toISOString().replace('T', ' ').slice(0, 16)
+}
+
+export interface SignupsTabProps {
+  detail: WaitlistDetailData
+  page: SignupsPage
+  filters: { status?: 'pending' | 'suppressed'; q?: string }
+}
+
+function hrefFor(id: string, params: Record<string, string | undefined>): string {
+  const sp = new URLSearchParams({ tab: 'signups' })
+  for (const [k, v] of Object.entries(params)) if (v) sp.set(k, v)
+  return `/cms/waitlists/${id}?${sp.toString()}`
+}
+
+export function SignupsTab({ detail, page, filters }: SignupsTabProps) {
+  const { status, q } = filters
+  const filterCls = (active: boolean) =>
+    `rounded-full px-3 py-1 ${active ? 'bg-cms-accent text-white' : 'text-cms-text-muted hover:bg-cms-surface'}`
+
   return (
-    <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface p-4">
-      <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-cms-text">
-        <span>
-          <span className="font-semibold">{total}</span> total
-        </span>
-        <span>
-          <span className="font-semibold">{detail.pending}</span> pending
-        </span>
-        <span>
-          <span className="font-semibold">{detail.suppressed}</span> suppressed
-        </span>
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <Link href={hrefFor(detail.id, { q })} className={filterCls(!status)}>All</Link>
+        <Link href={hrefFor(detail.id, { status: 'pending', q })} className={filterCls(status === 'pending')}>
+          Pending
+        </Link>
+        <Link href={hrefFor(detail.id, { status: 'suppressed', q })} className={filterCls(status === 'suppressed')}>
+          Suppressed
+        </Link>
+        <form method="get" className="ml-auto flex items-center gap-2">
+          <input type="hidden" name="tab" value="signups" />
+          {status && <input type="hidden" name="status" value={status} />}
+          <input
+            name="q"
+            defaultValue={q ?? ''}
+            placeholder="email prefix…"
+            aria-label="Filter signups by email prefix"
+            className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface px-3 py-1 text-sm text-cms-text outline-none focus:border-cms-accent"
+          />
+        </form>
       </div>
-      <p className="mt-3 text-xs text-cms-text-muted">
-        The full searchable, paginated signups list ships in the next step.
-      </p>
+
+      <div className="overflow-hidden rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-cms-border text-left text-xs uppercase tracking-wide text-cms-text-muted">
+              <th className="px-4 py-3 font-medium">Email</th>
+              <th className="px-4 py-3 font-medium">Status</th>
+              <th className="px-4 py-3 font-medium">Source</th>
+              <th className="px-4 py-3 font-medium">Joined</th>
+            </tr>
+          </thead>
+          <tbody>
+            {page.rows.length === 0 ? (
+              <tr>
+                <td colSpan={4} className="px-4 py-6 text-center text-sm text-cms-text-muted">
+                  No signups match these filters.
+                </td>
+              </tr>
+            ) : (
+              page.rows.map((r) => (
+                <tr key={r.id} className="border-b border-cms-border last:border-0">
+                  <td className="px-4 py-3 font-mono text-cms-text">{r.email}</td>
+                  <td className="px-4 py-3 text-cms-text">
+                    {r.status}
+                    {r.status === 'suppressed' && r.suppressionReason && (
+                      <span className="ml-1 text-xs text-cms-text-muted">· {r.suppressionReason}</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-cms-text-muted">{SOURCE_LABELS[r.sourceSurface ?? ''] ?? '—'}</td>
+                  <td className="px-4 py-3 text-cms-text-muted">{fmtDate(r.createdAt)}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {page.nextCursor && (
+        <Link
+          href={hrefFor(detail.id, { status, q, c: `${page.nextCursor.createdAt}|${page.nextCursor.id}` })}
+          className="self-end rounded-[var(--cms-radius)] border border-cms-border px-4 py-2 text-sm text-cms-text hover:bg-cms-surface"
+        >
+          Next →
+        </Link>
+      )}
     </div>
   )
 }
