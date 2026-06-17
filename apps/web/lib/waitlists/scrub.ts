@@ -5,6 +5,8 @@ const IP_RE = /\b\d{1,3}(?:\.\d{1,3}){3}\b/g
 const IPV6_RE = /\b(?:[0-9a-fA-F]{1,4}:){2,7}[0-9a-fA-F]{0,4}\b|::(?:[0-9a-fA-F]{1,4}:){0,6}[0-9a-fA-F]{1,4}\b|\b(?:[0-9a-fA-F]{1,4}:){1,7}:/g
 /** Redact emails, IPv6, and IPv4 addresses from a free-text string before logging/Sentry. */
 export function redactMessage(s: string): string {
+  // ORDER MATTERS: IPV6_RE must run before IP_RE so an IPv4-mapped IPv6 literal
+  // (::ffff:1.2.3.4) collapses to a single [ip] token. Do not reorder.
   return (s ?? '').replace(IPV6_RE, '[ip]').replace(EMAIL_RE, '[email]').replace(IP_RE, '[ip]')
 }
 

@@ -36,7 +36,9 @@ function toFormData(payload: WaitlistDraftPayload): FormData {
   fd.set('slug', payload.slug)
   fd.set('description', payload.description)
   fd.set('intro', payload.intro)
-  if (payload.campaignId) fd.set('campaign_id', payload.campaignId)
+  // Always send campaign_id (empty = none) so the server can distinguish "unlinked"
+  // from "unchanged" once campaign-clearing ships (Fase 1 only ever links).
+  fd.set('campaign_id', payload.campaignId ?? '')
   fd.set('sender_name', payload.senderName)
   fd.set('sender_email', payload.senderEmail)
   fd.set('reply_to', payload.replyTo)
@@ -128,10 +130,17 @@ export function WaitlistsConnected({
           initial={
             editing
               ? {
+                  // FULL hydration: updateWaitlist writes the whole scalar patch, so every
+                  // editable column must be seeded or it would be blanked on save.
                   id: editing.id,
                   name: editing.name,
                   slug: editing.slug,
+                  description: editing.description ?? '',
+                  intro: editing.intro ?? '',
                   campaignId: editing.campaignId,
+                  senderName: editing.senderName ?? '',
+                  senderEmail: editing.senderEmail ?? '',
+                  replyTo: editing.replyTo ?? '',
                 }
               : undefined
           }

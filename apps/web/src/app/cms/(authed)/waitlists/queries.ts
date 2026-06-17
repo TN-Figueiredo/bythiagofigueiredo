@@ -15,6 +15,15 @@ export interface WaitlistListRow {
   /** pending + suppressed (non-anonymized) */
   signups: number
   suppressed: number
+  // Editable scalars carried so the CMS edit drawer hydrates FULLY — updateWaitlist
+  // writes the whole scalar patch, so a partially-hydrated form would blank these
+  // columns on save (data loss). At Fase-1 scale (few waitlists/site) fetching them
+  // with the list is cheap; switch to a fetch-on-edit query if lists grow large.
+  description: string | null
+  intro: string | null
+  senderName: string | null
+  senderEmail: string | null
+  replyTo: string | null
 }
 
 export interface WaitlistListKpis {
@@ -50,7 +59,9 @@ export async function listWaitlistsForSite(siteId: string): Promise<WaitlistList
 
   const { data: wls, error } = await supabase
     .from('waitlists')
-    .select('id, slug, name, status, campaign_id, updated_at, campaigns(interest)')
+    .select(
+      'id, slug, name, status, campaign_id, updated_at, description, intro_mdx, sender_name, sender_email, reply_to, campaigns(interest)',
+    )
     .eq('site_id', siteId)
     .order('updated_at', { ascending: false })
   if (error) {
@@ -96,6 +107,11 @@ export async function listWaitlistsForSite(siteId: string): Promise<WaitlistList
       updatedAt: w.updated_at,
       signups: c.pending + c.suppressed,
       suppressed: c.suppressed,
+      description: w.description ?? null,
+      intro: w.intro_mdx ?? null,
+      senderName: w.sender_name ?? null,
+      senderEmail: w.sender_email ?? null,
+      replyTo: w.reply_to ?? null,
     }
   })
 

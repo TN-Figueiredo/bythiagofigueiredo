@@ -1,12 +1,6 @@
 import { WlBadge } from './wl-badge'
+import { relTimeShort } from '@/lib/cms/relative-time'
 import type { WaitlistListRow } from '../queries'
-
-function relTime(iso: string): string {
-  const diffH = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 3_600_000))
-  if (diffH < 1) return 'now'
-  if (diffH < 24) return `${diffH}h`
-  return `${Math.floor(diffH / 24)}d`
-}
 
 export function WaitlistsTable({
   rows,
@@ -56,7 +50,7 @@ export function WaitlistsTable({
               <td className="px-4 py-3 text-cms-text-muted">
                 {r.campaignTitle ?? <span className="text-cms-text-muted/60">—</span>}
               </td>
-              <td className="px-4 py-3 text-cms-text-muted">{relTime(r.updatedAt)}</td>
+              <td className="px-4 py-3 text-cms-text-muted">{relTimeShort(r.updatedAt)}</td>
             </tr>
           ))}
         </tbody>

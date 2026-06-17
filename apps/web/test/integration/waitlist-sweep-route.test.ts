@@ -203,14 +203,16 @@ describe('per-site error is soft — loop continues to next site', () => {
       }),
     }
 
-    // The route does: supabase.from('sites').select('id') — need to mock this chain
-    // to return { data: [{id: ...}, {id: ...}], error: null }
+    // The route does: supabase.from('sites').select('id').eq('cms_enabled', true) — mock
+    // the full chain so .eq() resolves to { data: [{id}, ...], error: null }.
     stubSupabase.from.mockImplementation((table: string) => {
       if (table === 'sites') {
         return {
-          select: vi.fn().mockResolvedValue({
-            data: siteIds.map((id) => ({ id })),
-            error: null,
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({
+              data: siteIds.map((id) => ({ id })),
+              error: null,
+            }),
           }),
         }
       }

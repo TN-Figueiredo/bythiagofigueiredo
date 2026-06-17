@@ -155,7 +155,9 @@ export function WaitlistSignupForm({ slug, locale, name, variant = 'landing', in
   }
 
   const loading = submitState === 'submitting'
-  const emailValid = email.includes('@')
+  // UI-only gate aligned with the server's z.string().email() intent so the user isn't
+  // allowed to submit 'a@' / '@b' and bounce. The server remains authoritative.
+  const emailValid = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())
   const submitDisabled = loading || !consent || !emailValid || (needsToken && !token)
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {

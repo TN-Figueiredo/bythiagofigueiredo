@@ -87,6 +87,8 @@ export function WaitlistEditDrawer({
   const isNew = mode === 'create'
   const dialogRef = useRef<HTMLDivElement>(null)
   const introRef = useRef<HTMLDivElement>(null)
+  const slugRef = useRef<HTMLInputElement>(null)
+  const senderEmailRef = useRef<HTMLInputElement>(null)
   // Sanitize the DB-sourced intro before it touches dangerouslySetInnerHTML so the
   // contentEditable never hydrates with un-sanitized stored HTML (WL-01). Read-back
   // is sanitized again on save below; any future render surface MUST also sanitize.
@@ -142,6 +144,13 @@ export function WaitlistEditDrawer({
       trigger?.focus?.()
     }
   }, [onClose])
+
+  // M3: on a server validation failure, move focus to the first erroring field so
+  // keyboard/SR users are taken straight to what to fix (the drawer stays open).
+  useEffect(() => {
+    if (fieldErrors?.slug) slugRef.current?.focus()
+    else if (fieldErrors?.sender_email) senderEmailRef.current?.focus()
+  }, [fieldErrors])
 
   const onName = (v: string) => {
     setName(v)
@@ -227,6 +236,7 @@ export function WaitlistEditDrawer({
           <label className="mt-3 block">
             <span className="text-sm text-cms-text">Slug</span>
             <input
+              ref={slugRef}
               data-testid="wl-slug"
               className={`${FIELD} font-mono${slugErr ? ' border-[var(--danger)]' : ''}`}
               value={slug}
@@ -307,6 +317,7 @@ export function WaitlistEditDrawer({
           <label className="mt-3 block">
             <span className="text-sm text-cms-text">Sender email</span>
             <input
+              ref={senderEmailRef}
               data-testid="wl-sender-email"
               className={`${FIELD} font-mono${senderErr ? ' border-[var(--danger)]' : ''}`}
               value={senderEmail}
