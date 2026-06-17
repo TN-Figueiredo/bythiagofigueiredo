@@ -207,7 +207,9 @@ export interface ListSignupsOpts {
 
 export interface SignupsPage {
   rows: SignupRow[]
-  /** Pass to the next call's `cursor`; null when there are no more rows. */
+  // Forward-only by design (Fase 1): a keyset cursor + estimated count gives O(1) "Next"
+  // without an offset scan; there is intentionally no Prev (back-history can be added
+  // client-side later if needed). null when there are no more rows.
   nextCursor: SignupsCursor | null
   /** Index-stats estimate (O(1)); exact COUNT on 100k rows is too costly per page. */
   estimatedTotal: number | null

@@ -110,7 +110,7 @@ export function ExportDialog({ slug, onExport, onClose, exporting = false, error
             disabled={exporting}
             className="rounded-[var(--cms-radius)] bg-cms-accent px-4 py-2 text-sm font-medium text-white hover:bg-cms-accent-hover disabled:opacity-60"
           >
-            Export CSV
+            {exporting ? 'Exporting…' : 'Export CSV'}
           </button>
         </div>
       </div>

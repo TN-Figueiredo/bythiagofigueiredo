@@ -3,9 +3,9 @@ import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getLogger } from '../../../../../lib/logger'
 import { redactMessage } from '../../../../../lib/waitlists/scrub'
+import { isPublicWaitlistStatus } from '../../../../../lib/waitlists/status'
 
 interface Ctx { params: Promise<{ slug: string }> }
-const PUBLIC_STATUSES = ['open', 'closed', 'launched'] as const
 
 export async function GET(_req: Request, ctx: Ctx): Promise<Response> {
   const { slug } = await ctx.params
@@ -33,7 +33,7 @@ export async function GET(_req: Request, ctx: Ctx): Promise<Response> {
     )
     return Response.json({ error: 'not_found' }, { status: 404 })
   }
-  if (!data || !PUBLIC_STATUSES.includes(data.status as (typeof PUBLIC_STATUSES)[number])) {
+  if (!data || !isPublicWaitlistStatus(data.status)) {
     return Response.json({ error: 'not_found' }, { status: 404 })
   }
   return Response.json({ status: data.status, name: data.name, description: data.description })

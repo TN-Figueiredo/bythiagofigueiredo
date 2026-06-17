@@ -4,6 +4,7 @@ import { getSiteContext } from '@/lib/cms/site-context'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getLogger } from '../../../../../lib/logger'
 import { redactMessage } from '../../../../../lib/waitlists/scrub'
+import { isPublicWaitlistStatus } from '../../../../../lib/waitlists/status'
 import { Paper, Tape } from '@/components/pinboard'
 import { WaitlistSignupForm } from '@/components/waitlists/waitlist-signup-form'
 import type { WaitlistLocale } from '@/components/waitlists/form-strings'
@@ -12,9 +13,6 @@ import type { WaitlistLocale } from '@/components/waitlists/form-strings'
 // known at build time, so static prerender is impossible and would break multi-site
 // routing. Force dynamic, matching the public status route (Task 7).
 export const dynamic = 'force-dynamic'
-
-const PUBLIC_STATUSES = ['open', 'closed', 'launched'] as const
-type PublicStatus = (typeof PUBLIC_STATUSES)[number]
 
 const EYEBROW: Record<WaitlistLocale, string> = {
   'pt-BR': 'lista de espera',
@@ -60,11 +58,11 @@ export default async function WaitlistLandingPage({ params }: Props) {
     )
     notFound()
   }
-  if (!data || !PUBLIC_STATUSES.includes(data.status as PublicStatus)) {
+  if (!data || !isPublicWaitlistStatus(data.status)) {
     notFound()
   }
 
-  const status = data.status as PublicStatus
+  const status = data.status
   const translations = (data.waitlist_translations ?? []) as WaitlistTranslation[]
   const tx = translations.find((t) => t.locale === locale) ?? translations[0] ?? null
 

@@ -23,6 +23,7 @@ export type WaitlistActionResult =
   | { ok: false; error: 'validation_failed'; fields: Record<string, string> }
   | { ok: false; error: 'slug_taken' }
   | { ok: false; error: 'forbidden'; message?: string }
+  | { ok: false; error: 'not_found' }
   | { ok: false; error: 'db_error'; message: string }
 
 const PG_UNIQUE_VIOLATION = '23505'
@@ -215,7 +216,9 @@ export async function createWaitlist(form: FormData): Promise<WaitlistActionResu
         })
         Sentry.captureException(
           new Error(`createWaitlist rollback ${rollbackErr.code}: ${redactMessage(rollbackErr.message ?? '')}`),
-          { tags: { component: 'waitlist', action: 'createWaitlist' } },
+          // warning level + distinct message so the orphaned-row window is filterable until
+          // the WL-09 atomic RPC lands (the translation error is the user-facing db_error).
+          { tags: { component: 'waitlist', action: 'createWaitlist' }, level: 'warning' },
         )
       }
       throw tErr
@@ -264,7 +267,7 @@ export async function updateWaitlist(id: string, form: FormData): Promise<Waitli
       if (error.code === PG_UNIQUE_VIOLATION) return { ok: false, error: 'slug_taken' }
       throw error
     }
-    if (!data) return { ok: false, error: 'forbidden', message: 'not_found_or_cross_site' }
+    if (!data) return { ok: false, error: 'not_found' } // cross-site/missing id (IDOR-closed), matches export
     return { ok: true, waitlistId: requireRowId(data) }
   } catch (e) {
     getLogger().error('[updateWaitlist]', { code: errCode(e) })

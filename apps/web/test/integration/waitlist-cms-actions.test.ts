@@ -134,10 +134,10 @@ describe.skipIf(skipIfNoLocalDb())('waitlist CMS actions (create/update)', () =>
     _mockSiteId = siteA
     const res = await updateWaitlist(wlB!.id, fd({ slug: 'hijack', name: 'Hijacked' }))
     // Assert unconditionally: a regression that drops the .eq('site_id', siteId)
-    // guard would return ok:true (or a non-forbidden error) and must FAIL here,
-    // not slip through an if(!res.ok) guard that simply never runs.
+    // guard would return ok:true and must FAIL here, not slip through an if(!res.ok)
+    // guard that never runs. Cross-site/missing id → 'not_found' (matches the export path).
     expect(res.ok).toBe(false)
-    expect(res.ok ? undefined : res.error).toBe('forbidden')
+    expect(res.ok ? undefined : res.error).toBe('not_found')
 
     // Row B is untouched.
     const { data: after } = await db.from('waitlists').select('name').eq('id', wlB!.id).single()

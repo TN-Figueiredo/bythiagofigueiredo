@@ -62,7 +62,7 @@ export function SignupsTab({ detail, page, filters }: SignupsTabProps) {
       </div>
 
       <div className="overflow-hidden rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm" aria-label="Signups for this waitlist">
           <thead>
             <tr className="border-b border-cms-border text-left text-xs uppercase tracking-wide text-cms-text-muted">
               <th scope="col" className="px-4 py-3 font-medium">Email</th>
