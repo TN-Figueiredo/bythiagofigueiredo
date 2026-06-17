@@ -144,3 +144,83 @@ export async function listWaitlistsForSite(siteId: string): Promise<WaitlistList
 
   return { rows, kpis }
 }
+
+export interface WaitlistDetailData {
+  id: string
+  slug: string
+  name: string
+  status: WaitlistStatus
+  description: string | null
+  intro: string | null
+  campaignId: string | null
+  senderName: string | null
+  senderEmail: string | null
+  replyTo: string | null
+  /** Signups grouped by source surface (non-anonymized). Fase 1 only ever writes `landing`. */
+  sourceCounts: { landing: number; embed: number; tiptap: number }
+  pending: number
+  suppressed: number
+}
+
+/**
+ * Load a single waitlist for the CMS detail page, IDOR-guarded: the row is resolved with
+ * BOTH `.eq('id', id)` AND `.eq('site_id', siteId)`, so a cross-site id matches nothing and
+ * returns null (the caller 404s) — never another ring's data. Signup tallies are O(1)
+ * head-count queries (no row transfer). Returns null when the waitlist is not owned/found.
+ */
+export async function loadWaitlistDetail(siteId: string, id: string): Promise<WaitlistDetailData | null> {
+  const supabase = getSupabaseServiceClient()
+
+  const { data: wl, error } = await supabase
+    .from('waitlists')
+    .select('id, slug, name, status, description, intro_mdx, campaign_id, sender_name, sender_email, reply_to')
+    .eq('id', id)
+    .eq('site_id', siteId)
+    .maybeSingle()
+  if (error) {
+    getLogger().error('[loadWaitlistDetail]', { code: error.code })
+    Sentry.captureException(
+      new Error(`loadWaitlistDetail ${error.code}: ${redactMessage(error.message ?? '')}`),
+      { tags: { component: 'waitlist', action: 'loadWaitlistDetail' } },
+    )
+    throw error
+  }
+  if (!wl) return null
+
+  const countFor = (col: 'source_surface' | 'status', val: string) =>
+    supabase
+      .from('waitlist_signups')
+      .select('id', { count: 'exact', head: true })
+      .eq('waitlist_id', id)
+      .eq('site_id', siteId)
+      .eq(col, val)
+      .is('anonymized_at', null)
+
+  const [landing, embed, tiptap, pending, suppressed] = await Promise.all([
+    countFor('source_surface', 'landing'),
+    countFor('source_surface', 'embed'),
+    countFor('source_surface', 'tiptap'),
+    countFor('status', 'pending'),
+    countFor('status', 'suppressed'),
+  ])
+
+  return {
+    id: wl.id,
+    slug: wl.slug,
+    name: wl.name,
+    status: isWaitlistStatus(wl.status) ? wl.status : 'draft',
+    description: wl.description ?? null,
+    intro: wl.intro_mdx ?? null,
+    campaignId: wl.campaign_id,
+    senderName: wl.sender_name ?? null,
+    senderEmail: wl.sender_email ?? null,
+    replyTo: wl.reply_to ?? null,
+    sourceCounts: {
+      landing: landing.count ?? 0,
+      embed: embed.count ?? 0,
+      tiptap: tiptap.count ?? 0,
+    },
+    pending: pending.count ?? 0,
+    suppressed: suppressed.count ?? 0,
+  }
+}
