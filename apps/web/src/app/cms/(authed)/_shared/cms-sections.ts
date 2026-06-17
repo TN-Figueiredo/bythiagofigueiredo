@@ -10,6 +10,7 @@ import {
   UserPen, UsersRound, MessageSquare,
   TrendingUp, Kanban, Bell,
   FlaskConical, Eye, Settings,
+  Gift,
 } from 'lucide-react'
 
 const ICON_SIZE = 16
@@ -35,6 +36,7 @@ export function buildCmsSections(): SidebarSection[] {
         { icon: icon(GraduationCap), label: 'Courses', href: '/cms/courses', minRole: 'editor' },
         { icon: icon(Mail), label: 'Newsletters', href: '/cms/newsletters', minRole: 'editor' },
         { icon: icon(Megaphone), label: 'Campaigns', href: '/cms/campaigns', minRole: 'editor' },
+        { icon: icon(Gift), label: 'Waitlists', href: '/cms/waitlists', minRole: 'editor' },
         { icon: icon(ListMusic), label: 'Playlists', href: '/cms/playlists', minRole: 'editor' },
       ],
     },
