@@ -40,7 +40,7 @@ describe('<SignupsTab>', () => {
     expect(screen.getByText('bounce')).toBeTruthy() // suppression reason in its own column
 
     // Active filter is marked for AT; "All" preserves the q filter but drops status.
-    expect(screen.getByRole('link', { name: 'Pending' })).toHaveAttribute('aria-current', 'true')
+    expect(screen.getByRole('link', { name: 'Pending' })).toHaveAttribute('aria-current', 'page')
     const all = screen.getByRole('link', { name: 'All' })
     expect(all.getAttribute('href')).toContain('q=foo')
     expect(all.getAttribute('href')).not.toContain('status=')

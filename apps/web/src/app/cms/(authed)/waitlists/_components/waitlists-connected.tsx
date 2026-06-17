@@ -70,27 +70,39 @@ export function WaitlistsConnected({
   async function handleSubmit(payload: WaitlistDraftPayload) {
     setSubmitting(true)
     setFieldErrors(undefined)
-    const res = payload.id ? await updateAction(payload.id, toFormData(payload)) : await createAction(toFormData(payload))
-    setSubmitting(false)
-    if (res.ok) {
-      closeDrawer()
-      router.refresh()
-      return
+    try {
+      const res = payload.id ? await updateAction(payload.id, toFormData(payload)) : await createAction(toFormData(payload))
+      if (res.ok) {
+        closeDrawer()
+        router.refresh()
+        return
+      }
+      if (res.error === 'validation_failed') setFieldErrors(res.fields)
+      else if (res.error === 'slug_taken') setFieldErrors({ slug: 'This slug is already taken on this site.' })
+      else setFieldErrors({ slug: 'Could not save — please try again.' })
+    } catch {
+      // An unexpected throw (network/getSiteContext) would otherwise strand the disabled
+      // Save button — surface a retry and re-enable.
+      setFieldErrors({ slug: 'Could not save — please try again.' })
+    } finally {
+      setSubmitting(false)
     }
-    if (res.error === 'validation_failed') setFieldErrors(res.fields)
-    else if (res.error === 'slug_taken') setFieldErrors({ slug: 'This slug is already taken on this site.' })
-    else setFieldErrors({ slug: 'Could not save — please try again.' })
   }
 
   function handleTransition(id: string, from: WaitlistStatus, to: WaitlistStatus) {
     startTransition(async () => {
-      const res = await transitionAction(id, from, to)
-      if (res.ok) {
-        closeDrawer()
-        router.refresh()
+      try {
+        const res = await transitionAction(id, from, to)
+        if (res.ok) {
+          closeDrawer()
+          router.refresh()
+        }
+        // On a gated/conflict result we leave the drawer open; the strip re-renders
+        // off the unchanged row when router.refresh re-fetches. (Toast UX: Fase 2.)
+      } catch {
+        // Swallow an unexpected throw — useTransition clears `pending` regardless, so the
+        // strip re-enables; the drawer stays open for a retry.
       }
-      // On a gated/conflict result we leave the drawer open; the strip re-renders
-      // off the unchanged row when router.refresh re-fetches. (Toast UX: Fase 2.)
     })
   }
 

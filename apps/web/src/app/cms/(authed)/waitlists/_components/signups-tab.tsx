@@ -31,19 +31,19 @@ export function SignupsTab({ detail, page, filters }: SignupsTabProps) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <Link href={hrefFor(detail.id, { q })} aria-current={!status ? 'true' : undefined} className={filterCls(!status)}>
+        <Link href={hrefFor(detail.id, { q })} aria-current={!status ? 'page' : undefined} className={filterCls(!status)}>
           All
         </Link>
         <Link
           href={hrefFor(detail.id, { status: 'pending', q })}
-          aria-current={status === 'pending' ? 'true' : undefined}
+          aria-current={status === 'pending' ? 'page' : undefined}
           className={filterCls(status === 'pending')}
         >
           Pending
         </Link>
         <Link
           href={hrefFor(detail.id, { status: 'suppressed', q })}
-          aria-current={status === 'suppressed' ? 'true' : undefined}
+          aria-current={status === 'suppressed' ? 'page' : undefined}
           className={filterCls(status === 'suppressed')}
         >
           Suppressed

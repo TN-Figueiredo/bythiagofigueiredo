@@ -220,10 +220,11 @@ export function WaitlistEditDrawer({
               value={name}
               onChange={(e) => onName(e.target.value)}
               aria-invalid={nameErr || fieldErrors?.name ? true : undefined}
+              aria-describedby={nameErr || fieldErrors?.name ? 'wl-name-error' : undefined}
               placeholder="e.g. Nômade Dev · Turma 1"
             />
             {(nameErr || fieldErrors?.name) && (
-              <span role="alert" className="mt-1 block text-xs text-[var(--cms-rose,#f43f5e)]">
+              <span id="wl-name-error" role="alert" className="mt-1 block text-xs text-[var(--cms-rose,#f43f5e)]">
                 {fieldErrors?.name ?? 'Name is required.'}
               </span>
             )}
@@ -241,10 +242,11 @@ export function WaitlistEditDrawer({
                 setSlugTouched(true)
               }}
               aria-invalid={slugErr ? true : undefined}
+              aria-describedby={slugErr ? 'wl-slug-error' : undefined}
               placeholder="nomade-dev-turma-1"
             />
             {slugErr ? (
-              <span role="alert" className="mt-1 block text-xs text-[var(--cms-rose,#f43f5e)]">{slugErr}</span>
+              <span id="wl-slug-error" role="alert" className="mt-1 block text-xs text-[var(--cms-rose,#f43f5e)]">{slugErr}</span>
             ) : (
               <span className="mt-1 block text-xs text-cms-text-muted">
                 Public URL: <span className="font-mono">/waitlists/{slug || 'slug'}</span> · auto-filled from name.
@@ -274,13 +276,14 @@ export function WaitlistEditDrawer({
               role="textbox"
               aria-multiline="true"
               aria-labelledby="wl-intro-label"
+              aria-describedby="wl-intro-instructions"
               suppressContentEditableWarning
               ref={introRef}
               className="min-h-16 px-3 py-3 text-sm leading-relaxed text-cms-text outline-none"
               dangerouslySetInnerHTML={{ __html: introInit.current }}
             />
           </div>
-          <span className="mt-1 block text-xs text-cms-text-muted">
+          <span id="wl-intro-instructions" className="mt-1 block text-xs text-cms-text-muted">
             Authored here, compiled + sanitized. Shown above the form on the public page.
           </span>
 
@@ -320,9 +323,10 @@ export function WaitlistEditDrawer({
               value={senderEmail}
               onChange={(e) => setSenderEmail(e.target.value)}
               aria-invalid={senderErr ? true : undefined}
+              aria-describedby={senderErr ? 'wl-sender-email-error' : undefined}
             />
             {senderErr ? (
-              <span role="alert" className="mt-1 block text-xs text-[var(--cms-rose,#f43f5e)]">{senderErr}</span>
+              <span id="wl-sender-email-error" role="alert" className="mt-1 block text-xs text-[var(--cms-rose,#f43f5e)]">{senderErr}</span>
             ) : (
               <span className="mt-1 block text-xs text-cms-text-muted">Validated against your verified domains at save.</span>
             )}

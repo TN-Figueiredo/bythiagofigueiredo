@@ -3,11 +3,12 @@ import { notFound } from 'next/navigation'
 import { ChevronLeft } from 'lucide-react'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { loadWaitlistDetail, listSignups, parseSignupsCursor, WAITLIST_SOURCE_LABELS } from '../queries'
-import { exportWaitlistSignups } from '../actions'
+import { exportWaitlistSignups, transitionWaitlistStatus } from '../actions'
 import { WlBadge } from '../_components/wl-badge'
 import { LaunchCta } from '../_components/launch-cta'
 import { SignupsTab } from '../_components/signups-tab'
 import { WaitlistExportButton } from '../_components/export-button'
+import { WaitlistDetailStatus } from '../_components/detail-status'
 
 export const dynamic = 'force-dynamic'
 
@@ -90,7 +91,13 @@ export default async function WaitlistDetailPage({ params, searchParams }: Props
       </nav>
 
       {activeTab === 'overview' ? (
-        <div className="grid gap-4 md:grid-cols-[1.4fr_1fr]">
+        <div className="flex flex-col gap-4">
+          <WaitlistDetailStatus
+            waitlistId={detail.id}
+            status={detail.status}
+            transitionAction={transitionWaitlistStatus}
+          />
+          <div className="grid gap-4 md:grid-cols-[1.4fr_1fr]">
           <div className="flex flex-col gap-4">
             <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface p-4">
               <h3 className="text-sm font-semibold text-cms-text">Signups by source</h3>
@@ -129,6 +136,7 @@ export default async function WaitlistDetailPage({ params, searchParams }: Props
           </div>
 
           <LaunchCta status={detail.status} pending={detail.pending} />
+          </div>
         </div>
       ) : (
         signupsPage && <SignupsTab detail={detail} page={signupsPage} filters={{ status: statusFilter, q: q || undefined }} />
