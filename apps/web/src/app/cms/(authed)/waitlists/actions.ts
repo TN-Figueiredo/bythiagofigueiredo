@@ -1,5 +1,6 @@
 'use server'
 
+import * as Sentry from '@sentry/nextjs'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
@@ -22,6 +23,28 @@ export type WaitlistActionResult =
   | { ok: false; error: 'db_error'; message: string }
 
 const PG_UNIQUE_VIOLATION = '23505'
+
+/** Narrowing guard for the `.select('id')` projection — strict TS, no `as` cast. */
+function requireRowId(data: unknown): string {
+  if (
+    typeof data === 'object' &&
+    data !== null &&
+    'id' in data &&
+    typeof (data as { id: unknown }).id === 'string'
+  ) {
+    return (data as { id: string }).id
+  }
+  throw new Error('expected a row with a string id')
+}
+
+/** Postgres SQLSTATE off an unknown caught error, without an `any` cast. */
+function errCode(e: unknown): string {
+  if (typeof e === 'object' && e !== null && 'code' in e) {
+    const c = (e as { code: unknown }).code
+    if (typeof c === 'string') return c
+  }
+  return 'unknown'
+}
 
 interface WaitlistFormInput {
   slug: string
@@ -130,19 +153,37 @@ export async function createWaitlist(form: FormData): Promise<WaitlistActionResu
       if (error.code === PG_UNIQUE_VIOLATION) return { ok: false, error: 'slug_taken' }
       throw error
     }
-    const waitlistId = (data as { id: string }).id
+    const waitlistId = requireRowId(data)
 
     // Seed the default-locale translations row so the public surface + editor
     // always have a row to read/patch (consent_label is NOT NULL, defaults '').
+    // The two writes are NOT in a single DB transaction (two PostgREST calls), so
+    // on translation failure we explicitly roll back the just-created waitlist row
+    // to avoid a half-created list (a waitlist with no default-locale translation).
+    // Rollback is site-scoped — never touches another ring's data.
+    // CROSS-FILE FOLLOW-UP (WL-09): the durable fix is a SECURITY DEFINER RPC
+    // `create_waitlist_with_translation(...)` (mirroring `waitlist_signup`) added via
+    // `npm run db:new`; until that migration exists, this compensating delete keeps
+    // the two writes coherent.
     const { error: tErr } = await supabase.from('waitlist_translations').insert({
       waitlist_id: waitlistId,
       locale: input.locale || ctx.defaultLocale,
       headline: input.name,
     })
-    if (tErr) throw tErr
+    if (tErr) {
+      await supabase.from('waitlists').delete().eq('id', waitlistId).eq('site_id', ctx.siteId)
+      throw tErr
+    }
 
     return { ok: true, waitlistId }
   } catch (e) {
+    // Never hand the RAW caught error to Sentry — a Postgres message can echo the
+    // submitted email/IP (M8). Wrap a redacted, code-tagged Error, matching the
+    // established pattern in queries.ts + signup/route.ts.
+    Sentry.captureException(
+      new Error(`createWaitlist ${errCode(e)}: ${redactMessage(e instanceof Error ? e.message : String(e))}`),
+      { tags: { component: 'waitlist', action: 'createWaitlist' } },
+    )
     return { ok: false, error: 'db_error', message: redactMessage(e instanceof Error ? e.message : String(e)) }
   }
 }
@@ -177,8 +218,12 @@ export async function updateWaitlist(id: string, form: FormData): Promise<Waitli
       throw error
     }
     if (!data) return { ok: false, error: 'forbidden', message: 'not_found_or_cross_site' }
-    return { ok: true, waitlistId: (data as { id: string }).id }
+    return { ok: true, waitlistId: requireRowId(data) }
   } catch (e) {
+    Sentry.captureException(
+      new Error(`updateWaitlist ${errCode(e)}: ${redactMessage(e instanceof Error ? e.message : String(e))}`),
+      { tags: { component: 'waitlist', action: 'updateWaitlist' } },
+    )
     return { ok: false, error: 'db_error', message: redactMessage(e instanceof Error ? e.message : String(e)) }
   }
 }

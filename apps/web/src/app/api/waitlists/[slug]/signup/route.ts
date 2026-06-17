@@ -6,10 +6,15 @@ import { getLogger } from '../../../../../../lib/logger'
 import { redactMessage } from '../../../../../../lib/waitlists/scrub'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { WAITLIST_CONSENT_VERSION } from '../../consent'
+import { FORM_STRINGS, type WaitlistLocale } from '@/components/waitlists/form-strings'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+// WL-R8: whitelist locales to the supported set (source of truth: FORM_STRINGS) so an
+// attacker can't probe consent_texts with an arbitrary `locale` string. Unknown locale
+// fails the Body.parse below → existing invalid_body 400.
+const WAITLIST_LOCALES = Object.keys(FORM_STRINGS) as [WaitlistLocale, ...WaitlistLocale[]]
 const Body = z.object({
-  locale: z.string().min(2).max(10),
+  locale: z.enum(WAITLIST_LOCALES),
   email: z.string().email().max(320),
   consent_launch_notification: z.literal(true),
   turnstile_token: z.string().min(1),
@@ -34,12 +39,19 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
 
   const supabase = getSupabaseServiceClient()
   const rate = await supabase.rpc('waitlist_rate_check', { p_site_id: siteId, p_ip: ip, p_email: body.email })
-  if (rate.error) { getLogger().error('[waitlist_rate_check]', { code: rate.error.code }); return Response.json({ error: 'unavailable' }, { status: 503 }) }
+  if (rate.error) {
+    getLogger().error('[waitlist_rate_check]', { code: rate.error.code })
+    Sentry.captureException(new Error(`waitlist_rate_check ${rate.error.code}: ${redactMessage(rate.error.message ?? '')}`), { tags: { component: 'waitlist', rpc: 'rate_check' }, level: 'warning' })
+    return Response.json({ error: 'unavailable' }, { status: 503 })
+  }
   if (rate.data === false) return Response.json({ error: 'rate_limited' }, { status: 429 })
 
   if (hasTurnstileSecret) {
     const ok = await verifyTurnstileToken(body.turnstile_token, ip ?? undefined)
-    if (!ok) return Response.json({ error: 'turnstile_failed' }, { status: 400 })
+    if (!ok) {
+      getLogger().warn('[waitlist_turnstile_failed]', { slug })
+      return Response.json({ error: 'turnstile_failed' }, { status: 400 })
+    }
   }
 
   const [{ data: wlRow }, { data: ct }] = await Promise.all([
@@ -49,7 +61,12 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
       .eq('version', WAITLIST_CONSENT_VERSION).maybeSingle(),
   ])
   if (!wlRow) return Response.json({ error: 'not_found' }, { status: 404 })
-  if (!ct) return Response.json({ error: 'unavailable' }, { status: 503 })
+  if (!ct) {
+    getLogger().error('[waitlist_consent_lookup]', { locale: body.locale, version: WAITLIST_CONSENT_VERSION })
+    Sentry.captureException(new Error(`waitlist_consent_lookup missing consent_texts: ${redactMessage(`locale=${body.locale} version=${WAITLIST_CONSENT_VERSION}`)}`), { tags: { component: 'waitlist', rpc: 'consent_lookup' }, level: 'warning' })
+    return Response.json({ error: 'unavailable' }, { status: 503 })
+  }
+  // WL-13 follow-up: parity test (FORM_STRINGS[locale].consentLabel ↔ consent_texts.text_md) + DB-gated audit snapshot assertion live in apps/web/test/* — not in this route file.
   const snapshot = ct.text_md.replaceAll('{name}', wlRow.name)
   const res = await supabase.rpc('waitlist_signup', {
     p_site_id: siteId, p_slug: slug, p_email: body.email, p_locale: body.locale,
@@ -61,7 +78,17 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
     Sentry.captureException(new Error(`waitlist_signup ${res.error.code}: ${redactMessage(res.error.message ?? '')}`), { tags: { component: 'waitlist' } })
     return Response.json({ error: 'insert_failed' }, { status: 500 })
   }
-  const out = res.data as { error?: string; status?: string; duplicate?: boolean }
+  // Validate the RPC result shape (project rule: zod for boundary data). A silent
+  // schema drift would otherwise mis-route the 404/409/success branches; fail to 500.
+  const parsed = z
+    .object({ error: z.string().optional(), status: z.string().optional(), duplicate: z.boolean().optional() })
+    .safeParse(res.data)
+  if (!parsed.success) {
+    getLogger().error('[waitlist_signup] unexpected RPC result shape', {})
+    Sentry.captureException(new Error('waitlist_signup: unexpected RPC result shape'), { tags: { component: 'waitlist' } })
+    return Response.json({ error: 'insert_failed' }, { status: 500 })
+  }
+  const out = parsed.data
   if (out.error === 'not_found') return Response.json({ error: 'not_found' }, { status: 404 })
   if (out.error === 'waitlist_not_open') return Response.json({ error: 'waitlist_not_open', status: out.status }, { status: 409 })
   return Response.json({ success: true, duplicate: out.duplicate === true })

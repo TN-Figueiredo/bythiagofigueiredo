@@ -1,4 +1,7 @@
+import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { getLogger } from '../../../../../lib/logger'
+import { redactMessage } from '../../../../../lib/waitlists/scrub'
 import type { WaitlistStatus } from './_components/wl-badge'
 
 export interface WaitlistListRow {
@@ -50,12 +53,26 @@ export async function listWaitlistsForSite(siteId: string): Promise<WaitlistList
     .select('id, slug, name, status, campaign_id, updated_at, campaigns(interest)')
     .eq('site_id', siteId)
     .order('updated_at', { ascending: false })
-  if (error) throw error
+  if (error) {
+    getLogger().error('[listWaitlistsForSite]', { code: error.code })
+    Sentry.captureException(
+      new Error(`listWaitlistsForSite ${error.code}: ${redactMessage(error.message ?? '')}`),
+      { tags: { component: 'waitlist' } },
+    )
+    throw error
+  }
 
   const { data: counts, error: cErr } = await supabase.rpc('waitlist_signup_counts', {
     p_site_id: siteId,
   })
-  if (cErr) throw cErr
+  if (cErr) {
+    getLogger().error('[listWaitlistsForSite:counts]', { code: cErr.code })
+    Sentry.captureException(
+      new Error(`listWaitlistsForSite ${cErr.code}: ${redactMessage(cErr.message ?? '')}`),
+      { tags: { component: 'waitlist' } },
+    )
+    throw cErr
+  }
 
   const countMap = new Map<string, { pending: number; suppressed: number }>()
   for (const c of (counts ?? []) as CountRow[]) {

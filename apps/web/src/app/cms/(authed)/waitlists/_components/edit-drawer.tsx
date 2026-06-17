@@ -2,7 +2,9 @@
 
 import { createPortal } from 'react-dom'
 import { useEffect, useRef, useState } from 'react'
+import DOMPurify from 'isomorphic-dompurify'
 import { slugify } from '@/lib/blog/slugify'
+import { FORM_STRINGS, type WaitlistLocale, type WaitlistStrings } from '@/components/waitlists/form-strings'
 
 /**
  * Payload the drawer hands back on save. The connected island (which owns the
@@ -30,6 +32,12 @@ export interface WaitlistCampaignOption {
 export interface WaitlistEditDrawerProps {
   mode: 'create' | 'edit'
   initial?: Partial<WaitlistDraftPayload>
+  /**
+   * Locale for the consent preview. The connected island passes the site's
+   * defaultLocale so the drawer preview matches what an en-default visitor sees.
+   * Defaults to 'en' (EN-first CMS chrome).
+   */
+  locale?: WaitlistLocale
   /** Campaigns available to link (passed by the connected island). */
   campaigns?: WaitlistCampaignOption[]
   /** Server-side field errors to surface inline (e.g. { slug, sender_email }). */
@@ -42,9 +50,31 @@ export interface WaitlistEditDrawerProps {
 const FIELD =
   'mt-1 w-full rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface px-3 py-2 text-sm text-cms-text outline-none focus:border-cms-accent'
 
+/**
+ * Renders the consent preview byte-identical to the public form's <ConsentText>
+ * (waitlist-signup-form.tsx) — same split-on-name + <strong> structure, sourced
+ * from the same FORM_STRINGS.consentLabel — so the drawer preview matches the exact
+ * text the visitor consents to and the LGPD audit snapshots (WL-02, M12).
+ */
+function ConsentPreview({ name, strings }: { name: string; strings: WaitlistStrings }) {
+  const full = strings.consentLabel(name)
+  const parts = full.split(name)
+  return (
+    <span>
+      {parts.map((part, i) => (
+        <span key={i}>
+          {part}
+          {i < parts.length - 1 && <strong>{name}</strong>}
+        </span>
+      ))}
+    </span>
+  )
+}
+
 export function WaitlistEditDrawer({
   mode,
   initial,
+  locale = 'en',
   campaigns = [],
   fieldErrors,
   submitting = false,
@@ -53,7 +83,16 @@ export function WaitlistEditDrawer({
 }: WaitlistEditDrawerProps) {
   const isNew = mode === 'create'
   const introRef = useRef<HTMLDivElement>(null)
-  const introInit = useRef(initial?.intro ?? '')
+  // Sanitize the DB-sourced intro before it touches dangerouslySetInnerHTML so the
+  // contentEditable never hydrates with un-sanitized stored HTML (WL-01). Read-back
+  // is sanitized again on save below; any future render surface MUST also sanitize.
+  const introInit = useRef(DOMPurify.sanitize(initial?.intro ?? ''))
+  // Restore focus to whatever triggered the drawer when it closes (WL-08). The full
+  // focus-trap is owned by the connected island (M2 work, WL-07); this covers restore.
+  const triggerRef = useRef<HTMLElement | null>(
+    typeof document !== 'undefined' ? (document.activeElement as HTMLElement | null) : null,
+  )
+  const consentStrings = FORM_STRINGS[locale] ?? FORM_STRINGS.en
 
   const [name, setName] = useState(initial?.name ?? '')
   const [slug, setSlug] = useState(initial?.slug ?? '')
@@ -70,7 +109,12 @@ export function WaitlistEditDrawer({
       if (e.key === 'Escape') onClose()
     }
     document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
+    const trigger = triggerRef.current
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      // Restore focus to the trigger after the drawer unmounts (a11y, WL-08).
+      trigger?.focus?.()
+    }
   }, [onClose])
 
   const onName = (v: string) => {
@@ -87,7 +131,10 @@ export function WaitlistEditDrawer({
     // Intro is an UNCONTROLLED contentEditable (read on save) — this avoids the
     // React removeChild crash that a controlled rich-text node triggers. Read
     // the live DOM, falling back to the initial value if the ref never mounted.
-    const intro = introRef.current ? introRef.current.innerHTML : introInit.current
+    // Sanitize the read-back HTML before it leaves the drawer so unsanitized markup
+    // is never persisted (WL-01); the compile/render boundary must sanitize too.
+    const rawIntro = introRef.current ? introRef.current.innerHTML : introInit.current
+    const intro = DOMPurify.sanitize(rawIntro)
     onSubmit({
       ...(initial?.id ? { id: initial.id } : {}),
       name: name.trim(),
@@ -181,11 +228,16 @@ export function WaitlistEditDrawer({
             />
           </label>
 
-          <div className="mb-2 mt-5 text-xs font-medium uppercase tracking-wide text-cms-text-muted">Intro · rich text</div>
+          <div id="wl-intro-label" className="mb-2 mt-5 text-xs font-medium uppercase tracking-wide text-cms-text-muted">
+            Intro · rich text
+          </div>
           <div className="overflow-hidden rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface">
             <div
               data-testid="wl-intro-editor"
               contentEditable
+              role="textbox"
+              aria-multiline="true"
+              aria-labelledby="wl-intro-label"
               suppressContentEditableWarning
               ref={introRef}
               className="min-h-16 px-3 py-3 text-sm leading-relaxed text-cms-text outline-none"
@@ -251,9 +303,7 @@ export function WaitlistEditDrawer({
           <div className="mb-2 mt-5 text-xs font-medium uppercase tracking-wide text-cms-text-muted">Consent the visitor sees</div>
           <div className="flex items-start gap-2 rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface px-3 py-2 text-sm text-cms-text">
             <span className="mt-0.5 h-4 w-4 shrink-0 rounded-sm border border-cms-border" />
-            <span>
-              Quero ser avisado(a) por email quando <b>{name || '{Produto}'}</b> for lançado. Posso cancelar quando quiser.
-            </span>
+            <ConsentPreview name={name || '{Product}'} strings={consentStrings} />
           </div>
           <span className="mt-2 block text-xs text-cms-text-muted">
             Email + this single consent checkbox are the only fields collected. No name, no phone, no price.

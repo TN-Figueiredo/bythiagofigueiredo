@@ -62,7 +62,7 @@ describe.skipIf(skipIfNoLocalDb())('waitlist CMS actions (create/update)', () =>
   it('(a) concurrent create of the same slug → exactly one ok + one slug_taken', async () => {
     const { siteId } = await seedSite(db, { domains: ['x.test'] })
     _mockSiteId = siteId
-    const slug = 'race-' + Math.floor(Date.now() % 100000)
+    const slug = 'race-' + Math.random().toString(36).slice(2, 6)
 
     const [a, b] = await Promise.allSettled([
       createWaitlist(fd({ slug, name: 'Race' })),
@@ -133,8 +133,11 @@ describe.skipIf(skipIfNoLocalDb())('waitlist CMS actions (create/update)', () =>
     // Caller scoped to site A tries to update site B's waitlist.
     _mockSiteId = siteA
     const res = await updateWaitlist(wlB!.id, fd({ slug: 'hijack', name: 'Hijacked' }))
+    // Assert unconditionally: a regression that drops the .eq('site_id', siteId)
+    // guard would return ok:true (or a non-forbidden error) and must FAIL here,
+    // not slip through an if(!res.ok) guard that simply never runs.
     expect(res.ok).toBe(false)
-    if (!res.ok) expect(res.error).toBe('forbidden')
+    expect(res.ok ? undefined : res.error).toBe('forbidden')
 
     // Row B is untouched.
     const { data: after } = await db.from('waitlists').select('name').eq('id', wlB!.id).single()

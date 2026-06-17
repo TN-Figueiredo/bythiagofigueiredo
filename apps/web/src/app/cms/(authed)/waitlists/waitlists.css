@@ -1,4 +1,13 @@
-/* Waitlists CMS module styles. Reuses the global --cms-* palette (from cms-ui) — no
+/* WL-R2 / M1 LOCKED: this .wl-* stylesheet must be DELETED — the real CMS is
+   Tailwind-utility-based with cms-* tokens, not a per-feature `.wl-*` sheet. This file
+   cannot be removed in isolation without breaking the build, so the deletion is gated on
+   two CROSS-FILE follow-ups that must land in the same change: (1) remove
+   `import './waitlists.css'` from ../page.tsx; (2) inline WlBadge in
+   _components/wl-badge.tsx using existing cms CSS vars (--ok / --warn / --c-pipeline /
+   --c-newsletter / --danger / --text-muted from pipeline/research/research.css), mapping
+   the six statuses to inline Tailwind — NOT these classes. Once both land, `rm` this file.
+
+   Waitlists CMS module styles. Reuses the global --cms-* palette (from cms-ui) — no
    new colors. Badge backgrounds are LITERAL rgba (matching the --cms-* base hex at .14
    alpha), NOT token-alpha via color-mix/relative-color: Opera renders those transparent
    and these surfaces are load-bearing chrome (see the project color-mix note). The dot

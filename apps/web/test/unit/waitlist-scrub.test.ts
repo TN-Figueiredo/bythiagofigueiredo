@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { redactMessage } from '../../lib/waitlists/scrub'
+import { redactMessage, scrub } from '../../lib/waitlists/scrub'
 
 describe('redactMessage', () => {
   it('redacts email and IPv4 from a mixed string', () => {
@@ -24,5 +24,16 @@ describe('redactMessage', () => {
     expect(result).not.toContain('203.0.113.5')
     // Must be exactly one [ip] token — no leftover digits that become a second one
     expect(result.match(/\[ip\]/g)?.length).toBe(1)
+  })
+})
+
+describe('scrub', () => {
+  it('drops email/ip/user_agent keys and keeps the rest', () => {
+    const out = scrub({ email: 'a@b.com', ip: '203.0.113.5', user_agent: 'curl/8', foo: 1, bar: 'keep' })
+    expect(out).toEqual({ foo: 1, bar: 'keep' })
+  })
+
+  it('is a no-op when none of the PII keys are present', () => {
+    expect(scrub({ foo: 1 })).toEqual({ foo: 1 })
   })
 })

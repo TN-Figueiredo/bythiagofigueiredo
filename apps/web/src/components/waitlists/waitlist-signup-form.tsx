@@ -1,7 +1,24 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { z } from 'zod'
 import { FORM_STRINGS, type WaitlistLocale } from './form-strings'
+
+// WL-R6: cross-boundary JSON (network → client) is untrusted; Zod-parse rather than
+// `as`-cast so a malformed payload degrades gracefully instead of poisoning state.
+const StatusResponse = z
+  .object({ status: z.string().optional(), name: z.string().optional() })
+  .passthrough()
+const SignupResponse = z
+  .object({ success: z.boolean().optional(), duplicate: z.boolean().optional() })
+  .passthrough()
+
+// EN-first accessible name for the email field (CMS/public chrome is EN-first). The
+// finding (WL-R6) asks for a real `emailLabel` distinct from the placeholder so the
+// accessible name reads "Email" rather than "you@email.com".
+// NOTE (cross-file follow-up): promote this into WaitlistStrings.emailLabel in
+// form-strings.ts (pt-BR + en) so the label localizes with the rest of the form.
+const EMAIL_LABEL = 'Email'
 
 type Variant = 'landing' | 'embed' | 'inline'
 type PublicStatus = 'open' | 'closed' | 'launched'
@@ -84,8 +101,13 @@ export function WaitlistSignupForm({ slug, locale, name, variant = 'landing', in
           setLifecycle('transient-error')
           return
         }
-        const data = (await res.json()) as { status?: string; name?: string }
+        const parsed = StatusResponse.safeParse(await res.json())
         if (cancelled) return
+        if (!parsed.success) {
+          setLifecycle('transient-error')
+          return
+        }
+        const data = parsed.data
         if (data.name) setResolvedName(data.name)
         if (data.status === 'open' || data.status === 'closed' || data.status === 'launched') {
           setLifecycle(data.status)
@@ -174,8 +196,13 @@ export function WaitlistSignupForm({ slug, locale, name, variant = 'landing', in
         resetTurnstile()
         return
       }
-      const data = (await res.json()) as { success?: boolean; duplicate?: boolean }
-      setSubmitState(data.duplicate ? 'duplicate' : 'success')
+      const parsed = SignupResponse.safeParse(await res.json())
+      if (!parsed.success) {
+        setSubmitState('error')
+        resetTurnstile()
+        return
+      }
+      setSubmitState(parsed.data.duplicate ? 'duplicate' : 'success')
     } catch {
       setSubmitState('error')
       resetTurnstile()
@@ -214,7 +241,7 @@ export function WaitlistSignupForm({ slug, locale, name, variant = 'landing', in
   // ---- lifecycle gates (the form never even opened) ----
   if (lifecycle === 'loading') {
     return (
-      <div aria-busy="true" className="flex items-center gap-2 p-6 text-sm text-pb-muted">
+      <div role="status" aria-live="polite" aria-busy="true" className="flex items-center gap-2 p-6 text-sm text-pb-muted">
         {Spinner}
         <span>{strings.buttonLoading}</span>
       </div>
@@ -222,7 +249,7 @@ export function WaitlistSignupForm({ slug, locale, name, variant = 'landing', in
   }
   if (lifecycle === 'unavailable') {
     return (
-      <p role="status" className="p-6 text-sm text-pb-muted">
+      <p role="status" aria-live="polite" className="p-6 text-sm text-pb-muted">
         {strings.unavailable}
       </p>
     )
@@ -243,14 +270,14 @@ export function WaitlistSignupForm({ slug, locale, name, variant = 'landing', in
   }
   if (lifecycle === 'closed') {
     return (
-      <p role="status" className="p-6 text-sm text-pb-muted">
+      <p role="status" aria-live="polite" className="p-6 text-sm text-pb-muted">
         {strings.closed}
       </p>
     )
   }
   if (lifecycle === 'launched') {
     return (
-      <p role="status" className="p-6 text-sm text-pb-ink">
+      <p role="status" aria-live="polite" className="p-6 text-sm text-pb-ink">
         {strings.launched}
       </p>
     )
@@ -299,7 +326,15 @@ export function WaitlistSignupForm({ slug, locale, name, variant = 'landing', in
   return (
     <form onSubmit={onSubmit} className="space-y-4 p-6" noValidate>
       <div>
+        {/* WCAG 3.3.2/1.3.1: a placeholder is not a label (it vanishes on input).
+            Real <label htmlFor> bound to the input id; visually hidden to preserve the
+            placeholder-only chrome from the design handoff. The accessible name is a
+            dedicated label ("Email"), not the placeholder text (WL-R6). */}
+        <label htmlFor="waitlist-email" className="sr-only">
+          {EMAIL_LABEL}
+        </label>
         <input
+          id="waitlist-email"
           type="email"
           name="email"
           required
@@ -307,7 +342,7 @@ export function WaitlistSignupForm({ slug, locale, name, variant = 'landing', in
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder={strings.emailPlaceholder}
-          aria-label={strings.emailPlaceholder}
+          aria-label={EMAIL_LABEL}
           aria-invalid={errMsg ? 'true' : 'false'}
           inputMode="email"
           autoComplete="email"
@@ -321,6 +356,7 @@ export function WaitlistSignupForm({ slug, locale, name, variant = 'landing', in
 
       <label className="flex items-start gap-2 text-sm text-pb-muted">
         <input
+          id="waitlist-consent"
           type="checkbox"
           name="consent_launch_notification"
           required

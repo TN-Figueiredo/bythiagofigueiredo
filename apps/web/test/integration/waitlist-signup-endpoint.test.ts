@@ -353,4 +353,157 @@ describe.skipIf(skipIfNoLocalDb())('POST /api/waitlists/[slug]/signup', () => {
       vi.unstubAllEnvs()
     }
   })
+
+  // ── WL-R5: untested 503/404/400 route mappings (stub-based) ──────────────────
+
+  // 404 no_site: x-site-id header absent/invalid → route returns before touching DB.
+  it('returns 404 no_site when x-site-id is missing', async () => {
+    vi.stubEnv('TURNSTILE_SECRET_KEY', 'test-secret')
+    try {
+      mockSiteId = null
+      const req = makeRequest(defaultBody())
+      const ctx = { params: Promise.resolve({ slug }) }
+      const res = await POST(req, ctx)
+      expect(res.status).toBe(404)
+      const json = await res.json() as { error: string }
+      expect(json.error).toBe('no_site')
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('returns 404 no_site when x-site-id is not a valid UUID', async () => {
+    vi.stubEnv('TURNSTILE_SECRET_KEY', 'test-secret')
+    try {
+      mockSiteId = 'not-a-uuid'
+      const req = makeRequest(defaultBody())
+      const ctx = { params: Promise.resolve({ slug }) }
+      const res = await POST(req, ctx)
+      expect(res.status).toBe(404)
+      const json = await res.json() as { error: string }
+      expect(json.error).toBe('no_site')
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  // 503 rate_check failure → asserts Sentry.captureException is called on the 503 path.
+  it('returns 503 unavailable and calls Sentry when waitlist_rate_check rpc errors', async () => {
+    vi.stubEnv('TURNSTILE_SECRET_KEY', 'test-secret')
+    try {
+      const stubSupabase = {
+        rpc: vi.fn().mockImplementation((name: string) => {
+          if (name === 'waitlist_rate_check') {
+            return Promise.resolve({ data: null, error: { code: 'XX002', message: 'rate check exploded for test@example.com from 203.0.113.9' } })
+          }
+          return Promise.resolve({ data: null, error: null })
+        }),
+        from: vi.fn().mockImplementation(() => ({
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+        })),
+      }
+      vi.mocked(getSupabaseServiceClient).mockReturnValue(stubSupabase as unknown as ReturnType<typeof getSupabaseServiceClient>)
+
+      const req = makeRequest(defaultBody({ email: 'test@example.com' }))
+      const ctx = { params: Promise.resolve({ slug }) }
+      const res = await POST(req, ctx)
+
+      expect(res.status).toBe(503)
+      const json = await res.json() as { error: string }
+      expect(json.error).toBe('unavailable')
+
+      // Sentry must be invoked on the 503 path, with PII redacted.
+      expect(vi.mocked(Sentry.captureException)).toHaveBeenCalledTimes(1)
+      const capturedError = vi.mocked(Sentry.captureException).mock.calls[0]?.[0] as Error
+      expect(capturedError).toBeInstanceOf(Error)
+      expect(capturedError.message).not.toContain('test@example.com')
+      expect(capturedError.message).not.toContain('203.0.113.9')
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  // 503 missing consent text → also a Sentry path (warning level).
+  it('returns 503 unavailable and calls Sentry when the consent_texts row is missing', async () => {
+    vi.stubEnv('TURNSTILE_SECRET_KEY', 'test-secret')
+    try {
+      const stubSupabase = {
+        rpc: vi.fn().mockImplementation((name: string) => {
+          if (name === 'waitlist_rate_check') return Promise.resolve({ data: true, error: null })
+          return Promise.resolve({ data: null, error: null })
+        }),
+        from: vi.fn().mockImplementation((table: string) => {
+          if (table === 'waitlists') {
+            return {
+              select: vi.fn().mockReturnThis(),
+              eq: vi.fn().mockReturnThis(),
+              maybeSingle: vi.fn().mockResolvedValue({ data: { name: 'Test Waitlist' }, error: null }),
+            }
+          }
+          // consent_texts (and any other table) → no row found
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+          }
+        }),
+      }
+      vi.mocked(getSupabaseServiceClient).mockReturnValue(stubSupabase as unknown as ReturnType<typeof getSupabaseServiceClient>)
+
+      const req = makeRequest(defaultBody({ email: `no-consent-${Date.now()}@example.com` }))
+      const ctx = { params: Promise.resolve({ slug }) }
+      const res = await POST(req, ctx)
+
+      expect(res.status).toBe(503)
+      const json = await res.json() as { error: string }
+      expect(json.error).toBe('unavailable')
+      expect(vi.mocked(Sentry.captureException)).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  // 404 not_found when the waitlist row does not exist for this site/slug.
+  it('returns 404 not_found when the waitlist row is absent', async () => {
+    vi.stubEnv('TURNSTILE_SECRET_KEY', 'test-secret')
+    try {
+      const stubSupabase = {
+        rpc: vi.fn().mockImplementation((name: string) => {
+          if (name === 'waitlist_rate_check') return Promise.resolve({ data: true, error: null })
+          return Promise.resolve({ data: null, error: null })
+        }),
+        from: vi.fn().mockImplementation((table: string) => {
+          if (table === 'consent_texts') {
+            return {
+              select: vi.fn().mockReturnThis(),
+              eq: vi.fn().mockReturnThis(),
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: { text_md: 'I consent to launch notification for {name}' },
+                error: null,
+              }),
+            }
+          }
+          // waitlists (and anything else) → no row
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+          }
+        }),
+      }
+      vi.mocked(getSupabaseServiceClient).mockReturnValue(stubSupabase as unknown as ReturnType<typeof getSupabaseServiceClient>)
+
+      const req = makeRequest(defaultBody({ email: `missing-wl-${Date.now()}@example.com` }))
+      const ctx = { params: Promise.resolve({ slug }) }
+      const res = await POST(req, ctx)
+
+      expect(res.status).toBe(404)
+      const json = await res.json() as { error: string }
+      expect(json.error).toBe('not_found')
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
 })
