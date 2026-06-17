@@ -15,11 +15,11 @@ export function WaitlistsTable({
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-cms-border text-left text-xs uppercase tracking-wide text-cms-text-muted">
-            <th className="px-4 py-3 font-medium">Name</th>
-            <th className="px-4 py-3 font-medium">Status</th>
-            <th className="px-4 py-3 font-medium">Signups</th>
-            <th className="px-4 py-3 font-medium">Linked campaign</th>
-            <th className="px-4 py-3 font-medium">Updated</th>
+            <th scope="col" className="px-4 py-3 font-medium">Name</th>
+            <th scope="col" className="px-4 py-3 font-medium">Status</th>
+            <th scope="col" className="px-4 py-3 font-medium">Signups</th>
+            <th scope="col" className="px-4 py-3 font-medium">Linked campaign</th>
+            <th scope="col" className="px-4 py-3 font-medium">Updated</th>
           </tr>
         </thead>
         <tbody>

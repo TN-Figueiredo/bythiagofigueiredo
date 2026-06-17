@@ -56,7 +56,10 @@ export function ExportDialog({ slug, onExport, onClose, exporting = false, error
             data-testid="export-status"
             className={FIELD}
             value={status}
-            onChange={(e) => setStatus(e.target.value as '' | 'pending' | 'suppressed')}
+            onChange={(e) => {
+              const v = e.target.value
+              setStatus(v === 'pending' || v === 'suppressed' ? v : '')
+            }}
           >
             <option value="">All</option>
             <option value="pending">Pending</option>

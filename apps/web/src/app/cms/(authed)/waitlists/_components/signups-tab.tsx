@@ -65,16 +65,17 @@ export function SignupsTab({ detail, page, filters }: SignupsTabProps) {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-cms-border text-left text-xs uppercase tracking-wide text-cms-text-muted">
-              <th className="px-4 py-3 font-medium">Email</th>
-              <th className="px-4 py-3 font-medium">Status</th>
-              <th className="px-4 py-3 font-medium">Source</th>
-              <th className="px-4 py-3 font-medium">Joined</th>
+              <th scope="col" className="px-4 py-3 font-medium">Email</th>
+              <th scope="col" className="px-4 py-3 font-medium">Status</th>
+              <th scope="col" className="px-4 py-3 font-medium">Suppression</th>
+              <th scope="col" className="px-4 py-3 font-medium">Source</th>
+              <th scope="col" className="px-4 py-3 font-medium">Joined</th>
             </tr>
           </thead>
           <tbody>
             {page.rows.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-4 py-6 text-center text-sm text-cms-text-muted">
+                <td colSpan={5} className="px-4 py-6 text-center text-sm text-cms-text-muted">
                   No signups match these filters.
                 </td>
               </tr>
@@ -82,12 +83,8 @@ export function SignupsTab({ detail, page, filters }: SignupsTabProps) {
               page.rows.map((r) => (
                 <tr key={r.id} className="border-b border-cms-border last:border-0">
                   <td className="px-4 py-3 font-mono text-cms-text">{r.email}</td>
-                  <td className="px-4 py-3 text-cms-text">
-                    {r.status}
-                    {r.status === 'suppressed' && r.suppressionReason && (
-                      <span className="ml-1 text-xs text-cms-text-muted">· {r.suppressionReason}</span>
-                    )}
-                  </td>
+                  <td className="px-4 py-3 text-cms-text">{r.status}</td>
+                  <td className="px-4 py-3 text-cms-text-muted">{r.suppressionReason ?? '—'}</td>
                   <td className="px-4 py-3 text-cms-text-muted">{sourceLabel(r.sourceSurface)}</td>
                   <td className="px-4 py-3 text-cms-text-muted">{fmtDate(r.createdAt)}</td>
                 </tr>

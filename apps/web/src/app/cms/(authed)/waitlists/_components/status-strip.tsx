@@ -8,8 +8,9 @@ import type { WaitlistStatus } from './wl-badge'
  * Renders only the legal Fase-1 transitions for the current status; clicking calls
  * `onTransition(to)`, which the connected island bridges to `transitionWaitlistStatus`.
  * Terminal states (`launching`/`launched`) render the same framed container with a
- * note instead of buttons (never a bare/absent element). Keep this button map in
- * sync with `LEGAL_TRANSITIONS` in actions.ts.
+ * note instead of buttons (never a bare/absent element). Keep this button map in sync
+ * with `LEGAL_TRANSITIONS` (canonical source: lib/waitlists/status.ts) — the
+ * waitlist-transitions unit test enforces STRIP targets ⊆ LEGAL_TRANSITIONS.
  */
 export interface StatusAction {
   to: WaitlistStatus

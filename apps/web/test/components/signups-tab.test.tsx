@@ -35,8 +35,9 @@ describe('<SignupsTab>', () => {
     render(<SignupsTab detail={detail} page={page} filters={{ status: 'pending', q: 'foo' }} />)
     expect(screen.getByText('a@x.com')).toBeTruthy()
     expect(screen.getByText('Landing page')).toBeTruthy() // landing → shared label
-    expect(screen.getByText('—')).toBeTruthy() // null source → em dash
-    expect(screen.getByText(/bounce/)).toBeTruthy() // suppression reason suffix
+    // em dash appears for null source AND null suppression-reason cells
+    expect(screen.getAllByText('—').length).toBeGreaterThan(0)
+    expect(screen.getByText('bounce')).toBeTruthy() // suppression reason in its own column
 
     // Active filter is marked for AT; "All" preserves the q filter but drops status.
     expect(screen.getByRole('link', { name: 'Pending' })).toHaveAttribute('aria-current', 'true')

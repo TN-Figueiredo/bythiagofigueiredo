@@ -104,7 +104,15 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
   // Validate the RPC result shape (project rule: zod for boundary data). A silent
   // schema drift would otherwise mis-route the 404/409/success branches; fail to 500.
   const parsed = z
-    .object({ error: z.string().optional(), status: z.string().optional(), duplicate: z.boolean().optional() })
+    .object({
+      // `error` drives the 404/409 routing, so enum it to the known set (drift → 500).
+      // `status` is the current waitlist status echoed on a 409 — left a string (any of
+      // the 6). .strict() rejects unexpected keys so an additive RPC change fails loudly.
+      error: z.enum(['not_found', 'waitlist_not_open']).optional(),
+      status: z.string().optional(),
+      duplicate: z.boolean().optional(),
+    })
+    .strict()
     .safeParse(res.data)
   if (!parsed.success) {
     getLogger().error('[waitlist_signup] unexpected RPC result shape', {})
