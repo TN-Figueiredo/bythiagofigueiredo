@@ -22,6 +22,16 @@ describe('parseSignupsCursor (keyset cursor validation — W1 injection guard)',
     expect(parseSignupsCursor(`${ISO}|not-a-uuid`)).toBeUndefined()
   })
 
+  it('requires a timezone on the timestamp (rejects a bare TZ-less ISO)', () => {
+    expect(parseSignupsCursor(`2026-06-10T12:00:00|${UUID}`)).toBeUndefined()
+    expect(parseSignupsCursor(`2026-06-10T12:00:00.000|${UUID}`)).toBeUndefined()
+    // …but accepts both Z and ±offset forms.
+    expect(parseSignupsCursor(`2026-06-10T12:00:00+00:00|${UUID}`)).toEqual({
+      createdAt: '2026-06-10T12:00:00+00:00',
+      id: UUID,
+    })
+  })
+
   it('rejects a PostgREST-filter injection attempt in either part', () => {
     expect(parseSignupsCursor(`${ISO}|${UUID}),or=(email.eq.x`)).toBeUndefined()
     expect(parseSignupsCursor(`2026-01-01T00:00:00.or(status.eq.pending)|${UUID}`)).toBeUndefined()

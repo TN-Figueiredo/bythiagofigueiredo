@@ -27,7 +27,7 @@ async function handle(req: Request): Promise<Response> {
         logCron({ job: JOB, status: 'error', site_id: s.id, err_code: r.error.code })
         Sentry.captureException(
           new Error(`waitlist_retention_sweep ${r.error.code}: ${redactMessage(r.error.message ?? '')}`),
-          { tags: { component: 'waitlist', cron: 'retention_sweep' } },
+          { tags: { component: 'waitlist', action: 'retention_sweep' } },
         )
       } else swept++
     }

@@ -54,7 +54,7 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
   const rate = await supabase.rpc('waitlist_rate_check', { p_site_id: siteId, p_ip: ip, p_email: body.email })
   if (rate.error) {
     getLogger().error('[waitlist_rate_check]', { code: rate.error.code })
-    Sentry.captureException(new Error(`waitlist_rate_check ${rate.error.code}: ${redactMessage(rate.error.message ?? '')}`), { tags: { component: 'waitlist', rpc: 'rate_check' }, level: 'warning' })
+    Sentry.captureException(new Error(`waitlist_rate_check ${rate.error.code}: ${redactMessage(rate.error.message ?? '')}`), { tags: { component: 'waitlist', action: 'rate_check' }, level: 'warning' })
     return Response.json({ error: 'unavailable' }, { status: 503 })
   }
   // Validate the rate-check result shape: a non-boolean (schema drift) must FAIL CLOSED
@@ -63,7 +63,7 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
   if (!rateOk.success) {
     getLogger().error('[waitlist_rate_check] non-boolean result', {})
     Sentry.captureException(new Error('waitlist_rate_check: unexpected result shape'), {
-      tags: { component: 'waitlist', rpc: 'rate_check' },
+      tags: { component: 'waitlist', action: 'rate_check' },
     })
     return Response.json({ error: 'unavailable' }, { status: 503 })
   }
@@ -86,7 +86,7 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
   if (!wlRow) return Response.json({ error: 'not_found' }, { status: 404 })
   if (!ct) {
     getLogger().error('[waitlist_consent_lookup]', { locale: body.locale, version: WAITLIST_CONSENT_VERSION })
-    Sentry.captureException(new Error(`waitlist_consent_lookup missing consent_texts: ${redactMessage(`locale=${body.locale} version=${WAITLIST_CONSENT_VERSION}`)}`), { tags: { component: 'waitlist', rpc: 'consent_lookup' }, level: 'warning' })
+    Sentry.captureException(new Error(`waitlist_consent_lookup missing consent_texts: ${redactMessage(`locale=${body.locale} version=${WAITLIST_CONSENT_VERSION}`)}`), { tags: { component: 'waitlist', action: 'consent_lookup' }, level: 'warning' })
     return Response.json({ error: 'unavailable' }, { status: 503 })
   }
   // WL-13 follow-up: parity test (FORM_STRINGS[locale].consentLabel ↔ consent_texts.text_md) + DB-gated audit snapshot assertion live in apps/web/test/* — not in this route file.

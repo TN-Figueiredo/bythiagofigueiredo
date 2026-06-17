@@ -11,7 +11,7 @@ import { escapeCsv } from '@/lib/cms/csv'
 // relative, same as the signup route.
 import { redactMessage } from '../../../../../lib/waitlists/scrub'
 import { getLogger } from '../../../../../lib/logger'
-import { isWaitlistStatus, type WaitlistStatus } from './_components/wl-badge'
+import { isWaitlistStatus, LEGAL_TRANSITIONS, type WaitlistStatus } from '../../../../../lib/waitlists/status'
 
 /**
  * Result shape for the waitlist create/update actions. Mirrors
@@ -51,6 +51,19 @@ function requireStatus(data: unknown): WaitlistStatus {
     return (data as { status: WaitlistStatus }).status
   }
   throw new Error('expected a row with a valid waitlist status')
+}
+
+/** Narrowing guard for the `.select('slug')` projection — strict TS, no `as` cast. */
+function requireSlug(data: unknown): string {
+  if (
+    typeof data === 'object' &&
+    data !== null &&
+    'slug' in data &&
+    typeof (data as { slug: unknown }).slug === 'string'
+  ) {
+    return (data as { slug: string }).slug
+  }
+  throw new Error('expected a row with a string slug')
 }
 
 /** Postgres SQLSTATE off an unknown caught error, without an `any` cast. */
@@ -272,20 +285,6 @@ export type WaitlistTransitionResult =
   | { ok: false; error: 'db_error'; message: string }
 
 /**
- * Fase-1 legal status graph. `launching`/`launched` are intentionally absent as
- * targets — the launch broadcast is owned exclusively by `launchWaitlist` (Fase 2),
- * and `launched` is terminal. Keep in sync with the status-strip's button map.
- */
-const LEGAL_TRANSITIONS: Record<WaitlistStatus, readonly WaitlistStatus[]> = {
-  draft: ['open'],
-  open: ['closed'],
-  closed: ['open'],
-  failed: ['closed'],
-  launching: [],
-  launched: [],
-}
-
-/**
  * Move a waitlist between statuses via compare-and-set. `from` is the status the
  * caller believes is current (the status-strip renders buttons off it); the CAS
  * `.eq('status', from)` returns 0 rows if someone changed it underneath us
@@ -375,7 +374,7 @@ export async function exportWaitlistSignups(
       .maybeSingle()
     if (wlErr) throw wlErr
     if (!wl) return { ok: false, error: 'not_found' }
-    const slug = (wl as { slug: string }).slug
+    const slug = requireSlug(wl)
 
     let q = supabase
       .from('waitlist_signups')

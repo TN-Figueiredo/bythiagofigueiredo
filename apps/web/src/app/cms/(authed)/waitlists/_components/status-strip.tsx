@@ -18,7 +18,9 @@ export interface StatusAction {
   tone: 'primary' | 'default' | 'recover'
 }
 
-const STRIP: Record<WaitlistStatus, StatusAction[]> = {
+// Exported so a unit test can assert every rendered transition target is a member of the
+// canonical LEGAL_TRANSITIONS graph (no drift between the buttons and the action's guard).
+export const STRIP: Record<WaitlistStatus, StatusAction[]> = {
   draft: [{ to: 'open', label: 'Open signups', hint: 'Start collecting signups on the public page.', tone: 'primary' }],
   open: [{ to: 'closed', label: 'Close signups', hint: 'Stop accepting new signups.', tone: 'default' }],
   closed: [{ to: 'open', label: 'Reopen signups', hint: 'Accept signups again.', tone: 'primary' }],

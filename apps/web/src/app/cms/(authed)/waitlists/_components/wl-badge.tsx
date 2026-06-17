@@ -6,7 +6,10 @@
 // load-bearing chrome (project color-mix note). The dot inherits the status color via
 // `bg-current`. The status union is exported here as the single source of truth for the
 // CMS module (drawer/transitions/detail import it).
-export type WaitlistStatus = 'draft' | 'open' | 'closed' | 'launching' | 'launched' | 'failed'
+// Status domain lives in the server-safe lib/waitlists/status module; re-exported here so
+// existing `from './wl-badge'` consumers keep working.
+import { type WaitlistStatus, isWaitlistStatus } from '../../../../../../lib/waitlists/status'
+export { type WaitlistStatus, isWaitlistStatus }
 
 // draft → muted, open → green, closed → amber, launching → cyan (pulsing),
 // launched → purple, failed → rose.
@@ -17,11 +20,6 @@ const WL_STATUS: Record<WaitlistStatus, { label: string; cls: string }> = {
   launching: { label: 'Launching', cls: 'text-[var(--cms-cyan,#06b6d4)] bg-[rgba(6,182,212,0.14)]' },
   launched: { label: 'Launched', cls: 'text-[var(--cms-purple,#a855f7)] bg-[rgba(168,85,247,0.14)]' },
   failed: { label: 'Failed', cls: 'text-[var(--cms-rose,#f43f5e)] bg-[rgba(244,63,94,0.14)]' },
-}
-
-/** Runtime guard for the status union — lets DB/PostgREST reads narrow without an `as` cast. */
-export function isWaitlistStatus(s: unknown): s is WaitlistStatus {
-  return typeof s === 'string' && Object.prototype.hasOwnProperty.call(WL_STATUS, s)
 }
 
 const BASE = 'inline-flex items-center gap-1.5 rounded-full font-semibold leading-none whitespace-nowrap'

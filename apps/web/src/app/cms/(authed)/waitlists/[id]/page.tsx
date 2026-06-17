@@ -3,9 +3,11 @@ import { notFound } from 'next/navigation'
 import { ChevronLeft } from 'lucide-react'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { loadWaitlistDetail, listSignups, parseSignupsCursor, WAITLIST_SOURCE_LABELS } from '../queries'
+import { exportWaitlistSignups } from '../actions'
 import { WlBadge } from '../_components/wl-badge'
 import { LaunchCta } from '../_components/launch-cta'
 import { SignupsTab } from '../_components/signups-tab'
+import { WaitlistExportButton } from '../_components/export-button'
 
 export const dynamic = 'force-dynamic'
 
@@ -69,14 +71,17 @@ export default async function WaitlistDetailPage({ params, searchParams }: Props
             /waitlists/{detail.slug} ↗
           </a>
         </div>
-        {/* Edit happens via the list drawer (M2). The dedicated detail-hosted edit + the
-            row→detail navigation are a small follow-up; link there for now. */}
-        <Link
-          href="/cms/waitlists"
-          className="rounded-[var(--cms-radius)] border border-cms-border px-4 py-2 text-sm text-cms-text hover:bg-cms-surface"
-        >
-          Edit
-        </Link>
+        <div className="flex items-center gap-2">
+          <WaitlistExportButton slug={detail.slug} waitlistId={detail.id} exportAction={exportWaitlistSignups} />
+          {/* Edit happens via the list drawer (M2). The dedicated detail-hosted edit + the
+              row→detail navigation are a small follow-up; link there for now. */}
+          <Link
+            href="/cms/waitlists"
+            className="rounded-[var(--cms-radius)] border border-cms-border px-4 py-2 text-sm text-cms-text hover:bg-cms-surface"
+          >
+            Edit
+          </Link>
+        </div>
       </div>
 
       <nav className="flex gap-4 border-b border-cms-border">

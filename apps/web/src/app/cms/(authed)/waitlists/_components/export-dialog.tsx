@@ -10,9 +10,11 @@ export interface ExportDialogProps {
   onExport: (opts: ExportSignupsOpts) => void
   onClose: () => void
   exporting?: boolean
+  /** Inline error from a failed export (dialog stays open). */
+  error?: string | null
 }
 
-export function ExportDialog({ slug, onExport, onClose, exporting = false }: ExportDialogProps) {
+export function ExportDialog({ slug, onExport, onClose, exporting = false, error = null }: ExportDialogProps) {
   const [status, setStatus] = useState<'' | 'pending' | 'suppressed'>('')
   const [excludeSuppressed, setExcludeSuppressed] = useState(true)
   const [from, setFrom] = useState('')
@@ -86,6 +88,12 @@ export function ExportDialog({ slug, onExport, onClose, exporting = false }: Exp
           />
           Exclude suppressed rows
         </label>
+
+        {error && (
+          <p role="alert" className="mt-3 text-sm text-[var(--danger,#f43f5e)]">
+            {error}
+          </p>
+        )}
 
         <div className="mt-5 flex justify-end gap-2">
           <button

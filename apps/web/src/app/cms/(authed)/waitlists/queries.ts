@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getLogger } from '../../../../../lib/logger'
 import { redactMessage } from '../../../../../lib/waitlists/scrub'
-import { isWaitlistStatus, type WaitlistStatus } from './_components/wl-badge'
+import { isWaitlistStatus, type WaitlistStatus } from '../../../../../lib/waitlists/status'
 
 export interface WaitlistListRow {
   id: string
@@ -175,7 +175,9 @@ export interface SignupsCursor {
 // injects arbitrary filter syntax. Same guard the playlists module uses.
 // End-anchored: a valid ISO timestamp ONLY (optional fractional seconds + Z/offset) — an
 // unanchored prefix match would let `2026-..T..:..:..<INJECTION>` through into the filter.
-const CURSOR_ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:?\d{2})?$/
+// Require the timezone (Z or ±offset) — Postgres timestamptz always serializes one, so a
+// TZ-less string isn't a real cursor value; tightening avoids accepting looser inputs.
+const CURSOR_ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:?\d{2})$/
 const CURSOR_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 function isValidCursor(c: SignupsCursor): boolean {

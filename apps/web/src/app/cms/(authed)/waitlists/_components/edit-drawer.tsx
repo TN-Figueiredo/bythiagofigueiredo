@@ -67,6 +67,7 @@ export function WaitlistEditDrawer({
   const isNew = mode === 'create'
   const dialogRef = useRef<HTMLDivElement>(null)
   const introRef = useRef<HTMLDivElement>(null)
+  const nameRef = useRef<HTMLInputElement>(null)
   const slugRef = useRef<HTMLInputElement>(null)
   const senderEmailRef = useRef<HTMLInputElement>(null)
   // Sanitize the DB-sourced intro before it touches dangerouslySetInnerHTML so the
@@ -136,7 +137,8 @@ export function WaitlistEditDrawer({
   // M3: on a server validation failure, move focus to the first erroring field so
   // keyboard/SR users are taken straight to what to fix (the drawer stays open).
   useEffect(() => {
-    if (fieldErrors?.slug) slugRef.current?.focus()
+    if (fieldErrors?.name) nameRef.current?.focus()
+    else if (fieldErrors?.slug) slugRef.current?.focus()
     else if (fieldErrors?.sender_email) senderEmailRef.current?.focus()
   }, [fieldErrors])
 
@@ -212,16 +214,17 @@ export function WaitlistEditDrawer({
           <label className="block">
             <span className="text-sm text-cms-text">Name</span>
             <input
+              ref={nameRef}
               data-testid="wl-name"
-              className={FIELD}
+              className={`${FIELD}${nameErr || fieldErrors?.name ? ' border-[var(--danger,#f43f5e)]' : ''}`}
               value={name}
               onChange={(e) => onName(e.target.value)}
-              aria-invalid={nameErr || undefined}
+              aria-invalid={nameErr || fieldErrors?.name ? true : undefined}
               placeholder="e.g. Nômade Dev · Turma 1"
             />
-            {nameErr && (
+            {(nameErr || fieldErrors?.name) && (
               <span role="alert" className="mt-1 block text-xs text-[var(--danger,#f43f5e)]">
-                Name is required.
+                {fieldErrors?.name ?? 'Name is required.'}
               </span>
             )}
           </label>
