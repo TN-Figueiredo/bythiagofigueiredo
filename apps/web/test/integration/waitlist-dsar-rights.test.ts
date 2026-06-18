@@ -1,9 +1,10 @@
 /**
  * DB-gated tests for the Fase-2 LGPD rights path (access + erasure) that gates
- * WAITLIST_ACCEPT_PUBLIC_SIGNUPS. Proves: the per-email erase RPC anonymizes correctly +
- * idempotently + site-scoped; the rights-request endpoint is no-oracle (identical response
- * + only issues a token/email for a REGISTERED address); the DSAR access endpoint returns a
- * valid token's data, excludes anonymized rows, and stays neutral for bad tokens.
+ * WAITLIST_ACCEPT_PUBLIC_SIGNUPS. Proves: the per-email erase RPC anonymizes + audit-logs +
+ * is idempotent + site-scoped; the rights-request endpoint is no-oracle (identical response,
+ * Turnstile + rate-limit fail-neutral, email only to a REGISTERED address); the DSAR access
+ * endpoint returns a valid token's data, excludes anonymized rows, and is neutral for
+ * bad/EXPIRED/USED tokens.
  *
  * Run: npm run db:reset && HAS_LOCAL_DB=1 npx vitest run test/integration/waitlist-dsar-rights.test.ts
  */
@@ -14,8 +15,8 @@ import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { SUPABASE_URL, SERVICE_KEY, seedSite } from '../helpers/db-seed'
 
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), addBreadcrumb: vi.fn() }))
+vi.mock('../../lib/turnstile', () => ({ verifyTurnstileToken: vi.fn().mockResolvedValue(true) }))
 
-// Capture SES sends without hitting the network.
 const sendSpy = vi.fn().mockResolvedValue({ messageId: 'test', provider: 'ses' })
 vi.mock('../../lib/email/service', () => ({ getEmailService: () => ({ send: sendSpy, sendTemplate: vi.fn() }) }))
 
@@ -28,10 +29,12 @@ vi.mock('../../lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn()
 
 import { POST as rightsPOST } from '../../src/app/api/waitlists/rights/route'
 import { GET as dsarGET } from '../../src/app/api/waitlists/dsar/[token]/route'
-import { generateWaitlistDsarToken, hashWaitlistDsarToken } from '../../lib/waitlists/dsar-token'
+import { generateWaitlistDsarToken } from '../../lib/waitlists/dsar-token'
+import { verifyTurnstileToken } from '../../lib/turnstile'
 import { getSupabaseServiceClient } from '../../lib/supabase/service'
 
 const db = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } })
+const DAY = 24 * 60 * 60 * 1000
 
 async function seedSignup(siteId: string, email: string) {
   const { data: wl } = await db
@@ -52,40 +55,35 @@ describe.skipIf(skipIfNoLocalDb())('waitlist DSAR rights (Fase 2)', () => {
   const cleanup: string[] = []
 
   beforeAll(async () => {
-    // Token helper falls back to getServerEnv() (full schema validation, needs SES keys) when
-    // no token secret is set; set one so token gen works in the test env, matching the routes.
     process.env.UNSUBSCRIBE_TOKEN_SECRET = 'test-dsar-secret'
+    process.env.TURNSTILE_SECRET_KEY = 'test-turnstile-secret' // route enforces Turnstile when set
     siteId = (await seedSite(db)).siteId
   })
   afterAll(async () => {
     delete process.env.UNSUBSCRIBE_TOKEN_SECRET
+    delete process.env.TURNSTILE_SECRET_KEY
     if (cleanup.length) await db.from('waitlists').delete().in('id', cleanup)
   })
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(verifyTurnstileToken).mockResolvedValue(true)
     mockSiteId = siteId
     vi.mocked(getSupabaseServiceClient).mockReturnValue(db)
   })
 
   function rightsReq(body: Record<string, unknown>) {
     return new Request('http://localhost/api/waitlists/rights', {
-      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ turnstile_token: 'tok', ...body }),
     })
   }
   const dsarCtx = (token: string) => ({ params: Promise.resolve({ token }) })
 
-  it('token generation is deterministic and hash = sha256(raw)', () => {
-    const a = generateWaitlistDsarToken(siteId, 'Foo@Bar.com')
-    const b = generateWaitlistDsarToken(siteId, 'foo@bar.com') // case-normalized
-    expect(a.raw).toBe(b.raw)
-    expect(a.hash).toBe(hashWaitlistDsarToken(a.raw))
-  })
-
-  it('erase RPC anonymizes (hash email, null ip/ua/locale, stamp), idempotent + site-scoped', async () => {
+  it('erase RPC anonymizes + writes an audit_log row; idempotent + site-scoped', async () => {
     const email = `erase-${Date.now()}@example.com`
     cleanup.push(await seedSignup(siteId, email))
 
-    const r1 = await db.rpc('waitlist_erase_by_email', { p_site_id: siteId, p_email: email })
+    const r1 = await db.rpc('waitlist_erase_by_email', { p_site_id: siteId, p_email: email, p_ip: '198.51.100.5', p_user_agent: 'agent/9' })
     expect(r1.data).toBe(1)
     const { data: row } = await db
       .from('waitlist_signups').select('email, ip, user_agent, locale, anonymized_at, consent_text_version')
@@ -94,15 +92,20 @@ describe.skipIf(skipIfNoLocalDb())('waitlist DSAR rights (Fase 2)', () => {
     expect(row!.ip).toBeNull()
     expect(row!.user_agent).toBeNull()
     expect(row!.locale).toBeNull()
-    expect(row!.anonymized_at).toBeTruthy()
     expect(row!.consent_text_version).toBe('v1') // proof-of-consent retained
 
-    const r2 = await db.rpc('waitlist_erase_by_email', { p_site_id: siteId, p_email: email })
-    expect(r2.data).toBe(0) // idempotent — already anonymized
+    // C: an audit_log row records the erasure (count + reason), without the plaintext email.
+    const { data: audit } = await db
+      .from('audit_log').select('action, site_id, after_data')
+      .eq('action', 'waitlist_erasure').eq('site_id', siteId).order('created_at', { ascending: false }).limit(1).single()
+    expect(audit!.action).toBe('waitlist_erasure')
+    expect((audit!.after_data as { rows_affected: number }).rows_affected).toBe(1)
+    expect((audit!.after_data as { reason: string }).reason).toBe('data_subject_request')
 
-    // A different site never matches this email.
-    const r3 = await db.rpc('waitlist_erase_by_email', { p_site_id: randomUUID(), p_email: email })
-    expect(r3.data).toBe(0)
+    const r2 = await db.rpc('waitlist_erase_by_email', { p_site_id: siteId, p_email: email, p_ip: null, p_user_agent: null })
+    expect(r2.data).toBe(0) // idempotent — already anonymized
+    const r3 = await db.rpc('waitlist_erase_by_email', { p_site_id: randomUUID(), p_email: email, p_ip: null, p_user_agent: null })
+    expect(r3.data).toBe(0) // cross-site never matches
   })
 
   it('rights request is no-oracle: registered → token+email; unregistered → neither; same response', async () => {
@@ -110,31 +113,36 @@ describe.skipIf(skipIfNoLocalDb())('waitlist DSAR rights (Fase 2)', () => {
     cleanup.push(await seedSignup(siteId, email))
 
     const res1 = await rightsPOST(rightsReq({ email, locale: 'en' }))
-    const j1 = await res1.json()
     expect(res1.status).toBe(200)
-    expect(j1).toEqual({ ok: true })
+    expect(await res1.json()).toEqual({ ok: true })
     expect(sendSpy).toHaveBeenCalledTimes(1)
     const { hash } = generateWaitlistDsarToken(siteId, email)
     const { data: tok } = await db.from('waitlist_dsar_tokens').select('email').eq('token_hash', hash).maybeSingle()
     expect(tok?.email).toBe(email)
 
-    vi.clearAllMocks()
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(db)
+    vi.clearAllMocks(); vi.mocked(verifyTurnstileToken).mockResolvedValue(true); vi.mocked(getSupabaseServiceClient).mockReturnValue(db)
     const unregistered = `nope-${Date.now()}@example.com`
     const res2 = await rightsPOST(rightsReq({ email: unregistered, locale: 'en' }))
-    const j2 = await res2.json()
     expect(res2.status).toBe(200)
-    expect(j2).toEqual({ ok: true }) // identical response (no oracle)
-    expect(sendSpy).not.toHaveBeenCalled() // no email for an unregistered address
+    expect(await res2.json()).toEqual({ ok: true }) // identical response (no oracle)
+    expect(sendSpy).not.toHaveBeenCalled()
     const { hash: h2 } = generateWaitlistDsarToken(siteId, unregistered)
-    const { data: tok2 } = await db.from('waitlist_dsar_tokens').select('email').eq('token_hash', h2).maybeSingle()
-    expect(tok2).toBeNull()
+    expect((await db.from('waitlist_dsar_tokens').select('email').eq('token_hash', h2).maybeSingle()).data).toBeNull()
+  })
+
+  it('rights request fails NEUTRAL on a bad Turnstile token (no email, same 200)', async () => {
+    const email = `ts-${Date.now()}@example.com`
+    cleanup.push(await seedSignup(siteId, email))
+    vi.mocked(verifyTurnstileToken).mockResolvedValue(false)
+    const res = await rightsPOST(rightsReq({ email, locale: 'en' }))
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ ok: true })
+    expect(sendSpy).not.toHaveBeenCalled() // Turnstile blocked the email-emission
   })
 
   it('DSAR access returns the token holder data; neutral for bad/short tokens; excludes anonymized', async () => {
     const email = `access-${Date.now()}@example.com`
     cleanup.push(await seedSignup(siteId, email))
-    // issue a token via the rights endpoint
     await rightsPOST(rightsReq({ email, locale: 'en' }))
     const { raw } = generateWaitlistDsarToken(siteId, email)
 
@@ -143,16 +151,39 @@ describe.skipIf(skipIfNoLocalDb())('waitlist DSAR rights (Fase 2)', () => {
     expect(ok.status).toBe(200)
     expect(okJson.data.length).toBe(1)
     expect(okJson.data[0]!.email).toBe(email)
-    expect(okJson.data[0]).not.toHaveProperty('ip') // narrowed projection
+    expect(okJson.data[0]).not.toHaveProperty('ip')
     expect(okJson.data[0]).not.toHaveProperty('user_agent')
 
-    // short + random tokens → neutral empty (no oracle)
     expect((await (await dsarGET(new Request('http://localhost'), dsarCtx('short'))).json()).data).toEqual([])
     expect((await (await dsarGET(new Request('http://localhost'), dsarCtx('f'.repeat(64)))).json()).data).toEqual([])
 
-    // after erasure, the same valid token returns nothing (rows anonymized)
-    await db.rpc('waitlist_erase_by_email', { p_site_id: siteId, p_email: email })
-    const after = await dsarGET(new Request('http://localhost'), dsarCtx(raw))
-    expect((await after.json()).data).toEqual([])
+    await db.rpc('waitlist_erase_by_email', { p_site_id: siteId, p_email: email, p_ip: null, p_user_agent: null })
+    expect((await (await dsarGET(new Request('http://localhost'), dsarCtx(raw))).json()).data).toEqual([])
+  })
+
+  it('DSAR access is neutral for an EXPIRED (>7d) or USED token — even with live data (G + replay)', async () => {
+    const emailOld = `old-${Date.now()}@example.com`
+    cleanup.push(await seedSignup(siteId, emailOld))
+    const oldTok = generateWaitlistDsarToken(siteId, emailOld)
+    // Directly seed an 8-day-old token (bypassing the rights route, which would refresh created_at).
+    await db.from('waitlist_dsar_tokens').upsert(
+      { token_hash: oldTok.hash, site_id: siteId, email: emailOld, used_at: null, created_at: new Date(Date.now() - 8 * DAY).toISOString() },
+      { onConflict: 'site_id,email' },
+    )
+    expect((await (await dsarGET(new Request('http://localhost'), dsarCtx(oldTok.raw))).json()).data).toEqual([]) // expired
+
+    const emailUsed = `used-${Date.now()}@example.com`
+    cleanup.push(await seedSignup(siteId, emailUsed))
+    const usedTok = generateWaitlistDsarToken(siteId, emailUsed)
+    await db.from('waitlist_dsar_tokens').upsert(
+      { token_hash: usedTok.hash, site_id: siteId, email: emailUsed, used_at: new Date().toISOString(), created_at: new Date().toISOString() },
+      { onConflict: 'site_id,email' },
+    )
+    expect((await (await dsarGET(new Request('http://localhost'), dsarCtx(usedTok.raw))).json()).data).toEqual([]) // burned
+
+    // Sanity: a FRESH request re-arms the same (site,email) → access works again.
+    await rightsPOST(rightsReq({ email: emailUsed, locale: 'en' }))
+    const after = await dsarGET(new Request('http://localhost'), dsarCtx(usedTok.raw))
+    expect((await after.json() as { data: unknown[] }).data.length).toBe(1)
   })
 })

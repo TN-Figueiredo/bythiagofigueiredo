@@ -32,16 +32,28 @@ The public signup route fails closed to **HTTP 503 `unavailable`** in prod/previ
   **400 `invalid_body`** (route ran past the secret gate), NOT **503**.
 - If signups ever 503 in prod, confirm the widget's hostname allowlist covers the live domain.
 
-## 3. WAF rate-limit rule (non-blocking, recommended)
+## 3. WAF rate-limit + remaining dashboard items (Fase-2 hardening)
 
-The in-app `waitlist_rate_check` RPC is **per-site** (per IP+email within a site). Add an
-edge/account-wide line of defense in Vercel Firewall.
+**In-app already done (2026-06-18):** `/api/waitlists/rights` now has Turnstile (fail-neutral)
++ a per-site `waitlist_rate_check` call (fail-neutral) — so it can't be used to email-bomb a
+registered address. Erasure links now expire (7-day TTL) and burn on use.
 
-- **Where:** Vercel → Project `bythiagofigueiredo-web` → Firewall → Rate Limiting → Add rule.
-- **Match:** request path `^/api/waitlists/[^/]+/signup$`, method `POST`.
-- **Threshold (suggested):** 10 requests / 600s per client IP → action `Challenge` (or `Deny`).
-- **After creating:** record the rule ID + final threshold here:
-  - Rule ID: `__________`  Threshold: `__________`  Action: `__________`  (date: ____)
+Remaining items are **dashboard/account actions** (no repo change possible):
+
+- **A — Vercel WAF rate-limit.** Vercel → Project `bythiagofigueiredo-web` → Firewall → Rate
+  Limiting → Add rule. Match `^/api/waitlists/([^/]+/signup|rights)$`, method `POST`,
+  ~10 req/600s per IP → Challenge/Deny. Record: Rule ID `____` Threshold `____` (date ____).
+- **F — preview Turnstile.** The Cloudflare widget `bythiagofigueiredo-waitlists` is allowlisted
+  to `bythiagofigueiredo.com` (+ subdomains). To make forms work on `*.vercel.app` preview
+  deploys, add hostname `thiago-figueiredos-projects.vercel.app` in Cloudflare → Turnstile →
+  the widget (the MCP OAuth lacks Turnstile-edit scope, so this is manual). Production is
+  unaffected without it.
+- **E — transactional SES config set.** `SES_TRANSACTIONAL_CONFIG_SET` is unset → transactional
+  mail (confirm/rights) uses `SES_DEFAULT_CONFIG_SET` (works). For deliverability isolation,
+  create a dedicated config set in AWS SES and set the env. Optional.
+- **H — Sentry alert.** Alert on `component:waitlist` + `action IN (rights_request, erasure,
+  retention_sweep)` at `level:warning` (the code emits these tags; rights captures also carry
+  `error_type:lookup|token_creation|email_send`). Dashboard rule (Sentry API needs alert scope).
 
 ## 4. Retention sweep — ordered activation (IRREVERSIBLE)
 

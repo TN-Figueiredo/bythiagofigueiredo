@@ -2,6 +2,7 @@ import crypto from 'node:crypto'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { Paper, Tape } from '@/components/pinboard'
+import { isWaitlistDsarTokenShape, isWaitlistDsarTokenFresh } from '../../../../../../lib/waitlists/dsar-token'
 import { eraseMyWaitlistData } from './actions'
 
 // Per-email rights page (LGPD Art. 18 access + erasure), reached via the tokenized link
@@ -41,15 +42,16 @@ export default async function WaitlistManagePage({ params, searchParams }: Props
   }
 
   let rows: SignupRow[] | null = null
-  if (token && token.length >= 16 && token.length <= 256) {
+  if (isWaitlistDsarTokenShape(token)) {
     const hash = crypto.createHash('sha256').update(token).digest('hex')
     const supabase = getSupabaseServiceClient()
     const { data: tok } = await supabase
       .from('waitlist_dsar_tokens')
-      .select('site_id, email')
+      .select('site_id, email, created_at, used_at')
       .eq('token_hash', hash)
       .maybeSingle()
-    if (tok) {
+    // Unknown/expired/used token → neutral "invalid link" (rows stays null below).
+    if (tok && isWaitlistDsarTokenFresh(tok)) {
       const { data } = await supabase
         .from('waitlist_signups')
         .select('email, status, source_surface, consent_text_version, created_at')
