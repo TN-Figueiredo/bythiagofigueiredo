@@ -27,9 +27,11 @@ import { SUPABASE_URL, SERVICE_KEY, seedSite } from '../helpers/db-seed'
 
 // ── Mocks (must be hoisted before any route import) ──────────────────────────
 
-// Mock Sentry to avoid network calls in tests
+// Mock Sentry to avoid network calls in tests. addBreadcrumb is exercised on the
+// success path (count-only conversion funnel), so it must be stubbed too.
 vi.mock('@sentry/nextjs', () => ({
   captureException: vi.fn(),
+  addBreadcrumb: vi.fn(),
 }))
 
 // Mock turnstile via the lib path — vitest resolves this to the same module
@@ -345,8 +347,9 @@ describe.skipIf(skipIfNoLocalDb())('POST /api/waitlists/[slug]/signup', () => {
       // The Error passed to Sentry must have PII redacted
       const capturedError = vi.mocked(Sentry.captureException).mock.calls[0]?.[0] as Error
       expect(capturedError).toBeInstanceOf(Error)
-      expect(capturedError.message).toContain('[email]')
-      expect(capturedError.message).toContain('[ip]')
+      // Canonical scrubber tokens (scrubPiiString): emails → <email>, IPv4 → [REDACTED_IP].
+      expect(capturedError.message).toContain('<email>')
+      expect(capturedError.message).toContain('[REDACTED_IP]')
       expect(capturedError.message).not.toContain('test@example.com')
       expect(capturedError.message).not.toContain('203.0.113.5')
     } finally {

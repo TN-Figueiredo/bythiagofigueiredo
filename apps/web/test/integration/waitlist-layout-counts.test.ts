@@ -25,15 +25,19 @@ describe.skipIf(skipIfNoLocalDb())('fetchLayoutCountsInner — waitlistsNeedAtte
 
   it('counts failed + 6h-stuck launching, excludes a fresh launching row', async () => {
     const { siteId } = await seedSite(db)
-    // updated_at is settable on INSERT (the set_updated_at trigger is UPDATE-only).
-    const { data } = await db
+    // updated_at is settable on INSERT (the set_updated_at trigger is UPDATE-only). All rows
+    // MUST set it: in a bulk insert PostgREST uses the union of keys as the column list, so a
+    // row omitting updated_at is sent as an explicit NULL (the column default applies only when
+    // the field is omitted for EVERY row) and trips the not-null constraint (23502).
+    const { data, error } = await db
       .from('waitlists')
       .insert([
-        { site_id: siteId, slug: slug('failed'), name: 'F', status: 'failed' },
+        { site_id: siteId, slug: slug('failed'), name: 'F', status: 'failed', updated_at: hoursAgo(0) },
         { site_id: siteId, slug: slug('stuck'), name: 'S', status: 'launching', updated_at: hoursAgo(7) },
         { site_id: siteId, slug: slug('fresh'), name: 'Fr', status: 'launching', updated_at: hoursAgo(1) },
       ])
       .select('id')
+    if (error) throw error
     for (const r of data ?? []) created.push(r.id)
 
     const counts = await fetchLayoutCountsInner(siteId)

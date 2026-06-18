@@ -168,14 +168,17 @@ describe.skipIf(skipIfNoLocalDb())('GET /api/waitlists/[slug]', () => {
     })
   })
 
-  // ── Case 4: locale-resolved translation block ─────────────────────────────
-  describe('translation resolution', () => {
-    it('returns requested locale tx when available', async () => {
-      const slug = 'locale-test-' + Date.now()
+  // ── Case 4: WL-SEC-1 — the public route must NOT expose the localized block ──
+  // This route was hardened to return only { status, name, description }; the full
+  // translations block (headline/consent/button/success copy) is deliberately withheld
+  // from anonymous clients. These tests lock that contract against regression.
+  describe('response shape (WL-SEC-1: no translations leak)', () => {
+    it('returns only status+name+description, never a tx/translations block — even when translations exist', async () => {
+      const slug = 'shape-test-' + Date.now()
       await seedWaitlist({
         siteId: siteAId,
         slug,
-        name: 'Locale Test',
+        name: 'Shape Test',
         status: 'open',
         translations: [
           { locale: 'en', headline: 'English Headline' },
@@ -185,36 +188,26 @@ describe.skipIf(skipIfNoLocalDb())('GET /api/waitlists/[slug]', () => {
       setHeaders(siteAId, 'en')
       const res = await GET(new Request('http://localhost'), makeCtx(slug))
       expect(res.status).toBe(200)
-      const body = await res.json() as { tx: { locale: string; headline: string } | null }
-      expect(body.tx?.locale).toBe('en')
-      expect(body.tx?.headline).toBe('English Headline')
+      const body = await res.json() as Record<string, unknown>
+      // Exact key set — additive leakage of the localized block fails here.
+      expect(Object.keys(body).sort()).toEqual(['description', 'name', 'status'])
+      expect(body).not.toHaveProperty('tx')
+      expect(body.status).toBe('open')
+      expect(body.name).toBe('Shape Test')
+      // No localized copy leaks into the public payload.
+      expect(JSON.stringify(body)).not.toContain('English Headline')
+      expect(JSON.stringify(body)).not.toContain('Manchete em Português')
     })
 
-    it('falls back to first translation when requested locale not found', async () => {
-      const slug = 'locale-fallback-' + Date.now()
-      await seedWaitlist({
-        siteId: siteAId,
-        slug,
-        name: 'Fallback Test',
-        status: 'open',
-        translations: [{ locale: 'pt-BR', headline: 'PT Headline' }],
-      })
-      setHeaders(siteAId, 'ja')
-      const res = await GET(new Request('http://localhost'), makeCtx(slug))
-      expect(res.status).toBe(200)
-      const body = await res.json() as { tx: { locale: string } | null }
-      // Falls back to first (pt-BR)
-      expect(body.tx?.locale).toBe('pt-BR')
-    })
-
-    it('returns null tx when no translations exist', async () => {
-      const slug = 'no-tx-' + Date.now()
+    it('keeps the same shape when no translations exist', async () => {
+      const slug = 'shape-no-tx-' + Date.now()
       await seedWaitlist({ siteId: siteAId, slug, name: 'No TX', status: 'open' })
       setHeaders(siteAId, 'en')
       const res = await GET(new Request('http://localhost'), makeCtx(slug))
       expect(res.status).toBe(200)
-      const body = await res.json() as { tx: null }
-      expect(body.tx).toBeNull()
+      const body = await res.json() as Record<string, unknown>
+      expect(Object.keys(body).sort()).toEqual(['description', 'name', 'status'])
+      expect(body).not.toHaveProperty('tx')
     })
   })
 })
