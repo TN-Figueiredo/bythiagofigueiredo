@@ -94,10 +94,17 @@ The 8 Phase-1 migrations (apply in ascending order — tables → RLS → RPCs �
 the two new RPCs `create_waitlist_with_translation`, `waitlist_detail_counts`):
 
 ```
-20260616000001_waitlist_tables          20260616000005_waitlist_lgpd
-20260616000002_waitlist_rls             20260616000006_waitlist_consent_seed
-20260616000003_waitlist_signup_rpc      20260617000001_waitlist_create_with_translation_rpc
-20260616000004_waitlist_rate_check_rpc  20260617000002_waitlist_detail_counts_rpc
+20260616000001_waitlist_tables          20260616000006_waitlist_consent_seed
+20260616000002_waitlist_rls             20260617000001_waitlist_create_with_translation_rpc
+20260616000003_waitlist_signup_rpc      20260617000002_waitlist_detail_counts_rpc
+20260616000004_waitlist_rate_check_rpc  20260618000001_waitlist_dsar_rights_fase2
+20260616000005_waitlist_lgpd            20260618000002_waitlist_erase_audit_log   (4-arg erase + audit; applied 2026-06-18)
 ```
 
-Verify: `npx supabase migration list` shows all 8 applied on the remote column.
+Verify: `npx supabase migration list` shows all 10 applied on the remote column. `…000002`
+defines the 4-arg `waitlist_erase_by_email` (audit-logged) that the manage-page erase action
+calls — it MUST be applied before/with the Fase-2 hardening deploy (it keeps a 2-arg back-compat
+wrapper, so it is safe to apply ahead of the code).
+
+The rights ACCESS-link issuance is also audit-logged (`action='waitlist_access_requested'`,
+hashed email) from `/api/waitlists/rights`.

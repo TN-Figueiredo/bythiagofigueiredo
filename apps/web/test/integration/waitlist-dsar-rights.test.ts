@@ -29,6 +29,7 @@ vi.mock('../../lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn()
 
 import { POST as rightsPOST } from '../../src/app/api/waitlists/rights/route'
 import { GET as dsarGET } from '../../src/app/api/waitlists/dsar/[token]/route'
+import { eraseMyWaitlistData } from '../../src/app/(public)/waitlists/manage/[token]/actions'
 import { generateWaitlistDsarToken } from '../../lib/waitlists/dsar-token'
 import { verifyTurnstileToken } from '../../lib/turnstile'
 import { getSupabaseServiceClient } from '../../lib/supabase/service'
@@ -185,5 +186,55 @@ describe.skipIf(skipIfNoLocalDb())('waitlist DSAR rights (Fase 2)', () => {
     await rightsPOST(rightsReq({ email: emailUsed, locale: 'en' }))
     const after = await dsarGET(new Request('http://localhost'), dsarCtx(usedTok.raw))
     expect((await after.json() as { data: unknown[] }).data.length).toBe(1)
+  })
+
+  // R10: drive the manage-page server action end-to-end (catches the prod-parity coupling
+  // between the action's 4-arg RPC call and the migration).
+  it('eraseMyWaitlistData (server action) anonymizes, burns the token, and writes an audit row', async () => {
+    const email = `action-${Date.now()}@example.com`
+    cleanup.push(await seedSignup(siteId, email))
+    await rightsPOST(rightsReq({ email, locale: 'en' }))
+    const { raw, hash } = generateWaitlistDsarToken(siteId, email)
+
+    const fd = new FormData()
+    fd.set('token', raw)
+    try { await eraseMyWaitlistData(fd) } catch { /* redirect() throws NEXT_REDIRECT */ }
+
+    const { data: tok } = await db.from('waitlist_dsar_tokens').select('used_at').eq('token_hash', hash).single()
+    expect(tok!.used_at).toBeTruthy() // token burned
+    expect((await (await dsarGET(new Request('http://localhost'), dsarCtx(raw))).json()).data).toEqual([]) // data gone
+    const { data: audit } = await db.from('audit_log').select('action').eq('action', 'waitlist_erasure').eq('site_id', siteId).order('created_at', { ascending: false }).limit(1).single()
+    expect(audit!.action).toBe('waitlist_erasure')
+  })
+
+  it('rights request returns 404 no_site when x-site-id is missing', async () => {
+    mockSiteId = null
+    const res = await rightsPOST(rightsReq({ email: 'x@example.com', locale: 'en' }))
+    expect(res.status).toBe(404)
+  })
+
+  it('rights request fails NEUTRAL (no email) when the per-site rate-limit trips', async () => {
+    const email = `rl-${Date.now()}@example.com`
+    cleanup.push(await seedSignup(siteId, email))
+    // Stub only the rate-check to deny; everything else hits the real DB.
+    const realRpc = db.rpc.bind(db)
+    const stub = { ...db, rpc: (name: string, args: unknown) => name === 'waitlist_rate_check' ? Promise.resolve({ data: false, error: null }) : realRpc(name as never, args as never) }
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(stub as unknown as ReturnType<typeof getSupabaseServiceClient>)
+    const res = await rightsPOST(rightsReq({ email, locale: 'en' }))
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ ok: true }) // neutral
+    expect(sendSpy).not.toHaveBeenCalled() // rate-limited → no email-bomb
+  })
+
+  it('rights email carries the manage link + locale copy (pt-BR)', async () => {
+    const email = `copy-${Date.now()}@example.com`
+    cleanup.push(await seedSignup(siteId, email))
+    await rightsPOST(rightsReq({ email, locale: 'pt-BR' }))
+    expect(sendSpy).toHaveBeenCalledTimes(1)
+    const msg = sendSpy.mock.calls[0]![0] as { subject: string; html: string }
+    const { raw } = generateWaitlistDsarToken(siteId, email)
+    expect(msg.subject).toContain('lista de espera')
+    expect(msg.html).toContain(`/waitlists/manage/${raw}`)
+    expect(msg.html).toContain('expira em 7 dias')
   })
 })

@@ -41,5 +41,8 @@ export async function eraseMyWaitlistData(formData: FormData): Promise<void> {
       }
     }
   }
-  redirect(`/waitlists/manage/${token}?status=${outcome}`)
+  // Redirect to a token-LESS URL: the raw token must not linger in browser history / proxy
+  // logs after the action (esp. on `invalid`, where the token may still be live). The manage
+  // page renders the done/invalid state from `?status` alone; the segment is a placeholder.
+  redirect(`/waitlists/manage/${outcome}?status=${outcome}`)
 }

@@ -4,6 +4,7 @@
 // + erasure). NO ORACLE: the response is identical (200 {ok:true}) whether or not the email
 // is registered, whether Turnstile passes, and whether rate-limited — so this endpoint can't
 // enumerate signups. Defense in depth: Turnstile + per-site rate-limit, both fail-NEUTRAL.
+import crypto from 'node:crypto'
 import { headers } from 'next/headers'
 import { z } from 'zod'
 import * as Sentry from '@sentry/nextjs'
@@ -85,6 +86,17 @@ export async function POST(req: Request): Promise<Response> {
     Sentry.captureException(new Error(`waitlist_rights_token ${tokErr.code}: ${redactMessage(tokErr.message ?? '')}`), { tags: { component: 'waitlist', action: 'rights_request', error_type: 'token_creation' }, level: 'warning' })
     return OK()
   }
+
+  // Accountability (LGPD Art. 10/Art. 18): log that an access link was issued — HASHED email
+  // only, never plaintext. Best-effort: a failure here must never alter the no-oracle response.
+  const ua = req.headers.get('user-agent') ?? null
+  try {
+    await supabase.from('audit_log').insert({
+      action: 'waitlist_access_requested', resource_type: 'waitlist_signups', site_id: siteId,
+      after_data: { email_hash: crypto.createHash('sha256').update(body.email).digest('hex'), reason: 'data_subject_request' },
+      ip, user_agent: ua,
+    })
+  } catch { /* best-effort accountability log */ }
 
   const isPt = (body.locale ?? 'pt-BR') === 'pt-BR'
   const base = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'

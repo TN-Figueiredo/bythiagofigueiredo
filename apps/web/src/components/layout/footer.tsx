@@ -25,6 +25,11 @@ export function Footer() {
             ))}
           </nav>
 
+          <nav className="flex flex-wrap justify-center gap-4 text-xs text-[var(--text-tertiary)]">
+            <a href="/privacy" className="transition-colors hover:text-[var(--text)]">Privacidade</a>
+            <a href="/waitlists/rights" className="transition-colors hover:text-[var(--text)]">Meus dados (listas de espera)</a>
+          </nav>
+
           <div className="space-y-1 text-xs text-[var(--text-tertiary)]">
             <p>Figueiredo Technology LTDA — CNPJ: 44.243.373/0001-69</p>
             <p>&copy; {year} Thiago Figueiredo. Todos os direitos reservados.</p>
