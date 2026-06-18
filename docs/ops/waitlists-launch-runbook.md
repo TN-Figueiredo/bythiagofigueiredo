@@ -4,21 +4,19 @@ Operational source of truth for Waitlists Phase-1. Code is complete and verified
 (DB-gated suite green); this covers the dashboard-bound steps and the irreversible
 job that must not be flipped casually.
 
-## 1. LGPD Fase-1 lock (MANDATORY)
+## 1. LGPD public signups — ENABLED 2026-06-18 (Fase-2 rights shipped)
 
-`WAITLIST_ACCEPT_PUBLIC_SIGNUPS` **must remain UNSET** in Vercel Production until
-Fase-2 ships the DSAR (data-subject access request) + unsubscribe/erasure paths.
+`WAITLIST_ACCEPT_PUBLIC_SIGNUPS=true` in Vercel **Production + Preview**. Public signups
+are now allowed because the Fase-2 data-subject rights paths shipped (LGPD Art. 18):
 
-- **Why:** accepting public signups before the rights/erasure flows exist creates an
-  LGPD exposure that contradicts the signed DPO note. With the flag unset, the signup
-  RPC refuses any `open` public list (fail-closed default).
-- **Runtime verification (prod):**
-  ```sql
-  select count(*) as open_waitlists from public.waitlists where status = 'open';
-  ```
-  Expected: `0`. If non-zero, investigate before any public exposure.
-- **Vercel verification:** `vercel env ls production | grep WAITLIST_ACCEPT_PUBLIC_SIGNUPS`
-  → must return nothing (absent).
+- **Access:** `/waitlists/rights` (request a link) → `/waitlists/manage/[token]` (view) +
+  `GET /api/waitlists/dsar/[token]` (machine-readable download).
+- **Erasure:** the manage page's delete action → `waitlist_erase_by_email` RPC (hashes
+  email, nullifies ip/ua/locale, stamps anonymized_at; retains proof-of-consent).
+- **Token table:** `waitlist_dsar_tokens` (migration `20260618000001`), applied to prod.
+- The flag remains the operational on/off switch — unset → fail-closed (draft-only).
+- **Hardening follow-up:** add a Vercel WAF rate-limit on `POST /api/waitlists/rights`
+  (no-oracle + registered-only-send today, but rate-limiting is the next layer).
 
 ## 2. Turnstile (anti-abuse on the public POST) — ✅ CONFIGURED 2026-06-18
 
