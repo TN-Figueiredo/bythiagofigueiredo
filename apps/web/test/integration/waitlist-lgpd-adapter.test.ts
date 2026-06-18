@@ -15,11 +15,13 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { randomUUID } from 'node:crypto'
-import { skipIfNoLocalDb } from '../helpers/db-skip'
+import { skipIfNoGoTrue } from '../helpers/db-skip'
 import { SUPABASE_URL, SERVICE_KEY, seedSite } from '../helpers/db-seed'
 import { BythiagoLgpdDomainAdapter } from '../../src/lib/lgpd/domain-adapter'
 
-describe.skipIf(skipIfNoLocalDb())('LGPD domain adapter — waitlist wiring (Task 11)', () => {
+// Needs GoTrue: createUser + the adapter's internal getUserById both hit the auth admin
+// API. CI excludes gotrue, so this suite skips there and runs locally (full Supabase).
+describe.skipIf(skipIfNoGoTrue())('LGPD domain adapter — waitlist wiring (Task 11)', () => {
   let db: SupabaseClient
   let adapter: BythiagoLgpdDomainAdapter
   let siteId: string

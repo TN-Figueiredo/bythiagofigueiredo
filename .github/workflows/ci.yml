@@ -133,6 +133,9 @@ jobs:
       - run: HAS_LOCAL_DB=1 npm test --workspace=apps/web -- integration/
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # GoTrue is excluded from the Supabase start above, so suites that need the live
+          # auth admin API (skipIfNoGoTrue) must skip here; they run locally w/ full Supabase.
+          SUPABASE_EXCLUDE_GOTRUE: 'true'
 
   audit:
     name: Dependency Audit
@@ -147,7 +150,11 @@ jobs:
       - run: npm ci
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-      - run: npm audit --audit-level=high
+      # Gate on PRODUCTION dependencies only — dev/test tooling advisories (e.g. jsdom's
+      # transitive form-data CRLF, GHSA-hmw2-7cc7-3qxx) never ship to users, and jsdom
+      # hard-pins its form-data range so an override can't lift it. Prod deps stay clean
+      # at high; revisit if jsdom publishes a fixed line.
+      - run: npm audit --omit=dev --audit-level=high
 
   secret-scan:
     name: Secret Scan (TruffleHog)
