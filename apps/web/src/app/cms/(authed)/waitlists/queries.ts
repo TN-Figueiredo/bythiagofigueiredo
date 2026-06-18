@@ -52,6 +52,15 @@ const CountRowsSchema = z.array(
   }),
 )
 
+// waitlist_detail_counts RPC result (coerce: PG bigint counts may serialize as a string).
+const DetailCountsSchema = z.object({
+  landing: z.coerce.number().int().nonnegative(),
+  embed: z.coerce.number().int().nonnegative(),
+  tiptap: z.coerce.number().int().nonnegative(),
+  pending: z.coerce.number().int().nonnegative(),
+  suppressed: z.coerce.number().int().nonnegative(),
+})
+
 /**
  * Site-scoped waitlist list + KPI strip for the CMS. Callers MUST already have
  * established edit access to `siteId` (the CMS layout / server actions do this);
@@ -334,35 +343,29 @@ export async function loadWaitlistDetail(siteId: string, id: string): Promise<Wa
   }
   if (!wl) return null
 
-  const countFor = (col: 'source_surface' | 'status', val: string) =>
-    supabase
-      .from('waitlist_signups')
-      .select('id', { count: 'exact', head: true })
-      .eq('waitlist_id', id)
-      .eq('site_id', siteId)
-      .eq(col, val)
-      .is('anonymized_at', null)
-
-  const [landing, embed, tiptap, pending, suppressed] = await Promise.all([
-    countFor('source_surface', 'landing'),
-    countFor('source_surface', 'embed'),
-    countFor('source_surface', 'tiptap'),
-    countFor('status', 'pending'),
-    countFor('status', 'suppressed'),
-  ])
-
-  // A silent count error would coerce to 0 and mask signup-count loss on the detail page
-  // (same drift class listWaitlistsForSite guards). Throw on the first error.
-  for (const r of [landing, embed, tiptap, pending, suppressed]) {
-    if (r.error) {
-      getLogger().error('[loadWaitlistDetail:counts]', { code: r.error.code })
-      Sentry.captureException(
-        new Error(`loadWaitlistDetail:counts ${r.error.code}: ${redactMessage(r.error.message ?? '')}`),
-        { tags: { component: 'waitlist', action: 'loadWaitlistDetail' } },
-      )
-      throw r.error
-    }
+  // Single-trip source/status tallies via the waitlist_detail_counts aggregate RPC (WL-06),
+  // validated fail-closed so a silent count error can't coerce to 0 and mask data.
+  const { data: rawCounts, error: cErr } = await supabase.rpc('waitlist_detail_counts', {
+    p_site_id: siteId,
+    p_waitlist_id: id,
+  })
+  if (cErr) {
+    getLogger().error('[loadWaitlistDetail:counts]', { code: cErr.code })
+    Sentry.captureException(
+      new Error(`loadWaitlistDetail:counts ${cErr.code}: ${redactMessage(cErr.message ?? '')}`),
+      { tags: { component: 'waitlist', action: 'loadWaitlistDetail' } },
+    )
+    throw cErr
   }
+  const counts = DetailCountsSchema.safeParse(rawCounts)
+  if (!counts.success) {
+    getLogger().error('[loadWaitlistDetail:counts] unexpected RPC shape', {})
+    Sentry.captureException(new Error('waitlist_detail_counts: unexpected RPC result shape'), {
+      tags: { component: 'waitlist', action: 'loadWaitlistDetail' },
+    })
+    throw new Error('waitlist_detail_counts: unexpected RPC result shape')
+  }
+  const c = counts.data
 
   return {
     id: wl.id,
@@ -375,12 +378,8 @@ export async function loadWaitlistDetail(siteId: string, id: string): Promise<Wa
     senderName: wl.sender_name ?? null,
     senderEmail: wl.sender_email ?? null,
     replyTo: wl.reply_to ?? null,
-    sourceCounts: {
-      landing: landing.count ?? 0,
-      embed: embed.count ?? 0,
-      tiptap: tiptap.count ?? 0,
-    },
-    pending: pending.count ?? 0,
-    suppressed: suppressed.count ?? 0,
+    sourceCounts: { landing: c.landing, embed: c.embed, tiptap: c.tiptap },
+    pending: c.pending,
+    suppressed: c.suppressed,
   }
 }
