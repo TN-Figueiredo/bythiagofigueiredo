@@ -425,6 +425,65 @@ describe.skipIf(skipIfNoLocalDb())('POST /api/waitlists/[slug]/signup', () => {
     }
   })
 
+  // WL-1: a non-boolean waitlist_rate_check result (RPC schema drift) MUST fail CLOSED to
+  // 503 — never fall through the `=== false` gate and let a signup through (fail-OPEN).
+  // This locks the z.boolean() guard at route.ts lines 62-69 against regression.
+  it.each([
+    ['a string', 'not-a-boolean'],
+    ['null', null],
+    ['a number', 1],
+  ])('returns 503 unavailable and calls Sentry when waitlist_rate_check returns %s', async (_label, badValue) => {
+    vi.stubEnv('TURNSTILE_SECRET_KEY', 'test-secret')
+    try {
+      const stubSupabase = {
+        rpc: vi.fn().mockImplementation((name: string) => {
+          if (name === 'waitlist_rate_check') return Promise.resolve({ data: badValue, error: null })
+          // If the guard ever failed open, this stub would let the signup proceed and the
+          // test would see a 200 instead of the asserted 503.
+          if (name === 'waitlist_signup') return Promise.resolve({ data: { duplicate: false }, error: null })
+          return Promise.resolve({ data: null, error: null })
+        }),
+        from: vi.fn().mockImplementation((table: string) => {
+          if (table === 'waitlists') {
+            return {
+              select: vi.fn().mockReturnThis(),
+              eq: vi.fn().mockReturnThis(),
+              maybeSingle: vi.fn().mockResolvedValue({ data: { name: 'Test Waitlist' }, error: null }),
+            }
+          }
+          if (table === 'consent_texts') {
+            return {
+              select: vi.fn().mockReturnThis(),
+              eq: vi.fn().mockReturnThis(),
+              maybeSingle: vi.fn().mockResolvedValue({ data: { text_md: 'consent {name}' }, error: null }),
+            }
+          }
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+          }
+        }),
+      }
+      vi.mocked(getSupabaseServiceClient).mockReturnValue(stubSupabase as unknown as ReturnType<typeof getSupabaseServiceClient>)
+
+      const req = makeRequest(defaultBody({ email: `ratedrift-${Date.now()}@example.com` }))
+      const ctx = { params: Promise.resolve({ slug }) }
+      const res = await POST(req, ctx)
+
+      expect(res.status).toBe(503)
+      const json = await res.json() as { error: string }
+      expect(json.error).toBe('unavailable')
+      // The fail-closed branch reports the schema drift to Sentry…
+      expect(vi.mocked(Sentry.captureException)).toHaveBeenCalledTimes(1)
+      // …and must NEVER have reached the signup RPC (proof the gate didn't fall open).
+      const rpcNames = stubSupabase.rpc.mock.calls.map((c) => c[0])
+      expect(rpcNames).not.toContain('waitlist_signup')
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
   // 503 missing consent text → also a Sentry path (warning level).
   it('returns 503 unavailable and calls Sentry when the consent_texts row is missing', async () => {
     vi.stubEnv('TURNSTILE_SECRET_KEY', 'test-secret')

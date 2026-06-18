@@ -90,7 +90,10 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
     return Response.json({ error: 'unavailable' }, { status: 503 })
   }
   // WL-13 follow-up: parity test (FORM_STRINGS[locale].consentLabel ↔ consent_texts.text_md) + DB-gated audit snapshot assertion live in apps/web/test/* — not in this route file.
-  const snapshot = ct.text_md.replaceAll('{name}', wlRow.name)
+  // split/join (NOT replaceAll) so a waitlist name containing `$&`/`$1`/`$$` is inserted
+  // verbatim — replaceAll would interpret those as replacement tokens and corrupt the
+  // stored consent snapshot, which is the evidentiary LGPD artifact (WL-4).
+  const snapshot = ct.text_md.split('{name}').join(wlRow.name)
   const res = await supabase.rpc('waitlist_signup', {
     p_site_id: siteId, p_slug: slug, p_email: body.email, p_locale: body.locale,
     p_consent_version: WAITLIST_CONSENT_VERSION, p_consent_text_snapshot: snapshot,

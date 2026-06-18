@@ -39,8 +39,13 @@ async function handle(req: Request): Promise<Response> {
       category: 'cron',
       message: JOB,
       level: failed > 0 ? 'warning' : 'info',
-      data: { sites: swept, failed },
+      // component:'waitlist' to match every other waitlist path (signup/actions/queries)
+      // so this irreversible-deletion job is filterable on the same Sentry dashboard (WL-5).
+      data: { component: 'waitlist', action: 'retention_sweep', sites: swept, failed },
     })
+    // Land the aggregate in structured logs too — the breadcrumb is the only other place
+    // `failed` surfaces, so if Sentry delivery drops, `vercel logs` still has the count (WL-5).
+    logCron({ job: JOB, status: 'ok', sites: swept, failed })
     return { status: 'ok' as const, sites: swept, failed }
   })
 }
