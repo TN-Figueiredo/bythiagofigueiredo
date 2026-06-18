@@ -20,17 +20,19 @@ Fase-2 ships the DSAR (data-subject access request) + unsubscribe/erasure paths.
 - **Vercel verification:** `vercel env ls production | grep WAITLIST_ACCEPT_PUBLIC_SIGNUPS`
   → must return nothing (absent).
 
-## 2. Turnstile (anti-abuse on the public POST)
+## 2. Turnstile (anti-abuse on the public POST) — ✅ CONFIGURED 2026-06-18
 
 The public signup route fails closed to **HTTP 503 `unavailable`** in prod/preview when
 `TURNSTILE_SECRET_KEY` is unset.
 
-- Required env (Production **and** Preview): `TURNSTILE_SECRET_KEY`,
-  `NEXT_PUBLIC_TURNSTILE_SITE_KEY`.
-- The Cloudflare Turnstile widget is domain-bound — ensure `bythiagofigueiredo.com`
-  (and preview domains, if smoke-testing there) are in the Turnstile site allowlist.
-- Smoke test (preview): an empty POST to `/api/waitlists/<slug>/signup` must return
+- **Done:** Cloudflare Turnstile widget `bythiagofigueiredo-waitlists` (Managed mode;
+  hostnames `bythiagofigueiredo.com` + `www.bythiagofigueiredo.com`). `TURNSTILE_SECRET_KEY`
+  + `NEXT_PUBLIC_TURNSTILE_SITE_KEY` set in Vercel **Production + Preview**. Site key
+  `0x4AAAAAADnT1_q8z7V-EvLY` (public). Secret stored encrypted in Vercel + local `.env.local`.
+- The keys take effect on the **next deployment** (NEXT_PUBLIC_ is build-time embedded).
+- Smoke test after a deploy: an empty POST to `/api/waitlists/<slug>/signup` returns
   **400 `invalid_body`** (route ran past the secret gate), NOT **503**.
+- If signups ever 503 in prod, confirm the widget's hostname allowlist covers the live domain.
 
 ## 3. WAF rate-limit rule (non-blocking, recommended)
 
