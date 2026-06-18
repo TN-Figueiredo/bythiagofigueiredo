@@ -264,10 +264,11 @@ export type WaitlistTransitionResult =
  * `.eq('status', from)` returns 0 rows if someone changed it underneath us
  * (`status_changed`) and also closes cross-site IDOR via `.eq('site_id')`.
  *
- * M6 LGPD Fase-1 gate: no list may go `open` until the DSAR + unsubscribe rights
- * paths ship (Fase 2). `WAITLIST_ACCEPT_PUBLIC_SIGNUPS` is unset by default, so prod
- * stays draft-only and fail-closed. Both the illegal-transition and the Fase-1 gate
- * return BEFORE any DB round-trip.
+ * LGPD public-signups gate: a list may go `open` only when `WAITLIST_ACCEPT_PUBLIC_SIGNUPS`
+ * is 'true'. The DSAR access + erasure rights paths now ship (Fase 2: /waitlists/rights,
+ * /waitlists/manage/[token], waitlist_erase_by_email), so enabling public signups is
+ * compliant. The flag stays the operational on/off switch; unset → fail-closed (draft-only).
+ * Both the illegal-transition and this gate return BEFORE any DB round-trip.
  */
 export async function transitionWaitlistStatus(
   id: string,

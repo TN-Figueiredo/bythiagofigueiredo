@@ -104,6 +104,11 @@ export default async function WaitlistLandingPage({ params }: Props) {
                 initialStatus={status}
               />
             </Paper>
+            <p className="mt-4 text-center font-mono text-[11px] text-pb-ink/55">
+              <a href="/waitlists/rights" className="underline underline-offset-2 hover:text-pb-ink">
+                {locale === 'pt-BR' ? 'Acessar ou apagar meus dados' : 'Access or delete my data'}
+              </a>
+            </p>
           </div>
         </div>
       </div>
