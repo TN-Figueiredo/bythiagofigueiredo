@@ -43,11 +43,10 @@ Remaining items are **dashboard/account actions** (no repo change possible):
 - **A — Vercel WAF rate-limit.** Vercel → Project `bythiagofigueiredo-web` → Firewall → Rate
   Limiting → Add rule. Match `^/api/waitlists/([^/]+/signup|rights)$`, method `POST`,
   ~10 req/600s per IP → Challenge/Deny. Record: Rule ID `____` Threshold `____` (date ____).
-- **F — preview Turnstile.** The Cloudflare widget `bythiagofigueiredo-waitlists` is allowlisted
-  to `bythiagofigueiredo.com` (+ subdomains). To make forms work on `*.vercel.app` preview
-  deploys, add hostname `thiago-figueiredos-projects.vercel.app` in Cloudflare → Turnstile →
-  the widget (the MCP OAuth lacks Turnstile-edit scope, so this is manual). Production is
-  unaffected without it.
+- **F — preview Turnstile.** ✅ DONE 2026-06-18. The Cloudflare widget `bythiagofigueiredo-waitlists`
+  now allowlists 3 hostnames: `bythiagofigueiredo.com`, `www.bythiagofigueiredo.com`, and
+  `thiago-figueiredos-projects.vercel.app` (covers `*.vercel.app` preview deploys). Forms now
+  pass Turnstile on preview as well as production.
 - **E — transactional SES config set.** `SES_TRANSACTIONAL_CONFIG_SET` is unset → transactional
   mail (confirm/rights) uses `SES_DEFAULT_CONFIG_SET` (works). For deliverability isolation,
   create a dedicated config set in AWS SES and set the env. Optional.
