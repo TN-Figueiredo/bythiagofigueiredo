@@ -174,57 +174,28 @@ export async function createWaitlist(form: FormData): Promise<WaitlistActionResu
 
   const supabase = getSupabaseServiceClient()
   try {
-    const { data, error } = await supabase
-      .from('waitlists')
-      .insert({ site_id: ctx.siteId, ...scalarPatch(input) })
-      .select('id')
-      .single()
-    if (error) {
-      if (error.code === PG_UNIQUE_VIOLATION) return { ok: false, error: 'slug_taken' }
-      throw error
-    }
-    const waitlistId = requireRowId(data)
-
-    // Seed the default-locale translations row so the public surface + editor
-    // always have a row to read/patch (consent_label is NOT NULL, defaults '').
-    // The two writes are NOT in a single DB transaction (two PostgREST calls), so
-    // on translation failure we explicitly roll back the just-created waitlist row
-    // to avoid a half-created list (a waitlist with no default-locale translation).
-    // Rollback is site-scoped — never touches another ring's data.
-    // CROSS-FILE FOLLOW-UP (WL-09): the durable fix is a SECURITY DEFINER RPC
-    // `create_waitlist_with_translation(...)` (mirroring `waitlist_signup`) added via
-    // `npm run db:new`; until that migration exists, this compensating delete keeps
-    // the two writes coherent.
-    const { error: tErr } = await supabase.from('waitlist_translations').insert({
-      waitlist_id: waitlistId,
-      locale: input.locale || ctx.defaultLocale,
-      headline: input.name,
+    // Atomic create (WL-09): the waitlist row + its default-locale translation row are
+    // inserted in ONE transaction inside the SECURITY DEFINER RPC. A slug collision comes
+    // back as { error:'slug_taken' } (the function rolls itself back); any other failure
+    // raises → caught below → db_error, with both inserts rolled back (no orphan).
+    const { data, error } = await supabase.rpc('create_waitlist_with_translation', {
+      p_site_id: ctx.siteId,
+      p_slug: input.slug,
+      p_name: input.name,
+      p_description: input.description,
+      p_campaign_id: input.campaignId,
+      p_sender_name: input.senderName,
+      p_sender_email: input.senderEmail,
+      p_reply_to: input.replyTo,
+      p_intro_mdx: input.intro,
+      p_locale: input.locale || ctx.defaultLocale,
+      p_headline: input.name,
     })
-    if (tErr) {
-      const { error: rollbackErr } = await supabase
-        .from('waitlists')
-        .delete()
-        .eq('id', waitlistId)
-        .eq('site_id', ctx.siteId)
-      if (rollbackErr) {
-        // The compensating delete itself failed — surface the orphaned-row window so it
-        // is observable until the WL-09 atomic RPC lands (the parent-row delete reaps the
-        // translation via ON DELETE CASCADE once cleaned up).
-        getLogger().error('[createWaitlist] rollback failed — orphaned waitlist row', {
-          code: rollbackErr.code,
-          waitlistId,
-        })
-        Sentry.captureException(
-          new Error(`createWaitlist rollback ${rollbackErr.code}: ${redactMessage(rollbackErr.message ?? '')}`),
-          // warning level + distinct message so the orphaned-row window is filterable until
-          // the WL-09 atomic RPC lands (the translation error is the user-facing db_error).
-          { tags: { component: 'waitlist', action: 'createWaitlist' }, level: 'warning' },
-        )
-      }
-      throw tErr
+    if (error) throw error
+    if (typeof data === 'object' && data !== null && 'error' in data && (data as { error: unknown }).error === 'slug_taken') {
+      return { ok: false, error: 'slug_taken' }
     }
-
-    return { ok: true, waitlistId }
+    return { ok: true, waitlistId: requireRowId(data) }
   } catch (e) {
     // Log-then-capture (M8), matching queries.ts + signup/route.ts. Never hand the RAW
     // caught error to Sentry — a Postgres message can echo the submitted email/IP — so

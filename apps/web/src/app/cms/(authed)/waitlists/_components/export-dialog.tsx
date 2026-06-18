@@ -24,7 +24,10 @@ export function ExportDialog({ slug, onExport, onClose, exporting = false, error
 
   useDialogFocus(dialogRef, onClose)
 
+  const invalidRange = from !== '' && to !== '' && from > to
+
   const submit = () => {
+    if (invalidRange) return
     onExport({
       status: status || undefined,
       // A status filter overrides the exclude-suppressed default.
@@ -90,6 +93,11 @@ export function ExportDialog({ slug, onExport, onClose, exporting = false, error
           Exclude suppressed rows
         </label>
 
+        {invalidRange && (
+          <p role="alert" className="mt-3 text-sm text-[var(--cms-rose,#f43f5e)]">
+            The “From” date must be on or before the “To” date.
+          </p>
+        )}
         {error && (
           <p role="alert" className="mt-3 text-sm text-[var(--cms-rose,#f43f5e)]">
             {error}
@@ -107,7 +115,7 @@ export function ExportDialog({ slug, onExport, onClose, exporting = false, error
           <button
             type="button"
             onClick={submit}
-            disabled={exporting}
+            disabled={exporting || invalidRange}
             className="rounded-[var(--cms-radius)] bg-cms-accent px-4 py-2 text-sm font-medium text-white hover:bg-cms-accent-hover disabled:opacity-60"
           >
             {exporting ? 'Exporting…' : 'Export CSV'}
