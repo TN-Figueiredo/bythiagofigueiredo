@@ -5,6 +5,9 @@
 -- inserted together, so a translation-insert failure rolls BOTH back (no orphan), and a
 -- slug collision is reported as data (no exception leaks to the caller).
 -- =============================================================================
+-- Idempotency: drop-first so a future signature change can be replayed cleanly (matches
+-- the other waitlist RPCs + CLAUDE.md). Safe — only service_role ever holds execute.
+drop function if exists public.create_waitlist_with_translation(uuid,text,text,text,uuid,text,text,text,text,text,text);
 create or replace function public.create_waitlist_with_translation(
   p_site_id uuid,
   p_slug text,

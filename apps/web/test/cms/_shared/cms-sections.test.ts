@@ -8,9 +8,9 @@ describe('buildCmsSections — v3 nav redesign', () => {
     expect(sections.length).toBe(6)
   })
 
-  it('has 24 total items', () => {
+  it('has 25 total items', () => {
     const total = sections.reduce((sum, s) => sum + s.items.length, 0)
-    expect(total).toBe(24)
+    expect(total).toBe(25)
   })
 
   it('section labels in order: HUB, Content, Library, YouTube, Social, Audience', () => {
@@ -19,8 +19,8 @@ describe('buildCmsSections — v3 nav redesign', () => {
     ])
   })
 
-  it('section item counts: 4, 6, 4, 5, 2, 3', () => {
-    expect(sections.map(s => s.items.length)).toEqual([4, 6, 4, 5, 2, 3])
+  it('section item counts: 4, 7, 4, 5, 2, 3', () => {
+    expect(sections.map(s => s.items.length)).toEqual([4, 7, 4, 5, 2, 3])
   })
 
   it('all hrefs are unique (no duplicate nav entries)', () => {
@@ -58,12 +58,12 @@ describe('buildCmsSections — v3 nav redesign', () => {
     })
   })
 
-  describe('Content (6 items)', () => {
+  describe('Content (7 items)', () => {
     const content = sections.find(s => s.label === 'Content')!
 
-    it('items in order: Blog, Vídeos, Courses, Newsletters, Campaigns, Playlists', () => {
+    it('items in order: Blog, Vídeos, Courses, Newsletters, Campaigns, Waitlists, Playlists', () => {
       expect(content.items.map(i => i.label)).toEqual([
-        'Blog', 'Vídeos', 'Courses', 'Newsletters', 'Campaigns', 'Playlists',
+        'Blog', 'Vídeos', 'Courses', 'Newsletters', 'Campaigns', 'Waitlists', 'Playlists',
       ])
     })
 

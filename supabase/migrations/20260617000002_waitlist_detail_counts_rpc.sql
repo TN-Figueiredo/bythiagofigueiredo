@@ -3,6 +3,9 @@
 -- Replaces the 5 separate head-count queries in loadWaitlistDetail with one
 -- FILTER-aggregate over a single (waitlist_id, site_id, anonymized_at IS NULL) scan.
 -- =============================================================================
+-- Idempotency: drop-first (matches the other waitlist RPCs + CLAUDE.md) so a future
+-- signature change replays cleanly.
+drop function if exists public.waitlist_detail_counts(uuid, uuid);
 create or replace function public.waitlist_detail_counts(p_site_id uuid, p_waitlist_id uuid)
 returns jsonb
 language sql
