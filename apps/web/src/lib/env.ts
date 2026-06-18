@@ -20,6 +20,11 @@ const serverSchema = z.object({
   // Dedicated HMAC key for unsubscribe links; falls back to CRON_SECRET when unset.
   UNSUBSCRIBE_TOKEN_SECRET: z.string().optional(),
   LGPD_CRON_SWEEP_ENABLED: z.string().optional(),
+  // Waitlists operational flags (read via process.env directly in their routes; declared
+  // here for schema parity). Both MUST stay unset in prod through Fase-1 — the retention
+  // sweep is irreversible anonymization, and public signups are LGPD-gated until Fase-2.
+  WAITLIST_RETENTION_SWEEP_ENABLED: z.string().optional(),
+  WAITLIST_ACCEPT_PUBLIC_SIGNUPS: z.string().optional(),
   SEO_AI_CRAWLERS_BLOCKED: z.string().optional(),
   LINKS_SHORT_DOMAIN: z.string().optional(),
   GEO_PROVIDER: z.string().optional(),
