@@ -27,6 +27,7 @@ export function PinboardFooter({ locale, t }: Props) {
           <Link href={localePath('/contact', locale)} className="hover:text-pb-ink transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-[var(--pb-accent)]">{t['footer.contact']}</Link>
           <Link href={localePath('/privacy', locale)} className="hover:text-pb-ink transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-[var(--pb-accent)]">{locale === 'pt-BR' ? 'Privacidade' : 'Privacy'}</Link>
           <Link href={localePath('/terms', locale)} className="hover:text-pb-ink transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-[var(--pb-accent)]">{locale === 'pt-BR' ? 'Termos' : 'Terms'}</Link>
+          <a href="/waitlists/rights" className="hover:text-pb-ink transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-[var(--pb-accent)]">{locale === 'pt-BR' ? 'Meus dados' : 'My data'}</a>
           <a href="/feed.xml" className="hover:text-pb-ink transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-[var(--pb-accent)]" title="RSS Feed">RSS</a>
           <a href="https://dev.bythiagofigueiredo.com" target="_blank" rel="noopener noreferrer" className="hover:text-pb-ink transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-[var(--pb-accent)] opacity-60">Dev ↗</a>
         </nav>
