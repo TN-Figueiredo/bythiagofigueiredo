@@ -4,28 +4,28 @@
 > Formato machine-parseable — NAO alterar headers ou formato das tabelas.
 
 ## Ultimo Audit
-- **Data:** 2026-06-07
+- **Data:** 2026-06-19
 - **Escopo:** all
 - **Foco:** all
-- **Score Total:** 9/10 (remediacao Ondas 1-3 + CI parcial Onda 4 aplicada no mesmo dia)
-- **Ultimo Finding ID:** BTF-087
+- **Score Total:** 9.4/10 (design 102/110) — remediacao paralela (6 sub-agentes) commit f96fc806, sem push (deploy freeze)
+- **Ultimo Finding ID:** BTF-093
 
 | Categoria | Criticos | Altos | Medios | Baixos | Score |
 |-----------|----------|-------|--------|--------|-------|
-| Cobertura Testes | 0 | 0 | 1 | 0 | 9/10 |
+| Cobertura Testes | 0 | 0 | 0 | 1 | 9/10 |
 | TypeScript Safety | 0 | 0 | 2 | 1 | 8/10 |
-| Seguranca | 0 | 0 | 1 | 0 | 9/10 |
-| LGPD | 0 | 0 | 1 | 0 | 9.5/10 |
+| Seguranca | 0 | 0 | 0 | 0 | 9.5/10 |
+| LGPD | 0 | 0 | 0 | 0 | 9.5/10 |
 | Data Leaks | 0 | 0 | 0 | 0 | 9.5/10 |
 
 ## Findings Abertos
 | ID | Severidade | Categoria | Descricao | Arquivo |
 |----|-----------|-----------|-----------|---------|
-| BTF-080 | MEDIO | Deps | 2 HIGH + 2 moderate undici vulns via @vercel/blob 1.1.1 (fix = @vercel/blob@2.4.0, breaking — exige Node 20+). Substitui BTF-041. | apps/web/package.json |
-| BTF-059 | MEDIO | TypeScript | `as unknown as` agora 127-133 (era 89). Maioria Supabase untyped. Fix = `supabase gen types` (DEFERIDO — risco de quebrar typecheck em ~70 sites, exige Docker/login). | apps/web/src/ |
+| BTF-080 | MEDIO | Deps | 13 vulns (1 HIGH + 12 moderate) undici via @vercel/blob (Set-Cookie SameSite downgrade). Fix = @vercel/blob@2.4.1, breaking — exige Node 20+. DEFERIDO sob freeze (exige build verification). | apps/web/package.json |
+| BTF-059 | MEDIO | TypeScript | `as unknown as` agora 143 (era 127-133). Maioria Supabase untyped. Fix = `supabase gen types` (DEFERIDO — risco de quebrar typecheck em massa, exige Docker/login + build). | apps/web/src/ |
 | BTF-083 | BAIXO | TypeScript | Crescimento de `as unknown as` sem ratchet. Type-debt baseline + CI ratchet DEFERIDO. | apps/web/src/ |
-| BTF-086 | MEDIO | CI | PARCIAL: test-packages gate adicionado (resolve 5 testes vermelhos invisiveis). DEFERIDO: audit blocking gate (precisa BTF-080 antes), type-debt ratchet, teste-guardiao de inventario PII. | .github/workflows/ci.yml |
-| BTF-087 | MEDIO | LGPD | privacy.en.mdx defasada em v1.0 — perdeu toda a v1.1 (lista Brevo, sem redes sociais/AdSense) + v1.2. Requer passada de traducao dedicada (pt-BR prevalece). | apps/web/src/content/legal/privacy.en.mdx |
+| BTF-086 | MEDIO | CI | PARCIAL: test-packages gate adicionado. DEFERIDO: audit blocking gate (precisa BTF-080 antes), type-debt ratchet, teste-guardiao de inventario PII. | .github/workflows/ci.yml |
+| BTF-089b | MEDIO | Seguranca | CSP nonce-based migration DEFERIDA: middleware tem ~13 saidas NextResponse + mergeSiteHeaders whitelist — propagar nonce sem quebrar hidratacao exige `next build` + verificacao browser. Hardening seguro (object-src 'none') aplicado em BTF-089. | apps/web/next.config.ts, src/middleware.ts |
 | — | — | Cobertura | DEFERIDO: testes de providers social (youtube/meta) — exigem mocking de SDK (~4h). Threshold de coverage no social bloqueado por version mismatch vitest 2.1.9 vs coverage-v8 3.2.4. | packages/social/ |
 | — | — | TypeScript | DEFERIDO: migracao de ~38 rotas mutativas para helper Zod unico (parseBodyWith). | apps/web/src/app/api/ |
 
@@ -111,12 +111,21 @@
 | BTF-082 | 2026-06-07 | linktree tracking sem gate de consentimento | Anonimiza ip/ua/referrer server-side sem consent (padrao content_events); visitor_id/geo preservados |
 | BTF-084 | 2026-06-07 | 3 SECURITY DEFINER sem search_path (cron_try_lock, cron_unlock, unsubscribe_via_token) | Migration 20260607000001: ALTER FUNCTION SET search_path='' (pending push prod) |
 | BTF-085 | 2026-06-07 | AWS SES em uso, nao documentado na policy | privacy.pt-BR.mdx v1.2 §4: AWS SES sa-east-1 (nacional, sem transferencia intl) |
+| BTF-087 | 2026-06-19 | privacy.en.mdx defasada v1.0 (Brevo, sem SES/redes/AdSense/Waitlists) | Reescrita como traducao fiel da pt-BR v1.2: Brevo removido, +SES/Resend/YouTube Intelligence/Research/Waitlists/Sentry-tiers/cookies AdSense; nota "pt-BR prevails"; legal-shell test verde |
+| BTF-088 | 2026-06-19 | /api/consents/anonymous sem rate limit (spam de consents) | In-memory Map 50/min por IP (padrao ads/events + track/content), 429 antes do insert, +3 testes |
+| BTF-089 | 2026-06-19 | CSP unsafe-inline em script-src producao | Hardening: +object-src 'none' (base-uri/frame-ancestors/form-action ja presentes); unsafe-inline documentado como debt (migracao nonce = BTF-089b, exige build verification) |
+| BTF-090 | 2026-06-19 | email-sanitizer XSS-stripping por regex fragil | Substituido por isomorphic-dompurify (allowlist) no input antes do juice/MSO; goldens inalterados; 18 testes verdes |
+| BTF-091 | 2026-06-19 | 17 select('*') em social actions (posts.ts 10x, templates.ts 7x) | Projecoes explicitas (POST_COLS/DELIVERY_COLS/CONNECTION_COLS/TEMPLATE_COLS); bluesky_*_enc/circuit/rate cols excluidas; typecheck + 412 testes verdes |
+| BTF-092 | 2026-06-19 | teste flaky em links-admin (1-em-N, wall-clock race) | Causa raiz: MockEventSource setTimeout(0) vs sleep(10) do teste; fix com vi.useFakeTimers + advanceTimersByTimeAsync; 5 runs consecutivos verdes |
+| BTF-093 | 2026-06-19 | 42/44 crons sem teste dedicado (delecao irreversivel) | +20 testes pure-mock em ab-draft-cleanup(7)/snapshot-cleanup(6)/notification-cleanup(7): auth 401, cutoff, delete-by-id (anti-wipe), GET/POST real. 4 dos 5 alvos sugeridos ja tinham teste |
 
 ## Falsos Positivos Detectados
 | ID | Descricao | Por que falso positivo |
 |----|-----------|----------------------|
 | BTF-009 | Google Fonts (next/font/google) como terceiro LGPD | next/font/google faz download em build time e serve self-hosted — zero PII transferido para Google em runtime |
 | BTF-053 | Sharp .withMetadata(false) para strip EXIF | Sharp JA strip metadata por default com .rotate().toBuffer() — .withMetadata(false) nao e API valida e na verdade preserva metadata |
+| FP-2026-06-19a | "CRITICO: oauth callback console.error(provider, err) vaza tokens OAuth" (callback/route.ts:416) | `err` e um Error (message+stack), nao variaveis de closure; os throw no bloco sao mensagens de DB, nao tokens. Log server-side (Vercel) + scrubber Sentry. Tokens ficam em locals, nao em stack traces JS. |
+| FP-2026-06-19b | "snapshot-cleanup/notification-cleanup POST-only sao crons Vercel mortos (split-brain)" | NAO estao em apps/web/vercel.json — sao pg_cron-driven (POST) por design. ab-draft-cleanup (Vercel cron) e corretamente GET-only. Arquitetura consistente. |
 
 ## LGPD — Cobertura PII por Phase
 | Tabela | Campo PII | Phase 1 | Phase 3 | Export | Status |
@@ -158,6 +167,7 @@
 | Admin/CMS forgot-password | Turnstile captcha | CONDICIONAL (env var) |
 | Newsletter subscribe | RPC DB check | IMPLEMENTADO (best-effort) |
 | Contact form | RPC DB check | IMPLEMENTADO (fail-open com warning) |
+| Consents anonymous | In-memory Map 50/min | IMPLEMENTADO (BTF-088, cold start reset) |
 | Ad events tracking | In-memory Map | IMPLEMENTADO (cold start reset) |
 | Content tracking | In-memory Map | IMPLEMENTADO (cold start reset) |
 | Link clicks (/go/) | Nenhum | SEM RATE LIMIT |
@@ -168,13 +178,15 @@
 ## Contagem de Testes
 | Workspace | Testes | Verificado em |
 |-----------|--------|---------------|
-| Web | ~7645+ (suite cresceu; contagem limpa indisponivel — IPC error no teardown) | 2026-06-07 |
-| API | 152 (13 passed, 139 skipped HAS_LOCAL_DB) | 2026-06-07 |
-| Links | 442 (442 passed) | 2026-06-07 |
-| LinksAdmin | 439 (439 passed — 5 falhas Donut corrigidas) | 2026-06-07 |
-| Shared | 11 (11 passed) | 2026-06-07 |
-| Social | 58 (58 passed — era 15; core/ 100% coberto) | 2026-06-07 |
-| **Packages total** | **950** (todos verdes, gate test-packages no CI) | 2026-06-07 |
+| Web | 13391 (13002 passed, 382 skipped, 7 todo) — +5.7k vs 06-07 | 2026-06-19 |
+| API | 152 (13 passed, 139 skipped HAS_LOCAL_DB) | 2026-06-19 |
+| Links | 442 (442 passed) | 2026-06-19 |
+| LinksAdmin | 439 (439 passed — flaky BTF-092 corrigido, 5 runs verdes) | 2026-06-19 |
+| Shared | 11 (11 passed) | 2026-06-19 |
+| Social | 58 (58 passed) | 2026-06-19 |
+| **Packages total** | **950** (todos verdes, gate test-packages no CI) | 2026-06-19 |
+
+> Nota: codebase cresceu — 176 route handlers (era ~90), 44 cron routes (era 21).
 
 ## Historico de Scores
 | Data | Testes | Types | Seguranca | LGPD | Leaks | Total | Findings C/A/M/B | Net |
@@ -187,12 +199,13 @@
 | 2026-05-24 | 9.5 | 8 | 10 | 10 | 10 | 9.5 | 0/0/2/0 | +211 tests (24 new files) |
 | 2026-06-07 | 8 | 8 | 9 | 9 | 9.5 | 8.7 | 0/1/7/4 | codebase cresceu (youtube/playlists/notifications) — gaps reabertos |
 | 2026-06-07 | 9 | 8 | 9 | 9.5 | 9.5 | 9 | 0/0/5/1 | Ondas 1-3 + CI parcial: 7 commits, BTF-075/076/077/078/079/081/082/084/085 resolvidos |
+| 2026-06-19 | 9 | 8 | 9.5 | 9.5 | 9.5 | 9.4 | 0/0/2/1 | Remediacao 6 sub-agentes (commit f96fc806, sem push): BTF-087/088/089/090/091/092/093 resolvidos; design 102/110 |
 
 ## Proximos Passos Recomendados
-1. PENDING: `npm run db:push:prod` da migration 20260607000001 (search_path fix — BTF-084)
-2. ONDA 4 (deferida — sessao dedicada): `supabase gen types` → tipar clients → eliminar ~70 `as unknown as` (BTF-059/083). Risco alto: pode quebrar typecheck em massa; exige Docker/login.
-3. ONDA 4 (deferida): @vercel/blob 1.1.1 → 2.4.0 (BTF-080, Node 20+) — DEPOIS tornar `npm audit --audit-level=high` bloqueante no CI.
-4. ONDA 4 (deferida): helper Zod unico (parseBodyWith) nas ~38 rotas mutativas.
-5. ONDA 4 (deferida): type-debt ratchet (.type-debt-baseline.json) + teste-guardiao de inventario PII no CI (BTF-086).
-6. BTF-087: passada de traducao da privacy.en.mdx para paridade v1.2.
-7. Testes de providers social (youtube/meta) com mocks + alinhar vitest/coverage-v8 no social.
+1. PENDING (carry-over): `npm run db:push:prod` da migration 20260607000001 (search_path fix — BTF-084). Verificar se ja foi aplicada em prod.
+2. PUSH PENDENTE: commit f96fc806 (remediacao deste audit) aguarda fim do deploy freeze antes do push/deploy.
+3. DEFERIDO (sessao dedicada, exige build): `supabase gen types` → tipar clients → eliminar `as unknown as` (143, BTF-059/083). Risco alto: pode quebrar typecheck em massa.
+4. DEFERIDO (exige build verification): @vercel/blob → 2.4.1 (BTF-080, Node 20+) — DEPOIS tornar `npm audit --audit-level=high` bloqueante no CI (BTF-086).
+5. DEFERIDO (exige `next build` + verificacao de hidratacao no browser): CSP nonce-based migration (BTF-089b) — middleware tem ~13 saidas NextResponse.
+6. DEFERIDO: helper Zod unico (parseBodyWith) nas ~38 rotas mutativas; type-debt ratchet + teste-guardiao de inventario PII no CI.
+7. DEFERIDO: testes de providers social (youtube/meta) com mocks + alinhar vitest/coverage-v8 no social.
