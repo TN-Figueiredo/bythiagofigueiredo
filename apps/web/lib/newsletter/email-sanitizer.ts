@@ -1,5 +1,21 @@
 import juice from 'juice'
+import DOMPurify from 'isomorphic-dompurify'
 import { getEmailStylesheet } from './email-styles'
+
+// Tags/attributes the newsletter editor can produce. DOMPurify drops anything
+// outside this allowlist (script/style/iframe/object/svg handlers, etc.) and
+// strips on* event handlers + javascript: URIs structurally — replacing the
+// fragile hand-rolled regex pass that missed HTML-entity / unquoted variants.
+const EMAIL_ALLOWED_TAGS = [
+  'p', 'a', 'img', 'h1', 'h2', 'h3', 'h4', 'strong', 'em', 'b', 'i', 'u',
+  'br', 'hr', 'div', 'span', 'ul', 'ol', 'li', 'blockquote',
+  'table', 'thead', 'tbody', 'tr', 'td', 'th', 'figure', 'figcaption',
+]
+
+const EMAIL_ALLOWED_ATTR = [
+  'href', 'src', 'alt', 'style', 'class', 'width', 'height', 'align',
+  'target', 'rel',
+]
 
 function escapeVmlAttr(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -31,16 +47,15 @@ function restoreEmptyAlt(html: string): string {
 export function sanitizeForEmail(html: string, typeColor: string): string {
   if (!html) return ''
 
-  let sanitized = html
-
-  // 1. XSS prevention
-  sanitized = sanitized.replace(/<script[\s\S]*?<\/script>/gi, '')
-  sanitized = sanitized.replace(/<style[\s\S]*?<\/style>/gi, '')
-  sanitized = sanitized.replace(/\s+on\w+\s*=\s*"[^"]*"/gi, '')
-  sanitized = sanitized.replace(/\s+on\w+\s*=\s*'[^']*'/gi, '')
-  sanitized = sanitized.replace(/\s+on\w+\s*=\s*[^\s>"']+/gi, '')
-  sanitized = sanitized.replace(/href\s*=\s*"javascript:[^"]*"/gi, 'href="#"')
-  sanitized = sanitized.replace(/href\s*=\s*["']?\s*javascript:[^"'>\s]*/gi, '')
+  // 1. XSS prevention — DOMPurify on the INPUT (before juice / before the
+  //    MSO comment wrap in step 4, since DOMPurify strips comments). Removes
+  //    script/style tags, on* handlers and javascript: URIs structurally.
+  //    ALLOW_DATA_ATTR keeps `data-merge-tag` spans the templating relies on.
+  let sanitized = DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: EMAIL_ALLOWED_TAGS,
+    ALLOWED_ATTR: EMAIL_ALLOWED_ATTR,
+    ALLOW_DATA_ATTR: true,
+  })
 
   // 2. Image safety — add alt="" to images missing alt attribute
   sanitized = sanitized.replace(

@@ -28,11 +28,22 @@ class MockEventSource {
 beforeEach(() => {
   MockEventSource.instances = []
   vi.stubGlobal('EventSource', MockEventSource)
+  vi.useFakeTimers()
 })
 
 afterEach(() => {
+  vi.useRealTimers()
   vi.unstubAllGlobals()
 })
+
+// Deterministically flush the MockEventSource open timer (setTimeout 0) plus
+// any React state updates it triggers. Replaces the flaky `setTimeout(r, 10)`
+// wall-clock sleep that raced the open callback under CPU load.
+async function flushOpen() {
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(0)
+  })
+}
 
 describe('LivePulseIndicator', () => {
   it('renders pulse dot', () => {
@@ -47,17 +58,13 @@ describe('LivePulseIndicator', () => {
 
   it('shows connected state after EventSource opens', async () => {
     render(<LivePulseIndicator linkId="link-1" streamUrl="/api/stream" />)
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 10))
-    })
+    await flushOpen()
     expect(screen.getByText(/live/i)).toBeInTheDocument()
   })
 
   it('shows click count after receiving messages', async () => {
     render(<LivePulseIndicator linkId="link-1" streamUrl="/api/stream" />)
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 10))
-    })
+    await flushOpen()
     act(() => {
       MockEventSource.instances[0].simulateMessage(
         JSON.stringify({ type: 'click', linkId: 'link-1' }),
@@ -71,9 +78,7 @@ describe('LivePulseIndicator', () => {
 
   it('displays clicks/min rate label', async () => {
     render(<LivePulseIndicator linkId="link-1" streamUrl="/api/stream" />)
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 10))
-    })
+    await flushOpen()
     expect(screen.getByText(/clicks\/min/i)).toBeInTheDocument()
   })
 })

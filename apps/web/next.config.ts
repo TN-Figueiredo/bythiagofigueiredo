@@ -124,6 +124,33 @@ const nextConfig: NextConfig = {
     // unsafe-eval is required by Next.js in development (hot-reload / source
     // maps) but MUST NOT ship to production builds.
     const isDev = process.env.NODE_ENV !== 'production'
+    // BTF-089 (CSP hardening) — KNOWN TRADEOFF / TECH DEBT.
+    // `script-src` keeps `'unsafe-inline'` in production. This weakens the
+    // inline-XSS defense, but it is *deliberate and currently required*:
+    // Next.js App Router emits inline bootstrap/hydration <script> tags
+    // (flight payload, `self.__next_f`, route announcer) on every server
+    // render. Without `'unsafe-inline'` the browser blocks them and the page
+    // fails to hydrate.
+    //
+    // The correct fix is nonce-based CSP (per the official Next.js guide:
+    // https://nextjs.org/docs/app/guides/content-security-policy — generate a
+    // per-request nonce in middleware, set it on the *request* header so Next
+    // injects it into its own scripts, and emit the CSP response header with
+    // `'nonce-{value}'`). We are NOT doing that here because this project's
+    // `src/middleware.ts` has ~13 distinct `NextResponse` return paths (dev
+    // subdomain rewrite, go.* short-link rewrites, i18n `/pt/` rewrite, site
+    // resolution, auth gating via `mergeSiteHeaders` which copies only a
+    // whitelist of `x-*` headers). Threading a nonce reliably through *every*
+    // one of those paths is required for correctness — miss one and that route
+    // ships a CSP whose nonce doesn't match the injected scripts, breaking
+    // hydration in production. That migration needs its own task with a real
+    // `next build` + browser hydration verification gate (we can't run
+    // `next build` cheaply here and a deploy freeze is active), so it is
+    // tracked as dedicated debt rather than attempted blind.
+    //
+    // What IS hardened safely here (no hydration risk): `object-src 'none'`,
+    // plus the pre-existing `base-uri 'self'`, `frame-ancestors 'none'`,
+    // `form-action 'self'`.
     const scriptSrc = isDev
       ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com https://static.cloudflareinsights.com"
       : "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://static.cloudflareinsights.com"
@@ -136,6 +163,9 @@ const nextConfig: NextConfig = {
       "connect-src 'self' https://*.supabase.co https://*.supabase.in https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://challenges.cloudflare.com https://cloudflareinsights.com https://*.public.blob.vercel-storage.com https://*.giphy.com",
       "media-src 'self' blob: https://*.public.blob.vercel-storage.com",
       "frame-src https://challenges.cloudflare.com https://www.youtube.com",
+      // object-src 'none' blocks <object>/<embed>/<applet> — a classic XSS /
+      // plugin vector. Zero hydration impact: Next never emits these.
+      "object-src 'none'",
       "frame-ancestors 'none'",
       "form-action 'self'",
       "base-uri 'self'",

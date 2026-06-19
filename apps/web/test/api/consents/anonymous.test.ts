@@ -198,4 +198,48 @@ describe('POST /api/consents/anonymous', () => {
     );
     expect(hassSiteId).toBe(true);
   });
+
+  describe('rate limiting (in-memory, per IP)', () => {
+    // Unique IP per test so buckets don't bleed across cases (the limiter
+    // module-level Map persists between tests in the same worker).
+    function bodyFor(): Record<string, unknown> {
+      // fresh maybeSingle mocks require a fresh chain per request
+      return VALID_BODY;
+    }
+
+    it('allows a normal request through', async () => {
+      vi.mocked(getSupabaseServiceClient).mockImplementation(() => makeChain() as never);
+      const res = await POST(req(bodyFor(), { 'x-forwarded-for': '203.0.113.10' }));
+      expect(res.status).toBe(200);
+    });
+
+    it('returns 429 rate_limited after exceeding the per-IP limit', async () => {
+      vi.mocked(getSupabaseServiceClient).mockImplementation(() => makeChain() as never);
+      const ip = '203.0.113.99';
+      // 50 req/min cap → first 50 pass, the 51st is blocked.
+      let lastStatus = 0;
+      for (let i = 0; i < 51; i++) {
+        const res = await POST(req(bodyFor(), { 'x-forwarded-for': ip }));
+        lastStatus = res.status;
+      }
+      expect(lastStatus).toBe(429);
+      const blocked = await POST(req(bodyFor(), { 'x-forwarded-for': ip }));
+      expect(blocked.status).toBe(429);
+      expect((await blocked.json()).error).toBe('rate_limited');
+    });
+
+    it('does not insert when rate limited (limiter runs before DB)', async () => {
+      const chain = makeChain();
+      vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never);
+      const ip = '203.0.113.50';
+      // Saturate the bucket.
+      for (let i = 0; i < 50; i++) {
+        await POST(req(bodyFor(), { 'x-forwarded-for': ip }));
+      }
+      (chain.insert as ReturnType<typeof vi.fn>).mockClear();
+      const res = await POST(req(bodyFor(), { 'x-forwarded-for': ip }));
+      expect(res.status).toBe(429);
+      expect((chain.insert as ReturnType<typeof vi.fn>)).not.toHaveBeenCalled();
+    });
+  });
 });

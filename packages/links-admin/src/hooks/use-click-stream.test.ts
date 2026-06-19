@@ -38,11 +38,22 @@ class MockEventSource {
 beforeEach(() => {
   MockEventSource.instances = []
   vi.stubGlobal('EventSource', MockEventSource)
+  vi.useFakeTimers()
 })
 
 afterEach(() => {
+  vi.useRealTimers()
   vi.unstubAllGlobals()
 })
+
+// Deterministically flush the MockEventSource open timer (setTimeout 0) plus
+// any React state updates it triggers. Replaces the flaky `setTimeout(r, 10)`
+// wall-clock sleep that raced the open callback under CPU load.
+async function flushOpen() {
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(0)
+  })
+}
 
 describe('useClickStream', () => {
   it('initializes with zero clicks and disconnected', () => {
@@ -60,17 +71,13 @@ describe('useClickStream', () => {
 
   it('sets isConnected to true on open', async () => {
     const { result } = renderHook(() => useClickStream('link-1', '/api/links/stream'))
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 10))
-    })
+    await flushOpen()
     expect(result.current.isConnected).toBe(true)
   })
 
   it('increments clicks on message', async () => {
     const { result } = renderHook(() => useClickStream('link-1', '/api/links/stream'))
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 10))
-    })
+    await flushOpen()
     act(() => {
       MockEventSource.instances[0].simulateMessage(
         JSON.stringify({ type: 'click', linkId: 'link-1' }),
@@ -81,9 +88,7 @@ describe('useClickStream', () => {
 
   it('accumulates multiple clicks', async () => {
     const { result } = renderHook(() => useClickStream('link-1', '/api/links/stream'))
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 10))
-    })
+    await flushOpen()
     act(() => {
       const es = MockEventSource.instances[0]
       es.simulateMessage(JSON.stringify({ type: 'click', linkId: 'link-1' }))
@@ -95,9 +100,7 @@ describe('useClickStream', () => {
 
   it('sets isConnected to false on error', async () => {
     const { result } = renderHook(() => useClickStream('link-1', '/api/links/stream'))
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 10))
-    })
+    await flushOpen()
     expect(result.current.isConnected).toBe(true)
     act(() => {
       MockEventSource.instances[0].simulateError()
@@ -107,9 +110,7 @@ describe('useClickStream', () => {
 
   it('closes EventSource on unmount', async () => {
     const { unmount } = renderHook(() => useClickStream('link-1', '/api/links/stream'))
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 10))
-    })
+    await flushOpen()
     const es = MockEventSource.instances[0]
     unmount()
     expect(es.readyState).toBe(2)

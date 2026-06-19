@@ -1,17 +1,17 @@
 ---
 title: "Privacy Policy"
-version: "1.0"
-effectiveDate: "2026-04-16"
+version: "1.2"
+effectiveDate: "2026-06-07"
 locale: "en"
 ---
 
 # Privacy Policy
 
-**Version 1.0 — effective since April 16, 2026.**
+> **This is a translation of the Portuguese (pt-BR) policy. In case of discrepancy, the pt-BR version prevails.**
 
-This Privacy Policy describes how we collect, use, store, and protect your personal data when you use **bythiagofigueiredo.com** and related services. It is written in plain language to be understandable by non-specialists and complies with the Brazilian General Data Protection Law (LGPD, Law 13.709/2018) and the European General Data Protection Regulation (GDPR, EU Regulation 2016/679).
+**Version 1.2 — effective since June 7, 2026.**
 
-> **Language disclaimer:** In case of conflict between translations, **the Portuguese (pt-BR) version prevails**.
+This Privacy Policy describes how we collect, use, store, and protect your personal data when you use **bythiagofigueiredo.com** and related services. It is written in plain language to be understandable by non-specialists — without unnecessary legal jargon — and complies with the Brazilian General Data Protection Law (LGPD, Law 13.709/2018) and the European General Data Protection Regulation (GDPR, EU Regulation 2016/679) for visitors in the European Union.
 
 ## 1. Data controller identification
 
@@ -27,7 +27,10 @@ The controller of personal data processed on this site is:
 We collect only the data strictly necessary for each purpose. Breakdown per surface:
 
 - **User account (when you sign up):** email, password (stored as a bcrypt hash by Supabase Auth), creation date, last-login date, preferred locale.
-- **Newsletter:** email, subscription date, accepted consent-text version, IP + user-agent at sign-up time (LGPD Art. 9 accountability).
+- **Newsletter:** email, subscription date, accepted consent-text version, IP + user-agent at sign-up time (LGPD Art. 9 accountability). After sending, we collect open events (open-tracking pixel), link-click events, and the IP and user-agent associated with each interaction — used exclusively for aggregate newsletter-performance metrics.
+- **Social media management (if you connect accounts):** OAuth authentication tokens (Meta/Facebook, Meta/Instagram, Google/YouTube) or session credentials (Bluesky/AT Protocol), public profile data of the connected account, metadata of posts created or scheduled through the platform.
+- **YouTube channel intelligence (if you connect a channel):** for connected channels, we collect video-performance metrics and **aggregate audience demographics** (age range, gender, geography, search terms) obtained from the **YouTube Analytics API**, with no individual viewer identification, used for editorial analysis and content strategy.
+- **Research / Pipeline (internal use by editors):** story-research items, editorial decisions, and content notes, tied to the `user_id` of the editor who created them.
 - **Contact form:** name, email, message, IP + user-agent, timestamp.
 - **Authored content (if you are an editor/reporter):** blog posts, campaigns, bio, avatar, editing metadata.
 - **Audit logs:** administrative actions (create/edit/publish content, invitations) tied to your `user_id`, with IP and user-agent.
@@ -48,6 +51,12 @@ For each data category, we list the purpose and the LGPD legal basis (Art. 7):
 | Audit logs | Legal compliance, security, fraud prevention | Art. 7 VI (regular exercise of rights) |
 | **Error** telemetry (Sentry, stack traces + metadata only) | Identify, diagnose, and fix failures | Art. 7 VIII (legitimate interest) |
 | **Performance** telemetry (Sentry Browser Tracing) and **Session Replay** | Detailed navigation metrics and session reconstruction for debugging | Art. 7 I (consent — analytics) |
+| Newsletter tracking (open, click, IP) | Aggregate campaign-performance metrics | Art. 7 IX (legitimate interest — operational analytics) |
+| Social media management (Meta, YouTube, Bluesky) | Publishing and scheduling content on third-party platforms | Art. 7 I (consent — explicit OAuth connection) |
+| YouTube channel intelligence (aggregate audience metrics + demographics) | Performance analysis and content strategy | Art. 7 I (consent — channel OAuth connection) |
+| Research / Pipeline (internal editorial organization) | Story planning and curation by editors | Art. 7 V (contract execution) |
+| Transactional emails (AWS SES) | Email delivery (confirmations, bounce/complaint notifications) | Art. 7 V (contract execution) |
+| Advertising (Google AdSense) | Display of contextual and personalized ads | Art. 7 I (consent — opt-in via cookie banner) |
 | Functional cookies | Session, preferences, CSRF | Art. 7 V (contract execution) |
 | Analytics/marketing cookies | Aggregate metrics, personalization | Art. 7 I (consent) |
 
@@ -59,7 +68,7 @@ The **always-on** Sentry layer captures **application errors only** (stack trace
 - **Necessity:** without error telemetry, critical bugs (data loss, checkout failures, login failures) may go unnoticed for days, causing direct harm to the data subject.
 - **Minimization applied:** PII (email, phone, CPF) is filtered before transmission by a dedicated scrubber applied to breadcrumbs, messages, headers, and HTTP request bodies. Performance sampling (`tracesSampleRate`) and session replay (`replaysSessionSampleRate` / `replaysOnErrorSampleRate`) are set to **zero** in this layer.
 - **Protection:** 30-day retention; access restricted to authenticated administrators with 2FA.
-- **Right to object:** you can object to this processing at any time via privacidade@bythiagofigueiredo.com (see Section 7). To opt out before transmission you may block third-party JavaScript or request account deletion (Section 7).
+- **Right to object:** you can object to this processing at any time via privacidade@bythiagofigueiredo.com (see Section 7). To opt out before transmission you may disable third-party JavaScript or request account deletion (Section 7).
 
 ### Additional layer — Sentry Browser Tracing + Session Replay (analytics consent)
 
@@ -70,34 +79,45 @@ When — and **only when** — you accept the **analytics** cookies in the conse
 
 These two components are attached dynamically upon granting analytics consent and **stopped at runtime** when consent is withdrawn. The legal basis is **consent (LGPD Art. 7 I / GDPR Art. 6(1)(a))**, and unlike the error layer, we **do not** rely on legitimate interest for tracing/replay.
 
-We do NOT rely on Art. 7 IX (which does not exist under the Brazilian LGPD — the list ends at X).
+LGPD Art. 7 IX (legitimate interest — "when necessary to attend to the legitimate interests of the controller or of a third party") is used only for operational newsletter tracking (open and click metrics), as detailed in the table above.
 
 ## 4. Sharing with third parties (sub-processors)
 
-We share strictly necessary data with the following sub-processors, each under a data protection agreement:
+We share strictly necessary data with the following sub-processors, all under a data protection agreement:
 
 | Sub-processor | Purpose | Location | Transfer basis |
 |---------------|---------|----------|----------------|
 | Supabase Inc. | Database + authentication + storage | AWS sa-east-1 (São Paulo, BR) | No international transfer (BR→BR) |
-| Brevo SAS | Transactional + newsletter email | France (EU) | Country with adequate level of protection (GDPR Art. 45) |
-| Vercel Inc. | Next.js application hosting | USA | Standard Contractual Clauses (SCCs, GDPR Art. 46(2)(c)) + signed DPA |
+| Amazon Web Services, Inc. (SES) | Transactional email delivery; processing of delivery events (bounce/complaint) | AWS sa-east-1 (São Paulo, BR) | No international transfer (BR→BR) |
+| Resend, Inc. | Transactional and newsletter email delivery | USA | Standard Contractual Clauses (SCCs, GDPR Art. 46(2)(c)) + signed DPA |
+| Vercel Inc. | Next.js application hosting (web hosting) | USA | Standard Contractual Clauses (SCCs, GDPR Art. 46(2)(c)) + signed DPA |
 | Sentry (Functional Software Inc.) | Error telemetry | USA | Standard Contractual Clauses (SCCs, GDPR Art. 46(2)(c)) + signed DPA |
 | Cloudflare Inc. | CAPTCHA (Turnstile) | USA | Standard Contractual Clauses (SCCs, GDPR Art. 46(2)(c)) |
+| Google LLC (AdSense) | Ad display; ad-personalization cookies, browsing behavior, inferred interests | USA | Standard Contractual Clauses (SCCs, GDPR Art. 46(2)(c)) + signed DPA |
+| Google LLC (YouTube/OAuth + Analytics) | OAuth authentication, channel data, video metadata, and aggregate audience demographics (YouTube Analytics API) for social-publishing management and intelligence | USA | Standard Contractual Clauses (SCCs, GDPR Art. 46(2)(c)) + signed DPA |
+| Meta Platforms, Inc. (Facebook/Instagram) | OAuth authentication, profile data, content publishing and scheduling on Facebook and Instagram | USA | Standard Contractual Clauses (SCCs, GDPR Art. 46(2)(c)) + signed DPA |
+| Bluesky PBC (AT Protocol) | Session authentication, content publishing on the Bluesky network | USA | Standard Contractual Clauses (SCCs, GDPR Art. 46(2)(c)) |
 
-We do NOT sell, rent, or transfer your data to advertisers or data brokers.
+We do NOT sell, rent, or transfer your data to data brokers. The data shared with Google AdSense is used exclusively for ad display and is collected only with your explicit consent via the cookie banner (marketing category).
 
 ## 5. International transfers
 
-Data is stored in **São Paulo (Brazil)** at Supabase (AWS sa-east-1). Some ancillary operations involve international transfers to:
+The processed data is stored in **São Paulo (Brazil)** at Supabase (AWS sa-east-1). Some ancillary operations involve international transfers to the **United States**, as detailed below:
 
-- **United States** (Vercel hosting, Sentry telemetry, Cloudflare Turnstile) — all under **EU Commission-approved Standard Contractual Clauses (SCCs)** (GDPR Art. 46(2)(c)), plus individual DPAs.
-- **European Union** (Brevo, France) — a country with adequate level of protection recognized by ANPD and by the EU Commission.
+| Sub-processor | Country | Data transferred | Safeguard |
+|---------------|---------|------------------|-----------|
+| Vercel Inc. | USA | HTTP request data, rendered content | SCCs + DPA |
+| Sentry (Functional Software Inc.) | USA | Stack traces, error metadata, user-agent | SCCs + DPA |
+| Cloudflare Inc. | USA | CAPTCHA data (token, IP) | SCCs |
+| Resend, Inc. | USA | Recipient email, content of transactional emails and newsletters | SCCs + DPA |
+| Google LLC (AdSense) | USA | Ad cookies, browsing behavior (consent only) | SCCs + DPA |
+| Google LLC (YouTube/OAuth + Analytics) | USA | OAuth tokens, channel data, video metadata, and aggregate audience demographics (consent only) | SCCs + DPA |
+| Meta Platforms, Inc. | USA | OAuth tokens, profile data, post content (consent only) | SCCs + DPA |
+| Bluesky PBC | USA | Session credentials, post content (consent only) | SCCs |
 
-Under **LGPD Art. 33** and **GDPR Chapter V**, such transfers rely on:
-- Standard Contractual Clauses (for the US — SCCs);
-- Country adequacy (for France/EU).
+Under **LGPD Art. 33** and **GDPR Chapter V**, all international transfers are grounded in **EU Commission-approved Standard Contractual Clauses (SCCs)** (GDPR Art. 46(2)(c)), complemented by individual DPAs (Data Processing Agreements) where available. The social-media management services (Google/YouTube, Meta, Bluesky) only transfer data when you explicitly choose to connect your account to the platform.
 
-You may request a copy of the current SCCs/DPAs via privacidade@bythiagofigueiredo.com.
+You may request a copy of the SCCs/DPAs in force via privacidade@bythiagofigueiredo.com.
 
 ## 6. Retention (SLA schedule)
 
@@ -107,9 +127,12 @@ We retain each category for the minimum term required by the purpose or by law:
 |----------|-----------|
 | User account (active) | While the account exists |
 | User account (after deletion request) | 15-day grace period (cancellable) → permanent deletion |
-| Newsletter subscriptions | Anonymized immediately upon unsubscribe (email → SHA-256 hash) |
+| Newsletter subscriptions | Anonymized within **90 days** of unsubscribe (email → SHA-256 hash, via anonymization cron) |
+| Newsletter tracking (opens, clicks, IP) | Anonymized after **90 days** via automated cron (IP → null, user-agent → null; aggregate events preserved for analytics) |
 | Contact-form submissions | Up to 2 years (automatic weekly cron anonymization); anonymized upon request at any time |
 | Sent emails (`sent_emails`) | Automatic purge after **90 days** |
+| YouTube channel intelligence (metrics + aggregate demographics) | While the channel remains connected; deleted upon disconnecting the channel or closing the account |
+| Research / Pipeline (stories, decisions, notes) | While the account exists; `author_id`/`created_by` anonymized on account deletion |
 | Audit logs | 5 years (regulatory requirement for accountability) |
 | Consents (`consents`) | Retained while valid + 5 years after withdrawal (accountability) |
 | Sentry telemetry | 30 days |
@@ -162,7 +185,7 @@ We use 3 categories of cookies/storage. You can accept or decline granularly via
 |----------|-----------------|---------|-----|---------|
 | Functional (required) | `sb-access-token`, `sb-refresh-token`, `preferred_locale`, `lgpd_anon_id`, CSRF tokens | Authentication, session, preferences, security | Session to 30 days | Not required (contract execution) |
 | Analytics (opt-in) | `lgpd_consent_v1.analytics`, `cookie_analytics_consent` (localStorage), Sentry Session Replay + Browser Tracing | Session reconstruction for debugging + performance metrics | 1 year | Explicit opt-in |
-| Marketing (opt-in) | `lgpd_consent_v1.marketing` | Personalization | 1 year | Explicit opt-in |
+| Marketing / Advertising (opt-in) | `lgpd_consent_v1.marketing`, Google AdSense cookies (`__gads`, `__gpi`, `_gcl_*`, `IDE`, `NID`) | Display of personalized ads, remarketing, display frequency | 1 to 2 years (varies per cookie) | Explicit opt-in |
 
 You can revoke consents at any time via the footer or `/account/settings/privacy`.
 
@@ -174,7 +197,7 @@ We apply technical and organizational measures proportional to risk:
 - **Row-Level Security (RLS)** on Supabase to isolate data between users
 - **Bcrypt-hashed passwords** (never stored in plaintext)
 - **Immutable audit logs** for administrative actions
-- **Sentry with PII scrubber** — email/password fields are filtered before sending events
+- **Sentry with PII scrubber** — email/password fields, etc., are filtered before sending events
 - **Rate limiting** on sensitive endpoints (verify-password, request-deletion, request-export)
 - **Daily encrypted backup**, retained for 30 days
 
@@ -182,11 +205,11 @@ In case of a **security incident** involving personal data exposure, we will not
 
 ## 10. Minors under 18 (LGPD Art. 14)
 
-This site is **not directed at minors under 18** — the content, formats, and channels target an adult audience. However, we acknowledge that minors may access or use the site, and this section describes our handling of such cases under **LGPD Art. 14**.
+This site is **not directed at minors under 18** — the content, formats, and content channels target an adult audience. However, we acknowledge that minors may access or use the site, and this section describes our handling under **LGPD Art. 14**.
 
 ### Legal basis and parental consent (LGPD Art. 14 §1)
 
-When a data subject is identified as a **child (under 13)** or **adolescent (13 to 17)**, processing of their personal data may occur only:
+When a data subject is identified as a **child (under 12)** or **adolescent (12 to 17)**, processing of their personal data may occur only:
 
 - **For children (Art. 14 §1):** with **specific and prominent consent given by at least one parent or legal guardian**;
 - **For adolescents:** always observing the **best interest** of the data subject, and — where consent is the applicable legal basis — with consent from the legal guardian when required by the prevailing ANPD interpretation.
@@ -207,15 +230,15 @@ Parents and legal guardians who identify that a minor under their care has regis
 
 Upon being notified by a legal guardian that a minor has registered data **without parental consent**, we commit to **deleting the data within 15 calendar days** counted from notification, confirm the deletion by email to the guardian, and record the operation in our audit log for accountability.
 
-### Data treated as sensitive
+### Data treated as a special category
 
-Minors' data receives **the same technical protection level** applied to all data subjects (TLS 1.3, RLS, encrypted backups, Sentry minimization) — and is **not used for secondary purposes** (marketing, personalization, profiling) under any circumstance.
+Minors' data receives **the same technical protection level** applied to all other data subjects (TLS 1.3, RLS, encrypted backups, Sentry minimization) — and is **not used for secondary purposes** (marketing, personalization, profiling) under any circumstance.
 
 ## 11. Requesting copies of the protection agreements
 
 The grounds for international transfers are listed in Section 5 (processors + countries + transfer basis). If you want to inspect the instruments in force:
 
-- **SCCs (Standard Contractual Clauses)** signed with Vercel, Sentry, and Cloudflare — text per EU Commission Implementing Decision 2021/914.
+- **SCCs (Standard Contractual Clauses)** signed with Vercel, Sentry, Cloudflare, Resend, Google, and Meta — text per EU Commission Implementing Decision (EU) 2021/914.
 - **DPAs (Data Processing Agreements)** with each processor, describing scope of processing, authorized sub-processors, and incident SLAs.
 
 Send a request to **privacidade@bythiagofigueiredo.com** with the subject "DPA/SCC copy" identifying the processor(s) of interest. We reply within 15 calendar days with the redacted documents (signatures and commercial clauses may be masked).
@@ -239,6 +262,8 @@ This policy may be updated to reflect legal, service, or partner changes.
 - **Material changes** (new purposes, new sub-processors, new legal bases) will trigger **consent re-prompt** via the cookie banner and a notification email for authenticated users.
 - **Previous versions** are archived in `consent_texts` in the database, keyed by `(category, locale, version)`. You may request the version in force at the time of your registration.
 - **Version history:**
+  - v1.2 — 2026-06-07 — addition of the sub-processor **Amazon Web Services, Inc. (SES)** for transactional emails (sa-east-1/BR, no international transfer); documentation of **YouTube channel intelligence** (metrics and aggregate audience demographics via YouTube Analytics API) and of the **Research / Pipeline** module; update of the corresponding purposes, sub-processors, and retention.
+  - v1.1 — 2026-05-14 — addition of processors: Google AdSense, Google/YouTube OAuth, Meta Platforms (Facebook/Instagram), Bluesky/AT Protocol; replacement of Brevo SAS with Resend, Inc.; documentation of newsletter tracking (opens, clicks, IP with 90-day retention); update of the international-transfers table (LGPD Art. 33); correction of the newsletter anonymization term (from "immediate" to 90 days).
   - v1.0 — 2026-04-16 — initial version.
 
 ## 14. Supervisory authority (right to complain)
@@ -262,6 +287,6 @@ We recommend, before escalating to the authority, that you first try to resolve 
 
 ---
 
-**Version 1.0 — effective since April 16, 2026.**
+**Version 1.2 — effective since June 7, 2026.**
 
 In case of conflict between translations, **the Portuguese (pt-BR) version prevails**.

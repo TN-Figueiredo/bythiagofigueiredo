@@ -37,6 +37,29 @@ import type { SocialPostWithSlides } from '../workflows'
 type ExtendedPostType = PostType | 'poll' | 'manual'
 
 // ---------------------------------------------------------------------------
+// Explicit column projections (BTF-091 — no `select('*')` to avoid leaking
+// internal/future columns into `'use server'` return payloads).
+// ---------------------------------------------------------------------------
+
+// All columns consumed by `toSocialPost` / `SocialPostWithPipeline`, plus the
+// `source_content_*` fields read directly by `duplicatePost`. `social_posts`
+// has no sensitive columns, but enumerating keeps the surface stable.
+const POST_COLS =
+  'id, site_id, created_by, type, status, scheduled_at, user_timezone, published_at, content, template_id, idempotency_key, created_at, updated_at, source_pipeline_id, pipeline_snapshot, graduated_at, origin, queue_position, source_content_id, source_content_type'
+
+// All columns consumed by `toSocialDelivery`.
+const DELIVERY_COLS =
+  'id, post_id, connection_id, provider, status, platform_post_id, platform_url, content_override, attempt, max_attempts, last_error, error_type, published_at, created_at'
+
+// Columns consumed by `toSocialConnection`. Includes encrypted token columns —
+// they are used SERVER-SIDE ONLY (platform delete/edit calls) and never reach
+// the client; the connection object is not part of any action return value.
+// Explicitly excludes other secrets (bluesky_*_enc) and ops columns
+// (rate_window_*, circuit_open_until) that these flows do not need.
+const CONNECTION_COLS =
+  'id, site_id, provider, account_id, account_name, access_token_enc, refresh_token_enc, page_token_enc, token_expires_at, scopes, metadata, connected_at, revoked_at, updated_at'
+
+// ---------------------------------------------------------------------------
 // Post management
 // ---------------------------------------------------------------------------
 
@@ -213,7 +236,7 @@ export async function createSocialPost(data: {
       // Re-fetch the full post row to build SocialPostWithSlides
       const { data: fullPost } = await supabase
         .from('social_posts')
-        .select('*')
+        .select(POST_COLS)
         .eq('id', postId)
         .single()
 
@@ -398,7 +421,7 @@ export async function deleteSocialPost(postId: string): Promise<ActionResult> {
       const connectionIds = [...new Set(deliveries.map((d) => d.connection_id as string))]
       const { data: connections } = await supabase
         .from('social_connections')
-        .select('*')
+        .select(CONNECTION_COLS)
         .in('id', connectionIds)
 
       const connMap = new Map(
@@ -494,7 +517,7 @@ export async function publishDraftPost(postId: string): Promise<ActionResult> {
 
     const { data: row } = await supabase
       .from('social_posts')
-      .select('*')
+      .select(POST_COLS)
       .eq('id', parsed.data)
       .eq('site_id', siteId)
       .single()
@@ -631,7 +654,7 @@ export async function getSocialPost(
 
     const { data: post, error: postError } = await supabase
       .from('social_posts')
-      .select('*')
+      .select(POST_COLS)
       .eq('id', parsed.data)
       .eq('site_id', siteId)
       .single()
@@ -640,7 +663,7 @@ export async function getSocialPost(
 
     const { data: deliveries, error: delError } = await supabase
       .from('social_deliveries')
-      .select('*')
+      .select(DELIVERY_COLS)
       .eq('post_id', parsed.data)
       .order('created_at', { ascending: true })
 
@@ -687,7 +710,7 @@ export async function listSocialPosts(
 
     let query = supabase
       .from('social_posts')
-      .select('*')
+      .select(POST_COLS)
       .eq('site_id', authorizedSiteId)
       .order('created_at', { ascending: false })
 
@@ -819,7 +842,7 @@ export async function editPublishedPost(
     // Get connection
     const { data: connection, error: connError } = await supabase
       .from('social_connections')
-      .select('*')
+      .select(CONNECTION_COLS)
       .eq('id', delivery.connection_id)
       .single()
 
@@ -880,7 +903,7 @@ export async function editPublishedPost(
         // Create new post with updated caption
         const { data: postData } = await supabase
           .from('social_posts')
-          .select('*')
+          .select(POST_COLS)
           .eq('id', idParsed.data)
           .single()
 
@@ -989,7 +1012,7 @@ export async function listFeedPostsWithDeliveries(
     const supabase = getSupabaseServiceClient()
     let query = supabase
       .from('social_posts')
-      .select('*, social_deliveries(*)')
+      .select(`${POST_COLS}, social_deliveries(${DELIVERY_COLS})`)
       .eq('site_id', siteId)
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1)
@@ -1220,7 +1243,7 @@ export async function duplicatePost(
 
     const { data: original, error: fetchErr } = await supabase
       .from('social_posts')
-      .select('*')
+      .select(POST_COLS)
       .eq('id', idParsed.data)
       .single()
 

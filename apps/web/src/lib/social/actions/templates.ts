@@ -22,6 +22,17 @@ import type { DestId } from '../destinations'
 import { DEST_TO_SLUG_PREFIX, DESTINATIONS } from '../destinations'
 
 // ---------------------------------------------------------------------------
+// Explicit column projection (BTF-091 — no `select('*')`). Covers every column
+// consumed by `toSocialTemplate` plus the subset read by `setDefaultTemplate`
+// when copying a global template. `social_templates` has no sensitive columns,
+// but enumerating shields against future/internal columns leaking via these
+// `'use server'` actions.
+// ---------------------------------------------------------------------------
+
+const TEMPLATE_COLS =
+  'id, site_id, name, slug, content_type, aspect_ratio, composition, thumbnail_url, is_default, created_at, updated_at'
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -76,7 +87,7 @@ export async function listTemplates(
 
     let query = supabase
       .from('social_templates')
-      .select('*')
+      .select(TEMPLATE_COLS)
       .or(`site_id.eq.${authorizedSiteId},site_id.is.null`)
       .order('is_default', { ascending: false })
       .order('created_at', { ascending: false })
@@ -121,7 +132,7 @@ export async function resolveTemplateForDest(
     // 1. Try site-specific template with this slug
     const { data: siteTemplate } = await supabase
       .from('social_templates')
-      .select('*')
+      .select(TEMPLATE_COLS)
       .eq('site_id', authorizedSiteId)
       .eq('slug', slug)
       .limit(1)
@@ -134,7 +145,7 @@ export async function resolveTemplateForDest(
     // 2. Try global template with this slug
     const { data: globalTemplate } = await supabase
       .from('social_templates')
-      .select('*')
+      .select(TEMPLATE_COLS)
       .is('site_id', null)
       .eq('slug', slug)
       .limit(1)
@@ -148,7 +159,7 @@ export async function resolveTemplateForDest(
     const ratio = DESTINATIONS[destId].ratio as TemplateAspectRatio
     const { data: fallback } = await supabase
       .from('social_templates')
-      .select('*')
+      .select(TEMPLATE_COLS)
       .or(`site_id.eq.${authorizedSiteId},site_id.is.null`)
       .eq('aspect_ratio', ratio)
       .order('is_default', { ascending: false })
@@ -182,7 +193,7 @@ export async function getTemplate(
 
     const { data, error } = await supabase
       .from('social_templates')
-      .select('*')
+      .select(TEMPLATE_COLS)
       .eq('id', parsed.data)
       .or(`site_id.eq.${authorizedSiteId},site_id.is.null`)
       .single()
@@ -416,7 +427,7 @@ export async function setDefaultTemplate(
       // fallback. Instead, create a site copy.
       const { data: globalTmpl } = await supabase
         .from('social_templates')
-        .select('*')
+        .select(TEMPLATE_COLS)
         .eq('id', idParsed.data)
         .single()
 
@@ -469,7 +480,7 @@ export async function duplicateTemplate(
 
     const { data: source, error: fetchError } = await supabase
       .from('social_templates')
-      .select('*')
+      .select(TEMPLATE_COLS)
       .eq('id', parsed.data)
       .single()
 

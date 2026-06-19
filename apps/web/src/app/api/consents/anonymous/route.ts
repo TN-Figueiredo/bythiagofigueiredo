@@ -24,6 +24,35 @@ const BodySchema = z.object({
   siteId: z.string().regex(UUID_ANY, 'invalid_site_id').optional().nullable(),
 });
 
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX = 50;
+// In-memory per-IP rate limiter — same pattern as /api/ads/events and
+// /api/track/content. Resets on Vercel cold start (acceptable: this only
+// throttles abusive insert floods into `consents`; legitimate banner traffic
+// is one short batch per Accept/Reject/Save). Avoids a new Postgres RPC +
+// migration while a deploy freeze is active.
+const ipBuckets = new Map<string, { count: number; resetAt: number }>();
+
+function isRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const bucket = ipBuckets.get(ip);
+  if (!bucket || now > bucket.resetAt) {
+    ipBuckets.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return false;
+  }
+  bucket.count++;
+  return bucket.count > RATE_LIMIT_MAX;
+}
+
+if (typeof setInterval !== 'undefined') {
+  setInterval(() => {
+    const now = Date.now();
+    for (const [ip, bucket] of ipBuckets) {
+      if (now > bucket.resetAt) ipBuckets.delete(ip);
+    }
+  }, 300_000);
+}
+
 type Category = 'cookie_functional' | 'cookie_analytics' | 'cookie_marketing';
 
 const CATEGORIES: Array<{ key: 'functional' | 'analytics' | 'marketing'; db: Category }> = [
@@ -70,6 +99,18 @@ async function resolveConsentTextId(
  * withdrawn rows.
  */
 export async function POST(req: Request): Promise<Response> {
+  const ip =
+    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+    req.headers.get('x-real-ip') ??
+    null;
+
+  if (isRateLimited(ip ?? 'unknown')) {
+    return NextResponse.json(
+      { error: 'rate_limited' },
+      { status: 429, headers: { 'Retry-After': '60' } },
+    );
+  }
+
   let parsed: z.infer<typeof BodySchema>;
   try {
     parsed = BodySchema.parse(await req.json());
@@ -77,8 +118,6 @@ export async function POST(req: Request): Promise<Response> {
     return NextResponse.json({ error: 'invalid_body' }, { status: 400 });
   }
 
-  const ip =
-    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null;
   const userAgent = req.headers.get('user-agent') ?? null;
   const siteId = parsed.siteId ?? null;
 
