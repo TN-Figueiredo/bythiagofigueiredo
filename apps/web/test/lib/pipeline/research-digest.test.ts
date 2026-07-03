@@ -12,10 +12,11 @@ import {
 
 const NOW = Date.parse('2026-06-06T12:00:00Z')
 
-// isWindowExpired defaults to wall-clock Date.now() inside pickRecommendation /
-// buildSummaryForOwner, so the "Q2 2026 not expired" fixtures rot when the real
-// quarter rolls over (broke on 2026-07-01). Fake only Date — timers stay real so
-// the async supabase mocks are unaffected.
+// pickRecommendation/buildSummaryForOwner now read the clock from
+// signals.generatedAt, but computeResearchDigest still defaults its `now` to
+// wall-clock Date.now(). Fake only Date so the whole file is pinned to NOW —
+// timers stay real so the async supabase mocks are unaffected. (The original
+// Q2-2026 fixtures rotted at the 2026-07-01 quarter rollover.)
 beforeAll(() => {
   vi.useFakeTimers({ now: NOW, toFake: ['Date'] })
 })
@@ -224,6 +225,10 @@ describe('buildSummaryForOwner — plain PT-BR contract', () => {
 })
 
 describe('isWindowExpired', () => {
+  it('treats an invalid generatedAt (NaN clock) as not expired — conservative', () => {
+    expect(isWindowExpired('Q1 2020', Number.NaN)).toBe(false)
+  })
+
   it('treats a past quarter as expired', () => {
     expect(isWindowExpired('Q1 2025', NOW)).toBe(true)
     expect(isWindowExpired('Q1 2026', NOW)).toBe(true) // current is Q2 2026

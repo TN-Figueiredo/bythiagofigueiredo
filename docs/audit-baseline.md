@@ -24,7 +24,7 @@
 | BTF-059 | MEDIO | TypeScript | `as unknown as` agora 143 (era 127-133). Maioria Supabase untyped. Fix = `supabase gen types` (DEFERIDO — risco de quebrar typecheck em massa, exige Docker/login + build). | apps/web/src/ |
 | BTF-083 | BAIXO | TypeScript | Crescimento de `as unknown as` sem ratchet. Type-debt baseline + CI ratchet DEFERIDO. | apps/web/src/ |
 | BTF-086b | MEDIO | CI | Restante do BTF-086 (audit gate ja bloqueante): type-debt ratchet + teste-guardiao de inventario PII. Mantido MEDIO: o guardian PII e LGPD-adjacente (inventario ja teve drift real) — so o audit gate foi resolvido. | .github/workflows/ci.yml |
-| BTF-094 | BAIXO | Deps | Override `dompurify: 3.4.11` (pin exato) vai reter o fix do proximo advisory (mesma classe do pin 3.4.2 que anulou o fix em 2026-07-03). Fix estrutural: bump isomorphic-dompurify 2.x -> 3.x (pareia dompurify ^3.4.11 + jsdom ^29 — major de jsdom em dep de PRODUCAO, exige sessao com build+testes), declarar dompurify como dep direta e remover o override. | package.json |
+| BTF-094 | BAIXO | Deps | MITIGADO 2026-07-03: override virou floor range `^3.4.11` (advisory bumps fluem; canary + suites de sanitizer guardam comportamento). Restante: pin exato retinha o fix do proximo advisory (mesma classe do pin 3.4.2 que anulou o fix em 2026-07-03). Fix estrutural: bump isomorphic-dompurify 2.x -> 3.x (pareia dompurify ^3.4.11 + jsdom ^29 — major de jsdom em dep de PRODUCAO, exige sessao com build+testes), declarar dompurify como dep direta e remover o override. | package.json |
 | BTF-089b | MEDIO | Seguranca | CSP nonce-based migration DEFERIDA: middleware tem ~13 saidas NextResponse + mergeSiteHeaders whitelist — propagar nonce sem quebrar hidratacao exige `next build` + verificacao browser. Hardening seguro (object-src 'none') aplicado em BTF-089. | apps/web/next.config.ts, src/middleware.ts |
 | — | — | Cobertura | DEFERIDO: testes de providers social (youtube/meta) — exigem mocking de SDK (~4h). Threshold de coverage no social bloqueado por version mismatch vitest 2.1.9 vs coverage-v8 3.2.4. | packages/social/ |
 | — | — | TypeScript | DEFERIDO: migracao de ~38 rotas mutativas para helper Zod unico (parseBodyWith). | apps/web/src/app/api/ |
@@ -202,7 +202,7 @@
 | 2026-06-07 | 8 | 8 | 9 | 9 | 9.5 | 8.7 | 0/1/7/4 | codebase cresceu (youtube/playlists/notifications) — gaps reabertos |
 | 2026-06-07 | 9 | 8 | 9 | 9.5 | 9.5 | 9 | 0/0/5/1 | Ondas 1-3 + CI parcial: 7 commits, BTF-075/076/077/078/079/081/082/084/085 resolvidos |
 | 2026-06-19 | 9 | 8 | 9.5 | 9.5 | 9.5 | 9.4 | 0/0/2/1 | Remediacao 6 sub-agentes (commit f96fc806, sem push): BTF-087/088/089/090/091/092/093 resolvidos; design 102/110 |
-| 2026-07-03 | 9 | 8 | 9.5 | 9.5 | 9.5 | 9.4 | 0/0/2/2 | Freeze encerrado + push prod. BTF-080/086 resolvidos (blob 2.5.0, undici/form-data HIGH eliminados, audit gate bloqueante); BTF-094 aberto (dompurify override rot) |
+| 2026-07-03 | 9 | 8 | 9.5 | 9.5 | 9.5 | 9.4 | 0/0/3/2 | Freeze encerrado + push prod. BTF-080/086 resolvidos (blob 2.5.0, undici/form-data HIGH eliminados, audit gate bloqueante); BTF-094 aberto (dompurify override rot) |
 
 ## Proximos Passos Recomendados
 1. PENDING (carry-over): verificar se a migration 20260607000001 (search_path fix — BTF-084) esta aplicada em prod — `npx supabase migration list --linked` (exige SUPABASE_DB_PASSWORD; CLI retorna 403 sem ela). Inferencia forte de que sim: as migrations 20260616+ de waitlists foram aplicadas em ordem em 2026-06-18.

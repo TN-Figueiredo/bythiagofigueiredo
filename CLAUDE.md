@@ -78,9 +78,9 @@ npm test                                        # Sem DB (CI default)
 
 Convenção: `describe.skipIf(skipIfNoLocalDb())('<suite>', () => { ... })`. Integration tests em `apps/web/test/integration/`. Seed helpers em `apps/web/test/helpers/db-seed.ts`.
 
-### Regras anti-regressão de testes (aprendidas 2026-07-03)
+## Regras anti-regressão de testes (aprendidas 2026-07-03)
 
-- **Bump de dependência → rodar os testes dos consumidores diretos ANTES do push:** `grep -rl <pacote> apps/web/{src,lib}` → `npx vitest run <arquivos de teste dos consumidores>`. Runs direcionados custam ~1s ("vitest local trava" só vale pra suite completa). Um bump de dompurify pushado só com testes de blob causou CI red evitável.
+- **Bump de dependência → rodar os testes dos consumidores diretos ANTES do push:** `grep -rl <pacote> apps/{web,api}/src apps/web/lib packages/*/src` → `npx vitest run <arquivos de teste dos consumidores>` (deps transitivas sem import próprio: rodar as suites da feature que as usa). Runs direcionados custam ~1s ("vitest local trava" só vale pra suite completa). Um bump de dompurify pushado só com testes de blob causou CI red evitável.
 - **Sanitizers nunca sob happy-dom:** DOMPurify ≥3.4.11 falha aberto no happy-dom (mantém `<script>`, dropa tags permitidas). Teste de código server-side → `// @vitest-environment node`; componente client → `// @vitest-environment jsdom`. Canary: `test/unit/newsletter/archive-sanitizer.test.ts`.
 - **Fixtures temporais sempre relativas ou com fake timers:** nunca hardcodar ano/trimestre futuro (`'2027-06-01'`, `'Q2 2026'`) em teste que compara com wall clock — quebra o CI sozinho na virada (aconteceu 2026-07-01). Use `new Date(Date.now() + N * 864e5).toISOString()` ou `vi.useFakeTimers({ now, toFake: ['Date'] })`.
 - **Fix que exige mudança em teste vai no MESMO commit do bump** (bisectabilidade — a árvore nunca fica com testes vermelhos).

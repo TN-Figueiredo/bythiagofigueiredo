@@ -47,9 +47,26 @@ export default defineConfig({
     environment: 'happy-dom',
     setupFiles: ['./test/setup.ts'],
     exclude: ['e2e/**', 'node_modules/**', '../../.claude/**', '**/.claude/**', '.claude/**'],
-    environmentMatchGlobs: [
-      ['src/app/api/**', 'node'],
-      ['src/lib/**', 'node'],
+    // Replaces the deprecated environmentMatchGlobs with the same env mapping:
+    // in-source tests (src/**) run in node; test/** and lib/** keep happy-dom.
+    // Per-file `@vitest-environment` pragmas still override within a project.
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: 'node-insrc',
+          environment: 'node',
+          include: ['src/**/*.test.?(c|m)[jt]s?(x)'],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: 'dom',
+          environment: 'happy-dom',
+          include: ['test/**/*.test.?(c|m)[jt]s?(x)', 'lib/**/*.test.?(c|m)[jt]s?(x)'],
+        },
+      },
     ],
     server: {
       deps: {
