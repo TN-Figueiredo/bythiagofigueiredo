@@ -43,30 +43,20 @@ import './newsletter-landing.css'
 import enStrings from '@/locales/en.json'
 import ptBrStrings from '@/locales/pt-BR.json'
 
-export const dynamicParams = true
-export const revalidate = 3600
+// BTF-089b — force per-request rendering. This route used to be ISR
+// (generateStaticParams + revalidate=3600), which made it the ONLY
+// prerendered HTML route in the app (`●` in the build table). Prerendered
+// HTML is incompatible with the nonce-based CSP: the cached document carries
+// no nonce (there is no request at build time), so under
+// CSP_NONCE_ENABLED=true every inline script on it would be blocked
+// (browsers with nonce support ignore the 'unsafe-inline' fallback) and
+// hydration would break. The page already reads per-request `headers()`
+// (x-locale / host) for its content, so serving a single cached variant was
+// dubious to begin with; every other HTML route in the app is already ƒ.
+export const dynamic = 'force-dynamic'
 
 interface PageProps {
   params: Promise<{ slug: string }>
-}
-
-// ── generateStaticParams ───────────────────────────────────────────────────
-
-export async function generateStaticParams(): Promise<{ slug: string }[]> {
-  try {
-    const { createClient } = await import('@supabase/supabase-js')
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    )
-    const { data } = await supabase
-      .from('newsletter_types')
-      .select('slug')
-      .eq('active', true)
-    return (data ?? []).map((row: { slug: string }) => ({ slug: row.slug }))
-  } catch {
-    return []
-  }
 }
 
 // ── generateMetadata ──────────────────────────────────────────────────────

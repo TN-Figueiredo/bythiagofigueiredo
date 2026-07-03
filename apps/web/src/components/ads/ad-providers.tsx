@@ -21,6 +21,12 @@ interface AdProvidersProps {
   children: ReactNode
   googleEnabled: boolean
   publisherId: string | null
+  /**
+   * BTF-089b — per-request CSP nonce (from the middleware's `x-nonce` request
+   * header, read by the server layout that renders this provider). Forwarded
+   * to the AdSense `<Script>` so it executes under the nonce-based CSP.
+   */
+  nonce?: string
 }
 
 /**
@@ -34,6 +40,7 @@ export function AdProviders({
   children,
   googleEnabled,
   publisherId,
+  nonce,
 }: AdProvidersProps) {
   const [consent, setConsent] = useState<AdConsent>({
     marketing: false,
@@ -81,6 +88,7 @@ export function AdProviders({
           src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${publisherId}`}
           strategy="lazyOnload"
           crossOrigin="anonymous"
+          nonce={nonce}
         />
       )}
       {children}

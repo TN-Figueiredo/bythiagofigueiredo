@@ -3,9 +3,15 @@
 import { useEffect, useState } from 'react'
 import { Moon, Sun } from 'lucide-react'
 
-export function ThemeScript() {
+/**
+ * Inline theme bootstrap. `nonce` (BTF-089b) comes from the middleware via
+ * the `x-nonce` request header — required for the script to execute under the
+ * nonce-based CSP (browsers with nonce support ignore 'unsafe-inline').
+ */
+export function ThemeScript({ nonce }: { nonce?: string }) {
   return (
     <script
+      nonce={nonce}
       dangerouslySetInnerHTML={{
         __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='light'){document.documentElement.classList.remove('dark')}else{document.documentElement.classList.add('dark')}}catch(e){document.documentElement.classList.add('dark')}})()`,
       }}
