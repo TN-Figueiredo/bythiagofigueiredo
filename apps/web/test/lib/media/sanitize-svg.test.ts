@@ -1,3 +1,6 @@
+// @vitest-environment node
+// sanitizeSvg runs server-side (media upload route). See email-sanitizer.test.ts
+// for why DOMPurify 3.4.11 must not run against the happy-dom ambient window.
 import { describe, it, expect } from 'vitest'
 import { sanitizeSvg } from '../../../lib/media/sanitize-svg'
 

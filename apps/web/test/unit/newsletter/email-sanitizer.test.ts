@@ -1,3 +1,9 @@
+// @vitest-environment node
+// sanitizeForEmail is server-only code. Under a browser-like test env
+// (happy-dom) isomorphic-dompurify grabs the ambient window, and DOMPurify
+// 3.4.11's hardened parsing mangles output there (allowed tags dropped,
+// forbidden ones kept). In node it builds its own jsdom window — the same
+// thing the newsletter build does in production.
 import { describe, it, expect } from 'vitest'
 import { sanitizeForEmail } from '@/lib/newsletter/email-sanitizer'
 
