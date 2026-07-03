@@ -1,7 +1,7 @@
 ---
 title: "Privacy Policy"
-version: "1.2"
-effectiveDate: "2026-06-07"
+version: "1.3"
+effectiveDate: "2026-07-03"
 locale: "en"
 ---
 
@@ -9,7 +9,7 @@ locale: "en"
 
 > **This is a translation of the Portuguese (pt-BR) policy. In case of discrepancy, the pt-BR version prevails.**
 
-**Version 1.2 — effective since June 7, 2026.**
+**Version 1.3 — effective since July 3, 2026.**
 
 This Privacy Policy describes how we collect, use, store, and protect your personal data when you use **bythiagofigueiredo.com** and related services. It is written in plain language to be understandable by non-specialists — without unnecessary legal jargon — and complies with the Brazilian General Data Protection Law (LGPD, Law 13.709/2018) and the European General Data Protection Regulation (GDPR, EU Regulation 2016/679) for visitors in the European Union.
 
@@ -28,6 +28,7 @@ We collect only the data strictly necessary for each purpose. Breakdown per surf
 
 - **User account (when you sign up):** email, password (stored as a bcrypt hash by Supabase Auth), creation date, last-login date, preferred locale.
 - **Newsletter:** email, subscription date, accepted consent-text version, IP + user-agent at sign-up time (LGPD Art. 9 accountability). After sending, we collect open events (open-tracking pixel), link-click events, and the IP and user-agent associated with each interaction — used exclusively for aggregate newsletter-performance metrics.
+- **Waitlists:** email, IP + user-agent at sign-up time, snapshot of the accepted consent text, sign-up `source`, timestamp — collected when you join a waitlist through a public sign-up form, so we can notify you of the corresponding launch or opening.
 - **Social media management (if you connect accounts):** OAuth authentication tokens (Meta/Facebook, Meta/Instagram, Google/YouTube) or session credentials (Bluesky/AT Protocol), public profile data of the connected account, metadata of posts created or scheduled through the platform.
 - **YouTube channel intelligence (if you connect a channel):** for connected channels, we collect video-performance metrics and **aggregate audience demographics** (age range, gender, geography, search terms) obtained from the **YouTube Analytics API**, with no individual viewer identification, used for editorial analysis and content strategy.
 - **Research / Pipeline (internal use by editors):** story-research items, editorial decisions, and content notes, tied to the `user_id` of the editor who created them.
@@ -47,6 +48,7 @@ For each data category, we list the purpose and the LGPD legal basis (Art. 7):
 |----------|---------|-------------|
 | User account | Authentication, access control, security | Art. 7 V (contract execution) |
 | Newsletter | Send opt-in emails (articles, updates) | Art. 7 I (consent) |
+| Waitlists | Notify you about the launch or opening of the list/product you signed up for | Art. 7 I (consent) |
 | Contact form | Reply to the contact requested by the data subject | Art. 7 I (consent) and V (pre-contractual execution) |
 | Audit logs | Legal compliance, security, fraud prevention | Art. 7 VI (regular exercise of rights) |
 | **Error** telemetry (Sentry, stack traces + metadata only) | Identify, diagnose, and fix failures | Art. 7 VIII (legitimate interest) |
@@ -75,7 +77,7 @@ The **always-on** Sentry layer captures **application errors only** (stack trace
 When — and **only when** — you accept the **analytics** cookies in the consent banner, two additional Sentry components become active:
 
 - **Browser Tracing:** navigation-performance sampling (route load times, API request timings).
-- **Session Replay:** session reconstruction with **all input boxes masked (`maskAllInputs: true`)** — what you type and passwords are never captured. Visible text on the page and images are recorded for visual reproduction of bugs.
+- **Session Replay:** session reconstruction with **all text and all input boxes masked (`maskAllInputs: true`, `maskAllText: true`)** and **all media blocked (`blockAllMedia: true`)** — what you type, passwords, visible on-screen text, and images/videos are **never captured**. The reconstruction preserves only page layout and structure, minimizing PII exposure on authenticated screens.
 
 These two components are attached dynamically upon granting analytics consent and **stopped at runtime** when consent is withdrawn. The legal basis is **consent (LGPD Art. 7 I / GDPR Art. 6(1)(a))**, and unlike the error layer, we **do not** rely on legitimate interest for tracing/replay.
 
@@ -127,10 +129,15 @@ We retain each category for the minimum term required by the purpose or by law:
 |----------|-----------|
 | User account (active) | While the account exists |
 | User account (after deletion request) | 15-day grace period (cancellable) → permanent deletion |
-| Newsletter subscriptions | Anonymized within **90 days** of unsubscribe (email → SHA-256 hash, via anonymization cron) |
-| Newsletter tracking (opens, clicks, IP) | Anonymized after **90 days** via automated cron (IP → null, user-agent → null; aggregate events preserved for analytics) |
+| Newsletter subscription (after unsubscribe) | On unsubscribe the subscription is **immediately** removed from the active list (status → `unsubscribed`) and sanitized on the spot — email converted to a SHA-256 hash and IP/user-agent/locale set to null. This is synchronous, done in the unsubscribe request itself; there is **no waiting cron** for this step. |
+| Newsletter subscriptions pending (never confirmed) | Hard-deleted **7 days** after the 24h confirmation window expires (cron `anonymize-newsletter-tracking`) — PII with no completed opt-in, no basis to retain |
+| Newsletter tracking (opens, clicks, IP) | IP and user-agent anonymized (IP → null, user-agent → null) after **90 days** via cron `anonymize-newsletter-tracking`; aggregate events preserved for analytics |
 | Contact-form submissions | Up to 2 years (automatic weekly cron anonymization); anonymized upon request at any time |
 | Sent emails (`sent_emails`) | Automatic purge after **90 days** |
+| Waitlists — suppressed sign-ups (unsubscribe) | Anonymized **30 days** after suppression (email → SHA-256 hash; IP/user-agent/locale → null) via cron `waitlist-retention-sweep` |
+| Waitlists — closed or launched lists | Sign-ups anonymized **7 days** after the list is closed/launched via cron `waitlist-retention-sweep` |
+| Waitlists — pending sign-ups on active lists | Anonymized **90 days** after sign-up (draft/open) via cron `waitlist-retention-sweep` |
+| Waitlists — IP and user-agent | Scrubbed (→ null) **30 days** after sign-up, regardless of status, via cron `waitlist-retention-sweep` |
 | YouTube channel intelligence (metrics + aggregate demographics) | While the channel remains connected; deleted upon disconnecting the channel or closing the account |
 | Research / Pipeline (stories, decisions, notes) | While the account exists; `author_id`/`created_by` anonymized on account deletion |
 | Audit logs | 5 years (regulatory requirement for accountability) |
@@ -238,7 +245,7 @@ Minors' data receives **the same technical protection level** applied to all oth
 
 The grounds for international transfers are listed in Section 5 (processors + countries + transfer basis). If you want to inspect the instruments in force:
 
-- **SCCs (Standard Contractual Clauses)** signed with Vercel, Sentry, Cloudflare, Resend, Google, and Meta — text per EU Commission Implementing Decision (EU) 2021/914.
+- **SCCs (Standard Contractual Clauses)** signed with Vercel, Sentry, Cloudflare, Resend, Google, Meta, and Bluesky — text per EU Commission Implementing Decision (EU) 2021/914.
 - **DPAs (Data Processing Agreements)** with each processor, describing scope of processing, authorized sub-processors, and incident SLAs.
 
 Send a request to **privacidade@bythiagofigueiredo.com** with the subject "DPA/SCC copy" identifying the processor(s) of interest. We reply within 15 calendar days with the redacted documents (signatures and commercial clauses may be masked).
@@ -262,6 +269,7 @@ This policy may be updated to reflect legal, service, or partner changes.
 - **Material changes** (new purposes, new sub-processors, new legal bases) will trigger **consent re-prompt** via the cookie banner and a notification email for authenticated users.
 - **Previous versions** are archived in `consent_texts` in the database, keyed by `(category, locale, version)`. You may request the version in force at the time of your registration.
 - **Version history:**
+  - v1.3 — 2026-07-03 — documentation of the **Waitlists** module (data collected, consent legal basis Art. 7 I, and the retention SLA of the `waitlist-retention-sweep` cron); correction of the **newsletter** retention description to reflect actual behavior (synchronous sanitization on unsubscribe — email → SHA-256 hash + IP/user-agent/locale → null done on the spot; the 90-day cron only anonymizes open/click tracking; never-confirmed pending subscriptions are hard-deleted after a 7-day grace); inclusion of **Bluesky** in the Section 11 SCC list; reduced Sentry Session Replay PII exposure (`maskAllText` + `blockAllMedia`).
   - v1.2 — 2026-06-07 — addition of the sub-processor **Amazon Web Services, Inc. (SES)** for transactional emails (sa-east-1/BR, no international transfer); documentation of **YouTube channel intelligence** (metrics and aggregate audience demographics via YouTube Analytics API) and of the **Research / Pipeline** module; update of the corresponding purposes, sub-processors, and retention.
   - v1.1 — 2026-05-14 — addition of processors: Google AdSense, Google/YouTube OAuth, Meta Platforms (Facebook/Instagram), Bluesky/AT Protocol; replacement of Brevo SAS with Resend, Inc.; documentation of newsletter tracking (opens, clicks, IP with 90-day retention); update of the international-transfers table (LGPD Art. 33); correction of the newsletter anonymization term (from "immediate" to 90 days).
   - v1.0 — 2026-04-16 — initial version.
@@ -287,6 +295,6 @@ We recommend, before escalating to the authority, that you first try to resolve 
 
 ---
 
-**Version 1.2 — effective since June 7, 2026.**
+**Version 1.3 — effective since July 3, 2026.**
 
 In case of conflict between translations, **the Portuguese (pt-BR) version prevails**.

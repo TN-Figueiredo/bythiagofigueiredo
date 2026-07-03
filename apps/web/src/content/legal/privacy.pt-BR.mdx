@@ -1,13 +1,13 @@
 ---
 title: "Política de Privacidade"
-version: "1.2"
-effectiveDate: "2026-06-07"
+version: "1.3"
+effectiveDate: "2026-07-03"
 locale: "pt-BR"
 ---
 
 # Política de Privacidade
 
-**Versão 1.2 — em vigor desde 7 de junho de 2026.**
+**Versão 1.3 — em vigor desde 3 de julho de 2026.**
 
 Esta Política de Privacidade descreve como coletamos, usamos, armazenamos e protegemos seus dados pessoais quando você usa o site **bythiagofigueiredo.com** e serviços relacionados. Foi escrita em linguagem simples para ser compreensível por qualquer pessoa — sem jargão jurídico desnecessário — e atende aos requisitos da Lei Geral de Proteção de Dados (LGPD, Lei 13.709/2018) e do Regulamento Geral sobre a Proteção de Dados (GDPR, Regulamento UE 2016/679) para visitantes na União Europeia.
 
@@ -26,6 +26,7 @@ Coletamos apenas os dados estritamente necessários para cada finalidade. Detalh
 
 - **Conta de usuário (quando você se cadastra):** e-mail, senha (armazenada em hash bcrypt pelo Supabase Auth), data de criação, data do último login, locale preferido.
 - **Newsletter:** e-mail, data de inscrição, versão do texto de consentimento aceito, IP + user-agent no momento da inscrição (accountability LGPD Art. 9º). Após o envio, coletamos eventos de abertura (open tracking pixel), eventos de clique em links, IP e user-agent associados a cada interação — utilizados exclusivamente para métricas agregadas de desempenho da newsletter.
+- **Listas de espera (waitlists):** e-mail, IP + user-agent no momento da inscrição, snapshot do texto de consentimento aceito, origem da inscrição (`source`), timestamp — coletados quando você se inscreve em uma lista de espera por um formulário público, para ser avisado do lançamento ou abertura correspondente.
 - **Gestão de redes sociais (se você conectar contas):** tokens de autenticação OAuth (Meta/Facebook, Meta/Instagram, Google/YouTube) ou credenciais de sessão (Bluesky/AT Protocol), dados de perfil público da conta conectada, metadados de publicações criadas ou agendadas através da plataforma.
 - **Inteligência de canal YouTube (se você conectar um canal):** para canais conectados, coletamos métricas de desempenho de vídeos e **dados demográficos agregados da audiência** (faixa etária, gênero, geografia, termos de busca) obtidos da **YouTube Analytics API**, sem identificação individual de espectadores, usados para análise editorial e estratégia de conteúdo.
 - **Research / Pipeline (uso interno por editores):** itens de pesquisa de pauta, decisões editoriais e anotações de conteúdo, associados ao `user_id` do editor que os criou.
@@ -45,6 +46,7 @@ Para cada categoria de dado, listamos a finalidade e a base legal da LGPD (Art. 
 |-----------|-----------|------------|
 | Conta de usuário | Autenticação, controle de acesso, segurança | Art. 7º V (execução de contrato) |
 | Newsletter | Enviar e-mails opt-in (artigos, atualizações) | Art. 7º I (consentimento) |
+| Listas de espera (waitlists) | Notificar sobre o lançamento ou a abertura da lista/produto em que você se inscreveu | Art. 7º I (consentimento) |
 | Formulário de contato | Responder ao contato solicitado pelo titular | Art. 7º I (consentimento) e V (execução de contrato pré-contratual) |
 | Logs de auditoria | Conformidade legal, segurança, prevenção a fraude | Art. 7º VI (exercício regular de direitos) |
 | Telemetria de **erros** (Sentry, somente stack traces + metadados) | Identificar, diagnosticar e corrigir falhas | Art. 7º VIII (legítimo interesse) |
@@ -73,7 +75,7 @@ A camada **sempre ativa** do Sentry captura apenas **erros de aplicação** (sta
 Quando — e **somente quando** — você aceita os cookies de **analytics** no banner de consentimento, dois componentes adicionais do Sentry passam a operar:
 
 - **Browser Tracing:** amostragem de performance de navegação (tempo de carregamento de rotas, requisições de API).
-- **Session Replay:** reprodução de sessão com **todas as caixas de entrada mascaradas (`maskAllInputs: true`)** — digitamos e senhas nunca são capturados. Texto visível na página e imagens são gravados para reconstrução visual do bug.
+- **Session Replay:** reprodução de sessão com **todo o texto e todas as caixas de entrada mascarados (`maskAllInputs: true`, `maskAllText: true`)** e **toda a mídia bloqueada (`blockAllMedia: true`)** — o que você digita, senhas, o texto visível na tela e imagens/vídeos **nunca são capturados**. A reconstrução preserva apenas o layout e a estrutura da página, minimizando a exposição de PII em telas autenticadas.
 
 Esses dois componentes são ativados dinamicamente ao conceder o consentimento de analytics e **interrompidos em tempo real** ao revogá-lo. A base legal é **consentimento (LGPD Art. 7º I / GDPR Art. 6(1)(a))** e, ao contrário da camada de erros, **não operamos sob legítimo interesse para tracing/replay**.
 
@@ -125,10 +127,15 @@ Retemos cada categoria pelo prazo mínimo necessário à finalidade ou exigido p
 |-----------|-------------------|
 | Conta de usuário (ativa) | Enquanto a conta existir |
 | Conta de usuário (após pedido de exclusão) | 15 dias de carência (possibilidade de cancelamento) → exclusão definitiva |
-| Inscrições na newsletter | Anonimizadas em até **90 dias** após o unsubscribe (e-mail → hash SHA-256, via cron de anonimização) |
-| Rastreamento de newsletter (aberturas, cliques, IP) | Anonimizados após **90 dias** via cron automatizado (IP → null, user-agent → null; eventos agregados preservados para analytics) |
+| Inscrição na newsletter (após unsubscribe) | No momento do unsubscribe a inscrição é **imediatamente** removida da lista ativa (status → `unsubscribed`) e higienizada na hora — e-mail convertido em hash SHA-256 e IP/user-agent/locale definidos como null. É síncrono, feito no próprio pedido de descadastro; **não há cron de espera** para essa etapa. |
+| Inscrições na newsletter pendentes (nunca confirmadas) | Hard-delete **7 dias** após expirar a janela de confirmação de 24h (cron `anonymize-newsletter-tracking`) — PII sem opt-in concluído, sem base para retenção |
+| Rastreamento de newsletter (aberturas, cliques, IP) | IP e user-agent anonimizados (IP → null, user-agent → null) após **90 dias** via cron `anonymize-newsletter-tracking`; eventos agregados preservados para analytics |
 | Submissões do formulário de contato | Até 2 anos (anonimização automática semanal por cron); anonimização sob solicitação a qualquer momento |
 | E-mails enviados (`sent_emails`) | Purga automática após **90 dias** |
+| Listas de espera — inscrições suprimidas (unsubscribe) | Anonimizadas **30 dias** após a supressão (e-mail → hash SHA-256; IP/user-agent/locale → null) via cron `waitlist-retention-sweep` |
+| Listas de espera — listas encerradas ou lançadas | Inscrições anonimizadas **7 dias** após o encerramento/lançamento da lista via cron `waitlist-retention-sweep` |
+| Listas de espera — inscrições pendentes em listas ativas | Anonimizadas **90 dias** após a inscrição (draft/open) via cron `waitlist-retention-sweep` |
+| Listas de espera — IP e user-agent | Higienizados (→ null) **30 dias** após a inscrição, qualquer que seja o status, via cron `waitlist-retention-sweep` |
 | Inteligência de canal YouTube (métricas + demografia agregada) | Enquanto o canal permanecer conectado; excluída ao desconectar o canal ou encerrar a conta |
 | Research / Pipeline (pautas, decisões, anotações) | Enquanto a conta existir; `author_id`/`created_by` anonimizados na exclusão da conta |
 | Logs de auditoria | 5 anos (exigência regulatória para accountability) |
@@ -236,7 +243,7 @@ Dados de menores recebem **o mesmo nível de proteção técnica** aplicado aos 
 
 Os fundamentos das transferências internacionais estão listados na Seção 5 (processadores + países + base de transferência). Se você quiser inspecionar os instrumentos em vigor:
 
-- **SCCs (Standard Contractual Clauses)** assinadas com Vercel, Sentry, Cloudflare, Resend, Google e Meta — texto conforme a Decisão de Execução (UE) 2021/914 da Comissão Europeia.
+- **SCCs (Standard Contractual Clauses)** assinadas com Vercel, Sentry, Cloudflare, Resend, Google, Meta e Bluesky — texto conforme a Decisão de Execução (UE) 2021/914 da Comissão Europeia.
 - **DPAs (Data Processing Agreements)** com cada processador, contendo escopo de tratamento, sub-subcontratados autorizados e SLAs de incidente.
 
 Envie um pedido para **privacidade@bythiagofigueiredo.com** com o assunto "Cópia de DPA/SCC" identificando o(s) processador(es) de interesse. Respondemos em até 15 dias corridos com os documentos redigidos (assinaturas e cláusulas comerciais podem ser mascaradas).
@@ -260,6 +267,7 @@ Esta política pode ser atualizada para refletir mudanças legais, de serviço o
 - **Alterações materiais** (novas finalidades, novos suboperadores, novas bases legais) dispararão **re-prompt de consentimento** via banner de cookies e um e-mail de aviso para usuários autenticados.
 - **Versões anteriores** ficam arquivadas em `consent_texts` no banco, identificadas por `(category, locale, version)`. Você pode solicitar a versão vigente no momento do seu cadastro.
 - **Histórico de versões:**
+  - v1.3 — 2026-07-03 — documentação do módulo **Listas de espera (waitlists)** (dados coletados, base legal de consentimento Art. 7º I, e SLA de retenção do cron `waitlist-retention-sweep`); correção da descrição de retenção da **newsletter** para refletir o comportamento real (higienização síncrona no unsubscribe — e-mail → hash SHA-256 + IP/user-agent/locale → null feitos na hora; cron de 90 dias anonimiza apenas o rastreamento de aberturas/cliques; inscrições pendentes não confirmadas sofrem hard-delete após 7 dias de carência); inclusão da **Bluesky** na lista de SCCs da Seção 11; redução da exposição de PII no Sentry Session Replay (`maskAllText` + `blockAllMedia`).
   - v1.2 — 2026-06-07 — adição do suboperador **Amazon Web Services, Inc. (SES)** para e-mails transacionais (sa-east-1/BR, sem transferência internacional); documentação da **Inteligência de canal YouTube** (métricas e dados demográficos agregados da audiência via YouTube Analytics API) e do módulo **Research / Pipeline**; atualização das finalidades, suboperadores e retenção correspondentes.
   - v1.1 — 2026-05-14 — adição de processadores: Google AdSense, Google/YouTube OAuth, Meta Platforms (Facebook/Instagram), Bluesky/AT Protocol; substituição de Brevo SAS por Resend, Inc.; documentação de rastreamento de newsletter (aberturas, cliques, IP com retenção de 90 dias); atualização da tabela de transferências internacionais (LGPD Art. 33); correção do prazo de anonimização de newsletter (de "imediata" para 90 dias).
   - v1.0 — 2026-04-16 — versão inicial.
@@ -285,6 +293,6 @@ Recomendamos que, antes de recorrer à autoridade, tente resolver a questão dir
 
 ---
 
-**Versão 1.2 — em vigor desde 7 de junho de 2026.**
+**Versão 1.3 — em vigor desde 3 de julho de 2026.**
 
 Em caso de conflito entre traduções, **prevalece a versão em português (pt-BR)**.
