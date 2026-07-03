@@ -57,6 +57,16 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({ error: 'invalid_body' }, { status: 400 })
   }
 
+  // LGPD Art. 7 I / Art. 8 (BTF-095) — defense-in-depth. The client hook already
+  // suppresses beacons without analytics opt-in, but a forged/legacy payload
+  // must never persist behavioral analytics: drop any event lacking consent. If
+  // nothing survives, ack (204) without touching the DB. The rate limit above
+  // still applies so abusive floods are throttled regardless of consent.
+  const consentedEvents = parsed.events.filter((e) => e.hasConsent === true)
+  if (consentedEvents.length === 0) {
+    return new Response(null, { status: 204 })
+  }
+
   const rawUa = request.headers.get('user-agent')
   const geo = resolveGeo(request.headers)
   const deviceType = classifyDevice(rawUa)
@@ -65,7 +75,7 @@ export async function POST(request: Request): Promise<Response> {
     : rawUa
   const supabase = getSupabaseServiceClient()
 
-  const rows = parsed.events.map((e) => ({
+  const rows = consentedEvents.map((e) => ({
     session_id: e.sessionId,
     site_id: e.siteId,
     resource_type: e.resourceType,
