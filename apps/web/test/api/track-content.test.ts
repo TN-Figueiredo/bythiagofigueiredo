@@ -112,17 +112,12 @@ describe('POST /api/track/content', () => {
     ])
   })
 
-  it('nullifies user_agent when hasConsent is false', async () => {
+  it('does NOT persist events when hasConsent is false (BTF-095 consent gate)', async () => {
     const res = await POST(
       trackRequest({ events: [validEvent({ hasConsent: false })] }),
     )
     expect(res.status).toBe(204)
-    expect(mockInsert).toHaveBeenCalledWith([
-      expect.objectContaining({
-        has_consent: false,
-        user_agent: null,
-      }),
-    ])
+    expect(mockInsert).not.toHaveBeenCalled()
   })
 
   it('reports DB errors to Sentry but still returns 204', async () => {
