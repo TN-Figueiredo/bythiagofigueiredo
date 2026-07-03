@@ -61,6 +61,27 @@ export async function signInWithPassword(
       user: { id: payload?.user?.id ?? '' },
     })
     const cookieStore = await cookies()
+    // BTF-096 — httpOnly:false is REQUIRED here, not an oversight. This is the
+    // Supabase SSR session cookie (`sb-<ref>-auth-token`); apps/web uses
+    // `createBrowserClient` (@supabase/ssr) for authenticated realtime —
+    // `lib/notifications/use-notification-channel.ts` and `lib/social/realtime.ts`
+    // — which reads this session from `document.cookie`. An httpOnly cookie is
+    // invisible to `document.cookie`, so those clients would connect
+    // unauthenticated and RLS would block them.
+    //
+    // These options intentionally mirror @supabase/ssr `DEFAULT_COOKIE_OPTIONS`
+    // (path '/', sameSite 'lax', httpOnly false, maxAge 400d). The middleware's
+    // `createServerClient` (`src/middleware.ts`) RE-WRITES this exact cookie with
+    // those same defaults on every session refresh — so overriding httpOnly /
+    // maxAge here would be reverted on the next refresh (~1h) while breaking the
+    // realtime clients in the interim. There is no durable login-action-local fix.
+    //
+    // The XSS exposure of the long-lived refresh_token is a known, accepted
+    // trade-off of the Supabase SSR cookie-session model. The real mitigation is
+    // the nonce-based CSP (BTF-089b, `lib/security/csp.ts`) — enforce it in prod
+    // via `CSP_NONCE_ENABLED=true` (currently flag-gated, legacy default).
+    // sameSite 'lax' (not 'strict') is required so the OAuth top-level redirect
+    // back to the app carries the session; `secure` is on in production.
     cookieStore.set(cookieName, cookieValue, {
       path: '/',
       sameSite: 'lax',
