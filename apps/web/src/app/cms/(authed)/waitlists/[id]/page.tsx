@@ -8,6 +8,7 @@ import { WlBadge } from '../_components/wl-badge'
 import { LaunchCta } from '../_components/launch-cta'
 import { SignupsTab } from '../_components/signups-tab'
 import { WaitlistExportButton } from '../_components/export-button'
+import { WaitlistEmbedButton } from '../_components/embed-dialog'
 import { WaitlistDetailStatus } from '../_components/detail-status'
 
 export const dynamic = 'force-dynamic'
@@ -73,6 +74,7 @@ export default async function WaitlistDetailPage({ params, searchParams }: Props
           </a>
         </div>
         <div className="flex items-center gap-2">
+          <WaitlistEmbedButton slug={detail.slug} appUrl={process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'} />
           <WaitlistExportButton slug={detail.slug} waitlistId={detail.id} exportAction={exportWaitlistSignups} />
           {/* Edit happens via the list drawer (M2). The dedicated detail-hosted edit + the
               row→detail navigation are a small follow-up; link there for now. */}
