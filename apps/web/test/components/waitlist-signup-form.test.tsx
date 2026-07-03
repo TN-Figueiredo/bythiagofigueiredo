@@ -195,6 +195,68 @@ describe('WaitlistSignupForm', () => {
     expect(screen.queryByPlaceholderText(en.emailPlaceholder)).not.toBeInTheDocument()
   })
 
+  // ---- Signup attribution: POST body carries source_surface per variant ----
+
+  it("sends source:'landing' in the POST body for the landing variant", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ success: true, duplicate: false }),
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+    renderIdle()
+    fillEmail('reader@example.com')
+    fireEvent.click(screen.getByRole('checkbox'))
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(en.button, 'i') }))
+
+    await waitFor(() => expect(screen.getByRole('status')).toBeInTheDocument())
+    const body = JSON.parse((fetchMock.mock.calls[0]![1] as { body: string }).body) as {
+      source: string
+    }
+    expect(body.source).toBe('landing')
+  })
+
+  it("sends source:'embed' in the POST body for the embed variant (embed surface attribution)", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ success: true, duplicate: false }),
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+    // server-resolved status (as the /embed/waitlists/[slug] page passes it)
+    renderEmbed({ initialStatus: 'open' })
+    fillEmail('reader@example.com')
+    fireEvent.click(screen.getByRole('checkbox'))
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(en.button, 'i') }))
+
+    await waitFor(() => expect(screen.getByRole('status')).toBeInTheDocument())
+    // the only fetch is the signup POST — the mount-GET was skipped (see test below)
+    const body = JSON.parse((fetchMock.mock.calls[0]![1] as { body: string }).body) as {
+      source: string
+    }
+    expect(body.source).toBe('embed')
+  })
+
+  // ---- Server-resolved embed: initialStatus skips the mount-GET ----
+
+  it('renders the form immediately (no mount-GET) when embed receives a server-resolved initialStatus', () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    renderEmbed({ initialStatus: 'open' })
+    expect(screen.getByPlaceholderText(en.emailPlaceholder)).toBeInTheDocument()
+    expect(document.querySelector('[aria-busy="true"]')).toBeNull()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('renders the closed block (no form, no fetch) when embed receives initialStatus=closed', () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    renderEmbed({ initialStatus: 'closed' })
+    expect(screen.getByText(en.closed)).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText(en.emailPlaceholder)).not.toBeInTheDocument()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   // ---- M4 mount-GET lifecycle (embed/inline variants resolve status via fetch) ----
 
   it('shows the loading lifecycle (aria-busy, no form) on mount for embed before the GET resolves', () => {

@@ -18,10 +18,21 @@ const SignupResponse = z
 type Variant = 'landing' | 'embed' | 'inline'
 type PublicStatus = 'open' | 'closed' | 'launched'
 
-// Lifecycle gates whether the form is even shown (M4). For `landing` it is derived
-// synchronously from `initialStatus` (the server component already resolved the row);
-// for `embed`/`inline` there is no server-resolved status, so it is resolved by a
-// mount-GET against the public status route — never render-the-form-then-yank-it.
+// Signup attribution (Task: embed surface): the POST body carries the DB-constrained
+// source_surface derived from the variant — 'inline' is the TipTap blog node, which
+// the schema names 'tiptap'.
+const SOURCE_BY_VARIANT: Record<Variant, 'landing' | 'embed' | 'tiptap'> = {
+  landing: 'landing',
+  embed: 'embed',
+  inline: 'tiptap',
+}
+
+// Lifecycle gates whether the form is even shown (M4). It is derived synchronously
+// from `initialStatus` whenever the caller server-resolved the row (`landing` always
+// does; the /embed/waitlists/[slug] page does too — it must 404 on bad slugs anyway,
+// so it passes the resolved status down and the mount-GET is skipped). Only when no
+// server-resolved status exists (`embed`/`inline` used standalone) is it resolved by
+// a mount-GET against the public status route — never render-the-form-then-yank-it.
 type Lifecycle = 'loading' | 'open' | 'closed' | 'launched' | 'unavailable' | 'transient-error'
 
 // Submit state machine (spec §7) — only meaningful once lifecycle === 'open'.
@@ -44,7 +55,8 @@ interface Props {
    *  text matches the `consent_texts` ledger string verbatim (LGPD proof-of-consent). */
   name: string
   variant?: Variant
-  /** Only consulted for `variant === 'landing'` (server-resolved status). */
+  /** Server-resolved status. When provided (landing always; embed page too), the
+   *  mount-GET lifecycle fetch is skipped. */
   initialStatus?: PublicStatus
 }
 
@@ -66,8 +78,11 @@ export function WaitlistSignupForm({ slug, locale, name, variant = 'landing', in
   const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY
   const needsToken = Boolean(siteKey)
 
+  // Server-resolved when landing (always) OR when the caller passed initialStatus
+  // (the embed page resolves the row server-side for its 404 behavior).
+  const serverResolved = variant === 'landing' || initialStatus !== undefined
   const [lifecycle, setLifecycle] = useState<Lifecycle>(() =>
-    variant === 'landing' ? (initialStatus ?? 'open') : 'loading',
+    serverResolved ? (initialStatus ?? 'open') : 'loading',
   )
   const [resolvedName, setResolvedName] = useState(name)
   const [submitState, setSubmitState] = useState<SubmitState>('idle')
@@ -80,9 +95,9 @@ export function WaitlistSignupForm({ slug, locale, name, variant = 'landing', in
   const widgetIdRef = useRef<string | null>(null)
   const resultRef = useRef<HTMLDivElement>(null)
 
-  // Mount-GET lifecycle for embed/inline (M4). Landing trusts initialStatus.
+  // Mount-GET lifecycle for embed/inline WITHOUT a server-resolved status (M4).
   useEffect(() => {
-    if (variant === 'landing') return
+    if (serverResolved) return
     let cancelled = false
     setLifecycle('loading')
     fetch(`/api/waitlists/${encodeURIComponent(slug)}`)
@@ -116,7 +131,7 @@ export function WaitlistSignupForm({ slug, locale, name, variant = 'landing', in
     return () => {
       cancelled = true
     }
-  }, [slug, variant, reloadKey])
+  }, [slug, serverResolved, reloadKey])
 
   // Turnstile widget — only when a site key is set and the form is actually open.
   useEffect(() => {
@@ -167,6 +182,8 @@ export function WaitlistSignupForm({ slug, locale, name, variant = 'landing', in
           locale,
           email,
           consent_launch_notification: true,
+          // Conversion-funnel attribution — persisted as waitlist_signups.source_surface.
+          source: SOURCE_BY_VARIANT[variant],
           // The route's Zod schema requires a non-empty token; in keyless dev the route
           // skips verification, so a placeholder satisfies the schema without weakening prod
           // (prod always has a real token here because needsToken gates the submit button).
