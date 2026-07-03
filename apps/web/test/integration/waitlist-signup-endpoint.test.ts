@@ -141,8 +141,8 @@ describe.skipIf(skipIfNoLocalDb())('POST /api/waitlists/[slug]/signup', () => {
     }
   })
 
-  // ── Case: success → {success:true, duplicate:false} ─────────────────────────
-  it('returns 200 with success:true and duplicate:false for a fresh signup', async () => {
+  // ── Case: success → constant {success:true} (BTF-099: no `duplicate` key) ────
+  it('returns 200 with a constant {success:true} for a fresh signup', async () => {
     vi.stubEnv('TURNSTILE_SECRET_KEY', 'test-secret')
     try {
       const body = defaultBody({ email: `fresh-${Date.now()}@example.com` })
@@ -150,17 +150,18 @@ describe.skipIf(skipIfNoLocalDb())('POST /api/waitlists/[slug]/signup', () => {
       const ctx = { params: Promise.resolve({ slug }) }
       const res = await POST(req, ctx)
       expect(res.status).toBe(200)
-      const json = await res.json() as { success: boolean; duplicate: boolean }
+      const json = await res.json() as Record<string, unknown>
       expect(json.success).toBe(true)
-      expect(json.duplicate).toBe(false)
+      // BTF-099: the response must NOT expose `duplicate` (enumeration oracle).
+      expect('duplicate' in json).toBe(false)
       expect(verifyTurnstileToken).toHaveBeenCalled()
     } finally {
       vi.unstubAllEnvs()
     }
   })
 
-  // ── Case: duplicate signup → {success:true, duplicate:true} ─────────────────
-  it('returns duplicate:true on a second identical signup', async () => {
+  // ── Case: duplicate signup → still a constant {success:true}, indistinguishable ─
+  it('returns the SAME {success:true} (no duplicate flag) on a second identical signup', async () => {
     vi.stubEnv('TURNSTILE_SECRET_KEY', 'test-secret')
     try {
       const email = `dup-${Date.now()}@example.com`
@@ -169,14 +170,16 @@ describe.skipIf(skipIfNoLocalDb())('POST /api/waitlists/[slug]/signup', () => {
       // First call
       const res1 = await POST(makeRequest(body), ctx)
       expect(res1.status).toBe(200)
-      const j1 = await res1.json() as { success: boolean; duplicate: boolean }
-      expect(j1.duplicate).toBe(false)
-      // Second call (same email)
+      const j1 = await res1.json() as Record<string, unknown>
+      expect(j1.success).toBe(true)
+      expect('duplicate' in j1).toBe(false)
+      // Second call (same email) — response is byte-for-byte indistinguishable, so the
+      // client cannot probe whether the email was already on the list (BTF-099).
       const res2 = await POST(makeRequest(body), ctx)
       expect(res2.status).toBe(200)
-      const j2 = await res2.json() as { success: boolean; duplicate: boolean }
+      const j2 = await res2.json() as Record<string, unknown>
       expect(j2.success).toBe(true)
-      expect(j2.duplicate).toBe(true)
+      expect('duplicate' in j2).toBe(false)
     } finally {
       vi.unstubAllEnvs()
     }

@@ -130,12 +130,16 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
   if (out.error === 'not_found') return Response.json({ error: 'not_found' }, { status: 404 })
   if (out.error === 'waitlist_not_open') return Response.json({ error: 'waitlist_not_open', status: out.status }, { status: 409 })
   // Count-only conversion funnel breadcrumb (Task 21) — source_surface + duplicate flag
-  // only, NEVER email/ip (those are scrubbed everywhere else too).
+  // only, NEVER email/ip (those are scrubbed everywhere else too). `duplicate` stays
+  // SERVER-SIDE only (Sentry breadcrumb) — it is NOT echoed in the HTTP response.
   Sentry.addBreadcrumb({
     category: 'waitlist',
     message: 'signup',
     level: 'info',
     data: { source_surface: body.source, duplicate: out.duplicate === true },
   })
-  return Response.json({ success: true, duplicate: out.duplicate === true })
+  // BTF-099: constant `{ success: true }` — never echo `duplicate`. Returning it was an
+  // enumeration oracle (an attacker could probe whether an email was already on the list).
+  // A fresh signup and a re-signup are now indistinguishable to the client.
+  return Response.json({ success: true })
 }
