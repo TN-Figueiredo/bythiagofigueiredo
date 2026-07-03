@@ -38,6 +38,7 @@ import {
   Braces,
   ImagePlus,
   ListMusic,
+  Gift,
 } from 'lucide-react'
 import { MERGE_TAGS } from './merge-tag-node'
 import { PROVIDER_META, type EmbedProvider } from './social-embed-node'
@@ -52,6 +53,7 @@ interface EditorToolbarProps {
   onInsertTable?: () => void
   onInsertColumns?: () => void
   onInsertPlaylist?: () => void
+  onInsertWaitlist?: () => void
   onImageInserted?: () => void
   isFullscreen?: boolean
   onToggleFullscreen?: () => void
@@ -220,6 +222,7 @@ export function EditorToolbar({
   onInsertTable,
   onInsertColumns,
   onInsertPlaylist,
+  onInsertWaitlist,
 }: EditorToolbarProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [showLinkPopover, setShowLinkPopover] = useState(false)
@@ -369,6 +372,11 @@ export function EditorToolbar({
       {onInsertPlaylist && (
         <ToolbarButton onClick={onInsertPlaylist} title="Embed playlist">
           <ListMusic size={16} />
+        </ToolbarButton>
+      )}
+      {onInsertWaitlist && (
+        <ToolbarButton onClick={onInsertWaitlist} title="Embed waitlist">
+          <Gift size={16} />
         </ToolbarButton>
       )}
 

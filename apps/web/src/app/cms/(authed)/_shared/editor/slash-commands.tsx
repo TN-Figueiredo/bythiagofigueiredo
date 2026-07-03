@@ -37,6 +37,7 @@ import {
   TableIcon,
   CheckSquare,
   ListMusic,
+  Gift,
 } from 'lucide-react'
 
 interface CommandItem {
@@ -57,6 +58,7 @@ function getSlashCommands(callbacks: {
   onInsertTable: () => void
   onInsertChecklist: () => void
   onInsertPlaylist: () => void
+  onInsertWaitlist: () => void
 }): CommandItem[] {
   return [
     {
@@ -266,6 +268,15 @@ function getSlashCommands(callbacks: {
         callbacks.onInsertPlaylist()
       },
     },
+    {
+      title: 'Waitlist',
+      description: 'Inline waitlist signup form',
+      icon: <Gift size={18} />,
+      command: ({ editor, range }) => {
+        editor.chain().focus().deleteRange(range).run()
+        callbacks.onInsertWaitlist()
+      },
+    },
   ]
 }
 
@@ -356,6 +367,7 @@ function createSuggestionConfig(callbacks: {
   onInsertTable: () => void
   onInsertChecklist: () => void
   onInsertPlaylist: () => void
+  onInsertWaitlist: () => void
 }): Omit<SuggestionOptions<CommandItem>, 'editor'> {
   return {
     char: '/',
@@ -440,6 +452,7 @@ export function createSlashCommandExtension(callbacks: {
   onInsertTable: () => void
   onInsertChecklist: () => void
   onInsertPlaylist: () => void
+  onInsertWaitlist: () => void
 }) {
   return Extension.create({
     name: 'slashCommand',

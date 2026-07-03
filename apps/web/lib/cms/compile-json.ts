@@ -167,6 +167,8 @@ function renderBlock(node: JSONContent, state: CompileState): string {
       return renderTableCell(node, state)
     case 'socialEmbed':
       return renderSocialEmbed(node)
+    case 'waitlistEmbed':
+      return renderWaitlistEmbed(node)
     case 'mergeTag':
       return renderMergeTag(node)
     default:
@@ -331,6 +333,14 @@ function renderSocialEmbed(node: JSONContent): string {
   const provider = escapeHtml(node.attrs?.provider ?? '')
   const url = escapeHtml(node.attrs?.url ?? '')
   return `<div class="pb-embed" data-provider="${provider}" data-url="${url}"></div>`
+}
+
+function renderWaitlistEmbed(node: JSONContent): string {
+  // Placeholder hydrated client-side by <BlogArticleHtml> into <WaitlistEmbedInPost>
+  // (same pattern as .pb-embed + EmbedHydrator). Empty slug renders nothing.
+  const slug = escapeHtml(String(node.attrs?.slug ?? ''))
+  if (!slug) return ''
+  return `<div class="pb-waitlist" data-slug="${slug}"></div>`
 }
 
 function renderMergeTag(node: JSONContent): string {
