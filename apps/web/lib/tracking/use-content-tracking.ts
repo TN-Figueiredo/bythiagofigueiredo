@@ -87,6 +87,10 @@ export function useContentTracking(config: TrackingConfig): void {
   useEffect(() => {
     if (config.isPreview) return
     if (typeof navigator !== 'undefined' && (navigator as { webdriver?: boolean }).webdriver) return
+    // LGPD Art. 7 I / Art. 8 (BTF-095): behavioral analytics require an explicit
+    // analytics opt-in. No consent → no view beacon. `consent` is in this
+    // effect's deps, so opting in re-runs it and (re)starts the timer.
+    if (consent?.analytics !== true) return
 
     const dedupKey = `btf_view_sent:${config.resourceId}`
     const lastSent = sessionStorage.getItem(dedupKey)
@@ -131,6 +135,8 @@ export function useContentTracking(config: TrackingConfig): void {
       maxDepthRef.current = depthPercent
     }
 
+    // ReadProgressStore is first-party, local-only reading-position UI (never
+    // transmitted) — functional, so it runs regardless of analytics consent.
     const store = storeRef.current
     if (store) {
       for (const t of DEPTH_THRESHOLDS) {
@@ -140,7 +146,10 @@ export function useContentTracking(config: TrackingConfig): void {
       }
     }
 
-    if (depthPercent >= READ_COMPLETE_THRESHOLD && !completeSentRef.current) {
+    // LGPD Art. 7 I / Art. 8 (BTF-095): the read_complete beacon is analytics —
+    // gate it behind explicit opt-in. Without consent we emit nothing (and leave
+    // completeSentRef false so it can fire later if the user opts in).
+    if (depthPercent >= READ_COMPLETE_THRESHOLD && !completeSentRef.current && consent?.analytics === true) {
       completeSentRef.current = true
       if (store) store.setProgress(config.resourceId, 100)
 
@@ -169,6 +178,10 @@ export function useContentTracking(config: TrackingConfig): void {
     if (typeof navigator !== 'undefined' && (navigator as { webdriver?: boolean }).webdriver) return
 
     const handleClose = () => {
+      // LGPD Art. 7 I / Art. 8 (BTF-095): read_progress beacon on page-hide is
+      // analytics — no analytics opt-in, no beacon.
+      if (consent?.analytics !== true) return
+
       const anonymousId =
         consent?.anonymousId ||
         (typeof localStorage !== 'undefined' ? localStorage.getItem('lgpd_anon_id') : null) ||

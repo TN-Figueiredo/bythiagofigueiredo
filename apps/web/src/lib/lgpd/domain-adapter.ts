@@ -221,6 +221,19 @@ export class BythiagoLgpdDomainAdapter implements ILgpdDomainAdapter {
   // Data export
   // ------------------------------------------------------------------
   async collectUserData(userId: string): Promise<Record<string, unknown>> {
+    // BTF-095 — analytics anônimo FORA DE ESCOPO do Art. 18 (portabilidade).
+    // `content_events` (session_id/anonymous_id, sem coluna user_id) e
+    // `link_clicks` (visitor_id = SHA-256(ip|ua|dia), que rotaciona diariamente;
+    // ip/user_agent; sem user_id) NÃO são exportados aqui de propósito.
+    //
+    // Não existe vínculo confiável ao user autenticado: o `anonymous_id` é um
+    // UUID gerado em localStorage e a constraint `consents_check` obriga
+    // `user_id XOR anonymous_id` — quando o usuário loga, `merge_anonymous_consents`
+    // grava a linha com user_id e ZERA o anonymous_id, apagando o único elo. Um
+    // JOIN por anonymous_id seria frágil E vazaria eventos de terceiros que
+    // compartilharam o mesmo navegador pré-login. Por serem dados analíticos
+    // anonimizados (LGPD Art. 12), ficam fora do bundle de portabilidade;
+    // continuam cobertos pelo sweep de retenção + purge_content_events.
     // Fetch each slice in parallel. Empty-on-error is NOT used here — if any
     // single query fails, the collection fails, because portability is
     // all-or-nothing. The API route wraps this in try/catch and marks the
