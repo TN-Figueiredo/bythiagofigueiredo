@@ -154,7 +154,7 @@ const nextConfig: NextConfig = {
     const scriptSrc = isDev
       ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com https://static.cloudflareinsights.com"
       : "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://static.cloudflareinsights.com"
-    const globalCsp = [
+    const baseCspDirectives = [
       "default-src 'self'",
       scriptSrc,
       "style-src 'self' 'unsafe-inline'",
@@ -166,10 +166,18 @@ const nextConfig: NextConfig = {
       // object-src 'none' blocks <object>/<embed>/<applet> — a classic XSS /
       // plugin vector. Zero hydration impact: Next never emits these.
       "object-src 'none'",
-      "frame-ancestors 'none'",
       "form-action 'self'",
       "base-uri 'self'",
-    ].join('; ')
+    ]
+    const globalCsp = [...baseCspDirectives, "frame-ancestors 'none'"].join('; ')
+    // Waitlists Surface 2 — /embed/waitlists/* is DESIGNED to be iframed by
+    // arbitrary third-party sites, so it gets `frame-ancestors *` (the embedder
+    // set is open by definition — there is no allowlist to enforce). Every
+    // other CSP directive is identical to the global policy. Clickjacking risk
+    // is acceptable on this path: the page contains only the public signup
+    // form (email + consent), no authenticated actions. The rest of the site
+    // keeps X-Frame-Options: DENY + frame-ancestors 'none'.
+    const embedCsp = [...baseCspDirectives, 'frame-ancestors *'].join('; ')
     return [
       {
         source: '/(.*)',
@@ -183,10 +191,6 @@ const nextConfig: NextConfig = {
             value: 'nosniff',
           },
           {
-            key: 'X-Frame-Options',
-            value: 'DENY',
-          },
-          {
             key: 'Referrer-Policy',
             value: 'strict-origin-when-cross-origin',
           },
@@ -196,12 +200,36 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      // X-Frame-Options rides on every path EXCEPT /embed/waitlists/* (negative
+      // lookahead). XFO has no "allow anyone" value, so the embed path must OMIT
+      // the header entirely and rely on its CSP frame-ancestors (which, per the
+      // CSP2 spec, obsoletes/overrides XFO anyway in every modern browser).
+      {
+        source: '/((?!embed/waitlists/).*)',
+        headers: [
+          {
+            key: 'X-Frame-Options',
+            value: 'DENY',
+          },
+        ],
+      },
       {
         source: '/:path*',
         headers: [
           {
             key: 'Content-Security-Policy',
             value: globalCsp,
+          },
+        ],
+      },
+      // MUST come after the global '/:path*' CSP block: when two header entries
+      // match the same path with the same key, Next.js lets the LAST one win.
+      {
+        source: '/embed/waitlists/:path*',
+        headers: [
+          {
+            key: 'Content-Security-Policy',
+            value: embedCsp,
           },
         ],
       },

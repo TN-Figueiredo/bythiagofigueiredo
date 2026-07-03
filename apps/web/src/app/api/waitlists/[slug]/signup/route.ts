@@ -18,6 +18,10 @@ const Body = z.object({
   email: z.string().email().max(320),
   consent_launch_notification: z.literal(true),
   turnstile_token: z.string().min(1),
+  // Conversion-funnel attribution, mirrored from the DB check constraint
+  // (waitlist_signups_source_surface_enum). Client-declared and count-only —
+  // it gates nothing. Optional so pre-existing clients (no `source`) keep working.
+  source: z.enum(['landing', 'embed', 'tiptap']).default('landing'),
 })
 interface Ctx { params: Promise<{ slug: string }> }
 
@@ -97,7 +101,7 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
   const res = await supabase.rpc('waitlist_signup', {
     p_site_id: siteId, p_slug: slug, p_email: body.email, p_locale: body.locale,
     p_consent_version: WAITLIST_CONSENT_VERSION, p_consent_text_snapshot: snapshot,
-    p_source_surface: 'landing', p_ip: ip, p_user_agent: ua, // TODO Fase 3: source_surface from body for embed/tiptap
+    p_source_surface: body.source, p_ip: ip, p_user_agent: ua,
   })
   if (res.error) {
     getLogger().error('[waitlist_signup]', { code: res.error.code })
@@ -131,7 +135,7 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
     category: 'waitlist',
     message: 'signup',
     level: 'info',
-    data: { source_surface: 'landing', duplicate: out.duplicate === true },
+    data: { source_surface: body.source, duplicate: out.duplicate === true },
   })
   return Response.json({ success: true, duplicate: out.duplicate === true })
 }

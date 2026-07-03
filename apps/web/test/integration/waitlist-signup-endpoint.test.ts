@@ -252,6 +252,61 @@ describe.skipIf(skipIfNoLocalDb())('POST /api/waitlists/[slug]/signup', () => {
     }
   })
 
+  it('returns 400 invalid_body for a source outside the DB enum (landing/embed/tiptap)', async () => {
+    vi.stubEnv('TURNSTILE_SECRET_KEY', 'test-secret')
+    try {
+      const body = defaultBody({ source: 'evil-surface' })
+      const req = makeRequest(body)
+      const ctx = { params: Promise.resolve({ slug }) }
+      const res = await POST(req, ctx)
+      expect(res.status).toBe(400)
+      const json = await res.json() as { error: string }
+      expect(json.error).toBe('invalid_body')
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it("persists the declared source_surface ('embed') on the signup row", async () => {
+    vi.stubEnv('TURNSTILE_SECRET_KEY', 'test-secret')
+    try {
+      const email = `embed-src-${Date.now()}@example.com`
+      const body = defaultBody({ email, source: 'embed' })
+      const ctx = { params: Promise.resolve({ slug }) }
+      const res = await POST(makeRequest(body), ctx)
+      expect(res.status).toBe(200)
+      const { data: signup } = await db
+        .from('waitlist_signups')
+        .select('source_surface')
+        .eq('waitlist_id', waitlistId)
+        .eq('email', email)
+        .maybeSingle()
+      expect(signup?.source_surface).toBe('embed')
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it("defaults source_surface to 'landing' when the body omits source (pre-embed clients)", async () => {
+    vi.stubEnv('TURNSTILE_SECRET_KEY', 'test-secret')
+    try {
+      const email = `default-src-${Date.now()}@example.com`
+      const body = defaultBody({ email }) // no `source` key
+      const ctx = { params: Promise.resolve({ slug }) }
+      const res = await POST(makeRequest(body), ctx)
+      expect(res.status).toBe(200)
+      const { data: signup } = await db
+        .from('waitlist_signups')
+        .select('source_surface')
+        .eq('waitlist_id', waitlistId)
+        .eq('email', email)
+        .maybeSingle()
+      expect(signup?.source_surface).toBe('landing')
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
   it('returns 400 invalid_body when consent_launch_notification is false (z.literal(true) guard)', async () => {
     vi.stubEnv('TURNSTILE_SECRET_KEY', 'test-secret')
     try {
