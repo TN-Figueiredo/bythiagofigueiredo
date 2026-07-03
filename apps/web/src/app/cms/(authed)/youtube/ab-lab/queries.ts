@@ -1,6 +1,7 @@
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import type { Database } from '@/types/database.types'
 import { AB_SITE_SETTINGS_DEFAULTS } from '@/lib/youtube/ab-types'
 import type {
   AbTestWithVariants,
@@ -417,16 +418,28 @@ export async function getFatigueAlerts(siteId: string): Promise<FatigueAlert[]> 
     .order('detected_at', { ascending: false })
     .limit(5)
 
-  return (data ?? []).map(alert => ({
-    id: alert.id,
-    videoId: alert.video_id,
-    videoTitle: (alert as any).youtube_videos?.title ?? 'Video',
-    thumbnailUrl: (alert as any).youtube_videos?.thumbnail_url ?? null,
-    zScore: alert.z_score,
-    expectedCtr: alert.expected_ctr,
-    actualCtr: alert.actual_ctr,
-    detectedAt: alert.detected_at,
-  }))
+  // Supabase embeds a `!inner` relation as either an object or a single-element
+  // array depending on FK inference — normalize like the rest of the codebase does.
+  type VideoJoin = Pick<
+    Database['public']['Tables']['youtube_videos']['Row'],
+    'id' | 'title' | 'thumbnail_url'
+  >
+  const pickVideo = (v: VideoJoin | VideoJoin[] | null | undefined): VideoJoin | null =>
+    Array.isArray(v) ? (v[0] ?? null) : (v ?? null)
+
+  return (data ?? []).map(alert => {
+    const video = pickVideo(alert.youtube_videos)
+    return {
+      id: alert.id,
+      videoId: alert.video_id,
+      videoTitle: video?.title ?? 'Video',
+      thumbnailUrl: video?.thumbnail_url ?? null,
+      zScore: alert.z_score,
+      expectedCtr: alert.expected_ctr ?? 0,
+      actualCtr: alert.actual_ctr ?? 0,
+      detectedAt: alert.detected_at ?? '',
+    }
+  })
 }
 
 // ---------------------------------------------------------------------------
