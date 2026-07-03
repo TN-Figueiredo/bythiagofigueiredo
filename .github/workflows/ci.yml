@@ -27,6 +27,8 @@ jobs:
       - name: Check proprietary LICENSE integrity
         continue-on-error: true  # TODO: remove after Fase 1 rollout applies LICENSE to 32 packages
         run: bash licensing/scripts/check-license.sh
+      - name: Check type debt ratchet (BTF-059)
+        run: bash scripts/check-type-debt.sh
 
   typecheck:
     name: Typecheck (${{ matrix.workspace }})
