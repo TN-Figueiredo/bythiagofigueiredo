@@ -6,16 +6,35 @@
 // suites were armed with '2027-06-01' expiries). Fixtures that interact with
 // expiry logic must be relative (Date.now() + N days) or run under fake timers.
 import { describe, it, expect } from 'vitest'
-import { readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 
-const TEST_ROOTS = ['test', 'src', 'lib']
+// e2e (Playwright *.spec) is outside vitest but its fixtures rot the same way.
+const TEST_ROOTS = ['test', 'src', 'lib', 'e2e']
 const APP_ROOT = join(__dirname, '..', '..')
 
-// Literal dates from 2027 onwards inside quotes, e.g. '2027-06-01T00:00:00Z'.
-// 2026 dates are allowed: past/current-year fixtures don't rot forward the way
-// future expiries do, and files pinning "now" (fake timers) legitimately use them.
-const FUTURE_DATE = /['"]20(2[7-9]|[3-9][0-9])-\d{2}-\d{2}/
+// Dynamic floor: anything dated next year onwards is "future". Current-year
+// fixtures are allowed — they don't rot forward the way future expiries do,
+// and files pinning "now" (fake timers) legitimately use them. Computing the
+// floor from the wall clock keeps this guardian itself from rotting.
+const FUTURE_YEAR_FLOOR = new Date().getUTCFullYear() + 1
+
+// ISO-ish dates anywhere in the line (quotes, template literals, mid-string),
+// plus numeric constructors: new Date(2027, …) / Date.UTC(2027, …).
+const ISO_DATE = /\b(20\d{2})-\d{2}-\d{2}/g
+const NUMERIC_CTOR = /(?:new\s+Date|Date\.UTC)\(\s*(20\d{2})\s*,/g
+
+function futureYearsIn(line: string): number[] {
+  const years: number[] = []
+  for (const re of [ISO_DATE, NUMERIC_CTOR]) {
+    re.lastIndex = 0
+    for (let m = re.exec(line); m !== null; m = re.exec(line)) {
+      const y = Number(m[1])
+      if (y >= FUTURE_YEAR_FLOOR) years.push(y)
+    }
+  }
+  return years
+}
 
 // Files verified to use future dates inertly (no wall-clock comparison on the
 // consuming path). Re-verify before adding to this list.
@@ -37,9 +56,10 @@ const ALLOWLIST = new Set([
 ])
 
 function collectTestFiles(dir: string): string[] {
+  if (!existsSync(dir)) return []
   const entries = readdirSync(dir, { withFileTypes: true, recursive: true })
   return entries
-    .filter((e) => e.isFile() && /\.test\.[cm]?[jt]sx?$/.test(e.name))
+    .filter((e) => e.isFile() && /\.(test|spec)\.[cm]?[jt]sx?$/.test(e.name))
     .map((e) => join(e.parentPath, e.name))
 }
 
@@ -52,7 +72,7 @@ describe('test-suite hygiene', () => {
         if (ALLOWLIST.has(rel)) continue
         const lines = readFileSync(file, 'utf8').split('\n')
         lines.forEach((line, i) => {
-          if (FUTURE_DATE.test(line)) offenders.push(`${rel}:${i + 1}  ${line.trim()}`)
+          if (futureYearsIn(line).length > 0) offenders.push(`${rel}:${i + 1}  ${line.trim()}`)
         })
       }
     }
