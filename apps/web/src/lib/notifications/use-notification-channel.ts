@@ -2,10 +2,11 @@
 
 import { useEffect, useRef } from 'react'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
+import type { NotificationAction, INotification } from './types'
 
 export function useNotificationChannel(
   userId: string,
-  dispatch: (action: any) => void, // NotificationAction dispatch
+  dispatch: (action: NotificationAction) => void,
 ) {
   const lastReceivedRef = useRef<string | null>(null)
 
@@ -25,8 +26,9 @@ export function useNotificationChannel(
           filter: `user_id=eq.${userId}`,
         },
         (payload) => {
-          dispatch({ type: 'ADD', item: payload.new })
-          lastReceivedRef.current = (payload.new as { created_at: string }).created_at
+          const item = payload.new as INotification
+          dispatch({ type: 'ADD', item })
+          lastReceivedRef.current = item.created_at
         },
       )
       .subscribe()
