@@ -29,6 +29,7 @@
     "db:reset": "supabase db reset",
     "db:status": "supabase status",
     "db:env": "bash scripts/db-env.sh",
+    "db:types": "npx supabase@2.98.2 gen types typescript --local --schema public > apps/web/src/types/database.types.ts",
     "db:which": "bash scripts/db-which.sh",
     "db:seed:research": "tsx --env-file apps/web/.env.local scripts/seed-research-content.ts",
     "db:seed:research:clean": "tsx --env-file apps/web/.env.local scripts/seed-research-content.ts --unseed",
