@@ -12,6 +12,7 @@ import { revalidateBlogPostSeo } from '@/lib/seo/cache-invalidation'
 import { parseMdxFrontmatter, SeoExtrasValidationError } from '@/lib/seo/frontmatter'
 import { trackMediaUsage } from '@/lib/media/track-usage'
 import { compileJsonContent } from '@/lib/cms/compile-json'
+import { sanitizeForLike } from '@/lib/pipeline/sanitize'
 import type { JSONContent } from '@tiptap/core'
 import type { ZodIssue } from 'zod'
 import type { DistPlatformId, DistTiming } from './types'
@@ -429,7 +430,7 @@ export async function searchPosts(
     .select('post_id, title, slug, blog_posts!inner(id, site_id)')
     .eq('locale', locale)
     .eq('blog_posts.site_id', siteId)
-    .ilike('title', `%${query}%`)
+    .ilike('title', `%${sanitizeForLike(query)}%`)
     .limit(10)
 
   if (excludeId) {

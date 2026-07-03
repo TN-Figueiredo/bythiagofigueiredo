@@ -10,8 +10,11 @@ import { RenderConsentText } from './consent-text'
 const StatusResponse = z
   .object({ status: z.string().optional(), name: z.string().optional() })
   .passthrough()
+// BTF-099: the signup response is a constant `{ success: true }` — the server no longer
+// echoes a `duplicate` flag (it was an enumeration oracle). A fresh signup and a
+// re-signup are indistinguishable, so the UI always shows the same neutral confirmation.
 const SignupResponse = z
-  .object({ success: z.boolean().optional(), duplicate: z.boolean().optional() })
+  .object({ success: z.boolean().optional() })
   .passthrough()
 
 
@@ -42,7 +45,6 @@ type SubmitState =
   | 'idle'
   | 'submitting'
   | 'success'
-  | 'duplicate'
   | 'raceClosed'
   | 'error'
   | 'rateLimited'
@@ -69,7 +71,7 @@ declare global {
   }
 }
 
-const RESULT_STATES: ReadonlySet<SubmitState> = new Set(['success', 'duplicate', 'raceClosed'])
+const RESULT_STATES: ReadonlySet<SubmitState> = new Set(['success', 'raceClosed'])
 
 export function WaitlistSignupForm({ slug, locale, name, variant = 'landing', initialStatus }: Props) {
   const strings = FORM_STRINGS[locale] ?? FORM_STRINGS.en
@@ -216,7 +218,9 @@ export function WaitlistSignupForm({ slug, locale, name, variant = 'landing', in
         resetTurnstile()
         return
       }
-      setSubmitState(parsed.data.duplicate ? 'duplicate' : 'success')
+      // BTF-099: always the same neutral success state — the server no longer tells us
+      // whether this email was already on the list (enumeration-oracle removal).
+      setSubmitState('success')
     } catch {
       setSubmitState('error')
       resetTurnstile()
@@ -282,9 +286,12 @@ export function WaitlistSignupForm({ slug, locale, name, variant = 'landing', in
 
   // ---- lifecycle === 'open' ----
   // Terminal submit states that REPLACE the form.
-  if (submitState === 'success' || submitState === 'duplicate') {
-    const headline = submitState === 'success' ? strings.successHeadline : strings.duplicateHeadline
-    const body = submitState === 'success' ? strings.successBody : strings.duplicateBody
+  if (submitState === 'success') {
+    // BTF-099: neutral confirmation shown for BOTH a fresh signup and a re-signup —
+    // the client can no longer distinguish the two, so no "you're already on the list"
+    // copy is rendered (that would re-introduce the enumeration oracle client-side).
+    const headline = strings.successHeadline
+    const body = strings.successBody
     return (
       <div
         ref={resultRef}

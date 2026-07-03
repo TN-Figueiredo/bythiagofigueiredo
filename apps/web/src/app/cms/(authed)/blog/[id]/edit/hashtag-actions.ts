@@ -3,6 +3,7 @@
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireEditScope } from '@/app/cms/(authed)/blog/_shared/server-utils'
+import { sanitizeForLike } from '@/lib/pipeline/sanitize'
 
 interface Hashtag {
   id: string
@@ -23,7 +24,7 @@ export async function searchHashtags(
     .from('hashtags')
     .select('id, name, slug')
     .eq('site_id', siteId)
-    .ilike('name', `%${query}%`)
+    .ilike('name', `%${sanitizeForLike(query)}%`)
     .order('name')
     .limit(20)
 

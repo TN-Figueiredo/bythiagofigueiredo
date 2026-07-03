@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
+import { sanitizeForLike } from '@/lib/pipeline/sanitize'
 
 type ActionResult<T = undefined> = T extends undefined
   ? { ok: true } | { ok: false; error: string }
@@ -75,7 +76,8 @@ export async function exportSubscribers(
 
   const f = parsed.data.filters
   if (f.status) query = query.eq('status', f.status)
-  if (f.search) query = query.ilike('email', `%${f.search}%`)
+  // Escape LIKE metacharacters (%, _, \) so user input can't turn into a wildcard scan.
+  if (f.search) query = query.ilike('email', `%${sanitizeForLike(f.search)}%`)
   if (f.typeId) query = query.eq('newsletter_id', f.typeId)
 
   const { data: rows, error } = await query

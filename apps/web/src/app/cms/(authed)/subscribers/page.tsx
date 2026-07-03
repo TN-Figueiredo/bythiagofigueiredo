@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
+import { sanitizeForLike } from '@/lib/pipeline/sanitize'
 import { SubscribersConnected, type SubscriberRow } from './subscribers-connected'
 
 export const dynamic = 'force-dynamic'
@@ -58,7 +59,8 @@ export default async function SubscribersPage({ searchParams }: Props) {
     .order('subscribed_at', { ascending: false })
     .range(offset, offset + perPage - 1)
 
-  if (search) query = query.ilike('email', `%${search}%`)
+  // Escape LIKE metacharacters (%, _, \) so user input can't turn into a wildcard scan.
+  if (search) query = query.ilike('email', `%${sanitizeForLike(search)}%`)
   if (statusFilter) query = query.eq('status', statusFilter)
   if (typeFilter) query = query.eq('newsletter_id', typeFilter)
 

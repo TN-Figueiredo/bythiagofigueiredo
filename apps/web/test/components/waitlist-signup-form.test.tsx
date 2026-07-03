@@ -135,7 +135,10 @@ describe('WaitlistSignupForm', () => {
   // `apps/web/test/integration/waitlist-signup-rpc.test.ts` (it inspects the RPC
   // payload, not this client component) — apply the sha256 equality there, not here.
 
-  it('renders the duplicate block after a 200 duplicate POST', async () => {
+  // BTF-099: the server no longer returns a `duplicate` flag — it is an enumeration
+  // oracle. Even if a (stale) payload carried `duplicate: true`, the client must show the
+  // SAME neutral confirmation as a fresh signup and NEVER the "already on the list" copy.
+  it('shows the neutral success block even if the payload carries duplicate:true', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => ({
@@ -149,8 +152,10 @@ describe('WaitlistSignupForm', () => {
     fireEvent.click(screen.getByRole('checkbox'))
     fireEvent.click(screen.getByRole('button', { name: new RegExp(en.button, 'i') }))
 
-    await waitFor(() => expect(screen.getByText(en.duplicateHeadline)).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText(en.successHeadline)).toBeInTheDocument())
     expect(screen.getByText(en.reassurance)).toBeInTheDocument()
+    // the enumeration-revealing "already on the list" copy must NOT render
+    expect(screen.queryByText(en.duplicateHeadline)).not.toBeInTheDocument()
   })
 
   it('maps a 409 to the raceClosed message (distinct from the closed/launched blocks)', async () => {
