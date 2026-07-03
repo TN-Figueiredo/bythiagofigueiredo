@@ -55,7 +55,8 @@ function makeConnection(overrides: Partial<{
     provider: 'youtube' as const,
     account_id: 'ch1',
     account_name: 'My Channel',
-    token_expires_at: '2027-06-01T00:00:00Z',
+    // Relative far-future date — hardcoded years rot into the 'expiring' zone (CI-only wall-clock breakage)
+    token_expires_at: new Date(Date.now() + 400 * 24 * 60 * 60 * 1000).toISOString(),
     connected_at: '2026-05-01T00:00:00Z',
     revoked_at: null,
     scopes: ['youtube.upload'],
@@ -67,7 +68,7 @@ function makeConnection(overrides: Partial<{
 /** Token expires more than 30 days from now */
 const activeConnection = makeConnection({
   id: 'active-1',
-  token_expires_at: '2027-06-01T00:00:00Z',
+  token_expires_at: new Date(Date.now() + 400 * 24 * 60 * 60 * 1000).toISOString(),
 })
 
 /** Token expires in ~15 days — "expiring" zone (7–30d) */

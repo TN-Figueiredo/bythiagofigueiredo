@@ -38,7 +38,9 @@ const activeConnection = {
   provider: 'youtube' as const,
   account_id: 'ch1',
   account_name: 'My Channel',
-  token_expires_at: '2027-06-01T00:00:00Z',
+  // Relative far-future date — a hardcoded year rots into the 7-30d 'expiring'
+  // zone and breaks CI on wall clock (same class as the research-digest Q2 rot).
+  token_expires_at: new Date(Date.now() + 400 * 24 * 60 * 60 * 1000).toISOString(),
   connected_at: '2026-05-01T00:00:00Z',
   revoked_at: null,
   scopes: ['youtube.upload'],

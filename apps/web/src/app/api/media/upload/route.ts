@@ -1,3 +1,9 @@
+// NOTE (2026-07-03): this client-upload token route currently has NO consumer —
+// all real uploads go through server actions (uploadMediaAction → put(), with
+// serverActions.bodySizeLimit 50mb). It stays as the sanctioned path for future
+// browser-direct uploads past the server-action limit. Auth guard below is what
+// keeps it safe to keep around. Since @vercel/blob 2.x the completion callback
+// URL is env-inferred on Vercel; onUploadCompleted here is intentionally a no-op.
 import { handleUpload, type HandleUploadBody } from '@vercel/blob/client'
 import { NextResponse } from 'next/server'
 import { getSiteContext } from '@/lib/cms/site-context'

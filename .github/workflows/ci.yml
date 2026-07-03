@@ -148,13 +148,17 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
-      - run: npm ci
+      # --ignore-scripts: npm audit only needs the resolved tree, not the
+      # postinstall build:packages (saves minutes on this job).
+      - run: npm ci --ignore-scripts
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-      # Gate on PRODUCTION dependencies only — dev/test tooling advisories (e.g. jsdom's
-      # transitive form-data CRLF, GHSA-hmw2-7cc7-3qxx) never ship to users, and jsdom
-      # hard-pins its form-data range so an override can't lift it. Prod deps stay clean
-      # at high; revisit if jsdom publishes a fixed line.
+      # Gate on PRODUCTION dependencies only — dev/test tooling advisories never ship
+      # to users. Known accepted dev-only advisory: tmp <=0.2.5 (HIGH) nested under
+      # @lhci/cli, whose pinned subtree the root `tmp` override can't lift.
+      # Exception plan when a prod-dep advisory lands with NO upstream fix: add a
+      # temporary root override (validated — see 8ea6c54d for the pattern), log an
+      # open finding in docs/audit-baseline.md, and keep this gate blocking.
       - run: npm audit --omit=dev --audit-level=high
 
   secret-scan:

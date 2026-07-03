@@ -2,6 +2,9 @@
   "name": "@tnf/bythiagofigueiredo-web",
   "version": "0.0.1",
   "private": true,
+  "engines": {
+    "node": ">= 20.0.0"
+  },
   "scripts": {
     "dev": "next dev -p 3001",
     "build": "next build",
@@ -100,7 +103,6 @@
     "@tailwindcss/postcss": "^4.1.4",
     "@testing-library/dom": "10.4.1",
     "@testing-library/react": "16.3.2",
-    "@types/dompurify": "3.2.0",
     "@types/node": "^22.14.1",
     "@types/pg": "8.11.10",
     "@types/react": "^19.1.2",

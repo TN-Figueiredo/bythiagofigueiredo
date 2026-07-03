@@ -1,4 +1,4 @@
-import DOMPurify from 'isomorphic-dompurify'
+import { sanitizeArchiveHtml } from '@/lib/newsletter/archive-sanitizer'
 import { notFound } from 'next/navigation'
 import { headers } from 'next/headers'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
@@ -124,7 +124,7 @@ export default async function NewsletterArchivePage({
           {edition.content_html ? (
             <div
               className="prose prose-pb"
-              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(edition.content_html as string) }}
+              dangerouslySetInnerHTML={{ __html: sanitizeArchiveHtml(edition.content_html as string) }}
             />
           ) : (
             <p className="text-pb-muted">Content not available.</p>

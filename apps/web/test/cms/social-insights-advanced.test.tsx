@@ -111,7 +111,7 @@ describe('InsightsBestOf', () => {
 const healthyYT = {
   provider: 'youtube' as const,
   account_name: 'My Channel',
-  token_expires_at: '2027-12-31T00:00:00Z',
+  token_expires_at: new Date(Date.now() + 500 * 24 * 60 * 60 * 1000).toISOString(), // relative: hardcoded years rot
   revoked_at: null,
 }
 const expiredFB = {

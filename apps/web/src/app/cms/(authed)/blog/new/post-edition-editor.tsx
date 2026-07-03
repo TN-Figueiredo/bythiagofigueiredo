@@ -1,6 +1,8 @@
 'use client'
 
-import DOMPurify from 'dompurify'
+// isomorphic-dompurify, not raw 'dompurify': client components still SSR-render,
+// and raw dompurify without a window is not callable (isSupported=false, throws).
+import DOMPurify from 'isomorphic-dompurify'
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'

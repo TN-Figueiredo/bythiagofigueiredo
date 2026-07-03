@@ -1,3 +1,8 @@
+// @vitest-environment jsdom
+// The drawer sanitizes via isomorphic-dompurify against the ambient window.
+// DOMPurify ≥3.4.11 fails open under happy-dom (keeps <script>, drops allowed
+// tags) — under happy-dom the XSS test below would pass by accident. jsdom
+// behaves like a real browser here (verified).
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { WaitlistEditDrawer } from '../../src/app/cms/(authed)/waitlists/_components/edit-drawer'
@@ -59,13 +64,22 @@ describe('<WaitlistEditDrawer>', () => {
     render(
       <WaitlistEditDrawer
         mode="edit"
-        initial={{ id: 'wl-1', name: 'X', slug: 'x', intro: '<img src=x onerror="alert(1)">' }}
+        initial={{
+          id: 'wl-1',
+          name: 'X',
+          slug: 'x',
+          intro: '<p>keep me</p><img src=x onerror="alert(1)"><script>alert(2)</script>',
+        }}
         onSubmit={vi.fn()}
         onClose={vi.fn()}
       />,
     )
     const editor = screen.getByTestId('wl-intro-editor')
+    // Positive + negative assertions: a broken sanitizer that empties everything
+    // (or passes everything through) must fail this test, not sneak past it.
+    expect(editor.innerHTML).toContain('keep me')
     expect(editor.innerHTML).not.toContain('onerror')
+    expect(editor.innerHTML).not.toContain('<script')
   })
 
   it('focuses the slug field when a server slug error arrives (M3)', async () => {

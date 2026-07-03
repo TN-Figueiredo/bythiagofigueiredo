@@ -40,6 +40,10 @@ export default defineConfig({
   plugins: [react(), bracketDirAliasPlugin()],
   test: {
     globals: true,
+    // NOTE: DOMPurify ≥3.4.11 is unreliable under happy-dom (fails open: keeps
+    // <script>, drops allowed tags — verified 2026-07-03). Any test that
+    // exercises isomorphic-dompurify/dompurify must opt into node (server code)
+    // or jsdom (client components) via a @vitest-environment pragma.
     environment: 'happy-dom',
     setupFiles: ['./test/setup.ts'],
     exclude: ['e2e/**', 'node_modules/**', '../../.claude/**', '**/.claude/**', '.claude/**'],

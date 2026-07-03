@@ -264,7 +264,9 @@ export function pickRecommendation(
   //  above.) The cron has no cheap decision↔foco link, so we approximate
   //  orphanhood with an expired window on the active foco.
   const foco = signals.activeFoco
-  if (foco && isWindowExpired(foco.window_label)) {
+  // Clock comes from the signals snapshot, not wall time — keeps the function
+  // pure and lets tests pin generatedAt instead of faking Date.
+  if (foco && isWindowExpired(foco.window_label, Date.parse(signals.generatedAt))) {
     return {
       kind: 'foco_orfao',
       recomendo_agora:
@@ -370,7 +372,7 @@ export function buildSummaryForOwner(
   if (signals.revisitDue.length > 0) {
     const n = signals.revisitDue.length
     precisaDaSuaAtencao = `${n} ${pluralize(n, 'decisão com revisão vencida', 'decisões com revisão vencida')}.`
-  } else if (foco && isWindowExpired(foco.window_label)) {
+  } else if (foco && isWindowExpired(foco.window_label, Date.parse(signals.generatedAt))) {
     precisaDaSuaAtencao = `Foco "${foco.title}" com a janela do trimestre expirada.`
   } else {
     precisaDaSuaAtencao = 'Nada vencido.'
