@@ -15,8 +15,7 @@ export function authToServiceContext(auth: PipelineAuth): ServiceContext {
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- bridge between route auth and pipelineError
-export function serviceErrorToResponse(err: unknown, auth: any) {
+export function serviceErrorToResponse(err: unknown, auth: PipelineAuth) {
   if (err instanceof PipelineServiceError) {
     return pipelineError(err.code, err.message, err.status, auth)
   }

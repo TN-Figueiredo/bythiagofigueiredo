@@ -6,6 +6,7 @@ import { put } from '@vercel/blob'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import type { Database } from '@/types/database.types'
 import { AB_TEST_CONFIG_DEFAULTS, VARIANT_LABELS, DRIFT_STATUS_NOTE } from '@/lib/youtube/ab-types'
 import type {
   AbTestCreateInput,
@@ -623,7 +624,13 @@ async function resolveChannelAccountId(
     .select('youtube_channels!inner(channel_id)')
     .eq('id', internalVideoId)
     .single()
-  return (data as any)?.youtube_channels?.channel_id ?? undefined
+  const row = data as {
+    youtube_channels: Pick<
+      Database['public']['Tables']['youtube_channels']['Row'],
+      'channel_id'
+    > | null
+  } | null
+  return row?.youtube_channels?.channel_id ?? undefined
 }
 
 // ---------------------------------------------------------------------------
@@ -1623,10 +1630,17 @@ export async function fetchAbBriefingData(
 // fetchLibraryEntries — for LibraryPickerDialog
 // ---------------------------------------------------------------------------
 
-export async function fetchLibraryEntries(): Promise<Array<{
-  id: string; blob_url: string; title: string | null; tags: string[]; lift_at_win: number | null; source_type: string;
+interface ILibraryEntry {
+  id: string
+  blob_url: string
+  title: string | null
+  tags: string[]
+  lift_at_win: number | null
+  source_type: string
   thumbnail_longevity: Array<{ checkpoint_days: number; status: string; change_percent: number | null }>
-}>> {
+}
+
+export async function fetchLibraryEntries(): Promise<ILibraryEntry[]> {
   let siteId: string
   try { siteId = await requireEditAccess() } catch { return [] }
 
@@ -1638,7 +1652,7 @@ export async function fetchLibraryEntries(): Promise<Array<{
     .order('created_at', { ascending: false })
     .limit(50)
 
-  return (data ?? []) as any
+  return (data ?? []) as ILibraryEntry[]
 }
 
 // ---------------------------------------------------------------------------

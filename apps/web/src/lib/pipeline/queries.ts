@@ -35,9 +35,26 @@ export function parseSortParam(sort?: string): { column: string; ascending: bool
   return { column, ascending }
 }
 
-/* eslint-disable @typescript-eslint/no-explicit-any -- Supabase query builder generics are deeply nested; wrapping requires any */
-export function applyPipelineFilters(
-  query: any,
+/**
+ * Structural view of the Supabase PostgrestFilterBuilder, narrowed to the filter
+ * methods this helper chains. Each method returns the same builder (`Q`), so the
+ * function is a type-preserving passthrough — no `any` needed. The real
+ * `PostgrestFilterBuilder` satisfies this shape structurally.
+ */
+interface IFilterableQuery<Q> {
+  in(column: string, values: readonly unknown[]): Q
+  eq(column: string, value: unknown): Q
+  gte(column: string, value: unknown): Q
+  lte(column: string, value: unknown): Q
+  lt(column: string, value: unknown): Q
+  is(column: string, value: unknown): Q
+  contains(column: string, value: unknown): Q
+  or(filters: string): Q
+  textSearch(column: string, query: string, options: { type: 'plain' }): Q
+}
+
+export function applyPipelineFilters<Q extends IFilterableQuery<Q>>(
+  query: Q,
   filters: {
     format?: string
     stage?: string
@@ -52,8 +69,7 @@ export function applyPipelineFilters(
     stale_days?: string
     search?: string
   },
-): any {
-/* eslint-enable @typescript-eslint/no-explicit-any */
+): Q {
   if (filters.format) {
     const formats = filters.format.split(',')
     query = query.in('format', formats)
