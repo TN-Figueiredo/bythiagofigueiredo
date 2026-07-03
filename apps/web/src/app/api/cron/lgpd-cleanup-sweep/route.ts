@@ -48,6 +48,7 @@ export async function POST(req: Request): Promise<Response> {
     let blobsDeleted = 0;
     let resetAttemptsPurged = 0;
     let unsubTokensPurged = 0;
+    let dsarTokensPurged = 0;
     const errors: string[] = [];
 
     try {
@@ -97,6 +98,16 @@ export async function POST(req: Request): Promise<Response> {
       getLogger().error('[lgpd_sweep_unsub_tokens_failed]', { message: msg });
     }
 
+    // BTF-104: purge used/expired waitlist_dsar_tokens (plaintext email).
+    try {
+      const r = await container.cleanupSweep.purgeUsedDsarTokens();
+      dsarTokensPurged = r.deleted;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      errors.push(`dsar_tokens:${msg}`);
+      getLogger().error('[lgpd_sweep_dsar_tokens_failed]', { message: msg });
+    }
+
     // Best-effort cron audit row — matches the pattern from the other
     // cron handlers so `/admin/audit` can surface this job's history.
     try {
@@ -105,7 +116,7 @@ export async function POST(req: Request): Promise<Response> {
         status: errors.length === 0 ? 'ok' : 'error',
         items_processed:
           phase3Processed + remindersSent + blobsDeleted +
-          resetAttemptsPurged + unsubTokensPurged,
+          resetAttemptsPurged + unsubTokensPurged + dsarTokensPurged,
       });
     } catch {
       /* best-effort */
@@ -120,6 +131,7 @@ export async function POST(req: Request): Promise<Response> {
         blobs_deleted: blobsDeleted,
         reset_attempts_purged: resetAttemptsPurged,
         unsub_tokens_purged: unsubTokensPurged,
+        dsar_tokens_purged: dsarTokensPurged,
         errors_count: errors.length,
       };
     }
@@ -131,6 +143,7 @@ export async function POST(req: Request): Promise<Response> {
       blobs_deleted: blobsDeleted,
       reset_attempts_purged: resetAttemptsPurged,
       unsub_tokens_purged: unsubTokensPurged,
+      dsar_tokens_purged: dsarTokensPurged,
     };
   });
 }

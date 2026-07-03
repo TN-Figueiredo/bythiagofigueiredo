@@ -5,6 +5,7 @@ const sendReminders = vi.fn();
 const deleteExpiredBlobs = vi.fn();
 const purgeStaleResetAttempts = vi.fn();
 const purgeStaleUnsubscribeTokens = vi.fn();
+const purgeUsedDsarTokens = vi.fn();
 
 vi.mock('@/lib/lgpd/container', () => ({
   createLgpdContainer: () => ({
@@ -14,6 +15,7 @@ vi.mock('@/lib/lgpd/container', () => ({
       deleteExpiredBlobs,
       purgeStaleResetAttempts,
       purgeStaleUnsubscribeTokens,
+      purgeUsedDsarTokens,
     },
   }),
 }));
@@ -53,6 +55,7 @@ beforeEach(() => {
   deleteExpiredBlobs.mockResolvedValue({ deleted: 0 });
   purgeStaleResetAttempts.mockResolvedValue({ deleted: 0 });
   purgeStaleUnsubscribeTokens.mockResolvedValue({ deleted: 0 });
+  purgeUsedDsarTokens.mockResolvedValue({ deleted: 0 });
 });
 
 afterEach(() => {

@@ -128,6 +128,8 @@ export interface CleanupSweepUseCases {
   purgeStaleResetAttempts(): Promise<{ deleted: number }>;
   /** BTF-033: purge unsubscribe_tokens older than 90 days. */
   purgeStaleUnsubscribeTokens(): Promise<{ deleted: number }>;
+  /** BTF-104: purge used/expired waitlist_dsar_tokens (email plaintext) older than 30 days. */
+  purgeUsedDsarTokens(): Promise<{ deleted: number }>;
 }
 
 /**
@@ -1110,6 +1112,25 @@ function makeCleanupSweep(deps: UseCaseDeps): CleanupSweepUseCases {
         };
       if (error) {
         throw new Error(`cleanup.purgeStaleUnsubscribeTokens: delete failed: ${error.message}`);
+      }
+      return { deleted: count ?? 0 };
+    },
+
+    // BTF-104: purge waitlist_dsar_tokens that are used or older than 30 days.
+    // These rows hold plaintext email; the 20260703000003 migration ships the
+    // purge_used_dsar_tokens() SQL fn for pg_cron, this wires the same logic
+    // into the Vercel lgpd-cleanup-sweep so it runs regardless of pg_cron setup.
+    async purgeUsedDsarTokens() {
+      const cutoffIso = new Date(Date.now() - 30 * DAY_MS).toISOString();
+      const { error, count } = (await admin
+        .from('waitlist_dsar_tokens')
+        .delete({ count: 'exact' })
+        .or(`used_at.not.is.null,created_at.lt.${cutoffIso}`)) as {
+          error: { message: string } | null;
+          count: number | null;
+        };
+      if (error) {
+        throw new Error(`cleanup.purgeUsedDsarTokens: delete failed: ${error.message}`);
       }
       return { deleted: count ?? 0 };
     },

@@ -24,7 +24,10 @@ const validEvent = {
   resourceId: '33333333-3333-4333-8333-333333333333',
   eventType: 'view' as const,
   anonymousId: '44444444-4444-4444-8444-444444444444',
-  hasConsent: false,
+  // BTF-095: analytics is consent-gated. Default to consented so the insert-
+  // behavior tests (geo/device/user_agent) exercise a persisted row; the
+  // no-consent path is asserted explicitly below.
+  hasConsent: true,
 }
 
 describe('POST /api/track/content', () => {
@@ -42,10 +45,10 @@ describe('POST /api/track/content', () => {
     expect(mockFrom).toHaveBeenCalledWith('content_events')
   })
 
-  it('strips user_agent when hasConsent is false', async () => {
-    await callRoute({ events: [validEvent] })
-    const rows = mockInsert.mock.calls[0][0] as Record<string, unknown>[]
-    expect(rows[0].user_agent).toBeNull()
+  it('does NOT persist events when hasConsent is false (BTF-095 consent gate)', async () => {
+    const res = await callRoute({ events: [{ ...validEvent, hasConsent: false }] })
+    expect(res.status).toBe(204)
+    expect(mockInsert).not.toHaveBeenCalled()
   })
 
   it('includes user_agent when hasConsent is true', async () => {
@@ -177,13 +180,12 @@ describe('POST /api/track/content', () => {
     expect(rows[0].device_type).toBeNull()
   })
 
-  it('saves geo regardless of hasConsent (legitimate interest)', async () => {
-    await callRoute(
+  it('does NOT save geo when hasConsent is false (BTF-095: geo is analytics, not legitimate interest)', async () => {
+    const res = await callRoute(
       { events: [{ ...validEvent, hasConsent: false }] },
       { 'x-vercel-ip-country': 'DE' },
     )
-    const rows = mockInsert.mock.calls[0][0] as Record<string, unknown>[]
-    expect(rows[0].country).toBe('DE')
-    expect(rows[0].user_agent).toBeNull()
+    expect(res.status).toBe(204)
+    expect(mockInsert).not.toHaveBeenCalled()
   })
 })

@@ -26,7 +26,7 @@ count=0
 for dir in "${TARGET_DIRS[@]}"; do
   [[ -d "$dir" ]] || continue
   # grep exits 1 quando não há match — não deixe o `set -e` matar o loop.
-  n="$( { grep -roh "$PATTERN" "$dir" --include='*.ts' --include='*.tsx' || true; } | wc -l | tr -d '[:space:]')"
+  n="$( { grep -roh "$PATTERN" "$dir" --include='*.ts' --include='*.tsx' --exclude='*.test.ts' --exclude='*.test.tsx' --exclude='*.spec.ts' --exclude='*.spec.tsx' || true; } | wc -l | tr -d '[:space:]')"
   count=$(( count + n ))
 done
 
