@@ -3,13 +3,14 @@ import { authenticateWrite, pipelineError, parseBody } from '@/lib/pipeline/help
 import { buildRateLimitHeaders } from '@/lib/pipeline/auth'
 import { authToServiceContext, serviceErrorToResponse } from '@/lib/pipeline/services/http-adapter'
 import { batchUpdateSections } from '@/lib/pipeline/services/items'
+import { BatchSectionUpdateSchema } from '@/lib/pipeline/sections'
 
 export async function POST(req: NextRequest) {
   const result = await authenticateWrite(req)
   if (result instanceof Response) return result
   const { auth } = result
 
-  const body = await parseBody(req)
+  const body = await parseBody(req, BatchSectionUpdateSchema)
   if (body instanceof Response) return body
 
   try {

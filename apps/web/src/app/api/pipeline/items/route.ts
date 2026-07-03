@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server'
 import { authenticateRead, authenticateWrite, pipelineSuccess, parseBody } from '@/lib/pipeline/helpers'
 import { authToServiceContext, serviceErrorToResponse } from '@/lib/pipeline/services/http-adapter'
-import { listItems, createItems, type CreateItemsParams } from '@/lib/pipeline/services/items'
+import { listItems, createItems } from '@/lib/pipeline/services/items'
+import { PipelineItemsCreateEnvelopeSchema } from '@/lib/pipeline/schemas'
 
 export async function GET(req: NextRequest) {
   const result = await authenticateRead(req)
@@ -41,12 +42,12 @@ export async function POST(req: NextRequest) {
   if (result instanceof Response) return result
   const { auth } = result
 
-  const body = await parseBody(req)
+  const body = await parseBody(req, PipelineItemsCreateEnvelopeSchema)
   if (body instanceof Response) return body
 
   try {
     const ctx = authToServiceContext(auth)
-    const serviceResult = await createItems(ctx, body as CreateItemsParams)
+    const serviceResult = await createItems(ctx, body)
     return pipelineSuccess(serviceResult.data, 201, auth)
   } catch (err) {
     return serviceErrorToResponse(err, auth)

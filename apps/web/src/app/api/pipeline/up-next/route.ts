@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server'
 import { authenticateRead, authenticateWrite, parseBody, pipelineSuccess } from '@/lib/pipeline/helpers'
 import { authToServiceContext, serviceErrorToResponse } from '@/lib/pipeline/services/http-adapter'
-import { getUpNext, assignUpNextSlot, type AssignSlotData } from '@/lib/pipeline/services/utilities'
+import { getUpNext, assignUpNextSlot } from '@/lib/pipeline/services/utilities'
+import { AssignSlotSchema } from '@/lib/pipeline/schemas'
 
 export async function GET(req: NextRequest) {
   const result = await authenticateRead(req)
@@ -22,12 +23,12 @@ export async function POST(req: NextRequest) {
   if (result instanceof Response) return result
   const { auth } = result
 
-  const body = await parseBody(req)
+  const body = await parseBody(req, AssignSlotSchema)
   if (body instanceof Response) return body
 
   try {
     const ctx = authToServiceContext(auth)
-    const data = await assignUpNextSlot(ctx, body as AssignSlotData)
+    const data = await assignUpNextSlot(ctx, body)
     return pipelineSuccess(data, 200, auth)
   } catch (err) {
     return serviceErrorToResponse(err, auth)

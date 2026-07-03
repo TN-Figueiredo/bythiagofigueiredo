@@ -5,6 +5,7 @@ import {
   linkDecisionToResearch,
   unlinkDecisionFromResearch,
 } from '@/lib/pipeline/services/research-decisions'
+import { ResearchDecisionLinkSchema } from '@/lib/pipeline/research-schemas'
 
 /** Link a research item to this decision. Body: { research_id, note? }. */
 export async function POST(
@@ -16,21 +17,13 @@ export async function POST(
   const { auth } = result
   const { id } = await params
 
-  const body = await parseBody(req)
+  const body = await parseBody(req, ResearchDecisionLinkSchema)
   if (body instanceof Response) return body
-  const { research_id, note } = (body ?? {}) as { research_id?: unknown; note?: unknown }
-  if (typeof research_id !== 'string') {
-    return pipelineError('VALIDATION_ERROR', 'research_id is required', 400, auth)
-  }
+  const { research_id, note } = body
 
   try {
     const ctx = authToServiceContext(auth)
-    const { data, status } = await linkDecisionToResearch(
-      ctx,
-      id,
-      research_id,
-      typeof note === 'string' ? note : undefined,
-    )
+    const { data, status } = await linkDecisionToResearch(ctx, id, research_id, note)
     return pipelineSuccess(data, status ?? 201, auth)
   } catch (err) {
     return serviceErrorToResponse(err, auth)
