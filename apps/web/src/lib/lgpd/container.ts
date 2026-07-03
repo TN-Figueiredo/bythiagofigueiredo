@@ -1312,22 +1312,12 @@ export function createLgpdContainer(): LgpdContainer {
     accountStatusCache: new DirectQueryAccountStatusCache(admin),
     rateLimiter: new InMemoryRateLimiter(),
     logger: {
-      // ILogger grew to 5 methods in the contracts kernel (debug + captureException).
-      debug: (msg, data) =>
-        logCron({ job: 'lgpd', status: 'ok', level: 'debug', message: msg, ...(data ?? {}) }),
       info: (msg, data) =>
         logCron({ job: 'lgpd', status: 'ok', message: msg, ...(data ?? {}) }),
       warn: (msg, data) =>
         logCron({ job: 'lgpd', status: 'ok', level: 'warn', message: msg, ...(data ?? {}) }),
       error: (msg, data) =>
         logCron({ job: 'lgpd', status: 'error', message: msg, ...(data ?? {}) }),
-      captureException: (err, data) =>
-        logCron({
-          job: 'lgpd',
-          status: 'error',
-          message: err instanceof Error ? err.message : String(err),
-          ...(data ?? {}),
-        }),
     },
     phase2DelayDays: 0,
     phase3DelayDays: 15,

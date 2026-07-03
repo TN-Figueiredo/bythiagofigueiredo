@@ -8,6 +8,7 @@ import {
   SiteSwitcherProvider,
   CmsSiteSwitcherSlot,
   type AccessibleSite,
+  type RpcAccessibleSite,
 } from '@/components/cms/site-switcher-provider'
 import { CmsShell } from '@tn-figueiredo/cms-ui/client'
 import { CmsAdminProvider } from '@tn-figueiredo/cms-admin/client'
@@ -54,12 +55,16 @@ export default async function Layout({ children }: { children: ReactNode }) {
   ])
   if (staffRes.error || !staffRes.data) redirect('/?error=insufficient_access')
 
-  // auth-nextjs@3.0.0: AccessibleSite now IS the RPC-native shape (site_id/
-  // site_name/site_slug/org_id/…), identical to our local RpcAccessibleSite —
-  // no remap needed (was {id,slug,name} for the pre-3.0.0 shape).
-  const sites = (sitesRes.data ?? []) as AccessibleSite[]
-  const currentSiteId = sites[0]?.site_id ?? ''
-  const currentSite = sites.find((s) => s.site_id === currentSiteId)
+  const rawSites = (sitesRes.data ?? []) as RpcAccessibleSite[]
+  const sites = rawSites.map((s) => ({
+    id: s.site_id,
+    slug: s.site_slug,
+    name: s.site_name,
+    primary_domain: s.primary_domain,
+    logo_url: null,
+  })) as AccessibleSite[]
+  const currentSiteId = rawSites[0]?.site_id ?? ''
+  const currentSite = rawSites.find((s) => s.site_id === currentSiteId)
   const userDisplayName = rawUser.email ?? 'User'
   const userRole = currentSite?.user_role ?? 'reporter'
 
@@ -85,7 +90,7 @@ export default async function Layout({ children }: { children: ReactNode }) {
               logoUrlLight="/brand/monogram-cms-light.svg"
               userDisplayName={userDisplayName}
               userRole={userRole}
-              siteSwitcher={<CmsSiteSwitcherSlot sites={sites} />}
+              siteSwitcher={<CmsSiteSwitcherSlot sites={rawSites} />}
               sections={CMS_SECTIONS}
               settingsItem={CMS_SETTINGS_ITEM}
               badges={badges}
