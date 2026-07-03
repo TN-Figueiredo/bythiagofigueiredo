@@ -140,7 +140,8 @@ jobs:
   audit:
     name: Dependency Audit
     runs-on: ubuntu-latest
-    continue-on-error: true
+    # BTF-086: blocking gate (continue-on-error removed 2026-07-03) — prod deps are
+    # clean at high since @vercel/blob@2.5.0 (BTF-080); keep it that way.
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5

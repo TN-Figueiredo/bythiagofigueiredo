@@ -21,10 +21,9 @@
 ## Findings Abertos
 | ID | Severidade | Categoria | Descricao | Arquivo |
 |----|-----------|-----------|-----------|---------|
-| BTF-080 | MEDIO | Deps | 13 vulns (1 HIGH + 12 moderate) undici via @vercel/blob (Set-Cookie SameSite downgrade). Fix = @vercel/blob@2.4.1, breaking — exige Node 20+. DEFERIDO sob freeze (exige build verification). | apps/web/package.json |
 | BTF-059 | MEDIO | TypeScript | `as unknown as` agora 143 (era 127-133). Maioria Supabase untyped. Fix = `supabase gen types` (DEFERIDO — risco de quebrar typecheck em massa, exige Docker/login + build). | apps/web/src/ |
 | BTF-083 | BAIXO | TypeScript | Crescimento de `as unknown as` sem ratchet. Type-debt baseline + CI ratchet DEFERIDO. | apps/web/src/ |
-| BTF-086 | MEDIO | CI | PARCIAL: test-packages gate adicionado. DEFERIDO: audit blocking gate (precisa BTF-080 antes), type-debt ratchet, teste-guardiao de inventario PII. | .github/workflows/ci.yml |
+| BTF-086b | BAIXO | CI | Restante do BTF-086 (audit gate ja bloqueante): type-debt ratchet + teste-guardiao de inventario PII. | .github/workflows/ci.yml |
 | BTF-089b | MEDIO | Seguranca | CSP nonce-based migration DEFERIDA: middleware tem ~13 saidas NextResponse + mergeSiteHeaders whitelist — propagar nonce sem quebrar hidratacao exige `next build` + verificacao browser. Hardening seguro (object-src 'none') aplicado em BTF-089. | apps/web/next.config.ts, src/middleware.ts |
 | — | — | Cobertura | DEFERIDO: testes de providers social (youtube/meta) — exigem mocking de SDK (~4h). Threshold de coverage no social bloqueado por version mismatch vitest 2.1.9 vs coverage-v8 3.2.4. | packages/social/ |
 | — | — | TypeScript | DEFERIDO: migracao de ~38 rotas mutativas para helper Zod unico (parseBodyWith). | apps/web/src/app/api/ |
@@ -118,6 +117,8 @@
 | BTF-091 | 2026-06-19 | 17 select('*') em social actions (posts.ts 10x, templates.ts 7x) | Projecoes explicitas (POST_COLS/DELIVERY_COLS/CONNECTION_COLS/TEMPLATE_COLS); bluesky_*_enc/circuit/rate cols excluidas; typecheck + 412 testes verdes |
 | BTF-092 | 2026-06-19 | teste flaky em links-admin (1-em-N, wall-clock race) | Causa raiz: MockEventSource setTimeout(0) vs sleep(10) do teste; fix com vi.useFakeTimers + advanceTimersByTimeAsync; 5 runs consecutivos verdes |
 | BTF-093 | 2026-06-19 | 42/44 crons sem teste dedicado (delecao irreversivel) | +20 testes pure-mock em ab-draft-cleanup(7)/snapshot-cleanup(6)/notification-cleanup(7): auth 401, cutoff, delete-by-id (anti-wipe), GET/POST real. 4 dos 5 alvos sugeridos ja tinham teste |
+| BTF-080 | 2026-07-03 | undici HIGH via @vercel/blob 1.1.1 (Set-Cookie downgrade + 5 CVEs novos) | @vercel/blob 1.1.1→2.5.0 (undici 6.27.0, dedup com cheerio); engines node >=20; override morto `@vercel/blob>undici` removido (nao aplicava — blob 1.x resolvia undici 5.29.0); breaking 2.x (callbackUrl client-upload) sem impacto: onUploadCompleted e no-op. + npm audit fix: form-data HIGH (CRLF), js-yaml, esbuild; override dompurify 3.4.2→3.4.11 (pin antigo anulava o fix e quebraria npm ci). Prod deps: 0 high (6 moderate nao-acionaveis: otel via Sentry, postcss via Next). Verificado: typecheck, 24 testes blob-related, next build local |
+| BTF-086 | 2026-07-03 | Audit job soft (continue-on-error) — vulns HIGH passavam sem bloquear | continue-on-error removido do job audit (ci.yml); gate `npm audit --omit=dev --audit-level=high` agora bloqueante (exit 0 pos BTF-080). Restante (ratchet + PII guardian) reclassificado BTF-086b |
 
 ## Falsos Positivos Detectados
 | ID | Descricao | Por que falso positivo |
@@ -202,10 +203,10 @@
 | 2026-06-19 | 9 | 8 | 9.5 | 9.5 | 9.5 | 9.4 | 0/0/2/1 | Remediacao 6 sub-agentes (commit f96fc806, sem push): BTF-087/088/089/090/091/092/093 resolvidos; design 102/110 |
 
 ## Proximos Passos Recomendados
-1. PENDING (carry-over): `npm run db:push:prod` da migration 20260607000001 (search_path fix — BTF-084). Verificar se ja foi aplicada em prod.
-2. PUSH PENDENTE: commit f96fc806 (remediacao deste audit) aguarda fim do deploy freeze antes do push/deploy.
-3. DEFERIDO (sessao dedicada, exige build): `supabase gen types` → tipar clients → eliminar `as unknown as` (143, BTF-059/083). Risco alto: pode quebrar typecheck em massa.
-4. DEFERIDO (exige build verification): @vercel/blob → 2.4.1 (BTF-080, Node 20+) — DEPOIS tornar `npm audit --audit-level=high` bloqueante no CI (BTF-086).
-5. DEFERIDO (exige `next build` + verificacao de hidratacao no browser): CSP nonce-based migration (BTF-089b) — middleware tem ~13 saidas NextResponse.
-6. DEFERIDO: helper Zod unico (parseBodyWith) nas ~38 rotas mutativas; type-debt ratchet + teste-guardiao de inventario PII no CI.
-7. DEFERIDO: testes de providers social (youtube/meta) com mocks + alinhar vitest/coverage-v8 no social.
+1. PENDING (carry-over): verificar se a migration 20260607000001 (search_path fix — BTF-084) esta aplicada em prod — `npx supabase migration list --linked` (exige SUPABASE_DB_PASSWORD; CLI retorna 403 sem ela). Inferencia forte de que sim: as migrations 20260616+ de waitlists foram aplicadas em ordem em 2026-06-18.
+2. DEFERIDO (sessao dedicada, exige build): `supabase gen types` → tipar clients → eliminar `as unknown as` (143, BTF-059/083). Risco alto: pode quebrar typecheck em massa.
+3. DEFERIDO (exige `next build` + verificacao de hidratacao no browser): CSP nonce-based migration (BTF-089b) — middleware tem ~13 saidas NextResponse.
+4. DEFERIDO: helper Zod unico (parseBodyWith) nas ~38 rotas mutativas; type-debt ratchet + teste-guardiao de inventario PII no CI (BTF-086b).
+5. DEFERIDO: testes de providers social (youtube/meta) com mocks + alinhar vitest/coverage-v8 no social.
+
+> 2026-07-03: deploy freeze encerrado. f96fc806 + docs pushed (staging); BTF-080/086 resolvidos nesta rodada (blob 2.5.0, audit gate bloqueante, form-data/dompurify/js-yaml corrigidos). Prod deps 0 high.

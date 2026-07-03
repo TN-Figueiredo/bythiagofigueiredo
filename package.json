@@ -35,16 +35,13 @@
     "prepare": "husky || true"
   },
   "engines": {
-    "node": ">= 18.0.0"
+    "node": ">= 20.0.0"
   },
   "overrides": {
     "@supabase/supabase-js": "2.103.2",
     "vitest": "3.2.6",
     "tmp": "^0.2.6",
-    "@vercel/blob": {
-      "undici": "^6.24.0"
-    },
-    "dompurify": "3.4.2",
+    "dompurify": "3.4.11",
     "@tiptap/core": "3.22.4"
   },
   "optionalDependencies": {
