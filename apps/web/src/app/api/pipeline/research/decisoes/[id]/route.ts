@@ -6,6 +6,7 @@ import {
   updateResearchDecision,
   archiveResearchDecision,
 } from '@/lib/pipeline/services/research-decisions'
+import { ResearchDecisionUpdateSchema } from '@/lib/pipeline/research-schemas'
 
 export async function GET(
   req: NextRequest,
@@ -34,7 +35,7 @@ export async function PATCH(
   const { auth } = result
   const { id } = await params
 
-  const body = await parseBody(req)
+  const body = await parseBody(req, ResearchDecisionUpdateSchema)
   if (body instanceof Response) return body
 
   try {

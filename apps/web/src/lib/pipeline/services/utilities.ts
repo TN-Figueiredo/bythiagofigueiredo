@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { z } from 'zod'
 import type { ServiceContext, ServiceResult } from './types'
 import { ok, err } from './types'
-import { FORMATS, ReferenceContentUpsertSchema } from '@/lib/pipeline/schemas'
+import { FORMATS, ReferenceContentUpsertSchema, AssignSlotSchema } from '@/lib/pipeline/schemas'
 import type { Format } from '@/lib/pipeline/schemas'
 import { WORKFLOWS, DEFAULT_CHECKLISTS } from '@/lib/pipeline/workflows'
 import type { WorkflowStage, ChecklistItem } from '@/lib/pipeline/workflows'
@@ -142,13 +142,6 @@ const UpNextParamsSchema = z.object({
     try { Intl.DateTimeFormat(undefined, { timeZone: val }); return true }
     catch { return false }
   }, 'Invalid IANA timezone').default(SITE_TIMEZONE),
-})
-
-const AssignSlotSchema = z.object({
-  itemId: z.string().uuid(),
-  slotDay: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  slotHour: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable().default(null),
-  previousItemId: z.string().uuid().optional(),
 })
 
 // ---------------------------------------------------------------------------

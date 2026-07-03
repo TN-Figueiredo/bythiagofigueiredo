@@ -102,6 +102,17 @@ export const PipelineItemCreateSchema = z.object({
   { message: 'At least one title (title_pt or title_en) is required' },
 )
 
+/**
+ * Boundary envelope for `POST /api/pipeline/items` — validates only the `{ items: [...] }`
+ * wrapper shape so a malformed body (missing/non-array `items`) is rejected with a clean 400
+ * instead of throwing `undefined.length` (500) inside the service. Per-item deep validation
+ * stays in the service via `PipelineItemCreateSchema` — this is intentionally NOT a duplicate
+ * of that schema. Its inferred type matches `CreateItemsParams` (`{ items: unknown[] }`).
+ */
+export const PipelineItemsCreateEnvelopeSchema = z.object({
+  items: z.array(z.unknown()),
+})
+
 export const PipelineItemUpdateSchema = z.object({
   title_pt: z.string().max(500).optional(),
   title_en: z.string().max(500).optional(),
@@ -136,6 +147,14 @@ export const ReferenceContentUpsertSchema = z.object({
   content_compact: z.record(z.unknown()).optional(),
   ref_group: z.enum(REFERENCE_GROUP_IDS).optional(),
   sort_order: z.number().int().min(0).max(9999).optional(),
+})
+
+/** Boundary body for `POST /api/pipeline/up-next` — assign an item to a schedule slot. */
+export const AssignSlotSchema = z.object({
+  itemId: z.string().uuid(),
+  slotDay: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  slotHour: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable().default(null),
+  previousItemId: z.string().uuid().optional(),
 })
 
 export const ChecklistToggleSchema = z.object({

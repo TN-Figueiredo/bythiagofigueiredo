@@ -3,6 +3,7 @@ import { authenticateRead, authenticateWrite, pipelineError, pipelineSuccess, pa
 import { UUID_REGEX, buildRateLimitHeaders } from '@/lib/pipeline/auth'
 import { authToServiceContext, serviceErrorToResponse } from '@/lib/pipeline/services/http-adapter'
 import { getItem, updateItem, archiveItem } from '@/lib/pipeline/services/items'
+import { PipelineItemUpdateSchema } from '@/lib/pipeline/schemas'
 import { PipelineServiceError } from '@/lib/pipeline/services/types'
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -40,7 +41,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (!expectedVersionRaw) return pipelineError('VALIDATION_ERROR', 'X-Expected-Version header required', 400, auth)
   const expectedVersion = parseInt(expectedVersionRaw)
 
-  const body = await parseBody(req)
+  const body = await parseBody(req, PipelineItemUpdateSchema)
   if (body instanceof Response) return body
 
   try {
