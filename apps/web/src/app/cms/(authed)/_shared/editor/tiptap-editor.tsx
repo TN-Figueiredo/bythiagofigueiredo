@@ -28,6 +28,7 @@ import { CalloutExtension } from './callout-node'
 import { ToggleWrapperExtension, ToggleTitleExtension, ToggleBodyExtension } from './toggle-node'
 import { ColumnsExtension, ColumnExtension } from './columns-node'
 import { PlaylistEmbedExtension } from './playlist-embed-node'
+import { WaitlistEmbedExtension } from './waitlist-embed-node'
 import { EditorToolbar } from './editor-toolbar'
 import { EditorBubbleMenu } from './bubble-menu'
 import { createSlashCommandExtension } from './slash-commands'
@@ -142,6 +143,12 @@ export function TipTapEditor({
             attrs: {},
           }).run()
         },
+        onInsertWaitlist: () => {
+          editorRef.current?.chain().focus().insertContent({
+            type: 'waitlistEmbed',
+            attrs: {},
+          }).run()
+        },
       }),
     [],
   )
@@ -177,6 +184,7 @@ export function TipTapEditor({
       ColumnsExtension,
       ColumnExtension,
       PlaylistEmbedExtension,
+      WaitlistEmbedExtension,
       TaskList,
       TaskItem.configure({ nested: true }),
       Table.configure({ resizable: false }),
@@ -445,6 +453,12 @@ export function TipTapEditor({
         onInsertPlaylist={() => {
           editorRef.current?.chain().focus().insertContent({
             type: 'playlistEmbed',
+            attrs: {},
+          }).run()
+        }}
+        onInsertWaitlist={() => {
+          editorRef.current?.chain().focus().insertContent({
+            type: 'waitlistEmbed',
             attrs: {},
           }).run()
         }}

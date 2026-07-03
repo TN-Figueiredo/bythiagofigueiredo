@@ -136,6 +136,7 @@ export function getBlogExtensions(options: ExtensionOptions = {}): Extensions {
       onInsertTable: () => {},
       onInsertChecklist: () => {},
       onInsertPlaylist: () => {},
+      onInsertWaitlist: () => {},
     }),
   ]
 }

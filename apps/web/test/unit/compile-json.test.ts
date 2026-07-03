@@ -472,3 +472,32 @@ describe('compileJsonContent', () => {
     expect(result.html).toContain('pb-cta-secondary')
   })
 })
+
+describe('compileJsonContent — waitlist embed', () => {
+  it('compiles waitlist embed placeholder', async () => {
+    const result = await compileJsonContent(doc({
+      type: 'waitlistEmbed',
+      attrs: { slug: 'my-product' },
+    }))
+    expect(result.html).toContain('class="pb-waitlist"')
+    expect(result.html).toContain('data-slug="my-product"')
+  })
+
+  it('renders nothing for an empty slug', async () => {
+    const result = await compileJsonContent(doc({
+      type: 'waitlistEmbed',
+      attrs: { slug: '' },
+    }))
+    expect(result.html).not.toContain('pb-waitlist')
+  })
+
+  it('escapes HTML in the waitlist slug attribute', async () => {
+    const result = await compileJsonContent(doc({
+      type: 'waitlistEmbed',
+      attrs: { slug: 'x"><script>alert(1)</script>' },
+    }))
+    expect(result.html).not.toContain('<script>')
+    expect(result.html).toContain('&lt;script&gt;')
+    expect(result.html).toContain('&quot;')
+  })
+})
