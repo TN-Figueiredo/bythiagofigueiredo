@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest'
 import {
   computeResearchDigest,
   pickRecommendation,
@@ -11,6 +11,17 @@ import {
 } from '@/lib/pipeline/research-digest'
 
 const NOW = Date.parse('2026-06-06T12:00:00Z')
+
+// isWindowExpired defaults to wall-clock Date.now() inside pickRecommendation /
+// buildSummaryForOwner, so the "Q2 2026 not expired" fixtures rot when the real
+// quarter rolls over (broke on 2026-07-01). Fake only Date — timers stay real so
+// the async supabase mocks are unaffected.
+beforeAll(() => {
+  vi.useFakeTimers({ now: NOW, toFake: ['Date'] })
+})
+afterAll(() => {
+  vi.useRealTimers()
+})
 
 function daysAgoIso(days: number): string {
   return new Date(NOW - days * 86_400_000).toISOString()
