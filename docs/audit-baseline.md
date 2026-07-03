@@ -4,34 +4,43 @@
 > Formato machine-parseable — NAO alterar headers ou formato das tabelas.
 
 ## Ultimo Audit
-- **Data:** 2026-06-19
+- **Data:** 2026-07-03 (audit all/all — 9 agentes; remediacao all/all — 9 agentes worktree, integrada)
 - **Escopo:** all
 - **Foco:** all
-- **Score Total:** 9.4/10 (design 102/110) — remediacao f96fc806 pushed em 2026-07-03 (freeze encerrado); ver Historico 2026-07-03
-- **Ultimo Finding ID:** BTF-094
+- **Score Total:** 9.2/10 pos-remediacao (era 7.4 no diagnostico; BTF-095..104 resolvidos no mesmo ciclo)
+- **Ultimo Finding ID:** BTF-104
 
 | Categoria | Criticos | Altos | Medios | Baixos | Score |
 |-----------|----------|-------|--------|--------|-------|
 | Cobertura Testes | 0 | 0 | 0 | 1 | 9/10 |
-| TypeScript Safety | 0 | 0 | 2 | 1 | 8/10 |
-| Seguranca | 0 | 0 | 0 | 0 | 9.5/10 |
-| LGPD | 0 | 0 | 0 | 0 | 9.5/10 |
-| Data Leaks | 0 | 0 | 0 | 0 | 9.5/10 |
+| TypeScript Safety | 0 | 0 | 0 | 1 | 9/10 |
+| Seguranca | 0 | 0 | 0 | 1 | 9.5/10 |
+| LGPD | 0 | 0 | 0 | 2 | 9/10 |
+| Data Leaks | 0 | 0 | 0 | 1 | 9.5/10 |
 
 ## Findings Abertos
 | ID | Severidade | Categoria | Descricao | Arquivo |
 |----|-----------|-----------|-----------|---------|
-| BTF-059 | MEDIO | TypeScript | `as unknown as` agora 143 (era 127-133). Maioria Supabase untyped. Fix = `supabase gen types` (DEFERIDO — risco de quebrar typecheck em massa, exige Docker/login + build). | apps/web/src/ |
-| BTF-083 | BAIXO | TypeScript | Crescimento de `as unknown as` sem ratchet. Type-debt baseline + CI ratchet DEFERIDO. | apps/web/src/ |
+| BTF-059 | BAIXO | TypeScript | `as unknown as` = 149 prod (Fase 0/1 gen types feita: database.types.ts + fabricas tipadas; 9 any/as-any eliminados 2026-07-03). Restante = migracao por dominio (Fase 2, deferida). | apps/web/src/ |
+| BTF-083 | RESOLVIDO 2026-07-03 | TypeScript | Ratchet `check-type-debt.sh` agora cobre web/src+web/lib+api/src+packages/src (exclui testes), baseline 149, no job ecosystem-pinning. | scripts/check-type-debt.sh |
 | BTF-086b | MEDIO | CI | Restante do BTF-086 (audit gate ja bloqueante): type-debt ratchet + teste-guardiao de inventario PII. Mantido MEDIO: o guardian PII e LGPD-adjacente (inventario ja teve drift real) — so o audit gate foi resolvido. | .github/workflows/ci.yml |
 | BTF-094 | BAIXO | Deps | MITIGADO 2026-07-03: override virou floor range `^3.4.11` (advisory bumps fluem; canary + suites de sanitizer guardam comportamento). Restante: pin exato retinha o fix do proximo advisory (mesma classe do pin 3.4.2 que anulou o fix em 2026-07-03). Fix estrutural: bump isomorphic-dompurify 2.x -> 3.x (pareia dompurify ^3.4.11 + jsdom ^29 — major de jsdom em dep de PRODUCAO, exige sessao com build+testes), declarar dompurify como dep direta e remover o override. | package.json |
-| BTF-089b | MEDIO | Seguranca | CSP nonce-based migration DEFERIDA: middleware tem ~13 saidas NextResponse + mergeSiteHeaders whitelist — propagar nonce sem quebrar hidratacao exige `next build` + verificacao browser. Hardening seguro (object-src 'none') aplicado em BTF-089. | apps/web/next.config.ts, src/middleware.ts |
 | — | — | Cobertura | DEFERIDO: testes de providers social (youtube/meta) — exigem mocking de SDK (~4h). Threshold de coverage no social bloqueado por version mismatch vitest 2.1.9 vs coverage-v8 3.2.4. | packages/social/ |
 | — | — | TypeScript | DEFERIDO: migracao de ~38 rotas mutativas para helper Zod unico (parseBodyWith). | apps/web/src/app/api/ |
 
 ## Findings Resolvidos
 | ID | Resolvido em | Descricao | Como |
 |----|-------------|-----------|------|
+| BTF-095 | 2026-07-03 | VIOLACAO Art.7 I — content_events (analytics) coletado sem opt-in de consent | Gate de consent no hook (use-content-tracking.ts, early-return se !analytics) + defense-in-depth no servidor (track/content: 204 sem insert se !hasConsent). +12 testes |
+| BTF-096 | 2026-07-03 | Cookie sessao httpOnly:false com refresh_token 400d | Investigado: e o padrao @supabase/ssr (browser client precisa ler; lib reescreve no refresh). Documentado como trade-off; mitigacao real = CSP nonce enforced em prod (verificado) |
+| BTF-097 | 2026-07-03 | 9 funcoes SECURITY DEFINER sem search_path | Migration 20260703000001: ALTER FUNCTION SET search_path='public' (corpos usam tabelas nao-qualificadas). update_pipeline_step ja estava OK |
+| BTF-098 | 2026-07-03 | (falso positivo) error.message Supabase vazado em LGPD deletion | Verificado: os error.message estao dentro de getLogger().warn (server-side), nunca na resposta HTTP. Sem mudanca |
+| BTF-099 | 2026-07-03 | Oracle de enumeracao no waitlist signup (flag duplicate) | Resposta constante {success:true}; flag duplicate removido do HTTP (so no breadcrumb Sentry); form UX neutralizada |
+| BTF-100 | 2026-07-03 | Policy §6 descrevia mecanismo errado (hash via cron) de anonimizacao de email | Corrigida (pt+en v1.3): o hash e SINCRONO no unsubscribe_via_token, cron 90d so nula ip/ua do tracking |
+| BTF-101 | 2026-07-03 | Waitlists ausente da policy §2/§3/§6 | Adicionado (pt+en): dados coletados, base legal Art.7 I, retencao (waitlist-retention-sweep) |
+| BTF-102 | 2026-07-03 | Sentry Replay maskAllText:false/blockAllMedia:false gravava PII on-screen | Ambos -> true; gate de consent Tier2 preservado; policy §3 alinhada |
+| BTF-104 | 2026-07-03 | waitlist_dsar_tokens/password_reset_attempts guardavam email plaintext sem purga/anon | Migration 20260703000002 (phase1 anon password_reset) + 20260703000003 (purge_used_dsar_tokens) + wiring no lgpd-cleanup-sweep. unsubscribe_tokens ja era purgado (BTF-033) |
+| BTF-089b | 2026-07-03 | CSP nonce-based migration | Implementada + enforced em prod (verificado curl: nonce no header, 66 scripts nonced). Rollout report-only->enforce feito |
 | BTF-001 | 2026-05-14 | PostgREST filter injection via topicSlug em .or() | sanitizeForFilter() aplicado antes de interpolacao |
 | BTF-002 | 2026-05-14 | PostgREST filter injection via cursor pagination em .or() | sanitizeForFilter() aplicado em cursor values |
 | BTF-003 | 2026-05-14 | PostgREST filter injection via column/sort_value em .or() | sanitizeForFilter() aplicado em sort_value |
