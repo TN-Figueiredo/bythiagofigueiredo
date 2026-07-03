@@ -11,7 +11,8 @@
 //   Tier 2 — analytics consent required: when the user opts into the
 //   `cookie_analytics_consent = 'true'` flag, we attach the browser
 //   tracing integration (performance) and the replay integration
-//   (Session Replay, mask-all-inputs). On consent withdrawal the replay
+//   (Session Replay, mask-all-inputs + mask-all-text + block-all-media
+//   to minimize PII capture on authenticated pages). On consent withdrawal the replay
 //   integration is stopped at runtime; tracing stays attached until the
 //   next page load (where the module will re-init).
 //
@@ -80,8 +81,8 @@ function attachAnalyticsIntegrations(): void {
   try {
     replayInstance = Sentry.replayIntegration({
       maskAllInputs: true,
-      maskAllText: false,
-      blockAllMedia: false,
+      maskAllText: true,
+      blockAllMedia: true,
     })
     client.addIntegration(replayInstance)
     // Start capturing now that consent was granted.
