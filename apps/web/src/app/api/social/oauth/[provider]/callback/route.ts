@@ -351,9 +351,10 @@ export async function GET(
               'pages_manage_posts',
               'pages_read_engagement',
               'pages_show_list',
+              'read_insights',
               'instagram_basic',
               'instagram_content_publish',
-              'business_management',
+              'instagram_manage_insights',
             ],
             metadata: {
               page_id: page.id,
@@ -386,7 +387,7 @@ export async function GET(
               refresh_token_enc: null,
               page_token_enc: pageTokenEnc,
               token_expires_at: expiresAt,
-              scopes: ['instagram_basic', 'instagram_content_publish'],
+              scopes: ['instagram_basic', 'instagram_content_publish', 'instagram_manage_insights'],
               metadata: {
                 ig_user_id: igAccount.id,
                 ig_username: igAccount.username,

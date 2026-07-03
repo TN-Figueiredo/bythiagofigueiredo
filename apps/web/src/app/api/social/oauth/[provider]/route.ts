@@ -13,13 +13,20 @@ const GOOGLE_SCOPES = [
 ].join(' ')
 
 const META_OAUTH_URL = 'https://www.facebook.com/v25.0/dialog/oauth'
+// Scope set = exactly what the code calls (App Review rejects unused scopes):
+// pages_* for /feed + /photos publishing and page listing; instagram_* for
+// media/media_publish (REELS/STORIES); read_insights + instagram_manage_insights
+// for the metrics poller (/insights on FB pages and IG accounts).
+// business_management removed 2026-07-03 — no endpoint required it
+// (/me/accounts only needs pages_show_list).
 const META_SCOPES = [
   'pages_read_engagement',
   'pages_show_list',
   'pages_manage_posts',
+  'read_insights',
   'instagram_basic',
   'instagram_content_publish',
-  'business_management',
+  'instagram_manage_insights',
 ].join(',')
 
 /** Derive a purpose-specific HMAC key so the master key is never used directly for signing. */
