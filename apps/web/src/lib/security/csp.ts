@@ -24,6 +24,26 @@
  * NEVER emit two *enforced* CSPs at once: browsers apply the intersection,
  * so a stray legacy header alongside the nonce header would re-tighten the
  * policy unpredictably. The middleware sets the enforced header exactly once.
+ *
+ * KNOWN LIMITATION of stage 2 (report-only), verified empirically against
+ * `next start` (Next 15.5): Next does NOT nonce-tag its own inline scripts in
+ * this stage when self-hosted. The local router
+ * (dist/server/lib/router-utils/resolve-routes.js) copies the middleware's
+ * *response* headers into `req.headers` after applying the request-header
+ * overrides, so the enforced legacy header (nonce-less) overwrites the nonce
+ * request CSP; the renderer (app-render `parseRequestHeaders`) reads
+ * `headers['content-security-policy'] || headers['content-security-policy-report-only']`
+ * and finds no nonce. Result: every inline script raises a report-only
+ * violation — 100% false positives locally. On Vercel the override is applied
+ * by the edge proxy and middleware response headers do NOT leak into the
+ * request, so tagging is expected to work there — but VERIFY on a preview
+ * deployment (curl the HTML, check `nonce="..."` attributes match the
+ * Report-Only header) before trusting report-only telemetry. If tagging is
+ * absent there too, skip stage 2 and canary-enforce stage 3 on a preview
+ * deployment instead. Stage 3 (enforced) has no such issue in either
+ * environment: the enforced response header itself carries the nonce, and it
+ * was verified end-to-end on `next start` (all inline/external scripts
+ * tagged, single nonce matching the header, fresh nonce per request).
  */
 
 export type CspMode = 'legacy' | 'report-only' | 'enforced'
