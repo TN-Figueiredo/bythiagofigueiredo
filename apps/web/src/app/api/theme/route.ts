@@ -9,9 +9,12 @@ export async function POST(req: Request) {
   }
 
   const res = NextResponse.json({ ok: true })
+  // Add `Secure` in production so the theme cookie is only ever sent over HTTPS.
+  // Kept off in dev because localhost is plain HTTP (a Secure cookie would be dropped).
+  const secure = process.env.NODE_ENV === 'production' ? '; Secure' : ''
   res.headers.set(
     'set-cookie',
-    `btf_theme=${theme}; Path=/; SameSite=Lax; Max-Age=31536000; HttpOnly`,
+    `btf_theme=${theme}; Path=/; SameSite=Lax; Max-Age=31536000; HttpOnly${secure}`,
   )
   return res
 }
