@@ -183,6 +183,12 @@ export const ResearchDecisionUpdateSchema = z.object({
 
 export type ResearchDecisionUpdateInput = z.infer<typeof ResearchDecisionUpdateSchema>
 
+/** Boundary body for `POST /api/pipeline/research/decisoes/[id]/link` — link one research item. */
+export const ResearchDecisionLinkSchema = z.object({
+  research_id: z.string().uuid(),
+  note: z.string().max(500).optional(),
+})
+
 // ---------------------------------------------------------------------------
 // 9. FOCO schemas
 // ---------------------------------------------------------------------------
