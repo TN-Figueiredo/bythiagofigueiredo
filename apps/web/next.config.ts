@@ -116,60 +116,22 @@ const nextConfig: NextConfig = {
         { key: 'Content-Security-Policy', value: "frame-ancestors 'none'" },
       ],
     }))
-    // Sprint 4.75 Track B/B5 — global CSP. Next.js matches the FIRST header
-    // block whose `source` matches; to guarantee the CSP rides on every route
-    // (including the rewrite targets /site-not-configured, /site-error,
-    // /cms/disabled) we register it under `/:path*` alongside the existing
-    // baseline headers.
-    // unsafe-eval is required by Next.js in development (hot-reload / source
-    // maps) but MUST NOT ship to production builds.
-    const isDev = process.env.NODE_ENV !== 'production'
-    // BTF-089 (CSP hardening) — KNOWN TRADEOFF / TECH DEBT.
-    // `script-src` keeps `'unsafe-inline'` in production. This weakens the
-    // inline-XSS defense, but it is *deliberate and currently required*:
-    // Next.js App Router emits inline bootstrap/hydration <script> tags
-    // (flight payload, `self.__next_f`, route announcer) on every server
-    // render. Without `'unsafe-inline'` the browser blocks them and the page
-    // fails to hydrate.
+    // BTF-089b — the global CSP no longer lives here. It moved to
+    // `src/lib/security/csp.ts` and is emitted by `src/middleware.ts` on every
+    // response (rewrite targets like /site-not-configured, /site-error and
+    // /cms/disabled included — the middleware produces those rewrites itself).
+    // The middleware is what makes the nonce-based policy possible: it
+    // generates a per-request nonce, sets it on the *request* headers so Next
+    // tags its own inline scripts, and mirrors the policy on the response.
+    // Rollout is staged via CSP_NONCE_ENABLED / CSP_NONCE_REPORT_ONLY (default
+    // = legacy policy, byte-identical to the one that used to live here).
     //
-    // The correct fix is nonce-based CSP (per the official Next.js guide:
-    // https://nextjs.org/docs/app/guides/content-security-policy — generate a
-    // per-request nonce in middleware, set it on the *request* header so Next
-    // injects it into its own scripts, and emit the CSP response header with
-    // `'nonce-{value}'`). We are NOT doing that here because this project's
-    // `src/middleware.ts` has ~13 distinct `NextResponse` return paths (dev
-    // subdomain rewrite, go.* short-link rewrites, i18n `/pt/` rewrite, site
-    // resolution, auth gating via `mergeSiteHeaders` which copies only a
-    // whitelist of `x-*` headers). Threading a nonce reliably through *every*
-    // one of those paths is required for correctness — miss one and that route
-    // ships a CSP whose nonce doesn't match the injected scripts, breaking
-    // hydration in production. That migration needs its own task with a real
-    // `next build` + browser hydration verification gate (we can't run
-    // `next build` cheaply here and a deploy freeze is active), so it is
-    // tracked as dedicated debt rather than attempted blind.
-    //
-    // What IS hardened safely here (no hydration risk): `object-src 'none'`,
-    // plus the pre-existing `base-uri 'self'`, `frame-ancestors 'none'`,
-    // `form-action 'self'`.
-    const scriptSrc = isDev
-      ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com https://static.cloudflareinsights.com"
-      : "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://static.cloudflareinsights.com"
-    const globalCsp = [
-      "default-src 'self'",
-      scriptSrc,
-      "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob: https://*.supabase.co https://*.supabase.in https://i.ytimg.com https://*.ggpht.com https://*.googleusercontent.com https://*.public.blob.vercel-storage.com https://*.giphy.com",
-      "font-src 'self' data:",
-      "connect-src 'self' https://*.supabase.co https://*.supabase.in https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://challenges.cloudflare.com https://cloudflareinsights.com https://*.public.blob.vercel-storage.com https://*.giphy.com",
-      "media-src 'self' blob: https://*.public.blob.vercel-storage.com",
-      "frame-src https://challenges.cloudflare.com https://www.youtube.com",
-      // object-src 'none' blocks <object>/<embed>/<applet> — a classic XSS /
-      // plugin vector. Zero hydration impact: Next never emits these.
-      "object-src 'none'",
-      "frame-ancestors 'none'",
-      "form-action 'self'",
-      "base-uri 'self'",
-    ].join('; ')
+    // IMPORTANT: do NOT re-add a global Content-Security-Policy header here.
+    // Two enforced CSPs are applied as an intersection by browsers, which
+    // would silently re-tighten (and likely break) the nonce policy.
+    // The login-page `frame-ancestors 'none'` block below is safe: it is a
+    // single-directive policy whose intersection with the global one is a
+    // no-op (both already deny framing).
     return [
       {
         source: '/(.*)',
@@ -193,15 +155,6 @@ const nextConfig: NextConfig = {
           {
             key: 'Permissions-Policy',
             value: 'camera=(), microphone=(), geolocation=()',
-          },
-        ],
-      },
-      {
-        source: '/:path*',
-        headers: [
-          {
-            key: 'Content-Security-Policy',
-            value: globalCsp,
           },
         ],
       },

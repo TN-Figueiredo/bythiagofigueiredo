@@ -3,9 +3,19 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import * as Sentry from '@sentry/nextjs'
 import { createAuthMiddleware } from '@tn-figueiredo/auth-nextjs/middleware'
 import { SupabaseRingContext } from '@tn-figueiredo/cms/ring'
+import { buildCsp, buildLegacyCsp, getCspMode } from '@/lib/security/csp'
 
 /**
  * Middleware responsibilities:
+ * 0. CSP nonce (BTF-089b): the exported `middleware` is a thin wrapper that
+ *    generates a per-request nonce, threads it through the *request* headers
+ *    (`x-nonce` + `content-security-policy` — Next.js reads the request CSP
+ *    header to tag its own inline scripts with the nonce), delegates to
+ *    `handle()`, and sets the CSP *response* header exactly once at the end.
+ *    Every `NextResponse.next()`/`.rewrite()` inside `handle()` MUST go
+ *    through `ctx.next()`/`ctx.rewrite()` — request headers can only be
+ *    attached when the response is CREATED, so a raw `NextResponse.next()`
+ *    would drop the nonce and break hydration under the nonce policy.
  * 1. Subdomain rewrite: dev.bythiagofigueiredo.com → /dev internally
  * 2. Site resolution (FIRST, Edge-safe): hostname → site_id/org_id/locale
  *    - Uses **anon key** — service-role bypass is not needed for
@@ -123,9 +133,69 @@ async function getSiteByDomainCached(
   return site
 }
 
+/**
+ * BTF-089b — per-request context threading the CSP nonce.
+ *
+ * `requestHeaders` is the single mutable copy of the incoming request headers
+ * (pre-seeded with `x-nonce` + the request CSP header). Handlers that need to
+ * expose extra headers to route handlers / server components (site
+ * resolution, locale) MUST mutate `ctx.requestHeaders` *before* creating the
+ * response, then create it via `ctx.next()` / `ctx.rewrite()` — the ONLY
+ * places allowed to construct pass-through NextResponses, because request
+ * headers can only be attached at creation time.
+ */
+interface RequestContext {
+  request: NextRequest
+  requestHeaders: Headers
+  next(): NextResponse
+  rewrite(url: URL): NextResponse
+}
+
 export async function middleware(
   request: NextRequest,
 ): Promise<NextResponse> {
+  // btoa(uuid) — 128 bits of randomness from the Web Crypto UUID generator,
+  // base64-encoded to be a valid CSP nonce token (Edge-safe, per the official
+  // Next.js CSP guide).
+  const nonce = btoa(crypto.randomUUID())
+  const isDev = process.env.NODE_ENV !== 'production'
+  const mode = getCspMode()
+  const nonceCsp = mode === 'legacy' ? null : buildCsp({ nonce, isDev })
+
+  const requestHeaders = new Headers(request.headers)
+  requestHeaders.set('x-nonce', nonce)
+  // Next.js reads the *request* `content-security-policy` header to decide
+  // whether (and with which nonce) to tag its own inline scripts. Only set it
+  // when the nonce policy is active in some form — under the legacy policy
+  // ('unsafe-inline', no nonce sources) tagging is unnecessary.
+  if (nonceCsp) requestHeaders.set('content-security-policy', nonceCsp)
+
+  const ctx: RequestContext = {
+    request,
+    requestHeaders,
+    next: () => NextResponse.next({ request: { headers: requestHeaders } }),
+    rewrite: (url) => NextResponse.rewrite(url, { request: { headers: requestHeaders } }),
+  }
+
+  const response = await handle(ctx)
+
+  // Single assignment of the enforced CSP — never two enforced policies at
+  // once (browsers intersect them). Harmless on redirects (no document).
+  if (mode === 'enforced' && nonceCsp) {
+    response.headers.set('content-security-policy', nonceCsp)
+  } else {
+    response.headers.set('content-security-policy', buildLegacyCsp(isDev))
+    if (mode === 'report-only' && nonceCsp) {
+      // Rollout stage: legacy stays enforced; browsers *report* nonce-policy
+      // violations without blocking anything.
+      response.headers.set('content-security-policy-report-only', nonceCsp)
+    }
+  }
+  return response
+}
+
+async function handle(ctx: RequestContext): Promise<NextResponse> {
+  const { request } = ctx
   const host = request.headers.get('host') ?? request.nextUrl.host ?? ''
   const hostname = host.split(':')[0] ?? ''
   const url = request.nextUrl.clone()
@@ -145,7 +215,7 @@ export async function middleware(
   const isSeoRoute = pathname === '/sitemap.xml' || pathname === '/robots.txt'
   if (isDevSubdomain && !isSeoRoute && !url.pathname.startsWith('/dev')) {
     url.pathname = `/dev${url.pathname === '/' ? '' : url.pathname}`
-    return NextResponse.rewrite(url)
+    return ctx.rewrite(url)
   }
 
   // --- go.* short-link subdomain ---
@@ -162,7 +232,7 @@ export async function middleware(
 
     const passthrough = ['robots.txt', 'favicon.ico', 'manifest.webmanifest', 'icon.svg']
     if (passthrough.includes(code)) {
-      return NextResponse.next()
+      return ctx.next()
     }
 
     const ring = getRingContext()
@@ -171,7 +241,7 @@ export async function middleware(
       if (!site) {
         const rewriteUrl = request.nextUrl.clone()
         rewriteUrl.pathname = '/go/not-found'
-        const res = NextResponse.rewrite(rewriteUrl)
+        const res = ctx.rewrite(rewriteUrl)
         res.headers.set('x-short-domain', host)
         return res
       }
@@ -195,7 +265,7 @@ export async function middleware(
       if (code === 'og/linktree') {
         const rewriteUrl = request.nextUrl.clone()
         rewriteUrl.pathname = '/go/linktree/og'
-        const res = NextResponse.rewrite(rewriteUrl)
+        const res = ctx.rewrite(rewriteUrl)
         res.headers.set('x-site-id', site.id)
         res.headers.set('x-short-domain', host)
         res.headers.set('x-locale', detectedLocale)
@@ -206,7 +276,7 @@ export async function middleware(
         // Root path → rewrite to linktree page
         const rewriteUrl = request.nextUrl.clone()
         rewriteUrl.pathname = '/go/linktree'
-        const res = NextResponse.rewrite(rewriteUrl)
+        const res = ctx.rewrite(rewriteUrl)
         res.headers.set('x-site-id', site.id)
         res.headers.set('x-short-domain', host)
         res.headers.set('x-locale', detectedLocale)
@@ -221,7 +291,7 @@ export async function middleware(
       // Short link redirect
       const rewriteUrl = request.nextUrl.clone()
       rewriteUrl.pathname = `/go/${code}`
-      const res = NextResponse.rewrite(rewriteUrl)
+      const res = ctx.rewrite(rewriteUrl)
       res.headers.set('x-site-id', site.id)
       res.headers.set('x-short-domain', host)
       return res
@@ -229,7 +299,7 @@ export async function middleware(
       Sentry.captureException(err)
       const rewriteUrl = request.nextUrl.clone()
       rewriteUrl.pathname = '/go/not-found'
-      return NextResponse.rewrite(rewriteUrl)
+      return ctx.rewrite(rewriteUrl)
     }
   }
 
@@ -238,7 +308,7 @@ export async function middleware(
     pathname.startsWith('/api/webhooks/') ||
     pathname.startsWith('/auth/callback')
   if (skipSiteResolution) {
-    return NextResponse.next()
+    return ctx.next()
   }
 
   // --- i18n: locale prefix detection + legacy redirects ---
@@ -287,6 +357,11 @@ export async function middleware(
       detectedLocale = 'pt-BR'
       effectivePathname = pathname.slice(3) || '/'
     }
+
+    // Expose the locale to route handlers / server components (layout.tsx
+    // reads `x-locale` via headers()). Must be set BEFORE resolveSite creates
+    // the response — request headers attach only at creation time.
+    ctx.requestHeaders.set('x-locale', detectedLocale)
   }
 
   // Dev hostname override: when running on localhost, resolve the site using
@@ -300,7 +375,7 @@ export async function middleware(
       : hostname
 
   // Site resolution (Edge-safe, anon key) — use effectivePathname (stripped)
-  const siteRes = await resolveSite(request, resolveHostname, effectivePathname)
+  const siteRes = await resolveSite(ctx, resolveHostname, effectivePathname)
 
   // Inject x-locale header
   if (!skipLocale) {
@@ -311,7 +386,7 @@ export async function middleware(
   if (detectedLocale !== 'en' && !siteRes.shortCircuit) {
     const rewriteUrl = request.nextUrl.clone()
     rewriteUrl.pathname = effectivePathname
-    const res = NextResponse.rewrite(rewriteUrl)
+    const res = ctx.rewrite(rewriteUrl)
     // Copy all headers from site resolution
     siteRes.response.headers.forEach((value, key) => {
       res.headers.set(key, value)
@@ -321,11 +396,11 @@ export async function middleware(
     // Auth gating for rewritten paths
     if (effectivePathname.startsWith('/admin')) {
       const authRes = await adminAuth(request)
-      return mergeSiteHeaders(request, authRes, res)
+      return mergeSiteHeaders(ctx, authRes, res)
     }
     if (effectivePathname.startsWith('/cms')) {
       const authRes = await cmsAuth(request)
-      return mergeSiteHeaders(request, authRes, res)
+      return mergeSiteHeaders(ctx, authRes, res)
     }
     return res
   }
@@ -336,11 +411,11 @@ export async function middleware(
   // propagated by `resolveSite` into the shared response object below.
   if (pathname.startsWith('/admin')) {
     const authRes = await adminAuth(request)
-    return mergeSiteHeaders(request, authRes, siteRes.response)
+    return mergeSiteHeaders(ctx, authRes, siteRes.response)
   }
   if (pathname.startsWith('/cms')) {
     const authRes = await cmsAuth(request)
-    return mergeSiteHeaders(request, authRes, siteRes.response)
+    return mergeSiteHeaders(ctx, authRes, siteRes.response)
   }
 
   return siteRes.response
@@ -351,10 +426,11 @@ type SiteResolution =
   | { shortCircuit: false; response: NextResponse }
 
 async function resolveSite(
-  request: NextRequest,
+  ctx: RequestContext,
   hostname: string,
   pathname: string,
 ): Promise<SiteResolution> {
+  const { request } = ctx
   try {
     const ring = getRingContext()
     const site = await getSiteByDomainCached(ring, hostname)
@@ -365,29 +441,27 @@ async function resolveSite(
       if (pathname.startsWith('/cms') || pathname.startsWith('/admin')) {
         return {
           shortCircuit: true,
-          response: NextResponse.rewrite(
-            new URL('/site-not-configured', request.url),
-          ),
+          response: ctx.rewrite(new URL('/site-not-configured', request.url)),
         }
       }
-      return { shortCircuit: false, response: NextResponse.next() }
+      return { shortCircuit: false, response: ctx.next() }
     }
     const cmsEnabled = (site as { cms_enabled?: boolean }).cms_enabled
     if (pathname.startsWith('/cms') && cmsEnabled === false) {
       return {
         shortCircuit: true,
-        response: NextResponse.rewrite(
-          new URL('/cms/disabled', request.url),
-        ),
+        response: ctx.rewrite(new URL('/cms/disabled', request.url)),
       }
     }
     const siteTimezone = (site as { timezone?: string }).timezone ?? 'America/Sao_Paulo'
-    const requestHeaders = new Headers(request.headers)
-    requestHeaders.set('x-site-id', site.id)
-    requestHeaders.set('x-org-id', site.org_id)
-    requestHeaders.set('x-default-locale', site.default_locale)
-    requestHeaders.set('x-site-timezone', siteTimezone)
-    const res = NextResponse.next({ request: { headers: requestHeaders } })
+    // Mutate the shared request-header copy (keeps the x-nonce / CSP request
+    // headers already seeded by the wrapper) instead of rebuilding from the
+    // original request — rebuilding would silently drop the nonce.
+    ctx.requestHeaders.set('x-site-id', site.id)
+    ctx.requestHeaders.set('x-org-id', site.org_id)
+    ctx.requestHeaders.set('x-default-locale', site.default_locale)
+    ctx.requestHeaders.set('x-site-timezone', siteTimezone)
+    const res = ctx.next()
     res.headers.set('x-site-id', site.id)
     res.headers.set('x-org-id', site.org_id)
     res.headers.set('x-default-locale', site.default_locale)
@@ -397,13 +471,13 @@ async function resolveSite(
     Sentry.captureException(err)
     return {
       shortCircuit: true,
-      response: NextResponse.rewrite(new URL('/site-error', request.url)),
+      response: ctx.rewrite(new URL('/site-error', request.url)),
     }
   }
 }
 
 function mergeSiteHeaders(
-  request: NextRequest,
+  ctx: RequestContext,
   authResponse: NextResponse,
   siteResponse: NextResponse,
 ): NextResponse {
@@ -422,14 +496,17 @@ function mergeSiteHeaders(
     return authResponse
   }
 
-  const requestHeaders = new Headers(request.headers)
-  if (siteId) requestHeaders.set('x-site-id', siteId)
-  if (orgId) requestHeaders.set('x-org-id', orgId)
-  if (defaultLocale) requestHeaders.set('x-default-locale', defaultLocale)
-  if (xLocale) requestHeaders.set('x-locale', xLocale)
-  if (siteTimezone) requestHeaders.set('x-site-timezone', siteTimezone)
+  // BTF-089b: base the merged pass-through on ctx.requestHeaders (which
+  // already carries x-nonce + request CSP + the site headers set by
+  // resolveSite). The previous implementation rebuilt a fresh Headers from
+  // the original request, which would have dropped the nonce.
+  if (siteId) ctx.requestHeaders.set('x-site-id', siteId)
+  if (orgId) ctx.requestHeaders.set('x-org-id', orgId)
+  if (defaultLocale) ctx.requestHeaders.set('x-default-locale', defaultLocale)
+  if (xLocale) ctx.requestHeaders.set('x-locale', xLocale)
+  if (siteTimezone) ctx.requestHeaders.set('x-site-timezone', siteTimezone)
 
-  const merged = NextResponse.next({ request: { headers: requestHeaders } })
+  const merged = ctx.next()
   authResponse.cookies.getAll().forEach((cookie) => {
     merged.cookies.set(cookie.name, cookie.value, cookie as Parameters<typeof merged.cookies.set>[2])
   })
