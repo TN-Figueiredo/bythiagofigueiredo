@@ -1,5 +1,6 @@
 import type { ServiceContext, ServiceResult } from './types'
 import { ok, err } from './types'
+import { oneEmbed } from '@/lib/supabase/one-embed'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -231,8 +232,8 @@ export async function listCompetitorChanges(
   type ChangeRow = NonNullable<typeof rawChanges>[number]
 
   const changes: CompetitorChangeRow[] = (rawChanges ?? []).map((c: ChangeRow) => {
-    const vidInfo = (c.competitor_videos as unknown as Array<{ title: string | null; video_id: string; competitor_channels: Array<{ channel_name: string }> }>)?.[0]
-    const chInfo = vidInfo?.competitor_channels?.[0]
+    const vidInfo = oneEmbed(c.competitor_videos)
+    const chInfo = vidInfo ? oneEmbed(vidInfo.competitor_channels) : null
     return {
       id: c.id,
       video_id: vidInfo?.video_id ?? '',

@@ -1,9 +1,11 @@
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { oneEmbed } from '@/lib/supabase/one-embed'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { CompetitorDashboardV2 } from './_components/competitor-dashboard-v2'
 import { computeViewGrowthSparkline } from '@/lib/youtube/sparkline-math'
 import { computeGrowthScore } from '@/lib/youtube/growth-score'
 import { getSubscriberBounds } from '@/lib/youtube/subscriber-resolution'
+import { computeSnapshotDelta } from '@/lib/youtube/snapshot-delta'
 import type {
   CompetitorChannelView,
   CompetitorChangeView,
@@ -91,15 +93,22 @@ export default async function CompetitorsPage({
     .order('detected_at', { ascending: false })
     .limit(50)
 
-  // ── 4. Fetch channel snapshots for sparklines ──
-  const { data: snapshots } = channelIds.length > 0
-    ? await supabase
+  // ── 4. Snapshots por canal (ultimos N de CADA canal) ──
+  // Antes: uma query so, ordenada ascendente, com .limit(500) global. Ao passar
+  // de 500 linhas no total, a pagina passou a ver so as mais ANTIGAS — desde
+  // 2026-07-08 todo o observatorio rodava sobre dados de julho.
+  const SNAPSHOT_LIMIT_PER_CHANNEL = 60
+  const snapshotResults = await Promise.all(
+    channelIds.map(chId =>
+      supabase
         .from('competitor_channel_snapshots')
         .select('competitor_channel_id, subscriber_count, view_count, video_count, snapshot_date')
-        .in('competitor_channel_id', channelIds)
-        .order('snapshot_date', { ascending: true })
-        .limit(500)
-    : { data: [] as Array<{ competitor_channel_id: string; subscriber_count: number | null; view_count: number | null; video_count: number | null; snapshot_date: string }> }
+        .eq('competitor_channel_id', chId)
+        .order('snapshot_date', { ascending: false })
+        .limit(SNAPSHOT_LIMIT_PER_CHANNEL),
+    ),
+  )
+  const snapshots = snapshotResults.flatMap(r => (r.data ?? []).slice().reverse())
 
   // ── 5. Fetch own channel stats (ALL channels) ──
   const { data: ownChannels } = await supabase
@@ -190,7 +199,7 @@ export default async function CompetitorsPage({
   // ── Group changes by video_id for change flags ──
   const changesByVideo = new Map<string, Array<{ change_type: string; detected_at: string }>>()
   for (const c of rawChanges ?? []) {
-    const vidId = (c.competitor_videos as Array<{ video_id: string }>)?.[0]?.video_id
+    const vidId = oneEmbed(c.competitor_videos)?.video_id
     if (!vidId) continue
     const list = changesByVideo.get(vidId) ?? []
     list.push({ change_type: c.change_type, detected_at: c.detected_at })
@@ -211,32 +220,10 @@ export default async function CompetitorsPage({
     const growthSparkline = computeViewGrowthSparkline(snaps)
 
     // Subscriber growth delta (may be 0 due to YouTube rounding)
-    let subscriberGrowthDelta: number | null = null
-    if (snaps.length >= 2) {
-      const latest = snaps[snaps.length - 1]!
-      const sevenDaysAgoStr = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10)
-      const weekAgoSnap = snaps.reduce<(typeof snaps)[number] | null>((best, s) => {
-        if (s.snapshot_date <= sevenDaysAgoStr) return s
-        return best
-      }, null) ?? snaps[0]!
-      if (weekAgoSnap.snapshot_date !== latest.snapshot_date) {
-        subscriberGrowthDelta = (latest.subscriber_count ?? 0) - (weekAgoSnap.subscriber_count ?? 0)
-      }
-    }
+    const subscriberGrowthDelta = computeSnapshotDelta(snaps, 'subscriber_count')
 
     // View growth delta (exact, not rounded by YouTube)
-    let viewGrowthDelta: number | null = null
-    if (snaps.length >= 2) {
-      const latest = snaps[snaps.length - 1]!
-      const sevenDaysAgoStr = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10)
-      const weekAgoSnap = snaps.reduce<(typeof snaps)[number] | null>((best, s) => {
-        if (s.snapshot_date <= sevenDaysAgoStr) return s
-        return best
-      }, null) ?? snaps[0]!
-      if (weekAgoSnap.snapshot_date !== latest.snapshot_date) {
-        viewGrowthDelta = (latest.view_count ?? 0) - (weekAgoSnap.view_count ?? 0)
-      }
-    }
+    const viewGrowthDelta = computeSnapshotDelta(snaps, 'view_count')
 
     // Growth score (composite signal)
     const growthScore = computeGrowthScore({
@@ -355,8 +342,8 @@ export default async function CompetitorsPage({
   // ── Build changes views (grouped by video) ──
   type RawChange = NonNullable<typeof rawChanges>[number]
   const mapChange = (c: RawChange): CompetitorChangeView => {
-    const vidInfo = (c.competitor_videos as Array<{ title: string | null; video_id: string; competitor_channels: Array<{ channel_name: string; thumbnail_url: string | null }> }>)?.[0]
-    const chInfo = vidInfo?.competitor_channels?.[0]
+    const vidInfo = oneEmbed(c.competitor_videos)
+    const chInfo = vidInfo ? oneEmbed(vidInfo.competitor_channels) : null
     return {
       id: c.id,
       videoId: vidInfo?.video_id ?? '',
@@ -378,7 +365,7 @@ export default async function CompetitorsPage({
   // Group raw changes by video_id (query already sorted by detected_at DESC)
   const changeGroupsByVideo = new Map<string, RawChange[]>()
   for (const c of rawChanges ?? []) {
-    const vidId = (c.competitor_videos as Array<{ video_id: string }>)?.[0]?.video_id ?? ''
+    const vidId = oneEmbed(c.competitor_videos)?.video_id ?? ''
     if (!vidId) continue
     const group = changeGroupsByVideo.get(vidId) ?? []
     group.push(c)
