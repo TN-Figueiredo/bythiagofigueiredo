@@ -24,7 +24,11 @@ type OperationType = 'single' | 'bulk' | 'destructive'
 /*  HMAC confirmation tokens                                           */
 /* ------------------------------------------------------------------ */
 
-const HMAC_SECRET_ENV = 'PIPELINE_COWORK_KEY'
+// Deliberately not the pipeline API key: that value travels in every
+// MCP/pipeline request via the X-Pipeline-Key header, so anyone holding it
+// could forge their own confirmation tokens and skip the dry-run gate on
+// destructive actions. Dedicated secret, never sent over the wire.
+const HMAC_SECRET_ENV = 'PIPELINE_MCP_HMAC_SECRET'
 const TOKEN_TTL_MS = 5 * 60 * 1000 // 5 minutes
 
 function getHmacSecret(): string {
