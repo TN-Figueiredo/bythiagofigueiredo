@@ -30,7 +30,11 @@ import type {
 import type { YtConnectedChannel } from '@/lib/youtube/analytics-client'
 import { AXIS_LABELS } from '@/lib/youtube/scoring-types'
 import type { Axis } from '@/lib/youtube/scoring-types'
+import type { CoachingOutput } from '@/lib/youtube/intelligence-types'
 import type { VideoGradeRow, OutlierVideo } from './types'
+
+/** Alinhado ao .filter(c => c.score < COACHING_BENCHMARK) abaixo — 5.0 era incoerente com o corte real. */
+const COACHING_BENCHMARK = 6.5
 
 function ChannelAvatar({ url, name }: { url: string | null; name: string }) {
   const [failed, setFailed] = useState(false)
@@ -71,6 +75,7 @@ interface Props {
   channelInternalId?: string
   intelligenceVideos?: VideoGradeRow[]
   intelligenceOutliers?: OutlierVideo[]
+  channelCoaching?: { coaching: CoachingOutput; generatedAt: string } | null
   notes?: NoteEntry[]
   healthScore?: number
   onCreateNote?: (input: { channelId: string; text: string }) => Promise<{ ok: boolean; error?: string }>
@@ -92,6 +97,7 @@ export function YtAnalyticsTabs({
   channelInternalId,
   intelligenceVideos,
   intelligenceOutliers,
+  channelCoaching,
   notes,
   healthScore,
   onCreateNote,
@@ -156,8 +162,8 @@ export function YtAnalyticsTabs({
     [intelligenceVideos]
   )
   const coachingCards = useMemo(
-    () => intelligenceVideos ? computeCoachingCards(intelligenceVideos) : [],
-    [intelligenceVideos]
+    () => computeCoachingCards(intelligenceVideos ?? [], channelCoaching?.coaching ?? null),
+    [intelligenceVideos, channelCoaching]
   )
 
   /** Tab badge counts — only shown when > 0 */
@@ -351,7 +357,10 @@ const COACHING_DIAGNOSTICS: Record<Axis, { diagnosis: string; action: string }> 
   },
 }
 
-function computeCoachingCards(videos: VideoGradeRow[]): Array<{
+function computeCoachingCards(
+  videos: VideoGradeRow[],
+  channelCoaching: CoachingOutput | null,
+): Array<{
   axis: Axis
   score: number
   benchmark: number
@@ -360,6 +369,21 @@ function computeCoachingCards(videos: VideoGradeRow[]): Array<{
   action: string
   source: 'cowork' | 'fallback'
 }> {
+  if (channelCoaching?.priorities?.length) {
+    return channelCoaching.priorities
+      .map(p => ({
+        axis: p.axis,
+        score: p.score,
+        benchmark: COACHING_BENCHMARK,
+        channelValue: p.score * 10,
+        diagnosis: p.diagnosis,
+        action: p.action,
+        source: 'cowork' as const,
+      }))
+      .sort((a, b) => a.score - b.score)
+      .slice(0, 3)
+  }
+
   const axes: Axis[] = ['ctr', 'retention', 'reach', 'engagement', 'growth', 'sub_impact']
   return axes
     .map(axis => {
@@ -370,14 +394,14 @@ function computeCoachingCards(videos: VideoGradeRow[]): Array<{
       return {
         axis,
         score: Math.round(normalized10 * 10) / 10,
-        benchmark: 5.0,
+        benchmark: COACHING_BENCHMARK,
         channelValue: avg,
         diagnosis: coaching.diagnosis,
         action: coaching.action,
         source: 'fallback' as const,
       }
     })
-    .filter(c => c.score < 6.5)
+    .filter(c => c.score < COACHING_BENCHMARK)
     .sort((a, b) => a.score - b.score)
     .slice(0, 3)
 }

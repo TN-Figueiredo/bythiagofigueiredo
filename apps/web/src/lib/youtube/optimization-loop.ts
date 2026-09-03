@@ -1,3 +1,7 @@
+import type { getSupabaseServiceClient } from '@/lib/supabase/service'
+
+type SupabaseClient = ReturnType<typeof getSupabaseServiceClient>
+
 export const OPTIMIZATION_CONFIG = {
   min_consecutive_low_weeks: 2,
   cooldown_days: 60,
@@ -137,6 +141,24 @@ export function transitionState(
   }
 
   return updated
+}
+
+/**
+ * Single write path for `optimization_cycles.state`. Before this (F14), 5 call-sites wrote
+ * `state` directly with hand-picked side-effect fields, bypassing `transitionState`'s
+ * validation and its reset-on-`flagged` cleanup — a cycle could carry stale
+ * `test_completed_at`/`resolved_reason` from a previous run into a new one.
+ */
+export async function applyCycleTransition(
+  supabase: SupabaseClient,
+  cycleId: string,
+  to: OptimizationState,
+  trigger: TransitionTrigger,
+): Promise<void> {
+  const { data: cycle } = await supabase.from('optimization_cycles').select('*').eq('id', cycleId).single()
+  if (!cycle) return
+  const { id, ...patch } = transitionState(cycle as OptimizationCycle, to, trigger)
+  await supabase.from('optimization_cycles').update(patch).eq('id', id)
 }
 
 export function isInCooldown(testWinnerAppliedAt: string | null, cooldownUntil?: string | null): boolean {

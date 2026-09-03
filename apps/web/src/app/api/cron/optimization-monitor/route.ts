@@ -3,7 +3,7 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { buildNotification } from '@/lib/youtube/notification-service'
 import { fanOutToSiteAdmins } from '@/lib/notifications/fan-out-to-admins'
 import { getIsoWeek } from '@/lib/youtube/analytics-sync'
-import { OPTIMIZATION_CONFIG } from '@/lib/youtube/optimization-loop'
+import { OPTIMIZATION_CONFIG, applyCycleTransition } from '@/lib/youtube/optimization-loop'
 import * as Sentry from '@sentry/nextjs'
 
 export const dynamic = 'force-dynamic'
@@ -68,11 +68,7 @@ export async function GET(req: NextRequest) {
           if (checkDay === 30) {
             const isResolved = latestGrade && (latestGrade.grade === 'A' || latestGrade.grade === 'B')
             if (isResolved) {
-              await supabase.from('optimization_cycles').update({
-                state: 'resolved',
-                resolved_at: now.toISOString(),
-                resolved_reason: 'grade_improved',
-              }).eq('id', cycle.id)
+              await applyCycleTransition(supabase, cycle.id, 'resolved', { resolved_reason: 'grade_improved' })
 
               const payload = buildNotification({
                 type: 'optimization_resolved',
@@ -94,10 +90,7 @@ export async function GET(req: NextRequest) {
                 actionHref: payload.action_href,
               })
             } else {
-              await supabase.from('optimization_cycles').update({
-                state: 'retest_needed',
-                cooldown_until: new Date(now.getTime() + OPTIMIZATION_CONFIG.cooldown_days * 86400000).toISOString(),
-              }).eq('id', cycle.id)
+              await applyCycleTransition(supabase, cycle.id, 'retest_needed', {})
 
               const payload = buildNotification({
                 type: 'retest_suggested',

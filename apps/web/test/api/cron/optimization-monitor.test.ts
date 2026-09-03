@@ -38,6 +38,7 @@ vi.mock('@/lib/youtube/optimization-loop', () => ({
     ctr_drop_rollback_threshold_percent: -10,
     grade_improvement_target: 'B',
   },
+  applyCycleTransition: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock('@sentry/nextjs', () => ({

@@ -1,7 +1,8 @@
 import * as Sentry from '@sentry/nextjs'
 import { ensureFreshToken } from '@/lib/social/token-refresh'
 import { calculateBayesianConfidence } from '@/lib/youtube/ab-statistics'
-import { applyVariantToYouTube } from '@/lib/youtube/ab-apply'
+import { applyVariantToYouTube, isAutoApplyEnabled } from '@/lib/youtube/ab-apply'
+import { computeGates } from '@/lib/youtube/ab-gates'
 import { preflightTokenCheck } from '@/lib/youtube/ab-preflight'
 import { buildNotification } from '@/lib/youtube/notification-service'
 import { fanOutToSiteAdmins } from '@/lib/notifications/fan-out-to-admins'
@@ -9,6 +10,7 @@ import { getIsoWeek } from '@/lib/youtube/analytics-sync'
 import { checkPlayoffEligibility, selectPlayoffVariants } from '@/lib/youtube/ab-playoff'
 import { startAbTestInternal } from '@/lib/youtube/ab-start'
 import { autoImportWinner } from '@/lib/youtube/thumbnail-library'
+import { applyCycleTransition } from '@/lib/youtube/optimization-loop'
 import type { AbTestVariantRow, AbTestCycleRow, VariantStats, AbTestConfig, BackfillStatus } from '@/lib/youtube/ab-types'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 
@@ -106,25 +108,61 @@ export async function phaseEvaluateActiveTests(supabase: SupabaseClient): Promis
         }
       })
 
+      const startedAt = new Date(test.started_at ?? test.created_at)
+      const daysSinceStart = Math.floor((Date.now() - startedAt.getTime()) / 86400000)
+      const maxDurationDays = config.max_duration_days ?? 14
+
       const activeVariants = variantStats.filter(v => v.total_impressions > 0)
-      if (activeVariants.length < 2) { evaluated++; continue }
+      if (activeVariants.length < 2) {
+        // F17: a test can sit here forever if it never gets a 2nd variant with impressions
+        // (dead channel, stuck rotation, YouTube API returning nothing). Without this check
+        // it skipped the max_duration gate entirely and stayed "active" indefinitely.
+        if (daysSinceStart >= maxDurationDays) {
+          // No variant ever ran long enough to matter — nothing to revert.
+          await supabase
+            .from('ab_test_cycles')
+            .update({ ended_at: new Date().toISOString() })
+            .eq('test_id', test.id)
+            .is('ended_at', null)
+
+          await supabase
+            .from('ab_tests')
+            .update({
+              status: 'completed',
+              completed_at: new Date().toISOString(),
+              completed_reason: 'inconclusive',
+              confidence_at_completion: null,
+            })
+            .eq('id', test.id)
+
+          resolved++
+        }
+        evaluated++
+        continue
+      }
 
       const bayesian = calculateBayesianConfidence(activeVariants)
 
-      // 6 auto-resolve gates
-      const startedAt = new Date(test.started_at ?? test.created_at)
-      const daysSinceStart = (Date.now() - startedAt.getTime()) / (1000 * 60 * 60 * 24)
       const threshold = config.confidence_threshold ?? 0.95
       const stabilityThreshold = config.stability_threshold ?? 3
 
-      const gates = [
-        { name: 'confidence', passed: bayesian.confidence >= threshold, detail: `${(bayesian.confidence * 100).toFixed(1)}% >= ${threshold * 100}%` },
-        { name: 'min_impressions', passed: activeVariants.every(v => v.total_impressions >= 1000), detail: `min: ${Math.min(...activeVariants.map(v => v.total_impressions))}` },
-        { name: 'min_duration', passed: daysSinceStart >= 7, detail: `${daysSinceStart.toFixed(0)} days` },
-        { name: 'min_cycles', passed: confirmedCycles.length >= 14, detail: `${confirmedCycles.length} cycles` },
-        { name: 'burn_in', passed: burnInEnd === 0 || eligibleCycles.length > 0, detail: `burn-in: ${burnInEnd} cycles` },
-        { name: 'stability', passed: (test.consecutive_confident_evals ?? 0) >= (stabilityThreshold - 1), detail: `${test.consecutive_confident_evals ?? 0} consecutive` },
-      ]
+      // F18: single source of truth for the 6 auto-resolve gates — the cron used to
+      // reimplement this array by hand with a fixed cycles floor, while the UI
+      // (ab-lab/queries.ts) called computeGates with `variantCount * 7`. A 3-variant test
+      // could show "ready" in the UI (needs 21 confirmed) while the cron used a much lower,
+      // hardcoded bar regardless of variant count.
+      const gates = computeGates({
+        confidence: bayesian.confidence,
+        threshold,
+        minImpressions: activeVariants.map(v => v.total_impressions),
+        daysSinceStart,
+        confirmedCycles: confirmedCycles.length,
+        burnInDays: config.burn_in_days ?? 2,
+        variantCount: variants.length,
+        eligibleCycles: eligibleCycles.length,
+        consecutiveConfident: test.consecutive_confident_evals ?? 0,
+        stabilityThreshold,
+      })
 
       // Update consecutive confidence counter
       const newConsecutive = bayesian.confidence >= threshold
@@ -136,7 +174,9 @@ export async function phaseEvaluateActiveTests(supabase: SupabaseClient): Promis
         .update({ consecutive_confident_evals: newConsecutive })
         .eq('id', test.id)
 
-      const allPass = gates.every(g => g.passed) && newConsecutive >= stabilityThreshold
+      // gates already includes a 'stability' gate comparing consecutiveConfident (pre-update)
+      // against stabilityThreshold — no need to redundantly re-check newConsecutive here.
+      const allPass = gates.every(g => g.passed)
 
       if (allPass && (config.auto_apply_winner ?? true)) {
         const winnerId = bayesian.winnerId
@@ -177,7 +217,47 @@ export async function phaseEvaluateActiveTests(supabase: SupabaseClient): Promis
           continue
         }
 
-        // GRACE PERIOD EXPIRED — now apply winner
+        // GRACE PERIOD EXPIRED — apply winner, unless auto-apply is disabled (F19)
+        if (!isAutoApplyEnabled()) {
+          const winnerLabel2 = variants.find(v => v.id === winnerId)?.label ?? 'Variante'
+
+          await supabase
+            .from('ab_test_cycles')
+            .update({ ended_at: new Date().toISOString() })
+            .eq('test_id', test.id)
+            .is('ended_at', null)
+
+          await supabase
+            .from('ab_tests')
+            .update({
+              status: 'completed',
+              completed_at: new Date().toISOString(),
+              completed_reason: 'auto_resolve',
+              confidence_at_completion: bayesian.confidence,
+              // winner_variant_id already recorded when grace period started.
+              // applied_by / winner_applied_at stay null — nothing was applied to YouTube.
+              // A human can still apply it manually via the existing ab-lab action, which
+              // only checks winner_variant_id + winner_applied_at, not status.
+            })
+            .eq('id', test.id)
+
+          await fanOutToSiteAdmins({
+            siteId: test.site_id,
+            domain: 'youtube',
+            type: 'youtube.ab_test_winner_suggested',
+            priority: 3,
+            title: `Vencedor sugerido: ${winnerLabel2}`,
+            message: `O teste "${test.name}" tem um vencedor sugerido. Aplicacao automatica esta desligada (confianca calculada sobre cliques, que hoje sao sempre zero) — revise e aplique manualmente.`,
+            dedupKey: `ab_test_winner_suggested:${test.id}`,
+            payload: { videoId: test.youtube_video_id, testId: test.id },
+            actionHref: `/cms/youtube/ab-lab/${test.id}`,
+          })
+
+          resolved++
+          evaluated++
+          continue
+        }
+
         const winner = variants.find(v => v.id === winnerId)
 
         const { data: video } = await supabase
@@ -285,17 +365,13 @@ export async function phaseEvaluateActiveTests(supabase: SupabaseClient): Promis
         // Transition optimization cycle to post_test_monitoring
         const { data: cycle } = await supabase
           .from('optimization_cycles')
-          .select('id')
+          .select('*')
           .eq('youtube_video_id', test.youtube_video_id)
           .eq('state', 'testing')
           .single()
 
         if (cycle) {
-          await supabase.from('optimization_cycles').update({
-            state: 'post_test_monitoring',
-            test_completed_at: new Date().toISOString(),
-            test_winner_applied_at: new Date().toISOString(),
-          }).eq('id', cycle.id)
+          await applyCycleTransition(supabase, cycle.id, 'post_test_monitoring', {})
         }
 
         // Auto-import winning thumbnail to library
@@ -319,7 +395,7 @@ export async function phaseEvaluateActiveTests(supabase: SupabaseClient): Promis
       }
 
       // Check max duration — mark inconclusive if exceeded
-      if (!allPass && daysSinceStart >= (config.max_duration_days ?? 14)) {
+      if (!allPass && daysSinceStart >= maxDurationDays) {
         // Best-effort revert to original thumbnail
         try {
           if (test.original_thumbnail_url?.includes('blob.vercel-storage.com')) {
@@ -479,17 +555,13 @@ export async function phaseRetryFailedApplies(supabase: SupabaseClient): Promise
       // Transition optimization cycle
       const { data: cycle } = await supabase
         .from('optimization_cycles')
-        .select('id')
+        .select('*')
         .eq('youtube_video_id', pending.youtube_video_id)
         .eq('state', 'testing')
         .single()
 
       if (cycle) {
-        await supabase.from('optimization_cycles').update({
-          state: 'post_test_monitoring',
-          test_completed_at: new Date().toISOString(),
-          test_winner_applied_at: new Date().toISOString(),
-        }).eq('id', cycle.id)
+        await applyCycleTransition(supabase, cycle.id, 'post_test_monitoring', {})
       }
 
       // Auto-import winning thumbnail to library

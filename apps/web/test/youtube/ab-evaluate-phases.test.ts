@@ -220,6 +220,9 @@ function buildSupabaseMock(opts: {
 
 beforeEach(() => {
   vi.stubEnv('LINKS_SHORT_DOMAIN', 'go.test.com')
+  // Default true here so the pre-existing "applies winner" tests keep testing the real
+  // apply path. F19's own test below stubs this back to 'false' (its default in prod).
+  vi.stubEnv('AB_AUTO_APPLY_WINNER', 'true')
   vi.clearAllMocks()
   ;(calculateBayesianConfidence as ReturnType<typeof vi.fn>).mockReturnValue({
     winnerId: 'v2',
@@ -315,6 +318,88 @@ describe('phaseEvaluateActiveTests', () => {
       c => c.table === 'ab_test_cycles' && (c.data as Record<string, unknown>).ended_at,
     )
     expect(cycleClose).toBeDefined()
+  })
+})
+
+// ─── F17: expire tests that never reached 2 variants with impressions ──────
+
+function makeLowImpressionCycles() {
+  // Only v1 ever gets impressions — v2 stays at 0, so activeVariants.length < 2.
+  return Array.from({ length: 16 }, (_, i) => ({
+    id: `c${i}`,
+    variant_id: i % 2 === 0 ? 'v1' : 'v2',
+    cycle_number: i,
+    backfill_status: 'confirmed' as const,
+    impressions: i % 2 === 0 ? 2000 : 0,
+    clicks: i % 2 === 0 ? 100 : 0,
+    ended_at: new Date().toISOString(),
+  }))
+}
+
+describe('phaseEvaluateActiveTests — expiration with fewer than 2 active variants (F17)', () => {
+  it('expires as inconclusive with no confidence after max_duration_days (20 days)', async () => {
+    const startedAt = new Date(Date.now() - 20 * 24 * 3_600_000).toISOString()
+    const test = makeActiveTest({
+      started_at: startedAt,
+      created_at: startedAt,
+      cycles: makeLowImpressionCycles(),
+    })
+    const { client, updateCalls } = buildSupabaseMock({ activeTests: [test] })
+
+    const result = await phaseEvaluateActiveTests(client)
+
+    expect(result.evaluated).toBe(1)
+    const completionUpdate = updateCalls.find(
+      c => c.table === 'ab_tests' && (c.data as Record<string, unknown>).status === 'completed',
+    )
+    expect(completionUpdate).toBeDefined()
+    const completionData = completionUpdate!.data as Record<string, unknown>
+    expect(completionData.completed_reason).toBe('inconclusive')
+    expect(completionData.confidence_at_completion).toBeNull()
+  })
+
+  it('does not expire before max_duration_days (8 days)', async () => {
+    // makeActiveTest defaults started_at to 8 days ago
+    const test = makeActiveTest({ cycles: makeLowImpressionCycles() })
+    const { client, updateCalls } = buildSupabaseMock({ activeTests: [test] })
+
+    const result = await phaseEvaluateActiveTests(client)
+
+    expect(result.evaluated).toBe(1)
+    const completionUpdate = updateCalls.find(
+      c => c.table === 'ab_tests' && (c.data as Record<string, unknown>).status === 'completed',
+    )
+    expect(completionUpdate).toBeUndefined()
+  })
+})
+
+// ─── F19: automatic apply gated behind AB_AUTO_APPLY_WINNER ────────────────
+
+describe('phaseEvaluateActiveTests — auto-apply behind AUTO_APPLY_ENABLED (F19)', () => {
+  it('does not call the YouTube API when the flag is off — marks winner suggested and notifies', async () => {
+    vi.stubEnv('AB_AUTO_APPLY_WINNER', 'false')
+    const test = makeActiveTest({
+      grace_expires_at: new Date(Date.now() - 3_600_000).toISOString(),
+      winner_variant_id: 'v2',
+    })
+    const { client, updateCalls } = buildSupabaseMock({ activeTests: [test] })
+
+    const result = await phaseEvaluateActiveTests(client)
+
+    expect(result.errors).toBe(0)
+    expect(ensureFreshToken).not.toHaveBeenCalled()
+
+    const completionUpdate = updateCalls.find(
+      c => c.table === 'ab_tests' && (c.data as Record<string, unknown>).status === 'completed',
+    )
+    expect(completionUpdate).toBeDefined()
+    const completionData = completionUpdate!.data as Record<string, unknown>
+    expect(completionData.applied_by ?? null).toBeNull()
+    expect(completionData.winner_applied_at ?? null).toBeNull()
+
+    expect(fanOutToSiteAdmins).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'youtube.ab_test_winner_suggested' }),
+    )
   })
 })
 
