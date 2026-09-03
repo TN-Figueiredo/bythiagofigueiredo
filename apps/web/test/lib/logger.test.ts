@@ -1,6 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { logCron, newRunId, withCronLock } from '../../lib/logger';
 
+// Real cron-health module, mocked so the withCronLock — health_written tests
+// below can assert exactly which of recordCronSuccess/recordCronFailure got
+// called, instead of relying on the real module's (unmocked) throw-and-log
+// behavior against a bare RPC-only `sb` stub.
+vi.mock('../../src/lib/cron-health', () => ({
+  recordCronSuccess: vi.fn().mockResolvedValue(undefined),
+  recordCronFailure: vi.fn().mockResolvedValue(undefined),
+}));
+
 describe('logCron', () => {
   let logSpy: ReturnType<typeof vi.spyOn>;
   let errSpy: ReturnType<typeof vi.spyOn>;
@@ -233,5 +242,82 @@ describe('withCronLock', () => {
     const res = await withCronLock(sb as any, 'cron:test', 'run-5', 'test-job', fn);
     expect(fn).toHaveBeenCalled();
     expect(res.status).toBe(200);
+  });
+});
+
+// Critico 1a (docs/superpowers/plans/2026-09-02-falhas-silenciosas.md): the
+// wrapper used to ALWAYS write its own recordCronSuccess/recordCronFailure
+// after fn() returned, based only on the top-level `status` field — even
+// when fn had already written cron_health itself under a more specific key
+// (e.g. sync-youtube's per-mode keys) and then, for HTTP purposes, returned
+// status:'ok' regardless. That silently erased the failure the route had
+// just recorded. These tests would fail if that regression came back.
+describe('withCronLock — health_written stops the wrapper from overwriting a route-recorded failure', () => {
+  let recordCronSuccess: ReturnType<typeof vi.fn>;
+  let recordCronFailure: ReturnType<typeof vi.fn>;
+
+  beforeEach(async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const cronHealth = await import('../../src/lib/cron-health');
+    recordCronSuccess = vi.mocked(cronHealth.recordCronSuccess);
+    recordCronFailure = vi.mocked(cronHealth.recordCronFailure);
+    recordCronSuccess.mockClear();
+    recordCronFailure.mockClear();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function makeSupabase() {
+    const rpc = vi.fn(async (fn: string) => {
+      if (fn === 'cron_try_lock') return { data: true, error: null };
+      return { data: null, error: null };
+    });
+    return { rpc } as unknown as Parameters<typeof withCronLock>[0];
+  }
+
+  it('does NOT call recordCronSuccess when fn already wrote a failure and set health_written:true', async () => {
+    const sb = makeSupabase();
+    const res = await withCronLock(sb, 'cron:multi', 'run-hw-1', 'multi-mode-job', async () => {
+      // Simulates a route (like sync-youtube's ab-poll/competitors modes)
+      // that records health itself under a specific key, then returns
+      // status:'ok' for HTTP purposes.
+      await recordCronFailure('multi-mode-job-submode', 'boom');
+      return { status: 'ok' as const, mode: 'submode', health_written: true };
+    });
+
+    expect(res.status).toBe(200);
+    expect(recordCronFailure).toHaveBeenCalledTimes(1);
+    expect(recordCronFailure).toHaveBeenCalledWith('multi-mode-job-submode', 'boom');
+    // THE regression this guards: without health_written respected, the
+    // wrapper would call recordCronSuccess('multi-mode-job') right here,
+    // stamping success over the failure just recorded above.
+    expect(recordCronSuccess).not.toHaveBeenCalled();
+    const body = await res.json();
+    expect(body).not.toHaveProperty('health_written');
+  });
+
+  it('still writes health itself when fn omits health_written (default/back-compat path)', async () => {
+    const sb = makeSupabase();
+    await withCronLock(sb, 'cron:default', 'run-hw-2', 'default-job', async () => ({
+      status: 'ok' as const,
+    }));
+
+    expect(recordCronSuccess).toHaveBeenCalledWith('default-job');
+    expect(recordCronFailure).not.toHaveBeenCalled();
+  });
+
+  it('still writes health itself when fn returns health_written:false', async () => {
+    const sb = makeSupabase();
+    await withCronLock(sb, 'cron:explicit-false', 'run-hw-3', 'explicit-false-job', async () => ({
+      status: 'error' as const,
+      error: 'boom',
+      health_written: false,
+    }));
+
+    expect(recordCronFailure).toHaveBeenCalledWith('explicit-false-job', 'boom');
+    expect(recordCronSuccess).not.toHaveBeenCalled();
   });
 });

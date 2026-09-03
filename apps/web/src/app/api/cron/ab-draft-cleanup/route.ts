@@ -36,7 +36,7 @@ export async function GET(req: Request): Promise<Response> {
     if (draftErr) {
       Sentry.captureException(draftErr, { tags: { component: JOB } })
       await recordCronFailure('ab-draft-cleanup', draftErr.message)
-      return { status: 'error' as const, error: draftErr.message }
+      return { status: 'error' as const, error: draftErr.message, health_written: true }
     }
 
     if (staleDrafts && staleDrafts.length > 0) {
@@ -49,7 +49,7 @@ export async function GET(req: Request): Promise<Response> {
       if (updateErr) {
         Sentry.captureException(updateErr, { tags: { component: JOB } })
         await recordCronFailure('ab-draft-cleanup', updateErr.message)
-        return { status: 'error' as const, error: updateErr.message }
+        return { status: 'error' as const, error: updateErr.message, health_written: true }
       }
       archived = ids.length
     }
@@ -67,7 +67,7 @@ export async function GET(req: Request): Promise<Response> {
     if (oldErr) {
       Sentry.captureException(oldErr, { tags: { component: JOB } })
       await recordCronFailure('ab-draft-cleanup', oldErr.message)
-      return { status: 'error' as const, error: oldErr.message }
+      return { status: 'error' as const, error: oldErr.message, health_written: true }
     }
 
     if (oldArchived && oldArchived.length > 0) {
@@ -108,6 +108,6 @@ export async function GET(req: Request): Promise<Response> {
     }
 
     await recordCronSuccess('ab-draft-cleanup', 'info')
-    return { status: 'ok' as const, ok: true, archived, hardDeleted }
+    return { status: 'ok' as const, ok: true, archived, hardDeleted, health_written: true }
   })
 }

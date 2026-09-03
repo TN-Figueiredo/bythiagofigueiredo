@@ -17,8 +17,14 @@ vi.mock('@sentry/nextjs', () => ({
   setTag: vi.fn(),
 }))
 
+vi.mock('@/lib/cron-health', () => ({
+  recordCronSuccess: vi.fn().mockResolvedValue(undefined),
+  recordCronFailure: vi.fn().mockResolvedValue(undefined),
+}))
+
 // ── Import after mocks ──────────────────────────────────────────────────────
 import { GET } from '../../../src/app/api/cron/expire-notifications/route'
+import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 function makeRequest(auth?: string): NextRequest {
@@ -35,12 +41,12 @@ function noAuthRequest(): NextRequest {
   return { headers: new Headers() } as unknown as NextRequest
 }
 
-function staleTasksUpdate(data: unknown[] | null = []) {
+function staleTasksUpdate(data: unknown[] | null = [], error: null | object = null) {
   return {
     update: vi.fn().mockReturnValue({
       eq: vi.fn().mockReturnValue({
         lt: vi.fn().mockReturnValue({
-          select: vi.fn().mockResolvedValue({ data, error: null }),
+          select: vi.fn().mockResolvedValue({ data, error }),
         }),
       }),
     }),
@@ -95,6 +101,26 @@ describe('GET /api/cron/expire-notifications', () => {
     const body = await res.json()
     expect(body.expired_notifications).toBe(0)
     expect(Sentry.captureException).toHaveBeenCalled()
+  })
+
+  it('records failure and skips recordCronSuccess when the stale tasks update errors', async () => {
+    mockRpc.mockResolvedValue({ data: 5, error: null })
+
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'youtube_intelligence_tasks') return staleTasksUpdate(null, { message: 'update failed' })
+      return {}
+    })
+
+    const res = await GET(makeRequest())
+    const body = await res.json()
+
+    // O `if (!error)` antigo so olhava o erro da RPC anterior; um erro no
+    // update de stale tasks caia em `staleTasks === null` -> 0 -> sucesso
+    // gravado mesmo assim. Precisa gravar falha e nao gravar sucesso.
+    expect(body.stale_tasks).toBe(0)
+    expect(recordCronFailure).toHaveBeenCalledWith('expire-notifications', 'update failed')
+    expect(recordCronSuccess).not.toHaveBeenCalled()
+    expect(res.status).toBe(200)
   })
 
   it('returns 0 stale_tasks when none are pending', async () => {

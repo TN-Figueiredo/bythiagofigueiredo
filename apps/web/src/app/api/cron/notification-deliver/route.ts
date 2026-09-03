@@ -19,6 +19,23 @@ export async function POST(req: Request): Promise<Response> {
   return withCronLock(supabase, LOCK_KEY, runId, JOB, async () => {
     try {
       const result = await processDeliveryQueue()
+      // Importante 4 (docs/superpowers/plans/2026-09-02-falhas-silenciosas.md):
+      // processDeliveryQueue used to return only {processed, total}, so this
+      // route always answered status:'ok' — and cron_health recorded a
+      // success — even when EVERY delivery in the batch failed. Distinguish
+      // "the queue was empty" (total===0, genuinely nothing to do) from
+      // "the queue had work and none of it got delivered" (total>0,
+      // processed===0): only the latter is a real failure. A queue with
+      // SOME failures alongside successes stays 'ok' — that's the retry
+      // mechanism doing its job, not an outage — but failed/dead are still
+      // exposed in the body either way.
+      if (result.total > 0 && result.processed === 0) {
+        return {
+          status: 'error' as const,
+          error: `${result.failed} failed, ${result.dead} dead-lettered (0 of ${result.total} delivered)`,
+          ...result,
+        }
+      }
       return { status: 'ok' as const, ok: true, ...result }
     } catch (err) {
       Sentry.captureException(err, {

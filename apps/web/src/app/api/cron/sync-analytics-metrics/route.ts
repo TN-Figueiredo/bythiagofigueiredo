@@ -34,10 +34,20 @@ export async function GET(req: NextRequest) {
 
   const supabase = getSupabaseServiceClient()
 
-  const { data: channels } = await supabase
+  const { data: channels, error: channelsError } = await supabase
     .from('youtube_channels')
     .select('id, channel_id, site_id, subscriber_count')
     .eq('sync_enabled', true)
+
+  // A dropped query error used to fall through to `channels === null` →
+  // `channels.length === 0` → recordCronSuccess + HTTP 200 — the system
+  // ASSERTING it's healthy about a DB error it never looked at. Distinguish
+  // "the query failed" from "the query genuinely returned zero rows".
+  if (channelsError) {
+    Sentry.captureMessage(`sync-analytics-metrics: channels query failed: ${channelsError.message}`)
+    await recordCronFailure('sync-analytics-metrics', channelsError.message)
+    return NextResponse.json({ error: 'channels query failed', detail: channelsError.message }, { status: 500 })
+  }
 
   if (!channels || channels.length === 0) {
     await recordCronSuccess('sync-analytics-metrics')

@@ -43,12 +43,24 @@ vi.mock('@/lib/youtube/optimization-loop', () => ({
 
 vi.mock('@sentry/nextjs', () => ({
   captureException: vi.fn(),
+  captureMessage: vi.fn(),
   setTag: vi.fn(),
 }))
 
 const mockFanOut = vi.fn().mockResolvedValue(1)
 vi.mock('@/lib/notifications/fan-out-to-admins', () => ({
   fanOutToSiteAdmins: (...args: unknown[]) => mockFanOut(...args),
+}))
+
+// Sem este mock, recordCronSuccess/recordCronFailure batem no modulo real
+// contra `mockFrom`, que nao tem handler para 'cron_health' -> `.from(...)
+// .upsert(...)` lanca TypeError. As chamadas existentes no route sao
+// protegidas por `.catch(...)`, entao isso ja passava silenciosamente; mas
+// para o teste abaixo (Importante 3) precisamos afirmar quais funcoes foram
+// chamadas e com quais argumentos.
+vi.mock('@/lib/cron-health', () => ({
+  recordCronSuccess: vi.fn().mockResolvedValue(undefined),
+  recordCronFailure: vi.fn().mockResolvedValue(undefined),
 }))
 
 // ── Import after mocks ──────────────────────────────────────────────────────
@@ -61,12 +73,12 @@ function makeRequest(authHeader?: string): NextRequest {
   } as unknown as NextRequest
 }
 
-function monitoringQuery(data: unknown[]) {
+function monitoringQuery(data: unknown[] | null, error: { message: string } | null = null) {
   return {
     select: vi.fn().mockReturnValue({
       eq: vi.fn().mockReturnValue({
         not: vi.fn().mockReturnValue({
-          limit: vi.fn().mockResolvedValue({ data, error: null }),
+          limit: vi.fn().mockResolvedValue({ data, error }),
         }),
       }),
     }),
@@ -138,6 +150,27 @@ describe('GET /api/cron/optimization-monitor', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.checked).toBe(0)
+  })
+
+  it('returns 500 and records a failure when the monitoring query itself errors (Importante 3, 2026-09-02-falhas-silenciosas)', async () => {
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'optimization_cycles') return monitoringQuery(null, { message: 'connection reset' })
+      return {}
+    })
+    const { recordCronFailure, recordCronSuccess } = await import('@/lib/cron-health')
+
+    const res = await GET(makeRequest(`Bearer ${CRON_SECRET}`))
+
+    // Um erro de query dropado aqui caia em `monitoring === null` ->
+    // `!monitoring?.length` -> recordCronSuccess + HTTP 200 — a correcao
+    // anterior (Importante 3) reintroduziu esse mesmo buraco ao acrescentar
+    // recordCronSuccess nesse branch sem checar `error` antes.
+    expect(res.status).toBe(500)
+    const body = await res.json()
+    expect(body.error).toBe('monitoring query failed')
+    expect(body.detail).toBe('connection reset')
+    expect(recordCronFailure).toHaveBeenCalledWith('optimization-monitor', 'connection reset')
+    expect(recordCronSuccess).not.toHaveBeenCalled()
   })
 
   it('happy path: checks cycle at day 7 and updates monitoring result', async () => {

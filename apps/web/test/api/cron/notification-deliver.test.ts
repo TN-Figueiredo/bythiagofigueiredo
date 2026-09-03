@@ -1,9 +1,12 @@
 /**
  * Tests for POST /api/cron/notification-deliver — mutates notification
- * delivery state (pending → sent / failed / dead).
+ * delivery state (pending/failed → sent / failed / dead).
  *
  * The route delegates to lib/notifications/cron/deliver#processDeliveryQueue:
- *   1. Selects pending deliveries whose next_retry_at <= now (oldest first, ≤50).
+ *   1. Selects pending OR failed deliveries whose next_retry_at <= now
+ *      (oldest first, ≤50) — 'failed' rows must be reachable again or the
+ *      backoff retry scheduled in step 3 never actually happens (Importante 4,
+ *      docs/superpowers/plans/2026-09-02-falhas-silenciosas.md).
  *   2. Marks each 'sent' (scoped by .eq('id', delivery.id)).
  *   3. On send failure: increments attempts, schedules exponential backoff,
  *      flips to 'dead' after maxAttempts (5).
@@ -11,9 +14,12 @@
  * Coverage focuses on:
  *   - auth gate (401 without / with bad bearer / with CRON_SECRET unset)
  *   - happy path returns processed/total counts
- *   - idempotency: only status='pending' rows are selected (sent ones excluded)
+ *   - idempotency: pending AND failed rows are selected (sent/dead excluded)
  *     and every mutation is scoped by .eq('id', ...) — never a blanket update
  *   - failure handling: failed retry scheduling + dead-lettering at maxAttempts
+ *   - a batch where NOTHING was delivered (processed:0, total>0) now surfaces
+ *     as status:'error'/HTTP 500 — cron_health must not record a success over
+ *     a fully-failed batch. An EMPTY queue (total:0) still reports ok/200.
  *   - error propagation: a thrown query surfaces as HTTP 500
  *
  * Pure mock (no DB). The route uses the real web/lib/logger#withCronLock, which
@@ -43,7 +49,7 @@ import { POST } from '../../../src/app/api/cron/notification-deliver/route'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 
 interface DeliverCapture {
-  selectStatusEq: string | null
+  selectStatusIn: string[] | null
   lteCol: string | null
   lteVal: string | null
   orderCol: string | null
@@ -59,7 +65,7 @@ interface DeliverCapture {
 
 /**
  * Supabase mock for `notification_deliveries`.
- *   select chain: .select('*..').eq('status','pending').lte('next_retry_at',now)
+ *   select chain: .select('*..').in('status',['pending','failed']).lte('next_retry_at',now)
  *                 .order('next_retry_at').limit(50)  → { data: pending }
  *   update chain: .update({...}).eq('id', id)        → { error: null }
  * `failSend` makes the initial 'sent' update reject so the catch/retry path runs.
@@ -76,7 +82,7 @@ function makeDeliverSupabase(opts: {
 } = {}) {
   const pending = opts.pending ?? []
   const capture: DeliverCapture = {
-    selectStatusEq: null,
+    selectStatusIn: null,
     lteCol: null,
     lteVal: null,
     orderCol: null,
@@ -87,8 +93,9 @@ function makeDeliverSupabase(opts: {
   const build = () => {
     const chain: Record<string, ReturnType<typeof vi.fn>> = {
       select: vi.fn(() => chain),
-      eq: vi.fn((c: string, v: unknown) => {
-        if (c === 'status') capture.selectStatusEq = v as string
+      eq: vi.fn(() => chain),
+      in: vi.fn((c: string, v: string[]) => {
+        if (c === 'status') capture.selectStatusIn = v
         return chain
       }),
       lte: vi.fn((c: string, v: string) => {
@@ -239,12 +246,18 @@ describe('POST /api/cron/notification-deliver — happy path', () => {
 })
 
 describe('POST /api/cron/notification-deliver — idempotency / safety', () => {
-  it('only selects status=pending rows (already-sent are never re-processed)', async () => {
+  it('selects pending AND failed rows (sent/dead are never re-processed) — Importante 4', async () => {
     const supabase = makeDeliverSupabase({ pending: [{ id: 'd1', attempts: 0 }] })
     vi.mocked(getSupabaseServiceClient).mockReturnValue(supabase as never)
 
     await POST(req(CRON_SECRET))
-    expect(supabase._capture.selectStatusEq).toBe('pending')
+    // 'failed' MUST be included or the backoff retry scheduled on failure
+    // never actually runs (the row would sit at status='failed' forever,
+    // never reaching MAX_ATTEMPTS / 'dead'). 'sent' and 'dead' are terminal
+    // and must stay excluded.
+    expect(supabase._capture.selectStatusIn).toEqual(expect.arrayContaining(['pending', 'failed']))
+    expect(supabase._capture.selectStatusIn).not.toContain('sent')
+    expect(supabase._capture.selectStatusIn).not.toContain('dead')
     // Retry gate + capped batch — bounds work and prevents thundering herd.
     expect(supabase._capture.lteCol).toBe('next_retry_at')
     expect(supabase._capture.orderCol).toBe('next_retry_at')
@@ -278,11 +291,17 @@ describe('POST /api/cron/notification-deliver — failure handling', () => {
     vi.mocked(getSupabaseServiceClient).mockReturnValue(supabase as never)
 
     const res = await POST(req(CRON_SECRET))
-    expect(res.status).toBe(200)
     const body = await res.json()
-    // Send failed → not processed, but still counted in total.
+    // Importante 4: the batch had 1 delivery and it failed — processed:0
+    // with total>0 is now a real failure (status 500), not a silent 'ok'.
+    // Before this fix, processDeliveryQueue exposed no failure count at all,
+    // so the route always answered 'ok' here and cron_health recorded a
+    // success over a 100%-failed batch.
+    expect(res.status).toBe(500)
     expect(body.processed).toBe(0)
     expect(body.total).toBe(1)
+    expect(body.failed).toBe(1)
+    expect(body.dead).toBe(0)
 
     // Two updates: the failing 'sent' attempt, then the 'failed' retry write.
     const failed = supabase._capture.updates.find((u) => u.status === 'failed')
@@ -299,11 +318,62 @@ describe('POST /api/cron/notification-deliver — failure handling', () => {
     })
     vi.mocked(getSupabaseServiceClient).mockReturnValue(supabase as never)
 
-    await POST(req(CRON_SECRET))
+    const res = await POST(req(CRON_SECRET))
+    const body = await res.json()
+    // Also a total failure of the batch (processed:0, total:1) — 500.
+    expect(res.status).toBe(500)
+    expect(body.dead).toBe(1)
+    expect(body.failed).toBe(0)
+
     const dead = supabase._capture.updates.find((u) => u.status === 'dead')
     expect(dead).toBeDefined()
     expect(dead?.attempts).toBe(5)
     expect(dead?.next_retry_at).toBeNull() // no further retries
+  })
+
+  it('stays status:ok when only PART of the batch fails (retry doing its job, not an outage)', async () => {
+    // makeDeliverSupabase's failSend flag rejects EVERY 'sent' update, so to
+    // get a mixed batch we build a bespoke mock: d1 sends fine, d2 fails.
+    const updates: Array<{ status: unknown; col: string; val: unknown }> = []
+    const chain: Record<string, ReturnType<typeof vi.fn>> = {
+      select: vi.fn(() => chain),
+      eq: vi.fn(() => chain),
+      in: vi.fn(() => chain),
+      lte: vi.fn(() => chain),
+      order: vi.fn(() => chain),
+      limit: vi.fn(() =>
+        Promise.resolve({
+          data: [
+            { id: 'ok-1', attempts: 0, channel: 'email', notifications: { user_id: 'u1' } },
+            { id: 'bad-1', attempts: 0, channel: 'sms', notifications: { user_id: 'u1' } }, // no adapter registered → throws
+          ],
+          error: null,
+        }),
+      ),
+      update: vi.fn((payload: Record<string, unknown>) => ({
+        eq: vi.fn((col: string, val: unknown) => {
+          updates.push({ status: payload.status, col, val })
+          return Promise.resolve({ error: null })
+        }),
+      })),
+    }
+    const supabase = {
+      from: vi.fn((table: string) => (table === 'notification_deliveries' ? chain : {})),
+      rpc: vi.fn((name: string) =>
+        name === 'cron_try_lock' ? Promise.resolve({ data: true, error: null }) : Promise.resolve({ data: null, error: null }),
+      ),
+      auth: { admin: { getUserById: vi.fn(() => Promise.resolve({ data: { user: { id: 'u1', email: 'user@example.com' } }, error: null })) } },
+    }
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(supabase as never)
+
+    const res = await POST(req(CRON_SECRET))
+    const body = await res.json()
+    expect(res.status).toBe(200)
+    expect(body.processed).toBe(1)
+    expect(body.total).toBe(2)
+    expect(body.failed).toBe(1)
+    expect(updates.some((u) => u.val === 'ok-1' && u.status === 'sent')).toBe(true)
+    expect(updates.some((u) => u.val === 'bad-1' && u.status === 'failed')).toBe(true)
   })
 })
 

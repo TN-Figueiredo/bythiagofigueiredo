@@ -61,12 +61,22 @@ export async function POST(req: Request): Promise<Response> {
   // error we best-effort RESET welcome_sent=false for the failed group so it
   // retries next tick, and always capture the failure to Sentry. (If the reset
   // itself fails, the row stays at-most-once skipped — acceptable for welcome.)
-  const { data: candidates } = await supabase
+  const { data: candidates, error: candidatesError } = await supabase
     .from('newsletter_subscriptions')
     .select('id')
     .eq('status', 'confirmed')
     .eq('welcome_sent', false)
     .limit(BATCH_SIZE)
+
+  // A dropped query error here used to fall through to `candidates === null`
+  // -> "no candidates" -> recordCronSuccess, asserting health over an error
+  // that was never inspected (Importante 3, docs/superpowers/plans/
+  // 2026-09-02-falhas-silenciosas.md).
+  if (candidatesError) {
+    Sentry.captureMessage(`send-welcome-emails: candidates query failed: ${candidatesError.message}`)
+    await recordCronFailure(CRON_NAME, candidatesError.message).catch((e) => console.error('[cron-health] write failed:', e))
+    return Response.json({ error: 'candidates query failed', detail: candidatesError.message }, { status: 500 })
+  }
 
   const candidateIds = (candidates ?? []).map((c) => c.id)
   if (!candidateIds.length) {
@@ -76,12 +86,18 @@ export async function POST(req: Request): Promise<Response> {
 
   // Atomically claim: only rows still welcome_sent=false are flipped + returned.
   // Rows another overlapping run already claimed match zero rows here.
-  const { data: pending } = await supabase
+  const { data: pending, error: pendingError } = await supabase
     .from('newsletter_subscriptions')
     .update({ welcome_sent: true })
     .eq('welcome_sent', false)
     .in('id', candidateIds)
     .select('id, email, locale, site_id, newsletter_id')
+
+  if (pendingError) {
+    Sentry.captureMessage(`send-welcome-emails: claim update failed: ${pendingError.message}`)
+    await recordCronFailure(CRON_NAME, pendingError.message).catch((e) => console.error('[cron-health] write failed:', e))
+    return Response.json({ error: 'claim update failed', detail: pendingError.message }, { status: 500 })
+  }
 
   if (!pending?.length) {
     await recordCronSuccess(CRON_NAME).catch((e) => console.error('[cron-health] write failed:', e))

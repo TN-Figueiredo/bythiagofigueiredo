@@ -174,8 +174,23 @@ export async function phaseEvaluateActiveTests(supabase: SupabaseClient): Promis
         .update({ consecutive_confident_evals: newConsecutive })
         .eq('id', test.id)
 
-      // gates already includes a 'stability' gate comparing consecutiveConfident (pre-update)
-      // against stabilityThreshold — no need to redundantly re-check newConsecutive here.
+      // Menor 5 (docs/superpowers/plans/2026-09-02-falhas-silenciosas.md): this
+      // comment used to claim that dropping `&& newConsecutive >= stabilityThreshold`
+      // here was a no-op because `gates` already covers stability. It is NOT a
+      // no-op. `gates` was computed above (line ~154) with
+      // `consecutiveConfident: test.consecutive_confident_evals ?? 0` — the
+      // PRE-update value, carried over from the PREVIOUS evaluation. `newConsecutive`
+      // (computed just above, persisted to the DB right after) is the POST-update
+      // value that includes THIS run. Since gates' stability gate always lags one
+      // evaluation behind newConsecutive, relying on `gates` alone means the
+      // auto-resolve now requires the metric to have ALREADY been stable as of the
+      // end of the previous run — one MORE confident evaluation than checking
+      // `newConsecutive >= stabilityThreshold` here would require. That is the
+      // correct, more conservative direction (matches ab-lab/queries.ts, which reads
+      // the same pre-update consecutiveConfident via computeGates for the UI's
+      // "ready" state) — but it is a real behavior change, not a redundant check.
+      // Re-adding `&& newConsecutive >= stabilityThreshold` would let auto-resolve
+      // fire one evaluation earlier than the UI considers ready.
       const allPass = gates.every(g => g.passed)
 
       if (allPass && (config.auto_apply_winner ?? true)) {

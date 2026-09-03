@@ -17,13 +17,18 @@ export class EmailAdapter implements IChannelAdapter {
       process.env.NEWSLETTER_FROM_DOMAIN ?? 'bythiagofigueiredo.com'
 
     try {
+      // Menor 7 (docs/superpowers/plans/2026-09-02-falhas-silenciosas.md): do
+      // not pass configurationSet here. getEmailService()'s singleton already
+      // resolves SES_TRANSACTIONAL_CONFIG_SET ?? SES_DEFAULT_CONFIG_SET once
+      // at construction (lib/email/service.ts) — re-reading only the first
+      // half of that fallback here bypasses it for no benefit and is a
+      // footgun if the two ever need to diverge. Let the singleton decide.
       await getEmailService().send({
         from: { email: `noreply@${fromDomain}`, name: 'Notifications' },
         to: user.email,
         subject: notification.title,
         html: `<p>${notification.message ?? notification.title}</p>`,
         text: notification.message ?? notification.title,
-        metadata: { configurationSet: process.env.SES_TRANSACTIONAL_CONFIG_SET },
       })
 
       return { success: true }

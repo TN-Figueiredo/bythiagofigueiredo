@@ -35,4 +35,14 @@ describe('computeSnapshotDelta', () => {
     const snaps = daily('2026-06-01', 38, i => 100 + i)
     expect(computeSnapshotDelta(snaps, 'subscriber_count', NOW)).toBeNull()
   })
+
+  it('Menor 8: sem nenhum snapshot com 7+ dias de idade, devolve null (nao finge janela semanal com o que tiver)', () => {
+    // Apenas 3 dias de historico coletado, terminando em NOW — nenhum
+    // snapshot tem 7 dias de idade. Antes da correcao, o fallback
+    // `?? snapshots[0]!` pegava o snapshot mais antigo (so 2 dias atras) e
+    // apresentava esse delta de 2 dias como se fosse semanal.
+    const snaps = daily('2026-08-31', 3, i => 100 + i)
+    expect(computeSnapshotDelta(snaps, 'subscriber_count', NOW)).toBeNull()
+    expect(computeSnapshotDelta(snaps, 'view_count', NOW)).toBeNull()
+  })
 })

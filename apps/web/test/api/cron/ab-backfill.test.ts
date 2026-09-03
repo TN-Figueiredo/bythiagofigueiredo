@@ -110,6 +110,25 @@ describe('GET /api/cron/ab-backfill', () => {
     expect(recordCronFailure).not.toHaveBeenCalled()
   })
 
+  it('reports error and records a critical failure when the cycles query itself errors', async () => {
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'ab_test_cycles') return cyclesQuery([], { message: 'connection reset' })
+      return {}
+    })
+
+    const res = await GET(makeRequest(`Bearer ${CRON_SECRET}`))
+    const body = await res.json()
+
+    // Um erro de query dropado aqui caia em `cycles === null` -> "nada a
+    // processar" -> sucesso implicito. Precisa surgir como falha explicita,
+    // sem que recordCronSuccess seja chamado.
+    expect(res.status).toBe(500)
+    expect(body.status).toBe('error')
+    expect(body.error).toBe('connection reset')
+    expect(recordCronFailure).toHaveBeenCalledWith('ab-backfill', 'connection reset', 'critical')
+    expect(recordCronSuccess).not.toHaveBeenCalled()
+  })
+
   it('happy path: backfills cycle with analytics data', async () => {
     const cycle = {
       id: 'cycle-1',

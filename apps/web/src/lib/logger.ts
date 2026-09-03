@@ -37,15 +37,22 @@ export async function withCronLock<T>(
     // Instrumentation point: covers every route that passes through this
     // lock (see docs/superpowers/plans/2026-09-02-falhas-silenciosas.md
     // WP-H) without each of them having to call recordCronSuccess/
-    // recordCronFailure by hand. Routes that already do so (idempotent
-    // upsert) simply write twice — harmless.
+    // recordCronFailure by hand.
     const status = result && typeof result === 'object' ? (result as { status?: unknown }).status : undefined
     const skipped = result && typeof result === 'object' ? (result as { skipped?: unknown }).skipped === true : false
+    // `health_written: true` (Critico 1, same plan): a route that already
+    // called recordCronSuccess/recordCronFailure itself for this job sets
+    // this so the wrapper does not write again — writing twice is NOT
+    // harmless (see the twin comment in apps/web/lib/logger.ts, the other
+    // withCronLock implementation): consecutive_failures/severity mutate on
+    // every write, so a redundant success write can erase a failure the
+    // route just recorded.
+    const healthWritten = result && typeof result === 'object' ? (result as { health_written?: unknown }).health_written === true : false
     // Best-effort: a cron_health write failure must never break the cron's
     // own response. `skipped: true` (guard bailed out before real work —
     // e.g. a non-prod env check) is not recorded as success or failure: it
     // would make a cron that never actually runs in prod look healthy.
-    if (!skipped) {
+    if (!skipped && !healthWritten) {
       try {
         if (status === 'error') {
           await recordCronFailure(tag, errorMessageFromResult(result, tag))
@@ -55,6 +62,12 @@ export async function withCronLock<T>(
       } catch (healthErr) {
         console.error(`[withCronLock] cron_health write failed for ${tag}:`, healthErr)
       }
+    }
+    // `health_written` is wrapper-internal signaling (see above) — never
+    // surface it in the HTTP response body.
+    if (healthWritten && result && typeof result === 'object' && 'health_written' in result) {
+      const { health_written: _healthWritten, ...rest } = result as Record<string, unknown>
+      return Response.json(rest)
     }
     return Response.json(result)
   } catch (err) {

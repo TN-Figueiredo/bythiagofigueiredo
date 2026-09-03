@@ -291,14 +291,22 @@ function evaluateCron(name: string, schedules: string[], row: CronHealthRow | un
   }
 }
 
-// unknown nunca escala pra 'down' sozinho — nas primeiras semanas após este
-// deploy, dezenas de crons agendados semanal/mensalmente ainda vão estar
-// 'unknown' legitimamente (nunca rodaram desde a instrumentação), e um
-// alarme crítico disparando pra cada um seria ruído, não sinal. 'down' fica
-// reservado pra quando SABEMOS que algo quebrou: uma linha com severity
-// 'critical' que está atrasada ou cuja última execução falhou.
+// 'unknown' NUNCA entra no calculo do agregado (Critico 2b, docs/superpowers/
+// plans/2026-09-02-falhas-silenciosas.md). Antes, 'unknown' contava como
+// "nao-ok" e derrubava o agregado pra 'degraded' pra sempre — um cron
+// semanal/mensal legitimamente sem execucao recente (ou um cron novo que
+// ainda nao rodou uma vez desde a instrumentacao) mantinha o dead-man-switch
+// em alarme permanente. Um alarme que berra desde o dia 1 e ignorado na
+// semana 2 — alarme ignorado e silencio com passos extras, exatamente o que
+// este pacote existe para evitar. 'unknown' e AUSENCIA de informacao, nao
+// EVIDENCIA de falha: fica de fora do agregado e volta como contagem/lista
+// propria no corpo da resposta (unknownCount/unknownNames) — visivel e
+// honesto, mas nao aciona alarme. 'down' fica reservado pra quando SABEMOS
+// que algo quebrou: uma linha com severity 'critical' que esta atrasada ou
+// cuja ultima execucao falhou.
 function aggregateStatus(items: CronHealthItem[]): 'ok' | 'degraded' | 'down' {
-  const unhealthy = items.filter((i) => i.status !== 'ok')
+  const known = items.filter((i) => i.status !== 'unknown')
+  const unhealthy = known.filter((i) => i.status !== 'ok')
   if (unhealthy.length === 0) return 'ok'
   const hasCriticalDown = unhealthy.some((i) => i.status === 'late' && i.severity === 'critical')
   return hasCriticalDown ? 'down' : 'degraded'
@@ -327,9 +335,17 @@ export async function GET(req: NextRequest): Promise<Response> {
     .sort((a, b) => a.name.localeCompare(b.name))
 
   const status = aggregateStatus(crons)
+  const unknownCrons = crons.filter((c) => c.status === 'unknown')
 
   return Response.json(
-    { status, checkedAt: now.toISOString(), crons },
+    {
+      status,
+      checkedAt: now.toISOString(),
+      crons,
+      // Ausencia de informacao, reportada a parte — ver aggregateStatus acima.
+      unknownCount: unknownCrons.length,
+      unknownNames: unknownCrons.map((c) => c.name),
+    },
     { status: status === 'down' ? 503 : 200 },
   )
 }

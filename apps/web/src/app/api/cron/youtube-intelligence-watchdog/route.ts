@@ -13,11 +13,13 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
 import * as Sentry from '@sentry/nextjs'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
+const CRON_NAME = 'youtube-intelligence-watchdog'
 const STALE_THRESHOLD_MINUTES = 30
 
 async function handle(req: NextRequest) {
@@ -40,8 +42,10 @@ async function handle(req: NextRequest) {
 
   if (error) {
     Sentry.captureMessage(`youtube-intelligence-watchdog: ${error.message}`)
+    await recordCronFailure(CRON_NAME, error.message).catch((e) => console.error('[cron-health] write failed:', e))
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
+  await recordCronSuccess(CRON_NAME).catch((e) => console.error('[cron-health] write failed:', e))
   return NextResponse.json({ released: released?.length ?? 0 })
 }
 

@@ -112,7 +112,7 @@ describe('GET /api/health', () => {
     expect(res.status).toBe(503);
   });
 
-  it('reports unknown (not ok) when a scheduled cron has no cron_health row at all', async () => {
+  it('reports unknown per-item (not ok) when a scheduled cron has no cron_health row, but does NOT drag the aggregate into degraded', async () => {
     mockCronHealthRows([
       {
         cron_name: 'fresh-job',
@@ -149,11 +149,57 @@ describe('GET /api/health', () => {
 
     expect(byName['never-run-job'].status).toBe('unknown');
     expect(byName['never-run-job'].status).not.toBe('ok');
-    // unknown alone does not escalate to 'down' (would page constantly on a
-    // fresh deploy before every cron has had a chance to run once) — but it
-    // does keep the aggregate out of 'ok'.
-    expect(body.status).toBe('degraded');
+    // 'unknown' is absence of information, not evidence of failure (Critico 2b,
+    // docs/superpowers/plans/2026-09-02-falhas-silenciosas.md): it never
+    // escalates the aggregate (would page constantly on a fresh deploy, or
+    // for any legitimately weekly/monthly cron, before it ever gets a
+    // chance to run) — every OTHER cron is genuinely healthy, so the
+    // aggregate must be 'ok'. The unknown cron is still visible via
+    // unknownCount/unknownNames, never silently dropped.
+    expect(body.status).toBe('ok');
     expect(res.status).toBe(200);
+    expect(body.unknownCount).toBe(1);
+    expect(body.unknownNames).toEqual(['never-run-job']);
+  });
+
+  it('unknown crons do not suppress a real degraded/down signal from other crons, and are still listed', async () => {
+    mockCronHealthRows([
+      {
+        cron_name: 'fresh-job',
+        last_success_at: '2026-01-02T00:00:00.000Z',
+        last_failure_at: null,
+        last_error: null,
+        consecutive_failures: 0,
+        severity: 'info',
+      },
+      {
+        cron_name: 'late-job',
+        last_success_at: '2025-12-20T00:00:00.000Z',
+        last_failure_at: null,
+        last_error: null,
+        consecutive_failures: 0,
+        severity: 'info',
+      },
+      // never-run-job has no row (unknown).
+      {
+        cron_name: 'critical-down-job',
+        last_success_at: null,
+        last_failure_at: null,
+        last_error: null,
+        consecutive_failures: 0,
+        severity: 'critical',
+      },
+    ]);
+
+    const res = await GET(req(CRON_SECRET));
+    const body = await res.json();
+
+    // Same fixture as the 'down' escalation test above, but this assertion
+    // specifically pins the unknown-count reporting alongside a genuinely
+    // unhealthy aggregate.
+    expect(body.status).toBe('down');
+    expect(body.unknownCount).toBe(1);
+    expect(body.unknownNames).toEqual(['never-run-job']);
   });
 
   it('reports ok overall when every scheduled cron has a fresh row', async () => {

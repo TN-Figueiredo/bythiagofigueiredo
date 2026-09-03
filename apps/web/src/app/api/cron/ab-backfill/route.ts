@@ -17,12 +17,27 @@ export async function GET(req: NextRequest) {
   const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
 
   // Get cycles that need backfilling (ended 3+ days ago)
-  const { data: cycles } = await supabase
+  const { data: cycles, error: cyclesError } = await supabase
     .from('ab_test_cycles')
     .select('*')
     .in('backfill_status', ['pending', 'partial'])
     .not('ended_at', 'is', null)
     .lt('ended_at', threeDaysAgo)
+
+  // Um erro de query dropado aqui caia em `cycles === null` -> "nada a
+  // processar" -> recordCronSuccess (ver comentario abaixo), afirmando saude
+  // sobre um erro que ninguem olhou. Mesmo padrao ja fechado em
+  // sync-analytics-metrics/weekly-grade-snapshot/sync-youtube(channelsError).
+  if (cyclesError) {
+    Sentry.captureException(cyclesError, {
+      tags: { cron: 'ab-backfill' },
+      extra: { stage: 'select-cycles' },
+    })
+    await recordCronFailure('ab-backfill', cyclesError.message, 'critical').catch((e) =>
+      console.error('[cron-health] write failed:', e)
+    )
+    return Response.json({ status: 'error', error: cyclesError.message }, { status: 500 })
+  }
 
   if (!cycles || cycles.length === 0) {
     // Nada a processar não é falha — é sucesso (não há ciclo elegível para
