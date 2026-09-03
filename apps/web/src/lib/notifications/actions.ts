@@ -47,6 +47,13 @@ export async function savePreferences(input: SavePreferencesInput) {
   const supabase = getSupabaseServiceClient()
   const timezone = input.timezone || 'America/Sao_Paulo'
 
+  // push e telegram ficam desabilitados na UI porque nao funcionam de verdade
+  // (push e stub permanente; telegram depende de public.profiles, que nao
+  // existe em producao). A UI ja os desliga, mas isso nao trava quem chamar
+  // a action direto — forcar false aqui e o que garante que o dado persistido
+  // nunca minta sobre um canal que nao entrega.
+  const FORCE_DISABLED_CHANNELS = { push: false, telegram: false } as const
+
   // Upsert global preferences (category = null)
   const globalRow = {
     user_id: userId,
@@ -54,8 +61,8 @@ export async function savePreferences(input: SavePreferencesInput) {
     category: null as string | null,
     channel_in_app: true, // always on
     channel_email: input.channels.email,
-    channel_push: input.channels.push,
-    channel_telegram: input.channels.telegram,
+    channel_push: FORCE_DISABLED_CHANNELS.push,
+    channel_telegram: FORCE_DISABLED_CHANNELS.telegram,
     frequency_mode: input.preset,
     quiet_hours_enabled: input.quietEnabled,
     quiet_hours_start: input.quietStart || '22:00',
@@ -75,8 +82,8 @@ export async function savePreferences(input: SavePreferencesInput) {
     category: domain,
     channel_in_app: domain === 'system' ? true : chs.in_app,
     channel_email: chs.email,
-    channel_push: chs.push,
-    channel_telegram: chs.telegram,
+    channel_push: FORCE_DISABLED_CHANNELS.push,
+    channel_telegram: FORCE_DISABLED_CHANNELS.telegram,
     frequency_mode: input.preset,
     quiet_hours_enabled: input.quietEnabled,
     quiet_hours_start: input.quietStart || '22:00',

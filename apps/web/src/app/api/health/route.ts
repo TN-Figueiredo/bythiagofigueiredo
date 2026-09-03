@@ -40,7 +40,7 @@ function isAuthorized(req: NextRequest): boolean {
 // em cron_health por recordCronSuccess/recordCronFailure.
 //
 // Regra geral: cron_name = último segmento do path (ignorando querystring).
-// Isso é verdade para as 49 rotas de /api/cron/* que gravam saúde (checado
+// Isso é verdade para as 48 rotas de /api/cron/* que gravam saúde (checado
 // em src/lib/cron-health.ts e em cada `const JOB = '<pasta>'`).
 //
 // CAVEAT CONHECIDO — sync-youtube: tem 5 entradas no vercel.json

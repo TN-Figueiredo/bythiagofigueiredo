@@ -30,12 +30,13 @@ vi.mock('@sentry/nextjs', () => ({
 }))
 
 vi.mock('@/lib/cron-health', () => ({
-  recordCronSuccess: vi.fn(),
-  recordCronFailure: vi.fn(),
+  recordCronSuccess: vi.fn().mockResolvedValue(undefined),
+  recordCronFailure: vi.fn().mockResolvedValue(undefined),
 }))
 
 // ── Import after mocks ─���─────────��──────────────────────────────────────────
 import { GET } from '@/app/api/cron/ab-backfill/route'
+import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 function makeRequest(authHeader?: string): NextRequest {
@@ -103,6 +104,10 @@ describe('GET /api/cron/ab-backfill', () => {
     const body = await res.json()
     expect(body.status).toBe('ok')
     expect(body.backfilled).toBe(0)
+    // Regressão: "nada a processar" é sucesso e precisa gravar cron_health —
+    // sem isso /api/health acusa "down" todo dia mesmo com o cron saudável.
+    expect(recordCronSuccess).toHaveBeenCalledWith('ab-backfill', 'critical')
+    expect(recordCronFailure).not.toHaveBeenCalled()
   })
 
   it('happy path: backfills cycle with analytics data', async () => {

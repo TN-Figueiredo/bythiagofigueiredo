@@ -141,6 +141,7 @@ SEO: `SEO_AI_CRAWLERS_BLOCKED` (controls robots.txt AI crawler rules)
 Links: `LINKS_SHORT_DOMAIN` (string)
 Tracking: `GEO_PROVIDER` (string — default `auto`, set `stub` for dev/test)
 Ads: `AD_GOOGLE_ENABLED`, `AD_TRACKING_ENABLED`, `AD_REVENUE_SYNC_ENABLED` (require external Google setup)
+YouTube A/B Lab: `AB_AUTO_APPLY_WINNER` (default off — a confiança bayesiana do teste roda sobre cliques que são sempre zero, então o vencedor é só sugerido e espera confirmação humana antes de ser aplicado no canal)
 
 ## Pipeline Integrity
 

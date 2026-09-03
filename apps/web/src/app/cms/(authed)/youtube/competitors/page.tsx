@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { oneEmbed } from '@/lib/supabase/one-embed'
 import { getSiteContext } from '@/lib/cms/site-context'
@@ -108,6 +109,18 @@ export default async function CompetitorsPage({
         .limit(SNAPSHOT_LIMIT_PER_CHANNEL),
     ),
   )
+  // Uma query de snapshot que falha por canal não pode sumir em silêncio —
+  // o canal simplesmente desaparece das métricas sem log e sem sinal. A
+  // página segue de pé com os canais que deram certo (degradar é correto),
+  // mas o erro precisa ser reportado para não virar uma falha silenciosa.
+  snapshotResults.forEach((r, idx) => {
+    if (r.error) {
+      Sentry.captureMessage(
+        `competitors: snapshot query failed for channel ${channelIds[idx]}: ${r.error.message}`,
+        { level: 'warning', tags: { component: 'competitors-observatory', siteId } },
+      )
+    }
+  })
   const snapshots = snapshotResults.flatMap(r => (r.data ?? []).slice().reverse())
 
   // ── 5. Fetch own channel stats (ALL channels) ──

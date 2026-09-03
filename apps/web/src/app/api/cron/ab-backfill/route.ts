@@ -25,6 +25,13 @@ export async function GET(req: NextRequest) {
     .lt('ended_at', threeDaysAgo)
 
   if (!cycles || cycles.length === 0) {
+    // Nada a processar não é falha — é sucesso (não há ciclo elegível para
+    // backfill agora). Sem esse registro, cron_health nunca é atualizado
+    // nesse caminho e /api/health passa a acusar "down" todo dia mesmo com
+    // o cron rodando normalmente (falso alarme diário).
+    await recordCronSuccess('ab-backfill', 'critical').catch((e) =>
+      console.error('[cron-health] write failed:', e)
+    )
     return Response.json({ status: 'ok', backfilled: 0 })
   }
 
