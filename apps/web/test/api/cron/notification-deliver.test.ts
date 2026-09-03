@@ -32,6 +32,13 @@ vi.mock('@sentry/nextjs', () => ({
   captureException: vi.fn(),
 }))
 
+// processDeliveryQueue's email adapter resolves a real SES client via
+// getEmailService() — stub it so a happy-path send never touches AWS and
+// always succeeds (EmailAdapter#send only cares that this doesn't throw).
+vi.mock('@/lib/email/service', () => ({
+  getEmailService: vi.fn(() => ({ send: vi.fn().mockResolvedValue({}) })),
+}))
+
 import { POST } from '../../../src/app/api/cron/notification-deliver/route'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 
@@ -57,11 +64,15 @@ interface DeliverCapture {
  *   update chain: .update({...}).eq('id', id)        → { error: null }
  * `failSend` makes the initial 'sent' update reject so the catch/retry path runs.
  * `selectThrows` makes the select reject so the route-level 500 path runs.
+ * `auth.admin.getUserById` backs processDeliveryQueue's user-profile lookup —
+ * every fixture that reaches send() needs `notifications: { user_id }` to
+ * resolve here, or getUserProfile returns null and the delivery fails.
  */
 function makeDeliverSupabase(opts: {
   pending?: Array<Record<string, unknown>>
   failSend?: boolean
   selectThrows?: boolean
+  userEmail?: string | null
 } = {}) {
   const pending = opts.pending ?? []
   const capture: DeliverCapture = {
@@ -121,7 +132,18 @@ function makeDeliverSupabase(opts: {
       ? Promise.resolve({ data: true, error: null })
       : Promise.resolve({ data: null, error: null }),
   )
-  return { from, rpc, _capture: capture }
+  const userEmail = opts.userEmail === undefined ? 'user@example.com' : opts.userEmail
+  const auth = {
+    admin: {
+      getUserById: vi.fn((id: string) =>
+        Promise.resolve({
+          data: userEmail === null ? null : { user: { id, email: userEmail } },
+          error: null,
+        }),
+      ),
+    },
+  }
+  return { from, rpc, auth, _capture: capture }
 }
 
 function req(secret?: string) {
@@ -174,8 +196,18 @@ describe('POST /api/cron/notification-deliver — happy path', () => {
   it('returns 200 with processed + total when all sends succeed', async () => {
     const supabase = makeDeliverSupabase({
       pending: [
-        { id: 'd1', attempts: 0 },
-        { id: 'd2', attempts: 0 },
+        {
+          id: 'd1',
+          attempts: 0,
+          channel: 'email',
+          notifications: { user_id: 'u1', title: 'Hello', message: 'World' },
+        },
+        {
+          id: 'd2',
+          attempts: 0,
+          channel: 'email',
+          notifications: { user_id: 'u2', title: 'Hello', message: 'World' },
+        },
       ],
     })
     vi.mocked(getSupabaseServiceClient).mockReturnValue(supabase as never)
@@ -186,6 +218,11 @@ describe('POST /api/cron/notification-deliver — happy path', () => {
     expect(body.ok).toBe(true)
     expect(body.processed).toBe(2)
     expect(body.total).toBe(2)
+    // Both deliveries actually resolved a user via auth.admin.getUserById —
+    // not just fell through to 'sent' unconditionally.
+    expect(supabase.auth.admin.getUserById).toHaveBeenCalledTimes(2)
+    const sent = supabase._capture.updates.filter((u) => u.status === 'sent')
+    expect(sent).toHaveLength(2)
   })
 
   it('returns processed:0 when the queue is empty', async () => {

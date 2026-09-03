@@ -155,7 +155,11 @@ Chave permanente: `PIPELINE_COWORK_KEY` em `.env.local`. **Nunca criar/revogar k
 ## Environment Variables
 
 ### Web (`apps/web/.env.local`)
-`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN`, `CRON_SECRET`, `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`, `NEWSLETTER_FROM_DOMAIN`, `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`, `CAMPAIGN_PDF_SIGNED_URL_TTL`, `YOUTUBE_API_KEY`, `BLOB_READ_WRITE_TOKEN` + operational flags above.
+`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN`, `CRON_SECRET`, `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`, `NEWSLETTER_FROM_DOMAIN`, `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`, `CAMPAIGN_PDF_SIGNED_URL_TTL`, `YOUTUBE_API_KEY`, `BLOB_READ_WRITE_TOKEN`, `PIPELINE_MCP_HMAC_SECRET`, `YT_ANALYTICS_SYNC_WINDOW_DAYS` + operational flags above.
+
+`PIPELINE_MCP_HMAC_SECRET` (gerar com `openssl rand -hex 32`): assina os confirmation tokens de ações destrutivas do MCP pipeline (`lib/pipeline/mcp/safety.ts`). Deliberadamente separado de `PIPELINE_COWORK_KEY` — essa viaja em todo request via `X-Pipeline-Key`, então usá-la para assinar os tokens deixaria quem tem a chave forjar a própria confirmação. **Ordem obrigatória de rollout:** setar a variável (`.env.local` e Vercel) primeiro, deploy do código depois — invertido, `getHmacSecret()` lança e derruba as tools MCP.
+
+`YT_ANALYTICS_SYNC_WINDOW_DAYS` (opcional, default `90`): controla o tamanho da janela consultada na YouTube Analytics API pelo cron `app/api/cron/sync-analytics-metrics/route.ts`.
 
 Sentry: `NEXT_PUBLIC_SENTRY_DSN` required em prod/preview, optional em dev (empty → no-op). `SENTRY_ORG/PROJECT/AUTH_TOKEN` build-only (source map upload).
 

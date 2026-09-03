@@ -8,6 +8,7 @@ export function authToServiceContext(auth: PipelineAuth): ServiceContext {
     siteId: auth.siteId,
     permissions: auth.permissions as ServiceContext['permissions'],
     keyHash: auth.keyHash,
+    keyId: auth.keyId,
     supabase: getSupabaseServiceClient(),
     // Carries the authentication channel so write services can attribute the row
     // (api_key → 'cowork', session → 'user') instead of trusting a body field.

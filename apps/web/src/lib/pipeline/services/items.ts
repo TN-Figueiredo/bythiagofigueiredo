@@ -1047,6 +1047,7 @@ export async function graduateItem(
         pipeline_id: id,
         event_type: 'graduated',
         to_value: `${target}:${entityId}`,
+        changed_by_key_id: ctx.source === 'api_key' ? ctx.keyId ?? null : null,
       })
     if (historyFkError) {
       throw new PipelineServiceError('DB_ERROR', historyFkError.message, 500)
@@ -1234,6 +1235,7 @@ async function graduateToCourse(
       pipeline_id: id,
       event_type: 'graduated',
       to_value: `course:${playlistId}`,
+      changed_by_key_id: ctx.source === 'api_key' ? ctx.keyId ?? null : null,
     })
   if (historyError) {
     throw new PipelineServiceError('DB_ERROR', historyError.message, 500)
@@ -1449,6 +1451,7 @@ export async function restoreItem(
   await supabase.from('content_pipeline_history').insert({
     pipeline_id: id,
     event_type: 'restored',
+    changed_by_key_id: ctx.source === 'api_key' ? ctx.keyId ?? null : null,
   })
 
   const row = updated as Record<string, unknown>
@@ -1753,6 +1756,7 @@ export async function publishItem(
       from_value: item.stage as string,
       to_value: targetStage,
       changed_by: null,
+      changed_by_key_id: ctx.source === 'api_key' ? ctx.keyId ?? null : null,
     })
   if (historyError) {
     console.error(
