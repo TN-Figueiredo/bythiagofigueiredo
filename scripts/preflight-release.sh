@@ -60,7 +60,21 @@ else
 fi
 
 # -----------------------------------------------------------------------------
-section "3. Migrations pendentes em producao"
+section "3. Suite completa de testes"
+# -----------------------------------------------------------------------------
+# Medido em 2026-09-03: 1078 arquivos, 13.780 testes, 160s. Ela NAO trava —
+# a crenca de que travava e obsoleta e vinha do CLAUDE.md.
+printf '  %s...rodando a suite completa (~3min)%s\n' "$DIM" "$RST"
+if (cd apps/web && npx vitest run --reporter=basic >/tmp/preflight-suite.log 2>&1); then
+  SUITE_LINE=$(grep -E "^ *Tests " /tmp/preflight-suite.log | tail -1 | sed 's/^ *//')
+  ok "suite completa passou — ${SUITE_LINE:-sem sumario}"
+else
+  fail "suite completa FALHOU — veja /tmp/preflight-suite.log"
+  grep -E "FAIL|✗" /tmp/preflight-suite.log | head -10 | sed 's/^/      /'
+fi
+
+# -----------------------------------------------------------------------------
+section "4. Migrations pendentes em producao"
 # -----------------------------------------------------------------------------
 # Nao da para checar daqui: supabase_migrations.schema_migrations nao e exposta
 # pelo PostgREST e o script nao tem a senha do banco. Declaramos em vez de
@@ -84,7 +98,7 @@ cat <<'SQL'
 SQL
 
 # -----------------------------------------------------------------------------
-section "4. Variaveis de ambiente"
+section "5. Variaveis de ambiente"
 # -----------------------------------------------------------------------------
 check_env_local() {
   local var="$1" file="apps/web/.env.local"
@@ -100,7 +114,7 @@ pend "PIPELINE_MCP_HMAC_SECRET tambem precisa estar na Vercel ANTES do deploy"
 printf '    %sInvertido, getHmacSecret() lanca e derruba as tools MCP. Gerar: openssl rand -hex 32%s\n' "$DIM" "$RST"
 
 # -----------------------------------------------------------------------------
-section "5. Estado do repositorio"
+section "6. Estado do repositorio"
 # -----------------------------------------------------------------------------
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
 if [ "$BRANCH" = "main" ]; then
@@ -120,7 +134,7 @@ AHEAD=$(git rev-list --count "@{upstream}..HEAD" 2>/dev/null || echo "?")
 [ "$AHEAD" != "?" ] && ok "${AHEAD} commit(s) a frente do remoto"
 
 # -----------------------------------------------------------------------------
-section "6. Depois do deploy — o que so da para verificar la"
+section "7. Depois do deploy — o que so da para verificar la"
 # -----------------------------------------------------------------------------
 cat <<'POST'
     A saude do sistema so e observavel depois que o deploy subir:
