@@ -8,21 +8,21 @@
 
 ## Problema
 
-O pedido original era ensinar doutrina de YouTube ao Cowork, porque o diagnóstico do canal dá conselho genérico. A investigação mostrou que doutrina não é o gargalo: existe embaixo dela uma camada de 21 defeitos que **não produzem erro, log nem sintoma visível**. Ensinar melhor um diagnóstico que lê dado de julho, descarta a própria resposta da IA e mede dois eixos impossíveis produziria apenas erro mais convicto.
+O pedido original era ensinar doutrina de YouTube ao Cowork, porque o diagnóstico do canal dá conselho genérico. A investigação mostrou que doutrina não é o gargalo: existe embaixo dela uma camada de 23 defeitos que **não produzem erro, log nem sintoma visível**. Ensinar melhor um diagnóstico que lê dado de julho, descarta a própria resposta da IA e tem cinco dos seis eixos zerados produziria apenas erro mais convicto.
 
 O fio condutor é o silêncio. Nenhum dos defeitos abaixo aparece em lugar nenhum — nem em tela, nem em log, nem em alerta. O critério de prioridade que decorre disso, e que bate com o problema declarado pelo dono do repo ("não confio no feedback"): **melhoria que aumenta verificabilidade vale mais que melhoria que aumenta cobertura**.
 
 ## Escopo
 
-Este design cobre os 21 defeitos verificados. Ele **não** cobre:
+Este design cobre os 23 defeitos verificados. Ele **não** cobre:
 
 - A ingestão do curso de YouTube (depende de F11 estar corrigido; vira spec própria).
 - O worker na máquina caseira que drena a fila de inteligência (vira spec própria, depois de F9/F19).
-- A decisão sobre CTR (ver "Decisão pendente" abaixo) — o plano entrega o mecanismo, não a escolha.
+- A recalibração da Tração inicial, que só produz número depois que o WP-K encher `youtube_video_analytics`.
 
 ---
 
-## Os 21 defeitos
+## Os 23 defeitos
 
 Cada linha foi verificada no código; as marcadas **[DB]** foram confirmadas por consulta direta ao banco de produção em 2026-09-02.
 
@@ -188,3 +188,28 @@ O trabalho está pronto quando:
 8. As três migrations de 2026-07-03 estão confirmadas em produção. (F21)
 9. Criar pesquisa via API funciona, com teste de integração contra Postgres real que teria pego o defeito. (F22)
 10. O segredo do HMAC é independente da chave de autenticação. (F20)
+
+---
+
+## F23 — O sync da YouTube Analytics API nunca escreveu
+
+Descoberto em 2026-09-03, depois da primeira versão deste design, medindo o banco.
+
+`youtube_video_analytics` tem **0 linhas**. Ela alimenta `dailyByVideo` (`analytics/actions.ts:32-42`), que alimenta quatro dos seis eixos do score. Com `avg_view_percentage` nulo em 35 de 35 vídeos, são cinco eixos zerados — só `reach` sobrevive, pelo fallback para `view_count`.
+
+A rota `sync-analytics-metrics` está correta: exporta `GET`, agendada `0 12 * * *`, autentica com `CRON_SECRET`, e chama `ensureFreshToken` antes de cada canal. Os refresh tokens do YouTube existem para os dois canais. A falha é depois do refresh, morre em `errorDetails` no corpo da resposta, e a rota não grava em `cron_health` — então falha todo dia sem produzir sinal.
+
+Agravante em `analytics-queries.ts:15-28`: `getCachedYtMetrics` captura qualquer exceção mas só reporta ao Sentry se for `YouTubeAnalyticsError`. Erro de token vira `return null` silencioso, e a tela mostra "aguarde 48-72h" como se fosse normal.
+
+Conexões sociais em 2026-09-03:
+
+| provider | conta | refresh token | expira |
+|---|---|---|---|
+| youtube | @bythiagofigueiredo | presente | 2026-09-03 02:34 |
+| youtube | @tnfigueiredotv | presente | 2026-09-01 13:00 (vencido) |
+| facebook | Figueiredo | **ausente** | 2026-07-18 21:28 (vencido) |
+| instagram | thiagonfigueiredo | **ausente** | 2026-07-18 21:28 (vencido) |
+
+Nenhuma revogada. Meta sem refresh token e vencida há seis semanas — publicação em social não funcionaria mesmo depois de WP-A ligar o cron.
+
+Este é o defeito de maior alavancagem do levantamento: um conserto destrava quatro eixos. Vira **WP-K**, antes de todos os outros pacotes.
