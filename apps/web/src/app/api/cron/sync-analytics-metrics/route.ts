@@ -5,9 +5,23 @@ import { detectViral, getIsoWeek } from '@/lib/youtube/analytics-sync'
 import { buildNotification } from '@/lib/youtube/notification-service'
 import { fanOutToSiteAdmins } from '@/lib/notifications/fan-out-to-admins'
 import { detectFatigue, filterFatigueCandidates } from '@/lib/youtube/ab-fatigue'
+import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
 import * as Sentry from '@sentry/nextjs'
 
 const YT_ANALYTICS_BASE = 'https://youtubeanalytics.googleapis.com/v2/reports'
+
+// The Analytics API omits any video row with zero activity in the requested window — a
+// tight window under-reports on low-volume channels even when the request itself succeeds
+// (this is exactly how youtube_video_analytics stayed empty in production while the cron
+// reported errors:0 every day). 90 days trades a slightly heavier request for actually
+// backfilling history. Configurable so it can be widened further without a code change.
+const SYNC_WINDOW_DAYS = Number(process.env.YT_ANALYTICS_SYNC_WINDOW_DAYS ?? '90')
+
+// dimensions=video + sort=-views means each row is one distinct video. A wider window pulls
+// in more distinct videos than a 2-day window ever could, and 50 risked silently truncating
+// the lower-ranked ones (no error, just missing rows). 200 covers channels with a few hundred
+// videos in the window; if a channel exceeds that, the truncation check below flags it.
+const MAX_RESULTS = 200
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 120
@@ -26,11 +40,13 @@ export async function GET(req: NextRequest) {
     .eq('sync_enabled', true)
 
   if (!channels || channels.length === 0) {
+    await recordCronSuccess('sync-analytics-metrics')
     return NextResponse.json({ status: 'no_channels' })
   }
 
   let synced = 0
   let errors = 0
+  let emptyReports = 0
   const errorDetails: string[] = []
   const notifications: Array<{ siteId: string; payload: ReturnType<typeof buildNotification> }> = []
   const processedVideos: Array<{ id: string; published_at: string | null; view_count: number }> = []
@@ -41,7 +57,7 @@ export async function GET(req: NextRequest) {
 
       const end = new Date()
       const start = new Date()
-      start.setDate(start.getDate() - 2)
+      start.setDate(start.getDate() - SYNC_WINDOW_DAYS)
 
       const endStr = end.toISOString().split('T')[0]!
       const startStr = start.toISOString().split('T')[0]!
@@ -56,7 +72,7 @@ export async function GET(req: NextRequest) {
       url.searchParams.set('metrics', 'views,estimatedMinutesWatched,averageViewDuration,likes,comments,shares,subscribersGained')
       url.searchParams.set('dimensions', 'video')
       url.searchParams.set('sort', '-views')
-      url.searchParams.set('maxResults', '50')
+      url.searchParams.set('maxResults', String(MAX_RESULTS))
 
       const res = await fetch(url.toString(), {
         headers: { Authorization: `Bearer ${accessToken}` },
@@ -71,7 +87,18 @@ export async function GET(req: NextRequest) {
       }
 
       const report = await res.json() as { rows?: (string | number)[][] }
-      if (!report.rows?.length) { synced++; continue }
+
+      if (report.rows?.length === MAX_RESULTS) {
+        Sentry.captureMessage(
+          `sync-analytics-metrics: channel ${channel.channel_id} hit maxResults=${MAX_RESULTS} — report may be truncated`,
+        )
+      }
+
+      // A report with zero rows is NOT a sync — it means no video had reportable activity in
+      // the window (or, before SYNC_WINDOW_DAYS was widened, that the window was too tight).
+      // Counting it as `synced` is exactly what let this cron report errors:0 every day while
+      // youtube_video_analytics stayed empty, with no signal anywhere that it was wrong.
+      if (!report.rows?.length) { emptyReports++; continue }
 
       const { data: videos } = await supabase
         .from('youtube_videos')
@@ -263,5 +290,21 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ synced, errors, notifications: notifications.length, fatigueAlerts, ...(errorDetails.length > 0 && { errorDetails }) })
+  if (errors > 0) {
+    await recordCronFailure('sync-analytics-metrics', errorDetails.join('; '))
+  } else if (channels.length > 0 && emptyReports === channels.length) {
+    // Every channel came back with zero rows for the window. One channel alone doing this is
+    // legitimate (e.g. a brand-new channel with nothing published yet), but ALL of them at
+    // once — with no HTTP error — is the same silent-failure shape this fix closes: a scope
+    // loss, a window regression, or an API contract change that a naive errors:0 check would
+    // never catch. Do not call this success.
+    await recordCronFailure(
+      'sync-analytics-metrics',
+      `all ${channels.length} channel(s) returned an empty analytics report for the ${SYNC_WINDOW_DAYS}-day window`,
+    )
+  } else {
+    await recordCronSuccess('sync-analytics-metrics')
+  }
+
+  return NextResponse.json({ synced, errors, emptyReports, notifications: notifications.length, fatigueAlerts, ...(errorDetails.length > 0 && { errorDetails }) })
 }

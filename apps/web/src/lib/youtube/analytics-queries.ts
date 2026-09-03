@@ -20,9 +20,9 @@ export async function getCachedYtMetrics(siteId: string, days: number, channelId
       { revalidate: 300 },
     )()
   } catch (e) {
-    if (e instanceof YouTubeAnalyticsError) {
-      Sentry.captureException(e, { tags: { youtube_endpoint: 'metrics' } })
-    }
+    // Antes: so YouTubeAnalyticsError chegava ao Sentry. Erro de token virava
+    // "aguarde 48-72h" na tela, sem sinal nenhum.
+    Sentry.captureException(e, { tags: { component: 'yt-analytics', action: 'getCachedYtMetrics' } })
     return null
   }
 }
