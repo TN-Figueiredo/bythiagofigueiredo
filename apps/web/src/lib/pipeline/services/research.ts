@@ -309,7 +309,7 @@ export async function createResearchItem(
   }
 
   if (dryRun) {
-    return ok({ id: '', title, topic_id: '', status: 'new', word_count: null, version: 1, created_at: '', updated_at: '', upserted: false }, 200)
+    return ok({ id: '', title, topic_id: '', status: 'fresca', word_count: null, version: 1, created_at: '', updated_at: '', upserted: false }, 200)
   }
 
   const { supabase, siteId } = ctx
@@ -317,6 +317,11 @@ export async function createResearchItem(
   if ('error' in topicResult) {
     return err('DB_ERROR', 'Failed to resolve topic', 500)
   }
+
+  // theme_id became NOT NULL (migration 20260604000003) with no DB default —
+  // 'canal' is the catch-all theme, matching the CMS UI's create action
+  // (app/cms/(authed)/pipeline/research/actions.ts).
+  const resolvedThemeId = theme_id ?? 'canal'
 
   const { data: item, error } = await supabase
     .from('research_items')
@@ -329,14 +334,14 @@ export async function createResearchItem(
         content_json: null,
         summary: summary ?? null,
         sources,
-        status: 'new',
+        status: 'fresca',
+        theme_id: resolvedThemeId,
         // Cowork can set these on create (only when provided, to avoid
-        // clobbering on an upsert-conflict of the same site/topic/title).
-        ...(theme_id !== undefined ? { theme_id } : {}),
+        // clobbering on an upsert-conflict of the same site/theme/title).
         ...(pinned !== undefined ? { pinned } : {}),
         ...(takeaways !== undefined ? { takeaways } : {}),
       },
-      { onConflict: 'site_id,topic_id,title' },
+      { onConflict: 'site_id,theme_id,title' },
     )
     .select('id, title, topic_id, status, word_count, version, created_at, updated_at')
     .single()
@@ -682,9 +687,14 @@ export async function importResearchItems(
           content_json: null,
           summary: item.summary ?? null,
           sources: item.sources,
-          status: 'new',
+          status: 'fresca',
+          // theme_id is NOT NULL with no DB default (migration 20260604000003) —
+          // 'canal' is the catch-all theme, same default createResearchItem uses.
+          theme_id: item.theme_id ?? 'canal',
+          ...(item.pinned !== undefined ? { pinned: item.pinned } : {}),
+          ...(item.takeaways !== undefined ? { takeaways: item.takeaways } : {}),
         },
-        { onConflict: 'site_id,topic_id,title' },
+        { onConflict: 'site_id,theme_id,title' },
       )
       .select('id')
       .single()
