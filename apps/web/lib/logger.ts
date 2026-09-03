@@ -3,6 +3,7 @@
 // Sprint 4 replaces this with a Sentry-backed implementation via setLogger.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { recordCronSuccess, recordCronFailure } from '../src/lib/cron-health';
 
 export interface Logger {
   warn(msg: string, meta?: Record<string, unknown>): void;
@@ -130,6 +131,31 @@ export async function withCronLock<T extends CronFnResult>(
       const { status, ...extra } = result;
       stripReservedKeys(extra);
       logCron({ job, run_id: runId, status, duration_ms, ...extra });
+      // Instrumentation point (WP-H, docs/superpowers/plans/
+      // 2026-09-02-falhas-silenciosas.md): covers every route wrapped by
+      // withCronLock without each of them calling recordCronSuccess/
+      // recordCronFailure by hand. Routes that already do so (idempotent
+      // upsert) simply write twice — harmless. Best-effort: a cron_health
+      // write failure (e.g. missing service-role env var) must never break
+      // the cron's own response.
+      //
+      // `skipped: true` is an established convention (adsense-sync no_token,
+      // send-scheduled-newsletters non-prod guard) for "the guard bailed out
+      // before doing real work" — recording that as a success would make a
+      // cron that never actually runs in prod look healthy. Skip the health
+      // write entirely in that case; don't record success OR failure.
+      if (extra.skipped !== true) {
+        try {
+          if (status === 'error') {
+            const message = typeof extra.error === 'string' && extra.error ? extra.error : `${job} reported status=error`;
+            await recordCronFailure(job, message);
+          } else {
+            await recordCronSuccess(job);
+          }
+        } catch (healthErr) {
+          console.error(`[withCronLock] cron_health write failed for ${job}:`, healthErr);
+        }
+      }
       if (status === 'error') {
         return Response.json({ ...extra }, { status: 500 });
       }
@@ -147,6 +173,11 @@ export async function withCronLock<T extends CronFnResult>(
         err_code: 'unhandled',
         ...extra,
       });
+      try {
+        await recordCronFailure(job, message);
+      } catch (healthErr) {
+        console.error(`[withCronLock] cron_health write failed for ${job}:`, healthErr);
+      }
       return Response.json({ error: 'cron_failed' }, { status: 500 });
     }
   } finally {

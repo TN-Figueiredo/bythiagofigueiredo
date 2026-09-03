@@ -3,8 +3,10 @@ import { sendWelcomeEmail } from '../../../../../lib/newsletter/welcome-email'
 import { generateUnsubscribeToken } from '../../../../../lib/newsletter/confirm-email'
 import { deriveCadenceLabel } from '../../../../../lib/newsletter/format'
 import * as Sentry from '@sentry/nextjs'
+import { recordCronSuccess, recordCronFailure } from '../../../../lib/cron-health'
 import type { NewsletterListItem } from '../../../../emails/components/email-newsletter-list'
 
+const CRON_NAME = 'send-welcome-emails'
 const BATCH_SIZE = 50
 const THROTTLE_MS = 100
 
@@ -68,6 +70,7 @@ export async function POST(req: Request): Promise<Response> {
 
   const candidateIds = (candidates ?? []).map((c) => c.id)
   if (!candidateIds.length) {
+    await recordCronSuccess(CRON_NAME).catch((e) => console.error('[cron-health] write failed:', e))
     return Response.json({ status: 'ok', sent: 0 })
   }
 
@@ -81,6 +84,7 @@ export async function POST(req: Request): Promise<Response> {
     .select('id, email, locale, site_id, newsletter_id')
 
   if (!pending?.length) {
+    await recordCronSuccess(CRON_NAME).catch((e) => console.error('[cron-health] write failed:', e))
     return Response.json({ status: 'ok', sent: 0 })
   }
 
@@ -96,6 +100,7 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   let sentCount = 0
+  let errorCount = 0
 
   for (const [, subs] of grouped) {
     const first = subs[0]!  // subs always non-empty: only pushed groups enter the Map
@@ -183,6 +188,7 @@ export async function POST(req: Request): Promise<Response> {
       } else {
         // Send reported failure but did not throw — release the claim so the
         // welcome retries next tick (best-effort) and surface it to Sentry.
+        errorCount++
         const ids = subs.map((s) => s.id)
         await supabase
           .from('newsletter_subscriptions')
@@ -194,6 +200,7 @@ export async function POST(req: Request): Promise<Response> {
         })
       }
     } catch (err) {
+      errorCount++
       // Send threw after the claim. Best-effort release the claim so a
       // transient SES error retries next tick instead of permanently skipping
       // the welcome (at-most-once tradeoff). If this reset also fails, the row
@@ -213,6 +220,16 @@ export async function POST(req: Request): Promise<Response> {
     }
 
     await sleep(THROTTLE_MS)
+  }
+
+  // Only a TOTAL failure (nothing sent, at least one error) marks the cron
+  // unhealthy — a lone transient SES error already retries next tick via the
+  // claim-release above, and flagging every partial hiccup would be noise
+  // for a job that runs every 15 minutes.
+  if (errorCount > 0 && sentCount === 0) {
+    await recordCronFailure(CRON_NAME, `${errorCount} welcome email(s) failed to send`).catch((e) => console.error('[cron-health] write failed:', e))
+  } else {
+    await recordCronSuccess(CRON_NAME).catch((e) => console.error('[cron-health] write failed:', e))
   }
 
   return Response.json({ status: 'ok', sent: sentCount })

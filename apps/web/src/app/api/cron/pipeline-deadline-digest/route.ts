@@ -6,6 +6,7 @@ import { getProductionDeadline } from '@/lib/pipeline/get-production-deadline'
 import { PipelineDeadlineDigest, type DeadlineItem } from '@/emails/pipeline-deadline-digest'
 import type { Stage } from '@/lib/pipeline/up-next-constants'
 import * as Sentry from '@sentry/nextjs'
+import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
@@ -35,9 +36,11 @@ export async function POST(req: Request): Promise<Response> {
 
   if (itemsErr) {
     Sentry.captureException(new Error(itemsErr.message), { tags: { cron: TEMPLATE_NAME } })
+    await recordCronFailure(TEMPLATE_NAME, itemsErr.message).catch((e) => console.error('[cron-health] write failed:', e))
     return NextResponse.json({ error: itemsErr.message }, { status: 500 })
   }
   if (!items?.length) {
+    await recordCronSuccess(TEMPLATE_NAME).catch((e) => console.error('[cron-health] write failed:', e))
     return NextResponse.json({ status: 'ok', sent: 0, reason: 'no_items' })
   }
 
@@ -65,6 +68,7 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   if (deadlineItems.length === 0) {
+    await recordCronSuccess(TEMPLATE_NAME).catch((e) => console.error('[cron-health] write failed:', e))
     return NextResponse.json({ status: 'ok', sent: 0, reason: 'no_deadlines' })
   }
 
@@ -140,6 +144,12 @@ export async function POST(req: Request): Promise<Response> {
         Sentry.captureException(err, { tags: { cron: TEMPLATE_NAME } })
       }
     }
+  }
+
+  if (errorCount > 0) {
+    await recordCronFailure(TEMPLATE_NAME, `${errorCount} email(s) failed to send`).catch((e) => console.error('[cron-health] write failed:', e))
+  } else {
+    await recordCronSuccess(TEMPLATE_NAME).catch((e) => console.error('[cron-health] write failed:', e))
   }
 
   return NextResponse.json({ status: 'ok', sent: sentCount, errors: errorCount })
