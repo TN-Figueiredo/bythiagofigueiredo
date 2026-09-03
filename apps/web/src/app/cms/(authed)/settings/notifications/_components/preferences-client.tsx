@@ -36,6 +36,7 @@ const CHANNELS: Array<{
   label: string
   icon: typeof Bell
   lockedLabel?: string
+  disabledReason?: string
 }> = [
   {
     key: 'in_app',
@@ -52,13 +53,21 @@ const CHANNELS: Array<{
     key: 'push',
     label: 'Push',
     icon: Smartphone,
+    disabledReason: 'indisponivel — adapter de web-push nao implementado',
   },
   {
     key: 'telegram',
     label: 'Telegram',
     icon: Send,
+    disabledReason: 'indisponivel — pareamento depende de tabela ausente',
   },
 ]
+
+/** Channels whose toggle is disabled — see `disabledReason` above. */
+const NON_FUNCTIONAL_CHANNELS: ReadonlySet<ChannelKey> = new Set([
+  'push',
+  'telegram',
+])
 
 const PRESETS: Record<
   FrequencyPreset,
@@ -140,14 +149,15 @@ export function PreferencesClient({
   savedQuiet,
 }: PreferencesClientProps) {
   // -- Global channel state
-  const [channels, setChannels] = useState<Record<ChannelKey, boolean>>(
-    savedChannels ?? {
-      in_app: true,
-      email: true,
-      push: false,
-      telegram: isConnected,
-    }
-  )
+  // push/telegram forced off regardless of saved value: push has no working
+  // adapter (stub) and telegram pairing depends on public.profiles, which
+  // does not exist in production — see NON_FUNCTIONAL_CHANNELS above.
+  const [channels, setChannels] = useState<Record<ChannelKey, boolean>>({
+    in_app: true,
+    email: savedChannels?.email ?? true,
+    push: false,
+    telegram: false,
+  })
 
   // -- Frequency preset
   const [preset, setPreset] = useState<FrequencyPreset>(
@@ -190,6 +200,7 @@ export function PreferencesClient({
 
   const toggleChannel = useCallback((key: ChannelKey) => {
     if (key === 'in_app') return // In-app always on (LGPD contract)
+    if (NON_FUNCTIONAL_CHANNELS.has(key)) return // push/telegram disabled — see CHANNELS
     setChannels((c) => ({ ...c, [key]: !c[key] }))
     setSaveStatus('idle')
   }, [])
@@ -318,7 +329,7 @@ export function PreferencesClient({
         <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2">
           {CHANNELS.map((ch) => {
             const isOn = channels[ch.key]
-            const isLocked = ch.key === 'in_app'
+            const isLocked = ch.key === 'in_app' || NON_FUNCTIONAL_CHANNELS.has(ch.key)
             const isTelegram = ch.key === 'telegram'
             const IconComp = ch.icon
             const description = getChannelDescription(
@@ -364,9 +375,14 @@ export function PreferencesClient({
                   <div className="min-w-0 grow text-left">
                     <div className="flex items-center gap-2 text-sm font-medium text-cms-text">
                       {ch.label}
-                      {isLocked && ch.lockedLabel && (
+                      {ch.lockedLabel && (
                         <span className="rounded-md bg-cms-surface-hover px-1.5 py-0.5 text-3xs font-semibold text-cms-text-muted">
                           {ch.lockedLabel}
+                        </span>
+                      )}
+                      {ch.disabledReason && (
+                        <span className="text-2xs font-normal normal-case text-cms-text-dim">
+                          {ch.disabledReason}
                         </span>
                       )}
                     </div>
