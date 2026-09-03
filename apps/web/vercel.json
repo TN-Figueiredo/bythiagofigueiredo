@@ -41,6 +41,17 @@
     { "path": "/api/cron/social-auto-draft", "schedule": "*/30 * * * *" },
     { "path": "/api/cron/sync-youtube?mode=competitors", "schedule": "0 9 * * *" },
     { "path": "/api/cron/research-digest", "schedule": "30 6 * * 1" },
-    { "path": "/api/cron/waitlist-retention-sweep", "schedule": "15 4 * * *" }
+    { "path": "/api/cron/waitlist-retention-sweep", "schedule": "15 4 * * *" },
+    { "path": "/api/cron/notification-deliver", "schedule": "*/5 * * * *" },
+    { "path": "/api/cron/notification-unsnooze", "schedule": "*/15 * * * *" },
+    { "path": "/api/cron/notification-cleanup", "schedule": "0 3 * * *" },
+    { "path": "/api/cron/media-cleanup", "schedule": "0 4 * * *" },
+    { "path": "/api/cron/aggregate-content-metrics", "schedule": "0 5 * * *" },
+    { "path": "/api/cron/purge-content-events", "schedule": "0 5 * * 0" },
+    { "path": "/api/cron/snapshot-cleanup", "schedule": "0 4 * * *" },
+    { "path": "/api/cron/pipeline-deadline-digest", "schedule": "0 7 * * *" },
+    { "path": "/api/cron/ad-events-aggregate", "schedule": "0 6 * * *" },
+    { "path": "/api/cron/adsense-sync", "schedule": "0 6 * * *" },
+    { "path": "/api/cron/youtube-intelligence-watchdog", "schedule": "*/30 * * * *" }
   ]
 }

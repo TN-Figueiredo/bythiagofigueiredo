@@ -55,3 +55,6 @@ export async function POST(req: Request): Promise<Response> {
     return { status: 'ok' as const, ok: true, rows_upserted, purged: purged ?? 0 }
   })
 }
+
+// Cron da Vercel dispara GET; auth le o header Authorization independente do verbo, entao o alias e seguro.
+export const GET = POST

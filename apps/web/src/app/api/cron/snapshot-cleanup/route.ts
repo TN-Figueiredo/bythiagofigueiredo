@@ -39,3 +39,6 @@ export async function POST(req: NextRequest) {
     timestamp: now,
   })
 }
+
+// Cron da Vercel dispara GET; auth le o header Authorization independente do verbo, entao o alias e seguro.
+export const GET = POST
