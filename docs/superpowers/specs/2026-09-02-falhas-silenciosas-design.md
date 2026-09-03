@@ -107,19 +107,31 @@ Antes de desenhar a ordem de execução, medi as filas em produção. O resultad
 
 ---
 
-## Decisão pendente do dono
+## Decisão do dono — resolvida em 2026-09-03
 
-**CTR e impressões não são obtíveis por nenhuma API pública do YouTube** — só pela interface do Studio ou pela Content Owner Reporting API, restrita a parceiros. O código já sabe (`analytics-client.ts:169-171`) e há um commit `dedd378f` chamado *remove fabricated CTR heuristic*. Mas o sistema de score continua tratando os dois como medidos: `scoring.ts:140-146` lê `input.ctr` (campo que ninguém grava) e `input.impressions > 0 ? ... : 0`. **Dois dos seis eixos são zero permanente por construção.**
+A investigação inicial concluiu que dois eixos (`ctr`, `sub_impact`) eram zero permanente porque CTR e impressões não existem em API pública. **A medição do banco depois corrigiu esse diagnóstico: são cinco eixos zerados, e quatro deles têm conserto.**
 
-Três caminhos, e a escolha é do dono:
+`youtube_video_analytics` tem **0 linhas** em produção. Essa tabela alimenta `dailyByVideo` em `analytics/actions.ts:32-42`, que por sua vez alimenta `growth`, `engagement`, `sub_impact` e — junto com `avg_view_percentage`, também nulo em 35 de 35 vídeos — `retention`. Só `reach` sobrevive, porque tem fallback explícito para `view_count` (`scoring.ts:133-138`).
 
-- **(A) Aposentar os dois eixos** e redistribuir o peso nos quatro com dado real. O score volta a significar algo; perde-se a ambição de medir thumbnail por CTR.
-- **(B) Entrada manual do Studio.** `ab_test_cycles` já tem `impressions`, `clicks` e `ctr`; falta uma action e um marcador de origem (precedente no schema: `ab_tests.applied_by CHECK IN ('auto','manual')`). Devolve o A/B Lab ao jogo ao custo de trabalho manual recorrente.
-- **(C) Trocar por um proxy honesto** derivável do que existe (views por hora nas primeiras 48h) e renomear o eixo para o que ele realmente mede — nunca para "CTR".
+A causa não é limitação de API. Os refresh tokens do YouTube existem para os dois canais; a rota `sync-analytics-metrics` está correta, agendada e autenticada. Ela falha depois do refresh, enterra o erro em `errorDetails`, não grava em `cron_health`, e ninguém vê. Ver **WP-K** no plano.
 
-**Enquanto não houver decisão, o plano desliga a aplicação automática de vencedor** (F19). Um vencedor derivado de ruído aplicado sozinho no canal é pior que nenhum vencedor.
+**Decisão:** Opção C, com escopo corrigido.
 
----
+| Eixo | Ação | Por quê |
+|---|---|---|
+| `retention`, `growth`, `engagement`, `sub_impact` | consertar o sync (WP-K) | o dado é obtível pela Analytics API; proxy aqui seria inventar substituto para algo que existe |
+| `ctr` | vira **Tração inicial** — views nas primeiras 48h contra a mediana do canal | CTR é o único genuinamente indisponível; o ViewStats resolve o mesmo problema do mesmo jeito |
+
+Três regras obrigatórias da métrica substituta: nomear pelo que mede (a interface nunca mostra "CTR"); exibir o tamanho da amostra; mostrar `dados insuficientes` abaixo de cinco vídeos **no canal em questão**.
+
+**Os dois canais têm causas diferentes para o mesmo zero, e confundi-las leva a conserto errado:**
+
+| Canal | Inscritos | Vídeos | Zero explicado por |
+|---|---|---|---|
+| `@bythiagofigueiredo` | 3 | 0 | nada publicado ainda — zero é a resposta correta |
+| `@tnfigueiredotv` | 1160 | 35 | defeito — os vídeos existem e a Analytics API devolve histórico |
+
+O score baixo não é veredito sobre a qualidade do conteúdo. Mas a cadeia quebrada impediria de enxergar o desempenho real mesmo com publicação diária.
 
 ## Estratégia de validação
 

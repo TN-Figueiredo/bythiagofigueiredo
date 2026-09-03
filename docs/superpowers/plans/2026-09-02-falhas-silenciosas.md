@@ -26,6 +26,9 @@
 ## Ordem de execução
 
 ```
+ONDA 0 (primeiro, sozinho — destrava 4 dos 6 eixos do score)
+  WP-K  sync da YouTube Analytics API
+
 ONDA 1 (paralela — sete sub-agentes, nenhum compartilha arquivo)
   WP-A  verbo GET nas 8 rotas agendadas + teste-guarda
   WP-C  entrega de notificação
@@ -42,6 +45,136 @@ ONDA 2 (série — depois que a onda 1 commitar)
 ONDA 3
   WP-J  regenerar database.types.ts (isolado, não bloqueante)
   Portão final de validação
+```
+
+---
+
+## WP-K — Sync da YouTube Analytics API
+
+**Prioridade mais alta do plano. Roda sozinho, antes da onda 1.**
+
+Fecha a causa-raiz do score zerado. Descoberto depois da primeira versão deste plano, medindo o banco de produção.
+
+**O que o dado mostra [DB, 2026-09-03]:**
+
+```
+youtube_video_analytics ................ 0 linhas
+youtube_videos com avg_view_percentage . 0 de 35
+cron_health com linha de sync-analytics  nao existe
+
+social_connections:
+  youtube  @bythiagofigueiredo  refresh_token PRESENTE  expira 2026-09-03T02:34
+  youtube  @tnfigueiredotv      refresh_token PRESENTE  expira 2026-09-01T13:00  (vencido)
+  facebook Figueiredo           refresh_token AUSENTE   expira 2026-07-18T21:28  (vencido)
+  instagram thiagonfigueiredo   refresh_token AUSENTE   expira 2026-07-18T21:28  (vencido)
+```
+
+**Por que isso é a causa-raiz.** `fetchGradesData` (`analytics/actions.ts:32-42`) monta `dailyByVideo` a partir de `youtube_video_analytics`. Com a tabela vazia, `last28` é sempre `[]`, e daí:
+
+| Eixo | Entrada | Valor com a tabela vazia |
+|---|---|---|
+| `growth` | `dailyViews` | `[]` → 0 |
+| `engagement` | `totalEng / totalViews` | `0/0` → 0 |
+| `sub_impact` | `subscribersGained` + `impressions` | 0 |
+| `retention` | `avg_view_percentage` | `null` → 0 |
+| `ctr` | `ctr` | ninguém grava → 0 |
+| `reach` | fontes de tráfego, **com fallback para `view_count`** | único que funciona |
+
+**Cinco dos seis eixos são zero, e quatro deles têm conserto.** Só `ctr` é genuinamente impossível — CTR e impressões não existem em nenhuma API pública. Os outros quatro a YouTube Analytics API entrega para o dono do canal.
+
+**Distinção importante entre os dois canais — não confundir as duas causas:**
+
+| Canal | Inscritos | Vídeos | Zero explicado por |
+|---|---|---|---|
+| `@bythiagofigueiredo` | 3 | 0 | **nada publicado ainda.** Zero é a resposta correta. Nenhum conserto muda isso. |
+| `@tnfigueiredotv` | 1160 | 35 | **defeito.** Os vídeos existem, têm views (62-157), e a Analytics API devolve histórico independente de atividade recente. |
+
+O score baixo não é veredito sobre a qualidade do conteúdo. Mas a cadeia quebrada impediria de ver o desempenho real mesmo com publicação diária — é isso que este pacote conserta. A calibração de qualquer mediana sai de `@tnfigueiredotv`; `@bythiagofigueiredo` mostra "dados insuficientes" até ter cinco vídeos. **A regra é por canal, nunca global.**
+
+**Files:**
+- Modify: `apps/web/src/app/api/cron/sync-analytics-metrics/route.ts` (instrumentar erro e saúde)
+- Modify: `apps/web/src/lib/youtube/analytics-queries.ts:15-28` (parar de engolir erro)
+- Create: `apps/web/test/cron/sync-analytics-metrics.test.ts`
+
+**Contexto verificado:** a rota está correta no essencial — exporta `GET`, está agendada `0 12 * * *`, autentica com `CRON_SECRET`, e chama `ensureFreshToken(site_id, 'youtube', channel_id)` antes de cada canal. Os refresh tokens do YouTube existem. Logo a falha está **depois** do refresh, na chamada à Analytics API, e o erro morre em `errorDetails` no corpo da resposta. Como a rota não grava em `cron_health` e ninguém lê o corpo, ela falha todo dia ao meio-dia sem produzir sinal.
+
+- [ ] **Passo 1: descobrir o erro real**
+
+Rodar a rota à mão contra produção e ler a resposta inteira:
+
+```bash
+# [NO MAC]
+curl -s -H "Authorization: Bearer $CRON_SECRET" "https://bythiagofigueiredo.com/api/cron/sync-analytics-metrics" | python3 -m json.tool
+```
+
+O corpo devolve `{ synced, errors, errorDetails }`. **Cole a saída real antes de continuar.** Sem ela, qualquer correção é chute.
+
+Diagnósticos prováveis, a confirmar pelo `errorDetails` — não presuma nenhum:
+- escopo OAuth insuficiente (falta `yt-analytics.readonly`)
+- token de `@tnfigueiredotv` vencido em 2026-09-01 e o refresh falhando
+- canal sem dado elegível no período consultado
+- consulta rejeitada pela API por dimensão/métrica inválida
+
+- [ ] **Passo 2: parar de engolir erro em `analytics-queries.ts`**
+
+`getCachedYtMetrics` (linhas 15-28) captura **qualquer** exceção e só reporta ao Sentry se for `YouTubeAnalyticsError`. Um `TokenRevokedError` ou um "no active youtube connection" cai fora e vira `return null` silencioso — a tela mostra "aguarde 48-72h" como se fosse normal.
+
+Alterar para reportar toda exceção ao Sentry, mantendo o `return null` para a UI:
+
+```ts
+} catch (e) {
+  // Antes: so YouTubeAnalyticsError chegava ao Sentry. Erro de token virava
+  // "aguarde 48-72h" na tela, sem sinal nenhum.
+  Sentry.captureException(e, { tags: { component: 'yt-analytics', action: 'getCachedYtMetrics' } })
+  return null
+}
+```
+
+- [ ] **Passo 3: gravar saúde**
+
+Adicionar `recordCronSuccess('sync-analytics-metrics')` no caminho de sucesso e `recordCronFailure('sync-analytics-metrics', errorDetails.join('; '))` quando `errors > 0`. Importar de `@/lib/cron-health`. Sem isso, WP-H não consegue vigiar justamente o cron que mais importa para o score.
+
+- [ ] **Passo 4: corrigir o que o passo 1 revelou**
+
+Escopo definido pelo diagnóstico. **Se for escopo OAuth**, é reconexão manual das duas contas pela UI em `/cms/social/accounts`, não mudança de código — registre e escale ao dono. **Se for refresh falhando**, o conserto é em `lib/social/token-refresh.ts`. **Se for consulta inválida**, é em `analytics-client.ts`.
+
+- [ ] **Passo 5: renovar as conexões Meta**
+
+`facebook` e `instagram` estão sem `refresh_token_enc` e vencidos desde 2026-07-18. O cron `instagram-token-refresh` está agendado (GET, semanal) e mesmo assim não impediu. Diagnosticar junto com o passo 1 e escalar ao dono se exigir reconexão manual — publicação em social não funciona com token vencido, mesmo depois que WP-A ligar o cron.
+
+- [ ] **Passo 6: PORTÃO DE VALIDAÇÃO do WP-K**
+
+```bash
+cd apps/web && npx vitest run test/cron/sync-analytics-metrics.test.ts
+npx tsc --noEmit -p apps/web/tsconfig.json
+```
+
+E a prova que importa, contra produção:
+
+```bash
+curl -s -H "Authorization: Bearer $CRON_SECRET" "https://bythiagofigueiredo.com/api/cron/sync-analytics-metrics" | python3 -m json.tool
+```
+
+Critérios: `errors: 0`; e a consulta seguinte devolve linhas:
+
+```sql
+select count(*) from youtube_video_analytics;
+select count(*) from youtube_videos where avg_view_percentage is not null;
+```
+
+Ambas precisam sair de zero. **Enquanto `youtube_video_analytics` estiver vazia, nenhum trabalho de scoring, Health Coach ou A/B Lab produz resultado real** — é por isso que este pacote vem antes de todos.
+
+- [ ] **Passo 7: commit**
+
+```bash
+git add apps/web/src/app/api/cron/sync-analytics-metrics/route.ts apps/web/src/lib/youtube/analytics-queries.ts apps/web/test/cron/sync-analytics-metrics.test.ts
+git commit -m "fix(youtube): sync de analytics falhava em silencio desde sempre
+
+youtube_video_analytics tem 0 linhas em producao. Essa tabela alimenta
+dailyByVideo, que alimenta 4 dos 6 eixos do score — growth, engagement,
+sub_impact e retention ficam todos em zero por falta dela. A rota roda todo
+dia, nao grava em cron_health e enterra o erro em errorDetails; e
+getCachedYtMetrics engolia excecao de token sem mandar pro Sentry."
 ```
 
 ---
@@ -1001,9 +1134,23 @@ Em `ab-evaluate-phases.ts`, importar `computeGates` de `@/lib/youtube/ab-gates` 
 
 Isso elimina a divergência na raiz: em vez de sincronizar duas constantes, passa a existir uma função só.
 
-- [ ] **Passo 5: desligar a aplicação automática de vencedor (F19)**
+- [ ] **Passo 5: trocar o critério de vitória e desligar o auto-apply (F19)**
 
-Enquanto CTR não for um dado real, um vencedor derivado de ruído não pode ser aplicado sozinho no canal. Adicionar em `ab-apply.ts` uma guarda no ponto de aplicação automática:
+**Decisão do dono, 2026-09-03: Opção C — métrica substituta observável, com nome honesto.**
+
+O critério de vitória deixa de ser confiança bayesiana sobre cliques (que são sempre zero, porque `ab-youtube.ts:82` grava `ctr: 0` fixo) e passa a ser **velocidade de views por variante** — o mesmo sinal que o ViewStats usa, e que já está no banco. O campo hoje chamado `impressions` já contém views (`ab-youtube.ts:81`, `Number(row[1])`), então o gate de mil deixa de ser mentira e passa a dizer o que mede.
+
+Escopo desta troca: **somente o eixo `ctr`**, que vira `Tração inicial` (views nas primeiras 48h contra a mediana do canal). Os outros quatro eixos zerados **não precisam de proxy** — precisam do WP-K, que traz o dado real da Analytics API. Não invente proxy para retenção, crescimento, engajamento ou impacto em inscritos: esses quatro são obtíveis.
+
+Três regras obrigatórias, sem as quais a troca repete o defeito que ela corrige:
+
+1. Nomeie o eixo pelo que ele mede. A interface nunca mostra a palavra `CTR`.
+2. Mostre o tamanho da amostra ao lado do eixo.
+3. Abaixo de cinco vídeos **no canal em questão**, o eixo mostra `dados insuficientes` — não um número. A regra é por canal: `@bythiagofigueiredo` tem 0 vídeos e cai nesta condição; `@tnfigueiredotv` tem 35 e não cai.
+
+Enquanto o WP-K não encher `youtube_video_analytics`, a série diária não existe e a Tração inicial também mostra `dados insuficientes`. Isso é correto e deve ficar visível — **este pacote depende do WP-K para produzir número**.
+
+Além disso, adicionar em `ab-apply.ts` uma guarda no ponto de aplicação automática:
 
 ```ts
 // CTR e impressoes nao existem em nenhuma API publica do YouTube. O campo
