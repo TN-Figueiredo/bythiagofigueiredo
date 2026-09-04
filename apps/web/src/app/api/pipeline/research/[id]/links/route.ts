@@ -17,7 +17,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   try {
     const ctx = authToServiceContext(auth)
     const { data } = await addResearchLink(ctx, id, body)
-    revalidateTag('layout-counts')
+    revalidateTag('layout-counts', 'seconds')
     return pipelineSuccess(data, 201, auth)
   } catch (err) {
     return serviceErrorToResponse(err, auth)

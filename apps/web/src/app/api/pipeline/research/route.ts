@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
     const ctx = authToServiceContext(auth)
     const result = await createResearchItem(ctx, body)
 
-    revalidateTag('layout-counts')
+    revalidateTag('layout-counts', 'seconds')
     const headers = buildRateLimitHeaders(auth)
     return NextResponse.json({ data: result.data }, { status: result.data.upserted ? 200 : 201, headers })
   } catch (err) {
