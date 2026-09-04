@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn() }))
 vi.mock('@/lib/notifications/create', () => ({ createNotification: vi.fn() }))
-vi.mock('@tn-figueiredo/email', () => ({
-  ResendEmailAdapter: vi.fn().mockImplementation(() => ({
+vi.mock('@/lib/email/service', () => ({
+  getEmailService: vi.fn(() => ({
     send: vi.fn().mockResolvedValue(undefined),
   })),
 }))
@@ -93,7 +93,6 @@ function buildSupabaseMock(opts: {
 describe('checkAndEscalate', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    process.env.RESEND_API_KEY = 'test-resend-key'
     process.env.NEWSLETTER_FROM_DOMAIN = 'test.com'
     process.env.NEXT_PUBLIC_APP_URL = 'https://test.com'
   })
@@ -310,9 +309,7 @@ describe('checkAndEscalate', () => {
 
   // --- Email fallback edge cases ---
 
-  it('skips email when RESEND_API_KEY is not set', async () => {
-    delete process.env.RESEND_API_KEY
-
+  it('always attempts the escalation email lookup (no RESEND_API_KEY guard — SES has no such gate)', async () => {
     const { supabase, getUserById } = buildSupabaseMock({
       health: {
         consecutive_failures: 5,
@@ -327,8 +324,7 @@ describe('checkAndEscalate', () => {
     const result = await checkAndEscalate('ab-evaluate', 'site-1')
 
     expect(result).toBe(true)
-    // getUserById should NOT be called since we short-circuit before looking up email
-    expect(getUserById).not.toHaveBeenCalled()
+    expect(getUserById).toHaveBeenCalledWith('user-1')
   })
 
   it('skips email silently when getUserById returns no email', async () => {

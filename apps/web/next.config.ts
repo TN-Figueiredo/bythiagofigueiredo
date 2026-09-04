@@ -59,6 +59,18 @@ const nextConfig: NextConfig = {
   // All other @tn-figueiredo/* packages ship compiled JS from dist/ — no transpile needed.
   transpilePackages: ['@app/shared', '@tn-figueiredo/cms', '@tn-figueiredo/links-admin'],
 
+  turbopack: {
+    resolveAlias: {
+      // @tn-figueiredo/email@0.2.0 re-exporta adapters Resend/Svix/SMTP com import
+      // estatico; os modulos nao existem (migramos para SES) e o Turbopack recusa
+      // modulo ausente. Nenhum caminho vivo os executa. Conserto duravel: deps
+      // opcionais/lazy no proprio pacote (achado do WP-6).
+      resend: './src/stubs/absent-module.ts',
+      svix: './src/stubs/absent-module.ts',
+      nodemailer: './src/stubs/absent-module.ts',
+    },
+  },
+
   // Sprint 5a Track E — enable .mdx as page/module file extensions so that
   // `import('@/content/legal/privacy.pt-BR.mdx')` works for the /privacy and
   // /terms legal pages. The MDX loader compiles MDX → React at build time,
