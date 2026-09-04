@@ -192,7 +192,7 @@ describe('createCampaign', () => {
     const { createCampaign } = await import(actionsPath)
     await createCampaign(baseCampaignData())
     expect(revalidatePath).toHaveBeenCalledWith('/admin/ads')
-    expect(revalidateTag).toHaveBeenCalledWith('ads')
+    expect(revalidateTag).toHaveBeenCalledWith('ads', 'minutes')
   })
 })
 
