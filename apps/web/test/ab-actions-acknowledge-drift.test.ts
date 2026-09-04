@@ -144,7 +144,7 @@ describe('acknowledgeAbTestDrift', () => {
 
     await acknowledgeAbTestDrift('test-1')
 
-    expect(revalidateTag).toHaveBeenCalledWith('youtube')
+    expect(revalidateTag).toHaveBeenCalledWith('youtube', 'seconds')
     expect(revalidatePath).toHaveBeenCalledWith('/cms/youtube/ab-lab')
   })
 

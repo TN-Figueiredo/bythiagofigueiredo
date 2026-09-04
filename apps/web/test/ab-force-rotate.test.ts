@@ -204,7 +204,7 @@ describe('forceRotate', () => {
     )
     expect(updateVideoMetadata).not.toHaveBeenCalled()
     expect(revalidatePath).toHaveBeenCalledWith('/cms/youtube/ab-lab')
-    expect(revalidateTag).toHaveBeenCalledWith('ab-tests')
+    expect(revalidateTag).toHaveBeenCalledWith('ab-tests', 'seconds')
   })
 
   it('happy path: rotates title test', async () => {

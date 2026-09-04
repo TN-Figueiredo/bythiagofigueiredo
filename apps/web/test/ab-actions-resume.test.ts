@@ -218,7 +218,7 @@ describe('resumeAbTest', () => {
       }),
     )
     expect(revalidatePath).toHaveBeenCalledWith('/cms/youtube/ab-lab')
-    expect(revalidateTag).toHaveBeenCalledWith('youtube')
+    expect(revalidateTag).toHaveBeenCalledWith('youtube', 'seconds')
   })
 
   it('stores applied_metadata on new cycle', async () => {

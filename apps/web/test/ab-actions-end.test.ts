@@ -202,7 +202,7 @@ describe('endAbTest', () => {
       'fresh-token-123',
     )
     expect(revalidatePath).toHaveBeenCalledWith('/cms/youtube/ab-lab')
-    expect(revalidateTag).toHaveBeenCalledWith('youtube')
+    expect(revalidateTag).toHaveBeenCalledWith('youtube', 'seconds')
   })
 
   it('ends test without winner — reverts to original', async () => {

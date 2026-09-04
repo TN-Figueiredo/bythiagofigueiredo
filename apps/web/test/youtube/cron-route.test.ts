@@ -125,7 +125,7 @@ describe('GET /api/cron/sync-youtube', () => {
 
     expect(res.status).toBe(200)
     expect(body.inserted).toBe(2)
-    expect(mockRevalidate).toHaveBeenCalledWith('youtube')
+    expect(mockRevalidate).toHaveBeenCalledWith('youtube', 'seconds')
   })
 
   it('revalidates cache even when no new videos', async () => {
@@ -134,7 +134,7 @@ describe('GET /api/cron/sync-youtube', () => {
     })
 
     await GET(makeRequest())
-    expect(mockRevalidate).toHaveBeenCalledWith('youtube')
+    expect(mockRevalidate).toHaveBeenCalledWith('youtube', 'seconds')
   })
 
   it('skips channels outside posting window in schedule mode', async () => {
