@@ -42,8 +42,8 @@ export async function saveLinktreeConfig(
     return { ok: false, error: 'Erro ao salvar configuração. Tente novamente.' }
   }
 
-  revalidateTag('linktree-config')
-  revalidateTag('sidebar-badges')
+  revalidateTag('linktree-config', 'seconds') // sem leitor — candidata a remoção
+  revalidateTag('sidebar-badges', 'seconds')
   revalidatePath('/cms/link-in-bio')
   revalidatePath('/go/linktree')
 

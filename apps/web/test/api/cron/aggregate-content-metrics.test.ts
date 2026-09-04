@@ -98,8 +98,8 @@ describe('POST /api/cron/aggregate-content-metrics', () => {
 
     await POST(req())
 
-    expect(revalidateTag).toHaveBeenCalledWith('most-read')
-    expect(revalidateTag).toHaveBeenCalledWith('content-analytics')
+    expect(revalidateTag).toHaveBeenCalledWith('most-read', 'seconds')
+    expect(revalidateTag).toHaveBeenCalledWith('content-analytics', 'seconds')
   })
 
   it('500 when RPC returns an error', async () => {
