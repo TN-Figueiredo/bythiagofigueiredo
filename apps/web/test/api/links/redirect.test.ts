@@ -47,6 +47,7 @@ vi.mock('@/lib/supabase/service', () => ({
 }))
 
 vi.mock('next/cache', () => ({
+  updateTag: vi.fn(),
   unstable_cache: (fn: Function) => fn,
 }))
 

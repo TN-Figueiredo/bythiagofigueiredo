@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { AdResolution, AdSlotCreative, AdPlaceholder, AdSlotDefinition } from '@tn-figueiredo/ad-engine'
 
 vi.mock('next/cache', () => ({
+  updateTag: vi.fn(),
   unstable_cache: (fn: Function) => fn,
 }))
 

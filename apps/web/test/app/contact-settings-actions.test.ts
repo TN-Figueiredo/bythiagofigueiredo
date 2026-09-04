@@ -11,7 +11,7 @@ vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({
   requireSiteScope: () => Promise.resolve({ ok: true }),
 }))
 
-vi.mock('next/cache', () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }))
+vi.mock('next/cache', () => ({ updateTag: vi.fn(), revalidatePath: vi.fn(), revalidateTag: vi.fn() }))
 
 vi.mock('@/lib/youtube/api-client', () => ({
   lookupChannelByHandle: vi.fn(),

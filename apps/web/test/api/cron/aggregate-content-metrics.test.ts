@@ -12,6 +12,7 @@ vi.mock('@sentry/nextjs', () => ({
 }))
 
 vi.mock('next/cache', () => ({
+  updateTag: vi.fn(),
   revalidateTag: vi.fn(),
 }))
 

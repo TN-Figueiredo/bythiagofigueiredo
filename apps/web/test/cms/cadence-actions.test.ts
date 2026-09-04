@@ -10,6 +10,7 @@ const { mockUpdate } = vi.hoisted(() => {
 })
 
 vi.mock('next/cache', () => ({
+  updateTag: vi.fn(),
   revalidatePath: vi.fn(),
   revalidateTag: vi.fn(),
   unstable_cache: vi.fn((fn: Function) => fn),

@@ -24,6 +24,7 @@ vi.mock('@/lib/seo/cache-invalidation', () => ({
 
 const revalidateTagMock = vi.fn()
 vi.mock('next/cache', () => ({
+  updateTag: vi.fn(),
   revalidateTag: (...args: unknown[]) => revalidateTagMock(...args),
   revalidatePath: vi.fn(),
 }))

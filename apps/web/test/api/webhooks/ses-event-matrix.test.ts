@@ -58,6 +58,7 @@ vi.mock('@/lib/env', () => ({
 }))
 
 vi.mock('next/cache', () => ({
+  updateTag: vi.fn(),
   revalidateTag: mockRevalidateTag,
 }))
 

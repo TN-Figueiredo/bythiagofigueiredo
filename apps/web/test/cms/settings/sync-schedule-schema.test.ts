@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 
 // -- Module-level mocks required to import the 'use server' actions module --
 vi.mock('next/cache', () => ({
+  updateTag: vi.fn(),
   revalidatePath: vi.fn(),
   revalidateTag: vi.fn(),
 }))

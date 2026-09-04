@@ -53,6 +53,7 @@ vi.mock('../../../lib/newsletter/confirm-email', () => ({
 }))
 
 vi.mock('next/cache', () => ({
+  updateTag: vi.fn(),
   revalidateTag: vi.fn(),
 }))
 

@@ -17,7 +17,7 @@ vi.mock('../../lib/cms/repositories', () => ({
   }),
 }))
 
-vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
+vi.mock('next/cache', () => ({ updateTag: vi.fn(), revalidatePath: vi.fn() }))
 
 const sendTemplateMock = vi.fn().mockResolvedValue({ messageId: 'msg-1' })
 

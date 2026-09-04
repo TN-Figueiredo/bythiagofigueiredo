@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const revalidateTag = vi.fn()
 const revalidatePath = vi.fn()
 
-vi.mock('next/cache', () => ({ revalidateTag, revalidatePath }))
+vi.mock('next/cache', () => ({ updateTag: vi.fn(), revalidateTag, revalidatePath }))
 
 describe('cache-invalidation helpers', () => {
   beforeEach(() => {
