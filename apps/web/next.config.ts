@@ -33,7 +33,6 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  eslint: { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: true },
   serverExternalPackages: [
     '@aws-sdk/client-sesv2', 'sharp', 'canvas', '@napi-rs/canvas',
@@ -57,13 +56,6 @@ const nextConfig: NextConfig = {
   // @tn-figueiredo/links-admin: sub-path exports (qr-card-builder/*) reference src/.
   // All other @tn-figueiredo/* packages ship compiled JS from dist/ — no transpile needed.
   transpilePackages: ['@app/shared', '@tn-figueiredo/cms', '@tn-figueiredo/links-admin'],
-
-  webpack(config) {
-    config.resolve.extensionAlias = {
-      '.js': ['.ts', '.tsx', '.js'],
-    }
-    return config
-  },
 
   // Sprint 5a Track E — enable .mdx as page/module file extensions so that
   // `import('@/content/legal/privacy.pt-BR.mdx')` works for the /privacy and
