@@ -15,5 +15,8 @@ export const cms = createCmsAdmin({
     }
   },
   revalidatePath,
-  revalidateTag,
+  // Next 16: revalidateTag exige o perfil como 2o argumento; a interface do
+  // @tn-figueiredo/cms-admin ainda e (tag: string) => void. O pacote invalida
+  // telas de staff do CMS -> 'seconds'. Contrato do pacote a atualizar (WP-6).
+  revalidateTag: (tag: string) => revalidateTag(tag, 'seconds'),
 })
