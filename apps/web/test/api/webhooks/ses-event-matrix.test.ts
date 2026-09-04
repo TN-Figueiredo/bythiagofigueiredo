@@ -520,7 +520,7 @@ describe('POST /api/webhooks/ses — full event matrix (real processor)', () => 
     expect(subs.updates[0].neqs).toEqual([['status', 'unsubscribed']])
 
     // Subscriber-count change invalidates the suggestions cache.
-    expect(mockRevalidateTag).toHaveBeenCalledWith('newsletter-suggestions')
+    expect(mockRevalidateTag).toHaveBeenCalledWith('newsletter-suggestions', 'minutes')
 
     expect(table('webhook_events').inserts[0]).toMatchObject({
       idempotency_key: 'sns-bounce-001',
@@ -548,7 +548,7 @@ describe('POST /api/webhooks/ses — full event matrix (real processor)', () => 
 
     // The route still treats it as a subscriber-affecting event class for
     // cache purposes (event.type === 'bounced'), so revalidation fires.
-    expect(mockRevalidateTag).toHaveBeenCalledWith('newsletter-suggestions')
+    expect(mockRevalidateTag).toHaveBeenCalledWith('newsletter-suggestions', 'minutes')
   })
 
   // ── 4. Complaint ─────────────────────────────────────────────────────
@@ -574,7 +574,7 @@ describe('POST /api/webhooks/ses — full event matrix (real processor)', () => 
     ])
     expect(subs.updates[0].neqs).toEqual([['status', 'unsubscribed']])
 
-    expect(mockRevalidateTag).toHaveBeenCalledWith('newsletter-suggestions')
+    expect(mockRevalidateTag).toHaveBeenCalledWith('newsletter-suggestions', 'minutes')
     expect(table('webhook_events').inserts[0]).toMatchObject({
       idempotency_key: 'sns-complaint-001',
       event_type: 'complained',
