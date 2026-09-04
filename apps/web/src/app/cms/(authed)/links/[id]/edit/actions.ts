@@ -32,7 +32,7 @@ export async function handleUpdate(
   if (result.ok) {
     revalidatePath(`/cms/links/${id}`)
     revalidatePath(`/cms/links/${id}/edit`)
-    revalidateTag(`link:${id}`)
+    revalidateTag(`link:${id}`, 'seconds')
   }
 
   return result

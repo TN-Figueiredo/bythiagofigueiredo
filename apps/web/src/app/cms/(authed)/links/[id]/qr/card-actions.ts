@@ -104,7 +104,7 @@ export async function createQrCard(
       .single()
 
     if (error) return { ok: false, error: error.message }
-    revalidateTag(`link:${linkId}`)
+    revalidateTag(`link:${linkId}`, 'seconds')
     return { ok: true, cardId: data.id as string }
   } catch (err) {
     console.error('[createQrCard]', err)
@@ -146,7 +146,7 @@ export async function updateQrCard(
       .eq('site_id', siteId)
 
     if (error) return { ok: false, error: error.message }
-    revalidateTag(`link:${linkId}`)
+    revalidateTag(`link:${linkId}`, 'seconds')
     return { ok: true }
   } catch (err) {
     console.error('[updateQrCard]', err)
@@ -170,7 +170,7 @@ export async function deleteQrCard(cardId: string, linkId: string): Promise<Acti
       .eq('site_id', siteId)
 
     if (error) return { ok: false, error: error.message }
-    revalidateTag(`link:${linkId}`)
+    revalidateTag(`link:${linkId}`, 'seconds')
     return { ok: true }
   } catch (err) {
     console.error('[deleteQrCard]', err)
