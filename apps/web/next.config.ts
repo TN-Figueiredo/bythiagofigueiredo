@@ -32,6 +32,8 @@ const nextConfig: NextConfig = {
         hostname: '*.public.blob.vercel-storage.com',
       },
     ],
+    // Next 16 sobe o default para 4h; o YouTube reusa a mesma URL ao trocar thumbnail e o A/B Lab atribuiria a nota à variante errada. Preserva o comportamento do Next 15.
+    minimumCacheTTL: 60,
   },
   typescript: { ignoreBuildErrors: true },
   serverExternalPackages: [
