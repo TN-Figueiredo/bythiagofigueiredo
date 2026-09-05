@@ -21,6 +21,17 @@ achados que **não dependem** de produção; as linhas de QA por tela (WP-6.1) e
 - **Zero `updateTag`:** nenhuma das 171 chamadas satisfaz "quem salvou é o único que lê" — todo alvo de Server Action é tela compartilhada de staff ou página pública.
 - Perfis aplicados (medidos, excluindo o wrapper de `lib/cms/admin.ts`): `'seconds'` 143 · `'minutes'` 28 · `'max'` 0 · `{ expire: 0 }` 0 (contagem por lote em `lote-2.*.md`).
 
+## Decisão WP-6.4 — contrato do `auth-nextjs`
+
+**Mantida a garantia "Edge Runtime safe".** O consumidor fica em `middleware.ts`; a migração
+para `proxy.ts` (Node) não é feita por este app e não deve ser feita por padrão por nenhum
+consumidor, porque tornaria falsa uma promessa que o pacote faz na própria implementação
+(`dist/middleware/create-auth-middleware.js:16`). Sob Next 16, `middleware.ts` continua
+suportado: build, typecheck e o guard de rota passam com ele. Se algum consumidor precisar de
+Node no middleware (APIs de Node, pacotes que não rodam em edge), a resposta é uma **variante
+publicada e nomeada** (`@tn-figueiredo/auth-nextjs/proxy`) com as implicações declaradas — não
+um rename silencioso do arquivo. Isso é decisão do pacote, fora deste plano.
+
 ## Nota operacional do Next 16
 
 `next dev` passou a gerar `apps/web/AGENTS.md` e `apps/web/CLAUDE.md` (e a tocar
