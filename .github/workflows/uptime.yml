@@ -1,0 +1,184 @@
+name: Uptime & Latency Watchdog
+
+# Custo-zero, sem deploy: mede TTFB de uma rota já em produção que toca o
+# Postgres (a única camada que falhou no incidente de 2026-09-05 — a borda
+# HTTP/estático respondeu normal o tempo todo, só "adquirir conexão
+# Postgres" ficou lento). Um monitor puramente estático (favicon, asset em
+# /public) não teria detectado nada nesse incidente.
+#
+# Alvo: /robots.txt. Verificado em apps/web/lib/seo/host.ts +
+# apps/web/lib/seo/config.ts — é a rota pública mais barata que ainda
+# consulta o banco (1 select indexado por domínio em `sites`, sem cache).
+# A home e /sitemap.xml fazem mais queries (posts, campanhas etc.) — mesmo
+# sinal, custo maior. Rodar a cada 5 min soma ~288 selects/dia: irrelevante
+# perto das ~100 invocações/hora que os crons já geram (ver
+# docs/ops/spec-incidente-e-proximos-passos.md §1).
+#
+# Sem estado externo: em vez de gravar um arquivo entre runs, cada run
+# decide seu próprio status (ok/degraded/down) e sai com exit 1 quando não
+# está ok — isso já fica visível na aba Actions. Para saber se é a primeira
+# falha ou a enésima seguida (e assim decidir prioridade + não repetir
+# alerta a cada 5 min por 3 horas), a run consulta as conclusões das runs
+# anteriores deste workflow via `gh api` — não precisa de cache nem de
+# secret extra além do NTFY_URL.
+#
+# Entrega no celular via ntfy.sh (grátis, sem conta) — mesmo mecanismo já
+# desenhado em docs/ops/cron-watchdog/check.sh, então é um tópico a mais no
+# mesmo app, não uma ferramenta nova a aprender.
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: 'URL a checar (troque para simular falha sem esperar a próxima queda real)'
+        required: false
+        default: 'https://bythiagofigueiredo.com/robots.txt'
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: uptime-watchdog
+  cancel-in-progress: false
+
+env:
+  # Segundos. Baseline saudável observado no incidente para rotas que NÃO
+  # tocam o banco: 90-418ms. /robots.txt soma 1 round-trip Postgres —
+  # folga generosa acima disso para não gerar ruído em variação normal de
+  # rede/cold-start.
+  WARN_THRESHOLD_S: 3
+  # Acima disso (ou status >=500, ou timeout do curl) é o mesmo padrão do
+  # incidente real (TTFB de 25s, 504 intermitente) — trata como "down".
+  FAIL_THRESHOLD_S: 10
+  # Teto do curl. Maior que FAIL_THRESHOLD_S para ainda conseguir medir (e
+  # reportar) respostas lentas-mas-completas, em vez de só ver "timeout".
+  CURL_MAX_TIME_S: 20
+  # A cada N runs consecutivas ruins, reenvia o alerta (evita silêncio
+  # total numa queda de horas sem espetar o celular a cada 5 min).
+  REALERT_EVERY_N_RUNS: 6
+
+jobs:
+  check:
+    name: Check latency & alert
+    runs-on: ubuntu-latest
+    steps:
+      - name: Measure target
+        id: probe
+        env:
+          TARGET_URL: ${{ inputs.target_url || 'https://bythiagofigueiredo.com/robots.txt' }}
+        run: |
+          set +e
+          out="$(curl -sS -o /dev/null --max-time "$CURL_MAX_TIME_S" \
+            -w '%{http_code} %{time_total}' "$TARGET_URL")"
+          curl_exit=$?
+          set -e
+
+          if [ "$curl_exit" -ne 0 ]; then
+            echo "curl failed (exit $curl_exit) — treating as down (timeout/DNS/TLS/connection refused)"
+            http_code="000"
+            time_total="$CURL_MAX_TIME_S.000"
+            status="down"
+          else
+            http_code="$(echo "$out" | awk '{print $1}')"
+            time_total="$(echo "$out" | awk '{print $2}')"
+            slow="$(awk -v t="$time_total" -v w="$WARN_THRESHOLD_S" 'BEGIN{print (t>=w)?1:0}')"
+            fail="$(awk -v t="$time_total" -v f="$FAIL_THRESHOLD_S" 'BEGIN{print (t>=f)?1:0}')"
+            if [ "$http_code" -lt 200 ] 2>/dev/null || [ "$http_code" -ge 500 ] || [ "$fail" = "1" ]; then
+              status="down"
+            elif [ "$slow" = "1" ]; then
+              status="degraded"
+            else
+              status="ok"
+            fi
+          fi
+
+          echo "target=$TARGET_URL" | tee -a "$GITHUB_OUTPUT"
+          echo "http_code=$http_code" | tee -a "$GITHUB_OUTPUT"
+          echo "time_total=$time_total" | tee -a "$GITHUB_OUTPUT"
+          echo "status=$status" | tee -a "$GITHUB_OUTPUT"
+
+      - name: Determine consecutive-failure streak
+        id: streak
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Runs anteriores deste workflow, mais recente primeiro, excluindo
+          # a run atual (que ainda está "in_progress" e não tem conclusion).
+          conclusions="$(gh api \
+            "repos/${{ github.repository }}/actions/workflows/uptime.yml/runs?status=completed&per_page=20" \
+            --jq '.workflow_runs[].conclusion' 2>/dev/null || true)"
+
+          streak=0
+          for c in $conclusions; do
+            if [ "$c" = "failure" ]; then
+              streak=$((streak + 1))
+            else
+              break
+            fi
+          done
+          echo "prior_streak=$streak" | tee -a "$GITHUB_OUTPUT"
+
+      - name: Send ntfy alert if needed
+        if: env.NTFY_URL != ''
+        env:
+          NTFY_URL: ${{ secrets.NTFY_URL }}
+          STATUS: ${{ steps.probe.outputs.status }}
+          HTTP_CODE: ${{ steps.probe.outputs.http_code }}
+          TIME_TOTAL: ${{ steps.probe.outputs.time_total }}
+          TARGET: ${{ steps.probe.outputs.target }}
+          PRIOR_STREAK: ${{ steps.streak.outputs.prior_streak }}
+        run: |
+          send() {
+            # $1=priority $2=title $3=message
+            curl -sS --max-time 15 \
+              -H "Title: $2" \
+              -H "Priority: $1" \
+              -H "Tags: warning" \
+              -d "$3" \
+              "$NTFY_URL" >/dev/null || echo "uptime-watchdog: failed to deliver ntfy alert" >&2
+          }
+
+          new_streak=$((PRIOR_STREAK + 1))
+
+          if [ "$STATUS" = "ok" ]; then
+            if [ "$PRIOR_STREAK" -gt 0 ]; then
+              send "default" "uptime-watchdog: recuperado" \
+                "$TARGET voltou ao normal (HTTP $HTTP_CODE, ${TIME_TOTAL}s). Estava degradado/fora por $PRIOR_STREAK checagem(ões) seguidas (~$((PRIOR_STREAK * 5)) min)."
+            fi
+            exit 0
+          fi
+
+          if [ "$STATUS" = "down" ]; then
+            priority="urgent"
+            label="FORA DO AR"
+          else
+            priority="high"
+            label="LATENCIA ALTA"
+          fi
+
+          if [ "$new_streak" -eq 1 ]; then
+            send "$priority" "uptime-watchdog: $label" \
+              "$TARGET — HTTP $HTTP_CODE, TTFB ${TIME_TOTAL}s (limite: degradado >= ${WARN_THRESHOLD_S}s, down >= ${FAIL_THRESHOLD_S}s ou 5xx/timeout)."
+          elif [ $((new_streak % REALERT_EVERY_N_RUNS)) -eq 0 ]; then
+            send "$priority" "uptime-watchdog: ainda $label" \
+              "$TARGET segue ruim há $new_streak checagens seguidas (~$((new_streak * 5)) min). HTTP $HTTP_CODE, TTFB ${TIME_TOTAL}s."
+          else
+            echo "uptime-watchdog: streak=$new_streak, sem re-alerta ainda (a cada $REALERT_EVERY_N_RUNS)"
+          fi
+
+      - name: Warn if NTFY_URL is not configured
+        if: env.NTFY_URL == ''
+        env:
+          NTFY_URL: ${{ secrets.NTFY_URL }}
+        run: |
+          echo "::warning::secrets.NTFY_URL não configurado — o watchdog está medindo mas não consegue alertar. Veja o cabeçalho deste arquivo para instruções."
+
+      - name: Fail the run if not ok (visible in the Actions tab as a secondary signal)
+        if: steps.probe.outputs.status != 'ok'
+        run: |
+          echo "status=${{ steps.probe.outputs.status }} http_code=${{ steps.probe.outputs.http_code }} time_total=${{ steps.probe.outputs.time_total }}s"
+          exit 1
