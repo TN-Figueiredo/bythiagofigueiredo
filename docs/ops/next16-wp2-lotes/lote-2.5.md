@@ -53,7 +53,7 @@ esperado: updateTag 0 · {expire:0} 0 · 'seconds' 16 · 'minutes' 15 · 'max' 0
 ```
 
 Total: 31 chamadas de `revalidateTag` nos 9 arquivos do lote (0 `updateTag`,
-0 `{expire:0}`, 20 `'seconds'`, 11 `'minutes'`, 0 `'max'`).
+0 `{expire:0}`, 16 `'seconds'`, 15 `'minutes'` (após a reconciliação de `seo-config`, ver rodapé), 0 `'max'`).
 
 Route Handler do lote (`instagram-sync/route.ts`): confirmar `! grep -q
 "updateTag(" instagram-sync/route.ts` no portão final — não deve ter nenhum.
