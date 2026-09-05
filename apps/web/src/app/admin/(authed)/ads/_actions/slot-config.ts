@@ -71,7 +71,7 @@ export async function updateSlotConfig(
     throw new Error(error.message)
   }
 
-  revalidateTag(`ad:slot-config:${appId}`, 'seconds')
-  revalidateTag(`ad:slot:${slotKey}`, 'seconds')
-  revalidateTag('ads', 'minutes')
+  revalidateTag(`ad:slot-config:${appId}`, { expire: 0 })
+  revalidateTag(`ad:slot:${slotKey}`, { expire: 0 })
+  revalidateTag('ads', { expire: 0 })
 }

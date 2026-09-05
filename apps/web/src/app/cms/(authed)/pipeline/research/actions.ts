@@ -62,7 +62,7 @@ export async function saveResearchItem(
     .single()
 
   if (error || !updated) return { ok: false, error: 'Version conflict or item not found' }
-  revalidateTag('layout-counts', 'seconds')
+  revalidateTag('layout-counts', { expire: 0 })
   revalidatePath('/cms/pipeline/research')
   return { ok: true, data: updated }
 }
@@ -92,7 +92,7 @@ export async function updateResearchStatus(
     .single()
 
   if (error || !updated) return { ok: false, error: version !== undefined ? 'Version conflict or item not found' : 'Item not found' }
-  revalidateTag('layout-counts', 'seconds')
+  revalidateTag('layout-counts', { expire: 0 })
   revalidatePath('/cms/pipeline/research')
   return { ok: true, data: updated }
 }
@@ -167,7 +167,7 @@ export async function createBlankResearchItem(): Promise<ActionResultTyped<{ id:
 
   if (error || !created) return { ok: false, error: error?.message ?? 'Insert failed' }
 
-  revalidateTag('layout-counts', 'seconds')
+  revalidateTag('layout-counts', { expire: 0 })
   revalidatePath('/cms/pipeline/research')
   return { ok: true, data: { id: created.id as string } }
 }
@@ -184,7 +184,7 @@ export async function deleteResearchItem(id: string): Promise<ActionResult> {
     .eq('site_id', siteId)
 
   if (error) return { ok: false, error: error.message }
-  revalidateTag('layout-counts', 'seconds')
+  revalidateTag('layout-counts', { expire: 0 })
   revalidatePath('/cms/pipeline/research')
   return { ok: true }
 }
@@ -279,7 +279,7 @@ export async function deleteResearchTopic(id: string): Promise<ActionResult> {
     .eq('site_id', siteId)
 
   if (error) return { ok: false, error: error.message }
-  revalidateTag('layout-counts', 'seconds')
+  revalidateTag('layout-counts', { expire: 0 })
   revalidatePath('/cms/pipeline/research')
   return { ok: true }
 }

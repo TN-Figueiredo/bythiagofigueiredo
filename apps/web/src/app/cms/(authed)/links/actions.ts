@@ -28,10 +28,10 @@ async function requireEditScope(siteId: string): Promise<{ userId: string }> {
 // ─── Cache invalidation ─────────────────────────────────────────────────────
 
 function revalidateLinksHub(siteId?: string): void {
-  revalidateTag('links-hub', 'seconds')
-  revalidateTag('sidebar-badges', 'seconds')
+  revalidateTag('links-hub', { expire: 0 })
+  revalidateTag('sidebar-badges', { expire: 0 })
   revalidatePath('/cms/links')
-  if (siteId) revalidateTag(`links:${siteId}`, 'seconds')
+  if (siteId) revalidateTag(`links:${siteId}`, { expire: 0 })
 }
 
 // ─── Zod schemas ────────────────────────────────────────────────────────────
@@ -215,7 +215,7 @@ export async function updateLink(
   if (error) return { ok: false, error: error.message }
 
   revalidateLinksHub(siteId)
-  revalidateTag(`link:${id}`, 'seconds')
+  revalidateTag(`link:${id}`, { expire: 0 })
   return { ok: true }
 }
 
@@ -237,7 +237,7 @@ export async function deleteLink(id: string): Promise<ActionResult> {
   if (error) return { ok: false, error: error.message }
 
   revalidateLinksHub(siteId)
-  revalidateTag(`link:${id}`, 'seconds')
+  revalidateTag(`link:${id}`, { expire: 0 })
   return { ok: true }
 }
 
@@ -318,7 +318,7 @@ export async function toggleLinkActive(id: string): Promise<ActionResult> {
   if (error) return { ok: false, error: error.message }
 
   revalidateLinksHub(siteId)
-  revalidateTag(`link:${id}`, 'seconds')
+  revalidateTag(`link:${id}`, { expire: 0 })
   return { ok: true }
 }
 
@@ -399,7 +399,7 @@ export async function updateQrConfig(
 
   if (error) return { ok: false, error: error.message }
 
-  revalidateTag(`link:${id}`, 'seconds')
+  revalidateTag(`link:${id}`, { expire: 0 })
   return { ok: true }
 }
 
@@ -432,7 +432,7 @@ export async function createAnnotation(input: {
 
   if (error) return { ok: false, error: error.message }
 
-  revalidateTag(`link:${input.link_id}`, 'seconds')
+  revalidateTag(`link:${input.link_id}`, { expire: 0 })
   return { ok: true, annotationId: data.id as string }
 }
 
@@ -463,7 +463,7 @@ export async function createGoal(input: {
 
   if (error) return { ok: false, error: error.message }
 
-  revalidateTag(`link:${input.link_id}`, 'seconds')
+  revalidateTag(`link:${input.link_id}`, { expire: 0 })
   return { ok: true, goalId: data.id as string }
 }
 
@@ -495,8 +495,8 @@ export async function createAlert(input: {
 
   if (error) return { ok: false, error: error.message }
 
-  revalidateTag(`link:${input.link_id}`, 'seconds')
-  revalidateTag('link-alerts', 'seconds')
+  revalidateTag(`link:${input.link_id}`, { expire: 0 })
+  revalidateTag('link-alerts', { expire: 0 })
   return { ok: true, alertId: data.id as string }
 }
 
@@ -534,7 +534,7 @@ export async function saveAlertRule(
       .eq('site_id', siteId)
 
     if (error) return { ok: false, error: error.message }
-    revalidateTag('link-alerts', 'seconds')
+    revalidateTag('link-alerts', { expire: 0 })
     return { ok: true, ruleId: parsed.data.id }
   }
 
@@ -560,7 +560,7 @@ export async function saveAlertRule(
 
   if (error) return { ok: false, error: error.message }
 
-  revalidateTag('link-alerts', 'seconds')
+  revalidateTag('link-alerts', { expire: 0 })
   return { ok: true, ruleId: data.id as string }
 }
 
@@ -589,7 +589,7 @@ export async function toggleAlert(id: string): Promise<ActionResult> {
 
   if (error) return { ok: false, error: error.message }
 
-  revalidateTag('link-alerts', 'seconds')
+  revalidateTag('link-alerts', { expire: 0 })
   return { ok: true }
 }
 
@@ -609,7 +609,7 @@ export async function deleteAlertRule(id: string): Promise<ActionResult> {
 
   if (error) return { ok: false, error: error.message }
 
-  revalidateTag('link-alerts', 'seconds')
+  revalidateTag('link-alerts', { expire: 0 })
   return { ok: true }
 }
 
@@ -786,7 +786,7 @@ export async function generateQr(
     .update({ qr_storage_path: result.asset.blobPathname, has_qr: true, updated_at: new Date().toISOString() })
     .eq('id', id)
     .eq('site_id', siteId)
-  revalidateTag(`link:${id}`, 'seconds')
+  revalidateTag(`link:${id}`, { expire: 0 })
   return { ok: true, qrUrl: result.asset.blobUrl }
 }
 
@@ -861,7 +861,7 @@ export async function saveLinkSettings(input: {
     )
 
   if (error) return { ok: false, error: error.message }
-  revalidateTag('links-settings', 'seconds')
+  revalidateTag('links-settings', { expire: 0 })
   return { ok: true }
 }
 
@@ -893,7 +893,7 @@ export async function saveUtmPreset(input: {
     .single()
 
   if (error) return { ok: false, error: error.message }
-  revalidateTag('links-settings', 'seconds')
+  revalidateTag('links-settings', { expire: 0 })
   return { ok: true, id: data.id }
 }
 
@@ -910,7 +910,7 @@ export async function deleteUtmPreset(id: string): Promise<ActionResult> {
     .eq('site_id', siteId)
 
   if (error) return { ok: false, error: error.message }
-  revalidateTag('links-settings', 'seconds')
+  revalidateTag('links-settings', { expire: 0 })
   return { ok: true }
 }
 
@@ -934,7 +934,7 @@ export async function saveQrTemplate(input: {
     .single()
 
   if (error) return { ok: false, error: error.message }
-  revalidateTag('links-settings', 'seconds')
+  revalidateTag('links-settings', { expire: 0 })
   return { ok: true, id: data.id }
 }
 
@@ -951,7 +951,7 @@ export async function deleteQrTemplate(id: string): Promise<ActionResult> {
     .eq('site_id', siteId)
 
   if (error) return { ok: false, error: error.message }
-  revalidateTag('links-settings', 'seconds')
+  revalidateTag('links-settings', { expire: 0 })
   return { ok: true }
 }
 

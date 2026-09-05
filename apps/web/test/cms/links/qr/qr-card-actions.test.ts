@@ -290,7 +290,7 @@ describe('createQrCard', () => {
     const { revalidateTag } = await import('next/cache')
     const { createQrCard } = await importActions()
     await createQrCard('link-x', 'Tag Test', validComposition())
-    expect(revalidateTag).toHaveBeenCalledWith('link:link-x', 'seconds')
+    expect(revalidateTag).toHaveBeenCalledWith('link:link-x', { expire: 0 })
   })
 
   it('verifies link ownership before insert (returns link_not_found)', async () => {
@@ -438,7 +438,7 @@ describe('updateQrCard', () => {
     const { revalidateTag } = await import('next/cache')
     const { updateQrCard } = await importActions()
     await updateQrCard('card-1', 'link-z', { name: 'X' })
-    expect(revalidateTag).toHaveBeenCalledWith('link:link-z', 'seconds')
+    expect(revalidateTag).toHaveBeenCalledWith('link:link-z', { expire: 0 })
   })
 
   it('filters by link_id in update query', async () => {
@@ -486,7 +486,7 @@ describe('deleteQrCard', () => {
     const { revalidateTag } = await import('next/cache')
     const { deleteQrCard } = await importActions()
     await deleteQrCard('card-x', 'link-del')
-    expect(revalidateTag).toHaveBeenCalledWith('link:link-del', 'seconds')
+    expect(revalidateTag).toHaveBeenCalledWith('link:link-del', { expire: 0 })
   })
 
   it('returns error when Supabase fails', async () => {

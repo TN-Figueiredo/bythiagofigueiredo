@@ -181,7 +181,7 @@ export async function POST(req: Request): Promise<Response> {
   )
   if (hasSubscriberChange) {
     // leitor: lib/newsletter/suggestions.ts → widget público em app/(public)/newsletters/[slug]/
-    revalidateTag('newsletter-suggestions', 'minutes')
+    revalidateTag('newsletter-suggestions', { expire: 0 })
   }
 
   await supabase

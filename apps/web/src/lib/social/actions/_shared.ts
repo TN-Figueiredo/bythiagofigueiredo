@@ -26,7 +26,7 @@ export async function requireEditAccess(): Promise<{ siteId: string; userId: str
 }
 
 export function revalidateSocialPaths(): void {
-  revalidateTag('social', 'seconds')
+  revalidateTag('social', { expire: 0 })
   revalidatePath('/cms/social')
 }
 

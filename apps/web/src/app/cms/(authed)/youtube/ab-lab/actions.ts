@@ -221,7 +221,7 @@ export async function createAbTest(
     .eq('video_id', input.youtube_video_id)
     .eq('status', 'pending')
 
-  revalidateTag('youtube', 'seconds')
+  revalidateTag('youtube', { expire: 0 })
   revalidatePath('/cms/youtube/ab-lab')
   return { ok: true, id: test.id }
 }
@@ -366,7 +366,7 @@ export async function uploadVariant(
     return { ok: false, error: insertError?.message ?? 'Failed to insert variant' }
   }
 
-  revalidateTag('youtube', 'seconds')
+  revalidateTag('youtube', { expire: 0 })
   revalidatePath('/cms/youtube/ab-lab')
   return { ok: true, variantId: variant.id }
 }
@@ -422,7 +422,7 @@ export async function deleteVariant(
 
   if (deleteError) return { ok: false, error: deleteError.message }
 
-  revalidateTag('youtube', 'seconds')
+  revalidateTag('youtube', { expire: 0 })
   revalidatePath('/cms/youtube/ab-lab')
   return { ok: true }
 }
@@ -590,7 +590,7 @@ export async function pullPipelineThumbnails(
     .update({ source_pipeline_id: pipelineId, updated_at: new Date().toISOString() })
     .eq('id', testId)
 
-  revalidateTag('youtube', 'seconds')
+  revalidateTag('youtube', { expire: 0 })
   revalidatePath('/cms/youtube/ab-lab')
   return { ok: true, added }
 }
@@ -649,7 +649,7 @@ export async function startAbTest(
 
   const result = await startAbTestInternal(testId, siteId)
   if (result.ok) {
-    revalidateTag('youtube', 'seconds')
+    revalidateTag('youtube', { expire: 0 })
     revalidatePath('/cms/youtube/ab-lab')
   }
   return result
@@ -720,7 +720,7 @@ export async function pauseAbTest(
     .eq('test_id', testId)
     .is('ended_at', null)
 
-  revalidateTag('youtube', 'seconds')
+  revalidateTag('youtube', { expire: 0 })
   revalidatePath('/cms/youtube/ab-lab')
   return { ok: true }
 }
@@ -744,7 +744,7 @@ export async function acknowledgeAbTestDrift(
     .eq('status', 'paused')
 
   if (error) return { ok: false, error: error.message }
-  revalidateTag('youtube', 'seconds')
+  revalidateTag('youtube', { expire: 0 })
   revalidatePath('/cms/youtube/ab-lab')
   return { ok: true }
 }
@@ -846,7 +846,7 @@ export async function resumeAbTest(
 
   if (updateError) return { ok: false, error: updateError.message }
 
-  revalidateTag('youtube', 'seconds')
+  revalidateTag('youtube', { expire: 0 })
   revalidatePath('/cms/youtube/ab-lab')
   return { ok: true }
 }
@@ -940,7 +940,7 @@ export async function endAbTest(
     try { await autoImportWinner(testId, siteId) } catch { /* non-fatal */ }
   }
 
-  revalidateTag('youtube', 'seconds')
+  revalidateTag('youtube', { expire: 0 })
   revalidatePath('/cms/youtube/ab-lab')
   return { ok: true }
 }
@@ -970,7 +970,7 @@ export async function archiveAbTest(
 
   if (updateError) return { ok: false, error: updateError.message }
 
-  revalidateTag('youtube', 'seconds')
+  revalidateTag('youtube', { expire: 0 })
   revalidatePath('/cms/youtube/ab-lab')
   return { ok: true }
 }
@@ -1013,7 +1013,7 @@ export async function updateAbSiteSettings(
 
   if (updateError) return { ok: false, error: updateError.message }
 
-  revalidateTag('youtube', 'seconds')
+  revalidateTag('youtube', { expire: 0 })
   revalidatePath('/cms/youtube/ab-lab')
   return { ok: true }
 }
@@ -1094,7 +1094,7 @@ export async function createTextVariant(
     }
   }
 
-  revalidateTag('ab-tests', 'seconds')
+  revalidateTag('ab-tests', { expire: 0 })
   revalidatePath('/cms/youtube/ab-lab')
   return { ok: true, id: variant.id }
 }
@@ -1142,7 +1142,7 @@ export async function updateTextVariant(
 
   if (error) return { ok: false, error: error.message }
 
-  revalidateTag('ab-tests', 'seconds')
+  revalidateTag('ab-tests', { expire: 0 })
   revalidatePath('/cms/youtube/ab-lab')
   return { ok: true }
 }
@@ -1259,7 +1259,7 @@ export async function forceRotate(testId: string): Promise<{ ok: boolean; error?
     .update({ last_applied_variant_id: null })
     .eq('id', testId)
 
-  revalidateTag('ab-tests', 'seconds')
+  revalidateTag('ab-tests', { expire: 0 })
   revalidatePath('/cms/youtube/ab-lab')
   return { ok: true }
 }

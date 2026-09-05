@@ -223,6 +223,6 @@ describe('GET /api/cron/sync-youtube', () => {
     expect(body.inserted).toBe(2)
     expect(body.updated).toBe(1)
     expect(body.quota_used).toBe(10)
-    expect(revalidateTag).toHaveBeenCalledWith('youtube', 'seconds')
+    expect(revalidateTag).toHaveBeenCalledWith('youtube', { expire: 0 })
   })
 })

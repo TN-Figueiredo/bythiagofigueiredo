@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
   try {
     const ctx = authToServiceContext(auth)
     const data = await createTopic(ctx, body)
-    revalidateTag('layout-counts', 'seconds')
+    revalidateTag('layout-counts', { expire: 0 })
     return pipelineSuccess(data, 201, auth)
   } catch (err) {
     return serviceErrorToResponse(err, auth)

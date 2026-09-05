@@ -5,19 +5,19 @@ import { revalidateTag } from 'next/cache'
  * Downstream consumers use `unstable_cache` with these tag keys.
  */
 export function invalidateLink(siteId: string, code: string): void {
-  revalidateTag(`link:${siteId}:${code}`, 'seconds')
+  revalidateTag(`link:${siteId}:${code}`, { expire: 0 })
 }
 
 /**
  * Invalidate the links list cache for a site.
  */
 export function invalidateList(siteId: string): void {
-  revalidateTag(`links:${siteId}`, 'seconds')
+  revalidateTag(`links:${siteId}`, { expire: 0 })
 }
 
 /**
  * Invalidate analytics cache for a specific link.
  */
 export function invalidateAnalytics(linkId: string): void {
-  revalidateTag(`link-analytics:${linkId}`, 'seconds')
+  revalidateTag(`link-analytics:${linkId}`, { expire: 0 })
 }

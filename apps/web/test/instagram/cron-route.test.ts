@@ -71,6 +71,6 @@ describe('GET /api/cron/instagram-sync', () => {
     const res = await GET(makeRequest())
     expect(res.status).toBe(200)
     expect(mockSync).toHaveBeenCalledTimes(1)
-    expect(mockRevalidate).toHaveBeenCalledWith('instagram-feed', 'minutes')
+    expect(mockRevalidate).toHaveBeenCalledWith('instagram-feed', { expire: 0 })
   })
 })

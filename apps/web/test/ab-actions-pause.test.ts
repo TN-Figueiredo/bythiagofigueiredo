@@ -277,7 +277,7 @@ describe('pauseAbTest', () => {
     const result = await pauseAbTest('test-1')
 
     expect(result).toEqual({ ok: true })
-    expect(revalidateTag).toHaveBeenCalledWith('youtube', 'seconds')
+    expect(revalidateTag).toHaveBeenCalledWith('youtube', { expire: 0 })
     expect(revalidatePath).toHaveBeenCalledWith('/cms/youtube/ab-lab')
   })
 })

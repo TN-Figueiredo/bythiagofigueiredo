@@ -37,8 +37,8 @@ export async function updateVideo(
     .eq('site_id', siteId)
 
   if (error) return { ok: false as const, error: error.message }
-  revalidateTag('youtube', 'seconds')
-  revalidateTag('layout-counts', 'seconds')
+  revalidateTag('youtube', { expire: 0 })
+  revalidateTag('layout-counts', { expire: 0 })
   revalidatePath('/cms/youtube/videos')
   return { ok: true as const }
 }
@@ -70,8 +70,8 @@ export async function approveCategory(
     .eq('site_id', siteId)
 
   if (error) return { ok: false as const, error: error.message }
-  revalidateTag('youtube', 'seconds')
-  revalidateTag('layout-counts', 'seconds')
+  revalidateTag('youtube', { expire: 0 })
+  revalidateTag('layout-counts', { expire: 0 })
   revalidatePath('/cms/youtube/videos')
   return { ok: true as const }
 }
@@ -89,8 +89,8 @@ export async function rejectCategory(
     .eq('site_id', siteId)
 
   if (error) return { ok: false as const, error: error.message }
-  revalidateTag('youtube', 'seconds')
-  revalidateTag('layout-counts', 'seconds')
+  revalidateTag('youtube', { expire: 0 })
+  revalidateTag('layout-counts', { expire: 0 })
   revalidatePath('/cms/youtube/videos')
   return { ok: true as const }
 }
@@ -142,8 +142,8 @@ export async function triggerSync(
   }
 
   syncCooldowns.set(cooldownKey, Date.now())
-  revalidateTag('youtube', 'seconds')
-  revalidateTag('layout-counts', 'seconds')
+  revalidateTag('youtube', { expire: 0 })
+  revalidateTag('layout-counts', { expire: 0 })
   revalidatePath('/cms/youtube')
   return { ok: true as const }
 }
@@ -181,7 +181,7 @@ export async function pinWeeklyPick(
   })
 
   if (error) return { ok: false, error: error.message }
-  revalidateTag('youtube', 'seconds')
+  revalidateTag('youtube', { expire: 0 })
   revalidatePath('/cms/youtube')
   revalidatePath('/cms/youtube/videos')
   return { ok: true }
@@ -205,7 +205,7 @@ export async function unpinWeeklyPick(
   })
 
   if (error) return { ok: false, error: error.message }
-  revalidateTag('youtube', 'seconds')
+  revalidateTag('youtube', { expire: 0 })
   revalidatePath('/cms/youtube')
   revalidatePath('/cms/youtube/videos')
   return { ok: true }

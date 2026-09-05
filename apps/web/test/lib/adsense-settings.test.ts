@@ -115,7 +115,7 @@ describe('savePublisherId action', () => {
   it('revalidates "ads" tag and path after successful save', async () => {
     const { savePublisherId } = await import(actionsPath)
     await savePublisherId('pub-1234567890')
-    expect(revalidateTag).toHaveBeenCalledWith('ads', 'minutes')
+    expect(revalidateTag).toHaveBeenCalledWith('ads', { expire: 0 })
     expect(revalidatePath).toHaveBeenCalledWith('/admin/settings/ads')
   })
 

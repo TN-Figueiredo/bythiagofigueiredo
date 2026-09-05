@@ -82,7 +82,7 @@ export async function createFormatPreset(
       .single()
 
     if (error) return { ok: false, error: error.message }
-    revalidateTag('canvas-formats', 'seconds')
+    revalidateTag('canvas-formats', { expire: 0 })
     return { ok: true, id: data.id as string }
   } catch (err) {
     console.error('[createFormatPreset]', err)
@@ -104,7 +104,7 @@ export async function deleteFormatPreset(presetId: string): Promise<ActionResult
       .eq('site_id', siteId)
 
     if (error) return { ok: false, error: error.message }
-    revalidateTag('canvas-formats', 'seconds')
+    revalidateTag('canvas-formats', { expire: 0 })
     return { ok: true }
   } catch (err) {
     console.error('[deleteFormatPreset]', err)

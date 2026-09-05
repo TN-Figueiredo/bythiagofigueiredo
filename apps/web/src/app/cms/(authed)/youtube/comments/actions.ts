@@ -42,7 +42,7 @@ export async function createComment(input: z.infer<typeof CommentSchema>) {
   })
 
   if (error) return { ok: false as const, error: error.message }
-  revalidateTag('youtube', 'seconds')
+  revalidateTag('youtube', { expire: 0 })
   revalidatePath('/cms/youtube/comments')
   return { ok: true as const }
 }
@@ -57,7 +57,7 @@ export async function updateComment(id: string, input: Partial<z.infer<typeof Co
     .eq('id', id).eq('site_id', siteId)
 
   if (error) return { ok: false as const, error: error.message }
-  revalidateTag('youtube', 'seconds')
+  revalidateTag('youtube', { expire: 0 })
   revalidatePath('/cms/youtube/comments')
   return { ok: true as const }
 }
@@ -70,7 +70,7 @@ export async function deleteComment(id: string) {
     .delete().eq('id', id).eq('site_id', siteId)
 
   if (error) return { ok: false as const, error: error.message }
-  revalidateTag('youtube', 'seconds')
+  revalidateTag('youtube', { expire: 0 })
   revalidatePath('/cms/youtube/comments')
   return { ok: true as const }
 }
@@ -85,7 +85,7 @@ export async function reorderComments(orderedIds: string[]) {
       .eq('id', orderedIds[i]).eq('site_id', siteId)
   }
 
-  revalidateTag('youtube', 'seconds')
+  revalidateTag('youtube', { expire: 0 })
   revalidatePath('/cms/youtube/comments')
   return { ok: true as const }
 }

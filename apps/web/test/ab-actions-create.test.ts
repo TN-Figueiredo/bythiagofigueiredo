@@ -213,7 +213,7 @@ describe('createAbTest', () => {
     expect((testInsert!.data as Record<string, unknown>).original_thumbnail_url).toBe(BLOB_URL)
 
     // Revalidation
-    expect(revalidateTag).toHaveBeenCalledWith('youtube', 'seconds')
+    expect(revalidateTag).toHaveBeenCalledWith('youtube', { expire: 0 })
     expect(revalidatePath).toHaveBeenCalledWith('/cms/youtube/ab-lab')
   })
 

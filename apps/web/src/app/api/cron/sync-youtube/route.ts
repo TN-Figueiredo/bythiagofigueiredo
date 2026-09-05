@@ -270,8 +270,8 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    revalidateTag('youtube', 'seconds')
-    revalidateTag('layout-counts', 'seconds')
+    revalidateTag('youtube', { expire: 0 })
+    revalidateTag('layout-counts', { expire: 0 })
     revalidatePath('/cms/youtube')
 
     const failedChannels = channelResults.filter(c => c.status === 'failed')

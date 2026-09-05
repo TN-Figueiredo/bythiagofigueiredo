@@ -979,11 +979,11 @@ async function ensureUniqueSlug(supabase: ReturnType<typeof getSupabaseServiceCl
 function revalidateNewsletterHub() {
   revalidatePath('/cms/newsletters')
   // tela de CMS compartilhada entre staff
-  revalidateTag('newsletter-hub', 'seconds')
+  revalidateTag('newsletter-hub', { expire: 0 })
   // leitor: lib/newsletter/suggestions.ts → widget público em app/(public)/newsletters/[slug]/
-  revalidateTag('newsletter-suggestions', 'minutes')
+  revalidateTag('newsletter-suggestions', { expire: 0 })
   // contador de navegação compartilhado entre staff
-  revalidateTag('sidebar-badges', 'seconds')
+  revalidateTag('sidebar-badges', { expire: 0 })
 }
 
 const newsletterTypeSchema = z.object({
@@ -1078,8 +1078,8 @@ export async function createNewsletterType(data: {
   revalidateNewsletterTypeSeo(ctx.siteId, slug)
   if (data.linkedTagId) {
     // sem leitor — candidata a remoção
-    revalidateTag('home-tags', 'seconds')
-    revalidateTag('home-posts', 'seconds')
+    revalidateTag('home-tags', { expire: 0 })
+    revalidateTag('home-posts', { expire: 0 })
   }
   return { ok: true, editionId: created.id }
 }
@@ -1174,8 +1174,8 @@ export async function updateNewsletterType(
   revalidateNewsletterTypeSeo(ctx.siteId, newSlug)
   if (linkChanged) {
     // sem leitor — candidata a remoção
-    revalidateTag('home-tags', 'seconds')
-    revalidateTag('home-posts', 'seconds')
+    revalidateTag('home-tags', { expire: 0 })
+    revalidateTag('home-posts', { expire: 0 })
   }
   return { ok: true }
 }
@@ -1616,7 +1616,7 @@ export async function toggleWorkflow(
   const res = await requireSiteScope({ area: 'cms', siteId: ctx.siteId, mode: 'edit' })
   if (!res.ok) throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
   // tela de CMS compartilhada entre staff (hub de automações)
-  revalidateTag('newsletter-automations', 'seconds')
+  revalidateTag('newsletter-automations', { expire: 0 })
   return { ok: true }
 }
 
@@ -1645,7 +1645,7 @@ export async function updateCadencePattern(
 
   if (error) return { ok: false, error: error.message }
   // telas de CMS compartilhadas entre staff
-  revalidateTag('newsletter-hub', 'seconds')
-  revalidateTag('newsletter-schedule', 'seconds')
+  revalidateTag('newsletter-hub', { expire: 0 })
+  revalidateTag('newsletter-schedule', { expire: 0 })
   return { ok: true }
 }

@@ -112,7 +112,7 @@ export async function POST(req: Request): Promise<Response> {
 
     if (totalSent > 0) {
       // leitor: lib/newsletter/suggestions.ts → widget público em app/(public)/newsletters/[slug]/
-      revalidateTag('newsletter-suggestions', 'minutes')
+      revalidateTag('newsletter-suggestions', { expire: 0 })
     }
 
     return { status: 'ok' as const, sent: totalSent, editions: editions.length }

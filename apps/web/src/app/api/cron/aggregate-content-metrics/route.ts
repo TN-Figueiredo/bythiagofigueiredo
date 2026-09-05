@@ -28,8 +28,8 @@ export async function POST(req: Request): Promise<Response> {
 
     const result = data as { date: string; metrics_upserted: number; posts_updated: number } | null
 
-    revalidateTag('most-read', 'seconds') // sem leitor — candidata a remoção
-    revalidateTag('content-analytics', 'seconds') // sem leitor — candidata a remoção
+    revalidateTag('most-read', { expire: 0 }) // sem leitor — candidata a remoção
+    revalidateTag('content-analytics', { expire: 0 }) // sem leitor — candidata a remoção
 
     try {
       await supabase.from('cron_runs').insert({

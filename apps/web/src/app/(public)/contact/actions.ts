@@ -128,7 +128,7 @@ export async function submitContact(formData: FormData): Promise<ContactResult> 
   }
 
   // Revalidate admin list so new row appears.
-  revalidateTag('layout-counts', 'seconds')
+  revalidateTag('layout-counts', { expire: 0 })
   revalidatePath('/cms/contacts')
 
   // Fire emails in background — failures must not surface.

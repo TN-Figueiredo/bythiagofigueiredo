@@ -8,9 +8,9 @@ export function revalidateBlogPostSeo(
   slug: string,
 ): void {
   // sem leitor — candidata a remoção
-  revalidateTag(`blog:post:${postId}`, 'seconds')
-  revalidateTag(`og:blog:${postId}`, 'seconds')
-  revalidateTag(`sitemap:${siteId}`, 'seconds')
+  revalidateTag(`blog:post:${postId}`, { expire: 0 })
+  revalidateTag(`og:blog:${postId}`, { expire: 0 })
+  revalidateTag(`sitemap:${siteId}`, { expire: 0 })
   revalidatePath(localePath(`/blog/${slug}`, locale))
   revalidatePath(localePath('/blog', locale))
 }
@@ -22,9 +22,9 @@ export function revalidateCampaignSeo(
   slug: string,
 ): void {
   // sem leitor — candidata a remoção
-  revalidateTag(`campaign:${campaignId}`, 'seconds')
-  revalidateTag(`og:campaign:${campaignId}`, 'seconds')
-  revalidateTag(`sitemap:${siteId}`, 'seconds')
+  revalidateTag(`campaign:${campaignId}`, { expire: 0 })
+  revalidateTag(`og:campaign:${campaignId}`, { expire: 0 })
+  revalidateTag(`sitemap:${siteId}`, { expire: 0 })
   revalidatePath(localePath(`/campaigns/${slug}`, locale))
 }
 
@@ -33,13 +33,13 @@ export function revalidateNewsletterTypeSeo(
   slug: string,
 ): void {
   // sem leitor — candidata a remoção
-  revalidateTag(`sitemap:${siteId}`, 'seconds')
+  revalidateTag(`sitemap:${siteId}`, { expire: 0 })
   // leitor: lib/newsletter/queries.ts:getActiveTypeCount → app/(public)/newsletters/[slug]/page.tsx
-  revalidateTag('newsletter:types:count', 'minutes')
+  revalidateTag('newsletter:types:count', { expire: 0 })
   revalidatePath(`/newsletters/${slug}`)
 }
 
 export function revalidateSiteBranding(): void {
   // leitor: lib/seo/config.ts:getSiteSeoConfig → sitemap.ts, robots.ts, metadata pública, og/*
-  revalidateTag('seo-config', 'minutes')
+  revalidateTag('seo-config', { expire: 0 })
 }

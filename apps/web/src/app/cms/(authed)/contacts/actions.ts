@@ -51,7 +51,7 @@ export async function markReplied(id: string): Promise<ActionResult> {
     })
     return { ok: false, error: error.message }
   }
-  revalidateTag('layout-counts', 'seconds')
+  revalidateTag('layout-counts', { expire: 0 })
   revalidatePath('/cms/contacts')
   return { ok: true }
 }
@@ -76,7 +76,7 @@ export async function undoMarkReplied(id: string): Promise<ActionResult> {
     })
     return { ok: false, error: error.message }
   }
-  revalidateTag('layout-counts', 'seconds')
+  revalidateTag('layout-counts', { expire: 0 })
   revalidatePath('/cms/contacts')
   return { ok: true }
 }
@@ -100,7 +100,7 @@ export async function anonymizeSubmission(id: string): Promise<ActionResult> {
     })
     return { ok: false, error: error.message }
   }
-  revalidateTag('layout-counts', 'seconds')
+  revalidateTag('layout-counts', { expire: 0 })
   revalidatePath('/cms/contacts')
   return { ok: true }
 }
@@ -127,7 +127,7 @@ export async function bulkAnonymize(ids: string[]): Promise<ActionResult> {
       errors.push(id)
     }
   }
-  revalidateTag('layout-counts', 'seconds')
+  revalidateTag('layout-counts', { expire: 0 })
   revalidatePath('/cms/contacts')
   if (errors.length > 0) {
     return { ok: false, error: `Failed to anonymize ${errors.length} submission(s)` }
@@ -208,7 +208,7 @@ export async function sendReply(
     metadata: { submission_id: id },
   })
 
-  revalidateTag('layout-counts', 'seconds')
+  revalidateTag('layout-counts', { expire: 0 })
   revalidatePath('/cms/contacts')
   return { ok: true }
 }

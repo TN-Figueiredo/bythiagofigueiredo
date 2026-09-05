@@ -1,3 +1,7 @@
+> **SUPERADO EM 2026-09-05.** Os perfis registrados aqui foram todos trocados por
+> `{ expire: 0 }` — perfil nomeado serve conteudo velho e nao e paridade com o Next 15.
+> Ver `CORRECAO-perfis-vs-paridade.md`. A medicao de leitores continua valida.
+
 # Lote 2.6 — Blog, Video, Linktree e varredura final
 
 Arquivos do lote:

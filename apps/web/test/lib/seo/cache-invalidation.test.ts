@@ -14,9 +14,9 @@ describe('cache-invalidation helpers', () => {
   it('revalidateBlogPostSeo invalidates post/og/sitemap tags + 2 paths', async () => {
     const { revalidateBlogPostSeo } = await import('@/lib/seo/cache-invalidation')
     revalidateBlogPostSeo('site-1', 'post-123', 'pt-BR', 'my-post')
-    expect(revalidateTag).toHaveBeenCalledWith('blog:post:post-123', 'seconds')
-    expect(revalidateTag).toHaveBeenCalledWith('og:blog:post-123', 'seconds')
-    expect(revalidateTag).toHaveBeenCalledWith('sitemap:site-1', 'seconds')
+    expect(revalidateTag).toHaveBeenCalledWith('blog:post:post-123', { expire: 0 })
+    expect(revalidateTag).toHaveBeenCalledWith('og:blog:post-123', { expire: 0 })
+    expect(revalidateTag).toHaveBeenCalledWith('sitemap:site-1', { expire: 0 })
     expect(revalidatePath).toHaveBeenCalledWith('/pt/blog/my-post')
     expect(revalidatePath).toHaveBeenCalledWith('/pt/blog')
   })
@@ -24,15 +24,15 @@ describe('cache-invalidation helpers', () => {
   it('revalidateCampaignSeo invalidates campaign/og/sitemap tags + 1 path', async () => {
     const { revalidateCampaignSeo } = await import('@/lib/seo/cache-invalidation')
     revalidateCampaignSeo('site-1', 'camp-9', 'pt-BR', 'launch')
-    expect(revalidateTag).toHaveBeenCalledWith('campaign:camp-9', 'seconds')
-    expect(revalidateTag).toHaveBeenCalledWith('og:campaign:camp-9', 'seconds')
-    expect(revalidateTag).toHaveBeenCalledWith('sitemap:site-1', 'seconds')
+    expect(revalidateTag).toHaveBeenCalledWith('campaign:camp-9', { expire: 0 })
+    expect(revalidateTag).toHaveBeenCalledWith('og:campaign:camp-9', { expire: 0 })
+    expect(revalidateTag).toHaveBeenCalledWith('sitemap:site-1', { expire: 0 })
     expect(revalidatePath).toHaveBeenCalledWith('/pt/campaigns/launch')
   })
 
   it('revalidateSiteBranding invalidates seo-config tag', async () => {
     const { revalidateSiteBranding } = await import('@/lib/seo/cache-invalidation')
     revalidateSiteBranding()
-    expect(revalidateTag).toHaveBeenCalledWith('seo-config', 'minutes')
+    expect(revalidateTag).toHaveBeenCalledWith('seo-config', { expire: 0 })
   })
 })

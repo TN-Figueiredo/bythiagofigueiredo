@@ -151,7 +151,7 @@ describe('GET /api/cron/instagram-sync', () => {
     expect(body.inserted).toBe(3)
     expect(body.updated).toBe(2)
     expect(body.cached).toBe(5)
-    expect(revalidateTag).toHaveBeenCalledWith('instagram-feed', 'minutes')
+    expect(revalidateTag).toHaveBeenCalledWith('instagram-feed', { expire: 0 })
   })
 
   it('captures Sentry exception when sync fails for an account', async () => {
