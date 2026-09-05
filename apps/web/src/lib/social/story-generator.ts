@@ -1,4 +1,4 @@
-import { ImageResponse } from '@vercel/og'
+import { ImageResponse } from 'next/og'
 import React from 'react'
 
 export type StoryTemplate = 'minimal' | 'card' | 'bold'
