@@ -1,6 +1,6 @@
 # Runbook — promoção `staging` → `main` (Next 16)
 
-**Status:** aguardando produção voltar a ficar saudável (degradação em investigação por outro time,
+**Status:** **EXECUTADO em 2026-09-05** — promoções `af330e61`, `2ebc2db0`, `d444f43e` (mais uma pendente com o fix do TruffleHog). Texto abaixo preservado como registro do procedimento. Contexto original: aguardando produção voltar a ficar saudável (degradação em investigação por outro time,
 não relacionada a este runbook). Não execute nada aqui até a Seção 0 estar toda verde.
 
 **Contexto:** `origin/staging` está 43 commits à frente de `origin/main`, com a migração
@@ -123,9 +123,9 @@ declara só `>= 20.0.0` — a Vercel pode estar configurada com uma versão mais
 falha de forma barata (não chega a promover nada), mas evita o ciclo de descobrir isso só
 depois do push.
 
-### 0.6 — Plano da Vercel comporta 50 crons
+### 0.6 — Plano da Vercel comporta os crons (50 à época; 45 desde `f4d876b4`)
 
-`apps/web/vercel.json` tem **50 entradas** em `crons` (contei: eram 39 ativos em `main`, mais
+`apps/web/vercel.json` tinha **50 entradas** em `crons` quando isto foi escrito — são **45** desde `f4d876b4` (contei: eram 39 ativos em `main`, mais
 11 que nunca tinham rodado — ver Seção 5). Cron jobs por projeto são limitados por plano.
 **Esperado:** plano Pro ou superior (Hobby limita a bem menos que 50 e a menos de 1/dia por
 job — `social-publish` roda `* * * * *`).
