@@ -40,6 +40,23 @@ um rename silencioso do arquivo. Isso é decisão do pacote, fora deste plano.
 `apps/web/CLAUDE.md` ao `.gitignore` antes que um `git add -A` os arraste — ou decidir
 mantê-los como artefato versionado, o que é escolha, não default.
 
+## WP-6.1 — roteiro por tela, executado localmente (build de produção Turbopack, `next start`)
+
+| Pacote | Resultado local | Pendente pós-deploy |
+|---|---|---|
+| `auth-nextjs` | Guard OK: `/cms/blog` deslogado → 307 `/cms/login?next=…`; zero erro de Edge Runtime no log | login real |
+| `admin` | `/admin/login` e `/admin/forgot` renderizam completos | reset ponta a ponta (e-mail) |
+| `cms-ui` | `/cms/login` com CSS completo | nav interna (sessão) |
+| `cms-admin` | rota `/cms/blog` existe, guard roda | filtro de posts (sessão) |
+| `ad-engine-admin` | rota `/admin/ads` existe, guard roda | salvar campanha (sessão) |
+| `cms-reader` | CSS do pacote aplicado; `<h2 id>` presente pós-hidratação (8/8) | — |
+| `seo` | sem consumidor; `robots.txt`/`sitemap.xml` válidos como smoke do app | — |
+
+**Achado preexistente (não é regressão do 16):** em `cms-reader`, o `id` dos headings só existe
+após hidratação (`LinkedH2` é `"use client"`), e o `<a class="heading-anchor">` do
+`LinkedHeading` não aparece no DOM nem depois — o CSS está no bundle, o link não renderiza.
+Investigação separada no pacote.
+
 ## Pendente (pós-deploy)
 
 - WP-5: `minimumCacheTTL` (fixado em 60), `scroll-behavior` (restaurar via `data-scroll-behavior="smooth"` e levar a decisão), avatares do Google (`maximumRedirects` 3), smoke dos destinos de invalidação em produção.
