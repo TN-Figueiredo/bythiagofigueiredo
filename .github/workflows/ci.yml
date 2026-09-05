@@ -2,7 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [staging]
+    # main = producao. Sem gate proprio, as duas promocoes de 2026-09-05
+    # foram para producao sem nenhuma CI rodar em main (revisao cega, adv-repo).
+    branches: [staging, main]
   pull_request:
     branches: [staging]
 

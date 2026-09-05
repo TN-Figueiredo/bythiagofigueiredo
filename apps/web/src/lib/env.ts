@@ -6,8 +6,6 @@ import { z } from 'zod'
 const serverSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
   CRON_SECRET: z.string().min(1),
-  RESEND_API_KEY: z.string().min(1).optional(),
-  RESEND_WEBHOOK_SECRET: z.string().min(1).optional(),
   NEWSLETTER_FROM_DOMAIN: z.string().min(1).optional(),
   TURNSTILE_SECRET_KEY: z.string().min(1).optional(),
   CAMPAIGN_PDF_SIGNED_URL_TTL: z.coerce.number().optional(),

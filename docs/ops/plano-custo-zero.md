@@ -5,10 +5,17 @@
 > via job de `pg_cron` (o CLI perdia a corrida do lock): 271 MB → **32 kB**; banco 363 MB →
 > **93 MB**. Produção: `/` 1,3s, `/robots.txt` 0,5s, `/blog` 0,5s — antes eram timeout/504/25s.
 > Retenção diária adicionada e os 5 jobs versionados em migration.
-> **Não executado (por decisão, não por falha):** migrar jobs 1 e 3 para a Vercel e `DROP
-> EXTENSION pg_net` — em `main` as rotas só exportam `POST` e o cron da Vercel dispara `GET`
-> (405); o `pg_cron` é o único caminho vivo até `main` ser promovido. Fase 2 (reagendar crons
-> da Vercel, consertar `links-check-expiry`) fica para a promoção.
+>
+> **Fase 1 completa às 23:xx, após a promoção de `main`** (merges `af330e61`, `2ebc2db0`):
+> Vercel assumiu `publish-scheduled` (`*/5`) e `lgpd-cleanup-sweep` (`0 7`) — `cron_health`
+> confirma execuções com 0 falhas; migration `20260905000002` desagendou os dois jobs HTTP e
+> fez `DROP EXTENSION pg_net`; `20260905000003` removeu a função helper órfã (a 000002 errou a
+> assinatura e o `if exists` engoliu). Estado final: `pg_cron` com 3 jobs — dois purges SQL
+> diários e a retenção do próprio histórico. Banco: 93 MB.
+> **Fase 2 parcial:** `vercel.json` 50 → 45 crons (`social-publish` `*/15`; removidos
+> `social-auto-draft`, `social-metrics`, `links-check-expiry` e as duplicatas dos purges).
+> **Aberto:** `links-check-expiry` continua quebrado no código (3 colunas inexistentes) — foi
+> tirado do agendamento, não consertado; decisão de reviver ou apagar é do dono.
 
 **Data:** 2026-09-05 · **Restrição:** orçamento zero. Nada de upgrade de Supabase.
 **Base:** 9 agentes (4 adversariais + 5 de custo zero), tudo medido, nada presumido.
