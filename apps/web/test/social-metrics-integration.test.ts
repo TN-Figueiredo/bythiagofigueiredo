@@ -128,6 +128,7 @@ vi.mock('next/server', () => ({
 }))
 
 vi.mock('next/cache', () => ({
+  updateTag: vi.fn(),
   revalidatePath: vi.fn(),
   revalidateTag: vi.fn(),
 }))

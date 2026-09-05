@@ -9,5 +9,6 @@ export function unstable_cache<T extends (...args: never[]) => Promise<unknown>>
 }
 
 export function revalidatePath(_path: string): void {}
-export function revalidateTag(_tag: string): void {}
+export function revalidateTag(_tag: string, _profile?: string | { expire?: number }): void {}
+export function updateTag(_tag: string): void {}
 export function unstable_noStore(): void {}

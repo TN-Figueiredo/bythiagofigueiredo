@@ -9,6 +9,7 @@ import type { BaselineVideoInput } from '@/lib/youtube/scoring'
 import { fetchYtDemographics, fetchYtSearchTerms } from '@/lib/youtube/analytics-client'
 import type { VideoScoreInput, TrafficSources, TrendData } from '@/lib/youtube/scoring-types'
 import type { TestType, VariantMetadata } from '@/lib/youtube/ab-types'
+import { applyCycleTransition } from '@/lib/youtube/optimization-loop'
 import type { ServiceContext, ServiceResult } from './types'
 import { ok, err } from './types'
 
@@ -364,11 +365,7 @@ export async function submitIntelRecommendations(
         .single()
 
       if (cycle) {
-        await supabase.from('optimization_cycles').update({
-          state: 'diagnosed',
-          diagnosed_at: new Date().toISOString(),
-          diagnosis_summary: rec.reasoning,
-        }).eq('id', cycle.id)
+        await applyCycleTransition(supabase, cycle.id, 'diagnosed', { diagnosis_summary: rec.reasoning })
       }
     }
   }

@@ -62,6 +62,9 @@ describe('canTransition', () => {
   it('disallows exhausted → anything', () => {
     expect(canTransition('exhausted', 'flagged')).toBe(false)
   })
+  it('rejeita diagnosed -> testing', () => {
+    expect(canTransition('diagnosed', 'testing')).toBe(false)
+  })
 
   // Remaining valid transitions from VALID_TRANSITIONS map
   it('allows unmonitored → flagged', () => {

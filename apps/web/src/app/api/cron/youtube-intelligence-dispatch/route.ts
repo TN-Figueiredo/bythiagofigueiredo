@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import * as Sentry from '@sentry/nextjs'
+import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
+
+const CRON_NAME = 'youtube-intelligence-dispatch'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 120
@@ -13,14 +16,27 @@ export async function GET(req: NextRequest) {
 
   const supabase = getSupabaseServiceClient()
 
-  const { data: channels } = await supabase
+  const { data: channels, error: channelsError } = await supabase
     .from('youtube_channels')
     .select('id, site_id')
     .eq('sync_enabled', true)
 
-  if (!channels?.length) return NextResponse.json({ status: 'no_channels' })
+  // Ver sync-analytics-metrics/route.ts: um erro de query descartado aqui
+  // caia em `channels === null` -> "no_channels" -> recordCronSuccess, o
+  // sistema afirmando saude sobre um erro que nunca olhou.
+  if (channelsError) {
+    Sentry.captureMessage(`youtube-intelligence-dispatch: channels query failed: ${channelsError.message}`)
+    await recordCronFailure(CRON_NAME, channelsError.message).catch((e) => console.error('[cron-health] write failed:', e))
+    return NextResponse.json({ error: 'channels query failed', detail: channelsError.message }, { status: 500 })
+  }
+
+  if (!channels?.length) {
+    await recordCronSuccess(CRON_NAME).catch((e) => console.error('[cron-health] write failed:', e))
+    return NextResponse.json({ status: 'no_channels' })
+  }
 
   let created = 0
+  let errors = 0
   for (const channel of channels) {
     try {
       const { data: existing } = await supabase
@@ -40,9 +56,16 @@ export async function GET(req: NextRequest) {
       })
       created++
     } catch (err) {
+      errors++
       console.error('[youtube-intelligence-dispatch] Error processing channel:', err)
       Sentry.captureException(err)
     }
+  }
+
+  if (errors > 0) {
+    await recordCronFailure(CRON_NAME, `${errors} channel(s) failed`).catch((e) => console.error('[cron-health] write failed:', e))
+  } else {
+    await recordCronSuccess(CRON_NAME).catch((e) => console.error('[cron-health] write failed:', e))
   }
 
   return NextResponse.json({ created })

@@ -131,7 +131,7 @@ export async function createPipelineItem(input: Record<string, unknown>): Promis
     return { ok: false, error: error.message }
   }
   revalidatePath('/cms/up-next')
-  revalidateTag('pipeline-blog')
+  revalidateTag('pipeline-blog', { expire: 0 })
   return { ok: true, data: item }
 }
 
@@ -158,7 +158,7 @@ export async function updatePipelineItem(id: string, version: number, input: Rec
 
   if (error || !updated) return { ok: false, error: 'Version conflict or item not found' }
   revalidatePath('/cms/up-next')
-  revalidateTag('pipeline-blog')
+  revalidateTag('pipeline-blog', { expire: 0 })
   return { ok: true, data: updated }
 }
 
@@ -228,7 +228,7 @@ export async function advancePipelineItem(id: string, version: number): Promise<
   }
 
   revalidatePath('/cms/up-next')
-  revalidateTag('pipeline-blog')
+  revalidateTag('pipeline-blog', { expire: 0 })
   if (graduationResult) revalidatePath('/cms/social')
   return { ok: true, data: { ...updated, graduationResult } }
 }
@@ -257,7 +257,7 @@ export async function movePipelineItemToStage(
 
   if (error || !updated) return { ok: false, error: 'Version conflict or item not found' }
   revalidatePath('/cms/up-next')
-  revalidateTag('pipeline-blog')
+  revalidateTag('pipeline-blog', { expire: 0 })
   revalidatePath('/cms/blog')
   return { ok: true, data: updated }
 }
@@ -290,7 +290,7 @@ export async function retreatPipelineItem(id: string, version: number): Promise<
 
   if (error || !updated) return { ok: false, error: 'Version conflict' }
   revalidatePath('/cms/up-next')
-  revalidateTag('pipeline-blog')
+  revalidateTag('pipeline-blog', { expire: 0 })
   return { ok: true, data: updated }
 }
 
@@ -306,7 +306,7 @@ export async function archivePipelineItem(id: string): Promise<ActionResult> {
 
   if (error) return { ok: false, error: error.message }
   revalidatePath('/cms/up-next')
-  revalidateTag('pipeline-blog')
+  revalidateTag('pipeline-blog', { expire: 0 })
   return { ok: true }
 }
 
@@ -324,7 +324,7 @@ export async function restorePipelineItem(id: string): Promise<ActionResult> {
 
   if (error || !updated) return { ok: false, error: 'Item not found' }
   revalidatePath('/cms/up-next')
-  revalidateTag('pipeline-blog')
+  revalidateTag('pipeline-blog', { expire: 0 })
   return { ok: true, data: updated }
 }
 
@@ -355,7 +355,7 @@ export async function toggleChecklist(id: string, index: number, done: boolean):
 
   if (error) return { ok: false, error: error.message }
   revalidatePath('/cms/up-next')
-  revalidateTag('pipeline-blog')
+  revalidateTag('pipeline-blog', { expire: 0 })
   return { ok: true, data: updated }
 }
 
@@ -423,6 +423,6 @@ export async function graduatePipelineToSocial(id: string, version: number): Pro
 
   revalidatePath('/cms/up-next')
   revalidatePath('/cms/social')
-  revalidateTag('pipeline-blog')
+  revalidateTag('pipeline-blog', { expire: 0 })
   return { ok: true, data: result.data }
 }

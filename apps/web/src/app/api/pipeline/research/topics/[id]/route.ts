@@ -17,7 +17,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   try {
     const ctx = authToServiceContext(auth)
     const data = await updateTopic(ctx, id, body)
-    revalidateTag('layout-counts')
+    revalidateTag('layout-counts', { expire: 0 })
     return pipelineSuccess(data, 200, auth)
   } catch (err) {
     return serviceErrorToResponse(err, auth)
@@ -34,7 +34,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   try {
     const ctx = authToServiceContext(auth)
     const data = await deleteTopic(ctx, id)
-    revalidateTag('layout-counts')
+    revalidateTag('layout-counts', { expire: 0 })
     return pipelineSuccess(data, 200, auth)
   } catch (err) {
     return serviceErrorToResponse(err, auth)

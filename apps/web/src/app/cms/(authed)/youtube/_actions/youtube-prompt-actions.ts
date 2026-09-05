@@ -850,7 +850,7 @@ export async function saveVideoNotes(
     if (error) return { ok: false, error: error.message }
     if (!data) return { ok: false, error: 'conflict: version mismatch' }
 
-    revalidateTag('youtube')
+    revalidateTag('youtube', { expire: 0 })
     revalidatePath('/cms/youtube/videos')
     return { ok: true, data: { version: data.version as number } }
   } catch (err) {

@@ -10,6 +10,7 @@ import {
 } from '@/lib/youtube/analytics-queries'
 import {
   fetchGradesData,
+  fetchChannelCoaching,
   listNotes,
   createNote,
   deleteNote,
@@ -48,13 +49,14 @@ export default async function YouTubeAnalyticsPage({
   const activeChannel = channels.find(c => c.channelId === selectedChannelId) ?? channels[0]!
 
   const supabaseForLastAnalysis = getSupabaseServiceClient()
-  const [metrics, dailyMetrics, grades, searchTermsResult, demographicsResult, intelligenceData, notes, lastAnalysisRow] = await Promise.all([
+  const [metrics, dailyMetrics, grades, searchTermsResult, demographicsResult, intelligenceData, channelCoaching, notes, lastAnalysisRow] = await Promise.all([
     fetchYtChannelMetrics(siteId, 30, activeChannel.channelId),
     fetchYtDailyMetrics(siteId, 30, activeChannel.channelId),
     fetchVideoGrades(siteId, activeChannel.internalId),
     getCachedYtSearchTerms(siteId, 90, activeChannel.channelId),
     getCachedYtDemographics(siteId, 90, activeChannel.channelId),
     fetchGradesData(activeChannel.internalId).catch(() => ({ videos: [], outliers: [] })),
+    fetchChannelCoaching(activeChannel.internalId).catch(() => null),
     listNotes(activeChannel.internalId).catch(() => []),
     supabaseForLastAnalysis
       .from('youtube_intelligence_tasks')
@@ -103,6 +105,7 @@ export default async function YouTubeAnalyticsPage({
       channelInternalId={activeChannel.internalId}
       intelligenceVideos={intelligenceData.videos}
       intelligenceOutliers={enrichedOutliers}
+      channelCoaching={channelCoaching}
       notes={notes}
       healthScore={healthScore}
       lastAnalysisAt={lastAnalysisRow?.completed_at ?? null}

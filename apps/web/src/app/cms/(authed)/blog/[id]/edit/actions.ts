@@ -133,8 +133,8 @@ export async function savePost(
     }
 
     revalidateBlogPostSeo(siteId, id, locale, input.slug)
-    revalidateTag('blog-hub')
-    revalidateTag('pipeline-blog')
+    revalidateTag('blog-hub', { expire: 0 })
+    revalidateTag('pipeline-blog', { expire: 0 })
     return { ok: true, postId: id }
   }
 
@@ -262,8 +262,8 @@ export async function savePost(
   }
 
   revalidateBlogPostSeo(siteId, id, locale, input.slug)
-  revalidateTag('blog-hub')
-  revalidateTag('pipeline-blog')
+  revalidateTag('blog-hub', { expire: 0 })
+  revalidateTag('pipeline-blog', { expire: 0 })
   return { ok: true, postId: id }
 }
 
@@ -566,7 +566,7 @@ export async function savePostField(
     // and the path param is unused for tag-only revalidation.
     const slug = field === 'slug' ? (value as string) : ''
     revalidateBlogPostSeo(siteId, postId, locale, slug)
-    revalidateTag('blog-hub')
+    revalidateTag('blog-hub', { expire: 0 })
   }
 
   return { ok: true }

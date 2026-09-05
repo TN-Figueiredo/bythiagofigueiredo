@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
 vi.mock('next/cache', () => ({
+  updateTag: vi.fn(),
   revalidateTag: vi.fn(),
   revalidatePath: vi.fn(),
 }))
@@ -124,7 +125,7 @@ describe('GET /api/cron/sync-youtube', () => {
 
     expect(res.status).toBe(200)
     expect(body.inserted).toBe(2)
-    expect(mockRevalidate).toHaveBeenCalledWith('youtube')
+    expect(mockRevalidate).toHaveBeenCalledWith('youtube', { expire: 0 })
   })
 
   it('revalidates cache even when no new videos', async () => {
@@ -133,7 +134,7 @@ describe('GET /api/cron/sync-youtube', () => {
     })
 
     await GET(makeRequest())
-    expect(mockRevalidate).toHaveBeenCalledWith('youtube')
+    expect(mockRevalidate).toHaveBeenCalledWith('youtube', { expire: 0 })
   })
 
   it('skips channels outside posting window in schedule mode', async () => {

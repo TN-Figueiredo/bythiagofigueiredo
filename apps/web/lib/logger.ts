@@ -3,6 +3,7 @@
 // Sprint 4 replaces this with a Sentry-backed implementation via setLogger.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { recordCronSuccess, recordCronFailure } from '../src/lib/cron-health';
 
 export interface Logger {
   warn(msg: string, meta?: Record<string, unknown>): void;
@@ -83,7 +84,12 @@ export function newRunId(): string {
 // migration) we fail open so dev environments keep working.
 // ---------------------------------------------------------------------------
 
-type CronFnResult = { status: 'ok' | 'error'; [k: string]: unknown };
+// `health_written: true` is not part of the JSON payload a route sends back
+// to the caller (Vercel Cron/pg_cron never reads it) — it is a signal FROM
+// the route TO this wrapper: "I already called recordCronSuccess/
+// recordCronFailure myself for this job, don't write again." See Critico 1
+// (docs/superpowers/plans/2026-09-02-falhas-silenciosas.md, final-fix wave).
+type CronFnResult = { status: 'ok' | 'error'; health_written?: boolean; [k: string]: unknown };
 
 // Keys set by withCronLock itself in the logCron call. If fn returns any of
 // these in its `...extra` payload they would silently override the canonical
@@ -98,6 +104,18 @@ function stripReservedKeys(extra: Record<string, unknown>): void {
       delete extra[k];
     }
   }
+}
+
+// Extracts a human-readable error message from a cron result payload for
+// cron_health.last_error. Falls back to a generic message when the result
+// doesn't carry a string `error`/`err_code` field. Mirrors
+// src/lib/logger.ts's errorMessageFromResult (Menor 6 of the same plan — the
+// two withCronLock implementations had drifted: this file only checked
+// `error`, the other also checked `err_code`).
+function errorMessageFromResult(extra: Record<string, unknown>, job: string): string {
+  if (typeof extra.error === 'string' && extra.error) return extra.error;
+  if (typeof extra.err_code === 'string' && extra.err_code) return extra.err_code;
+  return `${job} reported status=error`;
 }
 
 export async function withCronLock<T extends CronFnResult>(
@@ -127,9 +145,44 @@ export async function withCronLock<T extends CronFnResult>(
     try {
       const result = await fn();
       const duration_ms = Date.now() - start;
-      const { status, ...extra } = result;
+      const { status, health_written, ...extra } = result;
       stripReservedKeys(extra);
       logCron({ job, run_id: runId, status, duration_ms, ...extra });
+      // Instrumentation point (WP-H, docs/superpowers/plans/
+      // 2026-09-02-falhas-silenciosas.md): covers every route wrapped by
+      // withCronLock without each of them calling recordCronSuccess/
+      // recordCronFailure by hand. Best-effort: a cron_health write failure
+      // (e.g. missing service-role env var) must never break the cron's own
+      // response.
+      //
+      // `health_written: true` (Critico 1 of the same plan): a route that
+      // already called recordCronSuccess/recordCronFailure itself for THIS
+      // job returns this flag so the wrapper does NOT write again. Writing
+      // twice is NOT harmless — recordCronFailure/recordCronSuccess mutate
+      // consecutive_failures and severity, so a second write with the
+      // wrapper's own (always coarser) `status` can silently erase a
+      // failure the route just recorded under a more specific key (this is
+      // exactly how sync-youtube's `{synced:2, errors:0}`-while-table-empty
+      // defect got reintroduced: the route recorded a failure, then
+      // returned status 'ok' for HTTP purposes, and this wrapper stamped
+      // success right over it).
+      //
+      // `skipped: true` is an established convention (adsense-sync no_token,
+      // send-scheduled-newsletters non-prod guard) for "the guard bailed out
+      // before doing real work" — recording that as a success would make a
+      // cron that never actually runs in prod look healthy. Skip the health
+      // write entirely in that case; don't record success OR failure.
+      if (extra.skipped !== true && health_written !== true) {
+        try {
+          if (status === 'error') {
+            await recordCronFailure(job, errorMessageFromResult(extra, job));
+          } else {
+            await recordCronSuccess(job);
+          }
+        } catch (healthErr) {
+          console.error(`[withCronLock] cron_health write failed for ${job}:`, healthErr);
+        }
+      }
       if (status === 'error') {
         return Response.json({ ...extra }, { status: 500 });
       }
@@ -147,6 +200,11 @@ export async function withCronLock<T extends CronFnResult>(
         err_code: 'unhandled',
         ...extra,
       });
+      try {
+        await recordCronFailure(job, message);
+      } catch (healthErr) {
+        console.error(`[withCronLock] cron_health write failed for ${job}:`, healthErr);
+      }
       return Response.json({ error: 'cron_failed' }, { status: 500 });
     }
   } finally {

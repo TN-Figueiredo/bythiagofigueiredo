@@ -49,17 +49,44 @@ export async function GET(req: NextRequest) {
 
   const lockKey = channelId ? `sync-youtube-${mode}-${channelId}` : `sync-youtube-${mode}`
 
-  return withCronLock(supabase, lockKey, runId, 'sync-youtube', async () => {
+  // Critico 1b (docs/superpowers/plans/2026-09-02-falhas-silenciosas.md): the
+  // `job` tag passed to withCronLock used to be the literal string
+  // 'sync-youtube' for EVERY mode. cron_health already tracks 3 distinct keys
+  // for this route's 5 vercel.json schedules ('sync-youtube',
+  // 'sync-youtube-ab-poll', 'sync-youtube-competitors' — see
+  // src/app/api/health/route.ts's resolveCronName), but the wrapper's own
+  // best-effort instrumentation didn't know that: after ANY mode returned
+  // (almost always status 'ok', see below), it stamped success onto the
+  // 'sync-youtube' key regardless of which mode actually ran. Since ab-poll
+  // fires every 30 minutes, that stamped 'sync-youtube' healthy every 30
+  // minutes even while the metrics/schedule/catchall modes that actually own
+  // that key were silently dead. Aligning the tag to the mode fixes the
+  // wrapper's own default-write target; `health_written: true` below (each
+  // branch already calls recordCronSuccess/recordCronFailure itself with the
+  // precise key) is what stops the wrapper from writing a second, possibly
+  // contradictory, time.
+  const jobTag = mode === 'ab-poll' ? 'sync-youtube-ab-poll' : mode === 'competitors' ? 'sync-youtube-competitors' : 'sync-youtube'
+
+  return withCronLock(supabase, lockKey, runId, jobTag, async () => {
     // AB Lab poll mode — separate flow
     if (mode === 'ab-poll') {
-      const { data: activeTests } = await supabase
+      const { data: activeTests, error: activeTestsError } = await supabase
         .from('ab_tests')
         .select('id, youtube_video_id')
         .eq('status', 'active')
 
+      // Mesmo buraco do branch `channelsError` abaixo: um erro de query aqui
+      // caia em `activeTests === null` -> "sem testes ativos" -> sucesso
+      // gravado sobre um erro nunca visto.
+      if (activeTestsError) {
+        Sentry.captureMessage(`sync-youtube: ab_tests query failed: ${activeTestsError.message}`)
+        await recordCronFailure('sync-youtube-ab-poll', activeTestsError.message, 'info')
+        return { status: 'error' as const, mode: 'ab-poll', error: activeTestsError.message, health_written: true }
+      }
+
       if (!activeTests?.length) {
         await recordCronSuccess('sync-youtube-ab-poll', 'info')
-        return { status: 'ok' as const, mode: 'ab-poll', polled: 0 }
+        return { status: 'ok' as const, mode: 'ab-poll', polled: 0, health_written: true }
       }
 
       let polled = 0
@@ -96,7 +123,7 @@ export async function GET(req: NextRequest) {
       }
 
       await recordCronSuccess('sync-youtube-ab-poll', 'info')
-      return { status: 'ok' as const, mode: 'ab-poll', polled }
+      return { status: 'ok' as const, mode: 'ab-poll', polled, health_written: true }
     }
 
     // Competitor observatory mode — separate flow
@@ -107,7 +134,7 @@ export async function GET(req: NextRequest) {
 
       if (!competitorChannels?.length) {
         await recordCronSuccess('sync-youtube-competitors', 'info')
-        return { status: 'ok' as const, mode: 'competitors', synced: 0 }
+        return { status: 'ok' as const, mode: 'competitors', synced: 0, health_written: true }
       }
 
       let synced = 0
@@ -139,7 +166,7 @@ export async function GET(req: NextRequest) {
         data: { synced, errors },
       })
 
-      return { status: 'ok' as const, mode: 'competitors', synced, errors }
+      return { status: 'ok' as const, mode: 'competitors', synced, errors, health_written: true }
     }
 
     let query = supabase
@@ -151,7 +178,19 @@ export async function GET(req: NextRequest) {
       query = query.eq('id', channelId)
     }
 
-    const { data: channels } = await query
+    const { data: channels, error: channelsError } = await query
+
+    // Um erro de query dropado aqui caía em `channels === null` -> "no
+    // channels configured" -> sucesso implícito via withCronLock (o mesmo
+    // buraco do Importante 3, plano 2026-09-02-falhas-silenciosas, já
+    // fechado em sync-analytics-metrics/weekly-grade-snapshot/
+    // youtube-intelligence-dispatch/send-welcome-emails). Distinguir "a
+    // query falhou" de "não há canais configurados".
+    if (channelsError) {
+      Sentry.captureMessage(`sync-youtube: channels query failed: ${channelsError.message}`)
+      await recordCronFailure('sync-youtube', channelsError.message, 'critical')
+      return { status: 'error' as const, error: channelsError.message, health_written: true }
+    }
 
     if (!channels || channels.length === 0) {
       return { status: 'ok' as const, message: 'no channels configured' }
@@ -221,7 +260,7 @@ export async function GET(req: NextRequest) {
 
         if (err instanceof YouTubeQuotaError) {
           await recordCronFailure('sync-youtube', 'quotaExceeded', 'critical')
-          return { status: 'error' as const, error: 'quotaExceeded', quota_used: totalQuota, channels: channelResults }
+          return { status: 'error' as const, error: 'quotaExceeded', quota_used: totalQuota, channels: channelResults, health_written: true }
         }
 
         Sentry.captureException(err, {
@@ -231,8 +270,8 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    revalidateTag('youtube')
-    revalidateTag('layout-counts')
+    revalidateTag('youtube', { expire: 0 })
+    revalidateTag('layout-counts', { expire: 0 })
     revalidatePath('/cms/youtube')
 
     const failedChannels = channelResults.filter(c => c.status === 'failed')
@@ -249,6 +288,7 @@ export async function GET(req: NextRequest) {
       updated: totalUpdated,
       quota_used: totalQuota,
       channels: channelResults,
+      health_written: true,
     }
   })
 }

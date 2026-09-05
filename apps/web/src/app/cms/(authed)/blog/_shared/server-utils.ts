@@ -9,11 +9,11 @@ export async function requireEditScope(siteId: string): Promise<void> {
 }
 
 export function revalidateBlogHub(siteId?: string): void {
-  revalidateTag('blog-hub')
-  revalidateTag('pipeline-blog')
-  revalidateTag('sidebar-badges')
+  revalidateTag('blog-hub', { expire: 0 })
+  revalidateTag('pipeline-blog', { expire: 0 })
+  revalidateTag('sidebar-badges', { expire: 0 })
   revalidatePath('/cms/blog')
-  if (siteId) revalidateTag(`sitemap:${siteId}`)
+  if (siteId) revalidateTag(`sitemap:${siteId}`, { expire: 0 }) // sem leitor — candidata a remoção
 }
 
 export function generateTagSlug(name: string): string {

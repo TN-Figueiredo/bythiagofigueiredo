@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // Mocks — declared before imports so vi.mock hoists correctly
 // ---------------------------------------------------------------------------
 
-vi.mock('next/cache', () => ({ revalidateTag: vi.fn(), revalidatePath: vi.fn() }))
+vi.mock('next/cache', () => ({ updateTag: vi.fn(), revalidateTag: vi.fn(), revalidatePath: vi.fn() }))
 vi.mock('@/lib/cms/site-context', () => ({ getSiteContext: vi.fn() }))
 vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({
   createServerClient: vi.fn().mockReturnValue({ auth: { getUser: () => Promise.resolve({ data: { user: { id: 'user-1', email: 'test@test.com' } } }) } }), requireSiteScope: vi.fn() }))

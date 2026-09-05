@@ -26,6 +26,7 @@ vi.mock('../../lib/supabase/service', () => ({
 }))
 
 vi.mock('next/cache', () => ({
+  updateTag: vi.fn(),
   revalidatePath: vi.fn(),
   revalidateTag: vi.fn(),
 }))

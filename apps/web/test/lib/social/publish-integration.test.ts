@@ -211,7 +211,7 @@ vi.mock('@tn-figueiredo/email', () => ({
   createEmailService: vi.fn(),
 }))
 
-vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
+vi.mock('next/cache', () => ({ updateTag: vi.fn(), revalidatePath: vi.fn() }))
 
 // story-generator and template-renderer are dynamically imported inside workflows
 const mockGenerateStoryImage = vi.fn()

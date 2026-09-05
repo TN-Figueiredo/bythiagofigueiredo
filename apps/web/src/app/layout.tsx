@@ -78,10 +78,12 @@ export default async function RootLayout({
   // ('unsafe-inline') covers that case.
   const nonce = h.get('x-nonce') ?? undefined
   return (
+    // Next 16: preserva o salto instantaneo ao navegar; rolagem animada e decisao de UX separada
     <html
       lang={lang}
       className={`${theme === 'dark' ? 'dark' : ''} ${inter.variable} ${fraunces.variable} ${jetbrains.variable} ${caveat.variable} ${sourceSerif.variable} ${geist.variable} ${geistMono.variable}`}
       data-theme={theme}
+      data-scroll-behavior="smooth"
       suppressHydrationWarning
     >
       <head>

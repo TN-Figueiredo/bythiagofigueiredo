@@ -45,6 +45,17 @@ vi.mock('@/lib/notifications/fan-out-to-admins', () => ({
   fanOutToSiteAdmins: vi.fn().mockResolvedValue(1),
 }))
 
+// Pre-existing gap (unrelated to this file's own coverage focus): this suite
+// never mocked @/lib/cron-health, so recordCronSuccess/recordCronFailure hit
+// the real module against `mockFrom`, which has no 'cron_health' handler —
+// `.from('cron_health').upsert(...)` threw `TypeError: ... is not a
+// function`, unhandled (the route calls these bare, without .catch), failing
+// every test whose code path reaches a cron_health write.
+vi.mock('@/lib/cron-health', () => ({
+  recordCronSuccess: vi.fn(),
+  recordCronFailure: vi.fn(),
+}))
+
 // ── Import after mocks ──────────────────────────────────────────────────────
 import { GET } from '../../../src/app/api/cron/sync-analytics-metrics/route'
 
@@ -101,6 +112,32 @@ describe('GET /api/cron/sync-analytics-metrics', () => {
   it('returns 401 with wrong CRON_SECRET', async () => {
     const res = await GET(makeRequest('Bearer wrong'))
     expect(res.status).toBe(401)
+  })
+
+  it('returns 500 and records a failure when the channels query itself errors (Importante 3, 2026-09-02-falhas-silenciosas)', async () => {
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'youtube_channels') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({ data: null, error: { message: 'connection reset' } }),
+          }),
+        }
+      }
+      return {}
+    })
+    const { recordCronFailure, recordCronSuccess } = await import('@/lib/cron-health')
+
+    const res = await GET(makeRequest())
+
+    // A dropped query error used to fall through to `channels === null` ->
+    // "no_channels" -> recordCronSuccess + HTTP 200 — asserting health over
+    // an error the route never looked at. It must now surface as a failure.
+    expect(res.status).toBe(500)
+    const body = await res.json()
+    expect(body.error).toBe('channels query failed')
+    expect(body.detail).toBe('connection reset')
+    expect(recordCronFailure).toHaveBeenCalledWith('sync-analytics-metrics', 'connection reset')
+    expect(recordCronSuccess).not.toHaveBeenCalled()
   })
 
   it('returns no_channels when no channels configured', async () => {

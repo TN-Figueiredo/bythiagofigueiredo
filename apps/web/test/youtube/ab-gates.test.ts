@@ -73,4 +73,9 @@ describe('computeGates', () => {
     const g = computeGates(makeInput({ variantCount: 1, confirmedCycles: 7 }))
     expect(g[3]!.passed).toBe(true)
   })
+  it('F18: 3 variants with 14 confirmed cycles fails min_cycles (needs 21)', () => {
+    const g = computeGates(makeInput({ variantCount: 3, confirmedCycles: 14 }))
+    expect(g[3]!.passed).toBe(false)
+    expect(g[3]!.value).toBe('14 / 21 cycles')
+  })
 })

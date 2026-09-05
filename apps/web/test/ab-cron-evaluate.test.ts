@@ -165,6 +165,8 @@ function buildSupabaseMock(opts: { tests: unknown[]; trackedLinks?: { template_n
 beforeEach(() => {
   vi.stubEnv('CRON_SECRET', 'test-secret')
   vi.stubEnv('LINKS_SHORT_DOMAIN', 'go.test.com')
+  // These tests exercise the real apply-to-YouTube path (F19's guard defaults to off).
+  vi.stubEnv('AB_AUTO_APPLY_WINNER', 'true')
   vi.clearAllMocks()
   ;(ensureFreshToken as ReturnType<typeof vi.fn>).mockResolvedValue({
     accessToken: 'token-123',

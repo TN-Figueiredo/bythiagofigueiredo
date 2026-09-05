@@ -24,6 +24,7 @@ vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({
 }))
 
 vi.mock('next/cache', () => ({
+  updateTag: vi.fn(),
   revalidatePath: vi.fn(),
 }))
 

@@ -74,6 +74,61 @@ describe('POST /api/cron/send-welcome-emails', () => {
     expect(await res.json()).toEqual({ error: 'unauthorized' })
   })
 
+  it('returns 500 when the candidates query itself errors (Importante 3, 2026-09-02-falhas-silenciosas)', async () => {
+    fromMock.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue({ data: null, error: { message: 'connection reset' } }),
+          }),
+        }),
+      }),
+    })
+
+    const res = await POST(req(CRON_SECRET))
+
+    // A dropped query error used to fall through to `candidates === null` ->
+    // zero candidateIds -> "no candidates" -> recordCronSuccess + HTTP 200 —
+    // asserting health over an error the route never looked at.
+    expect(res.status).toBe(500)
+    const body = await res.json()
+    expect(body.error).toBe('candidates query failed')
+    expect(body.detail).toBe('connection reset')
+    expect(sendWelcomeEmailMock).not.toHaveBeenCalled()
+  })
+
+  it('returns 500 when the atomic claim UPDATE itself errors', async () => {
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'newsletter_subscriptions') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                limit: vi.fn().mockResolvedValue({ data: [{ id: 'sub-1' }], error: null }),
+              }),
+            }),
+          }),
+          update: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              in: vi.fn().mockReturnValue({
+                select: vi.fn().mockResolvedValue({ data: null, error: { message: 'deadlock detected' } }),
+              }),
+            }),
+          }),
+        }
+      }
+      return {}
+    })
+
+    const res = await POST(req(CRON_SECRET))
+
+    expect(res.status).toBe(500)
+    const body = await res.json()
+    expect(body.error).toBe('claim update failed')
+    expect(body.detail).toBe('deadlock detected')
+    expect(sendWelcomeEmailMock).not.toHaveBeenCalled()
+  })
+
   it('returns 200 with sent: 0 when no pending subscribers', async () => {
     fromMock.mockReturnValue({
       select: vi.fn().mockReturnValue({

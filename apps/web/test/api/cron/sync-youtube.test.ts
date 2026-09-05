@@ -23,10 +23,12 @@ vi.mock('../../../lib/logger', () => ({
 
 vi.mock('@sentry/nextjs', () => ({
   captureException: vi.fn(),
+  captureMessage: vi.fn(),
   setTag: vi.fn(),
 }))
 
 vi.mock('next/cache', () => ({
+  updateTag: vi.fn(),
   revalidateTag: vi.fn(),
   revalidatePath: vi.fn(),
 }))
@@ -155,6 +157,44 @@ describe('GET /api/cron/sync-youtube', () => {
     expect(body.message).toBe('no channels configured')
   })
 
+  it('reports error and records a critical failure when the channels query itself errors (Importante 3, 2026-09-02-falhas-silenciosas)', async () => {
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'youtube_channels') return channelsQuery(null, { message: 'connection reset' })
+      return {}
+    })
+    const { recordCronFailure, recordCronSuccess } = await import('@/lib/cron-health')
+
+    const res = await GET(makeRequest())
+    const body = await res.json()
+
+    // Um erro de query dropado aqui caia em `channels === null` ->
+    // "no channels configured" -> sucesso implicito. Precisa surgir como
+    // falha explicita, sem que recordCronSuccess seja chamado.
+    expect(body.status).toBe('error')
+    expect(body.error).toBe('connection reset')
+    expect(recordCronFailure).toHaveBeenCalledWith('sync-youtube', 'connection reset', 'critical')
+    expect(recordCronSuccess).not.toHaveBeenCalled()
+  })
+
+  it('reports error and records a failure when the ab-poll active tests query itself errors', async () => {
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'ab_tests') return channelsQuery(null, { message: 'connection reset' })
+      return {}
+    })
+    const { recordCronFailure, recordCronSuccess } = await import('@/lib/cron-health')
+
+    const res = await GET(makeRequest({ mode: 'ab-poll' }))
+    const body = await res.json()
+
+    // Mesmo buraco do branch channelsError: um erro de query dropado aqui
+    // caia em `activeTests === null` -> "sem testes ativos" -> sucesso
+    // implicito. Precisa surgir como falha explicita.
+    expect(body.status).toBe('error')
+    expect(body.error).toBe('connection reset')
+    expect(recordCronFailure).toHaveBeenCalledWith('sync-youtube-ab-poll', 'connection reset', 'info')
+    expect(recordCronSuccess).not.toHaveBeenCalled()
+  })
+
   it('happy path: syncs channels and revalidates tag', async () => {
     const fakeChannel = {
       id: 'ch-1',
@@ -183,6 +223,6 @@ describe('GET /api/cron/sync-youtube', () => {
     expect(body.inserted).toBe(2)
     expect(body.updated).toBe(1)
     expect(body.quota_used).toBe(10)
-    expect(revalidateTag).toHaveBeenCalledWith('youtube')
+    expect(revalidateTag).toHaveBeenCalledWith('youtube', { expire: 0 })
   })
 })

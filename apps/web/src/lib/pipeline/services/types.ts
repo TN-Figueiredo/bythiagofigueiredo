@@ -6,6 +6,14 @@ export interface ServiceContext {
   siteId: string
   permissions: Permission[]
   keyHash?: string
+  /**
+   * pipeline_api_keys.id of the key that authenticated this request, when
+   * source === 'api_key'. Lets write paths attribute content_pipeline_history
+   * rows to the key (changed_by_key_id) instead of leaving them anonymous —
+   * changed_by is a strict FK to auth.users and stays NULL for key-authenticated
+   * writes.
+   */
+  keyId?: string
   supabase: SupabaseClient
   source?: 'api_key' | 'session'
 }

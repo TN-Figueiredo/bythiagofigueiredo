@@ -20,12 +20,12 @@ vi.mock('@/lib/supabase/service', () => ({
   })),
 }))
 
-// Mock @tn-figueiredo/email — ResendEmailAdapter used by email-fallback
-vi.mock('@tn-figueiredo/email', () => ({
-  ResendEmailAdapter: vi.fn().mockImplementation(() => ({
+// Mock @/lib/email/service — getEmailService (SES) used by email-fallback
+vi.mock('@/lib/email/service', () => ({
+  getEmailService: vi.fn(() => ({
     send: vi.fn().mockResolvedValue({
       messageId: 'msg-123',
-      provider: 'resend' as const,
+      provider: 'ses' as const,
     }),
   })),
 }))
@@ -161,11 +161,10 @@ describe('Telegram notification', () => {
 describe('Email fallback notification', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    process.env.RESEND_API_KEY = 'test-resend-key'
     process.env.NEWSLETTER_FROM_DOMAIN = 'bythiagofigueiredo.com'
   })
 
-  it('sends an email with story details via Resend', async () => {
+  it('sends an email with story details via SES', async () => {
     const { sendStoryEmailNotification } = await import(
       '../src/lib/social/notifications/email-fallback'
     )
@@ -182,8 +181,11 @@ describe('Email fallback notification', () => {
     expect(result.ok).toBe(true)
   })
 
-  it('returns error when RESEND_API_KEY is not set', async () => {
-    delete process.env.RESEND_API_KEY
+  it('returns an error result when the underlying SES send rejects', async () => {
+    const { getEmailService } = await import('@/lib/email/service')
+    vi.mocked(getEmailService).mockReturnValueOnce({
+      send: vi.fn().mockRejectedValue(new Error('SES credentials not configured')),
+    } as never)
 
     const { sendStoryEmailNotification } = await import(
       '../src/lib/social/notifications/email-fallback'
@@ -199,7 +201,7 @@ describe('Email fallback notification', () => {
     })
 
     expect(result.ok).toBe(false)
-    expect(result.error).toContain('RESEND_API_KEY')
+    expect(result.error).toContain('SES credentials not configured')
   })
 })
 
@@ -207,7 +209,6 @@ describe('Notification orchestrator', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     process.env.TELEGRAM_BOT_TOKEN = 'test-bot-token'
-    process.env.RESEND_API_KEY = 'test-resend-key'
     process.env.NEWSLETTER_FROM_DOMAIN = 'bythiagofigueiredo.com'
   })
 

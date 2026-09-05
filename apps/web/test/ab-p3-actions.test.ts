@@ -18,6 +18,7 @@ vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({
   requireSiteScope: vi.fn().mockResolvedValue({ ok: true }),
 }))
 vi.mock('next/cache', () => ({
+  updateTag: vi.fn(),
   revalidatePath: vi.fn(),
   revalidateTag: vi.fn(),
 }))

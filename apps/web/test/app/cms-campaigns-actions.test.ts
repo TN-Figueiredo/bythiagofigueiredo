@@ -36,7 +36,7 @@ vi.mock('../../lib/cms/repositories', () => ({
   }),
 }))
 
-vi.mock('next/cache', () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }))
+vi.mock('next/cache', () => ({ updateTag: vi.fn(), revalidatePath: vi.fn(), revalidateTag: vi.fn() }))
 
 const { revalidateCampaignSeoMock } = vi.hoisted(() => ({
   revalidateCampaignSeoMock: vi.fn(),

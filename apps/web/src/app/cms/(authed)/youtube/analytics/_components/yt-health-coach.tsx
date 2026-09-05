@@ -58,6 +58,7 @@ export function YtHealthCoach({
 }: Props) {
   const router = useRouter()
   const sortedCards = [...coachingCards].sort((a, b) => a.score - b.score)
+  const hasCoworkCoaching = sortedCards.some(c => c.source === 'cowork')
 
   const potentialScore = sortedCards.length > 0
     ? Math.min(100, healthScore + sortedCards.reduce((sum, c) => sum + Math.max(0, Math.round((c.benchmark - c.score) * 1.5)), 0))
@@ -93,12 +94,17 @@ export function YtHealthCoach({
           </svg>
         </div>
         <div className="flex-1">
-          <span className="section-label">Diagnostico do Cowork</span>
+          <span className="section-label">{hasCoworkCoaching ? 'Diagnostico do Cowork' : 'Diagnostico heuristico'}</span>
           <p style={{ fontSize: 14, lineHeight: 1.55, marginTop: 6 }}>
             {sortedCards.length > 0
               ? `O canal esta em ${healthScore}/100. ${sortedCards.length} eixo${sortedCards.length > 1 ? 's' : ''} puxa${sortedCards.length > 1 ? 'm' : ''} pra baixo. Resolver levaria o score pra ~${potentialScore}.`
               : 'Canal saudavel em todos os eixos — continue monitorando.'}
           </p>
+          {!hasCoworkCoaching && sortedCards.length > 0 && (
+            <p className="dim" style={{ fontSize: 11, marginTop: 4 }}>
+              Baseado em regras fixas — ainda sem analise do Cowork para este canal.
+            </p>
+          )}
         </div>
         {potentialGain > 0 && (
           <div className="coach-proj">

@@ -25,6 +25,7 @@ function buildCtx(): ServiceContext {
     siteId: mcp.siteId,
     permissions: mcp.permissions as ServiceContext['permissions'],
     keyHash: mcp.keyHash,
+    keyId: mcp.keyId,
     supabase: getSupabaseServiceClient(),
     source: 'api_key',
   }

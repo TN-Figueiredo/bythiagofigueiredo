@@ -94,7 +94,7 @@ export async function updateBranding(input: {
     .update(parsed.data)
     .eq('id', siteId)
   if (error) return { ok: false, error: error.message }
-  revalidateTag('seo-config')
+  revalidateTag('seo-config', { expire: 0 })
   revalidatePath('/cms/settings')
   return { ok: true }
 }
@@ -112,7 +112,7 @@ export async function updateIdentity(input: {
     .update(parsed.data)
     .eq('id', siteId)
   if (error) return { ok: false, error: error.message }
-  revalidateTag('seo-config')
+  revalidateTag('seo-config', { expire: 0 })
   revalidatePath('/cms/settings')
   return { ok: true }
 }
@@ -129,7 +129,7 @@ export async function updateSeoDefaults(input: {
     .update(parsed.data)
     .eq('id', siteId)
   if (error) return { ok: false, error: error.message }
-  revalidateTag('seo-config')
+  revalidateTag('seo-config', { expire: 0 })
   return { ok: true }
 }
 
@@ -320,7 +320,7 @@ export async function updateYouTubeChannelSettings(input: z.infer<typeof syncSch
 
   if (error) return { ok: false, error: error.message }
   if (!data || data.length === 0) return { ok: false, error: 'Channel not found' }
-  revalidateTag('youtube')
+  revalidateTag('youtube', { expire: 0 })
   revalidatePath('/cms/settings')
   return { ok: true }
 }
@@ -345,7 +345,7 @@ export async function updateSiteTimezone(input: {
     .update({ timezone: parsed.data.timezone, updated_at: new Date().toISOString() })
     .eq('id', siteId)
   if (error) return { ok: false, error: error.message }
-  revalidateTag('seo-config')
+  revalidateTag('seo-config', { expire: 0 })
   revalidatePath('/cms/settings')
   return { ok: true }
 }
@@ -463,7 +463,7 @@ export async function addYouTubeChannel(input: z.infer<typeof addChannelSchema>)
     })
   }
 
-  revalidateTag('youtube')
+  revalidateTag('youtube', { expire: 0 })
   revalidatePath('/cms/settings')
   revalidatePath('/')
   return { ok: true }
@@ -508,8 +508,8 @@ export async function removeYouTubeChannel(input: z.infer<typeof removeChannelSc
   const { error } = await supabase.from('youtube_channels').delete().eq('id', channel.id).eq('site_id', siteId)
   if (error) return { ok: false, error: error.message }
 
-  revalidateTag('youtube')
-  revalidateTag('layout-counts')
+  revalidateTag('youtube', { expire: 0 })
+  revalidateTag('layout-counts', { expire: 0 })
   revalidatePath('/cms/settings')
   revalidatePath('/')
   return { ok: true }
@@ -599,7 +599,7 @@ export async function removeInstagramAccount(input: {
 
   if (error) return { ok: false, error: error.message }
   revalidatePath('/cms/settings')
-  revalidateTag('instagram-feed')
+  revalidateTag('instagram-feed', { expire: 0 })
   return { ok: true }
 }
 
@@ -630,7 +630,7 @@ export async function updateInstagramSettings(input: {
   if (!data || data.length === 0) return { ok: false, error: 'Account not found' }
   revalidatePath('/cms/settings')
   revalidatePath('/', 'layout')
-  revalidateTag('instagram-feed')
+  revalidateTag('instagram-feed', { expire: 0 })
   return { ok: true }
 }
 
@@ -715,7 +715,7 @@ export async function updateInstagramSlots(input: {
     .upsert(rows, { onConflict: 'account_id,position' })
 
   if (error) return { ok: false, error: error.message }
-  revalidateTag('instagram-feed')
+  revalidateTag('instagram-feed', { expire: 0 })
   revalidatePath('/cms/settings')
   return { ok: true }
 }

@@ -80,7 +80,7 @@ Convenção: `describe.skipIf(skipIfNoLocalDb())('<suite>', () => { ... })`. Int
 
 ## Regras anti-regressão de testes (aprendidas 2026-07-03)
 
-- **Bump de dependência → rodar os testes dos consumidores diretos ANTES do push:** `grep -rl <pacote> apps/{web,api}/src apps/web/lib packages/*/src` → `npx vitest run <arquivos de teste dos consumidores>` (deps transitivas sem import próprio: rodar as suites da feature que as usa). Runs direcionados custam ~1s ("vitest local trava" só vale pra suite completa). Um bump de dompurify pushado só com testes de blob causou CI red evitável.
+- **Bump de dependência → rodar os testes dos consumidores diretos ANTES do push:** `grep -rl <pacote> apps/{web,api}/src apps/web/lib packages/*/src` → `npx vitest run <arquivos de teste dos consumidores>` (deps transitivas sem import próprio: rodar as suites da feature que as usa). Runs direcionados custam ~1s. **A suíte completa NÃO trava mais** — medido em 2026-09-03: `npx vitest run` = 1078 arquivos, 13.780 testes, **160s**. A crença de que ela travava é obsoleta; antes de um push grande, rodar a suíte inteira é barato e vale mais que qualquer recorte. Um bump de dompurify pushado só com testes de blob causou CI red evitável.
 - **Sanitizers nunca sob happy-dom:** DOMPurify ≥3.4.11 falha aberto no happy-dom (mantém `<script>`, dropa tags permitidas). Teste de código server-side → `// @vitest-environment node`; componente client → `// @vitest-environment jsdom`. Canary: `test/unit/newsletter/archive-sanitizer.test.ts`.
 - **Fixtures temporais sempre relativas ou com fake timers:** nunca hardcodar ano/trimestre futuro (`'2027-06-01'`, `'Q2 2026'`) em teste que compara com wall clock — quebra o CI sozinho na virada (aconteceu 2026-07-01). Use `new Date(Date.now() + N * 864e5).toISOString()` ou `vi.useFakeTimers({ now, toFake: ['Date'] })`.
 - **Fix que exige mudança em teste vai no MESMO commit do bump** (bisectabilidade — a árvore nunca fica com testes vermelhos).
@@ -141,6 +141,7 @@ SEO: `SEO_AI_CRAWLERS_BLOCKED` (controls robots.txt AI crawler rules)
 Links: `LINKS_SHORT_DOMAIN` (string)
 Tracking: `GEO_PROVIDER` (string — default `auto`, set `stub` for dev/test)
 Ads: `AD_GOOGLE_ENABLED`, `AD_TRACKING_ENABLED`, `AD_REVENUE_SYNC_ENABLED` (require external Google setup)
+YouTube A/B Lab: `AB_AUTO_APPLY_WINNER` (default off — a confiança bayesiana do teste roda sobre cliques que são sempre zero, então o vencedor é só sugerido e espera confirmação humana antes de ser aplicado no canal)
 
 ## Pipeline Integrity
 
@@ -155,7 +156,11 @@ Chave permanente: `PIPELINE_COWORK_KEY` em `.env.local`. **Nunca criar/revogar k
 ## Environment Variables
 
 ### Web (`apps/web/.env.local`)
-`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN`, `CRON_SECRET`, `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`, `NEWSLETTER_FROM_DOMAIN`, `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`, `CAMPAIGN_PDF_SIGNED_URL_TTL`, `YOUTUBE_API_KEY`, `BLOB_READ_WRITE_TOKEN` + operational flags above.
+`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN`, `CRON_SECRET`, `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`, `NEWSLETTER_FROM_DOMAIN`, `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`, `CAMPAIGN_PDF_SIGNED_URL_TTL`, `YOUTUBE_API_KEY`, `BLOB_READ_WRITE_TOKEN`, `PIPELINE_MCP_HMAC_SECRET`, `YT_ANALYTICS_SYNC_WINDOW_DAYS` + operational flags above.
+
+`PIPELINE_MCP_HMAC_SECRET` (gerar com `openssl rand -hex 32`): assina os confirmation tokens de ações destrutivas do MCP pipeline (`lib/pipeline/mcp/safety.ts`). Deliberadamente separado de `PIPELINE_COWORK_KEY` — essa viaja em todo request via `X-Pipeline-Key`, então usá-la para assinar os tokens deixaria quem tem a chave forjar a própria confirmação. **Ordem obrigatória de rollout:** setar a variável (`.env.local` e Vercel) primeiro, deploy do código depois — invertido, `getHmacSecret()` lança e derruba as tools MCP.
+
+`YT_ANALYTICS_SYNC_WINDOW_DAYS` (opcional, default `90`): controla o tamanho da janela consultada na YouTube Analytics API pelo cron `app/api/cron/sync-analytics-metrics/route.ts`.
 
 Sentry: `NEXT_PUBLIC_SENTRY_DSN` required em prod/preview, optional em dev (empty → no-op). `SENTRY_ORG/PROJECT/AUTH_TOKEN` build-only (source map upload).
 

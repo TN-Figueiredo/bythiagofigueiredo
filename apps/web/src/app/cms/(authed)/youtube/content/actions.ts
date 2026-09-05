@@ -134,7 +134,7 @@ export async function savePageContent(
 
   if (error) return { ok: false, error: error.message }
 
-  revalidateTag('page-content:youtube')
+  revalidateTag('page-content:youtube', { expire: 0 })
   revalidatePath('/cms/youtube/content')
   return { ok: true }
 }
@@ -160,7 +160,7 @@ export async function resetPageContent(
 
   if (error) return { ok: false, error: error.message }
 
-  revalidateTag('page-content:youtube')
+  revalidateTag('page-content:youtube', { expire: 0 })
   revalidatePath('/cms/youtube/content')
   return { ok: true, content: defaults }
 }

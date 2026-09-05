@@ -58,6 +58,7 @@ vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({
 }))
 
 vi.mock('next/cache', () => ({
+  updateTag: vi.fn(),
   revalidatePath: vi.fn(),
   revalidateTag: vi.fn(),
 }))
@@ -191,7 +192,7 @@ describe('createCampaign', () => {
     const { createCampaign } = await import(actionsPath)
     await createCampaign(baseCampaignData())
     expect(revalidatePath).toHaveBeenCalledWith('/admin/ads')
-    expect(revalidateTag).toHaveBeenCalledWith('ads')
+    expect(revalidateTag).toHaveBeenCalledWith('ads', { expire: 0 })
   })
 })
 

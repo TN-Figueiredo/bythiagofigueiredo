@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // Mock @vercel/og
-vi.mock('@vercel/og', () => ({
+vi.mock('next/og', () => ({
   ImageResponse: class MockImageResponse {
     private body: ReadableStream
     constructor(element: React.ReactElement, options?: { width?: number; height?: number }) {
@@ -101,7 +101,7 @@ describe('generateStoryImage', () => {
   })
 
   it('passes 1080x1920 dimensions to ImageResponse', async () => {
-    const { ImageResponse } = await import('@vercel/og')
+    const { ImageResponse } = await import('next/og')
     const spy = vi.spyOn(ImageResponse.prototype, 'arrayBuffer')
     await generateStoryImage('card', baseData)
     const instance = spy.mock.instances[0] as Record<string, unknown>

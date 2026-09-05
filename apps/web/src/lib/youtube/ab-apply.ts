@@ -4,6 +4,19 @@ import { resolveTemplates } from '@/lib/youtube/ab-templates'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import type { AppliedMetadata } from '@/lib/youtube/ab-types'
 
+// CTR e impressoes nao existem em nenhuma API publica do YouTube. O campo
+// 'impressions' aqui e views renomeado e 'ctr' e gravado como 0 fixo, entao
+// a confianca bayesiana roda sobre ruido. Ate existir dado real (decisao do
+// dono: aposentar o eixo, entrada manual do Studio, ou proxy renomeado), o
+// vencedor e apenas sugerido — nunca aplicado sem confirmacao humana.
+// Funcao (nao const de modulo) para reavaliar a env var a cada chamada —
+// necessario tanto em runtime (Vercel pode reconfigurar sem redeploy via
+// alguns setups) quanto em teste (vi.stubEnv so tem efeito em leituras
+// feitas depois do stub).
+export function isAutoApplyEnabled(): boolean {
+  return process.env.AB_AUTO_APPLY_WINNER === 'true'
+}
+
 export interface ApplyVariantInput {
   youtubeVideoId: string
   accessToken: string

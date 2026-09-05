@@ -24,6 +24,7 @@ vi.mock('@/lib/seo/cache-invalidation', () => ({
 
 const revalidateTagMock = vi.fn()
 vi.mock('next/cache', () => ({
+  updateTag: vi.fn(),
   revalidateTag: (...args: unknown[]) => revalidateTagMock(...args),
   revalidatePath: vi.fn(),
 }))
@@ -78,7 +79,7 @@ describe('savePostField', () => {
     await savePostField('p1', 'pt', 'slug', 'my-new-slug')
 
     expect(revalidateBlogPostSeoMock).toHaveBeenCalledWith('s1', 'p1', 'pt', 'my-new-slug')
-    expect(revalidateTagMock).toHaveBeenCalledWith('blog-hub')
+    expect(revalidateTagMock).toHaveBeenCalledWith('blog-hub', { expire: 0 })
   })
 
   it('does NOT call revalidation when updating tag_id', async () => {
@@ -92,7 +93,7 @@ describe('savePostField', () => {
     await savePostField('p1', 'en', 'meta_title', 'New Title')
 
     expect(revalidateBlogPostSeoMock).toHaveBeenCalledWith('s1', 'p1', 'en', '')
-    expect(revalidateTagMock).toHaveBeenCalledWith('blog-hub')
+    expect(revalidateTagMock).toHaveBeenCalledWith('blog-hub', { expire: 0 })
   })
 
   it('returns ok:false with unauthorized when auth guard throws', async () => {

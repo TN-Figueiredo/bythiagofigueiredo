@@ -11,6 +11,7 @@ vi.mock('@/lib/cms/site-context', () => ({
 }))
 
 vi.mock('next/cache', () => ({
+  updateTag: vi.fn(),
   revalidateTag: vi.fn(),
 }))
 

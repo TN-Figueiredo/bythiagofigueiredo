@@ -13,6 +13,7 @@ vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({
 
 const revalidatePathMock = vi.fn()
 vi.mock('next/cache', () => ({
+  updateTag: vi.fn(),
   revalidatePath: (...args: unknown[]) => revalidatePathMock(...args),
   revalidateTag: vi.fn(),
 }))

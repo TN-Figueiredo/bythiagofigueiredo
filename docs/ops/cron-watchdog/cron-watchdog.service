@@ -1,0 +1,49 @@
+# cron-watchdog.service — dead-man-switch check for GET /api/health.
+# Part of WP-H (docs/superpowers/plans/2026-09-02-falhas-silenciosas.md).
+#
+# Install: copy this file (and cron-watchdog.timer) to
+# /etc/systemd/system/, then `systemctl daemon-reload`. Triggered by
+# cron-watchdog.timer — do not enable this .service directly.
+#
+# Outbound HTTPS only (curl to $HEALTH_URL and $NTFY_URL). No socket is
+# opened, no port is listened on — irrelevant to the ports already in use
+# on this machine (22, 443, 1883, 1884, 3003, 5000, 8080-8082, 8090,
+# 8443-8445, 8554, 8555, 8971, 41543).
+
+[Unit]
+Description=bythiagofigueiredo cron dead-man-switch watchdog
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=cron-watchdog
+Group=cron-watchdog
+
+# Secrets (CRON_SECRET, NTFY_URL, optional NTFY_AUTH_TOKEN) live here, not
+# in this unit file: chmod 600, owned by cron-watchdog:cron-watchdog.
+EnvironmentFile=/etc/cron-watchdog/watchdog.env
+
+# Creates/owns /var/lib/cron-watchdog for check.sh's small state file
+# (last observed status + re-alert counter) — survives across runs so the
+# script can tell "still degraded" from "just became degraded" and avoid
+# paging every 10 minutes for the same ongoing issue.
+StateDirectory=cron-watchdog
+
+ExecStart=/opt/cron-watchdog/check.sh
+
+# Hardening — this unit only ever needs to read its own script/env file,
+# write its own state dir, and make outbound HTTPS requests.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+CapabilityBoundingSet=

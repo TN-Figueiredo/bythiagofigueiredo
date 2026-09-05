@@ -28,8 +28,8 @@ export async function POST(req: Request): Promise<Response> {
 
     const result = data as { date: string; metrics_upserted: number; posts_updated: number } | null
 
-    revalidateTag('most-read')
-    revalidateTag('content-analytics')
+    revalidateTag('most-read', { expire: 0 }) // sem leitor — candidata a remoção
+    revalidateTag('content-analytics', { expire: 0 }) // sem leitor — candidata a remoção
 
     try {
       await supabase.from('cron_runs').insert({
@@ -44,3 +44,6 @@ export async function POST(req: Request): Promise<Response> {
     return { status: 'ok' as const, ok: true, ...result }
   })
 }
+
+// Cron da Vercel dispara GET; auth le o header Authorization independente do verbo, entao o alias e seguro.
+export const GET = POST

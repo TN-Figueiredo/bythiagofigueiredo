@@ -5,10 +5,43 @@ import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { scoreVideo, computeOutliers, computeTrend, computeBaseline } from '@/lib/youtube/scoring'
 import type { VideoScoreInput } from '@/lib/youtube/scoring-types'
+import type { CoachingOutput } from '@/lib/youtube/intelligence-types'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * Reads the channel-level coaching diagnosis the Cowork pipeline already writes to
+ * `youtube_intelligence` (type='channel', video_id IS NULL, source='cowork'). Before this
+ * (F12), the UI never queried this row — `.not('video_id','is',null)` in the video-level
+ * fetch excluded it by construction, so the Health Coach showed a fixed heuristic text
+ * mislabeled as "Diagnostico do Cowork" even when Cowork had already analyzed the channel.
+ */
+export async function fetchChannelCoaching(
+  channelId: string,
+): Promise<{ coaching: CoachingOutput; generatedAt: string } | null> {
+  if (!UUID_RE.test(channelId)) throw new Error('invalid_input')
+  const { siteId } = await getSiteContext()
+  const auth = await requireSiteScope({ area: 'cms', siteId, mode: 'view' })
+  if (!auth.ok) throw new Error(auth.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
+  const supabase = getSupabaseServiceClient()
+
+  const { data } = await supabase
+    .from('youtube_intelligence')
+    .select('coaching, generated_at')
+    .eq('site_id', siteId)
+    .eq('channel_id', channelId)
+    .is('video_id', null)
+    .eq('source', 'cowork')
+    .eq('type', 'channel')
+    .order('generated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (!data?.coaching) return null
+  return { coaching: data.coaching as CoachingOutput, generatedAt: data.generated_at }
+}
 
 export async function fetchGradesData(channelId: string) {
   if (!UUID_RE.test(channelId)) throw new Error('invalid_input')

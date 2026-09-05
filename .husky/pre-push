@@ -38,4 +38,15 @@ if ! ( cd apps/api && npx tsc --noEmit 2>&1 ); then
   exit 1
 fi
 
+# 5. Type debt ratchet (BTF-059)
+# A CI roda este passo dentro do MESMO job de gate que o pinning. Sem ele aqui,
+# o hook aprovava o push e a CI reprovava — inclusive quando a divida CAI e o
+# baseline nao foi atualizado no mesmo commit. Custou um push em 2026-09-04.
+echo "🔍 Type debt ratchet..."
+if ! bash scripts/check-type-debt.sh; then
+  echo "❌ Ratchet de divida de tipos bloqueou o push."
+  echo "   Se a divida caiu, trave o ganho: bash scripts/check-type-debt.sh --update"
+  exit 1
+fi
+
 echo "✅ Ecosystem validated — push safe."

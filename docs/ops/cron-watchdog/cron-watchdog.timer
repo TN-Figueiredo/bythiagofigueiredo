@@ -1,0 +1,20 @@
+# cron-watchdog.timer — runs cron-watchdog.service every 10 minutes.
+# Part of WP-H (docs/superpowers/plans/2026-09-02-falhas-silenciosas.md).
+#
+# Install: copy alongside cron-watchdog.service to /etc/systemd/system/,
+# then:
+#   systemctl daemon-reload
+#   systemctl enable --now cron-watchdog.timer
+
+[Unit]
+Description=Run bythiagofigueiredo cron-watchdog check every 10 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=10min
+# Catch up on a missed run if the machine was off/asleep when it was due
+# (this is a home-lab box, not a datacenter — it WILL be rebooted).
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -15,5 +15,9 @@ export const cms = createCmsAdmin({
     }
   },
   revalidatePath,
-  revalidateTag,
+  // Next 16: revalidateTag exige o 2o argumento; a interface do
+  // @tn-figueiredo/cms-admin ainda e (tag: string) => void. { expire: 0 } e
+  // purga imediata — o unico equivalente ao revalidateTag de 1 argumento do
+  // Next 15. Perfil nomeado ('seconds' etc.) serviria conteudo velho.
+  revalidateTag: (tag: string) => revalidateTag(tag, { expire: 0 }),
 })

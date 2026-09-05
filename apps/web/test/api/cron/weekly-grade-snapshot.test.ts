@@ -64,6 +64,7 @@ vi.mock('@/lib/youtube/notification-service', () => ({
 
 vi.mock('@sentry/nextjs', () => ({
   captureException: vi.fn(),
+  captureMessage: vi.fn(),
   setTag: vi.fn(),
 }))
 
@@ -173,6 +174,29 @@ describe('GET /api/cron/weekly-grade-snapshot', () => {
   it('returns 401 with wrong CRON_SECRET', async () => {
     const res = await GET(makeRequest('Bearer wrong-secret'))
     expect(res.status).toBe(401)
+  })
+
+  it('returns 500 and records a failure when the channels query itself errors (Importante 3, 2026-09-02-falhas-silenciosas)', async () => {
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'youtube_channels') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({ data: null, error: { message: 'connection reset' } }),
+          }),
+        }
+      }
+      return {}
+    })
+
+    const res = await GET(makeRequest(`Bearer ${CRON_SECRET}`))
+
+    // A dropped query error used to fall through to `channels === null` ->
+    // "no_channels" -> recordCronSuccess + HTTP 200 — asserting health over
+    // an error the route never looked at. It must now surface as a failure.
+    expect(res.status).toBe(500)
+    const body = await res.json()
+    expect(body.error).toBe('channels query failed')
+    expect(body.detail).toBe('connection reset')
   })
 
   it('returns no_channels when no sync-enabled channels exist', async () => {

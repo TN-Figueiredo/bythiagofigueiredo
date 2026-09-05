@@ -138,7 +138,7 @@ export async function advanceToRecorded(id: string, version: number): Promise<Vi
 
   revalidatePath('/cms/video')
   revalidatePath(`/cms/video/${id}/edit`)
-  revalidateTag('pipeline-blog')
+  revalidateTag('pipeline-blog', { expire: 0 })
   return { ok: true, data: updated }
 }
 
@@ -280,7 +280,7 @@ export async function publishVideo(id: string, version: number): Promise<VideoAc
 
   revalidatePath('/cms/video')
   revalidatePath(`/cms/video/${id}/edit`)
-  revalidateTag('ab-tests')
+  revalidateTag('ab-tests', { expire: 0 }) // sem leitor — candidata a remoção
   const row = updated as { stage?: string; version?: number }
   return {
     ok: true,

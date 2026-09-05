@@ -42,7 +42,7 @@ export async function createCategory(input: z.infer<typeof CategorySchema>) {
   })
 
   if (error) return { ok: false as const, error: error.message }
-  revalidateTag('youtube')
+  revalidateTag('youtube', { expire: 0 })
   revalidatePath('/cms/youtube/categories')
   return { ok: true as const }
 }
@@ -57,7 +57,7 @@ export async function updateCategory(id: string, input: z.infer<typeof CategoryS
     .eq('id', id).eq('site_id', siteId)
 
   if (error) return { ok: false as const, error: error.message }
-  revalidateTag('youtube')
+  revalidateTag('youtube', { expire: 0 })
   revalidatePath('/cms/youtube/categories')
   return { ok: true as const }
 }
@@ -70,8 +70,8 @@ export async function deleteCategory(id: string) {
     .delete().eq('id', id).eq('site_id', siteId)
 
   if (error) return { ok: false as const, error: error.message }
-  revalidateTag('youtube')
-  revalidateTag('layout-counts')
+  revalidateTag('youtube', { expire: 0 })
+  revalidateTag('layout-counts', { expire: 0 })
   revalidatePath('/cms/youtube/categories')
   return { ok: true as const }
 }

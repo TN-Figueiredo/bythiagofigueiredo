@@ -33,6 +33,6 @@ export async function savePublisherId(publisherId: string): Promise<void> {
     throw new Error(error.message)
   }
 
-  revalidateTag('ads')
+  revalidateTag('ads', { expire: 0 })
   revalidatePath('/admin/settings/ads')
 }

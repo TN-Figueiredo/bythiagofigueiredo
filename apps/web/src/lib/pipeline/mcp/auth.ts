@@ -10,6 +10,8 @@ export interface McpServiceContext {
   siteId: string
   permissions: string[]
   keyHash: string
+  /** pipeline_api_keys.id of the key that authenticated this MCP request. */
+  keyId: string
 }
 
 /**
@@ -71,6 +73,7 @@ export async function resolveMcpAuth(req: Request): Promise<McpServiceContext> {
     siteId: keyRow.site_id,
     permissions: keyRow.permissions,
     keyHash,
+    keyId: keyRow.id,
   }
 }
 

@@ -3,8 +3,11 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { buildNotification } from '@/lib/youtube/notification-service'
 import { fanOutToSiteAdmins } from '@/lib/notifications/fan-out-to-admins'
 import { getIsoWeek } from '@/lib/youtube/analytics-sync'
-import { OPTIMIZATION_CONFIG } from '@/lib/youtube/optimization-loop'
+import { OPTIMIZATION_CONFIG, applyCycleTransition } from '@/lib/youtube/optimization-loop'
+import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
 import * as Sentry from '@sentry/nextjs'
+
+const CRON_NAME = 'optimization-monitor'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 120
@@ -19,16 +22,33 @@ export async function GET(req: NextRequest) {
   const now = new Date()
   const weekIso = getIsoWeek(now)
 
-  const { data: monitoring } = await supabase
+  const { data: monitoring, error: monitoringError } = await supabase
     .from('optimization_cycles')
     .select('id, youtube_video_id, site_id, test_winner_applied_at, monitoring_day7_at, monitoring_day14_at, monitoring_day30_at')
     .eq('state', 'post_test_monitoring')
     .not('test_winner_applied_at', 'is', null)
     .limit(200)
 
-  if (!monitoring?.length) return NextResponse.json({ checked: 0 })
+  // Um erro de query dropado aqui caía em `monitoring === null` ->
+  // `!monitoring?.length` -> recordCronSuccess + HTTP 200 — a correção
+  // anterior (Importante 3) fechou exatamente esse buraco em
+  // sync-analytics-metrics/weekly-grade-snapshot/youtube-intelligence-dispatch/
+  // send-welcome-emails, mas reintroduziu o mesmo problema aqui ao adicionar
+  // recordCronSuccess sem checar `error` antes. Distinguir "a query falhou"
+  // de "não há ciclos a monitorar".
+  if (monitoringError) {
+    Sentry.captureMessage(`optimization-monitor: monitoring query failed: ${monitoringError.message}`)
+    await recordCronFailure(CRON_NAME, monitoringError.message).catch((e) => console.error('[cron-health] write failed:', e))
+    return NextResponse.json({ error: 'monitoring query failed', detail: monitoringError.message }, { status: 500 })
+  }
+
+  if (!monitoring?.length) {
+    await recordCronSuccess(CRON_NAME).catch((e) => console.error('[cron-health] write failed:', e))
+    return NextResponse.json({ checked: 0 })
+  }
 
   let checked = 0
+  let errors = 0
 
   for (const cycle of monitoring) {
     try {
@@ -68,11 +88,7 @@ export async function GET(req: NextRequest) {
           if (checkDay === 30) {
             const isResolved = latestGrade && (latestGrade.grade === 'A' || latestGrade.grade === 'B')
             if (isResolved) {
-              await supabase.from('optimization_cycles').update({
-                state: 'resolved',
-                resolved_at: now.toISOString(),
-                resolved_reason: 'grade_improved',
-              }).eq('id', cycle.id)
+              await applyCycleTransition(supabase, cycle.id, 'resolved', { resolved_reason: 'grade_improved' })
 
               const payload = buildNotification({
                 type: 'optimization_resolved',
@@ -94,10 +110,7 @@ export async function GET(req: NextRequest) {
                 actionHref: payload.action_href,
               })
             } else {
-              await supabase.from('optimization_cycles').update({
-                state: 'retest_needed',
-                cooldown_until: new Date(now.getTime() + OPTIMIZATION_CONFIG.cooldown_days * 86400000).toISOString(),
-              }).eq('id', cycle.id)
+              await applyCycleTransition(supabase, cycle.id, 'retest_needed', {})
 
               const payload = buildNotification({
                 type: 'retest_suggested',
@@ -125,10 +138,17 @@ export async function GET(req: NextRequest) {
         }
       }
     } catch (err) {
+      errors++
       console.error('[optimization-monitor] Error processing cycle:', err)
       Sentry.captureException(err)
     }
   }
 
-  return NextResponse.json({ checked })
+  if (errors > 0 && checked === 0) {
+    await recordCronFailure(CRON_NAME, `${errors} cycle(s) failed`).catch((e) => console.error('[cron-health] write failed:', e))
+  } else {
+    await recordCronSuccess(CRON_NAME).catch((e) => console.error('[cron-health] write failed:', e))
+  }
+
+  return NextResponse.json({ checked, errors })
 }

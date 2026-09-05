@@ -11,6 +11,8 @@ export interface PipelineAuth {
   permissions: string[]
   source: 'api_key' | 'session'
   keyHash?: string
+  /** pipeline_api_keys.id — set only when source === 'api_key'. */
+  keyId?: string
 }
 
 const rateLimitMap = new Map<string, { count: number; window_start: number }>()
@@ -73,7 +75,7 @@ export async function authenticatePipeline(req: NextRequest): Promise<
       .update({ last_used_at: new Date().toISOString() })
       .eq('id', keyRow.id)
 
-    return { ok: true, auth: { siteId: keyRow.site_id, permissions: keyRow.permissions, source: 'api_key', keyHash } }
+    return { ok: true, auth: { siteId: keyRow.site_id, permissions: keyRow.permissions, source: 'api_key', keyHash, keyId: keyRow.id } }
   }
 
   // Fall back to session auth

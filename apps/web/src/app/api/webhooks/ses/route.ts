@@ -180,7 +180,8 @@ export async function POST(req: Request): Promise<Response> {
     (e) => e.type === 'bounced' || e.type === 'complained',
   )
   if (hasSubscriberChange) {
-    revalidateTag('newsletter-suggestions')
+    // leitor: lib/newsletter/suggestions.ts → widget público em app/(public)/newsletters/[slug]/
+    revalidateTag('newsletter-suggestions', { expire: 0 })
   }
 
   await supabase

@@ -51,9 +51,9 @@ async function requireEditScope(): Promise<{ siteId: string; userId: string }> {
 // ─── Cache invalidation ────────────────────────────────────────────────────
 
 function revalidateMedia(siteId: string, assetId?: string): void {
-  revalidateTag(`media:gallery:${siteId}`)
-  revalidateTag(`media:stats:${siteId}`)
-  if (assetId) revalidateTag(`media:asset:${assetId}`)
+  revalidateTag(`media:gallery:${siteId}`, { expire: 0 })
+  revalidateTag(`media:stats:${siteId}`, { expire: 0 })
+  if (assetId) revalidateTag(`media:asset:${assetId}`, { expire: 0 })
   revalidatePath('/cms/media')
 }
 

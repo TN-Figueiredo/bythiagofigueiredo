@@ -18,6 +18,7 @@ vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({
   requireSiteScope: vi.fn().mockResolvedValue({ ok: true }),
 }))
 vi.mock('next/cache', () => ({
+  updateTag: vi.fn(),
   revalidatePath: vi.fn(),
   revalidateTag: vi.fn(),
 }))
@@ -201,7 +202,7 @@ describe('endAbTest', () => {
       'fresh-token-123',
     )
     expect(revalidatePath).toHaveBeenCalledWith('/cms/youtube/ab-lab')
-    expect(revalidateTag).toHaveBeenCalledWith('youtube')
+    expect(revalidateTag).toHaveBeenCalledWith('youtube', { expire: 0 })
   })
 
   it('ends test without winner — reverts to original', async () => {
