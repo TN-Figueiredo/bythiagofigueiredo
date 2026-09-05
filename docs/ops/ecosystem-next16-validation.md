@@ -21,6 +21,13 @@ achados que **não dependem** de produção; as linhas de QA por tela (WP-6.1) e
 - **Zero `updateTag`:** nenhuma das 171 chamadas satisfaz "quem salvou é o único que lê" — todo alvo de Server Action é tela compartilhada de staff ou página pública.
 - Perfis aplicados (medidos, excluindo o wrapper de `lib/cms/admin.ts`): `'seconds'` 143 · `'minutes'` 28 · `'max'` 0 · `{ expire: 0 }` 0 (contagem por lote em `lote-2.*.md`).
 
+## Nota operacional do Next 16
+
+`next dev` passou a gerar `apps/web/AGENTS.md` e `apps/web/CLAUDE.md` (e a tocar
+`next-env.d.ts`) a cada start. Não são do repo: adicionar `apps/web/AGENTS.md` e
+`apps/web/CLAUDE.md` ao `.gitignore` antes que um `git add -A` os arraste — ou decidir
+mantê-los como artefato versionado, o que é escolha, não default.
+
 ## Pendente (pós-deploy)
 
 - WP-5: `minimumCacheTTL` (fixado em 60), `scroll-behavior` (restaurar via `data-scroll-behavior="smooth"` e levar a decisão), avatares do Google (`maximumRedirects` 3), smoke dos destinos de invalidação em produção.
