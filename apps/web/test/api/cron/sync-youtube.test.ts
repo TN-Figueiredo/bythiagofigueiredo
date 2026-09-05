@@ -28,6 +28,7 @@ vi.mock('@sentry/nextjs', () => ({
 }))
 
 vi.mock('next/cache', () => ({
+  updateTag: vi.fn(),
   revalidateTag: vi.fn(),
   revalidatePath: vi.fn(),
 }))
@@ -222,6 +223,6 @@ describe('GET /api/cron/sync-youtube', () => {
     expect(body.inserted).toBe(2)
     expect(body.updated).toBe(1)
     expect(body.quota_used).toBe(10)
-    expect(revalidateTag).toHaveBeenCalledWith('youtube')
+    expect(revalidateTag).toHaveBeenCalledWith('youtube', 'seconds')
   })
 })

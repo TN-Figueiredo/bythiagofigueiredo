@@ -98,6 +98,7 @@ vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({
 }))
 
 vi.mock('next/cache', () => ({
+  updateTag: vi.fn(),
   revalidateTag: vi.fn(),
   revalidatePath: vi.fn(),
 }))
@@ -289,7 +290,7 @@ describe('createQrCard', () => {
     const { revalidateTag } = await import('next/cache')
     const { createQrCard } = await importActions()
     await createQrCard('link-x', 'Tag Test', validComposition())
-    expect(revalidateTag).toHaveBeenCalledWith('link:link-x')
+    expect(revalidateTag).toHaveBeenCalledWith('link:link-x', 'seconds')
   })
 
   it('verifies link ownership before insert (returns link_not_found)', async () => {
@@ -437,7 +438,7 @@ describe('updateQrCard', () => {
     const { revalidateTag } = await import('next/cache')
     const { updateQrCard } = await importActions()
     await updateQrCard('card-1', 'link-z', { name: 'X' })
-    expect(revalidateTag).toHaveBeenCalledWith('link:link-z')
+    expect(revalidateTag).toHaveBeenCalledWith('link:link-z', 'seconds')
   })
 
   it('filters by link_id in update query', async () => {
@@ -485,7 +486,7 @@ describe('deleteQrCard', () => {
     const { revalidateTag } = await import('next/cache')
     const { deleteQrCard } = await importActions()
     await deleteQrCard('card-x', 'link-del')
-    expect(revalidateTag).toHaveBeenCalledWith('link:link-del')
+    expect(revalidateTag).toHaveBeenCalledWith('link:link-del', 'seconds')
   })
 
   it('returns error when Supabase fails', async () => {

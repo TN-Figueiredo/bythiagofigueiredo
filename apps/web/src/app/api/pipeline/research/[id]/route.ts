@@ -42,7 +42,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const ctx = authToServiceContext(auth)
     const { data, meta } = await updateResearchItem(ctx, id, body, expectedVersion)
 
-    revalidateTag('layout-counts')
+    revalidateTag('layout-counts', 'seconds')
     const headers = buildRateLimitHeaders(auth)
     return NextResponse.json({ data, meta }, { headers })
   } catch (err) {
@@ -69,7 +69,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   try {
     const ctx = authToServiceContext(auth)
     const data = await deleteResearchItem(ctx, id)
-    revalidateTag('layout-counts')
+    revalidateTag('layout-counts', 'seconds')
     return pipelineSuccess(data, 200, auth)
   } catch (err) {
     return serviceErrorToResponse(err, auth)

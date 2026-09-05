@@ -46,7 +46,7 @@ export async function saveQrCard(
 
     if (error) return { ok: false, error: error.message }
 
-    revalidateTag(`link:${linkId}`)
+    revalidateTag(`link:${linkId}`, 'seconds')
     return { ok: true }
   } catch (err) {
     console.error('[saveQrCard]', err)
@@ -151,7 +151,7 @@ export async function saveQrTemplate(
 
     if (error) return { ok: false, error: error.message }
 
-    revalidateTag('links-settings')
+    revalidateTag('links-settings', 'seconds')
     return { ok: true, id: data.id as string }
   } catch (err) {
     console.error('[saveQrTemplate]', err)
@@ -211,7 +211,7 @@ export async function deleteQrTemplate(templateId: string): Promise<ActionResult
 
     if (error) return { ok: false, error: error.message }
 
-    revalidateTag('links-settings')
+    revalidateTag('links-settings', 'seconds')
     return { ok: true }
   } catch (err) {
     console.error('[deleteQrTemplate]', err)

@@ -32,6 +32,8 @@ const nextConfig: NextConfig = {
         hostname: '*.public.blob.vercel-storage.com',
       },
     ],
+    // Next 16 sobe o default para 4h; o YouTube reusa a mesma URL ao trocar thumbnail e o A/B Lab atribuiria a nota à variante errada. Preserva o comportamento do Next 15.
+    minimumCacheTTL: 60,
   },
   typescript: { ignoreBuildErrors: true },
   serverExternalPackages: [
@@ -56,6 +58,18 @@ const nextConfig: NextConfig = {
   // @tn-figueiredo/links-admin: sub-path exports (qr-card-builder/*) reference src/.
   // All other @tn-figueiredo/* packages ship compiled JS from dist/ — no transpile needed.
   transpilePackages: ['@app/shared', '@tn-figueiredo/cms', '@tn-figueiredo/links-admin'],
+
+  turbopack: {
+    resolveAlias: {
+      // @tn-figueiredo/email@0.2.0 re-exporta adapters Resend/Svix/SMTP com import
+      // estatico; os modulos nao existem (migramos para SES) e o Turbopack recusa
+      // modulo ausente. Nenhum caminho vivo os executa. Conserto duravel: deps
+      // opcionais/lazy no proprio pacote (achado do WP-6).
+      resend: './src/stubs/absent-module.ts',
+      svix: './src/stubs/absent-module.ts',
+      nodemailer: './src/stubs/absent-module.ts',
+    },
+  },
 
   // Sprint 5a Track E — enable .mdx as page/module file extensions so that
   // `import('@/content/legal/privacy.pt-BR.mdx')` works for the /privacy and

@@ -31,6 +31,7 @@ vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({
 }))
 
 vi.mock('next/cache', () => ({
+  updateTag: vi.fn(),
   revalidateTag: vi.fn(),
   revalidatePath: vi.fn(),
 }))
@@ -103,13 +104,13 @@ describe('updateSlotConfig', () => {
     vi.resetModules()
     const { updateSlotConfig } = await import(actionsPath)
     await updateSlotConfig('bythiagofigueiredo', 'rail_left', { enabled: true })
-    expect(revalidateTag).toHaveBeenCalledWith('ad:slot-config:bythiagofigueiredo')
+    expect(revalidateTag).toHaveBeenCalledWith('ad:slot-config:bythiagofigueiredo', 'seconds')
   })
 
   it('revalidates granular slot tag after update', async () => {
     vi.resetModules()
     const { updateSlotConfig } = await import(actionsPath)
     await updateSlotConfig('bythiagofigueiredo', 'rail_left', { enabled: true })
-    expect(revalidateTag).toHaveBeenCalledWith('ad:slot:rail_left')
+    expect(revalidateTag).toHaveBeenCalledWith('ad:slot:rail_left', 'seconds')
   })
 })

@@ -18,6 +18,7 @@ vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({
   requireSiteScope: vi.fn().mockResolvedValue({ ok: true }),
 }))
 vi.mock('next/cache', () => ({
+  updateTag: vi.fn(),
   revalidatePath: vi.fn(),
   revalidateTag: vi.fn(),
 }))
@@ -276,7 +277,7 @@ describe('pauseAbTest', () => {
     const result = await pauseAbTest('test-1')
 
     expect(result).toEqual({ ok: true })
-    expect(revalidateTag).toHaveBeenCalledWith('youtube')
+    expect(revalidateTag).toHaveBeenCalledWith('youtube', 'seconds')
     expect(revalidatePath).toHaveBeenCalledWith('/cms/youtube/ab-lab')
   })
 })

@@ -86,7 +86,7 @@ export async function GET(req: NextRequest) {
     }
 
     if (totalInserted > 0 || totalUpdated > 0) {
-      revalidateTag('instagram-feed')
+      revalidateTag('instagram-feed', 'minutes')
     }
 
     return {

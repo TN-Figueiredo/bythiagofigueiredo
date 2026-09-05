@@ -1,11 +1,11 @@
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { createNotification } from '@/lib/notifications/create'
-import { ResendEmailAdapter } from '@tn-figueiredo/email'
+import { getEmailService } from '@/lib/email/service'
 
 /**
  * Checks cron_health for 3+ consecutive days of failures and escalates:
  * 1. Creates a priority-1 in-app notification with email delivery
- * 2. Sends a direct email via Resend as a fallback
+ * 2. Sends a direct email via SES as a fallback
  *
  * Returns true if escalation was sent, false if not needed or deduped.
  */
@@ -62,7 +62,7 @@ export async function checkAndEscalate(cronName: string, siteId: string): Promis
 
   if (result.suppressed) return false
 
-  // Direct Resend email as additional escalation path
+  // Direct SES email as additional escalation path
   await sendEscalationEmail(owner.user_id, cronName, health, daysSinceSuccess)
 
   return result.success
@@ -74,9 +74,6 @@ async function sendEscalationEmail(
   health: { consecutive_failures: number; last_failure_at: string | null; last_success_at: string | null },
   daysSinceSuccess: number,
 ): Promise<void> {
-  const resendKey = process.env.RESEND_API_KEY
-  if (!resendKey) return
-
   const supabase = getSupabaseServiceClient()
 
   // Use auth.admin API to get user email (auth.users not directly queryable)
@@ -87,8 +84,6 @@ async function sendEscalationEmail(
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://bythiagofigueiredo.com'
 
   try {
-    const adapter = new ResendEmailAdapter(resendKey)
-
     const textBody = [
       `O cron "${cronName}" está com ${health.consecutive_failures} falhas consecutivas.`,
       '',
@@ -98,7 +93,7 @@ async function sendEscalationEmail(
       `Verifique em: ${appUrl}/cms/youtube/ab-lab`,
     ].join('\n')
 
-    await adapter.send({
+    await getEmailService().send({
       from: { email: `alerts@${fromDomain}`, name: 'AB Lab Alerts' },
       to: userData.user.email,
       subject: `⚠️ ${cronName} falhando há ${Math.floor(daysSinceSuccess)} dias`,

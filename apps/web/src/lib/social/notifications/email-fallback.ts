@@ -1,5 +1,5 @@
 import * as Sentry from '@sentry/nextjs'
-import { ResendEmailAdapter } from '@tn-figueiredo/email'
+import { getEmailService } from '@/lib/email/service'
 
 const SENTRY_TAG = { component: 'social-email-notification' }
 
@@ -28,18 +28,11 @@ interface EmailFallbackResult {
 export async function sendStoryEmailNotification(
   input: EmailNotificationInput,
 ): Promise<EmailFallbackResult> {
-  const apiKey = process.env.RESEND_API_KEY
-  if (!apiKey) {
-    return { ok: false, error: 'RESEND_API_KEY not configured' }
-  }
-
   const fromDomain =
     process.env.NEWSLETTER_FROM_DOMAIN ?? 'bythiagofigueiredo.com'
 
   try {
-    const adapter = new ResendEmailAdapter(apiKey)
-
-    await adapter.send({
+    await getEmailService().send({
       from: { email: `noreply@${fromDomain}`, name: 'Social Hub' },
       to: input.to,
       subject: `Story Ready: ${escapeHtml(input.title)}`,
@@ -65,7 +58,7 @@ export async function sendStoryEmailNotification(
     return { ok: true }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
-    Sentry.captureMessage(`Resend story email failed: ${message}`, {
+    Sentry.captureMessage(`SES story email failed: ${message}`, {
       level: 'warning',
       tags: SENTRY_TAG,
     })

@@ -59,7 +59,8 @@ export async function confirmSubscription(token: string): Promise<ConfirmActionR
       return { state: 'not_found' }
     }
 
-    revalidateTag('newsletter-suggestions')
+    // quem submete (visitante confirmando) não é quem lê (widget público de sugestões)
+    revalidateTag('newsletter-suggestions', 'minutes')
     return { state: 'success', siteId: result.site_id, email: result.email }
   } catch (err) {
     captureServerActionError(err, { action: 'confirm_newsletter', branch: 'action_catch' })

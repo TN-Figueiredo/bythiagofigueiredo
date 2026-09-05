@@ -88,7 +88,7 @@ export async function createCampaign(data: CampaignFormData): Promise<void> {
   await insertCreatives(supabase, campaign.id as string, data.creatives, 'create_campaign_creatives')
 
   revalidatePath('/admin/ads')
-  revalidateTag('ads')
+  revalidateTag('ads', 'minutes')
 }
 
 export async function updateCampaign(id: string, data: CampaignFormData): Promise<void> {
@@ -116,7 +116,7 @@ export async function updateCampaign(id: string, data: CampaignFormData): Promis
   }
 
   revalidatePath('/admin/ads')
-  revalidateTag('ads')
+  revalidateTag('ads', 'minutes')
 }
 
 export async function deleteCampaign(id: string): Promise<void> {
@@ -128,7 +128,7 @@ export async function deleteCampaign(id: string): Promise<void> {
     throw new Error(error.message)
   }
   revalidatePath('/admin/ads')
-  revalidateTag('ads')
+  revalidateTag('ads', 'minutes')
 }
 
 export async function uploadMedia(file: File): Promise<{ id: string; url: string }> {
@@ -216,7 +216,7 @@ export async function updateCampaignStatus(id: string, status: string): Promise<
     throw new Error(error.message)
   }
   revalidatePath('/admin/ads')
-  revalidateTag('ads')
+  revalidateTag('ads', 'minutes')
 }
 
 export async function fetchCampaignById(id: string): Promise<AdCampaignDetail | null> {
@@ -254,5 +254,5 @@ export async function updatePlaceholder(
     throw new Error(error.message)
   }
   revalidatePath('/admin/ads')
-  revalidateTag('ads')
+  revalidateTag('ads', 'minutes')
 }

@@ -68,7 +68,7 @@ vi.mock('@/lib/seo/cache-invalidation', () => ({
   revalidateSiteBranding: vi.fn(),
 }))
 
-vi.mock('next/cache', () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }))
+vi.mock('next/cache', () => ({ updateTag: vi.fn(), revalidatePath: vi.fn(), revalidateTag: vi.fn() }))
 
 // Service-client mock used for the seo_extras workaround (the cms package's
 // UpdatePostInput.translation type doesn't include seo_extras, so the action

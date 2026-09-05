@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
-vi.mock('next/cache', () => ({ revalidateTag: vi.fn() }))
+vi.mock('next/cache', () => ({ updateTag: vi.fn(), revalidateTag: vi.fn() }))
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn() }))
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn() }))
 vi.mock('@/lib/logger', () => ({
@@ -71,6 +71,6 @@ describe('GET /api/cron/instagram-sync', () => {
     const res = await GET(makeRequest())
     expect(res.status).toBe(200)
     expect(mockSync).toHaveBeenCalledTimes(1)
-    expect(mockRevalidate).toHaveBeenCalledWith('instagram-feed')
+    expect(mockRevalidate).toHaveBeenCalledWith('instagram-feed', 'minutes')
   })
 })

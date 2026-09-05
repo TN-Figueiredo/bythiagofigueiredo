@@ -18,6 +18,7 @@ vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({
   requireSiteScope: vi.fn().mockResolvedValue({ ok: true }),
 }))
 vi.mock('next/cache', () => ({
+  updateTag: vi.fn(),
   revalidatePath: vi.fn(),
   revalidateTag: vi.fn(),
 }))
@@ -203,7 +204,7 @@ describe('forceRotate', () => {
     )
     expect(updateVideoMetadata).not.toHaveBeenCalled()
     expect(revalidatePath).toHaveBeenCalledWith('/cms/youtube/ab-lab')
-    expect(revalidateTag).toHaveBeenCalledWith('ab-tests')
+    expect(revalidateTag).toHaveBeenCalledWith('ab-tests', 'seconds')
   })
 
   it('happy path: rotates title test', async () => {

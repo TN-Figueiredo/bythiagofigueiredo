@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('next/cache', () => ({
+  updateTag: vi.fn(),
   unstable_cache: (fn: Function) => fn,
   revalidateTag: vi.fn(),
 }))
