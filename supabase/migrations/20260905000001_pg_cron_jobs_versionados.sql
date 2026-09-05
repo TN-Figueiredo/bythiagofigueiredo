@@ -18,22 +18,34 @@
 -- Vercel e DROP EXTENSION pg_net.
 -- =============================================================================
 
-select cron.schedule(
+-- Guard: o pg_cron so existe onde foi criado (em producao, pelo dashboard). No
+-- Supabase local da CI a imagem tem o binario mas a extensao nao e criada, e
+-- `schema "cron" does not exist` derruba o `supabase start`. Sem pg_cron, esta
+-- migration e no-op — e nao tenta `create extension`, que exigiria
+-- shared_preload_libraries e mudaria a topologia do banco.
+do $guard$
+begin
+  if not exists (select 1 from pg_extension where extname = 'pg_cron') then
+    raise notice 'pg_cron ausente: jobs nao agendados (esperado fora de producao)';
+    return;
+  end if;
+
+  perform cron.schedule(
   'publish-scheduled', '*/5 * * * *',
   $$select public.cron_http_post_web('/api/cron/publish-scheduled')$$
 );
 
-select cron.schedule(
+  perform cron.schedule(
   'lgpd-cleanup-sweep', '0 7 * * *',
   $$select public.cron_http_post_web('/api/cron/lgpd-cleanup-sweep')$$
 );
 
-select cron.schedule(
+  perform cron.schedule(
   'purge-sent-emails', '0 6 * * *',
   $$select public.cron_purge_sent_emails()$$
 );
 
-select cron.schedule(
+  perform cron.schedule(
   'purge-old-contact-submissions', '0 6 * * 0',
   $$select public.cron_purge_old_contact_submissions()$$
 );
@@ -43,13 +55,15 @@ select cron.schedule(
 -- espaco ao SO. Truncar diariamente numa hora vazia impede a recaida.
 -- lock_timeout: se o worker do pg_net estiver no meio de um ciclo, aborta
 -- limpo e tenta amanha — nunca enfileira atras dele.
-select cron.schedule(
+  perform cron.schedule(
   'pgnet-response-retention', '0 5 * * *',
   $$set lock_timeout = '60s'; truncate net._http_response;$$
 );
 
 -- Historico do proprio pg_cron cresce sem limite (49 MB, nunca vacuumado).
-select cron.schedule(
+  perform cron.schedule(
   'pgcron-run-details-retention', '30 5 * * *',
   $$delete from cron.job_run_details where end_time < now() - interval '7 days'$$
 );
+end
+$guard$;
