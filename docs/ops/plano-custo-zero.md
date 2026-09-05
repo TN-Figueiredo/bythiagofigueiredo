@@ -1,5 +1,15 @@
 # Plano de custo zero — estabilizar produção sem subir tier
 
+> **EXECUTADO 2026-09-05 21:36 — produção recuperada.**
+> `sync-newsletter-pending` (órfão, 404) desagendado. `TRUNCATE net._http_response` venceu
+> via job de `pg_cron` (o CLI perdia a corrida do lock): 271 MB → **32 kB**; banco 363 MB →
+> **93 MB**. Produção: `/` 1,3s, `/robots.txt` 0,5s, `/blog` 0,5s — antes eram timeout/504/25s.
+> Retenção diária adicionada e os 5 jobs versionados em migration.
+> **Não executado (por decisão, não por falha):** migrar jobs 1 e 3 para a Vercel e `DROP
+> EXTENSION pg_net` — em `main` as rotas só exportam `POST` e o cron da Vercel dispara `GET`
+> (405); o `pg_cron` é o único caminho vivo até `main` ser promovido. Fase 2 (reagendar crons
+> da Vercel, consertar `links-check-expiry`) fica para a promoção.
+
 **Data:** 2026-09-05 · **Restrição:** orçamento zero. Nada de upgrade de Supabase.
 **Base:** 9 agentes (4 adversariais + 5 de custo zero), tudo medido, nada presumido.
 
