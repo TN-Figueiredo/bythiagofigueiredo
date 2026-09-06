@@ -33,9 +33,11 @@ export async function POST(req: NextRequest) {
     const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
 
     // 1. Fetch blog posts published in the last 24h
+    // title/slug live in blog_translations, not blog_posts — join like the
+    // rest of the CMS does (see hub-queries.ts, content-metadata.ts).
     const { data: blogPosts, error: fetchError } = await supabase
       .from('blog_posts')
-      .select('id, site_id, title, slug')
+      .select('id, site_id, blog_translations(title, slug)')
       .gte('published_at', cutoff)
       .eq('status', 'published')
 
@@ -69,6 +71,16 @@ export async function POST(req: NextRequest) {
       if (existingContentIds.has(postId)) continue
 
       try {
+        const translations = (post.blog_translations ?? []) as Array<{
+          title: string
+          slug: string
+        }>
+        const tx = translations[0]
+        if (!tx) {
+          errors.push(`post ${postId}: no translations found`)
+          continue
+        }
+
         const pipelineSteps = createInitialPipelineSteps()
         // Override first step with auto_draft context
         pipelineSteps[0] = {
@@ -77,7 +89,7 @@ export async function POST(req: NextRequest) {
           at: new Date().toISOString(),
           data: {
             trigger: 'blog_published',
-            source_title: post.title as string,
+            source_title: tx.title,
           },
         }
 
@@ -85,11 +97,15 @@ export async function POST(req: NextRequest) {
           .from('social_posts')
           .insert({
             site_id: post.site_id as string,
-            created_by: '00000000-0000-0000-0000-000000000000',
+            // System-generated draft — no human author. created_by is
+            // nullable with an ON DELETE SET NULL FK to auth.users
+            // (see 20260524000003_lgpd_social_fk_fix.sql); a placeholder
+            // UUID would violate that FK since it never exists in auth.users.
+            created_by: null,
             type: 'link',
             status: 'draft',
             content: {
-              title: post.title as string,
+              title: tx.title,
             },
             origin: 'auto',
             source_content_type: 'blog',

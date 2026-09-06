@@ -23,8 +23,8 @@ export async function GET(req: Request): Promise<Response> {
     // Find active links that have expired
     const { data: expiredLinks, error: selErr } = await supabase
       .from('tracked_links')
-      .select('id, site_id, short_code')
-      .eq('status', 'active')
+      .select('id, site_id, code')
+      .eq('active', true)
       .lt('expires_at', now)
       .not('expires_at', 'is', null)
 
@@ -37,11 +37,11 @@ export async function GET(req: Request): Promise<Response> {
       return { status: 'ok' as const, expired: 0 }
     }
 
-    // Batch update status
+    // Batch update: deactivate expired links
     const ids = expiredLinks.map((l: { id: string }) => l.id)
     const { error: updErr } = await supabase
       .from('tracked_links')
-      .update({ status: 'expired' })
+      .update({ active: false })
       .in('id', ids)
 
     if (updErr) {
@@ -51,8 +51,8 @@ export async function GET(req: Request): Promise<Response> {
 
     // Invalidate cache for each expired link
     const siteIds = new Set<string>()
-    for (const link of expiredLinks as { id: string; site_id: string; short_code: string }[]) {
-      invalidateLink(link.site_id, link.short_code)
+    for (const link of expiredLinks as { id: string; site_id: string; code: string }[]) {
+      invalidateLink(link.site_id, link.code)
       siteIds.add(link.site_id)
     }
     for (const siteId of siteIds) {
