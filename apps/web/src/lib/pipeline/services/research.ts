@@ -85,11 +85,6 @@ interface ResearchListItem {
   content_md?: string | null
 }
 
-interface ResearchListResult {
-  data: ResearchListItem[]
-  meta: { total: number; has_next: boolean; next_cursor?: string; limit: number }
-}
-
 interface ResearchDetailLinkedItem {
   link_id: string
   pipeline_item_id: string
@@ -134,11 +129,6 @@ interface ResearchCreateResult {
   created_at: string
   updated_at: string
   upserted: boolean
-}
-
-interface ResearchUpdateResult {
-  data: Record<string, unknown>
-  meta: { version: number; updated_at: string }
 }
 
 interface ImportItemResult {
@@ -191,7 +181,7 @@ interface ListResearchOptions {
 export async function listResearchItems(
   ctx: ServiceContext,
   opts: ListResearchOptions = {},
-): Promise<ServiceResult<ResearchListResult>> {
+): Promise<ServiceResult<ResearchListItem[]>> {
   const limit = Math.min(opts.limit ?? 50, 200)
   const { supabase, siteId } = ctx
 
@@ -231,7 +221,7 @@ export async function listResearchItems(
       .eq('pipeline_item_id', opts.pipelineItemId)
     const ids = (linkedIds ?? []).map((r) => (r as { research_id: string }).research_id)
     if (ids.length === 0) {
-      return ok({ data: [], meta: { total: 0, has_next: false, limit } })
+      return { status: 200, data: [], meta: { total: 0, has_next: false, limit } }
     }
     query = query.in('id', ids)
   }
@@ -280,7 +270,11 @@ export async function listResearchItems(
     ...(opts.includeContent ? { content_md: item.content_md } : {}),
   }))
 
-  return ok({
+  // Flat ServiceResult: items in `data`, pagination in `meta`. `ok({ data, meta })`
+  // double-wrapped the REST body ({ data: { data, meta } }) and left
+  // `result.meta` undefined for the MCP tool (2026-09-06 authenticated e2e).
+  return {
+    status: 200,
     data: mapped,
     meta: {
       total: count ?? 0,
@@ -288,7 +282,7 @@ export async function listResearchItems(
       next_cursor: hasNext && lastItem ? lastItem.id : undefined,
       limit,
     },
-  })
+  }
 }
 
 /** Create or upsert a research item by topic+title. Returns 201 for new, 200 for upsert. */
@@ -436,7 +430,7 @@ export async function updateResearchItem(
   input: unknown,
   expectedVersion: number,
   dryRun?: boolean,
-): Promise<ServiceResult<ResearchUpdateResult>> {
+): Promise<ServiceResult<Record<string, unknown>>> {
   if (!UUID_REGEX.test(itemId)) {
     return err('VALIDATION_ERROR', 'Invalid item ID', 400)
   }
@@ -481,7 +475,7 @@ export async function updateResearchItem(
   }
 
   if (dryRun) {
-    return ok({ data: { id: itemId, ...updateData }, meta: { version: expectedVersion + 1, updated_at: '' } })
+    return { status: 200, data: { id: itemId, ...updateData }, meta: { version: expectedVersion + 1, updated_at: '' } }
   }
 
   const { data: updated, error } = await supabase
@@ -496,10 +490,11 @@ export async function updateResearchItem(
     return err('VERSION_CONFLICT', 'Concurrent modification detected', 409)
   }
 
-  return ok({
+  return {
+    status: 200,
     data: updated as Record<string, unknown>,
     meta: { version: updated.version as number, updated_at: updated.updated_at as string },
-  })
+  }
 }
 
 /** Delete a research item by ID. */

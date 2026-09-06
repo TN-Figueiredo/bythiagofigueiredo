@@ -20,7 +20,7 @@ import { SiteTimezoneProvider } from '@/lib/cms/site-timezone-context'
 import { NotificationProvider } from '@/lib/notifications/notification-context'
 import { CmsTopbar } from './_shared/cms-topbar'
 import { buildCmsSections, CMS_SETTINGS_ITEM } from './_shared/cms-sections'
-import Link from 'next/link'
+import CmsLink from './_shared/cms-link'
 
 const CMS_SECTIONS = buildCmsSections()
 
@@ -79,7 +79,7 @@ export default async function Layout({ children }: { children: ReactNode }) {
   if (layoutCounts.researchUnread) badges['/cms/library/research'] = layoutCounts.researchUnread
 
   return (
-    <CmsAdminProvider linkComponent={Link}>
+    <CmsAdminProvider linkComponent={CmsLink}>
       <SiteTimezoneProvider value={siteTimezone}>
         <NotificationProvider>
           <SiteSwitcherProvider sites={sites} initialSiteId={currentSiteId}>

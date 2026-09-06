@@ -66,3 +66,7 @@ design/
 design_handoff_youtube_cms/
 supabase/backup_*_pre_squash.sql
 apps/web/.env.local.prod-backup
+
+# Gerados por `next dev` (Next 16 agentRules) — nunca commitar
+apps/web/AGENTS.md
+apps/web/CLAUDE.md

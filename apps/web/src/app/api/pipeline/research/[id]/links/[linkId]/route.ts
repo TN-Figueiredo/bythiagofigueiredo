@@ -13,7 +13,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
   try {
     const ctx = authToServiceContext(auth)
-    const data = await removeResearchLink(ctx, id, linkId)
+    const { data } = await removeResearchLink(ctx, id, linkId)
     revalidateTag('layout-counts', { expire: 0 })
     return pipelineSuccess(data, 200, auth)
   } catch (err) {

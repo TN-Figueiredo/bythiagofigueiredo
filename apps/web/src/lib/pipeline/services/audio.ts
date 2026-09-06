@@ -37,11 +37,6 @@ export interface AudioListParams {
   q?: string
 }
 
-export interface AudioListResult {
-  data: AudioAssetRow[]
-  meta: { total: number; has_next: boolean; next_cursor: string | undefined; limit: number }
-}
-
 // ---------------------------------------------------------------------------
 // Get-by-id result
 // ---------------------------------------------------------------------------
@@ -108,7 +103,7 @@ export interface AudioRetireResult {
 export async function listAudioAssets(
   ctx: ServiceContext,
   params: AudioListParams,
-): Promise<ServiceResult<AudioListResult>> {
+): Promise<ServiceResult<AudioAssetRow[]>> {
   const rawLimit = Number(params.limit || '50')
   const limit = Math.max(1, Math.min(Number.isFinite(rawLimit) ? Math.round(rawLimit) : 50, 200))
   const cursor = params.cursor || undefined
@@ -172,10 +167,16 @@ export async function listAudioAssets(
   const items = (data?.slice(0, limit) ?? []) as AudioAssetRow[]
   const lastItem = items[items.length - 1] as { id: string } | undefined
 
-  return ok({
+  // ServiceResult shape: items in `data`, pagination in `meta` (same as
+  // listResearchItems). Wrapping `{ data, meta }` inside ok() produced
+  // `{ data: { data, meta } }` at the REST boundary and `result.meta ===
+  // undefined` for the MCP tool — <AudioLibrary> crashed with
+  // "assets is not iterable" on /cms/library/audio (2026-09-06).
+  return {
     data: items,
+    status: 200,
     meta: { total: count ?? 0, has_next: hasNext, next_cursor: hasNext && lastItem ? lastItem.id : undefined, limit },
-  })
+  }
 }
 
 /** Create a single audio asset after Zod validation. */

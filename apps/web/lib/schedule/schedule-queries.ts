@@ -188,7 +188,7 @@ export async function fetchScheduleData(
     // Video pipeline items: scheduled within month range
     supabase
       .from('content_pipeline')
-      .select('id, title, stage, scheduled_at')
+      .select('id, title_pt, title_en, stage, scheduled_at')
       .eq('site_id', siteId)
       .eq('format', 'video')
       .in('stage', ['scheduled'])
@@ -199,7 +199,7 @@ export async function fetchScheduleData(
     // Video pipeline items: published within month range
     supabase
       .from('content_pipeline')
-      .select('id, title, stage, published_at')
+      .select('id, title_pt, title_en, stage, published_at')
       .eq('site_id', siteId)
       .eq('format', 'video')
       .eq('stage', 'published')
@@ -251,7 +251,7 @@ export async function fetchScheduleData(
     // Backlog: video pipeline items in backlog-like stages
     supabase
       .from('content_pipeline')
-      .select('id, title')
+      .select('id, title_pt, title_en')
       .eq('site_id', siteId)
       .eq('format', 'video')
       .in('stage', ['ready', 'review'])
@@ -356,7 +356,7 @@ export async function fetchScheduleData(
     items.push({
       id: row.id as string,
       type: 'video',
-      title: (row.title as string) ?? 'Untitled',
+      title: ((row.title_pt as string | null) ?? (row.title_en as string | null)) ?? 'Untitled',
       status: computeItemStatus('scheduled', dateKey, today),
       dateKey,
       time: extractTime(row.scheduled_at as string | null),
@@ -370,7 +370,7 @@ export async function fetchScheduleData(
     items.push({
       id: row.id as string,
       type: 'video',
-      title: (row.title as string) ?? 'Untitled',
+      title: ((row.title_pt as string | null) ?? (row.title_en as string | null)) ?? 'Untitled',
       status: 'published',
       dateKey,
       time: extractTime(row.published_at as string | null),
@@ -502,7 +502,7 @@ export async function fetchScheduleData(
     backlog.push({
       id: row.id as string,
       type: 'video',
-      title: (row.title as string) ?? 'Untitled',
+      title: ((row.title_pt as string | null) ?? (row.title_en as string | null)) ?? 'Untitled',
       editUrl: `/cms/pipeline/${row.id}`,
     })
   }
