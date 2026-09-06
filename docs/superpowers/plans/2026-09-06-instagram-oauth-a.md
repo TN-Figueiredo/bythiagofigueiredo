@@ -90,7 +90,7 @@ Expected: todas as linhas com marca nas duas colunas (`Local` e `Remote`), **inc
 - [ ] **Step 3: Conferir que nenhum handle está fora da forma**
 
 ```bash
-npx supabase@2.98.2 db execute --linked --command "select id, handle, length(handle) from public.instagram_accounts where handle !~ '^[a-z0-9._]{1,30}\$';"
+npx supabase@2.98.2 db query "select id, handle, length(handle) from public.instagram_accounts where handle !~ '^[a-z0-9._]{1,30}\$';" --linked
 ```
 
 Expected: `0 rows`. (Se vier linha, registre no runbook — o `lower(handle)` de M1/C1 é irreversível e depende disso.)
@@ -98,7 +98,7 @@ Expected: `0 rows`. (Se vier linha, registre no runbook — o `lower(handle)` de
 - [ ] **Step 4: Conferir os domínios do site**
 
 ```bash
-npx supabase@2.98.2 db execute --linked --command "select slug, domains from public.sites;"
+npx supabase@2.98.2 db query "select slug, domains from public.sites;" --linked
 ```
 
 Expected: para `bythiagofigueiredo`, apex + `www` (ex.: `{bythiagofigueiredo.com,www.bythiagofigueiredo.com}`). Cole a saída no runbook.
@@ -124,7 +124,7 @@ npm run db:reset
 Expected: `Finished supabase db reset.` e **nenhuma** das tabelas/funções de rodadas anteriores presente:
 
 ```bash
-npx supabase@2.98.2 db execute --local --command "select to_regclass('public.ops_alert_state') as t, to_regproc('public.ops_alert_claim') as f, to_regproc('public.instagram_mark_token_invalid') as g;"
+npx supabase@2.98.2 db query "select to_regclass('public.ops_alert_state') as t, to_regproc('public.ops_alert_claim') as f, to_regproc('public.instagram_mark_token_invalid') as g;" --local
 ```
 
 Expected: `t | f | g` todos `NULL` (essas três nascem em M1/C1, não em A).
@@ -2194,13 +2194,13 @@ npm run db:push:prod
 Expected: aplica `20260906000001_instagram_public_view_lockdown`. Confirme:
 
 ```bash
-npx supabase@2.98.2 db execute --linked --command "set role authenticated; select access_token from public.instagram_accounts limit 1;"
+npx supabase@2.98.2 db query "set role authenticated; select access_token from public.instagram_accounts limit 1;" --linked
 ```
 
 Expected: erro **42501** (`permission denied for table instagram_accounts` / coluna). Se vier linha, **PARE** e reabra A3.
 
 ```bash
-npx supabase@2.98.2 db execute --linked --command "select distinct column_name from information_schema.column_privileges where table_schema='public' and table_name='instagram_accounts' and grantee='anon' and privilege_type='SELECT' order by column_name;"
+npx supabase@2.98.2 db query "select distinct column_name from information_schema.column_privileges where table_schema='public' and table_name='instagram_accounts' and grantee='anon' and privilege_type='SELECT' order by column_name;" --linked
 ```
 
 Expected: exatamente `id` e `site_id`.
@@ -2254,7 +2254,7 @@ Se o run terminar **abaixo de 60 s**, o gate é **INCONCLUSIVO** e **MUST** ser 
 - [ ] **Step 5: Conferir a trilha no banco**
 
 ```bash
-npx supabase@2.98.2 db execute --linked --command "select mode, status, posts_found, media_cached, error_message, started_at, completed_at from public.instagram_sync_log order by started_at desc limit 3;"
+npx supabase@2.98.2 db query "select mode, status, posts_found, media_cached, error_message, started_at, completed_at from public.instagram_sync_log order by started_at desc limit 3;" --linked
 ```
 
 Expected: uma linha `mode='manual'` com `status='completed'` (ou `failed` com mensagem humana) — **nunca** uma `started` sem `completed_at`. Se o run foi parcial, `error_message` traz ` partial` (e ` mediaFailed:<N>` se houve falha de imagem).
@@ -2262,7 +2262,7 @@ Expected: uma linha `mode='manual'` com `status='completed'` (ou `failed` com me
 - [ ] **Step 6: Conferir que `cron_health` NÃO foi carimbado pelo clique**
 
 ```bash
-npx supabase@2.98.2 db execute --linked --command "select cron_name, last_success_at, consecutive_failures from public.cron_health where cron_name = 'instagram-sync';"
+npx supabase@2.98.2 db query "select cron_name, last_success_at, consecutive_failures from public.cron_health where cron_name = 'instagram-sync';" --linked
 ```
 
 Expected: `last_success_at` **inalterado** pelo clique (só o cron diário das 13:00 o move). Este é o efeito de A2 — se mudou, a action ainda está passando pela rota do cron.
