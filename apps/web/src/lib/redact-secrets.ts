@@ -40,6 +40,11 @@ function escapeRegExp(value: string): string {
  */
 export function registerSecretLiteral(value?: string): void {
   if (!value || value.length < 16) return
+  // Dedup guard: internal optimization (avoids an unbounded, ever-growing
+  // literalPatterns array + redundant regex passes on repeated registration
+  // of the same value). Not covered by a test — it has no observable effect
+  // through the public API, since a repeated pattern still redacts every
+  // occurrence either way.
   if (seenLiterals.has(value)) return
   seenLiterals.add(value)
   literalPatterns.push(new RegExp(escapeRegExp(value), 'g'))

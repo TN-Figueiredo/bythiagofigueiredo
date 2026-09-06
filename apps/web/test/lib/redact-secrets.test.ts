@@ -91,11 +91,23 @@ describe('registerSecretLiteral', () => {
     expect(redactSecrets('k=aab_cddefghij12345')).toBe('k=aab_cddefghij12345')
   })
 
-  it('deduplica registros repetidos (uma substituição, não duas)', () => {
+  it('redige todas as ocorrências de um literal registrado duas vezes, em posições diferentes', () => {
     const secret = 'dup-literal-0123456789'
     registerSecretLiteral(secret)
     registerSecretLiteral(secret)
-    expect(redactSecrets(`v=${secret}`)).toBe('v=[REDACTED]')
+    const input = `${secret} middle ${secret} end ${secret}`
+    const out = redactSecrets(input)
+    expect(out).not.toContain(secret)
+    expect(out.match(/\[REDACTED\]/g)).toHaveLength(3)
+  })
+
+  it('registrar um literal novo não substitui um literal já registrado', () => {
+    const first = 'first-literal-0123456789'
+    const second = 'second-literal-9876543210'
+    registerSecretLiteral(first)
+    registerSecretLiteral(second)
+    const out = redactSecrets(`a=${first} b=${second}`)
+    expect(out).toBe('a=[REDACTED] b=[REDACTED]')
   })
 })
 
