@@ -6,6 +6,7 @@
  * On errors, throws `PipelineServiceError`.
  */
 import { z } from 'zod'
+import { revalidateTag } from 'next/cache'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import {
   PipelineItemCreateSchema,
@@ -1720,6 +1721,13 @@ export async function publishItem(
     console.error('[publish] blog_posts update failed:', updateError.message)
     throw new PipelineServiceError('DB_ERROR', 'Failed to update blog post', 500)
   }
+
+  // O pipeline publica/despublica posts pelas rotas de API e pelo MCP, fora de
+  // qualquer server action — sem isto a home pública e o hub do CMS ficariam
+  // servindo o estado anterior. `{ expire: 0 }` = purga imediata.
+  revalidateTag('home-posts', { expire: 0 })
+  revalidateTag('home-tags', { expire: 0 })
+  revalidateTag('blog-hub', { expire: 0 })
 
   // Advance pipeline item stage (optimistic concurrency via version guard)
   const { error: stageError, count: stageCount } = await supabase

@@ -4,6 +4,7 @@ import * as Sentry from '@sentry/nextjs';
 import { socialConfigSchema } from '@/lib/social/schemas';
 import type { SocialConfig } from '@/lib/social/types';
 import { ensureTrackedLink } from '@/lib/links/auto-link';
+import { revalidateTag } from 'next/cache';
 
 const LOCK_KEY = 'cron:publish-scheduled';
 const JOB = 'publish-scheduled';
@@ -104,6 +105,14 @@ export async function POST(req: Request): Promise<Response> {
           })),
         )
       }
+    }
+
+    // Publicação agendada muda o que a home pública exibe (posts, contagem por
+    // tag) e o hub do CMS. `{ expire: 0 }` = purga imediata (paridade Next 15).
+    if (publishedPosts.length > 0) {
+      revalidateTag('home-posts', { expire: 0 });
+      revalidateTag('home-tags', { expire: 0 });
+      revalidateTag('blog-hub', { expire: 0 });
     }
 
     if (errors.length > 0) {
