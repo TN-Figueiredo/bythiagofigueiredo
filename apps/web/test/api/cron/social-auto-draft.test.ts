@@ -5,16 +5,28 @@
  *
  * Flow:
  *   1. Fetch blog_posts published in the last 24h (status='published').
+ *      title/slug live on blog_translations (see migration
+ *      20260507000001_schema.sql), NOT blog_posts — the route must join
+ *      `blog_translations(title, slug)` rather than select those columns
+ *      directly off blog_posts (that shape doesn't exist and errors 100%
+ *      of the time — this broke the cron from 2026-05-29 until fixed here).
  *   2. Look up which already have an active social post (draft/scheduled/
  *      publishing/completed) — those are skipped.
  *   3. Insert a 'draft' social_post for each remaining blog post, with a
- *      deterministic idempotency_key `auto-blog-<id>`. A unique-index
- *      violation (23505) is swallowed as "already exists".
+ *      deterministic idempotency_key `auto-blog-<id>`. created_by must be
+ *      `null` — it has an ON DELETE SET NULL FK to auth.users (see
+ *      20260524000003_lgpd_social_fk_fix.sql) and a placeholder/system UUID
+ *      that doesn't exist in auth.users violates that FK on every insert
+ *      that reaches it. A unique-index violation (23505) is swallowed as
+ *      "already exists".
  *   4. Log the run into cron_runs.
  *
  * Coverage focuses on:
  *   - auth gate (401 without / with bad bearer / with CRON_SECRET unset)
  *   - happy path: correct draft rows created (origin=auto, idempotency_key, etc.)
+ *   - blog_posts is queried via a blog_translations join, never flat title/slug columns
+ *   - created_by is null on every insert (never a placeholder UUID — FK safety)
+ *   - a post with no translations is skipped as an error, not a crash
  *   - de-dup guard: blog posts with an existing active social post are skipped
  *   - unique-index guard: a 23505 insert error is swallowed, not counted
  *   - no-op: empty 24h window never queries social_posts
@@ -40,6 +52,7 @@ import { POST } from '../../../src/app/api/cron/social-auto-draft/route'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 
 interface SocialCapture {
+  blogSelectCols: string | null
   gteCol: string | null
   gteVal: string | null
   blogStatusEq: string | null
@@ -66,6 +79,7 @@ function makeSocialSupabase(opts: {
   const existingSocial = opts.existingSocial ?? []
   const insertErrorByKey = opts.insertErrorByKey ?? {}
   const capture: SocialCapture = {
+    blogSelectCols: null,
     gteCol: null,
     gteVal: null,
     blogStatusEq: null,
@@ -78,7 +92,10 @@ function makeSocialSupabase(opts: {
   const from = vi.fn((table: string) => {
     if (table === 'blog_posts') {
       const c: Record<string, ReturnType<typeof vi.fn>> = {
-        select: vi.fn(() => c),
+        select: vi.fn((cols: string) => {
+          capture.blogSelectCols = cols
+          return c
+        }),
         gte: vi.fn((col: string, val: string) => {
           capture.gteCol = col
           capture.gteVal = val
@@ -174,7 +191,7 @@ describe('POST /api/cron/social-auto-draft — auth gate', () => {
   })
 
   it('does not touch supabase on an unauthorized request', async () => {
-    const supabase = makeSocialSupabase({ blogPosts: [{ id: 'p1', site_id: 's1', title: 'T' }] })
+    const supabase = makeSocialSupabase({ blogPosts: [{ id: 'p1', site_id: 's1', blog_translations: [{ title: 'T', slug: 't' }] }] })
     vi.mocked(getSupabaseServiceClient).mockReturnValue(supabase as never)
     await POST(req() as never)
     expect(supabase.from).not.toHaveBeenCalled()
@@ -185,8 +202,8 @@ describe('POST /api/cron/social-auto-draft — happy path', () => {
   it('creates one draft social post per new blog post', async () => {
     const supabase = makeSocialSupabase({
       blogPosts: [
-        { id: 'p1', site_id: 's1', title: 'First', slug: 'first' },
-        { id: 'p2', site_id: 's2', title: 'Second', slug: 'second' },
+        { id: 'p1', site_id: 's1', blog_translations: [{ title: 'First', slug: 'first' }] },
+        { id: 'p2', site_id: 's2', blog_translations: [{ title: 'Second', slug: 'second' }] },
       ],
     })
     vi.mocked(getSupabaseServiceClient).mockReturnValue(supabase as never)
@@ -202,7 +219,7 @@ describe('POST /api/cron/social-auto-draft — happy path', () => {
 
   it('stamps each draft with origin=auto, status=draft and a deterministic idempotency_key', async () => {
     const supabase = makeSocialSupabase({
-      blogPosts: [{ id: 'p1', site_id: 's1', title: 'First', slug: 'first' }],
+      blogPosts: [{ id: 'p1', site_id: 's1', blog_translations: [{ title: 'First', slug: 'first' }] }],
     })
     vi.mocked(getSupabaseServiceClient).mockReturnValue(supabase as never)
 
@@ -216,9 +233,69 @@ describe('POST /api/cron/social-auto-draft — happy path', () => {
     expect(row.idempotency_key).toBe('auto-blog-p1')
   })
 
+  // Regression: title/slug live on blog_translations, not blog_posts
+  // (20260507000001_schema.sql). Selecting `title, slug` directly off
+  // blog_posts throws "column blog_posts.title does not exist" on every
+  // run — that broke this cron 100% of the time from 2026-05-29 onward
+  // (see cron_health.last_error in prod). The route must join instead,
+  // the way apps/web/src/lib/social/content-metadata.ts and
+  // apps/web/src/app/cms/(authed)/blog/_hub/hub-queries.ts do.
+  it('selects title/slug via a blog_translations join, never as flat blog_posts columns', async () => {
+    const supabase = makeSocialSupabase({
+      blogPosts: [{ id: 'p1', site_id: 's1', blog_translations: [{ title: 'First', slug: 'first' }] }],
+    })
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(supabase as never)
+
+    await POST(req(CRON_SECRET) as never)
+    const cols = supabase._capture.blogSelectCols ?? ''
+    expect(cols).toContain('blog_translations(')
+    expect(cols).toMatch(/blog_translations\([^)]*title[^)]*\)/)
+    expect(cols).toMatch(/blog_translations\([^)]*slug[^)]*\)/)
+    // The bug: `title`/`slug` selected as bare top-level blog_posts columns.
+    const bareColumns = cols.split(',').map((c) => c.trim())
+    expect(bareColumns).not.toContain('title')
+    expect(bareColumns).not.toContain('slug')
+  })
+
+  // Regression: created_by has an ON DELETE SET NULL FK to auth.users
+  // (20260524000003_lgpd_social_fk_fix.sql). A placeholder/system UUID
+  // (e.g. the zero UUID) that isn't a real auth.users row violates that
+  // FK on insert (23503) — it's only ever nullable so system-generated
+  // rows can omit an author safely.
+  it('sets created_by to null for system-generated drafts (never a placeholder UUID)', async () => {
+    const supabase = makeSocialSupabase({
+      blogPosts: [{ id: 'p1', site_id: 's1', blog_translations: [{ title: 'First', slug: 'first' }] }],
+    })
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(supabase as never)
+
+    await POST(req(CRON_SECRET) as never)
+    const row = supabase._capture.inserts[0]
+    expect(row.created_by).toBeNull()
+    expect(row.created_by).not.toBe('00000000-0000-0000-0000-000000000000')
+  })
+
+  it('skips a blog post with no translations as an error, without crashing the run', async () => {
+    const supabase = makeSocialSupabase({
+      blogPosts: [
+        { id: 'p1', site_id: 's1', blog_translations: [] },
+        { id: 'p2', site_id: 's2', blog_translations: [{ title: 'Second', slug: 'second' }] },
+      ],
+    })
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(supabase as never)
+
+    const res = await POST(req(CRON_SECRET) as never)
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.draftsCreated).toBe(1)
+    expect(body.errors).toBeDefined()
+    expect(body.errors[0]).toContain('p1')
+    expect(supabase._capture.inserts).toHaveLength(1)
+    expect(supabase._capture.inserts[0].source_content_id).toBe('p2')
+  })
+
   it('logs a successful run into cron_runs', async () => {
     const supabase = makeSocialSupabase({
-      blogPosts: [{ id: 'p1', site_id: 's1', title: 'First', slug: 'first' }],
+      blogPosts: [{ id: 'p1', site_id: 's1', blog_translations: [{ title: 'First', slug: 'first' }] }],
     })
     vi.mocked(getSupabaseServiceClient).mockReturnValue(supabase as never)
 
@@ -236,8 +313,8 @@ describe('POST /api/cron/social-auto-draft — over-generation guards', () => {
   it('skips blog posts that already have an active social post (no duplicate insert)', async () => {
     const supabase = makeSocialSupabase({
       blogPosts: [
-        { id: 'p1', site_id: 's1', title: 'First', slug: 'first' },
-        { id: 'p2', site_id: 's2', title: 'Second', slug: 'second' },
+        { id: 'p1', site_id: 's1', blog_translations: [{ title: 'First', slug: 'first' }] },
+        { id: 'p2', site_id: 's2', blog_translations: [{ title: 'Second', slug: 'second' }] },
       ],
       existingSocial: [{ source_content_id: 'p1' }],
     })
@@ -253,7 +330,7 @@ describe('POST /api/cron/social-auto-draft — over-generation guards', () => {
 
   it('swallows a unique-index (23505) insert error without counting it', async () => {
     const supabase = makeSocialSupabase({
-      blogPosts: [{ id: 'p1', site_id: 's1', title: 'First', slug: 'first' }],
+      blogPosts: [{ id: 'p1', site_id: 's1', blog_translations: [{ title: 'First', slug: 'first' }] }],
       insertErrorByKey: { p1: { code: '23505', message: 'duplicate key' } },
     })
     vi.mocked(getSupabaseServiceClient).mockReturnValue(supabase as never)
@@ -266,7 +343,7 @@ describe('POST /api/cron/social-auto-draft — over-generation guards', () => {
 
   it('scopes the existing-social lookup to active statuses only', async () => {
     const supabase = makeSocialSupabase({
-      blogPosts: [{ id: 'p1', site_id: 's1', title: 'First', slug: 'first' }],
+      blogPosts: [{ id: 'p1', site_id: 's1', blog_translations: [{ title: 'First', slug: 'first' }] }],
     })
     vi.mocked(getSupabaseServiceClient).mockReturnValue(supabase as never)
 
@@ -311,8 +388,8 @@ describe('POST /api/cron/social-auto-draft — error handling', () => {
   it('collects a non-23505 insert error and logs the run as error, but keeps going', async () => {
     const supabase = makeSocialSupabase({
       blogPosts: [
-        { id: 'p1', site_id: 's1', title: 'First', slug: 'first' },
-        { id: 'p2', site_id: 's2', title: 'Second', slug: 'second' },
+        { id: 'p1', site_id: 's1', blog_translations: [{ title: 'First', slug: 'first' }] },
+        { id: 'p2', site_id: 's2', blog_translations: [{ title: 'Second', slug: 'second' }] },
       ],
       insertErrorByKey: { p1: { code: '500', message: 'db exploded' } },
     })

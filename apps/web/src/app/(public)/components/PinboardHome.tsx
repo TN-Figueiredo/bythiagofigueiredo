@@ -43,7 +43,7 @@ export async function PinboardHome({ locale }: Props) {
       getFeaturedPost(locale),
       getLatestPosts(locale, 9),
       getNewslettersForLocale(locale),
-      getTopTags(locale, 4),
+      getTopTags(siteId, locale, 4),
       getMostReadPosts(locale, 5),
       getPostCount(locale),
       getSubscriberCount(),

@@ -59,7 +59,8 @@ export async function bulkPublish(
     }
   }
 
-  revalidatePath('/cms/blog')
+  // publicação em massa muda a home pública (home-posts/home-tags via blog-hub)
+  revalidateBlogHub(siteId)
   for (const post of published) {
     syncPipelineOnPostStatusChange(post.id, 'published', 'draft').catch(err => Sentry.captureException(err, { tags: { component: 'blog-actions', action: 'pipeline-sync' } }))
   }
@@ -114,7 +115,8 @@ export async function bulkArchive(
     deactivateSourceLinks(supabase, post.id, 'blog').catch(err => Sentry.captureException(err, { tags: { component: 'blog-actions', action: 'deactivate-links' } }))
   }
 
-  revalidatePath('/cms/blog')
+  // arquivar remove o post da home pública
+  revalidateBlogHub(siteId)
   return { ok: true, count: archived.length }
 }
 
@@ -158,7 +160,8 @@ export async function bulkDelete(
     deactivateSourceLinks(supabase, post.id, 'blog').catch(err => Sentry.captureException(err, { tags: { component: 'blog-actions', action: 'deactivate-links' } }))
   }
 
-  revalidatePath('/cms/blog')
+  // delete remove o post da home pública
+  revalidateBlogHub(siteId)
   return { ok: true, count: rows.length }
 }
 

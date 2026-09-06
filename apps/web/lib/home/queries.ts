@@ -27,45 +27,77 @@ function mapRowToHomePost(row: Record<string, unknown>): HomePost {
   }
 }
 
-export async function getFeaturedPost(locale: string): Promise<HomePost | null> {
-  const db = getSupabaseServiceClient()
-  const now = new Date().toISOString()
+// ── Blog / newsletter home queries (cached) ──
+//
+// A home dispara 13 queries Postgres por visita. As de blog/newsletter são
+// idênticas para todo visitante — não dependem de sessão, cookie, consentimento
+// nem A/B; variam só por `locale` (header posto pelo middleware) e `siteId` —
+// então vivem no data cache. O `unstable_cache` inclui os argumentos na chave,
+// além do keyPart explícito.
+//
+// FRESCOR: cada função carrega as tags que TODA mutação capaz de mudar o que a
+// home exibe dispara com `{ expire: 0 }` (purga imediata, paridade Next 15 —
+// ver test/lib/cache/revalidate-tag-parity.test.ts). `revalidate: HOME_TTL` é
+// rede de segurança, não o mecanismo principal.
+//
+//   home-posts + blog-hub → publish/unpublish/archive/delete/edit de post
+//       (cms/blog/actions.ts, cms/blog/[id]/edit/actions.ts via revalidateBlogHub,
+//        bulk* em cms/blog/actions.ts, cron publish-scheduled)
+//   home-tags  + blog-hub → CRUD de blog_tags (cms/blog/tag-actions.ts)
+//   most-read             → cron aggregate-content-metrics (view_count)
+//   newsletter-hub        → CRUD de newsletter_types (cms/newsletters/actions.ts)
+const HOME_TTL = 300
+const HOME_POST_TAGS = ['home-posts', 'blog-hub']
+const HOME_TAG_TAGS = ['home-tags', 'blog-hub']
 
-  const selectCols = `
-    slug, locale, title, excerpt, reading_time_min, cover_image_url,
-    blog_posts!inner(id, published_at, category, is_featured, status, cover_image_url,
-      blog_tags(name, badge, color, color_dark)
-    )
-  `
+export const getFeaturedPost = unstable_cache(
+  async (locale: string): Promise<HomePost | null> => {
+    const db = getSupabaseServiceClient()
+    const now = new Date().toISOString()
 
-  const { data: featured } = await db
-    .from('blog_translations')
-    .select(selectCols)
-    .eq('locale', locale)
-    .eq('blog_posts.status', 'published')
-    .eq('blog_posts.is_featured', true)
-    .lte('blog_posts.published_at', now)
-    .order('published_at', { referencedTable: 'blog_posts', ascending: false })
-    .limit(1)
-    .single()
+    const selectCols = `
+      slug, locale, title, excerpt, reading_time_min, cover_image_url,
+      blog_posts!inner(id, published_at, category, is_featured, status, cover_image_url,
+        blog_tags(name, badge, color, color_dark)
+      )
+    `
 
-  const row = featured ?? await (async () => {
-    const { data } = await db
+    const { data: featured } = await db
       .from('blog_translations')
       .select(selectCols)
       .eq('locale', locale)
       .eq('blog_posts.status', 'published')
+      .eq('blog_posts.is_featured', true)
       .lte('blog_posts.published_at', now)
       .order('published_at', { referencedTable: 'blog_posts', ascending: false })
       .limit(1)
-    return data?.[0] ?? null
-  })()
+      .single()
 
-  if (!row) return null
-  return mapRowToHomePost(row)
-}
+    const row = featured ?? await (async () => {
+      const { data } = await db
+        .from('blog_translations')
+        .select(selectCols)
+        .eq('locale', locale)
+        .eq('blog_posts.status', 'published')
+        .lte('blog_posts.published_at', now)
+        .order('published_at', { referencedTable: 'blog_posts', ascending: false })
+        .limit(1)
+      return data?.[0] ?? null
+    })()
 
-export async function getLatestPosts(locale: string, limit = 8): Promise<HomePost[]> {
+    if (!row) return null
+    return mapRowToHomePost(row)
+  },
+  ['home-featured-post'],
+  { revalidate: HOME_TTL, tags: HOME_POST_TAGS },
+)
+
+/**
+ * Corpo cru de `getLatestPosts`. Existe separado porque `getMostReadPosts` o
+ * consome no fallback de cold start — chamar a versão cacheada de dentro de
+ * outro `unstable_cache` aninharia dois caches com TTLs independentes.
+ */
+async function fetchLatestPosts(locale: string, limit: number): Promise<HomePost[]> {
   const db = getSupabaseServiceClient()
   const now = new Date().toISOString()
 
@@ -87,148 +119,181 @@ export async function getLatestPosts(locale: string, limit = 8): Promise<HomePos
   return (data ?? []).map(mapRowToHomePost)
 }
 
-export async function getNewslettersForLocale(locale: string): Promise<HomeNewsletter[]> {
-  const db = getSupabaseServiceClient()
-  const { data, error } = await db
-    .from('newsletter_types')
-    .select('id, slug, locale, name, tagline, cadence, color')
-    .eq('locale', locale)
-    .eq('active', true)
-    .order('sort_order')
+export const getLatestPosts = unstable_cache(
+  (locale: string, limit = 8): Promise<HomePost[]> => fetchLatestPosts(locale, limit),
+  ['home-latest-posts'],
+  { revalidate: HOME_TTL, tags: HOME_POST_TAGS },
+)
 
-  if (error) return []
-  return (data ?? []) as HomeNewsletter[]
-}
+export const getNewslettersForLocale = unstable_cache(
+  async (locale: string): Promise<HomeNewsletter[]> => {
+    const db = getSupabaseServiceClient()
+    const { data, error } = await db
+      .from('newsletter_types')
+      .select('id, slug, locale, name, tagline, cadence, color')
+      .eq('locale', locale)
+      .eq('active', true)
+      .order('sort_order')
 
-export async function getTopTags(locale: string, limit = 4): Promise<HomeTag[]> {
-  const db = getSupabaseServiceClient()
-  const { siteId } = await getSiteContext()
+    if (error) return []
+    return (data ?? []) as HomeNewsletter[]
+  },
+  ['home-newsletter-types'],
+  { revalidate: HOME_TTL, tags: ['newsletter-hub'] },
+)
 
-  const { data, error } = await db
-    .from('blog_tags')
-    .select('id, name, slug, color, color_dark, sort_order')
-    .eq('site_id', siteId)
-    .order('sort_order')
-    .limit(limit)
+export const getTopTags = unstable_cache(
+  async (siteId: string, _locale: string, limit = 4): Promise<HomeTag[]> => {
+    const db = getSupabaseServiceClient()
 
-  if (error || !data) return []
+    const { data, error } = await db
+      .from('blog_tags')
+      .select('id, name, slug, color, color_dark, sort_order')
+      .eq('site_id', siteId)
+      .order('sort_order')
+      .limit(limit)
 
-  const tagIds = data.map(t => t.id)
-  const now = new Date().toISOString()
+    if (error || !data) return []
 
-  const { data: counts } = await db
-    .from('blog_posts')
-    .select('tag_id')
-    .in('tag_id', tagIds)
-    .eq('status', 'published')
-    .lte('published_at', now)
+    const tagIds = data.map(t => t.id)
+    const now = new Date().toISOString()
 
-  const countMap = new Map<string, number>()
-  for (const row of counts ?? []) {
-    const tid = (row as Record<string, unknown>)['tag_id'] as string
-    countMap.set(tid, (countMap.get(tid) ?? 0) + 1)
-  }
+    const { data: counts } = await db
+      .from('blog_posts')
+      .select('tag_id')
+      .in('tag_id', tagIds)
+      .eq('status', 'published')
+      .lte('published_at', now)
 
-  return data
-    .map(t => ({
-      id: t.id as string,
-      name: t.name as string,
-      slug: t.slug as string,
-      color: t.color as string,
-      colorDark: t.color_dark as string | null,
-      postCount: countMap.get(t.id as string) ?? 0,
-    }))
-    .filter(t => t.postCount > 0)
-}
+    const countMap = new Map<string, number>()
+    for (const row of counts ?? []) {
+      const tid = (row as Record<string, unknown>)['tag_id'] as string
+      countMap.set(tid, (countMap.get(tid) ?? 0) + 1)
+    }
 
-export async function getPostsByTag(locale: string, tagId: string, limit = 2): Promise<HomePost[]> {
-  const db = getSupabaseServiceClient()
-  const now = new Date().toISOString()
+    return data
+      .map(t => ({
+        id: t.id as string,
+        name: t.name as string,
+        slug: t.slug as string,
+        color: t.color as string,
+        colorDark: t.color_dark as string | null,
+        postCount: countMap.get(t.id as string) ?? 0,
+      }))
+      .filter(t => t.postCount > 0)
+  },
+  ['home-top-tags'],
+  { revalidate: HOME_TTL, tags: HOME_TAG_TAGS },
+)
 
-  const { data, error } = await db
-    .from('blog_translations')
-    .select(`
-      slug, locale, title, excerpt, reading_time_min, cover_image_url,
-      blog_posts!inner(id, published_at, category, is_featured, status, tag_id, cover_image_url,
-        blog_tags(name, badge, color, color_dark)
+export const getPostsByTag = unstable_cache(
+  async (locale: string, tagId: string, limit = 2): Promise<HomePost[]> => {
+    const db = getSupabaseServiceClient()
+    const now = new Date().toISOString()
+
+    const { data, error } = await db
+      .from('blog_translations')
+      .select(`
+        slug, locale, title, excerpt, reading_time_min, cover_image_url,
+        blog_posts!inner(id, published_at, category, is_featured, status, tag_id, cover_image_url,
+          blog_tags(name, badge, color, color_dark)
+        )
+      `)
+      .eq('locale', locale)
+      .eq('blog_posts.status', 'published')
+      .eq('blog_posts.tag_id', tagId)
+      .lte('blog_posts.published_at', now)
+      .order('published_at', { referencedTable: 'blog_posts', ascending: false })
+      .limit(limit)
+
+    if (error) return []
+    return (data ?? []).map(mapRowToHomePost)
+  },
+  ['home-posts-by-tag'],
+  { revalidate: HOME_TTL, tags: HOME_POST_TAGS },
+)
+
+export const getMostReadPosts = unstable_cache(
+  async (locale: string, limit = 5): Promise<HomePost[]> => {
+    const db = getSupabaseServiceClient()
+    const now = new Date().toISOString()
+
+    // Check if we have enough real data (cold start check)
+    const { data: maxRow } = await db
+      .from('blog_posts')
+      .select('view_count')
+      .eq('status', 'published')
+      .lte('published_at', now)
+      .order('view_count', { ascending: false })
+      .limit(1)
+      .single()
+
+    const maxViews = (maxRow?.view_count as number) ?? 0
+
+    // Cold start fallback: pseudo-random if not enough views
+    if (maxViews < COLD_START_THRESHOLD) {
+      const posts = await fetchLatestPosts(locale, 20)
+      if (posts.length === 0) return []
+      const dayOfYear = Math.floor(
+        (Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000
       )
-    `)
-    .eq('locale', locale)
-    .eq('blog_posts.status', 'published')
-    .eq('blog_posts.tag_id', tagId)
-    .lte('blog_posts.published_at', now)
-    .order('published_at', { referencedTable: 'blog_posts', ascending: false })
-    .limit(limit)
+      const seeded = posts.map((p, i) => ({
+        post: p,
+        score: ((i + 1) * 37 + dayOfYear * 13) % 97,
+      }))
+      seeded.sort((a, b) => b.score - a.score)
+      return seeded.slice(0, limit).map(s => s.post)
+    }
 
-  if (error) return []
-  return (data ?? []).map(mapRowToHomePost)
-}
+    // Real ranking by view_count
+    const { data, error } = await db
+      .from('blog_translations')
+      .select(`
+        slug, locale, title, excerpt, reading_time_min, cover_image_url,
+        blog_posts!inner(id, published_at, category, is_featured, status, view_count, cover_image_url,
+          blog_tags(name, badge, color, color_dark)
+        )
+      `)
+      .eq('locale', locale)
+      .eq('blog_posts.status', 'published')
+      .lte('blog_posts.published_at', now)
+      .order('view_count', { referencedTable: 'blog_posts', ascending: false })
+      .limit(limit)
 
-export async function getMostReadPosts(locale: string, limit = 5): Promise<HomePost[]> {
-  const db = getSupabaseServiceClient()
-  const now = new Date().toISOString()
+    if (error) throw error
+    return (data ?? []).map(mapRowToHomePost)
+  },
+  ['home-most-read'],
+  // `most-read`: o cron aggregate-content-metrics recalcula view_count e purga.
+  { revalidate: HOME_TTL, tags: [...HOME_POST_TAGS, 'most-read'] },
+)
 
-  // Check if we have enough real data (cold start check)
-  const { data: maxRow } = await db
-    .from('blog_posts')
-    .select('view_count')
-    .eq('status', 'published')
-    .lte('published_at', now)
-    .order('view_count', { ascending: false })
-    .limit(1)
-    .single()
+export const getPostCount = unstable_cache(
+  async (locale: string): Promise<number> => {
+    const db = getSupabaseServiceClient()
+    const now = new Date().toISOString()
 
-  const maxViews = (maxRow?.view_count as number) ?? 0
+    const { count, error } = await db
+      .from('blog_translations')
+      .select('slug, blog_posts!inner(id)', { count: 'exact', head: true })
+      .eq('locale', locale)
+      .eq('blog_posts.status', 'published')
+      .lte('blog_posts.published_at', now)
 
-  // Cold start fallback: pseudo-random if not enough views
-  if (maxViews < COLD_START_THRESHOLD) {
-    const posts = await getLatestPosts(locale, 20)
-    if (posts.length === 0) return []
-    const dayOfYear = Math.floor(
-      (Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000
-    )
-    const seeded = posts.map((p, i) => ({
-      post: p,
-      score: ((i + 1) * 37 + dayOfYear * 13) % 97,
-    }))
-    seeded.sort((a, b) => b.score - a.score)
-    return seeded.slice(0, limit).map(s => s.post)
-  }
+    if (error) return 0
+    return count ?? 0
+  },
+  ['home-post-count'],
+  { revalidate: HOME_TTL, tags: HOME_POST_TAGS },
+)
 
-  // Real ranking by view_count
-  const { data, error } = await db
-    .from('blog_translations')
-    .select(`
-      slug, locale, title, excerpt, reading_time_min, cover_image_url,
-      blog_posts!inner(id, published_at, category, is_featured, status, view_count, cover_image_url,
-        blog_tags(name, badge, color, color_dark)
-      )
-    `)
-    .eq('locale', locale)
-    .eq('blog_posts.status', 'published')
-    .lte('blog_posts.published_at', now)
-    .order('view_count', { referencedTable: 'blog_posts', ascending: false })
-    .limit(limit)
-
-  if (error) throw error
-  return (data ?? []).map(mapRowToHomePost)
-}
-
-export async function getPostCount(locale: string): Promise<number> {
-  const db = getSupabaseServiceClient()
-  const now = new Date().toISOString()
-
-  const { count, error } = await db
-    .from('blog_translations')
-    .select('slug, blog_posts!inner(id)', { count: 'exact', head: true })
-    .eq('locale', locale)
-    .eq('blog_posts.status', 'published')
-    .lte('blog_posts.published_at', now)
-
-  if (error) return 0
-  return count ?? 0
-}
-
+/**
+ * NÃO cacheado de propósito. O total de inscritos confirmados muda em fluxos
+ * públicos espalhados (double opt-in, unsubscribe RFC 8058, webhook SES de
+ * bounce/complaint, cron de welcome, CMS de subscribers) — nenhum deles hoje
+ * dispara tag. Cachear sem cobrir os seis pontos serviria número velho, o que
+ * o WP-2 existe para evitar. Fica como a única query Postgres por visita.
+ */
 export async function getSubscriberCount(): Promise<number> {
   const db = getSupabaseServiceClient()
   const { siteId } = await getSiteContext()
