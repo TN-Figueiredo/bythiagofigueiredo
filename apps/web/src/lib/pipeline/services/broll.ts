@@ -36,11 +36,6 @@ export interface BRollListParams {
   q?: string
 }
 
-export interface BRollListResult {
-  data: BRollAssetRow[]
-  meta: { total: number; has_next: boolean; next_cursor: string | undefined; limit: number }
-}
-
 // ---------------------------------------------------------------------------
 // Get-by-id result
 // ---------------------------------------------------------------------------
@@ -89,7 +84,7 @@ export interface BRollRetireResult {
 export async function listBRollAssets(
   ctx: ServiceContext,
   params: BRollListParams,
-): Promise<ServiceResult<BRollListResult>> {
+): Promise<ServiceResult<BRollAssetRow[]>> {
   const limit = Math.max(1, Math.min(parseInt(String(params.limit || '50')) || 50, 200))
   const cursor = params.cursor || undefined
 
@@ -155,10 +150,13 @@ export async function listBRollAssets(
   const items = (data?.slice(0, limit) ?? []) as BRollAssetRow[]
   const lastItem = items[items.length - 1] as { id: string } | undefined
 
-  return ok({
+  // Flat ServiceResult (see listAudioAssets): `ok({ data, meta })` double-wrapped
+  // the REST body and hid `meta` from the MCP tool.
+  return {
+    status: 200,
     data: items,
     meta: { total: count ?? 0, has_next: hasNext, next_cursor: hasNext && lastItem ? lastItem.id : undefined, limit },
-  })
+  }
 }
 
 /** Create a single B-Roll asset after Zod validation. */

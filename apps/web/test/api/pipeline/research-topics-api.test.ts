@@ -78,7 +78,7 @@ describe('GET /api/pipeline/research/topics', () => {
     const mockTopics = [
       { id: 'aaa', name: 'Gaming History', slug: 'gaming-history', path: 'gaming-history', depth: 0, parent_id: null, color: '#a78bfa', icon: '🎮', sort_order: 0, item_count: 5 },
     ]
-    mockListTopics.mockResolvedValue(mockTopics)
+    mockListTopics.mockResolvedValue({ data: mockTopics, status: 200 })
 
     const { GET } = await import('@/app/api/pipeline/research/topics/route')
     const req = new NextRequest('http://localhost/api/pipeline/research/topics')
@@ -103,7 +103,7 @@ describe('POST /api/pipeline/research/topics', () => {
       id: 'bbb', name: 'Gaming History', slug: 'gaming-history', path: 'gaming-history',
       depth: 0, parent_id: null, color: '#a78bfa', icon: '📁', sort_order: 0, site_id: MOCK_SITE_ID,
     }
-    mockCreateTopic.mockResolvedValue(newTopic)
+    mockCreateTopic.mockResolvedValue({ data: newTopic, status: 201 })
 
     const { POST } = await import('@/app/api/pipeline/research/topics/route')
     const req = new NextRequest('http://localhost/api/pipeline/research/topics', {

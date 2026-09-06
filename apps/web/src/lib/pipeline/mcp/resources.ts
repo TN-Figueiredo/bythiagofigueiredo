@@ -1108,7 +1108,7 @@ export function registerResources(server: McpServer): void {
       const { ctx } = await buildResourceCtx()
 
       const result = await listResearchItems(ctx, { status: ['fresca'], limit: 200 })
-      const items = result.data.data
+      const items = result.data
 
       // Oldest first — that's the triage order (RS: idade prioriza).
       const sorted = [...items].sort((a, b) => a.created_at.localeCompare(b.created_at))

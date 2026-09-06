@@ -68,7 +68,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
   try {
     const ctx = authToServiceContext(auth)
-    const data = await deleteResearchItem(ctx, id)
+    const { data } = await deleteResearchItem(ctx, id)
     revalidateTag('layout-counts', { expire: 0 })
     return pipelineSuccess(data, 200, auth)
   } catch (err) {

@@ -103,9 +103,17 @@ describe('GET /api/pipeline/up-next', () => {
 
   it('returns 200 with data on valid request', async () => {
     mockAuthRead()
-    vi.mocked(getUpNext).mockResolvedValue({ today: { actions: [] }, weekSlots: [] } as any)
+    vi.mocked(getUpNext).mockResolvedValue({ data: { today: { actions: [] }, weekSlots: [] }, status: 200 } as any)
     const res = await GET(makeRequest('GET'))
     expect(res.status).toBe(200)
+    // Contract: `{ data: UpNextApiResponse }` — the service returns a
+    // ServiceResult ({ data, status }) and the route must unwrap it. A
+    // double wrap ({ data: { data, status } }) crashed <PipelineOverview>
+    // ("reading 'actions'") on /cms/up-next (2026-09-06).
+    const json = await res.json()
+    expect(json.data.today).toEqual({ actions: [] })
+    expect(json.data.data).toBeUndefined()
+    expect(json.data.status).toBeUndefined()
   })
 
   it('returns 401 when unauthenticated', async () => {
@@ -154,7 +162,7 @@ describe('POST /api/pipeline/up-next', () => {
       slotHour: '10:00',
     })
     const returnData = { id: VALID_UUID, scheduled_at: '2026-05-26T10:00:00' }
-    vi.mocked(assignUpNextSlot).mockResolvedValue(returnData as any)
+    vi.mocked(assignUpNextSlot).mockResolvedValue({ data: returnData, status: 200 } as any)
 
     const res = await POST(makeRequest('POST', {
       itemId: VALID_UUID,
@@ -284,7 +292,7 @@ describe('POST /api/pipeline/up-next', () => {
       previousItemId: VALID_UUID_2,
     })
     const returnData = { id: VALID_UUID, scheduled_at: '2026-05-26T10:00:00' }
-    vi.mocked(assignUpNextSlot).mockResolvedValue(returnData as any)
+    vi.mocked(assignUpNextSlot).mockResolvedValue({ data: returnData, status: 200 } as any)
 
     const res = await POST(makeRequest('POST', {
       itemId: VALID_UUID,
@@ -310,7 +318,7 @@ describe('POST /api/pipeline/up-next', () => {
       previousItemId: VALID_UUID,
     })
     const returnData = { id: VALID_UUID, scheduled_at: '2026-05-26T10:00:00' }
-    vi.mocked(assignUpNextSlot).mockResolvedValue(returnData as any)
+    vi.mocked(assignUpNextSlot).mockResolvedValue({ data: returnData, status: 200 } as any)
 
     const res = await POST(makeRequest('POST', {
       itemId: VALID_UUID,
@@ -331,7 +339,7 @@ describe('POST /api/pipeline/up-next', () => {
       slotHour: null,
     })
     const returnData = { id: VALID_UUID, scheduled_at: '2026-05-26T00:00:00' }
-    vi.mocked(assignUpNextSlot).mockResolvedValue(returnData as any)
+    vi.mocked(assignUpNextSlot).mockResolvedValue({ data: returnData, status: 200 } as any)
 
     const res = await POST(makeRequest('POST', {
       itemId: VALID_UUID,

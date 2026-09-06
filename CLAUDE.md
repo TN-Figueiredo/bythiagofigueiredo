@@ -84,6 +84,8 @@ Convenção: `describe.skipIf(skipIfNoLocalDb())('<suite>', () => { ... })`. Int
 - **Sanitizers nunca sob happy-dom:** DOMPurify ≥3.4.11 falha aberto no happy-dom (mantém `<script>`, dropa tags permitidas). Teste de código server-side → `// @vitest-environment node`; componente client → `// @vitest-environment jsdom`. Canary: `test/unit/newsletter/archive-sanitizer.test.ts`.
 - **Fixtures temporais sempre relativas ou com fake timers:** nunca hardcodar ano/trimestre futuro (`'2027-06-01'`, `'Q2 2026'`) em teste que compara com wall clock — quebra o CI sozinho na virada (aconteceu 2026-07-01). Use `new Date(Date.now() + N * 864e5).toISOString()` ou `vi.useFakeTimers({ now, toFake: ['Date'] })`.
 - **Fix que exige mudança em teste vai no MESMO commit do bump** (bisectabilidade — a árvore nunca fica com testes vermelhos).
+- **Next 16: nunca passar `next/link` (ou qualquer componente importado num Server Component) como prop para um client component.** Em Server Components `next/link` resolve para o build react-server (função, não client reference) → `Functions cannot be passed directly to Client Components` → `/cms` em 500 (2026-09-06). Envolva num módulo `'use client'` (`src/app/cms/(authed)/_shared/cms-link.tsx`).
+- **Upgrade de framework/pacote que toca o CMS exige validação AUTENTICADA antes da promoção** — CI, `next build` e smoke público não têm sessão. Receita de 5 min: `docs/ops/runbook-cms-e2e-local.md`.
 
 ## Database RLS helpers
 

@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const ctx = authToServiceContext(auth)
-    const data = await listTopics(ctx)
+    const { data } = await listTopics(ctx)
     return pipelineSuccess(data, 200, auth)
   } catch (err) {
     return serviceErrorToResponse(err, auth)
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const ctx = authToServiceContext(auth)
-    const data = await createTopic(ctx, body)
+    const { data } = await createTopic(ctx, body)
     revalidateTag('layout-counts', { expire: 0 })
     return pipelineSuccess(data, 201, auth)
   } catch (err) {

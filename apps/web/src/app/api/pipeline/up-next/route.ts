@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const ctx = authToServiceContext(auth)
-    const data = await getUpNext(ctx, Object.fromEntries(req.nextUrl.searchParams))
+    const { data } = await getUpNext(ctx, Object.fromEntries(req.nextUrl.searchParams))
     return pipelineSuccess(data, 200, auth)
   } catch (err) {
     return serviceErrorToResponse(err, auth)
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const ctx = authToServiceContext(auth)
-    const data = await assignUpNextSlot(ctx, body)
+    const { data } = await assignUpNextSlot(ctx, body)
     return pipelineSuccess(data, 200, auth)
   } catch (err) {
     return serviceErrorToResponse(err, auth)
