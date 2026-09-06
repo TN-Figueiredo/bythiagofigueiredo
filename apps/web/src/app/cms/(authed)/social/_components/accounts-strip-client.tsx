@@ -94,7 +94,7 @@ export function AccountsStripClient({ connections }: AccountsStripClientProps) {
                 <Link
                   href={
                     conn.provider === 'youtube' ? '/cms/youtube'
-                    : conn.provider === 'instagram' ? '/cms/settings'
+                    : conn.provider === 'instagram' ? '/cms/settings?section=instagram'
                     : '/cms/social/accounts'
                   }
                   className="inline-flex items-center gap-[7px] rounded-[9px] border border-cms-border px-[11px] py-1.5 text-[12.5px] font-semibold text-cms-text-dim tracking-[-0.01em] transition-colors hover:text-cms-text"

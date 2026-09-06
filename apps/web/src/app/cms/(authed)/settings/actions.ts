@@ -6,6 +6,7 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { lookupChannelByHandle, type ChannelLookupResult } from '@/lib/youtube/api-client'
+import { syncScheduleSchema, type SyncScheduleInput } from './sync-schedule-schema'
 
 type ActionResult = { ok: true } | { ok: false; error: string }
 type LookupResult = { ok: true; channel: ChannelLookupResult } | { ok: false; error: string }
@@ -265,44 +266,7 @@ export async function disableCms(): Promise<ActionResult> {
   return { ok: true }
 }
 
-function isValidTimezone(v: string) {
-  try { Intl.DateTimeFormat(undefined, { timeZone: v }); return true } catch { return false }
-}
-
-function trimString(v: string) { return v.trim() }
-
-function trimOrNull(v: string) { return v || null }
-
-function noDuplicateSchedules(arr: Array<{ day: string; hour: number; tz: string }>, ctx: z.RefinementCtx) {
-  const seen = new Set<string>()
-  for (let i = 0; i < arr.length; i++) {
-    const entry = arr[i]
-    if (!entry) continue
-    const key = `${entry.day}:${entry.hour}:${entry.tz}`
-    if (seen.has(key)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: `Duplicate schedule entry at index ${i}`,
-        path: [i],
-      })
-    }
-    seen.add(key)
-  }
-}
-
-export const syncScheduleSchema = z.object({
-  channel_id: z.string().uuid(),
-  sync_enabled: z.boolean(),
-  sync_schedules: z.array(z.object({
-    day: z.enum(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']),
-    hour: z.number().int().min(0).max(23),
-    tz: z.string().refine(isValidTimezone, { message: 'Invalid IANA timezone' }),
-    label: z.string().max(100).transform(trimString),
-  })).max(21).superRefine(noDuplicateSchedules),
-  schedule_label: z.string().max(200).trim().transform(trimOrNull).nullable().optional(),
-})
-
-export async function updateYouTubeChannelSettings(input: z.infer<typeof syncScheduleSchema>): Promise<ActionResult> {
+export async function updateYouTubeChannelSettings(input: SyncScheduleInput): Promise<ActionResult> {
   const parsed = syncScheduleSchema.safeParse(input)
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
   const siteId = await requireEditAccess()

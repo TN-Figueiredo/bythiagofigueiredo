@@ -25,7 +25,7 @@ vi.mock('@/lib/youtube/api-client', () => ({
 }))
 
 const { syncScheduleSchema } = await import(
-  '@/app/cms/(authed)/settings/actions'
+  '@/app/cms/(authed)/settings/sync-schedule-schema'
 )
 
 // ---------------------------------------------------------------------------
