@@ -126,7 +126,7 @@ varre não custa nada.
 | # | Item | Por quê nesta posição | Custo |
 |---|---|---|---|
 | 1 | **Monitor sintético externo** (`GET /` a cada 5 min → ntfy/UptimeRobot) | A queda de hoje foi descoberta por acidente, via um job de CI. Sem isso, a próxima também passa. Não exige deploy. | ~30 min |
-| 2 | **Subir o tier de compute do Supabase** (dashboard) | **Promovido de "confirmar" para "agir".** O autovacuum leva 40 min para 291 MB por falta de CPU — a instância Micro é causa co-igual, não pano de fundo. Recuperar espaço sem subir CPU deixa a espiral armada. | seu, custo $ |
+| 2 | ~~Subir o tier de compute do Supabase~~ — **SUPERADO por `plano-custo-zero.md`** (orçamento zero; o incidente foi resolvido sem upgrade removendo o `pg_net`, que era 90 % da carga) | Mantido como registro do raciocínio da época: **Promovido de "confirmar" para "agir".** O autovacuum leva 40 min para 291 MB por falta de CPU — a instância Micro é causa co-igual, não pano de fundo. Recuperar espaço sem subir CPU deixa a espiral armada. | seu, custo $ |
 | 3 | **Remediação do `pg_net`** (seção 3) + versionar os 5 jobs | A causa raiz. Os jobs hoje só existem no dashboard — um restore os perde. | 1–2 h |
 | 4 | **`links-check-expiry` e `social-auto-draft`** — queries contra colunas inexistentes, falham 100% das vezes há 3-4 meses | Baratos e isolados. Atenção: o links-check-expiry tem TRÊS defeitos, nao um. | 1 h |
 | 5 | **Reconexão OAuth do Meta** | Publicação Facebook/Instagram morta desde 2026-07-18. Manual, não bloqueia nada, roda em paralelo. | 20 min, seu |
