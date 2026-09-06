@@ -73,9 +73,18 @@ export async function closeSyncRow(
         .single()
 
       const base = (existing as { error_message: string | null } | null)?.error_message ?? ''
-      let message = base
-      if (result.partial) message += ' partial'
-      if (result.mediaFailed > 0) message += ` mediaFailed:${result.mediaFailed}`
+
+      // Suffixes are contract data (C2 parses `' mediaFailed:'` out of this
+      // column) — they must never be the thing a length cap drops. Truncate
+      // the BASE to make room, never the suffixes. `Math.max(0, …)` guards
+      // the degenerate case (suffixes alone ≥ MAX_MESSAGE): base is dropped
+      // entirely rather than producing a negative slice.
+      let suffix = ''
+      if (result.partial) suffix += ' partial'
+      if (result.mediaFailed > 0) suffix += ` mediaFailed:${result.mediaFailed}`
+
+      const baseBudget = Math.max(0, MAX_MESSAGE - suffix.length)
+      const message = base.slice(0, baseBudget) + suffix
 
       await supabase
         .from('instagram_sync_log')
@@ -85,7 +94,7 @@ export async function closeSyncRow(
           posts_inserted: result.postsInserted,
           posts_updated: result.postsUpdated,
           media_cached: result.mediaCached,
-          error_message: message === '' ? null : message.slice(0, MAX_MESSAGE),
+          error_message: message === '' ? null : message,
           completed_at: completedAt,
         })
         .eq('id', logId)

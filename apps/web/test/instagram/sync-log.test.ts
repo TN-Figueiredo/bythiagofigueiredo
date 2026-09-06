@@ -120,6 +120,20 @@ describe('closeSyncRow', () => {
     expect(patch.error_message).toBe('detail: ok partial')
   })
 
+  it('quando a base bate o teto de 500, trunca a BASE — nunca os sufixos', async () => {
+    // Fix round 1: openSyncRow já grava até 500 chars de detalhe + o prefixo
+    // 'detail: ' (8 chars) => até 508 chars persistidos. Se closeSyncRow
+    // concatenar base+sufixos e só então cortar em 500, o corte cai na CAUDA
+    // e derruba justamente os sufixos que C2 precisa parsear (' mediaFailed:').
+    // A base é que deve ceder espaço, nunca os sufixos.
+    const maximalBase = `detail: ${'x'.repeat(500)}` // 508 chars, o pior caso real
+    const { supabase, update } = mockSupabase({ existingMessage: maximalBase })
+    await closeSyncRow(supabase as never, 'log-1', makeResult({ partial: true, mediaFailed: 3 }))
+    const patch = update.mock.calls[0]![0] as { error_message: string }
+    expect(patch.error_message.length).toBeLessThanOrEqual(500)
+    expect(patch.error_message.endsWith(' partial mediaFailed:3')).toBe(true)
+  })
+
   it('sem detail e sem sufixos, error_message fica null', async () => {
     const { supabase, update } = mockSupabase({ existingMessage: null })
     await closeSyncRow(supabase as never, 'log-1', makeResult())
@@ -138,11 +152,23 @@ describe('closeSyncRow', () => {
   })
 
   it('failed sobrescreve o error_message, redigido e truncado', async () => {
+    // Regression gap (fix round 1): a mensagem original tinha ~29 chars e
+    // nunca alcançava o corte de 500 — o teste "passava" mesmo se a chamada a
+    // `.slice(0, MAX_MESSAGE)` fosse removida do caminho `failed`. O segredo
+    // vem ANTES do padding para que a redação sobreviva ao corte e o teste
+    // continue provando as duas coisas: redação E truncamento.
     const { supabase, update } = mockSupabase({ existingMessage: 'detail: ok' })
-    await closeSyncRow(supabase as never, 'log-1', null, `boom access_token=${'a'.repeat(64)}`)
+    const secret = 'a'.repeat(64)
+    const padding = 'z'.repeat(600)
+    const rawMessage = `boom access_token=${secret} ${padding}`
+    await closeSyncRow(supabase as never, 'log-1', null, rawMessage)
     const patch = update.mock.calls[0]![0] as { status: string; error_message: string }
+    const expectedRedacted = `boom access_token=[REDACTED] ${padding}`
+    expect(expectedRedacted.length).toBeGreaterThan(500) // sanity: input DOES exceed the cap
     expect(patch.status).toBe('failed')
-    expect(patch.error_message).toBe('boom access_token=[REDACTED]')
+    expect(patch.error_message).toBe(expectedRedacted.slice(0, 500))
+    expect(patch.error_message.length).toBe(500)
+    expect(patch.error_message).not.toContain(secret)
   })
 
   it('é no-op de escrita quando logId é null', async () => {
