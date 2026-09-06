@@ -9,13 +9,20 @@
 > **Fase 1 completa às 23:xx, após a promoção de `main`** (merges `af330e61`, `2ebc2db0`):
 > Vercel assumiu `publish-scheduled` (`*/5`) e `lgpd-cleanup-sweep` (`0 7`) — `cron_health`
 > confirma execuções com 0 falhas; migration `20260905000002` desagendou os dois jobs HTTP e
-> fez `DROP EXTENSION pg_net`; `20260905000003` removeu a função helper órfã (a 000002 errou a
-> assinatura e o `if exists` engoliu). Estado final: `pg_cron` com 3 jobs — dois purges SQL
-> diários e a retenção do próprio histórico. Banco: 93 MB.
-> **Fase 2 parcial:** `vercel.json` 50 → 45 crons (`social-publish` `*/15`; removidos
-> `social-auto-draft`, `social-metrics`, `links-check-expiry` e as duplicatas dos purges).
-> **Aberto:** `links-check-expiry` continua quebrado no código (3 colunas inexistentes) — foi
-> tirado do agendamento, não consertado; decisão de reviver ou apagar é do dono.
+> fez `DROP EXTENSION pg_net`. Estado final: `pg_cron` com 3 jobs — dois purges SQL diários e a
+> retenção do próprio histórico. Banco: 93 MB.
+> **Pendente (ação do dono):** `npm run db:push:prod` da `20260905000003` — a 000002 errou a
+> assinatura de `cron_http_post_web` e o `if exists` engoliu; a função órfã ainda existe em prod
+> (verificado 2026-09-06 01:2xZ: `orfa = 1`). Inofensiva (aponta para `net.http_post`, que não
+> existe mais), mas é lixo versionado.
+> **Fase 2 completa (2026-09-06, merge `4db9760f`):** `vercel.json` 50 → **47** crons.
+> `social-publish` `*/15`; removidos `social-metrics` e as duplicatas dos purges (`purge-sent-emails`,
+> `purge-old-contact-submissions` vivem só no `pg_cron`). `links-check-expiry` (`*/15`) e
+> `social-auto-draft` (`*/30`) foram **consertados no código** — colunas reais (`code`, `active`),
+> `created_by: null` — com testes que validam nomes de coluna contra o schema, e voltaram ao
+> agendamento.
+> **Bônus (mesmo merge):** home pública passou de 13 → 1 query Postgres por visita
+> (`unstable_cache` + tags, `{ expire: 0 }` nas mutações); TTFB warm medido 1,34s → ~65ms local.
 
 **Data:** 2026-09-05 · **Restrição:** orçamento zero. Nada de upgrade de Supabase.
 **Base:** 9 agentes (4 adversariais + 5 de custo zero), tudo medido, nada presumido.
