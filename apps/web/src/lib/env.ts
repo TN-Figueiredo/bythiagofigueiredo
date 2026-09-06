@@ -48,6 +48,13 @@ const serverSchema = z.object({
   // Opt-in: enable the post-send delivery reconciliation alert. Only turn on
   // once the SES 'Delivery' event is wired to the SNS topic, else it false-alarms.
   NEWSLETTER_DELIVERY_RECONCILE: z.string().optional(),
+  // ntfy.sh topic URL the uptime-probe cron posts to when the target is
+  // degraded/down (read via process.env directly in the route; declared
+  // here for schema parity). Unset = probe still runs, just can't alert.
+  NTFY_URL: z.string().url().optional(),
+  // Override for the uptime-probe cron's target origin. Defaults to
+  // https://bythiagofigueiredo.com when unset.
+  UPTIME_PROBE_TARGET: z.string().url().optional(),
 })
 
 // ---------------------------------------------------------------------------
