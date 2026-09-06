@@ -2065,7 +2065,8 @@ git commit -m "feat(ops): transporte ntfy unico com basic-auth e dedupe por stat
 - Test: `apps/web/test/instagram/cron-route.test.ts`, `apps/web/test/instagram/token-refresh.test.ts` (fixtures de `InstagramAccountRow`)
 
 **Interfaces:**
-- Consumes: `SyncResult` com `partial`/`mediaFailed` e `cacheImagesInBatches` com `deadlineAt` (A); `claimAlert` (Tarefa 6).
+- Consumes de **A** (Task 4) — copiar verbatim para o arquivo substituído, **MUST NOT** reimplementar nem renomear: `SyncResult` com `partial`/`mediaFailed`; o timeout de download (`imageTimeoutMs(deadlineAt)` + `IMAGE_FETCH_TIMEOUT_MS = 8_000` / `IMAGE_FETCH_MIN_TIMEOUT_MS = 1_000`); a corrida por lote de `cacheImagesInBatches` (com `clearTimeout`) devolvendo `{ cached, partial }`; e o `throw` tipado do erro de upsert (`new Error(error.message)` + `code`). Consumes da Tarefa 6: `claimAlert`.
+- **Escopo exclusivo de C2 neste arquivo** (§3.2): portão de forma do `item.id`, portão de URL/SSRF, `MAX_IMAGE_BYTES`, `contentType` derivado do `ext`, `redirect:'error'`, `onConflict: 'account_id,ig_media_id'`, `accessToken` obrigatório, re-tentativa de `cached_image_url IS NULL` e `checkImageCacheHealth`. O timeout **não** está nesta lista.
 - Produces:
   ```ts
   export function syncInstagramAccount(
@@ -2080,7 +2081,15 @@ git commit -m "feat(ops): transporte ntfy unico com basic-auth e dedupe por stat
 
 - [ ] **Step 1: Escrever os testes que falham**
 
-Acrescente ao fim de `apps/web/test/instagram/sync.test.ts`:
+**Antes de acrescentar qualquer coisa, ajuste os testes que A deixou neste arquivo** — `accessToken` passa a ser obrigatório e sete testes de A chamam a função com dois argumentos:
+
+- **Apague** `it('falls back to account.access_token when accessToken is omitted')` — a premissa deixa de existir (o token nunca mais vem da linha). O caso que a substitui é `it('accessToken é obrigatório: o token vem do 3º argumento, nunca de account.access_token')`, abaixo.
+- **Acrescente `'tok'` como 3º argumento** em `it('reports partial: false and mediaFailed: 0 on a clean run')`, `it('passes an AbortSignal to every image download')`, `it('throws when the posts upsert fails')` e `it('keeps the postgres code on the thrown upsert error')`.
+- **Troque o `undefined` do 3º argumento por `'tok'`** em `it('starts no batch after the deadline and reports partial with mediaFailed')` e `it('aborts a hung download and closes the batch on the remaining deadline')`.
+- **NÃO reescreva e NÃO duplique** os dois testes de timeout de A (`'passes an AbortSignal to every image download'` e `'aborts a hung download and closes the batch on the remaining deadline'`): o timeout é de A e continua sendo provado só por eles. Nenhum teste novo de C2 assere `signal`, `AbortSignal.timeout` ou prazo de lote.
+- `it('prefers the explicit accessToken over the row value')` de A continua válido sem edição.
+
+Depois disso, acrescente ao fim de `apps/web/test/instagram/sync.test.ts`:
 
 ```ts
 // ── C2 ───────────────────────────────────────────────────────────────────────
@@ -2317,7 +2326,7 @@ describe('checkImageCacheHealth — 3 execuções consecutivas com mediaFailed >
       logSupabase([
         { error_message: 'detail: x mediaFailed:2' },
         { error_message: ' mediaFailed:1' },
-        { error_message: 'partial mediaFailed:3' },
+        { error_message: ' partial mediaFailed:3' },
       ]),
       'acc-1',
     )
@@ -2365,8 +2374,19 @@ import type { InstagramAccountRow, SyncResult } from './types'
 
 const IMAGE_CACHE_CONCURRENCY = 5
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024
-const IMAGE_FETCH_MAX_MS = 8_000
-const IMAGE_FETCH_MIN_MS = 1_000
+// Timeout de download: ENTREGUE POR A (§0 linha A, item ii). C2 NÃO redefine,
+// não renomeia e não reimplementa — copia o helper e as duas constantes de A
+// verbatim para dentro do arquivo substituído.
+const IMAGE_FETCH_TIMEOUT_MS = 8_000
+const IMAGE_FETCH_MIN_TIMEOUT_MS = 1_000
+
+function imageTimeoutMs(deadlineAt: number | undefined): number {
+  if (deadlineAt === undefined) return IMAGE_FETCH_TIMEOUT_MS
+  return Math.max(
+    IMAGE_FETCH_MIN_TIMEOUT_MS,
+    Math.min(IMAGE_FETCH_TIMEOUT_MS, deadlineAt - Date.now()),
+  )
+}
 
 // Todo identificador vindo da Meta chega por cast puro (api-client.ts) — o
 // mesmo portão de forma que §3.1 passo 7 dá aos ids da conexão.
@@ -2447,17 +2467,13 @@ async function cacheImage(
     return null
   }
 
-  const budget =
-    deadlineAt === undefined
-      ? IMAGE_FETCH_MAX_MS
-      : Math.max(IMAGE_FETCH_MIN_MS, Math.min(IMAGE_FETCH_MAX_MS, deadlineAt - Date.now()))
-
   try {
-    // redirect:'error' — re-checar imgRes.url depois seria tarde demais para um
-    // 302 de scontent.cdninstagram.com para endereço interno.
+    // O `signal` é o de A (imageTimeoutMs) — inalterado. O que C2 acrescenta
+    // aqui é só `redirect:'error'`: re-checar imgRes.url depois seria tarde
+    // demais para um 302 de scontent.cdninstagram.com para endereço interno.
     const imgRes = await fetch(urlToCache, {
       redirect: 'error',
-      signal: AbortSignal.timeout(budget),
+      signal: AbortSignal.timeout(imageTimeoutMs(deadlineAt)),
     })
     if (!imgRes.ok) return null
 
@@ -2504,22 +2520,27 @@ async function cacheImagesInBatches(
       break
     }
     const batch = items.slice(i, i + IMAGE_CACHE_CONCURRENCY)
-    const work = Promise.allSettled(
+    // Bloco de A (Task 4), copiado VERBATIM: a única diferença é o 4º argumento
+    // `flags`, que é conteúdo de C2. Não reescrever a corrida — o `clearTimeout`
+    // é parte do contrato (sem ele o timer segura o event loop até o prazo).
+    const settle = Promise.allSettled(
       batch.map((item) => cacheImage(accountId, item, deadlineAt, flags)),
     )
 
-    // Cada lote corre contra o prazo restante: os downloads em voo são
-    // abortados pelos próprios AbortSignal, e `partial` fica apoiado em lotes
-    // que de fato terminam.
-    const results =
-      deadlineAt === undefined
-        ? await work
-        : await Promise.race([
-            work,
-            new Promise<null>((resolve) =>
-              setTimeout(() => resolve(null), Math.max(0, deadlineAt - Date.now())),
-            ),
-          ])
+    let results: PromiseSettledResult<string | null>[] | null
+    if (deadlineAt === undefined) {
+      results = await settle
+    } else {
+      // Cada LOTE corre contra o prazo restante; os downloads em voo são
+      // abortados pelos próprios `AbortSignal.timeout`.
+      let timer: ReturnType<typeof setTimeout> | undefined
+      const remaining = Math.max(0, deadlineAt - Date.now())
+      const deadlinePromise = new Promise<null>((resolve) => {
+        timer = setTimeout(() => resolve(null), remaining)
+      })
+      results = await Promise.race([settle, deadlinePromise])
+      if (timer !== undefined) clearTimeout(timer)
+    }
 
     if (results === null) {
       partial = true
@@ -2608,8 +2629,16 @@ export async function syncInstagramAccount(
     .upsert(rows, { onConflict: 'account_id,ig_media_id', count: 'exact' })
 
   // Erro do upsert é LANÇADO (A) — engolir escondia a falha e ainda carimbava
-  // last_synced_at.
-  if (error) throw error
+  // last_synced_at. A FORMA do throw também é de A e não muda: um `Error` de
+  // verdade com o `code` do Postgres preservado. `throw error` cru devolveria um
+  // PostgrestError simples, e todo chamador testa `err instanceof Error`
+  // (triggerInstagramSync => "Sync failed" genérico; cron => "[object Object]"
+  // no error_message e o ramo de duplicata da janela C2→C4 sem casar).
+  if (error) {
+    const upsertError = new Error(error.message) as Error & { code?: string }
+    if (typeof error.code === 'string') upsertError.code = error.code
+    throw upsertError
+  }
 
   result.postsInserted = brandNew.length
   result.postsUpdated = (count ?? rows.length) - brandNew.length
@@ -2685,9 +2714,15 @@ Em `apps/web/src/lib/instagram/types.ts`:
 Depois acrescente `ig_user_id_source: 'legacy',` a **todo** literal de `InstagramAccountRow` dos testes até o typecheck fechar:
 
 ```bash
-npm run typecheck --workspace=apps/web 2>&1 | grep "ig_user_id_source"
-# arquivos esperados: test/instagram/sync.test.ts (makeAccount),
-# test/instagram/cron-route.test.ts, test/instagram/token-refresh.test.ts
+# `apps/web/tsconfig.json` exclui "test/**" e "**/*.test.ts": nem o typecheck nem
+# um `grep` sobre a saída dele acusam este campo — é um no-op. O que de fato
+# exercita os literais é rodar os três arquivos afetados:
+npx vitest run apps/web/test/instagram/sync.test.ts \
+  apps/web/test/instagram/cron-route.test.ts \
+  apps/web/test/instagram/token-refresh.test.ts
+# Expected: os três SÓ passam depois de `ig_user_id_source: 'legacy',` estar em
+# todo literal de `InstagramAccountRow` desses arquivos (makeAccount incluído).
+# Depois: npm run typecheck --workspace=apps/web (cobre só src/ — tem de sair limpo)
 ```
 
 - [ ] **Step 6: Typecheck e commit**
@@ -5605,7 +5640,20 @@ git commit -m "feat(instagram): cron de renovacao observavel (episodio, varredur
 - Consumes: `probeToken`, `readAccessToken`, `classifyInstagramError`, `markTokenInvalid`, `evaluateTransientStreak`, `sweepTokenAlerts`, `loadSiteSlugs` (Tarefas 4/5/8/10); `syncInstagramAccount`, `checkImageCacheHealth` (Tarefa 7); `sendNtfyAlert` (Tarefa 6); `claimAlert`/`releaseAlert`/`readAlertStamp`/`touchAlert` (Tarefa 6); `resumeStuckDeletionRequest` (Tarefa 11); `fanOutToSiteAdminsDetailed` (Tarefa 9).
 - Produces: resposta `{ status, error?, probed, synced, inserted, updated, cached, never_connected, token_invalid, failed_permanent, failed_transient, failed_infra, still_broken, deferred, step_errors, alert_channels }`.
 
-**Sobre `mode`/`accountId`:** a rota **mantém** os dois parâmetros e o lock atual nesta tarefa. Removê-los é conteúdo de **A5** (`chore(instagram): drop manual mode from sync cron`), **nunca de C2** — e A5 já terá decidido isso antes de C2 começar. Se A5 tiver caído no ramo aprovado, o `mode`/`accountId` já não existem quando você chegar aqui: nesse caso, **omita** o bloco `mode`/`accountId` do Step 3 e use `withCronLock(supabase, 'instagram-sync', runId, 'instagram-sync', …)`.
+**Sobre `mode`/`accountId`:** a rota **mantém** os dois parâmetros e o lock atual nesta tarefa. Removê-los é conteúdo de **A5** (`chore(instagram): drop manual mode from sync cron`), **nunca de C2** — e A5 já terá decidido isso antes de C2 começar.
+
+**Se `GATE = PASSOU`** (A5 Grupo 1 já apagou `mode`/`accountId`), o Step 3 tem **quatro** ajustes, não dois — os quatro no mesmo commit, senão o arquivo nem compila. Os quatro pontos abaixo têm cada um um site real correspondente em `apps/web/src/app/api/cron/instagram-sync/route.ts` **na forma de hoje** (HEAD `6fa9551b`, antes da reescrita completa desta tarefa) — use-os só para se localizar; o arquivo final é a reescrita inteira do Step 3, não um diff linha a linha do arquivo de hoje:
+
+1. **Omita** o bloco de leitura/validação: `const mode = …`, o `return Response.json({ error: 'invalid mode' }, { status: 400 })` e `const accountId = req.nextUrl.searchParams.get('accountId')`. O import de `InstagramSyncMode` sai junto se ficar órfão. Hoje isso é `route.ts:18` (`const mode = …`), `:19-21` (o `if` + `return` de 400) e `:23` (`const accountId = …`).
+2. `withCronLock(supabase, 'instagram-sync', runId, 'instagram-sync', …)` — chave e tag literais (é o que A5 Grupo 1 deixou). Hoje isso é `route.ts:27` (`return withCronLock(supabase, \`instagram-sync-${mode}\`, runId, 'instagram-sync', async () => {`).
+3. **Apague** `if (accountId) query = query.eq('id', accountId)` — a rota passa a varrer sempre a frota inteira. Hoje isso é `route.ts:33-35`.
+4. Troque `const logId = await openSyncRow(supabase, account, mode)` por `const logId = await openSyncRow(supabase, account, 'daily')` — A5 Grupo 1 é explícito: "linhas de `instagram_sync_log` escritas por esta rota sempre com `mode = 'daily'`" (o `'manual'` continua vindo só da server action). Hoje `openSyncRow` ainda não existe — o equivalente é o insert inline em `route.ts:48-53`, com `mode,` na `:51`.
+
+`mode` também aparece hoje em mais dois lugares que **não** entram nesta lista de omissão porque a Tarefa 13 já os elimina nos dois ramos, independente do gate: a tag do Sentry (`route.ts:84`, `{ component: 'instagram-sync', mode }`) e o corpo da resposta (`route.ts:94`, `mode,`) — a interface **Produces** desta tarefa, acima, não tem campo `mode`; a reescrita do Step 3 já não expõe `mode` nem em telemetria nem na resposta, em nenhum dos dois ramos do gate.
+
+Nos testes, no mesmo ramo: `test/api/cron/instagram-sync.test.ts` **não** pode voltar a citar `'invalid mode'` (A5 removeu o `it('returns 400 for invalid mode')`) e o `makeRequest` de `test/instagram/cron-route.test.ts` já está sem `?mode=` — não o restaure.
+
+**Se `GATE = REPROVOU`**, o Step 3 fica exatamente como está escrito abaixo — **nada** cai dos testes ou mocks desta Tarefa 13 nesse ramo: os quatro pontos acima só se aplicam a `GATE = PASSOU`, e nenhum teste/mock desta tarefa depende de qual corpo A5 escolheu. O que de fato cai num `REPROVOU` é na **Tarefa 14** (`triggerInstagramSync`), não aqui: com o `fetch` autenticado de volta, o `it('token válido => syncInstagramAccount recebe o token DECIFRADO no 3º argumento')` e o `vi.mock('@/lib/instagram/sync-log', …)` daquela tarefa saem (a action não chama mais `syncInstagramAccount`/`openSyncRow` em processo) — ver a nota de ramo A5 na Tarefa 14.
 
 - [ ] **Step 1: Escrever os testes que falham**
 
@@ -6933,7 +6981,9 @@ export async function triggerInstagramSync(input: {
 }
 ```
 
-> **Ramo A5 = `fix(instagram): restore HTTP transport for Sync Now`:** se o gate de herança de `maxDuration` tiver REPROVADO, A5 já devolveu o `fetch` autenticado a esta action. Nesse caso mantenha **tudo acima até a linha do `readAccessToken` inclusive** (o portão de vault e a mensagem de `decrypt_failed` continuam sendo desta action) e substitua o bloco `syncInstagramAccount(...)`/`openSyncRow`/`closeSyncRow` pelo `fetch` que A5 entregou — o token em claro **não** viaja no HTTP; a rota do cron decifra a própria linha.
+> **Testes de A neste arquivo (vale nos DOIS ramos):** o portão de vault e a decifra passam a rodar antes do sync, então os testes que A escreveu em `test/instagram/actions.test.ts` precisam de dois ajustes no MESMO commit: (a) acrescente `vi.stubEnv('SOCIAL_MASTER_KEY', KEY_HEX)` ao `beforeEach` de `describe('triggerInstagramSync (A2 — in-process)')` e troque o `access_token: 'tok-abc'` de `accountRow()` por um valor cifrado (`v1:${encrypt('tok-abc', Buffer.from(KEY_HEX,'hex'))}`) — sem isso a action devolve `vault_unavailable` e `syncMock` nunca é chamado; (b) em `it('passes the full row and a 90s deadline to syncInstagramAccount')`, troque `expect(token).toBeUndefined()` por `expect(token).toBe('tok-abc')` — o 3º argumento agora é o token decifrado.
+
+> **Ramo A5 = `fix(instagram): restore HTTP transport for Sync Now`:** se o gate de herança de `maxDuration` tiver REPROVADO, A5 já devolveu o `fetch` autenticado a esta action. Nesse caso mantenha **tudo acima até a linha do `readAccessToken` inclusive** (o portão de vault e a mensagem de `decrypt_failed` continuam sendo desta action) e substitua o bloco `syncInstagramAccount(...)`/`openSyncRow`/`closeSyncRow` pelo `fetch` que A5 entregou — o token em claro **não** viaja no HTTP; a rota do cron decifra a própria linha. Nesse ramo, **do Step 1 desta task**: apague `it('token válido => syncInstagramAccount recebe o token DECIFRADO no 3º argumento')` (a action não chama mais a função) e o `vi.mock('@/lib/instagram/sync-log', …)` (a action não abre mais a linha — quem a abre é a rota do cron); mantenha o `vi.mock('@/lib/instagram/sync', …)` só como guarda de "nunca em processo". A cobertura do transporte é a que A5 Grupo 2 já entregou (`'calls the cron route over authenticated HTTP, never in-process'`, `'proves site scope BEFORE the HTTP hop…'`, `'surfaces a non-2xx cron response as an error'`, `'refuses to run without CRON_SECRET'`) — **não** a duplique.
 
 `SyncActionResult` já foi introduzido por A (`actions.ts:11`); o `ActionResult` normal não admite `partial`.
 

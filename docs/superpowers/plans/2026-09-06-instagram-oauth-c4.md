@@ -139,25 +139,40 @@ Esperado, **antes** da Task 1: duas linhas — `instagram_posts_account_media_ke
 
 - [ ] **Step 1: Escrever o teste de catálogo que falha (`ops-alert-claim.test.ts`)**
 
-Localize o `it` que C1 deixou afirmando a **coexistência** das duas constraints — ele passa a estar errado a partir desta task, então é substituído (não duplicado) no mesmo commit:
+C1 deixou **DOIS** `it` naquele arquivo presos à coexistência das duas constraints. Os dois passam a
+estar errados a partir desta task e os dois são corrigidos aqui, no mesmo commit:
 
 ```bash
 grep -n "instagram_posts_ig_media_id_key\|instagram_posts_account_media_key\|coexist" \
   apps/web/test/integration/ops-alert-claim.test.ts
 ```
 
-Se o `grep` vier vazio, repita em todo o diretório (`grep -rn "instagram_posts_account_media_key" apps/web/test/integration/`) e substitua onde ele estiver. Apague o corpo daquele `it` inteiro e escreva no lugar:
+Se o `grep` vier vazio, repita em todo o diretório (`grep -rn "instagram_posts_account_media_key" apps/web/test/integration/`) e corrija onde estiverem.
 
-Duas coisas entram no **escopo de módulo** do arquivo (topo, junto dos imports existentes), não dentro do `it` — `db-seed.ts` mantém a sua própria cópia de `PG_URL` como module-private, então esta é uma segunda cópia deliberada, para não mexer no helper compartilhado dentro de C4:
+**(a)** `it('keeps BOTH unique constraints on instagram_posts after M1 (C4/M2 drops the global one)')`
+— apague o `it` inteiro e escreva no lugar o `it` de catálogo abaixo.
+
+**(b)** `it('the composite key allows a second row on the SAME account only for a new ig_media_id, and
+the global key still blocks two accounts sharing one ig_media_id (until C4)')` — **não** apague; o
+próprio C1 marcou a virada com o comentário `// C4 (M2) derruba instagram_posts_ig_media_id_key e
+ESTA asserção vira toBeNull().` Troque as duas últimas linhas do corpo:
 
 ```ts
-import { Client } from 'pg'
-
-const PG_URL =
-  process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
+    // Depois de M2 a global se foi: a outra conta ganha a sua própria cópia.
+    const crossAccount = await svc.from('instagram_posts')
+      .insert({ ...base, account_id: accountB, ig_media_id: mediaId })
+    expect(crossAccount.error).toBeNull()
 ```
 
-E o `it` novo, no lugar do que foi apagado:
+e ajuste o nome do `it` para `'the composite key blocks the same (account_id, ig_media_id) and, after
+M2, allows two accounts to share one ig_media_id'`.
+
+**Nada entra no escopo de módulo:** C1 já criou o arquivo com `import { Client, Pool } from 'pg'` e
+com `const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'`
+no topo. Redeclarar qualquer um dos dois é `Identifier 'PG_URL' has already been declared` e o arquivo
+inteiro para de carregar — use os que já estão lá.
+
+E o `it` de catálogo, no lugar de (a):
 
 ```ts
 it('M2 leaves exactly one unique on instagram_posts — the composite one', async () => {
@@ -182,7 +197,13 @@ it('M2 leaves exactly one unique on instagram_posts — the composite one', asyn
 
 - [ ] **Step 2: Escrever o teste comportamental que falha (`instagram-accounts-public-view.test.ts`)**
 
-Acrescente ao `describe.skipIf(skipIfNoLocalDb())` existente do arquivo (o mesmo que já usa `db` como service client e `seedSite` de `../helpers/db-seed`):
+Acrescente ao `describe.skipIf(skipIfNoLocalDb())('M1 (C1) — allow-lists, DML fechado e schema novo', …)`
+— o bloco que **C1** acrescentou ao fim do arquivo. Ele é o único que importa `seedSite`; o `describe`
+de A3, acima, usa `admin`/`anon` + `seedRbacScenario` e não serve. Nomes reais desse bloco: service
+client `svcC1`, client `pg` `pgC1`, array de limpeza `siteIdsC1`.
+
+**No snippet abaixo, `db` é `svcC1`**, e acrescente `siteIdsC1.push(siteId)` logo depois do `seedSite`
+para que o `afterAll` de C1 apague o site (sem isso cada execução local deixa um site órfão):
 
 ```ts
 it('accepts two posts with the same ig_media_id under different accounts (post-M2)', async () => {
@@ -403,36 +424,45 @@ grep -rn "c2c4dup\|instagram_posts_ig_media_id_key\|duplicate key value" apps/we
 A saída deste `grep` **define** as linhas a remover — não estime nem reescreva por volta delas. O ramo que C2 deixou tem esta forma (nomes de variáveis podem diferir; a estrutura, não):
 
 ```ts
-// ANTES (C2) — dentro do catch por conta, depois de classificar o erro:
-if (
-  kind === 'infra' &&
-  /duplicate key value.*instagram_posts_ig_media_id_key/.test(message)
-) {
-  await closeSyncRow(supabase, logId, null, 'infra: ' + redact(message))
-  const { data: claimed } = await supabase.rpc('ops_alert_claim', {
-    p_key: `c2c4dup:${account.id}`,
-    p_interval: '23 hours',
-  })
-  if (claimed) {
-    Sentry.captureMessage('instagram duplicate media in C2→C4 window', 'info')
+// ANTES (C2) — dentro do catch por conta, o ramo `infra` já classificado.
+// O `c2c4dup` é o if ANINHADO com `else`, não um if de topo, e não há `continue`
+// (o laço é `await step(...)`). A chamada é via helper `claimAlert`, cujo 3º
+// argumento vira `p_min_interval` na RPC (nunca `p_interval`).
+if (kind === 'infra') {
+  await closeSyncRow(supabase, logId, null, `infra: ${message}`)
+  failedInfra++
+  if (/duplicate key value.*instagram_posts_ig_media_id_key/.test(message)) {
+    // Janela C2→C4 — ramo REMOVIDO em C4.
+    if (await claimAlert(supabase, `c2c4dup:${account.id}`, '23 hours')) {
+      Sentry.captureMessage('instagram duplicate media in C2→C4 window', 'info')
+    }
+  } else {
+    stepErrors++
+    Sentry.captureException(err, { tags: { component: CRON_TAG, account_id: account.id } })
   }
-  continue          // ← não incrementa stepErrors, não alerta
 }
 ```
 
 - [ ] **Step 4: Remover o ramo das duas rotas**
 
-Apague o `if` inteiro (da linha do `if` até a `}` que fecha o bloco, incluindo o `continue`) em **`instagram-sync/route.ts`** e em **`instagram-token-refresh/route.ts`**. Nada é acrescentado no lugar: o caminho `infra` genérico que C2 já tem logo abaixo assume o erro e faz o certo —
+Em **`instagram-sync/route.ts`** e em **`instagram-token-refresh/route.ts`**: apague **só** o `if`
+aninhado do `c2c4dup` e o `else`, promovendo o corpo do `else` para o nível do ramo `infra`.
+**Não apague o ramo `if (kind === 'infra') { … }` inteiro** — ele carrega o `closeSyncRow`, o
+`failedInfra++` e (dentro do `else`) o `stepErrors++`/`captureException` que C4 existe para
+restaurar. Não há `continue` a remover.
 
 ```ts
-// DEPOIS (C4) — o ramo genérico de `infra`, que já existia, passa a ser o único:
+// DEPOIS (C4) — um 23505 volta a ser um infra comum:
 if (kind === 'infra') {
-  await closeSyncRow(supabase, logId, null, 'infra: ' + redact(message))
-  Sentry.captureException(err, { tags: { component: 'instagram-sync' } })
+  await closeSyncRow(supabase, logId, null, `infra: ${message}`)
+  failedInfra++
   stepErrors++
-  continue
+  Sentry.captureException(err, { tags: { component: CRON_TAG, account_id: account.id } })
 }
 ```
+
+Confirme depois da edição que `failedInfra` continua sendo incrementado (o corpo da resposta expõe
+`failed_infra`) e que `CRON_TAG` continua importado/usado nas duas rotas.
 
 Se, ao remover, sobrar um `import` sem uso (por exemplo `redact` usado só ali — improvável, o ramo genérico também o usa), o typecheck do pré-commit acusa; remova o import junto, no mesmo commit.
 
@@ -468,7 +498,13 @@ Expected: PASS (≈160 s; a suíte completa não trava — medido em 2026-09-03)
 ```bash
 git add apps/web/src/app/api/cron/instagram-sync/route.ts \
         apps/web/src/app/api/cron/instagram-token-refresh/route.ts \
-        apps/web/test/instagram/sync.test.ts
+        apps/web/test/instagram/sync.test.ts \
+        apps/web/test/api/cron/instagram-sync.test.ts \
+        apps/web/test/api/cron/instagram-token-refresh.test.ts
+# Os dois últimos carregam os `it` de C2 que asseravam `step_errors === 0` no
+# 23505 da janela ('23505 na janela C2→C4: …' e '23505 => infra: sem streak e sem
+# markTokenInvalid'); o Step 5 os reescreve para step_errors === 1 +
+# captureException, e o fix TEM de viajar neste commit (bisectabilidade).
 git commit -m "chore(instagram): remover a exclusao c2c4dup dos crons
 
 A janela C2->C4 fechou com M2: um 23505 de instagram_posts volta a ser um

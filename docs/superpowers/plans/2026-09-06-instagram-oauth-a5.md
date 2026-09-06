@@ -42,10 +42,10 @@
 ### Task 0: Ler o veredito do gate e escolher o corpo
 
 **Files:**
-- Modify: `docs/superpowers/plans/2026-09-06-instagram-oauth-README.md` (append da entrada de ledger, só se ela ainda não existir)
+- Modify: nenhum (leitura apenas — a linha do gate é escrita pela Task 9 de A em `.superpowers/sdd/2026-09-06-instagram-oauth-a/progress.md`, arquivo local e gitignorado)
 
 **Interfaces:**
-- Consumes: os commits **A** e **A4** já em `staging` **e promovidos para `main`** (A precisa estar em produção — o gate mede a função real na Vercel).
+- Consumes: os commits **A** e **A4** já em `staging` **e promovidos para `main`** (A precisa estar em produção — o gate mede a função real na Vercel); a linha `**Resultado do gate maxDuration:** PASSOU|REPROVOU` que a Task 9 (Step 7) de A escreve em `.superpowers/sdd/2026-09-06-instagram-oauth-a/progress.md`.
 - Produces: a variável de decisão `GATE = PASSOU | REPROVOU`, que seleciona **Grupo 1 (Tasks 1–2)** ou **Grupo 2 (Tasks 3–4)**. Nenhuma outra task deste plano roda antes desta.
 
 - [ ] **Step 1: Confirmar que A e A4 estão na árvore e promovidos**
@@ -58,59 +58,30 @@ git log --oneline -20 main | grep -E 'fechar vazamentos vivos|strip trusted head
 Esperado: **duas** linhas — o commit A (`fix(instagram)!: fechar vazamentos vivos + base de observabilidade (sync-log, redact)`) e o A4 (`fix(middleware): strip trusted headers`), ambas em `main`.
 Se faltar qualquer uma: **PARE**. A5 só existe depois de A4, e o gate só pode ser medido com A em produção (spec §7: "com A promovido — portanto com a chamada em processo de A2 no ar").
 
-- [ ] **Step 2: Ler a entrada de ledger do gate**
+- [ ] **Step 2: Ler o resultado do gate no ledger de A**
 
 ```bash
 cd /Users/figueiredo/Workspace/bythiagofigueiredo
-sed -n '/^## Ledger — gate de herança de `maxDuration` (pós-A)/,$p' \
-  docs/superpowers/plans/2026-09-06-instagram-oauth-README.md
+grep -m1 '^\*\*Resultado do gate maxDuration:\*\*' \
+  .superpowers/sdd/2026-09-06-instagram-oauth-a/progress.md
 ```
 
-Esperado (um dos dois): a seção existe e traz uma linha `**Resultado:** PASSOU` ou `**Resultado:** REPROVOU`.
-Se a saída for **vazia**, o gate ainda não foi medido/registrado ⇒ vá para o Step 3. Se existir, vá para o Step 4.
+Esperado (um dos dois): `**Resultado do gate maxDuration:** PASSOU` ou `**Resultado do gate maxDuration:** REPROVOU`, escrita pela Task 9 (Step 7) do plano A no mesmo arquivo.
+Se a saída for **vazia** (arquivo ou linha ausente), vá para o Step 3. Se existir, vá direto para o Step 4.
 
-- [ ] **Step 3: Rodar o gate e registrar o ledger (só se o Step 2 veio vazio)**
+- [ ] **Step 3: Fallback se a linha estiver ausente — PARE, não meça de novo**
 
-O gate é o experimento discriminante de §7 — ele **MUST** ser medido, nunca presumido nem "dado por aprovado por omissão":
+O gate é o experimento discriminante de §7, e é a **Task 9 de A** (`docs/superpowers/plans/2026-09-06-instagram-oauth-a.md`) quem sabe medi-lo: ela registra a duração-padrão do projeto, escolhe a conta real, lê o log de função certo e trata o caso inconclusivo (repetindo com o run mais pesado disponível, nunca aprovando por omissão). **A5 MUST NOT** repetir esse experimento em produção por conta própria — fazer isso aqui, sem esse contexto, arrisca medir a conta errada ou reinterpretar um run leve como aprovado.
 
-1. No painel da Vercel, registre a **duração-padrão de função do projeto** (hoje 60 s no plano Pro).
-2. Com A em produção, abra `/cms/settings?section=instagram` e dispare **um `Sync Now` sobre a conta real de produção** — o volume de imagens que ela tem hoje, **sem atraso sintético e sem variável de ambiente nova**.
-3. Leia a **duração da função** no log da Vercel do segmento `/cms/settings` (painel de Functions ou `vercel logs`). Alvo: **≈ 70 s** (sempre acima da duração-padrão registrada e abaixo de 120 s).
-4. Leitura do resultado:
-   - duração **≈ 70 s ou mais terminando em 200** (`{ ok:true }` ou `{ ok:true, partial:true }`) ⇒ **PASSOU** (a `export const maxDuration = 120` da page **foi herdada** pela server action);
-   - **504/timeout em ~60 s** ⇒ **REPROVOU** (não foi herdada);
-   - run real **abaixo de 60 s** ⇒ **INCONCLUSIVO**: repita com o run mais pesado disponível. **Nunca** registre PASSOU por omissão.
-
-Depois, anexe ao fim de `docs/superpowers/plans/2026-09-06-instagram-oauth-README.md` exatamente esta seção, preenchida:
-
-```markdown
-## Ledger — gate de herança de `maxDuration` (pós-A)
-
-**Medido em:** <YYYY-MM-DD HH:MM America/Sao_Paulo>
-**Duração-padrão de função do projeto (painel Vercel):** <N> s
-**Run medido:** `Sync Now` na conta real de produção (`instagram_accounts.id = <uuid>`), sem atraso sintético
-**Duração da função `/cms/settings` no log da Vercel:** <N> s
-**Status HTTP / corpo da action:** <200 · { ok:true } | 200 · { ok:true, partial:true } | 504 timeout>
-**Resultado:** <PASSOU | REPROVOU>
-**Corpo de A5 selecionado:** <chore(instagram): drop manual mode from sync cron | fix(instagram): restore HTTP transport for Sync Now>
-```
-
-```bash
-cd /Users/figueiredo/Workspace/bythiagofigueiredo
-git add docs/superpowers/plans/2026-09-06-instagram-oauth-README.md
-git commit -m "docs(instagram): registrar veredito do gate de maxDuration pos-A"
-```
+Se o Step 2 veio vazio: **PARE a execução deste plano** e avise o operador humano de que `.superpowers/sdd/2026-09-06-instagram-oauth-a/progress.md` ainda não tem a linha `**Resultado do gate maxDuration:**` — ou seja, a Task 9 de A ainda não rodou (ou A ainda não foi promovido). Só volte ao Step 2 depois que essa linha existir.
 
 - [ ] **Step 4: Selecionar o grupo de tasks**
 
-```bash
-cd /Users/figueiredo/Workspace/bythiagofigueiredo
-grep -m1 '^\*\*Resultado:\*\*' docs/superpowers/plans/2026-09-06-instagram-oauth-README.md
-```
+Com a linha lida no Step 2 em mãos:
 
-- Saída `**Resultado:** PASSOU` ⇒ execute **Grupo 1 — Tasks 1 e 2**. Ignore as Tasks 3 e 4 por completo.
-- Saída `**Resultado:** REPROVOU` ⇒ execute **Grupo 2 — Tasks 3 e 4**. Ignore as Tasks 1 e 2 por completo.
-- Qualquer outra saída (inclusive `INCONCLUSIVO`) ⇒ **PARE** e volte ao Step 3.
+- `**Resultado do gate maxDuration:** PASSOU` ⇒ execute **Grupo 1 — Tasks 1 e 2**. Ignore as Tasks 3 e 4 por completo.
+- `**Resultado do gate maxDuration:** REPROVOU` ⇒ execute **Grupo 2 — Tasks 3 e 4**. Ignore as Tasks 1 e 2 por completo.
+- Qualquer outro valor (inclusive `INCONCLUSIVO`, que nunca deveria aparecer nessa linha) ⇒ **PARE** e siga o Step 3 — avise o operador, não decida sozinho.
 
 Anote a escolha no relatório da task: `GATE = PASSOU → Grupo 1` ou `GATE = REPROVOU → Grupo 2`.
 
@@ -165,6 +136,33 @@ function recordingAccountsQuery(data: unknown[]) {
   return { chain, eqCalls }
 }
 ```
+
+**Estenda o helper `syncLogInsert`** (já existe em `test/api/cron/instagram-sync.test.ts:75-86` e serve as fixtures atuais de `it('happy path…')`/`it('captures Sentry exception…')`): a rota passa a abrir/fechar a linha com `openSyncRow`/`closeSyncRow` (A2, `@/lib/instagram/sync-log.ts`), e `closeSyncRow` faz uma leitura (`.select('error_message').eq('id', logId).single()`) **antes** do `.update()`, para preservar um `detail:` pré-existente — sem essa chave no mock, a leitura lança, `closeSyncRow` engole o erro no `try/catch` e o `.update()` nunca roda. Acrescente `select` ao objeto que o helper devolve:
+
+```ts
+function syncLogInsert(logId = 'log-1') {
+  return {
+    insert: vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        single: vi.fn().mockResolvedValue({ data: { id: logId }, error: null }),
+      }),
+    }),
+    // Leitura que closeSyncRow faz antes do update, para preservar o
+    // error_message existente (aqui sempre null — esta rota nunca chama
+    // openSyncRow com opts.detail).
+    select: vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        single: vi.fn().mockResolvedValue({ data: { error_message: null }, error: null }),
+      }),
+    }),
+    update: vi.fn().mockReturnValue({
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    }),
+  }
+}
+```
+
+Os testes que já usam `syncLogInsert()` (`'happy path…'`, `'captures Sentry exception…'`) continuam sem alteração — só o helper muda.
 
 **Remova por completo** o teste hoje em `:106-111`:
 
@@ -247,6 +245,7 @@ import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { withCronLock, newRunId } from '@/lib/logger'
 import { syncInstagramAccount } from '@/lib/instagram/sync'
+import { openSyncRow, closeSyncRow } from '@/lib/instagram/sync-log'
 import type { InstagramAccountRow } from '@/lib/instagram/types'
 
 export const runtime = 'nodejs'
@@ -284,14 +283,13 @@ export async function GET(req: NextRequest) {
     let totalCached = 0
 
     for (const account of accounts as InstagramAccountRow[]) {
-      const { data: logRow } = await supabase.from('instagram_sync_log').insert({
-        site_id: account.site_id,
-        account_id: account.id,
-        mode: MODE,
-        status: 'started',
-      }).select('id').single()
-
-      const logId = logRow?.id
+      // Abre/fecha a linha de instagram_sync_log com os helpers de A2
+      // (@/lib/instagram/sync-log.ts) — NÃO reimplementar o insert/update
+      // aqui. `openSyncRow` já grava site_id/account_id/mode/status='started';
+      // `closeSyncRow` preserva o error_message existente e escreve o
+      // agregado (`posts_found`/`posts_inserted`/`posts_updated`/
+      // `media_cached`) em 'completed', ou a mensagem redigida em 'failed'.
+      const logId = await openSyncRow(supabase, account, MODE)
 
       try {
         const result = await syncInstagramAccount(supabase, account)
@@ -299,26 +297,10 @@ export async function GET(req: NextRequest) {
         totalUpdated += result.postsUpdated
         totalCached += result.mediaCached
 
-        if (logId) {
-          await supabase.from('instagram_sync_log').update({
-            status: 'completed',
-            posts_found: result.postsFound,
-            posts_inserted: result.postsInserted,
-            posts_updated: result.postsUpdated,
-            media_cached: result.mediaCached,
-            completed_at: new Date().toISOString(),
-          }).eq('id', logId)
-        }
+        await closeSyncRow(supabase, logId, result)
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
-
-        if (logId) {
-          await supabase.from('instagram_sync_log').update({
-            status: 'failed',
-            error_message: message,
-            completed_at: new Date().toISOString(),
-          }).eq('id', logId)
-        }
+        await closeSyncRow(supabase, logId, null, message)
 
         Sentry.captureException(err, { tags: { component: 'instagram-sync', mode: MODE } })
       }
@@ -339,7 +321,7 @@ export async function GET(req: NextRequest) {
 }
 ```
 
-Note o que **não** muda: `runtime`, `maxDuration`, o 401, a tag `'instagram-sync'` de `cron_health`, a forma do corpo de resposta (o campo `mode` continua existindo, agora literal — retirá-lo seria mudança observável de API sem ganho) e a chamada `syncInstagramAccount(supabase, account)` de dois argumentos que A deixou (o `accessToken` é opcional desde A; o `deadlineAt` deste cron entra em C2, §3.4).
+Note o que **não** muda: `runtime`, `maxDuration`, o 401, a tag `'instagram-sync'` de `cron_health`, a forma do corpo de resposta (o campo `mode` continua existindo, agora literal — retirá-lo seria mudança observável de API sem ganho) e a chamada `syncInstagramAccount(supabase, account)` de dois argumentos que A deixou (o `accessToken` é opcional desde A; o `deadlineAt` deste cron entra em C2, §3.4). O que muda em relação à versão anterior deste corpo: a escrita de `instagram_sync_log` para de ser inline e passa a ser `openSyncRow`/`closeSyncRow` de A2 — os mesmos helpers que C2 (Tarefa 13) vai reusar para as duas rotas de cron; nenhuma reimplementação de SQL sobrevive neste arquivo.
 
 - [ ] **Step 4: Rodar os testes da rota e verificar que passam**
 
@@ -451,11 +433,15 @@ isso o cron nao precisa mais de transporte manual:
   instagram-sync, que e a mesma tag ja usada em cron_health;
 - toda linha de instagram_sync_log escrita por esta rota nasce mode='daily'
   (a action continua escrevendo 'manual', e a CHECK da tabela segue
-  aceitando os tres valores).
+  aceitando os tres valores);
+- a escrita de instagram_sync_log para de ser inline e passa a usar
+  openSyncRow/closeSyncRow (A2, src/lib/instagram/sync-log.ts) — os mesmos
+  helpers que C2 vai reusar na outra rota de cron.
 
 Testes: removido it('returns 400 for invalid mode'), reescrito o makeRequest
-com ?mode= de cron-route.test.ts, e acrescentados os ratchets de lock literal,
-ausencia de filtro por accountId e mode='daily' no log."
+com ?mode= de cron-route.test.ts, acrescentados os ratchets de lock literal,
+ausencia de filtro por accountId e mode='daily' no log, e estendido o helper
+syncLogInsert com a leitura que closeSyncRow faz antes do update."
 ```
 
 *(O executor acrescenta os trailers de atribuição do próprio harness.)*
@@ -935,7 +921,7 @@ Esperado: **uma** linha `mode='manual'` com `status='completed'` (não duas — 
 
 - [ ] **Step 7: Registrar a dívida no ledger**
 
-Anexe ao fim da seção de ledger de `docs/superpowers/plans/2026-09-06-instagram-oauth-README.md`:
+Anexe ao fim de `.superpowers/sdd/2026-09-06-instagram-oauth-a/progress.md` (o mesmo arquivo local onde a Task 9 de A e a Task 0 deste plano leem `**Resultado do gate maxDuration:**` — não há mais seção de ledger no `README.md`):
 
 ```markdown
 **Dívida aberta por A5 (ramo REPROVOU):** um `Sync Now` carimba
@@ -948,12 +934,7 @@ Confirmado em produção em <YYYY-MM-DD>: `last_success_at` movido por clique
 humano, 1 linha `mode='manual'` por clique.
 ```
 
-```bash
-cd /Users/figueiredo/Workspace/bythiagofigueiredo
-git add docs/superpowers/plans/2026-09-06-instagram-oauth-README.md
-git commit -m "docs(instagram): registrar divida do transporte HTTP do Sync Now"
-git push origin staging
-```
+`.superpowers/sdd/` é local e gitignorado — este registro não entra em nenhum commit nem push.
 
 ---
 

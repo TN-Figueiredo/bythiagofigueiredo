@@ -2269,7 +2269,19 @@ Expected: `last_success_at` **inalterado** pelo clique (só o cron diário das 1
 
 - [ ] **Step 7: Preencher o Ledger e escolher o corpo de A5**
 
-Edite a tabela **Ledger** no topo deste arquivo com: os dois SHAs (`git log --format=%H --grep='(A 1/6)' -1` e `... '(A 6/6)' -1`), a duração-padrão, a duração medida, o HTTP/corpo e o veredito. Então:
+Edite a tabela **Ledger** no topo deste arquivo com: os dois SHAs (`git log --format=%H --grep='(A 1/6)' -1` e `... '(A 6/6)' -1`), a duração-padrão, a duração medida, o HTTP/corpo e o veredito.
+
+**E, no MESMO passo, anexe ao fim de `.superpowers/sdd/2026-09-06-instagram-oauth-a/progress.md` a linha que A5 Task 0 lê** — é ela, e não a tabela acima, que A5 procura (`grep -m1 '^\*\*Resultado do gate maxDuration:\*\*'`). Sem ela, A5 Step 2 sai vazio e A5 Step 3 **PARA e pede a medição** em vez de repetir o experimento em produção por conta própria. `INCONCLUSIVO` **nunca** é registrado nessa linha — o gate é repetido até decidir "herdou"/"não herdou".
+
+Anexe exatamente esta linha ao fim do arquivo (texto puro, sem bloco markdown ao redor):
+
+```
+**Resultado do gate maxDuration:** PASSOU
+```
+
+(troque por `REPROVOU` conforme o veredito do passo 3 acima). `.superpowers/sdd/` é local e gitignorado — esta linha **não** entra no commit do Step 8.
+
+Então:
 
 - **Veredito "herdou"** ⇒ `A5 = chore(instagram): drop manual mode from sync cron` — a rota perde `mode`/`accountId`, o lock vira `'instagram-sync'`, e as **duas** edições de §6 viajam nesse mesmo commit (`it('returns 400 for invalid mode')` de `test/api/cron/instagram-sync.test.ts:106-111` removido; `?mode=` de `test/instagram/cron-route.test.ts:30` reescrito).
 - **Veredito "não herdou"** ⇒ `A5 = fix(instagram): restore HTTP transport for Sync Now` — `triggerInstagramSync` volta ao `fetch` autenticado (`Authorization: Bearer <CRON_SECRET>`) para `/api/cron/instagram-sync?mode=manual&accountId=<uuid>`; a rota **mantém** os dois parâmetros; **nenhuma** das duas edições de §6 acontece; e o `select('*').eq('id').eq('site_id').single()` de A2 **permanece**. Registre no Ledger a **dívida declarada**: o modo manual volta a carimbar `cron_health['instagram-sync']`.
@@ -2285,7 +2297,7 @@ git commit --no-verify -m "docs(instagram): record the post-A maxDuration gate r
 git push origin staging
 ```
 
-(`--no-verify` é permitido para commits só de plano/spec — regra do projeto para docs em árvore multi-terminal.)
+(`--no-verify` é permitido para commits só de plano/spec — regra do projeto para docs em árvore multi-terminal. A linha do gate em `.superpowers/sdd/2026-09-06-instagram-oauth-a/progress.md` já foi escrita no Step 7 e não participa deste commit — é estado local, não versionado.)
 
 ---
 

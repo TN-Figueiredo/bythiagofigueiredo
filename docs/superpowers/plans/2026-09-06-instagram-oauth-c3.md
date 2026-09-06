@@ -53,6 +53,10 @@ Constraints adicionais **específicas de C3**:
 - **O sync pós-OAuth NUNCA marca token inválido nem alerta** (§3.1 passo 11, objetivo 5).
 - Toda falha das rotas de OAuth responde `oauthResultHtml` (`text/html`), **nunca** JSON e **nunca** 302 para login.
 - Todo `click`/`action_href`/`backHref` aponta para **`/cms/settings/instagram`** (rota curta entregue em C2).
+  **Sem exceções** — o push `ddmismatch` (Task 6) inclusive: o `body` dele manda ler o runbook, mas o
+  `click` é o card, como em todos os outros emissores. Um link de GitHub no celular não é destino
+  acionável, e a entrada `ddmismatch` da seção "O ntfy tocou — o que fazer" (Task 17) é o que traduz o
+  push em ação.
 
 ---
 
@@ -83,7 +87,7 @@ Constraints adicionais **específicas de C3**:
 | `src/app/cms/(authed)/_shared/notification-row.tsx` | `'Abrir'` → `'Open'` nas duas ocorrências (`aria-label` e rótulo) |
 | `src/app/cms/(authed)/notifications/_components/inbox-client.tsx` | Botão de `action_href` no `NotificationRow` do inbox |
 | `src/lib/instagram/status-text.ts` | `RECONNECT_CTA = 'reconnect'` (era `'paste a new token'` em C2) |
-| `src/lib/instagram/api-client.ts` | `export` do `GRAPH_API_BASE` (se C2 o deixou module-private) |
+| ~~`src/lib/instagram/api-client.ts`~~ | **NÃO é modificado.** C2 Task 5 já exporta `GRAPH_API_BASE` **e** `TOKEN_API_BASE`; C3 só consome (`TOKEN_API_BASE` na troca longa). A Task 3 apenas confere por `grep`. |
 | `src/middleware.ts` | `skipSiteResolution` += `/api/instagram/deauthorize` e `/api/instagram/data-deletion` |
 | `next.config.ts` | Entrada `{ source: '/data-deletion', headers: [Referrer-Policy: no-referrer] }` depois do bloco `/(.*)` |
 | `apps/web/package.json` | `jsdom` em `devDependencies` |
@@ -154,13 +158,24 @@ export function readAccessToken(row: { access_token: string | null }): { token: 
 export function writeAccessToken(plain: string): string           // lança VaultUnavailableError sem chave
 export function getVaultKeyOrNull(): Buffer | null
 export function classifyInstagramError(err: unknown): 'infra' | 'transient' | 'permanent'
+export interface IMarkTokenInvalidOpts { fatal: boolean; forceReason?: boolean; mode?: 'daily' | 'token_refresh' }
+export class MarkTokenInvalidError extends Error
 export async function markTokenInvalid(
-  supabase: SupabaseClientLike, account: InstagramAccountRow, reason: string,
-  opts: { fatal: boolean; forceReason?: boolean; mode?: 'daily' | 'token_refresh' },
-): Promise<void>
+  supabase: SupabaseClient, account: { id: string; site_id: string }, reason: string,
+  opts: IMarkTokenInvalidOpts,
+): Promise<void>                        // lança MarkTokenInvalidError se a RPC falhar
 export async function sweepTokenAlerts(
-  supabase: SupabaseClientLike, filter?: { siteId?: string; identityKey?: string },
-): Promise<unknown>
+  supabase: SupabaseClient, filter?: { siteId?: string; identityKey?: string },
+): Promise<ITokenAlertResult[]>
+// MUST (C3): a chave que `sweepTokenAlerts` compara é a que ESTA função produz a
+// partir da LINHA — `o:<ig_user_id da linha>` para `oauth`, `h:<handle>` para
+// `legacy`. Uma linha casada por `ig_professional_id` tem `ig_user_id` DIFERENTE
+// do `payload.user_id` da Meta, então montar `o:${payload.user_id}` na mão não
+// encontraria o grupo. As rotas de deauthorize/data-deletion IMPORTAM daqui.
+export function identityKeyOf(
+  row: { ig_user_id_source: 'oauth' | 'legacy'; ig_user_id: string | null; handle: string },
+): string
+export class VaultUnavailableError extends Error       // lançada por writeAccessToken
 export const redact: (s: string) => string
 
 // ── C2 — src/lib/instagram/status-text.ts (isomórfico) ─────────────────────
@@ -183,18 +198,20 @@ export async function sendNtfyAlert(a: {
 }): Promise<{ alerted: boolean; ntfyStatus?: number; reason?: string; alertError?: string }>
 
 // ── A2 — src/lib/instagram/sync-log.ts ─────────────────────────────────────
+// `SupabaseClient` é o tipo de `@supabase/supabase-js`, como A o declarou.
+// Nenhum apelido de tipo alternativo para o client existe na árvore — não o cite na Task 1.
 export async function openSyncRow(
-  supabase: SupabaseClientLike, account: InstagramAccountRow,
+  supabase: SupabaseClient, account: InstagramAccountRow,
   mode: InstagramSyncMode, opts?: { detail?: string },
 ): Promise<string | null>
 export async function closeSyncRow(
-  supabase: SupabaseClientLike, logId: string | null,
+  supabase: SupabaseClient, logId: string | null,
   result: SyncResult | null, errorMessage?: string,
 ): Promise<void>
 
 // ── A/C2 — src/lib/instagram/sync.ts ───────────────────────────────────────
 export async function syncInstagramAccount(
-  supabase: SupabaseClientLike, account: InstagramAccountRow,
+  supabase: SupabaseClient, account: InstagramAccountRow,
   accessToken: string, opts?: { deadlineAt?: number },
 ): Promise<SyncResult>   // SyncResult += partial: boolean, mediaFailed: number
 
@@ -436,8 +453,11 @@ describe('GET /api/instagram/oauth (start)', () => {
     const state = new URL(res.headers.get('location') ?? '').searchParams.get('state') ?? ''
     const key = deriveHmacKey(MASTER, 'instagram-oauth-state-hmac')
     const nonce = vi.mocked(cookieSet).mock.calls[0]?.[0].value as string
-    const p = verifyState(state, key, { typ: 'state', requireNonce: nonce, requireExp: true })
+    // `requireNonce` é BOOLEANO (só exige que o campo exista) — quem compara com o
+    // cookie é o callback (Task 3). Passar a string aqui é erro de typecheck.
+    const p = verifyState(state, key, { typ: 'state', requireNonce: true, requireExp: true })
     expect(p).not.toBeNull()
+    expect(p?.nonce).toBe(nonce)
     expect(p?.siteId).toBe(SITE)
     expect(p?.userId).toBe(USER)
     expect(p?.accountId).toBe(ACCOUNT)
@@ -483,7 +503,9 @@ describe('GET /api/instagram/oauth (start)', () => {
     expect(html).toContain('"code":"session_changed"')
     expect(html).toContain('postMessage')
     expect(html).toContain('/cms/login?next=/cms/settings/instagram')
-    expect(html).toContain('Sign in and try again')
+    // Caixa exata do mapa de C2 (`OAUTH_ERROR_TEXT.session_changed`):
+    // 'Session changed during authorization — sign in and try again'.
+    expect(html).toContain('sign in and try again')
   })
 
   it('answers insufficient_access with 403 HTML, never JSON', async () => {
@@ -1246,6 +1268,7 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 120
 
 const SETTINGS_HREF = '/cms/settings/instagram'
+const LOGIN_HREF = '/cms/login?next=/cms/settings/instagram'
 const TOKEN_EXCHANGE_URL = 'https://api.instagram.com/oauth/access_token'
 const EXCHANGE_TIMEOUT_MS = 10_000
 const MISMATCH_TTL_SECONDS = 600
@@ -1289,6 +1312,8 @@ export async function GET(req: NextRequest): Promise<Response> {
     error?: string
     status?: number
     targetOrigin?: string
+    /** Ambos allow-listados por `popup-result.ts` (B). Default: o card. */
+    backHref?: string
   }): Response => {
     for (const name of NONCE_COOKIES) jar.delete({ name, path: '/api/instagram/oauth' })
     const extra = opts.mismatch
@@ -1302,7 +1327,7 @@ export async function GET(req: NextRequest): Promise<Response> {
       success: opts.success,
       error: opts.success ? undefined : (opts.error ?? (opts.code ? oauthErrorText(opts.code) : 'unknown')),
       extra,
-      backHref: SETTINGS_HREF,
+      backHref: opts.backHref ?? SETTINGS_HREF,
       targetOrigin: opts.targetOrigin ?? fallbackOrigin,
       nonce,
       status: opts.status ?? 200,
@@ -1355,7 +1380,7 @@ export async function GET(req: NextRequest): Promise<Response> {
   // 4 — sessão re-verificada no retorno
   const auth = await requireSiteScope({ area: 'cms', siteId: state.siteId, mode: 'edit' })
   if (!auth.ok || auth.user.id !== state.userId) {
-    return finish({ success: false, code: 'session_changed', status: 401, targetOrigin })
+    return finish({ success: false, code: 'session_changed', status: 401, targetOrigin, backHref: LOGIN_HREF })
   }
 
   const code = req.nextUrl.searchParams.get('code') ?? ''
@@ -1556,8 +1581,9 @@ Expected: PASS.
 
 ```bash
 cd /Users/figueiredo/Workspace/bythiagofigueiredo
+# `api-client.ts` NÃO entra: C2 já exporta GRAPH_API_BASE/TOKEN_API_BASE e o Step 3
+# só confere por grep. Adicioná-lo arrastaria trabalho de outro terminal.
 git add apps/web/src/app/api/instagram/oauth/callback/route.ts \
-        apps/web/src/lib/instagram/api-client.ts \
         apps/web/test/api/instagram/oauth-callback.test.ts
 git commit -m "$(cat <<'EOF'
 feat(instagram): callback do OAuth — state, sessao, troca e escrita
@@ -1809,7 +1835,7 @@ EOF
 - Test: `test/middleware/instagram-public-routes.test.ts`
 
 **Interfaces:**
-- Consumes: `sendNtfyAlert` (`@/lib/ops/ntfy`), `markTokenInvalid`/`sweepTokenAlerts` (`@/lib/instagram/token`), `getSupabaseServiceClient`.
+- Consumes: `sendNtfyAlert` (`@/lib/ops/ntfy`), `claimAlert` (`@/lib/ops/alert-state`, C2 — **é ele quem reivindica a chave de anti-replay; nunca chamar `ops_alert_claim` cru daqui**), `identityKeyOf`/`markTokenInvalid`/`sweepTokenAlerts` (`@/lib/instagram/token`), `getSupabaseServiceClient`.
 - Produces:
   ```ts
   // src/lib/instagram/signed-request.ts
@@ -1841,16 +1867,24 @@ const IG_ID = '17841400000000000'
 
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn() }))
 vi.mock('@/lib/ops/ntfy', () => ({ sendNtfyAlert: vi.fn(async () => ({ alerted: true })) }))
-vi.mock('@/lib/instagram/token', () => ({
-  markTokenInvalid: vi.fn(async () => undefined),
-  sweepTokenAlerts: vi.fn(async () => undefined),
-}))
+vi.mock('@/lib/instagram/token', async () => {
+  // `identityKeyOf` fica REAL (nao mockada): a asserção de sweep abaixo deriva a
+  // chave a partir da LINHA, em vez de hardcodar `o:${IG_ID}` — o que não
+  // distinguiria a implementação certa (identityKeyOf(row)) de uma errada
+  // (`o:${payload.user_id}`) quando os dois ids coincidem no fixture.
+  const actual = await vi.importActual<typeof import('@/lib/instagram/token')>('@/lib/instagram/token')
+  return {
+    ...actual,
+    markTokenInvalid: vi.fn(async () => undefined),
+    sweepTokenAlerts: vi.fn(async () => undefined),
+  }
+})
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
 
 import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { sendNtfyAlert } from '@/lib/ops/ntfy'
-import { markTokenInvalid, sweepTokenAlerts } from '@/lib/instagram/token'
+import { identityKeyOf, markTokenInvalid, sweepTokenAlerts } from '@/lib/instagram/token'
 import { GET, POST, maxDuration } from '@/app/api/instagram/deauthorize/route'
 
 function b64url(buf: Buffer | string): string {
@@ -1909,7 +1943,7 @@ function mockDb(accounts: Record<string, unknown>[], claim: boolean | null = tru
 
 const ACCOUNT = {
   id: 'acc-1', site_id: 'site-1', handle: 'thiago.figueiredo',
-  ig_user_id: IG_ID, ig_professional_id: '9988776655', ig_user_id_source: 'oauth',
+  ig_user_id: IG_ID, ig_professional_id: '9988776655', ig_user_id_source: 'oauth' as const,
   access_token: 'v1:x', locale: 'pt',
 }
 
@@ -1939,7 +1973,7 @@ describe('POST /api/instagram/deauthorize', () => {
     )
     expect(updateSpy).toHaveBeenCalledWith(expect.objectContaining({ access_token: null, token_expires_at: null }))
     expect(insertSpy).toHaveBeenCalledWith(expect.objectContaining({ mode: 'deauthorize' }))
-    expect(sweepTokenAlerts).toHaveBeenCalledWith(expect.anything(), { identityKey: `o:${IG_ID}` })
+    expect(sweepTokenAlerts).toHaveBeenCalledWith(expect.anything(), { identityKey: identityKeyOf(ACCOUNT) })
   })
 
   it('matches ig_user_id OR ig_professional_id, and only oauth rows', async () => {
@@ -2078,6 +2112,18 @@ describe('POST /api/instagram/deauthorize', () => {
     const after = signedRequest(validPayload({ issued_at: Math.floor(Date.parse('2026-10-07T00:00:00Z') / 1000) }), 'meta-secret')
     expect((await POST(post(after))).status).toBe(400)
     vi.useRealTimers()
+  })
+
+  it('answers 500 (never 200) when the anti-replay claim itself errors', async () => {
+    // `claimAlert` LANÇA quando a RPC devolve `error`; a chamada está dentro do
+    // `try`, então o throw cai no `catch` => captureException + 500 e a Meta
+    // re-tenta. Se a rota lesse só `data`, isto viraria 200 {} sem efeito nenhum.
+    mockDb([ACCOUNT])
+    rpc.mockResolvedValue({ data: null, error: { message: 'PGRST202 not found' } })
+    const res = await POST(post(signedRequest(validPayload())))
+    expect(res.status).toBe(500)
+    expect(markTokenInvalid).not.toHaveBeenCalled()
+    expect(Sentry.captureException).toHaveBeenCalled()
   })
 
   it('replays are 200 {} with no effects and the sigreq claim is not released', async () => {
@@ -2349,7 +2395,8 @@ export function matchedAccountsFilter(userId: string): string {
 import { createHash } from 'node:crypto'
 import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { markTokenInvalid, sweepTokenAlerts } from '@/lib/instagram/token'
+import { identityKeyOf, markTokenInvalid, sweepTokenAlerts } from '@/lib/instagram/token'
+import { claimAlert } from '@/lib/ops/alert-state'
 import { matchedAccountsFilter, readSignedRequest } from '@/lib/instagram/signed-request'
 import type { InstagramAccountRow } from '@/lib/instagram/types'
 
@@ -2372,16 +2419,32 @@ export async function POST(req: Request): Promise<Response> {
   }
   const igUserId = parsed.payload.user_id
 
-  // 6 — anti-replay SÓ depois de assinatura + janela. `false` = já processado:
-  // 200 {} incondicional, sem efeitos e sem liberar o claim.
   const replayKey = `sigreq:${createHash('sha256').update(parsed.raw).digest('hex')}`
-  const { data: claimed } = await supabase.rpc('ops_alert_claim', {
-    p_key: replayKey,
-    p_min_interval: '100 years',
-  })
-  if (claimed !== true) return Response.json({}, { status: 200 })
 
   try {
+    // 6 — anti-replay SÓ depois de assinatura + janela. `false` = já processado:
+    // 200 {} incondicional, sem efeitos e sem liberar o claim.
+    //
+    // INTERVALO = `'2 days'`, e não um intervalo "permanente", porque a retenção
+    // manda: o passo `retention` dos DOIS crons de C2 apaga `ops_alert_state` com
+    // `like('key','sigreq:%')` e `last_at < now-2d`, então uma chave declarada
+    // "permanente" evaporaria de qualquer jeito em 2 dias e o plano estaria
+    // afirmando uma garantia que o banco não sustenta.
+    // INVARIANTE: retenção (2 d) > janela de `issued_at` (24 h). Um replay que
+    // sobrevive à retenção já é recusado no passo 5 de `readSignedRequest`
+    // (`issuedAt >= nowS - ISSUED_AT_MAX_AGE_S`, 24 h) — nunca chega até aqui.
+    // Quem mudar um dos dois números tem de mudar o outro.
+    //
+    // MUST: usar `claimAlert` (C2, src/lib/ops/alert-state.ts), que LANÇA quando a
+    // RPC devolve `error` ou algo que não é boolean. Ler só `data` faria um banco
+    // fora do ar ou a RPC ausente virarem `data: null` ⇒ "já processado" ⇒ 200 {}
+    // sem NENHUM efeito: a Meta considera o callback entregue, nunca re-tenta, e a
+    // desautorização se perde em silêncio. Dentro do `try`, como em
+    // `data-deletion`: o throw vira `captureException` + 500 e a Meta re-tenta.
+    if (!(await claimAlert(supabase, replayKey, '2 days'))) {
+      return Response.json({}, { status: 200 })
+    }
+
     const { data: accounts } = await supabase
       .from('instagram_accounts')
       .select('*')
@@ -2416,7 +2479,13 @@ export async function POST(req: Request): Promise<Response> {
       })
     }
 
-    await sweepTokenAlerts(supabase, { identityKey: `o:${igUserId}` })
+    // MUST: a identidade de um alerta é `identityKeyOf(row)` (C2), não
+    // `o:${payload.user_id}`. Uma linha casada por `ig_professional_id` tem
+    // `ig_user_id` diferente do id da Meta — varrer a chave montada à mão não
+    // encontraria o grupo e o episódio recém-aberto ficaria sem alerta nenhum.
+    for (const identityKey of new Set(rows.map(identityKeyOf))) {
+      await sweepTokenAlerts(supabase, { identityKey })
+    }
     return Response.json({}, { status: 200 })
   } catch (err) {
     Sentry.captureException(err, { tags: { component: 'instagram-deauthorize' } })
@@ -2511,21 +2580,31 @@ const IG_ID = '17841400000000000'
 
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn() }))
 vi.mock('@/lib/ops/ntfy', () => ({ sendNtfyAlert: vi.fn(async () => ({ alerted: true })) }))
-vi.mock('@/lib/instagram/token', () => ({
-  markTokenInvalid: vi.fn(async () => undefined),
-  sweepTokenAlerts: vi.fn(async () => []),
-}))
+vi.mock('@/lib/instagram/token', async () => {
+  // `identityKeyOf` fica REAL (nao mockada) — mesma razão do teste de deauthorize:
+  // a asserção deriva a chave da LINHA em vez de hardcodar `o:${IG_ID}`.
+  const actual = await vi.importActual<typeof import('@/lib/instagram/token')>('@/lib/instagram/token')
+  return {
+    ...actual,
+    markTokenInvalid: vi.fn(async () => undefined),
+    sweepTokenAlerts: vi.fn(async () => []),
+  }
+})
 vi.mock('@/lib/instagram/deletion', () => ({
   DELETION_BLOB_BUDGET_MS: 45_000,
   runDeletionEffects: vi.fn(async () => undefined),
 }))
+// MUST: a rota usa `claimAlert` (C2) para o anti-replay, nunca `supabase.rpc`
+// cru — um `error` da RPC tem de LANÇAR e virar 500, nunca "já processado".
+vi.mock('@/lib/ops/alert-state', () => ({ claimAlert: vi.fn(async () => true) }))
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
 
 import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { sendNtfyAlert } from '@/lib/ops/ntfy'
-import { markTokenInvalid, sweepTokenAlerts } from '@/lib/instagram/token'
+import { identityKeyOf, markTokenInvalid, sweepTokenAlerts } from '@/lib/instagram/token'
 import { runDeletionEffects } from '@/lib/instagram/deletion'
+import { claimAlert } from '@/lib/ops/alert-state'
 import { GET, POST, maxDuration } from '@/app/api/instagram/data-deletion/route'
 
 function b64url(buf: Buffer | string): string {
@@ -2548,7 +2627,7 @@ function post(over: Record<string, unknown> = {}) {
 
 const OAUTH_ROW = {
   id: 'acc-1', site_id: 'site-1', handle: 'thiago.figueiredo', locale: 'pt',
-  ig_user_id: IG_ID, ig_professional_id: '9988776655', ig_user_id_source: 'oauth',
+  ig_user_id: IG_ID, ig_professional_id: '9988776655', ig_user_id_source: 'oauth' as const,
   access_token: 'v1:x', created_at: '2026-01-01T00:00:00Z',
 }
 
@@ -2568,8 +2647,11 @@ function mockDb(opts: {
 }) {
   rpc.mockReset(); requestInsert.mockReset(); accountUpdate.mockReset()
   opsDelete.mockReset(); orSpy.mockReset(); sourceSpy.mockReset()
-  rpc.mockImplementation(async (_fn: string, args: { p_key: string }) =>
-    args.p_key.startsWith('sigreq:') ? { data: opts.claim ?? true, error: null } : { data: true, error: null })
+  // O anti-replay do sigreq passa por `claimAlert` (mockado acima), não por
+  // `rpc` cru — só o claim do push `ddmismatch:` (23h) ainda usa `rpc` direto.
+  vi.mocked(claimAlert).mockReset()
+  vi.mocked(claimAlert).mockResolvedValue(opts.claim ?? true)
+  rpc.mockImplementation(async () => ({ data: true, error: null }))
   requestInsert.mockReturnValue({
     select: () => ({ single: async () => ({ data: { id: 'req-new' }, error: null }) }),
   })
@@ -2663,7 +2745,7 @@ describe('POST /api/instagram/data-deletion', () => {
     // `runDeletionEffects`, e depois dela o grupo não casaria mais.
     expect(vi.mocked(sweepTokenAlerts).mock.invocationCallOrder[0])
       .toBeLessThan(vi.mocked(runDeletionEffects).mock.invocationCallOrder[0] ?? Infinity)
-    expect(sweepTokenAlerts).toHaveBeenCalledWith(expect.anything(), { identityKey: `o:${IG_ID}` })
+    expect(sweepTokenAlerts).toHaveBeenCalledWith(expect.anything(), { identityKey: identityKeyOf(OAUTH_ROW) })
     expect(runDeletionEffects).toHaveBeenCalledWith(
       expect.anything(),
       { id: 'req-new', ig_user_id: IG_ID },
@@ -2792,6 +2874,19 @@ describe('POST /api/instagram/data-deletion', () => {
     expect(res.status).toBe(500)
     expect(opsDelete).toHaveBeenCalled()
   })
+
+  it('answers 500 (never 200/202) when the anti-replay claim itself errors', async () => {
+    // `claimAlert` LANÇA quando a RPC devolve `error`; a chamada está dentro do
+    // `try`, então o throw cai no `catch` => captureException + 500 e a Meta
+    // re-tenta. Sem isto, um banco fora do ar viraria "já processado" e a
+    // exclusão se perderia em silêncio (mesma classe de bug do `deauthorize`).
+    vi.mocked(claimAlert).mockRejectedValueOnce(new Error('ops_alert_claim(key) failed: PGRST202 not found'))
+    const res = await POST(post())
+    expect(res.status).toBe(500)
+    expect(requestInsert).not.toHaveBeenCalled()
+    expect(markTokenInvalid).not.toHaveBeenCalled()
+    expect(Sentry.captureException).toHaveBeenCalled()
+  })
 })
 ```
 
@@ -2815,8 +2910,9 @@ Criar `src/app/api/instagram/data-deletion/route.ts`:
 import { createHash, randomBytes } from 'node:crypto'
 import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { markTokenInvalid, sweepTokenAlerts } from '@/lib/instagram/token'
+import { identityKeyOf, markTokenInvalid, sweepTokenAlerts } from '@/lib/instagram/token'
 import { sendNtfyAlert } from '@/lib/ops/ntfy'
+import { claimAlert } from '@/lib/ops/alert-state'
 import { DELETION_BLOB_BUDGET_MS, runDeletionEffects } from '@/lib/instagram/deletion'
 import {
   RUNBOOK_URL, matchedAccountsFilter, readSignedRequest,
@@ -2851,55 +2947,68 @@ export async function POST(req: Request): Promise<Response> {
   const igUserId = parsed.payload.user_id
   const replayKey = `sigreq:${createHash('sha256').update(parsed.raw).digest('hex')}`
 
-  // 6 — anti-replay. Aqui a idempotência é RETOMADA, nunca confirmação cega: um
-  // run morto no meio deixava a linha inserida e o claim reivindicado, e
-  // responder sucesso a toda re-tentativa produzia uma declaração de compliance
-  // fabricada por um timeout.
-  const { data: claimed } = await supabase.rpc('ops_alert_claim', {
-    p_key: replayKey,
-    p_min_interval: '100 years',
-  })
-
   let confirmationCode: string
   let requestId: string | null = null
   let resuming = false
 
-  if (claimed !== true) {
-    const { data: last } = await supabase
-      .from('instagram_deletion_requests')
-      .select('id, confirmation_code, requested_at, completed_at')
-      .eq('ig_user_id', igUserId)
-      .order('requested_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
+  try {
+    // 6 — anti-replay. Aqui a idempotência é RETOMADA, nunca confirmação cega: um
+    // run morto no meio deixava a linha inserida e o claim reivindicado, e
+    // responder sucesso a toda re-tentativa produzia uma declaração de compliance
+    // fabricada por um timeout.
+    //
+    // INTERVALO = `'2 days'`, casado com a retenção: o passo `retention` dos DOIS
+    // crons de C2 apaga `ops_alert_state` com `like('key','sigreq:%')` e
+    // `last_at < now-2d`. Declarar um intervalo de séculos prometeria uma
+    // permanência que o banco apaga em 2 dias — o número aqui é o mesmo da
+    // retenção, de propósito.
+    // INVARIANTE: retenção (2 d) > janela de `issued_at` (24 h). Um replay que
+    // sobrevive à retenção já é recusado no passo 5 de `readSignedRequest`
+    // (`ISSUED_AT_MAX_AGE_S = 24 * 3600`), então nunca reabre esta chave. Mexer em
+    // um dos dois números obriga a mexer no outro e nesta nota.
+    //
+    // MUST: usar `claimAlert` (C2, src/lib/ops/alert-state.ts) — mesma garantia da
+    // rota `deauthorize`. `claimAlert` LANÇA quando a RPC devolve `error` ou algo
+    // que não é boolean; o throw cai no `catch` abaixo (captureException + 500,
+    // Meta re-tenta) em vez de um banco fora do ar virar "já processado" e a
+    // exclusão se perder em silêncio.
+    const claimed = await claimAlert(supabase, replayKey, '2 days')
 
-    if (last) {
-      if (last.completed_at !== null) {
-        return Response.json({ url: statusUrl(last.confirmation_code), confirmation_code: last.confirmation_code })
-      }
-      if (Date.parse(last.requested_at) >= Date.now() - IN_FLIGHT_MS) {
-        return new Response(null, { status: 202 })      // o run anterior ainda pode estar vivo
-      }
-      confirmationCode = last.confirmation_code
-      requestId = last.id
-      resuming = true
-    } else {
-      const { data: state } = await supabase
-        .from('ops_alert_state')
-        .select('last_at')
-        .eq('key', replayKey)
+    if (claimed !== true) {
+      const { data: last } = await supabase
+        .from('instagram_deletion_requests')
+        .select('id, confirmation_code, requested_at, completed_at')
+        .eq('ig_user_id', igUserId)
+        .order('requested_at', { ascending: false })
+        .limit(1)
         .maybeSingle()
-      if (state && Date.parse(state.last_at) >= Date.now() - IN_FLIGHT_MS) {
-        return new Response(null, { status: 202 })
+
+      if (last) {
+        if (last.completed_at !== null) {
+          return Response.json({ url: statusUrl(last.confirmation_code), confirmation_code: last.confirmation_code })
+        }
+        if (Date.parse(last.requested_at) >= Date.now() - IN_FLIGHT_MS) {
+          return new Response(null, { status: 202 })      // o run anterior ainda pode estar vivo
+        }
+        confirmationCode = last.confirmation_code
+        requestId = last.id
+        resuming = true
+      } else {
+        const { data: state } = await supabase
+          .from('ops_alert_state')
+          .select('last_at')
+          .eq('key', replayKey)
+          .maybeSingle()
+        if (state && Date.parse(state.last_at) >= Date.now() - IN_FLIGHT_MS) {
+          return new Response(null, { status: 202 })
+        }
+        await supabase.from('ops_alert_state').delete().eq('key', replayKey)
+        confirmationCode = randomBytes(16).toString('hex')
       }
-      await supabase.from('ops_alert_state').delete().eq('key', replayKey)
+    } else {
       confirmationCode = randomBytes(16).toString('hex')
     }
-  } else {
-    confirmationCode = randomBytes(16).toString('hex')
-  }
 
-  try {
     if (!resuming) {
       // Alcance (MUST): (ig_user_id = X OU ig_professional_id = X) E source='oauth'.
       const { data: accountsData } = await supabase
@@ -2926,12 +3035,18 @@ export async function POST(req: Request): Promise<Response> {
             // REGRA-PII-NTFY (§0): sem handle, sem ids, sem token. Nenhuma ação
             // destrutiva sobre a linha `legacy` — o push existe só para o dono
             // decidir manualmente.
+            // `click` é o MESMO de todos os outros emissores — a rota curta do card
+            // (Global Constraints: "todo click/action_href/backHref aponta para
+            // /cms/settings/instagram"). O runbook citado no `body` é leitura, não
+            // destino de clique: no celular o link do GitHub não leva a lugar
+            // acionável. O `body` NÃO muda — ele é fixado byte a byte pela tabela
+            // REGRA-PII-NTFY de C2 (`test/api/cron/ntfy.test.ts`).
             await sendNtfyAlert({
               title: 'Instagram deletion request matched no account',
               body: 'possible ID-space mismatch — see the runbook',
               priority: 'default',
               tags: ['warning'],
-              click: RUNBOOK_URL,
+              click: `${process.env.NEXT_PUBLIC_APP_URL ?? ''}/cms/settings/instagram`,
             })
           }
         }
@@ -2973,7 +3088,12 @@ export async function POST(req: Request): Promise<Response> {
 
       // (c) varredura ANTES de anonimizar — `runDeletionEffects` anonimiza em (e)
       // e depois disso o grupo não casaria: nenhum alerta sairia.
-      await sweepTokenAlerts(supabase, { identityKey: `o:${igUserId}` })
+      // A chave é `identityKeyOf(row)` (C2), NUNCA `o:${payload.user_id}`: uma
+      // linha casada por `ig_professional_id` tem `ig_user_id` diferente do id da
+      // Meta e a chave montada à mão não encontraria grupo nenhum.
+      for (const identityKey of new Set(accounts.map(identityKeyOf))) {
+        await sweepTokenAlerts(supabase, { identityKey })
+      }
     }
 
     // (d)–(h), idempotentes e retomáveis (C2). Escreve `completed_at` por último
@@ -5975,7 +6095,7 @@ describe('<InstagramSection> — OAuth actions', () => {
     fireEvent.click(screen.getByTestId('ig-reconnect'))
     postResult({
       type: 'instagram-oauth-result', success: false, provider: 'instagram',
-      error: 'Instagram rejected the authorization (code 400)', extra: { code: 'exchange_failed' },
+      error: 'Instagram rejected the authorization (code 400)', code: 'exchange_failed',
     })
     expect(screen.getByTestId('ig-inline-error').textContent).toBe('Instagram rejected the authorization (code 400)')
     expect(routerRefresh).not.toHaveBeenCalled()
@@ -5983,7 +6103,7 @@ describe('<InstagramSection> — OAuth actions', () => {
     fireEvent.click(screen.getByTestId('ig-try-again'))
     expect(window.open).toHaveBeenCalledTimes(2)
 
-    postResult({ type: 'instagram-oauth-result', success: false, extra: { code: 'write_failed' } })
+    postResult({ type: 'instagram-oauth-result', success: false, code: 'write_failed' })
     fireEvent.click(screen.getByTestId('ig-dismiss-error'))
     expect(screen.queryByTestId('ig-inline-error')).toBeNull()
   })
@@ -5991,7 +6111,7 @@ describe('<InstagramSection> — OAuth actions', () => {
   it('falls back to oauthErrorText for a missing or oversized server message', () => {
     renderSection()
     fireEvent.click(screen.getByTestId('ig-reconnect'))
-    postResult({ type: 'instagram-oauth-result', success: false, error: 'x'.repeat(201), extra: { code: 'invalid_state' } })
+    postResult({ type: 'instagram-oauth-result', success: false, error: 'x'.repeat(201), code: 'invalid_state' })
     expect(screen.getByTestId('ig-inline-error').textContent).toBe('error:invalid_state')
   })
 
@@ -6122,9 +6242,11 @@ const OAUTH_WINDOW_FEATURES = 'width=600,height=700'
   useEffect(() => {
     const onMessage = (e: MessageEvent) => {
       if (e.origin !== window.location.origin) return
+      // MUST: `oauthResultHtml` (B) faz `...extra` no payload — `code` e `status`
+      // chegam no TOPO do objeto, NUNCA aninhados sob `extra`.
       const data = e.data as {
         type?: string; success?: boolean; error?: unknown
-        extra?: { status?: string; code?: OauthErrorCode }
+        status?: string; code?: OauthErrorCode
       } | null
       if (!data || data.type !== 'instagram-oauth-result') return
 
@@ -6139,12 +6261,12 @@ const OAUTH_WINDOW_FEATURES = 'width=600,height=700'
         window.setTimeout(() => router.refresh(), 8000)
         return
       }
-      if (data.extra?.status === 'handle_mismatch') {
+      if (data.status === 'handle_mismatch') {
         router.refresh()
         return
       }
       const fromServer = typeof data.error === 'string' && data.error.length <= 200 ? data.error : null
-      setInlineError(fromServer ?? oauthErrorText(data.extra?.code ?? 'write_failed'))
+      setInlineError(fromServer ?? oauthErrorText(data.code ?? 'write_failed'))
     }
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
@@ -6997,7 +7119,12 @@ Expected: typecheck limpo e `next build` verde (paridade com a Vercel; §7 exige
 
 ```bash
 cd /Users/figueiredo/Workspace/bythiagofigueiredo
-git add apps/web/src/lib/instagram/status-text.ts apps/web/test/instagram/status-text.test.ts
+# MUST: `test/instagram/token.test.ts` (C2 Task 10) fixa o texto LITERAL do CTA no
+# `it('message termina em …')`. O Step 3 corrigiu a asserção — ela viaja NESTE
+# commit, senão a árvore fica com teste vermelho e a bisectabilidade morre.
+git add apps/web/src/lib/instagram/status-text.ts \
+        apps/web/test/instagram/status-text.test.ts \
+        apps/web/test/instagram/token.test.ts
 git commit -m "$(cat <<'EOF'
 feat(instagram): RECONNECT_CTA passa a ser 'reconnect'
 
@@ -7032,7 +7159,7 @@ EOF
 - [ ] **Step 1: `CLAUDE.md` — envs, ordem dos commits, rollback e espelho de versão**
 
 1. Na tabela de *Ecosystem Packages*, trocar `auth-nextjs@2.0.0` por **`auth-nextjs@2.2.0`** (a versão instalada; a divergência estava registrada como dívida).
-2. Em *Environment Variables → Web*, acrescentar à lista: `INSTAGRAM_APP_ID`, `INSTAGRAM_APP_SECRET`, `INSTAGRAM_ALLOW_META_SECRET_FALLBACK`, `SOCIAL_MASTER_KEY`, `NTFY_URL`, e o parágrafo:
+2. Em *Environment Variables → Web*, acrescentar à lista: `INSTAGRAM_APP_ID`, `INSTAGRAM_APP_SECRET`, `INSTAGRAM_ALLOW_META_SECRET_FALLBACK`, `SOCIAL_MASTER_KEY` — **`NTFY_URL` já está na lista** (entre `YT_ANALYTICS_SYNC_WINDOW_DAYS` e `UPTIME_PROBE_TARGET`); não duplicar. E o parágrafo:
 
 ```markdown
 `INSTAGRAM_APP_ID`/`INSTAGRAM_APP_SECRET` (App Dashboard > Instagram > API setup with Instagram login >
@@ -7074,15 +7201,25 @@ Conferir e, se faltar, acrescentar as cinco chaves aos **dois** arquivos (C2 já
 ```bash
 cd /Users/figueiredo/Workspace/bythiagofigueiredo/apps/web
 for f in .env.example .env.local.example; do
-  grep -q '^INSTAGRAM_APP_ID=' "$f" || cat >> "$f" <<'ENV'
-
-# ── Instagram feed OAuth ──────────────────────────────────────────────────
-INSTAGRAM_APP_ID=                       # App Dashboard > Instagram > Business login settings
-INSTAGRAM_APP_SECRET=                   # idem — assina/verifica o signed_request dos callbacks
-INSTAGRAM_ALLOW_META_SECRET_FALLBACK=   # '1' aceita META_APP_SECRET até 2026-10-06
-SOCIAL_MASTER_KEY=                      # 32-byte hex (openssl rand -hex 32) — cifra o token
-NTFY_URL=                               # tópico do canal de garantia (pode trazer basic-auth na URL)
-ENV
+  # C2 (Tarefa 17) já escreveu as CINCO chaves nos dois arquivos; este bloco é rede
+  # de segurança e só roda se C2 tiver sido revertido. MUST: cada chave tem SEU
+  # PRÓPRIO guard `grep -q '^KEY=' file || echo 'KEY=' >> file` — nenhuma depende
+  # da presença de outra (a forma antiga agrupava 3 chaves atrás do guard de
+  # `INSTAGRAM_APP_ID`, então rodar com só essa faltando duplicava as outras 4).
+  # Comentários em LINHA PRÓPRIA, nunca coladas na chave: o gate do Step 6 de C2
+  # (`git diff --cached | grep -E '^\+[A-Z_]+=.+'`) lê `CHAVE=  # texto` como
+  # "chave com valor" e acusa segredo commitado.
+  if ! grep -q '^INSTAGRAM_APP_ID=' "$f" && ! grep -q '^INSTAGRAM_APP_SECRET=' "$f" \
+    && ! grep -q '^INSTAGRAM_ALLOW_META_SECRET_FALLBACK=' "$f"; then
+    printf '\n# ── Instagram feed OAuth ──────────────────────────────────────────────────\n' >> "$f"
+  fi
+  grep -q '^INSTAGRAM_APP_ID=' "$f" || echo 'INSTAGRAM_APP_ID=' >> "$f"
+  grep -q '^INSTAGRAM_APP_SECRET=' "$f" || echo 'INSTAGRAM_APP_SECRET=' >> "$f"
+  grep -q '^INSTAGRAM_ALLOW_META_SECRET_FALLBACK=' "$f" || echo 'INSTAGRAM_ALLOW_META_SECRET_FALLBACK=' >> "$f"
+  # `SOCIAL_MASTER_KEY` já existe em `.env.example:98` desde antes de C2 — o guard
+  # evita duplicar (quebraria `find((l) => l.startsWith(key))` de `test/lib/env.test.ts`).
+  grep -q '^SOCIAL_MASTER_KEY=' "$f" || echo 'SOCIAL_MASTER_KEY=' >> "$f"
+  grep -q '^NTFY_URL=' "$f" || echo 'NTFY_URL=' >> "$f"
 done
 npx vitest run test/lib/env.test.ts
 ```
@@ -7092,6 +7229,37 @@ npx vitest run test/lib/env.test.ts
 Acrescentar (depois da seção "Gates de C3" da Task 1):
 
 ```markdown
+## O ntfy tocou — o que fazer
+
+> Corpo prometido pelo esqueleto criado em C2 ("o corpo completo entra em C3"). Nenhum push carrega
+> handle, id, token ou motivo (REGRA-PII-NTFY, §0), então a triagem é sempre: abrir o CMS ou o Sentry.
+
+São **7** títulos (a contagem `=== 7` de `test/api/cron/ntfy.test.ts`, C2): os 4 abaixo agrupam variantes
+do mesmo emissor por texto (`expired`/`access revoked`/`token invalid`/`still disconnected` são um só
+título parametrizado por `token_error`), então a tabela lista **9 linhas** para as **7** entradas.
+
+| Título do push | Emissor | Primeiro comando | O que fazer |
+|---|---|---|---|
+| `Instagram token expired · <slug>` · `… access revoked …` · `… token invalid …` · `… still disconnected …` | `deliverTokenAlert` (§3.2) | `select handle, token_error, token_error_at, token_error_mode, token_alert_sent_at, token_alert_attempt_at from instagram_accounts where id = '<uuid>';` (`CAMPOS_DE_EPISÓDIO`, §0) | Abrir `/cms/settings/instagram` (o header `Click` já leva) e usar **Reconnect**. O motivo real está no card e no e-mail, nunca no push. |
+| `Instagram auto-renewal failing` / `still retrying` / `still failing · <slug>` | idem, episódio transitório | mesmo `select` acima — `token_error_mode`/`token_alert_attempt_at` mostram há quanto tempo o cron tenta | Até 69 h o cron continua tentando sozinho. Só agir quando o texto virar `still failing` (aí o **Reconnect** do card em `/cms/settings/instagram` já é primário). |
+| `Instagram token expiring without renewal · <slug>` | `expiring_clean` (§3.3 passo 3) | mesmo `select` acima, conferir `token_error is null` | A renovação automática não pegou e o token vence em ≤ 7 dias: **Reconnect** em `/cms/settings/instagram` agora, não esperar o próximo ciclo. |
+| `Instagram cron degraded` | `step_errors` (§3.3/§3.4 passo 6) | `curl -H "Authorization: Bearer $CRON_SECRET" https://bythiagofigueiredo.com/api/health` (mesma chamada do `health-watch.yml`, C2) | Sentry com `component: instagram-token-refresh` ou `instagram-sync` e a tag `step`. O run terminou; alguma etapa não. Máximo 1 push/dia por cron. |
+| `Instagram blob store at <N> MB` | censo semanal (§3.4 passo 3) | — | Prefixo `instagram/` acima da linha de 400 MB. Rodar a limpeza de blobs órfãos descrita em **Superfície de OAuth (C3) → Blob store**. |
+| `Instagram blob census truncated at <N> objects` | idem, teto de páginas/tempo | — | **Nenhuma comparação de tamanho foi feita.** Paginar `list({ prefix: 'instagram/', cursor, limit: 1000 })` à mão antes de concluir qualquer coisa. |
+| `Instagram callback signature mismatch` | `signed-request.ts` (§3.1 passo 4) | — | Sentry → tag `route` (`deauthorize` \| `data-deletion`) e o segredo usado. Quase sempre `INSTAGRAM_APP_SECRET` divergindo do App Dashboard. Guarda de 60 s em memória + 1 claim/dia. |
+| `Instagram deletion request matched no account` | `ddmismatch` (§3.1 passo 7) | — | **Nada foi apagado.** Ver a entrada `ddmismatch` em *Superfície de OAuth (C3)* antes de qualquer ação manual — casar por igualdade apagaria dados de terceiro. |
+| `Instagram ops probe` (priority `min`) · `Instagram ops heartbeat` (priority `low`) | sonda diária / heartbeat de 5 d | `curl -H "Authorization: Bearer $CRON_SECRET" https://bythiagofigueiredo.com/api/health` | Sinal de vida do canal, não incidente. O alarme é a **ausência**: `no heartbeat accepted for 8d` aparece no `status:'error'` dos crons. |
+
+**Nenhum push chegou e você suspeita do canal.** Primeiro comando: `curl -H "Authorization: Bearer
+$CRON_SECRET" https://bythiagofigueiredo.com/api/health` — os dois crons devolvem `alert_channels: {
+probe, heartbeat, alerts }` e, quando escalam, `status:'error'` com a causa nomeada: `NTFY_URL unset`,
+`terminal refusal (HTTP n)`, `transient for 2 runs`, `no heartbeat accepted for 8d`, `fallback email
+dead`, `vault unavailable: SOCIAL_MASTER_KEY missing/malformed`. O e-mail **"Instagram alert channel
+down"** (ou **"Instagram token storage unavailable"**) é o segundo canal. Se `/api/health` não responde
+nada (timeout/DNS/000) e o e-mail também não chegou, o suspeito é o watchdog do home-lab, não o
+Instagram: `journalctl -u cron-watchdog -n 50 --no-pager` no host (`.github/workflows/health-watch.yml`
+e o `check.sh` do home-lab são a terceira perna).
+
 ## Superfície de OAuth (C3)
 
 - **Rotas:** `GET /api/instagram/oauth` (início, auth-gated), `GET /api/instagram/oauth/callback`
@@ -7118,7 +7286,8 @@ Acrescentar (depois da seção "Gates de C3" da Task 1):
   paginar `list({ prefix: 'instagram/', cursor, limit: 1000 })`, agrupar por `instagram/<accountId>/`,
   `del(urls)` dos prefixos cujo `<accountId>` já não existe em `instagram_accounts`.
 - **Pedido de exclusão travado:** linha em `instagram_deletion_requests` com `completed_at is null` há
-  mais de 10 min é retomada pelo cron das 11:00 (um pedido por run) e pelo replay da Meta após 90 s.
+  mais de 10 min é retomada pelos **dois** crons — `instagram-token-refresh` (11:00 UTC) e
+  `instagram-sync` (13:00 UTC), um pedido por run cada — e pelo replay da Meta após 90 s.
   A página pública diz "in progress" até `completed_at` — **nunca** afirma conclusão com base no
   `requested_at`.
 - **`ddmismatch`:** push "Instagram deletion request matched no account" = o `payload.user_id` da Meta

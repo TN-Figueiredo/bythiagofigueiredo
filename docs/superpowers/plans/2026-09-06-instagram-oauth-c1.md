@@ -354,8 +354,10 @@ describe.skipIf(skipIfNoLocalDb())('M1 — instagram token health columns + inst
     expect(error).toBeNull()
     expect(Array.isArray(data)).toBe(true)
     expect(data).toHaveLength(1)
-    // O OUT param é `out_token_error_at`, não `token_error_at` — nome desambigua
-    // a coluna dentro do plpgsql e é o que C2 lê.
+    // O OUT param é `out_token_error_at`, não `token_error_at`: o nome desambigua
+    // a coluna dentro do plpgsql (sem ele, `returning token_error_at` colide com
+    // o parâmetro de saída). C2 não lê o valor — `markTokenInvalid` só inspeciona
+    // `error` —, mas o contrato de 0-ou-1 linha é o que esta suíte trava.
     expect((data as Array<{ out_token_error_at: string | null }>)[0]?.out_token_error_at)
       .not.toBeNull()
 
@@ -1467,7 +1469,31 @@ cd /Users/figueiredo/Workspace/bythiagofigueiredo/apps/web
 HAS_LOCAL_DB=1 npx vitest run test/integration/instagram-accounts-public-view.test.ts --reporter=verbose
 ```
 
-Esperado: o `describe` novo FALHA (`'public.instagram_deletion_requests'::regclass` ⇒ `42P01`; as três `*_staff_write` ainda listadas; `has_table_privilege(…, 'INSERT')` ⇒ `true`). **O `describe` de A3 tem de continuar PASSANDO.** Se o bloco de A3 falhar porque fixou a lista de 16 nomes literais de `authenticated`, reescreva-o **neste commit** para a forma do spec — "toda coluna **exceto** `access_token`" — reaproveitando `selectableColumns`/`allColumns`; é a mesma asserção, imune a `add column`.
+Esperado: o `describe` novo FALHA (`'public.instagram_deletion_requests'::regclass` ⇒ `42P01`; as três `*_staff_write` ainda listadas; `has_table_privilege(…, 'INSERT')` ⇒ `true`).
+
+**O ratchet (i) de A3 vai falhar — e isso é esperado, não opcional.** A3 (`…-a.md:1944`) fixa
+`AUTHENTICATED_ALLOW_LIST` com 16 nomes literais e compara com `toEqual` sobre
+`information_schema.column_privileges`; o `grant select (<as 9>)` do bloco 1 leva a lista para 25.
+Reescreva-o **neste commit** para a forma do spec — "toda coluna **exceto** `access_token`" — assim:
+
+```ts
+  it('ratchet (i): authenticated holds SELECT on every column EXCEPT access_token', async () => {
+    const { rows } = await pg.query<{ attname: string; allowed: boolean }>(
+      `select a.attname,
+              has_column_privilege('authenticated','public.instagram_accounts',a.attname,'SELECT') as allowed
+         from pg_attribute a
+        where a.attrelid = 'public.instagram_accounts'::regclass
+          and a.attnum > 0 and not a.attisdropped
+        order by a.attname`,
+    )
+    expect(rows.filter(r => !r.allowed).map(r => r.attname)).toEqual(['access_token'])
+  })
+```
+
+e apague a constante `AUTHENTICATED_ALLOW_LIST`, que deixa de ter uso. **Não** tente reaproveitar
+`selectableColumns`/`allColumns`: elas são declaradas dentro do `describe` novo, no fim do arquivo, e
+o `describe` de A3 vem antes — está fora do escopo delas. O ratchet (ii) de `anon` (`toEqual(['id',
+'site_id'])`) continua válido como está: M1 não concede nada a `anon`.
 
 - [ ] **Step 3: Inserir o bloco 3 na migration**
 
