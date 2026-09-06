@@ -23,6 +23,10 @@
 > agendamento.
 > **Bônus (mesmo merge):** home pública passou de 13 → 1 query Postgres por visita
 > (`unstable_cache` + tags, `{ expire: 0 }` nas mutações); TTFB warm medido 1,34s → ~65ms local.
+>
+> **Watchdog na Vercel (2026-09-06):** `api/cron/uptime-probe` `*/5` — o schedule do GitHub rodou
+> 1× em 68 min; a Vercel fica como sonda primária, GitHub como segunda camada (cobre queda da
+> própria Vercel). Precisa de `NTFY_URL` no env da Vercel.
 
 **Data:** 2026-09-05 · **Restrição:** orçamento zero. Nada de upgrade de Supabase.
 **Base:** 9 agentes (4 adversariais + 5 de custo zero), tudo medido, nada presumido.

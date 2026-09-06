@@ -49,6 +49,7 @@
     { "path": "/api/cron/pipeline-deadline-digest", "schedule": "0 7 * * *" },
     { "path": "/api/cron/ad-events-aggregate", "schedule": "0 6 * * *" },
     { "path": "/api/cron/adsense-sync", "schedule": "0 6 * * *" },
-    { "path": "/api/cron/youtube-intelligence-watchdog", "schedule": "*/30 * * * *" }
+    { "path": "/api/cron/youtube-intelligence-watchdog", "schedule": "*/30 * * * *" },
+    { "path": "/api/cron/uptime-probe", "schedule": "*/5 * * * *" }
   ]
 }
