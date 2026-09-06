@@ -98,6 +98,10 @@ export interface SyncResult {
   postsInserted: number
   postsUpdated: number
   mediaCached: number
+  /** true quando o prazo (`opts.deadlineAt`) cortou o cache de imagens antes do fim. */
+  partial: boolean
+  /** `newItems.length - cachedUrls.size` — imagens novas que não viraram blob neste run. */
+  mediaFailed: number
 }
 
 export function toPostView(row: InstagramPostRow): InstagramPostView {

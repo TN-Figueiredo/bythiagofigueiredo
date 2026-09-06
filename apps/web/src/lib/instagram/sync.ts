@@ -58,7 +58,10 @@ export async function syncInstagramAccount(
   if (!account.access_token) throw new Error('No access token')
   if (!account.ig_user_id) throw new Error('No Instagram user ID')
 
-  const result: SyncResult = { postsFound: 0, postsInserted: 0, postsUpdated: 0, mediaCached: 0 }
+  const result: SyncResult = {
+    postsFound: 0, postsInserted: 0, postsUpdated: 0, mediaCached: 0,
+    partial: false, mediaFailed: 0,
+  }
 
   const media = await fetchInstagramMedia(account.ig_user_id, account.access_token)
   result.postsFound = media.length
