@@ -257,4 +257,38 @@ describe('syncInstagramAccount', () => {
     await expect(syncInstagramAccount(supabase as never, makeAccount()))
       .rejects.toMatchObject({ code: '23505' })
   })
+
+  it('retries caching for an existing post whose cached image url is null', async () => {
+    // Fix round 1: a post row can already exist (inserted on a prior run)
+    // while its cached_image_url is still null — either the image cache
+    // failed, or the run's deadline cut the caching pass short before this
+    // item was reached. Keying the retry set on row *presence* alone would
+    // never revisit it, so the feed keeps serving the Meta CDN URL forever
+    // (and that URL expires). It must be retried.
+    const selectMock = vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        in: vi.fn().mockResolvedValue({
+          data: [{ ig_media_id: 'media-1', cached_image_url: null }], error: null,
+        }),
+      }),
+    })
+    mockFetchMedia.mockResolvedValueOnce([{
+      id: 'media-1', media_type: 'IMAGE',
+      media_url: 'https://scontent.cdninstagram.com/img.jpg',
+      caption: null, permalink: 'https://instagram.com/p/1/',
+      like_count: 0, comments_count: 0, timestamp: '2026-05-01T12:00:00+0000',
+    }])
+    const { supabase, upsertFn } = mockSupabase()
+    supabase.from = vi.fn((table: string) => {
+      if (table === 'instagram_posts') { return { select: selectMock, upsert: upsertFn } }
+      if (table === 'instagram_accounts') { return { update: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ data: null, error: null }) }) } }
+      return {} as never
+    })
+    const result = await syncInstagramAccount(supabase as never, makeAccount())
+    expect(mockBlobPut).toHaveBeenCalledTimes(1)
+    expect(result.mediaCached).toBe(1)
+    expect(result.mediaFailed).toBe(0)
+    const upsertedRows = upsertFn.mock.calls[0]![0] as Array<{ cached_image_url: string | null }>
+    expect(upsertedRows[0]!.cached_image_url).toBe('https://blob.vercel-storage.com/cached.jpg')
+  })
 })

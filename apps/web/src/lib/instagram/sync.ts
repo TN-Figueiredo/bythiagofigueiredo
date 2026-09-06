@@ -4,8 +4,8 @@ import { fetchInstagramMedia, type InstagramMediaItem } from './api-client'
 import type { InstagramAccountRow, SyncResult } from './types'
 
 const IMAGE_CACHE_CONCURRENCY = 5
-const IMAGE_FETCH_TIMEOUT_MS = 8_000
-const IMAGE_FETCH_MIN_TIMEOUT_MS = 1_000
+export const IMAGE_FETCH_TIMEOUT_MS = 8_000
+export const IMAGE_FETCH_MIN_TIMEOUT_MS = 1_000
 
 /** §5/§0(vi): erro cru da Meta nunca chega ao dono. */
 const NOT_CONNECTED = "This account isn't connected — use Connect with Instagram"
@@ -15,7 +15,7 @@ const NOT_CONNECTED = "This account isn't connected — use Connect with Instagr
  * conexão pendurada em `scontent.cdninstagram.com` prende o run
  * indefinidamente e a checagem ENTRE lotes nunca é alcançada.
  */
-function imageTimeoutMs(deadlineAt: number | undefined): number {
+export function imageTimeoutMs(deadlineAt: number | undefined): number {
   if (deadlineAt === undefined) return IMAGE_FETCH_TIMEOUT_MS
   return Math.max(
     IMAGE_FETCH_MIN_TIMEOUT_MS,
@@ -122,7 +122,12 @@ export async function syncInstagramAccount(
     (existing ?? []).map((r: { ig_media_id: string; cached_image_url: string | null }) => [r.ig_media_id, r.cached_image_url]),
   )
 
-  const newItems = media.filter((m) => !existingMap.has(m.id))
+  // Fix round 1: keying the retry set on row *presence* meant a post whose
+  // image failed to cache (or was skipped by a deadline cutoff) was never
+  // retried on a later run — the feed kept falling back to the Meta CDN URL,
+  // which expires. Retry whenever the row is absent OR its cached image URL
+  // is null/empty, not just when the row itself doesn't exist yet.
+  const newItems = media.filter((m) => !existingMap.has(m.id) || !existingMap.get(m.id))
   const { cached: cachedUrls, partial } = await cacheImagesInBatches(
     account.id, newItems, opts?.deadlineAt,
   )
