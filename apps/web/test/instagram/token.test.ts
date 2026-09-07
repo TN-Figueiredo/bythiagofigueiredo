@@ -7,6 +7,15 @@ vi.mock('@sentry/nextjs', () => ({
   addBreadcrumb: vi.fn(),
 }))
 
+vi.mock('@/lib/ops/ntfy', async (orig) => ({
+  ...(await orig<typeof import('@/lib/ops/ntfy')>()),
+  sendNtfyAlert: vi.fn(),
+}))
+vi.mock('@/lib/notifications/fan-out-to-admins', () => ({
+  NO_SITE_ADMINS_ERROR: 'no site admins to email',
+  fanOutToSiteAdminsDetailed: vi.fn(),
+}))
+
 import { encrypt } from '@tn-figueiredo/social/vault'
 import {
   VaultUnavailableError,
@@ -17,7 +26,13 @@ import {
   MarkTokenInvalidError,
   evaluateTransientStreak,
   markTokenInvalid,
+  deliverTokenAlert,
+  identityKeyOf,
+  sweepTokenAlerts,
+  type ITokenAlertRow,
 } from '@/lib/instagram/token'
+import { sendNtfyAlert } from '@/lib/ops/ntfy'
+import { fanOutToSiteAdminsDetailed } from '@/lib/notifications/fan-out-to-admins'
 import * as Sentry from '@sentry/nextjs'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
@@ -303,5 +318,360 @@ describe('evaluateTransientStreak — POR MODO', () => {
     ])
     expect(await evaluateTransientStreak(client, ACC, 'daily')).toBe(false)
     expect(rpc).not.toHaveBeenCalled()
+  })
+})
+
+// ── sweepTokenAlerts / deliverTokenAlert (Tarefa 10) ────────────────────────
+
+const mockNtfy = vi.mocked(sendNtfyAlert)
+const mockFanOut = vi.mocked(fanOutToSiteAdminsDetailed)
+const HOUR = 3_600_000
+
+function alertRow(over: Partial<ITokenAlertRow> = {}): ITokenAlertRow {
+  return {
+    id: 'r-pt', site_id: 'site-1', handle: 'thiago.figueiredo',
+    ig_user_id: '17841400000000000', ig_user_id_source: 'oauth',
+    token_error: 'expired',
+    token_error_at: new Date(Date.now() - 2 * HOUR).toISOString(),
+    token_error_mode: null, token_alert_sent_at: null, token_alert_attempt_at: null,
+    ...over,
+  }
+}
+
+/** Supabase mock que serve o select largo de contas + slugs + os updates de marca-passo. */
+function sweepClient(rows: ITokenAlertRow[]) {
+  const updates: Array<Record<string, unknown>> = []
+  const client = {
+    rpc: vi.fn(() => Promise.resolve({ data: true, error: null })),
+    from: vi.fn((table: string) => {
+      if (table === 'sites') {
+        return { select: () => ({ in: () => Promise.resolve({ data: [{ id: 'site-1', slug: 'bythiagofigueiredo' }], error: null }) }) }
+      }
+      // `.not(...)` deve ser tanto "then-ável" (o caminho sem `filter.siteId`
+      // faz `await base` direto) quanto encadeável com `.eq(...)` (o caminho
+      // COM `filter.siteId` chama `base.eq(...)` antes do await).
+      const notResult = {
+        eq: vi.fn(() => Promise.resolve({ data: rows, error: null })),
+        then: (resolve: (v: { data: ITokenAlertRow[]; error: null }) => unknown) =>
+          resolve({ data: rows, error: null }),
+      }
+      return {
+        select: vi.fn(() => ({ not: vi.fn(() => notResult) })),
+        update: vi.fn((patch: Record<string, unknown>) => {
+          updates.push(patch)
+          return { in: vi.fn(() => Promise.resolve({ error: null })) }
+        }),
+      }
+    }),
+  }
+  return { client: client as unknown as SupabaseClient, updates }
+}
+
+beforeEach(() => {
+  mockNtfy.mockReset()
+  mockFanOut.mockReset()
+  mockFanOut.mockResolvedValue({ total: 1, sent: 1, suppressed: 0, errors: [] })
+  mockNtfy.mockResolvedValue({ alerted: true, ntfyStatus: 200 })
+  vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://bythiagofigueiredo.com')
+})
+
+describe('identityKeyOf', () => {
+  it('oauth com ig_user_id => "o:<id>"', () => {
+    expect(identityKeyOf({ ig_user_id_source: 'oauth', ig_user_id: '12345', handle: 'X' })).toBe('o:12345')
+  })
+  it('legacy => "h:<handle minúsculo>"', () => {
+    expect(identityKeyOf({ ig_user_id_source: 'legacy', ig_user_id: '12345', handle: 'Foo.Bar' })).toBe('h:foo.bar')
+  })
+  it('handle "12345" e id "12345" produzem chaves DIFERENTES', () => {
+    expect(identityKeyOf({ ig_user_id_source: 'legacy', ig_user_id: null, handle: '12345' }))
+      .not.toBe(identityKeyOf({ ig_user_id_source: 'oauth', ig_user_id: '12345', handle: 'x' }))
+  })
+})
+
+describe('deliverTokenAlert — REGRA-PII-NTFY e forma do payload', () => {
+  const group = {
+    siteId: 'site-1', identityKey: 'o:17841400000000000', handle: 'thiago.figueiredo',
+    slug: 'bythiagofigueiredo', subject: 'auto-renewal' as const,
+    rows: [alertRow(), alertRow({ id: 'r-en' })],
+  }
+
+  it('o título entregue a CMS/e-mail mantém "· @handle"', async () => {
+    const { client } = sweepClient([])
+    await deliverTokenAlert(client, group, 'expired', '2026-09-04', { reminder: false, longOpen: false })
+    const arg = mockFanOut.mock.calls[0]![0]
+    expect(arg.title).toBe('Instagram token expired · @thiago.figueiredo')
+  })
+
+  it('o push usa ntfyTitle com o SLUG e nunca "@"', async () => {
+    const { client } = sweepClient([])
+    await deliverTokenAlert(client, group, 'expired', '2026-09-04', { reminder: false, longOpen: false })
+    const push = mockNtfy.mock.calls[0]![0]
+    expect(push.title).toBe('Instagram token expired · bythiagofigueiredo')
+    expect(push.title).not.toContain('@')
+  })
+
+  it('body é fixo: "<N> account(s) · open since <dia>. Open the CMS for the reason."', async () => {
+    const { client } = sweepClient([])
+    await deliverTokenAlert(client, group, 'expired', '2026-09-04', { reminder: false, longOpen: false })
+    expect(mockNtfy.mock.calls[0]![0].body)
+      .toBe('2 account(s) · open since 2026-09-04. Open the CMS for the reason.')
+  })
+
+  it('nem title nem body do push carregam handle, ids ou token_error', async () => {
+    const { client } = sweepClient([])
+    const dirty = { ...group, rows: [alertRow({
+      token_error: 'The session has been invalidated because the user changed their password' })] }
+    await deliverTokenAlert(client, dirty, 'invalid', '2026-09-04', { reminder: false, longOpen: false })
+    const { title, body } = mockNtfy.mock.calls[0]![0]
+    expect(`${title} ${body}`).not.toMatch(/@[a-z0-9._]{1,30}/)
+    expect(`${title} ${body}`).not.toMatch(/[0-9]{6,}/)
+    expect(`${title} ${body}`).not.toContain('invalidated')
+  })
+
+  it('priority default (nunca high) com tag rotating_light e Click', async () => {
+    const { client } = sweepClient([])
+    await deliverTokenAlert(client, group, 'expired', '2026-09-04', { reminder: false, longOpen: false })
+    const push = mockNtfy.mock.calls[0]![0]
+    expect(push.priority).toBe('default')
+    expect(push.tags).toEqual(['rotating_light'])
+    expect(push.click).toBe('https://bythiagofigueiredo.com/cms/settings/instagram')
+  })
+
+  it('message termina em "— <RECONNECT_CTA> at <APP_URL>/cms/settings/instagram"', async () => {
+    const { client } = sweepClient([])
+    await deliverTokenAlert(client, group, 'expired', '2026-09-04', { reminder: false, longOpen: false })
+    expect(mockFanOut.mock.calls[0]![0].message)
+      .toMatch(/— paste a new token at https:\/\/bythiagofigueiredo\.com\/cms\/settings\/instagram$/)
+  })
+
+  it('message escapa & < > " \' (adapters/email.ts:30 interpola cru)', async () => {
+    const { client } = sweepClient([])
+    const xss = { ...group, rows: [alertRow({ token_error: '<img src=x onerror=1>' })] }
+    await deliverTokenAlert(client, xss, 'invalid', '2026-09-04', { reminder: false, longOpen: false })
+    const msg = mockFanOut.mock.calls[0]![0].message
+    expect(msg).toContain('&lt;img src=x onerror=1&gt;')
+    expect(msg).not.toContain('<img')
+  })
+
+  it('sempre defaultChannels:["email"], nunca channels', async () => {
+    const { client } = sweepClient([])
+    await deliverTokenAlert(client, group, 'expired', '2026-09-04', { reminder: false, longOpen: false })
+    const arg = mockFanOut.mock.calls[0]![0] as Record<string, unknown>
+    expect(arg.defaultChannels).toEqual(['email'])
+    expect(arg).not.toHaveProperty('channels')
+  })
+
+  it('nunca lança, mesmo com o ntfy explodindo', async () => {
+    mockNtfy.mockRejectedValue(new Error('boom'))
+    const { client } = sweepClient([])
+    await expect(deliverTokenAlert(client, group, 'expired', '2026-09-04', { reminder: false, longOpen: false }))
+      .resolves.toBeTruthy()
+  })
+})
+
+describe('deliverTokenAlert — títulos por kind e precedência longOpen > reminder > primeiro', () => {
+  const g = (subject: 'feed sync' | 'auto-renewal' | 'sync') => ({
+    siteId: 'site-1', identityKey: 'o:1', handle: 'h', slug: 's', subject, rows: [alertRow()],
+  })
+  it.each([
+    ['transient', { reminder: false, longOpen: false }, 'Instagram auto-renewal failing · @h'],
+    ['transient', { reminder: true, longOpen: false }, 'Instagram auto-renewal still retrying · @h'],
+    ['transient', { reminder: false, longOpen: true }, 'Instagram auto-renewal still failing · @h'],
+    ['transient', { reminder: true, longOpen: true }, 'Instagram auto-renewal still failing · @h'],
+    ['expired', { reminder: false, longOpen: false }, 'Instagram token expired · @h'],
+    ['revoked', { reminder: false, longOpen: false }, 'Instagram access revoked · @h'],
+    ['invalid', { reminder: false, longOpen: false }, 'Instagram token invalid · @h'],
+    ['expired', { reminder: true, longOpen: false }, 'Instagram still disconnected · @h'],
+    ['revoked', { reminder: true, longOpen: false }, 'Instagram still disconnected · @h'],
+    ['invalid', { reminder: true, longOpen: false }, 'Instagram still disconnected · @h'],
+  ])('%s %o => %s', async (kind, opts, expected) => {
+    const { client } = sweepClient([])
+    await deliverTokenAlert(client, g('auto-renewal'), kind as never, '2026-09-04', opts as never)
+    expect(mockFanOut.mock.calls[0]![0].title).toBe(expected)
+  })
+
+  it('subject "feed sync" quando o modo é daily', async () => {
+    const { client } = sweepClient([])
+    await deliverTokenAlert(client, g('feed sync'), 'transient', '2026-09-04', { reminder: false, longOpen: false })
+    expect(mockFanOut.mock.calls[0]![0].title).toBe('Instagram feed sync failing · @h')
+  })
+
+  it('subject "sync" em grupo misto', async () => {
+    const { client } = sweepClient([])
+    await deliverTokenAlert(client, g('sync'), 'transient', '2026-09-04', { reminder: false, longOpen: false })
+    expect(mockFanOut.mock.calls[0]![0].title).toBe('Instagram sync failing · @h')
+  })
+})
+
+describe('deliverTokenAlert — desfecho do ntfy e marca-passo', () => {
+  const group = {
+    siteId: 'site-1', identityKey: 'o:1', handle: 'h', slug: 's', subject: 'auto-renewal' as const,
+    rows: [alertRow()],
+  }
+
+  it('aceito => ntfy "sent" e sent_at gravado', async () => {
+    const { client, updates } = sweepClient([])
+    const r = await deliverTokenAlert(client, group, 'expired', '2026-09-04', { reminder: false, longOpen: false })
+    expect(r.ntfy).toBe('sent')
+    expect(updates.some((u) => 'token_alert_attempt_at' in u)).toBe(true)
+    expect(updates.some((u) => 'token_alert_sent_at' in u)).toBe(true)
+  })
+
+  it('429 => failed_transient e sent_at NÃO gravado (attempt_at sim)', async () => {
+    mockNtfy.mockResolvedValue({ alerted: false, ntfyStatus: 429 })
+    const { client, updates } = sweepClient([])
+    const r = await deliverTokenAlert(client, group, 'expired', '2026-09-04', { reminder: false, longOpen: false })
+    expect(r.ntfy).toBe('failed_transient')
+    expect(updates.some((u) => 'token_alert_sent_at' in u)).toBe(false)
+    expect(updates.some((u) => 'token_alert_attempt_at' in u)).toBe(true)
+  })
+
+  it('403 => failed_terminal e e-mail de fallback "Instagram alert channel down"', async () => {
+    mockNtfy.mockResolvedValue({ alerted: false, ntfyStatus: 403 })
+    const { client } = sweepClient([])
+    const r = await deliverTokenAlert(client, group, 'expired', '2026-09-04', { reminder: false, longOpen: false })
+    expect(r.ntfy).toBe('failed_terminal')
+    expect(mockFanOut).toHaveBeenCalledTimes(2)
+    expect(mockFanOut.mock.calls[1]![0]).toMatchObject({
+      type: 'system.cron_failure',
+      title: 'Instagram alert channel down',
+      defaultChannels: ['email'],
+    })
+    expect(String(mockFanOut.mock.calls[1]![0].dedupKey)).toMatch(/^instagram-alert-channel-down:\d{4}-\d{2}-\d{2}$/)
+  })
+
+  it('NTFY_URL ausente => "skipped" (o e-mail sai assim mesmo)', async () => {
+    mockNtfy.mockResolvedValue({ alerted: false, reason: 'NTFY_URL unset' })
+    const { client } = sweepClient([])
+    const r = await deliverTokenAlert(client, group, 'expired', '2026-09-04', { reminder: false, longOpen: false })
+    expect(r.ntfy).toBe('skipped')
+    expect(mockFanOut).toHaveBeenCalledTimes(1)
+  })
+
+  it('ntfy aceito mas fan-out não alcança nenhum admin => sent_at NÃO gravado', async () => {
+    mockFanOut.mockResolvedValue({ total: 0, sent: 0, suppressed: 0, errors: [] })
+    const { client, updates } = sweepClient([])
+    const r = await deliverTokenAlert(client, group, 'expired', '2026-09-04', { reminder: false, longOpen: false })
+    expect(r.ntfy).toBe('sent')
+    expect(r.notifications).toBe(0)
+    expect(updates.some((u) => 'token_alert_sent_at' in u)).toBe(false)
+    expect(updates.some((u) => 'token_alert_attempt_at' in u)).toBe(true)
+  })
+})
+
+describe('sweepTokenAlerts — agrupamento, cadência e teto', () => {
+  it('3 linhas pt/en/all da mesma identidade => 1 push, 1 fan-out, attempt_at nas 3', async () => {
+    const rows = [alertRow({ id: 'pt' }), alertRow({ id: 'en' }), alertRow({ id: 'all' })]
+    const { client, updates } = sweepClient(rows)
+    const out = await sweepTokenAlerts(client)
+    expect(out).toHaveLength(1)
+    expect(mockNtfy).toHaveBeenCalledTimes(1)
+    expect(mockFanOut).toHaveBeenCalledTimes(1)
+    expect(updates.filter((u) => 'token_alert_attempt_at' in u)).toHaveLength(1) // um update .in([3 ids])
+  })
+
+  it('mesma conta em oauth X e legacy X => 2 grupos', async () => {
+    const rows = [
+      alertRow({ id: 'a', ig_user_id_source: 'oauth', ig_user_id: '999' }),
+      alertRow({ id: 'b', ig_user_id_source: 'legacy', ig_user_id: '999' }),
+    ]
+    const { client } = sweepClient(rows)
+    expect(await sweepTokenAlerts(client)).toHaveLength(2)
+  })
+
+  it('attempt_at de 11:00 com sent_at null => cadência 1 h, entrega às 13:00', async () => {
+    const rows = [alertRow({
+      token_alert_attempt_at: new Date(Date.now() - 2 * HOUR).toISOString(),
+      token_alert_sent_at: null,
+    })]
+    const { client } = sweepClient(rows)
+    expect(await sweepTokenAlerts(client)).toHaveLength(1)
+  })
+
+  it('sent_at presente e episódio de 2 dias => cadência 23 h (1×/dia)', async () => {
+    const rows = [alertRow({
+      token_error_at: new Date(Date.now() - 2 * 24 * HOUR).toISOString(),
+      token_alert_sent_at: new Date(Date.now() - 2 * HOUR).toISOString(),
+      token_alert_attempt_at: new Date(Date.now() - 2 * HOUR).toISOString(),
+    })]
+    const { client } = sweepClient(rows)
+    expect(await sweepTokenAlerts(client)).toHaveLength(0)
+  })
+
+  it('episódio de 15 dias => cadência semanal (6 d 23 h): 2 dias depois NÃO entrega', async () => {
+    const rows = [alertRow({
+      token_error_at: new Date(Date.now() - 15 * 24 * HOUR).toISOString(),
+      token_alert_sent_at: new Date(Date.now() - 2 * 24 * HOUR).toISOString(),
+      token_alert_attempt_at: new Date(Date.now() - 2 * 24 * HOUR).toISOString(),
+    })]
+    const { client } = sweepClient(rows)
+    expect(await sweepTokenAlerts(client)).toHaveLength(0)
+  })
+
+  it('teto verificado no FIM do grupo e relativo a sweepStart, nunca a runStart', async () => {
+    vi.useFakeTimers({ now: new Date('2026-09-06T11:00:00Z'), toFake: ['Date'] })
+    // grupo iniciado aos 14 s: 14_000 + 12_000 > 25_000 => NÃO inicia
+    const rows = [alertRow({ id: 'a', ig_user_id: '1' }), alertRow({ id: 'b', ig_user_id: '2' })]
+    mockFanOut.mockImplementation(async () => {
+      vi.advanceTimersByTime(14_000)
+      return { total: 1, sent: 1, suppressed: 0, errors: [] }
+    })
+    const { client } = sweepClient(rows)
+    const out = await sweepTokenAlerts(client)
+    expect(out).toHaveLength(1) // o segundo grupo não inicia
+    vi.useRealTimers()
+  })
+
+  it('filtro por identityKey só processa aquele grupo', async () => {
+    const rows = [
+      alertRow({ id: 'a', ig_user_id: '111' }),
+      alertRow({ id: 'b', ig_user_id: '222' }),
+    ]
+    const { client } = sweepClient(rows)
+    const out = await sweepTokenAlerts(client, { identityKey: 'o:222' })
+    expect(out).toHaveLength(1)
+    expect(out[0]!.identityKey).toBe('o:222')
+  })
+
+  it('longOpen: transitório aberto há 70 h => título "still failing"', async () => {
+    const rows = [alertRow({
+      token_error: null,
+      token_error_at: new Date(Date.now() - 70 * HOUR).toISOString(),
+      token_error_mode: 'token_refresh',
+    })]
+    const { client } = sweepClient(rows)
+    await sweepTokenAlerts(client)
+    expect(mockFanOut.mock.calls[0]![0].title).toContain('still failing')
+  })
+})
+
+describe('dedupKey — aritmética das 6 varreduras (§3.2)', () => {
+  it('ntfy nunca aceito em 6 varreduras (3 dias UTC) => 6 pushes, 4 chaves distintas', async () => {
+    mockNtfy.mockResolvedValue({ alerted: false, ntfyStatus: 429 })
+    vi.useFakeTimers({ now: new Date('2026-09-06T11:00:00Z'), toFake: ['Date'] })
+
+    const state = alertRow({ token_error_at: '2026-09-06T10:00:00Z' })
+    const keys: string[] = []
+    mockFanOut.mockImplementation(async (o) => {
+      keys.push(o.dedupKey)
+      return { total: 1, sent: 1, suppressed: 0, errors: [] }
+    })
+
+    for (const [dayOffset, hour] of [[0, 11], [0, 13], [1, 11], [1, 13], [2, 11], [2, 13]] as const) {
+      vi.setSystemTime(new Date(Date.UTC(2026, 8, 6 + dayOffset, hour, 0, 0)))
+      const { client } = sweepClient([{ ...state }])
+      await sweepTokenAlerts(client)
+      // depois da 1ª entrega o attempt_at existe e o sent_at continua nulo
+      state.token_alert_attempt_at = new Date().toISOString()
+    }
+
+    expect(mockNtfy).toHaveBeenCalledTimes(6)
+    expect(new Set(keys).size).toBe(4)
+    const base = keys[0]!
+    expect(base).not.toMatch(/:d\d{4}-\d{2}-\d{2}$/)
+    expect(keys[1]).toBe(`${base}:d2026-09-06`)
+    expect(keys[2]).toBe(`${base}:d2026-09-07`)
+    expect(keys[4]).toBe(`${base}:d2026-09-08`)
+    vi.useRealTimers()
   })
 })
