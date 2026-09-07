@@ -31,8 +31,21 @@ Host que serve sem 308: `<apex | www>`.
 `INSTAGRAM_APP_ID`, `INSTAGRAM_APP_SECRET`, `SOCIAL_MASTER_KEY` presentes em `production`
 (`vercel env ls production | grep -E 'INSTAGRAM_APP_ID|INSTAGRAM_APP_SECRET|SOCIAL_MASTER_KEY'`).
 
+**Verificado 2026-09-07 (controlador) — REPROVADO, é o único bloqueio da superfície de C3:**
+```
+SOCIAL_MASTER_KEY   Config   Production   (presente)
+NTFY_URL            Secret   Production   (presente)
+INSTAGRAM_APP_ID                          AUSENTE
+INSTAGRAM_APP_SECRET                      AUSENTE
+```
+Degradação confirmada no ar e correta: `GET /api/instagram/oauth/callback` responde **503** com
+`code: "not_configured"`, mensagem legível ("Instagram OAuth isn't configured yet — see the setup
+runbook") e link de volta para `/cms/settings/instagram`. Nenhum vazamento. A cola manual segue
+funcionando. Basta definir as duas envs em `production` (+ redeploy) para o botão passar a existir.
+
 ### Consentimento
 `select count(*) from consent_texts where category='social_feed_read'` = `<esperado: 2>`.
+**Verificado em produção 2026-09-07 (controlador): `2`** (duas linhas, ambas `version = 1.0`). APROVADO.
 
 ### Conta no app
 App Dashboard > Roles > Instagram Testers: a conta profissional do dono aparece como tester
@@ -117,9 +130,10 @@ e o `check.sh` do home-lab são a terceira perna).
 **Intervalo de commits (rollback é um comando só):**
 
 ```
-C3 = <FIRST>..<LAST>
-git revert --no-commit <FIRST>^..<LAST> && git commit -m "revert(instagram): C3 — OAuth de um clique"
+C3 = 4d632382..219d533e   (4d632382 rotas+página, 3382c055 ações+settings, 740f2fde UI+docs, 219d533e fix da rota de exclusão)
+git revert --no-commit 4d632382^..219d533e && git commit -m "revert(instagram): C3 — OAuth de um clique"
 ```
+Merge em `main`: `f7234430`.
 
 Ordem obrigatória de rollback: **C3 → C4 → C2 → C1 → B → A5 → A4 → A**. Reverter C2 **exige** o passo
 de banco descrito em §7 do design doc — "só reverter o deploy" está proibido para C2.
@@ -141,6 +155,16 @@ curl -s -o /dev/null -w '%{http_code}\n' https://bythiagofigueiredo.com/api/inst
 curl -s -o /dev/null -w '%{http_code}\n' https://bythiagofigueiredo.com/api/instagram/data-deletion
 # esperado: 405 405
 ```
+
+**Resultado 2026-09-07 (controlador), contra produção:**
+
+| Checagem | Esperado | Obtido | Veredito |
+|---|---|---|---|
+| (a) `/api/instagram/oauth/callback` | `no-referrer` + `no-store` | `referrer-policy: no-referrer`, `cache-control: no-store` (HTTP 503 `not_configured`, esperado sem as envs) | **APROVADO** |
+| (a) `/data-deletion?code=0…0` | `no-referrer` | HTTP 200, `referrer-policy: no-referrer` | **APROVADO** |
+| (c) `GET /api/instagram/deauthorize` | `405` | `405` | **APROVADO** |
+| (c) `GET /api/instagram/data-deletion` | `405` | `405` | **APROVADO** |
+| (b) 302 do início sem `force_reauth` | — | **NÃO EXECUTADO** — exige cookie de sessão do CMS **e** `INSTAGRAM_APP_ID`/`SECRET` definidas | pendente do dono |
 
 **Gate móvel (bloqueante):** forçar um alerta numa conta de teste, tocar o `Click` do push **no
 aparelho do dono** (iOS Safari **e** Android Chrome) e completar até "Connected!"; conferir no card
