@@ -127,3 +127,72 @@ describe('fanOutToSiteAdmins', () => {
     )
   })
 })
+
+import * as Sentry from '@sentry/nextjs'
+import { NO_SITE_ADMINS_ERROR, fanOutToSiteAdminsDetailed } from '@/lib/notifications/fan-out-to-admins'
+
+vi.mock('@sentry/nextjs', () => ({ captureMessage: vi.fn(), captureException: vi.fn() }))
+
+function detailedOpts() {
+  return {
+    siteId: 'site-1',
+    domain: 'system' as const,
+    type: 'system.token_expired',
+    priority: 5,
+    title: 'Instagram token expired · @thiago.figueiredo',
+    message: 'expired — paste a new token at https://x/cms/settings/instagram',
+    dedupKey: 'system.token_expired:instagram:site-1:o:1784:2026-09-06:expired',
+    actionHref: '/cms/settings/instagram',
+    defaultChannels: ['email'] as const,
+  }
+}
+
+describe('fanOutToSiteAdminsDetailed', () => {
+  it('passa defaultChannels (NUNCA channels) para createNotification', async () => {
+    mockGetAdmins.mockResolvedValue(['user-a'])
+    mockCreate.mockResolvedValue({ success: true, notificationId: 'n-1' })
+
+    await fanOutToSiteAdminsDetailed({ ...detailedOpts(), defaultChannels: ['email'] })
+    const arg = mockCreate.mock.calls[0]![0] as Record<string, unknown>
+    expect(arg.defaultChannels).toEqual(['email'])
+    expect(arg).not.toHaveProperty('channels')
+    expect(arg.action_href).toBe('/cms/settings/instagram')
+  })
+
+  it('invariante: sent + suppressed + errors.length === total', async () => {
+    mockGetAdmins.mockResolvedValue(['a', 'b', 'c'])
+    mockCreate
+      .mockResolvedValueOnce({ success: true, notificationId: 'n-1' })
+      .mockResolvedValueOnce({ success: true, suppressed: true })
+      .mockResolvedValueOnce({ success: false, error: 'boom' })
+
+    const r = await fanOutToSiteAdminsDetailed(detailedOpts())
+    expect(r).toEqual({ total: 3, sent: 1, suppressed: 1, errors: ['boom'] })
+    expect(r.sent + r.suppressed + r.errors.length).toBe(r.total)
+  })
+
+  it('errors.length > 0 => captureMessage("partial fan-out","warning")', async () => {
+    mockGetAdmins.mockResolvedValue(['a'])
+    mockCreate.mockResolvedValue({ success: false, error: 'boom' })
+    await fanOutToSiteAdminsDetailed(detailedOpts())
+    expect(vi.mocked(Sentry.captureMessage)).toHaveBeenCalledWith('partial fan-out', 'warning')
+  })
+
+  it('total === 0 é CONDIÇÃO DE ERRO: captureMessage level error, invariante preservada', async () => {
+    mockGetAdmins.mockResolvedValue([])
+    const r = await fanOutToSiteAdminsDetailed(detailedOpts())
+    expect(r).toEqual({ total: 0, sent: 0, suppressed: 0, errors: [] })
+    expect(vi.mocked(Sentry.captureMessage)).toHaveBeenCalledWith(NO_SITE_ADMINS_ERROR, 'error')
+    expect(mockCreate).not.toHaveBeenCalled()
+  })
+
+  it('fanOutToSiteAdmins (a irmã antiga) continua devolvendo number e sem canais', async () => {
+    mockGetAdmins.mockResolvedValue(['a', 'b'])
+    mockCreate.mockResolvedValue({ success: true, notificationId: 'n-1' })
+    const count = await fanOutToSiteAdmins(baseOpts())
+    expect(count).toBe(2)
+    const arg = mockCreate.mock.calls[0]![0] as Record<string, unknown>
+    expect(arg).not.toHaveProperty('defaultChannels')
+    expect(arg).not.toHaveProperty('channels')
+  })
+})

@@ -3,10 +3,17 @@
 // when neither is set.
 import * as Sentry from '@sentry/nextjs'
 import { scrubBreadcrumbPii, scrubEventPii } from './src/lib/sentry-pii'
+import { registerSecretLiteral } from './src/lib/redact-secrets'
 
 const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN ?? process.env.SENTRY_DSN
 const commitSha = process.env.VERCEL_GIT_COMMIT_SHA
 const release = commitSha ? `s4.75-rbac-${commitSha.slice(0, 7)}` : undefined
+
+// C2 (§4): mesmo registro do sentry.server.config.ts — o edge runtime também
+// pode ecoar segredos estáticos em exceções.
+registerSecretLiteral(process.env.INSTAGRAM_APP_SECRET)
+registerSecretLiteral(process.env.META_APP_SECRET)
+registerSecretLiteral(process.env.SOCIAL_MASTER_KEY)
 
 if (dsn) {
   Sentry.init({
@@ -16,6 +23,7 @@ if (dsn) {
     tracesSampleRate: 0.1,
     sendDefaultPii: false,
     beforeSend: scrubEventPii,
+    beforeSendTransaction: scrubEventPii,
     beforeBreadcrumb: scrubBreadcrumbPii,
   })
 }

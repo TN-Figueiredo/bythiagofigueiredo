@@ -5,22 +5,37 @@ vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn() }))
 vi.mock('@/lib/cms/site-context', () => ({ getSiteContext: vi.fn().mockResolvedValue({ siteId: 'site-1' }) }))
 vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({
   createServerClient: vi.fn().mockReturnValue({ auth: { getUser: () => Promise.resolve({ data: { user: { id: 'user-1', email: 'test@test.com' } } }) } }),
-  requireSiteScope: vi.fn().mockResolvedValue({ ok: true }),
+  requireSiteScope: vi.fn().mockResolvedValue({ ok: true, user: { id: 'u1' } }),
 }))
 vi.mock('next/cache', () => ({ updateTag: vi.fn(), revalidatePath: vi.fn(), revalidateTag: vi.fn() }))
 vi.mock('@/lib/instagram/api-client', () => ({ fetchInstagramProfile: vi.fn().mockResolvedValue({ id: 'ig-1' }) }))
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
+// `vi.hoisted` pela mesma razão documentada abaixo para `syncMock`: a fábrica
+// do `vi.mock` içado referenciaria `mockMarkInvalid` ainda em TDZ sem isto.
+const mockMarkInvalid = vi.hoisted(() => vi.fn())
+vi.mock('@/lib/instagram/token', async (orig) => ({
+  ...(await orig<typeof import('@/lib/instagram/token')>()),
+  markTokenInvalid: (...a: unknown[]) => mockMarkInvalid(...a),
+}))
 
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { revalidatePath } from 'next/cache'
+import { encrypt } from '@tn-figueiredo/social/vault'
 const mockGetClient = vi.mocked(getSupabaseServiceClient)
 const mockRevalidatePath = vi.mocked(revalidatePath)
 
 const ACCOUNT_ID = '00000000-0000-0000-0000-000000000001'
 const POST_ID = '00000000-0000-0000-0000-000000000010'
+// C2: setInstagramToken/triggerInstagramSync agora exigem SOCIAL_MASTER_KEY
+// (vault gate) antes de tocar a conta. Chave fixa e reaproveitada por todo o
+// arquivo — não há segredo real em teste.
+const KEY_HEX = '0'.repeat(64)
 
 describe('Instagram server actions', () => {
-  beforeEach(() => { vi.clearAllMocks() })
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.stubEnv('SOCIAL_MASTER_KEY', KEY_HEX)
+  })
 
   it('addInstagramAccount inserts row with handle and locale', async () => {
     const insertFn = vi.fn().mockReturnValue({
@@ -194,7 +209,9 @@ vi.mock('@/lib/instagram/sync-log', () => ({
 function accountRow(siteId = 'site-1') {
   return {
     id: ACCOUNT_ID, site_id: siteId, locale: 'pt', handle: 'thiago.figueiredo',
-    ig_user_id: 'ig-1', access_token: 'tok-abc', token_expires_at: null,
+    // C2: a coluna agora guarda `v1:<ciphertext>` — readAccessToken decifra
+    // de volta para 'tok-abc' com a KEY_HEX estável do arquivo inteiro.
+    ig_user_id: 'ig-1', access_token: `v1:${encrypt('tok-abc', Buffer.from(KEY_HEX, 'hex'))}`, token_expires_at: null,
     sync_enabled: true, display_slots: 6, layout_type: 'grid',
     section_title_pt: null, section_title_en: null,
     section_subtitle_pt: null, section_subtitle_en: null,
@@ -219,6 +236,7 @@ describe('triggerInstagramSync (A2 — in-process)', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.stubEnv('SOCIAL_MASTER_KEY', KEY_HEX)
     vi.stubGlobal('fetch', fetchSpy)
     openSyncRowMock.mockResolvedValue('log-1')
     closeSyncRowMock.mockResolvedValue(undefined)
@@ -255,7 +273,9 @@ describe('triggerInstagramSync (A2 — in-process)', () => {
     ]
     expect(account.id).toBe(ACCOUNT_ID)
     expect(account.ig_user_id).toBe('ig-1')
-    expect(token).toBeUndefined()
+    // Task 14: syncInstagramAccount now receives the token DECRYPTED by
+    // readAccessToken — accountRow() stores it as `v1:<ciphertext>`.
+    expect(token).toBe('tok-abc')
     expect(opts.deadlineAt).toBeGreaterThanOrEqual(before + 90_000)
     expect(opts.deadlineAt).toBeLessThanOrEqual(Date.now() + 90_000)
   })
@@ -412,5 +432,171 @@ describe('settings segment config', () => {
       'utf8',
     )
     expect(src).toMatch(/^export const maxDuration = 120$/m)
+  })
+})
+
+// ── C2 ───────────────────────────────────────────────────────────────────────
+// Deviation from the plan's literal Step 1 snippet (documented in the block
+// report): '@/lib/instagram/sync', '@/lib/instagram/sync-log' and
+// '@/lib/instagram/api-client' are already `vi.mock`'d once above (syncMock,
+// openSyncRowMock/closeSyncRowMock, and a fetchInstagramProfile stub) — a
+// second `vi.mock(...)` call for the same specifier in one file is undefined
+// behaviour (whichever registration Vitest applies last wins silently), so
+// the tests below reuse those existing hoisted mocks instead of redeclaring
+// them. Only '@/lib/instagram/token' is genuinely new (see above, near the
+// top-of-file mocks).
+
+function accountRowClient(row: Record<string, unknown> | null) {
+  const updates: Array<Record<string, unknown>> = []
+  const single = vi.fn(() => Promise.resolve({ data: row, error: row ? null : { message: 'no rows' } }))
+  const chain: Record<string, unknown> = {
+    select: () => chain, eq: () => chain, single,
+    update: (patch: Record<string, unknown>) => { updates.push(patch); return chain },
+    // Deviation from the plan's literal helper (documented in the block
+    // report): the plan's `accountRowClient` omitted `delete`, but
+    // `removeInstagramAccount` (exercised below) calls
+    // `.from(...).delete().eq().eq()` — without this the test throws
+    // "chain.delete is not a function" before ever reaching the assertion.
+    delete: () => chain,
+  }
+  return { client: { from: vi.fn(() => chain), rpc: vi.fn(() => Promise.resolve({ data: null, error: null })) }, updates }
+}
+
+describe('requireEditAccess devolve { siteId, userId }', () => {
+  it('as actions continuam funcionando com a desestruturação', async () => {
+    const { client } = accountRowClient({ id: 'acc-1', site_id: 'site-1' })
+    mockGetClient.mockReturnValue(client as never)
+    const { removeInstagramAccount } = await import('@/app/cms/(authed)/settings/actions')
+    const r = await removeInstagramAccount({ accountId: '00000000-0000-0000-0000-000000000001' })
+    expect(r.ok).toBe(true)
+  })
+})
+
+describe('setInstagramToken (C2)', () => {
+  beforeEach(() => { vi.stubEnv('SOCIAL_MASTER_KEY', KEY_HEX) })
+
+  it('cifra com v1:, marca legacy, zera expiry/refreshed e o episódio', async () => {
+    const { client, updates } = accountRowClient({ id: 'acc-1', site_id: 'site-1' })
+    mockGetClient.mockReturnValue(client as never)
+    const { setInstagramToken } = await import('@/app/cms/(authed)/settings/actions')
+    const r = await setInstagramToken({
+      accountId: '00000000-0000-0000-0000-000000000001', accessToken: 'IGplain',
+    })
+    expect(r.ok).toBe(true)
+    const patch = updates[0]!
+    expect(String(patch.access_token).startsWith('v1:')).toBe(true)
+    expect(patch.ig_user_id_source).toBe('legacy')
+    expect(patch.token_expires_at).toBeNull()
+    expect(patch.token_refreshed_at).toBeNull()
+    expect(patch).toMatchObject({
+      token_error: null, token_error_at: null, token_error_mode: null,
+      token_alert_sent_at: null, token_alert_attempt_at: null, token_reprobe_at: null,
+    })
+  })
+
+  it('sem chave => erro, sem escrita', async () => {
+    vi.stubEnv('SOCIAL_MASTER_KEY', '')
+    const { client, updates } = accountRowClient({ id: 'acc-1', site_id: 'site-1' })
+    mockGetClient.mockReturnValue(client as never)
+    const { setInstagramToken } = await import('@/app/cms/(authed)/settings/actions')
+    const r = await setInstagramToken({
+      accountId: '00000000-0000-0000-0000-000000000001', accessToken: 'IGplain',
+    })
+    expect(r.ok).toBe(false)
+    expect(updates).toHaveLength(0)
+  })
+})
+
+describe('triggerInstagramSync (C2)', () => {
+  beforeEach(() => {
+    vi.stubEnv('SOCIAL_MASTER_KEY', KEY_HEX)
+    // Reset the shared hoisted mocks to a known-good default — see the
+    // deviation note above for why these aren't a fresh `vi.mock(...)`.
+    syncMock.mockReset().mockResolvedValue({
+      postsFound: 1, postsInserted: 1, postsUpdated: 0, mediaCached: 1, partial: false, mediaFailed: 0,
+    })
+    openSyncRowMock.mockReset().mockResolvedValue('log-1')
+    closeSyncRowMock.mockReset().mockResolvedValue(undefined)
+    mockMarkInvalid.mockReset()
+  })
+
+  it('vault ausente => vault_unavailable, sem tocar a conta', async () => {
+    vi.stubEnv('SOCIAL_MASTER_KEY', '')
+    const { client, updates } = accountRowClient({ id: 'acc-1', site_id: 'site-1', access_token: 'v1:x' })
+    mockGetClient.mockReturnValue(client as never)
+    const { triggerInstagramSync } = await import('@/app/cms/(authed)/settings/actions')
+    const r = await triggerInstagramSync({ accountId: '00000000-0000-0000-0000-000000000001' })
+    expect(r).toEqual({ ok: false, error: "Token storage isn't configured — see the Instagram setup runbook" })
+    expect(updates).toHaveLength(0)
+    expect(mockMarkInvalid).not.toHaveBeenCalled()
+  })
+
+  it('access_token nulo => "not connected", sem tocar a conta', async () => {
+    const { client, updates } = accountRowClient({ id: 'acc-1', site_id: 'site-1', access_token: null })
+    mockGetClient.mockReturnValue(client as never)
+    const { triggerInstagramSync } = await import('@/app/cms/(authed)/settings/actions')
+    const r = await triggerInstagramSync({ accountId: '00000000-0000-0000-0000-000000000001' })
+    expect(r.ok).toBe(false)
+    expect(String((r as { error: string }).error))
+      .toBe("This account isn't connected — use Connect with Instagram")
+    expect(updates).toHaveLength(0)
+  })
+
+  it('v1: corrompido => markTokenInvalid decrypt_failed + mensagem própria', async () => {
+    const { client } = accountRowClient({ id: 'acc-1', site_id: 'site-1', access_token: 'v1:AAAA' })
+    mockGetClient.mockReturnValue(client as never)
+    const { triggerInstagramSync } = await import('@/app/cms/(authed)/settings/actions')
+    const r = await triggerInstagramSync({ accountId: '00000000-0000-0000-0000-000000000001' })
+    expect(mockMarkInvalid).toHaveBeenCalledWith(
+      expect.anything(), expect.anything(), 'decrypt_failed', { fatal: true },
+    )
+    expect(String((r as { error: string }).error)).toBe("Stored token can't be read — reconnect")
+  })
+
+  it('token válido => syncInstagramAccount recebe o token DECIFRADO no 3º argumento', async () => {
+    const stored = `v1:${encrypt('IGplain', Buffer.from(KEY_HEX, 'hex'))}`
+    const { client } = accountRowClient({
+      id: 'acc-1', site_id: 'site-1', ig_user_id: '178', access_token: stored,
+    })
+    mockGetClient.mockReturnValue(client as never)
+    const { syncInstagramAccount } = await import('@/lib/instagram/sync')
+    const { triggerInstagramSync } = await import('@/app/cms/(authed)/settings/actions')
+    const r = await triggerInstagramSync({ accountId: '00000000-0000-0000-0000-000000000001' })
+    expect(r.ok).toBe(true)
+    expect(vi.mocked(syncInstagramAccount).mock.calls[0]![2]).toBe('IGplain')
+  })
+})
+
+describe('normalizeHandle antes do Zod (ordem invertida)', () => {
+  it.each([
+    ['@Foo.Bar', 'foo.bar'],
+    ['https://www.instagram.com/Foo.Bar/', 'foo.bar'],
+    ['Foo.Bar', 'foo.bar'],
+  ])('%s => %s', async (input, expected) => {
+    const insertFn = vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'a' }, error: null }) }),
+    })
+    mockGetClient.mockReturnValue({ from: vi.fn().mockReturnValue({ insert: insertFn }) } as never)
+    const { addInstagramAccount } = await import('@/app/cms/(authed)/settings/actions')
+    const r = await addInstagramAccount({ handle: input, locale: 'pt' })
+    expect(r.ok).toBe(true)
+    expect((insertFn.mock.calls[0]![0] as { handle: string }).handle).toBe(expected)
+  })
+
+  it('URL LONGA (antes rejeitada pelo max(50)) passa a ser aceita', async () => {
+    const insertFn = vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'a' }, error: null }) }),
+    })
+    mockGetClient.mockReturnValue({ from: vi.fn().mockReturnValue({ insert: insertFn }) } as never)
+    const { addInstagramAccount } = await import('@/app/cms/(authed)/settings/actions')
+    const long = 'https://www.instagram.com/thiago.figueiredo/?hl=pt-br&utm_source=ig_web_button_share_sheet'
+    const r = await addInstagramAccount({ handle: long, locale: 'pt' })
+    expect(r.ok).toBe(true)
+    expect((insertFn.mock.calls[0]![0] as { handle: string }).handle).toBe('thiago.figueiredo')
+  })
+
+  it('handle fora de ^[a-z0-9._]{1,30}$ após normalizar => erro', async () => {
+    const { addInstagramAccount } = await import('@/app/cms/(authed)/settings/actions')
+    expect((await addInstagramAccount({ handle: 'foo bar!', locale: 'pt' })).ok).toBe(false)
   })
 })

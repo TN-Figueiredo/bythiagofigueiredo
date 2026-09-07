@@ -1,5 +1,9 @@
+import type { SupabaseClient } from '@supabase/supabase-js'
+import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { withCronLock, newRunId } from '@/lib/logger'
+import { sendNtfyAlert, isTerminalRefusal, type INtfyResult } from '@/lib/ops/ntfy'
+import { claimAlert } from '@/lib/ops/alert-state'
 
 // Vercel Cron: { "path": "/api/cron/uptime-probe", "schedule": "*/5 * * * *" }
 //
@@ -30,30 +34,60 @@ function classify(httpCode: number, elapsedMs: number): ProbeStatus {
 }
 
 async function sendAlert(
+  supabase: SupabaseClient,
   status: ProbeStatus,
   httpCode: number,
   elapsedMs: number,
   target: string,
-): Promise<{ alerted: boolean; reason?: string; alertError?: string }> {
-  const ntfyUrl = process.env.NTFY_URL
-  if (!ntfyUrl) {
-    return { alerted: false, reason: 'NTFY_URL unset' }
-  }
-  const elapsedS = (elapsedMs / 1000).toFixed(1)
+): Promise<INtfyResult> {
+  // Dedupe POR STATUS (MUST): com chave única, um `degraded` em t=0 carimbava
+  // e calava um `down` genuíno em t=5 e t=10. Intervalos abaixo da grade
+  // porque a comparação do claim é estrita. 288/dia => ≤ 96/dia em down,
+  // ≤ 24/dia em degraded.
+  let shouldSend = true
   try {
-    await fetch(ntfyUrl, {
-      method: 'POST',
-      headers: {
-        Title: `bythiagofigueiredo ${status}`,
-        Priority: status === 'down' ? 'urgent' : 'high',
-        Tags: status === 'down' ? 'rotating_light' : 'warning',
-      },
-      body: `${status} · ${httpCode} · ${elapsedS}s · ${target}`,
-    })
-    return { alerted: true }
-  } catch (err) {
-    return { alerted: false, alertError: err instanceof Error ? err.message : String(err) }
+    shouldSend = await claimAlert(
+      supabase,
+      status === 'down' ? 'uptime:down' : 'uptime:degraded',
+      status === 'down' ? '14 minutes' : '59 minutes',
+    )
+  } catch {
+    // FAIL-OPEN: o dedupe existe para reduzir ruído, nunca para calar o sinal
+    // mais rápido do projeto quando o banco está ruim.
+    Sentry.captureMessage('uptime dedupe claim failed — alerting anyway', 'warning')
+    shouldSend = true
   }
+  if (!shouldSend) return { alerted: false, reason: 'deduped' }
+
+  const elapsedS = (elapsedMs / 1000).toFixed(1)
+  const result = await sendNtfyAlert({
+    title: `bythiagofigueiredo ${status}`,
+    body: `${status} · ${httpCode} · ${elapsedS}s · ${target}`,
+    priority: status === 'down' ? 'urgent' : 'high',
+    tags: [status === 'down' ? 'rotating_light' : 'warning'],
+  })
+
+  // Achado 3 (fix round C2): `isTerminalRefusal` tinha ZERO chamadores — uma
+  // recusa terminal do ntfy (tópico com credencial inválida/inexistente) ou
+  // um NTFY_URL nunca configurado não produzia nenhum evento de rastreamento
+  // de erro; o resultado ficava só no corpo da resposta do endpoint de cron,
+  // que ninguém lê, e `withCronLock` grava sucesso mesmo assim (o probe RODOU
+  // e MEDIU — corretamente, não é um failure do cron em si). Isto É o
+  // caminho de alerta silencioso que este projeto inteiro existe para
+  // eliminar: um outage real (`status !== 'ok'`, e é só aqui que `sendAlert`
+  // é chamado) cujo AVISO também falhou, sem rastro visível em lugar nenhum.
+  if (result.reason === 'NTFY_URL unset') {
+    Sentry.captureException(new Error('uptime alert channel unavailable: NTFY_URL unset'), {
+      tags: { component: 'cron', job: JOB },
+    })
+  } else if (isTerminalRefusal(result)) {
+    Sentry.captureException(
+      new Error(`uptime alert channel refused the push (ntfyStatus=${result.ntfyStatus ?? 'unknown'})`),
+      { tags: { component: 'cron', job: JOB } },
+    )
+  }
+
+  return result
 }
 
 export async function POST(req: Request): Promise<Response> {
@@ -79,7 +113,10 @@ export async function POST(req: Request): Promise<Response> {
     const elapsedMs = Math.round(performance.now() - start)
     const status: ProbeStatus = httpCode === 0 ? 'down' : classify(httpCode, elapsedMs)
 
-    const alertResult = status !== 'ok' ? await sendAlert(status, httpCode, elapsedMs, target) : { alerted: false as const }
+    const alertResult: INtfyResult =
+      status !== 'ok'
+        ? await sendAlert(supabase, status, httpCode, elapsedMs, target)
+        : { alerted: false }
 
     // status is 'ok'/'degraded'/'down', never the literal 'error' — this
     // cron itself always succeeded (it ran and measured); a bad target is

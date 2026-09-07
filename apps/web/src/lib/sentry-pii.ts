@@ -24,6 +24,8 @@
 // Extracted from the `sentry.*.config.ts` trio so it can be unit-tested
 // without wiring the full Sentry SDK into a mock.
 
+import { redactSecrets } from './redact-secrets'
+
 export const EMAIL_RE = /[\w.+-]+@[\w-]+\.[\w.-]+/g
 // Mirrors the regex in apps/web/src/lib/lgpd/redact-third-party-pii.ts so
 // both scrubbers stay in lock-step if one is tightened.
@@ -46,8 +48,10 @@ export function scrubEmail(value: string): string {
 
 /** Run all PII regexes over a string, in redaction order that avoids collisions. */
 export function scrubPiiString(value: string): string {
+  // C2 (§4): redactSecrets PRIMEIRO — um token com dígitos pode casar
+  // PHONE_RE/CPF_RE e sair meio-redigido se a ordem for invertida.
   // CPF first (tighter pattern) so phone RE doesn't eat the digits.
-  return value
+  return redactSecrets(value)
     .replace(CPF_RE, '[REDACTED_CPF]')
     .replace(PHONE_RE, '[REDACTED_PHONE]')
     .replace(EMAIL_RE, '<email>')
@@ -64,6 +68,14 @@ interface ScrubbableBreadcrumb {
 interface ScrubbableRequest {
   headers?: Record<string, unknown>
   data?: unknown
+  // C2: o token de 60 d viaja em query string (api-client.ts) e chega aqui
+  // pelo evento de request e pelo breadcrumb undici.
+  url?: string
+  query_string?: unknown
+}
+interface ScrubbableSpan {
+  description?: string
+  data?: Record<string, unknown>
 }
 interface ScrubbableEvent {
   message?: string
@@ -72,6 +84,11 @@ interface ScrubbableEvent {
   }
   breadcrumbs?: Array<ScrubbableBreadcrumb>
   request?: ScrubbableRequest
+  // C2: forma de *transaction*. Num evento de transaction a chamada HTTP é um
+  // span `http.client` cuja description e cujo data carregam a URL inteira —
+  // sem isto, `beforeSendTransaction` só troca o caminho pelo qual os 10 % de
+  // tracesSampleRate sobem o token.
+  spans?: Array<ScrubbableSpan>
 }
 
 function scrubRecordStrings(obj: Record<string, unknown> | undefined): void {
@@ -107,6 +124,18 @@ export function scrubEventPii<T extends ScrubbableEvent>(event: T): T {
     scrubRecordStrings(event.request.headers)
     if (typeof event.request.data === 'string') {
       event.request.data = scrubPiiString(event.request.data)
+    }
+    if (typeof event.request.url === 'string') {
+      event.request.url = scrubPiiString(event.request.url)
+    }
+    if (typeof event.request.query_string === 'string') {
+      event.request.query_string = scrubPiiString(event.request.query_string)
+    }
+  }
+  if (event.spans) {
+    for (const span of event.spans) {
+      if (span.description) span.description = scrubPiiString(span.description)
+      scrubRecordStrings(span.data)
     }
   }
   return event

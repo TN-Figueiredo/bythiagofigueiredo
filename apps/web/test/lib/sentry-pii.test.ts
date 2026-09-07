@@ -1,3 +1,13 @@
+// @vitest-environment node
+//
+// C2 deviation: added the `node` pragma (absent from the plan's own test
+// snippet) because the new "redact-secrets é livre de process.env" case does
+// `readFileSync(new URL(..., import.meta.url))` — under the default happy-dom
+// environment, `URL` is happy-dom's polyfill, not Node's WHATWG URL, and
+// `fs.readFileSync` rejects it with "The URL must be of scheme file". This
+// file is server-only (imported by sentry.server/edge.config.ts) so `node` is
+// also the correct environment for it going forward, not just a workaround.
+//
 // Sprint 4 H1 — unit tests for the Sentry PII scrubber. These exercise the
 // pure helper in isolation; the SDK integration in `sentry.*.config.ts`
 // inherits the same behavior via direct import.
@@ -184,5 +194,118 @@ describe('scrubPiiString / individual regexes', () => {
   it('scrubs IPv4 in event messages', () => {
     const out = scrubEventPii({ message: 'rate limited ip=10.0.0.42' })
     expect(out.message).toBe('rate limited ip=[REDACTED_IP]')
+  })
+})
+
+// ── C2: redação de segredos (spec §4) ────────────────────────────────────────
+// 64 chars hex, SEM o prefixo `IG…` — a redação primária é por NOME de
+// parâmetro, nunca pela forma do valor.
+const RAW = 'a'.repeat(64)
+
+describe('redação de segredos em query string (por nome de parâmetro)', () => {
+  it('redige access_token sem prefixo IG', () => {
+    expect(scrubPiiString(`GET https://graph.instagram.com/v25.0/me?fields=id&access_token=${RAW}`))
+      .toContain('access_token=[REDACTED]')
+    expect(scrubPiiString(`?access_token=${RAW}`)).not.toContain(RAW)
+  })
+
+  it('redige signed_request, code, client_secret, state e rebind', () => {
+    for (const name of ['signed_request', 'code', 'client_secret', 'state', 'rebind']) {
+      const s = scrubPiiString(`https://x/y?a=1&${name}=${RAW}&z=2`)
+      expect(s, name).toContain(`${name}=[REDACTED]`)
+      expect(s, name).not.toContain(RAW)
+      expect(s, name).toContain('z=2')
+    }
+  })
+
+  it('redige a forma NUA (sem ? nem & antes) numa mensagem de exceção', () => {
+    expect(scrubPiiString(`refresh failed access_token=${RAW} after 3 tries`))
+      .not.toContain(RAW)
+  })
+
+  it('redige a forma de ATRIBUIÇÃO/JSON de um corpo de troca ecoado', () => {
+    expect(scrubPiiString(`{"access_token":"${RAW}","token_type":"bearer"}`))
+      .not.toContain(RAW)
+    expect(scrubPiiString(`client_secret: ${RAW}`)).not.toContain(RAW)
+  })
+})
+
+describe('scrubEventPii — request.url e query_string', () => {
+  it('redige request.url e request.query_string', () => {
+    const event = {
+      request: {
+        url: `https://bythiagofigueiredo.com/api/instagram/oauth?account_id=1&rebind=${RAW}`,
+        query_string: `code=${RAW}`,
+      },
+    }
+    scrubEventPii(event)
+    expect(event.request.url).not.toContain(RAW)
+    expect(event.request.query_string).not.toContain(RAW)
+  })
+
+  it('redige o breadcrumb undici (data.url)', () => {
+    const event = {
+      breadcrumbs: [
+        { message: 'http', data: { url: `https://graph.instagram.com/v25.0/me?access_token=${RAW}` } },
+      ],
+    }
+    scrubEventPii(event)
+    expect(String(event.breadcrumbs[0]!.data!.url)).not.toContain(RAW)
+  })
+})
+
+describe('scrubEventPii — spans de transaction (beforeSendTransaction)', () => {
+  it('redige span.description e as strings de span.data', () => {
+    const url = `GET https://graph.instagram.com/v25.0/me?fields=id&access_token=${RAW}`
+    const event = {
+      spans: [{ description: url, data: { url, 'http.url': url, status: 'ok' } }],
+    }
+    scrubEventPii(event)
+    expect(event.spans[0]!.description).not.toContain(RAW)
+    expect(String(event.spans[0]!.data!.url)).not.toContain(RAW)
+    expect(String(event.spans[0]!.data!['http.url'])).not.toContain(RAW)
+    expect(event.spans[0]!.data!.status).toBe('ok')
+  })
+})
+
+describe('registerSecretLiteral', () => {
+  it('redige um literal registrado (SOCIAL_MASTER_KEY) em qualquer posição', async () => {
+    const { registerSecretLiteral } = await import('@/lib/redact-secrets')
+    const key = 'f'.repeat(64)
+    registerSecretLiteral(key)
+    expect(scrubPiiString(`createDecipheriv failed with key ${key}`)).not.toContain(key)
+  })
+
+  it('é no-op para valores curtos (< 16 chars) e para undefined', async () => {
+    const { registerSecretLiteral } = await import('@/lib/redact-secrets')
+    registerSecretLiteral('short')
+    registerSecretLiteral(undefined)
+    expect(scrubPiiString('short and sweet')).toBe('short and sweet')
+  })
+})
+
+describe('redact-secrets é livre de process.env', () => {
+  it('o fonte não lê process.env (os literais entram por registerSecretLiteral)', async () => {
+    const { readFileSync } = await import('node:fs')
+    const src = readFileSync(
+      new URL('../../src/lib/redact-secrets.ts', import.meta.url),
+      'utf8',
+    )
+    // Deviation from the plan's literal snippet: strip block comments before
+    // asserting. The file's own doc comment documents (in prose) that it does
+    // NOT read `process.env` — a plain substring check on the raw source
+    // would fail on that very sentence even though no CODE in the file
+    // references process.env. Stripping /* ... */ keeps the check meaningful
+    // (no runtime access) without demanding the doc comment avoid the phrase.
+    const withoutBlockComments = src.replace(/\/\*[\s\S]*?\*\//g, '')
+    expect(withoutBlockComments).not.toContain('process.env')
+  })
+})
+
+describe('rede secundária: prefixo real do token (gate §7)', () => {
+  // Substitua 'IGAAX' pelo prefixo colhido no Step 5 da Tarefa 1.
+  it('redige um token com o prefixo real fora de query string', () => {
+    const prefixed = `IGAAX${'b'.repeat(59)}`
+    expect(scrubPiiString(`stored token ${prefixed} rejected`)).not.toContain(prefixed)
   })
 })
