@@ -21,3 +21,42 @@ describe('env example documents Sprint 1b vars', () => {
     expect(deps['@supabase/supabase-js']).toBe('2.103.2');
   });
 });
+
+describe('env examples documentam as 5 chaves do Instagram OAuth (C2)', () => {
+  const files = [
+    resolve(__dirname, '../../.env.example'),
+    resolve(__dirname, '../../.env.local.example'),
+  ];
+
+  const KEYS = [
+    'INSTAGRAM_APP_ID',
+    'INSTAGRAM_APP_SECRET',
+    'INSTAGRAM_ALLOW_META_SECRET_FALLBACK',
+    'NTFY_URL',
+    'SOCIAL_MASTER_KEY',
+  ];
+
+  it('os dois arquivos existem', () => {
+    for (const f of files) expect(existsSync(f), f).toBe(true);
+  });
+
+  it('as 5 chaves aparecem nos DOIS arquivos', () => {
+    for (const f of files) {
+      const s = readFileSync(f, 'utf8');
+      for (const key of KEYS) {
+        expect(new RegExp(`^${key}=`, 'm').test(s), `${key} em ${f}`).toBe(true);
+      }
+    }
+  });
+
+  it('nenhum arquivo de exemplo traz VALOR para as chaves secretas', () => {
+    for (const f of files) {
+      const s = readFileSync(f, 'utf8');
+      for (const key of ['INSTAGRAM_APP_SECRET', 'SOCIAL_MASTER_KEY']) {
+        const line = s.split('\n').find((l) => l.startsWith(`${key}=`)) ?? '';
+        const value = line.slice(key.length + 1).split('#')[0]!.trim();
+        expect(value, `${key} em ${f}`).toBe('');
+      }
+    }
+  });
+});

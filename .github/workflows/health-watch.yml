@@ -1,0 +1,190 @@
+# .github/workflows/health-watch.yml
+#
+# Terceira perna do canal de garantia (spec §2, objetivo 6): um agendador fora
+# da Vercel E fora do home-lab, para a classe "o cron parou de rodar" — morte
+# por maxDuration, CRON_SECRET rotacionado, crons desabilitados pela Vercel.
+#
+# MUST: arquivo NOVO. Um job a mais em uptime.yml quebraria a supressão de lá,
+# que lê a conclusão da RUN (uptime.yml:111-113) e não a do job.
+name: Health Watch
+
+on:
+  schedule:
+    # */15 e não */5: o alvo é "o cron parou", cuja menor grace é 15 min
+    # (computeGraceMinutes, piso MIN_GRACE_MINUTES = 15). Sondar a cada 5 min
+    # não antecipa nada e triplica o ruído.
+    - cron: '*/15 * * * *'
+  workflow_dispatch: {}
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: health-watch
+  cancel-in-progress: false
+
+env:
+  HEALTH_URL: https://bythiagofigueiredo.com/api/health
+  REALERT_AFTER_SECONDS: 21600 # 6 h => teto de 4 pushes/dia enquanto "not ok"
+
+jobs:
+  watch:
+    name: Probe /api/health and alert on transitions
+    runs-on: ubuntu-latest
+    steps:
+      - name: Restore previous state
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: .health-watch-state
+          key: health-watch-state-${{ github.run_id }}
+          restore-keys: health-watch-state-
+
+      - name: Probe /api/health
+        id: probe
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -uo pipefail
+          # O corpo NUNCA é ecoado: repositório público, logs de Actions
+          # mundialmente legíveis, e o payload de saúde carrega mensagens de
+          # erro em texto livre como 'alert channel down: terminal refusal
+          # (HTTP <n>)' — nada disso deve ir para stdout/summary.
+          http_code="$(curl --silent --show-error --max-time 20 \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            -o "$RUNNER_TEMP/health.json" \
+            -w '%{http_code}' "$HEALTH_URL" || echo '000')"
+
+          status="$(jq -r '.status // "unknown"' "$RUNNER_TEMP/health.json" 2>/dev/null || echo 'unknown')"
+          late="$(jq -r '[.crons[]? | select(.status=="late") | .name] | join(", ")' "$RUNNER_TEMP/health.json" 2>/dev/null || echo '')"
+          unknown="$(jq -r '(.unknownNames // []) | join(", ")' "$RUNNER_TEMP/health.json" 2>/dev/null || echo '')"
+
+          # not ok = http != 200 (inclui 000 de timeout/DNS/TLS e 401 de
+          # CRON_SECRET rotacionado) OU status != ok. /api/health responde 503
+          # só em `down`, 200 no resto.
+          if [ "$http_code" != "200" ] || [ "$status" != "ok" ]; then
+            state="not-ok"
+          else
+            state="ok"
+          fi
+
+          {
+            echo "http_code=$http_code"
+            echo "status=$status"
+            echo "late=$late"
+            echo "unknown=$unknown"
+            echo "state=$state"
+          } | tee -a "$GITHUB_OUTPUT"
+
+          {
+            echo "### health-watch"
+            echo "- HTTP: \`$http_code\`"
+            echo "- status: \`$status\`"
+            echo "- crons late: \`${late:-none}\`"
+            echo "- unknown: \`${unknown:-none}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Resolve previous state
+        id: prev
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -uo pipefail
+          if [ -f .health-watch-state ]; then
+            prev_state="$(head -n1 .health-watch-state)"
+            prev_alert="$(sed -n '2p' .health-watch-state)"
+          else
+            # Cache miss: deriva SÓ das runs DESTE workflow, nunca das de uptime.yml.
+            conclusion="$(gh api \
+              "repos/${{ github.repository }}/actions/workflows/health-watch.yml/runs?status=completed&per_page=1" \
+              --jq '.workflow_runs[0].conclusion' 2>/dev/null || echo '')"
+            if [ "$conclusion" = "failure" ]; then prev_state="not-ok"; else prev_state="ok"; fi
+            prev_alert=""
+          fi
+          echo "prev_state=$prev_state" | tee -a "$GITHUB_OUTPUT"
+          echo "prev_alert=$prev_alert" | tee -a "$GITHUB_OUTPUT"
+
+      - name: Decide and alert
+        id: alert
+        env:
+          NTFY_URL: ${{ secrets.NTFY_URL }}
+          STATE: ${{ steps.probe.outputs.state }}
+          PREV_STATE: ${{ steps.prev.outputs.prev_state }}
+          PREV_ALERT: ${{ steps.prev.outputs.prev_alert }}
+          STATUS: ${{ steps.probe.outputs.status }}
+          HTTP_CODE: ${{ steps.probe.outputs.http_code }}
+          LATE: ${{ steps.probe.outputs.late }}
+          UNKNOWN: ${{ steps.probe.outputs.unknown }}
+        run: |
+          set -uo pipefail
+          now="$(date -u +%s)"
+          alerted_at="$PREV_ALERT"
+
+          if [ -z "${NTFY_URL:-}" ]; then
+            echo "::warning::secrets.NTFY_URL não configurado — health-watch está medindo mas não consegue alertar."
+            printf '%s\n%s\n' "$STATE" "$alerted_at" > .health-watch-state
+            exit 0
+          fi
+
+          send() {
+            # $1=priority $2=title $3=body. Entrega VERIFICADA: qualquer não-2xx
+            # falha o passo. `curl -sS` sai 0 num 403/429, e runners do GitHub
+            # compartilham IP de saída — exatamente a população que o ntfy.sh
+            # limita por IP.
+            curl -fsS -o /dev/null -w '%{http_code}' \
+              --max-time 15 \
+              -H "Title: $2" \
+              -H "Priority: $1" \
+              -H "Tags: warning" \
+              -d "$3" \
+              "$NTFY_URL"
+          }
+
+          body="Crons late: ${LATE:-none} · unknown: ${UNKNOWN:-none}"
+
+          should_alert="no"
+          if [ "$STATE" = "not-ok" ] && [ "$PREV_STATE" = "ok" ]; then
+            should_alert="transition-down"
+          elif [ "$STATE" = "ok" ] && [ "$PREV_STATE" = "not-ok" ]; then
+            should_alert="recovered"
+          elif [ "$STATE" = "not-ok" ] && [ -n "$alerted_at" ] \
+               && [ $((now - alerted_at)) -ge "$REALERT_AFTER_SECONDS" ]; then
+            should_alert="re-alert"
+          fi
+
+          # Prioridade por status; `high` segue reservado a canal caído/segundo cron.
+          if [ "$STATUS" = "degraded" ] && [ "$HTTP_CODE" = "200" ]; then
+            priority="default"
+          else
+            priority="urgent"
+          fi
+
+          case "$should_alert" in
+            recovered)
+              send "default" "health-watch: recuperado" "$body"
+              alerted_at=""
+              ;;
+            transition-down|re-alert)
+              send "$priority" "health-watch: ${STATUS}" "$body"
+              alerted_at="$now"
+              ;;
+            *)
+              echo "health-watch: sem transição (state=$STATE prev=$PREV_STATE)"
+              ;;
+          esac
+
+          printf '%s\n%s\n' "$STATE" "$alerted_at" > .health-watch-state
+
+      - name: Save state
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .health-watch-state
+          key: health-watch-state-${{ github.run_id }}
+
+      - name: Fail the run if not ok (segundo sinal na aba Actions)
+        if: steps.probe.outputs.state != 'ok'
+        run: |
+          echo "state=not-ok http_code=${{ steps.probe.outputs.http_code }} status=${{ steps.probe.outputs.status }}"
+          exit 1

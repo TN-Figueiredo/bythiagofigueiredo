@@ -55,6 +55,13 @@ const serverSchema = z.object({
   // Override for the uptime-probe cron's target origin. Defaults to
   // https://bythiagofigueiredo.com when unset.
   UPTIME_PROBE_TARGET: z.string().url().optional(),
+  // Instagram Login (feed da home). Lidos de process.env DIRETO pelas rotas de
+  // OAuth — getServerEnv() lançaria em qualquer ambiente sem as obrigatórias.
+  // Declarados aqui só por paridade de schema. SOCIAL_MASTER_KEY fica FORA
+  // deste schema de propósito (é lido por @tn-figueiredo/social/vault).
+  INSTAGRAM_APP_ID: z.string().min(1).optional(),
+  INSTAGRAM_APP_SECRET: z.string().min(1).optional(),
+  INSTAGRAM_ALLOW_META_SECRET_FALLBACK: z.string().optional(),
 })
 
 // ---------------------------------------------------------------------------

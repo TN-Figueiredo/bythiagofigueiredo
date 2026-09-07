@@ -30,6 +30,12 @@
 #   NTFY_URL=https://ntfy.sh/<pick-a-private-unguessable-topic-name>
 #   # Optional, only if self-hosting ntfy behind auth:
 #   # NTFY_AUTH_TOKEN=tk_xxxxx
+#   # Optional second channel, used ONLY when the ntfy delivery above fails.
+#   # MUST NOT point at ntfy.sh nor at the same host as NTFY_URL — use a
+#   # DIFFERENT PROVIDER (Telegram bot, Pushover, Gotify, your own webhook).
+#   # A second ntfy.sh topic survives a refusal but NOT an ntfy.sh outage,
+#   # which is half the reason this variable exists.
+#   # WATCHDOG_FALLBACK_URL=https://api.telegram.org/bot<token>/sendMessage?chat_id=<id>&text=
 #   EOF
 #   sudo chmod 600 /etc/cron-watchdog/watchdog.env
 #   sudo chown cron-watchdog:cron-watchdog /etc/cron-watchdog/watchdog.env
@@ -50,6 +56,12 @@
 # ---------------------------------------------------------------------------
 
 set -euo pipefail
+
+# Marcador de versão: o runbook compara este valor com o de
+# /opt/cron-watchdog/check.sh. Antes de C2 não havia NENHUMA checagem de que o
+# arquivo do repo e o que roda no home-lab eram o mesmo.
+CHECK_SH_VERSION="c2-2026-09-06"
+echo "cron-watchdog: CHECK_SH_VERSION=${CHECK_SH_VERSION}"
 
 command -v curl >/dev/null 2>&1 || { echo "cron-watchdog: curl not found" >&2; exit 1; }
 command -v jq >/dev/null 2>&1 || { echo "cron-watchdog: jq not found" >&2; exit 1; }
@@ -83,16 +95,26 @@ send_alert() {
   if [ -n "${NTFY_AUTH_TOKEN:-}" ]; then
     auth_args=(-H "Authorization: Bearer ${NTFY_AUTH_TOKEN}")
   fi
-  # Portable empty-array expansion under `set -u` (bash 3.2, as shipped on
-  # macOS, errors on a plain "${arr[@]}" when arr is empty — this idiom
-  # works on both bash 3.2 and the bash 5.x that ships with Ubuntu 24.04).
-  curl -sS --max-time "$TIMEOUT_SECONDS" \
+  # Portable empty-array expansion under `set -u` (bash 3.2 e bash 5.x).
+  if curl -fsS --max-time "$TIMEOUT_SECONDS" \
     "${auth_args[@]+"${auth_args[@]}"}" \
     -H "Title: ${title}" \
     -H "Priority: ${priority}" \
     -H "Tags: warning" \
-    -d "$message" \
-    "$NTFY_URL" >/dev/null || echo "cron-watchdog: failed to deliver ntfy alert" >&2
+    -d "${message} [${CHECK_SH_VERSION}]" \
+    "$NTFY_URL" >/dev/null; then
+    return 0
+  fi
+  echo "cron-watchdog: failed to deliver ntfy alert" >&2
+  # Segundo canal, fora do ntfy.sh. `${VAR:-}` e nunca `${VAR:?}`: a ausência
+  # do fallback não pode derrubar o watchdog.
+  if [ -n "${WATCHDOG_FALLBACK_URL:-}" ]; then
+    curl -fsS --max-time "$TIMEOUT_SECONDS" \
+      --data-urlencode "text=${title}: ${message} [${CHECK_SH_VERSION}]" \
+      "${WATCHDOG_FALLBACK_URL}" >/dev/null \
+      || echo "cron-watchdog: fallback delivery also failed" >&2
+  fi
+  return 1
 }
 
 previous_status="$(cat "$STATE_FILE" 2>/dev/null || echo "")"
@@ -122,6 +144,16 @@ if [ "$http_code" = "401" ]; then
   exit 0
 fi
 
+# Status HTTP inesperado (502/503 da borda, 404 de rota removida): o endpoint
+# respondeu, mas não com algo que se possa interpretar.
+if [ "$http_code" != "200" ] && [ "$http_code" != "503" ]; then
+  send_alert "urgent" "cron-watchdog: /api/health HTTP ${http_code}" \
+    "Endpoint answered with an unexpected status. Check the Vercel deployment."
+  echo "http_${http_code}" > "$STATE_FILE"
+  echo 0 > "$COUNT_FILE"
+  exit 1
+fi
+
 status="$(jq -r '.status // empty' "$body_file" 2>/dev/null || true)"
 if [ -z "$status" ]; then
   body_snippet="$(head -c 300 "$body_file" 2>/dev/null || echo '<unreadable>')"
@@ -140,28 +172,57 @@ if [ "$status" = "ok" ]; then
   fi
   echo "ok" > "$STATE_FILE"
   echo 0 > "$COUNT_FILE"
+  : > "$STATE_DIR/late_names"
   exit 0
 fi
 
 # --- status == degraded | down ----------------------------------------------
-late_names="$(jq -r '[.crons[]? | select(.status != "ok") | .name] | join(", ")' "$body_file" 2>/dev/null || echo "?")"
+# MUST: o conjunto persistido é `select(.status == "late")`, NUNCA o filtro
+# "qualquer coisa que não seja ok" usado antes de C2 — `unknown` é o estado de
+# todo cron recém-implantado até o primeiro run, e paginar nele reabre o
+# alarme-desde-o-dia-1 que health/route.ts:295-306 argumenta contra. `unknown`
+# continua ROTULADO (linha abaixo), só não entra no cálculo de "novo".
+late_names="$(jq -r '[.crons[]? | select(.status == "late") | .name] | join(", ")' "$body_file" 2>/dev/null || echo "?")"
+unknown_names="$(jq -r '(.unknownNames // []) | join(", ")' "$body_file" 2>/dev/null || echo "")"
+message="late: ${late_names:-none} · unknown: ${unknown_names:-none}"
 priority="high"
 [ "$status" = "down" ] && priority="urgent"
 
-if [ "$previous_status" != "$status" ]; then
-  # Status just changed (e.g. ok -> degraded, or degraded -> down) — always
-  # alert immediately on a transition.
-  send_alert "$priority" "cron-watchdog: status=${status}" "Crons not ok: ${late_names}"
+LATE_FILE="$STATE_DIR/late_names"
+new_names=""
+if [ -f "$LATE_FILE" ]; then
+  for name in $(echo "$late_names" | tr ',' ' '); do
+    [ -z "$name" ] && continue
+    grep -qxF "$name" "$LATE_FILE" || new_names="${new_names}${name} "
+  done
+else
+  # PRIMEIRO RUN após C2: o arquivo não existe e TODO nome é "novo". Semear em
+  # silêncio e só alertar a partir da execução seguinte.
+  new_names=""
+fi
+echo "$late_names" | tr ',' '\n' | sed 's/^ *//; s/ *$//' | grep -v '^$' > "$LATE_FILE" || true
+
+if [ -n "$new_names" ]; then
+  # Alerta IMEDIATO, com título próprio, independentemente de
+  # REALERT_EVERY_N_RUNS: durante um episódio de canal (que a spec estaciona em
+  # `degraded` de propósito, possivelmente por dias) um cron novo caindo virava
+  # só uma string mais longa no mesmo alerta de sempre.
+  send_alert "$priority" "cron-watchdog: new cron failing" "new: ${new_names}· ${message}"
+  echo 0 > "$COUNT_FILE"
+elif [ "$previous_status" != "$status" ]; then
+  send_alert "$priority" "cron-watchdog: status=${status}" "$message"
   echo 0 > "$COUNT_FILE"
 else
   count="$(cat "$COUNT_FILE" 2>/dev/null || echo 0)"
   count=$((count + 1))
   if [ "$count" -ge "$REALERT_EVERY_N_RUNS" ]; then
-    send_alert "$priority" "cron-watchdog: still ${status}" "Crons not ok: ${late_names}"
+    send_alert "$priority" "cron-watchdog: still ${status}" "$message"
     count=0
   fi
   echo "$count" > "$COUNT_FILE"
 fi
 
 echo "$status" > "$STATE_FILE"
-exit 0
+# MUST: exit 1 quando não-ok — segundo sinal para o systemd (o unit é oneshot e
+# propaga o código) e para o `journalctl` do runbook.
+exit 1

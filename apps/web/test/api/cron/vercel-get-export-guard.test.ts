@@ -52,3 +52,28 @@ describe('Vercel cron GET export guard', () => {
     })
   }
 })
+
+describe('Ratchet de agenda dos crons do Instagram (C2)', () => {
+  const crons = loadCrons()
+
+  function scheduleFor(path: string): string | undefined {
+    return crons.find((c) => c.path === path)?.schedule
+  }
+
+  // Aceitar também o valor antigo deixaria passar VERDE um revert acidental de
+  // vercel.json — a única linha que C2 edita — e o "≤ 24 h" do objetivo 2
+  // viraria "≤ 7 dias" em silêncio. Por PATH, porque '0 11 * * *' já existe em
+  // outra entrada (/api/cron/ab-backfill).
+  it("instagram-token-refresh roda '0 11 * * *' (08:00 America/Sao_Paulo)", () => {
+    expect(scheduleFor('/api/cron/instagram-token-refresh')).toBe('0 11 * * *')
+  })
+
+  it("instagram-sync roda '0 13 * * *' (10:00 America/Sao_Paulo)", () => {
+    expect(scheduleFor('/api/cron/instagram-sync')).toBe('0 13 * * *')
+  })
+
+  it('nenhum dos dois ficou com a agenda antiga', () => {
+    expect(scheduleFor('/api/cron/instagram-token-refresh')).not.toBe('0 6 * * 1')
+    expect(scheduleFor('/api/cron/instagram-sync')).not.toBe('0 8 * * *')
+  })
+})
