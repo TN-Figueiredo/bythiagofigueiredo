@@ -16,6 +16,22 @@ export interface InstagramAccountRow {
   last_synced_at: string | null
   created_at: string
   updated_at: string
+  // ── M1 (commit C1): saúde do token ──────────────────────────────────────
+  // No schema as 9 são nullable, exceto ig_user_id_source (not null default
+  // 'legacy'). No tipo entram OPCIONAIS em C1 para que os literais de
+  // InstagramAccountRow já existentes em test/instagram/{sync,cron-route,
+  // token-refresh}.test.ts continuem compilando um commit antes de qualquer
+  // código que as escreva. C2, que passa a escrevê-las, remove o `?` de
+  // ig_user_id_source.
+  token_refreshed_at?: string | null
+  token_error?: string | null
+  token_error_at?: string | null
+  token_error_mode?: 'daily' | 'token_refresh' | null
+  token_alert_sent_at?: string | null
+  token_alert_attempt_at?: string | null
+  token_reprobe_at?: string | null
+  ig_professional_id?: string | null
+  ig_user_id_source?: 'oauth' | 'legacy'
 }
 
 export interface InstagramPostRow {
@@ -89,9 +105,30 @@ export interface InstagramAccountView {
   tokenExpiresAt: string | null
 }
 
-export type InstagramAccountPublic = Omit<InstagramAccountRow, 'access_token'>
+/** As 16 colunas da view public.instagram_accounts_public (20260507220000:41-49).
+ *  Nem access_token nem nenhuma das 9 colunas de saúde do token saem daqui. */
+export type InstagramAccountPublic = Omit<
+  InstagramAccountRow,
+  | 'access_token'
+  | 'token_refreshed_at'
+  | 'token_error'
+  | 'token_error_at'
+  | 'token_error_mode'
+  | 'token_alert_sent_at'
+  | 'token_alert_attempt_at'
+  | 'token_reprobe_at'
+  | 'ig_professional_id'
+  | 'ig_user_id_source'
+>
 
-export type InstagramSyncMode = 'daily' | 'manual' | 'token_refresh'
+/** Espelha instagram_sync_log_mode_check depois de M1 (6 valores). */
+export type InstagramSyncMode =
+  | 'daily'
+  | 'manual'
+  | 'token_refresh'
+  | 'deauthorize'
+  | 'data_deletion'
+  | 'rebind'
 
 export interface SyncResult {
   postsFound: number

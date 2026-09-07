@@ -3197,7 +3197,9 @@ export type Database = {
           display_slots: number
           handle: string
           id: string
+          ig_professional_id: string | null
           ig_user_id: string | null
+          ig_user_id_source: string
           last_synced_at: string | null
           layout_type: string
           locale: string
@@ -3207,7 +3209,14 @@ export type Database = {
           section_title_pt: string | null
           site_id: string
           sync_enabled: boolean
+          token_alert_attempt_at: string | null
+          token_alert_sent_at: string | null
+          token_error: string | null
+          token_error_at: string | null
+          token_error_mode: string | null
           token_expires_at: string | null
+          token_refreshed_at: string | null
+          token_reprobe_at: string | null
           updated_at: string
         }
         Insert: {
@@ -3216,7 +3225,9 @@ export type Database = {
           display_slots?: number
           handle: string
           id?: string
+          ig_professional_id?: string | null
           ig_user_id?: string | null
+          ig_user_id_source?: string
           last_synced_at?: string | null
           layout_type?: string
           locale?: string
@@ -3226,7 +3237,14 @@ export type Database = {
           section_title_pt?: string | null
           site_id: string
           sync_enabled?: boolean
+          token_alert_attempt_at?: string | null
+          token_alert_sent_at?: string | null
+          token_error?: string | null
+          token_error_at?: string | null
+          token_error_mode?: string | null
           token_expires_at?: string | null
+          token_refreshed_at?: string | null
+          token_reprobe_at?: string | null
           updated_at?: string
         }
         Update: {
@@ -3235,7 +3253,9 @@ export type Database = {
           display_slots?: number
           handle?: string
           id?: string
+          ig_professional_id?: string | null
           ig_user_id?: string | null
+          ig_user_id_source?: string
           last_synced_at?: string | null
           layout_type?: string
           locale?: string
@@ -3245,12 +3265,54 @@ export type Database = {
           section_title_pt?: string | null
           site_id?: string
           sync_enabled?: boolean
+          token_alert_attempt_at?: string | null
+          token_alert_sent_at?: string | null
+          token_error?: string | null
+          token_error_at?: string | null
+          token_error_mode?: string | null
           token_expires_at?: string | null
+          token_refreshed_at?: string | null
+          token_reprobe_at?: string | null
           updated_at?: string
         }
         Relationships: [
           {
             foreignKeyName: "instagram_accounts_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      instagram_deletion_requests: {
+        Row: {
+          completed_at: string | null
+          confirmation_code: string
+          id: string
+          ig_user_id: string
+          requested_at: string
+          site_id: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          confirmation_code: string
+          id?: string
+          ig_user_id: string
+          requested_at?: string
+          site_id?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          confirmation_code?: string
+          id?: string
+          ig_user_id?: string
+          requested_at?: string
+          site_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "instagram_deletion_requests_site_id_fkey"
             columns: ["site_id"]
             isOneToOne: false
             referencedRelation: "sites"
@@ -5947,6 +6009,21 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      ops_alert_state: {
+        Row: {
+          key: string
+          last_at: string
+        }
+        Insert: {
+          key: string
+          last_at: string
+        }
+        Update: {
+          key?: string
+          last_at?: string
+        }
+        Relationships: []
       }
       optimization_cycles: {
         Row: {
@@ -9797,6 +9874,19 @@ export type Database = {
         Args: { p_is_unique?: boolean; p_link_id: string }
         Returns: undefined
       }
+      instagram_mark_token_invalid: {
+        Args: {
+          p_account: string
+          p_fatal: boolean
+          p_force_reason?: boolean
+          p_mode?: string
+          p_reason: string
+          p_site: string
+        }
+        Returns: {
+          out_token_error_at: string
+        }[]
+      }
       is_admin: { Args: never; Returns: boolean }
       is_member_staff: { Args: never; Returns: boolean }
       is_org_admin: { Args: { p_org_id: string }; Returns: boolean }
@@ -9844,6 +9934,10 @@ export type Database = {
       normalize_utm_value: {
         Args: { field_name: string; raw_value: string }
         Returns: string
+      }
+      ops_alert_claim: {
+        Args: { p_key: string; p_min_interval?: string }
+        Returns: boolean
       }
       org_role: { Args: { p_org_id: string }; Returns: string }
       org_role_for_user: {

@@ -27,7 +27,7 @@ import { Client } from 'pg'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import {
   SUPABASE_URL, ANON_KEY, SERVICE_KEY,
-  signUserJwt, seedRbacScenario, cleanupRbacScenario, type RbacScenario,
+  signUserJwt, seedSite, seedRbacScenario, cleanupRbacScenario, type RbacScenario,
 } from '../helpers/db-seed'
 
 const PG_URL = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
@@ -250,5 +250,181 @@ describe.skipIf(skipIfNoLocalDb())('instagram_accounts column lockdown (A3)', ()
               has_table_privilege('anon', 'public.instagram_accounts_public', 'SELECT') as b`,
     )
     expect(eff[0]).toEqual({ a: false, b: false })
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// M1 (commit C1) — o que a migration instagram_token_health acrescenta ao
+// lockdown de A3. Bloco NOVO: o describe de A3 acima continua valendo.
+//
+// Os dois ratchets de column privileges de A3 NÃO são reescritos nem
+// duplicados aqui: eles já são REGRA ("toda coluna menos access_token" para
+// authenticated, "exatamente {id, site_id}" para anon) e as 9 colunas de M1
+// só passam porque a migration as concede a authenticated e a mais ninguém.
+// Uma segunda cópia com lista literal reintroduziria a fragilidade que A3
+// evitou de propósito. Este bloco assere só o que M1 cria.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe.skipIf(skipIfNoLocalDb())('M1 (C1) — DML fechado e schema novo', () => {
+  const svcC1: SupabaseClient = createClient(SUPABASE_URL, SERVICE_KEY, {
+    auth: { persistSession: false },
+  })
+  const PG_URL_C1 =
+    process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
+  let pgC1: Client
+  const siteIdsC1: string[] = []
+
+  beforeAll(async () => {
+    pgC1 = new Client({ connectionString: PG_URL_C1 })
+    await pgC1.connect()
+  })
+
+  afterAll(async () => {
+    if (siteIdsC1.length) {
+      await svcC1.from('instagram_sync_log').delete().in('site_id', siteIdsC1)
+      await svcC1.from('instagram_accounts').delete().in('site_id', siteIdsC1)
+      await svcC1.from('sites').delete().in('id', siteIdsC1)
+    }
+    await pgC1.end()
+  })
+
+  // ── DML fechado ───────────────────────────────────────────────────────────
+
+  it('anon and authenticated have no INSERT/UPDATE/DELETE on the three instagram tables', async () => {
+    for (const table of [
+      'public.instagram_accounts',
+      'public.instagram_posts',
+      'public.instagram_feed_slots',
+    ]) {
+      for (const role of ['anon', 'authenticated'] as const) {
+        for (const priv of ['INSERT', 'UPDATE', 'DELETE'] as const) {
+          const { rows } = await pgC1.query<{ ok: boolean }>(
+            `select has_table_privilege($1, $2, $3) as ok`,
+            [role, table, priv],
+          )
+          expect({ table, role, priv, ok: rows[0]?.ok }).toEqual({ table, role, priv, ok: false })
+        }
+      }
+    }
+  })
+
+  it('an authenticated client gets 42501 when writing instagram_accounts through PostgREST', async () => {
+    // Efeito observável do revoke (e não só o catálogo): antes de M1 a escrita
+    // chegava à policy *_staff_write e voltava "0 linhas" sem erro; agora ela
+    // bate no grant de tabela — que o Postgres checa ANTES da RLS — e volta
+    // 42501 para qualquer portador do papel `authenticated`.
+    const { siteId } = await seedSite(svcC1)
+    siteIdsC1.push(siteId)
+    const ins = await svcC1
+      .from('instagram_accounts')
+      .insert({ site_id: siteId, locale: 'pt', handle: 'dml.gate' })
+      .select('id')
+      .single()
+    expect(ins.error).toBeNull()
+
+    const c = clientFor('00000000-0000-4000-8000-0000000000c1')
+    const { error } = await c
+      .from('instagram_accounts')
+      .update({ sync_enabled: false })
+      .eq('id', (ins.data as { id: string }).id)
+    expect(error).not.toBeNull()
+    expect(error!.code).toBe('42501')
+  })
+
+  it('drops the three *_staff_write policies and keeps the read ones', async () => {
+    const { rows } = await pgC1.query<{ policyname: string }>(
+      `select policyname from pg_policies
+        where schemaname = 'public'
+          and tablename in ('instagram_accounts','instagram_posts','instagram_feed_slots')
+        order by policyname`,
+    )
+    expect(rows.map(r => r.policyname)).toEqual([
+      'instagram_accounts_staff_read',
+      'instagram_feed_slots_public_read',
+      'instagram_posts_public_read',
+    ])
+  })
+
+  // ── instagram_deletion_requests ───────────────────────────────────────────
+
+  it('creates instagram_deletion_requests with RLS on, zero policies and no anon/authenticated access', async () => {
+    const { rows: cls } = await pgC1.query<{ relrowsecurity: boolean }>(
+      `select relrowsecurity from pg_class where oid = 'public.instagram_deletion_requests'::regclass`,
+    )
+    expect(cls[0]?.relrowsecurity).toBe(true)
+
+    const { rows: pol } = await pgC1.query(
+      `select policyname from pg_policies
+        where schemaname = 'public' and tablename = 'instagram_deletion_requests'`,
+    )
+    expect(pol).toEqual([])
+
+    for (const role of ['anon', 'authenticated'] as const) {
+      for (const priv of ['SELECT', 'INSERT', 'UPDATE', 'DELETE'] as const) {
+        const { rows } = await pgC1.query<{ ok: boolean }>(
+          `select has_table_privilege($1, 'public.instagram_deletion_requests', $2) as ok`,
+          [role, priv],
+        )
+        expect({ role, priv, ok: rows[0]?.ok }).toEqual({ role, priv, ok: false })
+      }
+    }
+  })
+
+  it('enforces a UNIQUE confirmation_code and nulls site_id when the site goes away', async () => {
+    const { siteId } = await seedSite(svcC1)
+    siteIdsC1.push(siteId)
+    const code = `code-${Date.now()}`
+
+    const first = await svcC1.from('instagram_deletion_requests')
+      .insert({ confirmation_code: code, ig_user_id: '17841400000000000', site_id: siteId })
+      .select('id, requested_at, completed_at')
+      .single()
+    expect(first.error).toBeNull()
+    expect(first.data?.requested_at).toBeTruthy()
+    expect(first.data?.completed_at).toBeNull()
+
+    const dup = await svcC1.from('instagram_deletion_requests')
+      .insert({ confirmation_code: code, ig_user_id: '17841400000000001', site_id: siteId })
+    expect(dup.error?.code).toBe('23505')
+
+    await svcC1.from('sites').delete().eq('id', siteId)
+    const { data: after } = await svcC1.from('instagram_deletion_requests')
+      .select('site_id').eq('confirmation_code', code).single()
+    expect(after?.site_id).toBeNull()   // on delete set null: o registro sobrevive 180 dias
+
+    await svcC1.from('instagram_deletion_requests').delete().eq('confirmation_code', code)
+    siteIdsC1.splice(siteIdsC1.indexOf(siteId), 1)
+  })
+
+  // ── instagram_sync_log ────────────────────────────────────────────────────
+
+  it('accepts the six sync modes, rejects an unknown one and leaves the status CHECK untouched', async () => {
+    const { siteId } = await seedSite(svcC1)
+    siteIdsC1.push(siteId)
+
+    for (const mode of [
+      'daily', 'manual', 'token_refresh', 'deauthorize', 'data_deletion', 'rebind',
+    ]) {
+      const res = await svcC1.from('instagram_sync_log')
+        .insert({ site_id: siteId, mode, status: 'started' })
+      expect({ mode, code: res.error?.code ?? null }).toEqual({ mode, code: null })
+    }
+
+    const badMode = await svcC1.from('instagram_sync_log')
+      .insert({ site_id: siteId, mode: 'oauth', status: 'started' })
+    expect(badMode.error?.code).toBe('23514')
+
+    const badStatus = await svcC1.from('instagram_sync_log')
+      .insert({ site_id: siteId, mode: 'daily', status: 'token_invalid' })
+    expect(badStatus.error?.code).toBe('23514')
+  })
+
+  it('creates idx_instagram_sync_log_account_mode over (account_id, mode, started_at desc)', async () => {
+    const { rows } = await pgC1.query<{ indexdef: string }>(
+      `select indexdef from pg_indexes
+        where schemaname = 'public' and indexname = 'idx_instagram_sync_log_account_mode'`,
+    )
+    expect(rows).toHaveLength(1)
+    expect(rows[0]?.indexdef).toContain('(account_id, mode, started_at DESC)')
   })
 })
