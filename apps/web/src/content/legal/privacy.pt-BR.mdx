@@ -1,13 +1,13 @@
 ---
 title: "Política de Privacidade"
-version: "1.3"
-effectiveDate: "2026-07-03"
+version: "1.4"
+effectiveDate: "2026-09-06"
 locale: "pt-BR"
 ---
 
 # Política de Privacidade
 
-**Versão 1.3 — em vigor desde 3 de julho de 2026.**
+**Versão 1.4 — em vigor desde 6 de setembro de 2026.**
 
 Esta Política de Privacidade descreve como coletamos, usamos, armazenamos e protegemos seus dados pessoais quando você usa o site **bythiagofigueiredo.com** e serviços relacionados. Foi escrita em linguagem simples para ser compreensível por qualquer pessoa — sem jargão jurídico desnecessário — e atende aos requisitos da Lei Geral de Proteção de Dados (LGPD, Lei 13.709/2018) e do Regulamento Geral sobre a Proteção de Dados (GDPR, Regulamento UE 2016/679) para visitantes na União Europeia.
 
@@ -28,6 +28,7 @@ Coletamos apenas os dados estritamente necessários para cada finalidade. Detalh
 - **Newsletter:** e-mail, data de inscrição, versão do texto de consentimento aceito, IP + user-agent no momento da inscrição (accountability LGPD Art. 9º). Após o envio, coletamos eventos de abertura (open tracking pixel), eventos de clique em links, IP e user-agent associados a cada interação — utilizados exclusivamente para métricas agregadas de desempenho da newsletter.
 - **Listas de espera (waitlists):** e-mail, IP + user-agent no momento da inscrição, snapshot do texto de consentimento aceito, origem da inscrição (`source`), timestamp — coletados quando você se inscreve em uma lista de espera por um formulário público, para ser avisado do lançamento ou abertura correspondente.
 - **Gestão de redes sociais (se você conectar contas):** tokens de autenticação OAuth (Meta/Facebook, Meta/Instagram, Google/YouTube) ou credenciais de sessão (Bluesky/AT Protocol), dados de perfil público da conta conectada, metadados de publicações criadas ou agendadas através da plataforma.
+- **Feed do Instagram na página inicial (configuração do site):** quando o dono do site conecta uma conta profissional do Instagram com um clique, armazenamos um token de acesso OAuth (cifrado em repouso), os identificadores numéricos da conta, o nome de usuário público e uma cópia dos posts e imagens públicos exibidos na página inicial. O consentimento é registrado na categoria `social_feed_read`. Os dados são obtidos da Meta Platforms, Inc. (EUA, sob cláusulas contratuais-padrão) e as imagens ficam copiadas na Vercel enquanto a conta estiver conectada.
 - **Inteligência de canal YouTube (se você conectar um canal):** para canais conectados, coletamos métricas de desempenho de vídeos e **dados demográficos agregados da audiência** (faixa etária, gênero, geografia, termos de busca) obtidos da **YouTube Analytics API**, sem identificação individual de espectadores, usados para análise editorial e estratégia de conteúdo.
 - **Research / Pipeline (uso interno por editores):** itens de pesquisa de pauta, decisões editoriais e anotações de conteúdo, associados ao `user_id` do editor que os criou.
 - **Formulário de contato:** nome, e-mail, mensagem, IP + user-agent, timestamp.
@@ -169,6 +170,7 @@ Ferramentas self-service disponíveis após login:
 - **Exclusão:** `/account/delete` — fluxo de 3 fases com confirmação por e-mail, anonimização imediata, **15 dias de carência** para cancelar, e exclusão definitiva na fase 3 (D+15).
 - **Consentimentos + cookies:** `/account/settings/privacy` — histórico e revogação granular.
 - **Listas de espera (sem login):** [**/waitlists/rights**](/waitlists/rights) — informe seu e-mail para receber um link (validade 7 dias) que permite **acessar** (download JSON) ou **excluir** os dados de inscrição em listas de espera.
+- **Exclusão de dados do Instagram (sem login):** um pedido de exclusão enviado pela Meta para uma conta do Instagram conectada é executado imediatamente (token, posts em cache, imagens em cache e histórico de sincronização) e o status fica publicado em [**/data-deletion**](/data-deletion), acessível pelo código de confirmação que a Meta recebe. O registro do pedido (identificador da conta e data) é mantido por até 180 dias como prova do tratamento.
 
 Para os demais direitos, escreva para **privacidade@bythiagofigueiredo.com** — respondemos em até **15 dias** (LGPD Art. 19 §1º).
 
@@ -267,6 +269,7 @@ Esta política pode ser atualizada para refletir mudanças legais, de serviço o
 - **Alterações materiais** (novas finalidades, novos suboperadores, novas bases legais) dispararão **re-prompt de consentimento** via banner de cookies e um e-mail de aviso para usuários autenticados.
 - **Versões anteriores** ficam arquivadas em `consent_texts` no banco, identificadas por `(category, locale, version)`. Você pode solicitar a versão vigente no momento do seu cadastro.
 - **Histórico de versões:**
+  - v1.4 — 2026-09-06 — documentação da conexão do **feed do Instagram** (OAuth de um clique, categoria de consentimento `social_feed_read`, token cifrado em repouso, posts e imagens copiados na Vercel) e do **callback de exclusão de dados do Instagram** com a página pública de status `/data-deletion` (registro do pedido por 180 dias).
   - v1.3 — 2026-07-03 — documentação do módulo **Listas de espera (waitlists)** (dados coletados, base legal de consentimento Art. 7º I, e SLA de retenção do cron `waitlist-retention-sweep`); correção da descrição de retenção da **newsletter** para refletir o comportamento real (higienização síncrona no unsubscribe — e-mail → hash SHA-256 + IP/user-agent/locale → null feitos na hora; cron de 90 dias anonimiza apenas o rastreamento de aberturas/cliques; inscrições pendentes não confirmadas sofrem hard-delete após 7 dias de carência); inclusão da **Bluesky** na lista de SCCs da Seção 11; redução da exposição de PII no Sentry Session Replay (`maskAllText` + `blockAllMedia`).
   - v1.2 — 2026-06-07 — adição do suboperador **Amazon Web Services, Inc. (SES)** para e-mails transacionais (sa-east-1/BR, sem transferência internacional); documentação da **Inteligência de canal YouTube** (métricas e dados demográficos agregados da audiência via YouTube Analytics API) e do módulo **Research / Pipeline**; atualização das finalidades, suboperadores e retenção correspondentes.
   - v1.1 — 2026-05-14 — adição de processadores: Google AdSense, Google/YouTube OAuth, Meta Platforms (Facebook/Instagram), Bluesky/AT Protocol; substituição de Brevo SAS por Resend, Inc.; documentação de rastreamento de newsletter (aberturas, cliques, IP com retenção de 90 dias); atualização da tabela de transferências internacionais (LGPD Art. 33); correção do prazo de anonimização de newsletter (de "imediata" para 90 dias).

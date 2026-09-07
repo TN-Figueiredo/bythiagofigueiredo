@@ -142,6 +142,13 @@ no mesmo horário — migrar é só apagar o job do `pg_cron`.
 2. **`gh secret set NTFY_URL`** — o watchdog de uptime já está commitado (`592a5328`) e roda a
    cada 5 min alertando por **latência**, não só status (o incidente respondia 200 com 25s).
 3. **Conferir no dashboard** se há aviso de cota: o banco esteve em 884 MB e o Free tier limita
-   500 MB. Hoje está em 363 MB.
-4. **Instagram** — token expirou 2026-09-04 e o refresh falha desde 2026-08-31. Cadeia separada
-   do Meta/Facebook (expirado desde 2026-07-18). Ambos exigem reconexão manual.
+   500 MB. **Divergência registrada:** a linha 6 deste documento diz **93 MB** e esta dizia
+   "hoje está em 363 MB" — as duas não foram reconciliadas. A aritmética da entrega de Instagram
+   OAuth (< 10 MB por commit: `instagram_sync_log` ≤ ~1,5 k linhas, `ops_alert_state` ~15 chaves +
+   `sigreq:`/`ddpage:` com retenção de 2 d, `instagram_deletion_requests` 180 d) fecha com qualquer
+   um dos dois números.
+4. **Instagram** — o token expirou 2026-09-04 porque a renovação falhava em silêncio desde
+   2026-08-31. Fechado pela entrega de 2026-09-06: refresh diário `"0 11 * * *"`, probe de toda conta
+   às `"0 13 * * *"`, alerta por ntfy + CMS + e-mail e reconexão de um clique em
+   `/cms/settings/instagram`. A cadeia do Meta/Facebook (expirada desde 2026-07-18) segue separada e
+   ainda exige reconexão manual.

@@ -1910,9 +1910,14 @@ within 7 days using Instagram Graph API refresh endpoint."
 In `apps/web/vercel.json`, add to the `crons` array (after the YouTube entries):
 
 ```json
-{ "path": "/api/cron/instagram-sync", "schedule": "0 8 * * *" },
-{ "path": "/api/cron/instagram-token-refresh", "schedule": "0 6 * * 1" }
+{ "path": "/api/cron/instagram-sync", "schedule": "0 13 * * *" },
+{ "path": "/api/cron/instagram-token-refresh", "schedule": "0 11 * * *" }
 ```
+
+> **Atualizado em 2026-09-06:** a renovação deixou de ser semanal (`0 6 * * 1`) e passou a ser
+> **diária às 11:00 UTC**; o sync passou de `0 8 * * *` para **13:00 UTC**. 08:00/10:00 em
+> `America/Sao_Paulo`. Motivo: um token que morre no domingo ficava invisível por até 7 dias.
+
 
 - [ ] **Step 2: Verify JSON validity**
 

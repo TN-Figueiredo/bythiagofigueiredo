@@ -86,10 +86,10 @@ describe('previewDisabledText', () => {
 })
 
 describe('RECONNECT_CTA', () => {
-  // Fixado POR COMMIT: C3 troca esta asserção para 'reconnect' no mesmo commit
-  // que troca a constante. Aceitar as duas formas não ratcheta nada.
-  it("em C2 é exatamente 'paste a new token'", () => {
-    expect(RECONNECT_CTA).toBe('paste a new token')
+  it('tells the owner to reconnect now that the OAuth UI is live (C3)', () => {
+    // Aceitar as duas formas não ratcheta nada: uma regressão para o texto de C2
+    // passaria verde depois de C3.
+    expect(RECONNECT_CTA).toBe('reconnect')
   })
 })
 

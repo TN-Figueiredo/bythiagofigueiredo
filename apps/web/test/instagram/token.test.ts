@@ -637,7 +637,7 @@ describe('deliverTokenAlert — REGRA-PII-NTFY e forma do payload', () => {
     const { client } = sweepClient([])
     await deliverTokenAlert(client, group, 'expired', '2026-09-04', { reminder: false, longOpen: false })
     expect(mockFanOut.mock.calls[0]![0].message)
-      .toMatch(/— paste a new token at https:\/\/bythiagofigueiredo\.com\/cms\/settings\/instagram$/)
+      .toMatch(/— reconnect at https:\/\/bythiagofigueiredo\.com\/cms\/settings\/instagram$/)
   })
 
   it('message escapa & < > " \' (adapters/email.ts:30 interpola cru)', async () => {

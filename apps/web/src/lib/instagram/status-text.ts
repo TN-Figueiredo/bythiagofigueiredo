@@ -7,12 +7,12 @@ import type { OauthErrorCode } from '@/lib/oauth/errors'
 export type { OauthErrorCode }
 
 /**
- * Verbo do call-to-action do alerta de token, fixado POR COMMIT.
- * C2: 'paste a new token' (a UI de OAuth só existe em C3).
- * C3: 'reconnect' — trocado no MESMO commit que troca a asserção de §6.
+ * Fecha o e-mail/CMS de alerta de token. Era `'paste a new token'` enquanto a UI
+ * de OAuth não existia (C2); a partir de C3 o dono reconecta em um clique em
+ * `/cms/settings/instagram`.
  * Único consumidor: `deliverTokenAlert` (src/lib/instagram/token.ts).
  */
-export const RECONNECT_CTA = 'paste a new token'
+export const RECONNECT_CTA = 'reconnect'
 
 export type TokenKind = 'transient' | 'expired' | 'revoked' | 'invalid'
 
