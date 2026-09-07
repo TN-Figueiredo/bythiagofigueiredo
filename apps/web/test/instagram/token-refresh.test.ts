@@ -65,7 +65,7 @@ describe('GET /api/cron/instagram-token-refresh', () => {
             select: vi.fn().mockReturnValue({
               not: vi.fn().mockReturnValue({
                 lt: vi.fn().mockResolvedValue({
-                  data: [{ id: 'acc-1', site_id: 'site-1', access_token: 'old-tok', ig_user_id: 'ig-1', locale: 'pt', handle: '@test', token_expires_at: '2026-05-10T00:00:00Z', sync_enabled: true, display_slots: 6, layout_type: 'grid', last_synced_at: null, created_at: '', updated_at: '' }],
+                  data: [{ id: 'acc-1', site_id: 'site-1', access_token: 'old-tok', ig_user_id: 'ig-1', locale: 'pt', handle: '@test', token_expires_at: '2026-05-10T00:00:00Z', sync_enabled: true, display_slots: 6, layout_type: 'grid', last_synced_at: null, created_at: '', updated_at: '', ig_user_id_source: 'legacy' }],
                   error: null,
                 }),
               }),
@@ -96,7 +96,7 @@ describe('GET /api/cron/instagram-token-refresh', () => {
             select: vi.fn().mockReturnValue({
               not: vi.fn().mockReturnValue({
                 lt: vi.fn().mockResolvedValue({
-                  data: [{ id: 'acc-1', site_id: 'site-1', access_token: 'expired-tok', ig_user_id: 'ig-1', locale: 'pt', handle: '@test', token_expires_at: '2026-05-10T00:00:00Z', sync_enabled: true, display_slots: 6, layout_type: 'grid', last_synced_at: null, created_at: '', updated_at: '' }],
+                  data: [{ id: 'acc-1', site_id: 'site-1', access_token: 'expired-tok', ig_user_id: 'ig-1', locale: 'pt', handle: '@test', token_expires_at: '2026-05-10T00:00:00Z', sync_enabled: true, display_slots: 6, layout_type: 'grid', last_synced_at: null, created_at: '', updated_at: '', ig_user_id_source: 'legacy' }],
                   error: null,
                 }),
               }),

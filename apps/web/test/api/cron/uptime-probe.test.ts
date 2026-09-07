@@ -27,6 +27,7 @@ vi.mock('@/lib/supabase/service', () => ({
 
 vi.mock('@sentry/nextjs', () => ({
   captureException: vi.fn(),
+  captureMessage: vi.fn(),
 }))
 
 import { GET } from '../../../src/app/api/cron/uptime-probe/route'
@@ -50,7 +51,12 @@ function makeSupabase() {
     }
     return {}
   })
-  return { from, rpc: vi.fn(() => Promise.resolve({ data: null, error: null })), _upserts: upserts }
+  const rpcCalls: Array<{ fn: string; args: Record<string, unknown> }> = []
+  const rpc = vi.fn((fn: string, args: Record<string, unknown>) => {
+    rpcCalls.push({ fn, args })
+    return Promise.resolve({ data: true, error: null })
+  })
+  return { from, rpc, _upserts: upserts, _rpcCalls: rpcCalls }
 }
 
 function req() {
@@ -249,5 +255,135 @@ describe('GET /api/cron/uptime-probe — alerting', () => {
     expect(body.status).toBe('down')
     expect(body.alerted).toBe(false)
     expect(body.alertError).toContain('ntfy down')
+  })
+})
+
+import * as Sentry from '@sentry/nextjs'
+
+describe('GET /api/cron/uptime-probe — dedupe por status (C2)', () => {
+  it('chave uptime:down com 14 minutes quando down', async () => {
+    vi.stubEnv('NTFY_URL', 'https://ntfy.sh/my-topic')
+    const supabase = makeSupabase()
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(supabase as never)
+    stubPerformanceNow([0, 100])
+    const { fn } = mockFetch({ targetStatus: 502 })
+    vi.stubGlobal('fetch', fn)
+
+    await GET(req())
+    expect(supabase._rpcCalls).toContainEqual({
+      fn: 'ops_alert_claim',
+      args: { p_key: 'uptime:down', p_min_interval: '14 minutes' },
+    })
+  })
+
+  it('chave uptime:degraded com 59 minutes quando degraded — chaves SEPARADAS', async () => {
+    vi.stubEnv('NTFY_URL', 'https://ntfy.sh/my-topic')
+    const supabase = makeSupabase()
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(supabase as never)
+    stubPerformanceNow([0, 5000])
+    const { fn } = mockFetch({ targetStatus: 200 })
+    vi.stubGlobal('fetch', fn)
+
+    await GET(req())
+    expect(supabase._rpcCalls).toContainEqual({
+      fn: 'ops_alert_claim',
+      args: { p_key: 'uptime:degraded', p_min_interval: '59 minutes' },
+    })
+  })
+
+  it('claim false => nenhum POST ao ntfy (o 2º degraded em 59 min é suprimido)', async () => {
+    vi.stubEnv('NTFY_URL', 'https://ntfy.sh/my-topic')
+    const supabase = makeSupabase()
+    supabase.rpc.mockImplementation(() => Promise.resolve({ data: false, error: null }))
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(supabase as never)
+    stubPerformanceNow([0, 5000])
+    const { fn, ntfyCalls } = mockFetch({ targetStatus: 200 })
+    vi.stubGlobal('fetch', fn)
+
+    const body = await (await GET(req())).json()
+    expect(ntfyCalls).toHaveLength(0)
+    expect(body.alerted).toBe(false)
+    expect(body.reason).toBe('deduped')
+  })
+
+  it('degraded e, 5 min depois, down => 2 pushes (a escalada nunca fica retida)', async () => {
+    vi.stubEnv('NTFY_URL', 'https://ntfy.sh/my-topic')
+    const supabase = makeSupabase()
+    // simula ops_alert_state real: uma janela por chave
+    const stamped = new Set<string>()
+    supabase.rpc.mockImplementation((_fn: string, args: Record<string, unknown>) => {
+      const key = String(args.p_key)
+      const first = !stamped.has(key)
+      stamped.add(key)
+      return Promise.resolve({ data: first, error: null })
+    })
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(supabase as never)
+
+    stubPerformanceNow([0, 5000])
+    let mocked = mockFetch({ targetStatus: 200 })
+    vi.stubGlobal('fetch', mocked.fn)
+    await GET(req())
+    expect(mocked.ntfyCalls).toHaveLength(1)
+
+    stubPerformanceNow([0, 100])
+    mocked = mockFetch({ targetStatus: 502 })
+    vi.stubGlobal('fetch', mocked.fn)
+    await GET(req())
+    expect(mocked.ntfyCalls).toHaveLength(1)
+  })
+
+  it('claim lançando => FAIL-OPEN: alerta assim mesmo + captureMessage', async () => {
+    vi.stubEnv('NTFY_URL', 'https://ntfy.sh/my-topic')
+    const supabase = makeSupabase()
+    supabase.rpc.mockImplementation(() => Promise.reject(new Error('pg down')))
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(supabase as never)
+    stubPerformanceNow([0, 100])
+    const { fn, ntfyCalls } = mockFetch({ targetStatus: 502 })
+    vi.stubGlobal('fetch', fn)
+
+    const body = await (await GET(req())).json()
+    expect(ntfyCalls).toHaveLength(1)
+    expect(body.alerted).toBe(true)
+    expect(vi.mocked(Sentry.captureMessage)).toHaveBeenCalledWith(
+      'uptime dedupe claim failed — alerting anyway', 'warning',
+    )
+  })
+
+  it('claim devolvendo não-booleano também é fail-open', async () => {
+    vi.stubEnv('NTFY_URL', 'https://ntfy.sh/my-topic')
+    const supabase = makeSupabase()
+    supabase.rpc.mockImplementation(() => Promise.resolve({ data: null, error: null }))
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(supabase as never)
+    stubPerformanceNow([0, 100])
+    const { fn, ntfyCalls } = mockFetch({ targetStatus: 502 })
+    vi.stubGlobal('fetch', fn)
+
+    await GET(req())
+    expect(ntfyCalls).toHaveLength(1)
+  })
+
+  it('o POST ao ntfy leva AbortSignal (timeout de 4 s)', async () => {
+    vi.stubEnv('NTFY_URL', 'https://ntfy.sh/my-topic')
+    const supabase = makeSupabase()
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(supabase as never)
+    stubPerformanceNow([0, 100])
+    const { fn, ntfyCalls } = mockFetch({ targetStatus: 502 })
+    vi.stubGlobal('fetch', fn)
+
+    await GET(req())
+    expect(ntfyCalls[0]?.init.signal).toBeInstanceOf(AbortSignal)
+  })
+
+  it('body.status continua "ok" | "degraded" | "down" (nunca sombreado por ntfyStatus)', async () => {
+    vi.stubEnv('NTFY_URL', 'https://ntfy.sh/my-topic')
+    const supabase = makeSupabase()
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(supabase as never)
+    stubPerformanceNow([0, 100])
+    const { fn } = mockFetch({ targetStatus: 502 })
+    vi.stubGlobal('fetch', fn)
+
+    const body = await (await GET(req())).json()
+    expect(body.status).toBe('down')
+    expect(body.ntfyStatus).toBe(200)
   })
 })

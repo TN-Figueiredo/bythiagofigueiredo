@@ -55,7 +55,9 @@ export async function GET(req: NextRequest) {
       const logId = logRow?.id
 
       try {
-        const result = await syncInstagramAccount(supabase, account)
+        // Ponte temporária desta tarefa — Tarefa 13 (fora de escopo aqui)
+        // substitui por decifra real via readAccessToken.
+        const result = await syncInstagramAccount(supabase, account, account.access_token ?? '')
         totalInserted += result.postsInserted
         totalUpdated += result.postsUpdated
         totalCached += result.mediaCached

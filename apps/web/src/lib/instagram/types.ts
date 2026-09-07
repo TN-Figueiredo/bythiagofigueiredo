@@ -21,8 +21,8 @@ export interface InstagramAccountRow {
   // 'legacy'). No tipo entram OPCIONAIS em C1 para que os literais de
   // InstagramAccountRow já existentes em test/instagram/{sync,cron-route,
   // token-refresh}.test.ts continuem compilando um commit antes de qualquer
-  // código que as escreva. C2, que passa a escrevê-las, remove o `?` de
-  // ig_user_id_source.
+  // código que as escreva. C2 escreve a coluna, e o schema a tem
+  // `not null default 'legacy'` — por isso o `?` sai aqui.
   token_refreshed_at?: string | null
   token_error?: string | null
   token_error_at?: string | null
@@ -31,7 +31,7 @@ export interface InstagramAccountRow {
   token_alert_attempt_at?: string | null
   token_reprobe_at?: string | null
   ig_professional_id?: string | null
-  ig_user_id_source?: 'oauth' | 'legacy'
+  ig_user_id_source: 'oauth' | 'legacy'
 }
 
 export interface InstagramPostRow {

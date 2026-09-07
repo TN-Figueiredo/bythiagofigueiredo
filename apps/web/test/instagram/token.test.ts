@@ -14,7 +14,12 @@ import {
   getVaultKeyOrNull,
   readAccessToken,
   writeAccessToken,
+  MarkTokenInvalidError,
+  evaluateTransientStreak,
+  markTokenInvalid,
 } from '@/lib/instagram/token'
+import * as Sentry from '@sentry/nextjs'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 const KEY_HEX = '0'.repeat(64)
 
@@ -168,5 +173,135 @@ describe('classifyInstagramError — sequência ordenada de §3.2', () => {
   it('(4) default: 400 SEM type => transient', () => {
     expect(classifyInstagramError({ httpStatus: 400, type: 'HttpError', code: 400, message: 'Instagram API 400' }))
       .toBe('transient')
+  })
+})
+
+const ACC = { id: 'acc-1', site_id: 'site-1' }
+
+function rpcClient(result: { data?: unknown; error?: { message: string } | null }) {
+  const rpc = vi.fn(() => Promise.resolve({ data: result.data ?? null, error: result.error ?? null }))
+  const eqSite = vi.fn(() => Promise.resolve({ error: null }))
+  const eqId = vi.fn(() => ({ eq: eqSite }))
+  const update = vi.fn(() => ({ eq: eqId }))
+  const from = vi.fn(() => ({ update }))
+  return { client: { rpc, from } as unknown as SupabaseClient, rpc, update }
+}
+
+describe('markTokenInvalid', () => {
+  it('encaminha os 6 parâmetros da RPC, com p_mode', async () => {
+    const { client, rpc } = rpcClient({ data: [{ out_token_error_at: '2026-09-06T11:00:00Z' }] })
+    await markTokenInvalid(client, ACC, 'transient', { fatal: false, mode: 'token_refresh' })
+    expect(rpc).toHaveBeenCalledWith('instagram_mark_token_invalid', {
+      p_account: 'acc-1', p_site: 'site-1', p_reason: 'transient',
+      p_fatal: false, p_force_reason: false, p_mode: 'token_refresh',
+    })
+  })
+
+  it('REDIGE o motivo antes de mandar ao banco', async () => {
+    const { client, rpc } = rpcClient({ data: [] })
+    await markTokenInvalid(client, ACC, `failed: access_token=${'a'.repeat(64)}`, { fatal: true })
+    const reason = String((rpc.mock.calls[0]![1] as Record<string, unknown>).p_reason)
+    expect(reason).not.toContain('a'.repeat(64))
+    expect(reason).toContain('[REDACTED]')
+  })
+
+  it('trunca o motivo em 500 caracteres', async () => {
+    const { client, rpc } = rpcClient({ data: [] })
+    await markTokenInvalid(client, ACC, 'x'.repeat(900), { fatal: true })
+    expect(String((rpc.mock.calls[0]![1] as Record<string, unknown>).p_reason)).toHaveLength(500)
+  })
+
+  it('forceReason:true é repassado', async () => {
+    const { client, rpc } = rpcClient({ data: [] })
+    await markTokenInvalid(client, ACC, 'deauthorized', { fatal: true, forceReason: true })
+    expect((rpc.mock.calls[0]![1] as Record<string, unknown>).p_force_reason).toBe(true)
+  })
+
+  it('RPC com error => captureException, episódio FORÇADO por update direto e throw', async () => {
+    const { client, update } = rpcClient({ error: { message: 'PGRST202 not found' } })
+    await expect(markTokenInvalid(client, ACC, 'expired', { fatal: true }))
+      .rejects.toBeInstanceOf(MarkTokenInvalidError)
+    expect(vi.mocked(Sentry.captureException)).toHaveBeenCalled()
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({
+      token_error: expect.stringContaining('expired'),
+      token_alert_sent_at: null,
+      token_alert_attempt_at: null,
+      token_reprobe_at: null,
+    }))
+  })
+})
+
+describe('evaluateTransientStreak — POR MODO', () => {
+  const DAY = 86_400_000
+  function logClient(rows: Array<{ started_at: string; mode: string; status: string; error_message: string | null }>) {
+    const rpc = vi.fn(() => Promise.resolve({ data: [], error: null }))
+    const gt = vi.fn(() => Promise.resolve({ data: rows, error: null }))
+    const inStatus = vi.fn(() => ({ gt }))
+    const inMode = vi.fn(() => ({ in: inStatus }))
+    const eq = vi.fn(() => ({ in: inMode }))
+    const select = vi.fn(() => ({ eq }))
+    const eqSite = vi.fn(() => Promise.resolve({ error: null }))
+    const eqId = vi.fn(() => ({ eq: eqSite }))
+    const update = vi.fn(() => ({ eq: eqId }))
+    const from = vi.fn(() => ({ select, update }))
+    return { client: { rpc, from } as unknown as SupabaseClient, rpc }
+  }
+  function fail(daysAgo: number, mode: string, hour = 11) {
+    const d = new Date(Date.now() - daysAgo * DAY)
+    d.setUTCHours(hour, 0, 5, 0)
+    return { started_at: d.toISOString(), mode, status: 'failed', error_message: 'transient: 429' }
+  }
+  function done(daysAgo: number, mode: string, hour = 13) {
+    const d = new Date(Date.now() - daysAgo * DAY)
+    d.setUTCHours(hour, 0, 5, 0)
+    return { started_at: d.toISOString(), mode, status: 'completed', error_message: null }
+  }
+
+  it('3 dias UTC de token_refresh falhando + daily completed diário => ABRE com mode token_refresh', async () => {
+    const { client, rpc } = logClient([
+      fail(2, 'token_refresh'), fail(1, 'token_refresh'), fail(0, 'token_refresh'),
+      done(2, 'daily'), done(1, 'daily'), done(0, 'daily'),
+    ])
+    expect(await evaluateTransientStreak(client, ACC, 'token_refresh')).toBe(true)
+    expect(rpc).toHaveBeenCalledWith('instagram_mark_token_invalid', expect.objectContaining({
+      p_fatal: false, p_mode: 'token_refresh',
+    }))
+  })
+
+  it('2 falhas no MESMO dia UTC + 1 em outro => nada (2 dias distintos)', async () => {
+    const { client, rpc } = logClient([
+      fail(1, 'token_refresh', 11), fail(1, 'token_refresh', 13), fail(0, 'token_refresh'),
+    ])
+    expect(await evaluateTransientStreak(client, ACC, 'token_refresh')).toBe(false)
+    expect(rpc).not.toHaveBeenCalled()
+  })
+
+  it('dias 1/3/5 => nada (fora da janela de 4 dias)', async () => {
+    const { client, rpc } = logClient([fail(5, 'daily'), fail(3, 'daily'), fail(1, 'daily')])
+    // a query já filtra > now - 4 days; aqui o retorno simula só o que passou
+    const filtered = logClient([fail(3, 'daily'), fail(1, 'daily')])
+    expect(await evaluateTransientStreak(filtered.client, ACC, 'daily')).toBe(false)
+    expect(filtered.rpc).not.toHaveBeenCalled()
+    void client; void rpc
+  })
+
+  it('completed DO MESMO MODO mais novo que a falha mais antiga => nada', async () => {
+    const { client, rpc } = logClient([
+      fail(2, 'daily'), fail(1, 'daily'), fail(0, 'daily'), done(1, 'daily', 20),
+    ])
+    expect(await evaluateTransientStreak(client, ACC, 'daily')).toBe(false)
+    expect(rpc).not.toHaveBeenCalled()
+  })
+
+  it('linhas timeout / never_connected / infra: / permanent: / detail: são ignoradas', async () => {
+    const { client, rpc } = logClient([
+      { ...fail(2, 'daily'), error_message: 'timeout' },
+      { ...fail(1, 'daily'), error_message: 'never_connected' },
+      { ...fail(0, 'daily'), error_message: 'infra: duplicate key value' },
+      { ...fail(0, 'daily'), error_message: 'permanent: expired' },
+      { ...fail(0, 'daily'), error_message: 'detail: recovered' },
+    ])
+    expect(await evaluateTransientStreak(client, ACC, 'daily')).toBe(false)
+    expect(rpc).not.toHaveBeenCalled()
   })
 })

@@ -46,6 +46,11 @@ export const NotificationCreateSchema = z.object({
       { message: 'action_href must be a relative path or HTTPS URL' }
     ),
   channels: z.array(z.enum(VALID_CHANNELS)).optional(),
+  // C2: canais usados SÓ quando o usuário nunca configurou preferências.
+  // Diferente de `channels`, que é OVERRIDE e passaria por cima de
+  // notification_preferences e, transitivamente, do consentimento
+  // notification_email (LGPD).
+  defaultChannels: z.array(z.enum(VALID_CHANNELS)).optional(),
   actor_id: z.string().uuid().optional(),  // for self-action suppression
 })
 

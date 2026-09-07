@@ -255,7 +255,12 @@ describe('triggerInstagramSync (A2 — in-process)', () => {
     ]
     expect(account.id).toBe(ACCOUNT_ID)
     expect(account.ig_user_id).toBe('ig-1')
-    expect(token).toBeUndefined()
+    // Deviation from the plan (documented in the block report): accessToken
+    // is now mandatory on syncInstagramAccount (Task 7), so this call-site
+    // (not listed in Task 7's file list) needed the same temporary bridge as
+    // the cron route — account.access_token passed straight through until
+    // Task 14 (out of scope here) swaps it for the real decrypt.
+    expect(token).toBe('tok-abc')
     expect(opts.deadlineAt).toBeGreaterThanOrEqual(before + 90_000)
     expect(opts.deadlineAt).toBeLessThanOrEqual(Date.now() + 90_000)
   })

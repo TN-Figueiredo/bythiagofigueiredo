@@ -1,6 +1,7 @@
 // SERVER-ONLY. Importa @tn-figueiredo/social/vault (=> node:crypto).
 // MUST NOT ser importado de nenhum arquivo 'use client' — as frases da UI
 // vivem em ./status-text.ts, que é isomórfico de propósito.
+import type { SupabaseClient } from '@supabase/supabase-js'
 import * as Sentry from '@sentry/nextjs'
 import { decrypt, encrypt } from '@tn-figueiredo/social/vault'
 import { redactSecrets } from '@/lib/redact-secrets'
@@ -161,6 +162,125 @@ export function classifyInstagramError(err: unknown): ErrorClass {
   }
 
   return result
+}
+
+// ── Episódio de token (C2) ───────────────────────────────────────────────────
+
+export interface IMarkTokenInvalidOpts {
+  /** false = abre episódio transitório (nunca grava token_error). */
+  fatal: boolean
+  /** true = sobrescreve o motivo e re-arma o alerta (só Meta: deauthorize / data-deletion). */
+  forceReason?: boolean
+  mode?: 'daily' | 'token_refresh'
+}
+
+export class MarkTokenInvalidError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'MarkTokenInvalidError'
+  }
+}
+
+export async function markTokenInvalid(
+  supabase: SupabaseClient,
+  account: { id: string; site_id: string },
+  reason: string,
+  opts: IMarkTokenInvalidOpts,
+): Promise<void> {
+  const pReason = redact(String(reason)).slice(0, 500)
+
+  const { error } = await supabase.rpc('instagram_mark_token_invalid', {
+    p_account: account.id,
+    p_site: account.site_id,
+    p_reason: pReason,
+    p_fatal: opts.fatal,
+    p_force_reason: opts.forceReason ?? false,
+    p_mode: opts.mode ?? null,
+  })
+
+  if (!error) return
+
+  // `error` (a RPC não existe / permissão / coluna faltando) é diferente de
+  // "0 linhas casadas": aqui o episódio é FORÇADO por update direto para que a
+  // conta não morra em silêncio, e o throw faz o cron contar step_errors.
+  Sentry.captureException(
+    new Error(`instagram_mark_token_invalid failed: ${error.message}`),
+    { tags: { component: 'instagram-token', account_id: account.id } },
+  )
+  await supabase
+    .from('instagram_accounts')
+    .update({
+      token_error: opts.fatal ? pReason : null,
+      token_error_at: new Date().toISOString(),
+      token_error_mode: opts.mode ?? null,
+      token_alert_sent_at: null,
+      token_alert_attempt_at: null,
+      token_reprobe_at: null,
+    })
+    .eq('id', account.id)
+    .eq('site_id', account.site_id)
+
+  throw new MarkTokenInvalidError(error.message)
+}
+
+const STREAK_WINDOW_MS = 4 * 24 * 60 * 60 * 1000
+const STREAK_DAYS_REQUIRED = 3
+
+function utcDay(iso: string): string {
+  return new Date(iso).toISOString().slice(0, 10)
+}
+
+/**
+ * Avaliada POR MODO. Um `completed` de `daily` prova que a LEITURA funciona,
+ * não que a RENOVAÇÃO funciona — deixá-lo zerar a sequência do `token_refresh`
+ * reintroduz exatamente a morte silenciosa de §1.
+ * Predicado semântico em TS (select largo + filtro), conforme a nota de execução.
+ */
+export async function evaluateTransientStreak(
+  supabase: SupabaseClient,
+  account: { id: string; site_id: string },
+  mode: 'daily' | 'token_refresh',
+): Promise<boolean> {
+  const since = new Date(Date.now() - STREAK_WINDOW_MS).toISOString()
+
+  const { data, error } = await supabase
+    .from('instagram_sync_log')
+    .select('started_at, mode, status, error_message')
+    .eq('account_id', account.id)
+    .in('mode', ['daily', 'token_refresh'])
+    .in('status', ['completed', 'failed'])
+    .gt('started_at', since)
+
+  if (error) throw new Error(`transient streak query failed: ${error.message}`)
+
+  const rows = (data ?? []) as Array<{
+    started_at: string
+    mode: string
+    status: string
+    error_message: string | null
+  }>
+
+  // Só linhas `failed` com prefixo `transient:` contam. As demais não contam
+  // NEM zeram.
+  const failures = rows.filter(
+    (r) =>
+      r.mode === mode &&
+      r.status === 'failed' &&
+      (r.error_message ?? '').startsWith('transient:'),
+  )
+  if (failures.length === 0) return false
+
+  const days = new Set(failures.map((r) => utcDay(r.started_at)))
+  if (days.size < STREAK_DAYS_REQUIRED) return false
+
+  const oldestFailure = failures.reduce((a, b) => (a.started_at <= b.started_at ? a : b)).started_at
+  const recovered = rows.some(
+    (r) => r.mode === mode && r.status === 'completed' && r.started_at > oldestFailure,
+  )
+  if (recovered) return false
+
+  await markTokenInvalid(supabase, account, 'transient', { fatal: false, mode })
+  return true
 }
 
 /**

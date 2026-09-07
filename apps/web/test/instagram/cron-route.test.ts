@@ -59,7 +59,7 @@ describe('GET /api/cron/instagram-sync', () => {
       from: vi.fn((table: string) => {
         if (table === 'instagram_accounts') {
           return { select: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({
-            data: [{ id: 'acc-1', site_id: 'site-1', locale: 'pt', handle: '@test', ig_user_id: 'ig-1', access_token: 'tok', token_expires_at: null, sync_enabled: true, display_slots: 6, layout_type: 'grid', last_synced_at: null, created_at: '', updated_at: '' }],
+            data: [{ id: 'acc-1', site_id: 'site-1', locale: 'pt', handle: '@test', ig_user_id: 'ig-1', access_token: 'tok', token_expires_at: null, sync_enabled: true, display_slots: 6, layout_type: 'grid', last_synced_at: null, created_at: '', updated_at: '', ig_user_id_source: 'legacy' }],
             error: null,
           }) }) }
         }

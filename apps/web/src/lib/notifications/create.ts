@@ -165,7 +165,13 @@ async function resolveChannels(
     .is('category', null) // global defaults
     .maybeSingle()
 
-  if (!prefs) return [] // No preferences = in-app only (no external delivery)
+  // Sem preferência configurada: os defaults do emissor valem. Havendo linha
+  // global, ela manda — inclusive quando é `[]`.
+  // Limite declarado: este `return` antecede o override por domínio (:175-191),
+  // então quem tem linha de DOMÍNIO com channel_email:false mas nenhuma linha
+  // global recebe o e-mail assim mesmo. Estado não produzível pela UI
+  // (src/lib/notifications/actions.ts:74-97 grava a global junto).
+  if (!prefs) return data.defaultChannels ?? []
 
   const channels: DeliveryChannel[] = []
   if (prefs.channel_email) channels.push('email')

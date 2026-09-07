@@ -692,7 +692,13 @@ export async function triggerInstagramSync(input: {
   // fazia um clique manual mascarar um cron diário morto.
   let result: Awaited<ReturnType<typeof syncInstagramAccount>>
   try {
-    result = await syncInstagramAccount(supabase, account, undefined, {
+    // Ponte temporária de C2/Tarefa 7 (não listada no plano dessa tarefa —
+    // deviation documentada no relatório do bloco): accessToken passou a ser
+    // o 3º parâmetro obrigatório de syncInstagramAccount, e este call-site
+    // preexistente (comentário "A2" acima) passava `undefined` para usar o
+    // fallback removido. Task 14 (fora de escopo aqui) substitui isto pela
+    // decifra real via readAccessToken.
+    result = await syncInstagramAccount(supabase, account, account.access_token ?? '', {
       deadlineAt: start + 90_000,
     })
   } catch (err) {
