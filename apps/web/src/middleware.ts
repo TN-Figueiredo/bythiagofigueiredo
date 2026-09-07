@@ -134,6 +134,38 @@ async function getSiteByDomainCached(
 }
 
 /**
+ * BTF/A4 — headers que o app trata como escritos pela borda e que, por isso,
+ * MUST NOT chegar do cliente:
+ *   - `x-site-id`, `x-org-id`, `x-default-locale`, `x-site-timezone`,
+ *     `x-locale`: escritos por este middleware (resolveSite / mergeSiteHeaders
+ *     / detecção de locale) e lidos por `lib/cms/site-context.ts`;
+ *   - `x-primary-domain`: lido em `lib/cms/site-context.ts` e NUNCA escrito —
+ *     um valor forjado passaria direto a `siteOrigin`;
+ *   - `x-short-domain`: lido em `src/app/go/route.ts` e
+ *     `src/app/go/linktree/layout.tsx`; o ramo `go.*` só o escreve na
+ *     *resposta*, então tudo que aparece no request veio do cliente;
+ *   - `content-security-policy`: o próprio Next lê ESTE header do request para
+ *     decidir se (e com qual nonce) marca seus scripts inline. O `set` de
+ *     `buildCsp` abaixo só acontece fora do modo `legacy` — que é o default
+ *     (`src/lib/security/csp.ts`) —, logo no modo atual um valor do cliente
+ *     chegaria ao framework intacto.
+ *
+ * A deleção acontece na cópia recém-criada, ANTES de qualquer `set` do
+ * middleware, para que nenhum caminho (incluindo os que dão short-circuit
+ * antes da resolução de site) fique de fora.
+ */
+const STRIPPED_REQUEST_HEADERS = [
+  'x-site-id',
+  'x-org-id',
+  'x-default-locale',
+  'x-site-timezone',
+  'x-locale',
+  'x-primary-domain',
+  'x-short-domain',
+  'content-security-policy',
+] as const
+
+/**
  * BTF-089b — per-request context threading the CSP nonce.
  *
  * `requestHeaders` is the single mutable copy of the incoming request headers
@@ -166,6 +198,9 @@ export async function middleware(
   const nonceCsp = mode === 'legacy' ? null : buildCsp({ nonce, isDev, frameAncestors })
 
   const requestHeaders = new Headers(request.headers)
+  // A4: nenhum header de confiança sobrevive à borda. Vem antes do `set` de
+  // `x-nonce` e do `set` condicional de `content-security-policy` abaixo.
+  for (const name of STRIPPED_REQUEST_HEADERS) requestHeaders.delete(name)
   requestHeaders.set('x-nonce', nonce)
   // Next.js reads the *request* `content-security-policy` header to decide
   // whether (and with which nonce) to tag its own inline scripts. Only set it
