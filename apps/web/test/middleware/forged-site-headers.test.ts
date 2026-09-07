@@ -153,15 +153,24 @@ describe('middleware: forged trusted headers are stripped at the edge', () => {
   })
 })
 
-describe('GET /go: the redirect destination never comes from a request header', () => {
-  it('ignores a forged x-short-domain and lands on the resolved site', async () => {
+/**
+ * These pin that the RETIRED sink is closed: `src/app/go/route.ts` no longer
+ * reads `x-short-domain` at all, so forging it is a no-op by construction —
+ * these tests do NOT exercise the middleware and do NOT prove anything about
+ * `x-primary-domain`, which the route *does* still consult (via
+ * `getSiteContext`). That trust relationship is pinned separately below, by
+ * a test that runs the real middleware.
+ */
+describe('GET /go: the retired x-short-domain header is a no-op (old sink stays closed)', () => {
+  it('a forged x-short-domain is never read; destination comes from x-primary-domain/host', async () => {
     headersMock.mockResolvedValue(
       new Headers({
         host: 'bythiagofigueiredo.com',
         'x-site-id': 'site-1',
         'x-org-id': 'org-1',
         'x-default-locale': 'pt-BR',
-        // Forjado: hoje `src/app/go/route.ts:4` o lê e redireciona a evil.com.
+        // Forjado: a versão pré-A4 lia isto em src/app/go/route.ts:4 e
+        // redirecionava a evil.com. A rota atual nunca lê este header.
         'x-short-domain': 'go.evil.com',
       }),
     )
@@ -171,7 +180,7 @@ describe('GET /go: the redirect destination never comes from a request header', 
     expect(res.headers.get('location')).toBe('https://bythiagofigueiredo.com/')
   })
 
-  it('falls back to the canonical host when no site was resolved', async () => {
+  it('a forged x-short-domain has no bearing on the no-site-resolved fallback', async () => {
     headersMock.mockResolvedValue(
       new Headers({ host: 'evil.com', 'x-short-domain': 'go.evil.com' }),
     )
@@ -180,13 +189,58 @@ describe('GET /go: the redirect destination never comes from a request header', 
     expect(res.headers.get('location')).toBe('https://bythiagofigueiredo.com/')
   })
 
-  it('falls back to the canonical host on a local dev host', async () => {
+  it('falls back to the canonical host on a local dev host (no x-short-domain involved)', async () => {
     headersMock.mockResolvedValue(
       new Headers({
         host: 'dev.localhost:3001',
         'x-site-id': 'site-1',
         'x-org-id': 'org-1',
       }),
+    )
+    const { GET } = await import('@/app/go/route')
+    const res = await GET()
+    expect(res.headers.get('location')).toBe('https://bythiagofigueiredo.com/')
+  })
+})
+
+/**
+ * THE test that pins the actual control. `src/app/go/route.ts` reads
+ * `site.primaryDomain`, which `lib/cms/site-context.ts` derives as
+ * `x-primary-domain ?? host` — `x-primary-domain` is itself a header, and by
+ * itself just as forgeable as `x-short-domain` was. The route is safe only
+ * because `src/middleware.ts` deletes `x-primary-domain` from every incoming
+ * request (`STRIPPED_REQUEST_HEADERS`) before any handler runs. This test
+ * proves that: it sends the forged header through the REAL `middleware()`
+ * export (not a hand-built `Headers` object standing in for its output),
+ * takes exactly what the middleware would forward to a route handler, and
+ * only then calls `GET()` — so it fails if the strip in `src/middleware.ts`
+ * is ever weakened, unlike the mock-only tests above.
+ */
+describe('GET /go: middleware strip is the actual control for x-primary-domain', () => {
+  it('a forged x-primary-domain is stripped by the middleware before GET /go ever sees it', async () => {
+    const { middleware } = await import('@/middleware')
+    const request = new NextRequest(
+      new URL('https://bythiagofigueiredo.com/go'),
+      {
+        headers: new Headers({
+          host: 'bythiagofigueiredo.com',
+          // Forjado: se este header sobrevivesse à borda, chegaria a
+          // getSiteContext() como site.primaryDomain e o redirect abaixo
+          // apontaria para https://evil.com — o mesmo bug de x-short-domain,
+          // só que na fonte que substituiu ela.
+          'x-primary-domain': 'evil.com',
+        }),
+      },
+    )
+    const middlewareResponse = await middleware(request)
+    const forwarded = forwardedRequestHeaders(middlewareResponse)
+
+    // Sanidade: prova que o strip realmente aconteceu neste caminho, antes
+    // de confiar no comportamento da rota sobre esses headers.
+    expect(forwarded.has('x-primary-domain')).toBe(false)
+
+    headersMock.mockResolvedValue(
+      new Headers(Object.fromEntries(forwarded.entries())),
     )
     const { GET } = await import('@/app/go/route')
     const res = await GET()

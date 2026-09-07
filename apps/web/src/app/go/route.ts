@@ -19,11 +19,21 @@ function isPublicDomain(domain: string | undefined): domain is string {
 /**
  * `/go` no domínio principal devolve o visitante à home do site.
  *
- * A4 — o destino vem do site que o middleware resolveu (`getSiteContext`),
- * nunca de `x-short-domain`: esse header só é escrito na *resposta* do ramo
- * `go.*` (`src/middleware.ts`), então qualquer valor legível aqui veio do
- * cliente. A versão anterior o usava para montar o `NextResponse.redirect` e
- * `x-short-domain: go.evil.com` redirecionava para `https://evil.com`.
+ * A4 — a versão anterior montava o destino a partir de `x-short-domain` (lido
+ * direto do request) e `x-short-domain: go.evil.com` redirecionava para
+ * `https://evil.com`. Essa leitura foi removida: o destino agora vem de
+ * `site.primaryDomain` (`getSiteContext`, `lib/cms/site-context.ts`), que por
+ * sua vez é `x-primary-domain ?? host`.
+ *
+ * `x-primary-domain` É UM HEADER — sozinho, tão forjável quanto
+ * `x-short-domain` era. Esta rota não é segura porque leia "a fonte certa";
+ * ela é segura porque `src/middleware.ts` apaga `x-primary-domain` (entre os
+ * 8 nomes de `STRIPPED_REQUEST_HEADERS`) de TODO request antes de qualquer
+ * handler rodar. O controle real de A4 está no middleware, não aqui: sem o
+ * strip na borda, `x-primary-domain: evil.com` chegaria a este `headers()`
+ * do mesmo jeito que `x-short-domain` chegava antes dele ser removido desta
+ * rota. `test/middleware/forged-site-headers.test.ts` cobre isso passando
+ * pelo middleware de verdade, não só mockando `next/headers`.
  */
 export async function GET(): Promise<Response> {
   const site = await tryGetSiteContext()
