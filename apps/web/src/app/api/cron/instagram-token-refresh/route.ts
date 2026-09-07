@@ -497,7 +497,16 @@ export async function GET(req: NextRequest) {
     }
 
     const stillBroken = accounts.filter((a) => a.token_error_at != null).length
-    const status = shouldEscalate ? ('error' as const) : ('ok' as const)
+
+    // Important #2 (review blocos 3-5): `step_errors` MUST degradar a saúde
+    // declarada do run. Sem isto, uma varredura morta, uma retenção que lançou
+    // ou um `markTokenInvalid` que nem pelo fallback conseguiu escrever
+    // devolviam `status:'ok'` => `recordCronSuccess` => `/api/health` verde,
+    // com o dono dependendo de um único push genérico ("cron degraded") que a
+    // primeira recusa transitória do episódio engole. Não é gated por
+    // `isProduction`: uma etapa que lançou é falha real em qualquer ambiente.
+    if (stepErrors > 0) causes.push(`${stepErrors} step(s) failed`)
+    const status = shouldEscalate || stepErrors > 0 ? ('error' as const) : ('ok' as const)
 
     return {
       status,

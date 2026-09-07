@@ -81,9 +81,15 @@ function clientWithAccounts(accounts: Array<Record<string, unknown>>) {
     from: vi.fn((table: string) => {
       if (table === 'instagram_accounts') {
         const terminal = Promise.resolve({ data: accounts, error: null })
+        // `not`/`is`/`in` fazem parte da cadeia REAL: `sweepTokenAlerts` (que
+        // aqui roda de verdade) usa `.not('token_error_at','is',null)`, e o
+        // fallback guard-fiel de `markTokenInvalid` usa `.is(col, null)`. Sem
+        // eles a varredura lançava dentro de `step('sweep')` — e, até a
+        // correção do Important #2, o run ainda se declarava `ok`.
         const chain: Record<string, unknown> = {
           select: () => chain, order: () => terminal, then: terminal.then.bind(terminal),
-          update: () => chain, eq: () => chain,
+          update: () => chain, eq: () => chain, not: () => chain, is: () => chain,
+          in: () => terminal, maybeSingle: () => Promise.resolve({ data: null, error: null }),
         }
         return chain
       }

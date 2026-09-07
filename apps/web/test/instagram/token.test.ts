@@ -237,13 +237,61 @@ describe('classifyInstagramError — sequência ordenada de §3.2', () => {
 
 const ACC = { id: 'acc-1', site_id: 'site-1' }
 
-function rpcClient(result: { data?: unknown; error?: { message: string } | null }) {
+interface IEpisodeRow {
+  token_error: string | null
+  token_error_at: string | null
+}
+
+/**
+ * Fake do client para `markTokenInvalid`: serve a RPC E o fallback
+ * guard-fiel (leitura `select…maybeSingle` + `update…eq…eq[.is]`).
+ * `updates` guarda cada patch tentado com a coluna usada como guarda no
+ * próprio `update` — é sobre ele que as asserções de "não tocou a linha" e de
+ * "reproduziu a guarda" rodam.
+ */
+function rpcClient(result: {
+  data?: unknown
+  error?: { message: string } | null
+  /** Linha devolvida ao fallback. `null` = 0 linhas. */
+  row?: IEpisodeRow | null
+  readError?: { message: string } | null
+  writeError?: { message: string } | null
+}) {
   const rpc = vi.fn(() => Promise.resolve({ data: result.data ?? null, error: result.error ?? null }))
-  const eqSite = vi.fn(() => Promise.resolve({ error: null }))
-  const eqId = vi.fn(() => ({ eq: eqSite }))
-  const update = vi.fn(() => ({ eq: eqId }))
-  const from = vi.fn(() => ({ update }))
-  return { client: { rpc, from } as unknown as SupabaseClient, rpc, update, from }
+  const updates: Array<{ patch: Record<string, unknown>; guard: string | null }> = []
+  const reads = { count: 0 }
+
+  const from = vi.fn(() => ({
+    select: () => ({
+      eq: () => ({
+        eq: () => ({
+          maybeSingle: () => {
+            reads.count++
+            return Promise.resolve({
+              data: result.readError ? null : (result.row ?? null),
+              error: result.readError ?? null,
+            })
+          },
+        }),
+      }),
+    }),
+    update: (patch: Record<string, unknown>) => {
+      const entry: { patch: Record<string, unknown>; guard: string | null } = { patch, guard: null }
+      updates.push(entry)
+      const settled = Promise.resolve({ error: result.writeError ?? null })
+      const chain: Record<string, unknown> = {
+        eq: () => chain,
+        is: (column: string) => {
+          entry.guard = column
+          return chain
+        },
+        then: settled.then.bind(settled),
+      }
+      return chain
+    },
+  }))
+
+  return { client: { rpc, from } as unknown as SupabaseClient, rpc, from, updates, reads }
 }
 
 describe('markTokenInvalid', () => {
@@ -276,30 +324,121 @@ describe('markTokenInvalid', () => {
     expect((rpc.mock.calls[0]![1] as Record<string, unknown>).p_force_reason).toBe(true)
   })
 
-  it('RPC com error => captureException, throw, e a linha NÃO É TOCADA (Achado 2, fix round C2)', async () => {
-    const { client, from } = rpcClient({ error: { message: 'PGRST202 not found' } })
-    await expect(markTokenInvalid(client, ACC, 'expired', { fatal: true }))
-      .rejects.toBeInstanceOf(MarkTokenInvalidError)
+  // ── Fallback GUARD-FIEL (Achado 2 + Important #1 da review dos blocos 3-5)
+  // A rodada anterior apagou o fallback inteiro: parou a corrupção, mas um
+  // token realmente morto passava a ficar com `token_error_at` NULO, invisível
+  // para `sweepTokenAlerts` — a única porta de saída do alerta — enquanto o run
+  // ainda se declarava saudável. O fallback correto reproduz cada condição do
+  // corpo da RPC (migration 20260906000002:66-88).
+
+  it('RPC falhando SEM episódio aberto AINDA abre o episódio (detecção preservada)', async () => {
+    const { client, updates } = rpcClient({
+      error: { message: 'PGRST202 not found' },
+      row: { token_error: null, token_error_at: null },
+    })
+    await markTokenInvalid(client, ACC, 'expired', { fatal: true })
     expect(vi.mocked(Sentry.captureException)).toHaveBeenCalled()
-    // O fallback antigo fazia um update direto sem reproduzir as guardas da
-    // RPC — provamos AUSÊNCIA de efeito (from nunca chamado), não só que uma
-    // chamada específica não ocorreu.
-    expect(from).not.toHaveBeenCalled()
+    expect(updates).toHaveLength(1)
+    // O que a varredura precisa: token_error_at preenchido e reason gravado.
+    expect(updates[0]!.patch.token_error).toBe('expired')
+    expect(updates[0]!.patch.token_error_at).toEqual(expect.any(String))
+    // Marca-passo re-armado, como nos três ramos da RPC.
+    expect(updates[0]!.patch).toMatchObject({
+      token_alert_sent_at: null, token_alert_attempt_at: null, token_reprobe_at: null,
+    })
+    // A guarda da RPC (`where token_error is null`) vai TAMBÉM como filtro.
+    expect(updates[0]!.guard).toBe('token_error')
   })
 
-  it('chamada NÃO-FATAL durante um episódio FATAL aberto, com a RPC falhando, não sobrescreve reason nem started_at (Achado 2)', async () => {
-    // Cenário do achado: um `evaluateTransientStreak('daily')` dispara uma
-    // marcação NÃO-FATAL enquanto a conta já tem um episódio FATAL aberto
-    // (token_error/token_error_at != null de um 'expired'/'revoked'
-    // anterior). Se a RPC em si falhar (permissão, coluna faltando, rede),
-    // o fallback antigo escreveria `token_error: null` e `token_error_at:
-    // now()` incondicionalmente, apagando o motivo e o início do episódio
-    // fatal registrado e rebaixando-o para transitório. O fallback correto é
-    // não escrever nada.
-    const { client, from } = rpcClient({ error: { message: 'network down' } })
-    await expect(markTokenInvalid(client, ACC, 'transient', { fatal: false, mode: 'daily' }))
+  it('RPC falhando, chamada NÃO-FATAL sem episódio aberto => abre transitório com o mode', async () => {
+    const { client, updates } = rpcClient({
+      error: { message: 'network down' },
+      row: { token_error: null, token_error_at: null },
+    })
+    await markTokenInvalid(client, ACC, 'transient', { fatal: false, mode: 'daily' })
+    expect(updates).toHaveLength(1)
+    expect(updates[0]!.patch).toMatchObject({ token_error_mode: 'daily' })
+    expect(updates[0]!.patch.token_error_at).toEqual(expect.any(String))
+    // Ramo não-fatal NUNCA escreve token_error (nem para null).
+    expect(updates[0]!.patch).not.toHaveProperty('token_error')
+    expect(updates[0]!.guard).toBe('token_error_at')
+  })
+
+  it('chamada NÃO-FATAL durante um episódio FATAL aberto, com a RPC falhando, NÃO MUDA NADA (Achado 2)', async () => {
+    // Cenário do achado: `evaluateTransientStreak('daily')` dispara uma
+    // marcação NÃO-FATAL enquanto a conta já tem um episódio FATAL aberto. O
+    // fallback ORIGINAL escrevia `token_error: null` + `token_error_at: now()`
+    // incondicionalmente, apagando motivo e início do episódio e rebaixando-o
+    // a transitório. A guarda `where token_error_at is null` da RPC impede
+    // isso, e o fallback a reproduz: zero updates.
+    const { client, updates } = rpcClient({
+      error: { message: 'network down' },
+      row: { token_error: 'expired', token_error_at: '2026-09-01T00:00:00.000Z' },
+    })
+    await markTokenInvalid(client, ACC, 'transient', { fatal: false, mode: 'daily' })
+    expect(updates).toHaveLength(0)
+  })
+
+  it('chamada FATAL durante um episódio TRANSITÓRIO aberto PROMOVE sem perder o início', async () => {
+    const openedAt = '2026-09-01T00:00:00.000Z'
+    const { client, updates } = rpcClient({
+      error: { message: 'PGRST202' },
+      row: { token_error: null, token_error_at: openedAt },
+    })
+    await markTokenInvalid(client, ACC, 'revoked', { fatal: true })
+    expect(updates).toHaveLength(1)
+    // coalesce(token_error_at, now()) — o início do episódio é PRESERVADO.
+    expect(updates[0]!.patch).toMatchObject({ token_error: 'revoked', token_error_at: openedAt })
+  })
+
+  it('forceReason com o MESMO motivo já gravado não escreve (is distinct from)', async () => {
+    const { client, updates } = rpcClient({
+      error: { message: 'PGRST202' },
+      row: { token_error: 'deauthorized', token_error_at: '2026-09-01T00:00:00.000Z' },
+    })
+    await markTokenInvalid(client, ACC, 'deauthorized', { fatal: true, forceReason: true })
+    expect(updates).toHaveLength(0)
+  })
+
+  it('forceReason com motivo NOVO sobrescreve, preservando o início', async () => {
+    const openedAt = '2026-09-01T00:00:00.000Z'
+    const { client, updates } = rpcClient({
+      error: { message: 'PGRST202' },
+      row: { token_error: 'expired', token_error_at: openedAt },
+    })
+    await markTokenInvalid(client, ACC, 'deauthorized', { fatal: true, forceReason: true })
+    expect(updates[0]!.patch).toMatchObject({ token_error: 'deauthorized', token_error_at: openedAt })
+    expect(updates[0]!.guard).toBeNull()
+  })
+
+  it('fallback TAMBÉM falhando => MarkTokenInvalidError e linha intocada', async () => {
+    const { client, updates } = rpcClient({
+      error: { message: 'PGRST202' },
+      row: { token_error: null, token_error_at: null },
+      writeError: { message: 'permission denied' },
+    })
+    await expect(markTokenInvalid(client, ACC, 'expired', { fatal: true }))
       .rejects.toBeInstanceOf(MarkTokenInvalidError)
-    expect(from).not.toHaveBeenCalled()
+    // O update foi TENTADO (com a guarda), mas o banco recusou — o throw é o
+    // que faz o `step()` do cron contar step_errors e o run declarar 'error'.
+    expect(updates).toHaveLength(1)
+    expect(vi.mocked(Sentry.captureException)).toHaveBeenCalledTimes(2)
+  })
+
+  it('leitura do fallback falhando => MarkTokenInvalidError e NENHUM update', async () => {
+    const { client, updates } = rpcClient({
+      error: { message: 'PGRST202' },
+      readError: { message: 'connection reset' },
+    })
+    await expect(markTokenInvalid(client, ACC, 'expired', { fatal: true }))
+      .rejects.toBeInstanceOf(MarkTokenInvalidError)
+    expect(updates).toHaveLength(0)
+  })
+
+  it('conta inexistente (0 linhas) => nenhum update e nenhum throw', async () => {
+    const { client, updates } = rpcClient({ error: { message: 'PGRST202' }, row: null })
+    await markTokenInvalid(client, ACC, 'expired', { fatal: true })
+    expect(updates).toHaveLength(0)
   })
 })
 

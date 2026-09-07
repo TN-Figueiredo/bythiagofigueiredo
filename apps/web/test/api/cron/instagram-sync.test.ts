@@ -256,6 +256,35 @@ describe('probes: TODA conta com token, isentas de orçamento', () => {
       .toHaveBeenCalledWith('instagram probe fleet exceeds design point', 'warning')
   })
 
+  it('acima do teto: o aviso sai pelo ntfy 1×/dia dizendo QUANTAS ficaram sem sonda (Important #3)', async () => {
+    // A premissa fundadora do projeto é que o dono NÃO lê Sentry: um
+    // captureMessage sozinho é indistinguível de silêncio.
+    harness({ accounts: Array.from({ length: 9 }, (_, i) => account({ id: `a${i}`, sync_enabled: false })) })
+    await GET(req())
+    const push = mockNtfy.mock.calls.find(([a]) => String(a.title).includes('probes capped'))
+    expect(push, 'nenhum push de probe_starved foi emitido').toBeDefined()
+    expect(String(push![0].body)).toContain('3 account(s)')
+    expect(push![0].priority).toBe('default')
+    // REGRA-PII-NTFY: contagem, nunca handle/id.
+    expect(`${push![0].title} ${push![0].body}`).not.toMatch(/@[a-z0-9._]{1,30}/)
+    expect(`${push![0].title} ${push![0].body}`).not.toMatch(/[0-9]{6,}/)
+  })
+
+  it('no ponto de projeto (6) não há push de teto', async () => {
+    harness({ accounts: Array.from({ length: 6 }, (_, i) => account({ id: `a${i}`, sync_enabled: false })) })
+    await GET(req())
+    expect(mockNtfy.mock.calls.some(([a]) => String(a.title).includes('probes capped'))).toBe(false)
+  })
+
+  it('a recusa do push de teto alimenta o episódio de canal, como qualquer outro emissor', async () => {
+    mockNtfy.mockResolvedValue({ alerted: false, ntfyStatus: 403 })
+    vi.stubEnv('VERCEL_ENV', 'production')
+    harness({ accounts: Array.from({ length: 7 }, (_, i) => account({ id: `a${i}`, sync_enabled: false })) })
+    const body = await (await GET(req())).json()
+    expect(body.status).toBe('error')
+    expect(body.error).toContain('terminal refusal')
+  })
+
   it('probe com OAuthException 400 => permanent + alerta no MESMO run', async () => {
     mockProbe.mockResolvedValue({ ok: false, error: Object.assign(new Error('Invalid OAuth access token'),
       { code: 190, type: 'OAuthException', httpStatus: 400 }) })
@@ -393,7 +422,7 @@ describe('canal neste cron', () => {
       if (table === 'ops_alert_state') {
         return {
           select: () => ({ eq: (_c: string, k: string) => ({ maybeSingle: () => Promise.resolve({ data: k === 'ntfy_heartbeat_ok' ? { last_at: stampIso } : null }) }) }),
-          delete: () => ({ eq: () => Promise.resolve({ error: null }) }),
+          delete: () => ({ eq: () => Promise.resolve({ error: null }), like: () => ({ lt: () => Promise.resolve({ error: null }) }) }),
           upsert: () => Promise.resolve({ error: null }),
         }
       }
@@ -411,6 +440,18 @@ describe('canal neste cron', () => {
     const body = await (await GET(req())).json()
     expect(body.status).toBe('error')
     expect(body.error).toContain('no heartbeat accepted')
+  })
+
+  it('varredura falhando SOZINHA já faz o run se declarar em erro (Important #2)', async () => {
+    // Sem NTFY_URL ausente, sem recusa, sem vault caído: só a varredura morta.
+    // Antes, isto devolvia `status:'ok'` => cron_health verde => nenhuma das
+    // pernas externas via nada, com a ÚNICA porta de saída do alerta fechada.
+    mockSweep.mockRejectedValue(new Error('sweep select failed: PGRST301'))
+    harness({ accounts: [] })
+    const body = await (await GET(req())).json()
+    expect(body.status).toBe('error')
+    expect(body.step_errors).toBe(1)
+    expect(body.error).toBe('1 step(s) failed')
   })
 
   it('as chaves de episódio e de step_errors são POR CRON', async () => {

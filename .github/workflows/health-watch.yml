@@ -128,10 +128,10 @@ jobs:
           fi
 
           send() {
-            # $1=priority $2=title $3=body. Entrega VERIFICADA: qualquer não-2xx
-            # falha o passo. `curl -sS` sai 0 num 403/429, e runners do GitHub
-            # compartilham IP de saída — exatamente a população que o ntfy.sh
-            # limita por IP.
+            # $1=priority $2=title $3=body. `curl -f` sai != 0 em qualquer
+            # não-2xx, e runners do GitHub compartilham IP de saída —
+            # exatamente a população que o ntfy.sh limita por IP, então a
+            # recusa é provável, não exótica.
             curl -fsS -o /dev/null -w '%{http_code}' \
               --max-time 15 \
               -H "Title: $2" \
@@ -139,6 +139,22 @@ jobs:
               -H "Tags: warning" \
               -d "$3" \
               "$NTFY_URL"
+          }
+
+          # Entrega VERIFICADA (Important #4 da review dos blocos 3-5): o passo
+          # roda sob `set -uo pipefail` SEM `-e`, então um `send` que falha não
+          # derrubava nada — o `case` seguia, `alerted_at` era armado como se o
+          # push tivesse chegado (suprimindo o re-alerta por 6 h) e o passo saía
+          # 0 pelo `printf` final. Aqui a recusa: (a) falha o passo; (b) NÃO
+          # arma a janela de supressão; (c) NÃO grava o estado novo — deixa
+          # PREV_STATE/PREV_ALERT intactos, para que o run seguinte (15 min)
+          # volte a ver a MESMA transição e tente de novo. Escrever "$STATE"
+          # aqui converteria a transição perdida em silêncio permanente: o ramo
+          # `re-alert` exige `alerted_at` não vazio.
+          fail_undelivered() {
+            echo "::error::health-watch: ntfy recusou o push ($1) — alerta NÃO entregue; supressão não armada, o próximo run repete."
+            printf '%s\n%s\n' "$PREV_STATE" "$PREV_ALERT" > .health-watch-state
+            exit 1
           }
 
           body="Crons late: ${LATE:-none} · unknown: ${UNKNOWN:-none}"
@@ -162,11 +178,11 @@ jobs:
 
           case "$should_alert" in
             recovered)
-              send "default" "health-watch: recuperado" "$body"
+              send "default" "health-watch: recuperado" "$body" || fail_undelivered "recovered"
               alerted_at=""
               ;;
             transition-down|re-alert)
-              send "$priority" "health-watch: ${STATUS}" "$body"
+              send "$priority" "health-watch: ${STATUS}" "$body" || fail_undelivered "$should_alert"
               alerted_at="$now"
               ;;
             *)

@@ -204,13 +204,28 @@ export async function GET(req: NextRequest) {
     // ── PROBES: toda conta com token, ISENTAS de deadline e de orçamento ────
     const withToken = accounts.filter((a) => a.access_token != null)
 
-    if (withToken.length > MAX_PROBES_PER_RUN) {
+    const unprobed = Math.max(0, withToken.length - MAX_PROBES_PER_RUN)
+    if (unprobed > 0) {
       // Condição de FROTA, nunca de descarte: é acima do ponto de projeto que a
       // aritmética de maxDuration MUST ser refeita.
+      // Important #3 (review blocos 3-5): até aqui o único sinal era um
+      // `captureMessage` — Sentry, num projeto cuja premissa fundadora é que o
+      // dono NÃO lê Sentry. Contas acima do teto saem da DETECÇÃO (não é só
+      // atraso de posts), então o aviso MUST sair pelo mesmo canal por onde o
+      // dono é avisado de qualquer outra coisa, 1×/dia, dizendo QUANTAS ficaram
+      // sem sonda. REGRA-PII-NTFY: só a contagem, nunca handle/id.
       await step('probe-starved', async () => {
-        if (await claimAlert(supabase, 'probe_starved', '23 hours')) {
-          Sentry.captureMessage('instagram probe fleet exceeds design point', 'warning')
-        }
+        if (!(await claimAlert(supabase, 'probe_starved', '23 hours'))) return
+        Sentry.captureMessage('instagram probe fleet exceeds design point', 'warning')
+        noteDelivery(
+          await sendNtfyAlert({
+            title: 'Instagram probes capped by the per-run limit',
+            body: `${unprobed} account(s) went unprobed this run — a dead token there can go undetected. See the runbook.`,
+            priority: 'default',
+            tags: ['warning'],
+            click: `${process.env.NEXT_PUBLIC_APP_URL ?? ''}/cms/settings/instagram`,
+          }),
+        )
       })
     }
 
@@ -450,7 +465,17 @@ export async function GET(req: NextRequest) {
       })
     }
 
-    const status = shouldEscalate ? ('error' as const) : ('ok' as const)
+    // Important #2 (review blocos 3-5): `step_errors` MUST degradar a saúde
+    // declarada do run. Sem isto, uma varredura morta (o `step('sweep', …)`
+    // engolindo o throw do select) devolvia `status:'ok'` => `recordCronSuccess`
+    // => `/api/health` verde => nenhuma das duas pernas externas via nada, e o
+    // único sinal era o push genérico "cron degraded" — que, se recusado de
+    // forma transitória no PRIMEIRO run do episódio deste cron, não escala.
+    // Diferente das causas de canal, esta NÃO é gated por `isProduction`: uma
+    // etapa que lançou é falha real em qualquer ambiente (NTFY_URL ausente,
+    // não).
+    if (stepErrors > 0) causes.push(`${stepErrors} step(s) failed`)
+    const status = shouldEscalate || stepErrors > 0 ? ('error' as const) : ('ok' as const)
 
     return {
       status,

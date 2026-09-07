@@ -417,14 +417,31 @@ describe('passo 4 — deadline relativo à FASE, seleção e reprova', () => {
     expect(mockNtfy.mock.calls.some(([a]) => String(a.title).includes('degraded'))).toBe(false)
   })
 
-  it('RPC lançando => run continua ok, step_errors++ e push 1×/dia', async () => {
+  it('markTokenInvalid lançando (RPC E fallback mortos) => step_errors++, push 1×/dia e status ERROR', async () => {
+    // Important #2: antes, este run devolvia `status:'ok'` — `recordCronSuccess`,
+    // /api/health verde — com a marcação do episódio perdida. O único sinal era
+    // o push genérico "cron degraded", que uma recusa transitória engole.
     mockRefresh.mockRejectedValue(Object.assign(new Error('expired'), { httpStatus: 401 }))
     mockMark.mockRejectedValue(new Error('PGRST202'))
     const h = harness({ accounts: [account()] })
     const body = await (await GET(req())).json()
-    expect(body.status).toBe('ok')
+    expect(body.status).toBe('error')
+    expect(body.error).toContain('step(s) failed')
     expect(body.step_errors).toBeGreaterThan(0)
     expect(h.claimed).toContain('step_errors:instagram-token-refresh')
+  })
+
+  it('varredura falhando SOZINHA já faz o run se declarar em erro (Important #2)', async () => {
+    // O caminho que o relatório do bloco 4 afirmava não existir: o select da
+    // varredura morre, `step('sweep')` engole, e o run se declarava saudável —
+    // sem alerta nenhum, porque a varredura é a ÚNICA porta de saída.
+    // Sem NTFY_URL ausente, sem recusa, sem vault caído: só a varredura.
+    mockSweep.mockRejectedValue(new Error('sweep select failed: PGRST301'))
+    harness({ accounts: [] })
+    const body = await (await GET(req())).json()
+    expect(body.status).toBe('error')
+    expect(body.step_errors).toBe(1)
+    expect(body.error).toBe('1 step(s) failed')
   })
 })
 
@@ -544,7 +561,7 @@ describe('passo 5 e 5b — varredura antes do canal', () => {
       if (table === 'ops_alert_state') {
         return {
           select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: stamp ? { last_at: stamp } : null }) }) }),
-          delete: () => ({ eq: () => Promise.resolve({ error: null }) }),
+          delete: () => ({ eq: () => Promise.resolve({ error: null }), like: () => ({ lt: () => Promise.resolve({ error: null }) }) }),
           upsert: () => Promise.resolve({ error: null }),
         }
       }
@@ -635,13 +652,20 @@ describe('passo 7 — status e segundo canal', () => {
       mockSweep.mockResolvedValue([]); mockNtfy.mockResolvedValue({ alerted: true, ntfyStatus: 200 })
       mockHeartbeat.mockResolvedValue({ alerted: true, ntfyStatus: 200 })
       mockFanOut.mockResolvedValue({ total: 1, sent: 1, suppressed: 0, errors: [] })
-      const stampIso = new Date(Date.now() - days * 86_400_000).toISOString()
+      // +1 min nos casos 'ok': D-8 EXATO fica na borda de HEARTBEAT_STALE_MS
+      // (`> 8 dias`), então qualquer milissegundo gasto entre montar a fixture
+      // e o passo `heartbeat-watch` já a torna stale — o teste passava ou
+      // falhava conforme a carga da máquina. A intenção é "8 dias ainda é ok,
+      // 9 não"; um minuto para dentro da janela expressa isso sem ambiguidade.
+      const stampIso = new Date(
+        Date.now() - days * 86_400_000 + (expected === 'ok' ? 60_000 : 0),
+      ).toISOString()
       mockRpc.mockImplementation(() => Promise.resolve({ data: true, error: null }))
       mockFrom.mockImplementation((table: string) => {
         if (table === 'ops_alert_state') {
           return {
             select: () => ({ eq: (_c: string, k: string) => ({ maybeSingle: () => Promise.resolve({ data: k === 'ntfy_heartbeat_ok' ? { last_at: stampIso } : null }) }) }),
-            delete: () => ({ eq: () => Promise.resolve({ error: null }) }),
+            delete: () => ({ eq: () => Promise.resolve({ error: null }), like: () => ({ lt: () => Promise.resolve({ error: null }) }) }),
             upsert: () => Promise.resolve({ error: null }),
           }
         }
@@ -681,7 +705,7 @@ describe('passo 7 — status e segundo canal', () => {
         if (table === 'ops_alert_state') {
           return {
             select: () => ({ eq: (_c: string, k: string) => ({ maybeSingle: () => Promise.resolve({ data: k.startsWith('ntfy_transient') ? { last_at: stampIso } : null }) }) }),
-            delete: () => ({ eq: () => Promise.resolve({ error: null }) }),
+            delete: () => ({ eq: () => Promise.resolve({ error: null }), like: () => ({ lt: () => Promise.resolve({ error: null }) }) }),
             upsert: () => Promise.resolve({ error: null }),
           }
         }

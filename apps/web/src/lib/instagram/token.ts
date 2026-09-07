@@ -225,23 +225,113 @@ export async function markTokenInvalid(
 
   if (!error) return
 
-  // Achado 2 (fix round C2): o fallback de `update` direto que existia aqui
-  // não reproduzia NENHUMA das guardas da função (branch fatal/transient,
-  // force_reason, "só se token_error_at IS NULL") — uma chamada NÃO-FATAL
-  // (ex.: token_refresh transitório) chegando durante um episódio FATAL já
-  // aberto sobrescrevia silenciosamente `token_error` com `null` e
-  // `token_error_at` com `now()`, apagando o motivo e o início registrados de
-  // um token expirado/revogado e rebaixando-o a transitório. Sem reproduzir
-  // fielmente as guardas da RPC, o fallback correto é NÃO ESCREVER NADA:
-  // reportar a falha e deixar a linha intocada. Perder UMA marcação é
-  // recuperável no próximo run (`evaluateTransientStreak`/o cron tentam de
-  // novo); corromper o episódio registrado não é.
+  // Achado 2 (fix round C2) + Important #1 (review blocos 3-5): o fallback
+  // ORIGINAL era um `update` direto que não reproduzia NENHUMA das guardas da
+  // RPC (branch fatal/transient, force_reason, "só se token_error_at IS
+  // NULL") — uma chamada NÃO-FATAL (ex.: token_refresh transitório) chegando
+  // durante um episódio FATAL já aberto sobrescrevia `token_error` com `null`
+  // e `token_error_at` com `now()`, apagando motivo e início de um token
+  // expirado e rebaixando-o a transitório. Apagar o fallback parou a
+  // corrupção, mas apagou junto a DETECÇÃO: sem `token_error_at`, a conta é
+  // invisível para `sweepTokenAlerts` — a ÚNICA porta de saída do alerta — e
+  // uma RPC quebrada de forma PERSISTENTE (migration, permissão revogada,
+  // coluna renomeada) deixa um token realmente morto sem nenhum aviso.
+  // A resposta correta é um fallback GUARD-FIEL: reproduzir cada condição do
+  // corpo da função (supabase/migrations/20260906000002:66-88) antes de
+  // escrever, para que nenhuma escrita seja possível onde a RPC não teria
+  // escrito. Se NEM ISSO funcionar, aí sim a linha fica intocada e o erro
+  // sobe — o `step()` do cron conta o `step_errors`, e `step_errors > 0`
+  // agora degrada o `status` do run (Important #2).
   Sentry.captureException(
     new Error(`instagram_mark_token_invalid failed: ${error.message}`),
     { tags: { component: 'instagram-token', account_id: account.id } },
   )
 
-  throw new MarkTokenInvalidError(error.message)
+  try {
+    await markTokenInvalidFallback(supabase, account, pReason, opts)
+  } catch (fallbackErr) {
+    Sentry.captureException(fallbackErr, {
+      tags: { component: 'instagram-token-fallback', account_id: account.id },
+    })
+    throw new MarkTokenInvalidError(error.message)
+  }
+}
+
+interface ITokenEpisodeRow {
+  token_error: string | null
+  token_error_at: string | null
+}
+
+/**
+ * Reprodução FIEL do corpo de `public.instagram_mark_token_invalid` em TS, e
+ * nada além disso. Três ramos, na mesma ordem:
+ *
+ *  - `p_fatal = false`  => abre o episódio (token_error_at/mode + limpa o
+ *    marca-passo) SÓ quando `token_error_at IS NULL`. Nunca toca token_error.
+ *  - `p_fatal, p_force_reason` => grava o motivo SÓ quando ele é distinto do
+ *    atual; `token_error_at = coalesce(token_error_at, now())`.
+ *  - `p_fatal` puro => grava o motivo SÓ quando `token_error IS NULL`; mesmo
+ *    coalesce.
+ *
+ * O `coalesce` preserva o início do episódio; a guarda por coluna vai TAMBÉM
+ * como filtro do `update` (`.is(col, null)`), então a condição é reavaliada
+ * pelo banco no momento da escrita e não só na leitura acima.
+ * `MUST NOT` escrever nada quando a guarda não casa: 0 linhas afetadas é o
+ * desfecho normal da RPC, não um erro.
+ */
+async function markTokenInvalidFallback(
+  supabase: SupabaseClient,
+  account: { id: string; site_id: string },
+  pReason: string,
+  opts: IMarkTokenInvalidOpts,
+): Promise<void> {
+  const { data, error } = await supabase
+    .from('instagram_accounts')
+    .select('token_error, token_error_at')
+    .eq('id', account.id)
+    .eq('site_id', account.site_id)
+    .maybeSingle()
+
+  if (error) throw new Error(`fallback read failed: ${error.message}`)
+  if (data == null) return // 0 linhas: a RPC também não teria escrito nada.
+
+  const row = data as ITokenEpisodeRow
+  const nowIso = new Date().toISOString()
+  // Os três carimbos que TODOS os ramos da RPC zeram (re-arma o alerta).
+  const rearm = {
+    token_alert_sent_at: null,
+    token_alert_attempt_at: null,
+    token_reprobe_at: null,
+  }
+
+  let patch: Record<string, string | null>
+  let guardColumn: 'token_error' | 'token_error_at' | null
+
+  if (!opts.fatal) {
+    if (row.token_error_at !== null) return // where … token_error_at is null
+    patch = { token_error_at: nowIso, token_error_mode: opts.mode ?? null, ...rearm }
+    guardColumn = 'token_error_at'
+  } else if (opts.forceReason === true) {
+    if (row.token_error === pReason) return // where … is distinct from
+    patch = { token_error: pReason, token_error_at: row.token_error_at ?? nowIso, ...rearm }
+    guardColumn = null
+  } else {
+    if (row.token_error !== null) return // where … token_error is null
+    patch = { token_error: pReason, token_error_at: row.token_error_at ?? nowIso, ...rearm }
+    guardColumn = 'token_error'
+  }
+
+  const update = supabase
+    .from('instagram_accounts')
+    .update(patch)
+    .eq('id', account.id)
+    .eq('site_id', account.site_id)
+
+  const { error: writeError } = await (guardColumn === null
+    ? update
+    : update.is(guardColumn, null))
+
+  if (writeError) throw new Error(`fallback update failed: ${writeError.message}`)
 }
 
 const STREAK_WINDOW_MS = 4 * 24 * 60 * 60 * 1000
