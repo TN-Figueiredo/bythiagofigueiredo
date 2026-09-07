@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
+import { createHmac } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import type { NextRequest } from 'next/server'
 
@@ -55,6 +56,9 @@ import { resumeStuckDeletionRequest } from '@/lib/instagram/deletion'
 import { GET as syncGET } from '@/app/api/cron/instagram-sync/route'
 import { GET as refreshGET } from '@/app/api/cron/instagram-token-refresh/route'
 import { GET as uptimeGET } from '@/app/api/cron/uptime-probe/route'
+import { POST as deauthorizePOST } from '@/app/api/instagram/deauthorize/route'
+import { POST as dataDeletionPOST } from '@/app/api/instagram/data-deletion/route'
+import { __resetSignatureAlertGuard } from '@/lib/instagram/signed-request'
 
 const fetchMock = vi.fn()
 
@@ -309,6 +313,54 @@ function dbHarness(accounts: Array<Record<string, unknown>>): void {
   })
 }
 
+function b64url(buf: Buffer | string): string {
+  return Buffer.from(buf).toString('base64')
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
+/** `signed_request` da Meta com o ig_user_id de 17 dígitos das fixtures. */
+function signedRequestPost(path: string, secret = 'pii-instagram-app-secret'): Request {
+  const encoded = b64url(JSON.stringify({
+    algorithm: 'HMAC-SHA256',
+    issued_at: Math.floor(Date.now() / 1000),
+    user_id: IG_USER_ID,
+  }))
+  const sig = b64url(createHmac('sha256', secret).update(encoded).digest())
+  return new Request(`https://bythiagofigueiredo.com${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ signed_request: `${sig}.${encoded}` }).toString(),
+  })
+}
+
+/** Zero linhas `oauth`, uma linha `legacy` com o MESMO id — o caso do push. */
+function idSpaceHarness(): void {
+  mockRpc.mockImplementation(() => Promise.resolve({ data: true, error: null }))
+  mockFrom.mockImplementation((table: string) => {
+    if (table === 'instagram_accounts') {
+      return {
+        select: () => ({
+          or: () => ({
+            eq: (_col: string, value: string) => Promise.resolve({
+              data: value === 'legacy'
+                ? [piiAccount({ ig_user_id_source: 'legacy' })]
+                : [],
+              error: null,
+            }),
+          }),
+        }),
+      }
+    }
+    if (table === 'instagram_deletion_requests') {
+      return { insert: () => Promise.resolve({ error: null }) }
+    }
+    return {
+      select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: null }) }) }),
+      delete: () => ({ eq: () => Promise.resolve({ error: null }) }),
+    }
+  })
+}
+
 function cronReq(path: string): NextRequest {
   const headers = new Headers({ authorization: 'Bearer pii-cron-secret' })
   return { headers, nextUrl: new URL(`http://x${path}`) } as unknown as NextRequest
@@ -332,6 +384,8 @@ describe('REGRA-PII-NTFY: o que os emissores REALMENTE emitem', () => {
     { emitter: 'refresh/step-errors', file: 'app/api/cron/instagram-token-refresh/route.ts', match: /cron degraded/ },
     { emitter: 'uptime-probe', file: 'app/api/cron/uptime-probe/route.ts', match: /bythiagofigueiredo (down|degraded)/ },
     { emitter: 'deliverTokenAlert', file: 'lib/instagram/token.ts', match: /^Instagram ((feed sync|auto-renewal|sync) (failing|still )|token invalid|token expired|access revoked|still disconnected)/ },
+    { emitter: 'signed-request/signature-mismatch', file: 'lib/instagram/signed-request.ts', match: /callback signature mismatch/ },
+    { emitter: 'data-deletion/id-space-mismatch', file: 'app/api/instagram/data-deletion/route.ts', match: /deletion request matched no account/ },
   ]
 
   /** Cada arquivo do censo => quantos call sites a execução acima cobre. */
@@ -340,6 +394,8 @@ describe('REGRA-PII-NTFY: o que os emissores REALMENTE emitem', () => {
     'app/api/cron/instagram-token-refresh/route.ts': 4,
     'app/api/cron/uptime-probe/route.ts': 1,
     'lib/instagram/token.ts': 1,
+    'lib/instagram/signed-request.ts': 1,
+    'app/api/instagram/data-deletion/route.ts': 1,
   }
 
   const pushes: Array<{ title: string; body: string }> = []
@@ -401,6 +457,19 @@ describe('REGRA-PII-NTFY: o que os emissores REALMENTE emitem', () => {
     await uptimeGET(new Request('http://x/api/cron/uptime-probe', {
       headers: { authorization: 'Bearer pii-cron-secret' },
     }))
+
+    // (5) callback público da Meta com assinatura FORJADA => push de mismatch
+    // de assinatura. O `signed_request` carrega o ig_user_id de 17 dígitos das
+    // fixtures: se o emissor o vazasse, a asserção (a) pegaria.
+    vi.stubEnv('INSTAGRAM_APP_SECRET', 'pii-instagram-app-secret')
+    __resetSignatureAlertGuard()
+    dbHarness([])
+    await deauthorizePOST(signedRequestPost('/api/instagram/deauthorize', 'wrong-secret'))
+
+    // (6) pedido de exclusão que não casa nenhuma linha `oauth` mas casa uma
+    // `legacy` de mesmo id => push de suspeita de espaço de ids.
+    idSpaceHarness()
+    await dataDeletionPOST(signedRequestPost('/api/instagram/data-deletion'))
   })
 
   it('o censo do código-fonte não tem nenhum emissor fora dos que esta suíte executa', () => {

@@ -344,7 +344,11 @@ async function handle(ctx: RequestContext): Promise<NextResponse> {
   const skipSiteResolution =
     pathname.startsWith('/api/cron/') ||
     pathname.startsWith('/api/webhooks/') ||
-    pathname.startsWith('/auth/callback')
+    pathname.startsWith('/auth/callback') ||
+    // Callbacks públicos da Meta: chegam sem Host do site e sem sessão; a
+    // autenticação é o `signed_request` assinado, não a resolução de site.
+    pathname.startsWith('/api/instagram/deauthorize') ||
+    pathname.startsWith('/api/instagram/data-deletion')
   if (skipSiteResolution) {
     return ctx.next()
   }
