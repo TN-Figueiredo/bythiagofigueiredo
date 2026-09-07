@@ -29,6 +29,14 @@ interface InstagramAccountData {
   section_subtitle_en: string | null
   last_synced_at: string | null
   token_expires_at: string | null
+  token_error: string | null
+  token_error_at: string | null
+  token_error_mode: 'daily' | 'token_refresh' | null
+  token_refreshed_at: string | null
+  token_alert_sent_at: string | null
+  ig_user_id: string | null
+  ig_user_id_source: 'oauth' | 'legacy'
+  connected: boolean
   posts: { id: string; cached_image_url: string | null; caption: string | null }[]
   sync_logs: { mode: string; status: string; posts_found: number; posts_inserted: number; posts_updated: number; created_at: string; error_message: string | null }[]
   slots: { id: string; position: number; post_id: string | null; thumbnail_url: string | null; caption: string | null }[]
@@ -38,13 +46,20 @@ interface InstagramAccountData {
 /*  InstagramSection                                                  */
 /* ------------------------------------------------------------------ */
 
+export interface InstagramSectionProps {
+  accounts: InstagramAccountData[]
+  readOnly: boolean
+  oauthConfigured?: boolean
+  missingInstagramEnv?: string[]
+  isPreview?: boolean
+  handleMismatch?: { accountId: string; authorizedHandle: string } | null
+  siteTimezone?: string
+}
+
 export function InstagramSection({
   accounts: initialAccounts,
   readOnly,
-}: {
-  accounts: InstagramAccountData[]
-  readOnly: boolean
-}) {
+}: InstagramSectionProps) {
   const [, startTransition] = useTransition()
   const [accounts, setAccounts] = useState(initialAccounts)
 
@@ -445,6 +460,17 @@ function AddInstagramForm({
       section_subtitle_en: null,
       last_synced_at: null,
       token_expires_at: null,
+      // Linha recém-criada por addInstagramAccount: só o insert, sem OAuth
+      // ainda — mesmos defaults da migration 20260906000002 (`ig_user_id_source`
+      // = 'legacy') e do resto do episódio zerado.
+      token_error: null,
+      token_error_at: null,
+      token_error_mode: null,
+      token_refreshed_at: null,
+      token_alert_sent_at: null,
+      ig_user_id: null,
+      ig_user_id_source: 'legacy',
+      connected: false,
       posts: [],
       sync_logs: [],
       slots: [],

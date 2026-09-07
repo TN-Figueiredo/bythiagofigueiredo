@@ -48,6 +48,9 @@ vi.mock('@/lib/supabase/service', () => ({
       return {
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
+        // C3: page.tsx roda uma segunda query `.select('id').eq(...).not('access_token', ...)`
+        // para derivar `connected` sem projetar o token — precisa resolver aqui.
+        not: vi.fn().mockResolvedValue({ data: [], error: null }),
         order: vi.fn().mockImplementation(() => makeChainable(resolvedData)),
         limit: vi.fn().mockResolvedValue({ data: [], error: null }),
         single: vi.fn().mockResolvedValue({

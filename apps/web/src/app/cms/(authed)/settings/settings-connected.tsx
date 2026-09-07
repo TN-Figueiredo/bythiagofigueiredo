@@ -100,6 +100,14 @@ interface InstagramAccountData {
   section_subtitle_en: string | null
   last_synced_at: string | null
   token_expires_at: string | null
+  token_error: string | null
+  token_error_at: string | null
+  token_error_mode: 'daily' | 'token_refresh' | null
+  token_refreshed_at: string | null
+  token_alert_sent_at: string | null
+  ig_user_id: string | null
+  ig_user_id_source: 'oauth' | 'legacy'
+  connected: boolean
   posts: { id: string; cached_image_url: string | null; caption: string | null }[]
   sync_logs: { mode: string; status: string; posts_found: number; posts_inserted: number; posts_updated: number; created_at: string; error_message: string | null }[]
   slots: { id: string; position: number; post_id: string | null; thumbnail_url: string | null; caption: string | null }[]
@@ -110,6 +118,11 @@ interface Props {
   newsletterTypes: NewsletterTypeData[]
   blogCadence: BlogCadenceData[]
   instagramAccounts?: InstagramAccountData[]
+  instagramOAuthConfigured?: boolean
+  missingInstagramEnv?: string[]
+  isPreview?: boolean
+  instagramHandleMismatch?: { accountId: string; authorizedHandle: string } | null
+  siteTimezone?: string
   contactSettings?: Record<string, unknown>[]
   contactVisibility?: Record<string, unknown> | null
   defaultAuthor?: Record<string, unknown> | null
@@ -1228,6 +1241,11 @@ export function SettingsConnected({
   newsletterTypes,
   blogCadence,
   instagramAccounts,
+  instagramOAuthConfigured = false,
+  missingInstagramEnv = [],
+  isPreview = false,
+  instagramHandleMismatch = null,
+  siteTimezone = 'America/Sao_Paulo',
   contactSettings = [],
   contactVisibility = null,
   defaultAuthor = null,
@@ -1395,7 +1413,15 @@ export function SettingsConnected({
             />
           )}
           {activeSection === 'instagram' && (
-            <InstagramSection accounts={instagramAccounts ?? []} readOnly={readOnly} />
+            <InstagramSection
+              accounts={instagramAccounts ?? []}
+              readOnly={readOnly}
+              oauthConfigured={instagramOAuthConfigured}
+              missingInstagramEnv={missingInstagramEnv}
+              isPreview={isPreview}
+              handleMismatch={instagramHandleMismatch}
+              siteTimezone={siteTimezone}
+            />
           )}
           {activeSection === 'contact-page' && (
             <ContactPageSection
