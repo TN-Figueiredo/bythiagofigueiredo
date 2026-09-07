@@ -54,6 +54,9 @@ function TokenExpiryBanner({ hoursUntilExpiry }: { hoursUntilExpiry: number }) {
       }
 
       const onMessage = (event: MessageEvent) => {
+        // Anyone can postMessage into this window. The popup only ever speaks
+        // from our own origin.
+        if (event.origin !== window.location.origin) return
         if (event.data?.type === 'social-oauth-result') {
           window.removeEventListener('message', onMessage)
           messageListenerRef.current = null
