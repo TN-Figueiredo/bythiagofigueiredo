@@ -387,3 +387,68 @@ describe('GET /api/cron/uptime-probe — dedupe por status (C2)', () => {
     expect(body.ntfyStatus).toBe(200)
   })
 })
+
+describe('GET /api/cron/uptime-probe — canal de alerta indisponível é visível (Achado 3, fix round C2)', () => {
+  it('outage real + NTFY_URL não configurado => Sentry.captureException nomeando a causa', async () => {
+    // NTFY_URL fica '' (default do beforeEach) — outage real (status "down")
+    // cujo aviso não pode nem tentar sair.
+    const supabase = makeSupabase()
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(supabase as never)
+    stubPerformanceNow([0, 100])
+    const { fn } = mockFetch({ targetStatus: 502 })
+    vi.stubGlobal('fetch', fn)
+
+    const res = await GET(req())
+    expect(res.status).toBe(200) // o cron em si continua bem-sucedido
+    expect(vi.mocked(Sentry.captureException)).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.stringContaining('NTFY_URL unset') }),
+      expect.objectContaining({ tags: expect.objectContaining({ component: 'cron', job: 'uptime-probe' }) }),
+    )
+  })
+
+  it('recusa TERMINAL do ntfy (403) => Sentry.captureException nomeando a causa', async () => {
+    vi.stubEnv('NTFY_URL', 'https://ntfy.sh/my-topic')
+    const supabase = makeSupabase()
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(supabase as never)
+    stubPerformanceNow([0, 100])
+    const fn = vi.fn((url: string | URL) => {
+      if (String(url).includes('/robots.txt')) return Promise.resolve(new Response(null, { status: 502 }))
+      return Promise.resolve(new Response(null, { status: 403 })) // terminal: sem retry
+    })
+    vi.stubGlobal('fetch', fn)
+
+    await GET(req())
+    expect(vi.mocked(Sentry.captureException)).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.stringContaining('403') }),
+      expect.objectContaining({ tags: expect.objectContaining({ component: 'cron', job: 'uptime-probe' }) }),
+    )
+  })
+
+  it('recusa TRANSITÓRIA (429, esgota as re-tentativas) NÃO dispara captureException — só a terminal e o URL ausente contam', async () => {
+    vi.stubEnv('NTFY_URL', 'https://ntfy.sh/my-topic')
+    const supabase = makeSupabase()
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(supabase as never)
+    stubPerformanceNow([0, 100])
+    const fn = vi.fn((url: string | URL) => {
+      if (String(url).includes('/robots.txt')) return Promise.resolve(new Response(null, { status: 502 }))
+      return Promise.resolve(new Response(null, { status: 429 }))
+    })
+    vi.stubGlobal('fetch', fn)
+
+    await GET(req())
+    expect(vi.mocked(Sentry.captureException)).not.toHaveBeenCalled()
+  })
+
+  it('deduped (claim recusa) NÃO dispara captureException — a supressão é intencional, não uma falha', async () => {
+    vi.stubEnv('NTFY_URL', 'https://ntfy.sh/my-topic')
+    const supabase = makeSupabase()
+    supabase.rpc.mockImplementation(() => Promise.resolve({ data: false, error: null }))
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(supabase as never)
+    stubPerformanceNow([0, 100])
+    const { fn } = mockFetch({ targetStatus: 502 })
+    vi.stubGlobal('fetch', fn)
+
+    await GET(req())
+    expect(vi.mocked(Sentry.captureException)).not.toHaveBeenCalled()
+  })
+})

@@ -179,15 +179,59 @@ describe('classifyInstagramError — sequência ordenada de §3.2', () => {
     expect(classifyInstagramError({ code: 299, message: 'x' })).toBe('permanent')
   })
 
-  it('(3) permanent: decrypt_failed e as mensagens de conta desconectada', () => {
+  it('(3) permanent: decrypt_failed e as mensagens de conta desconectada (sentinelas exatas, sem exigir vendor)', () => {
     expect(classifyInstagramError(new Error('decrypt_failed'))).toBe('permanent')
-    expect(classifyInstagramError(new Error('The session has been invalidated because the user changed their password')))
-      .toBe('permanent')
+    expect(classifyInstagramError(new Error('No Instagram user ID'))).toBe('permanent')
+    expect(classifyInstagramError(new Error('No access token'))).toBe('permanent')
+  })
+
+  // Achado 1 (fix round C2): "the session has been invalidated…" É uma frase
+  // GENÉRICA (não uma sentinela exata nossa) — só conta como permanent
+  // quando o erro já tem evidência de vendor (aqui, `type: 'OAuthException'`,
+  // exatamente como instagramErrorFromResponse monta a partir do corpo JSON
+  // da Meta). Como bare Error, sem evidência nenhuma, ela não pode mais
+  // desconectar a frota sozinha.
+  it('"session invalidated" só é permanent COM evidência de vendor; como bare Error, não é', () => {
+    // httpStatus presente (mesmo que não seja 401/403) já é evidência de
+    // vendor nesta base de código — só InstagramApiError usa esse nome de
+    // campo — e é o que autoriza a cláusula de texto genérica a rodar.
+    expect(classifyInstagramError({
+      httpStatus: 400,
+      message: 'The session has been invalidated because the user changed their password',
+    })).toBe('permanent')
+    // O MESMO texto, como bare Error (sem type/code/httpStatus), não tem
+    // evidência nenhuma de vendor — não pode mais desconectar a frota sozinho.
+    expect(classifyInstagramError(
+      new Error('The session has been invalidated because the user changed their password'),
+    )).not.toBe('permanent')
   })
 
   it('(4) default: 400 SEM type => transient', () => {
     expect(classifyInstagramError({ httpStatus: 400, type: 'HttpError', code: 400, message: 'Instagram API 400' }))
       .toBe('transient')
+  })
+
+  // Achado 1 (fix round C2): a cláusula de texto genérica (expired/invalidated/
+  // revoked/invalid…token) só pode valer `permanent` quando o erro já carrega
+  // evidência de vir do VENDOR (numericCode/httpStatus/type). Um `Error` puro
+  // — sem nenhum desses campos — nunca deve passar, mesmo que a mensagem
+  // contenha uma dessas palavras.
+  it('Error("JWT expired") do client do banco NÃO é permanent (bare Error, sem evidência de vendor)', () => {
+    expect(classifyInstagramError(new Error('JWT expired'))).toBe('transient')
+  })
+
+  it('Error("fetch failed") NÃO é permanent (é transient via isNetworkFailure)', () => {
+    expect(classifyInstagramError(new Error('fetch failed'))).toBe('transient')
+  })
+
+  it('objeto de erro do client do banco (sem code numérico/httpStatus/type) NÃO é permanent', () => {
+    // Forma plausível de um erro de auth/client do Supabase quando a
+    // service-role key é rotacionada: tem `message` e `code`/`status` em
+    // formatos que NÃO são os do vendor (code é string, e o campo de status
+    // HTTP chama-se `status`, não `httpStatus` — só InstagramApiError usa
+    // esse nome).
+    const dbError = { name: 'PostgrestError', message: 'JWT expired', code: '401' }
+    expect(classifyInstagramError(dbError)).not.toBe('permanent')
   })
 })
 
@@ -199,7 +243,7 @@ function rpcClient(result: { data?: unknown; error?: { message: string } | null 
   const eqId = vi.fn(() => ({ eq: eqSite }))
   const update = vi.fn(() => ({ eq: eqId }))
   const from = vi.fn(() => ({ update }))
-  return { client: { rpc, from } as unknown as SupabaseClient, rpc, update }
+  return { client: { rpc, from } as unknown as SupabaseClient, rpc, update, from }
 }
 
 describe('markTokenInvalid', () => {
@@ -232,17 +276,30 @@ describe('markTokenInvalid', () => {
     expect((rpc.mock.calls[0]![1] as Record<string, unknown>).p_force_reason).toBe(true)
   })
 
-  it('RPC com error => captureException, episódio FORÇADO por update direto e throw', async () => {
-    const { client, update } = rpcClient({ error: { message: 'PGRST202 not found' } })
+  it('RPC com error => captureException, throw, e a linha NÃO É TOCADA (Achado 2, fix round C2)', async () => {
+    const { client, from } = rpcClient({ error: { message: 'PGRST202 not found' } })
     await expect(markTokenInvalid(client, ACC, 'expired', { fatal: true }))
       .rejects.toBeInstanceOf(MarkTokenInvalidError)
     expect(vi.mocked(Sentry.captureException)).toHaveBeenCalled()
-    expect(update).toHaveBeenCalledWith(expect.objectContaining({
-      token_error: expect.stringContaining('expired'),
-      token_alert_sent_at: null,
-      token_alert_attempt_at: null,
-      token_reprobe_at: null,
-    }))
+    // O fallback antigo fazia um update direto sem reproduzir as guardas da
+    // RPC — provamos AUSÊNCIA de efeito (from nunca chamado), não só que uma
+    // chamada específica não ocorreu.
+    expect(from).not.toHaveBeenCalled()
+  })
+
+  it('chamada NÃO-FATAL durante um episódio FATAL aberto, com a RPC falhando, não sobrescreve reason nem started_at (Achado 2)', async () => {
+    // Cenário do achado: um `evaluateTransientStreak('daily')` dispara uma
+    // marcação NÃO-FATAL enquanto a conta já tem um episódio FATAL aberto
+    // (token_error/token_error_at != null de um 'expired'/'revoked'
+    // anterior). Se a RPC em si falhar (permissão, coluna faltando, rede),
+    // o fallback antigo escreveria `token_error: null` e `token_error_at:
+    // now()` incondicionalmente, apagando o motivo e o início do episódio
+    // fatal registrado e rebaixando-o para transitório. O fallback correto é
+    // não escrever nada.
+    const { client, from } = rpcClient({ error: { message: 'network down' } })
+    await expect(markTokenInvalid(client, ACC, 'transient', { fatal: false, mode: 'daily' }))
+      .rejects.toBeInstanceOf(MarkTokenInvalidError)
+    expect(from).not.toHaveBeenCalled()
   })
 })
 

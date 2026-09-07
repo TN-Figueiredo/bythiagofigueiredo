@@ -103,6 +103,14 @@ export function classifyInstagramError(err: unknown): ErrorClass {
   const type = typeof e.type === 'string' ? e.type : ''
   const numericCode = typeof e.code === 'number' ? e.code : undefined
   const httpStatus = typeof e.httpStatus === 'number' ? e.httpStatus : undefined
+  // Achado 1 (fix round C2): `numericCode`/`httpStatus`/`type` só existem,
+  // NESTA base de código, em erros construídos por api-client.ts a partir de
+  // uma resposta HTTP real da Meta (InstagramApiError) — Postgrest usa `code`
+  // como STRING, e o client do Supabase (JWT/auth) usa `.status`, nunca
+  // `.httpStatus`. Presença de qualquer um destes três é portanto evidência
+  // de que o erro veio do VENDOR, e é a única coisa que autoriza o
+  // casamento-por-texto genérico logo abaixo.
+  const isVendorError = numericCode !== undefined || httpStatus !== undefined || type !== ''
 
   const result = ((): ErrorClass => {
     // (1) infra — bug nosso, nunca token do usuário. Vem ANTES do permanente
@@ -136,7 +144,21 @@ export function classifyInstagramError(err: unknown): ErrorClass {
       (numericCode === 100 &&
         /access.?token|does not exist|unsupported get request/i.test(message) &&
         !/nonexisting field/i.test(message)) ||
-      /invalidated|expired|revoked|invalid.*token|decrypt_failed|No Instagram user ID|No access token/i.test(message)
+      // Sentinelas INTERNAS e EXATAS — strings que só o NOSSO código emite
+      // (decrypt_failed vem de readAccessToken; as duas frases de "conta
+      // desconectada" vêm de sync.ts). Não são "palavra sugestiva" numa
+      // mensagem alheia: são um valor de controle que definimos nós mesmos, e
+      // nenhum erro de infra/JWT as reproduz por acidente — por isso não
+      // exigem `isVendorError`.
+      /decrypt_failed|No Instagram user ID|No access token/.test(message) ||
+      // Achado 1 (fix round C2): as frases GENÉRICAS em inglês abaixo
+      // (expired/invalidated/revoked/invalid…token) só valem como `permanent`
+      // quando o erro já tem evidência de vir do VENDOR. Sem essa guarda, um
+      // `Error('JWT expired')` levantado pelo client do banco (ex.: chave de
+      // service-role rotacionada) atravessava as camadas infra/transient e
+      // saía `permanent` — marcando a frota inteira como token inválido por
+      // um problema que não é do usuário nem da Meta.
+      (isVendorError && /invalidated|expired|revoked|invalid.*token/i.test(message))
     ) return 'permanent'
 
     // (4) default
@@ -203,25 +225,21 @@ export async function markTokenInvalid(
 
   if (!error) return
 
-  // `error` (a RPC não existe / permissão / coluna faltando) é diferente de
-  // "0 linhas casadas": aqui o episódio é FORÇADO por update direto para que a
-  // conta não morra em silêncio, e o throw faz o cron contar step_errors.
+  // Achado 2 (fix round C2): o fallback de `update` direto que existia aqui
+  // não reproduzia NENHUMA das guardas da função (branch fatal/transient,
+  // force_reason, "só se token_error_at IS NULL") — uma chamada NÃO-FATAL
+  // (ex.: token_refresh transitório) chegando durante um episódio FATAL já
+  // aberto sobrescrevia silenciosamente `token_error` com `null` e
+  // `token_error_at` com `now()`, apagando o motivo e o início registrados de
+  // um token expirado/revogado e rebaixando-o a transitório. Sem reproduzir
+  // fielmente as guardas da RPC, o fallback correto é NÃO ESCREVER NADA:
+  // reportar a falha e deixar a linha intocada. Perder UMA marcação é
+  // recuperável no próximo run (`evaluateTransientStreak`/o cron tentam de
+  // novo); corromper o episódio registrado não é.
   Sentry.captureException(
     new Error(`instagram_mark_token_invalid failed: ${error.message}`),
     { tags: { component: 'instagram-token', account_id: account.id } },
   )
-  await supabase
-    .from('instagram_accounts')
-    .update({
-      token_error: opts.fatal ? pReason : null,
-      token_error_at: new Date().toISOString(),
-      token_error_mode: opts.mode ?? null,
-      token_alert_sent_at: null,
-      token_alert_attempt_at: null,
-      token_reprobe_at: null,
-    })
-    .eq('id', account.id)
-    .eq('site_id', account.site_id)
 
   throw new MarkTokenInvalidError(error.message)
 }
