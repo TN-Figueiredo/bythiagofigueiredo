@@ -2,6 +2,7 @@
 
 import { z } from 'zod'
 import { revalidatePath, revalidateTag } from 'next/cache'
+import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
@@ -10,6 +11,12 @@ import { syncScheduleSchema, type SyncScheduleInput } from './sync-schedule-sche
 
 type ActionResult = { ok: true } | { ok: false; error: string }
 type LookupResult = { ok: true; channel: ChannelLookupResult } | { ok: false; error: string }
+
+/**
+ * `ActionResult` não admite `partial`; `Sync Now` precisa dizer que o prazo de
+ * 90 s cortou o cache de imagens sem chamar o run de falho (§0 linha A, item ii).
+ */
+export type SyncActionResult = { ok: true; partial?: boolean } | { ok: false; error: string }
 
 function zodError(err: z.ZodError): string {
   return err.issues.map((i) => i.message).join(', ') || 'Validation failed'
@@ -580,14 +587,17 @@ export async function updateInstagramSettings(input: {
 }): Promise<ActionResult> {
   const parsed = instagramSettingsSchema.safeParse(input)
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
-  await requireEditAccess()
+  const siteId = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
   const { accountId, ...updates } = parsed.data
 
+  // A1 (§0/§3.2): `getSupabaseServiceClient()` ignora RLS — sem `.eq('site_id')`
+  // um editor de outro ring reescreve as configurações deste site.
   const { error, data } = await supabase
     .from('instagram_accounts')
     .update({ ...updates, updated_at: new Date().toISOString() })
     .eq('id', accountId)
+    .eq('site_id', siteId)
     .select('id')
 
   if (error) return { ok: false, error: error.message }
@@ -604,7 +614,7 @@ export async function setInstagramToken(input: {
 }): Promise<ActionResult> {
   const parsed = instagramTokenSchema.safeParse(input)
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
-  await requireEditAccess()
+  const siteId = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
 
   let igUserId: string | null = null
@@ -627,6 +637,7 @@ export async function setInstagramToken(input: {
       updated_at: new Date().toISOString(),
     })
     .eq('id', parsed.data.accountId)
+    .eq('site_id', siteId)
 
   if (error) return { ok: false, error: error.message }
   revalidatePath('/cms/settings')
@@ -635,27 +646,78 @@ export async function setInstagramToken(input: {
 
 export async function triggerInstagramSync(input: {
   accountId: string
-}): Promise<ActionResult> {
+}): Promise<SyncActionResult> {
   const parsed = z.object({ accountId: z.string().uuid() }).safeParse(input)
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
-  await requireEditAccess()
+  const siteId = await requireEditAccess()
+  const supabase = getSupabaseServiceClient()
 
-  const cronSecret = process.env.CRON_SECRET
-  if (!cronSecret) return { ok: false, error: 'CRON_SECRET not configured' }
+  // A2: a linha INTEIRA, escopada ao site. `syncInstagramAccount` exige o row
+  // (`sync.ts` assinatura + os dois guardas de token/ig_user_id).
+  const { data: row, error: rowError } = await supabase
+    .from('instagram_accounts')
+    .select('*')
+    .eq('id', parsed.data.accountId)
+    .eq('site_id', siteId)
+    .single()
 
-  try {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
-    const res = await fetch(
-      `${baseUrl}/api/cron/instagram-sync?mode=manual&accountId=${parsed.data.accountId}`,
-      { headers: { authorization: `Bearer ${cronSecret}` } },
+  if (rowError || !row) return { ok: false, error: 'Account not found' }
+
+  const account = row as import('@/lib/instagram/types').InstagramAccountRow
+  const { openSyncRow, closeSyncRow } = await import('@/lib/instagram/sync-log')
+  const { syncInstagramAccount } = await import('@/lib/instagram/sync')
+
+  const start = Date.now()
+  const logId = await openSyncRow(supabase, account, 'manual')
+  if (logId === null) {
+    // `sync-log.ts` documenta: nenhuma das duas funções lança, `logId === null`
+    // é o sinal de falha e o CHAMADOR registra. Best-effort — não bloqueia o
+    // clique manual do dono por causa de uma linha de auditoria perdida.
+    Sentry.captureMessage(
+      `instagram sync: failed to open sync-log row for account ${account.id}`,
+      {
+        level: 'warning',
+        tags: { component: 'instagram-sync', mode: 'manual' },
+        extra: { accountId: account.id, siteId },
+      },
     )
-    if (!res.ok) return { ok: false, error: `Sync failed: ${res.status}` }
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : 'Sync request failed' }
   }
 
-  revalidatePath('/cms/settings')
-  return { ok: true }
+  // Chamada EM PROCESSO: o `fetch` para `/api/cron/instagram-sync?mode=manual`
+  // carimbava `cron_health['instagram-sync']` (route.ts:27 passa
+  // tag='instagram-sync' a withCronLock independentemente do mode), o que
+  // fazia um clique manual mascarar um cron diário morto.
+  let result: Awaited<ReturnType<typeof syncInstagramAccount>>
+  try {
+    result = await syncInstagramAccount(supabase, account, undefined, {
+      deadlineAt: start + 90_000,
+    })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Sync failed'
+    await closeSyncRow(supabase, logId, null, message)
+    // A rota de cron chama `Sentry.captureException` por conta que falha
+    // (route.ts:84); o hop HTTP fazia esse rastro sumir para o clique manual.
+    // `mode: 'manual'` distingue esta origem da do cron no Sentry.
+    Sentry.captureException(err, { tags: { component: 'instagram-sync', mode: 'manual' } })
+    return { ok: false, error: message }
+  }
+
+  // A linha é fechada ANTES de qualquer invalidação de cache: se
+  // `revalidatePath`/`revalidateTag` lançar, o try abaixo é isolado — nunca
+  // reabre nem fecha `logId` uma segunda vez como `failed` por cima de um
+  // sync que já terminou com sucesso.
+  await closeSyncRow(supabase, logId, result)
+
+  try {
+    revalidatePath('/cms/settings')
+    revalidateTag('instagram-feed', { expire: 0 })
+  } catch (err) {
+    Sentry.captureException(err, {
+      tags: { component: 'instagram-sync', mode: 'manual', phase: 'revalidate' },
+    })
+  }
+
+  return result.partial ? { ok: true, partial: true } : { ok: true }
 }
 
 export async function updateInstagramSlots(input: {
@@ -664,8 +726,41 @@ export async function updateInstagramSlots(input: {
 }): Promise<ActionResult> {
   const parsed = instagramSlotSchema.safeParse(input)
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
-  await requireEditAccess()
+  const siteId = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
+
+  // `instagram_feed_slots` não tem `site_id` (20260507190000:56-68): a posse é
+  // provada pela conta antes de qualquer escrita (§3.2, Commit A).
+  const { data: account, error: accountError } = await supabase
+    .from('instagram_accounts')
+    .select('site_id')
+    .eq('id', parsed.data.accountId)
+    .single()
+
+  if (accountError || !account) return { ok: false, error: 'Account not found' }
+  if ((account as { site_id: string }).site_id !== siteId) {
+    return { ok: false, error: 'Account not found' }
+  }
+
+  // `postId` (input) ↔ `post_id` (coluna): todo post fixado tem de pertencer a
+  // ESTA conta — a FK só garante que o uuid existe em `instagram_posts`.
+  const postIds = parsed.data.slots
+    .map((s) => s.postId)
+    .filter((id): id is string => id !== null)
+
+  if (postIds.length > 0) {
+    const { data: posts, error: postsError } = await supabase
+      .from('instagram_posts')
+      .select('id')
+      .eq('account_id', parsed.data.accountId)
+      .in('id', postIds)
+
+    if (postsError) return { ok: false, error: postsError.message }
+    const owned = new Set((posts ?? []).map((p: { id: string }) => p.id))
+    if (postIds.some((id) => !owned.has(id))) {
+      return { ok: false, error: 'Post not found for this account' }
+    }
+  }
 
   const rows = parsed.data.slots.map((s) => ({
     account_id: parsed.data.accountId,

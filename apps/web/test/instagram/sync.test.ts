@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { InstagramAccountRow } from '@/lib/instagram/types'
 
@@ -28,8 +29,10 @@ function makeAccount(overrides: Partial<InstagramAccountRow> = {}): InstagramAcc
     id: 'acc-1', site_id: 'site-1', locale: 'pt', handle: '@test',
     ig_user_id: 'ig-user-1', access_token: 'tok-abc',
     token_expires_at: '2026-07-01T00:00:00Z', sync_enabled: true,
-    display_slots: 6, layout_type: 'grid', last_synced_at: null,
-    created_at: '', updated_at: '', ...overrides,
+    display_slots: 6, layout_type: 'grid',
+    section_title_pt: null, section_title_en: null,
+    section_subtitle_pt: null, section_subtitle_en: null,
+    last_synced_at: null, created_at: '', updated_at: '', ...overrides,
   }
 }
 
@@ -107,14 +110,18 @@ describe('syncInstagramAccount', () => {
     expect(result.mediaCached).toBe(0)
   })
 
-  it('throws when account has no access token', async () => {
+  it('reports a human message when the account has no token', async () => {
     const { supabase } = mockSupabase()
-    await expect(syncInstagramAccount(supabase as never, makeAccount({ access_token: null }))).rejects.toThrow('No access token')
+    await expect(
+      syncInstagramAccount(supabase as never, makeAccount({ access_token: null })),
+    ).rejects.toThrow("This account isn't connected — use Connect with Instagram")
   })
 
-  it('throws when account has no ig_user_id', async () => {
+  it('reports a human message when the account has no ig_user_id', async () => {
     const { supabase } = mockSupabase()
-    await expect(syncInstagramAccount(supabase as never, makeAccount({ ig_user_id: null }))).rejects.toThrow('No Instagram user ID')
+    await expect(
+      syncInstagramAccount(supabase as never, makeAccount({ ig_user_id: null })),
+    ).rejects.toThrow("This account isn't connected — use Connect with Instagram")
   })
 
   it('caches thumbnail_url for VIDEO posts', async () => {
@@ -142,5 +149,146 @@ describe('syncInstagramAccount', () => {
     expect(upsertFn).toHaveBeenCalledTimes(1)
     const upsertedRows = upsertFn.mock.calls[0]![0]
     expect(upsertedRows).toHaveLength(3)
+  })
+
+  it('prefers the explicit accessToken over the row value', async () => {
+    mockFetchMedia.mockResolvedValueOnce([])
+    const { supabase } = mockSupabase()
+    await syncInstagramAccount(supabase as never, makeAccount(), 'explicit-token')
+    expect(mockFetchMedia).toHaveBeenCalledWith('ig-user-1', 'explicit-token')
+  })
+
+  it('falls back to account.access_token when accessToken is omitted', async () => {
+    mockFetchMedia.mockResolvedValueOnce([])
+    const { supabase } = mockSupabase()
+    await syncInstagramAccount(supabase as never, makeAccount())
+    expect(mockFetchMedia).toHaveBeenCalledWith('ig-user-1', 'tok-abc')
+  })
+
+  it('reports partial: false and mediaFailed: 0 on a clean run', async () => {
+    mockFetchMedia.mockResolvedValueOnce([{
+      id: 'media-1', media_type: 'IMAGE',
+      media_url: 'https://scontent.cdninstagram.com/img.jpg',
+      caption: null, permalink: 'https://instagram.com/p/1/',
+      like_count: 0, comments_count: 0, timestamp: '2026-05-01T12:00:00+0000',
+    }])
+    const { supabase } = mockSupabase()
+    const result = await syncInstagramAccount(supabase as never, makeAccount())
+    expect(result.partial).toBe(false)
+    expect(result.mediaFailed).toBe(0)
+  })
+
+  it('passes an AbortSignal to every image download', async () => {
+    mockFetchMedia.mockResolvedValueOnce([{
+      id: 'media-1', media_type: 'IMAGE',
+      media_url: 'https://scontent.cdninstagram.com/img.jpg',
+      caption: null, permalink: 'https://instagram.com/p/1/',
+      like_count: 0, comments_count: 0, timestamp: '2026-05-01T12:00:00+0000',
+    }])
+    const { supabase } = mockSupabase()
+    await syncInstagramAccount(supabase as never, makeAccount())
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+    const init = mockFetch.mock.calls[0]![1] as { signal: AbortSignal }
+    expect(init.signal).toBeInstanceOf(AbortSignal)
+  })
+
+  it('starts no batch after the deadline and reports partial with mediaFailed', async () => {
+    mockFetchMedia.mockResolvedValueOnce([
+      { id: 'm1', media_type: 'IMAGE', media_url: 'https://scontent.cdninstagram.com/1.jpg', caption: null, permalink: 'p1', like_count: 0, comments_count: 0, timestamp: '2026-05-01T00:00:00+0000' },
+      { id: 'm2', media_type: 'IMAGE', media_url: 'https://scontent.cdninstagram.com/2.jpg', caption: null, permalink: 'p2', like_count: 0, comments_count: 0, timestamp: '2026-05-02T00:00:00+0000' },
+    ])
+    const { supabase } = mockSupabase()
+    const result = await syncInstagramAccount(
+      supabase as never, makeAccount(), undefined, { deadlineAt: Date.now() - 1 },
+    )
+    expect(mockFetch).not.toHaveBeenCalled()
+    expect(mockBlobPut).not.toHaveBeenCalled()
+    expect(result.partial).toBe(true)
+    expect(result.mediaCached).toBe(0)
+    expect(result.mediaFailed).toBe(2)
+    expect(result.postsFound).toBe(2)
+  })
+
+  it('aborts a hung download and closes the batch on the remaining deadline', async () => {
+    // Prova que o prazo limita o LOTE, não só o intervalo entre lotes: o fetch
+    // nunca resolve e só termina pelo próprio AbortSignal.timeout.
+    mockFetch.mockImplementation((_url: string, init?: { signal?: AbortSignal }) =>
+      new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new Error('TimeoutError')))
+      }),
+    )
+    mockFetchMedia.mockResolvedValueOnce([{
+      id: 'm1', media_type: 'IMAGE', media_url: 'https://scontent.cdninstagram.com/1.jpg',
+      caption: null, permalink: 'p1', like_count: 0, comments_count: 0,
+      timestamp: '2026-05-01T00:00:00+0000',
+    }])
+    const { supabase } = mockSupabase()
+    const result = await syncInstagramAccount(
+      supabase as never, makeAccount(), undefined, { deadlineAt: Date.now() + 1_000 },
+    )
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+    expect(mockBlobPut).not.toHaveBeenCalled()
+    expect(result.partial).toBe(true)
+    expect(result.mediaFailed).toBe(1)
+  }, 10_000)
+
+  it('throws when the posts upsert fails', async () => {
+    mockFetchMedia.mockResolvedValueOnce([{
+      id: 'm1', media_type: 'IMAGE', media_url: 'https://scontent.cdninstagram.com/1.jpg',
+      caption: null, permalink: 'p1', like_count: 0, comments_count: 0,
+      timestamp: '2026-05-01T00:00:00+0000',
+    }])
+    const { supabase, upsertFn, updateFn } = mockSupabase()
+    upsertFn.mockReturnValue({ data: null, error: { message: 'duplicate key value', code: '23505' }, count: null })
+    await expect(syncInstagramAccount(supabase as never, makeAccount()))
+      .rejects.toThrow('duplicate key value')
+    // (iv): last_synced_at só em upsert sem erro.
+    expect(updateFn).not.toHaveBeenCalled()
+  })
+
+  it('keeps the postgres code on the thrown upsert error', async () => {
+    mockFetchMedia.mockResolvedValueOnce([{
+      id: 'm1', media_type: 'IMAGE', media_url: 'https://scontent.cdninstagram.com/1.jpg',
+      caption: null, permalink: 'p1', like_count: 0, comments_count: 0,
+      timestamp: '2026-05-01T00:00:00+0000',
+    }])
+    const { supabase, upsertFn } = mockSupabase()
+    upsertFn.mockReturnValue({ data: null, error: { message: 'duplicate key value', code: '23505' }, count: null })
+    await expect(syncInstagramAccount(supabase as never, makeAccount()))
+      .rejects.toMatchObject({ code: '23505' })
+  })
+
+  it('retries caching for an existing post whose cached image url is null', async () => {
+    // Fix round 1: a post row can already exist (inserted on a prior run)
+    // while its cached_image_url is still null — either the image cache
+    // failed, or the run's deadline cut the caching pass short before this
+    // item was reached. Keying the retry set on row *presence* alone would
+    // never revisit it, so the feed keeps serving the Meta CDN URL forever
+    // (and that URL expires). It must be retried.
+    const selectMock = vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        in: vi.fn().mockResolvedValue({
+          data: [{ ig_media_id: 'media-1', cached_image_url: null }], error: null,
+        }),
+      }),
+    })
+    mockFetchMedia.mockResolvedValueOnce([{
+      id: 'media-1', media_type: 'IMAGE',
+      media_url: 'https://scontent.cdninstagram.com/img.jpg',
+      caption: null, permalink: 'https://instagram.com/p/1/',
+      like_count: 0, comments_count: 0, timestamp: '2026-05-01T12:00:00+0000',
+    }])
+    const { supabase, upsertFn } = mockSupabase()
+    supabase.from = vi.fn((table: string) => {
+      if (table === 'instagram_posts') { return { select: selectMock, upsert: upsertFn } }
+      if (table === 'instagram_accounts') { return { update: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ data: null, error: null }) }) } }
+      return {} as never
+    })
+    const result = await syncInstagramAccount(supabase as never, makeAccount())
+    expect(mockBlobPut).toHaveBeenCalledTimes(1)
+    expect(result.mediaCached).toBe(1)
+    expect(result.mediaFailed).toBe(0)
+    const upsertedRows = upsertFn.mock.calls[0]![0] as Array<{ cached_image_url: string | null }>
+    expect(upsertedRows[0]!.cached_image_url).toBe('https://blob.vercel-storage.com/cached.jpg')
   })
 })

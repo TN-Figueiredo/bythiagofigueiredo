@@ -6,6 +6,12 @@ import { CmsTopbar } from '@tn-figueiredo/cms-ui/client'
 import { SettingsConnected } from './settings-connected'
 
 export const dynamic = 'force-dynamic'
+// `Sync Now` (triggerInstagramSync) roda EM PROCESSO neste segmento: um feed
+// grande passa da duração-padrão de função do projeto (60 s no Pro).
+// A herança do segment config pela server action é a premissa medida pelo
+// gate depois de A (spec §7) — precedentes: social/stories/new/page.tsx:21,
+// youtube/competitors/page.tsx:27.
+export const maxDuration = 120
 
 interface Props {
   searchParams: Promise<{ section?: string }>
