@@ -1471,29 +1471,34 @@ HAS_LOCAL_DB=1 npx vitest run test/integration/instagram-accounts-public-view.te
 
 Esperado: o `describe` novo FALHA (`'public.instagram_deletion_requests'::regclass` ⇒ `42P01`; as três `*_staff_write` ainda listadas; `has_table_privilege(…, 'INSERT')` ⇒ `true`).
 
-**O ratchet (i) de A3 vai falhar — e isso é esperado, não opcional.** A3 (`…-a.md:1944`) fixa
-`AUTHENTICATED_ALLOW_LIST` com 16 nomes literais e compara com `toEqual` sobre
-`information_schema.column_privileges`; o `grant select (<as 9>)` do bloco 1 leva a lista para 25.
-Reescreva-o **neste commit** para a forma do spec — "toda coluna **exceto** `access_token`" — assim:
+**O ratchet de A3 JÁ ESTÁ na forma normativa — não o reescreva.** Quando o plano C1 foi escrito,
+supunha-se que A3 fixaria `AUTHENTICATED_ALLOW_LIST` com 16 nomes literais comparados por `toEqual`
+sobre `information_schema.column_privileges`. **Isso não foi o que A3 entregou.** O commit A3
+(`7d5e2a64`, `apps/web/test/integration/instagram-accounts-public-view.test.ts`) já assere a REGRA,
+via `has_column_privilege(...)` coluna a coluna: "toda coluna **exceto** `access_token`" para
+`authenticated` e "exatamente `{id, site_id}`" para `anon`. Não existe constante
+`AUTHENTICATED_ALLOW_LIST` no arquivo.
 
-```ts
-  it('ratchet (i): authenticated holds SELECT on every column EXCEPT access_token', async () => {
-    const { rows } = await pg.query<{ attname: string; allowed: boolean }>(
-      `select a.attname,
-              has_column_privilege('authenticated','public.instagram_accounts',a.attname,'SELECT') as allowed
-         from pg_attribute a
-        where a.attrelid = 'public.instagram_accounts'::regclass
-          and a.attnum > 0 and not a.attisdropped
-        order by a.attname`,
-    )
-    expect(rows.filter(r => !r.allowed).map(r => r.attname)).toEqual(['access_token'])
-  })
+Consequências, verificadas pelo revisor de A3 contra o banco local:
+
+- **Não apague nada** e **não reescreva** o ratchet: o `grant select (<as 9 colunas novas>)` do bloco 1
+  mantém a regra verdadeira sozinho, porque as 9 entram para `authenticated` e nenhuma entra para `anon`.
+- **Não acrescente um ratchet duplicado** neste commit. Se você escrever um segundo `it` com lista
+  literal, reintroduz exatamente a fragilidade que A3 evitou de propósito — e ela quebra sozinha no
+  próximo commit que adicionar coluna.
+- O que C1 DEVE acrescentar ao arquivo é só o que é novo em M1: a existência de
+  `public.instagram_deletion_requests`, a ausência das três policies `*_staff_write`, e
+  `has_table_privilege(..., 'INSERT') = false` para `anon`/`authenticated` nas três tabelas.
+
+Rode o arquivo depois do bloco 1 e confirme que os dois `it` de privilégio **continuam verdes** sem edição:
+
+```bash
+cd /Users/figueiredo/Workspace/bythiagofigueiredo/apps/web
+HAS_LOCAL_DB=1 npx vitest run test/integration/instagram-accounts-public-view.test.ts --reporter=verbose
 ```
 
-e apague a constante `AUTHENTICATED_ALLOW_LIST`, que deixa de ter uso. **Não** tente reaproveitar
-`selectableColumns`/`allColumns`: elas são declaradas dentro do `describe` novo, no fim do arquivo, e
-o `describe` de A3 vem antes — está fora do escopo delas. O ratchet (ii) de `anon` (`toEqual(['id',
-'site_id'])`) continua válido como está: M1 não concede nada a `anon`.
+Esperado: os `it` de privilégio de A3 passam sem mudança; o `describe` novo de C1 falha enquanto o
+bloco 3 não existir (`'public.instagram_deletion_requests'::regclass` ⇒ `42P01`).
 
 - [ ] **Step 3: Inserir o bloco 3 na migration**
 
