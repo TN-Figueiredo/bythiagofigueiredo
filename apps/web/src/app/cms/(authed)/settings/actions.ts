@@ -621,6 +621,9 @@ export async function setInstagramToken(input: {
   try {
     const { fetchInstagramProfile } = await import('@/lib/instagram/api-client')
     const profile = await fetchInstagramProfile(parsed.data.accessToken)
+    if (!profile.id) {
+      return { ok: false, error: 'Invalid token — could not fetch Instagram profile' }
+    }
     igUserId = profile.id
   } catch {
     return { ok: false, error: 'Invalid token — could not fetch Instagram profile' }
