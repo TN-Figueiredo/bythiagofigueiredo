@@ -158,11 +158,20 @@ Chave permanente: `PIPELINE_COWORK_KEY` em `.env.local`. **Nunca criar/revogar k
 ## Environment Variables
 
 ### Web (`apps/web/.env.local`)
-`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN`, `CRON_SECRET`, `NEWSLETTER_FROM_DOMAIN`, `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`, `CAMPAIGN_PDF_SIGNED_URL_TTL`, `YOUTUBE_API_KEY`, `BLOB_READ_WRITE_TOKEN`, `PIPELINE_MCP_HMAC_SECRET`, `YT_ANALYTICS_SYNC_WINDOW_DAYS`, `NTFY_URL`, `UPTIME_PROBE_TARGET` + operational flags above.
+`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN`, `CRON_SECRET`, `NEWSLETTER_FROM_DOMAIN`, `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`, `CAMPAIGN_PDF_SIGNED_URL_TTL`, `YOUTUBE_API_KEY`, `BLOB_READ_WRITE_TOKEN`, `PIPELINE_MCP_HMAC_SECRET`, `YT_ANALYTICS_SYNC_WINDOW_DAYS`, `NTFY_URL`, `UPTIME_PROBE_TARGET`, `INSTAGRAM_APP_ID`, `INSTAGRAM_APP_SECRET`, `INSTAGRAM_ALLOW_META_SECRET_FALLBACK`, `SOCIAL_MASTER_KEY` + operational flags above.
 
 `PIPELINE_MCP_HMAC_SECRET` (gerar com `openssl rand -hex 32`): assina os confirmation tokens de ações destrutivas do MCP pipeline (`lib/pipeline/mcp/safety.ts`). Deliberadamente separado de `PIPELINE_COWORK_KEY` — essa viaja em todo request via `X-Pipeline-Key`, então usá-la para assinar os tokens deixaria quem tem a chave forjar a própria confirmação. **Ordem obrigatória de rollout:** setar a variável (`.env.local` e Vercel) primeiro, deploy do código depois — invertido, `getHmacSecret()` lança e derruba as tools MCP.
 
 `YT_ANALYTICS_SYNC_WINDOW_DAYS` (opcional, default `90`): controla o tamanho da janela consultada na YouTube Analytics API pelo cron `app/api/cron/sync-analytics-metrics/route.ts`.
+
+`INSTAGRAM_APP_ID`/`INSTAGRAM_APP_SECRET` (App Dashboard > Instagram > API setup with Instagram login >
+Business login settings): habilitam `Connect with Instagram` em `/cms/settings/instagram`. Lidos de
+`process.env` direto (declarados `.optional()` no `serverSchema`) — `getServerEnv()` lançaria e derrubaria
+a rota inteira. Sem eles a UI mostra "Instagram OAuth isn't configured yet" e a cola manual continua
+funcionando. `INSTAGRAM_ALLOW_META_SECRET_FALLBACK=1` aceita `META_APP_SECRET` na verificação do
+`signed_request` até **2026-10-06** (`META_SECRET_FALLBACK_DEADLINE_MS`); depois é ignorado.
+`SOCIAL_MASTER_KEY` (32 bytes hex) cifra o token em repouso — sem ela o OAuth responde 503
+`vault_unavailable`.
 
 Sentry: `NEXT_PUBLIC_SENTRY_DSN` required em prod/preview, optional em dev (empty → no-op). `SENTRY_ORG/PROJECT/AUTH_TOKEN` build-only (source map upload).
 
@@ -171,6 +180,24 @@ Sentry: `NEXT_PUBLIC_SENTRY_DSN` required em prod/preview, optional em dev (empt
 
 ### Production (Vercel)
 `NEXT_PUBLIC_APP_URL=https://bythiagofigueiredo.com`, `NEXT_PUBLIC_API_URL=https://bythiagofigueiredo-api.vercel.app`
+
+## Instagram OAuth (entrega de 2026-09-06)
+
+Oito commits sequenciais em `staging`, nesta ordem: **A → A4 → A5 → B → C1 → C2 → C4 → C3**
+(A5 tem dois corpos possíveis, decididos pelo gate de herança de `maxDuration` depois de A).
+Rollback obrigatoriamente na ordem inversa **C3 → C4 → C2 → C1 → B → A5 → A4 → A**.
+
+- **Depois de promover C2:** `curl -fsS -H "Authorization: Bearer $CRON_SECRET"` nos **dois** crons
+  (`/api/cron/instagram-token-refresh` **e** `/api/cron/instagram-sync`) **no mesmo minuto** — os dois
+  mudam de agenda (`"0 11 * * *"` e `"0 13 * * *"`) e sem isso o `/api/health` fica `degraded` por
+  ~12 h e o watchdog pagina ~1×/h.
+- **Rollback de C2 = `git revert` + passo de banco obrigatório** (zerar `access_token like 'v1:%'`,
+  `ig_user_id_source='legacy'`, `ig_professional_id=null` e limpar as chaves de `ops_alert_state`).
+  "Só reverter o deploy" está **proibido** para C2. Detalhe em
+  `docs/superpowers/specs/2026-09-06-instagram-oauth-reconnect-design.md` §7.
+- **C3** acrescenta as rotas `/api/instagram/oauth`, `/api/instagram/oauth/callback`,
+  `/api/instagram/deauthorize`, `/api/instagram/data-deletion` e a página pública `/data-deletion`.
+  Runbook: `docs/ops/instagram-token-alert-runbook.md`.
 
 ## Roadmap
 
@@ -190,7 +217,7 @@ Source of truth: `docs/roadmap/README.md`
 Consumidos via `.npmrc` → `npm.pkg.github.com`. Versões exatas (sem `^`) — pre-commit hook valida.
 
 - **api:** `auth@1.3.0`, `auth-fastify@1.1.0`, `auth-supabase@1.1.0`, `audit@0.1.0`, `lgpd@0.1.0`, `shared@0.8.0`
-- **web:** `admin@0.3.0`, `auth-nextjs@2.0.0`, `cms@0.1.0-dev`, `email@0.2.0`, `links@0.1.0-dev`, `links-admin@0.1.0-dev`, `newsletter@0.1.0`, `newsletter-admin@0.1.0`, `notifications@0.1.0`, `seo@0.1.0`, `shared@0.8.0`, `social@0.1.0-dev`
+- **web:** `admin@0.3.0`, `auth-nextjs@2.2.0`, `cms@0.1.0-dev`, `email@0.2.0`, `links@0.1.0-dev`, `links-admin@0.1.0-dev`, `newsletter@0.1.0`, `newsletter-admin@0.1.0`, `notifications@0.1.0`, `seo@0.1.0`, `shared@0.8.0`, `social@0.1.0-dev`
 
 ## CI
 

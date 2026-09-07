@@ -2,11 +2,15 @@
 
 import { z } from 'zod'
 import { revalidatePath, revalidateTag } from 'next/cache'
+import { cookies } from 'next/headers'
 import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { lookupChannelByHandle, type ChannelLookupResult } from '@/lib/youtube/api-client'
+import { INSTAGRAM_STATE_LABEL, deriveHmacKey, signState, verifyState } from '@/lib/oauth/state'
+import { oauthErrorText } from '@/lib/instagram/status-text'
+import { allowedLocales, LOCALE_CONFLICT_ERROR } from '@/lib/instagram/locale-rules'
 import { syncScheduleSchema, type SyncScheduleInput } from './sync-schedule-schema'
 
 type ActionResult = { ok: true } | { ok: false; error: string }
@@ -547,6 +551,15 @@ export async function addInstagramAccount(input: {
   const { siteId } = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
 
+  const { data: siblings } = await supabase
+    .from('instagram_accounts')
+    .select('id, locale')
+    .eq('site_id', siteId)
+  const taken = (siblings ?? []).map((r) => r.locale)
+  if (!allowedLocales(taken).includes(parsed.data.locale)) {
+    return { ok: false, error: LOCALE_CONFLICT_ERROR }
+  }
+
   const { error } = await supabase
     .from('instagram_accounts')
     .insert({ site_id: siteId, handle: parsed.data.handle, locale: parsed.data.locale })
@@ -594,6 +607,22 @@ export async function updateInstagramSettings(input: {
   const { siteId } = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
   const { accountId, ...updates } = parsed.data
+
+  if (parsed.data.locale) {
+    const { data: siblings } = await supabase
+      .from('instagram_accounts')
+      .select('id, locale')
+      .eq('site_id', siteId)
+    // DEVIATION do plano: `taken` já exclui a própria linha (`r.id !== accountId`),
+    // então passar `own: parsed.data.locale` (o valor NOVO, não o atual) fazia
+    // `allowedLocales`'s `keepOwn` reinjetar sempre o alvo na lista permitida —
+    // o teste "rejects locale combinations" do plano reprova com o `own`
+    // literal do plano; sem ele os três sub-casos passam.
+    const taken = (siblings ?? []).filter((r) => r.id !== accountId).map((r) => r.locale)
+    if (!allowedLocales(taken).includes(parsed.data.locale)) {
+      return { ok: false, error: LOCALE_CONFLICT_ERROR }
+    }
+  }
 
   // A1 (§0/§3.2): `getSupabaseServiceClient()` ignora RLS — sem `.eq('site_id')`
   // um editor de outro ring reescreve as configurações deste site.
@@ -818,6 +847,114 @@ export async function updateInstagramSlots(input: {
   if (error) return { ok: false, error: error.message }
   revalidateTag('instagram-feed', { expire: 0 })
   revalidatePath('/cms/settings')
+  return { ok: true }
+}
+
+/**
+ * Corta a ligação sem apagar conteúdo: token fora, episódio zerado, posts e
+ * slots preservados. A Meta não oferece revogação pelo servidor, então o app
+ * continua autorizado lá (o texto do `confirm` diz isso ao dono).
+ */
+export async function disconnectInstagramAccount(input: {
+  accountId: string
+}): Promise<ActionResult> {
+  const parsed = z.object({ accountId: z.string().uuid() }).safeParse(input)
+  if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
+  const { siteId } = await requireEditAccess()
+  const supabase = getSupabaseServiceClient()
+  const nowIso = new Date().toISOString()
+
+  const { data, error } = await supabase
+    .from('instagram_accounts')
+    .update({
+      access_token: null,
+      token_expires_at: null,
+      token_error: null,
+      token_error_at: null,
+      token_error_mode: null,
+      token_alert_sent_at: null,
+      token_alert_attempt_at: null,
+      token_reprobe_at: null,
+      updated_at: nowIso,
+    })
+    .eq('id', parsed.data.accountId)
+    .eq('site_id', siteId)
+    .select('id')
+
+  if (error) return { ok: false, error: error.message }
+  if (!data || data.length === 0) return { ok: false, error: 'Account not found' }
+
+  await supabase.from('instagram_sync_log').insert({
+    site_id: siteId,
+    account_id: parsed.data.accountId,
+    mode: 'manual',
+    status: 'completed',
+    posts_found: 0,
+    posts_inserted: 0,
+    posts_updated: 0,
+    media_cached: 0,
+    error_message: 'detail: disconnected by owner',
+    started_at: nowIso,
+    completed_at: nowIso,
+  })
+
+  revalidatePath('/cms/settings')
+  revalidateTag('instagram-feed', { expire: 0 })
+  return { ok: true }
+}
+
+/**
+ * Converte o cookie de mismatch (assinado pelo callback) num `rebind` de 5 min.
+ * `allowRebindTo` vem SÓ do cookie verificado — nunca do cliente —, e a action
+ * não escreve nada em `instagram_accounts`.
+ */
+export async function authorizeInstagramRebind(input: {
+  accountId: string
+}): Promise<{ ok: true; rebind: string } | { ok: false; error: string }> {
+  const parsed = z.object({ accountId: z.string().uuid() }).safeParse(input)
+  if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
+  const { siteId, userId } = await requireEditAccess()
+
+  const masterKey = process.env.SOCIAL_MASTER_KEY
+  if (!masterKey) return { ok: false, error: oauthErrorText('vault_unavailable') }
+
+  const jar = await cookies()
+  const raw =
+    jar.get('__Secure-ig_handle_mismatch')?.value ?? jar.get('ig_handle_mismatch')?.value ?? null
+  const expired = { ok: false as const, error: oauthErrorText('invalid_state') }
+  if (!raw) return expired
+
+  const key = deriveHmacKey(masterKey, INSTAGRAM_STATE_LABEL)
+  const p = verifyState(raw, key, { typ: 'mismatch', requireExp: true })
+  if (
+    !p || p.siteId !== siteId || p.userId !== userId ||
+    p.accountId !== parsed.data.accountId || !p.authorizedIgUserId
+  ) {
+    return expired
+  }
+
+  const rebind = signState({
+    typ: 'rebind',
+    siteId,
+    userId,
+    accountId: parsed.data.accountId,
+    allowRebindTo: p.authorizedIgUserId,
+    exp: Math.floor(Date.now() / 1000) + 300,
+  }, key)
+
+  // MUST: o mesmo `Path` do `Set-Cookie` — `delete(name)` assume `path:'/'` e
+  // não limparia um cookie de `Path=/cms/settings`.
+  jar.delete({ name: '__Secure-ig_handle_mismatch', path: '/cms/settings' })
+  jar.delete({ name: 'ig_handle_mismatch', path: '/cms/settings' })
+  return { ok: true, rebind }
+}
+
+/** "Cancel" do banner de mismatch: só apaga o cookie (mesmo `Path`). */
+export async function dismissInstagramHandleMismatch(): Promise<ActionResult> {
+  await requireEditAccess()
+  const jar = await cookies()
+  jar.delete({ name: '__Secure-ig_handle_mismatch', path: '/cms/settings' })
+  jar.delete({ name: 'ig_handle_mismatch', path: '/cms/settings' })
   return { ok: true }
 }
 

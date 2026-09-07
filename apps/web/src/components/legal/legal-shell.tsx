@@ -20,6 +20,23 @@ export interface LegalShellProps {
    * with a prose-styled `<article>` and sticky TOC scaffolding.
    */
   children: ReactNode
+  /**
+   * Renderiza o alternador pt-BR ⇄ en no cabeçalho. `false` para páginas que
+   * negociam o idioma por outro caminho. Default `true` (comportamento atual).
+   */
+  showLocaleSwitcher?: boolean
+  /**
+   * Lista de documentos relacionados. Default = Política de Privacidade +
+   * Termos de Uso, exatamente como antes desta prop existir. `[]` remove a
+   * coluna lateral e a lista inline.
+   */
+  relatedDocs?: { href: string; label: string }[]
+  /**
+   * Monta o `href` do alternador de idioma. Default `?lang=<other>` — o mesmo
+   * de sempre. Páginas com query string própria (ex.: `?code=`) passam a sua,
+   * senão o parâmetro seria descartado na troca de idioma.
+   */
+  localeSwitcherHref?: (other: 'pt-BR' | 'en') => string
 }
 
 const LABELS = {
@@ -58,9 +75,23 @@ const LABELS = {
  * directly by page.tsx server components. All locale switching happens via
  * plain `<Link>` — query param `?lang=` is recognized by the page negotiator.
  */
-export function LegalShell({ locale, lastUpdated, children }: LegalShellProps) {
+export function LegalShell({
+  locale,
+  lastUpdated,
+  children,
+  showLocaleSwitcher = true,
+  relatedDocs,
+  localeSwitcherHref,
+}: LegalShellProps) {
   const t = LABELS[locale]
   const otherLocale: 'pt-BR' | 'en' = locale === 'pt-BR' ? 'en' : 'pt-BR'
+  const docs = relatedDocs ?? [
+    { href: localePath('/privacy', locale), label: t.privacy },
+    { href: localePath('/terms', locale), label: t.terms },
+  ]
+  const switcherHref = localeSwitcherHref
+    ? localeSwitcherHref(otherLocale)
+    : `?lang=${otherLocale}`
 
   return (
     <div data-testid="legal-shell" lang={locale} className="min-h-screen bg-white text-slate-900">
@@ -79,33 +110,35 @@ export function LegalShell({ locale, lastUpdated, children }: LegalShellProps) {
           >
             ← {t.backHome}
           </Link>
-          <nav
-            aria-label={t.languageSwitcher}
-            data-testid="legal-shell-locale-switcher"
-            className="flex items-center gap-2 text-sm"
-          >
-            <span className="text-slate-500">{t.languageSwitcher}:</span>
-            <span
-              aria-current="true"
-              lang={locale}
-              className="font-semibold text-slate-900"
-              data-testid={`legal-shell-locale-current-${locale}`}
+          {showLocaleSwitcher && (
+            <nav
+              aria-label={t.languageSwitcher}
+              data-testid="legal-shell-locale-switcher"
+              className="flex items-center gap-2 text-sm"
             >
-              {t.languageShort[locale]}
-            </span>
-            <span aria-hidden="true" className="text-slate-300">
-              |
-            </span>
-            <Link
-              href={`?lang=${otherLocale}`}
-              hrefLang={otherLocale}
-              lang={otherLocale}
-              className="text-slate-600 underline hover:text-slate-900"
-              data-testid={`legal-shell-locale-other-${otherLocale}`}
-            >
-              {t.languageShort[otherLocale]}
-            </Link>
-          </nav>
+              <span className="text-slate-500">{t.languageSwitcher}:</span>
+              <span
+                aria-current="true"
+                lang={locale}
+                className="font-semibold text-slate-900"
+                data-testid={`legal-shell-locale-current-${locale}`}
+              >
+                {t.languageShort[locale]}
+              </span>
+              <span aria-hidden="true" className="text-slate-300">
+                |
+              </span>
+              <Link
+                href={switcherHref}
+                hrefLang={otherLocale}
+                lang={otherLocale}
+                className="text-slate-600 underline hover:text-slate-900"
+                data-testid={`legal-shell-locale-other-${otherLocale}`}
+              >
+                {t.languageShort[otherLocale]}
+              </Link>
+            </nav>
+          )}
         </div>
       </header>
 
@@ -117,28 +150,41 @@ export function LegalShell({ locale, lastUpdated, children }: LegalShellProps) {
         >
           {children}
         </article>
-        <aside
-          aria-label="Table of contents"
-          data-testid="legal-shell-toc"
-          className="hidden lg:block"
-        >
-          <div className="sticky top-8 border-l border-slate-200 pl-4 text-sm text-slate-600">
-            <p className="font-semibold text-slate-900">{t.related}</p>
-            <ul className="mt-2 space-y-1">
-              <li>
-                <Link href={localePath('/privacy', locale)} className="hover:text-slate-900">
-                  {t.privacy}
-                </Link>
-              </li>
-              <li>
-                <Link href={localePath('/terms', locale)} className="hover:text-slate-900">
-                  {t.terms}
-                </Link>
-              </li>
-            </ul>
-          </div>
-        </aside>
+        {docs.length > 0 && (
+          <aside
+            aria-label="Table of contents"
+            data-testid="legal-shell-toc"
+            className="hidden lg:block"
+          >
+            <div className="sticky top-8 border-l border-slate-200 pl-4 text-sm text-slate-600">
+              <p className="font-semibold text-slate-900">{t.related}</p>
+              <ul className="mt-2 space-y-1">
+                {docs.map((d) => (
+                  <li key={d.href}>
+                    <Link href={d.href} className="hover:text-slate-900">{d.label}</Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </aside>
+        )}
       </div>
+
+      {docs.length > 0 && (
+        <div
+          data-testid="legal-shell-related-inline"
+          className="mx-auto max-w-4xl px-4 pb-8 text-sm text-slate-600 lg:hidden"
+        >
+          <p className="font-semibold text-slate-900">{t.related}</p>
+          <ul className="mt-2 space-y-1">
+            {docs.map((d) => (
+              <li key={d.href}>
+                <Link href={d.href} className="hover:text-slate-900">{d.label}</Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <footer className="border-t border-slate-200">
         <div className="mx-auto flex max-w-4xl flex-col gap-2 px-4 py-6 text-sm text-slate-500 sm:flex-row sm:justify-between">

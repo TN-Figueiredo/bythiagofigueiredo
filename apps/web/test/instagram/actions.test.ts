@@ -5,7 +5,11 @@ vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn() }))
 vi.mock('@/lib/cms/site-context', () => ({ getSiteContext: vi.fn().mockResolvedValue({ siteId: 'site-1' }) }))
 vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({
   createServerClient: vi.fn().mockReturnValue({ auth: { getUser: () => Promise.resolve({ data: { user: { id: 'user-1', email: 'test@test.com' } } }) } }),
-  requireSiteScope: vi.fn().mockResolvedValue({ ok: true, user: { id: 'u1' } }),
+  // DEVIATION do plano: `verifyState`'s `isOptionalUuid` (src/lib/oauth/state.ts)
+  // exige que `userId` seja um UUID quando presente — 'u1' nunca verifica.
+  // O mock usa um UUID válido para que o cookie assinado nos testes de C3
+  // (authorizeInstagramRebind) passe pela mesma validação que roda em prod.
+  requireSiteScope: vi.fn().mockResolvedValue({ ok: true, user: { id: '00000000-0000-4000-8000-000000000099' } }),
 }))
 vi.mock('next/cache', () => ({ updateTag: vi.fn(), revalidatePath: vi.fn(), revalidateTag: vi.fn() }))
 vi.mock('@/lib/instagram/api-client', () => ({ fetchInstagramProfile: vi.fn().mockResolvedValue({ id: 'ig-1' }) }))
@@ -18,9 +22,18 @@ vi.mock('@/lib/instagram/token', async (orig) => ({
   markTokenInvalid: (...a: unknown[]) => mockMarkInvalid(...a),
 }))
 
+const cookieGet = vi.fn()
+const cookieDelete = vi.fn()
+vi.mock('next/headers', () => ({
+  cookies: vi.fn(async () => ({ get: cookieGet, set: vi.fn(), delete: cookieDelete })),
+  headers: vi.fn(async () => new Headers()),
+}))
+
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { revalidatePath } from 'next/cache'
+import { getSiteContext } from '@/lib/cms/site-context'
+import { revalidatePath, revalidateTag } from 'next/cache'
 import { encrypt } from '@tn-figueiredo/social/vault'
+import { deriveHmacKey, signState, verifyState } from '@/lib/oauth/state'
 const mockGetClient = vi.mocked(getSupabaseServiceClient)
 const mockRevalidatePath = vi.mocked(revalidatePath)
 
@@ -41,7 +54,14 @@ describe('Instagram server actions', () => {
     const insertFn = vi.fn().mockReturnValue({
       select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'acc-1' }, error: null }) }),
     })
-    mockGetClient.mockReturnValue({ from: vi.fn().mockReturnValue({ insert: insertFn }) } as never)
+    // C3: addInstagramAccount consulta os irmãos de locale ANTES do insert —
+    // sem `.select().eq()` no mock, essa chamada quebraria com TypeError.
+    mockGetClient.mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        insert: insertFn,
+        select: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: [], error: null }) }),
+      }),
+    } as never)
     const { addInstagramAccount } = await import('@/app/cms/(authed)/settings/actions')
     const result = await addInstagramAccount({ handle: '@test', locale: 'pt' })
     expect(result.ok).toBe(true)
@@ -576,7 +596,14 @@ describe('normalizeHandle antes do Zod (ordem invertida)', () => {
     const insertFn = vi.fn().mockReturnValue({
       select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'a' }, error: null }) }),
     })
-    mockGetClient.mockReturnValue({ from: vi.fn().mockReturnValue({ insert: insertFn }) } as never)
+    // C3: addInstagramAccount consulta os irmãos de locale ANTES do insert —
+    // sem `.select().eq()` no mock, essa chamada quebraria com TypeError.
+    mockGetClient.mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        insert: insertFn,
+        select: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: [], error: null }) }),
+      }),
+    } as never)
     const { addInstagramAccount } = await import('@/app/cms/(authed)/settings/actions')
     const r = await addInstagramAccount({ handle: input, locale: 'pt' })
     expect(r.ok).toBe(true)
@@ -587,7 +614,14 @@ describe('normalizeHandle antes do Zod (ordem invertida)', () => {
     const insertFn = vi.fn().mockReturnValue({
       select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'a' }, error: null }) }),
     })
-    mockGetClient.mockReturnValue({ from: vi.fn().mockReturnValue({ insert: insertFn }) } as never)
+    // C3: addInstagramAccount consulta os irmãos de locale ANTES do insert —
+    // sem `.select().eq()` no mock, essa chamada quebraria com TypeError.
+    mockGetClient.mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        insert: insertFn,
+        select: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: [], error: null }) }),
+      }),
+    } as never)
     const { addInstagramAccount } = await import('@/app/cms/(authed)/settings/actions')
     const long = 'https://www.instagram.com/thiago.figueiredo/?hl=pt-br&utm_source=ig_web_button_share_sheet'
     const r = await addInstagramAccount({ handle: long, locale: 'pt' })
@@ -598,5 +632,138 @@ describe('normalizeHandle antes do Zod (ordem invertida)', () => {
   it('handle fora de ^[a-z0-9._]{1,30}$ após normalizar => erro', async () => {
     const { addInstagramAccount } = await import('@/app/cms/(authed)/settings/actions')
     expect((await addInstagramAccount({ handle: 'foo bar!', locale: 'pt' })).ok).toBe(false)
+  })
+})
+
+const MASTER = 'c'.repeat(64)
+const ACC = '00000000-0000-4000-8000-000000000001'
+// DEVIATION do plano: `verifyState` (src/lib/oauth/state.ts) exige `siteId`
+// no formato UUID SEMPRE (não é opcional, ao contrário de userId/accountId) —
+// o `siteId: 'site-1'` literal do resto do arquivo (linha 5) nunca verifica.
+// O cookie assinado em produção carrega o UUID real do site; estes testes
+// precisam de um `getSiteContext` que devolva o mesmo formato.
+const SITE = '00000000-0000-4000-8000-0000000000aa'
+const OTHER_SITE = '00000000-0000-4000-8000-0000000000bb'
+
+describe('Instagram server actions — C3', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.useRealTimers()
+    process.env.SOCIAL_MASTER_KEY = MASTER
+    cookieGet.mockReturnValue(undefined)
+    vi.mocked(getSiteContext).mockResolvedValue({ siteId: SITE } as never)
+  })
+
+  it('disconnectInstagramAccount clears the token and the whole episode, keeps posts, revalidates', async () => {
+    const updatePatch = vi.fn()
+    const insert = vi.fn().mockResolvedValue({ error: null })
+    mockGetClient.mockReturnValue({
+      from: vi.fn((t: string) => t === 'instagram_sync_log'
+        ? { insert }
+        : {
+            update: (patch: Record<string, unknown>) => {
+              updatePatch(patch)
+              return { eq: vi.fn(() => ({ eq: vi.fn(() => ({ select: vi.fn().mockResolvedValue({ data: [{ id: ACC }], error: null }) })) })) }
+            },
+          }),
+    } as never)
+    const { disconnectInstagramAccount } = await import('@/app/cms/(authed)/settings/actions')
+    const res = await disconnectInstagramAccount({ accountId: ACC })
+    expect(res.ok).toBe(true)
+    const patch = updatePatch.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(patch.access_token).toBeNull()
+    expect(patch.token_expires_at).toBeNull()
+    expect(patch.token_error).toBeNull()
+    expect(patch.token_error_at).toBeNull()
+    expect(patch.token_error_mode).toBeNull()
+    expect(patch.token_alert_sent_at).toBeNull()
+    expect(patch.token_alert_attempt_at).toBeNull()
+    expect(patch.token_reprobe_at).toBeNull()
+    expect(patch).not.toHaveProperty('handle')
+    expect(insert).toHaveBeenCalledWith(expect.objectContaining({
+      mode: 'manual', status: 'completed', error_message: 'detail: disconnected by owner',
+    }))
+    expect(revalidateTag).toHaveBeenCalledWith('instagram-feed', { expire: 0 })
+  })
+
+  it('authorizeInstagramRebind refuses without a cookie and with mismatching ids', async () => {
+    const { authorizeInstagramRebind } = await import('@/app/cms/(authed)/settings/actions')
+    expect((await authorizeInstagramRebind({ accountId: ACC })).ok).toBe(false)
+
+    const key = deriveHmacKey(MASTER, 'instagram-oauth-state-hmac')
+    cookieGet.mockReturnValue({ value: signState({
+      typ: 'mismatch', siteId: OTHER_SITE, userId: '00000000-0000-4000-8000-000000000099', accountId: ACC,
+      authorizedIgUserId: '178414', authorizedHandle: 'x',
+      exp: Math.floor(Date.now() / 1000) + 600,
+    }, key) })
+    expect((await authorizeInstagramRebind({ accountId: ACC })).ok).toBe(false)
+  })
+
+  it('authorizeInstagramRebind refuses an expired mismatch cookie and emits no rebind', async () => {
+    const now = Date.parse('2026-09-06T12:00:00Z')
+    vi.useFakeTimers({ now: now - 11 * 60_000, toFake: ['Date'] })
+    const key = deriveHmacKey(MASTER, 'instagram-oauth-state-hmac')
+    cookieGet.mockReturnValue({ value: signState({
+      typ: 'mismatch', siteId: SITE, userId: '00000000-0000-4000-8000-000000000099', accountId: ACC,
+      authorizedIgUserId: '178414', authorizedHandle: 'x',
+      exp: Math.floor((now - 11 * 60_000) / 1000) + 600,
+    }, key) })
+    vi.setSystemTime(now)
+    const { authorizeInstagramRebind } = await import('@/app/cms/(authed)/settings/actions')
+    const res = await authorizeInstagramRebind({ accountId: ACC })
+    expect(res.ok).toBe(false)
+    expect(res).not.toHaveProperty('rebind')
+    vi.useRealTimers()
+  })
+
+  it('authorizeInstagramRebind emits a 5-min rebind from the verified cookie and deletes it with the same Path', async () => {
+    const key = deriveHmacKey(MASTER, 'instagram-oauth-state-hmac')
+    cookieGet.mockReturnValue({ value: signState({
+      typ: 'mismatch', siteId: SITE, userId: '00000000-0000-4000-8000-000000000099', accountId: ACC,
+      authorizedIgUserId: '17841400000000000', authorizedHandle: 'thiago.figueiredo',
+      exp: Math.floor(Date.now() / 1000) + 600,
+    }, key) })
+    const { authorizeInstagramRebind } = await import('@/app/cms/(authed)/settings/actions')
+    const res = await authorizeInstagramRebind({ accountId: ACC })
+    expect(res.ok).toBe(true)
+    if (res.ok) {
+      const p = verifyState(res.rebind, key, { typ: 'rebind', requireExp: true })
+      expect(p?.allowRebindTo).toBe('17841400000000000')
+      expect((p?.exp ?? 0) * 1000).toBeLessThanOrEqual(Date.now() + 300_000)
+    }
+    expect(cookieDelete).toHaveBeenCalledWith({ name: '__Secure-ig_handle_mismatch', path: '/cms/settings' })
+    expect(mockGetClient).not.toHaveBeenCalled()      // não escreve em instagram_accounts
+  })
+
+  it('dismissInstagramHandleMismatch deletes the cookie with the same Path', async () => {
+    const { dismissInstagramHandleMismatch } = await import('@/app/cms/(authed)/settings/actions')
+    expect((await dismissInstagramHandleMismatch()).ok).toBe(true)
+    expect(cookieDelete).toHaveBeenCalledWith({ name: '__Secure-ig_handle_mismatch', path: '/cms/settings' })
+    expect(cookieDelete).toHaveBeenCalledWith({ name: 'ig_handle_mismatch', path: '/cms/settings' })
+  })
+
+  it('rejects locale combinations that would let "all" shadow pt/en', async () => {
+    const siblings = (rows: { id: string; locale: string }[]) => {
+      mockGetClient.mockReturnValue({
+        from: vi.fn(() => ({
+          select: vi.fn(() => ({ eq: vi.fn().mockResolvedValue({ data: rows, error: null }) })),
+          insert: vi.fn(() => ({ select: vi.fn(() => ({ single: vi.fn().mockResolvedValue({ data: { id: 'x' }, error: null }) })) })),
+          update: vi.fn(() => ({ eq: vi.fn(() => ({ eq: vi.fn(() => ({ select: vi.fn().mockResolvedValue({ data: [{ id: ACC }], error: null }) })) })) })),
+        })),
+      } as never)
+    }
+    const { addInstagramAccount, updateInstagramSettings } =
+      await import('@/app/cms/(authed)/settings/actions')
+
+    siblings([{ id: 'other', locale: 'pt' }])
+    expect((await addInstagramAccount({ handle: '@x', locale: 'all' })).ok).toBe(false)
+    expect((await updateInstagramSettings({ accountId: ACC, locale: 'all' })).ok).toBe(false)
+
+    siblings([{ id: 'other', locale: 'all' }])
+    expect((await addInstagramAccount({ handle: '@x', locale: 'pt' })).ok).toBe(false)
+    expect((await updateInstagramSettings({ accountId: ACC, locale: 'pt' })).ok).toBe(false)
+
+    siblings([{ id: ACC, locale: 'all' }])
+    expect((await updateInstagramSettings({ accountId: ACC, locale: 'all' })).ok).toBe(true)
   })
 })

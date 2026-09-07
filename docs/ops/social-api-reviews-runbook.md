@@ -365,3 +365,14 @@ Dicas: narre ou legende **cada botão não-óbvio** ("this button publishes the 
 - Meta Permissions Reference: https://developers.facebook.com/docs/permissions/
 - Instagram Insights (permissions exigidas): https://developers.facebook.com/docs/instagram-platform/insights/
 - Instagram Platform overview (Standard vs Advanced Access): https://developers.facebook.com/docs/instagram-platform/overview/
+
+## Instagram feed (Instagram API with Instagram Login) — desde 2026-09-06
+
+- Escopo pedido no OAuth: **`instagram_business_basic`** apenas. O callback recusa a conexão com
+  `permission_denied` quando a permissão não volta em `permissions`.
+- Consentimento registrado por conexão: categoria **`social_feed_read`** (texto em `consent_texts`,
+  versão 1.0, pt-BR + en).
+- Callbacks registrados na Meta: `POST /api/instagram/deauthorize` e `POST /api/instagram/data-deletion`
+  (verificação por `signed_request`, HMAC-SHA256 com o `INSTAGRAM_APP_SECRET`).
+- URL pública de status do pedido de exclusão: `/data-deletion?code=<confirmation_code>` — `noindex`,
+  fora do sitemap, `Referrer-Policy: no-referrer`.

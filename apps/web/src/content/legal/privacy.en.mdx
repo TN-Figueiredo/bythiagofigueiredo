@@ -1,7 +1,7 @@
 ---
 title: "Privacy Policy"
-version: "1.3"
-effectiveDate: "2026-07-03"
+version: "1.4"
+effectiveDate: "2026-09-06"
 locale: "en"
 ---
 
@@ -9,7 +9,7 @@ locale: "en"
 
 > **This is a translation of the Portuguese (pt-BR) policy. In case of discrepancy, the pt-BR version prevails.**
 
-**Version 1.3 — effective since July 3, 2026.**
+**Version 1.4 — effective since September 6, 2026.**
 
 This Privacy Policy describes how we collect, use, store, and protect your personal data when you use **bythiagofigueiredo.com** and related services. It is written in plain language to be understandable by non-specialists — without unnecessary legal jargon — and complies with the Brazilian General Data Protection Law (LGPD, Law 13.709/2018) and the European General Data Protection Regulation (GDPR, EU Regulation 2016/679) for visitors in the European Union.
 
@@ -30,6 +30,7 @@ We collect only the data strictly necessary for each purpose. Breakdown per surf
 - **Newsletter:** email, subscription date, accepted consent-text version, IP + user-agent at sign-up time (LGPD Art. 9 accountability). After sending, we collect open events (open-tracking pixel), link-click events, and the IP and user-agent associated with each interaction — used exclusively for aggregate newsletter-performance metrics.
 - **Waitlists:** email, IP + user-agent at sign-up time, snapshot of the accepted consent text, sign-up `source`, timestamp — collected when you join a waitlist through a public sign-up form, so we can notify you of the corresponding launch or opening.
 - **Social media management (if you connect accounts):** OAuth authentication tokens (Meta/Facebook, Meta/Instagram, Google/YouTube) or session credentials (Bluesky/AT Protocol), public profile data of the connected account, metadata of posts created or scheduled through the platform.
+- **Instagram feed on the home page (site configuration):** when the site owner connects an Instagram professional account with one click, we store an OAuth access token (encrypted at rest), the account's numeric identifiers, its public username, and a copy of the public posts and images displayed on the home page. Consent is recorded under the `social_feed_read` category. Data comes from Meta Platforms, Inc. (USA, under standard contractual clauses) and images are cached on Vercel while the account stays connected.
 - **YouTube channel intelligence (if you connect a channel):** for connected channels, we collect video-performance metrics and **aggregate audience demographics** (age range, gender, geography, search terms) obtained from the **YouTube Analytics API**, with no individual viewer identification, used for editorial analysis and content strategy.
 - **Research / Pipeline (internal use by editors):** story-research items, editorial decisions, and content notes, tied to the `user_id` of the editor who created them.
 - **Contact form:** name, email, message, IP + user-agent, timestamp.
@@ -171,6 +172,7 @@ Self-service tools available after login:
 - **Deletion:** `/account/delete` — 3-phase flow with email confirmation, immediate anonymization, **15-day grace period** to cancel, and permanent deletion at phase 3 (D+15).
 - **Consents + cookies:** `/account/settings/privacy` — history and granular revocation.
 - **Waitlists (no login):** [**/waitlists/rights**](/waitlists/rights) — enter your email to receive a link (7-day validity) to **access** (JSON download) or **delete** your waitlist signup data.
+- **Instagram data deletion (no login):** a deletion request sent by Meta for a connected Instagram account is executed immediately (token, cached posts, cached images and sync history) and the status is published at [**/data-deletion**](/data-deletion), reachable by the confirmation code Meta receives. A record of the request (account identifier and date) is retained for up to 180 days as proof of processing.
 
 For other rights, email **privacidade@bythiagofigueiredo.com** — we respond within **15 days** (LGPD Art. 19 §1).
 
@@ -269,6 +271,7 @@ This policy may be updated to reflect legal, service, or partner changes.
 - **Material changes** (new purposes, new sub-processors, new legal bases) will trigger **consent re-prompt** via the cookie banner and a notification email for authenticated users.
 - **Previous versions** are archived in `consent_texts` in the database, keyed by `(category, locale, version)`. You may request the version in force at the time of your registration.
 - **Version history:**
+  - v1.4 — 2026-09-06 — documentation of the **Instagram feed** connection (one-click OAuth, `social_feed_read` consent category, encrypted token at rest, cached posts and images on Vercel) and of the **Instagram data-deletion callback** with its public status page `/data-deletion` (180-day record of the request).
   - v1.3 — 2026-07-03 — documentation of the **Waitlists** module (data collected, consent legal basis Art. 7 I, and the retention SLA of the `waitlist-retention-sweep` cron); correction of the **newsletter** retention description to reflect actual behavior (synchronous sanitization on unsubscribe — email → SHA-256 hash + IP/user-agent/locale → null done on the spot; the 90-day cron only anonymizes open/click tracking; never-confirmed pending subscriptions are hard-deleted after a 7-day grace); inclusion of **Bluesky** in the Section 11 SCC list; reduced Sentry Session Replay PII exposure (`maskAllText` + `blockAllMedia`).
   - v1.2 — 2026-06-07 — addition of the sub-processor **Amazon Web Services, Inc. (SES)** for transactional emails (sa-east-1/BR, no international transfer); documentation of **YouTube channel intelligence** (metrics and aggregate audience demographics via YouTube Analytics API) and of the **Research / Pipeline** module; update of the corresponding purposes, sub-processors, and retention.
   - v1.1 — 2026-05-14 — addition of processors: Google AdSense, Google/YouTube OAuth, Meta Platforms (Facebook/Instagram), Bluesky/AT Protocol; replacement of Brevo SAS with Resend, Inc.; documentation of newsletter tracking (opens, clicks, IP with 90-day retention); update of the international-transfers table (LGPD Art. 33); correction of the newsletter anonymization term (from "immediate" to 90 days).

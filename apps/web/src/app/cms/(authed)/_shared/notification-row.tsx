@@ -179,9 +179,9 @@ export function NotificationRow({
                   text-[11px] font-medium text-cms-accent
                   hover:bg-cms-accent-subtle transition-colors
                 "
-                aria-label={n.suggested_action ?? 'Abrir'}
+                aria-label={n.suggested_action ?? 'Open'}
               >
-                {n.suggested_action ?? 'Abrir'}
+                {n.suggested_action ?? 'Open'}
                 <ChevronRight className="h-3 w-3" />
               </button>
             )}

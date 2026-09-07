@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { render } from '@testing-library/react'
+import { render, cleanup } from '@testing-library/react'
 import { LegalShell } from '../../src/components/legal/legal-shell'
 
 describe('<LegalShell>', () => {
@@ -60,5 +60,78 @@ describe('<LegalShell>', () => {
     )
     const shell = getByTestId('legal-shell')
     expect(shell.getAttribute('lang')).toBe('en')
+  })
+
+  it('keeps /privacy and /terms as the default related documents', () => {
+    const { getByTestId } = render(
+      <LegalShell locale="en" lastUpdated="2026-04-16"><p>content</p></LegalShell>
+    )
+    const toc = getByTestId('legal-shell-toc')
+    expect(toc.querySelector('a[href="/privacy"]')?.textContent).toBe('Privacy Policy')
+    expect(toc.querySelector('a[href="/terms"]')?.textContent).toBe('Terms of Service')
+  })
+
+  it('keeps the default locale switcher href at ?lang=<other>', () => {
+    const { getByTestId } = render(
+      <LegalShell locale="en" lastUpdated="2026-04-16"><p>content</p></LegalShell>
+    )
+    expect(getByTestId('legal-shell-locale-other-pt-BR').getAttribute('href')).toBe('?lang=pt-BR')
+  })
+
+  it('lets the caller rewrite the locale switcher href (preserving query params)', () => {
+    const { getByTestId } = render(
+      <LegalShell
+        locale="en"
+        lastUpdated="2026-04-16"
+        localeSwitcherHref={(other) => `?code=abc&lang=${other}`}
+      >
+        <p>content</p>
+      </LegalShell>
+    )
+    expect(getByTestId('legal-shell-locale-other-pt-BR').getAttribute('href')).toBe('?code=abc&lang=pt-BR')
+  })
+
+  it('hides the locale switcher when showLocaleSwitcher is false', () => {
+    const { queryByTestId } = render(
+      <LegalShell locale="en" lastUpdated="2026-04-16" showLocaleSwitcher={false}>
+        <p>content</p>
+      </LegalShell>
+    )
+    expect(queryByTestId('legal-shell-locale-switcher')).toBeNull()
+  })
+
+  // DESVIO do plano: as duas renderizações compartilham `document.body`, então
+  // `empty.queryByTestId(...)` enxergava a `<aside>` da PRIMEIRA renderização e
+  // a asserção "drops the aside" nunca podia falhar por si. `cleanup()` entre as
+  // duas isola o caso vazio.
+  it('renders a custom relatedDocs list and drops the aside entirely when it is empty', () => {
+    const custom = render(
+      <LegalShell
+        locale="en"
+        lastUpdated="2026-04-16"
+        relatedDocs={[{ href: '/privacy', label: 'Privacy Policy' }]}
+      >
+        <p>content</p>
+      </LegalShell>
+    )
+    expect(custom.getByTestId('legal-shell-toc').querySelectorAll('a')).toHaveLength(1)
+    expect(custom.getByTestId('legal-shell-related-inline').querySelectorAll('a')).toHaveLength(1)
+
+    cleanup()
+
+    const empty = render(
+      <LegalShell locale="en" lastUpdated="2026-04-16" relatedDocs={[]}><p>content</p></LegalShell>
+    )
+    expect(empty.queryByTestId('legal-shell-toc')).toBeNull()
+    expect(empty.queryByTestId('legal-shell-related-inline')).toBeNull()
+  })
+
+  it('repeats the related documents below the article for small screens', () => {
+    const { getByTestId } = render(
+      <LegalShell locale="en" lastUpdated="2026-04-16"><p>content</p></LegalShell>
+    )
+    const inline = getByTestId('legal-shell-related-inline')
+    expect(inline.className).toContain('lg:hidden')
+    expect(inline.querySelectorAll('a')).toHaveLength(2)
   })
 })

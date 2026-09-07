@@ -8,9 +8,11 @@ import {
   type ReactNode,
 } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import {
   Settings,
   Check,
+  ChevronRight,
   X,
   Eye,
   EyeOff,
@@ -133,6 +135,19 @@ export function InboxClient({
   const [activeFilter, setActiveFilter] = useState<FilterValue>('all')
   const [isPending, startTransition] = useTransition()
   const [localUnread, setLocalUnread] = useState(initialUnreadCount)
+  const router = useRouter()
+
+  // O `action_href` que o alerta de token emite (`/cms/settings/instagram`) era
+  // invisível nesta página — a única de notificações. Marca lida e navega.
+  const handleAction = useCallback((id: string, href: string | null) => {
+    if (!href) return
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id && !n.read_at ? { ...n, read_at: new Date().toISOString() } : n)),
+    )
+    void markRead(id)
+    if (href.startsWith('/')) router.push(href)
+    else window.location.href = href
+  }, [router])
 
   // ------------------------------------------------------------------
   // Filtering
@@ -427,6 +442,7 @@ export function InboxClient({
                   notification={n}
                   isSelected={selected.has(n.id)}
                   onToggleSelect={() => toggleSelect(n.id)}
+                  onAction={() => handleAction(n.id, n.action_href)}
                   onMarkRead={() => handleMarkRead(n.id)}
                   onMarkUnread={() => handleMarkUnread(n.id)}
                   onDismiss={() => handleDismiss(n.id)}
@@ -534,6 +550,7 @@ function NotificationRow({
   notification: n,
   isSelected,
   onToggleSelect,
+  onAction,
   onMarkRead,
   onMarkUnread,
   onDismiss,
@@ -541,6 +558,7 @@ function NotificationRow({
   notification: INotification
   isSelected: boolean
   onToggleSelect: () => void
+  onAction: () => void
   onMarkRead: () => void
   onMarkUnread: () => void
   onDismiss: () => void
@@ -650,6 +668,19 @@ function NotificationRow({
                     max-sm:opacity-100
                     transition-opacity"
       >
+        {n.action_href && (
+          <button
+            type="button"
+            onClick={onAction}
+            aria-label={n.suggested_action ?? 'Open'}
+            className="flex items-center gap-0.5 rounded-md px-1.5 h-7
+                       text-[11px] font-medium text-cms-accent
+                       hover:bg-cms-accent-subtle transition-colors"
+          >
+            {n.suggested_action ?? 'Open'}
+            <ChevronRight className="h-3 w-3" />
+          </button>
+        )}
         {isUnread ? (
           <button
             type="button"

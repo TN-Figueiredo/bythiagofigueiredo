@@ -160,6 +160,18 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      // A página pública de status de exclusão de dados carrega o
+      // `confirmation_code` na query. `strict-origin-when-cross-origin` (bloco
+      // acima) enviaria a origem a terceiros; aqui nada sai.
+      {
+        source: '/data-deletion',
+        headers: [
+          {
+            key: 'Referrer-Policy',
+            value: 'no-referrer',
+          },
+        ],
+      },
       // X-Frame-Options rides on every path EXCEPT /embed/waitlists/* (negative
       // lookahead). XFO has no "allow anyone" value, so the embed path must OMIT
       // the header entirely and rely on its CSP frame-ancestors (which, per the

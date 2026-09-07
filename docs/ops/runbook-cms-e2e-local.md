@@ -58,3 +58,19 @@ for (const h of hrefs) { const r = await fetch(h, { credentials: 'include' }); c
 ## Onde os erros aparecem
 - Servidor: log do `next dev` (stack + `digest`). Em prod: `vercel logs --environment production --level error -n 500 -x`.
 - Cliente: console do navegador; o boundary de `/cms` (`src/app/cms/error.tsx`) mostra o digest.
+
+## Instagram OAuth — E2E local (5 min, autenticado)
+
+Pré-requisito: túnel HTTPS local (o `http://localhost` é recusado como Redirect URI) **ou** o host de
+loopback declarado em `sites.domains` (o `resolveOAuthOrigin` aceita loopback fora de produção).
+
+1. `npm run dev -w apps/web`, entrar no CMS e abrir `/cms/settings/instagram`.
+2. Clicar em **Connect with Instagram** e conferir, no DevTools (aba Network, "Preserve log"), que a
+   resposta é **302** para `https://www.instagram.com/oauth/authorize?...` com
+   `scope=instagram_business_basic`, `enable_fb_login=false` e **sem** `force_reauth`.
+3. Sem completar na Meta, abrir manualmente
+   `/api/instagram/oauth/callback?code=fake&state=<o state da URL do passo 2>` na MESMA janela
+   (o cookie de nonce está no navegador): a página do popup mostra
+   **"Instagram rejected the authorization"** e o opener sai de `In progress`.
+4. Conferir que o card voltou ao estado anterior e que `/cms/settings/instagram` redireciona para
+   `/cms/settings?section=instagram`.

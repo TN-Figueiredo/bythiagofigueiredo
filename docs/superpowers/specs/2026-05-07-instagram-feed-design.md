@@ -567,7 +567,7 @@ export async function GET(req: NextRequest) {
 }
 ```
 
-**Schedule:** `0 8 * * *` (daily at 08:00 UTC, which is 05:00 BRT)
+**Schedule:** `0 13 * * *` (daily, 13:00 UTC = 10:00 America/Sao_Paulo)
 
 **Manual trigger:** Same endpoint with `?mode=manual` query param. Called from the "Sync Now" button in CMS settings.
 
@@ -587,14 +587,19 @@ export async function GET(req: NextRequest) {
 }
 ```
 
-**Schedule:** `0 6 * * 1` (weekly, Mondays at 06:00 UTC)
+**Schedule:** `0 11 * * *` (daily, 11:00 UTC = 08:00 America/Sao_Paulo)
 
 ### vercel.json Addition
 
 ```json
-{ "path": "/api/cron/instagram-sync", "schedule": "0 8 * * *" },
-{ "path": "/api/cron/instagram-token-refresh", "schedule": "0 6 * * 1" }
+{ "path": "/api/cron/instagram-sync", "schedule": "0 13 * * *" },
+{ "path": "/api/cron/instagram-token-refresh", "schedule": "0 11 * * *" }
 ```
+
+> **Atualizado em 2026-09-06:** a renovação deixou de ser semanal (`0 6 * * 1`) e passou a ser
+> **diária às 11:00 UTC**; o sync passou de `0 8 * * *` para **13:00 UTC**. 08:00/10:00 em
+> `America/Sao_Paulo`. Motivo: um token que morre no domingo ficava invisível por até 7 dias.
+
 
 ---
 
