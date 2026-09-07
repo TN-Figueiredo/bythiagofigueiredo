@@ -592,6 +592,56 @@ describe('<InstagramSection> — OAuth actions', () => {
     expect(win.location.href).not.toContain('force_reauth')
   })
 
+  it('rebind with a blocked popup navigates this tab and confirms only when the texts are dirty', async () => {
+    mockRebind.mockResolvedValue({ ok: true, rebind: 'signed-rebind' })
+    vi.stubGlobal('open', vi.fn(() => null))
+    const hrefSetter = vi.fn()
+    const realLocation = window.location
+    Object.defineProperty(window, 'location', {
+      value: { origin: realLocation.origin, get href() { return '' }, set href(v: string) { hrefSetter(v) } },
+      configurable: true,
+      writable: true,
+    })
+    try {
+      // (1) limpo: nenhuma pergunta, navega esta aba. Render próprio — o clique
+      // entra em `In progress` e um segundo clique seria ignorado por `busy`.
+      const clean = renderSection(
+        {}, { handleMismatch: { accountId: 'acc-1', authorizedHandle: 'other.account' } },
+      )
+      await act(async () => { fireEvent.click(screen.getByTestId('ig-rebind')) })
+      expect(vi.mocked(confirm)).not.toHaveBeenCalled()
+      expect(hrefSetter).toHaveBeenCalledWith(
+        '/api/instagram/oauth?account_id=acc-1&rebind=signed-rebind',
+      )
+      clean.unmount()
+
+      // (2) sujo e RECUSADO: nada acontece — nem action, nem navegação. Uma
+      // recusa não deixa estado para trás, então (3) reusa este mesmo render.
+      renderSection({}, { handleMismatch: { accountId: 'acc-1', authorizedHandle: 'other.account' } })
+      hrefSetter.mockClear()
+      mockRebind.mockClear()
+      vi.mocked(confirm).mockReturnValue(false)
+      fireEvent.change(screen.getByPlaceholderText('do iPhone, sem filtro'), { target: { value: 'novo' } })
+      await act(async () => { fireEvent.click(screen.getByTestId('ig-rebind')) })
+      expect(vi.mocked(confirm)).toHaveBeenCalledWith(
+        'Leave this page to authorize with Instagram? Unsaved changes to the section texts will be lost.',
+      )
+      expect(mockRebind).not.toHaveBeenCalled()
+      expect(hrefSetter).not.toHaveBeenCalled()
+      expect(screen.queryByTestId('ig-inprogress')).toBeNull()
+
+      // (3) sujo e ACEITO: segue como sempre.
+      vi.mocked(confirm).mockReturnValue(true)
+      await act(async () => { fireEvent.click(screen.getByTestId('ig-rebind')) })
+      expect(mockRebind).toHaveBeenCalledWith({ accountId: 'acc-1' })
+      expect(hrefSetter).toHaveBeenCalledWith(
+        '/api/instagram/oauth?account_id=acc-1&rebind=signed-rebind',
+      )
+    } finally {
+      Object.defineProperty(window, 'location', { value: realLocation, configurable: true, writable: true })
+    }
+  })
+
   it('closes the window and shows the error when the rebind action fails', async () => {
     mockRebind.mockResolvedValue({ ok: false, error: 'error:invalid_state' })
     renderSection({}, { handleMismatch: { accountId: 'acc-1', authorizedHandle: 'other.account' } })

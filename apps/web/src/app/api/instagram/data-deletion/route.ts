@@ -107,15 +107,22 @@ export async function POST(req: Request): Promise<Response> {
       confirmationCode = randomBytes(16).toString('hex')
     }
 
-    if (!resuming) {
-      // Alcance (MUST): (ig_user_id = X OU ig_professional_id = X) E source='oauth'.
-      const { data: accountsData } = await supabase
-        .from('instagram_accounts')
-        .select('*')
-        .or(matchedAccountsFilter(igUserId))
-        .eq('ig_user_id_source', 'oauth')
-      const accounts = (accountsData ?? []) as InstagramAccountRow[]
+    // Alcance (MUST): (ig_user_id = X OU ig_professional_id = X) E source='oauth'.
+    // A carga corre nos DOIS caminhos: (b) e (c) abaixo têm de rodar também na
+    // RETOMADA. Um run que morreu entre a inserção da linha e o laço de tokens
+    // deixou o token do titular VIVO; se a retomada pulasse direto para (d)–(h),
+    // a rota escreveria `completed_at` e declararia à Meta uma exclusão cumprida
+    // com a credencial do titular ainda armazenada. `markTokenInvalid` e o
+    // `update` são idempotentes — repeti-los numa retomada não custa nada, e
+    // após a anonimização de (e) a consulta simplesmente devolve zero linhas.
+    const { data: accountsData } = await supabase
+      .from('instagram_accounts')
+      .select('*')
+      .or(matchedAccountsFilter(igUserId))
+      .eq('ig_user_id_source', 'oauth')
+    const accounts = (accountsData ?? []) as InstagramAccountRow[]
 
+    if (!resuming) {
       // Zero casamentos: obrigação legal cumprida, mas nunca em silêncio.
       if (accounts.length === 0) {
         Sentry.captureMessage('instagram data-deletion matched 0 accounts', 'warning')
@@ -149,19 +156,29 @@ export async function POST(req: Request): Promise<Response> {
           }
         }
         const nowIso = new Date().toISOString()
-        await supabase.from('instagram_deletion_requests').insert({
-          confirmation_code: confirmationCode,
-          ig_user_id: igUserId,
-          site_id: null,
-          requested_at: nowIso,
-          completed_at: nowIso,
-        })
+        // MUST: um `confirmation_code` só volta para a Meta depois de a linha
+        // EXISTIR. A página pública lê esta linha; sem ela o dono do pedido vê
+        // uma página que não conhece o código que a própria rota entregou.
+        const { error: emptyInsertError } = await supabase
+          .from('instagram_deletion_requests')
+          .insert({
+            confirmation_code: confirmationCode,
+            ig_user_id: igUserId,
+            site_id: null,
+            requested_at: nowIso,
+            completed_at: nowIso,
+          })
+        if (emptyInsertError) {
+          throw new Error(
+            `instagram data-deletion: request row insert failed (${emptyInsertError.message ?? 'unknown'})`,
+          )
+        }
         return Response.json({ url: statusUrl(confirmationCode), confirmation_code: confirmationCode })
       }
 
       // (a) a linha nasce com `completed_at` NULL — é O sinal de "não terminou".
       const sorted = [...accounts].sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)))
-      const { data: inserted } = await supabase
+      const { data: inserted, error: insertError } = await supabase
         .from('instagram_deletion_requests')
         .insert({
           confirmation_code: confirmationCode,
@@ -172,26 +189,40 @@ export async function POST(req: Request): Promise<Response> {
         })
         .select('id')
         .single()
-      requestId = (inserted as { id?: string } | null)?.id ?? null
+      const insertedId = (inserted as { id?: string } | null)?.id ?? null
 
-      // (b) token fora, motivo gravado
-      const nowIso = new Date().toISOString()
-      for (const account of accounts) {
-        await markTokenInvalid(supabase, account, 'data_deletion_requested', { fatal: true, forceReason: true })
-        await supabase
-          .from('instagram_accounts')
-          .update({ access_token: null, token_expires_at: null, updated_at: nowIso })
-          .eq('id', account.id)
+      // MUST: a falha da inserção é FATAL. Engoli-la deixava `requestId` nulo,
+      // pulava (d)–(h) INTEIRO e ainda assim devolvia `{ url, confirmation_code }`
+      // — a Meta registra o pedido como cumprido, nada foi apagado e não existe
+      // linha da qual retomar. É exatamente a "declaração de compliance fabricada"
+      // que a nota do anti-replay acima se compromete a nunca produzir. 500 =>
+      // a Meta re-tenta, e o `catch` libera o claim para que a re-tentativa
+      // recomece do zero.
+      if (insertError || insertedId === null) {
+        throw new Error(
+          `instagram data-deletion: request row insert failed (${insertError?.message ?? 'no row returned'})`,
+        )
       }
+      requestId = insertedId
+    }
 
-      // (c) varredura ANTES de anonimizar — `runDeletionEffects` anonimiza em (e)
-      // e depois disso o grupo não casaria: nenhum alerta sairia.
-      // A chave é `identityKeyOf(row)` (C2), NUNCA `o:${payload.user_id}`: uma
-      // linha casada por `ig_professional_id` tem `ig_user_id` diferente do id da
-      // Meta e a chave montada à mão não encontraria grupo nenhum.
-      for (const identityKey of new Set(accounts.map(identityKeyOf))) {
-        await sweepTokenAlerts(supabase, { identityKey })
-      }
+    // (b) token fora, motivo gravado — nos DOIS caminhos (ver a carga acima).
+    const nowIso = new Date().toISOString()
+    for (const account of accounts) {
+      await markTokenInvalid(supabase, account, 'data_deletion_requested', { fatal: true, forceReason: true })
+      await supabase
+        .from('instagram_accounts')
+        .update({ access_token: null, token_expires_at: null, updated_at: nowIso })
+        .eq('id', account.id)
+    }
+
+    // (c) varredura ANTES de anonimizar — `runDeletionEffects` anonimiza em (e)
+    // e depois disso o grupo não casaria: nenhum alerta sairia.
+    // A chave é `identityKeyOf(row)` (C2), NUNCA `o:${payload.user_id}`: uma
+    // linha casada por `ig_professional_id` tem `ig_user_id` diferente do id da
+    // Meta e a chave montada à mão não encontraria grupo nenhum.
+    for (const identityKey of new Set(accounts.map(identityKeyOf))) {
+      await sweepTokenAlerts(supabase, { identityKey })
     }
 
     // (d)–(h), idempotentes e retomáveis (C2). Escreve `completed_at` por último

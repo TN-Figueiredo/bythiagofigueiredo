@@ -269,9 +269,57 @@ describe('POST /api/instagram/data-deletion', () => {
     expect(runDeletionEffects).toHaveBeenCalledWith(
       expect.anything(), { id: 'req-1', ig_user_id: IG_ID }, expect.any(Number),
     )
+    // (a) NÃO se repete: a linha já existe e o `confirmation_code` é o dela.
     expect(requestInsert).not.toHaveBeenCalled()
-    // Retomada NÃO repete (a)-(c): a linha já existe e o token já foi limpo.
+  })
+
+  it('resumes (b) and (c) too: a run interrupted before the token loop leaves no token behind', async () => {
+    // O run anterior morreu ENTRE a inserção da linha e o laço de tokens: a
+    // linha existe com completed_at NULL e a conta ainda tem `access_token`.
+    mockDb({
+      claim: false,
+      oauthRows: [{ ...OAUTH_ROW, access_token: 'v1:still-live' }],
+      lastRequest: {
+        id: 'req-1', confirmation_code: 'f'.repeat(32),
+        requested_at: new Date(Date.now() - 100_000).toISOString(), completed_at: null,
+      },
+    })
+    const res = await POST(post())
+    expect(res.status).toBe(200)
+    expect(markTokenInvalid).toHaveBeenCalledWith(
+      expect.anything(), expect.objectContaining({ id: 'acc-1' }), 'data_deletion_requested',
+      { fatal: true, forceReason: true },
+    )
+    expect(accountUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      access_token: null, token_expires_at: null,
+    }))
+    expect(sweepTokenAlerts).toHaveBeenCalledWith(expect.anything(), { identityKey: identityKeyOf(OAUTH_ROW) })
+    // E a limpeza continua vindo ANTES dos efeitos que anonimizam.
+    expect(vi.mocked(sweepTokenAlerts).mock.invocationCallOrder[0])
+      .toBeLessThan(vi.mocked(runDeletionEffects).mock.invocationCallOrder[0] ?? Infinity)
+  })
+
+  it('answers 500 with NO confirmation code when the request row fails to persist', async () => {
+    mockDb({})
+    requestInsert.mockReturnValue({
+      select: () => ({ single: async () => ({ data: null, error: { message: '23505 duplicate key' } }) }),
+    })
+    const res = await POST(post())
+    expect(res.status).toBe(500)
+    expect(await res.text()).not.toMatch(/[0-9a-f]{32}/)
+    expect(runDeletionEffects).not.toHaveBeenCalled()
     expect(markTokenInvalid).not.toHaveBeenCalled()
+    expect(Sentry.captureException).toHaveBeenCalled()
+    expect(opsDelete).toHaveBeenCalled()   // claim liberado: a re-tentativa da Meta recomeça
+  })
+
+  it('answers 500 with no code when the zero-match row fails to persist', async () => {
+    mockDb({ oauthRows: [] })
+    requestInsert.mockResolvedValue({ error: { message: 'db down' } })
+    const res = await POST(post())
+    expect(res.status).toBe(500)
+    expect(await res.text()).not.toMatch(/[0-9a-f]{32}/)
+    expect(Sentry.captureException).toHaveBeenCalled()
   })
 
   it('with no row: a fresh sigreq claim answers 202, a 100 s old one is released and processed', async () => {

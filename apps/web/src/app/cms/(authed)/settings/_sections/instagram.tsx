@@ -58,6 +58,14 @@ export interface InstagramSectionProps {
  */
 const OAUTH_TIMEOUT_MS = 10 * 60_000
 const OAUTH_WINDOW_FEATURES = 'width=600,height=700'
+/**
+ * Confirmação de saída quando o popup é bloqueado e o fluxo tem de navegar a
+ * aba atual. Constante única: `openOauth` e `handleRebind` são os dois pontos
+ * de entrada do MESMO fluxo e não podem divergir no texto nem na existência da
+ * confirmação (o rebind saía sem perguntar e perdia os textos da seção).
+ */
+const LEAVE_PAGE_CONFIRM =
+  'Leave this page to authorize with Instagram? Unsaved changes to the section texts will be lost.'
 
 /* ------------------------------------------------------------------ */
 /*  InstagramSection                                                  */
@@ -257,7 +265,7 @@ function InstagramAccountCard({
     setLastOauthQuery(query)
     const w = window.open('about:blank', 'ig-oauth', OAUTH_WINDOW_FEATURES)
     if (w === null) {
-      if (isDirty && !confirm('Leave this page to authorize with Instagram? Unsaved changes to the section texts will be lost.')) return
+      if (isDirty && !confirm(LEAVE_PAGE_CONFIRM)) return
       window.location.href = url
       return
     }
@@ -270,6 +278,10 @@ function InstagramAccountCard({
   const handleRebind = () => {
     if (oauthDisabled || busy) return
     const w = window.open('about:blank', 'ig-oauth', OAUTH_WINDOW_FEATURES)
+    // Popup bloqueado => o fluxo termina navegando ESTA aba (o `else` lá
+    // embaixo). Perguntar antes, como faz `openOauth`, e sem nenhum efeito
+    // colateral se o dono desistir.
+    if (w === null && isDirty && !confirm(LEAVE_PAGE_CONFIRM)) return
     if (w !== null) winRef.current = w
     setInlineError(null)
     setInProgress({ origin: 'oauth', startedAt: Date.now() })
