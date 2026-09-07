@@ -580,14 +580,17 @@ export async function updateInstagramSettings(input: {
 }): Promise<ActionResult> {
   const parsed = instagramSettingsSchema.safeParse(input)
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
-  await requireEditAccess()
+  const siteId = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
   const { accountId, ...updates } = parsed.data
 
+  // A1 (§0/§3.2): `getSupabaseServiceClient()` ignora RLS — sem `.eq('site_id')`
+  // um editor de outro ring reescreve as configurações deste site.
   const { error, data } = await supabase
     .from('instagram_accounts')
     .update({ ...updates, updated_at: new Date().toISOString() })
     .eq('id', accountId)
+    .eq('site_id', siteId)
     .select('id')
 
   if (error) return { ok: false, error: error.message }
@@ -604,7 +607,7 @@ export async function setInstagramToken(input: {
 }): Promise<ActionResult> {
   const parsed = instagramTokenSchema.safeParse(input)
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
-  await requireEditAccess()
+  const siteId = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
 
   let igUserId: string | null = null
@@ -627,6 +630,7 @@ export async function setInstagramToken(input: {
       updated_at: new Date().toISOString(),
     })
     .eq('id', parsed.data.accountId)
+    .eq('site_id', siteId)
 
   if (error) return { ok: false, error: error.message }
   revalidatePath('/cms/settings')
@@ -664,8 +668,41 @@ export async function updateInstagramSlots(input: {
 }): Promise<ActionResult> {
   const parsed = instagramSlotSchema.safeParse(input)
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
-  await requireEditAccess()
+  const siteId = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
+
+  // `instagram_feed_slots` não tem `site_id` (20260507190000:56-68): a posse é
+  // provada pela conta antes de qualquer escrita (§3.2, Commit A).
+  const { data: account, error: accountError } = await supabase
+    .from('instagram_accounts')
+    .select('site_id')
+    .eq('id', parsed.data.accountId)
+    .single()
+
+  if (accountError || !account) return { ok: false, error: 'Account not found' }
+  if ((account as { site_id: string }).site_id !== siteId) {
+    return { ok: false, error: 'Account not found' }
+  }
+
+  // `postId` (input) ↔ `post_id` (coluna): todo post fixado tem de pertencer a
+  // ESTA conta — a FK só garante que o uuid existe em `instagram_posts`.
+  const postIds = parsed.data.slots
+    .map((s) => s.postId)
+    .filter((id): id is string => id !== null)
+
+  if (postIds.length > 0) {
+    const { data: posts, error: postsError } = await supabase
+      .from('instagram_posts')
+      .select('id')
+      .eq('account_id', parsed.data.accountId)
+      .in('id', postIds)
+
+    if (postsError) return { ok: false, error: postsError.message }
+    const owned = new Set((posts ?? []).map((p: { id: string }) => p.id))
+    if (postIds.some((id) => !owned.has(id))) {
+      return { ok: false, error: 'Post not found for this account' }
+    }
+  }
 
   const rows = parsed.data.slots.map((s) => ({
     account_id: parsed.data.accountId,
