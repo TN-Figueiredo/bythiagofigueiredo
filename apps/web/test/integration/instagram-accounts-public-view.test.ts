@@ -427,4 +427,41 @@ describe.skipIf(skipIfNoLocalDb())('M1 (C1) — DML fechado e schema novo', () =
     expect(rows).toHaveLength(1)
     expect(rows[0]?.indexdef).toContain('(account_id, mode, started_at DESC)')
   })
+
+  // ── C4 (M2): a unique global de ig_media_id caiu ──────────────────────────
+
+  it('accepts two posts with the same ig_media_id under different accounts (post-M2)', async () => {
+    const { siteId } = await seedSite(svcC1)
+    siteIdsC1.push(siteId)
+
+    const { data: pt } = await svcC1.from('instagram_accounts')
+      .insert({ site_id: siteId, locale: 'pt', handle: 'c4dup' })
+      .select('id').single()
+    const { data: en } = await svcC1.from('instagram_accounts')
+      .insert({ site_id: siteId, locale: 'en', handle: 'c4dup' })
+      .select('id').single()
+
+    const base = {
+      ig_media_id: 'c4-media-1',
+      media_type: 'IMAGE',
+      media_url: 'https://scontent.cdninstagram.com/a.jpg',
+      permalink: 'https://www.instagram.com/p/c4dup/',
+      ig_timestamp: new Date(Date.now() - 3_600_000).toISOString(),
+    }
+
+    const first = await svcC1.from('instagram_posts').insert({ ...base, account_id: pt!.id })
+    expect(first.error).toBeNull()
+
+    // A global se foi: a linha `en` fica com a sua própria cópia do mesmo media.
+    const second = await svcC1.from('instagram_posts').insert({ ...base, account_id: en!.id })
+    expect(second.error).toBeNull()
+
+    // A composta ficou: o mesmo par (account_id, ig_media_id) continua barrado,
+    // que é o que sustenta o `onConflict: 'account_id,ig_media_id'` do sync.
+    const same = await svcC1.from('instagram_posts').insert({ ...base, account_id: pt!.id })
+    expect(same.error?.code).toBe('23505')
+
+    // Cascade: apagar as contas leva os posts junto (ON DELETE CASCADE).
+    await svcC1.from('instagram_accounts').delete().in('id', [pt!.id, en!.id])
+  })
 })

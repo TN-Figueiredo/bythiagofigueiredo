@@ -404,17 +404,20 @@ describe('passo 4 — deadline relativo à FASE, seleção e reprova', () => {
     expect(mockMark).not.toHaveBeenCalled()
   })
 
-  it('23505 na janela C2→C4: infra SEM step_errors, SEM push, captureMessage info 1×/dia', async () => {
+  it('23505 => infra comum: step_errors++ e captureException (janela C2->C4 fechou em C4/M2)', async () => {
     mockRefresh.mockRejectedValue({
       code: '23505', message: 'duplicate key value violates unique constraint "instagram_posts_ig_media_id_key"',
       details: null, hint: null,
     })
     harness({ accounts: [account()] })
     const body = await (await GET(req())).json()
-    expect(body.step_errors).toBe(0)
+    expect(body.step_errors).toBe(1)
+    expect(vi.mocked(Sentry.captureException)).toHaveBeenCalledWith(
+      expect.anything(),
+      { tags: { component: 'instagram-token-refresh', account_id: 'acc-1' } },
+    )
     expect(vi.mocked(Sentry.captureMessage))
-      .toHaveBeenCalledWith('instagram duplicate media in C2→C4 window', 'info')
-    expect(mockNtfy.mock.calls.some(([a]) => String(a.title).includes('degraded'))).toBe(false)
+      .not.toHaveBeenCalledWith('instagram duplicate media in C2→C4 window', 'info')
   })
 
   it('markTokenInvalid lançando (RPC E fallback mortos) => step_errors++, push 1×/dia e status ERROR', async () => {

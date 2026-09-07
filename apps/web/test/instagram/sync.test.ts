@@ -1,5 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import type { InstagramAccountRow } from '@/lib/instagram/types'
 
 vi.mock('@/lib/instagram/api-client', () => ({
@@ -567,5 +569,38 @@ describe('checkImageCacheHealth — 3 execuções consecutivas com mediaFailed >
   it('menos de 3 linhas => nenhum captureMessage', async () => {
     await checkImageCacheHealth(logSupabase([{ error_message: ' mediaFailed:1' }]), 'acc-1')
     expect(vi.mocked(Sentry.captureMessage)).not.toHaveBeenCalled()
+  })
+})
+
+// ── C4 ratchet ───────────────────────────────────────────────────────────────
+// §3.3 passo 6: o ramo `c2c4dup` existia SÓ para a janela em que a unique global
+// instagram_posts_ig_media_id_key coexistia com a composta. M2 fechou a janela;
+// se o ramo voltar, um 23505 real (bug nosso, `infra` por §3.2) passa a ser
+// engolido sem step_errors e sem push — exatamente o modo de falha silenciosa
+// que a feature inteira existe para acabar.
+const C4_SOURCES = [
+  'src/app/api/cron/instagram-sync/route.ts',
+  'src/app/api/cron/instagram-token-refresh/route.ts',
+  'src/lib/instagram/sync.ts',
+  'src/lib/instagram/token.ts',
+] as const
+
+function readWebSource(relativePath: string): string {
+  return readFileSync(fileURLToPath(new URL(`../../${relativePath}`, import.meta.url)), 'utf8')
+}
+
+describe('C4 contract — the c2c4dup exclusion branch is gone', () => {
+  it.each(C4_SOURCES)('%s carries no c2c4dup exclusion', (relativePath) => {
+    const source = readWebSource(relativePath)
+    expect(source).not.toMatch(/c2c4dup/i)
+    // O nome da constraint é o marcador preciso do ramo. NÃO assere sobre
+    // /duplicate key value/i: essa string é legítima em token.ts, onde
+    // classifyInstagramError a usa para classificar 23505 como `infra` (§3.2).
+    expect(source).not.toMatch(/instagram_posts_ig_media_id_key/)
+  })
+
+  it('keeps the composite onConflict that M2 made the only unique', () => {
+    expect(readWebSource('src/lib/instagram/sync.ts'))
+      .toContain("onConflict: 'account_id,ig_media_id'")
   })
 })

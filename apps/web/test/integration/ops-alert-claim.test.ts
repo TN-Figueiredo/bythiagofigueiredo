@@ -3,7 +3,12 @@
  * DB-gated integration tests para M1 (commit C1) — bloco 2:
  * public.ops_alert_state / public.ops_alert_claim (rate limiter, comparação
  * estrita), a CHECK de consents com social_feed_read, o seed de consent_texts e
- * a coexistência das duas UNIQUE de instagram_posts até C4.
+ * as UNIQUE de instagram_posts.
+ *
+ * C4 (M2) derrubou a unique global instagram_posts_ig_media_id_key: os testes
+ * abaixo provam o catálogo pós-M2 (uma única unique, a composta), o
+ * comportamento (duas contas agora podem compartilhar um ig_media_id) e a
+ * receita de rollback documentada na migration.
  *
  * Rodar com:
  *   npm run db:start && npm run db:reset
@@ -343,19 +348,20 @@ describe.skipIf(skipIfNoLocalDb())('M1 — ops_alert_claim, consents e as unique
 
   // ── instagram_posts: as duas uniques coexistem até C4 ─────────────────────
 
-  it('keeps BOTH unique constraints on instagram_posts after M1 (C4/M2 drops the global one)', async () => {
+  it('M2 leaves exactly one unique on instagram_posts — the composite one', async () => {
     const { rows } = await pg.query<{ conname: string }>(
       `select conname from pg_constraint
-        where conrelid = 'public.instagram_posts'::regclass and contype = 'u'
+        where conrelid = 'public.instagram_posts'::regclass
+          and contype = 'u'
         order by conname`,
     )
-    expect(rows.map(r => r.conname)).toEqual([
-      'instagram_posts_account_media_key',
-      'instagram_posts_ig_media_id_key',
-    ])
+    // Antes de M2 seriam duas (M1 é expand: a composta COEXISTE com a global).
+    // Depois de M2 a global some e a composta é a única — é isso que libera a
+    // 2ª linha de locale a ter a sua própria cópia dos posts (§3.2, objetivo 1).
+    expect(rows.map((r) => r.conname)).toEqual(['instagram_posts_account_media_key'])
   })
 
-  it('the composite key allows a second row on the SAME account only for a new ig_media_id, and the global key still blocks two accounts sharing one ig_media_id (until C4)', async () => {
+  it('the composite key blocks the same (account_id, ig_media_id) and, after M2, allows two accounts to share one ig_media_id', async () => {
     const accountA = await freshAccount('pt')
     const accountB = await freshAccount('pt')
     const mediaId = `m-${Date.now()}`
@@ -377,9 +383,95 @@ describe.skipIf(skipIfNoLocalDb())('M1 — ops_alert_claim, consents e as unique
       .insert({ ...base, account_id: accountA, ig_media_id: `${mediaId}-b` })
     expect(sameAccountNewMedia.error).toBeNull()
 
-    // C4 (M2) derruba instagram_posts_ig_media_id_key e ESTA asserção vira `toBeNull()`.
+    // Depois de M2 a global se foi: a outra conta ganha a sua própria cópia.
     const crossAccount = await svc.from('instagram_posts')
       .insert({ ...base, account_id: accountB, ig_media_id: mediaId })
-    expect(crossAccount.error?.code).toBe('23505')
+    expect(crossAccount.error).toBeNull()
+  })
+
+  // ── Receita de rollback de C4 (bloco -- ROLLBACK da migration M2) ─────────
+
+  it('the documented C4 rollback recipe restores the global unique', async () => {
+    // Estado pós-M2: duas contas de locale com a mesma cópia do mesmo media.
+    const { siteId } = await seedSite(svc)
+    siteIds.push(siteId)
+    const { data: pt } = await svc.from('instagram_accounts')
+      .insert({ site_id: siteId, locale: 'pt', handle: 'c4roll' })
+      .select('id').single()
+    const { data: en } = await svc.from('instagram_accounts')
+      .insert({ site_id: siteId, locale: 'en', handle: 'c4roll' })
+      .select('id').single()
+
+    const base = {
+      ig_media_id: 'c4-roll-1',
+      media_type: 'IMAGE',
+      media_url: 'https://scontent.cdninstagram.com/a.jpg',
+      permalink: 'https://www.instagram.com/p/c4roll/',
+      ig_timestamp: new Date(Date.now() - 3_600_000).toISOString(),
+    }
+    const { data: older } = await svc.from('instagram_posts')
+      .insert({ ...base, account_id: pt!.id }).select('id').single()
+    const { data: newer } = await svc.from('instagram_posts')
+      .insert({ ...base, account_id: en!.id }).select('id').single()
+
+    // Um slot apontando para a cópia que a receita vai apagar — o efeito
+    // colateral que o bloco -- ROLLBACK obriga a registrar no runbook.
+    const { data: slot } = await svc.from('instagram_feed_slots')
+      .insert({ account_id: pt!.id, position: 1, post_id: older!.id })
+      .select('id').single()
+
+    const client = new Client({ connectionString: PG_URL })
+    await client.connect()
+    try {
+      await client.query('begin')
+
+      // ── receita, passo 1: apagar as cópias extras (mantém a mais nova) ──
+      await client.query(`
+        delete from public.instagram_posts
+         where id in (
+           select id from (
+             select id, row_number() over (
+               partition by ig_media_id order by created_at desc, id desc
+             ) as rn
+             from public.instagram_posts
+           ) ranked
+          where rn > 1)`)
+
+      const survivors = await client.query<{ id: string }>(
+        `select id from public.instagram_posts where ig_media_id = $1`, ['c4-roll-1'],
+      )
+      expect(survivors.rows).toHaveLength(1)
+      expect(survivors.rows[0]!.id).toBe(newer!.id)
+
+      // Efeito colateral declarado: o slot que apontava para a cópia apagada
+      // vira NULL (ON DELETE SET NULL), não some.
+      const slotAfter = await client.query<{ post_id: string | null }>(
+        `select post_id from public.instagram_feed_slots where id = $1`, [slot!.id],
+      )
+      expect(slotAfter.rows[0]!.post_id).toBeNull()
+
+      // ── receita, passo 2: recriar a unique global ──
+      await client.query(`
+        alter table public.instagram_posts
+          drop constraint if exists instagram_posts_ig_media_id_key`)
+      await client.query(`
+        alter table public.instagram_posts
+          add constraint instagram_posts_ig_media_id_key unique (ig_media_id)`)
+
+      // A global voltou: a 2ª conta não pode mais ter a sua cópia.
+      await expect(client.query(
+        `insert into public.instagram_posts
+           (account_id, ig_media_id, media_type, media_url, permalink, ig_timestamp)
+         values ($1, $2, 'IMAGE', $3, $4, now())`,
+        [pt!.id, 'c4-roll-1', base.media_url, base.permalink],
+      )).rejects.toMatchObject({ code: '23505' })
+    } finally {
+      // Tudo o que a receita fez (DELETE e DDL) morre aqui: o banco local volta
+      // ao estado pós-M2 para as outras suítes.
+      await client.query('rollback').catch(() => {})
+      await client.end()
+    }
+
+    await svc.from('instagram_accounts').delete().in('id', [pt!.id, en!.id])
   })
 })

@@ -57,8 +57,8 @@ function ms(iso: string | null): number | null {
  * `err instanceof Error ? err.message : String(err)`. Erros vindos do
  * PostgREST/Supabase (ex.: `{ code: '23505', message: '…', details, hint }`)
  * chegam como OBJETO PLANO, não `Error` — `String(err)` devolve
- * `'[object Object]'`, apagando a mensagem real e quebrando o casamento por
- * texto (`/duplicate key value…/`) que a janela C2→C4 depende. Corrigido
+ * `'[object Object]'`, apagando a mensagem real que vai para
+ * `closeSyncRow`/`Sentry.captureException` no ramo `infra`. Corrigido
  * espelhando a extração já usada em `classifyInstagramError`
  * (`typeof e.message === 'string'`).
  */
@@ -321,16 +321,8 @@ export async function GET(req: NextRequest) {
           if (kind === 'infra') {
             await closeSyncRow(supabase, logId, null, `infra: ${message}`)
             failedInfra++
-            // Exclusão explícita da janela C2→C4 (REMOVIDA EM C4): a segunda
-            // linha de locale colide com instagram_posts_ig_media_id_key.
-            if (/duplicate key value.*instagram_posts_ig_media_id_key/.test(message)) {
-              if (await claimAlert(supabase, `c2c4dup:${account.id}`, '23 hours')) {
-                Sentry.captureMessage('instagram duplicate media in C2→C4 window', 'info')
-              }
-            } else {
-              stepErrors++
-              Sentry.captureException(err, { tags: { component: CRON_TAG, account_id: account.id } })
-            }
+            stepErrors++
+            Sentry.captureException(err, { tags: { component: CRON_TAG, account_id: account.id } })
           } else if (kind === 'permanent') {
             await closeSyncRow(supabase, logId, null, `permanent: ${message}`)
             await markTokenInvalid(supabase, account, message, { fatal: true })
