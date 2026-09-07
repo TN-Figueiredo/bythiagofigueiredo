@@ -174,3 +174,170 @@ describe('Instagram server actions', () => {
     expect(postsSelect).not.toHaveBeenCalled()
   })
 })
+
+// `vi.hoisted` porque `vi.mock` é içado para o topo do arquivo: sem ele, a
+// fábrica referenciaria um `const` ainda em TDZ.
+const { syncMock, openSyncRowMock, closeSyncRowMock } = vi.hoisted(() => ({
+  syncMock: vi.fn(),
+  openSyncRowMock: vi.fn(),
+  closeSyncRowMock: vi.fn(),
+}))
+vi.mock('@/lib/instagram/sync', () => ({ syncInstagramAccount: syncMock }))
+vi.mock('@/lib/instagram/sync-log', () => ({
+  openSyncRow: openSyncRowMock,
+  closeSyncRow: closeSyncRowMock,
+}))
+
+function accountRow(siteId = 'site-1') {
+  return {
+    id: ACCOUNT_ID, site_id: siteId, locale: 'pt', handle: 'thiago.figueiredo',
+    ig_user_id: 'ig-1', access_token: 'tok-abc', token_expires_at: null,
+    sync_enabled: true, display_slots: 6, layout_type: 'grid',
+    section_title_pt: null, section_title_en: null,
+    section_subtitle_pt: null, section_subtitle_en: null,
+    last_synced_at: null, created_at: '', updated_at: '',
+  }
+}
+
+/** `select('*').eq('id').eq('site_id').single()` */
+function clientReturning(result: { data: unknown; error: unknown }) {
+  const single = vi.fn().mockResolvedValue(result)
+  const eqSite = vi.fn().mockReturnValue({ single })
+  const eqId = vi.fn().mockReturnValue({ eq: eqSite })
+  const select = vi.fn().mockReturnValue({ eq: eqId })
+  return {
+    client: { from: vi.fn().mockReturnValue({ select }) },
+    select, eqId, eqSite,
+  }
+}
+
+describe('triggerInstagramSync (A2 — in-process)', () => {
+  const fetchSpy = vi.fn()
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.stubGlobal('fetch', fetchSpy)
+    openSyncRowMock.mockResolvedValue('log-1')
+    closeSyncRowMock.mockResolvedValue(undefined)
+    syncMock.mockResolvedValue({
+      postsFound: 2, postsInserted: 1, postsUpdated: 1, mediaCached: 1,
+      partial: false, mediaFailed: 0,
+    })
+  })
+
+  it('reads the row scoped to the site and calls the sync IN PROCESS', async () => {
+    const { client, select, eqId, eqSite } = clientReturning({ data: accountRow(), error: null })
+    mockGetClient.mockReturnValue(client as never)
+    const { triggerInstagramSync } = await import('@/app/cms/(authed)/settings/actions')
+    const result = await triggerInstagramSync({ accountId: ACCOUNT_ID })
+
+    expect(result).toEqual({ ok: true })
+    expect(select).toHaveBeenCalledWith('*')
+    expect(eqId).toHaveBeenCalledWith('id', ACCOUNT_ID)
+    expect(eqSite).toHaveBeenCalledWith('site_id', 'site-1')
+    expect(syncMock).toHaveBeenCalledTimes(1)
+    // Nenhuma chamada HTTP ao cron: é ela que carimbava cron_health['instagram-sync'].
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it('passes the full row and a 90s deadline to syncInstagramAccount', async () => {
+    const { client } = clientReturning({ data: accountRow(), error: null })
+    mockGetClient.mockReturnValue(client as never)
+    const before = Date.now()
+    const { triggerInstagramSync } = await import('@/app/cms/(authed)/settings/actions')
+    await triggerInstagramSync({ accountId: ACCOUNT_ID })
+
+    const [, account, token, opts] = syncMock.mock.calls[0] as [
+      unknown, { id: string; ig_user_id: string }, unknown, { deadlineAt: number },
+    ]
+    expect(account.id).toBe(ACCOUNT_ID)
+    expect(account.ig_user_id).toBe('ig-1')
+    expect(token).toBeUndefined()
+    expect(opts.deadlineAt).toBeGreaterThanOrEqual(before + 90_000)
+    expect(opts.deadlineAt).toBeLessThanOrEqual(Date.now() + 90_000)
+  })
+
+  it('errors when the account belongs to another site', async () => {
+    const { client } = clientReturning({ data: null, error: { message: 'no rows' } })
+    mockGetClient.mockReturnValue(client as never)
+    const { triggerInstagramSync } = await import('@/app/cms/(authed)/settings/actions')
+    const result = await triggerInstagramSync({ accountId: ACCOUNT_ID })
+    expect(result).toEqual({ ok: false, error: 'Account not found' })
+    expect(syncMock).not.toHaveBeenCalled()
+    expect(openSyncRowMock).not.toHaveBeenCalled()
+  })
+
+  it('opens a manual sync row and always closes it as completed', async () => {
+    const { client } = clientReturning({ data: accountRow(), error: null })
+    mockGetClient.mockReturnValue(client as never)
+    const { triggerInstagramSync } = await import('@/app/cms/(authed)/settings/actions')
+    await triggerInstagramSync({ accountId: ACCOUNT_ID })
+
+    expect(openSyncRowMock).toHaveBeenCalledTimes(1)
+    expect(openSyncRowMock.mock.calls[0]![2]).toBe('manual')
+    expect(closeSyncRowMock).toHaveBeenCalledTimes(1)
+    const [, logId, result] = closeSyncRowMock.mock.calls[0] as [unknown, string, { partial: boolean }]
+    expect(logId).toBe('log-1')
+    expect(result.partial).toBe(false)
+  })
+
+  // §6 descreve este caso como "fake timers + cacheImage de 91 s". `vi.useFakeTimers`
+  // NÃO controla o relógio interno de `AbortSignal.timeout` (API nativa do Node),
+  // então o cenário de 91 s é dividido: aqui, o plumbing da action com o `partial`
+  // que `syncInstagramAccount` devolve; em `test/instagram/sync.test.ts`, o prazo
+  // real cortando o lote ("aborts a hung download…", relógio de verdade, 1 s).
+  // As duas asserções observáveis de §6 — `{ ok:true, partial:true }`,
+  // `closeSyncRow` `completed`, nenhuma `started` aberta — ficam cobertas.
+  it('returns { ok: true, partial: true } and still closes the row when the deadline cut the run', async () => {
+    syncMock.mockResolvedValue({
+      postsFound: 9, postsInserted: 4, postsUpdated: 0, mediaCached: 2,
+      partial: true, mediaFailed: 2,
+    })
+    const { client } = clientReturning({ data: accountRow(), error: null })
+    mockGetClient.mockReturnValue(client as never)
+    const { triggerInstagramSync } = await import('@/app/cms/(authed)/settings/actions')
+    const result = await triggerInstagramSync({ accountId: ACCOUNT_ID })
+
+    expect(result).toEqual({ ok: true, partial: true })
+    // Nunca `Promise.race` no closeSyncRow: nenhuma linha `started` fica aberta.
+    expect(closeSyncRowMock).toHaveBeenCalledTimes(1)
+    const [, , closed] = closeSyncRowMock.mock.calls[0] as [unknown, unknown, { partial: boolean }]
+    expect(closed.partial).toBe(true)
+  })
+
+  it('closes the row as failed and surfaces the human message on throw', async () => {
+    syncMock.mockRejectedValue(new Error("This account isn't connected — use Connect with Instagram"))
+    const { client } = clientReturning({ data: accountRow(), error: null })
+    mockGetClient.mockReturnValue(client as never)
+    const { triggerInstagramSync } = await import('@/app/cms/(authed)/settings/actions')
+    const result = await triggerInstagramSync({ accountId: ACCOUNT_ID })
+
+    expect(result).toEqual({
+      ok: false,
+      error: "This account isn't connected — use Connect with Instagram",
+    })
+    const [, , closedResult, message] = closeSyncRowMock.mock.calls[0] as [unknown, unknown, null, string]
+    expect(closedResult).toBeNull()
+    expect(message).toContain("isn't connected")
+  })
+
+  it('rejects a non-uuid accountId before touching the database', async () => {
+    mockGetClient.mockReturnValue({ from: vi.fn() } as never)
+    const { triggerInstagramSync } = await import('@/app/cms/(authed)/settings/actions')
+    const result = await triggerInstagramSync({ accountId: 'not-a-uuid' })
+    expect(result.ok).toBe(false)
+    expect(syncMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('settings segment config', () => {
+  it('declares maxDuration = 120 (the Sync Now runs in this segment)', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const src = readFileSync(
+      join(__dirname, '..', '..', 'src', 'app', 'cms', '(authed)', 'settings', 'page.tsx'),
+      'utf8',
+    )
+    expect(src).toMatch(/^export const maxDuration = 120$/m)
+  })
+})

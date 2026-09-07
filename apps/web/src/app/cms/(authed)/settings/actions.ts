@@ -11,6 +11,12 @@ import { syncScheduleSchema, type SyncScheduleInput } from './sync-schedule-sche
 type ActionResult = { ok: true } | { ok: false; error: string }
 type LookupResult = { ok: true; channel: ChannelLookupResult } | { ok: false; error: string }
 
+/**
+ * `ActionResult` não admite `partial`; `Sync Now` precisa dizer que o prazo de
+ * 90 s cortou o cache de imagens sem chamar o run de falho (§0 linha A, item ii).
+ */
+export type SyncActionResult = { ok: true; partial?: boolean } | { ok: false; error: string }
+
 function zodError(err: z.ZodError): string {
   return err.issues.map((i) => i.message).join(', ') || 'Validation failed'
 }
@@ -639,27 +645,47 @@ export async function setInstagramToken(input: {
 
 export async function triggerInstagramSync(input: {
   accountId: string
-}): Promise<ActionResult> {
+}): Promise<SyncActionResult> {
   const parsed = z.object({ accountId: z.string().uuid() }).safeParse(input)
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
-  await requireEditAccess()
+  const siteId = await requireEditAccess()
+  const supabase = getSupabaseServiceClient()
 
-  const cronSecret = process.env.CRON_SECRET
-  if (!cronSecret) return { ok: false, error: 'CRON_SECRET not configured' }
+  // A2: a linha INTEIRA, escopada ao site. `syncInstagramAccount` exige o row
+  // (`sync.ts` assinatura + os dois guardas de token/ig_user_id).
+  const { data: row, error: rowError } = await supabase
+    .from('instagram_accounts')
+    .select('*')
+    .eq('id', parsed.data.accountId)
+    .eq('site_id', siteId)
+    .single()
+
+  if (rowError || !row) return { ok: false, error: 'Account not found' }
+
+  const account = row as import('@/lib/instagram/types').InstagramAccountRow
+  const { openSyncRow, closeSyncRow } = await import('@/lib/instagram/sync-log')
+  const { syncInstagramAccount } = await import('@/lib/instagram/sync')
+
+  const start = Date.now()
+  const logId = await openSyncRow(supabase, account, 'manual')
 
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
-    const res = await fetch(
-      `${baseUrl}/api/cron/instagram-sync?mode=manual&accountId=${parsed.data.accountId}`,
-      { headers: { authorization: `Bearer ${cronSecret}` } },
-    )
-    if (!res.ok) return { ok: false, error: `Sync failed: ${res.status}` }
+    // Chamada EM PROCESSO: o `fetch` para `/api/cron/instagram-sync?mode=manual`
+    // carimbava `cron_health['instagram-sync']` (route.ts:27 passa
+    // tag='instagram-sync' a withCronLock independentemente do mode), o que
+    // fazia um clique manual mascarar um cron diário morto.
+    const result = await syncInstagramAccount(supabase, account, undefined, {
+      deadlineAt: start + 90_000,
+    })
+    await closeSyncRow(supabase, logId, result)
+    revalidatePath('/cms/settings')
+    revalidateTag('instagram-feed', { expire: 0 })
+    return result.partial ? { ok: true, partial: true } : { ok: true }
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : 'Sync request failed' }
+    const message = err instanceof Error ? err.message : 'Sync failed'
+    await closeSyncRow(supabase, logId, null, message)
+    return { ok: false, error: message }
   }
-
-  revalidatePath('/cms/settings')
-  return { ok: true }
 }
 
 export async function updateInstagramSlots(input: {
