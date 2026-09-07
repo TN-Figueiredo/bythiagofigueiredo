@@ -1,96 +1,38 @@
 import { NextRequest } from 'next/server'
-import { createHmac, timingSafeEqual } from 'node:crypto'
+import { headers } from 'next/headers'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { encrypt, getMasterKey } from '@tn-figueiredo/social/vault'
+import { deriveHmacKey, verifyState, SOCIAL_STATE_LABEL } from '@/lib/oauth/state'
+import { oauthResultHtml, type OauthResultExtra } from '@/lib/oauth/popup-result'
+import { recordSocialConsent } from '@/lib/oauth/consent'
+import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 
 export const runtime = 'nodejs'
 
-async function recordSocialConsent(
-  supabase: ReturnType<typeof getSupabaseServiceClient>,
-  userId: string,
-  siteId: string,
+/** Where the popup sends the user when it cannot close itself. */
+const SOCIAL_BACK_HREF = '/cms/social/accounts'
+
+function getTargetOrigin(): string {
+  return process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+}
+
+function resultHtml(
   provider: string,
-  ip: string | null,
-  userAgent: string | null,
-): Promise<void> {
-  const { data: textRow } = await supabase
-    .from('consent_texts')
-    .select('id')
-    .eq('category', 'social_integration')
-    .eq('locale', 'pt-BR')
-    .is('superseded_at', null)
-    .order('effective_at', { ascending: false })
-    .limit(1)
-    .single()
-
-  if (!textRow) return
-
-  await supabase.from('consents').upsert(
-    {
-      user_id: userId,
-      category: 'social_integration',
-      site_id: siteId,
-      consent_text_id: textRow.id,
-      granted: true,
-      granted_at: new Date().toISOString(),
-      ip,
-      user_agent: userAgent,
-    },
-    { onConflict: 'user_id,category,site_id' },
-  )
-}
-
-/** Derive a purpose-specific HMAC key so the master key is never used directly for signing. */
-function deriveHmacKey(masterKey: string): string {
-  return createHmac('sha256', masterKey).update('oauth-state-hmac').digest('hex')
-}
-
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-}
-
-function oauthResultHtml(provider: string, success: boolean, error?: string): Response {
-  const origin = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
-  const payload = success
-    ? JSON.stringify({ type: 'social-oauth-result', success: true, provider })
-    : JSON.stringify({ type: 'social-oauth-result', success: false, provider, error })
-  // Escape </script> inside JSON to prevent breaking out of the script tag
-  const safePayload = payload.replace(/<\//g, '<\\/')
-  const safeError = escapeHtml(error ?? 'unknown')
-
-  const html = `<!DOCTYPE html>
-<html><head><title>OAuth Complete</title></head>
-<body>
-<p>${success ? 'Connected! This window will close.' : `Error: ${safeError}`}</p>
-<script>
-  try { window.opener.postMessage(${safePayload}, '${origin}') } catch {}
-  setTimeout(() => window.close(), 1500)
-</script>
-</body></html>`
-
-  return new Response(html, {
-    headers: { 'Content-Type': 'text/html; charset=utf-8' },
+  success: boolean,
+  nonce: string,
+  opts: { error?: string; extra?: OauthResultExtra; status?: number } = {},
+): Response {
+  return oauthResultHtml({
+    messageType: 'social-oauth-result',
+    provider,
+    success,
+    error: opts.error,
+    extra: opts.extra,
+    backHref: SOCIAL_BACK_HREF,
+    targetOrigin: getTargetOrigin(),
+    nonce,
+    status: opts.status,
   })
-}
-
-function verifyState(signed: string, secret: string): { siteId: string; userId?: string } | null {
-  const decoded = decodeURIComponent(signed)
-  const dotIdx = decoded.lastIndexOf('.')
-  if (dotIdx === -1) return null
-
-  const b64 = decoded.substring(0, dotIdx)
-  const hmac = decoded.substring(dotIdx + 1)
-  if (!b64 || !hmac) return null
-
-  const payload = Buffer.from(b64, 'base64').toString('utf-8')
-  const expected = createHmac('sha256', secret).update(payload).digest('hex')
-
-  if (hmac.length !== expected.length) return null
-  const hmacBuf = Buffer.from(hmac, 'hex')
-  const expectedBuf = Buffer.from(expected, 'hex')
-  if (!timingSafeEqual(hmacBuf, expectedBuf)) return null
-
-  return JSON.parse(payload) as { siteId: string; userId?: string }
 }
 
 async function exchangeGoogleCode(code: string, redirectUri: string) {
@@ -252,32 +194,59 @@ export async function GET(
   const code = req.nextUrl.searchParams.get('code')
   const stateRaw = req.nextUrl.searchParams.get('state')
   const errorParam = req.nextUrl.searchParams.get('error')
+  // `src/middleware.ts:169`. Under `getCspMode() === 'enforced'` an untagged
+  // inline script would be blocked and the opener would never hear back.
+  const nonce = (await headers()).get('x-nonce') ?? ''
 
   if (errorParam) {
-    return oauthResultHtml(provider, false, errorParam)
+    return resultHtml(provider, false, nonce, { error: errorParam })
   }
 
   if (!code || !stateRaw) {
-    return oauthResultHtml(provider, false, 'Missing code or state')
+    return resultHtml(provider, false, nonce, { error: 'Missing code or state' })
   }
 
   try {
     const masterKeyHex = process.env.SOCIAL_MASTER_KEY
     if (!masterKeyHex) {
-      return oauthResultHtml(provider, false, 'SOCIAL_MASTER_KEY not configured')
+      return resultHtml(provider, false, nonce, { error: 'SOCIAL_MASTER_KEY not configured' })
     }
 
-    const stateData = verifyState(stateRaw, deriveHmacKey(masterKeyHex))
-    if (!stateData) {
-      return oauthResultHtml(provider, false, 'Invalid or tampered state parameter')
+    const stateData = verifyState(
+      stateRaw,
+      deriveHmacKey(masterKeyHex, SOCIAL_STATE_LABEL),
+      { typ: 'state', requireExp: true },
+    )
+    if (!stateData || !stateData.userId) {
+      return resultHtml(provider, false, nonce, {
+        error: 'Invalid or expired authorization (it expires after 30 minutes) — start again from the CMS',
+        extra: { code: 'invalid_state' },
+        status: 400,
+      })
     }
 
     const { siteId, userId } = stateData
+
+    // The callback used to write with the service client and NO session at all.
+    const auth = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
+    if (!auth.ok) {
+      return resultHtml(provider, false, nonce, {
+        error: 'Session changed during authorization — sign in and try again',
+        extra: { code: 'session_changed' },
+        status: auth.reason === 'unauthenticated' ? 401 : 403,
+      })
+    }
+    if (auth.user.id !== userId) {
+      return resultHtml(provider, false, nonce, {
+        error: 'Session changed during authorization — sign in and try again',
+        extra: { code: 'session_changed' },
+        status: 401,
+      })
+    }
+
     const supabase = getSupabaseServiceClient()
     const redirectUri = getCallbackUrl(provider)
     const encKey = getMasterKey()
-    const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null
-    const clientUa = req.headers.get('user-agent')
 
     switch (provider) {
       case 'google': {
@@ -316,8 +285,13 @@ export async function GET(
         )
 
         if (error) throw new Error(`DB upsert failed: ${error.message}`)
-        if (userId) await recordSocialConsent(supabase, userId, siteId, 'youtube', clientIp, clientUa)
-        return oauthResultHtml('youtube', true)
+        await recordSocialConsent(supabase, {
+          userId,
+          siteId,
+          category: 'social_integration',
+          req,
+        })
+        return resultHtml('youtube', true, nonce)
       }
 
       case 'meta': {
@@ -329,7 +303,9 @@ export async function GET(
 
         const pages = await fetchMetaPages(tokens.access_token)
         if (pages.length === 0) {
-          return oauthResultHtml('facebook', false, 'No Facebook Pages found for this account')
+          return resultHtml('facebook', false, nonce, {
+            error: 'No Facebook Pages found for this account',
+          })
         }
 
         // v1: use the first page
@@ -406,15 +382,24 @@ export async function GET(
           if (igError) throw new Error(`Instagram DB upsert failed: ${igError.message}`)
         }
 
-        if (userId) await recordSocialConsent(supabase, userId, siteId, 'meta', clientIp, clientUa)
-        return oauthResultHtml('facebook', true)
+        await recordSocialConsent(supabase, {
+          userId,
+          siteId,
+          category: 'social_integration',
+          req,
+        })
+        return resultHtml('facebook', true, nonce)
       }
 
       default:
-        return oauthResultHtml(provider, false, `Unsupported provider: ${provider}`)
+        return resultHtml(provider, false, nonce, {
+          error: `Unsupported provider: ${provider}`,
+        })
     }
   } catch (err) {
     console.error('[oauth-callback]', provider, err)
-    return oauthResultHtml(provider, false, 'OAuth authentication failed. Please try again.')
+    return resultHtml(provider, false, nonce, {
+      error: 'OAuth authentication failed. Please try again.',
+    })
   }
 }

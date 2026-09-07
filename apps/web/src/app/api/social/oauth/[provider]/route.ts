@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createHmac } from 'node:crypto'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
+import {
+  deriveHmacKey,
+  signState,
+  SOCIAL_STATE_LABEL,
+  STATE_TTL_SECONDS,
+} from '@/lib/oauth/state'
 
 export const runtime = 'nodejs'
 
@@ -29,16 +34,6 @@ const META_SCOPES = [
   'instagram_manage_insights',
 ].join(',')
 
-/** Derive a purpose-specific HMAC key so the master key is never used directly for signing. */
-function deriveHmacKey(masterKey: string): string {
-  return createHmac('sha256', masterKey).update('oauth-state-hmac').digest('hex')
-}
-
-function signState(payload: string, key: string): string {
-  const hmac = createHmac('sha256', key).update(payload).digest('hex')
-  return `${Buffer.from(payload).toString('base64')}.${hmac}`
-}
-
 function getCallbackUrl(provider: string): string {
   const base = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
   return `${base}/api/social/oauth/${provider}/callback`
@@ -64,8 +59,19 @@ export async function GET(
     )
   }
 
-  const statePayload = JSON.stringify({ siteId, userId: auth.user.id })
-  const signedState = encodeURIComponent(signState(statePayload, deriveHmacKey(masterKey)))
+  const signedState = encodeURIComponent(
+    signState(
+      {
+        typ: 'state',
+        siteId,
+        userId: auth.user.id,
+        // Seconds since the epoch. The Meta/Google `code` lives ~1 h; the state
+        // closes at 30 min so a captured URL stops being a completion token.
+        exp: Math.floor(Date.now() / 1000) + STATE_TTL_SECONDS,
+      },
+      deriveHmacKey(masterKey, SOCIAL_STATE_LABEL),
+    ),
+  )
 
   switch (provider) {
     case 'google': {

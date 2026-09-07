@@ -117,12 +117,13 @@ describe('OauthButton', () => {
     )
   })
 
-  it('calls router.refresh after successful oauth message', async () => {
+  it('calls router.refresh after successful oauth message from the same origin', async () => {
     render(<OauthButton provider="youtube" label="Connect" />)
     fireEvent.click(screen.getByRole('button'))
     // Simulate popup sending success message
     window.dispatchEvent(
       new MessageEvent('message', {
+        origin: window.location.origin,
         data: { type: 'social-oauth-result', success: true },
       }),
     )
@@ -136,12 +137,27 @@ describe('OauthButton', () => {
     fireEvent.click(screen.getByRole('button'))
     window.dispatchEvent(
       new MessageEvent('message', {
+        origin: window.location.origin,
         data: { type: 'social-oauth-result', success: false },
       }),
     )
     await waitFor(() => {
       expect(mockRouterRefresh).not.toHaveBeenCalled()
     })
+  })
+
+  it('ignores a success message from a foreign origin', async () => {
+    render(<OauthButton provider="youtube" label="Connect" />)
+    fireEvent.click(screen.getByRole('button'))
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        origin: 'https://evil.example',
+        data: { type: 'social-oauth-result', success: true },
+      }),
+    )
+    // Give the listener a tick to (not) run.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(mockRouterRefresh).not.toHaveBeenCalled()
   })
 })
 
