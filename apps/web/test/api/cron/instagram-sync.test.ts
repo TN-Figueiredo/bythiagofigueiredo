@@ -326,7 +326,7 @@ describe('por conta', () => {
     expect(mockStreak).toHaveBeenCalledWith(expect.anything(), expect.anything(), 'daily')
   })
 
-  it('23505 => infra: sem streak e sem markTokenInvalid', async () => {
+  it('23505 => infra comum: step_errors++ e captureException (janela C2->C4 fechou em C4/M2)', async () => {
     mockProbe.mockResolvedValue({ ok: true })
     mockSync.mockRejectedValue({ code: '23505', message: 'duplicate key value violates unique constraint "instagram_posts_ig_media_id_key"', details: null, hint: null })
     harness({ accounts: [account()] })
@@ -334,7 +334,11 @@ describe('por conta', () => {
     expect(body.failed_infra).toBe(1)
     expect(mockStreak).not.toHaveBeenCalled()
     expect(mockMark).not.toHaveBeenCalled()
-    expect(body.step_errors).toBe(0)
+    expect(body.step_errors).toBe(1)
+    expect(vi.mocked(Sentry.captureException)).toHaveBeenCalledWith(
+      expect.anything(),
+      { tags: { component: 'instagram-sync', account_id: 'acc-1' } },
+    )
   })
 
   it('checkImageCacheHealth é chamado depois de cada sync concluído', async () => {

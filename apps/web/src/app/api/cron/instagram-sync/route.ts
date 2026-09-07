@@ -316,15 +316,8 @@ export async function GET(req: NextRequest) {
           if (kind === 'infra') {
             await closeSyncRow(supabase, logId, null, `infra: ${message}`)
             failedInfra++
-            if (/duplicate key value.*instagram_posts_ig_media_id_key/.test(message)) {
-              // Janela C2→C4 — ramo REMOVIDO em C4.
-              if (await claimAlert(supabase, `c2c4dup:${account.id}`, '23 hours')) {
-                Sentry.captureMessage('instagram duplicate media in C2→C4 window', 'info')
-              }
-            } else {
-              stepErrors++
-              Sentry.captureException(err, { tags: { component: CRON_TAG, account_id: account.id } })
-            }
+            stepErrors++
+            Sentry.captureException(err, { tags: { component: CRON_TAG, account_id: account.id } })
           } else if (kind === 'permanent') {
             await closeSyncRow(supabase, logId, null, `permanent: ${message}`)
             await markTokenInvalid(supabase, account, message, { fatal: true })
