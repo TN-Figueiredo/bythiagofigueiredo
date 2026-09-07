@@ -9,9 +9,12 @@ vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({
 }))
 vi.mock('next/cache', () => ({ updateTag: vi.fn(), revalidatePath: vi.fn(), revalidateTag: vi.fn() }))
 vi.mock('@/lib/instagram/api-client', () => ({ fetchInstagramProfile: vi.fn().mockResolvedValue({ id: 'ig-1' }) }))
+vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
 
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { revalidatePath } from 'next/cache'
 const mockGetClient = vi.mocked(getSupabaseServiceClient)
+const mockRevalidatePath = vi.mocked(revalidatePath)
 
 const ACCOUNT_ID = '00000000-0000-0000-0000-000000000001'
 const POST_ID = '00000000-0000-0000-0000-000000000010'
@@ -319,6 +322,76 @@ describe('triggerInstagramSync (A2 — in-process)', () => {
     const [, , closedResult, message] = closeSyncRowMock.mock.calls[0] as [unknown, unknown, null, string]
     expect(closedResult).toBeNull()
     expect(message).toContain("isn't connected")
+  })
+
+  // Fix round 1, finding 1: the cron route reports per-account failures to
+  // Sentry (route.ts:84); the HTTP hop this action used to make was the only
+  // thing carrying that trace for a manual click. Losing it defeats the
+  // point of this commit, so it must be restored here, tagged distinctly
+  // from the cron path.
+  it('captures the failure in Sentry, tagged as the manual sync path', async () => {
+    syncMock.mockRejectedValue(new Error('boom'))
+    const { client } = clientReturning({ data: accountRow(), error: null })
+    mockGetClient.mockReturnValue(client as never)
+    const Sentry = await import('@sentry/nextjs')
+    const { triggerInstagramSync } = await import('@/app/cms/(authed)/settings/actions')
+    await triggerInstagramSync({ accountId: ACCOUNT_ID })
+
+    expect(Sentry.captureException).toHaveBeenCalledTimes(1)
+    const [err, ctx] = vi.mocked(Sentry.captureException).mock.calls[0] as [
+      Error, { tags: Record<string, string> },
+    ]
+    expect(err.message).toBe('boom')
+    expect(ctx.tags).toMatchObject({ component: 'instagram-sync', mode: 'manual' })
+  })
+
+  // Fix round 1, finding 2: `sync-log.ts` documents `logId === null` as the
+  // failure signal the CALLER must report — this action was swallowing it.
+  // A missing log row must never block the sync itself.
+  it('reports a warning and still runs the sync when the log row fails to open', async () => {
+    openSyncRowMock.mockResolvedValue(null)
+    const { client } = clientReturning({ data: accountRow(), error: null })
+    mockGetClient.mockReturnValue(client as never)
+    const Sentry = await import('@sentry/nextjs')
+    const { triggerInstagramSync } = await import('@/app/cms/(authed)/settings/actions')
+    const result = await triggerInstagramSync({ accountId: ACCOUNT_ID })
+
+    expect(result).toEqual({ ok: true })
+    expect(syncMock).toHaveBeenCalledTimes(1)
+    expect(Sentry.captureMessage).toHaveBeenCalledTimes(1)
+    const [message, ctx] = vi.mocked(Sentry.captureMessage).mock.calls[0] as [
+      string, { level: string; extra: { accountId: string } },
+    ]
+    expect(message).toContain(ACCOUNT_ID)
+    expect(ctx.level).toBe('warning')
+    expect(ctx.extra.accountId).toBe(ACCOUNT_ID)
+    // `closeSyncRow(supabase, null, …)` is a documented no-op — calling it
+    // with the null logId must not throw or re-open anything.
+    expect(closeSyncRowMock).toHaveBeenCalledTimes(1)
+    expect(closeSyncRowMock.mock.calls[0]![1]).toBeNull()
+  })
+
+  // Fix round 1, finding 3: the try block used to wrap the post-success cache
+  // invalidation too, so a throwing `revalidatePath` closed the SAME row a
+  // second time as `failed`, corrupting a successful sync's own record.
+  it('keeps the row completed, closed exactly once, when cache invalidation throws after success', async () => {
+    mockRevalidatePath.mockImplementationOnce(() => {
+      throw new Error('revalidate exploded')
+    })
+    const { client } = clientReturning({ data: accountRow(), error: null })
+    mockGetClient.mockReturnValue(client as never)
+    const Sentry = await import('@sentry/nextjs')
+    const { triggerInstagramSync } = await import('@/app/cms/(authed)/settings/actions')
+    const result = await triggerInstagramSync({ accountId: ACCOUNT_ID })
+
+    expect(result).toEqual({ ok: true })
+    expect(closeSyncRowMock).toHaveBeenCalledTimes(1)
+    const [, , closedResult] = closeSyncRowMock.mock.calls[0] as [unknown, unknown, { partial: boolean } | null]
+    expect(closedResult).not.toBeNull()
+    expect(closedResult?.partial).toBe(false)
+    expect(Sentry.captureException).toHaveBeenCalledTimes(1)
+    const [, ctx] = vi.mocked(Sentry.captureException).mock.calls[0] as [Error, { tags: Record<string, string> }]
+    expect(ctx.tags).toMatchObject({ phase: 'revalidate' })
   })
 
   it('rejects a non-uuid accountId before touching the database', async () => {

@@ -2,6 +2,7 @@
 
 import { z } from 'zod'
 import { revalidatePath, revalidateTag } from 'next/cache'
+import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
@@ -668,24 +669,55 @@ export async function triggerInstagramSync(input: {
 
   const start = Date.now()
   const logId = await openSyncRow(supabase, account, 'manual')
+  if (logId === null) {
+    // `sync-log.ts` documenta: nenhuma das duas funções lança, `logId === null`
+    // é o sinal de falha e o CHAMADOR registra. Best-effort — não bloqueia o
+    // clique manual do dono por causa de uma linha de auditoria perdida.
+    Sentry.captureMessage(
+      `instagram sync: failed to open sync-log row for account ${account.id}`,
+      {
+        level: 'warning',
+        tags: { component: 'instagram-sync', mode: 'manual' },
+        extra: { accountId: account.id, siteId },
+      },
+    )
+  }
 
+  // Chamada EM PROCESSO: o `fetch` para `/api/cron/instagram-sync?mode=manual`
+  // carimbava `cron_health['instagram-sync']` (route.ts:27 passa
+  // tag='instagram-sync' a withCronLock independentemente do mode), o que
+  // fazia um clique manual mascarar um cron diário morto.
+  let result: Awaited<ReturnType<typeof syncInstagramAccount>>
   try {
-    // Chamada EM PROCESSO: o `fetch` para `/api/cron/instagram-sync?mode=manual`
-    // carimbava `cron_health['instagram-sync']` (route.ts:27 passa
-    // tag='instagram-sync' a withCronLock independentemente do mode), o que
-    // fazia um clique manual mascarar um cron diário morto.
-    const result = await syncInstagramAccount(supabase, account, undefined, {
+    result = await syncInstagramAccount(supabase, account, undefined, {
       deadlineAt: start + 90_000,
     })
-    await closeSyncRow(supabase, logId, result)
-    revalidatePath('/cms/settings')
-    revalidateTag('instagram-feed', { expire: 0 })
-    return result.partial ? { ok: true, partial: true } : { ok: true }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Sync failed'
     await closeSyncRow(supabase, logId, null, message)
+    // A rota de cron chama `Sentry.captureException` por conta que falha
+    // (route.ts:84); o hop HTTP fazia esse rastro sumir para o clique manual.
+    // `mode: 'manual'` distingue esta origem da do cron no Sentry.
+    Sentry.captureException(err, { tags: { component: 'instagram-sync', mode: 'manual' } })
     return { ok: false, error: message }
   }
+
+  // A linha é fechada ANTES de qualquer invalidação de cache: se
+  // `revalidatePath`/`revalidateTag` lançar, o try abaixo é isolado — nunca
+  // reabre nem fecha `logId` uma segunda vez como `failed` por cima de um
+  // sync que já terminou com sucesso.
+  await closeSyncRow(supabase, logId, result)
+
+  try {
+    revalidatePath('/cms/settings')
+    revalidateTag('instagram-feed', { expire: 0 })
+  } catch (err) {
+    Sentry.captureException(err, {
+      tags: { component: 'instagram-sync', mode: 'manual', phase: 'revalidate' },
+    })
+  }
+
+  return result.partial ? { ok: true, partial: true } : { ok: true }
 }
 
 export async function updateInstagramSlots(input: {
