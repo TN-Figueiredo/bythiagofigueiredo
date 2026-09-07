@@ -147,3 +147,108 @@ describe('sendNtfyHeartbeat', () => {
     expect(h.Click).toBeUndefined()
   })
 })
+
+// ── REGRA-PII-NTFY (§0) — asserção ÚNICA, emissor-agnóstica ────────────────
+// MUST: substitui qualquer checagem por emissor. Um emissor novo sem entrada
+// aqui derruba o teste pela asserção de tamanho.
+//
+// As fixtures usam handle:'thiago.figueiredo', ig_user_id:'17841400000000000' e
+// token_error:'The session has been invalidated because the user changed their
+// password', de modo que a asserção falha se qualquer campo voltar a carregá-los.
+describe('REGRA-PII-NTFY: nenhum dos 7 emissores carrega @handle nem ids', () => {
+  const HANDLE = 'thiago.figueiredo'
+  const IG_USER_ID = '17841400000000000'
+  const SLUG = 'bythiagofigueiredo'
+
+  const EMITTERS: Array<{ emitter: string; title: string; body: string }> = [
+    // §3.1 passo 4 — signature mismatch (rota de C3; a string é fixada aqui)
+    {
+      emitter: 'signature-mismatch',
+      title: 'Instagram callback signature mismatch',
+      body: 'Check Sentry for the route and secret tag.',
+    },
+    // §3.1 passo 7 — ddmismatch (rota de C3; a string é fixada aqui)
+    {
+      emitter: 'ddmismatch',
+      title: 'Instagram deletion request matched no account',
+      body: 'possible ID-space mismatch — see the runbook',
+    },
+    // §3.2 — deliverTokenAlert (ntfyTitle usa o SLUG, nunca `· @h`)
+    {
+      emitter: 'deliverTokenAlert',
+      title: `Instagram auto-renewal still failing · ${SLUG}`,
+      body: '3 account(s) · open since 2026-09-04. Open the CMS for the reason.',
+    },
+    // §3.3 passo 5b — sonda diária
+    { emitter: 'daily-probe', title: 'Instagram ops probe', body: 'channel probe' },
+    // §3.3 passo 3 — expiring_clean
+    {
+      emitter: 'expiring_clean',
+      title: `Instagram token expiring without renewal · ${SLUG}`,
+      body: '3 day(s) left. Open the CMS to reconnect.',
+    },
+    // §3.3 passo 6 — step_errors
+    {
+      emitter: 'step_errors',
+      title: 'Instagram cron degraded',
+      body: '2 step(s) failed — see Sentry',
+    },
+    // §3.4 passo 3 — censo de Blob (acima da linha)
+    {
+      emitter: 'blob-census-over',
+      title: 'Instagram blob store at 512 MB',
+      body: 'Prefix instagram/ is above the 400 MB watch line. See the runbook.',
+    },
+    // §3.4 passo 3 — censo de Blob (truncado)
+    {
+      emitter: 'blob-census-truncated',
+      title: 'Instagram blob census truncated at 10000 objects',
+      body: 'The instagram/ census hit its page/time cap — no size comparison was made. See the runbook.',
+    },
+  ]
+
+  it('a tabela cobre exatamente os 7 emissores (o censo conta como UM, nas duas formas)', () => {
+    expect(new Set(EMITTERS.map((e) => e.emitter.replace(/^blob-census-.*/, 'blob-census'))).size)
+      .toBe(7)
+  })
+
+  it.each(EMITTERS)('$emitter não carrega @handle nem sequência de 6+ dígitos', ({ title, body }) => {
+    expect(`${title} ${body}`).not.toMatch(/@[a-z0-9._]{1,30}/)
+    expect(`${title} ${body}`).not.toMatch(/[0-9]{6,}/)
+  })
+
+  it('as fixtures de PII realmente casariam os regexes (o teste não é vácuo)', () => {
+    expect(`x @${HANDLE}`).toMatch(/@[a-z0-9._]{1,30}/)
+    expect(`x ${IG_USER_ID}`).toMatch(/[0-9]{6,}/)
+  })
+
+  it('nenhum título/corpo contém texto vindo da Meta', () => {
+    const metaError = 'The session has been invalidated because the user changed their password'
+    for (const { title, body } of EMITTERS) {
+      expect(`${title} ${body}`).not.toContain(metaError)
+      expect(`${title} ${body}`).not.toContain('invalidated')
+    }
+  })
+})
+
+describe('Click: presente nos 7 emissores que o passam, ausente nos 2 que não', () => {
+  beforeEach(() => { fetchMock.mockReset(); fetchMock.mockReturnValue(ok(200)) })
+
+  it('a sonda diária e o heartbeat NÃO mandam Click', async () => {
+    await sendNtfyAlert({ title: 'Instagram ops probe', body: 'channel probe', priority: 'min', tags: ['mag'] })
+    await sendNtfyHeartbeat()
+    for (const call of fetchMock.mock.calls) {
+      const h = (call[1] as RequestInit).headers as Record<string, string>
+      expect(h.Click).toBeUndefined()
+    }
+  })
+
+  it('todo emissor que passa `click` produz o header Click', async () => {
+    await sendNtfyAlert({
+      title: 'Instagram cron degraded', body: 'x', priority: 'default', tags: ['warning'],
+      click: 'https://bythiagofigueiredo.com/cms/settings/instagram',
+    })
+    const h = (fetchMock.mock.calls[0]![1] as RequestInit).headers as Record<string, string>
+    expect(h.Click).toBe('https://bythiagofigueiredo.com/cms/settings/instagram')
+  })
+})
