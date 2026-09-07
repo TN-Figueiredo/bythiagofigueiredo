@@ -72,8 +72,16 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0
 }
 
-function isOptionalUuid(value: unknown): boolean {
-  return value === undefined || (typeof value === 'string' && UUID_RE.test(value))
+function isUuidString(value: unknown): value is string {
+  return typeof value === 'string' && UUID_RE.test(value)
+}
+
+function isOptionalUuid(value: unknown): value is string | undefined {
+  return value === undefined || isUuidString(value)
+}
+
+function isStateType(value: unknown): value is OauthStateType {
+  return typeof value === 'string' && (STATE_TYPES as readonly string[]).includes(value)
 }
 
 /**
@@ -115,7 +123,7 @@ export function verifyState(
     if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return null
     const p = parsed as Record<string, unknown>
 
-    if (!isNonEmptyString(p.siteId) || !UUID_RE.test(p.siteId)) return null
+    if (!isUuidString(p.siteId)) return null
     if (!isOptionalUuid(p.userId)) return null
     if (!isOptionalUuid(p.accountId)) return null
 
@@ -123,7 +131,7 @@ export function verifyState(
       if (p[field] !== undefined && !isNonEmptyString(p[field])) return null
     }
 
-    if (!isNonEmptyString(p.typ) || !STATE_TYPES.includes(p.typ as OauthStateType)) return null
+    if (!isStateType(p.typ)) return null
 
     // Expiry is compared against the clock whenever `exp` is present. Presence
     // itself is `requireExp`'s job — a captured state must stop working, and
@@ -137,7 +145,20 @@ export function verifyState(
     if (opts.requireNonce === true && !isNonEmptyString(p.nonce)) return null
     if (opts.requireExp === true && p.exp === undefined) return null
 
-    return p as unknown as IOauthStatePayload
+    // Build the typed payload EXPLICITLY from the fields validated above —
+    // every field here was checked individually, so this object is typed by
+    // construction and TypeScript verifies it; no cast of the parsed bag.
+    const payload: IOauthStatePayload = { typ: p.typ, siteId: p.siteId }
+    if (typeof p.userId === 'string') payload.userId = p.userId
+    if (typeof p.accountId === 'string') payload.accountId = p.accountId
+    if (typeof p.origin === 'string') payload.origin = p.origin
+    if (typeof p.nonce === 'string') payload.nonce = p.nonce
+    if (typeof p.allowRebindTo === 'string') payload.allowRebindTo = p.allowRebindTo
+    if (typeof p.authorizedIgUserId === 'string') payload.authorizedIgUserId = p.authorizedIgUserId
+    if (typeof p.authorizedHandle === 'string') payload.authorizedHandle = p.authorizedHandle
+    if (typeof p.exp === 'number') payload.exp = p.exp
+
+    return payload
   } catch {
     return null
   }
