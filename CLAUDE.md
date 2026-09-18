@@ -162,6 +162,14 @@ Chave permanente: `PIPELINE_COWORK_KEY` em `.env.local`. **Nunca criar/revogar k
 
 `PIPELINE_MCP_HMAC_SECRET` (gerar com `openssl rand -hex 32`): assina os confirmation tokens de ações destrutivas do MCP pipeline (`lib/pipeline/mcp/safety.ts`). Deliberadamente separado de `PIPELINE_COWORK_KEY` — essa viaja em todo request via `X-Pipeline-Key`, então usá-la para assinar os tokens deixaria quem tem a chave forjar a própria confirmação. **Ordem obrigatória de rollout:** setar a variável (`.env.local` e Vercel) primeiro, deploy do código depois — invertido, `getHmacSecret()` lança e derruba as tools MCP.
 
+`META_REQUEST_INSIGHTS_SCOPES` (opcional, default desligado): quando `1`, o start do OAuth social
+pede também `read_insights` e `instagram_manage_insights`. **Desligado desde 2026-09-18** porque o
+diálogo da Meta recusou o pedido inteiro com `Invalid Scopes: read_insights,
+instagram_manage_insights` — um escopo indisponível não degrada o pedido, ele BLOQUEIA o diálogo e
+derruba a reconexão de publicação junto. Ligue só depois que as duas permissões estiverem liberadas
+para o app (App Review / acesso avançado) e reconecte uma vez; enquanto estiver desligado, as
+chamadas a `/insights` do `metrics-poller` falham por entrega e aparecem em `cron_runs`.
+
 `YT_ANALYTICS_SYNC_WINDOW_DAYS` (opcional, default `90`): controla o tamanho da janela consultada na YouTube Analytics API pelo cron `app/api/cron/sync-analytics-metrics/route.ts`.
 
 `INSTAGRAM_APP_ID`/`INSTAGRAM_APP_SECRET` (App Dashboard > Instagram > API setup with Instagram login >

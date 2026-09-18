@@ -136,6 +136,49 @@ describe('social oauth start', () => {
     expect(verifyState(stateParam!, KEY, { typ: 'state', requireExp: true })).toBeNull()
   })
 
+  // -------------------------------------------------------------------
+  // Seleção de canal e escopos (2026-09-18).
+  //
+  // Duas reconexões falharam na prática pelo que o start manda à Meta/Google:
+  //   - YouTube: com `prompt=consent` sozinho, o Google reaproveita a sessão
+  //     ativa e devolve o canal PADRÃO. Reconectar @tnfigueiredotv (1.2 mil
+  //     inscritos) criou conexão para @thiagofigueiredo1301 (0 inscritos), e
+  //     repetir repetia o mesmo canal — não havia como escolher.
+  //   - Meta: o diálogo recusou o pedido INTEIRO com "Invalid Scopes:
+  //     read_insights, instagram_manage_insights". Um escopo indisponível não
+  //     degrada o pedido, ele bloqueia o diálogo e derruba a publicação junto.
+  // -------------------------------------------------------------------
+
+  it('YouTube: pede o seletor de conta, senão o Google devolve o canal padrão', async () => {
+    const res = await START(startReq(), { params: Promise.resolve({ provider: 'google' }) })
+    const url = new URL(res.headers.get('location')!)
+    const prompt = url.searchParams.get('prompt')
+    expect(prompt).toContain('select_account')
+    // `consent` continua: é ele que garante o refresh token.
+    expect(prompt).toContain('consent')
+    expect(url.searchParams.get('access_type')).toBe('offline')
+  })
+
+  it('Meta: por padrão NÃO pede os escopos de insights que bloqueiam o diálogo', async () => {
+    const res = await START(startReq(), { params: Promise.resolve({ provider: 'meta' }) })
+    const scope = new URL(res.headers.get('location')!).searchParams.get('scope') ?? ''
+    expect(scope).not.toContain('read_insights')
+    expect(scope).not.toContain('instagram_manage_insights')
+    // o que a publicação de fato precisa continua sendo pedido
+    for (const s of ['pages_show_list', 'pages_manage_posts', 'instagram_basic', 'instagram_content_publish']) {
+      expect(scope).toContain(s)
+    }
+  })
+
+  it('Meta: com META_REQUEST_INSIGHTS_SCOPES=1 os escopos de métricas voltam', async () => {
+    vi.stubEnv('META_REQUEST_INSIGHTS_SCOPES', '1')
+    const res = await START(startReq(), { params: Promise.resolve({ provider: 'meta' }) })
+    const scope = new URL(res.headers.get('location')!).searchParams.get('scope') ?? ''
+    expect(scope).toContain('read_insights')
+    expect(scope).toContain('instagram_manage_insights')
+    vi.unstubAllEnvs()
+  })
+
   it('still refuses an unauthorized caller with 401 json', async () => {
     vi.mocked(requireSiteScope).mockResolvedValue({ ok: false, reason: 'unauthenticated' })
     const res = await START(startReq(), { params: Promise.resolve({ provider: 'google' }) })

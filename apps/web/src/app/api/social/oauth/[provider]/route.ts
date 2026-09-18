@@ -20,19 +20,38 @@ const GOOGLE_SCOPES = [
 const META_OAUTH_URL = 'https://www.facebook.com/v25.0/dialog/oauth'
 // Scope set = exactly what the code calls (App Review rejects unused scopes):
 // pages_* for /feed + /photos publishing and page listing; instagram_* for
-// media/media_publish (REELS/STORIES); read_insights + instagram_manage_insights
-// for the metrics poller (/insights on FB pages and IG accounts).
+// media/media_publish (REELS/STORIES).
 // business_management removed 2026-07-03 — no endpoint required it
 // (/me/accounts only needs pages_show_list).
-const META_SCOPES = [
+const META_CORE_SCOPES = [
   'pages_read_engagement',
   'pages_show_list',
   'pages_manage_posts',
-  'read_insights',
   'instagram_basic',
   'instagram_content_publish',
-  'instagram_manage_insights',
-].join(',')
+]
+
+// Métricas por post (`/insights` em páginas do FB e mídias do IG, em
+// `lib/social/metrics-poller.ts`). SEPARADAS e DESLIGADAS por padrão desde
+// 2026-09-18: o diálogo da Meta recusou o pedido inteiro com
+//
+//   Invalid Scopes: read_insights, instagram_manage_insights
+//
+// e um escopo indisponível não degrada o pedido — ele BLOQUEIA o diálogo, ou
+// seja, derruba a reconexão de publicação junto. Publicar é a função principal
+// e não pode ficar refém de uma permissão acessória.
+//
+// Quando essas duas permissões estiverem liberadas para o app (App Review /
+// acesso avançado), basta `META_REQUEST_INSIGHTS_SCOPES=1` e reconectar uma
+// vez — as métricas voltam sem mudança de código. Enquanto estiver desligado,
+// as chamadas a `/insights` falham por entrega e aparecem em `cron_runs`.
+const META_INSIGHTS_SCOPES = ['read_insights', 'instagram_manage_insights']
+
+function metaScopes(): string {
+  const scopes = [...META_CORE_SCOPES]
+  if (process.env.META_REQUEST_INSIGHTS_SCOPES === '1') scopes.push(...META_INSIGHTS_SCOPES)
+  return scopes.join(',')
+}
 
 function getCallbackUrl(provider: string): string {
   const base = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
@@ -81,7 +100,16 @@ export async function GET(
       url.searchParams.set('response_type', 'code')
       url.searchParams.set('scope', GOOGLE_SCOPES)
       url.searchParams.set('access_type', 'offline')
-      url.searchParams.set('prompt', 'consent')
+      // `select_account` é OBRIGATÓRIO aqui, não cosmético. Uma conta Google
+      // pode ter vários canais do YouTube (Brand Accounts); com `consent`
+      // sozinho o Google reaproveita a sessão ativa e devolve o canal PADRÃO,
+      // sem oferecer escolha. Foi o que aconteceu em 2026-09-18: a tentativa
+      // de reconectar @tnfigueiredotv (1.2 mil inscritos) criou uma conexão
+      // nova para o canal pessoal @thiagofigueiredo1301 (0 inscritos), e
+      // repetir o fluxo repetia o mesmo canal. Com `select_account` o Google
+      // mostra o seletor com a conta e cada Brand Account, que é onde os canais
+      // aparecem. `consent` continua porque é ele que garante o refresh token.
+      url.searchParams.set('prompt', 'select_account consent')
       url.searchParams.set('state', signedState)
       return NextResponse.redirect(url.toString())
     }
@@ -91,7 +119,7 @@ export async function GET(
       url.searchParams.set('client_id', process.env.META_APP_ID ?? '')
       url.searchParams.set('redirect_uri', getCallbackUrl('meta'))
       url.searchParams.set('response_type', 'code')
-      url.searchParams.set('scope', META_SCOPES)
+      url.searchParams.set('scope', metaScopes())
       url.searchParams.set('state', signedState)
       return NextResponse.redirect(url.toString())
     }
