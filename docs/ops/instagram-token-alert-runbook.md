@@ -325,7 +325,10 @@ curl -s -o /dev/null -w '%{http_code}\n' https://bythiagofigueiredo.com/api/inst
 | (a) `/data-deletion?code=0…0` | `no-referrer` | HTTP 200, `referrer-policy: no-referrer` | **APROVADO** |
 | (c) `GET /api/instagram/deauthorize` | `405` | `405` | **APROVADO** |
 | (c) `GET /api/instagram/data-deletion` | `405` | `405` | **APROVADO** |
-| (b) 302 do início sem `force_reauth` | — | **NÃO EXECUTADO** — exige cookie de sessão do CMS **e** `INSTAGRAM_APP_ID`/`SECRET` definidas | pendente do dono |
+| (b) 302 do início sem `force_reauth` | — | **APROVADO por evidência mais forte que o curl**: o fluxo real completou em 2026-09-18 e a tela de consentimento do Instagram apareceu nomeando `bythiagofigueiredo-IG`. Um `redirect_uri` não registrado ou um `client_id` errado teriam sido recusados ANTES dessa tela. | aprovado |
+
+**Gate móvel** — o único que continua pendente do dono: forçar um alerta, tocar o `Click` do push no
+aparelho e completar até "Connected!". O caminho de desktop está provado de ponta a ponta.
 
 **Gate móvel (bloqueante):** forçar um alerta numa conta de teste, tocar o `Click` do push **no
 aparelho do dono** (iOS Safari **e** Android Chrome) e completar até "Connected!"; conferir no card

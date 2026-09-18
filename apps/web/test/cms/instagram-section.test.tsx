@@ -530,6 +530,49 @@ describe('<InstagramSection> — OAuth actions', () => {
     expect(screen.queryByTestId('ig-inline-error')).toBeNull()
   })
 
+  it('o erro do OAuth SOBREVIVE a um reload da pagina', () => {
+    // 2026-09-18: o dono viu "Instagram rejected the authorization", recarregou,
+    // o banner sumiu e ele concluiu que tinha funcionado. Nao tinha. Um erro que
+    // desaparece sozinho ensina a confiar no reload em vez do conteudo.
+    window.sessionStorage.clear()
+    const primeira = renderSection()
+    fireEvent.click(screen.getByTestId('ig-reconnect'))
+    postResult({
+      type: 'instagram-oauth-result', success: false, provider: 'instagram',
+      error: 'Instagram rejected the authorization', code: 'exchange_failed',
+    })
+    expect(screen.getByTestId('ig-inline-error').textContent).toBe('Instagram rejected the authorization')
+
+    // desmontar + montar de novo = o que um reload faz com o componente
+    primeira.unmount()
+    renderSection()
+    expect(screen.getByTestId('ig-inline-error').textContent).toBe('Instagram rejected the authorization')
+  })
+
+  it('Dismiss apaga de vez: nao volta no reload seguinte', () => {
+    window.sessionStorage.clear()
+    const primeira = renderSection()
+    fireEvent.click(screen.getByTestId('ig-reconnect'))
+    postResult({ type: 'instagram-oauth-result', success: false, code: 'invalid_state' })
+    fireEvent.click(screen.getByTestId('ig-dismiss-error'))
+
+    primeira.unmount()
+    renderSection()
+    expect(screen.queryByTestId('ig-inline-error')).toBeNull()
+  })
+
+  it('uma conexao BEM-SUCEDIDA tambem limpa o erro guardado', () => {
+    window.sessionStorage.clear()
+    const primeira = renderSection()
+    fireEvent.click(screen.getByTestId('ig-reconnect'))
+    postResult({ type: 'instagram-oauth-result', success: false, code: 'invalid_state' })
+    postResult({ type: 'instagram-oauth-result', success: true, provider: 'instagram' })
+
+    primeira.unmount()
+    renderSection()
+    expect(screen.queryByTestId('ig-inline-error')).toBeNull()
+  })
+
   it('falls back to oauthErrorText for a missing or oversized server message', () => {
     renderSection()
     fireEvent.click(screen.getByTestId('ig-reconnect'))
