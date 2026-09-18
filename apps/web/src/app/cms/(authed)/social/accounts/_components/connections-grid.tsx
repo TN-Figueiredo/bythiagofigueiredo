@@ -11,6 +11,7 @@ interface SafeConnection {
   account_id: string
   account_name: string | null
   token_expires_at: string | null
+  renews_automatically?: boolean
   connected_at: string
   revoked_at: string | null
   scopes: string[]

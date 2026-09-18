@@ -45,6 +45,7 @@ function makeConnection(overrides: Partial<{
   account_id: string
   account_name: string | null
   token_expires_at: string | null
+  renews_automatically: boolean
   connected_at: string
   revoked_at: string | null
   scopes: string[]
@@ -57,6 +58,7 @@ function makeConnection(overrides: Partial<{
     account_name: 'My Channel',
     // Relative far-future date — hardcoded years rot into the 'expiring' zone (CI-only wall-clock breakage)
     token_expires_at: new Date(Date.now() + 400 * 24 * 60 * 60 * 1000).toISOString(),
+    renews_automatically: false,
     connected_at: '2026-05-01T00:00:00Z',
     revoked_at: null,
     scopes: ['youtube.upload'],
@@ -244,6 +246,52 @@ describe('PlatformCard — token status', () => {
 })
 
 // ─── PlatformCard — thumbnail / avatar ───────────────────────────────────────
+
+describe('PlatformCard — conexão que se renova sozinha', () => {
+  // 2026-09-18: logo depois de reconectar os dois canais do YouTube, o cartão
+  // dizia "Expiring · Sep 2026". Era literalmente verdade sobre o ACCESS token
+  // (o do Google dura ~1 h) e completamente falso sobre a conexão, que guarda
+  // refresh token e se renova sob demanda. Um aviso que aparece no instante em
+  // que voce conecta e um aviso que o dono aprende a ignorar.
+  it('não mostra "Expiring" com o access token vencendo hoje, se há refresh token', () => {
+    render(
+      <PlatformCard
+        provider="youtube"
+        connections={[
+          makeConnection({
+            provider: 'youtube',
+            account_name: '@tnfigueiredotv',
+            token_expires_at: new Date(Date.now() + 45 * 60_000).toISOString(),
+            renews_automatically: true,
+          }),
+        ]}
+        strings={en}
+        onDisconnect={vi.fn()}
+      />,
+    )
+    expect(screen.queryByText('Expiring')).toBeNull()
+    expect(screen.queryByText(/⚠/)).toBeNull()
+  })
+
+  it('SEM refresh token, o mesmo prazo continua avisando', () => {
+    render(
+      <PlatformCard
+        provider="facebook"
+        connections={[
+          makeConnection({
+            provider: 'facebook',
+            account_name: 'Figueiredo',
+            token_expires_at: new Date(Date.now() + 45 * 60_000).toISOString(),
+            renews_automatically: false,
+          }),
+        ]}
+        strings={en}
+        onDisconnect={vi.fn()}
+      />,
+    )
+    expect(screen.getByText('Expiring')).toBeTruthy()
+  })
+})
 
 describe('PlatformCard — avatar / thumbnail metadata', () => {
   beforeEach(() => {
