@@ -56,6 +56,7 @@ import { resumeStuckDeletionRequest } from '@/lib/instagram/deletion'
 import { GET as syncGET } from '@/app/api/cron/instagram-sync/route'
 import { GET as refreshGET } from '@/app/api/cron/instagram-token-refresh/route'
 import { GET as uptimeGET } from '@/app/api/cron/uptime-probe/route'
+import { GET as cronWatchdogGET } from '@/app/api/cron/cron-watchdog/route'
 import { POST as deauthorizePOST } from '@/app/api/instagram/deauthorize/route'
 import { POST as dataDeletionPOST } from '@/app/api/instagram/data-deletion/route'
 import { __resetSignatureAlertGuard } from '@/lib/instagram/signed-request'
@@ -313,6 +314,46 @@ function dbHarness(accounts: Array<Record<string, unknown>>): void {
   })
 }
 
+/**
+ * `cron_health` com UM cron de severity `info` parado há 30 dias => agregado
+ * `degraded` => o cron-watchdog emite. Tudo o mais fica genérico.
+ */
+function cronHealthHarness(): void {
+  mockRpc.mockImplementation(() => Promise.resolve({ data: true, error: null }))
+  mockFrom.mockImplementation((table: string) => {
+    if (table === 'cron_health') {
+      const rows = [
+        {
+          cron_name: 'publish-scheduled',
+          last_success_at: new Date(Date.now() - 30 * 864e5).toISOString(),
+          last_failure_at: null,
+          last_error: null,
+          consecutive_failures: 0,
+          severity: 'info',
+        },
+      ]
+      const terminal = Promise.resolve({ data: rows, error: null })
+      const chain: Record<string, unknown> = {
+        select: () => chain,
+        // recordCronSuccess/Failure entram por aqui.
+        eq: () => ({ single: () => Promise.resolve({ data: { consecutive_failures: 0 } }) }),
+        upsert: () => Promise.resolve({ error: null }),
+        then: terminal.then.bind(terminal),
+      }
+      return chain
+    }
+    const settled = Promise.resolve({ data: [], error: null, count: 0 })
+    const generic: Record<string, unknown> = {
+      select: () => generic, eq: () => generic, in: () => generic, is: () => generic,
+      lt: () => generic, gt: () => generic, like: () => generic, order: () => generic,
+      limit: () => settled, delete: () => generic, update: () => generic,
+      upsert: () => Promise.resolve({ error: null }),
+      insert: () => Promise.resolve({ error: null }), then: settled.then.bind(settled),
+    }
+    return generic
+  })
+}
+
 function b64url(buf: Buffer | string): string {
   return Buffer.from(buf).toString('base64')
     .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
@@ -383,6 +424,7 @@ describe('REGRA-PII-NTFY: o que os emissores REALMENTE emitem', () => {
     { emitter: 'refresh/heartbeat', file: 'app/api/cron/instagram-token-refresh/route.ts', match: /ops heartbeat/ },
     { emitter: 'refresh/step-errors', file: 'app/api/cron/instagram-token-refresh/route.ts', match: /cron degraded/ },
     { emitter: 'uptime-probe', file: 'app/api/cron/uptime-probe/route.ts', match: /bythiagofigueiredo (down|degraded)/ },
+    { emitter: 'cron-watchdog', file: 'app/api/cron/cron-watchdog/route.ts', match: /^crons (degraded|down)$/ },
     { emitter: 'deliverTokenAlert', file: 'lib/instagram/token.ts', match: /^Instagram ((feed sync|auto-renewal|sync) (failing|still )|token invalid|token expired|access revoked|still disconnected)/ },
     { emitter: 'signed-request/signature-mismatch', file: 'lib/instagram/signed-request.ts', match: /callback signature mismatch/ },
     { emitter: 'data-deletion/id-space-mismatch', file: 'app/api/instagram/data-deletion/route.ts', match: /deletion request matched no account/ },
@@ -393,6 +435,7 @@ describe('REGRA-PII-NTFY: o que os emissores REALMENTE emitem', () => {
     'app/api/cron/instagram-sync/route.ts': 5,
     'app/api/cron/instagram-token-refresh/route.ts': 4,
     'app/api/cron/uptime-probe/route.ts': 1,
+    'app/api/cron/cron-watchdog/route.ts': 1,
     'lib/instagram/token.ts': 1,
     'lib/instagram/signed-request.ts': 1,
     'app/api/instagram/data-deletion/route.ts': 1,
@@ -455,6 +498,14 @@ describe('REGRA-PII-NTFY: o que os emissores REALMENTE emitem', () => {
     // (4) uptime-probe: alvo em 500 => push urgente.
     dbHarness([])
     await uptimeGET(new Request('http://x/api/cron/uptime-probe', {
+      headers: { authorization: 'Bearer pii-cron-secret' },
+    }))
+
+    // (4b) cron-watchdog: um cron parado => push `crons degraded`. O corpo
+    // nomeia CRONS, que é identificador de infraestrutura e não PII — as
+    // asserções por forma abaixo (dígitos, @handle, string de 32+) provam.
+    cronHealthHarness()
+    await cronWatchdogGET(new Request('http://x/api/cron/cron-watchdog', {
       headers: { authorization: 'Bearer pii-cron-secret' },
     }))
 
