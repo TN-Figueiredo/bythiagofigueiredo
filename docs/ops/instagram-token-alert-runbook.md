@@ -22,10 +22,37 @@ Conclusão esperada: `ig_user_id = me.id` (app-scoped) é aceito pela aresta que
 (§3.1 passo 7) é corrigida antes.
 
 ### Redirect URIs registradas no App Dashboard (verbatim)
+
+**Host verificado 2026-09-18:** o apex serve direto (sem 308); `www.bythiagofigueiredo.com` **não
+resolve em DNS**. Use o apex, sem barra final. Os três valores saem do código, não de memória
+(`src/app/api/instagram/oauth/route.ts:98` monta o `redirect_uri` como `${origin}/api/instagram/oauth/callback`):
+
 ```
-<colar as URIs, incluindo eventual barra final>
+https://bythiagofigueiredo.com/api/instagram/oauth/callback     <- OAuth Redirect URI
+https://bythiagofigueiredo.com/api/instagram/deauthorize        <- Deauthorize callback URL
+https://bythiagofigueiredo.com/api/instagram/data-deletion      <- Data Deletion Request URL
 ```
-Host que serve sem 308: `<apex | www>`.
+
+### O app da Meta que já existe NÃO serve (diagnóstico de 2026-09-18)
+
+`META_APP_ID` / `META_APP_SECRET` estão em produção e são válidos — o app é **"bythiagofigueiredo"**,
+id `1296945938484937`, categoria Business, e o par obtém um app token no `graph.facebook.com` sem
+erro. Ele atende o fluxo antigo (`/api/social/oauth/[provider]`, via Facebook Login).
+
+Mas ele **não serve** para o Instagram Login. Prova, pelo endpoint que a aplicação usa em produção:
+
+| Requisição a `api.instagram.com/oauth/access_token` | Resposta |
+|---|---|
+| `client_id` = META_APP_ID, `client_secret` = META_APP_SECRET | `"Invalid platform app"` |
+| controle: id inexistente | `"Missing required field client_id"` |
+
+O id real passou da validação de formato e foi recusado por **tipo de plataforma**: o produto
+"Instagram API with Instagram login" não está configurado nesse app. Ou seja, `INSTAGRAM_APP_ID` e
+`INSTAGRAM_APP_SECRET` **ainda não existem** — eles são criados quando o produto Instagram é
+adicionado ao app no App Dashboard, e são números diferentes dos do Facebook.
+
+**Não há API pública da Meta para adicionar um produto a um app.** Este passo é App Dashboard, com
+sessão do dono — é o único bloqueio que não pode ser automatizado a partir daqui.
 
 ### Envs de produção
 `INSTAGRAM_APP_ID`, `INSTAGRAM_APP_SECRET`, `SOCIAL_MASTER_KEY` presentes em `production`
