@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, useTransition } from 'react'
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { SlotManager } from '@/components/instagram/slot-manager'
 import { useSaveState, SaveButton, labelCls, sectionCls } from './_shared'
@@ -165,7 +165,40 @@ function InstagramAccountCard({
   const [subtitleEn, setSubtitleEn] = useState(account.section_subtitle_en ?? '')
   const [token, setToken] = useState('')
   const [inProgress, setInProgress] = useState<{ origin: 'oauth' | 'sync'; startedAt: number } | null>(null)
-  const [inlineError, setInlineError] = useState<string | null>(null)
+  // A falha do OAuth precisa SOBREVIVER a um reload.
+  //
+  // Em 2026-09-18 o dono tentou conectar, viu "Instagram rejected the
+  // authorization", recarregou a página, o banner sumiu — e ele concluiu que
+  // tinha funcionado. Não tinha: o cartão ainda dizia "Token expired", mas um
+  // erro que desaparece sozinho ensina a confiar no reload em vez do conteúdo.
+  // `sessionStorage` é o lugar certo: é estado de UI por visitante, sobrevive à
+  // recarga e morre com a aba, sem inventar coluna no banco para um evento
+  // passageiro.
+  const errorKey = `ig-oauth-error:${account.id}`
+  const [inlineError, setInlineErrorState] = useState<string | null>(null)
+
+  const setInlineError = useCallback(
+    (msg: string | null) => {
+      setInlineErrorState(msg)
+      try {
+        if (msg === null) window.sessionStorage.removeItem(errorKey)
+        else window.sessionStorage.setItem(errorKey, msg)
+      } catch {
+        // Modo privado ou storage bloqueado: o banner ainda funciona na sessão
+        // atual. Nunca deixar isto derrubar o fluxo de conexão.
+      }
+    },
+    [errorKey],
+  )
+
+  useEffect(() => {
+    try {
+      const saved = window.sessionStorage.getItem(errorKey)
+      if (saved) setInlineErrorState(saved)
+    } catch {
+      /* idem */
+    }
+  }, [errorKey])
   const [syncNote, setSyncNote] = useState<string | null>(null)
   const [lastOauthQuery, setLastOauthQuery] = useState('')
   const winRef = useRef<Window | null>(null)
