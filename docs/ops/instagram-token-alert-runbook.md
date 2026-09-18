@@ -10,16 +10,32 @@
 > **PENDENTE — executado pelo dono** (exigem token/dashboard/produção; ver Task 1 do plano C3).
 > Colar as saídas verbatim nos blocos abaixo. Enquanto não forem preenchidos, C3 **não promove**.
 
-### Identidade (bloqueante)
-`GET /v25.0/me?fields=id,user_id,username` →
-```json
-<colar a saída verbatim>
-```
-`GET /v25.0/<me.id>/media?fields=id&limit=1` → HTTP `<colar>`
-Conclusão esperada: `ig_user_id = me.id` (app-scoped) é aceito pela aresta que o feed usa.
-`ig_professional_id = me.user_id` → `<presente | ausente ⇒ null>`.
-**Ramo de falha:** `/media` recusando o `me.id` ⇒ C3 não promove; a precedência de identidade
-(§3.1 passo 7) é corrigida antes.
+### Identidade (bloqueante) — **APROVADO em 2026-09-18**
+
+Executado pela conexão real, não por curl: o OAuth completou e gravou a linha. Evidência no banco,
+logo após o `Connected!`:
+
+| Campo | Valor |
+|---|---|
+| `ig_user_id` | `36220564007528767` (app-scoped, veio de `me.id`) |
+| `ig_professional_id` | `17841401313574613` (veio de `me.user_id`) |
+| `ig_user_id_source` | `oauth` (era `legacy`) |
+| `access_token` | prefixo `v1:` — cifrado em repouso |
+| `token_expires_at` | 2026-11-17 (60 dias) |
+| `token_error` | nulo — episódio fechado |
+
+`/me?fields=id,user_id,username` devolveu **os três** campos (se faltasse `user_id`, o
+`ig_professional_id` teria ficado nulo). E a aresta de mídia **aceita o id app-scoped**: o sync
+manual imediato achou 31 posts, inseriu 1, atualizou 30 e cacheou 1 mídia, em 2 s.
+
+O `ig_professional_id` gravado é exatamente o `account_id` da conexão de PUBLICAÇÃO em
+`social_connections` — os dois espaços de id ficaram ligados como o §3.1 desenhou.
+
+Permissões concedidas (verbatim do `instagram_sync_log`): `instagram_business_basic`,
+`instagram_business_manage_messages`, `instagram_business_content_publish`,
+`instagram_business_manage_comments`.
+
+**Ramo de falha (não ocorreu):** `/media` recusando o `me.id` ⇒ C3 não promove.
 
 ### Redirect URIs registradas no App Dashboard (verbatim)
 
@@ -94,9 +110,20 @@ funcionando. Basta definir as duas envs em `production` (+ redeploy) para o bot�
 `select count(*) from consent_texts where category='social_feed_read'` = `<esperado: 2>`.
 **Verificado em produção 2026-09-07 (controlador): `2`** (duas linhas, ambas `version = 1.0`). APROVADO.
 
-### Conta no app
-App Dashboard > Roles > Instagram Testers: a conta profissional do dono aparece como tester
-**aceito** (convite pendente falha a autorização sem mensagem útil).
+### Conta no app — **APROVADO em 2026-09-18**
+`thiagonfigueiredo` consta como **Testador do Instagram**, e o Instagram confirma a autorização em
+*Configurações → Apps e sites → Ativos*: `bythiagofigueiredo-IG`, "Authorized by you 18/09/26",
+User ID `36220564007528767`.
+
+### Renovação automática — armada, primeira execução real em 2026-09-25
+A política está em `api/cron/instagram-token-refresh`: uma conta entra na fila quando o token
+vence em menos de **15 dias** (`SELECT_EXPIRY_MS`) **ou** quando não é renovado há ~**7 dias**
+(`SELECT_STALE_MS = 167 h`), com piso de 25 h entre renovações. Cada renovação empurra o
+vencimento para +60 dias, então o token nunca se aproxima do prazo enquanto o cron rodar.
+
+`token_refreshed_at = 2026-09-18 18:18:33` ⇒ a primeira renovação automática cai em **2026-09-25,
+11:00 UTC**. O run de 2026-09-18 logo após a conexão devolveu tudo zerado
+(`refreshed:0, failed_permanent:0, step_errors:0`), que é o correto: nada estava vencido.
 
 ### Gate móvel de ponta a ponta
 Executado depois da promoção (exige o código em produção): é **bloqueante para manter C3 em
