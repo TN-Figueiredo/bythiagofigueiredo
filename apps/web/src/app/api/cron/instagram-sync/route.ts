@@ -21,7 +21,7 @@ import { resumeStuckDeletionRequest, DELETION_BLOB_BUDGET_MS } from '@/lib/insta
 import { sendNtfyAlert, isTerminalRefusal, type INtfyResult } from '@/lib/ops/ntfy'
 import { claimAlert, readAlertStamp, releaseAlert, touchAlert } from '@/lib/ops/alert-state'
 import { NO_SITE_ADMINS_ERROR, fanOutToSiteAdminsDetailed } from '@/lib/notifications/fan-out-to-admins'
-import type { InstagramAccountRow, InstagramSyncMode } from '@/lib/instagram/types'
+import type { InstagramAccountRow } from '@/lib/instagram/types'
 
 export const runtime = 'nodejs'
 export const maxDuration = 180
@@ -65,17 +65,28 @@ export async function GET(req: NextRequest) {
     return Response.json({ error: 'unauthorized' }, { status: 401 })
   }
 
-  // MANTIDO por A/A5 — apagar `mode`/`accountId` é conteúdo de A5, nunca de C2.
-  const mode = (req.nextUrl.searchParams.get('mode') ?? 'daily') as InstagramSyncMode
-  if (!['daily', 'manual'].includes(mode)) {
-    return Response.json({ error: 'invalid mode' }, { status: 400 })
-  }
-  const accountId = req.nextUrl.searchParams.get('accountId')
-
+  // A5 (2026-09-18): `mode` e `accountId` APAGADOS.
+  //
+  // O commit A trocou o "Sync Now" de um `fetch` autenticado para esta rota por
+  // uma chamada EM PROCESSO (`triggerInstagramSync`), e desde então nada mais
+  // chamava aqui com `?mode=manual` — verificado por varredura em `src/`,
+  // `lib/`, `scripts/` e `.github/`: zero chamadores. O único `mode=manual` que
+  // resta no projeto é do `sync-youtube`, outra rota.
+  //
+  // O gate de §7 (herança de `maxDuration`) segue INCONCLUSIVO e provavelmente
+  // ficará: ele exige um sync de ~70 s, e o sync real de 2026-09-18, com a
+  // conta conectada e 31 posts, levou 2 s. Mas o gate media se a SERVER ACTION
+  // sobrevive a um run longo — pergunta que não muda o fato de estes dois
+  // parâmetros, que vivem na ROTA DE CRON, estarem órfãos nos dois desfechos.
+  // Se um dia o transporte HTTP precisar voltar, é um `git revert` deste commit.
+  //
+  // Ganho colateral: some a busca por `accountId` sem filtro de site. Ela nunca
+  // foi superfície pública (a rota exige `Bearer CRON_SECRET`), mas defesa em
+  // profundidade é melhor de graça.
   const supabase = getSupabaseServiceClient()
   const runId = newRunId()
 
-  return withCronLock(supabase, `instagram-sync-${mode}`, runId, CRON_TAG, async () => {
+  return withCronLock(supabase, 'instagram-sync', runId, CRON_TAG, async () => {
     const runStart = Date.now()
 
     let stepErrors = 0
@@ -115,11 +126,10 @@ export async function GET(req: NextRequest) {
     const vaultDown = getVaultKeyOrNull() === null
 
     // passo 2: select
-    let query = supabase
+    const query = supabase
       .from('instagram_accounts')
       .select('*')
       .order('last_synced_at', { ascending: true, nullsFirst: true })
-    if (accountId) query = query.eq('id', accountId)
     const { data: accountsData, error: selectError } = await query
     if (selectError) {
       return { status: 'error' as const, error: `select failed: ${selectError.message}` }
@@ -301,7 +311,7 @@ export async function GET(req: NextRequest) {
         const { token } = readAccessToken(account)
         if (token === null) return
 
-        const logId = await openSyncRow(supabase, account, mode)
+        const logId = await openSyncRow(supabase, account, 'daily')
         try {
           const result = await syncInstagramAccount(supabase, account, token, { deadlineAt: deadline })
           synced++
@@ -473,7 +483,7 @@ export async function GET(req: NextRequest) {
     return {
       status,
       ...(status === 'error' ? { error: causes.join(' · ') } : {}),
-      mode,
+      mode: 'daily' as const,
       probed,
       synced,
       inserted: totalInserted,
