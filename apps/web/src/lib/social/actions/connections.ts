@@ -161,7 +161,15 @@ export interface ConnectionHealth {
   accountName: string
   status: 'ok' | 'warn' | 'error'
   followersCount: number | null
+  /** Dias inteiros restantes (truncados). `0` = vence em menos de um dia. */
   tokenExpiresIn: number | null
+  /** Horas inteiras restantes — o que mostrar quando `tokenExpiresIn` é 0. */
+  tokenExpiresInHours: number | null
+  /**
+   * A conexão guarda refresh token, logo o access token vencido é o
+   * funcionamento NORMAL: `ensureFreshToken` o renova sob demanda.
+   */
+  renewsAutomatically: boolean
 }
 
 export async function checkConnectionHealth(
@@ -174,7 +182,7 @@ export async function checkConnectionHealth(
     const supabase = getSupabaseServiceClient()
     const { data: connections, error } = await supabase
       .from('social_connections')
-      .select('id, provider, account_name, token_expires_at, metadata, revoked_at')
+      .select('id, provider, account_name, token_expires_at, metadata, revoked_at, refresh_token_enc, bluesky_refresh_jwt_enc')
       .eq('site_id', siteId)
       .is('revoked_at', null)
       .order('connected_at')
@@ -193,14 +201,29 @@ export async function checkConnectionHealth(
           ? meta.subscriber_count
           : null
 
+      // Uma conexão com refresh token NÃO precisa de reconexão quando o
+      // access token vence — é o ciclo normal (o do Google dura ~1 h). Tratar
+      // isso como erro fazia a faixa pedir "reconectar" para as duas contas do
+      // YouTube em todo fim de ciclo, e alarme que grita sem motivo é ignorado
+      // quando grita com motivo. Se o REFRESH token morrer, quem denuncia é a
+      // falha do job que o usa (via cron_health), não esta tela.
+      const renewsAutomatically =
+        c.refresh_token_enc != null || c.bluesky_refresh_jwt_enc != null
+
       let tokenExpiresIn: number | null = null
+      let tokenExpiresInHours: number | null = null
       let status: ConnectionHealth['status'] = 'ok'
 
       if (c.token_expires_at) {
-        const expiresAt = new Date(c.token_expires_at).getTime()
-        tokenExpiresIn = Math.ceil((expiresAt - now) / (1000 * 60 * 60 * 24))
-        if (tokenExpiresIn <= 0) status = 'error'
-        else if (tokenExpiresIn <= 7) status = 'warn'
+        const msLeft = new Date(c.token_expires_at).getTime() - now
+        // `Math.floor`, não `ceil`: com ceil, 56 minutos restantes viravam
+        // "expira em 1 dias" na faixa.
+        tokenExpiresIn = Math.floor(msLeft / (1000 * 60 * 60 * 24))
+        tokenExpiresInHours = Math.floor(msLeft / (1000 * 60 * 60))
+        if (!renewsAutomatically) {
+          if (msLeft <= 0) status = 'error'
+          else if (tokenExpiresIn < 7) status = 'warn'
+        }
       }
 
       return {
@@ -210,6 +233,8 @@ export async function checkConnectionHealth(
         status,
         followersCount: followers as number | null,
         tokenExpiresIn,
+        tokenExpiresInHours,
+        renewsAutomatically,
       }
     })
 
