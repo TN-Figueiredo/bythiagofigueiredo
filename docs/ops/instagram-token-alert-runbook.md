@@ -58,7 +58,27 @@ sessão do dono — é o único bloqueio que não pode ser automatizado a partir
 `INSTAGRAM_APP_ID`, `INSTAGRAM_APP_SECRET`, `SOCIAL_MASTER_KEY` presentes em `production`
 (`vercel env ls production | grep -E 'INSTAGRAM_APP_ID|INSTAGRAM_APP_SECRET|SOCIAL_MASTER_KEY'`).
 
-**Verificado 2026-09-07 (controlador) — REPROVADO, é o único bloqueio da superfície de C3:**
+**RESOLVIDO em 2026-09-18.** `INSTAGRAM_APP_ID = 961792393320874` (não é segredo — vai na URL do
+OAuth por desenho) e `INSTAGRAM_APP_SECRET` gravados em Production, e a produção redeployada para
+que passassem a valer. Confirmado no ar pela mudança de resposta do callback: era `503`
+`not_configured`, virou `400` por `state` ausente — ou seja, passou do app id/secret e do cofre.
+
+O app do Instagram **não era** o do Facebook. Provado com o MESMO segredo falso nos dois ids, de
+modo que a única variável foi o id:
+
+| `client_id` em `api.instagram.com/oauth/access_token` | Resposta |
+|---|---|
+| `961792393320874` (Instagram) | `"Invalid authorization code"` — app aceito |
+| `1296945938484937` (Facebook) | `"Invalid platform app"` — app recusado |
+
+Caminho no painel (labels de 2026-09, em PT-BR): *Casos de uso → API do Instagram → Configuração da
+API com login do Instagram*. As três URLs ficam no diálogo **Configurações do login da empresa**,
+alcançável pelo bloco 4 ("Configurar o login da empresa no Instagram"), e **não** no bloco 3, que é
+de webhooks e não é usado por este fluxo.
+
+---
+
+**Histórico — verificado 2026-09-07 (controlador), REPROVADO à época:**
 ```
 SOCIAL_MASTER_KEY   Config   Production   (presente)
 NTFY_URL            Secret   Production   (presente)
