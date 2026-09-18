@@ -31,8 +31,21 @@ Host que serve sem 308: `<apex | www>`.
 `INSTAGRAM_APP_ID`, `INSTAGRAM_APP_SECRET`, `SOCIAL_MASTER_KEY` presentes em `production`
 (`vercel env ls production | grep -E 'INSTAGRAM_APP_ID|INSTAGRAM_APP_SECRET|SOCIAL_MASTER_KEY'`).
 
+**Verificado 2026-09-07 (controlador) — REPROVADO, é o único bloqueio da superfície de C3:**
+```
+SOCIAL_MASTER_KEY   Config   Production   (presente)
+NTFY_URL            Secret   Production   (presente)
+INSTAGRAM_APP_ID                          AUSENTE
+INSTAGRAM_APP_SECRET                      AUSENTE
+```
+Degradação confirmada no ar e correta: `GET /api/instagram/oauth/callback` responde **503** com
+`code: "not_configured"`, mensagem legível ("Instagram OAuth isn't configured yet — see the setup
+runbook") e link de volta para `/cms/settings/instagram`. Nenhum vazamento. A cola manual segue
+funcionando. Basta definir as duas envs em `production` (+ redeploy) para o botão passar a existir.
+
 ### Consentimento
 `select count(*) from consent_texts where category='social_feed_read'` = `<esperado: 2>`.
+**Verificado em produção 2026-09-07 (controlador): `2`** (duas linhas, ambas `version = 1.0`). APROVADO.
 
 ### Conta no app
 App Dashboard > Roles > Instagram Testers: a conta profissional do dono aparece como tester
@@ -42,6 +55,46 @@ App Dashboard > Roles > Instagram Testers: a conta profissional do dono aparece 
 Executado depois da promoção (exige o código em produção): é **bloqueante para manter C3 em
 produção** — se falhar, rollback pelo §7. Procedimento e resultado ficam registrados abaixo, na
 seção "Pós-deploy C3".
+
+## Incidente: o vigia externo ficou cego 11 dias (2026-09-07 → 2026-09-18)
+
+**Sintoma:** as 74 execuções do workflow `Health Watch` entre 2026-09-07 e 2026-09-18 falharam —
+100%. `/api/health` respondia `ok` o tempo todo.
+
+**Causa:** o secret `CRON_SECRET` nunca foi criado no repositório. O workflow manda
+`Authorization: Bearer ${{ secrets.CRON_SECRET }}`, o header ia vazio, `/api/health` recusava com
+401 e o probe classificava 401 como `not-ok` — indistinguível do site fora do ar.
+
+**Por que era grave, e não só barulhento:**
+1. `STATE` e `PREV_STATE` travaram os dois em `not-ok`, então **nenhuma transição voltava a ser
+   detectável**. Uma queda real do site não geraria alerta nenhum: o vigia já estava gritando.
+2. O ramo `re-alert` disparava push **urgente falso** a cada 6 h, gastando o mesmo canal que carrega
+   o alerta verdadeiro. O último foi 2026-09-18 04:59 UTC.
+3. O GitHub só manda e-mail na **primeira** falha de um workflow agendado e na recuperação — por
+   isso 11 dias passaram sem ninguém notar.
+
+**Conserto (2026-09-18):** `printf '%s' "$CRON_SECRET" | gh secret set CRON_SECRET` (o valor de
+`apps/web/.env.local`). Atenção: `gh secret set NOME --body -` grava a string literal `-` — o `gh`
+lê da entrada padrão **sem** `--body`. Foi assim que a primeira tentativa gravou lixo e o run
+seguinte continuou em 401. Confirmado depois: `http_code=200`, `state=ok`, transição
+`not-ok → ok`, push `health-watch: recuperado` entregue.
+
+**Endurecimento no mesmo commit** (`.github/workflows/health-watch.yml`):
+- **Três estados, não dois.** `blind` (401/403) é "a sonda não consegue autenticar", separado de
+  `not-ok` ("o site não respondeu"). `000` de timeout/DNS/TLS continua `not-ok`.
+- **Transição = qualquer mudança de estado**, em vez da lista de pares `ok`↔`not-ok`, que não tinha
+  saída para um terceiro estado.
+- **Cláusula `never-alerted`:** estar num estado ruim sem nunca ter alertado passa a alertar. É o que
+  teria quebrado o silêncio deste incidente já no primeiro ciclo.
+- Secret vazio emite `::error::` nomeando a causa, mas **não** aborta: abortar recriaria o silêncio.
+- `Save state` só roda se o arquivo existir, para não trocar o erro real por um erro de cache.
+
+Verificado por matriz de 11 casos + 5 mutações (todas pegas) antes do push — harness em
+`.superpowers/` do dia.
+
+**Pendente de decisão:** as 74 execuções em 11 dias dão **uma a cada ~3,5 h**, não as 15 min do
+`cron: '*/15'` — o GitHub estrangula o agendamento. Os crons de grace 15 min (`sync-youtube`, que é
+`critical`) podem ficar até ~3,5 h mortos antes do vigia externo perceber.
 
 ## O ntfy tocou — o que fazer
 
@@ -117,9 +170,10 @@ e o `check.sh` do home-lab são a terceira perna).
 **Intervalo de commits (rollback é um comando só):**
 
 ```
-C3 = <FIRST>..<LAST>
-git revert --no-commit <FIRST>^..<LAST> && git commit -m "revert(instagram): C3 — OAuth de um clique"
+C3 = 4d632382..219d533e   (4d632382 rotas+página, 3382c055 ações+settings, 740f2fde UI+docs, 219d533e fix da rota de exclusão)
+git revert --no-commit 4d632382^..219d533e && git commit -m "revert(instagram): C3 — OAuth de um clique"
 ```
+Merge em `main`: `f7234430`.
 
 Ordem obrigatória de rollback: **C3 → C4 → C2 → C1 → B → A5 → A4 → A**. Reverter C2 **exige** o passo
 de banco descrito em §7 do design doc — "só reverter o deploy" está proibido para C2.
@@ -141,6 +195,16 @@ curl -s -o /dev/null -w '%{http_code}\n' https://bythiagofigueiredo.com/api/inst
 curl -s -o /dev/null -w '%{http_code}\n' https://bythiagofigueiredo.com/api/instagram/data-deletion
 # esperado: 405 405
 ```
+
+**Resultado 2026-09-07 (controlador), contra produção:**
+
+| Checagem | Esperado | Obtido | Veredito |
+|---|---|---|---|
+| (a) `/api/instagram/oauth/callback` | `no-referrer` + `no-store` | `referrer-policy: no-referrer`, `cache-control: no-store` (HTTP 503 `not_configured`, esperado sem as envs) | **APROVADO** |
+| (a) `/data-deletion?code=0…0` | `no-referrer` | HTTP 200, `referrer-policy: no-referrer` | **APROVADO** |
+| (c) `GET /api/instagram/deauthorize` | `405` | `405` | **APROVADO** |
+| (c) `GET /api/instagram/data-deletion` | `405` | `405` | **APROVADO** |
+| (b) 302 do início sem `force_reauth` | — | **NÃO EXECUTADO** — exige cookie de sessão do CMS **e** `INSTAGRAM_APP_ID`/`SECRET` definidas | pendente do dono |
 
 **Gate móvel (bloqueante):** forçar um alerta numa conta de teste, tocar o `Click` do push **no
 aparelho do dono** (iOS Safari **e** Android Chrome) e completar até "Connected!"; conferir no card
