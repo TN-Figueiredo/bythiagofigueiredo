@@ -44,10 +44,30 @@ const PERMISSION_ENUM = new Set([
 interface FlatExchange {
   access_token?: string
   user_id?: string | number
-  permissions?: string
+  /**
+   * A Meta devolve LISTA (`["instagram_business_basic", …]`) na troca real,
+   * mas o formato de texto separado por vírgula também circula na
+   * documentação. Aceitar os dois é o que faz a rota sobreviver à diferença.
+   */
+  permissions?: string | string[]
   code?: number
   error_type?: string
   error_message?: string
+}
+
+/**
+ * Normaliza `permissions` venha ele como lista ou como texto.
+ *
+ * Bug encontrado em 2026-09-18, na PRIMEIRA troca real com o app da Meta
+ * configurado: o código fazia `(d.permissions ?? '').split(',')` assumindo
+ * texto, a Meta mandou lista, e o `TypeError` era engolido pelo `catch` do
+ * bloco e reportado ao dono como "Instagram rejected the authorization" — uma
+ * mensagem que aponta para a Meta quando a culpa era nossa. O token curto já
+ * tinha sido emitido; a conexão morria aqui, um passo depois.
+ */
+function parsePermissions(raw: string | string[] | undefined): string[] {
+  const parts = Array.isArray(raw) ? raw.map((p) => String(p)) : String(raw ?? '').split(',')
+  return parts.map((p) => p.trim()).filter(Boolean)
 }
 
 function normalizeHandle(raw: string | null): string {
@@ -197,7 +217,7 @@ export async function GET(req: NextRequest): Promise<Response> {
       return finish({ success: false, code: 'exchange_failed', error: text, targetOrigin })
     }
 
-    const perms = (d.permissions ?? '').split(',').map((p) => p.trim()).filter(Boolean)
+    const perms = parsePermissions(d.permissions)
     if (perms.length > 0 && !perms.includes('instagram_business_basic')) {
       return finish({ success: false, code: 'permission_denied', targetOrigin })
     }
