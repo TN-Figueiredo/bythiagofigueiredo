@@ -338,6 +338,30 @@ describe('GET /api/instagram/oauth/callback', () => {
     expect(updateSpy).not.toHaveBeenCalled()
   })
 
+  it('a recusa da troca vai para o LOG do servidor, redigida, alem do Sentry', async () => {
+    // 2026-09-18: na primeira configuracao real do app da Meta a troca falhou,
+    // e a unica copia do motivo estava num Sentry cujo token do projeto e so de
+    // build. O sistema sabia por que falhou e nao contava a ninguem que pudesse
+    // agir. O corpo CRU entra no log porque a forma do erro varia entre a flat
+    // de api.instagram.com e a aninhada em `error` das Graph APIs.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    mockFetch.mockReset()
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      json: async () => ({ error: { message: 'Invalid platform app', type: 'OAuthException' } }),
+    })
+
+    const res = await GET(req(`?code=abc&state=${encodeURIComponent(validState())}`))
+    expect(await res.text()).toContain('"code":"exchange_failed"')
+
+    const linha = warn.mock.calls.map((c) => String(c[0])).find((l) => l.includes('[instagram-oauth]'))
+    expect(linha, 'nada foi logado no servidor').toBeDefined()
+    expect(linha).toContain('Invalid platform app')
+    expect(linha).toContain('400')
+    warn.mockRestore()
+  })
+
   it('uses me.id for ig_user_id and warns once when the exchange user_id differs', async () => {
     vi.mocked(fetchInstagramProfile).mockResolvedValue({ id: '17841499999999999', userId: '9988776655', username: 'thiago.figueiredo' })
     mockDb({ target: { id: ACCOUNT, site_id: SITE, handle: 'thiago.figueiredo', ig_user_id: '17841499999999999', ig_user_id_source: 'oauth' } })

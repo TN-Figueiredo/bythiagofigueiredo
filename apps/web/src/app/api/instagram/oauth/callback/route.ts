@@ -175,6 +175,18 @@ export async function GET(req: NextRequest): Promise<Response> {
     if (!d.access_token) {
       // MUST: só o `code` numérico chega ao dono; o `error_message` da Meta vai
       // redigido ao Sentry e NUNCA para o popup (§2 proíbe string de máquina).
+      //
+      // O MESMO payload vai para o log do servidor (2026-09-18). Motivo: na
+      // primeira configuração real do app da Meta esta troca falhou, e a única
+      // cópia do motivo estava num Sentry cujo token do projeto é só de build —
+      // ou seja, o sistema sabia por que falhou e não contava a ninguém que
+      // pudesse agir. O log da Vercel é privado ao projeto e o payload passa
+      // pelo mesmo `redact`, então não há superfície nova de vazamento. O corpo
+      // CRU entra porque a forma do erro varia (a flat de api.instagram.com e a
+      // aninhada em `error` das Graph APIs) e a leitura por campo perde
+      // justamente o caso que não foi previsto.
+      const diag = redact(JSON.stringify({ status: exRes.status, body: exJson }))
+      console.warn(`[instagram-oauth] code exchange rejected: ${diag}`)
       Sentry.captureMessage(
         `instagram code exchange rejected: ${redact(JSON.stringify({ code: d.code, error_type: d.error_type, error_message: d.error_message }))}`,
         'warning',
