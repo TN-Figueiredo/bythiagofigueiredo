@@ -56,6 +56,46 @@ Executado depois da promoção (exige o código em produção): é **bloqueante 
 produção** — se falhar, rollback pelo §7. Procedimento e resultado ficam registrados abaixo, na
 seção "Pós-deploy C3".
 
+## Incidente: o vigia externo ficou cego 11 dias (2026-09-07 → 2026-09-18)
+
+**Sintoma:** as 74 execuções do workflow `Health Watch` entre 2026-09-07 e 2026-09-18 falharam —
+100%. `/api/health` respondia `ok` o tempo todo.
+
+**Causa:** o secret `CRON_SECRET` nunca foi criado no repositório. O workflow manda
+`Authorization: Bearer ${{ secrets.CRON_SECRET }}`, o header ia vazio, `/api/health` recusava com
+401 e o probe classificava 401 como `not-ok` — indistinguível do site fora do ar.
+
+**Por que era grave, e não só barulhento:**
+1. `STATE` e `PREV_STATE` travaram os dois em `not-ok`, então **nenhuma transição voltava a ser
+   detectável**. Uma queda real do site não geraria alerta nenhum: o vigia já estava gritando.
+2. O ramo `re-alert` disparava push **urgente falso** a cada 6 h, gastando o mesmo canal que carrega
+   o alerta verdadeiro. O último foi 2026-09-18 04:59 UTC.
+3. O GitHub só manda e-mail na **primeira** falha de um workflow agendado e na recuperação — por
+   isso 11 dias passaram sem ninguém notar.
+
+**Conserto (2026-09-18):** `printf '%s' "$CRON_SECRET" | gh secret set CRON_SECRET` (o valor de
+`apps/web/.env.local`). Atenção: `gh secret set NOME --body -` grava a string literal `-` — o `gh`
+lê da entrada padrão **sem** `--body`. Foi assim que a primeira tentativa gravou lixo e o run
+seguinte continuou em 401. Confirmado depois: `http_code=200`, `state=ok`, transição
+`not-ok → ok`, push `health-watch: recuperado` entregue.
+
+**Endurecimento no mesmo commit** (`.github/workflows/health-watch.yml`):
+- **Três estados, não dois.** `blind` (401/403) é "a sonda não consegue autenticar", separado de
+  `not-ok` ("o site não respondeu"). `000` de timeout/DNS/TLS continua `not-ok`.
+- **Transição = qualquer mudança de estado**, em vez da lista de pares `ok`↔`not-ok`, que não tinha
+  saída para um terceiro estado.
+- **Cláusula `never-alerted`:** estar num estado ruim sem nunca ter alertado passa a alertar. É o que
+  teria quebrado o silêncio deste incidente já no primeiro ciclo.
+- Secret vazio emite `::error::` nomeando a causa, mas **não** aborta: abortar recriaria o silêncio.
+- `Save state` só roda se o arquivo existir, para não trocar o erro real por um erro de cache.
+
+Verificado por matriz de 11 casos + 5 mutações (todas pegas) antes do push — harness em
+`.superpowers/` do dia.
+
+**Pendente de decisão:** as 74 execuções em 11 dias dão **uma a cada ~3,5 h**, não as 15 min do
+`cron: '*/15'` — o GitHub estrangula o agendamento. Os crons de grace 15 min (`sync-youtube`, que é
+`critical`) podem ficar até ~3,5 h mortos antes do vigia externo perceber.
+
 ## O ntfy tocou — o que fazer
 
 > Nenhum push carrega handle, id, token ou motivo (REGRA-PII-NTFY, §0), então a triagem é sempre:

@@ -47,6 +47,12 @@ jobs:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           set -uo pipefail
+          # Secret ausente NÃO aborta o passo: a sonda segue, recebe 401, cai em
+          # `blind` e ALERTA. Abortar aqui recriaria exatamente o silêncio de
+          # 2026-09-07..18, quando 74 runs seguidas falharam e nada avisou.
+          if [ -z "${CRON_SECRET:-}" ]; then
+            echo "::error::health-watch: secrets.CRON_SECRET ausente — a sonda não consegue autenticar. Grave com: gh secret set CRON_SECRET"
+          fi
           # O corpo NUNCA é ecoado: repositório público, logs de Actions
           # mundialmente legíveis, e o payload de saúde carrega mensagens de
           # erro em texto livre como 'alert channel down: terminal refusal
@@ -60,10 +66,19 @@ jobs:
           late="$(jq -r '[.crons[]? | select(.status=="late") | .name] | join(", ")' "$RUNNER_TEMP/health.json" 2>/dev/null || echo '')"
           unknown="$(jq -r '(.unknownNames // []) | join(", ")' "$RUNNER_TEMP/health.json" 2>/dev/null || echo '')"
 
-          # not ok = http != 200 (inclui 000 de timeout/DNS/TLS e 401 de
-          # CRON_SECRET rotacionado) OU status != ok. /api/health responde 503
-          # só em `down`, 200 no resto.
-          if [ "$http_code" != "200" ] || [ "$status" != "ok" ]; then
+          # TRÊS estados, não dois. `blind` (401/403) é a sonda que não
+          # consegue AUTENTICAR — não é o site fora do ar, e confundir os dois
+          # foi o defeito de 2026-09-07..18: o secret do repositório nunca
+          # existiu, o 401 virou "not-ok", o estado travou lá — logo nenhuma
+          # transição voltou a ser detectável e uma queda real passaria
+          # despercebida — e o ramo `re-alert` disparou push urgente FALSO a
+          # cada 6 h por 11 dias. `blind` tem transição e re-alerta próprios,
+          # com texto que diz o que de fato aconteceu, e nunca se mistura com a
+          # máquina ok/not-ok. `000` (timeout/DNS/TLS) continua sendo not-ok:
+          # ali o site realmente não respondeu.
+          if [ "$http_code" = "401" ] || [ "$http_code" = "403" ]; then
+            state="blind"
+          elif [ "$http_code" != "200" ] || [ "$status" != "ok" ]; then
             state="not-ok"
           else
             state="ok"
@@ -157,43 +172,64 @@ jobs:
             exit 1
           }
 
-          body="Crons late: ${LATE:-none} · unknown: ${UNKNOWN:-none}"
+          if [ "$STATE" = "blind" ]; then
+            # Nunca ecoar secret nem corpo da resposta — só o código e a causa.
+            body="A sonda não conseguiu autenticar em /api/health (HTTP ${HTTP_CODE}): secrets.CRON_SECRET ausente ou desatualizado. Enquanto durar, este vigia NÃO enxerga o site."
+          else
+            body="Crons late: ${LATE:-none} · unknown: ${UNKNOWN:-none}"
+          fi
 
+          # Transição = QUALQUER mudança de estado. A forma antiga enumerava só
+          # os pares ok<->not-ok: um terceiro estado ficaria sem saída, e um
+          # estado travado nunca mais alertava. A cláusula do `alerted_at` vazio
+          # fecha a outra metade do mesmo buraco — estar num estado ruim sem
+          # nunca ter alertado (cache perdido, push recusado antes) tem de
+          # alertar, não virar silêncio permanente.
           should_alert="no"
-          if [ "$STATE" = "not-ok" ] && [ "$PREV_STATE" = "ok" ]; then
-            should_alert="transition-down"
-          elif [ "$STATE" = "ok" ] && [ "$PREV_STATE" = "not-ok" ]; then
-            should_alert="recovered"
-          elif [ "$STATE" = "not-ok" ] && [ -n "$alerted_at" ] \
+          if [ "$STATE" != "$PREV_STATE" ]; then
+            should_alert="transition"
+          elif [ "$STATE" != "ok" ] && [ -z "$alerted_at" ]; then
+            should_alert="never-alerted"
+          elif [ "$STATE" != "ok" ] && [ -n "$alerted_at" ] \
                && [ $((now - alerted_at)) -ge "$REALERT_AFTER_SECONDS" ]; then
             should_alert="re-alert"
           fi
 
-          # Prioridade por status; `high` segue reservado a canal caído/segundo cron.
-          if [ "$STATUS" = "degraded" ] && [ "$HTTP_CODE" = "200" ]; then
-            priority="default"
-          else
-            priority="urgent"
-          fi
-
-          case "$should_alert" in
-            recovered)
-              send "default" "health-watch: recuperado" "$body" || fail_undelivered "recovered"
-              alerted_at=""
+          case "$STATE" in
+            ok)
+              title="health-watch: recuperado"
+              priority="default"
               ;;
-            transition-down|re-alert)
-              send "$priority" "health-watch: ${STATUS}" "$body" || fail_undelivered "$should_alert"
-              alerted_at="$now"
+            blind)
+              title="health-watch: sonda cega"
+              priority="urgent"
               ;;
             *)
-              echo "health-watch: sem transição (state=$STATE prev=$PREV_STATE)"
+              title="health-watch: ${STATUS}"
+              # `high` segue reservado a canal caído/segundo cron.
+              if [ "$STATUS" = "degraded" ] && [ "$HTTP_CODE" = "200" ]; then
+                priority="default"
+              else
+                priority="urgent"
+              fi
               ;;
           esac
 
+          if [ "$should_alert" = "no" ]; then
+            echo "health-watch: sem transição (state=$STATE prev=$PREV_STATE)"
+          else
+            send "$priority" "$title" "$body" || fail_undelivered "$should_alert ($STATE)"
+            if [ "$STATE" = "ok" ]; then alerted_at=""; else alerted_at="$now"; fi
+          fi
+
           printf '%s\n%s\n' "$STATE" "$alerted_at" > .health-watch-state
 
+      # `hashFiles` devolve '' quando o arquivo não existe — o passo de alerta
+      # pode não ter rodado (probe falhou) ou ter abortado sem gravar, e
+      # actions/cache/save falha o job com "Path Validation Error" nesse caso,
+      # trocando o erro real por um erro de cache.
       - name: Save state
-        if: always()
+        if: always() && hashFiles('.health-watch-state') != ''
         uses: actions/cache/save@v4
         with:
           path: .health-watch-state
