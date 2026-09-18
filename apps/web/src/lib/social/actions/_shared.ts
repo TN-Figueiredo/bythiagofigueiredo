@@ -33,4 +33,11 @@ export function revalidateSocialPaths(): void {
 export type SafeConnection = Omit<
   SocialConnection,
   'access_token_enc' | 'refresh_token_enc' | 'page_token_enc'
->
+> & {
+  /**
+   * A conexão guarda refresh token, logo o access token vencido é o ciclo
+   * NORMAL — `ensureFreshToken` o troca sob demanda. Booleano DERIVADO: o
+   * token em si nunca cruza para o cliente.
+   */
+  renews_automatically: boolean
+}

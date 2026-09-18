@@ -106,6 +106,8 @@ export function toSocialConnection(row: Record<string, unknown>): SocialConnecti
 
 export function toSafeConnection(row: Record<string, unknown>): SafeConnection {
   return {
+    renews_automatically:
+      row.refresh_token_enc != null || row.bluesky_refresh_jwt_enc != null,
     id: String(row.id ?? ''),
     site_id: String(row.site_id ?? ''),
     provider: row.provider as Provider,

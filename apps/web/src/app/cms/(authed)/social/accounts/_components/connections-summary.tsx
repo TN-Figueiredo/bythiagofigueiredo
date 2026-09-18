@@ -8,6 +8,7 @@ interface SafeConnection {
   account_id: string
   account_name: string | null
   token_expires_at: string | null
+  renews_automatically?: boolean
   connected_at: string
   revoked_at: string | null
   scopes: string[]
@@ -28,7 +29,8 @@ export function ConnectionsSummary({ connections, strings: t }: ConnectionsSumma
   let expired = 0
 
   for (const conn of connections) {
-    if (!conn.token_expires_at) {
+    // Mesma regra do cartão: quem tem refresh token conta como ativa.
+    if (!conn.token_expires_at || conn.renews_automatically) {
       active++
       continue
     }

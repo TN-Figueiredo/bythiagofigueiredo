@@ -17,6 +17,7 @@ export interface SafeConnection {
   account_id: string
   account_name: string | null
   token_expires_at: string | null
+  renews_automatically?: boolean
   connected_at: string
   revoked_at: string | null
   scopes: string[]
@@ -114,7 +115,27 @@ type TokenHealth = {
   barClass: string
 }
 
-function getTokenHealth(expiresAt: string | null, t: SocialStrings): TokenHealth {
+function getTokenHealth(
+  expiresAt: string | null,
+  t: SocialStrings,
+  renewsAutomatically = false,
+): TokenHealth {
+  // Conexão com refresh token não vence do ponto de vista do dono: o access
+  // token do Google dura ~1 h e é trocado sob demanda por `ensureFreshToken`.
+  // Mostrar "Expirando" logo após conectar era literalmente verdade sobre o
+  // access token e completamente falso sobre a conexão — e ensina a ignorar o
+  // aviso. Se o REFRESH token morrer, quem denuncia é a falha do job que o usa.
+  if (renewsAutomatically) {
+    return {
+      status: 'active',
+      daysLeft: null,
+      percent: 100,
+      label: t.accounts.connections.neverExpires,
+      colorClass: 'text-green-400',
+      textClass: 'text-green-400',
+      barClass: 'bg-green-500',
+    }
+  }
   if (!expiresAt) {
     return {
       status: 'never',
@@ -476,7 +497,7 @@ function AccountCard({
   onDisconnect: (id: string) => void
   isPending: boolean
 }) {
-  const health = getTokenHealth(conn.token_expires_at, t)
+  const health = getTokenHealth(conn.token_expires_at, t, conn.renews_automatically)
   const isExpired = health.status === 'expired'
   const handle = getHandle(conn)
   const stats = getStats(conn, t)
@@ -747,7 +768,8 @@ export function MetaPlatformCard({
   const hasConnections = allConnections.length > 0
 
   // Pick the shared token expiry from any connection (they share the Meta token)
-  const sharedToken = allConnections.find(c => c.token_expires_at)?.token_expires_at ?? null
+  const sharedToken =
+    allConnections.find(c => c.token_expires_at && !c.renews_automatically)?.token_expires_at ?? null
   const sharedHealth = getTokenHealth(sharedToken, t)
 
   return (
@@ -834,7 +856,7 @@ export function MetaPlatformCard({
               <ManageDetails
                 key={conn.id}
                 conn={conn}
-                health={getTokenHealth(conn.token_expires_at, t)}
+                health={getTokenHealth(conn.token_expires_at, t, conn.renews_automatically)}
                 t={t}
                 onDisconnect={handleDisconnect}
                 isPending={isPending}
