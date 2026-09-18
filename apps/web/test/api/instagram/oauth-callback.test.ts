@@ -121,7 +121,7 @@ function mockDb(opts: {
 const mockFetch = vi.fn()
 vi.stubGlobal('fetch', mockFetch)
 
-function exchangeOk(permissions = 'instagram_business_basic') {
+function exchangeOk(permissions: string | string[] = 'instagram_business_basic') {
   mockFetch
     .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [{ access_token: 'short', user_id: 17841400000000000, permissions }] }) })
     .mockResolvedValueOnce({ ok: true, json: async () => ({ access_token: 'long-lived-token', expires_in: 5_184_000 }) })
@@ -388,6 +388,43 @@ describe('GET /api/instagram/oauth/callback', () => {
     expect(linha, 'o lancamento sumiu').toBeDefined()
     expect(linha).toContain('nonexisting field')
     warn.mockRestore()
+  })
+
+  it('aceita `permissions` como LISTA, que e o que a Meta manda de verdade', async () => {
+    // Bug de 2026-09-18, na PRIMEIRA troca real com o app configurado: o codigo
+    // fazia `(d.permissions ?? '').split(',')` assumindo texto, a Meta mandou
+    // lista, e o TypeError era engolido pelo catch e reportado ao dono como
+    // "Instagram rejected the authorization" — culpa apontada para a Meta
+    // quando era nossa. O token curto ja tinha sido emitido.
+    mockFetch.mockReset()
+    exchangeOk(['instagram_business_basic', 'instagram_business_manage_comments'])
+    const res = await GET(req(`?code=abc&state=${encodeURIComponent(validState())}`))
+    expect(await res.text()).toContain('"success":true')
+    expect(updateSpy).toHaveBeenCalled()
+  })
+
+  it('segue aceitando `permissions` como TEXTO separado por virgula', async () => {
+    mockFetch.mockReset()
+    exchangeOk('instagram_business_basic,instagram_business_manage_messages')
+    const res = await GET(req(`?code=abc&state=${encodeURIComponent(validState())}`))
+    expect(await res.text()).toContain('"success":true')
+  })
+
+  it('a checagem de permissao obrigatoria funciona nas DUAS formas', async () => {
+    mockFetch.mockReset()
+    exchangeOk(['instagram_business_manage_comments'])
+    const a = await GET(req(`?code=abc&state=${encodeURIComponent(validState())}`))
+    expect(await a.text()).toContain('"code":"permission_denied"')
+
+    mockFetch.mockReset()
+    exchangeOk('instagram_business_manage_comments')
+    const b = await GET(req(`?code=abc&state=${encodeURIComponent(validState())}`))
+    expect(await b.text()).toContain('"code":"permission_denied"')
+
+    // `permission_denied` retorna ANTES da segunda chamada, entao a resposta
+    // longa fica na fila do mock. `clearAllMocks` do beforeEach nao esvazia a
+    // fila de `once`, e o resto do arquivo herdaria a sobra.
+    mockFetch.mockReset()
   })
 
   it('uses me.id for ig_user_id and warns once when the exchange user_id differs', async () => {
