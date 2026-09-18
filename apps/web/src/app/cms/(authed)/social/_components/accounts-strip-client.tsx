@@ -36,7 +36,13 @@ function formatFollowerCount(count: number | null): string {
 
 function getSubtitle(conn: ConnectionHealth): { text: string; isWarn: boolean } {
   if (conn.status === 'warn' && conn.tokenExpiresIn != null) {
-    return { text: `Token expira em ${conn.tokenExpiresIn} dias — reconectar`, isWarn: true }
+    // Menos de um dia: horas. Dizer "1 dias" para 56 minutos é pior que não
+    // dizer nada — some a urgência real e some a confiança no aviso.
+    const prazo =
+      conn.tokenExpiresIn >= 1
+        ? `${conn.tokenExpiresIn} ${conn.tokenExpiresIn === 1 ? 'dia' : 'dias'}`
+        : `${conn.tokenExpiresInHours ?? 0} ${conn.tokenExpiresInHours === 1 ? 'hora' : 'horas'}`
+    return { text: `Token expira em ${prazo} — reconectar`, isWarn: true }
   }
   if (conn.status === 'error') {
     return { text: 'Token expirado — reconectar', isWarn: true }
@@ -93,8 +99,14 @@ export function AccountsStripClient({ connections }: AccountsStripClientProps) {
               {(conn.status === 'warn' || conn.status === 'error') && (
                 <Link
                   href={
+                    // Instagram NÃO vai para /cms/settings: aquela tela é a do
+                    // FEED (tabela instagram_accounts, OAuth próprio do
+                    // Instagram Login). Esta faixa mostra a conexão de
+                    // PUBLICAÇÃO (tabela social_connections, OAuth da Meta via
+                    // Facebook Login), que se reconecta em /cms/social/accounts.
+                    // Mandar para a outra tela levava o dono a uma superfície
+                    // que não reconecta esta conta.
                     conn.provider === 'youtube' ? '/cms/youtube'
-                    : conn.provider === 'instagram' ? '/cms/settings?section=instagram'
                     : '/cms/social/accounts'
                   }
                   className="inline-flex items-center gap-[7px] rounded-[9px] border border-cms-border px-[11px] py-1.5 text-[12.5px] font-semibold text-cms-text-dim tracking-[-0.01em] transition-colors hover:text-cms-text"
