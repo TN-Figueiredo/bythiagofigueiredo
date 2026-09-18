@@ -92,9 +92,56 @@ seguinte continuou em 401. Confirmado depois: `http_code=200`, `state=ok`, trans
 Verificado por matriz de 11 casos + 5 mutações (todas pegas) antes do push — harness em
 `.superpowers/` do dia.
 
-**Pendente de decisão:** as 74 execuções em 11 dias dão **uma a cada ~3,5 h**, não as 15 min do
-`cron: '*/15'` — o GitHub estrangula o agendamento. Os crons de grace 15 min (`sync-youtube`, que é
-`critical`) podem ficar até ~3,5 h mortos antes do vigia externo perceber.
+### A cadência do GitHub — medida, e resolvida movendo a classe de falha (2026-09-18)
+
+**Medição:** 40 execuções agendadas dão intervalo **mediano de 204 min** (mínimo 111, máximo 352).
+Nunca perto dos 15 min do `cron:`. O repositório é público, então não é cota de minutos; os dois
+workflows disparam no mesmo instante (09:35:37 e 09:35:55), ou seja, o GitHub agrupa os
+agendamentos vencidos numa janela que abre a cada 2–6 h. **Mexer na expressão não adianta:** o
+`uptime.yml` pede `*/5` e recebe a mesma janela. O `uptime-probe` de dentro da Vercel já registrava
+isto ("GitHub's scheduler ran that once in 68 minutes during the 2026-09-05 incident window").
+
+**Quem cobria o quê, antes:**
+
+| Classe de falha | Detector | Latência |
+|---|---|---|
+| Site fora do ar ou lento | `uptime-probe` (Vercel, `*/5`) | ~5 min |
+| Vercel inteira morta | `uptime.yml` + `health-watch.yml` | 2–6 h |
+| **Um cron parou de rodar** | **só `health-watch.yml`** | **2–6 h** |
+
+`health-watch.yml` era o **único** consumidor de `/api/health` no repositório, e nada dentro da
+Vercel lia atraso de cron.
+
+**Resolução:** a avaliação saiu de `src/app/api/health/route.ts` para
+`src/lib/ops/cron-health-report.ts`, e o cron `/api/cron/cron-watchdog` (`*/15`, agendador da
+Vercel, que cumpre horário) passou a consumi-la com `sendNtfyAlert` + `claimAlert`. "Um cron parou"
+cai para **~15–30 min**. O `health-watch.yml` fica responsável só por "a Vercel inteira morreu",
+classe em que 2–6 h é adequado e que um cron da Vercel não pode cobrir — ele morreria junto.
+
+Dedupe por status: `down` ≤ 24 pushes/dia, `degraded` ≤ 4/dia. Atraso detectado cujo push foi
+recusado em definitivo (ou sem `NTFY_URL`) **falha o run** — a saúde do próprio watchdog cai, o
+`/api/health` enxerga, e a perna do GitHub tem o que ver. Barulhento é melhor que silencioso.
+
+### Defeito encontrado no caminho: crons rápidos nunca eram reportados atrasados
+
+Ao instrumentar o watchdog, a janela de atraso se revelou inalcançável para os crons mais
+frequentes. Atraso exigia `now >= lastRun + grace`, mas `lastRun` é a ocorrência mais recente
+*anterior a now*, logo `now - lastRun` é sempre menor que o intervalo. Com o piso
+`MIN_GRACE_MINUTES = 15`, todo cron de intervalo ≤ 15 min tinha `grace >= intervalo` e o prazo
+nunca vencia.
+
+**Medido: um cron `*/5` parado há 30 dias era reportado `ok`.** Valia para `publish-scheduled`,
+`notification-deliver`, `uptime-probe`, `social-publish`, `send-scheduled-newsletters`,
+`notification-unsnooze`, `links-check-expiry` — e para o próprio `cron-watchdog`. Só
+`consecutive_failures > 0` os pegava, ou seja, apenas quando rodavam e falhavam; parar de rodar era
+invisível.
+
+**Correção:** a referência passou a ser a execução esperada cujo **prazo já venceu**
+(`mostRecentDueRun`), varrendo para trás até achá-la. Para crons lentos a semântica é idêntica (a
+ocorrência vencida é a última mesmo); para os rápidos ela passa a existir. Verificado contra as **40
+linhas reais de `cron_health` de produção**: agregado segue `ok`, zero falso positivo. Regressão
+fixada em `apps/web/test/lib/ops/cron-health-report.test.ts` e provada por mutação (a janela antiga
+deixa 11 casos vermelhos).
 
 ## O ntfy tocou — o que fazer
 
