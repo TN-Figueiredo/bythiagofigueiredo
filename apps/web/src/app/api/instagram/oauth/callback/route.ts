@@ -212,6 +212,13 @@ export async function GET(req: NextRequest): Promise<Response> {
     const longRes = await fetch(longUrl.toString(), { signal: AbortSignal.timeout(EXCHANGE_TIMEOUT_MS) })
     const longJson = (await longRes.json()) as { access_token?: string; expires_in?: number }
     if (!longJson.access_token) {
+      // Segundo ponto cego (2026-09-18): esta troca devolvia `exchange_failed`
+      // sem deixar rastro NENHUM — nem log, nem Sentry. Na configuração real do
+      // app o dono via a mesma mensagem genérica de três falhas diferentes e
+      // nada distinguia qual delas era.
+      const diag = redact(JSON.stringify({ status: longRes.status, body: longJson }))
+      console.warn(`[instagram-oauth] long-lived exchange rejected: ${diag}`)
+      Sentry.captureMessage(`instagram long-lived exchange rejected: ${diag}`, 'warning')
       return finish({ success: false, code: 'exchange_failed', targetOrigin })
     }
     plainToken = longJson.access_token
@@ -237,6 +244,11 @@ export async function GET(req: NextRequest): Promise<Response> {
       igProfessionalId = null
     }
   } catch (err) {
+    // Terceiro ponto cego: qualquer lançamento do bloco (inclusive o `/me`, que
+    // é o gate de identidade) virava `exchange_failed` e só existia no Sentry.
+    console.warn(
+      `[instagram-oauth] exchange threw: ${redact(err instanceof Error ? `${err.name}: ${err.message}` : String(err))}`,
+    )
     Sentry.captureException(err, { tags: { component: 'instagram-oauth-exchange' } })
     return finish({ success: false, code: 'exchange_failed', targetOrigin })
   }

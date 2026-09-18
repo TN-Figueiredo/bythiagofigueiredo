@@ -362,6 +362,34 @@ describe('GET /api/instagram/oauth/callback', () => {
     warn.mockRestore()
   })
 
+  it('a troca de token LONGO recusada tambem deixa rastro no log', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    mockFetch.mockReset()
+    mockFetch
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [{ access_token: 'short', user_id: 1, permissions: 'instagram_business_basic' }] }) })
+      .mockResolvedValueOnce({ ok: false, status: 400, json: async () => ({ error: { message: 'boom longo', type: 'OAuthException' } }) })
+
+    const res = await GET(req(`?code=abc&state=${encodeURIComponent(validState())}`))
+    expect(await res.text()).toContain('"code":"exchange_failed"')
+    const linha = warn.mock.calls.map((c) => String(c[0])).find((l) => l.includes('long-lived exchange rejected'))
+    expect(linha, 'a segunda troca falhou em silencio').toBeDefined()
+    expect(linha).toContain('boom longo')
+    warn.mockRestore()
+  })
+
+  it('um lancamento no bloco de troca (ex.: o /me do gate de identidade) tambem deixa rastro', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    mockFetch.mockReset(); exchangeOk()
+    vi.mocked(fetchInstagramProfile).mockRejectedValue(new Error('nonexisting field (user_id)'))
+
+    const res = await GET(req(`?code=abc&state=${encodeURIComponent(validState())}`))
+    expect(await res.text()).toContain('"code":"exchange_failed"')
+    const linha = warn.mock.calls.map((c) => String(c[0])).find((l) => l.includes('exchange threw'))
+    expect(linha, 'o lancamento sumiu').toBeDefined()
+    expect(linha).toContain('nonexisting field')
+    warn.mockRestore()
+  })
+
   it('uses me.id for ig_user_id and warns once when the exchange user_id differs', async () => {
     vi.mocked(fetchInstagramProfile).mockResolvedValue({ id: '17841499999999999', userId: '9988776655', username: 'thiago.figueiredo' })
     mockDb({ target: { id: ACCOUNT, site_id: SITE, handle: 'thiago.figueiredo', ig_user_id: '17841499999999999', ig_user_id_source: 'oauth' } })

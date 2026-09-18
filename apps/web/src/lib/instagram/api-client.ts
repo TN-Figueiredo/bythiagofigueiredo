@@ -1,10 +1,18 @@
 // v21.0 expira 2027-01-21; v25.0 expira 2028-07-29 (data no runbook).
 export const GRAPH_API_BASE = 'https://graph.instagram.com/v25.0'
-// Endpoints de token (access_token / refresh_access_token): o prefixo FICA,
-// porque é a única forma com prova em produção. Só troque para
-// 'https://graph.instagram.com' se as DUAS linhas do Step 3 da Tarefa 1
-// tiverem respondido 200 — um 404 seria classificado `permanent` e marcaria
-// toda a frota no primeiro run das 11:00.
+// Endpoints de token (access_token / refresh_access_token): o prefixo FICA.
+//
+// GATE DO C2, MEDIDO EM 2026-09-18 (ficou adiado desde o início do plano porque
+// exigia um app da Meta configurado). As duas formas respondem IDÊNTICO — nada
+// de 404 na versionada:
+//
+//   graph.instagram.com/v25.0/access_token          => OAuthException 190 (token)
+//   graph.instagram.com/access_token                => OAuthException 190 (token)
+//   graph.instagram.com/v25.0/refresh_access_token  => OAuthException 190 (token)
+//   graph.instagram.com/refresh_access_token        => OAuthException 190 (token)
+//
+// Ou seja, a escolha conservadora estava certa e não custa nada. Fica como
+// está; trocar agora seria risco sem ganho.
 export const TOKEN_API_BASE = GRAPH_API_BASE
 
 const MEDIA_FIELDS =
