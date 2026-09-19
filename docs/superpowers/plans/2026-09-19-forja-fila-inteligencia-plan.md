@@ -52,6 +52,17 @@ O spec §3 chama o F0 de "um commit do site". Este plano entrega o F0 como **uma
 
 Se o dono preferir literalmente um commit só, a alternativa é fazer as tarefas em worktree isolado (`superpowers:using-git-worktrees`) e trazer para `staging` com `git merge --squash`. Não é o caminho padrão deste plano.
 
+### Regras do kit da forja (valem dos cards F0k em diante)
+
+Verificado em 2026-09-19, não suposto:
+
+- **O kit não está sob controle de versão.** `~/Workspace/forja` não é repositório git; `forja-infra`, `forja-ds` e `sitio` são repositórios próprios, e `ferramentas/` — onde vivem `docs/sitio.py`, `docs/trilha/*` e `seed_chave_forja.sh` — está fora de todos eles. Consequências, obrigatórias:
+  - **nenhuma tarefa do kit termina em `git commit`.** Termina em "salvar o arquivo" mais o portão do F0k (`python3 -m py_compile` para `.py`, `bash -n` para `.sh`);
+  - **antes de alterar um arquivo que já existe**, copie: `cp -p <arq> <arq>.bak-fase2`. Os quatro nesta situação são `docs/trilha/cartao.sh`, `docs/trilha/deploy.sh`, `docs/trilha/nova_chave.py` e `seed_chave_forja.sh`. Sem isso não há desfazer: os `.bak-*` que o `deploy.sh` cria ficam **na forja**, e um erro de edição na cópia do Mac sobrevive e viaja no próximo `K`.
+- **`ferramentas/fase2/` não existe** — o `mkdir -p` do card F0k é obrigatório, não decorativo. Ele fica **fora** do kit: o `scp -r trilha` do `K` não o leva, e é por isso que `fixture_pt.json` e `series.json` moram lá.
+- **O `python3` do Mac não tem `httpx`.** Consequência exata, medida: `teste_fila.py` **não** roda no Mac, porque carrega o worker, que importa `httpx`. Já `teste_s4.py`, `teste_calculo.py` e `teste_fila_redacao.py` **rodam**, porque são stdlib puro e não tocam no worker. (O §5/F0k do spec diz que o `teste_s4.py` não roda no Mac; está errado, e a correção está anotada na seção de divergências no fim deste plano.)
+- **Escrita na forja é do dono**, sem exceção — vale para `scp`, `install`, `mv`, `crontab -`, `systemctl`, `deploy.sh`, `nova_chave.py` e qualquer coisa que grave. O plano prepara os comandos, curtos, um por linha, em bloco de código; o dono cola. Conferência depois só por leitura (`ssh forja '<comando de leitura>'`).
+
 ### Invariantes que o F0 não pode quebrar
 
 - **`maxDuration = 60`** em `app/api/pipeline/youtube/intelligence/route.ts` e **`STALE_THRESHOLD_MINUTES = 30`** em `app/api/cron/youtube-intelligence-watchdog/route.ts` são as duas pontas da invariante de tempo do §4.1 do spec (claim → último pedido < 25 min + 30 s < 30 min do watchdog). **Os dois ganham asserção de teste neste plano** (Tasks 5 e 5d). Mudar qualquer um dos dois exige refazer a conta com o dono.
@@ -2821,6 +2832,136 @@ cd ~/Workspace/bythiagofigueiredo && npx --yes supabase@2.98.2 db query --linked
 
 ---
 
-## Cards seguintes
+---
 
-`F0.5` (fixture do canal PT) → `S4` (cartão da Trilha com o `sitio.py` novo) → `F1` (chave `forja (fila)`, feita pelo dono) → `F2` (sombra) → `F4` (liga o cron), mais o `F0k` (escrita do kit no Mac) e o `K` (o dono leva o kit à forja). **Ainda não planejados** — entram neste arquivo depois que o dono aprovar o F0. Não existe F3 nesta fase.
+# Cards da forja
+
+Ordem de execução: **F0k → K → F0 (acima) → F0.5 → S4 → F1 → F2 → F4**. O rollback é a inversa dos cards que mudam estado: **F4 → Qualidade → F1 → S4 → F0**. Não existe F3 nesta fase.
+
+A tabela do §5 do spec está em ordem de leitura, não de execução — siga a ordem acima.
+
+## Contratos do worker — fonte única
+
+`fila_intel.py` é escrito por várias tarefas que se consomem. **Estas assinaturas são autoritativas**: onde uma tarefa abaixo divergir, ela está errada e é ela que muda. Cada função tem um dono, e só o dono a define.
+
+```python
+# ── esqueleto e ambiente (card F1P) ────────────────────────────────────────────
+BASE, DEFAULT, TRAVA, LOG, JSONL, ERR, SERIES, ROTEAMENTO, ENV_FILA, SOMBRA  # constantes de módulo
+def carregar_sitio() -> module          # por AGENTE_SITIO; dele saem norm, _t, EMOJI
+def main(argv=None, *, agora_mono=time.monotonic, dormir=..., agora=...,
+         abrir_site=..., abrir_llama=...) -> int      # devolve 0/75; NÃO chama sys.exit
+#   dormir é async · abrir_site/abrir_llama são chamados SEM argumento e usados com `async with`
+
+# ── segredos (card F1) ─────────────────────────────────────────────────────────
+def ler_env_fila(caminho) -> tuple[str | None, list[str], str | None]
+#   motivo ∈ {None, env_ausente, env_ilegivel, chave_ausente, chave_duplicada, chave_formato}
+#   não confere o modo 0600 do arquivo — quem confere é `nova_chave.py --fila`
+def ler_default(caminho) -> tuple[str | None, dict[str, str]]     # (chave {read}, {'PT': uuid, 'EN': uuid})
+def ler_config() -> Config              # interface do laço; miolo = os dois leitores acima
+
+# ── cálculo (card F2F) ─────────────────────────────────────────────────────────
+def features(snapshot: dict, series: dict, hoje: datetime.date) -> dict
+def escolher(feats: dict) -> dict
+#   -> {channel_insights: {patterns_detected, analysis_text}, coaching: {priorities: []},
+#       series: [...], motivos: [...]}        # sem video_recommendations, sem notifications
+
+# ── redação e validação (card F2R) ─────────────────────────────────────────────
+AVISO_ESTREITO: str                     # 50 caracteres
+MAX: int                                # 500 - len(AVISO_ESTREITO) - 10 = 440
+S: dict                                 # o json_schema da gramática
+SISTEMA_FILA: str
+def montar_entrada(feats: dict, escolhido: dict) -> dict          # a ENTRADA do §4.4
+def mensagens(entrada: dict) -> list[dict]
+async def gerar(cli_llama, msgs: list, restante_s: float, seed: int | None = None) -> tuple[str | None, str | None, dict]
+def redigir(cli_llama, entrada, restante, gerar_=gerar) -> dict
+def aparar(s: str) -> tuple[str, str | None]                      # (texto, 'curto' | None)
+def prefixar(summary: str) -> str
+def aplicar_summary(payload: dict, summary: str) -> dict
+def limites(payload: dict) -> list[str]                           # item 1 -> ['zod: <campo>']
+def escopo(payload: dict) -> list[str]                            # item 2 -> ['escopo: <campo>']
+def validar(payload: dict, entrada: dict, texto: str) -> tuple[list[str], list[str]]
+def template_summary(entrada: dict) -> str                        # item 6
+
+# ── site (card S4, em sitio.py) ────────────────────────────────────────────────
+async def pedir(cli, metodo, caminho, params=None, agora=time.time, *,
+                corpo=None, fase=FASE, chave=None, timeout=None)
+class FalhaSite(Exception):
+    def __init__(self, tipo, rota, detalhe="", *, status=None)    # 1º posicional é TIPO, não rota
+ROTAS_FASE[2] = ROTAS_FASE[1] + 4 rotas
+
+# ── dublês e harness (cards S4 e TF) ───────────────────────────────────────────
+class CliFalso:
+    def __init__(self, troca=None, status=None, erro=None, gigante=None, busca=None, respostas=None)
+    async def request(self, metodo, url, params=None, json=None, headers=None,
+                      timeout=None, follow_redirects=True)
+    # .chamadas [(caminho, params, headers)]   .pedidos [(metodo, caminho, json)]
+def rodar(argv=("--cron",), *, site=None, llama=None, quando=QUANDO, passo=0.0, t0=1000.0, ...)
+def casos(F, exige)      # hook que teste_calculo.py e teste_fila_redacao.py expõem ao harness
+```
+
+**A linha do jsonl traz sempre** `quando`, `modo`, `desfecho`, `claim`, `task`, `motivos` — são exatamente os seis campos que o bloco do pulso lê, e nenhum caminho de saída pode omitir um deles (inclusive `morto`, `bug` e `config`, onde `task` e `claim` são `null`). Os demais campos do §4.1 (`etapa`, `canal`, `ms`, `tentativas`, `seeds`, `tokens`, `fallback`) entram quando houver, e ninguém depende deles.
+
+## Arquivos de teste do kit — quem roda onde
+
+| Arquivo | Cobre | Roda no Mac? | Entrada |
+|---|---|---|---|
+| `trilha/teste_calculo.py` | §4.2, §4.3 | **sim** (stdlib) | sozinho, ou por `casos(F, exige)` |
+| `trilha/teste_fila_redacao.py` | §4.4, §4.5 | **sim** (stdlib) | sozinho, ou por `casos(F, exige)` |
+| `trilha/teste_fila.py` | §4.1, §4.6, §4.7 e os dois acima | **não** (carrega o worker, que importa `httpx`) | entrada única na forja |
+| `trilha/teste_s4.py` | `sitio.py` fase 2 | **sim**, com `AGENTE_SITIO` | `cartao.sh S4` |
+| `fase2/teste_pulso_fila.py` | o bloco do pulso (§6) | **sim** (shell + stdlib) | passo 3 do F4 |
+
+Os dois primeiros rodarem no Mac é o que dá ciclo de TDD local para a parte mais densa em números. É por isso que este plano **não** tem um modo `--dubles` no harness nem um venv descartável: as duas ideias existiam só para contornar a falta desse ciclo.
+
+---
+
+# Divergências entre este plano e o spec
+
+O spec v11 é a fonte da verdade e passou por 10 rodadas de revisão. Ao transformá-lo em plano, oito frentes leram o código real do kit e do site e acharam os pontos abaixo. **Nada aqui foi decidido sozinho: cada item diz o que o spec manda, o que o plano faz, e por quê.** Os marcados **[DONO]** esperam decisão antes da execução do card correspondente.
+
+## A. Erros do spec — o plano corrige
+
+| # | Onde | O que o spec diz | Por que está errado | O plano |
+|---|---|---|---|---|
+| A1 | §4.6, `pedir` | `FalhaSite(caminho, …)` do tipo `sem_chave` | O primeiro posicional de `FalhaSite` é **`tipo`**, não a rota (`sitio.py:45-48`); o próprio `sitio.py:101` faz `FalhaSite("sem_chave", caminho)`. Ao pé da letra, o spec constrói a exceção com o tipo trocado pela rota | usa `FalhaSite("sem_chave", caminho)` |
+| A2 | §5, card F0k | `teste_s4.py` não roda no Mac "porque o worker importa `httpx`" | O `teste_s4.py` **não toca no worker** — testa o `sitio.py`. Verificado: roda no Mac, com `AGENTE_SITIO` obrigatório (sem ele o `next()` de `teste_s1.py:8-10` estoura `StopIteration`). A justificativa vale só para o `teste_fila.py` | `teste_s4.py` entra no ciclo de TDD do Mac; o portão do F0k não muda |
+| A3 | §5, card S4 | a célula não declara dependências | Sem o `fila_intel.py` e o `teste_fila.py` já na forja, o bloco novo do `cartao.sh` reprova o cartão com `sem fila_intel.py` | F0k e K viram pré-condição explícita do S4 |
+
+## B. Silêncios do spec — o plano escolhe e diz por quê
+
+| # | Onde | Silêncio | Escolha do plano |
+|---|---|---|---|
+| B1 | §4.6 | resposta 2xx que não seja 200/204 não está na tabela de `FalhaSite` | `recusa` (falha fechada) |
+| B2 | §4.1 | `main()`: o spec nomeia os 5 injetáveis, não `argv` nem o retorno | `argv` posicional e retorno `int` — sem isso "lock ocupado → 0/75" não é testável |
+| B3 | §4.1 | `dormir` síncrono ou awaitable; `abrir_site`/`abrir_llama` devolvem cliente ou context manager | `dormir` é `async`; as fábricas são usadas com `async with` (é o que `httpx.AsyncClient` já é) |
+| B4 | §4.3 | separador do `analysis_text` ("os `finding` unidos") | `". "` |
+| B5 | §4.2 | `view_count` nulo; empate de `published_at` no episódio mediano | `or 0` (senão `statistics.median` estoura e a execução vira `bug`); desempate por `(quando, id)` |
+| B6 | §4.2 | "fuso de São Paulo" | `zoneinfo("America/Sao_Paulo")`, **não** o `BRT = −3` fixo de `sitio.py:129`. Divergem no horário de verão: `2019-01-01T02:30Z` é 2019 com `zoneinfo` e 2018 com −3 fixo, e isso muda o ano de uma série. Depende de `tzdata` na forja (Ubuntu tem). Há teste fixando |
+| B7 | §4.5 | motivo de "número fora da ENTRADA", da regex do item 5, e de chaves ≠ `{"summary"}` | `numero`, `proibido`, `json` |
+| B8 | §4.4 | o Aparo mede 60 em quê | pontos de código (a faixa é da gramática), enquanto o teto de 500 continua em UTF-16, como o spec manda |
+| B9 | §4.7 | `--canario` roda sem `--snapshot`; de onde vem a ENTRADA da sonda de schema | `args.snapshot or <BASE>/docs/trilha/fixture_pt.json` |
+| B10 | §4.7 | formato de `congelado_em`; esquema do arquivo de sombra | `AAAA-MM-DD` em UTC; o arquivo traz `system`, `user`, `payload`, `veredito`, `tempos`, `seed` no topo |
+| B11 | §4.1 | separador de `CANAIS_FILA`; vocabulário de `motivos` do desfecho `config` | vírgula; `env_ausente, env_ilegivel, chave_ausente, chave_duplicada, chave_formato` |
+| B12 | §4.6 | onde `nova_chave.py --fila` acha o arquivo | `AGENTE_BASE` (convenção de `replay2.py:8`, já usada no §4.1); sem isso o modo só seria testável escrevendo em `/opt/agente` de verdade |
+| B13 | §4.5 | o que fazer se o **template** reprovar no validador | ramo defensivo: usa o template cru, `motivos: template_reprovado`, **nunca** `fail` |
+| B14 | §4.6 | `fail` que responde 200 com corpo `formato`/`grande` | tratado como `ok` |
+| B15 | §5, F1 | ordem entre o portão do turno de chat e o `--canario` | o chat vem **depois**: o canário passa pela guarda de chat recente do §4.1 passo 2 e sairia `chat` sem sondar nada |
+| B16 | §5, F2 | quais são os "campos numéricos idênticos" nas 3 rodadas | o payload inteiro menos `coaching.summary` — decorre da decisão A e é estritamente mais forte |
+| B17 | §5, F0 | "200 com `recent_window`" × `recent_window: null` legítimo (§3.5) | a sonda reprova por **ausência da chave** (prova do build novo) e só avisa no valor nulo; quem reprova nulo é o portão do F0.5 |
+
+## C. Decisões que esperam o dono **[DONO]**
+
+| # | Assunto | Situação | Proposta |
+|---|---|---|---|
+| C1 | §6, motivos de alerta | O §6 nomeia `fila-parada:`, `fila-sem-claim-24h:` e `fila-leitura-`. As outras **duas** condições de vermelho — "mtime > 70 min / arquivo ausente" e "última cron com task, < 24 h, não-`ok`" — **não têm motivo nomeado** | `fila-jsonl-<n>s` / `fila-jsonl-ausente` e `fila-task-<desfecho>`, no molde do `nas-estado-*` que o pulso já usa |
+| C2 | §6, precedência | O spec não ordena as quatro condições, mas o teste exige "um `MOTIVO` e nada mais". `desfecho: chave` dispara duas ao mesmo tempo e tem de sair `fila-parada:chave` | exceção → mtime → parada → task → sem-claim-24h |
+| C3 | §6, custo colateral | Se as 5 tentativas de `curl` da fila falharem, o bloco **atrasa o ping do check principal em até ~4,2 min**. Ele não toca em `ok`, então não pinta o principal de vermelho — mas atrasa | aceitar, ou mandar o ping da fila para segundo plano |
+| C4 | §4.3, coorte fina | Coorte com menos de 4 vídeos não vira padrão, mas **não tem motivo nomeado** no log, ao contrário do `padrao_neutro` — um canal some do padrão em silêncio | acrescentar `coorte_fina` aos `motivos` |
+| C5 | §4.1, `/slots` | O spec descreve "JSON sem exatamente 2 slots" sem dizer que o corpo é uma lista | assumido lista de 2 dicts; **confirmar no F1 contra o llama real** antes de confiar na guarda |
+| C6 | kit sem git | `ferramentas/` está fora de qualquer repositório; a mitigação deste plano é `cp -p` para `.bak-fase2` antes de cada edição | opcional: `git init` em `~/Workspace/forja/ferramentas` antes do F0k, o que daria desfazer de verdade |
+
+## D. Coisas que o spec manda e o plano cumpre sem alterar
+
+- `flock` de shell: o §4.6 exige `-w 1800` em todo lugar, mas o comando de rollback do S4 no §5 aparece seco. O plano **reproduz o literal do §5** e o protege com o `LOCK-LIVRE` prévio, em vez de "consertar" um comando que o dono vai colar. **[DONO]** se quiser normalizar para `-w 1800`, é uma linha.
+- O SQL "nenhum claim antes do F4" é o único do spec **sem** `and site_id = …`. O plano mantém o literal: um zero sobre todos os sites é mais forte, não mais fraco.
+- `ls proxy.py.bak-*-S4 | head -1` só ordena certo dentro do mesmo ano (carimbo `%m%d-%H%M`). O plano mantém o comando e acrescenta um `ls -lt` de conferência ao lado.
