@@ -1,6 +1,6 @@
 # Fase 2 — a forja drena a fila de inteligência do YouTube
 
-**Data:** 2026-09-19 · **Versão:** v8 (rodadas 1–7; escopo 2a) — a v7 (a v6 cortada ao escopo 2a por decisão do dono em 19/09, com a rodada 6 aplicada) com os patches da rodada 7 (12 lentes, conferidos no código e no banco) aplicados
+**Data:** 2026-09-19 · **Versão:** v9 (rodadas 1–8; escopo 2a) — a v8 com os patches da rodada 8 (12 lentes, conferidos no código, no kit e no banco) aplicados
 **Estado:** desenho aprovado em conversa (3 seções); spec escrito em revisão
 **Fase 1 (feita):** `~/Workspace/forja/SPEC-forja-le-site.md` — a forja lê o site só leitura, em produção desde 18/09.
 Caminhos do site são relativos a `apps/web/`.
@@ -65,7 +65,7 @@ Medido em produção em 18/09:
 **MCP**
 - `mcpRequirePermission` (`lib/pipeline/mcp/auth.ts:84-87`) não muda: no MCP, a fila continua exigindo `write`.
 - Em `mcp/services/ab-tests.ts`:
-  - `claim_task` (`:155-158`) entra em `WRITE_ACTIONS` (`:35`), ao lado de `submit_intelligence`: no MCP as duas continuam exigindo `write`, e `upsert_variants`/`delete_variant` não mudam. A chave `{read,intelligence}` só clama e grava pelo REST, cujo claim exige `channel_ids`;
+  - `claim_task` (`:155-158`) entra em `WRITE_ACTIONS` (`:35`), ao lado de `submit_intelligence`: no MCP as duas passam a exigir `write` (`submit_intelligence` já exige, `ab-tests.ts:35-40`; `claim_task` ganha a guarda), e `upsert_variants`/`delete_variant` não mudam. A chave `{read,intelligence}` só clama e grava pelo REST, cujo claim exige `channel_ids`;
   - `buildCtx()` (`:19-27`) passa a carregar `keyId: mcp.keyId`, como `mcp/services/items.ts:28`;
   - hoje `claim_task` não tem guarda.
 
@@ -100,7 +100,7 @@ Medido em produção em 18/09:
 - `PatchPayloadSchema` hoje não roda em lugar nenhum; só aparece em `z.infer` (`services/youtube.ts:5,70`). O F0 passa a validar **também o payload do Cowork**, pela primeira vez. O teste de regressão com o payload real de maio está em §3.7.
 - O `safeParse` roda **dentro de `submitIntelRecommendations`** (`:282`).
 - O schema ganha teto no que hoje não tem (`lib/youtube/intelligence-schemas.ts:43-49`): `patterns_detected .max(30)`, `pattern_id .max(80)`, `category .max(40)`, `sample_size .int().min(0)`. Pré-verificação só de leitura: nenhuma linha `cowork` passa disso.
-- `err()` (`services/types.ts`) ganha um 4º parâmetro opcional, `details`. **`serviceErrorToResponse` não muda**, porque é usado por ~200 rotas. A rota da inteligência repassa `err.details` a `pipelineError(code, message, status, auth, details)` (`helpers.ts:5-15`) no próprio `catch`, e sai o ramo especial `validation_failed` (`intelligence/route.ts:38-44`). Schema inválido → 400 `VALIDATION_ERROR` no envelope `{error:{code,message,details}}`. Na rota REST, `details` = `[{path, message}]`, a mesma forma de `parseBody(req, schema)` (`helpers.ts:75-82`). Como `details` é `Record<string, unknown>` (`services/types.ts:44`, `mcp/errors.ts:32`), o serviço lança `{issues:[…]}`, e `{targets:[…]}` no `PARTIAL_FAILURE`. A rota repassa `details.issues`/`details.targets` ao `pipelineError`, e o MCP recebe o objeto inteiro (`mcp/errors.ts:120`). As quatro recusas `forja` usam `{issues:[{path:'video_recommendations'|'notifications'|'coaching'|'coaching.priorities', message}]}`.
+- `err()` e `serviceErrorToResponse` não mudam. Sai o ramo morto `validation_failed` (`intelligence/route.ts:39-45`: nenhum serviço lança `VALIDATION_FAILED`), e o `catch` da rota fica só com `serviceErrorToResponse`. Schema inválido e as quatro recusas `forja` → 400 `VALIDATION_ERROR`, com até 3 problemas na `message` como `<path>: <message>`, unidos por `; ` (as recusas usam os paths `video_recommendations`, `notifications`, `coaching` e `coaching.priorities`). O `PARTIAL_FAILURE` lista os alvos na `message`. A forja decide por `status` e, só no `PARTIAL_FAILURE`, por `code` (§4.6); ninguém lê `details` na 2a.
 
 **Fonte derivada:** `deriveSource(ctx)` = chave sem `write`/`admin` → `'forja'`, senão `'cowork'`.
 - As gravações usam essa fonte no lugar do `'cowork'` fixo (`youtube.ts:331,340,381,392`).
@@ -108,7 +108,7 @@ Medido em produção em 18/09:
 
 **Dono (§2.8).** Chave sem `write`/`admin` recebe 409 `TASK_NOT_RUNNING` antes de qualquer escrita quando `result_summary.claimed_by ≠ ctx.keyId`, e também quando `keyId` está ausente.
 
-**Todas as recusas 4xx acontecem antes da primeira escrita, exceto o 409 do CAS de fechamento** (tabela de desfechos). Esse 409 sai quando a task virou `stale` ou foi fechada por chave `write` durante as gravações. Nesse caso a linha de canal `source='forja'` já pode ter sido sobrescrita; as `cowork`, nunca. O 409 quer dizer "a task não é mais sua", não "nada foi gravado". O SELECT da task passa a trazer `result_summary` (hoje só `id, channel_id, status`, `youtube.ts:292`), de onde sai o `claimed_by` da trava de dono, e troca o `.single()` de hoje (`youtube.ts:295`) por `.maybeSingle()`: com `.single()`, 0 linhas vêm com `error` (PGRST116) e virariam 500 pela regra abaixo. Um `error` nesse SELECT, ou no SELECT de integridade dos vídeos (só o Cowork chega lá), devolve 500 `INTERNAL_ERROR` antes de qualquer escrita, nunca 404 nem 422; 404 só com 0 linhas sem `error`. Há teste com erro de banco em cada SELECT → 500 sem escrita, e teste para cada recusa:
+**Todas as recusas 4xx acontecem antes da primeira escrita, exceto o 409 do CAS de fechamento** (tabela de desfechos). Esse 409 sai quando a task virou `stale`, foi fechada por chave `write` ou foi devolvida à fila e clamada de novo (outro `started_at`) durante as gravações. Nesse caso as linhas da fonte do PATCH já podem ter sido gravadas (num PATCH `forja`, só a de canal `forja`); as da outra fonte, nunca. O 409 quer dizer "a task não é mais sua", não "nada foi gravado". O SELECT da task passa a trazer `result_summary` e `started_at` (hoje só `id, channel_id, status`, `youtube.ts:292`), de onde saem o `claimed_by` da trava de dono e o `started_at` do CAS de fechamento, e troca o `.single()` de hoje (`youtube.ts:295`) por `.maybeSingle()`: com `.single()`, 0 linhas vêm com `error` (PGRST116) e virariam 500 pela regra abaixo. Um `error` nesse SELECT, ou no SELECT de integridade dos vídeos (só o Cowork chega lá), devolve 500 `INTERNAL_ERROR` antes de qualquer escrita, nunca 404 nem 422; 404 só com 0 linhas sem `error`. Há teste com erro de banco em cada SELECT → 500 sem escrita, e teste para cada recusa:
 - schema;
 - estado e dono da task;
 - as quatro recusas da fonte `forja` abaixo;
@@ -124,7 +124,7 @@ Medido em produção em 18/09:
 - **Sem notificação na 2a.** O PATCH `forja` não notifica ninguém; a análise aparece na linha de summary do Health Coach (§3.6). A notificação de análise pronta fica para depois (§8).
 
 **Fechamento da task** (hoje sem CAS e sem checagem, `youtube.ts:432-441`)
-- CAS: `.eq('id').eq('site_id').eq('status','running')`; para chave estreita, também `.eq('result_summary->>claimed_by', keyId)`; e `.select('id')`.
+- CAS: `.eq('id').eq('site_id').eq('status','running')`; para chave estreita, também `.eq('result_summary->>claimed_by', keyId)`; sempre `.eq('started_at', <started_at do SELECT da task>)`, que identifica o claim e não só a chave; e `.select('id')`.
 - `result_summary` é mesclado: `{...anterior, recommendations, has_coaching, source, closed_by}`, mais `failed_writes: dbErrors.length` no ramo `failed`.
 - Desfechos:
 
@@ -132,10 +132,10 @@ Medido em produção em 18/09:
 |---|---|---|
 | Sem `dbErrors` | `completed` + `completed_at` | 200 |
 | Com `dbErrors` e o CAS para `failed` devolveu 1 linha | `failed` + `failed_at`, **sem** `completed_at` | 500 `PARTIAL_FAILURE` |
-| CAS devolveu 0 linhas | inalterado; a linha de canal `forja` deste PATCH fica gravada (a próxima execução `forja` a sobrescreve) | 409 `TASK_NOT_RUNNING` |
+| CAS devolveu 0 linhas | inalterado; as linhas gravadas por este PATCH ficam (num PATCH `forja`, só a de canal `forja`, que a próxima execução sobrescreve) | 409 `TASK_NOT_RUNNING` |
 | Erro no próprio UPDATE do CAS, em qualquer ramo | segue `running` até o watchdog | 500 `INTERNAL_ERROR` |
 
-- No `PARTIAL_FAILURE`, `error_message` e `details` listam só os alvos (`video <uuid>: write_failed` ou `channel: write_failed`, este o único alvo possível de um PATCH `forja` na 2a); a mensagem crua vai só para o Sentry. O status inválido `partial_failure` sai.
+- No `PARTIAL_FAILURE`, `error_message` e a `message` do erro listam só os alvos (`video <uuid>: write_failed` ou `channel: write_failed`, este o único alvo possível de um PATCH `forja` na 2a); a mensagem crua vai só para o Sentry. O status inválido `partial_failure` sai.
 - `PARTIAL_FAILURE` só existe quando o CAS para `failed` devolveu 1 linha.
 
 **Código `TASK_NOT_RUNNING`** (409): task fora de `running`, de outro dono, ou CAS perdido.
@@ -191,18 +191,18 @@ O overview soma fotos de datas diferentes; é bug registrado no §10, e o snapsh
 - Com `channelCoaching` presente e `priorities: []`, devolve `[]`, sem fallback.
 
 **Textos.**
-- Rótulo: `Diagnóstico · por forja · dd/mm` ou `Diagnóstico · por Cowork · dd/mm`. Sem `coachingMeta`, fica `Diagnóstico heurístico`.
-- A linha "Baseado em regras fixas" (`:103-105`) passa a condição para `!coachingMeta && sortedCards.length > 0`, e o texto termina em "ainda sem análise para este canal".
+- Rótulo (literal exato, ASCII como o resto do componente): `Diagnostico · por forja · dd/mm` ou `Diagnostico · por Cowork · dd/mm`. Sem `coachingMeta`, fica `Diagnostico heuristico`, o texto de hoje (`yt-health-coach.tsx:97`).
+- A linha "Baseado em regras fixas" (`:103-105`) passa a condição para `!coachingMeta && sortedCards.length > 0`, e o texto termina em "ainda sem analise para este canal" (ASCII, como hoje em `:105`).
 - O botão do cabeçalho passa de "Pedir diagnostico ao Cowork" (`yt-analytics-tabs.tsx:231`, e o comentário `:5`) para "Pedir diagnostico" (entra no mockup), porque na 2a quem atende o PT é a forja. Os demais textos de botão, inclusive "Solicitar Nova Analise" (`yt-health-coach.tsx:79,190`), não mudam.
 
 **Elemento novo: uma linha com `coachingMeta.summary` abaixo do rótulo.**
-- Com `coachingMeta`, o parágrafo `:98-102` não é renderizado.
+- Com `coachingMeta`, o parágrafo `:98-102` não é renderizado. A linha só é renderizada quando `coachingMeta.summary.trim()` não é vazio. Com summary vazio aparece só o rótulo. O teste de componente tem um caso para isso: Cowork, `summary: ''`, com cards → rótulo e cards, sem linha vazia.
 - Com `coachingMeta` e zero cards, o card verde "saudável" (`:169-176`) não aparece. Sem `coachingMeta` (heurístico), ele continua como hoje: ali zero cards quer dizer todos os eixos ≥ 6,5 (`yt-analytics-tabs.tsx:404`).
 - Com `coachingMeta.source === 'forja'`, o bloco "Potencial" (`:109-118`), o "+N pts" (`:163`) e a projeção (`:100`) não aparecem sem regra nova: `priorities` é sempre `[]` (§3.3), então não há card, `potentialGain` é 0 (`:63-66`) e o parágrafo `:98-102` não é renderizado. O early return de `:68` (`videoCount === 0`) não muda: o único canal com 0 vídeos, o EN, não tem análise de nenhuma fonte e fica fora de `CANAIS_FILA` (§5 F4).
 - **Mockup aprovado pelo dono antes do código**, pela regra de aprovação visual.
 
 **Efeitos visíveis aceitos**
-- No PT, já no F0 e sem a forja, a análise do Cowork de maio passa a mostrar a linha com o `coaching.summary` dela no lugar do parágrafo "O canal esta em X/100 … ~N" (`yt-health-coach.tsx:98-102`); os 3 cards e o bloco "Potencial" continuam.
+- No PT, já no F0 e sem a forja, a análise do Cowork de maio passa a mostrar a linha com o `coaching.summary` dela no lugar do parágrafo "O canal esta em X/100 … ~N" (`yt-health-coach.tsx:98-102`); os 3 cards e o bloco "Potencial" continuam. Esse summary tem 500 caracteres. Começa em "Canal micro (1.160 subs)…" e termina cortado pelo próprio Cowork em "Conteúdo de...". O texto aparece como está, sem reticências extras nem expansão, e o mockup do F0 usa esse texto real.
 - No PT, uma análise da forja mais nova que a de maio substitui a linha de summary, os cards e o "Potencial" do Cowork pela linha de summary da forja, sem cards.
 - O badge continua contando os cards (`coachingCards.length`, `yt-analytics-tabs.tsx:174`, até 3 pelo `.slice(0, 3)` de `:384`); com `priorities: []` não há card nem fallback, então é 0 e some.
 - O botão do EN continua criando tasks que ninguém consome. Mostra "Solicitado!", e depois "Aguarde..." (`already_active`) por até ~7 dias e 19 horas depois de cada task do cron (o `stale` só roda às 03:00 UTC).
@@ -211,7 +211,7 @@ O overview soma fotos de datas diferentes; é bug registrado no §10, e o snapsh
 **Leitura por vídeo** (`actions.ts:101-107`): não muda. Nada montado a lê, e a forja não grava linha de vídeo; entra junto com a UI da 2b (§7).
 
 **MCP**
-- `fetchSnapshotAge` (`mcp/prompts.ts:102-113`) filtra `.eq('source','cowork')` e, quando o prompt tem `channelId` que casa com `/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i`, o canal; sem uuid válido, filtra só a fonte (`mcp/prompts.ts:905` aceita qualquer string, e um `UC…` faria o `.single()` de `:109` falhar e devolver 999 h). Não chama `getMcpContext()`, porque os prompts rodam sem contexto em `test/mcp/youtube-mcp-prompts.test.ts`, e ali ele lançaria (`mcp/context.ts:6-11`).
+- `fetchSnapshotAge` (`mcp/prompts.ts:102-113`) ganha só `.eq('source','cowork')`, sem parâmetro novo: sem ele, uma linha `forja` faria a análise do Cowork parecer nova. A idade continua global entre canais, como hoje; o filtro por canal fica fora desta fase (§8). Não chama `getMcpContext()`, porque os prompts rodam sem contexto em `test/mcp/youtube-mcp-prompts.test.ts`, e ali ele lançaria (`mcp/context.ts:6-11`).
 - O prompt `youtube-analyst` (`mcp/prompts.ts:933`) diz que o array de inteligência traz só análises do Cowork.
 - As descrições de `submit_intelligence`/`intel_payload` (`mcp/tools.ts:662,690`) dizem que a fonte vem da chave.
 
@@ -220,7 +220,7 @@ O overview soma fotos de datas diferentes; é bug registrado no §10, e o snapsh
 **Registry** (`lib/pipeline/api-registry.ts`)
 - +2 endpoints: `{ method: 'POST', path: '/api/pipeline/youtube/intelligence/task/claim', summary: 'Claim next pending intelligence task by channel_ids (API key only)', auth: 'intelligence' }` e `{ method: 'POST', path: '/api/pipeline/youtube/intelligence/task/:id/fail', summary: 'Fail or requeue a running intelligence task owned by the key', auth: 'intelligence' }` (o path é literal: `api-registry.test.ts:144` converte `:id` em `[id]` para achar o `route.ts`); `endpoint_count` do youtube vai de 31 para 33 (`api-registry.ts:169`).
 - `ApiEndpointMeta.auth` vira `'read'|'write'|'intelligence'` (`:7`). A entrada `:172` (PATCH) passa a `'intelligence'`, e a `:173` (GET legado da task) passa a `'write'` (§3.2).
-- Acompanham: o regex de `test/lib/pipeline/api-registry.test.ts:38` e `test/mcp/mcp-registry-sync.test.ts:29` (123 → 125). As rotas novas caem em `youtube_analytics` (`mcp/auto-register.ts:137-141`).
+- Acompanham: o regex de `test/lib/pipeline/api-registry.test.ts:38` e `test/mcp/mcp-registry-sync.test.ts:28-29` (comentário `youtube(31)` → `youtube(33)`, e 123 → 125). As rotas novas caem em `youtube_analytics` (`mcp/auto-register.ts:137-141`).
 
 **Erros MCP.** Entram `PARTIAL_FAILURE` (`retryable:false`) e `TASK_NOT_RUNNING` (§3.3).
 
@@ -230,7 +230,7 @@ O overview soma fotos de datas diferentes; é bug registrado no §10, e o snapsh
   - `fail` com `retry`;
   - fonte pela chave;
   - `channel_id` **obrigatório** no GET do snapshot;
-  - `recent`/`recent_window`;
+  - `recent`/`recent_window` e `videos[].is_hidden`;
   - o array `intelligence` só com `cowork`;
   - o GET `/task` legado exige `write`;
   - os novos 400/409/500.
@@ -242,14 +242,14 @@ O overview soma fotos de datas diferentes; é bug registrado no §10, e o snapsh
 - **B:** linha `forja`, `priorities: []` e `summary`.
 - **C:** sem linha.
 
-**Testes unitários (Vitest, no mesmo commit)**
+**Testes unitários (Vitest, no mesmo commit).** Onde cada um mora: `test/api/pipeline/youtube-intelligence.test.ts` mocka o serviço inteiro (`:59-63`) e guarda só contratos de rota (status e envelope). As asserções de serviço (claim, PATCH, dono, fonte `forja`, fechamento, fail, snapshot) vão para `test/lib/pipeline/services/youtube-intelligence-service.test.ts`, chamando o serviço com um `ServiceContext` cujo `supabase` é um mock encadeável que grava cada chamada (o padrão de `test/lib/pipeline/services/items-history-key-identity.test.ts`). As do MCP (`claim_task`, `submit_intelligence`) vão para `test/mcp/ab-tests-intel.test.ts`, chamando `manageAbTest` com `getMcpContext` mockado. As das rotas novas (`task/claim`, `task/[id]/fail`) vão para `test/api/pipeline/youtube-intelligence-task-routes.test.ts`.
 
 *Permissão e fonte*
 - Unitários **sem mock** de `requirePermission` e `authenticateIntel`: `{read}` recusa `intelligence`; `{read,intelligence}` recusa `write`; `write`/`admin` aceitam `intelligence`.
 - `deriveSource` via REST: `{read,intelligence}`, com ou sem `source:'cowork'` no corpo, grava `forja`. Chave `write` com `source:'forja'` no corpo grava `cowork`, via REST e MCP.
 
 *Claim*
-- 200 com `started_at`; 204 com rate-limit headers; filtro `channel_ids`; `claimed_by` gravado pelo POST, pelo GET legado e pelo MCP; sessão → 403.
+- 200 com `started_at`; 204 com rate-limit headers; filtro `channel_ids`; `claimed_by` gravado pelo POST, pelo GET legado e pelo MCP; sessão → 403; sem corpo, `channel_ids: []`, 11 itens ou um não-uuid → 400 `VALIDATION_ERROR`, sem consulta a `youtube_intelligence_tasks`.
 - Em arquivo próprio, `test/api/pipeline/youtube-intelligence-auth.test.ts`, sem mock de `@/lib/pipeline/helpers` e com `vi.mock('@/lib/pipeline/auth', async (o) => ({...(await o()), authenticatePipeline: vi.fn()}))` (só `authenticatePipeline` mockado; o arquivo existente mocka `helpers` inteiro): chave `{read}` → 403 no POST claim, no GET legado e no PATCH, e chave `{read,intelligence}` → 403 no GET legado, todos sem consulta a `youtube_intelligence_tasks`.
 - GET legado com `?status=failed` → `claimNextTask(ctx)` sem status.
 - `error` no SELECT e `error` no UPDATE do CAS → 500 `INTERNAL_ERROR`, nunca 204. SELECT sem linha (`data: null, error: null`) → 204. UPDATE que devolve 0 linhas → 204 com rate-limit headers.
@@ -265,7 +265,7 @@ O overview soma fotos de datas diferentes; é bug registrado no §10, e o snapsh
 - 400 fora do schema, via REST e MCP.
 - Teto dos padrões.
 - **Regressão do Cowork:** `test/fixtures/intel-cowork-2026-05-18.json`, remontado só de leitura das 11 linhas `cowork` de maio, passa no `safeParse` e grava `cowork`.
-- Task `stale` → 409 sem gravar. CAS final perdido → 409. Erro no UPDATE do CAS → 500 `INTERNAL_ERROR`.
+- Task `stale` → 409 sem gravar. CAS final perdido → 409. `started_at` da linha diferente do lido no SELECT (novo claim) → 409. Erro no UPDATE do CAS → 500 `INTERNAL_ERROR`.
 - Falha parcial → `failed` sem `completed_at`, com `failed_writes` e resposta 500.
 - `result_summary` preserva `claimed_by`.
 - `error` no SELECT da task e no SELECT de integridade → 500 `INTERNAL_ERROR`, sem escrita; 0 linhas sem `error` → 404.
@@ -274,7 +274,7 @@ O overview soma fotos de datas diferentes; é bug registrado no §10, e o snapsh
 *Forja*
 - `notifications` não vazio → 400; `video_recommendations` com 1 item → 400; `coaching.priorities` com 1 item → 400; sem `coaching` → 400. Nas quatro, nenhuma escrita em `youtube_intelligence` e a task segue `running`.
 - `video_recommendations: []` (ou ausente) com `priorities: []` → 200, uma linha de canal `forja` e nenhuma linha de vídeo.
-- PATCH `forja` 200 → nenhuma chamada a `fanOutToSiteAdminsDetailed`.
+- PATCH `forja` 200 → nenhuma chamada a `fanOutToSiteAdmins` (`lib/notifications/fan-out-to-admins.ts:14`, o único fan-out que o serviço importa e chama, `services/youtube.ts:4,416`), com o mock de `@/lib/notifications/fan-out-to-admins` conferindo 0 chamadas.
 
 *Fail*
 - 200 (`failed`); 200 com `retry` → `pending` e `retry_count` 1; terceiro `retry` → `failed`.
@@ -299,14 +299,15 @@ O overview soma fotos de datas diferentes; é bug registrado no §10, e o snapsh
 - Datas relativas.
 
 *Health Coach*
-- `fetchChannelCoaching` devolve a mais recente da allowlist, com `source` e `generatedLabel`; o mock confere `.in('source',['cowork','forja'])`, `.not('coaching','is',null)`, `.is('video_id',null)` e `.eq('type','channel')`. O "`forja_retirada_…` mais nova é ignorada" (trava o rollback do §5) é testado na integração abaixo. `generated_at` às 01:30Z vira o dia anterior.
+- `fetchChannelCoaching` devolve a mais recente da allowlist, com `source` e `generatedLabel`; o mock confere `.eq('site_id', <siteId de getSiteContext>)`, `.eq('channel_id', <argumento>)`, `.in('source',['cowork','forja'])`, `.not('coaching','is',null)`, `.is('video_id',null)` e `.eq('type','channel')`. O "`forja_retirada_…` mais nova é ignorada" (trava o rollback do §5) é testado na integração abaixo. `generated_at` às 01:30Z vira o dia anterior.
 - `computeCoachingCards(videos,{priorities:[],summary})` → `[]`, com vídeos de eixos `normalized` 0; com os mesmos vídeos e sem coaching → 3 cards `fallback`.
 - Componente (`@vitest-environment jsdom`):
   - "por forja" com `priorities: []` (B): linha de summary, sem card verde "saudável", sem "regras fixas", sem "Potencial", sem "+N pts", sem badge;
-  - sem coaching (C) → "Diagnóstico heurístico";
+  - sem coaching (C) → "Diagnostico heuristico" (literal ASCII de `yt-health-coach.tsx:97`);
+  - Cowork com `summary: ''` e cards → rótulo e cards, sem linha de summary vazia (§3.6);
   - "por Cowork · 18/05" com a fixture de maio (A): 3 cards, badge 3, a linha com o `summary` da fixture e nenhum "O canal esta em";
   - os cenários A–C renderizam `YtAnalyticsTabs` (props mínimas mais `intelligenceVideos` com ≥ 1 `VideoGradeRow` cujos 6 eixos têm `normalized` 0 — sem vídeos `videoCount` é 0 (`yt-analytics-tabs.tsx:299`) e o early return de `yt-health-coach.tsx:68` esconde rótulo e summary, e com eixos altos o fallback já daria `[]`; com esses vídeos o C mostra 3 cards heurísticos, badge 3 e "regras fixas", e o B prova que a linha `forja` suprime o fallback; `next/navigation` mockado; o teste abre a aba Health Coach pelo botão da aba), porque o badge mora nele (`yt-analytics-tabs.tsx:170-178,259-261`) e o `page.tsx` assíncrono não roda em jsdom (`getSiteContext`, `requireSiteScope`). `channelCoaching` vem no formato novo `{coaching, source, generatedLabel}` (A: `generatedLabel:'18/05'`); a conversão de `generated_at` é testada só em `fetchChannelCoaching`. A prop `channelCoaching` de `YtAnalyticsTabs` (`:78`, hoje `{coaching, generatedAt}`) muda para esse tipo.
-- `fetchSnapshotAge` chama `.eq('source','cowork')` e, no `youtube-analyst` com uuid, `.eq('channel_id', <arg>)` (conferido nas chamadas do mock de `test/mcp/youtube-mcp-prompts.test.ts`).
+- `fetchSnapshotAge` chama `.eq('source','cowork')` (conferido nas chamadas do mock de `test/mcp/youtube-mcp-prompts.test.ts`).
 
 *Botão*
 - Manual `completed` há 1 h → `cooldown`.
@@ -317,10 +318,12 @@ O overview soma fotos de datas diferentes; é bug registrado no §10, e o snapsh
 - `test/youtube/coaching-actions.test.ts:5-13` e `:69-77`.
 - `test/youtube/yt-health-coach.test.tsx`: `baseProps` (`:43-50`) ganha `coachingMeta: null`. O teste do botão (`:113-118`, "Solicitar Nova Analise") e a interface local `CoachingCard` (`:21-29`) não mudam, porque "Solicitar Nova Analise" e a união do `source` ficam como estão (§3.6); nenhum teste referencia "Pedir diagnostico ao Cowork".
 - Em `test/api/pipeline/youtube-intelligence.test.ts`:
-  - o mock de helpers (`:12-24`) ganha `authenticateIntel`, e o de `pipelineError` passa a repassar o 5º argumento (`details`) ao corpo, como o real (`src/lib/pipeline/helpers.ts:5-15`); o teste de schema confere `body.error.details` não vazio;
+  - o mock de helpers (`:12-24`) ganha `authenticateIntel`; o teste de schema confere `body.error.code === 'VALIDATION_ERROR'` e o `path` na `message`;
   - o 422 `validation_failed` de schema (`:191-209`) passa a 400 `VALIDATION_ERROR`;
-  - o teste de integridade (`:280-297`) mocka o erro real (422 `VALIDATION_ERROR`);
-  - `:353-358`;
+  - o teste de integridade (`:266-297`) mocka o erro real (422 `VALIDATION_ERROR`);
+  - o mock de `@/lib/pipeline/auth` (`:26-29`) passa a `async (o) => ({...(await o()), buildRateLimitHeaders: vi.fn().mockReturnValue(undefined)})`, porque o GET legado importa dali o `requirePermission` (`lib/pipeline/auth.ts:99`; `helpers.ts` não o reexporta);
+  - os testes do PATCH (`:171-297`) e do GET `/task` (`:303-358`) trocam `mockAuthWrite`/`mockAuthRead`/`mockAuthFail` (`:72-88`) por `authenticateIntel` mockado (`permissions:['read','write']` no sucesso, `Response` 401 na falha), porque as duas rotas deixam de chamar `authenticateWrite`/`authenticateRead`;
+  - `:353-358` passa a conferir `claimNextTask(ctx)` sem status;
   - os testes que esperavam `VERSION_CONFLICT` passam a `TASK_NOT_RUNNING`.
 
 **Integração com o banco local** — `test/integration/youtube-intelligence-forja.test.ts`, com `describe.skipIf(skipIfNoLocalDb())`
@@ -349,15 +352,15 @@ O overview soma fotos de datas diferentes; é bug registrado no §10, e o snapsh
 - **Modo.** `modo` = `cron` com `--cron`; `sombra`, `escolher` ou `canario` nos modos do §4.7; `manual` no resto, que imprime o desfecho e roda sob o mesmo `timeout -k 30s 25m`.
 - **Lock.** O lock é tomado pelo **próprio Python** no início de `main()`, sob `if __name__ == '__main__'`, e nunca na importação: `_TRAVA = open(os.path.join(BASE,'fila_intel.lock'),'a')`, guardado numa global de módulo que nunca é fechada, e depois `fcntl.flock(_TRAVA.fileno(), LOCK_EX|LOCK_NB)`. Um `open()` temporário seria coletado logo depois da chamada, fecharia o descritor e soltaria a trava.
   - Importar o módulo não tem efeito colateral: não toma lock, não instala handler de sinal e não lê nem grava arquivo (o `teste_fila.py` o carrega por SourceFileLoader, §4.6).
-  - Todo caminho vem de `BASE = os.environ.get('AGENTE_BASE','/opt/agente')` (a convenção de `replay2.py:8`: lock, `log/`, `series.json`, `roteamento.jsonl`, `fila_intel.env`, `sombra/`) e `DEFAULT = os.environ.get('AGENTE_DEFAULT','/etc/default/proxy-agente')`, lido só dentro de `main()`. `agora_mono` e `dormir` são parâmetros de `main()`, para testar o orçamento, os 9 min e a espera de 60 s sem esperar de verdade.
+  - Todo caminho vem de `BASE = os.environ.get('AGENTE_BASE','/opt/agente')` (a convenção de `replay2.py:8`: lock, `log/`, `series.json`, `roteamento.jsonl`, `fila_intel.env`, `sombra/`) e `DEFAULT = os.environ.get('AGENTE_DEFAULT','/etc/default/proxy-agente')`, lido só dentro de `main()`. `agora_mono`, `dormir`, `agora` (relógio de parede com fuso; dele saem `hoje`, a janela do sync em UTC e a hora local naive comparada com `roteamento.jsonl`), `abrir_site` e `abrir_llama` (fábricas dos clientes do site e da 8080; padrão `httpx.AsyncClient`) são parâmetros de `main()`, com os padrões reais, para testar o orçamento, os 9 min, a espera de 60 s e a janela do sync sem esperar de verdade. O `teste_fila` passa o `CliFalso`, um llama falso em processo (`/slots`, `/v1/chat/completions`, `/apply-template`) e relógios injetados; o llama falso não pode ser um servidor local, porque o `sitio_falso` bloqueia `socket.socket.connect` na importação (`trilha/sitio_falso.py:3`). O `fail` do `finally` usa a mesma `abrir_site`.
   - O próprio `teste_fila` grava um tmpdir em `os.environ['AGENTE_BASE']` e em `os.environ['AGENTE_DEFAULT']` **antes** do SourceFileLoader, sobrescrevendo (nunca `setdefault`) o ambiente herdado: o `cartao.sh:6` exporta `AGENTE_BASE=/opt/agente`. Para o teste da fixture (§4.2), ele copia `fixture_pt.json` (do cwd `docs/trilha`) e `/opt/agente/series.json` para o tmpdir.
-  - O teste confere que todo caminho resolvido pelo worker (lock, `log/`, `series.json`, `roteamento.jsonl`, `fila_intel.env`, `sombra/`) fica sob o tmpdir, e que o mtime de `/opt/agente/log/fila_intel.jsonl`, `/opt/agente/log/fila_intel.err` e `/opt/agente/fila_intel.lock` não mudou. Não confere o `log/` inteiro, porque o pulso grava `log/pulso.log` a cada hora. Na forja, o `teste_fila` roda sempre sob `flock /opt/agente/fila_intel.lock` (§4.6), para que o cron vivo não grave no meio do teste.
+  - O teste confere que todo caminho resolvido pelo worker (lock, `log/`, `series.json`, `roteamento.jsonl`, `fila_intel.env`, `sombra/`) fica sob o tmpdir, e que o par (existe, mtime) de `/opt/agente/log/fila_intel.jsonl`, `/opt/agente/log/fila_intel.err` e `/opt/agente/fila_intel.lock` não mudou: um arquivo ausente antes continua ausente depois. Não confere o `log/` inteiro, porque o pulso grava `log/pulso.log` a cada hora. Na forja, o `teste_fila` roda sempre sob `flock /opt/agente/fila_intel.lock` (§4.6), para que o cron vivo não grave no meio do teste.
   - Lock ocupado → no cron sai 0 sem gravar nada; no modo manual imprime `ocupado: outra execução com o lock` e sai 75.
   - É o mesmo `flock(2)` que o `deploy.sh` e o rollback usam.
 - **Invariante de tempo.** Do claim ao último pedido ao site passam menos de 25 min + 30 s, abaixo dos 30 min do watchdog. Assim ele nunca corta uma execução viva. A rota do PATCH passa a declarar `export const maxDuration = 60` (§3.3), igual ao timeout de leitura do cliente. Mudar o orçamento, o `timeout` ou `STALE_THRESHOLD_MINUTES` exige refazer essa conta.
 
 **1. Uma linha de log por execução.** Toda execução com lock grava **exatamente uma** linha em `/opt/agente/log/fila_intel.jsonl`.
-- Campos: `quando` (ISO com offset: `datetime.now().astimezone().isoformat(timespec='seconds')`), `modo, desfecho, etapa, task, canal, ms por etapa, tentativas, seeds, tokens, fallback, motivos`. Nunca a chave nem o texto gerado.
+- Campos: `quando` (ISO com offset: `datetime.now().astimezone().isoformat(timespec='seconds')`), `modo, desfecho, etapa, claim, task, canal, ms por etapa, tentativas, seeds, tokens, fallback, motivos`, onde `claim` é o status HTTP da resposta do claim (200, 204…) ou `null` quando não houve resposta. Nunca a chave nem o texto gerado.
 - `desfecho` ∈ `ocupado | chat | llama_fora | config | vazia | ok | reprovada | llama | falha_site | conflito | fail_perdido | chave | indeterminado | orcamento | bug | morto`.
   - `llama` = as duas tentativas depois do claim foram feitas e nenhuma chegou ao validador (llama fora ou `truncado|timeout|json|pensou` nas duas; `fail` com `retry`).
   - `orcamento` = a tentativa 1 não chegou ao validador (as mesmas falhas) e restam menos de 9 min, então não há tentativa 2 (`fail` com `retry`, §4.5 item 6).
@@ -365,7 +368,7 @@ O overview soma fotos de datas diferentes; é bug registrado no §10, e o snapsh
   - `bug` = exceção não prevista entre o claim e o PATCH (`KeyError` em `features`, `series.json` incoerente com o snapshot): `fail` **sem** `retry`, `motivos: [<tipo da exceção>]`. `morto` fica só para `SystemExit`/sinal.
   - Falha do snapshot = `falha_site` com `etapa: snapshot`.
 - **Morte por sinal.** O `try/finally` fica **fora** do `asyncio.run`, com o estado num dict de módulo. O handler de SIGTERM levanta `SystemExit`, e o `finally`:
-  1. se houve claim 200 e `patch_enviado` e `fail_enviado` são falsos, chama `fail {reason:'morto:<etapa>', retry:true}` por um `asyncio.run` novo, com um `httpx.AsyncClient` aberto ali, sempre por `sitio.pedir(…, fase=2, chave=…, timeout=10)` e nunca por `httpx` direto. As duas flags são marcadas **antes** de abrir a conexão do PATCH ou de qualquer `fail`;
+  1. se houve claim 200, `fail_enviado` é falso e o PATCH não teve uma resposta que dispense `fail` na tabela do passo 6 (200, 409/404, 401/403, 500 `PARTIAL_FAILURE`), chama `fail {reason:'morto:<etapa>', retry:true}` por um `asyncio.run` novo, com um cliente aberto ali por `abrir_site()`, sempre por `sitio.pedir(…, fase=2, chave=…, timeout=httpx.Timeout(8, connect=3))` dentro de `asyncio.wait_for(…, ESPERA_FAIL_MORTO)` (constante de módulo = 12 s; o `TimeoutError` é engolido e o desfecho continua `morto`), e nunca por `httpx` direto: o `fail` e a linha do jsonl cabem, juntos, nos 30 s do `-k`. O caso inclui o PATCH ainda não enviado, o PATCH enviado e sem resposta, e a espera de 60 s depois de um 429. É seguro pelo mesmo argumento do `indeterminado` (passo 6): `fail` e CAS final são CAS sobre `running` com trava de dono, e só um vence. `fail_enviado` é marcado **antes** de abrir a conexão de qualquer `fail`, e `patch_status` só é gravado quando a resposta do PATCH chega;
   2. se nenhum desfecho foi decidido, grava `morto` com a última etapa; senão grava o desfecho decidido.
 - **Rotação**, dentro do lock:
   - o jsonl, via tmp + `os.replace`, fica em 4.000 linhas quando passa de 5.000;
@@ -373,9 +376,9 @@ O overview soma fotos de datas diferentes; é bug registrado no §10, e o snapsh
 
 **2. Antes de tocar no site**
 - **Canais.** `CANAIS_FILA` (linha `CANAIS_FILA=PT` em `/opt/agente/fila_intel.env`) é traduzido por `SITIO_CANAL_PT`/`EN`, lidos de `DEFAULT` (`/etc/default/proxy-agente`) pelo próprio Python. Lista vazia, rótulo desconhecido ou uuid ausente → `config`, **sem claim**. Nunca sai claim sem `channel_ids`.
-- **Janela do sync.** Entre 11:58 e 12:05 UTC, por `datetime.now(timezone.utc)` (o crontab roda em hora local): `ocupado` com `motivos: janela_sync`, sem claim. O `sync-analytics-metrics` roda `0 12 * * *` UTC (`vercel.json:25`) e grava as linhas de hoje uma a uma; um claim nesse instante leria `views_90d` parcial. Tem teste.
-- **Slots.** `GET 127.0.0.1:8080/slots` (timeout 3 s). Qualquer resposta que não seja 200 com os 2 `is_processing=false` → `ocupado`/`llama_fora`.
-- **Chat recente.** Lê a última linha **terminada em `\n`** de `/opt/agente/roteamento.jsonl`. O campo `quando` é ISO naive em hora local da forja (`America/Sao_Paulo`), gravado no início do turno (`proxy.py:349`), e é comparado com `datetime.now()` naive.
+- **Janela do sync.** Entre 11:58 e 12:05 UTC, pelo relógio injetado `agora` em UTC (padrão `datetime.now(timezone.utc)`; o crontab roda em hora local): `ocupado` com `motivos: janela_sync`, sem claim. O `sync-analytics-metrics` roda `0 12 * * *` UTC (`vercel.json:25`) e grava as linhas de hoje uma a uma; um claim nesse instante leria `views_90d` parcial. Tem teste.
+- **Slots.** `GET 127.0.0.1:8080/slots` (timeout 3 s). Erro de conexão, timeout, status ≠ 200 ou JSON sem exatamente 2 slots → `llama_fora`; 200 com algum `is_processing=true` → `ocupado`.
+- **Chat recente.** Lê a última linha **terminada em `\n`** de `/opt/agente/roteamento.jsonl`. O campo `quando` é ISO naive em hora local da forja (`America/Sao_Paulo`), gravado no início do turno (`proxy.py:349`), e é comparado com a hora local naive derivada de `agora` (padrão `datetime.now()`).
   - Cauda sem `\n` (turno sendo gravado) → `chat`.
   - `quando` a menos de 5 min, ou até 10 min no futuro → `chat`.
   - Mais de 10 min no futuro → segue, com `motivos: roteamento_futuro`.
@@ -396,14 +399,14 @@ O overview soma fotos de datas diferentes; é bug registrado no §10, e o snapsh
 - **Toda saída antes do PATCH** chama `POST …/fail` uma vez, com `reason` = etapa + motivo:
   - com `retry:true` para `llama`, `orcamento` e falha transitória do snapshot (timeout/5xx/429, §4.6);
   - sem `retry` nos demais casos (`reprovada`, `bug`, snapshot não transitório).
-- Se o próprio `fail` volta 409 → `conflito`. Se o `fail` falha → `fail_perdido`, e o watchdog fecha a task.
+- Se o próprio `fail` volta 409 → `conflito`. Qualquer outra resposta do `fail` que não seja 200 (404, 401/403, 429, 5xx, 3xx/outro 4xx, timeout, rede) → `fail_perdido`, e o watchdog fecha a task.
 
 **6. PATCH.** Uma vez, sem `source`, com timeout de 60 s:
 
 | Resposta | Ação | `desfecho` |
 |---|---|---|
-| 200 | fim | `ok` |
-| 400 / 422 | `fail {reason:'patch <st>: <code>'}` (seguro: 400/422 saem antes de escrita; a exceção é o 409 do CAS final, §3.3) | `reprovada` |
+| 200 (qualquer corpo, inclusive `formato`/`grande`: o 200 só sai depois do CAS de fechamento, §3.3) | fim | `ok` |
+| 400 / 422 / 3xx / outro 4xx | `fail {reason:'patch <st>: <code>'}` (seguro: 400/422 saem antes de escrita, e 3xx/405/413 antes do handler; a exceção é o 409 do CAS final, §3.3) | `reprovada` |
 | 429 | espera 60 s fixos (a janela é de 60 s, `lib/pipeline/auth.ts:20`, e o 429 sai sem cabeçalhos de rate limit, `lib/pipeline/helpers.ts:27`) e `fail {reason:'patch 429', retry:true}` (o 429 sai antes de qualquer consulta, `lib/pipeline/auth.ts:57-59`) | `falha_site` (`etapa: patch`, `motivos: patch_429`) |
 | 409 / 404 | nada: a task não é mais desta execução | `conflito` |
 | 401 / 403 | nada: a chave foi recusada; o watchdog fecha | `chave` |
@@ -420,12 +423,12 @@ O overview soma fotos de datas diferentes; é bug registrado no §10, e o snapsh
 **Por vídeo**, pelo `snapshot.videos[].id` (uuid interno); `video_id` é o id do YouTube e nunca vai para o PATCH.
 - `idade_dias`.
 - **Maturidade.** Vídeos com menos de 90 dias ficam fora das comparações dos padrões. Acima disso, a comparação usa `view_count` direto, que na 2a é o valor da importação de 06/05 (canal parado; o `refreshMetrics` de todos os vídeos entra na 2b, §7). Risco aceito: um vídeo novo congela perto dos 30 dias de idade e, se a 2b não sair antes de ele completar 90 dias, entra nas comparações com esse valor. A saturação medida (em 18/09: +29 em 90 dias sobre 6.847) só vale para vídeos com 647 dias ou mais (o mais novo do PT, publicado em 10/12/2024, tinha 647 em 18/09); o limiar de 90 dias é revisto quando o canal voltar a publicar.
-- **Coorte de uma série** (base da `razao` dos padrões, §4.3): vídeos maduros do mesmo ano, **sem os do grupo avaliado** (a série). O ano de uma série é o do `published_at` do seu episódio mediano pela ordem de `published_at`. Com número par de episódios, vale o de menor posição entre os dois centrais.
-  - Com menos de 4 vídeos, soma o ano **com vídeos** mais próximo (anterior, depois seguinte, alternando), até 2 anos de distância. Sem 4 dentro desse limite, a comparação não se aplica.
+- **Coorte de uma série** (base da `razao` dos padrões, §4.3): vídeos maduros e não ocultos do mesmo ano, **sem os do grupo avaliado** (a série); vídeos de outras séries continuam na coorte. Ano = ano do `published_at` no fuso de São Paulo, o mesmo do `ultimo_video` (§4.4). O ano de uma série é o do `published_at` do seu episódio mediano pela ordem de `published_at`. Com número par de episódios, vale o de menor posição entre os dois centrais.
+  - Com menos de 4 vídeos, soma o ano mais próximo **com vídeos elegíveis para a coorte** (maduros, não ocultos, fora da série) (anterior, depois seguinte, alternando), até 2 anos de distância. Sem 4 dentro desse limite, a comparação não se aplica.
 - `recent.views` e `recent.subscribers_gained` (90 dias), quando `recent_window` não é nulo; somados no canal, viram `views_90d` e `inscritos_90d` da `ENTRADA` (§4.4).
 
 **Série**
-- **A verdade é `/opt/agente/series.json`** (`{"videos":{snapshot.videos[].id: slug},"nomes":{slug: nome exibível}}`). O nome alimenta `series[].nome` e o `finding`, passa por `_t` e nunca tem `_`. O slug só vai para `pattern_id`. O arquivo é escrito pelo dono uma vez, no F0.5, a partir de uma proposta que Claude faz lendo os títulos da fixture (marcadores aninhados, como "4 - Como somos controlados - … (Part 3)", saem com as duas leituras, e o dono escolhe). Cada vídeo pertence a uma série só. Série = 3 ou mais vídeos com o mesmo slug.
+- **A verdade é `/opt/agente/series.json`** (`{"videos":{snapshot.videos[].id: slug},"nomes":{slug: nome exibível}}`). O nome alimenta `series[].nome` e o `finding`, passa por `_t` e nunca tem `_`. O slug só vai para `pattern_id`. O arquivo é escrito uma vez, no F0.5: Claude o redige no Mac a partir dos títulos da fixture, e o dono escolhe e o leva à forja (marcadores aninhados, como "4 - Como somos controlados - … (Part 3)", saem com as duas leituras, e o dono escolhe). Cada vídeo pertence a uma série só. Série = 3 ou mais vídeos com o mesmo slug.
 - **O `fila_intel.py` não tem heurística de série.** Vídeo fora do arquivo não pertence a série nenhuma. O canal não publica desde 10/12/2024; quando voltar, o dono acrescenta os vídeos novos ao arquivo (gatilho da 2b, §7).
 
 **Teste**
@@ -443,15 +446,19 @@ O overview soma fotos de datas diferentes; é bug registrado no §10, e o snapsh
 
 **`patterns_detected`** — só séries:
 - `pattern_id = serie:<slug>`, `category = series`, `sample_size` = número de vídeos da série.
-- `razao` = mediana de `view_count` da série / mediana de `view_count` da coorte sem ela.
+- `razao` = mediana de `view_count` da série / mediana de `view_count` da coorte sem ela, arredondada a 2 casas **antes** de qualquer uso (`Decimal(a)/Decimal(b)` com `quantize(Decimal('0.01'), ROUND_HALF_UP)`, sem `round()` de float). O piso de efeito, `forte`, `leitura` (§4.4), o `finding` e a `ENTRADA` usam esse mesmo valor, e a razão crua nunca é comparada. Exibição: 2 casas + `×` ("0,63×"). Medianas: sem casas quando inteiras, senão 1 casa ("143,5"). Teste de fronteira: 91/136 = 0,669 → 0,67 → padrão "abaixo"; 0,674 → 0,67 → padrão; 0,675 → 0,68 → neutro.
 - `finding` é template: `Série "{nome}": {n} vídeos, mediana de {views} views na vida ({razao} da coorte do mesmo período)`.
 - Piso de efeito: só sai padrão com `razao` ≤ 0,67 ou ≥ 1,5; o resto vai para o log (`motivos: padrao_neutro`).
 - **`confidence`** = `min(0,7, 0,3 + 0,05 × min(n_grupo, 6) + 0,1 × [forte])`, com `n_grupo = min(n_série, n_coorte)` e `forte` = `razao` ≤ 0,5 ou ≥ 2. O teto de 0,7 existe porque não há CTR nem retenção.
 - Eras e dia da semana ficam fora.
 
-**`analysis_text`** é template: os `finding` unidos, mais "Gerado pela forja com views até {data_base} e séries.". Nenhuma tela o lê hoje.
+**`analysis_text`** é template: os `finding` unidos, mais "Gerado pela forja com as views na vida de cada vídeo (contagem importada, sem atualização diária) e as séries.". Não cita `data_base`, porque nenhum `finding` usa dado até essa data. Nenhuma tela o lê hoje.
 
-**Teste da fixture PT.** Fixa a saída de `escolher` e os padrões; o dono confere uma vez. Um limiar só muda por item julgado errado ou faltante, nunca para atingir uma contagem. **Esperado em 18/09** (com o `view_count` da importação de 06/05, o mesmo que a fixture do F0.5 traz na 2a, §4.2): 1 padrão ("0–10": 11 vídeos, 91 / 143,5 = 0,63×, `confidence` 0,6; "Vlogzeira", 156 / 109,5 = 1,42×, fica abaixo do piso de efeito; "Main AD Diamante" é oculto), `priorities: []` e nenhuma chave `video_recommendations`.
+**Teste da fixture PT.** Fixa a saída de `escolher` e os padrões; o dono confere uma vez. Um limiar só muda por item julgado errado ou faltante, nunca para atingir uma contagem. **Esperado em 18/09** (com o `view_count` da importação de 06/05, o mesmo que a fixture do F0.5 traz na 2a, §4.2), conforme a leitura que o dono gravar no `series.json` (F0.5):
+- **Leitura plana** ("0–10", episódios 0 a 10 numa série só): 1 padrão, "0–10" (11 vídeos, 91 / 143,5 = 0,63×, `confidence` 0,6).
+- **Leitura aninhada:** 1 padrão, "Como somos controlados" (episódios 1, 2, 4, 5 e 6; ano 2019 pelo episódio 4; 91 / 136 = 0,669, arredondada a 0,67 e exibida como "0,67×", `confidence` 0,55). É o caso de fronteira do piso de efeito (a `razao` arredondada, 0,67, fica no piso). O resto do 0–10 (episódios 0, 3, 7, 8, 9 e 10) dá 113 / 113 = 1,00, neutro.
+- **Nas duas leituras:** "Vlogzeira" (156 / 109,5 = 1,42×, com os vídeos da outra série dentro da coorte) fica abaixo do piso de efeito, e "Main AD Diamante" é oculto.
+- **Sempre:** `priorities: []` e nenhuma chave `video_recommendations`.
 
 ### 4.4 Redação pelo 12B — contrato (fonte única do `teste_fila`)
 
@@ -479,7 +486,8 @@ O overview soma fotos de datas diferentes; é bug registrado no §10, e o snapsh
 - Nunca calcular. O tempo sem publicar aparece só como os dias de `dias_sem_publicar` ou como a data de `ultimo_video`, nunca em meses ou anos.
 - Nunca escrever CTR, taxa de cliques, impressões, retenção, tempo de exibição, engajamento, curtidas, comentários, nota ou score, **nem para dizer que faltam**: o código já avisa. Nunca escrever nomes de campo (`views_90d`, `razao_coorte`…).
 - A direção de cada série é a de `leitura`, com as mesmas palavras. Nunca dizer "acima" ou "abaixo" por conta própria.
-- Tamanho: `summary` em 2 frases.
+- Tamanho e idioma: `summary` em 2 frases, em pt-BR, com no máximo 300 caracteres.
+- Glossário (texto fixo no prompt; as chaves só explicam a entrada e nunca vão para o texto): `videos` = vídeos do canal no banco, de toda a vida do canal; `views_90d`/`inscritos_90d` = views e inscritos ganhos pelo canal nos 90 dias até `data_base`; `ultimo_video` = data do vídeo mais recente; `dias_sem_publicar` = dias entre `ultimo_video` e `data_base`; `n_series` = quantas séries se afastam da coorte; em cada série, `n` = número de episódios, `ano` = ano da série, `mediana_views_vida` = mediana das views de cada episódio desde que foi publicado, `razao_coorte` = essa mediana dividida pela mediana dos vídeos do mesmo período fora da série.
 - O contrato de saída fica escrito aqui porque o llama.cpp transforma `S` só em gramática e não o põe no prompt: `summary` = o estado do canal e o que os padrões de série mostram.
 
 **Pedido.** `POST 127.0.0.1:8080/v1/chat/completions` com:
@@ -488,7 +496,7 @@ O overview soma fotos de datas diferentes; é bug registrado no §10, e o snapsh
 - `chat_template_kwargs: {enable_thinking: false}` (como a fase 1, `trilha/s2.py:93`);
 - `max_tokens 6144`, timeout = `min(600 s, orçamento restante − 120 s)`.
 
-**`S`** = `{"type":"object","properties":{"summary":{"type":"string",…}},"required":["summary"],"additionalProperties":false}`.
+**`S`** = `{"type":"object","properties":{"summary":{"type":"string","minLength":60,"maxLength":MAX}},"required":["summary"],"additionalProperties":false}`, com `MAX = 500 − len(AVISO_ESTREITO) − 10` calculado no import a partir da constante (440 com o aviso atual de 50 caracteres). O `teste_fila` confere `MAX ≥ 300` e `len(AVISO_ESTREITO) + 1 + MAX ≤ 500` em UTF-16.
 
 **Faixa** — limite da gramática, abaixo do Zod (`CoachingSchema.summary .max(500)`, `intelligence-schemas.ts:17`):
 
@@ -497,11 +505,11 @@ O overview soma fotos de datas diferentes; é bug registrado no §10, e o snapsh
 | `summary` | 60 – (500 − len(AVISO_ESTREITO) − 10) |
 
 - **Idioma.** O texto analítico é sempre pt-BR. Nomes de série vão entre aspas, sem tradução.
-- **Aparo.** Um `summary` que termine sem `.`, `!` ou `?` é aparado no último `[.!?]` seguido de espaço ou fim. O corte não vale para pontuação dentro de aspas, entre dígitos ou logo após `Ep|Part|vs|nº`. Se sobrarem menos de 60 caracteres (o mínimo da faixa), reprova. O log conta quando bateu no teto (`motivos: teto`).
+- **Aparo.** Um `summary` que termine sem `.`, `!` ou `?` é aparado no último `[.!?]` seguido de espaço ou fim. O corte não vale para pontuação dentro de aspas, entre dígitos ou logo após `Ep|Part|vs|nº`. Se sobrarem menos de 60 caracteres (o mínimo da faixa), reprova com motivo `curto`. O aparo roda depois do Aceite, como primeiro passo do validador, então uma reprovação `curto` conta como "chegou ao validador": leva à tentativa 2 com `corrigir` ou ao template, nunca a `fail`. O log conta quando bateu no teto (`motivos: teto`).
 
 **Aceite.** A resposta é aceita só com `finish_reason == "stop"`, `reasoning_content` vazio ou ausente, `json.loads` sem erro e o conjunto de chaves igual a `{"summary"}`. Qualquer outra coisa reprova a tentativa: `truncado|timeout|json|llama|pensou`. O log grava `usage`, `len(reasoning_content)` e `timings.predicted_per_second`.
 
-**O código nunca lê do modelo** número, padrão ou prioridade: só a string `summary`. Depois da validação, monta o PATCH com os campos do §4.3 e prefixa o `summary` com `AVISO_ESTREITO` ("Sem CTR/retenção nesta fase; base: views e séries.", até 80 caracteres). O validador do §4.5 roda só sobre o texto gerado.
+**O código nunca lê do modelo** número, padrão ou prioridade: só a string `summary`. Depois da validação, monta o PATCH com os campos do §4.3 e prefixa o `summary` com `AVISO_ESTREITO` ("Sem CTR/retenção nesta fase; base: views e séries.", até 80 caracteres). Os itens 3–5b do validador (§4.5) rodam só sobre o texto gerado; os itens 1–2, sobre o payload montado.
 
 ### 4.5 Validador local
 
@@ -522,13 +530,14 @@ O overview soma fotos de datas diferentes; é bug registrado no §10, e o snapsh
 - **(b) Datas e anos**, nesta ordem de alternância: `\d{1,2}/\d{1,2}/\d{4}`, `\d{1,2}/\d{4}`, `\d{1,2}/\d{1,2}`, `\d{1,2} de <mês>( de \d{4})?`, `<mês>(\.)?( de|/)? ?\d{4}` (com `jan…dez`) e `\b(20(0[5-9]|[12]\d|30))\b`.
   - Cada um vira `(dia|None, mes|None, ano|None)` e casa quando todo componente não nulo do texto é igual ao de um permitido: `data_base`, `ultimo_video` e `(None, None, series[].ano)`.
   - Teste de tabela (com a `ENTRADA` do §4.4): `12/2024`, `dezembro de 2024`, `dez/2024`, `em 2024`, `18/09`, `18 de setembro de 2026`, `a série de 2019` passam; `em 2023` e `11/2024` reprovam.
-- **(c) Número:** `\d{1,3}(\.\d{3})+|\d+(,\d+)?`, com sufixo `%|x|×| vezes| mil| milhões?`, lido em pt-BR.
+- **(c) Número:** `\d{1,3}(\.\d{3})+|\d+(,\d+)?`, com sufixo `%|x|×| vezes`, lido em pt-BR.
 - **(d) Por extenso.**
   - `metade|dobro|triplo` e `<dois|duas..vinte> vezes` reprovam (motivo `extenso`): o `SISTEMA_FILA` proíbe converter razões.
   - `dois|duas..vinte` sem ` vezes` são tokens `número`.
   - "um"/"uma" são artigo e não contam.
+  - Tempo em anos ou meses reprova, com motivo `tempo`: `\b(\d+|um|uma|meio|dois|duas|tres|quatro|cinco) (anos?|mes|meses)\b` (sem acento). O tempo sem publicar só aparece em dias ou pela data do último vídeo.
 - **(e) Constante** sempre permitida: só 90 (a janela de `recent` e do template, guardada pelo §4.1 passos 4–5). 28 e 30 não entram, porque não há janela dessas no dado (§10). 60, 180 e `top 3` eram das regras R4 e dos eixos, e voltam com elas na 2b (§7).
-- **(f) Arredondamento:** `x == round(v, k)` com k menor que as casas exibidas. Com `mil`/`milhões`, a diferença para `v` fica abaixo de 5%.
+- **(f) Igualdade estrita:** um número do texto casa só com o valor exibido na `ENTRADA` (mesmo tipo, mesmas casas). Arredondamento e `mil`/`milhões` voltam só se o F2 mostrar reprovação por eles.
 
 **5. Proibidos** (sem acento, com borda de palavra):
 
@@ -541,20 +550,20 @@ O overview soma fotos de datas diferentes; é bug registrado no §10, e o snapsh
 **5b. Direção** (sem acento, com borda de palavra). O `summary` é cortado em frases por `[.!?]`, com as mesmas exceções do Aparo (§4.4). Numa frase que cite o nome de uma série só (casado pela etapa (a2)), reprova, com motivo `direcao`:
 - se a `leitura` da série for "abaixo da coorte": `acima|supera(m)?|superior(es)?|melhor(es)? que`;
 - se for "acima da coorte": `abaixo|inferior(es)?|pior(es)? que|fica(m)? atras`.
-- Uma frase que cite duas séries de leituras opostas não é checada. O template do item 6 passa, porque não tem palavra de direção.
+- Uma frase que cite duas séries de leituras opostas não é checada. O template do item 6 passa, porque a única palavra de direção que ele usa é a própria `leitura` da série.
 - Teste de tabela (com a `ENTRADA` do §4.4): "a série 0–10 fica abaixo da coorte (0,63×)" passa; "a série 0–10 supera a coorte, com 0,63×" reprova.
 
 **6. Reprovação.**
 - **Tentativa 2** (depois de reprovação no validador). Um `user` só (ver §4.4), com `corrigir: {"summary":{"anterior":"…","motivo":"…","permitidos":[…]}}`.
   - `permitidos` = os valores de `canal` e `series` da `ENTRADA` enviada, exceto `nome` e `leitura`, na ordem da `ENTRADA` e sem repetição, mais "90". Com a `ENTRADA` do §4.4: `["35","29","0","18/09/2026","10/12/2024","647","1","11","2019","91","0,63×","90"]`.
-  - `motivo` = frases fixas por código de reprovação, unidas por "; ": `numero`/`data` → "cite só valores de permitidos, sem converter nem calcular"; `extenso` → "cite as razões só como estão em permitidos"; `proibido` → "tire as métricas que não estão na entrada" (nunca repete o termo achado); `rotulo_cru` → "não use nomes de campo"; `curto` → "escreva 2 frases completas"; `emoji` → "sem emoji"; `direcao` → "use para cada série a direção de leitura".
+  - `motivo` = frases fixas por código de reprovação, unidas por "; ": `numero`/`data` → "cite só valores de permitidos, sem converter nem calcular"; `extenso` → "cite as razões só como estão em permitidos"; `proibido` → "tire as métricas que não estão na entrada" (nunca repete o termo achado; quando `proibido` ou `rotulo_cru` está entre os motivos, `anterior` vai com cada ocorrência achada trocada por `[…]`); `rotulo_cru` → "não use nomes de campo"; `curto` → "escreva 2 frases completas"; `emoji` → "sem emoji"; `direcao` → "use para cada série a direção de leitura"; `tempo` → "diga o tempo sem publicar só em dias ou pela data do último vídeo".
   - A resposta da tentativa 1 não entra como turno.
   - O schema é o mesmo `S`, com outro `seed`.
   - O canário passa essa mensagem pelo `/apply-template` real.
-- **Depois da tentativa 2.** O `summary` ainda reprovado vira **template do código**, montado só com `canal` e `series`, com todo nome de série entre “ ”: "Canal com {videos} vídeos no banco e {views_90d} views nos últimos 90 dias até {data_base}. Séries com efeito: “{nome}” ({razao_coorte} da coorte), …" (sem série: "Nenhuma série se afasta da coorte do mesmo período."; sem `recent_window`, sai a oração das views). As séries entram em ordem até caber na faixa.
+- **Depois da tentativa 2.** O `summary` ainda reprovado vira **template do código**, montado só com `canal` e `series`, com todo nome de série entre “ ”: "Canal com {videos} vídeos no banco e {views_90d} views nos últimos 90 dias até {data_base}. Séries com efeito: “{nome}” ({razao_coorte}, {leitura}), …" (sem série: "Nenhuma série se afasta da coorte do mesmo período."; sem `recent_window`, sai a oração das views). As séries entram em ordem até caber na faixa.
   - O template passa no mesmo validador, e o teste de tabela cobre o template com 0, 1 e 2 séries e um nome de série com dígitos.
   - O log grava `fallback: [summary]`.
-- **Pouco orçamento.** Com menos de 9 min restantes depois da tentativa 1, a tentativa 2 é pulada. Se a tentativa 1 chegou ao validador e reprovou nele (itens 3–5b), o `summary` vai para o template e o PATCH segue. Se não chegou (llama fora ou `truncado|timeout|json|pensou`), a execução termina em `orcamento`: `fail {reason:'orcamento', retry:true}`, sem PATCH (§4.1 passos 4–5).
+- **Pouco orçamento.** Com menos de 9 min restantes depois da tentativa 1, a tentativa 2 é pulada. Se a tentativa 1 chegou ao validador e reprovou nele (itens 3–5b, ou `curto` no Aparo do §4.4), o `summary` vai para o template e o PATCH segue. Se não chegou (llama fora ou `truncado|timeout|json|pensou`), a execução termina em `orcamento`: `fail {reason:'orcamento', retry:true}`, sem PATCH (§4.1 passos 4–5).
 - **Tentativa 2 depois de falha de infraestrutura** (llama fora, ou `truncado|timeout|json|pensou`, na tentativa 1): vai a mesma mensagem da tentativa 1, sem `corrigir`, com outro `seed`.
 - **Desfecho misto.** Se ao menos uma tentativa passou do Aceite e chegou ao validador, o fim é o `summary` aprovado ou o template, nunca `fail`.
 - **`fail` só por infraestrutura ou por guarda determinística.** Com `retry`: `llama` (as duas tentativas sem chegar ao validador, por llama fora ou `truncado`/`timeout`/`json`/`pensou`) ou `orcamento` (a tentativa 1 sem chegar ao validador, com menos de 9 min restantes). Sem `retry` (`reprovada`): Zod reprovado depois da montagem ou escopo 2a violado (itens 1–2), piso de dado (§4.3) ou janela ≠ 90 (§4.1 passos 4–5). Um `summary` reprovado pelo validador nunca dá `fail`: vira template.
@@ -563,12 +572,12 @@ O overview soma fotos de datas diferentes; é bug registrado no §10, e o snapsh
 
 **`pedir`** (hoje `pedir(cli, metodo, caminho, params, agora)`, sempre `cli.get`, `sitio.py:90-127`)
 - **Na fase 1, nada muda.** O GET continua em `cli.get`, byte a byte igual. O ramo de status de `sitio.py:108-116` fica intocado: 3xx/4xx → `formato`; 5xx/429 → `_velho` (`teste_s1.py:80-95`). `teste_s1`/`teste_s2` passam sem edição.
-- **Método não-GET** usa `cli.request(metodo, …, json=corpo, follow_redirects=False)`. O `CliFalso` (`trilha/sitio_falso.py`) ganha `request()` com o mesmo registro de `chamadas`.
+- **Método não-GET** usa `cli.request(metodo, …, json=corpo, follow_redirects=False)`. O `CliFalso` (`trilha/sitio_falso.py`) ganha `request(metodo, url, params=None, json=None, headers=None, timeout=None, follow_redirects=True)`. Ele grava em `chamadas` a mesma tupla de 3 que o `get()` e, numa lista nova `pedidos`, `(metodo, caminho, json)`. O construtor ganha `respostas={(metodo, rota-regex): (status, corpo_bytes)}`, consultado pelo `get()` e pelo `request()` antes de `status`. Com ele o teste serve 204, `{"error":{"code":…}}`, corpo não-JSON e respostas diferentes para o GET do snapshot e o PATCH na mesma rota. Sem `respostas`, o `get()` continua como hoje, e `teste_s1`/`teste_s2` passam sem edição.
 - **Parâmetros novos, só por palavra-chave:**
   - `corpo=None`;
   - `fase=FASE`, repassado a `autorizada`;
   - `chave=None`;
-  - `timeout=None`: quando dado, substitui `TIMEOUT_LENTO.get(caminho, TIMEOUT)`. O `fila_intel.py` passa 15 s no claim, no fail e no snapshot, 60 s no PATCH (`httpx.Timeout(60, connect=5)`) e 10 s no `fail` do `finally` (§4.1).
+  - `timeout=None`: quando dado, substitui `TIMEOUT_LENTO.get(caminho, TIMEOUT)`. O `fila_intel.py` passa 15 s no claim, no fail e no snapshot, 60 s no PATCH (`httpx.Timeout(60, connect=5)`) e `httpx.Timeout(8, connect=3)` sob `asyncio.wait_for(…, ESPERA_FAIL_MORTO)` no `fail` do `finally` (§4.1).
 - **Com `fase=2` (qualquer método) ou método não-GET:**
   - não lê nem grava `_CACHE`, não chama `_velho` e não repete a chamada;
   - exige `chave=` explícito; sem ele, `FalhaSite(caminho, …)` do tipo `sem_chave` antes da rede;
@@ -585,7 +594,7 @@ O overview soma fotos de datas diferentes; é bug registrado no §10, e o snapsh
 | 3xx e qualquer outro 4xx | `recusa` |
 
   `recusa` não entra em `MENSAGEM`: o proxy nunca a vê.
-- **Falha transitória no `fila_intel.py`.** Ele decide sempre por `status` (e por `code` só para separar `PARTIAL_FAILURE`), nunca por `tipo`. Uma falha é **transitória** (`retry:true` no snapshot; `indeterminado` com `fail {retry:true}` no PATCH, "outro 5xx") quando `tipo in {'timeout','fora','429','5xx'}` **ou** quando `status == 500` e `code != 'PARTIAL_FAILURE'` (inclusive `code=None`). Um 200 com corpo `formato`/`grande` (`sitio.py:118-124`) é `falha_site` sem `retry`. O `teste_fila` tem uma linha para cada caso, e mais: 500 `INTERNAL_ERROR` no PATCH → `indeterminado` e um `fail` com `retry` (`fail`→409 mantém `indeterminado`); 500 no snapshot → `fail {retry:true}`; 500 no claim → `falha_site` com `etapa: claim`.
+- **Falha transitória no `fila_intel.py`.** Ele decide sempre por `status` (e por `code` só para separar `PARTIAL_FAILURE`), nunca por `tipo`. Uma falha é **transitória** (`retry:true` no snapshot; `indeterminado` com `fail {retry:true}` no PATCH, "outro 5xx") quando `tipo in {'timeout','fora','429','5xx'}` **ou** quando `status == 500` e `code != 'PARTIAL_FAILURE'` (inclusive `code=None`). Um 200 com corpo `formato`/`grande` (`sitio.py:118-124`; com `fase=2` essa `FalhaSite` leva `status=200`) é `falha_site` sem `retry`, exceto no PATCH, onde é `ok` (tabela do §4.1 passo 6). O `teste_fila` tem uma linha para cada caso, e mais: 500 `INTERNAL_ERROR` no PATCH → `indeterminado` e um `fail` com `retry` (`fail`→409 mantém `indeterminado`); 500 no snapshot → `fail {retry:true}`; 500 no claim → `falha_site` com `etapa: claim`.
 - **`FASE = 1` não muda.** Só o `fila_intel.py` passa `fase=2`.
 - **`ROTAS_FASE[2]`** = fase 1 + `POST …/task/claim`, `POST …/task/<uuid>/fail`, `GET …/intelligence?channel_id=<uuid>` e `PATCH …/intelligence`.
 
@@ -593,6 +602,7 @@ O overview soma fotos de datas diferentes; é bug registrado no §10, e o snapsh
 - Com a fase padrão, claim, fail e PATCH levantam `RotaBloqueada` sem rede.
 - Com `fase=2`: nada vem de cache nem de `_velho` num 5xx; sem `chave=` dá `sem_chave`; 204 devolve a tupla; 409 dá `recusa` com status e code; corpo de erro não-JSON dá `code=None`; `timeout=` é respeitado.
 - `teste_s1`/`teste_s2` passam sem edição.
+- O `teste_s4.py` carrega o `sitio` como `teste_s1.py:7-11`: `AGENTE_SITIO` ou, na falta, `../../sitio.py.novo`. O `cartao.sh:22` só passa `AGENTE_PROXY`.
 
 **Instalação**
 - **`sitio.py`**, só pelo **cartão S4**. O `trilha/s4.py` copia `proxy.py` para `proxy.py.novo` sem alteração e escreve o `sitio.py.novo` (0600), que é o que `cartao.sh:8-9` e `deploy.sh:11` esperam. Replay com `mudaram: 0`.
@@ -616,12 +626,14 @@ O overview soma fotos de datas diferentes; é bug registrado no §10, e o snapsh
 
   - Só depois de `teste_fila.py` passar **na forja**, a cada instalação ou atualização: `(cd /opt/agente/docs/trilha && flock /opt/agente/fila_intel.lock env -u PYTHONPATH -u AGENTE_BASE AGENTE_SITIO=/opt/agente/sitio.py AGENTE_FILA=/opt/agente/docs/trilha/fila_intel.py /opt/agente/venv/bin/python -B teste_fila.py)`.
   - Um cartão que reverta o `sitio.py` comenta antes a linha do crontab.
+  - Voltar uma atualização do worker: `cd /opt/agente && flock /opt/agente/fila_intel.lock sh -c 'cp -p fila_intel.py.bak fila_intel.py.tmp && mv fila_intel.py.tmp fila_intel.py'`, e depois o mesmo `teste_fila.py` acima com `AGENTE_FILA=/opt/agente/fila_intel.py`.
 - **O `teste_fila.py` cobre no mínimo**, com `CliFalso` e llama falso:
   - cada linha das tabelas do §4.1 passos 3 e 6 (no `indeterminado`, um `fail` com `retry`; `fail`→409 mantém `indeterminado`), e cada saída dos passos 4–5 (`retry:true` para llama, orçamento e snapshot timeout/5xx/429; sem `retry` nos demais; `fail`→409 = `conflito`; `fail` que falha = `fail_perdido`), conferindo quantas vezes `fail`/PATCH são chamados (0 ou 1) e com qual `retry`;
   - `CANAIS_FILA` vazio ou desconhecido → `config`, sem chamadas ao site;
-  - `/slots` ocupado → zero claims;
-  - `SystemExit` depois do claim → exatamente um `fail` com `retry`, e uma linha `morto`;
-  - `SystemExit` com `patch_enviado` → nenhum `fail`;
+  - `/slots` com um slot ocupado → `ocupado`; `/slots` recusando conexão ou com 500 → `llama_fora`; nos dois, zero claims;
+  - SIGTERM depois do claim (o llama falso chama `signal.raise_signal(signal.SIGTERM)`, o que prova que `main()` instalou o handler; o teste restaura o handler anterior ao fim) → exatamente um `fail` com `retry` e `reason` `morto:<etapa>`, e uma linha `morto`;
+  - `SystemExit` com o PATCH enviado e sem resposta, e na espera do 429 → exatamente um `fail` com `retry` e linha `morto`; `SystemExit` depois de PATCH 200/409/401 ou com `fail` já enviado → nenhum `fail`;
+  - `SystemExit` depois do claim com o `fail` do `finally` pendurado no `CliFalso` (e `ESPERA_FAIL_MORTO` reduzida a 0,2 s pelo teste) → a linha `morto` é gravada mesmo assim;
   - saída `reprovada` com o `fail` perdido → nenhum segundo `fail`, e a linha é `fail_perdido`, não `morto`;
   - lock ocupado → 0 no cron e 75 no manual. Com o worker parado no llama falso depois de tomar a trava, um `flock -n` de outro processo no mesmo arquivo falha;
   - exatamente uma linha jsonl por execução com lock;
@@ -644,7 +656,7 @@ O overview soma fotos de datas diferentes; é bug registrado no §10, e o snapsh
 - **O5 da onda0b (pré-condição resolvida em 19/09).** O `install` do O5 troca `/etc/default/proxy-agente` inteiro, e o `gerar_segredos.py` agora preserva as linhas que não são as 4 credenciais (`preservadas()`), então `SITIO_CHAVE`/`SITIO_CANAL_*` sobrevivem. Prova, depois de qualquer mexida no arquivo: `grep -cE '^SITIO_(CHAVE|CANAL_PT|CANAL_EN)=' /etc/default/proxy-agente` → 3.
 - **Provas:**
   - `grep -c SITIO_CHAVE_FILA /etc/default/proxy-agente` → 0;
-  - o `environ` do `proxy-agente` sem `FILA`;
+  - `tr '\0' '\n' < /proc/$(systemctl show -p MainPID --value proxy-agente)/environ | grep -c FILA` → 0 (sem sudo: o serviço roda como `thiago`);
   - `sed -n 's/^SITIO_CHAVE_FILA="\(forja_[A-Za-z0-9_-]\{43\}\)"$/\1/p' /opt/agente/fila_intel.env | wc -l` → exatamente 1. Sem isso, a prova seguinte é vazia e passa sozinha;
   - o comando abaixo, sem o valor em argv, dá 0:
 
@@ -665,7 +677,7 @@ O overview soma fotos de datas diferentes; é bug registrado no §10, e o snapsh
 
 ### 4.7 Modos auxiliares
 
-Todos tomam o lock do §4.1. As linhas desses modos levam `modo` e não contam para o pulso.
+Todos tomam o lock do §4.1. `--sombra` e `--canario` passam antes pelas checagens de `/slots` e de chat recente do §4.1 passo 2 (a janela do sync não entra). Se alguma falhar, saem com `ocupado`/`llama_fora`/`chat` sem chamar o llama, e o dono repete. As linhas desses modos levam `modo` e não contam para o pulso.
 
 - **Scripts de apoio** (antes do S4, fora do `sitio.py`, que ainda é da fase 1): `trilha/capturar_fixture.py` e `trilha/sonda_f0.py`.
   - Leem a chave `{read}` pelo Python e usam `httpx` direto. Por isso rodam sempre com `cd /opt/agente && venv/bin/python -B docs/trilha/<script>.py`, nunca com o `python3` do sistema, que não tem `httpx`.
@@ -673,25 +685,25 @@ Todos tomam o lock do §4.1. As linhas desses modos levam `modo` e não contam p
   - Nenhum dos dois é importado pelo proxy nem pelo `fila_intel.py`.
 - **`--sombra --snapshot arq`:** sem claim, sem PATCH e sem fail.
   - `hoje` = `congelado_em`, nunca o relógio.
-  - Grava `/opt/agente/sombra/<canal>-<quando>.json` com o `system`, o `user`, o payload (com `task_id` = `00000000-0000-4000-8000-000000000000`), o veredito e os tempos. Mantém os 30 mais recentes.
+  - Grava `/opt/agente/sombra/<canal>-<quando>.json` (`<canal>` = rótulo `PT`/`EN` de `CANAIS_FILA`, nunca o uuid) com o `system`, o `user`, o payload (com `task_id` = `00000000-0000-4000-8000-000000000000`), o veredito e os tempos. Mantém os 30 mais recentes.
 - **`--escolher --snapshot arq`:** sem rede, sem llama e sem `fila_intel.env`. Imprime os vídeos fora de `series.json` (todos, quando ele não existe) e a saída de `escolher` (§4.3). Roda antes do F1, pela cópia de trabalho: `cd /opt/agente && AGENTE_SITIO=/opt/agente/sitio.py venv/bin/python -B docs/trilha/fila_intel.py --escolher --snapshot docs/trilha/fixture_pt.json`. O `AGENTE_SITIO` é obrigatório aqui: sem ele o carregamento por caminho do §4.6 procura `docs/trilha/sitio.py`, que não existe (o K leva o `sitio.py` para `docs/`, não para `docs/trilha/`). O `--escolher` só usa `_t`, que o `sitio.py` da fase 1 já tem (`sitio.py:141-142`), e nunca exige `ROTAS_FASE[2]`.
 - **`--canario`:** não clama.
   - Faz `POST …/task/00000000-0000-4000-8000-000000000000/fail {reason:'canario'}` com a chave da fila e espera 404. Um 400 reprova: o corpo foi recusado antes da busca.
   - Repete o mesmo pedido com `SITIO_CHAVE` (a `{read}`), lida pelo próprio Python de `/etc/default/proxy-agente`, e espera 403.
-  - Sonda a 8080 com o `S` real (só `summary`) e a `ENTRADA` da fixture: resposta válida, `reasoning_content` vazio e tok/s ≥ 0,8 × o `timings.predicted_per_second` de uma chamada sem `response_format` que o próprio canário faz logo antes, com a mesma `ENTRADA`.
+  - Sonda a 8080 com o `S` real (só `summary`) e a `ENTRADA` da fixture: resposta válida pelo Aceite do §4.4 e `reasoning_content` vazio. O tempo fica com o portão do F2 (§5); o log continua gravando `timings.predicted_per_second` (§4.4).
   - Passa a mensagem de tentativa 2 pelo `/apply-template`.
 
 ## 5. Rollout
 
 | Card | Quem | O quê | Portão |
 |---|---|---|---|
-| **F0** | Claude + dono | Commit do site (§3) em staging → main | Mockup (selo, linha de summary, tela sem "Potencial"/"regras fixas", botão "Pedir diagnostico") aprovado **antes** do código · `(cd apps/web && npx vitest run)` completo (~160 s) + `npm run db:start && npx supabase@2.98.2 db reset --local && (cd apps/web && HAS_LOCAL_DB=1 npx vitest run test/integration/youtube-intelligence-forja.test.ts)` (a mesma sequência de `ci.yml:135-137`) + typecheck web/api · Vercel verde · validação **autenticada antes da promoção** (`docs/ops/runbook-cms-e2e-local.md`): varredura da sidebar 200/`ok`, e `/cms/youtube/analytics` sem boundary, com console sem `error`. Localmente não há conexão YouTube com token válido, então a página para em "Nenhuma conexão YouTube encontrada" (`page.tsx:32-46,73-81`); os cenários A–C do §3.7 ficam no teste jsdom: A → "por Cowork · 18/05", linha de summary, 3 cards, badge 3; B → "por forja", summary, sem card verde, sem "Potencial", sem "regras fixas", sem badge; C → heurístico · **depois da promoção**, com `sonda_f0.py` na forja (levado pelo card K; chave `{read}` lida pelo Python): `GET …/intelligence?channel_id=<PT>` → 200 com `recent_window` (prova o deploy novo); só então, `POST …/task/claim {channel_ids:[<uuid inexistente>]}` e `PATCH …/intelligence` vazio → 403 cada; e `GET …/intelligence/task` → 403, feito logo depois do 200 com `recent_window`, que já prova o código novo. Se ainda assim vier 200, a task clamada pela chave `{read}` vira `stale` pelo watchdog em 30–60 min. Qualquer outro status reprova; um 200/204 dispara o rollback do F0 · logado em prod, PT "por Cowork · 18/05" com a linha de summary, 3 cards e badge 3 |
-| **K** | dono, no Mac | Antes do portão pós-promoção do F0, e de novo sempre que o kit mudar: `cd ~/Workspace/forja/ferramentas/docs && scp -r sitio.py trilha forja:/opt/agente/docs/` (leva `trilha/sonda_f0.py`, `capturar_fixture.py`, `s4.py`, `teste_s4.py`, `teste_fila.py`, `nova_chave.py`, `cartao.sh`, `deploy.sh` e `fila_intel.py`, como o passo 1 do S1 da fase 1) e `scp ~/Workspace/forja/ferramentas/fase2/pulso_f4.py ~/Workspace/forja/ferramentas/fase2/teste_pulso_fila.py forja:/opt/agente/docs/`. Claude prepara as linhas, e o dono as roda. O `docs/trilha/fila_intel.py` é só a cópia de trabalho; quem instala é o §4.6. A `fixture_pt.json` e o `series.json` nunca entram no kit (`ferramentas/docs/trilha/`): assim o `scp -r trilha` do K nunca sobrescreve a fixture que o dono conferiu no F0.5 | `md5sum` de cada arquivo na forja igual ao `md5` do Mac |
-| **F0.5** | dono + Claude | Na forja, `capturar_fixture.py` salva `docs/trilha/fixture_pt.json` com `congelado_em`. Claude propõe as séries lendo os títulos da fixture; o dono grava `/opt/agente/series.json`, confere a saída de `escolher` por `--escolher` (§4.7) e traz uma cópia de cada ao Mac, só para leitura e fora do kit: `scp forja:/opt/agente/docs/trilha/fixture_pt.json forja:/opt/agente/series.json ~/Workspace/forja/ferramentas/fase2/`. Na forja, o `teste_fila` lê a fixture de `docs/trilha/` e o `series.json` de `/opt/agente/` (§4.1, Lock) | Fixture com 35 vídeos e `recent_window` não nulo · `series.json` e lista conferidos |
+| **F0** | Claude + dono | Commit do site (§3) em staging → main | Mockup (selo, linha de summary, tela sem "Potencial"/"regras fixas", botão "Pedir diagnostico") aprovado **antes** do código · `(cd apps/web && npx vitest run)` completo (~160 s) + `npm run db:start && npx supabase@2.98.2 db reset --local && (cd apps/web && HAS_LOCAL_DB=1 npx vitest run test/integration/youtube-intelligence-forja.test.ts)` (a mesma sequência de `ci.yml:135-137`) + typecheck web/api · CI (`ci.yml`) verde no push de staging, inclusive o job de integração · Vercel verde · validação **autenticada antes da promoção** (`docs/ops/runbook-cms-e2e-local.md`): varredura da sidebar 200/`ok`, e `/cms/youtube/analytics` sem boundary, com console sem `error`. Localmente não há conexão YouTube com token válido, então a página para em "Nenhuma conexão YouTube encontrada" (`page.tsx:32-46,73-81`); os cenários A–C do §3.7 ficam no teste jsdom: A → "por Cowork · 18/05", linha de summary, 3 cards, badge 3; B → "por forja", summary, sem card verde, sem "Potencial", sem "regras fixas", sem badge; C → heurístico · **depois da promoção**, com `sonda_f0.py` na forja (levado pelo card K; chave `{read}` lida pelo Python): `GET …/intelligence?channel_id=<PT>` → 200 com `recent_window` (prova o deploy novo); só então, `POST …/task/claim {channel_ids:[<uuid inexistente>]}` e `PATCH …/intelligence` vazio → 403 cada; e `GET …/intelligence/task` → 403, feito logo depois do 200 com `recent_window`, que já prova o código novo. Se ainda assim vier 200, a task clamada pela chave `{read}` vira `stale` pelo watchdog em 30–60 min. Qualquer outro status reprova; um 200/204 dispara o rollback do F0 · logado em prod, PT "por Cowork · 18/05" com a linha de summary, 3 cards e badge 3 |
+| **K** | dono, no Mac | Antes do portão pós-promoção do F0, e de novo sempre que o kit mudar: `cd ~/Workspace/forja/ferramentas/docs && scp -r sitio.py trilha forja:/opt/agente/docs/` (leva `trilha/sonda_f0.py`, `capturar_fixture.py`, `s4.py`, `teste_s4.py`, `teste_fila.py`, `nova_chave.py`, `cartao.sh`, `deploy.sh` e `fila_intel.py`, como o passo 1 do S1 da fase 1) e, só no K que antecede o F4, `scp ~/Workspace/forja/ferramentas/fase2/pulso_f4.py ~/Workspace/forja/ferramentas/fase2/teste_pulso_fila.py forja:/opt/agente/docs/`. Claude prepara as linhas, e o dono as roda. O `docs/trilha/fila_intel.py` é só a cópia de trabalho; quem instala é o §4.6. A `fixture_pt.json` e o `series.json` nunca entram no kit (`ferramentas/docs/trilha/`): assim o `scp -r trilha` do K nunca sobrescreve a fixture que o dono conferiu no F0.5 | `md5sum` de cada arquivo na forja igual ao `md5` do Mac |
+| **F0.5** | dono + Claude | Na forja, `capturar_fixture.py` salva `docs/trilha/fixture_pt.json` com `congelado_em`. O dono traz a fixture ao Mac: `mkdir -p ~/Workspace/forja/ferramentas/fase2 && scp forja:/opt/agente/docs/trilha/fixture_pt.json ~/Workspace/forja/ferramentas/fase2/`. Claude propõe as séries lendo os títulos dessa cópia e, depois que o dono escolhe, escreve `~/Workspace/forja/ferramentas/fase2/series.json`. O dono o leva à forja com `scp ~/Workspace/forja/ferramentas/fase2/series.json forja:/opt/agente/series.json` e confere a saída de `escolher` por `--escolher` (§4.7). As duas cópias no Mac ficam fora do kit e servem só para leitura. Na forja, o `teste_fila` lê a fixture de `docs/trilha/` e o `series.json` de `/opt/agente/` (§4.1, Lock) | Fixture com 35 vídeos e `recent_window` não nulo · `series.json` e lista conferidos |
 | **S4** | dono | Cartão da Trilha com o `sitio.py` novo, `s4.py` e o `deploy.sh`/`cartao.sh` do §4.6 | `cartao.sh S4` (replay `mudaram: 0`, `teste_s4.py`, `teste_s1` sem edição e `teste_fila` sobre o `sitio.py.novo`) · `deploy.sh S4` com PID novo · `cd docs/trilha && python3 -B teste_s2.py` sem edição · `prova_site.py agente-auto` 5/5 |
-| **F1** | **dono** | Na forja, sem sudo: `cd /opt/agente && { [ -e fila_intel.env ] \|\| install -m 600 /dev/null fila_intel.env; } && mkdir -m 700 -p sombra && python3 docs/trilha/nova_chave.py --fila && { grep -q '^CANAIS_FILA=' fila_intel.env \|\| printf 'CANAIS_FILA=PT\n' >> fila_intel.env; }` (repetível: o `install` só cria o arquivo quando ele falta, porque sobre um existente o trunca e apaga a chave). No Mac: `seed_chave_forja.sh fila <sha>`. Instala o `fila_intel.py` (§4.6) depois de `teste_fila.py` verde na forja | `curl -fsS 127.0.0.1:8080/slots` → 2 entradas com `is_processing` · `--canario` → 404 com a chave da fila e 403 com a `{read}`, sonda de schema e `/apply-template` aprovados · um turno de chat e, logo depois, a última linha de `roteamento.jsonl` com `quando` a menos de 1 min de `date +%FT%T` (mesmo fuso) · **nenhum claim antes do F4**: no início do F4, `select count(*) from youtube_intelligence_tasks where result_summary->>'claimed_by' in (select id::text from pipeline_api_keys where name = 'forja (fila)')` (dono, leitura) = 0 |
-| **F2** | dono roda, Claude lê | 3× `cd /opt/agente && timeout -k 30s 25m venv/bin/python fila_intel.py --sombra --snapshot docs/trilha/fixture_pt.json` (o instalado, que carrega `/opt/agente/sitio.py`), só com o dado real; depois o dono traz os payloads com `scp 'forja:/opt/agente/sombra/PT-*.json' <scratchpad>/` para o `safeParse` no Mac (se a saída de `escolher` mudar, o dono confere só a diferença) | Payload final aprovado 3/3 pelo espelho **e** pelo `PatchPayloadSchema.safeParse` real (Claude roda `npx tsx` no Mac sobre os payloads copiados), sem `video_recommendations` e com `priorities: []` · `summary` aprovado na primeira geração em ≥ 2/3, e nunca em template · saída de `escolher` igual à fixture conferida · as 3 rodadas com campos numéricos idênticos · o dono lê os 3 `summary` e aprova (sem o F3, é o único julgamento de texto antes do F4) · ≤ 10 min por rodada e toda geração < 7 min |
-| **F4** | dono | (1) Uma execução **manual** sobre a task PT pendente: a do cron de segunda, se existir (aí o botão responde `already_active`); senão, um pedido PT do botão: `cd /opt/agente && timeout -k 30s 25m venv/bin/python fila_intel.py`; (2) `crontab -l > /opt/agente/crontab.bak-F4 && (cat /opt/agente/crontab.bak-F4; echo '<linha do §4.1>') \| crontab -`, conferindo que `crontab -l \| grep -c -e retentar -e pulso` não mudou; (3) só depois de existir ao menos uma linha `modo: cron` com `desfecho` `vazia` ou `ok` (`python3 -c "import json,sys;sys.exit(0 if any(d.get('modo')=='cron' and d.get('desfecho') in ('vazia','ok') for d in map(json.loads,open('/opt/agente/log/fila_intel.jsonl'))) else 1)"` → saída 0; senão espera o próximo ciclo de 10 min), o dono cria o check `URL_FILA` no healthchecks (§6) e a regra do §6 é inserida **no `pulso.sh` vivo** (a O2 é pré-requisito: `grep -c 'yt_hints-sem-200-15min' /opt/agente/docs/pulso.sh` → 1, senão para) por `cd /opt/agente/docs && python3 pulso_f4.py <url do check>`. Ele valida `^https://hc-ping\.com/[0-9a-f-]{36}$` e grava `pulso.sh.tmp` com o bloco inserido antes de `[ "$ok" -eq 1 ]` (âncora com contagem 1, como `trilha/s3.py:troca`), entre as linhas `# >>> fila_intel (F4)` e `# <<< fila_intel (F4)`, com `URL_FILA="<url>"` logo depois da primeira. O script recusa inserir se os marcadores já existem, e o `--remover` apaga do marcador de abertura ao de fechamento, exigindo contagem 1 de cada. Depois: `bash -n pulso.sh.tmp`; `teste_pulso_fila.py` verde (extrai o bloco pelos marcadores e o roda sobre jsonl de fixture: arquivo ausente; mtime de 50 min; última linha `modo: cron` com task `reprovada` há 2 h, e depois uma `ok` mais nova; 24 h só com `chat` → `fila-sem-claim-24h:chat`; só a linha `modo: manual` → `fila-sem-claim-24h:nenhuma`; `indeterminado` conta como não-`ok`; em todos os casos o `ok` do pulso fica intacto); `cp -p pulso.sh pulso.sh.bak-F4`; `chmod 755 pulso.sh.tmp && mv pulso.sh.tmp pulso.sh` (o arquivo vivo é `/opt/agente/docs/pulso.sh`, num diretório do thiago; a troca por rename funciona sem sudo seja qual for o dono do arquivo) | Depois da troca, uma execução real do pulso com o check `URL_FILA` verde no healthchecks · execução manual: `desfecho: ok` e `result_summary.claimed_by` = id da `forja (fila)` · o próximo pedido PT (task do cron de segunda, ou o botão, só 24 h depois do `completed_at` quando a task do passo (1) foi pedida pelo botão, e na hora quando foi a do cron; antes, conferir que não há `pending`/`running` PT) fica `completed` em ≤ 40 min com o llama livre e sem chat, com `result_summary.claimed_by` = id da `forja (fila)` (SQL de leitura do dono), e aparece "por forja · dd/mm" com sessão autenticada · a linha `cowork` continua no banco · o **EN** só entra em `CANAIS_FILA` com ≥ 8 vídeos e um F2 próprio |
+| **F1** | **dono** | Na forja, sem sudo: `cd /opt/agente && { [ -e fila_intel.env ] \|\| install -m 600 /dev/null fila_intel.env; } && mkdir -m 700 -p sombra && python3 docs/trilha/nova_chave.py --fila && { grep -q '^CANAIS_FILA=' fila_intel.env \|\| printf 'CANAIS_FILA=PT\n' >> fila_intel.env; }` (repetível: o `install` só cria o arquivo quando ele falta, porque sobre um existente o trunca e apaga a chave). No Mac: `seed_chave_forja.sh fila <sha>`. Instala o `fila_intel.py` (§4.6) depois de `teste_fila.py` verde na forja | `curl -fsS 127.0.0.1:8080/slots` → 2 entradas com `is_processing` · `cd /opt/agente && timeout -k 30s 25m venv/bin/python fila_intel.py --canario` → 404 com a chave da fila e 403 com a `{read}`, sonda de schema e `/apply-template` aprovados · um turno de chat e, logo depois, a última linha de `roteamento.jsonl` com `quando` a menos de 1 min de `date +%FT%T` (mesmo fuso) · **nenhum claim antes do F4**: no início do F4, `select count(*) from youtube_intelligence_tasks where result_summary->>'claimed_by' in (select id::text from pipeline_api_keys where name = 'forja (fila)')` (dono, leitura) = 0 |
+| **F2** | dono roda, Claude lê | 3× `cd /opt/agente && timeout -k 30s 25m venv/bin/python fila_intel.py --sombra --snapshot docs/trilha/fixture_pt.json` (o instalado, que carrega `/opt/agente/sitio.py`), só com o dado real; depois o dono traz os três mais recentes com `scp $(ssh forja 'cd /opt/agente/sombra && ls -t PT-*.json | head -3' | sed 's#^#forja:/opt/agente/sombra/#') <scratchpad>/` para o `safeParse` no Mac (se a saída de `escolher` mudar, o dono confere só a diferença) | Payload final aprovado 3/3 pelo espelho **e** pelo `PatchPayloadSchema.safeParse` real (Claude roda `npx tsx` no Mac sobre os payloads copiados), sem `video_recommendations` e com `priorities: []` · `summary` aprovado na primeira geração em ≥ 2/3, e nunca em template · saída de `escolher` igual à fixture conferida · as 3 rodadas com campos numéricos idênticos · o dono lê os 3 `summary` e aprova (sem o F3, é o único julgamento de texto antes do F4) · ≤ 10 min por rodada e toda geração < 7 min |
+| **F4** | dono | (1) Uma execução **manual** sobre a task PT pendente: a do cron de segunda, se existir (aí o botão responde `already_active`); senão, um pedido PT do botão: `cd /opt/agente && timeout -k 30s 25m venv/bin/python fila_intel.py`; (2) `crontab -l > /opt/agente/crontab.bak-F4 && (cat /opt/agente/crontab.bak-F4; echo '<linha do §4.1>') \| crontab -`, conferindo que `crontab -l \| grep -c -e retentar -e pulso` não mudou; (3) só depois de existir ao menos uma linha `modo: cron` com `desfecho` `vazia` ou `ok` (`python3 -c "import json,sys;sys.exit(0 if any(d.get('modo')=='cron' and d.get('desfecho') in ('vazia','ok') for d in (json.loads(l) for l in open('/opt/agente/log/fila_intel.jsonl') if l.endswith('}\n'))) else 1)"` → saída 0; senão espera o próximo ciclo de 10 min), o dono cria o check `URL_FILA` no healthchecks (§6) e a regra do §6 é inserida **no `pulso.sh` vivo** (a O2 é pré-requisito: `grep -c 'yt_hints-sem-200-15min' /opt/agente/docs/pulso.sh` → 1, senão para) por `cd /opt/agente/docs && python3 pulso_f4.py <url do check>`. Ele valida `^https://hc-ping\.com/[0-9a-f-]{36}$` e grava `pulso.sh.tmp` com o bloco inserido antes de `[ "$ok" -eq 1 ]` (âncora com contagem 1, como `trilha/s3.py:troca`), entre as linhas `# >>> fila_intel (F4)` e `# <<< fila_intel (F4)`, com `URL_FILA="<url>"` logo depois da primeira. O script recusa inserir se os marcadores já existem, e o `--remover` apaga do marcador de abertura ao de fechamento, exigindo contagem 1 de cada. Depois: `bash -n pulso.sh.tmp`; `python3 teste_pulso_fila.py pulso.sh.tmp` verde (extrai o bloco pelos marcadores de `pulso.sh.tmp`, troca a linha `URL_FILA=` por `URL_FILA="https://hc-ping.com/00000000-0000-0000-0000-000000000000"` e o roda com `PATH=<tmp>/bin:$PATH`, onde um `curl` e um `sleep` falsos gravam os argumentos e saem 0, e com `FILA_LOG=<fixture>`; confere pela URL gravada se o ping foi o de sucesso ou o `/fail`, e que nenhum pedido chegou ao healthchecks. Casos, sobre jsonl de fixture: arquivo ausente; mtime de 50 min; última linha `modo: cron` com task `reprovada` há 2 h, e depois uma `ok` mais nova; 24 h só com `chat` → `fila-sem-claim-24h:chat`; só a linha `modo: manual` → `fila-sem-claim-24h:nenhuma`; `indeterminado` conta como não-`ok`; 24 h só com `morto` de `etapa: slots` (`claim: null`) → `fila-sem-claim-24h:morto`; última linha truncada (sem `\n`) → ignorada; em todos os casos o `ok` do pulso fica intacto); `cp -p pulso.sh pulso.sh.bak-F4`; `chmod 755 pulso.sh.tmp && mv pulso.sh.tmp pulso.sh` (o arquivo vivo é `/opt/agente/docs/pulso.sh`, num diretório do thiago; a troca por rename funciona sem sudo seja qual for o dono do arquivo) | Depois da troca, uma execução real do pulso com o check `URL_FILA` verde no healthchecks · execução manual: `desfecho: ok` e `result_summary.claimed_by` = id da `forja (fila)` · o próximo pedido PT (task do cron de segunda, ou o botão, só 24 h depois do `completed_at` quando a task do passo (1) foi pedida pelo botão, e na hora quando foi a do cron; antes, conferir que não há `pending`/`running` PT) fica `completed` em ≤ 40 min com o llama livre e sem chat, com `result_summary.claimed_by` = id da `forja (fila)` (SQL de leitura do dono), e aparece "por forja · dd/mm" com sessão autenticada · a linha `cowork` continua no banco · o **EN** só entra em `CANAIS_FILA` com ≥ 8 vídeos e um F2 próprio |
 
 **Rollback, na ordem inversa**
 - **F4.**
@@ -700,22 +712,22 @@ Todos tomam o lock do §4.1. As linhas desses modos levam `modo` e não contam p
   - Tira só o bloco da fila do pulso com `pulso_f4.py --remover` (do marcador `# >>> fila_intel (F4)` ao `# <<< fila_intel (F4)`, contagem 1 de cada; `bash -n pulso.sh.tmp`; `chmod 755 pulso.sh.tmp && mv pulso.sh.tmp pulso.sh`). Não restaura o `.bak-F4` inteiro, pelo mesmo motivo do crontab. Confere `grep -c URL_FILA /opt/agente/docs/pulso.sh` → 0.
   - Na mesma hora, o dono pausa (ou apaga) o check `URL_FILA` no healthchecks. Sem ping, ele fica vermelho em ~1 h e dá um alarme falso no meio do rollback.
 - **Qualidade, com o F0 no ar.** O dono, na raiz do repo, por `npx --yes supabase@2.98.2 db query --linked --agent=no -o json "<sql>"`:
-  1. exporta `select * from public.youtube_intelligence where source='forja'` com `> forja-export-$(date +%F).json`;
+  1. exporta `select * from public.youtube_intelligence where source='forja'` com `> ~/Workspace/forja/ferramentas/fase2/forja-export-$(date +%F).json` (fora do repo);
   2. renomeia a de canal (na 2a a forja não tem linha de vídeo, §3.3): `update public.youtube_intelligence set source='forja_retirada_' || to_char(now(),'YYYYMMDDHH24MI') where source='forja'`.
 
-  O sufixo evita colisão com os índices. A allowlist do §3.6 volta a mostrar o Cowork, e o Cowork já não lia a forja (§3.5).
+  O sufixo evita colisão com os índices. Prova: `select count(*) from public.youtube_intelligence where source='forja'` = 0, e PT logado mostra "por Cowork". A allowlist do §3.6 volta a mostrar o Cowork, e o Cowork já não lia a forja (§3.5).
 - **F1 (dono).** Pelo mesmo `db query`: `update public.pipeline_api_keys set revoked_at=now() where name='forja (fila)' and revoked_at is null`. Depois apaga `/opt/agente/fila_intel.env`.
-- **S4 (dono).** O `deploy.sh` só restaura sozinho quando a saúde falha logo depois da troca (`deploy.sh:17-23`). Depois disso, com a linha do crontab já fora (rollback do F4), em `/opt/agente`: `B=$(ls -t proxy.py.bak-*-S4 | head -1)`; `flock /opt/agente/fila_intel.lock sh -c "cp -p $B.sitio sitio.py.tmp && mv sitio.py.tmp sitio.py"`; reinicia o `proxy-agente` esperando o PID mudar (a receita de `deploy.sh:13-16`); confere `curl -fsS 127.0.0.1:8081/v1/models`, `(cd /opt/agente/docs/trilha && AGENTE_SITIO=/opt/agente/sitio.py python3 -B teste_s1.py)` sem edição e `prova_site.py agente-auto` 5/5. O `proxy.py` do S4 é cópia idêntica e não volta.
+- **S4 (dono).** O `deploy.sh` só restaura sozinho quando a saúde falha logo depois da troca (`deploy.sh:17-23`). Depois disso, com a linha do crontab já fora (rollback do F4), em `/opt/agente`: `B=$(ls proxy.py.bak-*-S4 | head -1)` (o mais antigo pelo carimbo `%m%d-%H%M` do nome: o `cp -p` do `deploy.sh` preserva o mtime, e um S4 refeito deixa um backup mais novo já com o `sitio.py` da fase 2); `[ -f "$B.sitio" ]` ou para; `flock /opt/agente/fila_intel.lock sh -c "cp -p $B.sitio sitio.py.tmp && mv sitio.py.tmp sitio.py"`; reinicia o `proxy-agente` esperando o PID mudar (a receita de `deploy.sh:13-16`); confere `curl -fsS 127.0.0.1:8081/v1/models`, `(cd /opt/agente/docs/trilha && AGENTE_SITIO=/opt/agente/sitio.py python3 -B teste_s1.py)` sem edição, `prova_site.py agente-auto` 5/5 e `python3 -c "import importlib.util as u;s=u.spec_from_file_location('s','/opt/agente/sitio.py');m=u.module_from_spec(s);s.loader.exec_module(m);assert 2 not in m.ROTAS_FASE"` saindo 0. O `proxy.py` do S4 é cópia idêntica e não volta.
 - **F0.** O dono:
-  1. com o F0 ainda no ar, exporta e apaga `where source like 'forja%'`. O snapshot velho não filtra `source`, e o Cowork o lê a qualquer momento pelo resource MCP e por `get_intelligence`, sem uma "execução" marcada. Com o F0 no ar, a allowlist do §3.6 já mostra o Cowork sem essas linhas;
-  2. só então `git revert` e promoção.
+  1. com o F0 ainda no ar, exporta (para `~/Workspace/forja/ferramentas/fase2/`, fora do repo, como no rollback de qualidade) e apaga `where source like 'forja%'`. O snapshot velho não filtra `source`, e o Cowork o lê a qualquer momento pelo resource MCP e por `get_intelligence`, sem uma "execução" marcada. Com o F0 no ar, a allowlist do §3.6 já mostra o Cowork sem essas linhas;
+  2. só então `git revert` e promoção, com o mesmo portão do F0 (CI verde em staging, validação autenticada antes da promoção); depois, `select count(*) from public.youtube_intelligence where source like 'forja%'` = 0, e PT com o diagnóstico do Cowork logado em prod.
 
 ## 6. Observabilidade
 - **Log.** Uma linha por execução com lock (§4.1).
-- **Pulso.** Entra no F4, com leitura por `python3 -` embutido, e reporta num **check próprio do healthchecks** (`URL_FILA`, criado pelo dono no F4, período 1 h. O `pulso_f4.py` recebe a URL do ping como argumento, recusa valor fora de `^https://hc-ping\.com/[0-9a-f-]{36}$` e grava `URL_FILA="…"` no início do bloco inserido; o `pulso.sh` já guarda a própria URL no arquivo, `onda0b/pulso.sh.novo:27`). O bloco calcula `ok_fila`, pinga `$URL_FILA` ou `$URL_FILA/fail` com as mesmas tentativas do pulso e acrescenta seu motivo a `$motivo` (para o `pulso.log`), **sem tocar em `ok`**. O healthchecks só avisa na transição: se a fila pintasse o check principal, uma task reprovada o deixaria vermelho por até 24 h e calaria um proxy, llama ou esteira caídos nesse intervalo. O check da fila fica vermelho se:
-  - o mtime de `fila_intel.jsonl` tem mais de 45 min (cron morto ou import quebrado). Arquivo ausente conta como vermelho: o bloco só entra no passo (3) do F4, depois da execução manual do passo (1), que cria o arquivo;
+- **Pulso.** Entra no F4, com leitura por `python3 -` embutido, e reporta num **check próprio do healthchecks** (`URL_FILA`, criado pelo dono no F4, período 1 h. O `pulso_f4.py` recebe a URL do ping como argumento, recusa valor fora de `^https://hc-ping\.com/[0-9a-f-]{36}$` e grava `URL_FILA="…"` no início do bloco inserido; o `pulso.sh` já guarda a própria URL no arquivo, `onda0b/pulso.sh.novo:27`). O bloco lê `FILA_LOG="${FILA_LOG:-/opt/agente/log/fila_intel.jsonl}"` (nunca o caminho fixo; passado ao `python3 -` por argumento), calcula `ok_fila` (ignora linha que não termina em `\n` ou falha em `json.loads`; qualquer exceção do `python3 -` embutido dá vermelho com motivo `fila-leitura-<Tipo>`, no padrão `print(type(e).__name__)` do pulso), pinga `$URL_FILA` ou `$URL_FILA/fail` com as mesmas tentativas do pulso, chamando `curl` e `sleep` pelo nome (nunca por caminho absoluto), e acrescenta seu motivo a `$motivo` (para o `pulso.log`), **sem tocar em `ok`**. O healthchecks só avisa na transição: se a fila pintasse o check principal, uma task reprovada o deixaria vermelho por até 24 h e calaria um proxy, llama ou esteira caídos nesse intervalo. O check da fila fica vermelho se:
+  - o mtime de `fila_intel.jsonl` tem mais de 45 min (cron morto ou import quebrado). Arquivo ausente conta como vermelho: o bloco só entra no passo (3) do F4, e o arquivo já existe desde o `--escolher` do F0.5 (toda execução com lock grava uma linha, §4.1 e §4.7);
   - a linha `modo: cron` mais recente com `task` não nulo tem menos de 24 h e não é `ok`. Uma linha `ok` mais nova apaga o motivo na hora;
-  - nenhuma linha `modo: cron` das últimas 24 h chegou à resposta do claim, isto é, todas ficaram em `ocupado|chat|llama_fora|config|chave` ou em `falha_site` com `etapa: claim` (chegar ao claim = resposta 200 ou 204). Isso pega config errada, chave recusada, `/slots` mudado e relógio divergente. No `pulso.log`, o motivo sai como `fila-sem-claim-24h:<desfecho dominante>`. Sem nenhuma linha `modo: cron` em 24 h, o motivo é `fila-sem-claim-24h:nenhuma` (vermelho).
+  - nenhuma linha `modo: cron` das últimas 24 h tem `claim` em (200, 204). Isso pega config errada, chave recusada, `/slots` mudado e relógio divergente. No `pulso.log`, o motivo sai como `fila-sem-claim-24h:<desfecho dominante>`. Sem nenhuma linha `modo: cron` em 24 h, o motivo é `fila-sem-claim-24h:nenhuma` (vermelho).
 - **Site.** `failed` com `error_message` legível; `stale` pelo watchdog, com `auto-released`.
 
 ## 7. Fase 2b — recomendações por vídeo, prioridades e F3
@@ -750,6 +762,7 @@ Tudo o que a v6 desenhou para vídeos e eixos, adiado pela decisão de 19/09. Aq
 - Notificações: a de análise pronta (`youtube.intelligence_ready`) e as ricas; o ciclo `flagged→diagnosed` pela forja.
 - Eras e dia da semana.
 - As horas restantes do cooldown na UI.
+- A idade do snapshot por canal no MCP (`fetchSnapshotAge` filtrando `channel_id`); hoje é global e segue global.
 - O canal EN, até ter vídeos.
 - Aposentar o Cowork (decisão com os dados do F3 da 2b, §7).
 - Fase 3.
