@@ -13,6 +13,25 @@ const docs = readFileSync(
 )
 
 // ---------------------------------------------------------------------------
+// MCP prompt injection budget (youtube-analyst injects only the first 8000
+// characters of this file — see src/lib/pipeline/mcp/prompts.ts)
+// ---------------------------------------------------------------------------
+
+describe('cowork-docs-youtube MCP injection budget', () => {
+  it('keeps the whole "Coaching (por canal)" section inside the 8000-char prompt slice', () => {
+    const doc = docs
+    const start = doc.indexOf('### Coaching (por canal)')
+    expect(start).toBeGreaterThan(-1)
+    const next = doc.indexOf('\n## ', start)
+    expect(next).toBeGreaterThan(-1)
+    // `youtube-analyst` injects only the first 8000 characters of this file. Without this
+    // assertion an edit earlier in the doc silently pushes the coaching/priorities format —
+    // exactly what produces the three cards the owner sees — out of the prompt.
+    expect(next).toBeLessThan(8000)
+  })
+})
+
+// ---------------------------------------------------------------------------
 // Section completeness
 // ---------------------------------------------------------------------------
 
