@@ -279,13 +279,30 @@ export async function getIntelligenceSnapshot(
 // Intelligence — PATCH recommendations
 // ---------------------------------------------------------------------------
 
-/** Submit Cowork intelligence recommendations, coaching, and notifications for a running task. */
+/**
+ * Submit intelligence recommendations, coaching and insights for a running task.
+ *
+ * The payload arrives as `unknown` and is validated HERE, not at the route: REST and MCP
+ * both reach this function, and until now neither validated at all (PatchPayloadSchema
+ * existed only in a `z.infer`). Everything downstream reads `parsed.data`, never the raw
+ * body, so Zod's strip drops a `source` field and any extra key a caller invents.
+ */
 export async function submitIntelRecommendations(
   ctx: ServiceContext,
-  data: IntelRecommendations,
+  data: unknown,
 ): Promise<ServiceResult<TaskResult>> {
   const { supabase, siteId } = ctx
-  const { task_id, video_recommendations, coaching, notifications, channel_insights } = data
+
+  const parsed = PatchPayloadSchema.safeParse(data)
+  if (!parsed.success) {
+    const message = parsed.error.issues
+      .slice(0, 3)
+      .map((i) => (i.path.length ? `${i.path.join('.')}: ${i.message}` : i.message))
+      .join('; ')
+    return err('VALIDATION_ERROR', message || 'Request body validation failed', 400)
+  }
+
+  const { task_id, video_recommendations, coaching, notifications, channel_insights } = parsed.data
 
   // Validate task
   const { data: task } = await supabase

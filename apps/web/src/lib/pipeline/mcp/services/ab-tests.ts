@@ -10,7 +10,7 @@ import { mcpRequirePermission } from '@/lib/pipeline/mcp/auth'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { PipelineServiceError } from '@/lib/pipeline/services/types'
 import type { ServiceContext } from '@/lib/pipeline/services/types'
-import type { VariantInput, IntelRecommendations } from '@/lib/pipeline/services/youtube'
+import type { VariantInput } from '@/lib/pipeline/services/youtube'
 import * as youtube from '@/lib/pipeline/services/youtube'
 import { toMcpError, toMcpSuccess } from '../errors'
 
@@ -149,7 +149,7 @@ export async function manageAbTest(params: Params): Promise<CallToolResult> {
       }
 
       case 'submit_intelligence': {
-        const payload = params.intel_payload as IntelRecommendations | undefined
+        const payload = params.intel_payload
         if (!payload) return toMcpError({ code: 'VALIDATION_ERROR', message: 'intel_payload is required for submit_intelligence' })
         const result = await youtube.submitIntelRecommendations(buildCtx(), payload)
         return toMcpSuccess(result.data)

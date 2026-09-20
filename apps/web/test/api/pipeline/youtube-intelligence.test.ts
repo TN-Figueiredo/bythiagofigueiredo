@@ -185,8 +185,13 @@ describe('PATCH /api/pipeline/youtube/intelligence', () => {
     PATCH = mod.PATCH
   })
 
+  it('declares maxDuration = 60 — the other end of the watchdog budget', async () => {
+    const mod = await import('../../../src/app/api/pipeline/youtube/intelligence/route')
+    expect(mod.maxDuration).toBe(60)
+  })
+
   it('returns 401 when auth fails', async () => {
-    mockAuthFail('write')
+    mockAuthFail('intel')
     const req = new NextRequest('http://localhost/x', {
       method: 'PATCH',
       body: '{}',
@@ -196,14 +201,12 @@ describe('PATCH /api/pipeline/youtube/intelligence', () => {
     expect(res.status).toBe(401)
   })
 
-  it('returns 422 on validation failure', async () => {
-    mockAuthWrite()
+  it('returns 400 VALIDATION_ERROR with a path-qualified message on schema failure', async () => {
+    mockAuthIntel()
     vi.mocked(parseBody).mockResolvedValue({ bad: 'data' })
 
     vi.mocked(submitIntelRecommendations).mockRejectedValue(
-      new PipelineServiceError('VALIDATION_FAILED', 'Validation failed', 422, {
-        details: [{ path: ['task_id'], code: 'invalid_type', message: 'Required' }],
-      }),
+      new PipelineServiceError('VALIDATION_ERROR', 'task_id: Required', 400),
     )
 
     const req = new NextRequest('http://localhost/x', {
@@ -212,13 +215,14 @@ describe('PATCH /api/pipeline/youtube/intelligence', () => {
       headers: { 'Content-Type': 'application/json' },
     })
     const res = await PATCH(req)
-    expect(res.status).toBe(422)
+    expect(res.status).toBe(400)
     const body = await res.json()
-    expect(body.error).toBe('validation_failed')
+    expect(body.error.code).toBe('VALIDATION_ERROR')
+    expect(body.error.message).toContain('task_id:')
   })
 
   it('returns 404 when task not found', async () => {
-    mockAuthWrite()
+    mockAuthIntel()
     vi.mocked(parseBody).mockResolvedValue({ task_id: MOCK_TASK_ID })
 
     vi.mocked(submitIntelRecommendations).mockRejectedValue(
@@ -235,7 +239,7 @@ describe('PATCH /api/pipeline/youtube/intelligence', () => {
   })
 
   it('returns 409 when task status is not running', async () => {
-    mockAuthWrite()
+    mockAuthIntel()
     vi.mocked(parseBody).mockResolvedValue({ task_id: MOCK_TASK_ID })
 
     vi.mocked(submitIntelRecommendations).mockRejectedValue(
@@ -252,7 +256,7 @@ describe('PATCH /api/pipeline/youtube/intelligence', () => {
   })
 
   it('completes successfully with minimal payload (no recommendations)', async () => {
-    mockAuthWrite()
+    mockAuthIntel()
     vi.mocked(parseBody).mockResolvedValue({ task_id: MOCK_TASK_ID })
 
     vi.mocked(submitIntelRecommendations).mockResolvedValue({
@@ -272,7 +276,7 @@ describe('PATCH /api/pipeline/youtube/intelligence', () => {
   })
 
   it('returns 422 when video_recommendations reference missing videos', async () => {
-    mockAuthWrite()
+    mockAuthIntel()
     const payload = {
       task_id: MOCK_TASK_ID,
       video_recommendations: [
@@ -288,9 +292,7 @@ describe('PATCH /api/pipeline/youtube/intelligence', () => {
     vi.mocked(parseBody).mockResolvedValue(payload)
 
     vi.mocked(submitIntelRecommendations).mockRejectedValue(
-      new PipelineServiceError('VALIDATION_FAILED', 'Referential integrity check failed', 422, {
-        details: [{ code: 'referential_integrity', video_ids: [MOCK_VIDEO_ID] }],
-      }),
+      new PipelineServiceError('VALIDATION_ERROR', 'Referential integrity check failed: videos not found: ' + MOCK_VIDEO_ID, 422),
     )
 
     const req = new NextRequest('http://localhost/x', {
@@ -301,8 +303,8 @@ describe('PATCH /api/pipeline/youtube/intelligence', () => {
     const res = await PATCH(req)
     expect(res.status).toBe(422)
     const body = await res.json()
-    expect(body.error).toBe('validation_failed')
-    expect(body.details[0].code).toBe('referential_integrity')
+    expect(body.error.code).toBe('VALIDATION_ERROR')
+    expect(body.error.message).toContain('Referential integrity check failed')
   })
 })
 

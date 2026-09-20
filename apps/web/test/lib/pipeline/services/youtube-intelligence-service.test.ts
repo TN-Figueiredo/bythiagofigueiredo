@@ -1,7 +1,9 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { claimNextTask, failTask } from '@/lib/pipeline/services/youtube'
+import { claimNextTask, failTask, submitIntelRecommendations } from '@/lib/pipeline/services/youtube'
+import { PatchPayloadSchema } from '@/lib/youtube/intelligence-schemas'
 import type { ServiceContext } from '@/lib/pipeline/services/types'
+import fixture from '../../../fixtures/intel-cowork-2026-05-18.json'
 
 vi.mock('@sentry/nextjs', () => ({ captureMessage: vi.fn(), captureException: vi.fn() }))
 
@@ -188,5 +190,36 @@ describe('failTask', () => {
   it('409s when the CAS returns no row', async () => {
     const sb = makeSupabase([running(), { data: null, error: null }])
     await expect(failTask(ctxOf(sb), 't1', { reason: 'x' })).rejects.toMatchObject({ code: 'TASK_NOT_RUNNING', status: 409 })
+  })
+})
+
+describe('submitIntelRecommendations — schema', () => {
+  it('rejects a payload outside the schema with 400 and a path-qualified message', async () => {
+    const sb = makeSupabase([])
+    await expect(
+      submitIntelRecommendations(ctxOf(sb, { permissions: ['read', 'write'] }), { task_id: 'not-a-uuid' }),
+    ).rejects.toMatchObject({ code: 'VALIDATION_ERROR', status: 400, message: expect.stringContaining('task_id:') })
+    expect(sb.tables).not.toContain('youtube_intelligence_tasks')
+  })
+
+  it('caps patterns_detected at 30, pattern_id at 80, category at 40 and requires an int sample_size', () => {
+    const base = { task_id: '22222222-2222-4222-8222-222222222222' }
+    const pattern = { pattern_id: 'p', category: 'series', finding: 'f', confidence: 0.5, sample_size: 4 }
+    expect(PatchPayloadSchema.safeParse({ ...base, channel_insights: { patterns_detected: Array.from({ length: 31 }, () => pattern) } }).success).toBe(false)
+    expect(PatchPayloadSchema.safeParse({ ...base, channel_insights: { patterns_detected: [{ ...pattern, pattern_id: 'x'.repeat(81) }] } }).success).toBe(false)
+    expect(PatchPayloadSchema.safeParse({ ...base, channel_insights: { patterns_detected: [{ ...pattern, category: 'x'.repeat(41) }] } }).success).toBe(false)
+    expect(PatchPayloadSchema.safeParse({ ...base, channel_insights: { patterns_detected: [{ ...pattern, sample_size: -1 }] } }).success).toBe(false)
+    expect(PatchPayloadSchema.safeParse({ ...base, channel_insights: { patterns_detected: [pattern] } }).success).toBe(true)
+  })
+
+  it('accepts the real May payload from Cowork unchanged', () => {
+    // These two lengths sit exactly on the Zod ceilings. If a remount added an ellipsis or a
+    // space the fixture would fail the parse — or be "fixed" and start measuring another payload.
+    expect([...fixture.coaching.summary].length).toBe(500)
+    const variants = fixture.video_recommendations
+      .map((r: { suggested_variant_description?: string }) => r.suggested_variant_description)
+      .filter((v: string | undefined): v is string => typeof v === 'string' && v.length === 200)
+    expect(variants).toHaveLength(5)
+    expect(PatchPayloadSchema.safeParse(fixture).success).toBe(true)
   })
 })

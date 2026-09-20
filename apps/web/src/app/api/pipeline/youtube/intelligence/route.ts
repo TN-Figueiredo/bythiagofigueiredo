@@ -1,10 +1,15 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { authenticateRead, authenticateWrite, pipelineError, pipelineSuccess, parseBody } from '@/lib/pipeline/helpers'
+import { NextRequest } from 'next/server'
+import { authenticateIntel, authenticateRead, pipelineError, pipelineSuccess, parseBody } from '@/lib/pipeline/helpers'
 import { authToServiceContext, serviceErrorToResponse } from '@/lib/pipeline/services/http-adapter'
-import { PipelineServiceError } from '@/lib/pipeline/services/types'
-import { getIntelligenceSnapshot, submitIntelRecommendations, type IntelRecommendations } from '@/lib/pipeline/services/youtube'
+import { getIntelligenceSnapshot, submitIntelRecommendations } from '@/lib/pipeline/services/youtube'
 
 export const dynamic = 'force-dynamic'
+/**
+ * Module-level ceiling, so it binds the snapshot GET below as well as the PATCH.
+ * It is the site-side half of the timing invariant: claim → last request stays under
+ * 25 min + 30 s, below the watchdog's 30 min (STALE_THRESHOLD_MINUTES).
+ */
+export const maxDuration = 60
 
 export async function GET(req: NextRequest) {
   const result = await authenticateRead(req)
@@ -24,7 +29,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const result = await authenticateWrite(req)
+  const result = await authenticateIntel(req)
   if (result instanceof Response) return result
   const { auth } = result
 
@@ -33,16 +38,9 @@ export async function PATCH(req: NextRequest) {
 
   try {
     const ctx = authToServiceContext(auth)
-    const { data } = await submitIntelRecommendations(ctx, body as IntelRecommendations)
+    const { data } = await submitIntelRecommendations(ctx, body)
     return pipelineSuccess(data, 200, auth)
   } catch (err) {
-    if (err instanceof PipelineServiceError && err.code === 'VALIDATION_FAILED' && err.details) {
-      const details = err.details as { details: unknown[] }
-      return NextResponse.json({
-        error: 'validation_failed',
-        details: details.details,
-      }, { status: err.status })
-    }
     return serviceErrorToResponse(err, auth)
   }
 }
