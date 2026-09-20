@@ -459,8 +459,7 @@ describe('claimNextTask', () => {
     const res = await claimNextTask(ctxOf(sb), ['ch-1'])
 
     expect(res.data).toMatchObject({ id: 't1', started_at: '2026-09-19T10:00:00Z' })
-    expect(sb.calls).toContainEqual({ op: 'in', args: ['channel_id', ['ch-1']] })
-    expect(sb.calls).toContainEqual({ op: 'eq', args: ['status', 'pending'] })
+    expect(sb.calls).toContainEqual({ op: 'in', args: ['channel_id', ['ch-1']] })   // filtro do SELECT
     const update = sb.calls.find(c => c.op === 'update')!
     expect(update.args[0]).toMatchObject({ status: 'running', result_summary: { claimed_by: 'key-forja' } })
     // Clauses of the CAS are asserted on the slice from the UPDATE onward — on `calls`
@@ -1008,8 +1007,13 @@ describe('failTask', () => {
     expect(patch).toMatchObject({ status: 'failed', error_message: 'patch 400' })
     expect(patch.completed_at).toBeUndefined()
     // CAS clauses: id, site, running, the exact started_at this request read, and the owner
-    expect(sb.calls).toContainEqual({ op: 'eq', args: ['started_at', '2026-09-19T10:00:00Z'] })
-    expect(sb.calls).toContainEqual({ op: 'eq', args: ['result_summary->>claimed_by', 'key-forja'] })
+    // Sobre a FATIA do update: em `calls` cru, o SELECT anterior satisfaz estas assercoes e o
+    // CAS pode perder `id`, `site_id` ou `status` sem o teste reclamar. Ja aconteceu aqui.
+    const cas = sb.from('update')
+    expect(cas).toContainEqual({ op: 'eq', args: ['started_at', '2026-09-19T10:00:00Z'] })
+    expect(cas).toContainEqual({ op: 'eq', args: ['result_summary->>claimed_by', 'key-forja'] })
+    expect(cas).toContainEqual({ op: 'eq', args: ['site_id', 'site-1'] })
+    expect(cas).toContainEqual({ op: 'eq', args: ['status', 'running'] })
   })
 
   it('requeues with retry:true while retry_count < 2', async () => {
@@ -1833,8 +1837,13 @@ describe('submitIntelRecommendations — closing the task', () => {
     const close = sb.calls.filter(c => c.op === 'update').at(-1)!.args[0] as Record<string, unknown>
     expect(close).toMatchObject({ status: 'completed' })
     expect(close.result_summary).toMatchObject({ claimed_by: 'key-forja', has_coaching: true, recommendations: 0, source: 'forja', closed_by: 'key-forja' })
-    expect(sb.calls).toContainEqual({ op: 'eq', args: ['started_at', '2026-09-19T10:00:00Z'] })
-    expect(sb.calls).toContainEqual({ op: 'eq', args: ['result_summary->>claimed_by', 'key-forja'] })
+    // Sobre a FATIA do update: em `calls` cru, o SELECT anterior satisfaz estas assercoes e o
+    // CAS pode perder `id`, `site_id` ou `status` sem o teste reclamar. Ja aconteceu aqui.
+    const cas = sb.from('update')
+    expect(cas).toContainEqual({ op: 'eq', args: ['started_at', '2026-09-19T10:00:00Z'] })
+    expect(cas).toContainEqual({ op: 'eq', args: ['result_summary->>claimed_by', 'key-forja'] })
+    expect(cas).toContainEqual({ op: 'eq', args: ['site_id', 'site-1'] })
+    expect(cas).toContainEqual({ op: 'eq', args: ['status', 'running'] })
   })
 
   it('409s when the closing CAS returns no row', async () => {
@@ -1881,10 +1890,11 @@ Expected: FAIL.
 
 Trocar `src/lib/pipeline/services/youtube.ts:431-447` inteiro. E, nos pontos que empurram para `dbErrors` (`:348, 354, 400, 406`), separar a mensagem crua (Sentry) do alvo (resposta):
 ```ts
-  const dbErrors: string[] = []      // raw messages — Sentry only
+  // Só os ALVOS. A mensagem crua vai ao Sentry no próprio ponto da falha (`error.message`),
+  // então não há array de mensagens cruas — um que ninguém lê é código morto.
   const dbTargets: string[] = []     // "video <uuid>: write_failed" / "channel: write_failed"
 ```
-(cada `dbErrors.push(...)` ganha um `dbTargets.push(`video ${rec.video_id}: write_failed`)` ou `dbTargets.push('channel: write_failed')` ao lado.)
+(cada ponto que hoje empurra para `dbErrors` passa a empurrar **só** para `dbTargets`, com `video ${rec.video_id}: write_failed` ou `'channel: write_failed'`; o `Sentry.captureMessage` ao lado continua recebendo `error.message` como já recebe.)
 
 Fechamento:
 ```ts
