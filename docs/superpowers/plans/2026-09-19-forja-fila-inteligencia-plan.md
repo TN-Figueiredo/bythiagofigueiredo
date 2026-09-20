@@ -423,9 +423,9 @@ function makeSupabase(results: Array<{ data: unknown; error: unknown }>) {
      * site A would come to claim site B's task with the suite green. Every assertion
      * about a CAS/UPDATE clause MUST go through this slice, never through `calls`.
      */
-    from(op: string, nth = 0) {
-      const idx = calls.reduce<number[]>((acc, c, k) => (c.op === op ? [...acc, k] : acc), [])[nth]
-      if (idx === undefined) throw new Error(`no '${op}' call recorded`)
+    from(op: string) {
+      const idx = calls.findIndex(c => c.op === op)
+      if (idx === -1) throw new Error(`no '${op}' call recorded`)
       return calls.slice(idx)
     },
     client: { from: vi.fn((t: string) => { tables.push(t); return chain }) },
