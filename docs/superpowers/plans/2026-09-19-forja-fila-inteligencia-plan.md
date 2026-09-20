@@ -2953,11 +2953,13 @@ def casos(F, exige)      # hook que teste_calculo.py e teste_fila_redacao.py exp
 
 | Arquivo | Cobre | Roda no Mac? | Entrada |
 |---|---|---|---|
-| `trilha/teste_calculo.py` | §4.2, §4.3 | **sim** (stdlib), com `AGENTE_FILA="$PWD/fila_intel.py"` | sozinho, ou por `casos(F, exige)` |
-| `trilha/teste_fila_redacao.py` | §4.4, §4.5 | **sim** (stdlib), com `AGENTE_FILA` | sozinho, ou por `casos(F, exige)` |
+| `trilha/teste_calculo.py` | §4.2, §4.3 | **sim**, com `PYTHONPATH=$PWD/st AGENTE_SITIO=../sitio.py AGENTE_FILA=$PWD/fila_intel.py` | sozinho, ou por `casos(F, exige)` |
+| `trilha/teste_fila_redacao.py` | §4.4, §4.5 | **sim**, mesma linha de ambiente | sozinho, ou por `casos(F, exige)` |
 | `trilha/teste_fila.py` | §4.1, §4.6, §4.7 e os dois acima | **não** (carrega o worker, que importa `httpx`) | entrada única na forja |
 | `trilha/teste_s4.py` | `sitio.py` fase 2 | **sim**, com `AGENTE_SITIO` | `cartao.sh S4` |
 | `fase2/teste_pulso_fila.py` | o bloco do pulso (§6) | **sim** (shell + stdlib) | passo 3 do F4 |
+
+**O `PYTHONPATH=$PWD/st` não é opcional.** `fila_intel.py` importa `httpx` no topo, e o `python3` do Mac não o tem — o stub do kit em `docs/trilha/st/` é o que faz os dois arquivos stdlib rodarem aqui. O portão oficial do `teste_fila.py` usa `env -u PYTHONPATH` de propósito, para **não** depender do stub; os irmãos precisam dele.
 
 Os dois primeiros rodarem no Mac é o que dá ciclo de TDD local para a parte mais densa em números. É por isso que este plano **não** tem um modo `--dubles` no harness nem um venv descartável: as duas ideias existiam só para contornar a falta desse ciclo.
 
