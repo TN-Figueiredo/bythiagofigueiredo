@@ -22,6 +22,7 @@ function buildCtx(): ServiceContext {
     siteId: mcp.siteId,
     permissions: mcp.permissions as ServiceContext['permissions'],
     keyHash: mcp.keyHash,
+    keyId: mcp.keyId,
     supabase: getSupabaseServiceClient(),
     source: 'api_key',
   }
@@ -32,7 +33,9 @@ export async function manageAbTest(params: Params): Promise<CallToolResult> {
 
   try {
     // Write permission guard for mutation actions
-    const WRITE_ACTIONS = ['upsert_variants', 'delete_variant', 'submit_intelligence']
+    // claim_task hands a task to a worker, so over MCP it needs write like submit_intelligence.
+    // The narrow {read,intelligence} key claims only over REST, where channel_ids is required.
+    const WRITE_ACTIONS = ['upsert_variants', 'delete_variant', 'submit_intelligence', 'claim_task']
     if (action && WRITE_ACTIONS.includes(action)) {
       const mcp = getMcpContext()
       if (!mcpRequirePermission(mcp, 'write')) {

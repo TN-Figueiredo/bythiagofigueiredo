@@ -80,6 +80,7 @@ export interface IntelTask {
   channel_id: string
   trigger_type: string
   requested_at: string
+  started_at: string
 }
 
 // ---------------------------------------------------------------------------
@@ -451,40 +452,56 @@ export async function submitIntelRecommendations(
 // Intelligence — GET claim next task
 // ---------------------------------------------------------------------------
 
-/** Claim the next pending intelligence task via optimistic CAS. Returns null if none available. */
+/**
+ * Claim the next pending intelligence task via optimistic CAS.
+ *
+ * This is the ONLY place the claim CAS lives: the POST route, the legacy GET and the
+ * MCP `claim_task` all funnel through here, so every claim records who holds the task
+ * (`result_summary.claimed_by`) and every claim writes `started_at` from the server clock.
+ * A DB error is never flattened into "queue empty" — that used to turn an outage into a
+ * silent 204 and left the worker looping against a broken queue.
+ */
 export async function claimNextTask(
   ctx: ServiceContext,
-  statusFilter?: string,
+  channelIds?: string[],
 ): Promise<ServiceResult<IntelTask | null>> {
   const { supabase, siteId } = ctx
-  const status = statusFilter ?? 'pending'
 
-  const { data: task } = await supabase
+  let pending = supabase
     .from('youtube_intelligence_tasks')
-    .select('id, site_id, channel_id, trigger_type, requested_at')
+    .select('id')
     .eq('site_id', siteId)
-    .eq('status', status)
+    .eq('status', 'pending')
+
+  if (channelIds?.length) pending = pending.in('channel_id', channelIds)
+
+  const { data: task, error: selectError } = await pending
     .order('requested_at', { ascending: true })
     .limit(1)
-    .single()
+    .maybeSingle()
 
+  if (selectError) return err('INTERNAL_ERROR', 'Failed to read the task queue', 500)
   if (!task) return ok(null)
 
-  // Optimistic CAS: only claim if still in the expected status
-  const { data: claimed } = await supabase
+  const { data: claimed, error: updateError } = await supabase
     .from('youtube_intelligence_tasks')
     .update({
       status: 'running',
       started_at: new Date().toISOString(),
+      result_summary: { claimed_by: ctx.keyId ?? null },
     })
     .eq('id', task.id)
-    .eq('status', status)
-    .select('id')
+    .eq('site_id', siteId)
+    .eq('status', 'pending')
+    // Closed column list, never '*': error_message and result_summary can carry text
+    // written by a narrow key and must not travel back to whoever claims next.
+    .select('id, site_id, channel_id, trigger_type, requested_at, started_at')
     .maybeSingle()
 
+  if (updateError) return err('INTERNAL_ERROR', 'Failed to claim the task', 500)
   if (!claimed) return ok(null)
 
-  return ok(task as IntelTask)
+  return ok(claimed as IntelTask)
 }
 
 // ---------------------------------------------------------------------------
