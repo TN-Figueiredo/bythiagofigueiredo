@@ -332,16 +332,25 @@ export async function submitIntelRecommendations(
   }
 
   // Validate task
-  const { data: task } = await supabase
+  // maybeSingle, not single: with single() zero rows come back as an error (PGRST116) and
+  // would turn a plain "task not found" into a 500 under the rule below.
+  const { data: task, error: taskError } = await supabase
     .from('youtube_intelligence_tasks')
-    .select('id, channel_id, status')
+    .select('id, channel_id, status, result_summary, started_at')
     .eq('id', task_id)
     .eq('site_id', siteId)
-    .single()
+    .maybeSingle()
 
+  if (taskError) return err('INTERNAL_ERROR', 'Failed to read the task', 500)
   if (!task) return err('NOT_FOUND', 'Task not found', 404)
   if (task.status !== 'running') {
-    return err('VERSION_CONFLICT', `Task status is '${task.status}', expected 'running'`, 409)
+    return err('TASK_NOT_RUNNING', `Task status is '${task.status}', expected 'running'`, 409)
+  }
+
+  const previousSummary = (task.result_summary ?? {}) as Record<string, unknown>
+  const isWideKey = ctx.permissions.includes('write') || ctx.permissions.includes('admin')
+  if (!isWideKey && (!ctx.keyId || previousSummary.claimed_by !== ctx.keyId)) {
+    return err('TASK_NOT_RUNNING', 'Task is held by another key', 409)
   }
 
   // Track DB write failures for partial-failure reporting
@@ -350,11 +359,13 @@ export async function submitIntelRecommendations(
   // Process video recommendations
   if (video_recommendations?.length) {
     const videoIds = video_recommendations.map(r => r.video_id)
-    const { data: existing } = await supabase
+    const { data: existing, error: existingError } = await supabase
       .from('youtube_videos')
       .select('id')
       .eq('channel_id', task.channel_id)
       .in('id', videoIds)
+
+    if (existingError) return err('INTERNAL_ERROR', 'Failed to verify video references', 500)
 
     const existingIds = new Set((existing ?? []).map(v => v.id))
     const missing = videoIds.filter(id => !existingIds.has(id))

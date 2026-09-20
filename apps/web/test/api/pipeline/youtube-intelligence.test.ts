@@ -243,7 +243,7 @@ describe('PATCH /api/pipeline/youtube/intelligence', () => {
     vi.mocked(parseBody).mockResolvedValue({ task_id: MOCK_TASK_ID })
 
     vi.mocked(submitIntelRecommendations).mockRejectedValue(
-      new PipelineServiceError('VERSION_CONFLICT', "Task status is 'completed', expected 'running'", 409),
+      new PipelineServiceError('TASK_NOT_RUNNING', "Task status is 'completed', expected 'running'", 409),
     )
 
     const req = new NextRequest('http://localhost/x', {

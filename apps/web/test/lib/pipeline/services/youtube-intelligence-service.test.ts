@@ -305,3 +305,55 @@ describe('deriveSource and the forja scope guards', () => {
     expect(fanOutToSiteAdmins).not.toHaveBeenCalled()
   })
 })
+
+describe('submitIntelRecommendations — task state and ownership', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('409s TASK_NOT_RUNNING on a stale task, without writing', async () => {
+    const sb = makeSupabase([{ data: { id: 't', channel_id: 'ch-1', status: 'stale', result_summary: {}, started_at: 's' }, error: null }])
+    await expect(submitIntelRecommendations(ctxOf(sb), CHANNEL_ONLY)).rejects.toMatchObject({ code: 'TASK_NOT_RUNNING', status: 409 })
+    expect(sb.calls.some(c => c.op === 'insert' || c.op === 'update')).toBe(false)
+  })
+
+  it('409s a narrow key on a task claimed by another key, and when keyId is missing', async () => {
+    const other = makeSupabase([{ data: { id: 't', channel_id: 'ch-1', status: 'running', result_summary: { claimed_by: 'key-other' }, started_at: 's' }, error: null }])
+    await expect(submitIntelRecommendations(ctxOf(other), CHANNEL_ONLY)).rejects.toMatchObject({ code: 'TASK_NOT_RUNNING' })
+    expect(other.calls.some(c => c.op === 'insert' || c.op === 'update')).toBe(false)
+
+    const noKey = makeSupabase([{ data: { id: 't', channel_id: 'ch-1', status: 'running', result_summary: { claimed_by: 'key-forja' }, started_at: 's' }, error: null }])
+    await expect(submitIntelRecommendations(ctxOf(noKey, { keyId: undefined }), CHANNEL_ONLY)).rejects.toMatchObject({ code: 'TASK_NOT_RUNNING' })
+  })
+
+  it('500s — not 404 — when the task SELECT errors, without writing', async () => {
+    const sb = makeSupabase([{ data: null, error: { message: 'boom' } }])
+    await expect(submitIntelRecommendations(ctxOf(sb), CHANNEL_ONLY)).rejects.toMatchObject({ code: 'INTERNAL_ERROR', status: 500 })
+    expect(sb.calls.some(c => c.op === 'insert' || c.op === 'update')).toBe(false)
+  })
+
+  it('404s on zero rows without an error', async () => {
+    const sb = makeSupabase([{ data: null, error: null }])
+    await expect(submitIntelRecommendations(ctxOf(sb), CHANNEL_ONLY)).rejects.toMatchObject({ code: 'NOT_FOUND', status: 404 })
+  })
+
+  it('500s when the integrity SELECT errors (Cowork path only)', async () => {
+    const sb = makeSupabase([
+      { data: { id: 't', channel_id: 'ch-1', status: 'running', result_summary: {}, started_at: 's' }, error: null },
+      { data: null, error: { message: 'boom' } },
+    ])
+    await expect(submitIntelRecommendations(ctxOf(sb, { permissions: ['read', 'write'] }), {
+      task_id: '22222222-2222-4222-8222-222222222222',
+      video_recommendations: [{ video_id: '33333333-3333-4333-8333-333333333333', action_type: 'title_test', priority: 'low', confidence: 0.5, reasoning: 'r' }],
+    })).rejects.toMatchObject({ code: 'INTERNAL_ERROR', status: 500 })
+  })
+
+  it('keeps the integrity failure as 422 VALIDATION_ERROR', async () => {
+    const sb = makeSupabase([
+      { data: { id: 't', channel_id: 'ch-1', status: 'running', result_summary: {}, started_at: 's' }, error: null },
+      { data: [], error: null },
+    ])
+    await expect(submitIntelRecommendations(ctxOf(sb, { permissions: ['read', 'write'] }), {
+      task_id: '22222222-2222-4222-8222-222222222222',
+      video_recommendations: [{ video_id: '33333333-3333-4333-8333-333333333333', action_type: 'title_test', priority: 'low', confidence: 0.5, reasoning: 'r' }],
+    })).rejects.toMatchObject({ code: 'VALIDATION_ERROR', status: 422 })
+  })
+})
