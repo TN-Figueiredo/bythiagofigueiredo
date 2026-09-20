@@ -414,6 +414,20 @@ function makeSupabase(results: Array<{ data: unknown; error: unknown }>) {
   return {
     calls,
     tables,
+    /**
+     * Calls recorded from the Nth occurrence of `op` onward.
+     *
+     * The double shares ONE chain across every query, so `calls` alone cannot tell a
+     * SELECT's `.eq('site_id', …)` from the UPDATE's. Asserting on `calls` therefore
+     * "passes" for a CAS that lost its site filter — which is exactly how a key from
+     * site A would come to claim site B's task with the suite green. Every assertion
+     * about a CAS/UPDATE clause MUST go through this slice, never through `calls`.
+     */
+    from(op: string, nth = 0) {
+      const idx = calls.reduce<number[]>((acc, c, k) => (c.op === op ? [...acc, k] : acc), [])[nth]
+      if (idx === undefined) throw new Error(`no '${op}' call recorded`)
+      return calls.slice(idx)
+    },
     client: { from: vi.fn((t: string) => { tables.push(t); return chain }) },
   }
 }
@@ -444,9 +458,12 @@ describe('claimNextTask', () => {
     expect(sb.calls).toContainEqual({ op: 'eq', args: ['status', 'pending'] })
     const update = sb.calls.find(c => c.op === 'update')!
     expect(update.args[0]).toMatchObject({ status: 'running', result_summary: { claimed_by: 'key-forja' } })
-    // the CAS carries site_id, and the returned row comes from a closed column list
-    expect(sb.calls).toContainEqual({ op: 'eq', args: ['site_id', 'site-1'] })
-    expect(sb.calls.some(c => c.op === 'select' && c.args[0] === '*')).toBe(false)
+    // Clauses of the CAS are asserted on the slice from the UPDATE onward — on `calls`
+    // they would be satisfied by the SELECT above and prove nothing about the UPDATE.
+    const cas = sb.from('update')
+    expect(cas).toContainEqual({ op: 'eq', args: ['site_id', 'site-1'] })
+    expect(cas).toContainEqual({ op: 'eq', args: ['status', 'pending'] })
+    expect(cas).toContainEqual({ op: 'select', args: ['id, site_id, channel_id, trigger_type, requested_at, started_at'] })
   })
 
   it('returns null (204 upstream) when the queue is empty', async () => {
@@ -12879,7 +12896,7 @@ Estes cards são os de logística (F0k, K) e de julgamento (F0.5, F2), mais o **
 
 **Terreno conferido em 19/09 (só leitura):**
 
-- `~/Workspace/forja/ferramentas` **é repositório git** desde 20/09 (`git init` do dono): commit inicial `ec51833` "chore: estado do kit antes da fase 2a", 116 arquivos rastreados, árvore limpa, `.gitignore` com `__pycache__/` e `*.pyc`. O `.git` fica em `ferramentas/`, **fora de `docs/`** — conferido: `ferramentas/docs/.git` não existe, então o `scp -r sitio.py trilha` do card K não o leva e o `find sitio.py trilha -type f` do portão `KIT-IGUAL` não o vê. **O card K não muda por causa disso.** O que muda é o F0k: toda tarefa de código do kit termina em commit, e o portão passa a exigir árvore limpa. O repositório é **local, sem remoto e sem push**.
+- `~/Workspace/forja/ferramentas` **é repositório git** desde 19/09 (`git init` do dono): commit inicial `ec51833` "chore: estado do kit antes da fase 2a", 116 arquivos rastreados, árvore limpa, `.gitignore` com `__pycache__/` e `*.pyc`. O `.git` fica em `ferramentas/`, **fora de `docs/`** — conferido: `ferramentas/docs/.git` não existe, então o `scp -r sitio.py trilha` do card K não o leva e o `find sitio.py trilha -type f` do portão `KIT-IGUAL` não o vê. **O card K não muda por causa disso.** O que muda é o F0k: toda tarefa de código do kit termina em commit, e o portão passa a exigir árvore limpa. O repositório é **local, sem remoto e sem push**.
 - `~/Workspace/forja/ferramentas/fase2/` **não existe** ainda (`ls` → `No such file or directory`). Quem o cria é o `mkdir -p` da Task F0k-1.
 - O kit vive em `~/Workspace/forja/ferramentas/docs/` (`sitio.py`, `replay2.py`, `grill.json`, `midia/`, `trilha/`) e `~/Workspace/forja/ferramentas/docs/trilha/` já tem `cartao.sh`, `deploy.sh`, `nova_chave.py`, `s1.py`…`s3.py`, `teste_s1.py`…`teste_s3.py`, `sitio_falso.py`, `fixtures_site/`, `st/` e um `__pycache__/`.
 - `~/Workspace/forja/ferramentas/seed_chave_forja.sh` está na forma da fase 1 (`$1` = sha256 de 64 hex, nome `forja (so leitura)`, `array['read']`).
