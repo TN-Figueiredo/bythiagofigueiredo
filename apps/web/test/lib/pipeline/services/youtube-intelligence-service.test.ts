@@ -249,10 +249,24 @@ describe('deriveSource and the forja scope guards', () => {
 
   it('writes source=forja for a narrow key, even with source:cowork in the body', async () => {
     const sb = makeSupabase([runningTask, { data: null, error: null }, { data: null, error: null }, { data: { id: '22222222-2222-4222-8222-222222222222' }, error: null }])
-    await submitIntelRecommendations(ctxOf(sb), { ...CHANNEL_ONLY, source: 'cowork' })
+    await submitIntelRecommendations(ctxOf(sb), { ...CHANNEL_ONLY, source: 'cowork', __extra: 'smuggled-top-level' })
     const insert = sb.calls.find(c => c.op === 'insert')!.args[0] as Record<string, unknown>
     expect(insert.source).toBe('forja')
     expect(insert).not.toHaveProperty('__extra')
+    // The dedup lookup for the existing channel row must key on the SAME derived source —
+    // otherwise a forja PATCH can find and silently overwrite the Cowork-authored row
+    // (result_summary from the May analysis) instead of writing its own.
+    expect(sb.calls).toContainEqual({ op: 'eq', args: ['source', 'forja'] })
+  })
+
+  it('writes source=forja even when the context never sets `source` at all — the fail-closed default', async () => {
+    // Regression for the exact failure mode the deriveSource comment warns about: a
+    // future call site that forgets to populate ServiceContext.source. Written by
+    // inclusion (`ctx.source === 'api_key' && !wide ? 'forja' : 'cowork'`) this would
+    // read as 'cowork' and silently switch off all four forja scope refusals.
+    const sb = makeSupabase([runningTask, { data: null, error: null }, { data: null, error: null }, { data: { id: 'x' }, error: null }])
+    await submitIntelRecommendations(ctxOf(sb, { source: undefined }), CHANNEL_ONLY)
+    expect((sb.calls.find(c => c.op === 'insert')!.args[0] as Record<string, unknown>).source).toBe('forja')
   })
 
   it('writes source=cowork for a session context', async () => {
@@ -297,6 +311,15 @@ describe('deriveSource and the forja scope guards', () => {
     })
     const written = sb.calls.filter(c => c.op === 'insert').map(c => JSON.stringify(c.args[0])).join('')
     expect(written).not.toContain('smuggled')
+
+    const videoInsert = sb.calls.find(c => c.op === 'insert')!.args[0] as Record<string, unknown>
+    expect(videoInsert.source).toBe('cowork')
+    // Same dedup-lookup guard as the channel row (see the forja test above), asserted here on
+    // the video branch. Note: today this can only ever be proven with 'cowork' — the forja
+    // scope guard rejects any payload carrying video_recommendations before this line is ever
+    // reached, so a narrow key can never exercise this specific `.eq('source', ...)` call. The
+    // assertion still documents that the filter is the derived `source`, not a hardcoded value.
+    expect(sb.calls).toContainEqual({ op: 'eq', args: ['source', 'cowork'] })
   })
 
   it('never notifies on a forja PATCH', async () => {
@@ -322,6 +345,16 @@ describe('submitIntelRecommendations — task state and ownership', () => {
 
     const noKey = makeSupabase([{ data: { id: 't', channel_id: 'ch-1', status: 'running', result_summary: { claimed_by: 'key-forja' }, started_at: 's' }, error: null }])
     await expect(submitIntelRecommendations(ctxOf(noKey, { keyId: undefined }), CHANNEL_ONLY)).rejects.toMatchObject({ code: 'TASK_NOT_RUNNING' })
+    expect(noKey.calls.some(c => c.op === 'insert' || c.op === 'update')).toBe(false)
+  })
+
+  it('409s a narrow key with a missing keyId even on a legacy row that was never claimed', async () => {
+    // `claimed_by` is ABSENT (not merely mismatched) here — this is the one case where
+    // `!ctx.keyId ||` actually matters: `previousSummary.claimed_by !== ctx.keyId` alone
+    // would read `undefined !== undefined` as false and let the request through.
+    const sb = makeSupabase([{ data: { id: 't', channel_id: 'ch-1', status: 'running', result_summary: {}, started_at: 's' }, error: null }])
+    await expect(submitIntelRecommendations(ctxOf(sb, { keyId: undefined }), CHANNEL_ONLY)).rejects.toMatchObject({ code: 'TASK_NOT_RUNNING', status: 409 })
+    expect(sb.calls.some(c => c.op === 'insert' || c.op === 'update')).toBe(false)
   })
 
   it('500s — not 404 — when the task SELECT errors, without writing', async () => {

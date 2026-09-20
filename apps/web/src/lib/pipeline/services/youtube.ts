@@ -285,7 +285,11 @@ export async function getIntelligenceSnapshot(
  * Written by exclusion — everything that is not a wide key or a session is 'forja' —
  * so it fails closed. `source` is optional on ServiceContext, and a future path that
  * forgot to set it would otherwise label a narrow key as 'cowork' and switch OFF the
- * four scope refusals below. Mirrors deriveSource in items/[id]/recording/service.ts.
+ * four scope refusals below. Unlike deriveSource in items/[id]/recording/service.ts
+ * (`ctx.source === 'api_key' ? 'cowork' : 'user'`, written by inclusion): that function
+ * has only two outcomes and either one is safe to default into, so inclusion vs.
+ * exclusion doesn't matter there. Here a missed case must fall to 'forja', so exclusion
+ * is required — the same inclusion pattern would fail OPEN instead of closed.
  */
 export function deriveSource(ctx: ServiceContext): 'cowork' | 'forja' {
   if (ctx.source === 'session') return 'cowork'
