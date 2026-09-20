@@ -64,3 +64,26 @@ it('403s a session on the claim route — a session has no worker to hand the ta
   expect(res.status).toBe(403)
   expect((await res.json()).error.code).toBe('FORBIDDEN')
 })
+
+describe('POST .../intelligence/task/:id/fail — auth', () => {
+  const failUrl = 'http://localhost/api/pipeline/youtube/intelligence/task/22222222-2222-4222-8222-222222222222/fail'
+  function postFail() {
+    return new Request(failUrl, { method: 'POST', body: '{"reason":"x"}', headers: { 'content-type': 'application/json' } }) as never
+  }
+
+  it('403s a {read} key without touching youtube_intelligence_tasks', async () => {
+    vi.mocked(authenticatePipeline).mockResolvedValue({ ok: true, auth: { siteId: 'site-1', permissions: ['read'], source: 'api_key', keyHash: 'h', keyId: 'k' } })
+    const { POST } = await import('@/app/api/pipeline/youtube/intelligence/task/[id]/fail/route')
+    const res = await POST(postFail(), { params: Promise.resolve({ id: '22222222-2222-4222-8222-222222222222' }) })
+    expect(res.status).toBe(403)
+    expect((await res.json()).error.code).toBe('FORBIDDEN')
+  })
+
+  it('403s a session — a session has no worker to close the task on behalf of', async () => {
+    vi.mocked(authenticatePipeline).mockResolvedValue({ ok: true, auth: { siteId: 'site-1', permissions: ['read', 'write'], source: 'session' } })
+    const { POST } = await import('@/app/api/pipeline/youtube/intelligence/task/[id]/fail/route')
+    const res = await POST(postFail(), { params: Promise.resolve({ id: '22222222-2222-4222-8222-222222222222' }) })
+    expect(res.status).toBe(403)
+    expect((await res.json()).error.code).toBe('FORBIDDEN')
+  })
+})

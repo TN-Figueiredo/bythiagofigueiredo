@@ -15,7 +15,7 @@ vi.mock('@/lib/pipeline/services/http-adapter', async (orig) => ({
 }))
 
 import { authenticateIntel } from '@/lib/pipeline/helpers'
-import { claimNextTask } from '@/lib/pipeline/services/youtube'
+import { claimNextTask, failTask } from '@/lib/pipeline/services/youtube'
 import { PipelineServiceError } from '@/lib/pipeline/services/types'
 
 const AUTH = { ok: true as const, auth: { siteId: 'site-1', permissions: ['read', 'intelligence'], source: 'api_key' as const, keyHash: 'h', keyId: 'key-forja' } }
@@ -60,5 +60,46 @@ describe('POST .../intelligence/task/claim', () => {
     const { POST } = await import('@/app/api/pipeline/youtube/intelligence/task/claim/route')
     const res = await POST(post({ channel_ids: [CH] }))
     expect(res.status).toBe(500)
+  })
+})
+
+const TASK = '22222222-2222-4222-8222-222222222222'
+
+function postFail(body: unknown, id = TASK) {
+  return new Request(`http://localhost/api/pipeline/youtube/intelligence/task/${id}/fail`, {
+    method: 'POST', body: JSON.stringify(body), headers: { 'content-type': 'application/json' },
+  }) as never
+}
+
+describe('POST .../intelligence/task/:id/fail', () => {
+  beforeEach(() => { vi.clearAllMocks(); vi.mocked(authenticateIntel).mockResolvedValue(AUTH) })
+
+  it('200s with {id, status, retry_count} inside the data envelope', async () => {
+    vi.mocked(failTask).mockResolvedValue({ data: { id: TASK, status: 'pending', retry_count: 1 } } as never)
+    const { POST } = await import('@/app/api/pipeline/youtube/intelligence/task/[id]/fail/route')
+    const res = await POST(postFail({ reason: 'llama', retry: true }), { params: Promise.resolve({ id: TASK }) })
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ data: { id: TASK, status: 'pending', retry_count: 1 } })
+    expect(vi.mocked(failTask).mock.calls[0]!.slice(1)).toEqual([TASK, { reason: 'llama', retry: true }])
+  })
+
+  it('400s on an invalid uuid, on a missing reason and on a reason over 500 chars — before touching the service', async () => {
+    const { POST } = await import('@/app/api/pipeline/youtube/intelligence/task/[id]/fail/route')
+    const bad = await POST(postFail({ reason: 'x' }, 'nope'), { params: Promise.resolve({ id: 'nope' }) })
+    expect(bad.status).toBe(400)
+    const noReason = await POST(postFail({}), { params: Promise.resolve({ id: TASK }) })
+    expect(noReason.status).toBe(400)
+    const long = await POST(postFail({ reason: 'x'.repeat(501) }), { params: Promise.resolve({ id: TASK }) })
+    expect(long.status).toBe(400)
+    expect(failTask).not.toHaveBeenCalled()
+  })
+
+  it('maps service errors to 404, 409 and 500', async () => {
+    const { POST } = await import('@/app/api/pipeline/youtube/intelligence/task/[id]/fail/route')
+    for (const [code, status] of [['NOT_FOUND', 404], ['TASK_NOT_RUNNING', 409], ['INTERNAL_ERROR', 500]] as const) {
+      vi.mocked(failTask).mockRejectedValue(new PipelineServiceError(code, code, status))
+      const res = await POST(postFail({ reason: 'x' }), { params: Promise.resolve({ id: TASK }) })
+      expect(res.status).toBe(status)
+    }
   })
 })

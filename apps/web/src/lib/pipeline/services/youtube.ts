@@ -505,6 +505,91 @@ export async function claimNextTask(
 }
 
 // ---------------------------------------------------------------------------
+// Intelligence — POST fail task
+// ---------------------------------------------------------------------------
+
+export interface FailTaskResult {
+  id: string
+  status: string
+  retry_count: number
+}
+
+/**
+ * Close a running task explicitly — the worker's way of saying "I could not finish this".
+ *
+ * The CAS pins `started_at` to the value THIS request read, not just status + owner:
+ * `claimed_by` is the key id and is identical across every claim the forja makes, so
+ * status + owner alone would let a late `fail` close a claim that started afterwards.
+ */
+export async function failTask(
+  ctx: ServiceContext,
+  taskId: string,
+  input: { reason: string; retry?: boolean },
+): Promise<ServiceResult<FailTaskResult>> {
+  const { supabase, siteId, keyId, permissions } = ctx
+  const isWide = permissions.includes('write') || permissions.includes('admin')
+
+  const { data: task, error: selectError } = await supabase
+    .from('youtube_intelligence_tasks')
+    .select('id, status, retry_count, result_summary, started_at')
+    .eq('id', taskId)
+    .eq('site_id', siteId)
+    .maybeSingle()
+
+  if (selectError) return err('INTERNAL_ERROR', 'Failed to read the task', 500)
+  if (!task) return err('NOT_FOUND', 'Task not found', 404)
+  if (task.status !== 'running') {
+    return err('TASK_NOT_RUNNING', `Task status is '${task.status}', expected 'running'`, 409)
+  }
+
+  const previous = (task.result_summary ?? {}) as Record<string, unknown>
+  if (!isWide && (!keyId || previous.claimed_by !== keyId)) {
+    return err('TASK_NOT_RUNNING', 'Task is held by another key', 409)
+  }
+
+  // supabase-js cannot increment a column in place, so the new value is computed from the
+  // row we just read, and `retry_count < 2` is judged on that same read value.
+  const requeue = input.retry === true && task.retry_count < 2
+  const patch = requeue
+    ? {
+        status: 'pending',
+        retry_count: task.retry_count + 1,
+        started_at: null,
+        error_message: null,
+        result_summary: { ...previous, closed_by: keyId ?? null },
+      }
+    : {
+        status: 'failed',
+        failed_at: new Date().toISOString(),
+        error_message: input.reason,
+        result_summary: { ...previous, closed_by: keyId ?? null },
+      }
+
+  if (requeue) {
+    // The reason never lands on the row when the task goes back to the queue — the next
+    // claimant would read it — so it goes to Sentry instead.
+    Sentry.captureMessage(`intelligence task requeued: ${input.reason}`, { extra: { taskId } })
+  }
+
+  let cas = supabase
+    .from('youtube_intelligence_tasks')
+    .update(patch)
+    .eq('id', taskId)
+    .eq('site_id', siteId)
+    .eq('status', 'running')
+    .eq('started_at', task.started_at)
+
+  if (!isWide) cas = cas.eq('result_summary->>claimed_by', keyId as string)
+
+  const { data: closed, error: updateError } = await cas.select('id, status, retry_count').maybeSingle()
+
+  if (updateError) return err('INTERNAL_ERROR', 'Failed to close the task', 500)
+  if (!closed) return err('TASK_NOT_RUNNING', 'The task is no longer held by this key', 409)
+
+  return ok(closed as FailTaskResult)
+}
+
+// ---------------------------------------------------------------------------
 // A/B Tests — list
 // ---------------------------------------------------------------------------
 

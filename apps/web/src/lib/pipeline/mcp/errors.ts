@@ -59,6 +59,11 @@ const ERROR_MAP: Record<string, ErrorClassification> = {
     retryable: false,
     recovery_action: 'The API key lacks the required permission level. Use a key with write or admin permissions.',
   },
+  TASK_NOT_RUNNING: {
+    severity: 'recoverable',
+    retryable: false,
+    recovery_action: 'The task is no longer held by this session (closed, stale or owned by another key). Do not resend; claim another task.',
+  },
 
   // Transient -- retry after delay
   RATE_LIMITED: {

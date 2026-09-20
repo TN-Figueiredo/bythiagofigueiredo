@@ -570,3 +570,18 @@ describe('MCP Errors — error envelope structure', () => {
     }
   })
 })
+
+describe('MCP Errors — TASK_NOT_RUNNING classification', () => {
+  it('classifies as recoverable and non-retryable — the forja must claim another task, not resend', async () => {
+    const { toMcpError } = await import('@/lib/pipeline/mcp/errors')
+    const result = toMcpError({ code: 'TASK_NOT_RUNNING', message: 'Task is held by another key' })
+    expect(result._meta?.severity).toBe('recoverable')
+    expect(result._meta?.retryable).toBe(false)
+  })
+
+  it('leaves VERSION_CONFLICT retryable — unrelated to the new code', async () => {
+    const { toMcpError } = await import('@/lib/pipeline/mcp/errors')
+    const result = toMcpError({ code: 'VERSION_CONFLICT', message: 'stale version' })
+    expect(result._meta?.retryable).toBe(true)
+  })
+})

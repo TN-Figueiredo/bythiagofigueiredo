@@ -25,7 +25,7 @@ describe('MCP Registry Sync', () => {
 
   it('covers all registry endpoints', () => {
     const { mapped, unmapped } = getRegistryCoverage()
-    // Sum: items(22) + playlists(13) + libraries(15) + research(26) + youtube(32) + utilities(11) + course(0) + links(5) = 124
-    expect(mapped.length + unmapped.length).toBe(124)
+    // Sum: items(22) + playlists(13) + libraries(15) + research(26) + youtube(33) + utilities(11) + course(0) + links(5) = 125
+    expect(mapped.length + unmapped.length).toBe(125)
   })
 })
