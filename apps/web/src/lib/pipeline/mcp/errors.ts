@@ -64,6 +64,11 @@ const ERROR_MAP: Record<string, ErrorClassification> = {
     retryable: false,
     recovery_action: 'The task is no longer held by this session (closed, stale or owned by another key). Do not resend; claim another task.',
   },
+  PARTIAL_FAILURE: {
+    severity: 'recoverable',
+    retryable: false,
+    recovery_action: 'Some writes failed and the task is still running — nothing was closed. Send an explicit fail with retry instead of resending the PATCH.',
+  },
 
   // Transient -- retry after delay
   RATE_LIMITED: {

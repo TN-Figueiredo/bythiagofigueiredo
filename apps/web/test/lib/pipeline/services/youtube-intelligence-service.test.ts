@@ -390,3 +390,42 @@ describe('submitIntelRecommendations — task state and ownership', () => {
     })).rejects.toMatchObject({ code: 'VALIDATION_ERROR', status: 422 })
   })
 })
+
+describe('submitIntelRecommendations — closing the task', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('closes with a CAS pinned to status, site, started_at and owner, preserving claimed_by', async () => {
+    const sb = makeSupabase([runningTask, { data: null, error: null }, { data: null, error: null }, { data: { id: TASK_ID }, error: null }])
+    await submitIntelRecommendations(ctxOf(sb), CHANNEL_ONLY)
+    const close = sb.calls.filter(c => c.op === 'update').at(-1)!.args[0] as Record<string, unknown>
+    expect(close).toMatchObject({ status: 'completed' })
+    expect(close.result_summary).toMatchObject({ claimed_by: 'key-forja', has_coaching: true, recommendations: 0, source: 'forja', closed_by: 'key-forja' })
+    expect(sb.calls).toContainEqual({ op: 'eq', args: ['started_at', '2026-09-19T10:00:00Z'] })
+    expect(sb.calls).toContainEqual({ op: 'eq', args: ['result_summary->>claimed_by', 'key-forja'] })
+  })
+
+  it('409s when the closing CAS returns no row', async () => {
+    const sb = makeSupabase([runningTask, { data: null, error: null }, { data: null, error: null }, { data: null, error: null }])
+    await expect(submitIntelRecommendations(ctxOf(sb), CHANNEL_ONLY)).rejects.toMatchObject({ code: 'TASK_NOT_RUNNING', status: 409 })
+  })
+
+  it('500s INTERNAL_ERROR when the closing UPDATE itself errors', async () => {
+    const sb = makeSupabase([runningTask, { data: null, error: null }, { data: null, error: null }, { data: null, error: { message: 'boom' } }])
+    await expect(submitIntelRecommendations(ctxOf(sb), CHANNEL_ONLY)).rejects.toMatchObject({ code: 'INTERNAL_ERROR', status: 500 })
+  })
+
+  it('500s PARTIAL_FAILURE listing only targets, and leaves the task untouched', async () => {
+    const sb = makeSupabase([runningTask, { data: null, error: null }, { data: null, error: { message: 'disk on fire' } }])
+    await expect(submitIntelRecommendations(ctxOf(sb), CHANNEL_ONLY)).rejects.toMatchObject({
+      code: 'PARTIAL_FAILURE', status: 500, message: 'channel: write_failed',
+    })
+    // nothing was written to the task table: no completed_at, no failed_at, no error_message
+    expect(sb.calls.filter(c => c.op === 'update')).toHaveLength(0)
+  })
+
+  it('never writes the status partial_failure — the DB CHECK forbids it', async () => {
+    const sb = makeSupabase([runningTask, { data: null, error: null }, { data: null, error: { message: 'x' } }])
+    await submitIntelRecommendations(ctxOf(sb), CHANNEL_ONLY).catch(() => {})
+    expect(JSON.stringify(sb.calls)).not.toContain('partial_failure')
+  })
+})

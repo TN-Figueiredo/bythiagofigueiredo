@@ -357,8 +357,9 @@ export async function submitIntelRecommendations(
     return err('TASK_NOT_RUNNING', 'Task is held by another key', 409)
   }
 
-  // Track DB write failures for partial-failure reporting
-  const dbErrors: string[] = []
+  // Track DB write failures for partial-failure reporting.
+  const dbErrors: string[] = []      // raw messages — Sentry only
+  const dbTargets: string[] = []     // "video <uuid>: write_failed" / "channel: write_failed"
 
   // Process video recommendations
   if (video_recommendations?.length) {
@@ -406,12 +407,14 @@ export async function submitIntelRecommendations(
         if (error) {
           Sentry.captureMessage(`intelligence update failed: ${error.message}`, { extra: { videoId: rec.video_id } })
           dbErrors.push(`video ${rec.video_id}: ${error.message}`)
+          dbTargets.push(`video ${rec.video_id}: write_failed`)
         }
       } else {
         const { error } = await supabase.from('youtube_intelligence').insert(intelPayload)
         if (error) {
           Sentry.captureMessage(`intelligence insert failed: ${error.message}`, { extra: { videoId: rec.video_id } })
           dbErrors.push(`video ${rec.video_id}: ${error.message}`)
+          dbTargets.push(`video ${rec.video_id}: write_failed`)
         }
       }
 
@@ -458,12 +461,14 @@ export async function submitIntelRecommendations(
       if (error) {
         Sentry.captureMessage(`channel intelligence update failed: ${error.message}`)
         dbErrors.push(`channel coaching: ${error.message}`)
+        dbTargets.push('channel: write_failed')
       }
     } else {
       const { error } = await supabase.from('youtube_intelligence').insert(channelPayload)
       if (error) {
         Sentry.captureMessage(`channel intelligence insert failed: ${error.message}`)
         dbErrors.push(`channel coaching: ${error.message}`)
+        dbTargets.push('channel: write_failed')
       }
     }
   }
@@ -488,23 +493,42 @@ export async function submitIntelRecommendations(
     }
   }
 
-  // Mark task status based on whether all writes succeeded
-  const finalStatus = dbErrors.length > 0 ? 'partial_failure' : 'completed'
-  await supabase.from('youtube_intelligence_tasks').update({
-    status: finalStatus,
-    completed_at: new Date().toISOString(),
-    result_summary: {
-      recommendations: video_recommendations?.length ?? 0,
-      has_coaching: !!coaching,
-      ...(dbErrors.length > 0 && { failed_writes: dbErrors.length }),
-    },
-  }).eq('id', task_id)
-
-  const result: ServiceResult<TaskResult> = ok({ status: 'ok' as const, processed: true })
-  if (dbErrors.length > 0) {
-    result.warnings = dbErrors
+  // A partial write never touches the task: it stays `running`, and whoever called closes it
+  // with the explicit `fail` (retry) the 500 already asks for — or the watchdog does, in 30–60 min.
+  // `partial_failure` is not even a legal status: the CHECK on the table allows only
+  // pending/running/completed/failed/stale.
+  if (dbTargets.length > 0) {
+    return err('PARTIAL_FAILURE', dbTargets.join('; '), 500)
   }
-  return result
+
+  let closing = supabase
+    .from('youtube_intelligence_tasks')
+    .update({
+      status: 'completed',
+      completed_at: new Date().toISOString(),
+      result_summary: {
+        ...previousSummary,
+        recommendations: video_recommendations?.length ?? 0,
+        has_coaching: !!coaching,
+        source,
+        closed_by: ctx.keyId ?? null,
+      },
+    })
+    .eq('id', task_id)
+    .eq('site_id', siteId)
+    .eq('status', 'running')
+    .eq('started_at', task.started_at)
+
+  if (!isWideKey) closing = closing.eq('result_summary->>claimed_by', ctx.keyId as string)
+
+  const { data: closed, error: closeError } = await closing.select('id').maybeSingle()
+
+  if (closeError) return err('INTERNAL_ERROR', 'Failed to close the task', 500)
+  // 409 means "the task is no longer yours", not "nothing was written": rows already written
+  // by this PATCH stay, and the next run overwrites the forja channel row.
+  if (!closed) return err('TASK_NOT_RUNNING', 'The task is no longer held by this key', 409)
+
+  return ok({ status: 'ok' as const, processed: true })
 }
 
 // ---------------------------------------------------------------------------
