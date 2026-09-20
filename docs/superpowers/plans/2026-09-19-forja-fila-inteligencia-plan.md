@@ -11444,6 +11444,23 @@ Expected: `SEM-CHAVE-NO-STAGED` e depois o commit. A varredura olha **só o que 
 
 ### Task F1-3: `seed_chave_forja.sh fila <sha>`
 
+> **Mudança de procedimento aplicada na execução (2026-09-20).** O review achou que o script
+> revogava **antes** de conferir: passar um SHA errado — o da fase 1 está no mesmo documento —
+> derrubava a `forja (fila)` viva, e com um hash válido e inédito a conferência ainda via
+> `ativas=1` e imprimia `conferencia: ok`, deixando produção em 401 **com o script reportando
+> sucesso**. A correção acrescentou uma **pré-checagem só-leitura** que conta as `forja (fila)`
+> ativas com hash diferente e **para antes de qualquer escrita** se houver alguma, exigindo
+> `CONFIRMAR_REVOGACAO=sim` para prosseguir.
+>
+> Consequência para o dono, que o texto abaixo ainda não refletia:
+> - **primeira criação da chave** (nenhuma `forja (fila)` ativa): nada muda, o comando é o mesmo;
+> - **rotação** (já existe uma ativa): o comando do plano **para com código ≠ 0**, de propósito.
+>   Para completar a rotação, e só depois de ler quais chaves serão revogadas:
+>   `CONFIRMAR_REVOGACAO=sim bash ~/Workspace/forja/ferramentas/seed_chave_forja.sh fila <sha>`
+>
+> Verificado por mutação no re-review: invertendo o gate, a suíte fica vermelha em 7 casos,
+> incluindo "nunca diz ok" — a trava é exercitada de verdade, não só declarada.
+
 **Files:**
 - Create: `~/Workspace/forja/ferramentas/fase2/teste_seed_fila.sh`
 - Modify: `~/Workspace/forja/ferramentas/seed_chave_forja.sh`
