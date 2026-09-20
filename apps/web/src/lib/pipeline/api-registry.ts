@@ -4,7 +4,7 @@ export interface ApiEndpointMeta {
   method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'
   path: string
   summary: string
-  auth: 'read' | 'write'
+  auth: 'read' | 'write' | 'intelligence'
 }
 
 export interface CapabilityDomain {

@@ -38,6 +38,27 @@ export async function authenticateRead(req: NextRequest): Promise<
 }
 
 /**
+ * Authenticate a request against the narrow `intelligence` scope.
+ *
+ * `apiKeyOnly` exists because the queue routes hand a task to a worker: a session
+ * has no worker to hand it to and would leave the task orphaned, so it gets a 403.
+ */
+export async function authenticateIntel(
+  req: NextRequest,
+  opts?: { apiKeyOnly?: boolean },
+): Promise<{ ok: true; auth: PipelineAuth } | NextResponse> {
+  const authResult = await authenticatePipeline(req)
+  if (!authResult.ok) return pipelineError('UNAUTHORIZED', authResult.error, authResult.status)
+  if (opts?.apiKeyOnly && authResult.auth.source !== 'api_key') {
+    return pipelineError('FORBIDDEN', 'API key required', 403, authResult.auth)
+  }
+  if (!requirePermission(authResult.auth, 'intelligence')) {
+    return pipelineError('FORBIDDEN', 'Insufficient permissions', 403, authResult.auth)
+  }
+  return { ok: true, auth: authResult.auth }
+}
+
+/**
  * Read + optionally validate a JSON request body at the transport boundary.
  *
  * Backward compatible with the domain's existing contract: on failure it returns a

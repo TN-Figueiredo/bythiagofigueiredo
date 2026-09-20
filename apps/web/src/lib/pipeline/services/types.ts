@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-export type Permission = 'read' | 'write' | 'admin'
+export type Permission = 'read' | 'write' | 'admin' | 'intelligence'
 
 export interface ServiceContext {
   siteId: string
