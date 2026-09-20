@@ -56,3 +56,11 @@ describe('GET /api/pipeline/youtube/intelligence/task — legacy claim needs wri
     expect(res.status).toBe(403)
   })
 })
+
+it('403s a session on the claim route — a session has no worker to hand the task to', async () => {
+  vi.mocked(authenticatePipeline).mockResolvedValue({ ok: true, auth: { siteId: 'site-1', permissions: ['read', 'write'], source: 'session' } })
+  const { POST } = await import('@/app/api/pipeline/youtube/intelligence/task/claim/route')
+  const res = await POST(new Request('http://localhost/x', { method: 'POST', body: '{"channel_ids":["11111111-1111-4111-8111-111111111111"]}', headers: { 'content-type': 'application/json' } }) as never)
+  expect(res.status).toBe(403)
+  expect((await res.json()).error.code).toBe('FORBIDDEN')
+})
