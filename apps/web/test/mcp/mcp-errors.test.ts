@@ -585,3 +585,12 @@ describe('MCP Errors — TASK_NOT_RUNNING classification', () => {
     expect(result._meta?.retryable).toBe(true)
   })
 })
+
+describe('MCP Errors — PARTIAL_FAILURE classification', () => {
+  it('classifies as recoverable and non-retryable — resend would replay the writes that already landed', async () => {
+    const { toMcpError } = await import('@/lib/pipeline/mcp/errors')
+    const result = toMcpError({ code: 'PARTIAL_FAILURE', message: 'video abc: write_failed' })
+    expect(result._meta?.severity).toBe('recoverable')
+    expect(result._meta?.retryable).toBe(false)
+  })
+})

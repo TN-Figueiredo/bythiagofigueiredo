@@ -397,11 +397,17 @@ describe('submitIntelRecommendations — closing the task', () => {
   it('closes with a CAS pinned to status, site, started_at and owner, preserving claimed_by', async () => {
     const sb = makeSupabase([runningTask, { data: null, error: null }, { data: null, error: null }, { data: { id: TASK_ID }, error: null }])
     await submitIntelRecommendations(ctxOf(sb), CHANNEL_ONLY)
-    const close = sb.calls.filter(c => c.op === 'update').at(-1)!.args[0] as Record<string, unknown>
+    // CHANNEL_ONLY never hits the coaching UPDATE branch (existingChannel is null in this
+    // fixture), so the first — and only — 'update' op is the closing CAS itself.
+    const cas = sb.from('update')
+    const close = cas[0]!.args[0] as Record<string, unknown>
     expect(close).toMatchObject({ status: 'completed' })
     expect(close.result_summary).toMatchObject({ claimed_by: 'key-forja', has_coaching: true, recommendations: 0, source: 'forja', closed_by: 'key-forja' })
-    expect(sb.calls).toContainEqual({ op: 'eq', args: ['started_at', '2026-09-19T10:00:00Z'] })
-    expect(sb.calls).toContainEqual({ op: 'eq', args: ['result_summary->>claimed_by', 'key-forja'] })
+    expect(cas).toContainEqual({ op: 'eq', args: ['id', TASK_ID] })
+    expect(cas).toContainEqual({ op: 'eq', args: ['site_id', 'site-1'] })
+    expect(cas).toContainEqual({ op: 'eq', args: ['status', 'running'] })
+    expect(cas).toContainEqual({ op: 'eq', args: ['started_at', '2026-09-19T10:00:00Z'] })
+    expect(cas).toContainEqual({ op: 'eq', args: ['result_summary->>claimed_by', 'key-forja'] })
   })
 
   it('409s when the closing CAS returns no row', async () => {
@@ -489,14 +495,29 @@ describe('getIntelligenceSnapshot — recent window', () => {
     }))
     await getIntelligenceSnapshot(ctxOf(sb), 'ch-1')
 
+    // Two independent reads share this table: the date probe and the per-video read. A bare
+    // `.toContainEqual` over the merged list would let `site_id` (or any other clause) drop
+    // from EITHER read while the other keeps it — mutating each `.eq('site_id', …)` away
+    // individually proved this: the un-sliced assertion still went green. Slice by the two
+    // `select` calls so each read is checked on its own.
     const analytics = sb.calls.filter(c => c.table === 'youtube_video_analytics')
-    expect(analytics).toContainEqual({ table: 'youtube_video_analytics', op: 'gte', args: ['date', '2026-09-16'] })
-    expect(analytics).toContainEqual({ table: 'youtube_video_analytics', op: 'order', args: ['date', { ascending: false }] })
-    expect(analytics).toContainEqual({ table: 'youtube_video_analytics', op: 'limit', args: [1] })
-    expect(analytics).toContainEqual({ table: 'youtube_video_analytics', op: 'eq', args: ['site_id', 'site-1'] })
+    const selectIdxs = analytics.reduce<number[]>((acc, c, i) => (c.op === 'select' ? [...acc, i] : acc), [])
+    expect(selectIdxs).toHaveLength(2)
+    const probe = analytics.slice(selectIdxs[0], selectIdxs[1])
+    const perVideo = analytics.slice(selectIdxs[1])
+
+    expect(probe).toContainEqual({ table: 'youtube_video_analytics', op: 'select', args: ['date'] })
+    expect(probe).toContainEqual({ table: 'youtube_video_analytics', op: 'eq', args: ['site_id', 'site-1'] })
     // the internal uuid of youtube_videos, never the textual youtube_video_id
-    expect(analytics).toContainEqual({ table: 'youtube_video_analytics', op: 'in', args: ['youtube_video_id', [V1, V2]] })
-    expect(analytics).toContainEqual({ table: 'youtube_video_analytics', op: 'eq', args: ['date', '2026-09-18'] })
+    expect(probe).toContainEqual({ table: 'youtube_video_analytics', op: 'in', args: ['youtube_video_id', [V1, V2]] })
+    expect(probe).toContainEqual({ table: 'youtube_video_analytics', op: 'gte', args: ['date', '2026-09-16'] })
+    expect(probe).toContainEqual({ table: 'youtube_video_analytics', op: 'order', args: ['date', { ascending: false }] })
+    expect(probe).toContainEqual({ table: 'youtube_video_analytics', op: 'limit', args: [1] })
+
+    expect(perVideo).toContainEqual({ table: 'youtube_video_analytics', op: 'select', args: ['youtube_video_id, views, subscribers_gained'] })
+    expect(perVideo).toContainEqual({ table: 'youtube_video_analytics', op: 'eq', args: ['site_id', 'site-1'] })
+    expect(perVideo).toContainEqual({ table: 'youtube_video_analytics', op: 'in', args: ['youtube_video_id', [V1, V2]] })
+    expect(perVideo).toContainEqual({ table: 'youtube_video_analytics', op: 'eq', args: ['date', '2026-09-18'] })
   })
 
   it('fills recent from the row of that single date, without summing, and zeroes missing videos', async () => {

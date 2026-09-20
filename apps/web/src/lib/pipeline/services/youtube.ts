@@ -410,9 +410,11 @@ export async function submitIntelRecommendations(
     return err('TASK_NOT_RUNNING', 'Task is held by another key', 409)
   }
 
-  // Track DB write failures for partial-failure reporting.
-  const dbErrors: string[] = []      // raw messages — Sentry only
-  const dbTargets: string[] = []     // "video <uuid>: write_failed" / "channel: write_failed"
+  // Track DB write failures for partial-failure reporting. The raw error.message never
+  // leaves this function — it goes to Sentry inline, at the point of failure, via
+  // captureMessage — so only the response-safe target ("video <uuid>: write_failed" /
+  // "channel: write_failed") is collected here.
+  const dbTargets: string[] = []
 
   // Process video recommendations
   if (video_recommendations?.length) {
@@ -459,14 +461,12 @@ export async function submitIntelRecommendations(
         const { error } = await supabase.from('youtube_intelligence').update(intelPayload).eq('id', existingIntel.id)
         if (error) {
           Sentry.captureMessage(`intelligence update failed: ${error.message}`, { extra: { videoId: rec.video_id } })
-          dbErrors.push(`video ${rec.video_id}: ${error.message}`)
           dbTargets.push(`video ${rec.video_id}: write_failed`)
         }
       } else {
         const { error } = await supabase.from('youtube_intelligence').insert(intelPayload)
         if (error) {
           Sentry.captureMessage(`intelligence insert failed: ${error.message}`, { extra: { videoId: rec.video_id } })
-          dbErrors.push(`video ${rec.video_id}: ${error.message}`)
           dbTargets.push(`video ${rec.video_id}: write_failed`)
         }
       }
@@ -513,14 +513,12 @@ export async function submitIntelRecommendations(
       const { error } = await supabase.from('youtube_intelligence').update(channelPayload).eq('id', existingChannel.id)
       if (error) {
         Sentry.captureMessage(`channel intelligence update failed: ${error.message}`)
-        dbErrors.push(`channel coaching: ${error.message}`)
         dbTargets.push('channel: write_failed')
       }
     } else {
       const { error } = await supabase.from('youtube_intelligence').insert(channelPayload)
       if (error) {
         Sentry.captureMessage(`channel intelligence insert failed: ${error.message}`)
-        dbErrors.push(`channel coaching: ${error.message}`)
         dbTargets.push('channel: write_failed')
       }
     }
