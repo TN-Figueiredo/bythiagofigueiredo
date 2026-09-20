@@ -104,6 +104,7 @@ async function fetchSnapshotAge(): Promise<number> {
   const { data } = await supabase
     .from('youtube_intelligence')
     .select('generated_at')
+    .eq('source', 'cowork')
     .order('generated_at', { ascending: false })
     .limit(1)
     .single()
@@ -930,7 +931,7 @@ export function registerPrompts(server: McpServer): void {
       lines.push('- All videos with CTR, retention, impressions, traffic sources')
       lines.push('- Grade history (weekly grades per video)')
       lines.push('- Active optimization cycles')
-      lines.push('- Existing intelligence recommendations')
+      lines.push('- Existing intelligence recommendations (the `intelligence` array only ever contains Cowork-authored rows — forja rows are excluded)')
       lines.push('')
 
       lines.push('## Step 2: Evaluate Video Performance')
